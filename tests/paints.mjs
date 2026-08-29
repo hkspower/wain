@@ -24,7 +24,10 @@
 // because 76 is badly wrong in the saturated regions, which is where
 // half of a car palette lives.
 
-import { PAINTS, GLOWS, PAINT_HEX, GLOW_HEX, swatch, paintFromSwatch } from "../src/game/paints.ts";
+import {
+  PAINTS, GLOWS, COVERS, PAINT_HEX, GLOW_HEX, COVER_HEX,
+  CARBON_KG, NOMINAL_CAR_KG, swatch, paintFromSwatch,
+} from "../src/game/paints.ts";
 import { PARTS } from "../src/game/mods.ts";
 
 const fail = [];
@@ -152,6 +155,43 @@ const MIN_DE = 12;
   console.log(`glows    ${GLOWS.length} colours; closest ${worst.a} / ${worst.b} at dE ${worst.d.toFixed(1)}`);
 }
 
+// --- 2b. Engine covers, and why their floor is different --------------
+//
+// A cam cover is seen through a vent, in shadow, at roughly a hand's
+// width. Six colours, and they only have to be told apart from each
+// other — a cover is never seen beside a body panel closely enough for
+// the two to be confused, so they are not measured against the paint.
+{
+  let worst = { d: Infinity, a: "", b: "" };
+  for (let i = 0; i < COVERS.length; i++) {
+    for (let j = i + 1; j < COVERS.length; j++) {
+      const d = deltaE(COVERS[i].hex, COVERS[j].hex);
+      if (d < worst.d) worst = { d, a: COVERS[i].id, b: COVERS[j].id };
+      if (d < 12) {
+        fail.push(`${COVERS[i].id} and ${COVERS[j].id} are only ${d.toFixed(1)} apart`);
+      }
+    }
+  }
+  console.log(`covers   ${COVERS.length} colours; closest ${worst.a} / ${worst.b} at dE ${worst.d.toFixed(1)}`);
+}
+
+// --- 2c. Carbon is bought for what it takes off -----------------------
+{
+  check(CARBON_KG.none === 0, "the steel option saves weight");
+  check(CARBON_KG.full > CARBON_KG.panels, "Full Dry Carbon saves no more than the cheaper package");
+  // Real panels, real numbers. A bonnet is 8-12 kg, a boot lid 6-8, mirror
+  // caps under 2, a roof skin 10-14 — so a package is tens of kilos and
+  // not hundreds. A hundred kilos off a road car is not a carbon bonnet,
+  // it is a stripped interior and a different mod.
+  check(CARBON_KG.panels >= 10 && CARBON_KG.panels <= 40, `the package saves ${CARBON_KG.panels} kg`);
+  check(CARBON_KG.full <= 60, `full dry carbon claims ${CARBON_KG.full} kg, which is not bodywork`);
+  check(NOMINAL_CAR_KG > 900 && NOMINAL_CAR_KG < 2200, `a nominal car weighs ${NOMINAL_CAR_KG} kg`);
+  const gain = CARBON_KG.full / NOMINAL_CAR_KG;
+  console.log(`carbon   ${CARBON_KG.panels} kg and ${CARBON_KG.full} kg off ${NOMINAL_CAR_KG} — up to ${(gain * 100).toFixed(1)}% lighter`);
+  // The reason to buy it is the weave, not the lap time.
+  check(gain < 0.06, `carbon is worth ${(gain * 100).toFixed(1)}%, which is a power part wearing a body kit's name`);
+}
+
 // --- 3. Nothing is unbuyable, and nothing is unpaintable ---------------
 //
 // A swatch with no part is a colour nobody can have; a part with no
@@ -159,6 +199,14 @@ const MIN_DE = 12;
 {
   const catalogue = new Set(PARTS.filter((p) => p.cat === "paint").map((p) => p.id));
   const glowParts = new Set(PARTS.filter((p) => p.cat === "glow").map((p) => p.id));
+  const coverParts = new Set(PARTS.filter((p) => p.cat === "cover").map((p) => p.id));
+  for (const c of COVERS) {
+    check(coverParts.has(c.id), `${c.id} has a colour and nothing in the garage sells it`);
+  }
+  for (const id of coverParts) {
+    if (id === "cover-none") continue; // the stock black cover has no chosen colour
+    check(COVER_HEX[id] !== undefined, `the garage sells ${id} and no colour says what shade it is`);
+  }
   for (const p of PAINTS) {
     check(catalogue.has(p.id), `${p.id} has a swatch and nothing in the garage sells it`);
   }
@@ -179,7 +227,7 @@ const MIN_DE = 12;
 {
   const byId = new Map(PARTS.map((p) => [p.id, p]));
   const names = new Set();
-  for (const p of [...PAINTS, ...GLOWS]) {
+  for (const p of [...PAINTS, ...GLOWS, ...COVERS]) {
     const part = byId.get(p.id);
     if (!part) continue; // reported above
     check(part.name.trim().length > 0, `${p.id} has no English name`);

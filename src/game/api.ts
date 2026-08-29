@@ -11,7 +11,7 @@ import {
   QUESTS, TOGETHER_M, MET_M, MATCHED_KMH, MATCHED_FLOOR_KMH,
 } from "./quests";
 import { CARS, PARTS, PAINT_COLORS, GLOW_COLORS, classLabel } from "./mods";
-import { PAINTS, GLOWS, swatch } from "./paints";
+import { PAINTS, GLOWS, COVERS, CARBON_KG, NOMINAL_CAR_KG, swatch } from "./paints";
 import {
   ENGINES,
   FUEL_RATE,
@@ -225,6 +225,9 @@ export function buildGameData() {
         css: swatch(p.hex),
       })),
       glows: GLOWS.map((g) => ({ id: g.id, color: hex(g.hex), css: swatch(g.hex) })),
+      /** Cam-cover colours. Their own short list, and stronger than any
+       *  body colour: a cover is seen in shadow through a vent. */
+      covers: COVERS.map((c) => ({ id: c.id, color: hex(c.hex), css: swatch(c.hex) })),
       /**
        * The floor every pair of paints clears, as CIEDE2000 in CIELAB.
        * Published because it is the rule a port has to keep when it adds
@@ -232,6 +235,19 @@ export function buildGameData() {
        * a claim worth stating in units rather than leaving to taste.
        */
       minPerceptualDistance: 12,
+    },
+    /**
+     * Carbon bodywork, published as the kilograms it takes off rather
+     * than as a percentage.
+     *
+     * A percentage would make a carbon bonnet worth more on a heavy car
+     * than on a light one, which is backwards, and it would leave each
+     * port to pick its own. The saving and the mass it is divided by are
+     * both here, so every build agrees what a bonnet is worth.
+     */
+    carbon: {
+      savedKg: CARBON_KG,
+      nominalCarKg: NOMINAL_CAR_KG,
     },
     runs: {
       togetherM: TOGETHER_M,
