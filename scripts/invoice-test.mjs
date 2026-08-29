@@ -124,6 +124,65 @@ for (const withBag of [false, true]) {
     // The dark-theme fix in the same stylesheet, re-checked rather than trusted.
     const white = ['#ffffff', 'rgb(255, 255, 255)'].includes(s.bg.toLowerCase())
     check(white, 'and it prints black on white, not the shop\'s dark ground', s.bg)
+
+    // ---- ONE EDGE, NOT TWO -------------------------------------------------
+    // The storefront marks Latin runs dir="ltr" so they shape correctly inside
+    // an Arabic page. On a BLOCK that also redefines `text-align: start` to
+    // mean the left edge, so the customer's name and the English product name
+    // sat adrift in the middle of a column whose every other line was flush
+    // right. Asserted as glyph boxes, because element boxes are full-width and
+    // look identical whether this is right or wrong.
+    const edges = await page.evaluate(() => {
+      const find = (re) => {
+        const w = document.createTreeWalker(document.querySelector('.invoice'), NodeFilter.SHOW_TEXT)
+        let n
+        while ((n = w.nextNode())) {
+          if (!re.test(n.textContent.trim())) continue
+          const r = document.createRange(); r.selectNodeContents(n)
+          const b = r.getBoundingClientRect()
+          if (b.width) return Math.round(b.right)
+        }
+        return null
+      }
+      const blocksAlignedLeft = [...document.querySelectorAll('.invoice [dir="ltr"]')]
+        .filter((e) => getComputedStyle(e).display !== 'inline')
+        .filter((e) => ['left', 'start'].includes(getComputedStyle(e).textAlign))
+        .map((e) => e.textContent.trim().slice(0, 24))
+      return { heading: find(/^فاتورة إلى$/), name: find(/^Rig/), addr: find(/^قطعة/),
+        ar: find(/^سويت/), en: find(/^Cagliari/), blocksAlignedLeft }
+    })
+    check(edges.name !== null && edges.name === edges.addr,
+      'the customer\'s name ends on the same edge as their own address',
+      `name R${edges.name} vs address R${edges.addr}`)
+    check(edges.en !== null && edges.en === edges.ar,
+      'and the English product name on the same edge as the Arabic one',
+      `en R${edges.en} vs ar R${edges.ar}`)
+    check(edges.blocksAlignedLeft.length === 0,
+      'no Latin block in an Arabic invoice is left-aligned by its own dir',
+      edges.blocksAlignedLeft.join(' | '))
+
+    // ---- ROOM AT THE TOP AND THE BOTTOM ------------------------------------
+    // The title used to start at y=0, the first pixel of the page's content
+    // box, because the build strips the invoice's padding and leaves the
+    // spacing entirely to @page. The bottom is the half that matters on an
+    // invoice long enough to fill the sheet.
+    const pad = await page.evaluate(() => {
+      const inv = document.querySelector('.invoice')
+      const s = getComputedStyle(inv)
+      const w = document.createTreeWalker(inv, NodeFilter.SHOW_TEXT)
+      let n, top = Infinity
+      while ((n = w.nextNode())) {
+        if (!n.textContent.trim()) continue
+        const r = document.createRange(); r.selectNodeContents(n)
+        const b = r.getBoundingClientRect()
+        if (b.height) top = Math.min(top, Math.round(b.top))
+      }
+      return { top, padTop: s.paddingTop, padBottom: s.paddingBottom }
+    })
+    check(pad.top >= 20, 'the title is not printed hard against the top of the page', `first glyph y=${pad.top}`)
+    check(parseFloat(pad.padBottom) >= 20,
+      'and a full-page invoice would not finish hard against the bottom',
+      `padding-bottom ${pad.padBottom}`)
   }
   await ctx.close()
 }

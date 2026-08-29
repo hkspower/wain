@@ -281,6 +281,53 @@ main section:has(> div > div > h1) > div.mb-8 {
   margin-bottom: 0.75rem !important;
 }
 
+/* -------------------------------------------- the invoice's ragged edge */
+/* THE CUSTOMER'S NAME DOES NOT LINE UP WITH THEIR OWN ADDRESS.
+ *
+ * Measured on /invoice/<track>, glyph boxes rather than element boxes, on a
+ * 688px page (screen and print are identical here):
+ *
+ *   فاتورة إلى                     L625  R688     flush right
+ *   Rig Tester                     L356  R439     adrift in the middle
+ *   قطعة 4، شارع 12، منزل / بناية 8  L491  R688     flush right
+ *   السالمية، حولي                  L592  R688     flush right
+ *
+ * And the same thing in the items table, one row below the Arabic name that
+ * does sit right:
+ *
+ *   سويت شيرت كالياري كالتشو — كحلي   L453  R688    flush right
+ *   Cagliari Calcio Sweatshirt      L361  R575     adrift
+ *
+ * WHY, and the cause is a good decision with one side effect. The storefront
+ * marks every Latin run `dir="ltr"` — the phone number, the order reference,
+ * the date, the customer's name, the English product name. That is CORRECT and
+ * must stay: it is what makes `+965 22091914` and `TPMTE94L9C832` shape and
+ * order properly inside an Arabic page instead of coming out reversed.
+ *
+ * But `dir` does two jobs at once. It sets the writing direction, and it
+ * redefines what `text-align: start` MEANS. In an RTL document start is the
+ * right edge; inside an element marked `dir="ltr"` it becomes the left edge.
+ *
+ * So it only bites BLOCK-level elements, which is why three of the five Latin
+ * runs are fine: `<span dir="ltr">` is inline and takes its alignment from the
+ * paragraph around it. The two that are wrong are the two that are blocks —
+ * `<p dir="ltr">Rig Tester</p>` and the product's English name, which carries
+ * Tailwind's `block`.
+ *
+ * THE FIX KEEPS THE DIRECTION AND ONLY TAKES BACK THE ALIGNMENT, so the bidi
+ * shaping this markup exists for is untouched. Written both ways round, from
+ * the document's direction rather than the element's, so the English invoice
+ * gets the mirror of it rather than the same bug pointing the other way.
+ *
+ * `text-align` does nothing to an inline box, so the spans are unaffected by
+ * this even though they match it. */
+[dir='rtl'] .invoice [dir='ltr'] {
+  text-align: right;
+}
+[dir='ltr'] .invoice [dir='rtl'] {
+  text-align: left;
+}
+
 /* ------------------------------------------------------------ printing */
 /* AN INVOICE PRINTS ON WHITE PAPER.
  *
@@ -395,6 +442,27 @@ main section:has(> div > div > h1) > div.mb-8 {
   .tap-target.fixed,
   .fixed.inset-0.z-40 {
     display: none !important;
+  }
+
+  /* ROOM ABOVE THE TITLE AND BELOW THE LAST LINE.
+   *
+   * Measured: the first glyph of `فاتورة` sat at y=0 — the very first pixel of
+   * the page's content box — because the build's print rules strip the
+   * invoice's padding (`.invoice { padding: 0 }` and `.invoice article
+   * { padding: 0 }`) and leave the whole job to `@page { margin: 14mm }`.
+   *
+   * That is not wrong, and it is why this is 8mm rather than a lot: 14mm is
+   * already a proper paper margin, and the title only needs to stop touching
+   * it. The pair matters more than either number — the bottom is invisible on
+   * a short invoice like the test one, which ends at y=575 of 1123 with half
+   * the sheet blank, and becomes the whole point on an order long enough to
+   * fill the page, where the last line would otherwise finish hard against the
+   * bottom margin exactly as the title started against the top.
+   *
+   * padding-block, so it stays correct in both directions and in both
+   * languages without being written twice. */
+  .invoice {
+    padding-block: 8mm !important;
   }
 }
 
