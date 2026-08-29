@@ -36,6 +36,30 @@ same=0; diff=0; miss=0; fails=0
 tmp=$(mktemp)
 trap 'rm -f "$tmp"' EXIT
 
+# CAN THIS MACHINE REACH THE SITE AT ALL? Asked once, before the loop, and it
+# is not a nicety.
+#
+# curl reports an unreachable host as status 000, and the loop below treats
+# anything that is not 200 as MISSING. So a machine behind a proxy that denies
+# the host — or a laptop on aeroplane wifi — produced:
+#
+#     MISSING  index.html (000)
+#     ... 132 more ...
+#     0 identical, 0 differing, 132 missing (of 132)
+#
+# which reads as "the entire site has been deleted" and is in fact "the network
+# said no". Measured here: an egress policy denied www.sporta.com.kw and this
+# script reported every file on the shop as missing.
+#
+# A tool that reports a network failure as a content finding is worse than one
+# that refuses to run, because somebody acts on it.
+probe=$(curl -s -o /dev/null -w '%{http_code}' -m 20 "$BASE/" || true)
+if [ "$probe" = "000" ]; then
+  echo "cannot reach $BASE — curl could not connect (DNS, proxy, or the host is down)."
+  echo "Nothing below would mean anything, so this is not a comparison and it stops here."
+  exit 2
+fi
+
 while read -r want path; do
   [ -z "${path:-}" ] && continue
   code=$(curl -s -o "$tmp" -w '%{http_code}' -m 30 "$BASE/$path")

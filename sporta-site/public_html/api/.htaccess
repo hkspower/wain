@@ -6,7 +6,12 @@
 # The credentials. config.php holds the MySQL password; store.php and the .sql
 # files are includes and import fixtures, not endpoints — nothing loses by
 # denying them, and seed.mysql.sql names every product and cost price.
-<FilesMatch "^(config\.php|config\.example\.php|store\.php|.*\.sql)$">
+# site-manifest.txt is a complete map of the server — every file, with its
+# sha256 — written for api/file-audit.php to read from disk. Nothing should
+# fetch it over HTTP, and nothing needs to: the audit page reads it as a
+# file. Measured before this was added: it answered 200. Neither the root
+# .htaccess (whose extension list has no .txt) nor the line below covered it.
+<FilesMatch "^(config\.php|config\.example\.php|store\.php|site-manifest\.txt|.*\.sql)$">
   Require all denied
 </FilesMatch>
 
