@@ -115,10 +115,35 @@ for (const p of paints) {
     let root = e.world.moonLight; while (root.parent) root = root.parent;
     stage.environment = root.environment;
     stage.environmentIntensity = 1.0;
-    stage.add(new THREE.AmbientLight(0xffffff, 0.5));
-    const key = new THREE.DirectionalLight(0xffffff, 2.0);
-    key.position.set(2, 3, 3);
-    stage.add(key);
+    // THE GAME'S OWN RIG, not a studio one.
+    //
+    // The first version lit this with a white key and white ambient,
+    // which measured paint under a stage nobody ever sees. The moon in
+    // this game is 0xbfd0ff, the fill is 0x86a6d8 and the hemisphere is
+    // 0x2b3853 — every light on the road is blue, and a colour probe
+    // that quietly replaced them with white was answering a question
+    // about a showroom. Cloned rather than reparented: moving the game's
+    // lights into a stage would take them out of the scene they are
+    // lighting.
+    // Found by TYPE in the live scene, not by name on the world handle.
+    //
+    // The hemisphere is not on the world's public interface, so asking
+    // for w.hemi returns undefined and the probe would have quietly
+    // lit the paint with two lights out of three — understating exactly
+    // the blue cast it exists to measure. Anything the scene is actually
+    // lit by comes across; the car's own headlight does not, because a
+    // car is not lit by its own beams.
+    let lit = 0;
+    root.traverse((o) => {
+      if (o.isSpotLight || o.isPointLight) return;
+      if (o.isHemisphereLight || o.isDirectionalLight || o.isAmbientLight) {
+        const c = o.clone();
+        c.castShadow = false;
+        stage.add(c);
+        lit++;
+      }
+    });
+    if (lit === 0) return null;
     // A plain sphere in the car's paint: a shape with every surface
     // angle on it, so the reading is not one panel's happening to face
     // the one bright thing in the environment.
@@ -150,24 +175,55 @@ for (const p of paints) {
   const wl = lab(parseInt(want.slice(1,3),16), parseInt(want.slice(3,5),16), parseInt(want.slice(5,7),16));
   const gl = lab(px[0], px[1], px[2]);
   const err = hueGap(hueOf(wl), hueOf(gl));
-  const keep = chromaOf(wl) > 2 ? chromaOf(gl) / chromaOf(wl) : null;
-  rows.push([p.id, err, keep, chromaOf(wl)]);
+  // A RATIO IS THE WRONG STATISTIC FOR A NEAR-NEUTRAL.
+  //
+  // Corniche Silver is #b9bfc7 — chroma about 4, which is almost grey.
+  // It rendered at chroma 11, and the first version of this printed
+  // "267%" and put it at the top of the table as if it were the worst
+  // colour in the game. Eleven units of chroma is a faintly cool grey;
+  // the ratio is huge because the denominator is tiny, and the reading
+  // that looked most alarming was the least meaningful one.
+  //
+  // So: a ratio where there is enough chroma for a ratio to mean
+  // something, and the absolute shift where there is not. A hue angle
+  // is meaningless on a near-neutral too, for the same reason.
+  const c0 = chromaOf(wl), c1 = chromaOf(gl);
+  const NEUTRAL = 8;
+  const keep = c0 >= NEUTRAL ? c1 / c0 : null;
+  const drift = c0 < NEUTRAL ? c1 - c0 : null;
+  rows.push([p.id, err, keep, c0, drift]);
   const hex = "#" + [px[0],px[1],px[2]].map((v) => Math.round(v).toString(16).padStart(2,"0")).join("");
   console.log(
-    `${p.id.padEnd(20)} ${want}  ${hex}  ${err.toFixed(1).padStart(7)}°  ` +
-    (keep === null ? "   n/a (grey)" : (keep * 100).toFixed(0).padStart(7) + "%")
+    `${p.id.padEnd(20)} ${want}  ${hex}  ` +
+    (keep === null ? "      —" : err.toFixed(1).padStart(7) + "°") + "  " +
+    (keep === null
+      ? `near-grey, picked up ${drift.toFixed(1)} chroma`
+      : (keep * 100).toFixed(0).padStart(6) + "% of its chroma")
   );
 }
 await browser.close();
 
 const chromatic = rows.filter(([, , k]) => k !== null);
+const neutrals = rows.filter(([, , k]) => k === null);
 if (chromatic.length) {
   const worst = chromatic.slice().sort((a, b) => b[1] - a[1])[0];
   const mean = chromatic.reduce((a, r) => a + r[1], 0) / chromatic.length;
+  const over = chromatic.filter(([, e2]) => e2 > 15);
   console.log(
     `\n${chromatic.length} chromatic paints: mean hue error ${mean.toFixed(1)}°, ` +
     `worst ${worst[0]} at ${worst[1].toFixed(1)}°`
   );
-  console.log("a hue error under about 5 degrees is not something anybody can see;");
-  console.log("past 15 the colour has a different name.");
+  console.log("under about 5 degrees nobody can see it; past 15 the colour has a different name.");
+  if (over.length) {
+    console.log(`past 15: ${over.map(([id, e2]) => `${id} ${e2.toFixed(0)}°`).join(", ")}`);
+  } else {
+    console.log("none past 15.");
+  }
+}
+if (neutrals.length) {
+  const worst = neutrals.slice().sort((a, b) => b[4] - a[4])[0];
+  console.log(
+    `${neutrals.length} near-greys: most coloured is ${worst[0]}, ` +
+    `which picked up ${worst[4].toFixed(1)} chroma — a grey stops reading as one around 15.`
+  );
 }
