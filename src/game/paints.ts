@@ -76,18 +76,32 @@ export interface Paint {
  * each other, and red, orange and coral converged as their chroma
  * drained.
  *
- * So five of these are chosen against what the road does to them rather
- * than against how they read on a card. Gunmetal and slate are lighter
- * than a tin of either would be, orange is pushed toward yellow and away
- * from red, coral is lighter still, and sand is lifted off gold. The
- * palette exists to be told apart on a dark road; picking it to look
- * good in a grid and hoping is how it ends up with three greys nobody
- * can distinguish at 200 km/h.
+ * So four of these are chosen against what the road does to them rather
+ * than against how they read on a card: slate is lighter than a tin of
+ * it would be, orange is pushed toward yellow and away from red, coral
+ * is lighter still, and sand is lifted off gold.
+ *
+ * AND ONE LESSON ABOUT DOING THAT BY HAND. The first attempt lightened
+ * gunmetal as well, which felt like more separation and was less: it
+ * closed gunmetal's gap to slate from 22 lightness units to 17, and the
+ * pair rendered 2.8 apart instead of 5.1 — worse than before it was
+ * touched. Base to rendered is compressive and not intuitive. Spacing
+ * two swatches further apart does not reliably space two cars further
+ * apart, and the only way to know is to render them.
+ *
+ * WHAT THIS CANNOT FIX. The mono family's bases span 92 points of
+ * lightness — 4, 44, 60, 77, 96 — and arrive on the car inside about 8.
+ * No arrangement of five greys survives that, and the search that chose
+ * these values could not find one that did while keeping the swatch
+ * floor. Black, gunmetal and slate are still under the floor on the
+ * road. That is not a palette problem and it will not be solved here:
+ * the dark end of the picture is compressed, which is the same thing
+ * that made the shadows read as holes.
  */
 export const PAINTS: Paint[] = [
   // --- mono: the ones most cars on any road actually are
   { id: "paint-black", hex: 0x0d0e11, family: "mono" },
-  { id: "paint-gunmetal", hex: 0x5f6873, family: "mono" },
+  { id: "paint-gunmetal", hex: 0x4a5058, family: "mono" },
   { id: "paint-slate", hex: 0x8593a2, family: "mono" },
   { id: "paint-silver", hex: 0xb9bfc7, family: "mono" },
   { id: "paint-white", hex: 0xf2f4f7, family: "mono", asColor: "White", asColorAr: "أبيض" },
