@@ -998,12 +998,21 @@ const rx7CanopyGeo = extrudeProfile(
   [
     [0.8, 0.83],
     [0.1, 1.28], // bubble peak over the driver
+    // The roof-chord midpoint, collinear by construction. The glasshouse
+    // was drawn with straight lines and two hard knuckles — 35 degrees
+    // at the header, 23 at the C-pillar — because the spline only ever
+    // ran through the first two points and lineTo'd the rest. One
+    // derived pin with near-equal spacing either side keeps uniform
+    // Catmull-Rom tame while the whole run curves; measured on the built
+    // geometry, the screen bows 38.7 mm off its chord (the fleet runs
+    // 37-54) and the glass peak stays under the painted cap.
+    [-0.31, 1.26],
     [-0.72, 1.24],
     [-1.68, 0.78], // long rounded hatch glass
   ],
   RX7_CABIN_W,
   CANOPY_EDGE,
-  2,
+  0,
   CROWN_BY_STYLE.rx7.canopy,
 );
 const rx7RoofGeo = extrudeProfile(
@@ -1015,7 +1024,10 @@ const rx7RoofGeo = extrudeProfile(
   ],
   roofWidth(RX7_CABIN_W),
   ROOF_EDGE,
-  2,
+  // 0, like the sedan/zx/pony/gtr roofs already pass: the painted cap
+  // must balloon WITH the glass. Flipping the canopy alone left the
+  // glass skin 6.8 mm proud of a straight-chord cap at z=-0.31.
+  0,
   CROWN_BY_STYLE.rx7.roof,
 );
 
@@ -1052,14 +1064,29 @@ const hatchBodyGeo = extrudeProfile(
 // on roof.
 const hatchCanopyGeo = extrudeProfile(
   [
+    // Pinned, then splined. The profile used to be a pure polyline —
+    // with bottomPoints=2 the "spline" ran through exactly two points,
+    // which is a straight line — so the header carried a 35-degree
+    // crease and the C-pillar a 26, across the widest flat surfaces on
+    // the car. Every pin below sits ON an authored chord (the exact 1/3
+    // and 2/3 points of the roof, the screen and tailgate chords at
+    // their own y), so the roof stays dead flat between them and the
+    // curve deviates only at the two former knuckles, by 10-14 mm —
+    // which is the fillet a real header has. The authored corners stay
+    // authored: headerZ still finds [0.40, 1.44], so the driver's
+    // seating anchor does not move.
     [1.02, 0.99],
+    [0.65, 1.2585], // on the screen chord
     [0.40, 1.44], // short, steep screen
+    [-0.05, 1.4467], // roof chord, 1/3
+    [-0.50, 1.4533], // roof chord, 2/3
     [-0.95, 1.46], // long flat roof
+    [-1.40, 1.2523], // on the tailgate chord
     [-1.86, 1.04], // hatch glass, raked but still upright
   ],
   HATCH_CABIN_W,
   CANOPY_EDGE,
-  2,
+  0,
   CROWN_BY_STYLE.hatch.canopy,
 );
 const hatchRoofGeo = extrudeProfile(
@@ -1071,7 +1098,9 @@ const hatchRoofGeo = extrudeProfile(
   ],
   roofWidth(HATCH_CABIN_W),
   ROOF_EDGE,
-  2,
+  // 0, matching the other four roofs: a faceted painted sliver over a
+  // curved glasshouse reads as a plank laid on a dome.
+  0,
   CROWN_BY_STYLE.hatch.roof,
 );
 
@@ -1720,15 +1749,24 @@ const ARCH_Y = TIRE_RADIUS + ARCH_RISE;
 const ARCH_MESH_Y = TIRE_RADIUS + 0.04;
 const ARCH_R_R = TIRE_RADIUS + 0.04;
 const ARCH_R_F = TIRE_RADIUS + 0.055;
-const archWellGeo = new THREE.CircleGeometry(TIRE_RADIUS + 0.025, 22);
-const archWellGeoF = new THREE.CircleGeometry(ARCH_R_R, 22);
+// 44 segments, not 22. At 22 the well's rim moved in ~114 mm chords —
+// 16 degrees per facet on the one curve the eye traces around every
+// wheel — while the body shells hold themselves to ~5.5 mm per facet.
+const archWellGeo = new THREE.CircleGeometry(TIRE_RADIUS + 0.025, 44);
+const archWellGeoF = new THREE.CircleGeometry(ARCH_R_R, 44);
 // A rolled panel edge, not a hoop. The first pass used a 0.03-0.038 tube
 // standing 18 mm proud and it read as a roll bar bolted over the wheel;
 // a real arch lip is a few millimetres of turned-over steel that catches
 // one thin highlight.
-const archLipGeo = new THREE.TorusGeometry(ARCH_R_R, 0.016, 8, 28, Math.PI);
+// 60/64 tubular segments over the half-turn (was 28/30 — 45 mm facets
+// catching that "one thin highlight" as a string of straight glints),
+// and 12 radial so the rolled edge is round in section. The radii, the
+// tube sizes and every mesh position are untouched: the bounding
+// extremes land on exact vertices under both old and new counts, so
+// nothing measured moves.
+const archLipGeo = new THREE.TorusGeometry(ARCH_R_R, 0.016, 12, 60, Math.PI);
 archLipGeo.rotateY(Math.PI / 2);
-const archLipGeoF = new THREE.TorusGeometry(ARCH_R_F, 0.021, 8, 30, Math.PI);
+const archLipGeoF = new THREE.TorusGeometry(ARCH_R_F, 0.021, 12, 64, Math.PI);
 // The outer edge of each arch — the lip's radius plus its tube — and the
 // height its centre sits at. Anything running along the flank has to
 // stop here, so the numbers are named rather than repeated.
@@ -1823,11 +1861,18 @@ function flareGeo(kit: KitLevel, front: boolean): THREE.BufferGeometry {
   const hit = flareGeoCache.get(key);
   if (hit) return hit;
   const tube = WIDE[kit].proud * FLARE_TUBE_FRAC;
+  // The same counts as the lip each flare sits over, raised with it:
+  // the measured rule here is that flare and lip must trace the same
+  // arc — "two arcs that agree about where the wheel is read as one
+  // fender" — and that now includes agreeing about the tessellation.
+  // The flare tube is two to four times fatter than the lip's, so
+  // smoothing only the lip would have left the WORST faceting on the
+  // most visible torus of every kitted car.
   const geo = new THREE.TorusGeometry(
     front ? ARCH_R_F : ARCH_R_R,
     tube,
-    8,
-    front ? 30 : 28,
+    12,
+    front ? 64 : 60,
     Math.PI
   );
   geo.rotateY(Math.PI / 2);
