@@ -25,11 +25,27 @@ export interface RivalDef {
   lines: { intro: string; win: string; lose: string };
   /** Voice signature so each character sounds distinct. */
   voice: { pitch: number; rate: number; female?: boolean };
+  /**
+   * The length this one calls you out at — an id from distances.ts.
+   *
+   * It is what the roster shows beside their name, and what the
+   * challenge card opens on. It is NOT a restriction: the player can
+   * pick any distance, and picking a different one is how you beat
+   * somebody who has your number at their own game. A rival who only
+   * ever races at 2 km is a rival you fight once and then farm.
+   *
+   * The ladder walks up it — the first two are sprints, the middle is
+   * five, and the last man on the roster wants twenty. That is the
+   * roster's difficulty curve expressed in something the player can
+   * read, rather than in top speeds they cannot.
+   */
+  distance: string;
 }
 
 export const RIVALS: RivalDef[] = [
   {
     id: "abu-shanab",
+    distance: "sprint",
     car: "Hawally Sport 2.0T",
     country: "Kuwait",
     flag: "🇰🇼",
@@ -51,6 +67,7 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "bint-aldeera",
+    distance: "sprint",
     car: "Salmiya Turbo GT",
     country: "Kuwait",
     flag: "🇰🇼",
@@ -72,6 +89,7 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "al-daboos",
+    distance: "standard",
     bodyStyle: "zx",
     car: "Gulf Coupe RS",
     country: "Kuwait",
@@ -94,6 +112,7 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "bu-machboos",
+    distance: "standard",
     bodyStyle: "gtr",
     car: "Desert Storm S8",
     country: "Kuwait",
@@ -116,6 +135,7 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "al-saqer",
+    distance: "long",
     bodyStyle: "zx",
     car: "Falcon 720 Veloce",
     country: "Kuwait",
@@ -138,6 +158,7 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "bu-torab",
+    distance: "standard",
     bodyStyle: "zx",
     car: "Zeta 300",
     name: "Bu Torab",
@@ -158,6 +179,7 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "al-sayyaf",
+    distance: "long",
     bodyStyle: "gtr",
     car: "Kaiju R",
     name: "Al-Sayyaf",
@@ -178,6 +200,7 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "shabah-alkhaleej",
+    distance: "marathon",
     bodyStyle: "gtr",
     car: "Sahara GT-12",
     country: "???",

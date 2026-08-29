@@ -49,6 +49,7 @@ import {
 } from "./brakes";
 import { GEARS, revFractionIn } from "./gears";
 import { playerId, inviteCode, normaliseCode, isCodeShaped } from "./community";
+import { distanceById, distanceMetres, DEFAULT_DISTANCE } from "./distances";
 import {
   EMPTY_PROGRESS, MATCHED_KMH, MATCHED_FLOOR_KMH, MET_M, TOGETHER_M,
   loadProgress, newlyDone, questLabel, questFraction, saveProgress,
@@ -236,6 +237,11 @@ export interface BattleHud {
   rivalName: string;
   rivalArabic: string;
   rivalCrew: string;
+  /** How long this race is, in km. */
+  raceKm: number;
+  /** How much of it is left. A finish line nobody can see is not a
+   *  finish line — an SP fight that suddenly ends would read as a bug. */
+  leftKm: number;
 }
 
 export interface HudData {
@@ -458,7 +464,13 @@ export interface EngineEvents {
   /** Fired the moment a battle begins — drives the VS splash. */
   onBattleStart?(rival: RivalDef): void;
   /** Three flashes landed: both cars revealed, race setup opens. */
-  onChallenge?(player: DriverCard, rival: DriverCard, maxWager: number): void;
+  onChallenge?(
+    player: DriverCard,
+    rival: DriverCard,
+    maxWager: number,
+    /** The length this rival calls you out at — what the card opens on. */
+    distanceId: string
+  ): void;
   /** The rival's answer to the challenge. */
   onChallengeResult?(accepted: boolean, reason: string): void;
   /** A race ended — drives the full results sequence. */
@@ -902,6 +914,15 @@ export class GameEngine {
   private challengeAccepted = false;
   /** KD staked on the current race (each side puts it up). */
   private wager = 0;
+  /**
+   * How long the current race is, as an id from distances.ts, and the
+   * same in metres so the hot loop is not looking it up every frame.
+   *
+   * Set when the challenge is confirmed; the rival's own signature
+   * distance is the default the card opens on.
+   */
+  private raceDistanceId = DEFAULT_DISTANCE;
+  private raceDistanceM = distanceMetres(DEFAULT_DISTANCE);
   /** Per-battle telemetry, reset at the green light, read at the finish. */
   private bstat = { startAt: 0, dist: 0, topSpeed: 0, contacts: 0, maxLead: 0, driftScore: 0 };
 
@@ -2999,11 +3020,13 @@ export class GameEngine {
     const maxWager = Math.max(0, Math.min(garage.kd, rivalCeiling));
 
     this.setPaused(true);
-    this.events.onChallenge?.(this.playerCard(), this.rivalCard(r.def), maxWager);
+    this.events.onChallenge?.(
+      this.playerCard(), this.rivalCard(r.def), maxWager, r.def.distance
+    );
   }
 
-  /** UI callback: the player confirmed a car and a stake. */
-  confirmChallenge(wager: number, carId?: string): void {
+  /** UI callback: the player confirmed a car, a stake and a length. */
+  confirmChallenge(wager: number, carId?: string, distanceId?: string): void {
     const r = this.rival;
     if (!r || !this.challengePending) return;
 
@@ -3016,6 +3039,10 @@ export class GameEngine {
       }
     }
     this.wager = Math.max(0, Math.round(wager));
+    // An unknown id falls back to the standard length rather than to
+    // zero: a race with no distance would end on its first frame.
+    this.raceDistanceId = distanceById(distanceId ?? r.def.distance).id;
+    this.raceDistanceM = distanceMetres(this.raceDistanceId);
     this.setPaused(false);
 
     this.challengeTimers.push(
@@ -5034,6 +5061,26 @@ export class GameEngine {
 
     if (r.sp <= 0) this.winBattle();
     else if (this.player.sp <= 0) this.loseBattle();
+    else if (this.bstat.dist >= this.raceDistanceM) {
+      // The finish line.
+      //
+      // Two evenly matched cars drain each other at the same rate, so an
+      // SP fight between equals has no end on its own — it runs until
+      // somebody makes a mistake, which on a straight empty corniche can
+      // be a very long time. The distance guarantees a result without
+      // changing how the result is reached: whoever spent the night in
+      // front has more SP left, and that is who takes it.
+      //
+      // Measured on the PLAYER's odometer, not on the rival's and not on
+      // track position. Track position wraps every 8.5 km, so it cannot
+      // express a twenty kilometre race at all; and using the rival's
+      // distance would mean the loser decides when the race is over.
+      //
+      // A dead heat goes to the rival. Somebody has to hold the tie and
+      // it should not be the person who came to take their money.
+      if (this.player.sp > r.sp) this.winBattle();
+      else this.loseBattle();
+    }
   }
 
   /**
@@ -6213,6 +6260,10 @@ export class GameEngine {
               rivalName: r.def.name,
               rivalArabic: r.def.arabicName,
               rivalCrew: r.def.crew,
+              /** How long this race is, and how much of it is left. A
+               *  finish line nobody can see is not a finish line. */
+              raceKm: this.raceDistanceM / 1000,
+              leftKm: Math.max(0, this.raceDistanceM - this.bstat.dist) / 1000,
             }
           : null,
       defeated: this.rivalIndex,

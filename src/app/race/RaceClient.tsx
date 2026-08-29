@@ -13,6 +13,7 @@ import type { RoadMap } from "@/game/roadmap";
 import { gearAt } from "@/game/gears";
 import { RIVALS, RivalDef } from "@/game/rivals";
 import { HubClient, DuelInvite, loadProfile, saveProfile, formatLap } from "@/game/net";
+import { RACE_DISTANCES, distanceById } from "@/game/distances";
 import { cleanHandle, rollHandle } from "@/game/handles";
 import {
   Profile,
@@ -481,6 +482,7 @@ export default function RaceClient() {
   const playerBarRef = useRef<HTMLDivElement>(null);
   const rivalBarRef = useRef<HTMLDivElement>(null);
   const battleNameRef = useRef<HTMLDivElement>(null);
+  const raceLeftRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const clockRef = useRef<HTMLDivElement>(null);
   const flashRef = useRef<HTMLDivElement>(null);
@@ -541,6 +543,9 @@ export default function RaceClient() {
     player: DriverCard;
     rival: DriverCard;
     maxWager: number;
+    /** The length this rival calls you out at — marked "theirs" on the
+     *  chooser, and what the card opens on. */
+    rivalDistance: string;
     /** null while the player is still choosing car + stake */
     answer: { accepted: boolean; reason: string } | null;
     sent: boolean;
@@ -734,6 +739,9 @@ export default function RaceClient() {
   // PvP
   const [invite, setInvite] = useState<DuelInvite | null>(null);
   const [duelResult, setDuelResult] = useState<{ won: boolean; reason: string; wager: number } | null>(null);
+  /** The length of the race being set up. Opens on the rival's own — see
+   *  RivalDef.distance — and the player is free to change it. */
+  const [raceDistance, setRaceDistance] = useState("standard");
   const [nearby, setNearby] = useState<{ id: number; name: string; dist: number } | null>(null);
   const nearbyRef = useRef<{ id: number; name: string; dist: number } | null>(null);
   const duelRef = useRef(false);
@@ -1209,6 +1217,23 @@ export default function RaceClient() {
           if (rivalBarRef.current) rivalBarRef.current.style.width = `${d.battle.rivalSp}%`;
           if (battleNameRef.current)
             battleNameRef.current.textContent = `${d.battle.rivalName} ${d.battle.rivalArabic} · ${d.battle.rivalCrew}`;
+          // How much of the race is left.
+          //
+          // The SP bars say who is winning; this says how long they have
+          // to keep it up. Without it the race simply stops one day, and
+          // a race that ends for a reason the player was never shown
+          // reads as a bug rather than as a finish line.
+          //
+          // Whole metres under a kilometre, one decimal above: "300 m"
+          // is a number you can act on and "0.3 km" is not.
+          if (raceLeftRef.current) {
+            const left = d.battle.leftKm;
+            raceLeftRef.current.textContent =
+              left < 1 ? `${Math.round(left * 1000)} m left` : `${left.toFixed(1)} km left`;
+            // The last half kilometre is the part that decides it.
+            raceLeftRef.current.style.color =
+              left < 0.5 ? "var(--color-sodium-400)" : "rgba(255,255,255,0.6)";
+          }
         }
       }
       coachRef.current = {
@@ -1297,13 +1322,18 @@ export default function RaceClient() {
           if (vsTimer.current) clearTimeout(vsTimer.current);
           vsTimer.current = setTimeout(() => setVsRival(null), 2400);
         },
-        onChallenge: (player, rival, maxWager) => {
+        onChallenge: (player, rival, maxWager, distanceId) => {
+          setRaceDistance(distanceById(distanceId).id);
           haptic(HAPTIC.challenge, loadSettings().haptics);
           if (challengeTimer.current) clearTimeout(challengeTimer.current);
           const g = loadGarage();
           setRaceCar(g.car);
           setWager(WAGERS.filter((w) => w <= maxWager).slice(-1)[0] ?? 0);
-          setChallenge({ player, rival, maxWager, answer: null, sent: false });
+          setChallenge({
+            player, rival, maxWager,
+            rivalDistance: distanceById(distanceId).id,
+            answer: null, sent: false,
+          });
         },
         onResult: (r) => {
           setChallenge(null);
@@ -1908,6 +1938,10 @@ export default function RaceClient() {
             ref={battleNameRef}
             className="grn-display mt-1.5 text-center text-sm tracking-[0.14em] text-white/90 [text-shadow:0_2px_10px_rgba(0,0,0,0.9)]"
           />
+          <div
+            ref={raceLeftRef}
+            className="grn-label mt-1 text-center text-[0.72rem] tabular-nums [text-shadow:0_2px_10px_rgba(0,0,0,0.9)]"
+          />
         </div>
 
         {/* Rival distance + flash prompt */}
@@ -2357,6 +2391,43 @@ export default function RaceClient() {
                   })}
                 </div>
 
+                {/* Pick the length.
+                    Above the stake, because it is the bigger decision: a
+                    sprint and an all-nighter are different races in the
+                    same car, and how much you are willing to put on it
+                    follows from which one you picked. */}
+                <div className="grn-label mt-4 text-[0.7rem]">
+                  Distance — <span className="grn-ar" lang="ar">المسافة</span>
+                  <span className="ml-2 text-white/66">
+                    they usually run {distanceById(challenge.rivalDistance).km} km
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {RACE_DISTANCES.map((d) => (
+                    <button
+                      key={d.id}
+                      onClick={() => setRaceDistance(d.id)}
+                      title={d.blurb}
+                      className={`pointer-events-auto grn-display rounded-lg border px-3.5 py-1.5 text-sm transition ${
+                        raceDistance === d.id
+                          ? "border-sodium-400 bg-sodium-500/20 text-sodium-300"
+                          : "border-white/15 text-white/70 hover:border-white/35"
+                      }`}
+                    >
+                      {d.km} KM
+                      {d.id === challenge.rivalDistance && (
+                        <span className="ml-1.5 text-[0.62rem] text-white/50">theirs</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-[11px] leading-4 text-white/55">
+                  {distanceById(raceDistance).blurb} ·{" "}
+                  <span className="grn-ar" lang="ar">
+                    {distanceById(raceDistance).ar}
+                  </span>
+                </p>
+
                 {/* Pick the purse */}
                 <div className="grn-label mt-4 text-[0.7rem]">
                   Stake — <span className="grn-ar" lang="ar">مبلغ السباق</span>
@@ -2384,7 +2455,7 @@ export default function RaceClient() {
                   <button
                     onClick={() => {
                       setChallenge((c) => (c ? { ...c, sent: true } : c));
-                      engineRef.current?.confirmChallenge(wager, raceCar);
+                      engineRef.current?.confirmChallenge(wager, raceCar, raceDistance);
                     }}
                     className="pointer-events-auto grn-btn grn-btn-primary flex-1 py-3 text-lg"
                   >
