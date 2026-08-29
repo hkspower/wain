@@ -55,6 +55,60 @@ if (!preg_match('/^[A-Za-z0-9]{1,30}$/', $trackid)) {
     exit('Invalid track id.');
 }
 
+// ---------------------------------------------------------------------------
+// THE OFFICIAL PATH: hand this shopper to the CBK hosted page as KNET.
+//
+// See knet_mode() for which shops come through here and why. In short: this
+// shop's KNET is `tij_MerchPayType=1` on the gateway pay/ already talks to,
+// and the Tranportal integration below it is for shops that hold Tranportal
+// credentials. A shop that holds them is never routed here.
+//
+// A REDIRECT RATHER THAN RENDERING THE FORM HERE, and that is not tidiness —
+// it is the only version that works. pay/pay.php's page carries the ENCRP_KEY
+// and a live AccessToken in hidden inputs and auto-submits itself, and the two
+// things that make that safe and possible both live in pay/.htaccess: the
+// no-store headers that keep a bearer credential off proxy disks, and the CSP
+// hash that authorises the one-line submit script. Neither reaches this
+// directory. knet/.htaccess sets `script-src 'none'` and `form-action 'none'`
+// over everything here, so a copy of that form served from this URL would be a
+// page that cannot submit itself and cannot be submitted by hand, holding a
+// merchant credential in its body. One page renders it, under the rules
+// written for it.
+//
+// NOTHING IS CHECKED TWICE. The redirect happens before the throttle, before
+// the amount lookup and before knet_attempt_ref(), because pay/pay.php does
+// every one of those itself — with the same fail-closed price authority, from
+// the same orders table. Running them here as well would count each attempt
+// twice in orders.pay_attempt, which is the counter that decides whether a
+// reference gets a retry suffix: a shopper's FIRST attempt would arrive at the
+// bank as `...A2`. The track id validated above is all this page needs to
+// establish before handing over.
+if (knet_mode($cfg) === 'official') {
+    // Only what the shopper's own request carried. `paytype` is fixed at 1
+    // here and is NOT read from the query: this endpoint is the KNET door, and
+    // a paytype the caller could set would make it a way to reach any face of
+    // the gateway through a URL the shop advertises as KNET.
+    $hand = ['trackid' => $trackid, 'lang' => $langIn === 'AR' ? 'ar' : 'en', 'paytype' => '1'];
+    // Pass-through, so a caller that sends a reference or user fields does not
+    // silently lose them at the door. pay/pay.php trims each to the manual's
+    // own limits and strips the characters CBK rejects, so nothing needs
+    // cleaning here — only forwarding, and only when actually present.
+    foreach (['ref', 'udf1', 'udf2', 'udf3', 'udf4', 'udf5'] as $k) {
+        if (($in[$k] ?? '') !== '') $hand[$k] = (string) $in[$k];
+    }
+    knet_log($cfg, 'pay.official', ['trackid' => $trackid]);
+    // 303: the shopper arrives by GET from a link, and 303 says "go and GET
+    // this instead" in the one way every client agrees on, including for a
+    // POST that reached here.
+    header('Location: /pay/pay.php?' . http_build_query($hand), true, 303);
+    exit;
+}
+
+// ---------------------------------------------------------------------------
+// THE LEGACY TRANPORTAL PATH — everything below this line is the AES
+// `trandata` integration, unchanged, and it runs for shops that hold
+// Tranportal credentials.
+
 // The mirror of the guard in pay/pay.php, with the same bucket size and the
 // same reasoning — see cbk_over_limit(). This page also increments
 // orders.pay_attempt on every hit for an unauthenticated caller.

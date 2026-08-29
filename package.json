@@ -55,6 +55,7 @@
     "test:payments": "node scripts/payments-test.mjs",
     "test:checkout": "node scripts/checkout-test.mjs",
     "test:tpay": "node scripts/tpay-test.mjs",
+    "test:knet": "node scripts/knet-test.mjs",
     "test:admin": "node scripts/admin-smoke.mjs",
     "test:admin-contract": "node scripts/admin-contract-test.mjs",
     "test:admin-live": "node scripts/admin-live-test.mjs",

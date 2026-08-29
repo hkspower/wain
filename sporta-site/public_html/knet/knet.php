@@ -112,6 +112,77 @@ function knet_config(): array
     return $cfg;
 }
 
+// ---------------------------------------------------------------------------
+// WHICH KNET THIS SHOP ACTUALLY HAS.
+//
+// There are two ways to take a KNET payment and this shop is nominated for the
+// second one. The whole of the rest of this file implements the first.
+//
+//   LEGACY TRANPORTAL (this file). The shop holds a Tranportal ID, a Tranportal
+//     password and a 16-byte Terminal Resource Key, builds an AES-128-CBC
+//     `trandata` blob and posts the shopper to kpay.com.kw/kpg. It is a real
+//     integration and plenty of Kuwaiti shops run on it.
+//
+//   THE OFFICIAL CBK HOSTED PAGE (pay/cbk.php). The shop holds a client_id, a
+//     client_secret and an encrp_key from CBK's activation email, fetches an
+//     AccessToken and posts the shopper to pg.cbk.com. `tij_MerchPayType` picks
+//     the face of that page: '1' is KNET, '2' is T-Pay QR, '' lets the customer
+//     choose. Both halves are the SAME gateway, the same merchant account and
+//     the same manual — pay/cbk.php's own first line calls itself "CBK Hosted
+//     KNET & T-Pay", and pay/config.example.php spells the values out:
+//     "'1' = KNET only, '2' = T-Pay QR only".
+//
+// SO KNET WAS NEVER MISSING. It has been sitting behind pay/, one parameter
+// away, while this directory waited on credentials nobody was ever going to
+// issue — and the evidence that they were never issued is written in
+// config.example.php in this directory, three times over: which of the two
+// numbers on the nomination letter is the Tranportal ID is "an inference";
+// whether KNET wants 'EN' or 'USA' for English is "not settled"; which of the
+// two callback styles the bank uses is "the bank's choice". Three open
+// questions to a bank, and every one of them evaporates on the official path,
+// because the official path was activated, documented and is already taking
+// T-Pay money through the same credentials.
+//
+// THE DEFAULT CAN ONLY EVER TURN A DEAD PATH INTO A LIVE ONE — the same
+// direction knet_config()'s database inheritance takes, and for the same
+// reason. Legacy is preferred WHENEVER IT COULD ACTUALLY WORK, so a shop that
+// really does hold Tranportal credentials is untouched by this and keeps the
+// integration it has been running. Only a shop whose legacy block is empty,
+// still holding the example's placeholders, or carrying a key that AES-128
+// cannot use — which is to say, a shop where KNET could not have worked at all
+// — is routed to the gateway that its credentials do open.
+//
+// Set 'mode' => 'legacy' or 'official' in config.php to stop deciding and pin
+// it, which is what to do the day the bank answers.
+const KNET_PLACEHOLDERS = [
+    'YOUR_TRANPORTAL_ID', 'YOUR_TRANPORTAL_PASSWORD', 'YOUR_TERMINAL_RESOURCE_KEY',
+];
+
+// "Configured" means COULD TAKE A PAYMENT, not "the key exists in the array".
+//
+// The 16-byte test is part of the question rather than a detail: AES-128 needs
+// exactly 16, knet_assert_key() throws on anything else, and a resource key of
+// the wrong length is a legacy path that answers every single shopper with
+// "Payment init failed". Treating that as "configured" would pin a shop to a
+// dropin that cannot complete one transaction — which is the precise failure
+// this whole function exists to route around.
+function knet_legacy_configured(array $cfg): bool
+{
+    foreach (['tranportal_id', 'tranportal_password', 'resource_key'] as $k) {
+        $v = (string) ($cfg[$k] ?? '');
+        if ($v === '' || in_array($v, KNET_PLACEHOLDERS, true)) return false;
+    }
+    return strlen((string) $cfg['resource_key']) === 16;
+}
+
+// 'legacy' or 'official'. An explicit config value wins; otherwise see above.
+function knet_mode(array $cfg): string
+{
+    $pinned = strtolower(trim((string) ($cfg['mode'] ?? '')));
+    if ($pinned === 'legacy' || $pinned === 'official') return $pinned;
+    return knet_legacy_configured($cfg) ? 'legacy' : 'official';
+}
+
 function knet_gateway_url(array $cfg): string
 {
     // NAMED, AND CHECKED. This read the key straight out of the array under a
