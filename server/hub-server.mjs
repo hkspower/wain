@@ -30,6 +30,7 @@
 //                    {t:"ref-result",ok,reason}
 
 import { WebSocketServer } from "ws";
+import { randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
@@ -42,7 +43,14 @@ const MAX_CHAT = 200;
 // engine) and the WebSocket upgrade for the live cruise.
 const http = await import("node:http");
 const httpServer = http.createServer((req, res) => handleRest(req, res));
-const wss = new WebSocketServer({ server: httpServer });
+// maxPayload, because the default is 100 MB.
+//
+// The biggest message this protocol has is a crew badge and a 200
+// character chat line — a few hundred bytes. Left at the default, one
+// connection could ask the hub to buffer a hundred megabytes, and a
+// handful of them could exhaust it without ever sending a valid message.
+const MAX_FRAME_BYTES = 16 * 1024;
+const wss = new WebSocketServer({ server: httpServer, maxPayload: MAX_FRAME_BYTES });
 let nextId = 1;
 
 /** id -> { ws, name, color, state: {s,lat,speed} | null, lastChatAt, pid } */
@@ -142,7 +150,11 @@ function loadLedger() {
         tag: String(t.tag),
         logo: sanitizeLogo(t.logo),
         founder: String(t.founder ?? ""),
+        founderPid: t.founderPid ? String(t.founderPid) : null,
         members: new Map((t.members ?? []).map((n) => [String(n), null])),
+        pids: new Map(
+          (Array.isArray(t.pids) ? t.pids : []).map(([n, q]) => [String(n), String(q)])
+        ),
       });
     }
     // Past the highest id that was ever handed out, so a restart cannot
@@ -177,7 +189,9 @@ function saveLedger() {
         tag: t.tag,
         logo: t.logo,
         founder: t.founder,
+        founderPid: t.founderPid ?? null,
         members: [...t.members.keys()],
+        pids: [...t.pids.entries()],
       })),
       nextTeamId,
     };
@@ -246,10 +260,20 @@ function claimReferral(pid, rawCode) {
   if (owner === pid) return { ok: false, reason: "That is your own code." };
 
   const host = ledgerEntry(owner);
+  // The token identifies the REWARD, not the person.
+  //
+  // It used to be `invited:${pid}` — the invitee's save id — and it is
+  // sent to the host in ref-state. So inviting somebody handed you their
+  // save id, and a save id is the only credential this hub has: with it
+  // you could rejoin as them, bank away their unclaimed rewards, take
+  // their crew seat, or claim an invite in their name. An opaque token
+  // does the same job, because all the ledger ever asks of it is "have I
+  // paid this one already".
+  const stamp = randomUUID();
   e.usedCode = code;
-  e.owed.push({ token: `joined:${code}:${pid}`, kd: REFERRAL_KD, why: "Joined on an invite" });
+  e.owed.push({ token: `joined:${stamp}`, kd: REFERRAL_KD, why: "Joined on an invite" });
   if (!host.invited.includes(pid)) host.invited.push(pid);
-  host.owed.push({ token: `invited:${pid}`, kd: REFERRAL_KD, why: "A friend joined on your code" });
+  host.owed.push({ token: `invited:${stamp}`, kd: REFERRAL_KD, why: "A friend joined on your code" });
   ledgerDirty = true;
   saveLedger();
 
@@ -383,6 +407,24 @@ function broadcast(msg, exceptId = null) {
 }
 
 /** name -> career blob, for engines without their own cloud save. */
+/**
+ * Career blobs, and the leaderboard, are keyed by a NAME the caller
+ * chooses — which means any caller can create as many keys as it likes.
+ *
+ * Both are capped. Without a cap, `while(true) POST /api/v1/lap` with a
+ * fresh name each time is a memory-exhaustion attack that needs no
+ * cleverness at all and leaves nothing in a log to explain the crash.
+ * The caps are far above what a real hub sees: 20 names are shown on the
+ * leaderboard and a busy night is dozens of players.
+ *
+ * WHAT IS STILL TRUE AND IS NOT A BUG TO FIX HERE. Neither endpoint is
+ * authenticated, because there are no accounts in this game and a
+ * leaderboard keyed by a typed name cannot be. Anybody can claim a lap
+ * under any name. That is the cost of the design and it is written down
+ * rather than quietly forgotten: the fix is accounts, not a filter.
+ */
+const MAX_CAREERS = 5000;
+const MAX_LAP_NAMES = 5000;
 const careers = new Map();
 const MAX_CAREER_BYTES = 4096;
 const API_VERSION = 1;
@@ -455,6 +497,9 @@ async function handleRest(req, res) {
         return sendJson(res, 400, { error: "name and a plausible lap ms required" });
       }
       const prev = bestLaps.get(name);
+      if (prev === undefined && bestLaps.size >= MAX_LAP_NAMES) {
+        return sendJson(res, 507, { error: "the leaderboard is full" });
+      }
       const isBest = prev === undefined || ms < prev;
       if (isBest) {
         bestLaps.set(name, Math.round(ms));
@@ -479,6 +524,9 @@ async function handleRest(req, res) {
     if (req.method === "PUT") {
       try {
         const blob = JSON.parse(await readBody(req));
+        if (!careers.has(name) && careers.size >= MAX_CAREERS) {
+          return sendJson(res, 507, { error: "the hub is holding as many careers as it can" });
+        }
         careers.set(name, blob);
         return sendJson(res, 200, { apiVersion: API_VERSION, name, stored: true });
       } catch {
@@ -501,17 +549,55 @@ function roster() {
   return [...players.entries()].map(([id, p]) => ({ id, name: p.name, color: p.color }));
 }
 
+/** How many sockets the hub will hold at once. A cruise is a few dozen
+ *  cars; this is far above that and far below what would run the process
+ *  out of memory, and refusing at the door is cheaper than dying. */
+const MAX_SOCKETS = 400;
+
 wss.on("connection", (ws) => {
+  if (wss.clients.size > MAX_SOCKETS) {
+    send(ws, { t: "full", reason: "The cruise is full — try again in a minute." });
+    ws.close();
+    return;
+  }
   const id = nextId++;
   let joined = false;
 
+  // A message budget, refilled every second.
+  //
+  // The protocol's busiest client sends position at 10 Hz plus the
+  // occasional chat line. Sixty a second is six times that and still
+  // three orders of magnitude below what a loop can push down a socket.
+  // Without it one connection can spin the hub's event loop flat out and
+  // every other player's car stops moving.
+  const BUDGET = 60;
+  let budget = BUDGET;
+  let budgetAt = Date.now();
+
   ws.on("message", (raw) => {
+    const now = Date.now();
+    if (now - budgetAt >= 1000) { budget = BUDGET; budgetAt = now; }
+    if (budget-- <= 0) return;
+
     let msg;
     try {
       msg = JSON.parse(raw.toString());
     } catch {
       return;
     }
+    // Everything below runs on input from the network. A throw here is
+    // an uncaught exception inside a socket handler, which ends the
+    // process — so one malformed message from one player would end the
+    // night for everybody. The handler is allowed to be wrong; it is not
+    // allowed to be fatal.
+    try {
+      handle(msg);
+    } catch (err) {
+      console.warn(`[hub] dropped a message from #${id}: ${err.message}`);
+    }
+  });
+
+  function handle(msg) {
 
     if (msg.t === "join" && !joined) {
       const name = String(msg.name ?? "racer").slice(0, MAX_NAME).trim() || "racer";
@@ -585,16 +671,36 @@ wss.on("connection", (ws) => {
       const sameName = [...teams.values()].find(
         (t) => t.name === tname && t.tag === tag
       );
+      // Founding is proved by the SAVE ID, not by the name on it.
+      //
+      // A name is whatever somebody typed into a box, and this used to be
+      // the whole of the check: join as "Bu Machboos" and the hub agreed
+      // you were the founder of Bu Machboos's crew, handed you the roster,
+      // and let you rewrite its name, tag and badge — on disk, for
+      // everyone. Leaving then removed the real founder from their own
+      // crew, and if they were its only member it deleted the crew
+      // permanently.
+      //
+      // A save id is not typed. It cannot be guessed from anything the
+      // hub publishes, so this is the one claim on the wire worth
+      // believing. A crew founded before this ran has no founderPid; it
+      // adopts the first id that presents the founder's name, and from
+      // then on that is who it belongs to.
+      const foundedByMe = (t) =>
+        t.founderPid ? !!p.pid && t.founderPid === p.pid : t.founder === p.name;
       const adopt =
         mineAlready && (!sameName || sameName === mineAlready)
           ? mineAlready
-          : sameName && !mineAlready && sameName.founder === p.name
+          : sameName && !mineAlready && foundedByMe(sameName)
             ? sameName
             : null;
       if (adopt) {
+        if (p.pid && !adopt.pids.has(p.name)) adopt.pids.set(p.name, p.pid);
+        if (p.pid && adopt.pids.get(p.name) !== p.pid) return;
         adopt.members.set(p.name, id);
         // The founder may have restyled the badge in the garage since.
-        if (adopt.founder === p.name) {
+        if (foundedByMe(adopt)) {
+          if (!adopt.founderPid && p.pid) adopt.founderPid = p.pid;
           adopt.name = tname;
           adopt.tag = tag;
           adopt.logo = sanitizeLogo(msg.logo);
@@ -623,7 +729,9 @@ wss.on("connection", (ws) => {
         tag,
         logo: sanitizeLogo(msg.logo),
         founder: p.name,
+        founderPid: p.pid || null,
         members: new Map([[p.name, id]]),
+        pids: p.pid ? new Map([[p.name, p.pid]]) : new Map(),
       };
       teams.set(team.id, team);
       console.log(`[hub] team "${tname}" [${tag}] founded by ${p.name}`);
@@ -633,6 +741,10 @@ wss.on("connection", (ws) => {
     } else if (msg.t === "team-join") {
       const team = teams.get(String(msg.id));
       if (!team || teamOf(p.name)) return;
+      // A seat in a crew belongs to the save that took it. Recorded here
+      // so that leaving can be checked — see team-leave.
+      if (p.pid && !team.pids.has(p.name)) team.pids.set(p.name, p.pid);
+      if (p.pid && team.pids.get(p.name) !== p.pid) return;
       team.members.set(p.name, id);
       send(ws, { t: "team-you", team: teamView(team) });
       teamsChanged();
@@ -640,7 +752,18 @@ wss.on("connection", (ws) => {
     } else if (msg.t === "team-leave") {
       const team = teamOf(p.name);
       if (!team) return;
+      // Only the save that holds the seat may give it up.
+      //
+      // Membership is keyed by name because that is what the roster
+      // shows, and a name is typed. Without this, connecting as another
+      // member's name and sending one message removed them from their
+      // crew — and if they were its last member, the crew was deleted
+      // from disk. A seat taken before this ran has no id recorded and
+      // stays as it was: nothing is locked out retroactively.
+      const seat = team.pids.get(p.name);
+      if (seat && seat !== p.pid) return;
       team.members.delete(p.name);
+      team.pids.delete(p.name);
       // A crew with nobody left folds
       if (team.members.size === 0) teams.delete(team.id);
       teamsChanged();
@@ -690,6 +813,12 @@ wss.on("connection", (ws) => {
       const duelId = duelOf.get(id);
       if (duelId === undefined) return;
       const d = duels.get(duelId);
+      // duelOf and duels are kept in step by endDuel, so this should
+      // never be missing — and "should never" is exactly the condition
+      // worth guarding when the cost of being wrong is a TypeError
+      // inside a socket handler, which ends the process and takes every
+      // other player offline with it.
+      if (!d) { duelOf.delete(id); return; }
       endDuel(duelId, d.a === id ? d.b : d.a, "opponent quit");
     } else if (msg.t === "ref-claim") {
       if (!p.pid) {
@@ -709,12 +838,13 @@ wss.on("connection", (ws) => {
       // Sanity: a 7.3 km lap takes at least ~80 s flat out
       if (!Number.isFinite(ms) || ms < 75000 || ms > 3600000) return;
       const prev = bestLaps.get(p.name);
+      if (prev === undefined && bestLaps.size >= MAX_LAP_NAMES) return;
       if (prev === undefined || ms < prev) {
         bestLaps.set(p.name, Math.round(ms));
         broadcast({ t: "leaderboard", entries: leaderboard() });
       }
     }
-  });
+  }
 
   ws.on("close", () => {
     const p = players.get(id);
@@ -722,7 +852,8 @@ wss.on("connection", (ws) => {
       const duelId = duelOf.get(id);
       if (duelId !== undefined) {
         const d = duels.get(duelId);
-        endDuel(duelId, d.a === id ? d.b : d.a, "opponent disconnected");
+        if (d) endDuel(duelId, d.a === id ? d.b : d.a, "opponent disconnected");
+        else duelOf.delete(id);
       }
       invites.delete(id);
       players.delete(id);
