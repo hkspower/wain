@@ -2490,7 +2490,14 @@ export class GameEngine {
       this.world.moonLight.shadow.map?.dispose();
       this.world.moonLight.shadow.map = null as unknown as THREE.WebGLRenderTarget;
     }
-    if (this.liveReflections) this.setProbeResolution(this.budget(ultra ? 512 : 128, "cube"));
+    // 256 on high, not 128. The probe is what the paint reflects, and a
+    // lamppost twenty metres off is one pixel wide in a 128-face — after
+    // the PMREM blur it is a smear across a 1.7 m flank, on the tier
+    // whose whole point is a desktop GPU with pixels to spend. A face is
+    // rendered once per frame, so 256 is 65 k pixels a frame, and the
+    // pacing check that once caught the six-face stutter would catch a
+    // regression here. Ultra keeps 512.
+    if (this.liveReflections) this.setProbeResolution(this.budget(ultra ? 512 : 256, "cube"));
     this.renderScale = 1;
     this.applyRenderScale();
   }
