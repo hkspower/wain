@@ -80,6 +80,21 @@ const BATTERY = [
   ["مطاعم", ["restaurants", "fastfood"], "the plural"],
   ["coffee", ["coffee"], "typed in English"],
   ["beach", ["outdoors"], "English, on an Arabic site"],
+
+  // --- the intention, not the listing --------------------------------------
+  //
+  // Every place is described in the vocabulary of a LISTING — «موعد», «ربع»,
+  // «ماركات» — and people type the vocabulary of an INTENTION. Same idea,
+  // different register, and before the synonym entries these four returned
+  // nothing at all. Each is checked for the category it should land in, not
+  // merely for being non-empty: a synonym that answers with the wrong place
+  // is worse than one that answers with none.
+  ["رومانسي", ["coffee", "restaurants"], "a date — the catalogue tags this «موعد»"],
+  ["شباب", ["coffee", "fastfood", "restaurants"], "a young crowd — tagged «ربع»"],
+  ["ملابس", ["shopping"], "shopping FOR something — tagged «ماركات»"],
+  ["كتب", ["shopping"], "secondhand books, which is سوق الجمعة and nowhere else"],
+  ["بارد", ["shopping", "restaurants", "culture"], "somewhere air-conditioned in the heat"],
+  ["عائلي", ["family", "restaurants", "outdoors"], "family-friendly, spelled the common way"],
 ];
 
 console.log("\n── she answers the question that was asked ──");

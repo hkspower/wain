@@ -133,6 +133,52 @@ const SYNONYMS: Record<string, string[]> = {
   نطلع: ["مكان", "طلعه"],
   سمچ: ["سمك"],
   حلويات: ["حلا"],
+
+  /* ── The words people search with that the catalogue does not use ────────
+   *
+   * `npm run audit:search` tries 35 everyday queries. Twelve came back empty,
+   * and the useful question was not "why is the search failing" — it is not —
+   * but "is the CONCEPT in the catalogue at all". For half of them it is:
+   * every place is described in the vocabulary of a listing («موعد», «ربع»,
+   * «ماركات») while people type the vocabulary of an intention («رومانسي»,
+   * «شباب», «ملابس»). Same idea, different register, no overlap.
+   *
+   * Each entry below maps to a word that is VERIFIABLY somewhere in
+   * places.ts — checked, not assumed. Mapping a query to a tag no place
+   * carries would move the empty result rather than fix it, and mapping it to
+   * a tag that is merely nearby would make the search confidently wrong,
+   * which is worse than empty.
+   *
+   * The other six — جيم، صيدلية، مستشفى، بنك، سوشي، صحراء — are still empty
+   * and should stay that way. There is no gym, pharmacy or sushi in the
+   * catalogue, and no synonym invents one. */
+
+  // «وين أطلع رومانسي» — the tag for this is «موعد», which two places carry.
+  رومانسي: ["موعد", "هدوء"],
+  رومنسي: ["موعد", "هدوء"],
+  موعد: ["رومانسي", "هدوء"],
+  // «ربع» is what a Kuwaiti calls the friend group; «شباب» is how the same
+  // outing gets described to anyone else.
+  شباب: ["ربع", "سهرة"],
+  اصحاب: ["ربع", "سهرة"],
+  ربيع: ["ربع"],
+  // Shopping, by what you are shopping FOR rather than where.
+  ملابس: ["ماركات", "تسوق", "مول"],
+  هدوم: ["ماركات", "تسوق", "مول"],
+  ماركات: ["تسوق", "مول"],
+  // سوق الجمعة really is where secondhand books are sold, and «عتيق» is the
+  // tag it already carries for exactly that stall row.
+  كتب: ["عتيق", "مساومة"],
+  // Both spellings of the family word people actually type.
+  عائلي: ["عوائل", "عائله"],
+  عايلي: ["عوائل", "عائله"],
+  // Summer in Kuwait is a search term. «مكيّف» is the tag that answers it.
+  مكيف: ["مكيّف", "داخلي"],
+  حر: ["مكيّف", "داخلي"],
+  بارد: ["مكيّف", "داخلي"],
+  // Walking, which the catalogue tags as «ممشى» and «مشي داخلي».
+  مشي: ["ممشى", "مشي داخلي", "حدائق"],
+  رياضه: ["ممشى", "مشي داخلي"],
 };
 
 /**
