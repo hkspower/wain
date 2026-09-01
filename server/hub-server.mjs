@@ -917,6 +917,44 @@ setInterval(() => {
   }
 }, TICK_MS);
 
+// Die properly.
+//
+// Every supervisor this will ever run under — docker stop, systemd,
+// a platform's deploy cycle — ends the process with SIGTERM, and
+// Node's default answer to SIGTERM is to vanish mid-thought. Most
+// ledger writes flush at the moment they happen, but registerCode only
+// marks the ledger dirty and waits for the ten-second interval; a
+// restart inside that window silently dropped it. The ledger is the
+// one file whose header says a promise a restart forgets is worse than
+// not making it, so the last thing this process does is keep them.
+//
+// Sockets are closed with a "full"-style notice rather than abandoned:
+// the client already handles onClose by dropping to solo, so a clean
+// close during a deploy reads as "hub restarting" rather than a hang.
+let dying = false;
+function shutdown(signal) {
+  if (dying) return;
+  dying = true;
+  console.log(`[hub] ${signal} — flushing the ledger and closing`);
+  try {
+    ledgerDirty = true;
+    saveLedger();
+  } catch (err) {
+    console.error(`[hub] ledger flush failed on ${signal}: ${err.message}`);
+  }
+  for (const client of wss.clients) {
+    try { client.close(1001, "hub restarting"); } catch {}
+  }
+  wss.close();
+  httpServer.close(() => process.exit(0));
+  // A socket that will not close does not get to hold the deploy
+  // hostage: the supervisor's own kill timeout is usually 10 s, and
+  // exiting cleanly at 3 beats being SIGKILLed at 10.
+  setTimeout(() => process.exit(0), 3000).unref?.();
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+
 httpServer.listen(PORT, () => {
   console.log(`[hub] Gulf Road Nights hub listening on ws://0.0.0.0:${PORT}`);
   console.log(`[hub] REST API: http://localhost:${PORT}/api/v1/status`);
