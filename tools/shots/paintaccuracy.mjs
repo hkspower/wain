@@ -113,7 +113,20 @@ await page.reload({ waitUntil: "networkidle" });
 await page.click("text=START ENGINE");
 await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 180000 });
 await page.waitForTimeout(3000);
-await page.evaluate(() => { window.__grnEngine.setPaused(true); });
+await page.evaluate(() => {
+  const e = window.__grnEngine;
+  e.setPaused(true);
+  // Sweep the reflection probe by hand, all six faces, before reading
+  // anything. A metallic paint takes most of its colour from the
+  // environment, and the environment is the live probe — which is
+  // BLACK from the moment its target is (re)created until a full sweep
+  // has rendered and convolved. The engine only sweeps while unpaused,
+  // and at this container's two frames a second the wait above is not
+  // reliably a sweep. One run read every paint at a fifth of its
+  // brightness and 37 collapsed pairs, and it was not the paint: the
+  // probe had just been resized for the high tier and never filled.
+  for (let i = 0; i < 6; i++) e.renderProbe();
+});
 
 console.log("paint                 chosen  rendered   hue err   chroma");
 const rows = [];

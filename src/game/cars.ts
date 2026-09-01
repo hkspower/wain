@@ -564,6 +564,17 @@ function extrudeProfile(
   const shape = new THREE.Shape();
   const top = points.slice(0, points.length - bottomPoints);
   shape.moveTo(top[0][0], top[0][1]);
+  // Uniform Catmull-Rom, which is what splineThru is — and MEASURED
+  // against the centripetal variant, which is the textbook cure for
+  // Catmull-Rom overshoot and was proposed here for exactly that.
+  // Sampled 800 points per shell on the authored profiles, overshoot
+  // above the crest went the wrong way on nearly every one: roof caps
+  // 0.1 -> 9.3 mm (zx), 1.1 -> 11.3 (pony), 3.7 -> 24.5 (gtr), 0.4 ->
+  // 11.4 (rx7), 3.7 -> 29.3 (hatch); canopies 30 -> 31 (zx), 47 -> 57
+  // (gtr). Only the pony and rx7 canopies improved. The reason is the
+  // spacing: these profiles are authored with near-even spans, which is
+  // the case uniform parameterisation is right for, and centripetal
+  // trades that for robustness on spacing these profiles do not have.
   shape.splineThru(top.slice(1).map(([x, y]) => new THREE.Vector2(x, y)));
   for (let i = points.length - bottomPoints; i < points.length; i++) {
     shape.lineTo(points[i][0], points[i][1]);
