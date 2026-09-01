@@ -105,6 +105,21 @@ const stats = async () => {
 };
 
 const INTENSITY = Number(process.argv[2] ?? 0.62);
+
+// WARM UP BEFORE THE FIRST READING.
+//
+// The exposure meter adapts over seconds, and the first pass used to
+// start the moment the road appeared — still converging from the bright
+// menu. The first stop of the first pass came back five times darker
+// than the same viewpoint five minutes later, and that one contaminated
+// row was the whole of a "43% -> 35%" headline: the other three stops
+// moved by half a point. Measured twice, both A/Bs had it. So the first
+// stop is posed once as a throwaway, the meter is given time to settle,
+// and only then does the comparison begin — and the A pass and the B
+// pass now start from the same adapted state, which is the only way a
+// difference between them means anything.
+await pose(STOPS[0][1]);
+await page.waitForTimeout(4000);
 const runs = [];
 for (const mode of ["as shipped", `shadow.intensity ${INTENSITY}`]) {
   await page.evaluate(([i, on]) => {
