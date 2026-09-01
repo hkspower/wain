@@ -34,8 +34,36 @@ const check = (ok, what) => {
 }
 const shot = (name) => p.screenshot({ path: `/tmp/backends-${name}.png` })
 
+// WHICH ORIGIN THE PANEL ACTUALLY CALLS — captured, so a wrong build fails in
+// one honest line instead of four cryptic ones and a thirty-second timeout.
+//
+// The API base is inlined into the bundle at export time, so an export built
+// for a different origin than the one it is served from cannot authenticate at
+// all: the admin session is a SameSite=Strict cookie, and a cross-origin
+// admin.php request neither sends it nor is answered with CORS. Every
+// signed-in assertion below would fail, and the first one to wait on a nav
+// link would hang for the full locator timeout — which is exactly what a
+// sandbox build (baked to :4173) did when run against this rig's :8899. That
+// is not a broken panel; it is the wrong build, and it cost a diagnosis. The
+// listener below names it. Rebuild per the header:
+//   EXPO_PUBLIC_API_BASE=http://127.0.0.1:8899 npm run build:web
+const apiOrigins = new Set()
+p.on('request', (r) => {
+  if (r.url().includes('admin.php')) apiOrigins.add(new URL(r.url()).origin)
+})
+
 await p.goto(BASE + '/backends', { waitUntil: 'networkidle' })
 await p.waitForTimeout(800)
+
+if (apiOrigins.size && !apiOrigins.has(new URL(BASE).origin)) {
+  console.log(`FAIL the panel is calling ${[...apiOrigins].join(', ')}, not ${new URL(BASE).origin}`)
+  console.log('     This is the WRONG BUILD, not a broken panel: the admin cookie is')
+  console.log('     SameSite=Strict and cannot ride a cross-origin request. Rebuild the')
+  console.log('     export against this origin:')
+  console.log(`       EXPO_PUBLIC_API_BASE=${new URL(BASE).origin} npm run build:web`)
+  await b.close()
+  process.exit(1)
+}
 
 // --- the panel is closed until you sign in -------------------------------
 check((await seen(p.getByText('Sign in')).count()) > 0, 'signed out, the panel shows a login')
