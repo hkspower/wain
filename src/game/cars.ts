@@ -3165,7 +3165,10 @@ export function createCar(colors: CarColors): THREE.Group {
     // metallic finish, it is pigment under lacquer, and the gloss comes
     // from the clearcoat above rather than from flake below. Mid-tone
     // colours are where metallic paint actually lives, and they keep it.
-    metalness: paintMetalness(colors.body),
+    // The finish scales the metalness — see FinishSpec.metalScale for
+    // why matte HAS to: a matte car that kept the paint's metalness had
+    // no diffuse term and rendered as a dim mirror, not as pigment.
+    metalness: paintMetalness(colors.body) * FINISHES[colors.finish ?? "gloss"].metalScale,
     clearcoat: FINISHES[colors.finish ?? "gloss"].clearcoat,
     clearcoatRoughness: FINISHES[colors.finish ?? "gloss"].clearcoatRoughness,
     envMapIntensity: 1.5 * FINISHES[colors.finish ?? "gloss"].envScale,

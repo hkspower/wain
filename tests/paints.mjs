@@ -192,6 +192,34 @@ const MIN_DE = 12;
   check(gain < 0.06, `carbon is worth ${(gain * 100).toFixed(1)}%, which is a power part wearing a body kit's name`);
 }
 
+// --- 2d. The three finishes are three different objects ---------------
+//
+// Gloss is a mirror over flake; matte is pigment under a flat wrap;
+// satin sits between. Each of those is a claim about MATERIAL numbers,
+// and the one that was silently false for the whole life of the finish
+// system was metalness: matte kept the paint's full metalness, and a
+// metal has no diffuse term, so a matte car was a dim blue mirror of a
+// suppressed environment instead of the colour anybody bought.
+{
+  const { FINISHES } = await import("../src/game/mods.ts");
+  const g = FINISHES.gloss, sa = FINISHES.satin, m = FINISHES.matte;
+  check(g.metalScale === 1, "gloss no longer keeps the measured metalness curve as-is");
+  check(sa.metalScale < g.metalScale && sa.metalScale > m.metalScale,
+    "satin does not sit between gloss and matte in metalness");
+  check(m.metalScale <= 0.3,
+    `matte keeps ${m.metalScale} of the paint's metalness — that is a mirror, not a pigment`);
+  check(m.metalScale > 0,
+    "matte at zero metalness loses the last of the flake; a wrap dulls it, it does not erase it");
+  // The orderings the finishes have always promised, pinned so a future
+  // tweak to one axis cannot quietly cross another.
+  check(g.clearcoat > sa.clearcoat && sa.clearcoat > m.clearcoat, "clearcoat does not step down gloss>satin>matte");
+  check(g.envScale > sa.envScale && sa.envScale > m.envScale, "env contribution does not step down gloss>satin>matte");
+  check(m.roughnessAdd > sa.roughnessAdd && sa.roughnessAdd > g.roughnessAdd, "roughness does not step up gloss<satin<matte");
+  console.log(
+    `finishes metalness kept: gloss ${g.metalScale}, satin ${sa.metalScale}, matte ${m.metalScale}`
+  );
+}
+
 // --- 3. Nothing is unbuyable, and nothing is unpaintable ---------------
 //
 // A swatch with no part is a colour nobody can have; a part with no

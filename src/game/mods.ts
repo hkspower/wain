@@ -394,12 +394,34 @@ export interface FinishSpec {
   roughnessAdd: number;
   /** Scales the environment contribution. */
   envScale: number;
+  /**
+   * Scales the basecoat's metalness — the axis the first three knobs
+   * cannot reach, and the one that decides whether a finish is a mirror
+   * or a pigment.
+   *
+   * In a metalness workflow a metal has NO diffuse term: its colour is
+   * entirely its reflection, tinted by the base. The finish system was
+   * built as if killing the clearcoat and starving the envmap made a
+   * surface matte, but a mid-tone matte car still carried the paint's
+   * full 0.95 metalness — so it had no diffuse to fall back on, and it
+   * rendered as a dim, rough mirror of a suppressed environment. Under
+   * this game's blue night that is a dim BLUE mirror, whatever colour
+   * was bought.
+   *
+   * Real matte paint is the opposite object: the flat wrap buries the
+   * flake, and what you see is pigment — diffuse first, a whisper of
+   * sheen second. So matte pulls the metalness down to a remnant and
+   * lets the diffuse carry the actual colour; satin sits between; gloss
+   * is untouched, because gloss is the finish the metalness curve was
+   * measured against and its numbers are load-bearing.
+   */
+  metalScale: number;
 }
 
 export const FINISHES: Record<PaintFinish, FinishSpec> = {
-  gloss: { clearcoat: 1, clearcoatRoughness: 0.13, roughnessAdd: 0, envScale: 1 },
-  satin: { clearcoat: 0.45, clearcoatRoughness: 0.42, roughnessAdd: 0.16, envScale: 0.62 },
-  matte: { clearcoat: 0, clearcoatRoughness: 1, roughnessAdd: 0.38, envScale: 0.3 },
+  gloss: { clearcoat: 1, clearcoatRoughness: 0.13, roughnessAdd: 0, envScale: 1, metalScale: 1 },
+  satin: { clearcoat: 0.45, clearcoatRoughness: 0.42, roughnessAdd: 0.16, envScale: 0.62, metalScale: 0.8 },
+  matte: { clearcoat: 0, clearcoatRoughness: 1, roughnessAdd: 0.38, envScale: 0.3, metalScale: 0.25 },
 };
 
 /** The garage part id for each finish, and back again. */
