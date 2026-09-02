@@ -177,6 +177,30 @@ export const PLACES_COUNT: CountForms = {
   many: "مكان",
 };
 
+/**
+ * "دقيقة" / "دقيقتين" / "٥ دقايق" / "١٥ دقيقة"
+ *
+ * Durations were the one place the rule was written out by hand each time, and
+ * both hands got it wrong. The queue said «تقريباً ٥ دقيقة» for every wait it
+ * ever showed a first-in-line customer, and the order tracker said «من ١ دقايق»
+ * for an order placed a minute ago — the plural where the singular belongs, and
+ * the singular where the plural belongs, in the same site.
+ */
+export const MINUTES_COUNT: CountForms = {
+  one: "دقيقة",
+  two: "دقيقتين",
+  few: "دقايق",
+  many: "دقيقة",
+};
+
+/** "ساعة" / "ساعتين" / "٣ ساعات" / "١٣ ساعة" */
+export const HOURS_COUNT: CountForms = {
+  one: "ساعة",
+  two: "ساعتين",
+  few: "ساعات",
+  many: "ساعة",
+};
+
 /** "نتيجة واحدة" / "نتيجتين" / "٥ نتائج" / "١٧ نتيجة" */
 export const RESULTS_COUNT: CountForms = {
   zero: "ما فيه نتائج",

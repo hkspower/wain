@@ -9,7 +9,10 @@ import {
 } from "@/lib/net";
 import {
   DEFAULT_SERVICE_MINUTES,
+  HOURS_COUNT,
+  MINUTES_COUNT,
   clampServiceMinutes,
+  countAr,
   toArabicDigits,
 } from "@/lib/place-kit";
 // A type only — `import type` is erased at compile time, so naming the
@@ -66,13 +69,16 @@ export function waitEstimateAr(ahead: number, serviceMinutes: number): string {
   if (ahead <= 0) return "دورك الحين تقريباً";
   const raw = ahead * clampServiceMinutes(serviceMinutes);
   const rounded = Math.max(5, Math.round(raw / 5) * 5);
-  if (rounded < 60) return `تقريباً ${toArabicDigits(rounded)} دقيقة`;
+  // countAr, not a hand-written ternary. `rounded` is a multiple of five, so
+  // the very first case this function ever hits — one person ahead, five
+  // minutes — was «تقريباً ٥ دقيقة»: the singular where Arabic takes the
+  // plural. Every wait under fifteen minutes was wrong, which is most of them.
+  if (rounded < 60) return `تقريباً ${countAr(rounded, MINUTES_COUNT)}`;
   const hours = Math.floor(rounded / 60);
   const mins = rounded % 60;
-  const hourWord = hours === 1 ? "ساعة" : hours === 2 ? "ساعتين" : `${toArabicDigits(hours)} ساعات`;
   return mins === 0
-    ? `تقريباً ${hourWord}`
-    : `تقريباً ${hourWord} و${toArabicDigits(mins)} دقيقة`;
+    ? `تقريباً ${countAr(hours, HOURS_COUNT)}`
+    : `تقريباً ${countAr(hours, HOURS_COUNT)} و${countAr(mins, MINUTES_COUNT)}`;
 }
 
 /** "٣ قدامك" — Arabic counts the small numbers differently. */
@@ -256,13 +262,13 @@ export async function joinQueue(
     return {
       ok: false,
       reason: "network",
-      message: describeNetError(error, "ما قدرنا نأخذ لك دور. جرّب مرة ثانية."),
+      message: describeNetError(error, "ما قدرنا ناخذ لك دور. جرّب مرة ثانية."),
     };
   }
 
   const number = Number(data);
   if (!Number.isFinite(number) || number < 1) {
-    return { ok: false, reason: "network", message: "ما قدرنا نأخذ لك دور. جرّب مرة ثانية." };
+    return { ok: false, reason: "network", message: "ما قدرنا ناخذ لك دور. جرّب مرة ثانية." };
   }
 
   const ticket: HeldTicket = {

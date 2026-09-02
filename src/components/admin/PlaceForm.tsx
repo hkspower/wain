@@ -101,7 +101,7 @@ export function validate(p: EditablePlace): string[] {
   if (!p.bestTimeAr.trim()) errs.push("أحسن وقت للزيارة مطلوب.");
   // An empty rating is valid — it means nobody has judged the place yet.
   if (p.rating !== undefined && (p.rating < 0 || p.rating > 5))
-    errs.push("التقييم لازم يكون بين ٠ و ٥.");
+    errs.push("التقييم لازم يكون بين ٠ و٥.");
   if (p.priceLevel < 1 || p.priceLevel > 3) errs.push("مستوى السعر لازم يكون ١ أو ٢ أو ٣.");
   if (p.lat < -90 || p.lat > 90) errs.push("خط العرض غير صحيح.");
   if (p.lng < -180 || p.lng > 180) errs.push("خط الطول غير صحيح.");
@@ -284,7 +284,7 @@ export default function PlaceForm({
         <p className={hint}>
           أول وقت استلام يُعرض على الزبون يبدأ بعد هذي المدة. الافتراضي{" "}
           {toArabicDigits(DEFAULT_PREP_MINUTES)} دقيقة، والمسموح بين{" "}
-          {toArabicDigits(MIN_PREP_MINUTES)} و {toArabicDigits(MAX_PREP_MINUTES)}.
+          {toArabicDigits(MIN_PREP_MINUTES)} و{toArabicDigits(MAX_PREP_MINUTES)}.
         </p>
 
         <label className={label} htmlFor="f-ordernote" style={{ marginTop: "0.75rem" }}>

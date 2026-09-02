@@ -56,6 +56,43 @@ console.log("\n── the wait, said carefully ──");
   ok("it never promises a time", ![1, 5, 20].some((n) => /الساعة|بالضبط/.test(waitEstimateAr(n, 20))));
 }
 
+console.log("\n── and said in grammatical Arabic ──");
+{
+  // Arabic does not append a noun to a numeral. 3–10 take the plural, 11 and up
+  // revert to the singular, and the cases above happened to test 15, 20, 60, 80
+  // and 120 — every value that takes the singular. So the bug they missed was
+  // the most common estimate this function produces: one person ahead at the
+  // five-minute floor, «تقريباً ٥ دقيقة», the singular where the plural belongs.
+  ok("five minutes takes the plural", waitEstimateAr(1, 5) === "تقريباً ٥ دقايق", waitEstimateAr(1, 5));
+  ok("ten minutes too", waitEstimateAr(2, 5) === "تقريباً ١٠ دقايق", waitEstimateAr(2, 5));
+  ok("fifteen reverts to the singular", waitEstimateAr(3, 5) === "تقريباً ١٥ دقيقة", waitEstimateAr(3, 5));
+  ok("three hours takes the plural", waitEstimateAr(9, 20) === "تقريباً ٣ ساعات", waitEstimateAr(9, 20));
+  ok("twelve hours reverts to the singular", waitEstimateAr(4, 180) === "تقريباً ١٢ ساعة",
+    waitEstimateAr(4, 180));
+  ok("the trailing minutes agree as well", waitEstimateAr(13, 5) === "تقريباً ساعة و٥ دقايق",
+    waitEstimateAr(13, 5));
+  // The whole point of routing this through countAr: no estimate anywhere in
+  // the range may pair a 3–10 numeral with a singular, or an 11+ with a plural.
+  const wrong = [];
+  for (let ahead = 1; ahead <= 60; ahead++) {
+    for (const svc of [5, 10, 15, 20, 30, 45, 60, 90, 180]) {
+      const said = waitEstimateAr(ahead, svc);
+      const pairs = [...said.matchAll(/([٠-٩]+) (دقايق|دقيقة|ساعات|ساعة)/g)];
+      for (const [, digits, noun] of pairs) {
+        const n = Number([...digits].map((d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).join(""));
+        // The LAST TWO DIGITS govern, not the whole number: ١٠٥ reads «مئة وخمس
+        // ساعات» and takes the plural, ١١١ reads «مئة وإحدى عشرة ساعة» and does
+        // not. Checking `n` itself called ١٠٥ ساعات wrong when it is right —
+        // the assertion was the thing at fault, not the code under it.
+        const mod = n % 100;
+        const plural = noun === "دقايق" || noun === "ساعات";
+        if ((mod >= 3 && mod <= 10) !== plural) wrong.push(`${ahead}×${svc} → ${said}`);
+      }
+    }
+  }
+  ok(`no estimate mismatches its numeral (540 combinations)`, wrong.length === 0, wrong.slice(0, 3).join(" · "));
+}
+
 console.log("\n── counting people in Arabic ──");
 {
   ok("nobody", aheadAr(0) === "ما فيه أحد قدامك");

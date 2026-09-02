@@ -183,7 +183,7 @@ export default function Submissions({
       ) : rows.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-line-strong bg-sand-100/70 py-14 text-center">
           <p className="font-display text-lg font-semibold text-ink-900">
-            {filter === "pending" ? "ما في طلبات تنتظر" : "ما وصلنا أي طلب بعد"}
+            {filter === "pending" ? "ما فيه طلبات تنتظر" : "ما وصلنا أي طلب بعد"}
           </p>
           <p className="mt-1 text-sm text-ink-500">
             الطلبات توصل من صفحة <code dir="ltr">/add</code>.

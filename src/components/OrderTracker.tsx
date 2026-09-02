@@ -5,7 +5,7 @@ import Link from "next/link";
 import { IconCheck, IconClock, IconClose, IconGo } from "@/components/icons";
 import { CollectionDetails, OrderLines } from "@/components/OrderSummary";
 import { haptic } from "@/lib/haptics";
-import { toArabicDigits } from "@/lib/places";
+import { HOURS_COUNT, MINUTES_COUNT, countAr, toArabicDigits } from "@/lib/place-kit";
 import { usePoll } from "@/lib/usePoll";
 import { supabaseEnabled } from "@/lib/supabase";
 import {
@@ -65,9 +65,12 @@ function agoAr(iso: string | null): string {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
   if (!Number.isFinite(mins) || mins < 0) return "";
   if (mins < 1) return "الحين";
-  if (mins < 60) return `من ${toArabicDigits(mins)} ${mins <= 10 ? "دقايق" : "دقيقة"}`;
-  const hours = Math.floor(mins / 60);
-  return `من ${toArabicDigits(hours)} ${hours === 1 ? "ساعة" : hours === 2 ? "ساعتين" : "ساعات"}`;
+  // `mins <= 10 ? "دقايق" : "دقيقة"` looked like the 3–10 rule and was not:
+  // it swept 1 and 2 in with it, so an order placed sixty seconds ago read
+  // «من ١ دقايق». The hours line had the mirror-image bug — no 11+ case, so a
+  // morning order read «من ١٣ ساعات» by the evening. countAr knows the rule.
+  if (mins < 60) return `من ${countAr(mins, MINUTES_COUNT)}`;
+  return `من ${countAr(Math.floor(mins / 60), HOURS_COUNT)}`;
 }
 
 /** A pre-order is a short errand, so a slow poll catches "ready" soon enough
