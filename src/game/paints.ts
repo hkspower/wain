@@ -111,8 +111,15 @@ export const PAINTS: Paint[] = [
   { id: "paint-bronze", hex: 0x8a5a2a, family: "warm" },
   { id: "paint-olive", hex: 0x6d6a2f, family: "warm" },
   { id: "paint-red", hex: 0xc1121f, family: "warm" },
-  { id: "paint-gold", hex: 0xc9a227, family: "warm" },
-  { id: "paint-sand", hex: 0xdcc79c, family: "warm" },
+  // 0xb0ab28, not the tin's 0xc9a227: the blue night rotates gold's
+  // rendered hue about 18 degrees toward green (measured, sky-tier), so
+  // the base is turned 14 back toward orange to meet it. Same idea as
+  // the light-vs-road spread already in this file — chosen against what
+  // the road does, not against the swatch.
+  { id: "paint-gold", hex: 0xb0ab28, family: "warm" },
+  // 0xd0cb9d, pre-rotated 15 degrees against the same blue drift that
+  // pushed the tin's 0xdcc79c past a nameable gold on the car.
+  { id: "paint-sand", hex: 0xd0cb9d, family: "warm" },
 
   // --- cool: the water this road runs along
   { id: "paint-navy", hex: 0x16305e, family: "cool" },
