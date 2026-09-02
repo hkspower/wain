@@ -185,8 +185,18 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
    2.52 is the shipped artwork's own ratio. On a 393px phone that is 156px of
    picture, which reads as a band rather than a hero.
 
-     phone    100vw / 1.85  ->  212px at 393   (was 156)
-     desktop  100vw / 2.15  ->  595px at 1280  (was 508)
+     phone    100vw / 1.65  ->  238px at 393   (was 212, and 156 before that)
+     desktop  100vw / 1.90  ->  674px at 1280  (was 595, and 508 before that)
+
+   TALLER AGAIN, at the owner's request, and the ceiling on it is the artwork
+   rather than taste. The box is object-fit: cover over a 2.52:1 image, so
+   every step deeper crops more width — at 1.90 the frame keeps 75% of the
+   1600px art, at 1.65 it keeps 65%. What saves it is that the crop is pinned
+   at 15% rather than centred: the window runs 3.7%..79.1% on desktop and
+   5.2%..70.7% on the phone, so it eats the PHOTOGRAPH on the right and leaves
+   the SPORTA mark, the headline bar and the Arabic — all set in the left half
+   of every one of the five banners — untouched. Centred, the same depth would
+   have cut both edges and taken the mark with it.
 
    The +128px on the phone value is the button strip below the art and is
    carried through unchanged — it is measured, not a guess: py-6 top and
@@ -197,8 +207,8 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
    whoever is reading it. Overriding the variable rather than the height means
    the pre-paint shell and the mounted component still read the same number. */
 :root {
-  --hero-h: calc(100vw / 1.85 + 128px) !important;
-  --hero-h-md: min(calc(100vw / 2.15), 80svh) !important;
+  --hero-h: calc(100vw / 1.65 + 128px) !important;
+  --hero-h-md: min(calc(100vw / 1.90), 80svh) !important;
 }
 
 /* AND THE COMPONENT ITSELF, which is what actually sizes the mounted hero.
@@ -218,12 +228,12 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
    reading the file. */
 @media (max-width: 767px) {
   .hero-strength > .aspect-\[2\.52\/1\] {
-    aspect-ratio: 1.85 / 1 !important;
+    aspect-ratio: 1.65 / 1 !important;
   }
 }
 @media (min-width: 768px) {
   .hero-strength {
-    aspect-ratio: 2.15 / 1 !important;
+    aspect-ratio: 1.90 / 1 !important;
   }
 }
 
