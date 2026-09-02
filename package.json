@@ -66,6 +66,7 @@
     "test:cron-gate": "node scripts/cron-gate-test.mjs",
     "test:admin-mobile": "node scripts/admin-mobile.mjs",
     "test:wallet": "node scripts/wallet-test.mjs",
+    "test:webpush": "node scripts/webpush-test.mjs",
     "test:assistant": "node scripts/assistant-test.mjs",
     "test:csp": "node scripts/csp-check.mjs",
     "test:htaccess": "node scripts/htaccess-test.mjs",

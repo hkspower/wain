@@ -2032,10 +2032,21 @@ if ($r === 'acc_post_unposted' && $method === 'POST') {
     foreach (array_slice(acc_unposted_orders($db), 0, 100) as $o) {
         try {
             $done += acc_post_order($db, (int)$o['id'], (string)($_SESSION['admin_email'] ?? ''));
-        } catch (Throwable $e) {
+        } catch (InvalidArgumentException | RuntimeException $e) {
             // One bad order must not stop the other ninety-nine. It is named
             // instead, so it can be fixed at its source.
+            //
+            // THESE TWO CLASSES ONLY, for the reason given at acc_entry_add
+            // above: acc_post_order() runs four prepared statements, so a
+            // PDOException caught here would put the driver's text — the
+            // statement, the column, the constraint name — on the Accounting
+            // screen next to a customer's track ID. The two classes
+            // accounting.php raises are sentences written for a bookkeeper;
+            // anything else is this shop's problem, not theirs.
             $failed[] = ['track_id' => $o['track_id'], 'why' => $e->getMessage()];
+        } catch (Throwable $e) {
+            error_log('acc_post_unposted ' . $o['track_id'] . ': ' . $e->getMessage());
+            $failed[] = ['track_id' => $o['track_id'], 'why' => 'could_not_post'];
         }
     }
     store_out(['posted' => $done, 'failed' => $failed,

@@ -111,6 +111,7 @@ because the rigs place real orders against a real database.
 | `npm run test:admin-live` | The panel's protocol against the REAL `admin.php` + MariaDB |
 | `npm run test:admin-browser` | The panel itself, in a browser, against the real `admin.php` and the real database |
 | `npm run test:wallet` | A built `.pkpass`, the way Wallet reads one |
+| `npm run test:webpush` | The push encryption against RFC 8291's own vector — the failure it catches is silent |
 | `npm run test:assistant` | سبورتا AI: the facts are the shop's, and a customer cannot forge them |
 | `npm run test:csp` | Every inline script in the website is declared in its CSP |
 | `npm run test:htaccess` | `.htaccess` run by a real Apache — routes, redirects and refusals (needs `apache2`) |
