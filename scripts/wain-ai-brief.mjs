@@ -55,10 +55,11 @@ const best = blocks.map((b) => field(b, "bestTimeAr"));
 const price = blocks.map((b) => numField(b, "priceLevel"));
 const setting = blocks.map((b) => field(b, "setting"));
 const season = blocks.map((b) => field(b, "seasonAr"));
-const tags = blocks.map((b) => {
+const tagList = blocks.map((b) => {
   const raw = (b.match(/^ {4}tagsAr: \[([^\]]*)\]/m) || [])[1] || "";
-  return [...raw.matchAll(/"([^"]+)"/g)].map((t) => t[1]).join("، ");
+  return [...raw.matchAll(/"([^"]+)"/g)].map((t) => t[1]);
 });
+const tags = tagList.map((t) => t.join("، "));
 
 /**
  * Optional fields, read per place rather than with grab().
@@ -119,6 +120,42 @@ ${queueList.map((sg) => `- ${nameAr[slugs.indexOf(sg)]} (${salonAr[salonKind[slu
 الوقت اللي يطلع للزبون تقديري — لا تقولين له رقم دقيق ولا تعدينه بوقت.`
   : `**ما فيه أي صالون مشغّل الطابور حالياً.** لا تعرضين على أحد ياخذ دور.
 إذا سأل، قولي: «للحين ما فيه صالون مفعّلها.»`;
+
+/**
+ * Two indexes over the same 44 records, because a list is only searchable in
+ * the order it is written in.
+ *
+ * The place rows below are sorted the way places.ts is, which answers «حدثيني
+ * عن أبراج الكويت» and nothing else. A visitor does not arrive with a place;
+ * they arrive with an interest («أبي أصوّر») or a constraint («شي قريب من
+ * الفحيحيل»), and answering either from the rows means reading all forty-four
+ * and hoping. Both indexes are derived — every name in them comes out of
+ * places.ts — so neither can claim a place the site does not have.
+ */
+
+// Only tags carried by two or more places. A tag on exactly one place adds
+// nothing an index can do that its own row does not already do, and 49 of the
+// 106 tags are that.
+const byTag = new Map();
+tagList.forEach((ts, i) => {
+  for (const t of ts) byTag.set(t, [...(byTag.get(t) ?? []), nameAr[i]]);
+});
+const interestRows = [...byTag.entries()]
+  .filter(([, list]) => list.length > 1)
+  .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], "ar"))
+  .map(([t, list]) => `- **${t}** (${list.length}) — ${list.join(" · ")}`)
+  .join("\n");
+
+// Areas, not governorates. The governorate of every area is a fact I would be
+// asserting rather than reading — الري and الدوحة alone are easy to place in
+// the wrong one — and a confidently wrong «هذا في محافظة حولي» is worse than
+// no grouping at all. The area is in the data; the governorate is not.
+const byArea = new Map();
+areaAr.forEach((a, i) => byArea.set(a, [...(byArea.get(a) ?? []), nameAr[i]]));
+const areaRows = [...byArea.entries()]
+  .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0], "ar"))
+  .map(([a, list]) => `- **${a}** (${list.length}) — ${list.join(" · ")}`)
+  .join("\n");
 
 const rows = slugs
   .map(
@@ -309,6 +346,68 @@ ${queueSection}
 ${rows}
 
 ---
+
+## حسب الاهتمام — من الرغبة إلى المكان
+
+الزائر ما يجي باسم مكان، يجي برغبة. هذا الفهرس يحوّل الرغبة إلى أماكن، مرتّب
+من الأكثر تغطية للأقل. الاهتمامات اللي عند مكان واحد بس مو هنا — سطر المكان
+نفسه يكفيها.
+
+${interestRows}
+
+## حسب المنطقة
+
+${areaRows}
+
+**مناطق مو محافظات.** الجدول فوق من بيانات الموقع نفسه؛ محافظة كل منطقة مو
+منها، وقول «هذا في محافظة حولي» غلط أسوأ من عدم التجميع أصلاً. إذا سأل عن
+محافظة، اسأليه عن المنطقة أو رشّحي بالمنطقة.
+
+## الكويت — التقويم والعادات
+
+هذي القواعد اللي تفرق بين جواب عام وجواب كويتي. **ما عندك تقويم**: تعرفين
+التاريخ والوقت من النظام، بس ما تعرفين إذا اليوم رمضان ولا عيد إلا إذا الزائر
+قالها أو الشهر معروف. لا تخمّنين — إذا ذكرها، طبّقي القاعدة.
+
+**نهاية الأسبوع الجمعة والسبت.** الجمعة الصبح كل شي هادي وكثير أماكن مسكّرة
+لين بعد صلاة الجمعة؛ الحركة تبدأ من العصر. لا ترشّحين طلعة الجمعة الصبح.
+
+**رمضان يقلب اليوم.** النهار هادي والمطاعم مسكّرة وقت الصيام، وكل شي يبدأ بعد
+المغرب ويطول لين الفجر. الغبقة بعد العشا. لا ترشّحين أبداً طلعة برا بالنهار في
+رمضان، ولا مطعم قبل المغرب. المولات والكافيهات تفتح متأخر وايد.
+
+**العيد زحمة.** المولات والمدن الترفيهية تنفجر بالناس أول ثلاثة أيام. رشّحي
+الصبح بدري، أو مكان أهدى.
+
+**الأعياد الوطنية ٢٥ و٢٦ فبراير.** «هلا فبراير» طول الشهر، وشارع الخليج يمتلئ
+بالليل — رشاشات مي وزحمة وأعلام. إذا يبي الجو هذا، هذا مكانه؛ وإذا يبي هدوء،
+تجنّبي الخليج بالليل في فبراير.
+
+**الصيف من يونيو لسبتمبر ٤٥–٥٠ درجة.** برا بالنهار مو ممكن — مكيّف بالنهار،
+والمكشوف بعد المغرب بس. وكثير عوائل مسافرة في يوليو وأغسطس، فالبلد أهدى.
+
+**الشتاء من ديسمبر لفبراير هو الموسم.** أحلى وقت لكل شي مكشوف، ووقت الكشتة
+والبر والشاليهات.
+
+**السرايات** — أمطار ورعد قوي بالربيع، غالباً أواخر مارس وأبريل. تجي بسرعة
+وتغرّق الشوارع وتروح. إذا الجو ممطر، رشّحي مكيّف.
+
+**وقت الصلاة** بعض المحلات تسكّر دقايق. مو مشكلة، بس لا تعطينه موعد دقيق.
+
+## كلمات كويتية لازم تفهمينها
+
+ما تحتاجين تستخدمينها كلها — تحتاجين تعرفين وش يقصد لما يقولها.
+
+- **طلعة** خروج · **كشتة** تخييم بالبر، شتوي · **البر** الصحراء · **الچالت /
+  الشاليه** بيت البحر · **الفريج** الحي القديم · **الديوانية** قعدة رجال
+  بالبيت بالليل — عادة، مو مكان تقدرين ترشّحينه
+- **الربع** الأصحاب · **العيال** الأطفال · **الأهل** العائلة · **عزيمة** دعوة
+  أكل · **غبقة** قعدة رمضان بعد العشا
+- الأكل: **مچبوس** · **هريس** · **تشريب** · **مرقوق** · **جريش** · **رقاق** ·
+  **بلاليط** · **درابيل** · **لقيمات** · **مسحب** — كلها أكل كويتي، وجّهيها
+  لتصنيف «مطاعم» و«أكل كويتي»
+- الشرب: **كرك** چاي بالحليب والهيل · **قهوة عربية** قهوة عربي بالهيل والزعفران
+- **وايد** كثير · **شنو** ماذا · **وين** أين · **جذي** كذا · **زين** طيب
 
 ## التصنيفات
 

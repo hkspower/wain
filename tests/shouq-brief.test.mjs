@@ -50,6 +50,85 @@ console.log("\n── the committed brief matches the data ──");
     committed.includes(`(${slugs.length} مكان)`), `expected ${slugs.length}`);
 }
 
+console.log("\n── the two indexes cannot name a place the site does not have ──");
+{
+  // An index is a second copy of the catalogue in a different order, and a
+  // second copy is a second thing that can be wrong. Both are generated, so
+  // the only question worth asking is whether the generation still holds:
+  // every name in them has to be a name in places.ts.
+  const names = new Set([...places.matchAll(/nameAr: "([^"]+)"/g)].map((m) => m[1]));
+  const section = (h) => {
+    const a = committed.indexOf(`## ${h}`);
+    const b = committed.indexOf("\n## ", a + 1);
+    return committed.slice(a, b < 0 ? undefined : b);
+  };
+  const namesIn = (body) =>
+    body.split("\n").filter((l) => l.startsWith("- **"))
+      .flatMap((l) => l.slice(l.indexOf("\u2014") + 1).split("\u00b7").map((n) => n.trim()))
+      .filter(Boolean);
+
+  const interest = section("\u062d\u0633\u0628 \u0627\u0644\u0627\u0647\u062a\u0645\u0627\u0645");
+  const area = section("\u062d\u0633\u0628 \u0627\u0644\u0645\u0646\u0637\u0642\u0629");
+  ok("the interest index is there", interest.length > 200, String(interest.length));
+  ok("the area index is there", area.length > 200, String(area.length));
+
+  const strayInterest = namesIn(interest).filter((n) => !names.has(n));
+  ok("every place named by an interest is a real place", strayInterest.length === 0,
+    strayInterest.slice(0, 5).join(" | "));
+  const strayArea = namesIn(area).filter((n) => !names.has(n));
+  ok("every place named by an area is a real place", strayArea.length === 0,
+    strayArea.slice(0, 5).join(" | "));
+
+  // The stated rule of the interest index: nothing with only one place, since
+  // that place's own row already says it. A singleton here means the filter
+  // went away and the index doubled in size for no added answer.
+  const singleton = interest.split("\n").filter((l) => /^- \*\*.+\*\* \(1\)/.test(l));
+  ok("no interest is listed with a single place", singleton.length === 0,
+    singleton.slice(0, 3).join(" | "));
+
+  // Areas are data; governorates are not, and the brief says so rather than
+  // guessing. If somebody adds a governorate grouping later, this fails and
+  // they read the reason next to it.
+  ok("it says why areas and not governorates",
+    committed.includes("\u0645\u0646\u0627\u0637\u0642 \u0645\u0648 \u0645\u062d\u0627\u0641\u0638\u0627\u062a"));
+
+  // The counts have to be the counts. `(23)` beside nineteen names is exactly
+  // the sort of thing nobody reads closely and an agent quotes confidently.
+  const badCount = [...interest.matchAll(/^- \*\*(.+?)\*\* \((\d+)\) \u2014 (.+)$/gm)]
+    .filter((m) => m[3].split("\u00b7").length !== Number(m[2]))
+    .map((m) => m[1]);
+  ok("every interest count matches the list beside it", badCount.length === 0,
+    badCount.slice(0, 3).join(" | "));
+}
+
+console.log("\n── she is told the local rules, and told what she cannot know ──");
+{
+  const cal = committed.slice(committed.indexOf("## \u0627\u0644\u0643\u0648\u064a\u062a \u2014 \u0627\u0644\u062a\u0642\u0648\u064a\u0645"));
+  // Each of these changes an answer, and the answer is wrong without it. The
+  // weekend is the clearest: recommending an outing on Friday morning sends
+  // somebody to a closed door.
+  for (const [needle, why] of [
+    ["\u0627\u0644\u062c\u0645\u0639\u0629 \u0648\u0627\u0644\u0633\u0628\u062a", "the weekend is Friday-Saturday"],
+    ["\u0631\u0645\u0636\u0627\u0646", "Ramadan turns the day around"],
+    ["\u0665 \u0648\u0662\u0666 \u0641\u0628\u0631\u0627\u064a\u0631", "the national days"],
+    ["\u0627\u0644\u0633\u0631\u0627\u064a\u0627\u062a", "the spring storms"],
+    ["\u0627\u0644\u0643\u0634\u062a\u0629", "winter camping"],
+  ]) ok(`she is told: ${why}`, cal.includes(needle), needle);
+
+  // The honest half. She has a clock, not a calendar — Ramadan and Eid move,
+  // and an agent that guesses will confidently tell somebody the restaurants
+  // are shut in the middle of an ordinary March.
+  ok("and told not to guess whether it is Ramadan or Eid",
+    cal.includes("\u0645\u0627 \u0639\u0646\u062f\u0643 \u062a\u0642\u0648\u064a\u0645") && cal.includes("\u0644\u0627 \u062a\u062e\u0645\u0651\u0646\u064a\u0646"));
+
+  const vocab = committed.slice(committed.indexOf("## \u0643\u0644\u0645\u0627\u062a \u0643\u0648\u064a\u062a\u064a\u0629"));
+  for (const w of ["\u0643\u0634\u062a\u0629", "\u063a\u0628\u0642\u0629", "\u0627\u0644\u0631\u0628\u0639", "\u0645\u0686\u0628\u0648\u0633", "\u0643\u0631\u0643", "\u0627\u0644\u062f\u064a\u0648\u0627\u0646\u064a\u0629"])
+    ok(`«${w}» is explained`, vocab.includes(w), w);
+  // The one word in that list that is not a place and must not become one.
+  ok("a diwaniya is named as a custom, not somewhere to be sent",
+    vocab.includes("\u0645\u0648 \u0645\u0643\u0627\u0646 \u062a\u0642\u062f\u0631\u064a\u0646 \u062a\u0631\u0634\u0651\u062d\u064a\u0646\u0647"));
+}
+
 console.log("\n── she is told what the site can actually do ──");
 {
   ok("the brief has a services section", committed.includes("## الخدمات"));
