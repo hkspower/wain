@@ -58,8 +58,8 @@ public static class GRNData
             Crew = "Salmiya Street Kings", Area = "Salmiya",
             Body = Hex(0xC8CDD6), Accent = Hex(0x16A34A),
             TopSpeedKmh = 232f, Style = BodyStyle.Sedan, PrizeKd = 400,
-            IntroAr = "هلا والله! يلا ورني شنو عندك يا بطل",
-            WinAr = "هاهاها! روح تعلم السواقة وبعدين تعال",
+            IntroAr = "هلا والله! يلا ورّني شنو عندك يا بطل",
+            WinAr = "هاهاها! روح تعلّم السواقة وبعدين تعال",
             LoseAr = "ما شاء الله عليك... خذت الليلة مني",
         },
         new Rival {
@@ -67,7 +67,7 @@ public static class GRNData
             Crew = "Gulf Road Gazelles", Area = "Sharq",
             Body = Hex(0xB84DD6), Accent = Hex(0xFFFFFF),
             TopSpeedKmh = 246f, Style = BodyStyle.Sedan, PrizeKd = 700,
-            IntroAr = "تبي تتحداني؟ يلا نشوف شطارتك",
+            IntroAr = "تبي تتحدّاني؟ يلا نشوف شطارتك",
             WinAr = "قلت لك، شارع الخليج لي أنا",
             LoseAr = "زين لعبت... بس هالمرة وبس",
         },
@@ -76,8 +76,8 @@ public static class GRNData
             Crew = "Hawally Night Hawks", Area = "Hawally",
             Body = Hex(0xF5C211), Accent = Hex(0x111111),
             TopSpeedKmh = 261f, Style = BodyStyle.ZX, PrizeKd = 1000,
-            IntroAr = "أنا الدبوس! محد يعديني في حولي",
-            WinAr = "ولا يهمك، تدرب زين وتعال مرة ثانية",
+            IntroAr = "أنا الدبوس! محد يعدّيني في حولي",
+            WinAr = "ولا يهمك، تدرّب زين وتعال مرة ثانية",
             LoseAr = "عيل صدق إنك سريع... احترمتك",
         },
         new Rival {
@@ -105,7 +105,7 @@ public static class GRNData
             TopSpeedKmh = 301f, Style = BodyStyle.ZX, PrizeKd = 1900,
             IntroAr = "الغبار اللي وراك؟ هذا أنا... بو تراب",
             WinAr = "قلت لك، التراب ما يخون أهله",
-            LoseAr = "فحطت عليّ صج... خذها بشرف",
+            LoseAr = "فحّطت عليّ صج... خذها بشرف",
         },
         new Rival {
             Id = "al-sayyaf", Name = "Al-Sayyaf", ArabicName = "السياف",
@@ -114,7 +114,7 @@ public static class GRNData
             TopSpeedKmh = 307f, Style = BodyStyle.GTR, PrizeKd = 2200,
             IntroAr = "السيف قطع قبلك خمسة... إنت السادس",
             WinAr = "قطعة نظيفة... مثل ما وعدتك",
-            LoseAr = "نصلك أحد من نصلي... السيف لك",
+            LoseAr = "نصلك أحدّ من نصلي... السيف لك",
         },
         new Rival {
             Id = "shabah-alkhaleej", Name = "Shabah Al-Khaleej", ArabicName = "شبح الخليج",

@@ -272,6 +272,58 @@ for (const s of list) {
 }
 
 // ---------------------------------------------------------------------
+// 11. One spelling per word, marked or bare.
+//
+// Rule 9 says this game marks a vowel only where it is load-bearing,
+// which means every mark it does write is a decision. This catches the
+// same decision being made twice, differently: دوّار on the map and
+// دوار on the road sign, تدرّب in one rival's line and تدرب in the
+// next. A reader does not see a convention there, only a typo — and
+// which of the two is the typo is not something they can tell.
+//
+// It knows no Arabic and does not need to. It compares the game only
+// against ITSELF: strip the marks, group the spellings, report any word
+// the corpus writes two ways. That is exactly why it can be trusted on
+// a script most reviewers cannot read — it makes no claim about which
+// spelling is right, only that there is more than one, which is a fact
+// about the file rather than about the language.
+//
+// It also has no opinion about whether a word should be marked at all.
+// A word that is bare everywhere passes, and so does one that is marked
+// everywhere. Only the split is an error.
+//
+// ONE EXCEPTION, and it is a real one: a mark can make a different WORD
+// rather than a clearer one, and then two spellings are correct. أحد is
+// "anyone" and أحدّ is "sharper" — the swordsman says both, "my sword is
+// not drawn for anyone" and then "your blade is sharper than mine". The
+// second was written أحد for a long time, which does not mean "sharper",
+// it means "someone", and the line said nothing. Anything added here has
+// to clear that bar: not two spellings of one word, but two words.
+const DISTINCT = new Set(["أحد"]);
+{
+  const spellings = new Map();
+  for (const s2 of list) {
+    for (const w of s2.text.split(/[^ء-يً-ْٰ]+/).filter(Boolean)) {
+      const key = w.replace(BARE, "");
+      if (!spellings.has(key)) spellings.set(key, new Map());
+      const g = spellings.get(key);
+      if (!g.has(w)) g.set(w, s2);
+    }
+  }
+  for (const [key, g] of spellings) {
+    if (g.size < 2 || DISTINCT.has(key)) continue;
+    const forms = [...g.keys()];
+    const where = [...g.values()];
+    bad(
+      where[where.length - 1],
+      `"${key}" is written two ways in this game — ${forms.join(" and ")} ` +
+        `(also at ${where[0].file}:${where[0].line}); pick one, or add it to ` +
+        `DISTINCT if the mark makes it a different word`
+    );
+  }
+}
+
+// ---------------------------------------------------------------------
 }
 
 runRules(strings);
@@ -328,6 +380,10 @@ const FIXTURE = [
   // preposition. This line is the regression guard for the false
   // positive the first run produced against a rival's own dialogue.
   ["!on-me is fine", "فحطت عليّ صج", null],
+  ["one spelling", "روح تدرب زين وبعدين تدرّب مرة ثانية", /written two ways/],
+  // ...and the pair that must NOT fire, for the reason DISTINCT exists:
+  // these are two words, not two spellings of one.
+  ["!sharper is not someone", "سيفي ما ينسلّ لأي أحد ونصلك أحدّ من نصلي", null],
 ];
 if (process.argv.includes("--self-test")) {
   let badRules = 0;
@@ -351,7 +407,8 @@ console.log(`${strings.length} Arabic string literals across ${files} files`);
 console.log(
   `rules        taa marbuta, alif maqsura, hamza, number agreement,\n` +
   `             Arabic punctuation, attached article, doubled words,\n` +
-  `             one ellipsis, half-vocalisation, register mixing`
+  `             one ellipsis, half-vocalisation, register mixing,\n` +
+  `             one spelling per word`
 );
 console.log(
   `not checked  conjugation, case endings, iḍāfa, agreement beyond the\n` +

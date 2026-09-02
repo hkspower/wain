@@ -94,9 +94,9 @@ export const PARTS: Part[] = [
   { id: "intake-basic", cat: "intake", name: "Panel Filter", ar: "فلتر عادي", price: 0, desc: "+2% power. The basic panel filter, fitted from new — yours already" },
   { id: "intake", cat: "intake", name: "Cold Intake", ar: "فلتر مفتوح", price: 250, desc: "+5% power. Open cone, cold feed, and an induction growl you can hear" },
   // Brakes — exclusive tiers
-  { id: "brakes-sport", cat: "brakes", name: "Sport Brakes", ar: "بريك رياضي", price: 500, desc: "Braking 26 → 32" },
-  { id: "brakes-race", cat: "brakes", name: "Racing Brakes", ar: "بريك سباق", price: 1000, desc: "Braking 26 → 38" },
-  { id: "brakes-carbon", cat: "brakes", name: "Carbon Ceramic", ar: "سيراميك", price: 1800, desc: "Braking 26 → 44" },
+  { id: "brakes-sport", cat: "brakes", name: "Sport Brakes", ar: "بريكات رياضية", price: 500, desc: "Braking 26 → 32" },
+  { id: "brakes-race", cat: "brakes", name: "Racing Brakes", ar: "بريكات سباق", price: 1000, desc: "Braking 26 → 38" },
+  { id: "brakes-carbon", cat: "brakes", name: "Carbon Ceramic", ar: "بريكات سيراميك", price: 1800, desc: "Braking 26 → 44" },
   // Tires — exclusive tiers (grip + curve stability)
   { id: "tires-sport", cat: "tires", name: "Sport Tires", ar: "تواير رياضية", price: 400, desc: "More grip, calmer sweepers" },
   { id: "tires-race", cat: "tires", name: "Racing Tires", ar: "تواير سباق", price: 900, desc: "Serious grip" },
@@ -112,7 +112,7 @@ export const PARTS: Part[] = [
   { id: "cage", cat: "chassis", name: "Roll Cage", ar: "قفص حماية", price: 1500, desc: "Rigid shell: contact costs far less speed and SP — the price is a little weight" },
   { id: "rack", cat: "chassis", name: "Quick Steering Rack", ar: "دركسون سريع", price: 700, desc: "Faster hands: the car answers the wheel almost immediately" },
   // Extras — additive
-  { id: "weight", cat: "extras", name: "Weight Reduction", ar: "تخفيف وزن", price: 800, desc: "+10% power, +3 braking" },
+  { id: "weight", cat: "extras", name: "Weight Reduction", ar: "تخفيف الوزن", price: 800, desc: "+10% power, +3 braking" },
   { id: "nos", cat: "extras", name: "NOS Kit", ar: "نيترو", price: 1000, desc: "Hold N for a 3-second shove; recharges slowly" },
   { id: "spoiler", cat: "extras", name: "GT Wing", ar: "جناح", price: 300, desc: "Downforce: steadier at speed" },
   { id: "gold-rims", cat: "extras", name: "Gold Rims", ar: "رنجات ذهب", price: 600, desc: "Pure Salmiya energy" },

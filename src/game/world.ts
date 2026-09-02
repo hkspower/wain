@@ -1257,7 +1257,7 @@ function roundaboutSignTexture(): THREE.CanvasTexture {
   ctx.textAlign = "center";
   ctx.direction = "rtl";
   ctx.font = `700 48px ${arabicSign()}`;
-  ctx.fillText("دوار شرق", 128, 260);
+  ctx.fillText("دوّار شرق", 128, 260);
   ctx.direction = "ltr";
   ctx.font = `600 26px ${latinDisplay()}`;
   ctx.fillText("SHARQ CIRCLE", 128, 302);
@@ -5026,7 +5026,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       const paint = new THREE.Mesh(
         new THREE.PlaneGeometry(4.6, 2.3),
         new THREE.MeshStandardMaterial({
-          map: roadTextTexture("دوار شرق"),
+          map: roadTextTexture("دوّار شرق"),
           transparent: true,
           roughness: 0.55,
           emissive: 0x9a9a92,

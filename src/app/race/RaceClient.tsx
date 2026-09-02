@@ -1841,7 +1841,7 @@ export default function RaceClient() {
         key: "credits",
         minor: true,
         label: "CREDITS",
-        ar: "شكر",
+        ar: "شكر وتقدير",
         icon: "star" as IconName,
         hint: "Who built this, and what it is built on",
         run: () => setCreditsOpen(true),
@@ -2999,7 +2999,7 @@ export default function RaceClient() {
               },
               {
                 h: "Ports",
-                ar: "المنافذ",
+                ar: "النسخ",
                 rows: [
                   ["Unreal Engine 5", "Code-only port, generated from the same handling data"],
                   ["Unity", "Code-only port, kept in parity by contract tests"],

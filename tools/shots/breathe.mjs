@@ -157,7 +157,12 @@ const browser = await chromium.launch({
   args: ["--use-gl=angle", "--enable-webgl", "--no-sandbox", "--disable-dev-shm-usage"],
 });
 const page = await browser.newPage({ viewport: { width: 760, height: 500 } });
-page.setDefaultTimeout(240000);
+// Fifteen minutes per step, which is absurd on a real machine and
+// necessary here: this container has no GPU, renders the game at about
+// two frames a second, and one grab is six composed frames. The mask
+// step alone is four grabs. A timeout shorter than the work is not a
+// safety net, it is a way of losing a measurement four minutes in.
+page.setDefaultTimeout(900000);
 page.on("console", (m) => { if (m.type() === "error") console.error("  page:", m.text()); });
 page.on("pageerror", (e2) => console.error("  page threw:", e2.message));
 // Every step announces itself. A silent hang inside one long

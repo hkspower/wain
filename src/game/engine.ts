@@ -1767,7 +1767,7 @@ export class GameEngine {
         `Find ${r.def.name} — ${r.def.arabicName}`,
         `${r.def.crew} · close in and flash 3× to challenge`
       );
-      this.voice.speak("يلا! دور على خصمك", {}, "announcer-start"); // announcer
+      this.voice.speak("يلا! دوّر على خصمك", {}, "announcer-start"); // announcer
     } else if (this.rivalIndex >= RIVALS.length) {
       // Reloaded as a reigning champion — straight to the crown screen.
       // Deferred: the caller sets its "playing" state right after start().
@@ -3458,7 +3458,7 @@ export class GameEngine {
       // The film already introduced them — just drop the green flag.
       this.events.onMessage("GO — يلا!", `"${r.def.taunt}"`);
       // The crew, over the radio, as the flag drops
-      this.voice.radioSpeak("يلا، خله وراك — روح!", { pitch: 1.05, rate: 1.2 });
+      this.voice.radioSpeak("يلا، خلّه وراك — روح!", { pitch: 1.05, rate: 1.2 });
     } else {
       this.voice.speak(r.def.lines.intro, r.def.voice, `${r.def.id}-intro`);
       if (this.events.onBattleStart) this.events.onBattleStart(r.def);
