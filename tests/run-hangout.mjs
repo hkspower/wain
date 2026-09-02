@@ -12,6 +12,11 @@
  *   map-pin       — the pins, on a phone and on a desktop. The two behaviours
  *                   that must not drift back together: one tap on a touch
  *                   device selects, one click on a desktop still opens.
+ *   search-button — the navbar search button and the palette behind it: the
+ *                   ⌘K shortcut its own header documents, focus landing in the
+ *                   box, arrow keys and Enter, and the code-splitting the two
+ *                   files exist for — a stray static import would undo that
+ *                   silently, because the button would still work.
  *   swipe         — the category rail, the site's one swiped surface. It was
  *                   snap-mandatory, which turned a 4px nudge into a 120px
  *                   jump. Tests both directions, because the tempting
@@ -66,6 +71,9 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
 
   console.log("\n════ الخريطة: the pins, on a phone and on a desktop ════");
   failed += (await run("node", ["tests/map-pin.test.mjs"], { env })) === 0 ? 0 : 1;
+
+  console.log("\n════ زر البحث: the button, the shortcut and the palette ════");
+  failed += (await run("node", ["tests/search-button.test.mjs"], { env })) === 0 ? 0 : 1;
 
   console.log("\n════ السحب: how the category rail feels under a thumb ════");
   failed += (await run("node", ["tests/swipe.test.mjs"], { env })) === 0 ? 0 : 1;
