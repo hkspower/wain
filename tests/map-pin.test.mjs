@@ -111,6 +111,71 @@ console.log('\n── the pins are not all the same colour any more ──');
   await ctx.close();
 }
 
+console.log('\n── the frame on screen is the frame the bbox was built for ──');
+{
+  /**
+   * The invariant the whole map rests on, checked where it actually matters.
+   *
+   * map-frame.test.mjs proves fitFrame RETURNS a bbox matching its aspect. It
+   * cannot see whether the aspect then survives to the screen: the shape is
+   * applied as an inline `aspect-ratio`, and any container that constrains
+   * height — a max-height, a flex parent, an image beside it — would leave the
+   * bbox and the box disagreeing. The embed fits the bbox to whatever box it
+   * is given, so a disagreement of even a few percent slides every overlaid
+   * pin off its place, silently and plausibly.
+   *
+   * So this measures the rendered rectangle against the bbox in the URL, on
+   * real pages at both widths.
+   */
+  const rad = (d) => (d * Math.PI) / 180;
+  const mercY = (l) => Math.log(Math.tan(Math.PI / 4 + rad(l) / 2));
+  const probe = () =>
+    [...document.querySelectorAll('[data-map-frame]')].map((box) => {
+      const r = box.getBoundingClientRect();
+      const ifr = box.querySelector('iframe');
+      const pins = [...box.children].filter((c) => c.style.left && c.style.top);
+      return {
+        rendered: r.height > 0 ? r.width / r.height : null,
+        bbox: ifr ? new URL(ifr.src).searchParams.get('bbox') : null,
+        outside: pins.filter((c) => {
+          const x = parseFloat(c.style.left), y = parseFloat(c.style.top);
+          return x < 0 || x > 100 || y < 0 || y > 100;
+        }).length,
+        pins: pins.length,
+      };
+    });
+
+  // A place page and a search page, on a phone and a desktop — the four shapes
+  // the frame is actually asked to take.
+  let worst = 0, where = null, checked = 0, invalid = [], escaped = 0;
+  for (const touch of [true, false]) {
+    const ctx = await browser.newContext(
+      touch
+        ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' }
+        : { viewport: { width: 1200, height: 900 }, locale: 'ar-KW' }
+    );
+    const p = await ctx.newPage();
+    for (const url of ['/places/kuwait-towers/', '/places/khiran/', SEARCH]) {
+      await p.goto(B + url, { waitUntil: 'networkidle' });
+      for (const f of await p.evaluate(probe)) {
+        if (!f.bbox) continue;
+        checked++;
+        escaped += f.outside;
+        const [W, S, E, N] = f.bbox.split(',').map(Number);
+        if (![W, S, E, N].every(Number.isFinite) || W < -180 || E > 180 || S < -90 || N > 90)
+          invalid.push(`${url}: ${f.bbox}`);
+        const err = Math.abs(f.rendered - (rad(E) - rad(W)) / (mercY(N) - mercY(S))) / f.rendered;
+        if (err > worst) { worst = err; where = `${url} @${touch ? 390 : 1200}px`; }
+      }
+    }
+    await ctx.close();
+  }
+  ok(`the rendered frame matches its bbox on all ${checked} maps (worst ${(worst * 100).toFixed(3)}%)`,
+    worst < 0.01, `${(worst * 100).toFixed(3)}% at ${where}`);
+  ok('every bbox is a real place on Earth', invalid.length === 0, invalid.join('; '));
+  ok('and no pin is drawn outside its frame', escaped === 0, `${escaped} escaped`);
+}
+
 console.log(`\n${pass} passed, ${fails.length} failed`);
 await browser.close();
 if (fails.length) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

@@ -2,6 +2,7 @@ import PlaceMapFrame from "@/components/PlaceMapFrame";
 import VoiceControls, { SpeakButton } from "@/components/VoiceControls";
 import { IconMap, IconGo } from "@/components/icons";
 import type { Place } from "@/lib/places";
+import { osmLink } from "@/lib/map-frame";
 import { placeSuggestParts } from "@/lib/voice-lines";
 
 /**
@@ -20,7 +21,12 @@ export default function PlaceMap({
 }) {
   const { lat, lng } = place;
   const suggestParts = placeSuggestParts(place, related);
-  const osmLink = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`;
+  // The shared builder, not a second copy of the same template. This file had
+  // its own `const osmLink` spelling out the identical URL — and shadowing the
+  // exported name while doing it — so a fix to one would have silently left
+  // the other behind. Zoom 16 rather than the default 15: this map is one
+  // building, where the search map is a whole result set.
+  const osm = osmLink(place, 16);
   const gmapsPoi = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     `${place.name}, ${place.area}, Kuwait`
   )}`;
@@ -54,7 +60,7 @@ export default function PlaceMap({
             الاتجاهات
           </a>
           <a
-            href={osmLink}
+            href={osm}
             target="_blank"
             rel="noopener noreferrer"
             className="ms-auto inline-flex min-h-11 items-center text-xs text-ink-500 underline-offset-2 hover:underline"
