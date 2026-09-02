@@ -50,6 +50,31 @@ console.log("\n── the committed brief matches the data ──");
     committed.includes(`(${slugs.length} مكان)`), `expected ${slugs.length}`);
 }
 
+console.log("\n── the agent the site actually calls is the one documented ──");
+{
+  // The call was not a call for as long as this id lived only in a repository
+  // variable: the agent existed, the brief was written, and every visitor still
+  // got the browser's one-question speech recognition. It is compiled in now,
+  // which makes drift between the code and the brief the new way to break it —
+  // a build pointing at one agent while the brief describes another.
+  const src = readFileSync("src/lib/wain-ai.ts", "utf8");
+  const inCode = (src.match(/DEFAULT_AGENT_ID = "([^"]+)"/) || [])[1];
+  ok("the code ships a default agent id, not an empty string",
+    !!inCode && inCode.startsWith("agent_"), String(inCode));
+  ok("and the brief documents that same agent",
+    !!inCode && committed.includes(inCode), `${inCode} not in docs/wain-ai-agent.md`);
+  // An id is public by construction here — it reaches the browser — so what
+  // keeps a copy from being useful is the origin lock, and the brief is where
+  // that is written down.
+  ok("the brief says why a public id is safe", committed.includes("require_origin_header"));
+  // The off switch has to be a word the code knows. The deploy workflow tells
+  // whoever reads the log that «none» ships the fallback; if that word is only
+  // in the workflow, a build set to "none" calls an agent by that name.
+  ok("«none» is the documented off switch, and the code implements it",
+    /OFF = "none"/.test(src) && readFileSync(".github/workflows/deploy.yml", "utf8").includes('= "none"'),
+    "the workflow and wain-ai.ts must agree on the sentinel");
+}
+
 console.log("\n── the two indexes cannot name a place the site does not have ──");
 {
   // An index is a second copy of the catalogue in a different order, and a

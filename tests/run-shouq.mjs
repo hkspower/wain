@@ -50,7 +50,11 @@ const run = (cmd, args, opts = {}) =>
   });
 
 function build(env) {
-  console.log(`\n▸ building${env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID ? " (with a test agent id)" : ""}…`);
+  const which =
+    env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID === "" ? " (local mode — no agent)"
+    : env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID ? " (with a test agent id)"
+    : " (as it ships)";
+  console.log(`\n▸ building${which}…`);
   const r = spawnSync("npm", ["run", "build"], {
     cwd: ROOT,
     env: { ...process.env, ...env },
@@ -208,14 +212,19 @@ console.log("\n════ شوق: the live bridge ════");
   rmSync(btmp, { recursive: true, force: true });
 }
 
-/* 4 — the button and the local voice path, against the shipping build. */
-// Stale counts as missing. This runner can build, so it does — refusing would
-// only make somebody type the command it is already holding.
+/* 4 — the button and the LOCAL voice path.
+   This needs its own build now. The shipping default is agent mode — شوق's
+   agent id is compiled into wain-ai.ts rather than waiting on a variable
+   nobody set — so the shipping bundle no longer runs the branch this suite is
+   about. That branch has not gone anywhere: it is what every visitor gets when
+   the widget cannot load, and an empty id is exactly how the component asks
+   for it. Testing it means asking for it. */
 {
   const why = staleBuild(ROOT);
-  if (why) { console.log(`\n▸ out/ is missing or stale (${why})`); build({}); }
+  if (why) console.log(`\n▸ out/ is missing or stale (${why})`);
 }
-console.log("\n════ شوق: the button and the voice flow ════");
+build({ NEXT_PUBLIC_ELEVENLABS_AGENT_ID: "" });
+console.log("\n════ شوق: the button and the voice flow (local mode) ════");
 {
   const stop = await serve(PORT_FLOW);
   failed += (await run("node", ["tests/shouq-flow.test.mjs"], { env: { ...process.env, WAIN_URL: `http://localhost:${PORT_FLOW}` } })) === 0 ? 0 : 1;

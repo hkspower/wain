@@ -253,10 +253,18 @@ Options -Indexes
   #   * form-action 'self' stops an injected form posting credentials offsite.
   #   * base-uri 'self' stops a <base> tag re-pointing every relative URL.
   #   * object-src 'none' removes the plugin surface entirely.
-  #   * connect-src names Supabase and ElevenLabs explicitly, so exfiltration
-  #     to an arbitrary host is blocked rather than merely unlikely.
+  #   * connect-src names Supabase, ElevenLabs and the n8n speech bridge
+  #     explicitly, so exfiltration to an arbitrary host is blocked rather than
+  #     merely unlikely.
+  #
+  # The bridge host is here because connect-src is where a feature goes to die
+  # quietly. NEXT_PUBLIC_WAIN_TTS_URL turns on شوق's live voice for sentences
+  # with no recorded clip, and with the host missing every one of those calls is
+  # refused by the browser — the site falls back to the robot voice, the deploy
+  # log still reports «live bridge», and nothing anywhere says why. Setting the
+  # variable without this line is a switch wired to nothing.
   #
   # frame-src is openstreetmap.org for the maps. If شوق or the voice stop
   # working after a change here, the browser console names the directive.
-  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob: https://*.supabase.co; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://unpkg.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://unpkg.com https://api.elevenlabs.io https://api.us.elevenlabs.io wss://api.elevenlabs.io wss://api.us.elevenlabs.io; frame-src https://www.openstreetmap.org; media-src 'self' blob: https://api.elevenlabs.io; worker-src 'self' blob:; manifest-src 'self'"
+  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob: https://*.supabase.co; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://unpkg.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://unpkg.com https://api.elevenlabs.io https://api.us.elevenlabs.io wss://api.elevenlabs.io wss://api.us.elevenlabs.io https://sportake.app.n8n.cloud; frame-src https://www.openstreetmap.org; media-src 'self' blob: https://api.elevenlabs.io; worker-src 'self' blob:; manifest-src 'self'"
 </IfModule>

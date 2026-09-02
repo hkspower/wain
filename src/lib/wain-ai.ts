@@ -20,7 +20,38 @@
  * When it is absent the button quietly uses local mode instead — an
  * unconfigured build ships with the lesser assistant, not a broken button.
  */
-export const WAIN_AI_AGENT_ID = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID ?? "";
+/**
+ * شوق's agent, built and configured — see docs/wain-ai-agent.md.
+ *
+ * A default rather than a variable somebody has to remember, because this was
+ * the whole reason the call was not a call: the agent existed, the brief was
+ * written, the client tools were registered, and every visitor still got the
+ * browser's one-question speech recognition because a build-time variable was
+ * never set. A feature that ships switched off by default ships switched off.
+ *
+ * Safe to hard-code, and not a decision taken lightly. An agent id is public
+ * by construction: this is a static export, so whatever the widget needs to
+ * open a session reaches the browser and can be read off the page. What stops
+ * a copied id being used elsewhere is not secrecy — it is that the agent is
+ * origin-locked to wainkw.com (require_origin_header plus an allowlist), which
+ * is a control that keeps working after the id is public.
+ *
+ * NEXT_PUBLIC_ELEVENLABS_AGENT_ID still overrides — point a build at a staging
+ * agent, or write «none» to ship the browser-speech fallback instead.
+ *
+ * «none» rather than an empty string, because an empty repository variable and
+ * an unset one are the same thing to GitHub Actions: both arrive as "". With
+ * only the empty check there was no way to turn شوق off from CI at all, and
+ * the off switch matters most on the day she says something wrong on the live
+ * site and the owner needs it without waiting for a commit.
+ */
+const DEFAULT_AGENT_ID = "agent_1701m1gcrccrethae9y3nyv1e116";
+const OFF = "none";
+
+const configured = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID ?? DEFAULT_AGENT_ID;
+
+export const WAIN_AI_AGENT_ID =
+  configured.trim().toLowerCase() === OFF ? "" : configured;
 
 export const WAIN_AI_AGENT_ENABLED = WAIN_AI_AGENT_ID.trim().length > 0;
 

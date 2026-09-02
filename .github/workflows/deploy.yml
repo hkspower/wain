@@ -95,14 +95,17 @@ jobs:
           else
             echo "::warning::Supabase is NOT configured — this build ships with ordering, the queue and the submission form inert. Set the SUPABASE_URL variable and SUPABASE_ANON_KEY secret to enable them."
           fi
-          # Same reasoning as Supabase, and the same quiet failure: unset, the
-          # call button still works but falls back to the browser's own speech
-          # recognition — one question per call, no conversation, and no شوق.
-          # That is a working site, so nothing else would ever report it.
-          if [ -n "$AGENT" ]; then
-            echo "شوق: agent mode ($AGENT)"
+          # No longer a warning when unset, and the reason is the fix: the
+          # agent id is compiled into wain-ai.ts, so an unset variable ships
+          # شوق rather than the fallback. The variable is now an override —
+          # point a build at a staging agent, or set it empty on purpose to
+          # ship the browser-speech path. Both are worth naming in the log.
+          if [ -z "$AGENT" ]; then
+            echo "شوق: agent mode (built-in default — see docs/wain-ai-agent.md)"
+          elif [ "$AGENT" = "none" ]; then
+            echo "::warning::ELEVENLABS_AGENT_ID is \"none\" — this build ships the browser speech fallback instead of شوق."
           else
-            echo "::warning::NEXT_PUBLIC_ELEVENLABS_AGENT_ID is NOT set — the call button falls back to browser speech recognition instead of talking to شوق. Set the ELEVENLABS_AGENT_ID variable (see docs/wain-ai-agent.md) to enable agent mode."
+            echo "شوق: agent mode (override: $AGENT)"
           fi
           # Not a warning when unset. The bridge is an upgrade to a path that
           # already works: without it a runtime-assembled sentence is read by
