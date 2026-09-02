@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { IconClose, IconPhone, IconPinSolid } from "@/components/icons";
+import { IconClose, IconPhone, IconPinSolid, IconShouq } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
 import { primeAudio, setEnabled as setVoiceEnabled } from "@/lib/voice";
 import { callDuration, connected, hangup, ringback } from "@/lib/call-tones";
@@ -110,27 +110,6 @@ function getRecognition(): SpeechRecognitionLike | null {
   return Ctor ? new Ctor() : null;
 }
 
-/** Voice-wave mark used as شوق's avatar. */
-function VoiceMark({ className = "size-6" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      aria-hidden="true"
-    >
-      <path d="M4 11v2" opacity=".55" />
-      <path d="M8 8v8" opacity=".8" />
-      <path d="M12 5v14" />
-      <path d="M16 8v8" opacity=".8" />
-      <path d="M20 11v2" opacity=".55" />
-    </svg>
-  );
-}
-
 export default function WainAi() {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("idle");
@@ -139,6 +118,16 @@ export default function WainAi() {
   const [seconds, setSeconds] = useState(0);
   const [agentReady, setAgentReady] = useState(false);
   const [agentFailed, setAgentFailed] = useState(false);
+
+  /**
+   * Whether شوق's mouth moves.
+   *
+   * Only once there is a call to be on. «ringing» is deliberately excluded:
+   * nobody has picked up yet, and a face mouthing words at a phone that is
+   * still ringing is the interface telling a small lie about what is
+   * happening. She blinks throughout — that is being present, not speaking.
+   */
+  const talking = phase === "live" || phase === "answering";
 
   const recRef = useRef<SpeechRecognitionLike | null>(null);
   const slotRef = useRef<HTMLDivElement>(null);
@@ -502,7 +491,17 @@ export default function WainAi() {
                 className="absolute inset-0 animate-ping rounded-full bg-white/40 motion-reduce:animate-none"
               />
             )}
-            <IconPhone className="relative size-5" />
+            {/* Her face, not a handset.
+                This is the most-seen شوق mark on the site and it was a generic
+                phone glyph — the label «وين AI» beside it and «اضغط عشان تكلّم
+                شوق» underneath both name a person, and the button showed an
+                object. The call affordance is not lost with it: the pulse
+                while ringing, the presence dot and the wording all still say
+                this places a call, which is how every contact list on a phone
+                already works — you tap the person, not the receiver. */}
+            <IconShouq
+              className={`relative size-5 shouq ${talking ? "shouq--talking" : ""}`}
+            />
             <span
               aria-hidden="true"
               className="absolute -end-0.5 -top-0.5 size-2.5 rounded-full bg-sun-300 ring-2 ring-coral-600"
@@ -526,7 +525,7 @@ export default function WainAi() {
               cannot carry white body text at AA. */}
           <header className="flex items-center gap-3 bg-gradient-to-l from-coral-800 to-coral-600 p-4 text-white">
             <span className="relative grid size-11 shrink-0 place-items-center rounded-2xl bg-white/20">
-              <VoiceMark className="size-6" />
+              <IconShouq className={`size-6 shouq ${talking ? "shouq--talking" : ""}`} />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block font-display text-lg font-semibold leading-tight">
@@ -560,7 +559,7 @@ export default function WainAi() {
                     <span className="absolute inset-0 animate-ping rounded-full bg-coral-200 motion-reduce:animate-none" />
                   )}
                   <span className="relative grid size-14 place-items-center rounded-full bg-coral-600 text-white">
-                    <VoiceMark className="size-7" />
+                    <IconShouq className={`size-7 shouq ${talking ? "shouq--talking" : ""}`} />
                   </span>
                 </span>
 

@@ -375,6 +375,63 @@ console.log('\n── keyboard and screen-reader users place the same call ─�
   await ctx.close();
 }
 
+console.log('\n── شوق has a face, and it is alive ──');
+{
+  // She was five vertical bars — a picture of audio, on a button whose own
+  // label says «اضغط عشان تكلّم شوق». The mark is a smiling face now, and
+  // these hold the two things that make a face read as a person rather than
+  // a sticker: she blinks while she waits, and her mouth only moves once
+  // somebody has actually picked up.
+  const { ctx, p } = await fresh({ stayOpen: true });
+  await p.goto(B + '/', { waitUntil: 'networkidle' });
+
+  const faces = () => p.locator('.shouq');
+  ok('the launcher shows her face, not a handset', (await faces().count()) === 1);
+  ok('and the face is built from the icon set, not drawn in place',
+    (await p.locator('.shouq [data-part="eyes"]').count()) === 1 &&
+    (await p.locator('.shouq [data-part="mouth"]').count()) === 1);
+
+  const eyeAnim = await p.evaluate(() => {
+    const e = document.querySelector('.shouq [data-part="eyes"]');
+    const s = getComputedStyle(e);
+    return { name: s.animationName, box: s.transformBox };
+  });
+  ok('she blinks while she is just sitting there', eyeAnim.name === 'shouq-blink', eyeAnim.name);
+  // Without fill-box an SVG transform-origin resolves against the whole
+  // 24-unit viewBox, so «scaleY about center» slides the eyes down her face
+  // instead of closing them. The blink looks broken in a way no assertion on
+  // the animation NAME would ever catch.
+  ok('and the blink is anchored to the eyes, not the viewBox', eyeAnim.box === 'fill-box', eyeAnim.box);
+
+  const mouthIdle = await p.evaluate(() =>
+    getComputedStyle(document.querySelector('.shouq [data-part="mouth"]')).animationName);
+  ok('her mouth is still while nobody is on the line', mouthIdle === 'none', mouthIdle);
+
+  await call(p);
+  await p.waitForFunction(
+    () => document.querySelector('#wain-ai-panel')?.textContent.includes('متصل'),
+    null, { timeout: 6000 }
+  );
+  const live = await p.evaluate(() => {
+    const all = [...document.querySelectorAll('.shouq')];
+    return {
+      n: all.length,
+      talking: all.filter((f) => f.classList.contains('shouq--talking')).length,
+      mouth: getComputedStyle(all[0].querySelector('[data-part="mouth"]')).animationName,
+    };
+  });
+  ok('once she is connected, every face starts speaking', live.n > 1 && live.talking === live.n,
+    `${live.talking}/${live.n}`);
+  ok('and the mouth animation is actually running', live.mouth === 'shouq-speak', live.mouth);
+
+  await p.locator('#wain-ai-panel button', { hasText: 'إنهاء المكالمة' }).click();
+  await p.waitForTimeout(250);
+  const after = await p.evaluate(() =>
+    [...document.querySelectorAll('.shouq')].filter((f) => f.classList.contains('shouq--talking')).length);
+  ok('hanging up stops her talking', after === 0, `${after} still talking`);
+  await ctx.close();
+}
+
 console.log(`\n${pass} passed, ${fails.length} failed`);
 await browser.close();
 if (fails.length) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

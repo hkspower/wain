@@ -81,6 +81,45 @@ export function IconPhone(props: IconProps) {
   );
 }
 
+/**
+ * شوق — the guide behind the call button, as a face.
+ *
+ * She was five vertical bars: a voice-wave mark, drawn ad-hoc inside
+ * WainAi.tsx, which is a picture of *audio* rather than of the person the
+ * whole feature is written around. She is «صوت كويتي شبابي — بنت», she
+ * introduces herself by name, and the button beside her says «اضغط عشان تكلّم
+ * شوق» — so the mark should be someone to talk to.
+ *
+ * Living here rather than in WainAi means audit:icons measures her like every
+ * other glyph: same 24-unit grid, same 1.8 stroke, same optical size. As a
+ * local component she was the one mark on the site nothing checked.
+ *
+ * The parts are separately addressable — `data-part` on the eyes and the mouth
+ * — so the animation in globals.css can blink and speak without this file
+ * knowing anything about when.
+ */
+export function IconShouq(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      {/* Drawn against the sizes it is actually used at — 20px in the launcher,
+          24px in the call sheet. Two earlier attempts died there: a full hair
+          dome with side panels turned to mush below 40px and read as
+          headphones, and a thin fringe arc over a plain circle simply vanished,
+          leaving a generic smiley with nothing girlish left in it. A solid hair
+          mass over an open face survives the shrink, because it is a contrast
+          of areas rather than a line. */}
+      <path d="M12 4.4a7.6 7.6 0 1 1 0 15.2 7.6 7.6 0 0 1 0-15.2Z" />
+      <path
+        {...duo}
+        d="M4.6 12.4a7.6 7.6 0 0 1 14.8 0c-.9-1.4-1.9-2.1-3.2-2.5-1.4-.4-2-1.6-4.4-1.6-3.6 0-6.2 1.7-7.2 4.1Z"
+      />
+      <path data-part="eyes" d={`${dot(9.6, 13)}${dot(14.4, 13)}`} />
+      {/* The smile is the whole point, so it is the widest mark on the face. */}
+      <path data-part="mouth" d="M9.3 15.9c.7.8 1.7 1.2 2.7 1.2s2-.4 2.7-1.2" />
+    </svg>
+  );
+}
+
 export function IconInstagram(props: IconProps) {
   return (
     <svg {...base(props)}>

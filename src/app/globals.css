@@ -484,3 +484,60 @@ h1, h2, h3 {
   content-visibility: auto;
   contain-intrinsic-size: auto 268px;
 }
+
+/* --- شوق, alive -----------------------------------------------------------
+   The mark on the call button is a face now, and a face that never moves is a
+   sticker. Two signs of life, both small on purpose: she blinks while she is
+   sitting there, and her smile works while she is on the line.
+
+   The parts are addressed through `data-part` on the paths inside IconShouq,
+   so the icon stays a plain icon — it carries no state and no classes of its
+   own, and this stylesheet decides when anything moves.
+
+   `transform-box: fill-box` is what makes this work at all: without it an SVG
+   transform-origin resolves against the whole 24-unit viewBox rather than the
+   path's own box, so `scaleY` about "center" would swing the eyes down the
+   face instead of closing them.
+
+   No reduced-motion query here on purpose — the global block above already
+   flattens every animation on the page to a single 0.01ms step, and a second
+   rule saying the same thing is one more place for the two to disagree. */
+@keyframes shouq-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95%,
+  97% {
+    transform: scaleY(0.1);
+  }
+}
+
+@keyframes shouq-speak {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(1.45);
+  }
+}
+
+.shouq [data-part="eyes"],
+.shouq [data-part="mouth"] {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Off-beat from any other pulse on screen, and long enough between blinks that
+   it reads as breathing rather than as a flicker asking to be looked at. */
+.shouq [data-part="eyes"] {
+  animation: shouq-blink 5.4s ease-in-out infinite;
+}
+
+/* Only while she is actually saying something. A mouth that moves on an idle
+   button is a face talking to nobody. */
+.shouq--talking [data-part="mouth"] {
+  animation: shouq-speak 1.5s ease-in-out infinite;
+}
