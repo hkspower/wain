@@ -1,0 +1,93 @@
+GOING LIVE — IN TWO STAGES, EACH ONE CHECKABLE
+==============================================
+
+I cannot upload from here. Hostinger's file host (srv2231-files.hstgr.io) and
+www.sporta.com.kw are both refused at this environment's network policy —
+403 on the CONNECT, checked again today — and the only write endpoint in the
+Hostinger API points at that same blocked host. The one other write call,
+"deploy static site archive", overwrites the entire site irreversibly and is
+documented as static-only: it would erase api/, knet/, pay/ and the config.php
+files holding your KNET credentials. It was not used and should not be.
+
+So this is for hPanel -> Files -> File Manager. Two uploads instead of one, so
+that if something looks wrong you know which half did it.
+
+Everything below has been checked against your live server file by file. No
+file in either zip is older than the copy already on it.
+
+
+-------------------------------------------------------------------------
+STAGE 1 — SPORTA-1-LOOK.zip     9 files, 61 KB
+-------------------------------------------------------------------------
+Upload to public_html and Extract, overwriting.
+
+This is the one that shows. assets/sporta-ui.css has NEVER been on the server
+and the live index.html has no link to it, which is why none of the styling
+work is visible today: the clock, the silver theme, the header typeface, the
+side padding, the footer tap targets. This stage puts the file there and the
+link in.
+
+It cannot half-work. index.html references eight files in assets/: four are
+already on your server and byte-for-byte identical, and the other four are in
+this zip. Checked, not assumed.
+
+CHECK AFTERWARDS
+  Load the site. The clock in the top bar should have WHITE hands on a dial
+  you can actually see as a circle. If the hands are still orange, the CSS did
+  not land — nothing else is affected, and re-extracting is safe.
+
+
+-------------------------------------------------------------------------
+STAGE 2 — SPORTA-2-BACKEND.zip     56 files, 447 KB
+-------------------------------------------------------------------------
+Upload to public_html and Extract, overwriting.
+
+The server side: 10 PHP files that differ from yours, 7 that are missing
+entirely (the invoice-PDF set, orders-print.php, file-audit.php), and
+fonts/Alexandria-400.ttf, which the invoice writer embeds so Arabic renders.
+
+NO config.php AND NO wallet-certs IN EITHER ZIP. Verified — 0 of each. Your
+KNET, database and Wallet credentials cannot be touched by extracting these.
+
+CHECK AFTERWARDS
+  The shop still loads, and you can still sign in at /backends. Those two
+  cover it: everything else in this stage is either new or a straight
+  improvement to a file that already worked.
+
+
+-------------------------------------------------------------------------
+THEN THREE SMALL THINGS
+-------------------------------------------------------------------------
+
+1. The two rewrite rules in ADD-TO-LIVE-HTACCESS.txt. They make /card and
+   /returns/request work — both pages ship in stage 1, and without the rules
+   they answer 404 at those addresses.
+
+   NOTE: .htaccess is deliberately in NEITHER zip. Your live one routes every
+   page through seo.php, which injects the per-route title and canonical; the
+   copy in this repo did not know seo.php existed and would have switched it
+   off silently. Yours is correct. Leave it, and paste the two rules in.
+
+2. The invoice cron — hPanel -> Advanced -> Cron Jobs, every 15 minutes:
+
+     wget -qO- "https://www.sporta.com.kw/api/cron-invoice.php?key=<cron_key>"
+
+   Use the cron_key already in api/config.php. On its first run it writes a
+   PDF for every past order; after that only for new ones. They land in
+   /home/u130124229/domains/sporta.com.kw/invoices — one level ABOVE
+   public_html, so no URL reaches them. Read one while signed in at
+   /api/invoice-file.php?id=SP..., or omit the id to list the archive.
+
+3. KNET, still outstanding from earlier: set 'mode' => 'legacy' in the live
+   knet/config.php, run the self-test and one real transaction, then set
+   'env' => 'production' and delete knet/selftest.php.
+
+
+-------------------------------------------------------------------------
+IF SOMETHING LOOKS WRONG
+-------------------------------------------------------------------------
+Nothing here deletes anything. Extracting replaces files and adds new ones, so
+the failure mode is a file being newer than you wanted, not missing. hPanel
+keeps backups; and the single check that matters most is viewing source on
+/shop — if <link rel="canonical"> says /shop rather than just /, seo.php is
+still in the path and your SEO is intact.
