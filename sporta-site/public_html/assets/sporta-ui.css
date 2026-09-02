@@ -1090,3 +1090,46 @@ main > section:has(> h1.text-brand-dark):has(h2) li + li,
 main > section:has(> div > h1.text-brand-dark):has(h2) li + li {
   margin-top: 0.35rem;
 }
+
+/* ---------------------------------------- /backends on a phone: sign in */
+/* The shop is run from a phone and the panel is where it is run from, so the
+ * two things measured here are the two that make it awkward there. Both are
+ * scoped to the phone: nothing about the panel on a desktop changes.
+ *
+ * SIXTEEN PIXELS, AND IT IS NOT A TYPE CHOICE. iOS Safari zooms the whole page
+ * in when a text field smaller than 16px takes focus, and it does not zoom back
+ * out afterwards. The email box was 14px, so signing in went: tap the field,
+ * the page lurches and the card is half off-screen, type blind, pinch out,
+ * tap the next field, lurch again. Setting 16px is the documented way to stop
+ * it — the browser reads it as "already legible, no need to help" — and the
+ * two boxes are wide enough that a larger face costs nothing.
+ *
+ * FORTY-FOUR, because they were forty-two. The Sign in button under them is
+ * already 48; the two fields it sits under were the only controls in the flow
+ * below the size a thumb reliably hits. min-height only ever grows a box that
+ * is too small, so nothing that already passes moves.
+ *
+ * SCOPED BY THE PASSWORD FIELD, which is the whole selector's point: there is
+ * exactly one password input on this domain and it is this form. No route
+ * class exists to hang this on — the panel is a built bundle with no source
+ * here — and describing the form by the thing that makes it a sign-in is
+ * steadier than describing it by the utility classes it happens to carry
+ * today. */
+@media (max-width: 767px) {
+  form:has(input[type='password']) input {
+    font-size: 16px;
+    min-height: 44px;
+  }
+
+  /* SIGN OUT WAS TWENTY PIXELS TALL. It is a bare text button in the panel
+   * header, so its box was the line box of the words and nothing more — a
+   * 20px-high target, in the corner of the screen, for the one action you
+   * cannot undo by pressing again. Grown to 44 with flex centring so the words
+   * do not move; the header is a flex row with room around it, which is why
+   * this adds height without pushing anything sideways. Measured after. */
+  header.m-header button {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+}
