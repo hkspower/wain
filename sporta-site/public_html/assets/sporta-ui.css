@@ -961,3 +961,122 @@ html:not([data-theme='dark']) .cart-drawer > header button.tap.text-slate-400 {
  * area grows, the layout does not. Measured before and after. */
 .app-footer a.inline-flex.min-h-11,
 footer a.inline-flex.min-h-11 { min-width: 44px; }
+
+/* -------------------------------------- the document pages: a quieter voice */
+/* Privacy, Terms, Returns and About, at the owner's request: smaller, and set
+ * like a document rather than like a landing page.
+ *
+ * WHAT WAS WRONG WITH IT. Measured before touching anything: body copy at
+ * 16.44px on a 26.7px line, section headings at 20.5px in weight 800. Eight
+ * hundred is a display weight — it is what the hero shouts in — and a privacy
+ * policy that shouts reads as marketing, which is the opposite of what these
+ * four pages are for. The old proportions were not wrong, they were simply the
+ * shop's voice used where the shop should be speaking quietly.
+ *
+ * SMALLER, WITH MORE AIR, NOT LESS. Every size below goes down and every line
+ * height goes UP. That pairing is the whole effect: shrinking text on its old
+ * leading just looks cramped, and cramped reads as cheap rather than as
+ * official. A legal document earns its authority from space around the words.
+ *
+ * TWO SCRIPTS, TWO SIZES, AND THAT IS NOT A ROUNDING ERROR. Arabic sits about
+ * three quarters of a point larger than the Latin at every level. Arabic
+ * letterforms carry their meaning in strokes below the baseline and in dots
+ * that a Latin face does not have to resolve, so the same nominal size is
+ * measurably harder to read. Setting both from one number would mean either
+ * Latin too large or Arabic too small, and this shop's first language is the
+ * one that would have lost.
+ *
+ * NO LETTER-SPACING IN ARABIC, EVER — not one hundredth of an em. It is
+ * spelled out further up this file for the top bar and it is the same rule
+ * here: Arabic is a joined script and tracking it breaks the joins. The Latin
+ * gets a hair of it on headings; the Arabic gets none.
+ *
+ * THE SELECTOR, AND WHY IT IS SHAPED LIKE THAT. `main > section` holding an
+ * `h1.text-brand-dark` AND at least one `h2`. The h1 half picks the five pages
+ * built from the page-with-a-title shell; the h2 half then drops /contact,
+ * which uses the same shell but has no sections in it — measured across
+ * thirteen routes, this matches /privacy, /terms, /returns and /about and
+ * nothing else. If /contact ever gains an h2 it would start matching, and the
+ * fix then is to name the four rather than to describe them.
+ *
+ * TERMS IS INCLUDED THOUGH IT WAS NOT ASKED FOR. It is the same component and
+ * the same container as Privacy; styling one and not the other would leave two
+ * halves of the same legal section visibly disagreeing, which is a defect
+ * rather than restraint. Remove `:has(h2)`'s reach by naming pages if that is
+ * not wanted. */
+.doc-page,
+main > section:has(> h1.text-brand-dark):has(h2),
+main > section:has(> div > h1.text-brand-dark):has(h2) {
+  --doc-body: 14.75px;
+  --doc-lead: 15.5px;
+  --doc-h1: 25px;
+  --doc-h2: 17px;
+  --doc-h3: 15.25px;
+}
+html[lang='ar'] .doc-page,
+html[lang='ar'] main > section:has(> h1.text-brand-dark):has(h2),
+html[lang='ar'] main > section:has(> div > h1.text-brand-dark):has(h2) {
+  --doc-body: 15.5px;
+  --doc-lead: 16.25px;
+  --doc-h1: 26px;
+  --doc-h2: 17.75px;
+  --doc-h3: 15.75px;
+}
+
+main > section:has(> h1.text-brand-dark):has(h2) p,
+main > section:has(> h1.text-brand-dark):has(h2) li,
+main > section:has(> div > h1.text-brand-dark):has(h2) p,
+main > section:has(> div > h1.text-brand-dark):has(h2) li {
+  font-size: var(--doc-body);
+  line-height: 1.85;
+}
+
+/* The standfirst under the title was `text-lg` — 18.5px, a size that competes
+ * with the section headings below it. It is an introduction, not a heading. */
+main > section:has(> h1.text-brand-dark):has(h2) > p.text-lg,
+main > section:has(> div > h1.text-brand-dark):has(h2) > p.text-lg {
+  font-size: var(--doc-lead);
+  line-height: 1.8;
+}
+
+/* 800 down to 700 on every heading. The size drop alone would have left them
+ * looking heavy for their new measure — weight and size have to move together
+ * or the page reads as a shrunk version of the old one rather than a calmer
+ * one. */
+main > section:has(> h1.text-brand-dark):has(h2) > h1,
+main > section:has(> div > h1.text-brand-dark):has(h2) h1 {
+  font-size: var(--doc-h1);
+  font-weight: 700;
+  line-height: 1.35;
+}
+main > section:has(> h1.text-brand-dark):has(h2) h2,
+main > section:has(> div > h1.text-brand-dark):has(h2) h2 {
+  font-size: var(--doc-h2);
+  font-weight: 700;
+  line-height: 1.5;
+}
+main > section:has(> h1.text-brand-dark):has(h2) h3,
+main > section:has(> div > h1.text-brand-dark):has(h2) h3 {
+  font-size: var(--doc-h3);
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+/* A hair of tracking on Latin headings only — it is what stops a 700 weight at
+ * a smaller size from setting tight. `html[lang='ar']` resets it to zero
+ * immediately below, because on a joined script this is damage, not polish. */
+html[lang='en'] main > section:has(> h1.text-brand-dark):has(h2) :is(h1, h2, h3),
+html[lang='en'] main > section:has(> div > h1.text-brand-dark):has(h2) :is(h1, h2, h3) {
+  letter-spacing: 0.01em;
+}
+html[lang='ar'] main > section:has(> h1.text-brand-dark):has(h2) :is(h1, h2, h3, p, li),
+html[lang='ar'] main > section:has(> div > h1.text-brand-dark):has(h2) :is(h1, h2, h3, p, li) {
+  letter-spacing: 0;
+}
+
+/* Lists sit closer to a document's rhythm with a little room between items —
+ * the same reasoning as the line height, one level up. */
+main > section:has(> h1.text-brand-dark):has(h2) li + li,
+main > section:has(> div > h1.text-brand-dark):has(h2) li + li {
+  margin-top: 0.35rem;
+}
