@@ -8,7 +8,16 @@
 // of the whole frame cannot answer it: a night shot is four fifths sky
 // and road, so the sky's floor and the road's ceiling average into a
 // number that describes neither. This segments the frame first — road,
-// buildings, sky — and reports each one's own levels.
+// buildings, sky, cars — and reports each one's own levels.
+//
+// THE CARS ARE THEIR OWN SURFACE, and were not for a long time. They
+// fell into "other" with the palms, the barriers, the sign posts and
+// the lamp housings, and "other" is never asserted on and never read.
+// So the one thing in this frame the player is actually looking at —
+// the only object they own, paid for and repainted — was the one
+// surface this tool could not tell you anything about. Every complaint
+// about how the cars look was landing against a report that measured
+// the road.
 //
 // The segmentation is an ID pass rendered from the SAME camera on the
 // SAME paused frame: every mesh is flattened to black, the three
@@ -124,7 +133,12 @@ const measure = (hour, u, opts = {}) => page.evaluate(async ([hour, u, opts]) =>
   const beauty = grab();
 
   // --- ID pass, same camera, same frame
-  const CLASS = { road: 0xff0000, building: 0x00ff00, sky: 0x0000ff, other: 0x000000 };
+  // White for the car rather than a fourth primary: the decode below
+  // classifies by dominant channel, and any mix of two primaries — a
+  // yellow, a cyan — collides with one of the three already spoken for.
+  // White is the one id that is unambiguous under that rule, because it
+  // is the only one whose SMALLEST channel is also high.
+  const CLASS = { road: 0xff0000, building: 0x00ff00, sky: 0x0000ff, car: 0xffffff, other: 0x000000 };
   const saved = [];
   // One id material per class AND per face side. A single front-sided
   // flat material culls the sky dome, which is drawn BackSide from
@@ -140,10 +154,21 @@ const measure = (hour, u, opts = {}) => page.evaluate(async ([hour, u, opts]) =>
     }
     return m;
   };
+  // Every car on the road, by identity rather than by name. The engine
+  // already keeps this list — it hides exactly these groups when it
+  // renders the reflection probe, so that a car cannot reflect itself —
+  // and reusing it means a new kind of car is a car here the day it is
+  // added, with nothing to remember to update.
+  const carRoots = new Set();
+  if (e.playerMesh) carRoots.add(e.playerMesh);
+  for (const g of e.carGroups ?? []) carRoots.add(g);
+
   // A mesh's class comes from the nearest named ancestor, so anything
   // parented under the road counts as road rather than as "other".
+  // The car test comes first: a car standing on the road is a car.
   const classOf = (o) => {
     for (let n = o; n; n = n.parent) {
+      if (carRoots.has(n)) return "car";
       if (n.name === "road" || n.name.startsWith("road-") || n.name === "streets") return "road";
       if (n.name === "cityBlocks") return "building";
       if (n.name === "sky") return "sky";
@@ -188,13 +213,16 @@ const measure = (hour, u, opts = {}) => page.evaluate(async ([hour, u, opts]) =>
   for (const m of idMats.values()) m.dispose();
 
   // --- levels per class
-  const buckets = { road: [], building: [], sky: [], other: [], all: [] };
+  const buckets = { road: [], building: [], sky: [], car: [], other: [], all: [] };
   for (let i = 0; i < beauty.length; i += 4) {
     const l = Math.round(0.2126 * beauty[i] + 0.7152 * beauty[i + 1] + 0.0722 * beauty[i + 2]);
     buckets.all.push(l);
     const r = ids[i], g = ids[i + 1], b = ids[i + 2];
     const mx = Math.max(r, g, b);
     if (mx < 60) { buckets.other.push(l); continue; }
+    // White is the car: all three channels high. Tested before the
+    // dominant-channel rule, which would otherwise read white as road.
+    if (Math.min(r, g, b) > 60) { buckets.car.push(l); continue; }
     if (r === mx) buckets.road.push(l);
     else if (g === mx) buckets.building.push(l);
     else buckets.sky.push(l);
@@ -310,7 +338,7 @@ for (const hour of hours) {
   for (const [where, u] of SPOTS) {
     const r = await measure(hour, u);
     console.log(`\n${String(hour).padStart(4)}h ${where}   exposure ${r.exposure}`);
-    for (const k of ["road", "building", "sky", "other", "all"]) console.log(row(k, r[k]));
+    for (const k of ["road", "building", "sky", "car", "other", "all"]) console.log(row(k, r[k]));
     mkdirSync("press/levels", { recursive: true });
     const tag = `${String(hour).replace(".", "_")}-${where}`;
     writeFileSync(`press/levels/${tag}.png`, Buffer.from(r.beautyPng, "base64"));
