@@ -29,6 +29,7 @@ import {
   saveSettings,
   applySettings,
   haptic,
+  rumblePad,
   HAPTIC,
 } from "@/game/settings";
 import { RESOLUTIONS, formatBuffer } from "@/game/render";
@@ -153,6 +154,7 @@ function RevCounter({
   ringRef,
   ticksRef,
   redlineRef,
+  limiterRef,
   rpmRef,
   speedRef,
   gearRef,
@@ -162,6 +164,7 @@ function RevCounter({
   ringRef: React.RefObject<SVGCircleElement | null>;
   ticksRef: React.RefObject<SVGGElement | null>;
   redlineRef: React.RefObject<SVGPathElement | null>;
+  limiterRef: React.RefObject<SVGPathElement | null>;
   rpmRef: React.RefObject<HTMLSpanElement | null>;
   speedRef: React.RefObject<HTMLSpanElement | null>;
   gearRef: React.RefObject<HTMLSpanElement | null>;
@@ -242,6 +245,23 @@ function RevCounter({
           ref={redlineRef}
           d={tachArc(0.88, 1, 40)}
           fill="none" stroke="#e01b0f" strokeWidth="2.6" strokeLinecap="butt"
+        />
+        {/* THE LIMITER ALERT.
+            A second ring, sitting on the redline arc and normally
+            invisible. When the engine arrives on its stop this is what
+            goes red — the whole last segment of the scale lighting up
+            at once, not a needle you have to find. It is drawn after
+            the redline so it covers it rather than blending with it,
+            and it is deliberately fatter than the scale: on a real
+            cluster the shift light is the brightest thing on the face
+            and it is meant to be readable without looking at it.
+
+            An engine the box short-shifts never lights this at all. */}
+        <path
+          ref={limiterRef}
+          d={tachArc(0.88, 1, 40)}
+          fill="none" stroke="#ff2a18" strokeWidth="4.4" strokeLinecap="butt"
+          style={{ opacity: 0, filter: "drop-shadow(0 0 3px rgba(255,60,40,0.9))" }}
         />
         {/* Ticks and numerals, laid out at runtime because how many there
             are depends on how far this engine spins. */}
@@ -472,6 +492,11 @@ export default function RaceClient() {
   const shiftRingRef = useRef<SVGCircleElement>(null);
   const ticksRef = useRef<SVGGElement>(null);
   const redlineRef = useRef<SVGPathElement>(null);
+  const limiterRef = useRef<SVGPathElement>(null);
+  /** The limiter's own state, so the vibration fires on ARRIVAL rather
+   *  than on every frame the needle stays there. A pad asked to rumble
+   *  sixty times a second stops rumbling. */
+  const onLimiter = useRef(false);
   const rpmTextRef = useRef<HTMLSpanElement>(null);
   /** The redline the ticks were last laid out for — an engine swap in
    *  the garage changes the dial, and nothing else does. */
@@ -892,6 +917,16 @@ export default function RaceClient() {
         needleRef.current.style.transform = `rotate(${tachAngle(t.frac).toFixed(2)}deg)`;
       if (shiftRingRef.current)
         shiftRingRef.current.style.opacity = t.shift ? "0.9" : "0";
+      // The alert reads the limiter's own ramp rather than a threshold
+      // of its own: brushing the stop is a flicker, sitting on it is
+      // solid red, and the two are the same number the physics is
+      // using to cut the torque.
+      if (limiterRef.current)
+        limiterRef.current.style.opacity = t.limiter > 0.02 ? String(0.35 + t.limiter * 0.65) : "0";
+      // And it is something you feel. On the edge only — see onLimiter.
+      const lim = t.limiter > 0.05;
+      if (lim && !onLimiter.current) rumblePad(90, 0.55 + t.limiter * 0.45, 0.9);
+      onLimiter.current = lim;
       // Lay the dial out once per engine. The scale is the engine's own,
       // so a swap in the garage rebuilds it and nothing else does.
       if (ticksRef.current && dialFor.current !== t.redline) {
@@ -901,8 +936,12 @@ export default function RaceClient() {
         while (g2.firstChild) g2.removeChild(g2.firstChild);
         const redFrom = (t.redline * 0.895 - t.idle) / (t.redline - t.idle);
         const REDLINE = t.redline * 0.895;
-        if (redlineRef.current)
-          redlineRef.current.setAttribute("d", tachArc(Math.max(0, redFrom), 1, 40));
+        const redArc = tachArc(Math.max(0, redFrom), 1, 40);
+        if (redlineRef.current) redlineRef.current.setAttribute("d", redArc);
+        // The alert sits exactly on the redline, so it has to be laid
+        // out with it — an engine swap moves both or the flash lands
+        // somewhere the red arc is not.
+        if (limiterRef.current) limiterRef.current.setAttribute("d", redArc);
         const line = (from: number, to: number, f: number, w: string, c: string) => {
           const [x0, y0] = tachPoint(f, from);
           const [x1, y1] = tachPoint(f, to);
@@ -1350,6 +1389,12 @@ export default function RaceClient() {
           void el.offsetWidth;
           el.classList.add("race-bump");
         },
+        // The needle arriving on the stop. The PAD is rumbled from the
+        // HUD driver, which already has the limiter's strength to hand;
+        // this is the phone, and it goes through haptic() so the
+        // accessibility setting that silences every other vibration
+        // silences this one too.
+        onLimiterHit: () => haptic(HAPTIC.limiter, loadSettings().haptics),
         // Unreachable while onResult is wired (the results screen owns the
         // loss), kept so the engine contract stays honest.
         onDefeat: (rival) => showMessage(`${rival.name} takes the night`, "Press R for a rematch"),
@@ -2056,6 +2101,7 @@ export default function RaceClient() {
           <RevCounter
             needleRef={needleRef}
             ringRef={shiftRingRef}
+            limiterRef={limiterRef}
             ticksRef={ticksRef}
             redlineRef={redlineRef}
             rpmRef={rpmTextRef}

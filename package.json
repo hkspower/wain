@@ -92,6 +92,7 @@
     "test:race": "node tests/fullrace.mjs",
     "test:radio": "node tests/radio.mjs",
     "test:resolution": "node tests/resolution.mjs",
+    "test:revlimit": "node tests/revlimit.mjs",
     "test:road": "node tests/road.mjs",
     "test:roadmap": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/roadmap.mjs",
     "test:roadname": "node tests/roadname.mjs",

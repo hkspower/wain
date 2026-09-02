@@ -51,7 +51,7 @@ import {
   type BrakeState,
   type BrakeResult,
 } from "./brakes";
-import { GEARS, revFractionIn } from "./gears";
+import { GEARS, revFractionIn, upshiftAt } from "./gears";
 import { playerId, inviteCode, normaliseCode, isCodeShaped } from "./community";
 import { distanceById, distanceMetres, DEFAULT_DISTANCE } from "./distances";
 import {
@@ -363,6 +363,10 @@ export interface HudData {
     gear: number;
     /** True inside the last of the range, where you should be shifting. */
     shift: boolean;
+    /** How hard the engine is against its rev limiter, 0..1. Stays at
+     *  zero for the whole life of an engine the box changes up early —
+     *  which is most of them, and the point of EngineSpec.shiftAt. */
+    limiter: number;
   };
 }
 
@@ -465,6 +469,11 @@ export interface EngineEvents {
   onChampion(): void;
   /** Fired when a full lap is completed, with the lap time in ms. */
   onLap?(ms: number): void;
+  /** The needle has just arrived on the limiter. One event per arrival,
+   *  not one per frame while it sits there — the shell answers this
+   *  with a vibration, and a pad asked to rumble sixty times a second
+   *  simply stops rumbling. */
+  onLimiterHit?(): void;
   /** Fired the moment a battle begins — drives the VS splash. */
   onBattleStart?(rival: RivalDef): void;
   /** Three flashes landed: both cars revealed, race setup opens. */
@@ -590,6 +599,14 @@ const TRAFFIC_COLORS = [0x8a96a3, 0x5d6770, 0xb0a890, 0x6e7f8d, 0x4a5560, 0x9c8f
  * easing off burbles, snapping off bangs, and the two thresholds are
  * the only thing separating them.
  */
+/** The jolt when the needle first arrives on the limiter. Same scale as
+ *  a kerb strike (0.55) and a light contact (0.3), and deliberately
+ *  under both: it is the engine talking, not the road. */
+const LIMITER_HIT_SHAKE = 0.26;
+/** The sustained buzz while it sits there, scaled by how hard. Small —
+ *  a limiter you cannot drive through is a broken car, not a fast one. */
+const LIMITER_BUZZ_SHAKE = 0.07;
+
 const BACKFIRE_LIFT_RATE = 6;
 /** One lift, one bang. Seconds. */
 const BACKFIRE_LOCKOUT = 0.25;
@@ -4014,8 +4031,24 @@ export class GameEngine {
     // once the speed is clear of the boundary by HANDLING.shiftHysteresisKmh.
     const kmh = p.speed * KMH;
     let g = this.gearHeld;
-    if (g < GEARS.length - 2 && kmh >= GEARS[g + 1] + HANDLING.shiftHysteresisKmh) g++;
-    else if (g > 0 && kmh < GEARS[g] - HANDLING.shiftHysteresisKmh) g--;
+    // WHERE THE BOX CHANGES UP IS THE ENGINE'S BUSINESS.
+    //
+    // These used to be the raw gear boundaries, identical for every
+    // car, so a 1.6 that spins to 8,400 and a 5.7 that stops at 6,200
+    // were both taken to the top of every gear and both bounced off
+    // their limiter in every one. The only difference between a
+    // high-revving car and a torquey one was the numerals printed on
+    // the dial.
+    //
+    // The DOWNSHIFT point moves with it, and has to. Changing up early
+    // leaves the car below the next gear's nominal bottom, so a box
+    // that still dropped back at GEARS[g] would hunt between the two
+    // on every short shift. Falling below where you would have changed
+    // up from the gear beneath is the same rule read backwards, and at
+    // shiftAt 1 both lines are exactly what they were.
+    const shiftAt = this.tune.engine.shiftAt;
+    if (g < GEARS.length - 2 && kmh >= upshiftAt(g, shiftAt) + HANDLING.shiftHysteresisKmh) g++;
+    else if (g > 0 && kmh < upshiftAt(g - 1, shiftAt) - HANDLING.shiftHysteresisKmh) g--;
     if (g !== this.gearHeld) {
       // A shift is an event with a duration. Start it from wherever the
       // needle actually is, not from where the old gear says it should
@@ -4044,6 +4077,7 @@ export class GameEngine {
     // Leaning on the rev limiter. Ramped over the last few percent of
     // the range rather than tripped at exactly 1.0, so it arrives as the
     // needle reaches the stop and a passing frame cannot step over it.
+    const revLimitedBefore = this.revLimited;
     this.revLimited =
       this.throttle > 0.6
         ? THREE.MathUtils.clamp(
@@ -4053,6 +4087,24 @@ export class GameEngine {
             1
           )
         : 0;
+    // An engine on its limiter is not a quiet event. The ECU is cutting
+    // and restoring fuel several times a second and the whole car
+    // shakes with it — that is what tells a driver to change up without
+    // looking at anything. The sound has had the cut since the stutter
+    // was pinned to the clock; the car itself did not move.
+    //
+    // Two parts, because they are two different feelings. The first
+    // touch is a HIT: a single jolt on the edge, the moment the needle
+    // arrives. After that it is a sustained buzz that grows with how
+    // hard the car is leaning on the stop, small enough to read as an
+    // engine rather than as a kerb.
+    if (this.revLimited > 0.05 && revLimitedBefore <= 0.05) {
+      this.shake = Math.max(this.shake, LIMITER_HIT_SHAKE);
+      this.events.onLimiterHit?.();
+    }
+    if (this.revLimited > 0.05) {
+      this.shake = Math.max(this.shake, LIMITER_BUZZ_SHAKE * this.revLimited);
+    }
 
     // Fuel. An engine is an air pump and the burn follows the air it
     // moved, so the thirst of each of the five falls straight out of its
@@ -6347,6 +6399,20 @@ export class GameEngine {
           frac,
           gear: this.player.speed * KMH < 2 ? 0 : this.gearHeld + 1,
           shift: frac > 0.93,
+          /**
+           * How hard the engine is against its limiter, 0..1.
+           *
+           * Not `frac > something`: the limiter already ramps in over
+           * the top of the band and cuts torque as it goes, and the
+           * alert should read that ramp rather than re-derive a
+           * threshold that could disagree with the one the physics
+           * uses. Brushing it is a flicker; sitting on it is a solid
+           * red.
+           *
+           * On an engine geared to change up early this never leaves
+           * zero, which is the point — see EngineSpec.shiftAt.
+           */
+          limiter: this.revLimited,
         };
       })(),
       areaName: area.name,

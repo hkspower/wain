@@ -4,6 +4,21 @@
 // HUD can use it without pulling in the engine.
 export const GEARS = [0, 55, 95, 145, 200, 260, 320];
 
+/**
+ * The speed at which the box changes UP out of gear `g`, in km/h.
+ *
+ * GEARS gives every gear the same span for every car. What differs is
+ * how far up its own rev band an engine is taken before the change —
+ * see EngineSpec.shiftAt — so the shift point is the bottom of the gear
+ * plus that fraction of its span. At shiftAt 1 this is exactly
+ * GEARS[g + 1], which is what the box did for every engine before it
+ * had any opinion about them.
+ */
+export function upshiftAt(gear: number, shiftAt = 1): number {
+  const g = Math.min(Math.max(gear, 0), GEARS.length - 2);
+  return GEARS[g] + (GEARS[g + 1] - GEARS[g]) * Math.min(1, Math.max(0.5, shiftAt));
+}
+
 /** Which gear the box would be in at this speed. 0-indexed: 0 is first. */
 export function gearAt(speedKmh: number): number {
   let g = 0;

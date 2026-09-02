@@ -55,6 +55,32 @@ export interface EngineSpec {
   litres: number;
   idleRpm: number;
   redlineRpm: number;
+  /**
+   * How far up its own rev band the gearbox lets this engine go before
+   * it changes up, as a fraction of idle-to-redline.
+   *
+   * This is what makes a high-revving car a high-revving car, and the
+   * game did not have it. The gearbox shifted at fixed SPEEDS —
+   * GEARS = [0, 55, 95, 145, 200, 260, 320] — identical for every
+   * engine, so a 1.6 that spins to 8,400 and a 5.7 that stops at 6,200
+   * both ran to the top of every gear and both bounced off their
+   * limiter in every one. The dial's numbers differed and nothing else
+   * did: "high revving" was a label on the tacho rather than something
+   * the car does.
+   *
+   * Gearing is chosen FOR an engine, and that is the physical reason
+   * this belongs here. A short-stroke screamer with nothing below 6,000
+   * is geared to be held to the limiter, because that is the only place
+   * it makes power. A 5.7 with a flat torque curve is geared long and
+   * short-shifted, and a driver who revved it out would just be making
+   * noise — it is already past its peak.
+   *
+   * 1.0 means the box takes it to the redline. Below that it changes up
+   * early, the needle never reaches the red arc, and the limiter never
+   * fires — which is the whole point: only the engines that should
+   * scream, scream.
+   */
+  shiftAt: number;
   /** Torque curve shape, in rev-range fraction (0 = idle, 1 = redline).
    *  `peakAt` is where it makes the most, `breadth` how wide that peak
    *  is, `floor` what is left down at idle. */
@@ -88,6 +114,10 @@ export const ENGINES: EngineSpec[] = [
     litres: 1.6,
     idleRpm: 850,
     redlineRpm: 8400,
+    // To the limiter, every gear. Peak power sits at 0.88 of the band
+    // and there is nothing underneath it: short-shifting this engine
+    // drops it straight out of the only place it works.
+    shiftAt: 1.0,
     // Nothing down low and everything at the top: a small naturally
     // aspirated four only makes power where it can breathe.
     peakAt: 0.88,
@@ -109,6 +139,10 @@ export const ENGINES: EngineSpec[] = [
     litres: 2.0,
     idleRpm: 800,
     redlineRpm: 6800,
+    // A turbo four is done before the redline — boost is up early and
+    // the top of the band is just heat. Changed up short, the way
+    // anybody who has driven one does it.
+    shiftAt: 0.9,
     // A boosted four is all mid-range and then it is over.
     peakAt: 0.5,
     breadth: 0.3,
@@ -129,6 +163,9 @@ export const ENGINES: EngineSpec[] = [
     litres: 2.5,
     idleRpm: 900,
     redlineRpm: 7800,
+    // The other screamer. Naturally aspirated and long-legged, and the
+    // last thousand revs are the reason to own it.
+    shiftAt: 1.0,
     peakAt: 0.72,
     breadth: 0.34,
     floor: 0.44,
@@ -148,6 +185,13 @@ export const ENGINES: EngineSpec[] = [
     litres: 3.0,
     idleRpm: 750,
     redlineRpm: 7000,
+    // This one revs out, and the showroom already said so: "flat as a
+    // table from 2,000 TO THE LIMITER — no gear is the wrong gear".
+    // Measured at 0.92 it brushed the limiter at 0.12 and lit the alert
+    // for a fraction of a second, which is the worst of both — neither
+    // a car that screams nor one that does not. Existing copy beats a
+    // number I invented, so it goes all the way.
+    shiftAt: 1.0,
     // The flattest curve in the game. An inline six is perfectly
     // balanced and a pair of small turbos fill in everything else.
     peakAt: 0.58,
@@ -169,6 +213,12 @@ export const ENGINES: EngineSpec[] = [
     litres: 5.7,
     idleRpm: 700,
     redlineRpm: 6200,
+    // Never sees its redline in an intermediate gear, and does not need
+    // to: 5.7 litres makes its torque everywhere, and revving it out is
+    // noise rather than speed. This is the engine that proves the
+    // point — its needle stops short of the red arc, and the limiter
+    // that every car used to hit never fires.
+    shiftAt: 0.84,
     // Everything, immediately, and then it runs out of breath. Near
     // enough the mirror image of the 1.6 above, which is the point: the
     // two of them are the argument this whole file is making.

@@ -154,11 +154,64 @@ export function applySettings(s: Settings): void {
   root.dataset.largeHud = s.largeHud ? "1" : "0";
 }
 
-/** Short, purposeful haptics. Silently absent on desktop and iOS Safari. */
+/**
+ * Short, purposeful haptics.
+ *
+ * Two devices, because they are two different machines. navigator.vibrate
+ * is the phone in your hand and it is the only one most of this game's
+ * players have. A CONNECTED GAMEPAD has its own motors and does not hear
+ * about vibrate() at all — which meant that until now the one player
+ * holding a controller, the one who can actually feel a rev limiter
+ * through their hands, was the only one getting nothing.
+ *
+ * Both are best-effort and both are silently absent almost everywhere:
+ * vibrate() does nothing on desktop and is refused outright by iOS
+ * Safari, and vibrationActuator is Chromium-only. Neither is awaited —
+ * playEffect returns a promise that rejects if the pad is unplugged
+ * mid-effect, and a rumble is not worth an unhandled rejection.
+ */
 export function haptic(pattern: number | readonly number[], enabled: boolean): void {
   if (!enabled) return;
   try {
     navigator.vibrate?.(pattern as number | number[]);
+  } catch {}
+  // The pad. A pattern is a list of on/off durations; a dual-rumble
+  // effect is one envelope, so the pattern collapses to its total
+  // vibrating time — long enough to feel the difference between a tap
+  // and a reward without pretending to reproduce the rhythm.
+  try {
+    const ms = Array.isArray(pattern)
+      ? (pattern as number[]).filter((_, i) => i % 2 === 0).reduce((a, b) => a + b, 0)
+      : (pattern as number);
+    rumblePad(Math.min(600, Math.max(20, ms)), Math.min(1, 0.35 + ms / 400));
+  } catch {}
+}
+
+/**
+ * Rumble every connected pad for `ms` at `strength` (0..1).
+ *
+ * Separate from haptic() and exported, because the two are wanted in
+ * different places: haptic() is the UI's tap-and-reward vocabulary,
+ * driven from React, and this is the CAR — a limiter, a kerb, a hit —
+ * driven from the game loop, where there is no settings object to hand
+ * and no React render to hang it off.
+ */
+export function rumblePad(ms: number, strength: number, sharp = 0.6): void {
+  if (typeof navigator === "undefined" || !navigator.getGamepads) return;
+  try {
+    for (const pad of navigator.getGamepads()) {
+      const act = (pad as (Gamepad & { vibrationActuator?: GamepadHapticActuator }) | null)
+        ?.vibrationActuator as
+        | { playEffect?: (t: string, o: Record<string, number>) => Promise<unknown> }
+        | undefined;
+      // Fire and forget: the promise rejects when the pad is pulled out
+      // mid-effect, which is not an error anybody can act on.
+      act?.playEffect?.("dual-rumble", {
+        duration: ms,
+        strongMagnitude: Math.min(1, Math.max(0, strength)),
+        weakMagnitude: Math.min(1, Math.max(0, strength * sharp)),
+      })?.catch(() => {});
+    }
   } catch {}
 }
 
@@ -167,5 +220,9 @@ export const HAPTIC = {
   tap: 10,
   impact: 35,
   challenge: [20, 40, 20],
+  /** Arriving on the rev limiter. Two short knocks rather than one
+   *  buzz: a limiter is a cut and a restore, and the hand reads the
+   *  gap between them as an engine rather than as a notification. */
+  limiter: [18, 26, 18],
   reward: [15, 30, 15, 30, 60],
 } as const;
