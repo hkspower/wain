@@ -167,6 +167,45 @@ console.log('\n── hanging up ends the call and reports how long it ran ─�
   await ctx.close();
 }
 
+console.log('\n── the sheet and the launcher do not sit on top of each other ──');
+{
+  // Installed, the launcher moves up out of the tab bar's way. The sheet is
+  // anchored above the launcher, so moving one without the other buries it:
+  // 52 of the button's 60 pixels were under the sheet, and with them the ring
+  // pulse that exists precisely to show a live call from behind the sheet.
+  // Both modes are measured because the two layouts are written twice in
+  // globals.css — once as a media query, once as an attribute for iOS — and
+  // the comment there says the two lists must stay identical.
+  const { ctx, p } = await fresh({ stayOpen: true });
+  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  for (const installed of [false, true]) {
+    if (installed) {
+      await p.evaluate(() => document.documentElement.setAttribute('data-standalone', 'true'));
+      await p.waitForTimeout(120);
+    }
+    if (!(await sheet(p).count())) await call(p);
+    const box = await p.evaluate(() => {
+      const r = (s) => { const e = document.querySelector(s); const b = e.getBoundingClientRect(); return { top: b.top, bottom: b.bottom }; };
+      // In a browser the tab bar is display:none, and a hidden element still
+      // has a rect — an all-zero one. Reading .top off it says the tab bar is
+      // at the top of the screen, which failed this check against a layout
+      // that was correct. Absent means zero-sized, not missing from the DOM.
+      const tab = document.querySelector('.app-chrome.fixed.bottom-0');
+      const tb = tab?.getBoundingClientRect();
+      return { fab: r('.wain-ai-fab'), panel: r('#wain-ai-panel'),
+               tabTop: tb && tb.height > 0 ? tb.top : Infinity, vh: innerHeight };
+    });
+    const where = installed ? 'installed' : 'in a browser';
+    ok(`${where}: the sheet clears the launcher`, box.panel.bottom <= box.fab.top,
+      `panel bottom ${Math.round(box.panel.bottom)} vs launcher top ${Math.round(box.fab.top)}`);
+    ok(`${where}: the launcher clears the tab bar`, box.fab.bottom <= box.tabTop,
+      `launcher bottom ${Math.round(box.fab.bottom)} vs tab bar top ${Math.round(box.tabTop)}`);
+    ok(`${where}: the sheet is fully on screen`, box.panel.top >= 0,
+      `panel top ${Math.round(box.panel.top)}`);
+  }
+  await ctx.close();
+}
+
 console.log('\n── the hang-up does not come back as a failure ──');
 {
   // The red button abort()s the engine, and the engine answers that abort a

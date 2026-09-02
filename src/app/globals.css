@@ -318,6 +318,16 @@ body {
   .wain-ai-fab {
     bottom: 5.5rem;
   }
+  /* And the call sheet with it. The sheet is anchored above the launcher, so
+     moving one without the other buries the launcher underneath it: measured
+     on a 390×844 installed screen, 52 of the button's 60 pixels sat under the
+     sheet — taking with them the ring pulse whose whole job is to show a live
+     call while the sheet is scrolled away. 10.25rem is the same sum the
+     browser layout uses: the launcher's offset, its 60px height, and a 1rem
+     gap. */
+  .wain-ai-panel {
+    bottom: 10.25rem;
+  }
 }
 html[data-standalone="true"] {
   overscroll-behavior-y: none;
@@ -331,6 +341,9 @@ html[data-standalone="true"] .standalone-hidden {
 }
 html[data-standalone="true"] .wain-ai-fab {
   bottom: 5.5rem;
+}
+html[data-standalone="true"] .wain-ai-panel {
+  bottom: 10.25rem;
 }
 
 /* --- App physics -------------------------------------------------------
