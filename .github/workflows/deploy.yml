@@ -122,6 +122,8 @@ jobs:
         run: |
           test -f out/index.html || { echo "::error::out/index.html missing"; exit 1; }
           test -f out/.htaccess || echo "::warning::out/.htaccess missing - custom 404 will not work"
+          test -f out/build.json || { echo "::error::out/build.json missing - cannot verify the deploy"; exit 1; }
+          echo "DIGEST=$(node -p 'require("./out/build.json").digest')" >> "$GITHUB_ENV"
           echo "Pages built: $(find out -name index.html | wc -l)"
 
       - name: Deploy out/ to Hostinger
@@ -135,9 +137,57 @@ jobs:
           protocol: ${{ vars.FTP_PROTOCOL || 'ftps' }}
           port: ${{ vars.FTP_PORT || 21 }}
           local-dir: ./out/
-          # wainkw.com's document root. Override with a repo variable
-          # FTP_SERVER_DIR if the domain serves from a different folder
-          # (e.g. /domains/wainkw.com/public_html/).
-          server-dir: ${{ vars.FTP_SERVER_DIR || '/public_html/' }}
+          # wainkw.com is an ADDON domain on account u130124229 — its document
+          # root is /home/u130124229/domains/wainkw.com/public_html, NOT the
+          # account's /public_html, which belongs to the primary domain.
+          #
+          # Which of the two an FTP account sees as `/` depends on the account:
+          # the main account lands in /home/u130124229 (so the path below is
+          # right), while a per-website FTP account created from hPanel is
+          # chrooted to the site's own docroot (so `/` is right). Set the
+          # FTP_SERVER_DIR variable to `/` if you made a per-website account.
+          #
+          # Getting this wrong publishes wain over the primary domain instead,
+          # silently and with a green tick — which is what the verification
+          # step below exists to catch.
+          server-dir: ${{ vars.FTP_SERVER_DIR || '/domains/wainkw.com/public_html/' }}
           # Never delete unrelated files that already live on the host.
           dangerous-clean-slate: false
+
+      # A deploy that reports success and did not land is the failure mode this
+      # whole file is built around: the site sat for months serving an
+      # index.html whose assets had never been uploaded, and nothing anywhere
+      # said so. `build.json` is written into the export for exactly this — one
+      # request, no credentials, answers "what is actually up there".
+      #
+      # So the run does not end at "FTP finished". It reads the digest back off
+      # the live site and fails if it is not the one just built.
+      - name: Verify what actually landed
+        run: |
+          URL="https://www.wainkw.com/build.json"
+          # The upload has to settle, and any CDN in front of it has to let go.
+          for attempt in 1 2 3 4 5; do
+            live=$(curl -fsS --max-time 20 -H 'Cache-Control: no-cache' "$URL" || echo '')
+            got=$(printf '%s' "$live" | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).digest' 2>/dev/null || echo '')
+            [ -n "$got" ] && break
+            echo "attempt $attempt: build.json not readable yet, waiting…"
+            sleep 10
+          done
+
+          if [ -z "$got" ]; then
+            echo "::error::Deployed, but https://www.wainkw.com/build.json could not be read."
+            echo "The FTP step reported success, so the bytes went SOMEWHERE — most likely"
+            echo "the wrong directory. wainkw.com is an addon domain; set the FTP_SERVER_DIR"
+            echo "variable to '/' if your FTP account is chrooted to the site's own docroot."
+            exit 1
+          fi
+
+          if [ "$got" != "$DIGEST" ]; then
+            echo "::error::Deployed, but the live site is still serving a different build."
+            echo "  expected digest: $DIGEST"
+            echo "  live digest:     $got"
+            echo "Either the upload went to another directory, or something is caching it."
+            exit 1
+          fi
+
+          echo "Live at https://www.wainkw.com/ — digest $got, matches this build."
