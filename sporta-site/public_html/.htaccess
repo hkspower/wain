@@ -131,6 +131,13 @@ Options -Indexes
   RewriteCond %{DOCUMENT_ROOT}/api/sitemap-products.php -f
   RewriteRule ^sitemap-products\.xml$ /api/sitemap-products.php [L]
 
+  # THE HOMEPAGE THROUGH THE SEO SHIM, and it has to sit ABOVE the "real files
+  # win" rule below. "/" resolves to a real file — index.html, via
+  # DirectoryIndex — so the rule below would hand it straight over and the one
+  # page every crawler starts at would be the one page that never reached
+  # seo.php. Ordering is the whole of it; the rule itself is trivial.
+  RewriteRule ^$ /seo.php [L]
+
   # Real files and directories always win (assets, sitemap.xml, robots.txt…).
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
@@ -162,40 +169,40 @@ Options -Indexes
   RewriteCond %{DOCUMENT_ROOT}/returns-request.html -f
   RewriteRule ^returns/request/?$ /returns-request.html [L]
 
-  # ┌──────────────────────────────────────────────────────────────────────┐
-  # │ THIS BLOCK DOES NOT MATCH THE LIVE SERVER. DO NOT DEPLOY IT BLIND.   │
-  # └──────────────────────────────────────────────────────────────────────┘
+  # THESE ROUTES GO THROUGH seo.php, NOT STRAIGHT TO index.html.
   #
-  # The live site routes these same paths through /seo.php, not /index.html:
+  # index.html has ONE hardcoded <head>. Served as-is for every route, it tells
+  # every crawler that /product/vanquish-tank-navy and /shop and the homepage
+  # are all the same document: one title, and one canonical pointing at "/".
+  # Google reads that as 92 product URLs being duplicates of the homepage, so
+  # none of them can hold a ranking of their own, and every product link shared
+  # on WhatsApp previews as the generic store card rather than the product.
   #
-  #     RewriteRule ^$                       /seo.php [L]
-  #     RewriteRule ^(shop|cart|...)/?$      /seo.php [L]
-  #     RewriteRule ^product/[^/]+/?$        /seo.php [L]
-  #     RewriteRule ^invoice/[A-Za-z0-9]{1,30}/?$ /seo.php [L]
+  # seo.php reads index.html, strips those tags, and injects the real per-route
+  # title, description, canonical and og:image — looking the product up in
+  # MySQL. It cannot be done in JavaScript: WhatsApp, Facebook and Twitter
+  # scrapers do not run any, and Google treats a JS-injected canonical as
+  # unreliable. The tags have to be in the bytes the server sends.
   #
-  # seo.php reads index.html, strips its hardcoded <head> and injects the real
-  # per-route title, description, canonical and og:image — looking the product
-  # up in MySQL. It exists because every URL on this site otherwise served one
-  # hardcoded canonical pointing at the homepage, which told Google that all 92
-  # product URLs were duplicates of it, and made every product link shared on
-  # WhatsApp preview as the generic store card.
+  # THIS REPOSITORY HAD IT WRONG AND SHIPPED index.html HERE. seo.php was on
+  # the server and in no commit, so nothing here knew it existed; a deployment
+  # package built from this file would have routed every page past it and
+  # switched the whole of the above off. Silently — no error, no failing test,
+  # the shop simply ceasing to be indexable per product. Found by diffing the
+  # repo against the running server.
   #
-  # SHIPPING THE RULES BELOW OVER THE LIVE ONES WOULD UNDO ALL OF THAT SILENTLY.
-  # Nothing would break, no test would fail, and the shop would simply stop
-  # being indexable per product. It was caught by diffing the repo against the
-  # running server rather than by anything here.
+  # seo.php is committed beside this file now, and these rules match the live
+  # ones exactly, so a package built from here is deployable again.
   #
-  # seo.php now sits beside this file, pulled down from the server and verified
-  # byte for byte. The rules were NOT switched over in the same pass: seo.php
-  # needs api/store.php and a live catalogue on every page render, so making it
-  # the local default is a change that has to be made and measured
-  # deliberately, not slipped in beside a note.
-  RewriteRule ^(shop|cart|checkout|about|contact|wishlist|track|returns|terms|privacy|review)/?$ /index.html [L]
-  RewriteRule ^product/[^/]+/?$        /index.html [L]
-  RewriteRule ^payment/result/?$       /index.html [L]
+  # It fails safe: any error at all — no database, missing product, anything
+  # thrown — and it serves index.html verbatim, which is precisely the
+  # behaviour these rules had before.
+  RewriteRule ^(shop|cart|checkout|about|contact|wishlist|track|returns|terms|privacy|review)/?$ /seo.php [L]
+  RewriteRule ^product/[^/]+/?$        /seo.php [L]
+  RewriteRule ^payment/result/?$       /seo.php [L]
   # /invoice/<order number>. A parameterised route, so it needs its own rule —
   # the alternation list above only matches fixed paths.
-  RewriteRule ^invoice/[A-Za-z0-9]{1,30}/?$ /index.html [L]
+  RewriteRule ^invoice/[A-Za-z0-9]{1,30}/?$ /seo.php [L]
   # /admin -> /backends. A REDIRECT, not an internal rewrite: the panel is a
   # route inside the single-page app and the app's router only knows
   # /backends, so serving index.html at /admin would render the shop's 404

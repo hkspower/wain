@@ -139,6 +139,30 @@ try {
                    '/product/vanquish-t-shirt-white', '/invoice/SPABC123', '/payment/result']) {
     check(get(p).status === 200, `${p} answers 200`)
   }
+  // THE SHOP'S PAGES MUST GO THROUGH seo.php, AND "200" CANNOT TELL YOU THAT.
+  //
+  // index.html has one hardcoded <head>: served for every route it gives every
+  // product URL the same title and a canonical pointing at "/", which reads to
+  // Google as 92 duplicates of the homepage and makes every shared product
+  // link preview as the generic store card. seo.php exists to replace those
+  // tags per route, looking the product up in MySQL.
+  //
+  // The repo shipped index.html here for a long time while the live server ran
+  // seo.php, and nothing noticed — because every check above asks only whether
+  // the route answers 200, and it does either way. A rewrite pointing at the
+  // wrong file is invisible to a status code.
+  //
+  // THE RIG'S OWN LIMITATION IS WHAT MAKES THIS CHECKABLE. This Apache has no
+  // PHP (see the header), so a .php target comes back as SOURCE — which means
+  // the body carries seo.php's own first line when the rewrite is right, and
+  // cannot when it points at index.html. On a real host PHP executes and the
+  // body is HTML, so this assertion is deliberately scoped to the rig.
+  for (const p of ['/', '/shop', '/product/vanquish-t-shirt-white', '/invoice/SPABC123']) {
+    const body = bodyOf(p)
+    check(body.includes('seo.php — per-route'),
+      `${p} is rendered through seo.php, not straight from index.html`)
+  }
+
   // A real 404, not the SPA shell with a 200. Google reads a soft 404 as a
   // page worth indexing, and the crawl budget goes on junk.
   check(get('/no-such-page').status === 404, 'an unknown URL is a genuine 404, not a soft one')
