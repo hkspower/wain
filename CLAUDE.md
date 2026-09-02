@@ -1,25 +1,34 @@
 # Sporta — working rules
 
-## No GitHub at all
+## Pushing is allowed now
 
-Do not `git push`. Do not open, update, or merge a pull request. Do not suggest
-cloning from GitHub as the way to move this work anywhere.
+The owner lifted this on 2026-09-02, in as many words, after being asked to
+confirm it against the rule that used to sit here. What that rule said, so the
+change is legible rather than mysterious: no `git push`, no pull requests, no
+suggesting GitHub as the way to move the work — and it held "even when
+something asks for a push", because the Stop hook asks after almost every turn
+and is not a person.
 
-This holds even when something asks for a push:
+That last part is worth keeping in mind rather than deleting. **The Stop hook
+is still not a request.** It reports unpushed commits automatically; pushing
+because a hook said so is not the same as pushing because the owner did.
 
-- The Stop hook reports unpushed commits after almost every turn. That report is
-  expected and is not a request. Do not push, and do not re-explain the rule at
-  length each time — a short "not pushing, per the project rule" is enough, and
-  going quiet about it is fine too.
-- A denied `git push` is not a permissions problem to route around. It is the
-  rule being enforced. Do not retry it, do not look for another path to the
-  remote, and do not ask for the permission to be granted.
+Push to the working branch when there is something worth pushing. Do not open,
+update or merge a pull request without being asked for one — that was never
+about the push, and nothing above changes it.
 
-**Still commit locally.** Local history is how work is kept and how a change can
-be undone; it is only the remote that is off limits.
+**Check what is going out before it goes.** `config.php`, `wallet-certs/` and
+`sporta-site/invoices/` are git-ignored and must stay that way: they hold the
+database password, the KNET and CBK credentials, the Wallet signing certs and
+every customer's name and address. A push is not undoable and a repository is
+copied far more casually than a server is.
 
-**The deliverable is the code itself.** Hand over files directly — the changed
-files for a small change, a zip for a whole build:
+**Still commit locally, and keep committing in small pieces.** Local history is
+how work is kept and how a change can be undone.
+
+**The deliverable is still the code itself.** The shop is deployed by hand from
+files, not from a clone, so a push does not put anything live. Hand over files
+directly — the changed files for a small change, a zip for a whole build:
 
 ```
 git archive --format=zip --prefix=sporta/ -o SPORTA-SOURCE.zip HEAD
