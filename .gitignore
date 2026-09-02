@@ -103,3 +103,10 @@ sporta-site/invoices/
 # copy of a file already tracked here, and the README beside it is a note to
 # one person on one day — neither belongs in the history.
 sporta-site/RESTORE/
+
+# One-shot installers. sporta-fix.php carries base64 copies of files that are
+# already tracked here, plus the hash of a key that is handed over out of band
+# — build output for a blocked upload channel, in the same sense the zips above
+# are, and stale the moment any file it carries changes. It is generated, used
+# once on the server, and deletes itself.
+sporta-fix.php
