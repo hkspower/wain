@@ -88,6 +88,7 @@
     "test:paints": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/paints.mjs",
     "test:parity": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/parity.mjs",
     "test:physics": "node tests/physics.mjs",
+    "test:planting": "node tests/planting.mjs",
     "test:race": "node tests/fullrace.mjs",
     "test:radio": "node tests/radio.mjs",
     "test:resolution": "node tests/resolution.mjs",

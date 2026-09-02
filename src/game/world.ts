@@ -4542,6 +4542,183 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     scene.add(trunks, crowns);
   }
 
+  // Roadside planting — the shrub beds along both verges.
+  //
+  // Gulf Road and the ring are planted the whole way: clipped mounds of
+  // shrub in irrigated beds with sand between them, kept low enough that
+  // nothing hides a sign. This game had date palms on the corniche and
+  // bare ground everywhere else, so every verge that was not the
+  // corniche read as a hard shoulder rather than as a street somebody
+  // waters twice a week.
+  //
+  // THE LATERAL COMES FROM halfWidthAt, NOT FROM THE CONSTANT, and this
+  // file already records what the constant costs. The road is not a
+  // constant width — it swells from 7 m to 19 m at the Sharq drift
+  // plaza and by 10 m at each petrol forecourt — and a band drawn at
+  // ROAD_HALF_WIDTH + 4 once put a tower block on the plaza, measured at
+  // lat 18.02 against the road's own half-width of 18.00, a bug that
+  // only became reproducible when the world was seeded. A bed planted
+  // on the racing line would be that same bug with leaves on. Following
+  // the real width also means the forecourts and the plaza need no
+  // special case: the beds step outward exactly as far as the tarmac
+  // does, and end up round the edge of both.
+  //
+  // WHICH SIDE. On the coastal leg the negative side is the SEA — the
+  // same rule the billboards follow — so the coast is planted inland
+  // only, and its sea side stays the palm walkway it already is. Past
+  // the coast, both verges.
+  //
+  // NO SHADOWS CAST. There are around a thousand of these and every one
+  // is knee high; the shadow budget belongs to the cars and the lamp
+  // posts. They RECEIVE, so the moon shadow and a passing headlight
+  // still cross them, which is the half that reads at night anyway.
+  {
+    // Three silhouettes rather than one. A single instanced geometry
+    // repeated a thousand times down a straight road is a wallpaper
+    // pattern, and the eye finds it immediately at speed; three is
+    // enough that it stops looking periodic, and costs two extra draw
+    // calls to fix.
+    const SHAPES = 3;
+    const SPACING = 7; // metres between beds along one verge
+    // Clear of the barrier line, which sits at halfWidth + 1.2 to + 1.6,
+    // and short of the flag masts and the city bands, which start at
+    // + 4. That leaves a band a metre and a half wide to plant in.
+    const LAT_MIN = 2.3;
+    const LAT_SPAN = 1.1;
+
+    // A mound: an icosahedron pushed down and roughened, so the
+    // silhouette is lumpy the way a clipped shrub is rather than
+    // spherical the way a ball is.
+    const mound = (seed: number): THREE.BufferGeometry => {
+      const g = new THREE.IcosahedronGeometry(0.5, 1);
+      const pos = g.attributes.position as THREE.BufferAttribute;
+      for (let i = 0; i < pos.count; i++) {
+        const k = 0.72 + rand() * 0.5;
+        pos.setXYZ(
+          i,
+          pos.getX(i) * k * (1 + seed * 0.06),
+          // Flattened, and lifted so the mound sits ON the ground
+          // instead of half-buried in it.
+          Math.max(0, pos.getY(i)) * (0.55 + rand() * 0.3),
+          pos.getZ(i) * k
+        );
+      }
+      g.computeVertexNormals();
+      return g;
+    };
+
+    // Foliage under sodium and moonlight: desert planting is grey-green
+    // and dusty, not a lawn. Roughness 1 — a leaf at this distance has
+    // no highlight worth drawing, and a specular one would read as wet.
+    const leafMat = new THREE.MeshStandardMaterial({
+      color: 0x3f5136,
+      roughness: 1,
+      metalness: 0,
+    });
+
+    // Collect the placements first and build to the exact count. An
+    // InstancedMesh sized from an estimate either wastes matrices or
+    // silently drops the tail of the road.
+    const spots: Array<{ s: number; lat: number }> = [];
+    for (let step = 0; step < L; step += SPACING) {
+      for (const side of [1, -1]) {
+        // Gaps on purpose: a continuous hedge for eight kilometres is a
+        // wall, and the real verge is beds with sand between them.
+        if (rand() < 0.28) continue;
+        // JITTER FIRST, THEN MEASURE. The width has to be read at the
+        // point the plant actually stands, not at the point the loop
+        // happened to step to. Reading it at the step and then nudging
+        // the plant up to four metres down the road put one bed 1.25 m
+        // from the tarmac where the carriageway was opening out for a
+        // forecourt — inside the barrier line, on a verge that is 2.3 m
+        // wide everywhere the road is not changing width. Same bug as
+        // the tower block on the drift plaza, one order smaller: a
+        // width measured somewhere other than where the thing is.
+        const at = step + rand() * SPACING * 0.6;
+        // Nothing grows in a tunnel, and the portal approach is walled.
+        if (at > TUNNEL_S.from - 20 && at < TUNNEL_S.to + 20) continue;
+        // The seaward verge only exists once the coast has handed over,
+        // AND it has to stop again before the lap closes. The margin is
+        // not decoration and the second half of the test is not either:
+        // the lap is a loop, so it has two seams, and guarding only the
+        // forward one left a plant two metres past the start line on the
+        // seaward side — correctly placed by its own arithmetic at
+        // s=8490, and standing in the Gulf by the time the road got
+        // there. A rule about "after the coast" on a closed circuit is a
+        // rule about a window, not about a threshold.
+        const SEAM = 40;
+        if (side < 0 && (at < COAST_END_M + SEAM || at > L - SEAM)) continue;
+        spots.push({
+          s: at,
+          lat: side * (track.halfWidthAt(at) + LAT_MIN + rand() * LAT_SPAN),
+        });
+      }
+    }
+
+    const per = Math.ceil(spots.length / SHAPES);
+    const meshes: THREE.InstancedMesh[] = [];
+    // Each shape's own height, so an instance can be scaled to a height
+    // in METRES rather than by a multiplier whose meaning depends on
+    // which of the three geometries it landed on.
+    const topOf: number[] = [];
+    for (let k = 0; k < SHAPES; k++) {
+      const g = mound(k);
+      g.computeBoundingBox();
+      topOf.push(g.boundingBox!.max.y);
+      const im = new THREE.InstancedMesh(g, leafMat, per);
+      im.castShadow = false;
+      im.receiveShadow = true;
+      im.name = "planting";
+      im.count = 0; // raised as instances are filled in
+      meshes.push(im);
+    }
+
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const up = new THREE.Vector3(0, 1, 0);
+    const pos = new THREE.Vector3();
+    const scl = new THREE.Vector3();
+    const p2 = new THREE.Vector3();
+    const tmp2 = new THREE.Vector3();
+    const tint = new THREE.Color();
+    for (const [i, spot] of spots.entries()) {
+      const im = meshes[i % SHAPES];
+      track.pose(spot.s, spot.lat, p2, tmp2);
+      pos.set(p2.x, 0, p2.z);
+      q.setFromAxisAngle(up, rand() * Math.PI * 2);
+      // Non-uniform, so a bed reads as several plants of different ages
+      // rather than one plant rendered at several sizes.
+      // HEIGHT IS SET AGAINST THE BARRIER, not by eye. The W-beam's top
+      // lip stands at 0.776 m — RAIL_Y plus the section's own crest —
+      // and the first build made these 0.19 to 0.77 m tall, which put
+      // every one of them behind the rail from the chase camera. They
+      // were placed correctly, tested correctly, and could not be seen
+      // from the road at all: a feature nobody can see is not subtle,
+      // it is absent, and it still costs 105,000 triangles.
+      //
+      // 0.85 to 1.7 m clears the rail on every instance and stays well
+      // under the sign gantries at 3.75 m, so nothing is hidden by a
+      // hedge. Real roadside shrub beds sit in that band too.
+      const h = 0.85 + rand() * 0.85;
+      const w = 0.8 + rand() * 1.5;
+      scl.set(w, h / topOf[i % SHAPES], w * (0.8 + rand() * 0.4));
+      m.compose(pos, q, scl);
+      im.setMatrixAt(im.count, m);
+      // A little spread of green, warmer where a sodium lamp would be
+      // washing it and cooler where it would not. Cheap variety: one
+      // material, a thousand slightly different plants.
+      tint.setHSL(0.24 + rand() * 0.06, 0.18 + rand() * 0.16, 0.42 + rand() * 0.22);
+      im.setColorAt(im.count, tint);
+      im.count++;
+    }
+    for (const im of meshes) {
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      im.frustumCulled = true;
+      scene.add(im);
+    }
+  }
+
   // Hawally tunnel: concrete walls + ceiling, sodium strip lights inside
   {
     const concreteMap = concreteTexture();

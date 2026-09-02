@@ -6155,6 +6155,14 @@ export class GameEngine {
       }
     ).__grnCrown = { crownShell, CROWN };
     (window as unknown as { __grnLandmarks: typeof LANDMARK_S }).__grnLandmarks = LANDMARK_S;
+    // Where the sea stops being on your left, in metres. Derived from
+    // COAST_U and the live track rather than typed, so it cannot drift
+    // the way a second copy of a distance would: the lap has already
+    // grown once, from 7.34 km to 8.49 km, when the return leg became
+    // the Second Ring. Anything placed beside the road needs this to
+    // know which verge is a verge and which is the Gulf.
+    (window as unknown as { __grnCoastEndM: number }).__grnCoastEndM =
+      COAST_U.to * this.track.length;
     (window as unknown as { __grnDebug: object }).__grnDebug = {
       playerSpeed: this.player.speed,
       playerLat: this.player.lat,
