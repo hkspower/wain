@@ -73,9 +73,15 @@ cbk-payments.log
 #
 # A PATTERN, not three names. It was a list, and every hand-off zip with a new
 # name — BRAND-FOLDERS.zip was the second — arrived as an untracked file and
-# had to be added by hand. Anything shaped like a package at the repo root is
-# build output; nothing tracked here is a .zip.
-/*.zip
+# had to be added by hand. Anything shaped like a package is build output;
+# nothing tracked here is a .zip.
+#
+# UNANCHORED, because the leading slash meant "repo root only" and the packages
+# are built next to what they contain — sporta-site/SPORTA-BACKEND.zip and two
+# others were committed by a `git add -A` before anyone noticed the rule had
+# not covered them. That is the failure this block was already written to
+# prevent; it was just spelled too narrowly to do it.
+*.zip
 
 # Scratch probes. Every session writes scripts/_probe.mjs to measure something
 # once; one of them was committed. The leading underscore is the convention and
