@@ -345,10 +345,27 @@ if ($noBrand === $total && $total > 0) {
 } else {
     ok('every product names a brand');
 }
+// AN ACTIVE BRAND WITH NOTHING BEHIND IT — AND WHAT THAT ACTUALLY COSTS.
+//
+// This used to say "it shows as an empty shelf". That is not true, and it was
+// worth checking rather than repeating: ?r=brands is called by NOTHING. Not
+// the storefront bundle, which has no brand route at all, and not the app.
+// Only this audit and the assistant's rig read it. Products carry their brand
+// through ?r=products, which joins brands itself.
+//
+// So the consequence is not a customer meeting a bare page. It is that the
+// assistant — the one thing that DOES read the list — would offer a brand the
+// shop cannot sell, and it only avoids that because assistant.php filters
+// these out itself with `having n > 0`.
+//
+// A warning that overstates its consequence is how a list of warnings becomes
+// a list nobody reads. This one now says what is at stake and what is already
+// guarding it.
 foreach ($q('select b.slug, count(p.id) n from brands b
              left join products p on p.brand_slug = b.slug
              where b.active = 1 group by b.slug having n = 0') as $r) {
-    warn("brand '{$r['slug']}' is active but no product belongs to it — it shows as an empty shelf");
+    warn("brand '{$r['slug']}' is active with no products — nothing on the site "
+       . "lists brands, so no customer meets it; the assistant filters it out itself");
 }
 
 /* --------------------------------------------------- the stored photographs */

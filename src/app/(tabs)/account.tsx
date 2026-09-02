@@ -52,7 +52,7 @@ export default function AccountScreen() {
               onPress={() => setLang(id)}
               style={press(false, styles.lang,
                 {
-                  borderColor: active ? theme.tint : theme.border,
+                  borderColor: active ? theme.tint : theme.controlBorder,
                   backgroundColor: active ? theme.tintSoft : theme.backgroundElement,
                 })}>
               <ThemedText type="labelBold" themeColor={active ? 'tintText' : 'text'}>

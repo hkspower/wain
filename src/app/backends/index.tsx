@@ -100,7 +100,7 @@ function SignIn() {
             accessibilityLabel="Email"
             style={[
               styles.input,
-              { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.border },
+              { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.controlBorder },
             ]}
           />
           <ThemedText type="label" themeColor="textSecondary">
@@ -117,7 +117,7 @@ function SignIn() {
             onSubmitEditing={submit}
             style={[
               styles.input,
-              { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.border },
+              { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.controlBorder },
             ]}
           />
 
@@ -167,7 +167,7 @@ function SignIn() {
                 autoFocus
                 style={[
                   styles.input,
-                  { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.border },
+                  { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.controlBorder },
                 ]}
               />
               {factor?.via === 'email' && (

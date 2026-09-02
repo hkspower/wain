@@ -51,17 +51,34 @@ Colour rules that are not obvious:
   as whoever wrote it; this found four strays, an unreadable dark mode, and a
   primary button at 2.59:1 that the pair list had no way to see.
 
-### The one thing measured and left alone
+### The thing that was measured, left alone, and then fixed
 
 The hairline is `#e2e4e8` on a `#f2f3f5` page: **1.15:1**, where WCAG 1.4.11 asks
 3:1 of anything marking out a control — the edge of a text field is how a
-customer knows where to type. Dark mode is the same story at 1.65:1.
+customer knows where to type. Dark mode was the same story at 1.65:1.
 
-Raising it is a visible change to every screen, so it is the owner's call rather
-than a decision taken in a test rig. `color-test.mjs` reports the count and the
-faintest example on every run and does not fail on it. Fixing it would mean one
-more token — a stronger grey used only on interactive outlines — not a darker
-`border`, which would also thicken every seam in the app.
+That was recorded here as the owner's call rather than a decision to take in a
+test rig, and it stayed that way until the owner made it. `color-test.mjs` had
+been reporting 21 outlines under 3:1 across `/shop`, `/checkout` and `/account`
+on every run, in both schemes.
+
+**The fix is the one this section already prescribed** — one more token, used
+only on interactive outlines, rather than darkening `border` and thickening
+every seam in the app:
+
+| | value | on page | on card |
+|---|---|---|---|
+| light `controlBorder` | `#818b96` | 3.12:1 | 3.46:1 |
+| dark `controlBorder` | `#6b7683` | 3.92:1 | 3.66:1 |
+
+Both are the LIGHTEST grey that clears 3:1 on every surface a control can sit
+on, so the edge becomes visible with the least change to how the app looks.
+
+**Seventeen outlines moved; five did not.** The ones left on `border` are not
+controls: the hero slider's dots, the admin nav's container, the two card tones
+that mark a spent promotion and a handled return, and the notice panel on the
+account screen. A seam is still allowed to be a seam — that distinction is the
+whole reason this is a second token and not a darker first one.
 
 ## Type
 

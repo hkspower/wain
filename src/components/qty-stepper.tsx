@@ -36,7 +36,7 @@ export function QtyStepper({
       disabled={disabled}
       onPress={() => onChange(to)}
       style={press(false, styles.button,
-        { borderColor: theme.border },
+        { borderColor: theme.controlBorder },
         disabled && styles.disabled)}>
       <ThemedText type="labelBold" style={styles.glyph}>
         {label}

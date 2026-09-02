@@ -98,7 +98,7 @@ export function AdminShell({
                   style={press(false, styles.navHit)}>
                   <ThemedView
                     type={active ? 'backgroundSelected' : 'backgroundElement'}
-                    style={[styles.navItem, { borderColor: active ? theme.tint : theme.border }]}>
+                    style={[styles.navItem, { borderColor: active ? theme.tint : theme.controlBorder }]}>
                     <ThemedText type="labelBold" themeColor={active ? 'tintText' : 'textSecondary'}>
                       {label}
                     </ThemedText>
@@ -146,7 +146,7 @@ export function AdminShell({
                   accessibilityRole="button"
                   onPress={onRetry}
                   style={press(false, styles.retry,
-                    { borderColor: theme.border })}>
+                    { borderColor: theme.controlBorder })}>
                   <ThemedText type="labelBold">Try again</ThemedText>
                 </Pressable>
               )}

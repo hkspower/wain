@@ -51,7 +51,7 @@ export function Chip({
       style={press(true, styles.hit, style)}>
       <ThemedView
         type={active ? 'backgroundSelected' : 'backgroundElement'}
-        style={[styles.chip, { borderColor: active ? theme.tint : theme.border }]}>
+        style={[styles.chip, { borderColor: active ? theme.tint : theme.controlBorder }]}>
         <ThemedText type="label" themeColor={active ? 'tintText' : 'textSecondary'}>
           {label}
         </ThemedText>

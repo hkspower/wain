@@ -166,7 +166,7 @@ export default function ProductScreen() {
                   }}
                   style={press(false, styles.size,
                     {
-                      borderColor: active ? theme.tint : theme.border,
+                      borderColor: active ? theme.tint : theme.controlBorder,
                       backgroundColor: active ? theme.tintSoft : 'transparent',
                     },
                     out && styles.sizeOut)}>

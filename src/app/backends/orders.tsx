@@ -99,7 +99,7 @@ export default function OrdersScreen() {
               style={press(false, styles.filterHit)}>
               <ThemedView
                 type={active ? 'backgroundSelected' : 'backgroundElement'}
-                style={[styles.filter, { borderColor: active ? theme.tint : theme.border }]}>
+                style={[styles.filter, { borderColor: active ? theme.tint : theme.controlBorder }]}>
                 <ThemedText type="label" themeColor={active ? 'tintText' : 'textSecondary'}>
                   {f}
                 </ThemedText>

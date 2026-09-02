@@ -40,7 +40,7 @@ export function Button({
 
   const skin: Record<Variant, { bg: string; fg: string; border: string }> = {
     primary: { bg: theme.tint, fg: theme.onTint, border: theme.tint },
-    secondary: { bg: theme.backgroundElement, fg: theme.text, border: theme.border },
+    secondary: { bg: theme.backgroundElement, fg: theme.text, border: theme.controlBorder },
     danger: { bg: theme.backgroundElement, fg: theme.danger, border: theme.danger },
   };
   const { bg, fg, border } = skin[variant];

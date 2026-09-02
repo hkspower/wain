@@ -196,7 +196,7 @@ export default function CheckoutScreen() {
           {
             color: theme.text,
             backgroundColor: theme.backgroundElement,
-            borderColor: missing(k) ? theme.danger : theme.border,
+            borderColor: missing(k) ? theme.danger : theme.controlBorder,
           },
         ]}
       />
@@ -272,7 +272,7 @@ export default function CheckoutScreen() {
                         style={[
                           styles.gov,
                           {
-                            borderColor: active ? theme.tint : theme.border,
+                            borderColor: active ? theme.tint : theme.controlBorder,
                             backgroundColor: active ? theme.tintSoft : theme.backgroundElement,
                           },
                         ]}>

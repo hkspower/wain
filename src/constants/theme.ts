@@ -54,6 +54,23 @@ export const Colors = {
     // Follows the surfaces neutral. A warm border on a neutral grey page is
     // the one place the old cast would still have shown.
     border: '#e2e4e8',
+    // THE EDGE OF A CONTROL, WHICH IS NOT THE EDGE OF A BOX.
+    //
+    // `border` above is 1.15:1 on the page. That is right for a seam — a card
+    // against the page, a rule between rows — where the job is to suggest a
+    // division without drawing a line anyone looks at.
+    //
+    // It is wrong for the edge of a text field, because that edge is the only
+    // thing telling a customer where to type. WCAG 1.4.11 asks 3:1 of anything
+    // marking out a control, and docs-STYLE.md recorded this as measured and
+    // deliberately left alone, with the fix already specified: one more token,
+    // used only on interactive outlines, rather than darkening `border` and
+    // thickening every seam in the app.
+    //
+    // This is that token. #818b96 is the LIGHTEST grey that clears 3:1 on both
+    // surfaces a control can sit on — 3.12:1 on the page and 3.46:1 on a card
+    // — so it does the job with the least change to how the app looks.
+    controlBorder: '#818b96',
     ink: '#14161a',
     inkSilver: '#2b3138',
     inkSteel: '#363d45',
@@ -80,6 +97,11 @@ export const Colors = {
     silver: '#b3bcc6',
     silverSoft: '#232a31',
     border: '#363d45',
+    // The same reasoning as the light theme's, and the same measurement.
+    // #6b7683 is 3.92:1 on the page, 3.66:1 on a card and 3.14:1 on the raised
+    // surfaces — over the line on all three, which the old #363d45 was not on
+    // any of them at 1.65:1.
+    controlBorder: '#6b7683',
     ink: '#0d0f12',
     inkSilver: '#2b3138',
     inkSteel: '#363d45',

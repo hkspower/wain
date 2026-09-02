@@ -93,7 +93,7 @@ export function Field({
           {
             color: theme.text,
             backgroundColor: theme.background,
-            borderColor: error ? theme.danger : theme.border,
+            borderColor: error ? theme.danger : theme.controlBorder,
           },
         ]}
       />

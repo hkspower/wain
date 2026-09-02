@@ -111,7 +111,7 @@ export default function StockScreen() {
                   {
                     color: theme.text,
                     backgroundColor: theme.background,
-                    borderColor: dirty ? theme.tint : theme.border,
+                    borderColor: dirty ? theme.tint : theme.controlBorder,
                   },
                 ]}
               />
@@ -125,7 +125,7 @@ export default function StockScreen() {
                 disabled={!dirty || saving !== null}
                 onPress={() => save(i)}
                 style={press(false, styles.save,
-                  { backgroundColor: dirty ? theme.tint : theme.backgroundElement, borderColor: theme.border },
+                  { backgroundColor: dirty ? theme.tint : theme.backgroundElement, borderColor: theme.controlBorder },
                   !dirty && styles.dimmed)}>
                 {saving === k ? (
                   <ActivityIndicator color={theme.onTint} />
