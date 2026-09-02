@@ -109,4 +109,7 @@ sporta-site/RESTORE/
 # — build output for a blocked upload channel, in the same sense the zips above
 # are, and stale the moment any file it carries changes. It is generated, used
 # once on the server, and deletes itself.
-sporta-fix.php
+# A PATTERN, not one name: sporta-assets.php was the second of these and
+# arrived untracked, exactly as the zips did before the rule above them was
+# widened. No tracked file matches sporta-*.php.
+sporta-*.php
