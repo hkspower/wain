@@ -294,6 +294,26 @@ body {
   padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
 }
 
+/* And the launcher itself has to clear it too.
+
+   `bottom` for both of these lives HERE and nowhere else — the matching
+   `bottom-5` / `bottom-24` utilities were removed from WainAi.tsx, because
+   this rule already beat them (measured: a marker value reached the element)
+   and a dead class that looks authoritative is the next person's wrong answer.
+   The rule above reserved room for the launcher INCLUDING the inset, while the
+   launcher sat at a flat `bottom-5` — 20px, inside the ~34px home-indicator
+   strip on every recent iPhone. Not just an overlap: that strip is iOS's
+   swipe-up gesture area, so the tap that opens شوق competes with the gesture
+   that leaves the site.
+   The sheet is anchored above the launcher and moves with it, or the gap
+   between the two changes on exactly the devices this is for. */
+.wain-ai-fab {
+  bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+}
+.wain-ai-panel {
+  bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+}
+
 /* App version (installed to the home screen). The bottom tab bar becomes the
    primary navigation, so content clears it, the navbar's duplicate links go,
    شوق's launcher moves up out of the tab bar's way, and the page stops
@@ -316,7 +336,7 @@ body {
     display: none;
   }
   .wain-ai-fab {
-    bottom: 5.5rem;
+    bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
   }
   /* And the call sheet with it. The sheet is anchored above the launcher, so
      moving one without the other buries the launcher underneath it: measured
@@ -326,7 +346,7 @@ body {
      browser layout uses: the launcher's offset, its 60px height, and a 1rem
      gap. */
   .wain-ai-panel {
-    bottom: 10.25rem;
+    bottom: calc(10.25rem + env(safe-area-inset-bottom, 0px));
   }
 }
 html[data-standalone="true"] {
@@ -340,10 +360,10 @@ html[data-standalone="true"] .standalone-hidden {
   display: none;
 }
 html[data-standalone="true"] .wain-ai-fab {
-  bottom: 5.5rem;
+  bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
 }
 html[data-standalone="true"] .wain-ai-panel {
-  bottom: 10.25rem;
+  bottom: calc(10.25rem + env(safe-area-inset-bottom, 0px));
 }
 
 /* --- App physics -------------------------------------------------------

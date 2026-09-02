@@ -465,7 +465,7 @@ export default function WainAi() {
   return (
     <>
       {/* ---- the call button ---- */}
-      <div className="wain-ai-fab fixed bottom-5 start-5 z-50 flex flex-col items-start gap-2">
+      <div className="wain-ai-fab fixed start-5 z-50 flex flex-col items-start gap-2">
         <button
           type="button"
           onClick={startCall}
@@ -519,7 +519,7 @@ export default function WainAi() {
           id="wain-ai-panel"
           role="dialog"
           aria-label={`${WAIN_AI_COPY.centre} — ${WAIN_AI_COPY.name}`}
-          className="wain-ai-panel fixed bottom-24 start-5 z-50 w-[min(22rem,calc(100vw-2.5rem))] overflow-hidden rounded-3xl border border-line bg-white shadow-2xl"
+          className="wain-ai-panel fixed start-5 z-50 w-[min(22rem,calc(100vw-2.5rem))] overflow-hidden rounded-3xl border border-line bg-white shadow-2xl"
         >
           {/* Same reason as the launcher: the coral-500 end of this gradient
               cannot carry white body text at AA. */}

@@ -503,7 +503,7 @@ function Banner({
 
 function NotConfigured() {
   return (
-    <div className="measure mx-auto max-w-2xl px-4 py-20">
+    <div className="measure mx-auto max-w-2xl px-4 py-20 sm:px-6">
       <h1 className="font-display text-2xl font-bold text-ink-900">لوحة التحكّم غير مفعّلة</h1>
       <p className="mt-3 text-sm leading-relaxed text-ink-600">
         ما فيه إعداد لقاعدة البيانات في هذا البناء. الموقع يشتغل عادي من بياناته
@@ -528,7 +528,7 @@ function NotConfigured() {
 
 function NotAllowed({ email }: { email: string }) {
   return (
-    <div className="mx-auto max-w-lg px-4 py-20 text-center">
+    <div className="mx-auto max-w-lg px-4 py-20 text-center sm:px-6">
       <h1 className="font-display text-2xl font-bold text-ink-900">ما عندك صلاحية</h1>
       <p className="mt-3 text-sm leading-relaxed text-ink-600">
         دخلت باسم <strong dir="ltr">{email}</strong>، بس هذا الحساب مو مضاف في

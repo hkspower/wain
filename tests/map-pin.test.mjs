@@ -121,7 +121,7 @@ console.log('\n── the pin points at its own coordinate ──');
   // reserving the nose's SIDE rather than half its diagonal left the tip 4.6px
   // short, and the head's 2px border — which an absolutely positioned child is
   // laid out against — took another 1.4px.
-  const { ctx, p, map } = await open({ touch: false });
+  const { ctx, map } = await open({ touch: false });
   const geom = await map.evaluate((section) => {
     const box = section.querySelector('[data-map-frame]');
     const br = box.getBoundingClientRect();
