@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DriverCard, GameEngine, HudData, RaceResult } from "@/game/engine";
 import { playSfx, preloadSfx, setSfxVolume } from "@/game/sfx";
 import Results from "./Results";
@@ -33,7 +33,7 @@ import {
   HAPTIC,
 } from "@/game/settings";
 import { RESOLUTIONS, formatBuffer } from "@/game/render";
-import { hudInset } from "@/game/aspect";
+import { hudInset, letterbox, RACE_ASPECT } from "@/game/aspect";
 import { VIEWS, viewSpec } from "@/game/views";
 import {
   EXCLUSIVE_CATS,
@@ -468,6 +468,52 @@ function metresLabel(m: number): string {
 
 export default function RaceClient() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  /** The 16:9 box the canvas is cut to while a race is on, or null when
+   *  it should fill the window. */
+  const [raceBox, setRaceBox] = useState<{ w: number; h: number } | null>(null);
+/**
+ * The box the picture is cut to while a race is on, or null to fill the
+ * window.
+ *
+ * THE LETTERBOX TRIMS WIDTH, NEVER HEIGHT, and that is a measurement
+ * rather than a preference. Cutting a window to 16:9 restores the shape
+ * the game is framed and tuned at, and on anything landscape it helps:
+ * the car goes from 146 px tall to 166 on a 16:9 laptop and 232 to 249
+ * on an ultrawide, once the race dolly is counted.
+ *
+ * On a 412x915 portrait phone the same cut gives 412x232 — and the car
+ * falls from 87 px tall to 53, a 38% LOSS. Height is the axis a car is
+ * measured on, and you cannot make a car bigger by throwing that axis
+ * away. So a window narrower than the race shape keeps every pixel it
+ * has and gets its framing from the camera instead.
+ */
+function raceCut(): { w: number; h: number } | null {
+  if (typeof window === "undefined") return null;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  if (w / h <= RACE_ASPECT + 1e-3) return null; // nothing to trim but height
+  return letterbox(w, h);
+}
+
+  /** Edge detector: the HUD feed runs every frame and setState must not. */
+  const racingRef = useRef(false);
+  // The canvas's CSS box is the only thing that moved; engine.resize()
+  // reads that box and rebuilds the composer, the FXAA resolution, the
+  // particle scales and the camera aspect from it. useLayoutEffect so
+  // the renderer is resized in the same paint the element changed in,
+  // and never a frame late showing a stretched picture.
+  useLayoutEffect(() => {
+    engineRef.current?.resize();
+  }, [raceBox]);
+
+  useEffect(() => {
+    if (!raceBox) return;
+    const onResize = () => setRaceBox(raceCut());
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+    // Only the fact that a box exists matters; the handler reads the
+    // window fresh each time.
+  }, [raceBox !== null]);
   const mapRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const mapPathRef = useRef<Array<[number, number]>>([]);
@@ -1293,6 +1339,14 @@ export default function RaceClient() {
         rivalDist: d.rivalDist ?? 0,
         inBattle: d.battle !== null,
       };
+      // Cut to the race shape on the edge, never per frame: this
+      // callback runs every frame and a setState here would re-render
+      // the whole HUD sixty times a second.
+      const racing = d.battle !== null;
+      if (racing !== racingRef.current) {
+        racingRef.current = racing;
+        setRaceBox(racing ? raceCut() : null);
+      }
       // The prompt is a React state change, so it is only written when
       // the answer actually flips — the HUD feed runs every frame.
       if (d.canSizeUp !== sizeUpRef.current) {
@@ -1911,7 +1965,25 @@ export default function RaceClient() {
 
   return (
     <div ref={rootRef} className="fixed inset-0 z-[60] bg-black text-white">
-      <canvas ref={canvasRef} className="h-full w-full" />
+      {/* THE RACE LETTERBOX.
+          Free roam fills the window. A battle cuts the picture to 16:9
+          — the shape the game is framed, shot and tuned at, and the
+          shape every capture in press/ is in — because a race is two
+          cars and the gap between them, and on a portrait phone the car
+          was reading at 9.5% of the frame height against 20.3% here.
+
+          Sized in CSS rather than by reaching into the renderer: the
+          engine's resize() already measures the canvas's own client box
+          and rebuilds the composer, the FXAA resolution, the particle
+          scales and the camera aspect from it, so moving the element is
+          the whole change. Reaching past it would mean four more places
+          that have to be told. */}
+      <div className="absolute inset-0 flex items-center justify-center bg-black">
+        <canvas
+          ref={canvasRef}
+          style={raceBox ? { width: raceBox.w, height: raceBox.h } : { width: "100%", height: "100%" }}
+        />
+      </div>
 
       {/* HUD */}
       <div

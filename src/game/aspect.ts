@@ -126,6 +126,66 @@ export function hudInset(width: number, height: number): number {
   return Math.max(0, (width - band) / 2);
 }
 
+/**
+ * The shape the picture is cut to while a race is on.
+ *
+ * The same 16:9 as REFERENCE_ASPECT, and that is the entire argument:
+ * the game is framed, shot and tuned at 16:9, every capture in press/ is
+ * 16:9, and the aspect ladder above exists to make other shapes SURVIVE
+ * rather than to make them equal. Measured on the chase camera at race
+ * pace, the car fills 20.3% of the frame height at 16:9 and 9.5% on a
+ * portrait phone — less than half — because a narrow window is paid back
+ * in vertical field and the car is what that field is spent on.
+ *
+ * Free roam keeps the whole window: driving around Kuwait at night is
+ * better with more of Kuwait in it. A race is not that. A race is two
+ * cars and the gap between them, and it gets the shot the game was
+ * built for.
+ */
+export const RACE_ASPECT = REFERENCE_ASPECT;
+
+/**
+ * How much closer the chase camera sits once the picture is cut to
+ * RACE_ASPECT, as a multiplier on its arm.
+ *
+ * The letterbox alone already restores the reference framing, because
+ * cutting to 16:9 makes verticalFov and chaseDolly both return their
+ * reference values by construction. This is the deliberate extra on
+ * top: during a battle the car should be BIGGER than the free-roam
+ * baseline, not merely as big.
+ *
+ * 0.88 rather than something dramatic. The chase camera still has to
+ * show the road the car is about to be on, and a race framing that
+ * fills the screen with bodywork is a photograph rather than a camera
+ * you can drive with.
+ */
+export const RACE_DOLLY = 0.88;
+
+/**
+ * The largest box of a given aspect that fits inside w x h.
+ *
+ * Integer pixels out, because this sizes a canvas and a fractional
+ * canvas is a blurred one. Returns the input untouched when it is
+ * already the right shape to within a pixel, so a window that is
+ * already 16:9 gets no bars and no resize.
+ */
+export function letterbox(
+  w: number,
+  h: number,
+  target = RACE_ASPECT
+): { w: number; h: number } {
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+    return { w: Math.max(1, Math.round(w) || 1), h: Math.max(1, Math.round(h) || 1) };
+  }
+  const t = Number.isFinite(target) && target > 0 ? target : RACE_ASPECT;
+  const have = w / h;
+  // Wider than the target: bars down the sides. Taller: bars top and
+  // bottom. Never both, and never larger than what came in.
+  const out =
+    have > t ? { w: Math.round(h * t), h: Math.round(h) } : { w: Math.round(w), h: Math.round(w / t) };
+  return { w: Math.max(1, Math.min(out.w, Math.round(w))), h: Math.max(1, Math.min(out.h, Math.round(h))) };
+}
+
 const DEG = Math.PI / 180;
 const tanHalf = (deg: number) => Math.tan((deg * DEG) / 2);
 const fromTan = (t: number) => (2 * Math.atan(t)) / DEG;

@@ -27,7 +27,7 @@ import type { DriverRig } from "./characters";
 // method is only available to whoever already has an engine running.
 import { solveDriverRig } from "./driver";
 import { FLAGS, FLAG_IDS, flagTexture } from "./flags";
-import { verticalFov, chaseDolly } from "./aspect";
+import { verticalFov, chaseDolly, RACE_DOLLY } from "./aspect";
 import { gripAtSpeed, newLoadState, solveLoad, type LoadResult } from "./grip";
 import { bestTow, solveTow, NO_TOW, TOW_REACH, type TowInput, type TowResult } from "./slipstream";
 import { buildRoadMap, nextStation, type RoadMap } from "./roadmap";
@@ -938,6 +938,9 @@ export class GameEngine {
   private rival: Rival | null = null;
   private rivalIndex = 0;
   private inBattle = false;
+  /** 0 cruising, 1 racing — the eased weight behind the race framing, so
+   *  the camera walks in rather than cutting. */
+  private raceFrame = 0;
   /** One critical-SP radio call per battle, not one per frame. */
   private spWarned = false;
   private locked = false; // input locked after defeat / championship
@@ -5396,7 +5399,17 @@ export class GameEngine {
     // hands the rest here. Only the road-mounted views can take it: a
     // bumper cam is bolted to the shell and has nowhere to go.
     const reach = this.view === "close" ? 0.62 : 1;
-    const dist = (9.5 + p.speed * 0.02) * reach * chaseDolly(spec.fov, this.camera.aspect);
+    // Tighter while a race is on, and only while a race is on. The
+    // letterbox has already restored the reference framing by cutting
+    // the picture to 16:9; this is the deliberate extra on top, so the
+    // car reads bigger during a battle than it does cruising. Eased
+    // rather than switched, or the shot would jump the moment a rival
+    // agreed to race.
+    const wantRace = this.inBattle ? 1 : 0;
+    this.raceFrame += (wantRace - this.raceFrame) * Math.min(1, dt * 2.5);
+    const raceTight = 1 + (RACE_DOLLY - 1) * this.raceFrame;
+    const dist =
+      (9.5 + p.speed * 0.02) * reach * chaseDolly(spec.fov, this.camera.aspect) * raceTight;
     this.v4
       .copy(this.v1)
       .addScaledVector(this.v3, -dist)

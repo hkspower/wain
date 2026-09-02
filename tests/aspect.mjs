@@ -36,6 +36,9 @@ import {
   verticalFov,
   horizontalFov,
   chaseDolly,
+  letterbox,
+  RACE_ASPECT,
+  RACE_DOLLY,
   hudInset,
   aspectReport,
 } from "../src/game/aspect.ts";
@@ -270,6 +273,81 @@ console.log(
   `monotone   ${check(hudBack === 0, "the HUD spread shrinks as the window widens")}  ` +
     `the spread never goes backwards as the window widens`
 );
+
+// --- The race letterbox --------------------------------------------
+//
+// Free roam fills the window; a battle cuts the picture to the shape
+// the game is framed, shot and tuned at. Measured on the chase camera
+// at race pace before this existed, the car filled 20.3% of the frame
+// height at 16:9 and 9.5% on a portrait phone.
+//
+// The properties that matter are the ones a player would notice being
+// broken: the box never spills outside the window it is cut from, it
+// really is the target shape, it is the LARGEST such box (bars on one
+// axis only, never both), and a window already the right shape is left
+// alone rather than resized by a pixel every frame.
+console.log("");
+{
+  const SHAPES = [
+    ["portrait phone", 412, 915],
+    ["landscape phone", 915, 412],
+    ["16:9 laptop", 1280, 720],
+    ["ultrawide", 2560, 1080],
+    ["square", 900, 900],
+    ["4:3", 1024, 768],
+  ];
+  let spill = 0, wrongShape = 0, notLargest = 0, bothAxes = 0;
+  for (const [name, w, h] of SHAPES) {
+    const b = letterbox(w, h);
+    if (b.w > w + 0.5 || b.h > h + 0.5) spill++;
+    // Within half a pixel of the target, which is as close as integer
+    // pixels allow.
+    if (Math.abs(b.w / b.h - RACE_ASPECT) > 0.01) wrongShape++;
+    // Largest: growing it on either axis would spill.
+    const grownW = b.w + 2;
+    if (grownW <= w && grownW / RACE_ASPECT <= h) notLargest++;
+    // Bars on one axis only.
+    if (b.w < w - 0.5 && b.h < h - 0.5) bothAxes++;
+    console.log(
+      `letterbox  ${name.padEnd(16)} ${String(w).padStart(4)}x${String(h).padStart(4)} -> ` +
+        `${String(b.w).padStart(4)}x${String(b.h).padStart(4)}  ` +
+        `(${(b.w / b.h).toFixed(3)})`
+    );
+  }
+  console.log(
+    `           ${check(spill === 0, "a letterbox is bigger than the window it was cut from")}  fits inside`
+  );
+  console.log(
+    `           ${check(wrongShape === 0, "a letterbox is not the race aspect")}  is the race shape`
+  );
+  console.log(
+    `           ${check(notLargest === 0, "a letterbox is smaller than it needed to be")}  is the largest that fits`
+  );
+  console.log(
+    `           ${check(bothAxes === 0, "a letterbox has bars on both axes — one of them is wasted")}  bars on one axis only`
+  );
+  // A window already the right shape must come back untouched, or the
+  // canvas is resized on every frame a race is on and the composer is
+  // rebuilt with it.
+  const already = letterbox(1920, 1080);
+  console.log(
+    `           ${check(already.w === 1920 && already.h === 1080,
+      `a 16:9 window came back as ${already.w}x${already.h} instead of untouched`)}  16:9 is left alone`
+  );
+  // Rubbish in, something sane out — this sizes a DOM element.
+  const bad = [letterbox(0, 0), letterbox(NaN, 500), letterbox(-100, 200)];
+  console.log(
+    `           ${check(bad.every((b) => b.w >= 1 && b.h >= 1 && Number.isFinite(b.w) && Number.isFinite(b.h)),
+      "a degenerate window produced a degenerate canvas")}  survives a degenerate window`
+  );
+  // And the race pulls IN, never out: a race framing that pushed the
+  // camera back would make the car smaller than free roam, which is
+  // the opposite of the point.
+  console.log(
+    `           ${check(RACE_DOLLY > 0 && RACE_DOLLY < 1,
+      `RACE_DOLLY is ${RACE_DOLLY} — a race framing must pull the camera in, not push it out`)}  race dolly pulls in`
+  );
+}
 
 if (fail.length) {
   console.log(`\n${fail.length} FAILED`);
