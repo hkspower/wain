@@ -356,7 +356,21 @@ FileETag MTime Size
   # Same treatment as sw.js and config.js above, for the same reason: revalidate
   # before use. Together they are about 40 kB, so the cost of being right is one
   # conditional request that answers 304 in a few hundred bytes.
-  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(contact|card|returns-request|returns-link)\.js$">
+  # track-guard.js JOINED THIS SET AND THE RULE DID NOT KNOW. It is the seventh
+  # hand-written override, added after this list was written, and because the
+  # list names files rather than describing them it matched nothing at all —
+  # heuristic caching, the very thing the paragraph above says must not happen
+  # here. Its own failure mode is quieter than a broken stylesheet and worse for
+  # it: a stale copy simply stops adding `required` to the /track box, so the
+  # button goes silent again on the customers whose browsers held it, and the
+  # server cannot see that it happened.
+  #
+  # Named, not patterned, and that is a deliberate cost. `^[a-z-]+\.(css|js)$`
+  # would have caught this file and every one after it — and would also catch
+  # any build output that ever ships without a hash, freezing revalidation onto
+  # files that are safe to cache for a year. The list is the safer half of that
+  # trade; the price is remembering to add to it, which is what this comment is.
+  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(contact|card|returns-request|returns-link|track-guard)\.js$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 

@@ -277,6 +277,27 @@ try {
     check(!/immutable/.test(cacheOf(f)),
       `${f} is NOT immutable — its name never changes, so a year would strand it`)
   }
+
+  // EVERY un-hashed script and stylesheet in assets/, not a list of them.
+  //
+  // The .htaccess rule that gives these files `no-cache` names them one by one,
+  // and track-guard.js was added to the folder a fortnight after the rule was
+  // written, so it matched nothing and every cache in the path guessed at it.
+  // That is invisible from the server — the right file was sent — and its
+  // symptom is the /track button going silent again for whoever held the stale
+  // copy, which is the exact defect the script exists to fix.
+  //
+  // Checking the FOLDER rather than a list is the only version of this test
+  // that catches the NEXT one. A file is un-hashed if its name has no content
+  // hash in it, which is precisely the condition that makes the immutable rule
+  // inapplicable and an explicit Cache-Control necessary.
+  const unhashed = readdirSync(`${DOCROOT}/assets`)
+    .filter((f) => /\.(js|css)$/.test(f) && !/-[A-Za-z0-9_-]{8,}\.(js|css)$/.test(f))
+  for (const f of unhashed) {
+    const cc = cacheOf(`/assets/${f}`)
+    check(/no-cache|must-revalidate|max-age=0/.test(cc),
+      `assets/${f} names no content hash, so it states its own freshness — "${cc || 'NOTHING'}"`)
+  }
 } finally {
   stop()
   rmSync(CONF, { force: true })
