@@ -1,0 +1,82 @@
+TWO RULES TO ADD TO THE LIVE public_html/.htaccess
+==================================================
+
+WHY THIS IS A SNIPPET AND NOT A REPLACEMENT FILE
+
+The deployment zip deliberately contains NO .htaccess. The repo's copy routes
+every page to /index.html; the live server routes them through /seo.php, which
+injects the per-route title, canonical and og:image by looking the product up
+in MySQL. Shipping the repo's version would have switched that off silently —
+no error, no failing test, the shop just stops being indexable per product.
+
+So live's .htaccess is left exactly as it is, and this adds only what the two
+NEW pages in the zip need. Nothing else changes.
+
+
+WHAT THE TWO NEW PAGES ARE
+
+  card.html             the digital loyalty / gift card page
+  returns-request.html  the return + exchange request form
+
+Both are flat pages rather than app routes, for the same reason: the storefront
+is a built bundle whose source is not in this repo, so a new screen cannot be
+added to it here. They ship in the zip; without the rules below they are
+reachable only at /card.html and /returns-request.html, and the pretty URLs
+/card and /returns/request answer 404.
+
+
+WHERE TO PUT IT
+
+In public_html/.htaccess, inside the existing SPA-routing <IfModule
+mod_rewrite.c> block — the one whose comment says
+
+    ►► ADDING A ROUTE TO App.jsx? ADD IT HERE TOO, or it will 404. ◄◄
+
+Paste these lines immediately BEFORE this existing line:
+
+    RewriteRule ^(shop|cart|checkout|about|contact|wishlist|track|returns|terms|privacy|review)/?$ /seo.php [L]
+
+Order matters for the second rule and only for the second rule: the alternation
+above matches `returns` as a whole path, and /returns/request is a longer path
+the app's router has never heard of, so it must be caught first.
+
+------------------------------ COPY FROM HERE ------------------------------
+
+  # /card -> card.html. A flat page: the storefront is a built bundle whose
+  # source is not on this server, so this screen lives beside it rather than
+  # inside it. Conditional on the file existing, so a partial upload falls
+  # through to the 404 shell rather than serving a blank 200.
+  RewriteCond %{DOCUMENT_ROOT}/card.html -f
+  RewriteRule ^card/?$ /card.html [L]
+
+  # /returns/request -> returns-request.html. MUST precede the alternation
+  # below: that list matches `returns` as a complete path — the policy page IS
+  # an app route — but /returns/request is longer and the app's router would
+  # answer it with the 404 screen.
+  RewriteCond %{DOCUMENT_ROOT}/returns-request.html -f
+  RewriteRule ^returns/request/?$ /returns-request.html [L]
+
+------------------------------- TO HERE ------------------------------------
+
+
+AFTER PASTING, CHECK THESE FOUR
+
+  https://www.sporta.com.kw/card              -> the card page, not a 404
+  https://www.sporta.com.kw/returns/request   -> the request form, not a 404
+  https://www.sporta.com.kw/                  -> still loads (seo.php untouched)
+  https://www.sporta.com.kw/shop              -> view source, <link rel="canonical">
+                                                 should say /shop, not just /
+
+That last one is the check that matters: it proves seo.php is still in the path.
+If it shows the homepage canonical, something above was overwritten — restore
+the .htaccess and nothing else is affected.
+
+
+ONE MORE THING ON THAT SERVER
+
+return-request.php (790 lines) sits in public_html and its own header says
+/returns/request is rewritten to it. The live .htaccess has no such rule, so
+today it is reachable only at /return-request.php. It has no copy in the repo.
+Decide which of the two you want serving that path before adding the rule
+above — they are two different implementations of the same form, and the rule
+will point at the HTML one.
