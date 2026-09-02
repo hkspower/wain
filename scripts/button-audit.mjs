@@ -48,6 +48,23 @@ const PAGES = (ONLY ? (x) => x.filter((r) => r[2] === ONLY) : (x) => x)([
   ['app ', APP, '/account'],
   ['app ', APP, '/exchange'],
   ['app ', APP, '/product/cloudsoft-jacket-army-green'],
+  // THE PAGES A DEAD BUTTON COULD HIDE ON. The list above stopped at the
+  // screens a shopper browses, which are the ones anybody would click through
+  // by hand — so they are the least likely to be broken. Checkout, the
+  // wishlist, order tracking and the admin panel's front door are all pages
+  // somebody reaches with a decision already made, and a control that does
+  // nothing there costs an order rather than a click.
+  //
+  // /backends unauthenticated is the SIGN-IN screen, which is worth pressing
+  // on its own account: it is the one form in the shop where a dead button
+  // locks the owner out of their own panel. The screens behind it need a
+  // session and belong to admin-smoke.mjs, which already has one.
+  ['app ', APP, '/checkout'],
+  ['app ', APP, '/backends'],
+  // NO app /wishlist. The website has one; the app does not, and pointing the
+  // rig at it lands on Expo's unmatched-route screen — whose two links then
+  // get measured and reported as undersized targets in the shop's own UI.
+  // A route that does not exist is not a page with bad buttons.
   ['site', SITE, '/'],
   ['site', SITE, '/shop'],
   ['site', SITE, '/cart'],
@@ -57,6 +74,11 @@ const PAGES = (ONLY ? (x) => x.filter((r) => r[2] === ONLY) : (x) => x)([
   ['site', SITE, '/returns/request'],
   ['site', SITE, '/card'],
   ['site', SITE, '/product/cloudsoft-jacket-army-green'],
+  ['site', SITE, '/checkout'],
+  ['site', SITE, '/track'],
+  ['site', SITE, '/wishlist'],
+  ['site', SITE, '/privacy'],
+  ['site', SITE, '/backends'],
 ])
 
 /**
@@ -406,11 +428,31 @@ for (const [half, base, path] of PAGES) {
                r.left < innerWidth && r.right > 0
       }))
 
+    // NATIVE CONSTRAINT VALIDATION IS A RESPONSE, and it is invisible to every
+    // signal above. A submit button on a form with a `required` field that is
+    // empty refuses to submit and the browser paints its own "Please fill out
+    // this field" bubble — which is chrome, not DOM: no node changes, no
+    // request goes out, no geometry moves, nothing is stored. The fingerprint
+    // reads that as a button that did nothing, and it is the opposite: the
+    // button worked and the form told the customer why it would not send.
+    //
+    // Found on the admin sign-in, which this rig called dead the first time it
+    // was pointed at /backends. Pressing Sign in with both boxes empty does
+    // exactly what it should. The real dead button on the same run — the
+    // website's Track button — is the one whose input carries NO `required`
+    // and so gets no bubble and no anything.
+    const refused = await p.evaluate(() => {
+      const bad = [...document.querySelectorAll('input, select, textarea')]
+        .filter((el) => typeof el.checkValidity === 'function' && !el.checkValidity())
+      return bad.length > 0
+    })
+
     const moved =
       after.html !== before.html ||
       after.geom !== before.geom ||
       after.store !== before.store ||
-      requests > reqBefore
+      requests > reqBefore ||
+      refused
 
     if (moved) dirty = true
     if (!moved) {

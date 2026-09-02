@@ -876,3 +876,32 @@ html:not([data-theme='dark']) .cart-drawer > header button.tap.text-slate-400 {
  * the bar real leading, which makes it ~36px instead of 28 and moves the whole
  * sticky header down — a design decision about the shop's chrome, not a
  * padding repair, so it is written down here rather than made. */
+
+/* -------------------------------------------------------------------------
+ * FOOTER LINKS: THE SECOND AXIS OF A TAP TARGET.
+ *
+ * These carry `inline-flex min-h-11 items-center`, and the `min-h-11` is the
+ * point: 44px is Apple's floor and the author set it deliberately, so the
+ * intent that these be proper tap targets is already written down. Only one
+ * axis got it. Height is fixed at 44; width is whatever the word happens to
+ * be, and Arabic legal labels are short:
+ *
+ *     الشروط   44 wide   (makes it by luck of the word's length)
+ *     الشحن    41 wide
+ *     الإرجاع  39 wide
+ *
+ * So two of the eight are under the floor on every page of the shop, and the
+ * failure is worst exactly where it matters — a thumb on a phone, reaching for
+ * Returns.
+ *
+ * NOT A DESIGN CHANGE, and this is why: nothing here picks a new size. It
+ * finishes the size the stylesheet already asks for on the axis it was not
+ * applied to. Six of the eight links are already wider than 44 and this rule
+ * cannot touch them — min-width only ever grows a box that is too small.
+ *
+ * NOTHING MOVES ON SCREEN. The links are stacked list items, so a wider box
+ * extends into empty space beside the text rather than pushing anything; and
+ * with the default flex-start the text itself does not shift a pixel. The hit
+ * area grows, the layout does not. Measured before and after. */
+.app-footer a.inline-flex.min-h-11,
+footer a.inline-flex.min-h-11 { min-width: 44px; }

@@ -133,6 +133,7 @@ because the rigs place real orders against a real database.
 | `npm run test:returns` | Returns and exchanges end to end — the two public routes, the admin gate, and the customer's page in a browser |
 | `npm run test:borders` | Every border, all four sides, both themes, phone and desktop — none invisible, plus a census of the colours, widths and radii in use |
 | `npm run test:buttons` | Every control on both halves of the shop, PRESSED — none dead, plus tap targets, accessible names and links that go nowhere |
+| `npm run test:focus` | Tab through the shop — every control shows where the keyboard is, and no stylesheet has turned the ring off |
 | `npm run test:glare` | Contrast that is too HIGH — light text on a dark page past 18:1, which is halation, not legibility. `THEME=light` measures the other one and judges nothing |
 | `npm run test:dark` | The other end of glare — every control identifiable at 3:1 by its edge, its text or its icon, in both themes |
 | `npm run scan:storage` | Everywhere the shop keeps something — the customer's device, its database, its disk. What is permanent, what grows for ever, what must never be served |

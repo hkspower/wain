@@ -248,8 +248,13 @@
      plain selectors cost nothing and say the same thing to both the browser
      and the audit.
      `input` is not among them: no input on the site carries either class —
-     checked, rather than included for symmetry. */
-  [data-theme='dark'] button.border-black\/10,
+     checked, rather than included for symmetry.
+     Nor is `button.border-black\/10`, for the same reason and found the same
+     way: css-audit.mjs reported it as a selector that can never fire, and
+     rendering seven routes confirms it — the class is on 14 elements and not
+     one of them is a button. It was written here for symmetry with the /15
+     variant, which is exactly the habit the note above warns about. The
+     general `.border-black\/10` rule already covers those 14. */
   [data-theme='dark'] button.border-black\/15,
   [data-theme='dark'] select.border-black\/10,
   /* The text fields on /returns. An input is the purest case of the rule
@@ -450,7 +455,6 @@
  * this is the light theme, which is what the built stylesheet paints when no
  * theme attribute is set. */
 :root:not([data-theme='dark']) input.border-slate-300,
-:root:not([data-theme='dark']) button.border-black\/10,
 :root:not([data-theme='dark']) button.border-black\/15 {
   border-color: var(--sp-silver-mid) !important;
 }

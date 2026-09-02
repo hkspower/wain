@@ -85,6 +85,7 @@
     "test:site-contrast": "node scripts/site-contrast.mjs",
     "test:borders": "node scripts/border-audit.mjs",
     "test:buttons": "node scripts/button-audit.mjs",
+    "test:focus": "node scripts/focus-audit.mjs",
     "test:glare": "node scripts/glare-audit.mjs",
     "test:dark": "node scripts/dark-audit.mjs",
     "test:otp": "node scripts/otp-test.mjs",
