@@ -162,6 +162,34 @@ Options -Indexes
   RewriteCond %{DOCUMENT_ROOT}/returns-request.html -f
   RewriteRule ^returns/request/?$ /returns-request.html [L]
 
+  # ┌──────────────────────────────────────────────────────────────────────┐
+  # │ THIS BLOCK DOES NOT MATCH THE LIVE SERVER. DO NOT DEPLOY IT BLIND.   │
+  # └──────────────────────────────────────────────────────────────────────┘
+  #
+  # The live site routes these same paths through /seo.php, not /index.html:
+  #
+  #     RewriteRule ^$                       /seo.php [L]
+  #     RewriteRule ^(shop|cart|...)/?$      /seo.php [L]
+  #     RewriteRule ^product/[^/]+/?$        /seo.php [L]
+  #     RewriteRule ^invoice/[A-Za-z0-9]{1,30}/?$ /seo.php [L]
+  #
+  # seo.php reads index.html, strips its hardcoded <head> and injects the real
+  # per-route title, description, canonical and og:image — looking the product
+  # up in MySQL. It exists because every URL on this site otherwise served one
+  # hardcoded canonical pointing at the homepage, which told Google that all 92
+  # product URLs were duplicates of it, and made every product link shared on
+  # WhatsApp preview as the generic store card.
+  #
+  # SHIPPING THE RULES BELOW OVER THE LIVE ONES WOULD UNDO ALL OF THAT SILENTLY.
+  # Nothing would break, no test would fail, and the shop would simply stop
+  # being indexable per product. It was caught by diffing the repo against the
+  # running server rather than by anything here.
+  #
+  # seo.php now sits beside this file, pulled down from the server and verified
+  # byte for byte. The rules were NOT switched over in the same pass: seo.php
+  # needs api/store.php and a live catalogue on every page render, so making it
+  # the local default is a change that has to be made and measured
+  # deliberately, not slipped in beside a note.
   RewriteRule ^(shop|cart|checkout|about|contact|wishlist|track|returns|terms|privacy|review)/?$ /index.html [L]
   RewriteRule ^product/[^/]+/?$        /index.html [L]
   RewriteRule ^payment/result/?$       /index.html [L]
