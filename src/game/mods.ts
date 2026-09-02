@@ -419,7 +419,15 @@ export interface FinishSpec {
 }
 
 export const FINISHES: Record<PaintFinish, FinishSpec> = {
-  gloss: { clearcoat: 1, clearcoatRoughness: 0.13, roughnessAdd: 0, envScale: 1, metalScale: 1 },
+  // clearcoatRoughness 0.06: the "more clear" half. The lacquer's own
+  // reflection is what a clearcoat IS, and at 0.13 it was soft enough to
+  // blur the lamp it was reflecting into a smudge. Swept with the
+  // basecoat roughness — see cars.ts for the table — and 0.06 is where
+  // the highlight becomes an image of a light rather than a glow near
+  // one. Not 0.03: nothing sprayed by a human is an optical mirror, and
+  // a flawless one reads as a neon strip rather than as a reflection of
+  // one.
+  gloss: { clearcoat: 1, clearcoatRoughness: 0.06, roughnessAdd: 0, envScale: 1, metalScale: 1 },
   satin: { clearcoat: 0.45, clearcoatRoughness: 0.42, roughnessAdd: 0.16, envScale: 0.62, metalScale: 0.8 },
   matte: { clearcoat: 0, clearcoatRoughness: 1, roughnessAdd: 0.38, envScale: 0.3, metalScale: 0.25 },
 };

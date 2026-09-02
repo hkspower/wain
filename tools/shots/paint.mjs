@@ -234,7 +234,27 @@ for (const [where, m] of SPOTS) {
 
     for (let i = 0; i < 4; i++) e.composer.render();
     ctx.drawImage(e.renderer.domElement, 0, 0, W, H);
+    // SAY WHAT WAS MEASURED.
+    //
+    // Without this line the "current" row is uninterpretable, and it
+    // misled the author of this comment for a whole sweep. The car the
+    // tool loads is whatever the default save has on it — which is
+    // paint-white in a SATIN finish, the least glossy combination in
+    // the game: metalness 0.14 because pale paint is pigment rather
+    // than flake, roughness 0.34 because satin adds 0.16, and a
+    // clearcoat at 0.42. A gloss change to the gloss finish barely
+    // moves that row, and the row looks like the change did nothing.
+    const bm2 = e.carBody.userData.bodyMat;
+    const mat = {
+      colour: "#" + bm2.color.getHexString(),
+      metalness: +bm2.metalness.toFixed(3),
+      roughness: +bm2.roughness.toFixed(3),
+      ccRough: +bm2.clearcoatRoughness.toFixed(3),
+      clearcoat: +bm2.clearcoat.toFixed(2),
+      env: +bm2.envMapIntensity.toFixed(2),
+    };
     return {
+      mat,
       px: lum.length,
       dead: lum.length ? +((dead / lum.length) * 100).toFixed(1) : 0,
       body: +at(0.5).toFixed(1),
@@ -253,6 +273,13 @@ for (const [where, m] of SPOTS) {
       `ratio ${String(ratio).padStart(6)}   highlight ${String(r.tight).padStart(5)}%   ` +
       `grain ${String(r.grain).padStart(5)}`
   );
+  if (!set) {
+    console.log(
+      `       on ${r.mat.colour} rough ${r.mat.roughness} metal ${r.mat.metalness} ` +
+        `clearcoat ${r.mat.clearcoat}/${r.mat.ccRough} env ${r.mat.env}` +
+        `${r.mat.clearcoat < 0.9 ? "  <- NOT the gloss finish" : ""}`
+    );
+  }
  }
 }
 await browser.close();

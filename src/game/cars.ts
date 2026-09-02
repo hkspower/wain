@@ -3161,7 +3161,40 @@ export function createCar(colors: CarColors): THREE.Group {
     // always drawn; satin spreads the highlight so it follows a curve
     // instead of skipping across it; matte takes the clearcoat away
     // entirely and lets the shape do the work.
-    roughness: 0.29 + FINISHES[colors.finish ?? "gloss"].roughnessAdd,
+    // 0.18, and measured rather than picked — see tools/shots/paint.mjs,
+    // which segments the body panels and reports the distribution rather
+    // than one "is it shiny" number.
+    //
+    // At 0.29 the paint was matte by that instrument's own definition:
+    // under the lamps, 68% of body pixels sat above half the highlight
+    // and the median panel was within 1.5x of the brightest point. A
+    // glossy surface puts its highlight in a SMALL area; this smeared it
+    // across two thirds of the car.
+    //
+    // Swept against one live frame, 0.29 -> 0.10:
+    //
+    //   0.29/0.13   ratio 1.5   highlight  68%    dead 0%     grain 11.3
+    //   0.22/0.09   ratio 2.2   highlight  44%    dead 0%     grain 12.1
+    //   0.18/0.06   ratio 4.6   highlight  17%    dead 0.6%   grain 14.2
+    //   0.14/0.04   ratio 6.6   highlight 7.7%    dead 1.4%   grain 11.4
+    //   0.10/0.03   ratio 6.2   highlight 7.8%    dead 1.0%   grain  8.5
+    //
+    // 0.18 is the knee and three separate numbers agree on it. Past it
+    // the ratio keeps climbing for the wrong reason: the median panel
+    // collapses to 36 and dead pixels more than double, which is a
+    // searing streak on a car gone black between highlights — the exact
+    // failure paint.mjs was written to catch. The highlight itself also
+    // gets DIMMER past the knee (spec 254 -> 235 -> 221), and grain, the
+    // flake and orange-peel texture, peaks at 0.18 and falls away either
+    // side.
+    //
+    // This does undo half of an earlier decision to pull the gloss back,
+    // and that decision is worth remembering: it was taken when
+    // envMapIntensity was 2.4, which "made every machine look wet" on
+    // the showroom turntable. The gain is 1.5 now. A tight lobe and a
+    // loud environment are different things, and only one of them was
+    // the problem.
+    roughness: 0.18 + FINISHES[colors.finish ?? "gloss"].roughnessAdd,
     // Metalness by how LIGHT the paint is.
     //
     // At 0.95 across the board, a metal's reflection is tinted by its
