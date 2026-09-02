@@ -19,7 +19,8 @@
  *   --sp-tile    #1a1d20   product tiles and the hero — a photo's ground
  *   --sp-panel   #23262a   cards, the header, the cart drawer
  *   --sp-raise   #2e3237   chips, inputs, skeletons — what sits ON a card
- *   --sp-line    #3f444a   hairlines
+ *   --sp-line    #3f444a   hairlines — decoration, deliberately quiet
+ *   --sp-silver-mid #7a8188 the edge of a CONTROL, 3:1 in both themes
  *   --sp-silver  #a6acb2   secondary text
  *   --sp-text    #eaecee   primary text
  *
@@ -58,12 +59,66 @@
  * specificity, they are the same weapon the original rules use.
  */
 
+/* ONE VALUE, BOTH THEMES, and that is not a coincidence worth hiding.
+ *
+ * A control edge has to clear 3:1 against whatever it sits on. In the dark
+ * theme it sits on near-black and needs to be light enough; in the light theme
+ * it sits on near-white and needs to be dark enough. Those two pull in
+ * opposite directions, and the band where both hold is narrow — but #7a8188
+ * is inside it, at both ends:
+ *
+ *     dark    on #2e3237 raise    3.27:1   <- binding in the dark theme
+ *             on #141619 black    4.59:1
+ *     light   on #f2f3f5 panel    3.55:1   <- binding in the light theme
+ *             on #ffffff white    3.95:1
+ *
+ * So it is declared once, on :root, rather than twice with two values that
+ * would drift apart the first time either theme was adjusted. */
+:root {
+  --sp-silver-mid: #7a8188;
+}
+
 :root[data-theme='dark'] {
   --sp-black: #141619;
   --sp-tile: #1a1d20;
   --sp-panel: #23262a;
   --sp-raise: #2e3237;
   --sp-line: #3f444a;
+  /* MID DARK SILVER — the edge of a control, as opposed to the edge of a box.
+   *
+   * The ramp had a hole in it. --sp-line is a HAIRLINE: it bounds cards and
+   * separates rows, and it is deliberately quiet — 1.84:1 on black, 1.31:1 on
+   * a raised surface. --sp-silver is TEXT: 7.91:1, far past what an edge
+   * needs and loud enough to compete with the content it surrounds. There was
+   * nothing in between, so every control that needed a visible boundary got
+   * the hairline, and WCAG 1.4.11 asks 3:1 of anything required to identify a
+   * control.
+   *
+   * Measured across five pages, controls whose edge was under 3:1:
+   *
+   *     1.84:1   x22   the size buttons — S, M, L, XL …
+   *     1.84:1   x 1   the sort select
+   *     1.84:1   x 1   a round icon button
+   *
+   * The size picker is the one that matters. It is the required step between
+   * a shopper and a purchase, and its boundary was the only thing saying the
+   * squares were buttons at all.
+   *
+   * WHY THIS EXACT VALUE, and it was chosen by the constraint rather than by
+   * eye: #7a8188 is the DARKEST silver that still clears 3:1 against every
+   * surface in the ramp, including the lightest one it will ever sit on.
+   *
+   *     against #2e3237 raise   3.27:1   <- the binding case
+   *     against #23262a panel   3.85:1
+   *     against #1a1d20 tile    4.29:1
+   *     against #141619 black   4.59:1
+   *
+   * One step darker (#727880) is 2.90:1 on a raised surface and fails there,
+   * which is exactly why the value is not rounder.
+   *
+   * IT IS DECLARED ON :root, NOT HERE, because the same value happens to work
+   * in both themes — see below. This comment lives with the ramp it was
+   * derived from. */
   --sp-silver: #a6acb2;
   --sp-text: #eaecee;
   --sp-ember: #ff7b17;
@@ -170,6 +225,38 @@
   [data-theme='dark'] .action-bar {
     background: #141619eb !important;
     border-top-color: var(--sp-line) !important;
+  }
+
+  /* --- and a CONTROL gets the stronger edge ------------------------------ */
+  /* Same border classes as the block above, narrowed to things you operate.
+   * A card's hairline is decoration and stays quiet at --sp-line; a size
+   * button's hairline is the button, and WCAG 1.4.11 asks 3:1 of it. See the
+   * note on --sp-silver-mid for the measurements and why that value.
+   *
+   * Scoped by ELEMENT rather than by class, because the shop's controls do not
+   * share one: the sizes are <button>, the sort is a <select>, and the filter
+   * chips are buttons too. Anything with its own deliberate edge — the ghost
+   * button's .border-brand, the language chip's .border-white\/20 — is not in
+   * this list and keeps what it was given. */
+  /* WRITTEN LONGHAND, and not because :is() would be wrong. This was
+     `:is(button, select, input).border-black\/10` and css-audit.mjs splits a
+     rule's selector on commas to test each part — which cuts that one INSIDE
+     the :is(), leaving fragments like `input).border-black\/15` that can never
+     match and ` select` that matches every select on the site. The audit then
+     reported one dead selector and twelve outranked declarations, all of them
+     artefacts of the split rather than anything wrong with the rule. Four
+     plain selectors cost nothing and say the same thing to both the browser
+     and the audit.
+     `input` is not among them: no input on the site carries either class —
+     checked, rather than included for symmetry. */
+  [data-theme='dark'] button.border-black\/10,
+  [data-theme='dark'] button.border-black\/15,
+  [data-theme='dark'] select.border-black\/10,
+  /* The text fields on /returns. An input is the purest case of the rule
+     above: it has no icon and no fill of its own, so the box IS the control
+     and 1.84:1 was the whole of what said one was there. */
+  [data-theme='dark'] input.border-slate-300 {
+    border-color: var(--sp-silver-mid) !important;
   }
 
   /* --- the round buttons that float on a photograph ---------------------- */
@@ -352,4 +439,18 @@
   :root:not([data-theme='dark']) .btn-ghost.text-accent {
     color: #4a5058 !important;
   }
+}
+
+/* --- the same control edge, on the light theme ---------------------------- */
+/* The text fields on /returns measured 1.49:1 in light — border-slate-300 on
+ * white. Same defect as the dark theme's 1.84:1, same fix, same value: see the
+ * note on --sp-silver-mid for why #7a8188 clears 3:1 at both ends of the ramp.
+ *
+ * Outside @media screen and outside the [data-theme='dark'] block on purpose —
+ * this is the light theme, which is what the built stylesheet paints when no
+ * theme attribute is set. */
+:root:not([data-theme='dark']) input.border-slate-300,
+:root:not([data-theme='dark']) button.border-black\/10,
+:root:not([data-theme='dark']) button.border-black\/15 {
+  border-color: var(--sp-silver-mid) !important;
 }

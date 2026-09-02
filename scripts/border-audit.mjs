@@ -218,16 +218,36 @@ for (const theme of THEMES) {
 
 const top = (m, n) => [...m.entries()].sort((a, c) => c[1] - a[1]).slice(0, n)
 
-if (lost.length) {
-  console.log(`\n--- controls identified by nothing but their edge (reported, not failed) ---`)
+// A CONTROL IDENTIFIED BY NOTHING BUT ITS EDGE NOW FAILS, where it used to be
+// reported and scrolled past.
+//
+// The distinction this rig already draws is the right one: a hairline round a
+// button that has a fill or an icon is decoration, and WCAG 1.4.11 does not
+// ask 3:1 of decoration. But a bare control — no fill, no icon — is identified
+// by its edge and nothing else, so the edge IS the visual information the
+// guideline is about.
+//
+// It was a note because the list was long and every entry was real. It is a
+// failure now because the list is empty: the 22 size buttons, the sort select
+// and the two text fields on /returns were all bounded by --sp-line at
+// 1.84:1, and they are bounded by --sp-silver-mid at 3.27:1 or better. Leaving
+// it as a note would mean the next one to appear scrolls past too.
+{
   const seen = new Set()
-  for (const e of lost) {
-    const k = `${e.theme} ${e.path} ${e.tag}.${e.cls}`
-    if (seen.has(k)) continue
-    seen.add(k)
-    console.log(`  ${String(e.ratio).padStart(5)}:1  ${e.where}`)
+  for (const e of lost) seen.add(`${e.theme} ${e.path} ${e.tag}.${e.cls}`)
+  if (lost.length) {
+    console.log(`\n--- controls identified by nothing but their edge ---`)
+    const shown = new Set()
+    for (const e of lost) {
+      const k = `${e.theme} ${e.path} ${e.tag}.${e.cls}`
+      if (shown.has(k)) continue
+      shown.add(k)
+      console.log(`  ${String(e.ratio).padStart(5)}:1  ${e.where}`)
+    }
   }
-  console.log(`  ${seen.size} distinct controls, ${lost.length} edges`)
+  check(lost.length === 0,
+    'every bare control — no fill, no icon — has an edge at 3:1 or better',
+    `${seen.size} distinct control(s), ${lost.length} edges under it`)
 }
 
 console.log(`\n--- quiet hairlines, under the 3:1 of a control edge (reported, not failed) ---`)
