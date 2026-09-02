@@ -143,6 +143,36 @@ console.log('\n── and the desktop grid is untouched ──');
   await wide.close();
 }
 
+console.log('\n── the home page fits in a pocket ──');
+{
+  // A budget, not a pixel count. The home page was 4130px on a 390px phone —
+  // 4.9 screens — of which 1901px was six featured cards stacked one per row.
+  // The rail below turned that into one card's height. This guards the shape
+  // rather than the styling: 3000px still leaves generous room to add a
+  // section, and catches a return to stacking, which costs 1500px at once.
+  await page.goto(`${B}/`, { waitUntil: 'networkidle' });
+  const m = await page.evaluate(() => {
+    const ul = [...document.querySelectorAll('ul')].find((u) => u.querySelector('a[href^="/places/"]'));
+    const lis = ul ? [...ul.children].map((li) => li.getBoundingClientRect()) : [];
+    return {
+      page: document.documentElement.scrollHeight,
+      wide: document.documentElement.scrollWidth > innerWidth,
+      cards: lis.length,
+      rail: ul ? ul.scrollWidth > ul.clientWidth + 4 : false,
+      heights: [...new Set(lis.map((r) => Math.round(r.height)))].length,
+      firstVisible: lis.length ? Math.round(lis[0].width) : 0,
+    };
+  });
+  ok(`the home page is under 3000px on a 390px phone (${m.page}px)`, m.page < 3000, `${m.page}px`);
+  ok('and still does not slide sideways', !m.wide);
+  ok(`all ${m.cards} featured places are still on it`, m.cards === 6, `${m.cards}`);
+  ok('they are a rail, not a stack', m.rail);
+  // The cards sit in <li>s that stretch; without h-full on the card itself the
+  // short ones float above a ragged bottom edge.
+  ok('and every card is the same height', m.heights === 1, `${m.heights} distinct heights`);
+  ok('a card is wide enough to read at a glance', m.firstVisible >= 240, `${m.firstVisible}px`);
+}
+
 ok('no page errors', errors.length === 0, errors.join('\n      '));
 
 await ctx.close();

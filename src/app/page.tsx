@@ -22,7 +22,7 @@ export default function HomePage() {
       <section className="relative overflow-hidden bg-sand-50">
         <KuwaitSkyline className="pointer-events-none absolute inset-x-0 bottom-0 h-auto min-h-[210px] w-full" />
 
-        <div className="relative mx-auto max-w-6xl px-4 pb-12 pt-8 standalone:px-3 standalone:pb-7 standalone:pt-4 sm:px-6 sm:pb-24 sm:pt-14">
+        <div className="relative mx-auto max-w-6xl px-4 pb-8 pt-6 standalone:px-3 standalone:pb-6 standalone:pt-4 sm:px-6 sm:pb-16 sm:pt-10">
           {/* Wordmark */}
           <div className="text-center">
             <span className="relative inline-block">
@@ -45,7 +45,7 @@ export default function HomePage() {
           </div>
 
           {/* Search dial */}
-          <div className="mt-10 sm:mt-12">
+          <div className="mt-7 sm:mt-12">
             <NearbyDial />
           </div>
         </div>
@@ -53,8 +53,8 @@ export default function HomePage() {
 
       {/* ---------- Categories ---------- */}
       <section className="relative bg-sea-700">
-        <div className="mx-auto max-w-6xl px-4 py-8 standalone:px-3 standalone:py-5 sm:px-6 sm:py-14">
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="mx-auto max-w-6xl px-4 py-6 standalone:px-3 standalone:py-4 sm:px-6 sm:py-10">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 sm:mb-6">
             <h2 className="flex items-center gap-2 font-display text-2xl font-bold text-white sm:text-3xl">
               <IconPinSolid className="size-6 text-sun-300" />
               وش تدوّر؟
@@ -122,8 +122,8 @@ export default function HomePage() {
 
       {/* ---------- Featured ---------- */}
       <section className="bg-sand-50">
-        <div className="mx-auto max-w-6xl px-4 py-10 standalone:px-3 standalone:py-6 sm:px-6 sm:py-16">
-          <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
+        <div className="mx-auto max-w-6xl px-4 py-7 standalone:px-3 standalone:py-5 sm:px-6 sm:py-11">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3 sm:mb-7">
             <div>
               <h2 className="font-display text-2xl font-bold text-ink-900 sm:text-3xl">
                 وين؟ شنو فيه 🇰🇼
@@ -139,21 +139,49 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {/* A rail on a phone, a grid from `sm` up.
+
+              Six cards stacked one per row were 1901px — 46% of the whole home
+              page, and more than two full phone screens of scrolling to pass
+              six suggestions. The rail shows one and a half, which is the
+              shape that says "there are more of these sideways", and costs one
+              card's height instead of six.
+
+              Same swipe rules as the category rail above it, for the same
+              measured reasons: proximity snapping so a small nudge is not
+              corrected into a whole-card jump, overscroll-x-contain so a flick
+              past the end cannot trigger the browser's back gesture, and
+              scroll-px-4 matching px-4 so the rail rests at its own start. */}
+          <ul className="-mx-4 flex snap-x snap-proximity gap-4 overflow-x-auto overscroll-x-contain scroll-px-4 px-4 pb-2 [mask-image:linear-gradient(to_left,transparent,#000_1.25rem,#000_calc(100%-1.25rem),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0 sm:[mask-image:none] lg:grid-cols-3">
             {featured.map((place) => (
-              <PlaceCard key={place.slug} place={place} />
+              <li key={place.slug} className="w-64 shrink-0 snap-start sm:w-auto">
+                <PlaceCard place={place} />
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       </section>
 
       {/* ---------- How it works ---------- */}
       <section className="bg-sand-100">
-        <div className="mx-auto max-w-6xl px-4 py-10 standalone:px-3 standalone:py-6 sm:px-6 sm:py-16">
+        <div className="mx-auto max-w-6xl px-4 py-10 standalone:px-3 standalone:py-6 sm:px-6 sm:py-11">
           <h2 className="text-center font-display text-2xl font-bold text-ink-900 sm:text-3xl">
             كيف يشتغل وين؟
           </h2>
-          <div className="mt-10 grid gap-6 sm:grid-cols-3">
+          {/* mt-10 and gap-6 existed to clear the badge each card hangs above
+              itself (`-top-5`), and on a phone that is three lots of vertical
+              slack for three short sentences. Below `sm` the badge comes inside
+              and sits beside the words, so a step is one row instead of a card
+              with a hat; from `sm` the three-across layout has the room and
+              keeps the original shape. */}
+          {/* One card with three rows on a phone, three cards from `sm`.
+              Measured: as three separate cards this section was 567px, the
+              biggest block on the page — bigger than the featured places, which
+              are the actual product. Most of it was chrome repeated three
+              times (two extra sets of padding, two borders, the gaps between)
+              and a step number sitting on a line of its own. The words are all
+              still here; the box around each of them is not. */}
+          <div className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-white shadow-sm sm:mt-10 sm:grid sm:grid-cols-3 sm:gap-6 sm:divide-y-0 sm:overflow-visible sm:rounded-none sm:border-0 sm:bg-transparent sm:shadow-none">
             {[
               {
                 n: "١",
@@ -179,14 +207,23 @@ export default function HomePage() {
             ].map((step) => (
               <div
                 key={step.n}
-                className="group relative rounded-3xl border border-line bg-white p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg"
+                className="group relative flex items-start gap-3 p-4 transition duration-300 sm:block sm:rounded-3xl sm:border sm:border-line sm:bg-white sm:p-6 sm:shadow-sm sm:hover:-translate-y-1 sm:hover:shadow-lg"
               >
-                <span className="absolute -top-5 start-6 grid size-11 place-items-center rounded-2xl bg-gradient-to-b from-coral-500 to-coral-700 text-white shadow-md shadow-coral-600/30 transition duration-300 group-hover:scale-105">
+                <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-b from-coral-500 to-coral-700 text-white shadow-md shadow-coral-600/30 transition duration-300 sm:absolute sm:-top-5 sm:start-6 sm:group-hover:scale-105">
                   {step.icon}
                 </span>
-                <span className="font-display text-sm font-semibold text-sand-700">{step.n}</span>
-                <h3 className="mt-1 font-display text-lg font-semibold text-ink-900">{step.title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-ink-500">{step.text}</p>
+                <div className="min-w-0">
+                  {/* The number rides with the title on a phone and keeps its
+                      own line from `sm`, where the card has the room. On its
+                      own line it cost a row per step to say what the order of
+                      the steps already says. */}
+                  <h3 className="font-display text-lg font-semibold text-ink-900 sm:mt-1">
+                    <span className="text-sm font-semibold text-sand-700 sm:block">{step.n}</span>
+                    <span className="sm:hidden"> · </span>
+                    {step.title}
+                  </h3>
+                  <p className="mt-1 text-sm leading-relaxed text-ink-500 sm:mt-1.5">{step.text}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -195,8 +232,8 @@ export default function HomePage() {
 
       {/* ---------- CTA ---------- */}
       <section className="bg-sand-50">
-        <div className="mx-auto max-w-6xl px-4 pb-12 standalone:px-3 standalone:pb-6 sm:px-6 sm:pb-20">
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-sea-800 to-sea-600 px-6 py-14 text-center shadow-xl">
+        <div className="mx-auto max-w-6xl px-4 pb-8 standalone:px-3 standalone:pb-5 sm:px-6 sm:pb-14">
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-sea-800 to-sea-600 px-6 py-9 text-center shadow-xl sm:py-11">
             <div
               aria-hidden="true"
               className="pointer-events-none absolute -end-10 -top-10 size-48 rounded-full bg-white/10 blur-2xl"
@@ -213,7 +250,7 @@ export default function HomePage() {
             </p>
             <Link
               href="/explore"
-              className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-sun-300 px-7 py-3 font-display text-lg font-semibold text-ink-900 shadow-lg transition hover:bg-sun-200 active:scale-[0.98]"
+              className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-sun-300 px-7 py-3 font-display text-lg font-semibold text-ink-900 shadow-lg transition hover:bg-sun-200 active:scale-[0.98]"
             >
               استكشف الأماكن
               <IconGo className="size-5" />

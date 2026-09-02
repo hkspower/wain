@@ -9,7 +9,11 @@ export default function PlaceCard({ place }: { place: Place }) {
   return (
     <Link
       href={`/places/${place.slug}`}
-      className="card-defer group flex flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-line-strong hover:shadow-xl hover:shadow-ink-900/10"
+      // h-full so the card fills whatever holds it. In a grid it already did,
+      // because grid items stretch; in the home page's scroll rail the <li>
+      // stretches and the card inside it would not, leaving short cards
+      // floating above a ragged bottom edge.
+      className="card-defer group flex h-full flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-line-strong hover:shadow-xl hover:shadow-ink-900/10"
     >
       <div
         className={`relative flex h-36 items-center justify-center overflow-hidden border-b border-line standalone:h-24 ${categoryTint(place.category)}`}
