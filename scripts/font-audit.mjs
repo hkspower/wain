@@ -73,6 +73,8 @@ const browser = await chromium.launch({
 
 const fetched = new Map()   // file -> Set(status)
 const uncovered = new Map()
+const arabicTracked = []
+let arabicRuns = 0
 let faces = []
 
 for (const lang of ['ar', 'en']) {
@@ -119,12 +121,22 @@ for (const lang of ['ar', 'en']) {
       }
       const covered = (cp) => ranges.some(([a, z]) => cp >= a && cp <= z)
       const stray = []
+      const tracked = []
+      let arabic = 0
+      const isArabic = (s) => /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/.test(s)
       const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
       let n
       while ((n = w.nextNode())) {
         const t = n.textContent; if (!t.trim()) continue
         const e = n.parentElement, s = getComputedStyle(e)
         if (s.display === 'none' || s.visibility === 'hidden') continue
+        if (isArabic(t)) {
+          arabic++
+          if ((parseFloat(s.letterSpacing) || 0) > 0) {
+            tracked.push({ ls: s.letterSpacing, t: t.trim().slice(0, 18),
+              sel: `${e.tagName.toLowerCase()}.${(e.className || '').toString().slice(0, 22)}` })
+          }
+        }
         if (!/Alexandria|Plex/.test(s.fontFamily)) continue
         for (const ch of [...t]) {
           const cp = ch.codePointAt(0)
@@ -132,9 +144,11 @@ for (const lang of ['ar', 'en']) {
           stray.push({ ch, cp, ctx: t.trim().slice(0, 22) })
         }
       }
-      return { faces, stray }
+      return { faces, stray, tracked, arabic }
     })
     if (got.faces.length > faces.length) faces = got.faces
+    arabicRuns += got.arabic
+    for (const a of got.tracked) if (!arabicTracked.some((x) => x.sel === a.sel)) arabicTracked.push(a)
     for (const s of got.stray) {
       if (!uncovered.has(s.cp)) uncovered.set(s.cp, { ...s, n: 0 })
       uncovered.get(s.cp).n++
@@ -167,6 +181,16 @@ const fallbacks = faces.filter((f) => /Fallback/i.test(f.family))
 check(fallbacks.length > 0 && fallbacks.every((f) => f.ascent),
   `the local fallbacks carry metric overrides, so the swap does not move the page (${fallbacks.length})`,
   fallbacks.map((f) => `${f.family}:${f.ascent || 'none'}`).join(' | '))
+
+// --- and no tracking on the cursive script ---------------------------------
+// Arabic joins. Its letters are not discrete shapes with air between them the
+// way Latin's are — a word is one connected stroke — so letter-spacing does not
+// loosen a word, it pulls the joins apart. Latin tracking added for a bilingual
+// row lands on both halves unless it is scoped to the document's language, and
+// that is exactly what had happened: 28 Arabic nav links carrying 0.155px.
+check(arabicTracked.length === 0,
+  `no Arabic text carries letter-spacing (${arabicRuns} runs measured)`,
+  arabicTracked.slice(0, 4).map((a) => `${a.ls} on ${a.sel} "${a.t}"`).join(' | '))
 
 // --- reported, not failed --------------------------------------------------
 if (uncovered.size) {

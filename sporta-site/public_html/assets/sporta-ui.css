@@ -77,14 +77,36 @@
 
 /* Nav links were 15.5px at weight 400 — measured, not assumed, and 400 is body
    text. Navigation is a set of targets, not prose; 600 is what makes a row of
-   links read as a row of links. The tracking stays small: this is Arabic and
-   English in the same row, and the Latin words are what suffer when it is
-   tight. */
+   links read as a row of links. */
 .app-header nav a,
 .app-header a.flex.min-h-11 {
   font-size: 15.5px !important;
   font-weight: 600 !important;
   letter-spacing: 0.01em;
+}
+
+/* AND NOT ONE HUNDREDTH OF AN EM OF IT IN ARABIC.
+ *
+ * The tracking above was added for the Latin half of the row and applied to
+ * the whole of it. That is fine in Latin, where letters are discrete shapes
+ * with space between them by design, and it is wrong in Arabic, which is a
+ * CURSIVE script: the letters of a word are joined, and letter-spacing does
+ * not loosen a word, it pulls the joins apart. الرئيسية is one connected
+ * stroke from ا to ة, and tracking puts a gap inside it.
+ *
+ * Measured across seven pages: 28 Arabic runs carrying 0.155px of tracking,
+ * and they were the only tracked Arabic on the site — the eyebrows, the
+ * headings and the body all sit at 0, so this rule was the whole of the
+ * problem.
+ *
+ * Scoped by the DOCUMENT's language rather than by testing the text, because
+ * the same markup carries both: <html lang> is `ar` by default and becomes
+ * `en` when the shopper switches. So English keeps the tracking it was written
+ * for and Arabic gets none, which is what the note above was actually
+ * reaching for. */
+html[lang='ar'] .app-header nav a,
+html[lang='ar'] .app-header a.flex.min-h-11 {
+  letter-spacing: normal;
 }
 
 /* The language chip: 12px at 90% white inside a 20%-white ring. Full white on
