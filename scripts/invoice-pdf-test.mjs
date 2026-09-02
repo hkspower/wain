@@ -95,6 +95,42 @@ const dir = php(`require "${ROOT}/sporta-site/public_html/api/invoice-pdf.php";
   echo invoice_dir(store_config());`)
 check(dir !== '', `the archive has a home (${dir})`)
 
+// RUN THE SWEEP FIRST, which is what the server does every fifteen minutes.
+//
+// Without this the check below asserts a state no test produces: every other
+// rig in this repo places real orders — checkout, payments and tpay all do —
+// so running any of them leaves orders with no PDF yet, and this file then
+// failed for the entirely correct reason that a cron had not run. A test that
+// goes red because a different test ran is a bad test, and it was mine.
+//
+// Driving the real endpoint rather than calling the function also means
+// cron-invoice.php itself is exercised — gate, limit, error handling and all.
+// Nothing else in the suite touches it.
+{
+  const key = php('echo store_config()["cron_key"] ?? "";')
+  if (!key) {
+    note('no cron_key in this config — cannot run the sweep, so the check below only sees old files')
+  } else {
+    const url = `${SITE.replace(/\/api$/, '')}/api/cron-invoice.php?key=${encodeURIComponent(key)}&limit=500`
+    // Twice: the first pass is capped, and a second proves it is idempotent —
+    // it must write nothing the second time, which is the property that stops
+    // it rewriting an invoice after a price change.
+    let first, second
+    try {
+      first = await (await fetch(url)).json()
+      second = await (await fetch(url)).json()
+    } catch { first = null }
+    if (first) {
+      check((second?.written ?? -1) === 0,
+        `the sweep is idempotent — ${first.written} written, then nothing`,
+        `second run wrote ${second?.written}`)
+      check((first.failed?.length ?? 0) === 0 && (second?.failed?.length ?? 0) === 0,
+        `the sweep reports no failures`,
+        JSON.stringify(first.failed?.slice(0, 3) ?? []))
+    }
+  }
+}
+
 const orders = sql('select track_id from orders order by id desc').split('\n').filter(Boolean)
 const files = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.pdf')) : []
 const have = new Set(files.map((f) => f.replace(/\.pdf$/, '')))
