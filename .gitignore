@@ -96,6 +96,9 @@ __pycache__/
 # rev-limiter alert frames, regenerated on demand
 /press/limiter/
 
+# exhaust tip frames, regenerated on demand
+/press/exhaust/
+
 # the hub's referral ledger — live player data, written by the server
 /server/data/
 

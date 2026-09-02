@@ -1644,6 +1644,34 @@ hubGeo.rotateZ(Math.PI / 2);
 const spokeGeo = roundedBox(
   0.27 * WHEEL_W_K, 0.3 * WHEEL_R_K, 0.06 * WHEEL_R_K, 0.018 * WHEEL_R_K
 );
+/**
+ * The inside of the pipe.
+ *
+ * Darker than any tip finish and completely matte, because that is what
+ * a bore is: unburnt fuel and carbon baked onto steel, in shadow, with
+ * nothing to reflect. It is the only part of an exhaust that is the same
+ * colour whatever the tip is made of — chrome, titanium and ceramic all
+ * look identical two centimetres down the tube.
+ */
+const boreMat = new THREE.MeshStandardMaterial({
+  name: "exhaust-bore",
+  color: 0x0a0908,
+  roughness: 1,
+  metalness: 0,
+  // Seen from OUTSIDE the cylinder's wall, because the camera is looking
+  // down a tube at the far side of it. Without this the inner wall is
+  // back-face culled and the pipe is a hole with nothing in it.
+  side: THREE.BackSide,
+});
+/** The blind end of the bore, so a tip is a tube rather than a window
+ *  through the bumper. Front-facing: this one is looked at directly. */
+const boreCapMat = new THREE.MeshStandardMaterial({
+  name: "exhaust-bore-cap",
+  color: 0x080706,
+  roughness: 1,
+  metalness: 0,
+});
+
 /** Ceramic-coated race tip: matte black, soot-dulled. */
 const ceramicTipMat = new THREE.MeshStandardMaterial({ name: "exhaust-tip-ceramic",
   color: 0x1a1a1c,
@@ -4123,6 +4151,20 @@ export function createCar(colors: CarColors): THREE.Group {
      * tip actually is — a rolled edge on a rectangular section, not a
      * box stuck on a pipe. Oval is a cylinder squashed on one axis.
      */
+    // An exhaust tip is a TUBE, and every one of these was a solid peg.
+    //
+    // CylinderGeometry is capped by default, so the mouth was a flat
+    // metal disc facing the camera. That is the one part of the car a
+    // player looks at for the whole race — you spend it behind your own
+    // bumper or behind a rival's — and it read as a stud screwed into
+    // the valance rather than as something an engine breathes through.
+    //
+    // Three parts now: an open outer wall, an inner wall seen from
+    // inside it, and a blind floor a little way down. The bore is only
+    // built for cars that get detailing; nobody is ever close enough to
+    // a traffic car to look down its exhaust, and there are 46 of them.
+    const SEG = shape === "oval" ? 18 : 14;
+    const bore = r * 0.78;
     const tip = (px: number, py: number): void => {
       let geo: THREE.BufferGeometry;
       if (shape === "square") {
@@ -4131,12 +4173,37 @@ export function createCar(colors: CarColors): THREE.Group {
         // squared tip ever fitted to anything.
         geo = roundedBox(r * 2.1, r * 1.55, len, Math.min(r * 0.34, 0.022), 3);
       } else {
-        geo = new THREE.CylinderGeometry(r, r * 1.1, len, shape === "oval" ? 18 : 14);
+        geo = new THREE.CylinderGeometry(r, r * 1.1, len, SEG, 1, !colors.simple);
         geo.rotateX(Math.PI / 2);
         if (shape === "oval") geo.scale(1.5, 0.72, 1);
       }
       const m = new THREE.Mesh(geo, mat);
       m.position.set(px, py, z);
+      if (!colors.simple) {
+        // The inner wall. Slightly shorter than the outer so the rolled
+        // lip of the mouth stays the outer material rather than turning
+        // black right at the edge.
+        const wall = new THREE.Mesh(
+          new THREE.CylinderGeometry(bore, bore, len * 0.92, SEG, 1, true),
+          boreMat
+        );
+        wall.geometry.rotateX(Math.PI / 2);
+        if (shape === "oval") wall.geometry.scale(1.5, 0.72, 1);
+        wall.position.set(px, py, z + len * 0.04);
+        group.add(wall);
+        // The blind end, set back down the tube. Depth is what sells it:
+        // flush with the mouth it is a black sticker, and a tube you can
+        // see through is a hole in the car.
+        const floor = new THREE.Mesh(new THREE.CircleGeometry(bore, SEG), boreCapMat);
+        if (shape === "oval") floor.geometry.scale(1.5, 0.72, 1);
+        // Turned to face OUT of the pipe. A circle's normal is +Z and
+        // the tail is at -Z, so an unturned floor shows the camera its
+        // back face, gets culled, and the tube reads as a hole through
+        // the car — which is worse than the solid peg it replaced.
+        floor.rotation.y = Math.PI;
+        floor.position.set(px, py, z + len * 0.42);
+        group.add(floor);
+      }
       // Tagged so the mod test can read the finish off the mesh that was
       // actually built, rather than fishing for a cylinder of the right
       // height — which missed the stock pipes entirely and reported their
