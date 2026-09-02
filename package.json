@@ -100,6 +100,7 @@
     "test:shadows": "node tests/shadows.mjs",
     "test:shop": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/shop.mjs",
     "test:size": "node tests/size.mjs",
+    "test:soundtiming": "node tests/soundtiming.mjs",
     "test:spin": "node tests/spin.mjs",
     "test:start": "node tests/start.mjs",
     "test:streets": "node tests/streets.mjs",

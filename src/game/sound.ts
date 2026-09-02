@@ -22,6 +22,12 @@ export interface SoundFrame {
   driftYaw?: number; // |body slip| in radians — colours the squeal
   /** 1 when the governor is holding the car back — the limiter bounce. */
   limited?: number;
+  /** Throttle travel closed per second, computed by the simulation from
+   *  its own dt. Not derived here: how fast the driver's foot moved is
+   *  a fact about the car, and the audio thread's idea of elapsed time
+   *  is not the simulation's — a suite that steps update() faster than
+   *  real time would read every lift as instant. */
+  liftRate?: number;
   /** How far off the racing surface the tires are running, 0..1: the
    *  kerb and shoulder rumble. */
   rumble?: number;
@@ -100,6 +106,34 @@ const LIMITER_STUTTER = 33;
 /** How far the note drops on the cut half of the stutter, when the car
  *  is fully against the limiter. */
 const LIMITER_CUT_DEPTH = 0.45;
+
+/**
+ * How fast the throttle has to close to count as a LIFT, in units of
+ * pedal travel per SECOND.
+ *
+ * Per second, and that is the whole point. This used to compare the
+ * throttle against its value on the previous FRAME — `lastThrottle -
+ * throttle > 0.35` — which is not a speed, it is a speed multiplied by
+ * however long the browser took to draw. Measured: the same 40 ms flick
+ * off the pedal fired the backfire twice at 60 fps, once at 30 and not
+ * at all at 144, and a normal 120 ms release of an analogue trigger
+ * fired at none of them. Only a keyboard was reliable, because a key
+ * release is 1 to 0 in a single frame at any rate — which is why
+ * nobody testing with the arrow keys ever saw it.
+ *
+ * The numbers are what a foot does. A flick straight off the pedal is
+ * about 40 ms of travel, so 25 per second; a brisk analogue release is
+ * 120 ms, so 8; a lazy roll-off is 400 ms, so 2.5. A threshold of 4.5
+ * takes the first two and leaves the last one alone, which is the
+ * distinction the sound is trying to draw: lifting off pops, easing
+ * off does not.
+ *
+ * sound.ts already carries this exact lesson for the rev limiter, whose
+ * stutter rate was a function of frame rate until it was pinned to the
+ * clock. This is the same bug, one screen further down, in the code
+ * that decides whether the car has an overrun at all.
+ */
+const BURBLE_LIFT_RATE = 4.5;
 
 function makeNoisePool(ctx: AudioContext): AudioBuffer[] {
   const pool: AudioBuffer[] = [];
@@ -1254,7 +1288,7 @@ export class SoundEngine {
     // Overrun burble: lifting off at revs pops the exhaust — the JDM
     // signature. Rate-limited so it crackles rather than machine-guns.
     if (
-      this.lastThrottle - throttle > 0.35 &&
+      (f.liftRate ?? 0) > BURBLE_LIFT_RATE &&
       rpm > 0.55 &&
       f.speedKmh > 40 &&
       t > this.nextBurbleAt

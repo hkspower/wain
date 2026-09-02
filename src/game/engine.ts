@@ -584,6 +584,16 @@ const TRAFFIC_COLORS = [0x8a96a3, 0x5d6770, 0xb0a890, 0x6e7f8d, 0x4a5560, 0x9c8f
 
 // Unsharp-mask crispening + film vignette + animated grain, in linear
 // space before output.
+/**
+ * How fast the throttle must close for the exhaust to bang, in pedal
+ * travel per second. Above BURBLE_LIFT_RATE in sound.ts, deliberately:
+ * easing off burbles, snapping off bangs, and the two thresholds are
+ * the only thing separating them.
+ */
+const BACKFIRE_LIFT_RATE = 6;
+/** One lift, one bang. Seconds. */
+const BACKFIRE_LOCKOUT = 0.25;
+
 // Final grade: unsharp crispen, vignette, luminance-weighted grain, then a
 // hard black point. Order matters — the black point runs last so nothing
 // downstream can lift the shadows back up.
@@ -1151,8 +1161,23 @@ export class GameEngine {
   private flameFx!: ParticleSystem;
   /** Brake-rotor temperature, 0..1, per wheel — heat in, heat out. */
   private rotorHeat = 0;
-  /** Rising edge detector for backfires on throttle lift. */
+  /** Throttle as it was on the previous simulation step, for measuring
+   *  how fast the driver's foot came off. */
   private lastThrottleFx = 0;
+  /**
+   * How fast the throttle is closing, in pedal travel per SECOND.
+   *
+   * Measured ONCE per step and shared, so the flame at the exhaust tip,
+   * the bang that goes with it and the decel burble are all answering
+   * the same question about the same event. They used to ask it three
+   * separate times against three per-frame thresholds, which is how the
+   * burble could fire without the flame.
+   */
+  private liftRate = 0;
+  /** Seconds until the exhaust may bang again. One lift is one bang:
+   *  without this the detector fired on two consecutive frames as the
+   *  pedal ramped through, and a 40 ms flick backfired twice at 60 fps. */
+  private backfireLockout = 0;
   private smokeAcc = 0;
 
   // Minimap
@@ -3877,6 +3902,26 @@ export class GameEngine {
       this.cine ? "challenge" : this.inBattle || this.duel ? "battle" : "cruise"
     );
     // The picture follows the same moment the music does.
+    // How fast the foot came off, per SECOND rather than per frame.
+    //
+    // A frame is not a unit of time, and the overrun sounds used to be
+    // triggered by a per-frame difference: measured, the same 40 ms
+    // flick backfired twice at 60 fps, once at 30 and never at 144,
+    // and a normal 120 ms analogue release fired at none of them. The
+    // car's whole overrun character was a function of the display.
+    //
+    // Long frames are clamped to a thirtieth of a second rather than
+    // taken at face value. Across a 500 ms stall the pedal genuinely
+    // did close, and dividing by the stall would report a gentle
+    // roll-off and swallow the event; treating it as the slowest
+    // playable frame keeps a real lift a real lift.
+    {
+      const th = this.throttle;
+      const dtLift = Math.max(1e-4, Math.min(dt, 1 / 30));
+      this.liftRate = Math.max(0, (this.lastThrottleFx - th) / dtLift);
+      this.lastThrottleFx = th;
+      if (this.backfireLockout > 0) this.backfireLockout -= dt;
+    }
     this.look = this.deriveLook();
     this.stepLook(dt);
     // Intensity: how fast, how close, how nearly lost. A comfortable
@@ -5692,10 +5737,15 @@ export class GameEngine {
     if (!this.cine && this.carBody.userData.exhaustTips) {
       const tips = this.carBody.userData.exhaustTips as THREE.Vector3[];
       const pop = this.tune.exhaust.pop;
-      const lift = this.lastThrottleFx - this.throttle;
       // A hard lift at revs always pops — the randomness belongs in how
-      // big the flame is, not in whether the car has an exhaust.
-      const backfire = lift > 0.4 && this.player.speed > 14;
+      // big the flame is, not in whether the car has an exhaust. The
+      // rate is measured once per step at the top of update(); the
+      // lockout is what makes one lift one bang.
+      const backfire =
+        this.liftRate > BACKFIRE_LIFT_RATE &&
+        this.backfireLockout <= 0 &&
+        this.player.speed > 14;
+      if (backfire) this.backfireLockout = BACKFIRE_LOCKOUT;
       const nos = this.nosActive;
       if (backfire && this.sound) this.sound.backfire(pop);
       if (backfire || nos) {
@@ -5727,7 +5777,7 @@ export class GameEngine {
         }
       }
     }
-    this.lastThrottleFx = this.throttle;
+
     this.flameFx.update(dt, { drag: 3.2, gravity: -1.2 });
 
     // --- Brake rotors glow with the heat they are actually absorbing.
@@ -5968,6 +6018,7 @@ export class GameEngine {
       driftYaw: this.driftYaw,
       limited,
       rumble,
+      liftRate: this.liftRate,
       listener: {
         x: cam.x, y: cam.y, z: cam.z,
         fx: this.v3.x, fy: this.v3.y, fz: this.v3.z,
