@@ -5,6 +5,7 @@ import {
   IBM_Plex_Sans_Arabic,
   Cairo,
   Noto_Naskh_Arabic,
+  Alexandria,
 } from "next/font/google";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -55,6 +56,26 @@ const naskh = Noto_Naskh_Arabic({
   variable: "--ff-arabic-sign",
 });
 
+// One family that speaks both languages.
+//
+// Every other face here is good at one script and borrows a stranger
+// for the other: Plus Jakarta Sans has no Arabic, IBM Plex Sans Arabic
+// has Latin but it is not the Latin the UI is set in. That is invisible
+// in a paragraph and obvious in this game, where the two scripts sit
+// INSIDE each other — "GARAGE الكراج", "Stake — مبلغ السباق" — on one
+// line, at one size, sharing a baseline. Two families cannot agree
+// about x-height, stroke weight or how far above the line a cap sits,
+// so every one of those pairs is a small mismatch.
+//
+// Alexandria is drawn for both, so a bilingual pair is one typeface
+// setting one line. Loaded as a variable font — one file covering
+// 100 to 900 — because the alternative is picking three static weights
+// and finding the fourth is the one a card needs.
+const alexandria = Alexandria({
+  subsets: ["latin", "arabic"],
+  variable: "--ff-alexandria",
+});
+
 export const metadata: Metadata = {
   title: {
     default: "Wain? — Discover where to go in Kuwait",
@@ -77,7 +98,7 @@ export default function RootLayout({
     // declaration invalid — which silently dropped every family.
     <html
       lang="en"
-      className={`${jakarta.variable} ${barlow.variable} ${plexAr.variable} ${cairo.variable} ${naskh.variable}`}
+      className={`${jakarta.variable} ${barlow.variable} ${plexAr.variable} ${cairo.variable} ${naskh.variable} ${alexandria.variable}`}
     >
       <body className="flex min-h-screen flex-col font-sans">
         <Navbar />

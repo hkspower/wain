@@ -117,6 +117,12 @@
     "Times New Roman", serif;
   --font-display-stack: var(--ff-display), "Barlow Condensed",
     var(--ff-arabic-display), "Cairo", ui-sans-serif, sans-serif;
+  /* The bilingual stack: one family for both scripts.
+     No second family behind it for the other script, because having one
+     is the thing this stack exists to avoid — the fallbacks are only
+     here for the seconds before a webfont lands. */
+  --font-bilingual: var(--ff-alexandria), "Alexandria", var(--ff-arabic),
+    ui-sans-serif, sans-serif;
 }
 
 html {
@@ -220,6 +226,24 @@ body {
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: 0.01em;
+}
+
+/* A line that is both languages at once.
+ *
+ * For the pairs this game is full of — a Latin label and its Arabic
+ * beside it, on one line, at one size. Set in Alexandria, which draws
+ * both, so the two halves share a baseline, an x-height and a stroke
+ * weight instead of negotiating them across two families.
+ *
+ * It does NOT set direction: a pair like "GARAGE الكراج" is a Latin run
+ * with an Arabic run inside it, and the bidi algorithm already orders
+ * that correctly. Forcing rtl here would move the Latin half to the
+ * right of a line that reads left to right. Letter-spacing is normal
+ * for the reason .grn-ar sets it so — Arabic is cursive and tracking
+ * breaks the joins. */
+.grn-bilingual {
+  font-family: var(--font-bilingual);
+  letter-spacing: normal;
 }
 
 /* Small all-caps label — the HUD's connective tissue */
