@@ -180,8 +180,9 @@
     </button>
     <form class="vo-typebar" id="voForm">
       <label class="sr-only" for="voInput">اكتب طلبك</label>
-      <input id="voInput" name="text" type="text" autocomplete="off"
-             placeholder="اكتب طلبك أو اضغط الميكروفون وتكلّم…">
+      <textarea id="voInput" name="text" rows="3" autocomplete="off"
+                enterkeyhint="send"
+                placeholder="اكتب طلبك كاملًا هنا، أو اضغط الميكروفون وتكلّم…"></textarea>
       <button class="vo-typebar__send" type="submit" aria-label="أرسل ما كتبت">
         <svg class="ic" aria-hidden="true"><use href="#i-send"></use></svg>
       </button>

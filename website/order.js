@@ -112,6 +112,13 @@
     if (!missingReq.length) {
       state.pendingField = null;
       bubble('agent', 'اكتمل الطلب. راجع الملخّص ثم اضغط <b>«أرسل الطلب إلى موصول»</b>.');
+      /* ويُؤتى بالزرّ إلى العين. الملتقط ملتصقٌ بأسفل الشاشة، وقياسٌ على
+         ٣٢٠px وجد الزرّ خلفه تمامًا (٩١٧–٩٧٢ تحت ملتقطٍ يبدأ عند ٨٨٧):
+         يقول الوكيل «اضغط أرسل» والزرّ غير مرئيّ ولا مضغوط، ولا يعرف
+         الزبون أنّ عليه أن يمرّر. و‎scroll-margin يوقفه فوق الملتقط. */
+      /* قفزةٌ لا انزلاق: الانزلاق يُبقي الزرّ يتحرّك تحت الإصبع لحظةً بعد
+         أن صار مرئيًّا، فتقع الضغطة على ما تحته. */
+      requestAnimationFrame(() => submitBtn.scrollIntoView({ block: 'end' }));
       return;
     }
     /* سؤالٌ معه اقتراح «هل تقصد؟» يتقدّم: جوابه ضغطة زرّ، وتركُه معلّقًا
@@ -314,7 +321,7 @@
 
     const finish = () => {
       const said = (committed + ' ' + input.value).trim().replace(/\s+/g, ' ');
-      committed = ''; restarts = 0; input.value = '';
+      committed = ''; restarts = 0; input.value = ''; baseH();
       if (said) turn(said);
     };
 
@@ -323,6 +330,7 @@
       for (const r of e.results) t += r[0].transcript;
       /* المعروض = ما ثبت سابقًا + ما تُسمعه هذه الجلسة */
       input.value = (committed ? committed + ' ' : '') + t.trim();
+      grow();
     });
 
     rec.addEventListener('error', (e) => {
@@ -341,7 +349,7 @@
     });
 
     rec.addEventListener('end', () => {
-      if (failed) { failed = false; committed = ''; input.value = ''; return; }
+      if (failed) { failed = false; committed = ''; input.value = ''; baseH(); return; }
 
       /* أنهى المتصفّح الجلسة والزبون لم يطلب ذلك: نُثبّت ما سُمع ونستأنف
          بصمت، فلا ينقطع الطلب عند سكتةٍ بين جملتين. */
@@ -369,10 +377,45 @@
     });
   }
 
+  /* المساحة تنمو بما فيها إلى سقفها ثم تُمرَّر. تُستدعى بعد كل كتابةٍ
+     وبعد كل ما يكتبه الالتقاط الصوتي فيها.
+
+     والسقف يُحسب من **الملتقط كلّه** لا من المساحة وحدها: للملتقط حشوٌ
+     وسطرُ تلميحٍ تحته، فسقفٌ على المساحة بنسبةٍ من الشاشة يجعل أسفله يقع
+     تحت الطيّة. قِيس ذلك: مساحةٌ بسقف ٤٠vh جعلت أسفل الملتقط عند ٨٩٨ في
+     شاشةٍ طولها ٨٤٤. فيُطرح ما ليس مساحةً من الحساب. */
+  /** ارتفاع الملتقط الحاليّ إلى الأنماط: عليه تُحسب هوامش التمرير */
+  const publishHeight = () =>
+    document.documentElement.style.setProperty('--composer-h', composer.offsetHeight + 'px');
+
+  function grow() {
+    const chrome = composer.offsetHeight - input.offsetHeight;   // حشوٌ وتلميحٌ وحدود
+    const cap = Math.max(96, Math.round(innerHeight * 0.55) - chrome);
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, cap) + 'px';
+    publishHeight();
+  }
+  publishHeight();
+  addEventListener('resize', () => { if (input.style.height) grow(); else publishHeight(); });
+  const baseH = () => { input.style.height = ''; publishHeight(); };   // العودة إلى ثلاثة أسطر
+
+  input.addEventListener('input', grow);
+
+  /* **المساحة لا تُرسل بـEnter من نفسها**، بخلاف حقل السطر الواحد. فلو
+     تُرك الأمر لها لكتب الزبون طلبه وضغط Enter فنزل سطرٌ ولم يُرسل شيء،
+     ولا شيء يقول له لماذا. فـEnter يُرسل، وShift+Enter ينزل سطرًا لمن
+     أراد أن يفصل جملتين. */
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+    e.preventDefault();
+    form.requestSubmit();
+  });
+
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const t = input.value;
     input.value = '';
+    baseH();
     turn(t);
   });
   submitBtn.addEventListener('click', submitOrder);

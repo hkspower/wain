@@ -89,13 +89,16 @@
   /* سلّم المقاسات. مرساة الـrem جذرُ المتصفّح (١٦px) لا `body`.
      والسجلّ رسميّ: طرف السلّم الأعلى مضغوط — الترتيب هو ما يقيم الهرم لا
      الحجم، ولا وزنَ فوق ٧٠٠ في الصفحة. */
-  --fs-xs:  .8rem;
-  --fs-sm:  .89rem;
-  --fs-md:  .97rem;
-  --fs-lg:  1.06rem;
-  --fs-h3:  clamp(1.16rem, 1rem + .5vw, 1.32rem);
-  --fs-h2:  clamp(1.38rem, 1.06rem + .85vw, 1.69rem);
-  --fs-h1:  clamp(1.68rem, 1.22rem + 1.35vw, 2.14rem);
+  /* السلّم نزل درجةً كاملة: الصفحة صارت شيئًا واحدًا يُكتب فيه، ومساحة
+     الكتابة هي التي تكبر لا العنوان. كان العنوان ٢٧–٣٤px والتمهيد ١٧،
+     فيأخذان الشاشة ويبقى للطلب سطرٌ نحيل. صارا ٢١–٢٦ و١٥. */
+  --fs-xs:  .75rem;
+  --fs-sm:  .82rem;
+  --fs-md:  .9rem;
+  --fs-lg:  .94rem;
+  --fs-h3:  clamp(1.05rem, .95rem + .35vw, 1.16rem);
+  --fs-h2:  clamp(1.16rem, .95rem + .6vw, 1.4rem);
+  --fs-h1:  clamp(1.32rem, 1rem + .95vw, 1.64rem);
   /* رمز الطلب في شاشة التأكيد: بيانٌ يُحفظ، فسقفه دون العنوان الذي فوقه */
   --fs-big: clamp(1.34rem, 1.06rem + .72vw, 1.6rem);
 
@@ -123,7 +126,8 @@ html {
   scroll-behavior: smooth;
   scroll-padding-top: 104px;
   -webkit-text-size-adjust: 100%;
-  /* يمنع درج التنقل المخفي خارج الشاشة من توليد تمرير أفقي في الاتجاه RTL */
+  /* يمنع أيّ عنصرٍ خارج الحدّ من توليد تمرير أفقي في الاتجاه RTL.
+     و`clip` لا `hidden` عمدًا: `hidden` يصنع حاوية تمرير. */
   overflow-x: clip;
 }
 
@@ -140,7 +144,11 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-kerning: normal;
-  overflow-x: hidden;
+  /* **ولا `overflow-x: hidden` هنا.** كان مكرّرًا لما على `html`، لكنه
+     يجعل `body` حاويةَ تمرير — و`position: sticky` داخل حاوية تمرير يلتصق
+     بها لا بالشاشة. فلمّا صارت مساحة الكتابة تنمو، وقع أسفل الملتقط عند
+     ١٠٥٥ في شاشةٍ طولها ٨٤٤ ولم يلتصق. و`clip` على `html` يكفي المنع
+     ولا يصنع حاوية. */
 }
 
 /* العناوين: وزنٌ واحد للجميع — **٧٠٠ سقفًا**. كان ٨٠٠ على h1 وh2 وعلى كل
@@ -337,6 +345,14 @@ body.vo {
 .vo-hero__ticks .ic { width: 17px; height: 17px; stroke-width: 2.4; color: var(--teal-700); }
 
 /* ------------------------------- الحوار ------------------------------- */
+/* ما يُمرَّر إليه يقف فوق الملتقط لا تحته. الملتقط ملتصقٌ بأسفل الشاشة،
+   فتمريرٌ «إلى أدنى ما يكفي» يوقف الهدف عند الحافّة السفلى — أي تحته.
+   قِيس ذلك على ٣٢٠px: زرّ «أرسل الطلب» صار غير قابلٍ للضغط لأنّ المساحة
+   فوقه. وارتفاع الملتقط يتغيّر مع نموّ المساحة، فيكتبه JS في ‎--composer-h. */
+.vo-chat, .vo-card, .vo-done, .vo-card__send, .vo-msg, .vo-hintbtn {
+  scroll-margin-block-end: calc(var(--composer-h, 10rem) + .75rem);
+}
+
 .vo-chat { display: flex; flex-direction: column; gap: .6rem; }
 
 .vo-msg {
@@ -436,8 +452,10 @@ body.vo {
            calc(.8rem + env(safe-area-inset-bottom, 0px));
 }
 
+/* الزرّان على قاعدةٍ واحدة مع أسفل المساحة. كانا في وسطها، فلمّا صارت
+   المساحة تنمو صار الميكروفون يطفو في منتصفها منفصلًا عمّا حوله. */
 .vo-composer__inner {
-  display: flex; align-items: center; gap: .7rem;
+  display: flex; align-items: flex-end; gap: .7rem;
   width: min(640px, 100%); margin-inline: auto;
 }
 
@@ -464,7 +482,12 @@ body.vo {
 .vo-mic[hidden] { display: none; }
 
 .vo-typebar {
-  flex: 1; display: flex; align-items: center; gap: .5rem;
+  /* الزرّ ينزل إلى أسفل المساحة لا إلى وسطها: المساحة تنمو مع الكلام،
+     وزرٌّ يطفو في المنتصف يتحرّك مع كل سطر. */
+  /* `min-width: 0` لا غنى عنه: عنصر flex لا ينكمش دون عرض محتواه الأدنى
+     افتراضًا، و`<textarea>` بلا `cols` عرضه الأصيل عشرون محرفًا — فدفع
+     الشريطَ إلى ٣٦٩px في شاشة ٣٢٠ وأخرج الصفحة عن حدّها. */
+  flex: 1; min-width: 0; display: flex; align-items: flex-end; gap: .5rem;
   background: #fff; border: 1px solid var(--line-ctl);
   border-radius: var(--radius-lg); padding-inline-start: 1rem;
   transition: border-color var(--t-fast), box-shadow var(--t-fast);
@@ -472,13 +495,26 @@ body.vo {
 
 .vo-typebar:focus-within { border-color: var(--teal-700); box-shadow: var(--halo); }
 
-.vo-typebar input {
+/* مساحةٌ لا سطر. الطلب جملتان أو ثلاث («اسمي… ورقمي… من… إلى…»)، وكان
+   الحقل سطرًا واحدًا يخفي أوّل الكلام عند آخره — والصوت يكتب فيه فقرةً
+   كاملة فلا يرى الزبون ما سُمع منه. تبدأ بثلاثة أسطر وتنمو مع الكتابة. */
+.vo-typebar textarea {
   flex: 1; min-width: 0; border: 0; background: none; outline: none;
-  font-family: var(--font); font-size: 16px;      /* عتبة سفاري: أصغر منها يُقرّب الصفحة */
-  color: var(--ink); padding-block: .82rem;
+  resize: none; overflow-y: auto;
+  font-family: var(--font);
+  /* **١٦px عتبةٌ لا تُخفَض**: سفاري على iOS يُقرّب الصفحة تلقائيًّا عند
+     التركيز على حقلٍ خطُّه أصغر منها، فيقفز التخطيط في وجه الزبون. وحدها
+     في الصفحة تبقى فوق سلّم المقاسات الجديد لهذا السبب. */
+  font-size: 16px;
+  line-height: var(--lh-ui);
+  color: var(--ink); padding-block: .85rem;
+  /* سقفٌ يُبقي **الملتقط كلّه** داخل الشاشة لا المساحة وحدها: عند ٤٠vh
+     كان أسفل الملتقط يقع تحت الطيّة بثمانية عشر بكسلًا فيُقتطع سطر
+     التلميح. والباقي فوقه يُمرَّر داخل المساحة. */
+  max-height: 30vh;
 }
 
-.vo-typebar input::placeholder { color: var(--ink-faint); }
+.vo-typebar textarea::placeholder { color: var(--ink-faint); }
 
 .vo-typebar__send {
   flex: none; width: 48px; height: 48px; margin: 3px;
@@ -518,7 +554,13 @@ body.vo {
 
   .vo-msg { max-width: 92%; }
 
-  .vo-mic { width: 58px; height: 58px; }
+  /* على الشاشة الضيّقة تأخذ المساحة السطر كلّه وينزل الميكروفون تحتها.
+     كانا في صفٍّ واحد فبقي للكتابة ١٣٩px من ٣٢٠ — ثلاثة أسطر في خمسة
+     عشر محرفًا. وبالنزول صارت ٢٥٦: سبعون بالمئة زيادة، والميكروفون
+     أظهر لا أخفى. */
+  .vo-composer__inner { flex-wrap: wrap; justify-content: center; gap: .55rem; }
+  .vo-typebar { flex: 1 1 100%; order: 1; }
+  .vo-mic { order: 2; width: 56px; height: 56px; }
 
   /* الرقم يطول (١٤١px) فلا يسع مع الشعار وواتساب على ٣٢٠. وكان الحلّ
      إخفاء الرابط كلّه — وهو أسوأ ما يقع على جوّال: **زائر الجوّال أقرب
