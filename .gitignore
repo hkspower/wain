@@ -98,3 +98,8 @@ scripts/_*.py
 # The path here matches invoice_dir()'s default, which resolves to
 # <docroot>/../invoices — sporta-site/invoices in this checkout.
 sporta-site/invoices/
+
+# The recovery bundle written during an incident. htaccess-RESTORE.txt is a
+# copy of a file already tracked here, and the README beside it is a note to
+# one person on one day — neither belongs in the history.
+sporta-site/RESTORE/

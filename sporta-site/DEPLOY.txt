@@ -94,9 +94,17 @@ CHECK AFTERWARDS
 THEN THREE SMALL THINGS
 -------------------------------------------------------------------------
 
-1. The two rewrite rules in ADD-TO-LIVE-HTACCESS.txt. They make /card and
-   /returns/request work — both pages ship in stage 1, and without the rules
-   they answer 404 at those addresses.
+1. The two rewrite rules in PASTE-BY-HAND-DO-NOT-UPLOAD.txt.
+
+   READ THE FILENAME. That note is the ONLY thing in any handover that must be
+   opened and read rather than uploaded, and on 2026-09-02 an earlier version
+   of it — then called ADD-TO-LIVE-HTACCESS.txt — was uploaded as .htaccess.
+   Apache read the English as configuration and every page on the site
+   answered 500 until it was renamed. The zips are for uploading; anything
+   ending .txt in a handover is for reading.
+
+   The rules make /card and /returns/request work — both pages ship in stage
+   1, and without them those addresses answer 404.
 
    NOTE: .htaccess is deliberately in NEITHER zip. Your live one routes every
    page through seo.php, which injects the per-route title and canonical; the

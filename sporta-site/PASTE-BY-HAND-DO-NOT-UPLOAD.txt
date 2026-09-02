@@ -1,3 +1,23 @@
+########################################################################
+#                                                                      #
+#   DO NOT UPLOAD THIS FILE TO THE SERVER.                             #
+#                                                                      #
+#   It is a NOTE. It tells you which handful of lines to paste into    #
+#   a file that is already on your server. It is not itself a file     #
+#   the server should ever hold.                                       #
+#                                                                      #
+#   THIS ALREADY WENT WRONG ONCE, on 2026-09-02. An earlier version    #
+#   of this note was called ADD-TO-LIVE-HTACCESS.txt and arrived in    #
+#   the same handover as two zips that WERE meant to be uploaded. It   #
+#   was uploaded, as .htaccess, and Apache tried to read this English  #
+#   as configuration. Every page on sporta.com.kw answered 500 until   #
+#   the file was renamed.                                             #
+#                                                                      #
+#   That was the fault of the name, not of the person who uploaded     #
+#   it. Hence this one.                                                #
+#                                                                      #
+########################################################################
+
 TWO RULES TO ADD TO THE LIVE public_html/.htaccess
 ==================================================
 
