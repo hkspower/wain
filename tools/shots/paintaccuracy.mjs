@@ -128,7 +128,7 @@ await page.evaluate(() => {
   for (let i = 0; i < 6; i++) e.renderProbe();
 });
 
-console.log("paint                 chosen  rendered   hue err   chroma");
+console.log("paint                 chosen  sky-tier  probe-tier  hue err   chroma  (hue and chroma judged on the sky-tier render)");
 const rows = [];
 for (const p of paints) {
   const px = await page.evaluate(async (paintId) => {
@@ -196,29 +196,57 @@ for (const p of paints) {
     stage.add(ball);
     cam.position.set(0, 0.5, 3.4);
     cam.lookAt(0, 0, 0);
-    const prevRT = e.renderer.getRenderTarget();
-    e.renderer.setRenderTarget(rt);
-    e.renderer.render(stage, cam);
-    const buf = new Uint8Array(W * H * 4);
-    e.renderer.readRenderTargetPixels(rt, 0, 0, W, H, buf);
-    e.renderer.setRenderTarget(prevRT);
+    // TWO ENVIRONMENTS, PINNED — because the tier used to pick one for
+    // us and never said which.
+    //
+    // On the high tier the paint's envMap is the LIVE PROBE: a night sky
+    // at the car's position, and dark. On lower tiers it is null and the
+    // material falls back to the static sky PMREM, which is brighter.
+    // The auto tier on this headless box landed on different sides of
+    // that line on different days, so one run read Corniche White at
+    // #a1acbd and the next at #2b303e with nothing changed but the
+    // benchmark — and a session was spent hunting a paint regression
+    // that was a tier. So both are rendered, both are reported, and the
+    // hue solve reads the static-sky column, where there is enough
+    // chroma left to measure a hue at all.
+    const shoot = () => {
+      const prevRT = e.renderer.getRenderTarget();
+      e.renderer.setRenderTarget(rt);
+      e.renderer.render(stage, cam);
+      const buf = new Uint8Array(W * H * 4);
+      e.renderer.readRenderTargetPixels(rt, 0, 0, W, H, buf);
+      e.renderer.setRenderTarget(prevRT);
+      // Only pixels that are actually the ball, and only ones lit enough
+      // to carry a hue: a pixel at luma 3 has no colour to measure and a
+      // blown one has lost it.
+      let r = 0, g2 = 0, b = 0, n = 0;
+      for (let i = 0; i < buf.length; i += 4) {
+        const y = 0.2126*buf[i] + 0.7152*buf[i+1] + 0.0722*buf[i+2];
+        if (y < 12 || y > 245) continue;
+        r += buf[i]; g2 += buf[i+1]; b += buf[i+2]; n++;
+      }
+      return n > 200 ? [r/n, g2/n, b/n, n] : null;
+    };
+    const liveEnv = paintMat.envMap;
+    const liveGain = paintMat.envMapIntensity;
+    // Static sky: what a balanced-tier player sees.
+    paintMat.envMap = null; paintMat.envMapIntensity = 2.1; paintMat.needsUpdate = true;
+    const sky = shoot();
+    // Live probe: what a high-tier player sees. Restored exactly.
+    paintMat.envMap = liveEnv; paintMat.envMapIntensity = liveGain; paintMat.needsUpdate = true;
+    const probe = liveEnv ? shoot() : null;
     rt.dispose(); ball.geometry.dispose();
-    // Only pixels that are actually the ball, and only ones that are lit
-    // enough to carry a hue: a pixel at luma 3 has no colour to measure
-    // and a blown one has lost it.
-    let r = 0, g2 = 0, b = 0, n = 0;
-    for (let i = 0; i < buf.length; i += 4) {
-      const y = 0.2126*buf[i] + 0.7152*buf[i+1] + 0.0722*buf[i+2];
-      if (y < 12 || y > 245) continue;
-      r += buf[i]; g2 += buf[i+1]; b += buf[i+2]; n++;
-    }
-    return n > 200 ? [r/n, g2/n, b/n, n] : null;
+    return sky ? { sky, probe } : null;
   }, p.id);
 
   if (!px) { console.log(`${p.id.padEnd(20)}  could not read the paint`); continue; }
   const want = p.css;
   const wl = lab(parseInt(want.slice(1,3),16), parseInt(want.slice(3,5),16), parseInt(want.slice(5,7),16));
-  const gl = lab(px[0], px[1], px[2]);
+  const skyPx = px.sky;
+  const gl = lab(skyPx[0], skyPx[1], skyPx[2]);
+  const probeHex = px.probe
+    ? "#" + [px.probe[0], px.probe[1], px.probe[2]].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")
+    : "   —   ";
   const err = hueGap(hueOf(wl), hueOf(gl));
   // A RATIO IS THE WRONG STATISTIC FOR A NEAR-NEUTRAL.
   //
@@ -237,9 +265,9 @@ for (const p of paints) {
   const keep = c0 >= NEUTRAL ? c1 / c0 : null;
   const drift = c0 < NEUTRAL ? c1 - c0 : null;
   rows.push([p.id, err, keep, c0, drift, wl, gl]);
-  const hex = "#" + [px[0],px[1],px[2]].map((v) => Math.round(v).toString(16).padStart(2,"0")).join("");
+  const hex = "#" + [skyPx[0],skyPx[1],skyPx[2]].map((v) => Math.round(v).toString(16).padStart(2,"0")).join("");
   console.log(
-    `${p.id.padEnd(20)} ${want}  ${hex}  ` +
+    `${p.id.padEnd(20)} ${want}  ${hex}  ${probeHex}  ` +
     (keep === null ? "      —" : err.toFixed(1).padStart(7) + "°") + "  " +
     (keep === null
       ? `near-grey, picked up ${drift.toFixed(1)} chroma`
