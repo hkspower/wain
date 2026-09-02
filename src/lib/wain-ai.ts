@@ -71,6 +71,9 @@ export const WAIN_AI_COPY = {
   callAgain: "اتصل مرة ثانية",
   ended: "انتهت المكالمة",
   callFailed: "ما قدرنا نوصلك بشوق — جرّب مرة ثانية.",
+  // A call that rang out. Said separately from callFailed because the caller
+  // can usually fix this one: the microphone prompt is often still waiting.
+  noAnswer: "طوّلنا نرن وما وصلنا — تأكد إنك سمحت بالمايك وجرّب مرة ثانية.",
   // Deliberately no mute button. In agent mode the microphone belongs to the
   // ElevenLabs widget and this component cannot honestly switch it off, so a
   // mute control would work on one path and lie on the other. Hanging up is

@@ -36,11 +36,16 @@ export function audioContext(): AudioContext | null {
  *
  * Ramped rather than switched: a square edge on a gain node is an audible
  * click, which sounds like a fault rather than a sound anyone meant to make.
+ *
+ * Returns a function that cuts the tone short. A tone is scheduled into the
+ * audio graph the moment it is created, so once it exists nothing outside the
+ * graph can stop it — and the ring-back needs exactly that, because the second
+ * a call connects is a second in the middle of a one-second ring.
  */
 export function tone(
   audio: AudioContext,
   opts: { hz: number; at: number; seconds: number; gain?: number; type?: OscillatorType }
-): void {
+): () => void {
   const { hz, at, seconds, gain: peak = 0.18, type = "sine" } = opts;
   const start = audio.currentTime + at;
   const osc = audio.createOscillator();
@@ -53,4 +58,21 @@ export function tone(
   osc.connect(gain).connect(audio.destination);
   osc.start(start);
   osc.stop(start + seconds + 0.02);
+
+  let cut = false;
+  return () => {
+    if (cut) return;
+    cut = true;
+    try {
+      // Ramped down over 20ms rather than stopped dead, for the same reason
+      // the tone is ramped up: an oscillator cut mid-cycle is a click.
+      const now = audio.currentTime;
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setValueAtTime(Math.max(gain.gain.value, 0.0001), now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.02);
+      osc.stop(now + 0.03);
+    } catch {
+      /* already finished — stopping a finished node is not worth an error */
+    }
+  };
 }

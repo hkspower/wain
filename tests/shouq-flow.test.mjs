@@ -6,10 +6,22 @@ let pass = 0;
 const fails = [];
 const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
 
-/** A page with a scripted speech recogniser and a captured synthesiser. */
-async function fresh({ transcript = 'قهوة هادية', error = null, noRecognition = false, stayOpen = false } = {}) {
+/**
+ * A page with a scripted speech recogniser and a captured synthesiser.
+ *
+ * `abortReportMs` is the interesting knob. A real engine does not go quiet when
+ * you abort() it — it reports the abort back through the very handlers the call
+ * is still wired to, one or two ticks later. The stub used to fire nothing at
+ * all from abort(), which is precisely why every teardown defect in this
+ * component was invisible to this suite: hanging up looked clean because the
+ * hang-up had nothing to come back from.
+ *
+ * `neverStarts` is the microphone prompt nobody answers: start() accepted, and
+ * then silence for ever. No handler fires, so nothing but a timeout can end it.
+ */
+async function fresh({ transcript = 'قهوة هادية', error = null, noRecognition = false, stayOpen = false, abortReportMs = 30, neverStarts = false } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'ar-KW' });
-  await ctx.addInitScript(({ transcript, error, noRecognition, stayOpen }) => {
+  await ctx.addInitScript(({ transcript, error, noRecognition, stayOpen, abortReportMs, neverStarts }) => {
     window.__said = []; window.__primed = null; window.__gestureOver = false;
     window.__vibrations = [];
     navigator.vibrate = (p) => { window.__vibrations.push(p); return true; };
@@ -33,6 +45,8 @@ async function fresh({ transcript = 'قهوة هادية', error = null, noRecog
         constructor() { this.onstart = null; this.onresult = null; this.onerror = null; this.onend = null; window.__rec = this; }
         start() {
           window.__recLang = this.lang; window.__recStarted = true;
+          // A microphone prompt left sitting on screen: accepted, then nothing.
+          if (neverStarts) return;
           // The real API fires onstart only once the microphone has been
           // granted, and that is what the component treats as the call
           // connecting. Delayed here so the ringing state is observable
@@ -48,11 +62,16 @@ async function fresh({ transcript = 'قهوة هادية', error = null, noRecog
           setTimeout(() => { window.__gestureOver = true; this.onend?.(); }, 720);
         }
         stop() { window.__stopped = true; this.onend?.(); }
-        abort() { window.__aborted = true; }
+        abort() {
+          window.__aborted = true;
+          // What Chrome actually does: onerror('aborted'), then onend, both
+          // asynchronously, on the handlers the aborted call installed.
+          setTimeout(() => { this.onerror?.({ error: 'aborted' }); this.onend?.(); }, abortReportMs);
+        }
       }
       window.SpeechRecognition = Rec;
     }
-  }, { transcript, error, noRecognition, stayOpen });
+  }, { transcript, error, noRecognition, stayOpen, abortReportMs, neverStarts });
   const p = await ctx.newPage();
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
@@ -65,6 +84,13 @@ const call = async (p) => {
   await p.waitForSelector('#wain-ai-panel', { timeout: 6000 });
 };
 const sheet = (p) => p.locator('#wain-ai-panel');
+const onCall = (p) =>
+  p.waitForFunction(
+    () => document.querySelector('#wain-ai-panel')?.textContent.includes('متصل'),
+    null, { timeout: 6000 }
+  );
+const hangUp = (p) => p.locator('#wain-ai-panel button', { hasText: 'إنهاء المكالمة' }).click();
+const callAgain = (p) => p.locator('#wain-ai-panel button', { hasText: 'اتصل مرة ثانية' }).click();
 
 console.log('\n── the button is everywhere and correctly described ──');
 {
@@ -139,6 +165,90 @@ console.log('\n── hanging up ends the call and reports how long it ran ─�
   ok('the recogniser is released, not left listening', (await p.evaluate(() => window.__aborted)) === true);
   ok('and she can be called again', t.includes('اتصل مرة ثانية'));
   await ctx.close();
+}
+
+console.log('\n── the hang-up does not come back as a failure ──');
+{
+  // The red button abort()s the engine, and the engine answers that abort a
+  // moment later through the same handlers. Nothing in this component may act
+  // on a dead call's report: it used to, and «ما سمعناك» replaced the ended
+  // call and its duration a fraction of a second after the caller hung up —
+  // a hang-up presented to them as something having gone wrong.
+  const { ctx, p, errors } = await fresh({ stayOpen: true });
+  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  await call(p);
+  await onCall(p);
+  await hangUp(p);
+  await p.waitForTimeout(400); // well past the engine's abort report
+  const t = await sheet(p).textContent();
+  ok('the ended call stays ended', t.includes('انتهت المكالمة'), t.slice(0, 140));
+  ok('no error is invented from the abort', !t.includes('ما سمعناك') && !t.includes('ما قدرنا'), t.slice(0, 140));
+  ok('and no page error', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
+console.log('\n── hanging up and calling straight back ──');
+{
+  // The same report, arriving late enough to land on the *next* call. This is
+  // the worse half of the same defect: the dying call cleared the live call's
+  // recogniser handle, so the new call no longer recognised its own onstart
+  // and rang until the caller gave up on it.
+  const { ctx, p, errors } = await fresh({ stayOpen: true, abortReportMs: 700 });
+  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  await call(p);
+  await onCall(p);
+  await hangUp(p);
+  await callAgain(p);
+  await onCall(p).catch(() => {});
+  await p.waitForTimeout(900); // let the first call's abort report land
+  const t = await sheet(p).textContent();
+  ok('the second call connects', t.includes('متصل'), t.slice(0, 140));
+  ok('the first call cannot end it', !t.includes('انتهت المكالمة') && !t.includes('ما سمعناك'), t.slice(0, 140));
+  ok('its timer is running', /[٠-٩]{2}:[٠-٩]{2}/.test(t), t.slice(0, 140));
+  ok('and no page error', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
+console.log('\n── a call that never connects gives up on its own ──');
+{
+  // No handler ever fires, so only a timeout can end this. Before there was
+  // one, the ring-back repeated every four seconds for as long as the sheet
+  // was open — the caller's only way out was the button they were waiting on.
+  const { ctx, p } = await fresh({ neverStarts: true });
+  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  await call(p);
+  // Patient first, and only then impatient: a dial timeout that fires early is
+  // worse than none, because it hangs up on the caller mid-permission-prompt.
+  await p.waitForTimeout(10_000);
+  ok('it is still ringing after ten seconds', (await sheet(p).textContent()).includes('يرن'));
+  await p.waitForSelector('#wain-ai-panel [role=alert]', { timeout: 25_000 });
+  const t = await sheet(p).textContent();
+  ok('it stops ringing and says so', !t.includes('يرن') && t.includes('طوّلنا نرن'), t.slice(0, 140));
+  ok('and offers the call again', t.includes('اتصل مرة ثانية'));
+  await ctx.close();
+}
+
+console.log('\n── the reason given matches the reason ──');
+{
+  // Every code but not-allowed used to be reported as «ما سمعناك». A vendor
+  // speech service that is unreachable is not silence on the caller's end, and
+  // telling them it is sends them back to speak louder into the same failure.
+  for (const [err, expect, label] of [
+    ['network', 'ما قدرنا نوصلك', 'the speech service is unreachable'],
+    ['audio-capture', 'ما قدرنا نوصلك', 'there is no usable microphone'],
+    // Not just «المايك» — that word is in the footer of every call sheet, so
+    // matching it would pass on any message at all. The sentence, or nothing.
+    ['service-not-allowed', 'المايك مسموح للموقع', 'the microphone is blocked by policy'],
+  ]) {
+    const { ctx, p } = await fresh({ error: err });
+    await p.goto(B + '/', { waitUntil: 'networkidle' });
+    await call(p);
+    await p.waitForSelector('#wain-ai-panel [role=alert]', { timeout: 6000 });
+    const t = await sheet(p).textContent();
+    ok(`${label}: said as itself`, t.includes(expect), `${err} → ${t.slice(0, 110)}`);
+    ok(`${label}: not reported as silence`, expect === 'ما سمعناك' || !t.includes('ما سمعناك'), t.slice(0, 110));
+    await ctx.close();
+  }
 }
 
 console.log('\n── the call connects her, and she answers ──');

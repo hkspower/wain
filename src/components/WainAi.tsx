@@ -56,6 +56,34 @@ type Phase =
  *  to read, short enough that it is not a spinner. */
 const ANSWER_MS = 700;
 
+/**
+ * How long to ring before giving up.
+ *
+ * Nothing else in the component ends a ring. `onstart` ends it by connecting
+ * and `onerror` ends it by failing, but neither is guaranteed to arrive: a
+ * microphone prompt left sitting on screen fires nothing at all, and an engine
+ * that cannot reach its vendor's speech service can simply never call back. A
+ * real phone stops after a while; this one rang for ever, once every four
+ * seconds, with the red button as the only way out.
+ */
+const DIAL_TIMEOUT_MS = 20_000;
+
+/**
+ * What the caller is told about an engine error.
+ *
+ * Every code other than `not-allowed` used to produce «ما سمعناك» — "we didn't
+ * hear you". That is wrong for most of them and actively misleading for the
+ * two that mean the vendor's speech service is unreachable, because it invites
+ * a retry into exactly the same failure. `aborted` is not in here at all: that
+ * one is us hanging up, and it is handled before this is reached.
+ */
+function errorCopy(code: string): string {
+  if (code === "not-allowed" || code === "service-not-allowed") return WAIN_AI_COPY.micDenied;
+  if (code === "no-speech") return WAIN_AI_COPY.noSpeech;
+  // network, audio-capture, bad-grammar, language-not-supported.
+  return WAIN_AI_COPY.callFailed;
+}
+
 /* Minimal typings for the vendor-prefixed Web Speech recognition API. */
 interface SpeechRecognitionLike {
   lang: string;
@@ -119,6 +147,8 @@ export default function WainAi() {
   // callable from cleanup, from every failure path, and from the moment the
   // call connects — none of which should wait for a render.
   const stopRing = useRef<(() => void) | null>(null);
+  // Gives up on a call that never connects — see DIAL_TIMEOUT_MS.
+  const dialTimer = useRef<number | null>(null);
   // The transcript as of the last result event, so onend can act on what was
   // actually heard even when the final-result event never fires.
   const heardRef = useRef("");
@@ -132,9 +162,17 @@ export default function WainAi() {
     phaseRef.current = phase;
   }, [phase]);
 
+  // Silencing the ring and giving up on the ring are the same event seen from
+  // two sides: every path that stops the ring-back — connecting, failing,
+  // hanging up — is a path where the call is no longer dialling, so the
+  // give-up timer belongs here rather than at each of those call sites.
   const silenceRing = useCallback(() => {
     stopRing.current?.();
     stopRing.current = null;
+    if (dialTimer.current !== null) {
+      window.clearTimeout(dialTimer.current);
+      dialTimer.current = null;
+    }
   }, []);
 
   /* ---- the call is over -------------------------------------------------- */
@@ -284,9 +322,24 @@ export default function WainAi() {
       setTranscript(text);
     };
     rec.onerror = (e) => {
+      // Only the recogniser this call owns may end this call. `onstart` and
+      // `onend` both checked that; this did not, and the asymmetry was the
+      // bug. Hanging up abort()s the engine, and an engine reports an abort
+      // asynchronously — a tick or two after teardown() has already moved on —
+      // so the previous call's death landed on whatever was on screen by then:
+      //
+      //   · press the red button, and «ما سمعناك» replaced the ended call and
+      //     its duration, as though the hang-up had been a failure;
+      //   · press «اتصل مرة ثانية» quickly and the old error nulled out the new
+      //     recogniser's handle, so the new call's onstart no longer recognised
+      //     itself, and the call rang until the caller gave up.
+      if (recRef.current !== rec) return;
+      // An abort we did not cause still is not a failure to report: the engine
+      // fires onend straight after, and that path answers with what was heard.
+      if (e.error === "aborted") return;
       recRef.current = null;
       silenceRing();
-      setErrorText(e.error === "not-allowed" ? WAIN_AI_COPY.micDenied : WAIN_AI_COPY.noSpeech);
+      setErrorText(errorCopy(e.error));
       setPhase("error");
     };
     // Engines end recognition on their own after a pause — that IS the
@@ -393,9 +446,16 @@ export default function WainAi() {
     setAgentFailed(false);
     silenceRing();
     stopRing.current = ringback();
+    dialTimer.current = window.setTimeout(() => {
+      dialTimer.current = null;
+      if (phaseRef.current !== "ringing") return;
+      teardown();
+      setErrorText(WAIN_AI_COPY.noAnswer);
+      setPhase("error");
+    }, DIAL_TIMEOUT_MS);
     setPhase("ringing");
     if (!WAIN_AI_AGENT_ENABLED) startListening();
-  }, [phase, startListening, silenceRing]);
+  }, [phase, startListening, silenceRing, teardown]);
 
   useEffect(() => () => teardown(), [teardown]);
 

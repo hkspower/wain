@@ -27,15 +27,18 @@ export function ringback(): () => void {
   if (!audio) return () => {};
   let live = true;
   let timer: number | undefined;
+  /** Cuts the burst that is sounding right now, as opposed to the next one. */
+  let cut: (() => void) | null = null;
 
   const burst = () => {
     if (!live) return;
     try {
       // 425Hz for a second, at a third of the chime's gain: this plays next to
       // someone's ear on a phone, and it repeats.
-      tone(audio, { hz: 425, at: 0, seconds: 1, gain: 0.06 });
+      cut = tone(audio, { hz: 425, at: 0, seconds: 1, gain: 0.06 });
     } catch {
       /* silent ring is still a working call */
+      cut = null;
     }
     timer = window.setTimeout(burst, 4000);
   };
@@ -44,6 +47,13 @@ export function ringback(): () => void {
   return () => {
     live = false;
     if (timer !== undefined) window.clearTimeout(timer);
+    // Clearing the timer only stops the ring that has not started yet. The one
+    // already in the audio graph runs for a full second whatever happens here,
+    // and a call connects at whatever point in that second it connects — so
+    // without this the caller hears شوق pick up while the phone is still
+    // ringing over the top of her, which reads as two calls, not one.
+    cut?.();
+    cut = null;
   };
 }
 
