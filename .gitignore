@@ -101,3 +101,13 @@ press/audio/capture/
 # Dev server output, when it is redirected into the repo for tailing.
 dev.log
 *.log
+
+# Scratch scripts from an investigation. These get written at the repo
+# root rather than in a scratch directory for one boring reason: a file
+# outside the project cannot resolve playwright-core from node_modules,
+# so a browser probe has to live here to run at all. One of them,
+# shot3-tmp.mjs, was committed by accident and sat in the tree for
+# weeks. The pattern is the fix, so the next one cannot.
+*-tmp.mjs
+*-tmp.js
+*-tmp.py

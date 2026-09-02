@@ -117,23 +117,65 @@ npm start
 
 ## Project structure
 
+This block is checked. `npm run check:structure` fails if a top-level
+directory exists that is not named here, or if something named here has
+gone — a map nobody maintains is worse than no map, because it is
+believed. It described only the place-directory site for a long time
+while a whole racing game grew beside it, unmentioned.
+
 ```
 src/
-├── app/
-│   ├── layout.tsx            # Root layout (navbar + footer)
-│   ├── page.tsx              # Landing page
+├── app/                      # Next.js App Router
+│   ├── page.tsx              # Wain landing page
 │   ├── explore/              # Search + category filters
 │   ├── places/[slug]/        # Place detail pages (statically generated)
 │   ├── about/                # About Wain
-│   ├── not-found.tsx         # 404 page
-│   └── globals.css           # Tailwind theme (brand & sand palettes)
-├── components/
-│   ├── Navbar.tsx
-│   ├── Footer.tsx
-│   └── PlaceCard.tsx
-└── lib/
-    └── places.ts             # Place data, categories, and helpers
+│   ├── race/                 # Gulf Road Nights — the game's UI shell
+│   ├── hub/                  # The online meet: crews, referrals, ledger
+│   ├── api/grn/              # Data API the engine ports read
+│   ├── layout.tsx            # Root layout, fonts, metadata
+│   └── globals.css           # Tailwind theme, and the game's own classes
+├── components/               # Shared site components
+├── game/                     # The game itself — engine, world, cars, audio
+└── lib/places.ts             # Place data, categories, helpers
+
+tests/         The suite. One concern per file, run by `npm run test:*`.
+tools/         Instruments, not tests: they measure and report a number
+               rather than passing or failing.
+  shots/       Browser probes that pose the game and read pixels.
+  parity/      The TypeScript import hooks the suite runs under.
+  blender/     Mesh generation for the wheels and palms.
+  elevenlabs/  Voice, music and sound-effect generation.
+scripts/       Repo-level generators and checkers: check-*, export-*.
+server/        The hub — crews, referrals, the live ledger. Deployable.
+unity/         Code-only Unity port. GRNData.cs is GENERATED.
+unreal/        Code-only UE5 port. GRNTypes.h is GENERATED.
+public/        Served assets: fonts, models, car thumbnails.
+press/         Renders and captures. Most of it is regenerated on demand
+               and ignored; press/cars/ is committed, because the shop
+               thumbnails are derived from it.
+desktop/       Electron shell for the Steam build.
+mobile/        Capacitor notes for the iOS and Android wrappers.
 ```
+
+**Generated files carry a banner and must not be hand-edited.**
+`unity/Assets/Scripts/GRNData.cs` and `unreal/.../GRNTypes.h` come from
+`npm run sync:unity` and `npm run sync:unreal`, and `npm run check:unity`
+/ `check:unreal` prove they still agree with the live API.
+
+**Two kinds of runnable file, and the difference is deliberate.** Every
+`tests/*.mjs` has an `npm run test:*` script, because the suite is meant
+to be run by name and in bulk. Most of `tools/shots/*.mjs` does not:
+those are diagnostic probes reached for during one investigation, each
+documenting its own `node tools/shots/<name>.mjs` invocation in its
+header. Giving all 54 an npm script would add noise to a list of 114
+without making any of them easier to find.
+
+**The npm scripts are grouped and each group is contiguous** — run it,
+ship it, regenerate, check without a browser, check with one, the suite,
+media. `check:structure` fails if a group gets split again, which is
+what had happened: 114 scripts in 27 separate blocks, `test:` alone in
+five of them.
 
 ## Adding a place
 
