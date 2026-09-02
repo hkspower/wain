@@ -72,11 +72,43 @@ If it shows the homepage canonical, something above was overwritten — restore
 the .htaccess and nothing else is affected.
 
 
-ONE MORE THING ON THAT SERVER
+WHICH FORM SHOULD OWN /returns/request — ANSWERED
 
-return-request.php (790 lines) sits in public_html and its own header says
-/returns/request is rewritten to it. The live .htaccess has no such rule, so
-today it is reachable only at /return-request.php. It has no copy in the repo.
-Decide which of the two you want serving that path before adding the rule
-above — they are two different implementations of the same form, and the rule
-will point at the HTML one.
+The earlier draft of this note left that open. It is not open; it just needed
+checking, and the check has been done.
+
+return-request.php (790 lines, on the server, no copy in the repo) says in its
+own header that it exists because the rules making a return valid — fourteen
+days from delivery, women's clothing cannot be exchanged, you may only send
+back what you bought and no more of it than you bought — are rules about data
+the browser must not be trusted with, so they have to be enforced where the
+order lives.
+
+That reasoning is right, and every one of those rules is now enforced in
+api.php via store.php, which is what returns-request.html posts to:
+
+  fourteen days   STORE_RETURN_DAYS = 14, in store_return_window()
+  women's items   'no_exchange' => category === 'women', refused for exchanges
+  only what you   $qty > $line['available'] is refused — 'available' is the
+  actually bought quantity on the line minus what has already been asked about
+  it is your order store_return_lookup() requires the track id AND the order's
+                  own phone, compared in canonical 965 form
+
+So the newer path is a superset, not a replacement that lost something. It is
+also better in two places: the window runs from fulfilled_at rather than the
+order date, so a customer is not charged for the shop's own delivery time; and
+a wrong reference and a wrong phone return ONE shared error, so the endpoint
+cannot be used to test whether an order number exists.
+
+It is covered end to end by `npm run test:returns`, which passes.
+
+RECOMMENDATION: add the rules above as written — /returns/request goes to
+returns-request.html. Then retire return-request.php.
+
+RETIRING IT MATTERS MORE THAN IT LOOKS. Once the rule is added, nothing routes
+to that file, but it stays reachable at /return-request.php and it still
+writes return requests to the same tables with its own copy of the validation.
+Two write paths into one table, one of them unmaintained and no longer read by
+anybody, is how a rule gets tightened in one place and quietly not in the
+other. Rename it to return-request.php.off or delete it once the new path has
+taken a real request.
