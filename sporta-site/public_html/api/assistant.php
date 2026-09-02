@@ -368,6 +368,47 @@ function assistant_size_token(string $raw): ?string
 //
 // The cue words and size words are stripped BEFORE matching, so "available",
 // "in stock" and "L" never masquerade as product names.
+// THE PLURAL, WHICH IS HOW MOST PEOPLE ASK.
+//
+// "Do you have jackets" found nothing at all. The match is a substring one
+// against the stored name, the names are singular — "Sculpt Jacket" — and
+// '%jackets%' is not inside it. The shop sold ten jackets and replied "I did
+// not quite follow that."
+//
+// It looked like it worked because the words tried first happen to be stored
+// plural: "leggings" and "shorts" match "Leggings" and "Shorts", and the
+// singular "legging" matches too, being a substring of the plural. Only the
+// asked-plural/stored-singular direction was broken, and it covers jackets,
+// tops, sweatshirts, t-shirts, caps and every other garment named singular.
+//
+// Each word keeps its own list: the original AS WELL AS its singular forms,
+// never instead. Widening can only add matches, so nothing that answers today
+// stops answering. Both -ies readings are tried because English does not say
+// which applies — "hoodies" is hoodie+s, "berries" is berry+ies — and a wrong
+// stem simply matches nothing, which costs one LIKE.
+//
+// SHARED BY BOTH MATCHERS. availability and search each split words their own
+// way and only availability was taught the plural, which is precisely how
+// "jackets" started working in one sentence and not the other. One function,
+// so they cannot drift again.
+function assistant_word_forms(array $words): array
+{
+    $out = [];
+    foreach ($words as $w) {
+        $f = [$w];
+        if (mb_strlen($w) >= 5 && preg_match('/(ches|shes|sses|xes)$/u', $w)) {
+            $f[] = mb_substr($w, 0, -2);                       // dresses -> dress
+        } elseif (mb_strlen($w) >= 5 && preg_match('/ies$/u', $w)) {
+            $f[] = mb_substr($w, 0, -1);                       // hoodies -> hoodie
+            $f[] = mb_substr($w, 0, -3) . 'y';                 // berries -> berry
+        } elseif (mb_strlen($w) >= 4 && preg_match('/s$/u', $w) && !preg_match('/(ss|us|is)$/u', $w)) {
+            $f[] = mb_substr($w, 0, -1);                       // jackets -> jacket
+        }
+        $out[] = array_values(array_unique(array_filter($f, fn ($x) => mb_strlen($x) >= 2)));
+    }
+    return $out;
+}
+
 function assistant_match_products(PDO $db, string $text): array
 {
     $t = assistant_normalise($text);
@@ -398,21 +439,30 @@ function assistant_match_products(PDO $db, string $text): array
     }, $words);
     if (!$words) return [];
 
-    $where = implode(' or ', array_fill(0, count($words),
+    $forms = assistant_word_forms($words);
+    $flat = array_merge(...$forms);
+    $where = implode(' or ', array_fill(0, count($flat),
         '(name_en like ? or name_ar like ? or slug like ? or category like ?)'));
     $args = [];
-    foreach ($words as $w) { $like = '%' . $w . '%'; array_push($args, $like, $like, $like, $like); }
+    foreach ($flat as $w) { $like = '%' . $w . '%'; array_push($args, $like, $like, $like, $like); }
     $q = $db->prepare("select slug, name_en, name_ar, price, sale_price, category
                        from products where active = 1 and ($where) limit 40");
     $q->execute($args);
     $rows = $q->fetchAll();
     if (!$rows) return [];
 
+    // Scored per WORD, not per form: "jackets" matching both 'jackets' and
+    // 'jacket' is one thing the customer asked for, and counting it twice would
+    // outrank a product that genuinely matched two different words.
     $best = 0;
     foreach ($rows as &$r) {
         $hay = assistant_normalise($r['name_en'] . ' ' . $r['name_ar'] . ' ' . $r['slug'] . ' ' . $r['category']);
         $score = 0;
-        foreach ($words as $w) if (mb_strpos($hay, $w) !== false) $score++;
+        foreach ($forms as $variants) {
+            foreach ($variants as $w) {
+                if (mb_strpos($hay, $w) !== false) { $score++; break; }
+            }
+        }
         $r['_score'] = $score;
         if ($score > $best) $best = $score;
     }
@@ -485,9 +535,13 @@ function assistant_search(PDO $db, array $cfg, string $text, bool $ar): array
 
     $found = [];
     if ($words) {
-        $where = implode(' or ', array_fill(0, count($words), '(name_en like ? or name_ar like ? or category like ?)'));
+        // Same plural widening as availability, and from the same function:
+        // a bare "jackets" reaches search rather than availability, so without
+        // this the shop answered "do you have jackets" and not "jackets".
+        $flat = array_merge(...assistant_word_forms($words));
+        $where = implode(' or ', array_fill(0, count($flat), '(name_en like ? or name_ar like ? or category like ?)'));
         $args = [];
-        foreach ($words as $w) { $like = '%' . $w . '%'; $args[] = $like; $args[] = $like; $args[] = $like; }
+        foreach ($flat as $w) { $like = '%' . $w . '%'; $args[] = $like; $args[] = $like; $args[] = $like; }
         $q = $db->prepare("select slug, name_en, name_ar, price, sale_price, category
                            from products where active = 1 and ($where) limit 4");
         $q->execute($args);
@@ -534,6 +588,57 @@ function assistant_recommend(PDO $db, array $cfg, bool $ar): array
 // a human on exactly the two branches where self-serve has genuinely run out:
 // every size sold out, or no product identifiable. It NEVER guesses a restock
 // date, because the shop does not hold one.
+// What to CALL a set of matched products in a sentence.
+//
+// The reply used to say $fam[0] — the first row the query happened to return.
+// So "do you have leggings" answered "Cloudsoft Leggings — Army Green is in
+// stock now... Which size would you like?" while showing six colours
+// underneath. The customer asked about a garment and was told about one
+// arbitrary colour of it, as though the choice had already been made for them,
+// and Army Green won only by sort order.
+//
+// The stored names are "<garment> — <colour>" in both languages, so when every
+// match shares a garment that is the honest thing to name, with the colour
+// count saying the rest. A single match keeps its full name, colour and all.
+// $plural comes back true when the phrase names more than one GARMENT, so the
+// sentence around it can agree. "Cloudsoft Jacket and Define Jacket is in
+// stock" is the kind of thing that makes a shop sound automated, and it is the
+// sentence this function started producing the moment it learned to list.
+// Colours of one garment stay singular: "Sculpt Jacket (4 colours) is".
+function assistant_family_name(array $rows, bool $ar, ?bool &$plural = null): string
+{
+    $plural = false;
+    $full = fn (array $r) => (string) ($ar ? $r['name_ar'] : $r['name_en']);
+    if (count($rows) === 1) return $full($rows[0]);
+
+    $bases = [];
+    foreach ($rows as $r) {
+        $parts = preg_split('/\s+—\s+/u', $full($r), 2);
+        $bases[trim($parts[0])] = true;
+    }
+    // Several different garments — "jackets" matches Cloudsoft, Define and
+    // Sculpt. Naming the first would be the original fault again, and naming a
+    // category ("we have jackets") would put a word in the shop's mouth that
+    // its catalogue does not use. So list what was actually found, by name, and
+    // stop at three: past that the cards below say it better than a sentence.
+    $names = array_keys($bases);
+    if (count($bases) !== 1) {
+        $plural = true;
+        $and = $ar ? ' و' : ' and ';
+        if (count($names) <= 3) {
+            $last = array_pop($names);
+            return $names ? implode($ar ? '، ' : ', ', $names) . $and . $last : $last;
+        }
+        $n = count($names);
+        return $ar ? implode('، ', array_slice($names, 0, 3)) . " و$n أنواع أخرى"
+                   : implode(', ', array_slice($names, 0, 3)) . " and " . ($n - 3) . " more";
+    }
+
+    $base = $names[0];
+    $n = count($rows);
+    return $ar ? "$base (متوفر بـ $n ألوان)" : "$base ($n colours)";
+}
+
 function assistant_availability(PDO $db, array $cfg, string $text, bool $ar): array
 {
     $phone = (string) ($cfg['shop_phone'] ?? '+965 22091914');
@@ -556,7 +661,10 @@ function assistant_availability(PDO $db, array $cfg, string $text, bool $ar): ar
     $vq->execute($slugs);
     $variants = $vq->fetchAll();
 
-    $name = $ar ? $fam[0]['name_ar'] : $fam[0]['name_en'];
+    $name = assistant_family_name($fam, $ar, $famPlural);
+    // English marks agreement on the verb and this phrase may name several
+    // garments; Arabic's predicate here is invariant, so only $is varies.
+    $is = $famPlural ? 'are' : 'is';
     $size = assistant_size_token($text);
 
     // BRANCH 3 — ONE-SIZE. Row-existence is checked FIRST: a product with no
@@ -567,13 +675,20 @@ function assistant_availability(PDO $db, array $cfg, string $text, bool $ar): ar
             ? ($size !== null ? "$name مقاس واحد فلا يوجد مقاس $size تحديدًا — " : "")
               . "$name مقاس واحد ومتاح للطلب الآن من صفحته. التوصيل داخل الكويت خلال ٢٤ ساعة برسوم ١ د.ك."
             : ($size !== null ? "$name is one-size, so there's no separate $size — " : "")
-              . "$name is available to order now from its page. Delivery is inside Kuwait within 24 hours for 1 KWD.";
+              . "$name $is available to order now from its page. Delivery is inside Kuwait within 24 hours for 1 KWD.";
         return [$reply, assistant_products_payload($db, $fam, $ar)];
     }
 
     // SIZED. Fold the family's rows into: which sizes are in stock at all, and
     // which colours carry the requested size in stock.
-    $rank = ['XS' => 0, 'S' => 1, 'M' => 2, 'L' => 3, 'XL' => 4, '2XL' => 5, '3XL' => 6];
+    // Every size the shop sells, in the order a person reads them. 4XL and 5XL
+    // were missing and both fell to the ?? 99 default, so they tied with each
+    // other and came out in whatever order the database happened to return —
+    // "S, M, L, XL, 2XL, 3XL, 5XL, 4XL" is a sentence that makes a shop look
+    // careless. It rarely showed before, because almost no product carried
+    // those sizes; every sized product carries them now.
+    $rank = ['XS' => 0, 'S' => 1, 'M' => 2, 'L' => 3, 'XL' => 4,
+             '2XL' => 5, '3XL' => 6, '4XL' => 7, '5XL' => 8];
     $inStock = [];          // size => true (anywhere in the family, stock>0)
     $hasSize = [];          // slug => true (this colour has the asked size in stock)
     foreach ($variants as $v) {
@@ -589,9 +704,14 @@ function assistant_availability(PDO $db, array $cfg, string $text, bool $ar): ar
     // that actually carry it, so an Add leads only to a size that exists.
     if ($size !== null && $hasSize) {
         $buy = array_values(array_filter($fam, fn ($p) => isset($hasSize[$p['slug']])));
+        // Named from the colours that actually carry the size, not the whole
+        // family: saying "6 colours" and then showing the two that have an XL
+        // is a promise the next screen breaks.
+        $buyName = assistant_family_name($buy, $ar, $buyPlural);
+        $buyIs = $buyPlural ? 'are' : 'is';
         $reply = $ar
-            ? "نعم — $name متوفر بمقاس $size. اختر $size في صفحة المنتج وأضِفه إلى السلة، والتوصيل لأي منطقة في الكويت خلال ٢٤ ساعة برسوم ١ د.ك."
-            : "Yes — $name is in stock in size $size. Pick $size on the product page and add it to your bag; delivery is anywhere in Kuwait within 24 hours for 1 KWD.";
+            ? "نعم — $buyName متوفر بمقاس $size. اختر $size في صفحة المنتج وأضِفه إلى السلة، والتوصيل لأي منطقة في الكويت خلال ٢٤ ساعة برسوم ١ د.ك."
+            : "Yes — $buyName $buyIs in stock in size $size. Pick $size on the product page and add it to your bag; delivery is anywhere in Kuwait within 24 hours for 1 KWD.";
         return [$reply, assistant_products_payload($db, $buy, $ar)];
     }
 
@@ -608,7 +728,7 @@ function assistant_availability(PDO $db, array $cfg, string $text, bool $ar): ar
     if (!$sizes) {
         $reply = $ar
             ? "$name غير متوفر حاليًا بجميع المقاسات. لن أخمّن موعد توفّره — أرسل رقمك على $phone ويخبرك أحد الزملاء أول ما يرجع."
-            : "$name is currently out of stock in every size. I won't guess when it's back — send your number to $phone and a colleague will let you know the moment it returns.";
+            : "$name $is currently out of stock in every size. I won't guess when it's back — send your number to $phone and a colleague will let you know the moment it returns.";
         return [$reply, null];
     }
 
@@ -619,7 +739,7 @@ function assistant_availability(PDO $db, array $cfg, string $text, bool $ar): ar
     }));
     $reply = $ar
         ? "$name متوفر الآن بمقاسات: $sizesList. أي مقاس تريد؟"
-        : "$name is in stock now in sizes: $sizesList. Which size would you like?";
+        : "$name $is in stock now in sizes: $sizesList. Which size would you like?";
     return [$reply, assistant_products_payload($db, $buy ?: $fam, $ar)];
 }
 

@@ -188,6 +188,104 @@ check(forged.body?.data === null || forged.body?.data?.paid !== true,
 // Unauthenticated, and every call can reach a metered model. This checks the
 // ceiling EXISTS; what it is set to is api.php's business.
 //
+// --- the plural, which is how most people ask ------------------------------
+//
+// "Do you have jackets" answered "I did not quite follow that" while the shop
+// had ten of them. The match is a substring one against the stored name, the
+// names are singular — "Sculpt Jacket" — and '%jackets%' is not inside it.
+//
+// Nothing here noticed for two reasons worth keeping in mind. This file tested
+// order lookup, throttling and prompt injection but never once asked the
+// assistant about a product, which is what customers mostly ask about. And the
+// words a developer reaches for first — "leggings", "shorts" — are stored
+// plural, so they matched and the fault looked like it did not exist.
+//
+// So the assertion is deliberately made in BOTH numbers against garments whose
+// stored names differ in number, and it reads the catalogue rather than
+// hard-coding names: a rig that says "jackets" forever is a rig that goes green
+// when the shop stops selling jackets.
+const catalogue = await (await fetch(`${API}/api.php?r=products`)).json()
+const catNames = (Array.isArray(catalogue) ? catalogue : catalogue.products ?? [])
+  .map((p) => String(p.name_en ?? p.name ?? ''))
+
+// A garment word stored SINGULAR — the direction that was broken.
+const singularWord = ['Jacket', 'Top', 'Sweatshirt', 'T-Shirt', 'Cap']
+  .find((w) => catNames.some((n) => n.includes(w)))
+
+if (!singularWord) {
+  note('no singular-named garment in the catalogue — nothing to test the plural against')
+} else {
+  const one = singularWord.toLowerCase()
+  const many = one.endsWith('s') ? one : `${one}s`
+  const items = (r) => (r.body?.data?.items ?? []).length
+
+  const sing = await ask(one, 'en')
+  const plur = await ask(many, 'en')
+  check(items(sing) > 0, `"${one}" finds products (${items(sing)})`)
+  check(items(plur) > 0,
+    `"${many}" finds them too — the plural is how people ask (${items(plur)})`)
+
+  // And through the availability path, which is a different matcher. It had
+  // the same fault and was fixed in the same place; this is what stops the two
+  // drifting apart again.
+  const avail = await ask(`do you have ${many}`, 'en')
+  check(items(avail) > 0,
+    `"do you have ${many}" finds them (${items(avail)})`)
+  check(!/did not quite follow/i.test(String(avail.body?.reply ?? '')),
+    `and does not claim to have misunderstood a plain question about stock`)
+}
+
+// --- the sizes are listed in the order a person reads them -----------------
+//
+// 4XL and 5XL were missing from the rank table, so both fell to the same
+// default and came out in whatever order the database returned. It hardly
+// showed while almost nothing carried those sizes; every sized product carries
+// them now, so a wrong order would be on most answers.
+// ASSERTED AGAINST THE SOURCE, NOT THE REPLY, and that is the point. Reading
+// the sizes out of an answer looks like the stronger test and is the weaker
+// one: usort is stable, so two sizes sharing the ?? 99 default keep whatever
+// order the database returned, and here that order happens to be correct. The
+// check passed with the bug reintroduced — it could not fail, so it proved
+// nothing. A test that cannot fail is worse than no test, because it is
+// counted.
+//
+// The real invariant is that the rank table knows every size the shop sells.
+// That is exactly what was untrue, and it is checkable directly.
+{
+  const src = readFileSync(new URL('../sporta-site/public_html/api/assistant.php', import.meta.url), 'utf8')
+  const table = src.match(/\$rank\s*=\s*\[([^\]]+)\]/)?.[1] ?? ''
+  const ranked = [...table.matchAll(/'([^']+)'\s*=>/g)].map((m) => m[1])
+  const sold = (await (await fetch(`${API}/api.php?r=size_chart`)).json().catch(() => null))
+  const sizes = Array.isArray(sold)
+    ? [...new Set(sold.map((r) => String(r.size ?? '')).filter(Boolean))]
+    : [...new Set((stock ?? []).map((r) => String(r.size ?? '')).filter(Boolean))]
+  const unranked = sizes.filter((s) => !ranked.includes(s))
+  check(ranked.length > 0, `assistant.php ranks sizes for ordering (${ranked.length} known)`)
+  check(unranked.length === 0,
+    `every size the shop sells has a rank, so the list cannot come out jumbled`
+    + (unranked.length ? ` — missing ${unranked.join(', ')}` : ` (${sizes.length} sizes)`))
+}
+
+// --- one colour is not the answer to a question about a garment ------------
+//
+// The reply named $fam[0] — the first row the query happened to return — so
+// "do you have leggings" answered "Cloudsoft Leggings — Army Green is in stock
+// ... Which size would you like?" while showing six colours underneath. Army
+// Green won on sort order alone, and the sentence read as though the choice
+// had already been made for the customer.
+const fam = await ask('do you have leggings', 'en')
+const famItems = fam.body?.data?.items ?? []
+if (famItems.length > 1) {
+  const reply = String(fam.body?.reply ?? '')
+  const colours = famItems
+    .map((p) => String(p.name ?? '').split('—')[1]?.trim())
+    .filter(Boolean)
+  const named = colours.filter((c) => reply.includes(c))
+  check(named.length === 0,
+    `${famItems.length} colours shown, and the sentence singles none of them out`
+    + (named.length ? ` — named ${named.join(', ')}` : ''))
+}
+
 // THE CEILING IS READ OUT OF api.php, not written down here. It was hard-coded
 // as 34 requests against a limit of 30, and when the limit was raised to 60
 // the burst simply stopped reaching it — the check went green while proving
