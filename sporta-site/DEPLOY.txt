@@ -38,8 +38,43 @@ CHECK AFTERWARDS
 
 
 -------------------------------------------------------------------------
-STAGE 2 — SPORTA-2-BACKEND.zip     56 files, 447 KB
+STAGE 2 — SPORTA-2-BACKEND.zip     57 files, 452 KB
 -------------------------------------------------------------------------
+
+  ┌───────────────────────────────────────────────────────────────────────┐
+  │ DO THIS ONE THING FIRST: open the live knet/config.php and add        │
+  │                                                                       │
+  │     'mode' => 'legacy',                                               │
+  │                                                                       │
+  │ It takes ten seconds and it removes the only way this stage can cost  │
+  │ you money.                                                            │
+  └───────────────────────────────────────────────────────────────────────┘
+
+  WHY. Stage 2 replaces the KNET and T-Pay code — seven of the eight files in
+  knet/ and pay/ differ from what you are running, and knet/knet.php nearly
+  doubles in size. That is the work that taught the shop to tell a legacy
+  Tranportal account from CBK's official hosted page, and it is the highest
+  risk thing in either zip.
+
+  The new code decides which of the two you are on. With 'mode' set, it
+  believes you and there is nothing to go wrong. WITHOUT it, it works the
+  answer out from your credentials, and it answers "legacy" only if
+  tranportal_id, tranportal_password and resource_key are all present, none is
+  a placeholder, AND resource_key is EXACTLY 16 characters. If any of that is
+  not true it concludes "official" and starts sending customers to the CBK
+  hosted page instead of your Tranportal account.
+
+  I cannot check that for you. The Hostinger API refuses to hand over files it
+  identifies as holding credentials — which is correct of it — so I have never
+  seen your live knet/config.php and cannot tell you how long that key is.
+
+  Setting 'mode' => 'legacy' makes the question moot. The autodetect is a
+  safety net for a config nobody has touched; it is not the thing to lean on
+  when a wrong answer means card payments going somewhere else.
+
+  AFTER EXTRACTING, PUT ONE REAL ORDER THROUGH KNET. Not the self-test — a
+  real card. It is the only check that proves the money still lands where it
+  should, and it is worth the 1 KWD.
 Upload to public_html and Extract, overwriting.
 
 The server side: 10 PHP files that differ from yours, 7 that are missing
@@ -78,8 +113,8 @@ THEN THREE SMALL THINGS
    public_html, so no URL reaches them. Read one while signed in at
    /api/invoice-file.php?id=SP..., or omit the id to list the archive.
 
-3. KNET, still outstanding from earlier: set 'mode' => 'legacy' in the live
-   knet/config.php, run the self-test and one real transaction, then set
+3. KNET — AND READ THE BOX ABOVE STAGE 2 FIRST. Set 'mode' => 'legacy' in the
+   live knet/config.php, run the self-test and one real transaction, then set
    'env' => 'production' and delete knet/selftest.php.
 
 
