@@ -86,11 +86,21 @@ jobs:
       - name: Report what the build was wired to
         env:
           URL: ${{ vars.SUPABASE_URL }}
+          AGENT: ${{ vars.ELEVENLABS_AGENT_ID }}
         run: |
           if [ -n "$URL" ]; then
             echo "Supabase: configured"
           else
             echo "::warning::Supabase is NOT configured — this build ships with ordering, the queue and the submission form inert. Set the SUPABASE_URL variable and SUPABASE_ANON_KEY secret to enable them."
+          fi
+          # Same reasoning as Supabase, and the same quiet failure: unset, the
+          # call button still works but falls back to the browser's own speech
+          # recognition — one question per call, no conversation, and no شوق.
+          # That is a working site, so nothing else would ever report it.
+          if [ -n "$AGENT" ]; then
+            echo "شوق: agent mode ($AGENT)"
+          else
+            echo "::warning::NEXT_PUBLIC_ELEVENLABS_AGENT_ID is NOT set — the call button falls back to browser speech recognition instead of talking to شوق. Set the ELEVENLABS_AGENT_ID variable (see docs/wain-ai-agent.md) to enable agent mode."
           fi
 
       - name: Verify build output

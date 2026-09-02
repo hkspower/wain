@@ -9,10 +9,11 @@
  * engine reads — so audio and fallback text cannot drift apart.
  *
  * Usage:
- *   ELEVENLABS_API_KEY=...            # api key (required)
- *   ELEVEN_VOICE_SHOUQ=<voice-id>     # young Kuwaiti female voice (required)
- *   ELEVEN_VOICE_SALEM=<voice-id>     # young Kuwaiti male voice (required)
+ *   ELEVENLABS_API_KEY=...            # api key — the only required one
+ *   ELEVEN_VOICE_SHOUQ=<voice-id>     # override شوق's voice
+ *   ELEVEN_VOICE_SALEM=<voice-id>     # override سالم's voice
  *   ELEVEN_MODEL=eleven_multilingual_v2   # optional override
+ *   ELEVEN_FORMAT=mp3_44100_64            # optional override
  *
  *   node scripts/gen-voice.mjs --sample   # ONE call: hear شوق before the rest
  *   node scripts/gen-voice.mjs            # generate missing and changed clips
@@ -41,11 +42,78 @@ const CI = args.has("--ci");
 const SAMPLE = args.has("--sample");
 
 const API_KEY = process.env.ELEVENLABS_API_KEY;
-const VOICE_IDS = {
-  shouq: process.env.ELEVEN_VOICE_SHOUQ,
-  salem: process.env.ELEVEN_VOICE_SALEM,
+
+/**
+ * The voices, when the environment does not name one.
+ *
+ * Chosen from what the workspace and the library actually hold, not from a
+ * wishlist. The constraint that settled شوق: there is no young Kuwaiti female
+ * voice in the ElevenLabs library at all. The only two `ar-kuwaiti` female
+ * voices are both «Maryam», both recorded middle-aged, calm and unhurried for
+ * storytelling. Everything young and female in Arabic is Levantine, Egyptian,
+ * Syrian or Omani — and a Kuwaiti hears a Levantine «شلونك» instantly, while
+ * the difference between twenty-five and forty is a thing you can push with
+ * delivery. So accent wins the voice and RENDITION carries the age.
+ *
+ * سالم takes the Gulf male voice rather than either Modern Standard one, for
+ * the same reason.
+ *
+ * ELEVEN_VOICE_SHOUQ / ELEVEN_VOICE_SALEM still override, and swapping either
+ * now re-records — see the digest below, which did not use to include it.
+ */
+const DEFAULT_VOICE_IDS = {
+  shouq: "w0uhBAmNIG5kUDeaFEsA", // Maryam Essa — ar-kuwaiti, female, warm
+  salem: "Ywuz3KyW2N5pqKNpwcCL", // Eid — Gulf male, warm and clear
 };
+const VOICE_IDS = {
+  shouq: process.env.ELEVEN_VOICE_SHOUQ || DEFAULT_VOICE_IDS.shouq,
+  salem: process.env.ELEVEN_VOICE_SALEM || DEFAULT_VOICE_IDS.salem,
+};
+
+/**
+ * How each persona is voiced.
+ *
+ * This used to be one flat block shared by both, which is wrong twice over.
+ * شوق and سالم are not the same person, and the voice شوق has to use is
+ * recorded calm and unhurried — which is not what someone answering «وين
+ * أروح؟» sounds like.
+ *
+ * Stability is the lever. Lower means more varied and more expressive, and
+ * expressiveness is most of what reads as young; style exaggerates the
+ * speaker's own delivery on top of that, but past roughly 0.5 it starts
+ * inventing artefacts on Arabic, so 0.45 is as far as this goes. Speed carries
+ * the rest: a guide is brisk, a narrator is not.
+ *
+ * These follow the documented meaning of each parameter and the direction the
+ * brief asks for; they are not a claim about how the result sounds. Run
+ * `--sample` — one call — and listen before spending the other 225.
+ */
+const RENDITION = {
+  shouq: {
+    stability: 0.35,
+    similarity_boost: 0.8,
+    style: 0.45,
+    use_speaker_boost: true,
+    speed: 1.06,
+  },
+  salem: {
+    stability: 0.45,
+    similarity_boost: 0.8,
+    style: 0.3,
+    use_speaker_boost: true,
+    speed: 1.0,
+  },
+};
+
+// eleven_multilingual_v2 on purpose, not turbo: turbo trades quality for
+// latency, and nothing here is realtime — every clip is rendered once at build
+// time and served as a static file.
 const MODEL = process.env.ELEVEN_MODEL ?? "eleven_multilingual_v2";
+
+// 64kbps rather than 128. These are short spoken lines over a mobile
+// connection, where speech at 64 is indistinguishable and the file is half the
+// size — and this site counts its bytes everywhere else.
+const OUTPUT_FORMAT = process.env.ELEVEN_FORMAT ?? "mp3_44100_64";
 
 if (!DRY && !API_KEY) {
   if (CI) {
@@ -55,19 +123,11 @@ if (!DRY && !API_KEY) {
   console.error("gen-voice: ELEVENLABS_API_KEY is required (see docs/voice-setup.md).");
   process.exit(1);
 }
-// --sample only records شوق, so it only needs her voice — somebody smoke-testing
-// their key has usually picked one voice, not both.
-if (!DRY && SAMPLE && !VOICE_IDS.shouq) {
-  console.error("gen-voice --sample: set ELEVEN_VOICE_SHOUQ to an ElevenLabs voice ID.");
-  process.exit(1);
-}
-if (!DRY && !SAMPLE && (!VOICE_IDS.shouq || !VOICE_IDS.salem)) {
-  console.error(
-    "gen-voice: set ELEVEN_VOICE_SHOUQ and ELEVEN_VOICE_SALEM to ElevenLabs voice IDs.\n" +
-      "Pick them from the ElevenLabs Voice Library (docs/voice-setup.md)."
-  );
-  process.exit(1);
-}
+// The two guards that used to stand here refused to run without
+// ELEVEN_VOICE_SHOUQ and ELEVEN_VOICE_SALEM. Both voices now have a default
+// chosen from the library, so there is nothing left to refuse: an override that
+// is set is used, and one that is not falls back to a real voice rather than to
+// an error message telling somebody to go and pick one.
 
 // voice-lines.ts is TypeScript — bundle it (plus the place data it needs)
 // into a temp ESM file we can import from Node.
@@ -138,16 +198,16 @@ async function sample() {
 
   console.log(`\nشوق — one sample, ${MODEL}, voice ${voiceId}\n`);
   console.log(text + "\n");
-  await tts(voiceId, text, outFile);
+  await tts(voiceId, text, outFile, RENDITION.shouq);
   console.log(`Wrote ${path.relative(root, outFile)}. Listen before generating the rest.`);
 }
 
-async function tts(voiceId, text, outFile) {
+async function tts(voiceId, text, outFile, settings) {
   // Overridable so the pipeline itself can be tested — the hashing, the
   // staleness decision and the manifest are worth exercising without spending
   // 226 paid calls to do it. See tests/voice-pipeline.test.mjs.
   const base = process.env.ELEVEN_API_BASE ?? "https://api.elevenlabs.io";
-  const url = `${base}/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`;
+  const url = `${base}/v1/text-to-speech/${voiceId}?output_format=${OUTPUT_FORMAT}`;
   for (let attempt = 1; attempt <= 4; attempt++) {
     const res = await fetch(url, {
       method: "POST",
@@ -155,12 +215,7 @@ async function tts(voiceId, text, outFile) {
       body: JSON.stringify({
         text,
         model_id: MODEL,
-        voice_settings: {
-          stability: 0.45,
-          similarity_boost: 0.8,
-          style: 0.3,
-          use_speaker_boost: true,
-        },
+        voice_settings: settings,
       }),
     });
     if (res.ok) {
@@ -192,7 +247,27 @@ async function tts(voiceId, text, outFile) {
  * clip whose text no longer matches is re-recorded. That is what makes the
  * promise in voice-lines.ts true rather than merely stated.
  */
-const digest = (text) => createHash("sha256").update(text, "utf8").digest("hex").slice(0, 16);
+/**
+ * ...and the same hole existed one level up.
+ *
+ * The hash covered the sentence and nothing else, so the manifest recorded the
+ * voice and the model but never compared them. Change شوق's voice, her
+ * stability, her speed, or the model, and every existing clip counted as
+ * current: the site kept playing the old rendition for ever and nothing said
+ * so. That is exactly the failure described above, and it bites hardest at the
+ * moment someone sets out to improve how she sounds — the change appears to
+ * succeed and is silently discarded.
+ *
+ * The rendition is now part of the identity of a clip, because it is.
+ */
+const digest = (text, voiceId, settings) =>
+  createHash("sha256")
+    .update(
+      JSON.stringify({ text, voiceId, model: MODEL, format: OUTPUT_FORMAT, settings }),
+      "utf8"
+    )
+    .digest("hex")
+    .slice(0, 16);
 
 const previous = (() => {
   try {
@@ -207,14 +282,23 @@ if (SAMPLE) {
   process.exit(0);
 }
 
-const manifest = { version: 2, model: MODEL, personas: {}, clips: {}, hashes: {} };
+const manifest = {
+  version: 2,
+  model: MODEL,
+  format: OUTPUT_FORMAT,
+  personas: {},
+  clips: {},
+  hashes: {},
+  texts: {},
+};
 let generated = 0;
 let restated = 0;
 let skipped = 0;
 
 for (const persona of personaIds) {
   const voiceId = VOICE_IDS[persona];
-  manifest.personas[persona] = { voiceId };
+  const settings = RENDITION[persona];
+  manifest.personas[persona] = { voiceId, settings };
   const outDir = path.join(root, "public/voice", persona);
   await mkdir(outDir, { recursive: true });
 
@@ -228,7 +312,7 @@ for (const persona of personaIds) {
     const text = forSpeech(raw);
     const id = `${persona}/${key}`;
     const outFile = path.join(outDir, `${key}.mp3`);
-    const hash = digest(text);
+    const hash = digest(text, voiceId, settings);
     // A clip is current only if the file is there AND it was recorded from
     // this exact sentence. A version-1 manifest has no hashes at all, so its
     // clips are all treated as stale once — which is correct, since nothing
@@ -237,16 +321,27 @@ for (const persona of personaIds) {
     if (existsSync(outFile) && !FORCE && !stale) {
       skipped++;
     } else {
-      const why = existsSync(outFile) && stale ? "line changed" : "new";
+      // "line changed" is no longer the only reason a clip goes stale — the
+      // voice, the settings, the model and the format are all part of the hash
+      // now, so say "rendition changed" when the sentence itself is the same.
+      const why = !existsSync(outFile)
+        ? "new"
+        : previous.texts?.[id] === text
+          ? "rendition changed"
+          : "line changed";
       process.stdout.write(`  ${id} (${why}) … `);
-      await tts(voiceId, text, outFile);
+      await tts(voiceId, text, outFile, settings);
       console.log("ok");
-      if (why === "line changed") restated++;
+      if (why !== "new") restated++;
       generated++;
       await sleep(350); // be gentle with the API
     }
     manifest.clips[id] = `/voice/${persona}/${key}.mp3`;
     manifest.hashes[id] = hash;
+    // The sentence itself, alongside the hash of the whole rendition. Kept so
+    // the next run can tell a changed LINE from a changed VOICE — a hash can
+    // only say that something moved, not which thing.
+    manifest.texts[id] = text;
   }
 }
 
@@ -255,6 +350,6 @@ await writeFile(
   JSON.stringify(manifest, null, 2) + "\n"
 );
 console.log(
-  `\ngen-voice: ${generated} generated (${restated} because the line changed), ` +
+  `\ngen-voice: ${generated} generated (${restated} re-recorded), ` +
     `${skipped} kept, ${Object.keys(manifest.clips).length} clips in manifest.`
 );

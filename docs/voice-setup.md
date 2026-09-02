@@ -12,22 +12,44 @@ by `scripts/gen-voice.mjs` and shipped as part of the site under
 browser's own Arabic voice reads the same sentences (the shared source of
 truth is `src/lib/voice-lines.ts`).
 
-## 1. Pick the two voices
+## 1. The two voices — already chosen, one step outstanding
 
-1. Sign in at <https://elevenlabs.io> and open **Voices → Voice Library**.
-2. Search for **Arabic** voices. Listen for:
-   - a young, warm **female** voice for شوق,
-   - a young, energetic **male** voice for سالم.
-   Gulf-accented voices sound best for the Kuwaiti lines; test each voice
-   with a sentence like «هلا! وش تدوّر عليه اليوم؟» before choosing.
-3. Add both voices to *My Voices* and copy each **Voice ID**
-   (the `xxxxxxxxxxxxxxxxxxxxx` string on the voice's page).
+`scripts/gen-voice.mjs` ships a default for each persona, so there is nothing
+to pick and nothing to set unless you disagree with the choice:
+
+| | voice | id |
+| --- | --- | --- |
+| شوق | Maryam Essa — Kuwaiti Calm & Warm | `w0uhBAmNIG5kUDeaFEsA` |
+| سالم | Eid — Warm, Clear, Confident (Gulf) | `Ywuz3KyW2N5pqKNpwcCL` |
+
+**Why these, and what was given up.** The brief calls شوق «صوت كويتي شبابي» —
+a young Kuwaiti woman. That voice does not exist in the ElevenLabs library.
+The only two `ar-kuwaiti` female voices are both «Maryam», and both are
+recorded middle-aged, calm and unhurried for storytelling. Everything young
+and female in Arabic is Levantine, Egyptian, Syrian or Omani.
+
+So the choice was between the right accent at the wrong age and the right age
+at the wrong accent. Accent wins: a Kuwaiti hears a Levantine «شلونك»
+instantly, while age is something delivery can push — which is what the
+`RENDITION` block in `gen-voice.mjs` is for (lower stability, higher style,
+slightly quicker). It cannot turn forty into twenty-five, and this is written
+down so nobody has to rediscover it.
+
+**The outstanding step.** Both are *library* voices, not workspace voices, and
+the API refuses a voice the workspace does not hold — `voice_not_found`. Open
+each link below and press **Add to my voices**; nothing else changes.
+
+- <https://elevenlabs.io/app/voice-library> → search «Maryam Essa»
+- → search «Eid» (filter Arabic, Saudi/Gulf)
+
+Until that is done, `npm run voice:sample` will fail with `voice_not_found` —
+which is the API telling you this step is outstanding, not a broken script.
 
 ## 2. Hear one line before generating 226
 
 ```bash
 export ELEVENLABS_API_KEY="sk_..."       # Profile → API keys
-export ELEVEN_VOICE_SHOUQ="<voice id>"   # the female voice
+# ELEVEN_VOICE_SHOUQ only if you are overriding the default above.
 
 npm run voice:sample
 ```
@@ -103,3 +125,25 @@ ships the browser-voice fallback.
   the *whole* utterance to the browser voice, because half a sentence in a
   recorded Kuwaiti voice and half in a robot is worse than all of it in the
   robot. Both run inside `npm run test:shouq`.
+
+---
+
+## The rendition is part of a clip's identity
+
+`gen-voice.mjs` re-records a clip when its sentence changes. It used to do
+*only* that: the hash covered the text and nothing else, while the manifest
+recorded the voice and the model without ever comparing them. Change شوق's
+voice, her stability, her speed, or the model, and every existing clip counted
+as current — the site kept playing the old rendition for ever and nothing said
+so.
+
+That is the same failure the text hash was added to prevent, one level up, and
+it bit hardest at the exact moment somebody set out to improve how she sounds:
+the change appeared to succeed and was silently discarded.
+
+The hash now covers the text, the voice id, the model, the output format and
+the voice settings. A run that re-records because of one of those says
+`rendition changed` rather than `line changed`, so the log distinguishes «this
+sentence moved» from «this voice moved». `tests/voice-pipeline.test.mjs`
+proves it: swap شوق's voice and all 137 of her clips are re-recorded while
+سالم's are left alone. With the old hash that same test records nothing.
