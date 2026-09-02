@@ -36,7 +36,7 @@ import {
   RACE_OPEN_H as CLOCK_RACE_OPEN_H,
   RACE_CLOSE_H as CLOCK_RACE_CLOSE_H,
 } from "./clock";
-import { CHANNELS, Music } from "./music";
+import { CHANNELS, Music, musicIntensity } from "./music";
 import { Radio } from "./radio";
 import {
   solveDrift,
@@ -3945,15 +3945,18 @@ export class GameEngine {
     // battle and a two-second-from-defeat battle share a mood; they
     // should not share a temperature.
     {
-      const speedPart = Math.min(1, this.player.speed / (this.tune.topSpeedKmh / KMH)) * 0.45;
-      let fightPart = 0;
+      // The weights live in music.ts with the reasoning; this reads the
+      // car and hands over three numbers between 0 and 1.
+      const speedFrac = this.player.speed / (this.tune.topSpeedKmh / KMH);
+      let battle: { closeness: number; desperation: number } | null = null;
       if (this.inBattle && this.rival) {
         const gap = Math.abs(this.track.deltaAhead(this.player.s, this.rival.s));
-        const close = 1 - Math.min(1, gap / 120); // side by side = 1
-        const desperate = 1 - this.player.sp / 100;
-        fightPart = 0.3 * close + 0.35 * desperate;
+        battle = {
+          closeness: 1 - Math.min(1, gap / 120), // side by side = 1
+          desperation: 1 - this.player.sp / 100,
+        };
       }
-      this.music?.setIntensity(Math.min(1, speedPart + fightPart));
+      this.music?.setIntensity(musicIntensity(speedFrac, battle));
     }
     this.updateCamera(dt);
     this.updateBeamVisibility();

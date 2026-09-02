@@ -11,6 +11,65 @@
  *  fixed eight seconds and has to land in all of them. */
 export type MusicMood = "cruise" | "battle" | "challenge";
 
+/**
+ * How open the mix should be, 0..1, from what the car is doing.
+ *
+ * A pure function, and out here rather than inline in the frame loop,
+ * for the same reason revFractionIn lives in gears.ts: it is a rule
+ * about the game that can be argued with directly instead of only
+ * through a running browser. The suite that covered this before could
+ * call setIntensity(1) and watch the filter open — which proves the
+ * SYNTH responds and says nothing about whether the game ever asks it
+ * to.
+ *
+ * It never did. The old ladder was
+ *
+ *   speed 0.45  +  closeness 0.30  +  desperation 0.35
+ *
+ * and the fight terms were zero outside a battle, so:
+ *
+ *   free roam, flat out ............ 0.45   the mix half opens, at most
+ *   battle, side by side, healthy .. 0.75
+ *   battle, side by side, losing ... 1.10 -> clamped to 1.00
+ *
+ * Two things wrong with that, both arithmetic rather than taste. Free
+ * roam is most of a game about driving around Kuwait at night, and it
+ * could never open the mix past halfway. And the sum ran to 1.10, so
+ * the last tenth of the ladder was dead: a desperate photo finish and a
+ * merely desperate one arrived at the same sound.
+ *
+ * The weights below total exactly 1.0, so nothing is clamped away:
+ *
+ *   free roam, flat out ............ 0.60   open, and clearly moving
+ *   battle, side by side, healthy .. 0.85
+ *   battle, side by side, losing ... 1.00
+ *
+ * Speed carries most of it because speed is the one input that is
+ * always there; the fight adds on top rather than replacing it.
+ *
+ * WHAT THIS DOES NOT CHANGE, because it is the design rather than the
+ * bug: the very top still belongs to a fight you are losing. That is
+ * deliberate — a desperate finish is the most intense thing that
+ * happens — but desperation's share drops from a third of the whole
+ * range to 0.15, so a comfortable win alongside somebody now reaches
+ * 0.85 instead of 0.75 and sits near the top without having to be
+ * losing to get there.
+ */
+export const MUSIC_MIX = { speed: 0.6, closeness: 0.25, desperation: 0.15 } as const;
+
+export function musicIntensity(
+  speedFrac: number,
+  battle: { closeness: number; desperation: number } | null
+): number {
+  const clamp = (v: number) => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0);
+  let v = clamp(speedFrac) * MUSIC_MIX.speed;
+  if (battle) {
+    v += clamp(battle.closeness) * MUSIC_MIX.closeness;
+    v += clamp(battle.desperation) * MUSIC_MIX.desperation;
+  }
+  return clamp(v);
+}
+
 const MANIFEST = "/music/manifest.json";
 const FADE = 1.6; // seconds
 

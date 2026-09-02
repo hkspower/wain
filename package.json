@@ -81,6 +81,7 @@
     "test:menu": "node tests/menu.mjs",
     "test:mods": "node tests/mods.mjs",
     "test:motion": "node tests/motion.mjs",
+    "test:musicmix": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/musicmix.mjs",
     "test:night": "node tests/night.mjs",
     "test:nos": "node tests/nos.mjs",
     "test:pacing": "node tests/framepacing.mjs",
