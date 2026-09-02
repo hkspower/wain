@@ -8,7 +8,7 @@
 | Agent ID | `agent_1701m1gcrccrethae9y3nyv1e116` |
 | اللغة | `ar` · نموذج الصوت `eleven_turbo_v2_5` |
 | الأدوات | `show_places` = `tool_8701m1gccbbkf0288efab76729ac` · `open_place` = `tool_6101m1gccq94ey3b7hkx4sebhnr9` |
-| قاعدة المعرفة | `WzkQSLRq7en4DX17AIyL` |
+| قاعدة المعرفة | `om8zzegLlJKtl4P5cyNb` |
 | الأصول المسموحة | wainkw.com · www.wainkw.com · localhost · 127.0.0.1 |
 
 حط `NEXT_PUBLIC_ELEVENLABS_AGENT_ID` = الـ Agent ID وقت البناء، عشان زر
@@ -30,7 +30,7 @@ Voice Library ← Add to my voices، وبعدها بدّله على الوكيل
 > تغيير على بيانات الأماكن.
 >
 > ونفس الأمر يكتب `docs/wain-ai-kb.md` — هذا هو مستند قاعدة المعرفة
-> `WzkQSLRq7en4DX17AIyL`، **ارفعه كامل كما هو**. لا تنسخ قسم منه: النسخ
+> `om8zzegLlJKtl4P5cyNb`، **ارفعه كامل كما هو**. لا تنسخ قسم منه: النسخ
 > اليدوي هو اللي خلّى قاعدة المعرفة الحيّة بدون فهرس الاهتمام ولا فهرس
 > المنطقة، لأن اللي نسخ وقف عند أول فاصل.
 
