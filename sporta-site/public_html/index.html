@@ -631,5 +631,12 @@
          /returns policy page. Same class of thing as contact.js: DOM surgery
          on a bundle whose source is not here. Deleting this line reverts it. -->
     <script src="/assets/returns-link.js" defer></script>
+
+    <!-- /track's one field carries no `required`, so pressing Track on an
+         empty box did nothing at all — no message, no hint, no outline. This
+         adds the attribute the bundle cannot be edited to include, and the
+         browser does the rest in the visitor's own language. Same class of
+         thing as the two above. Deleting this line reverts it. -->
+    <script src="/assets/track-guard.js" defer></script>
   </body>
 </html>
