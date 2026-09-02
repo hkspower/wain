@@ -788,3 +788,69 @@ html:not([data-theme='dark']) .cart-drawer > header button.tap.text-slate-400 {
   background: transparent;
   border-color: transparent;
 }
+
+/* ------------------------------------------- the promo bar has no side gutter */
+/* THE FIRST LINE ON EVERY PAGE RUNS INTO THE EDGE OF THE SCREEN, and the cause
+ * is a cascade rule rather than a missing class.
+ *
+ * The bar asks for the site's standard gutter — `px-4` is right there in its
+ * class list, and `.px-4` resolves to `calc(var(--spacing) * 4)` = 16px, the
+ * value every other block on the site sits at. It computes to ZERO. Two
+ * elements on the same page, both carrying px-4, measured:
+ *
+ *     <p>  the promo bar          padding-inline  0px / 0px
+ *     <div class="… px-4">        padding-inline  16px / 16px
+ *
+ * WHY. The built stylesheet carries, UNLAYERED:
+ *
+ *     .app-header > *, .app-footer > * { padding-inline: var(--sa-left) var(--sa-right) }
+ *
+ * and Tailwind v4 puts its utilities in `@layer utilities`. Unlayered author
+ * styles beat layered ones outright, whatever the specificity — so that rule
+ * does not ADD the device's safe-area inset to the gutter, it REPLACES the
+ * gutter with it. `--sa-left` and `--sa-right` are 0px on every phone in
+ * portrait and on every desktop, so the padding becomes nothing at all.
+ *
+ * WHAT IT COST, measured on the home page at four widths — the gutter is
+ * whatever the last line of centred text happens to leave over:
+ *
+ *     320px   1px      <- effectively touching both edges
+ *     360px  21px
+ *     393px   5px      <- iPhone 14/15/16, the commonest phone in the shop
+ *     430px  23px
+ *
+ * FOUR CHILDREN LOSE THEIR PADDING TO THAT RULE; ONLY THIS ONE IS HURT. The
+ * nav row, the logo row and the footer block each hold an inner `max-w-7xl
+ * px-4` container that puts the gutter back. The promo bar is a leaf — there
+ * is nothing inside it to do that — which is why `:not(:has(*))` is the guard
+ * here rather than a hand-written selector. It says exactly what makes this
+ * element different, and it cannot start matching the nav row if the markup
+ * changes shape.
+ *
+ * The safe-area inset is ADDED rather than dropped, which is what the rule
+ * above was reaching for: on a notched phone held sideways the bar still
+ * clears the cutout, and on every other device it gets the 16px it asked for. */
+.app-header > .px-4:not(:has(*)),
+.app-footer > .px-4:not(:has(*)) {
+  padding-inline: calc(1rem + var(--sa-left, 0px)) calc(1rem + var(--sa-right, 0px));
+}
+
+/* A NOTE ON WHAT WAS DELIBERATELY NOT CHANGED HERE, because the obvious next
+ * move is wrong and the measurement says so.
+ *
+ * The bar is `h-7` — a fixed 28px — and `overflow-hidden`, so the reflex is to
+ * let it grow. I wrote that rule (`height: auto; min-height: 1.75rem`),
+ * measured it, and took it out again: it wins the cascade and changes nothing.
+ * The text is `leading-none`, so two lines of 13px type are 26 line-box pixels
+ * and they fit inside 28 with room to spare.
+ *
+ * The 2px that scrollHeight reports over clientHeight is Arabic descender INK
+ * overflowing a line box drawn tight to the font size — not a second line
+ * being cut off. Rendered at 320 and 393 and read back: both lines of the
+ * sentence are complete and legible.
+ *
+ * The real observation is that `leading-none` is too tight for Arabic, which
+ * carries more below the baseline than Latin does. Fixing that means giving
+ * the bar real leading, which makes it ~36px instead of 28 and moves the whole
+ * sticky header down — a design decision about the shop's chrome, not a
+ * padding repair, so it is written down here rather than made. */

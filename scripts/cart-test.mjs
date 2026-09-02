@@ -119,6 +119,35 @@ console.log('--- the bar')
     'and a finger at the start of "اشترِ الآن" lands on Buy now, not on the assistant', cover?.hit)
 }
 
+console.log('\n--- the side gutters')
+{
+  // THE FIRST LINE ON EVERY PAGE RAN INTO THE EDGE OF THE SCREEN. The promo
+  // bar asks for the site's standard px-4, but the built stylesheet carries an
+  // UNLAYERED `.app-header > * { padding-inline: var(--sa-left) var(--sa-right) }`
+  // and unlayered rules beat Tailwind's @layer utilities outright — so the
+  // safe-area inset REPLACED the gutter instead of adding to it, and the insets
+  // are 0px on every phone in portrait. Measured at 320px the text sat 1px from
+  // the edge; at 393px, 5px. Everything else on the site sits at 16px.
+  //
+  // Asserted as the TEXT RUN's distance from the viewport edge, not the
+  // element's padding: padding is what was asked for, and the gap is what the
+  // shopper actually sees.
+  const gutters = await page.evaluate(() => {
+    const el = [...document.querySelectorAll('.app-header *')]
+      .find((e) => e.children.length === 0 && e.textContent.trim())
+    if (!el) return null
+    const rg = document.createRange(); rg.selectNodeContents(el)
+    const r = rg.getBoundingClientRect()
+    return { start: Math.round(window.innerWidth - r.right), end: Math.round(r.left),
+      pad: getComputedStyle(el).paddingInlineStart, t: el.textContent.trim().slice(0, 24) }
+  })
+  check(gutters !== null && Math.min(gutters.start, gutters.end) >= 12,
+    'the top bar keeps a real gutter from both screen edges',
+    gutters ? `start ${gutters.start}px / end ${gutters.end}px on "${gutters.t}"` : 'not found')
+  check(gutters?.pad === '16px',
+    'and it is the site\'s own 16px, not whatever the text wrap left over', gutters?.pad)
+}
+
 console.log('\n--- tapping Add')
 {
   const before = await bagCount()
