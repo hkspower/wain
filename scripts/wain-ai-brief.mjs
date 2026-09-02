@@ -20,6 +20,8 @@ import { dirname } from "node:path";
 // way to feed it places that do, the other branch would go out unproven.
 const PLACES_FILE = process.env.WAIN_PLACES_FILE || "src/lib/places.ts";
 const OUT_FILE = process.env.WAIN_BRIEF_OUT || "docs/wain-ai-agent.md";
+// The uploadable half: exactly what goes into ElevenLabs, and nothing else.
+const KB_FILE = process.env.WAIN_KB_OUT || "docs/wain-ai-kb.md";
 const whole = readFileSync(PLACES_FILE, "utf8");
 const start = whole.indexOf("export const places");
 if (start < 0) throw new Error("gen-brief: could not find the places array");
@@ -55,6 +57,24 @@ const best = blocks.map((b) => field(b, "bestTimeAr"));
 const price = blocks.map((b) => numField(b, "priceLevel"));
 const setting = blocks.map((b) => field(b, "setting"));
 const season = blocks.map((b) => field(b, "seasonAr"));
+/**
+ * The description and the highlights, which شوق used to be denied.
+ *
+ * She was briefed with `taglineAr` and nothing else — one line per place, the
+ * same line the card shows. So the site knew «كرك وقهوة مختصة» about Gulf Road
+ * and «محلات حلا» about Hamad Al Mubarak, and she could not say either. Asked
+ * for somewhere with a particular thing, the honest answer available to her
+ * was «ما عندي شي يناسب هذا بالضبط» — not because the data was missing, but
+ * because it stopped at the brief.
+ *
+ * `descriptionAr` wraps onto its own line in places.ts, which the `\s*` in
+ * field() already crosses; `highlightsAr` is a single-line array like tagsAr.
+ */
+const desc = blocks.map((b) => field(b, "descriptionAr"));
+const highlightList = blocks.map((b) => {
+  const raw = (b.match(/^ {4}highlightsAr: \[([^\]]*)\]/m) || [])[1] || "";
+  return [...raw.matchAll(/"([^"]+)"/g)].map((t) => t[1]);
+});
 const tagList = blocks.map((b) => {
   const raw = (b.match(/^ {4}tagsAr: \[([^\]]*)\]/m) || [])[1] || "";
   return [...raw.matchAll(/"([^"]+)"/g)].map((t) => t[1]);
@@ -161,6 +181,8 @@ const rows = slugs
   .map(
     (s, i) => `- **${nameAr[i]}** (${name[i]}) — ${catAr[cat[i]]} · ${areaAr[i]} · ${priceAr[price[i]]}
   ${tag[i]}
+  ${desc[i]}
+  فيه: ${highlightList[i].join(" · ")}
   أحسن وقت: ${best[i]} · ${settingAr[setting[i]]} · ${season[i]}
   يناسب: ${tags[i]}
   slug: \`${s}\` · الرابط: https://www.wainkw.com/places/${s}/`
@@ -177,7 +199,7 @@ const rows = slugs
  * `undefined` in the middle of the knowledge base instead. So the check moves
  * with the code: name the place and the field, and refuse to write the file.
  */
-const REQUIRED = { nameAr, name, cat, areaAr, tag, best, price, setting, season };
+const REQUIRED = { nameAr, name, cat, areaAr, tag, desc, best, price, setting, season };
 for (const [label, arr] of Object.entries(REQUIRED)) {
   const missing = arr
     .map((v, i) => (v === undefined || v === "" ? slugs[i] ?? `#${i}` : null))
@@ -191,6 +213,19 @@ for (const [label, arr] of Object.entries(REQUIRED)) {
 }
 if (slugs.some((s) => !s)) {
   throw new Error("gen-brief: a place block has no slug; refusing to write the brief.");
+}
+
+/* The REQUIRED sweep above tests strings for emptiness; an empty array is not
+   empty by that test, and would ship as a bare «فيه: » — a heading promising
+   detail with nothing after it, which reads worse to an agent than no heading. */
+const noHighlights = highlightList
+  .map((h, i) => (h.length ? null : slugs[i]))
+  .filter(Boolean);
+if (noHighlights.length) {
+  throw new Error(
+    `gen-brief: highlightsAr is empty for ${noHighlights.join(", ")} — ` +
+      `شوق would be briefed with «فيه:» and nothing after it.`
+  );
 }
 
 const doc = `# شوق — وين AI، الدليلة الصوتية لوين
@@ -222,8 +257,12 @@ Voice Library ← Add to my voices، وبعدها بدّله على الوكيل
 
 > يُولَّد هذا الملف كامل من \`scripts/wain-ai-brief.mjs\` — لا تحرّره يدوياً،
 > أي تعديل هنا ينمسح. عدّل القالب هناك، وشغّل \`npm run ai:brief\` بعد أي
-> تغيير على بيانات الأماكن، وبعدها حدّث مستند قاعدة المعرفة في ElevenLabs
-> بنفس محتوى قسم «الأماكن».
+> تغيير على بيانات الأماكن.
+>
+> ونفس الأمر يكتب \`docs/wain-ai-kb.md\` — هذا هو مستند قاعدة المعرفة
+> \`WzkQSLRq7en4DX17AIyL\`، **ارفعه كامل كما هو**. لا تنسخ قسم منه: النسخ
+> اليدوي هو اللي خلّى قاعدة المعرفة الحيّة بدون فهرس الاهتمام ولا فهرس
+> المنطقة، لأن اللي نسخ وقف عند أول فاصل.
 
 ---
 
@@ -423,6 +462,65 @@ ${Object.values(catAr).map((c) => "- " + c).join("\n")}
 - «وين أقرب مكان لي الحين؟» ← وجّهيه لزر «إلى وين؟» في الصفحة الرئيسية
 `;
 
+/**
+ * The knowledge base as one uploadable file.
+ *
+ * The brief above is a document for people: it explains the agent id, the
+ * voice settings, why the origin allowlist exists. None of that belongs in
+ * شوق's head. So the instruction used to be «حدّث مستند قاعدة المعرفة بنفس
+ * محتوى قسم الأماكن» — copy one section out by hand — and that is exactly how
+ * the live knowledge base ended up without either index: they are generated
+ * two sections further down, and whoever copied the places out stopped at the
+ * horizontal rule.
+ *
+ * A step a person performs by selecting the right part of a longer document is
+ * a step that will eventually select the wrong part. This writes the whole
+ * thing, so the upload is the file rather than a judgement about the file.
+ */
+const kb = `## قاعدة معرفة وين — الأماكن (${slugs.length} مكان)
+
+كل مكان مكتوب بهذا الترتيب: الاسم · التصنيف · المنطقة · السعر / الجملة
+الوصفية / الوصف / «فيه» أبرز اللي عنده / أحسن وقت · داخلي أو برا · الموسم /
+«يناسب» الاهتمامات / الـ slug ورابط الصفحة.
+
+استخدمي الـ slug مع أداة \`open_place\`، والكلمات في «يناسب» مع أداة
+\`show_places\`.
+
+**حدود معرفتك.** هذي كل المعلومات اللي عندك عن الأماكن. ما عندك قوائم طعام
+ولا أصناف ولا أسعار أصناف ولا أسماء محلات داخل الشوارع والمولات — «شارع حمد
+المبارك» مكان في معرفتك، أما الكافيهات اللي فيه فأسماؤها مو عندك. إذا سألك
+أحد عن صنف أو محل بالاسم، لا تخترعين: قولي «ما عندي شي يناسب هذا بالضبط، بس
+أقرب شي…» ورشّحي أقرب مكان بالوصف.
+
+${rows}
+
+---
+
+## حسب الاهتمام — من الرغبة إلى المكان
+
+الزائر ما يجي باسم مكان، يجي برغبة. هذا الفهرس يحوّل الرغبة إلى أماكن، مرتّب
+من الأكثر تغطية للأقل.
+
+${interestRows}
+
+---
+
+## حسب المنطقة
+
+${areaRows}
+
+---
+
+## التصنيفات
+
+${Object.values(catAr).map((c) => "- " + c).join("\n")}
+`;
+
 mkdirSync(dirname(OUT_FILE), { recursive: true });
 writeFileSync(OUT_FILE, doc);
-console.log(`docs/wain-ai-agent.md regenerated — ${slugs.length} places`);
+writeFileSync(KB_FILE, kb);
+console.log(
+  `docs/wain-ai-agent.md regenerated — ${slugs.length} places\n` +
+    `docs/wain-ai-kb.md written — ${kb.length} chars, upload this whole file to ` +
+    `knowledge base WzkQSLRq7en4DX17AIyL`
+);

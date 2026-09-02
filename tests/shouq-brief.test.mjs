@@ -24,13 +24,38 @@ const ok = (n, c, d = "") => {
 };
 
 const tmp = mkdtempSync(join(tmpdir(), "wain-brief-"));
+/**
+ * Both outputs go to the temp directory, not just the brief.
+ *
+ * The generator writes two files now, and redirecting only one of them left
+ * every fixture run overwriting the committed `docs/wain-ai-kb.md` with
+ * whatever the fixture said. It happened not to show, because the fixtures
+ * here only flip `acceptsOrders` and `takesQueue` and neither appears in the
+ * knowledge base — so the file was rewritten with identical bytes. A fixture
+ * that renamed a place would have quietly replaced the real knowledge base
+ * with test data, and the next `git commit -a` would have shipped it.
+ */
 const regenerate = (placesFile) => {
-  const out = join(tmp, `brief-${Math.random().toString(36).slice(2)}.md`);
+  const seed = Math.random().toString(36).slice(2);
+  const out = join(tmp, `brief-${seed}.md`);
+  const kbOut = join(tmp, `kb-${seed}.md`);
   execFileSync("node", ["scripts/wain-ai-brief.mjs"], {
-    env: { ...process.env, WAIN_PLACES_FILE: placesFile, WAIN_BRIEF_OUT: out },
+    env: { ...process.env, WAIN_PLACES_FILE: placesFile, WAIN_BRIEF_OUT: out, WAIN_KB_OUT: kbOut },
     stdio: "pipe",
   });
   return readFileSync(out, "utf8");
+};
+
+/** The same run, but returning the knowledge base rather than the brief. */
+const regenerateKb = (placesFile) => {
+  const seed = Math.random().toString(36).slice(2);
+  const out = join(tmp, `brief-${seed}.md`);
+  const kbOut = join(tmp, `kb-${seed}.md`);
+  execFileSync("node", ["scripts/wain-ai-brief.mjs"], {
+    env: { ...process.env, WAIN_PLACES_FILE: placesFile, WAIN_BRIEF_OUT: out, WAIN_KB_OUT: kbOut },
+    stdio: "pipe",
+  });
+  return readFileSync(kbOut, "utf8");
 };
 
 const committed = readFileSync("docs/wain-ai-agent.md", "utf8");
@@ -244,6 +269,90 @@ console.log("\n── the fields cannot slip against each other ──");
   let threw = false;
   try { regenerate(broken); } catch { threw = true; }
   ok("a place missing a field stops the build instead of shifting the columns", threw);
+}
+
+console.log("\n── she is told what is actually AT each place ──");
+{
+  /**
+   * For a long time شوق was briefed with `taglineAr` alone — one line per
+   * place, the same line printed on the card. Every place also carries a
+   * `descriptionAr` and a `highlightsAr`, on all 44 of them, and neither
+   * reached her. So the site knew «كرك وقهوة مختصة» about Gulf Road and she
+   * could not say it; asked for somewhere with a particular thing, she had
+   * nothing to answer from but a tagline.
+   */
+  const kb = readFileSync("docs/wain-ai-kb.md", "utf8");
+  const descs = [...places.matchAll(/^ {4}descriptionAr:\s*"((?:[^"\\]|\\.)*)"/gm)].map((m) => m[1]);
+  const missingDesc = descs.filter((d) => !kb.includes(d));
+  ok(`every place's description reaches her (${descs.length})`,
+    descs.length === 44 && missingDesc.length === 0, missingDesc.slice(0, 2).join(" | "));
+
+  const hls = [...places.matchAll(/^ {4}highlightsAr: \[([^\]]*)\]/gm)]
+    .map((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]));
+  const flat = hls.flat();
+  const missingHl = flat.filter((h) => !kb.includes(h));
+  ok(`every highlight reaches her (${flat.length} across ${hls.length} places)`,
+    hls.length === 44 && missingHl.length === 0, missingHl.slice(0, 3).join(" | "));
+
+  // The specific failure that started this: a visitor asks for a thing rather
+  // than a place, and the answer has to come from somewhere.
+  ok("«حلا» is now findable, not just «قهوة»", kb.includes("محلات حلا"));
+  ok("and so is what the Gulf Road cafés actually serve", kb.includes("كرك وقهوة مختصة"));
+
+  ok("she is told the limits of what she knows", kb.includes("حدود معرفتك"));
+  ok("and told she has no menus or dish names",
+    kb.includes("ما عندك قوائم طعام") && kb.includes("لا تخترعين"));
+}
+
+console.log("\n── the knowledge base is a file, not a section someone copies ──");
+{
+  /**
+   * The live knowledge base was assembled by hand from the brief's «الأماكن»
+   * section, and arrived without either index — whoever copied it stopped at
+   * the horizontal rule, which is what hand-copying a section of a longer
+   * document eventually does. The generator emits the whole uploadable file
+   * now, so the upload is the file rather than a judgement about the file.
+   */
+  const kb = readFileSync("docs/wain-ai-kb.md", "utf8");
+  ok("the knowledge base carries the interest index", kb.includes("## حسب الاهتمام"));
+  ok("and the area index", kb.includes("## حسب المنطقة"));
+  ok("and the category list", kb.includes("## التصنيفات"));
+
+  // It must be the places, not the human-facing brief: an agent given the
+  // voice settings and the origin allowlist is an agent given noise.
+  ok("but not the operator notes meant for people",
+    !kb.includes("require_origin_header") && !kb.includes("Stability"));
+
+  const slugs = [...places.matchAll(/^ {4}slug: "([a-z0-9-]+)"/gm)].map((m) => m[1]);
+  const absent = slugs.filter((s) => !kb.includes(`\`${s}\``));
+  ok(`every place is in it (${slugs.length})`, absent.length === 0, absent.join(", "));
+
+  ok("the brief tells the operator to upload the whole file",
+    committed.includes("docs/wain-ai-kb.md") && committed.includes("ارفعه كامل"));
+
+  // Regenerating from the shipped catalogue must reproduce the committed file
+  // byte for byte, or the thing uploaded is not the thing in the repo.
+  ok("the committed knowledge base matches the data",
+    regenerateKb("src/lib/places.ts") === kb);
+}
+
+console.log("\n── a place with nothing to say about it stops the build ──");
+{
+  // An empty highlightsAr is not caught by the emptiness sweep over strings,
+  // and would ship as a bare «فيه: » — a heading promising detail with
+  // nothing after it, which reads worse than no heading at all.
+  const noHl = join(tmp, "places-nohl.ts");
+  writeFileSync(noHl, places.replace(
+    /^ {4}highlightsAr: \[[^\]]*\],$/m, "    highlightsAr: [],"));
+  let threw = false;
+  try { regenerate(noHl); } catch { threw = true; }
+  ok("an empty highlights list is refused, not rendered as «فيه:»", threw);
+
+  const noDesc = join(tmp, "places-nodesc.ts");
+  writeFileSync(noDesc, places.replace(/^ {4}descriptionAr:\n {6}"[^"]*",$/m, ""));
+  let threw2 = false;
+  try { regenerate(noDesc); } catch { threw2 = true; }
+  ok("and so is a missing description", threw2);
 }
 
 rmSync(tmp, { recursive: true, force: true });
