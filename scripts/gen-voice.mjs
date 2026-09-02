@@ -229,6 +229,21 @@ async function tts(voiceId, text, outFile, settings) {
       await sleep(wait);
       continue;
     }
+    // The one failure that is a setup step rather than a fault, and the one
+    // most likely to be hit on a first run. Both default voices are LIBRARY
+    // voices; the API refuses any voice the workspace does not itself hold,
+    // and says so in a way that reads like the id is wrong. It is not — it has
+    // simply never been added. There is no API for adding it either, so the
+    // only useful thing this can do is name the click.
+    if (/voice_not_found/.test(body)) {
+      throw new Error(
+        `ElevenLabs does not have voice ${voiceId} in this workspace.\n` +
+          `  It is a Voice Library voice, and a library voice has to be added before it can be used.\n` +
+          `  Open https://elevenlabs.io/app/voice-library, find the voice, and press "Add to my voices".\n` +
+          `  Then run this again — the id is correct, it is the workspace that is missing it.\n` +
+          `  Which voices, and why those: docs/voice-setup.md`
+      );
+    }
     throw new Error(`ElevenLabs ${res.status} for ${path.basename(outFile)}: ${body.slice(0, 300)}`);
   }
 }
