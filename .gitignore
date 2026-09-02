@@ -88,3 +88,13 @@ cbk-payments.log
 # package-check.mjs already refuses files matching it inside the docroot.
 scripts/_*.mjs
 scripts/_*.py
+
+# Archived invoice PDFs. Customer names and addresses, one file per order —
+# written by api/cron-invoice.php to a folder BESIDE public_html so no URL
+# reaches them. They must not reach a git history either: a repository is
+# copied, cloned and zipped far more casually than a server is, and an invoice
+# is personal data with no expiry.
+#
+# The path here matches invoice_dir()'s default, which resolves to
+# <docroot>/../invoices — sporta-site/invoices in this checkout.
+sporta-site/invoices/

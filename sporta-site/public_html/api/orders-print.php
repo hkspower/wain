@@ -12,35 +12,34 @@
  * on its own.
  *
  * ---------------------------------------------------------------------------
- * WHY THE BROWSER MAKES THE PDF AND NOT THIS FILE
+ * WHY THE BROWSER MAKES THIS PDF, AND WHERE THE OTHER ONE COMES FROM
  *
- * The ask was a folder of PDF files. That is not a thing this server can do
- * honestly, and the reason is the shop's own language.
+ * THIS FILE IS THE MONTH, NOT THE ORDER. It exists to put a date range in
+ * front of somebody — a stack to print, a batch to file, one PDF holding
+ * everything between two dates. The browser is the right tool for that: the
+ * owner picks the paper, and gets one file rather than four hundred.
  *
- * There is no PDF library here and no way to install one: Composer needs a
- * shell and this host has none. Writing PDF by hand is possible for a page of
- * Latin text and is NOT possible for this shop — a PDF has no concept of
- * right-to-left, no Arabic letter shaping, and no font unless you embed and
- * subset one yourself. "سبورتا" written into a hand-rolled PDF comes out as
- * four disconnected letters in the wrong order, if it comes out at all. Every
- * invoice this shop issues has an Arabic name and an Arabic address on it.
+ * A SINGLE ORDER'S INVOICE IS NOW WRITTEN BY THE SERVER — see invoice-pdf.php,
+ * with cron-invoice.php sweeping for orders that have none and
+ * invoice-file.php handing one over. This header used to say that could not be
+ * done honestly. It gave two reasons, and both were true when they were
+ * written:
  *
- * A browser already solves all of that, perfectly, with the fonts the shop
- * already serves. So this produces the DOCUMENT and lets the browser produce
- * the PDF — which also means the owner chooses the paper size, and gets one
- * file for a whole month rather than four hundred files to manage.
+ *   "A PDF has no concept of right-to-left, no Arabic letter shaping, and no
+ *   font unless you embed one." All still true — a PDF draws glyphs in the
+ *   order given and has no opinion about language. What changed is that
+ *   arabic.php now does the shaping and the ordering before the text reaches
+ *   the page, and pdf.php embeds the shop's own font so the glyphs exist to
+ *   draw. Verified by rendering the output and reading it, not by reasoning
+ *   about it.
  *
- * ---------------------------------------------------------------------------
- * AND WHY THERE IS NO FOLDER OF THEM ON THE SERVER
+ *   "A directory of PDFs is every customer's name and address behind a
+ *   guessable filename." Also still true, which is why that folder is NOT in
+ *   the web root. It sits beside public_html, so no URL resolves to it and
+ *   there is no filename to guess; the only route to those bytes is
+ *   invoice-file.php, which opens with a session check.
  *
- * A directory of PDFs, one per order, is a directory containing every
- * customer's full name, telephone number and home address, sitting in a web
- * root where a guessed filename is all it takes. The shop already refuses to
- * put that anywhere a stranger can reach: ?r=status returns only a payment
- * state, and it took a deliberate decision to keep the name and address out of
- * it. Writing the same data to disk as a file per order would undo that with
- * no benefit — this page hands over the same content, on demand, to somebody
- * who has signed in.
+ * Both files are wanted. Neither replaces the other.
  *
  * ---------------------------------------------------------------------------
  * THE GATE

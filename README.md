@@ -102,6 +102,7 @@ because the rigs place real orders against a real database.
 | `npm run test:live` | The real `api.php` contract |
 | `npm run test:payments` | All three methods side by side, both callbacks forged, and everything the checkout refuses — including a client that sends its own price |
 | `npm run test:invoice` | The invoice as it comes out of a printer — nothing `position: fixed` printed over the document, nothing painting outside the A4 content box, the order number, date, total and currency all surviving, and still black on white |
+| `npm run test:invoice-pdf` | The archived PDFs — Arabic shaped and joined, the money matching the database, the text searchable, and the folder unreachable from the web |
 | `npm run test:knet` | Which of the two KNET integrations the shop is on — the official CBK hosted page (`tij_MerchPayType=1`) or a legacy Tranportal account — asserted case by case, then both routes driven over HTTP. See `sporta-site/KNET.md` |
 | `npm run test:cart` | Adding to the bag from a phone — the pinned buy bar in reach, the tap answered in a `role=status` naming the garment and size, the header count going up, the toast clearing itself, and the bar not covering the end of the page |
 | `npm run test:checkout` | Both ways to buy — the full form and Buy now — each offering both ways to pay: a cash order through to the result page, KNET handed to the bank carrying its own track id, and the "you already have parcels out" refusal shown to the shopper with KNET offered as the way through |
