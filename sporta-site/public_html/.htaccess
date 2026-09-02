@@ -508,6 +508,36 @@ RedirectMatch 404 (?i)(^|/)__MACOSX(/|$)
   Require all denied
 </FilesMatch>
 
+# ---- .txt: DENIED BY DEFAULT, with the two that must be public named ----
+#
+# The list above covers .bak, .sql, .log, .env, .zip, .md and a dozen more —
+# and has no .txt in it. UPLOAD-THIS.txt was found sitting in the live web root
+# because of that: a deployment note from an earlier hand-over, publicly
+# fetchable, listing the site's file inventory and naming which file holds the
+# database password, which holds the KNET credentials and which holds the CBK
+# ones. No secret is IN it. It is a map to where the secrets are, which is
+# reconnaissance handed over for free.
+#
+# A NOTE LIKE THAT WILL BE WRITTEN AGAIN. Every hand-over produces one, and the
+# next one will not be called UPLOAD-THIS.txt — so this denies the EXTENSION
+# and names the exceptions, rather than denying the filename and waiting to be
+# surprised. The same lesson the zip rule in .gitignore learned twice.
+#
+# THE ALLOWLIST IS THE DANGEROUS HALF, and it is why this ships with tests.
+# robots.txt closed to Googlebot is worse than the leak: crawling stops, and it
+# stops silently. llms.txt is the same shape. Both are asserted in
+# htaccess-test.mjs against a real Apache, in both directions — these two
+# served, a note file refused.
+#
+# Order matters and is not cosmetic: Apache applies <FilesMatch> sections in
+# source order, so the grant below has to come AFTER the denial above it.
+<FilesMatch "(?i)\.txt$">
+  Require all denied
+</FilesMatch>
+<FilesMatch "(?i)^(robots|llms|ads|security)\.txt$">
+  Require all granted
+</FilesMatch>
+
 # json is in that list, and it is the one to notice: the site ships no .json file
 # at all (site.webmanifest is .webmanifest, and the audit asserts the count is
 # zero), so denying the class costs nothing and closes it for anything that lands

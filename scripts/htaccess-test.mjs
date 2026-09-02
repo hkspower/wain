@@ -171,6 +171,23 @@ try {
   check(get('/index.html').to === 'https://www.sporta.com.kw/',
     '/index.html redirects to / so it cannot be indexed twice')
 
+  console.log('\n--- .txt, both directions')
+  // ROBOTS.TXT IS THE DANGEROUS HALF OF THIS RULE. .txt is denied by default
+  // because a hand-over note naming which file holds the database password was
+  // found sitting in the live web root, publicly fetchable. But robots.txt
+  // closed to Googlebot is worse than that leak — crawling stops, and it stops
+  // silently, with the site looking perfectly healthy to everyone who visits
+  // it. So the allowlist is asserted before the denial is.
+  for (const f of ['/robots.txt', '/llms.txt']) {
+    check(get(f).status === 200, `${f} is still served — search engines depend on it`)
+  }
+  writeFileSync(`${DOCROOT}/UPLOAD-NOTE-RIG.txt`, 'internal deployment note\n')
+  check(get('/UPLOAD-NOTE-RIG.txt').status === 403,
+    'a hand-over note left in the web root is refused (403)')
+  check(!bodyOf('/UPLOAD-NOTE-RIG.txt').includes('internal deployment note'),
+    'and its contents do not come back anyway')
+  rmSync(`${DOCROOT}/UPLOAD-NOTE-RIG.txt`, { force: true })
+
   console.log('\n--- what must never be served')
   // Not a PHP question: a refusal is a refusal with or without an
   // interpreter, which is exactly why it is safe to assert here.

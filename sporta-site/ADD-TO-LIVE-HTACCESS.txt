@@ -112,3 +112,67 @@ Two write paths into one table, one of them unmaintained and no longer read by
 anybody, is how a rule gets tightened in one place and quietly not in the
 other. Rename it to return-request.php.off or delete it once the new path has
 taken a real request.
+
+
+===========================================================================
+SEPARATE AND MORE URGENT: DELETE UPLOAD-THIS.txt FROM public_html
+===========================================================================
+
+It is a hand-over note from an earlier session, and it is PUBLICLY FETCHABLE
+at https://www.sporta.com.kw/UPLOAD-THIS.txt right now. The root .htaccess
+denies .bak, .sql, .log, .env, .zip, .md and a dozen more extensions — and has
+no .txt in the list.
+
+No password is in it. What is in it is a map to where the passwords are:
+
+    api/config.php      database password + cron key
+    pay/config.php      CBK T-Pay credentials
+    knet/config.php     KNET credentials
+
+plus a file-by-file inventory of the site with exact byte sizes. That is
+reconnaissance, published, for anyone who tries the filename or finds it in a
+crawl. It is also two deployments out of date and describes a state the server
+is no longer in, so it is worth nothing to you either.
+
+  DELETE IT. hPanel -> File Manager -> public_html -> UPLOAD-THIS.txt.
+  Nothing references it and nothing breaks.
+
+While you are there: site-manifest.txt, if it is ever uploaded for
+api/file-audit.php to read, is denied by api/.htaccess already — that one was
+thought about. This one slipped through because it sits at the root.
+
+
+OPTIONAL, AND READ THE WARNING FIRST
+------------------------------------
+The repo's .htaccess now denies .txt by default and names the exceptions, so
+the NEXT hand-over note is covered without anyone remembering to delete it.
+That protection arrives with the .htaccess whenever it is next deployed. If
+you would rather have it today, paste this in — but read the warning.
+
+  WARNING: the second block is what keeps robots.txt reachable. Get it wrong
+  and Googlebot is locked out, which is far worse than the leak and fails
+  SILENTLY — the site looks perfectly healthy to every human who visits it.
+  If you are not certain, just delete the file above; that closes the actual
+  hole and costs nothing.
+
+  Order is not cosmetic. Apache applies these in source order, so the grant
+  MUST come second.
+
+------------------------------ COPY FROM HERE ------------------------------
+
+<FilesMatch "(?i)\.txt$">
+  Require all denied
+</FilesMatch>
+<FilesMatch "(?i)^(robots|llms|ads|security)\.txt$">
+  Require all granted
+</FilesMatch>
+
+------------------------------- TO HERE ------------------------------------
+
+CHECK IMMEDIATELY AFTER PASTING, in this order:
+
+  https://www.sporta.com.kw/robots.txt        MUST still load
+  https://www.sporta.com.kw/llms.txt          MUST still load
+  https://www.sporta.com.kw/UPLOAD-THIS.txt   MUST now be 403
+
+If the first two do not load, remove the two blocks again straight away.
