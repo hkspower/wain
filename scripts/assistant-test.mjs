@@ -241,6 +241,74 @@ if (!singularWord) {
 // default and came out in whatever order the database returned. It hardly
 // showed while almost nothing carried those sizes; every sized product carries
 // them now, so a wrong order would be on most answers.
+// --- it knows what the shop sells ------------------------------------------
+//
+// The assistant's memory of the inventory is DERIVED from the catalogue on
+// every request rather than written down, so the thing to assert is not the
+// content — it is that the memory tracks the database. A rig checking for the
+// word "Leggings" would pass a hard-coded list, which is the failure being
+// guarded against.
+//
+// So each answer is checked against a live count from the API.
+{
+  const cat = await ask('what do you sell', 'en')
+  check(cat.body?.intent === 'catalogue',
+    `"what do you sell" is a question about the range (${cat.body?.intent})`)
+  const said = String(cat.body?.reply ?? '')
+  check(/\d+\s+pieces/.test(said) && !/\b0 pieces\b/.test(said),
+    `and it counts the catalogue rather than describing it vaguely`)
+
+  // The shapes it names must be shapes the catalogue actually has. Taking the
+  // last word of each product name is the same rule assistant.php uses, so a
+  // mismatch means one of the two drifted.
+  const shapes = new Set(catNames
+    .map((n) => n.split('—')[0].trim().split(/\s+/).pop())
+    .filter(Boolean))
+  const named = (said.match(/sportswear:\s*([^—]+)/)?.[1] ?? '')
+    .split(',').map((s) => s.trim().replace(/\s+and\s+\d+\s+more$/, '')).filter(Boolean)
+  const invented = named.filter((s) => !shapes.has(s))
+  check(named.length > 0 && invented.length === 0,
+    `every garment it names is one the catalogue has (${named.length} named)`
+    + (invented.length ? ` — invented ${invented.join(', ')}` : ''))
+
+  // BRANDS WITH NOTHING BEHIND THEM ARE NOT MENTIONED. Six of the shop's eight
+  // brands are active with no product; naming one sends a customer to an empty
+  // shelf, which is worse than saying nothing.
+  const brandAsk = await ask('what brands do you have', 'en')
+  const brandReply = String(brandAsk.body?.reply ?? '')
+  const withStock = new Set((Array.isArray(catalogue) ? catalogue : catalogue.products ?? [])
+    .map((p) => String(p.brand_slug ?? '')).filter(Boolean))
+  const allBrands = await (await fetch(`${API}/api.php?r=brands`)).json().catch(() => [])
+  const empty = (Array.isArray(allBrands) ? allBrands : [])
+    .filter((b) => !withStock.has(String(b.slug)))
+    .map((b) => String(b.name_en ?? ''))
+    .filter((n) => n && new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(brandReply))
+  check(empty.length === 0,
+    `it names no brand the shop has no stock for`
+    + (empty.length ? ` — offered ${empty.join(', ')}` : ''))
+}
+
+// --- and it does not claim to have misunderstood a question it understood ---
+//
+// "Do you have hoodies" was answered "I did not quite follow that", which was
+// not even true: the question was perfectly clear, the shop simply has no
+// hoodies. The reply now says what the shop DOES sell.
+//
+// The line it must not cross is asserting the negative. Nothing here can tell
+// a garment the shop lacks from a typo, so "we don't sell hoodies" aimed at a
+// misspelling loses a sale — and it is exactly the kind of confident wrong
+// answer this file exists to avoid.
+{
+  const miss = await ask('do you have hoodies', 'en')
+  const reply = String(miss.body?.reply ?? '')
+  check(!/did not quite follow/i.test(reply),
+    `an unstocked garment gets a real answer, not "I did not quite follow that"`)
+  check(/sell|stock/i.test(reply) && /,/.test(reply),
+    `and the answer says what the shop does sell instead`)
+  check(!/(don't|do not|doesn't|does not)\s+(sell|have|carry|stock)/i.test(reply),
+    `without asserting a negative it cannot check — a typo must not be told "we don't carry that"`)
+}
+
 // ASSERTED AGAINST THE SOURCE, NOT THE REPLY, and that is the point. Reading
 // the sizes out of an answer looks like the stronger test and is the weaker
 // one: usort is stable, so two sizes sharing the ?? 99 default keep whatever

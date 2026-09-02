@@ -167,6 +167,32 @@ function assistant_intent(PDO $db, string $text): string
     if (assistant_has($t, assistant_stock_cues()) && assistant_match_products($db, $text)) {
         return 'availability';
     }
+    // WHAT THE SHOP SELLS AT ALL — the range, not one product in it.
+    //
+    // "What do you sell", "what brands do you have", "what sizes do you carry"
+    // all fell through to product search, matched nothing, and were answered
+    // "I did not quite follow that" — to a question a shop assistant exists to
+    // answer, from a customer who had not yet named anything to search for.
+    //
+    // ABOVE 'sizes' only for the range reading of a size question: "what sizes
+    // do you have" wants S–5XL, while "what size am I" wants the adviser, and
+    // the two are told apart by whether the shop or the customer is the
+    // subject. Below 'availability', so a question about a NAMED product keeps
+    // its truthful in-stock answer.
+    if (assistant_has($t, ['ماذا تبيعون', 'ماذا تبيع', 'شنو تبيعون', 'ايش تبيعون', 'وش تبيعون',
+                           'شنو عندكم', 'ايش عندكم', 'وش عندكم', 'شنو موجود', 'ايش موجود',
+                           'الماركات', 'ماركات', 'براندات', 'البراندات',
+                           'ما هي المقاسات', 'المقاسات المتوفره', 'شنو المقاسات', 'ايش المقاسات',
+                           'الالوان المتوفره', 'شنو الالوان', 'ايش الالوان', 'وش الالوان',
+                           'ايش تبيعون', 'المنتجات المتوفره', 'اقسامكم', 'الاقسام',
+                           'what do you sell', 'what do you have', 'what do you carry',
+                           'what are you selling', 'what products', 'what kind of',
+                           'what types', 'what brands', 'which brands', 'what sizes',
+                           'which sizes', 'what colours', 'what colors', 'which colours',
+                           'which colors', 'your range', 'your catalogue', 'your catalog',
+                           'what categories', 'tell me what you'])) {
+        return 'catalogue';
+    }
     if (assistant_has($t, ['مقاس', 'مقاسات', 'حجم', 'صغير', 'كبير',
                            'size', 'sizing', 'fit', 'measurement'])) {
         return 'sizes';
@@ -368,6 +394,122 @@ function assistant_size_token(string $raw): ?string
 //
 // The cue words and size words are stripped BEFORE matching, so "available",
 // "in stock" and "L" never masquerade as product names.
+// ------------------------------------------------------------- what we sell
+//
+// THE SHOP'S OWN VOCABULARY — every garment shape, colour, brand, category and
+// size it actually stocks, in both languages, READ OUT OF THE CATALOGUE ON
+// EVERY REQUEST.
+//
+// This is the assistant's memory of the inventory, and the one design decision
+// worth defending is that it is not stored anywhere. A written-down list of
+// what the shop sells is a list that is wrong the first time somebody adds a
+// product, and a confidently wrong "we don't carry jackets" is exactly the
+// failure this whole file is built to avoid — it is the "your order shipped
+// yesterday" of the catalogue. Derived is the only version that cannot drift.
+//
+// It is affordable: three small queries, measured at 0.46 ms per request
+// against a 3 ms answer, so there is no cache to invalidate and no staleness
+// window. If the catalogue ever grows to where that stops being true, cache it
+// on a signature of (count, max(id)) rather than a clock.
+//
+// HOW THE GARMENT WORD IS FOUND, in two languages that disagree about where it
+// goes. English puts it last — "Cloudsoft Jacket" — and Arabic puts it first,
+// which would be easy except that Arabic garment names are often two words:
+// "حقيبة ظهر" (backpack), "سويت شيرت" (sweatshirt). Taking the first Arabic
+// word alone yields "سويت", which is not a word for anything.
+//
+// What holds across both is the MODEL name's token count: "Cagliari Calcio
+// Sweatshirt" is two model tokens plus one garment token, and the Arabic
+// "سويت شيرت كالياري كالتشو" is the same two model tokens with the garment in
+// front. So the Arabic garment is everything except the last N tokens, where N
+// comes from the English. Checked against the whole catalogue: 12 of 13 shapes
+// resolve unambiguously.
+//
+// The thirteenth is data, not arithmetic — "Vanquish Stringer Vest" is
+// "ستراينجر فانكويش" in Arabic, which simply has no word for the vest. That
+// product contributes its English shape and no Arabic one, rather than a
+// guess. An Arabic-speaking customer is better served by a list that is short
+// and right than by one that is complete and invented.
+function assistant_vocabulary(PDO $db): array
+{
+    $base = fn (string $n) => trim(preg_split('/\s+—\s+/u', $n, 2)[0] ?? '');
+    $tail = fn (string $n) => trim(preg_split('/\s+—\s+/u', $n, 2)[1] ?? '');
+
+    $shapes = [];      // en => ['en','ar','n']
+    $colours = [];     // en => ['en','ar','n']
+    $cats = [];
+    $prices = [];
+    $rows = $db->query('select name_en, name_ar, category, price, sale_price
+                        from products where active = 1')->fetchAll();
+
+    foreach ($rows as $r) {
+        $en = (string) $r['name_en'];
+        $ar = (string) $r['name_ar'];
+        $cats[(string) $r['category']] = ($cats[(string) $r['category']] ?? 0) + 1;
+        $p = (float) ($r['sale_price'] > 0 ? $r['sale_price'] : $r['price']);
+        if ($p > 0) $prices[] = $p;
+
+        $be = preg_split('/\s+/u', $base($en)) ?: [];
+        $ba = preg_split('/\s+/u', $base($ar)) ?: [];
+        if ($be) {
+            $shape = end($be);
+            $modelTokens = count($be) - 1;
+            $arShape = '';
+            // Everything ahead of the model tokens is the garment. A count of
+            // zero or less means the Arabic name does not carry the word at
+            // all, and nothing is invented to fill the gap.
+            if (count($ba) - $modelTokens >= 1) {
+                $arShape = implode(' ', array_slice($ba, 0, count($ba) - $modelTokens));
+            }
+            if (!isset($shapes[$shape])) $shapes[$shape] = ['en' => $shape, 'ar' => '', 'n' => 0];
+            $shapes[$shape]['n']++;
+            if ($arShape !== '' && $shapes[$shape]['ar'] === '') $shapes[$shape]['ar'] = $arShape;
+        }
+
+        $ce = $tail($en);
+        if ($ce !== '') {
+            if (!isset($colours[$ce])) $colours[$ce] = ['en' => $ce, 'ar' => $tail($ar), 'n' => 0];
+            $colours[$ce]['n']++;
+        }
+    }
+
+    // ONLY BRANDS THAT HAVE SOMETHING. Six of the eight are active with no
+    // product behind them, and answering "we carry NBA" to a customer who then
+    // finds an empty shelf is worse than not mentioning it.
+    $brands = $db->query('select b.slug, b.name_en, b.name_ar,
+                                 (select count(*) from products p
+                                   where p.brand_slug = b.slug and p.active = 1) n
+                          from brands b where b.active = 1
+                          having n > 0 order by n desc, b.name_en')->fetchAll();
+
+    $sizes = array_column($db->query('select distinct size from size_charts order by sort')->fetchAll(), 'size');
+
+    $sort = function (array $a) { uasort($a, fn ($x, $y) => $y['n'] <=> $x['n']); return array_values($a); };
+
+    return [
+        'shapes'   => $sort($shapes),
+        'colours'  => $sort($colours),
+        'brands'   => $brands,
+        'cats'     => $cats,
+        'sizes'    => $sizes,
+        'products' => count($rows),
+        'min'      => $prices ? min($prices) : 0.0,
+        'max'      => $prices ? max($prices) : 0.0,
+    ];
+}
+
+// The shapes as a readable list, longest-stocked first, in the right language.
+function assistant_vocab_list(array $items, bool $ar, int $max = 8): string
+{
+    $words = [];
+    foreach ($items as $i) {
+        $w = $ar ? ($i['ar'] ?: '') : ($i['en'] ?? '');
+        if ($w !== '') $words[] = $w;
+        if (count($words) >= $max) break;
+    }
+    return implode($ar ? '، ' : ', ', $words);
+}
+
 // THE PLURAL, WHICH IS HOW MOST PEOPLE ASK.
 //
 // "Do you have jackets" found nothing at all. The match is a substring one
@@ -522,6 +664,73 @@ function assistant_order(PDO $db, array $cfg, ?string $track, bool $ar): array
     ]];
 }
 
+// WHAT THE SHOP SELLS — answered from the catalogue, never from a list.
+//
+// Four readings of the same question, and the customer's words say which:
+// brands, sizes, colours, or the range itself. Each is counted from live rows,
+// so the numbers in the sentence are true at the moment it is said.
+//
+// It shows a shelf as well, because "we sell leggings and jackets" invites
+// exactly one follow-up and the products answer it before it is asked.
+function assistant_catalogue(PDO $db, array $cfg, string $text, bool $ar): array
+{
+    $t = assistant_normalise($text);
+    $v = assistant_vocabulary($db);
+
+    // BRANDS. Only the ones with stock behind them are in $v['brands'], so a
+    // customer is never sent looking for an empty shelf.
+    if (assistant_has($t, ['ماركات', 'الماركات', 'براندات', 'البراندات',
+                           'brand', 'brands', 'label', 'labels'])) {
+        if (!$v['brands']) {
+            return [$ar
+                ? 'نبيع تشكيلتنا الخاصة أكثر من علامات محددة. اسألني عن أي قطعة وأخبرك بتوفّرها ومقاساتها.'
+                : "We mostly sell our own range rather than named labels. Ask me about any piece and I'll tell you what's in stock and in which sizes.", null];
+        }
+        $names = array_map(fn ($b) => ($ar ? $b['name_ar'] : $b['name_en']) . " ({$b['n']})", $v['brands']);
+        $list = implode($ar ? '، ' : ', ', $names);
+        return [$ar
+            ? "الماركات المتوفرة عندنا الآن: $list. أي واحدة تحب تشوفها؟"
+            : "The brands we carry right now: $list. Which would you like to see?", null];
+    }
+
+    // SIZES — the range the shop stocks, which is not the same question as
+    // "what size am I". That one is 'sizes' and reaches the adviser.
+    if (assistant_has($t, ['مقاس', 'مقاسات', 'size', 'sizes'])) {
+        $list = implode($ar ? '، ' : ', ', $v['sizes']);
+        return [$ar
+            ? "المقاسات عندنا من $list على أغلب القطع، ويظهر المتوفر منها في صفحة كل منتج. وفي كل صفحة أداة \"ما مقاسي؟\" تحدد لك المقاس من طولك ووزنك."
+            : "We stock $list on most pieces, and each product page shows which of them are in right now. Every page also has a \"What is my size?\" adviser that works it out from your height and weight.", null];
+    }
+
+    // COLOURS.
+    if (assistant_has($t, ['الوان', 'لون', 'colour', 'colours', 'color', 'colors'])) {
+        $list = assistant_vocab_list($v['colours'], $ar, 8);
+        $more = count($v['colours']) > 8 ? (count($v['colours']) - 8) : 0;
+        return [$ar
+            ? "الألوان المتوفرة: $list" . ($more ? " و$more ألوان أخرى" : '') . '. أي لون تبحث عنه؟'
+            : "Colours in stock: $list" . ($more ? " and $more more" : '') . '. Which one are you after?', null];
+    }
+
+    // THE RANGE ITSELF.
+    $list = assistant_vocab_list($v['shapes'], $ar, 7);
+    $more = count($v['shapes']) > 7 ? (count($v['shapes']) - 7) : 0;
+    $price = number_format($v['min'], 3, '.', '');
+    $reply = $ar
+        ? "نبيع ملابس رياضية: $list" . ($more ? " و$more أنواع أخرى" : '')
+          . " — {$v['products']} قطعة بالمقاسات " . implode('، ', $v['sizes'])
+          . "، تبدأ من $price د.ك. عن أي نوع تحب تعرف أكثر؟"
+        : "We sell sportswear: $list" . ($more ? " and $more more" : '')
+          . " — {$v['products']} pieces in sizes " . implode(', ', $v['sizes'])
+          . ", from $price KWD. Which would you like to see?";
+
+    // A few real products underneath, so the answer is browsable rather than
+    // just descriptive.
+    $rows = $db->query('select slug, name_en, name_ar, price, sale_price, category
+                        from products where active = 1
+                        order by featured desc, featured_sort asc, id desc limit 4')->fetchAll();
+    return [$reply, $rows ? assistant_products_payload($db, $rows, $ar) : null];
+}
+
 // Product search over both languages at once. The shopper types in whichever
 // they think in, and the catalogue is stored in both.
 function assistant_search(PDO $db, array $cfg, string $text, bool $ar): array
@@ -553,6 +762,28 @@ function assistant_search(PDO $db, array $cfg, string $text, bool $ar): array
         // goldfish" should hear what the shop CAN help with — the same rule the
         // rest of this file follows. A shopper who wants ideas asks for them,
         // and that is the 'recommend' intent, which offers real bestsellers.
+        //
+        // WHAT IT NOW ADDS, and the line it will not cross. "Do you have
+        // hoodies" was answered "I did not quite follow that" — which is not
+        // even true: the question was understood perfectly, the shop just has
+        // no hoodies. But the honest reply is NOT "we don't sell hoodies",
+        // because nothing here can tell a garment this shop lacks from a typo
+        // or a word it has never seen, and a confident "we don't carry that"
+        // aimed at a misspelling loses a sale the shop could have made.
+        //
+        // So it asserts no negative. It says what the shop DOES sell, counted
+        // from live rows, and lets the customer see for themselves that
+        // hoodies are not in the list. That is true whatever they typed.
+        $v = assistant_vocabulary($db);
+        $list = assistant_vocab_list($v['shapes'], $ar, 6);
+        if ($list !== '') {
+            return [$ar
+                ? "ما لقيت شي بهذا الاسم. اللي نبيعه: $list — وبمقاسات "
+                  . implode('، ', $v['sizes']) . '. تحب أدور لك في نوع منها؟'
+                : "I couldn't find anything by that name. What we do sell: $list"
+                  . ' — in sizes ' . implode(', ', $v['sizes'])
+                  . '. Want me to look in one of those?', null];
+        }
         return [assistant_canned($cfg, 'no_idea', $ar), null];
     }
     return [assistant_canned($cfg, 'found', $ar), assistant_products_payload($db, $found, $ar)];
@@ -1117,14 +1348,48 @@ function assistant_answer(PDO $db, array $cfg, string $message, string $lang): a
         case 'recommend':
             [$reply, $data] = assistant_recommend($db, $cfg, $ar);
             break;
+        case 'catalogue':
+            [$reply, $data] = assistant_catalogue($db, $cfg, $message, $ar);
+            break;
         default:
             // Everything else is a fixed sentence — see assistant_canned().
             $reply = assistant_canned($cfg, $intent, $ar)
                 ?? assistant_canned($cfg, 'greeting', $ar);
     }
 
+    // THE SHOP'S RANGE, GIVEN TO THE MODEL EVERY TIME — the assistant's memory
+    // of its own inventory.
+    //
+    // Without it the model is rewording an answer about a shop it knows nothing
+    // about, and the gap shows in exactly the wrong direction: asked to make
+    // "I couldn't find anything by that name" sound helpful, a model with no
+    // catalogue will happily offer to check the hoodies, or invent a size run,
+    // or name a brand. It is not lying — it has no way to know, and being
+    // helpful is what it was asked to be.
+    //
+    // So the range goes in with the facts, in the system channel the customer
+    // cannot write to. It is a summary, not the catalogue: shapes, sizes,
+    // brands, price floor and a count, about 200 characters. That is enough to
+    // keep the model inside the truth and small enough not to crowd out the
+    // per-question facts that follow it.
+    //
+    // This does not make the model a source. The deterministic reply is still
+    // written before this line and is still what ships when the model is
+    // absent, wrong or slow — the memory only stops the rewording from
+    // wandering off the shelf.
+    $v = assistant_vocabulary($db);
+    $memory = 'SHOP RANGE (all of it — do not offer anything absent from this list): '
+        . 'sells ' . assistant_vocab_list($v['shapes'], false, 20) . '. '
+        . 'Sizes ' . implode('/', $v['sizes']) . '. '
+        . ($v['brands']
+            ? 'Brands ' . implode('/', array_column($v['brands'], 'name_en')) . '. '
+            : 'Own range, no named brands. ')
+        . $v['products'] . ' products, from ' . number_format($v['min'], 3, '.', '') . ' KWD. '
+        . 'Kuwait delivery only.';
+
     // The model, if there is one, only rewords what is already true.
-    $better = assistant_llm($cfg, $message, $reply . ($data ? "\n" . json_encode($data, JSON_UNESCAPED_UNICODE) : ''), $ar);
+    $better = assistant_llm($cfg, $message,
+        $memory . "\n\n" . $reply . ($data ? "\n" . json_encode($data, JSON_UNESCAPED_UNICODE) : ''), $ar);
     $final = $better ?? $reply;
 
     // Hand off to n8n exactly where the assistant runs out: the customer asked
