@@ -87,6 +87,36 @@ console.log('--- the bar')
   // 44 is the AAA target and what a bar you tap while walking should clear.
   check(bar !== null && bar.btns.every((b) => b.h >= 44),
     'both big enough to hit', bar?.btns.map((b) => `${b.t}:${b.h}`).join(' '))
+
+  // AND NOTHING SITS ON TOP OF THEM. The سبورتا AI bubble pins itself to the
+  // bottom of the screen too, at z-50 over the bar's z-30, and it landed
+  // exactly on the Buy now label: the screenshot read "اشترِ الـ" with the
+  // orange S badge where the rest of the word was, and the left end of the
+  // button opened a chat instead of buying. Measured as the label's TEXT RUN,
+  // not the button box — the box is wide enough that a box-level check passes
+  // while the word is still covered — and settled by elementFromPoint, which
+  // is the only thing that answers "what does a finger actually hit here".
+  const cover = await page.evaluate(() => {
+    const buy = [...document.querySelectorAll('.action-bar button')].find((x) => /اشترِ/.test(x.textContent))
+    if (!buy) return null
+    const tn = [...buy.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim())
+    const rg = document.createRange(); rg.selectNodeContents(tn || buy)
+    const T = rg.getBoundingClientRect()
+    const over = []
+    document.querySelectorAll('body *').forEach((e) => {
+      const s = getComputedStyle(e)
+      if (s.position !== 'fixed' || s.display === 'none' || e.closest('.action-bar')) return
+      if (e.matches('.fixed.inset-0')) return // the drawer's scrim: transparent while the bag is shut
+      const r = e.getBoundingClientRect(); if (!r.width || !r.height) return
+      if (r.left < T.right && r.right > T.left && r.top < T.bottom && r.bottom > T.top) over.push(`${e.tagName.toLowerCase()}.${(e.className || '').toString().slice(0, 24)}`)
+    })
+    const hit = document.elementFromPoint(Math.round(T.left) + 6, Math.round((T.top + T.bottom) / 2))
+    return { over, hitsBuy: hit === buy || buy.contains(hit), hit: hit ? `${hit.tagName.toLowerCase()} "${hit.textContent.trim().slice(0, 12)}"` : 'nothing' }
+  })
+  check(cover !== null && cover.over.length === 0,
+    'nothing pinned to the screen covers the Buy now label', cover?.over.join(' | '))
+  check(!!cover?.hitsBuy,
+    'and a finger at the start of "اشترِ الآن" lands on Buy now, not on the assistant', cover?.hit)
 }
 
 console.log('\n--- tapping Add')

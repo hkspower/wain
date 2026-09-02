@@ -598,6 +598,35 @@ div.flex.h-full.w-full:has(> img:not([src^='data:'])) > img[src^='data:image/svg
     padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
   }
 
+  /* --- 6. the assistant bubble sits ON the Buy now button ---------------- */
+  /* THE سبورتا AI BUBBLE AND THE BUY BAR BOTH PIN THEMSELVES TO THE BOTTOM
+   * OF THE SCREEN, AND THE BUBBLE IS ON TOP.
+   *
+   * Measured at 393x850 on the product page, nothing scrolled:
+   *
+   *     .action-bar          fixed  z-30   y777-850
+   *     "اشترِ الآن" label          text   L49-R114  y804-823
+   *     .tap-target bubble   fixed  z-50   L16-R68   y790-834
+   *
+   * The bubble covers the left end of the Buy now label — the screenshot
+   * reads "اشترِ الـ" with the orange S badge where the rest of the word is —
+   * and document.elementFromPoint at the label's left edge returns the
+   * ASSISTANT, not the button. So a shopper who taps the start of Buy now
+   * opens a chat window instead of buying, on every phone product page.
+   *
+   * The bubble's own `bottom-4` is right everywhere the buy bar is not; it is
+   * only wrong on the pages that carry the bar. Lift it clear of the bar there
+   * and nowhere else — the same `body:has(.action-bar)` guard as the footer
+   * above, inside the same phone-only block, because on desktop the bar is
+   * height 0 and the bubble already sits where it should.
+   *
+   * 5.5rem clears the 73px bar by 15px: enough that the two visibly stop
+   * touching, not so much that the bubble climbs into the price. env() on top
+   * for the home indicator, as the bar itself does with `safe-bottom`. */
+  body:has(.action-bar) .tap-target.fixed {
+    bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
   /* --- 4. the header gives 45px back once you start reading ------------- */
   /* The nav row — الرئيسية / المتجر / من نحن / اتصل بنا — is 45px of a 134px
      header that never leaves the screen. It is what you need when you ARRIVE
