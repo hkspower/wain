@@ -199,18 +199,21 @@ export default function SettingsScreen() {
             value={contact.phone}
             onChangeText={(v) => setC('phone', v)}
             keyboardType="phone-pad"
+            textContentType="telephoneNumber"
           />
           <Field
             label="WhatsApp number (with country code)"
             value={contact.whatsapp}
             onChangeText={(v) => setC('whatsapp', v)}
             keyboardType="phone-pad"
+            textContentType="telephoneNumber"
           />
           <Field
             label="Email"
             value={contact.email}
             onChangeText={(v) => setC('email', v)}
             keyboardType="email-address"
+            textContentType="emailAddress"
             autoCapitalize="none"
           />
           <Field

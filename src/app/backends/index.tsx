@@ -93,6 +93,10 @@ function SignIn() {
             autoCapitalize="none"
             keyboardType="email-address"
             autoComplete="email"
+            // iOS reads textContentType, Android reads autoComplete. Both, or
+            // the field autofills on one platform and not the other.
+            textContentType="emailAddress"
+            autoCorrect={false}
             accessibilityLabel="Email"
             style={[
               styles.input,
@@ -108,6 +112,7 @@ function SignIn() {
             secureTextEntry
             autoCapitalize="none"
             autoComplete="current-password"
+            textContentType="password"
             accessibilityLabel="Password"
             onSubmitEditing={submit}
             style={[
@@ -145,6 +150,17 @@ function SignIn() {
                 onChangeText={setCode}
                 keyboardType="number-pad"
                 autoComplete="one-time-code"
+                // THE ONE THAT SAVES THE MOST TYPING. autoComplete is the
+                // Android half; this is what makes iOS put the six digits from
+                // Mail straight above the keyboard. Without it an owner reads
+                // the code, memorises it, switches back and types it — the
+                // friction the second factor was worth accepting, doubled for
+                // no reason.
+                textContentType="oneTimeCode"
+                // Six digits is the whole code; stopping there means a stray
+                // keypress cannot silently make it seven and fail the compare.
+                maxLength={6}
+                autoCorrect={false}
                 accessibilityLabel={factor?.via === 'email' ? 'Code from your email' : 'Authenticator code'}
                 onSubmitEditing={submit}
                 // The password was right; only the code is being retyped.

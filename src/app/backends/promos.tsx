@@ -31,6 +31,33 @@ const BLANK: DiscountDraft = {
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * A date, typed as digits, punctuated for you.
+ *
+ * The two window fields are plain text with the default keyboard, so setting a
+ * promotion on a phone meant switching to the numeric layout, hunting for the
+ * hyphen, and typing it twice — and `problem()` rejects the whole draft if
+ * either one lands wrong. The manager gets "The start date has to be
+ * YYYY-MM-DD" for a stray character they cannot see.
+ *
+ * So the field takes DIGITS and puts the hyphens in: 20260915 becomes
+ * 2026-09-15 while it is being typed.
+ *
+ * It works off the digits alone rather than patching the string in place,
+ * which is what makes deleting behave. Backspacing over a hyphen removes the
+ * digit before it and the rest re-punctuates, instead of leaving the cursor
+ * stuck against a separator it cannot delete.
+ *
+ * Eight digits is a whole date, so anything beyond is dropped rather than
+ * quietly making an ISO string the validator will refuse.
+ */
+export const asIsoDate = (raw: string): string => {
+  const d = raw.replace(/\D/g, '').slice(0, 8);
+  if (d.length <= 4) return d;
+  if (d.length <= 6) return `${d.slice(0, 4)}-${d.slice(4)}`;
+  return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}`;
+};
+
 export default function PromosScreen() {
   const theme = useTheme();
   const { lang } = useLang();
@@ -155,10 +182,16 @@ export default function PromosScreen() {
             onChangeText={(v) => setDraft({ ...draft, minOrder: toFils(Number(v.replace(/[^\d.]/g, '')) || 0) })}
           />
           <View style={styles.row}>
+            {/* numbers-and-punctuation, not number-pad: number-pad on iOS has
+                no hyphen at all, so a date could not be typed even by hand if
+                the formatter were ever removed. maxLength is the length of a
+                whole date. */}
             <Field label="Starts (YYYY-MM-DD)" value={draft.startsAt ?? ''}
-              onChangeText={(v) => setDraft({ ...draft, startsAt: v || null })} />
+              keyboardType="numbers-and-punctuation" maxLength={10}
+              onChangeText={(v) => setDraft({ ...draft, startsAt: asIsoDate(v) || null })} />
             <Field label="Ends (YYYY-MM-DD)" value={draft.endsAt ?? ''}
-              onChangeText={(v) => setDraft({ ...draft, endsAt: v || null })} />
+              keyboardType="numbers-and-punctuation" maxLength={10}
+              onChangeText={(v) => setDraft({ ...draft, endsAt: asIsoDate(v) || null })} />
           </View>
           <Field
             label="Usage limit (0 = unlimited)"

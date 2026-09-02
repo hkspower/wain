@@ -191,6 +191,7 @@ export default function ExchangeScreen() {
             onChangeText={setPhone}
             keyboardType="phone-pad"
             autoComplete="tel"
+            textContentType="telephoneNumber"
             onSubmitEditing={find}
           />
         </View>

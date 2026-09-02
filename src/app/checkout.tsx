@@ -163,11 +163,15 @@ export default function CheckoutScreen() {
     k,
     keyboardType,
     autoComplete,
+    textContentType,
   }: {
     label: string;
     k: keyof typeof form;
     keyboardType?: 'default' | 'phone-pad' | 'number-pad' | 'email-address';
     autoComplete?: 'name' | 'tel' | 'email' | 'street-address' | 'off';
+    // autoComplete is Android's hint; iOS reads this one. Given together or
+    // the shopper's own details autofill on one platform and not the other.
+    textContentType?: 'name' | 'telephoneNumber' | 'emailAddress' | 'addressCity' | 'none';
   }) => (
     <View style={styles.field}>
       <ThemedText type="label" themeColor="textSecondary" style={text}>
@@ -178,6 +182,12 @@ export default function CheckoutScreen() {
         onChangeText={set(k)}
         keyboardType={keyboardType ?? 'default'}
         autoComplete={autoComplete ?? 'off'}
+        textContentType={textContentType ?? 'none'}
+        // A phone number, an email and a block number are not prose. A
+        // keyboard that corrects them turns a valid entry into an invalid one
+        // after the shopper has stopped looking.
+        autoCorrect={keyboardType && keyboardType !== 'default' ? false : undefined}
+        spellCheck={keyboardType && keyboardType !== 'default' ? false : undefined}
         accessibilityLabel={label}
         placeholderTextColor={theme.textSecondary}
         style={[
@@ -235,9 +245,9 @@ export default function CheckoutScreen() {
               {t.checkout.title}
             </ThemedText>
 
-            <Field label={t.checkout.name} k="name" autoComplete="name" />
-            <Field label={t.checkout.phone} k="phone" keyboardType="phone-pad" autoComplete="tel" />
-            <Field label={t.checkout.email} k="email" keyboardType="email-address" autoComplete="email" />
+            <Field label={t.checkout.name} k="name" autoComplete="name" textContentType="name" />
+            <Field label={t.checkout.phone} k="phone" keyboardType="phone-pad" autoComplete="tel" textContentType="telephoneNumber" />
+            <Field label={t.checkout.email} k="email" keyboardType="email-address" autoComplete="email" textContentType="emailAddress" />
 
             <View style={styles.field}>
               <ThemedText type="label" themeColor="textSecondary" style={text}>
@@ -281,7 +291,7 @@ export default function CheckoutScreen() {
               )}
             </View>
 
-            <Field label={t.checkout.area} k="area" autoComplete="street-address" />
+            <Field label={t.checkout.area} k="area" autoComplete="street-address" textContentType="addressCity" />
             <View style={[styles.threeUp, row]}>
               <View style={styles.third}>
                 <Field label={t.checkout.block} k="block" keyboardType="number-pad" />
