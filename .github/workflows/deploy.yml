@@ -76,6 +76,7 @@ jobs:
         # in logs. Never put the service_role key here; it bypasses RLS.
         env:
           NEXT_PUBLIC_ELEVENLABS_AGENT_ID: ${{ vars.ELEVENLABS_AGENT_ID }}
+          NEXT_PUBLIC_WAIN_TTS_URL: ${{ vars.WAIN_TTS_URL }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: npm run build
@@ -87,6 +88,7 @@ jobs:
         env:
           URL: ${{ vars.SUPABASE_URL }}
           AGENT: ${{ vars.ELEVENLABS_AGENT_ID }}
+          TTS: ${{ vars.WAIN_TTS_URL }}
         run: |
           if [ -n "$URL" ]; then
             echo "Supabase: configured"
@@ -101,6 +103,16 @@ jobs:
             echo "شوق: agent mode ($AGENT)"
           else
             echo "::warning::NEXT_PUBLIC_ELEVENLABS_AGENT_ID is NOT set — the call button falls back to browser speech recognition instead of talking to شوق. Set the ELEVENLABS_AGENT_ID variable (see docs/wain-ai-agent.md) to enable agent mode."
+          fi
+          # Not a warning when unset. The bridge is an upgrade to a path that
+          # already works: without it a runtime-assembled sentence is read by
+          # the browser's own voice, which is the behaviour the site shipped
+          # with. Worth stating either way so a deploy says which voice a
+          # visitor will actually hear.
+          if [ -n "$TTS" ]; then
+            echo "صوت وين: live bridge ($TTS) — runtime sentences in her own voice"
+          else
+            echo "صوت وين: recorded clips only — runtime sentences fall back to the browser voice. Set the WAIN_TTS_URL variable to enable the bridge."
           fi
 
       - name: Verify build output

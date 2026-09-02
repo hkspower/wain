@@ -34,6 +34,7 @@ const CHROMIUM = process.env.CHROMIUM_PATH || "/opt/pw-browsers/chromium";
 const PORT_FLOW = 4189;
 const PORT_AGENT = 4190;
 const PORT_VOICE = 4197;
+const PORT_BRIDGE = 4198;
 
 /**
  * Async on purpose. The static server below runs in this same process, so a
@@ -154,6 +155,47 @@ console.log("\n════ شوق: the voice ════");
   failed += (await run("node", ["tests/shouq-clips.test.mjs"], { env: voiceEnv })) === 0 ? 0 : 1;
   srv.close();
   rmSync(vtmp, { recursive: true, force: true });
+}
+
+/* 3b — the live bridge, which is a BUILD-TIME switch.
+   NEXT_PUBLIC_WAIN_TTS_URL is inlined at bundle time, so the harness above —
+   built without it — can only ever exercise the branch where the bridge does
+   not exist. A second bundle with the switch on is the only way to reach the
+   other half, and it costs one esbuild rather than a second Next build. Every
+   bridge response is fulfilled inside the browser by Playwright, so this
+   server only ever serves the harness and the clip fixtures. */
+console.log("\n════ شوق: the live bridge ════");
+{
+  const btmp = mkdtempSync(join(tmpdir(), "shouq-bridge-"));
+  const okBundle = await run("npx", ["esbuild", "tests/harness/voice-harness.ts",
+    "--bundle", "--format=iife", `--alias:@=${join(ROOT, "src")}`,
+    '--define:process.env.NODE_ENV="production"',
+    '--define:process.env.NEXT_PUBLIC_WAIN_TTS_URL="/tts"',
+    `--outfile=${join(btmp, "voice.js")}`, "--log-level=error"]);
+  if (okBundle !== 0) { console.error("could not bundle the bridge harness"); process.exit(1); }
+  writeFileSync(join(btmp, "voice.html"),
+    `<!doctype html><meta charset="utf-8"><title>voice</title><script src="./voice.js"></script>`);
+
+  const { createServer } = await import("node:http");
+  const { readFileSync } = await import("node:fs");
+  const FIXTURES = join(ROOT, "tests/fixtures/voice");
+  const TYPES = { ".js": "text/javascript", ".json": "application/json",
+    ".mp3": "audio/mpeg", ".html": "text/html; charset=utf-8" };
+  const srv = createServer((req, res) => {
+    const url = req.url === "/" ? "/voice.html" : req.url.split("?")[0];
+    const [base, name] = url.startsWith("/voice/")
+      ? [FIXTURES, url.slice("/voice".length)]
+      : [btmp, url];
+    const f = join(base, name);
+    if (!f.startsWith(base) || !existsSync(f)) { res.writeHead(404); return res.end("nope"); }
+    res.writeHead(200, { "content-type": TYPES[extname(f)] ?? "application/octet-stream" });
+    res.end(readFileSync(f));
+  });
+  await new Promise((r) => srv.listen(PORT_BRIDGE, "127.0.0.1", r));
+  failed += (await run("node", ["tests/shouq-bridge.test.mjs"],
+    { env: { ...process.env, WAIN_URL: `http://127.0.0.1:${PORT_BRIDGE}` } })) === 0 ? 0 : 1;
+  srv.close();
+  rmSync(btmp, { recursive: true, force: true });
 }
 
 /* 4 — the button and the local voice path, against the shipping build. */

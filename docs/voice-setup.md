@@ -147,3 +147,46 @@ the voice settings. A run that re-records because of one of those says
 sentence moved» from «this voice moved». `tests/voice-pipeline.test.mjs`
 proves it: swap شوق's voice and all 137 of her clips are re-recorded while
 سالم's are left alone. With the old hash that same test records nothing.
+
+---
+
+## The live bridge — a third rendering path
+
+The clip library covers every sentence written down in advance. It cannot
+cover one assembled at runtime, and that is exactly where شوق stopped being
+herself: the browser's own Arabic voice took over mid-answer, and the drop from
+a Kuwaiti woman to a robot is the loudest thing on the page — louder than
+anything either voice actually says.
+
+The bridge is an n8n webhook holding the ElevenLabs key server-side, so the
+static export still ships no credential; that constraint is why the clip
+pipeline exists and it is not relaxed here.
+
+```
+POST https://sportake.app.n8n.cloud/webhook/fahad-tts
+{ "persona": "shouq" | "salem" | "sporta", "text": "…" }  →  audio/mpeg
+```
+
+Set the `WAIN_TTS_URL` repository variable to that URL and the site starts
+using it. The path still reads `fahad-tts` after a persona that no longer
+exists anywhere in this repo — renaming it would break whatever already calls
+it from Sporta, which is a worse trade than an ugly URL.
+
+**The workflow and `gen-voice.mjs` carry the same voice table on purpose.** A
+clip and a live sentence are heard one after the other *inside a single
+utterance*; if the voice or the settings differ between them, a visitor hears
+the speaker change mid-sentence. Change one table and change the other.
+
+**What it costs.** One ElevenLabs call per runtime sentence, at request time —
+unlike the clips, which are paid for once. And a configured-but-slow bridge
+buys silence, which is worse than the robot, so `voice.ts` gives the sentence
+up after four seconds. That number is the whole trade-off; it is a constant
+with its reasoning above it.
+
+**Every failure lands on the browser voice**, including the one that does not
+look like a failure: a 200 whose body is an error page plays as pure silence,
+and silence is indistinguishable from her ignoring the visitor. `voice.ts`
+checks the size and the content type before committing to a response.
+`tests/shouq-bridge.test.mjs` drives all of it — 500, non-audio 200, empty
+body, unreachable, and slow — and with the size/type guard removed the two
+silent cases fail exactly as described.

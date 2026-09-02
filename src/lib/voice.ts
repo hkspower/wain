@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { deadlineFetch } from "@/lib/net";
 import {
   PERSONAS,
   forSpeech,
@@ -10,6 +11,42 @@ import {
 } from "@/lib/voice-lines";
 
 export { PERSONAS, type PersonaId };
+
+/**
+ * صوت وين, live — the third rendering path.
+ *
+ * The clip library covers every sentence that could be written down in
+ * advance, which is most of them and all of the ones worth paying to record.
+ * What it cannot cover is a sentence assembled at runtime, and that is exactly
+ * where شوق stopped being herself: the browser's own Arabic voice took over,
+ * and the drop from a Kuwaiti woman to a robot is the loudest thing on the
+ * page — louder than anything either voice actually says.
+ *
+ * The bridge is an n8n webhook that holds the ElevenLabs key server-side, so
+ * the static export still ships no credential; that constraint is the reason
+ * the clip pipeline exists at all and it is not being relaxed here. The
+ * workflow renders the same voice with the same settings the clips were
+ * recorded with — its «اختر الصوت» node and `scripts/gen-voice.mjs` carry the
+ * same table on purpose, because a clip and a live sentence are heard one
+ * after the other inside a single utterance, and any difference between them
+ * is audible as the speaker changing mid-sentence.
+ *
+ * Unset, nothing about the site changes. Set and unreachable, the browser
+ * voice speaks after at most TTS_DEADLINE_MS. This is an upgrade to a path
+ * that already worked, never a dependency.
+ */
+const TTS_URL = process.env.NEXT_PUBLIC_WAIN_TTS_URL ?? "";
+
+/**
+ * How long to wait for the bridge before giving the line to the browser.
+ *
+ * The honest cost of this feature: a configured-but-slow bridge buys silence,
+ * and silence is worse than the robot. Four seconds is about the longest a
+ * visitor will wait for an answer they asked for out loud — a render plus a
+ * transfer on a Kuwaiti mobile connection normally lands well inside it, and
+ * anything that does not, isn't going to.
+ */
+const TTS_DEADLINE_MS = 4_000;
 
 /**
  * صوت وين — the playback engine.
@@ -232,6 +269,53 @@ function speakFallback(text: string) {
   synth.speak(utterance);
 }
 
+/** The object URL of the last live render, so it can be revoked. One at a
+ *  time is all this ever holds: a new utterance stops the previous one. */
+let liveUrl: string | null = null;
+function releaseLive() {
+  if (liveUrl) {
+    URL.revokeObjectURL(liveUrl);
+    liveUrl = null;
+  }
+}
+
+/** Render one sentence through the bridge. Resolves false for every reason a
+ *  caller would do the same thing about — unconfigured, offline, slow, non-2xx,
+ *  or a body that is not audio — so the fallback has exactly one condition. */
+async function speakLive(text: string, mine: number): Promise<boolean> {
+  if (!TTS_URL) return false;
+  releaseLive();
+  try {
+    const res = await deadlineFetch(TTS_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      // forSpeech here for the same reason gen-voice.mjs calls it before
+      // recording: what is synthesised has to be the string the fallback would
+      // have uttered, digits and dashes included, or the two paths say
+      // different things.
+      body: JSON.stringify({ persona: snapshot.persona, text: forSpeech(text) }),
+      signal: AbortSignal.timeout(TTS_DEADLINE_MS),
+    });
+    if (!res.ok) return false;
+    const blob = await res.blob();
+    // A zero-length or non-audio body plays as silence, and silence is
+    // indistinguishable from a working call — the visitor just thinks she
+    // ignored them. An error page returned with a 200 is the realistic way
+    // that happens.
+    if (blob.size < 512 || !blob.type.startsWith("audio/")) return false;
+    // The visitor moved on while this was in flight.
+    if (mine !== generation) return false;
+    liveUrl = URL.createObjectURL(blob);
+    update({ speaking: true });
+    queue = [liveUrl];
+    ensureAudio();
+    playNext();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function speak(parts: SpeechPart[]) {
   if (typeof window === "undefined" || parts.length === 0) return;
   stop();
@@ -244,9 +328,15 @@ export function speak(parts: SpeechPart[]) {
       queue = clips;
       ensureAudio();
       playNext();
-    } else {
-      speakFallback(parts.map((p) => p.text).join(" "));
+      return;
     }
+    // No clip for this sentence — it was assembled at runtime. Her real voice
+    // if the bridge can produce it, the browser's if it cannot.
+    const text = parts.map((p) => p.text).join(" ");
+    void speakLive(text, mine).then((spoke) => {
+      if (mine !== generation || spoke) return;
+      speakFallback(text);
+    });
   });
 }
 
@@ -255,6 +345,10 @@ export function stop() {
   generation++;
   queue = [];
   if (audio && !audio.paused) audio.pause();
+  // A blob URL is a document-lifetime reference to the whole MP3 in memory.
+  // Nothing else drops it, and «اسمع الاقتراح» on a place page is a button
+  // people press repeatedly.
+  releaseLive();
   window.speechSynthesis?.cancel();
   if (snapshot.speaking) update({ speaking: false });
 }
