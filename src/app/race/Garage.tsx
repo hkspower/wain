@@ -314,7 +314,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
   };
 
   return (
-    <div className="screen-in absolute inset-0 z-20 flex flex-col menu-backdrop">
+    <div className="screen-in garage-backdrop absolute inset-0 z-20 flex flex-col">
       {/* Sticky header: identity, money, exit — never scrolls away */}
       <div className="safe-pad shrink-0 border-b border-white/10 bg-night-950/80 !pb-2.5 !pt-[calc(var(--safe-t)+0.6rem)] backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3">
@@ -469,6 +469,34 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                                     : "cursor-not-allowed opacity-45"
                           }`}
                         >
+                          {/* The car itself, on the card that sells it.
+                              These are the game's own showroom renders —
+                              the menu's turntable, its lighting, its
+                              paint — so the picture and the machine
+                              cannot disagree. A shop that described
+                              fifteen cars and showed none of them was
+                              asking players to buy on adjectives.
+
+                              Locked cars are shown dimmed and greyed
+                              rather than hidden: a car you cannot see is
+                              not rare, it is absent — the same argument
+                              the locked-card comment above makes. */}
+                          <div
+                            className="-mx-1 mb-2 overflow-hidden rounded-lg bg-gradient-to-b from-white/[0.06] to-transparent"
+                            aria-hidden
+                          >
+                            <img
+                              src={`/cars/${c.id}.webp`}
+                              alt=""
+                              loading="lazy"
+                              decoding="async"
+                              width={480}
+                              height={180}
+                              className={`aspect-[8/3] w-full object-contain transition duration-200 ${
+                                toGo > 0 ? "opacity-40 grayscale" : ""
+                              } ${owned || affordable ? "group-hover:scale-[1.02]" : ""}`}
+                            />
+                          </div>
                           <div className="flex items-start justify-between gap-2">
                             <div>
                               <div className="grn-display text-lg leading-tight">{c.name}</div>

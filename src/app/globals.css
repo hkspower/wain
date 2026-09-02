@@ -443,6 +443,66 @@ body {
   );
 }
 
+/* The showroom floor.
+ *
+ * The garage sat on the same flat vertical gradient as every other
+ * full-screen panel, which is fine for a settings sheet and wrong for a
+ * room you are meant to be standing in. This is that room: a sodium
+ * pool overhead where the light would come from, a cooler bounce off
+ * the floor, and a faint grid that stops before the horizon so the
+ * space has a depth the gradient alone cannot suggest.
+ *
+ * All of it is painted rather than lit — no extra canvas, no second
+ * WebGL context behind a menu that is already sharing a GPU with the
+ * game. The grid is two repeating-linear-gradients, and it is masked to
+ * fade out toward the top, because a grid that runs to the edge reads
+ * as wallpaper and one that stops reads as a floor.
+ */
+.garage-backdrop {
+  background:
+    /* the lamp above the car */
+    radial-gradient(
+      120% 70% at 50% -10%,
+      color-mix(in srgb, var(--color-sodium-500) 16%, transparent),
+      transparent 62%
+    ),
+    /* cool bounce coming back off the floor */
+    radial-gradient(
+      100% 55% at 50% 108%,
+      color-mix(in srgb, var(--color-gulf-500) 10%, transparent),
+      transparent 70%
+    ),
+    linear-gradient(
+      180deg,
+      var(--color-night-950),
+      var(--color-night-800) 55%,
+      var(--color-night-950)
+    );
+}
+
+.garage-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Bay markings. 64px squares, hairline, and dim enough that they read
+     as a surface rather than as a chart. */
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.045) 0 1px,
+      transparent 1px 64px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.03) 0 1px,
+      transparent 1px 64px
+    );
+  /* Gone by the top third: the floor is under you, not in front of you. */
+  -webkit-mask-image: linear-gradient(180deg, transparent 22%, #000 78%);
+  mask-image: linear-gradient(180deg, transparent 22%, #000 78%);
+}
+
 .grn-panel {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)),

@@ -49,6 +49,7 @@
     "test:carbon": "node tests/carbon.mjs",
     "test:distance": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/distance.mjs",
     "test:roofline": "node tests/roofline.mjs",
+    "shots:thumbs": "node tools/shots/cardthumbs.mjs",
     "test:paints": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/paints.mjs",
     "test:weight": "node tests/typeweight.mjs",
     "test:handles": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/handles.mjs",
