@@ -303,7 +303,11 @@ const PRICE_WORDS: Record<number, string> = {
   3: "غالي راقي فخم",
 };
 
-function ratingWords(rating: number): string {
+function ratingWords(rating: number | undefined): string {
+  // An unrated place gets no rating words at all. Defaulting it to "جيد"
+  // would let a place we know nothing about answer «تقييم جيد» — inventing a
+  // judgement and ranking on it.
+  if (rating === undefined) return "";
   if (rating >= 4.7) return "الأعلى تقييماً ممتاز أحسن أفضل تقييم";
   if (rating >= 4.4) return "تقييم عالي حلو زين";
   return "تقييم جيد";

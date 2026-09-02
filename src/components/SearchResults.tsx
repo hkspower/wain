@@ -88,13 +88,15 @@ function PlaceMeta({ id }: { id: string }) {
   if (!place) return null;
   return (
     <span className="hidden shrink-0 items-center gap-3 sm:flex">
-      <span
-        className="flex items-center gap-1 text-xs font-semibold text-ink-700"
-        aria-label={`التقييم ${toArabicDigits(place.rating.toFixed(1))} من ٥`}
-      >
-        <IconStar className="size-3.5 text-sun-500" />
-        {toArabicDigits(place.rating.toFixed(1))}
-      </span>
+      {place.rating !== undefined && (
+        <span
+          className="flex items-center gap-1 text-xs font-semibold text-ink-700"
+          aria-label={`التقييم ${toArabicDigits(place.rating.toFixed(1))} من ٥`}
+        >
+          <IconStar className="size-3.5 text-sun-500" />
+          {toArabicDigits(place.rating.toFixed(1))}
+        </span>
+      )}
       <span
         className="flex items-center gap-1 text-2xs font-semibold text-sand-700"
         aria-label={`مستوى السعر ${toArabicDigits(place.priceLevel)} من ٣`}

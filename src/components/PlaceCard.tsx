@@ -18,13 +18,18 @@ export default function PlaceCard({ place }: { place: Place }) {
           slug={place.slug}
           className="size-20 transition duration-500 group-hover:scale-105 standalone:size-14"
         />
-        <span
-          className="absolute start-3 top-3 flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-ink-800 shadow-sm backdrop-blur"
-          aria-label={`التقييم ${toArabicDigits(place.rating.toFixed(1))} من ٥`}
-        >
-          <IconStar className="size-3.5 text-sun-500" />
-          {toArabicDigits(place.rating.toFixed(1))}
-        </span>
+        {/* No chip at all when there is no rating. A placeholder — a dash, a
+            greyed star — would be a worse answer than silence: it draws the
+            eye to a number that does not exist. */}
+        {place.rating !== undefined && (
+          <span
+            className="absolute start-3 top-3 flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-ink-800 shadow-sm backdrop-blur"
+            aria-label={`التقييم ${toArabicDigits(place.rating.toFixed(1))} من ٥`}
+          >
+            <IconStar className="size-3.5 text-sun-500" />
+            {toArabicDigits(place.rating.toFixed(1))}
+          </span>
+        )}
       </div>
 
       <div className="flex flex-1 flex-col p-4 standalone:p-3">

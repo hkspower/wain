@@ -90,7 +90,11 @@ const BATTERY = [
   // merely for being non-empty: a synonym that answers with the wrong place
   // is worse than one that answers with none.
   ["رومانسي", ["coffee", "restaurants"], "a date — the catalogue tags this «موعد»"],
-  ["شباب", ["coffee", "fastfood", "restaurants"], "a young crowd — tagged «ربع»"],
+  // culture is here because بيت لوذان genuinely belongs: an arts house
+  // running workshops for young local artists is a fair answer to «شباب»,
+  // and it became the top hit the moment the place was added. Widening the
+  // case beats narrowing the search.
+  ["شباب", ["coffee", "fastfood", "restaurants", "culture"], "a young crowd — tagged «ربع»"],
   ["ملابس", ["shopping"], "shopping FOR something — tagged «ماركات»"],
   ["كتب", ["shopping"], "secondhand books, which is سوق الجمعة and nowhere else"],
   ["بارد", ["shopping", "restaurants", "culture"], "somewhere air-conditioned in the heat"],

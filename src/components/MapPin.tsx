@@ -174,10 +174,12 @@ export default function MapPin({
             <span className="text-2xs font-semibold">{place.nameAr}</span>
             <span className="text-2xs text-sand-300">{place.areaAr}</span>
           </span>
-          <span className="flex items-center gap-0.5 rounded-full bg-white/15 px-1.5 py-0.5 text-2xs font-semibold">
-            <IconStar className="size-3 text-sun-300" />
-            {toArabicDigits(place.rating.toFixed(1)).replace(".", "٫")}
-          </span>
+          {place.rating !== undefined && (
+            <span className="flex items-center gap-0.5 rounded-full bg-white/15 px-1.5 py-0.5 text-2xs font-semibold">
+              <IconStar className="size-3 text-sun-300" />
+              {toArabicDigits(place.rating.toFixed(1)).replace(".", "٫")}
+            </span>
+          )}
           <IconGo className="size-3.5 shrink-0 text-sand-300" />
         </span>
         {/* The little nose that ties the callout to its pin. */}

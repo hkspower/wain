@@ -99,7 +99,9 @@ export function validate(p: EditablePlace): string[] {
   if (!p.taglineAr.trim()) errs.push("الوصف المختصر مطلوب.");
   if (!p.descriptionAr.trim()) errs.push("الوصف الكامل مطلوب.");
   if (!p.bestTimeAr.trim()) errs.push("أحسن وقت للزيارة مطلوب.");
-  if (p.rating < 0 || p.rating > 5) errs.push("التقييم لازم يكون بين ٠ و ٥.");
+  // An empty rating is valid — it means nobody has judged the place yet.
+  if (p.rating !== undefined && (p.rating < 0 || p.rating > 5))
+    errs.push("التقييم لازم يكون بين ٠ و ٥.");
   if (p.priceLevel < 1 || p.priceLevel > 3) errs.push("مستوى السعر لازم يكون ١ أو ٢ أو ٣.");
   if (p.lat < -90 || p.lat > 90) errs.push("خط العرض غير صحيح.");
   if (p.lng < -180 || p.lng > 180) errs.push("خط الطول غير صحيح.");
@@ -408,7 +410,7 @@ export default function PlaceForm({
         </div>
         <div>
           <label className={label} htmlFor="f-rating">التقييم (٠–٥)</label>
-          <input id="f-rating" dir="ltr" type="number" step="0.1" min="0" max="5" className={input} value={p.rating} onChange={(e) => set("rating", Number(e.target.value))} />
+          <input id="f-rating" dir="ltr" type="number" step="0.1" min="0" max="5" className={input} value={p.rating ?? ""} onChange={(e) => set("rating", e.target.value === "" ? undefined : Number(e.target.value))} />
         </div>
         <div>
           <label className={label} htmlFor="f-price">مستوى السعر</label>

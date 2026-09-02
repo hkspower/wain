@@ -220,9 +220,32 @@ export function spreadPins(
     const dx = p.x - home[i].x, dy = p.y - home[i].y;
     const d = Math.hypot(dx, dy);
     const k = d > maxShift ? maxShift / d : 1;
-    const x = clamp(home[i].x + dx * k, rx, 1);
+    let x = clamp(home[i].x + dx * k, rx, 1);
     // y is in width units, so the frame's height in those units is 1/aspect.
-    const y = clamp(home[i].y + dy * k, ry, 1 / aspect);
+    let y = clamp(home[i].y + dy * k, ry, 1 / aspect);
+
+    /**
+     * The clamp can undo the cap, so the cap is applied again after it.
+     *
+     * Keeping a pin's whole disc inside the frame means pushing any pin whose
+     * home sits within half a pin of an edge — and that push is measured from
+     * the edge, not from home, so it can move a pin further than `maxShift`
+     * allowed. It went unnoticed while the catalogue was 36 places and the
+     * frames were roomy; at 44 the frames tightened, more homes landed near an
+     * edge, and the worst pin came out at 141m against a 60m cap. The test
+     * caught it, which is what the test is for.
+     *
+     * Re-limiting can leave a pin's disc slightly over the frame edge — by at
+     * most half a pin, into padding the frame already has. Being a few pixels
+     * over an edge is a smaller lie than being 141m from the place.
+     */
+    const cdx = x - home[i].x, cdy = y - home[i].y;
+    const cd = Math.hypot(cdx, cdy);
+    if (cd > maxShift) {
+      const back = maxShift / cd;
+      x = home[i].x + cdx * back;
+      y = home[i].y + cdy * back;
+    }
     return { x, y: y * aspect };
   });
 }

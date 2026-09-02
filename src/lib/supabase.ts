@@ -111,7 +111,8 @@ export function rowToPlace(r: PlaceRow): Place {
     areaAr: r.area_ar,
     lat: r.lat,
     lng: r.lng,
-    rating: Number(r.rating),
+    // Number(null) is 0, which would render as a real rating of zero.
+    rating: r.rating === null || r.rating === undefined ? undefined : Number(r.rating),
     priceLevel: r.price_level,
     emoji: r.emoji,
     taglineAr: r.tagline_ar,

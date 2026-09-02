@@ -129,13 +129,15 @@ export default async function PlacePage({
             className="absolute inset-0 h-full w-full"
           />
         )}
-        <span
-          className="absolute start-4 top-4 flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-sm font-semibold text-ink-800 shadow-sm backdrop-blur"
-          aria-label={`التقييم ${toArabicDigits(place.rating.toFixed(1))} من ٥`}
-        >
-          <IconStar className="size-4 text-sun-500" />
-          {toArabicDigits(place.rating.toFixed(1))}
-        </span>
+        {place.rating !== undefined && (
+          <span
+            className="absolute start-4 top-4 flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-sm font-semibold text-ink-800 shadow-sm backdrop-blur"
+            aria-label={`التقييم ${toArabicDigits(place.rating.toFixed(1))} من ٥`}
+          >
+            <IconStar className="size-4 text-sun-500" />
+            {toArabicDigits(place.rating.toFixed(1))}
+          </span>
+        )}
       </div>
 
       {/* Header */}

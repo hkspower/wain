@@ -48,6 +48,19 @@ const km = (a, b) => {
   return 2 * R * Math.asin(Math.sqrt(h));
 };
 
+/* ── drafted records, and the debt they carry ─────────────────────────────
+   A place added from general knowledge is better than no place — the site is
+   a guide, and a guide with 36 entries answers fewer questions than one with
+   44. But two of its fields cannot be written from general knowledge without
+   inventing something a visitor would act on, so they are left explicitly
+   unset and listed here until someone checks them.
+
+   Neither is an error. An unverified coordinate still puts the pin in the
+   right town, and a missing rating shows no chip at all rather than a made-up
+   number. They are reported so the debt stays visible and finite. */
+const unverified = places.filter((p) => p.coordsUnverified);
+const unrated = places.filter((p) => p.rating === undefined);
+
 /* ── identity ─────────────────────────────────────────────────────────── */
 const slugs = new Set();
 for (const p of places) {
@@ -115,7 +128,10 @@ for (const p of places) {
   if (!p.taglineAr?.trim()) err(`${p.nameAr}: no taglineAr — شوق uses it as the reason`);
   if (p.highlightsAr.length < 3) err(`${p.nameAr}: only ${p.highlightsAr.length} highlights`);
   if (p.tagsAr.length < 4) err(`${p.nameAr}: only ${p.tagsAr.length} tags — too thin to be found by anything but its name`);
-  if (p.rating < 0 || p.rating > 5) err(`${p.nameAr}: rating out of range`);
+  // An absent rating is a valid state — it means nobody has judged the place
+  // yet, and no chip is drawn. Only a PRESENT one has to be in range.
+  if (p.rating !== undefined && (p.rating < 0 || p.rating > 5))
+    err(`${p.nameAr}: rating out of range`);
   if (![1, 2, 3].includes(p.priceLevel)) err(`${p.nameAr}: bad priceLevel`);
   // The season text and the setting must not contradict each other.
   if (p.setting === "indoor" && /^من (أكتوبر|نوفمبر)/.test(p.seasonAr))
@@ -150,6 +166,16 @@ if (featured < 3) err(`only ${featured} featured places — the home page and th
 
 /* ── report ──────────────────────────────────────────────────────────── */
 console.log(`audit-places: ${places.length} places, ${tagUse.size} distinct tags\n`);
+if (unverified.length) {
+  console.log(`\n  ${unverified.length} place(s) with an UNVERIFIED coordinate — the right area, not the right building:`);
+  for (const p of unverified) console.log(`    · ${p.nameAr} (${p.areaAr})  ${p.lat},${p.lng}`);
+  console.log("    Open each in a map, correct the pair, and delete coordsUnverified.");
+}
+if (unrated.length) {
+  console.log(`\n  ${unrated.length} place(s) with no rating yet — no chip is shown for these:`);
+  console.log(`    ${unrated.map((p) => p.nameAr).join(" · ")}`);
+}
+
 for (const w of warnings) console.log(`  ⚠ ${w}`);
 for (const e of errors) console.log(`  ✗ ${e}`);
 if (!errors.length && !warnings.length) console.log("  no problems found");

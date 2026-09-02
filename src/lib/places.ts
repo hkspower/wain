@@ -33,7 +33,28 @@ export interface Place {
   /** Approximate coordinates, used for the "nearby" search. */
   lat: number;
   lng: number;
-  rating: number;
+  /**
+   * True when this record was drafted from general knowledge and its
+   * coordinates have not been checked against a map.
+   *
+   * The map draws the pin regardless — an approximate pin in the right
+   * neighbourhood is more useful than no place at all — but `npm run
+   * audit:places` lists every one of these, so the debt is visible and
+   * finite rather than forgotten. Clear the flag once someone has opened the
+   * place in a map and confirmed the coordinate.
+   */
+  coordsUnverified?: boolean;
+  /**
+   * Out of five. OPTIONAL, and absent means "we do not have one yet" rather
+   * than zero.
+   *
+   * It was required, which quietly forced anyone adding a place to invent a
+   * number — and this one is not decoration: it is printed on the card, read
+   * out on the place page, and fed into search ranking through ratingWords().
+   * A made-up 4.5 is a fabricated fact shown to a visitor and a thumb on the
+   * scale of what شوق recommends. Better to show nothing until someone knows.
+   */
+  rating?: number;
   priceLevel: 1 | 2 | 3;
   emoji: string;
   taglineAr: string;
@@ -924,6 +945,192 @@ export const places: Place[] = [
     setting: "mixed",
     seasonAr: "طول السنة — أحلى بالليل",
     tagsAr: ["شاورما", "فطور", "حلويات", "رخيص", "شامي", "مصري", "هندي", "سهرة", "سناك"],
+  },
+  /* ── Drafted, not verified ───────────────────────────────────────────────
+   *
+   * The eight below were written from general knowledge of Kuwait to widen
+   * the catalogue, and they carry two marks of that:
+   *
+   *   coordsUnverified: true   the coordinate is the RIGHT AREA, not the
+   *                            right building. Good enough to put the pin in
+   *                            Fahaheel rather than Salmiya; not good enough
+   *                            to navigate to. `npm run audit:places` lists
+   *                            every one until someone checks it on a map.
+   *   no `rating`              nobody has judged these, so nothing is shown.
+   *                            An invented 4.5 would be a fabricated fact on
+   *                            the card and a thumb on the scale of what شوق
+   *                            recommends.
+   *
+   * Everything else — what the place is, when to go, what it is like — is
+   * describable without a source and is written the same way as the rest.
+   * ─────────────────────────────────────────────────────────────────────── */
+  {
+    slug: "kuwait-science-centre",
+    name: "The Scientific Center",
+    nameAr: "المركز العلمي",
+    category: "family",
+    area: "Salmiya",
+    areaAr: "السالمية",
+    lat: 29.3543,
+    lng: 48.0932,
+    coordsUnverified: true,
+    priceLevel: 2,
+    emoji: "🐠",
+    taglineAr: "أكبر حوض أسماك بالمنطقة، وبوم على الشاطئ.",
+    descriptionAr:
+      "ثلاث بيئات تحت سقف واحد — الصحراء والساحل والبحر — وممر زجاجي يمشي فيه القرش فوق راسك. برّا فيه بوم «فتح الخير»، آخر بوم غوص كويتي أصلي، وسينما آيماكس بشاشة تغطي مجال نظرك كله.",
+    highlightsAr: ["نفق القروش", "بوم فتح الخير", "آيماكس"],
+    bestTimeAr: "الصبح بأول ما يفتح، قبل الزحمة",
+    setting: "indoor",
+    seasonAr: "طول السنة — مكيّف بالكامل",
+    tagsAr: ["مكيّف", "عوائل", "عيال", "أسماك", "علوم", "تعليمي", "بحر", "آيماكس", "تراث"],
+  },
+  {
+    slug: "al-kout-mall",
+    name: "Al Kout Mall",
+    nameAr: "الكوت مول",
+    category: "shopping",
+    area: "Fahaheel",
+    areaAr: "الفحيحيل",
+    lat: 29.0821,
+    lng: 48.1334,
+    coordsUnverified: true,
+    priceLevel: 2,
+    emoji: "🛍️",
+    taglineAr: "مول على البحر، والنافورة الراقصة قدامه.",
+    descriptionAr:
+      "مجمّع الفحيحيل اللي يطل على الخليج مباشرة، وقدامه ممشى ونافورة موسيقية تشتغل بالليل. أقرب مول محترم لأهل المنطقة الجنوبية، ويجمع بين التسوّق وجلسة على البحر بنفس الطلعة.",
+    highlightsAr: ["نافورة راقصة", "ممشى على البحر", "مطاعم بإطلالة"],
+    bestTimeAr: "بعد المغرب، وقت النافورة",
+    setting: "mixed",
+    seasonAr: "أحلى من أكتوبر لأبريل",
+    tagsAr: ["مكيّف", "بحر", "ماركات", "مطاعم", "كافيهات", "عوائل", "ممشى", "سهرة"],
+  },
+  {
+    slug: "al-salam-palace",
+    name: "Al Salam Palace Museum",
+    nameAr: "قصر السلام",
+    category: "culture",
+    area: "Bnaid Al-Qar",
+    areaAr: "بنيد القار",
+    lat: 29.3806,
+    lng: 47.9932,
+    coordsUnverified: true,
+    priceLevel: 1,
+    emoji: "🏛️",
+    taglineAr: "قصر ضيافة الأمراء، صار متحف تاريخ الكويت.",
+    descriptionAr:
+      "بُني في الستينات لاستقبال ضيوف الدولة، تهدّم بالغزو، وانرمّم وانفتح كمتحف. القاعات تمشي بك من الكويت قبل النفط إلى اليوم، والمبنى نفسه جزء من القصة.",
+    highlightsAr: ["قاعة الغزو", "العمارة الستينية", "مقتنيات الدولة"],
+    bestTimeAr: "الصبح، والزيارة تاخذ ساعتين",
+    setting: "indoor",
+    seasonAr: "طول السنة",
+    tagsAr: ["مكيّف", "تاريخ", "متحف", "عمارة", "هدوء", "تراث"],
+  },
+  {
+    slug: "amricani-cultural-centre",
+    name: "Amricani Cultural Centre",
+    nameAr: "المركز الأمريكاني الثقافي",
+    category: "culture",
+    area: "Sharq",
+    areaAr: "شرق",
+    lat: 29.3789,
+    lng: 47.9945,
+    coordsUnverified: true,
+    priceLevel: 1,
+    emoji: "🕌",
+    taglineAr: "دار الآثار الإسلامية، في أقدم مبنى طبي بالكويت.",
+    descriptionAr:
+      "بُني في العشرينات كأول مبنى طبي بالكويت، ثم رُمّم وصار مقر «دار الآثار الإسلامية». معارض من مجموعة الصباح، ومسرح يقدّم موسم ثقافي كل سنة.",
+    highlightsAr: ["مجموعة الصباح", "مبنى مرمّم من العشرينات", "موسم ثقافي"],
+    bestTimeAr: "وقت المعارض المؤقتة — راجع الموسم",
+    setting: "indoor",
+    seasonAr: "الموسم من أكتوبر لمايو",
+    tagsAr: ["مكيّف", "فن إسلامي", "متحف", "تاريخ", "هدوء", "معارض", "موعد"],
+  },
+  {
+    slug: "sabah-al-ahmad-sea-city",
+    name: "Sabah Al Ahmad Sea City",
+    nameAr: "مدينة صباح الأحمد البحرية",
+    category: "outdoors",
+    area: "Khiran",
+    areaAr: "الخيران",
+    lat: 28.6634,
+    lng: 48.3421,
+    coordsUnverified: true,
+    priceLevel: 3,
+    emoji: "🏝️",
+    taglineAr: "مئتا كيلومتر من القنوات، محفورة بالصحراء.",
+    descriptionAr:
+      "أكبر مشروع قنوات بحرية بالعالم — بحر مسحوب داخل الصحراء لمسافة عشرات الكيلومترات، وشاليهات وفلل على حافته. الطلعة هني بحرية بالكامل: قارب، أو جلسة على قناة هادية بعيد عن زحمة المدينة.",
+    highlightsAr: ["قنوات بحرية", "شاليهات", "قوارب"],
+    bestTimeAr: "نهاية الأسبوع، من نوفمبر لأبريل",
+    setting: "outdoor",
+    seasonAr: "شتاء وربيع — الصيف حار جداً",
+    tagsAr: ["بحر", "قنوات", "شاليه", "هدوء", "عوائل", "نهاية الأسبوع", "راقي", "قوارب"],
+  },
+  {
+    slug: "wafra-farms",
+    name: "Wafra Farms",
+    nameAr: "مزارع الوفرة",
+    category: "outdoors",
+    area: "Wafra",
+    areaAr: "الوفرة",
+    lat: 28.6389,
+    lng: 47.9312,
+    coordsUnverified: true,
+    priceLevel: 1,
+    emoji: "🌾",
+    taglineAr: "خضرة وسط الصحراء، وأول تمر الموسم.",
+    descriptionAr:
+      "الحزام الزراعي جنوب الكويت: مزارع نخيل وخضار ومشاتل، وكثير منها يبيع مباشرة للناس. طلعة يوم كاملة للي يبي صحراء وخضرة بدل البحر والمولات — وأحلى شي فيها موسم الرطب.",
+    highlightsAr: ["نخيل ورطب", "مشاتل", "بيع مباشر من المزرعة"],
+    bestTimeAr: "الصبح، والرطب من يونيو لأغسطس",
+    setting: "outdoor",
+    seasonAr: "الشتاء للطلعة، والصيف للرطب",
+    tagsAr: ["صحراء", "مزارع", "نخيل", "رطب", "هدوء", "عوائل", "رخيص", "طبيعة"],
+  },
+  {
+    slug: "bait-lothan",
+    name: "Bait Lothan",
+    nameAr: "بيت لوذان",
+    category: "culture",
+    area: "Salmiya",
+    areaAr: "السالمية",
+    lat: 29.3298,
+    lng: 48.0766,
+    coordsUnverified: true,
+    priceLevel: 1,
+    emoji: "🎨",
+    taglineAr: "بيت قديم صار مرسم ومعرض للفنانين.",
+    descriptionAr:
+      "بيت كويتي على البحر انفتح كمركز فنون: ورش خزف ورسم وتصوير، ومعارض لفنانين محليين شباب. المكان صغير وهادي، وأقرب شي للمشهد الفني المحلي بدون رسميات المتاحف.",
+    highlightsAr: ["ورش خزف ورسم", "معارض لفنانين محليين", "بيت مرمّم"],
+    bestTimeAr: "وقت الورش — الجدول يتغير كل شهر",
+    setting: "mixed",
+    seasonAr: "أحلى بالشتاء",
+    tagsAr: ["فن", "ورش", "معارض", "هدوء", "بحر", "شباب", "تراث"],
+  },
+  {
+    slug: "souq-al-watiya",
+    name: "Souq Al Watiya",
+    nameAr: "سوق الوطية",
+    category: "shopping",
+    area: "Kuwait City",
+    areaAr: "مدينة الكويت",
+    lat: 29.3672,
+    lng: 47.9821,
+    coordsUnverified: true,
+    priceLevel: 1,
+    emoji: "🧺",
+    taglineAr: "سوق شعبي بأسعار ما تلقاها بالمول.",
+    descriptionAr:
+      "سوق مسقوف قديم قريب من وسط المدينة: ملابس وأقمشة وأدوات بيت وعطور، وكله مساومة. أرخص بكثير من المولات، والزحمة فيه جزء من التجربة.",
+    highlightsAr: ["أقمشة وخياطين", "أدوات بيت", "مساومة"],
+    bestTimeAr: "الصبح قبل الظهر",
+    setting: "mixed",
+    seasonAr: "أحلى بالشتاء",
+    tagsAr: ["رخيص", "مساومة", "أقمشة", "ملابس", "تراث", "تسوّق", "شعبي"],
   },
 ];
 
