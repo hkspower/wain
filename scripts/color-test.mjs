@@ -284,6 +284,84 @@ for (const scheme of ['light', 'dark']) {
   await ctx.close()
 }
 
+// --- the clock in the top bar ----------------------------------------------
+//
+// A RULE THAT LOOKED RIGHT AND NAMED THE WRONG CLASS. The stylesheet carried a
+// comment headed "WHITE HANDS, NOT ORANGE" above a rule matching .stroke-brand
+// — which is the dial's TICK MARKS. The hands and the centre cap are
+// .stroke-brand-bright and .fill-brand-bright, a different token, so the
+// markings went white, the hands stayed ember, and the comment described an
+// outcome that had not happened. Nothing failed: the page rendered, the
+// contrast was fine, and the only way to see it was to look at the clock.
+//
+// On a phone that clock sits about ten pixels from the orange SPORTA
+// wordmark, so the two competed at the size where the bar has least room.
+//
+// Asserted from the PAINTED colour rather than the class list, because the
+// class list is what was wrong. Anything ember inside the dial fails,
+// whichever token put it there.
+{
+  const ctx = await b.newContext({ viewport: { width: 1280, height: 900 } })
+  const page = await ctx.newPage()
+  await page.goto(SITE, { timeout: 25000 }).catch(() => {})
+  await page.waitForTimeout(2000)
+
+  const clock = await page.evaluate(() => {
+    const svg = document.querySelector(".app-header svg[viewBox='0 0 48 48']")
+    if (!svg) return null
+    const paint = (v) => {
+      const m = String(v).match(/(\d+(?:\.\d+)?)[,\s]+(\d+(?:\.\d+)?)[,\s]+(\d+(?:\.\d+)?)/)
+      return m ? [+m[1], +m[2], +m[3]] : null
+    }
+    const out = []
+    for (const el of svg.querySelectorAll('*')) {
+      const cs = getComputedStyle(el)
+      for (const [prop, v] of [['stroke', cs.stroke], ['fill', cs.fill]]) {
+        const rgb = paint(v)
+        if (!rgb) continue
+        // Ember: strongly red-dominant with a warm middle. The shop's brand is
+        // #e0561c / #ff7b17, and this catches both without pinning either.
+        const [r, g, bl] = rgb
+        if (r > 180 && g > 60 && g < 175 && bl < 90) {
+          out.push(`${el.tagName}.${el.getAttribute('class') || '?'} ${prop} rgb(${r},${g},${bl})`)
+        }
+      }
+    }
+    const hdr = getComputedStyle(document.querySelector('.app-header')).backgroundColor
+    const dial = getComputedStyle(svg.querySelector('circle')).fill
+    return { ember: out, hdr, dial, size: svg.getBoundingClientRect().width }
+  })
+
+  if (!clock) {
+    note('no clock in the top bar on this build — nothing to check')
+  } else {
+    check(clock.ember.length === 0,
+      `nothing in the top-bar clock is painted ember — it sits beside an ember wordmark`,
+      clock.ember.slice(0, 4).join(' | '))
+
+    // AND THE FACE IS A FACE. The dial fill was #20252C on a #23262A header —
+    // 1.01:1, which is not a subtle recess but no separation at all: the disc
+    // was carried entirely by one hairline ring. Not a WCAG threshold, since
+    // the clock states nothing a customer must read; 1.2:1 is simply the point
+    // below which there is no circle there.
+    const px = (v) => {
+      const m = String(v).match(/(\d+(?:\.\d+)?)[,\s]+(\d+(?:\.\d+)?)[,\s]+(\d+(?:\.\d+)?)/)
+      return m ? [+m[1], +m[2], +m[3]].map((x) => x / 255) : null
+    }
+    const lin = (c) => c.map((x) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4))
+    const L = (c) => { const [r, g, b] = lin(c); return 0.2126 * r + 0.7152 * g + 0.0722 * b }
+    const a = px(clock.dial), bg = px(clock.hdr)
+    if (a && bg) {
+      const la = L(a), lb = L(bg)
+      const ratio = (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+      check(ratio >= 1.2,
+        `the dial reads as a disc against the bar (${ratio.toFixed(2)}:1)`,
+        `${clock.dial} on ${clock.hdr} — the face has no edge`)
+    }
+  }
+  await ctx.close()
+}
+
 await b.close()
 console.log(fails ? `\n${fails} failed` : `\nall ok — both schemes, ${ROUTES.length} pages`)
 process.exit(fails ? 1 : 0)

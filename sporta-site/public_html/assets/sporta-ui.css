@@ -30,12 +30,68 @@
   }
 }
 
-/* WHITE HANDS, NOT ORANGE. .stroke-brand appears four times on the page and
-   all four are inside this dial — verified, so there is nothing else to
-   catch. The ember stays everywhere it means something (price, active nav,
-   the sale badge); on a clock face it was decoration competing with them. */
-.app-header svg[viewBox='0 0 48 48'] .stroke-brand {
+/* WHITE HANDS, NOT ORANGE. The ember stays everywhere it means something
+   (price, active nav, the sale badge); on a clock face it was decoration
+   competing with them.
+
+   THIS RULE USED TO NAME ONLY .stroke-brand, AND THAT IS NOT THE HANDS. It is
+   the four quarter-hour TICK MARKS. The hands and the centre cap are
+   .stroke-brand-bright and .fill-brand-bright — a different token — so the
+   change whitened the dial's markings, left the hands ember, and the comment
+   above it described an outcome that had not happened. Read back off the
+   rendered page rather than from the stylesheet, which is the only way this
+   kind of near-miss shows up.
+
+   It matters most on a phone. There the clock sits about ten pixels from the
+   SPORTA wordmark, which is the same orange, so the two competed at exactly
+   the size where the header has least room to spare. */
+.app-header svg[viewBox='0 0 48 48'] .stroke-brand,
+.app-header svg[viewBox='0 0 48 48'] .stroke-brand-bright {
   stroke: #ffffff !important;
+}
+.app-header svg[viewBox='0 0 48 48'] .fill-brand-bright {
+  fill: #ffffff !important;
+}
+
+/* THE DIAL HAD NO EDGE TO IT. Its fill is #20252C on a header of #23262A —
+   1.01:1, which is not a subtle separation but no separation at all. The
+   whole disc was carried by one hairline ring at 20% white, so the clock read
+   as a smudge with hands on it rather than as a face.
+
+   Raised until the disc is its own object. Still dark, still recessed — this
+   is a clock in a chrome bar, not a feature — but now visibly a circle. The
+   ring goes up with it so the edge stays the crispest part, which is what
+   tells the eye where the face ends.
+
+   #343b43 is 1.34:1 against the bar, and the number was measured rather than
+   picked. The first attempt at this was #2b3138, which looked fine by eye and
+   came back at 1.16:1 — under the floor the rig in color-test.mjs asks for,
+   and the honest fix was to lift the dial rather than lower the threshold to
+   meet it. */
+.app-header svg[viewBox='0 0 48 48'] .fill-ink-soft {
+  fill: #343b43 !important;
+}
+.app-header svg[viewBox='0 0 48 48'] .stroke-white\/20 {
+  stroke: rgba(255, 255, 255, 0.38) !important;
+}
+
+/* The hour ticks were carrying the same weight as the hands once both went
+   white, so the face turned into a ring of similar-length white marks with no
+   hierarchy. Ticks are reference, hands are the reading: the markings drop
+   back and the hands keep the full white above. */
+.app-header svg[viewBox='0 0 48 48'] .stroke-brand {
+  stroke: rgba(255, 255, 255, 0.55) !important;
+}
+.app-header svg[viewBox='0 0 48 48'] .stroke-white\/30 {
+  stroke: rgba(255, 255, 255, 0.28) !important;
+}
+
+/* The outline drawn behind each hand is the dial's old fill, so it stopped
+   matching the moment the dial was lifted — leaving a dark halo around every
+   hand against a lighter face. It exists to keep a hand legible where it
+   crosses a tick, so it has to be the colour of what is actually behind it. */
+.app-header svg[viewBox='0 0 48 48'] .stroke-ink-soft {
+  stroke: #343b43 !important;
 }
 
 /* The digits beside it. They were 13.7px at 85% white — the smallest text in
