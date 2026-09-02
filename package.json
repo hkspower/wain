@@ -72,6 +72,7 @@
     "test:package": "node scripts/package-check.mjs",
     "test:css": "node scripts/css-audit.mjs",
     "test:images": "node scripts/image-audit.mjs",
+    "test:fonts": "node scripts/font-audit.mjs",
     "test:robots": "node scripts/robots-sitemap-test.mjs",
     "test:langs": "node scripts/lang-seo-test.mjs",
     "make:variants": "node scripts/make-missing-variants.mjs",

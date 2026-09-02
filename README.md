@@ -120,6 +120,7 @@ because the rigs place real orders against a real database.
 | `npm run test:admin-permissions` | Every route in `admin.php` asked for by a stranger — one gate, and nothing standing in front of it |
 | `npm run test:cron-gate` | The seven `cron-*.php` endpoints asked for by a stranger — the key is the only guard on the shop's whole outbound messaging |
 | `npm run test:admin-mobile` | The back office at 390, 360 and 320pt — every control on screen, no page dragged sideways, and the photo uploader's Remove needs two taps |
+| `npm run test:fonts` | The fonts shipped against the fonts used — every file earns its place, every file the site asks for answers, `font-display: swap` on every face, and metric-matched fallbacks |
 | `npm run test:images` | Every photograph is reachable — the `/cats` rewrite through real Apache, cache headers, and nothing orphaned in the database |
 | `npm run test:robots` | robots.txt and the sitemaps as a crawler reads them — every group complete, every listed URL a 200, every slug an active product |
 | `npm run test:langs` | Both languages as a crawler meets them — each address self-canonical, each route's hreflang pair, the script on the page |
