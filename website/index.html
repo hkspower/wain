@@ -24,8 +24,91 @@
 <meta property="og:image:type" content="image/jpeg">
 <meta property="og:image:alt" content="موصول — توصيل الطلبات بالسيارات في الكويت">
 
-<link rel="stylesheet" href="styles.css">
-<link rel="stylesheet" href="order.css">
+<link rel="stylesheet" href="site.css">
+
+<!-- ⟦JSON-LD⟧ مولَّدة من محتوى الصفحة — لا تحرّرها بيدك -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://mawsool.com.kw/#organization",
+      "name": "موصول",
+      "alternateName": "MAWSOOL",
+      "url": "https://mawsool.com.kw/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://mawsool.com.kw/assets/mawsool-mark-512.png"
+      },
+      "image": "https://mawsool.com.kw/assets/og-mawsool.jpg",
+      "description": "اطلب توصيلك في الكويت بجملة واحدة — تكلّم أو اكتب، ووكيل موصول يرتّب الطلب ويرسله للمكتب، ويتّصل بك المكتب للتأكيد.",
+      "slogan": "نربط الزبون بكابتن معتمد بسيارة حديثة",
+      "areaServed": {
+        "@type": "Country",
+        "name": "الكويت"
+      },
+      "contactPoint": [
+        {
+          "@type": "ContactPoint",
+          "contactType": "customer service",
+          "availableLanguage": [
+            "ar",
+            "en"
+          ],
+          "telephone": "+96522220000"
+        }
+      ],
+      "sameAs": [
+        "https://wa.me/96590000000"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://mawsool.com.kw/#website",
+      "url": "https://mawsool.com.kw/",
+      "name": "موصول",
+      "inLanguage": "ar-KW",
+      "publisher": {
+        "@id": "https://mawsool.com.kw/#organization"
+      }
+    },
+    {
+      "@type": "Service",
+      "@id": "https://mawsool.com.kw/#service",
+      "name": "توصيل الطلبات بالسيارات في الكويت",
+      "serviceType": "خدمة توصيل",
+      "provider": {
+        "@id": "https://mawsool.com.kw/#organization"
+      },
+      "areaServed": {
+        "@type": "Country",
+        "name": "الكويت"
+      },
+      "availableChannel": {
+        "@type": "ServiceChannel",
+        "serviceUrl": "https://mawsool.com.kw/",
+        "servicePhone": "+96522220000"
+      },
+      "hoursAvailable": {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday"
+        ],
+        "opens": "08:00",
+        "closes": "00:00"
+      }
+    }
+  ]
+}
+</script>
+<!-- ⟦/JSON-LD⟧ -->
 </head>
 <!-- عنوان الواجهة البرمجية لبوّابة الزبون في نظام موصول.
      فارغًا = الأصل نفسه (وكيل عكسي يمرّر ‎/api). أصلٌ آخر يُكتب هنا
@@ -44,9 +127,12 @@
   <a class="vo-top__brand" href="./" aria-label="موصول — الصفحة الرئيسية">
     <img src="assets/logo-mawsool.png" alt="موصول" width="132" height="41" decoding="async">
   </a>
-  <nav class="vo-top__nav" aria-label="روابط الموقع">
-    <a href="about.html">عن موصول</a>
-    <a href="tel:+96522220000" dir="ltr">+965 2222 0000</a>
+  <nav class="vo-top__nav" aria-label="التواصل">
+    <a href="https://wa.me/96590000000" target="_blank" rel="noopener">واتساب</a>
+    <a href="tel:+96522220000" aria-label="اتصل بموصول">
+      <svg class="ic" aria-hidden="true"><use href="#i-phone"></use></svg>
+      <span dir="ltr">+965 2222 0000</span>
+    </a>
   </nav>
 </header>
 
@@ -105,9 +191,7 @@
 </div>
 
 <footer class="vo-foot">
-  <a href="about.html">عن موصول وخدماتها</a>
-  <a href="https://wa.me/96590000000" target="_blank" rel="noopener">واتساب</a>
-  <a href="tel:+96522220000">اتصل بنا</a>
+  <p>موصول وسيط بين الزبون والكابتن: نربطك بكابتن معتمد يملك سيارته — ولا نملك أسطولًا.</p>
 </footer>
 
 <script src="order.js" defer></script>

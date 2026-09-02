@@ -1,12 +1,17 @@
 /**
  * يولّد كتلة البيانات المنظّمة (JSON-LD) من محتوى الصفحة نفسه.
  *
- * لماذا يُولَّد لا يُكتب بيدك: جوجل يشترط أن يطابق ما في `FAQPage` ما يراه
- * الزائر على الصفحة حرفًا بحرف، ويعاقب على الاختلاف. وأسهل خطأ في الدنيا أن
- * يُعدَّل نصّ سؤال في الصفحة ويُنسى توأمه في السكيما، فيتحوّل تحسين الأرشفة
- * إلى مخالفة. فالمصدر واحد: الصفحة. والسكيما مشتقّة منها.
+ * لماذا يُولَّد لا يُكتب بيدك: جوجل يشترط أن تصف السكيما ما يراه الزائر
+ * على الصفحة، ويعاقب على الاختلاف. وأسهل خطأ في الدنيا أن يُعدَّل نصٌّ في
+ * الصفحة ويُنسى توأمه في السكيما، فيتحوّل تحسين الأرشفة إلى مخالفة.
+ * فالمصدر واحد: الصفحة. والسكيما مشتقّة منها.
  *
- *   node website/tools/make-jsonld.mjs           # يكتب الكتلة في about.html
+ * **ولا `FAQPage` بعد اليوم.** كانت تُبنى من قائمة أسئلة تظهر للزائر في
+ * الصفحة التعريفية. ولمّا صار الموقع صفحةً واحدة — وكيلٌ يُسأل بالكلام —
+ * لم يبقَ على الصفحة سؤالٌ وجوابٌ ظاهران، وسكيما تصف ما ليس على الصفحة
+ * هي المخالفة نفسها التي وُجدت هذه الأداة لتمنعها.
+ *
+ *   node website/tools/make-jsonld.mjs           # يكتب الكتلة في index.html
  *   node website/tools/make-jsonld.mjs --check    # يتحقّق فقط (يُستعمل في البناء)
  */
 import fs from 'node:fs';
@@ -14,11 +19,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-/* الصفحة التعريفية لا الواجهة: الأسئلة الشائعة والخدمات والمؤسّسة كلّها
-   فيها. كانت الوجهة `index.html` حين كانت الصفحة واحدة، فلمّا صارت
-   الواجهة صفحةَ وكيلٍ بلا أسئلة توقّف المولّد عن العمل ورفض البناءُ
-   معه — وهو رفضٌ في محلّه: سكيما تصف صفحةً غير التي هي فيها مخالفة. */
-const FILE = path.join(HERE, '..', 'about.html');
+/* الموقع صفحةٌ واحدة، فالسكيما فيها */
+const FILE = path.join(HERE, '..', 'index.html');
 
 const START = '<!-- ⟦JSON-LD⟧ مولَّدة من محتوى الصفحة — لا تحرّرها بيدك -->';
 const END = '<!-- ⟦/JSON-LD⟧ -->';
@@ -36,25 +38,6 @@ const text = (html) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-/** الأسئلة الشائعة كما يراها الزائر */
-function readFaq(html) {
-  const section = html.slice(html.indexOf('<div class="faq">'));
-  const out = [];
-  const re = /<details[^>]*>\s*<summary>([\s\S]*?)<\/summary>\s*<p>([\s\S]*?)<\/p>/g;
-  let m;
-  while ((m = re.exec(section))) out.push({ q: text(m[1]), a: text(m[2]) });
-  return out;
-}
-
-/** المحافظات المغطّاة، من أزرار قسم التغطية */
-function readAreas(html) {
-  const i = html.indexOf('id="coverage"');
-  if (i < 0) return [];
-  const section = html.slice(i, i + 12000);
-  const names = [...section.matchAll(/>\s*(محافظة [^<]{2,20}?)\s*</g)].map((m) => m[1].trim());
-  return [...new Set(names)];
-}
-
 /** قيمة وسم meta أو link */
 const meta = (html, attr, key) => {
   const m = html.match(new RegExp(`<(?:meta|link)[^>]*${attr}=["']${key}["'][^>]*>`));
@@ -71,13 +54,9 @@ function build(html) {
      ويصير للمؤسّسة الواحدة هويّتان لو أُضيفت سكيما في صفحةٍ أخرى. الصفحة
      تبقى مرجعًا للأسئلة وحدها. */
   const canonical = meta(html, 'rel', 'canonical').replace(/\/$/, '');
-  const page = canonical;
   const site = canonical.replace(/\/[^/]*\.html$/, '');
-  const faq = readFaq(html);
-  const areas = readAreas(html);
 
   if (!canonical) throw new Error('لا يوجد رابط canonical في الصفحة');
-  if (!faq.length) throw new Error('لم يُعثر على أسئلة شائعة في الصفحة');
 
   const phone = (html.match(/href="tel:(\+?[0-9]+)"/) || [])[1] || '';
   const whatsapp = (html.match(/https:\/\/wa\.me\/([0-9]+)/) || [])[1] || '';
@@ -111,7 +90,7 @@ function build(html) {
     name: 'توصيل الطلبات بالسيارات في الكويت',
     serviceType: 'خدمة توصيل',
     provider: { '@id': `${site}/#organization` },
-    areaServed: areas.map((name) => ({ '@type': 'AdministrativeArea', name })),
+    areaServed: { '@type': 'Country', name: 'الكويت' },
     availableChannel: {
       '@type': 'ServiceChannel',
       serviceUrl: `${site}/`,
@@ -134,17 +113,7 @@ function build(html) {
     publisher: { '@id': `${site}/#organization` },
   };
 
-  const faqPage = {
-    '@type': 'FAQPage',
-    '@id': `${page}#faq`,
-    mainEntity: faq.map(({ q, a }) => ({
-      '@type': 'Question',
-      name: q,
-      acceptedAnswer: { '@type': 'Answer', text: a },
-    })),
-  };
-
-  return { '@context': 'https://schema.org', '@graph': [org, website, service, faqPage] };
+  return { '@context': 'https://schema.org', '@graph': [org, website, service] };
 }
 
 /* ------------------------------ التشغيل ------------------------------ */
@@ -169,7 +138,7 @@ if (process.argv.includes('--check')) {
     console.error('    node website/tools/make-jsonld.mjs');
     process.exit(1);
   }
-  console.log(`✓ البيانات المنظّمة تطابق الصفحة — ${graph['@graph'][3].mainEntity.length} أسئلة`);
+  console.log(`✓ البيانات المنظّمة تطابق الصفحة — ${graph['@graph'].length} كيانات`);
   process.exit(0);
 }
 
@@ -183,5 +152,4 @@ if (has) {
 }
 
 fs.writeFileSync(FILE, next);
-console.log(`✓ كُتبت البيانات المنظّمة — ${graph['@graph'][3].mainEntity.length} أسئلة · ${
-  graph['@graph'][2].areaServed.length} محافظات`);
+console.log(`✓ كُتبت البيانات المنظّمة — ${graph['@graph'].map((e) => e['@type']).join(' · ')}`);

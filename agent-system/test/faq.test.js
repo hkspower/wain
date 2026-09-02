@@ -168,17 +168,26 @@ test('أسئلة بلا جواب تُعدّ مرّة وتُحلّ حين يُض�
   FAQ.remove(ACTOR, it.id);
 });
 
-test('البذرة توافق مساعد الموقع في معرّفاتها', () => {
-  /* المحتوى الأوّل منقول عن `website/assistant.js`. الملف خارج هذه الحزمة،
-     فيُتخطّى الفحص إن لم يكن موجودًا (حزمة النظام تُشحن وحدها) — وإن وُجد
-     كُشف انحرافُ القائمتين. */
-  const site = path.join(__dirname, '..', '..', 'website', 'assistant.js');
-  if (!fs.existsSync(site)) return;
-  const src = fs.readFileSync(site, 'utf8');
-  const ids = [...src.matchAll(/^\s*id:\s*'([a-z]+)',/gm)].map((m) => m[1]);
-  if (!ids.length) return;
-  const missing = ids.filter((i) => !FAQ.SEED.some((s) => s.id === i));
-  assert.deepEqual(missing, [], 'موضوعات في مساعد الموقع بلا بذرة هنا: ' + missing.join('، '));
+test('لا رقم في بذرة الأجوبة، والسؤال الرقميّ يُحال إلى إنسان', () => {
+  /* كان هذا الحارس في `website/tools/check-assistant.mjs` يحرس ملفًّا على
+     الموقع. ولمّا صارت الأجوبة في القاعدة انتقل إلى حيث المحتوى.
+     والسبب لم يتغيّر: الأرقام التجارية تقديرية موضوعة للاتساق الداخلي لا
+     كالتزامات، ووكيلٌ يقتبسها للزبون يحوّل التقدير إلى وعد، والوعد إلى
+     خصومةٍ يوم يخلفه الواقع. وقرارٌ مكتوبٌ في تعليقٍ يُنسى بعد شهر: يضيف
+     أحدهم «خلال ٣٠ دقيقة» بحسن نيّة. الحارس يجعل نسيانه مستحيلًا.
+
+     ويحرس **البذرة** وحدها — وهي ما نشحنه نحن. أمّا ما يكتبه المكتب في
+     اللوحة فيُنبَّه عليه ولا يُمنع: تلك أجوبتهم وقرارهم. */
+  for (const s of FAQ.SEED) {
+    assert.equal(FAQ.hasNumber(s.q), false, `في سؤال «${s.id}» رقم: ${s.q}`);
+    assert.equal(FAQ.hasNumber(s.a), false, `في جواب «${s.id}» رقم: ${s.a}`);
+  }
+  /* والسؤالان الرقميّان لا يُجابان برقم بل يُحالان */
+  for (const id of ['price', 'time']) {
+    const t = FAQ.SEED.find((x) => x.id === id);
+    assert.ok(t, `البذرة بلا «${id}»`);
+    assert.equal(t.handoff, true, `«${id}» لا يُحال إلى إنسان`);
+  }
 });
 
 test.after(() => { try { fs.rmSync(DIR, { recursive: true, force: true }); } catch { /* لا يضرّ */ } });

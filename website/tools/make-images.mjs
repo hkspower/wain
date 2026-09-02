@@ -8,6 +8,10 @@
  *
  * لماذا تُولَّد بدل رسمها يدويًا: كلاهما مشتقّ من الشعار وخلفية الهوية، فلو
  * تغيّر أحدهما أُعيد التوليد بأمر واحد بدل تحرير ملفين بالعين.
+ *
+ * وهاتان الصورتان وحدهما ما يُبقي `logo-mawsool-light.png` و
+ * `mawsool-mark-light.png` في `assets/`: الصفحة نفسها لا تعرضهما (خلفيتها
+ * فاتحة)، فمن يمسح «ما لا تشير إليه الصفحة» يمسحهما ويكسر هذه الأداة.
  */
 import { chromium } from 'playwright';
 import fs from 'node:fs';
@@ -63,7 +67,7 @@ await shoot({
   name: 'og', width: OG_W, height: OG_H, jpeg: true,
   out: path.join(SITE, 'assets', 'og-mawsool.jpg'),
   html: `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="site.css">
 <style>
   html, body { margin: 0; padding: 0; }
   .card {

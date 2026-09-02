@@ -181,12 +181,12 @@ function guardSeo() {
   const checks = [
     ['website/tools/make-jsonld.mjs',  'البيانات المنظّمة', true],
     ['website/tools/make-sitemap.mjs', 'خريطة الموقع',      false],
-    // المساعد يخاطب الزبائن مباشرةً، ورقم في جوابه يصير وعدًا: يُرفض البناء
-    ['website/tools/check-assistant.mjs', 'مساعد موصول',     true],
+    /* حارس «لا رقم في جواب الوكيل» انتقل إلى `agent-system/test/faq.test.js`:
+       الأجوبة صارت في القاعدة يحرّرها المكتب، فمكان الحراسة حيث المحتوى. */
     // الموقع عربي لجمهور عربي: لا حرف لاتيني في نصّ يقرؤه الزائر
     ['website/tools/check-arabic.mjs',    'عربية الموقع',     true],
-    // نسخة الموقع من حزمة اللغة تتبع الأصل — انحرافها صامت لا يكسر شيئًا
-    ["website/tools/sync-kit.mjs",        "حزمة اللغة",       true],
+    /* لم يعد الموقع يشحن نسخةً من حزمة اللغة: عدّاداتُ الصفحة التعريفية
+       هي التي كانت تحتاجها، وقد زالت الصفحة. فلا نسخة تنحرف ولا حارس. */
   ];
   for (const [script, what, fatal] of checks) {
     const r = spawnSync(process.execPath, [path.join(ROOT, script), '--check'], {
@@ -225,6 +225,10 @@ fs.mkdirSync(siteOut, { recursive: true });
 const siteFiles = copyTree(path.join(ROOT, 'website'), siteOut, [
   'tools',        // مولّد الـPDF أداة تطوير لا تُرفع
   'README.md',    // توثيق داخلي
+  /* معاينة الـPDF تُصنع للعميل لا للاستضافة. كانت تُرفع مع الموقع فتشكّل
+     ٩٠٪ من وزن الحزمة (٢٫٢ م.ب من ٢٫٤)، وهي ملفٌّ لا يطلبه زائر ولا
+     يرتبط به شيء — ويتقادم: كانت تعرض صفحةً حُذفت. */
+  'preview',
   '.DS_Store',
 ]);
 const siteDomainEdits = applyDomain(siteOut, textFiles(siteOut));
