@@ -105,10 +105,27 @@ THEN THREE SMALL THINGS
 
 2. The invoice cron — hPanel -> Advanced -> Cron Jobs, every 15 minutes:
 
-     wget -qO- "https://www.sporta.com.kw/api/cron-invoice.php?key=<cron_key>"
+     php /home/u130124229/domains/sporta.com.kw/public_html/api/cron-invoice.php
 
-   Use the cron_key already in api/config.php. On its first run it writes a
-   PDF for every past order; after that only for new ones. They land in
+   NO KEY, AND THAT IS DELIBERATE. The obvious line is a wget with
+   ?key=<cron_key> on it, and it would work — but it puts the cron key into a
+   string hPanel prints on screen, that lands in shell history, and that any
+   process listing shows while it runs. That key also gates file-audit.php and
+   every other cron here, so it is not a small thing to leave lying about. A
+   job on the same machine as the file has no business going out to the
+   internet and back to reach it, or carrying a credential to do so.
+
+   Running it as PHP skips all of that. The script checks php_sapi_name(): from
+   the command line it needs no key, because a process already running as your
+   site's user can read config.php and the key inside it anyway — demanding a
+   secret from something that already holds the secret protects nothing. Over
+   HTTP the key is still required exactly as before, and that is asserted in
+   the tests in both directions.
+
+   It is also QUIET. It prints nothing when there is nothing to do, so it will
+   not email you ninety-six times a day; the day it does speak is the day to
+   read it. On its first run it writes a PDF for every past order; after that
+   only for new ones. They land in
    /home/u130124229/domains/sporta.com.kw/invoices — one level ABOVE
    public_html, so no URL reaches them. Read one while signed in at
    /api/invoice-file.php?id=SP..., or omit the id to list the archive.

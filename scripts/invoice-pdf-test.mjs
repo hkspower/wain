@@ -131,6 +131,43 @@ check(dir !== '', `the archive has a home (${dir})`)
   }
 }
 
+// THE COMMAND-LINE PATH NEEDS NO KEY — AND THE WEB PATH STILL DOES.
+//
+// The cron runs as `php .../cron-invoice.php`, with no key, because a process
+// already running as the site's own user can read config.php and therefore the
+// key itself: demanding a secret from something that already holds it protects
+// nothing, and putting it in the crontab instead puts it on hPanel's screen,
+// in shell history and in any process listing.
+//
+// That is only safe while the HTTP side stays shut, so both halves are checked
+// together. If the CLI exemption ever leaks into a web request, this is what
+// says so.
+{
+  // check(true, ...) would assert nothing — the failure would arrive as a
+  // thrown execFileSync and crash the rig instead of reporting. Caught, so a
+  // non-zero exit or a fatal is a FAIL with its output attached.
+  let cli = null, cliErr = ''
+  try {
+    cli = execFileSync('php', [`${ROOT}/sporta-site/public_html/api/cron-invoice.php`],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+  } catch (e) {
+    cliErr = ((e.stdout || '') + (e.stderr || '') || e.message).toString().trim().slice(0, 200)
+  }
+  // EXIT 0 IS NOT SUCCESS ON ITS OWN. A broken CLI path fell through to the
+  // HTTP responder and printed {"error":"failed"} while still exiting 0 —
+  // found by mutation, and it passed the first version of this check. Under
+  // CLI a good run is silent or says "cron-invoice: wrote N"; anything
+  // shaped like the JSON error body means the guard was not taken.
+  const cliOut = (cli ?? '').trim()
+  check(cli !== null && !cliOut.includes('"error"'),
+    `the sweep runs from the command line with no key${cliOut ? ` — ${cliOut}` : ' (silent, nothing to do)'}`,
+    cliErr || cliOut)
+
+  const res = await fetch(`${SITE.replace(/\/api$/, '')}/api/cron-invoice.php`)
+  check(res.status === 403,
+    `and the same script over HTTP without a key is still refused (${res.status})`)
+}
+
 const orders = sql('select track_id from orders order by id desc').split('\n').filter(Boolean)
 const files = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.pdf')) : []
 const have = new Set(files.map((f) => f.replace(/\.pdf$/, '')))
