@@ -80,6 +80,52 @@ No table, no account, no record. The message is composed in the browser and
 handed to whatever the visitor already has. wain never learns that a plan was
 made, which matches the no-tracking promise on the privacy page.
 
+## The clock, and the two ways it was wrong
+
+Both of these passed every test in the suite. They are here because the code
+already stated the rule it was breaking.
+
+**The offer stopped expiring after the first instant.** `hangout.ts` drops each
+evening option as it passes — «offering ٧ مساءً at nine o'clock is offering a
+plan that already failed» — and the panel applied that once, on mount, and
+never looked at the clock again. A place page is exactly what somebody leaves
+open while the group argues, so a page opened at 18:55 still offered «الليلة
+الساعة ٧» at half past seven, still had it selected, and would still send it.
+The chip vanishing from the row would not have saved it either: the message is
+composed from the selection, not from what is on screen.
+
+It now wakes once, at the next Kuwait hour, and re-picks if the chosen time has
+expired. One timeout rather than a ticking interval, because every boundary in
+that list is on the hour and there is nothing in between worth a render — and
+in Kuwait's hour rather than the device's, since a device on a half-hour offset
+would wake thirty minutes off, every time.
+
+**«بعد ساعة» at three in the morning.** The default for an indoor place was
+`hour < 12`, which is every hour before noon — including two, three and four,
+where it proposed the group meet at a mall in an hour. Nobody sends that. The
+branch means *daytime*, and daytime starts at nine; below that the next plan
+anybody would propose is the coming evening, which is what the open-air branch
+already gave and what those hours now fall through to.
+
+## The stale build that hid it
+
+The clock fix passed its brand-new test before the code had been built, because
+every browser suite here serves `out/` and none of them builds it. The check
+each runner had asked only whether `out/` existed — so a source change with no
+rebuild runs the previous bundle and reports green. The suite says the code is
+fine while testing code that is gone, which is worse than a failure, because a
+failure gets looked at.
+
+`tests/stale-build.mjs` now compares `out/index.html` against the newest file in
+`src/` and `public/`. The runners that cannot build refuse and name the file;
+`run-shouq.mjs` can build, so it does.
+
+That also made one existing untidiness load-bearing: `voice-pipeline.test.mjs`
+restores `public/voice/` "exactly as found", and `cpSync` gave the restored
+files fresh timestamps — so an unchanged file looked edited and cost a full
+rebuild on every run. It preserves timestamps now, which is what the comment
+always claimed.
+
 ## What is tested
 
 49 assertions in two halves.

@@ -8,6 +8,7 @@ import {
   defaultWhen,
   hangoutMessage,
   hangoutTitle,
+  msToNextKuwaitHour,
   shareHangout,
   whenOptions,
   type ShareOutcome,
@@ -37,9 +38,38 @@ export default function ShareHangout({ place }: { place: Place }) {
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => setNow(new Date()), []);
 
-  const options = useMemo(() => (now ? whenOptions(now) : []), [now]);
+  /**
+   * The hour keeps moving, and this panel used to stop watching it.
+   *
+   * hangout.ts drops each evening option as it passes, «because offering ٧
+   * مساءً at nine o'clock is offering a plan that already failed» — and it did
+   * that once, on mount, and never again. A place page is exactly the kind of
+   * page somebody leaves open while the group argues, so one opened at 18:55
+   * was still offering «الليلة الساعة ٧» at half past seven, still had it
+   * selected, and would still send it. The guarantee was real and honoured for
+   * a single instant.
+   *
+   * One timeout to the next Kuwait hour rather than a ticking interval: every
+   * boundary in that list is on the hour, so there is nothing in between worth
+   * a render. A second past it, so a slow timer cannot land on the wrong side.
+   */
   useEffect(() => {
-    if (now && when === null) setWhen(defaultWhen(place, now));
+    if (!now) return;
+    const id = window.setTimeout(() => setNow(new Date()), msToNextKuwaitHour(now) + 1_000);
+    return () => window.clearTimeout(id);
+  }, [now]);
+
+  const options = useMemo(() => (now ? whenOptions(now) : []), [now]);
+
+  // Picks the first time, and re-picks when the chosen one expires — which is
+  // the half that matters. An expired selection is not merely shown, it is
+  // what gets sent: the chip disappears from the row while `when` still holds
+  // its id, and the message is composed from `when`.
+  useEffect(() => {
+    if (!now) return;
+    if (when === null || !whenOptions(now).some((o) => o.id === when)) {
+      setWhen(defaultWhen(place, now));
+    }
   }, [now, when, place]);
 
   const send = async () => {

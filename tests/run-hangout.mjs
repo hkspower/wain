@@ -22,6 +22,7 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { existsSync, readFileSync } from "node:fs";
 import { join, dirname, extname } from "node:path";
+import { requireFreshBuild } from "./stale-build.mjs";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -39,10 +40,10 @@ let failed = 0;
 console.log("\n════ الطلعة: the time rules and the message ════");
 failed += (await run("node", ["tests/hangout.test.mjs"])) === 0 ? 0 : 1;
 
-if (!existsSync(join(OUT, "index.html"))) {
-  console.error("\nout/ is missing — run npm run build first.");
-  process.exit(1);
-}
+// Missing OR stale. Asking only whether out/ exists is what let a fix to this
+// very panel pass its new test before the code had been built — see
+// tests/stale-build.mjs.
+requireFreshBuild(ROOT);
 
 console.log("\n════ الطلعة: the panel, and every way it can fail ════");
 {

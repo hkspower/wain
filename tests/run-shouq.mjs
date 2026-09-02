@@ -26,6 +26,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, extname } from "node:path";
+import { staleBuild } from "./stale-build.mjs";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -208,7 +209,12 @@ console.log("\n════ شوق: the live bridge ════");
 }
 
 /* 4 — the button and the local voice path, against the shipping build. */
-if (!existsSync(join(ROOT, "out", "index.html"))) build({});
+// Stale counts as missing. This runner can build, so it does — refusing would
+// only make somebody type the command it is already holding.
+{
+  const why = staleBuild(ROOT);
+  if (why) { console.log(`\n▸ out/ is missing or stale (${why})`); build({}); }
+}
 console.log("\n════ شوق: the button and the voice flow ════");
 {
   const stop = await serve(PORT_FLOW);

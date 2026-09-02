@@ -23,7 +23,7 @@ const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } els
  * `share` decides what navigator.share does: "ok", "cancel", "throw", or
  * "absent" (the property is deleted, as on desktop Firefox).
  */
-async function fresh({ share = 'ok', canOpen = true, clipboard = true } = {}) {
+async function fresh({ share = 'ok', canOpen = true, clipboard = true, at = null } = {}) {
   const ctx = await browser.newContext({
     viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW',
   });
@@ -61,6 +61,13 @@ async function fresh({ share = 'ok', canOpen = true, clipboard = true } = {}) {
   const p = await ctx.newPage();
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
+  // A controllable clock, when a scenario needs the hour to pass. Installed
+  // before navigation so the component's very first `new Date()` is the fake
+  // one; `at` is a Kuwait wall-clock time, which is the only clock this
+  // feature reasons in.
+  if (at) {
+    await p.clock.install({ time: new Date(Date.UTC(2026, 7, 21, at[0] - 3, at[1])) });
+  }
   await p.goto(B + PLACE, { waitUntil: 'networkidle' });
   return { ctx, p, errors };
 }
@@ -178,6 +185,49 @@ console.log('\n── backing out of the share sheet is not an error ──');
   ok('nothing is copied', (await p.evaluate(() => window.__copied.length)) === 0);
   ok('and no error is shown', (await panel(p).locator('[role=alert]').count()) === 0);
   ok('and no success is claimed either', (await panel(p).locator('[role=status]').count()) === 0);
+  await ctx.close();
+}
+
+console.log('\n── the offer expires while the page is still open ──');
+{
+  // The defect this exists for. hangout.ts drops each evening option as it
+  // passes — «offering ٧ مساءً at nine o'clock is offering a plan that already
+  // failed» — and the panel honoured that once, on mount, then never looked at
+  // the clock again. A place page is exactly what somebody leaves open while
+  // the group argues about it.
+  //
+  // Opened at 18:55 with «٧ مساءً» chosen, wound forward past seven: the chip
+  // has to go, and the selection has to move off it, because the message is
+  // composed from the selection and not from what is on screen.
+  const { ctx, p, errors } = await fresh({ at: [18, 55] });
+  const chips = () => panel(p).locator('fieldset button');
+  const selected = () => panel(p).locator('fieldset button[aria-pressed="true"]').textContent();
+
+  await p.waitForSelector('section:has(h2:text("رسّلها للربع")) fieldset button');
+  const before = await chips().allTextContents();
+  ok('at 18:55 «٧ مساءً» is on offer', before.includes('٧ مساءً'), before.join(' / '));
+  await panel(p).locator('button', { hasText: '٧ مساءً' }).click();
+  ok('and can be chosen', (await selected()).trim() === '٧ مساءً', await selected());
+
+  // Past the hour. The panel sleeps until the boundary and no longer.
+  await p.clock.fastForward('06:10');
+  await p.waitForTimeout(300);
+
+  const after = await chips().allTextContents();
+  ok('after seven it is gone from the row', !after.includes('٧ مساءً'), after.join(' / '));
+  ok('and something still ahead is selected instead',
+    (await selected()).trim() !== '٧ مساءً', await selected());
+
+  // The half that actually reaches the group. A chip vanishing from the row
+  // while `when` still holds its id would send the failed plan anyway.
+  await sendButton(p).click();
+  await p.waitForTimeout(200);
+  const sent = (await p.evaluate(() => window.__shared))[0]?.text ?? '';
+  ok('and the message does not propose a time that has passed',
+    !sent.includes('الساعة ٧'), sent.split('\n').slice(0, 2).join(' | '));
+  ok('it proposes one that has not', /الساعة ٨|الساعة ٩|الساعة ١٠|باچر|الحين|بعد ساعة|الويكند/.test(sent),
+    sent.split('\n').slice(0, 2).join(' | '));
+  ok('no page errors while the clock moved', errors.length === 0, errors.join(' | '));
   await ctx.close();
 }
 

@@ -61,6 +61,22 @@ export function kuwaitHour(now: Date = new Date()): number {
   return new Date(now.getTime() + 3 * 3600_000).getUTCHours();
 }
 
+/**
+ * How long until this list changes.
+ *
+ * Every expiry above is on the hour, so nothing about the offer changes in
+ * between and there is nothing for a ticking interval to see. The panel uses
+ * this to wake up once, at the moment the offer actually moves.
+ *
+ * Computed in Kuwait's own hour rather than the device's: an hour boundary
+ * here is not an hour boundary in Tehran or Delhi, and half-hour zones are
+ * exactly where a «round it to the next local hour» shortcut goes wrong.
+ */
+export function msToNextKuwaitHour(now: Date = new Date()): number {
+  const kuwait = now.getTime() + 3 * 3600_000;
+  return 3600_000 - (((kuwait % 3600_000) + 3600_000) % 3600_000);
+}
+
 /** The choices worth offering at this hour. */
 export function whenOptions(now: Date = new Date()): WhenOption[] {
   const hour = kuwaitHour(now);
@@ -82,7 +98,13 @@ export function defaultWhen(place: Place, now: Date = new Date()): WhenId {
   const options = new Set(whenOptions(now).map((o) => o.id));
   // An indoor place at midday is a perfectly good idea; an open-air one is not.
   const daytimeIsFine = place.setting === "indoor" || place.summerOk === true;
-  if (hour < 12 && daytimeIsFine && options.has("soon")) return "soon";
+  // Daytime starts at nine, and the lower bound is the whole point of this
+  // line. `hour < 12` alone is every hour before noon — including two in the
+  // morning, where it proposed «بعد ساعة» for an indoor place and offered the
+  // group a mall at three. Nobody sends that. Below nine the next plan anybody
+  // would actually propose is the coming evening, which is what the outdoor
+  // branch has always given and what these hours now fall through to.
+  if (hour >= 9 && hour < 12 && daytimeIsFine && options.has("soon")) return "soon";
   if (options.has("tonight-8")) return "tonight-8";
   if (options.has("tonight-10")) return "tonight-10";
   return "tomorrow";

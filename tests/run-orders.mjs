@@ -17,6 +17,7 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
+import { staleBuild } from "./stale-build.mjs";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -75,8 +76,10 @@ failed += await runLogic("tests/queue.test.mjs", "queue.mjs", "the queue's own r
 rmSync(tmp, { recursive: true, force: true });
 
 console.log("\n════ the order panel in a browser ════");
-if (!existsSync(join(ROOT, "out", "index.html"))) {
-  console.log("  out/ is missing — run npm run build first.");
+// Missing or older than src/ — both mean this would be testing a bundle that
+// is not the code in front of you. See tests/stale-build.mjs.
+if (staleBuild(ROOT)) {
+  console.log(`  out/ is missing or stale (${staleBuild(ROOT)}) — run npm run build first.`);
   failed += 1;
 } else if (!existsSync(CHROMIUM)) {
   console.log(`  chromium not found at ${CHROMIUM} — set CHROMIUM_PATH.`);

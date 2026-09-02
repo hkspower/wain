@@ -82,6 +82,41 @@ console.log("\n── the default proposal suits the place and the hour ──")
     }
   }
   ok("the default is always one of the offered options", true);
+
+  // The small hours. `hour < 12` on its own is every hour before noon, which
+  // includes two in the morning — and there it proposed «بعد ساعة» for an
+  // indoor place: the group gets asked to a mall at three. The check above
+  // passed it happily, because «بعد ساعة» is genuinely on the menu at 03:00;
+  // being offerable and being sendable are not the same question.
+  for (const h of [0, 1, 2, 3, 4, 5, 6, 7, 8]) {
+    const d = H.defaultWhen(indoor, atKuwait(h));
+    ok(`at ${String(h).padStart(2, "0")}:00 an indoor place is not proposed for an hour from now`,
+      d !== "soon", d);
+  }
+  ok("and from 09:00 it is again — the fix is a floor, not a removal",
+    H.defaultWhen(indoor, atKuwait(9)) === "soon" && H.defaultWhen(indoor, atKuwait(11)) === "soon",
+    `${H.defaultWhen(indoor, atKuwait(9))} / ${H.defaultWhen(indoor, atKuwait(11))}`);
+  ok("what the small hours get instead is the coming evening",
+    H.defaultWhen(indoor, atKuwait(3)) === "tonight-8", H.defaultWhen(indoor, atKuwait(3)));
+}
+
+console.log("\n── how long until the offer changes ──");
+{
+  // Every expiry is on the hour, so this is what the panel sleeps for. It has
+  // to be Kuwait's hour: a device in Tehran or Delhi sits on a half-hour
+  // offset, and rounding to the next LOCAL hour would wake it thirty minutes
+  // early or late every single time.
+  const ms = (h, m) => H.msToNextKuwaitHour(new Date(Date.UTC(2026, 7, 21, h - 3, m)));
+  ok("half past leaves half an hour", ms(19, 30) === 30 * 60_000, String(ms(19, 30) / 60_000));
+  ok("a minute to leaves a minute", ms(19, 59) === 60_000, String(ms(19, 59) / 60_000));
+  ok("on the hour leaves a full hour, never zero", ms(19, 0) === 3600_000, String(ms(19, 0)));
+  ok("it is never zero or negative at any minute",
+    [...Array(60).keys()].every((m) => ms(21, m) > 0 && ms(21, m) <= 3600_000));
+  // The half-hour zone this exists for: the same instant, read from a device
+  // whose own clock says :00, still has to answer with Kuwait's remainder.
+  const tehranish = new Date(Date.UTC(2026, 7, 21, 16, 30)); // 19:30 in Kuwait
+  ok("a half-hour offset does not shift the answer",
+    H.msToNextKuwaitHour(tehranish) === 30 * 60_000, String(H.msToNextKuwaitHour(tehranish) / 60_000));
 }
 
 console.log("\n── the message a group actually receives ──");
