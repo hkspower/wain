@@ -284,4 +284,38 @@ console.log("\n── characters to the line ──");
   }
 }
 
+/* ── numerals ──────────────────────────────────────────────────────────────
+   A number set in Arabic-Indic digits has to carry the Arabic separators with
+   it. «٤٫٧» is four point seven; «٤.٧» is the same digits around a LATIN full
+   stop, which in Arabic is the thousands mark — so the rating on every place
+   card read as forty-seven hundred.
+
+   It was half-translated because `toArabicDigits` converts digits and leaves
+   punctuation alone, and the two modules that noticed (media.ts, orders.ts)
+   each patched it locally with their own `.replace(".", "٫")`. Three rating
+   displays and the distance label never got the memo. `toArabicNumber` is the
+   fix; this is what stops it drifting back. */
+console.log("\n── numerals ──");
+{
+  const mixed = new Map();
+  for (const f of all) {
+    for (const m of f.text.matchAll(/[٠-٩]\s*([.,])\s*[٠-٩]/g)) {
+      const bad = m[0];
+      if (!mixed.has(bad)) mixed.set(bad, { n: 0, where: new Set() });
+      const e = mixed.get(bad);
+      e.n++;
+      if (e.where.size < 3) e.where.add(`${f.tag} «${f.text.slice(0, 24)}»`);
+    }
+  }
+  if (mixed.size) {
+    console.log(`  ✗ ${mixed.size} number(s) mix Arabic-Indic digits with a Latin separator:`);
+    for (const [bad, e] of mixed)
+      console.log(`      «${bad}» ×${e.n}  — ${[...e.where].join(" · ")}`);
+    console.log("      Use toArabicNumber() from place-kit: ٫ is U+066B, the Arabic decimal separator.");
+    problems++;
+  } else {
+    console.log("  Every Arabic number carries Arabic punctuation — no ٤.٧ where ٤٫٧ belongs.");
+  }
+}
+
 console.log(problems ? `\n${problems} thing(s) to look at.` : "\nThe scale is clean.");

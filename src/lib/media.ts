@@ -2,7 +2,7 @@
 
 import { loadSupabase } from "@/lib/supabase";
 import { describeNetError } from "@/lib/net";
-import { toArabicDigits } from "@/lib/places";
+import { toArabicDigits, toArabicNumber } from "@/lib/places";
 
 /**
  * Business media: a logo and photos, uploaded by whoever is registering the
@@ -61,7 +61,7 @@ export interface PickedFile {
 export function describeSize(bytes: number): string {
   const mb = bytes / (1024 * 1024);
   return mb >= 1
-    ? `${toArabicDigits(mb.toFixed(1)).replace(".", "٫")} ميجا`
+    ? `${toArabicNumber(mb)} ميجا`
     : `${toArabicDigits(Math.round(bytes / 1024))} كيلو`;
 }
 

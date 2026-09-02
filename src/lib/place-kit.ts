@@ -140,6 +140,27 @@ export function toArabicDigits(value: string | number): string {
   return String(value).replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[Number(d)]);
 }
 
+/**
+ * A decimal number in Arabic — digits AND the separator.
+ *
+ * `toArabicDigits` converts the digits and leaves the dot alone, which is
+ * exactly half a translation: «٤.٧» is Arabic-Indic numerals around a Latin
+ * full stop, and in Arabic that stop is the THOUSANDS mark. The rating on
+ * every place card read as forty-seven hundred rather than four point seven.
+ *
+ * media.ts and orders.ts already knew this — «the decimal separator is the
+ * Arabic one too, since ٧٫٢ with a Latin dot reads as a thousands mark» — and
+ * each fixed it locally with its own `.replace(".", "٫")`. Three rating
+ * displays and the distance label never got the memo. One helper now, so the
+ * convention is a function rather than a habit.
+ *
+ * U+066B ARABIC DECIMAL SEPARATOR. voice-lines.ts converts it back to a dot
+ * before speech, because TTS engines read «٫» as a pause.
+ */
+export function toArabicNumber(value: number, digits = 1): string {
+  return toArabicDigits(value.toFixed(digits)).replace(".", "٫");
+}
+
 export interface CountForms {
   /** ١ — "مكان واحد" (no numeral) */
   one: string;

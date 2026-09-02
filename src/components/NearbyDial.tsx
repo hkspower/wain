@@ -5,13 +5,14 @@ import Link from "next/link";
 import CategoryIcon from "@/components/CategoryIcon";
 import { IconGo, IconLocate, IconPinSolid } from "@/components/icons";
 import {
+  PLACES_COUNT,
   categoryGradient,
   countAr,
   distanceKm,
   getCategory,
   places,
-  PLACES_COUNT,
   toArabicDigits,
+  toArabicNumber,
 } from "@/lib/places";
 
 /** Kuwait City (Mubarakiya). Used so results work without asking for location. */
@@ -199,7 +200,7 @@ export default function NearbyDial() {
                     <span className="block truncate text-xs text-ink-500">{p.areaAr}</span>
                   </span>
                   <span className="shrink-0 rounded-full bg-sea-50 px-2.5 py-1 text-xs font-semibold text-sea-700">
-                    {toArabicDigits(p.km.toFixed(1))} كم
+                    {toArabicNumber(p.km)} كم
                   </span>
                 </Link>
               </li>

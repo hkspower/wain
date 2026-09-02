@@ -1,7 +1,7 @@
 import Link from "next/link";
 import PlaceIcon from "@/components/PlaceIcon";
 import { IconGo, IconPinSolid, IconStar } from "@/components/icons";
-import { categoryTint, getCategory, toArabicDigits, type Place } from "@/lib/places";
+import { categoryTint, getCategory, toArabicDigits, toArabicNumber, type Place } from "@/lib/places";
 
 export default function PlaceCard({ place }: { place: Place }) {
   const category = getCategory(place.category);
@@ -28,10 +28,10 @@ export default function PlaceCard({ place }: { place: Place }) {
         {place.rating !== undefined && (
           <span
             className="absolute start-3 top-3 flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-ink-800 shadow-sm backdrop-blur"
-            aria-label={`التقييم ${toArabicDigits(place.rating.toFixed(1))} من ٥`}
+            aria-label={`التقييم ${toArabicNumber(place.rating)} من ٥`}
           >
             <IconStar className="size-3.5 text-sun-500" />
-            {toArabicDigits(place.rating.toFixed(1))}
+            {toArabicNumber(place.rating)}
           </span>
         )}
       </div>

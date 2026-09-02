@@ -24,9 +24,10 @@ import {
   getCategory,
   getPlace,
   placeGradient,
-  places,
   placeVariant,
+  places,
   toArabicDigits,
+  toArabicNumber,
 } from "@/lib/places";
 
 export function generateStaticParams() {
@@ -132,10 +133,10 @@ export default async function PlacePage({
         {place.rating !== undefined && (
           <span
             className="absolute start-4 top-4 flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-sm font-semibold text-ink-800 shadow-sm backdrop-blur"
-            aria-label={`التقييم ${toArabicDigits(place.rating.toFixed(1))} من ٥`}
+            aria-label={`التقييم ${toArabicNumber(place.rating)} من ٥`}
           >
             <IconStar className="size-4 text-sun-500" />
-            {toArabicDigits(place.rating.toFixed(1))}
+            {toArabicNumber(place.rating)}
           </span>
         )}
       </div>

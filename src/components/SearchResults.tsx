@@ -4,7 +4,7 @@ import Link from "next/link";
 import CategoryIcon from "@/components/CategoryIcon";
 import PlaceIcon from "@/components/PlaceIcon";
 import { IconCompass, IconGo, IconPinSolid, IconStar } from "@/components/icons";
-import { categoryTint, getCategory, places, toArabicDigits } from "@/lib/places";
+import { categoryTint, getCategory, places, toArabicDigits, toArabicNumber } from "@/lib/places";
 import { highlight, type DocKind, type SearchHit } from "@/lib/search";
 
 const KIND_LABEL: Record<DocKind, string> = {
@@ -91,10 +91,10 @@ function PlaceMeta({ id }: { id: string }) {
       {place.rating !== undefined && (
         <span
           className="flex items-center gap-1 text-xs font-semibold text-ink-700"
-          aria-label={`التقييم ${toArabicDigits(place.rating.toFixed(1))} من ٥`}
+          aria-label={`التقييم ${toArabicNumber(place.rating)} من ٥`}
         >
           <IconStar className="size-3.5 text-sun-500" />
-          {toArabicDigits(place.rating.toFixed(1))}
+          {toArabicNumber(place.rating)}
         </span>
       )}
       <span

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import PlaceIcon from "@/components/PlaceIcon";
 import { IconGo, IconStar } from "@/components/icons";
-import { toArabicDigits, type CategoryId, type Place } from "@/lib/places";
+import { toArabicNumber, type CategoryId, type Place } from "@/lib/places";
 
 /**
  * One place on a map, on both maps.
@@ -177,7 +177,7 @@ export default function MapPin({
           {place.rating !== undefined && (
             <span className="flex items-center gap-0.5 rounded-full bg-white/15 px-1.5 py-0.5 text-2xs font-semibold">
               <IconStar className="size-3 text-sun-300" />
-              {toArabicDigits(place.rating.toFixed(1)).replace(".", "٫")}
+              {toArabicNumber(place.rating)}
             </span>
           )}
           <IconGo className="size-3.5 shrink-0 text-sand-300" />
