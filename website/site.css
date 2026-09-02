@@ -66,7 +66,7 @@
   --line-ctl: #6b97a2;
   --bg:       #ffffff;
   --bg-soft:  #f6fbfb;
-  /* حبرٌ على السطح البرتقاليّ الفاتح (مثال الطلب في الافتتاح): ‎--orange-700
+  /* حبرٌ على السطح البرتقاليّ الفاتح: ‎--orange-700
      يعطي عليه ٤٫٥٣، وعند حافّة الحدّ يهبط إلى ٣٫٩٧. هذا يعطي ٧٫٠٥ و٥٫٤١. */
   --on-warm:  #7d4405;
 
@@ -305,8 +305,10 @@ body.vo {
 
 .vo-top__nav a:hover { color: var(--teal-800); background: var(--teal-50); }
 
-/* الأيقونة لا تظهر إلّا حين يُطوى نصّها على الشاشة الضيّقة */
-.vo-top__nav a .ic { display: none; width: 18px; height: 18px; stroke-width: 2.27; }
+/* الشريط أيقوناتٌ لا كلمات: لا نصّ ساكن على الصفحة، والاسم في
+   `aria-label` فيقرؤه قارئ الشاشة. */
+.vo-top__nav a { min-width: 44px; justify-content: center; padding-inline: .5rem; }
+.vo-top__nav a .ic { width: 19px; height: 19px; stroke-width: 2.15; }
 
 /* ------------------------------- المتن ------------------------------- */
 .vo-main {
@@ -323,26 +325,6 @@ body.vo {
 .vo-hero { text-align: center; padding-block: clamp(.6rem, 4vh, 2.4rem) .4rem; }
 
 .vo-hero h1 { margin-bottom: .45em; }
-
-.vo-hero__sub {
-  color: var(--ink-mid); font-size: var(--fs-lg); line-height: var(--lh-body);
-  max-width: 34em; margin: 0 auto .9rem;
-}
-
-.vo-hero__example {
-  color: var(--ink-faint); font-size: var(--fs-sm); line-height: var(--lh-body);
-  max-width: 36em; margin: 0 auto 1.1rem;
-}
-
-.vo-hero__ticks {
-  display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem 1.4rem;
-  list-style: none; margin: 0; padding: 0;
-  color: var(--ink-soft); font-size: var(--fs-sm);
-}
-
-.vo-hero__ticks li { display: flex; align-items: center; gap: .45rem; }
-
-.vo-hero__ticks .ic { width: 17px; height: 17px; stroke-width: 2.4; color: var(--teal-700); }
 
 /* ------------------------------- الحوار ------------------------------- */
 /* ما يُمرَّر إليه يقف فوق الملتقط لا تحته. الملتقط ملتصقٌ بأسفل الشاشة،
@@ -474,7 +456,6 @@ body.vo {
 
 .vo-mic .ic--lg { width: 28px; height: 28px; stroke-width: 1.46; }
 
-
 @media (prefers-reduced-motion: reduce) {
   .vo-mic { animation: none !important; }
 }
@@ -514,8 +495,6 @@ body.vo {
   max-height: 30vh;
 }
 
-.vo-typebar textarea::placeholder { color: var(--ink-faint); }
-
 .vo-typebar__send {
   flex: none; width: 48px; height: 48px; margin: 3px;
   display: flex; align-items: center; justify-content: center;
@@ -534,20 +513,6 @@ body.vo {
   text-align: center;
 }
 
-/* ------------------------------ التذييل ------------------------------ */
-.vo-foot {
-  display: flex; flex-wrap: wrap; justify-content: center; gap: .2rem 1rem;
-  padding: .6rem 1rem calc(.6rem + env(safe-area-inset-bottom, 0px));
-  background: var(--bg-soft);
-}
-
-/* سطرٌ واحد يقول ما هي موصول. كان التذييل روابطَ إلى صفحاتٍ أخرى، ولم
-   يبقَ غيرُ هذه — فصار نصًّا لا قائمة. */
-.vo-foot p {
-  margin: 0; padding: .5rem .6rem;
-  color: var(--ink-soft); font-size: var(--fs-sm); line-height: var(--lh-ui);
-}
-
 /* ------------------------------- الجوال ------------------------------- */
 @media (max-width: 480px) {
   .vo-main { width: calc(100% - 1.6rem); }
@@ -562,12 +527,5 @@ body.vo {
   .vo-typebar { flex: 1 1 100%; order: 1; }
   .vo-mic { order: 2; width: 56px; height: 56px; }
 
-  /* الرقم يطول (١٤١px) فلا يسع مع الشعار وواتساب على ٣٢٠. وكان الحلّ
-     إخفاء الرابط كلّه — وهو أسوأ ما يقع على جوّال: **زائر الجوّال أقرب
-     الناس إلى الاتصال**، فيُخفى عنه الهاتف وحده. تبقى الأيقونة هدفَ لمسٍ
-     كاملًا ويُطوى الرقم. */
-  .vo-top__nav a[href^="tel"] { min-width: 44px; justify-content: center; padding-inline: .5rem; }
-  .vo-top__nav a[href^="tel"] span { display: none; }
-  .vo-top__nav a[href^="tel"] .ic { display: block; }
 }
 
