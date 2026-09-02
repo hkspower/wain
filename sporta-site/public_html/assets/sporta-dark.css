@@ -149,7 +149,11 @@
   [data-theme='dark'] .text-slate-400 {
     color: var(--sp-silver) !important;
   }
-  [data-theme='dark'] .text-brand-dark { color: var(--sp-ember) !important; }
+  /* .text-brand-dark USED TO BE PAINTED EMBER HERE. It is silver now — see the
+     "less orange" block at the foot of this file — and the rule that set it to
+     var(--sp-ember) has been removed rather than left to lose: two rules in one
+     file asking for different colours is a contradiction the next reader has to
+     resolve, and scripts/css-audit.mjs fails on the outranked one by design. */
 
   /* --- lines ------------------------------------------------------------- */
   /* white/12% over black is a grey with no hue but also no substance — it
@@ -230,5 +234,122 @@
    * on the product page: none of them contains one. */
   [data-theme='dark'] main .rounded-2xl:has(> picture) {
     background-color: var(--sp-tile) !important;
+  }
+}
+
+/* ===========================================================================
+ * LESS ORANGE: SILVER IS THE ACCENT, ORANGE IS THE BUY BUTTON
+ * ===========================================================================
+ *
+ * Asked for by the owner: less orange, dark silver across the theme.
+ *
+ * WHAT WAS THERE. Measured across the home, shop, product, cart and checkout
+ * pages at 393px — 26 distinct orange elements in three different oranges:
+ *
+ *     #e0561c  fills    primary buttons, badges, the active filter chip,
+ *                       the carousel dot, the round icon buttons, skip link
+ *     #ff9752  text     every price, the eyebrows, "دليل المقاسات",
+ *                       "شنو مقاسي؟", the ghost buttons and their borders
+ *     #ff7b17  text     "حقيبتك", the footer headings, the active nav link
+ *
+ * Orange was doing the work of a whole palette: it marked the price, the
+ * heading, the link, the badge, the selected chip AND the button. When one
+ * colour means six things it stops meaning any of them, and a shop where
+ * everything shouts has nothing left to shout with.
+ *
+ * THE RULE HERE IS ONE LINE: orange is the button you press to buy. Nothing
+ * else. Everything that was orange for emphasis is now silver, and what made
+ * those things prominent — size, weight, position — still does.
+ *
+ * PRICES GO TO --sp-text, NOT TO --sp-silver, and that is the one place this
+ * would have gone wrong. Silver is DIMMER than body text (7.91:1 against
+ * 15.30:1), so a silver price would have been quieter than the sentence
+ * describing the garment. They are already display-weight and extrabold; the
+ * hue was never what made them read. Text colour keeps the hierarchy and drops
+ * the shouting.
+ *
+ * FILLS GO TO SILVER WITH INK ON TOP, for the reason the round-button note
+ * above already gives: a badge sits on a photograph, the ground behind it is
+ * unknowable, and a dark chip on a dark shot disappears. A light silver pill
+ * is legible on any photograph, and #171a1e on #a6acb2 is 7.91:1.
+ *
+ * CONTRAST, computed rather than hoped for:
+ *
+ *     #eaecee on #141619   15.30:1     prices, headings, eyebrows
+ *     #eaecee on #1a1d20   14.05:1     the same on a tile
+ *     #171a1e on #a6acb2    7.91:1     badge and chip labels
+ *     #a6acb2 on #141619    7.91:1     ghost borders and their text
+ *
+ * BOTH THEMES. The light theme gets the same treatment with the ramp
+ * inverted — a dark silver accent on white rather than a light one on black —
+ * so "less orange" is true whichever way the toggle is set.
+ *
+ * btn-primary is deliberately NOT touched: it is defined above and stays
+ * #e0561c with ink on it. That rule is written before these on purpose, but
+ * the :not(.btn-primary) below makes it independent of source order, because
+ * the fill override and the button rule have identical specificity and a
+ * later edit that moved either one would otherwise silently repaint the buy
+ * button.
+ */
+@media screen {
+
+  /* --- accent TEXT: the hue goes, the prominence stays ------------------- */
+  [data-theme='dark'] .text-accent,
+  [data-theme='dark'] .text-brand-dark,
+  [data-theme='dark'] .text-brand-bright,
+  [data-theme='dark'] .price-card,
+  [data-theme='dark'] .eyebrow {
+    color: var(--sp-text) !important;
+  }
+
+  /* --- accent FILLS: silver, with ink on top ----------------------------- */
+  /* Badges, the active filter chip, the carousel dot, the round icon buttons
+     and the skip link. :not(.btn-primary) keeps the buy button out of it. */
+  [data-theme='dark'] .bg-brand:not(.btn-primary),
+  [data-theme='dark'] .skip-link {
+    color: var(--sp-on-ember) !important;
+    background-color: var(--sp-silver) !important;
+  }
+
+  /* --- the outlined button, and anything else ringed in orange ----------- */
+  /* "اشترِ الآن" is a ghost button: orange text inside an orange ring, sitting
+     next to the solid orange Add. Two oranges of different weights side by
+     side was the loudest thing on the product page. */
+  /* border-colour ONLY. An outlined chip that is also filled (.bg-brand plus
+     .border-brand, which the product page uses) takes its text colour from the
+     fill rule above — ink on silver — and that rule is the more specific of the
+     two because of its :not(). Declaring a colour here as well would be a
+     declaration that can never win, which is precisely what css-audit.mjs
+     fails on. The ghost button's text is set on its own line below. */
+  [data-theme='dark'] .border-brand,
+  [data-theme='dark'] .border-accent {
+    border-color: var(--sp-silver) !important;
+  }
+  [data-theme='dark'] .btn-ghost.text-accent {
+    color: var(--sp-silver) !important;
+  }
+
+  /* --- the same, on the light theme ------------------------------------- */
+  /* The ramp inverts: a dark silver accent on white. #4a5058 on #ffffff is
+     8.32:1, and white on it is 8.32:1 the other way, so a filled chip and its
+     label are both comfortably past AA. */
+  :root:not([data-theme='dark']) .text-accent,
+  :root:not([data-theme='dark']) .text-brand-dark,
+  :root:not([data-theme='dark']) .text-brand-bright,
+  :root:not([data-theme='dark']) .price-card,
+  :root:not([data-theme='dark']) .eyebrow {
+    color: #171a1e !important;
+  }
+  :root:not([data-theme='dark']) .bg-brand:not(.btn-primary),
+  :root:not([data-theme='dark']) .skip-link {
+    color: #ffffff !important;
+    background-color: #4a5058 !important;
+  }
+  :root:not([data-theme='dark']) .border-brand,
+  :root:not([data-theme='dark']) .border-accent {
+    border-color: #4a5058 !important;
+  }
+  :root:not([data-theme='dark']) .btn-ghost.text-accent {
+    color: #4a5058 !important;
   }
 }

@@ -148,15 +148,29 @@ for (const withBag of [false, true]) {
         .filter((e) => getComputedStyle(e).display !== 'inline')
         .filter((e) => ['left', 'start'].includes(getComputedStyle(e).textAlign))
         .map((e) => e.textContent.trim().slice(0, 24))
-      return { heading: find(/^فاتورة إلى$/), name: find(/^Rig/), addr: find(/^قطعة/),
-        ar: find(/^سويت/), en: find(/^Cagliari/), blocksAlignedLeft }
+      // FOUND STRUCTURALLY, NOT BY FIXTURE TEXT. This asked for /^Rig/ and
+      // /^Cagliari/ — the customer and garment that happened to be on the
+      // newest order the day it was written. Every other rig in this suite
+      // places orders, so the newest one is somebody else's within a run or
+      // two and both lookups returned null, failing on the fixture rather than
+      // on the alignment. The Latin runs are what this measures, so find them
+      // by BEING Latin inside an Arabic invoice, and compare each against the
+      // Arabic line it is supposed to line up with.
+      const latinBlocks = [...document.querySelectorAll('.invoice [dir="ltr"]')]
+        .filter((e) => getComputedStyle(e).display !== 'inline')
+      const edge = (e) => { const r = document.createRange(); r.selectNodeContents(e); const b = r.getBoundingClientRect(); return b.width ? Math.round(b.right) : null }
+      return { heading: find(/^فاتورة إلى$/), addr: find(/^قطعة/), ar: find(/^سويت|^حقيبة|^سويت شيرت/),
+        latin: latinBlocks.map((e) => ({ t: e.textContent.trim().slice(0, 22), R: edge(e) })),
+        blocksAlignedLeft }
     })
-    check(edges.name !== null && edges.name === edges.addr,
-      'the customer\'s name ends on the same edge as their own address',
-      `name R${edges.name} vs address R${edges.addr}`)
-    check(edges.en !== null && edges.en === edges.ar,
-      'and the English product name on the same edge as the Arabic one',
-      `en R${edges.en} vs ar R${edges.ar}`)
+    // Every Latin block in the invoice must end on the document's start edge,
+    // which in this RTL page is the same right edge the address ends on.
+    const stray = edges.latin.filter((l) => l.R !== null && l.R !== edges.addr)
+    check(edges.latin.length > 0,
+      `the invoice has Latin blocks to check (${edges.latin.length})`)
+    check(stray.length === 0,
+      'every Latin block ends on the same edge as the Arabic beside it',
+      stray.map((l) => `"${l.t}" R${l.R} vs R${edges.addr}`).join(' | '))
     check(edges.blocksAlignedLeft.length === 0,
       'no Latin block in an Arabic invoice is left-aligned by its own dir',
       edges.blocksAlignedLeft.join(' | '))
