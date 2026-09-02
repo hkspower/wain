@@ -121,9 +121,18 @@ failed += (await run("node", ["tests/voice-pipeline.test.mjs"])) === 0 ? 0 : 1;
 console.log("\n════ شوق: the voice ════");
 {
   const vtmp = mkdtempSync(join(tmpdir(), "shouq-voice-"));
+  // Every process.env key voice.ts reads has to be defined here, not just the
+  // ones it read yesterday. esbuild leaves an unmatched `process.env.X` in the
+  // output verbatim, and in an IIFE bundle for a browser that is a
+  // ReferenceError thrown before window.voice is ever assigned — so the suite
+  // times out waiting for a harness that died on its first line, and the
+  // timeout says nothing about which key was missing. Empty string is the
+  // branch these two suites are for: the bridge unconfigured, the clips and the
+  // browser voice doing all the work. The bundle further down turns it on.
   const okBundle = await run("npx", ["esbuild", "tests/harness/voice-harness.ts",
     "--bundle", "--format=iife", `--alias:@=${join(ROOT, "src")}`,
     '--define:process.env.NODE_ENV="production"',
+    '--define:process.env.NEXT_PUBLIC_WAIN_TTS_URL=""',
     `--outfile=${join(vtmp, "voice.js")}`, "--log-level=error"]);
   if (okBundle !== 0) { console.error("could not bundle the voice harness"); process.exit(1); }
   writeFileSync(join(vtmp, "voice.html"),
