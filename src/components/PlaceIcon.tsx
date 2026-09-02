@@ -346,6 +346,124 @@ function Art({ slug }: { slug: string }) {
         </>
       );
 
+    /* ── drawn to break up the fallbacks ────────────────────────────────
+       Twenty-seven of forty-four places had no mark of their own, so a map
+       of six culture places drew the same museum glyph six times and the two
+       southern beaches were one identical palm. These are the subjects that
+       were colliding most on a single frame. */
+
+    case "fish-market":
+      return (
+        <>
+          <path {...F} d="M9 24c5-7 12-10 19-10s12 3 12 10-5 10-12 10-14-3-19-10Z" />
+          <path d="M9 24c5-7 12-10 19-10s12 3 12 10-5 10-12 10-14-3-19-10Z" />
+          {/* The tail, and the reason a fish reads as a fish at 16px. */}
+          <path {...F} d="M9 24 5 17v14Z" />
+          <path d="M9 24 5 17v14Z" />
+          <path d="M34 21h.01" style={DETAIL} />
+          <path d="M26 17.5c-2 4-2 9 0 13" style={DETAIL} opacity={0.6} />
+          {GROUND}
+        </>
+      );
+
+    case "al-hamra-tower":
+      return (
+        <>
+          {/* The twist: two edges that lean opposite ways, which is the whole
+              silhouette people recognise from the skyline. */}
+          <path {...F} d="M17 40 19 12h10l6 28Z" />
+          <path d="M17 40 19 12h10l6 28" />
+          <path d="M19 12h10" />
+          <path d="M22 20h9M21 28h11" style={DETAIL} opacity={0.55} />
+          <path d="M24 12V7" />
+          {GROUND}
+        </>
+      );
+
+    case "seif-palace":
+      return (
+        <>
+          {/* The clock tower, tiled blue and gold, over the palace wall. */}
+          <path {...F} d="M18 40V16h12v24Z" />
+          <path d="M18 40V16h12v24" />
+          <path d="M24 16V9" />
+          <circle {...F} cx="24" cy="24" r="4" />
+          <circle cx="24" cy="24" r="4" style={DETAIL} />
+          <path d="M24 22v2l1.5 1" style={DETAIL} />
+          <path {...F} d="M6 40V28h12v12ZM30 40V28h12v12Z" />
+          <path d="M6 40V28h12M30 28h12v12" />
+          {GROUND}
+        </>
+      );
+
+    case "kuwait-zoo":
+      return (
+        <>
+          {/* A giraffe: the one animal whose outline survives 16px. */}
+          <path {...F} d="M26 40V22c0-3-3-5-7-5s-7 2-7 5v18Z" />
+          <path d="M26 40V22c0-3-3-5-7-5s-7 2-7 5v18" />
+          <path d="M26 26c0-8 3-12 8-14" />
+          <path {...F} d="M34 12a3 3 0 0 1 6 0c0 2-2 3-4 3l-3 1Z" />
+          <path d="M34 12a3 3 0 0 1 6 0c0 2-2 3-4 3l-3 1" />
+          <path d="M35 9V6M39 9V6" style={DETAIL} />
+          <path d="M16 24h.01M22 27h.01M18 31h.01" style={DETAIL} opacity={0.6} />
+          {GROUND}
+        </>
+      );
+
+    case "khiran":
+      return (
+        <>
+          {/* Water cut into the desert: two channels and a boat, not a beach. */}
+          <path {...F} d="M4 20h40v6H4ZM4 31h40v6H4Z" />
+          <path d="M4 20h40v6H4ZM4 31h40v6H4Z" />
+          <path {...F} d="M17 20V9l10 5-10 4.6Z" />
+          <path d="M17 20V9l10 5-10 4.6Z" />
+          {GROUND}
+        </>
+      );
+
+    case "messilah-beach":
+      return (
+        <>
+          {/* A parasol on sand — the difference between this and a public park
+              is the thing you bring, not the plants. */}
+          <path {...F} d="M11 20a12 12 0 0 1 24 0Z" />
+          <path d="M11 20a12 12 0 0 1 24 0Z" />
+          <path d="M23 20v14" />
+          <path d="M4 34c4 0 4 3 8 3s4-3 8-3 4 3 8 3 4-3 8-3 4 3 8 3" />
+          <path d="M4 41c4 0 4 3 8 3s4-3 8-3 4 3 8 3 4-3 8-3 4 3 8 3" opacity={0.45} />
+        </>
+      );
+
+    case "wafra-farms":
+      return (
+        <>
+          {/* Rows under glass, with the season's dates hanging at the side. */}
+          <path {...F} d="M8 40V26l9-6 9 6v14Z" />
+          <path d="M8 40V26l9-6 9 6v14" />
+          <path d="M17 20v20M12 30h10M12 35h10" style={DETAIL} opacity={0.6} />
+          <path d="M36 40V24" />
+          <path {...F} d="M36 24c-5 0-7-3-7-6 4 0 7 2 7 6ZM36 24c5 0 7-3 7-6-4 0-7 2-7 6Z" />
+          <path d="M36 24c-5 0-7-3-7-6 4 0 7 2 7 6ZM36 24c5 0 7-3 7-6-4 0-7 2-7 6Z" />
+          {GROUND}
+        </>
+      );
+
+    case "friday-market":
+      return (
+        <>
+          {/* A stall: the scalloped awning is the whole signal. */}
+          <path {...F} d="M7 22h34v18H7Z" />
+          <path d="M7 22h34v18H7Z" />
+          <path {...F} d="M5 22c0-3 2-5 5-5h28c3 0 5 2 5 5Z" />
+          <path d="M5 22c0-3 2-5 5-5h28c3 0 5 2 5 5" />
+          <path d="M13.5 17v5M22 17v5M30.5 17v5" style={DETAIL} opacity={0.6} />
+          <path d="M17 40V30h8v10" style={DETAIL} />
+          {GROUND}
+        </>
+      );
+
     /* Fallback: a pin, so a newly added place still gets a mark. */
     default:
       return null;

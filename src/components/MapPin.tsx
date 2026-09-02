@@ -48,6 +48,10 @@ const TONE: Record<CategoryId, string> = {
   family: "bg-palm-700",
 };
 
+/** The head's white outline, in px — `border-2`. Named because the nose has
+ *  to compensate for it: see where the nose is positioned. */
+const HEAD_BORDER = 2;
+
 /** Matching ring for the halo around an active pin. */
 const RING: Record<CategoryId, string> = {
   landmarks: "bg-sea-600/30",
@@ -117,18 +121,35 @@ export default function MapPin({
    */
   const selectedOnPress = useRef(false);
 
+  /**
+   * The nose, and how far the pin now stands above its own coordinate.
+   *
+   * A disc centred on the point is compact and it is also mute about WHICH
+   * point: the coordinate is somewhere under the disc, and a crosshair drawn
+   * at the true position disappears entirely beneath it. A pointer says it —
+   * the tip is the place, the head is just where the icon lives.
+   *
+   * So the whole pin moved up by its own height (-translate-y-full) and the
+   * tip, not the centre, sits on the coordinate. Everything the frame computes
+   * is unchanged: `spreadPins` still reserves a circle of `size`, because the
+   * head is still what must not overlap its neighbours.
+   */
+  const nose = Math.round(size * 0.34);
+
   return (
     <span
       style={style}
-      className={`absolute -translate-x-1/2 -translate-y-1/2 ${active ? "z-30" : dim ? "z-10" : "z-20"}`}
+      className={`absolute -translate-x-1/2 -translate-y-full ${active ? "z-30" : dim ? "z-10" : "z-20"}`}
     >
       {/* The halo sits behind and is the thing that makes the active pin
-          findable at a glance on a busy frame. It never intercepts a tap. */}
+          findable at a glance on a busy frame. It never intercepts a tap.
+          Centred on the TIP rather than the head: it marks the ground, which
+          is the thing the pin is pointing at. */}
       {active && (
         <span
           aria-hidden="true"
           style={{ width: size * 2, height: size * 2 }}
-          className={`pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full motion-reduce:animate-none ${RING[place.category]}`}
+          className={`pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 animate-ping rounded-full motion-reduce:animate-none ${RING[place.category]}`}
         />
       )}
 
@@ -151,12 +172,45 @@ export default function MapPin({
         }}
         aria-label={`${place.nameAr} — ${place.areaAr}`}
         aria-current={active ? "true" : undefined}
-        style={{ width: size, height: size }}
+        style={{
+          width: size,
+          height: size,
+          // Grow from the tip, so hovering enlarges the pin without sliding
+          // the point it is naming. Scaling about the head's centre moves the
+          // tip by a couple of pixels on every hover, which on a map reads as
+          // the place itself twitching.
+          transformOrigin: `50% ${size + nose / 2}px`,
+          // Half the nose's DIAGONAL, not its side. The square is centred on
+          // the head's bottom edge and turned 45°, so the corner that forms
+          // the tip reaches nose·√2/2 below that edge — reserving `nose` here
+          // instead left the tip 4.6px short of the coordinate it names, which
+          // is most of a city block at the zoom a place page opens at.
+          marginBottom: nose * Math.SQRT1_2,
+        }}
         className={`relative grid place-items-center rounded-full border-2 border-white text-white shadow-md ring-1 ring-ink-900/10 transition duration-200 hover:scale-110 focus-visible:scale-110 ${
           TONE[place.category]
         } ${active ? "scale-110 shadow-xl" : dim ? "opacity-80" : ""}`}
       >
         <PlaceIcon slug={place.slug} className={size >= 32 ? "size-5" : "size-4"} />
+        {/* The nose. A square on its corner, tucked under the head so the two
+            read as one shape — and a child of the link, so it scales with the
+            head instead of staying behind while the head grows. The white on
+            its two outer edges continues the head's border down to the tip. */}
+        <span
+          aria-hidden="true"
+          /**
+           * `-nose/2` would centre the square on the head's bottom edge — if
+           * the head had no border. An absolutely positioned child is placed
+           * against its parent's PADDING box, and the head's white border-2
+           * sits outside that, so every offset here starts 2px too high and
+           * the tip landed 1.4px short of the coordinate. HEAD_BORDER puts it
+           * back, and names the reason so the two cannot drift apart.
+           */
+          style={{ width: nose, height: nose, bottom: -(nose / 2 + HEAD_BORDER) }}
+          className={`absolute left-1/2 -z-10 -translate-x-1/2 rotate-45 rounded-[3px] border-b-2 border-e-2 border-white ${
+            TONE[place.category]
+          }`}
+        />
       </Link>
 
       {/* The callout. On a phone this is the whole reason the first tap does

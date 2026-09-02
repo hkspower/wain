@@ -111,6 +111,50 @@ console.log('\n── the pins are not all the same colour any more ──');
   await ctx.close();
 }
 
+console.log('\n── the pin points at its own coordinate ──');
+{
+  // A disc centred on the point is mute about WHICH point — a crosshair drawn
+  // at the true position vanishes under it. The pointer says it, and the whole
+  // claim rests on the tip landing where the projection put it.
+  //
+  // This is exactly the assertion that caught the two things that were wrong:
+  // reserving the nose's SIDE rather than half its diagonal left the tip 4.6px
+  // short, and the head's 2px border — which an absolutely positioned child is
+  // laid out against — took another 1.4px.
+  const { ctx, p, map } = await open({ touch: false });
+  const geom = await map.evaluate((section) => {
+    const box = section.querySelector('[data-map-frame]');
+    const br = box.getBoundingClientRect();
+    return [...box.children]
+      .filter((c) => c.style.left && c.style.top)
+      .slice(0, 6)
+      .map((pin) => {
+        const wantedY = br.top + (parseFloat(pin.style.top) / 100) * br.height;
+        const wantedX = br.left + (parseFloat(pin.style.left) / 100) * br.width;
+        const a = pin.querySelector('a');
+        const nose = a.querySelector('span[aria-hidden]');
+        const nr = nose.getBoundingClientRect();
+        const ar = a.getBoundingClientRect();
+        return {
+          dy: +(nr.bottom - wantedY).toFixed(2),
+          dx: +((nr.left + nr.right) / 2 - wantedX).toFixed(2),
+          headAbove: +(wantedY - ar.top).toFixed(1),
+        };
+      });
+  });
+  const worstY = Math.max(...geom.map((g) => Math.abs(g.dy)));
+  const worstX = Math.max(...geom.map((g) => Math.abs(g.dx)));
+  ok(`the tip sits on the coordinate, within a pixel (worst ${worstY}px)`, worstY <= 1.5,
+    geom.map((g) => g.dy).join(', '));
+  ok(`and is centred on it horizontally (worst ${worstX}px)`, worstX <= 1.5,
+    geom.map((g) => g.dx).join(', '));
+  // If this ever goes negative the pin has stopped standing above its point,
+  // which means the -translate-y-full was lost and every pin is half a pin low.
+  ok('the head stands above the point, not on top of it',
+    geom.every((g) => g.headAbove > 20), geom.map((g) => g.headAbove).join(', '));
+  await ctx.close();
+}
+
 console.log('\n── the frame on screen is the frame the bbox was built for ──');
 {
   /**
