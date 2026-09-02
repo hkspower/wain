@@ -17,7 +17,7 @@
  * NO PIN IS EVER DRAWN MORE THAN `MAX_PIN_SHIFT_M` FROM THE PLACE IT NAMES.
  */
 import { execSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -225,6 +225,71 @@ console.log("\n── pins stay put and stay stable ──");
   const all = displacement(places, 390, 32);
   const inside = all.out.every((p) => p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1.0001);
   ok("no pin is pushed outside the frame", inside);
+}
+
+console.log("\n── the frame stays a real place on Earth ──");
+{
+  // The picker's − button doubles the half-span per press, and it had a floor
+  // and no ceiling. Fifteen presses took the east edge to 273° — not a wide
+  // map, an invalid one, handed to the OSM embed as fact.
+  const start = fitFrame([{ lat: 29.3759, lng: 47.9774 }], { minAspect: 1.6, maxAspect: 1.6 });
+  let z = start;
+  for (let i = 0; i < 40; i++) z = zoomFrame(z, 2);
+  const [w, s, e, n] = z.bbox.split(",").map(Number);
+  ok("forty presses of «تصغير» still describe a real bbox",
+    w >= -180 && e <= 180 && s >= -90 && n <= 90 && Number.isFinite(w + s + e + n),
+    `W=${w.toFixed(1)} S=${s.toFixed(1)} E=${e.toFixed(1)} N=${n.toFixed(1)}`);
+
+  // The ceiling clamps hx and DERIVES hy, because clamping the two separately
+  // is exactly how a bbox stops matching its frame and every pin drifts.
+  const bboxAspect = (M.rad(e) - M.rad(w)) / (M.mercY(n) - M.mercY(s));
+  ok("and the aspect survives the clamp", Math.abs(bboxAspect - z.aspect) < 1e-9,
+    `${bboxAspect.toFixed(6)} vs ${z.aspect.toFixed(6)}`);
+
+  ok("zooming in still zooms in", zoomFrame(start, 0.5).hx < start.hx);
+  ok("in then out is lossless", zoomFrame(zoomFrame(start, 0.5), 2).hx === start.hx);
+}
+
+console.log("\n── no points is a mistake, and it says so ──");
+{
+  // Math.min(...[]) is Infinity and Math.max(...[]) is -Infinity, so this used
+  // to return a centre of NaN and reach the iframe as bbox=NaN,NaN,NaN,NaN — a
+  // blank map with nothing anywhere saying why. Unreachable today: SearchMap
+  // guards it twice and the other two callers always pass a point.
+  let threw = false;
+  try { fitFrame([]); } catch { threw = true; }
+  ok("fitFrame([]) throws instead of returning NaN", threw);
+
+  const live = [
+    ["SearchMap", "src/components/SearchMap.tsx"],
+    ["PlaceMapFrame", "src/components/PlaceMapFrame.tsx"],
+    ["CoordinatePicker", "src/components/CoordinatePicker.tsx"],
+  ];
+  const src = (p) => readFileSync(join(ROOT, p), "utf8");
+  ok("SearchMap still guards the empty case it can actually hit",
+    /places\.length \? fitFrame/.test(src(live[0][1])) && /places\.length === 0\) return null/.test(src(live[0][1])));
+  ok("and no caller was left throwing at a visitor",
+    !/fitFrame\(\s*\[\s*\]/.test(live.map(([, p]) => src(p)).join("\n")));
+}
+
+console.log("\n── clicking the picker means what it says ──");
+{
+  // Nothing covered this, and it is the only map that WRITES data: a wrong
+  // unproject here puts a business's pin in the wrong place permanently.
+  const P = { lat: 29.3759, lng: 47.9774 };
+  const f = fitFrame([P], { minAspect: 1.6, maxAspect: 1.6 });
+  ok("a click at dead centre returns the centre", metres(P, unproject(f, 0.5, 0.5)) < 0.01,
+    `${metres(P, unproject(f, 0.5, 0.5)).toFixed(4)}m`);
+
+  let worst = 0;
+  for (const frame of [f, zoomFrame(f, 0.5), zoomFrame(f, 2), centreFrame(f, { lat: 29.1, lng: 48.1 })])
+    for (const x of [0, 0.13, 0.5, 0.87, 1])
+      for (const y of [0, 0.13, 0.5, 0.87, 1]) {
+        const back = project(frame, unproject(frame, x, y));
+        worst = Math.max(worst, Math.abs(back.x - x), Math.abs(back.y - y));
+      }
+  ok("click → coordinate → pin round-trips through zoom and re-centre",
+    worst < 1e-9, `worst ${worst.toExponential(2)} of the frame`);
 }
 
 console.log(
