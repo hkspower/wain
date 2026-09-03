@@ -32,6 +32,7 @@ import {
   rumblePad,
   HAPTIC,
 } from "@/game/settings";
+import { storageHealth, onStorageTrouble, type StorageHealth } from "@/game/storage";
 import { RESOLUTIONS, formatBuffer } from "@/game/render";
 import { hudInset, letterbox, RACE_ASPECT } from "@/game/aspect";
 import { padBrand, padLayout, padLabel, type PadBrand } from "@/game/pads";
@@ -612,6 +613,38 @@ function raceCut(): { w: number; h: number } | null {
     else void rootRef.current?.requestFullscreen?.();
   }, []);
   const [message, setMessage] = useState<{ title: string; sub?: string } | null>(null);
+
+  // Tell the player once when nothing is being saved.
+  //
+  // Every save in this game is wrapped in a try/catch, which is correct —
+  // localStorage genuinely throws in a private window, in a locked-down
+  // browser and on a full quota, and a throwing save must not take the
+  // race down with it. What was missing is that the catch was the end of
+  // it: the garage kept writing, every write kept failing, and the player
+  // kept earning KD and buying parts with nothing anywhere saying so.
+  // They found out on the next reload, an hour later.
+  //
+  // This cannot fix the storage. It can make sure the player is told
+  // before they spend an evening on progress that is not being kept.
+  useEffect(() => {
+    const say = (h: StorageHealth) =>
+      setMessage(
+        h === "full"
+          ? {
+              title: "STORAGE FULL",
+              sub: "Progress is not being saved. Free up browser storage and reload.",
+            }
+          : {
+              title: "PROGRESS IS NOT BEING SAVED",
+              sub: "This browser is blocking storage — private browsing, or site data turned off.",
+            }
+      );
+    // Probed up front rather than waiting for the first failed save: a
+    // player deserves to know before the first race, not after it.
+    const health = storageHealth();
+    if (health !== "ok") say(health);
+    return onStorageTrouble(say);
+  }, []);
   const [vsRival, setVsRival] = useState<RivalDef | null>(null);
   const [challenge, setChallenge] = useState<{
     player: DriverCard;

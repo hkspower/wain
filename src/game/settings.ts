@@ -6,6 +6,7 @@
 
 import type { Resolution } from "./render";
 import type { CameraView } from "./views";
+import { writeJSON } from "./storage";
 
 export interface Settings {
   /** Kill non-essential animation (OS setting is also honoured). */
@@ -139,9 +140,9 @@ export function loadSettings(): Settings {
 }
 
 export function saveSettings(s: Settings): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(s));
-  } catch {}
+  writeJSON(KEY, s);
+  // Applied whether or not it persisted: a setting the player just chose
+  // has to take effect now even on a save that will not survive a reload.
   applySettings(s);
 }
 

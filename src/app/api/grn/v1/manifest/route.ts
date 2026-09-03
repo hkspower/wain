@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { GRN_API_VERSION } from "@/game/api";
+import { GRN_API_VERSION, GRN_CACHE_CONTROL } from "@/game/api";
 import { RIVALS } from "@/game/rivals";
 import { CARS } from "@/game/mods";
 
@@ -27,6 +27,6 @@ export function GET() {
         rest: "http://localhost:8787/api",
       },
     },
-    { headers: { "Cache-Control": "public, max-age=300" } }
+    { headers: { "Cache-Control": GRN_CACHE_CONTROL } }
   );
 }

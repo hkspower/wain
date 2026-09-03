@@ -7,6 +7,7 @@ import {
   Noto_Naskh_Arabic,
   Alexandria,
 } from "next/font/google";
+import { hubHintOrigin } from "@/game/net";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import "./globals.css";
@@ -91,6 +92,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const hubOrigin = hubHintOrigin();
   return (
     // The font variables go on <html>, not <body>: the composed stacks in
     // globals.css live at :root and reference them, and a var() that is
@@ -100,6 +102,34 @@ export default function RootLayout({
       lang="en"
       className={`${jakarta.variable} ${barlow.variable} ${plexAr.variable} ${cairo.variable} ${naskh.variable} ${alexandria.variable}`}
     >
+      {/*
+        Resolve the hub before the player needs it.
+
+        This is the only host the game contacts that the browser has not
+        already looked up. The six font families above do not count:
+        next/font downloads them at build time and serves them from this
+        origin, so there is no runtime trip to fonts.gstatic.com to warm —
+        which is why there are no hints for them and should not be.
+
+        The hub connection is made at the worst moment there is. The
+        player has just pressed "race online" and is watching a spinner
+        while a DNS lookup, a TCP handshake and a TLS negotiation all
+        happen for the first time, in series, in front of them. Both hints
+        are emitted because they do different jobs: dns-prefetch reliably
+        removes the lookup, and preconnect additionally warms the socket
+        where the browser will reuse it. Neither is load-bearing — the
+        connection works exactly as before without them.
+
+        Nothing is emitted when the hub is localhost, which is the default:
+        a hint for a host that needs no resolution is markup that costs a
+        parse and buys nothing.
+      */}
+      {hubOrigin && (
+        <head>
+          <link rel="dns-prefetch" href={hubOrigin} />
+          <link rel="preconnect" href={hubOrigin} crossOrigin="anonymous" />
+        </head>
+      )}
       <body className="flex min-h-screen flex-col font-sans">
         <Navbar />
         <main className="flex-1">{children}</main>

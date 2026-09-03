@@ -1,4 +1,5 @@
 // Driver profile — career level, XP and lifetime stats.
+import { writeJSON } from "./storage";
 //
 // KD (in mods.ts) is the spendable currency; XP is the thing that only
 // ever goes up. Keeping them in separate stores means a bad night at the
@@ -86,9 +87,7 @@ export function loadProfileStats(): Profile {
 }
 
 export function saveProfileStats(p: Profile): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(p));
-  } catch {}
+  writeJSON(KEY, p);
 }
 
 /** Apply the outcome of one race and return the profile before and after. */

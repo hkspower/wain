@@ -76,6 +76,46 @@ export interface HubEvents {
 export const DEFAULT_HUB_URL =
   process.env.NEXT_PUBLIC_HUB_WS || "ws://localhost:8787";
 
+/**
+ * The hub's origin as an http(s) URL, for a resolution hint — or null
+ * when there is nothing worth hinting at.
+ *
+ * The hub is the only host this game talks to that the browser has not
+ * already resolved. The fonts do not count: next/font downloads all six
+ * families at build time and serves them from our own origin, so there
+ * is no runtime trip to fonts.gstatic.com to warm. That leaves one
+ * connection, and it is made at the worst possible moment — the player
+ * has just pressed "race online" and is watching a spinner while DNS,
+ * TCP and TLS all happen for the first time.
+ *
+ * Returns null for localhost and for a loopback address, because a hint
+ * for a host that needs no lookup is a line in the head that costs a
+ * parse and buys nothing, and null for anything unparseable rather than
+ * emitting a malformed <link>.
+ *
+ * ws:// maps to http:// and wss:// to https://: a preconnect is about
+ * the origin, and the origin is the same one the socket will open
+ * against.
+ */
+export function hubHintOrigin(url: string = DEFAULT_HUB_URL): string | null {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "ws:" && u.protocol !== "wss:") return null;
+    const host = u.hostname;
+    if (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      host === "[::1]" ||
+      host.endsWith(".local")
+    )
+      return null;
+    return `${u.protocol === "wss:" ? "https:" : "http:"}//${u.host}`;
+  } catch {
+    return null;
+  }
+}
+
 export class HubClient {
   private ws: WebSocket;
   selfId = -1;

@@ -36,31 +36,82 @@ const cache = new Map<string, Promise<PartSet | null>>();
  * a missing manifest must not silently downgrade a build that has all
  * its geometry.
  */
-let manifest: Promise<Set<string> | null> | null = null;
-function shipped(): Promise<Set<string> | null> {
+/**
+ * ...and which build produced it.
+ *
+ * The .glb files are 11 MB and every one of them was revalidated on
+ * every single page load, because Next serves public/ with
+ * `Cache-Control: public, max-age=0` and nothing here overrode it. The
+ * browser had the bytes and asked permission to use them anyway, once
+ * per model, before the game could swap in a single piece of geometry.
+ *
+ * They cannot simply be cached for a year: the filenames are stable
+ * across rebuilds, so a long max-age on `car-gtr.glb` serves last
+ * month's geometry until someone clears their cache. What is needed is a
+ * key that changes when the models do — and build.json already is one.
+ * It lists every file with its triangle count and size, plus the quality
+ * settings they were built at, so any rebuild that changes the geometry
+ * changes this JSON. Fingerprinting the manifest we were downloading
+ * anyway costs one pass over 4 KB of text and turns the asset URLs into
+ * content-addressed ones.
+ *
+ * FNV-1a, the same hash community.ts derives invite codes with. It is
+ * not a security boundary — it is a cache key, and the only failure mode
+ * is a collision serving stale geometry, which needs two different
+ * builds to hash identically.
+ */
+export interface ModelBuild {
+  have: Set<string> | null;
+  /** Short hex fingerprint, or "" when the manifest could not be read. */
+  v: string;
+}
+
+export function fingerprint(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(36);
+}
+
+let manifest: Promise<ModelBuild> | null = null;
+function shipped(): Promise<ModelBuild> {
   manifest ??= fetch("/models/build.json")
-    .then((r) => (r.ok ? r.json() : null))
-    .then((j) => (j?.assets ? new Set(Object.keys(j.assets)) : null))
-    .catch(() => null);
+    .then((r) => (r.ok ? r.text() : null))
+    .then((text) => {
+      if (!text) return { have: null, v: "" };
+      const j = JSON.parse(text) as { assets?: Record<string, unknown> };
+      return {
+        have: j?.assets ? new Set(Object.keys(j.assets)) : null,
+        v: fingerprint(text),
+      };
+    })
+    .catch(() => ({ have: null, v: "" }));
   return manifest;
 }
 
 function parts(file: string): Promise<PartSet | null> {
   let entry = cache.get(file);
   if (!entry) {
-    entry = shipped().then((have) => {
+    entry = shipped().then(({ have, v }) => {
       if (have && !have.has(file)) return null;
-      return load(file);
+      return load(file, v);
     });
     cache.set(file, entry);
   }
   return entry;
 }
 
-function load(file: string): Promise<PartSet | null> {
+function load(file: string, v: string): Promise<PartSet | null> {
   return new Promise((resolve) => {
+    // The fingerprint rides on the URL so the file can be cached
+    // immutably: a rebuild changes the manifest, which changes this, and
+    // the browser fetches a URL it has never seen rather than being asked
+    // to re-check one it has. Empty when the manifest could not be read,
+    // and then the bare path is requested exactly as before.
     new GLTFLoader().load(
-      `/models/${file}.glb`,
+      `/models/${file}.glb${v ? `?v=${v}` : ""}`,
       (gltf) => {
         const out: PartSet = {};
         gltf.scene.updateMatrixWorld(true);

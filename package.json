@@ -53,6 +53,7 @@
     "test:bridges": "node tests/bridges.mjs",
     "test:buildings": "node tests/buildings.mjs",
     "test:carbon": "node tests/carbon.mjs",
+    "test:caching": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/caching.mjs",
     "test:clock": "node tests/clock.mjs",
     "test:community": "node tests/community.mjs",
     "test:crash": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/crash.mjs",

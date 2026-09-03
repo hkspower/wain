@@ -13,6 +13,7 @@ import type { EngineId, EngineSpec } from "./engines";
 import { loadCrew, type Crew } from "./teams";
 import type { Drivetrain } from "./grip";
 import { HANDLING } from "./handling";
+import { writeJSON } from "./storage";
 import {
   PAINTS, PAINT_HEX, GLOW_HEX, COVER_HEX, CARBON_KG, NOMINAL_CAR_KG,
   swatch, type PaintFamily, type CarbonLevel,
@@ -1218,9 +1219,12 @@ export function loadGarage(): GarageState {
 }
 
 export function saveGarage(g: GarageState): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(g));
-  } catch {}
+  // The one save that is the player's actual progress: KD, every car
+  // they own, every part on every one of them, and the fuel in the tank.
+  // writeJSON reports a failure instead of swallowing it, so a session
+  // that is not persisting can say so once rather than being discovered
+  // at the next reload.
+  writeJSON(KEY, g);
 }
 
 export function addKd(amount: number): number {

@@ -29,6 +29,27 @@ import { RIG } from "./rig";
 /** Bump when a payload shape changes incompatibly. Clients compare it. */
 export const GRN_API_VERSION = 1;
 
+/**
+ * What every v1 route sends as its Cache-Control, in one place.
+ *
+ * All five carried the same string typed out separately, which is how
+ * four of them end up agreeing and the fifth quietly does not. It is one
+ * constant now, and tests/caching.mjs fails if a route stops using it.
+ *
+ * The payload is `force-static`: it is baked at build time and cannot
+ * change until the next deploy. max-age=300 alone therefore had every
+ * client re-downloading 39 KB of unchanged JSON 288 times a day, and
+ * doing it in front of whatever was waiting on it, because these routes
+ * send no ETag and there is no 304 to be had. stale-while-revalidate
+ * moves that refresh behind the player: for a day after it goes stale
+ * the cached copy is served immediately and the update happens after.
+ *
+ * A client that needs to know whether it is holding an old shape reads
+ * X-GRN-Api-Version, which every route also sends.
+ */
+export const GRN_CACHE_CONTROL =
+  "public, max-age=300, stale-while-revalidate=86400";
+
 const hex = (n: number) => `#${n.toString(16).padStart(6, "0")}`;
 
 export function buildTrack() {
