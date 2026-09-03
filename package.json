@@ -31,6 +31,7 @@
     "test:journey": "node tests/run-journey.mjs",
     "test:hangout": "node tests/run-hangout.mjs",
     "test:api": "node tests/api.test.mjs",
+    "test:db": "node tests/schema.test.mjs",
     "test:map": "node tests/map-frame.test.mjs",
     "audit:schema": "node scripts/audit-schema-use.mjs",
     "audit:runtime": "node scripts/audit-runtime.mjs",

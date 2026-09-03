@@ -36,6 +36,43 @@ create policy "an admin can see their own row"
   using (user_id = auth.uid());
 
 -- ---------------------------------------------------------------------------
+-- is_admin() — the only way a policy may ask about this table
+-- ---------------------------------------------------------------------------
+-- Every admin policy used to inline "exists (select 1 from public.admins ...)".
+-- That is not a permissions problem for the admin, who can read their own row.
+-- It is a problem for everybody else, and it took the whole public site down.
+--
+-- PostgreSQL evaluates ALL permissive policies for a command and ORs the
+-- results, so an anonymous "select ... from places" ran the admin policy's
+-- subquery too — and anon holds no grant on admins:
+--
+--   ERROR:  permission denied for table admins
+--
+-- Not "zero rows": an error, for the one query the entire public site is built
+-- on. Every place page, the search index, the map. Verified against PostgreSQL
+-- 16 by seeding the 44 places and selecting them as the anon role.
+--
+-- SECURITY DEFINER makes the lookup run as the owner, so the caller needs no
+-- grant on admins and the OR short-circuits to the public policy. The same
+-- pattern the RPCs in this file already use.
+--
+-- STABLE, not VOLATILE: one lookup per statement rather than one per row.
+-- search_path is pinned because a SECURITY DEFINER function that resolves
+-- names through a caller-controlled search_path is how privilege escalation
+-- gets written by accident.
+create or replace function public.is_admin()
+  returns boolean
+  language sql
+  stable
+  security definer
+  set search_path = public, pg_temp
+as $$
+  select exists (select 1 from public.admins a where a.user_id = auth.uid());
+$$;
+revoke all on function public.is_admin() from public;
+grant execute on function public.is_admin() to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
 -- Places
 -- ---------------------------------------------------------------------------
 create table if not exists public.places (
@@ -50,7 +87,11 @@ create table if not exists public.places (
   area_ar        text not null,
   lat            double precision not null check (lat between -90 and 90),
   lng            double precision not null check (lng between -180 and 180),
-  rating         numeric(2,1) not null check (rating between 0 and 5),
+  -- Nullable on purpose. rating is optional in the Place type and eight of the
+  -- 44 places carry none; a NOT NULL here made the seed unappliable rather
+  -- than making the data better. The range check still holds for every row
+  -- that has one — a CHECK passes on NULL, which is the behaviour wanted.
+  rating         numeric(2,1) check (rating between 0 and 5),
   price_level    smallint not null check (price_level between 1 and 3),
   emoji          text not null default '📍',
   tagline_ar     text not null,
@@ -161,23 +202,23 @@ create policy "anyone can read published places"
 drop policy if exists "admins read every place" on public.places;
 create policy "admins read every place"
   on public.places for select
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin());
 
 drop policy if exists "admins insert places" on public.places;
 create policy "admins insert places"
   on public.places for insert
-  with check (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  with check (public.is_admin());
 
 drop policy if exists "admins update places" on public.places;
 create policy "admins update places"
   on public.places for update
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()))
-  with check (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin())
+  with check (public.is_admin());
 
 drop policy if exists "admins delete places" on public.places;
 create policy "admins delete places"
   on public.places for delete
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin());
 
 -- ---------------------------------------------------------------------------
 -- Business submissions — "سجّل مكانك"
@@ -282,18 +323,18 @@ create policy "anyone may submit a business"
 drop policy if exists "admins read submissions" on public.submissions;
 create policy "admins read submissions"
   on public.submissions for select
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin());
 
 drop policy if exists "admins update submissions" on public.submissions;
 create policy "admins update submissions"
   on public.submissions for update
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()))
-  with check (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin())
+  with check (public.is_admin());
 
 drop policy if exists "admins delete submissions" on public.submissions;
 create policy "admins delete submissions"
   on public.submissions for delete
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin());
 
 -- ---------------------------------------------------------------------------
 -- ---------------------------------------------------------------------------
@@ -402,14 +443,14 @@ drop policy if exists "admins read every order" on public.orders;
 create policy "admins read every order"
   on public.orders for select
   to authenticated
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin());
 
 drop policy if exists "admins update orders" on public.orders;
 create policy "admins update orders"
   on public.orders for update
   to authenticated
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()))
-  with check (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin())
+  with check (public.is_admin());
 
 drop trigger if exists orders_touch on public.orders;
 create trigger orders_touch before update on public.orders
@@ -612,13 +653,13 @@ create trigger queue_tickets_touch before update on public.queue_tickets
 drop policy if exists "admins read the queue" on public.queue_tickets;
 create policy "admins read the queue"
   on public.queue_tickets for select
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin());
 
 drop policy if exists "admins update the queue" on public.queue_tickets;
 create policy "admins update the queue"
   on public.queue_tickets for update
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()))
-  with check (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin())
+  with check (public.is_admin());
 
 -- Times are stamped from the database, so a client cannot claim it was called
 -- an hour ago.
@@ -870,13 +911,13 @@ drop policy if exists "admins read pending media" on storage.objects;
 create policy "admins read pending media"
   on storage.objects for select
   using (bucket_id = 'business-pending'
-         and exists (select 1 from public.admins a where a.user_id = auth.uid()));
+         and public.is_admin());
 
 drop policy if exists "admins delete pending media" on storage.objects;
 create policy "admins delete pending media"
   on storage.objects for delete
   using (bucket_id = 'business-pending'
-         and exists (select 1 from public.admins a where a.user_id = auth.uid()));
+         and public.is_admin());
 
 -- The public bucket serves reads without consulting policies; these govern who
 -- may put something in it, which is the part that matters.
@@ -885,13 +926,13 @@ create policy "admins publish media"
   on storage.objects for insert
   to authenticated
   with check (bucket_id = 'business-media'
-              and exists (select 1 from public.admins a where a.user_id = auth.uid()));
+              and public.is_admin());
 
 drop policy if exists "admins remove published media" on storage.objects;
 create policy "admins remove published media"
   on storage.objects for delete
   using (bucket_id = 'business-media'
-         and exists (select 1 from public.admins a where a.user_id = auth.uid()));
+         and public.is_admin());
 
 -- ---------------------------------------------------------------------------
 -- Seed: the 44 places the site ships with today.
@@ -937,12 +978,12 @@ values
   ('fish-market', 'Sharq Fish Market', 'سوق السمك', 'restaurants', 'Kuwait City', 'مدينة الكويت', 29.3812, 47.9945, 4.3, 2, '🐟', 'تختار سمكتك، وتاكلها طازجة.', 'سوق السمك على واجهة الشرق البحرية، تلقى فيه صيد اليوم من الزبيدي والهامور والروبيان. تختار بنفسك وتشتري، وفيه مطاعم جنبه تنظّفه وتشويه لك على طول — أقرب شي لتجربة الأكل الكويتي الأصلي.', ARRAY['صيد اليوم طازج', 'زبيدي وهامور وروبيان', 'يشوونه لك بالمكان']::text[], 'الصبح للصيد الطازج، والغدا بعده', 'mixed', 'طول السنة', ARRAY['سمك', 'أكل كويتي', 'غدا', 'طازج', 'بحر', 'تراث', 'عوائل']::text[], false, 330),
   ('hamad-al-mubarak-street', 'Hamad Al Mubarak Street', 'شارع حمد المبارك', 'coffee', 'Salmiya', 'السالمية', 29.3345, 48.0692, 4.2, 2, '☕', 'شارع الكافيهات في السالمية.', 'شارع تجاري مليان كافيهات ومحلات حلا ومطاعم صغيرة، وأغلبها بجلسات خارجية. مكان القهوة بعد الدوام والسهرة القصيرة، وأهدى من زحمة شارع سالم المبارك اللي جنبه.', ARRAY['كافيهات بجلسات خارجية', 'محلات حلا', 'أهدى من الشوارع المجاورة']::text[], 'بعد العصر، وبالليل', 'mixed', 'طول السنة، والجلسات الخارجية بالشتاء', ARRAY['قهوة', 'كافيهات', 'حلا', 'هدوء', 'ربع', 'سهرة', 'موعد']::text[], false, 340),
   ('tunis-street', 'Tunis Street', 'شارع تونس', 'restaurants', 'Hawalli', 'حولي', 29.3336, 48.0206, 4.1, 1, '🍽️', 'شارع الأكل الشعبي في حولي.', 'من أشهر شوارع الأكل في الكويت، مليان مطاعم شامية ومصرية وهندية وحلويات، وأغلبها بأسعار بسيطة. مكان تجرّب فيه أكل من كل الجاليات في لفّة وحدة.', ARRAY['مطبخ شامي ومصري وهندي', 'أسعار بسيطة', 'مفتوح لوقت متأخر']::text[], 'بالليل، خصوصاً نهاية الأسبوع', 'mixed', 'طول السنة — أحلى بالليل', ARRAY['شاورما', 'فطور', 'حلويات', 'رخيص', 'شامي', 'مصري', 'هندي', 'سهرة', 'سناك']::text[], false, 350),
-  ('kuwait-science-centre', 'The Scientific Center', 'المركز العلمي', 'family', 'Salmiya', 'السالمية', 29.3543, 48.0932, undefined, 2, '🐠', 'أكبر حوض أسماك بالمنطقة، وبوم على الشاطئ.', 'ثلاث بيئات تحت سقف واحد — الصحراء والساحل والبحر — وممر زجاجي يمشي فيه القرش فوق راسك. برا فيه بوم «فتح الخير»، آخر بوم غوص كويتي أصلي، وسينما آيماكس بشاشة تغطي مجال نظرك كله.', ARRAY['نفق القروش', 'بوم فتح الخير', 'آيماكس']::text[], 'الصبح بأول ما يفتح، قبل الزحمة', 'indoor', 'طول السنة — مكيّف بالكامل', ARRAY['مكيّف', 'عوائل', 'عيال', 'أسماك', 'علوم', 'تعليمي', 'بحر', 'آيماكس', 'تراث']::text[], false, 360),
-  ('al-kout-mall', 'Al Kout Mall', 'الكوت مول', 'shopping', 'Fahaheel', 'الفحيحيل', 29.0821, 48.1334, undefined, 2, '🛍️', 'مول على البحر، والنافورة الراقصة قدامه.', 'مجمّع الفحيحيل اللي يطل على الخليج مباشرة، وقدامه ممشى ونافورة موسيقية تشتغل بالليل. أقرب مول محترم لأهل المنطقة الجنوبية، ويجمع بين التسوّق وجلسة على البحر بنفس الطلعة.', ARRAY['نافورة راقصة', 'ممشى على البحر', 'مطاعم بإطلالة']::text[], 'بعد المغرب، وقت النافورة', 'mixed', 'أحلى من أكتوبر لأبريل', ARRAY['مكيّف', 'بحر', 'ماركات', 'مطاعم', 'كافيهات', 'عوائل', 'ممشى', 'سهرة']::text[], false, 370),
-  ('al-salam-palace', 'Al Salam Palace Museum', 'قصر السلام', 'culture', 'Bnaid Al-Qar', 'بنيد القار', 29.3806, 47.9932, undefined, 1, '🏛️', 'قصر ضيافة الأمراء، صار متحف تاريخ الكويت.', 'بُني في الستينات لاستقبال ضيوف الدولة، تهدّم بالغزو، وانرمّم وانفتح كمتحف. القاعات تمشي بك من الكويت قبل النفط إلى اليوم، والمبنى نفسه جزء من القصة.', ARRAY['قاعة الغزو', 'العمارة الستينية', 'مقتنيات الدولة']::text[], 'الصبح، والزيارة تاخذ ساعتين', 'indoor', 'طول السنة', ARRAY['مكيّف', 'تاريخ', 'متحف', 'عمارة', 'هدوء', 'تراث']::text[], false, 380),
-  ('amricani-cultural-centre', 'Amricani Cultural Centre', 'المركز الأمريكاني الثقافي', 'culture', 'Sharq', 'شرق', 29.3789, 47.9945, undefined, 1, '🕌', 'دار الآثار الإسلامية، في أقدم مبنى طبي بالكويت.', 'بُني في العشرينات كأول مبنى طبي بالكويت، ثم رُمّم وصار مقر «دار الآثار الإسلامية». معارض من مجموعة الصباح، ومسرح يقدّم موسم ثقافي كل سنة.', ARRAY['مجموعة الصباح', 'مبنى مرمّم من العشرينات', 'موسم ثقافي']::text[], 'وقت المعارض المؤقتة — راجع الموسم', 'indoor', 'الموسم من أكتوبر لمايو', ARRAY['مكيّف', 'فن إسلامي', 'متحف', 'تاريخ', 'هدوء', 'معارض', 'موعد']::text[], false, 390),
-  ('sabah-al-ahmad-sea-city', 'Sabah Al Ahmad Sea City', 'مدينة صباح الأحمد البحرية', 'outdoors', 'Khiran', 'الخيران', 28.6634, 48.3421, undefined, 3, '🏝️', 'مئتا كيلومتر من القنوات، محفورة بالصحراء.', 'أكبر مشروع قنوات بحرية بالعالم — بحر مسحوب داخل الصحراء لمسافة عشرات الكيلومترات، وشاليهات وفلل على حافته. الطلعة هني بحرية بالكامل: قارب، أو جلسة على قناة هادية بعيد عن زحمة المدينة.', ARRAY['قنوات بحرية', 'شاليهات', 'قوارب']::text[], 'نهاية الأسبوع، من نوفمبر لأبريل', 'outdoor', 'شتاء وربيع — الصيف حار جداً', ARRAY['بحر', 'قنوات', 'شاليه', 'هدوء', 'عوائل', 'نهاية الأسبوع', 'راقي', 'قوارب']::text[], false, 400),
-  ('wafra-farms', 'Wafra Farms', 'مزارع الوفرة', 'outdoors', 'Wafra', 'الوفرة', 28.6389, 47.9312, undefined, 1, '🌾', 'خضرة وسط الصحراء، وأول تمر الموسم.', 'الحزام الزراعي جنوب الكويت: مزارع نخيل وخضار ومشاتل، وكثير منها يبيع مباشرة للناس. طلعة يوم كامل للي يبي صحراء وخضرة بدل البحر والمولات — وأحلى شي فيها موسم الرطب.', ARRAY['نخيل ورطب', 'مشاتل', 'بيع مباشر من المزرعة']::text[], 'الصبح، والرطب من يونيو لأغسطس', 'outdoor', 'الشتاء للطلعة، والصيف للرطب', ARRAY['صحراء', 'مزارع', 'نخيل', 'رطب', 'هدوء', 'عوائل', 'رخيص', 'طبيعة']::text[], false, 410),
-  ('bait-lothan', 'Bait Lothan', 'بيت لوذان', 'culture', 'Salmiya', 'السالمية', 29.3298, 48.0766, undefined, 1, '🎨', 'بيت قديم صار مرسم ومعرض للفنانين.', 'بيت كويتي على البحر انفتح كمركز فنون: ورش خزف ورسم وتصوير، ومعارض لفنانين محليين شباب. المكان صغير وهادي، وأقرب شي للمشهد الفني المحلي بدون رسميات المتاحف.', ARRAY['ورش خزف ورسم', 'معارض لفنانين محليين', 'بيت مرمّم']::text[], 'وقت الورش — الجدول يتغير كل شهر', 'mixed', 'أحلى بالشتاء', ARRAY['فن', 'ورش', 'معارض', 'هدوء', 'بحر', 'شباب', 'تراث']::text[], false, 420),
-  ('souq-al-watiya', 'Souq Al Watiya', 'سوق الوطية', 'shopping', 'Kuwait City', 'مدينة الكويت', 29.3672, 47.9821, undefined, 1, '🧺', 'سوق شعبي بأسعار ما تلقاها بالمول.', 'سوق مسقوف قديم قريب من وسط المدينة: ملابس وأقمشة وأدوات بيت وعطور، وكله مساومة. أرخص بكثير من المولات، والزحمة فيه جزء من التجربة.', ARRAY['أقمشة وخياطين', 'أدوات بيت', 'مساومة']::text[], 'الصبح قبل الظهر', 'mixed', 'أحلى بالشتاء', ARRAY['رخيص', 'مساومة', 'أقمشة', 'ملابس', 'تراث', 'تسوّق', 'شعبي']::text[], false, 430)
+  ('kuwait-science-centre', 'The Scientific Center', 'المركز العلمي', 'family', 'Salmiya', 'السالمية', 29.3543, 48.0932, null, 2, '🐠', 'أكبر حوض أسماك بالمنطقة، وبوم على الشاطئ.', 'ثلاث بيئات تحت سقف واحد — الصحراء والساحل والبحر — وممر زجاجي يمشي فيه القرش فوق راسك. برا فيه بوم «فتح الخير»، آخر بوم غوص كويتي أصلي، وسينما آيماكس بشاشة تغطي مجال نظرك كله.', ARRAY['نفق القروش', 'بوم فتح الخير', 'آيماكس']::text[], 'الصبح بأول ما يفتح، قبل الزحمة', 'indoor', 'طول السنة — مكيّف بالكامل', ARRAY['مكيّف', 'عوائل', 'عيال', 'أسماك', 'علوم', 'تعليمي', 'بحر', 'آيماكس', 'تراث']::text[], false, 360),
+  ('al-kout-mall', 'Al Kout Mall', 'الكوت مول', 'shopping', 'Fahaheel', 'الفحيحيل', 29.0821, 48.1334, null, 2, '🛍️', 'مول على البحر، والنافورة الراقصة قدامه.', 'مجمّع الفحيحيل اللي يطل على الخليج مباشرة، وقدامه ممشى ونافورة موسيقية تشتغل بالليل. أقرب مول محترم لأهل المنطقة الجنوبية، ويجمع بين التسوّق وجلسة على البحر بنفس الطلعة.', ARRAY['نافورة راقصة', 'ممشى على البحر', 'مطاعم بإطلالة']::text[], 'بعد المغرب، وقت النافورة', 'mixed', 'أحلى من أكتوبر لأبريل', ARRAY['مكيّف', 'بحر', 'ماركات', 'مطاعم', 'كافيهات', 'عوائل', 'ممشى', 'سهرة']::text[], false, 370),
+  ('al-salam-palace', 'Al Salam Palace Museum', 'قصر السلام', 'culture', 'Bnaid Al-Qar', 'بنيد القار', 29.3806, 47.9932, null, 1, '🏛️', 'قصر ضيافة الأمراء، صار متحف تاريخ الكويت.', 'بُني في الستينات لاستقبال ضيوف الدولة، تهدّم بالغزو، وانرمّم وانفتح كمتحف. القاعات تمشي بك من الكويت قبل النفط إلى اليوم، والمبنى نفسه جزء من القصة.', ARRAY['قاعة الغزو', 'العمارة الستينية', 'مقتنيات الدولة']::text[], 'الصبح، والزيارة تاخذ ساعتين', 'indoor', 'طول السنة', ARRAY['مكيّف', 'تاريخ', 'متحف', 'عمارة', 'هدوء', 'تراث']::text[], false, 380),
+  ('amricani-cultural-centre', 'Amricani Cultural Centre', 'المركز الأمريكاني الثقافي', 'culture', 'Sharq', 'شرق', 29.3789, 47.9945, null, 1, '🕌', 'دار الآثار الإسلامية، في أقدم مبنى طبي بالكويت.', 'بُني في العشرينات كأول مبنى طبي بالكويت، ثم رُمّم وصار مقر «دار الآثار الإسلامية». معارض من مجموعة الصباح، ومسرح يقدّم موسم ثقافي كل سنة.', ARRAY['مجموعة الصباح', 'مبنى مرمّم من العشرينات', 'موسم ثقافي']::text[], 'وقت المعارض المؤقتة — راجع الموسم', 'indoor', 'الموسم من أكتوبر لمايو', ARRAY['مكيّف', 'فن إسلامي', 'متحف', 'تاريخ', 'هدوء', 'معارض', 'موعد']::text[], false, 390),
+  ('sabah-al-ahmad-sea-city', 'Sabah Al Ahmad Sea City', 'مدينة صباح الأحمد البحرية', 'outdoors', 'Khiran', 'الخيران', 28.6634, 48.3421, null, 3, '🏝️', 'مئتا كيلومتر من القنوات، محفورة بالصحراء.', 'أكبر مشروع قنوات بحرية بالعالم — بحر مسحوب داخل الصحراء لمسافة عشرات الكيلومترات، وشاليهات وفلل على حافته. الطلعة هني بحرية بالكامل: قارب، أو جلسة على قناة هادية بعيد عن زحمة المدينة.', ARRAY['قنوات بحرية', 'شاليهات', 'قوارب']::text[], 'نهاية الأسبوع، من نوفمبر لأبريل', 'outdoor', 'شتاء وربيع — الصيف حار جداً', ARRAY['بحر', 'قنوات', 'شاليه', 'هدوء', 'عوائل', 'نهاية الأسبوع', 'راقي', 'قوارب']::text[], false, 400),
+  ('wafra-farms', 'Wafra Farms', 'مزارع الوفرة', 'outdoors', 'Wafra', 'الوفرة', 28.6389, 47.9312, null, 1, '🌾', 'خضرة وسط الصحراء، وأول تمر الموسم.', 'الحزام الزراعي جنوب الكويت: مزارع نخيل وخضار ومشاتل، وكثير منها يبيع مباشرة للناس. طلعة يوم كامل للي يبي صحراء وخضرة بدل البحر والمولات — وأحلى شي فيها موسم الرطب.', ARRAY['نخيل ورطب', 'مشاتل', 'بيع مباشر من المزرعة']::text[], 'الصبح، والرطب من يونيو لأغسطس', 'outdoor', 'الشتاء للطلعة، والصيف للرطب', ARRAY['صحراء', 'مزارع', 'نخيل', 'رطب', 'هدوء', 'عوائل', 'رخيص', 'طبيعة']::text[], false, 410),
+  ('bait-lothan', 'Bait Lothan', 'بيت لوذان', 'culture', 'Salmiya', 'السالمية', 29.3298, 48.0766, null, 1, '🎨', 'بيت قديم صار مرسم ومعرض للفنانين.', 'بيت كويتي على البحر انفتح كمركز فنون: ورش خزف ورسم وتصوير، ومعارض لفنانين محليين شباب. المكان صغير وهادي، وأقرب شي للمشهد الفني المحلي بدون رسميات المتاحف.', ARRAY['ورش خزف ورسم', 'معارض لفنانين محليين', 'بيت مرمّم']::text[], 'وقت الورش — الجدول يتغير كل شهر', 'mixed', 'أحلى بالشتاء', ARRAY['فن', 'ورش', 'معارض', 'هدوء', 'بحر', 'شباب', 'تراث']::text[], false, 420),
+  ('souq-al-watiya', 'Souq Al Watiya', 'سوق الوطية', 'shopping', 'Kuwait City', 'مدينة الكويت', 29.3672, 47.9821, null, 1, '🧺', 'سوق شعبي بأسعار ما تلقاها بالمول.', 'سوق مسقوف قديم قريب من وسط المدينة: ملابس وأقمشة وأدوات بيت وعطور، وكله مساومة. أرخص بكثير من المولات، والزحمة فيه جزء من التجربة.', ARRAY['أقمشة وخياطين', 'أدوات بيت', 'مساومة']::text[], 'الصبح قبل الظهر', 'mixed', 'أحلى بالشتاء', ARRAY['رخيص', 'مساومة', 'أقمشة', 'ملابس', 'تراث', 'تسوّق', 'شعبي']::text[], false, 430)
 on conflict (slug) do nothing;

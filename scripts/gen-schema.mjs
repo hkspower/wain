@@ -16,7 +16,30 @@ const q = (s) => "'" + String(s).replace(/'/g, "''") + "'";
 // Without it every description matched nothing and every seeded row went in
 // carrying the literal string 'undefined'.
 const field = (b, k) => (b.match(new RegExp(`${k}:\\s*"((?:[^"\\\\]|\\\\.)*)"`)) || [])[1];
-const num = (b, k) => (b.match(new RegExp(`${k}: ([-\\d.]+)`)) || [])[1];
+/**
+ * A number, or SQL NULL when the place does not carry one.
+ *
+ * This used to return JavaScript `undefined` for an absent field, which a
+ * template literal then wrote into the file as the bare word `undefined` —
+ * and PostgreSQL reads a bare word as a column name. Eight of the 44 places
+ * have no `rating`, so the seed ended with:
+ *
+ *     ERROR:  column "undefined" does not exist
+ *
+ * That aborts the whole INSERT. `supabase/schema.sql` could not be applied at
+ * all: a fresh project got the tables and zero places, and nothing in this
+ * repository noticed, because nothing here had ever run the file against a
+ * database.
+ *
+ * The comment above `q` records the same bug being fixed once already, for a
+ * different field. It is the same shape both times — a regex that does not
+ * match returns undefined, and undefined stringifies to something that is
+ * almost valid SQL.
+ */
+const num = (b, k) => {
+  const m = b.match(new RegExp(`${k}: ([-\\d.]+)`));
+  return m ? m[1] : "null";
+};
 
 /** A TS string-array literal for one key, as a SQL text[] constructor. */
 const arrayOf = (b, k) => {
@@ -67,6 +90,43 @@ create policy "an admin can see their own row"
   using (user_id = auth.uid());
 
 -- ---------------------------------------------------------------------------
+-- is_admin() — the only way a policy may ask about this table
+-- ---------------------------------------------------------------------------
+-- Every admin policy used to inline "exists (select 1 from public.admins ...)".
+-- That is not a permissions problem for the admin, who can read their own row.
+-- It is a problem for everybody else, and it took the whole public site down.
+--
+-- PostgreSQL evaluates ALL permissive policies for a command and ORs the
+-- results, so an anonymous "select ... from places" ran the admin policy's
+-- subquery too — and anon holds no grant on admins:
+--
+--   ERROR:  permission denied for table admins
+--
+-- Not "zero rows": an error, for the one query the entire public site is built
+-- on. Every place page, the search index, the map. Verified against PostgreSQL
+-- 16 by seeding the 44 places and selecting them as the anon role.
+--
+-- SECURITY DEFINER makes the lookup run as the owner, so the caller needs no
+-- grant on admins and the OR short-circuits to the public policy. The same
+-- pattern the RPCs in this file already use.
+--
+-- STABLE, not VOLATILE: one lookup per statement rather than one per row.
+-- search_path is pinned because a SECURITY DEFINER function that resolves
+-- names through a caller-controlled search_path is how privilege escalation
+-- gets written by accident.
+create or replace function public.is_admin()
+  returns boolean
+  language sql
+  stable
+  security definer
+  set search_path = public, pg_temp
+as $$
+  select exists (select 1 from public.admins a where a.user_id = auth.uid());
+$$;
+revoke all on function public.is_admin() from public;
+grant execute on function public.is_admin() to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
 -- Places
 -- ---------------------------------------------------------------------------
 create table if not exists public.places (
@@ -81,7 +141,11 @@ create table if not exists public.places (
   area_ar        text not null,
   lat            double precision not null check (lat between -90 and 90),
   lng            double precision not null check (lng between -180 and 180),
-  rating         numeric(2,1) not null check (rating between 0 and 5),
+  -- Nullable on purpose. rating is optional in the Place type and eight of the
+  -- 44 places carry none; a NOT NULL here made the seed unappliable rather
+  -- than making the data better. The range check still holds for every row
+  -- that has one — a CHECK passes on NULL, which is the behaviour wanted.
+  rating         numeric(2,1) check (rating between 0 and 5),
   price_level    smallint not null check (price_level between 1 and 3),
   emoji          text not null default '📍',
   tagline_ar     text not null,
@@ -192,23 +256,23 @@ create policy "anyone can read published places"
 drop policy if exists "admins read every place" on public.places;
 create policy "admins read every place"
   on public.places for select
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin());
 
 drop policy if exists "admins insert places" on public.places;
 create policy "admins insert places"
   on public.places for insert
-  with check (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  with check (public.is_admin());
 
 drop policy if exists "admins update places" on public.places;
 create policy "admins update places"
   on public.places for update
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()))
-  with check (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin())
+  with check (public.is_admin());
 
 drop policy if exists "admins delete places" on public.places;
 create policy "admins delete places"
   on public.places for delete
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin());
 
 -- ---------------------------------------------------------------------------
 -- Business submissions — "سجّل مكانك"
@@ -313,18 +377,18 @@ create policy "anyone may submit a business"
 drop policy if exists "admins read submissions" on public.submissions;
 create policy "admins read submissions"
   on public.submissions for select
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin());
 
 drop policy if exists "admins update submissions" on public.submissions;
 create policy "admins update submissions"
   on public.submissions for update
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()))
-  with check (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin())
+  with check (public.is_admin());
 
 drop policy if exists "admins delete submissions" on public.submissions;
 create policy "admins delete submissions"
   on public.submissions for delete
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin());
 
 -- ---------------------------------------------------------------------------
 -- ---------------------------------------------------------------------------
@@ -433,14 +497,14 @@ drop policy if exists "admins read every order" on public.orders;
 create policy "admins read every order"
   on public.orders for select
   to authenticated
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin());
 
 drop policy if exists "admins update orders" on public.orders;
 create policy "admins update orders"
   on public.orders for update
   to authenticated
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()))
-  with check (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin())
+  with check (public.is_admin());
 
 drop trigger if exists orders_touch on public.orders;
 create trigger orders_touch before update on public.orders
@@ -643,13 +707,13 @@ create trigger queue_tickets_touch before update on public.queue_tickets
 drop policy if exists "admins read the queue" on public.queue_tickets;
 create policy "admins read the queue"
   on public.queue_tickets for select
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin());
 
 drop policy if exists "admins update the queue" on public.queue_tickets;
 create policy "admins update the queue"
   on public.queue_tickets for update
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()))
-  with check (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (public.is_admin())
+  with check (public.is_admin());
 
 -- Times are stamped from the database, so a client cannot claim it was called
 -- an hour ago.
@@ -901,13 +965,13 @@ drop policy if exists "admins read pending media" on storage.objects;
 create policy "admins read pending media"
   on storage.objects for select
   using (bucket_id = 'business-pending'
-         and exists (select 1 from public.admins a where a.user_id = auth.uid()));
+         and public.is_admin());
 
 drop policy if exists "admins delete pending media" on storage.objects;
 create policy "admins delete pending media"
   on storage.objects for delete
   using (bucket_id = 'business-pending'
-         and exists (select 1 from public.admins a where a.user_id = auth.uid()));
+         and public.is_admin());
 
 -- The public bucket serves reads without consulting policies; these govern who
 -- may put something in it, which is the part that matters.
@@ -916,13 +980,13 @@ create policy "admins publish media"
   on storage.objects for insert
   to authenticated
   with check (bucket_id = 'business-media'
-              and exists (select 1 from public.admins a where a.user_id = auth.uid()));
+              and public.is_admin());
 
 drop policy if exists "admins remove published media" on storage.objects;
 create policy "admins remove published media"
   on storage.objects for delete
   using (bucket_id = 'business-media'
-         and exists (select 1 from public.admins a where a.user_id = auth.uid()));
+         and public.is_admin());
 
 -- ---------------------------------------------------------------------------
 -- Seed: the ${rows.length} places the site ships with today.
