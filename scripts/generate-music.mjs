@@ -56,7 +56,7 @@ for (const { id, prompt } of TRACKS) {
     continue;
   }
   console.log(`generating ${id} (${LENGTH_MS / 1000}s)…`);
-  const res = await fetch("https://api.elevenlabs.io/v1/music", {
+  const res = await fetch("https://api.elevenlabs.io/v1/music?output_format=mp3_44100_192", {
     method: "POST",
     headers: {
       "xi-api-key": KEY,

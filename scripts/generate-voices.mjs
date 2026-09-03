@@ -23,6 +23,12 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 
 const API = "https://api.elevenlabs.io/v1/text-to-speech";
+// Ask for the best MP3 the account is entitled to. Without this the API
+// falls back to 128 kbps, which is what every clip generated before this
+// line existed was rendered at. 192 needs Creator or above; on a lower
+// tier the request is rejected rather than silently downgraded, so a 400
+// here means the key, not the code.
+const FORMAT = "?output_format=mp3_44100_192";
 const MODEL = "eleven_multilingual_v2";
 
 // Two voices, because one of the rivals is a woman and the roster says
@@ -109,7 +115,7 @@ if (args.includes("--check")) {
   console.log(`key       ${KEY ? `present (${KEY.length} chars, ends ${KEY.slice(-4)})` : "MISSING — set ELEVENLABS_API_KEY"}`);
   let reach;
   try {
-    const res = await fetch(`${API}/${VOICE_M}`, {
+    const res = await fetch(`${API}/${VOICE_M}${FORMAT}`, {
       method: "POST",
       headers: { "xi-api-key": KEY || "none", "Content-Type": "application/json", Accept: "audio/mpeg" },
       body: JSON.stringify({ text: "test", model_id: MODEL }),
@@ -143,7 +149,7 @@ for (const [id, text, stability, female] of LINES) {
     done.push(id);
     continue;
   }
-  const res = await fetch(`${API}/${female ? VOICE_F : VOICE_M}`, {
+  const res = await fetch(`${API}/${female ? VOICE_F : VOICE_M}${FORMAT}`, {
     method: "POST",
     headers: { "xi-api-key": KEY, "Content-Type": "application/json", Accept: "audio/mpeg" },
     body: JSON.stringify({

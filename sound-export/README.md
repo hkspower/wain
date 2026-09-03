@@ -42,6 +42,41 @@ man's voice is not a subtle flaw:
 
 Both are Gulf-accented, which is the closest the voice library gets to Kuwaiti.
 
+## Encoding: what each set is, and why
+
+Measured with `file(1)` on the shipped bytes, not read off a label:
+
+| set    | encode                        | is that the ceiling?              |
+|--------|-------------------------------|-----------------------------------|
+| music  | 192 kbps, 48 kHz, stereo      | yes — the platform maximum        |
+| sfx    | 128 kbps, 44.1 kHz, stereo    | no, but capped by the connector   |
+| voices | 128 kbps, 44.1 kHz, mono      | no, but capped by the connector   |
+
+These were generated through the MCP connector, which stamps
+`output_format` server-side and rejects it as a parameter:
+
+    Unknown parameter(s) for model 'eleven_multilingual_v2': output_format.
+    Valid parameters: language_code, voice_id
+
+That cap is not the model's. It holds on every speech model — `eleven_v4`
+returns *"Your account is not authorized to access this model"*, and
+`eleven_v3` returns the same 128 kbps/44.1 kHz mono as v2 — so there is no
+route to a better speech or effect encode through the connector.
+
+The direct API has no such cap, and the four generator scripts now all ask
+it for `mp3_44100_192`. Three of them did not before: only
+`generate-sfx.mjs` requested a format, so the music beds and all 27 voice
+lines the repo would have produced were 128 kbps by omission, silently —
+the request succeeds, the file plays, and the only evidence is a bitrate
+nobody reads. `npm run test:audio-quality` now fails if any generator
+drops the format again.
+
+So: **re-running the generators from a machine that can reach
+`api.elevenlabs.io` will produce better effects and voices than the files
+here.** The music will not change; it is already at 192. In this
+environment that host is not on the egress allowlist, which is why the
+connector was used at all.
+
 ## Three things that are not right yet
 
 **shift and flash are too long.** The generators ask for 0.4 s and 0.3 s. The
@@ -51,8 +86,17 @@ or accept the delay.
 
 **The per-line delivery was dropped.** `generate-voices.mjs` sets a stability
 per character — 0.4 for the loud ones, 0.9 so the ghost speaks slow and steady.
-The speech node used here exposes only voice and language, so every one of the
-27 lines was read at the model default. The ghost does not sound like a ghost.
+The speech node exposes only voice and language, so every one of the 27 lines
+was read at the model default. The ghost does not sound like a ghost.
+
+`eleven_v3` takes a bracketed direction instead, and it does consume it rather
+than read it out: the ghost's line came back at 3.28 s where speaking the
+six-word English direction on top of the Arabic would have taken about six. But
+it also came back *shorter* than the 3.58 s untagged take, which is the wrong
+direction for "slow and steady", and judging whether it actually sounds better
+needs ears this environment does not have. Rather than replace 27 known-good
+takes on an unverifiable theory, they were left on v2. Someone who can listen
+should try v3 with directions and keep whichever is better.
 
 **There are two music generators and they disagree.** `scripts/generate-music.mjs`
 asks for slow synthwave with an oud motif; `tools/elevenlabs/generate-music.mjs`

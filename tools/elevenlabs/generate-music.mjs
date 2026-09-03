@@ -21,6 +21,10 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const OUT = join(ROOT, "public", "music");
 const API = "https://api.elevenlabs.io/v1/music";
+// Match generate-sfx.mjs and ask for the best MP3 the account allows.
+// Without it the API returns 128 kbps, and a music bed loses more to that
+// than a half-second sound effect does.
+const FORMAT = "?output_format=mp3_44100_192";
 
 // One musical brief, split in two. Rocky techno: a live-sounding drum
 // kit and distorted guitar over a four-on-the-floor techno spine —
@@ -80,7 +84,7 @@ if (args.includes("--check")) {
   console.log(`key       ${key ? `present (${key.length} chars, ends ${key.slice(-4)})` : "MISSING — set ELEVENLABS_API_KEY"}`);
   let reach;
   try {
-    const res = await fetch(API, {
+    const res = await fetch(API + FORMAT, {
       method: "POST",
       headers: { "xi-api-key": key || "none", "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: "test", music_length_ms: 10000 }),
@@ -122,7 +126,7 @@ for (const name of wanted) {
     if (!have.includes(name)) have.push(name);
     continue;
   }
-  const res = await fetch(API, {
+  const res = await fetch(API + FORMAT, {
     method: "POST",
     headers: { "xi-api-key": key, "Content-Type": "application/json" },
     body: JSON.stringify({ prompt: t.prompt, music_length_ms: t.lengthMs }),

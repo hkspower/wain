@@ -48,6 +48,7 @@
     "test:aspect": "node --experimental-strip-types tests/aspect.mjs",
     "test:assets": "node tests/assets.mjs",
     "test:audio": "node tests/audio.mjs",
+    "test:audio-quality": "node tests/audio-quality.mjs",
     "test:body": "node tests/body.mjs",
     "test:bridges": "node tests/bridges.mjs",
     "test:buildings": "node tests/buildings.mjs",
