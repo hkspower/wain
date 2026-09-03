@@ -27,10 +27,23 @@ export default function PlaceMap({
   // the other behind. Zoom 16 rather than the default 15: this map is one
   // building, where the search map is a whole result set.
   const osm = osmLink(place, 16);
-  const gmapsPoi = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-    `${place.name}, ${place.area}, Kuwait`
-  )}`;
-  const gmapsDirections = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+  const where = `${place.name}, ${place.area}, Kuwait`;
+  const gmapsPoi = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(where)}`;
+  /**
+   * Directions go to the COORDINATE — except where the catalogue says the
+   * coordinate is only the right area.
+   *
+   * Eight places are flagged `coordsUnverified`, and the flag was doing nothing
+   * anywhere in the app: their pin was drawn with the same confidence as the
+   * thirty-six checked ones and this link routed a driver to a point that is,
+   * by our own admission, not the building. Google resolves a name-and-area
+   * destination against its own listing, which for exactly these eight is
+   * better information than ours. Where the pair is verified it stays the
+   * destination — a coordinate beats a name lookup every time it is true.
+   */
+  const gmapsDirections = `https://www.google.com/maps/dir/?api=1&destination=${
+    place.coordsUnverified ? encodeURIComponent(where) : `${lat},${lng}`
+  }`;
 
   return (
     <section className="mt-9 standalone:mt-5">
@@ -68,6 +81,15 @@ export default function PlaceMap({
             بيانات الخريطة © OpenStreetMap
           </a>
         </div>
+
+        {/* Say it where it is acted on. The pin marks the area, not the door,
+            and someone reading this page is about to drive to it. */}
+        {place.coordsUnverified && (
+          <p className="border-t border-line px-4 py-3 text-xs text-ink-500">
+            الدبوس على المنطقة تقريباً، مو على الباب بالضبط — «الاتجاهات» يوديك
+            للمكان نفسه بالاسم.
+          </p>
+        )}
 
         {/* صوت وين — spoken suggestion for this spot and what's around it */}
         <div className="flex flex-wrap items-center gap-3 border-t border-line bg-sand-100 p-4">

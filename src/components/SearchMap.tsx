@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import MapPin from "@/components/MapPin";
+import { useEffect, useMemo, useState } from "react";
+import MapPin, { pinHeadroom } from "@/components/MapPin";
 import { IconMap, IconPinSolid } from "@/components/icons";
 import { toArabicDigits, type Place } from "@/lib/places";
 import { embedUrl, fitFrame, osmLink, pinShiftCap, project, spreadPins } from "@/lib/map-frame";
+import { useFrameWidth } from "@/lib/useFrameWidth";
 
 /**
  * Where the results actually are.
@@ -58,24 +59,22 @@ export default function SearchMap({
 
   // A pin is a fixed 32px, so how much of the frame it covers depends on how
   // wide the frame actually is — 4% on a desktop column, 9% on a phone.
-  // Measure it, or the spreading under-corrects on small screens.
-  const frameRef = useRef<HTMLDivElement>(null);
-  const [frameW, setFrameW] = useState(720);
-  useEffect(() => {
-    const el = frameRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => {
-      const w = entry.contentRect.width;
-      if (w > 0) setFrameW(w);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  // Measure it, or the spreading under-corrects on small screens. The width is
+  // measured rather than assumed: see useFrameWidth for the two basemap loads
+  // and the layout shift that assuming it cost on every phone visit.
+  const [frameRef, frameW] = useFrameWidth<HTMLDivElement>();
 
   const maxAspect = frameW < PHONE_FRAME_PX ? 1.7 : 2.4;
   const f = useMemo(
-    () => (places.length ? fitFrame(places, { maxAspect }) : null),
-    [places, maxAspect]
+    () =>
+      places.length && frameW > 0
+        ? // The pins stand above their coordinates, so the frame has to leave
+          // them somewhere to stand — otherwise the northernmost result, which
+          // the search just decided was worth showing, is drawn with its head
+          // cut off by the frame's own border.
+          fitFrame(places, { maxAspect, headroom: pinHeadroom(PIN_PX), frameW })
+        : null,
+    [places, maxAspect, frameW]
   );
   const pins = useMemo(() => {
     if (!f) return [];
@@ -91,7 +90,7 @@ export default function SearchMap({
     );
   }, [places, f, frameW]);
 
-  if (!f || places.length === 0) return null;
+  if (places.length === 0) return null;
 
   return (
     <section className="mb-6 standalone:mb-4" aria-labelledby="search-map-heading">
@@ -103,14 +102,16 @@ export default function SearchMap({
           <IconMap className="size-4 text-sea-600" />
           {toArabicDigits(places.length)} على الخريطة
         </h2>
-        <a
-          href={osmLink(f.centre, 12)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex min-h-11 items-center text-xs font-semibold text-sea-700 underline-offset-2 hover:underline"
-        >
-          افتح الخريطة الكبيرة
-        </a>
+        {f && (
+          <a
+            href={osmLink(f.centre, 12)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex min-h-11 items-center text-xs font-semibold text-sea-700 underline-offset-2 hover:underline"
+          >
+            افتح الخريطة الكبيرة
+          </a>
+        )}
       </div>
 
       <div
@@ -118,7 +119,10 @@ export default function SearchMap({
         data-map-frame=""
         // The shape comes from the results, so it has to be inline. It must
         // stay exactly the aspect the bbox was grown to, or every pin shifts.
-        style={{ aspectRatio: String(f.aspect) }}
+        // Until the box has been measured there is no bbox and nothing is put
+        // inside it — that measurement happens in a layout effect, so this
+        // state is never painted.
+        style={f ? { aspectRatio: String(f.aspect) } : undefined}
         className="relative w-full overflow-hidden rounded-3xl border border-line bg-sand-100 shadow-sm standalone:rounded-2xl"
       >
         {/* Ground for before the tiles paint — and for offline, where the pins
@@ -127,7 +131,7 @@ export default function SearchMap({
           <IconPinSolid className="size-8" />
         </span>
 
-        {online && (
+        {online && f && (
           <iframe
             src={embedUrl(f)}
             title="خريطة نتائج البحث"
@@ -144,7 +148,7 @@ export default function SearchMap({
           />
         )}
 
-        {places.map((p, i) => (
+        {f && places.map((p, i) => (
           <MapPin
             key={p.slug}
             place={p}

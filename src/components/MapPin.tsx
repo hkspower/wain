@@ -64,6 +64,26 @@ const RING: Record<CategoryId, string> = {
   family: "bg-palm-700/30",
 };
 
+/** How much taller a pin gets under `hover:scale-110` / `focus-visible`. */
+const HOVER_SCALE = 1.1;
+
+/**
+ * How far a pin of this size reaches ABOVE the coordinate it names, in px.
+ *
+ * The pin points at its place rather than sitting on it, so the frame that
+ * draws it has to reserve this much above the northernmost point or the top
+ * pin's head is cut off against the frame's own clipped border — which is what
+ * used to happen to 79 of 438 drawn pins, the worst losing 23 of its 32px.
+ *
+ * Derived from the same two numbers the pin is built from, in this file, so
+ * the frame cannot quietly stop matching the thing it is making room for: the
+ * head is `size` tall, the nose adds half its diagonal below that (see
+ * `marginBottom`), and hovering grows the pair about the tip.
+ */
+export function pinHeadroom(size: number): number {
+  return (size + Math.round(size * 0.34) * Math.SQRT1_2) * HOVER_SCALE;
+}
+
 /** True when hovering tells this visitor nothing — so a tap has to. */
 export function useHoverless(): boolean {
   const [hoverless, setHoverless] = useState(false);

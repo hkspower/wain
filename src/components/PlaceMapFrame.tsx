@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import MapPin from "@/components/MapPin";
+import { useEffect, useMemo, useState } from "react";
+import MapPin, { pinHeadroom } from "@/components/MapPin";
 import PlaceIcon from "@/components/PlaceIcon";
 import { IconPinSolid } from "@/components/icons";
 import type { Place } from "@/lib/places";
 import { embedUrl, fitFrameAround, pinShiftCap, project, spreadPins } from "@/lib/map-frame";
+import { useFrameWidth } from "@/lib/useFrameWidth";
 
 /**
  * The map itself for a place page: this place, and the nearby ones the page
@@ -54,18 +55,9 @@ export default function PlaceMapFrame({
     };
   }, []);
 
-  const frameRef = useRef<HTMLDivElement>(null);
-  const [frameW, setFrameW] = useState(720);
-  useEffect(() => {
-    const el = frameRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => {
-      const w = entry.contentRect.width;
-      if (w > 0) setFrameW(w);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  // Measured, not assumed — see useFrameWidth: guessing a desktop width made
+  // every phone fetch the basemap twice and shift the layout between the two.
+  const [frameRef, frameW] = useFrameWidth<HTMLDivElement>();
 
   // Only nearby places earn a pin. A "similar" place 30km away would drag the
   // frame out until this place's own street was unreadable, which is the one
@@ -80,13 +72,25 @@ export default function PlaceMapFrame({
   // Centred on this place, not on the bounding box of it and its neighbours —
   // the page is asking where *it* is, so it belongs in the middle.
   const f = useMemo(
-    () => fitFrameAround(place, near, { maxAspect, padding: 1.25 }),
-    [place, near, maxAspect]
+    () =>
+      frameW > 0
+        ? fitFrameAround(place, near, {
+            maxAspect,
+            padding: 1.25,
+            // Room for a neighbour's pin to stand in. The subject's own pin is
+            // centred and has half a frame above it; it is the neighbours near
+            // the top edge that lose their heads without this.
+            headroom: pinHeadroom(NEAR_PIN_PX),
+            frameW,
+          })
+        : null,
+    [place, near, maxAspect, frameW]
   );
   // A remote place — Al-Khiran, Failaka — has no near neighbours, so the frame
   // stretches to reach them and one pin width becomes kilometres on the
   // ground. pinShiftCap keeps the nudge honest at every zoom.
   const pins = useMemo(() => {
+    if (!f) return [];
     const size = PIN_PX / frameW;
     return spreadPins(all.map((p) => project(f, p)), size, f.aspect, pinShiftCap(f, size));
   }, [all, f, frameW]);
@@ -95,9 +99,15 @@ export default function PlaceMapFrame({
     <div
       ref={frameRef}
       data-map-frame=""
-      style={{ aspectRatio: String(f.aspect) }}
+      style={f ? { aspectRatio: String(f.aspect) } : undefined}
       className="relative w-full bg-sand-100"
     >
+      {/* Open the connection to the third-party basemap — DNS, TCP, TLS —
+          while the page is still parsing, rather than when the iframe appears.
+          It can live here because a place page always has a map; the search
+          page's copy is in its route, for reasons written down there. */}
+      <link rel="preconnect" href="https://www.openstreetmap.org" />
+
       {/* Deliberate ground rather than a stark void while the tiles load — and
           the whole answer when there is no network. */}
       <span aria-hidden="true" className="absolute inset-0 grid place-items-center text-sand-700">
@@ -107,7 +117,7 @@ export default function PlaceMapFrame({
         </span>
       </span>
 
-      {online && (
+      {online && f && (
         <iframe
           src={embedUrl(f)}
           title={`خريطة ${place.nameAr}`}
@@ -121,7 +131,7 @@ export default function PlaceMapFrame({
         />
       )}
 
-      {all.map((p, i) => {
+      {f && all.map((p, i) => {
         // Physical left/top on purpose: the page is RTL, geography is not.
         const style = { left: `${pins[i].x * 100}%`, top: `${pins[i].y * 100}%` };
 

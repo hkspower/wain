@@ -44,15 +44,47 @@ export interface MapFrame {
 }
 
 /**
+ * How much of the frame's height the headroom may ever claim.
+ *
+ * A pin is a fixed number of pixels tall and a frame can be short, so the two
+ * can ask for a view many times wider than the places in it. Past this the
+ * honest failure is a clipped pin, not a map of the wrong country.
+ */
+const MAX_HEADROOM = 0.35;
+
+/**
+ * The gap kept below the southernmost point, as a fraction of frame height.
+ *
+ * A pin's tip IS its bottom edge, so unlike the top this needs no room for the
+ * pin itself — only enough that the tip is not drawn on the frame's own border.
+ */
+const FOOT_MARGIN = 0.02;
+
+/**
  * Fit points, taking the frame's shape from how they are actually spread
  * rather than forcing them into a fixed one.
  *
  * `minAspect`/`maxAspect` clamp the result: a single point must not produce a
  * postage stamp, and a very wide spread must not produce a letterbox slot.
+ *
+ * `headroom` is how many pixels must stay clear above the northernmost point,
+ * measured against a frame `frameW` pixels wide. See `pinHeadroom`: a pin does
+ * not sit ON its coordinate, it stands above it, so a frame fitted only to the
+ * points cuts the top pin's head off against its own clipped border. Measured
+ * on the real catalogue, 79 of 438 drawn pins were clipped that way and the
+ * worst lost 23 of its 32 pixels — the place at the top of the map, which is
+ * to say a place the search just decided was worth showing, was the one that
+ * could not be read or tapped.
+ *
+ * The room is taken from the bottom margin before it is taken from the zoom.
+ * The frame only widens when the two margins cannot both fit at the zoom it
+ * already has; otherwise it simply slides north, which costs no detail at all.
+ * Over every category at six widths, 32 of 54 frames did not widen and the
+ * worst that did widened by 16%.
  */
 export function fitFrame(
   points: LatLng[],
-  { padding = 1.15, minAspect = 1.2, maxAspect = 2.4 } = {}
+  { padding = 1.15, minAspect = 1.2, maxAspect = 2.4, headroom = 0, frameW = 0 } = {}
 ): MapFrame {
   /**
    * No points is a caller's mistake, and it used to be a silent one.
@@ -85,15 +117,37 @@ export function fitFrame(
   if (hx / hy < aspect) hx = hy * aspect;
   else hy = hx / aspect;
 
+  /**
+   * Room for the pins to stand in, given to the top and charged to the bottom.
+   *
+   * `t` and `FOOT_MARGIN` are fractions of the frame's HEIGHT, which is 2·hy,
+   * so both margins fit only when hy·(1 − t − foot) ≥ spanY. Widen to that
+   * first if need be — hx follows, because the bbox must keep the frame's
+   * aspect exactly — then slide north by whatever the top is still short,
+   * never past what the bottom can spare.
+   */
+  let cyFrame = cy;
+  if (headroom > 0 && frameW > 0) {
+    const t = Math.min(headroom / (frameW / aspect), MAX_HEADROOM);
+    const needed = spanY / (1 - t - FOOT_MARGIN);
+    if (needed > hy) {
+      hy = needed;
+      hx = hy * aspect;
+    }
+    const slack = hy - spanY;
+    cyFrame =
+      cy + Math.max(0, Math.min(2 * t * hy - slack, slack - 2 * FOOT_MARGIN * hy));
+  }
+
   const west = deg(cx - hx);
   const east = deg(cx + hx);
-  const south = invMercY(cy - hy);
-  const north = invMercY(cy + hy);
+  const south = invMercY(cyFrame - hy);
+  const north = invMercY(cyFrame + hy);
 
   return {
-    cx, cy, hx, hy, aspect,
+    cx, cy: cyFrame, hx, hy, aspect,
     bbox: [west, south, east, north].join(","),
-    centre: { lat: invMercY(cy), lng: deg(cx) },
+    centre: { lat: invMercY(cyFrame), lng: deg(cx) },
   };
 }
 
@@ -106,10 +160,17 @@ export function fitFrame(
  * the half-spans grow symmetrically until the others fit, so the answer to the
  * question is always in the middle of the picture.
  */
+/**
+ * `headroom` works as it does in `fitFrame`, with one difference that matters:
+ * the view is NOT slid north to find the room. Sliding is what keeps the zoom
+ * when a frame is fitted to a bounding box, and it is exactly the thing this
+ * function exists to refuse — the subject is centred because the page is
+ * asking where the subject is. So the frame widens instead, symmetrically.
+ */
 export function fitFrameAround(
   subject: LatLng,
   others: LatLng[],
-  { padding = 1.25, minAspect = 1.2, maxAspect = 2.0 } = {}
+  { padding = 1.25, minAspect = 1.2, maxAspect = 2.0, headroom = 0, frameW = 0 } = {}
 ): MapFrame {
   const cx = rad(subject.lng);
   const cy = mercY(subject.lat);
@@ -126,6 +187,16 @@ export function fitFrameAround(
   let hy = Math.max(spanY * padding, MIN_HALF_SPAN / aspect);
   if (hx / hy < aspect) hx = hy * aspect;
   else hy = hx / aspect;
+
+  if (headroom > 0 && frameW > 0) {
+    const t = Math.min(headroom / (frameW / aspect), MAX_HEADROOM);
+    // Symmetric, so the margin has to be found on both sides at once.
+    const needed = spanY / (1 - 2 * t);
+    if (needed > hy) {
+      hy = needed;
+      hx = hy * aspect;
+    }
+  }
 
   return {
     cx, cy, hx, hy, aspect,

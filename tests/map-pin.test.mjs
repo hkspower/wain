@@ -220,6 +220,131 @@ console.log('\n── the frame on screen is the frame the bbox was built for �
   ok('and no pin is drawn outside its frame', escaped === 0, `${escaped} escaped`);
 }
 
+console.log('\n── no pin is cut off by the top of its own frame ──');
+{
+  /**
+   * A pin points at its place from above it. The frame clips its overflow so
+   * the rounded corners hold, so a frame fitted only to the POINTS puts the
+   * northernmost pin's head outside its own border and cuts it off.
+   *
+   * It was not a rounding error. Measured across the queries and place pages
+   * below, at three widths: 79 of 438 drawn pins were clipped, and the worst
+   * lost 23 of its 32 pixels — always the top result on the map, which is to
+   * say a place the search had just decided was worth showing.
+   *
+   * map-frame.test.mjs proves fitFrame RESERVES the room. Only a browser can
+   * say whether the pin then fits in it, because the pin's height is CSS.
+   */
+  const probe = () => {
+    const out = [];
+    for (const frame of document.querySelectorAll('[data-map-frame]')) {
+      const fr = frame.getBoundingClientRect();
+      for (const pin of [...frame.children].filter((c) => c.style.left && c.style.top)) {
+        const body = pin.querySelector('a') || pin.querySelector('span.relative');
+        if (!body) continue;
+        const r = body.getBoundingClientRect();
+        out.push({
+          name: (body.getAttribute('aria-label') || pin.textContent || '').trim().slice(0, 24),
+          over: +(fr.top - r.top).toFixed(1),
+          height: +r.height.toFixed(1),
+        });
+      }
+    }
+    return out;
+  };
+
+  const QUERIES = ['مطاعم', 'قهوة', 'بحر', 'متحف', 'برجر', 'الكويت'];
+  const PLACES = ['/places/kuwait-towers/', '/places/khiran/', '/places/grand-mosque/'];
+  let clipped = 0, total = 0, worst = 0, who = '';
+  for (const w of [390, 720, 1100]) {
+    const ctx = await browser.newContext({ viewport: { width: w, height: 900 }, locale: 'ar-KW' });
+    const p = await ctx.newPage();
+    await p.route('**openstreetmap.org**', (r) => r.abort());
+    const urls = [...QUERIES.map((q) => '/search/?q=' + encodeURIComponent(q)), ...PLACES];
+    for (const url of urls) {
+      await p.goto(B + url, { waitUntil: 'networkidle' });
+      await p.waitForTimeout(200);
+      for (const x of await p.evaluate(probe)) {
+        total++;
+        if (x.over > 0.5) {
+          clipped++;
+          if (x.over > worst) { worst = x.over; who = `${url} @${w}px — ${x.name} (${x.over} of ${x.height}px)`; }
+        }
+      }
+    }
+    await ctx.close();
+  }
+  ok(`every one of ${total} drawn pins is whole (${clipped} clipped)`, clipped === 0, who);
+}
+
+console.log('\n── an approximate pin does not send anyone to an exact wrong door ──');
+{
+  /**
+   * Eight of the forty-four coordinates are flagged `coordsUnverified` in the
+   * catalogue — «the right area, not the right building», in its own words —
+   * and the flag was read by nothing in the app. Their pin was drawn with the
+   * confidence of a surveyed one and «الاتجاهات» handed a driver the raw pair,
+   * which is the one place the difference costs somebody a wrong turn.
+   *
+   * So for those eight the destination is the name and the area, which Google
+   * resolves against its own listing. For the other thirty-six the coordinate
+   * stays: it is better than a name lookup every time it is true.
+   */
+  const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 }, locale: 'ar-KW' });
+  const p = await ctx.newPage();
+  await p.route('**openstreetmap.org**', (r) => r.abort());
+  const directions = async (slug) => {
+    await p.goto(`${B}/places/${slug}/`, { waitUntil: 'domcontentloaded' });
+    return p.getAttribute('a[href*="google.com/maps/dir"]', 'href');
+  };
+
+  const vague = await directions('al-salam-palace');
+  // The name is the English one on purpose — it is Google's index being asked.
+  ok('an unverified place is routed to by name, not by its guessed pair',
+    /destination=Al%20Salam%20Palace/.test(vague) && !/destination=[\d.]+,/.test(vague), vague);
+  ok('and the page says the pin is approximate',
+    (await p.locator('text=الدبوس على المنطقة تقريباً').count()) === 1);
+
+  const exact = await directions('grand-mosque');
+  ok('a verified place still routes to its coordinate', /destination=29\.\d+,4\d\.\d+/.test(exact), exact);
+  ok('and says nothing about being approximate',
+    (await p.locator('text=الدبوس على المنطقة تقريباً').count()) === 0);
+  await ctx.close();
+}
+
+console.log('\n── the basemap is fetched once, not twice ──');
+{
+  /**
+   * The frame's shape depends on how wide the box is: the aspect cap is
+   * tighter on a phone, and the pin nudge is budgeted in pixels. That width
+   * used to be GUESSED at 720 and corrected by a ResizeObserver afterwards.
+   *
+   * On a desktop the guess was right and nothing showed. On a phone it was
+   * wrong every time, and the correction was not free: the first frame was
+   * built at the desktop aspect, the basemap iframe fetched that bbox from
+   * openstreetmap.org, and the whole thing was then thrown away and fetched
+   * again. Two cross-origin round trips, two frame heights, and a white flash
+   * — on the device nearly all of this site's traffic uses.
+   */
+  for (const [label, w, mobile] of [['a phone', 390, true], ['a desktop', 1200, false]]) {
+    const ctx = await browser.newContext({
+      viewport: { width: w, height: 900 }, locale: 'ar-KW',
+      ...(mobile ? { isMobile: true, hasTouch: true } : {}),
+    });
+    const p = await ctx.newPage();
+    const bboxes = [];
+    await p.route('**openstreetmap.org**', (r) => {
+      bboxes.push(new URL(r.request().url()).searchParams.get('bbox'));
+      r.abort();
+    });
+    await p.goto(B + SEARCH, { waitUntil: 'networkidle' });
+    await p.waitForTimeout(900);
+    ok(`one query on ${label} fetches the basemap once (${bboxes.length})`,
+      bboxes.length === 1, bboxes.join('\n      '));
+    await ctx.close();
+  }
+}
+
 console.log(`\n${pass} passed, ${fails.length} failed`);
 await browser.close();
 if (fails.length) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

@@ -45,6 +45,19 @@ const {
   zoomFrame, centreFrame, frameWidthMetres, pinShiftCap, MAX_PIN_SHIFT_M,
 } = M;
 
+/**
+ * The pin's reach above its own coordinate, in px — `pinHeadroom` in MapPin.
+ *
+ * Reimplemented here rather than imported because MapPin is a client component
+ * and bundling it would drag React in for one multiplication. The shape of the
+ * formula is asserted against the component's source further down, so the two
+ * cannot drift apart in silence.
+ */
+const pinHeadroom = (size) => (size + Math.round(size * 0.34) * Math.SQRT1_2) * 1.1;
+/** What the two maps actually pass. */
+const SEARCH_PIN_PX = 32;
+const NEAR_PIN_PX = 26;
+
 let pass = 0;
 const fails = [];
 const ok = (n, c, d = "") => {
@@ -72,9 +85,11 @@ const WIDTHS = [320, 358, 390, 540, 720, 1100];
  */
 function displacement(pts, frameW, pinPx, { capped = true, around = null } = {}) {
   const maxAspect = frameW < 420 ? 1.7 : 2.4;
+  // The same headroom the components ask for, so this measures what ships.
+  const headroom = pinHeadroom(around ? NEAR_PIN_PX : SEARCH_PIN_PX);
   const f = around
-    ? fitFrameAround(around, pts.filter((p) => p !== around), { maxAspect, padding: 1.25 })
-    : fitFrame(pts, { maxAspect });
+    ? fitFrameAround(around, pts.filter((p) => p !== around), { maxAspect, padding: 1.25, headroom, frameW })
+    : fitFrame(pts, { maxAspect, headroom, frameW });
   const raw = pts.map((p) => project(f, p));
   const size = pinPx / frameW;
   const out = spreadPins(raw, size, f.aspect, capped ? pinShiftCap(f, size) : size);
@@ -267,9 +282,114 @@ console.log("\n── no points is a mistake, and it says so ──");
   ];
   const src = (p) => readFileSync(join(ROOT, p), "utf8");
   ok("SearchMap still guards the empty case it can actually hit",
-    /places\.length \? fitFrame/.test(src(live[0][1])) && /places\.length === 0\) return null/.test(src(live[0][1])));
+    /places\.length && frameW > 0/.test(src(live[0][1])) && /places\.length === 0\) return null/.test(src(live[0][1])));
   ok("and no caller was left throwing at a visitor",
     !/fitFrame\(\s*\[\s*\]/.test(live.map(([, p]) => src(p)).join("\n")));
+}
+
+console.log("\n── there is room above the top pin for the pin ──");
+{
+  /**
+   * A pin points at its place from above it, so the frame has to hold the pin
+   * and not only the point. It did not, and the browser measurement said so:
+   * 79 of 438 drawn pins were cut off by the top of their own frame, the worst
+   * losing 23 of its 32 pixels — always the northernmost result, which is a
+   * place the search had just decided was worth showing.
+   *
+   * Stated in pixels because that is what clips: the pin is a fixed size and
+   * the frame is not.
+   */
+  const clearanceTop = (f, pts, frameW) => {
+    const h = frameW / f.aspect;
+    return Math.min(...pts.map((p) => project(f, p).y)) * h;
+  };
+  const clearanceBottom = (f, pts, frameW) => {
+    const h = frameW / f.aspect;
+    return (1 - Math.max(...pts.map((p) => project(f, p).y))) * h;
+  };
+
+  const SETS = [places, ...CATS.map((c) => places.filter((p) => p.category === c))].filter((s) => s.length);
+  const want = pinHeadroom(SEARCH_PIN_PX);
+
+  let worstShort = 0, shortWhere = null, escaped = 0, worstGrowth = 1, growthWhere = null;
+  let bareShort = 0; // the same measurement with the fix removed
+  for (const set of SETS) {
+    for (const w of WIDTHS) {
+      const maxAspect = w < 420 ? 1.7 : 2.4;
+      const bare = fitFrame(set, { maxAspect });
+      const f = fitFrame(set, { maxAspect, headroom: want, frameW: w });
+
+      const short = want - clearanceTop(f, set, w);
+      if (short > worstShort) { worstShort = short; shortWhere = `${set.length} places @${w}px`; }
+      bareShort = Math.max(bareShort, want - clearanceTop(bare, set, w));
+
+      // Making room must not push a place out of the picture, at either end.
+      if (set.some((p) => { const q = project(f, p); return q.x < 0 || q.x > 1 || q.y < 0 || q.y > 1; })) escaped++;
+      if (clearanceBottom(f, set, w) < -1e-6) escaped++;
+
+      const growth = f.hx / bare.hx;
+      if (growth > worstGrowth) { worstGrowth = growth; growthWhere = `${set.length} places @${w}px`; }
+    }
+  }
+
+  ok(`every search frame clears ${want.toFixed(0)}px above its top pin (worst short by ${worstShort.toFixed(1)}px)`,
+    worstShort <= 0.5, `${worstShort.toFixed(1)}px at ${shortWhere}`);
+  ok(`and without it the top pin is cut off (short by ${bareShort.toFixed(1)}px)`,
+    bareShort > 5, `only ${bareShort.toFixed(1)}px — the guard may no longer be reachable`);
+  ok("no place is pushed out of the frame to make the room", escaped === 0, `${escaped} frames`);
+  // The room is taken from the bottom margin before it is taken from the zoom,
+  // so the common case must cost no detail worth speaking of.
+  ok(`the view is barely widened for it (worst ×${worstGrowth.toFixed(3)})`,
+    worstGrowth < 1.25, `×${worstGrowth.toFixed(3)} at ${growthWhere}`);
+
+  // Place pages: the subject is centred BECAUSE the page asks where it is, so
+  // this is the one frame that may not slide to find its headroom.
+  let offCentre = 0, pShort = 0;
+  const nearWant = pinHeadroom(NEAR_PIN_PX);
+  for (const p of places) {
+    const near = places
+      .filter((q) => q !== p)
+      .map((q) => ({ q, d: metres(p, q) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 4)
+      .map((x) => x.q);
+    for (const w of WIDTHS) {
+      const f = fitFrameAround(p, near, { maxAspect: w < 420 ? 1.7 : 2.4, padding: 1.25, headroom: nearWant, frameW: w });
+      const q = project(f, p);
+      offCentre = Math.max(offCentre, Math.abs(q.x - 0.5), Math.abs(q.y - 0.5));
+      pShort = Math.max(pShort, nearWant - clearanceTop(f, [p, ...near], w));
+    }
+  }
+  ok(`the place page keeps its subject dead centre (worst ${offCentre.toExponential(1)} of the frame)`,
+    offCentre < 1e-9, `${offCentre}`);
+  ok(`and still clears ${nearWant.toFixed(0)}px above its top neighbour (worst short by ${pShort.toFixed(1)}px)`,
+    pShort <= 0.5, `${pShort.toFixed(1)}px`);
+
+  // The bbox is what the embed draws; if the room were added to one axis only,
+  // the ground would stop matching the pins over it.
+  const f = fitFrame(places, { maxAspect: 1.7, headroom: want, frameW: 390 });
+  const [W, S, E, N] = f.bbox.split(",").map(Number);
+  const bboxAspect =
+    (rd(E) - rd(W)) /
+    (Math.log(Math.tan(Math.PI / 4 + rd(N) / 2)) - Math.log(Math.tan(Math.PI / 4 + rd(S) / 2)));
+  ok("the bbox still matches the frame it made room in",
+    Math.abs(bboxAspect - f.aspect) < 1e-9, `${bboxAspect} vs ${f.aspect}`);
+
+  // Asking for the impossible must degrade, not produce a map of the region.
+  const silly = fitFrame(places, { maxAspect: 1.7, headroom: 100_000, frameW: 390 });
+  ok("an absurd headroom is capped rather than obeyed",
+    silly.hx / fitFrame(places, { maxAspect: 1.7 }).hx < 4,
+    `×${(silly.hx / fitFrame(places, { maxAspect: 1.7 }).hx).toFixed(1)}`);
+
+  // The number above is the pin's own geometry. If MapPin's changes and this
+  // does not, the frame quietly stops making room for the thing it draws.
+  const pinSrc = readFileSync(join(ROOT, "src/components/MapPin.tsx"), "utf8");
+  ok("pinHeadroom is still the head plus half the nose's diagonal, hovered",
+    /return \(size \+ Math\.round\(size \* 0\.34\) \* Math\.SQRT1_2\) \* HOVER_SCALE;/.test(pinSrc) &&
+    /HOVER_SCALE = 1\.1/.test(pinSrc));
+  ok("and both maps ask the frame for it",
+    /headroom: pinHeadroom\(PIN_PX\)/.test(readFileSync(join(ROOT, "src/components/SearchMap.tsx"), "utf8")) &&
+    /headroom: pinHeadroom\(NEAR_PIN_PX\)/.test(readFileSync(join(ROOT, "src/components/PlaceMapFrame.tsx"), "utf8")));
 }
 
 console.log("\n── clicking the picker means what it says ──");
