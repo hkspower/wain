@@ -36,6 +36,35 @@ import * as THREE from "three";
 // junctions are right; the individual control points are not surveyed.
 
 export const ROAD_HALF_WIDTH = 7; // 4 lanes, 3.5 m each
+
+/**
+ * The height of the city floor, metres.
+ *
+ * Below the road on purpose: the road surface is at y = 0 and a ground
+ * plane at the same height z-fights with it along the whole lap. Eight
+ * centimetres is enough to separate them and small enough that the kerb
+ * still reads as a kerb.
+ *
+ * It is a named constant because it was a bare -0.08 typed into the
+ * ground mesh and assumed to be 0 by everything standing on it. Every
+ * one of the 339 city blocks is placed by track.pose(), which returns
+ * the ROAD's height, so every building in the game had its base at y = 0
+ * and floated 80 mm above the ground it was supposed to be standing on —
+ * a gap you can see the dark floor through, under the whole skyline.
+ */
+export const CITY_GROUND_Y = -0.08;
+
+/**
+ * How far a building's base is driven BELOW the city floor, metres.
+ *
+ * Not zero. Setting a base exactly coincident with the ground plane
+ * trades a visible gap for a visible seam: two coplanar surfaces at the
+ * same height z-fight, which flickers as the camera moves and is worse
+ * than the gap because it moves. A building has foundations; burying the
+ * bottom quarter-metre of the shaft means the two surfaces intersect
+ * rather than meet, and no camera angle can find a crack.
+ */
+export const BUILDING_FOOTING_M = 0.25;
 export const LANES = [-5.25, -1.75, 1.75, 5.25];
 
 /** The Sharq drift circle: the corniche swells into a round plaza with

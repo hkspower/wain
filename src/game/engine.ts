@@ -16,6 +16,7 @@ import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
 import { ParticleSystem, radialSprite } from "./vfx";
 import { solveTwoBone, aimConstrained } from "./ik";
+import { solveSuspension } from "./suspension";
 import { nightEnvironment } from "./env";
 import { RIG } from "./rig";
 import { paceDelta, newPaceState, refreshFromIntervals, type PaceState } from "./pacing";
@@ -981,6 +982,45 @@ export class GameEngine {
   private bs: BrakeState = newBrakeState();
   /** Last frame's brake solve, for the HUD, the squeal and the smoke. */
   private brakeOut: BrakeResult | null = null;
+
+  /**
+   * Separate the sprung mass from the unsprung one.
+   *
+   * The shell rolls and dives; the hubs stay with the road and the
+   * spring between them takes up the difference. src/game/suspension.ts
+   * does the arithmetic — a closed-form inverse of the rotation the two
+   * lines above write — and this hands it the geometry and applies what
+   * comes back.
+   *
+   * The car group is scaled, and NON-UNIFORMLY: createCar sets
+   * scale.set(scale * widthFix, scale, scale) to bring each silhouette
+   * to its real width. A child's local position is scaled before it is
+   * rotated, so the solve has to run on the scaled offsets and the
+   * answer has to be divided back out again. Doing it in raw local units
+   * would be right only for the cars whose widthFix happens to be 1.
+   *
+   * The rest height is captured the first time a wheel is seen, because
+   * from the second frame onwards position.y is whatever this method
+   * last wrote and no longer says where the wheel belongs.
+   */
+  private applySuspension(): void {
+    const wheels = this.carBody.userData.wheels as THREE.Group[] | undefined;
+    if (!wheels?.length) return;
+    const sc = this.carBody.scale;
+    const poses = wheels.map((w) => {
+      const ud = w.userData as { restY?: number };
+      ud.restY ??= w.position.y;
+      return { x: w.position.x * sc.x, z: w.position.z * sc.z, restY: ud.restY * sc.y };
+    });
+    const solved = solveSuspension({ roll: this.roll, pitch: this.pitch, wheels: poses });
+    for (let i = 0; i < wheels.length; i++) {
+      wheels[i].position.y = solved[i].y / (sc.y || 1);
+      // rotation.x is the wheel turning and rotation.y is the steering,
+      // both written by spinWheels; camber is the third axis and does not
+      // collide with either.
+      wheels[i].rotation.z = solved[i].camber;
+    }
+  }
   /** The angle itself. An accessor rather than a field because the whole
    *  engine — camera, body pose, smoke, sound, the debug surface — reads
    *  and writes it, and the solver needs it in one object. */
@@ -4583,6 +4623,12 @@ export class GameEngine {
     this.pitch += this.pitchVel * dts;
     this.carBody.rotation.z = this.roll;
     this.carBody.rotation.x = this.pitch;
+    // ...and the wheels stay where the road is. Those two lines rotate
+    // the group the wheels are CHILDREN of, so until now the contact
+    // patches leaned with the shell: at the street sedan's six degrees
+    // of roll the outer wheel was driven 90 mm down through the tarmac
+    // and the inner one lifted the same distance clear of it.
+    this.applySuspension();
     this.latAccel = latAccel;
 
     // The lamps, bolted on. One copy of the body's attitude and the

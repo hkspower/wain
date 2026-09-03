@@ -12,6 +12,8 @@ import {
   FORECOURT,
   LAP,
   spanU,
+  CITY_GROUND_Y,
+  BUILDING_FOOTING_M,
 } from "./track";
 import { applyTextureManifest } from "./assets";
 import { upgradePalmCrowns } from "./models";
@@ -3208,7 +3210,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     new THREE.MeshStandardMaterial({ color: 0x241d12, roughness: 1 })
   );
   ground.rotation.x = -Math.PI / 2;
-  ground.position.set(2700, -0.08, -1400);
+  ground.position.set(2700, CITY_GROUND_Y, -1400);
   ground.receiveShadow = true;
   scene.add(ground);
 
@@ -4302,13 +4304,28 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // a coin flip nobody could reproduce.
       if (lat - depth / 2 < track.halfWidthAt(s) + 4) continue;
       track.pose(s, sideSign * lat, p, tmp);
+      // pose() returns the ROAD's height, and the city floor is not the
+      // road: it sits CITY_GROUND_Y below it so the two do not z-fight.
+      // Placed at the road's y, every one of these floated 80 mm above
+      // the ground with the dark floor visible underneath. The base goes
+      // below the floor and the shaft grows by the same amount, so the
+      // roofline — and the parapet, plant and mast stacked on it, which
+      // are all positioned as p.y + h — do not move at all.
+      p.y = CITY_GROUND_Y - BUILDING_FOOTING_M;
       // Square to the street. Local +Z runs along the road, so the box's
       // Z extent is its frontage and its X extent is its depth.
       track.tangentAt(s, tmp);
       q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(tmp.x, tmp.z));
       // Taller skyline near the city at the top of the lap
       const cityBoost = u > 0.88 || u < 0.06 ? 2.1 : 1;
-      const h = (10 + rand() * rand() * 55) * cityBoost;
+      // Two heights, deliberately. `hArch` is how tall the building is —
+      // what the podium, setback and mast thresholds below are written
+      // against, and inflating it would quietly change which blocks get
+      // which stack. `h` is how tall the box has to be DRAWN now that its
+      // base starts below the floor, so the roofline lands in exactly the
+      // same place it did before.
+      const hArch = (10 + rand() * rand() * 55) * cityBoost;
+      const h = hArch - p.y;
       scale.set(depth, h, width);
       m.compose(p, q, scale);
       blocks.setMatrixAt(placed, m);
@@ -4329,13 +4346,13 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         // the piece a bare extrusion most obviously lacks. Only where
         // there is room: the base grows 5 m each way, and growing over
         // the kerb line would put a shopfront in the traffic.
-        podium: h > 42 && rand() < 0.5 && lat - depth / 2 - 5 > track.halfWidthAt(s) + 4,
+        podium: hArch > 42 && rand() < 0.5 && lat - depth / 2 - 5 > track.halfWidthAt(s) + 4,
         // From 52 down to 40: at 52 only the top decile stepped and the
         // skyline was one register of extruded rectangles — "boxy" is
         // exactly the complaint a skyline with one register earns.
-        setback: h > 40 && rand() < 0.8,
+        setback: hArch > 40 && rand() < 0.8,
         plant: rand() < 0.55,
-        mast: h > 70 && rand() < 0.5,
+        mast: hArch > 70 && rand() < 0.5,
         tint: tint.clone(),
         r: [rand(), rand(), rand(), rand()],
       });

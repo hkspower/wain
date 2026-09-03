@@ -420,6 +420,41 @@ export const HANDLING = {
   powerOverThrottle: 0.85,
   powerOverAngleK: 0.6,
 
+  // Suspension geometry (src/game/suspension.ts).
+  //
+  // The physics has had a suspension for a long time — load moves across
+  // a pitching body on a real time constant — and none of it reached the
+  // picture. The wheels are children of the group the engine rolls, so
+  // the body and its contact patches leaned together and the outer wheel
+  // was driven through the tarmac by the half-track times the sine of
+  // the roll angle. These two numbers are what separates the sprung mass
+  // from the unsprung one.
+  /** Travel available each way, metres.
+   *
+   *  Derived from the attitudes this game actually reaches rather than
+   *  from a road car's spec sheet, because the roll here is deliberately
+   *  larger than life. The softest car in the fleet is the street sedan
+   *  at ROLL_DEG_PER_G 4.2, which against the 14 m/s² reference is 6.0
+   *  degrees — 0.105 rad, not the 0.055 fallback that MAX_ROLL suggests.
+   *  Put that together with the nose-up pitch clamp of 0.045 and the
+   *  rear-outer hub has to travel 154 mm to keep its contact patch down.
+   *
+   *  90 mm was tried first, on the road-car figure, and bottomed the
+   *  suspension in ordinary hard cornering — the wheels would have
+   *  visibly hung in the air through every long corner on the corniche,
+   *  which is a worse artefact than the one this replaces.
+   *  tests/suspension.mjs asserts the whole working envelope fits. */
+  suspStrokeM: 0.17,
+  /** How much of the body's lean the wheel keeps, 0..1.
+   *
+   *  Not zero. Standing every wheel perfectly upright is as wrong as
+   *  welding it to the shell was, in the other direction: real
+   *  suspension gains a little camber as it works, and a car whose
+   *  wheels stay bolt upright through a corner looks like it is on
+   *  casters. A fifth of the body's roll is about what a road car's
+   *  geometry gives back. */
+  suspCamberGain: 0.2,
+
   // Crashes (src/game/crash.ts). Severity is the speed component into
   // the obstacle; rotation is the lever arm the impulse acts on.
   //

@@ -128,6 +128,8 @@ namespace GRNHandling
 	constexpr float PowerOverMinSpeed = 18.f;
 	constexpr float PowerOverThrottle = 0.85f;
 	constexpr float PowerOverAngleK = 0.6f;
+	constexpr float SuspStrokeM = 0.17f;
+	constexpr float SuspCamberGain = 0.2f;
 	constexpr float CrashLatFull = 12.f;
 	constexpr float CrashSpeedLossK = 0.28f;
 	constexpr float CrashReboundK = 5.f;
@@ -288,6 +290,8 @@ namespace GRNExact
 	constexpr double PowerOverMinSpeed = 18;
 	constexpr double PowerOverThrottle = 0.85;
 	constexpr double PowerOverAngleK = 0.6;
+	constexpr double SuspStrokeM = 0.17;
+	constexpr double SuspCamberGain = 0.2;
 	constexpr double CrashLatFull = 12;
 	constexpr double CrashSpeedLossK = 0.28;
 	constexpr double CrashReboundK = 5;

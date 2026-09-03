@@ -108,6 +108,7 @@
     "test:size": "node tests/size.mjs",
     "test:soundtiming": "node tests/soundtiming.mjs",
     "test:spin": "node tests/spin.mjs",
+    "test:suspension": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/suspension.mjs",
     "test:start": "node tests/start.mjs",
     "test:streets": "node tests/streets.mjs",
     "test:tach": "node tests/tach.mjs",
