@@ -179,6 +179,28 @@ const SYNONYMS: Record<string, string[]> = {
   // Walking, which the catalogue tags as «ممشى» and «مشي داخلي».
   مشي: ["ممشى", "مشي داخلي", "حدائق"],
   رياضه: ["ممشى", "مشي داخلي"],
+  /**
+   * Shisha, under every name it is asked for.
+   *
+   * One thing with five words: «شيشة» is what most people type, «نرجيلة» and
+   * «أرجيلة» are what the Levant says and half of Hawally with it, «معسل» is
+   * the tobacco and stands in for the whole, and «حقة» is the Gulf word older
+   * customers use. A place tagged under one of them and searched under
+   * another is not found, and «ما فيه نتائج» reads as «there is nowhere»
+   * rather than «you used the other word».
+   */
+  نرجيله: ["شيشة"],
+  ارجيله: ["شيشة"],
+  معسل: ["شيشة"],
+  حقه: ["شيشة"],
+  شيشه: ["شيشة"],
+  // A Latin keyboard is a supported way in — the index already carries every
+  // place's English name — and these have no Arabic stem to fold to, so each
+  // spelling needs its own entry.
+  shisha: ["شيشة"],
+  sheesha: ["شيشة"],
+  hookah: ["شيشة"],
+  narghile: ["شيشة"],
 };
 
 /**
@@ -297,6 +319,35 @@ const SETTING_WORDS: Record<"indoor" | "outdoor" | "mixed", string[]> = {
   mixed: ["مكيّف", "برا"],
 };
 
+/**
+ * One word, and the synonym table carries the other nine.
+ *
+ * This started as eleven — every Arabic spelling and every Latin one — and
+ * that broke something a long way from shisha: a search for «مارينا كريسنت»
+ * started returning شاطئ المارينا first, because the beach's highlights
+ * mention «ممشى المارينا كريسنت» and the crescent's own keyword field had
+ * just been diluted by ten extra terms. The scorer normalises by field
+ * length, so every keyword added to a place makes each of its existing
+ * keywords count for less. Eleven words about shisha cost a place its own
+ * name — and شوق reads the top hit aloud, so second place is the wrong
+ * answer, not a near miss.
+ *
+ * Two fixes, and both were needed — trimming to one word alone was not
+ * enough, because on this pair even a single extra keyword tipped it.
+ *
+ * The first is that the query side was already doing the spelling work:
+ * tokens are normalised (ة folds to ه) and then run through SYNONYMS, so
+ * «نرجيلة», «معسل», «hookah» and the rest all arrive as «شيشة» before the
+ * lookup. The document needs the one canonical term they arrive as.
+ *
+ * The second is where that term goes. It rides in `body` with the price and
+ * rating words, for the reason written there: body lets a place be FOUND by
+ * a word without letting that word outrank a name match. That is exactly the
+ * trade shisha wants — «وين فيه شيشة» must return all three, and «مارينا
+ * كريسنت» must still return مارينا كريسنت.
+ */
+const SHISHA_WORDS = ["شيشة"];
+
 const PRICE_WORDS: Record<number, string> = {
   1: "رخيص اقتصادي بسيط",
   2: "متوسط معقول",
@@ -343,7 +394,7 @@ export function buildDocs(list: Place[] = snapshot): SearchDoc[] {
       // let a place be *found* by "رخيص", not outrank a name match for it.
       body: `${p.taglineAr} ${p.descriptionAr} ${p.bestTimeAr} ${p.seasonAr} ${
         PRICE_WORDS[p.priceLevel] ?? ""
-      } ${ratingWords(p.rating)}`,
+      } ${ratingWords(p.rating)}${p.shisha ? ` ${SHISHA_WORDS.join(" ")}` : ""}`,
     };
   });
 

@@ -71,6 +71,16 @@ const season = blocks.map((b) => field(b, "seasonAr"));
  * field() already crosses; `highlightsAr` is a single-line array like tagsAr.
  */
 const desc = blocks.map((b) => field(b, "descriptionAr"));
+/**
+ * Shisha, which شوق could not answer at all.
+ *
+ * «وين أقعد أشرب شيشة» is one of the most-asked questions about an evening
+ * in Kuwait, and nothing in the brief carried the fact — so she answered it
+ * from whatever the description happened to say, which for most places is
+ * nothing. Read from the catalogue rather than written here, so it cannot
+ * drift from what the site shows on the page.
+ */
+const shisha = blocks.map((b) => /^ {4}shisha: true,$/m.test(b));
 const highlightList = blocks.map((b) => {
   const raw = (b.match(/^ {4}highlightsAr: \[([^\]]*)\]/m) || [])[1] || "";
   return [...raw.matchAll(/"([^"]+)"/g)].map((t) => t[1]);
@@ -105,6 +115,29 @@ const priceAr = ["", "اقتصادي", "متوسط", "راقي"];
 const settingAr = { indoor: "مكيّف/داخلي", outdoor: "برا/مكشوف", mixed: "داخلي وبرا" };
 
 const salonAr = { men: "رجالي", women: "نسائي" };
+
+/**
+ * What شوق may say about shisha, and — the part that matters — what she may
+ * not.
+ *
+ * The catalogue records only the YES. An unmarked place is «we have not
+ * checked», never «no shisha», so a briefing that just listed the marked
+ * places would leave her free to answer «لا، ما فيه» about the other
+ * forty-one — a confident wrong answer about a real business, which is worse
+ * than «ما أدري». Generated from the data so the list cannot go stale, and
+ * the prohibition is stated whether the list is long or empty.
+ */
+const shishaList = slugs.filter((_, i) => shisha[i]);
+const shishaSection = shishaList.length
+  ? `الأماكن اللي **مأكّد فيها شيشة**:
+${shishaList.map((sg) => `- ${nameAr[slugs.indexOf(sg)]} — \`${sg}\``).join("\n")}
+
+**مهم:** هذا مو كل شي. باقي الأماكن ما تعني «ما فيها شيشة» — تعني إحنا ما
+تأكّدنا. إذا سأل عن مكان مو بالقائمة، لا تقولين «ما فيه» أبداً؛ قولي «ما
+عندي تأكيد لهالمكان» ورشّحي من القائمة فوق.`
+  : `**ما عندنا أي مكان مأكّد فيه شيشة.** لا تقولين عن مكان إن فيه شيشة ولا
+إن ما فيه — الاثنين تخمين. قولي «ما عندي معلومة أكيدة عن الشيشة».`;
+
 const orderList = slugs.filter((_, i) => takesOrders[i]);
 const queueList = slugs.filter((_, i) => takesTurns[i]);
 
@@ -183,7 +216,7 @@ const rows = slugs
   ${tag[i]}
   ${desc[i]}
   فيه: ${highlightList[i].join(" · ")}
-  أحسن وقت: ${best[i]} · ${settingAr[setting[i]]} · ${season[i]}
+  أحسن وقت: ${best[i]} · ${settingAr[setting[i]]} · ${season[i]}${shisha[i] ? "\n  فيه شيشة." : ""}
   يناسب: ${tags[i]}
   slug: \`${s}\` · الرابط: https://www.wainkw.com/places/${s}/`
   )
@@ -401,6 +434,10 @@ ${areaRows}
 **مناطق مو محافظات.** الجدول فوق من بيانات الموقع نفسه؛ محافظة كل منطقة مو
 منها، وقول «هذا في محافظة حولي» غلط أسوأ من عدم التجميع أصلاً. إذا سأل عن
 محافظة، اسأليه عن المنطقة أو رشّحي بالمنطقة.
+
+## الشيشة
+
+${shishaSection}
 
 ## الكويت — التقويم والعادات
 

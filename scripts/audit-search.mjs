@@ -120,6 +120,44 @@ console.log("\n── everything written about a place can find that place ─�
   for (const u of unreachable.slice(0, 6)) notes.push(`unreachable: ${u}`);
 }
 
+console.log("\n── shisha, under every word it is asked for ──");
+{
+  /**
+   * One thing with nine names, and the query side and the document side each
+   * only half of the answer.
+   *
+   * The synonym table folds «نرجيلة» to «شيشة» before the lookup, and the
+   * document carries the shisha words only when the place is flagged. Either
+   * half alone silently returns nothing: a synonym pointing at a term no
+   * document holds expands to nothing, and a document term nobody's spelling
+   * reaches is never queried. Both halves are asserted here because the
+   * failure looks exactly like «there is nowhere in Kuwait with shisha».
+   *
+   * The Latin spellings are not decoration — the index already carries every
+   * place's English name, so a Latin keyboard is a supported way in, and
+   * «shisha» returned nothing at all until the words were added.
+   */
+  const marked = places.filter((p) => p.shisha).map((p) => p.slug);
+  const WORDS = [
+    "شيشة", "شيشه", "نرجيلة", "نرجيله", "أرجيلة", "ارجيله", "معسل", "حقة",
+    "shisha", "sheesha", "hookah",
+  ];
+  if (marked.length === 0) {
+    console.log("  no place is flagged shisha — nothing to find, and that is not a search defect");
+  } else {
+    let worst = null;
+    for (const w of WORDS) {
+      const hits = search(w, index, { limit: 20 })
+        .filter((h) => h.doc.kind === "place")
+        .map((h) => h.doc.id.replace(/^place:/, ""));
+      const missing = marked.filter((s) => !hits.includes(s));
+      if (missing.length && !worst) worst = `«${w}» misses ${missing.join(", ")}`;
+      line(`«${w}»`, marked.length - missing.length, marked.length, 100);
+    }
+    if (worst) errors.push(worst);
+  }
+}
+
 console.log("\n── speed ──");
 {
   const qs = places.map((p) => p.nameAr).concat(["قهوة", "بحر", "مطعم عايلة", "وين أطلع", "متحف قديم"]);

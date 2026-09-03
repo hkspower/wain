@@ -87,6 +87,23 @@ export interface Place {
    */
   summerOk?: boolean;
   /**
+   * True where شيشة is actually served.
+   *
+   * It is one of the most-asked things about an evening in Kuwait and the
+   * catalogue could not express it at all — «شيشة», «نرجيلة» and «معسل»
+   * returned nothing, on a site whose whole promise is answering «وين
+   * الطلعة». Search reads this rather than a tag so the fact can also be
+   * stated on the page and spoken by شوق, and so it cannot be half-set: a tag
+   * on one place and prose on another is how an attribute stops being
+   * answerable.
+   *
+   * Only set where a source says so. Absent is «we do not know», NOT «no» —
+   * which is why nothing anywhere renders the negative. Telling someone a
+   * place has no shisha because our data is thin is a worse error than
+   * saying nothing, and it is the error a boolean invites.
+   */
+  shisha?: boolean;
+  /**
    * What someone would type or say to look for this — the occasion, the crowd,
    * the food. Distinct from highlightsAr, which is prose shown on the page:
    * these exist to be matched. «مع الربع», «فطور» and «بيتزا» all returned
@@ -195,6 +212,9 @@ export const places: Place[] = [
       "من أقدم أسواق الكويت. أزقّة مليانة بسطات بهارات ودكاكين ذهب وبياعين تمر ومطاعم صغيرة. يا ليتك تجي وأنت جوعان، وتختم السهرة بچاي في الحوش القديم.",
     highlightsAr: ["أكل كويتي أصيل", "سوق البهارات والذهب", "أحواش تراثية"],
     bestTimeAr: "بالليل، بعد الخامسة",
+    // Corroborated: the courtyard by مسجد البحر brews tea over coals and
+    // serves shisha with it — the one part of the souq that stays open late.
+    shisha: true,
     setting: "mixed",
     seasonAr: "من أكتوبر لأبريل، وبالليل صيفاً",
     tagsAr: ["تراث", "بهارات", "ذهب", "أكل شعبي", "تصوير", "رخيص", "سهرة"],
@@ -883,6 +903,10 @@ export const places: Place[] = [
       "ممشى مفتوح على بحر السالمية مصفوف بالمطاعم والكافيهات، ملتصق بمارينا مول ومطلّ على المرسى. من أشهر أماكن العشا في الكويت، خصوصاً بالشتاء لمّا تنفتح الجلسات الخارجية.",
     highlightsAr: ["جلسات على الماء", "مطاعم متنوّعة", "ممشى المرسى"],
     bestTimeAr: "العشا، وخصوصاً نهاية الأسبوع",
+    // Corroborated: the Marina Crescent terraces are described as filling up
+    // in the evening with groups alternating shisha and conversation, facing
+    // the boats. Two independent searches said the same thing.
+    shisha: true,
     setting: "mixed",
     seasonAr: "طول السنة، والجلسات الخارجية من أكتوبر لأبريل",
     // «كريسنت» is a keyword and not only a name because two records legitimately
@@ -951,6 +975,9 @@ export const places: Place[] = [
       "من أشهر شوارع الأكل في الكويت، مليان مطاعم شامية ومصرية وهندية وحلويات، وأغلبها بأسعار بسيطة. مكان تجرّب فيه أكل من كل الجاليات في لفّة وحدة.",
     highlightsAr: ["مطبخ شامي ومصري وهندي", "أسعار بسيطة", "مفتوح لوقت متأخر"],
     bestTimeAr: "بالليل، خصوصاً نهاية الأسبوع",
+    // Corroborated: Tunis Street in Hawally is listed as a row of shisha
+    // cafés, one of them quoted with a price and a phone number.
+    shisha: true,
     setting: "mixed",
     seasonAr: "طول السنة — أحلى بالليل",
     tagsAr: ["شاورما", "فطور", "حلويات", "رخيص", "شامي", "مصري", "هندي", "سهرة", "سناك"],

@@ -246,6 +246,17 @@ export default async function PlacePage({
             </span>
             {place.seasonAr}
           </p>
+
+          {/* Only ever the positive. An absent flag means «we do not know»,
+              not «no» — see `shisha` in lib/places — so there is nothing to
+              render for the places without one. */}
+          {place.shisha && (
+            <p className="mt-2.5 flex items-center gap-2 text-sm text-ink-600">
+              <span className="rounded-full bg-palm-500/12 px-2.5 py-1 text-xs font-semibold text-palm-700">
+                فيه شيشة
+              </span>
+            </p>
+          )}
         </div>
       </div>
 
