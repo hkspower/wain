@@ -86,6 +86,7 @@ const r = await page.evaluate(() => {
     cx[i] = p.x; cz[i] = p.z; cs[i] = s;
   }
 
+  const TUN = window.__grnLap.tunnel;
   const meshes = [];
   let railTop = -Infinity;
   e.scene.traverse((o) => {
@@ -156,7 +157,8 @@ const r = await page.evaluate(() => {
         if (lat < 0) out.bothSidesPastCoast.left++;
         else out.bothSidesPastCoast.right++;
       }
-      if (s > 4855 && s < 5145) out.inTunnel++;
+      // The road's own tunnel span, not a copy of its metre marks.
+      if (s > TUN.from && s < TUN.to) out.inTunnel++;
     }
   }
   out.minClear = +out.minClear.toFixed(2);

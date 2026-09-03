@@ -126,6 +126,37 @@ const SWELLS: Array<{ s: number; halfSpan: number; extraWidth: number }> = [];
 export const COAST_END_M = 3423;
 
 /**
+ * Every named span on the lap, in one place and in one shape.
+ *
+ * These lived in two files and three shapes: cumulative `to` tables in
+ * world.ts, `{ from, to }` spans beside them, lap fractions derived from
+ * both, and a couple of literals copied into places that could not
+ * import any of it. The failure that shape allows is not hypothetical —
+ * COAST_END_M and the end of the Ras Al-Ard district are the SAME
+ * boundary, the point where the corniche turns inland, and they were
+ * written as 3423 twice. Moving one moved the road and left the district
+ * behind it.
+ *
+ * Metres, never fractions, for the reason recorded on LAP_LENGTH below:
+ * a fraction is a fine way to ask a question and a terrible way to store
+ * an answer, because the lap has already grown once — 7.34 km to 8.49
+ * when the return leg became the Second Ring — and every fraction moved
+ * with it while every metre stayed put.
+ */
+export const LAP = {
+  /** The Hawally tunnel: concrete walls, a ceiling, no sky and no rain. */
+  tunnel: { from: 4855, to: 5145 },
+  /** Love Street, where the cruise traffic goes to be seen. */
+  love: { from: 6180, to: 7000 },
+} as const;
+
+/** A span as a fraction of the lap, for the builders that work in `u`.
+ *  Derived, never typed: see LAP. */
+export function spanU(span: { from: number; to: number }): { from: number; to: number } {
+  return { from: span.from / LAP_LENGTH, to: span.to / LAP_LENGTH };
+}
+
+/**
  * One lap, in metres, measured once from the control points above.
  *
  * This exists so that nothing else in the game has to hard-code a lap

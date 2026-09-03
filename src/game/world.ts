@@ -10,6 +10,8 @@ import {
   DRIFT_PLAZA,
   STATIONS,
   FORECOURT,
+  LAP,
+  spanU,
 } from "./track";
 import { applyTextureManifest } from "./assets";
 import { upgradePalmCrowns } from "./models";
@@ -95,7 +97,7 @@ export const AREAS = [
   { name: "Sharq", arabic: "شرق", to: 709 },
   { name: "Bneid Al-Gar", arabic: "بنيد القار", to: 1522 },
   { name: "Salmiya", arabic: "السالمية", to: 2736 },
-  { name: "Ras Al-Ard", arabic: "رأس الأرض", to: 3423 },
+  { name: "Ras Al-Ard", arabic: "رأس الأرض", to: COAST_END_M },  // the same boundary as the road: see LAP
   // --- Second Ring Road, in the order you pass them driving it back
   // toward Bneid Al-Gar ---
   { name: "Shuwaikh Residential", arabic: "الشويخ السكنية", to: 4209 },
@@ -170,7 +172,8 @@ export function roadAt(track: Track, s: number) {
 /** شارع الحب — what the stretch of the Second Ring between Da'iya and
  *  Dasma is called by everyone who drives it. Straddles the boundary at
  *  6580 m, because that is where the name comes from. */
-export const LOVE_STREET = { from: 6180, to: 7000 };
+/** Re-exported so the table in track.ts stays the only copy. */
+export const LOVE_STREET = LAP.love;
 
 export function areaAt(track: Track, s: number) {
   const m = track.wrap(s);
@@ -2869,8 +2872,8 @@ function makeBeacon(beacons: THREE.MeshStandardMaterial[]): THREE.Mesh {
 // is what the ribbon and wall builders take, and it has to be recomputed
 // from the lap rather than typed in, or the tunnel walks off its
 // junction the next time the track changes length.
-const TUNNEL_S = { from: 4855, to: 5145 };
-const TUNNEL_U = { from: TUNNEL_S.from / LAP_LENGTH, to: TUNNEL_S.to / LAP_LENGTH };
+const TUNNEL_S = LAP.tunnel;
+const TUNNEL_U = spanU(TUNNEL_S);
 
 // The key light's strength through the day, and what the fill runs at
 // relative to it. A fill at a third of the key lifts the shadow side to
@@ -4717,7 +4720,14 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       }
       const stem = new THREE.CylinderGeometry(0.03, 0.05, STEM_H, 5, 1);
       stem.translate(0, STEM_H / 2, 0);
-      const g = mergeGeometries([stem, crown]);
+      // BOTH NON-INDEXED, or the merge returns null and takes the whole
+      // world build down with it. CylinderGeometry is indexed and
+      // IcosahedronGeometry is not — mergeGeometries requires the index
+      // attribute to exist on all of its inputs or on none, and answers
+      // a mismatch with null rather than a throw, so the first thing that
+      // fails is computeVertexNormals on nothing.
+      const g = mergeGeometries([stem.toNonIndexed(), crown.toNonIndexed()]);
+      if (!g) throw new Error("planting: stem and crown would not merge");
       g.computeVertexNormals();
       g.computeBoundingBox();
       const top = g.boundingBox!.max.y;

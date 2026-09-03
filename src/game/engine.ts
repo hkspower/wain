@@ -8,7 +8,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
-import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, STATIONS, FORECOURT } from "./track";
+import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, STATIONS, FORECOURT, LAP } from "./track";
 import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
 import { createCar, crownShell, CROWN, setContactStrength, TAIL, TIRE_RADIUS } from "./cars";
 import { RIVALS, RivalDef } from "./rivals";
@@ -6305,6 +6305,10 @@ export class GameEngine {
       }
     ).__grnCrown = { crownShell, CROWN };
     (window as unknown as { __grnLandmarks: typeof LANDMARK_S }).__grnLandmarks = LANDMARK_S;
+    // Every named span on the lap, so a test reads the road rather than
+    // copying its metre marks — tests/planting.mjs carried 4855 and 5145,
+    // which is the tunnel written down twice.
+    (window as unknown as { __grnLap: typeof LAP }).__grnLap = LAP;
     // Where the sea stops being on your left, in metres. Derived from
     // COAST_U and the live track rather than typed, so it cannot drift
     // the way a second copy of a distance would: the lap has already
