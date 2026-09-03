@@ -432,6 +432,73 @@ console.log('\n── شوق has a face, and it is alive ──');
   await ctx.close();
 }
 
+console.log('\n── the call is not paid for until it is placed ──');
+{
+  /**
+   * WainAi is in the root layout, so whatever it imports, every page imports.
+   * It used to import the whole call — ring-back tones, the speech-recognition
+   * plumbing, the widget bridge, six phases of sheet markup — and that measured
+   * 6.3K gzipped on every page in the site, including the privacy policy.
+   *
+   * Read the JavaScript, not the rendered HTML. The privacy page does not paint
+   * a call sheet either way, so asking its innerHTML would pass for a reason
+   * that has nothing to do with the claim. The sheet's strings travel in a
+   * chunk; that is where they have to be looked for.
+   */
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'ar-KW' });
+  const p = await ctx.newPage();
+  await p.goto(B + '/privacy/', { waitUntil: 'networkidle' });
+
+  /**
+   * The marker has to be something only the call has.
+   *
+   * The first version of this looked for «مركز اتصال وين» and «إنهاء
+   * المكالمة» and failed — correctly. Those live in WAIN_AI_COPY, and the
+   * launcher imports that object for its own label, so the whole copy table
+   * ships on every page whatever happens to the sheet. The assertion would
+   * have been measuring the wrong file.
+   *
+   * `webkitSpeechRecognition` is in WainAiCall and nowhere else: no launcher,
+   * no copy table, no shared library.
+   */
+  const early = await p.evaluate(async () => {
+    const srcs = [...document.querySelectorAll('script[src]')].map((s) => s.src);
+    const bodies = await Promise.all(srcs.map((u) => fetch(u).then((r) => r.text()).catch(() => '')));
+    return ['webkitSpeechRecognition', 'elevenlabs-convai']
+      .filter((s) => bodies.some((b) => b.includes(s)));
+  });
+  ok('the privacy page does not ship the call machinery', early.length === 0, early.join(' | '));
+
+  // …but the button that opens it is still there, and still says what it is.
+  const btn = p.locator('button[aria-label*="وين AI"]').first();
+  ok('the launcher is still on the page', (await btn.count()) > 0);
+  ok('and still carries its accessible name',
+    ((await btn.getAttribute('aria-label')) || '').includes('شوق'));
+
+  /**
+   * Watch the responses, not the DOM.
+   *
+   * The obvious follow-up — re-read `script[src]` after the tap and look for
+   * the marker — fails for a reason worth writing down: webpack removes the
+   * script element once the chunk has executed, so by the time the panel is up
+   * there is nothing left in the DOM to find. The fetch itself is the evidence.
+   */
+  const fetched = [];
+  p.on('response', (r) => { if (/\.js(\?|$)/.test(r.url())) fetched.push(r.url()); });
+
+  await btn.click();
+  await p.locator('#wain-ai-panel').waitFor({ state: 'visible', timeout: 15000 });
+  ok('and tapping it opens the call it did not ship',
+    await p.locator('#wain-ai-panel').isVisible());
+
+  const late = await p.evaluate(async (urls) => {
+    const bodies = await Promise.all(urls.map((u) => fetch(u).then((r) => r.text()).catch(() => '')));
+    return bodies.some((b) => b.includes('webkitSpeechRecognition'));
+  }, fetched);
+  ok(`the tap fetched the call machinery (${fetched.length} chunk(s))`, late, fetched.join(', '));
+  await ctx.close();
+}
+
 console.log(`\n${pass} passed, ${fails.length} failed`);
 await browser.close();
 if (fails.length) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }
