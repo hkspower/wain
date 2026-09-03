@@ -136,6 +136,13 @@ function drawStatic(
     ctx.stroke();
     if (st.label) {
       plate(mk.name, x, y - 12 * u, 11 * u, st.fill || "#fff", latinDisplay());
+      // The Arabic too. roadmap.ts computes it for every marker — the
+      // landmarks, the stations, the start line and the plaza — and only
+      // the district branch above was drawing it, so ten of them were
+      // built on every map open and thrown away. A bilingual map that is
+      // bilingual for one kind of label is a map that looks like it
+      // forgot the rest.
+      plate(mk.arabic, x, y + 2 * u, 10 * u, st.fill || "#fff", arabicUI());
     }
   }
 

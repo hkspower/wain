@@ -23,6 +23,7 @@ import * as THREE from "three";
 import { buildRibbon } from "../src/game/world.ts";
 import { Track, ROAD_HALF_WIDTH, COAST_U, DRIFT_PLAZA } from "../src/game/track.ts";
 import { readFileSync } from "node:fs";
+import { STREETS, STREET_NAMES } from "../src/game/world.ts";
 
 const fail = [];
 const check = (c, m) => { if (!c) fail.push(m); };
@@ -178,6 +179,54 @@ const GROUND_RIBBONS = [
     `studs on halfWidthAt (the constant was ${studWorst.toFixed(2)} m out at s=${studAt}); ` +
     `drift ring clears by ${now.toFixed(3)} m (overhung by ${(-before).toFixed(3)} m)`
   );
+}
+
+// --- 6. Every named thing has ONE name --------------------------------
+// The plaza had three, with no link between them: a blue advance board
+// saying SHARQ CIRCLE / دوّار شرق, a thermoplastic legend on the approach
+// saying دوّار شرق, and a map calling it "Drift circle" / دوّار الدرِفت —
+// which is not even the same place. Renaming it anywhere reached one of
+// the three.
+{
+  const world = readFileSync("src/game/world.ts", "utf8");
+  const map = readFileSync("src/game/roadmap.ts", "utf8");
+  check(typeof DRIFT_PLAZA.name === "string" && DRIFT_PLAZA.name.length > 0,
+    "the plaza must carry its own name");
+  check(typeof DRIFT_PLAZA.arabic === "string" && /[\u0600-\u06FF]/.test(DRIFT_PLAZA.arabic),
+    "the plaza must carry its Arabic");
+  check(!/fillText\("دوّار شرق"/.test(world) && !/roadTextTexture\("دوّار شرق"\)/.test(world),
+    "the board and the road legend must read the table, not a literal");
+  check(!/"Drift circle"/.test(map), "the map must read the table, not its own name for the place");
+  check(map.includes("DRIFT_PLAZA.name") && map.includes("DRIFT_PLAZA.arabic"),
+    "the map must take both halves of the name from the table");
+
+  // The tunnel was called "Hawally" in two places while a third said it
+  // was under the Shamiya junction — and Hawally is not a district in
+  // AREAS at all. It spans 4855-5145, straddling the Shamiya/Mansuriya
+  // boundary at 5000, so it belongs to neither.
+  const track = readFileSync("src/game/track.ts", "utf8");
+  const districts = ["Shamiya", "Mansuriya"];
+  check(!/Hawally tunnel/.test(world) && !/Hawally tunnel/.test(track),
+    "the tunnel must not be named after a district this game does not have");
+  console.log(`one name per place: the plaza is ${DRIFT_PLAZA.name} / ${DRIFT_PLAZA.arabic}, read from the table by all three; the tunnel is named after neither ${districts.join(" nor ")}`);
+}
+
+// --- 7. The unnamed grid says so ---------------------------------------
+// Four avenues and 72 cross streets have no names. The tempting fix is to
+// generate Kuwaiti addresses, and that would be a confident wrong answer:
+// a قطعة is a municipal fact covering an area in two dimensions, and an
+// avenue here is a line of constant lat running through all ten
+// districts. This asserts the hook stays empty and the reason stays
+// written down.
+{
+  const world = readFileSync("src/game/world.ts", "utf8");
+  check(Object.keys(STREET_NAMES).length === 0,
+    "STREET_NAMES ships empty — a generated Kuwaiti address is a claim about a real city");
+  check(/EMPTY BY DESIGN/.test(world), "the hook must say why it is empty");
+  check(/قطعة/.test(world), "the note must name what it is refusing to generate");
+  const avenues = STREETS.avenues.length;
+  const crosses = Math.round(track.length / STREETS.crossEvery);
+  console.log(`${avenues} avenues and ${crosses} cross streets, unnamed on purpose, with the reason recorded`);
 }
 
 console.log(fail.length ? `\nFAILURES:\n  ${fail.join("\n  ")}` : "\nall green");

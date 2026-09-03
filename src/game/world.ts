@@ -78,12 +78,53 @@ export const STREETS = {
   avenues: [30, 74, 126, 188],
   /** A cross street every this many metres of lap — one city block long. */
   crossEvery: 118,
+  /**
+   * The grid has no names, and that is recorded rather than pending.
+   *
+   * Four avenues and 72 cross streets, and not one of them is called
+   * anything. The obvious move is to generate addresses — Kuwait
+   * addresses by area, block and street, منطقة / قطعة / شارع — and every
+   * one of those three is a municipal fact about a real place rather
+   * than something a lap fraction can derive. A قطعة covers an area in
+   * two dimensions; an avenue here is a line of constant `lat` and runs
+   * through all ten districts at once. Street numbers restart per block,
+   * not per district. And Sharq, Kuwait City and Salmiya use named
+   * streets, not numbered ones.
+   *
+   * Generating them anyway would be the mistake the AREAS table above
+   * already records fixing, one level down: those were equal sixths of
+   * the lap, which put Salmiya on the Kuwait City waterfront. A wrong
+   * block number is worse than no block number, because a Kuwaiti reads
+   * it as a claim about their own city — and it would not stay here
+   * either, it would go out through the game data API into the UE5 and
+   * Unity ports as though it had been surveyed.
+   *
+   * The real numbers could not be looked up: Overpass, OpenStreetMap and
+   * Wikipedia are all blocked by this environment's egress policy, which
+   * track.ts records for the control points. STREET_NAMES below is the
+   * hook for them and it ships empty on purpose.
+   */
   /** Streets sit under the highway surface (0.02) so the junction reads
    *  as the highway crossing them, and cross streets sit a hair above
    *  the avenues so the two do not z-fight where they meet. */
   yAvenue: 0.014,
   yCross: 0.016,
 };
+
+/**
+ * Real names for the grid, when someone can survey them.
+ *
+ * Keyed by the street's own identity — `avenue:<index>` for the four
+ * parallel avenues, `cross:<index>` for the 72 cross streets — so a name
+ * added here lands on one street and not on a lap fraction that moves
+ * the next time the track changes length.
+ *
+ * EMPTY BY DESIGN. See the note on STREETS above: the naming here is a
+ * municipal fact, and this game does not have access to it. An empty
+ * table that says so is the honest state; a generated one would be a
+ * confident wrong answer wearing the same shape.
+ */
+export const STREET_NAMES: Record<string, { name: string; arabic: string }> = {};
 
 // Districts in lap order: down Gulf Road, around the Ras Al-Ard point,
 // then back through the Second Ring Road's own districts.
@@ -1281,10 +1322,10 @@ function roundaboutSignTexture(): THREE.CanvasTexture {
   ctx.textAlign = "center";
   ctx.direction = "rtl";
   ctx.font = `700 48px ${arabicSign()}`;
-  ctx.fillText("دوّار شرق", 128, 260);
+  ctx.fillText(DRIFT_PLAZA.arabic, 128, 260);
   ctx.direction = "ltr";
   ctx.font = `600 26px ${latinDisplay()}`;
-  ctx.fillText("SHARQ CIRCLE", 128, 302);
+  ctx.fillText(DRIFT_PLAZA.name.toUpperCase(), 128, 302);
   });
 }
 
@@ -2886,8 +2927,10 @@ function makeBeacon(beacons: THREE.MeshStandardMaterial[]): THREE.Mesh {
   return new THREE.Mesh(new THREE.SphereGeometry(0.9, 8, 6), mat);
 }
 
-// Underpass on the Second Ring, TXR-style. It sits under the Shamiya
-// junction at 5000 m rather than anywhere convenient: the ring's
+// Underpass on the Second Ring, TXR-style. It runs under the junction at
+// 5000 m — which is the Shamiya/Mansuriya boundary, so it belongs to
+// neither and is named after neither — rather than sitting anywhere
+// convenient: the ring's
 // junctions really are grade-separated, and the through lanes really do
 // dive under the cross traffic. Metres in, fraction out — the fraction
 // is what the ribbon and wall builders take, and it has to be recomputed
@@ -4987,7 +5030,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     };
   }
 
-  // Hawally tunnel: concrete walls + ceiling, sodium strip lights inside
+  // The underpass: concrete walls + ceiling, sodium strip lights inside
   {
     const concreteMap = concreteTexture();
     concreteMap.repeat.set(1, 2);
@@ -5481,7 +5524,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       const paint = new THREE.Mesh(
         new THREE.PlaneGeometry(4.6, 2.3),
         new THREE.MeshStandardMaterial({
-          map: roadTextTexture("دوّار شرق"),
+          map: roadTextTexture(DRIFT_PLAZA.arabic),
           transparent: true,
           roughness: 0.55,
           emissive: 0x9a9a92,

@@ -195,7 +195,7 @@ export function buildRoadMap(track: Track): RoadMap {
   for (let i = 0; i < STATIONS.length; i++) {
     add("station", STATIONS[i].s, "Petrol", "محطة بنزين");
   }
-  add("plaza", DRIFT_PLAZA.s, "Drift circle", "دوّار الدرِفت");
+  add("plaza", DRIFT_PLAZA.s, DRIFT_PLAZA.name, DRIFT_PLAZA.arabic);
 
   // Landmarks are registered by buildWorld as it places them, so this
   // list is empty until the world exists. That is deliberate rather than

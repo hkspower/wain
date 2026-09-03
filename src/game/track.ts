@@ -80,6 +80,17 @@ export const DRIFT_PLAZA = {
    *  several hundred metres down the coast from the places they are
    *  named after. */
   s: 551,
+  /**
+   * What it is called, in one place.
+   *
+   * It had three names and no link between them: the blue advance board
+   * said SHARQ CIRCLE / دوّار شرق, the thermoplastic legend painted on the
+   * approach said دوّار شرق, and the map called it "Drift circle" /
+   * دوّار الدرِفت. Renaming it anywhere reached one of the three, and the
+   * map's name was not even the same place as the other two.
+   */
+  name: "Sharq Circle",
+  arabic: "دوّار شرق",
   /** Road half-width grows over this many metres either side of centre. */
   halfSpan: 62,
   /** Peak extra half-width: 7 m becomes 19 m at the middle. */
@@ -173,7 +184,11 @@ export const COAST_END_M = 3423;
  * with it while every metre stayed put.
  */
 export const LAP = {
-  /** The Hawally tunnel: concrete walls, a ceiling, no sky and no rain. */
+  /** The underpass on the Second Ring: concrete walls, a ceiling, no sky
+   *  and no rain. Named for where it is rather than for a district —
+   *  4855 to 5145 straddles the Shamiya/Mansuriya boundary at 5000, so
+   *  either district would be half right, and "Hawally", which two
+   *  comments used to call it, is not in AREAS at all. */
   tunnel: { from: 4855, to: 5145 },
   /** Love Street, where the cruise traffic goes to be seen. */
   love: { from: 6180, to: 7000 },
