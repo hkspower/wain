@@ -205,16 +205,21 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
    1440x700 or a 1920x1080 the old 80svh clamp bound at exactly 80% — a hero
    with nothing under it, on the page whose job is to show what is for sale.
 
-   70svh instead. It is a ceiling, not a size: on a tall window the 1.90 ratio
-   is still what paints, and the cap only bites where the banner was starting
-   to eat the page.
+   70svh first, and then 60svh, because 70 was still too tall — the owner said
+   so looking at it, which is the only measurement that decides this. The cap
+   is what moved, not the 1.90 ratio: the ratio is the banner's shape and there
+   was never anything wrong with it; the cap is how much of the first screen
+   the banner is allowed to take, and that is the thing that was wrong.
 
-     1280x900   674 -> 630   75% -> 70%   (was 595 before the ratio change)
-     1440x700   560 -> 490   80% -> 70%
-     1920x1080  864 -> 756   80% -> 70%
+     1280x900   674 -> 630 -> 540   75% -> 70% -> 60%
+     1440x700   560 -> 490 -> 420   80% -> 70% -> 60%
+     1920x1080  864 -> 756 -> 648   80% -> 70% -> 60%
 
-   So it stays taller than it was on an ordinary laptop, which is what was
-   asked for, and stops swallowing the window on a short one, which was not.
+   At 60svh the cap binds on every ordinary desktop window, so the hero is
+   effectively 60% of the first screen and the ratio only paints on a window
+   taller than 1.90 times its width — a portrait monitor, in practice. That is
+   the intended reading: the shop, not the banner, gets the fold.
+
    The phone is untouched at 43% — the cap is on --hero-h-md and the phone
    reads --hero-h.
 
@@ -228,7 +233,7 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
    the pre-paint shell and the mounted component still read the same number. */
 :root {
   --hero-h: calc(100vw / 1.65 + 128px) !important;
-  --hero-h-md: min(calc(100vw / 1.90), 70svh) !important;
+  --hero-h-md: min(calc(100vw / 1.90), 60svh) !important;
 }
 
 /* AND THE COMPONENT ITSELF, which is what actually sizes the mounted hero.
@@ -240,7 +245,7 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
    Phone: the art sits in an inner box carrying aspect-[2.52/1]; the outer is
    auto and comes to art + the 128px button strip.
    Desktop (md, 768px up): the inner goes aspect-auto and the OUTER carries
-   the ratio, clamped at 80svh. */
+   the ratio, clamped at 60svh. */
 /* SCOPED TO PHONES, which it was not. This rule had no media query, so it
    applied at every width and the desktop rule below it never took effect — the
    comment above claimed desktop was cut to 2.15 and it was measurably 1.85,
@@ -261,7 +266,7 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
      * mounted hero where it was: measured, a 44px disagreement at 1280x900 and
      * 108px at 1920x1080, which is the page jumping at mount, which is the one
      * failure the boot script exists to prevent. Both halves, or neither. */
-    max-height: 70svh !important;
+    max-height: 60svh !important;
   }
 }
 
