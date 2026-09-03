@@ -198,6 +198,26 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
    of every one of the five banners — untouched. Centred, the same depth would
    have cut both edges and taken the mark with it.
 
+   AND THEN CAPPED, because the depth went somewhere it should not have. The
+   ratio is a shape; svh is a share of the window, and only the second one
+   knows how much of the shop the banner is hiding. Measured after the ratio
+   change: 674px on a 1280x900 laptop is 75% of the first screen, and on a
+   1440x700 or a 1920x1080 the old 80svh clamp bound at exactly 80% — a hero
+   with nothing under it, on the page whose job is to show what is for sale.
+
+   70svh instead. It is a ceiling, not a size: on a tall window the 1.90 ratio
+   is still what paints, and the cap only bites where the banner was starting
+   to eat the page.
+
+     1280x900   674 -> 630   75% -> 70%   (was 595 before the ratio change)
+     1440x700   560 -> 490   80% -> 70%
+     1920x1080  864 -> 756   80% -> 70%
+
+   So it stays taller than it was on an ordinary laptop, which is what was
+   asked for, and stops swallowing the window on a short one, which was not.
+   The phone is untouched at 43% — the cap is on --hero-h-md and the phone
+   reads --hero-h.
+
    The +128px on the phone value is the button strip below the art and is
    carried through unchanged — it is measured, not a guess: py-6 top and
    bottom (48) + a 48px button + pb-8 (32).
@@ -208,7 +228,7 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
    the pre-paint shell and the mounted component still read the same number. */
 :root {
   --hero-h: calc(100vw / 1.65 + 128px) !important;
-  --hero-h-md: min(calc(100vw / 1.90), 80svh) !important;
+  --hero-h-md: min(calc(100vw / 1.90), 70svh) !important;
 }
 
 /* AND THE COMPONENT ITSELF, which is what actually sizes the mounted hero.
@@ -234,6 +254,14 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
 @media (min-width: 768px) {
   .hero-strength {
     aspect-ratio: 1.90 / 1 !important;
+    /* AND THE CAP, on the component, because the variable is only half of it.
+     * The bundle ships max-h-[80svh] on this element — its own ceiling, not
+     * read from --hero-h-md — and the two agreed at 80svh only by coincidence.
+     * Lowering the variable alone moved the pre-paint shell and left the
+     * mounted hero where it was: measured, a 44px disagreement at 1280x900 and
+     * 108px at 1920x1080, which is the page jumping at mount, which is the one
+     * failure the boot script exists to prevent. Both halves, or neither. */
+    max-height: 70svh !important;
   }
 }
 
