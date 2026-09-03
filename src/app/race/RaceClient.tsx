@@ -34,6 +34,7 @@ import {
 } from "@/game/settings";
 import { RESOLUTIONS, formatBuffer } from "@/game/render";
 import { hudInset, letterbox, RACE_ASPECT } from "@/game/aspect";
+import { padBrand, padLayout, padLabel, type PadBrand } from "@/game/pads";
 import { VIEWS, viewSpec } from "@/game/views";
 import {
   EXCLUSIVE_CATS,
@@ -1622,11 +1623,25 @@ function raceCut(): { w: number; h: number } | null {
     }
   }, [onHud, showMessage]);
 
-  // A controller is welcomed the moment it wakes up
+  // A controller is welcomed the moment it wakes up — BY NAME, with its
+  // own buttons. The greeting used to say "RT gas · B drift · A NOS" to
+  // everyone, which is the Xbox layout read out to a DualSense owner
+  // whose pad has no button called A on it.
+  const [pad, setPad] = useState<PadBrand | null>(null);
   useEffect(() => {
-    const hello = () => showMessage("Controller connected", "Stick steer · RT gas · LT brake · B drift · X flash · A NOS");
+    const hello = (ev: Event) => {
+      const brand = padBrand((ev as GamepadEvent).gamepad?.id);
+      setPad(brand);
+      const L = (a: Parameters<typeof padLabel>[0]) => padLabel(a, brand);
+      showMessage(
+        brand === "playstation" ? "PlayStation controller connected" : brand === "xbox" ? "Xbox controller connected" : "Controller connected",
+        `${L("steer")} steer · ${L("throttle")} gas · ${L("brake")} brake · ${L("drift")} drift · ${L("flash")} flash · ${L("nos")} NOS`
+      );
+    };
+    const bye = () => setPad(null);
     window.addEventListener("gamepadconnected", hello);
-    return () => window.removeEventListener("gamepadconnected", hello);
+    window.addEventListener("gamepaddisconnected", bye);
+    return () => { window.removeEventListener("gamepadconnected", hello); window.removeEventListener("gamepaddisconnected", bye); };
   }, [showMessage]);
 
   // Coach hints read the live HUD at 4 Hz — enough to feel responsive
@@ -3652,7 +3667,23 @@ function raceCut(): { w: number; h: number } | null {
             <div className="mt-4 font-display text-[0.8rem] leading-[1.5] tracking-wide text-white/70">
               W/↑ accelerate · S/↓ brake · A D steer
               <br />Space drift · N nitro · F flash
-              <br />M mute · B music · V voices · gamepad supported
+              <br />M mute · B music · V voices
+              {/* THE CONTROLLER LAYOUT. One table, drawn in the connected
+                  pad's own glyphs — Cross and Circle on a DualSense, A and
+                  B on an Xbox pad, plain names on anything else. Before
+                  this the whole documentation of a controller was the two
+                  words "gamepad supported". */}
+              <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-left text-[0.8rem] text-white/80">
+                {padLayout(pad ?? "generic").map((r) => (
+                  <div key={r.action} className="flex justify-between gap-3">
+                    <span className="text-white/60">{r.action}</span>
+                    <span className="font-semibold">{r.glyph}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-1 text-[0.7rem] text-white/40">
+                {pad ? (pad === "playstation" ? "PlayStation layout" : pad === "xbox" ? "Xbox layout" : "Generic pad") : "Plug in a pad to see its own buttons"}
+              </div>
             </div>
             <div className="mt-6 flex flex-col gap-2.5">
               <button
@@ -3685,7 +3716,7 @@ function raceCut(): { w: number; h: number } | null {
               </button>
             </div>
             <p className="grn-label mt-4 text-[0.7rem] text-white/66">
-              Esc / gamepad Start to resume · progress is saved
+              Esc / {padLabel("pause", pad ?? "generic")} to resume · progress is saved
             </p>
           </div>
         </div>

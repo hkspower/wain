@@ -1623,6 +1623,105 @@ const FACADE_TILE_M = { x: 39, y: 85 };
  * the same material still compiles for the handful of non-instanced
  * meshes that wear it.
  */
+/** Stem height of a roadside plant, metres. The crown sits on top. */
+const STEM_H = 0.28;
+
+/**
+ * Bend an instanced plant along a per-instance lean.
+ *
+ * `grnBend` is (dirX, dirZ, strength) per instance in the plant's own
+ * frame; `grnWeight` is the per-vertex weight, 0 at the root and 1 at
+ * the tip. The displacement is strength x weight along the
+ * lean, and the top sinks a little as it leans (a stem arcs, it does
+ * not shear), which is the second term. The normal is rotated toward
+ * the lean by the same amount so the lit side follows the surface.
+ */
+function plantBend(mat: THREE.MeshStandardMaterial): void {
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        "#include <common>",
+        `#include <common>
+        #ifdef USE_INSTANCING
+          attribute vec3 grnBend;
+          attribute float grnWeight;
+        #endif`
+      )
+      .replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>
+        #ifdef USE_INSTANCING
+          float grnW = grnWeight;
+          float grnS = grnBend.z * grnW;
+          vec2 grnD = grnBend.xy;
+          transformed.xz += grnD * grnS;
+          // An arc, not a shear: the tip drops as it leans.
+          transformed.y -= grnS * grnS * 0.5;
+        #endif`
+      )
+      .replace(
+        "#include <beginnormal_vertex>",
+        `#include <beginnormal_vertex>
+        #ifdef USE_INSTANCING
+          objectNormal.xz += grnBend.xy * grnBend.z * grnWeight * 0.8;
+          objectNormal = normalize(objectNormal);
+        #endif`
+      );
+  };
+  mat.customProgramCacheKey = () => "grn-plant-bend";
+}
+
+/** The planting, kept for the frame loop's wake solve. */
+let plantsRef: {
+  meshes: THREE.InstancedMesh[];
+  pos: THREE.Vector3[];
+  phase: number[];
+} | null = null;
+
+/**
+ * Solve every plant's lean for this frame: a slow wind everywhere, and
+ * the wake of a passing car on the ones beside it.
+ *
+ * Only plants within WAKE_R of the car are re-solved for the wake; the
+ * rest get wind alone, which is cheap enough to do for all thousand.
+ * The wake pushes AWAY from the car's path and scales with its speed —
+ * a car at 200 km/h drags the verge over as it passes, a car creeping
+ * to a forecourt does not.
+ */
+const WAKE_R = 9;
+const _pw = new THREE.Vector3();
+const _carAt = new THREE.Vector3();
+function solvePlants(t: number, carPos: THREE.Vector3, carSpeed: number): void {
+  const P = plantsRef;
+  if (!P) return;
+  const gust = 0.06 + 0.04 * Math.sin(t * 0.37);
+  const wakeK = Math.min(1, carSpeed / 55) * 0.55;
+  const SHAPES = P.meshes.length;
+  for (let i = 0; i < P.pos.length; i++) {
+    const im = P.meshes[i % SHAPES];
+    const k = Math.floor(i / SHAPES);
+    const bend = im.userData.bend as THREE.InstancedBufferAttribute;
+    if (k >= im.count) continue;
+    // Wind: a gentle lean that drifts, offset per plant.
+    const ph = P.phase[i];
+    let dx = Math.sin(t * 0.9 + ph) * gust;
+    let dz = Math.cos(t * 0.7 + ph * 1.3) * gust;
+    // Wake: away from the car, falling off with distance.
+    _pw.subVectors(P.pos[i], carPos);
+    _pw.y = 0;
+    const d = _pw.length();
+    if (d < WAKE_R && d > 1e-3) {
+      const f = (1 - d / WAKE_R) * wakeK;
+      dx += (_pw.x / d) * f;
+      dz += (_pw.z / d) * f;
+    }
+    const str = Math.min(0.9, Math.hypot(dx, dz));
+    const inv = str > 1e-6 ? 1 / Math.hypot(dx, dz) : 0;
+    bend.setXYZ(k, dx * inv, dz * inv, str);
+  }
+  for (const im of P.meshes) (im.userData.bend as THREE.InstancedBufferAttribute).needsUpdate = true;
+}
+
 function facadeUvScaling(mat: THREE.MeshStandardMaterial): void {
   mat.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader.replace(
@@ -2739,6 +2838,9 @@ export interface WorldHandle {
   setTimeOfDay(hours: number): void;
   /** Turn the roadside crowd to watch the car at this world position. */
   setCrowdFocus(x: number, y: number, z: number, dt: number): void;
+  /** Lean every roadside plant for this frame: wind, plus the wake of
+   *  the car at (x, z) moving at `speed` m/s. */
+  solvePlants(t: number, x: number, z: number, speed: number): void;
   /** The moon — the engine drives its shadow frustum along with the player. */
   moonLight: THREE.DirectionalLight;
   /** The weaker, cooler light opposite the key. Casts nothing. */
@@ -4589,21 +4691,47 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // A mound: an icosahedron pushed down and roughened, so the
     // silhouette is lumpy the way a clipped shrub is rather than
     // spherical the way a ball is.
+    // A plant, in two parts on one geometry: a short woody stem and a
+    // crown of leaves on top of it. The old mound was an icosahedron
+    // pushed into the ground — a shape with no root and no top, which
+    // is why it could not bend: there was nothing to bend AT. The crown
+    // keeps the lumpy silhouette; the stem gives it a place to hinge.
+    //
+    // The bend WEIGHT rides in its own vertex attribute, grnWeight: 0 at
+    // the root, 1 at the tip. That is what the shader multiplies the lean
+    // by, so the base stays planted and the top does the moving, which
+    // is what a stem does. Baked once per shape, free per instance.
     const mound = (seed: number): THREE.BufferGeometry => {
-      const g = new THREE.IcosahedronGeometry(0.5, 1);
-      const pos = g.attributes.position as THREE.BufferAttribute;
+      const crown = new THREE.IcosahedronGeometry(0.5, 1);
+      const pos = crown.attributes.position as THREE.BufferAttribute;
       for (let i = 0; i < pos.count; i++) {
         const k = 0.72 + rand() * 0.5;
         pos.setXYZ(
           i,
           pos.getX(i) * k * (1 + seed * 0.06),
-          // Flattened, and lifted so the mound sits ON the ground
-          // instead of half-buried in it.
-          Math.max(0, pos.getY(i)) * (0.55 + rand() * 0.3),
+          // Lifted onto the stem: the crown's underside starts at the
+          // stem top rather than at the ground.
+          Math.max(0, pos.getY(i)) * (0.55 + rand() * 0.3) + STEM_H,
           pos.getZ(i) * k
         );
       }
+      const stem = new THREE.CylinderGeometry(0.03, 0.05, STEM_H, 5, 1);
+      stem.translate(0, STEM_H / 2, 0);
+      const g = mergeGeometries([stem, crown]);
       g.computeVertexNormals();
+      g.computeBoundingBox();
+      const top = g.boundingBox!.max.y;
+      const p2 = g.attributes.position as THREE.BufferAttribute;
+      const wgt = new Float32Array(p2.count);
+      for (let i = 0; i < p2.count; i++) {
+        const w = Math.max(0, Math.min(1, p2.getY(i) / top));
+        // Cubed: a stem is stiff at the root and whippy at the tip.
+        wgt[i] = w * w * w;
+      }
+      // Its own attribute, not the colour channel. `color` only exists in
+      // the shader under USE_COLOR, which vertexColors:false switches off
+      // — and switching it on would tint the leaves by the weight.
+      g.setAttribute("grnWeight", new THREE.BufferAttribute(wgt, 1));
       return g;
     };
 
@@ -4615,6 +4743,18 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       roughness: 1,
       metalness: 0,
     });
+    // THE BEND. A solved lean per instance, done where a thousand
+    // instances can afford it: in the vertex shader, from one attribute
+    // per plant. The CPU decides how far each plant leans and which way
+    // — wind everywhere, plus the wake of the player's car as it passes
+    // — and writes (x, z, strength) into `grnBend`. The shader takes
+    // grnWeight (0 root, 1 tip) as the weight and displaces
+    // the vertex along the lean by strength x weight, bending the normal
+    // with it so the lit side moves too. Same shape as the facade UV
+    // patch above: replace an include, guard on USE_INSTANCING, and key
+    // the program cache so the instanced compile does not share an
+    // entry with a plain one.
+    plantBend(leafMat);
 
     // Collect the placements first and build to the exact count. An
     // InstancedMesh sized from an estimate either wastes matrices or
@@ -4666,6 +4806,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       g.computeBoundingBox();
       topOf.push(g.boundingBox!.max.y);
       const im = new THREE.InstancedMesh(g, leafMat, per);
+      // Per-plant lean: x, z of the direction, and how far. Dynamic, the
+      // wake rewrites the ones near the car every frame.
+      const bend = new THREE.InstancedBufferAttribute(new Float32Array(per * 3), 3);
+      bend.setUsage(THREE.DynamicDrawUsage);
+      g.setAttribute("grnBend", bend);
+      im.userData.bend = bend;
       im.castShadow = false;
       im.receiveShadow = true;
       im.name = "planting";
@@ -4717,6 +4863,14 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       im.frustumCulled = true;
       scene.add(im);
     }
+    // Hand the planting to the frame loop: positions for the wake
+    // search, the attributes to write, and the plants' own phase so the
+    // wind does not move them all in step.
+    plantsRef = {
+      meshes,
+      pos: spots.map((sp) => { const q = new THREE.Vector3(), t = new THREE.Vector3(); track.pose(sp.s, sp.lat, q, t); return q; }),
+      phase: spots.map(() => rand() * Math.PI * 2),
+    };
   }
 
   // Hawally tunnel: concrete walls + ceiling, sodium strip lights inside
@@ -5535,6 +5689,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     moonLight,
     fillLight,
     skyFollowers,
+    solvePlants(t: number, x: number, z: number, speed: number) {
+      _carAt.set(x, 0, z);
+      solvePlants(t, _carAt, speed);
+    },
     setSky(mode: SkyMode) {
       // The old two-state switch, expressed in the language of the
       // clock: these are the hours those looks actually are.

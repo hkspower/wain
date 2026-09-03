@@ -52,6 +52,7 @@ import {
   type BrakeResult,
 } from "./brakes";
 import { GEARS, revFractionIn, upshiftAt } from "./gears";
+import { PAD } from "./pads";
 import { playerId, inviteCode, normaliseCode, isCodeShaped } from "./community";
 import { distanceById, distanceMetres, DEFAULT_DISTANCE } from "./distances";
 import {
@@ -2825,25 +2826,28 @@ export class GameEngine {
     };
 
     if (!this.paused) {
-      const x = gp.axes[0] ?? 0;
+      const x = gp.axes[PAD.steer] ?? 0;
       const dz = 0.15;
       this.pad.steer =
         Math.abs(x) < dz ? 0 : Math.sign(x) * Math.pow((Math.abs(x) - dz) / (1 - dz), 1.3);
-      this.pad.throttle = gp.buttons[7]?.value ?? 0; // RT
-      this.pad.brake = gp.buttons[6]?.value ?? 0; // LT
-      this.pad.nos = gp.buttons[0]?.pressed ?? false; // A / Cross
-      this.pad.drift = gp.buttons[1]?.pressed ?? false; // B / Circle
-      if (edge(2)) this.tryFlash(); // X / Square
-      const hornNow = gp.buttons[4]?.pressed ?? false; // LB
-      if (hornNow && !this.padButtons[4]) this.sound?.hornOn();
-      if (!hornNow && this.padButtons[4]) this.sound?.hornOff();
-      this.padButtons[4] = hornNow;
+      // Indices come from the one table the controls screen draws
+      // from — see pads.ts. They used to sit here as literals with the
+      // names in comments, which is a diagram that can drift.
+      this.pad.throttle = gp.buttons[PAD.throttle]?.value ?? 0;
+      this.pad.brake = gp.buttons[PAD.brake]?.value ?? 0;
+      this.pad.nos = gp.buttons[PAD.nos]?.pressed ?? false;
+      this.pad.drift = gp.buttons[PAD.drift]?.pressed ?? false;
+      if (edge(PAD.flash)) this.tryFlash();
+      const hornNow = gp.buttons[PAD.horn]?.pressed ?? false;
+      if (hornNow && !this.padButtons[PAD.horn]) this.sound?.hornOn();
+      if (!hornNow && this.padButtons[PAD.horn]) this.sound?.hornOff();
+      this.padButtons[PAD.horn] = hornNow;
     } else {
       this.pad = { steer: 0, throttle: 0, brake: 0, drift: false, nos: false };
-      this.padButtons[2] = gp.buttons[2]?.pressed ?? false;
-      this.padButtons[4] = gp.buttons[4]?.pressed ?? false;
+      this.padButtons[PAD.flash] = gp.buttons[PAD.flash]?.pressed ?? false;
+      this.padButtons[PAD.horn] = gp.buttons[PAD.horn]?.pressed ?? false;
     }
-    if (edge(9)) {
+    if (edge(PAD.pause)) {
       // Start: during the film it skips; otherwise the UI takes over
       if (this.cine) this.skipCinematic();
       else this.events.onPauseRequest?.();
@@ -3214,8 +3218,18 @@ export class GameEngine {
     const body = group.userData.bodyMat as THREE.MeshPhysicalMaterial | undefined;
     if (body) {
       body.envMap = env;
-      // The live probe carries real HDR lamps — rein the gain back in.
-      body.envMapIntensity = this.liveReflections ? 1.35 : 2.1;
+      // 2.1 on BOTH tiers. This was 1.35 on the live probe, on a clipping
+      // argument recorded on the rims below — and measured on the road at
+      // night the argument does not bind: swept 1.35 / 1.7 / 2.1 / 2.6 on
+      // navy gloss at metalness 0.95, clipping was 0.00% at every gain.
+      // What 1.35 was actually doing was making the tier that costs more
+      // reflect LESS — the probe sees the real lamps at about 2.6x white
+      // where the static sky's synthetic ones sit at 8.5x, and sampling
+      // the dimmer environment at the lower gain compounded it. At 2.1
+      // the probe lifts 13.1% of the paint by more than 25 (7.4% before)
+      // and the bright end goes from 109 to 120. The rims keep their own
+      // 1.9x on top for the same reason they always had it.
+      body.envMapIntensity = 2.1;
       body.needsUpdate = true;
     }
     // The rims, chrome and brake discs mirror the same world the paint
@@ -3976,6 +3990,16 @@ export class GameEngine {
       dt
     );
     this.world.tick(dt);
+    // The verge answers the car. Wind on every plant, and the wake of
+    // this one on the plants beside it — solved on the CPU into one
+    // attribute per instance and bent in the vertex shader, which is the
+    // only place a thousand of them can afford to move.
+    this.world.solvePlants(
+      performance.now() / 1000,
+      this.playerMesh.position.x,
+      this.playerMesh.position.z,
+      this.player.speed
+    );
     this.updateEffects(dt);
     this.emitHud();
   }
