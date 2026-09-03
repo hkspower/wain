@@ -111,30 +111,214 @@ function readNumber(text) {
 /* ------------------------------ المناطق ------------------------------ */
 
 /**
- * فهرس المناطق بعد التطبيع — يُبنى مرّةً واحدة.
- * التطبيع يوحّد ة/ه وأ/ا وى/ي، وهو ما يقع فعلًا في نصّ التعرّف على الكلام.
+ * ── لماذا لم يعد البحث بـ`indexOf` ──────────────────────────────────
+ * كان الاسم يُبحث عنه نصًّا داخل نصّ، بلا حدّ كلمة. و«السلام» منطقة في حولي،
+ * فكانت **«السلام عليكم» تُقرأ منطقة استلام** — وهي تفتتح كل رسالة واتساب
+ * تقريبًا. جُرّبت هذه الجملة كما تُكتب فعلًا:
+ *
+ *     «السلام عليكم، أبغى توصيل من السالمية قطعة ٤ إلى الجابرية قطعة ٧»
+ *     الاستلام: السلام  ·  التسليم: السالمية  ·  والجابرية سقطت
+ *
+ * أي أن التحيّة أزاحت الطلب كلّه خانةً: الكابتن يستلم من مكانٍ لم يُذكر
+ * ويسلّم في مكان الاستلام. ولم يكن ذلك يُرى في الشاشة، لأن ما يُعرض صحيحُ
+ * الشكل: منطقتان من القائمة وقطعة.
+ *
+ * فصار النصّ يُقسَّم كلماتٍ أولًا، ولا يُطابَق إلّا على كلمةٍ كاملة أو عدّة
+ * كلمات كاملة. و«عليكم» ليست كلمةً في «السلام»، فلا تلتقي بها.
+ *
+ * ── والزمن ──────────────────────────────────────────────────────────
+ * كان الأمر ‏١١٥ بحثًا في النصّ لكل جملة، وصار جدولًا واحدًا (‏Map) يُبنى
+ * مرّةً عند الإقلاع فيُسأل عن الكلمة وما بعدها سؤالًا واحدًا. فالزمن الآن
+ * بعدد كلمات الرسالة لا بعدد مناطق الكويت — وهو ما يسمح بأن تكبر القائمة
+ * والأسماء الدارجة معها بلا ثمنٍ في كل طلب.
+ *
+ * لكنّ أوّل صياغةٍ لهذا كانت **أبطأ** من المسح الخطّي الذي حلّت محلّه
+ * (‏٣٣ جزءًا من المليون مقابل ١٥ على رسالةٍ واقعية)، لأن كل كلمةٍ كانت
+ * تُوحَّد وقت القراءة وتُبنى منها أربع سلاسل تُسأل عنها. فنُقل التوحيد إلى
+ * وقت البناء — تُخزَّن الصيغة بهمزتها وبلا همزتها معًا — وسُبق البحث بسؤالٍ
+ * رخيص: هل هذه الكلمة أوّلُ اسمِ منطقةٍ أصلًا؟ وأكثرُ كلمات أي رسالة ليست
+ * كذلك، فتُتخطّى بلا بحث. القياس هو ما دلّ على هذا، لا الشكل.
  */
-const AREA_INDEX = AREA.ALL_AREAS
-  .map((name) => ({ name, key: ar.normalize(name).toLowerCase() }))
-  .sort((a, b) => b.key.length - a.key.length); // الأطول أولًا: «أبو حليفة» قبل «أبو»
 
-/** يبحث عن كل منطقة مذكورة في النصّ، ومعها موضعها */
-function findAreas(normText) {
-  const hits = [];
-  const taken = [];
-  for (const area of AREA_INDEX) {
-    let from = 0;
-    for (;;) {
-      const at = normText.indexOf(area.key, from);
-      if (at < 0) break;
-      from = at + area.key.length;
-      /* منطقة داخل اسم منطقة أطول سبق التقاطها لا تُحسب مرّتين */
-      if (taken.some(([s, e]) => at >= s && at < e)) continue;
-      taken.push([at, from]);
-      hits.push({ name: area.name, at });
-    }
+/** أطول اسم منطقة بالكلمات («ضاحية عبدالله السالم» ثلاث) — يُحسب لا يُخمَّن */
+let GRAM_MAX = 1;
+
+/**
+ * صيغة المفتاح: التطبيع نفسه الذي يمرّ به نصّ الرسالة، لا أكثر.
+ *
+ * وإسقاط الهمزة ليس هنا بل في `put`، لأن الصيغتين تُخزَّنان معًا: «الجهراء»
+ * كما تُكتب، و«الجهرا» كما تُكتب مستعجلًا. ولو أُسقطت الهمزة هنا لضاعت
+ * الصيغة الصحيحة نفسها — وهو ما وقع: سقطت الجهراء والزهراء والشهداء
+ * والفيحاء وتيماء وميناء عبدالله من الجدول، ولم يبقَ إلّا خطأُ كتابتها.
+ */
+const key = (s) => ar.normalize(String(s)).toLowerCase().trim();
+
+/**
+ * الجدول: صيغةٌ مكتوبة ← { الاسم الرسمي، وهل تحتاج إشارة مكان }.
+ *
+ * تُولَّد لكل اسم صيغُه كما تُكتب فعلًا: باللاصقات العربية («بالسالمية»،
+ * «للسالمية»، «والسالمية»)، وبلا أداة تعريف («سالمية»)، وملصوقًا بلا مسافة
+ * («بنيدالقار») لأن التعرّف على الكلام يلصق ويفصل بلا قاعدة.
+ *
+ * والصيغة المجرّدة من «ال» **تحتاج إشارة مكان دائمًا**: «شرق» و«قبلة»
+ * و«صديق» و«عيون» كلماتٌ عربية قبل أن تكون مناطق، ولا تصير مناطق إلّا حين
+ * يسبقها «من» أو «إلى» أو تتبعها قطعة.
+ */
+const INDEX = new Map();
+
+/**
+ * يضيف مفتاحًا. والصيغة المولَّدة لا تطمس صيغةً مكتوبة: لو صادف أن لاصقةً
+ * على اسمٍ أنتجت حروف اسمٍ آخر، فالمكتوب أولى بالمعنى من المولَّد.
+ */
+function put(key, name, needsSignal, primary) {
+  if (!key) return;
+  /* بهمزتها وبلا همزتها معًا: «الجهراء» و«الجهرا» مكانٌ واحد، والفرق يقع
+     في الكتابة السريعة. وتُخزَّن الصيغتان هنا لئلّا تُوحَّد كلُّ كلمةٍ من
+     كل رسالة وقت القراءة — التوحيد مرّةً عند البناء أرخص من ملايين المرّات. */
+  for (const k of new Set([key, key.replace(/[ءـ]/g, '')])) {
+    const had = INDEX.get(k);
+    if (had && had.primary && !primary) continue;
+    INDEX.set(k, { name, needsSignal, primary: !!primary });
+    FIRST.add(k.split(' ', 1)[0]);
   }
-  return hits.sort((a, b) => a.at - b.at);
+}
+
+/** أوّل كلمةٍ من كل مفتاح — يُسأل عنها قبل البحث فتُتخطّى أكثرُ الكلمات */
+const FIRST = new Set();
+
+/** لاصقات أداة التعريف كما تُكتب: «بالسالمية»، «للسالمية»، «والسالمية» */
+const ARTICLE = ['ال', 'لل', 'بال', 'وال', 'فال', 'كال', 'بالـ'];
+/** لاصقات على الاسم كما هو: «وحولي»، «لحولي» */
+const BARE = ['و', 'ف', 'ب', 'ل', 'ك'];
+
+function index(written, official) {
+  const k = key(written);
+  if (!k) return;
+  const soft = AREA.AMBIGUOUS.has(official) || AREA.AMBIGUOUS.has(written);
+  GRAM_MAX = Math.max(GRAM_MAX, k.split(' ').length);
+
+  put(k, official, soft, true);                          // مكتوبة كما هي
+  put(k.replace(/ /g, ''), official, soft);              // «بنيدالقار»
+  for (const p of BARE) put(p + k, official, soft);      // «وحولي»
+
+  if (k.startsWith('ال')) {
+    const stem = k.slice(2);
+    /* المجرّدة من «ال» ظنّ لا يقين: تُقبل بإشارة مكان وحدها */
+    put(stem, official, true);
+    for (const p of ARTICLE) put(p + stem, official, soft);
+    for (const p of BARE) put(p + stem, official, true);
+  }
+}
+
+for (const name of AREA.ALL_AREAS) index(name, name);
+for (const [said, official] of Object.entries(AREA.ALIASES)) index(said, official);
+
+/* اسمٌ دارجٌ يشير إلى منطقةٍ ليست في القائمة خطأٌ صامت: يُملأ حقلٌ بقيمةٍ
+   يرفضها الخادم لاحقًا («… ليست من مناطق الكويت») فيُحرم الزبون طلبه بلا
+   سبب مفهوم. فيُكشف عند الإقلاع لا عند أوّل زبون. */
+for (const official of Object.values(AREA.ALIASES)) {
+  if (!AREA.AREA_TO_GOV[official]) {
+    throw new Error(`جدول الأسماء الدارجة يشير إلى «${official}» وليست في قائمة المناطق`);
+  }
+}
+
+/**
+ * كلمات تجعل ما بعدها مكانًا — إشارةٌ صريحة لا استنتاج.
+ *
+ * وتُطبَّع الكلمات هنا كما يُطبَّع النصّ الذي تُقارَن به، ولا تُكتب مطبَّعةً
+ * باليد: «إلى» تصير «الي» بعد التطبيع (ى ← ي)، وكانت مكتوبةً «الى» في
+ * قوائم الاتجاه فلم تُطابِق شيئًا قطّ. أثر ذلك أن «توصيل إلى الجابرية» كان
+ * يملأ **الاستلام** بعنوان التسليم — فيذهب الكابتن ليستلم من حيث يجب أن
+ * يسلّم. وما كان ليُرى: الحقل ممتلئ بمنطقةٍ صحيحة من القائمة.
+ *
+ * والقاعدة العامّة: ما يُقارَن بنصٍّ مطبَّع يُطبَّع بالأداة نفسها، لا بالنظر.
+ */
+const normSet = (words) => new Set(words.map((w) => ar.normalize(w).toLowerCase()));
+
+/* «يوصل» و«توصيل» ليستا إشارتَي مكان: «أبغى أوصل هدية» ليس عنوانًا. جُرّبتا
+   ثمّ نُزعتا لمّا التقطتا «قبل الظهر» في جملةٍ عن الوقت. */
+const PLACE_BEFORE = normSet([
+  'من', 'إلى', 'الى', 'في', 'عند', 'لين', 'حق', 'صوب', 'باتجاه',
+  'منطقة', 'بمنطقة', 'لمنطقة', 'ضاحية', 'محافظة',
+  'الاستلام', 'التسليم', 'العنوان', 'الوجهة', 'موقع',
+]);
+
+const NUMBER = /^[٠-٩0-9]+$/;
+
+/**
+ * يقسم النصّ كلماتٍ ومعها مواضعها.
+ *
+ * الكلمة تُؤخذ كما وردت في النصّ المطبَّع، بلا توحيدٍ إضافيّ هنا: الجدول
+ * يحمل الصيغتين (بهمزة وبلا همزة) فيلتقيان عنده. ولو وُحِّدت الكلمة هنا
+ * لدُفع ثمن ذلك في كل كلمةٍ من كل رسالة.
+ *
+ * وقد وقع الخطأ المقابل أوّل مرّة: وُحِّدت مفاتيح الجدول ولم تُوحَّد كلمات
+ * النصّ، فصار مفتاح «ميناء الأحمدي» بلا همزة والنصّ بهمزة فلم يلتقيا،
+ * وسقطت معهما كل منطقةٍ في اسمها همزة — الجهراء والزهراء والشهداء
+ * والفيحاء وتيماء. الطرفان يلتقيان أو لا يلتقي أحد.
+ */
+function words(normText) {
+  const out = [];
+  const re = /[^\s،,.؟?!؛;:()"'\-–—/\\]+/g;
+  let m;
+  while ((m = re.exec(normText))) out.push({ w: m[0], at: m.index });
+  return out;
+}
+
+/**
+ * يبحث عن كل منطقة مذكورة في النصّ، ومعها موضعها.
+ *
+ * `addressed`: النصّ كلّه عنوانٌ صريح («الاستلام: هدية») فلا تُطلَب إشارة
+ * مكان — من كتب «الاستلام:» قال ما بعدها مكانٌ صراحةً.
+ */
+function findAreas(text, { addressed = false } = {}) {
+  /* الدالّة مصدَّرة، وعقدها «نصٌّ مطبَّع» عقدٌ يُنسى: من مرّر نصًّا خامًا لم
+     يحصل على خطأ بل على **لا شيء** — والصمت لا يُقرأ عطبًا. فيُفحص المدخل
+     فحصًا رخيصًا مرّةً واحدة: إن كان فيه ما يغيّره التطبيع طُبِّع هنا،
+     ومواضعُ ما يُعاد تكون في النصّ المطبَّع. والمستدعي الداخليّ يمرّر
+     مطبَّعًا أصلًا فلا يدفع شيئًا. */
+  const normText = /[ةأإآىؤئًٌٍَُِّْـ]/.test(text) ? ar.normalize(text) : text;
+  const toks = words(normText);
+  const hits = [];
+
+  for (let i = 0; i < toks.length; i++) {
+    /* السؤال الرخيص أوّلًا: أكثرُ كلمات الرسالة ليست أوّلَ اسمِ منطقة،
+       فتُتخطّى بلا بناء سلاسل ولا بحثٍ في الجدول. */
+    if (!FIRST.has(toks[i].w)) continue;
+
+    /* تُبنى السلسلة كلمةً كلمةً ويُحتفَظ بأطول ما طابق: «صباح الأحمد
+       البحرية» تغلب «صباح الأحمد». والبناء تراكميّ بلا نسخ مصفوفات. */
+    let gram = toks[i].w;
+    let best = null;
+    const span = Math.min(GRAM_MAX, toks.length - i);
+    for (let n = 1; n <= span; n++) {
+      if (n > 1) gram += ' ' + toks[i + n - 1].w;
+      const hit = INDEX.get(gram);
+      if (hit && (addressed || !hit.needsSignal || hasPlaceSignal(toks, i, n))) best = { hit, n };
+    }
+    if (!best) continue;
+
+    const last = toks[i + best.n - 1];
+    /* طول ما قُرئ لا طول الاسم الرسميّ: «الجليب» ستّة أحرف و«جليب الشيوخ»
+       أحد عشر، ومن نزع الاسم الرسميّ من النصّ نزع ما ليس فيه. */
+    hits.push({ name: best.hit.name, at: toks[i].at, len: last.at + last.w.length - toks[i].at });
+    i += best.n - 1;                     // ما التُقط لا يُقرأ ثانيةً
+  }
+  return hits;
+}
+
+/** إشارة مكان: كلمةُ اتجاهٍ قبلها، أو قطعةٌ بعدها */
+function hasPlaceSignal(toks, i, n) {
+  for (let k = 1; k <= 2 && i - k >= 0; k++) {
+    if (PLACE_BEFORE.has(toks[i - k].w)) return true;
+  }
+  for (let k = 0; k < 3; k++) {
+    const t = toks[i + n + k];
+    if (!t) break;
+    if (t.w === 'قطعه' || t.w === 'قطعة' || /^ق[٠-٩0-9]+$/.test(t.w)) return true;
+    if (t.w === 'ق' && toks[i + n + k + 1] && NUMBER.test(toks[i + n + k + 1].w)) return true;
+  }
+  return false;
 }
 
 /* ------------------------------ الهاتف ------------------------------ */
@@ -277,7 +461,9 @@ function readMoney(text) {
 function parseAddressValue(value) {
   const text = String(value || '');
   const norm = ar.normalize(text).toLowerCase().replace(/\s+/g, ' ');
-  const hit = findAreas(norm)[0] || null;
+  /* السطر كلّه عنوانٌ صريح: من كتب «الاستلام:» قال ما بعدها مكان، فلا يُطلب
+     دليلٌ إضافيّ على أن «هدية» منطقة. */
+  const hit = findAreas(norm, { addressed: true })[0] || null;
 
   /* «قطعة ٤» و«ق٤» و«ق ٤» — والاختصار شائع في الملصوق */
   const bm = norm.match(/(?:قطعه|ق)\s*[.:]?\s*(\S+(?:\s+\S+)?)/);
@@ -285,10 +471,7 @@ function parseAddressValue(value) {
 
   /* الشارع = ما بقي بعد نزع اسم المنطقة وعبارة القطعة */
   let street = text;
-  if (hit) {
-    const at = norm.indexOf(ar.normalize(hit.name).toLowerCase());
-    if (at >= 0) street = street.slice(0, at) + ' ' + street.slice(at + hit.name.length);
-  }
+  if (hit) street = street.slice(0, hit.at) + ' ' + street.slice(hit.at + hit.len);
   street = street
     .replace(/(?:قطعه|قطعة|ق)\s*[.:]?\s*[٠-٩0-9]+/g, ' ')
     .replace(/^[\s،,.\-–—]+|[\s،,.\-–—]+$/g, '')
@@ -298,8 +481,10 @@ function parseAddressValue(value) {
   return { area: hit?.name || null, block, street: street.length >= 2 ? street : null };
 }
 
-const FROM_WORDS = ['من'];
-const TO_WORDS = ['الى', 'ل', 'لين', 'حق', 'عند'];
+/* تُطبَّع كما يُطبَّع النصّ — انظر `normSet` أعلاه: «إلى» المكتوبة باليد
+   لا تساوي «الي» التي تصل من التطبيع. */
+const FROM_WORDS = normSet(['من']);
+const TO_WORDS = normSet(['إلى', 'الى', 'ل', 'لين', 'حق', 'عند']);
 
 /** موضع أول كلمة اتجاه قبل موضع المنطقة — أيّهما أقرب */
 function directionBefore(normText, at) {
@@ -307,16 +492,21 @@ function directionBefore(normText, at) {
   const words = before.split(/\s+/);
   for (let i = words.length - 1; i >= 0 && i > words.length - 5; i--) {
     const w = words[i];
-    if (FROM_WORDS.includes(w)) return 'from';
-    if (TO_WORDS.includes(w)) return 'to';
+    if (FROM_WORDS.has(w)) return 'from';
+    if (TO_WORDS.has(w)) return 'to';
   }
   return null;
 }
 
-/** رقم القطعة المذكور بعد منطقةٍ وقبل التي تليها */
+/**
+ * رقم القطعة المذكور بعد منطقةٍ وقبل التي تليها.
+ * و«ق٤» و«ق ٤» تُقرآن كما تُقرأ «قطعة ٤»: الاختصار هو ما يُكتب فعلًا في
+ * الرسائل، وكان يُهمل هنا وإن قُرئ في العنوان المعنون — فيُسأل الزبون عن
+ * قطعةٍ كتبها.
+ */
 function blockNear(normText, at, nextAt) {
   const span = normText.slice(at, nextAt === undefined ? normText.length : nextAt);
-  const m = span.match(/قطعه\s+(\S+(?:\s+\S+)?)/);
+  const m = span.match(/(?:قطعه\s*[.:]?\s*|(?<![ء-ي])ق\s*[.:]?\s*(?=[٠-٩0-9]))(\S+(?:\s+\S+)?)/);
   if (!m) return null;
   return readNumber(m[1]);
 }
@@ -467,5 +657,5 @@ function parseOrder(transcript) {
 
 module.exports = {
   parseOrder, readNumber, readMoney, findPhone, findName, findAreas,
-  splitLabelled, parseAddressValue, LABELS, AREA_INDEX,
+  splitLabelled, parseAddressValue, LABELS, AREA_INDEX: INDEX,
 };

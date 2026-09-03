@@ -86,6 +86,22 @@ function prep(row) {
 const THRESHOLD = 5;
 
 /**
+ * المدخلات مجهّزةً للمطابقة، محفوظةً بين الرسائل.
+ *
+ * كان كلّ ما يقوله الزبون — سؤالًا كان أو وصفَ طلب — يُعيد قراءة الجدول من
+ * القاعدة ويُعيد تجذير كل مفتاحٍ في كل مدخلة: نحو مئة عملية تطبيعٍ وتجذير
+ * في كلّ رسالة، وكلُّها على محتوًى لم يتغيّر. وقيس أثر ذلك: جوابُ المعرفة
+ * ‏٢٨٠ جزءًا من المليون من الثانية، خمسةَ أضعاف قراءةِ الطلب كلّه.
+ *
+ * فتُجهَّز مرّةً وتُبطَل عند كل تعديل. والإبطال في مكانٍ واحد (`touch`)
+ * تستدعيه كلُّ كتابة: ذاكرةٌ تُملأ ولا تُبطَل تجعل المكتب يعدّل جوابًا في
+ * اللوحة فلا يتغيّر شيء عند الزبون — وهو عطبٌ لا يُرى إلّا بعد فوات وقته.
+ */
+let PREPPED = null;
+const touch = () => { PREPPED = null; };
+const prepared = () => (PREPPED || (PREPPED = active().map(prep)));
+
+/**
  * أفضل مدخلة تطابق كلام الزبون، أو `null`.
  *
  * المطابقة **بالكلمة كاملةً لا بجزئها**: «موظف» داخل «موظفيكم» ليست
@@ -95,7 +111,9 @@ function match(text, rows) {
   const q = stemmed(text);
   if (q.length < 3) return null;
   const toks = q.split(' ');
-  const list = (rows || active()).map(prep);
+  /* المدخلات المعطاة صراحةً (تجربةُ اللوحة) لا تُخزَّن: قد تكون مسوّدةً
+     لم تُحفظ بعد، وحفظُها في الذاكرة يجعلها تجيب زبونًا لم تُعتمد له. */
+  const list = rows ? rows.map(prep) : prepared();
 
   let best = null;
   let bestScore = 0;
@@ -205,7 +223,9 @@ function create(actor, body) {
     resolveMisses();
     return info.lastInsertRowid;
   });
-  return shape(get(run()));
+  const id = run();
+  touch();
+  return shape(get(id));
 }
 
 function update(actor, id, body) {
@@ -229,6 +249,7 @@ function update(actor, id, body) {
     resolveMisses();
   });
   run();
+  touch();
   return shape(get(id));
 }
 
@@ -239,6 +260,7 @@ function remove(actor, id) {
     logFaq(null, actor, 'deleted', row.question, '');
   });
   run();
+  touch();
   return { deleted: true };
 }
 
@@ -392,6 +414,7 @@ function ensureSeed() {
     }
   });
   run();
+  touch();
 }
 
 module.exports = {
