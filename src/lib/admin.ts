@@ -283,6 +283,19 @@ export interface ProductImage {
   height: number | null;
 }
 
+/** A brand as the panel edits it. name_en and name_ar are both required by the
+ *  server: a shop that reads in two languages cannot have a brand that only
+ *  names itself in one. */
+export type Brand = {
+  id: number;
+  slug: string;
+  name_en: string;
+  name_ar: string;
+  logo: string | null;
+  active: boolean | number;
+  sort: number;
+};
+
 /** A garment as the uploader needs to find it: by brand, by size, by sku. */
 export interface UploadTarget {
   sku: string;
@@ -791,6 +804,38 @@ export const adminApi = {
    *  first is the product's main photograph. */
   reorderProductImages: (slug: string, ids: number[]) =>
     call<{ ok: true }>('product_image_reorder', { slug, ids }),
+
+  // ------------------------------------------------------------------ brands
+
+  /** Every brand, shown or hidden, in the order the storefront lists them.
+   *  `logo` is a data URI or null — brands are few and the logos are small, so
+   *  the server sends them with the list rather than as one request each. */
+  brands: () => call<Brand[]>('brands'),
+
+  /** Create or rename. ONE call for both, because the server is one route and
+   *  the difference is whether an id came with it — mirroring that here keeps
+   *  the screen's single form honest instead of inventing a second endpoint
+   *  the server does not have.
+   *
+   *  `logo` follows the server's three-way convention exactly: leave it
+   *  undefined to keep the logo that is there, pass a data URI to replace it,
+   *  pass '' to remove it. Undefined and empty string mean different things,
+   *  which is why this takes `logo?: string` rather than `logo: string | null`
+   *  — null would have to pick one of the two and would silently be the wrong
+   *  one half the time. */
+  saveBrand: (b: {
+    id?: number;
+    name_en: string;
+    name_ar: string;
+    slug?: string;
+    sort?: number;
+    logo?: string;
+  }) => call<Brand>('brand_save', b),
+
+  /** Show it or stop showing it. There is deliberately no delete: a brand with
+   *  orders behind it is history, and hiding is the reversible answer. */
+  setBrandActive: (id: number, active: boolean) =>
+    call<{ id: number; slug: string; active: boolean }>('brand_active', { id, active }),
 
   deleteDiscount: (id: number) => call<{ ok: true }>('discount_delete', { id }),
 

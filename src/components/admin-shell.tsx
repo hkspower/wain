@@ -57,6 +57,10 @@ export function AdminShell({
     ['/backends/stock', 'Stock'],
     ['/backends/promos', 'Promotions'],
     ['/backends/images', 'Photos'],
+    // After Photos, because it is the same kind of job — a picture and a name
+    // attached to something the shop sells — and before Settings, which is
+    // where things go that are changed once a year.
+    ['/backends/brands', 'Brands'],
     ['/backends/settings', 'Settings'],
   ];
 

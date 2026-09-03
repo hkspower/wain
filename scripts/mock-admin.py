@@ -148,8 +148,19 @@ def _fresh():
                     'name_ar': 'ليقنز كلاودسوفت — كحلي',
                     'slug': 'cloudsoft-leggings-navy', 'image': None}]},
     ]
+    # Two brands, one with a logo and one without, because the screen renders
+    # those two cases differently and a fixture with only the easy one proves
+    # only the easy one. The logo is a 1x1 PNG — the smallest thing that is
+    # genuinely a data URI, so the <Image> has something real to load.
+    brands = [
+        {'id': 1, 'slug': 'sporta', 'name_en': 'Sporta', 'name_ar': 'سبورتا',
+         'logo': 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+         'active': 1, 'sort': 0},
+        {'id': 2, 'slug': 'ahed', 'name_en': 'AHED', 'name_ar': 'عهد',
+         'logo': None, 'active': 1, 'sort': 1},
+    ]
     return {'orders': orders, 'items': items, 'variants': variants, 'discounts': discounts,
-            'products': products,
+            'products': products, 'brands': brands,
             # FOUR PHOTOGRAPHS ON THE FIRST GARMENT, so the gallery exists
             # for a rig to look at. It used to start empty, and the gallery
             # is three taps in — which is how a 22pt Remove button that
@@ -311,6 +322,9 @@ class Handler(BaseHTTPRequestHandler):
                 {'id': i['id'], 'sort': i['sort'],
                  'url': f"api.php?r=product_image&id={i['id']}&v={i['v']}",
                  'width': i['width'], 'height': i['height']} for i in rows]})
+
+        if r == 'brands':
+            return self._json(200, STATE['brands'])
 
         if r == 'discounts':
             return self._json(200, STATE['discounts'])
@@ -562,6 +576,50 @@ class Handler(BaseHTTPRequestHandler):
                 STATE['next_discount'] += 1
                 STATE['discounts'].append(row)
             return self._json(200, {'id': row['id']})
+
+        if r == 'brand_save':
+            # ONE ROUTE FOR ADD AND EDIT, exactly as admin.php has it: an id
+            # means rename, no id means create. Mirroring that shape is the
+            # whole point of this file — a mock that split them would let the
+            # app be written against a server that does not exist.
+            name_en = (b.get('name_en') or '').strip()
+            name_ar = (b.get('name_ar') or '').strip()
+            if not name_en or not name_ar:
+                return self._json(400, {'error': 'bad_request'})
+            slug = (b.get('slug') or '').strip().lower().replace(' ', '-')
+            if not slug:
+                slug = re.sub(r'[^a-z0-9]+', '-', name_en.lower()).strip('-')
+            if not slug:
+                return self._json(400, {'error': 'invalid_slug'})
+            bid = int(b.get('id') or 0)
+            clash = [x for x in STATE['brands'] if x['slug'] == slug and x['id'] != bid]
+            if clash:
+                return self._json(400, {'error': 'slug_taken'})
+            for x in STATE['brands']:
+                if x['id'] == bid:
+                    x['name_en'], x['name_ar'], x['slug'] = name_en, name_ar, slug
+                    # ABSENT MEANS LEAVE IT, '' MEANS REMOVE IT — the server's
+                    # three-way convention, and the reason this checks the key
+                    # rather than the value.
+                    if 'logo' in b:
+                        x['logo'] = b['logo'] or None
+                    if 'sort' in b:
+                        x['sort'] = int(b.get('sort') or 0)
+                    return self._json(200, x)
+            row = {'id': max([x['id'] for x in STATE['brands']] or [0]) + 1,
+                   'slug': slug, 'name_en': name_en, 'name_ar': name_ar,
+                   'logo': (b.get('logo') or None), 'active': 1,
+                   'sort': int(b.get('sort') or 0)}
+            STATE['brands'].append(row)
+            return self._json(200, row)
+
+        if r == 'brand_active':
+            for x in STATE['brands']:
+                if x['id'] == int(b.get('id') or 0):
+                    x['active'] = 1 if b.get('active') else 0
+                    return self._json(200, {'id': x['id'], 'slug': x['slug'],
+                                            'active': bool(x['active'])})
+            return self._json(400, {'error': 'brand_not_found'})
 
         if r == 'discount_active':
             for d in STATE['discounts']:
