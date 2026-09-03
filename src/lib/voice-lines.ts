@@ -75,6 +75,27 @@ export const GENERIC_LINES = {
   // it she would cheerfully send someone to a beach at two in the afternoon in
   // August, which is the one piece of advice a local guide would never give.
   "summer-outdoor": "بس هذي أيام حر — لا تروح إلا بعد المغرب.",
+  /**
+   * The same summer, for a place that is partly indoors.
+   *
+   * The warning above only fired on `setting: "outdoor"`, which left **twelve**
+   * `mixed` places silent in August — سوق المباركية, شارع تونس, شارع حمد
+   * المبارك, مارينا كريسنت, سوق الوطية and the rest. Half of those are open
+   * alleys and pavements; recommending them at two in the afternoon is the
+   * failure the line above exists to prevent, and she simply did not say it.
+   *
+   * It cannot be the same sentence, though. «لا تروح إلا بعد المغرب» is wrong
+   * for مارينا مول or الكوت مول — the air-conditioned half is open and fine at
+   * noon, and telling someone not to go at all would be worse advice than
+   * saying nothing. So the mixed line does what a guide would do: names the
+   * part of the place that works right now.
+   *
+   * This is also what her live agent prompt has said all along — «مكيّف
+   * بالنهار، والمكشوف بعد المغرب بس، وقوليها صراحة». The spoken path
+   * implemented half of that rule; now both halves of شوق give the same
+   * advice.
+   */
+  "summer-mixed": "والجو حر — خذ المكيّف بالنهار، والمكشوف بعد المغرب.",
 } as const;
 
 export function helloLine(nameAr: string): string {
@@ -192,13 +213,14 @@ export function answerParts(
     { key: `best-${top.slug}`, text: placeBestTimeLine(top) },
   ];
 
-  if (
-    top.setting === "outdoor" &&
-    !top.summerOk &&
-    opts.month !== undefined &&
-    isSummerMonth(opts.month)
-  ) {
+  /* The Kuwaiti summer, said differently depending on how much of the place is
+     under a roof. `indoor` gets nothing: there is nothing to warn about. */
+  const summer =
+    !top.summerOk && opts.month !== undefined && isSummerMonth(opts.month);
+  if (summer && top.setting === "outdoor") {
     parts.push({ key: "summer-outdoor", text: GENERIC_LINES["summer-outdoor"] });
+  } else if (summer && top.setting === "mixed") {
+    parts.push({ key: "summer-mixed", text: GENERIC_LINES["summer-mixed"] });
   }
 
   const next = places[1];

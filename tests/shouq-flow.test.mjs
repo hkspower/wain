@@ -432,6 +432,50 @@ console.log('\n── شوق has a face, and it is alive ──');
   await ctx.close();
 }
 
+console.log('\n── a call that fails says so, in the hand and in the ear ──');
+{
+  /**
+   * Hanging up deliberately buzzes and plays the tone that says the line is
+   * down. Six different failures did neither — the ring-back just stopped and
+   * some text appeared. After ringing, silence is the one thing that means
+   * «keep waiting», so the interface was saying the opposite of what had
+   * happened, exactly when the visitor most needs telling.
+   *
+   * The microphone being refused is the failure a real visitor hits most.
+   */
+  const { ctx, p } = await fresh({ error: 'not-allowed' });
+  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  await call(p);
+  await p.waitForFunction(
+    () => document.querySelector('#wain-ai-panel')?.textContent.includes('المايك'),
+    null, { timeout: 8000 }
+  );
+  ok('the refusal is explained on screen',
+    (await sheet(p).textContent()).includes('المايك'));
+
+  /**
+   * Assert the pattern, not a count.
+   *
+   * The first version of this read the vibration count before and after the
+   * failure and expected it to grow. It reported 4 → 4 and looked like the
+   * haptic was missing — but the microphone is refused 320ms in, and the
+   * round trip to read the "before" count is slower than that, so the buzz
+   * had already happened. The measurement was late, not absent.
+   *
+   * The log itself is unambiguous. `tap` is the scalar 8; `success` and
+   * `error` are three-pulse arrays, and they differ from each other — so a
+   * failure that buzzed like a tap, or like a success, is visible here.
+   */
+  const buzz = await p.evaluate(() => window.__vibrations);
+  const last = buzz.at(-1);
+  console.log(`      vibrations: ${JSON.stringify(buzz)}`);
+  ok('the failure buzzes rather than going quiet', Array.isArray(last), JSON.stringify(last));
+  ok('with a pattern of its own, not the tap and not success',
+    Array.isArray(last) && last.length === 3 && JSON.stringify(last) !== JSON.stringify([12, 45, 22]),
+    JSON.stringify(last));
+  await ctx.close();
+}
+
 console.log('\n── the call is not paid for until it is placed ──');
 {
   /**

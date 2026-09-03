@@ -468,6 +468,34 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   }, [phase, onPhase]);
 
   /**
+   * A call that fails should feel and sound like one.
+   *
+   * Hanging up deliberately buzzes and plays the tone that says the line is
+   * down. Six different failures — the microphone refused, nobody spoke, the
+   * widget never connected, the twenty-second dial timeout — did neither.
+   * The ring-back just stopped and some text appeared. On a phone, silence
+   * after ringing is the one outcome that means «keep waiting», so the
+   * interface was saying the opposite of what had happened, in the moment the
+   * visitor most needs telling.
+   *
+   * `error` was already in the haptic vocabulary and had never been called
+   * from anywhere in the app.
+   *
+   * It lives here, on the transition, rather than at the six `setPhase`
+   * sites — a seventh failure will be added one day, and it should not have
+   * to remember this.
+   */
+  const wasErr = useRef(false);
+  useEffect(() => {
+    const isErr = phase === "error";
+    if (isErr && !wasErr.current) {
+      haptic("error");
+      hangup();
+    }
+    wasErr.current = isErr;
+  }, [phase]);
+
+  /**
    * The tap that loaded this file is the tap that places the call.
    *
    * The launcher cannot call `startCall` itself — the whole point of the split

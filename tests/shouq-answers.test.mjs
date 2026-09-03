@@ -78,6 +78,36 @@ console.log("\n── Kuwait summer ──");
   ok("outdoor place in January is not", !partsFor(outdoor, 0).includes(warn));
   ok("indoor place in August is not", !partsFor(indoor, 7).includes(warn));
   ok("no month given means no guess", !partsFor(outdoor, undefined).includes(warn));
+
+  /**
+   * The twelve places that used to fall between the two chairs.
+   *
+   * The warning fired on `setting: "outdoor"` alone, so every `mixed` place
+   * — سوق المباركية, شارع تونس, مارينا كريسنت, سوق الوطية — was recommended
+   * in August with nothing said about the heat. Half of them are open alleys
+   * and pavements, which is the exact case the outdoor warning exists for.
+   *
+   * It cannot be the same sentence: «لا تروح إلا بعد المغرب» is wrong for a
+   * mall whose air-conditioned half is open and fine at noon.
+   */
+  const mixedWarn = GENERIC_LINES["summer-mixed"];
+  const mixed = places.filter((p) => p.setting === "mixed" && !p.summerOk);
+  ok(`the catalogue still has mixed places to get this wrong (${mixed.length})`, mixed.length > 0);
+  ok("every mixed place in August is warned",
+    mixed.every((p) => partsFor(p, 7).includes(mixedWarn)),
+    mixed.filter((p) => !partsFor(p, 7).includes(mixedWarn)).map((p) => p.slug).join(", "));
+  ok("and none of them in January",
+    mixed.every((p) => !partsFor(p, 0).includes(mixedWarn)));
+  // The two warnings are mutually exclusive: one place, one piece of advice.
+  ok("a mixed place never gets the outdoor «don't go» line",
+    mixed.every((p) => !partsFor(p, 7).includes(warn)));
+  ok("an outdoor place never gets the mixed line",
+    !partsFor(outdoor, 7).includes(mixedWarn));
+  ok("an indoor place gets neither",
+    !partsFor(indoor, 7).includes(mixedWarn) && !partsFor(indoor, 7).includes(warn));
+  // A mall's indoor half is usable at noon, so the advice must not be «stay away».
+  ok("the mixed line names the air-conditioned half rather than refusing",
+    mixedWarn.includes("المكيّف") && !mixedWarn.includes("لا تروح"), mixedWarn);
 }
 
 console.log("\n── the recorded clips and the spoken fallback agree ──");
