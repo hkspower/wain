@@ -7,7 +7,7 @@ change to `src/components/icons.tsx` or `src/components/PlaceIcon.tsx`;
 | Sheet | Contents | Grid |
 |---|---|---|
 | `wain-icons-ui.svg` | 32 UI icons | 24 |
-| `wain-icons-places.svg` | 25 bespoke place marks of 44 places | 48 |
+| `wain-icons-places.svg` | 44 bespoke place marks of 44 places | 48 |
 
 ## Getting them into Figma as components
 
@@ -31,6 +31,6 @@ differs.
 
 ## What the sheets deliberately leave out
 
-19 of the 44 places have no drawing of their own and fall back to
+0 of the 44 places have no drawing of their own and fall back to
 their category icon. They are excluded: importing them would put the same
 drawing into the library several times under several different place names.

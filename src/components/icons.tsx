@@ -258,12 +258,22 @@ export function IconBag(props: IconProps) {
 export function IconMasks(props: IconProps) {
   return (
     <svg {...base(props)}>
-      {/* Lifted a unit: the pair used to sit low enough in the box to look
-          dropped next to anything beside it. */}
-      <path d="M3.5 4.5H11v5.6a3.75 3.75 0 0 1-7.5 0Z" />
-      <path {...duo} d="M13 4.5h7.5v5.6a3.75 3.75 0 0 1-7.5 0Z" />
-      <path d={`${dot(5.9, 7.3)}${dot(8.6, 7.3)}${dot(15.4, 7.3)}${dot(18.1, 7.3)}`} />
-      <path d="M6.3 17.6c1.7 1.3 3.5 1.9 5.7 1.9s4-.6 5.7-1.9" />
+      {/* Two masks, and the whole point is that they disagree.
+          This drew a pair of identical shields with dot eyes and then ONE
+          wide arc slung under both of them — so the eyes read as a pair of
+          sunglasses and the arc as the mouth beneath them, and the icon for
+          «ثقافة» was a smiley face. Comedy and tragedy are not two of the
+          same thing: each mask needs its own mouth, one up and one down,
+          which is the entire reason the pair is legible at all.
+          The vertical offset is the classic stagger, and it also puts the
+          pair's centre back in the middle of the box — side by side and
+          level, they sat in the top half. */}
+      <path d="M3.3 3.6h8.2v7.6a4.1 4.1 0 0 1-8.2 0Z" />
+      <path d={`${dot(5.6, 7)}${dot(9.2, 7)}`} />
+      <path d="M5.6 11.8q1.8-1.6 3.6 0" />
+      <path {...duo} d="M12.5 8.4h8.2v7.6a4.1 4.1 0 0 1-8.2 0Z" />
+      <path d={`${dot(14.8, 11.8)}${dot(18.4, 11.8)}`} />
+      <path d="M14.8 16.2q1.8 1.6 3.6 0" />
     </svg>
   );
 }

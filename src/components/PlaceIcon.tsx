@@ -464,6 +464,345 @@ function Art({ slug }: { slug: string }) {
         </>
       );
 
+    /* ── the last nineteen ───────────────────────────────────────────────
+       After the batch above, nineteen places still fell through to their
+       category mark: six of the seven culture places drew the identical
+       museum glyph, all four malls drew the same bag, and both café streets
+       drew the same cup. On a search for «متحف» or «مجمع» that is a column
+       of one repeated icon, which tells the reader nothing about which row
+       is which — the exact failure the drawn set exists to prevent.
+
+       Each is drawn from the thing that identifies THAT place rather than
+       its type: the planetarium sphere, the lattice facade, the loom, the
+       fort, the ferris wheel. Where two places would otherwise collide, the
+       second one moves — Marina Mall is its footbridge because Marina Beach
+       already owns the parasol and Souq Sharq already owns the sail. */
+
+    case "kuwait-national-museum":
+      return (
+        <>
+          {/* The planetarium sphere, which is what the museum looks like from
+              the Gulf Road even when the galleries behind it are shut. */}
+          <circle {...F} cx="16" cy="19" r="9" />
+          <circle cx="16" cy="19" r="9" />
+          <path d="M7.5 15.5h17M7.5 22.5h17" style={DETAIL} opacity={0.5} />
+          <path d="M16 28v6" />
+          <path {...F} d="M7 40v-6h18v6Z" />
+          <path d="M7 40v-6h18v6" />
+          <path {...F} d="M29 40V23h13v17Z" />
+          <path d="M29 40V23h13v17M27.5 23h16" />
+          <path d="M33 40v-8h5v8" style={DETAIL} />
+          {GROUND}
+        </>
+      );
+
+    case "abdullah-al-salem-cultural-centre":
+      return (
+        <>
+          {/* The lattice screen. The building is a long low box behind a
+              geometric facade, and the facade is the only part anybody
+              pictures. */}
+          <path {...F} d="M8 13h32v27H8Z" />
+          <path d="M8 13h32v27H8Z" />
+          <path d="M6 13h36" />
+          <path d="M8 27 22 13M8 40 35 13M22 40 40 22M35 40 40 35" style={DETAIL} opacity={0.55} />
+          <path d="M40 27 26 13M40 40 13 13M26 40 8 22M13 40 8 35" style={DETAIL} opacity={0.55} />
+          {GROUND}
+        </>
+      );
+
+    case "al-salam-palace":
+      return (
+        <>
+          {/* Symmetry, a central portal and two corner turrets — a palace
+              rather than a museum, which is what it was first. */}
+          {/* The first version filled only the bottom half of the frame and
+              read as a squat shed beside every neighbour that reaches the
+              top. The raised central bay is both the fix and the truth — the
+              palace has one. */}
+          <path {...F} d="M13 40V17h22v23Z" />
+          <path d="M13 40V17h22v23" />
+          <path d="M11 17h26" />
+          <path {...F} d="M18 17V10h12v7Z" />
+          <path d="M18 17V10h12v7M17 10h14" />
+          <path d="M24 10V6" style={DETAIL} />
+          <path {...F} d="M20 40V29a4 4 0 0 1 8 0v11Z" />
+          <path d="M20 40V29a4 4 0 0 1 8 0v11" />
+          <path {...F} d="M5 40V22h8v18ZM35 40V22h8v18Z" />
+          <path d="M5 40V22h8M35 22h8v18" />
+          <path d="M4 22h10M34 22h10" />
+          <path d="M16 24h2M30 24h2" style={DETAIL} opacity={0.6} />
+          <path d="M8 28h2M38 28h2" style={DETAIL} opacity={0.6} />
+          {GROUND}
+        </>
+      );
+
+    case "amricani-cultural-centre":
+      return (
+        <>
+          {/* Two storeys of arcaded veranda — the mission hospital it was
+              built as, and the one building on this list with a colonnade on
+              both levels. */}
+          <path {...F} d="M8 40V15h32v25Z" />
+          <path d="M8 40V15h32v25" />
+          <path d="M6 15h36M8 27.5h32" />
+          <path d="M12 27.5v-6a3.4 3.4 0 0 1 6.8 0v6" style={DETAIL} />
+          <path d="M20.6 27.5v-6a3.4 3.4 0 0 1 6.8 0v6" style={DETAIL} />
+          <path d="M29.2 27.5v-6a3.4 3.4 0 0 1 6.8 0v6" style={DETAIL} />
+          <path d="M12 40v-6.5a3.4 3.4 0 0 1 6.8 0V40" style={DETAIL} />
+          <path d="M20.6 40v-6.5a3.4 3.4 0 0 1 6.8 0V40" style={DETAIL} />
+          <path d="M29.2 40v-6.5a3.4 3.4 0 0 1 6.8 0V40" style={DETAIL} />
+          {GROUND}
+        </>
+      );
+
+    case "bait-al-othman":
+      return (
+        <>
+          {/* The studded door. Freej Swaileh already owns the courtyard house
+              with its wind tower, so this heritage house is the doorway you
+              walk through instead of the roofline you see. */}
+          {/* Drawn once without the surround, and it read as a headstone: a
+              tinted arch with specks on it. The frame is what makes it a
+              doorway, and the split down the middle is what makes it a door
+              — two leaves, which is how every one of them is built. */}
+          <path d="M9 40V19a15 15 0 0 1 30 0v21" />
+          <path {...F} d="M13 40V20a11 11 0 0 1 22 0v20Z" />
+          <path d="M13 40V20a11 11 0 0 1 22 0v20" />
+          <path d="M24 9v31" />
+          <path d="M17.5 24h.01M17.5 30h.01M17.5 36h.01" style={DETAIL} opacity={0.8} />
+          <path d="M30.5 24h.01M30.5 30h.01M30.5 36h.01" style={DETAIL} opacity={0.8} />
+          <path d="M20.5 16h.01M27.5 16h.01" style={DETAIL} opacity={0.8} />
+          {GROUND}
+        </>
+      );
+
+    case "bait-lothan":
+      return (
+        <>
+          {/* An easel. It is an arts centre in an old house, and every other
+              old house on this list is drawn as a building — so this one is
+              drawn as what happens inside it. */}
+          <path {...F} d="M12 9h24v19H12Z" />
+          <path d="M12 9h24v19H12Z" />
+          <path d="M16 24l6-8 4.5 5.5 3-3L34 25" style={DETAIL} opacity={0.7} />
+          <path d="M15 28 10 40M33 28l5 12M24 28v7" />
+          <path d="M11 33h26" style={DETAIL} opacity={0.6} />
+          {GROUND}
+        </>
+      );
+
+    case "sadu-house":
+      return (
+        <>
+          {/* The loom, with the triangle band Sadu weaving is known by. */}
+          <path d="M9 12v28M39 12v28" />
+          <path d="M7 14h34M7 36h34" />
+          <path {...F} d="M13 18h22v14H13Z" />
+          <path d="M13 18h22v14H13Z" />
+          <path d="M15 30l5-7 5 7M26 30l5-7 5 7" style={DETAIL} opacity={0.7} />
+          <path d="M13 25h22" style={DETAIL} opacity={0.4} />
+          {GROUND}
+        </>
+      );
+
+    case "marina-mall":
+      return (
+        <>
+          {/* The footbridge over the Gulf Road. Marina Beach owns the parasol
+              and Souq Sharq owns the sail, so the mall is the crossing. */}
+          <path {...F} d="M26 32V15h16v17Z" />
+          <path d="M26 32V15h16v17" />
+          <path d="M24.5 15h19" />
+          <path d="M31 32v-7h6v7" style={DETAIL} />
+          <path d="M4 28h22M4 28v4M11 28v4M18 28v4M26 28v4" style={DETAIL} />
+          <path d="M4 32h22" />
+          <path d="M4 37c4 0 4 2.5 8 2.5s4-2.5 8-2.5 4 2.5 8 2.5 4-2.5 8-2.5 4 2.5 8 2.5" opacity={0.5} />
+          <path d="M4 42c4 0 4 2.5 8 2.5s4-2.5 8-2.5 4 2.5 8 2.5 4-2.5 8-2.5 4 2.5 8 2.5" opacity={0.32} />
+        </>
+      );
+
+    case "mall-360":
+      return (
+        <>
+          {/* The name is the mark: a ring, on the podium it sits on. */}
+          <circle {...F} cx="24" cy="19" r="12" />
+          <circle cx="24" cy="19" r="12" />
+          <circle cx="24" cy="19" r="5" style={DETAIL} />
+          <path d="M24 7v3M24 28v3M12 19h3M33 19h3" style={DETAIL} opacity={0.6} />
+          <path {...F} d="M8 40v-6h32v6Z" />
+          <path d="M8 40v-6h32v6" />
+          {GROUND}
+        </>
+      );
+
+    case "al-kout-mall":
+      return (
+        <>
+          {/* الكوت is the fort. The battlemented tower is the name drawn. */}
+          <path {...F} d="M16 40V14h16v26Z" />
+          <path d="M16 40V14h16v26" />
+          <path d="M15 14v-5h3.5v2.5h3.5V9h4v2.5h3.5V9H33v5" />
+          <path {...F} d="M20 40V29a4 4 0 0 1 8 0v11Z" />
+          <path d="M20 40V29a4 4 0 0 1 8 0v11" />
+          <path d="M21 21h6" style={DETAIL} opacity={0.6} />
+          <path {...F} d="M4 40v-9h12v9ZM32 40v-9h12v9Z" />
+          <path d="M4 40v-9h12M32 31h12v9" />
+          {GROUND}
+        </>
+      );
+
+    case "souq-al-watiya":
+      return (
+        <>
+          {/* Cloth on the rail. Mubarakiya is its arches, Sharq its sail, the
+              Friday Market its awning — Watiya is what hangs in it. */}
+          <path d="M6 13h36" />
+          <path {...F} d="M10 13h7l-1 19a2.5 2.5 0 0 1-5 0Z" />
+          <path d="M10 13h7l-1 19a2.5 2.5 0 0 1-5 0Z" />
+          <path {...F} d="M20.5 13h7l-1 24a2.5 2.5 0 0 1-5 0Z" />
+          <path d="M20.5 13h7l-1 24a2.5 2.5 0 0 1-5 0Z" />
+          <path {...F} d="M31 13h7l-1 17a2.5 2.5 0 0 1-5 0Z" />
+          <path d="M31 13h7l-1 17a2.5 2.5 0 0 1-5 0Z" />
+          {GROUND}
+        </>
+      );
+
+    case "gulf-road-cafes":
+      return (
+        <>
+          {/* A takeaway cup, because that is how the Gulf Road is drunk —
+              the Mubarakiya tea houses own the dallah and the finjan. */}
+          <path {...F} d="M14 18h20l-2.4 15.5a4 4 0 0 1-4 3.5h-7.2a4 4 0 0 1-4-3.5Z" />
+          <path d="M14 18h20l-2.4 15.5a4 4 0 0 1-4 3.5h-7.2a4 4 0 0 1-4-3.5Z" />
+          <path d="M11 18h26" />
+          <path d="M15.6 26h16.8" style={DETAIL} opacity={0.6} />
+          <path d="M18 13c0-2 2-2 2-4M24 13c0-2 2-2 2-4M30 13c0-2 2-2 2-4" style={DETAIL} opacity={0.55} />
+          <path d="M5 41c4 0 4 2.5 8 2.5s4-2.5 8-2.5 4 2.5 8 2.5 4-2.5 8-2.5" opacity={0.45} />
+        </>
+      );
+
+    case "hamad-al-mubarak-street":
+      return (
+        <>
+          {/* Pavement seating under a parasol. Salem Al-Mubarak Street next
+              door is drawn as shopfronts, because that is what it is. */}
+          <path {...F} d="M10 16a14 8 0 0 1 28 0Z" />
+          <path d="M10 16a14 8 0 0 1 28 0" />
+          <path d="M24 16v11" />
+          <path {...F} d="M15 27h18v3H15Z" />
+          <path d="M14 27h20" />
+          <path d="M20 30v10M28 30v10" style={DETAIL} />
+          <path d="M5 40v-5h6M5 35v-5M43 40v-5h-6M43 35v-5" style={DETAIL} />
+          {GROUND}
+        </>
+      );
+
+    case "entertainment-city":
+      return (
+        <>
+          {/* The wheel. Aqua Park has the flume, so the theme park has the
+              thing you can see from the motorway. */}
+          <circle {...F} cx="24" cy="19" r="13" />
+          <circle cx="24" cy="19" r="13" />
+          <circle cx="24" cy="19" r="2.5" style={DETAIL} />
+          <path d="M24 6v26M11 19h26M15 10l18 18M33 10 15 28" style={DETAIL} opacity={0.5} />
+          <path d="M18 30 24 40 30 30" />
+          {GROUND}
+        </>
+      );
+
+    case "kuwait-science-centre":
+      return (
+        <>
+          {/* The tank. The aquarium is what a family actually goes for, and a
+              framed tank cannot be mistaken for the fish market's fish. */}
+          {/* A tank, not a fish. The first version put a big fish inside a
+              box and at size-6 it was the fish market again — so the fish
+              shrank, the water line went in, and the bubbles do the work.
+              What a family goes to the Scientific Center for is the
+              aquarium, and an aquarium is a wall of water. */}
+          <path {...F} d="M7 13h34v27H7Z" />
+          <path d="M7 13h34v27H7Z" />
+          <path d="M5 13h38" />
+          <path d="M9 19h30" style={DETAIL} opacity={0.45} />
+          <path {...F} d="M19.5 30c2-2.5 4.4-3.8 6.8-3.8s4.4 1.3 4.4 3.8-2.1 3.8-4.4 3.8-4.8-1.3-6.8-3.8Z" />
+          <path d="M19.5 30c2-2.5 4.4-3.8 6.8-3.8s4.4 1.3 4.4 3.8-2.1 3.8-4.4 3.8-4.8-1.3-6.8-3.8Z" style={DETAIL} />
+          <path d="M19.5 30 16.4 27.4v5.2Z" {...F} />
+          <path d="M19.5 30 16.4 27.4v5.2Z" style={DETAIL} />
+          <path d="M28.6 28.8h.01" style={DETAIL} />
+          <path d="M13 26h.01M15.5 22.5h.01M34 27h.01M36 23h.01" style={DETAIL} opacity={0.6} />
+          {GROUND}
+        </>
+      );
+
+    case "liberation-tower":
+      return (
+        <>
+          {/* The collar and the spire. Al-Hamra is the twist and the Kuwait
+              Towers are the spheres; this one is the needle. */}
+          <path {...F} d="M20.5 35 22 21h4l1.5 14Z" />
+          <path d="M20.5 35 22 21h4l1.5 14" />
+          <path {...F} d="M16 21h16l-2.5-5h-11Z" />
+          <path d="M16 21h16l-2.5-5h-11Z" />
+          <path d="M24 16V8" />
+          <circle {...F} cx="24" cy="6" r="2" />
+          <circle cx="24" cy="6" r="2" style={DETAIL} />
+          <path d="M21.6 27h4.8" style={DETAIL} opacity={0.5} />
+          <path {...F} d="M15 40v-5h18v5Z" />
+          <path d="M15 40v-5h18v5" />
+          {GROUND}
+        </>
+      );
+
+    case "marina-crescent":
+      return (
+        <>
+          {/* The curve, over the water it is built on. Shallow on purpose —
+              a deeper arc reads as the Grand Mosque's dome. */}
+          <path {...F} d="M6 29a18 10 0 0 1 36 0Z" />
+          <path d="M6 29a18 10 0 0 1 36 0" />
+          <path d="M6 29h36" />
+          <path d="M14 29v-5.5M24 29v-6.5M34 29v-5.5" style={DETAIL} opacity={0.6} />
+          <path d="M4 35c4 0 4 2.5 8 2.5s4-2.5 8-2.5 4 2.5 8 2.5 4-2.5 8-2.5 4 2.5 8 2.5" opacity={0.5} />
+          <path d="M4 41c4 0 4 2.5 8 2.5s4-2.5 8-2.5 4 2.5 8 2.5 4-2.5 8-2.5 4 2.5 8 2.5" opacity={0.32} />
+        </>
+      );
+
+    case "tunis-street":
+      return (
+        <>
+          {/* The vertical spit. Mais Al-Ghanim owns the horizontal skewers
+              over a grill, and the two do not read alike at 16px. */}
+          <path d="M24 14V8" />
+          <path {...F} d="M17 14h14l-2.4 18a4.6 4.6 0 0 1-9.2 0Z" />
+          <path d="M17 14h14l-2.4 18a4.6 4.6 0 0 1-9.2 0Z" />
+          <path d="M24 36.5V40" />
+          <path d="M18.4 21h11.2M19.2 27h9.6" style={DETAIL} opacity={0.55} />
+          <path {...F} d="M35 17h3.5v12H35Z" />
+          <path d="M35 17h3.5v12H35Z" style={DETAIL} />
+          <path d="M36.75 29v6" style={DETAIL} />
+          {GROUND}
+        </>
+      );
+
+    case "sabah-al-ahmad-sea-city":
+      return (
+        <>
+          {/* Villas on a cut canal with a jetty — Al-Khiran next door is drawn
+              as the channels themselves, so this is what was built on them. */}
+          <path {...F} d="M5 28v-8l7-5.5L19 20v8Z" />
+          <path d="M5 28v-8l7-5.5L19 20v8" />
+          <path {...F} d="M23 28v-6l6-4.5L35 22v6Z" />
+          <path d="M23 28v-6l6-4.5L35 22v6" />
+          <path d="M10 28v-4h4v4M27 28v-3.5h4V28" style={DETAIL} opacity={0.6} />
+          <path d="M4 28h40" />
+          <path d="M38 28v9M42 28v9M40 28v11" style={DETAIL} opacity={0.6} />
+          <path d="M4 34c4 0 4 2.5 8 2.5s4-2.5 8-2.5 4 2.5 8 2.5 4-2.5 8-2.5 4 2.5 8 2.5" opacity={0.5} />
+          <path d="M4 40c4 0 4 2.5 8 2.5s4-2.5 8-2.5 4 2.5 8 2.5 4-2.5 8-2.5 4 2.5 8 2.5" opacity={0.32} />
+        </>
+      );
+
     /* Fallback: a pin, so a newly added place still gets a mark. */
     default:
       return null;
