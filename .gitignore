@@ -48,3 +48,7 @@ design/**/*.html
 # source and are tracked; the seeded output beside them is a 2.5MB copy of
 # the canvas editor with that source embedded, regenerated on every change.
 .design/**/wain-*.html
+
+# Originals for the photo pipeline — the web-sized output in public/photos/
+# is committed, these are not. See src/lib/photos.ts.
+photos-src/

@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { BusinessBio, BusinessBrand, BusinessContact, BusinessGallery, BusinessProducts } from "@/components/BusinessProfile";
 import CategoryArt from "@/components/CategoryArt";
 import PlaceArt, { hasPlaceArt } from "@/components/PlaceArt";
+import PlacePhoto, { PhotoCredit } from "@/components/PlacePhoto";
 import PlaceCard from "@/components/PlaceCard";
 import OrderPanel from "@/components/OrderPanel";
 import QueuePanel from "@/components/QueuePanel";
@@ -29,6 +30,7 @@ import {
   toArabicDigits,
   toArabicNumber,
 } from "@/lib/places";
+import { photoOf } from "@/lib/photos";
 
 export function generateStaticParams() {
   return places.map((place) => ({ slug: place.slug }));
@@ -118,10 +120,14 @@ export default async function PlacePage({
       <div
         className={`relative flex h-56 items-center justify-center overflow-hidden rounded-3xl shadow-lg standalone:h-40 sm:h-64 ${placeGradient(place)}`}
       >
-        {/* A famous place gets its own picture; anything else falls back to
-            its category, which is the right answer when the category IS the
-            identity — a restaurant is a restaurant. */}
-        {hasPlaceArt(place.slug) ? (
+        {/* Three layers, and it degrades downwards: a photograph of this exact
+            place if there is one, else the place's own drawing, else its
+            category's — which is the right answer when the category IS the
+            identity, because a restaurant is a restaurant. See lib/photos for
+            why a photograph may only ever be of the place it names. */}
+        {photoOf(place.slug) ? (
+          <PlacePhoto slug={place.slug} className="absolute inset-0 h-full w-full" />
+        ) : hasPlaceArt(place.slug) ? (
           <PlaceArt place={place} className="absolute inset-0 h-full w-full" />
         ) : (
           <CategoryArt
@@ -140,6 +146,8 @@ export default async function PlacePage({
           </span>
         )}
       </div>
+      {/* Renders nothing unless the photograph's licence needs it named. */}
+      <PhotoCredit slug={place.slug} />
 
       {/* Header */}
       <div className="mt-7 flex flex-wrap items-start justify-between gap-4">

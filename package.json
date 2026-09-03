@@ -38,10 +38,12 @@
     "audit:color": "node scripts/audit-color.mjs",
     "audit:assets": "node scripts/audit-assets.mjs",
     "audit:mobile": "node scripts/audit-mobile.mjs",
-    "scan": "npm run lint && npm run audit:schema && npm run audit:runtime && npm run audit:places && npm run audit:search && npm run test:map && npm run audit:icons && npm run audit:place-icons && npm run audit:htaccess && npm run audit:type && npm run audit:padding && npm run design:check && npm run figma:icons:check && npm run audit:voice && npm run audit:js && npm run audit:color && npm run audit:assets && npm run audit:mobile",
+    "scan": "npm run lint && npm run audit:schema && npm run audit:runtime && npm run audit:places && npm run audit:search && npm run test:map && npm run audit:icons && npm run audit:place-icons && npm run audit:htaccess && npm run audit:type && npm run audit:padding && npm run design:check && npm run figma:icons:check && npm run audit:voice && npm run audit:js && npm run audit:color && npm run audit:assets && npm run audit:mobile && npm run audit:photos",
     "release": "node scripts/make-release.mjs",
     "audit:search": "node scripts/audit-search.mjs",
-    "audit:place-icons": "node scripts/audit-place-icons.mjs"
+    "audit:place-icons": "node scripts/audit-place-icons.mjs",
+    "photos": "node scripts/gen-photos.mjs",
+    "audit:photos": "node scripts/audit-photos.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.1",
