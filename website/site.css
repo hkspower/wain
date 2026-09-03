@@ -49,6 +49,7 @@
   --teal-600: #1A8E9B;   /* اللون الأساسي من الشعار */
   /* أفتح درجة يبقى معها النص الأبيض فوق 4.5:1 — سطح الأزرار */
   --teal-cta: #15818e;
+  --teal-500: #22a7b4;   /* حلقة الاستماع وقلب تدرّج الميكروفون */
   --teal-300: #7fd6de;
   --teal-50:  #f0fafb;
   --orange-700: #a85c08;
@@ -66,23 +67,44 @@
   --line-ctl: #6b97a2;
   --bg:       #ffffff;
   --bg-soft:  #f6fbfb;
+  --glow:     rgba(26, 142, 155, .10);   /* ضوء الأرضيّة */
   /* حبرٌ على السطح البرتقاليّ الفاتح: ‎--orange-700
      يعطي عليه ٤٫٥٣، وعند حافّة الحدّ يهبط إلى ٣٫٩٧. هذا يعطي ٧٫٠٥ و٥٫٤١. */
   --on-warm:  #7d4405;
+  /* حبر الكلمة الواحدة. رمزٌ لا لونٌ مثبّت: كُتب `--teal-900` مباشرةً
+     فبقي داكنًا على الأرضيّة الداكنة — ١٫٣٧ حين قِيس من البكسل. */
+  --word:     var(--teal-900);
+  /* حبرٌ بلون الهوية **على سطح**: الرابط، ورمز الطلب، والكلمة المشدّدة في
+     ردّ الوكيل. رمزٌ واحد لأنّ الوضع الداكن يقلبه كلَّه دفعةً — وبغيره
+     بقي رمز الطلب ‎#127683 على سطحٍ داكن فأعطى ٢٫٦٣ حين قِيس من البكسل،
+     وهو أهمّ ما على شاشة التأكيد. */
+  --brand-ink:      var(--teal-700);
+  --brand-ink-str:  var(--teal-800);
+  --brand-surf:     var(--teal-50);   /* سطحٌ خفيف بلون الهوية */
 
   /* سطحٌ واحد يكفي صفحةً واحدة: بطاقة الطلب وفقاعة الوكيل وشاشة التأكيد */
   --surf-1:      #ffffff;
   --surf-1-line: var(--line);
 
-  /* زوايا ضيّقة وحوافّ حادّة */
-  --radius:    8px;
-  --radius-sm: 6px;
-  --radius-lg: 10px;
+  /* زوايا لدنة. كانت ٦–١٠px وهي لغةُ واجهاتٍ أقدم؛ والصفحة اليوم ثلاثة
+     أسطحٍ كبيرة لا شبكةُ بطاقاتٍ صغيرة، والسطح الكبير يحتمل قوسًا أوسع. */
+  --radius-sm:   10px;   /* الأزرار الصغيرة والشارات */
+  --radius:      16px;   /* البطاقة والفقاعة */
+  --radius-lg:   22px;   /* مساحة الكتابة وشاشة التأكيد */
+  --radius-pill: 999px;  /* الميكروفون وروابط الشريط */
 
-  /* التعريف يأتي من الحافّة لا من الضباب: حافّة صلبة تحت ما يُضغط */
-  --edge:     0 2px 0 rgba(10, 63, 71, .18);
-  --edge-str: 0 3px 0 rgba(10, 63, 71, .22);
-  --halo:     0 0 0 4px rgba(246, 150, 37, .22);   /* هالة التركيز */
+  /* عمقٌ بثلاث درجات، كلٌّ منها طبقتان: ظلٌّ قريبٌ ضيّق يرسم الحافّة،
+     وظلٌّ بعيدٌ واسع يفصل السطح عن أرضيّته. كانت حافّةً صلبة (‏0 2px 0)
+     تُقرأ اليوم كزرٍّ مرسومٍ في التسعينيات. */
+  --shadow-sm: 0 1px 2px rgba(10, 63, 71, .05), 0 2px 6px -1px rgba(10, 63, 71, .06);
+  --shadow:    0 1px 2px rgba(10, 63, 71, .05), 0 8px 20px -6px rgba(10, 63, 71, .12);
+  --shadow-lg: 0 2px 4px rgba(10, 63, 71, .05), 0 20px 44px -12px rgba(10, 63, 71, .20);
+  /* ظلُّ الميكروفون بلون الهوية لا بالرماديّ: يجعله يضيء لا يثقل */
+  --shadow-mic: 0 2px 6px rgba(10, 63, 71, .16), 0 12px 28px -8px rgba(15, 107, 118, .45);
+
+  /* حلقة التركيز: هالةٌ بلون الهوية تحيط بالسطح كلّه */
+  --halo:      0 0 0 4px rgba(26, 142, 155, .18);
+  --halo-warm: 0 0 0 4px rgba(246, 150, 37, .22);
 
   --font: "Alexandria", "Noto Kufi Arabic", "Segoe UI", system-ui, sans-serif;
 
@@ -119,10 +141,69 @@
   --ease-out: cubic-bezier(.16, 1, .3, 1);
 }
 
+/* ------------------------------ الوضع الداكن ------------------------------ */
+/*
+ * لا صورةَ مقلوبة بل لوحةٌ ثانية. القلب الآليّ (`filter: invert`) يقلب
+ * الشعار والصور معه، ويعطي رماديّاتٍ ميّتة. وهذه درجاتٌ مختارة من عائلة
+ * الهوية نفسها: الأرضيّة تيلٌ شديد العتمة لا أسود، فتبقى الصفحة «موصول»
+ * في الوضعين.
+ *
+ * وكلُّ زوجٍ هنا **مقيس** لا مقدَّر: فحصُ التباين يمرّ على الصفحة في
+ * الوضعين، ويرفض ما دون ٤٫٥ للنصّ و٣ لحدود ما يُنقر.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:       #071c20;
+    --bg-soft:  #0a262b;
+    --glow:     rgba(34, 167, 180, .13);
+
+    --surf-1:      #0f3037;
+    --surf-1-line: #24545d;
+
+    --ink:       #e9f6f8;
+    --ink-mid:   #c3dee3;
+    --ink-soft:  #a8c9cf;
+    --ink-faint: #93b7bd;
+
+    --line:     #214d56;
+    --line-ctl: #6ea3ad;
+
+    /* الحبر على الأزرار يبقى أبيض، فالسطح يبقى غامقًا بما يكفي */
+    --teal-cta: #14727e;
+
+    --on-warm: #ffce8f;
+    --word:    #bfe6ec;
+    --brand-ink:     #8fdae3;
+    --brand-ink-str: #b4e8ef;
+    --brand-surf:    #143a42;
+
+    /* حلقة التركيز حبرٌ فاتح ليُرى على الأسطح الداكنة */
+    --focus: #e9f6f8;
+    --halo:  0 0 0 4px rgba(34, 167, 180, .30);
+
+    /* الظلال لا تُرى على أرضيّةٍ داكنة، فيحلّ محلّها حدٌّ أوضح وضوءٌ خفيف */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .35);
+    --shadow:    0 2px 6px rgba(0, 0, 0, .40), 0 12px 28px -10px rgba(0, 0, 0, .55);
+    --shadow-lg: 0 4px 10px rgba(0, 0, 0, .45), 0 24px 52px -14px rgba(0, 0, 0, .65);
+    --shadow-mic: 0 2px 8px rgba(0, 0, 0, .5), 0 14px 32px -10px rgba(34, 167, 180, .40);
+  }
+
+  /* الشعار مرسومٌ لخلفيةٍ فاتحة: يُعطى قاعدةً فاتحة بدل أن يُقلب لونه */
+  .vo-top__brand img {
+    background: #fff;
+    padding: .25rem .45rem;
+    border-radius: var(--radius-sm);
+  }
+}
+
 /* ------------------------------- الأساسيات ------------------------------- */
 *, *::before, *::after { box-sizing: border-box; }
 
 html {
+  /* يُعلم المتصفّح أنّ الصفحة تعرف الوضعين، فتتبعه أدواتُه: شريط
+     التمرير، ومؤشّر الكتابة، وتحديد النصّ، والقوائم الأصيلة. بغيره تبقى
+     فاتحةً على صفحةٍ داكنة. */
+  color-scheme: light dark;
   scroll-behavior: smooth;
   scroll-padding-top: 104px;
   -webkit-text-size-adjust: 100%;
@@ -139,7 +220,13 @@ body {
   /* الخط العربي يحتاج تباعد أسطر أوسع ليتنفّس */
   line-height: var(--lh-body);
   color: var(--ink);
-  background: var(--bg);
+  /* أرضيّةٌ فيها ضوءٌ خافت من الأعلى بدل لونٍ مسطّح: يعطي الشاشة عمقًا
+     ويجعل الأسطح البيضاء تطفو فوقها. والتدرّج ثابتٌ لا يتحرّك مع
+     التمرير (`fixed`) فلا يظهر خطٌّ عند حافّة الشاشة. */
+  background:
+    radial-gradient(120% 80% at 50% -10%, var(--glow), transparent 62%),
+    var(--bg);
+  background-attachment: fixed;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -169,7 +256,7 @@ h2 { font-size: var(--fs-h2); }
 
 p { margin: 0 0 1em; text-wrap: pretty; }
 
-a { color: var(--teal-700); text-decoration: none; transition: color var(--t-fast) var(--ease); }
+a { color: var(--brand-ink); text-decoration: none; transition: color var(--t-fast) var(--ease); }
 
 a:hover { color: var(--orange-700); }
 
@@ -224,11 +311,16 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .btn--lg { padding: 1rem 2.1rem; font-size: var(--fs-lg); }
 
 .btn--primary {
-  background: var(--teal-cta);
-  color: #fff; box-shadow: var(--edge);
+  /* تدرّجٌ خفيف لا لونٌ مسطّح: درجتان متجاورتان تعطيان السطح حجمًا بلا
+     أن يُرى التدرّج تدرّجًا. */
+  background: linear-gradient(180deg, var(--teal-700), var(--teal-cta));
+  color: #fff; box-shadow: var(--shadow);
 }
 
-.btn--primary:hover { color: #fff; box-shadow: var(--edge-str); }
+.btn--primary:hover {
+  color: #fff; background: linear-gradient(180deg, var(--teal-800), var(--teal-700));
+  box-shadow: var(--shadow-lg);
+}
 
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
 
@@ -303,7 +395,7 @@ body.vo {
   text-decoration: none; transition: color var(--t-fast), background var(--t-fast);
 }
 
-.vo-top__nav a:hover { color: var(--teal-800); background: var(--teal-50); }
+.vo-top__nav a:hover { color: var(--brand-ink-str); background: var(--brand-surf); }
 
 /* الشريط أيقوناتٌ لا كلمات: لا نصّ ساكن على الصفحة، والاسم في
    `aria-label` فيقرؤه قارئ الشاشة. */
@@ -317,14 +409,35 @@ body.vo {
   display: flex; flex-direction: column; gap: 1rem;
 }
 
-/* قبل أوّل رسالة: الافتتاح يتوسّط الفراغ عموديًّا فلا يعلوه فراغٌ أصمّ —
-   وبعدها يعود التدفّق من الأعلى ليكبر الحوار طبيعيًّا. `:has` مدعوم في
-   المتصفّحات المستهدفة، وسقوطه يُبقي الافتتاح أعلى الصفحة بلا ضرر. */
-.vo-main:has(.vo-hero:not([hidden])) { justify-content: center; }
+/* **قبل أوّل رسالة: الكلمة والملتقط شيءٌ واحد في وسط الشاشة.**
+   كان الافتتاح يتوسّط المتن والملتقط ملتصقًا بالأسفل، فيقع بينهما فراغٌ
+   أصمّ يبلغ ستّمئة بكسل على الجوّال — كلمةٌ معلّقةٌ في أعلى وحقلٌ منفيٌّ
+   إلى الأسفل. فيُرفع الالتصاق ما دام الافتتاح ظاهرًا، ويجتمع الاثنان
+   بهامشين تلقائيَّين فيصيران كتلةً واحدة متوسّطة.
+   وبعد أوّل رسالة يعود الملتقط ملتصقًا ويتدفّق الحوار من الأعلى.
+   `:has` مدعوم في المتصفّحات المستهدفة، وسقوطه يُعيد السلوك السابق. */
+.vo:has(.vo-hero:not([hidden])) .vo-main {
+  flex: 0 0 auto;
+  margin-block-start: auto;
+  justify-content: center;
+}
 
-.vo-hero { text-align: center; padding-block: clamp(.6rem, 4vh, 2.4rem) .4rem; }
+.vo:has(.vo-hero:not([hidden])) .vo-composer {
+  position: static;
+  margin-block-end: auto;
+  border-top: 0;
+  background: transparent;
+}
 
-.vo-hero h1 { margin-bottom: .45em; }
+.vo-hero { text-align: center; padding-block: 0 .2rem; }
+
+.vo-hero h1 {
+  margin-bottom: .2em;
+  /* الكلمة الواحدة تحمل الصفحة وحدها، فتُعطى وزنًا بصريًّا يوازي ذلك:
+     تباعدُ حروفٍ موجب لا سالب — العربية متصلة الحروف والسالب يشوّهها. */
+  letter-spacing: .02em;
+  color: var(--word);
+}
 
 /* ------------------------------- الحوار ------------------------------- */
 /* ما يُمرَّر إليه يقف فوق الملتقط لا تحته. الملتقط ملتصقٌ بأسفل الشاشة،
@@ -336,6 +449,15 @@ body.vo {
 }
 
 .vo-chat { display: flex; flex-direction: column; gap: .6rem; }
+
+/* دخولٌ قصير: الفقاعة تصعد قليلًا وتظهر. ما يتحرّك في الواجهة يجب أن
+   يقول شيئًا — وهذا يقول «هذا جديد». */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.vo-msg, .vo-card, .vo-done { animation: rise var(--t) var(--ease-out) both; }
 
 .vo-msg {
   max-width: 85%; padding: .7rem 1rem; border-radius: var(--radius);
@@ -355,14 +477,14 @@ body.vo {
   border: 1px solid var(--line); border-start-end-radius: var(--radius-sm);
 }
 
-.vo-msg--agent b { color: var(--teal-800); }
+.vo-msg--agent b { color: var(--brand-ink-str); }
 
 /* اقتراح «هل تقصد…؟» — زرّ داخل فقاعة الوكيل */
 .vo-msg .vo-hintbtn {
   display: inline-flex; align-items: center; min-height: 44px;
   margin-top: .4rem; padding: 0 1rem;
   font-family: var(--font); font-size: var(--fs-sm); font-weight: 700;
-  color: var(--teal-800); background: var(--teal-50);
+  color: var(--brand-ink-str); background: var(--brand-surf);
   border: 1px solid var(--line-ctl); border-radius: var(--radius-sm);
   cursor: pointer; transition: background var(--t-fast), border-color var(--t-fast);
 }
@@ -372,8 +494,8 @@ body.vo {
 /* ---------------------------- بطاقة الطلب ---------------------------- */
 .vo-card {
   background: var(--surf-1); border: 1px solid var(--surf-1-line);
-  border-radius: var(--radius); padding: 1rem 1.2rem;
-  box-shadow: var(--edge);
+  border-radius: var(--radius); padding: 1.05rem 1.25rem;
+  box-shadow: var(--shadow-sm);
 }
 
 .vo-card__title { font-size: var(--fs-lg); margin-bottom: .5em; }
@@ -403,14 +525,14 @@ body.vo {
 /* ------------------------------ التأكيد ------------------------------ */
 .vo-done {
   background: var(--surf-1); border: 1px solid var(--line);
-  border-radius: var(--radius); padding: 1.4rem 1.2rem; text-align: center;
-  box-shadow: var(--edge);
+  border-radius: var(--radius-lg); padding: 1.5rem 1.25rem; text-align: center;
+  box-shadow: var(--shadow);
 }
 
 .vo-done__mark {
   width: 56px; height: 56px; margin: 0 auto .8rem; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  background: var(--teal-50); border: 2px solid var(--teal-700); color: var(--teal-800);
+  background: var(--brand-surf); border: 2px solid var(--brand-ink); color: var(--brand-ink-str);
 }
 
 .vo-done__mark .ic { width: 26px; height: 26px; stroke-width: 2.1; }
@@ -418,7 +540,7 @@ body.vo {
 .vo-done h2 { font-size: var(--fs-h3); margin-bottom: .3em; }
 
 .vo-done__code {
-  font-size: var(--fs-big); font-weight: 700; color: var(--teal-700);
+  font-size: var(--fs-big); font-weight: 700; color: var(--brand-ink);
   letter-spacing: .02em;
 }
 
@@ -443,16 +565,41 @@ body.vo {
 
 /* زرّ الصوت: أكبر عنصر في الصفحة — هو الطريق الأول */
 .vo-mic {
-  flex: none; width: 64px; height: 64px; border-radius: 50%;
+  flex: none; width: 68px; height: 68px; border-radius: var(--radius-pill);
   display: flex; align-items: center; justify-content: center;
   font-family: var(--font); cursor: pointer;
-  color: #fff; background: var(--teal-800);
-  border: 2px solid var(--teal-800);
-  box-shadow: var(--edge-str);
-  transition: background var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
+  color: #fff;
+  background: radial-gradient(120% 120% at 50% 0%, var(--teal-600), var(--teal-800) 70%);
+  border: 0;
+  box-shadow: var(--shadow-mic);
+  transition: transform var(--t-fast) var(--ease-out),
+              box-shadow var(--t) var(--ease), filter var(--t-fast);
 }
 
-.vo-mic:hover { background: var(--teal-900); border-color: var(--teal-900); }
+.vo-mic:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.vo-mic:active { transform: translateY(0) scale(.97); }
+
+/* أثناء الاستماع: حلقةٌ تنبض حول الزرّ — علامةٌ ترى بطرف العين أنّ
+   الجهاز يسمع. والحالة مقروءة من `aria-pressed` نفسها لا من صنفٍ ثانٍ
+   يمكن أن يتخلّف عنها. */
+.vo-mic[aria-pressed="true"] {
+  background: radial-gradient(120% 120% at 50% 0%, var(--teal-500), var(--teal-700) 70%);
+}
+
+.vo-mic[aria-pressed="true"]::after {
+  content: ""; position: absolute; inset: -6px;
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--teal-600);
+  animation: mic-ring 1.6s var(--ease) infinite;
+}
+
+.vo-mic { position: relative; }
+
+@keyframes mic-ring {
+  0%   { opacity: .55; transform: scale(1); }
+  70%  { opacity: 0;   transform: scale(1.28); }
+  100% { opacity: 0;   transform: scale(1.28); }
+}
 
 .vo-mic .ic--lg { width: 28px; height: 28px; stroke-width: 1.46; }
 
@@ -469,12 +616,16 @@ body.vo {
      افتراضًا، و`<textarea>` بلا `cols` عرضه الأصيل عشرون محرفًا — فدفع
      الشريطَ إلى ٣٦٩px في شاشة ٣٢٠ وأخرج الصفحة عن حدّها. */
   flex: 1; min-width: 0; display: flex; align-items: flex-end; gap: .5rem;
-  background: #fff; border: 1px solid var(--line-ctl);
-  border-radius: var(--radius-lg); padding-inline-start: 1rem;
-  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+  background: var(--surf-1); border: 1px solid var(--line-ctl);
+  border-radius: var(--radius-lg); padding-inline-start: 1.1rem;
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--t-fast), box-shadow var(--t) var(--ease);
 }
 
-.vo-typebar:focus-within { border-color: var(--teal-700); box-shadow: var(--halo); }
+.vo-typebar:focus-within {
+  border-color: var(--teal-600);
+  box-shadow: var(--halo), var(--shadow);
+}
 
 /* مساحةٌ لا سطر. الطلب جملتان أو ثلاث («اسمي… ورقمي… من… إلى…»)، وكان
    الحقل سطرًا واحدًا يخفي أوّل الكلام عند آخره — والصوت يكتب فيه فقرةً
@@ -496,14 +647,16 @@ body.vo {
 }
 
 .vo-typebar__send {
-  flex: none; width: 48px; height: 48px; margin: 3px;
+  flex: none; width: 48px; height: 48px; margin: 5px;
   display: flex; align-items: center; justify-content: center;
-  border: 0; border-radius: var(--radius);
-  background: var(--teal-800); color: #fff; cursor: pointer;
-  transition: background var(--t-fast);
+  border: 0; border-radius: calc(var(--radius-lg) - 6px);
+  background: linear-gradient(180deg, var(--teal-700), var(--teal-800));
+  color: #fff; cursor: pointer;
+  transition: filter var(--t-fast), transform var(--t-fast) var(--ease-out);
 }
 
-.vo-typebar__send:hover { background: var(--teal-900); }
+.vo-typebar__send:hover { filter: brightness(1.08); }
+.vo-typebar__send:active { transform: scale(.96); }
 
 .vo-typebar__send .ic { width: 20px; height: 20px; stroke-width: 2.04; }
 
