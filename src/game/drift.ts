@@ -143,6 +143,37 @@ function normaliseAngle(a: number): number {
   return x;
 }
 
+/**
+ * Let go from something that is not a slide.
+ *
+ * The spin above is entered from exactly one place: an angle the fronts
+ * could not answer. That is the right rule for losing it on the throttle,
+ * and it meant an impact could never spin the car however hard it was —
+ * a barrier scaled the heading by a number, and the momentum model sitting
+ * right here went unused. This is the same door, opened from outside.
+ *
+ * `rate` is the rotation the impact imparted, rad/s. Everything after
+ * entry is the existing model: sliding tyres take it back out, it costs
+ * speed by how sideways the body is, and it ends when the car stops
+ * turning rather than when a clock runs out.
+ *
+ * Returns false and does nothing if a spin is already running — a car
+ * bouncing down a barrier must not have its rotation reset by every
+ * fresh contact, which would hold it spinning for as long as it kept
+ * touching the wall.
+ */
+export function spinFromImpact(s: DriftState, rate: number): boolean {
+  if (s.spinT > 0) return false;
+  if (!(Math.abs(rate) > 0)) return false;
+  s.spinRate = rate;
+  // Where the body already is, not where the impact came from: the car
+  // carries its angle into the spin the way a slide-entered one does.
+  s.spinT = 1e-3;
+  s.spinSwept = 0;
+  breakChain(s);
+  return true;
+}
+
 /** Lose the run and the multiplier — a wall, a spin, a wreck. */
 export function breakChain(s: DriftState): void {
   s.run = 0;

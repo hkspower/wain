@@ -55,6 +55,7 @@
     "test:carbon": "node tests/carbon.mjs",
     "test:clock": "node tests/clock.mjs",
     "test:community": "node tests/community.mjs",
+    "test:crash": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/crash.mjs",
     "test:crew": "node tests/crew.mjs",
     "test:crews": "node tests/crews.mjs",
     "test:daynight": "node tests/daynight.mjs",

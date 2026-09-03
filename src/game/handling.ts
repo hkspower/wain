@@ -1,7 +1,26 @@
 // The handling model's tuning constants, in one place so the UE5 data
 // API and the C++ header generator publish exactly what src/game/engine.ts
-// runs. engine.ts keeps its own local copies for hot-path clarity; the
-// contract test in scripts/check-unreal-sync.mjs proves they agree.
+// runs.
+//
+// This header used to end: "engine.ts keeps its own local copies for
+// hot-path clarity; the contract test in scripts/check-unreal-sync.mjs
+// proves they agree." The second half of that was not true. That script
+// never opens engine.ts — it compares the live JSON API against the baked
+// C++ header, and BOTH are generated from this file, so it can only ever
+// prove this file agrees with itself. Nothing checked the web build's
+// local copies against the numbers published here.
+//
+// The cost of believing it was measured: every crash constant below was
+// read by nothing on the web. engine.ts had 12, 0.28, 5 and 22 typed into
+// the middle of its update while GRNVehiclePawn.cpp read the published
+// names, so the two builds agreed by luck and editing here moved only the
+// ports. src/game/crash.ts reads them now.
+//
+// Fourteen constants are still in that position — read by no module in
+// src/game — and they are not all bugs: some are genuinely duplicated in
+// engine.ts for hot-path clarity, which is a defensible choice. What is
+// not defensible is having no check that the duplicate still matches.
+// They are listed in tests/crash.mjs, which fails if the count grows.
 
 export const HANDLING = {
   /** Accel-curve ceiling in m/s before per-car bonuses. */
@@ -401,15 +420,111 @@ export const HANDLING = {
   powerOverThrottle: 0.85,
   powerOverAngleK: 0.6,
 
-  // Crashes: severity is the speed component into the obstacle.
+  // Crashes (src/game/crash.ts). Severity is the speed component into
+  // the obstacle; rotation is the lever arm the impulse acts on.
+  //
+  // These four constants existed for a long time and were read by
+  // NOTHING on the web. engine.ts had 12, 0.28, 5 and 22 typed into the
+  // middle of its update while GRNVehiclePawn.cpp read the published
+  // names, so the two builds agreed by luck and editing here moved only
+  // the ports. crash.ts reads them now, and tests/crash.mjs fails if a
+  // literal creeps back.
   /** Lateral m/s into a wall that counts as a full-severity crash. */
   crashLatFull: 12,
   /** Fraction of speed a full-severity wall hit sheds at impact. */
   crashSpeedLossK: 0.28,
   /** Rebound shove off the barrier at full severity (m/s). */
   crashReboundK: 5,
+  /** Rebound at zero severity: even a graze pushes the car off the wall
+   *  rather than letting it ride along glued to the steel. */
+  crashSlipBase: 1.2,
   /** Closing speed on traffic that counts as a full-severity wreck. */
   trafficClosingFull: 22,
+  /** Sustained rub along a barrier: fraction of speed per second at zero
+   *  severity, plus this much more scaled by how hard it is pressed in. */
+  crashScrapeBase: 0.35,
+  crashScrapeK: 1.3,
+  /** What is left of the heading after the barrier deflects the nose: a
+   *  base, plus this much by severity. A steep arrival keeps more of the
+   *  reversed angle, which is what bouncing off a wall looks like. */
+  crashHeadingKeep: 0.1,
+  crashHeadingKeepK: 0.3,
+
+  // The rotation an impact imparts — the part that did not exist.
+  //
+  // A hit is an impulse, and an impulse through anything but the centre
+  // of mass turns the car. Before this the model read only how fast the
+  // car was going sideways, so it could not tell a nose-in clip from a
+  // tail-out one: it scaled the heading by a number and drove on. Losing
+  // the tail at 200 km/h span the car properly, through a momentum model
+  // with sliding-tyre friction; putting the same car into a barrier
+  // sideways at the same speed did not rotate it at all.
+  /** rad/s a full-severity, fully off-centre impact imparts. This is the
+   *  NOSE-first figure; a tail-first clip is crashTailLeverK times it. */
+  crashYawK: 2.2,
+  /** Body angle (rad) at which the contact is as off-centre as it gets.
+   *  About 34 degrees. Below it the impulse passes closer to the centre
+   *  of mass and turns the car less; a dead-parallel graze is a scrape
+   *  and rotates it not at all. */
+  crashLeverRef: 0.6,
+  /** How much harder a TAIL-first barrier clip rotates the car than a
+   *  nose-first one. The barrier pushes whatever touches it away from
+   *  itself: nose first and the car is straightened along the wall, tail
+   *  first and the back is thrown out while the nose tucks in. Same
+   *  impulse, opposite sign, and only one of them ends facing backwards. */
+  crashTailLeverK: 1.7,
+  /** Yaw (rad/s) past which an impact is more than the tyres can answer
+   *  and the car is handed to the spin solver in drift.ts. Below it the
+   *  rotation is a kick the driver can catch.
+   *
+   *  Set from the two figures above rather than picked: at the
+   *  full-severity speed and full lever a nose-first clip imparts
+   *  crashYawK = 2.20 rad/s and a tail-first one crashYawK *
+   *  crashTailLeverK = 3.74, so anything strictly between them makes the
+   *  tail-first hit the one that goes round and leaves the nose-first
+   *  hit catchable. 2.0 was tried first and is BELOW both: it spun the
+   *  car whichever end touched, which is the symmetric model this was
+   *  written to replace. tests/crash.mjs asserts the ordering, so a
+   *  future edit to any of the three fails loudly instead of quietly
+   *  collapsing the distinction again. */
+  crashSpinRate: 2.8,
+  /** Seconds of the impact's rotation that land as body angle when the
+   *  hit is NOT hard enough to spin the car.
+   *
+   *  The drift model holds a non-spinning car as an ANGLE and a spinning
+   *  one as a RATE, so a sub-spin impulse has to be converted, and the
+   *  conversion needs a timescale. Using the frame's own dt — which is
+   *  what the first wiring of this did — makes the kick both negligible
+   *  (2.2 rad/s x 1/60 = 0.037 rad, a two-degree nudge off a 43 km/h
+   *  impact) and frame-rate dependent: the identical crash would turn the
+   *  car half as far at 120 fps as at 60. An impulse must not depend on
+   *  when it happened to land. */
+  crashKickTime: 0.12,
+  /** Camera shake from a barrier, base and by severity. */
+  crashShakeBase: 0.3,
+  crashShakeK: 0.9,
+  /** SP a barrier costs, base and by severity, before the cage's share. */
+  crashSpBase: 2,
+  crashSpK: 8,
+
+  // Traffic contact.
+  /** Lever arm on a shunt: a base, because a bumper strike is never
+   *  square, plus this much by how angled the car already was. */
+  trafficLeverBase: 0.35,
+  trafficLeverK: 0.5,
+  /** How much more a hit from BEHIND turns the car than running into the
+   *  back of something. The push is behind the centre of mass, which is
+   *  the whole principle of a PIT manoeuvre; driving into a car nose-on
+   *  is resisted by the front tyres and mostly just stops you. */
+  trafficRearLeverK: 1.8,
+  /** Radians the nose glances off line, scaled by (0.5 + severity). */
+  trafficHeadingK: 0.06,
+  /** Camera shake from a shunt, base and by severity. */
+  trafficShakeBase: 0.5,
+  trafficShakeK: 0.7,
+  /** SP a shunt costs, base and by severity, before the cage's share. */
+  trafficSpBase: 4,
+  trafficSpK: 8,
 } as const;
 
 export type Handling = typeof HANDLING;

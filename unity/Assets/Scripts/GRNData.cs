@@ -543,7 +543,29 @@ public static class GRNData
         public const float CrashLatFull = 12f;
         public const float CrashSpeedLossK = 0.28f;
         public const float CrashReboundK = 5f;
+        public const float CrashSlipBase = 1.2f;
         public const float TrafficClosingFull = 22f;
+        public const float CrashScrapeBase = 0.35f;
+        public const float CrashScrapeK = 1.3f;
+        public const float CrashHeadingKeep = 0.1f;
+        public const float CrashHeadingKeepK = 0.3f;
+        public const float CrashYawK = 2.2f;
+        public const float CrashLeverRef = 0.6f;
+        public const float CrashTailLeverK = 1.7f;
+        public const float CrashSpinRate = 2.8f;
+        public const float CrashKickTime = 0.12f;
+        public const float CrashShakeBase = 0.3f;
+        public const float CrashShakeK = 0.9f;
+        public const float CrashSpBase = 2f;
+        public const float CrashSpK = 8f;
+        public const float TrafficLeverBase = 0.35f;
+        public const float TrafficLeverK = 0.5f;
+        public const float TrafficRearLeverK = 1.8f;
+        public const float TrafficHeadingK = 0.06f;
+        public const float TrafficShakeBase = 0.5f;
+        public const float TrafficShakeK = 0.7f;
+        public const float TrafficSpBase = 4f;
+        public const float TrafficSpK = 8f;
     }
 
     /// <summary>
@@ -680,7 +702,29 @@ public static class GRNData
         public const double CrashLatFull = 12;
         public const double CrashSpeedLossK = 0.28;
         public const double CrashReboundK = 5;
+        public const double CrashSlipBase = 1.2;
         public const double TrafficClosingFull = 22;
+        public const double CrashScrapeBase = 0.35;
+        public const double CrashScrapeK = 1.3;
+        public const double CrashHeadingKeep = 0.1;
+        public const double CrashHeadingKeepK = 0.3;
+        public const double CrashYawK = 2.2;
+        public const double CrashLeverRef = 0.6;
+        public const double CrashTailLeverK = 1.7;
+        public const double CrashSpinRate = 2.8;
+        public const double CrashKickTime = 0.12;
+        public const double CrashShakeBase = 0.3;
+        public const double CrashShakeK = 0.9;
+        public const double CrashSpBase = 2;
+        public const double CrashSpK = 8;
+        public const double TrafficLeverBase = 0.35;
+        public const double TrafficLeverK = 0.5;
+        public const double TrafficRearLeverK = 1.8;
+        public const double TrafficHeadingK = 0.06;
+        public const double TrafficShakeBase = 0.5;
+        public const double TrafficShakeK = 0.7;
+        public const double TrafficSpBase = 4;
+        public const double TrafficSpK = 8;
     }
 
     static Color Hex(int rgb) =>

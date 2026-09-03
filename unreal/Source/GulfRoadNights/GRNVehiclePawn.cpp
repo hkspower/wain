@@ -316,13 +316,11 @@ void AGRNVehiclePawn::UpdateHandling(float Dt)
 		// nose, sheds real speed once, and bounces the car back off.
 		const float Side = Lat >= 0.f ? 1.f : -1.f;
 		const float IntoWall = FMath::Max(0.f, LatVelMs * Side);
-		const float Severity = FMath::Min(1.f, IntoWall / CrashLatFull);
+		const GRNSim::FImpact Hit =
+			GRNSim::SolveWallImpact(IntoWall, Heading, Side, CrashResist);
 		Lat = FMath::Clamp(Lat, -MaxLat, MaxLat);
-		SpeedMs *= 1.f - (0.35f + 1.3f * Severity) * Dt; // sustained rubbing
-		if (FMath::Sign(Heading) == Side)
-		{
-			Heading *= -(0.1f + 0.3f * Severity); // the barrier turns the nose away
-		}
+		SpeedMs *= 1.f - (float)GRNSim::ScrapeDrag(Hit.Severity) * Dt; // sustained rubbing
+		Heading = (float)Hit.Heading;
 		// The wall takes the slide AND the style points, and it has to
 		// take them from the solver's own state — writing DriftYaw here
 		// and leaving DriftState.Angle alone would have the next step
@@ -336,8 +334,22 @@ void AGRNVehiclePawn::UpdateHandling(float Dt)
 		if (ScrapeCooldown <= 0.f)
 		{
 			ScrapeCooldown = 0.5f;
-			SpeedMs *= 1.f - CrashSpeedLossK * Severity;   // the impact itself, once
-			ReboundVel = -Side * (1.2f + CrashReboundK * Severity);
+			SpeedMs *= (float)Hit.SpeedMul;               // the impact itself, once
+			ReboundVel = -Side * (float)(CrashSlipBase + CrashReboundK * Hit.Severity);
+			// ...and the rotation it imparts. A tail-first clip throws the
+			// back out and tucks the nose in; past CrashSpinRate that is
+			// more than the tyres can answer and the car goes round, in the
+			// same momentum spin a lost slide enters.
+			if (Hit.Spin)
+			{
+				GRNSim::SpinFromImpact(DriftState, Hit.Yaw);
+				DriftYaw = (float)DriftState.Angle;
+			}
+			else
+			{
+				DriftState.Angle += Hit.Kick;
+				DriftYaw = (float)DriftState.Angle;
+			}
 		}
 	}
 

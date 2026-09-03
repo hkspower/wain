@@ -44,6 +44,11 @@ public:
 	 *  v² either side of it. A wing is not a constant. */
 	float Downforce = 0.f;
 	float BrakeThermalMult = 1.f;
+	/** 0..1 of an impact's DAMAGE a cage absorbs — speed shed and SP lost.
+	 *  Not its rotation: an impulse turns the car whatever the shell is
+	 *  made of, and scaling the yaw by this made a caged car unspinnable
+	 *  by any impact at all. mods.ts sets 0.55 for the cage, 0 otherwise. */
+	float CrashResist = 0.f;
 	bool bHasAbs = true;
 	bool bHasNos = false;
 	float BoostMult = 0.f;

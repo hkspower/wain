@@ -42,8 +42,10 @@ import {
   solveDrift,
   newDriftState,
   breakChain,
+  spinFromImpact,
   type DriftState,
 } from "./drift";
+import { solveWallImpact, solveTrafficImpact, scrapeDrag } from "./crash";
 import {
   solveBrakes,
   newBrakeState,
@@ -4435,14 +4437,16 @@ export class GameEngine {
         0,
         (Math.sin(this.heading) * p.speed * driftScrub + this.slipVel) * side
       );
-      const severity = Math.min(1, intoWall / 12);
+      const hit = solveWallImpact({
+        into: intoWall,
+        heading: this.heading,
+        side,
+        crashResist: this.tune.crashResist,
+      });
       // Sustained rubbing: friction scales with how hard the car is
       // pressed into the steel, not a flat rate
-      p.speed *= 1 - (0.35 + 1.3 * severity) * dt;
-      if (Math.sign(this.heading) === side) {
-        // The barrier turns the nose away — steeper arrivals rebound more
-        this.heading *= -(0.1 + 0.3 * severity);
-      }
+      p.speed *= 1 - scrapeDrag(hit.severity) * dt;
+      this.heading = hit.heading;
       this.slipVel *= 0.2;
       // The wall ends the slide — and takes the unbanked style points
       // and the multiplier with it. A chain you can carry through a
@@ -4454,17 +4458,25 @@ export class GameEngine {
         // The impact itself, once per contact: energy loss and a shove
         // off the barrier, both scaled by how hard it was hit — and by
         // how much of it a cage absorbs
-        p.speed *= 1 - 0.28 * severity * (1 - this.tune.crashResist);
-        this.slipVel = -side * (1.2 + 5 * severity);
+        p.speed *= hit.speedMul;
+        this.slipVel = hit.slipVel;
+        // ...and the rotation it imparts. A nose-first clip is pushed
+        // straight along the barrier; a tail-first one throws the back
+        // out and tucks the nose in, and past crashSpinRate that is more
+        // than the tyres can answer and the car goes round. This is the
+        // same momentum spin a lost slide enters, which until now no
+        // impact could reach however hard it was.
+        if (hit.spin) spinFromImpact(this.ds, hit.yaw);
+        else this.driftYaw += hit.kick;
         this.events.onBump();
         if (this.inBattle) this.bstat.contacts++;
-        this.spawnSparks(Math.sign(p.lat) || 1, severity);
-        this.sound?.scrape(severity);
-        this.shake = Math.max(this.shake, 0.3 + 0.9 * severity);
+        this.spawnSparks(Math.sign(p.lat) || 1, hit.severity);
+        this.sound?.scrape(hit.severity);
+        this.shake = Math.max(this.shake, hit.shake);
         if (this.inBattle)
           p.sp = Math.max(
             0,
-            p.sp - Math.round((2 + 8 * severity) * (1 - this.tune.crashResist))
+            p.sp - Math.round(hit.spLoss * (1 - this.tune.crashResist))
           );
       }
     }
@@ -4656,7 +4668,15 @@ export class GameEngine {
           this.bumpCooldown = 1;
           const rel = p.speed - t.speed; // + = we ran into them
           const closing = Math.abs(rel);
-          const sev = Math.min(1, closing / 22);
+          const shove0 = Math.sign(p.lat - t.lat) || 1;
+          const hit = solveTrafficImpact({
+            closing,
+            heading: this.heading,
+            shove: shove0,
+            fromBehind: rel < 0,
+            crashResist: this.tune.crashResist,
+          });
+          const sev = hit.severity;
           if (rel >= 0) {
             // We hit them: the closing speed is mostly shed, and a harder
             // hit sheds proportionally more of it
@@ -4676,20 +4696,25 @@ export class GameEngine {
           }
           // The nose glances off toward the open side and the body gets
           // kicked off line — a shunt is never perfectly square
-          const shove = Math.sign(p.lat - t.lat) || 1;
+          const shove = shove0;
           p.lat += shove * (0.4 + 0.9 * sev);
-          this.heading += shove * 0.06 * (0.5 + sev);
-          this.driftYaw = this.driftYaw * 0.25 + shove * 0.12 * sev;
+          this.heading = hit.heading;
+          // Being hit from BEHIND turns the car far more than running
+          // into the back of something: the push is behind the centre of
+          // mass, which is the whole principle of a PIT manoeuvre. Hard
+          // enough and it lets go into the same spin a lost slide does.
+          if (hit.spin) spinFromImpact(this.ds, hit.yaw);
+          else this.driftYaw = this.driftYaw * 0.25 + hit.kick;
           breakChain(this.ds);
           this.events.onBump();
           if (this.inBattle) this.bstat.contacts++;
-          this.spawnSparks(Math.sign(p.lat - t.lat) || 0, sev);
+          this.spawnSparks(shove, sev);
           this.sound?.bump(0.5 + sev);
-          this.shake = 0.5 + 0.7 * sev;
+          this.shake = hit.shake;
           if (this.inBattle)
             p.sp = Math.max(
               0,
-              p.sp - Math.round((4 + 8 * sev) * (1 - this.tune.crashResist))
+              p.sp - Math.round(hit.spLoss * (1 - this.tune.crashResist))
             );
           break;
         }

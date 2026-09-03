@@ -131,7 +131,29 @@ namespace GRNHandling
 	constexpr float CrashLatFull = 12.f;
 	constexpr float CrashSpeedLossK = 0.28f;
 	constexpr float CrashReboundK = 5.f;
+	constexpr float CrashSlipBase = 1.2f;
 	constexpr float TrafficClosingFull = 22.f;
+	constexpr float CrashScrapeBase = 0.35f;
+	constexpr float CrashScrapeK = 1.3f;
+	constexpr float CrashHeadingKeep = 0.1f;
+	constexpr float CrashHeadingKeepK = 0.3f;
+	constexpr float CrashYawK = 2.2f;
+	constexpr float CrashLeverRef = 0.6f;
+	constexpr float CrashTailLeverK = 1.7f;
+	constexpr float CrashSpinRate = 2.8f;
+	constexpr float CrashKickTime = 0.12f;
+	constexpr float CrashShakeBase = 0.3f;
+	constexpr float CrashShakeK = 0.9f;
+	constexpr float CrashSpBase = 2.f;
+	constexpr float CrashSpK = 8.f;
+	constexpr float TrafficLeverBase = 0.35f;
+	constexpr float TrafficLeverK = 0.5f;
+	constexpr float TrafficRearLeverK = 1.8f;
+	constexpr float TrafficHeadingK = 0.06f;
+	constexpr float TrafficShakeBase = 0.5f;
+	constexpr float TrafficShakeK = 0.7f;
+	constexpr float TrafficSpBase = 4.f;
+	constexpr float TrafficSpK = 8.f;
 }
 
 // ------------------------------------------------ the same, exactly
@@ -269,7 +291,29 @@ namespace GRNExact
 	constexpr double CrashLatFull = 12;
 	constexpr double CrashSpeedLossK = 0.28;
 	constexpr double CrashReboundK = 5;
+	constexpr double CrashSlipBase = 1.2;
 	constexpr double TrafficClosingFull = 22;
+	constexpr double CrashScrapeBase = 0.35;
+	constexpr double CrashScrapeK = 1.3;
+	constexpr double CrashHeadingKeep = 0.1;
+	constexpr double CrashHeadingKeepK = 0.3;
+	constexpr double CrashYawK = 2.2;
+	constexpr double CrashLeverRef = 0.6;
+	constexpr double CrashTailLeverK = 1.7;
+	constexpr double CrashSpinRate = 2.8;
+	constexpr double CrashKickTime = 0.12;
+	constexpr double CrashShakeBase = 0.3;
+	constexpr double CrashShakeK = 0.9;
+	constexpr double CrashSpBase = 2;
+	constexpr double CrashSpK = 8;
+	constexpr double TrafficLeverBase = 0.35;
+	constexpr double TrafficLeverK = 0.5;
+	constexpr double TrafficRearLeverK = 1.8;
+	constexpr double TrafficHeadingK = 0.06;
+	constexpr double TrafficShakeBase = 0.5;
+	constexpr double TrafficShakeK = 0.7;
+	constexpr double TrafficSpBase = 4;
+	constexpr double TrafficSpK = 8;
 }
 
 // ------------------------------------------------------------------ rigs

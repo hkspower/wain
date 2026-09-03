@@ -460,6 +460,114 @@ namespace GRNSim
 		S.SinceSlide = 99.0;
 	}
 
+	// ------------------------------------------------------------- crashes
+	//
+	// A port of src/game/crash.ts, statement for statement, for the same
+	// reason the drift solver is here: the pawn used to carry its own copy
+	// of the crash response, and that copy had the model this replaced —
+	// a heading multiplier and no rotation at all, so no impact of any
+	// speed could ever spin the car while a lost slide always could.
+
+	struct FImpact
+	{
+		double Severity = 0.0;
+		double SpeedMul = 1.0;
+		double Heading = 0.0;
+		double SlipVel = 0.0;
+		double Yaw = 0.0;
+		/** The same impulse as an ANGLE, for a hit too soft to spin the
+		 *  car. Not dt-scaled: an impulse must not depend on the frame it
+		 *  landed in. */
+		double Kick = 0.0;
+		bool Spin = false;
+		bool NoseFirst = true;
+		double Shake = 0.0;
+		double SpLoss = 0.0;
+	};
+
+	/** Sustained rubbing along a barrier — the frames between impacts. */
+	inline double ScrapeDrag(double Severity)
+	{
+		using namespace GRNExact;
+		return CrashScrapeBase + CrashScrapeK * Clamp(Severity, 0.0, 1.0);
+	}
+
+	/** Start a spin from something that is not a slide. Returns false if
+	 *  one is already running: a car bouncing down a barrier must not have
+	 *  its rotation reset by every fresh contact. */
+	inline bool SpinFromImpact(FDriftState& S, double Rate)
+	{
+		if (S.SpinT > 0.0) return false;
+		if (!(std::fabs(Rate) > 0.0)) return false;
+		S.SpinRate = Rate;
+		S.SpinT = 1e-3;
+		S.SpinSwept = 0.0;
+		BreakChain(S);
+		return true;
+	}
+
+	/** The rotation an off-centre impulse imparts. Rotation grows with the
+	 *  ANGLE where severity grows with the SPEED, and which end touches
+	 *  decides the sign: nose first is straightened along the wall, tail
+	 *  first is thrown out and tucks the nose in. */
+	inline double WallYaw(double Severity, double Heading, double Side, bool NoseFirst)
+	{
+		using namespace GRNExact;
+		const double Lever = Min(1.0, std::fabs(Heading) / CrashLeverRef);
+		double Mag = CrashYawK * Severity * Lever;
+		if (!NoseFirst) Mag *= CrashTailLeverK;
+		return Mag * (NoseFirst ? -Side : Side);
+	}
+
+	inline FImpact SolveWallImpact(double Into, double Heading, double SideIn, double CrashResist)
+	{
+		using namespace GRNExact;
+		const double Side = Sign(SideIn) != 0.0 ? Sign(SideIn) : 1.0;
+		const double Severity = Clamp(Max(0.0, Into) / CrashLatFull, 0.0, 1.0);
+		const double Resist = Clamp(CrashResist, 0.0, 1.0);
+		const bool NoseFirst = Sign(Heading) == Side || Heading == 0.0;
+
+		FImpact Out;
+		Out.Severity = Severity;
+		// NOT scaled by the cage: rotation is angular momentum, not damage.
+		Out.Yaw = WallYaw(Severity, Heading, Side, NoseFirst);
+		Out.Kick = Out.Yaw * CrashKickTime;
+		Out.Spin = std::fabs(Out.Yaw) > CrashSpinRate;
+		Out.SpeedMul = 1.0 - CrashSpeedLossK * Severity * (1.0 - Resist);
+		Out.Heading = (Sign(Heading) == Side)
+			? Heading * -(CrashHeadingKeep + CrashHeadingKeepK * Severity)
+			: Heading;
+		Out.SlipVel = -Side * (CrashSlipBase + CrashReboundK * Severity);
+		Out.NoseFirst = NoseFirst;
+		Out.Shake = CrashShakeBase + CrashShakeK * Severity;
+		Out.SpLoss = CrashSpBase + CrashSpK * Severity;
+		return Out;
+	}
+
+	inline FImpact SolveTrafficImpact(double Closing, double Heading, double ShoveIn,
+		bool FromBehind, double CrashResist)
+	{
+		using namespace GRNExact;
+		(void)CrashResist; // damage is the caller's; rotation is not resisted
+		const double Severity = Clamp(std::fabs(Closing) / TrafficClosingFull, 0.0, 1.0);
+		const double Shove = Sign(ShoveIn) != 0.0 ? Sign(ShoveIn) : 1.0;
+		const double Lever = TrafficLeverBase +
+			TrafficLeverK * Min(1.0, std::fabs(Heading) / CrashLeverRef);
+
+		FImpact Out;
+		Out.Severity = Severity;
+		Out.SpeedMul = 1.0;
+		Out.Yaw = Shove * CrashYawK * Severity * Lever * (FromBehind ? TrafficRearLeverK : 1.0);
+		Out.Kick = Out.Yaw * CrashKickTime;
+		Out.Heading = Heading + Shove * TrafficHeadingK * (0.5 + Severity);
+		Out.SlipVel = 0.0;
+		Out.Spin = std::fabs(Out.Yaw) > CrashSpinRate;
+		Out.NoseFirst = !FromBehind;
+		Out.Shake = TrafficShakeBase + TrafficShakeK * Severity;
+		Out.SpLoss = TrafficSpBase + TrafficSpK * Severity;
+		return Out;
+	}
+
 	inline FDriftResult SolveDrift(FDriftState& S, const FDriftInput& I)
 	{
 		using namespace GRNExact;
