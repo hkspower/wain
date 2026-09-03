@@ -77,7 +77,20 @@ console.log(`--- ${routes.length} routes in admin.php: ${publicOnes.length} befo
 // names, at the address already on that account. There is no recipient in the
 // body to choose, it refuses more than one message a minute from the row
 // itself, and it is throttled per IP on top.
-const MAY_BE_PUBLIC = ['login', 'login_code', 'login_code_resend', 'logout', 'me']
+// register is the sixth, and it is the only one that WRITES. It earns its
+// place because there is nobody to authenticate as: it exists to create the
+// first administrator on a shop that has none, which is the state both `me`
+// and store_login() already detect and report as no_admin_account.
+//
+// What makes it safe is not the gate but its own precondition. It refuses
+// unless admin_users is EMPTY, so on any shop that has an administrator —
+// which is every shop after the first minute of its life — it is inert and
+// answers already_set_up. It cannot add a second account, cannot reach the
+// first, and cannot be used to enumerate anything: the only two answers it
+// gives a stranger are "already set up" and a validation complaint. A named
+// MySQL lock serialises concurrent attempts so two cannot both see an empty
+// table, and it is throttled six to the quarter hour on top.
+const MAY_BE_PUBLIC = ['login', 'login_code', 'login_code_resend', 'logout', 'me', 'register']
 const unexpected = publicOnes.filter((r) => !MAY_BE_PUBLIC.includes(r))
 check(unexpected.length === 0,
   unexpected.length

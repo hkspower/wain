@@ -288,6 +288,32 @@ if (!placedR?.order_id) {
     inRes.headers.get('cache-control') ?? '(none)')
 }
 
+// --- the first-admin route, on a shop that already has one ----------------
+//
+// The happy path cannot be exercised here without emptying admin_users, which
+// is not a thing a test may do to a working database. What CAN be checked is
+// the half that matters on every shop after its first minute: that the route
+// is inert, and that it says so without leaking anything.
+{
+  const taken = await call('register', { email: 'intruder@example.com', password: 'a good long passphrase' })
+  check(taken.status === 409 && taken.body?.error === 'already_set_up',
+    `register refuses once an administrator exists (${taken.status} ${taken.body?.error})`)
+
+  const noHdr = await call('register', { email: 'a@b.com', password: 'a good long passphrase' }, { noHeader: true })
+  check(noHdr.status === 400, `register still demands X-Sporta-Admin (${noHdr.status})`)
+
+  // Validation runs BEFORE the count, so these answer on a live shop too — and
+  // that ordering is deliberate: a caller should learn their input is wrong
+  // whether or not the route would have gone on to refuse them anyway.
+  const badMail = await call('register', { email: 'not-an-email', password: 'a good long passphrase' })
+  check(badMail.status === 400 && badMail.body?.error === 'bad_email',
+    `a malformed address is refused (${badMail.body?.error})`)
+
+  const shortPw = await call('register', { email: 'boss@sporta.com.kw', password: 'elevenchar' })
+  check(shortPw.status === 400 && shortPw.body?.error === 'password_too_short',
+    `eleven characters is refused, matching the twelve the password change asks (${shortPw.body?.error})`)
+}
+
 // --- out ------------------------------------------------------------------
 await call('logout', {})
 const after = await call('me')

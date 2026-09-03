@@ -76,6 +76,80 @@ if ($r === 'login' && $method === 'POST') {
     ]);
 }
 
+// Create the FIRST admin account — and only ever the first.
+//
+// THE GAP THIS FILLS IS ONE THIS FILE ALREADY NAMED. Both `me` and
+// store_login() count admin_users and answer no_admin_account (409) when it is
+// empty, so the panel can say "this shop has no administrator yet" instead of
+// telling the owner their correct password is wrong. Neither offered a way
+// forward: the only way to make that first account was to hand-write a row,
+// with a hash minted by php -r, which is what scripts/sandbox.sh still does.
+// So the shop shipped a screen that diagnoses a problem it cannot fix.
+//
+// IT IS NOT A SIGN-UP, AND THE DIFFERENCE IS THE WHOLE DESIGN. An admin panel
+// that lets a stranger create an administrator is not a feature, it is the
+// door left open. This route can only ever fire while admin_users holds
+// NOTHING — the moment one account exists it answers already_set_up, and does
+// so forever. On this shop, which has an administrator, it is inert: it cannot
+// add a second account and it cannot reach the first.
+//
+// Adding a COLLEAGUE is a different job with a different answer — it belongs
+// behind the gate below, done by someone already signed in, and it is
+// deliberately not this route.
+//
+// ONE AT A TIME. Two requests arriving together would both count zero and both
+// insert, and the second would either collide with the unique index on email
+// or quietly create a second administrator nobody asked for. A named lock
+// serialises them; the loser sees already_set_up, which is the truth by then.
+// MySQL frees the lock when the connection closes, so the exits below cannot
+// strand it even though they skip the release.
+if ($r === 'register' && $method === 'POST') {
+    store_require_admin_header();
+    // Twenty a quarter of an hour, and the number is chosen for what this
+    // throttle actually defends. There is no secret here to guess: the route
+    // holds no credential, and on a shop with an administrator every answer it
+    // gives is already_set_up. What it defends is the narrow window while
+    // admin_users is empty, and the lock below, against being hammered.
+    //
+    // Six was the first value and it was too mean twice over. A person setting
+    // a shop up mistypes an address and picks a short password before they get
+    // it right, and each of those spends an attempt — validation runs before
+    // the count, deliberately. And the live rig makes four register calls per
+    // run, so two runs inside the window failed on the throttle rather than on
+    // anything real. A test that fails because it was run twice is a bad test.
+    store_throttle($db, 'admin_register', 20, 900);
+    $b = store_body();
+    $email = mb_strtolower(trim((string)($b['email'] ?? '')));
+    $pass  = (string)($b['password'] ?? '');
+
+    if ($email === '' || mb_strlen($email) > 120 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        store_fail('bad_email');
+    }
+    // TWELVE, because that is what changing a password already demands further
+    // down this file. A floor lower at the door than in the corridor protects
+    // nothing.
+    if (strlen($pass) < 12) store_fail('password_too_short');
+
+    if ((int)$db->query("select get_lock('sporta_admin_register', 5)")->fetchColumn() !== 1) {
+        store_fail('busy', 503);
+    }
+    if ((int)$db->query('select count(*) from admin_users')->fetchColumn() > 0) {
+        $db->query("select release_lock('sporta_admin_register')");
+        store_fail('already_set_up', 409);
+    }
+    $ins = $db->prepare('insert into admin_users (email, password_hash) values (?, ?)');
+    $ins->execute([$email, password_hash($pass, PASSWORD_DEFAULT)]);
+    $id = (int)$db->lastInsertId();
+    $db->query("select release_lock('sporta_admin_register')");
+
+    // Signed in immediately, through the SAME function both login paths end in,
+    // so a newly made administrator and a returning one cannot drift into
+    // different ideas of what a session is. They chose the password one line
+    // ago; asking them to type it again proves nothing.
+    store_admin_grant($db, ['id' => $id, 'email' => $email]);
+    store_out(['email' => $email]);
+}
+
 // Send the emailed code again, while sign-in is half done.
 //
 // ABOVE THE GATE, like login_code, because there is no session yet — only the
