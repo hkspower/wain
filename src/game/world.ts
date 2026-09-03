@@ -185,12 +185,12 @@ export function areaAt(track: Track, s: number) {
 
 /** Lateral offset: a constant, or a function of s for widths that follow
  *  the drivable road (the Sharq plaza swell). */
-type LatOffset = number | ((s: number) => number);
+export type LatOffset = number | ((s: number) => number);
 const latAt = (o: LatOffset, s: number) => (typeof o === "number" ? o : o(s));
 
 /** Flat ribbon following the track between lateral offsets a..b at height y,
  *  optionally only over the lap fraction u0..u1. */
-function buildRibbon(
+export function buildRibbon(
   track: Track,
   a: LatOffset,
   b: LatOffset,
@@ -227,7 +227,26 @@ function buildRibbon(
     uvs[ou + 3] = s / 14;
     if (i < n) {
       const v = i * 2;
-      indices.push(v, v + 1, v + 2, v + 1, v + 3, v + 2);
+      // Wound to face UP, decided per quad from which offset is on the
+      // left. `side` is tangent x UP, so (lateral, along) is a
+      // left-handed pair and the natural index order faces the GROUND —
+      // and a ground quad facing down is back-face culled, which is the
+      // trap the cross streets fell into and documented below.
+      //
+      // Both edge lines fell into it too, and stayed there. The call site
+      // tried to correct the winding with an `edge < 0 ? 0.35 : 0.15`
+      // ternary, but negating both offsets for the far side already
+      // reverses their order, so the swap cancelled itself: b - a came
+      // out -0.20 on BOTH edges. Measured on the live curve, every vertex
+      // normal on both ribbons read -1.000 — the game's two lane edge
+      // lines had never been drawn at all. Neither had the corniche
+      // walkway, the beach, or the seaward half of the plaza kerb.
+      //
+      // Deciding it here rather than at each call site is the point: a
+      // caller cannot get this wrong if it is not the caller's to get
+      // wrong, and the ribbon knows which way round its own offsets are.
+      if (bv > av) indices.push(v, v + 1, v + 2, v + 1, v + 3, v + 2);
+      else indices.push(v, v + 2, v + 1, v + 1, v + 2, v + 3);
     }
   }
 
@@ -3235,22 +3254,57 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   scene.add(sea);
 
   // Corniche: paved walkway then beach sand between the road and the water
+  //
+  // Both are pinned to the CONSTANT road half-width rather than to
+  // halfWidthAt(s), and that only became a problem when the ribbon
+  // winding was fixed and they were drawn for the first time. The Sharq
+  // plaza swells the tarmac from 7 m to 19 m over s 489-613, so a walkway
+  // at a fixed 7.8 m out would have been laid 3.7 m deep across the
+  // widened road — paving over the drift circle and the seaward edge line
+  // with it.
+  //
+  // Split around the swell rather than tracked to it. Tracking is the
+  // right long answer but not a change to make here: the palm row is
+  // pinned at the same constant and would be left standing on bare plaza
+  // asphalt, and the beach would bulge 12 m into the Gulf for 124 m. A
+  // gap is also the true thing — the plaza IS where the corniche opens
+  // out — and it costs one extra draw call per surface instead of a
+  // reshuffle of everything pinned to that constant. Moving the whole
+  // coastal-furniture family onto halfWidthAt, palms included, is its own
+  // job.
+  const PLAZA_GAP = {
+    from: (DRIFT_PLAZA.s - DRIFT_PLAZA.halfSpan) / track.length,
+    to: (DRIFT_PLAZA.s + DRIFT_PLAZA.halfSpan) / track.length,
+  };
+  const coastalSpans: Array<[number, number]> = [
+    [COAST_U.from, PLAZA_GAP.from],
+    [PLAZA_GAP.to, COAST_U.to],
+  ];
+
   const paver = paverTexture();
   paver.repeat.set(2.5, 9);
-  const walkway = new THREE.Mesh(
-    buildRibbon(track, -(ROAD_HALF_WIDTH + 0.8), -(ROAD_HALF_WIDTH + 4.5), 0.06, 10, COAST_U.from, COAST_U.to),
-    new THREE.MeshStandardMaterial({ map: paver, roughness: 0.95 })
-  );
-  scene.add(walkway);
+  const paverMat = new THREE.MeshStandardMaterial({ map: paver, roughness: 0.95 });
+  for (const [u0, u1] of coastalSpans) {
+    const walkway = new THREE.Mesh(
+      buildRibbon(track, -(ROAD_HALF_WIDTH + 4.5), -(ROAD_HALF_WIDTH + 0.8), 0.06, 10, u0, u1),
+      paverMat
+    );
+    walkway.name = "corniche-walkway";
+    scene.add(walkway);
+  }
 
   const sand = sandTexture();
   sand.repeat.set(1, 0.7);
-  const beach = new THREE.Mesh(
-    buildRibbon(track, -(ROAD_HALF_WIDTH + 4.5), -(ROAD_HALF_WIDTH + 48), 0.0, 10, COAST_U.from, COAST_U.to),
-    new THREE.MeshStandardMaterial({ map: sand, roughness: 1 })
-  );
-  beach.receiveShadow = true;
-  scene.add(beach);
+  const sandMat = new THREE.MeshStandardMaterial({ map: sand, roughness: 1 });
+  for (const [u0, u1] of coastalSpans) {
+    const beach = new THREE.Mesh(
+      buildRibbon(track, -(ROAD_HALF_WIDTH + 48), -(ROAD_HALF_WIDTH + 4.5), 0.0, 10, u0, u1),
+      sandMat
+    );
+    beach.name = "beach";
+    beach.receiveShadow = true;
+    scene.add(beach);
+  }
 
   // Road surface — textured asphalt with a faintly damp sheen so the
   // streetlights and skyline catch on it; darker (tire-polished) areas
@@ -3435,7 +3489,16 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // does — paint hanging over the Gulf would be worse than none.
     for (const d of STREETS.avenues) {
       for (const sign of [1, -1]) {
-        for (let s = 0; s < L; s += DASH.gap) {
+        // Same exact division as the highway lane dashes, for the same
+        // reason: `s += DASH.gap` left a 3.0 m wrap gap against a nominal
+        // 13 m on all eight avenue carriageways, at the same lap
+        // position. Fixing one seam and leaving its twin is worse than
+        // fixing neither, because the next reader takes the fixed one as
+        // proof the pattern was audited.
+        const avSlots = Math.round(L / DASH.gap);
+        const avGap = L / avSlots;
+        for (let k = 0; k < avSlots; k++) {
+          const s = k * avGap;
           if (nearCross(s)) continue;
           if (sign < 0) {
             const u = track.wrap(s) / L;
@@ -3526,8 +3589,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const line = new THREE.Mesh(
       buildRibbon(
         track,
-        (s) => edge * (track.halfWidthAt(s) - (edge < 0 ? 0.35 : 0.15)),
-        (s) => edge * (track.halfWidthAt(s) - (edge < 0 ? 0.15 : 0.35)),
+        // Plain offsets. The ternary that used to be here tried to fix
+        // the winding from the outside and cancelled itself — see
+        // buildRibbon. The band is what it always claimed: 200 mm wide,
+        // 150 to 350 mm inboard of the tarmac edge.
+        (s) => edge * (track.halfWidthAt(s) - 0.35),
+        (s) => edge * (track.halfWidthAt(s) - 0.15),
         0.03,
         4
       ),
@@ -3551,9 +3618,24 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       emissiveIntensity: 0.45,
       roughness: 0.55, // thermoplastic paint, slightly glossier than asphalt
     });
+    // The three interior divides of a four-lane road. Nothing marks the
+    // middle one out, and that is correct rather than an omission: all
+    // four lanes run the same way — the AI spawns round-robin across
+    // LANES, there is a guardrail on both edges and no median object
+    // anywhere — so lat 0 is an ordinary lane divide, and painting it as
+    // a centre line would tell the driver about oncoming traffic that
+    // does not exist. It was the only number in this block with no
+    // justification against it.
     const boundaries = [-3.5, 0, 3.5];
-    const spacing = 14;
-    const perLine = Math.floor(L / spacing);
+    // An exact division of the lap, so the last dash closes onto the
+    // first. floor(8492.0026 / 14) = 606 left the final dash at 8470 m
+    // and the next at 0: a 19.0 m hole in all three lane lines where
+    // every other gap is 11 m, sitting on the start line — the datum the
+    // whole distance system is measured from. The cross streets already
+    // solve this the same way.
+    const slots = Math.round(L / 14);
+    const spacing = L / slots;
+    const perLine = slots;
     const dashes = new THREE.InstancedMesh(dashGeo, dashMat, perLine * boundaries.length);
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
@@ -4167,7 +4249,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     for (let i = 0; i < count / 2; i++) {
       const s = i * spacing;
       for (const sideSign of [-1, 1]) {
-        track.pose(s, sideSign * (ROAD_HALF_WIDTH - 0.25), p, tmp);
+        // The line these delineate is drawn at halfWidthAt(s), not at
+        // the constant, so reading the constant here marched a row of
+        // reflectors 11.58 m out across the open drift plaza at s = 558 —
+        // the same class of mistake this file already records fixing for
+        // a scenery band that put a tower block on the plaza.
+        track.pose(s, sideSign * (track.halfWidthAt(s) - 0.25), p, tmp);
         m.makeTranslation(p.x, 0.06, p.z);
         studs.setMatrixAt(idx++, m);
       }
@@ -5345,7 +5432,13 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
 
     // Painted drift ring around the island, and the rubber laid into it
     const ring = new THREE.Mesh(
-      new THREE.RingGeometry(DRIFT_PLAZA.islandRadius + 3.0, DRIFT_PLAZA.islandRadius + 3.4, 48),
+      // 6.8 to 7.2 m from the island centre — a 400 mm ring, as before,
+      // pulled in by 800 mm. At +3.0/+3.4 it reached 8.0 m from an island
+      // sitting 11.5 m off the centreline, so its outer edge landed at
+      // lat 19.5 against a plaza half-width of 19.00: measured 500 mm of
+      // paint hanging past the tarmac onto bare ground, straight
+      // outboard. Swept over every angle it now clears by 300 mm.
+      new THREE.RingGeometry(DRIFT_PLAZA.islandRadius + 2.2, DRIFT_PLAZA.islandRadius + 2.6, 48),
       new THREE.MeshStandardMaterial({
         color: 0xf2f2ee,
         emissive: 0x9a9a92,
@@ -5370,7 +5463,11 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       [4.4, 2.2],
     ]) {
       const skid = new THREE.Mesh(
-        new THREE.RingGeometry(DRIFT_PLAZA.islandRadius + 1.4, DRIFT_PLAZA.islandRadius + 2.6, 40, 1, a0, len),
+        // Pulled in with the ring above so the arcs stay INSIDE it,
+        // which is what their comment has always claimed. At +1.4/+2.6
+        // they ran to 7.2 m and the ring now starts at 6.8, so they would
+        // have straddled its inner edge.
+        new THREE.RingGeometry(DRIFT_PLAZA.islandRadius + 0.8, DRIFT_PLAZA.islandRadius + 1.8, 40, 1, a0, len),
         rubberMat
       );
       skid.rotation.x = -Math.PI / 2;

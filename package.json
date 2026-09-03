@@ -77,6 +77,7 @@
     "test:ik": "node tests/ik.mjs",
     "test:intro": "node tests/intro.mjs",
     "test:lamps": "node tests/lamps.mjs",
+    "test:markings": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/markings.mjs",
     "test:levels": "node tools/shots/levels.mjs",
     "test:levels:all": "node tools/shots/levels.mjs --sweep",
     "test:lights": "node tests/lights.mjs",
