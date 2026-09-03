@@ -71,7 +71,26 @@ function fit(w: number, h: number): { w: number; h: number } {
 // Canvas, because it is there. No library, no worker: the whole job is decode,
 // draw at the new size, and ask for a WebP.
 async function shrinkWeb(file: File): Promise<Shrunk> {
-  const bitmap = await createImageBitmap(file);
+  // DECODE IS THE STEP THAT CAN FAIL ON A PHONE, so it says so in words.
+  //
+  // createImageBitmap throws a bare DOMException — "The source image could not
+  // be decoded" — which reached the screen through String(e) and told the
+  // owner nothing they could act on. The case that matters is HEIC: every
+  // iPhone photograph is one, Safari can decode them and Chrome cannot, so the
+  // same picture works on one phone and fails on another with no clue why.
+  //
+  // The advice is real and specific: iOS can be told to hand over JPEG instead
+  // (Settings, Camera, Formats, "Most Compatible") and everything after that
+  // works everywhere.
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    const heic = /\.(heic|heif)$/i.test(file.name) || /heic|heif/i.test(file.type);
+    throw new Error(heic
+      ? 'this browser cannot open HEIC photographs — on the iPhone, Settings → Camera → Formats → Most Compatible saves them as JPEG instead'
+      : 'this file is not a picture this browser can open');
+  }
   const { w, h } = fit(bitmap.width, bitmap.height);
 
   const canvas = document.createElement('canvas');

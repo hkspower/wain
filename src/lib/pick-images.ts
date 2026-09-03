@@ -30,10 +30,27 @@ function pickWeb(limit: number): Promise<Picked[]> {
     const input = document.createElement('input');
     input.type = 'file';
     input.multiple = true;
-    // The three the server will accept — store_data_image() takes png, jpeg and
-    // webp and refuses everything else, SVG explicitly. Filtering here means a
-    // PDF is not offered rather than being chosen and then refused.
-    input.accept = 'image/png,image/jpeg,image/webp';
+    // THE SERVER'S FORMAT LIST IS THE WRONG LIST TO PUT HERE, and it was here.
+    //
+    // store_data_image() takes png, jpeg and webp and refuses everything else,
+    // so those three were named — which reads as careful and is the wrong
+    // question. The server never sees the file that is chosen. shrinkImage()
+    // decodes it to a canvas and re-encodes the PIXELS as WebP, so whatever
+    // goes in comes out as one of the three regardless. What belongs here is
+    // the list of things the BROWSER can decode, and that is a longer list.
+    //
+    // The cost of the short one falls on a phone. An iPhone photographs in
+    // HEIC, and a picker filtered to png/jpeg/webp is a picker that greys out
+    // the owner's own camera roll — on the device this panel is run from. A
+    // format the browser cannot open is a readable error one line later;
+    // a photograph that cannot be selected at all has no error and no way on.
+    //
+    // image/* rather than a longer list of names, because the list keeps
+    // growing — HEIC, HEIF, AVIF, JPEG XL — and every addition is another
+    // release where the owner cannot pick their own photograph. Anything the
+    // canvas refuses is caught and named in shrinkImage; a PDF still cannot
+    // get past that, it simply fails a step later than it used to.
+    input.accept = 'image/*';
     input.style.display = 'none';
 
     // CANCEL HAS TO RESOLVE, or the screen sits on "choosing…" forever. There
