@@ -202,9 +202,24 @@ if (!backend.supabase) {
   console.log(`   and the submission form are inert and /admin says so.`);
 }
 
-console.log(`\nDeploy: extract into public_html. Do NOT use hPanel's`);
-console.log(`"deploy static archive" button — it empties the folder first, and`);
-console.log(`wain.db is still live in there.`);
+/**
+ * This used to say «do NOT use hPanel's deploy-static-archive button — it
+ * empties the folder first, and wain.db is still live in there».
+ *
+ * wain.db is no longer there. Checked through the Hostinger API on 2026-09-03:
+ * /domains/wainkw.com/public_html holds 180 files at full depth and every one
+ * of them is output of this export. So the warning was telling people to avoid
+ * the one button that makes this a two-click job, on the strength of a file
+ * that had already gone.
+ *
+ * The caution it was really making is still worth keeping, so it is stated as
+ * the condition rather than as a fact about one filename: emptying the folder
+ * is only safe while nothing LIVES in it.
+ */
+console.log(`\nDeploy: extract into public_html.`);
+console.log(`hPanel's "deploy static archive" button empties the folder first,`);
+console.log(`which is fine while the folder holds nothing but this export —`);
+console.log(`it currently does. Check before trusting that twice.`);
 console.log(`\nAfterwards, confirm what landed:`);
 console.log(`    curl -s https://www.wainkw.com/build.json`);
 console.log(`    → version ${version}, digest ${digest}\n`);
