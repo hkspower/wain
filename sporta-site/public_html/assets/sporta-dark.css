@@ -15,12 +15,12 @@
  *
  * The ramp, darkest first:
  *
- *   --sp-black   #141619   the page itself
- *   --sp-tile    #1a1d20   product tiles and the hero — a photo's ground
- *   --sp-panel   #23262a   cards, the header, the cart drawer
- *   --sp-raise   #2e3237   chips, inputs, skeletons — what sits ON a card
- *   --sp-line    #3f444a   hairlines — decoration, deliberately quiet
- *   --sp-silver-mid #7a8188 the edge of a CONTROL, 3:1 in both themes
+ *   --sp-black   #1e2023   the page itself
+ *   --sp-tile    #24272a   product tiles and the hero — a photo's ground
+ *   --sp-panel   #2d3034   cards, the header, the cart drawer
+ *   --sp-raise   #383c41   chips, inputs, skeletons — what sits ON a card
+ *   --sp-line    #494e54   hairlines — decoration, deliberately quiet
+ *   --sp-silver-mid #878e95 the edge of a CONTROL — dark theme only now
  *   --sp-silver  #a6acb2   secondary text
  *   --sp-text    #eaecee   primary text
  *
@@ -29,22 +29,24 @@
  * to pure black that every surface on it read as a hole rather than a card,
  * and the separation between page and card was 1.10:1, which is to say none.
  *
- * The page is now L* 7.2, and the steps between surfaces opened with it:
+ * RAISED A SECOND TIME, at the owner's request again: "less dark". The whole
+ * ramp moved together — lifting the page alone would have flattened it onto
+ * the cards, which is the fault the first lift was fixing.
  *
- *                     was      now
- *   page lightness    L* 3.9   L* 7.2
- *   card vs page      1.10:1   1.19:1
- *   chip vs card      1.13:1   1.18:1
- *   hairline vs page  1.52:1   1.84:1
+ *                     first    then     now
+ *   page lightness    L* 3.9   L* 7.2   L* 12.2
+ *   card vs page      1.10:1   1.19:1   1.20:1
+ *   chip vs card      1.13:1   1.18:1   1.19:1
+ *   hairline vs page  1.52:1   1.84:1   1.94:1
  *
  * LIFTING A GROUND SPENDS CONTRAST, so every pair was recomputed rather than
- * assumed. The worst case anywhere is now 4.98:1 — the ember on a raised chip
- * — against the 4.5 that AA asks of body text:
+ * assumed — twice now. The worst case anywhere is 4.85:1, the secondary
+ * silver on a raised chip, against the 4.5 that AA asks of body text:
  *
- *   #eaecee on #141619  15.30:1      #a6acb2 on #141619   7.91:1
- *   #eaecee on #23262a  12.83:1      #a6acb2 on #23262a   6.63:1
- *   #eaecee on #2e3237  10.89:1      #a6acb2 on #2e3237   5.63:1
- *   #ff7b17 on #141619   6.99:1      #171a1e on #e0561c   4.59:1
+ *   #eaecee on #1e2023  13.79:1      #a6acb2 on #1e2023   7.13:1
+ *   #eaecee on #2d3034  11.19:1      #a6acb2 on #2d3034   5.79:1
+ *   #eaecee on #383c41   9.38:1      #a6acb2 on #383c41   4.85:1
+ *   #ff7b17 on #1e2023   6.30:1      #171a1e on #e0561c   4.59:1
  *
  * The ember and the ember fill did NOT move. They are the brand, they were
  * right, and shifting a brand colour to chase a background is how a shop ends
@@ -79,11 +81,11 @@
 }
 
 :root[data-theme='dark'] {
-  --sp-black: #141619;
-  --sp-tile: #1a1d20;
-  --sp-panel: #23262a;
-  --sp-raise: #2e3237;
-  --sp-line: #3f444a;
+  --sp-black: #1e2023;
+  --sp-tile: #24272a;
+  --sp-panel: #2d3034;
+  --sp-raise: #383c41;
+  --sp-line: #494e54;
   /* MID DARK SILVER — the edge of a control, as opposed to the edge of a box.
    *
    * The ramp had a hole in it. --sp-line is a HAIRLINE: it bounds cards and
@@ -105,20 +107,28 @@
    * squares were buttons at all.
    *
    * WHY THIS EXACT VALUE, and it was chosen by the constraint rather than by
-   * eye: #7a8188 is the DARKEST silver that still clears 3:1 against every
+   * eye: #878e95 is the DARKEST silver that still clears 3:1 against every
    * surface in the ramp, including the lightest one it will ever sit on.
    *
-   *     against #2e3237 raise   3.27:1   <- the binding case
-   *     against #23262a panel   3.85:1
-   *     against #1a1d20 tile    4.29:1
-   *     against #141619 black   4.59:1
+   *     against #383c41 raise   3.35:1   <- the binding case
+   *     against #2d3034 panel   4.00:1
+   *     against #24272a tile    4.53:1
+   *     against #1e2023 black   4.92:1
    *
-   * One step darker (#727880) is 2.90:1 on a raised surface and fails there,
-   * which is exactly why the value is not rounder.
+   * IT NO LONGER SITS ON :root, AND THAT IS THE COST OF THE SECOND LIFT.
    *
-   * IT IS DECLARED ON :root, NOT HERE, because the same value happens to work
-   * in both themes — see below. This comment lives with the ramp it was
-   * derived from. */
+   * The old value, #7a8188, was declared once for both themes because one
+   * number happened to satisfy both — the dark theme binding at 3.27:1 on a
+   * raised chip, the light theme at 3.55:1 on a panel. Raising the dark ramp
+   * moved only one side of that: #7a8188 measures 2.82:1 on the new #383c41
+   * and fails there, while remaining exactly right on the light theme's
+   * unchanged #f2f3f5.
+   *
+   * So the dark theme now overrides it and the light theme keeps the :root
+   * value untouched. Two values, because there are now genuinely two answers
+   * — which is the condition the original comment named as the reason to
+   * split, not a drift away from it. */
+  --sp-silver-mid: #878e95;
   --sp-silver: #a6acb2;
   --sp-text: #eaecee;
   --sp-ember: #ff7b17;
@@ -448,8 +458,11 @@
 
 /* --- the same control edge, on the light theme ---------------------------- */
 /* The text fields on /returns measured 1.49:1 in light — border-slate-300 on
- * white. Same defect as the dark theme's 1.84:1, same fix, same value: see the
- * note on --sp-silver-mid for why #7a8188 clears 3:1 at both ends of the ramp.
+ * white. Same defect as the dark theme's 1.84:1 and the same fix, but no
+ * longer the same value: the light theme keeps #7a8188 from :root, which is
+ * 3.55:1 on a panel and still the darkest silver that clears 3:1 here. The
+ * dark theme overrides it to #878e95 because its ramp was lifted; see the
+ * note on --sp-silver-mid for both derivations.
  *
  * Outside @media screen and outside the [data-theme='dark'] block on purpose —
  * this is the light theme, which is what the built stylesheet paints when no
