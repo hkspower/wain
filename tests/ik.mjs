@@ -880,8 +880,25 @@ check(traffic.lean === 0, "traffic drivers carry legs — the lean build is not 
       `remote       40 -> 12 m/s over ${remote.gap}s reads as ${remote.accel} m/s2, ` +
       `brake ${remote.brake}, body folds ${remote.fold} rad`
     );
-    check(remote.accel < -1, `the wire's own deceleration was thrown away (${remote.accel})`);
-    check(remote.brake > 0.05, "the remote driver's foot never went near the brake");
+    // THE LAW IS THE RATIO, NOT A NUMBER. The fixture asks for a 120 ms
+    // gap between two snapshots and gets whatever this machine delivers:
+    // 4,658 ms once (recorded in engine.ts), 33,774 ms today on a box
+    // that runs the game loop at two frames a second. -28 m/s over 33.8 s
+    // is -0.83 m/s2, and a hard bar of -1 called that "thrown away" when
+    // the engine had computed it exactly. Wall clock IS the wire's clock
+    // for a real client, so the engine is right; the test asserted a
+    // value it never controlled. What it means is that the derived
+    // deceleration equals the wire's own speed change over the wire's
+    // own interval, and that the foot answers it in proportion.
+    const wanted = (12 - 40) / remote.gap;
+    check(Math.abs(remote.accel - wanted) < 0.25,
+      `the wire's own deceleration was thrown away (got ${remote.accel}, the wire said ${wanted.toFixed(2)} over ${remote.gap}s)`);
+    // Braking is a response to a decel worth braking for. Below one metre
+    // per second squared the foot correctly stays off — that is a lift,
+    // not a stop — so the brake is only demanded when the wire delivered
+    // something to brake for, and forbidden when it did not.
+    if (wanted < -1) check(remote.brake > 0.05, "the remote driver's foot never went near the brake");
+    else check(remote.brake < 0.05, `the remote driver braked (${remote.brake}) for a ${wanted.toFixed(2)} m/s2 lift`);
     // The FOLD is checked against the acceleration that actually
     // arrived, not against a fixed number of radians.
     //
