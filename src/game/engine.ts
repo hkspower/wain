@@ -6433,6 +6433,24 @@ export class GameEngine {
       slipVel: this.slipVel,
       shake: this.shake,
       streakOpacity: (this.streaks.material as THREE.LineBasicMaterial).opacity,
+      // The body's attitude, and what the wheels did about it.
+      //
+      // `hubWorldY` is the measurement that says whether there is a
+      // suspension in the picture at all: it is the world height of each
+      // hub, and it must not move when the shell rolls. With the wheels
+      // welded to the shell — which is what they were — rolling the body
+      // six degrees moved these by 90 mm, a contact patch a quarter of a
+      // wheel deep in the tarmac. Exposed rather than inferred from a
+      // screenshot, because a suspension that quietly does nothing looks
+      // exactly like one that works.
+      roll: this.roll,
+      pitch: this.pitch,
+      hubWorldY: ((this.carBody.userData.wheels as THREE.Group[] | undefined) ?? []).map(
+        (w) => w.getWorldPosition(new THREE.Vector3()).y
+      ),
+      wheelCamber: ((this.carBody.userData.wheels as THREE.Group[] | undefined) ?? []).map(
+        (w) => w.rotation.z
+      ),
       driftYaw: this.driftYaw,
       driftRun: this.driftRun,
       driftChain: this.ds.chain,
