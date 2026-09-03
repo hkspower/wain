@@ -965,6 +965,77 @@ check(hb.pulled.lever < hb.rest - 0.2, "the lever does not rise under the pull")
 check(hb.after.blend < 0.1 && Math.abs(hb.after.rimR - hb.radius) < 0.03,
   "released, the hand does not come home to the rim");
 
+
+// --- 5. Joints stay inside a human range ---
+//
+// The two-bone solver had no limits: the elbow could lock dead straight
+// and the shoulder could fold the arm through the torso to reach a
+// target behind it. Neither is a pose a person can hold. The law is the
+// RANGE, read off the joints the solver actually set — not off the
+// targets it was given, and not off the constants it was handed.
+const limits = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  const rig = e.carBody.userData.driver;
+  const R = window.__grnRig.driver;
+  const V = e.camera.position.constructor;
+  const out = [];
+  // Ask for the impossible: a hand behind the shoulder, a hand on the
+  // shoulder, a hand overhead. A limited chain refuses gracefully; an
+  // unlimited one contorts.
+  for (const arm of rig.arms) {
+    arm.shoulder.updateWorldMatrix(true, false);
+    const sp = new V(); sp.setFromMatrixPosition(arm.shoulder.matrixWorld);
+    for (const [name, off] of [["behind", [0, 0, -0.6]], ["on the shoulder", [0, 0.01, 0]], ["overhead", [0, 0.7, 0]]]) {
+      window.__ikSolve(arm, sp.clone().add(new V(...off)), sp.clone().add(new V(arm.side, -1, 0)));
+      const bend = 2 * Math.acos(Math.min(1, Math.abs(arm.elbow.quaternion.w)));
+      out.push({ side: arm.side, ask: name, bendDeg: +(bend * 180 / Math.PI).toFixed(1) });
+    }
+  }
+  return { out, elbowMin: R.elbowMinDeg, elbowMax: R.elbowMaxDeg };
+});
+{
+  const bad = limits.out.filter((r) => r.bendDeg < limits.elbowMin - 0.5 || r.bendDeg > limits.elbowMax + 0.5);
+  console.log(`joint limits  elbow bends ${limits.out.map((r) => r.bendDeg).join("/")} deg for impossible targets  ` +
+    check(bad.length === 0, `an elbow left its ${limits.elbowMin}-${limits.elbowMax} deg range: ${bad.map((r) => `${r.ask} -> ${r.bendDeg}`).join(", ")}`));
+}
+
+// --- 6. The reach edge is smooth ---
+//
+// At full extension acos has an infinite derivative, so a target that
+// crosses the reach boundary made the elbow SNAP from bent to straight:
+// a pop on every full-lock turn and every far pedal. The law: elbow bend
+// is continuous and monotone through the edge — no step, no reversal —
+// while a far target still straightens the arm to within 20 mm of full
+// span (check 2 above), so the softening is an approach, not a cap.
+const soft = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  const rig = e.carBody.userData.driver;
+  const arm = rig.arms[0];
+  const V = e.camera.position.constructor;
+  arm.shoulder.updateWorldMatrix(true, false);
+  const sp = new V(); sp.setFromMatrixPosition(arm.shoulder.matrixWorld);
+  const sc = new V(); sc.setFromMatrixScale(arm.shoulder.matrixWorld);
+  const span = (arm.upper + arm.lower) * ((sc.x + sc.y + sc.z) / 3);
+  const rows = [];
+  for (let f = 0.70; f <= 1.30; f += 0.01) {
+    window.__ikSolve(arm, sp.clone().add(new V(0, -span * f, 0)), sp.clone().add(new V(arm.side, -0.5, 0.5)));
+    const bend = 2 * Math.acos(Math.min(1, Math.abs(arm.elbow.quaternion.w)));
+    rows.push({ f: +f.toFixed(2), bendDeg: +(bend * 180 / Math.PI).toFixed(2) });
+  }
+  return { rows, span: +span.toFixed(3) };
+});
+{
+  let biggestStep = 0, at = null, reversals = 0;
+  for (let i = 1; i < soft.rows.length; i++) {
+    const d = soft.rows[i - 1].bendDeg - soft.rows[i].bendDeg; // bend should FALL as the target moves out
+    if (d < -0.05) reversals++;
+    if (Math.abs(d) > biggestStep) { biggestStep = Math.abs(d); at = soft.rows[i].f; }
+  }
+  console.log(`reach edge    biggest one-percent step in elbow bend ${biggestStep.toFixed(2)} deg at ${at} of reach, ${reversals} reversals  ` +
+    check(biggestStep < 6, `the elbow snaps ${biggestStep.toFixed(1)} deg in a 1% move of the target at ${at} of reach — a pop, not a straighten`) + " " +
+    check(reversals === 0, "the elbow re-bends as the target moves further away"));
+}
+
 console.log(fail.length?"\nFAILURES:\n - "+fail.join("\n - "):"\nIK solves, clamps and behaves");
 await b.close();
 process.exit(fail.length?1:0);

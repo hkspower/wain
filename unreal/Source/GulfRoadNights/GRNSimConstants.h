@@ -331,6 +331,11 @@ namespace GRNRig
 	constexpr float DriverLookAheadM = 26.f;
 	constexpr float DriverLookLatK = 0.4f;
 	constexpr float DriverLookHeight = 1.1f;
+	constexpr float DriverElbowMinDeg = 8.f;
+	constexpr float DriverElbowMaxDeg = 150.f;
+	constexpr float DriverKneeMinDeg = 12.f;
+	constexpr float DriverKneeMaxDeg = 140.f;
+	constexpr float DriverSoftReach = 0.08f;
 	constexpr float DriverNeckYaw = 0.7f;
 	constexpr float DriverNeckPitch = 0.28f;
 	constexpr float DriverNeckRate = 5.f;

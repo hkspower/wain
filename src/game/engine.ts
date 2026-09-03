@@ -4594,6 +4594,13 @@ export class GameEngine {
           lower: arm.lower,
           target,
           pole,
+          // The same limits and softening the driver passes. A hook that
+          // drove the bare solver measured the pre-limit chain: joint
+          // limits and the reach edge both read as broken while every
+          // arm in the game was fine.
+          minBend: (RIG.driver.elbowMinDeg * Math.PI) / 180,
+          maxBend: (RIG.driver.elbowMaxDeg * Math.PI) / 180,
+          softReach: RIG.driver.softReach,
         });
     }
     const brakeLit = this.brake > 0 || this.handbrake;

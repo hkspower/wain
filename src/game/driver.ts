@@ -155,6 +155,9 @@ export function solveDriverRig(
       target: _v1,
       pole: _v2,
       weight: 1,
+      minBend: (RIG.driver.elbowMinDeg * Math.PI) / 180,
+      maxBend: (RIG.driver.elbowMaxDeg * Math.PI) / 180,
+      softReach: RIG.driver.softReach,
     });
   }
 
@@ -180,6 +183,9 @@ export function solveDriverRig(
       target: _v1,
       pole: _v2,
       weight: 1,
+      minBend: (RIG.driver.kneeMinDeg * Math.PI) / 180,
+      maxBend: (RIG.driver.kneeMaxDeg * Math.PI) / 180,
+      softReach: RIG.driver.softReach,
     });
   }
 }

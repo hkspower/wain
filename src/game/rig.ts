@@ -127,6 +127,17 @@ export const RIG = {
     lookAheadM: 26,
     lookLatK: 0.4,
     lookHeight: 1.1,
+    /** Hinge ranges, degrees of BEND (0 = dead straight). An elbow
+     *  neither locks past straight nor folds flat; a knee the same. The
+     *  solver used to have no limits at all, and reached a target behind
+     *  the shoulder by folding the arm through the torso. */
+    elbowMinDeg: 8,
+    elbowMaxDeg: 150,
+    kneeMinDeg: 12,
+    kneeMaxDeg: 140,
+    /** Fraction of the arm's span over which full extension is eased
+     *  into rather than hit — see TwoBoneOptions.softReach. */
+    softReach: 0.08,
     neckYaw: 0.7,
     neckPitch: 0.28,
     neckRate: 5,

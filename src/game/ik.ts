@@ -36,6 +36,11 @@ const _x = new THREE.Vector3();
 const _y = new THREE.Vector3();
 const _z = new THREE.Vector3();
 const _basis = new THREE.Matrix4();
+// The one allocation this file used to make per call. aimConstrained
+// built a fresh Euler every solve, on forty-seven rigs at sixty hertz —
+// about three thousand short-lived objects a second in the hottest path
+// the crowd has, from a file whose header promises none.
+const _euler = new THREE.Euler();
 
 export interface TwoBoneOptions {
   /** Shoulder joint: rotated to aim the chain. */
@@ -58,6 +63,21 @@ export interface TwoBoneOptions {
   bendAxis?: THREE.Vector3;
   /** 0 = leave the pose alone, 1 = fully solved. */
   weight?: number;
+  /**
+   * Hinge range at the mid joint, radians of BEND (0 = dead straight).
+   * A human elbow neither locks past straight nor folds flat; a chain
+   * without these will do both to reach a target it should refuse.
+   */
+  minBend?: number;
+  maxBend?: number;
+  /**
+   * How much of the reach, as a fraction of the full span, is softened
+   * into an asymptotic approach to full extension. At the hard boundary
+   * acos has an infinite derivative, so a target crossing it makes the
+   * elbow SNAP from bent to straight — a pop on every full-lock turn and
+   * every far pedal. 0 keeps the old hard clamp.
+   */
+  softReach?: number;
 }
 
 /**
@@ -93,18 +113,48 @@ export function solveTwoBone(o: TwoBoneOptions): void {
   const eps = 1e-4;
   // Clamp into the annulus the arm can actually reach: fully extended
   // outside, folded inside. Without this the acos below goes imaginary.
-  const dist = THREE.MathUtils.clamp(_toTarget.length(), Math.abs(a - b) + eps, a + b - eps);
+  const raw = _toTarget.length();
+  const span = a + b;
+  const soft = o.softReach ?? 0;
+  // Soften the last `soft` of the span: inside it the reported distance
+  // rises toward the span but never reaches it, so the elbow eases into
+  // straight instead of hitting acos's vertical wall. Beyond the span the
+  // curve keeps approaching, which is what keeps a far target extending
+  // the arm to within millimetres of full length — the softening is an
+  // approach, not a cap. C1 at the join: value and slope both match.
+  let reach = raw;
+  if (soft > 0) {
+    const knee = span * (1 - soft);
+    if (raw > knee) {
+      const over = (raw - knee) / (span * soft); // 0 at the knee, 1 at the span, >1 beyond
+      reach = knee + span * soft * (1 - Math.exp(-over));
+    }
+  }
+  const dist = THREE.MathUtils.clamp(reach, Math.abs(a - b) + eps, span - eps);
   if (_toTarget.lengthSq() < eps) return;
   _toTarget.normalize();
 
   // Elbow: interior angle from the three sides
   const cosElbow = THREE.MathUtils.clamp((a * a + b * b - dist * dist) / (2 * a * b), -1, 1);
-  const elbowBend = Math.PI - Math.acos(cosElbow);
+  let elbowBend = Math.PI - Math.acos(cosElbow);
+  // A joint limit, applied to the ONE angle the triangle actually has
+  // to give. Clamping the bend changes the triangle, so the shoulder
+  // angle below is recomputed from the limited bend rather than from the
+  // target distance: the hand then lands as close to the target as a
+  // real elbow allows, on the same line, instead of the shoulder still
+  // aiming for a reach the elbow refused.
+  const minBend = o.minBend ?? 0;
+  const maxBend = o.maxBend ?? Math.PI;
+  const limited = elbowBend < minBend || elbowBend > maxBend;
+  if (limited) elbowBend = THREE.MathUtils.clamp(elbowBend, minBend, maxBend);
+  const effDist = limited
+    ? Math.sqrt(Math.max(eps, a * a + b * b - 2 * a * b * Math.cos(Math.PI - elbowBend)))
+    : dist;
 
   // Shoulder: aim at the target, then swing back by the triangle's
   // shoulder angle so the elbow sits off the straight line.
   const cosShoulder = THREE.MathUtils.clamp(
-    (a * a + dist * dist - b * b) / (2 * a * dist),
+    (a * a + effDist * effDist - b * b) / (2 * a * effDist),
     -1,
     1
   );
@@ -229,7 +279,7 @@ export function aimConstrained(
   const yaw = THREE.MathUtils.clamp(wantYaw, -maxYaw, maxYaw);
   const pitch = THREE.MathUtils.clamp(wantPitch, -maxPitch, maxPitch);
 
-  _q.setFromEuler(new THREE.Euler(-pitch, yaw, 0, "YXZ"));
+  _q.setFromEuler(_euler.set(-pitch, yaw, 0, "YXZ"));
   obj.quaternion.slerp(_q, ease);
 
   const wanted = Math.abs(wantYaw);
