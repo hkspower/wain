@@ -18,6 +18,84 @@
 // day one. What the invoice returns is scoped accordingly (no phone number).
 
 declare(strict_types=1);
+
+// ------------------------------------------------------------ CORS ALLOWLIST
+// WHO IS ALLOWED TO READ THIS API FROM A BROWSER, BY NAME.
+//
+// Measured before writing this, not assumed: the API sent NO
+// Access-Control-Allow-Origin header at all, for any origin. That is already
+// the closed state — without that header the same-origin policy stops other
+// sites' JavaScript from READING a response, so nothing was leaking. This does
+// not open a hole that was shut; it PINS the policy so the next person who
+// hits a CORS error cannot fix it with the one-liner everybody reaches for,
+// header('Access-Control-Allow-Origin: *'), and quietly hand the catalogue,
+// the stock table and every ?r=status lookup to any page on the internet.
+//
+// A REQUEST WITH NO Origin HEADER IS LEFT COMPLETELY ALONE.
+//
+// This is the part that must not be got wrong. Browsers send Origin; curl,
+// cron, n8n and the KNET result callback from CBK Tranportal do not. Rejecting
+// origin-less requests would read as "lock it down harder" and would in fact
+// break payment confirmation, the fulfilment cron and every server-to-server
+// caller in the estate. So the rule is: no Origin -> no CORS headers, no
+// change in behaviour, carry on exactly as before.
+//
+// AND CORS IS NOT AN ACCESS CONTROL. It is enforced by the browser, on behalf
+// of the browser. Anyone with curl reads these routes regardless, which is
+// fine and intended — the catalogue is shop-window data, and ?r=status and
+// ?r=invoice are guarded by the ~64-bit order number, not by who is asking.
+// The real protections are the rate limits below and that order number. This
+// only governs OTHER WEBSITES embedding the shop's data in a user's browser.
+$cors_allowed = [
+    'https://www.sporta.com.kw',
+    'https://sporta.com.kw',
+];
+$cors_origin = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
+
+if ($cors_origin !== '') {
+    // Exact string match on scheme + host, never a substring or a prefix test.
+    // "sporta.com.kw.evil.com" and "http://" both fail this, and both would
+    // pass a str_contains() or a regex somebody meant to anchor.
+    $cors_ok = in_array($cors_origin, $cors_allowed, true);
+
+    if ($cors_ok) {
+        header('Access-Control-Allow-Origin: ' . $cors_origin);
+        // Echoing one origin back means the response BODY differs by origin,
+        // so caches must key on it. Second argument false APPENDS rather than
+        // replacing the Vary: Accept-Encoding already set upstream — replacing
+        // it would break compressed responses.
+        header('Vary: Origin', false);
+    }
+    // No else. A disallowed origin gets the response with no CORS header on
+    // it, which is what the browser already blocks on. Returning 403 here
+    // would be worse than useless: it changes nothing for a browser, and it
+    // breaks any non-browser client that happens to set an Origin.
+
+    // Deliberately NOT sending Access-Control-Allow-Credentials. These routes
+    // authenticate with the order number in the URL, never with a cookie, so
+    // there is no credential to forward and asking for one only widens what a
+    // future bug could reach.
+
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
+        // The preflight. Only browsers send these, so a disallowed origin can
+        // safely be refused outright here — and it is the one place a refusal
+        // actually tells the developer on the other end what happened.
+        if (!$cors_ok) {
+            http_response_code(403);
+            exit;
+        }
+        header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type');
+        // A day, so a shopper's browser preflights once and not on every
+        // add-to-cart. Safe to cache: the allowlist is a constant in a file,
+        // not a per-user decision that could change under them.
+        header('Access-Control-Max-Age: 86400');
+        http_response_code(204);
+        exit; // Before store.php and before store_db() — a preflight must
+              // never cost a database connection.
+    }
+}
+
 require __DIR__ . '/store.php';
 
 $r = $_GET['r'] ?? '';
