@@ -12,6 +12,50 @@ by `scripts/gen-voice.mjs` and shipped as part of the site under
 browser's own Arabic voice reads the same sentences (the shared source of
 truth is `src/lib/voice-lines.ts`).
 
+## Status, measured 3 September 2026
+
+**Nothing is recorded.** `public/voice/manifest.json` is
+`{"version": 0, "clips": {}}` — zero of the **274** lines (137 per persona).
+Every spoken line on the live site is read by the browser's own Arabic
+synthesiser. That is why شوق sounds like a screen reader.
+
+**One blocker causes it, and it is not the code.** Both the clip generator and
+the live conversational agent are pointed at `w0uhBAmNIG5kUDeaFEsA`, and both
+get `voice_not_found`, because it is a **library** voice rather than a
+**workspace** voice. Checked through the connector on the same date, the four
+Arabic voices this workspace actually owns are:
+
+| voice | id | |
+| --- | --- | --- |
+| ALI — Saudi Arabic & English | `Hvlnv5DwiIO2CQ6oYMZ3` | male |
+| Ali Deep Voice — Arabic | `SeP2zIpx6zw2aAs6ZXFW` | male |
+| Eid — Warm, Clear, Confident | `Ywuz3KyW2N5pqKNpwcCL` | male |
+| (unnamed, generated) | `DxV1kK20YWCqKS5NxMoC` | male, `ar-kuwaiti` |
+
+**All four are male.** سالم has a voice. شوق does not, and cannot be given one
+by the API: adding a library voice is a UI action the API does not expose, and
+there is no voice-design endpoint on this connector either.
+
+So the outstanding step is one click, and it unblocks both halves at once:
+
+> ElevenLabs → **Voice Library** → find *Maryam Essa* (`w0uhBAmNIG5kUDeaFEsA`)
+> → **Add to my voices**.
+
+Then `ELEVENLABS_API_KEY=… npm run voice:sample` records the clips, and the
+agent will accept the same id.
+
+If Maryam is gone or unsuitable, two Gulf-accented female alternatives were
+found in the library and would need the same one click —
+`rh16DBXwtscjdPFeMBYf` (Talya, Omani, built for conversational agents; the
+closest match to شوق's register) and `QsV9PCczMIklRM6xLPAS` (Heba Mansuri,
+Saudi, calmer and more corporate).
+
+`npm run audit:voice` reports all of this from the repo, and is in `npm run
+scan`. It warns rather than fails when nothing is recorded — the fallback is
+real and the site works — but it does fail when the manifest names a clip that
+is not on disk, which is silence in the middle of a sentence rather than a
+different voice.
+
 ## 1. The two voices — already chosen, one step outstanding
 
 `scripts/gen-voice.mjs` ships a default for each persona, so there is nothing
