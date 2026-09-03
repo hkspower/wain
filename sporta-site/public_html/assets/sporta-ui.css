@@ -972,9 +972,43 @@ html:not([data-theme='dark']) .cart-drawer > header button.tap.text-slate-400 {
  *
  * The real observation is that `leading-none` is too tight for Arabic, which
  * carries more below the baseline than Latin does. Fixing that means giving
- * the bar real leading, which makes it ~36px instead of 28 and moves the whole
+ * the bar real leading, which makes it taller than 28 and moves the whole
  * sticky header down — a design decision about the shop's chrome, not a
- * padding repair, so it is written down here rather than made. */
+ * padding repair, so it was written down here rather than made.
+ *
+ * THE OWNER HAS SINCE MADE IT: give the strip room. The rule below is that
+ * decision, and this note stays because it is the reasoning behind the shape
+ * the rule takes. */
+
+/* ----------------------------------------------- the promo bar gets its air */
+/* `h-7` is a FIXED 28px and the text inside is `leading-none`, so the line box
+ * is drawn tight to the 12px font and Arabic descender ink spills out of it —
+ * 2px of overflow, measured, against `overflow-hidden`.
+ *
+ * 1.35 leading gives the 12px type a 16.2px line box, which is room for the
+ * descenders rather than a tighter squeeze on them.
+ *
+ * WHY `height: auto` AND NOT SIMPLY A TALLER FIXED BAR. The sentence wraps to
+ * two lines on a narrow phone — that is why `overflow-hidden` was there to
+ * begin with. Two lines at 1.35 are 32.4px, so a fixed 32px bar would clip the
+ * second line and I would have made the exact problem I am fixing, one line
+ * further down. Auto height with a 32px floor means:
+ *
+ *     one line   32px   (the floor wins; 16.2 + 8 of padding is only 24.2)
+ *     two lines  ~40px  (the content wins, and nothing is cut)
+ *
+ * So the header grows by 12px only on the narrow widths where the sentence
+ * actually wraps, and is 4px taller than before everywhere else.
+ *
+ * No !important: the built stylesheet's utilities live in `@layer utilities`
+ * and unlayered author rules beat layered ones outright, whatever the
+ * specificity — the same cascade fact the gutter rule above turns on. */
+.app-header > .px-4:not(:has(*)) {
+  height: auto;
+  min-height: 2rem;
+  line-height: 1.35;
+  padding-block: 0.25rem;
+}
 
 /* -------------------------------------------------------------------------
  * FOOTER LINKS: THE SECOND AXIS OF A TAP TARGET.
