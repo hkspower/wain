@@ -4409,6 +4409,16 @@ export class GameEngine {
     // through the Sharq plaza, where the road swells into the circle
     const maxLat = this.track.halfWidthAt(p.s) - 1.1;
     let hitKerb = Math.abs(p.lat) > maxLat;
+    // Which side the thing that was hit is on, as a contact normal. For a
+    // barrier that is just which edge of the road the car ran out of, but
+    // the plaza island below is not an edge — it is an obstacle in the
+    // middle, and the car can be pushed either way off it. Reading the
+    // sign off p.lat for both was wrong even before this mattered: it
+    // decides the sign of intoWall, so an island hit could compute a
+    // severity of zero on a real impact. Now that the same number also
+    // decides which way the impact rotates the car, a wrong side spins it
+    // the wrong way.
+    let hitSide = Math.sign(p.lat) || 1;
     if (hitKerb) p.lat = THREE.MathUtils.clamp(p.lat, -maxLat, maxLat);
 
     // The plaza island is solid too: push out radially in (s, lat) space
@@ -4422,7 +4432,9 @@ export class GameEngine {
           const push = minR - dist;
           p.s = this.track.wrap(p.s + (ds / (dist || 1)) * push);
           p.lat += (dLat / (dist || 1)) * push;
+          // The island is on the side the car was pushed AWAY from.
           hitKerb = true;
+          hitSide = -(Math.sign(dLat) || 1);
         }
       }
     }
@@ -4432,7 +4444,7 @@ export class GameEngine {
       // barrier decides what happened: near-parallel contact is a scrape
       // that grinds the door, a steep arrival is a crash that deflects
       // the nose, kills real speed and bounces the car back off.
-      const side = Math.sign(p.lat) || 1;
+      const side = hitSide;
       const intoWall = Math.max(
         0,
         (Math.sin(this.heading) * p.speed * driftScrub + this.slipVel) * side
@@ -4470,7 +4482,7 @@ export class GameEngine {
         else this.driftYaw += hit.kick;
         this.events.onBump();
         if (this.inBattle) this.bstat.contacts++;
-        this.spawnSparks(Math.sign(p.lat) || 1, hit.severity);
+        this.spawnSparks(side, hit.severity);
         this.sound?.scrape(hit.severity);
         this.shake = Math.max(this.shake, hit.shake);
         if (this.inBattle)

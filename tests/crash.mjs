@@ -186,6 +186,16 @@ const wall = (into, heading, side = 1, crashResist = 0) =>
     "engine.ts must route both crash kinds through crash.ts");
   check(scrapeDrag(0) === H.crashScrapeBase && scrapeDrag(1) === H.crashScrapeBase + H.crashScrapeK,
     "scrapeDrag must be built from the published constants");
+  // The side handed to the solver must be a CONTACT NORMAL, not the sign
+  // of where the car happens to be on the road. Those are the same thing
+  // for a barrier and different for the plaza island, which is an
+  // obstacle in the middle that can push the car either way. It decides
+  // the sign of intoWall — so the wrong one computes a severity of zero
+  // on a real impact — and now also which way the car is rotated.
+  check(/const side = hitSide;/.test(eng),
+    "engine.ts must pass a contact normal to the crash solver, not Math.sign(p.lat)");
+  check(/hitSide = -\(Math\.sign\(dLat\)/.test(eng),
+    "the plaza island must set the contact normal from which way it pushed the car");
   console.log("engine.ts routes both crash kinds through crash.ts, with no literals left in the path");
 }
 
