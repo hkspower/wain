@@ -155,6 +155,27 @@ That is why the live site "did not update for a long time": changes reached new
 visitors and nobody else, while `.htaccess` marked all seven
 `no-cache, must-revalidate` and the worker never made the request to find out.
 
+**That last clause is true of THIS REPOSITORY and was false of the server.**
+The restore rolled `.htaccess` back to 25,288 bytes against the repo's 33,047,
+and the rolled-back copy has the `sw.js` and `config.js` rules but NOT the
+seven-file one. Measured on 2026-09-04 over the loopback:
+
+```
+Cache-Control: public, max-age=604800     # assets/sporta-dark.css
+```
+
+A week, on a fixed-name file that must revalidate — so even a visitor with no
+service worker at all could not see an edit for seven days. The worker was
+never the whole story, and reading the rule in the repo is not evidence about
+the server: ask the server what header it sends.
+
+Repairing it is a PATCH, not a publish. Writing the repo's `.htaccess` over the
+live one would carry ~8 kB of unrelated change onto a rolled-back server; a PHP
+patcher that inserts the one block, keeps a timestamped backup and refuses if
+it cannot find its anchor is the safe shape. Verify it by stripping the block
+from the repo copy, running the patcher, and diffing comment-free against the
+original — they should come out identical.
+
 Two rules follow. **Test the hash, not the folder** — un-hashed files belong on
 the network-first path their header already asks for. And **bump `VERSION` with
 any such fix**, because the fix alone leaves everyone already pinned exactly
