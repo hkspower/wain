@@ -64,7 +64,7 @@ foreach ($pages as $p) {
 
 // ------------------------------------------------------------------ 2. api
 $apiOk = 0;
-foreach (['products', 'settings', 'slides'] as $r) {
+foreach (['products', 'brands', 'slides'] as $r) {
     [$s, $n] = get('/api/api.php?r=' . $r, $HOST);
     if ($s === 200 && $n > 2) $apiOk++;
     else $fail[] = "api:$r=$s/$n";
@@ -124,7 +124,14 @@ if (is_array($cfg)) {
         $p = (int) $pdo->query('select count(*) from products where active = 1')->fetchColumn();
         $o = (int) $pdo->query('select count(*) from orders')->fetchColumn();
         $v = (int) $pdo->query('select count(*) from product_variants')->fetchColumn();
-        $db = "{$p}p/{$o}o/{$v}v";
+        // A garment with no size rows shows no size to pick and cannot be
+        // ordered. db-audit.php reports this against a checkout; here it is
+        // asked of the shop that is actually taking money.
+        $nov = (int) $pdo->query(
+            'select count(*) from products p where p.active = 1 and not exists' .
+            ' (select 1 from product_variants v where v.slug = p.slug)'
+        )->fetchColumn();
+        $db = "{$p}p/{$o}o/{$v}v/nosize={$nov}";
         // The one table the سبورتا AI answers come from. Absent is not an
         // error — the feature fails closed and silently — but it is the
         // difference between "nobody asked" and "it cannot answer".
