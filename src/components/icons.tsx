@@ -453,6 +453,31 @@ export function IconHome(props: IconProps) {
   );
 }
 
+/**
+ * A microphone — sound coming IN.
+ *
+ * The set had a speaker and no mic, and the search box's voice button was
+ * briefly drawn with the speaker: an icon that means «this will make noise»
+ * on a control that means «say something». They are opposite directions
+ * through the same device, and the wrong one on a permission-prompting button
+ * is a small lie about what pressing it does.
+ */
+export function IconMic(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      {/* Drawn wide. The first version was a thin capsule on a thin arc and
+          the audit measured it a third lighter than the family — a hairline
+          beside every icon it sits next to. The grille lines are what a
+          microphone actually has, and they are also the mass. */}
+      <path {...duo} d="M12 3.2a3.4 3.4 0 0 1 3.4 3.4v4.9a3.4 3.4 0 0 1-6.8 0V6.6A3.4 3.4 0 0 1 12 3.2Z" />
+      <path d="M12 3.2a3.4 3.4 0 0 1 3.4 3.4v4.9a3.4 3.4 0 0 1-6.8 0V6.6A3.4 3.4 0 0 1 12 3.2Z" />
+      <path d="M10.2 7.2h3.6M10.2 9.6h3.6" opacity={0.55} />
+      <path d="M6.2 11a5.8 5.8 0 0 0 11.6 0" />
+      <path d="M12 16.8v3.4M9 20.2h6" />
+    </svg>
+  );
+}
+
 export function IconSpeaker(props: IconProps) {
   return (
     <svg {...base(props)}>

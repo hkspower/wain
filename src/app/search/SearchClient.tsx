@@ -5,8 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import SearchMap from "@/components/SearchMap";
 import SearchResults, { optionId } from "@/components/SearchResults";
+import ShouqAnswer from "@/components/ShouqAnswer";
 import VoiceControls from "@/components/VoiceControls";
-import { IconClose, IconCompass, IconSearch } from "@/components/icons";
+import { IconClose, IconCompass, IconMic, IconSearch } from "@/components/icons";
 import { toArabicDigits } from "@/lib/places";
 import { usePlaces } from "@/lib/usePlaces";
 import { buildIndex, search, type DocKind } from "@/lib/search";
@@ -14,6 +15,8 @@ import { useListboxKeys } from "@/lib/useListboxKeys";
 import { answerParts } from "@/lib/voice-lines";
 import { speak, stop as stopVoice, useVoice } from "@/lib/voice";
 import { haptic } from "@/lib/haptics";
+import { canListen, getRecognition, SPEECH_LANG, transcriptOf, type SpeechRecognitionLike } from "@/lib/speech";
+import { WAIN_AI_COPY } from "@/lib/wain-ai";
 
 const FILTERS: { id: DocKind | "all"; label: string }[] = [
   { id: "all", label: "الكل" },
@@ -128,6 +131,29 @@ export default function SearchClient() {
     }
   }, []);
 
+  /**
+   * What شوق says about this search — once, for the page and for the voice.
+   *
+   * This used to be built inside the speaking effect, which meant it existed
+   * only while صوت وين was switched on. Off — the default — the page computed
+   * nothing and showed nothing, so a typed search met a list of cards with no
+   * sign that anyone had been asked anything. Hoisted, it is the same object
+   * rendered above the results and handed to `speak()`, so the written answer
+   * and the spoken one cannot say different things.
+   */
+  const answer = useMemo(
+    () =>
+      deferredQ.trim() && hits.length
+        ? answerParts(hits, hitPlaces, {
+            asked: asked && asked === deferredQ.trim() ? asked : undefined,
+            // Read at render, not at module load: an installed app can sit
+            // open across midnight, and across the end of a month.
+            month: new Date().getMonth(),
+          })
+        : [],
+    [deferredQ, hits, hitPlaces, asked]
+  );
+
   // صوت وين: once a search settles, say the best suggestion out loud —
   // only while the visitor has the voice toggle on, and never twice for the
   // same outcome.
@@ -148,22 +174,83 @@ export default function SearchClient() {
         const signature = `${hits[0]?.doc.id ?? "none"}|${hits.length}`;
         if (signature === lastSpokenRef.current) return;
         lastSpokenRef.current = signature;
-        speak(
-          answerParts(hits, hitPlaces, {
-            asked: spokenQuestion ?? undefined,
-            // Read at speaking time, not at module load: an installed app can
-            // sit open across midnight, and across the end of a month.
-            month: new Date().getMonth(),
-          })
-        );
+        speak(answer);
       },
       spokenQuestion ? 220 : 900
     );
     return () => clearTimeout(t);
-  }, [q, hits, hitPlaces, voiceEnabled, asked]);
+  }, [q, hits, voiceEnabled, asked, answer]);
 
   // Leaving the page shouldn't leave a voice talking.
   useEffect(() => () => stopVoice(), []);
+
+  /**
+   * The microphone, on the page شوق hands you to.
+   *
+   * Her call owned the only mic on the site, so the page she sends you to
+   * could be REACHED by voice and then only used by typing. «The search box is
+   * the same brain with typed input», says the comment that routes here when
+   * recognition is missing — true in one direction. Now the box listens with
+   * the same engine and the same `ar-KW`, so asking out loud and asking again
+   * are the same gesture rather than two different features.
+   *
+   * Interim results go straight into `q`, which means the results and the map
+   * move while the sentence is still being said. That is the whole point: the
+   * answer is already forming by the time the speaker stops.
+   *
+   * Rendered only where it can work. A mic that opens a permission prompt and
+   * then does nothing — every Firefox, every older desktop Safari — is worse
+   * than no mic, and `canListen` is read in an effect because the server has
+   * no window to ask.
+   */
+  const [micReady, setMicReady] = useState(false);
+  useEffect(() => setMicReady(canListen()), []);
+  const [listening, setListening] = useState(false);
+  const recRef = useRef<SpeechRecognitionLike | null>(null);
+  const [micError, setMicError] = useState<string | null>(null);
+
+  // An engine left running past the page is a microphone left open.
+  useEffect(() => () => recRef.current?.abort(), []);
+
+  const toggleMic = useCallback(() => {
+    if (recRef.current) {
+      recRef.current.stop();
+      return;
+    }
+    const rec = getRecognition();
+    if (!rec) {
+      setMicError(WAIN_AI_COPY.unsupported);
+      return;
+    }
+    rec.lang = SPEECH_LANG;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+    recRef.current = rec;
+    setMicError(null);
+    // Listening starts when the engine says so, not when the button was
+    // pressed — everything in between is the permission prompt.
+    rec.onstart = () => {
+      haptic("tap");
+      setListening(true);
+    };
+    rec.onresult = (e) => setQ(transcriptOf(e));
+    rec.onerror = (e) => {
+      // A stop() we asked for reports as an abort. That is not a failure, and
+      // showing «ما سمعناك» for it would blame the visitor for pressing stop.
+      if (e.error !== "aborted") setMicError(WAIN_AI_COPY.noSpeech);
+    };
+    rec.onend = () => {
+      recRef.current = null;
+      setListening(false);
+    };
+    try {
+      rec.start();
+    } catch {
+      recRef.current = null;
+      setListening(false);
+      setMicError(WAIN_AI_COPY.callFailed);
+    }
+  }, []);
 
   /**
    * The keyboard, which this page did not answer at all.
@@ -224,17 +311,51 @@ export default function SearchClient() {
           placeholder="اكتب اسم مكان، منطقة، أو جو…"
           className="w-full rounded-2xl border border-line-control bg-white py-4 pe-4 ps-12 text-lg text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/60 focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
         />
+        {micReady && (
+          <button
+            type="button"
+            onClick={toggleMic}
+            aria-label={listening ? "إيقاف الاستماع" : "اسأل شوق بصوتك"}
+            aria-pressed={listening}
+            className={`absolute inset-y-0 end-3 my-auto grid size-11 place-items-center rounded-full transition ${
+              listening
+                ? "bg-coral-600 text-white shadow-md"
+                : "text-coral-700 hover:bg-coral-50"
+            }`}
+          >
+            <IconMic className="size-5" />
+            {listening && (
+              <span
+                aria-hidden="true"
+                className="absolute inset-0 animate-ping rounded-full bg-coral-500/40 motion-reduce:animate-none"
+              />
+            )}
+          </button>
+        )}
         {q && (
           <button
             type="button"
             onClick={() => setQ("")}
             aria-label="مسح البحث"
-            className="absolute inset-y-0 end-3 my-auto grid size-11 place-items-center rounded-full text-ink-500 transition hover:bg-sand-200 hover:text-ink-800"
+            className={`absolute inset-y-0 my-auto grid size-11 place-items-center rounded-full text-ink-500 transition hover:bg-sand-200 hover:text-ink-800 ${
+              micReady ? "end-14" : "end-3"
+            }`}
           >
             <IconClose className="size-4" />
           </button>
         )}
       </div>
+
+      {(listening || micError) && (
+        <p
+          // Not live: the mic button carries aria-pressed, so the state
+          // change is already announced, and a second polite region competing
+          // with شوق's answer means two announcements per query.
+          className={`mt-2 px-1 text-xs font-semibold ${listening ? "text-coral-700" : "text-ink-500"}`}
+        >
+          {listening ? WAIN_AI_COPY.listening : micError}
+        </p>
+      )}
 
       {/* Filters */}
       {q.trim() && (
@@ -288,9 +409,12 @@ export default function SearchClient() {
              of empty page; this says «catching up» quietly and keeps what is
              on screen readable, which is usually still the right answer. */
           <div className={settling ? "opacity-60 transition-opacity duration-150" : "transition-opacity duration-150"}>
-            <p className="mb-4 text-sm text-ink-500" aria-live="polite">
+            {/* Not a live region any more: ShouqAnswer took the role, and it
+                says what the top result IS rather than how many there are. */}
+            <p className="mb-4 text-sm text-ink-500">
               {toArabicDigits(hits.length)} نتيجة
             </p>
+            <ShouqAnswer parts={answer} />
             <SearchMap places={hitPlaces} active={activeSlug} onActive={setActiveSlug} />
             <SearchResults
               hits={hits}

@@ -21,6 +21,10 @@
  *                   had the keys and the /search page had none, and the
  *                   palette's version moved a colour without ever naming an
  *                   option — so a screen reader heard nothing travel.
+ *   shouq-search  — شوق ON the search page rather than beside it: the answer
+ *                   she builds for every query, which used to be spoken and
+ *                   never written, and the microphone that used to exist only
+ *                   inside her call.
  *   swipe         — the category rail, the site's one swiped surface. It was
  *                   snap-mandatory, which turned a 4px nudge into a 120px
  *                   jump. Tests both directions, because the tempting
@@ -81,6 +85,9 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
 
   console.log("\n════ لوحة المفاتيح: arrowing through results, on both surfaces ════");
   failed += (await run("node", ["tests/search-keys.test.mjs"], { env })) === 0 ? 0 : 1;
+
+  console.log("\n════ شوق في البحث: her answer on the page, and the box listening ════");
+  failed += (await run("node", ["tests/shouq-search.test.mjs"], { env })) === 0 ? 0 : 1;
 
   console.log("\n════ السحب: how the category rail feels under a thumb ════");
   failed += (await run("node", ["tests/swipe.test.mjs"], { env })) === 0 ? 0 : 1;

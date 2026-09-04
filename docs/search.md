@@ -59,3 +59,73 @@ name. For «سوق شرق» that deletes the *space* and asks for «سوقشرق
 but a different word — and it did the same to five other multi-word names. It
 reported 78% typo tolerance. The real figure is 100%: the checker was broken,
 not the search. It now cuts inside a word and never touches a space.
+
+## شوق answers on the page, and the box listens
+
+`npm run test:hangout` → `tests/shouq-search.test.mjs`, 22 assertions.
+
+`answerParts` builds a real reply to every search: it names the best place and
+says why, gives the best time to go, warns about the Kuwaiti summer where the
+place is open to it, and offers exactly one alternative. The search page
+computed that and did one thing with it — `speak()`.
+
+صوت وين is off unless you turn it on, so **for almost everyone the answer was
+built and thrown away**. Her call hands you to this page — *"the search page's
+own summary is the reply"*, says the comment in `WainAiCall` — and the summary
+was inaudible and invisible at the same time. A typed search met a list of
+cards with no sign that anybody had been asked anything.
+
+It is rendered now, from the same object that is handed to `speak()`. There is
+no second copy of what she says, which is the only way the written and the
+spoken answer cannot drift.
+
+| part | rendered as |
+| --- | --- |
+| the echo, when she was asked out loud | a quiet question above the answer |
+| `place-<slug>`, `name-<slug>` | a link to that place, with its own mark |
+| `summer-outdoor`, `summer-mixed` | tinted, so caution reads as caution |
+| the rest | her sentences, in order |
+
+Two of her parts are about a specific place, and `answerParts` says which by
+keying them. A sentence recommending a place that you cannot press is a dead
+end in the middle of the answer, so those lines are links; «أحلى وقت» is not
+somewhere you can go, so it is not.
+
+### One live region, and it is hers
+
+The result count used to be the only announced thing on the page, so a screen
+reader heard «٧ نتيجة» and nothing about what any of them were. Two polite
+regions announce twice per query, so the count gave the role up: the answer
+names the top place, which is strictly more than a number. `aria-atomic`,
+because half an updated sentence is worse than a whole one repeated.
+
+### The microphone went one way
+
+Her call owned the only microphone on the site. *"The search box is the same
+brain with typed input"*, says the comment that routes you here when
+recognition is missing — true in one direction only: the page could be
+**reached** by voice and then only used by typing.
+
+`src/lib/speech.ts` now holds the detection, the typings and the locale,
+because `ar-KW` is the thing that must not differ between the two. A copy that
+forgot it would degrade to the browser's UI language and transcribe Kuwaiti
+Arabic as whatever it thought it heard — a failure that looks like bad
+recognition rather than a missing line of setup. The orchestration is
+deliberately not shared: a call has ring-back, silence timers and six phases; a
+search box has a mic that fills a text field.
+
+Interim results go straight into the query, so the results and the map move
+while the sentence is still being said.
+
+### What the test found
+
+Chromium ships `SpeechRecognition` **unprefixed**, and `getRecognition` prefers
+it. The first version of the test stubbed only `webkitSpeechRecognition`, so it
+replaced the branch the browser does not take: the real engine ran, found no
+microphone, and the whole section measured nothing while reporting three
+failures that looked like product bugs. It stubs both names now.
+
+The nine assertions were negative-tested by deleting the answer block and the
+mic button: nine clean failures, including «exactly one live region» dropping
+to zero — which is what proves the region moved to her rather than being added
+beside the old one.

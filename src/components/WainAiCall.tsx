@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { IconClose, IconPhone, IconPinSolid, IconShouq } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
+import { getRecognition, SPEECH_LANG, transcriptOf, type SpeechRecognitionLike } from "@/lib/speech";
 import { primeAudio, setEnabled as setVoiceEnabled } from "@/lib/voice";
 import { callDuration, connected, hangup, ringback } from "@/lib/call-tones";
 import {
@@ -84,31 +85,10 @@ function errorCopy(code: string): string {
   return WAIN_AI_COPY.callFailed;
 }
 
-/* Minimal typings for the vendor-prefixed Web Speech recognition API. */
-interface SpeechRecognitionLike {
-  lang: string;
-  interimResults: boolean;
-  maxAlternatives: number;
-  start(): void;
-  stop(): void;
-  abort(): void;
-  /** Fires once the engine is actually listening — which is only after the
-   *  microphone has been granted. That is the moment the call connects. */
-  onstart: (() => void) | null;
-  onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
-  onerror: ((e: { error: string }) => void) | null;
-  onend: (() => void) | null;
-}
-
-function getRecognition(): SpeechRecognitionLike | null {
-  if (typeof window === "undefined") return null;
-  const w = window as unknown as {
-    SpeechRecognition?: new () => SpeechRecognitionLike;
-    webkitSpeechRecognition?: new () => SpeechRecognitionLike;
-  };
-  const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
-  return Ctor ? new Ctor() : null;
-}
+/* The detection, the typings and the locale now live in lib/speech, because
+   the search box listens too and a second copy of ar-KW is a second copy that
+   can lose it. The orchestration below — ring-back, silence, six phases — is
+   this file's alone and stays here. */
 
 type Props = {
   /**
@@ -302,7 +282,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       return;
     }
     heardRef.current = "";
-    rec.lang = "ar-KW";
+    rec.lang = SPEECH_LANG;
     rec.interimResults = true;
     rec.maxAlternatives = 1;
     // The call connects when the engine starts listening, not when the button
@@ -316,9 +296,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       setPhase("live");
     };
     rec.onresult = (e) => {
-      const parts: string[] = [];
-      for (let i = 0; i < e.results.length; i++) parts.push(e.results[i][0]?.transcript ?? "");
-      const text = parts.join(" ").trim();
+      const text = transcriptOf(e);
       heardRef.current = text;
       setTranscript(text);
     };
