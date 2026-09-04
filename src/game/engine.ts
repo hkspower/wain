@@ -11,7 +11,7 @@ import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, STATIONS, FORECOURT, LAP } from "./track";
 import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
 import { createCar, crownShell, CROWN, setContactStrength, TAIL, TIRE_RADIUS } from "./cars";
-import { RIVALS, RivalDef } from "./rivals";
+import { RIVALS, RivalDef, rivalCar as rivalCarOf, rivalCarName } from "./rivals";
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
 import { ParticleSystem, radialSprite } from "./vfx";
@@ -3022,7 +3022,7 @@ export class GameEngine {
     // being looked up for the length; it carries the body kit too, and a
     // rival turning up in an unmodified version of a car the showroom
     // sells with arches on it is the wrong car.
-    const rivalCar = CARS.find((c) => c.name === def.car);
+    const rivalCar = rivalCarOf(def);
     const mesh = this.trackCar(
       createCar({
         body: def.bodyColor,
@@ -3040,7 +3040,7 @@ export class GameEngine {
         // position so two rivals never wear the same one.
         stickers: true,
         stickerNumber: 20 + this.rivalIndex,
-        name: def.car,
+        name: rivalCarName(def),
         // The machine they actually bring, at the length it actually is.
         // A rival's car is named on their card and sold in the showroom;
         // building it a different size from the one you can buy is two
@@ -3141,7 +3141,7 @@ export class GameEngine {
     const gap = this.track.deltaAhead(this.player.s, r.s);
     if (Math.abs(gap) > SIZE_UP_RANGE) return null;
     const def = r.def;
-    const machine = CARS.find((c) => c.name === def.car);
+    const machine = rivalCarOf(def);
     return {
       name: def.name,
       arabicName: def.arabicName,
@@ -3149,7 +3149,7 @@ export class GameEngine {
       area: def.area,
       country: def.country ?? "Kuwait",
       flag: def.flag ?? "🇰🇼",
-      car: def.car ?? "Street Tuned",
+      car: rivalCarName(def),
       lengthM: machine?.lengthM ?? null,
       topSpeedKmh: def.topSpeedKmh,
       order: RIVALS.indexOf(def) + 1,
@@ -3171,7 +3171,7 @@ export class GameEngine {
       country: def.country ?? "Kuwait",
       flag: def.flag ?? "🇰🇼",
       color: def.bodyColor,
-      car: def.car ?? "Street Tuned",
+      car: rivalCarName(def),
     };
   }
 

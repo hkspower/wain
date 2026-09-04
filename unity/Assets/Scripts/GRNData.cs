@@ -260,7 +260,7 @@ public static class GRNData
             FactoryBuild = new[] {  },
         },
         new Car {
-            Id = "sahara-v12", Name = "Sahara GT-12", Price = 96000,
+            Id = "sahara-v12", Name = "Sahara V12", Price = 96000,
             Power = 1.62f, TopSpeedKmh = 385f, Grip = 16.4f, Brake = 42f,
             Paint = Hex(0xB8860B), Style = BodyStyle.ZX, AttackKit = true, Drive = Drivetrain.RWD,
             Engine = 4, TankLitres = 90f, LengthM = 4.62f,
@@ -268,7 +268,7 @@ public static class GRNData
             FactoryBuild = new[] {  },
         },
         new Car {
-            Id = "falcon-720", Name = "Falcon 720 Veloce", Price = 71000,
+            Id = "falcon-720", Name = "Falcon 720", Price = 71000,
             Power = 1.5f, TopSpeedKmh = 360f, Grip = 15.8f, Brake = 40f,
             Paint = Hex(0xC1121F), Style = BodyStyle.ZX, AttackKit = true, Drive = Drivetrain.RWD,
             Engine = 4, TankLitres = 72f, LengthM = 4.54f,
@@ -276,7 +276,7 @@ public static class GRNData
             FactoryBuild = new[] {  },
         },
         new Car {
-            Id = "storm-s8", Name = "Desert Storm S8", Price = 54000,
+            Id = "storm-s8", Name = "Storm S8", Price = 54000,
             Power = 1.4f, TopSpeedKmh = 335f, Grip = 15.2f, Brake = 38f,
             Paint = Hex(0x1F2933), Style = BodyStyle.Sedan, AttackKit = true, Drive = Drivetrain.AWD,
             Engine = 3, TankLitres = 68f, LengthM = 4.8f,
@@ -332,7 +332,7 @@ public static class GRNData
             FactoryBuild = new[] {  },
         },
         new Car {
-            Id = "hawally-2t", Name = "Hawally Sport 2.0T", Price = 16000,
+            Id = "hawally-2t", Name = "Hawally Sport 2T", Price = 16000,
             Power = 1.12f, TopSpeedKmh = 240f, Grip = 13.2f, Brake = 30f,
             Paint = Hex(0xF5C211), Style = BodyStyle.Sedan, AttackKit = false, Drive = Drivetrain.FWD,
             Engine = 1, TankLitres = 55f, LengthM = 4.56f,

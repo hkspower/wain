@@ -11,7 +11,7 @@ import KuwaitClock from "./KuwaitClock";
 import RoadMapView from "./RoadMapView";
 import type { RoadMap } from "@/game/roadmap";
 import { gearAt } from "@/game/gears";
-import { RIVALS, RivalDef } from "@/game/rivals";
+import { RIVALS, RivalDef, rivalCar } from "@/game/rivals";
 import { HubClient, DuelInvite, loadProfile, saveProfile, formatLap, DEFAULT_HUB_URL } from "@/game/net";
 import { RACE_DISTANCES, distanceById } from "@/game/distances";
 import { kuwaitTime, racingOpenNow } from "@/game/clock";
@@ -1825,9 +1825,9 @@ function raceCut(): { w: number; h: number } | null {
                   // will be when you meet it on the road. The rolling
                   // two-shot in the menu is a promise about the car you
                   // are about to race; it should not be a smaller one.
-                  kit: CARS.find((c) => c.name === next.car)?.kit,
+                  kit: rivalCar(next)?.kit,
                   stickers: true,
-                  lengthM: CARS.find((c) => c.name === next.car)?.lengthM,
+                  lengthM: rivalCar(next)?.lengthM,
                 },
           }
         );

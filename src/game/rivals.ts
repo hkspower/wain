@@ -1,4 +1,5 @@
 // Rival roster — the bosses of Kuwait's midnight highway, fought in order.
+import { CARS, type CarModel } from "./mods";
 // Speeds are top speeds in km/h; the engine rubber-bands them so every
 // battle stays close until someone's SP (Spirit Points) runs out.
 
@@ -13,8 +14,24 @@ export interface RivalDef {
   flag?: string;
   /** Spoken when they turn a challenge down. */
   rejectLine?: string;
-  /** The machine they bring to the line. */
-  car?: string;
+  /**
+   * The machine they bring to the line, by the car's ID.
+   *
+   * An id and not the display name. This used to hold the name — the
+   * literal string "Desert Storm S8" — and engine.ts found the car with
+   * `CARS.find((c) => c.name === def.car)`, so the rival's machine was
+   * joined to the showroom through a label meant for a human to read.
+   * Rename a car and the find returns undefined, silently: the rival
+   * keeps their line, their crew and their colour, and turns up in a
+   * default shell with none of the numbers they were balanced against.
+   * Nothing throws and nothing logs.
+   *
+   * That is not hypothetical — three cars were renamed in the same change
+   * that introduced this field, and under the old scheme all three of
+   * those rivals would have lost their cars. tests/names.mjs now fails if
+   * an id here is not in CARS.
+   */
+  carId?: string;
   /** Body silhouette for their car mesh (cars.ts). */
   bodyStyle?: "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony";
   bodyColor: number;
@@ -42,11 +59,28 @@ export interface RivalDef {
   distance: string;
 }
 
+/**
+ * The car a rival brings, and what to call it.
+ *
+ * One place, so the id-to-car join exists once rather than at each of the
+ * six call sites that used to do `CARS.find((c) => c.name === def.car)`
+ * for themselves. `carName` falls back to a generic label rather than to
+ * an empty string, because a rival card with a blank where the machine
+ * goes reads as a bug and a rival with no listed car reads as a privateer.
+ */
+export function rivalCar(def: Pick<RivalDef, "carId">): CarModel | undefined {
+  return def.carId ? CARS.find((c) => c.id === def.carId) : undefined;
+}
+
+export function rivalCarName(def: Pick<RivalDef, "carId">): string {
+  return rivalCar(def)?.name ?? "Street Tuned";
+}
+
 export const RIVALS: RivalDef[] = [
   {
     id: "abu-shanab",
     distance: "sprint",
-    car: "Hawally Sport 2.0T",
+    carId: "hawally-2t",
     country: "Kuwait",
     flag: "🇰🇼",
     rejectLine: "مو الحين... جيب سرعة وتعال",
@@ -68,7 +102,7 @@ export const RIVALS: RivalDef[] = [
   {
     id: "bint-aldeera",
     distance: "sprint",
-    car: "Salmiya Turbo GT",
+    carId: "salmiya-turbo",
     country: "Kuwait",
     flag: "🇰🇼",
     rejectLine: "لا، ما عندي وقت للمبتدئين",
@@ -91,7 +125,7 @@ export const RIVALS: RivalDef[] = [
     id: "al-daboos",
     distance: "standard",
     bodyStyle: "zx",
-    car: "Gulf Coupe RS",
+    carId: "gulf-coupe-rs",
     country: "Kuwait",
     flag: "🇰🇼",
     rejectLine: "روح تدرّب الأول، بعدين نتكلم",
@@ -114,7 +148,7 @@ export const RIVALS: RivalDef[] = [
     id: "bu-machboos",
     distance: "standard",
     bodyStyle: "gtr",
-    car: "Desert Storm S8",
+    carId: "storm-s8",
     country: "Kuwait",
     flag: "🇰🇼",
     rejectLine: "خلّها لبعدين، سيارتك ما تسوى",
@@ -137,7 +171,7 @@ export const RIVALS: RivalDef[] = [
     id: "al-saqer",
     distance: "long",
     bodyStyle: "zx",
-    car: "Falcon 720 Veloce",
+    carId: "falcon-720",
     country: "Kuwait",
     flag: "🇰🇼",
     rejectLine: "الصقر ما يطارد الضعيف",
@@ -160,7 +194,7 @@ export const RIVALS: RivalDef[] = [
     id: "bu-torab",
     distance: "standard",
     bodyStyle: "zx",
-    car: "Zeta 300",
+    carId: "zeta-300",
     name: "Bu Torab",
     arabicName: "بو تراب",
     crew: "Doha Dust Devils",
@@ -181,7 +215,7 @@ export const RIVALS: RivalDef[] = [
     id: "al-sayyaf",
     distance: "long",
     bodyStyle: "gtr",
-    car: "Kaiju R",
+    carId: "kaiju-r",
     name: "Al-Sayyaf",
     arabicName: "السياف",
     crew: "Bayan Blade Runners",
@@ -202,7 +236,7 @@ export const RIVALS: RivalDef[] = [
     id: "shabah-alkhaleej",
     distance: "marathon",
     bodyStyle: "gtr",
-    car: "Sahara GT-12",
+    carId: "sahara-v12",
     country: "???",
     flag: "🏴",
     rejectLine: "بعدك ما أنت جاهز...",

@@ -6,7 +6,7 @@
 // same values into GRNTypes.h for offline play; the API is the live path.
 
 import { CONTROL_POINTS, LANES, ROAD_HALF_WIDTH, COAST_U, STATIONS, FORECOURT } from "./track";
-import { RIVALS } from "./rivals";
+import { RIVALS, rivalCarName } from "./rivals";
 import {
   QUESTS, TOGETHER_M, MET_M, MATCHED_KMH, MATCHED_FLOOR_KMH,
 } from "./quests";
@@ -78,7 +78,7 @@ export function buildRivals() {
     area: r.area,
     country: r.country ?? "Kuwait",
     flag: r.flag ?? "🇰🇼",
-    car: r.car ?? "Street Tuned",
+    car: rivalCarName(r),
     bodyStyle: r.bodyStyle ?? "sedan",
     bodyColor: hex(r.bodyColor),
     accentColor: hex(r.accentColor),

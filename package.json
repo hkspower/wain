@@ -88,6 +88,7 @@
     "test:motion": "node tests/motion.mjs",
     "test:musicmix": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/musicmix.mjs",
     "test:night": "node tests/night.mjs",
+    "test:names": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/names.mjs",
     "test:nos": "node tests/nos.mjs",
     "test:pacing": "node tests/framepacing.mjs",
     "test:pacing:delta": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/pacing.mjs",
