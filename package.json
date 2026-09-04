@@ -121,6 +121,7 @@
     "test:vfx": "node tests/vfx.mjs",
     "test:views": "node tests/views.mjs",
     "test:weight": "node tests/typeweight.mjs",
+    "test:weather": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/weather.mjs",
     "test:world": "node tests/world.mjs",
     "music": "node tools/elevenlabs/generate-music.mjs",
     "sfx": "node tools/elevenlabs/generate-sfx.mjs",

@@ -2903,6 +2903,12 @@ export interface WorldHandle {
   setTimeOfDay(hours: number): void;
   /** Turn the roadside crowd to watch the car at this world position. */
   setCrowdFocus(x: number, y: number, z: number, dt: number): void;
+  /** How wet the road LOOKS, 0..1. Separate from how much rain is
+   *  falling, because a road stays wet after the sky clears — which is
+   *  the whole point of weather.ts holding wetness as a state. */
+  setWetness(w: number): void;
+  /** Rain on the screen, 0..1. */
+  setRain(fall: number): void;
   /** Lean every roadside plant for this frame: wind, plus the wake of
    *  the car at (x, z) moving at `speed` m/s. */
   solvePlants(t: number, x: number, z: number, speed: number): void;
@@ -3265,6 +3271,56 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     scene.add(stars);
     skyFollowers.push(stars);
   }
+
+  // Rain.
+  //
+  // Drawn as line segments rather than sprites because that is what rain
+  // seen from a moving car IS — the drop travels far enough during the
+  // exposure to become a streak, and the faster you go the more it leans.
+  // The wind streaks at 220 km/h already use this, so it is one more
+  // LineSegments and one draw call rather than a particle system.
+  //
+  // It rides skyFollowers, which the engine re-centres on the camera
+  // every frame. That is the whole trick: a box of rain 60 m across
+  // travels with the driver, so the world never has to hold 8.5 km of
+  // weather, and the drops that fall out of the bottom are recycled to
+  // the top. Nobody can see the edge of a box they are standing in the
+  // middle of.
+  const RAIN_N = 900;
+  const RAIN_BOX = 34; // half-width of the box the drops live in, m
+  const RAIN_TOP = 18;
+  const rainPos = new Float32Array(RAIN_N * 2 * 3);
+  // Fall speed per drop, so the curtain has depth instead of moving as
+  // one sheet.
+  const rainVel = new Float32Array(RAIN_N);
+  for (let i = 0; i < RAIN_N; i++) {
+    const x = (rand() * 2 - 1) * RAIN_BOX;
+    const z = (rand() * 2 - 1) * RAIN_BOX;
+    const y = rand() * RAIN_TOP;
+    const len = 0.7 + rand() * 0.9;
+    const o = i * 6;
+    rainPos[o] = x; rainPos[o + 1] = y; rainPos[o + 2] = z;
+    rainPos[o + 3] = x; rainPos[o + 4] = y - len; rainPos[o + 5] = z;
+    rainVel[i] = 22 + rand() * 12;
+  }
+  const rainGeo = new THREE.BufferGeometry();
+  rainGeo.setAttribute("position", new THREE.BufferAttribute(rainPos, 3));
+  const rainMat = new THREE.LineBasicMaterial({
+    color: 0xbcd4e6,
+    transparent: true,
+    opacity: 0,
+    // Additive would make rain glow against the night sky; it is water,
+    // and at midnight it is only visible where a lamp or a headlight is
+    // already lighting it.
+    depthWrite: false,
+  });
+  const rain = new THREE.LineSegments(rainGeo, rainMat);
+  rain.name = "rain";
+  rain.frustumCulled = false;
+  rain.visible = false;
+  let rainFall = 0;
+  scene.add(rain);
+  skyFollowers.push(rain);
 
   // City floor inland of the corniche
   const ground = new THREE.Mesh(
@@ -5867,6 +5923,40 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     },
 
     /**
+     * How wet the road looks, 0..1.
+     *
+     * Water fills the asphalt's pores and lays a mirror over the top of
+     * it, so the two things that change are roughness and how much of
+     * the world the surface returns. The map already supplies a
+     * 0.38-0.92 roughness range and the material multiplies it; dropping
+     * the multiplier is what turns matt asphalt into something the
+     * streetlights streak across.
+     *
+     * The road material is the ONLY thing driven from here. The paint,
+     * the kerbs and the street grid stay as they are, because a wet road
+     * at night reads through the reflections it throws rather than
+     * through everything on it turning shiny at once — and the markings
+     * are the one surface a driver needs to keep seeing.
+     */
+    setWetness(w: number) {
+      const wet = THREE.MathUtils.clamp(w, 0, 1);
+      // 1.0 dry down to 0.35 soaked. Not to zero: standing water is a
+      // mirror, wet asphalt is not, and a road at roughness 0 stops
+      // reading as a road at all.
+      roadMat.roughness = 1 - 0.65 * wet;
+      // ...and it returns more of the sky and the lamps as it does.
+      roadMat.envMapIntensity = 1.15 + 1.35 * wet;
+    },
+
+    /** Rain on the screen, 0..1 — the particle density, separate from
+     *  wetness because the road stays wet after the sky clears. */
+    setRain(fall: number) {
+      rainFall = THREE.MathUtils.clamp(fall, 0, 1);
+      rainMat.opacity = 0.5 * rainFall;
+      rain.visible = rainFall > 0.01;
+    },
+
+    /**
      * The whole sky, as a function of one number: the hour.
      *
      * Everything that reads as "time of day" is driven from the sun's
@@ -6186,6 +6276,26 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     },
     tick(dt: number) {
       time += dt;
+      // Rain falls. Only while there is any — a thousand vertices moved
+      // every frame on a dry night is a thousand vertices wasted.
+      if (rainFall > 0.01) {
+        const pos = rainGeo.getAttribute("position") as THREE.BufferAttribute;
+        const arr = pos.array as Float32Array;
+        for (let i = 0; i < RAIN_N; i++) {
+          const o = i * 6;
+          const drop = rainVel[i] * dt;
+          arr[o + 1] -= drop;
+          arr[o + 4] -= drop;
+          // Recycled from the bottom of the box to the top, keeping its
+          // own length, so the curtain never thins out.
+          if (arr[o + 4] < -2) {
+            const len = arr[o + 1] - arr[o + 4];
+            arr[o + 1] = RAIN_TOP;
+            arr[o + 4] = RAIN_TOP - len;
+          }
+        }
+        pos.needsUpdate = true;
+      }
       // Slow drift of the wave crests across the bay
       seaMap.offset.x += dt * 0.008;
       seaMap.offset.y -= dt * 0.013;

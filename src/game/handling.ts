@@ -445,13 +445,24 @@ export const HANDLING = {
   wetGripLoss: 0.35,
   /** How fast a road takes water on, 1/s. An exponential approach rather
    *  than a ramp: a road wets fastest at the start and then closes on
-   *  saturation. */
-  wetSoakRate: 0.5,
-  /** ...and how fast it gives it back. An order of magnitude slower, and
-   *  the gap is the point — the road stays greasy long after the
-   *  windscreen has cleared, which is the part of driving in the wet a
-   *  boolean `raining` flag cannot express. */
-  wetDryRate: 0.045,
+   *  saturation.
+   *
+   *  Set from the time it should take, not picked: at 0.026 a road is
+   *  half wet in 27 s and nine tenths wet in 89 s, which is the "a shower
+   *  soaks a road in a minute or two" this model is written around. 0.5
+   *  was tried first — it soaked the road in 8 seconds, which is a step
+   *  change in grip wearing a state's clothes. */
+  wetSoakRate: 0.026,
+  /** ...and how fast it gives it back. Nearly an order of magnitude
+   *  slower, and the gap is the point — the road stays greasy long after
+   *  the windscreen has cleared, which is the part of driving in the wet
+   *  that a boolean `raining` flag cannot express.
+   *
+   *  At 0.003 a soaked road takes 15 minutes to come back under 0.05,
+   *  which is a quarter of an hour of a race, not a corner of one. 0.045
+   *  dried it in 59 s: fast enough that the driver would never meet the
+   *  wet road they were warned about. */
+  wetDryRate: 0.003,
   /** How hard it rains when nobody says. A shower rather than a
    *  downpour: a spell's intensity is also the wetness it approaches, so
    *  drizzle leaves a damp road that never becomes a wet one and only a

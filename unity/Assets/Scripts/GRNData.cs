@@ -541,8 +541,8 @@ public static class GRNData
         public const float PowerOverThrottle = 0.85f;
         public const float PowerOverAngleK = 0.6f;
         public const float WetGripLoss = 0.35f;
-        public const float WetSoakRate = 0.5f;
-        public const float WetDryRate = 0.045f;
+        public const float WetSoakRate = 0.026f;
+        public const float WetDryRate = 0.003f;
         public const float RainDefaultIntensity = 0.7f;
         public const float RainFadeS = 2.5f;
         public const float SuspStrokeM = 0.17f;
@@ -707,8 +707,8 @@ public static class GRNData
         public const double PowerOverThrottle = 0.85;
         public const double PowerOverAngleK = 0.6;
         public const double WetGripLoss = 0.35;
-        public const double WetSoakRate = 0.5;
-        public const double WetDryRate = 0.045;
+        public const double WetSoakRate = 0.026;
+        public const double WetDryRate = 0.003;
         public const double RainDefaultIntensity = 0.7;
         public const double RainFadeS = 2.5;
         public const double SuspStrokeM = 0.17;

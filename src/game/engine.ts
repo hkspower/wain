@@ -17,6 +17,7 @@ import { SoundEngine } from "./sound";
 import { ParticleSystem, radialSprite } from "./vfx";
 import { solveTwoBone, aimConstrained } from "./ik";
 import { solveSuspension } from "./suspension";
+import { newWeatherState, solveWeather, type WeatherState, type WeatherResult } from "./weather";
 import { nightEnvironment } from "./env";
 import { RIG } from "./rig";
 import { paceDelta, newPaceState, refreshFromIntervals, type PaceState } from "./pacing";
@@ -982,6 +983,31 @@ export class GameEngine {
   private bs: BrakeState = newBrakeState();
   /** Last frame's brake solve, for the HUD, the squeal and the smoke. */
   private brakeOut: BrakeResult | null = null;
+
+  /**
+   * The weather, and what the road has made of it.
+   *
+   * Held rather than recomputed because wetness is a state with memory:
+   * the road is still wet after the rain stops, and how wet depends on
+   * how long it fell. See weather.ts.
+   */
+  private weather: WeatherState = newWeatherState();
+  private wx: WeatherResult = {
+    wetness: 0, gripMult: 1, fall: 0, changed: false, spellT: 0,
+  };
+  /** Whether it is raining. Set by the caller — a race, a setting, a
+   *  forecast — and read by the model, which only knows what water does
+   *  to a road once it is falling. */
+  raining = false;
+  /** 0..1 how hard, when it is. */
+  rainIntensity = HANDLING.rainDefaultIntensity;
+
+  /** Is the car under something? No rain reaches the road there, so it
+   *  neither soaks nor dries. The underpass is the one roofed stretch of
+   *  the lap the car can be inside for any length of time. */
+  private sheltered(s: number): boolean {
+    return s >= LAP.tunnel.from && s < LAP.tunnel.to;
+  }
 
   /**
    * Separate the sprung mass from the unsprung one.
@@ -4032,6 +4058,12 @@ export class GameEngine {
       dt
     );
     this.world.tick(dt);
+    // The look follows the model rather than being set alongside it. The
+    // road's shine is WETNESS and the rain on the screen is FALL, and
+    // they are two different numbers for the reason weather.ts exists:
+    // the road is still wet after the sky clears.
+    this.world.setWetness(this.wx.wetness);
+    this.world.setRain(this.wx.fall);
     // The verge answers the car. Wind on every plant, and the wake of
     // this one on the plants beside it — solved on the CPU into one
     // attribute per instance and bent in the vertex shader, which is the
@@ -4253,7 +4285,23 @@ export class GameEngine {
     // at twice the speed. Everything grip-limited below reads this one
     // number: what the driven axle can put down, what the brakes can
     // reach, and how hard the car can be turned.
-    const grip = gripAtSpeed(this.tune.gripAccel, this.tune.downforce, p.speed);
+    // The weather first, because grip is what it changes.
+    this.wx = solveWeather(this.weather, {
+      dt,
+      raining: this.raining,
+      intensity: this.rainIntensity,
+      sheltered: this.sheltered(p.s),
+    });
+    // The wet multiplier goes on the TYRES, before the wing is added:
+    // water is between the tread and the road, and aero presses the car
+    // down whatever the road is made of. So a winged car keeps more of
+    // its cornering speed in the wet than a road car, which is right and
+    // falls out of the ordering rather than needing a rule.
+    const grip = gripAtSpeed(
+      this.tune.gripAccel * this.wx.gripMult,
+      this.tune.downforce,
+      p.speed
+    );
     // ...and where that grip IS. The load solver ran last frame, on last
     // frame's acceleration, which is the physically correct order: load
     // lags the pedal by the time the springs take to compress.
@@ -6451,6 +6499,12 @@ export class GameEngine {
       wheelCamber: ((this.carBody.userData.wheels as THREE.Group[] | undefined) ?? []).map(
         (w) => w.rotation.z
       ),
+      // The weather, so a test can watch a road wet and dry rather than
+      // infer it from a lap time.
+      raining: this.raining,
+      wetness: this.wx.wetness,
+      wetGripMult: this.wx.gripMult,
+      rainFall: this.wx.fall,
       driftYaw: this.driftYaw,
       driftRun: this.driftRun,
       driftChain: this.ds.chain,
