@@ -80,6 +80,26 @@ export interface FilmSpec {
    * a slightly milky window.
    */
   haze: number;
+  /**
+   * The optical surface on top of the film, 0 to 1. A clearcoat layer,
+   * in the material.
+   *
+   * THIS is what separates the two dark films, and finding that out
+   * took a measurement. Reflectivity was supposed to do it —
+   * envMapIntensity, raised from 1.85 for carbon to 2.80 for ceramic —
+   * and tools/shots/tint.mjs measured the two of them 1.25 apart out of
+   * 255 either way, because on a surface that is 86% opaque the
+   * environment term is being blended almost entirely out before it
+   * reaches the frame. Pushing that lever harder was pushing a lever
+   * that is not connected.
+   *
+   * A clearcoat is not blended out: it is a second specular lobe laid
+   * OVER the surface, which is also what the thing being modelled
+   * physically is — a smooth film surface on top of a dark layer. Cheap
+   * film has no such surface to speak of and ceramic is most of the
+   * reason anyone pays for ceramic.
+   */
+  coat: number;
 }
 
 /** Bare glass, before any film: the blue-green a windscreen already is. */
@@ -107,6 +127,7 @@ export const FILMS: Record<TintFilm, FilmSpec> = {
     core: 0x17121c,
     sheen: 0.22,
     haze: 0.038,
+    coat: 0,
   },
   carbon: {
     name: "Carbon Film",
@@ -114,6 +135,7 @@ export const FILMS: Record<TintFilm, FilmSpec> = {
     core: 0x0b0b0c,
     sheen: 0.5,
     haze: 0.02,
+    coat: 0.3,
   },
   ceramic: {
     name: "Ceramic Film",
@@ -134,6 +156,7 @@ export const FILMS: Record<TintFilm, FilmSpec> = {
     core: 0x070d17,
     sheen: 1.45,
     haze: 0.006,
+    coat: 1,
   },
 };
 
@@ -146,6 +169,11 @@ export interface GlassLook {
   color: number;
   envMapIntensity: number;
   roughness: number;
+  /** Strength of the clearcoat lobe, 0-1. */
+  clearcoat: number;
+  /** How sharp that lobe is. Follows the film's haze: a cheap surface
+   *  scatters its highlight as well as its transmission. */
+  clearcoatRoughness: number;
 }
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -177,6 +205,8 @@ export function glassLook(film: TintFilm | undefined, pct: number): GlassLook {
       color: FACTORY_GLASS,
       envMapIntensity: 1.35,
       roughness: 0.05,
+      clearcoat: 0,
+      clearcoatRoughness: 0,
     };
   }
   const f = FILMS[film];
@@ -185,5 +215,9 @@ export function glassLook(film: TintFilm | undefined, pct: number): GlassLook {
     color: mixHex(FACTORY_GLASS, f.core, t),
     envMapIntensity: 1.35 + t * f.sheen,
     roughness: 0.05 + t * f.haze,
+    // The coat comes on with the film, because it IS the film's own
+    // surface — there is no clearcoat on bare glass here.
+    clearcoat: t * f.coat,
+    clearcoatRoughness: 0.02 + f.haze * 4,
   };
 }

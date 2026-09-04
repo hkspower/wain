@@ -63,6 +63,10 @@ console.log(`${FILM_IDS.length} films open monotonically to ${glassLook("carbon"
       );
       check(Math.abs(a.roughness - b.roughness) > 0.004,
         `${a.f} and ${b.f} are equally hazy: ${a.roughness.toFixed(4)}`);
+      // The surface on top, which is what actually tells the two dark
+      // films apart in a rendered frame — see the note on `coat`.
+      check(Math.abs(a.clearcoat - b.clearcoat) > 0.15,
+        `${a.f} and ${b.f} have the same optical surface: ${a.clearcoat.toFixed(2)}`);
     }
   }
   console.log(
@@ -98,9 +102,14 @@ console.log(`${FILM_IDS.length} films open monotonically to ${glassLook("carbon"
     "reflectivity should rise dyed -> carbon -> ceramic");
   check(d.roughness > c.roughness && c.roughness > q.roughness,
     "haze should fall dyed -> carbon -> ceramic");
+  check(d.clearcoat < c.clearcoat && c.clearcoat < q.clearcoat,
+    "the optical surface should improve dyed -> carbon -> ceramic");
+  check(glassLook("ceramic", 0).clearcoat === 0,
+    "bare glass with no film on it must carry no film surface");
   console.log(
     `luma ${[d, c, q].map((x) => lum(x.color).toFixed(1)).join(" / ")}, ` +
-    `sheen ${[d, c, q].map((x) => x.envMapIntensity.toFixed(2)).join(" -> ")}  ${verdict()}`
+    `sheen ${[d, c, q].map((x) => x.envMapIntensity.toFixed(2)).join(" -> ")}, ` +
+    `coat ${[d, c, q].map((x) => x.clearcoat.toFixed(2)).join(" -> ")}  ${verdict()}`
   );
 }
 

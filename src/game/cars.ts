@@ -2259,6 +2259,8 @@ function tintedGlass(tintPct: number, film: TintFilm | undefined): THREE.MeshPhy
   m.color = new THREE.Color(look.color);
   m.envMapIntensity = look.envMapIntensity;
   m.roughness = look.roughness;
+  m.clearcoat = look.clearcoat;
+  m.clearcoatRoughness = look.clearcoatRoughness;
   return m;
 }
 

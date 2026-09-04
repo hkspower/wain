@@ -193,26 +193,53 @@ for (const pct of STEPS) {
  * pick the right rectangle first — which is the step the first version
  * of this tool got wrong.
  */
-const diff = async (a, c) => {
-  const crop = CROP(W, H);
-  const [x, y] = await Promise.all([
-    sharp(a).extract(crop).raw().toBuffer({ resolveWithObject: true }),
-    sharp(c).extract(crop).raw().toBuffer({ resolveWithObject: true }),
-  ]);
-  let sum = 0, max = 0;
-  const n = Math.min(x.data.length, y.data.length);
-  for (let i = 0; i < n; i++) {
+const raw = (path) => sharp(path).extract(CROP(W, H)).raw().toBuffer({ resolveWithObject: true });
+
+const diff = async (a, c, mask) => {
+  const [x, y] = await Promise.all([raw(a), raw(c)]);
+  let sum = 0, max = 0, n = 0;
+  const len = Math.min(x.data.length, y.data.length);
+  for (let i = 0; i < len; i++) {
+    if (mask && !mask[i]) continue;
     const d = Math.abs(x.data[i] - y.data[i]);
     sum += d;
+    n++;
     if (d > max) max = d;
   }
-  return { mean: sum / n, max };
+  return { mean: n ? sum / n : 0, max, n };
+};
+
+/**
+ * The pixels the tint touches, found rather than guessed.
+ *
+ * Averaging over a rectangle was the wrong question and gave a wrong
+ * answer for a whole afternoon. The rear window is under 2% of even a
+ * tight crop of this frame, so ANY change confined to the glass comes
+ * out near 1 of 255 no matter how total it is — carbon against ceramic
+ * measured 1.25 while individual pixels differed by 149. That is a
+ * measurement of how much of the picture is glass, not of how different
+ * two films are.
+ *
+ * So the mask is built from the effect itself: every channel that moves
+ * between no film and 100% of one IS the glass, by definition, and the
+ * films are then compared only there.
+ */
+const glassMask = async (clear, dark) => {
+  const [a, b2] = await Promise.all([raw(clear), raw(dark)]);
+  const m = new Uint8Array(a.data.length);
+  let on = 0;
+  for (let i = 0; i < m.length; i++) {
+    // 8 of 255: above the renderer's own frame-to-frame jitter on this
+    // scene, well below the change tint makes where it applies.
+    if (Math.abs(a.data[i] - b2.data[i]) > 8) { m[i] = 1; on++; }
+  }
+  return { m, on, of: m.length };
 };
 
 console.log("\n  tint    glass luma   cockpit luma   frame vs 0%   worst pixel");
 console.log("  ---------------------------------------------------------------");
 for (const r of rows) {
-  const d = await diff(`${OUT}/close-0.png`, `${OUT}/close-${r.pct}.png`);
+  const d = await diff(`${OUT}/close-0.png`, `${OUT}/close-${r.pct}.png`, null);
   console.log(
     `  ${String(r.pct).padStart(3)}%  ${r.close.toFixed(1).padStart(9)}   ` +
     `${r.cockpit.toFixed(1).padStart(10)}   ${d.mean.toFixed(2).padStart(9)}   ` +
@@ -250,12 +277,22 @@ for (const f of FILMS) console.log(`  ${f.padEnd(9)} glass luma ${shots[f].luma.
 // carbon once measured 1.21 — a pair that reads as the same window in a
 // side-by-side. 2.0 sits above the pair nobody could tell apart and
 // well under the change the tint itself makes.
-const FLOOR = 2.0;
+//
+// The floor is on the GLASS, not on the frame. Over the glass pixels a
+// change to the film is the only thing happening, so the number is the
+// product difference rather than the product difference diluted by
+// however much asphalt is in shot.
+const FLOOR = 6.0;
+const mask = await glassMask(`${OUT}/close-0.png`, `${OUT}/close-100.png`);
+console.log(
+  `\n  glass mask: ${mask.on} of ${mask.of} channels ` +
+  `(${((mask.on / mask.of) * 100).toFixed(1)}% of the crop)`
+);
 let weakest = Infinity;
-console.log("\n  against each other");
+console.log("\n  against each other, over the glass only");
 for (let i = 0; i < FILMS.length; i++) {
   for (let j = i + 1; j < FILMS.length; j++) {
-    const d = await diff(shots[FILMS[i]].path, shots[FILMS[j]].path);
+    const d = await diff(shots[FILMS[i]].path, shots[FILMS[j]].path, mask.m);
     weakest = Math.min(weakest, d.mean);
     console.log(
       `  ${FILMS[i]} vs ${FILMS[j]}`.padEnd(26) +
