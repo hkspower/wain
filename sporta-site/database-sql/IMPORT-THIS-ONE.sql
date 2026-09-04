@@ -1149,10 +1149,28 @@ insert into products (slug, name_en, name_ar, desc_en, desc_ar, price, category,
   ('vanquish-t-shirt-navy-blue', 'Vanquish T-Shirt — Navy Blue', 'تيشيرت فانكويش — كحلي', 'Vanquish T-Shirt in navy blue.', 'تيشيرت فانكويش، كحلي.', 10.000, 'men', 1),
   ('vanquish-t-shirt-white', 'Vanquish T-Shirt — White', 'تيشيرت فانكويش — أبيض', 'Vanquish T-Shirt in white.', 'تيشيرت فانكويش، أبيض.', 8.000, 'men', 1),
   ('vanquish-tank-navy', 'Vanquish Tank — Navy', 'تانك فانكويش — كحلي', 'Vanquish Tank in navy.', 'تانك فانكويش، كحلي.', 9.000, 'men', 1)
-on duplicate key update
-  name_en = values(name_en), name_ar = values(name_ar),
-  desc_en = values(desc_en), desc_ar = values(desc_ar),
-  price   = values(price),   category = values(category), active = values(active);
+-- NEVER CLOBBER A PRODUCT THAT IS ALREADY THERE. This clause used to copy the
+-- seed's name, description, PRICE, category and active flag over the existing
+-- row, and that made the promise at the top of IMPORT-THIS-ONE.sql — "does NOT
+-- overwrite existing orders, prices or stock counts" — false for every price in
+-- the shop.
+--
+-- It is not a theoretical risk. Measured on 2026-09-04 against a copy of the
+-- live schema: a product hand-priced at 99.500 KWD with an edited name came
+-- back as 10.000 and the seed's name after one import. The owner edits prices
+-- in /backends, and this file is the one they are told to import into the live
+-- database, so re-running it would have silently reset the whole catalogue to
+-- development figures. Stock survived, because the variants clause below had
+-- already been taught this lesson and says so in its own comment.
+--
+-- The no-op is the same idiom 1-schema and 4-promo already use. It keeps the
+-- statement valid and keeps the file's real purpose intact: a MISSING product
+-- is still inserted, which is what "repairs anything missing" means.
+--
+-- Changing seed copy therefore no longer propagates into a database that
+-- already has the row. That is the correct trade: a developer can drop the row
+-- and re-import, and a live shop cannot lose its prices by accident.
+on duplicate key update slug = slug;   -- never clobber a value already set
 
 insert into product_variants (sku, slug, size, stock, cost_aed) values
   ('A-CSJ-AR-L', 'cloudsoft-jacket-army-green', 'L', 1, 75),
@@ -1251,7 +1269,11 @@ insert into brands (slug, name_en, name_ar, sort) values
   ('gymshark',     'Gymshark',      'جيم شارك',      5),
   ('eyesportwear', 'Eyesportwear',  'آي سبورت وير',  6),
   ('nba',          'NBA',           'إن بي إيه',     7)
-on duplicate key update name_en = values(name_en), name_ar = values(name_ar);
+-- Same rule as the products seed: a brand already in the database keeps the
+-- name it has. Less costly than a reset price — nothing on the site lists
+-- brands by name today — but it is the owner's text either way, and a file
+-- that promises not to overwrite should not overwrite anything.
+on duplicate key update slug = slug;   -- never clobber a value already set
 
 -- ========================================================================
 -- promo — hero slides, settings, promotions and discounts

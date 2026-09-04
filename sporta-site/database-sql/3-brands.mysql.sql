@@ -29,4 +29,8 @@ insert into brands (slug, name_en, name_ar, sort) values
   ('gymshark',     'Gymshark',      'جيم شارك',      5),
   ('eyesportwear', 'Eyesportwear',  'آي سبورت وير',  6),
   ('nba',          'NBA',           'إن بي إيه',     7)
-on duplicate key update name_en = values(name_en), name_ar = values(name_ar);
+-- Same rule as the products seed: a brand already in the database keeps the
+-- name it has. Less costly than a reset price — nothing on the site lists
+-- brands by name today — but it is the owner's text either way, and a file
+-- that promises not to overwrite should not overwrite anything.
+on duplicate key update slug = slug;   -- never clobber a value already set

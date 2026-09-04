@@ -20,6 +20,23 @@
  * NOT EXISTS, INSERT ... ON DUPLICATE KEY UPDATE — so importing twice changes
  * nothing and repairs anything missing.
  *
+ * "CHANGES NOTHING" IS A PROMISE ABOUT A LIVE SHOP, AND IT WAS FALSE.
+ * The header this script writes has always told the owner the file does not
+ * overwrite existing prices. Measured on 2026-09-04: it did. The products seed
+ * carried `on duplicate key update ... price = values(price) ...`, so a
+ * product hand-priced at 99.500 KWD came back as the seed's 10.000 after one
+ * import, along with its name, description, category and active flag. The
+ * owner edits prices in /backends and is told to import THIS file into the
+ * live database, so re-running it would have reset the whole catalogue to
+ * development figures on a shop with 608 real orders behind it.
+ *
+ * Both seeds now use the no-op idiom that 1-schema and 4-promo already used
+ * (`on duplicate key update slug = slug`), so an existing row is left exactly
+ * as it is and a missing one is still inserted. install-sql-test.mjs covers
+ * the install half; the overwrite half is what the note above is for. If a
+ * part is ever added that updates a column the owner can edit, the header's
+ * promise stops being true again and nothing will say so.
+ *
  * 5-missing-variants.sql IS included, and I had it out of this list first on
  * the reasoning that inventing size rows is an inventory decision rather than
  * an install step. That was wrong, and importing into an empty database is
