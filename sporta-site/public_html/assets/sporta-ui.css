@@ -223,6 +223,30 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
    The phone is untouched at 43% — the cap is on --hero-h-md and the phone
    reads --hero-h.
 
+   AND THEN THE PHONE, which is where this was actually being read.
+   ----------------------------------------------------------------
+   Every step above moved the DESKTOP cap. The phone ratio had sat at 1.65
+   since the "taller again" change and nobody had objected — because nobody
+   had seen it: sporta-ui.css was ABSENT from the server until 2026-09-04, so
+   the live phone hero was still the bundle's own 2.52. Publishing this file
+   did not just apply the desktop cap, it made the phone 52% TALLER in the
+   same breath, and that is what "too tall" was about.
+
+     393px phone   100vw / 1.65 -> 238px art     (what publishing introduced)
+                   100vw / 2.10 -> 187px art     (here — 51px shorter)
+                   100vw / 2.52 -> 156px art     (the artwork's own ratio)
+
+   2.10 rather than straight back to 2.52: at 2.52 the box is the shipped
+   art's own shape, which is where this started and which the note at the top
+   of this block calls "a band rather than a hero". 2.10 keeps it a hero and
+   gives back most of the height. It also crops LESS — a shallower box over a
+   2.52:1 image keeps about 83% of the width against 65% at 1.65 — so the
+   SPORTA mark, the headline bar and the Arabic in the left half are further
+   from the edge than they were, not closer.
+
+   If it is still too tall, 2.52 is the next stop and costs nothing but the
+   band-versus-hero judgement, which is the owner's.
+
    The +128px on the phone value is the button strip below the art and is
    carried through unchanged — it is measured, not a guess: py-6 top and
    bottom (48) + a 48px button + pb-8 (32).
@@ -232,7 +256,7 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
    whoever is reading it. Overriding the variable rather than the height means
    the pre-paint shell and the mounted component still read the same number. */
 :root {
-  --hero-h: calc(100vw / 1.65 + 128px) !important;
+  --hero-h: calc(100vw / 2.10 + 128px) !important;
   --hero-h-md: min(calc(100vw / 1.90), 60svh) !important;
 }
 
@@ -253,7 +277,7 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
    reading the file. */
 @media (max-width: 767px) {
   .hero-strength > .aspect-\[2\.52\/1\] {
-    aspect-ratio: 1.65 / 1 !important;
+    aspect-ratio: 2.10 / 1 !important;
   }
 }
 @media (min-width: 768px) {
