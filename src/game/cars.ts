@@ -2261,6 +2261,7 @@ function tintedGlass(tintPct: number, film: TintFilm | undefined): THREE.MeshPhy
   m.roughness = look.roughness;
   m.clearcoat = look.clearcoat;
   m.clearcoatRoughness = look.clearcoatRoughness;
+  m.metalness = look.metalness;
   return m;
 }
 

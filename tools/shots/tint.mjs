@@ -256,9 +256,10 @@ console.log(`\n  ${OUT}/close-*.png, ${OUT}/cockpit-*.png`);
 // below are the whole justification for the shop having more than one
 // entry, and they have already cost it one: a ceramic film sat above
 // carbon at 1400 KD until this measured the pair 2.95 apart.
-// Read nothing into the length: this is the shelf, and the shelf is
-// two because this check is what cut the third one.
-const FILMS = ["dyed", "carbon"];
+// The shelf, and this check is what decides its length: it cut a
+// ceramic roll for rendering the same window as carbon, and it is what
+// the mirrored one had to clear before it went on.
+const FILMS = ["dyed", "carbon", "mirror"];
 const shots = {};
 for (const film of FILMS) {
   await setTint(70, film);

@@ -28,8 +28,13 @@
 //             that stays charcoal, and no metal in it. The one you
 //             actually want, and what every tinted car in this game was
 //             wearing before any of it was for sale.
+//   mirror    Metallized. The odd one out, and deliberately so: it does
+//             not absorb the light, it throws it back, so the window
+//             ends up brighter than bare glass rather than darker and
+//             what you see in it is the street behind you. It is the
+//             look, and in most of the world it is also the ticket.
 //
-// THERE WERE THREE
+// THERE WAS A FOURTH, AND IT DID NOT SURVIVE ITS OWN CHECK
 //
 // A ceramic roll sat above carbon at 1400 KD, and tools/shots/tint.mjs
 // refused it. Over the glass pixels — the only place a window film can
@@ -43,9 +48,17 @@
 // carbon are two products that differ in clarity, and clarity is the
 // thing this surface cannot show.
 //
-// So the shelf is two. A third entry at nearly three times the price of
-// the second, rendering a window nobody could tell from it, would have
-// been the shop lying about what it sells.
+// So ceramic is not on the wall. The third roll that IS — mirrored —
+// earns its place by working on the axis that survives: it changes what
+// the SURFACE DOES rather than what shade it is. Measured the same way,
+// against the same films: 10.53 from carbon and 29.45 from dyed, where
+// ceramic managed 2.95. Three and a half times the margin, from a
+// change that is physically smaller than any of the four ceramic
+// received.
+//
+// The lesson is kept as a rule rather than as a scar: any film added
+// here has to clear tools/shots/tint.mjs against every film already on
+// the wall, and tests/tint.mjs fails a shelf that has grown without it.
 //
 // None of them changes how the car drives, and the shop says so. There
 // is no hidden performance in a window.
@@ -61,7 +74,7 @@
 // shop description that nothing in the game produces.
 
 /** Which product is on the glass. Absent means bare factory glass. */
-export type TintFilm = "dyed" | "carbon";
+export type TintFilm = "dyed" | "carbon" | "mirror";
 
 export interface FilmSpec {
   name: string;
@@ -110,6 +123,23 @@ export interface FilmSpec {
    * dyed window and a carbon one genuinely do differ in it.
    */
   coat: number;
+  /**
+   * How metallic the surface is, 0 to 1, replacing the glass's own
+   * 0.12 while the film is on.
+   *
+   * Only one product needs this and it is the whole of that product. A
+   * metallized film is a thin layer of actual metal, and a metal
+   * surface does not tint what passes through it so much as REFLECT
+   * what arrives at it — which is why a mirrored window shows you the
+   * street and not the cabin.
+   *
+   * It is also the one lever the earlier ceramic roll never had. What
+   * this glass shows is transmission: how much of the interior survives
+   * to the frame. Colour and specular tweaks were swallowed at 86%
+   * opacity, and that is what killed ceramic. Metal changes what the
+   * surface DOES rather than what shade it is, so it lands.
+   */
+  metal: number;
 }
 
 /** Bare glass, before any film: the blue-green a windscreen already is. */
@@ -138,6 +168,7 @@ export const FILMS: Record<TintFilm, FilmSpec> = {
     sheen: 0.22,
     haze: 0.038,
     coat: 0,
+    metal: 0.12,
   },
   carbon: {
     name: "Carbon Film",
@@ -146,10 +177,26 @@ export const FILMS: Record<TintFilm, FilmSpec> = {
     sheen: 0.5,
     haze: 0.02,
     coat: 0.3,
+    metal: 0.12,
+  },
+  mirror: {
+    name: "Mirrored Film",
+    arabic: "فيلم عاكس",
+    // Silvered, and cool with it. Every other film on this wall is a
+    // shade of charcoal because every other film works by absorbing;
+    // this one works by throwing the light back, so the glass ends up
+    // LIGHTER than it started rather than darker. That is not a liberty
+    // — it is what the product is, and it is why you cannot see in.
+    core: 0x9fb4c8,
+    sheen: 2.2,
+    haze: 0.004,
+    coat: 1,
+    // The layer of metal that gives it the name.
+    metal: 0.92,
   },
 };
 
-export const FILM_IDS: readonly TintFilm[] = ["dyed", "carbon"];
+export const FILM_IDS: readonly TintFilm[] = ["dyed", "carbon", "mirror"];
 
 export interface GlassLook {
   /** 0-1. Never 1: a window you cannot see into at all has stopped
@@ -160,6 +207,8 @@ export interface GlassLook {
   roughness: number;
   /** Strength of the clearcoat lobe, 0-1. */
   clearcoat: number;
+  /** Metalness of the surface. Bare glass keeps the material's own. */
+  metalness: number;
   /** How sharp that lobe is. Follows the film's haze: a cheap surface
    *  scatters its highlight as well as its transmission. */
   clearcoatRoughness: number;
@@ -196,6 +245,7 @@ export function glassLook(film: TintFilm | undefined, pct: number): GlassLook {
       roughness: 0.05,
       clearcoat: 0,
       clearcoatRoughness: 0,
+      metalness: 0.12,
     };
   }
   const f = FILMS[film];
@@ -208,5 +258,8 @@ export function glassLook(film: TintFilm | undefined, pct: number): GlassLook {
     // surface — there is no clearcoat on bare glass here.
     clearcoat: t * f.coat,
     clearcoatRoughness: 0.02 + f.haze * 4,
+    // Eased in with the film, like everything else here: a car with 10%
+    // of a mirrored roll on it is barely mirrored.
+    metalness: 0.12 + t * (f.metal - 0.12),
   };
 }

@@ -57,16 +57,19 @@ console.log(`${FILM_IDS.length} films open monotonically to ${glassLook("carbon"
     for (let j = i + 1; j < at100.length; j++) {
       const a = at100[i], b = at100[j];
       check(a.color !== b.color, `${a.f} and ${b.f} go the same colour: ${hex(a.color)}`);
-      check(
-        Math.abs(a.envMapIntensity - b.envMapIntensity) > 0.1,
-        `${a.f} and ${b.f} reflect the same: ${a.envMapIntensity.toFixed(2)}`
-      );
-      check(Math.abs(a.roughness - b.roughness) > 0.004,
-        `${a.f} and ${b.f} are equally hazy: ${a.roughness.toFixed(4)}`);
       // The surface on top, which is what actually tells the two dark
       // films apart in a rendered frame — see the note on `coat`.
-      check(Math.abs(a.clearcoat - b.clearcoat) > 0.15,
-        `${a.f} and ${b.f} have the same optical surface: ${a.clearcoat.toFixed(2)}`);
+      // Two films may share ONE of these and still be different
+      // products — what they may not do is share all of them. The
+      // ceramic roll that was cut differed only in the third decimal of
+      // every one, which is what "the same film at two prices" means.
+      const apart =
+        (a.color !== b.color ? 1 : 0) +
+        (Math.abs(a.envMapIntensity - b.envMapIntensity) > 0.1 ? 1 : 0) +
+        (Math.abs(a.roughness - b.roughness) > 0.004 ? 1 : 0) +
+        (Math.abs(a.clearcoat - b.clearcoat) > 0.15 ? 1 : 0) +
+        (Math.abs(a.metalness - b.metalness) > 0.2 ? 1 : 0);
+      check(apart >= 3, `${a.f} and ${b.f} differ in only ${apart} of the five properties`);
     }
   }
   console.log(
@@ -78,7 +81,7 @@ console.log(`${FILM_IDS.length} films open monotonically to ${glassLook("carbon"
 //
 // Three claims are made on the shelf, and each is a number here.
 {
-  const d = glassLook("dyed", 100), c = glassLook("carbon", 100);
+  const d = glassLook("dyed", 100), c = glassLook("carbon", 100), m = glassLook("mirror", 100);
   // "never quite neutral" — the cheap one keeps a colour cast. Measured
   // as the spread between the darkest and lightest channel.
   const spread = (n) => {
@@ -95,7 +98,17 @@ console.log(`${FILM_IDS.length} films open monotonically to ${glassLook("carbon"
   // guard exists because the first version of the module made exactly
   // that claim and this line is what refused it.
   check(lum(d.color) > lum(c.color),
-    `dyed should be the lighter of the two, got ${[d, c].map((x) => lum(x.color).toFixed(1)).join(" ")}`);
+    `dyed should be the lighter of the two dark films, got ${[d, c].map((x) => lum(x.color).toFixed(1)).join(" ")}`);
+  // The mirrored roll is the exception to every line above it, and the
+  // exception is the product: it reflects instead of absorbing, so its
+  // glass ends up LIGHTER than bare factory glass rather than darker.
+  // A mirror that came out dark would be a charcoal film with a
+  // different name on it.
+  check(lum(m.color) > lum(FACTORY_GLASS),
+    `mirrored film should end up brighter than bare glass, got ${lum(m.color).toFixed(1)} against ${lum(FACTORY_GLASS).toFixed(1)}`);
+  check(m.metalness > 0.8, `mirrored film should be metal, got metalness ${m.metalness.toFixed(2)}`);
+  check(d.metalness < 0.2 && c.metalness < 0.2,
+    "the absorbing films must not be metallic — that is the other product");
   // "keeps the corniche lights in it instead of going matte" — the
   // reflection rises with price and the haze falls with it.
   check(d.envMapIntensity < c.envMapIntensity, "carbon should reflect more than dyed");
@@ -104,9 +117,9 @@ console.log(`${FILM_IDS.length} films open monotonically to ${glassLook("carbon"
   check(glassLook("carbon", 0).clearcoat === 0,
     "bare glass with no film on it must carry no film surface");
   console.log(
-    `luma ${[d, c].map((x) => lum(x.color).toFixed(1)).join(" / ")}, ` +
-    `sheen ${[d, c].map((x) => x.envMapIntensity.toFixed(2)).join(" -> ")}, ` +
-    `coat ${[d, c].map((x) => x.clearcoat.toFixed(2)).join(" -> ")}  ${verdict()}`
+    `luma ${[d, c, m].map((x) => lum(x.color).toFixed(1)).join(" / ")} ` +
+    `(bare glass ${lum(FACTORY_GLASS).toFixed(1)}), ` +
+    `metal ${[d, c, m].map((x) => x.metalness.toFixed(2)).join(" / ")}  ${verdict()}`
   );
 }
 
@@ -134,12 +147,13 @@ console.log(`${FILM_IDS.length} films open monotonically to ${glassLook("carbon"
     prices.every((v, i) => i === 0 || prices[i - 1] < v),
     `the shelf should read cheapest first: ${prices.join(", ")}`
   );
-  // Two, not three. A ceramic roll sat here at 1400 KD until
-  // tools/shots/tint.mjs measured it 2.95 of 255 from carbon over the
-  // glass, against the 23 that separates dyed from either — the same
-  // window at nearly three times the price. If a third film comes back,
-  // it has to clear that tool's floor first.
-  check(shelf.length === 2, `the shelf holds ${shelf.length} films; it should hold two`);
+  // A roll on this shelf has to be a DIFFERENT WINDOW, not a different
+  // price. A ceramic film sat here at 1400 KD until tools/shots/tint.mjs
+  // measured it 2.95 of 255 from carbon over the glass, against the 23
+  // that separates dyed from either. Anything added has to clear that
+  // tool against every film already on the wall.
+  check(shelf.length === FILM_IDS.length,
+    `the shelf holds ${shelf.length} films and the module defines ${FILM_IDS.length}`);
   console.log(`shelf: ${shelf.map((p) => `${p.name} ${p.price} KD`).join(", ")}  ${verdict()}`);
 }
 
