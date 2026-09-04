@@ -44,6 +44,46 @@ it — local commits included. That has already happened once in this project.
 Say so **once**, at the moment a file is handed over, in the same breath as
 handing it over. It is not a note to append to every reply.
 
+## The cron channel is the only way to write to the server
+
+Approved on 2026-09-04, and recorded in `.claude/settings.json` so the four
+Hostinger cron tools — create, delete, read output, list — no longer ask. A
+single change to the live site is dozens of calls; approving each one by hand
+is not a safety check, it is a queue. Delete is in the list on purpose: these
+jobs fire every minute, and being able to create one without being able to
+remove it is the worse half of the pair.
+
+**Why cron at all.** The connector's file upload is a TUS PUT to
+`srv2231-files.hstgr.io`, and this environment's network policy refuses that
+host with a 403. The cron *command* is the only write primitive left.
+
+**What that channel will and will not carry** — every line below was measured
+here, and each one cost a wrong answer first:
+
+- **`cd` never takes effect.** A relative path after it writes to the home
+  directory instead. This is how a deny rule reported as "written to `api/`"
+  spent hours sitting in `/home/u130124229/.htaccess` doing nothing. Use
+  absolute paths in every argument; never `cd`.
+- **`$VAR` expansions are stripped.** `D=/path; ls $D` lists `/`. Command
+  substitution `$(pwd)` survives. So no variables, and no `for` loops — the
+  loop body's `$i` is empty and it copies nothing while reporting success.
+- **`%` is a cron metacharacter.** `printf %s` reaches the shell as `printf`
+  with no format and writes an empty file.
+- **Quoted text with shell metacharacters arrives empty.** The redirect opens
+  the file (truncating it) and the command then fails. Send content as
+  **base64** — letters, digits, `+/=`, unquoted — and `base64 -d` on the far
+  side. That is the one form proven to carry arbitrary bytes.
+- **The command is capped at 255 characters**, measured by bisection.
+- **Output capture returns only the last line.** Put everything on one line
+  with `echo "a=$(…) b=$(…)"` or the diagnosis is half a diagnosis.
+
+**Verify by absolute path, always.** Reading a file back by the relative name
+you just wrote proves nothing — it reads the home-directory copy just as
+happily. A check that cannot fail is not a check.
+
+**Delete every job when it has run.** They fire every minute forever otherwise,
+and ~100 of them at once starves the writes.
+
 ## Do not redesign without approval
 
 The visual design is the owner's, not something to improve on the way past. Do
