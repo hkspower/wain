@@ -81,6 +81,20 @@ here, and each one cost a wrong answer first:
   finding this out.
 - **Output capture returns only the last line.** Put everything on one line
   with `echo "a=$(…) b=$(…)"` or the diagnosis is half a diagnosis.
+- **The server cannot resolve its own domain.** `wget https://www.sporta.com.kw/…`
+  from cron dies with "unable to resolve host address", and with `-q` that looks
+  exactly like a page that returned nothing. A whole afternoon went into
+  "api.php returns an empty body" on the strength of it; api.php was fine the
+  whole time. Fetch the live site over the loopback with the name in a header:
+
+  ```
+  wget -S -O/dev/null --no-check-certificate \
+       --header=Host:www.sporta.com.kw https://127.0.0.1/api/api.php?r=products
+  ```
+
+  **https**, not http — port 80 answers with a redirect to the https URL, and
+  wget follows it straight back into the same DNS failure. And never `-q` when
+  the question is *why*: silence is not a measurement.
 
 **Verify by absolute path, always.** Reading a file back by the relative name
 you just wrote proves nothing — it reads the home-directory copy just as
