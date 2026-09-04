@@ -114,8 +114,16 @@ export default function GameSite({
             ) : (
               <span className="block">{NAME.en}</span>
             )}
+            {/* w-fit, not a bare block. A block-level span carrying the
+                OTHER language's direction fills the line and then aligns
+                its text to its own side, which put the Arabic title hard
+                against the right edge of the page while the English one
+                sat at the left — the two halves of one heading at
+                opposite ends of the screen. Shrinking the box to its
+                text leaves the box where the heading's own direction
+                puts it, and the text inside it still reads correctly. */}
             <span
-              className={`mt-3 block text-2xl font-semibold text-sodium-400 sm:text-3xl ${ar ? "" : "grn-ar"}`}
+              className={`mt-3 block w-fit text-2xl font-semibold text-sodium-400 sm:text-3xl ${ar ? "" : "grn-ar"}`}
               lang={ar ? "en" : "ar"}
               dir={ar ? "ltr" : "rtl"}
             >
@@ -145,7 +153,10 @@ export default function GameSite({
             <Stat n={fmt(cars.length, lang)} label={t(LABELS.cars)} />
             <Stat n={fmt(rivals.length, lang)} label={t(LABELS.rivals)} />
             <Stat n={fmt(8.5, lang)} label={t(LABELS.lapKm)} />
-            <Stat n={ar ? "٠٠:٠٠ – ٥:٥٠" : "00:00 – 05:50"} label={t(LABELS.window)} />
+            {/* Narrower than the other three: this one is a range, not a
+                figure, and at text-3xl it wrapped mid-range onto two
+                lines. */}
+            <Stat n={ar ? "٠٠:٠٠ – ٥:٥٠" : "00:00 – 05:50"} label={t(LABELS.window)} small />
           </dl>
         </div>
       </section>
@@ -425,10 +436,14 @@ function SectionHead({ title }: { title: string }) {
   return <h2 className="mb-4 text-3xl font-bold tracking-tight sm:text-4xl">{title}</h2>;
 }
 
-function Stat({ n, label }: { n: string; label: string }) {
+function Stat({ n, label, small }: { n: string; label: string; small?: boolean }) {
   return (
     <div>
-      <dt className="grn-display text-3xl font-bold text-white">{n}</dt>
+      <dt
+        className={`grn-display font-bold text-white ${small ? "whitespace-nowrap text-xl sm:text-2xl" : "text-3xl"}`}
+      >
+        {n}
+      </dt>
       <dd className="grn-label mt-0.5 text-[0.68rem] text-white/45">{label}</dd>
     </div>
   );

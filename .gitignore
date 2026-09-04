@@ -107,6 +107,14 @@ __pycache__/
 press/film/frames/
 press/audio/capture/
 
+# Full-page captures of the website, written by npm run check:site on
+# every run. press/shots/*.png is otherwise COMMITTED on purpose — those
+# are the reference stills you flick between to see what a change did to
+# the picture — but these two are 5 MB of check output that changes with
+# every word of copy, and nothing compares them to anything.
+press/shots/site-en.png
+press/shots/site-ar.png
+
 # Dev server output, when it is redirected into the repo for tailing.
 dev.log
 *.log

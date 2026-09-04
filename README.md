@@ -154,6 +154,9 @@ public/        Served assets: fonts, models, car thumbnails.
 press/         Renders and captures. Most of it is regenerated on demand
                and ignored; press/cars/ is committed, because the shop
                thumbnails are derived from it.
+sound-export/  Every sound in the game as a file, exported for anyone
+               working outside the browser — music, sfx and the rivals'
+               voices. The game itself does not read it.
 desktop/       Electron shell for the Steam build.
 mobile/        Capacitor notes for the iOS and Android wrappers.
 ```
