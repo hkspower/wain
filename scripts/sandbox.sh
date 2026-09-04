@@ -132,6 +132,35 @@ cd "$ROOT/sporta-site/public_html"
 up php 'http://127.0.0.1:4300/api/api.php?r=products' 200 \
   php -d error_reporting=E_ALL -d log_errors=1 -d error_log=/tmp/php-strict.log \
       -S 127.0.0.1:4300 -t . "$ROOT/scripts/dev-router.php"
+# THE SCHEMA, BEFORE ANYTHING READS IT.
+#
+# This step did not exist, and the gap only showed when a table was added: the
+# sandbox database was whatever a previous run had left behind, so a migration
+# written today reached the rigs only if somebody remembered to import it by
+# hand. assistant_qa was created that way and would have vanished with the
+# container, taking the qa routes' 200s with it and leaving a suite that fails
+# for a reason nothing in the repository explains.
+#
+# IMPORT-THIS-ONE.sql is the same file the owner imports into the live shop, and
+# it is built to be safe to re-run — CREATE TABLE IF NOT EXISTS, ADD COLUMN IF
+# NOT EXISTS, INSERT ... ON DUPLICATE KEY UPDATE. Importing it on every start
+# means the sandbox is always a FRESH INSTALL plus whatever the rigs have done
+# to it, which is the thing the rigs should be testing against.
+#
+# It runs before the restock on purpose: the seed sets stock figures, so
+# repairing the catalogue and then topping it up is the order that leaves 20 a
+# size. The other way round tops up and then overwrites it.
+#
+# Sandbox database only, the same guard the two steps below use.
+if [ "${SANDBOX_DB_NAME:-sporta}" = "sporta" ]; then
+  if mariadb --default-character-set=utf8mb4 -u sporta -plocaldev sporta \
+       < "$ROOT/sporta-site/database-sql/IMPORT-THIS-ONE.sql" 2>/tmp/sandbox-import.log; then
+    echo "ok   schema imported (safe to re-run; repairs anything missing)"
+  else
+    echo "--   schema import failed — see /tmp/sandbox-import.log"
+  fi
+fi
+
 # RESTOCK. The rigs place real orders against this database and real orders
 # take real stock, so a suite that passed this morning fails this afternoon
 # with out_of_stock and looks like a broken checkout. Nothing here is precious
