@@ -78,6 +78,17 @@ const PARTS = [
   ['wallet.mysql.sql', 'wallet — Apple Wallet passes', API],
   ['7-returns.sql', 'returns — return and exchange requests'],
   ['8-email-otp.sql', 'email OTP — the admin\'s second factor by email'],
+  // AND THE SAME DRIFT AGAIN, which is what this script was written to stop.
+  // 9-product-brands.sql was generated after the last rebuild and never folded
+  // in: a fresh import left brand_slug null on every product, so the brand logo
+  // each product card draws had nothing to draw. Checked against the previous
+  // combined file rather than assumed — it carried 0 of the 6 `update products
+  // set brand_slug` lines, and now carries all 6.
+  ['9-product-brands.sql', 'product brands — which brand each garment belongs to'],
+  // Read from api/ for the same reason wallet is: the api/*.mysql.sql files are
+  // import fixtures the owner can reach from the server, denied to the public
+  // by name in api/.htaccess. Moving it here would break that arrangement.
+  ['assistantqa.mysql.sql', 'سبورتا AI — the answers the shop writes itself', API],
 ]
 
 // Repairs, named so that "why is 6 missing" has an answer in the file itself
