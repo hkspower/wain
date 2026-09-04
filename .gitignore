@@ -115,6 +115,13 @@ press/audio/capture/
 press/shots/site-en.png
 press/shots/site-ar.png
 
+# The lifted car renders the Story cards are built from. Derived by
+# npm run stories:images from press/cars/, and inlined into
+# press/stories/stories.html anyway — the HTML and the PNGs beside it
+# are the deliverable and they ARE committed; this is the scratch step
+# in between.
+press/stories/img/
+
 # Frames from tools/shots/tint.mjs. Fifteen 540 KB captures of the same
 # car at different darknesses, regenerated every time the tool runs; the
 # TABLE it prints is the artefact, not the pictures it measured.
