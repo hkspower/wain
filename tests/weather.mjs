@@ -14,6 +14,7 @@
 
 import { HANDLING as H } from "../src/game/handling.ts";
 import { newWeatherState, solveWeather, wetGripMult } from "../src/game/weather.ts";
+import { readFileSync } from "node:fs";
 
 const fail = [];
 const check = (c, m) => { if (!c) fail.push(m); };
@@ -161,6 +162,36 @@ function timeUntil(state, input, pred, cap = 3600) {
   const second = solveWeather(s, { dt: DT, raining: true });
   check(!second.changed, "the sky must only change once per change");
   console.log(`rain fades in over ${H.rainFadeS} s: ${F(first.fall, 3)} -> ${F(later.fall, 2)}`);
+}
+
+// --- 9. A player can actually make it rain ----------------------------
+// The model can be as good as it likes; if nothing sets `raining` the
+// feature does not exist. This checks the whole path from the setting a
+// player picks to the number the solver runs on.
+{
+  const settings = readFileSync("src/game/settings.ts", "utf8");
+  const engine = readFileSync("src/game/engine.ts", "utf8");
+  const client = readFileSync("src/app/race/RaceClient.tsx", "utf8");
+
+  check(/weather: "clear" \| "shower" \| "downpour"/.test(settings),
+    "the weather must be a setting, not an internal field");
+  check(/weather: "clear",/.test(settings), "a player who has not been asked gets a dry road");
+  check(/setWeather\(mode:/.test(engine),
+    "the names a player picks and the numbers the model runs on need one translation, in one place");
+  check(/k === "weather"/.test(client), "changing the setting must reach the engine");
+  check(/boot\.weather !== "clear"/.test(client), "and it must survive a reload");
+  check(/updateSetting\("weather", mode\)/.test(client), "there must be something to click");
+
+  // The three modes must be genuinely different roads, not three labels.
+  const shower = run(newWeatherState(), 1800, { raining: true, intensity: H.rainDefaultIntensity });
+  const downpour = run(newWeatherState(), 1800, { raining: true, intensity: 1 });
+  check(downpour.wetness > shower.wetness + 0.2,
+    `a downpour must be a wetter road than a shower (${F(shower.wetness, 2)} vs ${F(downpour.wetness, 2)})`);
+  check(shower.gripMult < 0.85, "a shower must cost real grip, or it is weather-as-decoration");
+  console.log(
+    `settings: clear / shower (${F(shower.wetness, 2)} wet, grip x${F(shower.gripMult, 2)}) / ` +
+    `downpour (${F(downpour.wetness, 2)} wet, grip x${F(downpour.gripMult, 2)})`
+  );
 }
 
 console.log(fail.length ? `\nFAILURES:\n  ${fail.join("\n  ")}` : "\nall green");

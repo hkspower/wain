@@ -40,6 +40,17 @@ export interface Settings {
   /** A fixed hour, or "cycle" to let the clock run. */
   sky: "night" | "dawn" | "noon" | "dusk" | "cycle" | "kuwait";
   /**
+   * The weather, which in Kuwait means whether it is raining.
+   *
+   * A separate axis from `sky` for the same reason resolution is
+   * separate from quality: they are two different questions, and a
+   * player who wants a wet midnight should not have to take a different
+   * hour to get one. The intensity a spell settles at is also the
+   * wetness the road approaches, so "shower" is a damp road and
+   * "downpour" is standing water — see weather.ts.
+   */
+  weather: "clear" | "shower" | "downpour";
+  /**
    * Frame pacing. "display" follows the panel's own refresh rate — the
    * right default, and on a VRR/G-Sync panel it also keeps the game
    * inside the variable-refresh window. "vrr" caps a few frames below
@@ -78,6 +89,10 @@ export const DEFAULT_SETTINGS: Settings = {
   sfxVolume: 0.75,
   largeHud: false,
   cameraView: "chase",
+  // Dry, because that is what Kuwait is for most of the year — and
+  // because a player who has not been asked should get the road the
+  // rest of the game was tuned on.
+  weather: "clear",
   // The sky over Kuwait, right now.
   //
   // The corner of the HUD has carried a dial reading the real time there

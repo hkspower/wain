@@ -743,6 +743,7 @@ function raceCut(): { w: number; h: number } | null {
         setRenderInfo(readRenderInfo());
       }
       if (k === "sky") engineRef.current?.setSky(next.sky);
+      if (k === "weather") engineRef.current?.setWeather(next.weather);
       if (k === "frameCap") engineRef.current?.setFrameCap(next.frameCap);
       if (k === "exposure" || k === "autoExposure")
         engineRef.current?.setExposure(next.exposure, next.autoExposure);
@@ -1565,6 +1566,7 @@ function raceCut(): { w: number; h: number } | null {
     const boot = loadSettings();
     if (boot.quality !== "auto") engine.applyQualityTier(boot.quality);
     if (boot.sky !== "night") engine.setSky(boot.sky);
+    if (boot.weather !== "clear") engine.setWeather(boot.weather);
     engine.setExposure(boot.exposure, boot.autoExposure);
     engine.setBrightness(boot.brightness);
     engine.setContrast(boot.contrast);
@@ -3494,6 +3496,34 @@ function raceCut(): { w: number; h: number } | null {
                   onClick={() => updateSetting("sky", mode)}
                   className={`tap grn-panel px-3 py-3 text-left transition ${
                     settings.sky === mode
+                      ? "border-sodium-400/80 bg-sodium-500/10"
+                      : "hover:border-white/30"
+                  }`}
+                >
+                  <span className="grn-display block text-base">
+                    {label} <span className="grn-ar text-white/55" lang="ar">{ar}</span>
+                  </span>
+                  <span className="block text-[0.8rem] text-white/74">{desc}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Weather. A separate axis from the sky: a player who wants
+                a wet midnight should not have to take a different hour
+                to get one. */}
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {(
+                [
+                  ["clear", "Clear", "صحو", "Dry road, full grip"],
+                  ["shower", "Shower", "مطر", "A damp road — a third less grip once it soaks"],
+                  ["downpour", "Downpour", "وابل", "Standing water, and it stays for a quarter of an hour"],
+                ] as const
+              ).map(([mode, label, ar, desc]) => (
+                <button
+                  key={mode}
+                  onClick={() => updateSetting("weather", mode)}
+                  className={`tap grn-panel px-3 py-3 text-left transition ${
+                    settings.weather === mode
                       ? "border-sodium-400/80 bg-sodium-500/10"
                       : "hover:border-white/30"
                   }`}

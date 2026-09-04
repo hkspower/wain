@@ -1000,7 +1000,20 @@ export class GameEngine {
    *  to a road once it is falling. */
   raining = false;
   /** 0..1 how hard, when it is. */
-  rainIntensity = HANDLING.rainDefaultIntensity;
+  rainIntensity: number = HANDLING.rainDefaultIntensity;
+
+  /**
+   * The weather setting, in the engine's terms.
+   *
+   * The names a player picks from and the numbers the model runs on are
+   * different vocabularies, and the translation between them belongs in
+   * one place rather than at every call site. A downpour reaches standing
+   * water; a shower settles at a damp road that never becomes a wet one.
+   */
+  setWeather(mode: "clear" | "shower" | "downpour"): void {
+    this.raining = mode !== "clear";
+    this.rainIntensity = mode === "downpour" ? 1 : HANDLING.rainDefaultIntensity;
+  }
 
   /** Is the car under something? No rain reaches the road there, so it
    *  neither soaks nor dries. The underpass is the one roofed stretch of
