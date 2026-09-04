@@ -131,6 +131,8 @@
     "sfx:verify": "node tools/elevenlabs/verify-sfx.mjs",
     "audio:check": "node tools/elevenlabs/check-all.mjs",
     "shots": "node tools/shots/capture.mjs",
+    "site:images": "node scripts/build-site-images.mjs",
+    "test:site": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/site.mjs",
     "shots:cars": "node tools/shots/cars.mjs",
     "shots:thumbs": "node tools/shots/cardthumbs.mjs",
     "export:film": "node tools/shots/exportfilm.mjs"

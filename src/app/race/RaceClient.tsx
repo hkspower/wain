@@ -2660,8 +2660,14 @@ function raceCut(): { w: number; h: number } | null {
                 </div>
                 <p className="mt-1.5 text-[11px] leading-4 text-white/55">
                   {distanceById(raceDistance).blurb} ·{" "}
+                  {/* The Arabic half of the SENTENCE, not just the
+                      length's name. This line used to print the English
+                      explanation and then the Arabic word for "long",
+                      which is a label standing in for a translation on
+                      the one card in the game where the two languages
+                      sit next to each other everywhere else. */}
                   <span className="grn-ar" lang="ar">
-                    {distanceById(raceDistance).ar}
+                    {distanceById(raceDistance).blurbAr}
                   </span>
                 </p>
 

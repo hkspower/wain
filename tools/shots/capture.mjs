@@ -65,6 +65,11 @@ const SHOTS = [
   { name: "towers", hour: 2.5, m: -110 },  // Kuwait Towers on the approach
   { name: "towersday", hour: 16.5, m: -110 }, // same frame by day, so the pair compares
   { name: "drift", hour: 2.5, m: 2203, drift: true },
+  // Wet. The road holds the light differently once it is soaked, and
+  // that is the whole point of the weather — so the still is taken with
+  // the wetness already at 1 rather than at whatever it has soaked to
+  // in the two settling passes, which is about a tenth.
+  { name: "rain", hour: 2.5, m: 1300, wx: "downpour" },
 ];
 
 const list = wanted.length ? SHOTS.filter((s) => wanted.includes(s.name)) : SHOTS;
@@ -117,6 +122,11 @@ for (const shot of list) {
       e.player.lat = 0;
       e.player.speed = 0;                    // a rumbling camera reframes every still
       e.setTouchInput({ steer: s.drift ? 0.7 : 0, throttle: 0, brake: 0 });
+      e.setWeather(s.wx ?? "clear");
+      // Soaked, not soaking. wetness is a state that fills over about a
+      // minute of rain; a still has two settling passes, so without this
+      // the "rain" shot is a shot of a dry road with drops in the air.
+      e.weather.wetness = s.wx ? 1 : 0;
       const away = () => {
         const far = e.track.wrap(e.player.s + e.track.length / 2);
         for (const t of e.traffic) t.s = far;

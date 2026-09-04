@@ -2,6 +2,9 @@ import Link from "next/link";
 
 const links = [
   { href: "/explore", label: "Explore" },
+  // The game has two doors now: this one opens the page that explains
+  // it, in either language, and the next one starts the engine.
+  { href: "/game", label: "The Game" },
   { href: "/race", label: "Race 🏁" },
   { href: "/hub", label: "Online Hub" },
   { href: "/about", label: "About" },

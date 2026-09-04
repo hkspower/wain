@@ -19,6 +19,9 @@ export default function Footer() {
             <Link href="/explore" className="transition hover:text-brand-700">
               Explore
             </Link>
+            <Link href="/game" className="transition hover:text-brand-700">
+              Gulf Road Nights
+            </Link>
             <Link href="/about" className="transition hover:text-brand-700">
               About
             </Link>
