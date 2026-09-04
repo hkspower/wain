@@ -143,10 +143,29 @@ for (const key of FIXTURES) {
   clips[`shouq/${key}`] = `/voice/shouq/${key}.mp3`;
 }
 // A manifest in exactly the shape voice.ts fetches, so the test serves these
-// files as though gen-voice had produced them.
+// files as though gen-voice had produced them — including the per-clip volumes
+// the real pipeline writes. Measured here rather than copied in, for the same
+// reason gen-voice measures its own output: a fixture whose levels were typed
+// by hand would let the playback tests pass against numbers no version of
+// voice:levels would ever produce.
+const fixtureManifest = { version: 2, model: "espeak-ng-placeholder", clips };
+try {
+  const { measureClips, gainsFor } = await import("./lib/clip-levels.mjs");
+  const levels = await measureClips(
+    Object.keys(clips).map((key) => ({
+      key,
+      file: path.join(fixtureDir, `${key}.mp3`),
+    }))
+  );
+  const { gains } = gainsFor(levels);
+  fixtureManifest.gains = Object.fromEntries(Object.entries(gains).sort(([a], [b]) => a.localeCompare(b)));
+} catch (e) {
+  console.warn(`  ⚠ could not level the fixtures: ${e.message}`);
+  console.warn("    They will play at full volume, and the levelling tests will fail.");
+}
 writeFileSync(
   path.join(fixtureDir, "manifest.json"),
-  JSON.stringify({ version: 2, model: "espeak-ng-placeholder", clips }, null, 2) + "\n"
+  JSON.stringify(fixtureManifest, null, 2) + "\n"
 );
 
 const kb = (n) => `${(n / 1024).toFixed(0)}KB`;

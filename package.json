@@ -18,6 +18,7 @@
     "ai:brief": "node scripts/wain-ai-brief.mjs",
     "test:shouq": "node tests/run-shouq.mjs",
     "voice:sample": "node scripts/gen-voice.mjs --sample",
+    "voice:levels": "node scripts/gen-voice-levels.mjs",
     "voice:fixture": "node scripts/gen-voice-fixture.mjs",
     "audit:places": "node scripts/audit-places.mjs",
     "test:orders": "node tests/run-orders.mjs",

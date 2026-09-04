@@ -368,3 +368,44 @@ console.log(
   `\ngen-voice: ${generated} generated (${restated} re-recorded), ` +
     `${skipped} kept, ${Object.keys(manifest.clips).length} clips in manifest.`
 );
+
+/**
+ * Level the set before anyone hears it.
+ *
+ * Every line above is its own API call and comes back at whatever level that
+ * generation produced. Four or five of them play back to back inside one
+ * answer, so a level that moves between them is heard as شوق changing distance
+ * from the microphone mid-sentence.
+ *
+ * Run here rather than left as a step to remember, because the target depends
+ * on the whole set: re-recording one line changes what every other clip should
+ * be played at, and a levelling pass that is skipped is worse than none — the
+ * manifest would carry corrections computed against clips that have since been
+ * replaced.
+ *
+ * A failure is reported, not fatal. The clips are recorded and paid for by
+ * this point; refusing to leave them on disk because the loudness pass could
+ * not start a browser would be the wrong trade.
+ */
+if (generated > 0) {
+  console.log("\ngen-voice: levelling…");
+  try {
+    const { measureClips, gainsFor } = await import("./lib/clip-levels.mjs");
+    const files = Object.entries(manifest.clips).map(([key, rel]) => ({
+      key,
+      file: path.join(root, "public", String(rel).replace(/^\//, "")),
+    }));
+    const { gains } = gainsFor(await measureClips(files));
+    manifest.gains = Object.fromEntries(Object.entries(gains).sort(([a], [b]) => a.localeCompare(b)));
+    await writeFile(
+      path.join(root, "public/voice/manifest.json"),
+      JSON.stringify(manifest, null, 2) + "\n"
+    );
+    const trimmed = Object.values(gains).filter((g) => g < 0.999).length;
+    console.log(`  ${trimmed} clip(s) turned down so the set plays at one level.`);
+  } catch (e) {
+    console.warn(`  ⚠ could not measure the levels: ${e.message}`);
+    console.warn("    The clips are fine and will play at full volume.");
+    console.warn("    Run `npm run voice:levels` once the issue is fixed.");
+  }
+}

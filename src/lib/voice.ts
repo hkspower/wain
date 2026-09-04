@@ -86,7 +86,25 @@ const SENTENCE_GAP_MS = 200;
  * satisfies browser autoplay policies.
  */
 
-type Manifest = { version: number; clips: Record<string, string> };
+/**
+ * `gains` is a playback volume per clip id, written by `npm run voice:levels`.
+ *
+ * Every line is a separate ElevenLabs render and comes back at whatever level
+ * that generation produced, and an answer is four or five of them back to back
+ * inside one utterance — so a level that moves between them is heard as شوق
+ * changing distance from the microphone mid-sentence. The correction is a
+ * number rather than a re-encode: the files on disk are untouched.
+ *
+ * Optional, and absent today. A manifest without it plays everything at 1.
+ */
+type Manifest = {
+  version: number;
+  clips: Record<string, string>;
+  gains?: Record<string, number>;
+};
+
+/** One sentence of a recorded answer: where it is, and how loud to play it. */
+type Clip = { src: string; volume: number };
 
 type VoiceState = {
   enabled: boolean;
@@ -153,26 +171,39 @@ function loadManifest(): Promise<Manifest> {
   return manifestPromise;
 }
 
-/** Clip sources for the utterance, or null when any required part is missing
- * and the whole utterance should fall back to synthetic speech. */
-function resolveClips(parts: SpeechPart[], manifest: Manifest): string[] | null {
-  const srcs: string[] = [];
+/**
+ * A volume in the range the element accepts.
+ *
+ * Assigning outside 0–1 throws an IndexSizeError, and this number comes from a
+ * JSON file on the server: a hand-edited manifest, or one written by an older
+ * version of the level pass, should make her loud or quiet — never make
+ * playback throw.
+ */
+function clampVolume(g: unknown): number {
+  return typeof g === "number" && Number.isFinite(g) ? Math.min(1, Math.max(0, g)) : 1;
+}
+
+/** Clips for the utterance, or null when any required part is missing and the
+ * whole utterance should fall back to synthetic speech. */
+function resolveClips(parts: SpeechPart[], manifest: Manifest): Clip[] | null {
+  const clips: Clip[] = [];
   for (const part of parts) {
     if (!part.key) {
       if (part.optional) continue;
       return null;
     }
-    const src = manifest.clips[`${snapshot.persona}/${part.key}`];
+    const id = `${snapshot.persona}/${part.key}`;
+    const src = manifest.clips[id];
     if (!src) return null;
-    srcs.push(src);
+    clips.push({ src, volume: clampVolume(manifest.gains?.[id]) });
   }
-  return srcs.length > 0 ? srcs : null;
+  return clips.length > 0 ? clips : null;
 }
 
 // --- Playback --------------------------------------------------------------
 
 let audio: HTMLAudioElement | null = null;
-let queue: string[] = [];
+let queue: Clip[] = [];
 // Guards against a stale async manifest resolution starting playback after
 // the user has already stopped or started a newer utterance.
 let generation = 0;
@@ -206,8 +237,8 @@ function clearGap() {
  * Failures are ignored on purpose. A prefetch that does not arrive costs
  * nothing; the element fetches it the old way when its turn comes.
  */
-function prefetch(srcs: string[]) {
-  for (const src of srcs.slice(1)) {
+function prefetch(clips: Clip[]) {
+  for (const { src } of clips.slice(1)) {
     void fetch(src).catch(() => {
       /* the element will fetch it when it is due */
     });
@@ -215,8 +246,8 @@ function prefetch(srcs: string[]) {
 }
 
 function playNext() {
-  const src = queue.shift();
-  if (!src || !audio) {
+  const next = queue.shift();
+  if (!next || !audio) {
     update({ speaking: false });
     return;
   }
@@ -226,7 +257,10 @@ function playNext() {
   // gets round to it — which can be after this line.
   endPriming();
   audio.muted = false;
-  audio.src = src;
+  // Per clip, not once per utterance: the whole point is that two sentences
+  // rendered at different levels are heard at the same one.
+  audio.volume = next.volume;
+  audio.src = next.src;
   const started = audio.play();
   // The same older browsers that return undefined from play() instead of a
   // promise, on the line that actually plays her. `.catch` on undefined is a
@@ -468,7 +502,10 @@ async function speakLive(text: string, mine: number): Promise<boolean> {
     if (mine !== generation) return false;
     liveUrl = URL.createObjectURL(blob);
     update({ speaking: true });
-    queue = [liveUrl];
+    // One render of the whole answer, so there is no second clip for it to be
+    // level with. Full volume, which also undoes any trim the last recorded
+    // clip left on the shared element.
+    queue = [{ src: liveUrl, volume: 1 }];
     ensureAudio();
     playNext();
     return true;

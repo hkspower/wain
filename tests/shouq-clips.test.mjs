@@ -15,7 +15,7 @@ import { chromium } from 'playwright';
  * what is under test is the plumbing, not the voice.
  */
 
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -216,6 +216,85 @@ console.log('\n── stopping during the pause stays stopped ──');
   // during a clip instead, the one below would pass without testing anything.
   ok('the stop really landed inside the pause', s.atStop === 1, `${s.atStop} clips in`);
   ok('and the pause does not resume into the next clip', s.after === 1, `${s.atStop} → ${s.after}`);
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n── every clip plays at the level the manifest levelled it to ──');
+/**
+ * Each line is its own ElevenLabs render and comes back at whatever level that
+ * generation produced. Four or five of them play back to back inside a single
+ * answer, so a level that moves between them is heard as شوق changing distance
+ * from the microphone mid-sentence — which nobody can point at and everybody
+ * notices.
+ *
+ * `npm run voice:levels` measures the set and writes a volume per clip into
+ * the manifest; the numbers in the fixture manifest are that script's real
+ * output for these very files (1.8 dB apart as recorded, 0.0 dB as played).
+ * Nothing is re-encoded, so the only place the correction can be applied is
+ * here, and the only way to see it is to ask what the element's volume was at
+ * the moment each clip started.
+ */
+{
+  const gains = JSON.parse(
+    readFileSync(join(FIXTURES, 'manifest.json'), 'utf8')
+  ).gains ?? {};
+  const s = await say([
+    { key: 'suggest-intro', text: 'أقترح عليك:' },
+    { key: 'place-kuwait-towers', text: 'أبراج الكويت…' },
+    { key: 'best-kuwait-towers', text: 'أحلى وقت…' },
+  ]);
+  const want = ['shouq/suggest-intro', 'shouq/place-kuwait-towers', 'shouq/best-kuwait-towers']
+    .map((k) => gains[k]);
+  ok('the fixture manifest really carries levels to apply',
+    want.every((v) => typeof v === 'number') && new Set(want).size > 1, JSON.stringify(want));
+  ok('and each clip is played at its own',
+    JSON.stringify(s.playedVolume) === JSON.stringify(want),
+    `${JSON.stringify(s.playedVolume)} vs ${JSON.stringify(want)}`);
+}
+
+console.log('\n── a manifest the module did not write is not trusted with the volume ──');
+/**
+ * `gains` is a number from a JSON file on a server, and the element rejects
+ * anything outside 0–1 with an IndexSizeError — thrown from the middle of
+ * playback, which is silence plus a module that still believes it is speaking.
+ *
+ * The realistic ways it goes wrong are all here: absent entirely (the state the
+ * repository ships in today), out of range in both directions, and not a number
+ * at all. Each needs a module that has not already memoised the real manifest,
+ * so each gets its own page.
+ */
+{
+  const cases = [
+    ['no levels at all — every clip as recorded', (m) => { delete m.gains; }, 1],
+    ['a level above the maximum', (m) => { m.gains['shouq/hello'] = 7; }, 1],
+    ['a negative level', (m) => { m.gains['shouq/hello'] = -3; }, 0],
+    ['a level that is not a number', (m) => { m.gains['shouq/hello'] = 'loud'; }, 1],
+    ['a level that is genuinely quiet', (m) => { m.gains['shouq/hello'] = 0.25; }, 0.25],
+  ];
+  const real = JSON.parse(readFileSync(join(FIXTURES, 'manifest.json'), 'utf8'));
+  for (const [name, bend, want] of cases) {
+    const fresh = await ctx.newPage();
+    const errs = [];
+    fresh.on('pageerror', (e) => errs.push(e.message));
+    await fresh.route('**/voice/manifest.json', (route) => {
+      const m = JSON.parse(JSON.stringify(real));
+      m.gains ??= {};
+      bend(m);
+      route.fulfill({ contentType: 'application/json', body: JSON.stringify(m) });
+    });
+    await fresh.goto(B + '/voice.html', { waitUntil: 'load' });
+    await fresh.waitForFunction(() => !!window.voice);
+    const got = await fresh.evaluate(async () => {
+      window.resetSpy();
+      window.voice.speak([{ key: 'hello', text: 'هلا' }]);
+      await new Promise((r) => setTimeout(r, 400));
+      return { volume: window.spy.playedVolume, played: window.spy.played.length };
+    });
+    ok(`${name} → ${want}`,
+      got.played === 1 && got.volume[0] === want && errs.length === 0,
+      `played ${got.played}, volume ${JSON.stringify(got.volume)}${errs.length ? ', ' + errs.join(' | ') : ''}`);
+    await fresh.close();
+  }
 }
 
 // ---------------------------------------------------------------------------

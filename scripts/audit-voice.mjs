@@ -27,6 +27,13 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  measureClips,
+  gainsFor,
+  heardRms,
+  LEVEL_SPREAD_DB,
+  SILENCE_PEAK_DB,
+} from "./lib/clip-levels.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const MANIFEST = join(ROOT, "public/voice/manifest.json");
@@ -110,70 +117,13 @@ if (empty.length) {
    to back inside a single answer, so a level that moves between them is a
    voice that lurches mid-sentence.
 
-   Nothing measured this because measuring it means decoding audio, and Node
-   cannot. Chromium can, and it is already a dependency of the other audits.
-   It is only launched when there is something to listen to, so the common
-   case — no clips recorded yet — costs nothing. */
-async function measureLevels(files) {
-  const { chromium } = await import("playwright");
-  const exe = process.env.CHROMIUM_PATH || "/opt/pw-browsers/chromium";
-  const browser = await chromium.launch(existsSync(exe) ? { executablePath: exe } : {});
-  try {
-    const page = await browser.newPage();
-    const rows = [];
-    for (const { key, file } of files) {
-      const b64 = readFileSync(file).toString("base64");
-      const row = await page.evaluate(async (b64) => {
-        const bin = atob(b64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        let buf;
-        try {
-          buf = await ctx.decodeAudioData(bytes.buffer);
-        } catch {
-          return null; // not decodable audio at all
-        }
-        const d = buf.getChannelData(0);
-        let peak = 0;
-        let sum = 0;
-        let n = 0;
-        // RMS over the speech only. Averaging the silence at either end would
-        // report a clip as quiet in proportion to how much padding the encoder
-        // happened to leave, which is not a thing anybody hears.
-        const GATE = 0.02;
-        for (let i = 0; i < d.length; i++) {
-          const v = Math.abs(d[i]);
-          if (v > peak) peak = v;
-          if (v > GATE) { sum += d[i] * d[i]; n += 1; }
-        }
-        const rms = n ? Math.sqrt(sum / n) : 0;
-        const db = (x) => 20 * Math.log10(Math.max(x, 1e-9));
-        return { seconds: buf.duration, peak: db(peak), rms: db(rms), voiced: n / d.length };
-      }, b64);
-      rows.push({ key, ...(row ?? { broken: true }) });
-    }
-    return rows;
-  } finally {
-    await browser.close();
-  }
-}
+   The measurement and the correction live together in lib/clip-levels, and
+   this reads the same numbers voice:levels wrote by. Two copies of the same
+   decibel arithmetic is exactly how a pipeline ends up correcting to one
+   target and grading against another.
 
-/**
- * A clip whose loudest moment is this far down is not a quiet recording, it is
- * a failed one — an empty render, or a file of room tone. Speech peaks within
- * a few dB of full scale; -40 dBFS is two orders of magnitude below that and
- * cannot be reached by a take that has a voice in it.
- */
-const SILENCE_PEAK_DB = -40;
-/**
- * How far a clip may sit from the middle of the set before a listener hears it
- * as the speaker changing distance from the microphone. Three decibels is
- * roughly where a level change stops being felt and starts being noticed —
- * and these are consecutive sentences of one answer, which is the least
- * forgiving place to put one.
- */
-const LEVEL_SPREAD_DB = 3;
+   Chromium is only launched when there is something to listen to, so the
+   common case — no clips recorded yet — costs nothing. */
 
 if (have > 0) {
   const onDisk = Object.entries(clips)
@@ -184,49 +134,89 @@ if (have > 0) {
     .filter(({ file }) => existsSync(file));
 
   console.log(`\n── and how loud is she? (${onDisk.length} clip(s)) ──`);
-  let levels;
+  let levels = null;
   try {
-    levels = await measureLevels(onDisk);
+    levels = await measureClips(onDisk);
   } catch (e) {
     console.log(`  ⚠ could not decode the clips to measure them: ${e.message}`);
-    levels = null;
   }
 
   if (levels) {
     const broken = levels.filter((r) => r.broken);
     const silent = levels.filter((r) => !r.broken && r.peak < SILENCE_PEAK_DB);
-    const heard = levels.filter((r) => !r.broken && r.peak >= SILENCE_PEAK_DB);
+    const audible = levels.filter((r) => !r.broken && r.peak >= SILENCE_PEAK_DB);
 
     if (broken.length) {
-      console.log(`  ✗ ${broken.length} file(s) are not decodable audio: ${broken.slice(0, 6).map((r) => r.key).join(", ")}`);
+      console.log(`  ✗ ${broken.length} file(s) are not decodable audio: ` +
+        broken.slice(0, 6).map((r) => r.key).join(", "));
       problems += broken.length;
     }
     if (silent.length) {
-      console.log(`  ✗ ${silent.length} clip(s) are silence in an mp3's clothing (peak under ${SILENCE_PEAK_DB} dBFS):`);
+      console.log(`  ✗ ${silent.length} clip(s) are silence in an mp3's clothing ` +
+        `(peak under ${SILENCE_PEAK_DB} dBFS):`);
       for (const r of silent.slice(0, 6)) console.log(`      ${r.key} — peak ${r.peak.toFixed(1)} dBFS`);
       problems += silent.length;
     }
 
-    if (heard.length) {
-      const rms = heard.map((r) => r.rms).sort((a, b) => a - b);
-      const median = rms[Math.floor(rms.length / 2)];
-      const off = heard
-        .map((r) => ({ ...r, delta: r.rms - median }))
+    if (audible.length) {
+      /* Graded on what a listener HEARS, which is the file's own level plus
+         whatever volume voice:levels wrote for it. Grading the raw files would
+         report a set as uneven after the pipeline had already evened it out —
+         and, worse, would go on passing a set whose corrections were computed
+         against clips that have since been re-recorded. */
+      const gains = manifest.gains ?? {};
+      const raw = audible.map((r) => r.rms);
+      const now = audible.map((r) => heardRms(r, gains[r.key] ?? 1));
+      const span = (xs) => Math.max(...xs) - Math.min(...xs);
+      const sorted = [...now].sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+
+      const levelled = Object.keys(gains).length > 0;
+      console.log(
+        `  level: ${median.toFixed(1)} dBFS in the middle, ` +
+          `${sorted[0].toFixed(1)} to ${sorted[sorted.length - 1].toFixed(1)} across the set` +
+          (levelled
+            ? ` — ${span(raw).toFixed(1)} dB apart as recorded, ${span(now).toFixed(1)} dB as played`
+            : ` (${span(raw).toFixed(1)} dB apart, and nothing has levelled them)`)
+      );
+
+      const off = audible
+        .map((r) => ({ key: r.key, delta: heardRms(r, gains[r.key] ?? 1) - median }))
         .filter((r) => Math.abs(r.delta) > LEVEL_SPREAD_DB)
         .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
-      console.log(`  level: ${median.toFixed(1)} dBFS in the middle, ` +
-        `${rms[0].toFixed(1)} to ${rms[rms.length - 1].toFixed(1)} across the set ` +
-        `(${(rms[rms.length - 1] - rms[0]).toFixed(1)} dB apart)`);
+
       if (off.length) {
-        console.log(`  ⚠ ${off.length} clip(s) sit more than ${LEVEL_SPREAD_DB} dB off the rest, which is`);
-        console.log("    audible as her voice jumping between two sentences of one answer:");
+        console.log(`  ⚠ ${off.length} clip(s) still sit more than ${LEVEL_SPREAD_DB} dB off the rest,`);
+        console.log("    which is audible as her voice jumping between two sentences of one answer:");
         for (const r of off.slice(0, 6)) {
           console.log(`      ${r.key} — ${r.delta > 0 ? "+" : ""}${r.delta.toFixed(1)} dB`);
         }
-        console.log("    Re-record them (delete the files and re-run npm run voice:all),");
-        console.log("    or normalise the set before shipping.");
+        console.log("    Playback volume can only turn a clip DOWN, so these are past what");
+        console.log("    levelling can fix: delete those files and re-run the generator.");
+      } else if (!levelled) {
+        console.log(`  ✓ every clip is within ${LEVEL_SPREAD_DB} dB of the rest, even unlevelled.`);
+        console.log("    Run `npm run voice:levels` to flatten the rest of the difference.");
       } else {
-        console.log(`  ✓ every clip is within ${LEVEL_SPREAD_DB} dB of the rest — no jumps mid-answer.`);
+        console.log(`  ✓ every clip plays within ${LEVEL_SPREAD_DB} dB of the rest — no jumps mid-answer.`);
+      }
+
+      /* Are the stored volumes still the right ones?
+         The target depends on the whole set, so re-recording a single line
+         changes what every other clip should be played at. A manifest whose
+         gains were computed against files that have since been replaced is
+         worse than one with no gains at all: it looks levelled, and it is
+         levelled to a set that no longer exists. */
+      if (levelled) {
+        const fresh = gainsFor(levels).gains;
+        const stale = Object.keys({ ...fresh, ...gains }).filter(
+          (k) => Math.abs((fresh[k] ?? 1) - (gains[k] ?? 1)) > 0.01
+        );
+        if (stale.length) {
+          console.log(`  ✗ ${stale.length} stored volume(s) no longer match the files on disk` +
+            ` — a clip was re-recorded without re-levelling: ${stale.slice(0, 5).join(", ")}`);
+          console.log("    Fix: npm run voice:levels");
+          problems += stale.length;
+        }
       }
     }
   }

@@ -9,5 +9,14 @@
     "shouq/place-kuwait-towers": "/voice/shouq/place-kuwait-towers.mp3",
     "shouq/best-kuwait-towers": "/voice/shouq/best-kuwait-towers.mp3",
     "shouq/name-souq-al-mubarakiya": "/voice/shouq/name-souq-al-mubarakiya.mp3"
+  },
+  "gains": {
+    "shouq/best-kuwait-towers": 0.836,
+    "shouq/hello": 0.837,
+    "shouq/name-souq-al-mubarakiya": 0.852,
+    "shouq/place-kuwait-towers": 0.819,
+    "shouq/related-intro": 0.816,
+    "shouq/search-empty": 0.834,
+    "shouq/suggest-intro": 1
   }
 }

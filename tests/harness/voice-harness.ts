@@ -24,6 +24,11 @@ interface Spy {
    *  measured rather than assumed. The beat used to be whatever the network
    *  charged for the next file; nothing could see that from the order alone. */
   playedAt: number[];
+  /** And how loud each was. Every line is a separate ElevenLabs render at its
+   *  own level, so the manifest carries a volume per clip; without this there
+   *  is no way to tell a levelled answer from an unlevelled one, and the
+   *  difference is the only thing the whole levelling pass exists for. */
+  playedVolume: number[];
   spoken: string[];
   cancelCalls: number;
   voicesAsked: number;
@@ -47,13 +52,13 @@ declare global {
 }
 
 const spy: Spy = {
-  playCalls: 0, playedMuted: [], pauseCalls: 0, played: [], playedAt: [],
+  playCalls: 0, playedMuted: [], pauseCalls: 0, played: [], playedAt: [], playedVolume: [],
   spoken: [], cancelCalls: 0, voicesAsked: 0, lastLang: "", lastVoice: "",
 };
 window.spy = spy;
 window.resetSpy = () => {
   spy.playCalls = 0; spy.playedMuted = []; spy.pauseCalls = 0;
-  spy.played = []; spy.playedAt = []; spy.spoken = []; spy.cancelCalls = 0; spy.voicesAsked = 0;
+  spy.played = []; spy.playedAt = []; spy.playedVolume = []; spy.spoken = []; spy.cancelCalls = 0; spy.voicesAsked = 0;
   spy.lastLang = ""; spy.lastVoice = "";
 };
 
@@ -73,6 +78,7 @@ HTMLMediaElement.prototype.play = function play(this: HTMLMediaElement) {
   if (src) {
     spy.played.push(new URL(src, location.href).pathname);
     spy.playedAt.push(performance.now());
+    spy.playedVolume.push(this.volume);
   }
   // A clip that never reports itself finished would leave the queue stuck on
   // its first entry, and "she played one clip" would look identical to "she
