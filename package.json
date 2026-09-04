@@ -115,6 +115,7 @@
     "test:tach": "node tests/tach.mjs",
     "test:taillights": "node tests/taillights.mjs",
     "test:topspeed": "node tests/topspeed.mjs",
+    "test:tyre-stickers": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/tyre-stickers.mjs",
     "test:tow": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/slipstream.mjs",
     "test:tow:game": "node tests/tow.mjs",
     "test:tyres": "node tests/tyres.mjs",

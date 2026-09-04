@@ -36,6 +36,9 @@ export interface CarColors {
   exhaust?: ExhaustSpec;
   /** Gold rims (garage mod). */
   goldRims?: boolean;
+  /** Sidewall lettering — the tyre sticker package. Cosmetic: it changes
+   *  nothing about how the car drives, and the shop says so. */
+  tyreSticker?: TyreSticker;
   /**
    * What has been done to the headlamps.
    *
@@ -1609,6 +1612,205 @@ function remapV(geo: THREE.BufferGeometry, lo: number, hi: number): THREE.Buffer
   return geo;
 }
 
+/**
+ * Tyre sidewall lettering — the sticker package.
+ *
+ * WHY IT IS NOT PART OF THE TYRE TEXTURE
+ *
+ * The obvious place is tireSurface(), which already draws the sidewall.
+ * It cannot go there: that texture repeats TREAD_BLOCKS times around the
+ * circumference, because a tread block every 12 cm is what a road tyre
+ * runs — so a brand name baked into it would appear eighteen times around
+ * each wheel, a third of a centimetre tall. Lettering belongs on its own
+ * surface at its own repeat, which is also what it is in life: a moulded
+ * band, not part of the tread pattern.
+ *
+ * WHY IT FOLLOWS THE PROFILE
+ *
+ * A sidewall is not flat. Across the radii this band covers, TIRE_SECTION
+ * moves 8 mm axially — it bulges out at the widest point and tucks back
+ * in at the bead — so a flat ring at a constant x would bury itself in
+ * the rubber in the middle and float clear of it at both edges. The strip
+ * below is lathed from the tyre's OWN section points, offset along the
+ * surface normal. That is the principle the full-length side graphic
+ * already follows on the body: a decal that follows the shape rather than
+ * being hung in front of it.
+ *
+ * WHICH SIDE IT GOES ON
+ *
+ * The outboard one. TIRE_SECTION runs axially from -0.118 to +0.118 and
+ * tireLathe rotates the result 90 degrees about Z, which maps +Y to -X —
+ * so the section's first point lands at +X. The tyre geometry is shared
+ * between all four wheels without mirroring, which makes +X outboard on
+ * the right of the car and INBOARD on the left. The band is placed from
+ * `side`, the wheel's own idea of which way is out, so it is the face you
+ * can see on all four rather than on two.
+ */
+const TYRE_STICKERS = {
+  /** Raised white letters: the street look, and the reason the phrase
+   *  exists at all. */
+  rwl: { ink: "#efeae0", name: "KHALEEJ", sub: "GT-R1" },
+  /** The amber-lettered retro fitment. */
+  retro: { ink: "#e8b34a", name: "RIMAL", sub: "SPORT" },
+  /** Moulded and unpainted — the letters are there, in rubber, catching
+   *  the light and nothing else. What a tyre looks like from the mould. */
+  moulded: { ink: "#2a2a2e", name: "SAQR", sub: "RADIAL" },
+} as const;
+
+export type TyreSticker = keyof typeof TYRE_STICKERS;
+
+const stickerTexCache = new Map<TyreSticker, THREE.CanvasTexture>();
+
+/**
+ * The band, unrolled: brand and fitment code, twice around.
+ *
+ * Twice rather than once, because a single name on a spinning wheel is
+ * absent for half of every rotation; and rather than four, because at
+ * four the words stop being words.
+ */
+function tyreStickerTexture(id: TyreSticker): THREE.CanvasTexture {
+  const hit = stickerTexCache.get(id);
+  if (hit) return hit;
+  const spec = TYRE_STICKERS[id];
+  // Long and thin, because the surface is: this wraps a band about 2.3 m
+  // around and 60 mm tall, so the canvas is sized to give the letters
+  // real texels rather than to be square.
+  const W = 2048;
+  const H = 64;
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const ctx = c.getContext("2d")!;
+  // Transparent everywhere the letters are not: this is a decal laid on
+  // the rubber, not a replacement for it.
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = spec.ink;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i < 2; i++) {
+    const cx = (i + 0.5) * (W / 2);
+    ctx.font = `700 40px ${latinDisplay()}`;
+    ctx.fillText(spec.name, cx - 150, H / 2);
+    // The fitment code, smaller and set apart the way it is on a real
+    // sidewall: the name is what you read at a glance, the code is what
+    // you read standing still.
+    ctx.font = `600 22px ${latinDisplay()}`;
+    ctx.fillText(spec.sub, cx + 190, H / 2 + 1);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = THREE.RepeatWrapping;
+  t.wrapT = THREE.ClampToEdgeWrapping;
+  t.anisotropy = 8;
+  stickerTexCache.set(id, t);
+  return t;
+}
+
+const stickerMatCache = new Map<TyreSticker, THREE.MeshStandardMaterial>();
+function tyreStickerMat(id: TyreSticker): THREE.MeshStandardMaterial {
+  const hit = stickerMatCache.get(id);
+  if (hit) return hit;
+  const m = new THREE.MeshStandardMaterial({
+    name: `tire-sticker-${id}`,
+    map: tyreStickerTexture(id),
+    transparent: true,
+    // Moulded letters are rubber, and rubber is not glossy. Painted ones
+    // are paint over rubber, and only slightly less matt.
+    roughness: id === "moulded" ? 0.95 : 0.72,
+    metalness: 0,
+    // It sits 3.5 mm off a surface curving away from it: depth-test
+    // against the tyre, but do not fight it.
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    side: THREE.DoubleSide,
+  });
+  stickerMatCache.set(id, m);
+  return m;
+}
+
+/**
+ * A strip lathed from the tyre's own sidewall, lifted off it.
+ *
+ * `from` and `to` index into TIRE_SECTION. The lift is along the 2D
+ * normal at each point, so the band stands the same distance proud all
+ * the way across a surface that bulges at one end of it and tucks in at
+ * the other.
+ */
+function tyreStickerBand(from: number, to: number, lift = 0.0035, seg = 48): THREE.BufferGeometry {
+  const pts: Array<[number, number]> = [];
+  for (let i = from; i <= to; i++) {
+    const [r, a] = TIRE_SECTION[i];
+    const [rp, ap] = TIRE_SECTION[Math.max(from, i - 1)];
+    const [rn, an] = TIRE_SECTION[Math.min(to, i + 1)];
+    const dr = rn - rp;
+    const da = an - ap;
+    const len = Math.hypot(dr, da) || 1;
+    const nr = -da / len;
+    const na = dr / len;
+    // Outward is +axial on this band; the far wheel gets it mirrored.
+    const sgn = na >= 0 ? 1 : -1;
+    pts.push([r + nr * lift * sgn, a + na * lift * sgn]);
+  }
+  const n = pts.length - 1;
+  const pos = new Float32Array((n + 1) * (seg + 1) * 3);
+  const uv = new Float32Array((n + 1) * (seg + 1) * 2);
+  const idx: number[] = [];
+  for (let j = 0; j <= n; j++) {
+    const [r, a] = pts[j];
+    for (let i = 0; i <= seg; i++) {
+      const th = (i / seg) * Math.PI * 2;
+      const o = (j * (seg + 1) + i) * 3;
+      // Built straight into the wheel's own frame, where the axle is X —
+      // the same frame tireLathe reaches by rotating.
+      pos[o] = a * WHEEL_W_K;
+      pos[o + 1] = Math.cos(th) * r * WHEEL_R_K;
+      pos[o + 2] = Math.sin(th) * r * WHEEL_R_K;
+      const ou = (j * (seg + 1) + i) * 2;
+      uv[ou] = i / seg;
+      uv[ou + 1] = j / n;
+    }
+  }
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < seg; i++) {
+      const v = j * (seg + 1) + i;
+      idx.push(v, v + 1, v + seg + 1, v + 1, v + seg + 2, v + seg + 1);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+/** Section indices 18..21 are the outboard sidewall between the shoulder
+ *  and the bead — the band a real tyre carries its name on. Built once
+ *  and shared: never dispose it. */
+let tyreBandGeo: THREE.BufferGeometry | null = null;
+function getTyreBandGeo(): THREE.BufferGeometry {
+  tyreBandGeo ??= tyreStickerBand(18, 21);
+  return tyreBandGeo;
+}
+
+/**
+ * Lay the lettering band on the wheel's OUTBOARD face.
+ *
+ * The geometry is built once on the +axial sidewall and the far side is
+ * that band mirrored in x. Mirroring inverts the winding, so the material
+ * is DoubleSide — cheaper and less breakable than lathing a second
+ * geometry the other way round.
+ */
+function addTyreSticker(w: THREE.Group, side: number, sticker?: TyreSticker): void {
+  if (!sticker) return;
+  const band = new THREE.Mesh(getTyreBandGeo(), tyreStickerMat(sticker));
+  if (side < 0) band.scale.x = -1;
+  band.userData.wheelPart = "tire-sticker";
+  band.userData.wheelSide = side;
+  w.add(band);
+}
+
 let tireMatShared: THREE.MeshStandardMaterial | null = null;
 function getTireMat(): THREE.MeshStandardMaterial {
   if (tireMatShared) return tireMatShared;
@@ -3032,7 +3234,12 @@ function heroWheelParts(nSpokes: number, side: number) {
 function buildWheel(
   finish: WheelFinish = "silver",
   side = 1,
-  opts?: { detailed?: boolean; spokeMat?: THREE.MeshStandardMaterial }
+  opts?: {
+    detailed?: boolean;
+    spokeMat?: THREE.MeshStandardMaterial;
+    /** Sidewall lettering, if the player has bought any. */
+    sticker?: TyreSticker;
+  }
 ): THREE.Group {
   const steel = finish === "steel";
   const spokeMat = steel
@@ -3079,6 +3286,7 @@ function buildWheel(
       cap.userData.wheelPart = "hubcap";
       w.add(cap);
     }
+    addTyreSticker(w, side, opts?.sticker);
     w.userData.spokes = nSpokes;
     w.userData.rotorMat = rotorMat;
     return w;
@@ -3099,6 +3307,7 @@ function buildWheel(
     w.add(holder);
   }
   w.add(new THREE.Mesh(hubGeo, spokeMat));
+  addTyreSticker(w, side, opts?.sticker);
   return w;
 }
 
@@ -4427,6 +4636,7 @@ export function createCar(colors: CarColors): THREE.Group {
           ? "steel"
           : "silver";
     const wheel = buildWheel(wheelFinish, Math.sign(wx), {
+      sticker: colors.tyreSticker,
       detailed: !colors.simple,
       // A bought finish overrides the material; a hubcap does not take
       // one, because the point of it is that nothing was bought.

@@ -1787,6 +1787,7 @@ function raceCut(): { w: number; h: number } | null {
             underglow: tune.glow ?? undefined,
             spoiler: tune.spoiler,
             goldRims: tune.goldRims,
+            tyreSticker: tune.tyreSticker,
             engineCover: tune.engineCover ?? undefined,
             carbon: tune.carbon,
             raceKit: tune.raceKit,

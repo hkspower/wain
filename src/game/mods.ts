@@ -13,6 +13,7 @@ import type { EngineId, EngineSpec } from "./engines";
 import { loadCrew, type Crew } from "./teams";
 import type { Drivetrain } from "./grip";
 import { HANDLING } from "./handling";
+import type { TyreSticker } from "./cars";
 import { writeJSON } from "./storage";
 import {
   PAINTS, PAINT_HEX, GLOW_HEX, COVER_HEX, CARBON_KG, NOMINAL_CAR_KG,
@@ -32,6 +33,7 @@ export type ExclusiveCat =
   | "paint"
   | "glow"
   | "cover"
+  | "sidewall"
   | "carbon";
 export type Category = ExclusiveCat | "internals" | "chassis" | "extras";
 
@@ -49,6 +51,11 @@ export const EXCLUSIVE_CATS: ReadonlySet<string> = new Set([
   "lamps",
   "finish",
   "cover",
+  // Sidewall lettering, in a slot of its own rather than inside "tires":
+  // the compound is what the car drives on and this is what the tyre says
+  // on the side of it, and a player who bought slicks should not have to
+  // give them up to keep their stickers.
+  "sidewall",
   "carbon",
 ]);
 
@@ -119,6 +126,13 @@ export const PARTS: Part[] = [
   { id: "gold-rims", cat: "extras", name: "Gold Rims", ar: "رنجات ذهب", price: 600, desc: "Pure Salmiya energy" },
   { id: "stickers", cat: "extras", name: "Rally Sticker Pack", ar: "ملصقات", price: 450, desc: "Door roundels, beltline stripes, hood decal, Kuwait flag on the fender" },
   { id: "sticker-full", cat: "extras", name: "Full-Length Side Graphic", ar: "ملصق جانبي كامل", price: 380, desc: "One sticker from the nose to the tail, cut to follow the body. Sits under the rally pack, so the two can be worn together" },
+  // Tyre sidewall lettering. Its own slot, so it survives a change of
+  // compound — and purely cosmetic, which the descriptions say out loud
+  // rather than leaving a player to work out what they bought in a shop
+  // where the part above it buys real grip.
+  { id: "sidewall-rwl", cat: "sidewall", name: "Raised White Letters", ar: "حروف بيضاء بارزة", price: 220, desc: "The street look, twice around each sidewall. Cosmetic — it changes nothing about how the car drives" },
+  { id: "sidewall-retro", cat: "sidewall", name: "Amber Sidewall Lettering", ar: "حروف كهرمانية", price: 240, desc: "The retro fitment, in amber. Cosmetic" },
+  { id: "sidewall-moulded", cat: "sidewall", name: "Moulded Lettering", ar: "حروف مصبوبة", price: 120, desc: "Unpainted, the way a tyre leaves the mould — there in the rubber, catching the light and nothing else. Cosmetic" },
   // Headlamps. Exclusive, because a lamp is either tinted, missing or
   // neither — you cannot smoke a headlight you have taken out.
   { id: "lamps-smoked", cat: "lamps", name: "Smoked Headlights", ar: "شمعات مدخنة", price: 550, desc: "Tinted lenses. Two dark slots by day, a dull amber at night — and the beam dims with them" },
@@ -1352,6 +1366,8 @@ export interface TuneEffects {
   hasNos: boolean;
   spoiler: boolean;
   goldRims: boolean;
+  /** Sidewall lettering, or undefined for a bare tyre. Cosmetic. */
+  tyreSticker?: TyreSticker;
   /** What has been done to the headlamps — see cars.ts CarColors. */
   headlamps: "stock" | "smoked" | "single";
   /** Window tint, 0-100 per cent. */
@@ -1559,6 +1575,14 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     hasNos: has("nos"),
     spoiler: has("spoiler"),
     goldRims: has("gold-rims"),
+    tyreSticker:
+      eq.sidewall === "sidewall-rwl"
+        ? "rwl"
+        : eq.sidewall === "sidewall-retro"
+          ? "retro"
+          : eq.sidewall === "sidewall-moulded"
+            ? "moulded"
+            : undefined,
     headlamps: eq.lamps === "lamps-smoked" ? "smoked" : eq.lamps === "lamps-single" ? "single" : "stock",
     tint: clampTint(build.tint),
     accent: car.accent,

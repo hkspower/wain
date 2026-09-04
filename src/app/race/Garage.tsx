@@ -65,6 +65,10 @@ const STYLE_CATS: Array<{ cat: string; label: string }> = [
   { cat: "cover", label: "ENGINE COVER · غطاء المكينة" },
   { cat: "lamps", label: "HEADLIGHTS · الشمعات" },
   { cat: "glow", label: "UNDERGLOW · الليتات" },
+  // Sidewall lettering sits under STYLE rather than under TIRES: the
+  // compound is a performance part, and this is what the tyre says on
+  // the side of it.
+  { cat: "sidewall", label: "TIRE LETTERING · حروف التواير" },
 ];
 
 /** Spec bar ranges: min hides the floor, max is the best build in the
