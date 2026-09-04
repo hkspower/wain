@@ -154,13 +154,13 @@ export const PARTS: Part[] = [
   // is carrying, so how far the beam throws is how far ahead you can read
   // the road. Reach is quoted against halogen, and the ratios come from
   // what these things actually do — see bulbs.ts.
-  // Window film. The price is the roll, not the darkness: every one of
-  // these is sold down to limo black, and what separates them is the
-  // colour it goes, how much it mirrors and how clear it stays. None of
-  // them changes how the car drives.
+  // Window film. The price is the roll, not the darkness: both of these
+  // are sold down to limo black, and what separates them is how much of
+  // the cabin still shows through and what colour it goes doing it.
+  // Neither changes how the car drives. There is no third, premium roll
+  // here on purpose — see the note in src/game/tint.ts.
   { id: "film-dyed", cat: "film", name: "Dyed Film", ar: "فيلم ملوّن", price: 180, desc: "The cheap roll. Dye in the adhesive: flat, a touch warm, and never quite neutral — this is the film that goes purple in a Kuwaiti summer. Cosmetic" },
-  { id: "film-carbon", cat: "film", name: "Carbon Film", ar: "فيلم كاربون", price: 520, desc: "Carbon instead of dye. A deep flat charcoal that stays charcoal, and no metal in it. Cosmetic" },
-  { id: "film-ceramic", cat: "film", name: "Ceramic Film", ar: "فيلم سيراميك", price: 1400, desc: "Nano-ceramic: the clearest of the three. The glass still reads as glass, so it keeps the corniche lights in it instead of going matte. Cosmetic" },
+  { id: "film-carbon", cat: "film", name: "Carbon Film", ar: "فيلم كاربون", price: 520, desc: "Carbon instead of dye. Properly dark, stays charcoal, no metal in it — the cabin disappears behind it. Cosmetic" },
 
   { id: "bulb-halogen", cat: "bulbs", name: "Halogen Bulbs", ar: "شمعات هالوجين", price: 90, desc: "The filament the car left the showroom with. Warm, and warm is the light that cuts through dust and rain — the cheapest way back if the white beams are not for you" },
   { id: "bulb-led", cat: "bulbs", name: "LED Conversion", ar: "تحويل إل إي دي", price: 850, desc: "Cool white at 5800K, half again the light and 45% more reach. You see the corner earlier" },
@@ -1106,7 +1106,6 @@ export interface CarBuild {
 export const FILM_OF_PART: Record<string, TintFilm | undefined> = {
   "film-dyed": "dyed",
   "film-carbon": "carbon",
-  "film-ceramic": "ceramic",
 };
 
 /** Factory glass, for a build that has never been to the tint shop. */

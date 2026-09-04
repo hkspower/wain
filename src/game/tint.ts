@@ -9,7 +9,7 @@
 //
 // So the shop sells the FILM and the slider still sets the darkness.
 // That is also how a tint shop works: you choose a product off the wall
-// — dyed, carbon, ceramic — and then you say how dark. The price is per
+// — dyed or carbon — and then you say how dark. The price is per
 // film, not per per cent.
 //
 // WHAT SEPARATES THEM IS NOT DARKNESS
@@ -25,14 +25,27 @@
 //             set on a coast in a country where the sun is the
 //             strongest argument against it. Flat, low reflectivity.
 //   carbon    Carbon particles instead of dye. A deep flat charcoal
-//             that stays charcoal, and no metal in it. The default a
-//             sensible person buys.
-//   ceramic   Ceramic nanoparticles. The clear one — least haze, and
-//             the glass still reads as glass rather than as a panel, so
-//             it keeps the reflection of the street in it. The
-//             expensive one, and it looks it. Not the darkest: at a
-//             given darkness every film blocks the same light, which is
-//             the point the top of this comment is making.
+//             that stays charcoal, and no metal in it. The one you
+//             actually want, and what every tinted car in this game was
+//             wearing before any of it was for sale.
+//
+// THERE WERE THREE
+//
+// A ceramic roll sat above carbon at 1400 KD, and tools/shots/tint.mjs
+// refused it. Over the glass pixels — the only place a window film can
+// show — dyed differs from carbon by 23 of 255. Ceramic differed from
+// carbon by 1.21, and four attempts to widen it got to 2.95: a colour
+// push, a reflectivity push, and a clearcoat layer added specifically
+// for the job. The reason is the material rather than the numbers. At
+// 86% opacity this glass propagates TRANSMISSION differences — how much
+// of the cabin shows through, which is exactly why dyed reads as a
+// different film — and swallows colour and specular ones. Ceramic and
+// carbon are two products that differ in clarity, and clarity is the
+// thing this surface cannot show.
+//
+// So the shelf is two. A third entry at nearly three times the price of
+// the second, rendering a window nobody could tell from it, would have
+// been the shop lying about what it sells.
 //
 // None of them changes how the car drives, and the shop says so. There
 // is no hidden performance in a window.
@@ -48,7 +61,7 @@
 // shop description that nothing in the game produces.
 
 /** Which product is on the glass. Absent means bare factory glass. */
-export type TintFilm = "dyed" | "carbon" | "ceramic";
+export type TintFilm = "dyed" | "carbon";
 
 export interface FilmSpec {
   name: string;
@@ -68,8 +81,8 @@ export interface FilmSpec {
    * added to the base envMapIntensity.
    *
    * This is most of what tells the three apart at a glance. Dyed film
-   * is flat and reads as a painted panel; ceramic keeps its optical
-   * surface and still throws the sodium lights back at you.
+   * is flat and reads as a painted panel; carbon keeps enough of an
+   * optical surface to throw the sodium lights back at you.
    */
   sheen: number;
   /**
@@ -84,20 +97,17 @@ export interface FilmSpec {
    * The optical surface on top of the film, 0 to 1. A clearcoat layer,
    * in the material.
    *
-   * THIS is what separates the two dark films, and finding that out
-   * took a measurement. Reflectivity was supposed to do it —
-   * envMapIntensity, raised from 1.85 for carbon to 2.80 for ceramic —
-   * and tools/shots/tint.mjs measured the two of them 1.25 apart out of
-   * 255 either way, because on a surface that is 86% opaque the
-   * environment term is being blended almost entirely out before it
-   * reaches the frame. Pushing that lever harder was pushing a lever
-   * that is not connected.
+   * A clearcoat is a second specular lobe laid OVER the surface, which
+   * is what the thing being modelled physically is: a smooth film
+   * surface on top of a dark layer. Cheap film has no such surface to
+   * speak of.
    *
-   * A clearcoat is not blended out: it is a second specular lobe laid
-   * OVER the surface, which is also what the thing being modelled
-   * physically is — a smooth film surface on top of a dark layer. Cheap
-   * film has no such surface to speak of and ceramic is most of the
-   * reason anyone pays for ceramic.
+   * It is here because it is right, not because it rescued anything. It
+   * was added to try to tell a ceramic roll from a carbon one and moved
+   * that difference by 0.02 of 255 — on a surface this opaque the
+   * highlight has almost nothing to catch at two in the morning. The
+   * roll it was meant to justify is gone; the layer stays, because a
+   * dyed window and a carbon one genuinely do differ in it.
    */
   coat: number;
 }
@@ -137,30 +147,9 @@ export const FILMS: Record<TintFilm, FilmSpec> = {
     haze: 0.02,
     coat: 0.3,
   },
-  ceramic: {
-    name: "Ceramic Film",
-    arabic: "فيلم سيراميك",
-    // A hair cool, and that is the whole of its colour story. It is NOT
-    // the darkest of the three — this said "the deepest" until the test
-    // measured it at 11.7 against carbon's 11.1 and refused the claim.
-    // Depth is what the slider is for; what ceramic sells is the sheen
-    // and the haze below, and those are where it wins outright.
-    // Both of these were milder — core 0x090c11 and sheen 0.88 — and
-    // tools/shots/tint.mjs measured ceramic against carbon at a mean
-    // difference of 1.21 out of 255, a fifth of what separates carbon
-    // from dyed. Side by side at 70% they were the same window. A shelf
-    // whose top item costs 880 KD more than the middle one and looks
-    // identical to it is not a shelf, so the two properties that ARE
-    // ceramic's — how cool it reads and how much it still mirrors —
-    // were pushed until the difference is one you can see.
-    core: 0x070d17,
-    sheen: 1.45,
-    haze: 0.006,
-    coat: 1,
-  },
 };
 
-export const FILM_IDS: readonly TintFilm[] = ["dyed", "carbon", "ceramic"];
+export const FILM_IDS: readonly TintFilm[] = ["dyed", "carbon"];
 
 export interface GlassLook {
   /** 0-1. Never 1: a window you cannot see into at all has stopped

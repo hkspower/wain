@@ -250,11 +250,15 @@ console.log(`\n  ${OUT}/close-*.png, ${OUT}/cockpit-*.png`);
 
 // --- and the three products, at one darkness ------------------------
 //
-// The shelf sells three rolls at three prices. If they render the same
-// picture, it is one roll with three price tags — so this renders each
-// at the SAME 70% and diffs them against each other. The numbers below
-// are the whole justification for the shop having three entries.
-const FILMS = ["dyed", "carbon", "ceramic"];
+// The shelf sells rolls at different prices. If two of them render the
+// same picture, it is one roll with two price tags — so this renders
+// each at the SAME 70% and diffs them against each other. The numbers
+// below are the whole justification for the shop having more than one
+// entry, and they have already cost it one: a ceramic film sat above
+// carbon at 1400 KD until this measured the pair 2.95 apart.
+// Read nothing into the length: this is the shelf, and the shelf is
+// two because this check is what cut the third one.
+const FILMS = ["dyed", "carbon"];
 const shots = {};
 for (const film of FILMS) {
   await setTint(70, film);
@@ -265,7 +269,7 @@ for (const film of FILMS) {
   await page.screenshot({ path, clip: { x: 0, y: 0, width: W, height: H } });
   shots[film] = { path, luma: await luma(path) };
 }
-console.log("\n  the three films, all cut at 70%");
+console.log(`\n  the ${FILMS.length} films, all cut at 70%`);
 console.log("  ------------------------------------------------");
 for (const f of FILMS) console.log(`  ${f.padEnd(9)} glass luma ${shots[f].luma.toFixed(1)}`);
 // And this one is a CHECK, not a readout.

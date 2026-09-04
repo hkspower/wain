@@ -78,7 +78,7 @@ console.log(`${FILM_IDS.length} films open monotonically to ${glassLook("carbon"
 //
 // Three claims are made on the shelf, and each is a number here.
 {
-  const d = glassLook("dyed", 100), c = glassLook("carbon", 100), q = glassLook("ceramic", 100);
+  const d = glassLook("dyed", 100), c = glassLook("carbon", 100);
   // "never quite neutral" — the cheap one keeps a colour cast. Measured
   // as the spread between the darkest and lightest channel.
   const spread = (n) => {
@@ -94,22 +94,19 @@ console.log(`${FILM_IDS.length} films open monotonically to ${glassLook("carbon"
   // the two dark ones would be a claim with nothing behind it. This
   // guard exists because the first version of the module made exactly
   // that claim and this line is what refused it.
-  check(lum(d.color) > lum(c.color) && lum(d.color) > lum(q.color),
-    `dyed should be the lightest of the three, got ${[d, c, q].map((x) => lum(x.color).toFixed(1)).join(" ")}`);
+  check(lum(d.color) > lum(c.color),
+    `dyed should be the lighter of the two, got ${[d, c].map((x) => lum(x.color).toFixed(1)).join(" ")}`);
   // "keeps the corniche lights in it instead of going matte" — the
   // reflection rises with price and the haze falls with it.
-  check(d.envMapIntensity < c.envMapIntensity && c.envMapIntensity < q.envMapIntensity,
-    "reflectivity should rise dyed -> carbon -> ceramic");
-  check(d.roughness > c.roughness && c.roughness > q.roughness,
-    "haze should fall dyed -> carbon -> ceramic");
-  check(d.clearcoat < c.clearcoat && c.clearcoat < q.clearcoat,
-    "the optical surface should improve dyed -> carbon -> ceramic");
-  check(glassLook("ceramic", 0).clearcoat === 0,
+  check(d.envMapIntensity < c.envMapIntensity, "carbon should reflect more than dyed");
+  check(d.roughness > c.roughness, "dyed should be the hazier of the two");
+  check(d.clearcoat < c.clearcoat, "carbon should have the better optical surface");
+  check(glassLook("carbon", 0).clearcoat === 0,
     "bare glass with no film on it must carry no film surface");
   console.log(
-    `luma ${[d, c, q].map((x) => lum(x.color).toFixed(1)).join(" / ")}, ` +
-    `sheen ${[d, c, q].map((x) => x.envMapIntensity.toFixed(2)).join(" -> ")}, ` +
-    `coat ${[d, c, q].map((x) => x.clearcoat.toFixed(2)).join(" -> ")}  ${verdict()}`
+    `luma ${[d, c].map((x) => lum(x.color).toFixed(1)).join(" / ")}, ` +
+    `sheen ${[d, c].map((x) => x.envMapIntensity.toFixed(2)).join(" -> ")}, ` +
+    `coat ${[d, c].map((x) => x.clearcoat.toFixed(2)).join(" -> ")}  ${verdict()}`
   );
 }
 
@@ -134,9 +131,15 @@ console.log(`${FILM_IDS.length} films open monotonically to ${glassLook("carbon"
   }
   const prices = shelf.map((p) => p.price);
   check(
-    prices[0] < prices[1] && prices[1] < prices[2],
+    prices.every((v, i) => i === 0 || prices[i - 1] < v),
     `the shelf should read cheapest first: ${prices.join(", ")}`
   );
+  // Two, not three. A ceramic roll sat here at 1400 KD until
+  // tools/shots/tint.mjs measured it 2.95 of 255 from carbon over the
+  // glass, against the 23 that separates dyed from either — the same
+  // window at nearly three times the price. If a third film comes back,
+  // it has to clear that tool's floor first.
+  check(shelf.length === 2, `the shelf holds ${shelf.length} films; it should hold two`);
   console.log(`shelf: ${shelf.map((p) => `${p.name} ${p.price} KD`).join(", ")}  ${verdict()}`);
 }
 
@@ -150,11 +153,11 @@ console.log(`${FILM_IDS.length} films open monotonically to ${glassLook("carbon"
   check(bare.tint === 0, `80% tint with no film came through as ${bare.tint}`);
   check(bare.tintFilm === undefined, "no film bought and a film came through anyway");
 
-  g.builds["wain-special"].owned = ["film-ceramic"];
-  g.builds["wain-special"].equipped = { film: "film-ceramic" };
+  g.builds["wain-special"].owned = ["film-carbon"];
+  g.builds["wain-special"].equipped = { film: "film-carbon" };
   const fitted = computeEffects(g, "wain-special");
   check(fitted.tint === 80, `film fitted and the darkness came through as ${fitted.tint}`);
-  check(fitted.tintFilm === "ceramic", `expected ceramic, got ${fitted.tintFilm}`);
+  check(fitted.tintFilm === "carbon", `expected carbon, got ${fitted.tintFilm}`);
   console.log(`gate: ${bare.tint}% without a film, ${fitted.tint}% with one  ${verdict()}`);
 }
 
