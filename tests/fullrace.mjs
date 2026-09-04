@@ -38,10 +38,21 @@ page.setDefaultTimeout(120000);
 
 const errors = [];
 page.on("pageerror", (e) => { errors.push(e.message); console.log("PAGEERROR:", e.message); });
+// The community hub is OPTIONAL and the menu already knows it: the
+// status probe is a two-second fetch with `.catch(() => {})`, and a hub
+// that does not answer "simply is not mentioned". Nothing is running on
+// 8787 in a bare checkout, so the browser logs ERR_CONNECTION_REFUSED
+// for a request the game deliberately expects to fail. Counting that as
+// a runtime error failed the whole race test over a server the test
+// never asked for. Only the hub's own origin is forgiven; every other
+// console error still fails the run.
+const HUB = /localhost:8787/;
 page.on("console", (m) => {
   if (m.type() !== "error") return;
   const loc = m.location?.();
-  errors.push(`${m.text().slice(0, 120)}${loc?.url ? ` @ ${loc.url}` : ""}`);
+  const line = `${m.text().slice(0, 120)}${loc?.url ? ` @ ${loc.url}` : ""}`;
+  if (HUB.test(line)) return;
+  errors.push(line);
 });
 const http404 = [];
 page.on("response", (r) => { if (r.status() === 404) http404.push(new URL(r.url()).pathname); });
@@ -59,6 +70,14 @@ await page.evaluate(() => {
   localStorage.clear(); // a brand-new player
   localStorage.setItem("gulf-road-nights-onboarded", "2");
   localStorage.setItem("gulf-road-nights-coach", "3");
+  // PIN THE CLOCK. The game ships with sky "kuwait" — the world runs on
+  // the real time in Kuwait, and racing is gated to 00:00-05:50 — so a
+  // test that flashes a rival at 11:35 in the morning gets the lamps
+  // blinked at it and "Nobody races before midnight." Correct game,
+  // useless test: it passed or failed by the hour it was run at, about
+  // one day in four. "night" is the fixed hour the settings screen
+  // offers for exactly this, and it maps to 00:30 — inside the window.
+  localStorage.setItem("gulf-road-nights-settings", JSON.stringify({ sky: "night" }));
 });
 await page.reload({ waitUntil: "networkidle" });
 await page.click("text=START ENGINE");
@@ -66,6 +85,28 @@ await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 120000 })
 
 const fail = [];
 const check = (c, m) => { if (!c) fail.push(m); return c ? "ok" : "FAIL"; };
+
+// Say it out loud before driving 8.5 km on it. Every later step —
+// flashing, the challenge card, the battle — is gated behind this one
+// boolean, so if the pin above ever stops working the run should name
+// the clock rather than report "three flashes did not issue a
+// challenge" a hundred thousand simulated frames later.
+// Read off the engine, not off __grnDebug: that object has 47 keys and
+// `hour` is not one of them, so an earlier version of this line printed
+// "00:00" for a clock reading 00:30 — a readout that agrees with the
+// truth by accident is worse than none.
+const clock = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  return { hour: e.timeHours, open: e.racingOpen(), cycling: e.timeCycling, real: e.timeReal };
+});
+const hh = String(Math.floor(clock.hour)).padStart(2, "0");
+const mm = String(Math.floor((clock.hour % 1) * 60)).padStart(2, "0");
+console.log(`clock: ${hh}:${mm} ${clock.real ? "(live Kuwait)" : clock.cycling ? "(cycling)" : "(fixed)"}` +
+  ` — racing ${clock.open ? "open" : "CLOSED"}  ` +
+  check(clock.open, "the racing window is shut: nothing can be challenged") + " " +
+  // Fixed means fixed. A cycling clock would walk the run towards 05:50
+  // and close the window somewhere in the middle of it.
+  check(!clock.cycling && !clock.real, "the clock is still moving — the run is not reproducible"));
 
 // The autopilot: a lane-holding PD steer plus a curvature-aware speed
 // target, installed page-side so the driving loop never round-trips.
@@ -213,37 +254,55 @@ const btn = page.locator("text=SEND CHALLENGE");
 // These are the properties a player needs — the button is on the screen,
 // it is enabled, and nothing is lying over it — and they are cheap to
 // assert. What is NOT cheap is Playwright's own hit-target check, which
-// re-renders and re-measures: against 2.4 million triangles through a
-// software rasteriser it can exhaust a sixty-second budget on a button
-// that is perfectly clickable, which is the failure this run produced.
+// re-renders and re-measures: against three million triangles through a
+// software rasteriser it exhausts a sixty-second budget on a button that
+// is perfectly clickable.
+const box = await btn.boundingBox().catch(() => null);
 const usable = await btn
   .isVisible()
   .then(async (v) => v && (await btn.isEnabled()))
   .catch(() => false);
-check(usable, "the SEND CHALLENGE button is not on the screen, or is disabled");
-const clicked = await page
-  .click("text=SEND CHALLENGE", { timeout: 60000 })
-  .then(() => true)
-  .catch((e) => {
-    console.log("  SEND CHALLENGE: playwright gave up on the hit-target check:",
-      String(e).split("\n")[0]);
-    return false;
-  });
+check(usable && !!box, "the SEND CHALLENGE button is not on the screen, or is disabled");
+// The overlay check Playwright would have done, done once instead of in
+// a loop: ask the document what is actually under that point.
+const cx = box ? box.x + box.width / 2 : 0;
+const cy = box ? box.y + box.height / 2 : 0;
+const onTop = box
+  ? await page.evaluate(([x, y]) => {
+      // The label is "SEND CHALLENGE — تحداه", so the point may land on
+      // the Arabic span inside the button. Walk up: what matters is that
+      // the thing under the cursor belongs to the button, not that the
+      // innermost node happens to carry the English half.
+      let el = document.elementFromPoint(x, y);
+      for (let i = 0; el && i < 4; i++, el = el.parentElement)
+        if (/SEND CHALLENGE/i.test(el.textContent ?? "")) return true;
+      return false;
+    }, [cx, cy])
+  : false;
+check(onTop, "something is lying over the SEND CHALLENGE button");
+// Then a real mouse click at real coordinates. page.click() re-verifies
+// the hit target on every retry and timed out here on a button that was
+// visible, enabled and on top — sixty seconds spent re-measuring a
+// scene, not waiting for a button. mouse.click() sends the same
+// browser-level move/down/up the player's hand does, and the
+// verification above is ours.
+if (box) await page.mouse.click(cx, cy);
 // And then the thing that actually matters: did the challenge go out?
 //
-// The click above timed out on this machine and the rival answered eight
-// seconds later anyway — the press had landed, and only Playwright's
-// verification of it had not. Failing on that is failing on the
-// rasteriser's frame rate. The subject is whether a challenge was sent,
-// so ask the engine.
+// NOT `challengePending`, which this used to ask. That flag was already
+// true — the card being on the screen is what raised it — so the check
+// passed whether the button was pressed or not, and a click that never
+// landed was reported as "challenge went out". confirmChallenge() is
+// what a press runs, and it queues the rival's 2.2 s answer; a timer in
+// that list is proof the press reached the engine.
 const sent = await page
   .waitForFunction(() => {
     const e = window.__grnEngine;
-    return !!(e && (e.challengePending || e.cine || e.inBattle));
+    return !!(e && (e.challengeTimers?.length > 0 || e.cine || e.inBattle));
   }, null, { timeout: 30000 })
   .then(() => true)
   .catch(() => false);
-console.log(`  press ${clicked ? "landed" : "timed out"}, challenge ${sent ? "went out" : "did NOT go out"}`);
+console.log(`  press ${sent ? "landed" : "did NOT reach the engine"}`);
 check(sent, "SEND CHALLENGE did not send a challenge");
 console.log("waiting for the rival's answer");
 // The rival's answer is a real 2.2 s setTimeout inside the engine, and

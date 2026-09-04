@@ -1565,7 +1565,16 @@ function raceCut(): { w: number; h: number } | null {
     engineRef.current = engine;
     const boot = loadSettings();
     if (boot.quality !== "auto") engine.applyQualityTier(boot.quality);
-    if (boot.sky !== "night") engine.setSky(boot.sky);
+    // Unconditionally. This used to read `if (boot.sky !== "night")`,
+    // on the assumption that a fresh engine is already sitting at night
+    // and the call could be skipped. Half true: the engine does start at
+    // 00:30 — but with timeCycling still on its `true` default, so the
+    // player who picked the FIXED night sky got the accelerated cycle
+    // instead, watched their fixed hour drift, and eventually got
+    // "05:50 — the night is over" out of a setting whose whole point is
+    // that it does not move. The skip was a second copy of the engine's
+    // defaults kept in the UI, and it had already fallen out of step.
+    engine.setSky(boot.sky);
     if (boot.weather !== "clear") engine.setWeather(boot.weather);
     engine.setExposure(boot.exposure, boot.autoExposure);
     engine.setBrightness(boot.brightness);
