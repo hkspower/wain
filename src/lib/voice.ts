@@ -220,11 +220,26 @@ function playNext() {
     update({ speaking: false });
     return;
   }
+  // This is a real sentence, so the element is audible and it is no longer the
+  // primer's. Both matter: the unlock below borrows this same element and
+  // silences it while it works, and its clean-up runs whenever the browser
+  // gets round to it — which can be after this line.
+  endPriming();
+  audio.muted = false;
   audio.src = src;
-  audio.play().catch(() => {
-    queue = [];
-    update({ speaking: false });
-  });
+  const started = audio.play();
+  // The same older browsers that return undefined from play() instead of a
+  // promise, on the line that actually plays her. `.catch` on undefined is a
+  // TypeError thrown out of the middle of playback — she stops, and the module
+  // still thinks she is speaking. Nothing to attach to means nothing to
+  // handle: the clip either plays or it does not.
+  if (started && typeof started.catch === "function") {
+    started.catch(() => {
+      queue = [];
+      clearGap();
+      update({ speaking: false });
+    });
+  }
 }
 
 /**
@@ -242,7 +257,32 @@ function playNext() {
  * assistant silent on iPhones. So the gesture handler calls this instead: a
  * muted zero-length play and an empty utterance, both synchronous, purely to
  * spend the gesture's permission before it expires.
+ *
+ * ## Why the clean-up is guarded
+ *
+ * The element is muted for the unlock — it usually still holds the last clip
+ * it played, and an unmuted silent play would replay that out loud — and the
+ * mute has to come off again afterwards. Restoring it in the play() promise's
+ * handlers put شوق's volume in the hands of a promise, and lost it twice:
+ *
+ *   - `play()` returns undefined on older Safari, which the code said and then
+ *     did nothing about: `p?.then(...)` on undefined is a no-op, so the mute
+ *     was never lifted and every clip after it played SILENTLY, for ever.
+ *     Measured in the harness — the real clip played with `muted === true`.
+ *   - When it does return a promise, that promise settles whenever the browser
+ *     is ready, which can be after speak() has given the element a real clip.
+ *     The success handler then calls pause() on a sentence in progress.
+ *     Measured too: one pause before the stale prime settled, two after.
+ *
+ * So the clean-up runs once, runs even when there is no promise to hang it on,
+ * and checks it is still the primer's turn before touching anything.
  */
+let priming = false;
+
+function endPriming() {
+  priming = false;
+}
+
 export function primeAudio() {
   if (typeof window === "undefined") return;
   // Start the manifest fetch on the gesture instead of leaving it to speak(),
@@ -253,20 +293,28 @@ export function primeAudio() {
   void loadManifest();
   try {
     const el = ensureAudio();
+    priming = true;
     el.muted = true;
-    const p = el.play();
-    // Older Safari returns undefined rather than a promise here.
-    void p?.then(
-      () => {
+    const done = () => {
+      // playNext already took the element for a real sentence: leave it alone.
+      if (!priming) return;
+      endPriming();
+      try {
         el.pause();
-        el.muted = false;
-      },
-      () => {
-        el.muted = false;
+      } catch {
+        /* nothing was playing */
       }
-    );
+      el.muted = false;
+    };
+    const p = el.play();
+    // Older Safari returns undefined rather than a promise. That is the whole
+    // reason this is a named function and not two inline arrows: with no
+    // promise there is nothing to attach to, and the mute has to come off now.
+    if (p && typeof p.then === "function") p.then(done, done);
+    else done();
   } catch {
     /* nothing to unlock */
+    endPriming();
   }
   try {
     // Same trick for the synthetic path: an empty utterance is inaudible but

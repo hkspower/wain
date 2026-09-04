@@ -103,6 +103,135 @@ if (empty.length) {
   problems += empty.length;
 }
 
+/* ── how loud is she, actually ─────────────────────────────────────────────
+   Everything above this point checks that a file exists and is bigger than
+   512 bytes. A valid MP3 of near-silence passes both, and so does a clip that
+   came back six decibels under the one before it — and clips are played back
+   to back inside a single answer, so a level that moves between them is a
+   voice that lurches mid-sentence.
+
+   Nothing measured this because measuring it means decoding audio, and Node
+   cannot. Chromium can, and it is already a dependency of the other audits.
+   It is only launched when there is something to listen to, so the common
+   case — no clips recorded yet — costs nothing. */
+async function measureLevels(files) {
+  const { chromium } = await import("playwright");
+  const exe = process.env.CHROMIUM_PATH || "/opt/pw-browsers/chromium";
+  const browser = await chromium.launch(existsSync(exe) ? { executablePath: exe } : {});
+  try {
+    const page = await browser.newPage();
+    const rows = [];
+    for (const { key, file } of files) {
+      const b64 = readFileSync(file).toString("base64");
+      const row = await page.evaluate(async (b64) => {
+        const bin = atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        let buf;
+        try {
+          buf = await ctx.decodeAudioData(bytes.buffer);
+        } catch {
+          return null; // not decodable audio at all
+        }
+        const d = buf.getChannelData(0);
+        let peak = 0;
+        let sum = 0;
+        let n = 0;
+        // RMS over the speech only. Averaging the silence at either end would
+        // report a clip as quiet in proportion to how much padding the encoder
+        // happened to leave, which is not a thing anybody hears.
+        const GATE = 0.02;
+        for (let i = 0; i < d.length; i++) {
+          const v = Math.abs(d[i]);
+          if (v > peak) peak = v;
+          if (v > GATE) { sum += d[i] * d[i]; n += 1; }
+        }
+        const rms = n ? Math.sqrt(sum / n) : 0;
+        const db = (x) => 20 * Math.log10(Math.max(x, 1e-9));
+        return { seconds: buf.duration, peak: db(peak), rms: db(rms), voiced: n / d.length };
+      }, b64);
+      rows.push({ key, ...(row ?? { broken: true }) });
+    }
+    return rows;
+  } finally {
+    await browser.close();
+  }
+}
+
+/**
+ * A clip whose loudest moment is this far down is not a quiet recording, it is
+ * a failed one — an empty render, or a file of room tone. Speech peaks within
+ * a few dB of full scale; -40 dBFS is two orders of magnitude below that and
+ * cannot be reached by a take that has a voice in it.
+ */
+const SILENCE_PEAK_DB = -40;
+/**
+ * How far a clip may sit from the middle of the set before a listener hears it
+ * as the speaker changing distance from the microphone. Three decibels is
+ * roughly where a level change stops being felt and starts being noticed —
+ * and these are consecutive sentences of one answer, which is the least
+ * forgiving place to put one.
+ */
+const LEVEL_SPREAD_DB = 3;
+
+if (have > 0) {
+  const onDisk = Object.entries(clips)
+    .map(([key, rel]) => {
+      const path = typeof rel === "string" ? rel : rel?.url ?? "";
+      return { key, file: join(ROOT, "public", path.replace(/^\//, "")) };
+    })
+    .filter(({ file }) => existsSync(file));
+
+  console.log(`\n── and how loud is she? (${onDisk.length} clip(s)) ──`);
+  let levels;
+  try {
+    levels = await measureLevels(onDisk);
+  } catch (e) {
+    console.log(`  ⚠ could not decode the clips to measure them: ${e.message}`);
+    levels = null;
+  }
+
+  if (levels) {
+    const broken = levels.filter((r) => r.broken);
+    const silent = levels.filter((r) => !r.broken && r.peak < SILENCE_PEAK_DB);
+    const heard = levels.filter((r) => !r.broken && r.peak >= SILENCE_PEAK_DB);
+
+    if (broken.length) {
+      console.log(`  ✗ ${broken.length} file(s) are not decodable audio: ${broken.slice(0, 6).map((r) => r.key).join(", ")}`);
+      problems += broken.length;
+    }
+    if (silent.length) {
+      console.log(`  ✗ ${silent.length} clip(s) are silence in an mp3's clothing (peak under ${SILENCE_PEAK_DB} dBFS):`);
+      for (const r of silent.slice(0, 6)) console.log(`      ${r.key} — peak ${r.peak.toFixed(1)} dBFS`);
+      problems += silent.length;
+    }
+
+    if (heard.length) {
+      const rms = heard.map((r) => r.rms).sort((a, b) => a - b);
+      const median = rms[Math.floor(rms.length / 2)];
+      const off = heard
+        .map((r) => ({ ...r, delta: r.rms - median }))
+        .filter((r) => Math.abs(r.delta) > LEVEL_SPREAD_DB)
+        .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+      console.log(`  level: ${median.toFixed(1)} dBFS in the middle, ` +
+        `${rms[0].toFixed(1)} to ${rms[rms.length - 1].toFixed(1)} across the set ` +
+        `(${(rms[rms.length - 1] - rms[0]).toFixed(1)} dB apart)`);
+      if (off.length) {
+        console.log(`  ⚠ ${off.length} clip(s) sit more than ${LEVEL_SPREAD_DB} dB off the rest, which is`);
+        console.log("    audible as her voice jumping between two sentences of one answer:");
+        for (const r of off.slice(0, 6)) {
+          console.log(`      ${r.key} — ${r.delta > 0 ? "+" : ""}${r.delta.toFixed(1)} dB`);
+        }
+        console.log("    Re-record them (delete the files and re-run npm run voice:all),");
+        console.log("    or normalise the set before shipping.");
+      } else {
+        console.log(`  ✓ every clip is within ${LEVEL_SPREAD_DB} dB of the rest — no jumps mid-answer.`);
+      }
+    }
+  }
+}
+
 /* ── coverage ─────────────────────────────────────────────────────────────── */
 const pct = want === 0 ? 0 : Math.round((have / want) * 100);
 console.log(`  ${have} of ${want} lines recorded (${pct}%)` +
@@ -121,8 +250,12 @@ if (have === 0) {
   console.log("           ELEVENLABS_API_KEY=… npm run voice:sample");
   console.log("      Same blocker stops the live agent — see docs/voice-setup.md.");
 } else if (have < want) {
+  // `persona/key`, which is how gen-voice writes the manifest and how speak()
+  // looks a clip up. Comparing the bare key against those never matched, so a
+  // half-recorded library reported every line as missing — «276 will fall
+  // back» printed directly under «7 of 276 recorded».
   const short = [];
-  for (const p of personas) for (const k of expected[p]) if (!(k in clips)) short.push(k);
+  for (const p of personas) for (const k of expected[p]) if (!(`${p}/${k}` in clips)) short.push(`${p}/${k}`);
   console.log(`  ⚠ ${short.length} line(s) will fall back to the browser voice, e.g. ` +
     short.slice(0, 4).join(", "));
 }

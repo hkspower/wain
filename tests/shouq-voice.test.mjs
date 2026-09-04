@@ -37,16 +37,90 @@ ok('it also primes the synthetic path', s.spoken.length === 1, JSON.stringify(s.
 ok('with an empty utterance, which is inaudible', s.spoken[0] === '', JSON.stringify(s.spoken));
 
 console.log('\n── the element does not stay muted afterwards ──');
-// If the unlock left it muted, every answer after it would play in silence —
-// which looks exactly like the bug it was written to fix.
+/**
+ * If the unlock leaves the element muted, every clip after it plays in
+ * silence — which looks exactly like the bug primeAudio was written to fix,
+ * and is worse, because the code now believes it is speaking.
+ *
+ * This used to read `document.querySelector('audio')`. The module builds its
+ * element with `new Audio()`, which is never in the document, so the query
+ * returned null, `null !== true` passed, and the assertion had never once
+ * looked at the element it names. Asking the spy what the element was muted to
+ * AT THE MOMENT IT PLAYED is the real question anyway: a mute lifted a
+ * microsecond after the clip starts is still a clip nobody heard.
+ */
 await p.waitForTimeout(120);
-const stillMuted = await p.evaluate(async () => {
-  window.resetSpy();
-  window.voice.speak([{ text: 'اختبار.' }]);
-  await new Promise((r) => setTimeout(r, 300));
-  return document.querySelector('audio')?.muted ?? null;
-});
-ok('the audio element is unmuted again once the unlock resolves', stillMuted !== true, String(stillMuted));
+{
+  const s2 = await p.evaluate(async () => {
+    window.resetSpy();
+    window.voice.speak([{ key: 'hello', text: 'اختبار.' }]);
+    await new Promise((r) => setTimeout(r, 400));
+    return window.spy;
+  });
+  ok('a real clip plays after the unlock', s2.played.length === 1, JSON.stringify(s2.played));
+  ok('and it plays audibly, not on a muted element',
+    s2.playedMuted[0] === false, JSON.stringify(s2.playedMuted));
+}
+
+console.log('\n── a browser whose play() returns undefined is not left silent ──');
+/**
+ * Older Safari returns undefined from play() instead of a promise. primeAudio
+ * said so in a comment and then hung the unmute on `p?.then(...)`, which on
+ * undefined does nothing at all — so the element stayed muted for the life of
+ * the page and every clip after the first tap played silently. Measured before
+ * the fix: the real clip played with `muted === true`.
+ */
+{
+  const s3 = await p.evaluate(async () => {
+    const real = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function () { real.call(this); return undefined; };
+    window.resetSpy();
+    window.voice.primeAudio();
+    await new Promise((r) => setTimeout(r, 150));
+    window.voice.speak([{ key: 'hello', text: 'اختبار.' }]);
+    await new Promise((r) => setTimeout(r, 500));
+    HTMLMediaElement.prototype.play = real;
+    return window.spy;
+  });
+  ok('the unlock itself is still silent', s3.playedMuted[0] === true, JSON.stringify(s3.playedMuted));
+  ok('but the clip after it is not', s3.playedMuted[1] === false, JSON.stringify(s3.playedMuted));
+}
+
+console.log('\n── a slow unlock does not reach forward and stop her ──');
+/**
+ * The other half of the same mistake. play()'s promise settles whenever the
+ * browser gets round to it, which can be after speak() has given the element a
+ * real clip — and the unlock's success handler called pause() unconditionally.
+ * Measured before the fix: one pause before the stale unlock settled, two
+ * after, the second one landing on a sentence in progress.
+ */
+{
+  const s4 = await p.evaluate(async () => {
+    const real = HTMLMediaElement.prototype.play;
+    let release = null;
+    let first = true;
+    HTMLMediaElement.prototype.play = function () {
+      real.call(this);
+      if (first) { first = false; return new Promise((res) => { release = res; }); }
+      return Promise.resolve();
+    };
+    window.resetSpy();
+    window.voice.primeAudio();
+    await new Promise((r) => setTimeout(r, 50));
+    window.voice.speak([{ key: 'hello', text: 'اختبار.' }]);
+    await new Promise((r) => setTimeout(r, 250));
+    const before = window.spy.pauseCalls;
+    const held = !!release;
+    release?.();
+    await new Promise((r) => setTimeout(r, 150));
+    HTMLMediaElement.prototype.play = real;
+    return { held, before, after: window.spy.pauseCalls };
+  });
+  // Stated separately: if the unlock had resolved on its own, the assertion
+  // below would pass without ever testing a late one.
+  ok('the unlock really was still pending when the clip started', s4.held);
+  ok('and settling it does not pause the clip', s4.after === s4.before, `${s4.before} → ${s4.after}`);
+}
 
 console.log('\n── priming survives a browser with no speech synthesis ──');
 {
