@@ -67,8 +67,14 @@ function copyTree(from, to, skip = []) {
  * `about.html` **ثمانية عشر** موضعًا للنطاق التجريبي بعد بناءٍ بنطاقٍ
  * حقيقي — رابطٌ معياريّ يشير إلى موقعٍ آخر وبياناتٌ منظّمة تكذّب الصفحة.
  * فصار الإحصاء من الشجرة نفسها: ما يُضاف غدًا يدخل بلا تذكُّر.
+ *
+ * والدرسُ نفسه تكرّر في القيم المؤقتة: بقيت القائمة على `.html` وحدها، فلمّا
+ * انتقل رابط واتساب إلى `order.js` — في السطر الذي يقوله الوكيل حين يعجز
+ * ويحيل الزبون إلى إنسان — صار الحارس يمرّ على حزمةٍ تحمل رقمًا لا يملكه
+ * أحد، في أحوج لحظةٍ يحتاج فيها الزبون أن يصل. فدخلت `.js` و`.css` هنا:
+ * النصّ نصٌّ أينما كان، ولا فرق بين رقمٍ في وسمٍ ورقمٍ في سلسلة.
  */
-function textFiles(dir, exts = ['.html', '.xml', '.txt', '.json', '.webmanifest']) {
+function textFiles(dir, exts = ['.html', '.xml', '.txt', '.json', '.webmanifest', '.js', '.css']) {
   const out = [];
   (function walk(d, rel = '') {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
@@ -136,7 +142,7 @@ function guardPlaceholders() {
      وحدها — فصار الحارس يمرّ على حزمةٍ تحمل بريدًا وعنوانًا لا يملكهما
      أحد، وهو بعينه ما كُتب ليمنعه. الإحصاء الآن من الشجرة. */
   const site = path.join(ROOT, 'website');
-  const pages = textFiles(site, ['.html']);
+  const pages = textFiles(site);
   const found = [];
   for (const p of PLACEHOLDERS) {
     const where = pages.filter((rel) => fs.readFileSync(path.join(site, rel), 'utf8').includes(p.needle));
@@ -157,9 +163,12 @@ function guardPlaceholders() {
 تعذّر البناء — قيم مؤقتة ما زالت في الموقع:
 `);
   for (const f of found) console.error(`  • ${line(f)}`);
+  /* تُسمّى الملفّات التي وُجدت فيها فعلًا، لا ملفٌّ واحد بالاسم: من قرأ
+     «استبدلها في index.html» أصلحها هناك ومرّ الحارس، وبقي ما في غيره. */
+  const files = [...new Set(found.flatMap((f) => f.where))];
   console.error(`
-استبدلها في website/index.html ببياناتكم الحقيقية، ومرّر --domain=نطاقكم،
-ثم أعد البناء. للتجربة المحلية فقط: --allow-placeholders
+استبدلها ببياناتكم الحقيقية في: ${files.length ? files.map((f) => 'website/' + f).join('، ') : 'website/'}
+ومرّر --domain=نطاقكم، ثم أعد البناء. للتجربة المحلية فقط: --allow-placeholders
 `);
   process.exit(1);
 }

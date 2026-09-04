@@ -63,7 +63,7 @@ MAWSOOL_PUBLIC_URL=https://ops.mawsool.com.kw
 
 في n8n:
 
-1. أنشئ سير العمل من `mawsool-link-to-captain.workflow.js`.
+1. أنشئ سير العمل من `mawsool-link-to-captain.workflow.mjs`.
 2. عقدة **«رقم المرسِل»**: ضع `Phone Number ID` من Meta.
 3. اعتماد **Header Auth**: الاسم `Authorization`، والقيمة نفس
    `MAWSOOL_WEBHOOK_AUTH_VALUE`.
