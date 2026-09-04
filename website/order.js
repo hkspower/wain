@@ -391,16 +391,30 @@
   const publishHeight = () =>
     document.documentElement.style.setProperty('--composer-h', composer.offsetHeight + 'px');
 
+  /* **زرّ الإرسال يقول إن كان له ما يرسله.**
+     المساحة بلا نائبٍ نصّيّ (الصفحة كلمةٌ واحدة)، فكان الملتقط صندوقًا
+     فارغًا وفيه زرٌّ صلبٌ لامع لا يفعل شيئًا لو ضُغط — لمعانٌ يَعِد بفعلٍ
+     لا يقع. فيهدأ ما دام لا شيء ليُرسل، ويستوي حين يُكتب حرف. وهذه
+     إشارةٌ بلا كلمة، وهو المطلوب في صفحةٍ نُزع منها كلّ نصّ. */
+  const sendBtn = form.querySelector('.vo-typebar__send');
+  const markReady = () => {
+    if (sendBtn) sendBtn.dataset.ready = input.value.trim() ? 'yes' : 'no';
+  };
+
   function grow() {
     const chrome = composer.offsetHeight - input.offsetHeight;   // حشوٌ وتلميحٌ وحدود
     const cap = Math.max(96, Math.round(innerHeight * 0.55) - chrome);
     input.style.height = 'auto';
     input.style.height = Math.min(input.scrollHeight, cap) + 'px';
     publishHeight();
+    markReady();
   }
   publishHeight();
+  markReady();
   addEventListener('resize', () => { if (input.style.height) grow(); else publishHeight(); });
-  const baseH = () => { input.style.height = ''; publishHeight(); };   // العودة إلى ثلاثة أسطر
+  /* العودة إلى ثلاثة أسطر — وتُقرأ حالة الزرّ معها، فالمساحة تُفرَّغ هنا
+     بعد الإرسال ولولا ذلك لبقي الزرّ مستويًا وما عاد فيه ما يُرسل. */
+  const baseH = () => { input.style.height = ''; publishHeight(); markReady(); };
 
   input.addEventListener('input', grow);
 

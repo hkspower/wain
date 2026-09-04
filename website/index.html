@@ -126,7 +126,14 @@
 
 <header class="vo-top">
   <a class="vo-top__brand" href="./" aria-label="موصول — الصفحة الرئيسية">
-    <img src="assets/logo-mawsool.png" alt="موصول" width="132" height="41" decoding="async">
+    <!-- للشعار رسمتان: واحدة لأرضيّةٍ فاتحة وأخرى لداكنة. وكان الوضع الداكن
+         يضع لوحًا أبيضَ تحت الرسمة الفاتحة، فيظهر مستطيلٌ أبيض صارخ في
+         ترويسةٍ داكنة. والرسمة الداكنة كانت في `assets/` أصلًا لا يستعملها
+         أحد. `<picture>` يختار بلا سكربت ولا وميض. -->
+    <picture>
+      <source srcset="assets/logo-mawsool-light.png" media="(prefers-color-scheme: dark)">
+      <img src="assets/logo-mawsool.png" alt="موصول" width="132" height="41" decoding="async">
+    </picture>
   </a>
   <nav class="vo-top__nav" aria-label="التواصل">
     <a href="https://wa.me/96590000000" target="_blank" rel="noopener" aria-label="واتساب موصول">
