@@ -1303,3 +1303,55 @@ p.mt-6.flex.flex-wrap.items-baseline:has(> .font-display) {
     grid-template-columns: 1.5fr 1fr;
   }
 }
+
+/* ============================ the header: search and wishlist off, logo centred
+   At the owner's request, 2026-09-04.
+
+   SELECTED BY MEANING, NOT BY POSITION OR BY CLASS. The wishlist is the only
+   thing in the bar that links to /wishlist, and the search button is named by
+   its aria-label. Both spellings of that label are listed because the shop is
+   bilingual and the header is the same markup in both — matching only `بحث`
+   would have left an English visitor with a search button the Arabic visitor
+   no longer has, and that kind of half-change is invisible from whichever
+   language you happen to be testing in. A positional selector (`:last-child`
+   of the icon row) would have been shorter and would break silently the first
+   time the bundle reorders its icons.
+
+   Scoped to .app-header on purpose. /wishlist is still a real page with real
+   contents and is still reachable by its URL and by anything else that links
+   to it; what is removed is the entry in the top bar, which is what was asked
+   for. Nothing here deletes a feature — hiding the control is the only thing
+   this stylesheet can do to a bundle whose source is not in this repository,
+   and it is also the only thing that should be done to one. */
+.app-header a[href='/wishlist'],
+.app-header [aria-label='بحث'],
+.app-header [aria-label='Search'] {
+  display: none !important;
+}
+
+/* AND THEN THE ALIGNMENT, which is the half that the removal creates.
+   ------------------------------------------------------------------
+   The bar is one flex row under `justify-between` holding three things: the
+   language and clock, the logo, and the icons. `justify-between` puts equal
+   space BETWEEN them, which centres the middle one only when the two outer
+   groups happen to be the same width — and they never were. Measured before
+   any of this: the icon group is 92px and the language/clock group 114px on a
+   390px phone, so the logo sat 11px off centre already.
+
+   Taking two icons out makes that worse, not better: the icon group drops to
+   about 48px and the logo slides further toward it. So the fix belongs here
+   whether or not the removal happens.
+
+   Giving both outer groups `flex: 1 1 0` makes them equal by construction —
+   each takes half of whatever is left after the logo — so the logo is centred
+   for any content either side, today's and tomorrow's. The last group then
+   needs `flex-end` or its icons drift inward off the screen edge: inside an
+   RTL row, a grown box lays its contents out from ITS start, which is the
+   side facing the logo, not the side facing the edge of the screen. */
+.app-header > nav > div:first-child,
+.app-header > nav > div:last-child {
+  flex: 1 1 0;
+}
+.app-header > nav > div:last-child {
+  justify-content: flex-end;
+}
