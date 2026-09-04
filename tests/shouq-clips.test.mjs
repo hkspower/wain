@@ -43,11 +43,30 @@ page.on('request', (r) => { if (r.url().includes('/voice/')) requested.push(new 
 await page.goto(B + '/voice.html', { waitUntil: 'load' });
 await page.waitForFunction(() => !!window.voice);
 
-/** Speak, then wait for the queue to drain. */
+/**
+ * Speak, then wait for the queue to actually drain.
+ *
+ * This used to sleep a flat 400ms, which was long enough only because clips
+ * ran into each other with no pause at all. There is a real beat between
+ * sentences now, so a fixed sleep would either read the spy mid-answer or have
+ * to be padded to whatever the beat happens to be — a test that has to be
+ * retuned every time the timing changes is a test that cannot check the
+ * timing. Polling the module's own `speaking` flag asks the right question.
+ */
 const say = (parts) => page.evaluate(async (p) => {
   window.resetSpy();
   window.voice.speak(p);
-  await new Promise((r) => setTimeout(r, 400));
+  const size = () => window.spy.played.length + window.spy.spoken.length;
+  const until = Date.now() + 5000;
+  let last = -1;
+  let stableSince = Date.now();
+  while (Date.now() < until) {
+    await new Promise((r) => setTimeout(r, 25));
+    const n = size();
+    if (n !== last) { last = n; stableSince = Date.now(); continue; }
+    // Quiet for longer than the beat between two sentences: she is finished.
+    if (Date.now() - stableSince > 400 && (last > 0 || Date.now() - stableSince > 1200)) break;
+  }
   return window.spy;
 }, parts);
 
@@ -73,6 +92,52 @@ console.log('\n── the fixtures are real audio, not empty files ──');
   ok('hello.mp3 decodes to real samples', meta.error === null, JSON.stringify(meta));
   ok('and it is several seconds of speech, not an empty file',
     meta.seconds > 1 && meta.seconds < 60, JSON.stringify(meta));
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n── the rest of the answer is fetched while the first clip plays ──');
+/**
+ * This runs first on purpose: it is the only assertion here that cares about
+ * network requests, and every section below leaves its clips in the browser
+ * cache, where a request event may never be emitted at all.
+ *
+ * The element used to fetch each clip at the moment it became due — the one
+ * moment the visitor can hear. Measured against a 350ms link, that put ~358ms
+ * of silence in front of every sentence after the first, 1.9 seconds of an
+ * answer spent waiting, all of it in the gaps. The fix is to ask for the rest
+ * up front; what proves it is that the later clips are requested while the
+ * first one is still playing, not after it ends.
+ */
+{
+  const three = [
+    { key: 'suggest-intro', text: 'أقترح عليك:' },
+    { key: 'place-kuwait-towers', text: 'أبراج الكويت…' },
+    { key: 'best-kuwait-towers', text: 'أحلى وقت…' },
+  ];
+  const before = requested.length;
+  const s = await page.evaluate(async (parts) => {
+    window.setAutoEnd(false); // hold on the first clip, as a long line would
+    window.resetSpy();
+    window.voice.speak(parts);
+    await new Promise((r) => setTimeout(r, 400));
+    const played = [...window.spy.played];
+    window.voice.stop();
+    window.setAutoEnd(true);
+    return { played };
+  }, three);
+
+  const asked = requested.slice(before);
+  ok('only the first clip has started playing', s.played.length === 1, JSON.stringify(s.played));
+  ok('but all three have already been asked for',
+    ['suggest-intro', 'place-kuwait-towers', 'best-kuwait-towers']
+      .every((k) => asked.includes(`/voice/shouq/${k}.mp3`)),
+    asked.join(' '));
+  // The first clip is deliberately NOT prefetched: the element is already
+  // loading it, and a second request races the element's own for a connection.
+  // Warming all five moved the delay to the worst possible place — measured,
+  // it pushed the first clip from 431ms to 771ms.
+  const firstTwice = asked.filter((u) => u === '/voice/shouq/suggest-intro.mp3').length;
+  ok('and the one already loading was not asked for twice', firstTwice === 1, `${firstTwice} requests`);
 }
 
 // ---------------------------------------------------------------------------
@@ -104,6 +169,56 @@ console.log('\n── a multi-part answer plays every clip, in order ──');
 }
 
 // ---------------------------------------------------------------------------
+console.log('\n── there is a beat between two sentences, not a splice ──');
+/**
+ * With the clips prefetched, back-to-back playback has no pause in it at all —
+ * measured at 8ms on a local connection, which is a splice rather than a
+ * speaker. The beat is now a decision (SENTENCE_GAP_MS) instead of whatever the
+ * network charged, which is the point: the same rhythm on wifi and on mobile.
+ */
+{
+  const s = await say([
+    { key: 'suggest-intro', text: 'أقترح عليك:' },
+    { key: 'place-kuwait-towers', text: 'أبراج الكويت…' },
+    { key: 'best-kuwait-towers', text: 'أحلى وقت…' },
+  ]);
+  ok('all three played', s.played.length === 3, JSON.stringify(s.played));
+  const gaps = s.playedAt.slice(1).map((t, i) => t - s.playedAt[i]);
+  // The harness ends a clip 5ms after it starts, so the interval between two
+  // starts is that plus the beat.
+  ok('every sentence is followed by a pause', gaps.every((g) => g >= 150), gaps.map(Math.round).join(', '));
+  ok('and it is a beat, not a wait', gaps.every((g) => g < 600), gaps.map(Math.round).join(', '));
+}
+
+console.log('\n── stopping during the pause stays stopped ──');
+// The beat is a timer, and a timer that was already scheduled will happily
+// fire into the next clip after stop() has cleared the queue.
+{
+  const s = await page.evaluate(async (parts) => {
+    window.resetSpy();
+    window.voice.speak(parts);
+    // Wait for the first clip to start, then land inside the pause after it.
+    const until = Date.now() + 2000;
+    while (Date.now() < until && window.spy.played.length === 0) {
+      await new Promise((r) => setTimeout(r, 5));
+    }
+    await new Promise((r) => setTimeout(r, 60));
+    const atStop = window.spy.played.length;
+    window.voice.stop();
+    await new Promise((r) => setTimeout(r, 500));
+    return { atStop, after: window.spy.played.length };
+  }, [
+    { key: 'suggest-intro', text: 'أ' },
+    { key: 'place-kuwait-towers', text: 'ب' },
+    { key: 'best-kuwait-towers', text: 'ج' },
+  ]);
+  // Stated as its own assertion: if the timing drifted and the stop landed
+  // during a clip instead, the one below would pass without testing anything.
+  ok('the stop really landed inside the pause', s.atStop === 1, `${s.atStop} clips in`);
+  ok('and the pause does not resume into the next clip', s.after === 1, `${s.atStop} → ${s.after}`);
+}
+
+// ---------------------------------------------------------------------------
 console.log('\n── one missing clip drops the WHOLE utterance to synthetic ──');
 // The rule that matters most out loud. Half a sentence in a recorded Kuwaiti
 // voice and half in the browser's robot is worse than all of it in the robot,
@@ -114,9 +229,13 @@ console.log('\n── one missing clip drops the WHOLE utterance to synthetic �
     { key: 'place-al-shaheed-park', text: 'حديقة الشهيد، في مدينة الكويت.' },
   ]);
   ok('no clip is played at all', s.played.length === 0, JSON.stringify(s.played));
-  ok('the whole thing is spoken instead', s.spoken.length === 1, JSON.stringify(s.spoken));
+  // One utterance per sentence, not one for the answer — see speakFallback.
+  ok('the whole thing is spoken instead', s.spoken.length === 2, JSON.stringify(s.spoken));
   ok('including the part that DID have a clip',
-    (s.spoken[0] ?? '').includes('أقترح عليك') && (s.spoken[0] ?? '').includes('حديقة الشهيد'),
+    s.spoken.join(' ').includes('أقترح عليك') && s.spoken.join(' ').includes('حديقة الشهيد'),
+    JSON.stringify(s.spoken));
+  ok('and in the order she says them',
+    (s.spoken[0] ?? '').includes('أقترح عليك') && (s.spoken[1] ?? '').includes('حديقة الشهيد'),
     JSON.stringify(s.spoken));
 }
 
@@ -143,7 +262,7 @@ console.log('\n── a keyless, NON-optional part still forces the fallback ─
     { text: 'أقرب شي لطلبك: مقاهي.' },
   ]);
   ok('nothing is played', s.played.length === 0, JSON.stringify(s.played));
-  ok('it is spoken whole', s.spoken.length === 1, JSON.stringify(s.spoken));
+  ok('it is spoken whole', s.spoken.length === 2, JSON.stringify(s.spoken));
 }
 
 // ---------------------------------------------------------------------------

@@ -5,6 +5,7 @@ import {
   buildClipLines,
   isSummerMonth,
   placeNameLine,
+  forSpeech,
   GENERIC_LINES,
 } from "@/lib/voice-lines";
 
@@ -142,6 +143,43 @@ console.log("\n── phrasing details ──");
     selfNamed ? !placeNameLine(selfNamed).includes(`${selfNamed.areaAr} في ${selfNamed.areaAr}`) : true);
   const other = places.find((p) => !p.nameAr.includes(p.areaAr));
   ok("other places still say where they are", placeNameLine(other).includes(`في ${other.areaAr}`));
+}
+
+console.log("\n── no single sentence is too long to be spoken in one breath ──");
+/**
+ * The browser's voice gets one utterance per part (see speakFallback), which
+ * is what keeps an answer under the ceiling Chrome puts on a single utterance —
+ * around fifteen seconds, after which it simply stops. Whole answers used to
+ * be handed over in one call: 170 characters on average across all 44 places
+ * and 227 at the longest, which at the pace the recorded clips are spoken
+ * (~7.5 characters a second) is 23 seconds, and the cut landed on «أحلى وقت»
+ * or the summer warning — the half that answers the question.
+ *
+ * Splitting only holds while the parts themselves stay sentence-sized. The
+ * longest today is 82 characters, about eleven seconds; a tagline or a
+ * description edited to twice that would put the ceiling back with nothing to
+ * notice it. 110 leaves real headroom and still fails long before the cut.
+ */
+{
+  const CEILING = 110;
+  const long = [];
+  for (const p of places) {
+    const other = places.find((x) => x.slug !== p.slug);
+    for (const month of [0, 6]) {
+      const parts = answerParts(
+        [{ doc: { id: p.slug, kind: "place", title: p.nameAr, subtitle: "" } },
+         { doc: { id: other.slug, kind: "place", title: other.nameAr, subtitle: "" } }],
+        [p, other],
+        { month }
+      );
+      for (const part of parts) {
+        const said = forSpeech(part.text);
+        if (said.length > CEILING) long.push(`${said.length} chars — ${said}`);
+      }
+    }
+  }
+  ok(`every spoken sentence is under ${CEILING} characters`, long.length === 0,
+    long.slice(0, 3).join("\n      "));
 }
 
 console.log("\n── she answers every suggestion chip on the search page ──");

@@ -49,6 +49,25 @@ const TTS_URL = process.env.NEXT_PUBLIC_WAIN_TTS_URL ?? "";
 const TTS_DEADLINE_MS = 4_000;
 
 /**
+ * The beat between one sentence and the next, on the recorded path.
+ *
+ * Clips are recorded a sentence at a time and were played back to back, so the
+ * pause a listener heard between them was not a decision — it was however long
+ * the browser took to fetch the next file. Measured across the five clips of a
+ * real answer: 8ms on a local connection, 358ms on a 350ms link. The same
+ * speaker, rushed on wifi and hesitant on mobile, and 1.9 seconds of the answer
+ * spent in dead air that all lands in the gaps where somebody is waiting.
+ *
+ * `prefetch` below takes the network out of it. This puts back a beat that is
+ * the same on every connection.
+ *
+ * 200ms is the short end of an ordinary sentence boundary. Short on purpose:
+ * each clip already carries a little silence of its own at both ends, and two
+ * pauses stacked read as a hesitation rather than a breath.
+ */
+const SENTENCE_GAP_MS = 200;
+
+/**
  * صوت وين — the playback engine.
  *
  * Two rendering paths, chosen per utterance:
@@ -157,6 +176,43 @@ let queue: string[] = [];
 // Guards against a stale async manifest resolution starting playback after
 // the user has already stopped or started a newer utterance.
 let generation = 0;
+/** The pause between two clips, held so stop() can cancel it. */
+let gapTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearGap() {
+  if (gapTimer !== null) {
+    clearTimeout(gapTimer);
+    gapTimer = null;
+  }
+}
+
+/**
+ * Pull the rest of the utterance into the HTTP cache while the first clip is
+ * still playing.
+ *
+ * The element fetched each clip at the moment it became due, which is the one
+ * moment the visitor can hear. `.mp3` is served with a week of cache (see
+ * public/.htaccess), so a plain fetch now means the element finds every later
+ * clip already in the cache: measured at 350ms latency, the four gaps after
+ * the first drop from ~358ms each to ~6ms, and the number of requests to the
+ * server does not change.
+ *
+ * Not the first clip. The element is already loading that one, and a second
+ * request for the same file races it for a connection — warming all five
+ * pushed the FIRST clip from 431ms to 771ms while fixing the other four,
+ * which moves the delay to the worst possible place: before she has said
+ * anything at all.
+ *
+ * Failures are ignored on purpose. A prefetch that does not arrive costs
+ * nothing; the element fetches it the old way when its turn comes.
+ */
+function prefetch(srcs: string[]) {
+  for (const src of srcs.slice(1)) {
+    void fetch(src).catch(() => {
+      /* the element will fetch it when it is due */
+    });
+  }
+}
 
 function playNext() {
   const src = queue.shift();
@@ -226,9 +282,25 @@ function ensureAudio(): HTMLAudioElement {
   if (!audio) {
     audio = new Audio();
     audio.preload = "auto";
-    audio.onended = playNext;
+    audio.onended = () => {
+      // Last sentence — end the utterance now rather than after a pause
+      // nobody is waiting through.
+      if (queue.length === 0) {
+        update({ speaking: false });
+        return;
+      }
+      // The beat. Pinned to this generation so a stop() during the pause
+      // cannot be resumed out of by a timer that was already scheduled.
+      const mine = generation;
+      clearGap();
+      gapTimer = setTimeout(() => {
+        gapTimer = null;
+        if (mine === generation) playNext();
+      }, SENTENCE_GAP_MS);
+    };
     audio.onerror = () => {
       queue = [];
+      clearGap();
       update({ speaking: false });
     };
   }
@@ -243,30 +315,71 @@ function pickArabicVoice(): SpeechSynthesisVoice | undefined {
   );
 }
 
-function speakFallback(text: string) {
+/**
+ * The browser's own voice — one utterance per sentence, not one per answer.
+ *
+ * No clips ship yet (public/voice/manifest.json is empty until someone runs
+ * the generator), so this is the path every visitor actually hears, and it was
+ * handed the entire answer as a single string. Measured across all 44 places
+ * in both seasons: 170 characters on average and 227 at the longest, which at
+ * the pace the recorded clips are spoken — 7.5 characters a second, measured
+ * off the fixtures — is 23 seconds of speech in one utterance and 30 at the
+ * worst. Chrome stops a single utterance at around fifteen. The cut lands in
+ * «أحلى وقت» or the summer warning: the half that answers the question.
+ *
+ * Splitting is the recommended fix for that ceiling, and it is the right shape
+ * regardless of it. The parts already are sentences — that is what a
+ * SpeechPart is — so each becomes its own utterance and the engine puts its
+ * own boundary between them, which is the same beat SENTENCE_GAP_MS gives the
+ * recorded path.
+ *
+ * They are queued all at once rather than chained on `onend`. The engine keeps
+ * the order, and a chain would put the rest of the answer behind an event that
+ * some engines do not fire reliably — a stalled chain is silence in the middle
+ * of a sentence, which is worse than the ceiling this exists to avoid.
+ */
+function speakFallback(parts: SpeechPart[], mine: number) {
   const synth = window.speechSynthesis;
   if (!synth) return;
-  const utterance = new SpeechSynthesisUtterance(forSpeech(text));
-  utterance.lang = "ar-KW";
-  // Guarded because the failure mode is total silence, not merely the wrong
-  // accent: this assignment throws if the engine rejects the voice object —
-  // a stale entry from a getVoices() list the browser has since replaced is
-  // the realistic way that happens — and an exception here means she says
-  // nothing at all. Better her default voice than no voice.
+  const lines = parts.map((p) => forSpeech(p.text)).filter((t) => t.length > 0);
+  if (lines.length === 0) return;
+
+  // Picked once for the whole answer. Guarded because the failure mode is
+  // total silence, not merely the wrong accent: this assignment throws if the
+  // engine rejects the voice object — a stale entry from a getVoices() list
+  // the browser has since replaced is the realistic way that happens — and an
+  // exception here means she says nothing at all. Better her default voice
+  // than no voice.
+  let voice: SpeechSynthesisVoice | undefined;
   try {
-    const voice = pickArabicVoice();
-    if (voice) utterance.voice = voice;
+    voice = pickArabicVoice();
   } catch {
     /* the engine keeps its default */
   }
-  // 1.02 rather than the 1.0 default: the browser voices read Arabic a shade
-  // slower than a Kuwaiti speaker does. Small on purpose — past about 1.1 the
-  // connecting strokes slur and the dialect words are the first to go.
-  utterance.rate = 1.02;
-  utterance.onend = () => update({ speaking: false });
-  utterance.onerror = () => update({ speaking: false });
+
   update({ speaking: true });
-  synth.speak(utterance);
+  // Only the last sentence ending means she has finished. Both handlers are
+  // pinned to this generation because cancel() fires `error` on every pending
+  // utterance, and a newer answer is already speaking by then.
+  const done = () => {
+    if (mine === generation) update({ speaking: false });
+  };
+  lines.forEach((line, i) => {
+    const utterance = new SpeechSynthesisUtterance(line);
+    utterance.lang = "ar-KW";
+    try {
+      if (voice) utterance.voice = voice;
+    } catch {
+      /* the engine keeps its default */
+    }
+    // 1.02 rather than the 1.0 default: the browser voices read Arabic a shade
+    // slower than a Kuwaiti speaker does. Small on purpose — past about 1.1 the
+    // connecting strokes slur and the dialect words are the first to go.
+    utterance.rate = 1.02;
+    if (i === lines.length - 1) utterance.onend = done;
+    utterance.onerror = done;
+    synth.speak(utterance);
+  });
 }
 
 /** The object URL of the last live render, so it can be revoked. One at a
@@ -326,16 +439,21 @@ export function speak(parts: SpeechPart[]) {
     if (clips) {
       update({ speaking: true });
       queue = clips;
+      // Before the first play, not after: the whole point is that the later
+      // clips are already in the cache by the time the first one ends.
+      prefetch(clips);
       ensureAudio();
       playNext();
       return;
     }
     // No clip for this sentence — it was assembled at runtime. Her real voice
-    // if the bridge can produce it, the browser's if it cannot.
+    // if the bridge can produce it, the browser's if it cannot. The bridge
+    // gets the whole answer in one render, punctuation and all, so it paces
+    // itself; the browser gets it a sentence at a time.
     const text = parts.map((p) => p.text).join(" ");
     void speakLive(text, mine).then((spoke) => {
       if (mine !== generation || spoke) return;
-      speakFallback(text);
+      speakFallback(parts, mine);
     });
   });
 }
@@ -344,6 +462,9 @@ export function stop() {
   if (typeof window === "undefined") return;
   generation++;
   queue = [];
+  // A pause between two sentences is still an utterance in progress: without
+  // this, stopping during the beat let the next clip start 200ms later.
+  clearGap();
   if (audio && !audio.paused) audio.pause();
   // A blob URL is a document-lifetime reference to the whole MP3 in memory.
   // Nothing else drops it, and «اسمع الاقتراح» on a place page is a button

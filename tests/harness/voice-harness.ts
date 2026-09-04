@@ -20,6 +20,10 @@ interface Spy {
    *  Without this there was no way to tell a recorded answer from a synthetic
    *  one, or to see that the queue advanced past its first clip. */
   played: string[];
+  /** When each of those started, so the gap between two sentences can be
+   *  measured rather than assumed. The beat used to be whatever the network
+   *  charged for the next file; nothing could see that from the order alone. */
+  playedAt: number[];
   spoken: string[];
   cancelCalls: number;
   voicesAsked: number;
@@ -43,13 +47,13 @@ declare global {
 }
 
 const spy: Spy = {
-  playCalls: 0, playedMuted: [], pauseCalls: 0, played: [],
+  playCalls: 0, playedMuted: [], pauseCalls: 0, played: [], playedAt: [],
   spoken: [], cancelCalls: 0, voicesAsked: 0, lastLang: "", lastVoice: "",
 };
 window.spy = spy;
 window.resetSpy = () => {
-  spy.playCalls = 0; spy.playedMuted = []; spy.pauseCalls = 0; spy.played = [];
-  spy.spoken = []; spy.cancelCalls = 0; spy.voicesAsked = 0;
+  spy.playCalls = 0; spy.playedMuted = []; spy.pauseCalls = 0;
+  spy.played = []; spy.playedAt = []; spy.spoken = []; spy.cancelCalls = 0; spy.voicesAsked = 0;
   spy.lastLang = ""; spy.lastVoice = "";
 };
 
@@ -66,7 +70,10 @@ HTMLMediaElement.prototype.play = function play(this: HTMLMediaElement) {
   spy.playedMuted.push(this.muted);
   (this as unknown as Record<symbol, unknown>)[PAUSED] = false;
   const src = this.getAttribute("src") ?? this.src ?? "";
-  if (src) spy.played.push(new URL(src, location.href).pathname);
+  if (src) {
+    spy.played.push(new URL(src, location.href).pathname);
+    spy.playedAt.push(performance.now());
+  }
   // A clip that never reports itself finished would leave the queue stuck on
   // its first entry, and "she played one clip" would look identical to "she
   // played all of them". Ending it is what makes playNext's chaining visible.
