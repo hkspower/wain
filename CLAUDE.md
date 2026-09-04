@@ -118,10 +118,45 @@ happily. A check that cannot fail is not a check.
 
 **Delete every job when it has run.** They fire every minute forever otherwise.
 
-**So this channel cannot publish a website.** It is enough for a one-line
-`.htaccess`, a `cp`, a `grep` against a live file — reconnaissance and repair.
-Everything else goes in a PHP installer the owner uploads. Reaching for cron to
-move 58 KB of CSS cost most of a session and never worked.
+**Cron cannot CARRY a website — but it can fetch one.** Sending bytes through
+the command is what fails; about 64 characters is the ceiling and 60-character
+base64 chunks measured as zero-byte files. Nothing above changes.
+
+What changes it is that **the server has working outbound internet.** Only its
+OWN domain fails to resolve — `wget https://example.com` from cron returned 559
+bytes on 2026-09-04. So the file does not have to travel through the command at
+all: push it to the repository and have the server pull it.
+
+```
+wget -qO /home/u130124229/n.css https://raw.githubusercontent.com/hkspower/wain/<commit-sha>/sporta-site/public_html/assets/sporta-ui.css
+cp /home/u130124229/n.css /home/u130124229/domains/sporta.com.kw/public_html/assets/sporta-ui.css
+sha256sum /home/u130124229/domains/sporta.com.kw/public_html/assets/sporta-ui.css
+```
+
+66 KB of CSS published this way in three one-line jobs, verified by comparing
+the sha256 against the repository, with nothing for the owner to upload.
+
+Four things this depends on, each of which cost a wrong answer first:
+
+- **By COMMIT SHA, never by branch.** The working branch is
+  `claude/sporta-site-2026-09-02` and the slash in it makes
+  `raw.githubusercontent.com/<owner>/<repo>/<ref>/<path>` ambiguous — GitHub
+  reads `claude` as the ref. The fetch returned an EMPTY file and said nothing.
+- **One short command per job.** A 245-character command was accepted by the
+  API and then produced no output at all — not an error, silence. The same work
+  split into a 155-character fetch and a separate `echo` worked first time.
+- **Verify by sha256 against the repo**, not by size, and read it back from the
+  ABSOLUTE path — the rule further up this section applies here too.
+- **The repository is PUBLIC.** That is what makes this work: the server
+  fetches without a credential, so no token is ever written into a cron command
+  where it would sit in the panel in plain text. It is also the reason the
+  git-ignore list at the top of this file is not paperwork. Anything committed
+  is world-readable, and a script fetched this way is fetched over a path
+  anyone can see — so it must stay READ-ONLY, as `scripts/live-scan.php` says
+  of itself in its own header.
+
+A PHP installer the owner uploads is still the right shape when the owner
+wants to run it themselves, or when the repository cannot carry the file.
 
 ## Hand over a PHP installer, never an archive
 
@@ -197,3 +232,64 @@ scrolls sideways).
 When a design decision is genuinely needed and no reference exists, ask, and say
 what the options are. A screenshot from the owner **is** the approval: match it,
 including the parts that would not have been the first choice.
+
+## The live database is not the sandbox
+
+Two figures, measured on the server on 2026-09-04 by `scripts/live-scan.php`:
+
+```
+db=46 active products / 0 orders / 42 variant rows     qa=MISSING
+```
+
+**Zero orders.** `npm run test:db` reports 608 orders and 336 variants, and
+every one of those is SEED DATA in the local sandbox. They were quoted in this
+session as though they were the live shop's — "608 real orders" appears in a
+commit message and in a warning to the owner, and it was wrong. A number read
+from the sandbox says nothing about production; ask the server.
+
+Two things follow from the real figures, and the second is the shop's problem
+rather than the code's:
+
+- **`assistant_qa` is not there**, so the سبورتا AI cannot answer a taught
+  question. It fails closed and silently — by design, the lookup is wrapped in
+  try/catch — so nothing anywhere reports it. One `CREATE TABLE IF NOT EXISTS`
+  (`api/assistantqa.mysql.sql`) is the whole fix.
+- **42 variant rows against 46 active products.** A garment with no rows in
+  `product_variants` shows no size to pick and cannot be ordered, so most of
+  the catalogue is unbuyable. That is stock data the owner types in
+  /backends — not something to invent here.
+
+### IMPORT-THIS-ONE.sql overwrote live prices, and said it did not
+
+Its header promises it "does NOT delete or overwrite existing orders, prices or
+stock counts", and it is the file the owner is told to import. The products
+seed carried `on duplicate key update ... price = values(price), name_en = ...`
+— measured, a product hand-priced at 99.500 came back as the seed's 10.000
+after one import, with its name and description reverted too. Stock survived
+only because the variants clause had already been taught this and says so in a
+comment.
+
+Fixed on 2026-09-04: both seeds now use the no-op idiom `1-schema` and
+`4-promo` already used, `on duplicate key update slug = slug`. **Any copy of
+that file made before then still carries the bug** — rebuild it with
+`npm run make:install` rather than reusing one.
+
+The general rule: in a file whose whole promise is "safe to re-run", an
+`on duplicate key update` that names a column the owner can edit in /backends
+is a bug, however convenient it is for seeding.
+
+## Test the sandbox is alive before believing it
+
+`test:buttons` reported "0 controls found, 0 pressed, across 22 pages" and
+`site-scan` once reported 0 of 73 selectors firing. Neither was a result: the
+sandbox had died and every page failed to load. A suite that finds NOTHING is
+reporting its own environment, not the code. `bash scripts/sandbox.sh` and run
+it again before reading anything into it.
+
+The opposite shape is worth the same suspicion. `test:knet` failed five checks
+about which gateway takes a customer's card — deterministically, but only when
+`test:payments` had run first, and never alone. The shop was correct; opcache's
+2-second revalidation window was serving a stale `knet/config.php` to a rig that
+rewrites it and requests it in the same breath. `sandbox.sh` now pins
+`opcache.revalidate_freq=0`. A failure that appears only in a particular ORDER
+is about state, not about the code under test.
