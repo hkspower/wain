@@ -64,6 +64,9 @@ const STYLE_CATS: Array<{ cat: string; label: string }> = [
   { cat: "carbon", label: "CARBON · الكاربون" },
   { cat: "cover", label: "ENGINE COVER · غطاء المكينة" },
   { cat: "lamps", label: "HEADLIGHTS · الشمعات" },
+  // The lens and the source are two different purchases: a smoked lens
+  // dims whatever is behind it.
+  { cat: "bulbs", label: "BULBS · اللمبات" },
   { cat: "glow", label: "UNDERGLOW · الليتات" },
   // Sidewall lettering sits under STYLE rather than under TIRES: the
   // compound is a performance part, and this is what the tyre says on

@@ -18,6 +18,7 @@ import { ParticleSystem, radialSprite } from "./vfx";
 import { solveTwoBone, aimConstrained } from "./ik";
 import { solveSuspension } from "./suspension";
 import { newWeatherState, solveWeather, type WeatherState, type WeatherResult } from "./weather";
+import { BULBS, bulbColor } from "./bulbs";
 import { nightEnvironment } from "./env";
 import { RIG } from "./rig";
 import { paceDelta, newPaceState, refreshFromIntervals, type PaceState } from "./pacing";
@@ -901,6 +902,10 @@ export class GameEngine {
     spot: number; off: number; angle: number; reach: number;
     emissive: number; glow: number[];
   } = { spot: 90, off: 54, angle: 0.32, reach: 95, emissive: 0, glow: [] };
+  // These are the HALOGEN values. applyBulb() rewrites them from BULBS
+  // whenever the garage changes, because every flash and every dip is
+  // measured from here — a lamp that dips back to a beam the car no
+  // longer has is the bug this field exists to prevent.
   /** The night-time values the daylight response scales down from. */
   private beamBaseOpacityNight = 0.05;
   private headlightBase = 1;
@@ -1622,8 +1627,21 @@ export class GameEngine {
     // much cone spreads the same light over twice the road and gives a
     // pool with no edge to it. A dipped beam is a wide, shallow, sharply
     // cut thing; 0.32 with a soft penumbra is much closer.
-    this.headlight = new THREE.SpotLight(0xfff2cc, 90, 95, 0.32, 0.55, 1.4);
-    this.headlightBase = 90;
+    // The bulb decides colour, brightness and throw. Halogen's numbers
+    // are the ones that were here as literals — bulbColor("halogen") is
+    // 0xfff2cc bit for bit and its multipliers are all 1 — so a car that
+    // has bought nothing lights the road exactly as it always did, and
+    // the night grade this picture was measured against is untouched.
+    const bulb = BULBS[this.tune.bulb];
+    this.headlight = new THREE.SpotLight(
+      bulbColor(this.tune.bulb),
+      90 * bulb.intensity,
+      95 * bulb.reach,
+      0.32 * bulb.angle,
+      0.55,
+      1.4
+    );
+    this.headlightBase = 90 * bulb.intensity;
     // Aimed slightly DOWN — a real dipped beam meets the road, it does
     // not shine at the horizon. Source height and this target height
     // together set the cutoff distance; fitLampsToCar() puts the source
@@ -1658,7 +1676,14 @@ export class GameEngine {
     this.cubeCam = new THREE.CubeCamera(0.5, 420, this.cubeRT);
     this.scene.add(this.cubeCam);
     this.applyLiveReflections();
-    this.headlightR = new THREE.SpotLight(0xfff2cc, 54, 95, 0.34, 0.6, 1.4);
+    this.headlightR = new THREE.SpotLight(
+      bulbColor(this.tune.bulb),
+      54 * bulb.intensity,
+      95 * bulb.reach,
+      0.34 * bulb.angle,
+      0.6,
+      1.4
+    );
     this.headlightR.target.position.set(0, -0.55, 42);
     this.lampRig.add(
       this.headlight,
@@ -3411,6 +3436,38 @@ export class GameEngine {
     } catch {}
   }
 
+  /**
+   * Re-light the car for whatever bulb is fitted.
+   *
+   * The SpotLights are built once in the constructor and live for the
+   * session, so buying a bulb has to reach them here — the alternative,
+   * a comment promising that applyGarage rebuilds the lamps, was written
+   * first and was not true.
+   *
+   * lampRest is rewritten with them: every flash and every dip is
+   * measured from those numbers, so leaving them at the halogen values
+   * would have the car dip back to a beam it no longer has.
+   */
+  private applyBulb(): void {
+    const bulb = BULBS[this.tune.bulb];
+    const color = bulbColor(this.tune.bulb);
+    this.headlightBase = 90 * bulb.intensity;
+    this.lampRest.spot = this.headlightBase;
+    this.lampRest.off = 54 * bulb.intensity;
+    this.lampRest.angle = 0.32 * bulb.angle;
+    this.lampRest.reach = 95 * bulb.reach;
+    for (const [lamp, base, angle] of [
+      [this.headlight, 90, 0.32],
+      [this.headlightR, 54, 0.34],
+    ] as const) {
+      if (!lamp) continue;
+      lamp.color.setHex(color);
+      lamp.intensity = base * bulb.intensity;
+      lamp.distance = 95 * bulb.reach;
+      lamp.angle = angle * bulb.angle;
+    }
+  }
+
   private applyGarage(): void {
     // Bank what the car being put away has left, before the new one's
     // tank is read. `this.tune` is still the old machine at this point,
@@ -3423,6 +3480,7 @@ export class GameEngine {
     // the pickup from inheriting the hatchback's range.
     this.fuel = fuelOf(g);
     this.outOfFuel = this.fuel <= 0;
+    this.applyBulb();
     const contact = this.carBody.userData.contact as THREE.Object3D | undefined;
     if (contact) this.playerMesh.remove(contact);
     this.playerMesh.remove(this.carBody);

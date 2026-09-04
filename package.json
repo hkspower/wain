@@ -49,6 +49,7 @@
     "test:assets": "node tests/assets.mjs",
     "test:audio": "node tests/audio.mjs",
     "test:audio-quality": "node tests/audio-quality.mjs",
+    "test:bulbs": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/bulbs.mjs",
     "test:body": "node tests/body.mjs",
     "test:bridges": "node tests/bridges.mjs",
     "test:buildings": "node tests/buildings.mjs",

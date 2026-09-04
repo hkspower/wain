@@ -14,6 +14,7 @@ import { loadCrew, type Crew } from "./teams";
 import type { Drivetrain } from "./grip";
 import { HANDLING } from "./handling";
 import type { TyreSticker } from "./cars";
+import type { Bulb } from "./bulbs";
 import { writeJSON } from "./storage";
 import {
   PAINTS, PAINT_HEX, GLOW_HEX, COVER_HEX, CARBON_KG, NOMINAL_CAR_KG,
@@ -34,6 +35,7 @@ export type ExclusiveCat =
   | "glow"
   | "cover"
   | "sidewall"
+  | "bulbs"
   | "carbon";
 export type Category = ExclusiveCat | "internals" | "chassis" | "extras";
 
@@ -56,6 +58,10 @@ export const EXCLUSIVE_CATS: ReadonlySet<string> = new Set([
   // on the side of it, and a player who bought slicks should not have to
   // give them up to keep their stickers.
   "sidewall",
+  // What is behind the lens, as opposed to what the lens is doing. A
+  // smoked lens dims whatever bulb is fitted; taking a lamp out removes
+  // one of them. Those are the "lamps" slot. This is the source.
+  "bulbs",
   "carbon",
 ]);
 
@@ -137,6 +143,14 @@ export const PARTS: Part[] = [
   // neither — you cannot smoke a headlight you have taken out.
   { id: "lamps-smoked", cat: "lamps", name: "Smoked Headlights", ar: "شمعات مدخنة", price: 550, desc: "Tinted lenses. Two dark slots by day, a dull amber at night — and the beam dims with them" },
   { id: "lamps-single", cat: "lamps", name: "One-Eye Delete", ar: "شمعة وحدة", price: 700, desc: "One headlight out, mesh screen over the hole. The car really does run on one beam" },
+  // What is behind the lens. NOT cosmetic: the game runs from midnight to
+  // ten to six and on most of the lap the only light is the one the car
+  // is carrying, so how far the beam throws is how far ahead you can read
+  // the road. Reach is quoted against halogen, and the ratios come from
+  // what these things actually do — see bulbs.ts.
+  { id: "bulb-halogen", cat: "bulbs", name: "Halogen Bulbs", ar: "شمعات هالوجين", price: 90, desc: "The filament the car left the showroom with. Warm, and warm is the light that cuts through dust and rain — the cheapest way back if the white beams are not for you" },
+  { id: "bulb-led", cat: "bulbs", name: "LED Conversion", ar: "تحويل إل إي دي", price: 850, desc: "Cool white at 5800K, half again the light and 45% more reach. You see the corner earlier" },
+  { id: "bulb-laser", cat: "bulbs", name: "Laser High Beam", ar: "إضاءة ليزر", price: 2400, desc: "6500K, nearly twice the throw of halogen — and a tighter cone, because a beam that went further AND wider would be free light" },
   // Paint — exclusive, equip freely once owned
   { id: "paint-white", cat: "paint", name: "Factory Finish", ar: "لون الوكالة", price: 0, desc: "The colour it left the showroom in" },
   { id: "paint-black", cat: "paint", name: "Midnight Black", ar: "أسود", price: 150, desc: "" },
@@ -1368,6 +1382,9 @@ export interface TuneEffects {
   goldRims: boolean;
   /** Sidewall lettering, or undefined for a bare tyre. Cosmetic. */
   tyreSticker?: TyreSticker;
+  /** What is behind the headlamp lens. Halogen unless bought otherwise —
+   *  and NOT cosmetic: it decides how far ahead the driver can see. */
+  bulb: Bulb;
   /** What has been done to the headlamps — see cars.ts CarColors. */
   headlamps: "stock" | "smoked" | "single";
   /** Window tint, 0-100 per cent. */
@@ -1575,6 +1592,7 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     hasNos: has("nos"),
     spoiler: has("spoiler"),
     goldRims: has("gold-rims"),
+    bulb: eq.bulbs === "bulb-led" ? "led" : eq.bulbs === "bulb-laser" ? "laser" : "halogen",
     tyreSticker:
       eq.sidewall === "sidewall-rwl"
         ? "rwl"
