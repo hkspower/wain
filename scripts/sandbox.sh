@@ -129,8 +129,35 @@ fi
 cd "$ROOT/sporta-site/public_html"
 # dev-router.php mirrors the one .htaccess rewrite the scans exercise — see
 # its header. Everything else falls through to the built-in server untouched.
+# opcache.revalidate_freq=0 IS NOT A TUNING KNOB HERE — it is the difference
+# between a payments rig that means something and one that lies.
+#
+# The default is 2 seconds: a file already compiled into opcache is re-stat'ed
+# at most that often, so a rewrite followed by a request inside that window is
+# answered from the STALE copy. knet-test.mjs rewrites knet/config.php and hits
+# /knet/pay.php in the same breath — microseconds — to check that blanking the
+# Tranportal block moves the shop to the official CBK integration.
+#
+# It did not move. Five checks failed, deterministically, but ONLY when
+# test:payments had run first: that rig drives enough traffic to compile the
+# config into opcache with the Tranportal values still in it, and knet-test's
+# rewrite then landed inside the revalidation window. Run alone the rig passed,
+# which is the worst shape a failure can have — it looks like flakiness and gets
+# re-run rather than read. Proved by restarting ONLY the php server between the
+# two rigs: same files, same database, all ok.
+#
+# What that cost: five FAILs against the code that decides which gateway takes
+# a customer's card, none of them real. The shop was correct the whole time —
+# verified directly, 302 to Tranportal when configured and 303 to the official
+# page when blanked.
+#
+# 0 keeps opcache ON (production runs it, so the sandbox should) and only makes
+# it check the timestamp on every request. Not validate_timestamps=0, which
+# would freeze the opposite way, and not disabling opcache, which would stop the
+# sandbox resembling the server it stands in for.
 up php 'http://127.0.0.1:4300/api/api.php?r=products' 200 \
   php -d error_reporting=E_ALL -d log_errors=1 -d error_log=/tmp/php-strict.log \
+      -d opcache.revalidate_freq=0 -d opcache.validate_timestamps=1 \
       -S 127.0.0.1:4300 -t . "$ROOT/scripts/dev-router.php"
 # THE SCHEMA, BEFORE ANYTHING READS IT.
 #
