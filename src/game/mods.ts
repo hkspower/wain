@@ -15,6 +15,7 @@ import type { Drivetrain } from "./grip";
 import { HANDLING } from "./handling";
 import type { TyreSticker } from "./cars";
 import type { Bulb } from "./bulbs";
+import type { TintFilm } from "./tint";
 import { writeJSON } from "./storage";
 import {
   PAINTS, PAINT_HEX, GLOW_HEX, COVER_HEX, CARBON_KG, NOMINAL_CAR_KG,
@@ -36,6 +37,7 @@ export type ExclusiveCat =
   | "cover"
   | "sidewall"
   | "bulbs"
+  | "film"
   | "carbon";
 export type Category = ExclusiveCat | "internals" | "chassis" | "extras";
 
@@ -62,6 +64,10 @@ export const EXCLUSIVE_CATS: ReadonlySet<string> = new Set([
   // smoked lens dims whatever bulb is fitted; taking a lamp out removes
   // one of them. Those are the "lamps" slot. This is the source.
   "bulbs",
+  // The film on the windows. One roll goes on a car; how dark it is cut
+  // stays the free slider it has always been, because darkness is a
+  // continuum and the product is not.
+  "film",
   "carbon",
 ]);
 
@@ -148,6 +154,14 @@ export const PARTS: Part[] = [
   // is carrying, so how far the beam throws is how far ahead you can read
   // the road. Reach is quoted against halogen, and the ratios come from
   // what these things actually do — see bulbs.ts.
+  // Window film. The price is the roll, not the darkness: every one of
+  // these is sold down to limo black, and what separates them is the
+  // colour it goes, how much it mirrors and how clear it stays. None of
+  // them changes how the car drives.
+  { id: "film-dyed", cat: "film", name: "Dyed Film", ar: "فيلم ملوّن", price: 180, desc: "The cheap roll. Dye in the adhesive: flat, a touch warm, and never quite neutral — this is the film that goes purple in a Kuwaiti summer. Cosmetic" },
+  { id: "film-carbon", cat: "film", name: "Carbon Film", ar: "فيلم كاربون", price: 520, desc: "Carbon instead of dye. A deep flat charcoal that stays charcoal, and no metal in it. Cosmetic" },
+  { id: "film-ceramic", cat: "film", name: "Ceramic Film", ar: "فيلم سيراميك", price: 1400, desc: "Nano-ceramic: the clearest of the three. The glass still reads as glass, so it keeps the corniche lights in it instead of going matte. Cosmetic" },
+
   { id: "bulb-halogen", cat: "bulbs", name: "Halogen Bulbs", ar: "شمعات هالوجين", price: 90, desc: "The filament the car left the showroom with. Warm, and warm is the light that cuts through dust and rain — the cheapest way back if the white beams are not for you" },
   { id: "bulb-led", cat: "bulbs", name: "LED Conversion", ar: "تحويل إل إي دي", price: 850, desc: "Cool white at 5800K, half again the light and 45% more reach. You see the corner earlier" },
   { id: "bulb-laser", cat: "bulbs", name: "Laser High Beam", ar: "إضاءة ليزر", price: 2400, desc: "6500K, nearly twice the throw of halogen — and a tighter cone, because a beam that went further AND wider would be free light" },
@@ -1088,6 +1102,13 @@ export interface CarBuild {
   tint?: number;
 }
 
+/** Which film each shop part puts on the glass. */
+export const FILM_OF_PART: Record<string, TintFilm | undefined> = {
+  "film-dyed": "dyed",
+  "film-carbon": "carbon",
+  "film-ceramic": "ceramic",
+};
+
 /** Factory glass, for a build that has never been to the tint shop. */
 export const DEFAULT_TINT = 0;
 
@@ -1224,6 +1245,17 @@ export function loadGarage(): GarageState {
           if (!b.owned.includes("intake-basic")) b.owned.push("intake-basic");
           if (!b.equipped.intake) {
             b.equipped.intake = b.owned.includes("intake") ? "intake" : "intake-basic";
+          }
+          // And once more for the windows. Tint was a free slider before
+          // the shop sold film, so a save can be carrying 70% tint and
+          // own no roll to have got it from — and reading that save now
+          // would put the car back on factory glass and quietly undo a
+          // choice the player made. They keep it, on the cheap film,
+          // free: nobody pays twice for something they already had, and
+          // dyed is the roll a free tint job was.
+          if (clampTint(b.tint) > 0 && !b.equipped.film) {
+            if (!b.owned.includes("film-dyed")) b.owned.push("film-dyed");
+            b.equipped.film = "film-dyed";
           }
         }
         return g;
@@ -1389,6 +1421,10 @@ export interface TuneEffects {
   headlamps: "stock" | "smoked" | "single";
   /** Window tint, 0-100 per cent. */
   tint: number;
+  /** Which film is on the glass, or undefined for bare factory glass.
+   *  The darkness above is free; this is the part that was paid for,
+   *  and without it the slider does nothing. */
+  tintFilm?: TintFilm;
   /** Factory second colour and which stripes it draws, or undefined. */
   accent?: number;
   stripes?: "single" | "twin";
@@ -1602,7 +1638,11 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
             ? "moulded"
             : undefined,
     headlamps: eq.lamps === "lamps-smoked" ? "smoked" : eq.lamps === "lamps-single" ? "single" : "stock",
-    tint: clampTint(build.tint),
+    // The film gates the darkness. A slider with nothing bought behind
+    // it leaves the car on factory glass — which is also what makes the
+    // shop entry mean anything.
+    tint: FILM_OF_PART[eq.film ?? ""] ? clampTint(build.tint) : 0,
+    tintFilm: FILM_OF_PART[eq.film ?? ""],
     accent: car.accent,
     stripes: car.stripes,
     // A bought finish beats the factory one; otherwise the car wears

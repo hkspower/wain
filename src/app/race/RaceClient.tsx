@@ -1803,6 +1803,7 @@ function raceCut(): { w: number; h: number } | null {
             kit: tune.kit,
             headlamps: tune.headlamps,
             tint: tune.tint,
+            tintFilm: tune.tintFilm,
             finish: tune.finish,
             stickers: tune.stickers,
             lengthM: tune.lengthM,

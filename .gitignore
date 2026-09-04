@@ -115,6 +115,11 @@ press/audio/capture/
 press/shots/site-en.png
 press/shots/site-ar.png
 
+# Frames from tools/shots/tint.mjs. Fifteen 540 KB captures of the same
+# car at different darknesses, regenerated every time the tool runs; the
+# TABLE it prints is the artefact, not the pictures it measured.
+/press/tint/
+
 # Dev server output, when it is redirected into the repo for tailing.
 dev.log
 *.log

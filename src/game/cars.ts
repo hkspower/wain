@@ -9,6 +9,7 @@ import { RIG } from "./rig";
 import { solveDriverRig } from "./driver";
 import { pointGlowTexture, poolGlowTexture } from "./glow";
 import { drawTeamLogo, type TeamLogo } from "./teams";
+import { glassLook, type TintFilm } from "./tint";
 
 // Procedural sedans with a real silhouette: the body and glasshouse are
 // bevel-extruded side profiles (smoothed normals), riding on spoked
@@ -54,6 +55,10 @@ export interface CarColors {
   headlamps?: "stock" | "smoked" | "single";
   /** Window tint, 0-100 per cent. Absent is factory glass. */
   tint?: number;
+  /** Which film that tint is. Absent is bare glass — the darkness above
+   *  is a free slider and the film is the part that was bought, so
+   *  without one the car wears factory glass whatever the slider says. */
+  tintFilm?: TintFilm;
   /** Lacquer finish: gloss, satin or matte. Absent is gloss. */
   finish?: PaintFinish;
   /**
@@ -2241,16 +2246,19 @@ const glassMat = new THREE.MeshPhysicalMaterial({ name: "glass",
  * the street instead of the cabin — that is most of why they look the
  * way they do from outside.
  */
-function tintedGlass(tintPct: number): THREE.MeshPhysicalMaterial {
-  const t = Math.max(0, Math.min(100, tintPct)) / 100;
+function tintedGlass(tintPct: number, film: TintFilm | undefined): THREE.MeshPhysicalMaterial {
+  // The arithmetic lives in src/game/tint.ts and this applies it. The
+  // numbers used to be typed here — one charcoal, one reflectivity, one
+  // roughness — which was fine while there was one film and no way to
+  // check any of it without a renderer. There are three now, they are
+  // sold at three prices, and a test has to be able to hold the shop to
+  // what it is claiming about them.
+  const look = glassLook(film, tintPct);
   const m = glassMat.clone();
-  // 0.62 factory to 0.96 at full: never quite 1, because a window that
-  // is completely opaque stops being glass and becomes a painted panel.
-  m.opacity = 0.62 + t * 0.34;
-  // Toward a neutral charcoal as the film goes on.
-  m.color = new THREE.Color(0x121722).lerp(new THREE.Color(0x0b0b0c), t);
-  m.envMapIntensity = 1.35 + t * 0.5;
-  m.roughness = 0.05 + t * 0.02;
+  m.opacity = look.opacity;
+  m.color = new THREE.Color(look.color);
+  m.envMapIntensity = look.envMapIntensity;
+  m.roughness = look.roughness;
   return m;
 }
 
@@ -3527,7 +3535,10 @@ export function createCar(colors: CarColors): THREE.Group {
   // tinted window belongs to ONE car, and cloning the shared one would
   // tint every pane on the road.
   const tintPct = colors.tint ?? 0;
-  const glassLocal = tintPct > 0 ? tintedGlass(tintPct) : glassMat;
+  // No film is factory glass, whatever the slider was left on: the
+  // darkness is free and the roll is not.
+  const glassLocal =
+    tintPct > 0 && colors.tintFilm ? tintedGlass(tintPct, colors.tintFilm) : glassMat;
   const canopyShell = new THREE.Mesh(cGeo, glassLocal);
   canopyShell.userData.shell = "canopy";
   group.add(canopyShell);

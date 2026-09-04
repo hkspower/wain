@@ -72,6 +72,10 @@ const STYLE_CATS: Array<{ cat: string; label: string }> = [
   // compound is a performance part, and this is what the tyre says on
   // the side of it.
   { cat: "sidewall", label: "TIRE LETTERING · حروف التواير" },
+  // The roll, above the slider that cuts it. Buying a film is what lets
+  // the car be tinted at all; how dark stays free, because darkness is
+  // a continuum and a shop is not.
+  { cat: "film", label: "WINDOW FILM · فيلم الزجاج" },
 ];
 
 /** Spec bar ranges: min hides the floor, max is the best build in the
@@ -197,6 +201,10 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
   const fx = useMemo(() => computeEffects(garage, ramp), [garage, ramp]);
   const car = getCar(ramp);
   const build = buildOf(garage, ramp);
+  // Is there anything on the glass to cut? The darkness slider below is
+  // free, and a free slider with no film behind it was the whole reason
+  // tint never cost anybody anything.
+  const filmOn = !!build.equipped.film;
   const stockEngine = getEngine(car.engine);
   // Effective power counts the blower at full boost — what you feel
   const power = fx.accelMult * (1 + fx.boostMult);
@@ -775,11 +783,15 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                 </div>
               ))}
 
-              {/* Window tint — a slider, not a shelf.
-                  Tint is a continuum and everybody has a number they
-                  want; three purchasable steps would be a worse answer
-                  to the same question. Free, instant, and saved with
-                  the car, because tint is bodywork. */}
+              {/* Window tint — a slider under a shelf.
+                  The FILM is the purchase, on the shelf above; this is
+                  how dark it gets cut, and that is free. Tint is a
+                  continuum and everybody has a number they want, so
+                  three purchasable steps would be a worse answer to
+                  that half of the question — but a tint job is
+                  something every car on the corniche has paid for, and
+                  a slider alone was giving it away. Saved with the car,
+                  because tint is bodywork. */}
               <div className="mt-5">
                 <h3 className="grn-label border-b border-white/10 pb-2 text-[0.75rem]">
                   WINDOW TINT · تظليل
@@ -790,7 +802,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                       Darkness
                     </span>
                     <span className="grn-display tnum text-xl text-sodium-400">
-                      {clampTint(garage.builds[ramp]?.tint)}%
+                      {filmOn ? `${clampTint(garage.builds[ramp]?.tint)}%` : "—"}
                     </span>
                   </div>
                   <input
@@ -800,14 +812,27 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                     step={5}
                     value={clampTint(garage.builds[ramp]?.tint)}
                     onChange={(ev) => onTint(ramp, Number(ev.target.value))}
+                    disabled={!filmOn}
                     aria-label="Window tint percentage"
-                    className="mt-3 w-full accent-sodium-400"
+                    className="mt-3 w-full accent-sodium-400 disabled:opacity-40"
                   />
-                  <div className="mt-2 flex justify-between text-[0.7rem] text-white/66">
-                    <span>0% · factory glass</span>
-                    <span>50% · street legal-ish</span>
-                    <span>100% · limo</span>
-                  </div>
+                  {/* Say WHY it is dead, not just that it is. A greyed
+                      slider with no reason beside it reads as a bug. */}
+                  {filmOn ? (
+                    <div className="mt-2 flex justify-between text-[0.7rem] text-white/66">
+                      <span>0% · factory glass</span>
+                      <span>50% · street legal-ish</span>
+                      <span>100% · limo</span>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-[0.7rem] text-white/66">
+                      Fit a film above first — the roll is the purchase, the
+                      darkness is free.{" "}
+                      <span className="grn-ar" lang="ar">
+                        ركّب فيلم أول
+                      </span>
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
