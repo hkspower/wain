@@ -117,12 +117,22 @@ function PlaceMeta({ id }: { id: string }) {
   );
 }
 
+/**
+ * The id of the option at `i`, in a listbox identified by `listboxId`.
+ *
+ * Exported because the input needs to name the same element in
+ * `aria-activedescendant` that this file gives the id to, and two files
+ * spelling a template string the same way is a coincidence, not a contract.
+ */
+export const optionId = (listboxId: string, i: number) => `${listboxId}-o${i}`;
+
 export default function SearchResults({
   hits,
   activeIndex = -1,
   onNavigate,
   activeSlug = null,
   onActiveSlug,
+  listboxId,
 }: {
   hits: SearchHit[];
   activeIndex?: number;
@@ -130,18 +140,37 @@ export default function SearchResults({
   /** Slug currently highlighted on the map, so the pair reads as one view. */
   activeSlug?: string | null;
   onActiveSlug?: (slug: string | null) => void;
+  /**
+   * Turns the list into a real listbox, owned by a combobox input somewhere
+   * above. Optional because this component is also used as a plain list of
+   * results with nothing driving it from a keyboard.
+   *
+   * Without it the arrow keys moved a colour and nothing else: focus stayed
+   * in the input, no element was named as current, and a screen reader
+   * announced nothing at all as the highlight travelled down the list. That
+   * is keyboard navigation for people who can see the keyboard working.
+   */
+  listboxId?: string;
 }) {
   return (
-    <ul className="space-y-2">
+    <ul
+      className="space-y-2"
+      id={listboxId}
+      role={listboxId ? "listbox" : undefined}
+      aria-label={listboxId ? "نتائج البحث" : undefined}
+    >
       {hits.map((hit, i) => {
         const slug = hit.doc.kind === "place" ? hit.doc.id.replace(/^place:/, "") : null;
         const linked = !!slug && slug === activeSlug;
         return (
-        <li key={hit.doc.id}>
+        <li key={hit.doc.id} role={listboxId ? "presentation" : undefined}>
           <Link
             href={hit.doc.url}
             onClick={onNavigate}
             data-result-index={i}
+            id={listboxId ? optionId(listboxId, i) : undefined}
+            role={listboxId ? "option" : undefined}
+            aria-selected={listboxId ? i === activeIndex : undefined}
             onMouseEnter={() => slug && onActiveSlug?.(slug)}
             onMouseLeave={() => slug && onActiveSlug?.(null)}
             onFocus={() => slug && onActiveSlug?.(slug)}

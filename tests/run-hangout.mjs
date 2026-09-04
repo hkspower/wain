@@ -17,6 +17,10 @@
  *                   box, arrow keys and Enter, and the code-splitting the two
  *                   files exist for — a stray static import would undo that
  *                   silently, because the button would still work.
+ *   search-keys   — arrowing through results, on BOTH surfaces. The palette
+ *                   had the keys and the /search page had none, and the
+ *                   palette's version moved a colour without ever naming an
+ *                   option — so a screen reader heard nothing travel.
  *   swipe         — the category rail, the site's one swiped surface. It was
  *                   snap-mandatory, which turned a 4px nudge into a 120px
  *                   jump. Tests both directions, because the tempting
@@ -74,6 +78,9 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
 
   console.log("\n════ زر البحث: the button, the shortcut and the palette ════");
   failed += (await run("node", ["tests/search-button.test.mjs"], { env })) === 0 ? 0 : 1;
+
+  console.log("\n════ لوحة المفاتيح: arrowing through results, on both surfaces ════");
+  failed += (await run("node", ["tests/search-keys.test.mjs"], { env })) === 0 ? 0 : 1;
 
   console.log("\n════ السحب: how the category rail feels under a thumb ════");
   failed += (await run("node", ["tests/swipe.test.mjs"], { env })) === 0 ? 0 : 1;

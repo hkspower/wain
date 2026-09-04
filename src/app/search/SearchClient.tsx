@@ -1,15 +1,16 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import SearchMap from "@/components/SearchMap";
-import SearchResults from "@/components/SearchResults";
+import SearchResults, { optionId } from "@/components/SearchResults";
 import VoiceControls from "@/components/VoiceControls";
 import { IconClose, IconCompass, IconSearch } from "@/components/icons";
 import { toArabicDigits } from "@/lib/places";
 import { usePlaces } from "@/lib/usePlaces";
 import { buildIndex, search, type DocKind } from "@/lib/search";
+import { useListboxKeys } from "@/lib/useListboxKeys";
 import { answerParts } from "@/lib/voice-lines";
 import { speak, stop as stopVoice, useVoice } from "@/lib/voice";
 import { haptic } from "@/lib/haptics";
@@ -21,6 +22,9 @@ const FILTERS: { id: DocKind | "all"; label: string }[] = [
   { id: "area", label: "مناطق" },
   { id: "page", label: "صفحات" },
 ];
+
+/** The results list, named so the box can point at the option that moved. */
+const LISTBOX_ID = "wain-search-results";
 
 const SUGGESTIONS = ["قهوة هادية", "طلعة مع العيال", "بحر", "أكل كويتي", "متحف", "السالمية"];
 
@@ -161,6 +165,33 @@ export default function SearchClient() {
   // Leaving the page shouldn't leave a voice talking.
   useEffect(() => () => stopVoice(), []);
 
+  /**
+   * The keyboard, which this page did not answer at all.
+   *
+   * The ⌘K palette has had ↑/↓/Enter since it was written, and this — the
+   * page that exists to search — had nothing, so anyone who learned the keys
+   * in the overlay lost them the moment they landed here. Same hook on both
+   * now, so the two cannot drift.
+   *
+   * Reset on `deferredQ` rather than `q`: the cursor belongs to the list on
+   * screen, and the list on screen is the one for the deferred query. Keyed
+   * to `q` it jumped back to the top on a keystroke whose results had not
+   * arrived yet, which reads as the selection flickering while you type.
+   */
+  const choose = useCallback(
+    (i: number) => {
+      const target = hits[i]?.doc.url;
+      if (target) router.push(target);
+    },
+    [hits, router]
+  );
+  const { active, onKeyDown } = useListboxKeys({
+    count: hits.length,
+    onChoose: choose,
+    resetOn: deferredQ,
+    optionIdAt: useCallback((i: number) => optionId(LISTBOX_ID, i), []),
+  });
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 standalone:px-3 standalone:py-4 sm:px-6 sm:py-14">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -183,6 +214,12 @@ export default function SearchClient() {
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          onKeyDown={onKeyDown}
+          role="combobox"
+          aria-expanded={hits.length > 0}
+          aria-controls={LISTBOX_ID}
+          aria-autocomplete="list"
+          aria-activedescendant={hits.length ? optionId(LISTBOX_ID, active) : undefined}
           aria-label="ابحث في كل محتوى وين"
           placeholder="اكتب اسم مكان، منطقة، أو جو…"
           className="w-full rounded-2xl border border-line-control bg-white py-4 pe-4 ps-12 text-lg text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/60 focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
@@ -255,7 +292,13 @@ export default function SearchClient() {
               {toArabicDigits(hits.length)} نتيجة
             </p>
             <SearchMap places={hitPlaces} active={activeSlug} onActive={setActiveSlug} />
-            <SearchResults hits={hits} activeSlug={activeSlug} onActiveSlug={setActiveSlug} />
+            <SearchResults
+              hits={hits}
+              activeIndex={active}
+              activeSlug={activeSlug}
+              onActiveSlug={setActiveSlug}
+              listboxId={LISTBOX_ID}
+            />
           </div>
         ) : settling ? (
           /* Nothing yet for the newest query, but the older one is still being

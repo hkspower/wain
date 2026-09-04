@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import SearchResults from "@/components/SearchResults";
+import SearchResults, { optionId } from "@/components/SearchResults";
 import { IconSearch } from "@/components/icons";
 import { usePlaces } from "@/lib/usePlaces";
 import { buildIndex, search } from "@/lib/search";
+import { useListboxKeys } from "@/lib/useListboxKeys";
 
 /**
  * The searching half of the command palette.
@@ -20,44 +21,47 @@ import { buildIndex, search } from "@/lib/search";
  * The index is still built lazily on top of that: mounting this dialog is
  * what pays for it, and a visitor who never searches never does.
  */
+/** One listbox per surface, named so the input can point at the same element. */
+const LISTBOX_ID = "wain-palette-results";
+
 export default function SearchPaletteDialog({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const { places } = usePlaces();
   const [q, setQ] = useState("");
-  const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const index = useMemo(() => buildIndex(places), [places]);
   const hits = useMemo(() => search(q, index, { limit: 8 }), [q, index]);
 
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   const close = useCallback(() => {
     setQ("");
-    setActive(0);
-    onClose();
-  }, [onClose]);
+    closeRef.current();
+  }, []);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  useEffect(() => setActive(0), [q]);
+  // Enter opens the arrowed result, or — with nothing arrowed to — carries the
+  // query to the full page, which is where a search that needs filters goes.
+  const choose = useCallback(
+    (i: number) => {
+      const target = hits[i]?.doc.url ?? (q.trim() ? `/search?q=${encodeURIComponent(q.trim())}` : null);
+      if (!target) return;
+      close();
+      router.push(target);
+    },
+    [hits, q, close, router]
+  );
 
-  function onInputKey(e: React.KeyboardEvent) {
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setActive((i) => Math.min(i + 1, hits.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setActive((i) => Math.max(i - 1, 0));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      const target = hits[active]?.doc.url ?? (q.trim() ? `/search?q=${encodeURIComponent(q.trim())}` : null);
-      if (target) {
-        close();
-        router.push(target);
-      }
-    }
-  }
+  const { active, onKeyDown } = useListboxKeys({
+    count: hits.length,
+    onChoose: choose,
+    resetOn: q,
+    optionIdAt: useCallback((i: number) => optionId(LISTBOX_ID, i), []),
+  });
 
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-[10vh]">
@@ -81,7 +85,12 @@ export default function SearchPaletteDialog({ onClose }: { onClose: () => void }
             ref={inputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            onKeyDown={onInputKey}
+            onKeyDown={onKeyDown}
+            role="combobox"
+            aria-expanded={hits.length > 0}
+            aria-controls={LISTBOX_ID}
+            aria-autocomplete="list"
+            aria-activedescendant={hits.length ? optionId(LISTBOX_ID, active) : undefined}
             aria-label="ابحث في وين"
             placeholder="دوّر عن مكان، منطقة، أو جو…"
             className="w-full bg-transparent py-4 pe-4 ps-12 text-base text-ink-800 outline-none placeholder:text-ink-500/60"
@@ -94,7 +103,7 @@ export default function SearchPaletteDialog({ onClose }: { onClose: () => void }
               اكتب عشان تدوّر في كل أماكن وين.
             </p>
           ) : hits.length ? (
-            <SearchResults hits={hits} activeIndex={active} onNavigate={close} />
+            <SearchResults hits={hits} activeIndex={active} onNavigate={close} listboxId={LISTBOX_ID} />
           ) : (
             <p className="px-2 py-6 text-center text-sm text-ink-500">ما لقينا شي.</p>
           )}
