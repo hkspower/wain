@@ -48,6 +48,9 @@ declare global {
     /** Whether a played clip reports itself finished. Real playback always
      *  ends; a test that wants to interrupt mid-queue turns this off. */
     setAutoEnd: (on: boolean) => void;
+    /** Empty the voice list as Chrome does before it has loaded one. Returns
+     *  the function that puts it back and fires `voiceschanged`. */
+    holdVoices: () => () => void;
   }
 }
 
@@ -118,15 +121,42 @@ Object.defineProperty(SpeechSynthesisUtterance.prototype, "voice", {
   set(this: Record<symbol, unknown>, v: unknown) { this[VOICE] = v; },
 });
 
-let voiceList: { name: string; lang: string }[] = [
+const DEFAULT_VOICES = [
   { name: "English (US)", lang: "en-US" },
   { name: "Majed", lang: "ar-SA" },
   { name: "Kuwaiti", lang: "ar-KW" },
 ];
+
+/**
+ * `?holdVoices=1` starts the page with no voice list at all.
+ *
+ * This has to be decided BEFORE the module initialises, which is why it is a
+ * query parameter rather than a function. Chrome's list is empty when a page
+ * loads and arrives later, announced by `voiceschanged` — so a module that
+ * caches the list at import time caches nothing, and the first utterance is
+ * the one at risk. Emptying the list after the module has already read it
+ * tests nothing: the cache still holds the full set.
+ */
+const HELD = new URLSearchParams(location.search).get("holdVoices") === "1";
+let voiceList: { name: string; lang: string }[] = HELD ? [] : DEFAULT_VOICES;
 window.setVoices = (list) => { voiceList = list; };
 
 const realSynth = window.speechSynthesis;
-const fakeSynth = {
+
+/**
+ * An EventTarget, because the real speechSynthesis is one.
+ *
+ * The fake used to be a plain object literal, so `addEventListener` did not
+ * exist on it — and a module guarding `synth.addEventListener?.(...)` took the
+ * "this engine has no events" branch every time. That made the fake incapable
+ * of expressing the single most important thing about Chrome's voice list:
+ * that it arrives LATE, announced by `voiceschanged`. Any test of that
+ * behaviour passed or failed on the harness rather than on the module.
+ */
+class FakeSynth extends EventTarget {
+  speaking = false;
+  paused = false;
+  pending = false;
   speak(u: SpeechSynthesisUtterance) {
     spy.spoken.push(u.text);
     spy.lastLang = u.lang;
@@ -134,10 +164,24 @@ const fakeSynth = {
     // Nothing plays, so nothing would ever end — fire it so the module's
     // speaking flag comes back down the way it does in a real browser.
     setTimeout(() => u.onend?.(new Event("end") as SpeechSynthesisEvent), 0);
-  },
-  cancel() { spy.cancelCalls += 1; },
-  getVoices() { spy.voicesAsked += 1; return voiceList as unknown as SpeechSynthesisVoice[]; },
-  speaking: false, paused: false, pending: false,
+  }
+  cancel() { spy.cancelCalls += 1; }
+  getVoices() { spy.voicesAsked += 1; return voiceList as unknown as SpeechSynthesisVoice[]; }
+}
+const fakeSynth = new FakeSynth();
+
+/**
+ * Chrome's actual behaviour on a fresh page: getVoices() answers with nothing
+ * until the list has loaded, and only then does `voiceschanged` fire. Handed
+ * to the tests so the branch that matters can be driven deliberately.
+ */
+window.holdVoices = () => {
+  const held = voiceList.length ? voiceList : DEFAULT_VOICES;
+  voiceList = [];
+  return () => {
+    voiceList = held;
+    fakeSynth.dispatchEvent(new Event("voiceschanged"));
+  };
 };
 Object.defineProperty(window, "speechSynthesis", { value: fakeSynth, configurable: true, writable: true });
 window.removeSynth = () => {

@@ -325,6 +325,10 @@ export function primeAudio() {
   // find out whether the thing works. It is memoised, so only the first
   // utterance was ever slow; this makes that one overlap the gesture.
   void loadManifest();
+  // Asking for the voice list is what makes Chrome start loading it, and the
+  // gesture is the earliest moment there is. By the time an answer needs a
+  // voice, the list has usually arrived and readyVoices() does not wait.
+  cacheVoices();
   try {
     const el = ensureAudio();
     priming = true;
@@ -389,12 +393,106 @@ function ensureAudio(): HTMLAudioElement {
   return audio;
 }
 
+/**
+ * How long to wait for the browser to admit which voices it has.
+ *
+ * Chrome returns an empty array from getVoices() until the list has loaded
+ * asynchronously, and only then fires `voiceschanged`. The picker was called
+ * synchronously, so on the FIRST utterance of a page load it chose from
+ * nothing — and an utterance with no voice is read by the engine's default,
+ * which on an Arabic string is English phonetics applied to Arabic letters.
+ * Measured in the harness: first utterance no voice, second one «Kuwaiti».
+ *
+ * That is the worst clarity failure available, and it lands on the first
+ * thing she ever says — the answer to the visitor's first search, which is
+ * what decides whether they think the feature works at all.
+ *
+ * 400ms because the list is local and arrives in tens of milliseconds when it
+ * arrives; a browser that never fires the event must not leave her silent, so
+ * this is a bound rather than a wait.
+ */
+const VOICE_LIST_MS = 400;
+
+let voices: SpeechSynthesisVoice[] = [];
+
+function cacheVoices() {
+  try {
+    voices = window.speechSynthesis?.getVoices() ?? [];
+  } catch {
+    voices = [];
+  }
+}
+
+if (typeof window !== "undefined") {
+  // Asking is also what starts Chrome loading the list, so this is both a read
+  // and a nudge. The listener stays for the life of the page: a voice pack
+  // installed or a network voice appearing later fires it again.
+  cacheVoices();
+  window.speechSynthesis?.addEventListener?.("voiceschanged", cacheVoices);
+}
+
+/** The list, once the browser has one — or once it has had long enough. */
+async function readyVoices(): Promise<SpeechSynthesisVoice[]> {
+  cacheVoices();
+  if (voices.length > 0) return voices;
+  const synth = window.speechSynthesis;
+  if (!synth?.addEventListener) return voices;
+  await new Promise<void>((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      synth.removeEventListener("voiceschanged", finish);
+      resolve();
+    };
+    synth.addEventListener("voiceschanged", finish);
+    setTimeout(finish, VOICE_LIST_MS);
+  });
+  cacheVoices();
+  return voices;
+}
+
+/** Gulf Arabic, which is what a Kuwaiti sentence should be read in. */
+const GULF = ["ar-kw", "ar-sa", "ar-ae", "ar-bh", "ar-qa", "ar-om"];
+
+/**
+ * How well a voice suits a Kuwaiti sentence. Below zero means «not Arabic at
+ * all», and those are never chosen — the engine's own default is no worse and
+ * this module has no business forcing an English voice onto Arabic text.
+ *
+ * Ranked rather than taken in list order, which is what `find` did. The order
+ * getVoices() returns is the platform's, not a quality ranking, so which voice
+ * she got came down to how the device happened to enumerate them: a Kuwaiti
+ * sentence read in Maghrebi is markedly harder for a Kuwaiti ear than the same
+ * sentence in Gulf or in MSA, and nothing was choosing.
+ */
+function voiceScore(v: SpeechSynthesisVoice): number {
+  const lang = (v.lang ?? "").toLowerCase().replace("_", "-");
+  if (!lang.startsWith("ar")) return -1;
+  // eSpeak's Arabic is a formant synthesiser — intelligible in the sense that
+  // a fax machine is — and it is the shipped fallback on desktop Linux and
+  // some Android builds. Last among Arabic voices, but still ahead of letting
+  // an English voice have a go at Arabic.
+  if (/espeak/i.test(v.name ?? "")) return 0;
+  if (lang.startsWith("ar-kw")) return 4;
+  if (GULF.some((g) => lang.startsWith(g))) return 3;
+  return 2;
+}
+
 function pickArabicVoice(): SpeechSynthesisVoice | undefined {
-  const voices = window.speechSynthesis?.getVoices() ?? [];
-  return (
-    voices.find((v) => v.lang?.toLowerCase().startsWith("ar-kw")) ??
-    voices.find((v) => v.lang?.toLowerCase().startsWith("ar"))
-  );
+  let best: SpeechSynthesisVoice | undefined;
+  // -1 is «not Arabic», so a voice scoring 0 — eSpeak — still beats picking
+  // nothing, while a non-Arabic voice can never win.
+  let bestScore = -1;
+  for (const v of voices) {
+    const score = voiceScore(v);
+    // Strictly greater, so the platform's own order still breaks ties.
+    if (score > bestScore) {
+      best = v;
+      bestScore = score;
+    }
+  }
+  return best;
 }
 
 /**
@@ -420,11 +518,17 @@ function pickArabicVoice(): SpeechSynthesisVoice | undefined {
  * some engines do not fire reliably — a stalled chain is silence in the middle
  * of a sentence, which is worse than the ceiling this exists to avoid.
  */
-function speakFallback(parts: SpeechPart[], mine: number) {
+async function speakFallback(parts: SpeechPart[], mine: number) {
   const synth = window.speechSynthesis;
   if (!synth) return;
   const lines = parts.map((p) => forSpeech(p.text)).filter((t) => t.length > 0);
   if (lines.length === 0) return;
+
+  // Before anything is said, not while it is being said: an utterance handed
+  // to the engine without a voice is already being read in the wrong language
+  // by the time a better one arrives.
+  await readyVoices();
+  if (mine !== generation) return;
 
   // Picked once for the whole answer. Guarded because the failure mode is
   // total silence, not merely the wrong accent: this assignment throws if the
@@ -538,7 +642,7 @@ export function speak(parts: SpeechPart[]) {
     const text = parts.map((p) => p.text).join(" ");
     void speakLive(text, mine).then((spoke) => {
       if (mine !== generation || spoke) return;
-      speakFallback(parts, mine);
+      void speakFallback(parts, mine);
     });
   });
 }

@@ -177,6 +177,103 @@ await p.evaluate(() => window.setVoices([
   { name: 'Kuwaiti', lang: 'ar-KW' },
 ]));
 
+console.log('\n── the first thing she says gets an Arabic voice too ──');
+/**
+ * Chrome answers getVoices() with an empty array until the list has loaded,
+ * and only then fires `voiceschanged`. The picker was called synchronously, so
+ * the FIRST utterance of a page load chose from nothing — and an utterance
+ * with no voice is read by the engine's default, which on an Arabic string is
+ * English phonetics applied to Arabic letters.
+ *
+ * Measured before the fix: first utterance no voice, second one «Kuwaiti».
+ * That is the worst clarity failure available and it landed on the first thing
+ * she ever says — the answer to the visitor's first search.
+ */
+{
+  // A page that loaded BEFORE the list did — which is the only way to test
+  // this. Emptying the list on a page whose module has already read it proves
+  // nothing: the cache still holds the full set.
+  const cold = await ctx.newPage();
+  const coldErrs = [];
+  cold.on('pageerror', (e) => coldErrs.push(e.message));
+  await cold.goto(B + '/voice.html?holdVoices=1', { waitUntil: 'load' });
+  await cold.waitForFunction(() => !!window.voice);
+  const r = await cold.evaluate(async () => {
+    const release = window.holdVoices();      // still empty; this hands back the list
+    setTimeout(release, 120);                 // and, as Chrome does, it arrives late
+    window.resetSpy();
+    window.voice.speak([{ text: 'وين أحلى قهوة؟' }]);
+    await new Promise((r) => setTimeout(r, 700));
+    return { voice: window.spy.lastVoice, spoken: window.spy.spoken.length };
+  });
+  ok('she waits for the list rather than speaking without one', r.voice === 'Kuwaiti', JSON.stringify(r));
+  ok('and she does say it', r.spoken === 1, JSON.stringify(r));
+  ok('with nothing thrown on the way', coldErrs.length === 0, coldErrs.join(' | '));
+  await cold.close();
+}
+
+console.log('\n── but a browser that never loads a list is not left waiting ──');
+// The bound matters more than the wait: an engine that never fires the event
+// must produce a spoken sentence in the wrong accent, not silence.
+{
+  const r = await p.evaluate(async () => {
+    const release = window.holdVoices();      // and never released
+    window.resetSpy();
+    const t0 = performance.now();
+    window.voice.speak([{ text: 'تكفي قول شي.' }]);
+    // How long until she actually says it, not how long the test slept.
+    let ms = Infinity;
+    for (let i = 0; i < 120; i++) {
+      await new Promise((r) => setTimeout(r, 10));
+      if (window.spy.spoken.length > 0) { ms = performance.now() - t0; break; }
+    }
+    release();
+    return { spoken: window.spy.spoken.length, voice: window.spy.lastVoice, ms };
+  });
+  ok('she speaks anyway', r.spoken === 1, JSON.stringify(r));
+  ok('with the engine default, since there was nothing to choose', r.voice === '', JSON.stringify(r));
+  // The bound is 400ms in the module; anything near a second is «indefinite».
+  ok('and the wait is bounded, not indefinite', r.ms < 700, `spoke after ${Math.round(r.ms)}ms`);
+}
+
+console.log('\n── the best Arabic voice, not the first one the device lists ──');
+/**
+ * getVoices() returns the platform's order, which is not a quality ranking, so
+ * `find()` meant the voice she got came down to how the device happened to
+ * enumerate them. A Kuwaiti sentence read in Maghrebi is markedly harder for a
+ * Kuwaiti ear than the same sentence in Gulf Arabic or in MSA, and nothing was
+ * choosing.
+ */
+{
+  const pick = async (list) => p.evaluate(async (list) => {
+    window.setVoices(list);
+    window.resetSpy();
+    window.voice.speak([{ text: 'اختبار.' }]);
+    await new Promise((r) => setTimeout(r, 300));
+    return window.spy.lastVoice;
+  }, list);
+
+  ok('Gulf beats other Arabic even when it is listed second',
+    (await pick([{ name: 'Maghrebi', lang: 'ar-MA' }, { name: 'Fatima', lang: 'ar-SA' }])) === 'Fatima');
+  ok('and Kuwaiti beats the rest of the Gulf',
+    (await pick([{ name: 'Fatima', lang: 'ar-SA' }, { name: 'Kuwaiti', lang: 'ar-KW' }])) === 'Kuwaiti');
+  // eSpeak's Arabic is a formant synthesiser and ships as the fallback on
+  // desktop Linux and some Android builds. It was being picked first on those
+  // devices purely for being first in the list.
+  ok('eSpeak loses to any real Arabic voice',
+    (await pick([{ name: 'eSpeak Arabic', lang: 'ar' }, { name: 'Fatima', lang: 'ar-SA' }])) === 'Fatima');
+  ok('but is still better than letting an English voice read Arabic',
+    (await pick([{ name: 'English (US)', lang: 'en-US' }, { name: 'eSpeak Arabic', lang: 'ar' }])) === 'eSpeak Arabic');
+  ok('an underscore locale is still recognised as Arabic',
+    (await pick([{ name: 'Android TTS', lang: 'ar_KW' }])) === 'Android TTS');
+
+  await p.evaluate(() => window.setVoices([
+    { name: 'English (US)', lang: 'en-US' },
+    { name: 'Majed', lang: 'ar-SA' },
+    { name: 'Kuwaiti', lang: 'ar-KW' },
+  ]));
+}
+
 console.log('\n── a voice the engine refuses does not silence her ──');
 // Writing utterance.voice throws if the engine rejects the object — a stale
 // entry from a getVoices() list the browser has since replaced. Without a
