@@ -373,7 +373,8 @@ if ($r === 'products') {
     }
     unset($row);
 
-    store_out($rows);
+    // Cacheable: the catalogue, no customer in it. See store_out_cacheable().
+    store_out_cacheable($rows);
 }
 
 // ------------------------------------------------------------------ slides
@@ -439,7 +440,8 @@ if ($r === 'slides') {
     $bar['live'] = (bool)$bar['enabled'] && store_window_open($bar['starts_at'] ?? null, $bar['ends_at'] ?? null);
     unset($bar['starts_at'], $bar['ends_at']);
 
-    store_out(['slides' => $rows, 'hero' => store_setting($db, 'hero'), 'promo_bar' => $bar]);
+    // Cacheable: shipped artwork and two owner settings, no customer in it.
+    store_out_cacheable(['slides' => $rows, 'hero' => store_setting($db, 'hero'), 'promo_bar' => $bar]);
 }
 
 // One slide's bytes.
@@ -685,7 +687,8 @@ if ($r === 'brands') {
                 substr(sha2(coalesce(logo, \'\'), 256), 1, 12) as logo_v
            from brands where active = 1 order by sort, name_en'
     )->fetchAll();
-    store_out($rows);
+    // Cacheable: the brands list, no customer in it.
+    store_out_cacheable($rows);
 }
 
 // ------------------------------------------------------------------- stock
@@ -1007,7 +1010,8 @@ if ($r === 'size_advice' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 // hard-coded rows ending at XL while the shop sells to 5XL.
 if ($r === 'size_chart') {
     [$chart, $rows] = store_size_chart_for($db, trim((string) ($_GET['slug'] ?? '')) ?: null);
-    store_out(['chart' => $chart, 'rows' => $rows]);
+    // Cacheable: a published size table, no customer in it.
+    store_out_cacheable(['chart' => $chart, 'rows' => $rows]);
 }
 
 if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {

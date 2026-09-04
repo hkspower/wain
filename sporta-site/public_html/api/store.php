@@ -120,11 +120,73 @@ set_exception_handler(function (Throwable $e): void {
 function store_out($data, int $code = 200): void {
     http_response_code($code);
     header('Content-Type: application/json; charset=utf-8');
+    // NO-STORE IS SAID HERE, NOT LEFT TO THE FOLDER.
+    //
+    // api/.htaccess used to set it for everything in this directory, which was
+    // right until one route needed something else. The rule there no longer
+    // matches api.php (see the note in that file), so this line is now the
+    // thing that keeps a customer's order, invoice, status or return out of
+    // every cache between here and their phone.
+    //
+    // It is on the DEFAULT path on purpose. Anything that wants to be cacheable
+    // has to say so by calling store_out_cacheable() instead, so a route added
+    // tomorrow is private unless somebody thought about it — the opposite of
+    // the opt-in arrangement the rate limits in api.php complain about.
+    header('Cache-Control: no-store');
     // No CORS headers on purpose. The SPA and this API live on the same origin
     // (www.sporta.com.kw), and an API nobody else may call should not invite
     // anybody else to call it. A backend hosted somewhere else needs CORS
     // precisely because it IS a different origin; this one is not.
     echo json_encode($data, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+/**
+ * The same thing, for a response that carries NO customer data and may sit in
+ * a browser cache — the catalogue, the brands, the hero slides, a size chart.
+ *
+ * WHAT THIS BUYS. Measured on the live shop: ?r=products is 21,773 bytes and
+ * was answered with `no-store`, so every navigation re-downloaded all of it
+ * and ran the query again. `no-cache` is not the opposite of that — it still
+ * forbids using a stored copy WITHOUT asking — but it lets the browser keep
+ * one and ask, and an unchanged catalogue then costs a 304 with no body.
+ *
+ * SO IT CANNOT SERVE A STALE PRICE. That is the whole reason for choosing
+ * no-cache over a max-age: with `max-age=60` a price edit in /backends is
+ * invisible for up to a minute, and this shop's prices are edited by hand. A
+ * revalidation is a round trip either way; what is saved is the body.
+ *
+ * The ETag is the hash of the bytes actually sent, so it changes the moment
+ * anything in the response does — a price, a new product, a hidden one, a
+ * slide swapped in the panel. Apache's own FileETag cannot help here: there is
+ * no file, the body is built per request.
+ */
+function store_out_cacheable($data, int $code = 200): void {
+    $body = json_encode($data, JSON_UNESCAPED_UNICODE);
+    $etag = '"' . sha1($body) . '"';
+
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-cache, must-revalidate');
+    header('ETag: ' . $etag);
+
+    // A conditional request may carry several tags, and a shared cache is
+    // allowed to weaken one to W/"…". Compare against each rather than the
+    // whole header, or the 304 simply never fires and this is a slower
+    // no-store with extra steps.
+    $inm = trim((string) ($_SERVER['HTTP_IF_NONE_MATCH'] ?? ''));
+    if ($inm !== '' && $inm !== '*') {
+        foreach (explode(',', $inm) as $tag) {
+            $tag = trim($tag);
+            if (str_starts_with($tag, 'W/')) $tag = substr($tag, 2);
+            if ($tag === $etag) {
+                http_response_code(304);
+                exit;   // 304 carries no body, by definition
+            }
+        }
+    }
+
+    http_response_code($code);
+    echo $body;
     exit;
 }
 
