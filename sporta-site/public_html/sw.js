@@ -16,9 +16,29 @@
 //      no-cache rule exists to prevent. Both are passed straight to the network,
 //      and if the network is down they fail, which is the correct answer.
 //
-//   2. CACHE FIRST AND NEVER RE-ASKED, for /assets/ and /fonts/ — content-hashed
-//      or effectively frozen, so the filename changes when the bytes do and a
-//      cached copy can never be stale.
+//   2. CACHE FIRST AND NEVER RE-ASKED, for HASHED files in /assets/ and for
+//      /fonts/ — the filename changes when the bytes do, so a cached copy can
+//      never be stale.
+//
+//      THE HASH IS THE WHOLE JUSTIFICATION, and this rule used to be written as
+//      "anything under /assets/", which is not the same set. Seven files live
+//      there with FIXED names: sporta-ui.css, sporta-dark.css, contact.js,
+//      card.js, returns-link.js, returns-request.js and track-guard.js. Their
+//      names never change, so "a hit is correct by construction" was false for
+//      every one of them, and cache-first-never-re-asked meant a returning
+//      visitor was pinned to whatever copy they first cached — for ever. The
+//      cache only rotates when VERSION changes, and VERSION had not changed
+//      since those files were written.
+//
+//      That is exactly the fault 2b already records for images, one directory
+//      up and unnoticed: a file whose bytes change under a fixed name cannot be
+//      cached by name. The site's own .htaccess names all seven and marks them
+//      `no-cache, must-revalidate` — the HTTP layer was saying "always ask" and
+//      the worker was never asking, and the worker wins, because it does not
+//      make the request at all.
+//
+//      So the test is now the hash itself, not the folder. Un-hashed files fall
+//      through to rule 3, network-first, which is what their header asked for.
 //
 //   2b. CACHE FIRST, THEN QUIETLY REFRESHED, for images with FIXED names —
 //      /hero/, /cats/, the logo, the icons. These were in rule 2, and that was
@@ -45,7 +65,13 @@
 // that is not the current one, so a deploy cannot leave a visitor pinned to old
 // assets — and skipWaiting + clients.claim mean it happens on the first load
 // after the deploy rather than after every tab has been closed.
-const VERSION = 'v1-2u9w1'
+// BUMPED WITH THE RULE ABOVE, and it has to be. Fixing IMMUTABLE stops the
+// worker pinning those seven files from now on, but every visitor already
+// carrying a stale sporta-ui.css has it in a cache this worker would happily
+// keep using. Activating a new version deletes every cache that is not the
+// current one, so the bump is what actually frees them — the fix alone would
+// leave the people it was written for exactly where they were.
+const VERSION = 'v2-css1'
 const SHELL = `sporta-shell-${VERSION}`
 const ASSETS = `sporta-assets-${VERSION}`
 
@@ -110,9 +136,16 @@ const NEVER = (url) =>
   url.pathname.startsWith('/pay/') ||
   url.pathname === '/config.js'
 
-// Content-hashed, or frozen in practice. A hit is correct by construction.
+// The build's content hash: `-` then at least eight of the base64url alphabet,
+// immediately before .js or .css — Shop-BYKJiDn8.js, index-TIUCmnwm.css. The
+// hand-written overlays in the same folder have no such suffix, which is the
+// only thing that separates them and the only thing that may be tested for.
+const HASHED = /-[A-Za-z0-9_-]{8,}\.(js|css)$/
+
+// Content-hashed, or frozen in practice. A hit is correct by construction —
+// and now that is true of the set rather than asserted about it.
 const IMMUTABLE = (url) =>
-  url.pathname.startsWith('/assets/') ||
+  (url.pathname.startsWith('/assets/') && HASHED.test(url.pathname)) ||
   url.pathname.startsWith('/fonts/') ||
   /\.woff2?$/.test(url.pathname)
 
