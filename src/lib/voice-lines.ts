@@ -12,6 +12,8 @@
  * `optional` (dynamic phrases like result counts) are skipped on the clip
  * path and spoken only by the fallback.
  */
+import { toStandardArabic } from "@/lib/arabic";
+
 export type SpeechPart = { key?: string; text: string; optional?: boolean };
 
 /**
@@ -34,13 +36,18 @@ export type SpeechPart = { key?: string; text: string; optional?: boolean };
  *   — → ،          An em dash is a beat to a reader and nothing to a
  *                  synthesiser: some pause, some ignore it, some announce it.
  *                  A comma pauses everywhere.
+ *   چ → تش         Kuwaiti spellings borrow letters from the Persian block —
+ *                  «چاي», «مچبوس», «سمچ» — and an Arabic voice has never been
+ *                  trained on them. It drops the letter or spells it out, and
+ *                  says nothing about having done so. See lib/arabic; the page
+ *                  keeps «چاي», which is how it should be written there.
  *
  * Both paths use this — the browser fallback and the ElevenLabs generator — so
  * the recorded clip and the synthetic line stay the same sentence, which is
  * the whole point of keeping these lines in one module.
  */
 export function forSpeech(text: string): string {
-  return text
+  return toStandardArabic(text)
     .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
     .replace(/٫/g, ".")
     .replace(/\s*—\s*/g, "، ")

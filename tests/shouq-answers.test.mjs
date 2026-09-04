@@ -1,5 +1,6 @@
 import { buildIndex, search } from "@/lib/search";
 import { places } from "@/lib/places";
+import { NON_STANDARD_ARABIC } from "@/lib/arabic";
 import {
   answerParts,
   buildClipLines,
@@ -191,6 +192,38 @@ console.log("\n── she answers every suggestion chip on the search page ─�
     return said.includes(GENERIC_LINES["search-empty"]) || said.length < 40;
   });
   ok("no suggestion chip leaves her with nothing to say", bad.length === 0, bad.join(", "));
+}
+
+console.log("\n── nothing reaches a voice in a letter it cannot read ──");
+/**
+ * The catalogue is written the way a Kuwaiti writes: «چاي», «مچبوس», «سمچ»,
+ * with چ (U+0686), which is not an Arabic letter. That is right on the page and
+ * wrong in a speech engine — an Arabic voice is trained on the standard
+ * alphabet and will drop the letter, spell it out, or say something else, and
+ * report success either way.
+ *
+ * forSpeech folds them (see lib/arabic), so this asserts the fold covers
+ * everything the catalogue actually contains — and keeps covering it. The
+ * clip generator hashes forSpeech's output, so a letter that slips through is
+ * not a rendering bug on someone's phone: it is baked into an mp3 that was
+ * paid for.
+ */
+{
+  const raw = [];
+  const cooked = [];
+  for (const persona of ["shouq", "salem"]) {
+    for (const [key, line] of Object.entries(buildClipLines(persona, places))) {
+      if (NON_STANDARD_ARABIC.test(line)) raw.push(`${persona}/${key}`);
+      if (NON_STANDARD_ARABIC.test(forSpeech(line))) cooked.push(`${persona}/${key}: ${forSpeech(line)}`);
+    }
+  }
+  // Stated first: if the catalogue ever stops containing one of these, the
+  // assertion below would pass without testing the fold at all.
+  ok(`the catalogue really does use them (${raw.length} recorded line(s))`, raw.length > 0, raw.slice(0, 3).join(", "));
+  ok("and not one survives into what a voice is handed", cooked.length === 0, cooked.slice(0, 3).join("\n      "));
+  ok("«چاي» becomes something an Arabic engine can say", forSpeech("چاي كرك") === "تشاي كرك", forSpeech("چاي كرك"));
+  ok("and the page itself is left alone",
+    places.some((p) => /چ/.test(p.taglineAr + p.descriptionAr)));
 }
 
 console.log(`\n${pass} passed, ${fails.length} failed`);

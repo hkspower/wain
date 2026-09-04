@@ -150,5 +150,53 @@ console.log("\n── the summer rule survives a real question ──");
   }
 }
 
+console.log("\n── the same Kuwaiti word, however it is spelled ──");
+/**
+ * Kuwaiti spellings borrow letters the rest of the stack does not know, and
+ * the failure is invisible from both ends: the visitor types a word they have
+ * spelled correctly and gets nothing, and the index never sees a query it can
+ * report as a miss.
+ *
+ * Measured before lib/arabic existed:
+ *
+ *   چاي → مقاهي المباركية       تشاي → ما لقينا شي
+ *   سمچ → سوق السمك             سمتش → ما لقينا شي
+ *   چای → ما لقينا شي            کرک  → ما لقينا شي
+ *
+ * The last two are written with the Persian yeh (ی) and kaf (ک), which are the
+ * SAME GLYPH as ي and ك. And they are the likely case, not the exotic one: the
+ * default Arabic keyboards on iOS and Android have no چ key, so anyone typing
+ * «چاي» has a Farsi or Urdu keyboard — the one that hands them ی and ک too.
+ */
+{
+  const same = (a, b) => {
+    const x = ask(a).hitPlaces.map((p) => p.slug);
+    const y = ask(b).hitPlaces.map((p) => p.slug);
+    return { x, y, same: x.length > 0 && x[0] === y[0] };
+  };
+  for (const [a, b] of [
+    ["چاي", "تشاي"],          // چ written out, as a keyboard without the key must
+    ["سمچ", "سمتش"],
+    ["چاي", "چای"],           // Persian yeh — the same glyph as ي
+    ["كرك", "کرک"],           // Persian kaf — the same glyph as ك
+  ]) {
+    const r = same(a, b);
+    ok(`«${a}» and «${b}» find the same place`, r.same,
+      `${a} → ${r.x.slice(0, 2).join(", ") || "لا شي"}   ${b} → ${r.y.slice(0, 2).join(", ") || "لا شي"}`);
+  }
+
+  /* The national dish, and the four ways it gets written. «مجبوس» and «مكبوس»
+     used to reach «مچبوس» by accident — one edit apart in the fuzzy fallback.
+     Folding چ to تش made it «متشبوس», two edits away, and both spellings
+     started finding nothing. That regression is why they are synonyms now, and
+     why this asserts on all four rather than on the Kuwaiti spelling alone. */
+  const dish = ask("مچبوس").hitPlaces[0]?.slug;
+  ok("the catalogue has the dish under its Kuwaiti spelling", !!dish, String(dish));
+  for (const q of ["مجبوس", "مكبوس", "كبسة"]) {
+    const got = ask(q).hitPlaces.map((p) => p.slug);
+    ok(`«${q}» reaches it too`, got.includes(dish), got.slice(0, 3).join(", ") || "لا شي");
+  }
+}
+
 console.log(`\n${pass} passed, ${fails.length} failed`);
 if (fails.length) { console.log("FAILED: " + fails.join(" | ")); process.exit(1); }

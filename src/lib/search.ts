@@ -14,6 +14,7 @@
  *   - unmatched tokens fall back to prefix and edit-distance matching, so
  *     partial words and typos still find the place.
  */
+import { toStandardArabic } from "@/lib/arabic";
 import {
   categories,
   countAr,
@@ -50,7 +51,10 @@ export interface SearchHit {
 
 /** Fold Arabic orthographic variants so equivalent spellings collide. */
 export function normalise(value: string): string {
-  return value
+  // Kuwaiti spellings first: چ/ی/ک are not Arabic letters, and the last two are
+  // the same GLYPH as ي and ك — a word spelled correctly on a Farsi keyboard
+  // found nothing, with nothing on screen to explain why. See lib/arabic.
+  return toStandardArabic(value)
     .toLowerCase()
     .replace(/[ً-ْٰ]/g, "") // harakat
     .replace(/ـ/g, "") // tatweel
@@ -132,6 +136,23 @@ const SYNONYMS: Record<string, string[]> = {
   نروح: ["مكان", "طلعه"],
   نطلع: ["مكان", "طلعه"],
   سمچ: ["سمك"],
+  /**
+   * The national dish, and the four ways it gets written.
+   *
+   * The catalogue spells it «مچبوس», which is the Kuwaiti spelling and the
+   * right one on the page. «مجبوس» and «مكبوس» used to reach it anyway — by
+   * accident, through the edit-distance fallback, one letter apart. Folding چ
+   * to تش for the index (see lib/arabic) makes it «متشبوس», two edits away,
+   * and both spellings started finding nothing. Measured, and the reason these
+   * are here rather than left to the fuzzy matcher: a fallback that happened to
+   * work is not the same as knowing the word.
+   *
+   * «كبسة» is the Saudi name for the same plate, which the fuzzy matcher was
+   * never going to reach from any spelling.
+   */
+  مجبوس: ["مچبوس", "اكل", "كويتي"],
+  مكبوس: ["مچبوس", "اكل", "كويتي"],
+  كبسه: ["مچبوس", "اكل", "كويتي"],
   حلويات: ["حلا"],
 
   /* ── The words people search with that the catalogue does not use ────────
