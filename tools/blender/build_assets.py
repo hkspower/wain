@@ -53,7 +53,40 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 #
 #   samples/span, bevel steps, tire radial segs, tire profile segs,
 #   alloy radial segs, palm leaflet pairs
+#
+# IS `max` ALREADY ENOUGH? YES — MEASURED
+#
+# `ultra` exists because the question gets asked, and it is kept so the
+# next person does not have to spend an afternoon answering it again.
+# Do not ship it.
+#
+# It doubles the spans and the bevel steps: 363,768 triangles per car
+# against max's 156,472, and 7.6 MB per file against 2.75 MB. Rendered
+# side by side at the showroom camera, with the same car and the same
+# light:
+#
+#   share of the car's pixels that changed by more than 8 of 255
+#     re-rendering max twice (the noise floor)   2.11%
+#     max -> ultra                               6.40%
+#
+# which looks like a difference until you look at the pictures: the
+# extra pixels are the antialiased silhouette shifting, not a surface
+# getting smoother. Zoomed to the wheel arch and the shoulder — the two
+# places a facet would show first — the two are indistinguishable.
+#
+# The arithmetic agrees, and it is the part worth remembering. The body
+# bevel is 26 mm across 28 steps, so one step subtends about 0.93 mm of
+# arc. At the chase camera, 8 m back through a 62-degree lens on a
+# 1600-pixel frame, a pixel covers about 5.4 mm. The step is a sixth of
+# a pixel. Even in the showroom shot, where the car fills the frame, it
+# is a quarter of one. Geometry finer than a pixel cannot be seen, and
+# more of it is a bigger download for the same picture.
+#
+# If this ever needs revisiting it will be because the CAMERA changed —
+# a much closer view, or a much higher resolution — not because someone
+# wants the cars to look nicer.
 QUALITY = {
+    "ultra": dict(spans=144, bevel=44, tire_r=224, tire_p=44, alloy=144, leaflets=18, driver=144),
     "max": dict(spans=96, bevel=28, tire_r=160, tire_p=30, alloy=96, leaflets=13, driver=96),
     "high": dict(spans=64, bevel=20, tire_r=96, tire_p=22, alloy=64, leaflets=10, driver=64),
     "draft": dict(spans=40, bevel=12, tire_r=48, tire_p=14, alloy=32, leaflets=7, driver=28),

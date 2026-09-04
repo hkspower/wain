@@ -15,6 +15,28 @@ simply stands — nothing waits and nothing breaks.
 `build.json` records what the last build produced — quality preset,
 settings and per-file triangle counts.
 
+## Quality: ship `max`, not `ultra`
+
+There is an `ultra` preset above `max`. It is measured and it is not
+worth it: 2.3x the triangles and 2.8x the file size for a picture that
+is indistinguishable from `max` at every camera this game uses — the
+body bevel at `max` already resolves finer than a pixel. The reasoning
+and the numbers are in the comment above `QUALITY` in
+`tools/blender/build_assets.py`. Do not ship it without re-measuring.
+
+## Keeping these in step with the cars
+
+The GLBs are generated from `profiles.json`, which is extracted from
+`src/game/cars.ts` — so they go stale the moment a silhouette changes
+and nothing tells you. They HAVE been stale: the exporter threw on a
+width written as `roofWidth(SEDAN_CABIN_W)` (a call, where it only knew
+how to read a literal or a name), `npm run sync:models` stopped working,
+and because the throw came before the Blender step the models simply
+stayed as they were — thirteen days and a dozen shape changes behind the
+cars. The shipped shells had a 50 mm body edge where the game had cut it
+to 26 mm, and roofs 150 mm narrower than the cabins they sat on. Re-run
+`npm run sync:models` after any change to a car's shape.
+
 ## Regenerating
 
 ```bash

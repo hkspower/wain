@@ -38,8 +38,8 @@
       ]
     },
     "car-rx7": {
-      "tris": 90352,
-      "kb": 1587.6,
+      "tris": 167608,
+      "kb": 2948.5,
       "parts": [
         "Body",
         "Canopy",
@@ -73,6 +73,17 @@
       "kb": 29.8,
       "parts": [
         "Crown"
+      ]
+    },
+    "driver": {
+      "tris": 27744,
+      "kb": 443.6,
+      "parts": [
+        "Glove",
+        "Helmet",
+        "Pedal",
+        "Visor",
+        "Wheel"
       ]
     }
   }

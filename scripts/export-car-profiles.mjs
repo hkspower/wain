@@ -31,6 +31,48 @@ function constant(name) {
   return +m[1];
 }
 
+/**
+ * cars.ts's own numeric vocabulary, evaluated rather than pattern-matched.
+ *
+ * `scalar` below used to accept a literal or the name of one, and that
+ * was true right up until a width was written as `roofWidth(SEDAN_CABIN_W)`
+ * — a call, not a name. The exporter threw, `npm run sync:models` stopped
+ * working, and because the throw was upstream of the Blender step nobody
+ * got a stale-model warning: the GLBs simply stayed as they were, thirteen
+ * days and a dozen shape changes behind the cars. Every authored shell in
+ * the game was built from a profile the source no longer described.
+ *
+ * So the walk resolves the same way objectLiteral does, and for the same
+ * reason it gives: a regex reading structure is a bug waiting to happen.
+ * Each `const NAME = <rhs>;` in cars.ts is evaluated in a scope built
+ * from the ones before it, and anything that does not come out a number
+ * or a function — anything touching THREE, a texture, a mesh — throws
+ * and is simply left out. The scope ends up holding cars.ts's numbers
+ * and its small arithmetic helpers, which is exactly what a profile
+ * argument is allowed to be made of.
+ */
+const SCOPE = (() => {
+  const scope = Object.create(null);
+  const decl = /(?:^|\n)(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?=\s*([^;]+);/g;
+  for (const [, name, rhs] of src.matchAll(decl)) {
+    // Types are erased by hand here: the arrow helpers carry them, and
+    // `(cabin: number): number => …` is not valid JavaScript.
+    const js = rhs.replace(/:\s*number/g, "");
+    try {
+      const keys = Object.keys(scope);
+      const value = new Function(...keys, `"use strict"; return (${js});`)(
+        ...keys.map((k) => scope[k])
+      );
+      if (typeof value === "number" ? Number.isFinite(value) : typeof value === "function") {
+        scope[name] = value;
+      }
+    } catch {
+      // Not arithmetic. Not our business.
+    }
+  }
+  return scope;
+})();
+
 /** The whole CROWN_BY_STYLE table, evaluated rather than regexed: it is
  *  nested objects and a regex reading them is a bug waiting to happen. */
 function objectLiteral(decl) {
@@ -67,11 +109,26 @@ function splitArgs(body) {
   return out.map((a) => a.trim()).filter((a) => a.length);
 }
 
-/** A scalar argument: a literal, or the name of one. */
+/** A scalar argument: a literal, the name of one, or an expression over
+ *  cars.ts's own numbers — `roofWidth(SEDAN_CABIN_W)` is all three of
+ *  those things at once. */
 function scalar(text) {
   const t = text.trim();
   if (/^-?[\d.]+$/.test(t)) return +t;
-  return constant(t);
+  if (/^[A-Za-z_$][\w$]*$/.test(t) && typeof SCOPE[t] === "number") return SCOPE[t];
+  const keys = Object.keys(SCOPE);
+  let value;
+  try {
+    value = new Function(...keys, `"use strict"; return (${t.replace(/:\s*number/g, "")});`)(
+      ...keys.map((k) => SCOPE[k])
+    );
+  } catch (e) {
+    throw new Error(`cannot evaluate "${t}" from cars.ts: ${e.message}`);
+  }
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`"${t}" did not evaluate to a number (got ${value})`);
+  }
+  return value;
 }
 
 /** Parse one `const <name> = extrudeProfile([...], width, bevel, bottom, crown);` */

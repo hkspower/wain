@@ -48,7 +48,7 @@
     ]
    ],
    "width": 1.84,
-   "bevel": 0.05,
+   "bevel": 0.026,
    "bottom": 2,
    "crown": {
     "tuck": 0.045,
@@ -76,7 +76,7 @@
     ]
    ],
    "width": 1.6,
-   "bevel": 0.04,
+   "bevel": 0.021,
    "bottom": 0,
    "crown": {
     "tuck": 0.072,
@@ -103,8 +103,8 @@
      1.334
     ]
    ],
-   "width": 1.42,
-   "bevel": 0.03,
+   "width": 1.57,
+   "bevel": 0.016,
    "bottom": 0,
    "crown": {
     "tuck": 0.026,
@@ -162,7 +162,7 @@
     ]
    ],
    "width": 2.08,
-   "bevel": 0.05,
+   "bevel": 0.026,
    "bottom": 2,
    "crown": {
     "tuck": 0.075,
@@ -190,7 +190,7 @@
     ]
    ],
    "width": 1.776,
-   "bevel": 0.04,
+   "bevel": 0.021,
    "bottom": 0,
    "crown": {
     "tuck": 0.105,
@@ -217,8 +217,8 @@
      1.114
     ]
    ],
-   "width": 1.582,
-   "bevel": 0.03,
+   "width": 1.746,
+   "bevel": 0.016,
    "bottom": 0,
    "crown": {
     "tuck": 0.034,
@@ -276,7 +276,7 @@
     ]
    ],
    "width": 1.985,
-   "bevel": 0.05,
+   "bevel": 0.026,
    "bottom": 2,
    "crown": {
     "tuck": 0.068,
@@ -304,7 +304,7 @@
     ]
    ],
    "width": 1.701,
-   "bevel": 0.04,
+   "bevel": 0.021,
    "bottom": 0,
    "crown": {
     "tuck": 0.098,
@@ -331,8 +331,8 @@
      1.354
     ]
    ],
-   "width": 1.5,
-   "bevel": 0.03,
+   "width": 1.671,
+   "bevel": 0.016,
    "bottom": 0,
    "crown": {
     "tuck": 0.032,
@@ -390,7 +390,7 @@
     ]
    ],
    "width": 1.961,
-   "bevel": 0.05,
+   "bevel": 0.026,
    "bottom": 2,
    "crown": {
     "tuck": 0.075,
@@ -409,6 +409,10 @@
      1.194
     ],
     [
+     -0.31,
+     1.174
+    ],
+    [
      -0.72,
      1.154
     ],
@@ -418,8 +422,8 @@
     ]
    ],
    "width": 1.635,
-   "bevel": 0.04,
-   "bottom": 2,
+   "bevel": 0.021,
+   "bottom": 0,
    "crown": {
     "tuck": 0.105,
     "roof": 0.028,
@@ -445,9 +449,9 @@
      1.164
     ]
    ],
-   "width": 1.429,
-   "bevel": 0.03,
-   "bottom": 2,
+   "width": 1.605,
+   "bevel": 0.016,
+   "bottom": 0,
    "crown": {
     "tuck": 0.034,
     "roof": 0.036,
@@ -507,6 +511,11 @@
    "lookAheadM": 26,
    "lookLatK": 0.4,
    "lookHeight": 1.1,
+   "elbowMinDeg": 8,
+   "elbowMaxDeg": 150,
+   "kneeMinDeg": 12,
+   "kneeMaxDeg": 140,
+   "softReach": 0.08,
    "neckYaw": 0.7,
    "neckPitch": 0.28,
    "neckRate": 5

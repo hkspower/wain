@@ -41,7 +41,7 @@
   {
     "id": "efreet-rx-kai",
     "name": "Efreet RX Kai",
-    "arabicName": "كبير العفاريت",
+    "arabicName": "عفريت آر إكس كاي",
     "cls": "supercar",
     "classLabel": "SUPERCARS · سوبر كار",
     "price": 120000,
@@ -66,8 +66,8 @@
   },
   {
     "id": "sahara-v12",
-    "name": "Sahara GT-12",
-    "arabicName": "صحارى",
+    "name": "Sahara V12",
+    "arabicName": "صحارى في ١٢",
     "cls": "supercar",
     "classLabel": "SUPERCARS · سوبر كار",
     "price": 96000,
@@ -92,7 +92,7 @@
   },
   {
     "id": "falcon-720",
-    "name": "Falcon 720 Veloce",
+    "name": "Falcon 720",
     "arabicName": "الصقر ٧٢٠",
     "cls": "supercar",
     "classLabel": "SUPERCARS · سوبر كار",
@@ -118,8 +118,8 @@
   },
   {
     "id": "storm-s8",
-    "name": "Desert Storm S8",
-    "arabicName": "عاصفة",
+    "name": "Storm S8",
+    "arabicName": "عاصفة إس ٨",
     "cls": "supercar",
     "classLabel": "SUPERCARS · سوبر كار",
     "price": 54000,
@@ -145,7 +145,7 @@
   {
     "id": "anniversary-30",
     "name": "Bareed 30 Anniversary",
-    "arabicName": "بريد ٣٠",
+    "arabicName": "بريد ٣٠ الذكرى",
     "cls": "sport",
     "classLabel": "HIGH PERFORMANCE · أداء عالي",
     "price": 35000,
@@ -171,7 +171,7 @@
   {
     "id": "kaiju-r",
     "name": "Kaiju R",
-    "arabicName": "كايجو",
+    "arabicName": "كايجو آر",
     "cls": "supercar",
     "classLabel": "SUPERCARS · سوبر كار",
     "price": 38000,
@@ -197,7 +197,7 @@
   {
     "id": "efreet-rx",
     "name": "Efreet RX",
-    "arabicName": "عفريت",
+    "arabicName": "عفريت آر إكس",
     "cls": "sport",
     "classLabel": "HIGH PERFORMANCE · أداء عالي",
     "price": 31000,
@@ -249,7 +249,7 @@
   {
     "id": "gulf-coupe-rs",
     "name": "Gulf Coupe RS",
-    "arabicName": "كوبيه الخليج",
+    "arabicName": "كوبيه الخليج آر إس",
     "cls": "sport",
     "classLabel": "HIGH PERFORMANCE · أداء عالي",
     "price": 33000,
@@ -275,7 +275,7 @@
   {
     "id": "salmiya-turbo",
     "name": "Salmiya Turbo GT",
-    "arabicName": "تيربو السالمية",
+    "arabicName": "تيربو السالمية جي تي",
     "cls": "sport",
     "classLabel": "HIGH PERFORMANCE · أداء عالي",
     "price": 24000,
@@ -300,8 +300,8 @@
   },
   {
     "id": "hawally-2t",
-    "name": "Hawally Sport 2.0T",
-    "arabicName": "حولي سبورت",
+    "name": "Hawally Sport 2T",
+    "arabicName": "حولي سبورت ٢ تي",
     "cls": "normal",
     "classLabel": "BASIC · أساسي",
     "price": 16000,
