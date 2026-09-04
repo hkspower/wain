@@ -72,8 +72,13 @@ here, and each one cost a wrong answer first:
 - **Quoted text with shell metacharacters arrives empty.** The redirect opens
   the file (truncating it) and the command then fails. Send content as
   **base64** — letters, digits, `+/=`, unquoted — and `base64 -d` on the far
-  side. That is the one form proven to carry arbitrary bytes.
-- **The command is capped at 255 characters**, measured by bisection.
+  side.
+- **About 64 characters of payload is all it carries.** The API ACCEPTS 255 —
+  that is what an earlier bisection measured, and it measured the wrong thing.
+  Accepted and executed are different: a 64-character write landed, 90, 120 and
+  200 all produced a zero-byte file, and the 200s failed again on a completely
+  empty account, so it is not contention either. Six chunk sizes were burned
+  finding this out.
 - **Output capture returns only the last line.** Put everything on one line
   with `echo "a=$(…) b=$(…)"` or the diagnosis is half a diagnosis.
 
@@ -81,8 +86,54 @@ here, and each one cost a wrong answer first:
 you just wrote proves nothing — it reads the home-directory copy just as
 happily. A check that cannot fail is not a check.
 
-**Delete every job when it has run.** They fire every minute forever otherwise,
-and ~100 of them at once starves the writes.
+**Delete every job when it has run.** They fire every minute forever otherwise.
+
+**So this channel cannot publish a website.** It is enough for a one-line
+`.htaccess`, a `cp`, a `grep` against a live file — reconnaissance and repair.
+Everything else goes in a PHP installer the owner uploads. Reaching for cron to
+move 58 KB of CSS cost most of a session and never worked.
+
+## Hand over a PHP installer, never an archive
+
+The File Manager's **Extract REPLACES a directory rather than merging into it**.
+A zip extracted into `public_html` on 2026-09-03 reduced `api/` to one file and
+`assets/` to two, deleted every `.htaccess` and all three `config.php`, and
+dumped the repository into the web root with the SQL schema publicly readable.
+The shop was down until a Files-only backup restore.
+
+`scripts/make-installer.mjs` builds the alternative: a PHP file that writes the
+paths it is given, verifies each against a sha256 before writing, and **removes
+nothing**. Run it against a scratch directory and compare hashes before handing
+it over.
+
+**A restore rolls the server back, so check interfaces before publishing onto
+one.** The 2026-09-04 restore returned `api/store.php` at 102,081 bytes where
+the repo has 125,083. Publishing a newer `admin.php` onto it would have been a
+fatal error on `/backends` if the helpers had moved — `grep -c` through cron
+against the live file is how that gets checked, and it takes two minutes.
+
+## The service worker can pin a file for ever
+
+`sw.js` rule 2 cached everything under `/assets/` cache-first-and-never-re-asked,
+justified by "content-hashed, so the filename changes when the bytes do". Seven
+files there have FIXED names — `sporta-ui.css`, `sporta-dark.css`, `contact.js`,
+`card.js`, `returns-link.js`, `returns-request.js`, `track-guard.js` — so a
+returning visitor was pinned to whatever copy they first cached, and the only
+thing that frees a pinned cache is a `VERSION` bump that had not happened.
+
+That is why the live site "did not update for a long time": changes reached new
+visitors and nobody else, while `.htaccess` marked all seven
+`no-cache, must-revalidate` and the worker never made the request to find out.
+
+Two rules follow. **Test the hash, not the folder** — un-hashed files belong on
+the network-first path their header already asks for. And **bump `VERSION` with
+any such fix**, because the fix alone leaves everyone already pinned exactly
+where they were.
+
+**A blank page with no boot message means the worker, not the server.**
+`index.html` prints a diagnostic after ten seconds naming the file that failed.
+If that message never appears, the page did not come from the server at all. A
+private tab bypasses the worker and settles it in ten seconds.
 
 ## Do not redesign without approval
 
