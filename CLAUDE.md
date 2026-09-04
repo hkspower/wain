@@ -96,6 +96,22 @@ here, and each one cost a wrong answer first:
   wget follows it straight back into the same DNS failure. And never `-q` when
   the question is *why*: silence is not a measurement.
 
+  **This had broken seven of the eight real cron jobs, for as long as they have
+  existed.** Every one of them fetched `https://www.sporta.com.kw/api/cron-*.php`
+  and every one died on that DNS lookup — invisibly, because `-qO-` throws the
+  error away. Only cron-invoice ran, and only because it calls `php` on an
+  absolute path instead. Proved by replaying cron-push's exact command with
+  stderr kept; the job's own captured output is empty, so the panel showed
+  nothing wrong. Four were repaired to the loopback form on 2026-09-04
+  (push, assistant, stock, voice); whatsapp, customer-mail and fulfilment were
+  deliberately left until their outboxes are checked for backlog, because
+  restarting a dormant queue sends whatever is in it to real customers.
+
+  A quoted URL containing `&` DOES survive this channel — measured, 21,773
+  bytes back — so `?key=…&do=release` is safe to schedule. Only six of the
+  cron-*.php endpoints require HTTP at all; cron-voice and cron-invoice are the
+  two that are CLI-aware.
+
 **Verify by absolute path, always.** Reading a file back by the relative name
 you just wrote proves nothing — it reads the home-directory copy just as
 happily. A check that cannot fail is not a check.
