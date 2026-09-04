@@ -136,6 +136,25 @@ if (is_array($cfg)) {
         // error — the feature fails closed and silently — but it is the
         // difference between "nobody asked" and "it cannot answer".
         $qa = $pdo->query("show tables like 'assistant_qa'")->fetchColumn() ? 'yes' : 'MISSING';
+
+        // WHAT WOULD GO OUT IF THE DORMANT CRON JOBS WERE RESTARTED.
+        //
+        // Three of them — whatsapp, customer-mail, fulfilment — were left on
+        // the broken domain form on purpose (see CLAUDE.md): each drains an
+        // outbox, and a queue that has been dead for months sends its whole
+        // backlog to real people the moment it runs. sent_at IS NULL is the
+        // row that has not gone yet, so this is the number that decides
+        // whether repairing those jobs is safe or is a mailshot.
+        $pend = [];
+        foreach (['whatsapp_outbox' => 'wa', 'customer_mail_outbox' => 'mail',
+                  'fulfilment_outbox' => 'ful'] as $t => $label) {
+            try {
+                $n = (int) $pdo->query("select count(*) from `$t` where sent_at is null")->fetchColumn();
+                $a = (int) $pdo->query("select count(*) from `$t`")->fetchColumn();
+                $pend[] = "$label=$n/$a";
+            } catch (Throwable $e) { $pend[] = "$label=?"; }
+        }
+        $qa .= ' pending=' . implode(',', $pend);
     } catch (Throwable $e) {
         $db = 'error';
         $fail[] = 'db';
