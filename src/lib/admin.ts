@@ -296,6 +296,30 @@ export type Brand = {
   sort: number;
 };
 
+/** An answer the shop wrote itself, for a question the assistant's intents do
+ *  not cover.
+ *
+ *  `q_ar` / `q_en` are KEYWORDS, not sentences: the server folds both sides and
+ *  requires every significant word of the stored phrase to appear in what the
+ *  customer typed. Either may be empty when the question only ever arrives in
+ *  one language; both answers are required, because replying to Arabic in
+ *  English is not replying.
+ *
+ *  `hits` is how many times this answer has been given. It is the only signal
+ *  that separates a phrase customers actually type from one that reads well
+ *  and never fires. */
+export type Qa = {
+  id: number;
+  q_ar: string;
+  q_en: string;
+  a_ar: string;
+  a_en: string;
+  active: boolean | number;
+  hits: number;
+  last_hit_at: string | null;
+  updated_at: string;
+};
+
 /** A garment as the uploader needs to find it: by brand, by size, by sku. */
 export interface UploadTarget {
   sku: string;
@@ -836,6 +860,38 @@ export const adminApi = {
    *  orders behind it is history, and hiding is the reversible answer. */
   setBrandActive: (id: number, active: boolean) =>
     call<{ id: number; slug: string; active: boolean }>('brand_active', { id, active }),
+
+  // ------------------------------------------------------- سبورتا AI answers
+
+  /** Every taught answer, shown first, then by how often it has fired. The
+   *  order is the server's and is deliberate: the ones earning their place sit
+   *  at the top of the screen. */
+  qa: () => call<Qa[]>('qa'),
+
+  /** Create or edit — one route, one form, the difference is whether an id
+   *  came with it. The server refuses a row with no question phrase and a row
+   *  missing either answer, so the screen checks the same two things first and
+   *  saves the round trip. */
+  saveQa: (q: {
+    id?: number;
+    q_ar: string;
+    q_en: string;
+    a_ar: string;
+    a_en: string;
+  }) => call<Qa>('qa_save', q),
+
+  /** Stop giving this answer, or start again. No delete: an answer that turned
+   *  out to be wrong has to stop immediately AND stay readable by whoever asks
+   *  why the shop said it. */
+  setQaActive: (id: number, active: boolean) =>
+    call<{ id: number; active: boolean }>('qa_active', { id, active }),
+
+  /** What would fire if a customer typed this. Read-only — it counts no hit
+   *  and hands nothing off. It exists because the one mistake this design
+   *  invites is writing the phrase as a sentence, and this is how that shows up
+   *  before a customer finds it. Returns the row's id, or null for no match. */
+  tryQa: (message: string) =>
+    call<{ id: number | null; words: number }>('qa_try', { message }),
 
   deleteDiscount: (id: number) => call<{ ok: true }>('discount_delete', { id }),
 

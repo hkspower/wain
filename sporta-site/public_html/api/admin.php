@@ -1399,6 +1399,121 @@ if ($r === 'assistant_handled' && $method === 'POST') {
     store_out(['id' => $id, 'handled' => $on]);
 }
 
+// ------------------------------------------------- the answers the shop wrote
+//
+// assistant_log above is the list of questions the shop COULD NOT answer.
+// These four routes are how that list gets shorter: the owner reads a question
+// nobody could handle, writes the answer once, and the assistant returns it
+// verbatim from then on (assistant.php, assistant_qa_match).
+//
+// The phrase stored is a set of KEYWORDS, not a sentence — the matcher folds
+// both sides and requires every significant word to be present, so "جمعه
+// مفتوح" catches "هل انتم مفتوحين يوم الجمعة؟" and a full sentence would catch
+// almost nothing. The screen says so; this is the note for whoever reads the
+// route first.
+if ($r === 'qa') {
+    $rows = $db->query(
+        'select id, q_ar, q_en, a_ar, a_en, active, hits, last_hit_at, updated_at
+           from assistant_qa
+          order by active desc, hits desc, id'
+    )->fetchAll();
+    foreach ($rows as &$row) {
+        $row['active'] = (int) $row['active'] === 1;
+        $row['hits']   = (int) $row['hits'];
+    }
+    store_out($rows);
+}
+
+if ($r === 'qa_save' && $method === 'POST') {
+    $b = store_body();
+    $id = (int)($b['id'] ?? 0);
+
+    $qAr = trim((string)($b['q_ar'] ?? ''));
+    $qEn = trim((string)($b['q_en'] ?? ''));
+    $aAr = trim((string)($b['a_ar'] ?? ''));
+    $aEn = trim((string)($b['a_en'] ?? ''));
+
+    // A row with no question matches nothing and would sit in the list looking
+    // like a working answer. Refuse it here rather than store a dead row.
+    if ($qAr === '' && $qEn === '') store_fail('question_required');
+    // Both answers, because a shop that replies to Arabic in English has not
+    // replied. The matcher will fall back if one is somehow blank, but nothing
+    // should be able to create that state deliberately.
+    if ($aAr === '' || $aEn === '') store_fail('answer_required');
+
+    // The column widths, checked before MySQL truncates silently under a
+    // non-strict mode — a half-stored answer is worse than a refused one.
+    if (mb_strlen($qAr) > 200 || mb_strlen($qEn) > 200) store_fail('question_too_long');
+    if (mb_strlen($aAr) > 1000 || mb_strlen($aEn) > 1000) store_fail('answer_too_long');
+
+    if ($id > 0) {
+        $q = $db->prepare('update assistant_qa set q_ar = ?, q_en = ?, a_ar = ?, a_en = ? where id = ?');
+        $q->execute([$qAr, $qEn, $aAr, $aEn, $id]);
+        $chk = $db->prepare('select 1 from assistant_qa where id = ?');
+        $chk->execute([$id]);
+        if (!$chk->fetch()) store_fail('not_found');
+    } else {
+        $db->prepare('insert into assistant_qa (q_ar, q_en, a_ar, a_en) values (?, ?, ?, ?)')
+           ->execute([$qAr, $qEn, $aAr, $aEn]);
+        $id = (int) $db->lastInsertId();
+    }
+
+    $row = $db->prepare('select id, q_ar, q_en, a_ar, a_en, active, hits, last_hit_at, updated_at
+                           from assistant_qa where id = ?');
+    $row->execute([$id]);
+    $out = $row->fetch();
+    $out['active'] = (int) $out['active'] === 1;
+    $out['hits']   = (int) $out['hits'];
+    store_out($out);
+}
+
+// Hidden, not deleted — the same convention as brands, and for a sharper
+// reason: an answer that turned out to be wrong must stop being given at once,
+// and must still be readable by whoever asks why the shop said it.
+if ($r === 'qa_active' && $method === 'POST') {
+    $b = store_body();
+    $id = (int)($b['id'] ?? 0);
+    $on = !empty($b['active']);
+    $q = $db->prepare('update assistant_qa set active = ? where id = ?');
+    $q->execute([$on ? 1 : 0, $id]);
+    if ($q->rowCount() === 0) {
+        $chk = $db->prepare('select 1 from assistant_qa where id = ?');
+        $chk->execute([$id]);
+        if (!$chk->fetch()) store_fail('not_found');
+    }
+    store_out(['id' => $id, 'active' => $on]);
+}
+
+// WHAT THIS ANSWER WOULD DO, without waiting for a customer to ask. The owner
+// types a question the way a customer would and sees which row fires — the one
+// check that catches a phrase written as a sentence, which is the mistake this
+// design invites. Read-only: it never increments hits and never hands off.
+if ($r === 'qa_try' && $method === 'POST') {
+    $b = store_body();
+    $text = trim((string)($b['message'] ?? ''));
+    if ($text === '') store_fail('message_required');
+
+    require_once __DIR__ . '/assistant.php';
+    $hay = assistant_normalise($text);
+    $rows = $db->query('select id, q_ar, q_en from assistant_qa where active = 1 order by id')
+               ->fetchAll(PDO::FETCH_ASSOC);
+
+    $best = 0; $bestWords = 0;
+    foreach ($rows as $row) {
+        foreach ([$row['q_ar'], $row['q_en']] as $phrase) {
+            $phrase = assistant_normalise((string)$phrase);
+            if ($phrase === '') continue;
+            $words = array_values(array_filter(explode(' ', $phrase),
+                static fn($w) => mb_strlen($w) > 1));
+            if (!$words) continue;
+            $all = true;
+            foreach ($words as $w) if (mb_strpos($hay, $w) === false) { $all = false; break; }
+            if ($all && count($words) > $bestWords) { $bestWords = count($words); $best = (int)$row['id']; }
+        }
+    }
+    store_out(['id' => $best ?: null, 'words' => $bestWords]);
+}
+
 if ($r === 'review_publish' && $method === 'POST') {
     $b = store_body();
     $db->prepare('update reviews set published = ? where id = ?')

@@ -159,8 +159,23 @@ def _fresh():
         {'id': 2, 'slug': 'ahed', 'name_en': 'AHED', 'name_ar': 'عهد',
          'logo': None, 'active': 1, 'sort': 1},
     ]
+    # TWO TAUGHT ANSWERS: one that has fired and one that never has. The screen
+    # says different things about each ("used 12 times" against "never used —
+    # customers may not phrase it this way"), and a fixture carrying only the
+    # used one proves only the used one.
+    qa = [
+        {'id': 1, 'q_ar': 'جمعه مفتوح', 'q_en': 'open friday',
+         'a_ar': 'نعم، من ٤ عصراً حتى ١٠ مساءً.', 'a_en': 'Yes — 4pm to 10pm.',
+         'active': True, 'hits': 12, 'last_hit_at': '2026-09-02 19:40:00',
+         'updated_at': '2026-09-01 10:00:00'},
+        {'id': 2, 'q_ar': 'هدية تغليف', 'q_en': 'gift wrap',
+         'a_ar': 'نعم، التغليف مجاني — اطلبه في الملاحظات.',
+         'a_en': 'Yes, free — ask for it in the order notes.',
+         'active': True, 'hits': 0, 'last_hit_at': None,
+         'updated_at': '2026-09-01 10:00:00'},
+    ]
     return {'orders': orders, 'items': items, 'variants': variants, 'discounts': discounts,
-            'products': products, 'brands': brands,
+            'products': products, 'brands': brands, 'qa': qa,
             # FOUR PHOTOGRAPHS ON THE FIRST GARMENT, so the gallery exists
             # for a rig to look at. It used to start empty, and the gallery
             # is three taps in — which is how a 22pt Remove button that
@@ -325,6 +340,9 @@ class Handler(BaseHTTPRequestHandler):
 
         if r == 'brands':
             return self._json(200, STATE['brands'])
+
+        if r == 'qa':
+            return self._json(200, STATE['qa'])
 
         if r == 'discounts':
             return self._json(200, STATE['discounts'])
@@ -612,6 +630,62 @@ class Handler(BaseHTTPRequestHandler):
                    'sort': int(b.get('sort') or 0)}
             STATE['brands'].append(row)
             return self._json(200, row)
+
+        # THE SAME REFUSALS THE REAL ROUTE MAKES, in the same order and with the
+        # same error names. A mock that accepts what admin.php rejects is how a
+        # screen ships believing it has validated something.
+        if r == 'qa_save':
+            q_ar = (b.get('q_ar') or '').strip()
+            q_en = (b.get('q_en') or '').strip()
+            a_ar = (b.get('a_ar') or '').strip()
+            a_en = (b.get('a_en') or '').strip()
+            if not q_ar and not q_en:
+                return self._json(400, {'error': 'question_required'})
+            if not a_ar or not a_en:
+                return self._json(400, {'error': 'answer_required'})
+            if len(q_ar) > 200 or len(q_en) > 200:
+                return self._json(400, {'error': 'question_too_long'})
+            if len(a_ar) > 1000 or len(a_en) > 1000:
+                return self._json(400, {'error': 'answer_too_long'})
+            qid = int(b.get('id') or 0)
+            if qid:
+                for x in STATE['qa']:
+                    if x['id'] == qid:
+                        x.update({'q_ar': q_ar, 'q_en': q_en, 'a_ar': a_ar, 'a_en': a_en})
+                        return self._json(200, x)
+                return self._json(400, {'error': 'not_found'})
+            row = {'id': max([x['id'] for x in STATE['qa']] or [0]) + 1,
+                   'q_ar': q_ar, 'q_en': q_en, 'a_ar': a_ar, 'a_en': a_en,
+                   'active': True, 'hits': 0, 'last_hit_at': None,
+                   'updated_at': '2026-09-04 00:00:00'}
+            STATE['qa'].append(row)
+            return self._json(200, row)
+
+        if r == 'qa_active':
+            for x in STATE['qa']:
+                if x['id'] == int(b.get('id') or 0):
+                    x['active'] = bool(b.get('active'))
+                    return self._json(200, {'id': x['id'], 'active': x['active']})
+            return self._json(400, {'error': 'not_found'})
+
+        # The same dull matching admin.php does: fold nothing here beyond case,
+        # then require every word of the phrase. The mock cannot fold Arabic the
+        # way assistant_normalise does — that is the real server's job and the
+        # live rig is what proves it — but the SHAPE of the answer has to match,
+        # or the screen is written against a reply the server never sends.
+        if r == 'qa_try':
+            text = (b.get('message') or '').strip().lower()
+            if not text:
+                return self._json(400, {'error': 'message_required'})
+            best, best_words = None, 0
+            for x in STATE['qa']:
+                if not x['active']:
+                    continue
+                for phrase in (x['q_ar'], x['q_en']):
+                    words = [w for w in phrase.lower().split() if len(w) > 1]
+                    if words and all(w in text for w in words) and len(words) > best_words:
+                        best, best_words = x['id'], len(words)
+            return self._json(200, {'id': best, 'words': best_words})
 
         if r == 'brand_active':
             for x in STATE['brands']:

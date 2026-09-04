@@ -25,6 +25,7 @@ export function Field({
   autoCapitalize,
   autoCorrect,
   maxLength,
+  multiline,
   returnKeyType,
   onSubmitEditing,
 }: {
@@ -55,6 +56,18 @@ export function Field({
   autoCapitalize?: 'none' | 'sentences' | 'words';
   autoCorrect?: boolean;
   maxLength?: number;
+  /**
+   * FOR THE FIELDS THAT HOLD A SENTENCE, not a value — an answer the shop
+   * writes for the assistant, a note on an order. A single-line input shows
+   * one line of a 1000-character answer and scrolls the rest sideways past the
+   * cursor, which is unreadable in Latin and worse in Arabic, where the text
+   * runs the other way and the caret ends up off the wrong edge.
+   *
+   * `textAlignVertical` is Android-only and does nothing on iOS, where a
+   * multiline TextInput already starts at the top — it is set rather than left
+   * out because without it Android centres the first line in the taller box.
+   */
+  multiline?: boolean;
   returnKeyType?: 'done' | 'go' | 'next' | 'search' | 'send';
   onSubmitEditing?: () => void;
 }) {
@@ -83,12 +96,15 @@ export function Field({
         autoCorrect={autoCorrect ?? (keyboardType && keyboardType !== 'default' ? false : undefined)}
         spellCheck={autoCorrect ?? (keyboardType && keyboardType !== 'default' ? false : undefined)}
         maxLength={maxLength}
+        multiline={multiline}
+        textAlignVertical={multiline ? 'top' : undefined}
         returnKeyType={returnKeyType}
         onSubmitEditing={onSubmitEditing}
         accessibilityLabel={label}
         placeholderTextColor={theme.textSecondary}
         style={[
           styles.input,
+          multiline && styles.multiline,
           text,
           {
             color: theme.text,
@@ -114,5 +130,14 @@ const styles = StyleSheet.create({
     borderRadius: Radius.button,
     paddingHorizontal: Spacing.three,
     fontSize: 16,
+  },
+  // Four lines at the 16px the input already sets, plus the padding — enough
+  // to see a whole short answer without the box dominating the form. It grows
+  // no further on its own: a taller box for a longer answer is a scroll, not a
+  // layout that shifts every time somebody types.
+  multiline: {
+    minHeight: TapTarget * 2,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.two,
   },
 });

@@ -1328,10 +1328,113 @@ function assistant_llm(array $cfg, string $message, string $facts, bool $ar): ?s
     return $out;
 }
 
+// ------------------------------------------------- the answers the shop wrote
+//
+// THE ONE PLACE THE ASSISTANT ANSWERS SOMETHING IT WAS TAUGHT. Everything else
+// in this file is derived: an intent, a query, a sentence built from rows. A
+// row in assistant_qa is different — it is the owner's own sentence, written
+// because a real customer asked something the intent list does not cover, and
+// it ships VERBATIM. No model rewording, no facts appended, no hand-off. The
+// shop has already decided what the true answer is; the job here is to return
+// it unchanged.
+//
+// HOW MATCHING WORKS, and it is deliberately dull. Both sides go through
+// assistant_normalise() — the same folding the intents use, so Arabic spelled
+// four ways still matches — and then EVERY significant word of the stored
+// phrase must appear in the customer's message. So the stored phrase is a set
+// of keywords ("جمعه مفتوح" / "open friday"), not a sentence to match
+// literally. Dull matching is the point: the owner can look at a row and say
+// why it fired, which is not true of anything fuzzier.
+//
+// MOST WORDS WINS. Two rows can both match; the more specific one — more of
+// its words present — is the better answer. Ties go to the older row, so
+// adding a new phrase can never silently displace one already working.
+//
+// ONE THING IT MAY NOT DO: answer an order question. If the message carries a
+// track id, this returns nothing and the message goes to the real order
+// lookup. A curated sentence about delivery times is not an answer to "where
+// is SP-2601", and being taught a phrase must never cost a customer their
+// actual order status.
+function assistant_qa_match(PDO $db, string $message, bool $ar): ?array
+{
+    if (assistant_find_track($message) !== null) return null;
+
+    $hay = assistant_normalise($message);
+    if ($hay === '') return null;
+
+    try {
+        $rows = $db->query('select id, q_ar, q_en, a_ar, a_en from assistant_qa
+                            where active = 1 order by id')->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        // The table is additive and may not be installed yet. A shop without it
+        // behaves exactly as it did before — silence here, not a 500.
+        return null;
+    }
+
+    $best = null; $bestWords = 0;
+    foreach ($rows as $row) {
+        foreach ([$row['q_ar'], $row['q_en']] as $phrase) {
+            $phrase = assistant_normalise((string)$phrase);
+            if ($phrase === '') continue;
+
+            // Single characters are noise in both scripts — an Arabic و or an
+            // English "a" appears in almost any sentence and would make a row
+            // match everything.
+            $words = array_values(array_filter(
+                explode(' ', $phrase),
+                static fn($w) => mb_strlen($w) > 1
+            ));
+            if (!$words) continue;
+
+            $all = true;
+            foreach ($words as $w) {
+                if (mb_strpos($hay, $w) === false) { $all = false; break; }
+            }
+            if ($all && count($words) > $bestWords) {
+                $bestWords = count($words);
+                $best = $row;
+            }
+        }
+    }
+    if (!$best) return null;
+
+    // Counted for the screen, never for the matching. A write on the read path
+    // is cheap and the number is what tells the owner which answers earn their
+    // place — but it must not be able to break the answer, so it is guarded.
+    try {
+        $db->prepare('update assistant_qa set hits = hits + 1, last_hit_at = now() where id = ?')
+           ->execute([$best['id']]);
+    } catch (Throwable $e) {
+        // An answer that arrives without its counter incremented is fine. The
+        // reverse — a counter that costs the customer their answer — is not.
+    }
+
+    $reply = trim((string)($ar ? $best['a_ar'] : $best['a_en']));
+    // One language may be blank on an old row; answering in the other is better
+    // than answering nothing.
+    if ($reply === '') $reply = trim((string)($ar ? $best['a_en'] : $best['a_ar']));
+    return $reply === '' ? null : ['id' => (int)$best['id'], 'reply' => $reply];
+}
+
 // ------------------------------------------------------------------- the ask
 function assistant_answer(PDO $db, array $cfg, string $message, string $lang): array
 {
     $ar = $lang === 'ar';
+
+    // CURATED FIRST, because a row in assistant_qa exists precisely to override
+    // what the shop would otherwise have said. It returns before the intent is
+    // even classified: there is no fact to fetch, no model to reword it, and
+    // nothing to hand off — the question has been answered by the shop itself.
+    $taught = assistant_qa_match($db, $message, $ar);
+    if ($taught) {
+        $out = ['intent' => 'taught', 'reply' => $taught['reply'], 'data' => null,
+                'source' => 'shop'];
+        if (assistant_speech_available($cfg)) {
+            $out['speak'] = assistant_speech_sig($cfg, $taught['reply'], $lang);
+        }
+        return $out;
+    }
+
     $intent = assistant_intent($db, $message);
     $data = null;
 
