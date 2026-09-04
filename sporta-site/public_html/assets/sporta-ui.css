@@ -1224,3 +1224,82 @@ main > section:has(> div > h1.text-brand-dark):has(h2) li + li {
     align-items: center;
   }
 }
+
+/* =================================== the product page: centred buying block,
+   ================================================== and a larger photograph
+
+   BOTH AT THE OWNER'S REQUEST, 2026-09-04, and both measured on the rendered
+   page rather than read off the markup — the source of this bundle is not in
+   the repository, so every selector below was found by inspecting the live
+   DOM and every number by measuring the box it produces.
+
+   WHAT IS CENTRED, AND WHAT DELIBERATELY IS NOT. The buying block — the name,
+   the price and the row of controls. The description and the delivery /
+   payment / returns list keep start alignment: they are prose and a bulleted
+   list, and Arabic reads those from the edge. Centring a three-item list with
+   an icon per line loosens it into three floating rows. The owner was asked
+   and chose exactly this split.
+
+   The price and the controls were already flex rows, so they need one
+   property each. The title needed more, and the reason is worth writing down:
+   it shares its row with the 44px wishlist button under `justify-between`, so
+   text-align alone centres the words inside the 298px LEFT of that button —
+   30px off the page's centre, which reads as a mistake rather than a choice.
+   Making the row relative, giving the heading the full width and taking the
+   button out of flow puts the title on the real centre and leaves the button
+   in its corner where it already was. */
+.flex.items-start.justify-between.gap-4:has(> .product-title) {
+  position: relative;
+}
+.flex.items-start.justify-between.gap-4:has(> .product-title) > .product-title {
+  width: 100%;
+  text-align: center;
+}
+.flex.items-start.justify-between.gap-4:has(> .product-title) > button {
+  position: absolute;
+  inset-inline-end: 0;
+  top: 0;
+}
+
+/* The price row and the add/buy row. `:has()` scopes both to this page —
+   `.mt-6.flex.flex-wrap` on its own is a utility combination that could turn
+   up anywhere, and a rule that centres someone else's row is the kind of
+   change nobody goes looking for. */
+p.mt-6.flex.flex-wrap.items-baseline:has(> .font-display) {
+  justify-content: center;
+}
+.mt-6.flex.flex-wrap.items-center.gap-4:has(> .btn) {
+  justify-content: center;
+}
+
+/* ------------------------------------------------- a larger photograph
+   Same shape, more of it — the owner was offered portrait and chose to keep
+   the shapes and grow them.
+
+   PHONE: the picture was 358 wide inside the page's 1rem gutters. Edge to
+   edge it is 390, and at the 1.25 ratio already set above that is 312px tall
+   against 286. The corners are squared at the same time: a rounded rectangle
+   that touches both edges of the screen reads as a mistake, not a radius.
+
+   This partly reverses the note at rule 2 above, which SHORTENED this box to
+   1.25 to bring 72px of buying controls up the page. That was the right call
+   on its own terms and it is not being undone — the ratio stays 1.25. Only
+   the width changes, so the cost is 26px, not the 72 that rule bought.
+
+   DESKTOP: the picture is one half of a two-column grid, so it cannot grow
+   without the text column giving way. 1.5fr/1fr moves it from 505 to about
+   607 in a 1044 container and leaves the buying column 405 — comfortably
+   above the ~380 at which the add/buy row starts wrapping awkwardly, which is
+   the floor that decided the ratio. */
+@media (max-width: 767px) {
+  .group.aspect-square.cursor-zoom-in {
+    margin-inline: -1rem;
+    width: calc(100% + 2rem);
+    border-radius: 0;
+  }
+}
+@media (min-width: 768px) {
+  .grid.gap-8.md\:grid-cols-2:has(.product-title) {
+    grid-template-columns: 1.5fr 1fr;
+  }
+}
