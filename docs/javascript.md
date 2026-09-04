@@ -132,6 +132,8 @@ module nobody would think to look at:
 
 ```
 layout → Footer / AppTabBar → OrdersLink → orders.ts / queue.ts
+(the footer has since been removed; OrdersLink now hangs off the Navbar, and
+the same edge would put the catalogue on every page from there instead)
        → supabase.ts → places.ts
 ```
 

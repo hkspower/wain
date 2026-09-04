@@ -99,7 +99,7 @@ export default async function PlacePage({
   const related = [...sameCategory, ...nearest].slice(0, 3);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 standalone:px-3 standalone:py-4 sm:px-6 sm:py-12">
+    <div className="mx-auto max-w-4xl px-4 py-8 standalone:px-3 standalone:py-4 sm:px-6 sm:py-14">
       {/* Breadcrumb */}
       <nav className="mb-5 text-sm text-ink-500" aria-label="مسار التنقّل">
         <Link

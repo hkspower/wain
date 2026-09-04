@@ -3,7 +3,6 @@ import { IBM_Plex_Sans_Arabic } from "next/font/google";
 import AppShell from "@/components/AppShell";
 import AppTabBar from "@/components/AppTabBar";
 import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
 import WainAi from "@/components/WainAi";
 import "./globals.css";
 
@@ -99,7 +98,6 @@ export default function RootLayout({
         <main id="main-content" className="flex-1">
           {children}
         </main>
-        <Footer />
         <WainAi />
         <AppTabBar />
         <AppShell />

@@ -129,7 +129,21 @@ const { chromium } = await import("playwright");
 const browser = await chromium.launch({ executablePath: CHROMIUM });
 
 const PAGES = ["/", "/explore/", "/search/", "/places/kuwait-towers/", "/orders/",
-  "/queue/", "/add/", "/about/", "/privacy/", "/admin/"];
+  // /404/ was missing, and it was the route with the bug: px-4 and no sm:px-6,
+  // so its desktop gutter was 16px where every other route is 24. The page
+  // nobody plans to visit is exactly the one no one checks.
+  "/queue/", "/add/", "/about/", "/privacy/", "/admin/", "/404/"];
+
+/**
+ * Routes whose page box legitimately does not carry the site rhythm.
+ *
+ * Named, with the reason, rather than silently tolerated — an exception list
+ * that does not say why is how a real defect gets added to it later.
+ */
+const RHYTHM_EXEMPT = new Map([
+  ["/", "a full-bleed hero; the sections inside it carry their own spacing"],
+  ["/404/", "a centred, near-empty page — it wants the extra air"],
+]);
 
 for (const vp of [{ name: "phone", width: 390 }, { name: "desktop", width: 1280 }]) {
   const page = await browser.newPage({ viewport: { width: vp.width, height: 844 } });
@@ -164,6 +178,51 @@ for (const vp of [{ name: "phone", width: 390 }, { name: "desktop", width: 1280 
     problems++;
   } else {
     console.log("  One gutter, every route.");
+  }
+}
+
+/* ── the vertical rhythm ───────────────────────────────────────────────────
+   The gutter check above has always covered left and right. Nothing covered
+   up and down, and the site had drifted into FIVE different vertical rhythms
+   for what is one set of pages: 32/56 on explore, search, add and the place
+   page; 40/56 on orders and queue; 40/64 on about and privacy — which also
+   had no `standalone:` variant at all, so the installed app showed them at
+   40/64 while every other screen compacted to 16.
+
+   Nobody can name the difference between 32 and 40 on a page they are
+   reading. Everybody feels a site where the answer changes per route. */
+for (const vp of [{ name: "phone", width: 390 }, { name: "desktop", width: 1280 }]) {
+  const page = await browser.newPage({ viewport: { width: vp.width, height: 844 } });
+  const seen = new Map();
+  const exempt = [];
+  for (const url of PAGES) {
+    await page.goto(`http://localhost:${PORT}${url}`, { waitUntil: "networkidle" });
+    const v = await page.evaluate(() => {
+      // The page's own outermost box — the thing that sets the rhythm. Inner
+      // cards have padding of their own and are none of this check's business.
+      const box = (document.querySelector("main") || document.body).firstElementChild;
+      if (!box) return null;
+      const cs = getComputedStyle(box);
+      return `${Math.round(parseFloat(cs.paddingTop))}/${Math.round(parseFloat(cs.paddingBottom))}`;
+    });
+    if (v === null) continue;
+    if (RHYTHM_EXEMPT.has(url)) { exempt.push(`${url} ${v} — ${RHYTHM_EXEMPT.get(url)}`); continue; }
+    if (!seen.has(v)) seen.set(v, new Set());
+    seen.get(v).add(url);
+  }
+  await page.close();
+
+  const rows = [...seen.entries()].sort((a, b) => b[1].size - a[1].size);
+  console.log(`\n── the page's own vertical rhythm, ${vp.name} ${vp.width}px ──`);
+  for (const [pad, urls] of rows)
+    console.log(`  ${pad.padEnd(9)} on ${String(urls.size).padStart(2)} route(s)${urls.size <= 2 ? "  ← " + [...urls].join(", ") : ""}`);
+  for (const e of exempt) console.log(`  · ${e}`);
+  if (rows.length > 1) {
+    console.log(`  ✗ ${rows.length} different vertical rhythms at one width. Same argument as`);
+    console.log("      the gutter: nobody can name it, everybody feels it.");
+    problems++;
+  } else {
+    console.log("  One rhythm, every route.");
   }
 }
 

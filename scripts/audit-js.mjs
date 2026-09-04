@@ -126,6 +126,9 @@ const sharedGz = [...shared].reduce((a, c) => a + gzOf(c), 0);
 
      layout → Footer/AppTabBar → OrdersLink → orders/queue → supabase → places
 
+   (The footer has since been removed; OrdersLink now hangs off the Navbar,
+   and the same edge would put the catalogue on every page from there.)
+
    `supabase.ts` imported two clamp helpers from the catalogue's module, and
    that one edge put all 36 records on all 46 pages. Splitting the vocabulary
    into `place-kit.ts` and repointing the four consumers took the shared floor

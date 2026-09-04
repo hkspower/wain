@@ -41,7 +41,9 @@ the site to their home screen, and to no one else. In an ordinary mobile
 browser the launcher floats over whatever the page ends with, and that last row
 can never be scrolled out from under it. The padding is now unconditional.
 
-**Footer links were as wide as their words.** «قهوة» is four characters, so its
+**Footer links were as wide as their words.** *(The footer has since been
+removed — see docs/padding notes in this file's sibling. Kept because the
+lesson applies to any row of short Arabic links.)* «قهوة» is four characters, so its
 target was 25px wide inside a row 140px wide. Five links now fill their row,
 which costs nothing and triples the margin for a thumb.
 
@@ -71,3 +73,50 @@ that were already right:
   clear it — which is the body padding, and which was genuinely broken.
 
 Proved by removing the `min-w-11` fix and watching the run fail.
+
+## The footer is gone, and the padding it was hiding
+
+Removing it orphaned four routes. «طلباتي» and «دوري» moved to the header,
+which is where live state belongs — they were previously reachable only by
+scrolling to the bottom of whatever page you were on, which is the last place
+someone checks an order that is being prepared right now. «سجّل مكانك» and
+«الخصوصية والكوكيز» moved to the About page, one tap from every screen via the
+header. The eight category deep-links are not replaced: `/explore` carries the
+same rail, so they were a second copy.
+
+The two existing tests that guarded those links — `order-tracking` and
+`queue-page` — now look in the header. They place a real order through the UI
+first, so what they prove is unchanged: the link appears only once there is
+something to track, and it carries the count in Arabic digits.
+
+### And then the padding
+
+`body` already reserves `5.5rem + safe-area-inset-bottom` for شوق's launcher,
+so nothing ended up under the button. What the footer *had* been hiding was
+that the site had drifted into **five different vertical rhythms** for one set
+of pages:
+
+| routes | phone | desktop | installed app |
+| --- | --- | --- | --- |
+| explore, search, add, place page | 32 | 56 / 48 | 16 |
+| orders, queue | 40 | 56 | 20 |
+| about, privacy | 40 | 64 | **40 — no standalone variant at all** |
+| admin | 80 | 80 | **80 — no breakpoint at all** |
+| 404 | 96 | 112 | 96 |
+
+Two of those are defects rather than preferences. About and privacy had no
+`standalone:` variant, so the installed app showed them at 40/64 while every
+other screen compacted. Admin had no breakpoint whatsoever: the same 80px of
+air on a 390px phone as on a 1280px desktop. And `/404` carried `px-4` with no
+`sm:px-6`, so its desktop gutter was 16px where every other route is 24 —
+found only because that route was missing from the audit's list. The page
+nobody plans to visit is exactly the one nobody checks.
+
+Everything ordinary is now `py-8 standalone:py-4 sm:py-14`. `/` and `/404` stay
+out by name, with the reason recorded: a full-bleed hero carries its own
+spacing, and a centred near-empty error page wants the extra air.
+
+`npm run audit:padding` measures the vertical rhythm now as well as the
+gutter, over eleven routes rather than ten. Nobody can name the difference
+between 32 and 40 on a page they are reading; everybody feels a site where the
+answer changes per route.

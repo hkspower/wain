@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function AboutPage() {
   return (
-    <div className="measure mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-16">
+    <div className="measure mx-auto max-w-3xl px-4 py-8 standalone:px-3 standalone:py-4 sm:px-6 sm:py-14">
       <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
         وين؟ شنو هذا
       </h1>
@@ -77,6 +77,34 @@ export default function AboutPage() {
         >
           يالله نبدأ
           <IconGo className="size-5" />
+        </Link>
+      </div>
+
+      {/**
+        * The two links the footer used to be the only home for.
+        *
+        * Removing the footer orphaned four routes. «طلباتي» and «دوري» moved to
+        * the header, where live state belongs; these two are neither live nor
+        * frequent, and a privacy policy nobody can reach is not a privacy
+        * policy. This page is one tap from every screen — «عن وين» is in the
+        * header — so two taps reaches both, at a cost of nothing on the other
+        * nine routes.
+        */}
+      <div className="mt-12 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-line pt-6 text-sm">
+        <Link
+          href="/add"
+          className="flex min-h-11 items-center gap-1.5 font-semibold text-ink-700 transition hover:text-coral-700"
+        >
+          سجّل مكانك
+          <span className="rounded-full bg-palm-500/12 px-1.5 py-0.5 text-xs font-semibold text-palm-700">
+            مجاناً
+          </span>
+        </Link>
+        <Link
+          href="/privacy"
+          className="flex min-h-11 items-center text-ink-500 transition hover:text-coral-700"
+        >
+          الخصوصية والكوكيز
         </Link>
       </div>
     </div>

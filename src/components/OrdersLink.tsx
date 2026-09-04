@@ -51,22 +51,28 @@ export function useTicketCount(): number {
   return count;
 }
 
+/**
+ * A navbar pill, not a footer list item.
+ *
+ * These used to be two `<li>`s inside the footer's links column. The footer is
+ * gone, and the header is where they belong anyway: an order being prepared
+ * and a turn in a queue are both live, both time-sensitive, and both were
+ * previously reachable only by scrolling to the bottom of the page they were
+ * least likely to be on.
+ */
+const PILL =
+  "flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-semibold text-sea-800 transition hover:bg-sea-50";
+const BADGE = "rounded-full bg-sea-100 px-1.5 py-0.5 text-xs font-semibold text-sea-800";
+
 export function QueueLink() {
   const count = useTicketCount();
   if (count === 0) return null;
 
   return (
-    <li>
-      <Link
-        href="/queue"
-        className="inline-flex min-h-11 items-center gap-1.5 text-sm text-ink-500 transition hover:text-coral-700"
-      >
-        دوري
-        <span className="rounded-full bg-sea-50 px-1.5 py-0.5 text-xs font-semibold text-sea-700">
-          {toArabicDigits(count)}
-        </span>
-      </Link>
-    </li>
+    <Link href="/queue" className={PILL}>
+      دوري
+      <span className={BADGE}>{toArabicDigits(count)}</span>
+    </Link>
   );
 }
 
@@ -75,16 +81,9 @@ export default function OrdersLink() {
   if (count === 0) return null;
 
   return (
-    <li>
-      <Link
-        href="/orders"
-        className="inline-flex min-h-11 items-center gap-1.5 text-sm text-ink-500 transition hover:text-coral-700"
-      >
-        طلباتي
-        <span className="rounded-full bg-sea-50 px-1.5 py-0.5 text-xs font-semibold text-sea-700">
-          {toArabicDigits(count)}
-        </span>
-      </Link>
-    </li>
+    <Link href="/orders" className={PILL}>
+      طلباتي
+      <span className={BADGE}>{toArabicDigits(count)}</span>
+    </Link>
   );
 }

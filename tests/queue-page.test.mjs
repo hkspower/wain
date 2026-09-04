@@ -43,8 +43,8 @@ let body = await p.textContent('body');
 ok('the page exists and is titled دوري', body.includes('دوري'));
 ok('an empty device is told so', body.includes('ما عندك دور اليوم'));
 ok('and pointed somewhere useful', (await p.locator('a[href="/explore/"], a[href="/explore"]').count()) > 0);
-ok('no queue link in the footer with nothing to track',
-  (await p.locator('footer a[href*="/queue"]').count()) === 0);
+ok('no queue link in the header with nothing to track',
+  (await p.locator('header a[href*="/queue"]').count()) === 0);
 
 console.log('\n── holding a number ──');
 await ctx.addInitScript((t) => localStorage.setItem('wain:queue', JSON.stringify([t])), TICKET);
@@ -86,8 +86,8 @@ ok('and there is somewhere to go', (await p.locator('a[href*="google.com/maps/di
 console.log('\n── the way back appears once there is a turn ──');
 await p.goto(B + '/', { waitUntil: 'networkidle' });
 await p.waitForTimeout(400);
-const link = p.locator('footer a[href*="/queue"]');
-ok('the footer links to دوري', (await link.count()) === 1);
+const link = p.locator('header a[href*="/queue"]');
+ok('the header links to دوري', (await link.count()) === 1);
 ok('with the count in Arabic digits', (await link.first().textContent()).includes('١'));
 
 console.log('\n── yesterday\'s number is not today\'s ──');
@@ -106,8 +106,8 @@ ok('a ticket from yesterday is not shown', !stale.includes('أبراج الكو�
 ok('the empty state takes its place', stale.includes('ما عندك دور اليوم'));
 await p2.goto(B + '/', { waitUntil: 'networkidle' });
 await p2.waitForTimeout(300);
-ok('and it does not put a link in the footer either',
-  (await p2.locator('footer a[href*="/queue"]').count()) === 0);
+ok('and it does not put a link in the header either',
+  (await p2.locator('header a[href*="/queue"]').count()) === 0);
 await ctx2.close();
 
 console.log('\n── a corrupted store does not break the page ──');

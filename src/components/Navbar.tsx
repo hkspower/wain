@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import WainLogo from "@/components/WainLogo";
 import SearchPalette from "@/components/SearchPalette";
+import OrdersLink, { QueueLink } from "@/components/OrdersLink";
 
 const links = [
   { href: "/explore", label: "استكشف" },
@@ -47,6 +48,10 @@ export default function Navbar() {
         {/* Links */}
         <div className="flex shrink-0 items-center gap-2">
           <SearchPalette />
+          {/* Both render nothing unless this device has a live order or a
+              ticket, so the header is unchanged for almost everyone. */}
+          <OrdersLink />
+          <QueueLink />
           <div className="standalone-hidden flex items-center gap-1 rounded-full bg-white/70 p-1 ring-1 ring-line/80 backdrop-blur">
           {links.map((link) => {
             const active = pathname === link.href || pathname.startsWith(`${link.href}/`);

@@ -43,8 +43,8 @@ let body = await p.textContent('body');
 ok('the page exists and is titled طلباتي', body.includes('طلباتي'));
 ok('an empty device is told so, not shown a spinner forever', body.includes('ما عندك طلبات'));
 ok('it offers a way to start', (await p.locator('a[href="/explore/"], a[href="/explore"]').count()) > 0);
-ok('the footer link is absent when there is nothing to track',
-  (await p.locator('footer a[href*="/orders"]').count()) === 0);
+ok('the header link is absent when there is nothing to track',
+  (await p.locator('header a[href*="/orders"]').count()) === 0);
 
 console.log('\n── with one order on the device ──');
 await ctx.addInitScript((seed) => {
@@ -86,9 +86,9 @@ ok('it repeats that payment is on collection', body.includes('الدفع عند 
 console.log('\n── the way back exists once there is an order ──');
 await p.goto(B + '/', { waitUntil: 'networkidle' });
 await p.waitForTimeout(400);
-const footerLink = p.locator('footer a[href*="/orders"]');
-ok('the footer now links to طلباتي', (await footerLink.count()) === 1);
-ok('and carries the count in Arabic digits', (await footerLink.first().textContent()).includes('١'));
+const headerLink = p.locator('header a[href*="/orders"]');
+ok('the header now links to طلباتي', (await headerLink.count()) === 1);
+ok('and carries the count in Arabic digits', (await headerLink.first().textContent()).includes('١'));
 
 console.log('\n── forgetting an order ──');
 await p.goto(B + '/orders/', { waitUntil: 'networkidle' });
