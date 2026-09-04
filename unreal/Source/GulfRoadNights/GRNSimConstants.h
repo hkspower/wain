@@ -128,6 +128,11 @@ namespace GRNHandling
 	constexpr float PowerOverMinSpeed = 18.f;
 	constexpr float PowerOverThrottle = 0.85f;
 	constexpr float PowerOverAngleK = 0.6f;
+	constexpr float WetGripLoss = 0.35f;
+	constexpr float WetSoakRate = 0.5f;
+	constexpr float WetDryRate = 0.045f;
+	constexpr float RainDefaultIntensity = 0.7f;
+	constexpr float RainFadeS = 2.5f;
 	constexpr float SuspStrokeM = 0.17f;
 	constexpr float SuspCamberGain = 0.2f;
 	constexpr float CrashLatFull = 12.f;
@@ -290,6 +295,11 @@ namespace GRNExact
 	constexpr double PowerOverMinSpeed = 18;
 	constexpr double PowerOverThrottle = 0.85;
 	constexpr double PowerOverAngleK = 0.6;
+	constexpr double WetGripLoss = 0.35;
+	constexpr double WetSoakRate = 0.5;
+	constexpr double WetDryRate = 0.045;
+	constexpr double RainDefaultIntensity = 0.7;
+	constexpr double RainFadeS = 2.5;
 	constexpr double SuspStrokeM = 0.17;
 	constexpr double SuspCamberGain = 0.2;
 	constexpr double CrashLatFull = 12;

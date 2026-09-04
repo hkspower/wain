@@ -420,6 +420,47 @@ export const HANDLING = {
   powerOverThrottle: 0.85,
   powerOverAngleK: 0.6,
 
+  // Weather (src/game/weather.ts).
+  //
+  // Kuwait's rain comes in short violent bursts between November and
+  // April, which is the right weather for a game set at midnight on the
+  // coast — and the wipers have been modelled on every car in the fleet
+  // since the bodies were built, parked at the base of the glass, with
+  // nothing ever asking them to move.
+  /**
+   * How much grip a tyre gives up on a fully wet road.
+   *
+   * The only number wet weather needs, because this model derives
+   * everything else from grip: the friction circle narrows, so the car
+   * corners slower and brakes shorter into the same corner; the brake
+   * ceiling is grip-limited, so stopping distances grow; lock-up arrives
+   * earlier; the tail breaks loose sooner. None of that needs a
+   * wet-weather branch of its own, which is the whole reason to put the
+   * loss on grip rather than sprinkle it over everything that reads it.
+   *
+   * 0.35 leaves 65% of dry, about where a road tyre on wet asphalt sits —
+   * enough that a careful driver is still quick and an incautious one is
+   * in the barrier.
+   */
+  wetGripLoss: 0.35,
+  /** How fast a road takes water on, 1/s. An exponential approach rather
+   *  than a ramp: a road wets fastest at the start and then closes on
+   *  saturation. */
+  wetSoakRate: 0.5,
+  /** ...and how fast it gives it back. An order of magnitude slower, and
+   *  the gap is the point — the road stays greasy long after the
+   *  windscreen has cleared, which is the part of driving in the wet a
+   *  boolean `raining` flag cannot express. */
+  wetDryRate: 0.045,
+  /** How hard it rains when nobody says. A shower rather than a
+   *  downpour: a spell's intensity is also the wetness it approaches, so
+   *  drizzle leaves a damp road that never becomes a wet one and only a
+   *  downpour reaches standing water. */
+  rainDefaultIntensity: 0.7,
+  /** Seconds the rain fades in over. A wall of water switching on whole
+   *  is the same artefact as a step change in grip. */
+  rainFadeS: 2.5,
+
   // Suspension geometry (src/game/suspension.ts).
   //
   // The physics has had a suspension for a long time — load moves across
