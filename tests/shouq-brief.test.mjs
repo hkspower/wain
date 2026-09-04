@@ -15,6 +15,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 let pass = 0;
 const fails = [];
@@ -334,6 +335,85 @@ console.log("\n── the knowledge base is a file, not a section someone copies
   // byte for byte, or the thing uploaded is not the thing in the repo.
   ok("the committed knowledge base matches the data",
     regenerateKb("src/lib/places.ts") === kb);
+}
+
+console.log("\n── she knows where things are, not just what they are ──");
+{
+  /**
+   * شوق knew what all forty-four places were and nothing about where any of
+   * them stood relative to any other. The area index grouped by NAME, so
+   * «شرق» (one place) and «بنيد القار» (one) read as separate worlds from
+   * «مدينة الكويت» (fifteen) — when all three are under a kilometre apart. A
+   * visitor in شرق got one suggestion, because the index had no way to say
+   * that the capital's fifteen were right there.
+   *
+   * That matters more here than it sounds: a طلعة is two or three stops, and
+   * she could not tell anyone which two go together.
+   *
+   * The distances are checked against the site's OWN distanceKm rather than
+   * against numbers typed here. The brief script reads places.ts as text and
+   * repeats the haversine, so this is the assertion that the copy has not
+   * drifted from the shipped one.
+   */
+  // The committed brief — the file that is actually pasted into the console —
+  // and the real catalogue module, bundled so distanceKm can be called.
+  const brief = readFileSync("docs/wain-ai-agent.md", "utf8");
+  const bundle = join(tmp, "places-live.mjs");
+  execFileSync("npx", ["-y", "esbuild", "src/lib/places.ts", "--bundle", "--format=esm",
+    // An absolute alias: esbuild resolves it relative to its own cwd, and a
+    // bare "src" only happens to work when that is the repo root.
+    `--alias:@=${join(process.cwd(), "src")}`, `--outfile=${bundle}`,
+    "--log-level=error"], { stdio: "pipe" });
+  const { distanceKm, places: live } = await import(pathToFileURL(bundle).href);
+  const bySlug = new Map(live.map((p) => [p.slug, p]));
+  const byName = new Map(live.map((p) => [p.nameAr, p]));
+
+  ok("every place is told its nearest neighbours",
+    (brief.match(/^ {2}قريب منه: /gm) || []).length === live.length,
+    `${(brief.match(/^ {2}قريب منه: /gm) || []).length} of ${live.length}`);
+
+  // Kuwait Towers and Aqua Park: the descriptions have said «جنب الأبراج» in
+  // prose for as long as they have existed, and the index never knew it.
+  const towers = brief.match(/\*\*أبراج الكويت\*\*[\s\S]*?\n {2}قريب منه: ([^\n]+)/);
+  ok("أبراج الكويت is told that أكوا بارك is next door",
+    !!towers && towers[1].startsWith("أكوا بارك"), towers?.[1]);
+
+  // Every stated distance must match the real one, to the precision claimed.
+  let worst = 0, worstLine = "";
+  for (const m of brief.matchAll(/^- \*\*(.+?)\*\* \(.+?\n(?:.*\n)*? {2}قريب منه: ([^\n]+)/gm)) {
+    const from = byName.get(m[1]);
+    if (!from) continue;
+    for (const entry of m[2].split(" · ")) {
+      const [, who, num, unit] = entry.match(/^(.+?) \(([٠-٩.]+) (متر|كم)/) || [];
+      if (!who) continue;
+      const to = byName.get(who.trim());
+      if (!to) { fails.push(`unknown neighbour ${who}`); continue; }
+      const claimed = parseFloat(num.replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d)));
+      const real = distanceKm(from, to);
+      const err = Math.abs((unit === "متر" ? claimed / 1000 : claimed) - real);
+      // Rounded to 100m below a kilometre, 0.1km above, and half a kilometre
+      // where either pin is only area-accurate — so 0.3km is the widest
+      // honest gap between what is said and what is true.
+      if (err > worst) { worst = err; worstLine = `${m[1]} → ${who}: said ${num}${unit}, real ${real.toFixed(3)}km`; }
+    }
+  }
+  ok(`every distance matches the site's own distanceKm (worst ${worst.toFixed(3)}km)`,
+    worst <= 0.3, worstLine);
+
+  console.log("\n── and which areas are near which ──");
+  ok("the area-cluster index is there", /^## المسافات — وين الشي من الشي$/m.test(brief));
+  const sharq = brief.match(/^- \*\*شرق\*\* ← ([^\n]+)/m);
+  ok("شرق is told the capital is next door, not a different world",
+    !!sharq && /مدينة الكويت/.test(sharq[1]), sharq?.[1]);
+  ok("and الخيران is told it is on its own",
+    /^- \*\*الخيران\*\* — لحالها/m.test(brief));
+
+  // The one thing she must not do with a straight-line number.
+  ok("she is forbidden from turning a distance into a driving time",
+    /لا تقولين أبداً كم دقيقة بالسيارة/.test(brief));
+  ok("and told the numbers are straight-line, not roads",
+    /مسافة مستقيمة على الخريطة/.test(brief));
+  void bySlug;
 }
 
 console.log("\n── a place with nothing to say about it stops the build ──");

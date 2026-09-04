@@ -46,6 +46,11 @@ const blocks = src.split(/\n {2}\{\n/).slice(1);
 const field = (b, k) =>
   (b.match(new RegExp(`^    ${k}:\\s*"((?:[^"\\\\]|\\\\.)*)"`, "m")) || [])[1];
 const numField = (b, k) => (b.match(new RegExp(`^    ${k}: (\\d+)`, "m")) || [])[1];
+/** Signed and fractional, for coordinates — numField only reads whole digits. */
+const coord = (b, k) => {
+  const m = b.match(new RegExp(`^    ${k}: (-?[\\d.]+)`, "m"));
+  return m ? parseFloat(m[1]) : null;
+};
 
 const slugs = blocks.map((b) => field(b, "slug"));
 const nameAr = blocks.map((b) => field(b, "nameAr"));
@@ -81,6 +86,71 @@ const desc = blocks.map((b) => field(b, "descriptionAr"));
  * drift from what the site shows on the page.
  */
 const shisha = blocks.map((b) => /^ {4}shisha: true,$/m.test(b));
+const lat = blocks.map((b) => coord(b, "lat"));
+const lng = blocks.map((b) => coord(b, "lng"));
+/** The ones whose pin is the right AREA, not the right building. */
+const roughPin = blocks.map((b) => /^ {4}coordsUnverified: true,$/m.test(b));
+
+/**
+ * How far apart two places are, in kilometres. Haversine, same as the site's
+ * own `distanceKm` — the shipped function is TypeScript and this script reads
+ * places.ts as text, so the formula is repeated rather than imported. It is
+ * six lines of school trigonometry and it cannot drift meaningfully.
+ */
+const R_KM = 6371;
+const rad = (d) => (d * Math.PI) / 180;
+function km(i, j) {
+  const dLat = rad(lat[j] - lat[i]);
+  const dLng = rad(lng[j] - lng[i]);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.sin(dLng / 2) ** 2 * Math.cos(rad(lat[i])) * Math.cos(rad(lat[j]));
+  return 2 * R_KM * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * Distance, said the way a person says it — and never more precisely than the
+ * pin deserves.
+ *
+ * Some of the coordinates are «the right area, not the right building» — they
+ * carry `coordsUnverified` — so «٦٥٠ متر» about one of those is a decimal
+ * place of invented confidence. Anything involving one of them is rounded to the nearest half
+ * kilometre and hedged; the rest round to 100m below a kilometre and to one
+ * decimal above, because nobody plans an evening around fifty metres.
+ */
+const ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩";
+const ar = (s) => String(s).replace(/[0-9]/g, (d) => ARABIC_DIGITS[+d]);
+function distanceAr(i, j) {
+  const d = km(i, j);
+  const rough = roughPin[i] || roughPin[j];
+  if (rough) {
+    /**
+     * A word, not a rounded-up number.
+     *
+     * This floored a rough pin at half a kilometre so it would never claim
+     * more precision than an area-level coordinate has. It produced the
+     * opposite of precision: سوق السمك and قصر السلام are 143 metres apart
+     * and the brief said «٠.٥ كم» — three times the truth, in the direction
+     * that makes two places you can walk between sound like a drive.
+     *
+     * Under a kilometre the honest answer is that we cannot say better, so it
+     * says that. Above one, half-kilometre rounding is inside the error an
+     * area pin actually carries.
+     */
+    return d < 1 ? "قريب جداً" : `${ar((Math.round(d * 2) / 2).toFixed(1))} كم تقريباً`;
+  }
+  if (d < 1) return `${ar(Math.round(d * 1000 / 100) * 100)} متر`;
+  return `${ar(d.toFixed(1))} كم`;
+}
+
+/** The three nearest other places, closest first. */
+const neighbours = slugs.map((_, i) =>
+  slugs
+    .map((_, j) => j)
+    .filter((j) => j !== i)
+    .sort((a, b) => km(i, a) - km(i, b))
+    .slice(0, 3)
+);
 const highlightList = blocks.map((b) => {
   const raw = (b.match(/^ {4}highlightsAr: \[([^\]]*)\]/m) || [])[1] || "";
   return [...raw.matchAll(/"([^"]+)"/g)].map((t) => t[1]);
@@ -210,6 +280,100 @@ const areaRows = [...byArea.entries()]
   .map(([a, list]) => `- **${a}** (${list.length}) — ${list.join(" · ")}`)
   .join("\n");
 
+/**
+ * Which areas are near which — the thing the area list above cannot say.
+ *
+ * Grouping by area name alone makes «شرق» (one place) and «بنيد القار» (one)
+ * look like separate worlds from «مدينة الكويت» (fifteen), when all three are
+ * minutes apart. So a visitor in شرق got one suggestion and nothing else,
+ * because the index had no way to say «and the capital's fifteen are right
+ * there». Centroids, and then everything within a short drive.
+ */
+const AREA_NEAR_KM = 8;
+const areaCentre = new Map();
+areaAr.forEach((a, i) => {
+  const c = areaCentre.get(a) ?? { lat: 0, lng: 0, n: 0 };
+  areaCentre.set(a, { lat: c.lat + lat[i], lng: c.lng + lng[i], n: c.n + 1 });
+});
+for (const [a, c] of areaCentre) areaCentre.set(a, { lat: c.lat / c.n, lng: c.lng / c.n });
+
+const areaKm = (a, b) => {
+  const p1 = areaCentre.get(a), p2 = areaCentre.get(b);
+  const dLat = rad(p2.lat - p1.lat), dLng = rad(p2.lng - p1.lng);
+  const h = Math.sin(dLat / 2) ** 2 +
+    Math.sin(dLng / 2) ** 2 * Math.cos(rad(p1.lat)) * Math.cos(rad(p2.lat));
+  return 2 * R_KM * Math.asin(Math.sqrt(h));
+};
+
+const areaNames = [...byArea.keys()];
+const nearRows = areaNames
+  .map((a) => {
+    const near = areaNames
+      .filter((b) => b !== a && areaKm(a, b) <= AREA_NEAR_KM)
+      .sort((x, y) => areaKm(a, x) - areaKm(a, y))
+      .map((b) => `${b} (${ar(areaKm(a, b).toFixed(1))} كم)`);
+    return { a, near, count: byArea.get(a).length };
+  })
+  .sort((x, y) => y.near.length - x.near.length || y.count - x.count)
+  .map(({ a, near }) =>
+    near.length
+      ? `- **${a}** ← ${near.join(" · ")}`
+      : `- **${a}** — لحالها؛ ما فيه منطقة ثانية قريبة منها.`
+  )
+  .join("\n");
+
+/**
+ * Written once, printed twice — into the operator's brief and into the file
+ * that goes to the knowledge base. Two copies of guidance this specific is how
+ * the agent ends up briefed on one version and answering from the other.
+ *
+ * The worked example deliberately does NOT put a number on the gap between the
+ * two places. Teaching her «ما بينهم إلا دقايق» in an example is teaching her
+ * to break the rule three paragraphs below it, and an example outranks a rule
+ * every time.
+ *
+ * The pair it names is checked against the real coordinates below, because the
+ * first draft paired ميس الغانم with سوق شرق and called them «نفس المنطقة» —
+ * two kilometres apart, in two different areas. An example that is itself
+ * wrong teaches the wrong thing more effectively than the rules teach the
+ * right one.
+ */
+const EXAMPLE_PAIR = ["ميس الغانم", "كافيهات شارع الخليج"];
+{
+  const [a, b] = EXAMPLE_PAIR.map((n) => nameAr.indexOf(n));
+  if (a < 0 || b < 0)
+    throw new Error(`gen-brief: the worked example names a place that is gone — ${EXAMPLE_PAIR}`);
+  if (areaAr[a] !== areaAr[b] || km(a, b) >= 1)
+    throw new Error(
+      `gen-brief: the worked example claims ${EXAMPLE_PAIR.join(" و")} are next door on one street, ` +
+        `but they are ${km(a, b).toFixed(2)}km apart in ${areaAr[a]}/${areaAr[b]}`
+    );
+}
+
+const distanceSection = `## المسافات — وين الشي من الشي
+
+كل مكان في القائمة فوق عنده سطر «قريب منه» فيه أقرب ثلاثة أماكن والمسافة
+بينهم. وهذي المناطق اللي كل وحدة قريبة من مين، ضمن ${ar(AREA_NEAR_KM)} كم:
+
+${nearRows}
+
+**كيف تستخدمينها.** الطلعة عادة مو مكان واحد — عشا وبعده قهوة، أو سوق وبعده
+جلسة. إذا رشّحتي مكان وكان جنبه شي يكمّله، قوليها: «تعشّى في ${EXAMPLE_PAIR[0]}،
+وبعدها القهوة في ${EXAMPLE_PAIR[1]} — جنبه على نفس الشارع». هذا اللي يفرّق بين
+قائمة وبين طلعة مرتّبة.
+
+وإذا كان الزائر في منطقة، لا تحصرين نفسك فيها: منطقة فيها مكان واحد وجنبها
+منطقة فيها خمستعشر تعني إن عنده خيارات وايد، مو خيار واحد.
+
+**حدود المسافة — مهم.** الأرقام كلها **مسافة مستقيمة على الخريطة**، مو مسافة
+سواقة ولا وقت. **لا تقولين أبداً كم دقيقة بالسيارة** — ما عندك طرق ولا زحمة
+ولا تقول الجسر مفتوح ولا لا، والزحمة في الكويت تخلّي الكيلومتر الواحد ربع
+ساعة. قولي «قريب» و«جنب بعض» و«نفس المنطقة»، وإذا سأل عن الوقت بالضبط قولي
+«ما أقدر أقول لك الوقت بالضبط، يعتمد على الزحمة».
+
+والأماكن اللي دبوسها على المنطقة مو على الباب (${ar(roughPin.filter(Boolean).length)} منها)
+مسافاتهم مكتوبة «تقريباً» — إذا شفتي الكلمة هذي لا تعطينه رقم دقيق.`;
+
 const rows = slugs
   .map(
     (s, i) => `- **${nameAr[i]}** (${name[i]}) — ${catAr[cat[i]]} · ${areaAr[i]} · ${priceAr[price[i]]}
@@ -217,6 +381,7 @@ const rows = slugs
   ${desc[i]}
   فيه: ${highlightList[i].join(" · ")}
   أحسن وقت: ${best[i]} · ${settingAr[setting[i]]} · ${season[i]}${shisha[i] ? "\n  فيه شيشة." : ""}
+  قريب منه: ${neighbours[i].map((j) => `${nameAr[j]} (${distanceAr(i, j)})`).join(" · ")}
   يناسب: ${tags[i]}
   slug: \`${s}\` · الرابط: https://www.wainkw.com/places/${s}/`
   )
@@ -431,6 +596,8 @@ ${interestRows}
 
 ${areaRows}
 
+${distanceSection}
+
 **مناطق مو محافظات.** الجدول فوق من بيانات الموقع نفسه؛ محافظة كل منطقة مو
 منها، وقول «هذا في محافظة حولي» غلط أسوأ من عدم التجميع أصلاً. إذا سأل عن
 محافظة، اسأليه عن المنطقة أو رشّحي بالمنطقة.
@@ -545,6 +712,8 @@ ${interestRows}
 ## حسب المنطقة
 
 ${areaRows}
+
+${distanceSection}
 
 ---
 
