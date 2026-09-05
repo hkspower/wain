@@ -78,7 +78,7 @@ $paths = [
     'maskable'  => '/favicon-maskable.png',
     'logo'      => '/logo.webp',
     'heroimg'   => '/hero/desktop/bodybuilding-men.webp',
-    'catimg'    => '/cats/desktop/men.webp',
+    'catimg'    => '/cats/desktop/art-accessories.webp',
     'font'      => '/fonts/alexandria-var-latin.woff2',
     'api'       => '/api/api.php?r=products',
 ];
