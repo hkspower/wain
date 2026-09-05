@@ -232,13 +232,15 @@ if (have === 0) {
   console.log("    browser's own Arabic synthesiser — which works, and does not sound");
   console.log("    like her. Nothing else in the build reports this, which is why this");
   console.log("    check exists.");
-  console.log("\n    The blocker is one thing, and it is not the code:");
-  console.log("      شوق's voice w0uhBAmNIG5kUDeaFEsA (Maryam Essa) is a LIBRARY voice,");
-  console.log("      not a workspace voice, so the API answers voice_not_found. The");
-  console.log("      workspace's four Arabic voices are all male.");
-  console.log("      Fix: ElevenLabs → Voice Library → Add to my voices, then");
-  console.log("           ELEVENLABS_API_KEY=… npm run voice:sample");
-  console.log("      Same blocker stops the live agent — see docs/voice-setup.md.");
+  console.log("\n    The blocker that used to sit here is gone. شوق pointed at a LIBRARY");
+  console.log("    voice the workspace does not own, so every call answered");
+  console.log("    voice_not_found and no clip could ever be made. She is on Talya now");
+  console.log("    (ar-omani, female, young) — a real workspace voice, verified by");
+  console.log("    generating her greeting through it.");
+  console.log("\n    What is left is the API key, and it is not in this repository:");
+  console.log("      ELEVENLABS_API_KEY=… npm run voice:sample   # one call, then listen");
+  console.log("      ELEVENLABS_API_KEY=… node scripts/gen-voice.mjs");
+  console.log("    The generator levels the set on the way out, so nothing else is owed.");
 } else if (have < want) {
   // `persona/key`, which is how gen-voice writes the manifest and how speak()
   // looks a clip up. Comparing the bare key against those never matched, so a

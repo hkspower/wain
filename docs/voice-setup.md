@@ -12,43 +12,62 @@ by `scripts/gen-voice.mjs` and shipped as part of the site under
 browser's own Arabic voice reads the same sentences (the shared source of
 truth is `src/lib/voice-lines.ts`).
 
-## Status, measured 3 September 2026
+## Status, measured 5 September 2026
 
-**Nothing is recorded.** `public/voice/manifest.json` is
-`{"version": 0, "clips": {}}` — zero of the **274** lines (137 per persona).
+**Nothing is recorded yet.** `public/voice/manifest.json` is
+`{"version": 0, "clips": {}}` — zero of the **276** lines (138 per persona).
 Every spoken line on the live site is read by the browser's own Arabic
 synthesiser. That is why شوق sounds like a screen reader.
 
-**One blocker causes it, and it is not the code.** Both the clip generator and
-the live conversational agent are pointed at `w0uhBAmNIG5kUDeaFEsA`, and both
-get `voice_not_found`, because it is a **library** voice rather than a
-**workspace** voice. Checked through the connector on the same date, the four
-Arabic voices this workspace actually owns are:
+**The blocker that caused it is gone.** Until now both the clip generator and
+the live conversational agent pointed at `w0uhBAmNIG5kUDeaFEsA` (Maryam Essa,
+`ar-kuwaiti`, female) and both got `voice_not_found`, because it is a
+**library** voice rather than a **workspace** voice — and adding one is a UI
+click the API does not expose. On 3 September the four Arabic voices this
+workspace owned were all male, so شوق could not be given a voice at all, and
+the fix was one click nobody had made.
+
+Re-checked through the connector today, the workspace reaches female Arabic
+voices, and شوق has been moved onto one:
 
 | voice | id | |
 | --- | --- | --- |
-| ALI — Saudi Arabic & English | `Hvlnv5DwiIO2CQ6oYMZ3` | male |
-| Ali Deep Voice — Arabic | `SeP2zIpx6zw2aAs6ZXFW` | male |
-| Eid — Warm, Clear, Confident | `Ywuz3KyW2N5pqKNpwcCL` | male |
-| (unnamed, generated) | `DxV1kK20YWCqKS5NxMoC` | male, `ar-kuwaiti` |
+| **Talya — Human-like Arabic AI Bot** | `rh16DBXwtscjdPFeMBYf` | **female, `ar-omani`, young — شوق** |
+| Heba Mansuri — Arabic Customer Care | `QsV9PCczMIklRM6xLPAS` | female, `ar-saudi`, formal |
+| layla — modern Arabic calm | `g3YpdjT1OTh9cunaumJs` | female, `ar-jordanian` |
+| Laloosh — Soothing Arabic Conversation | `albaa6OioIhKtKdCEkQw` | female, `ar-levantine` |
+| Eid — Warm, Clear, Confident | `Ywuz3KyW2N5pqKNpwcCL` | male, Gulf — سالم |
 
-**All four are male.** سالم has a voice. شوق does not, and cannot be given one
-by the API: adding a library voice is a UI action the API does not expose, and
-there is no voice-design endpoint on this connector either.
+**Why Talya.** Nothing in the workspace is Kuwaiti. Omani is Gulf, and a Gulf
+ear places it far closer than Levantine or Egyptian — the same «accent first»
+reasoning that used to prefer a middle-aged Kuwaiti over a young Levantine.
+Her own description carries the rest: «built for Arabic AI assistants… where
+the voice needs to feel like a person, not a system», which is the register
+شوق is written in. Heba is nearer in accent and is a banking customer-care
+voice: right country, wrong job.
 
-So the outstanding step is one click, and it unblocks both halves at once:
+**Verified, not assumed.** شوق's real greeting and one real place suggestion
+were generated through this voice on 5 September — 195 characters, 20.8
+seconds, peak −4.3 dBFS, gated RMS −17.0 dBFS. So the id resolves, the
+workspace can speak with it, and the level is where the rest of the pipeline
+expects.
 
-> ElevenLabs → **Voice Library** → find *Maryam Essa* (`w0uhBAmNIG5kUDeaFEsA`)
-> → **Add to my voices**.
+That measurement also corrected a number used elsewhere: **9.4 characters a
+second**, not the 7.5 estimated from the espeak fixtures. A 170-character
+answer is about eighteen seconds — still past the ~15s ceiling Chrome puts on
+a single utterance, so splitting an answer into one utterance per sentence
+stays necessary.
 
-Then `ELEVENLABS_API_KEY=… npm run voice:sample` records the clips, and the
-agent will accept the same id.
+**What is left is the API key**, which is not in this repository and never
+should be:
 
-If Maryam is gone or unsuitable, two Gulf-accented female alternatives were
-found in the library and would need the same one click —
-`rh16DBXwtscjdPFeMBYf` (Talya, Omani, built for conversational agents; the
-closest match to شوق's register) and `QsV9PCczMIklRM6xLPAS` (Heba Mansuri,
-Saudi, calmer and more corporate).
+```
+ELEVENLABS_API_KEY=… npm run voice:sample     # one call — listen first
+ELEVENLABS_API_KEY=… node scripts/gen-voice.mjs
+```
+
+The generator levels the whole set on the way out (`voice:levels`), so no
+separate step is owed after it.
 
 `npm run audit:voice` reports all of this from the repo, and is in `npm run
 scan`. It warns rather than fails when nothing is recorded — the fallback is
@@ -56,38 +75,32 @@ real and the site works — but it does fail when the manifest names a clip that
 is not on disk, which is silence in the middle of a sentence rather than a
 different voice.
 
-## 1. The two voices — already chosen, one step outstanding
+## 1. The two voices
 
 `scripts/gen-voice.mjs` ships a default for each persona, so there is nothing
 to pick and nothing to set unless you disagree with the choice:
 
 | | voice | id |
 | --- | --- | --- |
-| شوق | Maryam Essa — Kuwaiti Calm & Warm | `w0uhBAmNIG5kUDeaFEsA` |
+| شوق | Talya — Human-like Arabic AI Bot (Gulf, `ar-omani`) | `rh16DBXwtscjdPFeMBYf` |
 | سالم | Eid — Warm, Clear, Confident (Gulf) | `Ywuz3KyW2N5pqKNpwcCL` |
 
 **Why these, and what was given up.** The brief calls شوق «صوت كويتي شبابي» —
-a young Kuwaiti woman. That voice does not exist in the ElevenLabs library.
-The only two `ar-kuwaiti` female voices are both «Maryam», and both are
-recorded middle-aged, calm and unhurried for storytelling. Everything young
-and female in Arabic is Levantine, Egyptian, Syrian or Omani.
+a young Kuwaiti woman. That voice does not exist in this workspace, and the
+two `ar-kuwaiti` female voices in the wider library are both «Maryam», both
+recorded middle-aged, calm and unhurried for storytelling — and both
+unreachable, being library voices rather than workspace ones.
 
-So the choice was between the right accent at the wrong age and the right age
-at the wrong accent. Accent wins: a Kuwaiti hears a Levantine «شلونك»
-instantly, while age is something delivery can push — which is what the
+So the choice was between the right accent at the wrong age, the right age at
+the wrong accent, and a voice that cannot be called at all. The third is what
+was actually shipping for months. Talya settles it: young, female, and Gulf,
+which is the nearest accent available — a Kuwaiti hears a Levantine «شلونك»
+instantly, while age is something delivery can push. That is what the
 `RENDITION` block in `gen-voice.mjs` is for (lower stability, higher style,
 slightly quicker). It cannot turn forty into twenty-five, and this is written
 down so nobody has to rediscover it.
 
-**The outstanding step.** Both are *library* voices, not workspace voices, and
-the API refuses a voice the workspace does not hold — `voice_not_found`. Open
-each link below and press **Add to my voices**; nothing else changes.
-
-- <https://elevenlabs.io/app/voice-library> → search «Maryam Essa»
-- → search «Eid» (filter Arabic, Saudi/Gulf)
-
-Until that is done, `npm run voice:sample` will fail with `voice_not_found` —
-which is the API telling you this step is outstanding, not a broken script.
+**سالم** is `Ywuz3KyW2N5pqKNpwcCL` (Eid), Gulf male, and has always resolved.
 
 ## 2. Hear one line before generating 226
 

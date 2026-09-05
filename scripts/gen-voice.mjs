@@ -46,14 +46,30 @@ const API_KEY = process.env.ELEVENLABS_API_KEY;
 /**
  * The voices, when the environment does not name one.
  *
- * Chosen from what the workspace and the library actually hold, not from a
- * wishlist. The constraint that settled شوق: there is no young Kuwaiti female
- * voice in the ElevenLabs library at all. The only two `ar-kuwaiti` female
- * voices are both «Maryam», both recorded middle-aged, calm and unhurried for
- * storytelling. Everything young and female in Arabic is Levantine, Egyptian,
- * Syrian or Omani — and a Kuwaiti hears a Levantine «شلونك» instantly, while
- * the difference between twenty-five and forty is a thing you can push with
- * delivery. So accent wins the voice and RENDITION carries the age.
+ * Chosen from what the workspace actually holds, not from a wishlist — and
+ * this entry was wrong for months in the most expensive way, by naming a voice
+ * that reads perfectly in source and fails on every call.
+ *
+ * `w0uhBAmNIG5kUDeaFEsA` (Maryam Essa) is ar-kuwaiti and female and would have
+ * been the right answer. It is a LIBRARY voice this workspace does not own, so
+ * every request for it came back `voice_not_found` — adding one is a click in
+ * the UI that the API does not expose. The generator therefore produced not a
+ * single clip of hers, and every visitor to the site has heard the browser's
+ * robot instead. docs/voice-setup.md recorded it in September as «one click
+ * from the owner», and it stayed unclicked.
+ *
+ * The workspace holds female Arabic voices now, so the click is moot. Talya is
+ * the closest to what the brief asks for — «صوت كويتي شبابي — بنت»: female,
+ * young, ar-omani. Kuwaiti it is not, and nothing here is; Omani is Gulf, and
+ * a Gulf ear places it far nearer than the Levantine and Egyptian
+ * alternatives, which is the same reasoning that used to pick a middle-aged
+ * Kuwaiti over a young Levantine — accent first. The difference between
+ * twenty-five and forty is what RENDITION is for.
+ *
+ * Her own description carries the rest: «built for Arabic AI assistants… where
+ * the voice needs to feel like a person, not a system». That is the register
+ * شوق is written in. The Saudi female voice in the workspace is nearer in
+ * accent and is a banking customer-care voice — right country, wrong job.
  *
  * سالم takes the Gulf male voice rather than either Modern Standard one, for
  * the same reason.
@@ -62,7 +78,7 @@ const API_KEY = process.env.ELEVENLABS_API_KEY;
  * now re-records — see the digest below, which did not use to include it.
  */
 const DEFAULT_VOICE_IDS = {
-  shouq: "w0uhBAmNIG5kUDeaFEsA", // Maryam Essa — ar-kuwaiti, female, warm
+  shouq: "rh16DBXwtscjdPFeMBYf", // Talya — ar-omani, female, young, conversational
   salem: "Ywuz3KyW2N5pqKNpwcCL", // Eid — Gulf male, warm and clear
 };
 const VOICE_IDS = {
