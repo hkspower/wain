@@ -44,6 +44,30 @@ const SAMPLE = args.has("--sample");
 const API_KEY = process.env.ELEVENLABS_API_KEY;
 
 /**
+ * Where the clips are written. `public/voice` unless told otherwise.
+ *
+ * This was hardcoded, and the pipeline test therefore ran the real generator
+ * against the real, committed directory — moving it aside first and copying it
+ * back at the end. That works right up until the moment somebody looks at the
+ * repository while the test is between those two steps, which is a window of
+ * several seconds on every run of `npm run test:shouq`.
+ *
+ * Somebody did: a `git add -A` landed mid-test and committed 276 twenty-byte
+ * stub MP3s and a manifest promising all of them. That is worse than the empty
+ * manifest it replaced — speak() would resolve a clip for every sentence, play
+ * twenty bytes, hit `onerror`, and shut up. شوق would go SILENT rather than
+ * fall back to the browser voice, and the audit that catches it only runs when
+ * somebody runs it.
+ *
+ * A test that has to put the shipped directory back is a test that has already
+ * touched it. This override means it never does.
+ */
+const VOICE_DIR = process.env.WAIN_VOICE_DIR
+  ? path.resolve(process.env.WAIN_VOICE_DIR)
+  : path.join(root, "public/voice");
+const MANIFEST_PATH = path.join(VOICE_DIR, "manifest.json");
+
+/**
  * The voices, when the environment does not name one.
  *
  * Chosen from what the workspace actually holds, not from a wishlist — and
@@ -302,7 +326,7 @@ const digest = (text, voiceId, settings) =>
 
 const previous = (() => {
   try {
-    return JSON.parse(readFileSync(path.join(root, "public/voice/manifest.json"), "utf8"));
+    return JSON.parse(readFileSync(MANIFEST_PATH, "utf8"));
   } catch {
     return { clips: {}, hashes: {} };
   }
@@ -330,7 +354,7 @@ for (const persona of personaIds) {
   const voiceId = VOICE_IDS[persona];
   const settings = RENDITION[persona];
   manifest.personas[persona] = { voiceId, settings };
-  const outDir = path.join(root, "public/voice", persona);
+  const outDir = path.join(VOICE_DIR, persona);
   await mkdir(outDir, { recursive: true });
 
   // forSpeech before both the hash and the request, so what ElevenLabs
@@ -377,7 +401,7 @@ for (const persona of personaIds) {
 }
 
 await writeFile(
-  path.join(root, "public/voice/manifest.json"),
+  MANIFEST_PATH,
   JSON.stringify(manifest, null, 2) + "\n"
 );
 console.log(
@@ -414,7 +438,7 @@ if (generated > 0) {
     const { gains } = gainsFor(await measureClips(files));
     manifest.gains = Object.fromEntries(Object.entries(gains).sort(([a], [b]) => a.localeCompare(b)));
     await writeFile(
-      path.join(root, "public/voice/manifest.json"),
+      MANIFEST_PATH,
       JSON.stringify(manifest, null, 2) + "\n"
     );
     const trimmed = Object.values(gains).filter((g) => g < 0.999).length;
