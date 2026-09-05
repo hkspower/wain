@@ -101,8 +101,17 @@ function closestInText(text, candidates, opts) {
     if (words[i + 1]) tries.push(words[i] + ' ' + words[i + 1]);
   }
 
+  /* **حشوُ الكلام لا يُقترح له اسمُ منطقة.**
+     قال الزبون «لا أدري» جوابًا عن سؤالٍ، فردّ الوكيل: «"أدري" ليست من
+     مناطق الكويت — هل تقصد "الري"؟». وهو سؤالٌ عن كلمةٍ لم يقصد بها مكانًا
+     أصلًا، ويجعل الحوار يبدو كمن لا يسمع. والمسافة قصيرة فعلًا («أدري» و
+     «الري» حرفان)، فالمقياس لا يخطئ — إنّما يُسأل عمّا لا يُسأل عنه.
+     ويأتي المُميِّز من المستدعي (`isFiller`) فلا تعرف هذه الوحدةُ لهجةً. */
+  const skip = (opts && opts.skip) || null;
+
   let best = null;
   for (const w of tries) {
+    if (skip && skip(w)) continue;
     const name = closest(w, candidates, opts);
     if (!name) continue;
     const d = distance(ar.normalize(w).toLowerCase(), ar.normalize(name).toLowerCase());

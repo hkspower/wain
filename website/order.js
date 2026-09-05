@@ -84,9 +84,12 @@
   const state = {
     utterances: [],     // الحديث كما قيل، بترتيبه
     known: {},          // ما امتلأ حتى الدورة الماضية — ليُقال الجديد وحده
+    values: {},         // قيمُ ما امتلأ — ليُقال المصحَّح كما يُقال الجديد
     parsed: null,       // آخر ردّ تحليل
     pendingField: null, // الحقل الذي سُئل عنه آخرًا — لتغليف الجواب القصير
     sending: false,
+    busy: false,        // جولةٌ قائمة: ما يُكتب بعدها ينتظر دورَه
+    queue: [],          // ما قيل والجولة قائمة
   };
 
   /* ------------------------------ العرض ------------------------------ */
@@ -146,8 +149,17 @@
    */
   function acknowledge() {
     const f = (state.parsed && state.parsed.fields) || {};
-    const gained = REQUIRED.filter((k) => f[k] && !state.known[k]);
-    for (const k of REQUIRED) state.known[k] = !!f[k];
+    /* الجديد **والمصحَّح** كلاهما خبر. كان يُقارَن الحضورُ وحده (فارغ ←
+       ممتلئ)، فمن قال «لا، اسمي فهد» بعد «بدر» رأى الوكيل يمضي إلى
+       «اكتمل الطلب» ولا يذكر التصحيح بكلمة. والتصحيح أولى بالإقرار من
+       الجديد: صاحبه يعرف أنّ شيئًا فُهم خطأً، وينتظر أن يرى أنّه صُحّح.
+
+       ويُقارَن **نصُّ الإقرار** لا قيمةُ الحقل، فتُلتقط القطعةُ أيضًا:
+       من قال «السالمية» ثمّ «السالمية قطعة ٤» أضاف شيئًا يستحقّ أن يُقال،
+       واسم المنطقة لم يتغيّر. */
+    const line = (k) => (f[k] ? GOT[k](f) : null);
+    const gained = REQUIRED.filter((k) => f[k] && line(k) !== state.values[k]);
+    for (const k of REQUIRED) state.values[k] = line(k);
     if (!gained.length) return false;
     bubble('agent', 'تمام — ' + esc(gained.map((k) => GOT[k](f)).join('، ')) + '.');
     return true;
@@ -174,6 +186,8 @@
        طلبه كان يرى «ما اسمك؟ قل مثلًا: اسمي نورة» مرّتين بنصّها — والتكرار
        الحرفيّ يقرأ كعطب لا كإلحاح. والنواقص باقية في البطاقة على أي حال. */
     const again = state.pendingField === m.field && !m.hint;
+    /* كم مرّةً على التوالي عَلِقنا عند هذا الحقل بعينه */
+    state.stuck = again && !gained ? (state.stuck || 1) + 1 : 1;
     state.pendingField = m.field;
     /* ثلاث حالات لا واحدة: سؤالٌ أوّل، وسؤالٌ يُعاد وقد وصل شيءٌ غيره
        (فيُختصر)، وسؤالٌ يُعاد ولم يصل شيء (فيُقال إنّه لم يصل). */
@@ -183,6 +197,17 @@
     const wasAsking = !!(state.parsed && (state.parsed.answer || state.parsed.unanswered));
     if (again && !gained && !wasAsking) html = MISSED[m.field] || ASK_SHORT[m.field] || html;
     else if (again) html = ASK_SHORT[m.field] || html;
+
+    /* **ومن عَلِق مرّتين لا يُترك في الحلقة.**
+       قِيس حوارٌ أجاب فيه الزبون بما لا يُفهم مرّتين، فقيل له «ما وصلني
+       اسم» بنصّها مرّتين — والجملةُ المعادة حرفيًّا تُقرأ عطبًا لا إلحاحًا،
+       ولا تفتح له بابًا. فبعد المرّة الثانية يُذكر طريق الإنسان: الوكيل
+       بابُ استقبالٍ لا سدّ، ومن تعذّر عليه أن يُفهمه يجد من يكلّمه.
+       والعدّ: الأولى سؤال، والثانية جوابٌ لم يُفهم، والثالثة ثانيه — فعندها
+       يُفتح الباب. ولا يُفتح قبلها: أكثرُ من أخطأ مرّةً يصيب في الثانية. */
+    if (state.stuck >= 3 && !m.hint && !m.choices) {
+      html += `<br><span class="vo-msg__aside">وإن تعذّر: راسلنا على ${WA_LINK} ونكمل معك.</span>`;
+    }
     /* «هل تقصد…؟» يأتي من الخادم اقتراحًا لا قيمةً — زرٌّ يقبله الزبون */
     if (m.hint) {
       html = `${esc(m.why)}<br><button type="button" class="vo-hintbtn"
@@ -223,18 +248,57 @@
     state.parsed = await res.json();
   }
 
+  /* **فقاعةُ انتظار.**
+     الخادم بلا حالة، فكلُّ جولةٍ تُرسل الحديث كلّه وتأخذ وقتها. وقِيس على
+     شبكةٍ بطيئة: بين كلام الزبون وردّ الوكيل **صمتٌ تامّ ٢٫٥ ثانية** — لا
+     فقاعة ولا نقطة. والزبون لا يعرف: أوصل كلامه أم ضاعت الضغطة؟ فيعيدها.
+     وثلاث نقاطٍ تقول «سمعتك، أفكّر» بلا كلمة. */
+  let waitingBubble = null;
+  const showWaiting = () => {
+    if (waitingBubble) return;
+    waitingBubble = bubble('agent', '<span class="vo-dots" aria-hidden="true"><i></i><i></i><i></i></span>');
+    waitingBubble.classList.add('vo-msg--waiting');
+    waitingBubble.setAttribute('aria-label', 'الوكيل يقرأ ما قلت');
+  };
+  const hideWaiting = () => { if (waitingBubble) { waitingBubble.remove(); waitingBubble = null; } };
+
+  /**
+   * **جولةٌ واحدة في كلّ مرّة.**
+   *
+   * الحديث (`state.utterances`) يُقرأ في أوّل الجولة ويُكتب في آخرها،
+   * فجولتان متداخلتان تقرآن الحالة نفسها وتكتب الثانيةُ فوق الأولى.
+   * قِيس ذلك: كُتب «من السالمية» ثمّ «إلى الجابرية» قبل أن يردّ الأوّل —
+   * فوصلت البطاقة بالجابرية وحدها، **والسالمية سقطت** وقد قالها الزبون
+   * ورآها في فقاعته. وهذا يقع كلّما تسرّع أحدٌ أو بطؤت شبكة.
+   *
+   * فما يُقال أثناء جولةٍ يصطفّ ويُؤخذ بعدها بترتيبه.
+   */
   async function turn(text) {
     const raw = text.trim();
     if (!raw || state.sending) return;
-
     hero.hidden = true;
     bubble('user', esc(raw));
+    if (state.busy) { state.queue.push(raw); return; }
+    state.busy = true;
+    try {
+      await runTurn(raw);
+      while (state.queue.length) await runTurn(state.queue.shift());
+    } finally {
+      state.busy = false;
+      hideWaiting();
+    }
+  }
+
+  async function runTurn(raw) {
+    showWaiting();
     try {
       await parseAll(raw);
     } catch (err) {
-      bubble('agent', `${esc(err.message)} — أعد المحاولة بعد لحظة.`);
+      hideWaiting();
+      failedTurn(raw, err);
       return;
     }
+    hideWaiting();
 
     /* ما ضمّه الخادم إلى الطلب يُحفظ كما ضمّه. والسؤال لا يُحفظ أصلًا —
        وهذا هو الفرق بين وكيلٍ يجيب وآخر يبتلع كلَّ ما يُقال طلبًا. */
@@ -255,6 +319,34 @@
 
     renderCard();
     nextQuestion(acknowledge());
+  }
+
+  /**
+   * **الجولة تفشل ولا يضيع ما قاله الزبون.**
+   *
+   * كانت المساحة تُفرَّغ قبل الإرسال، فإذا انقطعت الشبكة ذهب الكلام كلّه:
+   * قِيس بطلبٍ كامل («اسمي بدر ورقمي… من حولي إلى السالمية») فمُحي عن
+   * آخره، وبقي في الشاشة سطرٌ إنجليزيّ خام — «Failed to fetch» — يقرؤه
+   * زبونٌ عربيّ. فعليه أن يكتب طلبه من أوّله وهو لا يدري لماذا.
+   *
+   * فالنصّ يُعاد إلى المساحة، والسبب يُقال بالعربية، ومعه زرٌّ يعيد
+   * المحاولة بضغطة — فالشبكة تتذبذب ولا يُطلب من الزبون أن يكتب مرّتين.
+   */
+  function failedTurn(raw, err) {
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const why = offline
+      ? 'يبدو أنّك غير متّصل بالإنترنت.'
+      : /fetch|network|load failed/i.test(String(err && err.message))
+        ? 'تعذّر الوصول إلى موصول.'
+        : esc(String((err && err.message) || 'تعذّر الاتصال'));
+    const b = bubble('agent', `${why} كلامك محفوظ — <button type="button" class="vo-hintbtn" data-retry>أعد المحاولة</button>`);
+    if (!input.value.trim()) { input.value = raw; grow(); }
+    b.querySelector('[data-retry]').addEventListener('click', () => {
+      b.remove();
+      const t = input.value;
+      input.value = ''; baseH();
+      turn(t);
+    });
   }
 
   const WA_LINK = '<a href="https://wa.me/96590000000" target="_blank" rel="noopener">واتساب</a>';

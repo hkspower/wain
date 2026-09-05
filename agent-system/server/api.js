@@ -484,6 +484,10 @@ function fitsField(field, t) {
   const s = String(t).trim();
   if (field === 'customer_name') {
     if (/[٠-٩0-9]/.test(s) || ORDER_VERB.test(s)) return false;
+    /* حشوُ الكلام ليس اسمًا. سُئل «ما اسمك؟» فقال «اممم» وهو يفكّر، فصار
+       ذلك اسمَ صاحب الطلب ومضى إلى الكابتن. وكذلك «هلا» و«شكرًا» و«لا
+       أدري». وقياسُ ذلك في `isFiller` لأن التطبيع هناك. */
+    if (V.isFiller(s)) return false;
     const n = s.split(/\s+/).length;
     return n >= 1 && n <= 3;
   }
@@ -623,7 +627,7 @@ on('POST', '/api/public/order/parse', async (ctx) => {
   const usedAreas = [parsed.fields.pickup_area, parsed.fields.dropoff_area].filter(Boolean);
   const firstAreaGap = parsed.missing.find((m) => m.field.endsWith('_area') && !m.hint);
   if (firstAreaGap) {
-    const near = SIM.closestInText(text, AREA.ALL_AREAS);
+    const near = SIM.closestInText(text, AREA.ALL_AREAS, { skip: V.isFiller });
     if (near && !usedAreas.includes(near.name)) {
       firstAreaGap.hint = near.name;
       firstAreaGap.hintFrom = near.word;

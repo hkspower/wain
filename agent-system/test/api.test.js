@@ -774,3 +774,21 @@ test('أسئلة الوكيل: الإدارة تحتاج صلاحيتها، وا
 
   await call('admin', 'DELETE', '/api/faq/' + created.data.item.id);
 });
+
+test('جوابٌ حشوٌ على سؤال الوكيل لا يُسجَّل اسمًا', async () => {
+  /* المسار كاملًا: الوكيل يسأل عن الاسم، فيغلّف الخادمُ الجواب القصير
+     بعنوان سؤاله. وكان «اممم» يُغلَّف «اسمي اممم» فيُقرأ اسمًا. */
+  for (const said of ['اممم', 'هلا', 'لا ادري']) {
+    const r = await call(null, 'POST', '/api/public/order/parse', {
+      utterances: ['ابغى توصيل من حولي الى السالمية'], latest: said, pending: 'customer_name',
+    });
+    assert.equal(r.status, 200);
+    assert.equal(r.data.fields.customer_name, undefined,
+      `«${said}» سُجّل اسمًا: ${r.data.fields.customer_name}`);
+  }
+  /* والاسم الحقيقيّ يمرّ في الموضع نفسه */
+  const ok = await call(null, 'POST', '/api/public/order/parse', {
+    utterances: ['ابغى توصيل من حولي الى السالمية'], latest: 'نورة', pending: 'customer_name',
+  });
+  assert.equal(ok.data.fields.customer_name, 'نورة');
+});

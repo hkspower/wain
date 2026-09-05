@@ -467,6 +467,32 @@ function spokenPhone(text) {
  */
 const NAME_MARKERS = ['اسمي', 'الاسم', 'اسمه', 'اسمها', 'معك', 'معاك', 'انا اسمي'];
 
+/**
+ * حشوُ الكلام وتحيّاته — ليس اسمًا وإن وقع موقع الجواب.
+ *
+ * سأل الوكيل «ما اسمك؟» فقال الزبون «اممم» وهو يفكّر، فصار **اسمَ صاحب
+ * الطلب**: «تمام — الاسم اممم». وهو يمضي إلى الكابتن فينادي به أحدًا عند
+ * الباب. وكذلك من ردّ بـ«هلا» أو «شكرًا» أو «لا أدري».
+ *
+ * ولا يُوسَّع هذا الجدول بالظنّ: كلُّ كلمةٍ فيه تمنع اسمًا حقيقيًّا لو
+ * كانت اسمًا. فـ«زين» و«أمل» و«نور» ليست منه وإن جاز أن تكون حشوًا.
+ */
+const FILLER = normSet([
+  'امم', 'ام', 'اه', 'اها', 'هم', 'همم', 'اوف', 'يعني', 'يعنى',
+  'ايه', 'اي', 'ايوه', 'ايوا', 'نعم', 'لا', 'اوك', 'اوكي', 'اوكيه',
+  'طيب', 'ماشي', 'خلاص', 'بس', 'تمام', 'زبده', 'عادي',
+  'هلا', 'هلو', 'مرحبا', 'اهلا', 'السلام', 'شكرا', 'مشكور', 'مشكوره', 'تسلم',
+  'شنو', 'وش', 'ليش', 'وين', 'متى', 'كم', 'ها', 'ادري', 'ماادري',
+  'ok', 'okay', 'hi', 'hello', 'hmm', 'yes', 'no', 'thanks',
+]);
+
+/** أهذا حشوٌ لا اسم؟ يُقاس على الكلمات كلّها: «لا ادري» حشوٌ بكلمتيه */
+function isFiller(text) {
+  const w = words(ar.normalize(String(text || '')).toLowerCase()).map((t) => t.w).filter(Boolean);
+  if (!w.length) return true;
+  return w.every((x) => FILLER.has(x));
+}
+
 /* فاصلٌ يقف عنده الاسم. كان يُمحى محوًا، فيمتدّ الاسم عبر الجملة التالية
    ما لم تبدأ بكلمةٍ وظيفية: «اسمي نورة، الاستلام من السالمية» أعطت الاسم
    «نورة الاستلام» — والكابتن ينادي به على الباب. والاسم لا يعبر فاصلة. */
@@ -763,7 +789,7 @@ function parseOrder(transcript) {
       /* «هل تقصد…؟» ولا يُملأ: الاقتراح سؤال يُعرض على الموظّف، لا قيمة
          تُوضع في حقل. والفرق أن الخطأ المعروض يُصحَّح، والمُطبَّق يمرّ. */
       const said = String(found[side] || '').trim();
-      const near = SIM.closestInText(said, AREA.ALL_AREAS);
+      const near = SIM.closestInText(said, AREA.ALL_AREAS, { skip: isFiller });
       missing.push({
         field: `${prefix}_area`,
         why: near
@@ -861,6 +887,6 @@ function parseOrder(transcript) {
 }
 
 module.exports = {
-  parseOrder, readNumber, readMoney, findPhone, findName, findAreas,
+  parseOrder, readNumber, readMoney, findPhone, findName, findAreas, isFiller,
   splitLabelled, parseAddressValue, LABELS, AREA_INDEX: INDEX,
 };

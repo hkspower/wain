@@ -503,6 +503,32 @@ body.vo {
 
 .vo-msg .vo-hintbtn:hover { background: #fff; border-color: var(--teal-700); }
 
+/* فقاعةُ الانتظار: ثلاث نقاطٍ تقول «سمعتك، أقرأ» بلا كلمة.
+   قِيس الصمت على شبكةٍ بطيئة فكان ٢٫٥ ثانية بلا أيّ أثر بعد كلام الزبون،
+   فلا يدري: أوصلت ضغطته أم ضاعت؟ فيُعيدها — ومن إعادتها وقع سباقٌ أضاع
+   جملة. والكلمة هنا أسوأ من النقاط: «جارٍ التحميل…» تُقرأ عطلًا، والنقاط
+   تُقرأ إصغاءً. */
+.vo-msg--waiting { padding-block: .85rem; }
+
+.vo-dots { display: inline-flex; gap: .3rem; }
+.vo-dots i {
+  width: .45rem; height: .45rem; border-radius: 50%;
+  background: var(--brand-ink-str); opacity: .35;
+  animation: dot 1.1s var(--ease-out) infinite;
+}
+.vo-dots i:nth-child(2) { animation-delay: .18s; }
+.vo-dots i:nth-child(3) { animation-delay: .36s; }
+
+@keyframes dot {
+  0%, 60%, 100% { opacity: .3; transform: none; }
+  30%           { opacity: 1;  transform: translateY(-3px); }
+}
+
+/* ومن أطفأ الحركة يرى النقاط ساكنةً ظاهرة — الإشارة تبقى، والحركة تذهب */
+@media (prefers-reduced-motion: reduce) {
+  .vo-dots i { animation: none; opacity: .6; }
+}
+
 /* ---------------------------- بطاقة الطلب ---------------------------- */
 .vo-card {
   background: var(--surf-1); border: 1px solid var(--surf-1-line);
@@ -686,6 +712,36 @@ body.vo {
   width: min(640px, 100%); margin: .45rem auto 0;
   color: var(--ink-faint); font-size: var(--fs-xs); line-height: var(--lh-ui);
   text-align: center;
+}
+
+/* **والالتقاط قائم: يُقال بالحبر لا بالنصّ وحده.**
+   `order.js` يضيف هذا الصنف عند بدء الاستماع ويرفعه عند انتهائه، ولم تكن
+   له قاعدةٌ أصلًا — فالسطر يتغيّر نصُّه ولونه واحد. والاشتقاق أسقطه لأنّه
+   لا يظهر في HTML: يُكتب في وقت التشغيل وحده. ونقطةٌ نابضة تسبقه تقول
+   «مفتوح» بلا كلمة، فالميكروفون المفتوح أولى ما يُرى. */
+.vo-composer__hint.is-listening {
+  color: var(--brand-ink-str); font-weight: 600;
+}
+
+.vo-composer__hint.is-listening::before {
+  content: ''; display: inline-block; vertical-align: middle;
+  width: .5rem; height: .5rem; margin-inline-end: .4rem;
+  background: var(--brand-ink-str); border-radius: 50%;
+  animation: listening 1.4s var(--ease-out) infinite;
+}
+
+@keyframes listening { 50% { opacity: .25; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .vo-composer__hint.is-listening::before { animation: none; }
+}
+
+/* السطر الثاني في فقاعة الوكيل: طريقُ الإنسان حين لا يكفي الوكيل.
+   يُنشئه JS ولا قاعدة له كانت — فيُقرأ بحجم الكلام الأصلي ووزنه، وهو
+   حاشيةٌ لا أصل. */
+.vo-msg__aside {
+  display: block; margin-top: .35rem;
+  font-size: var(--fs-sm); color: var(--ink-soft);
 }
 
 /* ------------------------------- الجوال ------------------------------- */
