@@ -1,9 +1,33 @@
 import Link from "next/link";
 import PlaceIcon from "@/components/PlaceIcon";
 import { IconGo, IconPinSolid, IconStar } from "@/components/icons";
-import { categoryTint, getCategory, toArabicDigits, toArabicNumber, type Place } from "@/lib/places";
+import {
+  categoryTint,
+  distanceAr,
+  getCategory,
+  toArabicDigits,
+  toArabicNumber,
+  type Place,
+} from "@/lib/places";
 
-export default function PlaceCard({ place }: { place: Place }) {
+/**
+ * `awayKm` is how far this place is from the one being looked at.
+ *
+ * Optional because most of the time there is nothing to be away FROM: on
+ * /explore and in search results a card stands on its own. On a place page the
+ * three «أماكن مشابهة» are chosen by category and then by distance — the page
+ * already sorts them with distanceKm — and the number that decided the order
+ * was thrown away before it reached the reader. «أبراج الكويت» and «أكوا بارك»
+ * are three hundred metres apart; the card said nothing, so a visitor had no
+ * way to tell a walk from a drive to the other end of the country.
+ */
+export default function PlaceCard({
+  place,
+  awayKm,
+}: {
+  place: Place;
+  awayKm?: number;
+}) {
   const category = getCategory(place.category);
 
   return (
@@ -73,6 +97,14 @@ export default function PlaceCard({ place }: { place: Place }) {
             <IconPinSolid className="size-3.5 shrink-0 text-coral-600/70" />
             <span className="truncate">{place.areaAr}</span>
           </span>
+          {/* Hedged for the places whose pin is the right area rather than the
+              right building — «قريب جداً» instead of a metre count nobody
+              measured. See distanceAr. */}
+          {awayKm !== undefined && (
+            <span className="shrink-0 whitespace-nowrap font-semibold text-sand-700">
+              {distanceAr(awayKm, place.coordsUnverified)}
+            </span>
+          )}
           <IconGo className="ms-auto size-4 shrink-0 text-sand-400 transition duration-300 group-hover:-translate-x-1 group-hover:text-coral-600" />
         </div>
       </div>

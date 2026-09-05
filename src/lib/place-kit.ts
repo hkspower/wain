@@ -231,3 +231,33 @@ export const RESULTS_COUNT: CountForms = {
   many: "نتيجة",
 };
 
+
+/**
+ * How far one place is from another, said the way a person says it.
+ *
+ * `toArabicNumber(km)` was the whole formatter, and it renders three hundred
+ * metres as «٠٫٣ كم». Nobody says that. Worse, it is the wrong shape of
+ * answer: a tenth of a kilometre reads as a measurement, and what a visitor
+ * wants at that range is «walk it».
+ *
+ * The same rule شوق's brief uses (scripts/wain-ai-brief.mjs), so the page and
+ * the voice cannot say two different things about one pair of places: metres
+ * below a kilometre, one decimal above it.
+ *
+ * `rough` is for the places whose pin is the right AREA rather than the right
+ * building — `coordsUnverified` in the catalogue. «٣٠٠ متر» about one of those
+ * is a decimal place of invented confidence, so under a kilometre it says so
+ * in words and above one it rounds to the half and hedges.
+ */
+export function distanceAr(km: number, rough = false): string {
+  if (rough) {
+    return km < 1
+      ? "قريب جداً"
+      : `${toArabicNumber(Math.round(km * 2) / 2)} كم تقريباً`;
+  }
+  if (km < 1) return `${toArabicDigits(Math.round((km * 1000) / 100) * 100)} متر`;
+  // «٢ كم», not «٢٫٠ كم». A decimal place that is always zero is not
+  // precision, it is furniture — and it made the shortest label the widest.
+  const one = Math.round(km * 10) / 10;
+  return `${Number.isInteger(one) ? toArabicDigits(one) : toArabicNumber(one)} كم`;
+}

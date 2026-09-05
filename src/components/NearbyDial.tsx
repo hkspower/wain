@@ -12,7 +12,7 @@ import {
   getCategory,
   places,
   toArabicDigits,
-  toArabicNumber,
+  distanceAr,
 } from "@/lib/places";
 
 /** Kuwait City (Mubarakiya). Used so results work without asking for location. */
@@ -200,7 +200,7 @@ export default function NearbyDial() {
                     <span className="block truncate text-xs text-ink-500">{p.areaAr}</span>
                   </span>
                   <span className="shrink-0 rounded-full bg-sea-50 px-2.5 py-1 text-xs font-semibold text-sea-700">
-                    {toArabicNumber(p.km)} كم
+                    {distanceAr(p.km, p.coordsUnverified)}
                   </span>
                 </Link>
               </li>

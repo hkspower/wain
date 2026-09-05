@@ -90,9 +90,12 @@ export default async function PlacePage({
   const category = getCategory(place.category);
   // Same-category places first; if that's thin (some categories have a
   // single place), fill with whatever is physically closest.
-  const sameCategory = places.filter(
-    (p) => p.category === place.category && p.slug !== place.slug
-  );
+  // Nearest first inside the category, not catalogue order. The cards say how
+  // far each one is now, and «١٫٦ · ٣٫٣ · ٢٫٠» in that order reads as a list
+  // somebody forgot to sort — which it was; the number was simply never shown.
+  const sameCategory = places
+    .filter((p) => p.category === place.category && p.slug !== place.slug)
+    .sort((a, b) => distanceKm(place, a) - distanceKm(place, b));
   const nearest = places
     .filter((p) => p.slug !== place.slug && p.category !== place.category)
     .sort((a, b) => distanceKm(place, a) - distanceKm(place, b));
@@ -150,10 +153,16 @@ export default async function PlacePage({
       <PhotoCredit slug={place.slug} />
 
       {/* Header */}
-      <div className="mt-7 flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <BusinessBrand place={place} />
-          <div>
+      {/* Not `justify-between`.
+          On a phone the two halves wrap and sit under one another, which is
+          why this looked right for so long. On a desktop they are pushed to
+          opposite ends of an 848px container: measured at 1280px, the category
+          and the price ended up 495px from the name they describe, marooned in
+          the far corner with nothing around them. They belong to the title, so
+          they sit under it. */}
+      <div className="mt-7 flex items-start gap-4">
+        <BusinessBrand place={place} />
+        <div className="min-w-0">
           <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
             {place.nameAr}
           </h1>
@@ -162,9 +171,7 @@ export default async function PlacePage({
               {place.name}
             </span>
           </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
           {category && (
             <span className="rounded-full bg-sea-50 px-3 py-1.5 text-sm font-semibold text-sea-700">
               {category.ar}
@@ -186,6 +193,7 @@ export default async function PlacePage({
             </span>
             د.ك
           </span>
+          </div>
         </div>
       </div>
 
@@ -270,7 +278,7 @@ export default async function PlacePage({
           </h2>
           <div className="grid gap-5 standalone:gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {related.map((p) => (
-              <PlaceCard key={p.slug} place={p} />
+              <PlaceCard key={p.slug} place={p} awayKm={distanceKm(place, p)} />
             ))}
           </div>
         </section>

@@ -502,7 +502,11 @@ h1, h2, h3 {
    defers work, it does not hide content. */
 .card-defer {
   content-visibility: auto;
-  contain-intrinsic-size: auto 268px;
+  /* 272px, not 268: measured across all 44 cards at 390px, the real height is
+     270-272. Four pixels each over 44 cards is 176px of page-height error
+     before anything has rendered, which is the one number this property
+     exists to get right. */
+  contain-intrinsic-size: auto 272px;
 }
 
 /* --- شوق, alive -----------------------------------------------------------
