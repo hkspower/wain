@@ -283,17 +283,27 @@ console.log("\n── she is told what is actually AT each place ──");
    * nothing to answer from but a tagline.
    */
   const kb = readFileSync("docs/wain-ai-kb.md", "utf8");
+  // Counted from the catalogue, not written down. These two were `=== 44`,
+  // which is a different assertion than the one intended: it says «there are
+  // forty-four places» and fails the moment somebody adds a forty-fifth, while
+  // the thing actually worth protecting is that EVERY place has a description
+  // and highlights and that all of them reach her. Adding eight places turned
+  // both green checks red with nothing missing.
+  const total = [...places.matchAll(/^ {4}slug: "[a-z0-9-]+"/gm)].length;
+
   const descs = [...places.matchAll(/^ {4}descriptionAr:\s*"((?:[^"\\]|\\.)*)"/gm)].map((m) => m[1]);
   const missingDesc = descs.filter((d) => !kb.includes(d));
   ok(`every place's description reaches her (${descs.length})`,
-    descs.length === 44 && missingDesc.length === 0, missingDesc.slice(0, 2).join(" | "));
+    descs.length === total && missingDesc.length === 0,
+    missingDesc.length ? missingDesc.slice(0, 2).join(" | ") : `${descs.length} of ${total} places have one`);
 
   const hls = [...places.matchAll(/^ {4}highlightsAr: \[([^\]]*)\]/gm)]
     .map((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]));
   const flat = hls.flat();
   const missingHl = flat.filter((h) => !kb.includes(h));
   ok(`every highlight reaches her (${flat.length} across ${hls.length} places)`,
-    hls.length === 44 && missingHl.length === 0, missingHl.slice(0, 3).join(" | "));
+    hls.length === total && missingHl.length === 0,
+    missingHl.length ? missingHl.slice(0, 3).join(" | ") : `${hls.length} of ${total} places have any`);
 
   // The specific failure that started this: a visitor asks for a thing rather
   // than a place, and the answer has to come from somewhere.

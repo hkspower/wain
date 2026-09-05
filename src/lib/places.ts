@@ -1168,6 +1168,199 @@ export const places: Place[] = [
     seasonAr: "أحلى بالشتاء",
     tagsAr: ["رخيص", "مساومة", "أقمشة", "ملابس", "تراث", "تسوّق", "شعبي"],
   },
+
+  /* ── Eight more, drafted from general knowledge ───────────────────────────
+   *
+   * All eight carry coordsUnverified and none carries a rating, which is the
+   * schema doing its job rather than a shortcut: the coordinates put the pin
+   * in the right neighbourhood and not on the right building, and a rating
+   * nobody has measured is a fabricated fact printed on a card and fed into
+   * search ranking. `npm run audit:places` lists both, so the debt stays
+   * visible and finite.
+   *
+   * They are all places a Kuwaiti would name without thinking, which is the
+   * bar for adding one from memory. What is NOT here is as deliberate: the
+   * audit warns that «وجبات سريعة» has a single place, and it still does,
+   * because the honest fix is a named restaurant with a real address and I do
+   * not have one I would put my name to. A guessed one would be a fabricated
+   * place, which is worse than a thin category.
+   */
+  {
+    slug: "salhia-complex",
+    name: "Salhia Complex",
+    nameAr: "الصالحية",
+    category: "shopping",
+    area: "Kuwait City",
+    areaAr: "مدينة الكويت",
+    lat: 29.3767,
+    lng: 47.9884,
+    coordsUnverified: true,
+    priceLevel: 3,
+    emoji: "💎",
+    taglineAr: "أرقى مجمع في وسط المدينة، ومن أقدمها.",
+    // «يخلّيه» used to close this description, and it cost a real answer:
+    // «صيدلية» is two edits from «يخليه», so asking for a pharmacy returned a
+    // luxury mall — confidently wrong where empty was correct, since the
+    // catalogue has no pharmacy. A filler verb in prose becomes an index term
+    // like any other. Reworded to say the same with nothing to trip on.
+    descriptionAr:
+      "مجمع تسوّق راقي في قلب العاصمة، مفتوح من السبعينات ومربوط بفنادق ومكاتب. الماركات فيه عالمية والأجواء أهدى من المولات الكبيرة، وهو أسهل خيار إذا انت بوسط المدينة.",
+    highlightsAr: ["ماركات عالمية", "أهدى من المولات الكبيرة", "بقلب العاصمة"],
+    bestTimeAr: "أيام الأسبوع، بعد العصر",
+    setting: "indoor",
+    seasonAr: "طول السنة — مكيّف",
+    tagsAr: ["مكيّف", "ماركات", "راقي", "تسوّق", "هدوء", "مطاعم"],
+  },
+  {
+    slug: "dickson-house",
+    name: "Dickson House",
+    nameAr: "بيت ديكسون",
+    category: "culture",
+    area: "Sharq",
+    areaAr: "شرق",
+    lat: 29.3823,
+    lng: 48.0009,
+    coordsUnverified: true,
+    priceLevel: 1,
+    emoji: "🏚️",
+    taglineAr: "بيت طيني على شارع الخليج، من أيام ما كانت الكويت سور.",
+    descriptionAr:
+      "بيت المعتمد البريطاني هارولد ديكسون، ومن أقدم البيوت الباقية على الواجهة البحرية. انرمّم وصار مركز ثقافي يعرض صور ووثائق من الكويت قبل النفط. الزيارة قصيرة، بس تعطيك إحساس بالمدينة القديمة ما يعطيك إياه متحف كبير.",
+    highlightsAr: ["بيت تراثي مرمّم", "صور ووثائق قديمة", "على شارع الخليج"],
+    bestTimeAr: "العصر، أيام الأسبوع",
+    setting: "indoor",
+    seasonAr: "طول السنة",
+    tagsAr: ["تراث", "تاريخ", "بيت قديم", "هدوء", "تصوير", "متحف"],
+  },
+  {
+    slug: "al-shaab-beach",
+    name: "Al Shaab Beach",
+    nameAr: "شاطئ الشعب",
+    category: "outdoors",
+    area: "Al Shaab",
+    areaAr: "الشعب",
+    lat: 29.3466,
+    lng: 48.0625,
+    coordsUnverified: true,
+    priceLevel: 1,
+    emoji: "🏖️",
+    taglineAr: "أقرب بحر لأهل العاصمة والسالمية.",
+    descriptionAr:
+      "شاطئ رملي عام على شارع الخليج، بين العاصمة والسالمية. فيه ممشى وجلسات على الواجهة، والناس تجي له بعد الدوام يتمشون ويقعدون على البحر بدون ما يطلعون برا المدينة.",
+    highlightsAr: ["رمل وممشى", "أقرب بحر للعاصمة", "جلسات على الواجهة"],
+    bestTimeAr: "العصر لين الغروب",
+    setting: "outdoor",
+    seasonAr: "من أكتوبر لأبريل",
+    tagsAr: ["بحر", "رمل", "ممشى", "عوائل", "غروب", "مشي"],
+  },
+  {
+    slug: "kuwait-fairground",
+    name: "Kuwait International Fairground",
+    nameAr: "معرض الكويت الدولي",
+    category: "family",
+    area: "Mishref",
+    areaAr: "مشرف",
+    lat: 29.2762,
+    lng: 48.0693,
+    coordsUnverified: true,
+    priceLevel: 2,
+    emoji: "🎪",
+    taglineAr: "وين تصير المعارض الكبيرة كلها.",
+    descriptionAr:
+      "أرض المعارض في مشرف، وفيها صالات كبيرة تستضيف معرض الكتاب ومعارض السيارات والأثاث وغيرها طول السنة. الطلعة هني تعتمد على الجدول: إذا فيه معرض تصير طلعة يوم كامل للعائلة، وإذا ما فيه فما فيه شي تشوفه.",
+    highlightsAr: ["صالات معارض كبيرة", "معرض الكتاب", "مواقف واسعة"],
+    bestTimeAr: "وقت المعارض — راجع الجدول",
+    setting: "indoor",
+    seasonAr: "طول السنة — مكيّف",
+    tagsAr: ["مكيّف", "معارض", "عوائل", "عيال", "يوم كامل", "مواقف"],
+  },
+  {
+    slug: "souq-al-safafeer",
+    name: "Souq Al Safafeer",
+    nameAr: "سوق الصفافير",
+    category: "shopping",
+    area: "Kuwait City",
+    areaAr: "مدينة الكويت",
+    lat: 29.3757,
+    lng: 47.9884,
+    coordsUnverified: true,
+    priceLevel: 1,
+    emoji: "🪔",
+    taglineAr: "آخر سوق نحّاسين في الكويت.",
+    descriptionAr:
+      "سوق صغير ملاصق للمباركية، وفيه الصفافير — صنّاع النحاس — يشتغلون بيدهم مثل زمان. دلال قهوة وصواني وأواني نحاس، وأغلبها مشغول بالمكان نفسه. لفّة قصيرة، بس ما تلقاها بمكان ثاني.",
+    highlightsAr: ["صناعة النحاس باليد", "دلال قهوة وصواني", "ملاصق للمباركية"],
+    bestTimeAr: "الصبح، أيام الأسبوع",
+    setting: "mixed",
+    seasonAr: "من أكتوبر لأبريل، وبالليل صيفاً",
+    tagsAr: ["تراث", "حرف", "نحاس", "هدايا", "تصوير", "تسوّق", "رخيص"],
+  },
+  {
+    slug: "sheikh-jaber-causeway",
+    name: "Sheikh Jaber Causeway",
+    nameAr: "جسر الشيخ جابر",
+    category: "landmarks",
+    area: "Subiya",
+    areaAr: "الصبية",
+    lat: 29.4361,
+    lng: 47.9086,
+    coordsUnverified: true,
+    priceLevel: 1,
+    emoji: "🌉",
+    taglineAr: "ستة وثلاثين كيلومتر فوق البحر.",
+    descriptionAr:
+      "من أطول الجسور البحرية في العالم، يربط العاصمة بالصبية شمالاً. الطلعة هني هي السواقة نفسها — بحر من الجهتين طول الطريق، وفيه جزيرة صناعية بالنص فيها محطة خدمات. أحلى وقت لها وقت الغروب.",
+    highlightsAr: ["٣٦ كم فوق البحر", "جزيرة صناعية بالنص", "غروب من فوق الماي"],
+    bestTimeAr: "وقت الغروب",
+    setting: "outdoor",
+    // Outdoor, but the whole outing happens inside a car with the air
+    // conditioning on — the heat does not ruin it the way it ruins a beach.
+    summerOk: true,
+    seasonAr: "طول السنة — انت بالسيارة",
+    tagsAr: ["سواقة", "بحر", "جسر", "غروب", "تصوير", "معلم", "طلعة"],
+  },
+  {
+    slug: "al-fanar-mall",
+    name: "Al Fanar Mall",
+    nameAr: "مجمع الفنار",
+    category: "shopping",
+    area: "Salmiya",
+    areaAr: "السالمية",
+    lat: 29.3378,
+    lng: 48.0797,
+    coordsUnverified: true,
+    priceLevel: 2,
+    emoji: "🛍️",
+    taglineAr: "مجمع مفتوح على بحر السالمية.",
+    descriptionAr:
+      "مجمع بتصميم مفتوح على شارع الخليج بالسالمية، فيه محلات ومطاعم وساحة مكشوفة. أصغر وأهدى من مارينا مول اللي جنبه، ويجمع بين التسوّق والقعدة على البحر بنفس الطلعة.",
+    highlightsAr: ["تصميم مفتوح", "على شارع الخليج", "أهدى من المولات الكبيرة"],
+    bestTimeAr: "بعد العصر",
+    setting: "mixed",
+    seasonAr: "أحلى من أكتوبر لأبريل",
+    tagsAr: ["تسوّق", "بحر", "مطاعم", "كافيهات", "هدوء", "ممشى"],
+  },
+  {
+    slug: "modern-art-museum",
+    name: "Museum of Modern Art",
+    nameAr: "متحف الفن الحديث",
+    category: "culture",
+    area: "Kuwait City",
+    areaAr: "مدينة الكويت",
+    lat: 29.3746,
+    lng: 47.9931,
+    coordsUnverified: true,
+    priceLevel: 1,
+    emoji: "🖼️",
+    taglineAr: "الفن الكويتي الحديث، في مدرسة من الثلاثينات.",
+    descriptionAr:
+      "متحف صغير في مبنى مدرسة قديمة بوسط المدينة، يعرض أعمال فنانين كويتيين وخليجيين من منتصف القرن لين اليوم. هادي ومنسّق، ويكمّل زيارة المتاحف اللي حواليه في نفس اللفّة.",
+    highlightsAr: ["فن كويتي وخليجي", "مبنى مدرسة مرمّم", "هادي ومنسّق"],
+    bestTimeAr: "العصر، أيام الأسبوع",
+    setting: "indoor",
+    seasonAr: "طول السنة",
+    tagsAr: ["فن", "متحف", "هدوء", "معارض", "تصوير", "مكيّف"],
+  },
 ];
 
 export function getPlace(slug: string): Place | undefined {
