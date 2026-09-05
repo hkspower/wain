@@ -1775,6 +1775,19 @@ function store_settings(PDO $db): array {
 // and a home page that renders nothing because a SELECT missed is a worse
 // outcome than a home page that renders the values it shipped with.
 const STORE_SETTING_DEFAULTS = [
+    // THE KNET TRANPORTAL ID, so the owner can change it without editing a
+    // file on the server.
+    //
+    // ONLY the ID. The Tranportal password and the 16-byte resource key stay
+    // in knet/config.php, which is git-ignored and unreadable over HTTP, and
+    // they are NOT here on purpose: the ID is a merchant identifier that
+    // appears in the shop's own payment posts, while those two are the secret
+    // that signs them. Putting all three in one row would mean an SQL-injection
+    // anywhere in the shop hands over a working gateway rather than a number.
+    //
+    // Empty means "use whatever knet/config.php says", which is what every
+    // shop has today and what happens if this row is never written.
+    'knet'      => ['tranportal_id' => ''],
     'hero'      => ['speed_ms' => 6500, 'shuffle' => false, 'size' => 'tall', 'autoplay' => true],
     'promo_bar' => ['enabled' => false, 'text_en' => '', 'text_ar' => '', 'href' => '',
                     'starts_at' => null, 'ends_at' => null],

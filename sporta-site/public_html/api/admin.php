@@ -1104,7 +1104,38 @@ if ($r === 'settings_save' && $method === 'POST') {
     $name = (string)($b['name'] ?? '');
     $v = is_array($b['value'] ?? null) ? $b['value'] : [];
 
-    if ($name === 'hero') {
+    if ($name === 'knet') {
+        // THE KNET TRANPORTAL ID.
+        //
+        // WHAT A WRONG VALUE COSTS, which is why this is the strictest
+        // validation in this function. Every other setting here is text on a
+        // page: a mistyped address looks wrong and someone says so. A mistyped
+        // Tranportal ID is a shop that takes the customer to KNET and is
+        // refused there, on every order, with nothing in the shop's own logs
+        // saying why — the gateway rejects the merchant, not the basket.
+        //
+        // So: digits and letters only, 3 to 32 of them. KNET issues numeric
+        // IDs (the shipped example is 626101) but has issued alphanumeric ones,
+        // and refusing a valid ID the bank gave the owner is its own failure —
+        // they would have no way to enter it and no idea why.
+        //
+        // EMPTY IS ALLOWED AND MEANS "GO BACK TO THE FILE". Clearing the box
+        // has to be possible: it is the way out if a saved ID turns out to be
+        // wrong, and it must not require somebody with FTP access at the exact
+        // moment the shop cannot take money.
+        $id = trim((string) ($v['tranportal_id'] ?? ''));
+        if ($id !== '' && !preg_match('/^[A-Za-z0-9]{3,32}$/', $id)) {
+            store_fail('invalid_tranportal_id');
+        }
+        // The placeholders knet/config.php ships with. Saving one of these
+        // would read as "configured" to knet_legacy_configured() and pin the
+        // shop to the legacy path with an ID that cannot take a payment —
+        // which is the precise failure that function exists to route around.
+        if (in_array(strtoupper($id), ['YOUR_TRANPORTAL_ID', 'TRANPORTAL_ID', 'CHANGEME'], true)) {
+            store_fail('placeholder_tranportal_id');
+        }
+        store_setting_save($db, 'knet', ['tranportal_id' => $id]);
+    } elseif ($name === 'hero') {
         store_setting_save($db, 'hero', [
             // 2s floor: anything faster is unreadable, and WCAG 2.2.2 wants
             // moving content to be pausable, not merely slow. 30s ceiling
@@ -1171,6 +1202,33 @@ if ($r === 'settings_save' && $method === 'POST') {
         store_fail('unknown_setting');
     }
     store_out(store_setting($db, $name));
+}
+
+// --------------------------------------------------------------- knet, read
+// THE PANEL'S OTHER SETTINGS ARE READ FROM THE STOREFRONT, AND THIS ONE MUST
+// NOT BE. src/lib/admin.ts says so at length: the promo bar and the contact
+// details come back on api.php?r=slides because reading the panel's idea of
+// the bar from a different endpoint than the shop's would let the two
+// disagree invisibly. That reasoning is right for a bar a customer sees.
+//
+// It is exactly wrong here. api.php is public — anyone may call ?r=slides —
+// and the Tranportal ID is not a thing to hand to anyone who asks. So this is
+// its own admin route, behind the same session and the same X-Sporta-Admin
+// gate as every other route in this file, and the storefront gains no way to
+// read it at all.
+//
+// It answers what is IN THE DATABASE, which is not necessarily what the
+// gateway is using: an empty value here means knet/config.php's ID is in
+// force. `source` says which, so the panel can tell the owner "this is the
+// one taking payments" rather than showing them an empty box beside a shop
+// that is charging cards perfectly well.
+if ($r === 'knet' && $method === 'GET') {
+    $set = store_setting($db, 'knet');
+    $id  = (string) ($set['tranportal_id'] ?? '');
+    store_out([
+        'tranportal_id' => $id,
+        'source'        => $id === '' ? 'file' : 'database',
+    ]);
 }
 
 // ------------------------------------------------------------- blocked numbers

@@ -16,6 +16,9 @@
  * which is also the proof that the cookie is the whole credential.
  */
 
+import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+
 const API = process.env.SITE_API ?? 'http://127.0.0.1:4300/api'
 const EMAIL = 'manager@sporta.com.kw'
 const PASSWORD = 'correct horse'
@@ -312,6 +315,62 @@ if (!placedR?.order_id) {
   const shortPw = await call('register', { email: 'boss@sporta.com.kw', password: 'elevenchar' })
   check(shortPw.status === 400 && shortPw.body?.error === 'password_too_short',
     `eleven characters is refused, matching the twelve the password change asks (${shortPw.body?.error})`)
+}
+
+// --- the KNET Tranportal ID -----------------------------------------------
+//
+// THE POINT OF TESTING THIS AGAINST THE REAL SERVER is that a saved ID reaches
+// the payment path. A route that stores a number nobody reads is a form that
+// lies to the owner, and the contract test cannot tell the difference — it
+// proves the three files agree on the NAME, not that the value does anything.
+{
+  const start = await call('knet')
+  check(start.status === 200 && typeof start.body?.tranportal_id === 'string',
+    `?r=knet reports the saved ID and its source (${start.body?.source})`)
+
+  const bad = await call('settings_save', { name: 'knet', value: { tranportal_id: 'has space' } })
+  check(bad.status >= 400 && bad.body?.error === 'invalid_tranportal_id',
+    `a malformed ID is refused (${bad.body?.error})`)
+
+  const ph = await call('settings_save', { name: 'knet', value: { tranportal_id: 'CHANGEME' } })
+  check(ph.status >= 400 && ph.body?.error === 'placeholder_tranportal_id',
+    `the shipped placeholder is refused (${ph.body?.error})`)
+
+  const good = await call('settings_save', { name: 'knet', value: { tranportal_id: '626101' } })
+  check(good.status === 200, 'a real-looking ID saves (200)')
+
+  const read = await call('knet')
+  check(read.body?.tranportal_id === '626101' && read.body?.source === 'database',
+    "and reads back from the database, which is where the gateway now looks")
+
+  // THE HALF THAT MATTERS: knet_config() must return the SAVED id, not the
+  // file's. Asked of the gateway's own loader rather than of the admin route
+  // that wrote it — those are different files and only one of them takes money.
+  const seen = execFileSync('php', ['-r',
+    "require 'sporta-site/public_html/knet/knet.php'; $c = knet_config(); echo $c['tranportal_id'] ?? '';"
+  ], { encoding: 'utf8', cwd: process.env.REPO ?? '.' }).trim()
+  check(seen === '626101', `knet_config() hands the saved ID to the gateway (${seen || 'nothing'})`)
+
+  // AND THE OTHER RETURN PATHS, STATICALLY, because the check above can only
+  // exercise the one this sandbox happens to take. Mutation-tested: unwrapping
+  // the LAST return in knet_config() turns that check red, and unwrapping the
+  // FIRST one — the path a shop takes when knet/config.php names its own
+  // database, which is the commonest real configuration — left it green. A
+  // check that covers one branch of three is not covering the feature.
+  //
+  // So this reads the function and insists every exit from it goes through the
+  // override. Cheap, and it fails on the branch no rig here can reach.
+  const src = readFileSync('sporta-site/public_html/knet/knet.php', 'utf8')
+  const fn = src.slice(src.indexOf('function knet_config('),
+                       src.indexOf('function knet_apply_saved_id('))
+  const bare = (fn.match(/return \$cfg;/g) ?? []).length
+  check(bare === 0 && /knet_apply_saved_id\(\$cfg\)/.test(fn),
+    `every return in knet_config() applies the saved ID (${bare} bare returns left)`)
+
+  const cleared = await call('settings_save', { name: 'knet', value: { tranportal_id: '' } })
+  check(cleared.status === 200, 'clearing it is allowed — the way back to the file')
+  const back = await call('knet')
+  check(back.body?.source === 'file', 'and the gateway falls back to knet/config.php')
 }
 
 // --- out ------------------------------------------------------------------

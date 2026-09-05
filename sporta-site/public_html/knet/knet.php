@@ -94,12 +94,17 @@ function knet_config(): array
     if (!is_array($cfg)) {
         knet_fail_closed('Payment configuration is unreadable.');
     }
-    if (knet_db_configured($cfg)) return $cfg;
+    // EVERY RETURN BELOW GOES THROUGH knet_apply_saved_id(). The first draft
+    // of this only wrapped the last one, and the commonest case on a healthy
+    // shop is the FIRST — config.php names its own database, so it returns
+    // here and the owner's saved ID would have been silently ignored on every
+    // install where the feature was most likely to be used.
+    if (knet_db_configured($cfg)) return knet_apply_saved_id($cfg);
 
     $api = __DIR__ . '/../api/config.php';
-    if (!is_file($api)) return $cfg;
+    if (!is_file($api)) return knet_apply_saved_id($cfg);
     $store = @require $api;
-    if (!is_array($store)) return $cfg;
+    if (!is_array($store)) return knet_apply_saved_id($cfg);
 
     // Only the four, and only where this file is silent. Nothing else crosses:
     // api/config.php holds the admin session settings and the cron key, and
@@ -108,6 +113,56 @@ function knet_config(): array
         if (($cfg['mysql_' . $k] ?? '') === '' && ($store['db_' . $k] ?? '') !== '') {
             $cfg['mysql_' . $k] = $store['db_' . $k];
         }
+    }
+    return knet_apply_saved_id($cfg);
+}
+
+// THE TRANPORTAL ID THE OWNER TYPED IN /backends, IF THEY TYPED ONE.
+//
+// Only the ID, and only when it is non-empty and well formed. The password and
+// the resource key are never read from the database — see the note beside
+// STORE_SETTING_DEFAULTS in api/store.php for why those two stay in the file.
+//
+// EVERY FAILURE HERE FALLS BACK TO THE FILE, and that direction is the whole
+// design. This runs on the payment path: a database that is briefly down, a
+// settings table that does not exist yet on an older shop, malformed JSON in
+// the row — none of those may become "this shop cannot take money". The shop
+// simply carries on with the ID it had before this feature existed, which is
+// the behaviour of every Sporta install shipped to date.
+//
+// It is deliberately NOT wired through knet_pdo(): that helper throws on
+// failure because its callers want it to, and this one must not throw at all.
+function knet_apply_saved_id(array $cfg): array
+{
+    foreach (['host', 'name', 'user', 'pass'] as $k) {
+        if ((string) ($cfg['mysql_' . $k] ?? '') === '' && $k !== 'pass') return $cfg;
+    }
+    try {
+        $pdo = new PDO(
+            'mysql:host=' . $cfg['mysql_host'] . ';dbname=' . $cfg['mysql_name'] . ';charset=utf8mb4',
+            (string) $cfg['mysql_user'], (string) $cfg['mysql_pass'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_TIMEOUT => 5]
+        );
+        $q = $pdo->prepare('select value from settings where name = ?');
+        $q->execute(['knet']);
+        $row = $q->fetchColumn();
+        if (!is_string($row) || $row === '') return $cfg;
+        $val = json_decode($row, true);
+        $id  = is_array($val) ? trim((string) ($val['tranportal_id'] ?? '')) : '';
+
+        // THE SAME PATTERN THE ADMIN VALIDATES ON, CHECKED AGAIN HERE. Not
+        // belt-and-braces: rows can be written by a future admin route, by an
+        // import, or by hand in phpMyAdmin, and this is the last point before
+        // the value is posted to a bank. A row that fails it is ignored rather
+        // than refused, because refusing would take the shop offline over a
+        // bad database row when a perfectly good ID is sitting in the file.
+        if ($id === '' || !preg_match('/^[A-Za-z0-9]{3,32}$/', $id)) return $cfg;
+        if (in_array($id, KNET_PLACEHOLDERS, true)) return $cfg;
+
+        $cfg['tranportal_id'] = $id;
+    } catch (Throwable $e) {
+        // Logged, never surfaced. The shopper is mid-checkout.
+        error_log('knet: saved tranportal_id unreadable, using config.php (' . $e->getMessage() . ')');
     }
     return $cfg;
 }

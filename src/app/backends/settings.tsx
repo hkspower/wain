@@ -40,6 +40,13 @@ export default function SettingsScreen() {
 
   const [bar, setBar] = useState<PromoBar | null>(null);
   const [contact, setContact] = useState<ContactDetails | null>(null);
+  /* Two pieces of state, not one. `knetId` is what is in the box and `knetSource`
+     is where the gateway is reading from right now — and they are genuinely
+     different facts. An empty box on a shop taking payments perfectly well
+     means "the ID lives in knet/config.php", which is the normal case, and a
+     screen that showed only the box would read as "no ID configured". */
+  const [knetId, setKnetId] = useState('');
+  const [knetSource, setKnetSource] = useState<'file' | 'database'>('file');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,15 +56,19 @@ export default function SettingsScreen() {
   const [barNote, setBarNote] = useState<string | null>(null);
   const [contactBusy, setContactBusy] = useState(false);
   const [contactNote, setContactNote] = useState<string | null>(null);
+  const [knetBusy, setKnetBusy] = useState(false);
+  const [knetNote, setKnetNote] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!token) return;
     setLoading(true);
     setError(null);
-    Promise.all([adminApi.promoBar(), adminApi.contact()])
-      .then(([b, c]) => {
+    Promise.all([adminApi.promoBar(), adminApi.contact(), adminApi.knetSettings()])
+      .then(([b, c, k]) => {
         setBar(b);
         setContact(c);
+        setKnetId(k.tranportal_id);
+        setKnetSource(k.source);
       })
       .catch((e) => (e instanceof Unauthorized ? signOut() : setError(String(e))))
       .finally(() => setLoading(false));
@@ -121,6 +132,39 @@ export default function SettingsScreen() {
       );
     } finally {
       setContactBusy(false);
+    }
+  };
+
+  /* SAVING THE ID CHANGES WHERE REAL MONEY GOES, so this one says more than
+     "Saved." and re-reads like the others. A wrong Tranportal ID is a shop
+     that takes the customer to KNET and is refused there on every order, with
+     nothing in the shop's own logs explaining it — the gateway rejects the
+     merchant, not the basket. The owner deserves to be told to test it. */
+  const saveKnet = async () => {
+    if (knetBusy) return;
+    setKnetBusy(true);
+    setKnetNote(null);
+    try {
+      await adminApi.saveKnetId(knetId);
+      const k = await adminApi.knetSettings();
+      setKnetId(k.tranportal_id);
+      setKnetSource(k.source);
+      setKnetNote(
+        k.source === 'database'
+          ? 'Saved. Place one real order to confirm KNET accepts it.'
+          : 'Cleared. The gateway is back on the ID in knet/config.php.',
+      );
+    } catch (e) {
+      if (e instanceof Unauthorized) return signOut();
+      setKnetNote(
+        String(e).includes('invalid_tranportal_id')
+          ? 'A Tranportal ID is 3 to 32 letters or digits, with no spaces.'
+          : String(e).includes('placeholder_tranportal_id')
+            ? 'That is the example value, not a real ID from KNET.'
+            : String(e),
+      );
+    } finally {
+      setKnetBusy(false);
     }
   };
 
@@ -251,6 +295,38 @@ export default function SettingsScreen() {
           <Button label="Save contact details" onPress={saveContact} busy={contactBusy} />
         </Card>
       )}
+
+      <Card style={styles.card}>
+        <ThemedText type="heading">KNET</ThemedText>
+        <ThemedText type="caption" themeColor="textSecondary" style={styles.hint}>
+          The Tranportal ID KNET issued for this shop. Only the ID is kept here —
+          the password and the resource key stay in the file on the server.
+        </ThemedText>
+
+        {/* NOT a Chip. Chip is a control — it requires an onPress and reads as
+            something to tap — and this is a statement of fact the owner cannot
+            change by tapping it. Giving it a no-op handler to satisfy the type
+            would put a dead button on a payment screen. */}
+        <ThemedText type="label" themeColor="textSecondary" style={styles.note}>
+          {knetSource === 'database'
+            ? 'Payments are using the ID below.'
+            : 'Payments are using the ID in knet/config.php on the server.'}
+        </ThemedText>
+
+        <Field
+          label="Tranportal ID — empty means use the file on the server"
+          value={knetId}
+          onChangeText={setKnetId}
+          autoCapitalize="none"
+        />
+
+        {knetNote && (
+          <ThemedText type="label" themeColor="textSecondary" style={styles.note}>
+            {knetNote}
+          </ThemedText>
+        )}
+        <Button label="Save KNET ID" onPress={saveKnet} busy={knetBusy} />
+      </Card>
     </AdminShell>
   );
 }

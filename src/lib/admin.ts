@@ -779,6 +779,27 @@ export const adminApi = {
       },
     }),
 
+  // ------------------------------------------------------------------- knet
+  //
+  // READ FROM AN ADMIN ROUTE, unlike the promo bar and the contact details
+  // above. Those two deliberately come back from api.php?r=slides so the panel
+  // and the shop can never disagree about them. api.php is public, and the
+  // Tranportal ID is not something to hand to anyone who asks — so this one
+  // has its own route on admin.php, behind the session.
+  //
+  // `source` is 'file' when nothing is saved, meaning knet/config.php's ID is
+  // the one taking payments. The screen needs that to avoid showing an empty
+  // box beside a shop that is charging cards perfectly well.
+  knetSettings: () => call<{ tranportal_id: string; source: 'file' | 'database' }>('knet'),
+
+  /** Empty clears the saved value and hands the gateway back to
+   *  knet/config.php — the way out if a saved ID turns out to be wrong. */
+  saveKnetId: (tranportalId: string) =>
+    call<{ tranportal_id: string }>('settings_save', {
+      name: 'knet',
+      value: { tranportal_id: tranportalId.trim() },
+    }),
+
   // ------------------------------------------------------- product photographs
   //
   // Every garment, with its brand, so the uploader can narrow by brand then by

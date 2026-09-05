@@ -108,6 +108,7 @@ def _fresh():
         'promo_bar': {'enabled': True, 'text_en': 'Delivery within 24 hours in Kuwait',
                       'text_ar': 'التوصيل خلال ٢٤ ساعة داخل الكويت',
                       'href': '', 'starts_at': None, 'ends_at': None},
+        'knet': {'tranportal_id': ''},
         'contact': {'phone': '+965 2209 1914', 'whatsapp': '96522091914',
                     'email': 'cs@sporta.com.kw', 'address_ar': '', 'address_en': '',
                     'hours_ar': '', 'hours_en': '', 'instagram': ''},
@@ -338,6 +339,13 @@ class Handler(BaseHTTPRequestHandler):
                  'url': f"api.php?r=product_image&id={i['id']}&v={i['v']}",
                  'width': i['width'], 'height': i['height']} for i in rows]})
 
+        if r == 'knet':
+            # Mirrors admin.php: the saved ID, and which of the two sources is
+            # actually in force. Empty means knet/config.php is.
+            tid = STATE['settings'].get('knet', {}).get('tranportal_id', '')
+            return self._json(200, {'tranportal_id': tid,
+                                    'source': 'database' if tid else 'file'})
+
         if r == 'brands':
             return self._json(200, STATE['brands'])
 
@@ -533,6 +541,18 @@ class Handler(BaseHTTPRequestHandler):
         if r == 'settings_save':
             name = b.get('name')
             v = b.get('value') if isinstance(b.get('value'), dict) else {}
+            if name == 'knet':
+                # The same validation admin.php does, in the same order, so a
+                # bad ID is refused here too rather than only in production.
+                # A fixture that accepts what the server rejects is the exact
+                # divergence admin-contract-test.mjs exists to catch.
+                tid = str(v.get('tranportal_id') or '').strip()
+                if tid and not re.fullmatch(r'[A-Za-z0-9]{3,32}', tid):
+                    return self._json(422, {'error': 'invalid_tranportal_id'})
+                if tid.upper() in ('YOUR_TRANPORTAL_ID', 'TRANPORTAL_ID', 'CHANGEME'):
+                    return self._json(422, {'error': 'placeholder_tranportal_id'})
+                STATE['settings']['knet'] = {'tranportal_id': tid}
+                return self._json(200, STATE['settings']['knet'])
             if name == 'promo_bar':
                 STATE['settings']['promo_bar'] = {
                     'enabled': bool(v.get('enabled')),
