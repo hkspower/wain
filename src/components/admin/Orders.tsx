@@ -183,7 +183,7 @@ export default function Orders({ onCountChange }: { onCountChange?: (n: number) 
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-ink-500">
-          الطلبات المسبقة — الدفع يتم عند الاستلام، وين ما تمسك أي مبلغ.
+          الطلبات المسبقة — الدفع عند الاستلام، وين ما تمسك أي مبلغ.
         </p>
         <span className="flex items-center gap-2">
           {/* The chime is on by default and can be turned off, rather than off
