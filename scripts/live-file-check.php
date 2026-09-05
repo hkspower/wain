@@ -26,7 +26,7 @@ $ROOT = '/home/u130124229/domains/sporta.com.kw/public_html';
 
 // path => sha256 in the repository.
 $WANT = [
-    '.htaccess' => 'b53e4a3d163bb78c11d5d9a8901ce151bfc9a001add79f3dcccbd8af12c661b4',
+    '.htaccess' => '383243b881e19aecb162ce48f26a1b2bb81eb25ce4fae010eb1df62af6887302',
     'api/.htaccess' => '574ff6d3712c69ad6a119652dd976afbad0e065cec35c198ceed85bfc72c3be2',
     'api/accounting.mysql.sql' => '865458325a463d3127bbb45cb1a3d5c0c9a603c7656cdde85c280ffb7f8ed716',
     'api/accounting.php' => '0e508c851de94808626164518d8394e6c65508ec2733efd16be7a278b2825963',
@@ -191,12 +191,12 @@ $WANT = [
     'pay/pay.php' => '172d1d33bed9170b5bee311b375d899d4d22cbb262da92f1893bd99bad9b11a5',
     'returns-request.html' => '4b756bbec77a1e522cfdaf2e6ea6a4ef68495da74cd2fc2a6c96ac1d0a44d48c',
     'robots.txt' => '6baf32979c4813f61a35491da2b18c012e638321d4f0a4be5cf1ec795b03d257',
-    'seo.php' => '917f5c481f34ef06df9b0222e50bb51e434b3cc4102f6fc973fb5df943cb2fce',
+    'seo.php' => 'fa281600e19bdd1c15b9f209daebfada36bd86c2d77e4d45c8c4225249174d45',
     'site.webmanifest' => '2b7b841790a8f02340b140a51acebd5ea3a51001f0567214703e0a5f74589f08',
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => '1ba2a01e9f35e80a67b4b6047afcb5370b4005074a150ade4907a578cb0ebf4a',
-    'sw.js' => 'f1e370e2decb620383c7f8a2ffda6f202f7de1202ae2f1eac52319559cefcab3',
+    'sw.js' => 'fadd9c913620f6fcefa792683caed570cc78a85cd87c96bc5e024bc9b4285bbb',
 ];
 
 $same = 0; $diff = []; $miss = [];
