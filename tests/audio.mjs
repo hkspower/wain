@@ -316,6 +316,36 @@ if (music) {
   const WAV = "public/sfx/__probe.wav";
   const before = existsSync(MAN) ? readFileSync(MAN, "utf8") : null;
 
+  // A finally block is not a guarantee. This section swaps the SHIPPED
+  // manifest for a one-entry probe, and the restore below lives in a
+  // finally — which node runs on a thrown error and does NOT run on a
+  // SIGTERM. Every `timeout 1500 npm run test:audio` that hit its limit
+  // therefore left the game's real manifest replaced by a probe
+  // pointing at a .wav the finally had already deleted: the game came
+  // up silent and the file looked deliberate.
+  //
+  // So the backup goes to disk before the swap and is reclaimed on the
+  // way in, which repairs a previous run that was killed, and the
+  // signals are handled so this run does not need repairing.
+  const BAK = `${MAN}.testbak`;
+  if (existsSync(BAK)) {
+    writeFileSync(MAN, readFileSync(BAK, "utf8"));
+    rmSync(BAK, { force: true });
+    console.log("(restored a manifest left behind by an interrupted run)");
+  }
+  const restore = () => {
+    try {
+      if (before === null) rmSync(MAN, { force: true });
+      else writeFileSync(MAN, before);
+      rmSync(WAV, { force: true });
+      rmSync(BAK, { force: true });
+    } catch {}
+  };
+  for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+    process.once(sig, () => { restore(); process.exit(130); });
+  }
+  if (before !== null) writeFileSync(BAK, before);
+
   // 0.25 s of 1 kHz at 44.1 kHz, 16-bit mono — a valid RIFF/WAVE file
   const rate = 44100, secs = 0.25, n = Math.floor(rate * secs);
   const data = Buffer.alloc(n * 2);
@@ -363,9 +393,7 @@ if (music) {
     check(Math.abs(r.dur - 0.25) < 0.02, `decoded duration ${r.dur}s is not the 0.25s written`);
     check(r.started > 0, "the impact did not play the sample — it fell through to the synth");
   } finally {
-    rmSync(WAV, { force: true });
-    if (before === null) rmSync(MAN, { force: true });
-    else writeFileSync(MAN, before);
+    restore();
   }
 }
 

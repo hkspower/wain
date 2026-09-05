@@ -112,6 +112,12 @@ press/audio/capture/
 # are the reference stills you flick between to see what a change did to
 # the picture — but these two are 5 MB of check output that changes with
 # every word of copy, and nothing compares them to anything.
+# Scratch left by tests/audio.mjs's sample-path section: a probe tone and
+# the backup it takes of the shipped manifest before swapping it out.
+# Both are removed on the way out, and both survive a kill.
+public/sfx/__probe.wav
+public/sfx/manifest.json.testbak
+
 press/shots/site-en.png
 press/shots/site-ar.png
 

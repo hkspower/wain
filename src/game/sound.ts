@@ -1513,10 +1513,23 @@ export class SoundEngine {
    *  is a short hiss, a full-lock arrival is a long tearing screech. */
   scrape(severity = 1): void {
     const sev = Math.min(Math.max(severity, 0), 1);
-    if (this.playSample("scrape", 0.55 + sev * 0.7)) return;
-    this.oneShotNoise("highpass", 2600, 0.12 + sev * 0.16, 0.18 + sev * 0.3);
-    this.oneShotNoise("bandpass", 3000 + sev * 900, 0.06 + sev * 0.09, 0.15 + sev * 0.25, 8);
-    // A hard hit rings the shell as well as grinding the paint
+    // The same trap bump() had, and the audio suite caught it the moment
+    // scrape.mp3 was installed: with a recording in front of the synth
+    // this returned early, so a graze and a full-lock arrival became one
+    // sound at two gains — "graze uses 1 noise voice, full hit 1", and
+    // the check that a crash must not sound like a graze failed.
+    //
+    // What a recording cannot carry is LENGTH. The two grinding layers
+    // below run 0.18 to 0.48 seconds with the severity; a sample is
+    // however long it is. So the sample plays the grind, and the layer
+    // that only exists on a real hit — the shell ringing behind the
+    // paint coming off — is kept on top of it.
+    const sampled = this.playSample("scrape", 0.55 + sev * 0.7);
+    if (!sampled) {
+      this.oneShotNoise("highpass", 2600, 0.12 + sev * 0.16, 0.18 + sev * 0.3);
+      this.oneShotNoise("bandpass", 3000 + sev * 900, 0.06 + sev * 0.09, 0.15 + sev * 0.25, 8);
+    }
+    // A hard hit rings the shell as well as grinding the paint.
     if (sev > 0.45) this.oneShotNoise("lowpass", 420, 0.18 * sev, 0.22);
   }
 
