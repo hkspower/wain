@@ -82,6 +82,28 @@ execFileSync('sh', ['-c', 'for i in $(seq 20); do curl -s -o /dev/null ' +
 let fails = 0
 const check = (ok, what) => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`) }
 
+/** Same as get(), but for a named host — the asset host has its own rules. */
+const getOn = (host, path) => {
+  const out = execFileSync('curl', [
+    '-s', '-o', '/dev/null',
+    '-H', `Host: ${host}`,
+    '-H', 'X-Forwarded-Proto: https',
+    '-w', '%{http_code} %{redirect_url}',
+    `http://127.0.0.1:${PORT}${path}`,
+  ], { encoding: 'utf8' }).trim().split(' ')
+  return { status: Number(out[0]), to: out[1] ?? '' }
+}
+
+/** A named response header, as a named host sees it. */
+const headerOn = (host, path, name) => {
+  const head = execFileSync('curl', [
+    '-s', '-o', '/dev/null', '-D', '-',
+    '-H', `Host: ${host}`, '-H', 'X-Forwarded-Proto: https',
+    `http://127.0.0.1:${PORT}${path}`,
+  ], { encoding: 'utf8' })
+  return (head.match(new RegExp(`^${name}:\\s*(.*)$`, 'im'))?.[1] ?? '').trim()
+}
+
 const get = (path) => {
   const out = execFileSync('curl', [
     '-s', '-o', '/dev/null',
@@ -109,6 +131,43 @@ const cacheOf = (path) => {
     `http://127.0.0.1:${PORT}${path}`,
   ], { encoding: 'utf8' })
   return (head.match(/^cache-control:\s*(.*)$/im)?.[1] ?? '').trim()
+}
+
+// --- the cookie-free asset host ------------------------------------------
+//
+// static.sporta.com.kw shares this document root, so every rule in this file
+// applies to it too. That is what makes it cheap and what makes it dangerous:
+// left alone it is a second, complete, indexable copy of the shop.
+//
+// None of this was checked here before the host existed, and a rule nobody
+// asserts is a rule the next edit can drop in silence.
+const STATIC = 'static.sporta.com.kw'
+console.log('\n--- static.sporta.com.kw, the cookie-free asset host')
+{
+  const css = getOn(STATIC, '/assets/sporta-ui.css')
+  check(css.status === 200, `assets are SERVED on the asset host (${css.status})`)
+
+  for (const dir of ['/fonts/alexandria-var-latin.woff2', '/hero/desktop/bodybuilding-men.webp']) {
+    check(getOn(STATIC, dir).status === 200, `${dir} is served there too`)
+  }
+
+  // The half that stops it becoming a second shop.
+  for (const page of ['/', '/shop', '/checkout', '/backends']) {
+    const r = getOn(STATIC, page)
+    check(r.status === 301 && /^https:\/\/www\.sporta\.com\.kw/.test(r.to),
+      `${page} on the asset host goes to www (${r.status} ${r.to || 'nowhere'})`)
+  }
+
+  // A cross-origin font is refused without this, whatever CSP says.
+  const acao = headerOn(STATIC, '/fonts/alexandria-var-latin.woff2', 'access-control-allow-origin')
+  check(acao === 'https://www.sporta.com.kw',
+    `fonts carry one named CORS origin, not a wildcard — "${acao || 'NOTHING'}"`)
+
+  check(/noindex/i.test(headerOn(STATIC, '/assets/sporta-ui.css', 'x-robots-tag')),
+    'assets on the asset host are noindex')
+
+  // And www must be unaffected by all of it.
+  check(get('/shop').status === 200, 'www still serves the app')
 }
 
 try {

@@ -71,7 +71,7 @@
 // keep using. Activating a new version deletes every cache that is not the
 // current one, so the bump is what actually frees them — the fix alone would
 // leave the people it was written for exactly where they were.
-const VERSION = 'v4-topbar1'
+const VERSION = 'v5-static1'
 const SHELL = `sporta-shell-${VERSION}`
 const ASSETS = `sporta-assets-${VERSION}`
 
@@ -202,7 +202,22 @@ self.addEventListener('fetch', (e) => {
   const { request } = e
   if (request.method !== 'GET') return
   const url = new URL(request.url)
-  if (url.origin !== location.origin) return // the bank: always live
+  // THE ASSET HOST COUNTS AS OURS.
+  //
+  // static.sporta.com.kw is the cookie-free origin the CSS, the bundle and the
+  // fonts are served from. It is a different ORIGIN but the same document root
+  // and the same files, so everything below — the content-hash test, the
+  // immutable rule, the stale-while-revalidate for fixed-name pictures — is
+  // exactly as correct there as here; the tests key on url.pathname, which is
+  // identical on both hosts.
+  //
+  // Without this line the bailout on the next line would skip every one of
+  // them: no precache, no offline shell, no cache-first for a year on files
+  // whose names carry their own hash. Moving assets to a second origin would
+  // have quietly traded the whole service worker for a cookie header that
+  // measured zero bytes.
+  const OURS = url.origin === location.origin || url.host === 'static.sporta.com.kw'
+  if (!OURS) return // the bank, and anything else: always live
   if (NEVER(url)) return
 
   // Stale-while-revalidate, by hand. The visitor waits for nothing — the

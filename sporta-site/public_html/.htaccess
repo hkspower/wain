@@ -32,9 +32,33 @@ Options -Indexes
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
+  # 0) static.sporta.com.kw — the cookie-free asset host.
+  #
+  # It is a Hostinger subdomain created with "use the public directory", so its
+  # document root is THIS one. Two hostnames, one set of files, one .htaccess.
+  # That is what makes it cheap, and it is also what makes these two rules
+  # mandatory: without them static/ would be a second complete copy of the shop
+  # — every page reachable at a second URL, which is duplicate content to a
+  # crawler and a second surface to keep in step.
+  #
+  # So it serves the ASSET DIRECTORIES AND NOTHING ELSE. Anything else goes to
+  # www, which also makes a mistyped or stale link recoverable instead of a 404.
+  #
+  # Measured before this existed: https://static.sporta.com.kw/assets/sporta-ui.css
+  # answered 301, not 200 — rule 1 below caught it, because static is "not www".
+  # The cookie-free host cannot work at all until it is excluded from that rule.
+  RewriteCond %{HTTP_HOST} ^static\.sporta\.com\.kw(:[0-9]+)?$ [NC]
+  RewriteCond %{REQUEST_URI} !^/(assets|fonts|hero|cats|images)/ [NC]
+  RewriteRule ^ https://www.sporta.com.kw%{REQUEST_URI} [R=301,L]
+
   # 1) Wrong host (bare domain, old alias, IP) -> canonical host over HTTPS.
   # (:port tolerated — Host carries a port on non-default ports / odd proxies.)
+  #
+  # static is exempt BY NAME rather than by a looser pattern: every other host
+  # that is not www must still be corrected, and a rule that said "any
+  # subdomain" would quietly bless the next one somebody creates.
   RewriteCond %{HTTP_HOST} !^www\.sporta\.com\.kw(:[0-9]+)?$ [NC]
+  RewriteCond %{HTTP_HOST} !^static\.sporta\.com\.kw(:[0-9]+)?$ [NC]
   RewriteRule ^ https://www.sporta.com.kw%{REQUEST_URI} [R=301,L]
 
   # 2) Right host, plain HTTP -> HTTPS. Hostinger terminates SSL at a proxy, so
@@ -511,7 +535,39 @@ FileETag MTime Size
   # connect-src is same-origin only now that /api is the whole backend;
   # fonts.* cover Google Fonts;
   # form-action lists the KNET gateway in case pay.php ever posts a form.
-  Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline' 'sha256-uVPKOtsMYAf7FztyOPYYXbXi26fPX1PDSCHi0ElEcwI=' 'sha256-8qdj14Vl2u8Egr/D0NvKkA0jnilyWdZ6HGpsk3zqBBA=' 'sha256-t69TolQvo9IFKcAXMpUhlAbOSYffWq4MTuJVCW3jtOk=' 'sha256-eBvItIAmW2SCCf2xYejbf7VLxxDbDzAysm8o3MR6vBc=' 'sha256-3Q938IqtNwCx+HP/Sq+E16ifD8xGD/Q0IuWW9/ZclAM='; connect-src 'self'; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests"
+  # THE ASSET HOST IS NAMED IN img-, font-, style- AND script-src.
+  #
+  # 'self' means the page's own origin, and static.sporta.com.kw is a DIFFERENT
+  # origin — so the moment an asset moves there, CSP blocks it. Silently, from
+  # the page's point of view: the request never leaves, and the console message
+  # is the only sign. A stylesheet that never loads reads as "the site is
+  # broken", not as "a header needs a hostname added to it".
+  #
+  # connect-src is deliberately NOT widened. The assets are fetched as
+  # stylesheets, scripts, fonts and images; nothing script-side needs to fetch()
+  # them, and /api stays same-origin, which is the whole reason connect-src is
+  # 'self' in the first place.
+
+  Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data: https://static.sporta.com.kw; font-src 'self' https://fonts.gstatic.com https://static.sporta.com.kw; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://static.sporta.com.kw; script-src 'self' 'unsafe-inline' https://static.sporta.com.kw 'sha256-uVPKOtsMYAf7FztyOPYYXbXi26fPX1PDSCHi0ElEcwI=' 'sha256-8qdj14Vl2u8Egr/D0NvKkA0jnilyWdZ6HGpsk3zqBBA=' 'sha256-t69TolQvo9IFKcAXMpUhlAbOSYffWq4MTuJVCW3jtOk=' 'sha256-eBvItIAmW2SCCf2xYejbf7VLxxDbDzAysm8o3MR6vBc=' 'sha256-3Q938IqtNwCx+HP/Sq+E16ifD8xGD/Q0IuWW9/ZclAM='; connect-src 'self'; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests"
+
+  # ---- static.sporta.com.kw: the headers that make a second origin usable ----
+  #
+  # A cross-origin FONT is refused by the browser without CORS, whatever CSP
+  # says — the two are separate gates and fonts are the strictest case. A
+  # cross-origin <script type="module"> needs it too. Images and plain
+  # stylesheets do not, but one header for the whole host is simpler than three
+  # rules that each have to be got right.
+  #
+  # ONE named origin, not "*": only the shop needs to read these files, and a
+  # wildcard would let any site on the internet hotlink the fonts with the
+  # browser's blessing.
+  SetEnvIf Host "^static\.sporta\.com\.kw" SPORTA_ASSET_HOST=1
+  Header set Access-Control-Allow-Origin "https://www.sporta.com.kw" env=SPORTA_ASSET_HOST
+  Header set Vary "Origin" env=SPORTA_ASSET_HOST
+  # Belt and braces with rule 0 at the top of this file: that one stops the app
+  # being served here at all, and this one stops the assets themselves being
+  # indexed as if they were pages.
+  Header set X-Robots-Tag "noindex" env=SPORTA_ASSET_HOST
 </IfModule>
 
 # ---- Dotfiles, everywhere, by NAME ----
