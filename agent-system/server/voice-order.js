@@ -81,6 +81,35 @@ const TENS = {
 };
 
 /**
+ * القطعة تُنطق ترتيبًا لا عددًا: «القطعة الرابعة» لا «قطعة أربعة».
+ * وهذه صيغة الكلام الغالبة، وكانت تسقط كلّها فتصل القطعة فارغةً إلى
+ * الكابتن — وهي أهمّ من اسم المنطقة عند الباب.
+ *
+ * وجمعُ المفردات يقرأ الترتيب المركّب بلا جدولٍ ثانٍ:
+ * «الحادية عشرة» = ١ + ١٠، و«الثانية عشرة» = ٢ + ١٠.
+ *
+ * والمفاتيح تُكتب هنا **بصورتها المكتوبة** ثمّ تمرّ على المطبِّع، لا
+ * تُكتب مطبَّعةً باليد: «الأولى» تصير «الاولي» لا «الاولى»، فكُتبت أوّل
+ * مرّةٍ بألفها المقصورة فلم تُطابَق أبدًا. وهو خطأٌ وقع من قبل في «إلى»،
+ * ولا يظهر في القراءة — إنّما في القياس.
+ */
+const normKeys = (o) =>
+  Object.fromEntries(Object.entries(o).map(([w, n]) => [ar.normalize(w), n]));
+
+const ORDINALS = normKeys({
+  'الأولى': 1, 'أولى': 1, 'الأول': 1, 'الحادية': 1, 'حادية': 1,
+  'الثانية': 2, 'ثانية': 2, 'التانية': 2,
+  'الثالثة': 3, 'ثالثة': 3, 'التالتة': 3,
+  'الرابعة': 4, 'رابعة': 4,
+  'الخامسة': 5, 'خامسة': 5,
+  'السادسة': 6, 'سادسة': 6,
+  'السابعة': 7, 'سابعة': 7,
+  'الثامنة': 8, 'ثامنة': 8, 'التامنة': 8,
+  'التاسعة': 9, 'تاسعة': 9,
+  'العاشرة': 10, 'عاشرة': 10,
+});
+
+/**
  * يقرأ عددًا من نصّ عربيّ منطوق أو مكتوب بالأرقام.
  * «٤» و«4» و«أربعة» و«خمسة وعشرين» و«اثنعش» كلّها تُقرأ.
  * يعيد عددًا، أو `null` إن لم يكن في النصّ عدد.
@@ -107,7 +136,9 @@ function readNumber(text) {
     /* «وخمسة وعشرين» — الواو تصل الوحدة بالعشرة */
     const bare = words[i].replace(/^و/, '');
     if (ONES[words[i]] !== undefined) { total = (total || 0) + ONES[words[i]]; continue; }
+    if (ORDINALS[words[i]] !== undefined) { total = (total || 0) + ORDINALS[words[i]]; continue; }
     if (ONES[bare] !== undefined) { total = (total || 0) + ONES[bare]; continue; }
+    if (ORDINALS[bare] !== undefined) { total = (total || 0) + ORDINALS[bare]; continue; }
     if (TENS[bare] !== undefined) { total = (total || 0) + TENS[bare]; continue; }
   }
   return total;
@@ -389,7 +420,42 @@ function hasPlaceSignal(toks, i, n) {
 function findPhone(text) {
   const flat = ar.toLatin(String(text || '')).replace(/[\s\-()]/g, '');
   const m = flat.match(/(?:\+?00?965)?([569]\d{7})(?!\d)/);
-  return m ? '+965' + m[1] : null;
+  if (m) return '+965' + m[1];
+  return spokenPhone(text);
+}
+
+/** خاناتٌ منطوقةٌ واحدةً واحدة، بلا رقمٍ في النصّ */
+const DIGIT_WORD = Object.fromEntries(
+  Object.entries(ONES).filter(([w, n]) => n <= 9 && w !== 'اول'),
+);
+
+/**
+ * الرقم يُملى خانةً خانة: «خمسة خمسة خمسة صفر واحد صفر اثنين صفر».
+ * والتعرّف على الكلام يعيده أرقامًا في الغالب، لكنّه يعيده كلماتٍ حين
+ * يتردّد المتكلّم أو يفصل بين الخانات — فيصل الطلب بلا رقم، ويُسأل
+ * الزبون عن رقمٍ نطقه للتوّ كاملًا.
+ *
+ * ولا يُقرأ إلّا **ثماني خاناتٍ متتابعة** أوّلها ٥ أو ٦ أو ٩، فما دون
+ * ذلك أعدادٌ في الكلام لا رقم: «قطعة خمسة» خانةٌ واحدة، و«خمسة وعشرين»
+ * ليستا متتابعتين بهذا المعنى. والتتابع ينقطع بأيّ كلمةٍ ليست خانة.
+ */
+function spokenPhone(text) {
+  const words = ar.normalize(String(text || '')).replace(/[^ء-ي\s]/g, ' ').split(/\s+/).filter(Boolean);
+  /* التتابع يُقرأ بعد تمامه لا عند بلوغه الثامنة: من نطق مفتاح الدولة
+     «تسعة ستة خمسة» ثمّ رقمه، تكون الخانات الثماني الأولى منه مفتاحًا
+     وخمسًا من الرقم — فتؤخذ الأخيرة من التتابع لا الأولى. */
+  const runs = [[]];
+  for (const w of words) {
+    const d = DIGIT_WORD[w] !== undefined ? DIGIT_WORD[w] : DIGIT_WORD[w.replace(/^و/, '')];
+    if (d === undefined) { if (runs[runs.length - 1].length) runs.push([]); continue; }
+    runs[runs.length - 1].push(d);
+  }
+  for (const run of runs) {
+    if (run.length < 8) continue;
+    const eight = run.slice(-8);
+    if ([5, 6, 9].includes(eight[0])) return '+965' + eight.join('');
+  }
+  return null;
 }
 
 /* ------------------------------ الاسم ------------------------------ */
@@ -577,6 +643,32 @@ function directionBefore(normText, at) {
 }
 
 /**
+ * أدوات النفي التي تسبق الاسم في الكلام الكويتي.
+ * و«لا» ليست منها عمدًا: هي في الغالب فاتحةُ تصحيحٍ لا نفيَ اسمٍ بعينه
+ * («لا، الاستلام من حولي») — فعدُّها نفيًا يُسقط المنطقة الصحيحة نفسها.
+ */
+const NEGATE = new Set(['مو', 'موب', 'مب', 'مهو', 'ماهو', 'مش', 'ليس', 'ليست']);
+
+/**
+ * منطقةٌ منفيّةٌ صراحةً: «مو السالمية».
+ *
+ * وهذا قيس لا تخمين. الزبون يصحّح فيقول «لا من حولي **مو السالمية**»،
+ * فكانت السالمية — وهي التي نفاها بلفظه — تقع في خانة التسليم لأنها
+ * ثاني منطقةٍ في الجملة وليس قبلها كلمةُ اتجاه. أي أن **نفيَ المكان كان
+ * يصيّره وجهةَ التسليم**، ويمضي الكابتن إلى بابٍ استثناه الزبون نصًّا.
+ *
+ * فالمنفيّ يُسقط ولا يُملأ به شيء، ويبقى ما ثبت في الأدوار السابقة.
+ */
+function negatedBefore(normText, at) {
+  const words = normText.slice(0, at).trim().split(/\s+/);
+  const last = words[words.length - 1];
+  if (NEGATE.has(last)) return true;
+  /* «مو من السالمية» — أداةُ نفيٍ ثمّ كلمةُ اتجاه */
+  const prev = words[words.length - 2];
+  return !!prev && NEGATE.has(prev) && (FROM_WORDS.has(last) || TO_WORDS.has(last));
+}
+
+/**
  * رقم القطعة المذكور بعد منطقةٍ وقبل التي تليها.
  * و«ق٤» و«ق ٤» تُقرآن كما تُقرأ «قطعة ٤»: الاختصار هو ما يُكتب فعلًا في
  * الرسائل، وكان يُهمل هنا وإن قُرئ في العنوان المعنون — فيُسأل الزبون عن
@@ -623,6 +715,7 @@ function parseOrder(transcript) {
   let pickupSaid = false;
   let dropoffSaid = false;
   for (let i = 0; i < areas.length; i++) {
+    if (negatedBefore(norm, areas[i].at)) continue;   // «مو السالمية» ليست وجهة
     const dir = directionBefore(norm, areas[i].at);
     const block = blockNear(norm, areas[i].at, areas[i + 1]?.at);
     const entry = { area: areas[i].name, block, street: null };
