@@ -170,6 +170,17 @@ export const PARTS: Part[] = [
   // Paint — exclusive, equip freely once owned
   { id: "paint-white", cat: "paint", name: "Factory Finish", ar: "لون الوكالة", price: 0, desc: "The colour it left the showroom in" },
   { id: "paint-black", cat: "paint", name: "Midnight Black", ar: "أسود", price: 150, desc: "" },
+  // Eight found in the gaps by tools/paint-space.mjs — see the note on
+  // PAINTS in paints.ts. Priced the way the wall already prices: quiet
+  // colours at 200, the ones bought to be seen at 300.
+  { id: "paint-molasses", cat: "paint", name: "Date Molasses", ar: "دبسي", price: 200, desc: "" },
+  { id: "paint-mudbrick", cat: "paint", name: "Old Town Beige", ar: "طيني", price: 200, desc: "" },
+  { id: "paint-diver", cat: "paint", name: "Pearl Diver Green", ar: "أخضر الغوص", price: 250, desc: "" },
+  { id: "paint-sage", cat: "paint", name: "Sage", ar: "مريمي", price: 200, desc: "" },
+  { id: "paint-indigo", cat: "paint", name: "Dawn Indigo", ar: "نيلي", price: 250, desc: "" },
+  { id: "paint-mauve", cat: "paint", name: "Ash Mauve", ar: "بنفسجي رمادي", price: 200, desc: "" },
+  { id: "paint-violet", cat: "paint", name: "Neon Violet", ar: "بنفسجي نيون", price: 300, desc: "" },
+  { id: "paint-signal", cat: "paint", name: "Signal Green", ar: "أخضر إشارة", price: 300, desc: "" },
   { id: "paint-red", cat: "paint", name: "Falcon Red", ar: "أحمر", price: 150, desc: "" },
   { id: "paint-gold", cat: "paint", name: "Desert Gold", ar: "ذهبي", price: 250, desc: "" },
   { id: "paint-teal", cat: "paint", name: "Towers Teal", ar: "فيروزي", price: 200, desc: "" },

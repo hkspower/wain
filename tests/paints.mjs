@@ -26,7 +26,7 @@
 
 import {
   PAINTS, GLOWS, COVERS, PAINT_HEX, GLOW_HEX, COVER_HEX,
-  CARBON_KG, NOMINAL_CAR_KG, swatch, paintFromSwatch,
+  CARBON_KG, NOMINAL_CAR_KG, swatch, paintFromSwatch, lab, deltaE,
 } from "../src/game/paints.ts";
 import { PARTS } from "../src/game/mods.ts";
 
@@ -35,67 +35,10 @@ const check = (c, m) => { if (!c) fail.push(m); };
 
 // --- colour science ---------------------------------------------------
 
-const srgbToLinear = (c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
-
-/** Hex to CIELAB under a D65 white point. */
-function lab(hex) {
-  const r = srgbToLinear(((hex >> 16) & 255) / 255);
-  const g = srgbToLinear(((hex >> 8) & 255) / 255);
-  const b = srgbToLinear((hex & 255) / 255);
-  // sRGB primaries, D65.
-  const X = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047;
-  const Y = 0.2126729 * r + 0.7151522 * g + 0.0721750 * b;
-  const Z = (0.0193339 * r + 0.1191920 * g + 0.9503041 * b) / 1.08883;
-  const f = (t) => (t > 216 / 24389 ? Math.cbrt(t) : (841 / 108) * t + 4 / 29);
-  const fx = f(X), fy = f(Y), fz = f(Z);
-  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
-}
-
-/** CIEDE2000. The constants are the standard's; kL = kC = kH = 1. */
-function deltaE(hex1, hex2) {
-  const [L1, a1, b1] = lab(hex1);
-  const [L2, a2, b2] = lab(hex2);
-  const rad = Math.PI / 180, deg = 180 / Math.PI;
-  const C1 = Math.hypot(a1, b1), C2 = Math.hypot(a2, b2);
-  const Cbar = (C1 + C2) / 2;
-  const G = 0.5 * (1 - Math.sqrt(Cbar ** 7 / (Cbar ** 7 + 25 ** 7)));
-  const ap1 = (1 + G) * a1, ap2 = (1 + G) * a2;
-  const Cp1 = Math.hypot(ap1, b1), Cp2 = Math.hypot(ap2, b2);
-  const hp = (b, ap) => {
-    if (b === 0 && ap === 0) return 0;
-    const h = Math.atan2(b, ap) * deg;
-    return h >= 0 ? h : h + 360;
-  };
-  const hp1 = hp(b1, ap1), hp2 = hp(b2, ap2);
-  const dLp = L2 - L1;
-  const dCp = Cp2 - Cp1;
-  let dhp = 0;
-  if (Cp1 * Cp2 !== 0) {
-    dhp = hp2 - hp1;
-    if (dhp > 180) dhp -= 360;
-    else if (dhp < -180) dhp += 360;
-  }
-  const dHp = 2 * Math.sqrt(Cp1 * Cp2) * Math.sin((dhp * rad) / 2);
-  const Lbar = (L1 + L2) / 2;
-  const Cpbar = (Cp1 + Cp2) / 2;
-  let hbar = hp1 + hp2;
-  if (Cp1 * Cp2 !== 0) {
-    if (Math.abs(hp1 - hp2) > 180) hbar += hp1 + hp2 < 360 ? 360 : -360;
-    hbar /= 2;
-  }
-  const T = 1 - 0.17 * Math.cos((hbar - 30) * rad) + 0.24 * Math.cos(2 * hbar * rad)
-    + 0.32 * Math.cos((3 * hbar + 6) * rad) - 0.20 * Math.cos((4 * hbar - 63) * rad);
-  const dTheta = 30 * Math.exp(-(((hbar - 275) / 25) ** 2));
-  const Rc = 2 * Math.sqrt(Cpbar ** 7 / (Cpbar ** 7 + 25 ** 7));
-  const Sl = 1 + (0.015 * (Lbar - 50) ** 2) / Math.sqrt(20 + (Lbar - 50) ** 2);
-  const Sc = 1 + 0.045 * Cpbar;
-  const Sh = 1 + 0.015 * Cpbar * T;
-  const Rt = -Math.sin(2 * dTheta * rad) * Rc;
-  return Math.sqrt(
-    (dLp / Sl) ** 2 + (dCp / Sc) ** 2 + (dHp / Sh) ** 2 +
-    Rt * (dCp / Sc) * (dHp / Sh)
-  );
-}
+// The metric now lives in src/game/paints.ts, imported above: a tool
+// that searches for a colour the wall does not already have needs the
+// same CIEDE2000, and two copies of eighty lines of standard constants
+// are two copies that can disagree.
 
 // Sanity: the instrument before the measurement. A metric that says a
 // colour differs from itself, or that black and white are close, is not

@@ -218,14 +218,21 @@ console.log(`rev limiter  engine gain swings ${limiter.lo} - ${limiter.hi}  ` +
     e.setPaused(true);
     const drift = await settle(false);
     const spin = await settle(true);
-    // Put the car back. Everything after this measures its own thing on
-    // the same engine, and leaving it spinning at half a radian of slip
-    // hands the next section a car that is not being driven.
+    // Put the car back, and LEAVE IT PAUSED.
+    //
+    // Everything after this measures its own thing on the same engine,
+    // so the spin has to be cleared or the next section is handed a car
+    // that is not being driven. But the first version of this cleanup
+    // also unpaused, and that broke the music check three hundred lines
+    // later: it sets an intensity by hand and reads the filter back, and
+    // a running engine overwrites that value every frame from its own
+    // game state. It read 5200 -> 8400 Hz before and 3003 -> 2985 after
+    // — the test measuring the engine instead of itself.
     e.ds.spinT = 0;
     e.ds.spinRate = 0;
     e.driftYaw = 0;
+    e.player.speed = 0;
     e.update(1 / 60);
-    e.setPaused(false);
     return { drift, spin };
   });
   console.log(

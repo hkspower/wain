@@ -98,6 +98,23 @@ export interface Paint {
  * the dark end of the picture is compressed, which is the same thing
  * that made the shadows read as holes.
  */
+/**
+ * The wall.
+ *
+ * THE LAST EIGHT WERE FOUND, NOT PICKED. tests/paints.mjs holds every
+ * pair at least 12 CIEDE2000 apart and the wall was already tight — the
+ * closest pair, silver against white, sits at 12.6. At that density a
+ * colour chosen by eye is usually somebody else's colour with a
+ * different name on it, and the test says so after the work rather than
+ * before it.
+ *
+ * So tools/paint-space.mjs walks a grid of plausible car colours,
+ * scores each by its distance to the NEAREST paint already here, and
+ * reports where the holes are. molasses, mudbrick, diver, sage, indigo,
+ * violet, signal and mauve are eight of those holes, 18.3 to 23.2 from
+ * their nearest neighbour and from each other. Run it before adding a
+ * ninth.
+ */
 export const PAINTS: Paint[] = [
   // --- mono: the ones most cars on any road actually are
   { id: "paint-black", hex: 0x0d0e11, family: "mono" },
@@ -120,6 +137,10 @@ export const PAINTS: Paint[] = [
   // 0xd0cb9d, pre-rotated 15 degrees against the same blue drift that
   // pushed the tin's 0xdcc79c past a nameable gold on the car.
   { id: "paint-sand", hex: 0xd0cb9d, family: "warm" },
+  // Dark enough to read as a colour rather than as black, which is the
+  // whole trick with a brown on a night road.
+  { id: "paint-molasses", hex: 0x3b2a02, family: "warm" },
+  { id: "paint-mudbrick", hex: 0xa7917b, family: "warm" },
 
   // --- cool: the water this road runs along
   { id: "paint-navy", hex: 0x16305e, family: "cool" },
@@ -128,6 +149,9 @@ export const PAINTS: Paint[] = [
   { id: "paint-gulf", hex: 0x1e7fd4, family: "cool" },
   { id: "paint-mint", hex: 0x7fd8b0, family: "cool" },
   { id: "paint-ice", hex: 0x86c6e6, family: "cool" },
+  { id: "paint-diver", hex: 0x07362d, family: "cool" },
+  { id: "paint-sage", hex: 0x7f9376, family: "cool" },
+  { id: "paint-indigo", hex: 0x695ce0, family: "cool" },
 
   // --- loud: bought to be seen
   { id: "paint-purple", hex: 0x5b2a86, family: "loud" },
@@ -136,6 +160,11 @@ export const PAINTS: Paint[] = [
   { id: "paint-coral", hex: 0xffab95, family: "loud" },
   { id: "paint-yellow", hex: 0xf7e21c, family: "loud" },
   { id: "paint-lime", hex: 0x9ad11f, family: "loud" },
+  { id: "paint-violet", hex: 0xc814f5, family: "loud" },
+  { id: "paint-signal", hex: 0x079d25, family: "loud" },
+
+  // --- mono, but a colour: the grey with an argument in it
+  { id: "paint-mauve", hex: 0x806986, family: "mono" },
 ];
 
 /** id to hex, for the renderer. */
@@ -249,3 +278,81 @@ export const CARBON_KG: Record<CarbonLevel, number> = {
  *  individual masses, and inventing fifteen of them to divide a
  *  twenty-two kilo saving by would be false precision. */
 export const NOMINAL_CAR_KG = 1400;
+
+
+/**
+ * Colour science, for anything that has to know whether two paints are
+ * the same colour.
+ *
+ * It lived in tests/paints.mjs, which is where it was needed first and
+ * the wrong place for it to stay: the moment a second thing wanted to
+ * ask "how far apart are these two colours" — a tool searching for a
+ * paint that is not already on the wall — the only options were to
+ * import from a test or to write the standard out twice. CIEDE2000 is
+ * eighty lines of constants; a second copy of it is a second copy that
+ * can disagree.
+ *
+ * paints.ts is the bottom of the stack and imports nothing, which is
+ * exactly what this needs to be.
+ */
+const srgbToLinear = (c: number): number => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+
+/** Hex to CIELAB under a D65 white point. */
+export function lab(hex: number): [number, number, number] {
+  const r = srgbToLinear(((hex >> 16) & 255) / 255);
+  const g = srgbToLinear(((hex >> 8) & 255) / 255);
+  const b = srgbToLinear((hex & 255) / 255);
+  // sRGB primaries, D65.
+  const X = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047;
+  const Y = 0.2126729 * r + 0.7151522 * g + 0.0721750 * b;
+  const Z = (0.0193339 * r + 0.1191920 * g + 0.9503041 * b) / 1.08883;
+  const f = (t: number): number => (t > 216 / 24389 ? Math.cbrt(t) : (841 / 108) * t + 4 / 29);
+  const fx = f(X), fy = f(Y), fz = f(Z);
+  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+}
+
+/** CIEDE2000. The constants are the standard's; kL = kC = kH = 1. */
+export function deltaE(hex1: number, hex2: number): number {
+  const [L1, a1, b1] = lab(hex1);
+  const [L2, a2, b2] = lab(hex2);
+  const rad = Math.PI / 180, deg = 180 / Math.PI;
+  const C1 = Math.hypot(a1, b1), C2 = Math.hypot(a2, b2);
+  const Cbar = (C1 + C2) / 2;
+  const G = 0.5 * (1 - Math.sqrt(Cbar ** 7 / (Cbar ** 7 + 25 ** 7)));
+  const ap1 = (1 + G) * a1, ap2 = (1 + G) * a2;
+  const Cp1 = Math.hypot(ap1, b1), Cp2 = Math.hypot(ap2, b2);
+  const hp = (b: number, ap: number): number => {
+    if (b === 0 && ap === 0) return 0;
+    const h = Math.atan2(b, ap) * deg;
+    return h >= 0 ? h : h + 360;
+  };
+  const hp1 = hp(b1, ap1), hp2 = hp(b2, ap2);
+  const dLp = L2 - L1;
+  const dCp = Cp2 - Cp1;
+  let dhp = 0;
+  if (Cp1 * Cp2 !== 0) {
+    dhp = hp2 - hp1;
+    if (dhp > 180) dhp -= 360;
+    else if (dhp < -180) dhp += 360;
+  }
+  const dHp = 2 * Math.sqrt(Cp1 * Cp2) * Math.sin((dhp * rad) / 2);
+  const Lbar = (L1 + L2) / 2;
+  const Cpbar = (Cp1 + Cp2) / 2;
+  let hbar = hp1 + hp2;
+  if (Cp1 * Cp2 !== 0) {
+    if (Math.abs(hp1 - hp2) > 180) hbar += hp1 + hp2 < 360 ? 360 : -360;
+    hbar /= 2;
+  }
+  const T = 1 - 0.17 * Math.cos((hbar - 30) * rad) + 0.24 * Math.cos(2 * hbar * rad)
+    + 0.32 * Math.cos((3 * hbar + 6) * rad) - 0.20 * Math.cos((4 * hbar - 63) * rad);
+  const dTheta = 30 * Math.exp(-(((hbar - 275) / 25) ** 2));
+  const Rc = 2 * Math.sqrt(Cpbar ** 7 / (Cpbar ** 7 + 25 ** 7));
+  const Sl = 1 + (0.015 * (Lbar - 50) ** 2) / Math.sqrt(20 + (Lbar - 50) ** 2);
+  const Sc = 1 + 0.045 * Cpbar;
+  const Sh = 1 + 0.015 * Cpbar * T;
+  const Rt = -Math.sin(2 * dTheta * rad) * Rc;
+  return Math.sqrt(
+    (dLp / Sl) ** 2 + (dCp / Sc) ** 2 + (dHp / Sh) ** 2 +
+    Rt * (dCp / Sc) * (dHp / Sh)
+  );
+}
