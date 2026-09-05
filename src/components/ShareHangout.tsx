@@ -8,6 +8,7 @@ import {
   defaultWhen,
   hangoutMessage,
   hangoutTitle,
+  inviteUrl,
   msToNextKuwaitHour,
   shareHangout,
   whenOptions,
@@ -84,9 +85,11 @@ export default function ShareHangout({ place }: { place: Place }) {
     setBusy(true);
     setOutcome(null);
     haptic("tap");
-    // Built here rather than in an effect so the URL is the one the visitor is
-    // actually looking at, including any trailing slash the export added.
-    const url = typeof window === "undefined" ? "" : window.location.href;
+    // Canonical, and carrying the time — see inviteUrl. Built here rather than
+    // in an effect so it is composed at the moment of sending, from the choice
+    // that is actually selected.
+    const url =
+      typeof window === "undefined" ? "" : inviteUrl(place, when, window.location.origin);
     const text = hangoutMessage({ place, when, url });
     const result = await shareHangout({ text, title: hangoutTitle(place) });
     if (result === "shared" || result === "whatsapp" || result === "copied") haptic("success");

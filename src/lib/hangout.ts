@@ -217,6 +217,82 @@ export function hangoutMessage(opts: {
   return lines.join("\n");
 }
 
+/* ------------------------------------------------------------------ */
+/* The invitation, carried by the link itself                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The message carried a time. The link did not — and the link is what gets
+ * forwarded.
+ *
+ * This module opens by saying that «شرايكم؟» with a link is a new thread, and
+ * that what ends the argument is a proposal: this place, at this time. The
+ * message was built exactly that way, and then the URL inside it was the bare
+ * place page. So the first person to forward just the link — which is what
+ * people do, because tapping a link and hitting forward is one gesture — sent
+ * the group back to «شرايكم؟» with the one thing that made it a plan stripped
+ * off. The promise held only for as long as nobody passed it on.
+ *
+ * Now the time rides in the URL, so whoever opens it is looking at the
+ * invitation rather than at a place that happens to be nice.
+ */
+export const INVITE_PARAM = "when";
+
+/**
+ * Built from the slug rather than from the address bar.
+ *
+ * `window.location.href` was the old source, and it compounds: someone who
+ * arrived through an invitation and shared onwards would have produced
+ * `?when=tonight-8?when=tomorrow` — or worse, silently kept the first time on
+ * a share of the second. A canonical URL cannot drift like that, and it also
+ * strips whatever else happens to be in the bar.
+ */
+export function inviteUrl(place: Place, when: WhenId, origin: string): string {
+  return `${origin.replace(/\/+$/, "")}/places/${place.slug}/?${INVITE_PARAM}=${when}`;
+}
+
+/**
+ * The time in a link, or null.
+ *
+ * Validated against the known ids rather than trusted, because this value
+ * arrives from whatever anyone chose to paste and is about to be rendered.
+ * An unrecognised one is not an error to report — it is simply not an
+ * invitation, and the page carries on as an ordinary place page.
+ */
+export function readInvite(search: string): WhenId | null {
+  const raw = new URLSearchParams(search).get(INVITE_PARAM);
+  return raw && ALL.some((o) => o.id === raw) ? (raw as WhenId) : null;
+}
+
+/**
+ * Has the invited hour already gone?
+ *
+ * Only answerable for the four fixed evening slots, and only those are
+ * claimed. «الحين», «باچر» and «الويكند» are relative to the moment the
+ * message was sent, and the link does not carry that moment — so an invite
+ * for «الحين» opened three hours later is stale and nothing here can know it.
+ * Saying so would be inventing a fact; the banner shows those as-sent and
+ * lets the reader judge, which is what they would do anyway from the chat
+ * timestamp sitting directly above the link.
+ */
+export function invitePassed(when: WhenId, now: Date = new Date()): boolean {
+  const option = ALL.find((o) => o.id === when);
+  if (!option || option.afterHour === undefined) return false;
+  return kuwaitHour(now) >= option.afterHour;
+}
+
+/**
+ * «تمام، أنا معكم» — the reply, as one tap.
+ *
+ * The invitee's half was missing entirely: they could read the plan and then
+ * had to go back to the chat and type. Short on purpose — a confirmation that
+ * restates the whole proposal is a second proposal, and the group has already
+ * had one.
+ */
+export function inviteAcceptMessage(place: Place, when: WhenId): string {
+  return `تمام، أنا معكم 👍 ${place.nameAr} — ${phraseFor(when)}`;
+}
+
 /** What the native share sheet shows as the title. */
 export function hangoutTitle(place: Place): string {
   return `${place.nameAr} — وين؟`;

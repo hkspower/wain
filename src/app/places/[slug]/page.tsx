@@ -8,6 +8,7 @@ import PlacePhoto, { PhotoCredit } from "@/components/PlacePhoto";
 import PlaceCard from "@/components/PlaceCard";
 import OrderPanel from "@/components/OrderPanel";
 import QueuePanel from "@/components/QueuePanel";
+import InviteBanner from "@/components/InviteBanner";
 import ShareHangout from "@/components/ShareHangout";
 import PlaceMap from "@/components/PlaceMap";
 import {
@@ -201,6 +202,11 @@ export default async function PlacePage({
         <IconPinSolid className="size-4 text-coral-600" />
         {place.areaAr}، الكويت
       </p>
+
+      {/* Above the description, because for an invited visitor this is why
+          they opened the page at all — and below the name and area, so they
+          can see what they have been invited to before being told when. */}
+      <InviteBanner place={place} />
 
       <p className="mt-6 max-w-[46ch] text-lg leading-relaxed text-ink-600">{place.descriptionAr}</p>
 

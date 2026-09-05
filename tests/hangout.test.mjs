@@ -62,6 +62,55 @@ console.log("\n── an hour that has passed is not offered ──");
   ok("«الحين» is always offered — it cannot expire", [3, 12, 23].every((h) => ids(h).includes("now")));
 }
 
+console.log("\n── the invitation survives being forwarded ──");
+/**
+ * This module opens by saying that «شرايكم؟» with a link is a new thread, and
+ * that what ends the argument is a proposal: this place, at this time. The
+ * message was built that way — and the URL inside it was the bare place page.
+ * So the first person to forward just the link sent the group straight back to
+ * «شرايكم؟» with the one thing that made it a plan stripped off, and forwarding
+ * a link is one gesture, so that is the common case rather than the odd one.
+ */
+{
+  const place = H.getPlace("kuwait-towers");
+  const url = H.inviteUrl(place, "tonight-8", "https://www.wainkw.com");
+  ok("the invite link carries the time", /[?&]when=tonight-8$/.test(url), url);
+  ok("and points at the place", url.includes("/places/kuwait-towers/"), url);
+
+  // Built from the slug, not the address bar. Sharing onward from a page that
+  // was itself opened through an invitation used to compound the parameter —
+  // or, worse, keep the first time on a share of the second.
+  ok("a forwarded-on invite does not compound the parameter",
+    H.inviteUrl(place, "tomorrow", "https://www.wainkw.com").match(/when=/g).length === 1,
+    H.inviteUrl(place, "tomorrow", "https://www.wainkw.com"));
+  ok("a trailing slash on the origin does not double up",
+    !H.inviteUrl(place, "now", "https://www.wainkw.com/").includes("com//"),
+    H.inviteUrl(place, "now", "https://www.wainkw.com/"));
+
+  ok("a time in the query is read back", H.readInvite("?when=tonight-9") === "tonight-9");
+  ok("no parameter is not an invitation", H.readInvite("") === null);
+  // Whatever is in the query arrived from whatever anyone pasted, and it is
+  // about to be rendered. An unknown value is not an error to report — it is
+  // simply not an invitation, and the page carries on as a place page.
+  for (const junk of ["?when=<script>", "?when=tonight-99", "?when=", "?other=1"]) {
+    ok(`«${junk}» is not an invitation`, H.readInvite(junk) === null, String(H.readInvite(junk)));
+  }
+
+  // Only the fixed evening slots can be known to have passed. «الحين» is
+  // relative to a moment the link does not carry, so claiming it had expired
+  // would be inventing a fact.
+  ok("an eight o'clock invite has not passed at 17:00", !H.invitePassed("tonight-8", atKuwait(17)));
+  ok("and has passed at 21:00", H.invitePassed("tonight-8", atKuwait(21)));
+  ok("«باچر» is never claimed to have passed", !H.invitePassed("tomorrow", atKuwait(23)));
+  ok("«الحين» is never claimed to have passed", !H.invitePassed("now", atKuwait(23)));
+
+  const reply = H.inviteAcceptMessage(place, "tonight-8");
+  ok("the reply names the place and the time",
+    reply.includes(place.nameAr) && reply.includes("الليلة الساعة ٨"), reply);
+  // A confirmation that restates the whole proposal is a second proposal.
+  ok("and stays short", reply.length < 70, `${reply.length} chars`);
+}
+
 console.log("\n── the summer rule reaches the plan, not just the advice ──");
 /**
  * The site's most emphatic rule is that nobody is sent to an unshaded place in
