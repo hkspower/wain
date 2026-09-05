@@ -92,19 +92,19 @@ export function menuToText(menu: MenuItem[] | undefined): string {
 /** Validation mirrors the database CHECK constraints so errors surface here. */
 export function validate(p: EditablePlace): string[] {
   const errs: string[] = [];
-  if (!/^[a-z0-9-]+$/.test(p.slug)) errs.push("المعرّف (slug) لازم يكون حروف إنجليزية صغيرة وأرقام وشرطات فقط.");
-  if (!p.nameAr.trim()) errs.push("الاسم بالعربي مطلوب.");
-  if (!p.name.trim()) errs.push("الاسم بالإنجليزي مطلوب.");
-  if (!p.areaAr.trim()) errs.push("المنطقة بالعربي مطلوبة.");
-  if (!p.taglineAr.trim()) errs.push("الوصف المختصر مطلوب.");
-  if (!p.descriptionAr.trim()) errs.push("الوصف الكامل مطلوب.");
-  if (!p.bestTimeAr.trim()) errs.push("أحسن وقت للزيارة مطلوب.");
+  if (!/^[a-z0-9-]+$/.test(p.slug)) errs.push("المعرّف (slug) لازم يكون حروف إنجليزية صغيرة وأرقام وشرطات بس.");
+  if (!p.nameAr.trim()) errs.push("اكتب الاسم بالعربي.");
+  if (!p.name.trim()) errs.push("اكتب الاسم بالإنجليزي.");
+  if (!p.areaAr.trim()) errs.push("اكتب المنطقة بالعربي.");
+  if (!p.taglineAr.trim()) errs.push("اكتب سطر يوصف المكان.");
+  if (!p.descriptionAr.trim()) errs.push("اكتب الوصف الكامل.");
+  if (!p.bestTimeAr.trim()) errs.push("اكتب أحسن وقت للزيارة.");
   // An empty rating is valid — it means nobody has judged the place yet.
   if (p.rating !== undefined && (p.rating < 0 || p.rating > 5))
     errs.push("التقييم لازم يكون بين ٠ و٥.");
   if (p.priceLevel < 1 || p.priceLevel > 3) errs.push("مستوى السعر لازم يكون ١ أو ٢ أو ٣.");
-  if (p.lat < -90 || p.lat > 90) errs.push("خط العرض غير صحيح.");
-  if (p.lng < -180 || p.lng > 180) errs.push("خط الطول غير صحيح.");
+  if (p.lat < -90 || p.lat > 90) errs.push("خط العرض مو مضبوط.");
+  if (p.lng < -180 || p.lng > 180) errs.push("خط الطول مو مضبوط.");
   return errs;
 }
 
@@ -405,7 +405,7 @@ export default function PlaceForm({
             lat={p.lat}
             lng={p.lng}
             onPick={(at) => setAll({ lat: at.lat, lng: at.lng })}
-            label="اضغط على الخريطة لضبط الموقع بدقّة"
+            label="اضغط على الخريطة وظبّط الموقع بالضبط"
           />
         </div>
         <div>

@@ -43,7 +43,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const place = getPlace(slug);
-  if (!place) return { title: "المكان غير موجود" };
+  if (!place) return { title: "المكان مو موجود" };
   return {
     title: place.nameAr,
     description: place.taglineAr,

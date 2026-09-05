@@ -33,7 +33,7 @@ export default function CoordinatePicker({
   lat,
   lng,
   onPick,
-  label = "اضغط على الخريطة لتحديد الموقع",
+  label = "اضغط على الخريطة وحدّد موقعك",
 }: {
   lat: number | null;
   lng: number | null;

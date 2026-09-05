@@ -83,7 +83,7 @@ export default function Orders({ onCountChange }: { onCountChange?: (n: number) 
   const { value, settled, refresh } = usePoll<QueueResult>(
     async (signal) => {
       const sb = await loadSupabase();
-      if (!sb) return { fatal: "لوحة التحكّم غير مربوطة بقاعدة بيانات." };
+      if (!sb) return { fatal: "لوحة التحكّم مو مربوطة بقاعدة بيانات." };
       return await sb
         .from("orders")
         // Named columns, not *: track_token is the customer's key to their own

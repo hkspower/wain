@@ -260,8 +260,13 @@ console.log("\n── register: this site is written in Kuwaiti, not in MSA ─�
  * «أهل الديرة», «يستاهل», «سهل» — eight hits, every one of them a false alarm
  * and every one of them a reason to stop reading the audit. A boundary in
  * Arabic is «not an Arabic letter».
+ *
+ * The alternation is grouped, and that was a second bug found the same way.
+ * `(?<!ar)تم|تمت(?!ar)` is not «تم or تمت, both bounded» — `|` splits the whole
+ * pattern, so the first branch carried no trailing boundary and matched
+ * «تمسك», «تمر», «تمشي». Five of the rules below were written that way.
  */
-const edge = (word) => new RegExp(`(?<![؀-ۿ])${word}(?![؀-ۿ])`);
+const edge = (word) => new RegExp(`(?<![؀-ۿ])(?:${word})(?![؀-ۿ])`);
 
 const MSA = [
   [edge("هل"), "«هل» — Kuwaiti asks without it"],
@@ -274,6 +279,19 @@ const MSA = [
   [edge("الذي|التي"), "«اللي» is the Kuwaiti relative"],
   [edge("لديك"), "«لديك» → «عندك»"],
   [edge("يتم|سيتم"), "«يتم» is a form's passive — Kuwaiti drops it"],
+  /*
+   * The four that a hand review found and this list did not.
+   *
+   * They clustered in one place — the admin panel and its field validation —
+   * because validation copy gets written mechanically while the visitor-facing
+   * copy gets written. Twice the SAME message existed in both registers: /add
+   * said «اكتب الاسم بالعربي» and the admin form said «الاسم بالعربي مطلوب»;
+   * the app says «مو مضبوط» in six places and «غير صحيح» in two.
+   */
+  [edge("مطلوب|مطلوبة"), "«مطلوب» is a form asking — Kuwaiti tells you: «اكتب…»"],
+  [edge("تم|تمت"), "«تم» is the MSA passive — «حفظناه» rather than «تم الحفظ»"],
+  [edge("غير"), "«غير صحيح» → «مو مضبوط»; the app already says «مو» everywhere else"],
+  [edge("فقط"), "«فقط» → «بس»"],
 ];
 
 /**

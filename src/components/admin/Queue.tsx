@@ -69,7 +69,7 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
   const { value, settled, refresh } = usePoll<Result>(
     async (signal) => {
       const sb = await loadSupabase();
-      if (!sb) return { fatal: "لوحة التحكّم غير مربوطة بقاعدة بيانات." };
+      if (!sb) return { fatal: "لوحة التحكّم مو مربوطة بقاعدة بيانات." };
       return await sb
         .from("queue_tickets")
         // track_token is the customer's own key and the counter has no use for

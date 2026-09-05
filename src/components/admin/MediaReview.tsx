@@ -85,7 +85,7 @@ export default function MediaReview({
               }`}
             >
               {logoApproved ? <IconCheck className="size-4" /> : <IconClose className="size-4" />}
-              {logoApproved ? "معتمد" : "غير معتمد"}
+              {logoApproved ? "معتمد" : "مو معتمد"}
             </button>
           </div>
         </div>

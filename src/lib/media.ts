@@ -150,7 +150,7 @@ export async function publishMedia(
     .from(PENDING_BUCKET)
     .download(pendingPath);
   if (dlError || !blob) {
-    return { ok: false, message: `ما قدرنا نقرأ ${pendingPath}: ${dlError?.message ?? "غير موجود"}` };
+    return { ok: false, message: `ما قدرنا نقرأ ${pendingPath}: ${dlError?.message ?? "مو موجود"}` };
   }
 
   const ext = pendingPath.split(".").pop() ?? "jpg";

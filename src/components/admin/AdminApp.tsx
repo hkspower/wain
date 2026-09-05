@@ -211,14 +211,14 @@ export default function AdminApp() {
         void load();
         return;
       }
-      setNotice(`تم اعتماد «${p.nameAr}» وإضافته. الصفحة تطلع بعد النشر.`);
+      setNotice(`اعتمدنا «${p.nameAr}» وأضفناه. صفحته تطلع بعد النشر.`);
       setView({ mode: "list" });
       setTab("submissions");
       void load();
       return;
     }
 
-    setNotice(p.id ? "تم الحفظ." : "تمت الإضافة. الصفحة الخاصة فيه تطلع بعد النشر.");
+    setNotice(p.id ? "حفظناه." : "أضفناه. صفحته تطلع بعد النشر.");
     setView({ mode: "list" });
     void load();
   }
@@ -230,7 +230,7 @@ export default function AdminApp() {
     const { error: e } = await sb.from("places").delete().eq("id", p.id);
     if (e) setError(e.message);
     else {
-      setNotice("تم الحذف.");
+      setNotice("حذفناه.");
       void load();
     }
   }
@@ -504,7 +504,7 @@ function Banner({
 function NotConfigured() {
   return (
     <div className="measure mx-auto max-w-2xl px-4 py-8 standalone:px-3 standalone:py-4 sm:px-6 sm:py-14">
-      <h1 className="font-display text-2xl font-bold text-ink-900">لوحة التحكّم غير مفعّلة</h1>
+      <h1 className="font-display text-2xl font-bold text-ink-900">لوحة التحكّم مو مفعّلة</h1>
       <p className="mt-3 text-sm leading-relaxed text-ink-600">
         ما فيه إعداد لقاعدة البيانات في هذا البناء. الموقع يشتغل عادي من بياناته
         المدمجة، بس التحرير محتاج ربط Supabase.
