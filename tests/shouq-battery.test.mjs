@@ -171,6 +171,55 @@ console.log("\n── «شي في مكان»: both halves of the question count 
   inArea("شاطئ في الفحيحيل", "outdoors", "no beach there — give beaches, not a local mall");
 }
 
+console.log("\n── the plural finds what the singular finds ──");
+/**
+ * Arabic does not form most plurals with a suffix, so no stemming gets from
+ * «أسواق» to «سوق» — they share three letters in a different order. Measured
+ * across fifteen pairs, six answered materially differently, and the plural
+ * was the loser every time: «سوق» found fourteen places, «أسواق» found one.
+ *
+ * Asserted as a ratio rather than an exact count, so adding places to the
+ * catalogue does not break the test while the property still holds.
+ */
+{
+  const n = (q) => ask(q).hitPlaces.length;
+  for (const [singular, plural] of [
+    ["سوق", "أسواق"], ["مول", "مولات"], ["متحف", "متاحف"],
+    ["جزيرة", "جزر"], ["بيت", "بيوت"], ["شارع", "شوارع"],
+  ]) {
+    const s = n(singular), p = n(plural);
+    ok(`«${plural}» reaches most of what «${singular}» does`, p > 0 && p >= s / 2,
+      `${singular}=${s}  ${plural}=${p}`);
+  }
+}
+
+console.log("\n── a Latin keyboard is a supported way in ──");
+/**
+ * The index carries every place's English name, which covers «restaurant»,
+ * «museum» and «mall» by accident — those words ARE in the names. The words
+ * that are nobody's name returned nothing, and they are the ordinary ones: a
+ * parent types «kids», not «Sheikh Abdullah Al Salem Cultural Centre».
+ *
+ * «cafe» failed for a different reason worth keeping a test on. The catalogue
+ * says «Gulf Road Cafés», so the index held `cafés` with the accent and there
+ * was no `cafe` term at all — not even for the fuzzy pass to reach. normalise()
+ * folded Arabic thoroughly and left Latin alone.
+ */
+{
+  const cat = (q) => ask(q).hitPlaces[0]?.category ?? "—";
+  ok("«cafe» reaches a coffee place despite «Cafés» in the data", cat("cafe") === "coffee", cat("cafe"));
+  ok("and so does «best cafe»", cat("best cafe") === "coffee", cat("best cafe"));
+  ok("«kids» finds somewhere for children", ["family", "culture", "outdoors"].includes(cat("kids")), cat("kids"));
+  ok("«seafood» finds the fish market", ask("seafood").hitPlaces[0]?.nameAr === "سوق السمك",
+    ask("seafood").hitPlaces[0]?.nameAr ?? "لا شي");
+  ok("«cheap» finds something rather than nothing", ask("cheap").hitPlaces.length > 0);
+  // The accent must not come back: it is one term today, and the fold is what
+  // stops the next French- or Spanish-derived name doing the same thing.
+  ok("no index term mixes Latin letters with a diacritic",
+    ![...index.postings.keys()].some((t) => /[a-z]/i.test(t) && /\P{ASCII}/u.test(t)),
+    [...index.postings.keys()].filter((t) => /[a-z]/i.test(t) && /\P{ASCII}/u.test(t)).join(", "));
+}
+
 console.log("\n── a place we have nothing in is not the place next to it ──");
 /**
  * الجهراء is a Kuwaiti governorate of half a million people and this

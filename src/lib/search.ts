@@ -64,6 +64,21 @@ export function normalise(value: string): string {
     .replace(/ئ/g, "ي")
     .replace(/ة/g, "ه")
     .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+    /* And the Latin half, which had no folding at all.
+     *
+     * The catalogue calls one place «Gulf Road Cafés», so the index held
+     * `cafés` and nothing else — and «cafe», which is how anybody types it,
+     * matched nothing. Not a near miss either: with no `cafe` term to be near,
+     * the fuzzy pass had nothing to reach, so the commonest English word for
+     * the thing returned an empty page.
+     *
+     * Safe to apply to the whole string at this point rather than to the Latin
+     * runs alone: every Arabic combining mark and precomposed form above has
+     * already been folded by the replacements before it, so there is nothing
+     * left here for NFD to take apart. It also catches the Arabic marks the
+     * harakat range misses, which is a gain rather than a risk. */
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
     .trim();
 }
 
@@ -215,6 +230,28 @@ const SYNONYMS: Record<string, string[]> = {
    */
   كشتة: ["صحراء", "طبيعه"],
 
+  /* ── Broken plurals ──────────────────────────────────────────────────────
+   *
+   * Arabic does not form most plurals by adding a suffix, so no amount of
+   * stemming gets from «أسواق» to «سوق» — they share three letters in a
+   * different order. The tokeniser strips a leading «ال» and stops there,
+   * which is correct and not nearly enough.
+   *
+   * Measured across fifteen singular/plural pairs; these six were the ones
+   * where the two forms answered materially differently, and the plural was
+   * always the loser. «سوق» found fourteen places and «أسواق» found one. The
+   * pairs that already agreed — مطعم/مطاعم, مركز/مراكز, مجمع/مجمعات — are
+   * left alone rather than pinned for the sake of symmetry.
+   *
+   * One direction only. The singular already reaches everything, so mapping
+   * it onto the plural would add nothing and dilute it. */
+  أسواق: ["سوق"],
+  مولات: ["مول"],
+  متاحف: ["متحف"],
+  جزر: ["جزيره"],
+  بيوت: ["بيت"],
+  شوارع: ["شارع"],
+
   /* ── The words people search with that the catalogue does not use ────────
    *
    * `npm run audit:search` tries 35 everyday queries. Twelve came back empty,
@@ -282,6 +319,26 @@ const SYNONYMS: Record<string, string[]> = {
   sheesha: ["شيشة"],
   hookah: ["شيشة"],
   narghile: ["شيشة"],
+
+  /* ── English that the catalogue never says ───────────────────────────────
+   *
+   * A Latin keyboard is a supported way in, and the index carries every
+   * place's English name — which covers «restaurant», «museum», «mall»,
+   * «beach» by accident, because those words are IN the names. The words that
+   * are not anybody's name return nothing at all, and they are the ordinary
+   * ones: a parent types «kids», not «Sheikh Abdullah Al Salem Cultural
+   * Centre».
+   *
+   * Each was checked against the catalogue before being written down — the
+   * Arabic on the right is a term that actually appears there, and a synonym
+   * pointing at nothing is worse than no synonym, because it looks handled.
+   * «cheap» is here and «budget» is not, for that reason: «رخيص» is in the
+   * data and no word for a price bracket is. */
+  kids: ["عيال", "عوائل"],
+  kid: ["عيال", "عوائل"],
+  children: ["عيال", "عوائل"],
+  seafood: ["سمك", "بحري"],
+  cheap: ["رخيص"],
 };
 
 /**
