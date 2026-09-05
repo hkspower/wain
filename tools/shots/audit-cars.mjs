@@ -258,6 +258,7 @@ const auditOne = (carId) =>
     // black hole with no tyre and no depth, which no count of invisible
     // meshes can see: every part of it is still being drawn.
     let tyreProud = null;
+    let tyreOutside = null;
     {
       let tyreX = 0;
       for (const w of car.userData.wheels ?? []) {
@@ -266,10 +267,24 @@ const auditOne = (carId) =>
         });
       }
       let wellX = 0;
+      // The OUTERMOST bodywork at the wheel, not just the opening in the
+      // flank. The arch well is a disc set into the side of the car; the
+      // lip rings it and the over-fender stands further out again, and
+      // it is the fender a player sees the tyre against. Measuring the
+      // tyre against the well alone reported all sixteen cars 51 to 107
+      // mm "proud of arch" while every one of them passes the 0.12 m
+      // rule tests/size.mjs already holds them to — a defect that was an
+      // artefact of which piece of the arch got measured.
+      let bodyX = 0;
       car.traverse((o) => {
-        if (o.isMesh && o.userData.archWell) wellX = Math.max(wellX, local(o).max.x);
+        if (!o.isMesh) return;
+        if (o.userData.archWell) wellX = Math.max(wellX, local(o).max.x);
+        if (o.userData.archWell || o.userData.archLip || o.userData.archFlare) {
+          bodyX = Math.max(bodyX, local(o).max.x);
+        }
       });
       if (tyreX && wellX) tyreProud = +(tyreX - wellX).toFixed(3);
+      if (tyreX && bodyX) tyreOutside = +(tyreX - bodyX).toFixed(3);
     }
     // The flank at the front wheel's z, sampled off the shell's own
     // vertices. Comparing the track against the widest thing on the car
@@ -314,6 +329,7 @@ const auditOne = (carId) =>
       trackOuter: +trackOuter.toFixed(3),
       dims: [+dims.z.toFixed(2), +dims.x.toFixed(2), +dims.y.toFixed(2)],
       tyreProud,
+      tyreOutside,
       dbg,
       floorY: +floor.toFixed(3),
       wheelBottomY: +wheelBottom.toFixed(3),
@@ -331,7 +347,8 @@ for (const c of only ? cars.cars.slice(0, only) : cars.cars) {
     `${c.name.padEnd(20)} ${String(r.meshes).padStart(3)} meshes  ` +
       `${String(r.invisible.length).padStart(2)} never visible (${inv} tris)  ` +
       `track ${r.trackOuter} vs body ${r.bodyHalf}  ride ${(r.floorY - r.wheelBottomY).toFixed(3)}  ` +
-      `tyre ${r.tyreProud === null ? "?" : r.tyreProud} proud of arch`
+      `tyre ${r.tyreProud === null ? "?" : r.tyreProud} past the opening, ` +
+      `${r.tyreOutside === null ? "?" : (r.tyreOutside > 0 ? "+" : "") + r.tyreOutside} past the bodywork`
   );
   console.log(`      ${r.dims[0]} x ${r.dims[1]} x ${r.dims[2]} m  (L x W x H, over everything)`);
   if (process.env.DBG) console.log("      dbg", JSON.stringify(r.dbg));
@@ -346,6 +363,16 @@ const totalInv = results.reduce((a, r) => a + r.invisible.length, 0);
 console.log(`\n${totalInv} invisible meshes across ${results.length} cars`);
 // A tyre that does not clear the arch opening leaves the wheel with no
 // depth at all, however many of its parts are technically visible.
+// Standing OUTSIDE the bodywork is the defect a player can see. Inside
+// it — a negative number — is a tyre tucked under its fender, which is
+// what a fender is for.
+const poking = results.filter((r) => r.tyreOutside !== null && r.tyreOutside > 0);
+console.log(
+  poking.length
+    ? `\n${poking.length} of ${results.length} cars have a tyre outside the bodywork: ` +
+      poking.map((r) => `${r.name} ${(r.tyreOutside * 1000).toFixed(0)}mm`).join(", ")
+    : `\nevery tyre is tucked inside its own bodywork`
+);
 const flush = results.filter((r) => r.tyreProud !== null && r.tyreProud < 0.02);
 if (flush.length) {
   console.log(

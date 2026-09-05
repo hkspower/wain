@@ -2127,7 +2127,8 @@ function flareGeo(kit: KitLevel, front: boolean): THREE.BufferGeometry {
 }
 
 /** One rivet head. Shared across every arch on every car. */
-const rivetGeo = new THREE.SphereGeometry(0.011, 6, 5);
+const RIVET_R = 0.011;
+const rivetGeo = new THREE.SphereGeometry(RIVET_R, 6, 5);
 // The hot-hatch nose stripe: painted red, not a lamp, but it carries a
 // little glow so it still reads at night when nothing is lighting the
 // bumper directly.
@@ -4671,11 +4672,28 @@ export function createCar(colors: CarColors): THREE.Group {
     group.add(well);
 
     // Body-coloured, so it reads as the panel's own edge rather than as
-    // a black ring stuck around the wheel.
-    const lip = new THREE.Mesh(front ? archLipGeoF : archLipGeo, bodyMat);
-    lip.position.set(side * (flankX + LIP_OUT), ARCH_MESH_Y, wz);
-    group.add(lip);
-    lip.userData.archLip = true;
+    // a black ring stuck around the wheel — WHERE IT CAN BE SEEN.
+    //
+    // The over-fender below is a tube of radius `tube` centred at
+    // flankX + proud - tube, so it occupies everything from
+    // flankX + proud - 2*tube outwards. The lip sits at flankX +
+    // LIP_OUT, which is 11.5 mm — inside that span for every kit in the
+    // game, street included. So the lip has been drawn inside the flare
+    // on every car ever built here: tools/shots/audit-cars.mjs found it
+    // as a 1440-triangle torus that never paints a pixel, once or twice
+    // per car, and it was most of 81 invisible meshes across the fleet.
+    //
+    // Not deleted, because the lip is the right piece when nothing
+    // covers it. Skipped when something does.
+    const flareTube = wide.proud * FLARE_TUBE_FRAC;
+    const flareInner = wide.proud - 2 * flareTube;
+    const lipR = front ? 0.021 : 0.016;
+    if (!(LIP_OUT + lipR <= wide.proud && LIP_OUT - lipR >= flareInner)) {
+      const lip = new THREE.Mesh(front ? archLipGeoF : archLipGeo, bodyMat);
+      lip.position.set(side * (flankX + LIP_OUT), ARCH_MESH_Y, wz);
+      group.add(lip);
+      lip.userData.archLip = true;
+    }
 
     // The over-fender.
     //
@@ -4685,7 +4703,7 @@ export function createCar(colors: CarColors): THREE.Group {
     // radius, the same half-turn, a fatter tube and further out. Two
     // arcs that agree about where the wheel is read as one fender with
     // an edge rolled over it, which is what a flare is.
-    const tube = wide.proud * FLARE_TUBE_FRAC;
+    const tube = flareTube;
     const flare = new THREE.Mesh(flareGeo(kit, front), bodyMat);
     flare.position.set(side * (flankX + wide.proud - tube), ARCH_MESH_Y, wz);
     flare.userData.archFlare = true;
@@ -4702,8 +4720,16 @@ export function createCar(colors: CarColors): THREE.Group {
         // where the flare has already died back into the door.
         const a = ((i + 0.5) / wide.rivets) * Math.PI;
         const rivet = new THREE.Mesh(rivetGeo, seamMat);
+        // ON the fender, not in it. The flare's outermost skin is at
+        // flankX + proud; this used to sit at proud - 0.15*tube, which
+        // is 0.85 of a tube radius UNDER that skin — 53 mm inside the
+        // arch on an attack kit, against an 11 mm rivet. Every rivet on
+        // every car in the game was buried in the panel it was meant to
+        // be bolted through, which is why the audit counted them by the
+        // dozen as geometry that never paints a pixel. Seated with most
+        // of the head proud, the way a fastener sits.
         rivet.position.set(
-          side * (flankX + wide.proud - tube * 0.15),
+          side * (flankX + wide.proud - RIVET_R * 0.35),
           ARCH_MESH_Y + R * Math.sin(a),
           wz - R * Math.cos(a)
         );
