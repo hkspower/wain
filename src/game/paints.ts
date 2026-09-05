@@ -137,9 +137,32 @@ export const PAINTS: Paint[] = [
   // 0xd0cb9d, pre-rotated 15 degrees against the same blue drift that
   // pushed the tin's 0xdcc79c past a nameable gold on the car.
   { id: "paint-sand", hex: 0xd0cb9d, family: "warm" },
-  // Dark enough to read as a colour rather than as black, which is the
-  // whole trick with a brown on a night road.
-  { id: "paint-molasses", hex: 0x3b2a02, family: "warm" },
+  // 0x81565e, not the 0x3b2a02 the search first offered.
+  //
+  // That one was the roomier hole — 20.3 from black against this one's
+  // 12.1 — and tools/shots/paintcolors.mjs refused it. Painted on a car
+  // and measured at night it came back at hue 234 degrees: blue. A
+  // molasses that renders blue is not a molasses. The cause is the one
+  // this file already documents for gold and sand — the night drags
+  // warm hues round toward the cool — and at a body luminance of 32 of
+  // 255 there was not enough colour left for it to drag AGAINST.
+  //
+  // Every lighter brown collides with bronze, so there is no second
+  // brown to be had. This is the same idea moved to where it survives:
+  // a dusty wine-brown, light enough at L 40 to have something left
+  // after the sky has had its say. Measured on a car at night:
+  //
+  //              body   dead    hue
+  //   0x3b2a02   32.4   2.5%   234 deg   the first pick — blue
+  //   0x81565e   42.5   0.4%   290 deg   this one — red-purple
+  //
+  // 290 is not 350, and it is not going to be. The night in this game
+  // owns hue at low luminance: paint-black itself measures 222 deg on
+  // the same pass. Pre-rotating far enough to land back on a wine red
+  // would put the source at hue 50 — which is bronze, and bronze is
+  // already on the wall. Brighter, not dead, and out of the blues is
+  // what this hole affords.
+  { id: "paint-molasses", hex: 0x81565e, family: "warm" },
   { id: "paint-mudbrick", hex: 0xa7917b, family: "warm" },
 
   // --- cool: the water this road runs along
