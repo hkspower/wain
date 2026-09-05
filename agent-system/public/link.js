@@ -225,7 +225,7 @@ const ICON_X = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" ' +
       <!-- ٢ — الملاحظة الصوتية -->
       <section class="lk-card">
         <h2 class="lk-h">٢ · ملاحظة صوتية للإدارة</h2>
-        <p class="lk-sub">سجّل ملاحظة قصيرة إن احتجت — تصل الإدارة مباشرة.</p>
+        <p class="lk-sub">سجّل ملاحظة قصيرة إن احتجت — تصل إلى الإدارة مباشرة.</p>
         <div class="lk-rec" id="lkRec"></div>
         <ul class="lk-voice" id="lkVoice"></ul>
       </section>
@@ -270,8 +270,8 @@ const ICON_X = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" ' +
     if (!a.consent) {
       box.innerHTML = `
         <p class="lk-sub">
-          الإدارة تحتاج موقعك أثناء المهمّة فقط لمتابعة الشحنة وإسناد أقرب طلب لك.
-          <b>القرار قرارك</b> — تستطيع سحب الموافقة في أي لحظة، وعند السحب
+          الإدارة تحتاج إلى موقعك أثناء المهمّة فقط لمتابعة الشحنة وإسناد أقرب طلب لك.
+          <b>القرار قرارك</b> — تستطيع سحب الموافقة في أيّ لحظة، وعند السحب
           <b>يُمسح كل سجلّ مواقعك فورًا</b>.
         </p>
         <button class="btn btn--primary btn--block" id="lkGrant" type="button">
