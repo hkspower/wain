@@ -105,7 +105,8 @@
     "build:wallet": "node scripts/make-wallet-pass.mjs",
     "preview": "node scripts/preview-pdf.mjs",
     "preview:site": "node scripts/site-preview-pdf.mjs",
-    "test:brand-badge": "node scripts/brand-badge-test.mjs"
+    "test:brand-badge": "node scripts/brand-badge-test.mjs",
+    "test:placeholder": "node scripts/placeholder-test.mjs"
   },
   "private": true
 }

@@ -1458,3 +1458,41 @@ p.mt-6.flex.flex-wrap.items-baseline:has(> .font-display) {
     padding-bottom: 0 !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * THE PLACEHOLDER CARD GETS THE SPORTA MARK
+ *
+ * Every one of the 46 active products has no photograph — measured on the live
+ * database, photos=0/46 — and the storefront already handles that: it renders
+ * a data: URI SVG, a two-stop dark gradient, deterministic per product. So the
+ * shop is not showing broken images or grey boxes, which is worth saying
+ * plainly because I described it as "blank" before looking properly.
+ *
+ * What it does show is a plain gradient, which reads as "this did not load"
+ * rather than "no photograph yet". Putting the shop's own mark faintly on top
+ * makes it read as intentional.
+ *
+ * SELECTED BY THE PLACEHOLDER ITSELF, not by a class or a product list. The
+ * built storefront gives the gradient as `src="data:image/svg+xml;..."`, and a
+ * real photograph — uploaded to /backends, served from ?r=product_image, or a
+ * file path — never begins with that. So this rule applies to exactly the
+ * cards that have no picture, and REMOVES ITSELF the moment one is uploaded.
+ * Nothing to undo later, and no list to keep in step with the catalogue.
+ *
+ * On the <a>, via :has(), rather than on the <img>: the image's own background
+ * sits behind an opaque gradient and would never be seen. The mark is painted
+ * over it instead, under the badges (which carry z-10) and with pointer-events
+ * off so it cannot eat a tap meant for the card.
+ *
+ * logo-white.webp is the shop's own asset, already in PRECACHE, and white
+ * against a dark gradient in both themes — the placeholder is dark in each.
+ * ------------------------------------------------------------------------- */
+a[href*="/product/"]:has(> img[src^="data:image/svg+xml"])::after,
+.product-gallery :has(> img[src^="data:image/svg+xml"])::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url('/logo-white.webp') center / 34% auto no-repeat;
+  opacity: 0.16;
+  pointer-events: none;
+}
