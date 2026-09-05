@@ -99,6 +99,23 @@ const BATTERY = [
   ["كتب", ["shopping"], "secondhand books, which is سوق الجمعة and nowhere else"],
   ["بارد", ["shopping", "restaurants", "culture"], "somewhere air-conditioned in the heat"],
   ["عائلي", ["family", "restaurants", "outdoors"], "family-friendly, spelled the common way"],
+
+  // --- the Kuwaiti a person says, not the Arabic the catalogue writes -------
+  //
+  // Forty-five everyday Kuwaiti words were run through the index; fifteen
+  // returned nothing. These are the ones where the concept WAS in the
+  // catalogue under a different word — a register gap, not a content gap.
+  // Each is here so the synonym that closed it cannot quietly go away.
+  ["ريوق", ["restaurants", "fastfood", "shopping"], "breakfast in Kuwaiti; the catalogue says «فطور»"],
+  ["نتريق", ["restaurants", "fastfood", "shopping"], "and the verb, which is how it gets asked"],
+  ["چالت", ["outdoors"], "chalet in the Kuwaiti spelling — چ folds to تش, so it missed «شاليه» entirely"],
+  ["عزيمة", ["restaurants"], "the singular; every tag in the catalogue is the plural «عزايم»"],
+  ["مكان العيال يلعبون فيه", ["family", "culture"], "a parent says «يلعبون», the catalogue says «ألعاب»"],
+  ["كشتة", ["outdoors"], "winter desert camping → «صحراء». No campsite exists; the desert does"],
+  ["هيل", ["coffee"], "sits inside the highlight «قهوة عربية وهيل», glued to the و and unreachable"],
+  // A mall is a fair answer here and not an obvious one: الكوت مول is tagged
+  // «سهرة», and somewhere open late is what a غبقة actually needs.
+  ["وين الغبقة", ["shopping", "restaurants", "fastfood", "coffee"], "the late Ramadan sitting → «سهرة»"],
 ];
 
 console.log("\n── she answers the question that was asked ──");

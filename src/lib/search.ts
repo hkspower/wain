@@ -155,6 +155,66 @@ const SYNONYMS: Record<string, string[]> = {
   كبسه: ["مچبوس", "اكل", "كويتي"],
   حلويات: ["حلا"],
 
+  /* ── More of the Kuwaiti a person actually says ──────────────────────────
+   *
+   * Forty-five everyday Kuwaiti words were run through the index. Thirty
+   * answered; these are the ones that came back with nothing while the
+   * CONCEPT was sitting in the catalogue under a different word. Same rule as
+   * the block below: every value here was grepped out of places.ts first, and
+   * a word whose concept is genuinely absent is left empty rather than
+   * pointed at something nearby.
+   *
+   * «زعفران» is the example of that. It is the obvious partner to «هيل» and
+   * it is not in places.ts at all, so it gets no entry — an entry would move
+   * the empty result rather than answer it. */
+
+  // «ريوق» is the Kuwaiti word for breakfast and «فطور» is what the catalogue
+  // says. Two words, one meal, and the Kuwaiti one found nothing.
+  ريوق: ["فطور", "مطاعم"],
+  نتريق: ["فطور", "مطاعم"],
+  أتريق: ["فطور", "مطاعم"],
+
+  // The same چ problem as «مچبوس», in the other direction: «شاليه» reaches
+  // two places, and «چالت» — the spelling a Kuwaiti writes — reached none,
+  // because چ folds to تش for the index and «تشالت» is nowhere near it.
+  // Kept to «شاليه» alone: adding «بحر» as well pulled the answer to whatever
+  // beach scored highest and buried الخيران and مدينة صباح الأحمد, which are
+  // the two places that actually have chalets. Measured, then narrowed.
+  چالت: ["شاليه"],
+  چالية: ["شاليه"],
+
+  // The catalogue tags «عزايم»; people say «عزيمة». A plural/singular miss,
+  // invisible until somebody types the singular.
+  عزيمة: ["عزايم", "مطاعم", "عوائل"],
+
+  // A غبقة is the late Ramadan sitting after taraweeh. No venue is tagged for
+  // it — what the asker wants is somewhere open late, which the catalogue
+  // does carry as «سهرة».
+  غبقة: ["سهرة", "مطاعم"],
+
+  // «نلعب» is what a parent says; «ألعاب» is what the catalogue says.
+  نلعب: ["ألعاب", "عيال", "عائله"],
+  يلعبون: ["ألعاب", "عيال", "عائله"],
+
+  // «هيل» IS in the catalogue — inside the highlight «قهوة عربية وهيل», where
+  // it is glued to the leading و and so is unreachable by prefix. Stripping a
+  // leading و in the tokeniser would be the general fix and is not safe:
+  // «وايد» would become «ايد». So the word is mapped instead.
+  هيل: ["قهوه", "كرك"],
+
+  /**
+   * A judgement call, written down because it is the kind the rule above
+   * would otherwise forbid.
+   *
+   * «كشتة» is winter camping in the desert. There is no campsite in the
+   * catalogue — but «صحراء» is there (مزارع الوفرة), and the desert is
+   * genuinely the thing being asked about. This is not «merely nearby» in the
+   * way that answering «صيدلية» with a mall would be; it is the same place,
+   * under the word the catalogue happens to use. If a campsite is ever added,
+   * this should point at it instead.
+   */
+  كشتة: ["صحراء", "طبيعه"],
+
   /* ── The words people search with that the catalogue does not use ────────
    *
    * `npm run audit:search` tries 35 everyday queries. Twelve came back empty,
