@@ -1,24 +1,35 @@
 [
   {
-    "id": "paint-black",
-    "metal": 0.44,
-    "px": 4189,
-    "dead": 33.9,
-    "body": 12.8,
-    "spec": 74.9,
-    "form": 34.8,
-    "hue": 240,
-    "sat": 0.48
+    "id": "paint-violet",
+    "metal": 0.76,
+    "px": 4744,
+    "dead": 0,
+    "body": 41.9,
+    "spec": 135.1,
+    "form": 47.2,
+    "hue": 276,
+    "sat": 0.83
   },
   {
-    "id": "paint-red",
-    "metal": 0.95,
-    "px": 6538,
-    "dead": 2.6,
-    "body": 17.5,
-    "spec": 69.5,
-    "form": 26.5,
-    "hue": 347,
-    "sat": 0.77
+    "id": "paint-signal",
+    "metal": 0.76,
+    "px": 7321,
+    "dead": 0,
+    "body": 54.6,
+    "spec": 149.5,
+    "form": 54.8,
+    "hue": 130,
+    "sat": 1
+  },
+  {
+    "id": "paint-mauve",
+    "metal": 0.76,
+    "px": 7315,
+    "dead": 0.1,
+    "body": 42.9,
+    "spec": 145.8,
+    "form": 49,
+    "hue": 277,
+    "sat": 0.44
   }
 ]

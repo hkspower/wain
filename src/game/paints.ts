@@ -111,9 +111,34 @@ export interface Paint {
  * So tools/paint-space.mjs walks a grid of plausible car colours,
  * scores each by its distance to the NEAREST paint already here, and
  * reports where the holes are. molasses, mudbrick, diver, sage, indigo,
- * violet, signal and mauve are eight of those holes, 18.3 to 23.2 from
- * their nearest neighbour and from each other. Run it before adding a
- * ninth.
+ * violet, signal and mauve are eight of those holes. Run it before
+ * adding a ninth.
+ *
+ * AND THEN CHECK THEM ON A CAR. Distance on the wall is necessary and
+ * not sufficient: tools/shots/paintcolors.mjs paints each one through
+ * the real garage and measures what the night leaves of it. That is
+ * what sent the first molasses back (see its note below). Measured, all
+ * eight, at 02:30 on the corniche — source hue against rendered:
+ *
+ *              body   dead    hue          sat
+ *   molasses   42.5   0.4%   350 -> 290   0.32
+ *   mudbrick   80.3     0%    30 ->  14   0.23
+ *   diver      26.3   2.9%   168 -> 176   0.57
+ *   sage       68.4     0%   102 -> 154   0.31
+ *   indigo     42.7   0.1%   246 -> 242   0.77
+ *   violet     41.9     0%   288 -> 276   0.83
+ *   signal     54.6     0%   132 -> 130   1.00
+ *   mauve      42.9   0.1%   288 -> 277   0.44
+ *
+ * Two things that table says. The saturated ones barely move — signal
+ * lands 2 degrees off its tin and indigo 4 — because there is enough
+ * colour in them to survive the sky. And the shift is not a constant:
+ * sage swings 52 degrees where mudbrick swings 16, so a colour cannot
+ * be pre-rotated by a fixed amount and called compensated. Measure it.
+ *
+ * diver's 2.9% of dead panels is the only figure near a limit, and it
+ * is a deliberately near-black green: paint-black measures 6.9% on the
+ * same pass and is not a bug either.
  */
 export const PAINTS: Paint[] = [
   // --- mono: the ones most cars on any road actually are
