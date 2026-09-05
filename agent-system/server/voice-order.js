@@ -412,6 +412,7 @@ function findName(text) {
     .replace(/\s+/g, ' ').trim();
   const words = clean.split(' ');
   const norm = words.map((w) => ar.normalize(w).toLowerCase());
+  let found = null;
   for (let i = 0; i < norm.length; i++) {
     if (!NAME_MARKERS.includes(norm[i])) continue;
     const rest = words.slice(i + 1, i + 4);
@@ -436,8 +437,15 @@ function findName(text) {
       if (w === BREAK || isStop(w) || isNumber(w)) break;
       out.push(w);
     }
-    if (out.length) return out.join(' ');
+    /* **الأخير يفوز، لا الأوّل.**
+       الحديث يتراكم، والاسم قد يُقال مرّتين: مرّةً خطأً ومرّةً تصحيحًا. وكان
+       يُؤخذ أوّل ما وُجد، فيبقى الخطأ الأوّل مهما صحّح الزبون. قِيس ذلك في
+       حوارٍ كامل: صحّح اسمه فرآه صحيحًا دورةً واحدة، ثمّ عاد الخطأ في الدورة
+       التالية بلا سبب ظاهر — لأن الجملة الأحدث لم تعد هي «آخر ما قيل».
+       وآخرُ ما قاله المرء عن اسمه هو اسمه. */
+    if (out.length) found = out.join(' ');
   }
+  return found;
   return null;
 }
 

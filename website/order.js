@@ -42,6 +42,31 @@
     pickup_area: 'من أين نستلم؟ <b>قل مثلًا: الاستلام من السالمية قطعة ٤</b>',
     dropoff_area: 'إلى أين نوصّل؟ <b>قل مثلًا: التسليم في الجابرية قطعة ٧</b>',
   };
+  /* ما يُقال إقرارًا بما فُهم — تسميةٌ قصيرة لكل حقل */
+  const GOT = {
+    customer_name: (f) => `الاسم ${f.customer_name}`,
+    /* يُعرض الرقم لا يُقال «رقمك»: الإقرار الذي لا يحمل القيمة لا يُمكّن
+       من مراجعتها، والرقم أكثر ما يُخطئ فيه التعرّف على الكلام.
+       ويُعزل عزلًا صريحًا (U+2066…U+2069) وإلّا وقعت «+» في يمين الرقم
+       فقُرئ «٩٦٥…+». وعلامةُ الاتجاه وحدها (U+200E) لا تكفي — قِيس ذلك
+       بالبكسل فلم تُغيّر شيئًا. والخطأ ظهر في الصورة لا في النصّ
+       المستخرَج، فالنصّ يحمل العلامة والعين ترى الرقم مقلوبًا. */
+    customer_phone: (f) => `رقمك ⁦${arDigits(f.customer_phone)}⁩`,
+    pickup_area: (f) => `الاستلام من ${f.pickup_area}${f.pickup_block ? ' قطعة ' + arDigits(f.pickup_block) : ''}`,
+    dropoff_area: (f) => `التسليم في ${f.dropoff_area}${f.dropoff_block ? ' قطعة ' + arDigits(f.dropoff_block) : ''}`,
+  };
+  const arDigits = (n) => String(n).replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d]);
+
+  /* حين لا يصل من الدورة شيء: يُقال ذلك صراحةً ومعه المثال — لا يُعاد
+     السؤال بنصّه. الزبون الذي يرى سؤاله نفسه خمس مرّات يظنّ الآلة معطوبة،
+     والذي يُقال له «ما وصلني رقم» يعرف أنّ عليه أن يكتبه بصيغةٍ أخرى. */
+  const MISSED = {
+    customer_name: 'ما وصلني اسم. اكتبه هكذا: <b>اسمي نورة</b>',
+    customer_phone: 'ما وصلني رقم هاتف. اكتبه بأرقامه: <b>٩٩٠٠٠٠٠٠</b>',
+    pickup_area: 'ما وصلتني منطقة استلام. اكتبها هكذا: <b>من السالمية قطعة ٤</b>',
+    dropoff_area: 'ما وصلتني منطقة تسليم. اكتبها هكذا: <b>إلى الجابرية قطعة ٧</b>',
+  };
+
   /* الصيغة المختصرة حين يُعاد السؤال نفسه بعد جواب عن سؤال الزبون */
   const ASK_SHORT = {
     customer_name: 'ولنكمل طلبك: ما اسمك؟',
@@ -58,6 +83,7 @@
 
   const state = {
     utterances: [],     // الحديث كما قيل، بترتيبه
+    known: {},          // ما امتلأ حتى الدورة الماضية — ليُقال الجديد وحده
     parsed: null,       // آخر ردّ تحليل
     pendingField: null, // الحقل الذي سُئل عنه آخرًا — لتغليف الجواب القصير
     sending: false,
@@ -107,7 +133,27 @@
     submitBtn.hidden = missingReq.length !== 0;
   }
 
-  function nextQuestion() {
+  /**
+   * **يقول ما فهم قبل أن يسأل عمّا بقي.**
+   *
+   * كان يسأل ولا يقرّ: قِيس حوارٌ واقعيّ فقال الوكيل «ولنكمل: ما رقم هاتفك؟»
+   * **خمس مرّات متتالية** — والزبون في أثنائها أعطى الاستلام، وسأل عن السعر،
+   * وأعطى التسليم، وقال اسمه. كلُّ ذلك وصل وامتلأت به البطاقة، ولم يقل
+   * الوكيل عنه كلمة. فالزبون لا يدري أوصل كلامُه أم ضاع، فيعيده أو ينصرف.
+   *
+   * ويُقال ما جدّ في هذه الدورة وحدها لا ما امتلأ من قبل: تكرارُ المعروف
+   * ثرثرة، والجديدُ وحده خبر.
+   */
+  function acknowledge() {
+    const f = (state.parsed && state.parsed.fields) || {};
+    const gained = REQUIRED.filter((k) => f[k] && !state.known[k]);
+    for (const k of REQUIRED) state.known[k] = !!f[k];
+    if (!gained.length) return false;
+    bubble('agent', 'تمام — ' + esc(gained.map((k) => GOT[k](f)).join('، ')) + '.');
+    return true;
+  }
+
+  function nextQuestion(gained) {
     const missingReq = gaps();
     if (!missingReq.length) {
       state.pendingField = null;
@@ -129,7 +175,14 @@
        الحرفيّ يقرأ كعطب لا كإلحاح. والنواقص باقية في البطاقة على أي حال. */
     const again = state.pendingField === m.field && !m.hint;
     state.pendingField = m.field;
-    let html = again ? (ASK_SHORT[m.field] || ASK[m.field]) : (ASK[m.field] || esc(m.why));
+    /* ثلاث حالات لا واحدة: سؤالٌ أوّل، وسؤالٌ يُعاد وقد وصل شيءٌ غيره
+       (فيُختصر)، وسؤالٌ يُعاد ولم يصل شيء (فيُقال إنّه لم يصل). */
+    let html = ASK[m.field] || esc(m.why);
+    /* و«ما وصلني اسم» لا تُقال لمن سأل سؤالًا: هو لم يحاول أن يجيب، فاتّهامه
+       بأنّه أجاب بما لا يُفهم عتبٌ في غير موضعه. تُختصر له وحدها. */
+    const wasAsking = !!(state.parsed && (state.parsed.answer || state.parsed.unanswered));
+    if (again && !gained && !wasAsking) html = MISSED[m.field] || ASK_SHORT[m.field] || html;
+    else if (again) html = ASK_SHORT[m.field] || html;
     /* «هل تقصد…؟» يأتي من الخادم اقتراحًا لا قيمةً — زرٌّ يقبله الزبون */
     if (m.hint) {
       html = `${esc(m.why)}<br><button type="button" class="vo-hintbtn"
@@ -190,18 +243,18 @@
     if (state.parsed.answer) {
       answerBubble(state.parsed.answer);
       renderCard();
-      nextQuestion();   // ويعود إلى ما كان يسأل عنه، فلا يضيع خيط الطلب
+      nextQuestion(acknowledge());   // يعود إلى ما كان يسأل عنه، فلا يضيع خيط الطلب
       return;
     }
     if (state.parsed.unanswered) {
       bubble('agent', `${esc(state.parsed.unanswered)} ${WA_LINK}`);
       renderCard();
-      nextQuestion();
+      nextQuestion(acknowledge());
       return;
     }
 
     renderCard();
-    nextQuestion();
+    nextQuestion(acknowledge());
   }
 
   const WA_LINK = '<a href="https://wa.me/96590000000" target="_blank" rel="noopener">واتساب</a>';
@@ -228,7 +281,7 @@
       }
     } catch { return; }
     renderCard();
-    nextQuestion();
+    nextQuestion(acknowledge());
   }
 
   async function submitOrder() {

@@ -466,8 +466,39 @@ const WRAP = {
   pickup_area: (t) => `الاستلام من ${t}`,
   dropoff_area: (t) => `التسليم إلى ${t}`,
 };
+/**
+ * هل يصلح هذا الكلام جوابًا للحقل المنتظَر؟
+ *
+ * الغلاف عونٌ للجواب المجرّد: من سُئل عن اسمه فقال «بدر» يُفهم أنّه «اسمي
+ * بدر». لكنّه كان يغلّف **كلّ** ما يُقال ما دام قصيرًا، فمن سُئل عن اسمه
+ * فقال «أبغى أطرش أغراض» صار اسمه «أبغى أطرش أغراض» — وينادي به الكابتن
+ * على الباب. الزبون لم يجب عن السؤال، والوكيل حسب سكوته عن الجواب جوابًا.
+ *
+ * فيُفحص الكلام قبل تغليفه: الاسم كلمةٌ أو كلمتان بلا فعل طلبٍ ولا رقم،
+ * والهاتف فيه أرقام، والمنطقة منطقةٌ تُعرف. وما لا يصلح جوابًا يُترك للقراءة
+ * الحرّة — فإن كان فيه شيء أُخذ، وإلّا بقي الحقل فارغًا **ويُسأل عنه ثانيةً**.
+ * وسؤالٌ يُعاد خيرٌ من حقلٍ يُملأ بما ليس فيه.
+ */
+const ORDER_VERB = /ابغى|أبغى|ابي|أبي|اريد|أريد|ودي|اطرش|أطرش|وصل|رسل|طلب|توصيل/;
+function fitsField(field, t) {
+  const s = String(t).trim();
+  if (field === 'customer_name') {
+    if (/[٠-٩0-9]/.test(s) || ORDER_VERB.test(s)) return false;
+    const n = s.split(/\s+/).length;
+    return n >= 1 && n <= 3;
+  }
+  if (field === 'customer_phone') return /[٠-٩0-9]/.test(s);
+  /* `findAreas` تطبّع مدخلها بنفسها، فلا حاجة إلى `arabic-kit` هنا —
+     وهي غير مستوردة في نطاق هذا الملفّ أصلًا. */
+  if (field === 'pickup_area' || field === 'dropoff_area') {
+    return V.findAreas(s).length > 0;
+  }
+  return true;
+}
+
 const wrapAnswer = (field, t) =>
-  (field && WRAP[field] && t.length <= 40 && !CARRIES_LABEL.test(t)) ? WRAP[field](t) : t;
+  (field && WRAP[field] && t.length <= 40 && !CARRIES_LABEL.test(t) && fitsField(field, t))
+    ? WRAP[field](t) : t;
 
 on('POST', '/api/public/order/parse', async (ctx) => {
   pubGuard(ctx.ip, 'parse', 90, 10 * 60_000);

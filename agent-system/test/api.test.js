@@ -566,6 +566,32 @@ test('بوّابة الزبون: التحليل والإنشاء بلا جلسة
   db.prepare("UPDATE orders SET status='new' WHERE id=?").run(row.id);
 });
 
+test('بوّابة الزبون: كلامٌ ليس جوابًا لا يُسجَّل جوابًا', async () => {
+  /* الغلاف عونٌ للجواب المجرّد: من سُئل عن اسمه فقال «بدر» يُفهم «اسمي بدر».
+     لكنّه كان يغلّف كلّ ما يُقال ما دام قصيرًا، فمن سُئل عن اسمه فقال
+     «أبغى أطرش أغراض» **صار ذلك اسمه** — وينادي به الكابتن على الباب.
+     الزبون لم يجب، والوكيل حسب سكوته عن الجواب جوابًا. */
+  const p = (latest, pending, utterances = []) =>
+    call(null, 'POST', '/api/public/order/parse', { utterances, latest, pending });
+
+  let r = await p('ابغى اطرش اغراض', 'customer_name');
+  assert.equal(r.data.fields.customer_name, undefined, 'سجّل نيّة الطلب اسمًا');
+
+  r = await p('كم السعر', 'customer_name');
+  assert.equal(r.data.fields.customer_name, undefined, 'سجّل سؤالًا اسمًا');
+
+  r = await p('ما ادري', 'customer_phone');
+  assert.equal(r.data.fields.customer_phone, undefined, 'سجّل كلامًا بلا رقم هاتفًا');
+
+  /* والجواب المجرّد الصحيح يُغلَّف كما كان — الغلاف لم يُلغَ بل ضُبط */
+  r = await p('بدر', 'customer_name');
+  assert.equal(r.data.fields.customer_name, 'بدر');
+  r = await p('٩٩٠٠١١٢٢', 'customer_phone');
+  assert.equal(r.data.fields.customer_phone, '+96599001122');
+  r = await p('السالمية', 'pickup_area');
+  assert.equal(r.data.fields.pickup_area, 'السالمية');
+});
+
 test('بوّابة الزبون: «من» لا تنقلب تسليمًا لأنّ في الجملة كلمة «توصيل»', async () => {
   /* أخطر ما وُجد في فحص الوكيل، ومصدره المسار لا المستخرِج. كلمة «توصيل»
      في `SAYS_DROPOFF`، وهي في كل رسالة طلبٍ تقريبًا، فكانت أطبعُ افتتاحيّةٍ
