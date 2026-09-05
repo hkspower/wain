@@ -349,6 +349,9 @@ export class SoundEngine {
   private samples = new Map<string, { buf: AudioBuffer; gain: number }>();
   /** Looped skid bed, when the manifest ships one. */
   private sampleSkidGain: GainNode | null = null;
+  /** The recorded slide bed's own source, kept so a spin can pull its
+   *  pitch down the way it pulls the synth squeal's. */
+  private sampleSkidSrc: AudioBufferSourceNode | null = null;
 
   constructor() {
     this.ctx = new AudioContext();
@@ -998,6 +1001,7 @@ export class SoundEngine {
             (this.sampleSkidGain as GainNode & { userData?: unknown }).userData = e.gain ?? 1;
             src.connect(this.sampleSkidGain).connect(this.sfx);
             src.start();
+            this.sampleSkidSrc = src;
           } else {
             this.samples.set(name, { buf, gain: e.gain ?? 1 });
           }
@@ -1306,7 +1310,21 @@ export class SoundEngine {
       skid * (0.1 + spin * 0.26) * synthShare, t, 0.05);
     if (this.sampleSkidGain) {
       const bedGain = ((this.sampleSkidGain as GainNode & { userData?: number }).userData ?? 1);
-      this.sampleSkidGain.gain.setTargetAtTime(skid * (0.28 + yaw * 0.22) * bedGain, t, 0.05);
+      this.sampleSkidGain.gain.setTargetAtTime(
+        skid * (0.28 + yaw * 0.22) * (1 + spin * 0.5) * bedGain, t, 0.05);
+      // And the RECORDING follows the spin too.
+      //
+      // Everything above bends the synth voice down when the car gets
+      // away — lower fundamental, no singing overtone, more roar. With a
+      // recorded bed installed the synth is ducked to a third of the
+      // mix, so leaving the bed at its drift pitch would have most of
+      // the sound carry on squealing exactly as before and quietly undo
+      // the spin. The bed is a slide recorded at one speed; playing it
+      // slower is what a tyre dragged across its tread rather than along
+      // it actually sounds like.
+      if (this.sampleSkidSrc) {
+        this.sampleSkidSrc.playbackRate.setTargetAtTime(1 - spin * 0.3, t, 0.09);
+      }
     }
 
     // Brakes: rumble needs pressure and rotation; the squeal only sings
@@ -1431,9 +1449,25 @@ export class SoundEngine {
    * against a kerb is still a scuff.
    */
   bump(intensity = 1): void {
-    if (this.playSample("bump", intensity)) return;
     const t = this.ctx.currentTime;
     const hard = Math.min(Math.max((intensity - 0.5) / 1.0, 0), 1);
+
+    // A RECORDING CANNOT SCALE, SO THE SYNTH STAYS FOR THE PART THAT DOES.
+    //
+    // With impact.mp3 installed this used to return here and the three
+    // layers below never played — installing the audio would have
+    // quietly deleted the severity in a crash. One recording is one
+    // hit: gain makes it louder, not bigger, and a kerb strike and a
+    // full-lock arrival at a barrier are not the same event at two
+    // volumes.
+    //
+    // So the sample carries the body of it, and the synth keeps the two
+    // layers that answer to how hard it was — the crack at the front
+    // and the debris tail behind. On a hard hit both are added over the
+    // recording; on a graze the sample plays alone, which is what a
+    // graze is.
+    const sampled = this.playSample("bump", intensity);
+    if (sampled && hard <= 0.05) return;
 
     // CRACK — 6 ms of bright noise. Short enough to read as an edge
     // rather than as a hiss.
@@ -1441,7 +1475,10 @@ export class SoundEngine {
 
     // BOOM — the shell. Starts higher and falls further on a hard hit:
     // a big impact excites the whole body, and a body is a bigger, more
-    // slowly falling voice than a bumper corner.
+    // slowly falling voice than a bumper corner. Skipped when a
+    // recording is providing the body already, or the two stack into a
+    // hit twice as heavy as either.
+    if (!sampled) {
     const osc = this.ctx.createOscillator();
     osc.type = "sine";
     osc.frequency.setValueAtTime(140 + 60 * hard, t);
@@ -1453,6 +1490,7 @@ export class SoundEngine {
     osc.start(t);
     osc.stop(t + 0.36);
     this.oneShotNoise("lowpass", 700, 0.32 * intensity, 0.16);
+    }
 
     // TAIL — trim and glass letting go, and the panel still ringing.
     // Nothing at all under half intensity.

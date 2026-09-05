@@ -1,1 +1,27 @@
-{}
+{
+  "bump": {
+    "file": "impact.mp3",
+    "gain": 1
+  },
+  "scrape": {
+    "file": "scrape.mp3",
+    "gain": 0.9
+  },
+  "blowoff": {
+    "file": "blowoff.mp3",
+    "gain": 0.8
+  },
+  "shift": {
+    "file": "shift.mp3",
+    "gain": 0.6
+  },
+  "flash": {
+    "file": "flash.mp3",
+    "gain": 0.7
+  },
+  "skid": {
+    "file": "skid-loop.mp3",
+    "gain": 0.9,
+    "loop": true
+  }
+}
