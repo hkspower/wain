@@ -8,7 +8,7 @@
 | Agent ID | `agent_1701m1gcrccrethae9y3nyv1e116` |
 | اللغة | `ar` · نموذج الصوت `eleven_turbo_v2_5` |
 | الأدوات | `show_places` = `tool_8701m1gccbbkf0288efab76729ac` · `open_place` = `tool_6101m1gccq94ey3b7hkx4sebhnr9` |
-| قاعدة المعرفة | `42rJoevyIOEFNEZ7TfCW` — v3، فيها المسافات والشيشة |
+| قاعدة المعرفة | `xTqmrvefgSbzdcEyFjtG` — v4، ${slugs.length} مكان مع المسافات والشيشة |
 | الأصول المسموحة | wainkw.com · www.wainkw.com · localhost · 127.0.0.1 |
 
 حط `NEXT_PUBLIC_ELEVENLABS_AGENT_ID` = الـ Agent ID وقت البناء، عشان زر
@@ -33,7 +33,7 @@
 > تغيير على بيانات الأماكن.
 >
 > ونفس الأمر يكتب `docs/wain-ai-kb.md` — هذا هو مستند قاعدة المعرفة
-> `42rJoevyIOEFNEZ7TfCW`. **لا تنسخه بيدك.** النسخ اليدوي هو اللي خلّى
+> `xTqmrvefgSbzdcEyFjtG`. **لا تنسخه بيدك.** النسخ اليدوي هو اللي خلّى
 > النسخة القديمة بدون فهرس الاهتمام ولا فهرس المنطقة، لأن اللي نسخ وقف عند
 > أول فاصل — ونفس السبب خلّاها تقعد شهر بدون المسافات.
 >
