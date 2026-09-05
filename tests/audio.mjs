@@ -173,6 +173,84 @@ const limiter = await page.evaluate(async () => {
 console.log(`rev limiter  engine gain swings ${limiter.lo} - ${limiter.hi}  ` +
   check(limiter.swing > 0.005, "the limiter does not stutter the engine"));
 
+// --- A spin does not sound like a drift ---
+//
+// The two were the same noise. A drift is one axle scrubbing at an angle
+// the driver chose and it squeals — high and singing, rising with the
+// angle. A spin is four tyres dragging sideways across their tread and
+// it roars: broader, lower, rougher. Following the drift curve into a
+// spin made the car sing its highest note at the exact moment it stopped
+// being driven.
+//
+// Driven through the ENGINE rather than by handing sound.update a frame
+// of my own: the first version of this built its own frame, left a field
+// out, and got a non-finite value into setTargetAtTime. The engine knows
+// how to fill a frame. It also means this fails if the engine ever stops
+// telling the ear about the spin, which is the wiring that was missing
+// in the first place.
+{
+  const v = await page.evaluate(async () => {
+    const e = window.__grnEngine;
+    const s = e.sound;
+    const read = () => ({
+      fund: s.skidFilter.frequency.value,
+      scrub: s.scrubGain.gain.value,
+      harm: s.skidHarmGain.gain.value,
+      rough: s.skidRough.frequency.value,
+    });
+    const settle = async (spinning) => {
+      for (let i = 0; i < 30; i++) {
+        e.player.speed = 33;
+        e.driftYaw = 0.6;
+        // BOTH, or the spin does not survive the frame. solveDrift ends
+        // a spin the moment |spinRate| drops under driftSpinEndRate, so
+        // setting spinT alone gets it cleared before the sound frame is
+        // built — which is exactly what the first version of this did,
+        // and it reported the fundamental going UP by 27 Hz.
+        e.ds.spinT = spinning ? 0.1 : 0;
+        e.ds.spinRate = spinning ? 3 : 0;
+        e.update(1 / 60);
+      }
+      // setTargetAtTime is a ramp; let the parameters arrive.
+      await new Promise((r) => setTimeout(r, 500));
+      return read();
+    };
+    e.setPaused(true);
+    const drift = await settle(false);
+    const spin = await settle(true);
+    // Put the car back. Everything after this measures its own thing on
+    // the same engine, and leaving it spinning at half a radian of slip
+    // hands the next section a car that is not being driven.
+    e.ds.spinT = 0;
+    e.ds.spinRate = 0;
+    e.driftYaw = 0;
+    e.update(1 / 60);
+    e.setPaused(false);
+    return { drift, spin };
+  });
+  console.log(
+    `\nspin vs drift  fundamental ${v.drift.fund.toFixed(0)} -> ${v.spin.fund.toFixed(0)} Hz, ` +
+    `scrub ${v.drift.scrub.toFixed(3)} -> ${v.spin.scrub.toFixed(3)}, ` +
+    `overtone ${v.drift.harm.toFixed(3)} -> ${v.spin.harm.toFixed(3)}`
+  );
+  check(
+    v.spin.fund < v.drift.fund * 0.8,
+    `a spin should drop the squeal below the drift's (${v.drift.fund.toFixed(0)} -> ${v.spin.fund.toFixed(0)} Hz)`
+  );
+  check(
+    v.spin.scrub > v.drift.scrub,
+    `a spin should bring up the broadband roar (${v.drift.scrub.toFixed(3)} -> ${v.spin.scrub.toFixed(3)})`
+  );
+  check(
+    v.spin.harm <= v.drift.harm,
+    `the drift's singing overtone should fall away in a spin (${v.drift.harm.toFixed(3)} -> ${v.spin.harm.toFixed(3)})`
+  );
+  check(
+    v.spin.rough < v.drift.rough,
+    `a spin judders slower than a drift sings (${v.drift.rough.toFixed(1)} -> ${v.spin.rough.toFixed(1)} Hz)`
+  );
+}
+
 // --- 6. Impacts scale with severity ---
 const impacts = await page.evaluate(async () => {
   const s = window.__grnEngine.sound;

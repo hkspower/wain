@@ -6321,6 +6321,10 @@ export class GameEngine {
       nosActive: this.nosActive,
       brake: this.brake,
       driftYaw: this.driftYaw,
+      // The ear gets told what the camera and the steering already
+      // know. Without this a spin is a drift that happens to be going
+      // wrong quietly.
+      spin: this.ds.spinT > 0 ? 1 : 0,
       limited,
       rumble,
       liftRate: this.liftRate,

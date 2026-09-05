@@ -20,6 +20,19 @@ export interface SoundFrame {
   nosActive?: boolean;
   brake?: number; // 0..1 pedal pressure — drives disc squeal and pad rumble
   driftYaw?: number; // |body slip| in radians — colours the squeal
+  /**
+   * 0..1 — the car is away from the driver, not being steered.
+   *
+   * A drift and a spin are different noises and this game made the same
+   * one for both. A drift is one axle scrubbing at an angle you chose:
+   * a squeal, high and singing, which is what the skid voice below is
+   * built to be. A spin is all four tyres dragging sideways across
+   * their tread at once, and that is broader, lower and rougher — less
+   * a note than a roar. The physics has known the difference all along
+   * (`spinning` out of solveDrift, which the engine uses to decide the
+   * camera and the steering) and the ear was never told.
+   */
+  spin?: number;
   /** 1 when the governor is holding the car back — the limiter bounce. */
   limited?: number;
   /** Throttle travel closed per second, computed by the simulation from
@@ -1244,7 +1257,18 @@ export class SoundEngine {
     // little scrub, so the ear can tell how far out the back end is.
     const skid = Math.min(f.skid, 1);
     const yaw = Math.min(Math.abs(f.driftYaw ?? 0) / 0.6, 1);
-    const fund = 900 + yaw * 700;
+    // A SPIN PULLS THE VOICE DOWN AND OPENS IT OUT.
+    //
+    // Everything below is written for a drift, where the squeal rises
+    // with the angle — 900 Hz at the limit of grip up to 1600 at full
+    // slip. Follow that curve into a spin and the car sings its highest
+    // note at the exact moment it has stopped being driven, which is
+    // backwards: a tyre dragged sideways across its whole tread is a
+    // broad, low roar, not a note. So a spin bends the fundamental back
+    // DOWN below where a scrub starts, and the roar layer under it
+    // comes up to meet it.
+    const spin = Math.min(Math.max(f.spin ?? 0, 0), 1);
+    const fund = (900 + yaw * 700) * (1 - spin * 0.62);
     this.skidFilter.frequency.setTargetAtTime(fund, t, 0.08);
     // The overtone tracks the fundamental at a fixed ratio, so the two
     // peaks move together and stay one voice rather than two.
@@ -1256,20 +1280,30 @@ export class SoundEngine {
     // loaded it carries the slide and the synth squeal ducks to a
     // supporting layer; otherwise the synth sings alone as before.
     const synthShare = this.sampleSkidGain ? 0.35 : 1;
-    const tyreSqueal = skid * (0.2 + yaw * 0.18) * synthShare;
+    // Four tyres instead of two, so a spin is louder than the drift it
+    // came out of even as its pitch falls.
+    const tyreSqueal = skid * (0.2 + yaw * 0.18) * (1 + spin * 0.5) * synthShare;
     this.skidGain.gain.setTargetAtTime(tyreSqueal, t, 0.05);
     // Roughness climbs with the slide: a gentle scrub barely buzzes, a
     // full slide tears. The modulation adds to the carrier's own gain, so
     // its depth has to be a FRACTION of that carrier — a fixed depth
     // against a ducked carrier swings past zero and gates the squeal on
     // and off, which is a machine gun rather than a tyre.
-    this.skidRough.frequency.setTargetAtTime(34 + yaw * 30, t, 0.12);
-    this.skidRoughAmt.gain.setTargetAtTime(tyreSqueal * (0.3 + yaw * 0.35), t, 0.06);
+    // Rougher in a spin, and slower with it: the tread is juddering
+    // across the road rather than singing along it.
+    this.skidRough.frequency.setTargetAtTime((34 + yaw * 30) * (1 - spin * 0.45), t, 0.12);
+    this.skidRoughAmt.gain.setTargetAtTime(
+      tyreSqueal * (0.3 + yaw * 0.35 + spin * 0.4), t, 0.06);
     // The overtone only really appears once the tyre is properly over,
     // which is what makes a big drift sound different in kind from a
     // scrub rather than merely louder.
-    this.skidHarmGain.gain.setTargetAtTime(skid * yaw * 0.085 * synthShare, t, 0.06);
-    this.scrubGain.gain.setTargetAtTime(skid * 0.1 * synthShare, t, 0.05);
+    // The overtone is the drift's own singing quality, so it goes away
+    // as the slide stops being a drift.
+    this.skidHarmGain.gain.setTargetAtTime(
+      skid * yaw * 0.085 * (1 - spin * 0.8) * synthShare, t, 0.06);
+    // And the broadband scrub — the roar — comes up in its place.
+    this.scrubGain.gain.setTargetAtTime(
+      skid * (0.1 + spin * 0.26) * synthShare, t, 0.05);
     if (this.sampleSkidGain) {
       const bedGain = ((this.sampleSkidGain as GainNode & { userData?: number }).userData ?? 1);
       this.sampleSkidGain.gain.setTargetAtTime(skid * (0.28 + yaw * 0.22) * bedGain, t, 0.05);
@@ -1370,20 +1404,71 @@ export class SoundEngine {
   }
 
   /** Crash thump: pitch-dropping sine + debris noise. */
+  /**
+   * A hit. `intensity` runs from about 0.5 for a kerb to 1.5 for a
+   * full-lock arrival at a barrier.
+   *
+   * An impact is three things happening in order, and this used to be
+   * one of them: a falling sine with a noise burst under it, which is a
+   * thump. A thump is right for a kerb and wrong for the thing the
+   * crash solver actually models — a car meeting a concrete barrier
+   * hard enough to be spun 136 degrees in 1.18 seconds. That arrived
+   * sounding like a dropped box.
+   *
+   * So it is built the way the event is:
+   *
+   *   CRACK   the first few milliseconds, when the bumper skin gives.
+   *           High, bright, and over almost before it starts. This is
+   *           what makes a hit sound sudden rather than soft, and it is
+   *           the layer that was missing.
+   *   BOOM    the shell itself, a falling sine — what was already here.
+   *           It carries the weight and the severity.
+   *   TAIL    the debris and the panel ring afterwards, a filtered
+   *           rattle that decays over a quarter of a second. Only on
+   *           real hits: a kerb strike has nothing to shed.
+   *
+   * Only the crack and the boom fire below half intensity, so a scuff
+   * against a kerb is still a scuff.
+   */
   bump(intensity = 1): void {
     if (this.playSample("bump", intensity)) return;
     const t = this.ctx.currentTime;
+    const hard = Math.min(Math.max((intensity - 0.5) / 1.0, 0), 1);
+
+    // CRACK — 6 ms of bright noise. Short enough to read as an edge
+    // rather than as a hiss.
+    this.oneShotNoise("highpass", 2400, 0.16 + 0.3 * hard, 0.006 + 0.02 * hard);
+
+    // BOOM — the shell. Starts higher and falls further on a hard hit:
+    // a big impact excites the whole body, and a body is a bigger, more
+    // slowly falling voice than a bumper corner.
     const osc = this.ctx.createOscillator();
     osc.type = "sine";
-    osc.frequency.setValueAtTime(140, t);
-    osc.frequency.exponentialRampToValueAtTime(38, t + 0.18);
+    osc.frequency.setValueAtTime(140 + 60 * hard, t);
+    osc.frequency.exponentialRampToValueAtTime(38 - 12 * hard, t + 0.18 + 0.1 * hard);
     const g = this.ctx.createGain();
     g.gain.setValueAtTime(0.55 * intensity, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.22 + 0.12 * hard);
     osc.connect(g).connect(this.sfx);
     osc.start(t);
-    osc.stop(t + 0.25);
+    osc.stop(t + 0.36);
     this.oneShotNoise("lowpass", 700, 0.32 * intensity, 0.16);
+
+    // TAIL — trim and glass letting go, and the panel still ringing.
+    // Nothing at all under half intensity.
+    if (hard > 0.05) {
+      this.oneShotNoise("bandpass", 1500, 0.05 + 0.12 * hard, 0.12 + 0.2 * hard, 2.5);
+      const ring = this.ctx.createOscillator();
+      ring.type = "triangle";
+      ring.frequency.setValueAtTime(320 + 120 * hard, t + 0.01);
+      const rg = this.ctx.createGain();
+      rg.gain.setValueAtTime(0.0001, t + 0.01);
+      rg.gain.exponentialRampToValueAtTime(0.06 * hard, t + 0.03);
+      rg.gain.exponentialRampToValueAtTime(0.0005, t + 0.28 + 0.2 * hard);
+      ring.connect(rg).connect(this.sfx);
+      ring.start(t + 0.01);
+      ring.stop(t + 0.55);
+    }
   }
 
   /** Guardrail scrape. `severity` is how hard the car went in: a graze
