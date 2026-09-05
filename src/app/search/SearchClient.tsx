@@ -141,9 +141,25 @@ export default function SearchClient() {
    * rendered above the results and handed to `speak()`, so the written answer
    * and the spoken one cannot say different things.
    */
+  /**
+   * Note the guard: a query, not a query WITH RESULTS.
+   *
+   * `hits.length` used to be part of it, which made `answerParts`'s
+   * no-results branch unreachable from the site. That branch returns the one
+   * line written for the worst moment — «ما لقيت شي بهالكلمة. قول لي الجو
+   * اللي تبيه — قهوة، بحر، مطعم، ولا طلعة عيال.» — and it is in the clip
+   * library, so the generator would have paid ElevenLabs to record a sentence
+   * that could never play.
+   *
+   * What shipped instead was a card saying «جرّب كلمة أقصر». That tells
+   * somebody they failed; her line tells them the four things she is good at,
+   * which after a MISHEARD spoken question is the only useful reply. A service
+   * call never goes quiet on a failed lookup, and this was the one place she
+   * did.
+   */
   const answer = useMemo(
     () =>
-      deferredQ.trim() && hits.length
+      deferredQ.trim()
         ? answerParts(hits, hitPlaces, {
             asked: asked && asked === deferredQ.trim() ? asked : undefined,
             // Read at render, not at module load: an installed app can sit
@@ -386,6 +402,14 @@ export default function SearchClient() {
       )}
 
       <div className="mt-7">
+        {/* Above the branch, not inside it.
+            She used to be rendered in the `hits.length > 0` arm only, so the
+            one moment a service call must not go quiet — the failed lookup —
+            was the one moment she could not appear. Here she covers both
+            outcomes and renders nothing on an empty box, because
+            `answerParts` returns no parts for one. */}
+        <ShouqAnswer parts={answer} />
+
         {!q.trim() ? (
           <section>
             <h2 className="mb-3 text-sm font-semibold text-ink-600">جرّب تدوّر عن</h2>
@@ -414,7 +438,6 @@ export default function SearchClient() {
             <p className="mb-4 text-sm text-ink-500">
               {toArabicDigits(hits.length)} نتيجة
             </p>
-            <ShouqAnswer parts={answer} />
             <SearchMap places={hitPlaces} active={activeSlug} onActive={setActiveSlug} />
             <SearchResults
               hits={hits}
@@ -441,9 +464,10 @@ export default function SearchClient() {
             <h2 className="mt-4 font-display text-xl font-semibold text-ink-900">
               ما لقينا شي عن «{q.trim()}»
             </h2>
-            <p className="mt-1 text-sm text-ink-500">
-              جرّب كلمة أقصر، أو تصفّح كل الأماكن.
-            </p>
+            {/* The advice that used to sit here is شوق's now, in the block
+                above — «قول لي الجو اللي تبيه»، which names what she can
+                actually do instead of telling somebody their word was too
+                long. What is left is the escape hatch. */}
             <Link
               href="/explore"
               className="mt-6 inline-flex min-h-11 items-center rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"

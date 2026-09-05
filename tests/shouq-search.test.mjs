@@ -79,7 +79,23 @@ console.log('\n── she answers in writing, with the voice switched off ──
   await ctx.close();
 }
 
-console.log('\n── nothing to answer means nothing to say ──');
+console.log('\n── an empty box gets nothing; a failed search gets the most important turn ──');
+/**
+ * This used to assert the opposite of what it asserts now, and the old
+ * assertion was the bug.
+ *
+ * «nothing to answer means nothing to say» sounds right and is wrong for the
+ * one case that matters. `answerParts` has a no-results branch returning the
+ * line written for exactly this moment — «ما لقيت شي بهالكلمة. قول لي الجو
+ * اللي تبيه — قهوة، بحر، مطعم، ولا طلعة عيال.» — which names the four things
+ * she is good at instead of telling somebody their word was too long. It is
+ * also `search-empty` in the clip library, so the generator would have paid to
+ * record a sentence that could never play: the page guarded on `hits.length`
+ * both when computing her answer AND when rendering it.
+ *
+ * A service call never goes quiet on a failed lookup. An empty box is not a
+ * failed lookup — nobody has asked anything yet — so that half stands.
+ */
 {
   const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 }, locale: 'ar-KW' });
   const p = await ctx.newPage();
@@ -90,8 +106,17 @@ console.log('\n── nothing to answer means nothing to say ──');
 
   await p.goto(`${B}/search/?q=${encodeURIComponent('زقزقة')}`, { waitUntil: 'networkidle' });
   await p.waitForTimeout(500);
-  ok('and neither does a query with no results',
-    !(await read(p)).found && (await p.locator('text=ما لقينا شي').count()) === 1);
+  const none = await read(p);
+  ok('a query with no results still gets an answer from her', none.found, JSON.stringify(none.text));
+  ok('and it is the line that says what to try, not that the search failed',
+    none.text.includes('قول لي الجو اللي تبيه'), none.text);
+  ok('she names things she can actually find', ['قهوة', 'بحر', 'مطعم'].every((w) => none.text.includes(w)));
+  ok('she recommends no place, having found none', none.links.length === 0, none.links.join(' '));
+  ok('the empty-state card is still there to browse from',
+    (await p.locator('text=ما لقينا شي').count()) === 1);
+  // The card's own advice line moved into hers — one «try this», not two.
+  ok('and its advice is not repeated underneath her',
+    (await p.locator('text=جرّب كلمة أقصر').count()) === 0);
   await ctx.close();
 }
 
