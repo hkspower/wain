@@ -302,3 +302,33 @@ about which gateway takes a customer's card — deterministically, but only when
 rewrites it and requests it in the same breath. `sandbox.sh` now pins
 `opcache.revalidate_freq=0`. A failure that appears only in a particular ORDER
 is about state, not about the code under test.
+
+## A guard that passes a rename is not a guard
+
+`admin-contract-test.mjs` exists because the app's `/backends` panel was written
+against a fixture and spoke a protocol the real `admin.php` did not implement —
+every test green, every production request dead. The guard reads the three files
+and proves the route names agree.
+
+Mutation-tested on 2026-09-05, it did not. Renaming one call site in `admin.ts`
+to `discount_active_MUTANT` — a route that exists in no server anywhere — was
+reported as **all ok**.
+
+The extractor matched `[a-z_-]` only. Its own comment already said an extractor
+that matches only well-formed names silently drops the malformed ones, and named
+the hyphen case that actually shipped; capitals were simply outside the class, so
+the route left the set and the loop that checks every route it found found one
+fewer. **Nothing is reported when a check is not run.** The three extractors now
+match anything up to the delimiter and let the comparison decide — a parity test
+does not need to know what a legal name looks like.
+
+The general rule, which is not about regexes: **a test that finds things and then
+checks them can fail by finding nothing.** Its silence and its success look the
+same. So mutation-test it in the direction that matters — break the thing it
+exists to catch, and watch it go red — and pick a mutation the extractor might
+plausibly miss rather than the one it was written for. The first mutation here
+was caught; it was the second, uglier one that found the hole.
+
+That is the same shape as "a suite that finds NOTHING is reporting its own
+environment", one section up, and it caught a real hole rather than a dead
+sandbox.
