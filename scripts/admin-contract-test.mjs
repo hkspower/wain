@@ -26,18 +26,33 @@ const check = (ok, what) => {
 }
 
 // --- every route admin.php implements -------------------------------------
-const phpRoutes = new Set([...php.matchAll(/\$r === '([a-z_]+)'/g)].map((m) => m[1]))
+// Widened for the same reason as the client extractor below: a route in
+// admin.php spelled with anything outside [a-z_] would be invisible here, and
+// an invisible AUTHORITY is worse than an invisible client — every client that
+// calls it correctly would be reported as calling a route that does not exist.
+const phpRoutes = new Set([...php.matchAll(/\$r === '([^']+)'/g)].map((m) => m[1]))
 check(phpRoutes.size > 40, `admin.php implements ${phpRoutes.size} routes`)
 
 // --- the app names only real routes ---------------------------------------
 // Both spellings a call site can take: call('name', …) and a template with
 // query params, call(`name&x=…`).
-// [a-z_-]: the extractor must SEE a hyphenated name to fail it. An
-// extractor that only matches well-formed names silently drops the
-// malformed ones — which is a rebuild of the very bug this file guards
-// against, one layer up.
+// The extractor must SEE a malformed name to fail it. An extractor that only
+// matches well-formed names silently drops the malformed ones — which is a
+// rebuild of the very bug this file guards against, one layer up.
+//
+// It said that already and was still too narrow. [a-z_-] catches the
+// hyphen-for-underscore slip that actually shipped, and nothing else:
+// mutation-tested on 2026-09-05 by renaming one call site to
+// 'discount_active_MUTANT', the extractor did not match the capitals, the
+// route silently left the set, and the file reported ALL OK on a route that
+// exists nowhere. A guard that passes a rename is not a guard.
+//
+// So match anything that is not the delimiter, and let the comparison against
+// admin.php decide. That is the whole point: this file does not need to know
+// what a legal route looks like, only that whatever the app names is a route
+// the server answers.
 const tsRoutes = new Set(
-  [...ts.matchAll(/call[^(]*\(\s*[`']([a-z_-]+)[&`']/g)].map((m) => m[1]),
+  [...ts.matchAll(/call[^(]*\(\s*[`']([^&`'\s]+)[&`']/g)].map((m) => m[1]),
 )
 check(tsRoutes.size >= 12, `admin.ts calls ${tsRoutes.size} routes (${[...tsRoutes].join(', ')})`)
 for (const r of tsRoutes) {
@@ -45,7 +60,7 @@ for (const r of tsRoutes) {
 }
 
 // --- the fixture serves only real routes (reset excepted, by name) ---------
-const mockRoutes = new Set([...mock.matchAll(/\br == '([a-z_-]+)'/g)].map((m) => m[1]))
+const mockRoutes = new Set([...mock.matchAll(/\br == '([^']+)'/g)].map((m) => m[1]))
 for (const r of mockRoutes) {
   if (r === 'reset') continue // fixture-only, documented in its header
   check(phpRoutes.has(r), `mock route '${r}' exists in admin.php`)
