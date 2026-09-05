@@ -3037,6 +3037,11 @@ export class GameEngine {
         // game wearing nothing at all.
         kit: rivalCar?.kit,
         raceKit: rivalCar?.kit === "attack",
+        // And in the finish it is sold in. The Falcon 720 is matte on
+        // its showroom card and was gloss on the road, because nothing
+        // passed the finish through — the same two-answers problem the
+        // length note below is about.
+        finish: rivalCar?.finish,
         // A rival runs a livery. Racing numbers come from the roster
         // position so two rivals never wear the same one.
         stickers: true,
@@ -3337,7 +3342,14 @@ export class GameEngine {
       // the probe lifts 13.1% of the paint by more than 25 (7.4% before)
       // and the bright end goes from 109 to 120. The rims keep their own
       // 1.9x on top for the same reason they always had it.
-      body.envMapIntensity = 2.1;
+      // 2.1 is the GLOSS gain. Written here as a flat 2.1 it overwrote
+      // the 1.5 * envScale createCar had already set, so satin's 0.62 and
+      // matte's 0.3 never reached the material and every finish in the
+      // shop mirrored the street like lacquer. The finish's own scale
+      // rides on the group; multiply by it. One policy still dresses
+      // every car — the same number times the finish it wears — which
+      // is what tests/vfx.mjs holds it to.
+      body.envMapIntensity = 2.1 * ((group.userData.envScale as number | undefined) ?? 1);
       body.needsUpdate = true;
     }
     // The rims, chrome and brake discs mirror the same world the paint

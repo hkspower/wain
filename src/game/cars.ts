@@ -5529,6 +5529,14 @@ export function createCar(colors: CarColors): THREE.Group {
   // engine can feed the player's paint a live reflection probe without
   // leaking it onto every car on the road.
   group.userData.bodyMat = bodyMat;
+  // How much of the world this finish is allowed to mirror. The engine
+  // sets the paint's envMapIntensity itself when it dresses the car for
+  // the reflection probe, and it used to set one flat number for every
+  // car — which threw away the envScale set two thousand lines above
+  // this and made a matte car mirror the street exactly as hard as a
+  // gloss one. The finish's scale travels with the car so the engine
+  // can multiply by it rather than overwrite it.
+  group.userData.envScale = FINISHES[colors.finish ?? "gloss"].envScale;
   // Metals that should mirror the player's actual surroundings — the
   // engine points these at the live cube probe alongside the paint.
   group.userData.reflectMats = reflectMats;

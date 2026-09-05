@@ -244,6 +244,10 @@ const reflect = await page.evaluate(() => {
       label,
       envMap: body.envMap ? body.envMap.uuid : null,
       bodyI: +body.envMapIntensity.toFixed(3),
+      // The policy, not the number: gain divided by the finish's own
+      // scale. A satin player beside gloss traffic is two numbers and
+      // one policy, and it is the policy this check exists to hold.
+      policy: +(body.envMapIntensity / (group.userData.envScale ?? 1)).toFixed(3),
       metals: (group.userData.reflectMats ?? []).map((m) => ({
         envMap: m.envMap ? m.envMap.uuid : null,
         ratio: +(m.envMapIntensity / (m.userData.baseEnvIntensity ?? 1.5)).toFixed(3),
@@ -258,7 +262,7 @@ const reflect = await page.evaluate(() => {
 });
 {
   const maps = new Set(reflect.cars.map((c) => c.envMap));
-  const bodies = new Set(reflect.cars.map((c) => c.bodyI));
+  const bodies = new Set(reflect.cars.map((c) => c.policy));
   const ratios = new Set(reflect.cars.flatMap((c) => c.metals.map((m) => m.ratio)));
   console.log(`reflections ${reflect.cars.length} cars: ${reflect.cars.map((c) => `${c.label} i=${c.bodyI}`).join(", ")}`);
   console.log(`            env sources ${maps.size}, body gains ${bodies.size}, metal gains ${ratios.size}  ` +

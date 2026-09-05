@@ -125,6 +125,13 @@ for (const [where, m] of SPOTS) {
       bm.clearcoat = F.clearcoat;
       bm.clearcoatRoughness = F.clearcoatRoughness;
       bm.envMapIntensity = 1.5 * F.envScale;
+      // And the scale the ENGINE reads. dressReflections sets the paint's
+      // gain from the car's own userData.envScale whenever it re-dresses
+      // the car — which applyQualityTier below does — so a finish poked
+      // onto the material alone was re-dressed as whatever the car really
+      // wears: FINISH=matte on the satin Wain Special read env 1.3, the
+      // satin number, and called itself matte.
+      e.carBody.userData.envScale = F.envScale;
       bm.needsUpdate = true;
     }
     if (set) {
