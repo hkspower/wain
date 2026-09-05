@@ -257,11 +257,20 @@ const NUMBER = /^[٠-٩0-9]+$/;
  * وسقطت معهما كل منطقةٍ في اسمها همزة — الجهراء والزهراء والشهداء
  * والفيحاء وتيماء. الطرفان يلتقيان أو لا يلتقي أحد.
  */
+/* حرفٌ مكرَّر ثلاثًا فأكثر مطُّ كتابةٍ لا هجاء: «الساااالمية» و«السالمية»
+   مكانٌ واحد، ولا كلمة عربية فيها ثلاثة أحرفٍ متطابقة متتالية — فالطيّ
+   آمن. ويُجرَّب أوّلًا بفحصٍ رخيص فلا يدفع ثمنَه إلّا ما فيه مطّ. */
+const STRETCHED = /(.)\1\1/;
+const unstretch = (w) => w.replace(/(.)\1{2,}/g, '$1');
+
 function words(normText) {
   const out = [];
   const re = /[^\s،,.؟?!؛;:()"'\-–—/\\]+/g;
   let m;
-  while ((m = re.exec(normText))) out.push({ w: m[0], at: m.index });
+  while ((m = re.exec(normText))) {
+    const raw = m[0];
+    out.push({ w: STRETCHED.test(raw) ? unstretch(raw) : raw, raw, at: m.index });
+  }
   return out;
 }
 
@@ -301,7 +310,9 @@ function findAreas(text, { addressed = false } = {}) {
     const last = toks[i + best.n - 1];
     /* طول ما قُرئ لا طول الاسم الرسميّ: «الجليب» ستّة أحرف و«جليب الشيوخ»
        أحد عشر، ومن نزع الاسم الرسميّ من النصّ نزع ما ليس فيه. */
-    hits.push({ name: best.hit.name, at: toks[i].at, len: last.at + last.w.length - toks[i].at });
+    /* الطول من النصّ كما ورد لا من صيغة المطابقة: المطّ يقصّر الصيغة
+       («الساااالمية» ← «السالمية») ومن قصّ بها قصّ أقلّ ممّا في النصّ. */
+    hits.push({ name: best.hit.name, at: toks[i].at, len: last.at + last.raw.length - toks[i].at });
     i += best.n - 1;                     // ما التُقط لا يُقرأ ثانيةً
   }
   return hits;
@@ -361,13 +372,20 @@ function findName(text) {
        «رقمي»، ولا يضرّ ذلك اسمًا يبدأ بواو لأن «وليد» بلا واوها ليست وقفًا. */
     const stop = ['من', 'الى', 'في', 'ب', 'رقمي', 'رقم', 'هاتفي', 'تلفوني',
                   'ابغى', 'ابي', 'اريد', 'عندي', 'ياخذ', 'وصل'];
+    /* تُجرَّد الواو وأداة التعريف معًا: «ورقمي» كانت تقف، و«والرقم» لا —
+       لأن الواو وحدها تُنزع فيبقى «الرقم» وليس في القائمة. فكان
+       «اسمي منى والرقم ٦٦٧٧٨٨٩٩» يعطي الاسم «منى والرقم ٦٦٧٧٨٨٩٩»،
+       فينادي الكابتن على الباب باسمٍ فيه رقم هاتف. */
     const isStop = (w) => {
       const n = ar.normalize(w).toLowerCase();
-      return stop.includes(n) || stop.includes(n.replace(/^و/, ''));
+      const noWaw = n.replace(/^و/, '');
+      return stop.includes(n) || stop.includes(noWaw) || stop.includes(noWaw.replace(/^ال/, ''));
     };
+    /* ورقمٌ ليس جزءًا من اسم: يقف الاسم عنده مهما كانت الكلمة التي قبله */
+    const isNumber = (w) => /^[٠-٩0-9+()\-\s]+$/.test(w);
     const out = [];
     for (const w of rest) {
-      if (w === BREAK || isStop(w)) break;
+      if (w === BREAK || isStop(w) || isNumber(w)) break;
       out.push(w);
     }
     if (out.length) return out.join(' ');
@@ -465,8 +483,12 @@ function parseAddressValue(value) {
      دليلٌ إضافيّ على أن «هدية» منطقة. */
   const hit = findAreas(norm, { addressed: true })[0] || null;
 
-  /* «قطعة ٤» و«ق٤» و«ق ٤» — والاختصار شائع في الملصوق */
-  const bm = norm.match(/(?:قطعه|ق)\s*[.:]?\s*(\S+(?:\s+\S+)?)/);
+  /* «قطعة ٤» و«ق٤» و«ق ٤» — والاختصار شائع في الملصوق.
+     و«ق» تُشترط في أوّل كلمةٍ ويتلوها رقم، وإلّا التقطت القافَ **داخل اسم
+     المنطقة نفسها**: «المنقف قطعة ٩» طابقت قاف «المنقف» فقرأت ما بعدها
+     «ف قطعه» فلم تجد رقمًا — فسقطت القطعة من كل منطقةٍ في اسمها قاف:
+     المنقف والقبلة والقصور والرقة والعقيلة والقادسية وغيرها. */
+  const bm = norm.match(/(?:قطعه\s*[.:]?\s*|(?<![ء-ي])ق\s*[.:]?\s*(?=[٠-٩0-9]))(\S+(?:\s+\S+)?)/);
   const block = bm ? readNumber(bm[1]) : null;
 
   /* الشارع = ما بقي بعد نزع اسم المنطقة وعبارة القطعة */
@@ -539,12 +561,17 @@ function parseOrder(transcript) {
      والثانية تسليم — وهو ترتيب الكلام الطبيعي «من كذا إلى كذا». */
   let pickup = null;
   let dropoff = null;
+  /* المصرَّح به يعلو على ما وقع في خانته بالترتيب وحده. الناس يكرّرون:
+     «من السالمية… يعني من السالمية إلى حولي» — فكانت السالميةُ الثانية
+     تملأ خانة التسليم بالترتيب، وتسقط «حولي» وقد صُرّح بها بـ«إلى». */
+  let pickupSaid = false;
+  let dropoffSaid = false;
   for (let i = 0; i < areas.length; i++) {
     const dir = directionBefore(norm, areas[i].at);
     const block = blockNear(norm, areas[i].at, areas[i + 1]?.at);
     const entry = { area: areas[i].name, block, street: null };
-    if (dir === 'from' && !pickup) pickup = entry;
-    else if (dir === 'to' && !dropoff) dropoff = entry;
+    if (dir === 'from' && !pickupSaid) { pickup = entry; pickupSaid = true; }
+    else if (dir === 'to' && !dropoffSaid) { dropoff = entry; dropoffSaid = true; }
     else if (!pickup) pickup = entry;
     else if (!dropoff) dropoff = entry;
   }
@@ -652,7 +679,11 @@ function parseOrder(transcript) {
   const priority = findPriority(ar.normalize(text).toLowerCase());
   if (priority) { fields.priority = priority; heard.push(`الأولوية: ${D.PRIORITIES[priority]}`); }
 
-  return { transcript: text, fields, heard, missing };
+  /* `stated`: هل صُرّح بالجهة بحرفٍ («من كذا»، «إلى كذا») أم وقعت في خانتها
+     بالترتيب وحده؟ يحتاجه المسار العامّ: عنده استدلالٌ على الجهة من كلماتٍ
+     في الجملة، وذلك الاستدلال يجب ألّا يعلو على تصريحٍ صريح. */
+  return { transcript: text, fields, heard, missing,
+    stated: { pickup: pickupSaid, dropoff: dropoffSaid } };
 }
 
 module.exports = {

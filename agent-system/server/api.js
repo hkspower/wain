@@ -493,8 +493,21 @@ on('POST', '/api/public/order/parse', async (ctx) => {
      كانت تجعل الاستلام الجهراء. سؤالٌ لا نجيبه أهون من طلبٍ نخترعه.
      إلّا أن يحمل عنوانًا صريحًا («ممكن توصل **من** السالمية **إلى**
      الجابرية؟») — فذاك طلبٌ صيغ سؤالًا، وإسقاطه يضيّع ما قاله الزبون. */
+  /* والسؤال الذي **عرفنا** جوابه: كان يبتلع ما معه من طلب. فمن كتب
+     «كم السعر؟ وأبغى توصيل من السالمية إلى حولي» في رسالةٍ واحدة يُجاب عن
+     السعر ولا يُملأ له حقل، فيعيد كتابة ما كتبه للتوّ ويظنّ الوكيل أصمّ.
+     فيُؤخذ منه الطلب — لكن بشرطٍ أضيق من مجرّد ذكر مكان.
+     والفرق بين الحالتين نيّةٌ مصرَّح بها لا حرفُ جرّ:
+       «كم يأخذ وقتًا **من** السالمية **للجهراء**؟» سؤالٌ عن معلومة، ذكر
+       المنطقتين فيه سياقُ السؤال لا طلبٌ — ولو مُلئتا لبقيتا في البطاقة
+       بعد أن ينصرف صاحبهما إلى طلبٍ آخر، فيمضي عنوانٌ لم يطلبه أحد.
+       «**أبغى** توصيل من السالمية إلى حولي» تصريحٌ بالطلب.
+     فالشرط فعلُ طلبٍ أو عنوانٌ معنون، لا «من» و«إلى» وحدهما. */
+  const ORDER_INTENT =
+    /اسمي|رقمي|هاتفي|الاستلام|الإستلام|التسليم|المبلغ|الرسوم|ابغى|أبغى|ابي\s|أبي\s|اريد|أريد|ودي\s|اطرش|أطرش/;
+  const declaresOrder = ORDER_INTENT.test(latestRaw);
   const questionOnly = asked && !CARRIES_LABEL.test(latestRaw);
-  const accepted = (said && latestRaw && !answered && !questionOnly)
+  const accepted = (said && latestRaw && !questionOnly && (!answered || declaresOrder))
     ? wrapAnswer(pending, latestRaw) : null;
 
   /* ولا يُسجَّل في «أسئلة بلا جواب» إلّا ما كان سؤالًا خالصًا: طلبٌ صيغ
@@ -536,9 +549,31 @@ on('POST', '/api/public/order/parse', async (ctx) => {
       // الجملة نفسها فيها الطرفان بترتيبهما — تُؤخذ كما قُرئت
       setSide('pickup', solo.fields.pickup_area, solo.fields.pickup_block);
       setSide('dropoff', solo.fields.dropoff_area, solo.fields.dropoff_block);
+    } else if (solo.stated?.pickup || solo.stated?.dropoff) {
+      /* **التصريح بحرفٍ يحسم، ولا يُستدَلّ فوقه.**
+         «توصيل» في `SAYS_DROPOFF`، وهي في كل رسالة طلبٍ تقريبًا، فكانت
+         «أبغى **توصيل من** السالمية» — وهي أطبع ما يُفتتح به الطلب — تجعل
+         السالمية **تسليمًا** أيضًا، لأن الاسم «توصيل» غلب حرف الجرّ «من»
+         الملاصق للمنطقة. فيصير طرفا الطلب مكانًا واحدًا، ويذهب الكابتن
+         ليستلم من حيث يسلّم. فما صُرّح به يُؤخذ على وجهه. */
+      if (solo.stated.pickup) setSide('pickup', solo.fields.pickup_area, solo.fields.pickup_block);
+      if (solo.stated.dropoff) setSide('dropoff', solo.fields.dropoff_area, solo.fields.dropoff_block);
     } else if (areas.length === 1 && saysDrop !== saysPick) {
-      /* منطقةٌ واحدة وعنوانٌ واحد لا يلتبس: العنوان يحسم الجهة لا الموضع */
-      setSide(saysDrop ? 'dropoff' : 'pickup', areas[0], solo.fields.pickup_block ?? solo.fields.dropoff_block);
+      /* لا تصريح بحرف: منطقةٌ واحدة وعنوانٌ واحد لا يلتبس، فالعنوان يحسم
+         الجهة لا الموضع («التوصيل السالمية»). */
+      const side = saysDrop ? 'dropoff' : 'pickup';
+      const other = saysDrop ? 'pickup' : 'dropoff';
+      /* والعنوان يحسم الجهة، فيلزم أن **يترك** الجهة الأخرى إن كانت مأخوذةً
+         من هذا الذكر نفسه: المستخرِج يضع المنطقة الوحيدة استلامًا افتراضًا،
+         فلو قال العنوان إنها تسليم بقي الافتراضُ معه وصار طرفا الطلب مكانًا
+         واحدًا («التوصيل السالمية» ← استلام وتسليم كلاهما السالمية). ولا
+         يُمسّ إلّا ما كان المنطقةَ نفسها: ما جاء من رسالةٍ سابقة يبقى. */
+      if (parsed.fields[`${other}_area`] === areas[0]) {
+        delete parsed.fields[`${other}_area`];
+        delete parsed.fields[`${other}_block`];
+        delete parsed.fields[other === 'pickup' ? 'governorate' : 'dropoff_governorate'];
+      }
+      setSide(side, areas[0], solo.fields.pickup_block ?? solo.fields.dropoff_block);
     }
     /* ما امتلأ الآن يخرج من قائمة النواقص، وإلّا سُئل الزبون عمّا أجاب عنه */
     parsed.missing = parsed.missing.filter((m) => parsed.fields[m.field] === undefined);
