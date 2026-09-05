@@ -164,14 +164,14 @@ it *feel* right (turn-taking and latency).
 
 ## 6. What شوق's live configuration actually says
 
-Read against the above, on agent `agent_1701m1gcrccrethae9y3nyv1e116`. These
-are observations, not changes — nothing here has been altered.
+Read against the above, on agent `agent_1701m1gcrccrethae9y3nyv1e116`. The
+first three were fixed after this review; the rest still stand.
 
 | Setting | Value | What the research says about it |
 | --- | --- | --- |
-| `interruption_ignore_terms` | `[]` | **Nothing is exempt.** Every «إي» and «زين» from the caller can cut her off mid-recommendation. The one gap with a direct, cheap fix. |
-| `asr.keywords` | `[]` | No keyword boosting, on an agent whose entire vocabulary is Kuwaiti place names and dialect food words — «المباركية»، «الأفنيوز»، «مچبوس»، «كشتة» — against a recogniser that is weakest on exactly this. |
-| `soft_timeout_config.message` | `"Hhmmmm...yeah."` | An **English** filler on an `ar` agent. Currently inert (`timeout_seconds: -1`), so no caller has heard it — but it is the default, and the moment anyone enables fillers to cover latency, a Kuwaiti guide says «Hhmmmm…yeah.» |
+| `interruption_ignore_terms` | was `[]`, **now 20 terms + Arabic defaults** | Nothing had been exempt, so every «إي» and «زين» from the caller could cut her off mid-recommendation. Kuwaiti backchannels are now listed, with `merge_with_default_ignore_terms`. |
+| `asr.keywords` | was `[]`, **now 84** | No keyword boosting, on an agent whose entire vocabulary is Kuwaiti place names and dialect food words, against a recogniser weakest on exactly that. Now carries all 44 place names, 18 areas and 23 dialect words, generated from `places.ts`. |
+| `soft_timeout_config.message` | was `"Hhmmmm...yeah."`, **now «ثانية وحدة…»** | An **English** filler on an `ar` agent. Inert (`timeout_seconds: -1`) so no caller ever heard it — but it was the default, and the moment anyone enabled fillers to cover latency, a Kuwaiti guide would have said «Hhmmmm…yeah.» Still disabled; no longer a landmine. |
 | `turn_timeout` | `7` seconds | Seven seconds of silence before she re-engages. Her own prompt (habit ٧) says silence on a phone means the call dropped. The prompt and the config disagree. |
 | `max_duration_seconds` | `600` | A ten-minute ceiling on «وين أطلع اليوم؟». |
 | `evaluation.criteria` | `[]` | **No QA scorecard exists.** Every call is unscored. This is the single biggest gap against call-centre practice. |

@@ -328,8 +328,15 @@ console.log("\n── the knowledge base is a file, not a section someone copies
   const absent = slugs.filter((s) => !kb.includes(`\`${s}\``));
   ok(`every place is in it (${slugs.length})`, absent.length === 0, absent.join(", "));
 
-  ok("the brief tells the operator to upload the whole file",
-    committed.includes("docs/wain-ai-kb.md") && committed.includes("ارفعه كامل"));
+  // The instruction changed from «upload the whole file» to «import it by URL
+  // pinned to the commit», because hand-copying is what left the live base
+  // without its indexes for months and then a generation behind on distances.
+  // What the check is really protecting is unchanged: the brief must name the
+  // file, and must forbid copying it by hand.
+  ok("the brief names the knowledge base file and forbids copying it by hand",
+    committed.includes("docs/wain-ai-kb.md") && committed.includes("لا تنسخه بيدك"));
+  ok("and tells the operator to pin the import to a commit",
+    committed.includes("raw.githubusercontent.com") && committed.includes("<sha>"));
 
   // Regenerating from the shipped catalogue must reproduce the committed file
   // byte for byte, or the thing uploaded is not the thing in the repo.
