@@ -145,8 +145,17 @@ Four things this depends on, each of which cost a wrong answer first:
 - **One short command per job.** A 245-character command was accepted by the
   API and then produced no output at all — not an error, silence. The same work
   split into a 155-character fetch and a separate `echo` worked first time.
+- **ONE FETCH AT A TIME.** Three jobs fetching raw.githubusercontent in the same
+  minute produced ONE good file and TWO EMPTY ONES — served to the first
+  request, dropped for the others — and `-q` hid it, so it read as a broken
+  publish rather than as rate limiting. Fetched singly, all three arrived whole
+  and matched. When a run of files is needed, fetch them from inside ONE PHP
+  script running on the server, sequentially: twenty tiles that way is one cron
+  cycle instead of forty, and it is `scripts/publish-cats.php`.
 - **Verify by sha256 against the repo**, not by size, and read it back from the
-  ABSOLUTE path — the rule further up this section applies here too.
+  ABSOLUTE path — the rule further up this section applies here too. Check it
+  AFTER the copy, not after the download: an empty fetch and a failed copy look
+  identical from the staging file.
 - **The repository is PUBLIC.** That is what makes this work: the server
   fetches without a credential, so no token is ever written into a cron command
   where it would sit in the panel in plain text. It is also the reason the
