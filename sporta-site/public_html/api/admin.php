@@ -1104,7 +1104,35 @@ if ($r === 'settings_save' && $method === 'POST') {
     $name = (string)($b['name'] ?? '');
     $v = is_array($b['value'] ?? null) ? $b['value'] : [];
 
-    if ($name === 'knet') {
+    if ($name === 'footer') {
+        // THE FOOTER'S PROSE. Ten fields, five in each language.
+        //
+        // Nothing here is refused for being empty: empty means "use the text
+        // that is built into the page", which is the state every shop starts
+        // in and the way back if an edit turns out wrong. That is also why
+        // there is no required-field check — clearing one field must not fail
+        // the save and lose the edit made to another.
+        //
+        // Capped rather than validated. This is prose in two languages: there
+        // is no shape to check beyond "not an essay", and a cap is what stops
+        // a paste accident putting a page of text in the footer of every
+        // screen. mb_substr, not substr, because Arabic is multi-byte and
+        // cutting mid-character produces a broken glyph.
+        $cap = static fn(string $k, int $n): string
+            => mb_substr(trim((string) ($v[$k] ?? '')), 0, $n);
+        store_setting_save($db, 'footer', [
+            'tagline_ar'    => $cap('tagline_ar', 300),
+            'tagline_en'    => $cap('tagline_en', 300),
+            'club_title_ar' => $cap('club_title_ar', 80),
+            'club_title_en' => $cap('club_title_en', 80),
+            'club_text_ar'  => $cap('club_text_ar', 200),
+            'club_text_en'  => $cap('club_text_en', 200),
+            'rights_ar'     => $cap('rights_ar', 120),
+            'rights_en'     => $cap('rights_en', 120),
+            'managed_ar'    => $cap('managed_ar', 200),
+            'managed_en'    => $cap('managed_en', 200),
+        ]);
+    } elseif ($name === 'knet') {
         // THE KNET TRANPORTAL ID.
         //
         // WHAT A WRONG VALUE COSTS, which is why this is the strictest

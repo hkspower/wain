@@ -109,6 +109,10 @@ def _fresh():
                       'text_ar': 'التوصيل خلال ٢٤ ساعة داخل الكويت',
                       'href': '', 'starts_at': None, 'ends_at': None},
         'knet': {'tranportal_id': ''},
+        'footer': {k: '' for k in (
+            'tagline_ar', 'tagline_en', 'club_title_ar', 'club_title_en',
+            'club_text_ar', 'club_text_en', 'rights_ar', 'rights_en',
+            'managed_ar', 'managed_en')},
         'contact': {'phone': '+965 2209 1914', 'whatsapp': '96522091914',
                     'email': 'cs@sporta.com.kw', 'address_ar': '', 'address_en': '',
                     'hours_ar': '', 'hours_en': '', 'instagram': ''},
@@ -541,6 +545,20 @@ class Handler(BaseHTTPRequestHandler):
         if r == 'settings_save':
             name = b.get('name')
             v = b.get('value') if isinstance(b.get('value'), dict) else {}
+            if name == 'footer':
+                # Ten prose fields, capped the same way admin.php caps them.
+                # Empty is allowed and means "leave the built-in text alone".
+                keys = ('tagline_ar', 'tagline_en', 'club_title_ar', 'club_title_en',
+                        'club_text_ar', 'club_text_en', 'rights_ar', 'rights_en',
+                        'managed_ar', 'managed_en')
+                caps = {'tagline_ar': 300, 'tagline_en': 300, 'club_title_ar': 80,
+                        'club_title_en': 80, 'club_text_ar': 200, 'club_text_en': 200,
+                        'rights_ar': 120, 'rights_en': 120, 'managed_ar': 200,
+                        'managed_en': 200}
+                STATE['settings']['footer'] = {
+                    k: str(v.get(k) or '').strip()[:caps[k]] for k in keys
+                }
+                return self._json(200, STATE['settings']['footer'])
             if name == 'knet':
                 # The same validation admin.php does, in the same order, so a
                 # bad ID is refused here too rather than only in production.

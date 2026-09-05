@@ -626,6 +626,9 @@
          `defer` because it must not delay first paint: a stale phone number
          for 200ms is nothing, a slower shop is not. -->
     <script src="/assets/contact.js" defer></script>
+    <!-- The footer's prose, editable from /backends. Same technique as
+         contact.js above: a text swap after render, empty means leave it. -->
+    <script src="/assets/footer.js" defer></script>
 
     <!-- Puts a link to /returns/request (a flat page, like /card) on the
          /returns policy page. Same class of thing as contact.js: DOM surgery

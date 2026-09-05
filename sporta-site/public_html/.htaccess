@@ -446,7 +446,11 @@ FileETag MTime Size
   # any build output that ever ships without a hash, freezing revalidation onto
   # files that are safe to cache for a year. The list is the safer half of that
   # trade; the price is remembering to add to it, which is what this comment is.
-  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(contact|card|returns-request|returns-link|track-guard)\.js$">
+  # footer.js is the eighth, added 2026-09-05 with the footer editor. Adding
+  # it here is the price the comment above names; htaccess-test checks EVERY
+  # un-hashed file in assets/ rather than this list, so forgetting is caught
+  # at commit time rather than by a customer holding a stale footer.
+  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(contact|card|footer|returns-request|returns-link|track-guard)\.js$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 

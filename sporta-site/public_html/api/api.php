@@ -417,6 +417,19 @@ if ($r === 'contact') {
     store_out($c);
 }
 
+// The footer's prose, for assets/footer.js — and for the panel, which reads it
+// back from here rather than from an admin route. Same reasoning as the promo
+// bar, written out in src/lib/admin.ts: the panel's idea of the footer and the
+// shop's must come from one place, or they can disagree without anybody
+// noticing until a customer sees the difference.
+//
+// Owner text, no customer in it, changes rarely — so it is CACHEABLE, which
+// means an unchanged footer costs a 304 and no body on every page load rather
+// than this JSON again.
+if ($r === 'footer') {
+    store_out_cacheable(store_setting($db, 'footer'));
+}
+
 if ($r === 'slides') {
     $rows = $db->query(
         'select id, sort, title_en, title_ar, subtitle_en, subtitle_ar,

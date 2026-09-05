@@ -1788,6 +1788,23 @@ const STORE_SETTING_DEFAULTS = [
     // Empty means "use whatever knet/config.php says", which is what every
     // shop has today and what happens if this row is never written.
     'knet'      => ['tranportal_id' => ''],
+    // THE FOOTER'S PROSE, in both languages.
+    //
+    // Every value is '' by default and empty means "leave the built-in text
+    // alone" — the same rule contact.js follows, and for the same reason: the
+    // footer text is compiled into a bundle whose source is not in this
+    // repository, so the only safe default is to change nothing. Blanking the
+    // shop's strapline because a field was left empty is the worst thing this
+    // feature could do.
+    //
+    // The link columns and the social icons are NOT here. Those are structure,
+    // not prose — editing them means adding and removing nodes rather than
+    // swapping a string, which the overlay approach cannot do safely.
+    'footer'    => ['tagline_ar' => '', 'tagline_en' => '',
+                    'club_title_ar' => '', 'club_title_en' => '',
+                    'club_text_ar' => '', 'club_text_en' => '',
+                    'rights_ar' => '', 'rights_en' => '',
+                    'managed_ar' => '', 'managed_en' => ''],
     'hero'      => ['speed_ms' => 6500, 'shuffle' => false, 'size' => 'tall', 'autoplay' => true],
     'promo_bar' => ['enabled' => false, 'text_en' => '', 'text_ar' => '', 'href' => '',
                     'starts_at' => null, 'ends_at' => null],

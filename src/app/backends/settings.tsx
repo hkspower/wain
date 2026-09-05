@@ -12,6 +12,7 @@ import {
   adminApi,
   Unauthorized,
   type ContactDetails,
+  type FooterText,
   type PromoBar,
 } from '@/lib/admin';
 import { useSession } from '@/lib/session';
@@ -45,6 +46,7 @@ export default function SettingsScreen() {
      different facts. An empty box on a shop taking payments perfectly well
      means "the ID lives in knet/config.php", which is the normal case, and a
      screen that showed only the box would read as "no ID configured". */
+  const [footer, setFooter] = useState<FooterText | null>(null);
   const [knetId, setKnetId] = useState('');
   const [knetSource, setKnetSource] = useState<'file' | 'database'>('file');
   const [loading, setLoading] = useState(true);
@@ -56,6 +58,8 @@ export default function SettingsScreen() {
   const [barNote, setBarNote] = useState<string | null>(null);
   const [contactBusy, setContactBusy] = useState(false);
   const [contactNote, setContactNote] = useState<string | null>(null);
+  const [footerBusy, setFooterBusy] = useState(false);
+  const [footerNote, setFooterNote] = useState<string | null>(null);
   const [knetBusy, setKnetBusy] = useState(false);
   const [knetNote, setKnetNote] = useState<string | null>(null);
 
@@ -63,10 +67,11 @@ export default function SettingsScreen() {
     if (!token) return;
     setLoading(true);
     setError(null);
-    Promise.all([adminApi.promoBar(), adminApi.contact(), adminApi.knetSettings()])
-      .then(([b, c, k]) => {
+    Promise.all([adminApi.promoBar(), adminApi.contact(), adminApi.knetSettings(), adminApi.footer()])
+      .then(([b, c, k, f]) => {
         setBar(b);
         setContact(c);
+        setFooter(f);
         setKnetId(k.tranportal_id);
         setKnetSource(k.source);
       })
@@ -140,6 +145,26 @@ export default function SettingsScreen() {
      that takes the customer to KNET and is refused there on every order, with
      nothing in the shop's own logs explaining it — the gateway rejects the
      merchant, not the basket. The owner deserves to be told to test it. */
+  /* THE FOOTER IS PROSE, so there is nothing to validate — only to save and
+     read back. The server caps each field, and showing the owner the stored
+     value rather than what they typed is how a silent truncation stops being
+     a mystery. */
+  const saveFooter = async () => {
+    if (!footer || footerBusy) return;
+    setFooterBusy(true);
+    setFooterNote(null);
+    try {
+      await adminApi.saveFooter(footer);
+      setFooter(await adminApi.footer());
+      setFooterNote('Saved. The website picks this up on the next page load.');
+    } catch (e) {
+      if (e instanceof Unauthorized) return signOut();
+      setFooterNote(String(e));
+    } finally {
+      setFooterBusy(false);
+    }
+  };
+
   const saveKnet = async () => {
     if (knetBusy) return;
     setKnetBusy(true);
@@ -172,6 +197,8 @@ export default function SettingsScreen() {
     setBar((b) => (b ? { ...b, [k]: v } : b));
   const setC = <K extends keyof ContactDetails>(k: K, v: ContactDetails[K]) =>
     setContact((c) => (c ? { ...c, [k]: v } : c));
+  const setF = <K extends keyof FooterText>(k: K, v: FooterText[K]) =>
+    setFooter((f) => (f ? { ...f, [k]: v } : f));
 
   return (
     <AdminShell title="Settings" loading={loading} error={error} onRetry={load}>
@@ -293,6 +320,48 @@ export default function SettingsScreen() {
             </ThemedText>
           )}
           <Button label="Save contact details" onPress={saveContact} busy={contactBusy} />
+        </Card>
+      )}
+
+      {footer && (
+        <Card style={styles.card}>
+          <ThemedText type="heading">Footer</ThemedText>
+          <ThemedText type="caption" themeColor="textSecondary" style={styles.hint}>
+            The wording at the bottom of every page. Leave a field empty to keep the
+            text the site was built with — empty never blanks anything.
+          </ThemedText>
+
+          <Field label="Strapline — Arabic" value={footer.taglineAr}
+            onChangeText={(v) => setF('taglineAr', v)} multiline />
+          <Field label="Strapline — English" value={footer.taglineEn}
+            onChangeText={(v) => setF('taglineEn', v)} multiline />
+
+          <Field label="Club heading — Arabic" value={footer.clubTitleAr}
+            onChangeText={(v) => setF('clubTitleAr', v)} />
+          <Field label="Club heading — English" value={footer.clubTitleEn}
+            onChangeText={(v) => setF('clubTitleEn', v)} />
+
+          <Field label="Club line — Arabic" value={footer.clubTextAr}
+            onChangeText={(v) => setF('clubTextAr', v)} multiline />
+          <Field label="Club line — English" value={footer.clubTextEn}
+            onChangeText={(v) => setF('clubTextEn', v)} multiline />
+
+          <Field label="Rights line — Arabic" value={footer.rightsAr}
+            onChangeText={(v) => setF('rightsAr', v)} />
+          <Field label="Rights line — English" value={footer.rightsEn}
+            onChangeText={(v) => setF('rightsEn', v)} />
+
+          <Field label="Operated by — Arabic" value={footer.managedAr}
+            onChangeText={(v) => setF('managedAr', v)} multiline />
+          <Field label="Operated by — English" value={footer.managedEn}
+            onChangeText={(v) => setF('managedEn', v)} multiline />
+
+          {footerNote && (
+            <ThemedText type="label" themeColor="textSecondary" style={styles.note}>
+              {footerNote}
+            </ThemedText>
+          )}
+          <Button label="Save footer" onPress={saveFooter} busy={footerBusy} />
         </Card>
       )}
 

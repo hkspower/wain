@@ -228,6 +228,17 @@ export interface PromoBar {
 }
 
 /** How to reach the shop. Every field is optional; empty means "do not show". */
+/** The footer's prose, in both languages. Every field may be '' — which the
+ *  server and assets/footer.js both read as "leave the text built into the
+ *  page alone", never as "blank it". */
+export interface FooterText {
+  taglineAr: string; taglineEn: string;
+  clubTitleAr: string; clubTitleEn: string;
+  clubTextAr: string; clubTextEn: string;
+  rightsAr: string; rightsEn: string;
+  managedAr: string; managedEn: string;
+}
+
 export interface ContactDetails {
   /** As it should be PRINTED, spaces and all. The tel: link is built from it. */
   phone: string;
@@ -776,6 +787,42 @@ export const adminApi = {
         hours_ar: v.hoursAr,
         hours_en: v.hoursEn,
         instagram: v.instagram,
+      },
+    }),
+
+  // ----------------------------------------------------------------- footer
+  //
+  // READ FROM THE STOREFRONT ROUTE, like the promo bar and the contact details
+  // and unlike the KNET id below. The footer is public text: the shop reads it
+  // from api.php?r=footer to paint the page, so the panel reads the same place
+  // and the two cannot drift apart without somebody seeing it.
+  footer: async (): Promise<FooterText> => {
+    const res = await fetch(`${API_BASE}/api.php?r=footer`, { headers: { Accept: 'application/json' } })
+    if (!res.ok) throw new Error(`footer: HTTP ${res.status}`)
+    // THE SERVER SPEAKS snake_case, the panel camelCase — the same boundary
+    // every other shape in this file crosses, and the same place to get it
+    // wrong. Reading w.taglineAr off a response that says tagline_ar returns
+    // undefined for all ten fields, which looks exactly like "nothing is set".
+    const w = (await res.json()) as Record<string, unknown>
+    const g = (k: string) => (typeof w[k] === 'string' ? (w[k] as string) : '')
+    return {
+      taglineAr: g('tagline_ar'), taglineEn: g('tagline_en'),
+      clubTitleAr: g('club_title_ar'), clubTitleEn: g('club_title_en'),
+      clubTextAr: g('club_text_ar'), clubTextEn: g('club_text_en'),
+      rightsAr: g('rights_ar'), rightsEn: g('rights_en'),
+      managedAr: g('managed_ar'), managedEn: g('managed_en'),
+    }
+  },
+
+  saveFooter: (v: FooterText) =>
+    call<{ ok: true }>('settings_save', {
+      name: 'footer',
+      value: {
+        tagline_ar: v.taglineAr, tagline_en: v.taglineEn,
+        club_title_ar: v.clubTitleAr, club_title_en: v.clubTitleEn,
+        club_text_ar: v.clubTextAr, club_text_en: v.clubTextEn,
+        rights_ar: v.rightsAr, rights_en: v.rightsEn,
+        managed_ar: v.managedAr, managed_en: v.managedEn,
       },
     }),
 

@@ -317,6 +317,57 @@ if (!placedR?.order_id) {
     `eleven characters is refused, matching the twelve the password change asks (${shortPw.body?.error})`)
 }
 
+// --- the footer editor -----------------------------------------------------
+//
+// The point of testing this against the real server is that a saved string
+// reaches the PUBLIC route the storefront reads. The panel writes through
+// admin.php and assets/footer.js reads api.php -- two different files, and a
+// settings row that only one of them agrees on is a form that lies.
+{
+  // ARABIC IS HALF THE SHOP, so the round-trip is tested in Arabic. A browser
+  // check written earlier appeared to show the Arabic swap failing; the swap
+  // was fine and the TEST was writing its row through the mariadb CLI without a
+  // charset, so the page rendered mojibake. Asserting the real path -- panel
+  // POST, PDO, json_encode, public GET -- is the only version of this check
+  // that says anything about the shop.
+  const AR = 'نصّ تجريبي للتذييل — سبورتا'
+  const save = await call('settings_save', {
+    name: 'footer',
+    value: { tagline_ar: AR, tagline_en: 'Test strapline', rights_en: 'All rights reserved.' },
+  })
+  check(save.status === 200, `the footer saves (${save.status})`)
+
+  const pub = await fetch(`${API.replace(/\/api$/, '')}/api/api.php?r=footer`, {
+    headers: { Accept: 'application/json' },
+  })
+  const body = await pub.json()
+  check(pub.status === 200, `?r=footer is public and answers (${pub.status})`)
+  check(body?.tagline_en === 'Test strapline',
+    `and carries what the panel wrote (${body?.tagline_en ?? 'nothing'})`)
+  check(body?.tagline_ar === AR,
+    'and Arabic survives the round trip byte for byte')
+
+  // A field not sent is stored empty rather than left at its old value: the
+  // panel always sends all ten, so "absent" can only mean cleared.
+  check(body?.club_title_ar === '', 'a field the panel did not send is empty, not stale')
+
+  // The cap is the server's, not the panel's.
+  const long = await call('settings_save', {
+    name: 'footer', value: { club_title_en: 'x'.repeat(200) },
+  })
+  check(long.status === 200, 'an over-long field saves rather than failing the whole edit')
+  const after = await (await fetch(`${API.replace(/\/api$/, '')}/api/api.php?r=footer`,
+    { headers: { Accept: 'application/json' } })).json()
+  check((after?.club_title_en ?? '').length === 80,
+    `and is cut to the server's cap (${(after?.club_title_en ?? '').length} chars)`)
+
+  // Put it back, so the sandbox is not left with test prose in its footer.
+  await call('settings_save', { name: 'footer', value: {} })
+  const clean = await (await fetch(`${API.replace(/\/api$/, '')}/api/api.php?r=footer`,
+    { headers: { Accept: 'application/json' } })).json()
+  check((clean?.tagline_en ?? '') === '', 'and clearing it restores the built-in text')
+}
+
 // --- the KNET Tranportal ID -----------------------------------------------
 //
 // THE POINT OF TESTING THIS AGAINST THE REAL SERVER is that a saved ID reaches
