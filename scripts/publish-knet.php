@@ -28,7 +28,7 @@
  * Re-running it is a no-op: a file already matching its hash is skipped.
  */
 
-$COMMIT = 'bc7949c0c90b6482c09c331508f528bf2a6975b3';
+$COMMIT = '645db59ce26787acf3cf2815dc4a1a09dd8c7e98';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
         . '/sporta-site/public_html/';
