@@ -104,7 +104,8 @@
     "build:tabicons": "python3 scripts/make-tab-icons.py",
     "build:wallet": "node scripts/make-wallet-pass.mjs",
     "preview": "node scripts/preview-pdf.mjs",
-    "preview:site": "node scripts/site-preview-pdf.mjs"
+    "preview:site": "node scripts/site-preview-pdf.mjs",
+    "test:brand-badge": "node scripts/brand-badge-test.mjs"
   },
   "private": true
 }
