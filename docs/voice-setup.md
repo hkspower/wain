@@ -53,10 +53,69 @@ workspace can speak with it, and the level is where the rest of the pipeline
 expects.
 
 That measurement also corrected a number used elsewhere: **9.4 characters a
-second**, not the 7.5 estimated from the espeak fixtures. A 170-character
-answer is about eighteen seconds — still past the ~15s ceiling Chrome puts on
-a single utterance, so splitting an answer into one utterance per sentence
-stays necessary.
+second**, not the 7.5 estimated from the espeak fixtures.
+
+**There are two rates, not one.** Measured again on 5 September: a single
+continuous 279-character Kuwaiti passage, through this same voice and the
+agent's own model, came back at 24.61 seconds — **11.3 characters a second**,
+and 12.0 at the agent's speed of 1.06. The 9.4 figure is not wrong; it is
+measuring something else. It came from a two-utterance sample, and the silence
+between two utterances is counted in the duration but not in the characters.
+
+So use the rate that matches the pipeline. The recorded clips in `voice-lines`
+are one utterance per sentence, and 9.4 is theirs — the ~15s ceiling Chrome
+puts on a single utterance is why they are split that way, and that stays
+necessary. شوق speaks a whole answer in one continuous turn, and 12.0 is hers:
+her measured mean of 178 characters is about **fifteen seconds**, at the
+ceiling rather than four seconds past it. Applying the clip rate to her
+answers overstated them by a quarter — enough to send someone chasing a length
+problem that is not there.
+
+**Her pronunciation was measured, not assumed.** The same passage was written
+to be dense with everything that could plausibly break: the Gulf چ in «چاي»،
+«باچر» and «مچبوس», place names the catalogue depends on (مقاهي المباركية،
+جسر الشيخ جابر، الأفنيوز، سوق السمك), and a spelled-out number. It was
+generated in her voice and transcribed straight back with Scribe, and the
+transcript came back **character-identical to the source**. Nothing is
+mispronounced, so `pronunciation_dictionary_locators` stays empty — a
+dictionary here would be effort spent correcting something that is already
+right. Worth re-running if the voice or the TTS model ever changes; the two
+calls are a generate and a transcribe on one flow.
+
+One limit, stated rather than glossed: the round trip runs at the voice's
+default stability, not the agent's 0.35, so it proves the voice and model say
+these words correctly — not that every setting on top of them preserves it.
+
+## Two turn settings, both measured, one kept
+
+**The thinking filler is on, at five seconds.** `soft_timeout_config` had a
+message written — «ثانية وحدة…» — and `timeout_seconds: -1`, so it could never
+fire: a filler nobody could hear. Switching it on at **two** seconds was worse
+than leaving it off. Her LLM turn regularly takes longer than two seconds, so
+it fired on **15 of 18** test runs and stacked up to three fillers in front of
+one answer:
+
+> «خلّيني أشوف لك…. لحظة، أدوّر لك…. ثانية وحدة…. أوكي، تبين طلعة بخمس
+> دنانير، شنو خاطرك تسوين؟»
+
+That is not a filler, that is a stammer, and the budget test went from passing
+to failing because the recommendation never arrived. At **five seconds, capped
+at one, with a single phrase**, it fires on 3 of 18 — the genuinely slow turns
+it was written for — and nothing else changed. If it ever starts appearing on
+most turns again, the threshold is wrong, not the idea.
+
+**Speculative turn is off, and that is a decision, not a default.** Turning it
+on makes her start generating during the caller's silence, and it measurably
+helped correctness — 18/18 against 17/18. It also cut how often she ends a
+turn by handing it back, from 12 of 18 to **6 of 18**, and made her answers
+longer (193 characters against 170). On a phone call an answer that ends in a
+statement ends in silence, and silence reads as a dropped line: two thirds of
+her turns leaving the caller unsure whether she was finished is a worse fault
+than one intermittent test. The 18/18 was one run of ذكاء ٥, which has been
+flaky in both directions all along.
+
+So: correctness within noise, turn-taking clearly worse, and off it stays.
+Re-test both numbers before turning it back on.
 
 **What is left is the API key**, which is not in this repository and never
 should be:
