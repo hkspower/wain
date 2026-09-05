@@ -1,0 +1,24 @@
+{
+  "name": "mawsool-agent-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "نظام موصول لإدارة المندوبين وطلبات التوصيل وتحويلها بينهم",
+  "type": "commonjs",
+  "main": "server/index.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "setup": "node server/setup.js",
+    "start": "node server/index.js",
+    "test": "node --test test/*.test.js",
+    "sync:arabic": "node -e \"require('fs').copyFileSync(require.resolve('arabic-kit'), 'public/vendor/arabic-kit.js')\"",
+    "postinstall": "node -e \"require('fs').mkdirSync('public/vendor',{recursive:true})\" && npm run sync:arabic",
+    "test:authz": "node test/authz.probe.js"
+  },
+  "dependencies": {
+    "arabic-kit": "file:../arabic-kit",
+    "better-sqlite3": "^12.4.1",
+    "nodemailer": "^9.0.5"
+  }
+}

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>نظام موصول | إدارة المندوبين والطلبات</title>
+<meta name="theme-color" content="#0f6b76">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="assets/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="512x512" href="assets/mawsool-mark-512.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="preload" href="assets/fonts/alexandria-arabic.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/alexandria-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<!-- شاشة تسجيل الدخول -->
+<div class="login" id="loginScreen" hidden>
+  <form class="login__card" id="loginForm" novalidate>
+    <img class="login__logo" src="assets/logo-mawsool.png" alt="موصول" width="220" height="68">
+    <h1>نظام إدارة المندوبين</h1>
+    <p class="login__sub">سجّل الدخول لمتابعة طلباتك وتحويلها بين الزملاء.</p>
+
+    <label class="field">
+      <span>اسم المستخدم</span>
+      <input name="username" autocomplete="username" required dir="ltr" placeholder="ahmad"
+             autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
+    </label>
+    <label class="field">
+      <span>كلمة المرور</span>
+      <input name="password" type="password" autocomplete="current-password" required dir="ltr" placeholder="••••••••"
+             enterkeyhint="go">
+    </label>
+
+    <button class="btn btn--primary btn--block btn--lg" type="submit">دخول</button>
+    <p class="form-msg" id="loginMsg" role="alert"></p>
+  </form>
+</div>
+
+<!-- التطبيق -->
+<div class="app" id="app" hidden>
+  <header class="topbar">
+    <div class="topbar__inner">
+      <a class="topbar__brand" href="#/">
+        <img src="assets/logo-mawsool-light.png" alt="موصول" width="150" height="46">
+      </a>
+
+      <nav class="topbar__nav" id="mainNav"></nav>
+
+      <div class="topbar__side">
+        <label class="availability" id="availabilityWrap" hidden>
+          <span class="sr-only">حالتي</span>
+          <select id="availabilitySelect">
+            <option value="available">متاح</option>
+            <option value="busy">مشغول</option>
+            <option value="offline">غير متصل</option>
+          </select>
+        </label>
+        <div class="who">
+          <b id="whoName"></b>
+          <span id="whoRole"></span>
+        </div>
+        <button class="btn btn--ghost btn--sm" id="logoutBtn" type="button">خروج</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="geo-bar" id="geoBar" hidden>
+    <span class="geo-bar__dot" aria-hidden="true"></span>
+    <span id="geoBarText">مشاركة موقعك نشطة</span>
+    <button class="btn btn--sm btn--quiet" id="geoStop" type="button">إيقاف المشاركة</button>
+  </div>
+
+  <main class="page" id="view" tabindex="-1"></main>
+
+  <nav class="tabbar" id="tabbar"></nav>
+</div>
+
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+<!-- `<dialog>` لا `<div>`: المتصفّح يحبس التنقّل داخلها، ويعطّل ما خلفها،
+     ويغلقها بـEsc، ويرسم ظهرها بـ::backdrop — كلّه بلا كود. وكان ما خلفها
+     يبقى قابلًا للتنقّل بمفتاح Tab فيخرج المستخدم من النافذة ولا يدري. -->
+<dialog class="modal" id="modal" aria-labelledby="modalTitle">
+  <article class="modal__card">
+    <header class="modal__head">
+      <h2 id="modalTitle"></h2>
+      <!-- «✕» خارج مجموعة الخط المجتزأة فيرسمها خط النظام بوزن مخالف؛ والرسم المتجه يطابق التصميم على كل جهاز -->
+      <button class="modal__x" type="button" data-close aria-label="إغلاق">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+          <path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </header>
+    <div class="modal__body" id="modalBody"></div>
+  </article>
+</dialog>
+
+<script src="vendor/arabic-kit.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

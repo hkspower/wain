@@ -1,0 +1,11 @@
+# موصول — https://mawsool.com.kw
+# النطاق يُستبدل آليًا عند البناء: node tools/build-release.mjs --domain=نطاقك
+
+User-agent: *
+Allow: /
+
+# روابط مهام الكباتن. كل رابط يحمل رمزًا سريًّا ويفتح بيانات زبون حقيقي —
+# اسم وهاتف وعنوان. لا يُفهرس، ولا يُذكر رمز في خريطة الموقع.
+Disallow: /l/
+
+Sitemap: https://mawsool.com.kw/sitemap.xml

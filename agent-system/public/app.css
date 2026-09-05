@@ -1,0 +1,1182 @@
+/* ==========================================================================
+   نظام موصول — واجهة إدارة المندوبين
+   نفس هوية الموقع: Alexandria + أزرق مخضر #1A8E9B.
+   ونظام لونيّ صلب: درجة واحدة للهوية وأخرى للتنبيه، بلا ذهب ولا برونز
+   ولا بنفسجيّ — الألوان الكثيرة تفقد معناها.
+   ========================================================================== */
+
+@font-face {
+  font-family: "Alexandria"; font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url("assets/fonts/alexandria-arabic.woff2") format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1,
+    U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF,
+    U+FE70-FE74, U+FE76-FEFC, U+10E60-10E7E, U+1EE00-1EE03;
+}
+@font-face {
+  font-family: "Alexandria"; font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url("assets/fonts/alexandria-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  --teal-950: #06282e; --teal-900: #0a3f47; --teal-800: #0f6b76;
+  --teal-700: #127683; --teal-cta: #15818e; --teal-600: #1A8E9B;
+  --teal-100: #d8f0f3; --teal-50: #f0fafb;
+  /* ── لون تنبيه واحد ────────────────────────────────────────────
+     كان في النظام سبع درجات لونية: أزرق مخضرّ وبرتقالي ذهبيّ وبرونز
+     وأخضر وأحمر وأزرق ورماديّ. والألوان الكثيرة تفقد معناها: حين يكون
+     كل شيء ملوّنًا لا يبرز شيء.
+     فصار: **هوية واحدة** (الأزرق المخضرّ) و**تنبيه واحد** (الصدئ)
+     و**محايد**. ولا ذهب ولا برونز ولا تدرّجات. */
+  --alert-700: #8f331f; --alert-600: #b4442e;
+
+  --ink: #0e2f35; --ink-mid: #3d5f66; --ink-soft: #4e6e74;
+  /* أخفتُ حبرٍ لا يزال مقروءًا: ٤٫٩٣ على الأبيض. النائب عن النصّ (placeholder)
+     كان #7f9ba1 وهو ٢٫٩٦ — دون حدّ النصّ العادي (٤٫٥)، وهو أوّل ما تقرأه
+     العين في حقلٍ فارغ. */
+  --ink-faint: #54767c;
+  --line: #c8dde1; --line-str: #a4c6cd;
+  --bg: #f4f9fa; --card: #ffffff;
+
+  /* الحالة الحسنة تتبع الهوية، والتنبيه والخطأ لونٌ واحد يفرّقهما نصّهما،
+     والمعلومة محايدة. أسماء الحالات باقية كما هي فلا يُعاد كتابة الملفّ.
+     ── ولا حشوةَ لحالة ────────────────────────────────────────────
+     كانت لكل حالة حشوةٌ (`--ok-bg` وأخواتها) تملأ صندوقها بلون. وحين
+     يكون كل شيء صندوقًا ملوّنًا لا يبرز شيء، ويُقرأ اللونُ زينةً لا
+     معنى. صار المعنى في **نصّ الحالة ولون نصّها وحدّها**، وحُذفت رموز
+     الحشوة كلّها لئلّا تعود بلا قصد. */
+  --ok-fg: var(--teal-800);   /* ٧٠٠ يعطي ٤٫٤٨ — تحت ٤٫٥ بقليل */
+  --warn-fg: var(--alert-700);
+  --bad-fg: var(--alert-700);
+  --info-fg: #4a6a70;
+  --mute-bg: #eef3f4;   /* لهيكل التحميل وحده — سطحٌ مؤقّت لا صندوق محتوى */
+  --mute-fg: #4a6a70;
+
+  /* زوايا ضيّقة وظلال قصيرة — التعريف من الحدود لا من الضباب */
+  /* ── الحواف ──────────────────────────────────────────────────
+     كانت اثنتا عشرة حافّة مثبَّتة (3px · 2px · 4px) خارج الرموز، و
+     `--radius-pill` اسمٌ يَعِد بكبسولة ويعطي ٦ بكسل — من قرأه في
+     `.btn` ظنّ الزرّ مستديرًا. الأسماء تصف ما تفعل. */
+  --radius-xs: 3px;   /* الشارات والنقاط */
+  --radius-sm: 6px;   /* الحقول والأزرار */
+  --radius: 8px;      /* البطاقات */
+  --radius-full: 50%; /* الدوائر */
+
+  /* ── عرض الحدود ──────────────────────────────────────────────
+     ‎var(--bw)‎ لا تقع على شبكة البكسل: يرسمها المتصفّح على شاشة ١× بكسلًا
+     ونصفًا فتخرج ضبابية. الحدود أعدادٌ صحيحة، والتمييز من اللون. */
+  --bw: 1px;          /* الحدّ العاديّ */
+  --bw-thick: 2px;    /* التمييز: رأس الجدول والحدّ الجانبيّ */
+  --bw-ring: 3px;     /* حلقة نقطة السجلّ وشريط التنبيه */
+  --bw-mark: 4px;     /* شريط العاجل الجانبيّ */
+
+  /* ── الأوزان ─────────────────────────────────────────────────
+     الخطّ متغيّر (100–900) فلا وزن مُصطنَع، لكنّ خمسة أوزان بلا نظام
+     تُستعمل كلٌّ في لحظتها. أربعة لكلٍّ عمل. */
+  /* **٧٠٠ سقفُ الوزن**. كان ‎--w-heavy: 800 على أرقام الإحصاءات ورمز الطلب
+     وشارتين وبادئة السؤال — وهو صياحٌ في لوحة عمل تُقرأ طول اليوم. أُزيل
+     الرمز نفسه لا قيمته وحدها، فلا يعود أحدٌ يكتبه. */
+  --w-normal: 400; --w-medium: 600; --w-bold: 700;
+  --shadow-xs: 0 1px 0 rgba(10,63,71,.04);
+  --shadow: 0 2px 4px rgba(10,63,71,.07), 0 6px 12px rgba(10,63,71,.07);
+  --shadow-lg: 0 3px 6px rgba(10,63,71,.09), 0 12px 24px rgba(10,63,71,.11);
+  --ring: 0 0 0 4px rgba(26,142,155,.16);
+
+  /* سلّم الحشو الداخلي — درجتان فقط */
+  --pad-sm: .85rem;   /* ١٣٫٦ بكسل — الصفوف المضغوطة */
+  --pad-md: 1.1rem;   /* ١٧٫٦ بكسل — البطاقات واللوحات */
+  --pad-lg: 1.5rem;   /* ٢٤ بكسل — النوافذ وشاشة الدخول */
+
+  /* ── مقياس التباعد ─────────────────────────────────────────────
+     كانت في الملفّ أكثر من عشرين قيمة تباعد: ‎.32‎ و‎.35‎ و‎.38‎ و‎.45‎
+     و‎.55‎ و‎.62‎ — أرقامٌ اختيرت كلٌّ في لحظتها، فلا إيقاع بينها. والتخطيط
+     يبدو مصنوعًا حين تجلس مسافاته على سلّم واحد. */
+  --s-0: .125rem;
+  --s-1: .25rem; --s-2: .5rem;  --s-3: .75rem; --s-4: 1rem;
+  --s-5: 1.5rem; --s-6: 2rem;   --s-7: 3rem;
+
+  /* ── المقياس الطباعي ────────────────────────────────────────────
+     كانت في الملفّ **تسعة وعشرون** حجمًا مختلفًا: ‎.84‎ و‎.85‎ و‎.86‎ و‎.87‎
+     و‎.88‎ لا تفرّقها عين، لكنها خمس قيم تتكاثر كلّما أضاف أحدهم قاعدة.
+     هذه سبع درجات لكل منها عمل معروف، والزيادة عليها تُناقَش لا تُكتب. */
+  --t-2xs:  .72rem;   /* الشارات داخل الحقول */
+  --t-xs:   .8rem;    /* بيانات ثانوية وتلميحات */
+  --t-sm:   .88rem;   /* التسميات والنصّ المساعد */
+  --t-base: .95rem;   /* النصّ الجاري */
+  --t-md:   1.05rem;  /* عناوين البطاقات والنوافذ */
+  --t-lg:   1.45rem;  /* عنوان الصفحة */
+  /* رقم الإحصاء **دون عنوان الصفحة**: كان ١٫٧rem (٢٧٫٢px) فوق ‎--t-lg
+     (٢٣٫٢px)، فالعدد يعلو العنوان الذي يؤطّره — وهو قلبٌ للهرم. */
+  --t-num:  1.34rem;  /* أرقام الإحصاءات */
+
+  /* ارتفاع السطر: العربية أكثف رسمًا من اللاتينية وتحتاج فسحةً فوقها،
+     فالأساس ١٫٨ لا ١٫٥ — والعناوين وحدها تُضيَّق. */
+  --lh-tight: 1.35;   /* العناوين والأرقام الكبيرة */
+  --lh-snug:  1.6;    /* الصفوف المضغوطة */
+  --lh-base:  1.8;    /* النصّ الجاري */
+
+  --font: "Alexandria", "Noto Kufi Arabic", system-ui, sans-serif;
+  --ease: cubic-bezier(.16, 1, .3, 1);
+  --topbar-h: 62px;
+  /* ارتفاع الشريط السفلي: ٤٤ هدفَ لمس + حشوته + حدّه. مكتوبٌ رمزًا لأن
+     حشوة الصفحة السفلية تُحسب منه، فلو انفصلا غطّى الشريطُ آخرَ الصفحة. */
+  --tabbar-h: 54px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* عناصر مثل .modal و .login تحدّد display، وهو يتغلّب على السمة hidden
+   فتبقى ظاهرة أو تحجب النقر — نثبّت الإخفاء هنا صراحةً */
+[hidden] { display: none !important; }
+
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; font-family: var(--font); font-size: var(--t-base); line-height: var(--lh-base);
+  color: var(--ink); background: var(--bg);
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+}
+/*
+ * `<small>` بلا قاعدة يأخذ من المتصفّح `0.8em`، وهي **تتضاعف** مع كل تداخل:
+ * `small` داخل خليّة عند ٠٫٨٨rem تُقاس ١١ بكسلًا على الجوال — أصغر من أصغر
+ * درجة في السلّم وأدقّ من أن تُقرأ. القياس بالـrem يقطع التضاعف من أصله.
+ */
+small { font-size: var(--t-xs); }
+/* العناوين ٧٠٠ لا ٨٠٠: عند ٨٠٠ تضيق عيون الحروف العربية — الفراغ داخل
+   «ل» و«ة» و«و» — فتثقُل الكلمة وتقلّ قراءتها. و٨٠٠ يبقى للأرقام الكبيرة
+   حيث يعوّض الحجمُ الضيق، وللشارات الصغيرة حيث يعين الثقلُ على التمييز. */
+h1, h2, h3 { margin: 0 0 .5em; line-height: var(--lh-tight); font-weight: var(--w-bold); letter-spacing: 0; }
+
+/* عناصر النماذج **لا ترث** ارتفاع السطر: المتصفّح يفرض عليها `normal` (نحو
+   ١٫٢)، وهو يكفي اللاتينية ويقصّ العربية. «لم يُسلَّم» فيها ضمّة فوق شدّة،
+   وعمودها يعلو السطر فيُقصّ رأسه في زرٍّ بلا ارتفاع سطر مصرَّح به. */
+button, input, select, textarea, optgroup { line-height: var(--lh-snug); }
+h1 { font-size: var(--t-lg); } h2 { font-size: var(--t-md); } h3 { font-size: var(--t-md); font-weight: var(--w-bold); }
+p { margin: 0 0 .8em; }
+a { color: var(--teal-700); text-decoration: none; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+code { font-size: .92em; padding: .1em .45em; border-radius: var(--radius-xs); border: var(--bw) solid var(--line); }
+:focus-visible { outline: 3px solid var(--teal-600); outline-offset: 2px; border-radius: var(--radius-xs); }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.num { font-variant-numeric: tabular-nums; }
+
+/* --------------------------------- أزرار -------------------------------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2);
+  font-family: var(--font); font-weight: var(--w-bold); font-size: var(--t-base); line-height: var(--lh-tight);
+  padding: var(--s-3) var(--s-5); border-radius: var(--radius-sm); border: var(--bw) solid transparent;
+  cursor: pointer; white-space: nowrap;
+  transition: transform .18s var(--ease), box-shadow .2s var(--ease),
+              background-color .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease);
+}
+.btn:hover:not(:disabled) { transform: translateY(-1px); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn--sm { padding: var(--s-2) var(--s-4); font-size: var(--t-sm); }
+.btn--lg { padding: var(--s-3) var(--s-5); font-size: var(--t-md); }
+.btn--block { width: 100%; }
+/* المتصفّح يلوّن الأزرار برماديّه (`buttonface`) ما لم نصرّح، فتبقى الأزرار
+   المسطّحة كتلًا رمادية بعد نزع حشوها. */
+.btn { background: var(--card); }
+.btn--primary { background: var(--teal-cta); color: #fff; }   /* صلب: بلا تدرّج ولا ظلّ */
+.btn--accent  { background: var(--teal-900); color: #fff; }   /* صلب: بلا تدرّج ولا ظلّ */
+.btn--ghost   { background: #fff; color: var(--teal-700); border-color: var(--teal-600); }
+.btn--ghost:hover { border-color: var(--teal-600); }
+.btn--quiet   { color: var(--ink-mid); border-color: var(--line-str); }
+.btn--danger  { color: var(--bad-fg); border-color: var(--alert-600); }
+.btn--danger:hover { border-color: var(--alert-700); color: var(--alert-700); }
+.btn-row { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+
+/* -------------------------------- الترويسة ------------------------------- */
+.topbar {
+  position: sticky; top: 0; z-index: 60;
+  background: var(--teal-900);
+  color: #eaf6f7; border-bottom: var(--bw) solid rgba(255,255,255,.16);
+}
+.topbar__inner {
+  display: flex; align-items: center; gap: var(--s-4); height: var(--topbar-h);
+  width: min(1240px, 100% - 2rem); margin-inline: auto;
+}
+/* الشعار رابطٌ إلى الرئيسية، وكان طوله طول الصورة وحدها: ٢٩px على الجوال،
+   دون أصغر هدف لمسٍ مريح (٤٤). يمتدّ الآن على ارتفاع الشريط كلّه — ٦٢px —
+   فيكبر الهدف ولا يتحرّك في الصورة شيء. */
+.topbar__brand { display: flex; align-items: center; align-self: stretch; }
+.topbar__brand img { height: 34px; width: auto; display: block; }
+.topbar__nav { display: flex; gap: var(--s-1); margin-inline-end: auto; }
+.topbar__nav a {
+  color: #bfe0e4; font-weight: var(--w-medium); font-size: var(--t-base); padding: var(--s-2) var(--s-3);
+  border-radius: var(--radius-sm); position: relative; transition: background .2s var(--ease), color .2s var(--ease);
+}
+.topbar__nav a:hover { background: rgba(255,255,255,.1); color: #fff; }
+.topbar__nav a.is-active { background: rgba(255,255,255,.16); color: #fff; font-weight: var(--w-bold); }
+.topbar__nav .pill {
+  display: inline-block; min-width: 20px; margin-inline-start: var(--s-1); padding: 0 var(--s-1);
+  background: var(--alert-600); color: #fff; border-radius: var(--radius-xs);
+  font-size: var(--t-2xs); font-weight: var(--w-bold); line-height: var(--lh-snug);
+}
+.topbar__side { display: flex; align-items: center; gap: var(--s-3); }
+.who { text-align: start; line-height: var(--lh-tight); }
+.who b { display: block; font-size: var(--t-base); color: #fff; font-weight: var(--w-bold); }
+.who span { font-size: var(--t-xs); color: #c3e0e4; }  /* كانت ٤٫٤١ تحت عتبة ٤٫٥ */
+.availability select {
+  font-family: var(--font); font-size: var(--t-xs); font-weight: var(--w-medium); color: #eaf6f7;
+  background: rgba(255,255,255,.12); border: var(--bw) solid rgba(255,255,255,.35);
+  border-radius: var(--radius-sm); padding: var(--s-1) var(--s-5) var(--s-1) var(--s-3); cursor: pointer;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #cfe7ea 50%), linear-gradient(135deg, #cfe7ea 50%, transparent 50%);
+  background-position: calc(0% + 12px) 55%, calc(0% + 17px) 55%;
+  background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+}
+.availability select option { color: #0e2f35; }
+
+/* شريط سفلي للجوال */
+.tabbar { display: none; }
+
+/* -------------------------------- الصفحة -------------------------------- */
+.page { width: min(1240px, 100% - 2rem); margin-inline: auto; padding: var(--s-5) 0 var(--s-7); }
+.page:focus { outline: none; }
+
+.page-head {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: var(--s-4); flex-wrap: wrap; margin-bottom: var(--s-4);
+}
+.page-head p { color: var(--ink-soft); font-size: var(--t-base); margin: 0; }
+.page-head h1 { margin: 0 0 .15em; }
+.page-head__side { display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap; }
+
+/* بطاقات الإحصاء */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(168px, 100%), 1fr)); gap: var(--s-3); margin-bottom: var(--s-5); }
+.stat {
+  background: var(--card); border: var(--bw) solid var(--line); border-radius: var(--radius);
+  padding: var(--pad-md);
+}
+/* أرقام جدوليّة: بلاطات الإحصاء تقف في شبكة، وعرض الرقم المتغيّر يزحزح كل
+   بلاطة عن جارتها فتبدو الأعمدة مائلة. */
+.stat b { display: block; font-size: var(--t-num); font-weight: var(--w-bold); line-height: var(--lh-tight); color: var(--teal-700); font-variant-numeric: tabular-nums; }
+.stat span { font-size: var(--t-sm); color: var(--ink-soft); }
+.stat--accent b { color: var(--teal-700); }
+/* بلا كتلة داكنة: الحدّ الأثخن يميّز البلاطة، والرقم يبقى مقروءًا على أبيض */
+.stat--dark { border-color: var(--teal-700); border-width: var(--bw-thick); }
+.stat--dark b { color: var(--teal-800); } .stat--dark span { color: var(--ink-mid); }
+/* بطاقة تحت التجربة تصير رابطًا للشاشة عندما يكون هناك قرار منتظَر */
+a.stat { text-decoration: none; }
+a.stat:hover { border-color: var(--teal-600); }
+.stat--warn { border-color: var(--alert-600); border-width: var(--bw-thick); }
+.stat--warn b { color: var(--warn-fg); } .stat--warn span { color: var(--warn-fg); }
+
+/* بطاقة عامة */
+.card {
+  background: var(--card); border: var(--bw) solid var(--line); border-radius: var(--radius);
+  margin-bottom: var(--s-4); overflow: hidden;
+}
+.card__head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-3);
+  padding: var(--pad-sm) var(--pad-md); border-bottom: var(--bw) solid var(--line);
+}
+.card__head h2 { margin: 0; font-size: var(--t-md); }
+.card__body { padding: var(--pad-md); }
+.card__body--flush { padding: 0; }
+
+/* أدوات التصفية */
+/* صفٌّ واحد يملأ العرض: البحث يتمدّد، والقوائم بقدرها، والرقائق في طرفه.
+   كانا صفّين ينتهي كلٌّ منهما في ثلث العرض ويبقى ثلثاه فراغًا. */
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-bottom: var(--s-4); }
+.filters input { flex: 1 1 16rem; }
+.toolbar__chips { margin-inline-start: auto; }
+.filters input, .filters select {
+  font-family: var(--font); font-size: var(--t-sm); color: var(--ink);
+  padding: var(--s-2) var(--s-3); border: var(--bw) solid var(--line-str); border-radius: var(--radius-sm); background: #fff;
+}
+.filters input { min-width: 14rem; }
+.filters input:focus, .filters select:focus { outline: none; border-color: var(--teal-600); box-shadow: var(--ring); }
+
+.chips { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.chip {
+  font-family: var(--font); font-size: var(--t-sm); font-weight: var(--w-medium); color: var(--ink-mid);
+  background: #fff; border: var(--bw) solid var(--line-str); border-radius: var(--radius-sm);
+  padding: var(--s-2) var(--s-4); cursor: pointer; transition: all .2s var(--ease);
+}
+.chip:hover { border-color: var(--teal-600); color: var(--teal-700); }
+/* الرقاقة المختارة بحدٍّ أثخن ولونٍ لا بحشوة صلبة */
+.chip.is-on { border-color: var(--teal-700); border-width: var(--bw-thick); color: var(--teal-800); font-weight: var(--w-bold); }
+/* `.78em` كانت تُخرج ١١ بكسلًا — والعدد هنا معلومة تُقرأ لا زخرفة */
+.chip .n { opacity: .75; font-size: var(--t-xs); margin-inline-start: var(--s-1); }
+
+/* --------------------------- قائمة الطلبات --------------------------- */
+/* الطلبات أعمدة تملأ العرض لا عمودًا واحدًا يمتدّ على ١٢٤٠ بكسل ومحتواه
+   محشور في يمينه. وعرض العمود على قدر ما تحمله البطاقة. */
+/* `min(…, 100%)` لا `26rem` وحدها: المدى الأدنى المطلق يمنع العمود من
+   الانكماش، فيخرج عن الشاشة الضيّقة بدل أن يملأها. */
+.orders { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fill, minmax(min(26rem, 100%), 1fr)); }
+.order {
+  display: block; background: var(--card); border: var(--bw) solid var(--line);
+  border-radius: var(--radius); padding: var(--pad-sm) var(--pad-md);
+  color: inherit; position: relative;
+  transition: transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s var(--ease);
+}
+/* البطاقة `<article>` والرابط على رمز الطلب وحده، ثمّ يُمدّ ليغطّيها.
+   كانت `<a>` تبتلع البطاقة كلّها، فلا يُنتقى نصّ ولا يُنسخ عنوانٌ منها —
+   والموظّف ينسخ العنوان ليرسله على واتساب. */
+.order:hover { border-color: var(--teal-600); }   /* الحدّ يكفي: بلا رفع ولا ظلّ */
+.order__code::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+/* بلا `position` على الرابط نفسه: الطبقة الممدودة تُقاس على أقرب سلفٍ
+   موضوع، فلو وُضع الرابط لامتدّت عليه هو لا على البطاقة. */
+.order__code { text-decoration: none; }
+/* ولا يُرفع شيء فوق الرابط الممدود: رفعتُ النصّ ليُنتقى فامتنع الضغط على
+   جسم البطاقة — والضغط عليها أكثر ما يُفعل بها. فالبطاقة كلّها رابط كما
+   كانت، وانتقاء العنوان يبقى في صفحة الطلب. */
+.order.is-urgent { border-inline-start: var(--bw-mark) solid var(--alert-600); }
+.order__top { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; margin-bottom: var(--s-1); }
+/* الوقت في طرف السطر العلوي: بيانٌ ثانويّ لا يزاحم البيانات في سطر واحد */
+.order__time { margin-inline-start: auto; font-size: var(--t-xs); color: var(--ink-soft); }
+.order__code { font-weight: var(--w-bold); color: var(--teal-700); font-size: var(--t-base); }
+.order__customer { font-weight: var(--w-bold); }
+.order__meta { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); color: var(--ink-soft); font-size: var(--t-sm); }
+.order__meta span { display: inline-flex; align-items: center; gap: var(--s-1); }
+.order__route { font-size: var(--t-sm); color: var(--ink-mid); margin-top: var(--s-1); }
+.order__route b { color: var(--ink); font-weight: var(--w-medium); }
+
+/* شارات */
+.badge {
+  display: inline-flex; align-items: center; gap: var(--s-1); font-size: var(--t-xs); font-weight: var(--w-bold);
+  padding: var(--s-0) var(--s-2); border-radius: var(--radius-xs); line-height: var(--lh-snug); white-space: nowrap;
+  border: var(--bw) solid currentColor;
+}
+/* بلا حشوة ملوّنة: الحدّ من `currentColor` واللونُ نصُّها، فتُقرأ الشارة
+   ولا تصير كتلةً ملوّنة تزاحم ما حولها. */
+.badge--new { color: var(--info-fg); }
+.badge--assigned, .badge--accepted { color: var(--mute-fg); }
+.badge--picked_up, .badge--on_the_way { color: var(--warn-fg); }
+.badge--delivered { color: var(--ok-fg); }
+.badge--failed, .badge--cancelled { color: var(--bad-fg); }
+.badge--returned { color: var(--mute-fg); }
+/* «عاجل» وحدها تُميَّز بثِخَن حدّها لا بحشوة: هي التي تُبحث عنها في القائمة */
+.badge--urgent { color: var(--alert-700); border-width: var(--bw-thick); }
+.badge--transfer { color: var(--mute-fg); }
+/* طلبٌ من بوّابة الموقع: لم تمرّ عليه عينُ موظّف بعد، فيُنادى عليه كالعاجل */
+.badge--public { color: var(--teal-800); border-width: var(--bw-thick); }
+.badge--available { color: var(--ok-fg); }
+.badge--busy { color: var(--warn-fg); }
+.badge--offline { color: var(--mute-fg); }
+.badge--pending { color: var(--warn-fg); }
+.badge--rejected { color: var(--bad-fg); }
+
+/* حالات اعتماد الحساب — أربع درجات متمايزة بلا اعتماد على اللون وحده:
+   النص نفسه يحمل المعنى، واللون يسرّع التمييز فقط. */
+.badge--ap-approved   { color: var(--ok-fg); }
+.badge--ap-under_test { color: var(--warn-fg); }
+.badge--ap-rejected   { color: var(--mute-fg); }
+.badge--ap-blocked    { color: var(--bad-fg); border-width: var(--bw-thick); }
+
+/* ---------------------- مجموعات الصلاحيات ---------------------- */
+
+.groups { display: grid; gap: var(--s-2); }
+.group {
+  border: var(--bw) solid var(--line); border-radius: var(--radius);
+  padding: var(--s-3) var(--pad-sm);
+}
+.group__top { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+.group__top b { font-size: var(--t-base); }
+.group__acts { display: flex; gap: var(--s-2); margin-inline-start: auto; }
+.group__perms { display: flex; flex-wrap: wrap; gap: var(--s-1); margin: var(--s-2) 0 0; }
+
+/* ------------------- أسئلة الوكيل وأجوبتها ------------------- */
+
+/* مدخلة معطّلة: تبقى مقروءة ولا تُطمس. الطمس يجعلها تبدو عطبًا في الشاشة
+   لا اختيارًا، والحدّ المتقطّع يقول «موجودة ولا تعمل» بلا خفض تباين. */
+.group--off { border-style: dashed; }
+.group--off .faq-answer { color: var(--ink-soft); }
+
+.faq-answer { margin: var(--s-2) 0 0; font-size: var(--t-sm); line-height: var(--lh-base); color: var(--ink-mid); }
+
+/* تنبيه لا خطأ: أنت على وشك أن تقول رقمًا للزبون */
+.badge--warn { color: var(--warn-fg); border-width: var(--bw-thick); }
+.form-msg.is-warn { color: var(--warn-fg); }
+
+/* مجرِّب السؤال: ما سيقوله الوكيل، معروضًا كما سيُقال */
+.faq-try { margin-top: var(--s-3); }
+.faq-try__hit { margin: 0 0 var(--s-2); font-size: var(--t-sm); color: var(--ink-mid); }
+.faq-try__miss { margin: 0 0 var(--s-2); font-size: var(--t-sm); color: var(--warn-fg); font-weight: var(--w-medium); }
+.faq-try__say {
+  margin: 0 0 var(--s-2); padding: var(--s-3) var(--pad-sm);
+  border-inline-start: var(--bw-thick) solid var(--teal-700);
+  background: var(--bg); border-radius: var(--radius-xs);
+  font-size: var(--t-sm); line-height: var(--lh-base); color: var(--ink);
+}
+
+.faq-misses { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.faq-misses li {
+  display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap;
+  padding: var(--s-2) var(--s-3); border: var(--bw) solid var(--line); border-radius: var(--radius-xs);
+}
+.faq-misses__t { flex: 1 1 12rem; font-size: var(--t-sm); color: var(--ink); }
+
+.perms { display: grid; gap: var(--s-1); margin-bottom: var(--s-3); }
+.perm {
+  display: flex; align-items: flex-start; gap: var(--s-3);
+  padding: var(--s-2) var(--s-3); border: var(--bw) solid var(--line);
+  border-radius: var(--radius-sm); cursor: pointer;
+}
+.perm:hover { border-color: var(--teal-600); }
+.perm input { margin-block-start: .25em; flex: none; }
+.perm span b { display: block; font-size: var(--t-base); font-weight: var(--w-medium); }
+.perm span small { display: block; color: var(--ink-soft); line-height: var(--lh-snug); }
+/* ما لا يملكه المحرّر يُعطَّل ولا يُخفى: إخفاؤه يُوهم أن الصلاحية غير
+   موجودة، وإظهاره معطّلًا يقول «موجودة ولا تملكها» — وهو الصدق. */
+.perm--locked { cursor: not-allowed; opacity: .68; }
+.perm--locked:hover { border-color: var(--line); }
+.perm__no {
+  margin-inline-start: auto; align-self: center; white-space: nowrap;
+  font-size: var(--t-2xs); font-weight: var(--w-bold); color: var(--warn-fg);
+  border: var(--bw) solid currentColor; border-radius: var(--radius-xs); padding: 0 var(--s-1);
+}
+
+/* ---------------------- اعتماد المندوبين ---------------------- */
+
+/* الحسابات الممنوعة تُخفَّف بصريًا، ما عدا الاسم وحالة الاعتماد */
+.row--muted td { opacity: .62; }
+.row--muted td:first-child, .row--muted td:nth-child(2) { opacity: 1; }
+.row__note { display: block; font-size: var(--t-xs); font-weight: var(--w-medium); color: var(--ink-soft); line-height: var(--lh-snug); margin-top: var(--s-0); }
+.row__actions { display: flex; align-items: center; gap: var(--s-1); white-space: nowrap; }
+.td-empty { text-align: center; color: var(--ink-soft); padding-block: var(--s-5); }
+.muted { color: var(--ink-soft); }
+
+.notice {
+  border: var(--bw) solid var(--line); border-inline-start: var(--bw-ring) solid var(--teal-600);
+  border-radius: var(--radius-sm);
+  padding: var(--s-3) var(--s-4); margin-bottom: var(--s-4); font-size: var(--t-base); line-height: var(--lh-base);
+}
+/* الشريط الجانبيّ وحده يفرّق التنبيه عن الخبر — لا لونَ يملأ الصندوق */
+.notice--warn { border-inline-start-color: var(--alert-600); color: var(--warn-fg); }
+
+.hint {
+  font-size: var(--t-sm); color: var(--ink-soft); line-height: var(--lh-base);
+  border: var(--bw) solid var(--line);
+  border-radius: var(--radius-sm); padding: var(--s-2) var(--s-3); margin: var(--s-1) 0 var(--s-4);
+}
+
+.approval { display: flex; flex-direction: column; gap: var(--s-4); }
+.approval__now { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.approval__now > span:first-child { color: var(--ink-soft); font-size: var(--t-sm); }
+.approval__note {
+  flex-basis: 100%; margin: var(--s-0) 0 0; font-size: var(--t-sm); line-height: var(--lh-base);
+  color: var(--ink-mid); border-inline-start: var(--bw-thick) solid var(--line-str); padding-inline-start: var(--s-3);
+}
+.approval__load { margin: 0; font-size: var(--t-base); line-height: var(--lh-base); }
+.approval__hint { margin: 0; font-size: var(--t-sm); color: var(--ink-soft); }
+.approval__h { margin: var(--s-1) 0 0; font-size: var(--t-base); }
+.approval__log { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--s-2); }
+.approval__log li {
+  font-size: var(--t-sm); line-height: var(--lh-base);
+  border-inline-start: var(--bw-thick) solid var(--line-str); padding-inline-start: var(--s-3);
+}
+
+/* ----------------------- الإعدادات: العمولة ----------------------- */
+
+.grid-2 { display: grid; grid-template-columns: 1.35fr 1fr; gap: var(--s-4); align-items: start; }
+
+/* أثر العمولة على رسوم نموذجية — يتحدّث مع الكتابة قبل الحفظ */
+.calc {
+  border: var(--bw) solid var(--line); border-radius: var(--radius-sm);
+  padding: var(--s-3) var(--s-4); margin: var(--s-1) 0 var(--s-4);
+}
+.calc__t { display: block; font-size: var(--t-xs); color: var(--ink-soft); margin-bottom: var(--s-2); }
+.calc__row {
+  display: flex; justify-content: space-between; gap: var(--s-4);
+  font-size: var(--t-base); line-height: var(--lh-base);
+}
+.calc__row + .calc__row { border-top: var(--bw) dashed var(--line-str); }
+.calc__row b { font-variant-numeric: tabular-nums; color: var(--teal-700); }
+
+/* ------------------- الملاحظات الصوتية ورابط المهمّة ------------------- */
+
+.voice-list { display: flex; flex-direction: column; gap: var(--s-3); margin: 0; padding: 0; list-style: none; }
+.voice-list li { display: flex; flex-direction: column; gap: var(--s-1); }
+.voice-list audio { width: 100%; height: 38px; }
+.voice-list .muted { font-size: var(--t-xs); }
+
+.lk-meta { font-size: var(--t-xs); margin: var(--s-3) 0 0; }
+
+@media (max-width: 860px) {
+  .grid-2 { grid-template-columns: 1fr; }
+}
+
+/* -------------------------- تفاصيل الطلب -------------------------- */
+.detail { display: grid; grid-template-columns: 1.5fr 1fr; gap: var(--s-4); align-items: start; }
+/* السجلّ جدولٌ عريض لا عمود: يمتدّ على العرض كلّه بدل أن يجلس في نصفه
+   ويترك حفرةً إلى جانبه. */
+.detail__full { grid-column: 1 / -1; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: var(--s-2) var(--s-4); }
+/* على الشاشة العريضة زوجان في السطر بدل زوج: اثنا عشر بندًا تنزل عمودًا
+   واحدًا طوله نصف الشاشة وإلى جانب كل قيمة فراغ. */
+@media (min-width: 900px) {
+  .kv { grid-template-columns: max-content 1fr max-content 1fr; column-gap: var(--s-5); }
+}
+.kv dt { color: var(--ink-soft); font-size: var(--t-sm); }
+.kv dd { margin: 0; font-weight: var(--w-medium); font-size: var(--t-base); user-select: text; }
+
+.timeline { position: relative; padding-inline-start: var(--s-5); }
+.timeline::before {
+  content: ""; position: absolute; inset-inline-start: 6px; inset-block: 10px 12px;
+  width: 2px; background: var(--line-str);
+}
+.tl { position: relative; padding-bottom: var(--s-4); }
+.tl__dot {
+  position: absolute; inset-inline-start: -1.6rem; inset-block-start: .45rem;
+  width: 13px; height: 13px; border-radius: var(--radius-xs); background: #fff; border: var(--bw-ring) solid var(--teal-600);
+}
+.tl--transfer .tl__dot { border-color: var(--teal-600); }
+.tl--bad .tl__dot { border-color: #d8462f; }
+.tl b { display: block; font-size: var(--t-base); font-weight: var(--w-bold); }
+.tl span { font-size: var(--t-xs); color: var(--ink-soft); }
+.tl em { display: block; font-style: normal; font-size: var(--t-sm); color: var(--ink-mid); margin-top: var(--s-0); }
+
+/* لوحة التحويل */
+.transfer-note {
+  border: var(--bw) solid var(--line-str); border-radius: var(--radius-sm);
+  padding: var(--pad-sm) var(--pad-md); margin-bottom: var(--s-4);
+}
+/* حالتا لوحة الموقع: الحدّ يفرّقهما لا الحشوة. وكان لونها الأخضر مكتوبًا
+   في نمطٍ سطريّ داخل app.js، فلا يراه حارسُ الألوان — وهو يقرأ app.css. */
+.transfer-note--live { border-color: var(--teal-600); border-width: var(--bw-thick); }
+.transfer-note--off  { border-color: var(--line-str); }
+.transfer-note b { color: var(--teal-800); }
+.transfer-note p { margin: var(--s-1) 0 var(--s-2); font-size: var(--t-sm); color: var(--ink-mid); }
+
+/* جدول المندوبين */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: var(--t-base); }
+th, td { padding: var(--s-3) var(--pad-sm); text-align: start; border-bottom: var(--bw) solid var(--line); }
+td + td, th + th { border-inline-start: var(--bw) solid var(--line); }
+th { font-weight: var(--w-bold); font-size: var(--t-sm); color: var(--ink-soft); white-space: nowrap; border-bottom: var(--bw-thick) solid var(--line-str); }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover { background: var(--bg); }   /* أفتح لمسة من الخلفية لا لونًا */
+
+/*
+ * على الجوال يصير الجدول بطاقات. عشرة أعمدة على شاشة ٣٩٠ تحتاج ١١٥٣ بكسلًا
+ * من التمرير الجانبيّ، فكان يظهر منها ثلاثة أعمدة، و**زرّا الاعتماد والتعديل
+ * خارج الشاشة تمامًا**: لا يستطيع المدير اعتماد كابتن من هاتفه. كل صفّ الآن
+ * بطاقة، وكل خليّة سطرٌ فيه اسمُ عموده من `data-label`.
+ */
+/* العتبة ١١٨٤ لا ٨٦٠: أدنى عرض يحتاجه الجدول ١١٥٣ بكسلًا، والحاوية
+   `min(1240, 100% - 2rem)`، فلا يسع الجدولُ نفسَه دون شاشة ١١٨٥. وبين ٨٦١
+   و١١٨٤ كان يبقى جدولًا وزرّاه خارج الشاشة — قِيس: `visible: false`. */
+@media (max-width: 1184px) {
+  .table-wrap { overflow-x: visible; }
+  .table-wrap table, .table-wrap tbody, .table-wrap tr, .table-wrap td { display: block; }
+  /* إخفاءٌ كامل لا إخفاءٌ للقارئ وحده: `clip-path` يمنع الرسم ولا يمنع
+     التخطيط، فتبقى خلايا الرأس ممتدّة ٤٣٨ بكسلًا خارج الشاشة. واسم كل
+     عمود لم يضع — هو مكتوب أمام قيمته في البطاقة. */
+  .table-wrap thead { display: none; }
+
+  .table-wrap tr {
+    border: var(--bw) solid var(--line); border-radius: var(--radius);
+    padding: var(--s-3) var(--pad-sm); margin-bottom: var(--s-3); background: var(--card);
+  }
+  .table-wrap tr:last-child { margin-bottom: 0; }
+  .table-wrap tbody tr:hover { background: var(--card); }
+
+  /* صفٌّ مرن لا شبكة: الخليّة قد تحمل أكثر من عقدة («١» و«‏/ ٣»)، وفي
+     الشبكة يصير كلٌّ منها خليّةً فينزل الثاني سطرًا تحت الأول. */
+  .table-wrap td {
+    display: flex; align-items: baseline; gap: var(--s-1) var(--s-3);
+    padding: var(--s-1) 0; border: 0;
+  }
+  .table-wrap td + td { border-inline-start: 0; }
+  .table-wrap td::before {
+    content: attr(data-label); flex: 0 0 7.5rem;
+    color: var(--ink-soft); font-size: var(--t-xs); font-weight: var(--w-medium);
+  }
+  /* الاسم عنوان البطاقة لا سطرًا من سطورها */
+  .table-wrap td.cell--head {
+    display: block; padding-bottom: var(--s-2); margin-bottom: var(--s-2);
+    border-bottom: var(--bw) solid var(--line);
+  }
+  .table-wrap td.cell--head::before { display: none; }
+  .table-wrap td.cell--head b { font-size: var(--t-md); }
+  /* الرقم بمحاذاة القيم لا بمحاذاة النهاية كما في الجدول */
+  .table-wrap td.num { text-align: start; }
+  .table-wrap td.row__actions {
+    display: flex; gap: var(--s-2); padding-top: var(--s-3);
+    margin-top: var(--s-2); border-top: var(--bw) solid var(--line);
+  }
+  .table-wrap td.row__actions::before { display: none; }
+  .table-wrap td.row__actions .btn { flex: 1; }
+  .table-wrap td.td-empty { display: block; text-align: center; }
+  .table-wrap td.td-empty::before { display: none; }
+}
+
+/* نماذج */
+.field { display: flex; flex-direction: column; gap: var(--s-1); margin-bottom: var(--s-3); }
+.field > span { font-size: var(--t-sm); font-weight: var(--w-medium); }
+.field input, .field select, .field textarea {
+  font-family: var(--font); font-size: var(--t-base); color: var(--ink); line-height: var(--lh-base);
+  padding: var(--s-2) var(--s-4); border: var(--bw) solid var(--line-str); border-radius: var(--radius-sm);
+  background: #fff; width: 100%;
+  transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
+}
+.field textarea { resize: vertical; min-height: 76px; }
+.field ::placeholder { color: var(--ink-faint); }
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline: none; border-color: var(--teal-600); box-shadow: var(--ring);
+}
+.field small { color: var(--ink-soft); font-size: var(--t-xs); }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--s-4); }
+.form-grid .field--full { grid-column: 1 / -1; }
+
+.form-msg { margin: var(--s-2) 0 0; font-size: var(--t-sm); font-weight: var(--w-medium); min-height: 1.2em; }
+.form-msg.is-bad { color: #a3311f; }
+.form-msg.is-ok { color: var(--teal-700); }
+
+/* حالات فارغة وتحميل */
+.empty { text-align: center; padding: var(--s-7) var(--s-4); color: var(--ink-soft); }
+.empty img { width: 62px; height: auto; opacity: .55; margin-bottom: var(--s-2); }
+.empty b { display: block; color: var(--ink); font-size: var(--t-md); margin-bottom: var(--s-1); }
+.skeleton { display: grid; gap: var(--s-3); }
+.skeleton div {
+  height: 86px; border-radius: var(--radius);
+  background: linear-gradient(100deg, var(--mute-bg) 30%, #f8fbfb 50%, var(--mute-bg) 70%);
+  background-size: 200% 100%; animation: shimmer 1.3s linear infinite;
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+/* -------------------------------- الدخول -------------------------------- */
+.login {
+  /* `dvh` قبل سفاري ١٥٫٤ تُسقَط القاعدةُ كلّها معها، فيبقى المدخل بلا
+     ارتفاع أدنى. `vh` قبلها تُبقي سلوكًا معقولًا على القديم. */
+  min-height: 100vh; min-height: 100dvh;
+  display: grid; place-items: center; padding: var(--s-5);
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(34,167,180,.3), transparent 55%),
+    var(--teal-900);
+}
+.login__card {
+  width: min(410px, 100%); background: #fff; border-radius: var(--radius);
+  border: var(--bw) solid var(--line-str);
+  padding: var(--pad-lg); box-shadow: var(--shadow-lg); text-align: center;
+}
+.login__logo { height: 54px; width: auto; margin-bottom: var(--s-4); }
+.login__card h1 { font-size: var(--t-md); margin-bottom: .2em; }
+.login__sub { color: var(--ink-soft); font-size: var(--t-sm); margin-bottom: var(--s-5); }
+.login__card .field { text-align: start; }
+
+/* ------------------------------ نافذة منبثقة ------------------------------ */
+/* `<dialog>` تأتي بتنسيق افتراضي (حدّ وحشو وعرض محدود) فيُصفَّر، والظهر
+   يُرسم بـ::backdrop لا بعنصرٍ نضعه نحن. */
+.modal {
+  position: fixed; inset: 0; z-index: 200; display: grid; place-items: center;
+  padding: var(--s-4); max-width: 100%; max-height: 100%; width: 100%; height: 100%;
+  border: 0; background: transparent; overflow: auto;
+}
+.modal:not([open]) { display: none; }
+.modal::backdrop { background: rgba(6,40,46,.62); }
+/* الاحتياط لما قبل سفاري ١٥٫٤: لا `::backdrop` بلا `<dialog>` أصيلة، فنرسم
+   الظهر على النافذة نفسها ونمنع تمرير ما خلفها. */
+body.is-modal { overflow: hidden; }
+body.is-modal .modal { background: rgba(6,40,46,.62); }
+.modal__card {
+  position: relative; width: min(520px, 100%); overflow: auto;
+  max-height: 88vh; max-height: 88dvh;
+  background: #fff; border-radius: var(--radius); border: var(--bw) solid var(--line-str);
+  box-shadow: var(--shadow-lg);
+  animation: pop .22s var(--ease);
+}
+@keyframes pop { from { opacity: 0; transform: translateY(12px) scale(.98); } }
+.modal__head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-4);
+  padding: var(--pad-md) var(--pad-lg); border-bottom: var(--bw) solid var(--line); position: sticky; top: 0; background: #fff;
+}
+.modal__head h2 { margin: 0; font-size: var(--t-md); }
+.modal__x {
+  background: var(--card); border: var(--bw) solid var(--line-str); width: 32px; height: 32px;
+  border-radius: var(--radius-sm);
+  cursor: pointer; color: var(--ink-mid); font-size: var(--t-base); line-height: var(--lh-tight);
+  /* المحتوى صار أيقونة متجهة، فتُوسَّط بالتخطيط لا بارتفاع السطر */
+  display: grid; place-items: center;
+}
+.modal__x:hover { border-color: var(--teal-600); color: var(--teal-700); }
+.modal__body { padding: var(--pad-lg); }
+
+/* -------------------------------- تنبيهات -------------------------------- */
+.toasts {
+  position: fixed; inset-block-end: 1rem; inset-inline-start: 1rem; z-index: 300;
+  display: flex; flex-direction: column; gap: var(--s-2); pointer-events: none;
+}
+.toast {
+  background: var(--teal-950); color: #eaf6f7; padding: var(--s-3) var(--s-4);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); font-size: var(--t-sm); font-weight: var(--w-medium);
+  animation: slide .25s var(--ease); max-width: 340px;
+}
+.toast--bad { background: #7a2418; }
+.toast--ok { background: var(--teal-800); }
+@keyframes slide { from { opacity: 0; transform: translateY(10px); } }
+
+/* ------------------------------- الاستجابة ------------------------------- */
+@media (max-width: 900px) {
+  .detail { grid-template-columns: 1fr; }
+  .form-grid { grid-template-columns: 1fr; }
+
+  /* الشريط العلوي يحمل الشعار والتنقّل والاسم وزرّ الخروج، ومجموعها يتجاوز
+     العرض قبل ٩٠٠ بكسل بكثير — فكان الاسم وزرّ الخروج يخرجان من الشاشة بين
+     ٧٢٠ و٩٠٠. التنقّل ينتقل إلى الشريط السفلي هنا لا عند ٧٢٠. */
+  .topbar__nav { display: none; }
+  /*
+   * الشريط السفلي **ثابت**، فما لم تُفسح له الصفحةُ مكانًا غطّى آخرها.
+   * وارتفاعه على آيفون ذي شقّ = ٥٤ + مسافة أمان الأسفل (نحو ٣٤ بكسلًا
+   * لمؤشّر الرجوع). كانت الحشوة ٤٨ ثابتة لا تعرف المسافة، فيقع آخرُ زرّ
+   * في الصفحة تحت الشريط على كل آيفون من ١٠ فما فوق.
+   */
+  .page { padding-bottom: calc(var(--s-5) + var(--tabbar-h) + env(safe-area-inset-bottom, 0px)); }
+  .toasts { inset-block-end: 4.6rem; }
+  .tabbar {
+    display: flex; position: fixed; inset-block-end: 0; inset-inline: 0; z-index: 70;
+    background: #fff; border-top: var(--bw) solid var(--line-str);
+    padding: var(--s-1) var(--s-1) calc(var(--s-1) + env(safe-area-inset-bottom));
+    box-shadow: 0 -4px 18px rgba(10,63,71,.08);
+  }
+  /* `nowrap` وحدٌ أدنى صفر: اسم الوجهة إمّا يظهر كاملًا أو لا معنى له.
+     التفافه على سطرين يرفع الشريط ويخلط الأسماء ببعضها. */
+  .tabbar a {
+    /* الأساس `auto` لا `0`: التوزيع بالتساوي يعطي كل وجهة ٥٢ بكسلًا، وأطولها
+       «المندوبون» تحتاج ٥٨ فتُقصّ. بالأساس الطبيعي تأخذ كلٌّ قدرها ثم يُوزَّع
+       الفائض. */
+    flex: 1 1 auto; min-width: 0; white-space: nowrap;
+    text-align: center; padding: var(--s-2) var(--s-0); border-radius: var(--radius-sm);
+    font-size: var(--t-2xs); font-weight: var(--w-medium); color: var(--ink-soft); position: relative;
+  }
+  /* الوجهة الحالية بخطّ تحتها لا بحشوة: الحشوة تصنع كتلة في شريط مسطّح */
+  .tabbar a.is-active { color: var(--teal-700); font-weight: var(--w-bold); box-shadow: inset 0 var(--bw-ring) 0 var(--teal-700); }
+  .tabbar .pill {
+    position: absolute; inset-block-start: .1rem; inset-inline-end: 18%;
+    min-width: 17px; padding: 0 var(--s-1); background: var(--alert-600); color: #fff;
+    border-radius: var(--radius-xs); font-size: var(--t-2xs); font-weight: var(--w-bold); line-height: var(--lh-snug);
+  }
+}
+
+@media (max-width: 720px) {
+  /* لا تصغير للنصّ على الجوال: كان `14.5px` يصغّر ما لا حجم له وحده، فيقع
+     نصٌّ بلا قاعدة إلى جانب نصٍّ عليه رمز من السلّم بحجم مختلف بلا سبب. */
+  .topbar__inner { width: calc(100% - 1.4rem); gap: var(--s-2); }
+  /* الاسم كان يلتفّ على سطرين فيتجاوز ارتفاع الشريط الثابت */
+  .who span { display: none; }
+  .who b { font-size: var(--t-xs); white-space: nowrap; max-width: 112px; overflow: hidden; text-overflow: ellipsis; }
+  .topbar__brand img { height: 29px; }
+  .availability select { max-width: 92px; padding-inline: var(--s-5) var(--s-2); font-size: var(--t-xs); }
+  #logoutBtn { padding: var(--s-2) var(--s-3); font-size: var(--t-xs); }
+  .page { width: calc(100% - 1.4rem); }
+  .toasts { inset-inline: .8rem; }
+
+  .filters input { min-width: 0; flex: 1; }
+  .toast { max-width: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
+
+/* ------------------------- تتبّع الموقع ------------------------- */
+
+/* شريط دائم يذكّر المندوب أن موقعه يُشارَك الآن */
+.geo-bar {
+  display: flex; align-items: center; gap: var(--s-3);
+  color: var(--ok-fg); background: var(--card);
+  border-bottom: var(--bw-thick) solid var(--teal-600);
+  padding: var(--s-2) max(var(--s-4), calc((100% - 1240px) / 2));
+  font-size: var(--t-sm); font-weight: var(--w-medium);
+}
+.geo-bar--off { color: var(--warn-fg); border-bottom-color: var(--alert-600); }
+.geo-bar__dot {
+  width: 9px; height: 9px; border-radius: var(--radius-full); background: currentColor;
+  box-shadow: 0 0 0 0 currentColor; animation: geoPulse 2s ease-out infinite;
+}
+@keyframes geoPulse { 0% { box-shadow: 0 0 0 0 rgba(18,118,131,.5); } 100% { box-shadow: 0 0 0 9px rgba(18,118,131,0); } }
+.geo-bar .btn { margin-inline-start: auto; }
+
+/* بطاقة الموافقة */
+.consent { border: var(--bw) solid var(--line-str); border-radius: var(--radius); overflow: hidden; }
+.consent__head {
+  background: var(--teal-900);
+  color: #eaf6f7; padding: var(--pad-md);
+}
+.consent__head h2 { color: #fff; margin: 0 0 .2em; }
+.consent__head p { color: #b6dde2; margin: 0; font-size: var(--t-base); }
+.consent__body { padding: var(--pad-md); background: var(--card); }
+.consent__list { display: grid; gap: var(--s-2); margin-bottom: var(--s-4); }
+.consent__list li {
+  position: relative; padding-inline-start: var(--s-5); font-size: var(--t-base); color: var(--ink-mid);
+  line-height: var(--lh-base);
+}
+.consent__list li::before {
+  content: ""; position: absolute; inset-inline-start: 0;
+  inset-block-start: calc((1.8em - 14px) / 2);
+  width: 14px; height: 14px; border-radius: var(--radius-xs);
+  border: var(--bw) solid var(--teal-600);
+}
+.consent__list li::after {
+  content: ""; position: absolute; inset-inline-start: 4px;
+  inset-block-start: calc((1.8em - 14px) / 2 + 4.6px);
+  width: 6px; height: 3.4px;
+  border-left: var(--bw-thick) solid var(--teal-700); border-bottom: var(--bw-thick) solid var(--teal-700);
+  transform: rotate(-45deg);
+}
+.consent__note {
+  border: var(--bw) solid var(--line); border-inline-start: var(--bw-ring) solid var(--teal-600);
+  padding: var(--s-3) var(--pad-sm); border-radius: var(--radius-sm);
+  font-size: var(--t-sm); color: var(--ink-mid); margin-bottom: var(--s-4);
+}
+
+/* لوحة المواقع المباشرة */
+.live {
+  display: grid; gap: var(--s-4); align-items: start;
+  grid-template-columns: minmax(min(24rem, 100%), 1.1fr) minmax(min(22rem, 100%), 1fr);
+}
+/* المخطّط يثبت بينما تُقرأ القائمة الطويلة: نصفا اللوحة لا يفيدان إلا معًا */
+.live__map-col { position: sticky; top: calc(var(--topbar-h) + var(--s-4)); display: grid; gap: var(--s-2); }
+.map {
+  position: relative; background:
+    linear-gradient(#eaf4f5 1px, transparent 1px) 0 0 / 100% 12.5%,
+    linear-gradient(90deg, #eaf4f5 1px, transparent 1px) 0 0 / 12.5% 100%,
+    var(--card);
+  border: var(--bw) solid var(--line-str); border-radius: var(--radius);
+  /* النسبة تأتي محسوبة من حدود الكويت في app.js — وهذه احتياط لو غابت */
+  aspect-ratio: 1 / 1; overflow: hidden;
+}
+
+/* النقطة على موضعها الحقيقي دائمًا، والاسم وحده هو ما يُزاح عند التزاحم */
+.pin {
+  position: absolute; width: 0; height: 0; padding: 0; border: 0; background: none;
+  cursor: pointer; z-index: 1;
+}
+/* قرص مصمت بطوق أبيض حوله: يُقرأ نقطةَ موقع، لا زرَّ اختيار كالحلقة المفرغة */
+.pin__dot {
+  position: absolute; inset-inline-start: -5px; top: -5px;
+  width: 10px; height: 10px; border-radius: var(--radius-full);
+  background: var(--teal-700); box-shadow: 0 0 0 var(--bw-thick) #fff;
+}
+.pin--stale .pin__dot { background: var(--mute-fg); }
+/* حلقة عدم اليقين: نصف قطرها هو دقّة القراءة الحقيقية على مقياس المخطّط.
+   قراءةٌ دقّتها ثلاثة كيلومترات تظهر حلقةً بثلاثة كيلومترات — لا نقطةً
+   كنقطة GPS بخمسة أمتار. */
+.pin__halo {
+  position: absolute; inset-inline-start: calc(var(--r) / -2); top: calc(var(--r) / -2);
+  width: var(--r); height: var(--r);
+  border-radius: var(--radius-full);
+  border: var(--bw) dashed var(--alert-600);
+  pointer-events: none;
+}
+.pin--coarse .pin__dot { background: var(--alert-600); }
+.pin__tag {
+  position: absolute; white-space: nowrap;
+  background: var(--teal-800); color: #fff; font-size: var(--t-2xs); font-weight: var(--w-bold);
+  padding: var(--s-0) var(--s-2); border-radius: var(--radius-xs);
+}
+.pin[data-side="up"]    .pin__tag { inset-block-end: 10px; inset-inline-start: 50%; transform: translateX(50%); }
+.pin[data-side="down"]  .pin__tag { top: 10px;             inset-inline-start: 50%; transform: translateX(50%); }
+.pin[data-side="start"] .pin__tag { inset-inline-start: 12px; top: 50%; transform: translateY(-50%); }
+.pin[data-side="end"]   .pin__tag { inset-inline-end: 12px;   top: 50%; transform: translateY(-50%); }
+.pin--crowded .pin__tag, .pin--clustered .pin__tag { display: none; }
+.pin--clustered .pin__dot { opacity: 0; }
+.pin:hover, .pin:focus-visible, .pin.is-lit { z-index: 3; }
+.pin:hover .pin__tag, .pin:focus-visible .pin__tag, .pin.is-lit .pin__tag { display: block; }
+.pin.is-lit .pin__dot { opacity: 1; transform: scale(1.6); }
+
+/* دائرة التجمّع: عددها هو المعلومة، فلا يُفرَد على المخطّط لئلّا تُنقل
+   النقاط عن مواضعها — يُضيء بدلها أسطر من فيه في القائمة. */
+.cluster {
+  position: absolute; transform: translate(50%, -50%); z-index: 2;
+  min-width: 26px; height: 26px; padding: 0 var(--s-1);
+  display: grid; place-items: center; cursor: pointer;
+  background: var(--teal-700); color: #fff;
+  font-size: var(--t-2xs); font-weight: var(--w-bold); font-variant-numeric: tabular-nums;
+  border: var(--bw-thick) solid #fff; border-radius: var(--radius-full);
+}
+.cluster--stale { background: var(--mute-fg); }
+.cluster:hover, .cluster:focus-visible, .cluster.is-lit { background: var(--teal-900); }
+/* المسار: خطّ رفيع يصل نقاط آخر ساعة. `vector-effect` يبقي سُمكه ثابتًا
+   مهما تمدّد الـviewBox — بدونه ينسحق السطر في اتجاه التمدّد. */
+.trail {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 0;
+}
+.trail path {
+  fill: none; stroke: var(--teal-600); stroke-width: 2;
+  stroke-linejoin: round; stroke-linecap: round;
+  vector-effect: non-scaling-stroke; opacity: .85;
+}
+.map__scale {
+  position: absolute; inset-block-end: .5rem; inset-inline-start: .6rem; margin: 0;
+  max-inline-size: calc(100% - 1.2rem);
+  font-size: var(--t-2xs); color: var(--ink-soft); background: rgba(255,255,255,.9);
+  padding: var(--s-0) var(--s-2); border-radius: var(--radius-xs); border: var(--bw) solid var(--line);
+}
+.map__key {
+  display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); margin: 0;
+  font-size: var(--t-xs); color: var(--ink-mid);
+}
+.map__key-item { display: inline-flex; align-items: center; gap: var(--s-2); }
+.map__key .pin__dot { position: static; inset: auto; flex: none; box-shadow: none; }
+.map__key .pin__dot--stale { background: var(--mute-fg); }
+.map__key-note { color: var(--ink-soft); }
+
+.live__list { display: grid; gap: var(--s-2); }
+.live-row {
+  background: var(--card); border: var(--bw) solid var(--line); border-radius: var(--radius);
+  padding: var(--pad-sm) var(--pad-md);
+  transition: border-color .15s var(--ease), background .15s var(--ease);
+}
+/* الإضاءة بالحدّ الأثخن لا بحشوة ملوّنة */
+.live-row.is-lit { border-color: var(--teal-700); border-width: var(--bw-thick); }
+.live-row:focus-visible { outline: var(--bw-thick) solid var(--teal-700); outline-offset: 2px; }
+.live__stamp { font-size: var(--t-xs); color: var(--ink-soft); }
+.live-row__top { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; margin-bottom: var(--s-1); }
+.live-row__top b { font-size: var(--t-base); }
+.live-row__meta { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); font-size: var(--t-sm); color: var(--ink-soft); }
+.live-row__meta a { font-weight: var(--w-medium); }
+
+@media (max-width: 900px) {
+  .live { grid-template-columns: 1fr; }
+  /* التثبيت بلا معنى حين يعلو المخطّط القائمة في عمود واحد */
+  .live__map-col { position: static; }
+}
+@media (max-width: 720px) {
+  .geo-bar { padding-inline: var(--s-3); font-size: var(--t-xs); gap: var(--s-2); }
+}
+
+/* ---- اقتراح أقرب كابتن داخل نافذة الإسناد ---- */
+.near { margin-bottom: var(--s-4); padding-bottom: var(--s-4); border-bottom: var(--bw) solid var(--line); }
+.near__hint { margin: 0 0 var(--s-2); font-size: var(--t-sm); color: var(--ink-soft); }
+.near__pin { display: flex; gap: var(--s-2); }
+.near__pin input {
+  flex: 1; min-width: 0; padding: var(--s-2) var(--s-3);
+  border: var(--bw) solid var(--line); border-radius: var(--radius-sm);
+  background: var(--card); color: var(--ink); font: inherit; font-size: var(--t-sm);
+}
+.near__list { display: grid; gap: var(--s-2); }
+.near__item {
+  display: grid; grid-template-columns: 1fr auto; gap: var(--s-0) var(--s-2);
+  padding: var(--s-2) var(--s-3); text-align: start; cursor: pointer;   /* منطقيّة لا صلبة كبقية الملفّ */
+  border: var(--bw) solid var(--line); border-radius: var(--radius-sm);
+  background: var(--card); color: var(--ink); font: inherit;
+}
+.near__item:hover { border-color: var(--teal-600); }
+.near__item.is-picked { border-color: var(--teal-600); box-shadow: var(--ring); }
+.near__km { font-variant-numeric: tabular-nums; font-weight: var(--w-medium); color: var(--teal-600); }
+.near__meta { grid-column: 1 / -1; font-size: var(--t-xs); color: var(--ink-soft); }
+.near__skipped { margin: var(--s-2) 0 0; font-size: var(--t-xs); color: var(--ink-soft); }
+
+/* ---- العنوان المهيكل: محافظة ← منطقة ← قطعة ---- */
+.addr {
+  grid-column: 1 / -1; margin: 0 0 var(--s-3); padding: var(--s-3) var(--s-4) var(--s-0);
+  border: var(--bw) solid var(--line); border-radius: var(--radius);
+}
+.addr legend { padding: 0 var(--s-2); font-size: var(--t-xs); font-weight: var(--w-bold); color: var(--teal-700); }
+/* الثلاثة في سطر: المحافظة والمنطقة تحتاجان عرضًا، والقطعة رقم قصير */
+.addr__row { display: grid; grid-template-columns: 1fr 1fr 6.5rem; gap: 0 var(--s-3); }
+.addr .field--full { grid-column: 1 / -1; }
+@media (max-width: 720px) { .addr__row { grid-template-columns: 1fr; } }
+
+/* ---- الطلب المنطوق ---- */
+.vo { border: var(--bw) solid var(--teal-100); }
+.vo__head h2 { margin: 0 0 var(--s-0); font-size: var(--t-md); }
+.vo__head p { margin: 0 0 var(--s-3); font-size: var(--t-sm); color: var(--ink-soft); }
+.vo__head b { color: var(--ink); }
+.vo__bar { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-bottom: var(--s-3); }
+.vo #voText { min-height: 118px; font-size: var(--t-base); line-height: var(--lh-base); }
+
+/* الزرّ ينبض ما دام يُنصت — الحالة يجب أن تُرى لا أن تُخمَّن */
+#voMic.is-live { background: var(--alert-600); border-color: var(--alert-600); }
+#voMic.is-live::before {
+  content: ""; width: .5rem; height: .5rem; border-radius: var(--radius-full);
+  background: #fff; margin-inline-end: var(--s-2); animation: voPulse 1.1s var(--ease) infinite;
+}
+@keyframes voPulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { #voMic.is-live::before { animation: none; } }
+
+.vo__heard, .vo__missing { margin-top: var(--s-3); font-size: var(--t-sm); border-radius: var(--radius-sm); padding: var(--s-2) var(--s-3); }
+.vo__heard { color: var(--ok-fg); border: var(--bw) solid var(--teal-600); }
+.vo__missing { color: var(--warn-fg); border: var(--bw) solid var(--alert-600); }
+.vo__heard ul, .vo__missing ul { margin: var(--s-1) 0 0; padding-inline-start: var(--s-4); }
+.vo__heard li, .vo__missing li { margin: var(--s-0) 0; }
+.vo__none { margin: var(--s-3) 0 0; font-size: var(--t-sm); color: var(--ink-soft); }
+.vo__auto { align-self: center; font-size: var(--t-xs); color: var(--teal-700); font-weight: var(--w-medium); }
+
+/* ---- وكيل موصول على الصفحة الرئيسية ---- */
+.ask { border: var(--bw) solid var(--teal-100); }
+.ask__bar { display: flex; gap: var(--s-2); }
+.ask__bar input {
+  flex: 1; min-width: 0; font-family: var(--font); font-size: var(--t-base); color: var(--ink);
+  padding: var(--s-3) var(--s-4); border: var(--bw) solid var(--line-str); border-radius: var(--radius-sm);
+  background: #fff; transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
+}
+.ask__bar input:focus { outline: none; border-color: var(--teal-600); box-shadow: var(--ring); }
+.ask__bar input::placeholder { color: var(--ink-faint); }
+.ask__mic { display: inline-flex; align-items: center; justify-content: center; padding-inline: var(--s-3); }
+.ask__mic.is-live { background: var(--alert-600); border-color: var(--alert-600); color: #fff; }
+
+.ask__chips { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-3); }
+.ask__chips .chip { cursor: pointer; }
+
+.ask__answer { margin-top: var(--s-4); padding: var(--s-3) var(--s-4); border-radius: var(--radius);
+  border: var(--bw) solid var(--line-str); }
+.ask__answer.is-unknown { border-color: var(--alert-600); }
+.ask__say { margin: 0; font-size: var(--t-base); font-weight: var(--w-medium); color: var(--ink); }
+.ask__answer .orders { margin-top: var(--s-3); }
+.ask__acts { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-3); }
+
+.ask__stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+  gap: var(--s-2); margin: var(--s-3) 0 0; }
+.ask__stats > div { background: #fff; border: var(--bw) solid var(--line); border-radius: var(--radius-sm); padding: var(--s-2) var(--s-3); }
+.ask__stats dt { font-size: var(--t-xs); color: var(--ink-soft); }
+.ask__stats dd { margin: var(--s-0) 0 0; font-size: var(--t-base); font-weight: var(--w-bold); color: var(--teal-700);
+  font-variant-numeric: tabular-nums; }   /* تتحاذى الأرقام بين البلاطات */
+
+.ask__agents { list-style: none; margin: var(--s-3) 0 0; padding: 0; display: grid; gap: var(--s-2); }
+.ask__agents li { display: flex; justify-content: space-between; gap: var(--s-2); flex-wrap: wrap;
+  background: #fff; border: var(--bw) solid var(--line); border-radius: var(--radius-sm); padding: var(--s-2) var(--s-3); font-size: var(--t-sm); }
+.ask__agents span { color: var(--ink-soft); font-size: var(--t-xs); }
+
+.ask__heard { margin: var(--s-3) 0 0; padding-inline-start: var(--s-4); font-size: var(--t-sm); color: var(--ok-fg); }
+.ask__heard li { margin: var(--s-0) 0; }
+
+@media (max-width: 520px) {
+  .ask__bar { flex-wrap: wrap; }
+  .ask__bar input { flex: 1 1 100%; }
+}
+
+/* ------------------------ الكتابة على الجوال ------------------------ */
+/*
+ * ١٦ بكسل عتبةُ سفاري: أي حقل أصغر منها يجعل iPhone **يكبّر الصفحة** لحظة
+ * لمس الحقل — ولا يعيدها بعد الكتابة، فيبقى الموظّف يسحب الشاشة يمينًا
+ * وشمالًا بين كل حقلين. كانت حقول النظام كلّها عند ١٤٫٩ بكسل، فكانت تكبّر
+ * كلّها. والقياس هنا بالبكسل لا بالـrem عمدًا: العتبة نفسها بالبكسل.
+ *
+ * ويُطبَّق على «المؤشّر الخشن» (اللمس) وعلى الشاشات الضيّقة معًا، لأن
+ * اللوح يلمس ولو كان عريضًا.
+ */
+@media (pointer: coarse), (max-width: 900px) {
+  input, select, textarea,
+  .field input, .field select, .field textarea,
+  .filters input, .filters select,
+  .ask__bar input, .near__pin input, .vo #voText,
+  .availability select {
+    font-size: 16px;
+  }
+
+  /* هدف اللمس: ما دون ٤٤ بكسل يُخطئه الإصبع */
+  .field input, .field select, .filters input, .filters select,
+  .ask__bar input, .ask__bar .btn, .near__pin input { min-height: 44px; }
+  /* كل زرّ هدفُ لمس، والصغير منه كان ٣٧ — وأزرار «الإجراءات» في تفاصيل
+     الطلب أربعة عشر زرًّا متلاصقًا كلّها دون العتبة. */
+  .btn, .chip { min-height: 44px; }
+  /* والروابط القائمة بذاتها في صفوف البيانات: «افتح في الخرائط» كان ١٨ */
+  .live-row__meta a, .order__meta a, .row__actions a, dd > a[href^="tel:"], dd > a[href^="http"] {
+    display: inline-flex; align-items: center; min-height: 44px;
+  }
+  /* دائرة التجمّع لا تبلغ ٤٤ دون أن تبتلع سُبع المخطّط، وهي طريق ثانٍ لا
+     أوّل: سطر الكابتن في القائمة هدفٌ كامل الارتفاع يؤدّي المؤدّى نفسه. */
+  .cluster { min-width: 36px; height: 36px; }
+  /* الشريط العلوي ٦٢ بكسل، فيسع ٤٤ وحوله فسحة */
+  .availability select, #logoutBtn { min-height: 44px; }
+  .tabbar a { min-height: 44px; display: flex; flex-direction: column; justify-content: center; }
+
+  /*
+   * الشريط السفلي يختفي أثناء الكتابة. لوحة المفاتيح ترفع أسفل الشاشة،
+   * فيقف الشريط الثابت فوقها حاجبًا الحقل الذي يُكتب فيه أو عائمًا في وسط
+   * الشاشة. وإخفاؤه أثناء الكتابة وحدها يردّ المساحة للحقل ولا يُفقد
+   * التنقّل: يعود فور انتهاء الكتابة.
+   */
+  body.is-typing .tabbar { display: none; }
+  /* والمساحة المحجوزة له تُردّ ما دام مختفيًا: لوحة المفاتيح تأكل نصف
+     الشاشة، فلا يُترك تحتها فراغٌ لشريطٍ غائب. (كانت القاعدة على `body`
+     وحشوةُ القاع على `.page`، فلم تكن تفعل شيئًا.) */
+  body.is-typing .page { padding-bottom: var(--s-5); }
+}
+
+/* ---- تغذية راجعة: ما ملأه الوكيل، وما يقترحه ---- */
+/* الحقل المملوء آليًّا يُعلَّم حتى تقع عليه عين المراجع، ثم تزول العلامة
+   عند أول تعديل يدويّ: صار الحقل حينها حقلَه هو. */
+/* خصوصية أعلى بدل `!important`: القاعدة تنافس `.field input` فتُكتب بمثل
+   وزنها لا بقوّةٍ تتخطّى الترتيب كلّه. */
+.field .is-filled, .addr .is-filled, input.is-filled, select.is-filled, textarea.is-filled {
+  border-color: var(--teal-600); border-width: var(--bw-thick);
+}
+.field:has(.is-filled) > span { display: flex; align-items: center; gap: var(--s-1); flex-wrap: nowrap; }
+.field:has(.is-filled) > span::after {
+  content: "آليًّا"; font-size: var(--t-2xs); font-weight: var(--w-bold); white-space: nowrap;
+  color: var(--teal-700); border: var(--bw) solid var(--teal-600); border-radius: var(--radius-xs); padding: 0 var(--s-1);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .is-filled { animation: filledIn .5s var(--ease); }
+  @keyframes filledIn { from { border-color: var(--teal-100); } }
+}
+
+/* الاقتراح زرّ يُضغط، لا قيمة طُبّقت */
+.chip--yes {
+  cursor: pointer; border-color: var(--teal-600); color: var(--teal-700);
+  font-weight: var(--w-bold);
+}
+.chip--yes:hover { border-color: var(--teal-800); color: var(--teal-800); }
+.vo__missing .chip--yes { font-size: var(--t-xs); padding: var(--s-0) var(--s-2); vertical-align: middle; }
+
+/* ------------------------ تنسيق سطح الوكيل ------------------------ */
+
+/* عمودان على العريض: النصّ يمينًا وما فُهم منه يسارَه. المراجعة مقارنة بين
+   الاثنين، فوضعُهما فوق بعض يُصعّد المراجع وينزّله ويدفع النموذج خارج الشاشة. */
+.vo__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--s-4); align-items: start; }
+/* وقبل اللصق لا شيء في العمود الثاني، فيبقى الصندوق على العرض كلّه بدل
+   أن يجلس في نصفه ونصفُه الآخر فراغ. */
+.vo__grid:has(.vo__out:empty) { grid-template-columns: 1fr; }
+.vo__in .field { margin-bottom: var(--s-2); }
+.vo__out:empty { display: none; }
+@media (max-width: 720px) { .vo__grid { grid-template-columns: 1fr; } }
+
+/* لوحتا «فُهم» و«لم يُذكر» تبدآن مع أعلى الصندوق لا تحته */
+.vo__out .vo__heard:first-child, .vo__out .vo__missing:first-child { margin-top: 0; }
+.vo__bar { align-items: center; }
+.vo__auto { margin-inline-start: auto; }   /* العدّاد إلى طرف الصفّ لا وسطه */
+
+/* السؤال فوق جوابه */
+.ask__q {
+  margin: 0 0 var(--s-1); font-size: var(--t-xs); font-weight: var(--w-medium); color: var(--ink-soft);
+}
+.ask__q:empty { display: none; }
+.ask__q::before { content: "س: "; color: var(--teal-600); font-weight: var(--w-bold); }
+
+/* «جارٍ» بلا كلمة تُقرأ جوابًا */
+.ask__bar-skel {
+  display: block; height: .95rem; width: min(16rem, 60%); border-radius: var(--radius-xs);
+  background: linear-gradient(90deg, var(--teal-100), #fff, var(--teal-100));
+  background-size: 200% 100%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ask__bar-skel { animation: skel 1.1s linear infinite; }
+  @keyframes skel { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+}
+
+/* البطاقات داخل الجواب تملأ العرض بدل عمود واحد وفراغٍ إلى جانبه */
+/* عرض العمود يُختار على قدر ما تحمله البطاقة: أضيق منه يلتفّ السطر مرارًا
+   فيطول الجواب، وأوسع منه يمتدّ سطرٌ قصير على عرض الشاشة كلّه. */
+.ask__answer .orders { grid-template-columns: repeat(auto-fill, minmax(min(26rem, 100%), 1fr)); }
+.ask__agents { grid-template-columns: repeat(auto-fill, minmax(min(17rem, 100%), 1fr)); }
+
+/* الجواب: الجملة سطرٌ قائد، وما تحته بيانات */
+.ask__answer { padding: var(--s-4) var(--s-4); }
+
+
+/* ---- جواب السياسة: مفروض أم على الموظّف حراسته ---- */
+.ask__pol { margin-top: var(--s-3); font-size: var(--t-sm); }
+.ask__pol p { margin: var(--s-1) 0 0; color: var(--warn-fg); }
+.ask__pol small { display: block; margin-top: var(--s-2); font-size: var(--t-2xs); color: var(--ink-soft); }
+.ask__pol-on, .ask__pol-off {
+  display: inline-block; padding: var(--s-0) var(--s-2); border-radius: var(--radius-xs);
+  font-size: var(--t-2xs); font-weight: var(--w-bold);
+}
+.ask__pol-on { color: var(--ok-fg); border: var(--bw) solid currentColor; }
+.ask__pol-off { color: var(--warn-fg); border: var(--bw) solid currentColor; }
+.ask__audit { margin: var(--s-3) 0 0; font-size: var(--t-xs); color: var(--ink-soft); }
