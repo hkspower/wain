@@ -161,4 +161,58 @@ test('كل صلاحية في القائمة لها اسم وشرح بالعرب�
   }
 });
 
+/* ــــــــــ حارسٌ بنيويّ على كل مسار ــــــــــ
+ *
+ * مصفوفة الصلاحيات في `authz.probe.js` تطرق ٤٢ نقطة، والمسجَّل ٦٦. فمن
+ * أضاف مسارًا ونسي حراسته لم يكن ليعلم: لا اختبار يسأل عنه، والمِسبار
+ * قائمةٌ مكتوبةٌ باليد لا تنمو مع الشيفرة.
+ *
+ * وهذا يقرأ `api.js` نصًّا ويسأل كل مسارٍ سؤالًا واحدًا: **من يحرسك؟**
+ * والجواب المقبول ثلاثة لا رابع لها:
+ *   · معلَنٌ عامًّا بـ`auth:false` — وعندئذ يجب أن يكون في القائمة أدناه
+ *     نصًّا، فلا يصير مسارٌ عامًّا بالسهو
+ *   · يفحص صلاحيةً في المسار بـ`need(ctx, …)`
+ *   · يمرّر `ctx.agent` إلى طبقة المجال، وهناك يقع الفحص
+ *
+ * لا يقيس هذا صحّة الحراسة — تلك عند المِسبار والاختبارات — بل **وجودها**.
+ */
+test('كل مسار محروس: بـneed() أو بتمرير الفاعل، أو معلَنٌ عامًّا بالاسم', () => {
+  /* العامّة عمدًا. الرابط والبوّابة يستوثقان برمزٍ لا بجلسة، والدخول
+     والبيانات الوصفية قبل أي جلسة. من أراد زيادة هذه القائمة كتبها هنا. */
+  const PUBLIC = new Set([
+    'POST /api/auth/login',
+    'GET /api/meta',
+    'GET /api/link/:token',
+    'POST /api/link/:token/consent',
+    'PATCH /api/link/:token/sharing',
+    'POST /api/link/:token/location',
+    'POST /api/link/:token/voice',
+    'POST /api/link/:token/outcome',
+    'POST /api/public/order/parse',
+    'POST /api/public/order',
+  ]);
+
+  const src = fs.readFileSync(require.resolve('../server/api.js'), 'utf8').split('\n');
+  const starts = src.reduce((a, l, i) => (/^\s*on\('(GET|POST|PATCH|PUT|DELETE)'/.test(l) ? (a.push(i), a) : a), []);
+  assert.ok(starts.length > 50, `لم تُقرأ المسارات — وُجد ${starts.length} فقط`);
+
+  const naked = [];
+  const undeclared = [];
+  for (let k = 0; k < starts.length; k++) {
+    const body = src.slice(starts[k], starts[k + 1] ?? src.length).join('\n');
+    const m = src[starts[k]].match(/on\('(\w+)',\s*[`']([^`']+)/);
+    if (!m) continue;
+    const route = `${m[1]} ${m[2]}`;
+    if (/auth:\s*false/.test(body)) {
+      if (!PUBLIC.has(route)) undeclared.push(route);
+      continue;
+    }
+    if (!/need\(ctx/.test(body) && !/ctx\.agent/.test(body)) naked.push(route);
+  }
+
+  assert.deepEqual(naked, [], `مسارات بلا حارس: ${naked.join('، ')}`);
+  assert.deepEqual(undeclared, [],
+    `مسارات صارت عامّة ولم تُذكر في قائمة العامّة: ${undeclared.join('، ')}`);
+});
+
 test.after(() => { db.close(); fs.rmSync(TMP, { recursive: true, force: true }); });

@@ -6,7 +6,7 @@
 
 ```bash
 npm install ../arabic-kit      # داخل مشروع يستهلكها
-npm test                       # ٢٣ اختبارًا
+npm test                       # ٢٤ اختبارًا
 npm run sync                   # ينسخ الحزمة لنسختَي المتصفح
 ```
 
