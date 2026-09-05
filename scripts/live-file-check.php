@@ -1,0 +1,213 @@
+<?php
+/**
+ * Which of the shop's files on the LIVE server differ from the repository.
+ *
+ *   php /home/<user>/live-file-check.php
+ *
+ * The whole docroot, not just the pictures — live-image-check.php answered the
+ * same question for 51 images and this is that idea finished: every file the
+ * repository tracks under public_html, compared by sha256.
+ *
+ * READ-ONLY, for the reason every script in this folder is: it is fetched over
+ * plain HTTP from a public repository by a cron job, so anything it can do,
+ * anyone who can influence that fetch can do. It hashes files. It writes none.
+ *
+ * WHAT IT DELIBERATELY DOES NOT KNOW ABOUT. config.php, wallet-certs/ and the
+ * invoices are git-ignored — they hold the database password, the KNET and CBK
+ * credentials and every customer's address — so they are not in the manifest
+ * and are never reported as "missing". A file the repository does not track is
+ * not a file the repository can be the truth about.
+ *
+ * ONE LINE, because cron returns only the last one. Names, not counts: a list
+ * is a thing to publish, a number is a thing to worry about.
+ */
+
+$ROOT = '/home/u130124229/domains/sporta.com.kw/public_html';
+
+// path => sha256 in the repository.
+$WANT = [
+    '.htaccess' => 'b53e4a3d163bb78c11d5d9a8901ce151bfc9a001add79f3dcccbd8af12c661b4',
+    'api/.htaccess' => '574ff6d3712c69ad6a119652dd976afbad0e065cec35c198ceed85bfc72c3be2',
+    'api/accounting.mysql.sql' => '865458325a463d3127bbb45cb1a3d5c0c9a603c7656cdde85c280ffb7f8ed716',
+    'api/accounting.php' => '0e508c851de94808626164518d8394e6c65508ec2733efd16be7a278b2825963',
+    'api/admin.php' => 'cb0d1f321b9a9b534695ebabdb972597cb33c1a153b623fd62ab4fb33c76f0a1',
+    'api/antifraud.mysql.sql' => '861285918d5a45a38913a2cd3300b49d825e3a6691ea81411f31b6840808275e',
+    'api/api.php' => '861c08ebc5712f4a6e8f65061b6aaa05c66c2210d68b71d854b2bdc3b346bfb4',
+    'api/arabic.php' => 'ee95e3677275fe690cde28c627d98d32d903118ae9c4f418e0fb1dca65c72cd9',
+    'api/assistant.mysql.sql' => 'c7d041e64a9576eeba376d9d1430f8b5f7f428547d175d73d65d0e62e6b6eeb9',
+    'api/assistant.php' => 'e0e5ace6192d6452eef40f130e2cee66c9acf3a457f9b583e1f5e6d61a534f92',
+    'api/assistantqa.mysql.sql' => 'd272b606f750484f5ea9981f63792c084cb7a1335f62624996fd303fc671c3b2',
+    'api/attribution.mysql.sql' => 'bd9486d8589c699881329c7a9fba716cef49f916f5f9f7cf837944d4bfc5ef58',
+    'api/brands.mysql.sql' => '9d8a071396d6e0a77e8912125452fa01344e70a7047fb4a99262be330646b104',
+    'api/config.example.php' => 'f5b82f908dc633d29cb4fe07bc15dd3a3bd6b8809636264f90d6244fdb5a30c7',
+    'api/cron-assistant.php' => '08fde52104005ba3d6f27e7bb3d869a9707787f980ccf8825e5f73a7caf423c9',
+    'api/cron-customer-mail.php' => '176405d4ee17e350153c95b8cd0e04871a0f45de5efa933cd8c454e3c077c43b',
+    'api/cron-fulfilment.php' => '251160b5addcbdc16ccb59def843f714cd3774fa73b7d9ed502b7e8718d29c85',
+    'api/cron-invoice.php' => '35728b4cbc7426bcbe298ced1ce7bd846fc38c3343bdb4e7024f06db9c6b9e9f',
+    'api/cron-push.php' => 'c7509228f2a54cb066608951d3f6e65f5fcc2bf97eb535f3b40b7075880f378c',
+    'api/cron-stock.php' => '2f973f33029efc16789e62cca382abc65f36788cbc8576ab3da2c6e081ccebbd',
+    'api/cron-voice.php' => '900aaf3ac0b7b8b721dae0c6d9bba23f87112377c36947792c4f89b7a01e3083',
+    'api/cron-whatsapp.php' => '6778175f64a3fb248799921da586199208d9fc2830d896655d234c7af4e6d9da',
+    'api/customermail.mysql.sql' => '31ef14254b819d78830aa1ee3eb0865a93f42edb75aecc1c0deea42441393e7b',
+    'api/file-audit.php' => '3d06aee5230b780d0e3761133d5587888224ce6df3be8429a7a92aab63e1514e',
+    'api/install.mysql.sql' => 'accf752d5d9367a5ddbdba49c658ba71825c7b9b2c7201bd68add5e94e83a164',
+    'api/invoice-file.php' => '06f5504344bc696d9d73b4c5f8a77c65c4acdcbdc6ada05ad9af90cab8c8878f',
+    'api/invoice-pdf.php' => '24f04230a63a3e1d146f5025fb91d189991c64138df1ea27c6428f253dd4f01a',
+    'api/itemname.mysql.sql' => '8b16e46110783e9ca4c540533b5f144261b74f831c0800ca98381c7ed05b9c6e',
+    'api/orders-print.php' => '2ed932214d01a5ecd8224f635522342fc489b2158a8dd7cf46e9c1552b3ed73e',
+    'api/payattempt.mysql.sql' => 'cdebb8e2a2a525b1c6471709b858201ec02257c594fd6bb93b494d494b035d6b',
+    'api/pdf.php' => '9a026d1daf03dd2c45fc5a4f78f0c8f045973786b287e29e547f14961bedecb2',
+    'api/productbrand.mysql.sql' => '1a5dc4c60f8d7fd7dbaf5d0ef742eb9c0ce3e23687a254d39344319f4672aab4',
+    'api/productimage.mysql.sql' => '870f598114bf792d606893fa9be6cac075e79f2c752422a38a19e63e216bb06e',
+    'api/promo.mysql.sql' => '7f64bb42ff96d0a3cf410031b48bcac6ae0e109f089cde59cbe2d1d22fd4177b',
+    'api/push.mysql.sql' => '70c562de94012285f7af9a654376412bdd26c150d563d2cc3237cd6355c13e8f',
+    'api/reviews.mysql.sql' => 'e0288b6470d6e974e9e8811de761b07268f09fe2dbab5bab392428c0c2d65c5a',
+    'api/schema.mysql.sql' => '7095a95406bae97034bc67328bf7bae2e6736fddacd5ba8a62fe0d83cd8fb246',
+    'api/seed.mysql.sql' => '1e93a92f323f033a06711128512a75b2862e82a5f9500cf672eded33c358f4d0',
+    'api/site-manifest.txt' => '7bad0eb79062c86fcd33afdc034090bd07ef0d8c9a8c3564da116dd7a230942b',
+    'api/sitemap-products.php' => 'b1217037868d973c566132ae778c3bacd4c5f89b9bd48035c6bc58942e0f360b',
+    'api/sizeadvice.mysql.sql' => 'd4aa5746daa9d721839661586dfafd416fdbc9607c8fd33d83a1181531d070ac',
+    'api/stock.mysql.sql' => '2568407818e9cd7d9f3eac06b8513ea20998b74e686e335ca8e84e82eba0bf34',
+    'api/store.php' => 'bd203eca1b191e7a1cf5b5388bfd111e72c0e7e6f508a231f1f38c60ef1017ac',
+    'api/totp.mysql.sql' => 'a6e7383ae32985a2dac5c75ead5533360bae4f8f78fa56217e6b9e37868c5e40',
+    'api/wallet-assets/icon.png' => '917dcf6dfdd56040ed8348a95013cfb440172ed7fbc46bf7c52f06283ec2e899',
+    'api/wallet-assets/icon@2x.png' => '50551289fcaba883c8631682afa507bea7404365f569ea96cb3ea63c0566b167',
+    'api/wallet-assets/icon@3x.png' => 'e36fa3f207528b49ba4a79ed377572e2b60584c0c0ff9510f9b3e36f0de284fd',
+    'api/wallet-assets/logo.png' => '6a5fae4d198dfb9307a73cced946f39470842d023ad7503fa94b20b08940dae8',
+    'api/wallet-assets/logo@2x.png' => '73a07659c447d66227689c65115fe760fdb2bc34e6c2baf814c64ff1880cf1ab',
+    'api/wallet-assets/logo@3x.png' => '3f4b4b4f14e8836427f16375ecf316c85f8dbbe07602cf526f1cc3db12175820',
+    'api/wallet-assets/strip.png' => 'ca429b12c9c550719f53050c9946ede2db1f094da6c98eee3d2b0fd592261c9f',
+    'api/wallet-assets/strip@2x.png' => '954bcf27a6329e0cb73e23d9785994d59bf15eed31ba58c1c0c607714557400c',
+    'api/wallet.mysql.sql' => 'dc8f136251ee4a5071fa74785d50d3336042967d3a2a5ec7221f172c1c72086f',
+    'api/wallet.php' => '54a91297ba7896ba76422253a2dc76e72f71b386a36beb4b9358b42f00e3d756',
+    'api/webpush.php' => '8543031cc499b3a83cff042b142257ac6017111a829951c3354d84961f734194',
+    'api/whatsapp.mysql.sql' => '7ea02f2f7a591ad1c0870e2f5ae25bf078a63a101c85f1eba412a3a8d895b4e2',
+    'apple-touch-icon.png' => 'e09977ffae1506c51d3c101cacb52794bc673ed51de5b65bb31ea8f814805109',
+    'assets/About-7p00QsGK.js' => 'af2b7e351d28a6e070836ac4c2da587f4d1d1dd302fb6fa927807ec349dfb9b5',
+    'assets/AdminApp-Chmxw88_.js' => 'be965ff4bbafdd95ce6da2a5df977240a498c9dfa4e2ba8ce00f0b7c436a5875',
+    'assets/AssistantPanel-Dx280GRS.js' => 'a64dcf99a568e8c5a494398e0467e8c83ec169f0342496505c607cb245be0bc4',
+    'assets/Cart-B71Jo6gk.js' => 'ea09191791d9d90e0ffd1f41e32ab6667b58aabdb8c5ce415cf896c613ac40be',
+    'assets/Checkout-Dk5_ETdy.js' => '82083f34a19e3c883c0c3a6df1da25be5983bf527022580efb313fb6221bd4be',
+    'assets/CheckoutSteps-BfD7s0hA.js' => 'd09fafabec5b286d6688e29c542419aaf1b05eb86248ddbc9412979d509b4cf9',
+    'assets/Contact-HoZaOGvS.js' => '31575cd174c01ad975ae06332c20b360610ef66f2e2819f18b7565ed587bae46',
+    'assets/Invoice-BRGavJXu.js' => 'e252bee1bd62d91c320e7d12affde39cc56978814955d35686eb8e38d3fd48b5',
+    'assets/LegalPage-AcD8bbsz.js' => '8f52d3679cf5af24a01f534f9f135f09f0cd31de6b46f836a08cdb1e236b87d0',
+    'assets/NotFound-DEvLDlGt.js' => '73803504a2958fc1ec25069ece553095ca7825289988bfc6b75ae9030bceba07',
+    'assets/OptionBox-QdtaBX6i.js' => '4107f677a8871951a043b7c61a1dc199d044fa752d9887ad5335b8f010222e23',
+    'assets/PaymentResult-EPQCKPl1.js' => '22d3991b933543404a6234aa4b536b45cb69afbf2782260ca8ae763a04f4bcdc',
+    'assets/Privacy-DHSjoBJx.js' => '8aafa16ef5ee529ad02954e3f66399f517d076bac0a3095d0087d100c3097f4f',
+    'assets/ProductDetail-uh71XAH8.js' => '3118f4067666e307609888ea97585bb0baa1e06e814c331b0316356762086809',
+    'assets/Returns-BlLemmCZ.js' => '92a128aea0325c8c4459f8979250f81abd08c2ee85fa0d74179c3135ca98c928',
+    'assets/Review-DZ-PH_xP.js' => '8269a6c06b8d13feddcbdb13e13cc5086d8606499ebfc3b180fdf447a506357a',
+    'assets/Shop-BYKJiDn8.js' => '043314b77465784908cb9bad60ef015bfaf7936c5a0b9e3b8ba3d35581ba4413',
+    'assets/Terms-Be905VBP.js' => '0efa4abae517992511657d3303d31423e155ad43c482427a216cb92402989fe5',
+    'assets/TrackOrder-Ceilajwu.js' => 'c540c743462dffdbf37cff3c864e046efe29b5c05b979a57fe634a88ec6f3fea',
+    'assets/Wishlist-L8me8CrG.js' => 'aaa43222b82a3b6e1ac9f44240a325d513130b86f6dd6606b1cc9f9bad1928ac',
+    'assets/bidi-aEAFfM9w.js' => '2d2f9386b7166e9eb7fc75bc3aa85cbcb3f21037f75ae92894bb2570c4436424',
+    'assets/card.js' => '6e8712fd2937fea11079b67482edd88d58a5eec8b55cc5a34a86dc432dffbe35',
+    'assets/checkout-CJW4l7Oz.js' => '77a829178518d422c4c4d9252e8cdae9e97739ac92156fce6dc2370f82f8c6f7',
+    'assets/contact.js' => 'c154a029dbd881079b9d4b1781f9c87a476de65a4de4953247604c50441a8f11',
+    'assets/index-5HbquisI.js' => '881eece4525a72074c514b348be352f5056e3f9030ed9900dc5cc02a2368306c',
+    'assets/index-TIUCmnwm.css' => '4c85029a7c26cdf79a3ca7520c0bfebe286a95f9bbcc33ad8a4908d81a145ad7',
+    'assets/react-vendor-CMgvnOJB.js' => '3f36bbb7b4c6de3289643869a25c08e7ec7055ebaeef06d597b0fa301525d579',
+    'assets/returns-link.js' => '07a9d4753e0120988fe95e43d618760cfde9a3b1cfdabb31b209b2ae8a01ce10',
+    'assets/returns-request.js' => '3cc4b82d3fd70cdd6689f52d57894c679d48db2b3a45cc115b9b90b9d10ea830',
+    'assets/rolldown-runtime-QTnfLwEv.js' => '5db5ba82eef00d1dee7e86e663098c9427d01183a88d357437daff295aec3e75',
+    'assets/sporta-dark.css' => 'ac9cc39035d497c9500440258444bee607dbf5df0deb86df67f01ae1e739a34a',
+    'assets/sporta-ui.css' => '5e71591e133a03e087a9eb049276f7bbe2dd03f33be1734206b80a60b6cd276f',
+    'assets/track-guard.js' => '49c24cfaf6bf666dbc4488fc8c194dd2b031c8c86a891fe773faefa3ba1e4897',
+    'card.html' => '078c10da1220676efe2e490dfc7f56ab7dca0c9951f115871086bb61f2c5045a',
+    'cats/desktop/art-accessories.jpg' => '6851ebb777ae4a69bcf44b471d48c904ac5d5eb7d6db8a2a7cb7cb62843e9847',
+    'cats/desktop/art-accessories.webp' => '76e935a6ff28385d70692fd77e4bccb0224ac7c62741f109d76e022f4b994c0f',
+    'cats/desktop/art-men-rtl.jpg' => '218d84c097ed92afe7270414d01fc6b9450d5950a7bc58739629136edff6bbf4',
+    'cats/desktop/art-men-rtl.webp' => '50818ba6650dc9ce77564dccd86ec9a358a417254278fe8b953a5dc4977eda9e',
+    'cats/desktop/art-men.jpg' => '812b41cd23cd2b2cf9ec5bebc98f0a9f16aec57c3bd5ada86a902211876f4782',
+    'cats/desktop/art-men.webp' => '03fb7be9e5011b91c00b03d927731d9ef9060acb8be015bc2a2ec072adfe4242',
+    'cats/desktop/art-outlet.jpg' => '8c0675b4f9ed344d68e46ff7c168dc5b49b5877c4fd9ea3e58056a892f9ce7a1',
+    'cats/desktop/art-outlet.webp' => '27a668c93acd01929865f1f34346b352060d4c77bcbed1e287066fb4455e5cf0',
+    'cats/desktop/art-women.jpg' => 'c112320cd2fb4e46005d102a4b8fcdb2c4a16f1bc638482e6afba773ecd23760',
+    'cats/desktop/art-women.webp' => '5e229721e464ea64894fcb41f2a73ed304360556015185a49df467f826d2451a',
+    'cats/desktop/infobar.jpg' => '5e978224c01ac9ed1b6891b83efd31a5699573d0fdb8bc45405afb37d2b15b0c',
+    'cats/desktop/infobar.webp' => '05ce17b021a12de9c72975cec0945dff86c9592db724387cda7e3c6ae2dbad41',
+    'cats/mobile/art-accessories.jpg' => '9dcb9e5daff6eeaf1467a51d8a2edbc3648f2eea3f30a4105be9805957e8fd96',
+    'cats/mobile/art-accessories.webp' => '8561f81b3072e7d974ba6ad33aae8ac6c88a3d0740d2793aff85736a6833b7ea',
+    'cats/mobile/art-men-rtl.jpg' => 'bae72ff8416bce5b0a5ee11129738709f788ff868e13bcb29d3f3b5ad6729373',
+    'cats/mobile/art-men-rtl.webp' => 'a012032744381a57058ef1fa798d623ce1f8a01d355e86ac062976f6d27228ca',
+    'cats/mobile/art-men.jpg' => '6537b1c8233c9168661d625484da32f820511b913fb0deeb8d902dcd9f25d3c2',
+    'cats/mobile/art-men.webp' => '4f097dd443fc8cbb24e4d6909e8e0ab8fec01f2ec2f8ec35b3e9be094404cdc3',
+    'cats/mobile/art-outlet.jpg' => '451a9315fcf5aa0d2fa6f49f6511980776c31c78862a1da621e8fc7d4f1af219',
+    'cats/mobile/art-outlet.webp' => '389d0ee80b953f2e49fdef0f91c80e3e6a238e316b4833be097b9c1d8036195b',
+    'cats/mobile/art-women.jpg' => '17ea92c07c35388232b7cb0bcfe5c273d90797694c937b4ce576b1d2ffb37f14',
+    'cats/mobile/art-women.webp' => '39f47a5bf0c652e5e8cdedc9386e74ffab3042dfc9241124f36b2cb105a6927b',
+    'cats/mobile/infobar.jpg' => '3f737a054397e2946c175444e14c76c7eb2356dc81be7cd504afa05fb9494a16',
+    'cats/mobile/infobar.webp' => '4f553a7affcdfdb7b367508df5b725d3ef8d000e676339e11a2b10958b9c19c8',
+    'config.js' => 'a85fd8085d3e71a73b06e8a136791f7965db0905a41890d9e0f783d5d3f6ebde',
+    'favicon-192.png' => 'f9b1c55f2c5d3b7201203c702bfebe871cf32fdfb7db6f9a0a6aac3688a56b6c',
+    'favicon-32.png' => 'c2cec10309c45382d25a70804f4d3af38372d6a69365784a1e2236d9872dfb15',
+    'favicon-maskable.png' => 'db212cac661a0b04f20eae91586c8362746ee1306c173aeb0c9b8f4a929a143f',
+    'favicon.ico' => 'daf723149bfda1bcb80d87bbaa3be9bf1fa14499a980105bfbf1ca1cfa070a26',
+    'favicon.png' => '7b8bd27d8419df1414bf61f6c5ddf250270541014795b0157e8641e7511080bd',
+    'fonts/Alexandria-400.ttf' => '29817527e857c0cf40b4b37f8f307c6f2fcc5044954868ae62455631aed1c124',
+    'fonts/alexandria-var-arabic.woff2' => 'e8d8ca61d4da1a1a38b9454dbae92be589185efc7af0af6046f6a11c60476e99',
+    'fonts/alexandria-var-latin.woff2' => '98ccec0bc3c456332f8fd0fcaf81d26a4e010b7fc093f9781938f976df9ffbc4',
+    'fonts/plex-600-arabic.woff2' => '16734a5adb27b0f363e566cbbeacec480da0dc0baa19c8f0053251c2e2bc0eac',
+    'fonts/plex-600-latin.woff2' => '63f4757271e403f7baec0862f284ffaa4560ea6096ba9fe8bc6e585ca656e724',
+    'hero/desktop/bodybuilding-men.webp' => '619cf45e749830106a81cbc4e7846153319034b1ee1f09afd23f35f48ffb2aec',
+    'hero/desktop/bodybuilding-women.webp' => '157f046e6a987199d94f2a77abc683faf80362b63572881bb5a99f85345613b5',
+    'hero/desktop/cardio-men.webp' => 'c57816624920687f36eff47771c692956fb7554cdb71816dd5f158602556d7ba',
+    'hero/desktop/cardio-women.webp' => '1bbf419d8f6fba16ccda266e56e5488487c64b2829406ecbbba5b837b5702d5c',
+    'hero/desktop/crossfit-men.webp' => 'd405b8e7976a80a59a5a399f2c0b1ea0e45a05e7875a1c18341240e46a03c38c',
+    'hero/mobile/bodybuilding-men.webp' => '5484ac27210d9ec63706411eae516d56c71a6c143645f24c3f4d775b6cf32823',
+    'hero/mobile/bodybuilding-women.webp' => 'd0d210e2220e383110b47f79fbae40db8b02c162a3d673699018aee32f7ad236',
+    'hero/mobile/cardio-men.webp' => 'bc0e59d337786202650af4325d032f92ebd71bb515853caef7b024c40d108d77',
+    'hero/mobile/cardio-women.webp' => '0db9c09ecb41c1d6ed7473fe59efed3b3e68a3c525b0326f8f700be918bf8e66',
+    'hero/mobile/crossfit-men.webp' => '4bfa626816516c805d31ab73170ff4b8dbe692570e6bc4ad835842c9b6311a38',
+    'images/README.txt' => '7a4aa1eedc240ba16a2fb5dea97b84fd1c02eea6a06aadc3baa2a12145f88c78',
+    'images/ahed/PUT-LOGO-HERE.txt' => '17016da765f747fb1cb1839dadc9bb98d308104def94d6808f05f2c27e42de04',
+    'images/ate/PUT-LOGO-HERE.txt' => 'd6b813220734f1af3c0f1dbcee1c099e10dfd007c53113a0ded12a9c6813effc',
+    'images/eyesportwear/PUT-LOGO-HERE.txt' => 'f193ad1a6900793415dfa76098a5d134a7d3df21af834d075470273e24912168',
+    'images/gymshark/PUT-LOGO-HERE.txt' => 'b30b0bfc1d9f91c28a82ff2664d7f20655e53ad724523107b64750d4d48c2a18',
+    'images/nba/PUT-LOGO-HERE.txt' => '61d8f1501f5f308f7866e51dc07ae1a73244555f5963820d0a353538330e619d',
+    'images/rheo/PUT-LOGO-HERE.txt' => 'a4b7c2a548abf314ae74fb2f658db993f589697428ce841feb93dee4bf2b16f1',
+    'images/sporta/PUT-LOGO-HERE.txt' => '1a3a4e03d799fea20641304473e95ded5b25321badebbffc6d3988985b797300',
+    'images/vanquish/PUT-LOGO-HERE.txt' => '7b634c7c39ee98859bfca99b0bcc1b41e536a1e1b74f42780435a244f39d36d1',
+    'index.html' => 'e6f57354564bb8e6ce166b7ff98e80104de00f36ff470c9775322e8395a17ab0',
+    'knet/.htaccess' => '5f4d7754fad39ed5ebc037e5d213e5cf2f169ff306eab478a0e309076a215b52',
+    'knet/callback.php' => '4e217d7d4c8f59e6cce67b71ad9726297dcc83eb2c8dc2a08a56f95cc826d519',
+    'knet/config.example.php' => '8b12abd7be354864ca71d69408462744c39a500a648110557aeddf13a30bad4c',
+    'knet/knet.php' => '3320c512cfafd5273fa5f60a250fa0ec9938dcb81c3b5b8fe3bee07134198569',
+    'knet/pay.php' => '6333fa7c407b9d279ec70270bf7ed1c845bd4a1a53398814d894fa7cd4247b35',
+    'knet/selftest.php' => '8d1c72760b415bf285a65bff0779bab80793317bf142b8b646a75981bca614cd',
+    'llms.txt' => '03153eaebba2b4f47670ce5dfeec4f0babee0f5313faf863ba786a5e32209faf',
+    'logo-white.png' => '4e60bc404ce37d63e97b925814c902d1deb4322778953876fca096bb29925ffe',
+    'logo-white.webp' => '2d282c40925a4a6d86ef9c64db289b7c5da6bf8927ec0d1ba3e1725f571ef2ce',
+    'logo.png' => 'f1a4e558ac3da1500aef3847bead524db51e11cc47b70e50fee8c2fb3772ef95',
+    'logo.webp' => '5143f087020d6e8739bc15a2fbe45b3ef580677eaf186aa7244c6f51b8130f34',
+    'og-image.png' => '4e16efd818ad868e383340741353c00cc0aae5311d8af38d26cdac948926a42f',
+    'pay/.htaccess' => 'b6de0965f568d587b36785ae29823d66e343502512cf7bd8876dd7a1950c8e23',
+    'pay/callback.php' => 'cd5a0a783d9a034921657e7b1bd6616f332345b0f70e130a16ba843968be1273',
+    'pay/cbk.php' => '07224c44245fed0ebbfeb748a46c9dd7c37de3292327a81dec5d143e54af84af',
+    'pay/config.example.php' => 'a1b8bbaf41ad52daa0f00cd0138660b16b490e00458a46f1a7e98330e63c242b',
+    'pay/pay.php' => '172d1d33bed9170b5bee311b375d899d4d22cbb262da92f1893bd99bad9b11a5',
+    'returns-request.html' => '4b756bbec77a1e522cfdaf2e6ea6a4ef68495da74cd2fc2a6c96ac1d0a44d48c',
+    'robots.txt' => '6baf32979c4813f61a35491da2b18c012e638321d4f0a4be5cf1ec795b03d257',
+    'seo.php' => '917f5c481f34ef06df9b0222e50bb51e434b3cc4102f6fc973fb5df943cb2fce',
+    'site.webmanifest' => '2b7b841790a8f02340b140a51acebd5ea3a51001f0567214703e0a5f74589f08',
+    'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
+    'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
+    'sitemap.xml' => '1ba2a01e9f35e80a67b4b6047afcb5370b4005074a150ade4907a578cb0ebf4a',
+    'sw.js' => 'f1e370e2decb620383c7f8a2ffda6f202f7de1202ae2f1eac52319559cefcab3',
+];
+
+$same = 0; $diff = []; $miss = [];
+foreach ($WANT as $rel => $sha) {
+    $p = $ROOT . '/' . $rel;
+    if (!is_file($p))                     { $miss[] = $rel; continue; }
+    if (hash_file('sha256', $p) === $sha) { $same++; continue; }
+    $diff[] = $rel;
+}
+
+echo 'FILES same=' . $same . '/' . count($WANT)
+   . ' differ=' . (count($diff) ? count($diff) . ':' . implode(',', array_slice($diff, 0, 25)) : '0')
+   . ' missing=' . (count($miss) ? count($miss) . ':' . implode(',', array_slice($miss, 0, 25)) : '0')
+   . "\n";
