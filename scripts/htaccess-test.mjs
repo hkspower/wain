@@ -258,8 +258,16 @@ try {
   // looks like the site is broken, and the server cannot see it because the
   // server sent the right file.
   console.log('\n--- what may be cached, and for how long')
+  //
+  // site.webmanifest and the HTML are in this list from 2026-09-05, after the
+  // live server was asked and answered max-age=3600 for the manifest and a
+  // bare max-age=0 for the shell. Both are fixed names whose bytes change —
+  // the manifest names the app icons, index.html IS the whole app — so they
+  // belong with sw.js and config.js rather than with robots.txt. Neither was
+  // checked here before, which is why neither was noticed.
   for (const f of ['/assets/sporta-ui.css', '/assets/sporta-dark.css',
-                   '/assets/contact.js', '/assets/card.js', '/config.js', '/sw.js']) {
+                   '/assets/contact.js', '/assets/card.js', '/config.js', '/sw.js',
+                   '/site.webmanifest', '/card.html', '/']) {
     const cc = cacheOf(f)
     check(/no-cache/.test(cc),
       `${f} revalidates before use — "${cc || 'NOTHING, so every cache guesses'}"`)

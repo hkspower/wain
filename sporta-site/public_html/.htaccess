@@ -332,6 +332,58 @@ FileETag MTime Size
     Header set Cache-Control "no-cache, must-revalidate"
   </Files>
 
+  # site.webmanifest IS NOT robots.txt, and the rule above was treating it as
+  # though it were. Measured on the live server: max-age=3600.
+  #
+  # The others in that group — robots, the sitemaps, llms.txt — are read by
+  # crawlers, and an hour of staleness costs nothing. The manifest is read by
+  # the BROWSER, it names the app icons, and it is a fixed name whose contents
+  # change: the maskable icon added on 2026-09-05 would have reached an
+  # already-installed visitor up to an hour late, and a phone that had it in a
+  # longer-lived store, later still.
+  #
+  # That is the same shape as the seven fixed-name files in /assets and as
+  # sw.js above: a file whose bytes change under a name that never does cannot
+  # be cached by name. It belongs with sw.js and config.js, not with robots.txt.
+  <Files "site.webmanifest">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </Files>
+
+  # THE HTML SHELL, explicitly rather than by inference.
+  #
+  # ExpiresByType text/html "access plus 0 seconds" above produces
+  # `max-age=0`, and measured on the live server that is exactly what the shell
+  # sends. In practice every browser revalidates on max-age=0 — but max-age=0
+  # and no-cache are not the same instruction, and the difference is a shared
+  # cache: max-age=0 without must-revalidate permits a proxy to serve a stale
+  # copy when it cannot reach the origin, and this shop sits behind a CDN that
+  # can be switched on from the panel.
+  #
+  # index.html IS the whole app — every route renders from it — so a stale
+  # shell is a stale site, including a stale reference to whichever bundle is
+  # current. Saying no-cache costs one conditional request and removes the
+  # ambiguity.
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+
+  # AND seo.php, WHICH IS WHAT "/" ACTUALLY IS.
+  #
+  # The rule above does not cover the home page, and that is the point of
+  # having this one: every storefront URL is rewritten to seo.php, so the
+  # shell is a PHP response and matches no .html pattern. Measured in the
+  # Apache rig, `/` came back with no Cache-Control at all.
+  #
+  # seo.php sets the header itself on both of its output paths, so this
+  # duplicates it deliberately. Apache's `Header set` runs last and REPLACES
+  # what PHP sent — the lesson recorded in api/.htaccess — so the two must
+  # agree, and they do. The reason to have both is that they fail differently:
+  # a future edit to seo.php cannot silently drop the header, and a future
+  # .htaccess restore cannot silently drop it either.
+  <Files "seo.php">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </Files>
+
   # THE HAND-WRITTEN OVERRIDE FILES, which matched NOTHING and so were guessed
   # at by every cache in the path.
   #

@@ -212,8 +212,22 @@ try {
     }
 } catch (Throwable $ex) {
     /* Never let a metadata problem take the storefront down. Serve the shell
-       untouched — that is exactly the behaviour the site had before. */
+       untouched — that is exactly the behaviour the site had before.
+
+       AND SAY HOW LONG IT MAY BE KEPT, which this path did not. The success
+       path below sends `public, max-age=0, must-revalidate`; this one sent
+       only a Content-Type, so every cache in the chain fell back to a
+       heuristic — typically a tenth of the age of the file, which for a shell
+       built weeks ago is days.
+
+       That is the wrong way round. This branch runs when something has already
+       gone wrong, so the page it serves is the one LEAST worth keeping: a
+       degraded shell pinned for days outlives the fault that produced it, and
+       the shop looks broken long after it is fixed. Measured on 2026-09-05 —
+       the .htaccess rig reported "NOTHING, so every cache guesses" for `/`,
+       which is how this branch was found at all. */
     header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: public, max-age=0, must-revalidate');
     echo $html;
     exit;
 }
