@@ -1355,3 +1355,106 @@ p.mt-6.flex.flex-wrap.items-baseline:has(> .font-display) {
 .app-header > nav > div:last-child {
   justify-content: flex-end;
 }
+
+/* ============================================================== the top bar */
+/* THE CLOCK COMES OUT, at the owner's request (2026-09-05).
+ *
+ * An analogue clock face and a digital 13:06 sat in the header's most valuable
+ * corner — the one a shopper's eye reaches first after the logo — and neither
+ * helps anyone buy anything. The delivery promise in the band above already
+ * says the thing about time that a customer needs.
+ *
+ * SCOPED TO THE SPAN THAT HOLDS BOTH, not to the two elements separately. The
+ * clock face and the time share one parent whose entire text content is the
+ * time, so hiding the parent takes the pair and nothing else — the language
+ * switch beside it is a sibling and is untouched. Hiding the two children
+ * instead would leave the empty flex parent behind, still holding its gap and
+ * pushing EN off the edge it now sits on.
+ *
+ * The rules further up this file that STYLE the clock are deliberately left in
+ * place. They cost nothing while it is hidden, and they are the only record of
+ * how it was drawn if it is ever wanted back. */
+.app-header span:has(> svg[viewBox='0 0 48 48']) {
+  display: none !important;
+}
+
+/* ================================================== the hero, on phones only */
+/* THE EMPTY BAND UNDER THE BANNER, at the owner's request (2026-09-05).
+ *
+ * Measured at 390x844: the slide is 314px tall, of which the artwork occupied
+ * 186 and the remaining 128 was a bare gradient strip holding the تسوّق الآن
+ * button. A quarter of the hero showed nothing. Desktop never had this — the
+ * bundle ships md:absolute on both boxes, so from 768px up the button has
+ * always floated over the picture. The phone was the odd one out.
+ *
+ * So this gives the phone the arrangement desktop already had: the button
+ * moves on top of the picture and the 128px comes OFF the slide.
+ *
+ * WHAT WAS ASKED FOR WAS A FULL OVERLAY, AND IT CANNOT BE DONE ON THESE
+ * BANNERS. Two attempts, both rendered and looked at rather than reasoned
+ * about:
+ *
+ *   1. Keep the 314px and let the artwork grow into it. Worse than the strip
+ *      it replaced — the box went 2.10:1 to 1.24:1 at the same width,
+ *      object-fit: cover zoomed to match, and "MEN'S TRAINING" came out
+ *      "EN'S TRAINING" with the orange headline losing its last letter.
+ *   2. Shrink the hero to the artwork and float the button on top. The
+ *      artwork survived, and the button landed squarely across the headline —
+ *      it covered "…INING" and the middle of "BODY BUILDING", and the
+ *      carousel controls sat on the strapline.
+ *
+ * The reason is in the section above this one, which spends thirty lines on
+ * where the crop falls: these five banners ARE their typography, set across
+ * the left two-thirds, with the model in the remaining third. There is no
+ * clear ground big enough for a 300px button. An overlay always covers
+ * something.
+ *
+ * AND THE BAND IS NOT EMPTY, which is the correction that matters. Reading the
+ * screenshot I called it "a bare gradient strip" and that was wrong: 128px
+ * holds the button (48px, on a 32px pb-8) and the carousel controls (32px, on
+ * bottom-2). It LOOKS empty because it is flat colour with generous spacing
+ * around two small things, not because anything is missing. There is no
+ * quarter of the hero to reclaim.
+ *
+ * So this tightens rather than removes: 128px becomes 104px, which is what the
+ * button and the controls actually need with 10px between them, measured from
+ * their rendered boxes. The hero comes down 24px, the artwork is untouched at
+ * the 2.10:1 the owner chose this morning, and nothing overlaps anything.
+ *
+ * The carousel controls needed nothing: they are `absolute bottom-2` on the
+ * section and were already floating. They only LOOKED stacked because the
+ * band beneath the art pushed the section's bottom edge down past the picture.
+ * Measuring that is what stopped this from becoming two fixes instead of one. */
+/* The pre-paint shell reads --hero-h and the mounted component reads its own
+ * height. The file says further up, at length, that moving one without the
+ * other makes the page jump at mount — the single failure the boot script
+ * exists to prevent. So both, together, to the same number. */
+:root {
+  --hero-h: calc(100vw / 2.10 + 104px) !important;
+}
+
+@media (max-width: 767px) {
+  .hero-strength {
+    height: calc(100vw / 2.10 + 104px) !important;
+  }
+
+  /* The artwork keeps its own box and its own ratio. Untouched on purpose. */
+
+  /* The band: 104px instead of 128, and the button pulled up into the top of
+   * it so the controls have the bottom. Both were always inside these 128px;
+   * the space between them was the waste. */
+  .hero-strength > div:nth-child(2) {
+    height: 104px !important;
+    align-items: flex-start !important;
+    padding-top: 0 !important;
+  }
+  /* The button's own wrapper. pb-8 is what held it clear of the controls when
+   * the band was 128; at 104 the controls are pinned closer and that padding
+   * is what made them collide — measured, a 14px overlap. Note the band's
+   * FIRST child is an sr-only <h1>, so this targets the div specifically:
+   * a `> *` rule here would put padding on the heading too. */
+  .hero-strength > div:nth-child(2) > div {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+}
