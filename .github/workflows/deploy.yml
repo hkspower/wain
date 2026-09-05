@@ -81,6 +81,19 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: npm run build
 
+      # /privacy promises the visitor there are no cookies, and a promise
+      # nothing checks is a promise that expires. This loads the built pages in
+      # a real browser and fails the deploy if a cookie appears — which is the
+      # only way the promise survives a dependency bump nobody read.
+      #
+      # Non-blocking on purpose: it needs a browser download, and a runner that
+      # cannot fetch one must not be able to hold the site hostage. A genuine
+      # cookie still shows up red in the log, and audit:cookies run locally is
+      # the blocking gate.
+      - name: No cookies
+        continue-on-error: true
+        run: npx playwright install --with-deps chromium && npm run audit:cookies
+
       # Say which back end this build carries, so a deploy that silently went
       # out without one is visible in the log rather than discovered by a
       # customer whose order goes nowhere.

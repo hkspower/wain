@@ -47,7 +47,8 @@
     "audit:search": "node scripts/audit-search.mjs",
     "audit:place-icons": "node scripts/audit-place-icons.mjs",
     "photos": "node scripts/gen-photos.mjs",
-    "audit:photos": "node scripts/audit-photos.mjs"
+    "audit:photos": "node scripts/audit-photos.mjs",
+    "audit:cookies": "node scripts/audit-cookies.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.1",

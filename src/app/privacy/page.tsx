@@ -66,6 +66,33 @@ export default function PrivacyPage() {
         </div>
       </section>
 
+      {/* The basemap. This section exists because it is the only third party
+          that loads without the visitor asking for it — شوق waits for a press,
+          the submission webhook waits for a submit, and the map does not wait
+          for anything. Leaving it undisclosed was the page's one real
+          omission: it made «ما يوصل شي لأي طرف ثاني» read as true site-wide
+          when a place page had already sent an IP to openstreetmap.org. */}
+      <section className="mt-6 rounded-3xl border border-line bg-white p-6 shadow-sm">
+        <h2 className="font-display text-xl font-semibold text-ink-900">الخريطة</h2>
+        <div className="mt-3 space-y-3 text-sm leading-relaxed text-ink-600">
+          <p>
+            خرائط صفحات الأماكن من{" "}
+            <strong className="text-ink-900">OpenStreetMap</strong> — مشروع خرائط
+            مفتوح، مو شركة إعلانات. يعني أول ما تفتح صفحة مكان، متصفحك يطلب
+            الخريطة من خوادمهم، ويشوفون عنوان الـ IP حقك مثل أي طلب على
+            الإنترنت، وتنطبق سياسة الخصوصية الخاصة فيهم.
+          </p>
+          <p>
+            واللي نضمنه لك: الخريطة داخل إطار معزول (sandbox) بدون صلاحية
+            same-origin، يعني{" "}
+            <strong className="text-ink-900">المتصفح نفسه يمنعها</strong> إنها
+            تحط كوكيز أو تقرا أي شي من الموقع — مو وعد منهم، قاعدة يفرضها
+            متصفحك عليهم. وما نرسل لهم عنوان الصفحة اللي أنت فيها ولا اسمك ولا
+            بحثك ولا موقعك: بس إحداثيات المكان اللي فاتحه، وهي معلومة عامة أصلاً.
+          </p>
+        </div>
+      </section>
+
       {/* وين AI */}
       <section className="mt-6 rounded-3xl border border-line bg-white p-6 shadow-sm">
         <h2 className="font-display text-xl font-semibold text-ink-900">
@@ -91,7 +118,7 @@ export default function PrivacyPage() {
             ووقتها ينطبق عليه سياسة الخصوصية الخاصة فيهم — وممكن يحفظ بيانات في
             متصفحك تخصّ المحادثة. المايك ما يشتغل إلا بعد ما تعطي الإذن.
           </p>
-          <p>إذا ما فتحت وين AI، ما راح يوصل أي شي عنك لأي طرف ثاني.</p>
+          <p>إذا ما فتحت وين AI، ما يتحمّل ولا يشتغل أي شي من ElevenLabs أبداً.</p>
         </div>
       </section>
 
@@ -118,11 +145,28 @@ export default function PrivacyPage() {
       {/* Hosting */}
       <section className="mt-6 rounded-3xl border border-line bg-white p-6 shadow-sm">
         <h2 className="font-display text-xl font-semibold text-ink-900">الاستضافة</h2>
-        <p className="mt-3 text-sm leading-relaxed text-ink-600">
-          وين موقع ثابت (static)، يعني ما فيه قاعدة بيانات ولا حسابات ولا تسجيل
-          دخول. مزوّد الاستضافة — مثل أي استضافة — يسجّل طلبات الخوادم العادية
-          لأسباب تشغيلية وأمنية، وهذا خارج عن تحكّمنا.
-        </p>
+        {/* Was «ما فيه قاعدة بيانات» — no database — which stopped being true
+            the day ordering shipped. The pages are still static files, but a
+            placed order is a row in Supabase, and a privacy page that denies
+            the database is worse than one that never mentioned it. */}
+        <div className="mt-3 space-y-3 text-sm leading-relaxed text-ink-600">
+          <p>
+            صفحات وين ملفات ثابتة (static): ما فيه سيرفر يشغّل كود، ولا حسابات،
+            ولا تسجيل دخول للزوار. تقدر تتصفّح الموقع كله وتدوّر وتقرا الأماكن
+            بدون ما تعطينا ولا معلومة.
+          </p>
+          <p>
+            الاستثناء الوحيد بيدك أنت: إذا طلبت طلب أو خذيت دور في الطابور، اللي
+            تكتبه — اسمك ورقمك وطلبك — ينحفظ في قاعدة بيانات{" "}
+            <strong className="text-ink-900">Supabase</strong> عشان المحل يشوف
+            طلبك ويجهّزه. هذي المرة الوحيدة اللي تطلع فيها بيانات منك، وما تصير
+            إلا بضغطة منك، ونسختك من الطلب تبقى محفوظة داخل متصفحك.
+          </p>
+          <p>
+            ومزوّد الاستضافة — مثل أي استضافة — يسجّل طلبات الخوادم العادية
+            لأسباب تشغيلية وأمنية، وهذا خارج عن تحكّمنا.
+          </p>
+        </div>
       </section>
 
       <div className="mt-10 text-center">

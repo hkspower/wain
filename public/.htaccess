@@ -240,6 +240,30 @@ Options -Indexes
   # subdomain is confirmed HTTPS.
   Header always set Strict-Transport-Security "max-age=31536000"
 
+  # No cookies leave this domain. Ever.
+  #
+  # Nothing in the site sets one — the build is static files, there is no PHP
+  # in the request path, and audit:cookies loads ten pages in a real browser
+  # and asserts the jar comes back empty. So why strip a header nothing sends?
+  #
+  # Because the thing that would send it is not ours. Shared hosting adds
+  # cookies on its own account: LiteSpeed's cache does it to vary responses,
+  # bot-protection and "under attack" layers do it to mark a browser as
+  # cleared, and both arrive by a control-panel toggle rather than a commit —
+  # nobody edits this repository, the site quietly gains a cookie, and the
+  # promise on /privacy silently becomes false. This makes that impossible
+  # instead of unlikely: whatever the host decides to attach, the visitor
+  # never receives it.
+  #
+  # Safe precisely because the site has no session to lose. Orders and queue
+  # tickets are held in the visitor's own localStorage and authenticated to
+  # Supabase by a token in the request body, never by a cookie — so there is
+  # no logged-in state for this to break. Anything added later that DOES need
+  # a cookie has to delete this line, which is the point: it cannot happen by
+  # accident, and whoever deletes it has to answer for /privacy too.
+  Header always unset Set-Cookie
+  Header always unset Set-Cookie2
+
   # Content Security Policy.
   #
   # Honest about its limits: 'unsafe-inline' has to stay in script-src because
