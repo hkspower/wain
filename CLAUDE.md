@@ -81,11 +81,40 @@ here, and each one cost a wrong answer first:
   finding this out.
 - **Output capture returns only the last line.** Put everything on one line
   with `echo "a=$(…) b=$(…)"` or the diagnosis is half a diagnosis.
-- **The server cannot resolve its own domain.** `wget https://www.sporta.com.kw/…`
-  from cron dies with "unable to resolve host address", and with `-q` that looks
-  exactly like a page that returned nothing. A whole afternoon went into
-  "api.php returns an empty body" on the strength of it; api.php was fine the
-  whole time. Fetch the live site over the loopback with the name in a header:
+- **The domain does not resolve — and that is NOT a server quirk.** This entry
+  used to say "the server cannot resolve its own domain", and treating that as a
+  local oddity is how it went unexamined for weeks. Measured on 2026-09-05, from
+  the server, against Google's public DNS:
+
+  ```
+  www.sporta.com.kw.cdn.hstgr.net  → resolves, 2 addresses   (the CNAME target is fine)
+  example.com                      → resolves                (DNS itself is fine)
+  www.sporta.com.kw                → 0 addresses
+  NS sporta.com.kw                 → empty
+  NS com.kw                        → 5 nameservers           (the registry is up)
+  sporta.com.kw                    → status: NXDOMAIN
+  ```
+
+  NXDOMAIN from the registry, while `com.kw` answers normally, means the
+  .com.kw registry HAS NO DELEGATION for this domain — expired, deleted or
+  suspended at the registrar. Not a record problem, not a nameserver outage,
+  not DNSSEC. The Hostinger zone is intact the whole time, which is exactly why
+  the panel looks healthy while the site is unreachable.
+
+  **Only the registrar can fix it.** Nothing in this repository, in Hostinger's
+  DNS panel, or on the server will bring the name back.
+
+  **The lesson that generalises:** a workaround can be correct and its
+  explanation still wrong, and the wrong explanation is the expensive half. The
+  loopback trick below is right and stays. But "the server cannot resolve its
+  own domain" made a symptom sound like a property of the environment, so the
+  one signal that would have caught an expiring domain was written off as
+  normal every single time it appeared. When something cannot be reached, ask
+  WHY once, properly, before naming it a quirk and routing around it.
+
+  The loopback form is still how to test the live site from cron — it works
+  whether or not the name resolves, which is the other reason it is worth
+  keeping:
 
   ```
   wget -S -O/dev/null --no-check-certificate \
@@ -332,3 +361,83 @@ was caught; it was the second, uglier one that found the hole.
 That is the same shape as "a suite that finds NOTHING is reporting its own
 environment", one section up, and it caught a real hole rather than a dead
 sandbox.
+
+## The rig is Apache. Production is LiteSpeed. They are not the same server
+
+`htaccess-test.mjs` starts a real Apache and asks it what it sends, which is a
+far better test than reading the file — and it is still not production.
+
+Measured on 2026-09-05: every response from the live site carried two headers
+literally named `edit:`, whose values were two `.htaccess` lines —
+
+```
+edit: Set-Cookie "(?i)^((?!.*;\s*Secure).*)$" "$1; Secure"
+edit: Set-Cookie "(?i)^((?!.*;\s*SameSite=).*)$" "$1; SameSite=Lax"
+```
+
+**LiteSpeed does not implement `Header edit`. It emitted the directive as a
+header instead of applying it.** So the two lines that add `Secure` and
+`SameSite=Lax` to cookies have never done anything on the live server, and
+their own comment records how carefully they were tested — against Apache
+2.4.58, which honours them perfectly. A test that passes on the wrong server is
+not a test.
+
+`Header set … env=` DOES work there: proved the same day, because the asset
+host's `Access-Control-Allow-Origin` and `X-Robots-Tag` arrived exactly as
+written. So the fix for cookie flags is to set them where the cookie is made —
+`session.cookie_secure`, `session.cookie_samesite` — which is honoured by both
+servers, rather than rewriting headers afterwards.
+
+The rule: **for anything in `.htaccess` beyond rewrite and `Header set`, ask the
+live server what it actually sends.** The rig proves syntax and intent; only
+production proves the directive is implemented.
+
+## A replacement that matches nothing is a no-op that looks like success
+
+The publisher for the KNET change was pinned to the wrong commit — a `.replace()`
+searched for a sha the file did not contain, changed nothing, and reported no
+error. It fetched three PHP files from before the feature existed.
+
+Nothing was written, because every publisher verifies each file against a
+recorded sha256 BEFORE writing: the run said `hashMismatch` on all three and
+touched the live shop not at all. **The guard written for a tampered fetch
+caught an ordinary mistake instead, which is the argument for having it.**
+
+Same shape as the extractor that silently dropped a route, one section down.
+Whenever a script edits a string, a path or a sha, check the value AFTERWARDS
+rather than trusting that the edit matched.
+
+## static.sporta.com.kw — the cookie-free asset host, half-finished on purpose
+
+Created 2026-09-05, rooted at the SAME `public_html` (Hostinger's "use the
+public directory"), so www and static are two hostnames over one set of files
+and one `.htaccess`. Live and verified: assets answer 200, one NAMED CORS
+origin, `X-Robots-Tag: noindex`, and `/`, `/shop`, `/checkout`, `/backends` all
+301 to www so it cannot become a second indexable copy of the shop. `sw.js`
+counts it as first-party, or its cross-origin bailout would skip every moved
+file and cost the whole service worker.
+
+**`index.html` still points at `/assets`, deliberately.** The module scripts
+carry `crossorigin`, so they fail outright if the origin is not usable, and
+measured that day:
+
+```
+static.sporta.com.kw → Could not find certificate
+www.sporta.com.kw    → Hostname www.sporta.com.kw does match certificate
+```
+
+No SSL certificate yet. Publishing the reference move before one exists gives
+every visitor an unstyled page with no JavaScript.
+
+And the thing worth remembering before finishing it: **the storefront sets ZERO
+cookies for a shopper** — measured, `Set-Cookie` count 0 on the home page — so
+the byte saving from a cookie-free host is nil. It is worth having as somewhere
+to point a CDN, and it is not worth breaking anything for.
+
+## The live shop has no product photographs
+
+`photos=0/46active`, `brandLogos=0/8`, measured 2026-09-05. Every product card
+on the real site is blank. Photographs and brand logos are data: URIs in MySQL,
+uploaded through /backends — the owner's images, not something to invent here,
+and not something any script in this repository can supply. It is a bigger
+visible problem than anything in the CSS.
