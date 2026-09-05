@@ -1,7 +1,11 @@
 :root {
+  /* The app's own face, ahead of anything the system would pick. Every screen
+     names its family from the type scale, so this only decides what a browser
+     uses before the bundle has painted — but that is the first frame, and it
+     is the difference between the shop's letterforms and Helvetica. */
   --font-display:
-    Spline Sans, Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,
-    Segoe UI Symbol, Noto Color Emoji;
+    Alexandria-400, Alexandria, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji,
+    Segoe UI Emoji, Segoe UI Symbol, Noto Color Emoji;
   --font-mono:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
   --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;

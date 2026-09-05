@@ -1,0 +1,1498 @@
+/* Sporta — top bar and hero adjustments.
+ *
+ * Separate from sporta-dark.css on purpose. That file is the PALETTE and
+ * everything in it is scoped to [data-theme=dark]; none of this is about
+ * colour temperature. A bigger clock is a bigger clock in both themes, and
+ * mixing the two would mean the light theme quietly kept the old sizes.
+ *
+ * Loaded after the build's stylesheet, so it wins by cascade on equal
+ * specificity. The !important flags are only where a Tailwind utility of the
+ * same specificity would otherwise win by source order, or — for the hero —
+ * where the value is an inline style set by the boot script in index.html.
+ */
+
+/* ------------------------------------------------------------------ clock */
+/* Scoped to .app-header, NOT to `header`. That distinction cost an invoice.
+   These rules were written as `header ...` and the invoice page has THREE
+   header elements — the site bar, the invoice card's own header, and one
+   more. `header .tabular-nums` matched four elements there and painted the
+   order number and the date white; on the dark screen that looked
+   deliberate, and on white paper the printed invoice simply had no order
+   number on it. .app-header matches one element on every page. */
+.app-header svg[viewBox='0 0 48 48'] {
+  width: 44px !important;
+  height: 44px !important;
+}
+@media (min-width: 640px) {
+  .app-header svg[viewBox='0 0 48 48'] {
+    width: 52px !important;
+    height: 52px !important;
+  }
+}
+
+/* WHITE HANDS, NOT ORANGE. The ember stays everywhere it means something
+   (price, active nav, the sale badge); on a clock face it was decoration
+   competing with them.
+
+   THIS RULE USED TO NAME ONLY .stroke-brand, AND THAT IS NOT THE HANDS. It is
+   the four quarter-hour TICK MARKS. The hands and the centre cap are
+   .stroke-brand-bright and .fill-brand-bright — a different token — so the
+   change whitened the dial's markings, left the hands ember, and the comment
+   above it described an outcome that had not happened. Read back off the
+   rendered page rather than from the stylesheet, which is the only way this
+   kind of near-miss shows up.
+
+   It matters most on a phone. There the clock sits about ten pixels from the
+   SPORTA wordmark, which is the same orange, so the two competed at exactly
+   the size where the header has least room to spare. */
+.app-header svg[viewBox='0 0 48 48'] .stroke-brand,
+.app-header svg[viewBox='0 0 48 48'] .stroke-brand-bright {
+  stroke: #ffffff !important;
+}
+.app-header svg[viewBox='0 0 48 48'] .fill-brand-bright {
+  fill: #ffffff !important;
+}
+
+/* THE DIAL HAD NO EDGE TO IT. Its fill is #20252C on a header of #23262A —
+   1.01:1, which is not a subtle separation but no separation at all. The
+   whole disc was carried by one hairline ring at 20% white, so the clock read
+   as a smudge with hands on it rather than as a face.
+
+   Raised until the disc is its own object. Still dark, still recessed — this
+   is a clock in a chrome bar, not a feature — but now visibly a circle. The
+   ring goes up with it so the edge stays the crispest part, which is what
+   tells the eye where the face ends.
+
+   #343b43 is 1.34:1 against the bar, and the number was measured rather than
+   picked. The first attempt at this was #2b3138, which looked fine by eye and
+   came back at 1.16:1 — under the floor the rig in color-test.mjs asks for,
+   and the honest fix was to lift the dial rather than lower the threshold to
+   meet it. */
+.app-header svg[viewBox='0 0 48 48'] .fill-ink-soft {
+  fill: #343b43 !important;
+}
+.app-header svg[viewBox='0 0 48 48'] .stroke-white\/20 {
+  stroke: rgba(255, 255, 255, 0.38) !important;
+}
+
+/* The hour ticks were carrying the same weight as the hands once both went
+   white, so the face turned into a ring of similar-length white marks with no
+   hierarchy. Ticks are reference, hands are the reading: the markings drop
+   back and the hands keep the full white above. */
+.app-header svg[viewBox='0 0 48 48'] .stroke-brand {
+  stroke: rgba(255, 255, 255, 0.55) !important;
+}
+.app-header svg[viewBox='0 0 48 48'] .stroke-white\/30 {
+  stroke: rgba(255, 255, 255, 0.28) !important;
+}
+
+/* The outline drawn behind each hand is the dial's old fill, so it stopped
+   matching the moment the dial was lifted — leaving a dark halo around every
+   hand against a lighter face. It exists to keep a hand legible where it
+   crosses a tick, so it has to be the colour of what is actually behind it. */
+.app-header svg[viewBox='0 0 48 48'] .stroke-ink-soft {
+  stroke: #343b43 !important;
+}
+
+/* The digits beside it. They were 13.7px at 85% white — the smallest text in
+   the bar and the one most often read at arm's length. */
+.app-header .tabular-nums {
+  font-size: 15px !important;
+  color: #ffffff !important;
+  letter-spacing: 0.02em;
+}
+
+/* --------------------------------------------------------------- top bar */
+/* THE BAR IS SET IN A TEXT FACE, NOT THE DISPLAY ONE.
+ *
+ * Everything in the header inherited Alexandria from the body — the geometric
+ * face that carries the headings and the brand voice. It is right at 30 and 40
+ * pixels and it is the wrong tool at 13 to 16: its Arabic is drawn on
+ * geometric skeletons that lose their joins at small sizes, and its Latin has
+ * even, wide strokes that go soft rather than sharp.
+ *
+ * IBM Plex Sans Arabic is a TEXT face, drawn for interfaces at exactly these
+ * sizes, and the site ALREADY DOWNLOADS IT — it sits in the body's own font
+ * stack as the fallback, and its 400/600/700 files are in /fonts. So this
+ * costs no new request and no new file; it uses what is already there.
+ *
+ * The split it creates is the ordinary one: display face for the things that
+ * speak, text face for the chrome that gets read. The logo is an image and is
+ * untouched, so the brand mark itself does not move.
+ *
+ * The `unicode-range` on those @font-face rules is what makes one declaration
+ * enough for both languages: the Arabic and Latin files are separate, and the
+ * browser picks per character. Nothing here needs to know which language the
+ * link is in. */
+.app-header,
+.app-header nav a,
+.app-header button,
+.app-header a {
+  font-family: 'IBM Plex Sans Arabic', 'Plex Arabic Fallback', system-ui, sans-serif !important;
+}
+
+/* Nav links were 15.5px at weight 400 — measured, not assumed, and 400 is body
+   text. Navigation is a set of targets, not prose; 600 is what makes a row of
+   links read as a row of links. */
+.app-header nav a,
+.app-header a.flex.min-h-11 {
+  font-size: 15.5px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.01em;
+}
+
+/* AND NOT ONE HUNDREDTH OF AN EM OF IT IN ARABIC.
+ *
+ * The tracking above was added for the Latin half of the row and applied to
+ * the whole of it. That is fine in Latin, where letters are discrete shapes
+ * with space between them by design, and it is wrong in Arabic, which is a
+ * CURSIVE script: the letters of a word are joined, and letter-spacing does
+ * not loosen a word, it pulls the joins apart. الرئيسية is one connected
+ * stroke from ا to ة, and tracking puts a gap inside it.
+ *
+ * Measured across seven pages: 28 Arabic runs carrying 0.155px of tracking,
+ * and they were the only tracked Arabic on the site — the eyebrows, the
+ * headings and the body all sit at 0, so this rule was the whole of the
+ * problem.
+ *
+ * Scoped by the DOCUMENT's language rather than by testing the text, because
+ * the same markup carries both: <html lang> is `ar` by default and becomes
+ * `en` when the shopper switches. So English keeps the tracking it was written
+ * for and Arabic gets none, which is what the note above was actually
+ * reaching for. */
+html[lang='ar'] .app-header nav a,
+html[lang='ar'] .app-header a.flex.min-h-11 {
+  letter-spacing: normal;
+}
+
+/* The language chip: 12px at 90% white inside a 20%-white ring. Full white on
+   a firmer ring — it is a control, and its edge was 1.2:1 against the bar. */
+.app-header button[aria-label] {
+  font-size: 13.5px !important;
+}
+.app-header button[aria-label].border-white\/20 {
+  border-color: #ffffff59 !important;
+  color: #ffffff !important;
+}
+
+/* ------------------------------------------------------------------ hero */
+/* TALLER, by changing the ratio the box is cut to — not by adding a fixed
+   height. The banner is object-fit: cover, so a taller box crops the sides
+   rather than letterboxing; a fixed height would have to guess the viewport
+   and would leave bars at the edges of the range, which is the exact bug the
+   boot script's comments describe fixing once already.
+
+   2.52 is the shipped artwork's own ratio. On a 393px phone that is 156px of
+   picture, which reads as a band rather than a hero.
+
+     phone    100vw / 1.65  ->  238px at 393   (was 212, and 156 before that)
+     desktop  100vw / 1.90  ->  674px at 1280  (was 595, and 508 before that)
+
+   TALLER AGAIN, at the owner's request, and the ceiling on it is the artwork
+   rather than taste. The box is object-fit: cover over a 2.52:1 image, so
+   every step deeper crops more width — at 1.90 the frame keeps 75% of the
+   1600px art, at 1.65 it keeps 65%. What saves it is that the crop is pinned
+   at 15% rather than centred: the window runs 3.7%..79.1% on desktop and
+   5.2%..70.7% on the phone, so it eats the PHOTOGRAPH on the right and leaves
+   the SPORTA mark, the headline bar and the Arabic — all set in the left half
+   of every one of the five banners — untouched. Centred, the same depth would
+   have cut both edges and taken the mark with it.
+
+   AND THEN CAPPED, because the depth went somewhere it should not have. The
+   ratio is a shape; svh is a share of the window, and only the second one
+   knows how much of the shop the banner is hiding. Measured after the ratio
+   change: 674px on a 1280x900 laptop is 75% of the first screen, and on a
+   1440x700 or a 1920x1080 the old 80svh clamp bound at exactly 80% — a hero
+   with nothing under it, on the page whose job is to show what is for sale.
+
+   70svh first, and then 60svh, because 70 was still too tall — the owner said
+   so looking at it, which is the only measurement that decides this. The cap
+   is what moved, not the 1.90 ratio: the ratio is the banner's shape and there
+   was never anything wrong with it; the cap is how much of the first screen
+   the banner is allowed to take, and that is the thing that was wrong.
+
+     1280x900   674 -> 630 -> 540   75% -> 70% -> 60%
+     1440x700   560 -> 490 -> 420   80% -> 70% -> 60%
+     1920x1080  864 -> 756 -> 648   80% -> 70% -> 60%
+
+   At 60svh the cap binds on every ordinary desktop window, so the hero is
+   effectively 60% of the first screen and the ratio only paints on a window
+   taller than 1.90 times its width — a portrait monitor, in practice. That is
+   the intended reading: the shop, not the banner, gets the fold.
+
+   The phone is untouched at 43% — the cap is on --hero-h-md and the phone
+   reads --hero-h.
+
+   AND THEN THE PHONE, which is where this was actually being read.
+   ----------------------------------------------------------------
+   Every step above moved the DESKTOP cap. The phone ratio had sat at 1.65
+   since the "taller again" change and nobody had objected — because nobody
+   had seen it: sporta-ui.css was ABSENT from the server until 2026-09-04, so
+   the live phone hero was still the bundle's own 2.52. Publishing this file
+   did not just apply the desktop cap, it made the phone 52% TALLER in the
+   same breath, and that is what "too tall" was about.
+
+     393px phone   100vw / 1.65 -> 238px art     (what publishing introduced)
+                   100vw / 2.10 -> 187px art     (here — 51px shorter)
+                   100vw / 2.52 -> 156px art     (the artwork's own ratio)
+
+   2.10 rather than straight back to 2.52: at 2.52 the box is the shipped
+   art's own shape, which is where this started and which the note at the top
+   of this block calls "a band rather than a hero". 2.10 keeps it a hero and
+   gives back most of the height. It also crops LESS — a shallower box over a
+   2.52:1 image keeps about 83% of the width against 65% at 1.65 — so the
+   SPORTA mark, the headline bar and the Arabic in the left half are further
+   from the edge than they were, not closer.
+
+   If it is still too tall, 2.52 is the next stop and costs nothing but the
+   band-versus-hero judgement, which is the owner's.
+
+   The +128px on the phone value is the button strip below the art and is
+   carried through unchanged — it is measured, not a guess: py-6 top and
+   bottom (48) + a 48px button + pb-8 (32).
+
+   !important because the boot script sets these as inline styles on <html>,
+   and it has to keep doing so: it is what stops the hero resizing under
+   whoever is reading it. Overriding the variable rather than the height means
+   the pre-paint shell and the mounted component still read the same number. */
+:root {
+  --hero-h: calc(100vw / 2.10 + 128px) !important;
+  --hero-h-md: min(calc(100vw / 1.90), 60svh) !important;
+}
+
+/* AND THE COMPONENT ITSELF, which is what actually sizes the mounted hero.
+   The variables above only paint the pre-mount shell — setting them alone
+   changed nothing on screen, which is how I found this out. Both have to move
+   together or the shell and the hero disagree and the page jumps at mount,
+   the one failure the boot script exists to prevent.
+
+   Phone: the art sits in an inner box carrying aspect-[2.52/1]; the outer is
+   auto and comes to art + the 128px button strip.
+   Desktop (md, 768px up): the inner goes aspect-auto and the OUTER carries
+   the ratio, clamped at 60svh. */
+/* SCOPED TO PHONES, which it was not. This rule had no media query, so it
+   applied at every width and the desktop rule below it never took effect — the
+   comment above claimed desktop was cut to 2.15 and it was measurably 1.85,
+   1408 x 761 on a 1280 screen. Found by measuring the rendered box rather than
+   reading the file. */
+@media (max-width: 767px) {
+  .hero-strength > .aspect-\[2\.52\/1\] {
+    aspect-ratio: 2.10 / 1 !important;
+  }
+}
+@media (min-width: 768px) {
+  .hero-strength {
+    aspect-ratio: 1.90 / 1 !important;
+    /* AND THE CAP, on the component, because the variable is only half of it.
+     * The bundle ships max-h-[80svh] on this element — its own ceiling, not
+     * read from --hero-h-md — and the two agreed at 80svh only by coincidence.
+     * Lowering the variable alone moved the pre-paint shell and left the
+     * mounted hero where it was: measured, a 44px disagreement at 1280x900 and
+     * 108px at 1920x1080, which is the page jumping at mount, which is the one
+     * failure the boot script exists to prevent. Both halves, or neither. */
+    max-height: 60svh !important;
+  }
+}
+
+/* --- WHERE THE CROP FALLS, which is the whole of "fitted" ---------------- */
+/* THE ARTWORK IS 2.52:1 AND CARRIES ITS OWN TYPOGRAPHY. Every one of the five
+ * banners is a template: the SPORTA mark, "MEN'S / WOMEN'S TRAINING", an
+ * orange headline bar, the Arabic, and a strapline — all set in the LEFT half,
+ * with the photograph on the right.
+ *
+ * Cutting a 2.52 picture to a 1.85 box discards 27% of its width, and
+ * object-position defaults to centre, so it took 13.5% off EACH edge. That
+ * beheaded every line of type in the banner:
+ *
+ *     SPORTA          ->  RTA
+ *     MEN'S TRAINING  ->  N'S TRAINING
+ *     BODY BUILDING   ->  ODY BUILDING
+ *     كمال الأجسام     ->  cut mid-word
+ *
+ * Moving the window to the left keeps all of it. 15% rather than 0%: the
+ * typography starts 6.1% into the artwork in all five files — they share a
+ * template, so the margin is the same every time — and 15% of the overflow
+ * puts the window's edge at 4.0%, which clears the type by two points and buys
+ * back four points of picture on the right. At 0% the cardio-women banner lost
+ * its subject off the right edge; at 15% she is in frame and every line of
+ * type is still whole. Checked on all five, at both sizes.
+ *
+ * A PERCENTAGE, NOT A KEYWORD. `left` would be right too, but the logical
+ * `start` would flip to the right edge in Arabic and cut off exactly the text
+ * this rule exists to protect. The artwork's type is on the physical left in
+ * both languages — the files are not mirrored — so the value must be physical.
+ *
+ * If the hero should be taller than this without losing anything, the artwork
+ * has to be taller: these are 1000x396 and 1600x635. No CSS can add picture
+ * that was never photographed. */
+/* AND object-fit: COVER, which is the half that was missing.
+ *
+ * The rule above was written for a crop that was not happening. The visible
+ * banner is object-fit: CONTAIN — only the blurred backdrop behind it is
+ * cover — so the artwork was being letterboxed inside the taller box, not
+ * cropped, and object-position had nothing to position. Measured on a 390px
+ * phone: 390x154 of picture floating in a 339px section, with the rest of the
+ * height a blurred smear of itself. The banner's own type is set for a 1000px
+ * frame, so at that size "STRENGTH · MUSCLE · POWER" renders about five pixels
+ * tall and the Arabic line is not readable at all.
+ *
+ * With cover the artwork fills the box and everything in it grows by a third.
+ * What that costs is the right-hand 22.6% of the frame, which is the far edge
+ * of the photograph — the athlete stays in shot, and every line of type is
+ * inside the window by the arithmetic below.
+ *
+ *   a 1.85 box shows 1.85/2.52 = 73.4% of the width
+ *   at object-position 15% that window runs 3.99% .. 77.40%
+ *   the template's type starts at 6.0% (the Arabic) and 6.2% (the mark)
+ *
+ * So the type clears the left edge by two points in every one of the five
+ * banners — they share a template, so the margin is identical — and nothing on
+ * the type side is lost. Verified by rendering and measuring the pixels, not
+ * by reading this sum. */
+.hero-strength img,
+.hero-strength picture img {
+  object-fit: cover !important;
+  object-position: 15% center !important;
+}
+
+/* ------------------------------------------------- the summer offer band */
+/* "عروض الصيف ٢٤" / "Summer 24", removed at the owner's request.
+ *
+ * Hidden here rather than cut out of the bundle. The copy is hard-coded in
+ * index-5HbquisI.js as `offer: {badge, title, cta}` and the bundle is build
+ * output this repo has no source for — editing minified JavaScript by hand to
+ * delete a section is how you get a shop that renders a blank white page. One
+ * CSS rule is reversible by deleting it, and display:none takes the link out
+ * of the accessibility tree too, so it is gone for a screen reader as well as
+ * on screen.
+ *
+ * The selector is the section that wraps the gradient link, and it is exact:
+ * one match on the home page, zero on /shop, /about, /contact and /cart —
+ * checked, because `section.max-w-7xl` alone matches four other sections on
+ * the home page that must stay. Hiding the section rather than the link takes
+ * its pt-10/pb-4 padding with it, which a hidden child would have left behind
+ * as a gap. */
+main section:has(> a.bg-gradient-to-br) {
+  display: none;
+}
+
+/* --------------------------------------------------- the shop page header */
+/* On a 393px phone the shop opened with 646px of header before the first
+ * product — the whole first screen was title, count, description and filter
+ * rows. The marketing copy goes; every control stays.
+ *
+ * The selector is `main section > div > div:has(> h1)`: one match, on /shop
+ * only, checked across eight pages. The padding rule is scoped the same way
+ * rather than to section.py-12, because /returns carries that class too and
+ * must keep its spacing.
+ */
+
+/* The count and the description: gone. */
+main section > div > div:has(> h1) > p {
+  display: none;
+}
+
+/* THE HEADING STAYS IN THE DOCUMENT, just not on screen.
+ *
+ * display:none would have been simpler and worse. This h1 is what tells a
+ * search engine the page is about ملابس رياضية في الكويت, and it is the
+ * shop's main landing page — hiding it outright throws that away, and a
+ * screen-reader user loses the heading that names where they are. The
+ * clip-rect pattern takes it out of the layout while leaving it in the
+ * accessibility tree and in the markup a crawler reads. */
+main section > div > div:has(> h1) > h1 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- and then take the height out --------------------------------------- */
+/* py-12 is 48px top and bottom; mb-6 and mb-8 are 24 and 32. With the copy
+ * gone those gaps were holding a shape that is no longer there. */
+main section:has(> div > div > h1) {
+  padding-top: 1rem !important;
+  padding-bottom: 1.5rem !important;
+}
+main section:has(> div > div > h1) > div:first-child {
+  margin-bottom: 0.75rem !important;
+}
+main section:has(> div > div > h1) > div.mb-8 {
+  margin-bottom: 0.75rem !important;
+}
+
+/* -------------------------------------------- the invoice's ragged edge */
+/* THE CUSTOMER'S NAME DOES NOT LINE UP WITH THEIR OWN ADDRESS.
+ *
+ * Measured on /invoice/<track>, glyph boxes rather than element boxes, on a
+ * 688px page (screen and print are identical here):
+ *
+ *   فاتورة إلى                     L625  R688     flush right
+ *   Rig Tester                     L356  R439     adrift in the middle
+ *   قطعة 4، شارع 12، منزل / بناية 8  L491  R688     flush right
+ *   السالمية، حولي                  L592  R688     flush right
+ *
+ * And the same thing in the items table, one row below the Arabic name that
+ * does sit right:
+ *
+ *   سويت شيرت كالياري كالتشو — كحلي   L453  R688    flush right
+ *   Cagliari Calcio Sweatshirt      L361  R575     adrift
+ *
+ * WHY, and the cause is a good decision with one side effect. The storefront
+ * marks every Latin run `dir="ltr"` — the phone number, the order reference,
+ * the date, the customer's name, the English product name. That is CORRECT and
+ * must stay: it is what makes `+965 22091914` and `TPMTE94L9C832` shape and
+ * order properly inside an Arabic page instead of coming out reversed.
+ *
+ * But `dir` does two jobs at once. It sets the writing direction, and it
+ * redefines what `text-align: start` MEANS. In an RTL document start is the
+ * right edge; inside an element marked `dir="ltr"` it becomes the left edge.
+ *
+ * So it only bites BLOCK-level elements, which is why three of the five Latin
+ * runs are fine: `<span dir="ltr">` is inline and takes its alignment from the
+ * paragraph around it. The two that are wrong are the two that are blocks —
+ * `<p dir="ltr">Rig Tester</p>` and the product's English name, which carries
+ * Tailwind's `block`.
+ *
+ * THE FIX KEEPS THE DIRECTION AND ONLY TAKES BACK THE ALIGNMENT, so the bidi
+ * shaping this markup exists for is untouched. Written both ways round, from
+ * the document's direction rather than the element's, so the English invoice
+ * gets the mirror of it rather than the same bug pointing the other way.
+ *
+ * `text-align` does nothing to an inline box, so the spans are unaffected by
+ * this even though they match it. */
+[dir='rtl'] .invoice [dir='ltr'] {
+  text-align: right;
+}
+[dir='ltr'] .invoice [dir='rtl'] {
+  text-align: left;
+}
+
+/* ------------------------------------------------------------ printing */
+/* AN INVOICE PRINTS ON WHITE PAPER.
+ *
+ * The build's stylesheet carries `@media print { body { background: #fff } }`,
+ * which is right — but it also carries `[data-theme=dark] body { background:
+ * #202429 }` outside any media query, and that selector is more specific. So
+ * the dark ground won in print even before this project touched anything;
+ * making dark the default just meant everyone hit it. Saved PDFs and printed
+ * invoices came out as a black page: heavy on ink, muddy on most printers,
+ * and not what a document should look like.
+ *
+ * These rules exist only inside @media print. Nothing here changes the screen.
+ * The ember is deliberately left alone — it is the brand, it marks the total,
+ * and it reads correctly on white. */
+@media print {
+  /* THE ROOT, not just the body. body went white and the page still printed
+     with a black margin, because html keeps its own #2b3138 and that is what
+     paints outside the body box. */
+  /* COLOUR-SCHEME, and this is the one that survived every other fix.
+     With html white and body white the page still printed inside a black
+     frame: a 14mm band of #121212 on all four sides, measured off the PDF.
+     That band is the @page MARGIN box, which is outside the canvas — no
+     background on html or body reaches it. It is painted by the user agent
+     from `color-scheme`, and the boot script sets `color-scheme: dark` on
+     <html> so the browser's own chrome matches the site. On screen that is
+     right. On paper it is a solid black border around every invoice. */
+  [data-theme='dark'] {
+    color-scheme: light !important;
+  }
+
+  [data-theme='dark'],
+  [data-theme='dark'] body,
+  [data-theme='dark'] body[data-canvas='silver'],
+  [data-theme='dark'] .bg-sand,
+  [data-theme='dark'] .bg-sand-light,
+  [data-theme='dark'] .bg-white,
+  [data-theme='dark'] .card,
+  [data-theme='dark'] .bg-ink,
+  [data-theme='dark'] .bg-ink-silver,
+  [data-theme='dark'] .bg-ink-steel,
+  [data-theme='dark'] .bg-slate-50,
+  [data-theme='dark'] .bg-slate-100 {
+    background: #ffffff !important;
+    color: #171a1e !important;
+  }
+  [data-theme='dark'] .text-slate-900,
+  [data-theme='dark'] .text-slate-800,
+  [data-theme='dark'] .text-slate-700 {
+    color: #171a1e !important;
+  }
+  [data-theme='dark'] .text-slate-600,
+  [data-theme='dark'] .text-slate-500,
+  [data-theme='dark'] .text-slate-400 {
+    color: #45494e !important;
+  }
+  [data-theme='dark'] .border-black\/10,
+  [data-theme='dark'] .border-black\/15,
+  [data-theme='dark'] .border-white\/10,
+  [data-theme='dark'] .border-slate-100,
+  [data-theme='dark'] .border-slate-200,
+  [data-theme='dark'] .border-slate-300 {
+    border-color: #d3d7dc !important;
+  }
+
+  /* WHITE TEXT DISAPPEARS ON WHITE PAPER, and this is where it bit: the order
+     number, the date and the shop's phone number are .tabular-nums inheriting
+     white from an ancestor. On the dark card they were the most prominent
+     things on the invoice; on the fixed white card they were simply not
+     there — a printed invoice with no order number on it. */
+  [data-theme='dark'] .invoice .text-white,
+  [data-theme='dark'] .invoice .text-white * {
+    color: #171a1e !important;
+  }
+
+  /* THE SHOP'S FURNITURE IS NOT PART OF THE INVOICE.
+   *
+   * The build already hides the header, the footer, the action bar and
+   * anything marked .no-print. It does not hide the four things below, and
+   * every one of them is `position: fixed` — which in print means they are
+   * laid over the page rather than flowing off the end of it.
+   *
+   * MEASURED on /invoice/<track> at the PDF's real content box (A4 794px less
+   * the @page 14mm each side = 688px), print media emulated:
+   *
+   *   fixed  688x1000  div.fixed.inset-0.z-40.bg-ink/60   a full-page scrim
+   *   fixed  454x1000  aside.cart-drawer   L-454  R0
+   *   fixed  176x48    a.skip-link         L500   R676
+   *   fixed  0x0       button.tap-target.fixed.bottom-4   (closed here)
+   *
+   * WHAT IT COST, and it is not the cosmetic problem it sounds like. The
+   * drawer's right edge sits at exactly x=0 — the left edge of the content
+   * box — and it is a thousand pixels tall, so it printed as a rule down the
+   * full height of the page AND covered the leftmost glyphs of the left-hand
+   * column. That column is the money: the line totals, the subtotal, the
+   * delivery, and `الإجمالي ‏11.000 د.ك.` — the amount the customer is being
+   * asked to pay, with its currency clipped off. Rendered before and after on
+   * the same order: the rule disappears and every amount reads in full.
+   *
+   * THE SCRIM IS THE ONE THAT WOULD HAVE BEEN WORSE. It is 60% of the ink
+   * colour over the entire page, and it does not paint here only because the
+   * drawer is shut. Open the bag, press Ctrl+P — an ordinary thing to do — and
+   * `print-color-adjust: exact`, which the build sets on `*`, guarantees the
+   * printer is told to lay all of it down.
+   *
+   * The skip link is an affordance for keyboard users and means nothing on
+   * paper. The floating button is shut here and is hidden for the same reason
+   * as the rest: none of it is the document.
+   *
+   * Scoped to print, so the screen is untouched. */
+  .cart-drawer,
+  .skip-link,
+  .tap-target.fixed,
+  .fixed.inset-0.z-40 {
+    display: none !important;
+  }
+
+  /* ROOM ABOVE THE TITLE AND BELOW THE LAST LINE.
+   *
+   * Measured: the first glyph of `فاتورة` sat at y=0 — the very first pixel of
+   * the page's content box — because the build's print rules strip the
+   * invoice's padding (`.invoice { padding: 0 }` and `.invoice article
+   * { padding: 0 }`) and leave the whole job to `@page { margin: 14mm }`.
+   *
+   * That is not wrong, and it is why this is 8mm rather than a lot: 14mm is
+   * already a proper paper margin, and the title only needs to stop touching
+   * it. The pair matters more than either number — the bottom is invisible on
+   * a short invoice like the test one, which ends at y=575 of 1123 with half
+   * the sheet blank, and becomes the whole point on an order long enough to
+   * fill the page, where the last line would otherwise finish hard against the
+   * bottom margin exactly as the title started against the top.
+   *
+   * padding-block, so it stays correct in both directions and in both
+   * languages without being written twice. */
+  .invoice {
+    padding-block: 8mm !important;
+  }
+}
+
+/* ------------------------------------------- the product page's photo gallery */
+/* A GARMENT'S PHOTOGRAPH WAS INVISIBLE ON ITS OWN PAGE.
+ *
+ * The gallery is a carousel: one flex track, one slide per picture, the track
+ * moved by transform and the box clipping the rest. The storefront always puts
+ * a generated placeholder — a grey SVG gradient — in front of the list, so a
+ * product that has been photographed gets TWO slides: the placeholder at index
+ * 0, and the real photograph at index 1, translated out of the visible box.
+ *
+ * The result was a product page showing an empty grey square while the shop
+ * grid, which renders a plain <img> and no carousel, showed the photograph
+ * correctly. Measured rather than guessed: the <img> reported complete, 1200 x
+ * 1200 natural, opacity 1, visible — and a bounding box 467px outside its own
+ * container. It was painting; it was painting off-screen.
+ *
+ * This hides the placeholder slide, and ONLY when a real photograph is there
+ * to take its place — `:has(> img:not([src^="data:"]))`. A product with no
+ * photographs still gets its gradient, which is the whole reason the
+ * placeholder exists. Without that guard this would replace a designed empty
+ * state with a blank hole on all 45 garments that have no pictures yet.
+ *
+ * Scoped to the track by its own class list rather than to `img` generally, so
+ * nothing else that legitimately renders an inline SVG is touched.
+ *
+ * A CSS rule because the storefront is built output whose source is not in
+ * this repository. Deleting these three lines restores the old behaviour. */
+div.flex.h-full.w-full:has(> img:not([src^='data:'])) > img[src^='data:image/svg'] {
+  display: none;
+}
+
+/* ================================================== the product page, on a phone
+ *
+ * Measured on a 393 x 850 phone before any of this, because "it feels long" is
+ * not something you can act on:
+ *
+ *     134  sticky header (promo bar 28 + logo row 60 + nav row 45)
+ *     226  the photograph starts
+ *     361  …and is a full square
+ *     591  a 44px row holding three dots
+ *     643  the brand strip
+ *     729  the title
+ *     881  the price          <- already past the 850 fold
+ *     959  the size picker    <- 109px below it, and the fixed bottom bar
+ *                                takes another 73, so really 180px below
+ *
+ * So a shopper choosing a size cannot see the garment they are choosing it
+ * for. Desktop does not have this problem — it is two columns and the gallery
+ * is `md:sticky`.
+ *
+ * Four changes, all phone-only. Desktop is genuinely good and is not touched.
+ */
+
+/* --- 1. the dead placeholder thumbnail ---------------------------------- */
+/* A LOOSE END FROM THE CAROUSEL FIX ABOVE, and it was mine.
+ *
+ * That rule hides the generated placeholder slide from the main track when a
+ * real photograph exists. The THUMBNAIL STRIP kept its own copy — a grey
+ * square that looks like a fourth angle and, when tapped, moves the carousel
+ * to a slide that is now hidden. A control that does nothing is worse than no
+ * control.
+ *
+ * Same guard as the track rule: only when a real photograph is there to take
+ * its place, so a garment with no pictures keeps its placeholder everywhere. */
+.lg\:flex:has(> img:not([src^='data:'])) > img[src^='data:image/svg'],
+.lg\:flex:has(img:not([src^='data:'])) > *:has(> img[src^='data:image/svg']) {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  /* --- 2. a shorter photograph ------------------------------------------ */
+  /* aspect-square is 361px of the 850 available. 1.25 makes it 289 — still
+     the largest thing on the screen and still the first thing you see, but it
+     brings 72px of the buying controls up with it.
+     Not smaller than that: this is a clothes shop, and the photograph is the
+     product. The ratio is applied to the box, so the picture still fills it
+     with object-fit and nothing letterboxes. */
+  .group.aspect-square.cursor-zoom-in {
+    aspect-ratio: 1.25 / 1 !important;
+  }
+
+  /* --- 3. thumbnails instead of dots ------------------------------------ */
+  /* The strip already exists and is already built — it is what desktop shows,
+     hidden below lg. Three dots tell a shopper there is more; three
+     thumbnails tell them WHAT there is, and let them go straight to the one
+     they want instead of swiping past two.
+     The dots row it replaces was 44px for three 6px dots. */
+  .-mb-2.mt-1.flex.justify-center.lg\:hidden {
+    display: none !important;
+  }
+  .mt-3.hidden.gap-2.overflow-x-auto.lg\:flex {
+    display: flex !important;
+    justify-content: center;
+    /* Scrollable rather than wrapped: a garment may carry up to 24
+       photographs, and a wrapping grid of those would push the price off the
+       screen again — which is the thing this whole block is undoing. */
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .mt-3.hidden.gap-2.overflow-x-auto.lg\:flex::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* --- 5. the buy bar covers the end of the page ------------------------ */
+  /* THE PINNED ADD-TO-CART BAR IS 73px OF THE SCREEN AND THE PAGE DOES NOT
+   * KNOW IT IS THERE.
+   *
+   * `.action-bar` is `position: fixed` on a phone — correctly, it is what puts
+   * أضف and اشترِ الآن in reach without scrolling, and it is height 0 on
+   * desktop so none of this applies there. But a fixed element is out of flow,
+   * so nothing below it reserves any room, and `.app-footer` computes
+   * `padding-bottom: 0`.
+   *
+   * MEASURED at the very bottom of the product page, 393x850, scrolled as far
+   * as it goes — the bar occupies y777-850 and underneath it sits:
+   *
+   *     y795-812  © 2026 Sporta — جميع الحقوق محفوظة
+   *     y816-851  متجر سبورتا تحت إدارة شركة المهلب …
+   *
+   * The copyright and the trading name are not decoration; they are the lines
+   * that say who the shop legally is. On a phone they could not be read at
+   * all, on any page carrying the bar, at any scroll position — there is no
+   * further down to go.
+   *
+   * Padding the FOOTER rather than the body, so the clearance sits at the end
+   * of the document where the bar is, and `:has(.action-bar)` so a page
+   * without the bar does not grow 5rem of empty space it has no use for.
+   * env() on top for the home-indicator strip, matching the bar's own
+   * `safe-bottom`. */
+  body:has(.action-bar) .app-footer {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* --- 6. the assistant bubble sits ON the Buy now button ---------------- */
+  /* THE سبورتا AI BUBBLE AND THE BUY BAR BOTH PIN THEMSELVES TO THE BOTTOM
+   * OF THE SCREEN, AND THE BUBBLE IS ON TOP.
+   *
+   * Measured at 393x850 on the product page, nothing scrolled:
+   *
+   *     .action-bar          fixed  z-30   y777-850
+   *     "اشترِ الآن" label          text   L49-R114  y804-823
+   *     .tap-target bubble   fixed  z-50   L16-R68   y790-834
+   *
+   * The bubble covers the left end of the Buy now label — the screenshot
+   * reads "اشترِ الـ" with the orange S badge where the rest of the word is —
+   * and document.elementFromPoint at the label's left edge returns the
+   * ASSISTANT, not the button. So a shopper who taps the start of Buy now
+   * opens a chat window instead of buying, on every phone product page.
+   *
+   * The bubble's own `bottom-4` is right everywhere the buy bar is not; it is
+   * only wrong on the pages that carry the bar. Lift it clear of the bar there
+   * and nowhere else — the same `body:has(.action-bar)` guard as the footer
+   * above, inside the same phone-only block, because on desktop the bar is
+   * height 0 and the bubble already sits where it should.
+   *
+   * 5.5rem clears the 73px bar by 15px: enough that the two visibly stop
+   * touching, not so much that the bubble climbs into the price. env() on top
+   * for the home indicator, as the bar itself does with `safe-bottom`. */
+  body:has(.action-bar) .tap-target.fixed {
+    bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* --- 4. the header gives 45px back once you start reading ------------- */
+  /* The nav row — الرئيسية / المتجر / من نحن / اتصل بنا — is 45px of a 134px
+     header that never leaves the screen. It is what you need when you ARRIVE
+     and not while you are reading one garment; the logo, search, wishlist,
+     cart and language all stay.
+     A SCROLL-DRIVEN ANIMATION, not JavaScript. It is tied to scroll POSITION
+     rather than direction, so scrolling back to the top brings the row back
+     by itself with no state to get stuck. The @supports guard is the whole
+     safety of it: a browser without scroll-driven animations — anything older
+     than iOS 26 — runs none of this and keeps today's header exactly. */
+  @supports (animation-timeline: scroll()) {
+    @keyframes sp-nav-collapse {
+      to { height: 0; opacity: 0; border-top-width: 0; }
+    }
+    .app-header > .border-t.border-white\/5 {
+      overflow: hidden;
+      animation: sp-nav-collapse linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 140px;
+    }
+  }
+}
+
+/* ------------------------------------------ the product name, and its leading */
+/* THE BUILT STYLESHEET DECLARES .product-title TWICE, and the second undoes
+ * the first:
+ *
+ *     .product-title { font-size: clamp(1.875rem, 3.2vw, 2.5rem); line-height: 1.15 }
+ *     .product-title { line-height: 1.45 }
+ *
+ * 1.15 is what a display title wants and is plainly what was intended; 1.45 is
+ * body-text leading, and on an extrabold 30px heading it opens the two lines of
+ * a garment's name to 87px of stacked shouting. Restoring 1.15 takes the phone
+ * title from 87px to 69px and the desktop one from 119px to 94px, with nothing
+ * moved but the space between the lines.
+ *
+ * AND THE FLOOR OF THE CLAMP. 3.2vw only reaches 1.875rem at about 940px wide,
+ * so every phone gets the minimum — 30px at weight 800 across a 361px column,
+ * which is why it wraps to two lines on almost every garment in the catalogue.
+ * 1.5rem is 24px, still the largest text on the screen and still first. The
+ * CEILING is untouched: on a desktop the name is 40px exactly as before, which
+ * is where a 3.2vw title was designed to land.
+ */
+.product-title {
+  font-size: clamp(1.5rem, 3.2vw, 2.5rem) !important;
+  line-height: 1.15 !important;
+}
+
+/* ---------------------------------------------------------- carousel targets
+ *
+ * The hero's arrows and its pause button render at 32x32, and its dots at
+ * 24x24. The site already has a helper for this — `.tap { min-width: 44px }`
+ * — and it is inside @media (pointer: coarse), which is right: it applies on
+ * the phones that need it. These controls simply do not carry the class.
+ *
+ * WHAT IS AND IS NOT FIXED HERE, because the two are different:
+ *
+ *   The arrows and the pause button are ISOLATED, so their hit area is grown
+ *   to 44x44 with a transparent overlay. Nothing moves — the overlay is
+ *   absolutely positioned and centred, so the button looks exactly as the
+ *   owner drew it and is simply easier to hit.
+ *
+ *   The DOTS are left at 24 wide. They sit about 28px apart, so a 44-wide hit
+ *   area would overlap its neighbours and a tap near the edge would select the
+ *   wrong slide — worse than a small target, because it does the wrong thing
+ *   rather than nothing. They are grown vertically only, where there is
+ *   nothing to collide with. At 24x24 they already meet WCAG 2.5.8 (AA); it is
+ *   the 44 of Apple's guidance and WCAG 2.5.5 (AAA) they miss, and closing
+ *   that gap properly means spacing the dots further apart, which is a change
+ *   to the hero's design and the owner's to make.
+ */
+@media (pointer: coarse) {
+  [aria-label='الشريحة السابقة'],
+  [aria-label='الشريحة التالية'],
+  [aria-label='إيقاف العرض مؤقتًا'],
+  [aria-label='استئناف العرض'],
+  [aria-label='Previous slide'],
+  [aria-label='Next slide'],
+  [aria-label='Pause slideshow'],
+  [aria-label='Resume slideshow'] {
+    position: relative;
+  }
+  [aria-label='الشريحة السابقة']::after,
+  [aria-label='الشريحة التالية']::after,
+  [aria-label='إيقاف العرض مؤقتًا']::after,
+  [aria-label='استئناف العرض']::after,
+  [aria-label='Previous slide']::after,
+  [aria-label='Next slide']::after,
+  [aria-label='Pause slideshow']::after,
+  [aria-label='Resume slideshow']::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+  /* Vertical only — see the note above on why the dots keep their width. */
+  .group\/dot {
+    min-height: 44px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * THE CART DRAWER'S CLOSE BUTTON, IN THE LIGHT THEME
+ *
+ * It is an icon and nothing else — no border, no fill, no label — painted
+ * text-slate-400, which is rgb(148,163,184). On the drawer's white header that
+ * measures 2.63:1, and WCAG 1.4.11 asks for 3:1 on the visual information
+ * required to identify a control. When the icon IS the control, the icon is
+ * that information.
+ *
+ * Found by scripts/dark-audit.mjs, which was written looking for the opposite
+ * problem on the dark theme and found this on the light one instead. It is the
+ * only control on the whole shop that fails the test, and it is the one that
+ * closes the bag: a shopper who cannot see it cannot get back to the shop.
+ *
+ * slate-500, rgb(100,116,139), is 4.76:1 on white. It is the next step on the
+ * same ramp the design already uses — not a new colour — and the hover state
+ * (slate-700) is untouched, so the button still darkens under the cursor
+ * exactly as it did. Nothing moves; one icon gets darker.
+ *
+ * Scoped to the drawer so it cannot reach a slate-400 that is doing a
+ * different job somewhere else, and to the light theme because on dark the
+ * same class is already well clear of the floor.
+ * ------------------------------------------------------------------------- */
+html:not([data-theme='dark']) .cart-drawer > header button.tap.text-slate-400 {
+  color: rgb(100 116 139);
+}
+
+/* ---------------------------------------------------------------------------
+ * THE BRAND LOGO SITS ON THE CARD, NOT IN A WHITE BOX
+ *
+ * `.brand-chip` is the span the logo is drawn inside, and the built stylesheet
+ * gives it `background:#fff`. So a logo with a perfectly transparent
+ * background — which the whole upload path is careful to preserve, and which
+ * scripts/image-audit.mjs now refuses to accept without — was being painted on
+ * a white plate anyway. On the dark theme that is a white rounded rectangle on
+ * every product page, and the transparency bought nothing.
+ *
+ * Measured before changing it: a cut-out PNG served with all four corners at
+ * alpha 0, rendered inside rgb(255,255,255) with a 10px radius.
+ *
+ * WHAT THE PLATE WAS FOR, because it was not an accident. A brand mark is
+ * often black, and a white ground guarantees it is visible whatever is behind
+ * it. Removing it means the logo has to carry its own contrast.
+ *
+ * THAT IS THE TRADE, AND IT IS THE ONE THAT WAS ASKED FOR: supply each logo in
+ * a form that reads on a dark page — a white or full-colour version, the way
+ * this shop already keeps logo-white.webp beside logo.webp for its own mark. A
+ * black-on-transparent logo will now disappear on the dark theme.
+ *
+ * The padding is left exactly as it was. Removing the plate is a colour
+ * change; removing the padding would move the logo and resize the row it sits
+ * in, and nothing asked for that.
+ * ------------------------------------------------------------------------- */
+.brand-chip {
+  background: transparent;
+  border-color: transparent;
+}
+
+/* ------------------------------------------- the promo bar has no side gutter */
+/* THE FIRST LINE ON EVERY PAGE RUNS INTO THE EDGE OF THE SCREEN, and the cause
+ * is a cascade rule rather than a missing class.
+ *
+ * The bar asks for the site's standard gutter — `px-4` is right there in its
+ * class list, and `.px-4` resolves to `calc(var(--spacing) * 4)` = 16px, the
+ * value every other block on the site sits at. It computes to ZERO. Two
+ * elements on the same page, both carrying px-4, measured:
+ *
+ *     <p>  the promo bar          padding-inline  0px / 0px
+ *     <div class="… px-4">        padding-inline  16px / 16px
+ *
+ * WHY. The built stylesheet carries, UNLAYERED:
+ *
+ *     .app-header > *, .app-footer > * { padding-inline: var(--sa-left) var(--sa-right) }
+ *
+ * and Tailwind v4 puts its utilities in `@layer utilities`. Unlayered author
+ * styles beat layered ones outright, whatever the specificity — so that rule
+ * does not ADD the device's safe-area inset to the gutter, it REPLACES the
+ * gutter with it. `--sa-left` and `--sa-right` are 0px on every phone in
+ * portrait and on every desktop, so the padding becomes nothing at all.
+ *
+ * WHAT IT COST, measured on the home page at four widths — the gutter is
+ * whatever the last line of centred text happens to leave over:
+ *
+ *     320px   1px      <- effectively touching both edges
+ *     360px  21px
+ *     393px   5px      <- iPhone 14/15/16, the commonest phone in the shop
+ *     430px  23px
+ *
+ * FOUR CHILDREN LOSE THEIR PADDING TO THAT RULE; ONLY THIS ONE IS HURT. The
+ * nav row, the logo row and the footer block each hold an inner `max-w-7xl
+ * px-4` container that puts the gutter back. The promo bar is a leaf — there
+ * is nothing inside it to do that — which is why `:not(:has(*))` is the guard
+ * here rather than a hand-written selector. It says exactly what makes this
+ * element different, and it cannot start matching the nav row if the markup
+ * changes shape.
+ *
+ * The safe-area inset is ADDED rather than dropped, which is what the rule
+ * above was reaching for: on a notched phone held sideways the bar still
+ * clears the cutout, and on every other device it gets the 16px it asked for. */
+.app-header > .px-4:not(:has(*)),
+.app-footer > .px-4:not(:has(*)) {
+  padding-inline: calc(1rem + var(--sa-left, 0px)) calc(1rem + var(--sa-right, 0px));
+}
+
+/* A NOTE ON WHAT WAS DELIBERATELY NOT CHANGED HERE, because the obvious next
+ * move is wrong and the measurement says so.
+ *
+ * The bar is `h-7` — a fixed 28px — and `overflow-hidden`, so the reflex is to
+ * let it grow. I wrote that rule (`height: auto; min-height: 1.75rem`),
+ * measured it, and took it out again: it wins the cascade and changes nothing.
+ * The text is `leading-none`, so two lines of 13px type are 26 line-box pixels
+ * and they fit inside 28 with room to spare.
+ *
+ * The 2px that scrollHeight reports over clientHeight is Arabic descender INK
+ * overflowing a line box drawn tight to the font size — not a second line
+ * being cut off. Rendered at 320 and 393 and read back: both lines of the
+ * sentence are complete and legible.
+ *
+ * The real observation is that `leading-none` is too tight for Arabic, which
+ * carries more below the baseline than Latin does. Fixing that means giving
+ * the bar real leading, which makes it taller than 28 and moves the whole
+ * sticky header down — a design decision about the shop's chrome, not a
+ * padding repair, so it was written down here rather than made.
+ *
+ * THE OWNER HAS SINCE MADE IT: give the strip room. The rule below is that
+ * decision, and this note stays because it is the reasoning behind the shape
+ * the rule takes. */
+
+/* ----------------------------------------------- the promo bar gets its air */
+/* `h-7` is a FIXED 28px and the text inside is `leading-none`, so the line box
+ * is drawn tight to the 12px font and Arabic descender ink spills out of it —
+ * 2px of overflow, measured, against `overflow-hidden`.
+ *
+ * 1.35 leading gives the 12px type a 16.2px line box, which is room for the
+ * descenders rather than a tighter squeeze on them.
+ *
+ * WHY `height: auto` AND NOT SIMPLY A TALLER FIXED BAR. The sentence wraps to
+ * two lines on a narrow phone — that is why `overflow-hidden` was there to
+ * begin with. Two lines at 1.35 are 32.4px, so a fixed 32px bar would clip the
+ * second line and I would have made the exact problem I am fixing, one line
+ * further down. Auto height with a 32px floor means:
+ *
+ *     one line   32px   (the floor wins; 16.2 + 8 of padding is only 24.2)
+ *     two lines  ~40px  (the content wins, and nothing is cut)
+ *
+ * So the header grows by 12px only on the narrow widths where the sentence
+ * actually wraps, and is 4px taller than before everywhere else.
+ *
+ * No !important: the built stylesheet's utilities live in `@layer utilities`
+ * and unlayered author rules beat layered ones outright, whatever the
+ * specificity — the same cascade fact the gutter rule above turns on. */
+.app-header > .px-4:not(:has(*)) {
+  height: auto;
+  min-height: 2rem;
+  line-height: 1.35;
+  padding-block: 0.25rem;
+}
+
+/* -------------------------------------------------------------------------
+ * FOOTER LINKS: THE SECOND AXIS OF A TAP TARGET.
+ *
+ * These carry `inline-flex min-h-11 items-center`, and the `min-h-11` is the
+ * point: 44px is Apple's floor and the author set it deliberately, so the
+ * intent that these be proper tap targets is already written down. Only one
+ * axis got it. Height is fixed at 44; width is whatever the word happens to
+ * be, and Arabic legal labels are short:
+ *
+ *     الشروط   44 wide   (makes it by luck of the word's length)
+ *     الشحن    41 wide
+ *     الإرجاع  39 wide
+ *
+ * So two of the eight are under the floor on every page of the shop, and the
+ * failure is worst exactly where it matters — a thumb on a phone, reaching for
+ * Returns.
+ *
+ * NOT A DESIGN CHANGE, and this is why: nothing here picks a new size. It
+ * finishes the size the stylesheet already asks for on the axis it was not
+ * applied to. Six of the eight links are already wider than 44 and this rule
+ * cannot touch them — min-width only ever grows a box that is too small.
+ *
+ * NOTHING MOVES ON SCREEN. The links are stacked list items, so a wider box
+ * extends into empty space beside the text rather than pushing anything; and
+ * with the default flex-start the text itself does not shift a pixel. The hit
+ * area grows, the layout does not. Measured before and after. */
+.app-footer a.inline-flex.min-h-11,
+footer a.inline-flex.min-h-11 { min-width: 44px; }
+
+/* -------------------------------------- the document pages: a quieter voice */
+/* Privacy, Terms, Returns and About, at the owner's request: smaller, and set
+ * like a document rather than like a landing page.
+ *
+ * WHAT WAS WRONG WITH IT. Measured before touching anything: body copy at
+ * 16.44px on a 26.7px line, section headings at 20.5px in weight 800. Eight
+ * hundred is a display weight — it is what the hero shouts in — and a privacy
+ * policy that shouts reads as marketing, which is the opposite of what these
+ * four pages are for. The old proportions were not wrong, they were simply the
+ * shop's voice used where the shop should be speaking quietly.
+ *
+ * SMALLER, WITH MORE AIR, NOT LESS. Every size below goes down and every line
+ * height goes UP. That pairing is the whole effect: shrinking text on its old
+ * leading just looks cramped, and cramped reads as cheap rather than as
+ * official. A legal document earns its authority from space around the words.
+ *
+ * TWO SCRIPTS, TWO SIZES, AND THAT IS NOT A ROUNDING ERROR. Arabic sits about
+ * three quarters of a point larger than the Latin at every level. Arabic
+ * letterforms carry their meaning in strokes below the baseline and in dots
+ * that a Latin face does not have to resolve, so the same nominal size is
+ * measurably harder to read. Setting both from one number would mean either
+ * Latin too large or Arabic too small, and this shop's first language is the
+ * one that would have lost.
+ *
+ * NO LETTER-SPACING IN ARABIC, EVER — not one hundredth of an em. It is
+ * spelled out further up this file for the top bar and it is the same rule
+ * here: Arabic is a joined script and tracking it breaks the joins. The Latin
+ * gets a hair of it on headings; the Arabic gets none.
+ *
+ * THE SELECTOR, AND WHY IT IS SHAPED LIKE THAT. `main > section` holding an
+ * `h1.text-brand-dark` AND at least one `h2`. The h1 half picks the five pages
+ * built from the page-with-a-title shell; the h2 half then drops /contact,
+ * which uses the same shell but has no sections in it — measured across
+ * thirteen routes, this matches /privacy, /terms, /returns and /about and
+ * nothing else. If /contact ever gains an h2 it would start matching, and the
+ * fix then is to name the four rather than to describe them.
+ *
+ * TERMS IS INCLUDED THOUGH IT WAS NOT ASKED FOR. It is the same component and
+ * the same container as Privacy; styling one and not the other would leave two
+ * halves of the same legal section visibly disagreeing, which is a defect
+ * rather than restraint. Remove `:has(h2)`'s reach by naming pages if that is
+ * not wanted. */
+.doc-page,
+main > section:has(> h1.text-brand-dark):has(h2),
+main > section:has(> div > h1.text-brand-dark):has(h2) {
+  --doc-body: 14.75px;
+  --doc-lead: 15.5px;
+  --doc-h1: 25px;
+  --doc-h2: 17px;
+  --doc-h3: 15.25px;
+}
+html[lang='ar'] .doc-page,
+html[lang='ar'] main > section:has(> h1.text-brand-dark):has(h2),
+html[lang='ar'] main > section:has(> div > h1.text-brand-dark):has(h2) {
+  --doc-body: 15.5px;
+  --doc-lead: 16.25px;
+  --doc-h1: 26px;
+  --doc-h2: 17.75px;
+  --doc-h3: 15.75px;
+}
+
+main > section:has(> h1.text-brand-dark):has(h2) p,
+main > section:has(> h1.text-brand-dark):has(h2) li,
+main > section:has(> div > h1.text-brand-dark):has(h2) p,
+main > section:has(> div > h1.text-brand-dark):has(h2) li {
+  font-size: var(--doc-body);
+  line-height: 1.85;
+}
+
+/* The standfirst under the title was `text-lg` — 18.5px, a size that competes
+ * with the section headings below it. It is an introduction, not a heading. */
+main > section:has(> h1.text-brand-dark):has(h2) > p.text-lg,
+main > section:has(> div > h1.text-brand-dark):has(h2) > p.text-lg {
+  font-size: var(--doc-lead);
+  line-height: 1.8;
+}
+
+/* 800 down to 700 on every heading. The size drop alone would have left them
+ * looking heavy for their new measure — weight and size have to move together
+ * or the page reads as a shrunk version of the old one rather than a calmer
+ * one. */
+main > section:has(> h1.text-brand-dark):has(h2) > h1,
+main > section:has(> div > h1.text-brand-dark):has(h2) h1 {
+  font-size: var(--doc-h1);
+  font-weight: 700;
+  line-height: 1.35;
+}
+main > section:has(> h1.text-brand-dark):has(h2) h2,
+main > section:has(> div > h1.text-brand-dark):has(h2) h2 {
+  font-size: var(--doc-h2);
+  font-weight: 700;
+  line-height: 1.5;
+}
+main > section:has(> h1.text-brand-dark):has(h2) h3,
+main > section:has(> div > h1.text-brand-dark):has(h2) h3 {
+  font-size: var(--doc-h3);
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+/* A hair of tracking on Latin headings only — it is what stops a 700 weight at
+ * a smaller size from setting tight. `html[lang='ar']` resets it to zero
+ * immediately below, because on a joined script this is damage, not polish. */
+html[lang='en'] main > section:has(> h1.text-brand-dark):has(h2) :is(h1, h2, h3),
+html[lang='en'] main > section:has(> div > h1.text-brand-dark):has(h2) :is(h1, h2, h3) {
+  letter-spacing: 0.01em;
+}
+html[lang='ar'] main > section:has(> h1.text-brand-dark):has(h2) :is(h1, h2, h3, p, li),
+html[lang='ar'] main > section:has(> div > h1.text-brand-dark):has(h2) :is(h1, h2, h3, p, li) {
+  letter-spacing: 0;
+}
+
+/* Lists sit closer to a document's rhythm with a little room between items —
+ * the same reasoning as the line height, one level up. */
+main > section:has(> h1.text-brand-dark):has(h2) li + li,
+main > section:has(> div > h1.text-brand-dark):has(h2) li + li {
+  margin-top: 0.35rem;
+}
+
+/* ---------------------------------------- /backends on a phone: sign in */
+/* The shop is run from a phone and the panel is where it is run from, so the
+ * two things measured here are the two that make it awkward there. Both are
+ * scoped to the phone: nothing about the panel on a desktop changes.
+ *
+ * SIXTEEN PIXELS, AND IT IS NOT A TYPE CHOICE. iOS Safari zooms the whole page
+ * in when a text field smaller than 16px takes focus, and it does not zoom back
+ * out afterwards. The email box was 14px, so signing in went: tap the field,
+ * the page lurches and the card is half off-screen, type blind, pinch out,
+ * tap the next field, lurch again. Setting 16px is the documented way to stop
+ * it — the browser reads it as "already legible, no need to help" — and the
+ * two boxes are wide enough that a larger face costs nothing.
+ *
+ * FORTY-FOUR, because they were forty-two. The Sign in button under them is
+ * already 48; the two fields it sits under were the only controls in the flow
+ * below the size a thumb reliably hits. min-height only ever grows a box that
+ * is too small, so nothing that already passes moves.
+ *
+ * SCOPED BY THE PASSWORD FIELD, which is the whole selector's point: there is
+ * exactly one password input on this domain and it is this form. No route
+ * class exists to hang this on — the panel is a built bundle with no source
+ * here — and describing the form by the thing that makes it a sign-in is
+ * steadier than describing it by the utility classes it happens to carry
+ * today. */
+@media (max-width: 767px) {
+  form:has(input[type='password']) input {
+    font-size: 16px;
+    min-height: 44px;
+  }
+
+  /* SIGN OUT WAS TWENTY PIXELS TALL. It is a bare text button in the panel
+   * header, so its box was the line box of the words and nothing more — a
+   * 20px-high target, in the corner of the screen, for the one action you
+   * cannot undo by pressing again. Grown to 44 with flex centring so the words
+   * do not move; the header is a flex row with room around it, which is why
+   * this adds height without pushing anything sideways. Measured after. */
+  header.m-header button {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+/* =================================== the product page: centred buying block,
+   ================================================== and a larger photograph
+
+   BOTH AT THE OWNER'S REQUEST, 2026-09-04, and both measured on the rendered
+   page rather than read off the markup — the source of this bundle is not in
+   the repository, so every selector below was found by inspecting the live
+   DOM and every number by measuring the box it produces.
+
+   WHAT IS CENTRED, AND WHAT DELIBERATELY IS NOT. The buying block — the name,
+   the price and the row of controls. The description and the delivery /
+   payment / returns list keep start alignment: they are prose and a bulleted
+   list, and Arabic reads those from the edge. Centring a three-item list with
+   an icon per line loosens it into three floating rows. The owner was asked
+   and chose exactly this split.
+
+   The price and the controls were already flex rows, so they need one
+   property each. The title needed more, and the reason is worth writing down:
+   it shares its row with the 44px wishlist button under `justify-between`, so
+   text-align alone centres the words inside the 298px LEFT of that button —
+   30px off the page's centre, which reads as a mistake rather than a choice.
+   Making the row relative, giving the heading the full width and taking the
+   button out of flow puts the title on the real centre and leaves the button
+   in its corner where it already was. */
+.flex.items-start.justify-between.gap-4:has(> .product-title) {
+  position: relative;
+}
+.flex.items-start.justify-between.gap-4:has(> .product-title) > .product-title {
+  width: 100%;
+  text-align: center;
+}
+.flex.items-start.justify-between.gap-4:has(> .product-title) > button {
+  position: absolute;
+  inset-inline-end: 0;
+  top: 0;
+}
+
+/* The price row and the add/buy row. `:has()` scopes both to this page —
+   `.mt-6.flex.flex-wrap` on its own is a utility combination that could turn
+   up anywhere, and a rule that centres someone else's row is the kind of
+   change nobody goes looking for. */
+p.mt-6.flex.flex-wrap.items-baseline:has(> .font-display) {
+  justify-content: center;
+}
+.mt-6.flex.flex-wrap.items-center.gap-4:has(> .btn) {
+  justify-content: center;
+}
+
+/* ------------------------------------------------- a larger photograph
+   Same shape, more of it — the owner was offered portrait and chose to keep
+   the shapes and grow them.
+
+   PHONE: the picture was 358 wide inside the page's 1rem gutters. Edge to
+   edge it is 390, and at the 1.25 ratio already set above that is 312px tall
+   against 286. The corners are squared at the same time: a rounded rectangle
+   that touches both edges of the screen reads as a mistake, not a radius.
+
+   This partly reverses the note at rule 2 above, which SHORTENED this box to
+   1.25 to bring 72px of buying controls up the page. That was the right call
+   on its own terms and it is not being undone — the ratio stays 1.25. Only
+   the width changes, so the cost is 26px, not the 72 that rule bought.
+
+   DESKTOP: the picture is one half of a two-column grid, so it cannot grow
+   without the text column giving way. 1.5fr/1fr moves it from 505 to about
+   607 in a 1044 container and leaves the buying column 405 — comfortably
+   above the ~380 at which the add/buy row starts wrapping awkwardly, which is
+   the floor that decided the ratio. */
+@media (max-width: 767px) {
+  .group.aspect-square.cursor-zoom-in {
+    margin-inline: -1rem;
+    width: calc(100% + 2rem);
+    border-radius: 0;
+  }
+}
+@media (min-width: 768px) {
+  .grid.gap-8.md\:grid-cols-2:has(.product-title) {
+    grid-template-columns: 1.5fr 1fr;
+  }
+}
+
+/* ============================ the header: search and wishlist off, logo centred
+   At the owner's request, 2026-09-04.
+
+   SELECTED BY MEANING, NOT BY POSITION OR BY CLASS. The wishlist is the only
+   thing in the bar that links to /wishlist, and the search button is named by
+   its aria-label. Both spellings of that label are listed because the shop is
+   bilingual and the header is the same markup in both — matching only `بحث`
+   would have left an English visitor with a search button the Arabic visitor
+   no longer has, and that kind of half-change is invisible from whichever
+   language you happen to be testing in. A positional selector (`:last-child`
+   of the icon row) would have been shorter and would break silently the first
+   time the bundle reorders its icons.
+
+   Scoped to .app-header on purpose. /wishlist is still a real page with real
+   contents and is still reachable by its URL and by anything else that links
+   to it; what is removed is the entry in the top bar, which is what was asked
+   for. Nothing here deletes a feature — hiding the control is the only thing
+   this stylesheet can do to a bundle whose source is not in this repository,
+   and it is also the only thing that should be done to one. */
+.app-header a[href='/wishlist'],
+.app-header [aria-label='بحث'],
+.app-header [aria-label='Search'] {
+  display: none !important;
+}
+
+/* AND THEN THE ALIGNMENT, which is the half that the removal creates.
+   ------------------------------------------------------------------
+   The bar is one flex row under `justify-between` holding three things: the
+   language and clock, the logo, and the icons. `justify-between` puts equal
+   space BETWEEN them, which centres the middle one only when the two outer
+   groups happen to be the same width — and they never were. Measured before
+   any of this: the icon group is 92px and the language/clock group 114px on a
+   390px phone, so the logo sat 11px off centre already.
+
+   Taking two icons out makes that worse, not better: the icon group drops to
+   about 48px and the logo slides further toward it. So the fix belongs here
+   whether or not the removal happens.
+
+   Giving both outer groups `flex: 1 1 0` makes them equal by construction —
+   each takes half of whatever is left after the logo — so the logo is centred
+   for any content either side, today's and tomorrow's. The last group then
+   needs `flex-end` or its icons drift inward off the screen edge: inside an
+   RTL row, a grown box lays its contents out from ITS start, which is the
+   side facing the logo, not the side facing the edge of the screen. */
+.app-header > nav > div:first-child,
+.app-header > nav > div:last-child {
+  flex: 1 1 0;
+}
+.app-header > nav > div:last-child {
+  justify-content: flex-end;
+}
+
+/* ============================================================== the top bar */
+/* THE CLOCK COMES OUT, at the owner's request (2026-09-05).
+ *
+ * An analogue clock face and a digital 13:06 sat in the header's most valuable
+ * corner — the one a shopper's eye reaches first after the logo — and neither
+ * helps anyone buy anything. The delivery promise in the band above already
+ * says the thing about time that a customer needs.
+ *
+ * SCOPED TO THE SPAN THAT HOLDS BOTH, not to the two elements separately. The
+ * clock face and the time share one parent whose entire text content is the
+ * time, so hiding the parent takes the pair and nothing else — the language
+ * switch beside it is a sibling and is untouched. Hiding the two children
+ * instead would leave the empty flex parent behind, still holding its gap and
+ * pushing EN off the edge it now sits on.
+ *
+ * The rules further up this file that STYLE the clock are deliberately left in
+ * place. They cost nothing while it is hidden, and they are the only record of
+ * how it was drawn if it is ever wanted back. */
+.app-header span:has(> svg[viewBox='0 0 48 48']) {
+  display: none !important;
+}
+
+/* ================================================== the hero, on phones only */
+/* THE EMPTY BAND UNDER THE BANNER, at the owner's request (2026-09-05).
+ *
+ * Measured at 390x844: the slide is 314px tall, of which the artwork occupied
+ * 186 and the remaining 128 was a bare gradient strip holding the تسوّق الآن
+ * button. A quarter of the hero showed nothing. Desktop never had this — the
+ * bundle ships md:absolute on both boxes, so from 768px up the button has
+ * always floated over the picture. The phone was the odd one out.
+ *
+ * So this gives the phone the arrangement desktop already had: the button
+ * moves on top of the picture and the 128px comes OFF the slide.
+ *
+ * WHAT WAS ASKED FOR WAS A FULL OVERLAY, AND IT CANNOT BE DONE ON THESE
+ * BANNERS. Two attempts, both rendered and looked at rather than reasoned
+ * about:
+ *
+ *   1. Keep the 314px and let the artwork grow into it. Worse than the strip
+ *      it replaced — the box went 2.10:1 to 1.24:1 at the same width,
+ *      object-fit: cover zoomed to match, and "MEN'S TRAINING" came out
+ *      "EN'S TRAINING" with the orange headline losing its last letter.
+ *   2. Shrink the hero to the artwork and float the button on top. The
+ *      artwork survived, and the button landed squarely across the headline —
+ *      it covered "…INING" and the middle of "BODY BUILDING", and the
+ *      carousel controls sat on the strapline.
+ *
+ * The reason is in the section above this one, which spends thirty lines on
+ * where the crop falls: these five banners ARE their typography, set across
+ * the left two-thirds, with the model in the remaining third. There is no
+ * clear ground big enough for a 300px button. An overlay always covers
+ * something.
+ *
+ * AND THE BAND IS NOT EMPTY, which is the correction that matters. Reading the
+ * screenshot I called it "a bare gradient strip" and that was wrong: 128px
+ * holds the button (48px, on a 32px pb-8) and the carousel controls (32px, on
+ * bottom-2). It LOOKS empty because it is flat colour with generous spacing
+ * around two small things, not because anything is missing. There is no
+ * quarter of the hero to reclaim.
+ *
+ * So this tightens rather than removes: 128px becomes 104px, which is what the
+ * button and the controls actually need with 10px between them, measured from
+ * their rendered boxes. The hero comes down 24px, the artwork is untouched at
+ * the 2.10:1 the owner chose this morning, and nothing overlaps anything.
+ *
+ * The carousel controls needed nothing: they are `absolute bottom-2` on the
+ * section and were already floating. They only LOOKED stacked because the
+ * band beneath the art pushed the section's bottom edge down past the picture.
+ * Measuring that is what stopped this from becoming two fixes instead of one. */
+/* The pre-paint shell reads --hero-h and the mounted component reads its own
+ * height. The file says further up, at length, that moving one without the
+ * other makes the page jump at mount — the single failure the boot script
+ * exists to prevent. So both, together, to the same number. */
+:root {
+  --hero-h: calc(100vw / 2.10 + 104px) !important;
+}
+
+@media (max-width: 767px) {
+  .hero-strength {
+    height: calc(100vw / 2.10 + 104px) !important;
+  }
+
+  /* The artwork keeps its own box and its own ratio. Untouched on purpose. */
+
+  /* The band: 104px instead of 128, and the button pulled up into the top of
+   * it so the controls have the bottom. Both were always inside these 128px;
+   * the space between them was the waste. */
+  .hero-strength > div:nth-child(2) {
+    height: 104px !important;
+    align-items: flex-start !important;
+    padding-top: 0 !important;
+  }
+  /* The button's own wrapper. pb-8 is what held it clear of the controls when
+   * the band was 128; at 104 the controls are pinned closer and that padding
+   * is what made them collide — measured, a 14px overlap. Note the band's
+   * FIRST child is an sr-only <h1>, so this targets the div specifically:
+   * a `> *` rule here would put padding on the heading too. */
+  .hero-strength > div:nth-child(2) > div {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * THE PLACEHOLDER CARD GETS THE SPORTA MARK
+ *
+ * Every one of the 46 active products has no photograph — measured on the live
+ * database, photos=0/46 — and the storefront already handles that: it renders
+ * a data: URI SVG, a two-stop dark gradient, deterministic per product. So the
+ * shop is not showing broken images or grey boxes, which is worth saying
+ * plainly because I described it as "blank" before looking properly.
+ *
+ * What it does show is a plain gradient, which reads as "this did not load"
+ * rather than "no photograph yet". Putting the shop's own mark faintly on top
+ * makes it read as intentional.
+ *
+ * SELECTED BY THE PLACEHOLDER ITSELF, not by a class or a product list. The
+ * built storefront gives the gradient as `src="data:image/svg+xml;..."`, and a
+ * real photograph — uploaded to /backends, served from ?r=product_image, or a
+ * file path — never begins with that. So this rule applies to exactly the
+ * cards that have no picture, and REMOVES ITSELF the moment one is uploaded.
+ * Nothing to undo later, and no list to keep in step with the catalogue.
+ *
+ * On the <a>, via :has(), rather than on the <img>: the image's own background
+ * sits behind an opaque gradient and would never be seen. The mark is painted
+ * over it instead, under the badges (which carry z-10) and with pointer-events
+ * off so it cannot eat a tap meant for the card.
+ *
+ * logo-white.webp is the shop's own asset, already in PRECACHE, and white
+ * against a dark gradient in both themes — the placeholder is dark in each.
+ * ------------------------------------------------------------------------- */
+a[href*="/product/"]:has(> img[src^="data:image/svg+xml"])::after,
+.product-gallery :has(> img[src^="data:image/svg+xml"])::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url('/logo-white.webp') center / 34% auto no-repeat;
+  opacity: 0.16;
+  pointer-events: none;
+}

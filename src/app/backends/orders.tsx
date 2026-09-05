@@ -1,0 +1,168 @@
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+
+import { press } from '@/components/ui/press';
+
+import { AdminShell, adminStyles } from '@/components/admin-shell';
+import { StatusChip } from '@/components/status-chip';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { Spacing, TapTarget } from '@/constants/theme';
+import { API_BASE } from '@/lib/config';
+import { useTheme } from '@/hooks/use-theme';
+import { adminApi, Unauthorized, type OrderStatus, type OrderSummary } from '@/lib/admin';
+import { useLang } from '@/lib/i18n';
+import { formatPrice } from '@/lib/money';
+import { useSession } from '@/lib/session';
+
+const FILTERS: (OrderStatus | 'all')[] = [
+  'all',
+  'new',
+  'paid',
+  'packing',
+  'shipped',
+  'delivered',
+  'cancelled',
+];
+
+export default function OrdersScreen() {
+  const theme = useTheme();
+  const router = useRouter();
+  const { lang } = useLang();
+  const { token, signOut } = useSession();
+  const [filter, setFilter] = useState<OrderStatus | 'all'>('all');
+  const [orders, setOrders] = useState<OrderSummary[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    if (!token) return;
+    setLoading(true);
+    setError(null);
+    adminApi
+      .orders(filter)
+      .then((r) => setOrders(r.orders))
+      .catch((e) => (e instanceof Unauthorized ? signOut() : setError(String(e))))
+      .finally(() => setLoading(false));
+  }, [token, filter, signOut]);
+
+  useEffect(load, [load]);
+
+  return (
+    <AdminShell
+      title="Orders"
+      loading={loading}
+      error={error}
+      onRetry={load}
+      action={
+        // PRINT / SAVE AS PDF. The page it opens is api/orders-print.php: every
+        // order in the window as one document, each on its own sheet, which the
+        // browser turns into a single PDF.
+        //
+        // A LINK RATHER THAN A FETCH. The panel talks to admin.php with JSON and
+        // an X-Sporta-Admin header; this is a document a person reads and
+        // prints, so it has to be a real navigation carrying the session
+        // cookie — a header cannot ride on one, which is why that page gates on
+        // the session alone.
+        //
+        // Built from API_BASE so it follows the same host the rest of the panel
+        // was built against, rather than assuming production.
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="print or save all orders as a PDF"
+          onPress={() => Linking.openURL(`${API_BASE}/orders-print.php`)}
+          style={press(false, styles.printHit)}>
+          <ThemedText type="labelBold" themeColor="tint">Print / PDF</ThemedText>
+        </Pressable>
+      }>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filters}>
+        {FILTERS.map((f) => {
+          const active = filter === f;
+          return (
+            <Pressable
+              key={f}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              onPress={() => setFilter(f)}
+              // THE HIT AREA IS TALLER THAN THE CHIP, which is the pattern
+              // AdminShell's navHit already uses two files away for chips of
+              // exactly this shape. The pill is 36pt so that a row of eight
+              // status words fits across a phone; 36 is under the 44 a finger
+              // wants, and measured on a 390pt screen these came out
+              // 50x36 to 101x36 — the shortest controls in the panel.
+              // Wrapping rather than growing keeps every pixel where the
+              // owner drew it and still gives the thumb its 48.
+              style={press(false, styles.filterHit)}>
+              <ThemedView
+                type={active ? 'backgroundSelected' : 'backgroundElement'}
+                style={[styles.filter, { borderColor: active ? theme.tint : theme.controlBorder }]}>
+                <ThemedText type="label" themeColor={active ? 'tintText' : 'textSecondary'}>
+                  {f}
+                </ThemedText>
+              </ThemedView>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      {orders && orders.length === 0 ? (
+        <ThemedText type="label" themeColor="textSecondary" style={styles.empty}>
+          No orders with that status.
+        </ThemedText>
+      ) : (
+        orders?.map((o) => (
+          // CARDS, NOT A TABLE. Seven columns of order data on a 390px screen
+          // is a horizontal scrollbar, and a manager checking an order on their
+          // phone should not have to drag a table sideways to find the total.
+          <Pressable
+            key={o.id}
+            accessibilityRole="link"
+            accessibilityLabel={`Order ${o.ref}`}
+            onPress={() => router.push({ pathname: '/backends/order/[id]', params: { id: o.id } })}
+            style={press()}>
+            <ThemedView
+              type="backgroundElement"
+              style={[adminStyles.card, adminStyles.lift]}>
+              <View style={adminStyles.rowBetween}>
+                <ThemedText type="labelBold">{o.ref}</ThemedText>
+                <StatusChip status={o.status} />
+              </View>
+              <View style={adminStyles.rowBetween}>
+                <ThemedText type="label" themeColor="textSecondary">
+                  {o.name} · {o.phone}
+                </ThemedText>
+                <ThemedText type="labelBold">{formatPrice(o.total, lang)}</ThemedText>
+              </View>
+              <View style={adminStyles.rowBetween}>
+                <ThemedText type="label" themeColor="textSecondary">
+                  {o.payment.toUpperCase()}
+                </ThemedText>
+                <ThemedText type="label" themeColor="textSecondary">
+                  {o.createdAt}
+                </ThemedText>
+              </View>
+            </ThemedView>
+          </Pressable>
+        ))
+      )}
+    </AdminShell>
+  );
+}
+
+const styles = StyleSheet.create({
+  filters: { gap: Spacing.two, paddingVertical: Spacing.two, flexDirection: 'row' },
+  filterHit: { minHeight: TapTarget, justifyContent: 'center' },
+  printHit: { minHeight: TapTarget, justifyContent: 'center', paddingHorizontal: Spacing.two },
+  filter: {
+    minHeight: TapTarget - 12,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: Spacing.three,
+  },
+  empty: { paddingVertical: Spacing.five, textAlign: 'center' },
+});

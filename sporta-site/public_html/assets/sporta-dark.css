@@ -1,0 +1,473 @@
+/* Sporta — black, dark silver, orange.
+ *
+ * The site already carried a full dark theme under [data-theme=dark]; what it
+ * did not carry was a palette. Its dark surfaces were four blue-greys within a
+ * few points of each other — page #202429, cards #282e35, chrome #2b3138,
+ * tiles #232830 — so nothing separated from anything, the header floated
+ * LIGHTER than the page it sat on, and the product tiles kept a navy cast from
+ * Tailwind's slate ramp (#1e293b, #0f172b) that belonged to no part of the
+ * brand.
+ *
+ * This file replaces those values with one neutral ramp on black. Neutral is
+ * the point: every grey below has equal red, green and blue give or take a
+ * point, so "dark silver" reads as silver and not as blue. Orange is untouched
+ * — it was already right, and it is the only colour in the shop.
+ *
+ * The ramp, darkest first:
+ *
+ *   --sp-black   #1e2023   the page itself
+ *   --sp-tile    #24272a   product tiles and the hero — a photo's ground
+ *   --sp-panel   #2d3034   cards, the header, the cart drawer
+ *   --sp-raise   #383c41   chips, inputs, skeletons — what sits ON a card
+ *   --sp-line    #494e54   hairlines — decoration, deliberately quiet
+ *   --sp-silver-mid #878e95 the edge of a CONTROL — dark theme only now
+ *   --sp-silver  #a6acb2   secondary text
+ *   --sp-text    #eaecee   primary text
+ *
+ * THE GROUND WAS RAISED, at the owner's request: "more breathable". The first
+ * version of this ramp put the page at #0d0e10, which is L* 3.9 — near enough
+ * to pure black that every surface on it read as a hole rather than a card,
+ * and the separation between page and card was 1.10:1, which is to say none.
+ *
+ * RAISED A SECOND TIME, at the owner's request again: "less dark". The whole
+ * ramp moved together — lifting the page alone would have flattened it onto
+ * the cards, which is the fault the first lift was fixing.
+ *
+ *                     first    then     now
+ *   page lightness    L* 3.9   L* 7.2   L* 12.2
+ *   card vs page      1.10:1   1.19:1   1.20:1
+ *   chip vs card      1.13:1   1.18:1   1.19:1
+ *   hairline vs page  1.52:1   1.84:1   1.94:1
+ *
+ * LIFTING A GROUND SPENDS CONTRAST, so every pair was recomputed rather than
+ * assumed — twice now. The worst case anywhere is 4.85:1, the secondary
+ * silver on a raised chip, against the 4.5 that AA asks of body text:
+ *
+ *   #eaecee on #1e2023  13.79:1      #a6acb2 on #1e2023   7.13:1
+ *   #eaecee on #2d3034  11.19:1      #a6acb2 on #2d3034   5.79:1
+ *   #eaecee on #383c41   9.38:1      #a6acb2 on #383c41   4.85:1
+ *   #ff7b17 on #1e2023   6.30:1      #171a1e on #e0561c   4.59:1
+ *
+ * The ember and the ember fill did NOT move. They are the brand, they were
+ * right, and shifting a brand colour to chase a background is how a shop ends
+ * up with two oranges.
+ *
+ * WHY A SEPARATE FILE. index-*.css is a content-hashed build artefact whose
+ * source is not in this repository. Editing values inside it would make the
+ * hash a lie and would be lost the next time the site is rebuilt; a file
+ * loaded after it overrides by cascade, is obvious in the <head>, and can be
+ * deleted in one line to get the old palette back. The !important flags match
+ * the ones already on the rules being overridden — they are not a fight with
+ * specificity, they are the same weapon the original rules use.
+ */
+
+/* ONE VALUE, BOTH THEMES, and that is not a coincidence worth hiding.
+ *
+ * A control edge has to clear 3:1 against whatever it sits on. In the dark
+ * theme it sits on near-black and needs to be light enough; in the light theme
+ * it sits on near-white and needs to be dark enough. Those two pull in
+ * opposite directions, and the band where both hold is narrow — but #7a8188
+ * is inside it, at both ends:
+ *
+ *     dark    on #2e3237 raise    3.27:1   <- binding in the dark theme
+ *             on #141619 black    4.59:1
+ *     light   on #f2f3f5 panel    3.55:1   <- binding in the light theme
+ *             on #ffffff white    3.95:1
+ *
+ * So it is declared once, on :root, rather than twice with two values that
+ * would drift apart the first time either theme was adjusted. */
+:root {
+  --sp-silver-mid: #7a8188;
+}
+
+:root[data-theme='dark'] {
+  --sp-black: #1e2023;
+  --sp-tile: #24272a;
+  --sp-panel: #2d3034;
+  --sp-raise: #383c41;
+  --sp-line: #494e54;
+  /* MID DARK SILVER — the edge of a control, as opposed to the edge of a box.
+   *
+   * The ramp had a hole in it. --sp-line is a HAIRLINE: it bounds cards and
+   * separates rows, and it is deliberately quiet — 1.84:1 on black, 1.31:1 on
+   * a raised surface. --sp-silver is TEXT: 7.91:1, far past what an edge
+   * needs and loud enough to compete with the content it surrounds. There was
+   * nothing in between, so every control that needed a visible boundary got
+   * the hairline, and WCAG 1.4.11 asks 3:1 of anything required to identify a
+   * control.
+   *
+   * Measured across five pages, controls whose edge was under 3:1:
+   *
+   *     1.84:1   x22   the size buttons — S, M, L, XL …
+   *     1.84:1   x 1   the sort select
+   *     1.84:1   x 1   a round icon button
+   *
+   * The size picker is the one that matters. It is the required step between
+   * a shopper and a purchase, and its boundary was the only thing saying the
+   * squares were buttons at all.
+   *
+   * WHY THIS EXACT VALUE, and it was chosen by the constraint rather than by
+   * eye: #878e95 is the DARKEST silver that still clears 3:1 against every
+   * surface in the ramp, including the lightest one it will ever sit on.
+   *
+   *     against #383c41 raise   3.35:1   <- the binding case
+   *     against #2d3034 panel   4.00:1
+   *     against #24272a tile    4.53:1
+   *     against #1e2023 black   4.92:1
+   *
+   * IT NO LONGER SITS ON :root, AND THAT IS THE COST OF THE SECOND LIFT.
+   *
+   * The old value, #7a8188, was declared once for both themes because one
+   * number happened to satisfy both — the dark theme binding at 3.27:1 on a
+   * raised chip, the light theme at 3.55:1 on a panel. Raising the dark ramp
+   * moved only one side of that: #7a8188 measures 2.82:1 on the new #383c41
+   * and fails there, while remaining exactly right on the light theme's
+   * unchanged #f2f3f5.
+   *
+   * So the dark theme now overrides it and the light theme keeps the :root
+   * value untouched. Two values, because there are now genuinely two answers
+   * — which is the condition the original comment named as the reason to
+   * split, not a drift away from it. */
+  --sp-silver-mid: #878e95;
+  --sp-silver: #a6acb2;
+  --sp-text: #eaecee;
+  --sp-ember: #ff7b17;
+  --sp-ember-fill: #e0561c;
+  --sp-on-ember: #171a1e;
+}
+
+/* EVERYTHING BELOW IS @media screen, and that is not tidiness.
+ *
+ * The build's own stylesheet already prints correctly — it carries
+ * `@media print { body { background: #fff } }` so an invoice comes out on
+ * white paper. This file overrides body with !important and loads after it,
+ * so it was winning in print too: every saved PDF and every printed invoice
+ * came out as a black page. That is a lot of ink, it renders muddy on most
+ * printers, and it is not what a document should look like.
+ *
+ * Scoping the overrides to screen hands print back to the built stylesheet,
+ * which was right all along. It is safer than adding a @media print block
+ * that undoes each rule by hand — that list would fall out of step the first
+ * time a rule was added here and nobody remembered to undo it there.
+ *
+ * The :root variables above stay outside: they are declarations, they paint
+ * nothing on their own, and the print rules do not read them.
+ */
+@media screen {
+
+  /* --- the ground ------------------------------------------------------- */
+  [data-theme='dark'] body,
+  [data-theme='dark'] body[data-canvas='silver'] {
+    color: var(--sp-text);
+    background-color: var(--sp-black) !important;
+  }
+  [data-theme='dark'] .bg-sand,
+  [data-theme='dark'] .bg-sand-light {
+    background-color: var(--sp-black) !important;
+  }
+
+  /* --- panels: cards, the header, the cart drawer ------------------------ */
+  /* bg-ink-silver was #2b3138 and is the sticky header. It was LIGHTER than the
+     page, which reads as the chrome floating above the content rather than
+     holding it; on black it now sits one step up, with the hairline below it
+     doing the separating. */
+  [data-theme='dark'] .bg-white,
+  [data-theme='dark'] .card,
+  [data-theme='dark'] .bg-ink-silver {
+    color: var(--sp-text);
+    background-color: var(--sp-panel) !important;
+  }
+  [data-theme='dark'] .bg-ink-silver\/\[\.97\] {
+    background-color: #23262af7 !important;
+  }
+
+  /* --- tiles: what a photograph sits on ---------------------------------- */
+  /* Darker than a card on purpose. A product shot on a near-black ground reads
+     as the garment; on a mid grey it reads as a rectangle with a garment in it.
+     bg-slate-50/100 are the placeholder grounds before an image loads, and the
+     two navy slates are the cast this file exists to remove. */
+  [data-theme='dark'] .bg-ink,
+  [data-theme='dark'] .bg-slate-50,
+  [data-theme='dark'] .bg-slate-100,
+  [data-theme='dark'] .bg-slate-800,
+  [data-theme='dark'] .bg-slate-900 {
+    background-color: var(--sp-tile) !important;
+  }
+  [data-theme='dark'] .bg-ink\/60 { background-color: #14161999 !important; }
+  [data-theme='dark'] .bg-ink\/70 { background-color: #141619b3 !important; }
+
+  /* --- raised: chips, inputs, the skeleton ------------------------------- */
+  [data-theme='dark'] .bg-ink-steel,
+  [data-theme='dark'] .skeleton {
+    background-color: var(--sp-raise) !important;
+  }
+
+  /* --- text ------------------------------------------------------------- */
+  /* The old secondary was #9aa3ae — a blue grey. Same lightness, hue removed. */
+  [data-theme='dark'] .text-slate-900,
+  [data-theme='dark'] .text-slate-800,
+  [data-theme='dark'] .text-slate-700 {
+    color: var(--sp-text) !important;
+  }
+  [data-theme='dark'] .text-slate-600,
+  [data-theme='dark'] .text-slate-500,
+  [data-theme='dark'] .text-slate-400 {
+    color: var(--sp-silver) !important;
+  }
+  /* .text-brand-dark USED TO BE PAINTED EMBER HERE. It is silver now — see the
+     "less orange" block at the foot of this file — and the rule that set it to
+     var(--sp-ember) has been removed rather than left to lose: two rules in one
+     file asking for different colours is a contradiction the next reader has to
+     resolve, and scripts/css-audit.mjs fails on the outranked one by design. */
+
+  /* --- lines ------------------------------------------------------------- */
+  /* white/12% over black is a grey with no hue but also no substance — it
+     disappeared against the card it was meant to bound. A named line colour is
+     the same weight on every surface in the ramp. */
+  [data-theme='dark'] .border-black\/10,
+  [data-theme='dark'] .border-black\/15,
+  [data-theme='dark'] .border-slate-100,
+  [data-theme='dark'] .border-slate-200,
+  [data-theme='dark'] .border-slate-300,
+  [data-theme='dark'] .border-white\/10 {
+    border-color: var(--sp-line) !important;
+  }
+  [data-theme='dark'] .action-bar {
+    background: #141619eb !important;
+    border-top-color: var(--sp-line) !important;
+  }
+
+  /* --- and a CONTROL gets the stronger edge ------------------------------ */
+  /* Same border classes as the block above, narrowed to things you operate.
+   * A card's hairline is decoration and stays quiet at --sp-line; a size
+   * button's hairline is the button, and WCAG 1.4.11 asks 3:1 of it. See the
+   * note on --sp-silver-mid for the measurements and why that value.
+   *
+   * Scoped by ELEMENT rather than by class, because the shop's controls do not
+   * share one: the sizes are <button>, the sort is a <select>, and the filter
+   * chips are buttons too. Anything with its own deliberate edge — the ghost
+   * button's .border-brand, the language chip's .border-white\/20 — is not in
+   * this list and keeps what it was given. */
+  /* WRITTEN LONGHAND, and not because :is() would be wrong. This was
+     `:is(button, select, input).border-black\/10` and css-audit.mjs splits a
+     rule's selector on commas to test each part — which cuts that one INSIDE
+     the :is(), leaving fragments like `input).border-black\/15` that can never
+     match and ` select` that matches every select on the site. The audit then
+     reported one dead selector and twelve outranked declarations, all of them
+     artefacts of the split rather than anything wrong with the rule. Four
+     plain selectors cost nothing and say the same thing to both the browser
+     and the audit.
+     `input` is not among them: no input on the site carries either class —
+     checked, rather than included for symmetry.
+     Nor is `button.border-black\/10`, for the same reason and found the same
+     way: css-audit.mjs reported it as a selector that can never fire, and
+     rendering seven routes confirms it — the class is on 14 elements and not
+     one of them is a button. It was written here for symmetry with the /15
+     variant, which is exactly the habit the note above warns about. The
+     general `.border-black\/10` rule already covers those 14. */
+  [data-theme='dark'] button.border-black\/15,
+  [data-theme='dark'] select.border-black\/10,
+  /* The text fields on /returns. An input is the purest case of the rule
+     above: it has no icon and no fill of its own, so the box IS the control
+     and 1.84:1 was the whole of what said one was there. */
+  [data-theme='dark'] input.border-slate-300 {
+    border-color: var(--sp-silver-mid) !important;
+  }
+
+  /* --- the round buttons that float on a photograph ---------------------- */
+  /* bg-white/90 and /95 are the wishlist heart and the quick-add. These STAY
+     light, and that is deliberate. They sit on a product photograph, not on a
+     surface in the ramp, so the ground behind them is unknowable — a dark disc
+     is invisible on a dark shot. I did try the dark version: a #212428 disc
+     ringed in --sp-line measures 1.45:1 against the tile, well under the 3:1 a
+     control's boundary needs, and it disappeared. Light is what makes them work
+     on any photograph.
+     What changes is only the colour: the palette's silver rather than pure
+     white, so the one bright element on the page still belongs to it. */
+  [data-theme='dark'] .bg-white\/90 { background-color: #eaeceee6 !important; }
+  [data-theme='dark'] .bg-white\/95 {
+    color: var(--sp-on-ember) !important;
+    background-color: #eaeceef2 !important;
+  }
+
+  /* --- orange stays orange ---------------------------------------------- */
+  /* Named here only so the one thing that must NOT drift is written down: the
+     fill is #e0561c and what goes on it is ink, not white — white on that fill
+     is 3.81:1, under AA for body text. */
+  [data-theme='dark'] .btn-primary {
+    color: var(--sp-on-ember) !important;
+    background-color: var(--sp-ember-fill) !important;
+  }
+
+}
+
+/* --- things the palette missed, because they are alpha over an assumed white */
+
+@media screen {
+  /* A 20% BLACK DOT ON A DARK GROUND, which is to say no dot at all.
+   *
+   * The separator between the supplier and the brand on the product page is
+   * `.text-black/20` — #0003. That is a sensible hairline on the white card it
+   * was written for, and invisible the moment dark became the default: 20%
+   * black over #23262a is #1c1f22, which is 1.06:1 against the box behind it.
+   * The two names then read as one run of text, "عهد كلاودسوفت", with a gap.
+   *
+   * Silver at the same weight it was meant to have — present, quiet, and
+   * actually a separator. Measured at 2.4:1 against the box, which is right
+   * for a divider: it must be seen and must not compete with either name. */
+  [data-theme='dark'] .text-black\/20 {
+    color: #a6acb266 !important;
+  }
+
+  /* --- the brand plate ------------------------------------------------- */
+  /* The box holding the brand logo and the two names used `bg-white`, so the
+   * palette painted it --sp-panel — the same surface as the size card, the
+   * colour card and the spec table stacked below it. Four identical cards in a
+   * column, one of which is not a card but a plate carrying a mark.
+   *
+   * The tile surface instead, one step DOWN rather than up: it is the ground a
+   * logo sits on elsewhere in this shop (product tiles, the hero), and a
+   * recessed plate reads as a label attached to the garment rather than as
+   * another panel of controls. The hairline stays, so its edge is still
+   * defined.
+   *
+   * Scoped by :has(> picture) — the plate is the only card on the page whose
+   * direct child is a <picture>. Checked against every other rounded-2xl card
+   * on the product page: none of them contains one. */
+  [data-theme='dark'] main .rounded-2xl:has(> picture) {
+    background-color: var(--sp-tile) !important;
+  }
+}
+
+/* ===========================================================================
+ * LESS ORANGE: SILVER IS THE ACCENT, ORANGE IS THE BUY BUTTON
+ * ===========================================================================
+ *
+ * Asked for by the owner: less orange, dark silver across the theme.
+ *
+ * WHAT WAS THERE. Measured across the home, shop, product, cart and checkout
+ * pages at 393px — 26 distinct orange elements in three different oranges:
+ *
+ *     #e0561c  fills    primary buttons, badges, the active filter chip,
+ *                       the carousel dot, the round icon buttons, skip link
+ *     #ff9752  text     every price, the eyebrows, "دليل المقاسات",
+ *                       "شنو مقاسي؟", the ghost buttons and their borders
+ *     #ff7b17  text     "حقيبتك", the footer headings, the active nav link
+ *
+ * Orange was doing the work of a whole palette: it marked the price, the
+ * heading, the link, the badge, the selected chip AND the button. When one
+ * colour means six things it stops meaning any of them, and a shop where
+ * everything shouts has nothing left to shout with.
+ *
+ * THE RULE HERE IS ONE LINE: orange is the button you press to buy. Nothing
+ * else. Everything that was orange for emphasis is now silver, and what made
+ * those things prominent — size, weight, position — still does.
+ *
+ * PRICES GO TO --sp-text, NOT TO --sp-silver, and that is the one place this
+ * would have gone wrong. Silver is DIMMER than body text (7.91:1 against
+ * 15.30:1), so a silver price would have been quieter than the sentence
+ * describing the garment. They are already display-weight and extrabold; the
+ * hue was never what made them read. Text colour keeps the hierarchy and drops
+ * the shouting.
+ *
+ * FILLS GO TO SILVER WITH INK ON TOP, for the reason the round-button note
+ * above already gives: a badge sits on a photograph, the ground behind it is
+ * unknowable, and a dark chip on a dark shot disappears. A light silver pill
+ * is legible on any photograph, and #171a1e on #a6acb2 is 7.91:1.
+ *
+ * CONTRAST, computed rather than hoped for:
+ *
+ *     #eaecee on #141619   15.30:1     prices, headings, eyebrows
+ *     #eaecee on #1a1d20   14.05:1     the same on a tile
+ *     #171a1e on #a6acb2    7.91:1     badge and chip labels
+ *     #a6acb2 on #141619    7.91:1     ghost borders and their text
+ *
+ * BOTH THEMES. The light theme gets the same treatment with the ramp
+ * inverted — a dark silver accent on white rather than a light one on black —
+ * so "less orange" is true whichever way the toggle is set.
+ *
+ * btn-primary is deliberately NOT touched: it is defined above and stays
+ * #e0561c with ink on it. That rule is written before these on purpose, but
+ * the :not(.btn-primary) below makes it independent of source order, because
+ * the fill override and the button rule have identical specificity and a
+ * later edit that moved either one would otherwise silently repaint the buy
+ * button.
+ */
+@media screen {
+
+  /* --- accent TEXT: the hue goes, the prominence stays ------------------- */
+  [data-theme='dark'] .text-accent,
+  [data-theme='dark'] .text-brand-dark,
+  [data-theme='dark'] .text-brand-bright,
+  [data-theme='dark'] .price-card,
+  [data-theme='dark'] .eyebrow {
+    color: var(--sp-text) !important;
+  }
+
+  /* --- accent FILLS: silver, with ink on top ----------------------------- */
+  /* Badges, the active filter chip, the carousel dot, the round icon buttons
+     and the skip link. :not(.btn-primary) keeps the buy button out of it. */
+  [data-theme='dark'] .bg-brand:not(.btn-primary),
+  [data-theme='dark'] .skip-link {
+    color: var(--sp-on-ember) !important;
+    background-color: var(--sp-silver) !important;
+  }
+
+  /* --- the outlined button, and anything else ringed in orange ----------- */
+  /* "اشترِ الآن" is a ghost button: orange text inside an orange ring, sitting
+     next to the solid orange Add. Two oranges of different weights side by
+     side was the loudest thing on the product page. */
+  /* border-colour ONLY. An outlined chip that is also filled (.bg-brand plus
+     .border-brand, which the product page uses) takes its text colour from the
+     fill rule above — ink on silver — and that rule is the more specific of the
+     two because of its :not(). Declaring a colour here as well would be a
+     declaration that can never win, which is precisely what css-audit.mjs
+     fails on. The ghost button's text is set on its own line below. */
+  [data-theme='dark'] .border-brand,
+  [data-theme='dark'] .border-accent {
+    border-color: var(--sp-silver) !important;
+  }
+  [data-theme='dark'] .btn-ghost.text-accent {
+    color: var(--sp-silver) !important;
+  }
+
+  /* --- the same, on the light theme ------------------------------------- */
+  /* The ramp inverts: a dark silver accent on white. #4a5058 on #ffffff is
+     8.32:1, and white on it is 8.32:1 the other way, so a filled chip and its
+     label are both comfortably past AA. */
+  :root:not([data-theme='dark']) .text-accent,
+  :root:not([data-theme='dark']) .text-brand-dark,
+  :root:not([data-theme='dark']) .text-brand-bright,
+  :root:not([data-theme='dark']) .price-card,
+  :root:not([data-theme='dark']) .eyebrow {
+    color: #171a1e !important;
+  }
+  :root:not([data-theme='dark']) .bg-brand:not(.btn-primary),
+  :root:not([data-theme='dark']) .skip-link {
+    color: #ffffff !important;
+    background-color: #4a5058 !important;
+  }
+  :root:not([data-theme='dark']) .border-brand,
+  :root:not([data-theme='dark']) .border-accent {
+    border-color: #4a5058 !important;
+  }
+  :root:not([data-theme='dark']) .btn-ghost.text-accent {
+    color: #4a5058 !important;
+  }
+}
+
+/* --- the same control edge, on the light theme ---------------------------- */
+/* The text fields on /returns measured 1.49:1 in light — border-slate-300 on
+ * white. Same defect as the dark theme's 1.84:1 and the same fix, but no
+ * longer the same value: the light theme keeps #7a8188 from :root, which is
+ * 3.55:1 on a panel and still the darkest silver that clears 3:1 here. The
+ * dark theme overrides it to #878e95 because its ramp was lifted; see the
+ * note on --sp-silver-mid for both derivations.
+ *
+ * Outside @media screen and outside the [data-theme='dark'] block on purpose —
+ * this is the light theme, which is what the built stylesheet paints when no
+ * theme attribute is set. */
+:root:not([data-theme='dark']) input.border-slate-300,
+:root:not([data-theme='dark']) button.border-black\/15 {
+  border-color: var(--sp-silver-mid) !important;
+}

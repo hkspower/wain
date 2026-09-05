@@ -1,205 +1,192 @@
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+
+import { press } from '@/components/ui/press';
+import { Screen } from '@/components/ui/screen';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PlaceCard } from '@/components/place-card';
+import { HeroSlider } from '@/components/hero-slider';
+import { ProductCard } from '@/components/product-card';
+import { RemoteArt } from '@/components/remote-art';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
-import { categories, getFeaturedPlaces } from '@/lib/places';
+import { EMBER_ON_ART, Radius, Spacing, Type } from '@/constants/theme';
+import { useCart } from '@/lib/cart';
+import { categoryArt } from '@/lib/assets';
+import { bundledCategoryArt } from '@/lib/category-art';
+import { categoryKicker, categoryName } from '@/lib/catalog';
+import { useLang } from '@/lib/i18n';
 
 export default function HomeScreen() {
-  const theme = useTheme();
   const router = useRouter();
-  const featured = getFeaturedPlaces();
+  const { t, lang, dir, row, text } = useLang();
+  const { products, categories } = useCart();
+  const featured = products.filter((p) => p.featured).slice(0, 4);
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: BottomTabInset + Spacing.five }]}
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.content}>
-          {/* Hero */}
-          <View style={styles.hero}>
-            <ThemedView type="tintSoft" style={styles.heroBadge}>
-              <ThemedText type="small" themeColor="tint">
-                🇰🇼 Your guide to Kuwait
-              </ThemedText>
-            </ThemedView>
-            <ThemedText type="subtitle" style={styles.heroTitle}>
-              Wain nrooh?{'\n'}
-              <Text style={{ color: theme.tint }}>We know where.</Text>
-            </ThemedText>
-            <ThemedText themeColor="textSecondary" style={styles.heroText}>
-              وين نروح؟ — the question every group chat asks. Wain answers it with
-              the best landmarks, food, beaches, and hidden gems across Kuwait.
-            </ThemedText>
-            <Pressable
-              onPress={() => router.push('/explore')}
-              style={({ pressed }) => [
-                styles.heroButton,
-                { backgroundColor: theme.tint },
-                pressed && styles.pressed,
-              ]}>
-              <Text style={styles.heroButtonText}>Start exploring →</Text>
-            </Pressable>
-          </View>
+    <Screen tabBar>
+          {/* The shop's own banners, as the website runs them. The headline,
+              the Arabic line and the mark are set into each photograph, so
+              nothing is written on top of them — see components/hero-slider. */}
+          <HeroSlider />
 
-          {/* Categories */}
-          <ThemedText type="smallBold" style={styles.sectionTitle}>
-            Browse by mood
+          {/* Categories — FULL WIDTH, one per row. They carry the shop's four
+              doors and a half-width tile makes each one a thumbnail. */}
+          <ThemedText type="labelBold" style={[styles.sectionTitle, text]}>
+            {t.home.categories}
           </ThemedText>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoryRow}>
+          <View style={styles.categoryList}>
             {categories.map((cat) => (
               <Pressable
-                key={cat.name}
-                onPress={() =>
-                  router.push({ pathname: '/explore', params: { category: cat.name } })
-                }
-                style={({ pressed }) => pressed && styles.pressed}>
-                <ThemedView
-                  type="backgroundElement"
-                  style={[styles.categoryCard, { borderColor: theme.border }]}>
-                  <Text style={styles.categoryEmoji}>{cat.emoji}</Text>
-                  <ThemedText type="smallBold">{cat.name}</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {cat.blurb}
-                  </ThemedText>
-                </ThemedView>
+                key={cat.id}
+                accessibilityRole="button"
+                accessibilityLabel={categoryName(cat, lang)}
+                onPress={() => router.push({ pathname: '/shop', params: { category: cat.id } })}
+                style={press()}>
+                <RemoteArt
+                  uri={categoryArt(cat.id)}
+                  bundled={bundledCategoryArt(cat.id, dir)}
+                  ground={cat.color}
+                  emoji={cat.emoji}
+                  emojiSize={40}
+                  // The compositions stand their subject on one side and leave
+                  // the other quiet for the copy, so the crop is anchored to
+                  // the subject's side: a narrow phone trims backdrop rather
+                  // than the model.
+                  focus={dir === 'rtl' ? 'start' : 'end'}
+                  style={styles.categoryTile}>
+                  {/* Copy on the reading side, sitting straight on the
+                      artwork. No plate: the tiles the owner sent are composed
+                      dark under the text, and a box drawn over them is a
+                      different design. The ground under the picture is
+                      charcoal for the same reason — see catalog.ts. */}
+                  <View style={[styles.categoryInner, row]}>
+                    <View style={styles.categoryCopy}>
+                      {cat.badge ? (
+                        <View style={styles.categoryBadge}>
+                          <Text style={styles.categoryBadgeText}>{categoryKicker(cat, lang)}</Text>
+                        </View>
+                      ) : (
+                        <Text style={[styles.categoryKicker, text]}>
+                          {categoryKicker(cat, lang)}
+                        </Text>
+                      )}
+                      <Text style={[styles.categoryName, text]}>{categoryName(cat, lang)}</Text>
+                    </View>
+                  </View>
+
+                  {/* The arrow chip, in the corner opposite the copy. It points
+                      the way the language reads — up-and-forward — so it is
+                      mirrored rather than rotated. */}
+                  <View style={[styles.arrowChip, dir === 'rtl' ? styles.arrowStart : styles.arrowEnd]}>
+                    <Text style={styles.arrowGlyph}>{dir === 'rtl' ? '↖' : '↗'}</Text>
+                  </View>
+                </RemoteArt>
               </Pressable>
             ))}
-          </ScrollView>
+          </View>
 
           {/* Featured */}
-          <View style={styles.featuredHeader}>
-            <ThemedText type="smallBold" style={styles.sectionTitle}>
-              Featured this week
-            </ThemedText>
-            <Link href="/explore" asChild>
-              <Pressable style={({ pressed }) => pressed && styles.pressed}>
-                <ThemedText type="small" themeColor="tint">
-                  View all →
-                </ThemedText>
-              </Pressable>
-            </Link>
-          </View>
-          <View style={styles.featuredList}>
-            {featured.map((place) => (
-              <PlaceCard key={place.slug} place={place} />
+          <ThemedText type="labelBold" style={[styles.sectionTitle, text]}>
+            {t.home.featured}
+          </ThemedText>
+          <View style={styles.grid}>
+            {featured.map((p) => (
+              <View key={p.slug} style={styles.gridItem}>
+                <ProductCard product={p} />
+              </View>
             ))}
           </View>
-
-          {/* About link */}
-          <Link href="/about" asChild>
-            <Pressable style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedView
-                type="backgroundElement"
-                style={[styles.aboutCard, { borderColor: theme.border }]}>
-                <Text style={styles.aboutEmoji}>🧭</Text>
-                <View style={styles.aboutTextWrap}>
-                  <ThemedText type="smallBold">What is Wain?</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    The story behind the app — and the question it answers.
-                  </ThemedText>
-                </View>
-                <ThemedText themeColor="tint">→</ThemedText>
-              </ThemedView>
-            </Pressable>
-          </Link>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
+  sectionTitle: { marginTop: Spacing.two },
+  categoryList: {
+    gap: Spacing.two,
   },
-  scrollContent: {
+  categoryTile: {
+    // 1.69:1, measured off the tiles the owner sent. Tall enough for a standing
+    // figure to be a figure rather than a band across the middle.
+    borderRadius: Radius.card,
+    overflow: 'hidden',
+    minHeight: 212,
+  },
+  categoryInner: {
+    flex: 1,
+    paddingHorizontal: Spacing.four,
     alignItems: 'center',
   },
-  content: {
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.four,
+  categoryCopy: {
+    // Just over half: the rest is where the subject stands, and copy running
+    // under it is what makes a tile unreadable.
+    maxWidth: '55%',
+    gap: Spacing.one,
   },
-  hero: {
-    alignItems: 'flex-start',
-    gap: Spacing.three,
-    marginBottom: Spacing.five,
+  categoryKicker: {
+    fontFamily: Type.label.family,
+    fontSize: Type.label.size,
+    color: 'rgba(255,255,255,0.78)',
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
-  heroBadge: {
+  categoryBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: EMBER_ON_ART,
     borderRadius: 999,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.one,
   },
-  heroTitle: {
-    fontSize: 34,
-    lineHeight: 42,
-  },
-  heroText: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  heroButton: {
-    borderRadius: Spacing.three,
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.three,
-  },
-  heroButtonText: {
+  categoryBadgeText: {
+    fontFamily: Type.labelBold.family,
+    fontSize: Type.label.size,
     color: '#ffffff',
     fontWeight: '700',
-    fontSize: 15,
   },
-  pressed: {
-    opacity: 0.8,
+  categoryName: {
+    fontFamily: Type.display.family,
+    fontSize: Type.display.size,
+    lineHeight: Type.display.lineAr,
+    color: '#ffffff',
+    fontWeight: '700',
   },
-  sectionTitle: {
-    fontSize: 18,
-    marginBottom: Spacing.three,
-  },
-  categoryRow: {
-    gap: Spacing.two,
-    paddingBottom: Spacing.five,
-  },
-  categoryCard: {
-    width: 170,
-    borderRadius: Spacing.three,
-    borderWidth: 1,
-    padding: Spacing.three,
-    gap: Spacing.one,
-  },
-  categoryEmoji: {
-    fontSize: 26,
-  },
-  featuredHeader: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-  },
-  featuredList: {
-    gap: Spacing.three,
-    marginBottom: Spacing.five,
-  },
-  aboutCard: {
-    flexDirection: 'row',
+  arrowChip: {
+    position: 'absolute',
+    bottom: Spacing.three,
+    width: 44,
+    height: 44,
+    borderRadius: 999,
+    backgroundColor: EMBER_ON_ART,
     alignItems: 'center',
-    gap: Spacing.three,
-    borderRadius: Spacing.three,
-    borderWidth: 1,
-    padding: Spacing.three,
+    justifyContent: 'center',
   },
-  aboutEmoji: {
-    fontSize: 26,
+  arrowStart: { start: Spacing.three },
+  arrowEnd: { end: Spacing.three },
+  arrowGlyph: {
+    color: '#ffffff',
+    fontSize: 20,
+    fontWeight: '700',
   },
-  aboutTextWrap: {
-    flex: 1,
-    gap: Spacing.half,
+  // TWO PER ROW, and it was one. `width: 48%` twice plus a 16px gap comes to
+  // 100.5% of a 358px column — half a per cent over, so every card wrapped onto
+  // its own line and the grid ran as a single column with half the page empty
+  // beside it. The arithmetic was written as `(100 - 4) / 2`, which assumed the
+  // gap was 4% of the row; at this width it is 4.5%.
+  //
+  // flexBasis with flexGrow, rather than a width: the cards then divide
+  // whatever the row actually has, so the gap can change without anyone
+  // recomputing a percentage. The gap is 8px because two 48% cards plus 8px is
+  // 351 of 358 — it fits with room to spare, and it is the last time this needs
+  // to be a calculation at all.
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  gridItem: {
+    flexGrow: 1,
+    flexBasis: '48%',
+    maxWidth: '48%',
   },
 });
