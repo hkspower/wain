@@ -71,7 +71,7 @@
 // keep using. Activating a new version deletes every cache that is not the
 // current one, so the bump is what actually frees them — the fix alone would
 // leave the people it was written for exactly where they were.
-const VERSION = 'v2-css1'
+const VERSION = 'v3-icons1'
 const SHELL = `sporta-shell-${VERSION}`
 const ASSETS = `sporta-assets-${VERSION}`
 
