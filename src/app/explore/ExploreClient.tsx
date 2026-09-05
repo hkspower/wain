@@ -89,7 +89,7 @@ export default function ExploreClient() {
               : "border border-line bg-white text-ink-600 hover:border-sea-300 hover:text-sea-700"
           }`}
         >
-          <CategoryIcon name="all" className="size-4" />
+          <CategoryIcon name="all" className="icon-pop size-4" />
           الكل
         </button>
         {categories.map((cat) => (
@@ -104,7 +104,7 @@ export default function ExploreClient() {
                 : "border border-line bg-white text-ink-600 hover:border-sea-300 hover:text-sea-700"
             }`}
           >
-            <CategoryIcon name={cat.icon} className="size-4" />
+            <CategoryIcon name={cat.icon} className="icon-pop size-4" />
             {cat.ar}
           </button>
         ))}

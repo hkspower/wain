@@ -33,7 +33,7 @@ export default function VoiceControls() {
             : "border border-line-control bg-white text-ink-600 hover:border-coral-300 hover:text-coral-700"
         }`}
       >
-        {enabled ? <IconSpeaker className="size-4" /> : <IconSpeakerOff className="size-4" />}
+        {enabled ? <IconSpeaker className="icon-pop size-4" /> : <IconSpeakerOff className="icon-pop size-4" />}
         الاقتراح الصوتي
       </button>
 

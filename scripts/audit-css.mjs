@@ -142,6 +142,31 @@ if (!reduced || !blanket) {
   console.log(`  ✓ ${keyframes.length} @keyframes, all covered by the global reduce block`);
 }
 
+/* `.icon-pop` fires off an ARIA attribute, not a prop.
+ *
+ * That is what lets any control opt in without threading state through it,
+ * and it is also how the class silently does nothing: put it on an icon whose
+ * component never sets aria-pressed, aria-current or aria-checked, and there
+ * is no error, no warning, and an icon that looks exactly as it did before.
+ *
+ * Checked statically rather than in a browser, and the first attempt is why.
+ * Asking the live DOM whether a control is selected cannot tell "this group
+ * has nothing selected right now" from "this group never selects anything" —
+ * on /about/ no tab is current, correctly, and the runtime version reported
+ * the whole tab bar as broken on every page outside the tab set. Selection is
+ * a property of the component, so the component is what gets asked. */
+{
+  const TRIGGERS = /aria-pressed|aria-current|aria-checked/;
+  const orphans = files
+    .filter((f) => /\bicon-pop\b/.test(f.text) && !TRIGGERS.test(f.text))
+    .map((f) => f.path);
+  if (orphans.length) {
+    say("error", "icon-pop where nothing can trigger it", orphans);
+  } else {
+    console.log("  ✓ every icon-pop sits in a component that expresses selection");
+  }
+}
+
 console.log("\n── one surface, three files ──");
 
 /**

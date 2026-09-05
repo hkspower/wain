@@ -215,7 +215,7 @@ export default function AddBusinessClient() {
                     : "border border-line bg-white text-ink-600 hover:border-sea-300"
                 }`}
               >
-                <CategoryIcon name={c.icon} className="size-4" />
+                <CategoryIcon name={c.icon} className="icon-pop size-4" />
                 {c.ar}
               </button>
             ))}

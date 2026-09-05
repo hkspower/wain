@@ -62,7 +62,21 @@ export default function AppTabBar() {
                 active ? "text-coral-700" : "text-ink-500 hover:text-ink-700"
               }`}
             >
-              <Icon className="size-6" />
+              {/* The pill is what makes the bar read as a native tab bar
+                  rather than as coloured text. It grows out from behind the
+                  icon on selection and shrinks away again, so moving between
+                  tabs is a thing that travels rather than two colours
+                  swapping. Purely decorative — the state a screen reader
+                  needs is on aria-current above. */}
+              <span className="relative flex items-center justify-center">
+                <span
+                  aria-hidden="true"
+                  className={`absolute -inset-x-3.5 -inset-y-1 rounded-full bg-coral-100 transition duration-200 ease-out ${
+                    active ? "scale-100 opacity-100" : "scale-50 opacity-0"
+                  }`}
+                />
+                <Icon className="icon-pop relative size-6" />
+              </span>
               {label}
             </Link>
           );

@@ -486,6 +486,50 @@ h1, h2, h3 {
   animation: pulse-ring 2.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* --- A chosen icon acknowledges being chosen -----------------------------
+   Selection across this site was a colour swap and nothing else: a tab went
+   coral, a chip went dark, and the icon inside sat perfectly still. On a
+   phone that reads as a page that changed rather than a control that
+   responded, and it is the one moment where a native app always gives you
+   something back.
+
+   Driven off the ARIA attribute rather than a class prop, for two reasons.
+   The state is already expressed there — aria-pressed on the filter chips,
+   aria-current on the tab bar — so nothing new has to be threaded through
+   every component and kept in sync. And a CSS animation restarts each time
+   its selector begins matching, so pressing a chip a second time plays again
+   without a key, a ref, or a re-render trick.
+
+   One pop, not a loop. This fires on a deliberate choice, and a control that
+   keeps moving after you have chosen it stops being feedback and becomes
+   something to look away from. The reduced-motion reset above neutralises it
+   like every other animation here — the colour change carries the meaning on
+   its own, so nothing is lost when the motion is. */
+@keyframes icon-pop {
+  0% {
+    transform: scale(1);
+  }
+  38% {
+    transform: scale(1.24);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Three idioms, because the site already uses three and they all mean chosen:
+   aria-pressed on a toggle, aria-current on navigation, aria-checked on the
+   radio group in the submission form. */
+:where(
+  [aria-pressed="true"],
+  [aria-current="page"],
+  [aria-current="true"],
+  [aria-checked="true"]
+)
+  .icon-pop {
+  animation: icon-pop 340ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 /* --- Offscreen cards ----------------------------------------------------
    Explore renders 33 place cards and 31 of them are below the fold at load.
    Laying out and painting all of them delays the last paint that counts:
