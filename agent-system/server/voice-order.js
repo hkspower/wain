@@ -24,12 +24,17 @@
  *
  * ولهذا لا يوجد هنا تطابق تقريبيّ (fuzzy) **يملأ حقلًا**: الملء إمّا على
  * الاسم بعد التطبيع أو لا شيء. والتطبيع يكفي لما يقع فعلًا — «السالميه»
- * و«السالمية» سواء — أمّا «السالمي» فليس منطقة، ولا يُملأ على أنها السالمية.
+ * و«السالمية» سواء.
  *
- * لكنّ الصمت ليس أمانة. «السالمي» على بُعد حرف من «السالمية»، والنظام يعرف
- * ذلك، فيقول في `missing`: **«هل تقصد السالمية؟»** — سؤالٌ يُعرض على الموظّف
- * لا قيمةٌ تُوضع في حقل. والفرق أن الخطأ المعروض يُصحَّح، والمُطبَّق يمرّ.
- * (انظر `similar.js`.)
+ * لكنّ الصمت ليس أمانة. ما قارب اسمًا ولم يطابقه يُعرض سؤالًا في `missing`:
+ * **«هل تقصد الفحيحيل؟»** — سؤالٌ لا قيمةٌ تُوضع في حقل. والفرق أن الخطأ
+ * المعروض يُصحَّح، والمُطبَّق يمرّ. (انظر `similar.js`.)
+ *
+ * ── وتصحيحٌ لِما كان مكتوبًا هنا ──────────────────────────────────────
+ * كان في هذا الموضع أنّ «السالمي» **ليست منطقة**. وهي منطقة: في محافظة
+ * الجهراء على الحدود السعودية، وطريق ٧٠ يحمل اسمها. عُرف ذلك بمراجعة
+ * مصادر خارجية، وكان النظام يقول للزبون «ليست من مناطق الكويت» — وهو قولٌ
+ * غير صحيح يجعله يشكّ فيما كتبه صوابًا. انظر `CONFUSABLE` في `areas.js`.
  */
 
 const ar = require('arabic-kit');
@@ -170,7 +175,7 @@ const INDEX = new Map();
  * يضيف مفتاحًا. والصيغة المولَّدة لا تطمس صيغةً مكتوبة: لو صادف أن لاصقةً
  * على اسمٍ أنتجت حروف اسمٍ آخر، فالمكتوب أولى بالمعنى من المولَّد.
  */
-function put(key, name, needsSignal, primary) {
+function put(key, name, needsSignal, primary, road) {
   if (!key) return;
   /* بهمزتها وبلا همزتها معًا: «الجهراء» و«الجهرا» مكانٌ واحد، والفرق يقع
      في الكتابة السريعة. وتُخزَّن الصيغتان هنا لئلّا تُوحَّد كلُّ كلمةٍ من
@@ -178,7 +183,7 @@ function put(key, name, needsSignal, primary) {
   for (const k of new Set([key, key.replace(/[ءـ]/g, '')])) {
     const had = INDEX.get(k);
     if (had && had.primary && !primary) continue;
-    INDEX.set(k, { name, needsSignal, primary: !!primary });
+    INDEX.set(k, { name, needsSignal, primary: !!primary, road: !!road });
     FIRST.add(k.split(' ', 1)[0]);
   }
 }
@@ -191,17 +196,19 @@ const ARTICLE = ['ال', 'لل', 'بال', 'وال', 'فال', 'كال', 'بال
 /** لاصقات على الاسم كما هو: «وحولي»، «لحولي» */
 const BARE = ['و', 'ف', 'ب', 'ل', 'ك'];
 
-function index(written, official) {
+function index(written, official, { road = false } = {}) {
   const k = key(written);
   if (!k) return;
   const soft = AREA.AMBIGUOUS.has(official) || AREA.AMBIGUOUS.has(written);
   GRAM_MAX = Math.max(GRAM_MAX, k.split(' ').length);
 
-  put(k, official, soft, true);                          // مكتوبة كما هي
-  put(k.replace(/ /g, ''), official, soft);              // «بنيدالقار»
-  for (const p of BARE) put(p + k, official, soft);      // «وحولي»
+  put(k, official, soft, true, road);                    // مكتوبة كما هي
+  put(k.replace(/ /g, ''), official, soft, false, road); // «بنيدالقار»
+  for (const p of BARE) put(p + k, official, soft, false, road);   // «وحولي»
 
-  if (k.startsWith('ال')) {
+  /* والطريق لا يُجرَّد من أداته: «طريق الفحيحيل» تُقال بها دائمًا، وتجريدها
+     يُنتج «الفحيحيل» فيعود العطبُ الذي وُجد الجدولُ لأجله. */
+  if (!road && k.startsWith('ال')) {
     const stem = k.slice(2);
     /* المجرّدة من «ال» ظنّ لا يقين: تُقبل بإشارة مكان وحدها */
     put(stem, official, true);
@@ -212,6 +219,27 @@ function index(written, official) {
 
 for (const name of AREA.ALL_AREAS) index(name, name);
 for (const [said, official] of Object.entries(AREA.ALIASES)) index(said, official);
+
+/* الطرق تدخل الجدول لتُبتلع أسماؤها كاملة، لا لتُملأ بها حقول. واسم الطريق
+   أطول من اسم المنطقة التي بداخله، والمطابقة تأخذ الأطول — فـ«طريق
+   الفحيحيل» تغلب «الفحيحيل» ولا يبقى منها ما يُلتقط. */
+for (const road of AREA.ROADS) index(road, road, { road: true });
+
+/* والاسم الملتبس يخرج من الفهرس أصلًا: لا يُملأ به حقل بحال، ويُترك
+   لـ«هل تقصد؟» يسأل صاحبه.
+   لكنّ السؤال يحتاج جوابًا يُفهم: لو ضغط الزبون «السالمي» فأُعيد إرسال
+   الكلمة نفسها لعادت ملتبسةً ودار السؤال بلا نهاية. فيُفهرَس لكل خيارٍ
+   شكلٌ مقيَّد بمحافظته («السالمي الجهراء»)، وهو ما يرسله الزرّ. */
+for (const written of Object.keys(AREA.CONFUSABLE)) {
+  for (const k of [key(written), key(written).replace(/[ءـ]/g, '')]) INDEX.delete(k);
+}
+for (const options of Object.values(AREA.CONFUSABLE)) {
+  for (const name of options) index(`${name} ${AREA.AREA_TO_GOV[name]}`, name);
+}
+
+/** الشكل الذي يُرسل حين يختار الزبون: مقيَّدٌ بالمحافظة إن كان الاسم ملتبسًا */
+const qualified = (name) =>
+  AREA.CONFUSABLE[name] ? `${name} ${AREA.AREA_TO_GOV[name]}` : name;
 
 /* اسمٌ دارجٌ يشير إلى منطقةٍ ليست في القائمة خطأٌ صامت: يُملأ حقلٌ بقيمةٍ
    يرفضها الخادم لاحقًا («… ليست من مناطق الكويت») فيُحرم الزبون طلبه بلا
@@ -307,6 +335,11 @@ function findAreas(text, { addressed = false } = {}) {
     }
     if (!best) continue;
 
+    /* الطريق يُبتلع ولا يُملأ: مُنع اسمُ المنطقة الذي بداخله من الالتقاط
+       (لأن المطابقة أخذت الأطول)، وهذا وحده هو المطلوب منه. والطريق نفسه
+       يبقى في نصّ الشارع حيث يفيد الكابتن. */
+    if (best.hit.road) { i += best.n - 1; continue; }
+
     const last = toks[i + best.n - 1];
     /* طول ما قُرئ لا طول الاسم الرسميّ: «الجليب» ستّة أحرف و«جليب الشيوخ»
        أحد عشر، ومن نزع الاسم الرسميّ من النصّ نزع ما ليس فيه. */
@@ -316,6 +349,21 @@ function findAreas(text, { addressed = false } = {}) {
     i += best.n - 1;                     // ما التُقط لا يُقرأ ثانيةً
   }
   return hits;
+}
+
+/**
+ * هل في النصّ اسمٌ يحتمل موضعين؟ يعيد الكلمة وخياريها، أو `null`.
+ * (انظر `CONFUSABLE` في `areas.js`: «السالمي» و«السالمية» بينهما مئةٌ
+ * وخمسة وعشرون كيلومترًا، والكلمة التي يكتبها الزبون واحدة.)
+ */
+function findConfusable(text) {
+  const toks = words(ar.normalize(String(text || '')).toLowerCase());
+  for (const t of toks) {
+    for (const [written, options] of Object.entries(AREA.CONFUSABLE)) {
+      if (t.w === key(written)) return { word: written, options };
+    }
+  }
+  return null;
 }
 
 /** إشارة مكان: كلمةُ اتجاهٍ قبلها، أو قطعةٌ بعدها */
@@ -682,6 +730,31 @@ function parseOrder(transcript) {
   /* `stated`: هل صُرّح بالجهة بحرفٍ («من كذا»، «إلى كذا») أم وقعت في خانتها
      بالترتيب وحده؟ يحتاجه المسار العامّ: عنده استدلالٌ على الجهة من كلماتٍ
      في الجملة، وذلك الاستدلال يجب ألّا يعلو على تصريحٍ صريح. */
+  /* **اسمٌ يحتمل موضعين لا يُقال عنه إنّه ليس منطقة.**
+     «السالمي» منطقةٌ في الجهراء فعلًا، وقول الوكيل «ليست من مناطق الكويت»
+     كذبٌ على الزبون يجعله يشكّ في نفسه ويعيد كتابة ما كتبه صحيحًا. الصواب
+     أن يُقال ما هو حقّ: الاسم معروف، والملتبس أيّ الموضعين أراد. */
+  const confused = findConfusable(text);
+  /* ولا يُعاد السؤال بعد أن أُجيب: من اختار «السالمي» صار في حقله، وبقاء
+     الكلمة الملتبسة في نصّ الحديث كان يُعيد السؤال على الحقل التالي —
+     فيرى الزبون سؤالًا أجاب عنه للتوّ معلّقًا على غير موضعه. */
+  const answeredIt = confused && confused.options.some(
+    (o) => fields.pickup_area === o || fields.dropoff_area === o);
+  if (confused && !answeredIt) {
+    const [a, b] = confused.options;
+    const where = (n) => `${n} (${AREA.AREA_TO_GOV[n] || '—'})`;
+    for (const m of missing) {
+      if (!m.field.endsWith('_area') || m.hint) continue;
+      m.why = `«${confused.word}» تحتمل موضعين متباعدين: ${where(a)} أو ${where(b)}. أيّهما؟`;
+      m.choices = confused.options;
+      /* ما يُرسل عند الاختيار — مقيَّدٌ بالمحافظة للاسم الملتبس، وإلّا عاد
+         السؤال على نفسه. والمعروض يبقى الاسم وحده. */
+      m.choiceValues = confused.options.map(qualified);
+      m.choiceFrom = confused.word;
+      break;
+    }
+  }
+
   return { transcript: text, fields, heard, missing,
     stated: { pickup: pickupSaid, dropoff: dropoffSaid } };
 }

@@ -123,7 +123,7 @@
     }
     /* سؤالٌ معه اقتراح «هل تقصد؟» يتقدّم: جوابه ضغطة زرّ، وتركُه معلّقًا
        يجعل الزبون يجيب عن غيره والخطأ باقٍ. */
-    const m = missingReq.find((x) => x.hint) || missingReq[0];
+    const m = missingReq.find((x) => x.hint || x.choices) || missingReq[0];
     /* سؤالٌ يتكرّر حرفيًّا يُختصر. الزبون الذي يسأل سؤالين قبل أن يُملي
        طلبه كان يرى «ما اسمك؟ قل مثلًا: اسمي نورة» مرّتين بنصّها — والتكرار
        الحرفيّ يقرأ كعطب لا كإلحاح. والنواقص باقية في البطاقة على أي حال. */
@@ -134,10 +134,21 @@
     if (m.hint) {
       html = `${esc(m.why)}<br><button type="button" class="vo-hintbtn"
         data-hint="${esc(m.hint)}" data-from="${esc(m.hintFrom || '')}">نعم، أقصد ${esc(m.hint)}</button>`;
+    } else if (m.choices) {
+      /* اسمٌ يحتمل موضعين («السالمي»: منطقةٌ في الجهراء واسمٌ دارج
+         للسالمية). الخادم لا يملأ أحدهما ويسأل — والسؤال بلا زرٍّ يُجيبه
+         أسوأ من ألّا يُسأل: يرى الزبون سؤالًا لا يعرف كيف يردّ عليه. */
+      html = `${esc(m.why)}<br>` + m.choices.map((c, i) =>
+        /* المعروض الاسم، والمُرسل ما يفهمه الخادم بلا التباس — وإلّا عاد
+           السؤال على نفسه بلا نهاية. */
+        `<button type="button" class="vo-hintbtn"
+          data-hint="${esc((m.choiceValues && m.choiceValues[i]) || c)}"
+          data-from="${esc(m.choiceFrom || '')}">${esc(c)}</button>`).join(' ');
     }
     const b = bubble('agent', html);
-    const btn = b.querySelector('.vo-hintbtn');
-    if (btn) btn.addEventListener('click', () => applyHint(btn.dataset.from, btn.dataset.hint));
+    for (const btn of b.querySelectorAll('.vo-hintbtn')) {
+      btn.addEventListener('click', () => applyHint(btn.dataset.from, btn.dataset.hint));
+    }
   }
 
   /* ----------------------------- الجولات ----------------------------- */

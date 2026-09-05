@@ -161,3 +161,39 @@ test('محافظة التسليم تُفترض محافظة الاستلام إ�
   assert.equal(res.data.order.dropoff_governorate, 'حولي');
   assert.equal(res.data.order.dropoff_area, 'الرميثية');
 });
+
+test('كل منطقة مقيَّدة في محافظتها الصحيحة — الخطأ هنا يرفض طلبًا صحيحًا', () => {
+  /* كانت «كاظمة» مقيَّدة في العاصمة وهي في الجهراء، على بعد أربعين كيلومترًا
+     شمال غرب المدينة. والخادم يتحقّق أنّ المنطقة تتبع محافظتها، فكان يرفض
+     طلبًا صحيحًا لكاظمة ولا يقول للمدير لماذا — خطأٌ في بيانٍ لا في شيفرة،
+     ولا يظهر إلّا يوم يطلب أحدٌ من هناك. */
+  const EXPECTED = {
+    'كاظمة': 'الجهراء',
+    'السالمي': 'الجهراء',
+    'القيصرية': 'الجهراء',
+    'الروضتين': 'الجهراء',
+    'أم الهيمان': 'الأحمدي',
+    'ميناء الأحمدي': 'الأحمدي',
+    'المطلاع': 'الجهراء',
+    'القادسية': 'العاصمة',
+    'جنوب السرة': 'حولي',
+    'غرب أبو فطيرة': 'مبارك الكبير',
+  };
+  for (const [area, gov] of Object.entries(EXPECTED)) {
+    assert.equal(AREA.AREA_TO_GOV[area], gov, `«${area}» مقيَّدة في «${AREA.AREA_TO_GOV[area]}»`);
+    assert.equal(AREA.areaBelongsTo(area, gov), true);
+  }
+});
+
+test('الطرق قائمةٌ مستقلّة، ولا اسم طريقٍ يُسجَّل منطقةً', () => {
+  assert.ok(AREA.ROADS.length >= 20, `عدد الطرق ${AREA.ROADS.length}`);
+  for (const road of AREA.ROADS) {
+    assert.equal(AREA.ALL_AREAS.includes(road), false, `«${road}» طريقٌ سُجّل منطقةً`);
+  }
+  /* والاسم الملتبس يشير إلى مناطق موجودة فعلًا */
+  for (const [written, options] of Object.entries(AREA.CONFUSABLE)) {
+    for (const o of options) {
+      assert.ok(AREA.AREA_TO_GOV[o], `«${written}» يشير إلى «${o}» وليست منطقة`);
+    }
+  }
+});
