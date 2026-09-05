@@ -131,6 +131,13 @@ if (is_array($cfg)) {
             'select count(*) from products p where p.active = 1 and not exists' .
             ' (select 1 from product_variants v where v.slug = p.slug)'
         )->fetchColumn();
+        // NAME them, not just count them. "19 products cannot be ordered" is a
+        // number to worry about; the list is a thing the owner can act on, and
+        // it is what says whether a repair written for 15 garments covers them.
+        $novList = $pdo->query(
+            'select p.slug from products p where p.active = 1 and not exists' .
+            ' (select 1 from product_variants v where v.slug = p.slug) order by p.slug'
+        )->fetchAll(PDO::FETCH_COLUMN);
         $db = "{$p}p/{$o}o/{$v}v/nosize={$nov}";
         // The one table the سبورتا AI answers come from. Absent is not an
         // error — the feature fails closed and silently — but it is the
@@ -177,4 +184,5 @@ echo 'SCAN'
    . ' qa=' . $qa
    . ' php=' . PHP_VERSION
    . ' | ' . ($fail ? 'PROBLEMS: ' . implode(' ', array_slice($fail, 0, 12)) : 'no problems')
+   . (isset($novList) && $novList ? "\nNOSIZE " . implode(',', $novList) : '')
    . "\n";
