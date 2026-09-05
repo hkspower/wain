@@ -140,6 +140,68 @@ console.log("\n── and the answer she speaks contains that place ──");
   ok("every top result is named in what she says", mismatches === 0, `${mismatches} not spoken`);
 }
 
+console.log("\n── «شي في مكان»: both halves of the question count ──");
+/**
+ * People do not ask for a category and an area separately, they ask for
+ * «قهوة في السالمية» in one breath. Before these cases the area half won
+ * outright, because an area name is rare and therefore scores enormously
+ * while the noun is spread thin across every place of that kind:
+ *
+ *   شاطئ في الفحيحيل  →  الكوت مول      a shopping centre, for «beach»
+ *   كافيه بالسالمية   →  مجمع الفنار، then شاطئ المارينا — a BEACH, for «café»
+ *
+ * The noun is WHAT is wanted and the area is WHERE. A result matching only
+ * the where has agreed about the map without answering the question, so it is
+ * damped below anything matching the thing itself, and a place that genuinely
+ * IS of the asked-for category is lifted over one that merely mentions the
+ * word in its prose.
+ */
+{
+  const inArea = (q, wanted, note) => {
+    const top = ask(q).hitPlaces[0];
+    ok(`«${q}» → ${wanted}  (${note})`, !!top && top.category === wanted,
+      top ? `got ${top.category}: ${top.nameAr}` : "no result at all");
+  };
+  inArea("قهوة في السالمية", "coffee", "area present and stocked");
+  inArea("كافيه بالسالمية", "coffee", "«كافيه» must reach the category, not a beach's prose");
+  inArea("مطعم في حولي", "restaurants", "restaurant in Hawalli");
+  // Nothing in the catalogue is a beach in Fahaheel. Answering with beaches
+  // elsewhere is right; answering with a mall that happens to be in Fahaheel
+  // is not, because the one thing she asked for is the one thing it is not.
+  inArea("شاطئ في الفحيحيل", "outdoors", "no beach there — give beaches, not a local mall");
+}
+
+console.log("\n── a place we have nothing in is not the place next to it ──");
+/**
+ * الجهراء is a Kuwaiti governorate of half a million people and this
+ * catalogue has nothing in it. One edit away is الزهراء — also real, and
+ * about twenty kilometres away — so the fuzzy pass used to answer «أماكن في
+ * الجهراء» with a mall in the wrong town, silently. The visitor is standing
+ * in the place they just named, which makes it the worst possible substitution
+ * to make without saying so.
+ */
+{
+  const jahra = ask("أماكن في الجهراء");
+  ok("«الجهراء» never resolves to «الزهراء»",
+    !jahra.hitPlaces.some((p) => p.areaAr === "الزهراء"),
+    jahra.hitPlaces.slice(0, 3).map((p) => `${p.nameAr}/${p.areaAr}`).join(", ") || "لا شي");
+  ok("«الجهراء» on its own finds nothing rather than reaching",
+    ask("الجهراء").hits.length === 0,
+    `${ask("الجهراء").hits.length} hits`);
+
+  /* The ban is narrow on purpose. Blocking every area name from fuzzy
+     matching also killed «اليران» → «الخيران», an ordinary typo, and an
+     earlier draft that split multi-word names into tokens put «سالم» and
+     «كبير» on the list — words that name real places here. Both are guarded. */
+  ok("an ordinary typo of an area still lands",
+    ask("اليران").hitPlaces.some((p) => p.areaAr === "الخيران"),
+    ask("اليران").hitPlaces.slice(0, 2).map((p) => p.nameAr).join(", ") || "لا شي");
+  for (const [typo, want] of [["شاع سالم المبارك", "شارع سالم المبارك"], ["السجد الكبير", "المسجد الكبير"]]) {
+    ok(`«${typo}» still reaches ${want}`, ask(typo).hitPlaces[0]?.nameAr === want,
+      ask(typo).hitPlaces[0]?.nameAr ?? "لا شي");
+  }
+}
+
 console.log("\n── she does not invent an answer she does not have ──");
 {
   const nonsense = ["زقزقة", "بلبل الطنطل", "qwertyuiop"];

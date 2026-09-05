@@ -375,6 +375,26 @@ export interface SearchIndex {
   docLen: number[];
   avgLen: number;
   terms: string[];
+  /**
+   * The tokens that name an area, e.g. «السالمية», «حولي», «الزهراء».
+   *
+   * Held apart from the rest of the vocabulary because a place name is the
+   * one kind of word where "nearly right" is not a typo — it is a different
+   * place, twenty kilometres away. Two things depend on knowing which terms
+   * these are: fuzzy matching refuses to reach them, and a result that
+   * matched nothing but the area is not allowed to outrank one that matched
+   * what was actually being looked for. See `candidates` and `search`.
+   */
+  areaTerms: Set<string>;
+  /**
+   * Tokens that name a category, mapped to it: «قهوه» → coffee.
+   *
+   * Lets the scorer tell "this place IS a coffee place" from "this place's
+   * description happens to contain the word". Without it a beach whose blurb
+   * mentions a café outranked every actual café, because the typed word beat
+   * the synonym that resolved to the category.
+   */
+  categoryTerms: Map<string, CategoryId>;
 }
 
 /**
@@ -565,7 +585,25 @@ export function buildIndex(list: Place[] = snapshot): SearchIndex {
   });
 
   const avgLen = docLen.reduce((a, b) => a + b, 0) / (docLen.length || 1);
-  return { docs, postings, docLen, avgLen, terms: [...postings.keys()] };
+  // Taken from the area docs' own titles rather than a hand-written list, so
+  // adding a place in a new area protects that area's name automatically.
+  const areaTerms = new Set<string>();
+  for (const doc of docs) {
+    if (doc.kind === "area") for (const t of tokenize(doc.title)) areaTerms.add(t);
+  }
+  const categoryTerms = new Map<string, CategoryId>();
+  for (const c of categories) {
+    for (const t of [...tokenize(c.ar), ...tokenize(c.en)]) categoryTerms.set(t, c.id);
+  }
+  return {
+    docs,
+    postings,
+    docLen,
+    avgLen,
+    terms: [...postings.keys()],
+    areaTerms,
+    categoryTerms,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -576,7 +614,60 @@ const K1 = 1.2;
 const B = 0.75;
 
 /** Resolve one query token to index terms: exact, then prefix, then fuzzy. */
+/**
+ * Real places in Kuwait that this catalogue has nothing in — yet.
+ *
+ * These are named, not inferred, because the failure they cause cannot be
+ * detected from the string. «الجهراء» is a governorate of half a million
+ * people; one edit away sits «الزهراء», which is also real and about twenty
+ * kilometres from it. So «أماكن في الجهراء» answered with a mall in the wrong
+ * town, and said nothing about having substituted anything — the same class
+ * of fault as the pharmacy that used to return الصالحية, and worse, because
+ * the visitor is standing in the place they just named.
+ *
+ * Banning fuzzy matching on every area name would fix it and cost too much:
+ * it also lost «اليران» → «الخيران», an ordinary typo the engine should
+ * absolutely still catch. The distinction is not spelling, it is knowledge —
+ * whether a near-miss is a slip of the thumb or a different town — and only a
+ * list can carry that. A token here matches nothing at all: no exact, no
+ * prefix, no fuzzy. Empty is the honest answer, and it is the one that lets
+ * the caller hear «ما عندي شي بالجهراء» instead of being sent somewhere else.
+ *
+ * Delete an entry the moment a place there is added to the catalogue; the
+ * audit checks that none of these is also a real area, so a stale entry
+ * cannot silently hide new content.
+ */
+const ELSEWHERE_IN_KUWAIT = new Set(
+  [
+    // governorates
+    "الجهراء", "الفروانية", "الأحمدي", "العاصمة",
+    // large residential areas people would reasonably name
+    "خيطان", "سلوى", "بيان", "الرقة", "المنقف", "الفنطاس", "الفنيطيس",
+    "الأندلس", "العارضية", "الرابية", "كيفان", "الشامية", "الروضة", "السرة",
+    "الفيحاء", "اليرموك", "القرين", "العدان", "الصليبية",
+  ]
+    /* One word each, deliberately.
+     *
+     * The first draft listed «مبارك الكبير» and «صباح السالم» too and split
+     * every entry into tokens, which put «كبير» and «سالم» on the list —
+     * words that are the actual names of places in the catalogue. «المسجد
+     * الكبير» and «شارع سالم المبارك» both stopped being findable, and the
+     * ranking floor caught it. A multi-word area cannot be blocked a token at
+     * a time without taking real words with it, so it is not attempted. */
+    .filter((name) => tokenize(name).length === 1)
+    .map((name) => tokenize(name)[0])
+);
+
 function candidates(term: string, index: SearchIndex): { term: string; boost: number }[] {
+  /* A place we know we have nothing in resolves to nothing, rather than to
+   * whatever it happens to be nearest to. See ELSEWHERE_IN_KUWAIT.
+   *
+   * Guarded on the term being absent from the corpus, which is the whole
+   * point: if the word is real content somewhere — a place called الروضة, a
+   * description mentioning بيان — then it is not a gap and must be searched
+   * normally. The ban only bites where the alternative was a guess. */
+  if (ELSEWHERE_IN_KUWAIT.has(term) && !index.postings.has(term)) return [];
+
   // The glued and unglued readings are both wanted, and taking the glued one
   // alone is not a shortcut — it is a bug. «بالشتاء» appears verbatim in two
   // places' season text, which put it in the index and so ended the search
@@ -647,17 +738,65 @@ export function search(
     }
   }
 
+  /* «شاطئ في الفحيحيل» — a beach in Fahaheel — used to answer with الكوت مول,
+   * a shopping centre, because the area name is rare and therefore scores
+   * enormously, while «شاطئ» is spread over several beaches and none of them
+   * is in Fahaheel. Same for «كافيه بالسالمية», which returned a mall.
+   *
+   * The two halves of such a query are not equal. The noun is WHAT is wanted
+   * and the area is WHERE; a result that satisfies only the where has not
+   * answered the question, it has only agreed about the map. So when the
+   * query names an area *and* asks for something else, a document that
+   * matched nothing but the area name is pushed below everything that matched
+   * the thing itself. It is damped rather than dropped, because when nothing
+   * in the area fits, the right neighbours are still the best fallback there
+   * is — they just must not come first.
+   *
+   * A query that is only an area («السالمية») has no other half to lose to,
+   * and nothing here applies to it. */
+  const areaTokens = new Set(raw.filter((t) => index.areaTerms.has(t)));
+  const asksForMore = areaTokens.size > 0 && areaTokens.size < raw.length;
+
+  /* Which categories the query is actually asking for.
+   *
+   * Read through the synonyms, so «كافيه» and «كوفي» and «نتقهوى» all arrive
+   * at coffee, and a place that IS a coffee place is then ranked above one
+   * whose description merely says the word. That ordering was upside down:
+   * «كافيه بالسالمية» answered with a mall and then a BEACH, because the
+   * typed word scored full weight against the beach's prose while the
+   * synonym that resolved to the category was discounted to 0.55.
+   *
+   * Only a modest boost. It settles ties between things that all matched;
+   * it is not a filter, and a strong match on the name or the tags can still
+   * beat it — which is right, because someone typing a place's actual name
+   * wants that place whatever category it sits in. */
+  const wantedCategories = new Set<CategoryId>();
+  for (const rawToken of raw) {
+    for (const token of variantsOf(rawToken)) {
+      const id = index.categoryTerms.get(token);
+      if (id) wantedCategories.add(id);
+    }
+  }
+
   const hits: SearchHit[] = [];
   for (const [docIndex, score] of scores) {
     const doc = index.docs[docIndex];
     if (kinds && !kinds.includes(doc.kind)) continue;
     // Reward covering more of the query — two matching words beats one twice.
     const coverage = (hitTokens.get(docIndex)?.size ?? 0) / raw.length;
+    const matchedTokens = hitTokens.get(docIndex) ?? new Set<string>();
+    const onlyArea =
+      asksForMore && [...matchedTokens].every((t) => areaTokens.has(t));
     // Places are what people are looking for; pages are navigation.
     const kindBoost = doc.kind === "place" ? 1.15 : doc.kind === "page" ? 0.7 : 1;
     hits.push({
       doc,
-      score: score * (0.65 + 0.35 * Math.min(1, coverage)) * kindBoost,
+      score:
+        score *
+        (0.65 + 0.35 * Math.min(1, coverage)) *
+        kindBoost *
+        (onlyArea ? 0.2 : 1) *
+        (doc.category && wantedCategories.has(doc.category) ? 1.5 : 1),
       matched: [...(hitTerms.get(docIndex) ?? [])],
     });
   }

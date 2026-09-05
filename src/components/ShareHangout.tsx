@@ -59,7 +59,10 @@ export default function ShareHangout({ place }: { place: Place }) {
     return () => window.clearTimeout(id);
   }, [now]);
 
-  const options = useMemo(() => (now ? whenOptions(now) : []), [now]);
+  // The place is passed so the summer rule reaches the chips: an unshaded
+  // place in July stops offering «الحين» rather than offering a plan the rest
+  // of the site would refuse to make. See whenOptions.
+  const options = useMemo(() => (now ? whenOptions(now, place) : []), [now, place]);
 
   // Picks the first time, and re-picks when the chosen one expires — which is
   // the half that matters. An expired selection is not merely shown, it is
@@ -67,7 +70,11 @@ export default function ShareHangout({ place }: { place: Place }) {
   // its id, and the message is composed from `when`.
   useEffect(() => {
     if (!now) return;
-    if (when === null || !whenOptions(now).some((o) => o.id === when)) {
+    // Checked against the same list the chips are drawn from — place included.
+    // Without the place this asked a different question than the row answered,
+    // so a slot the summer rule had just removed still counted as valid and
+    // still got sent.
+    if (when === null || !whenOptions(now, place).some((o) => o.id === when)) {
       setWhen(defaultWhen(place, now));
     }
   }, [now, when, place]);

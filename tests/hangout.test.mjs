@@ -57,7 +57,61 @@ console.log("\n── an hour that has passed is not offered ──");
   ok("but nine and ten remain", ids(20).includes("tonight-9") && ids(20).includes("tonight-10"), ids(20).join(","));
   ok("at 23:00 no tonight option survives", !ids(23).some((i) => i.startsWith("tonight")), ids(23).join(","));
   ok("and tomorrow and the weekend always do", ids(23).includes("tomorrow") && ids(23).includes("weekend"), ids(23).join(","));
+  // With no place to judge, «الحين» cannot expire: nothing about the clock
+  // alone rules it out. The place is what can — see the summer block below.
   ok("«الحين» is always offered — it cannot expire", [3, 12, 23].every((h) => ids(h).includes("now")));
+}
+
+console.log("\n── the summer rule reaches the plan, not just the advice ──");
+/**
+ * The site's most emphatic rule is that nobody is sent to an unshaded place in
+ * the middle of a Kuwaiti August: شوق refuses it out loud, the search ranking
+ * bends around it, and `defaultWhen` will not propose it. The share sheet did
+ * it anyway. «الحين» sat in the chip row one tap away, and the message that
+ * came out carried no hint the plan was a bad one — so the rule held
+ * everywhere except the button that actually sends the plan to five people.
+ *
+ * Two halves, because the chips cannot cover it alone: «باچر» and «الويكند»
+ * are days, not times, and a day in July is the sun. The message carries the
+ * warning for those, and imports the sentence from voice-lines so the written
+ * advice and the spoken advice cannot drift.
+ */
+{
+  // Aug (month 7) and Dec (month 11) at a chosen Kuwait wall-clock hour.
+  const at = (month, hour) => new Date(Date.UTC(2026, month, 15, hour - 3, 0));
+  const bakes = H.places.find((p) => p.setting === "outdoor" && !p.summerOk);
+  const roofed = H.places.find((p) => p.setting === "indoor");
+  const shadedOutdoor = H.places.find((p) => p.setting === "outdoor" && p.summerOk === true);
+  const ids = (p, d) => H.whenOptions(d, p).map((o) => o.id);
+
+  ok("an unshaded place at noon in August offers no «الحين» and no «بعد ساعة»",
+    !ids(bakes, at(7, 12)).includes("now") && !ids(bakes, at(7, 12)).includes("soon"),
+    ids(bakes, at(7, 12)).join(","));
+  ok("the same place at noon in December offers both",
+    ids(bakes, at(11, 12)).includes("now") && ids(bakes, at(11, 12)).includes("soon"),
+    ids(bakes, at(11, 12)).join(","));
+  ok("and in August after dark offers both again",
+    ids(bakes, at(7, 20)).includes("now") && ids(bakes, at(7, 20)).includes("soon"),
+    ids(bakes, at(7, 20)).join(","));
+  ok("an indoor place in August is untouched",
+    ids(roofed, at(7, 12)).includes("now"), ids(roofed, at(7, 12)).join(","));
+  // The catalogue's own escape hatch: outdoors, and fine in August, because
+  // you are inside an air-conditioned car or a water park. Honoured here
+  // exactly as the spoken path honours it.
+  if (shadedOutdoor) {
+    ok("an outdoor place marked summerOk is untouched",
+      ids(shadedOutdoor, at(7, 12)).includes("now"),
+      `${shadedOutdoor.nameAr}: ${ids(shadedOutdoor, at(7, 12)).join(",")}`);
+  }
+
+  const msg = (when, now) => H.hangoutMessage({ place: bakes, when, url: "u", now });
+  ok("«باچر» in August carries the heat warning",
+    /حر/.test(msg("tomorrow", at(7, 12))), msg("tomorrow", at(7, 12)).split("\n")[3] ?? "");
+  ok("«الويكند» in August carries it too", /حر/.test(msg("weekend", at(7, 12))));
+  // Redundant advice is ignored advice: «لا تروح إلا بعد المغرب» under a plan
+  // that already says «الليلة الساعة ٨» trains people to skip the line.
+  ok("an evening slot in August carries no warning", !/حر/.test(msg("tonight-8", at(7, 12))));
+  ok("«باچر» in December carries none", !/حر/.test(msg("tomorrow", at(11, 12))));
 }
 
 console.log("\n── the default proposal suits the place and the hour ──");

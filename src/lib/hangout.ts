@@ -1,6 +1,7 @@
 "use client";
 
 import type { Place } from "@/lib/places";
+import { GENERIC_LINES, isSummerMonth } from "@/lib/voice-lines";
 
 /**
  * «رسّلها للربع» — turning a place into a plan the group can act on.
@@ -77,12 +78,58 @@ export function msToNextKuwaitHour(now: Date = new Date()): number {
   return 3600_000 - (((kuwait % 3600_000) + 3600_000) % 3600_000);
 }
 
-/** The choices worth offering at this hour. */
-export function whenOptions(now: Date = new Date()): WhenOption[] {
+/** Kuwait's calendar month, 0-based, on the same UTC+3 clock as the hour. */
+export function kuwaitMonth(now: Date = new Date()): number {
+  return new Date(now.getTime() + 3 * 3600_000).getUTCMonth();
+}
+
+/**
+ * Daylight, for the purpose of "would this plan cook them".
+ *
+ * Nine to seven rather than sunrise to sunset: the point is not astronomical,
+ * it is that the tarmac is unbearable across those hours in July, and by seven
+ * the outing everybody actually makes has begun.
+ */
+const DAY_STARTS = 9;
+const DAY_ENDS = 19;
+
+/**
+ * Does an outing to this place, arriving at this hour, land in the summer sun?
+ *
+ * `summerOk` is the catalogue's own escape hatch — the causeway is outdoors
+ * and fine in August because you are inside an air-conditioned car — so it is
+ * honoured here exactly as the spoken path honours it.
+ */
+function bakesInTheSun(place: Place | undefined, arrivalHour: number, month: number): boolean {
+  if (!place || place.summerOk === true || place.setting === "indoor") return false;
+  return isSummerMonth(month) && arrivalHour >= DAY_STARTS && arrivalHour < DAY_ENDS;
+}
+
+/**
+ * The choices worth offering at this hour — and, given a place, at this time
+ * of year.
+ *
+ * The place is optional because the panel has one and the clock does not, but
+ * passing it is what stops the share sheet composing a plan the rest of the
+ * site would refuse to make. شوق will not send anyone to an unshaded beach at
+ * noon in August; `defaultWhen` already declines to *suggest* it. Yet «الحين»
+ * sat in the list anyway, one tap away, and the message that came out carried
+ * no hint that the plan was a bad one — so the site's most emphatic rule held
+ * everywhere except the button that actually sends the plan to five people.
+ *
+ * Only the daytime slots go, and only for a place that would genuinely bake.
+ * In December «الحين» for a beach is the best answer there is, and in any
+ * month an indoor place is unaffected.
+ */
+export function whenOptions(now: Date = new Date(), place?: Place): WhenOption[] {
   const hour = kuwaitHour(now);
-  return ALL.filter((o) => o.afterHour === undefined || hour < o.afterHour).map(
-    ({ id, labelAr, phraseAr }) => ({ id, labelAr, phraseAr })
-  );
+  const month = kuwaitMonth(now);
+  return ALL.filter((o) => {
+    if (o.afterHour !== undefined && hour >= o.afterHour) return false;
+    if (o.id === "now" && bakesInTheSun(place, hour, month)) return false;
+    if (o.id === "soon" && bakesInTheSun(place, hour + 1, month)) return false;
+    return true;
+  }).map(({ id, labelAr, phraseAr }) => ({ id, labelAr, phraseAr }));
 }
 
 /**
@@ -130,13 +177,39 @@ export function hangoutMessage(opts: {
   place: Place;
   when: WhenId;
   url: string;
+  now?: Date;
 }): string {
-  const { place, when, url } = opts;
+  const { place, when, url, now = new Date() } = opts;
+
+  /* The heat warning travels with the plan.
+   *
+   * Dropping «الحين» from the chips stops the worst case, but two of the
+   * remaining choices are not times at all: «باچر» and «الويكند» are days, and
+   * in July a day means the sun. The group reads this message tomorrow morning
+   * and heads out at eleven. So the same sentence شوق says out loud is written
+   * into the message, and it is imported from voice-lines rather than retyped
+   * so the spoken and the written advice cannot drift apart.
+   *
+   * The evening slots say nothing: «لا تروح إلا بعد المغرب» underneath a plan
+   * that already says «الليلة الساعة ٨» is noise, and noise is what gets a
+   * warning ignored the one time it matters. */
+  const month = kuwaitMonth(now);
+  const hour = kuwaitHour(now);
+  const arrival = when === "now" ? hour : when === "soon" ? hour + 1 : DAY_STARTS + 2;
+  const daytimePlan = when === "now" || when === "soon" || when === "tomorrow" || when === "weekend";
+  const heat =
+    daytimePlan && bakesInTheSun(place, arrival, month)
+      ? place.setting === "mixed"
+        ? GENERIC_LINES["summer-mixed"]
+        : GENERIC_LINES["summer-outdoor"]
+      : "";
+
   const lines = [
     `${place.nameAr} — ${place.areaAr} 📍`,
     phraseFor(when),
     "",
     place.taglineAr,
+    ...(heat ? [heat] : []),
     "",
     `الموقع: https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`,
     url,
