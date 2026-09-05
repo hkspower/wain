@@ -7,7 +7,8 @@
       "mcp__hosa__hosting_createAccountCronJobV1",
       "mcp__hosa__hosting_deleteAccountCronJobV1",
       "mcp__hosa__hosting_getCronJobOutputV1",
-      "mcp__hosa__hosting_listAccountCronJobsV1"
+      "mcp__hosa__hosting_listAccountCronJobsV1",
+      "mcp__hosa__hosting_clearWebsiteCacheV1"
     ]
   }
 }
