@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { EXHAUSTS, FINISHES, kitAtLeast, type ExhaustSpec, type KitLevel, type PaintFinish } from "./mods";
-import type { CarbonLevel } from "./paints";
+import { PAINTS, type CarbonLevel } from "./paints";
 import { upgradeCarShells, upgradeWheels, upgradeDriver } from "./models";
 import { arabicUI, latinDisplay, textTexture } from "./text";
 import { kuwaitiDriver } from "./characters";
@@ -3115,6 +3115,17 @@ function crewDecalTexture(logo: TeamLogo, tag: string, name: string): THREE.Canv
  * a white, and a saturated red does not.
  */
 export function paintMetalness(hex: number): number {
+  // A DECLARED solid is a solid. The luminance law below is a guess that
+  // has to work for any colour a rival or the hub throws at the
+  // renderer; a colour off the wall does not need guessing at, because
+  // paints.ts says what it is. Looked up by hex rather than plumbed
+  // through createCar's `body: number` — the hexes are unique and
+  // tests/paints.mjs is what keeps them that way.
+  //
+  // 0.16 rather than 0: a solid coat is pigment under lacquer, and the
+  // lacquer is still a reflective surface. What it is not is a mirror.
+  const known = PAINTS.find((p) => p.hex === hex);
+  if (known?.solid) return 0.16;
   const r = ((hex >> 16) & 255) / 255;
   const g = ((hex >> 8) & 255) / 255;
   const b = (hex & 255) / 255;

@@ -55,6 +55,30 @@ export interface Paint {
    */
   asColor?: string;
   asColorAr?: string;
+  /**
+   * Solid pigment, or metallic flake?
+   *
+   * A PROPERTY OF THE PAINT, not something derivable from its hex. Every
+   * real range sells the same colour both ways — a solid red and a
+   * metallic red are two tins with two prices — so no rule over R, G and
+   * B can tell you which one is in front of you. The renderer inferred
+   * it from luminance alone, which got the two ends right (a near-white
+   * and a near-black are pigment under lacquer) and everything between
+   * them wrong by assumption: a muted sage came out as flake, which is
+   * to say as a mirror, and a mirror at night shows you the night.
+   *
+   * That is measurable and it was measured. Under sodium the muted
+   * colours were landing tens of degrees from their own hue — sage 52,
+   * molasses 60 — while the saturated ones sat within a few, because a
+   * saturated pigment has enough colour of its own to argue with what
+   * the sky is adding and a near-grey one does not. The fix is not to
+   * pre-distort the tins. It is to stop claiming a solid colour is
+   * flake.
+   *
+   * Absent means flake, because most of this wall is: it is a street
+   * racing game and metallic is what people buy. The solid ones say so.
+   */
+  solid?: boolean;
 }
 
 /**
@@ -142,16 +166,16 @@ export interface Paint {
  */
 export const PAINTS: Paint[] = [
   // --- mono: the ones most cars on any road actually are
-  { id: "paint-black", hex: 0x0d0e11, family: "mono" },
+  { id: "paint-black", hex: 0x0d0e11, family: "mono", solid: true },
   { id: "paint-gunmetal", hex: 0x4a5058, family: "mono" },
   { id: "paint-slate", hex: 0x8593a2, family: "mono" },
   { id: "paint-silver", hex: 0xb9bfc7, family: "mono" },
-  { id: "paint-white", hex: 0xf2f4f7, family: "mono", asColor: "White", asColorAr: "أبيض" },
+  { id: "paint-white", hex: 0xf2f4f7, family: "mono", asColor: "White", asColorAr: "أبيض", solid: true },
 
   // --- warm: sand, sun and rust
   { id: "paint-maroon", hex: 0x5e1420, family: "warm" },
   { id: "paint-bronze", hex: 0x8a5a2a, family: "warm" },
-  { id: "paint-olive", hex: 0x6d6a2f, family: "warm" },
+  { id: "paint-olive", hex: 0x6d6a2f, family: "warm", solid: true },
   { id: "paint-red", hex: 0xc1121f, family: "warm" },
   // 0xb0ab28, not the tin's 0xc9a227: the blue night rotates gold's
   // rendered hue about 18 degrees toward green (measured, sky-tier), so
@@ -187,8 +211,8 @@ export const PAINTS: Paint[] = [
   // would put the source at hue 50 — which is bronze, and bronze is
   // already on the wall. Brighter, not dead, and out of the blues is
   // what this hole affords.
-  { id: "paint-molasses", hex: 0x81565e, family: "warm" },
-  { id: "paint-mudbrick", hex: 0xa7917b, family: "warm" },
+  { id: "paint-molasses", hex: 0x81565e, family: "warm", solid: true },
+  { id: "paint-mudbrick", hex: 0xa7917b, family: "warm", solid: true },
 
   // --- cool: the water this road runs along
   { id: "paint-navy", hex: 0x16305e, family: "cool" },
@@ -197,18 +221,22 @@ export const PAINTS: Paint[] = [
   { id: "paint-gulf", hex: 0x1e7fd4, family: "cool" },
   { id: "paint-mint", hex: 0x7fd8b0, family: "cool" },
   { id: "paint-ice", hex: 0x86c6e6, family: "cool" },
-  { id: "paint-diver", hex: 0x07362d, family: "cool" },
-  { id: "paint-sage", hex: 0x7f9376, family: "cool" },
+  { id: "paint-diver", hex: 0x07362d, family: "cool", solid: true },
+  { id: "paint-sage", hex: 0x7f9376, family: "cool", solid: true },
   { id: "paint-indigo", hex: 0x695ce0, family: "cool" },
 
   // --- loud: bought to be seen
   { id: "paint-purple", hex: 0x5b2a86, family: "loud" },
   { id: "paint-rose", hex: 0xd9557f, family: "loud" },
   { id: "paint-orange", hex: 0xef7a0a, family: "loud" },
-  { id: "paint-coral", hex: 0xffab95, family: "loud" },
-  { id: "paint-yellow", hex: 0xf7e21c, family: "loud" },
+  { id: "paint-coral", hex: 0xffab95, family: "loud", solid: true },
+  { id: "paint-yellow", hex: 0xf7e21c, family: "loud", solid: true },
   { id: "paint-lime", hex: 0x9ad11f, family: "loud" },
   { id: "paint-violet", hex: 0xc814f5, family: "loud" },
+  // Not solid, though a real signal green usually is: at saturation 1.0
+  // it has all the colour it needs to hold its hue as flake — measured
+  // 2 degrees off as metallic against 7 as solid — and accuracy is the
+  // point of the flag.
   { id: "paint-signal", hex: 0x079d25, family: "loud" },
 
   // --- mono, but a colour: the grey with an argument in it
