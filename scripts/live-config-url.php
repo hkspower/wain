@@ -69,9 +69,14 @@ if ($js !== false) {
 foreach (['knet', 'pay'] as $gw) {
     $g = @include $ROOT . '/' . $gw . '/config.php';
     if (is_array($g)) {
-        $blank = 0;
-        foreach ($g as $v) if ($v === '' || $v === null) $blank++;
-        $out[] = $gw . 'Cfg=' . count($g) . 'keys/' . $blank . 'empty';
+        // NAME them, for the same reason api/config.php's are named: "16 keys,
+        // one empty" is a number to worry about, and the name is a thing the
+        // owner can act on -- it says whether the gap is a credential the bank
+        // has not issued yet or a setting nobody filled in. Still names only.
+        $blank = [];
+        foreach ($g as $k => $v) if ($v === '' || $v === null) $blank[] = $k;
+        $out[] = $gw . 'Cfg=' . count($g) . 'keys empty='
+               . (count($blank) ? implode(',', $blank) : 'none');
     } else {
         $out[] = $gw . 'Cfg=MISSING';
     }
