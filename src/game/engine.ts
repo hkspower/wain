@@ -10,7 +10,7 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, STATIONS, FORECOURT, LAP } from "./track";
 import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
-import { createCar, crownShell, CROWN, setContactStrength, TAIL, TIRE_RADIUS } from "./cars";
+import { createCar, crownShell, CROWN, paintMetalness, setContactStrength, TAIL, TIRE_RADIUS } from "./cars";
 import { RIVALS, RivalDef, rivalCar as rivalCarOf, rivalCarName } from "./rivals";
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
@@ -77,7 +77,7 @@ import {
   PUMP_MAX_KMH,
   rpmAt,
 } from "./engines";
-import { loadGarage, saveGarage, computeEffects, addKd, fuelOf, setFuel, TuneEffects, getCar, CARS, rivalsBeaten, saveRivalsBeaten, EXHAUSTS } from "./mods";
+import { loadGarage, saveGarage, computeEffects, addKd, fuelOf, setFuel, TuneEffects, getCar, CARS, rivalsBeaten, saveRivalsBeaten, EXHAUSTS, FINISHES } from "./mods";
 import { levelInfo, recordRace, recordLap, loadProfileStats, LevelInfo } from "./profile";
 
 // Tokyo-Xtreme-Racer-style rules, Kuwait edition: cruise the loop, find the
@@ -6515,6 +6515,15 @@ export class GameEngine {
     // copying its metre marks — tests/planting.mjs carried 4855 and 5145,
     // which is the tunnel written down twice.
     (window as unknown as { __grnLap: typeof LAP }).__grnLap = LAP;
+    // The paint's own table and its own metalness curve, for
+    // tools/shots/paint.mjs. Exposed rather than copied: the tool sets a
+    // finish on the live material to measure it, and a second copy of
+    // "what gloss is" living in a measuring tool would drift from the
+    // one the game builds — at which point the tool reports on a car
+    // nobody drives.
+    (window as unknown as { __grnFinishes: typeof FINISHES }).__grnFinishes = FINISHES;
+    (window as unknown as { __grnPaintMetalness: (hex: number) => number })
+      .__grnPaintMetalness = paintMetalness;
     // Where the sea stops being on your left, in metres. Derived from
     // COAST_U and the live track rather than typed, so it cannot drift
     // the way a second copy of a distance would: the lap has already

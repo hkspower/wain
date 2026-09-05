@@ -3113,7 +3113,7 @@ function crewDecalTexture(logo: TeamLogo, tag: string, name: string): THREE.Canv
  * lightness that kills the diffuse: a pale blue has the same problem as
  * a white, and a saturated red does not.
  */
-function paintMetalness(hex: number): number {
+export function paintMetalness(hex: number): number {
   const r = ((hex >> 16) & 255) / 255;
   const g = ((hex >> 8) & 255) / 255;
   const b = (hex & 255) / 255;

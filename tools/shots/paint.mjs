@@ -67,6 +67,28 @@ if (process.env.PROBE_RED) {
   await page.evaluate(() => { window.__probeRed = true; });
   console.log("(body forced red — validating that the override path works at all)");
 }
+
+// MEASURE THE FINISH THIS TOOL IS NAMED FOR.
+//
+// Everything below reads the car the player is actually driving, and a
+// fresh save drives the Wain Special: satin, in #f2f4f7. So the gloss
+// check has been measuring a near-white SATIN car — it printed
+// "<- NOT the gloss finish" under every reading it ever took, and the
+// warning went unanswered. Two things were wrong with that subject at
+// once. The finish is the obvious one. The colour is the quieter one: a
+// body already sitting at 180 of 255 cannot show a spec/body ratio
+// above about 1.4 whatever the lacquer does, so the headline number was
+// pinned by the paint rather than by the gloss.
+//
+// The default is now the gloss finish on a mid-dark red — a colour with
+// somewhere to go — and the shipped car is still measurable with
+// FINISH=as-is.
+const FINISH = process.env.FINISH ?? "gloss";
+const BODY = process.env.BODY ?? "#c1272d";
+if (FINISH !== "as-is") {
+  await page.evaluate(([f, hex]) => { window.__finish = f; window.__body = hex; }, [FINISH, BODY]);
+  console.log(`(measuring the ${FINISH} finish on ${BODY} — FINISH=as-is for the car as it ships)`);
+}
 if (process.env.PAINT_NOMAPS) {
   await page.evaluate(() => { window.__noMaps = true; });
   console.log("(flake and orange peel off)");
@@ -91,6 +113,20 @@ for (const [where, m] of SPOTS) {
     const THREE = window.__grnThree;
     const e = window.__grnEngine;
     e.setPaused(true);
+    if (window.__finish) {
+      // The same arithmetic cars.ts does, against the same table, so
+      // this measures the finish the game would build rather than an
+      // approximation of it.
+      const bm = e.carBody.userData.bodyMat;
+      const F = window.__grnFinishes[window.__finish];
+      bm.color.set(window.__body);
+      bm.roughness = 0.18 + F.roughnessAdd;
+      bm.metalness = window.__grnPaintMetalness(window.__body) * F.metalScale;
+      bm.clearcoat = F.clearcoat;
+      bm.clearcoatRoughness = F.clearcoatRoughness;
+      bm.envMapIntensity = 1.5 * F.envScale;
+      bm.needsUpdate = true;
+    }
     if (set) {
       const bm = e.carBody.userData.bodyMat;
       bm.roughness = set[0];
