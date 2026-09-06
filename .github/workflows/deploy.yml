@@ -139,6 +139,61 @@ jobs:
           echo "DIGEST=$(node -p 'require("./out/build.json").digest')" >> "$GITHUB_ENV"
           echo "Pages built: $(find out -name index.html | wc -l)"
 
+      # The most likely way a first deploy goes wrong, and it goes wrong
+      # quietly. Which directory an FTP account lands in depends on how it was
+      # created: the main account for u130124229 lands at /home/u130124229, so
+      # the site's docroot is /domains/wainkw.com/public_html/, while a
+      # per-website account created from hPanel is chrooted to that docroot
+      # already and wants `/`. Upload to the wrong one and the FTP step still
+      # reports success — the bytes land somewhere real, just not where the
+      # domain is served from — and the failure only appears two steps later
+      # as "build.json could not be read", which does not sound like a path
+      # problem to anyone reading it for the first time.
+      #
+      # So ask the server which layout this account has rather than guessing.
+      # An explicit FTP_SERVER_DIR variable always wins, and if the probe
+      # cannot answer for any reason it falls back to the documented default —
+      # so this can only do better than the hard-coded value it replaces.
+      - name: Work out which directory this FTP account lands in
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          OVERRIDE: ${{ vars.FTP_SERVER_DIR }}
+          PROTOCOL: ${{ vars.FTP_PROTOCOL || 'ftps' }}
+          DEFAULT_DIR: /domains/wainkw.com/public_html/
+        run: |
+          set -u
+          if [ -n "$OVERRIDE" ]; then
+            echo "FTP_SERVER_DIR is set explicitly — using it and skipping the probe."
+            echo "SERVER_DIR=$OVERRIDE" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          # -sS keeps the credentials out of the log. Never add -v here.
+          ssl=""
+          [ "$PROTOCOL" = "ftps" ] && ssl="--ssl-reqd"
+          listing=$(curl -sS $ssl --max-time 30 --list-only \
+            --user "$FTP_USERNAME:$FTP_PASSWORD" \
+            "ftp://$FTP_SERVER/" 2>/dev/null) || listing=""
+
+          if [ -z "$listing" ]; then
+            echo "::warning::Could not list the FTP root, so the docroot was not detected."
+            echo "Falling back to $DEFAULT_DIR. If the deploy then reports that build.json"
+            echo "could not be read, set the FTP_SERVER_DIR variable to '/' and re-run."
+            echo "SERVER_DIR=$DEFAULT_DIR" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          if printf '%s\n' "$listing" | grep -qE '(^|/)domains/?$'; then
+            echo "This account lands at the home directory — publishing to $DEFAULT_DIR."
+            echo "SERVER_DIR=$DEFAULT_DIR" >> "$GITHUB_ENV"
+          else
+            echo "No 'domains' entry at the root, so this account is chrooted to a docroot."
+            echo "Publishing to / instead."
+            echo "SERVER_DIR=/" >> "$GITHUB_ENV"
+          fi
+
       - name: Deploy out/ to Hostinger
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
@@ -153,17 +208,13 @@ jobs:
           # wainkw.com is an ADDON domain on account u130124229 — its document
           # root is /home/u130124229/domains/wainkw.com/public_html, NOT the
           # account's /public_html, which belongs to the primary domain.
-          #
-          # Which of the two an FTP account sees as `/` depends on the account:
-          # the main account lands in /home/u130124229 (so the path below is
-          # right), while a per-website FTP account created from hPanel is
-          # chrooted to the site's own docroot (so `/` is right). Set the
-          # FTP_SERVER_DIR variable to `/` if you made a per-website account.
-          #
           # Getting this wrong publishes wain over the primary domain instead,
-          # silently and with a green tick — which is what the verification
-          # step below exists to catch.
-          server-dir: ${{ vars.FTP_SERVER_DIR || '/domains/wainkw.com/public_html/' }}
+          # silently and with a green tick.
+          #
+          # Worked out by the step above from what the account actually shows
+          # at its root, overridable with the FTP_SERVER_DIR variable, and
+          # caught by the verification step below if both of those are wrong.
+          server-dir: ${{ env.SERVER_DIR }}
           # Never delete unrelated files that already live on the host.
           dangerous-clean-slate: false
 
