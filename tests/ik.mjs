@@ -238,6 +238,43 @@ if (feet) {
   check(b(feet.braking).z - b(feet.idle).z > 0.03, "the brake pedal does not sink under braking");
 } else fail.push("driver rig has no legs/pedals");
 
+// --- 3b. The road wheels: steered, by Ackermann, on the right knuckle ---
+// Both fronts took the same angle, and all three of a wheel's rotations
+// shared a node in an order that put the spin about the body's axis:
+// a steered wheel coned 60 degrees a revolution. Measured live, on the
+// car the player is in.
+const road = await page.evaluate(()=>{
+  const e = window.__grnEngine;
+  const body = e.carBody;
+  const ws = body.userData.wheels;
+  e.setTouchInput({ throttle: 0.3, brake: 0, steer: 1 });
+  for (let i=0;i<40;i++) e.update(1/60);
+  const sc = body.scale;
+  const L = (ws[0].position.z - ws[2].position.z) * sc.z;
+  const T = (ws[1].position.x - ws[0].position.x) * sc.x;
+  const out = { minusX: ws[0].rotation.y, plusX: ws[1].rotation.y, rearY: ws[2].rotation.y, L, T,
+    wheelOrder: ws[0].rotation.order, bodyOrder: body.rotation.order, hand: body.userData.driver.wheel.rotation.z,
+    steer: e.steerSmooth };
+  e.setTouchInput({ throttle: 0, brake: 0, steer: 0 });
+  for (let i=0;i<30;i++) e.update(1/60);
+  return out;
+});
+{
+  const inner = Math.abs(road.plusX) > Math.abs(road.minusX) ? road.plusX : road.minusX;
+  const outer = inner === road.plusX ? road.minusX : road.plusX;
+  const cot = (x) => 1 / Math.tan(Math.abs(x));
+  const split = cot(outer) - cot(inner);
+  console.log(`road wheels  −x ${road.minusX.toFixed(3)} rad, +x ${road.plusX.toFixed(3)} rad at steer ${road.steer.toFixed(2)} (hand ${road.hand.toFixed(2)}); ` +
+    `cot split ${split.toFixed(4)} vs T/L ${(road.T / road.L).toFixed(4)} on L ${road.L.toFixed(2)} T ${road.T.toFixed(2)}; orders wheel ${road.wheelOrder} body ${road.bodyOrder}`);
+  check(Math.abs(inner) > 0.4, `the road wheels barely turned at full lock: ${inner}`);
+  check(Math.sign(road.minusX) === Math.sign(road.plusX) && Math.sign(inner) === Math.sign(road.hand), "the two fronts or the hand wheel disagree on which way the car is turning");
+  check(Math.abs(road.plusX) !== Math.abs(road.minusX), "both fronts took the same angle — no Ackermann");
+  check(Math.abs(split - road.T / road.L) < 1e-6, `cot(outer) − cot(inner) is ${split}, not track/wheelbase ${road.T / road.L}`);
+  check(road.rearY === 0, `a rear wheel is steered by ${road.rearY} rad`);
+  check(road.wheelOrder === "YZX", `wheel Euler order is ${road.wheelOrder}, the spin is not about the axle`);
+  check(road.bodyOrder === "YXZ", `body Euler order is ${road.bodyOrder}, the hub solve is wrong off straight ahead`);
+}
+
 // --- 4. The rival's driver is solved too, not a mannequin ---
 const rivalIk = await page.evaluate(()=>{
   const e = window.__grnEngine;
@@ -275,13 +312,17 @@ const rivalIk = await page.evaluate(()=>{
     const fp = new V(); fp.setFromMatrixPosition(leg.hand.matrixWorld);
     return +fp.distanceTo(tp).toFixed(4);
   });
-  return { hands, feet, wheelZ: +rig.wheel.rotation.z.toFixed(3) };
+  return { hands, feet, wheelZ: +rig.wheel.rotation.z.toFixed(3), roadY: +r.mesh.userData.wheels[0].rotation.y.toFixed(3) };
 });
 if (rivalIk && !rivalIk.noRig) {
   const worstR = Math.max(...rivalIk.hands, ...rivalIk.feet);
-  console.log(`rival driver hands ${rivalIk.hands.join("/")} m, feet ${rivalIk.feet.join("/")} m off target, wheel at ${rivalIk.wheelZ} rad in a lane change`);
+  console.log(`rival driver hands ${rivalIk.hands.join("/")} m, feet ${rivalIk.feet.join("/")} m off target, wheel at ${rivalIk.wheelZ} rad in a lane change, road wheel ${rivalIk.roadY} rad`);
   check(worstR < 0.02, `the rival driver missed wheel or pedal by ${worstR} m`);
   check(Math.abs(rivalIk.wheelZ) > 0.02, "the rival's wheel does not turn for a lane change");
+  // The road wheels used to stay dead straight while the hands turned
+  // 1.7 rad — spinWheels was called without a steer for every AI car.
+  check(Math.abs(rivalIk.roadY) > 0.02 && Math.sign(rivalIk.roadY) === Math.sign(rivalIk.wheelZ),
+    `the rival's road wheel is at ${rivalIk.roadY} rad while its hands are at ${rivalIk.wheelZ}`);
 } else fail.push(rivalIk ? "rival car carries no driver rig" : "no rival spawned");
 
 // --- 5. Alongside, the rival looks over at you ---
@@ -493,6 +534,16 @@ const measureFit = (carId) => page.evaluate(async (carId)=>{
     }
   });
   const head = new V().setFromMatrixPosition(rig.head.matrixWorld).applyMatrix4(inv);
+  const helmetTop = () => {
+    let top = -1e9;
+    rig.group.traverse((o)=>{
+      if(!o.isMesh) return;
+      const pos = o.geometry.attributes.position;
+      const v = new V();
+      for (let i=0;i<pos.count;i++){ toCar(o, v.fromBufferAttribute(pos,i)); if (v.y > top) top = v.y; }
+    });
+    return top;
+  };
   // The top skin of a shell at a point: every triangle whose XZ shadow
   // contains it, interpolated for height, highest wins.
   const surfaceAt = (mesh, x, z) => {
@@ -517,12 +568,34 @@ const measureFit = (carId) => page.evaluate(async (carId)=>{
     }
     return best;
   };
-  let roof = null;
-  car.traverse((o)=>{
-    if(!o.isMesh || o.userData.shell !== "canopy") return;
-    roof = surfaceAt(o, head.x, head.z);
-  });
-  return { headTop:+hi.toFixed(3), seatBottom:+lo.toFixed(3), roof: roof===null?null:+roof.toFixed(3) };
+  let canopy = null;
+  car.traverse((o)=>{ if(o.isMesh && o.userData.shell === "canopy") canopy = o; });
+  const roof = canopy ? surfaceAt(canopy, head.x, head.z) : null;
+  // The head moves with g. The seat rule budgets the helmet at a fixed
+  // station; a 1 g brake folds the torso and carries the head forward
+  // under a ceiling that is falling away toward the screen. Measured at
+  // the SOLVED head, braking from 30 m/s, against the skin above where
+  // it actually is.
+  // Worst clearance through the whole stop, frame by frame: the fold
+  // lags the g, and the g is gone once the car is slow.
+  e.player.speed = 30;
+  e.setTouchInput({ throttle: 0, brake: 1, steer: 0 });
+  let worst = null;
+  for (let i=0;i<40;i++) {
+    e.update(1/60);
+    if (e.player.speed < 8) e.player.speed = 8;
+    car.updateWorldMatrix(true,true);
+    inv.copy(car.matrixWorld).invert();
+    const headB = new V().setFromMatrixPosition(rig.head.matrixWorld).applyMatrix4(inv);
+    const roofB = canopy ? surfaceAt(canopy, headB.x, headB.z) : null;
+    const topB = helmetTop();
+    const air = roofB === null ? null : roofB - topB;
+    if (worst === null || (air !== null && air < worst.air))
+      worst = { air, headTop:+topB.toFixed(3), roof: roofB===null?null:+roofB.toFixed(3), headDz:+(headB.z-head.z).toFixed(3), gLong:+e.longAccel.toFixed(1), frame: i };
+  }
+  e.setTouchInput({ throttle: 0, brake: 0, steer: 0 });
+  for (let i=0;i<40;i++) e.update(1/60);
+  return { headTop:+hi.toFixed(3), seatBottom:+lo.toFixed(3), roof: roof===null?null:+roof.toFixed(3), braking: worst };
 }, carId);
 
 {
@@ -541,6 +614,85 @@ const measureFit = (carId) => page.evaluate(async (carId)=>{
       // his shoulders below his own door line.
       check(air !== null && air < 0.25, `${c.name}: ${((air??0)*1000).toFixed(0)} mm of air over the helmet — the driver is sunk in the cabin`) + " " +
       check(fit.seatBottom > -0.1, `${c.name}: the driver is sunk through the floor`));
+    const b = fit.braking;
+    const airB = b.roof === null ? null : b.roof - b.headTop;
+    console.log(`             braking, worst at frame ${b.frame} (${b.gLong} m/s2): head ${(b.headDz*1000).toFixed(0)} mm forward, air ${airB===null?"n/a":(airB*1000).toFixed(0)+" mm"}  ` +
+      check(airB !== null && airB > 0.02, `${c.name}: under braking the helmet has ${airB===null?"no measurable roof":((airB)*1000).toFixed(0)+" mm"} of air`));
+  }
+}
+
+// --- 8b. The attack wing moves: airbrake up under braking, back after ---
+// Five loose meshes with nothing driving them, on every supercar and
+// on the four rivals who bring one. Now a pivot the engine pitches on
+// the same brake fact the lamps light on.
+const wing = await page.evaluate(async ()=>{
+  const e = window.__grnEngine;
+  localStorage.setItem("gulf-road-nights-garage", JSON.stringify({
+    car: "zeta-300-gtr", cars: ["zeta-300-gtr"], owned: [], kd: 99999,
+    equipped: { paint: "paint-white", glow: "glow-none" },
+  }));
+  e.applyGarage();
+  await new Promise(r=>setTimeout(r,150));
+  const pivot = e.carBody.userData.wing;
+  if (!pivot) return { noPivot: true };
+  const parts = pivot.children.length;
+  e.setTouchInput({ throttle: 0, brake: 0, steer: 0 });
+  e.player.speed = 30;
+  for (let i=0;i<60;i++) { e.update(1/60); e.player.speed = 30; }
+  const rest = pivot.rotation.x;
+  e.setTouchInput({ throttle: 0, brake: 1, steer: 0 });
+  let biggestStep = 0, prev = rest, up = 0;
+  for (let i=0;i<40;i++) { e.update(1/60); e.player.speed = 30; biggestStep = Math.max(biggestStep, Math.abs(pivot.rotation.x - prev)); prev = pivot.rotation.x; }
+  up = pivot.rotation.x;
+  e.setTouchInput({ throttle: 0, brake: 0, steer: 0 });
+  for (let i=0;i<40;i++) { e.update(1/60); e.player.speed = 30; }
+  const down = pivot.rotation.x;
+  // At the downforce reference speed, foot off, the wing trims flatter
+  // than it sits at town speed.
+  for (let i=0;i<60;i++) { e.update(1/60); e.player.speed = 70; }
+  const fast = pivot.rotation.x;
+  e.player.speed = 30;
+  // The boot rival drives a street car. Bring in the roster's first
+  // attack-kit driver (the Storm S8) for the rival half, then put the
+  // original back so the sections after this see the car they expect.
+  const wasIndex = e.rivalIndex;
+  e.rivalIndex = 3;
+  e.spawnRival();
+  const r = e.rival;
+  const rivalPivot = r?.mesh.userData.wing ?? null;
+  let rivalUp = null;
+  if (r && rivalPivot) {
+    r.speed = 40;
+    for (let i=0;i<30;i++) { e.update(1/60); r.speed = 40; }
+    // Drop the rival's speed hard so its measured decel raises its
+    // brake pressure, and read the wing.
+    for (let i=0;i<60;i++) { r.speed = Math.max(5, r.speed - 12/60); e.update(1/60); }
+    rivalUp = rivalPivot.rotation.x;
+  }
+  const trafficWithWing = e.traffic.filter((t) => t.mesh.userData.wing).length;
+  const dbg = window.__grnDebug;
+  const rivalDbg = dbg?.rivalWingPitch ?? null;
+  const rivalCar = r?.def.carId ?? null;
+  e.rivalIndex = wasIndex;
+  e.spawnRival();
+  return { parts, rest, up, down, fast, biggestStep, rivalCar, rivalHasWing: !!rivalPivot, rivalUp,
+    trafficWithWing, dbgWing: dbg?.wingPitch ?? null, rivalDbg };
+});
+if (wing.noPivot) fail.push("the attack car carries no tagged wing pivot");
+else {
+  console.log(`wing         ${wing.parts} parts on the pivot; rest ${wing.rest.toFixed(3)} -> braking ${wing.up.toFixed(3)} -> released ${wing.down.toFixed(3)} rad; ` +
+    `${wing.fast.toFixed(3)} at 70 m/s; biggest step ${wing.biggestStep.toFixed(4)} rad/frame; debug ${wing.dbgWing}`);
+  check(wing.parts === 5, `the pivot carries ${wing.parts} parts, not plane + gurney + strip + 2 endplates`);
+  check(wing.up > 0.4, `the airbrake only reached ${wing.up} rad under a held brake`);
+  check(Math.abs(wing.down - wing.rest) < 0.02, `the wing did not stow after the brake was released: ${wing.down} vs rest ${wing.rest}`);
+  check(wing.fast < wing.rest - 0.05, `at 70 m/s the wing should trim flatter than ${wing.rest}, reads ${wing.fast}`);
+  check(wing.biggestStep < 0.05, `a frame moved the wing ${wing.biggestStep} rad — no actuator rate`);
+  check(typeof wing.dbgWing === "number", "__grnDebug.wingPitch must expose the wing");
+  check(wing.trafficWithWing === 0, `${wing.trafficWithWing} traffic cars carry a wing — that is a decision, not a default`);
+  check(wing.rivalHasWing, `rival ${wing.rivalCar} should bring the attack kit and its wing`);
+  if (wing.rivalHasWing) {
+    console.log(`             rival ${wing.rivalCar} wing ${wing.rivalUp.toFixed(3)} rad after a hard slow-down (debug ${wing.rivalDbg})`);
+    check(wing.rivalUp > 0.05, `the rival's airbrake stayed down through a 12 m/s2 slow-down (${wing.rivalUp})`);
   }
 }
 

@@ -9,6 +9,7 @@
 // mods.ts — the drivetrain and area-guide tests both hit it — for a
 // reason that had nothing to do with what they were testing.
 import { getEngine } from "./engines";
+import { ATTITUDE } from "./attitude";
 import type { EngineId, EngineSpec } from "./engines";
 import { loadCrew, type Crew } from "./teams";
 import type { Drivetrain } from "./grip";
@@ -371,9 +372,26 @@ const ROLL_KIT_MULT: Record<KitLevel, number> = {
 const ROLL_COILOVER_MULT = 0.65;
 
 /** Degrees per g to the radians the renderer wants, at the 1.43 g the
- *  roll target is expressed against in engine.ts. */
-const ROLL_REF_G = 14 / 9.81;
+ *  roll target saturates against (attitude.ts, read rather than copied:
+ *  this was a second 14 that could drift from the engine's). */
+const ROLL_REF_G = ATTITUDE.rollRefAccel / 9.81;
 const rollMaxRad = (degPerG: number) => (degPerG * ROLL_REF_G * Math.PI) / 180;
+
+export type RollStyle = keyof typeof ROLL_DEG_PER_G;
+
+/** The roll gradient, degrees per g, of a silhouette with a kit and
+ *  optionally coilovers on it. One law for the player's tune and for
+ *  every AI car: a rival in a race-kitted coupe leans as that coupe
+ *  does, and traffic — built on the street sedan — as a sedan does. */
+export function rollGradientFor(style: RollStyle = "sedan", kit: KitLevel = "street", coilovers = false): number {
+  return ROLL_DEG_PER_G[style] * ROLL_KIT_MULT[kit] * (coilovers ? ROLL_COILOVER_MULT : 1);
+}
+
+/** That gradient as the radians the renderer leans the shell at the
+ *  14 m/s² the roll target saturates against (engine.ts). */
+export function rollMaxFor(style: RollStyle = "sedan", kit: KitLevel = "street", coilovers = false): number {
+  return rollMaxRad(rollGradientFor(style, kit, coilovers));
+}
 
 /**
  * id to hex, for the renderer.
@@ -1584,10 +1602,9 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
   // this still said 7, so nothing in the game would have felt the change.
   let steerRate: number = HANDLING.steerSmoothRate;
   let crashResist = 0;
-  let rollDegPerG =
-    ROLL_DEG_PER_G[car.style ?? "sedan"] * ROLL_KIT_MULT[car.kit ?? "street"];
+  const rollDegPerG = rollGradientFor(car.style ?? "sedan", car.kit ?? "street", has("coilovers"));
   if (has("lsd")) tractionMult += 0.16;
-  if (has("coilovers")) { understeerMult = 0.55; gripAccel += 0.4; rollDegPerG *= ROLL_COILOVER_MULT; }
+  if (has("coilovers")) { understeerMult = 0.55; gripAccel += 0.4; }
   if (has("cage")) { crashResist = 0.55; gripAccel += 0.3; accelMult *= 0.97; }
   // The quick rack is a MULTIPLE of the standard one, so it stays a
   // genuine upgrade whatever the base becomes. 1.4x of 13 is 18.2, which

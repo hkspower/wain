@@ -10,13 +10,15 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, STATIONS, FORECOURT, LAP } from "./track";
 import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
-import { createCar, crownShell, CROWN, paintMetalness, setContactStrength, TAIL, TIRE_RADIUS } from "./cars";
+import { createCar, crownShell, CROWN, paintMetalness, setContactStrength, TAIL } from "./cars";
 import { RIVALS, RivalDef, rivalCar as rivalCarOf, rivalCarName } from "./rivals";
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
 import { ParticleSystem, radialSprite } from "./vfx";
 import { solveTwoBone, aimConstrained } from "./ik";
-import { solveSuspension } from "./suspension";
+import { solveSuspension, steerAngles } from "./suspension";
+import { lateralAccel, stepAttitude, type Attitude } from "./attitude";
+import { solveWing } from "./aero";
 import { newWeatherState, solveWeather, type WeatherState, type WeatherResult } from "./weather";
 import { BULBS, bulbColor } from "./bulbs";
 import { nightEnvironment } from "./env";
@@ -77,7 +79,7 @@ import {
   PUMP_MAX_KMH,
   rpmAt,
 } from "./engines";
-import { loadGarage, saveGarage, computeEffects, addKd, fuelOf, setFuel, TuneEffects, getCar, CARS, rivalsBeaten, saveRivalsBeaten, EXHAUSTS, FINISHES } from "./mods";
+import { loadGarage, saveGarage, computeEffects, addKd, fuelOf, setFuel, TuneEffects, getCar, CARS, rivalsBeaten, saveRivalsBeaten, EXHAUSTS, FINISHES, rollMaxFor } from "./mods";
 import { levelInfo, recordRace, recordLap, loadProfileStats, LevelInfo } from "./profile";
 
 // Tokyo-Xtreme-Racer-style rules, Kuwait edition: cruise the loop, find the
@@ -505,7 +507,26 @@ export interface EngineEvents {
   onRunDone?(q: Quest): void;
 }
 
+/**
+ * What every car that is not the player carries so its shell can move
+ * on springs: the player's own attitude state (attitude.ts), the slip
+ * angle last frame for the lateral-g derivative, and how far this
+ * particular car leans at the limit — from its silhouette and kit
+ * through the same law the player's tune goes through (mods.ts
+ * rollMaxFor). latAccel is kept so the driver in the seat leans on the
+ * same g the body was just settled with, not on a second estimate.
+ */
+interface AiBody extends Attitude {
+  prevBeta: number;
+  rollMax: number;
+  latAccel: number;
+}
+const newAiBody = (rollMax: number): AiBody => ({
+  roll: 0, pitch: 0, rollVel: 0, pitchVel: 0, prevBeta: 0, rollMax, latAccel: 0,
+});
+
 interface RemotePlayer {
+  body: AiBody;
   name: string;
   mesh: THREE.Group;
   s: number;
@@ -531,6 +552,7 @@ interface RemotePlayer {
 }
 
 interface TrafficCar {
+  body: AiBody;
   mesh: THREE.Group;
   s: number;
   lat: number;
@@ -560,6 +582,7 @@ interface TrafficCar {
 }
 
 interface Rival {
+  body: AiBody;
   def: RivalDef;
   mesh: THREE.Group;
   s: number;
@@ -580,6 +603,9 @@ interface Rival {
  *  every in-range driver keeps updating; see solveTrafficDrivers. */
 const TRAFFIC_DRIVER_RANGE = 120;
 const TRAFFIC_DRIVERS_SOLVED = 6;
+/** How far ahead a civilian's steer looks: the heading change over this
+ *  stretch of road is what their hands hold. */
+const TRAFFIC_STEER_LOOK_M = 30;
 
 /**
  * How many civilians share the road.
@@ -651,15 +677,38 @@ function spinWheels(
   // after the silhouette's scale and its length fit. It used to be the
   // constant 0.36 — the radius in the car's own units, correct until
   // every car was fitted to its real length in metres, after which the
-  // wheels were between 5.5% and 21.8% out and quietly skidding.
-  const R = (car.userData.wheelR as number | undefined) ?? TIRE_RADIUS;
+  // wheels were between 5.5% and 21.8% out and quietly skidding. There
+  // is no fallback: every car comes from createCar, which records it,
+  // and a car without one is a bug to surface rather than paper over.
+  const R = car.userData.wheelR as number | undefined;
+  if (!(R !== undefined && R > 0)) throw new Error("spinWheels: this car has no wheelR — it did not come from createCar");
   const rolling = speed * (1 - lock);
+  // Ackermann, from the car's own geometry: the wheels are placed as
+  // (−x front, +x front, −x rear, +x rear) in the body's frame, and the
+  // group is scaled — non-uniformly — so the wheelbase and the track are
+  // read off the scaled positions, the way applySuspension reads them.
+  const sc = car.scale;
+  const L = wheels.length >= 4 ? (wheels[0].position.z - wheels[2].position.z) * sc.z : 0;
+  const T = wheels.length >= 2 ? (wheels[1].position.x - wheels[0].position.x) * sc.x : 0;
+  const front = steerAngles(steer, L, T);
   for (let i = 0; i < wheels.length; i++) {
     const driven = i >= 2; // 0,1 front · 2,3 rear
     const surface = rolling + (driven ? spin * 0.8 : 0);
     wheels[i].rotation.x += (surface / R) * dt;
-    if (i < 2) wheels[i].rotation.y = steer;
+    if (i === 0) wheels[i].rotation.y = front.minusX;
+    else if (i === 1) wheels[i].rotation.y = front.plusX;
   }
+}
+
+/**
+ * Pitch a car's active wing, if it has one (the attack kit). Mirrors
+ * spinWheels: the part is found by the tag createCar leaves, and a car
+ * without one is simply a car without one.
+ */
+function poseWing(car: THREE.Object3D, brake: number, speed: number, dt: number): void {
+  const wing = car.userData.wing as THREE.Group | undefined;
+  if (!wing) return;
+  wing.rotation.x = solveWing({ angle: wing.rotation.x, brake, speed, dt });
 }
 
 /**
@@ -1047,21 +1096,24 @@ export class GameEngine {
    * from the second frame onwards position.y is whatever this method
    * last wrote and no longer says where the wheel belongs.
    */
-  private applySuspension(): void {
-    const wheels = this.carBody.userData.wheels as THREE.Group[] | undefined;
+  private applySuspension(body: THREE.Object3D, roll: number, pitch: number): void {
+    const wheels = body.userData.wheels as THREE.Group[] | undefined;
     if (!wheels?.length) return;
-    const sc = this.carBody.scale;
+    const sc = body.scale;
     const poses = wheels.map((w) => {
       const ud = w.userData as { restY?: number };
       ud.restY ??= w.position.y;
       return { x: w.position.x * sc.x, z: w.position.z * sc.z, restY: ud.restY * sc.y };
     });
-    const solved = solveSuspension({ roll: this.roll, pitch: this.pitch, wheels: poses });
+    const solved = solveSuspension({ roll, pitch, wheels: poses });
     for (let i = 0; i < wheels.length; i++) {
       wheels[i].position.y = solved[i].y / (sc.y || 1);
       // rotation.x is the wheel turning and rotation.y is the steering,
-      // both written by spinWheels; camber is the third axis and does not
-      // collide with either.
+      // both written by spinWheels; camber is the third slot. The three
+      // only stay independent because the wheel group's Euler order is
+      // WHEEL_EULER_ORDER (suspension.ts) — under the default order the
+      // spin would be applied about the body's axis and a steered or
+      // cambered wheel would cone instead of turn.
       wheels[i].rotation.z = solved[i].camber;
     }
   }
@@ -1191,11 +1243,13 @@ export class GameEngine {
   private heading = 0;
   private steerSmooth = 0;
   private slipVel = 0;
-  private pitch = 0;
-  private pitchVel = 0;
+  /** The player's shell attitude. Public because it IS the Attitude the
+   *  shared law writes (attitude.ts) and tests/body.mjs resets it. */
+  pitch = 0;
+  pitchVel = 0;
   /** Body roll, radians. Leans out of the corner. */
-  private roll = 0;
-  private rollVel = 0;
+  roll = 0;
+  rollVel = 0;
   /** Slip angle last frame, for the lateral-acceleration derivative. */
   private prevBeta = 0;
   private prevSpeed = 0;
@@ -1205,11 +1259,6 @@ export class GameEngine {
   /** Longitudinal acceleration this frame, m/s^2 — the driver leans on
    *  this too. */
   private longAccel = 0;
-  /** How far the shell leans at the limit of grip. Real cars manage
-   *  three to five degrees; a stiff one less. */
-  /** The old fleet-wide lean, kept only as the fallback for a tune that
-   *  predates rollMax. Every car now carries its own — see mods.ts. */
-  private static readonly MAX_ROLL = 0.055;
   private fovCurrent = 62;
   private camInit = false;
 
@@ -1321,6 +1370,10 @@ export class GameEngine {
   private v2 = new THREE.Vector3();
   private v3 = new THREE.Vector3();
   private v4 = new THREE.Vector3();
+  /** Scratch for curvatureAt, its own so it can be called from inside
+   *  any block that already has v1..v4 in flight. */
+  private cv1 = new THREE.Vector3();
+  private cv2 = new THREE.Vector3();
 
   constructor(canvas: HTMLCanvasElement, events: EngineEvents, opts?: { startS?: number }) {
     this.events = events;
@@ -2690,6 +2743,9 @@ export class GameEngine {
     mesh.visible = false; // until the first state snapshot lands
     this.scene.add(mesh);
     this.remotes.set(id, {
+      // A remote car is built on the default silhouette with no kit; it
+      // leans as that car does.
+      body: newAiBody(rollMaxFor()),
       name,
       mesh,
       s: 0,
@@ -2999,6 +3055,10 @@ export class GameEngine {
       );
       this.scene.add(mesh);
       this.traffic.push({
+        // Civilians are the street sedan with nothing bolted on — the
+        // softest car the game builds, and the one that should visibly
+        // take a set through the corners you thread them at.
+        body: newAiBody(rollMaxFor()),
         mesh,
         s: this.track.wrap(120 + (i / count) * this.track.length),
         lat: LANES[i % LANES.length],
@@ -3056,6 +3116,10 @@ export class GameEngine {
     );
     this.scene.add(mesh);
     this.rival = {
+      // The rival leans as the car they brought does: a race-kitted
+      // coupe stiff, the saloon soft. Not the player's build — a rival
+      // does not inherit your coilovers because you own the same model.
+      body: newAiBody(rollMaxFor(rivalCar?.style, rivalCar?.kit)),
       def,
       mesh,
       s: this.track.wrap(this.player.s + 260),
@@ -4563,10 +4627,7 @@ export class GameEngine {
 
     // --- Centrifugal push: sweepers shove the car toward the outside,
     // demanding counter-steer at speed.
-    this.track.tangentAt(p.s, this.v1);
-    this.track.tangentAt(p.s + 8, this.v2);
-    const crossY = this.v1.z * this.v2.x - this.v1.x * this.v2.z;
-    const curvature = -Math.asin(THREE.MathUtils.clamp(crossY, -1, 1)) / 8;
+    const curvature = this.curvatureAt(p.s);
     const pushAccel = THREE.MathUtils.clamp(
       curvature * p.speed * p.speed * 0.22 * this.tune.slipMult,
       -8,
@@ -4714,7 +4775,7 @@ export class GameEngine {
     );
     const betaRate = (beta - this.prevBeta) / Math.max(dt, 1e-4);
     this.prevBeta = beta;
-    const latAccel = (this.curvature * p.speed + betaRate) * p.speed;
+    const latAccel = lateralAccel(this.curvature, p.speed, betaRate);
     // One consequence worth knowing before somebody files it as a bug:
     // holding lock on a STRAIGHT eventually produces almost no lean. The
     // handling model is lane-relative — steering sets a crab angle
@@ -4729,15 +4790,13 @@ export class GameEngine {
     //
     // Leaning OUT of the corner, which is what a car on soft springs
     // does; the sign is asserted in tests/body.mjs rather than trusted.
-    // Per car, not one number for the fleet. MAX_ROLL was a static, so
-    // a pickup leaned exactly as far as a race-kitted supercar — 3.15
+    // Per car, not one number for the fleet. This was a static, so a
+    // pickup leaned exactly as far as a race-kitted supercar — 3.15
     // degrees at 1.43 g, all sixteen. The tune carries a roll gradient
-    // now, off the silhouette and what is bolted to it, and coilovers
-    // finally do the most visible thing stiffer springs do.
-    const rollTarget =
-      THREE.MathUtils.clamp(-latAccel / 14, -1, 1) *
-      (this.tune.rollMax ?? GameEngine.MAX_ROLL);
-
+    // now (mods.ts rollMaxFor), off the silhouette and what is bolted to
+    // it, and coilovers finally do the most visible thing stiffer
+    // springs do.
+    //
     // --- Pitch, from what the car is actually doing rather than from
     // where the pedals are. Pedal position lies: a car against its
     // governor is at full throttle and not accelerating, and one
@@ -4745,17 +4804,11 @@ export class GameEngine {
     const longAccel = (p.speed - this.prevSpeed) / Math.max(dt, 1e-4);
     this.prevSpeed = p.speed;
     this.longAccel = longAccel;
-    const pitchTarget = THREE.MathUtils.clamp(-longAccel * 0.0039, -0.02, 0.045);
 
-    // Both on springs. A body settles on its suspension — it does not
-    // arrive. Slightly underdamped, so a quick flick leaves it rocking
-    // for a beat the way a real shell does, and clamped in dt so a
-    // dropped frame cannot make the integrator explode.
-    const dts = Math.min(dt, 1 / 30);
-    this.rollVel += ((rollTarget - this.roll) * 95 - this.rollVel * 13.5) * dts;
-    this.roll += this.rollVel * dts;
-    this.pitchVel += ((pitchTarget - this.pitch) * 120 - this.pitchVel * 16) * dts;
-    this.pitch += this.pitchVel * dts;
+    // Both on springs — the one law in attitude.ts, which the rival and
+    // the traffic go through too. A body settles on its suspension; it
+    // does not arrive.
+    stepAttitude(this, latAccel, longAccel, this.tune.rollMax, dt);
     this.carBody.rotation.z = this.roll;
     this.carBody.rotation.x = this.pitch;
     // ...and the wheels stay where the road is. Those two lines rotate
@@ -4763,7 +4816,7 @@ export class GameEngine {
     // patches leaned with the shell: at the street sedan's six degrees
     // of roll the outer wheel was driven 90 mm down through the tarmac
     // and the inner one lifted the same distance clear of it.
-    this.applySuspension();
+    this.applySuspension(this.carBody, this.roll, this.pitch);
     this.latAccel = latAccel;
 
     // The lamps, bolted on. One copy of the body's attitude and the
@@ -4801,10 +4854,7 @@ export class GameEngine {
       this.carBody,
       p.speed * Math.cos(this.driftYaw),
       dt,
-      // Road wheels turn about 30 degrees at full lock. This was 0.3 rad
-      // — 17 degrees — which reads as a car that never quite commits to
-      // the corner it is visibly taking.
-      -this.steerSmooth * 0.52,
+      -this.steerSmooth * HANDLING.roadWheelLock,
       this.brakeOut?.lock ?? 0,
       this.wheelspin
     );
@@ -4847,6 +4897,9 @@ export class GameEngine {
     if (tailGlows) {
       for (const g of tailGlows) g.opacity = brakeLit ? TAIL.glowBrake : TAIL.glowIdle;
     }
+    // The airbrake, on the same fact the lamps light on, so the wing
+    // and the lamps can never disagree about whether the car is braking.
+    poseWing(this.carBody, Math.max(this.brake, this.handbrake ? 1 : 0), p.speed, dt);
 
     // Traffic collisions. Severity comes from the closing speed, the way
     // it does on a real bumper: matching the flow and tapping a car is a
@@ -4951,7 +5004,15 @@ export class GameEngine {
       t.mesh.position.copy(this.v1);
       this.v4.copy(this.v1).add(this.v3);
       t.mesh.lookAt(this.v4);
-      spinWheels(t.mesh, t.speed, dt);
+      // Every civilian, every frame — not on the driver budget. These
+      // are the cars the player threads between; a lean that froze
+      // mid-corner when its car dropped out of the budget would be the
+      // old nearest-first driver bug on the whole shell.
+      this.poseAiBody(t.mesh, t.body, this.aiLatAccel(t.body, t.s, t.speed, 0, dt), t.accel, dt);
+      // Road wheels on the same smoothed steer the driver's hands are
+      // on. Out of the driver budget's range the steer is stale, and
+      // held — at 120 m and more that is a wheel nobody can see.
+      spinWheels(t.mesh, t.speed, dt, -t.steerVis * HANDLING.roadWheelLock);
     }
     this.solveTrafficDrivers(dt);
   }
@@ -5008,12 +5069,12 @@ export class GameEngine {
       // Traffic holds its lane, so there is no lane-change signal to
       // read — but a car following a curving road still holds lock, and
       // this road curves. Take the steer from the road itself: the
-      // change in tangent heading over the next stretch.
-      this.track.tangentAt(t.s, this.v3);
-      this.track.tangentAt(this.track.wrap(t.s + 30), this.v4);
-      let dHead = Math.atan2(this.v4.x, this.v4.z) - Math.atan2(this.v3.x, this.v3.z);
-      while (dHead > Math.PI) dHead -= Math.PI * 2;
-      while (dHead < -Math.PI) dHead += Math.PI * 2;
+      // heading the tangent turns through over the next stretch, from
+      // the one curvature law every car reads (curvatureAt; the sign is
+      // that a positive curvature turns the heading negative). This
+      // used to difference two tangents 30 m apart here — a second
+      // curvature formula beside the player's.
+      const dHead = -this.curvatureAt(t.s) * TRAFFIC_STEER_LOOK_M;
       const steerWant = THREE.MathUtils.clamp(dHead * 2.2, -1, 1);
       t.steerVis += (steerWant - t.steerVis) * Math.min(1, dtSolve * RIG.rival.steerRate);
       this.track.pose(
@@ -5025,13 +5086,14 @@ export class GameEngine {
       this.v1.y += RIG.driver.lookHeight;
       // Traffic leans too. The g is the road's, not the driver's: a car
       // holding its lane through a bend is still pulling v-squared over
-      // the radius, and dHead over 30 m IS that radius. Solved with a
-      // zero brake and a steady throttle because that is what a cruising
-      // car is doing — but a body that never answers the corner is the
-      // difference between a person driving and a mannequin being
-      // carried along, and traffic is what the player spends the night
-      // threading between.
-      const tLat = (dHead / 30) * t.speed * t.speed;
+      // the radius — the same lateral g the shell was just settled on,
+      // so the driver and the body they sit in answer one number.
+      // Solved with a zero brake and a steady throttle because that is
+      // what a cruising car is doing — but a body that never answers
+      // the corner is the difference between a person driving and a
+      // mannequin being carried along, and traffic is what the player
+      // spends the night threading between.
+      const tLat = t.body.latAccel;
       // ...and they brake. The brake and the longitudinal g were both
       // hard-coded zero here, which meant a civilian standing on the
       // pedal behind a slower car sat perfectly upright with their foot
@@ -5100,6 +5162,7 @@ export class GameEngine {
         this.abreastLane(r.s, p.lat),
         eased
       );
+      const wasLat = r.lat;
       r.lat += (lane - r.lat) * Math.min(1, dt * 6);
       r.targetLat = lane;
       this.track.pose(r.s, r.lat, this.v1, this.v2);
@@ -5107,10 +5170,13 @@ export class GameEngine {
       r.mesh.position.copy(this.v1);
       this.v4.copy(this.v1).add(this.v3);
       r.mesh.lookAt(this.v4);
-      spinWheels(r.mesh, r.speed, dt);
+      this.poseAiBody(r.mesh, r.body, this.aiLatAccel(r.body, r.s, r.speed, dt > 0 ? (r.lat - wasLat) / dt : 0, dt), 0, dt);
       // Holding formation is still driving: hands on the wheel for the
-      // two-shot, feet steady on a cruise throttle.
+      // two-shot, feet steady on a cruise throttle — and the road wheels
+      // turned the way the hands are, easing into the abreast lane.
       this.animateRivalDriver(r, 0, dt);
+      spinWheels(r.mesh, r.speed, dt, -r.steerVis * HANDLING.roadWheelLock);
+      poseWing(r.mesh, r.brakeVis, r.speed, dt);
       return;
     }
 
@@ -5185,6 +5251,7 @@ export class GameEngine {
         r.targetLat = bestLane;
       }
     }
+    const wasLat = r.lat;
     r.lat += THREE.MathUtils.clamp(r.targetLat - r.lat, -6 * dt, 6 * dt);
 
     r.s = this.track.wrap(r.s + r.speed * dt);
@@ -5193,8 +5260,72 @@ export class GameEngine {
     r.mesh.position.copy(this.v1);
     this.v4.copy(this.v1).add(this.v3);
     r.mesh.lookAt(this.v4);
-    spinWheels(r.mesh, r.speed, dt);
-    this.animateRivalDriver(r, dt > 0 ? (r.speed - prevSpeed) / dt : 0, dt);
+    // The shell on its springs, the hubs on the road, the fronts turned
+    // — the rival is a car, not a decal that tracks the centreline.
+    const longAccel = dt > 0 ? (r.speed - prevSpeed) / dt : 0;
+    this.poseAiBody(r.mesh, r.body, this.aiLatAccel(r.body, r.s, r.speed, dt > 0 ? (r.lat - wasLat) / dt : 0, dt), longAccel, dt);
+    this.animateRivalDriver(r, longAccel, dt);
+    // After the driver, so the road wheels take this frame's steer and
+    // not last frame's — and the wing the brake pressure the driver's
+    // foot was just solved with. On a rival the airbrake is the only
+    // brake tell there is: their lamps are never driven.
+    spinWheels(r.mesh, r.speed, dt, -r.steerVis * HANDLING.roadWheelLock);
+    poseWing(r.mesh, r.brakeVis, r.speed, dt);
+  }
+
+  /**
+   * Signed curvature of the road at `s`, 1/m: the two-tangent estimate
+   * over an 8 m window that the player's cornering force has always
+   * used. One formula, every reader — the player's push and roll, the
+   * AI shells, and the civilians' hands.
+   */
+  private curvatureAt(s: number): number {
+    this.track.tangentAt(s, this.cv1);
+    this.track.tangentAt(s + 8, this.cv2);
+    const crossY = this.cv1.z * this.cv2.x - this.cv1.x * this.cv2.z;
+    return -Math.asin(THREE.MathUtils.clamp(crossY, -1, 1)) / 8;
+  }
+
+  /**
+   * An AI car's lateral acceleration, from its own kinematics exactly
+   * as the player's is computed: the road's curvature plus the rate its
+   * slip angle changes, times its speed. `latRate` is how fast it is
+   * crossing the road, m/s — a lane change; zero for a car holding its
+   * lane, which still pulls v² over the radius.
+   */
+  private aiLatAccel(b: AiBody, s: number, speed: number, latRate: number, dt: number): number {
+    const beta = Math.atan2(latRate, Math.max(1, speed));
+    const betaRate = (beta - b.prevBeta) / Math.max(dt, 1e-4);
+    b.prevBeta = beta;
+    b.latAccel = lateralAccel(this.curvatureAt(s), speed, betaRate);
+    return b.latAccel;
+  }
+
+  /**
+   * Put an AI shell on its springs. Called right after lookAt, which
+   * has just written a pure yaw into the mesh's quaternion: composing
+   * the pitch and then the roll on top of it is Ry·Rx·Rz — the same
+   * order the player's carBody uses (suspension.ts BODY_EULER_ORDER) —
+   * so the one hub solver lands these wheels on the road too, and
+   * lookAt rewriting the quaternion next frame means nothing
+   * accumulates.
+   *
+   * The contact blob is a child of this same node; the player's is
+   * re-parented onto the flat yaw node above its body, but an AI car has
+   * no node above, so the blob is counter-rotated instead: Rz(−r)·Rx(−p)
+   * exactly undoes the shell's Rx(p)·Rz(r) and the shadow stays on the
+   * road.
+   */
+  private poseAiBody(mesh: THREE.Object3D, b: AiBody, latAccel: number, longAccel: number, dt: number): void {
+    stepAttitude(b, latAccel, longAccel, b.rollMax, dt);
+    mesh.rotateX(b.pitch);
+    mesh.rotateZ(b.roll);
+    this.applySuspension(mesh, b.roll, b.pitch);
+    const contact = mesh.userData.contact as THREE.Object3D | undefined;
+    if (contact) {
+      contact.rotation.order = "ZXY";
+      contact.rotation.set(-b.pitch - Math.PI / 2, 0, -b.roll);
+    }
   }
 
   private updateRemotes(dt: number): void {
@@ -5207,6 +5338,7 @@ export class GameEngine {
       const predicted = this.track.wrap(r.snapS + r.snapSpeed * age);
       const blend = Math.min(1, dt * 8);
       r.s = this.track.wrap(r.s + this.track.deltaAhead(r.s, predicted) * blend);
+      const wasLat = r.lat;
       r.lat += (r.snapLat - r.lat) * blend;
 
       this.track.pose(r.s, r.lat, this.v1, this.v2);
@@ -5214,7 +5346,10 @@ export class GameEngine {
       r.mesh.position.copy(this.v1);
       this.v4.copy(this.v1).add(this.v3);
       r.mesh.lookAt(this.v4);
-      spinWheels(r.mesh, r.snapSpeed, dt);
+      // The same springs as everyone else, off the only kinematics the
+      // wire gives us: the dead-reckoned lane blend and the snapshot
+      // speed difference.
+      this.poseAiBody(r.mesh, r.body, this.aiLatAccel(r.body, r.s, r.snapSpeed, dt > 0 ? (r.lat - wasLat) / dt : 0, dt), r.accel, dt);
 
       // Remote cruisers carry drivers too: steer dead-reckoned from the
       // lane blend, a steady cruise throttle, eyes on the road ahead.
@@ -5246,10 +5381,10 @@ export class GameEngine {
           );
           this.v1.y += RIG.driver.lookHeight;
         }
-        // A remote player's driver gets the same treatment: their lane
-        // blend is the only kinematics we have off the wire, so the lean
-        // comes from how fast they are crossing it.
-        const remLat = (r.snapLat - r.lat) * 0.6 * r.snapSpeed * 0.35;
+        // A remote player's driver leans on the g their shell was just
+        // settled on — the road's curvature and the lane blend, the
+        // only kinematics we have off the wire.
+        const remLat = r.body.latAccel;
         // ...and their braking, from the snapshot difference. Smoothed,
         // because snapshots arrive at the network's rate rather than the
         // frame's, and an unsmoothed brake would step once per packet.
@@ -5271,6 +5406,8 @@ export class GameEngine {
           r.accel
         );
       }
+      // After the driver, so the road wheels take this frame's steer.
+      spinWheels(r.mesh, r.snapSpeed, dt, -r.steerVis * HANDLING.roadWheelLock);
     }
   }
 
@@ -6187,9 +6324,12 @@ export class GameEngine {
       );
       this.v1.y += RIG.driver.lookHeight;
     }
-    // The rival's g comes from their own kinematics: how fast they are
-    // crossing the lane, and the acceleration the caller measured.
-    const rivalLat = ((r.targetLat - r.lat) * R.steerPerLat) * r.speed * 0.35;
+    // The rival's g is the g their shell was just settled on — the
+    // road's curvature and their lane change, through the same law as
+    // the player's — and the acceleration the caller measured. This was
+    // a lane-change proxy that read zero whenever the lane was held,
+    // whatever the bend: through the tightest corner on the lap the
+    // driver sat bolt upright while the car pulled 0.7 g.
     solveDriverRig(
       rig,
       r.steerVis,
@@ -6197,7 +6337,7 @@ export class GameEngine {
       r.brakeVis,
       this.v1,
       dt,
-      rivalLat,
+      r.body.latAccel,
       accel
     );
   }
@@ -6593,6 +6733,13 @@ export class GameEngine {
       // exactly like one that works.
       roll: this.roll,
       pitch: this.pitch,
+      // The rival's shell answers the same law; exposed the same way.
+      rivalRoll: this.rival?.body.roll ?? null,
+      rivalPitch: this.rival?.body.pitch ?? null,
+      rivalLatAccel: this.rival?.body.latAccel ?? null,
+      // The active wing's pitch, null on a car without one.
+      wingPitch: (this.carBody.userData.wing as THREE.Group | undefined)?.rotation.x ?? null,
+      rivalWingPitch: (this.rival?.mesh.userData.wing as THREE.Group | undefined)?.rotation.x ?? null,
       hubWorldY: ((this.carBody.userData.wheels as THREE.Group[] | undefined) ?? []).map(
         (w) => w.getWorldPosition(new THREE.Vector3()).y
       ),

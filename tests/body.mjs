@@ -291,6 +291,121 @@ console.log(
     `(flat slab: ${((bTopMid - bTopEdge) * 1000).toFixed(0)} mm)`
 );
 
+// --- The rival is a car too --------------------------------------------
+// Rival and traffic shells were oriented by lookAt alone: through the
+// same Ras Al-Ard sweep a rival sat dead flat beside a player leaning
+// two degrees, its wheels welded to that flat shell. They now go
+// through the one attitude law with their own rollMax, the one hub
+// solver, and the one road-wheel lock. Measured off the world matrix
+// rather than the mesh's Euler angles — lookAt leaves those on the ±π
+// branch, so rotation.z reads −3.14 on a car that is perfectly level.
+const rivalCase = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  const r = e.rival;
+  if (!r) return null;
+  e.setPaused(true);
+  const V = e.camera.position.constructor;
+  const tilt = (mesh) => {
+    mesh.updateWorldMatrix(true, true);
+    const x = new V().setFromMatrixColumn(mesh.matrixWorld, 0).normalize();
+    const z = new V().setFromMatrixColumn(mesh.matrixWorld, 2).normalize();
+    return { roll: Math.asin(x.y), pitch: -Math.asin(z.y) };
+  };
+  const hubs = (mesh) => {
+    const R = mesh.userData.wheelR;
+    return mesh.userData.wheels.map((w) => {
+      w.updateWorldMatrix(true, false);
+      return new V().setFromMatrixPosition(w.matrixWorld).y - mesh.position.y - R;
+    });
+  };
+  const blobUp = (mesh) => {
+    const c = mesh.userData.contact;
+    c.updateWorldMatrix(true, false);
+    // The blob is a plane whose local +z is its normal.
+    return new V().setFromMatrixColumn(c.matrixWorld, 2).normalize().y;
+  };
+  // Park everyone else far away, put the player on the straight, and
+  // hold the rival on the sweep at a steady 33 m/s (the AI would
+  // otherwise govern it down to its cruise speed).
+  const away = e.track.wrap(3060 + e.track.length / 2);
+  for (const t of e.traffic) t.s = away;
+  e.player.s = 2400; e.player.speed = 30; e.player.lat = 0;
+  e.setTouchInput({ throttle: 0, brake: 0, steer: 0 });
+  r.state = "cruise";
+  r.lat = 0; r.targetLat = 0;
+  let worstHub = 0, worstBlob = 0, peak = 0;
+  for (let i = 0; i < 90; i++) {
+    r.s = 3040 + i * 0.4; r.speed = 33; r.sp = 100;
+    e.update(1 / 60);
+    r.speed = 33;
+    const t = tilt(r.mesh);
+    peak = Math.max(peak, Math.abs(t.roll));
+    for (const h of hubs(r.mesh)) worstHub = Math.max(worstHub, Math.abs(h));
+    worstBlob = Math.max(worstBlob, Math.abs(1 - blobUp(r.mesh)));
+  }
+  const sweep = tilt(r.mesh);
+  const bodyRoll = r.body.roll;
+  const lat = r.body.latAccel;
+  // The player through the same corner, the same way, for the sign.
+  e.player.s = 3070; e.player.speed = 33;
+  e.roll = 0; e.rollVel = 0; e.prevBeta = 0;
+  for (let i = 0; i < 90; i++) { e.player.s = 3070; e.player.speed = 33; e.update(1 / 60); }
+  const playerRoll = e.roll;
+  // A lane change turns the road wheels the way the hands are turned.
+  r.s = 2400; r.lat = 0; r.targetLat = 4;
+  let roadY = 0, handZ = 0;
+  for (let i = 0; i < 14; i++) {
+    r.speed = 33;
+    e.update(1 / 60);
+    const w = r.mesh.userData.wheels[0].rotation.y;
+    if (Math.abs(w) > Math.abs(roadY)) { roadY = w; handZ = r.mesh.userData.driver.wheel.rotation.z; }
+  }
+  const order = r.mesh.userData.wheels[0].rotation.order;
+  // Traffic: one civilian on the same sweep, held there.
+  const t0 = e.traffic[0];
+  t0.s = 3050; t0.lat = 0;
+  let tPeak = 0, tHub = 0;
+  for (let i = 0; i < 90; i++) {
+    t0.s = 3040 + i * 0.4; t0.speed = 33;
+    e.update(1 / 60);
+    tPeak = Math.max(tPeak, Math.abs(tilt(t0.mesh).roll));
+    for (const h of hubs(t0.mesh)) tHub = Math.max(tHub, Math.abs(h));
+  }
+  t0.s = away;
+  return {
+    roll: sweep.roll, pitch: sweep.pitch, bodyRoll, lat, playerRoll, peak, worstHub, worstBlob,
+    rollMax: r.body.rollMax, car: r.def.carId, roadY, handZ, order, tPeak, tHub, tRollMax: t0.body.rollMax,
+  };
+});
+if (!rivalCase) fail.push("no rival to measure");
+else {
+  const c = rivalCase;
+  console.log(
+    `rival     ${check(Math.abs(c.roll) > 0.004 && Math.sign(c.roll) === Math.sign(c.playerRoll),
+      `the rival leans ${(c.roll * DEG).toFixed(2)} deg through Ras Al-Ard against the player's ${(c.playerRoll * DEG).toFixed(2)}`)}  ` +
+      `${c.car} leans ${(c.roll * DEG).toFixed(2)} deg through Ras Al-Ard at ${c.lat.toFixed(1)} m/s2 ` +
+      `(player ${(c.playerRoll * DEG).toFixed(2)}, its rollMax ${(c.rollMax * DEG).toFixed(2)})`
+  );
+  console.log(
+    `          ${check(Math.abs(c.roll - c.bodyRoll) < 1e-3, `the shell shows ${c.roll} while the law holds ${c.bodyRoll}`)}  ` +
+      `shell and law agree; peak ${(c.peak * DEG).toFixed(2)} deg never past rollMax ${check(c.peak <= c.rollMax * 1.06, `overshot rollMax: ${c.peak} vs ${c.rollMax}`)}`
+  );
+  console.log(
+    `hubs      ${check(c.worstHub < 0.002, `a rival hub left the road by ${(c.worstHub * 1000).toFixed(1)} mm`)}  ` +
+      `worst ${(c.worstHub * 1000).toFixed(1)} mm off the road through the lean; ` +
+      `shadow ${check(c.worstBlob < 1e-4, `the contact blob tilted with the shell (${c.worstBlob})`)} stays flat`
+  );
+  console.log(
+    `steer     ${check(Math.abs(c.roadY) > 0.02 && Math.sign(c.roadY) === Math.sign(c.handZ),
+      `road wheel ${c.roadY.toFixed(3)} rad vs hand wheel ${c.handZ.toFixed(3)} in a lane change`)}  ` +
+      `road wheel ${c.roadY.toFixed(3)} rad, hand wheel ${c.handZ.toFixed(3)} rad, order ${c.order} ${check(c.order === "YZX", `wheel order ${c.order}`)}`
+  );
+  console.log(
+    `traffic   ${check(c.tPeak > 0.004 && c.tHub < 0.002, `a civilian leans ${(c.tPeak * DEG).toFixed(2)} deg, hubs ${(c.tHub * 1000).toFixed(1)} mm off`)}  ` +
+      `a civilian leans ${(c.tPeak * DEG).toFixed(2)} deg (rollMax ${(c.tRollMax * DEG).toFixed(2)}, the softest car), hubs within ${(c.tHub * 1000).toFixed(1)} mm`
+  );
+}
+
 await browser.close();
 if (fail.length) {
   console.log(`\n${fail.length} problem${fail.length === 1 ? "" : "s"}:`);

@@ -9,6 +9,7 @@
 //   npm run sync:models   (once wired into package.json)
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readRig } from "./lib/rig-literal.mjs";
 
 // Comments go first: a ')' inside an inline comment would otherwise fool
 // the paren-matching walk below into truncating a call mid-argument.
@@ -181,13 +182,9 @@ for (const [style, geos] of Object.entries(styles)) {
 // The rig goes in the same file. The authored driver parts — helmet,
 // gloves, the wheel rim, the pedal faces — have to land exactly on the
 // joints the IK solves, so Blender reads the bone lengths and joint
-// offsets from src/game/rig.ts rather than carrying its own copy. Same
-// evaluated-literal trick the UE5 generator uses: the file holds
-// expressions (`Math.PI * 0.72`) that a regex cannot read.
-const rigSrc = readFileSync("src/game/rig.ts", "utf8");
-const rigBody = rigSrc.match(/export const RIG = (\{[\s\S]*?\n\}) as const;/)?.[1];
-if (!rigBody) throw new Error("rig parse failed: no `export const RIG = {...} as const;`");
-out.rig = new Function(`"use strict"; return ${rigBody};`)();
+// offsets from src/game/rig.ts rather than carrying its own copy,
+// through the one reader the UE5 generator uses too.
+out.rig = readRig();
 
 mkdirSync("tools/blender", { recursive: true });
 writeFileSync("tools/blender/profiles.json", JSON.stringify(out, null, 1) + "\n");

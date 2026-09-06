@@ -71,10 +71,17 @@ const fleet = await page.evaluate(async () => {
   const cars = window.__grnCars ?? [];
   const out = [];
   for (const car of cars) {
+    // CARS carries `style`; `bodyStyle` is the API card's name for it.
+    // This read the card's name off the wrong object and built every
+    // car as a sedan, so five of the six supercars were measured as a
+    // sedan at their length. Throw rather than default: a renamed field
+    // must fail loudly, not measure the wrong shell.
+    const style = car.style ?? car.bodyStyle;
+    if (!style) throw new Error(`${car.id} has no style — the wrong shell would be measured`);
     const g = window.__grnBuildCar({
       body: parseInt(String(car.color).replace("#", ""), 16),
       accent: 0x007a3d,
-      style: car.bodyStyle ?? "sedan",
+      style,
       kit: car.kit,
       raceKit: car.kit === "attack",
       lengthM: car.lengthM,
@@ -103,7 +110,12 @@ const fleet = await page.evaluate(async () => {
       if (o.userData.noShadow) return;
       const m = Array.isArray(o.material) ? o.material[0] : o.material;
       if (m?.transparent || (m?.opacity ?? 1) < 1) return;
-      if (/wing|splitter|canard|diffuser|skirt|spoiler/.test(m?.name ?? "")) return;
+      // The attack wing sits under a tagged pivot (cars.ts); the rest of
+      // the aero is body-coloured or carbon and carries no tag, so the
+      // material-name test that used to stand here never matched any
+      // of it and the wing was counted as roof on every supercar.
+      if (o.userData.wing || o.parent?.userData.wing) return;
+      if (/wing|splitter|canard|diffuser|skirt|spoiler/.test(o.name ?? "")) return;
       const bb = new THREE.Box3().setFromObject(o);
       // Nothing 10 cm thin in BOTH plan axes is a body panel — that is
       // an aerial, and an aerial is not a roof.
@@ -250,7 +262,7 @@ const fleet = await page.evaluate(async () => {
     out.push({
       id: car.id,
       name: car.name,
-      style: car.bodyStyle ?? "sedan",
+      style,
       lengthM: car.lengthM,
       totalW: +totalW.toFixed(3),
       poke: Number.isFinite(archOut) && Number.isFinite(tyreOut)

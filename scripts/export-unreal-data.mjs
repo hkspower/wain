@@ -11,6 +11,7 @@
 // by hand.
 
 import { readFileSync, writeFileSync } from "node:fs";
+import { readRig } from "./lib/rig-literal.mjs";
 
 const read = (p) => readFileSync(p, "utf8");
 const trackTs = read("src/game/track.ts");
@@ -228,13 +229,11 @@ const cppf = (v) => (Number.isInteger(v) ? `${v}.f` : `${v}f`);
 // The rig — bone lengths, joint offsets, grip angles, pedal travel, neck
 // limits. Unlike handling this one is nested and carries expressions
 // (`Math.PI * 0.72` says ten-to-two far better than 2.26194671 does), so
-// it is evaluated rather than regexed. The file is a single plain object
-// literal of numbers by construction; anything else here should fail
-// loudly rather than emit a half-populated header.
-const rigSrc = readFileSync("src/game/rig.ts", "utf8");
-const rigBody = rigSrc.match(/export const RIG = (\{[\s\S]*?\n\}) as const;/)?.[1];
-if (!rigBody) throw new Error("rig parse failed: could not find `export const RIG = {...} as const;`");
-const rigObj = new Function(`"use strict"; return ${rigBody};`)();
+// it is evaluated rather than regexed (scripts/lib/rig-literal.mjs, the
+// one reader). The file is a single plain object literal of numbers by
+// construction; anything else there fails loudly rather than emitting a
+// half-populated header.
+const rigObj = readRig();
 /** `driver.upperArm` → `DriverUpperArm`, the C++ constant's name. The
  *  identical rule lives in flatRig() in src/game/rig.ts and in
  *  check-unreal-sync.mjs; all three must agree or the contract check

@@ -206,12 +206,19 @@ for (const slot of ["helmet", "visor", "glove", "wheel", "pedal"]) {
       ? check(d.authored, `driver ${slot} still procedural`)
       : check(!d.authored, `driver ${slot} is authored, but build.json does not ship a driver — the manifest is stale`)));
 }
-// The rim must match the radius the IK solves its grips against
+// The rim must match the radius the IK solves its grips against. The
+// hands land on the rim's CENTRE line, and the authored rim is a torus:
+// its outer extent is that radius plus the tube, and its thickness is
+// the tube's diameter, so the centre line is (outer − thickness) / 2.
+// This used to take the outer extent against a 30 mm tolerance, which
+// passed a stale rim for any rig radius from 0.149 to 0.209 m.
 if (r.driver.wheel && r.wheelRadius) {
-  const w = Math.max(r.driver.wheel.size[0], r.driver.wheel.size[1]) / 2;
-  console.log(`  rim radius ${w.toFixed(3)} m vs the rig's ${r.wheelRadius} m  ` +
-    check(Math.abs(w - r.wheelRadius) < 0.03,
-      `the authored rim is ${w.toFixed(3)} m but the hands are solved onto ${r.wheelRadius} m`));
+  const size = r.driver.wheel.size;
+  const outer = Math.max(...size), tube = Math.min(...size);
+  const w = (outer - tube) / 2;
+  console.log(`  rim centre line ${w.toFixed(3)} m (outer ${(outer / 2).toFixed(3)}, tube ${tube.toFixed(3)}) vs the rig's ${r.wheelRadius} m  ` +
+    check(Math.abs(w - r.wheelRadius) < 0.003,
+      `the authored rim's centre line is ${w.toFixed(3)} m but the hands are solved onto ${r.wheelRadius} m`));
 }
 console.log(fail.length ? "\nFAILURES:\n - " + fail.join("\n - ") : "\nauthored geometry is live everywhere");
 await browser.close();

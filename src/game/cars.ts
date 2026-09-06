@@ -10,6 +10,7 @@ import { solveDriverRig } from "./driver";
 import { pointGlowTexture, poolGlowTexture } from "./glow";
 import { drawTeamLogo, type TeamLogo } from "./teams";
 import { glassLook, type TintFilm } from "./tint";
+import { BODY_EULER_ORDER, WHEEL_EULER_ORDER } from "./suspension";
 
 // Procedural sedans with a real silhouette: the body and glasshouse are
 // bevel-extruded side profiles (smoothed normals), riding on spoked
@@ -3276,6 +3277,9 @@ function buildWheel(
   // COUNT is what the eye reads at speed even when the shape is coarse.
   const nSpokes = finish === "bronze" ? 6 : steel ? 4 : 5;
   const w = new THREE.Group();
+  // Spin, steer and camber are three writes on this one node; the order
+  // they compose in is what keeps the spin on the axle. See suspension.ts.
+  w.rotation.order = WHEEL_EULER_ORDER;
 
   if (detailed) {
     // One mesh per material, each tagged for the authored swap. The
@@ -3336,6 +3340,10 @@ function buildWheel(
 
 export function createCar(colors: CarColors): THREE.Group {
   const group = new THREE.Group();
+  // The engine yaws, pitches and rolls the shell on this node. Yaw has
+  // to be the outermost of the three or the hub solve is wrong at every
+  // heading but straight ahead. See suspension.ts.
+  group.rotation.order = BODY_EULER_ORDER;
   const style: BodyStyle = colors.style ?? "sedan";
   // The same drop, applied to every anchor hung off the shells. Heights
   // only: nose, tail, wiperZ and the z halves of roof/mirror/bPillar are
@@ -5171,32 +5179,46 @@ export function createCar(colors: CarColors): THREE.Group {
     // Swan-neck GT wing, twice the garage part: tall carbon stays, a
     // body-colour main plane and big endplates
     const wingY = d.deckY + 0.58;
+    const STAY_LEN = 0.55, STAY_RAKE = 0.16;
     for (const sx of [-0.55, 0.55]) {
-      const stay = new THREE.Mesh(roundedBox(0.05, 0.55, 0.22, 0.016), carbonMat);
+      const stay = new THREE.Mesh(roundedBox(0.05, STAY_LEN, 0.22, 0.016), carbonMat);
       stay.position.set(sx, d.deckY + 0.28, -1.88);
-      stay.rotation.x = 0.16; // swept back into the plane
+      stay.rotation.x = STAY_RAKE; // swept back into the plane
       group.add(stay);
     }
+    // The wing itself hangs from a pivot at the top of the stays — the
+    // swan-neck mount — so the engine can pitch it: up as an airbrake
+    // under braking, flatter at speed (aero.ts). Everything below sits
+    // at the same place it did when it was five loose meshes; the pivot
+    // rests at zero, so a fresh build measures exactly as before.
+    const wing = new THREE.Group();
+    wing.name = "wing";
+    wing.userData.wing = true;
+    const pivotY = d.deckY + 0.28 + (STAY_LEN / 2) * Math.cos(STAY_RAKE);
+    const pivotZ = -1.88 - (STAY_LEN / 2) * Math.sin(STAY_RAKE);
+    wing.position.set(0, pivotY, pivotZ);
+    group.add(wing);
+    group.userData.wing = wing;
     const plane = new THREE.Mesh(roundedBox(1.95, 0.045, 0.5, 0.015), bodyMat);
-    plane.position.set(0, wingY, -2.02);
-    plane.rotation.x = -0.18;
-    group.add(plane);
+    plane.position.set(0, wingY - pivotY, -2.02 - pivotZ);
+    plane.rotation.x = -0.18; // rest incidence; the pivot carries the rest
+    wing.add(plane);
     // Gurney flap on the trailing edge + brake strip beneath it
     const gurney = new THREE.Mesh(roundedBox(1.9, 0.05, 0.02, 0.006), carbonMat);
-    gurney.position.set(0, wingY + 0.06, -2.25);
-    group.add(gurney);
+    gurney.position.set(0, wingY + 0.06 - pivotY, -2.25 - pivotZ);
+    wing.add(gurney);
     // Brake strip on the wing's trailing edge. Slung under the main
     // plane it was in the plane's own shadow from every angle above the
     // car — which is every angle the game is ever seen from. It tucks
     // under the gurney and projects past the trailing edge instead, so a
     // following car actually sees it light up.
     const strip = new THREE.Mesh(roundedBox(1.0, 0.028, 0.09, 0.008), tailMat);
-    strip.position.set(0, wingY + 0.028, -2.285);
-    group.add(strip);
+    strip.position.set(0, wingY + 0.028 - pivotY, -2.285 - pivotZ);
+    wing.add(strip);
     for (const sx of [-0.99, 0.99]) {
       const endplate = new THREE.Mesh(roundedBox(0.03, 0.3, 0.54, 0.012), carbonMat);
-      endplate.position.set(sx, wingY, -2.02);
-      group.add(endplate);
+      endplate.position.set(sx, wingY - pivotY, -2.02 - pivotZ);
+      wing.add(endplate);
     }
 
     // Front splitter jutting past the bumper, low enough to scrape

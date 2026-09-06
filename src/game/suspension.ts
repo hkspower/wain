@@ -26,7 +26,10 @@
 //
 // Solved in closed form rather than iteratively, because with the body's
 // yaw taken out it is a two-angle problem with an exact answer, and an
-// exact answer cannot drift, oscillate or need a tolerance.
+// exact answer cannot drift, oscillate or need a tolerance. Taking the
+// yaw out is not free: it is a property of the ORDER the shell's three
+// rotations are applied in, and the two orders this module fixes are
+// below, with the reason each was chosen.
 //
 // WHY ONLY ROLL PRODUCES CAMBER
 //
@@ -39,9 +42,50 @@
 
 import { HANDLING as H } from "./handling";
 
+/**
+ * Euler order of the shell — the group createCar returns, which the
+ * engine yaws, pitches and rolls on the same node.
+ *
+ * three.js's default is XYZ, which composes Rx(pitch)·Ry(yaw)·Rz(roll):
+ * the yaw sits BETWEEN pitch and roll, so the pitch is applied about the
+ * road's lateral axis rather than the car's own. That was invisible
+ * while the shell had no yaw, and false as soon as it did: with the body
+ * at the 0.38 rad heading clamp a full dive leaned the car a degree the
+ * roll law never asked for, and in a spin (yaw −2.6 rad, pitch 0.044) the
+ * closed form below put a rear hub 121 mm below the road — measured in
+ * the running game, tests/suspension.mjs reproduces it to the millimetre.
+ *
+ * YXZ composes Ry(yaw)·Rx(pitch)·Rz(roll): yaw outermost, then pitch
+ * about the yawed car's lateral axis, then roll about its longitudinal
+ * one. The world-height row of Rx·Rz is then untouched by the yaw and
+ * hubHeight is exact at every heading. Roll is the innermost rotation
+ * in both orders, so nothing that reads rotation.z changes.
+ */
+export const BODY_EULER_ORDER = "YXZ" as const;
+
+/**
+ * Euler order of a wheel group: rotation.x is the spin, rotation.y the
+ * steer, rotation.z the camber — three writers, one node.
+ *
+ * Under the default XYZ the spin is applied LAST, about the body's
+ * lateral axis, after steer and camber have moved the axle off it: a
+ * front wheel at full lock cones through 60 degrees every revolution
+ * (at half a turn it reads as steered the other way), and a cambered
+ * wheel wobbles by twice its camber. At 14 revolutions a second that is
+ * a flicker; in a car park at lock it is a coin spinning down.
+ *
+ * YZX is the knuckle in the order the metal has it: steer about the
+ * hub's vertical, camber about the steered longitudinal, spin about the
+ * axle that results. Measured axle drift over a revolution at steer
+ * 0.52 with camber −0.084: XYZ 60.3°, YXZ 9.6° (camber still wobbles),
+ * YZX 0.000°. The slots the engine writes do not change.
+ */
+export const WHEEL_EULER_ORDER = "YZX" as const;
+
 /** A hub, in the body's own frame. */
 export interface WheelPose {
-  /** Lateral offset. Positive is the right-hand side of the car. */
+  /** Lateral offset, toward +x. Which side of the car that is does not
+   *  matter here: the solve is symmetric in it. */
   x: number;
   /** Longitudinal offset. Positive is forward. */
   z: number;
@@ -76,19 +120,32 @@ export interface WheelSolve {
   camber: number;
   /** Signed travel from rest, metres. Negative is compression. */
   travel: number;
-  /** True when the stroke ran out and the wheel is genuinely off the
-   *  road, rather than being held there by arithmetic. */
+  /** True when the stroke ran out: the hub is held at the end of its
+   *  travel and the contact patch is no longer on the road. On the droop
+   *  side that is a wheel in the air; on the bump side it is the shell
+   *  on its stop with the old welded-wheel penetration back, capped.
+   *  Nothing in the engine reads this — no car in the fleet reaches it
+   *  (tests/suspension.mjs asserts the working envelope fits inside the
+   *  stroke) — so it is the solver's honesty flag for that test, not a
+   *  behaviour. */
   lifted: boolean;
 }
 
 /**
  * Where a hub must sit for its contact patch to stay on a flat road.
  *
- * The shell's rotation is Euler XYZ with no yaw of its own — the yaw
- * lives on the node above it — so with three.js's own XYZ convention the
- * row of the matrix that produces world height is
+ * The shell carries its own yaw — the engine writes rotation.y on the
+ * same node as the roll and the pitch — but its Euler order is
+ * BODY_EULER_ORDER, which applies that yaw OUTSIDE the other two. A yaw
+ * about the world's vertical does not change a point's world height, so
+ * the row of the matrix that produces height is the one of Rx(p)·Rz(r)
+ * alone:
  *
  *     worldY = cos(p)sin(r)·x + cos(p)cos(r)·y − sin(p)·z
+ *
+ * The same row is exact for an AI car whose yaw comes from lookAt and
+ * whose pitch and roll are then composed with rotateX and rotateZ: that
+ * is Ry·Rx·Rz again, written as a quaternion.
  *
  * Setting worldY to the hub's rest height and solving for y is one line,
  * exact at any angle, and reduces to y = restY when the car is level —
@@ -132,4 +189,27 @@ export function solveSuspension(i: SuspensionInput): WheelSolve[] {
       lifted: Math.abs(travel) > stroke + 1e-9,
     };
   });
+}
+
+/**
+ * Ackermann: where each front wheel points for the car to turn about
+ * one centre. The inside wheel runs a tighter arc than the outside one,
+ * so it must turn further — by an amount that comes from the car's own
+ * wheelbase and track and from nothing else:
+ *
+ *     cot(outer) − cot(inner) = track / wheelbase
+ *
+ * `inner` is the signed angle of the inside wheel, the one nearer the
+ * turning centre, and the sign says which side that is: a positive
+ * rotation.y turns a wheel's forward toward +x, so the turning centre
+ * is on the +x side and the +x wheel is inside. Both fronts used to get
+ * the same angle — 0.52 rad on each — which on a 2.65 m wheelbase and a
+ * 1.81 m track is the outer wheel 10 degrees too far round, visible in
+ * any low-speed front-quarter view.
+ */
+export function steerAngles(inner: number, wheelbase: number, track: number): { minusX: number; plusX: number } {
+  const a = Math.abs(inner);
+  if (a < 1e-9 || !(wheelbase > 0) || !(track >= 0)) return { minusX: inner, plusX: inner };
+  const outer = Math.atan(wheelbase / (wheelbase / Math.tan(a) + track));
+  return inner > 0 ? { plusX: a, minusX: outer } : { plusX: -outer, minusX: -a };
 }

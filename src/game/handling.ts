@@ -100,6 +100,19 @@ export const HANDLING = {
   /** m/s at which casterRate is delivered in full. */
   casterRefSpeed: 40,
   headingClamp: 0.45,
+  /** How far the INSIDE front road wheel turns at full lock, radians.
+   *
+   *  A visual lock: the handling model is lane-relative and never reads
+   *  it. 0.52 rad is 30 degrees, a road car's inside-wheel figure; it
+   *  was 0.3 (17 degrees), which read as a car that never commits to
+   *  the corner it is visibly taking. The outside wheel is derived from
+   *  this by Ackermann (suspension.ts steerAngles), not given its own
+   *  number. The hand wheel's lock, RIG.driver.steerLock 2.4 rad, is
+   *  chosen for how far the hands are carried and the two are not tied
+   *  by a steering ratio; the implied 4.6:1 is a consequence, not a
+   *  spec. Every car — player, rival, traffic — steers its road wheels
+   *  against this one value. */
+  roadWheelLock: 0.52,
   /** Metres: how close you must be to flash a challenge. */
   flashRangeM: 60,
 
@@ -333,6 +346,20 @@ export const HANDLING = {
    *  an aerodynamic one: past here the car stops sliding at all. */
   downforceMax: 6,
 
+  // Active aero (src/game/aero.ts): the attack kit's swan-neck wing.
+  // Design values, not derived — nothing in the model says how far a
+  // wing should flip; these were chosen for how it reads from the chase
+  // camera and are pinned by tests/aero.mjs.
+  /** How far the main plane pitches up, radians, at full brake. About
+   *  30 degrees: the airbrake on a road supercar. */
+  wingAirbrakeRad: 0.5,
+  /** How far it trims flatter, radians, at downforceRefSpeed. A brake
+   *  at any speed still wins: 0.5 up against at most 0.1 down. */
+  wingTrimRad: 0.1,
+  /** Actuator rate, radians a second. Full airbrake in 0.3 s, which is
+   *  a flip; slower reads as a slow cut, faster as a snap. */
+  wingRate: 1.7,
+
   // The tow (src/game/slipstream.ts). The wake behind another car:
   // lower pressure, slower relative wind, and a third off your drag if
   // you can hold station in it.
@@ -487,7 +514,8 @@ export const HANDLING = {
    *  from a road car's spec sheet, because the roll here is deliberately
    *  larger than life. The softest car in the fleet is the street sedan
    *  at ROLL_DEG_PER_G 4.2, which against the 14 m/s² reference is 6.0
-   *  degrees — 0.105 rad, not the 0.055 fallback that MAX_ROLL suggests.
+   *  degrees — 0.105 rad (mods.ts rollMaxFor, which every car's tune
+   *  and every AI car read).
    *  Put that together with the nose-up pitch clamp of 0.045 and the
    *  rear-outer hub has to travel 154 mm to keep its contact patch down.
    *

@@ -194,8 +194,16 @@ const auditOne = (carId) =>
     });
     for (let band = 0; band < bands; band++) {
       meshes.forEach((o, i) => {
-        if (Math.floor(i / 64) === band) { o.material = idMat[i]; return; }
+        if (Math.floor(i / 64) === band) { o.material = idMat[i]; o.renderOrder = 0; return; }
         o.material = clear[i] ? seeThrough : occluder;
+        // Occluders draw FIRST. three sorts opaque meshes by material id
+        // before depth, and the id materials were created before the
+        // occluder, so every tested mesh painted before anything could
+        // hide it — a colorWrite:false occluder cannot erase colour that
+        // is already down. A mesh only read as hidden when its cover
+        // happened to share its 64-mesh band and a lower index; the tow
+        // hook buried in the front lip passed on four cars out of six.
+        o.renderOrder = -1;
       });
       // A mesh being tested must not be hidden by its own glass either.
       meshes.forEach((o, i) => {
@@ -221,7 +229,7 @@ const auditOne = (carId) =>
     e.renderer.setRenderTarget(null);
     e.renderer.toneMapping = prevTone;
     e.renderer.outputColorSpace = prevSpace;
-    meshes.forEach((o, i) => { o.material = saved[i]; });
+    meshes.forEach((o, i) => { o.material = saved[i]; o.renderOrder = 0; });
     for (const m of idMat) m.dispose();
     occluder.dispose();
     seeThrough.dispose();

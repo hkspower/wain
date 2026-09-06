@@ -29,6 +29,7 @@ namespace GRNHandling
 	constexpr float CasterRate = 2.4f;
 	constexpr float CasterRefSpeed = 40.f;
 	constexpr float HeadingClamp = 0.45f;
+	constexpr float RoadWheelLock = 0.52f;
 	constexpr float FlashRangeM = 60.f;
 	constexpr float DriftMinSpeed = 14.f;
 	constexpr float DriftAngleBase = 0.38f;
@@ -104,6 +105,9 @@ namespace GRNHandling
 	constexpr float PowerOverFwd = 0.1f;
 	constexpr float DownforceRefSpeed = 70.f;
 	constexpr float DownforceMax = 6.f;
+	constexpr float WingAirbrakeRad = 0.5f;
+	constexpr float WingTrimRad = 0.1f;
+	constexpr float WingRate = 1.7f;
 	constexpr float TowReach = 26.f;
 	constexpr float TowMax = 0.42f;
 	constexpr float TowFalloff = 9.f;
@@ -196,6 +200,7 @@ namespace GRNExact
 	constexpr double CasterRate = 2.4;
 	constexpr double CasterRefSpeed = 40;
 	constexpr double HeadingClamp = 0.45;
+	constexpr double RoadWheelLock = 0.52;
 	constexpr double FlashRangeM = 60;
 	constexpr double DriftMinSpeed = 14;
 	constexpr double DriftAngleBase = 0.38;
@@ -271,6 +276,9 @@ namespace GRNExact
 	constexpr double PowerOverFwd = 0.1;
 	constexpr double DownforceRefSpeed = 70;
 	constexpr double DownforceMax = 6;
+	constexpr double WingAirbrakeRad = 0.5;
+	constexpr double WingTrimRad = 0.1;
+	constexpr double WingRate = 1.7;
 	constexpr double TowReach = 26;
 	constexpr double TowMax = 0.42;
 	constexpr double TowFalloff = 9;

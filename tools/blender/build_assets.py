@@ -728,8 +728,26 @@ def main():
 
     total = sum(v["tris"] for v in report.values())
     print(f"\n{len(report)} files, ~{total} tris authored at quality={args.quality}")
-    with open(os.path.join(args.out, "build.json"), "w") as f:
-        json.dump({"quality": args.quality, "settings": Q, "assets": report}, f, indent=2)
+    # A partial rebuild (--only driver) must not rewrite the manifest as
+    # if the driver were the only file: tests/assets.mjs reads build.json
+    # to decide which files SHIP authored, and a manifest listing one
+    # asset says the other six are procedural. Merge into the existing
+    # manifest when the quality matches; refuse when it does not, since
+    # a manifest mixing two qualities would describe no build at all.
+    manifest_path = os.path.join(args.out, "build.json")
+    manifest = {"quality": args.quality, "settings": Q, "assets": {}}
+    if os.path.exists(manifest_path) and only < {"cars", "wheels", "palm", "driver"}:
+        with open(manifest_path) as f:
+            existing = json.load(f)
+        if existing.get("quality") != args.quality or existing.get("settings") != Q:
+            sys.exit(
+                f"build.json was built at quality={existing.get('quality')}; rebuild everything "
+                f"at quality={args.quality} or run --only with the matching quality"
+            )
+        manifest = existing
+    manifest["assets"].update(report)
+    with open(manifest_path, "w") as f:
+        json.dump(manifest, f, indent=2)
 
 
 if __name__ == "__main__":
