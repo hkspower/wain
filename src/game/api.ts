@@ -23,7 +23,7 @@ import {
   FUEL_G_PER_L,
 } from "./engines";
 import { HANDLING } from "./handling";
-import { STYLE_REAL, WIDTH_FOLLOWS_LENGTH } from "./cars";
+import { STYLE_REAL, WIDTH_FOLLOWS_LENGTH, TIRE_RADIUS } from "./cars";
 import { RIG } from "./rig";
 
 /** Bump when a payload shape changes incompatibly. Clients compare it. */
@@ -202,6 +202,17 @@ export function buildGameData() {
     bodyShape: {
       reference: STYLE_REAL,
       lengthExponent: WIDTH_FOLLOWS_LENGTH,
+      /**
+       * The tyre's rolling radius, metres, before a silhouette's own
+       * presence scale is applied to it.
+       *
+       * Published because all three builds need it and all three had a
+       * different one: the web derived it (TIRE_RADIUS x scale), Unity
+       * typed 0.33 by hand and Unreal typed 0.40, so the same car rolled
+       * on three sizes of wheel and spun them at three different rates.
+       * A number a port cannot look up is a number a port will invent.
+       */
+      tyreRadiusM: TIRE_RADIUS,
     },
     /** Everything about burning and buying petrol that a port has to
      *  agree with. The burn model itself is displacement x revs x

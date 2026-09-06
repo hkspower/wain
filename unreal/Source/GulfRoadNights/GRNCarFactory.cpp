@@ -56,6 +56,18 @@ namespace
  */
 static constexpr float GRN_WIDTH_FOLLOWS_LENGTH = 1.f / 3.f;
 
+/**
+ * The tyre's rolling radius, metres, before the presence scale.
+ *
+ * Published by the web at gamedata.bodyShape.tyreRadiusM, and it is
+ * published because all three builds had invented their own: this file
+ * carried 0.40 in two places, the Unity port carried 0.33, and the web
+ * derives 0.375. One car, three sizes of wheel, spun at three different
+ * rates — and the comment beside the old literal said "Tire radius
+ * approximately 0.40 m", which was true of nothing.
+ */
+static constexpr float GRN_TYRE_RADIUS_M = 0.375f;
+
 static float StyleRefLength(EGRNBodyStyle Style)
 {
 	switch (Style)
@@ -253,7 +265,7 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 		UStaticMeshComponent* Wheel = NewObject<UStaticMeshComponent>(Parent);
 		Wheel->RegisterComponent();
 		Wheel->AttachToComponent(AttachTo, FAttachmentTransformRules::KeepRelativeTransform);
-		Wheel->SetRelativeLocation(FVector(W.X, W.Y, 0.40f * K) * 100.f);
+		Wheel->SetRelativeLocation(FVector(W.X, W.Y, GRN_TYRE_RADIUS_M * K) * 100.f);
 		if (HeroWheel)
 		{
 			// The art's wheel, scaled to the diameter the primitive had so
@@ -297,8 +309,8 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 
 void GRNCarFactory::SpinWheels(const FGRNCarRig& Rig, float SpeedMs, float Dt)
 {
-	// Tire radius ≈ 0.40 m → degrees per second at road speed
-	const float DegPerSec = FMath::RadiansToDegrees(SpeedMs / 0.40f);
+	// The tyre the web publishes → degrees per second at road speed
+	const float DegPerSec = FMath::RadiansToDegrees(SpeedMs / GRN_TYRE_RADIUS_M);
 	// The primitive is a cylinder rolled onto its side, so its own Z is
 	// the axle and the spin is a local yaw; a hero wheel is authored with
 	// the axle along Y, so its spin is a local pitch.

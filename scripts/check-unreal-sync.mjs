@@ -346,6 +346,21 @@ function ueRef(style) {
   return l !== null && w !== null ? { l, w } : null;
 }
 
+// ---- the tyre -------------------------------------------------------
+//
+// One number that all three builds had invented separately: 0.40 here,
+// 0.33 in Unity, 0.375 in the web. It is published now, so it is checked
+// — in both ports, against the same field.
+{
+  const want = api.bodyShape?.tyreRadiusM;
+  const got = +factorySrc.match(/GRN_TYRE_RADIUS_M = ([\d.]+)f;/)?.[1];
+  if (want === undefined) fail("the API no longer publishes bodyShape.tyreRadiusM");
+  else if (!(Math.abs(got - want) < 1e-6)) fail(`tyre radius: Unreal ${got} m vs web ${want} m`);
+  else if (/SpeedMs \/ 0\.\d+f/.test(factorySrc) || /W\.Y, 0\.\d+f \* K/.test(factorySrc)) {
+    fail("GRNCarFactory still has a hand-typed tyre radius beside the published one");
+  } else ok(`tyre: ${want} m, and the factory reads it in both the size and the spin`);
+}
+
 // ---- body shape -----------------------------------------------------
 //
 // The size of a car, which both ports were guessing at and guessing

@@ -399,12 +399,159 @@ if (cars.length !== api.cars.length) {
   }
 }
 
-if (failed) {
-  console.error("\nRun `npm run sync:unity` to regenerate GRNData.cs from the web source.");
-  
-process.exit(1);
+// The verdict lives at the BOTTOM of this file, and it has to. It used
+// to sit here, so it printed "in sync" before the last checks had run —
+// and everything added after it was reported on by nothing at all.
+
+// ---- rig ------------------------------------------------------------
+//
+// The Unreal port has checked its rig since it was written; Unity had no
+// rig at all, so a driver built in the C# client was built to whatever
+// numbers whoever wrote CarFactory had in mind that day. Same flattening
+// rule as the UE5 header (driver.upperArm -> DriverUpperArm), so the two
+// ports can be read against each other.
+{
+  const want = {};
+  for (const [group, fields] of Object.entries(api.rig ?? {})) {
+    for (const [k, v] of Object.entries(fields)) {
+      want[`${group[0].toUpperCase()}${group.slice(1)}${k[0].toUpperCase()}${k.slice(1)}`] = v;
+    }
+  }
+  const block = src.match(/public static class Rig\s*\{([\s\S]*?)\n    \}/);
+  if (!block) fail("rig: GRNData.cs has no Rig class");
+  else {
+    const cs = new Map(
+      [...block[1].matchAll(/public const float (\w+) = ([-\d.eE]+)f;/g)].map((m) => [m[1], +m[2]])
+    );
+    let rigOk = true;
+    for (const [k, v] of Object.entries(want)) {
+      if (!cs.has(k)) { fail(`rig ${k} missing from GRNData.cs`); rigOk = false; }
+      // Tolerance is the float32 the C# stores against the double the
+      // API sends: PI * 0.72 does not survive the trip exactly, and
+      // demanding that it does would report a rounding as a drift.
+      else if (Math.abs(cs.get(k) - v) > Math.max(1e-6, Math.abs(v) * 1e-6)) {
+        fail(`rig ${k}: Unity ${cs.get(k)} vs web ${v}`);
+        rigOk = false;
+      }
+    }
+    for (const k of cs.keys()) {
+      if (!(k in want)) { fail(`rig ${k} is in GRNData.cs but not in the web build`); rigOk = false; }
+    }
+    if (rigOk) ok(`rig: ${Object.keys(want).length} bone and joint constants match`);
+  }
 }
-console.log("\nWeb API and Unity data are in sync.");
+
+// ---- the tyre -------------------------------------------------------
+//
+// One number, and it was different in all three builds: 0.33 in Unity,
+// 0.40 in Unreal, 0.375 in the web. Checked here AND checked for being
+// generated rather than typed, because the failure was never the value
+// — it was that a port is allowed to hold its own copy at all.
+{
+  const want = api.bodyShape?.tyreRadiusM;
+  const got = +src.match(/public const float TyreRadius = ([\d.]+)f;/)?.[1];
+  if (want === undefined) fail("the API no longer publishes bodyShape.tyreRadiusM");
+  else if (!(Math.abs(got - want) < 1e-6)) fail(`tyre radius: Unity ${got} m vs web ${want} m`);
+  else {
+    const factory = readFileSync(SHAPE_FILE, "utf8");
+    const wired = /public const float WheelRadius = GRNData\.TyreRadius;/.test(factory);
+    if (!wired) {
+      fail("CarFactory.WheelRadius is a hand-typed number again — it must read GRNData.TyreRadius");
+    } else ok(`tyre: ${want} m, and CarFactory reads it rather than holding its own`);
+  }
+}
+
+// ---- the showroom ---------------------------------------------------
+//
+// Ninety-eight parts — the whole garage economy — and until now neither
+// port carried one of them, so nothing could have noticed a price
+// changing on one side of the wire and not the other.
+{
+  const want = new Map((api.parts ?? []).map((p) => [p.id, p]));
+  const cs = new Map(
+    [...src.matchAll(/new Part \{ Id = "([^"]+)", Cat = "([^"]+)", Price = (\d+) \}/g)]
+      .map((m) => [m[1], { cat: m[2], price: +m[3] }])
+  );
+  let partsOk = true;
+  if (cs.size !== want.size) {
+    fail(`parts: Unity has ${cs.size}, the web sells ${want.size}`);
+    partsOk = false;
+  }
+  for (const [id, p] of want) {
+    const u = cs.get(id);
+    if (!u) { fail(`part ${id} missing from GRNData.cs`); partsOk = false; continue; }
+    if (u.cat !== p.cat) { fail(`part ${id}: Unity slot "${u.cat}" vs web "${p.cat}"`); partsOk = false; }
+    if (u.price !== p.price) { fail(`part ${id}: Unity ${u.price} KD vs web ${p.price} KD`); partsOk = false; }
+  }
+  for (const id of cs.keys()) {
+    if (!want.has(id)) { fail(`part ${id} is in GRNData.cs but the web does not sell it`); partsOk = false; }
+  }
+  if (partsOk) ok(`parts: ${want.size} match (id, slot, price)`);
+}
+
+// ---- the paints -----------------------------------------------------
+{
+  const want = new Map((api.palette?.paints ?? []).map((p) => [p.id, p.color.toLowerCase()]));
+  const cs = new Map(
+    [...src.matchAll(/new Paint \{ Id = "([^"]+)", Color = Hex\(0x([0-9a-fA-F]{6})\) \}/g)]
+      .map((m) => [m[1], `#${m[2].toLowerCase()}`])
+  );
+  let paintOk = true;
+  if (cs.size !== want.size) {
+    fail(`paints: Unity has ${cs.size}, the web offers ${want.size}`);
+    paintOk = false;
+  }
+  for (const [id, hex] of want) {
+    if (!cs.has(id)) { fail(`paint ${id} missing from GRNData.cs`); paintOk = false; }
+    else if (cs.get(id) !== hex) { fail(`paint ${id}: Unity ${cs.get(id)} vs web ${hex}`); paintOk = false; }
+  }
+  if (paintOk) ok(`paints: ${want.size} match (id and colour)`);
+}
+
+// ---- nothing is quietly unchecked ------------------------------------
+//
+// The reason this block exists: before it, this file checked eight of
+// the fifteen things the web publishes and said "in sync" — the parts
+// catalogue, the palette, the rig, the carbon table and the social runs
+// were all outside it, and the report gave no hint that they were. A
+// check that covers most of a contract and reports like it covers all of
+// it is worse than one that admits its scope.
+//
+// So every key the API publishes must be named here, exactly once, as
+// either CHECKED above or DECLARED ABSENT with the reason the Unity port
+// does not carry it. Add a section to the API and this goes red until
+// somebody decides which it is — which is the only way "check all" stays
+// true after today.
+{
+  const CHECKED = [
+    "apiVersion", "track", "rivals", "engines", "cars", "fuel",
+    "handling", "bodyShape", "rig", "parts", "palette",
+  ];
+  const ABSENT = {
+    game: "the title string; nothing in the port renders it from data",
+    generatedAt: "a timestamp on the response, not game data — it differs on every request by design",
+    carbon: "the carbon-saving readout is a web/hub feature; the Unity client has no results screen that shows it",
+    runs: "the social runs are scored by the hub against other players online, which the offline Unity client does not join",
+  };
+  const keys = Object.keys(api);
+  const unclaimed = keys.filter((k) => !CHECKED.includes(k) && !(k in ABSENT));
+  const stale = [...CHECKED, ...Object.keys(ABSENT)].filter((k) => !keys.includes(k));
+  if (unclaimed.length) {
+    fail(
+      `coverage: the API publishes ${unclaimed.join(", ")} and this check neither verifies it nor ` +
+        `declares the Unity port does without it — decide which, in check-unity-sync.mjs`
+    );
+  }
+  if (stale.length) {
+    fail(`coverage: this check still names ${stale.join(", ")}, which the API no longer publishes`);
+  }
+  if (!unclaimed.length && !stale.length) {
+    ok(
+      `coverage: all ${keys.length} published sections accounted for — ${CHECKED.length} checked, ` +
+        `${Object.keys(ABSENT).length} declared absent with a reason`
+    );
+  }
+}
 
 // --- Does the generated C# actually reference only things it declares?
 //
@@ -436,3 +583,10 @@ console.log("\nWeb API and Unity data are in sync.");
     }
   }
 }
+
+// ---- the verdict, once everything above has actually run -------------
+if (failed || process.exitCode) {
+  console.error("\nRun `npm run sync:unity` to regenerate GRNData.cs from the web source.");
+  process.exit(1);
+}
+console.log("\nWeb API and Unity data are in sync.");

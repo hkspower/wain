@@ -58,13 +58,42 @@ pipeline was added it had silently fallen **two rivals and an entire
 That is what a duplicated table does over time. `npm run check:unity`
 now diffs the generated data against the live API — every rival's
 name, crew, area, colour, top speed, body style, prize and voice line,
-every car's price and handling figures, all 16 handling constants, and
-the API version both sides claim — and exits non-zero on any mismatch,
-so it cannot drift again unnoticed.
+every car's price and handling figures, all 150 handling constants, all
+97 rig constants, all 98 parts in the showroom, all 31 paints, the tyre,
+the body-shape law and the API version both sides claim — and exits
+non-zero on any mismatch, so it cannot drift again unnoticed.
+
+### And it checks that it checks everything
+
+For a while it did not. It covered eight of the fifteen things the API
+publishes and printed "in sync" — the showroom, the palette, the rig,
+the carbon table and the social runs were all outside it, and nothing in
+the report hinted that they were. A check that covers most of a contract
+and reports like it covers all of it is worse than one that admits its
+scope.
+
+So the last section is a coverage gate: every key the API publishes must
+be named in the check exactly once, either as verified or as **declared
+absent with the reason the Unity port does without it**. Add a section to
+the API and `check:unity` goes red until somebody decides which it is.
+Today that is eleven checked and four declared absent — the title
+string, the response timestamp, the carbon readout (a web/hub results
+screen this client has no equivalent of) and the social runs (scored by
+the hub against other players online, which an offline client does not
+join).
+
+The gate is what keeps "checks everything" true after today, rather than
+true on the day it was written.
 
 Crucially the generated data is **read by the game**, not just verified:
-`TrackSpline` builds the road from `GRNData.ControlPoints`, and the
-handling model reads `GRNData.Handling` rather than its own literals.
+`TrackSpline` builds the road from `GRNData.ControlPoints`, the handling
+model reads `GRNData.Handling` rather than its own literals, and
+`CarFactory.WheelRadius` reads `GRNData.TyreRadius`. That last one is
+the example: it was `0.33f`, typed by hand, against the web's 0.375 and
+the Unreal port's 0.40 — one car with three sizes of wheel across three
+builds, spun at three different rates. The check now asserts both the
+value AND that the C# still reads it rather than holding its own copy,
+because the value was never really the problem.
 A contract test that green-lights numbers nothing consumes is worse than
 none — it reports safety it cannot deliver.
 

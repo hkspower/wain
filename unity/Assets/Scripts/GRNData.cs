@@ -441,6 +441,7 @@ public static class GRNData
         public const float CasterRate = 2.4f;
         public const float CasterRefSpeed = 40f;
         public const float HeadingClamp = 0.45f;
+        public const float RoadWheelLock = 0.52f;
         public const float FlashRangeM = 60f;
         public const float DriftMinSpeed = 14f;
         public const float DriftAngleBase = 0.38f;
@@ -516,6 +517,9 @@ public static class GRNData
         public const float PowerOverFwd = 0.1f;
         public const float DownforceRefSpeed = 70f;
         public const float DownforceMax = 6f;
+        public const float WingAirbrakeRad = 0.5f;
+        public const float WingTrimRad = 0.1f;
+        public const float WingRate = 1.7f;
         public const float TowReach = 26f;
         public const float TowMax = 0.42f;
         public const float TowFalloff = 9f;
@@ -607,6 +611,7 @@ public static class GRNData
         public const double CasterRate = 2.4;
         public const double CasterRefSpeed = 40;
         public const double HeadingClamp = 0.45;
+        public const double RoadWheelLock = 0.52;
         public const double FlashRangeM = 60;
         public const double DriftMinSpeed = 14;
         public const double DriftAngleBase = 0.38;
@@ -682,6 +687,9 @@ public static class GRNData
         public const double PowerOverFwd = 0.1;
         public const double DownforceRefSpeed = 70;
         public const double DownforceMax = 6;
+        public const double WingAirbrakeRad = 0.5;
+        public const double WingTrimRad = 0.1;
+        public const double WingRate = 1.7;
         public const double TowReach = 26;
         public const double TowMax = 0.42;
         public const double TowFalloff = 9;
@@ -740,6 +748,268 @@ public static class GRNData
         public const double TrafficSpBase = 4;
         public const double TrafficSpK = 8;
     }
+
+    /// <summary>
+    /// The driver rig: bone lengths, joint offsets, grip angles, pedal
+    /// travel, neck limits. Flattened from src/game/rig.ts by the same
+    /// rule the UE5 header uses — driver.upperArm becomes
+    /// DriverUpperArm — so the two ports name the same thing the same
+    /// way and one contract check can be read against the other.
+    ///
+    /// Nothing here may be typed by hand. A rig constant that lives in
+    /// C# is a rig the web build cannot move.
+    /// </summary>
+    /// <summary>The tyre's rolling radius in metres, before the
+    /// silhouette's own presence scale. CarFactory sizes the wheels from
+    /// it and GameController rolls them at it — a mismatch makes every
+    /// car look like it is slipping its tyres.</summary>
+    public const float TyreRadius = 0.375f;
+
+    public static class Rig
+    {
+        public const float DriverShoulderX = 0.16f;
+        public const float DriverShoulderY = 0.46f;
+        public const float DriverShoulderZ = -0.04f;
+        public const float DriverUpperArm = 0.29f;
+        public const float DriverForeArm = 0.26f;
+        public const float DriverHipX = 0.09f;
+        public const float DriverHipY = 0.17f;
+        public const float DriverHipZ = 0.05f;
+        public const float DriverThigh = 0.27f;
+        public const float DriverShin = 0.27f;
+        public const float DriverHipPitch = -1.15f;
+        public const float DriverKneePitch = 0.95f;
+        public const float DriverHeadY = 0.52f;
+        public const float DriverHeadZ = 0.02f;
+        public const float DriverWheelY = 0.44f;
+        public const float DriverWheelZ = 0.24f;
+        public const float DriverWheelRake = -0.42f;
+        public const float DriverLeanPerG = 0.115f;
+        public const float DriverFoldPerG = 0.075f;
+        public const float DriverLeanRate = 5.5f;
+        public const float DriverHeadCounter = 0.45f;
+        public const float DriverWheelRadius = 0.16f;
+        public const float DriverGripLeft = 2.261946710584651f;
+        public const float DriverGripRight = 0.8796459430051422f;
+        public const float DriverSteerLock = 2.4f;
+        public const float DriverWheelRate = 12f;
+        public const float DriverPedalThrottleX = 0.1f;
+        public const float DriverPedalBrakeX = -0.08f;
+        public const float DriverPedalY = 0.09f;
+        public const float DriverPedalZ = 0.46f;
+        public const float DriverPedalPitch = -0.55f;
+        public const float DriverPedalTravelZ = 0.05f;
+        public const float DriverPedalTravelY = 0.015f;
+        public const float DriverArmPoleX = 0.51f;
+        public const float DriverArmPoleY = -0.04f;
+        public const float DriverArmPoleZ = -0.06f;
+        public const float DriverLegPoleX = 0.22f;
+        public const float DriverLegPoleY = 1.1f;
+        public const float DriverLegPoleZ = 0.42f;
+        public const float DriverGripCarryMax = 1.05f;
+        public const float DriverHandbrakeX = -0.3f;
+        public const float DriverHandbrakeY = 0.16f;
+        public const float DriverHandbrakeZ = 0.02f;
+        public const float DriverHandbrakeLen = 0.26f;
+        public const float DriverHandbrakeTilt = 1.12f;
+        public const float DriverHandbrakeThrow = 0.5f;
+        public const float DriverHandbrakeRate = 10f;
+        public const float DriverLookAheadM = 26f;
+        public const float DriverLookLatK = 0.4f;
+        public const float DriverLookHeight = 1.1f;
+        public const float DriverElbowMinDeg = 8f;
+        public const float DriverElbowMaxDeg = 150f;
+        public const float DriverKneeMinDeg = 12f;
+        public const float DriverKneeMaxDeg = 140f;
+        public const float DriverSoftReach = 0.08f;
+        public const float DriverNeckYaw = 0.7f;
+        public const float DriverNeckPitch = 0.28f;
+        public const float DriverNeckRate = 5f;
+        public const float RivalSteerPerLat = 0.45f;
+        public const float RivalSteerRate = 4f;
+        public const float RivalPedalRate = 6f;
+        public const float RivalThrottleAccel = 0.3f;
+        public const float RivalThrottleScale = 8f;
+        public const float RivalBrakeAccel = -1f;
+        public const float RivalBrakeScale = 10f;
+        public const float RivalCruiseThrottle = 0.2f;
+        public const float RivalGlanceGapM = 12f;
+        public const float RivalGlanceLatM = 1.2f;
+        public const float SpectatorShoulderX = 0.2f;
+        public const float SpectatorShoulderY = 1.28f;
+        public const float SpectatorArmAbduction = 0.15f;
+        public const float SpectatorUpperArm = 0.28f;
+        public const float SpectatorForeArm = 0.25f;
+        public const float SpectatorHeadY = 1.5f;
+        public const float RacerShoulderX = 0.19f;
+        public const float RacerShoulderY = 1.4f;
+        public const float RacerUpperArm = 0.28f;
+        public const float RacerForeArm = 0.26f;
+        public const float RacerHeadY = 1.64f;
+        public const float CrowdWatchRangeM = 90f;
+        public const float CrowdNeckYaw = 1.15f;
+        public const float CrowdNeckPitch = 0.3f;
+        public const float CrowdNeckRate = 6f;
+        public const float CrowdBodyRate = 1.2f;
+        public const float CrowdRestRate = 1.5f;
+        public const float CrowdWaveRangeM = 45f;
+        public const float CrowdLiftUpRate = 2.2f;
+        public const float CrowdLiftDownRate = 1.1f;
+        public const float CrowdWagHz = 6.5f;
+        public const float CrowdWagAmp = 0.3f;
+        public const float CrowdReach = 0.94f;
+        public const float CrowdRaiseUp = 0.87f;
+        public const float CrowdRaiseOut = 0.45f;
+        public const float CrowdStillEvery = 3f;
+        public const float CrowdPoleX = 0.6f;
+        public const float CrowdPoleY = -0.2f;
+        public const float CrowdPoleZ = 0.05f;
+    }
+
+    /// <summary>What the garage sells: id, the slot it fills, and the
+    /// price in KD. The prose belongs with the UI that shows it; a port
+    /// cannot invent a price.</summary>
+    public class Part { public string Id; public string Cat; public int Price; }
+
+    public static readonly Part[] Parts =
+    {
+        new Part { Id = "engine-i4-16", Cat = "engine", Price = 900 },
+        new Part { Id = "engine-i4-20t", Cat = "engine", Price = 2200 },
+        new Part { Id = "engine-f6-25", Cat = "engine", Price = 3800 },
+        new Part { Id = "engine-i6-30tt", Cat = "engine", Price = 5200 },
+        new Part { Id = "engine-v8-57", Cat = "engine", Price = 6500 },
+        new Part { Id = "turbo", Cat = "aspiration", Price = 1200 },
+        new Part { Id = "supercharger", Cat = "aspiration", Price = 1500 },
+        new Part { Id = "twin-turbo", Cat = "aspiration", Price = 2800 },
+        new Part { Id = "ecu", Cat = "internals", Price = 400 },
+        new Part { Id = "exhaust", Cat = "exhaust", Price = 350 },
+        new Part { Id = "exhaust-square", Cat = "exhaust", Price = 520 },
+        new Part { Id = "exhaust-race", Cat = "exhaust", Price = 900 },
+        new Part { Id = "exhaust-twin", Cat = "exhaust", Price = 1350 },
+        new Part { Id = "exhaust-ti", Cat = "exhaust", Price = 1800 },
+        new Part { Id = "intake-basic", Cat = "intake", Price = 0 },
+        new Part { Id = "intake", Cat = "intake", Price = 250 },
+        new Part { Id = "brakes-sport", Cat = "brakes", Price = 500 },
+        new Part { Id = "brakes-race", Cat = "brakes", Price = 1000 },
+        new Part { Id = "brakes-carbon", Cat = "brakes", Price = 1800 },
+        new Part { Id = "tires-sport", Cat = "tires", Price = 400 },
+        new Part { Id = "tires-race", Cat = "tires", Price = 900 },
+        new Part { Id = "tires-slick", Cat = "tires", Price = 1600 },
+        new Part { Id = "tires-drift", Cat = "tires", Price = 1100 },
+        new Part { Id = "gearbox-close", Cat = "gearbox", Price = 1400 },
+        new Part { Id = "gearbox-tall", Cat = "gearbox", Price = 1400 },
+        new Part { Id = "lsd", Cat = "chassis", Price = 1300 },
+        new Part { Id = "coilovers", Cat = "chassis", Price = 900 },
+        new Part { Id = "cage", Cat = "chassis", Price = 1500 },
+        new Part { Id = "rack", Cat = "chassis", Price = 700 },
+        new Part { Id = "weight", Cat = "extras", Price = 800 },
+        new Part { Id = "nos", Cat = "extras", Price = 1000 },
+        new Part { Id = "spoiler", Cat = "extras", Price = 300 },
+        new Part { Id = "gold-rims", Cat = "extras", Price = 600 },
+        new Part { Id = "stickers", Cat = "extras", Price = 450 },
+        new Part { Id = "sticker-full", Cat = "extras", Price = 380 },
+        new Part { Id = "sidewall-rwl", Cat = "sidewall", Price = 220 },
+        new Part { Id = "sidewall-retro", Cat = "sidewall", Price = 240 },
+        new Part { Id = "sidewall-moulded", Cat = "sidewall", Price = 120 },
+        new Part { Id = "lamps-smoked", Cat = "lamps", Price = 550 },
+        new Part { Id = "lamps-single", Cat = "lamps", Price = 700 },
+        new Part { Id = "film-dyed", Cat = "film", Price = 180 },
+        new Part { Id = "film-carbon", Cat = "film", Price = 520 },
+        new Part { Id = "film-mirror", Cat = "film", Price = 950 },
+        new Part { Id = "bulb-halogen", Cat = "bulbs", Price = 90 },
+        new Part { Id = "bulb-led", Cat = "bulbs", Price = 850 },
+        new Part { Id = "bulb-laser", Cat = "bulbs", Price = 2400 },
+        new Part { Id = "paint-white", Cat = "paint", Price = 0 },
+        new Part { Id = "paint-black", Cat = "paint", Price = 150 },
+        new Part { Id = "paint-molasses", Cat = "paint", Price = 200 },
+        new Part { Id = "paint-mudbrick", Cat = "paint", Price = 200 },
+        new Part { Id = "paint-diver", Cat = "paint", Price = 250 },
+        new Part { Id = "paint-sage", Cat = "paint", Price = 200 },
+        new Part { Id = "paint-indigo", Cat = "paint", Price = 250 },
+        new Part { Id = "paint-mauve", Cat = "paint", Price = 200 },
+        new Part { Id = "paint-violet", Cat = "paint", Price = 300 },
+        new Part { Id = "paint-signal", Cat = "paint", Price = 300 },
+        new Part { Id = "paint-red", Cat = "paint", Price = 150 },
+        new Part { Id = "paint-gold", Cat = "paint", Price = 250 },
+        new Part { Id = "paint-teal", Cat = "paint", Price = 200 },
+        new Part { Id = "paint-silver", Cat = "paint", Price = 150 },
+        new Part { Id = "paint-gunmetal", Cat = "paint", Price = 200 },
+        new Part { Id = "paint-navy", Cat = "paint", Price = 200 },
+        new Part { Id = "paint-orange", Cat = "paint", Price = 250 },
+        new Part { Id = "paint-purple", Cat = "paint", Price = 250 },
+        new Part { Id = "paint-lime", Cat = "paint", Price = 300 },
+        new Part { Id = "paint-sand", Cat = "paint", Price = 200 },
+        new Part { Id = "paint-maroon", Cat = "paint", Price = 200 },
+        new Part { Id = "paint-slate", Cat = "paint", Price = 200 },
+        new Part { Id = "paint-bronze", Cat = "paint", Price = 200 },
+        new Part { Id = "paint-olive", Cat = "paint", Price = 200 },
+        new Part { Id = "paint-palm", Cat = "paint", Price = 250 },
+        new Part { Id = "paint-gulf", Cat = "paint", Price = 250 },
+        new Part { Id = "paint-mint", Cat = "paint", Price = 250 },
+        new Part { Id = "paint-ice", Cat = "paint", Price = 250 },
+        new Part { Id = "paint-rose", Cat = "paint", Price = 250 },
+        new Part { Id = "paint-coral", Cat = "paint", Price = 250 },
+        new Part { Id = "paint-yellow", Cat = "paint", Price = 250 },
+        new Part { Id = "finish-gloss", Cat = "finish", Price = 0 },
+        new Part { Id = "finish-satin", Cat = "finish", Price = 700 },
+        new Part { Id = "finish-matte", Cat = "finish", Price = 1100 },
+        new Part { Id = "glow-none", Cat = "glow", Price = 0 },
+        new Part { Id = "glow-cyan", Cat = "glow", Price = 200 },
+        new Part { Id = "glow-green", Cat = "glow", Price = 200 },
+        new Part { Id = "glow-purple", Cat = "glow", Price = 200 },
+        new Part { Id = "glow-red", Cat = "glow", Price = 200 },
+        new Part { Id = "glow-amber", Cat = "glow", Price = 200 },
+        new Part { Id = "glow-pink", Cat = "glow", Price = 200 },
+        new Part { Id = "glow-white", Cat = "glow", Price = 250 },
+        new Part { Id = "cover-none", Cat = "cover", Price = 0 },
+        new Part { Id = "cover-red", Cat = "cover", Price = 350 },
+        new Part { Id = "cover-blue", Cat = "cover", Price = 350 },
+        new Part { Id = "cover-black", Cat = "cover", Price = 300 },
+        new Part { Id = "cover-gold", Cat = "cover", Price = 450 },
+        new Part { Id = "cover-alloy", Cat = "cover", Price = 400 },
+        new Part { Id = "cover-green", Cat = "cover", Price = 350 },
+        new Part { Id = "carbon-none", Cat = "carbon", Price = 0 },
+        new Part { Id = "carbon-panels", Cat = "carbon", Price = 1800 },
+        new Part { Id = "carbon-full", Cat = "carbon", Price = 3200 },
+    };
+
+    /// <summary>Every colour a car can be sprayed.</summary>
+    public class Paint { public string Id; public Color Color; }
+
+    public static readonly Paint[] Paints =
+    {
+        new Paint { Id = "paint-black", Color = Hex(0x0d0e11) },
+        new Paint { Id = "paint-gunmetal", Color = Hex(0x4a5058) },
+        new Paint { Id = "paint-slate", Color = Hex(0x8593a2) },
+        new Paint { Id = "paint-silver", Color = Hex(0xb9bfc7) },
+        new Paint { Id = "paint-white", Color = Hex(0xf2f4f7) },
+        new Paint { Id = "paint-maroon", Color = Hex(0x5e1420) },
+        new Paint { Id = "paint-bronze", Color = Hex(0x8a5a2a) },
+        new Paint { Id = "paint-olive", Color = Hex(0x6d6a2f) },
+        new Paint { Id = "paint-red", Color = Hex(0xc1121f) },
+        new Paint { Id = "paint-gold", Color = Hex(0xb0ab28) },
+        new Paint { Id = "paint-sand", Color = Hex(0xd0cb9d) },
+        new Paint { Id = "paint-molasses", Color = Hex(0x81565e) },
+        new Paint { Id = "paint-mudbrick", Color = Hex(0xa7917b) },
+        new Paint { Id = "paint-navy", Color = Hex(0x16305e) },
+        new Paint { Id = "paint-palm", Color = Hex(0x1d6b3f) },
+        new Paint { Id = "paint-teal", Color = Hex(0x2e8f96) },
+        new Paint { Id = "paint-gulf", Color = Hex(0x1e7fd4) },
+        new Paint { Id = "paint-mint", Color = Hex(0x7fd8b0) },
+        new Paint { Id = "paint-ice", Color = Hex(0x86c6e6) },
+        new Paint { Id = "paint-diver", Color = Hex(0x07362d) },
+        new Paint { Id = "paint-sage", Color = Hex(0x7f9376) },
+        new Paint { Id = "paint-indigo", Color = Hex(0x695ce0) },
+        new Paint { Id = "paint-purple", Color = Hex(0x5b2a86) },
+        new Paint { Id = "paint-rose", Color = Hex(0xd9557f) },
+        new Paint { Id = "paint-orange", Color = Hex(0xef7a0a) },
+        new Paint { Id = "paint-coral", Color = Hex(0xffab95) },
+        new Paint { Id = "paint-yellow", Color = Hex(0xf7e21c) },
+        new Paint { Id = "paint-lime", Color = Hex(0x9ad11f) },
+        new Paint { Id = "paint-violet", Color = Hex(0xc814f5) },
+        new Paint { Id = "paint-signal", Color = Hex(0x079d25) },
+        new Paint { Id = "paint-mauve", Color = Hex(0x806986) },
+    };
 
     static Color Hex(int rgb) =>
         new Color(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f);

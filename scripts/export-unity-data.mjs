@@ -12,6 +12,7 @@
 // Hand-maintained duplicates of game data always rot — generate them.
 
 import { readFileSync, writeFileSync } from "node:fs";
+import { readRig } from "./lib/rig-literal.mjs";
 
 const read = (p) => readFileSync(p, "utf8");
 // Strip comments first: a ')' or a quote inside one would derail the
@@ -194,6 +195,70 @@ for (const k of needed) {
 }
 
 const apiVersion = +read("src/game/api.ts").match(/GRN_API_VERSION = (\d+)/)[1];
+
+// ---- the rig ---------------------------------------------------------
+//
+// Bone lengths, joint offsets, grip angles, pedal travel, neck limits.
+// The Unreal port has carried these since it was written and Unity never
+// did, so a driver built in Unity was built to somebody's guess: the
+// only rig-shaped number in the whole C# port was CarFactory's own
+// wheel radius, typed by hand.
+//
+// Read through the one reader — scripts/lib/rig-literal.mjs — the same
+// one the Blender profiles and the UE5 header go through, because RIG
+// holds expressions (`Math.PI * 0.72` says ten-to-two far better than
+// 2.26194671 does) that a regex cannot evaluate. Flattened the same way
+// too: `driver.upperArm` becomes `DriverUpperArm`, which is the rule
+// flatRig() in rig.ts and both port checks already use. Three places
+// must agree on that rule or a contract check compares two different
+// sets of names and reports every field twice.
+const cap = (t) => t[0].toUpperCase() + t.slice(1);
+const rigObj = readRig();
+const rig = {};
+for (const [group, fields] of Object.entries(rigObj)) {
+  for (const [k, v] of Object.entries(fields)) {
+    if (typeof v !== "number" || !Number.isFinite(v)) {
+      throw new Error(`rig ${group}.${k} is not a finite number: ${v}`);
+    }
+    rig[cap(group) + cap(k)] = v;
+  }
+}
+
+// ---- the showroom ----------------------------------------------------
+//
+// Ninety-eight parts, which is the entire garage economy, and neither
+// port carried a single one of them. A Unity build could show you a car
+// and never sell you anything for it.
+//
+// Prices and categories only — not the prose. The English and Arabic
+// descriptions are UI copy and belong wherever the UI is built; what a
+// port cannot invent for itself is what a thing COSTS and what slot it
+// occupies, because those are what the economy is made of and what would
+// silently drift.
+const partsBlock = modsTs.match(/export const PARTS: Part\[\] = \[(.*?)\n\];/s)[1];
+const parts = [...partsBlock.matchAll(/\{\s*id:\s*"([^"]+)"[^}]*?cat:\s*"([^"]+)"[^}]*?price:\s*(\d+)/gs)].map(
+  ([, id, cat, price]) => ({ id, cat, price: +price })
+);
+if (parts.length < 90) throw new Error(`only ${parts.length} parts parsed — the PARTS regex has drifted`);
+
+// ---- the paints ------------------------------------------------------
+//
+// What a car can be sprayed. The Unity Car record already has a `Paint`
+// colour, so the port can render one car in one colour; it had no way to
+// offer the other thirty-odd, and no way to know which family a colour
+// belongs to.
+// The tyre, before a silhouette's presence scale is applied. Read from
+// cars.ts rather than typed in C#, because it was typed in C# and it had
+// drifted: Unity carried 0.33, Unreal 0.40 and the web 0.375, so the
+// same car rolled on three sizes of wheel across the three builds and
+// GameController spun them at a rate 12% out.
+const tyreRadius = +read("src/game/cars.ts").match(/export const TIRE_RADIUS = ([\d.]+);/)[1];
+
+const paintsBlock = read("src/game/paints.ts").match(/export const PAINTS[^=]*=\s*\[(.*?)\n\];/s)[1];
+const paints = [...paintsBlock.matchAll(/\{\s*id:\s*"([^"]+)",[^}]*?hex:\s*(0x[0-9a-fA-F]+)/gs)].map(
+  ([, id, hex]) => ({ id, hex: parseInt(hex, 16) })
+);
+if (paints.length < 20) throw new Error(`only ${paints.length} paints parsed — the PAINTS regex has drifted`);
 
 // --------------------------------------------------------------- emit C#
 // The C# names for each web BodyStyle. The ENUM ITSELF is generated from
@@ -455,6 +520,45 @@ ${Object.keys(handling).map((k) => `        public const float ${k[0].toUpperCas
 ${Object.keys(handling).map((k) => `        public const double ${k[0].toUpperCase()}${k.slice(1)} = ${handling[k]};`).join("\n")}
     }
 
+    /// <summary>
+    /// The driver rig: bone lengths, joint offsets, grip angles, pedal
+    /// travel, neck limits. Flattened from src/game/rig.ts by the same
+    /// rule the UE5 header uses — driver.upperArm becomes
+    /// DriverUpperArm — so the two ports name the same thing the same
+    /// way and one contract check can be read against the other.
+    ///
+    /// Nothing here may be typed by hand. A rig constant that lives in
+    /// C# is a rig the web build cannot move.
+    /// </summary>
+    /// <summary>The tyre's rolling radius in metres, before the
+    /// silhouette's own presence scale. CarFactory sizes the wheels from
+    /// it and GameController rolls them at it — a mismatch makes every
+    /// car look like it is slipping its tyres.</summary>
+    public const float TyreRadius = ${f(tyreRadius)};
+
+    public static class Rig
+    {
+${Object.entries(rig).map(([k, v]) => `        public const float ${k} = ${f(v)};`).join("\n")}
+    }
+
+    /// <summary>What the garage sells: id, the slot it fills, and the
+    /// price in KD. The prose belongs with the UI that shows it; a port
+    /// cannot invent a price.</summary>
+    public class Part { public string Id; public string Cat; public int Price; }
+
+    public static readonly Part[] Parts =
+    {
+${parts.map((p) => `        new Part { Id = "${p.id}", Cat = "${p.cat}", Price = ${p.price} },`).join("\n")}
+    };
+
+    /// <summary>Every colour a car can be sprayed.</summary>
+    public class Paint { public string Id; public Color Color; }
+
+    public static readonly Paint[] Paints =
+    {
+${paints.map((p) => `        new Paint { Id = "${p.id}", Color = Hex(0x${p.hex.toString(16).padStart(6, "0")}) },`).join("\n")}
+    };
+
     static Color Hex(int rgb) =>
         new Color(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f);
 }
@@ -464,6 +568,7 @@ writeFileSync("unity/Assets/Scripts/GRNData.cs", out);
 console.log(
   `GRNData.cs regenerated: ${points.length} track points, ${rivals.length} rivals, ` +
     `${engines.length} engines, ${cars.length} cars, ${stations.length} stations, ` +
-    `${Object.keys(handling).length} handling constants, ` +
+    `${Object.keys(handling).length} handling constants, ${Object.keys(rig).length} rig constants, ` +
+    `${parts.length} parts, ${paints.length} paints, tyre radius ${tyreRadius} m, ` +
     `apiVersion ${apiVersion}.`
 );

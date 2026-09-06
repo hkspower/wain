@@ -113,8 +113,14 @@ public static class CarFactory
 
     /// <summary>Tyre radius in metres. GameController rolls the wheels at
     /// this rate — a mismatch here makes every car look like it is
-    /// slipping its tyres.</summary>
-    public const float WheelRadius = 0.33f;
+    /// slipping its tyres.
+    ///
+    /// Generated, not typed. It was typed: 0.33 here against the web's
+    /// 0.375 and the Unreal port's 0.40, so one car had three sizes of
+    /// wheel across the three builds and this one spun them 12% fast.
+    /// Nothing in this file may hold a number the web build also
+    /// holds.</summary>
+    public const float WheelRadius = GRNData.TyreRadius;
 
     public static Car Create(Color body, Color? accent = null,
         BodyStyle style = BodyStyle.Sedan, bool attackKit = false,
