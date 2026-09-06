@@ -1,0 +1,25 @@
+{
+ "car": "zeta-300-gtr",
+ "tier": "ultra",
+ "roll": 0,
+ "pitch": 0,
+ "yaw": 0,
+ "fronts": [
+  -0.52,
+  -0.389
+ ],
+ "hubs": [
+  0,
+  0,
+  0,
+  0
+ ],
+ "wing": 0,
+ "speedKmh": 14,
+ "latAccel": -0.01,
+ "buffer": [
+  3840,
+  2160
+ ],
+ "scene": "full lock at 15 km/h, front quarter"
+}

@@ -1,0 +1,36 @@
+{
+ "car": "zeta-300-gtr",
+ "tier": "ultra",
+ "roll": -1.07,
+ "pitch": 1.1,
+ "yaw": 0.7,
+ "fronts": [
+  0,
+  0
+ ],
+ "hubs": [
+  0,
+  0,
+  0,
+  0
+ ],
+ "wing": -0.022,
+ "speedKmh": 119,
+ "latAccel": 5.91,
+ "buffer": [
+  3840,
+  2160
+ ],
+ "scene": "a civilian through Ras Al-Ard at 120 km/h",
+ "trafficRoll": -2.5,
+ "trafficHubs": [
+  0,
+  0,
+  0,
+  0
+ ],
+ "trafficFronts": [
+  0.169,
+  0.188
+ ]
+}

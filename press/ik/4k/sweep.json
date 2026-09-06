@@ -1,0 +1,38 @@
+{
+ "car": "zeta-300-gtr",
+ "tier": "ultra",
+ "roll": -1.02,
+ "pitch": 1.1,
+ "yaw": 0,
+ "fronts": [
+  0,
+  0
+ ],
+ "hubs": [
+  0,
+  0,
+  0,
+  0
+ ],
+ "wing": -0.022,
+ "speedKmh": 119,
+ "latAccel": 5.64,
+ "buffer": [
+  3840,
+  2160
+ ],
+ "scene": "Ras Al-Ard at 120 km/h, wheel straight",
+ "rival": "storm-s8",
+ "rivalRoll": -1.79,
+ "rivalHubs": [
+  0,
+  0,
+  0,
+  0
+ ],
+ "rivalFronts": [
+  0,
+  0
+ ],
+ "rivalWing": -0.022
+}

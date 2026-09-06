@@ -202,10 +202,11 @@ results.sweep = await shoot("sweep", `
   const outside = a.side.clone().multiplyScalar(Math.sign(a.up.dot(a.side)) || 1);
   const rp = new V().setFromMatrixPosition(r.mesh.matrixWorld);
   const mid = a.pos.clone().add(rp).multiplyScalar(0.5);
-  const cam = mid.clone().add(a.fwd.clone().multiplyScalar(4.5)).add(outside.multiplyScalar(-9));
-  cam.y = a.pos.y + 0.8;
+  // Stays on the tarmac: past about 6 m the camera is behind the rail.
+  const cam = mid.clone().add(a.fwd.clone().multiplyScalar(7)).add(outside.multiplyScalar(-5.5));
+  cam.y = a.pos.y + 1.1;
   const rt = tilt(r.mesh);
-  return { cam: cam.toArray(), look: [mid.x, a.pos.y + 0.55, mid.z], fov: 40,
+  return { cam: cam.toArray(), look: [mid.x, a.pos.y + 0.55, mid.z], fov: 46,
     note: { scene: "Ras Al-Ard at 120 km/h, wheel straight", rival: r.def.carId, rivalRoll: +(rt.roll*180/Math.PI).toFixed(2), rivalHubs: hubs(r.mesh), rivalFronts: fronts(r.mesh), rivalWing: r.mesh.userData.wing ? +r.mesh.userData.wing.rotation.x.toFixed(3) : null } };
 `);
 
