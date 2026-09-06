@@ -51,9 +51,24 @@ test in the repo failed at once. It had never been in `package.json` — it was
 present only because the container image happened to ship it.
 
 **`npm ci` on any other machine would have failed exactly the same way**, and
-the whole test suite with it. `playwright` and `esbuild` are declared now, and
-the scripts use the local `esbuild` rather than `npx -y esbuild`, which was
-downloading it afresh on every run.
+the whole test suite with it. `playwright` and `esbuild` are declared now, so
+the download that used to happen on every run does not.
+
+This paragraph used to claim the scripts had been changed to call the local
+`esbuild` binary instead of `npx -y esbuild`. **They had not**, and nine call
+sites still go through `npx` — `gen-voice`, `gen-photos`, `gen-voice-fixture`,
+`audit-search`, `audit-places`, `audit-photos`, `map-frame`, `hangout` and the
+شوق runner. The declaration is what fixed the problem, not the call sites:
+with `esbuild` in `package.json`, `npx` resolves it from `node_modules` in
+0.36s and fetches nothing. So the outcome the old sentence claimed is real and
+its mechanism was not, which is the worse of the two ways to be wrong — anyone
+grepping for a local-binary call would have found nothing and had to work out
+why the claim did not match the code.
+
+Left as `npx` deliberately: it resolves locally, and rewriting nine call sites
+to save a third of a second each is not worth the churn. What matters is that
+`esbuild` stays declared — remove it and every one of those nine starts
+downloading again.
 
 ## Known advisories
 
