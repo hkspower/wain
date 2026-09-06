@@ -117,6 +117,52 @@ flaky in both directions all along.
 So: correctness within noise, turn-taking clearly worse, and off it stays.
 Re-test both numbers before turning it back on.
 
+## Handing the turn back — where the silence actually comes from
+
+The 12-of-18 hand-back figure above was treated as a phrasing problem, and
+the first fix was phrasing: the closing question became the mandatory fifth
+step of the answer shape in the brief and the live prompt, a floor where the
+other four steps are a ceiling. Measured on 6 September (9 tests × 2):
+**18/18 correct, hand-back 13 of 18**. One better than before, and eight of
+the nine pairs came back character-identical — the agent runs at temperature
+0, so a repeat is not a second sample and «18 runs» is really nine.
+
+Reading the two transcripts that still went quiet showed the number was
+measuring the wrong thing. Neither answer lacked a question because she forgot
+one. In both, she gave the recommendation, **called `show_places`, and then
+the turn generated after the tool result was empty** — no «حطيتهم لك على
+الخريطة», no question, nothing. The turns without a tool call handed back
+every time. The fault is not in the sentence she writes before the tool; it is
+that the sentence after the tool is not written at all.
+
+Two changes, one per side of that boundary:
+
+- **The prompt** now says it explicitly, in the tools section and in call
+  habit ٢: the reply after `show_places` or `open_place` is never empty — one
+  sentence for what changed on the screen, one question to return the turn.
+  Re-run: **9/9 correct, hand-back 7 of 9**. The two misses were, again, the
+  two runs where a tool was called — different tests this time (٥ and ٧
+  instead of ١ and ٣), which is the pattern moving with the tool call rather
+  than with the question. The prompt can shift which turns call a tool; it
+  does not fill the turn after one.
+- **The tool result** is the other input to that turn, and it was «showing
+  places for: قهوة هادية» — a status line in English, after which a model
+  that has already answered has nothing to add. `WainAiCall.tsx` now returns,
+  in her language, what is on the screen and that the caller is waiting for
+  her: «الأماكن المطابقة لـ «…» الحين على الخريطة قدام الزائر. قولي له بجملة
+  وحدة إنها على الخريطة، واسأليه سؤال قصير يرجّع له الدور.» The refusals say
+  the one thing that matters instead of a code: nothing on the screen changed.
+
+**The second change is not measurable from here**, stated plainly: the agent
+test runner skips client tools and hands the model a stub result («Skipping
+tool call in test mode»), so the 7 of 9 is the ceiling the tests can show,
+not the number a real call gets. The browser test pins what the tool returns;
+whether the model speaks from it is a question for the conversation logs once
+the site has had some calls. If the post-tool turn is still empty there, the
+next lever is `pre_tool_speech: "force"` on both tools, which makes her speak
+before the call rather than relying on the turn after it — a change to the
+call's rhythm, so measure, do not assume.
+
 **What is left is the API key**, which is not in this repository and never
 should be:
 

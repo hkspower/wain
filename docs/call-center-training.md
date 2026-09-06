@@ -202,15 +202,32 @@ above phrasing. Each row is expressible as an ElevenLabs evaluation criterion
 Rows 1–3 are the call. Rows 4–7 are the manner. A call that scores full marks
 on 4–7 and fails row 1 is a failed call, which is what the weighting says.
 
-Two tests exist against this already — both passing:
+**This scorecard is attached to the agent, as of 6 September.** All seven rows
+are evaluation criteria on شوق's configuration (`grounded`, `honest_limits`,
+`answered_the_question`, `read_back`, `said_what_changed`, `handed_turn_back`,
+`kuwaiti_register`), scored pass/fail per conversation after every call, with
+row 1 the only one allowed to read the knowledge base while it judges. The
+weights are not enforced by the platform — every criterion counts the same in
+its aggregate — so the weighting above is how to *read* a scorecard, not how
+the number is computed.
 
-- **المسافة بين مكانين** — «أبراج الكويت بعيدة عن سوق شرق؟» → she gives 1.2 km,
-  in dialect, with no drive time. Covers rows 1, 2 and 7.
-- **ذيل قاعدة المعرفة** — «أنا ساكن بالزهراء، شنو المناطق القريبة؟» →
-  «العمرية والري». Covers row 1 and doubles as a truncation check on the 61 KB
-  knowledge base.
+Nine tests run against the same agent, all passing on 6 September:
 
-Rows 3–6 have no test yet.
+| Row | Tests |
+| --- | --- |
+| 1 Grounded | المسافة بين مكانين · ذيل قاعدة المعرفة · ذكاء ٧ (a place added to the KB the same day) |
+| 2 Honest limits | ذكاء ٤ (a shop inside a mall, and its menu price) · ذكاء ٦ (a budget, without quoting dinars) |
+| 3 Answered the question | ذكاء ١ (area + children + heat at once) · ذكاء ٢ (the beach at noon in August) · ذكاء ٣ (dinner then coffee, and the two are actually near) · ذكاء ٥ (Friday morning) |
+| 4–6 Manner | no scripted test — measured over the same nine runs instead, see below |
+| 7 Register | المسافة بين مكانين |
+
+Rows 4–6 are judged on every run of the nine rather than by a test of their
+own, because they are properties of every turn, not of a particular question.
+The one that is not yet where it should be is row 6: **7 of 9 runs hand the
+turn back**, and both misses are the two runs that called `show_places` and
+then said nothing after the tool returned. What was done about that, and why
+the test runner cannot see the second half of the fix, is in
+`docs/voice-setup.md`.
 
 ---
 

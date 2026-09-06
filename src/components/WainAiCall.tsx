@@ -343,6 +343,16 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   // them: its tool definition (docs/wain-ai-agent.md) calls show_places with
   // an Arabic query, and the search page renders the matching pins, names and
   // icons. Registered once, before the widget's bundle ever loads.
+  //
+  // What each tool RETURNS is spoken to, not just logged: the string goes back
+  // to the model as the tool result, and the model generates one more turn
+  // from it. Measured in the agent's own test runs, that turn came back empty
+  // every time the result was a bare status («showing places for: …») — the
+  // answer had been given before the call, the tool "succeeded", and there was
+  // nothing left to say. So the caller heard the screen change and then
+  // silence, which on a phone reads as a dropped line. The result now says, in
+  // her own language, what is on the screen and that the caller is waiting:
+  // the two things the post-tool turn exists to say.
   useEffect(() => {
     if (!WAIN_AI_AGENT_ENABLED) return;
     const register = (event: Event) => {
@@ -351,15 +361,21 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       (detail.config as { clientTools?: Record<string, unknown> }).clientTools = {
         show_places: ({ query }: { query?: string }) => {
           const q = (query ?? "").trim();
-          if (!q) return "empty query";
+          if (!q) return "ما وصلت كلمات بحث — ما تغيّر شي على الشاشة.";
           router.push(`/search?q=${encodeURIComponent(q)}`);
-          return `showing places for: ${q}`;
+          return (
+            `الأماكن المطابقة لـ «${q}» الحين على الخريطة قدام الزائر. ` +
+            "قولي له بجملة وحدة إنها على الخريطة، واسأليه سؤال قصير يرجّع له الدور. لا تسكتين."
+          );
         },
         open_place: ({ slug }: { slug?: string }) => {
           const s = (slug ?? "").trim();
-          if (!/^[a-z0-9-]+$/.test(s)) return "unknown place";
+          if (!/^[a-z0-9-]+$/.test(s)) return "ما لقيت مكان بهذا المعرّف — ما تغيّر شي على الشاشة.";
           router.push(`/places/${s}/`);
-          return `opened: ${s}`;
+          return (
+            `صفحة المكان (${s}) الحين مفتوحة قدام الزائر، فيها الصور وبيانات التواصل. ` +
+            "قولي له إنك فتحتيها، واسأليه سؤال قصير يرجّع له الدور. لا تسكتين."
+          );
         },
       };
     };

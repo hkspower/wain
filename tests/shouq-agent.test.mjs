@@ -94,6 +94,13 @@ const shown = await p.evaluate(() => window.__convaiConfig.clientTools.show_plac
 await p.waitForURL('**/search**', { timeout: 8000 });
 ok('show_places puts the results on screen', decodeURIComponent(p.url()).includes('قهوة هادية'));
 ok('show_places reports back to the agent', /قهوة هادية/.test(String(shown)), String(shown));
+// The result is the model's cue for its post-tool turn. A bare status left
+// that turn empty in every measured run — she had answered, the tool
+// "succeeded", and the caller heard the screen change and then silence. So
+// the result must say what is on the screen and tell her to hand the turn
+// back; both halves are what the next turn is for.
+ok('and tells her what the screen now shows', /على الخريطة/.test(String(shown)), String(shown));
+ok('and tells her to hand the turn back', /يرجّع له الدور/.test(String(shown)), String(shown));
 // Results are client-rendered, so wait for them rather than checking the
 // instant the URL changes.
 await p.waitForSelector('a[href^="/places/"]', { timeout: 8000 }).catch(() => {});
@@ -103,6 +110,8 @@ const opened = await p.evaluate(() => window.__convaiConfig.clientTools.open_pla
 await p.waitForURL('**/places/kuwait-towers/**', { timeout: 8000 });
 ok('open_place opens the full profile', p.url().includes('/places/kuwait-towers/'));
 ok('open_place reports back to the agent', /kuwait-towers/.test(String(opened)));
+ok('and tells her the page is open and to hand the turn back',
+  /مفتوحة/.test(String(opened)) && /يرجّع له الدور/.test(String(opened)), String(opened));
 
 console.log('\n── the tools refuse nonsense rather than acting on it ──');
 const before = p.url();
@@ -113,10 +122,14 @@ const bad = await p.evaluate(() => [
   window.__convaiConfig.clientTools.show_places({ query: '   ' }),
 ].map(String));
 await p.waitForTimeout(600);
-ok('a traversal slug is rejected', bad[0] === 'unknown place', bad[0]);
-ok('a slug with spaces and capitals is rejected', bad[1] === 'unknown place', bad[1]);
-ok('a missing slug is rejected', bad[2] === 'unknown place', bad[2]);
-ok('an empty query is rejected', bad[3] === 'empty query', bad[3]);
+// A refusal is also a tool result she speaks from, so it says the one thing
+// that matters to the caller — nothing on the screen changed — rather than a
+// status code in a language she does not answer in.
+const refused = (s) => /ما تغيّر شي على الشاشة/.test(s) && !/الحين على الخريطة|مفتوحة قدام/.test(s);
+ok('a traversal slug is rejected', refused(bad[0]), bad[0]);
+ok('a slug with spaces and capitals is rejected', refused(bad[1]), bad[1]);
+ok('a missing slug is rejected', refused(bad[2]), bad[2]);
+ok('an empty query is rejected', refused(bad[3]), bad[3]);
 ok('none of them navigated anywhere', p.url() === before, p.url());
 
 ok('no page errors anywhere in agent mode', errors.length === 0, errors.join(' | '));
