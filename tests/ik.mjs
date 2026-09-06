@@ -579,6 +579,10 @@ const measureFit = (carId) => page.evaluate(async (carId)=>{
   // Worst clearance through the whole stop, frame by frame: the fold
   // lags the g, and the g is gone once the car is slow.
   e.player.speed = 30;
+  e.setTouchInput({ throttle: 0, brake: 0, steer: 0 });
+  // Let the speed step settle out of the acceleration difference before
+  // the brake goes on, or frame 0 reads a 1,700 m/s2 launch.
+  for (let i=0;i<6;i++) { e.update(1/60); e.player.speed = 30; }
   e.setTouchInput({ throttle: 0, brake: 1, steer: 0 });
   let worst = null;
   for (let i=0;i<40;i++) {
@@ -664,9 +668,11 @@ const wing = await page.evaluate(async ()=>{
   if (r && rivalPivot) {
     r.speed = 40;
     for (let i=0;i<30;i++) { e.update(1/60); r.speed = 40; }
-    // Drop the rival's speed hard so its measured decel raises its
-    // brake pressure, and read the wing.
-    for (let i=0;i<60;i++) { r.speed = Math.max(5, r.speed - 12/60); e.update(1/60); }
+    // The AI governs its own speed, so a speed poked from outside is
+    // pulled straight back. A defeated rival pulls over at 8 m/s2 of
+    // its own accord — a real brake, through the real path.
+    r.state = "defeated";
+    for (let i=0;i<60;i++) e.update(1/60);
     rivalUp = rivalPivot.rotation.x;
   }
   const trafficWithWing = e.traffic.filter((t) => t.mesh.userData.wing).length;

@@ -216,7 +216,7 @@ if (r.driver.wheel && r.wheelRadius) {
   const size = r.driver.wheel.size;
   const outer = Math.max(...size), tube = Math.min(...size);
   const w = (outer - tube) / 2;
-  console.log(`  rim centre line ${w.toFixed(3)} m (outer ${(outer / 2).toFixed(3)}, tube ${tube.toFixed(3)}) vs the rig's ${r.wheelRadius} m  ` +
+  console.log(`  rim centre line ${w.toFixed(3)} m (outer radius ${(outer / 2).toFixed(3)}, tube dia ${tube.toFixed(3)}) vs the rig's ${r.wheelRadius} m  ` +
     check(Math.abs(w - r.wheelRadius) < 0.003,
       `the authored rim's centre line is ${w.toFixed(3)} m but the hands are solved onto ${r.wheelRadius} m`));
 }

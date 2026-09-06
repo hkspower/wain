@@ -37,6 +37,25 @@ cars. The shipped shells had a 50 mm body edge where the game had cut it
 to 26 mm, and roofs 150 mm narrower than the cabins they sat on. Re-run
 `npm run sync:models` after any change to a car's shape.
 
+The rig has the same problem one file over. `profiles.json` also carries
+the `rig` block Blender dimensions the driver from, read out of
+`src/game/rig.ts` by `scripts/lib/rig-literal.mjs` (the one reader; the
+UE5 header generator uses it too). After ANY edit to `RIG`:
+
+1. `node scripts/export-car-profiles.mjs` — always; sub-second, node
+   only, and it regenerates every rig constant.
+2. `python3 tools/blender/build_assets.py --out public/models --only driver`
+   — only when a value `build_driver` reads changed (today that is
+   `driver.wheelRadius`). This needs `bpy`. A partial rebuild merges its
+   entry into `build.json`; it refuses if the manifest was built at a
+   different quality.
+3. Commit `profiles.json`, `driver.glb` and `build.json` together.
+
+`npm run test:rigsync` compares all three copies against `rig.ts` with
+no browser and goes red the moment one lapses — which it did twice
+before the test existed, each time caught up only by an unrelated car
+rebuild.
+
 ## Regenerating
 
 ```bash

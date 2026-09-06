@@ -515,9 +515,12 @@ export const HANDLING = {
    *  larger than life. The softest car in the fleet is the street sedan
    *  at ROLL_DEG_PER_G 4.2, which against the 14 m/s² reference is 6.0
    *  degrees — 0.105 rad (mods.ts rollMaxFor, which every car's tune
-   *  and every AI car read).
-   *  Put that together with the nose-up pitch clamp of 0.045 and the
-   *  rear-outer hub has to travel 154 mm to keep its contact patch down.
+   *  and every AI car read). Put that together with the nose-down pitch
+   *  clamp (attitude.ts pitchDiveMax 0.045), let both springs overshoot
+   *  their targets the few percent an underdamped shell does, and the
+   *  rear-outer hub has to travel about 165 mm to keep its contact
+   *  patch down. The figure is derived in tests/suspension.mjs from
+   *  those constants, not restated here, so it moves when they do.
    *
    *  90 mm was tried first, on the road-car figure, and bottomed the
    *  suspension in ordinary hard cornering — the wheels would have
