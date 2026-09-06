@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { pixelRatioFor, bufferFor, type Resolution } from "./render";
+import { DEFAULT_SETTINGS } from "./settings";
 import { HANDLING } from "./handling";
 import { nextView, viewSpec, type CameraView } from "./views";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
@@ -8,7 +9,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
-import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, STATIONS, FORECOURT, LAP } from "./track";
+import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, COAST_FADE_M, STATIONS, FORECOURT, LAP, TUNNEL_BOX, LAP_LENGTH } from "./track";
 import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
 import { createCar, crownShell, CROWN, paintMetalness, setContactStrength, TAIL } from "./cars";
 import { RIVALS, RivalDef, rivalCar as rivalCarOf, rivalCarName } from "./rivals";
@@ -1077,6 +1078,33 @@ export class GameEngine {
   }
 
   /**
+   * The same span, for the ear: 0 under open sky, 1 under the deck.
+   *
+   * Water needs the boolean above — a drop either lands on the car or it
+   * does not, and the portal is a real line. Sound does not work like
+   * that. You hear a room closing in before the bumper is inside it and
+   * you hear it let go after the tail is out, so this ramps across the
+   * mouth instead of switching at it.
+   *
+   * The ramp is one deck height, and that is derived rather than chosen:
+   * at h metres outside the mouth the edge of the deck subtends 45
+   * degrees overhead, so half the upward hemisphere has already become
+   * concrete — which is the point at which the reflections arriving from
+   * above stop being a detail and start being the room. Reads the same
+   * span as sheltered() and the same box the walls are lofted from, so
+   * there is one tunnel.
+   */
+  private enclosure(s: number): number {
+    const ramp = TUNNEL_BOX.height;
+    const inFront = s - LAP.tunnel.from;
+    const toEnd = LAP.tunnel.to - s;
+    // Outside either mouth by more than the ramp, this is 0; inside by
+    // more than the ramp, 1; and the two ends never fight because the
+    // tunnel is far longer than two ramps.
+    return THREE.MathUtils.clamp(Math.min(inFront, toEnd) / ramp + 0.5, 0, 1);
+  }
+
+  /**
    * Separate the sprung mass from the unsprung one.
    *
    * The shell rolls and dives; the hubs stay with the road and the
@@ -1259,6 +1287,9 @@ export class GameEngine {
   /** Longitudinal acceleration this frame, m/s^2 — the driver leans on
    *  this too. */
   private longAccel = 0;
+  /** True while the turbo is venting, so the valve fires on the edge of
+   *  a lift rather than on every frame of it. */
+  private boostDumping = false;
   private fovCurrent = 62;
   private camInit = false;
 
@@ -1888,6 +1919,15 @@ export class GameEngine {
           if (this.music.enabled !== on) this.music.toggle();
         }
       );
+      // The voice goes in the mix too, and not just to duck it: every
+      // recorded line used to play straight at the device, outside the
+      // master, the limiter and the ceiling, so Mute did not silence a
+      // rival mid-taunt and nothing could meter what left the machine.
+      this.voice.attachMix(this.sound.audioContext, this.sound.mixBus);
+      // The two sliders in Settings are applied by RaceClient the way
+      // quality and camera view are; this is the level they arrive at if
+      // nobody has moved them.
+      this.setAudioLevels(DEFAULT_SETTINGS.musicVolume, DEFAULT_SETTINGS.sfxVolume);
       // Wire the voice into the mix: whenever anyone speaks — a recorded
       // ElevenLabs line or the synthesized fallback — the bed and the
       // score step back, and come home when they stop.
@@ -2044,6 +2084,29 @@ export class GameEngine {
   }
 
   /** Player-chosen render resolution. Takes effect on the next frame. */
+  /**
+   * What the two sliders in Settings mean.
+   *
+   * "Music" is the soundtrack and the radio, which join the mix at the
+   * master in parallel with everything else. "Effects" is the game's own
+   * sound — engine, tyres, weather, the room, impacts, stings — which is
+   * exactly the pair of sub-buses under that master, and exactly what
+   * setMixLevels was built to move. Neither had a caller.
+   *
+   * Effects is normalised against the slider's own default, so a player
+   * who has never touched it hears the mix as it was authored: the bed
+   * and the one-shots sit at 1.0 when the slider sits where it ships.
+   * Mapping the raw 0..1 straight onto the buses would have quietly made
+   * the default 25% quieter than the mix every level in sound.ts was
+   * balanced against.
+   */
+  setAudioLevels(music: number, effects: number): void {
+    const scale = effects / DEFAULT_SETTINGS.sfxVolume;
+    this.sound?.setMixLevels(scale, scale);
+    this.music?.setVolume(music);
+    this.radio?.setVolume(music);
+  }
+
   setResolution(res: Resolution): void {
     this.resolution = res;
     // A pin is a pin: hand the governor's scale back to 1 so leaving the
@@ -4238,7 +4301,18 @@ export class GameEngine {
     if (this.tune.boostMult > 0 && !this.cine) {
       const spoolRate = this.tune.aspiration === "twin" ? 2.6 : 1.5;
       const target = this.throttle > 0.5 && p.speed > 4 ? 1 : 0;
-      if (target < this.boost - 0.4 && this.boost > 0.5) this.sound?.blowOff();
+      // The valve opens ONCE per lift.
+      //
+      // This was a state test — "boost is above 0.5 and the target is
+      // well below it" — which is true on every frame of the dump, not
+      // on the frame it starts. Boost falls from 1 to 0.5 in about a
+      // third of a second, so one lift fired the valve twenty times at
+      // 60 fps and fifty at 144, each one restarting the same 0.35 s
+      // sample over itself: a chattering hiss whose length depended on
+      // the frame rate rather than a pssh. Latch it on the edge.
+      const dumping = target < this.boost - 0.4 && this.boost > 0.5;
+      if (dumping && !this.boostDumping) this.sound?.blowOff();
+      this.boostDumping = dumping;
       this.boost += (target - this.boost) * Math.min(1, dt * spoolRate);
     }
     this.updatePump(dt);
@@ -6423,11 +6497,22 @@ export class GameEngine {
     // How coastal the road is here, and where the water lies. The sea is
     // on the left of the coastal leg, which is the Gulf Road's whole
     // character — it should be audible, not just visible.
-    const u = this.track.wrap(this.player.s) / this.track.length;
-    const coastal =
-      u >= COAST_U.from && u <= COAST_U.to
-        ? 1
-        : Math.max(0, 1 - Math.min(Math.abs(u - COAST_U.to), Math.abs(u - COAST_U.from)) * 12);
+    // The fade is a distance to the nearest end of the coastal leg, and a
+    // distance on a closed lap wraps. It did not: COAST_U.from is 0, so
+    // |u - from| was the distance FORWARD from the start line and never
+    // the distance back to it, and the surf stepped from silence to full
+    // as you crossed the line while fading gently over 708 m at the
+    // other end — the same boundary behaving two different ways, once a
+    // lap, at the most-driven point on the road.
+    const s = this.track.wrap(this.player.s);
+    const inLeg = s >= COAST_U.from * LAP_LENGTH && s <= COAST_U.to * LAP_LENGTH;
+    const toEdge = Math.min(
+      Math.abs(this.track.deltaAhead(s, COAST_U.from * LAP_LENGTH)),
+      Math.abs(this.track.deltaAhead(s, COAST_U.to * LAP_LENGTH))
+    );
+    // 708 m: the 1/12 of a lap this was written as, in the metres it
+    // actually means, so it stops moving when the lap does.
+    const coastal = inLeg ? 1 : Math.max(0, 1 - toEdge / COAST_FADE_M);
     this.track.pose(this.player.s, -55, this.v1, this.v2); // 55 m to seaward
 
     const r = this.rival;
@@ -6476,7 +6561,26 @@ export class GameEngine {
       // The ear gets told what the camera and the steering already
       // know. Without this a spin is a drift that happens to be going
       // wrong quietly.
-      spin: this.ds.spinT > 0 ? 1 : 0,
+      //
+      // How MUCH of a spin, not whether: this was a boolean wearing a
+      // float's type, so the squeal snapped from a drift's 1600 Hz to a
+      // spin's 608 in one frame and back again the moment the car came
+      // under a threshold — the one transition in the game the model
+      // itself has always described as gradual. The rotation is the
+      // spin (drift.ts: "everything else about it follows from how fast
+      // it is turning"), and the two rates that bound a spin's life are
+      // already named: it is entered at driftSpinEntryRate and declared
+      // over at driftSpinEndRate. Normalise between them and the voice
+      // rises as the car goes away and falls as it is caught.
+      spin:
+        this.ds.spinT > 0
+          ? THREE.MathUtils.clamp(
+              (Math.abs(this.ds.spinRate) - HANDLING.driftSpinEndRate) /
+                (HANDLING.driftSpinEntryRate - HANDLING.driftSpinEndRate),
+              0,
+              1
+            )
+          : 0,
       limited,
       rumble,
       liftRate: this.liftRate,
@@ -6498,6 +6602,15 @@ export class GameEngine {
       coast: coastal,
       seaX: this.v1.x,
       seaZ: this.v1.z,
+      // The world the ear was never told about. All three are facts this
+      // frame has already computed for the picture and the physics: the
+      // rain the particles are drawn from, the water the tyres are
+      // already losing grip to, and the span the walls are lofted over.
+      // Read from the same objects, so there is one weather solve and
+      // one tunnel.
+      rain: this.wx.fall,
+      wet: this.wx.wetness,
+      enclosure: this.enclosure(this.player.s),
     });
   }
 

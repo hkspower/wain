@@ -194,6 +194,25 @@ export const LAP = {
   love: { from: 6180, to: 7000 },
 } as const;
 
+/**
+ * The underpass's cross-section, in metres.
+ *
+ * Written here rather than in the builder because two things need it and
+ * they must agree: world.ts lofts the walls and the ceiling from it, and
+ * sound.ts derives the room's acoustics from it — the wall-to-wall
+ * flutter, the ceiling's first reflection and how long the tail runs are
+ * all functions of a box this size, and a tunnel that was widened in the
+ * picture while the ear went on hearing the old one would be two
+ * different tunnels. These were the builder's own literals.
+ */
+export const TUNNEL_BOX = {
+  /** Wall faces, either side of the centreline. The road is 7 m of
+   *  half-width; the walls stand 1.6 m outside the paint. */
+  halfWidth: ROAD_HALF_WIDTH + 1.6,
+  /** Underside of the deck above the road. */
+  height: 5.4,
+} as const;
+
 /** A span as a fraction of the lap, for the builders that work in `u`.
  *  Derived, never typed: see LAP. */
 export function spanU(span: { from: number; to: number }): { from: number; to: number } {
@@ -222,6 +241,17 @@ export const LAP_LENGTH = (() => {
 /** Fraction of the lap that runs along the coast (sea on the left).
  *  Derived, never typed in — see LAP_LENGTH. */
 export const COAST_U = { from: 0.0, to: COAST_END_M / LAP_LENGTH };
+
+/**
+ * How far past the ends of the coastal leg you can still hear the Gulf,
+ * in metres.
+ *
+ * This was written as a factor of 12 against a lap FRACTION — one twelfth
+ * of a lap — which is 708 m on this lap and a different distance on the
+ * next one. Metres, like every other distance in this file, so widening
+ * the road does not quietly move the sea.
+ */
+export const COAST_FADE_M = LAP_LENGTH / 12;
 
 SWELLS.push({
   s: DRIFT_PLAZA.s,

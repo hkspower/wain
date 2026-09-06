@@ -12,6 +12,7 @@ import {
   FORECOURT,
   LAP,
   spanU,
+  TUNNEL_BOX,
   CITY_GROUND_Y,
   BUILDING_FOOTING_M,
 } from "./track";
@@ -5095,16 +5096,21 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       roughness: 0.95,
       side: THREE.DoubleSide,
     });
+    // The box's dimensions live in track.ts beside the span they apply
+    // to, because sound.ts derives the underpass's acoustics from the
+    // same two numbers — a tunnel widened here and not there would be
+    // two different tunnels, one seen and one heard.
+    const { halfWidth: tw, height: th } = TUNNEL_BOX;
     const wallL = new THREE.Mesh(
-      buildWall(track, -(ROAD_HALF_WIDTH + 1.6), 0, 5.4, 6, TUNNEL_U.from, TUNNEL_U.to),
+      buildWall(track, -tw, 0, th, 6, TUNNEL_U.from, TUNNEL_U.to),
       concrete
     );
     const wallR = new THREE.Mesh(
-      buildWall(track, ROAD_HALF_WIDTH + 1.6, 0, 5.4, 6, TUNNEL_U.from, TUNNEL_U.to),
+      buildWall(track, tw, 0, th, 6, TUNNEL_U.from, TUNNEL_U.to),
       concrete
     );
     const ceiling = new THREE.Mesh(
-      buildRibbon(track, -(ROAD_HALF_WIDTH + 1.6), ROAD_HALF_WIDTH + 1.6, 5.4, 6, TUNNEL_U.from, TUNNEL_U.to),
+      buildRibbon(track, -tw, tw, th, 6, TUNNEL_U.from, TUNNEL_U.to),
       concrete
     );
     wallL.receiveShadow = wallR.receiveShadow = ceiling.receiveShadow = true;

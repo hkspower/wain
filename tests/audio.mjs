@@ -63,6 +63,15 @@ const feed = (frame, settleMs = 300) =>
     };
     return {
       roll: g(s.rollGain),
+      rollHz: +s.rollFilter.frequency.value.toFixed(1),
+      rain: s.rainGain ? g(s.rainGain) : null,
+      rainHz: s.rainFilter ? +s.rainFilter.frequency.value.toFixed(0) : null,
+      room: s.roomSend ? g(s.roomSend) : null,
+      skid: g(s.skidGain),
+      skidHarm: g(s.skidHarmGain),
+      skidRough: g(s.skidRoughAmt),
+      scrub: g(s.scrubGain),
+      sampleSkid: s.sampleSkidGain ? g(s.sampleSkidGain) : null,
       rumble: s.rumbleGain.gain.value,
       wind: g(s.windGain),
       sea: s.seaGain ? g(s.seaGain) : null,
@@ -105,6 +114,61 @@ console.log(`ambience     sea ${coastal.sea} coastal vs ${inland.sea} inland; ci
 check(coastal.sea > inland.sea + 0.02, "the sea is not louder on the coastal leg");
 check(inland.city > coastal.city + 0.01, "the city hum is not louder inland");
 check(coastal.seaPan && Math.abs(coastal.seaPan.x + 55) < 8, `the surf is not placed to seaward (${JSON.stringify(coastal.seaPan)})`);
+
+// --- 3b. The world the ear was never told about -----------------------
+//
+// Rain, the water it leaves on the road, and the underpass. Every one of
+// these is a fact the engine had already computed for the picture or the
+// physics, and none of them reached the sound: a player-selectable
+// downpour arrived in silence, a soaked road sounded dry for the fifteen
+// minutes it takes to dry, and 290 m of concrete box changed the mix by
+// nothing at all. weather.ts's `fall` has said "for the rain particles
+// and the sound bed" since it was written; only the particles ever got it.
+{
+  const dry = await feed({ ...base, speedKmh: 120, coast: 0, rain: 0, wet: 0 }, 700);
+  const pour = await feed({ ...base, speedKmh: 120, coast: 0, rain: 1, wet: 0 }, 700);
+  console.log(`rain         ${dry.rain} dry -> ${pour.rain} in a downpour, ` +
+    `${dry.rainHz} -> ${pour.rainHz} Hz  ` +
+    check(pour.rain > 0.05 && pour.rain > dry.rain * 20 + 0.04, "a downpour makes no sound"));
+  check(pour.rainHz > dry.rainHz + 200, "a downpour is no brighter than a drizzle");
+
+  // Water on the road, which outlives the rain by a quarter of an hour.
+  const soaked = await feed({ ...base, speedKmh: 120, coast: 0, rain: 0, wet: 1 }, 700);
+  console.log(`wet road     roll ${dry.roll} dry -> ${soaked.roll} soaked, ` +
+    `${dry.rollHz} -> ${soaked.rollHz} Hz  ` +
+    check(soaked.roll > dry.roll * 1.3, "wet tyres roll no louder than dry ones"));
+  check(soaked.rollHz > dry.rollHz * 1.1, "wet tyres roll no brighter than dry ones");
+  check(soaked.rain <= 0.001, "a wet road with a clear sky is making rain noise");
+
+  // A wet slide does not sing. The squeal is a stick-slip oscillator and
+  // there is no stick-slip through a film of water — so the note goes and
+  // the hiss comes up in its place. The ratio is not a number typed in
+  // here: it is wetGripMult, the same multiplier the tyres get.
+  const drySlide = await feed({ ...base, speedKmh: 90, skid: 1, driftYaw: 0.6, wet: 0 }, 500);
+  const wetSlide = await feed({ ...base, speedKmh: 90, skid: 1, driftYaw: 0.6, wet: 1 }, 500);
+  const GRIP = 1 - 0.35; // HANDLING.wetGripLoss — the physics' own number
+  console.log(`wet slide    song ${drySlide.skidHarm} -> ${wetSlide.skidHarm}, ` +
+    `buzz ${drySlide.skidRough} -> ${wetSlide.skidRough}, ` +
+    `hiss ${drySlide.scrub} -> ${wetSlide.scrub}  ` +
+    check(wetSlide.skidHarm <= drySlide.skidHarm * (GRIP + 0.02), "a wet slide sings as loudly as a dry one"));
+  check(wetSlide.skidRough < drySlide.skidRough * (GRIP + 0.02), "a wet slide buzzes as hard as a dry one — there is no stick-slip under water");
+  check(wetSlide.scrub > drySlide.scrub * 1.2, "a wet slide lost its note without gaining the hiss that replaces it");
+  // ...and the RECORDED bed takes the same law, or the fix is two thirds
+  // undone on every build that ships audio — which is every build.
+  if (drySlide.sampleSkid !== null) {
+    check(wetSlide.sampleSkid <= drySlide.sampleSkid * (GRIP + 0.02),
+      `the recorded slide bed ignores the water (${drySlide.sampleSkid} -> ${wetSlide.sampleSkid})`);
+  }
+
+  // The underpass. 290 m of concrete with a 5.4 m ceiling: the room opens
+  // as you go under and the world outside it goes away.
+  const open = await feed({ ...base, speedKmh: 120, coast: 1, seaX: -55, seaZ: 10, enclosure: 0 }, 900);
+  const under = await feed({ ...base, speedKmh: 120, coast: 1, seaX: -55, seaZ: 10, enclosure: 1 }, 900);
+  console.log(`underpass    room ${open.room} outside -> ${under.room} under the deck; ` +
+    `surf ${open.sea} -> ${under.sea}  ` +
+    check(under.room > 0.1 && open.room <= 0.001, "the underpass is not a room"));
+  check(under.sea < open.sea * 0.35, "the Gulf is audible through 5.4 m of reinforced concrete");
+}
 
 // --- 4. The rival is a positioned source that tracks their car ---
 const near = await feed({ ...base, speedKmh: 100,
@@ -258,6 +322,109 @@ console.log(`rev limiter  engine gain swings ${limiter.lo} - ${limiter.hi}  ` +
   );
 }
 
+// --- 5b. Three things the engine tells the ear, and how ---------------
+{
+  const eng = await page.evaluate(async () => {
+    const e = window.__grnEngine;
+    e.setPaused(true);
+    // Capture the frame the engine actually builds, rather than one the
+    // test writes. A SoundFrame field the engine stops filling goes
+    // silent, not red — and that is exactly how rain stayed inaudible
+    // for as long as it did.
+    const frames = [];
+    const realUpdate = e.sound.update.bind(e.sound);
+    e.sound.update = (f) => { frames.push(f); return realUpdate(f); };
+
+    // (a) The spin is a MEASURE, not a flag. It was `spinT > 0 ? 1 : 0`,
+    // so the squeal snapped between a drift's voice and a spin's in one
+    // frame. Sweep the rotation across the band the drift model itself
+    // defines — entered at driftSpinEntryRate, over at driftSpinEndRate.
+    const H = window.__grnDriftModel.HANDLING;
+    const spins = [];
+    for (const rate of [H.driftSpinEndRate, 1.2, 2.0, H.driftSpinEntryRate, 4]) {
+      frames.length = 0;
+      e.player.speed = 33; e.driftYaw = 0.6;
+      e.ds.spinT = 0.1; e.ds.spinRate = rate;
+      e.update(1 / 60);
+      spins.push(+(frames[frames.length - 1]?.spin ?? -1).toFixed(3));
+    }
+    e.ds.spinT = 0; e.ds.spinRate = 0; e.driftYaw = 0;
+
+    // (b) The blow-off valve fires ONCE per lift. It was a state test,
+    // so it fired on every frame of the dump — twenty times at 60 fps,
+    // fifty at 144, each restarting the same sample over itself.
+    let valve = 0;
+    const realBlow = e.sound.blowOff.bind(e.sound);
+    e.sound.blowOff = () => { valve++; return realBlow(); };
+    // Fit a turbo. The whole spool block is gated on boostMult, so on the
+    // naturally aspirated car this game starts you in there is no boost
+    // to dump and the check would pass by measuring nothing.
+    const wasBoost = e.tune.boostMult;
+    e.tune.boostMult = 1;
+    e.setTouchInput({ throttle: 1, brake: 0, steer: 0 });
+    e.player.speed = 60;
+    for (let i = 0; i < 90; i++) { e.player.speed = 60; e.update(1 / 60); }
+    const spooled = e.boost;
+    e.setTouchInput({ throttle: 0, brake: 0, steer: 0 });
+    for (let i = 0; i < 90; i++) { e.player.speed = 60; e.update(1 / 60); }
+    e.sound.blowOff = realBlow;
+    e.tune.boostMult = wasBoost;
+
+    // (c) The Gulf does not appear at the start line. The coastal fade
+    // is a distance to the nearest end of the coastal leg, and a
+    // distance on a closed lap wraps — |u - 0| did not, so the surf
+    // stepped from silence to full as you crossed the line.
+    const coastAt = (s) => {
+      frames.length = 0;
+      e.player.s = s; e.player.lat = 0; e.player.speed = 30;
+      e.update(1 / 60);
+      return +(frames[frames.length - 1]?.coast ?? -1).toFixed(3);
+    };
+    const L = e.track.length;
+    // Continuity ACROSS the line: a few metres either side of it, where
+    // the fade has barely started, both readings must be full. On HEAD
+    // the inside read 1.00 and the outside 0.00 — a cliff.
+    const wrapPair = [coastAt(L - 5), coastAt(5)];
+    // ...and the shape: the same 200 m outside each end of the coastal
+    // leg must fade by the same amount. That is the bug itself. HEAD read
+    // 0.76 at one end and 0.00 at the other.
+    const mirror = [coastAt(3423 + 200), coastAt(L - 200)];
+    const keys = Object.keys(frames[frames.length - 1] ?? {}).sort();
+
+    e.sound.update = realUpdate;
+    e.player.speed = 0; e.update(1 / 60);
+    return { spins, valve, spooled: +spooled.toFixed(2), wrapPair, mirror, keys };
+  });
+
+  // Monotone, bounded, and genuinely intermediate in the middle. Not
+  // "exactly 1 at driftSpinEntryRate": solveDrift damps the rotation
+  // during the same frame, so the top of the band arrives a hair under —
+  // which is the physics doing its job, and an assertion that demanded
+  // 1.00 would be measuring the test's own poke rather than the law.
+  console.log(`\nspin measure  ${JSON.stringify(eng.spins)} across the rate band the drift model defines  ` +
+    check(
+      eng.spins[0] <= 0.01 &&
+        eng.spins[4] >= 0.95 &&
+        eng.spins.every((v, i) => i === 0 || v >= eng.spins[i - 1]) &&
+        eng.spins[1] > 0.05 && eng.spins[1] < 0.6 &&
+        eng.spins[2] > eng.spins[1] && eng.spins[2] < 0.95,
+      `spin is not a measure of how far the car is away: ${JSON.stringify(eng.spins)}`
+    ));
+  console.log(`blow-off      ${eng.valve} time(s) for one lift from ${eng.spooled} boost  ` +
+    check(eng.valve === 1, `one lift fired the valve ${eng.valve} times`));
+  console.log(`coast wrap    ${eng.wrapPair[0]} five metres before the line -> ${eng.wrapPair[1]} after  ` +
+    check(Math.abs(eng.wrapPair[0] - eng.wrapPair[1]) < 0.05 && eng.wrapPair[0] > 0.9,
+      `the surf steps across the start line: ${eng.wrapPair[0]} -> ${eng.wrapPair[1]}`));
+  console.log(`             mirrored 200 m either side of the leg: ${JSON.stringify(eng.mirror)}  ` +
+    check(Math.abs(eng.mirror[0] - eng.mirror[1]) < 0.1,
+      `the same boundary fades two different ways: ${JSON.stringify(eng.mirror)}`));
+  for (const k of ["rain", "wet", "enclosure"]) {
+    check(eng.keys.includes(k), `the engine does not tell the sound about "${k}" — it would go silent, not red`);
+  }
+  console.log(`frame         engine sends ${eng.keys.length} fields, rain/wet/enclosure among them  ` +
+    check(["rain", "wet", "enclosure"].every((k) => eng.keys.includes(k)), "the world is missing from the frame"));
+}
+
 // --- 6. Impacts scale with severity ---
 const impacts = await page.evaluate(async () => {
   const s = window.__grnEngine.sound;
@@ -314,8 +481,6 @@ if (music) {
   const { writeFileSync, rmSync, existsSync, readFileSync } = await import("node:fs");
   const MAN = "public/sfx/manifest.json";
   const WAV = "public/sfx/__probe.wav";
-  const before = existsSync(MAN) ? readFileSync(MAN, "utf8") : null;
-
   // A finally block is not a guarantee. This section swaps the SHIPPED
   // manifest for a one-entry probe, and the restore below lives in a
   // finally — which node runs on a thrown error and does NOT run on a
@@ -327,11 +492,29 @@ if (music) {
   // So the backup goes to disk before the swap and is reclaimed on the
   // way in, which repairs a previous run that was killed, and the
   // signals are handled so this run does not need repairing.
+  //
+  // THE REPAIR COMES FIRST, and it has to. This used to read the current
+  // manifest into `before` and repair from the backup afterwards, so a
+  // run following an interrupted one captured the PROBE as the thing to
+  // restore, put the real manifest back, deleted the backup — and then,
+  // at the end, wrote the probe over the real manifest again with
+  // nothing left to repair from. The repair was undone by its own
+  // backup, and one interrupted run silenced the game permanently on the
+  // next one. Repair, then read what is actually there.
   const BAK = `${MAN}.testbak`;
   if (existsSync(BAK)) {
     writeFileSync(MAN, readFileSync(BAK, "utf8"));
     rmSync(BAK, { force: true });
     console.log("(restored a manifest left behind by an interrupted run)");
+  }
+  const before = existsSync(MAN) ? readFileSync(MAN, "utf8") : null;
+  // And a probe is never a valid thing to restore. If the repair above
+  // did not run — a killed process that never got as far as writing the
+  // backup — refuse to treat what is on disk as the shipped manifest.
+  if (before !== null && before.includes("__probe.wav")) {
+    console.log("FAILURES:\n - public/sfx/manifest.json is a leftover test probe, not the shipped manifest; restore it from git before running this again");
+    await browser.close();
+    process.exit(1);
   }
   const restore = () => {
     try {
@@ -361,10 +544,36 @@ if (music) {
   writeFileSync(WAV, Buffer.concat([hdr, data]));
   writeFileSync(MAN, JSON.stringify({ bump: { file: "__probe.wav", gain: 1 } }, null, 2) + "\n");
 
+  // ...and the whole reload is bounded, because a hang here is not a
+  // failure of anything this section is testing — it is the section
+  // eating the suite. Unbounded, it has been swallowing every check
+  // after it: the run reports what it managed to reach and exits 124,
+  // which reads as "the last four sections do not exist" rather than as
+  // "one reload did not come back". A bounded wait fails one check and
+  // lets the rest run.
+  const withDeadline = (p, ms, what) =>
+    Promise.race([
+      p,
+      new Promise((_, rej) => setTimeout(() => rej(new Error(`${what} did not finish in ${ms / 1000}s`)), ms)),
+    ]);
+
   try {
-    await page.reload({ waitUntil: "networkidle" });
-    await page.click("text=START ENGINE");
-    await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 120000 });
+    // NOT networkidle. This page streams two 2.3 MB music beds and pulls
+    // voice clips on demand once the engine is running, so the network
+    // never goes idle for 500 ms and this wait sat there until the whole
+    // suite's timeout killed it — which is what has been truncating this
+    // file's last four sections ever since the rendered audio was
+    // installed, and why the crash looked intermittent (it depended on
+    // whether a bed happened to be buffering). Wait for the thing that
+    // is actually being waited for: the app, which the readiness check
+    // on the next line already asks about properly.
+    await withDeadline(page.reload({ waitUntil: "domcontentloaded" }), 90000, "the reload");
+    await withDeadline(page.click("text=START ENGINE"), 60000, "the engine start after the reload");
+    await withDeadline(
+      page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 90000 }),
+      95000,
+      "the game coming back up after the reload"
+    );
     const r = await page.evaluate(async () => {
       const e = window.__grnEngine;
       const s = e.sound;
@@ -392,6 +601,9 @@ if (music) {
     check(r.loaded, "the manifest sample never decoded — the ElevenLabs drop would be inert");
     check(Math.abs(r.dur - 0.25) < 0.02, `decoded duration ${r.dur}s is not the 0.25s written`);
     check(r.started > 0, "the impact did not play the sample — it fell through to the synth");
+  } catch (e) {
+    console.log(`\nsample path  COULD NOT BE MEASURED: ${e.message}`);
+    fail.push(`the sample path could not be measured: ${e.message}`);
   } finally {
     restore();
   }
@@ -447,6 +659,48 @@ if (music) {
   check(r.after.music > r.before.music * 0.9, "the score never comes back");
   check(r.lifted.bed > r.before.bed * 0.9,
     "overlapping lines leave the duck stuck down — the ref count never returned to zero");
+}
+
+// --- 10b. The two sliders in Settings reach the mix --------------------
+//
+// They did not. "Music" was saved, drawn in the settings panel, and read
+// by absolutely nothing — Music.setVolume and Radio.setVolume both had
+// zero callers, as did SoundEngine.setMixLevels. "Effects" reached only
+// the interface-sound layer in sfx.ts, which is a different thing from
+// the engine, the tyres, the impacts and the stings. The only working
+// volume control in the game was the M key, which is all or nothing.
+{
+  const r = await page.evaluate(async () => {
+    const e = window.__grnEngine;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const read = () => ({ ...e.sound.mix, music: e.music ? e.music.level : null });
+    // The default position must reproduce the mix every level in
+    // sound.ts was balanced against: buses at 1.0, not at the slider's
+    // raw 0.75.
+    e.setAudioLevels(0.32, 0.75);
+    await wait(200);
+    const dflt = read();
+    e.setAudioLevels(0, 0.75);
+    await wait(200);
+    const noMusic = read();
+    e.setAudioLevels(0.32, 0);
+    await wait(250);
+    const noFx = read();
+    e.setAudioLevels(0.32, 1);
+    await wait(250);
+    const loud = read();
+    e.setAudioLevels(0.32, 0.75);
+    await wait(200);
+    return { dflt, noMusic, noFx, loud, hasApi: typeof e.setAudioLevels === "function" };
+  });
+  console.log(`\nsliders      default bed ${r.dflt.bed} sfx ${r.dflt.sfx} music ${r.dflt.music}`);
+  console.log(`             music 0 -> ${r.noMusic.music}; effects 0 -> bed ${r.noFx.bed}; effects 1 -> bed ${r.loud.bed}`);
+  check(r.hasApi, "the engine has no way to be told what the sliders say");
+  check(Math.abs(r.dflt.bed - 1) < 0.02 && Math.abs(r.dflt.sfx - 1) < 0.02,
+    `the shipped slider position does not reproduce the authored mix (bed ${r.dflt.bed}, sfx ${r.dflt.sfx})`);
+  check(r.noMusic.music !== null && r.noMusic.music < 0.02, "the Music slider does not reach the soundtrack");
+  check(r.noFx.bed < 0.02 && r.noFx.sfx < 0.02, "the Effects slider does not reach the game's own sound");
+  check(r.loud.bed > r.dflt.bed * 1.2, "the Effects slider cannot go above the shipped level");
 }
 
 // ---- the drift squeal has structure, not just level -----------------

@@ -719,6 +719,9 @@ function raceCut(): { w: number; h: number } | null {
     applySettings(st);
     setSettings(st);
     setSfxVolume(st.sfxVolume);
+    // The engine may not exist yet on first mount; the boot path applies
+    // the defaults and this catches a save that differs from them.
+    engineRef.current?.setAudioLevels(st.musicVolume, st.sfxVolume);
     preloadSfx();
     // First-time players get the five-card primer before the menu.
     if (!hasOnboarded()) setOnboarding(true);
@@ -731,7 +734,13 @@ function raceCut(): { w: number; h: number } | null {
       const next = { ...(prev ?? loadSettings()), [k]: v };
       saveSettings(next);
       haptic(HAPTIC.tap, next.haptics);
+      // Both sliders, and both were inert: "Music" was read by nothing at
+      // all, and "Effects" only ever reached the interface-sound layer —
+      // never the engine, the tyres, the impacts or the stings.
       if (k === "sfxVolume") setSfxVolume(next.sfxVolume);
+      if (k === "sfxVolume" || k === "musicVolume") {
+        engineRef.current?.setAudioLevels(next.musicVolume, next.sfxVolume);
+      }
       if (k === "quality") engineRef.current?.applyQualityTier(next.quality);
       if (k === "cameraView") engineRef.current?.setView(next.cameraView);
       if (k === "resolution") {

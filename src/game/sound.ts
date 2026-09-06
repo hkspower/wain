@@ -10,6 +10,9 @@
 // is hung out; brakes as pad rumble plus a resonant rotor squeal; and
 // one-shot impacts, scrapes, blow-off, horn and battle stings.
 
+import { LAP, TUNNEL_BOX } from "./track";
+import { wetGripMult } from "./weather";
+
 export interface SoundFrame {
   speedKmh: number;
   throttle: number; // 0..1
@@ -68,6 +71,36 @@ export interface SoundFrame {
   coast?: number;
   seaX?: number;
   seaZ?: number;
+  /**
+   * 0..1 — how hard it is falling ON the car.
+   *
+   * weather.ts's `fall`, handed straight over: already zero under the
+   * deck, already ramped in over a spell, so the patter needs no ramp of
+   * its own. That field's own comment has said "for the rain particles
+   * and the sound bed" since it was written, and only the particles ever
+   * got it — a player-selectable downpour arrived in complete silence.
+   */
+  rain?: number;
+  /**
+   * 0..1 — how much water is on the ROAD.
+   *
+   * weather.ts's `wetness`, and a different number from `rain` for
+   * exactly the reason world.setRain and world.setWetness are two calls:
+   * the sky clears in a moment and the road stays wet for a quarter of
+   * an hour. Rain is what you hear on the roof; this is what the tyres
+   * are driving through.
+   */
+  wet?: number;
+  /**
+   * 0..1 — how enclosed the listener is. 0 is open sky, 1 is under the
+   * underpass deck with concrete on three sides.
+   *
+   * Drives the room and the ducking of everything that comes from
+   * outside it. Ramped rather than switched: the weather needs a hard
+   * line, because rain either lands on the car or it does not, but an
+   * ear hears a room closing in before the bumper crosses the portal.
+   */
+  enclosure?: number;
 }
 
 /** One positioned engine: two oscillators, a lowpass, a gain, a panner. */
@@ -76,6 +109,92 @@ interface CarVoice {
   gain: GainNode;
   filter: BiquadFilterNode;
   panner: PannerNode;
+}
+
+/**
+ * The underpass, as an impulse response.
+ *
+ * Generated here from the box's own dimensions rather than shipped as a
+ * recorded IR: this game carries no third-party audio, and a tunnel
+ * whose reverb came from somebody else's tunnel would not be this one.
+ * Every constant below falls out of TUNNEL_BOX and the lap, so widening
+ * the underpass in track.ts moves what you hear in it.
+ *
+ * WHY A CONVOLVER AND NOT A COMB. A 290 m concrete duct's signature is a
+ * long, dense, band-limited decay with a specific wall flutter. A
+ * Schroeder comb network gives a metallic ring that reads as "reverb
+ * preset"; a convolution of the real geometry reads as a place. One
+ * convolver and one moving send is also cheaper per frame than the
+ * multi-tap delay network that would fake it.
+ *
+ * RT60 = three escape times. Energy in a duct does not get absorbed, it
+ * LEAVES: from the middle of the tunnel a mouth is half the length away,
+ * and a randomly-directed ray makes along-axis progress at the mean of
+ * |cos θ| over a hemisphere, which is 1/2, so it covers that distance at
+ * c/2. Three of those is -60 dB to within the precision this is worth.
+ *
+ * Sabine says otherwise, and Sabine is wrong here, which is worth
+ * writing down so nobody "corrects" this later: 0.161·V/A with bare
+ * concrete at α ≈ 0.03 and the two open mouths at α = 1 gives about 7.5
+ * seconds. That formula assumes a diffuse field and a box 17 times
+ * longer than it is wide does not have one. Take it as a ceiling.
+ *
+ * THE FLUTTER is the part a player actually identifies a tunnel by: the
+ * wall-to-wall round trip, which for this box is 100 ms — slow enough to
+ * hear as separate slaps rather than as a pitch.
+ *
+ * THE TILT is air absorption. Over a 2.5 s tail a ray covers 858 m, and
+ * air at Gulf humidity takes roughly 1 dB per 100 m at 2 kHz and 4 dB at
+ * 8 kHz, so the end of the tail is ~9 dB down at 2 kHz and ~34 dB at 8.
+ * That is the reason the noise is filtered progressively darker as it
+ * decays rather than given one cutoff.
+ */
+function makeTunnelImpulse(ctx: BaseAudioContext): AudioBuffer {
+  const C = 343; // m/s, dry air at 20 °C
+  const halfLength = (LAP.tunnel.to - LAP.tunnel.from) / 2;
+  const escape = halfLength / (C / 2); // 0.85 s on this tunnel
+  const rt60 = escape * 3;
+  const flutter = (4 * TUNNEL_BOX.halfWidth) / C; // wall to wall and back
+  // The ceiling's first reflection. Taken at the mid-height of the
+  // cameras this game uses — cockpit at about 1.1 m, chase at about 2.5
+  // — because the spread between them is 8 ms and the echo threshold is
+  // about 30, so one impulse serves every view and five would be five
+  // times the memory for something nobody can hear.
+  const preDelay = (2 * (TUNNEL_BOX.height - 1.8)) / C;
+  const sr = ctx.sampleRate;
+  const n = Math.ceil(rt60 * sr);
+  const buf = ctx.createBuffer(2, n, sr);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    // A one-pole lowpass whose cutoff falls as the tail ages, which is
+    // the air absorption above. Implemented as a smoothing coefficient
+    // that rises toward 1 rather than as a biquad sweep, because the
+    // buffer is generated once and does not need to be exact — it needs
+    // to be dark at the end and open at the start.
+    let lp = 0;
+    const start = Math.floor(preDelay * sr);
+    for (let i = 0; i < n; i++) {
+      if (i < start) { d[i] = 0; continue; }
+      const age = (i - start) / n;
+      const decay = Math.pow(1 - age, 2.2);
+      // The two walls, ringing. Each flutter period gets a small bump on
+      // top of the diffuse tail; the ear reads the period, not the bump.
+      const sinceFlutter = ((i - start) / sr) % flutter;
+      const slap = sinceFlutter < 0.004 ? 1.9 : 1;
+      const white = Math.random() * 2 - 1;
+      // Cutoff falls with age: open at the first reflections, dark by
+      // the end of the tail.
+      const k = 0.55 - age * 0.45;
+      lp += (white - lp) * k;
+      d[i] = lp * decay * slap;
+    }
+    // Normalise so the send's gain means the same thing whatever the
+    // sample rate the browser gave us.
+    let peak = 0;
+    for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(d[i]));
+    if (peak > 0) for (let i = 0; i < n; i++) d[i] /= peak;
+  }
+  return buf;
 }
 
 /** How many of the other cars are actually voiced. The ear cannot follow
@@ -332,6 +451,13 @@ export class SoundEngine {
   private seaGain: GainNode | null = null;
   private seaFilter: BiquadFilterNode | null = null;
   private cityGain: GainNode | null = null;
+  /** Rain on the roof and the glass. */
+  private rainGain: GainNode | null = null;
+  private rainFilter: BiquadFilterNode | null = null;
+  /** The underpass. A convolver with an impulse generated from the box's
+   *  own dimensions, and the wet/dry send that puts the car inside it. */
+  private roomSend: GainNode | null = null;
+  private roomConv: ConvolverNode | null = null;
   // Tire roll on the road surface, and the kerb rumble over it
   private rollGain: GainNode;
   private rollFilter: BiquadFilterNode;
@@ -400,6 +526,24 @@ export class SoundEngine {
     this.sfx = this.ctx.createGain();
     this.sfx.gain.value = this.sfxLevel;
     this.sfx.connect(this.master);
+
+    // The room, as a parallel send off both sub-buses.
+    //
+    // A send rather than an insert, so the dry path is untouched and the
+    // tunnel is something ADDED as you go under the deck rather than a
+    // filter the whole game plays through. Both buses feed it: the bed
+    // so the engine and the tyres ring, and the one-shots so a crash
+    // under there sounds like a crash under there. It sums back at the
+    // master, ahead of the limiter, because a room that could not be
+    // limited would be the one thing in the mix able to clip.
+    this.roomConv = this.ctx.createConvolver();
+    this.roomConv.normalize = false;
+    this.roomConv.buffer = makeTunnelImpulse(this.ctx);
+    this.roomSend = this.ctx.createGain();
+    this.roomSend.gain.value = 0;
+    this.bed.connect(this.roomSend);
+    this.sfx.connect(this.roomSend);
+    this.roomSend.connect(this.roomConv).connect(this.master);
     void this.loadSfxManifest();
 
     // --- Engine: saw fundamental + detuned octave + square sub,
@@ -693,6 +837,26 @@ export class SoundEngine {
     this.cityGain = this.ctx.createGain();
     this.cityGain.gain.value = 0;
     this.loopNoise().connect(cityFilter).connect(this.cityGain).connect(this.bed);
+
+    // Rain on the car — the roof, the glass, the bonnet.
+    //
+    // Filtered noise rather than modelled drops, and that is derived
+    // rather than chosen for cheapness: a downpour on the four square
+    // metres of roof and glass a car presents is thousands of impacts a
+    // second, and thousands of impacts a second IS noise. Discrete
+    // events would be the wrong model as well as the expensive one.
+    //
+    // The centre frequency is a DESIGN VALUE and is labelled as one:
+    // where a steel roof panel rings is not something this codebase
+    // measures. 2.2 kHz with a wide Q reads as water on a hard skin
+    // rather than as static or as surf.
+    this.rainFilter = this.ctx.createBiquadFilter();
+    this.rainFilter.type = "bandpass";
+    this.rainFilter.frequency.value = 2200;
+    this.rainFilter.Q.value = 0.8;
+    this.rainGain = this.ctx.createGain();
+    this.rainGain.gain.value = 0;
+    this.loopNoise().connect(this.rainFilter).connect(this.rainGain).connect(this.bed);
   }
 
   /**
@@ -1179,9 +1343,19 @@ export class SoundEngine {
     this.windGain.gain.setTargetAtTime(windAmt * 0.24 * buffet, t, 0.1);
 
     // Tire roll on asphalt: the ever-present hiss that says "road".
+    //
+    // ...and on WET asphalt it is louder and brighter, because the tread
+    // is pumping a film of water out from under itself rather than just
+    // deforming. Published wet-versus-dry tyre/road noise sits +3 to +6
+    // dB at highway speed; +3 dB is the conservative end of that, and
+    // 0.41 is what +3 dB is as a gain — a DESIGN VALUE pinned to a
+    // stated figure rather than a number chosen by ear. The road stays
+    // wet long after the sky clears, so this is the weather effect a
+    // player lives with longest.
+    const wet = Math.min(Math.max(f.wet ?? 0, 0), 1);
     const roll = Math.min(f.speedKmh / 190, 1);
-    this.rollFilter.frequency.setTargetAtTime(420 + f.speedKmh * 3.4, t, 0.08);
-    this.rollGain.gain.setTargetAtTime(Math.pow(roll, 1.4) * 0.1, t, 0.08);
+    this.rollFilter.frequency.setTargetAtTime((420 + f.speedKmh * 3.4) * (1 + wet * 0.25), t, 0.08);
+    this.rollGain.gain.setTargetAtTime(Math.pow(roll, 1.4) * 0.1 * (1 + wet * 0.41), t, 0.08);
 
     // Kerb strip: buzz frequency tracks how fast the ribs go past
     const rumble = Math.min(Math.max(f.rumble ?? 0, 0), 1);
@@ -1201,11 +1375,45 @@ export class SoundEngine {
       // overtakes the sea perfectly well already. The theory was built
       // on a measurement of the music with the master muted. A number
       // this audible does not get changed on an argument.
-      this.seaGain!.gain.setTargetAtTime(coast * 0.5 * duck, t, 0.6);
-      this.cityGain!.gain.setTargetAtTime((1 - coast) * 0.22 * duck, t, 0.6);
+      // ...and under the deck the outside stops arriving. Concrete on
+      // three sides is the same masking argument as speed, so it is a
+      // term in the SAME duck rather than a second one of its own: the
+      // surf and the city hum are the two things in this mix that come
+      // from outside the tunnel, and 5.4 m of reinforced concrete is
+      // more of a wall between you and them than 240 km/h of wind.
+      const enclosed = Math.min(Math.max(f.enclosure ?? 0, 0), 1);
+      const outside = duck * (1 - enclosed * 0.85);
+      this.seaGain!.gain.setTargetAtTime(coast * 0.5 * outside, t, 0.6);
+      this.cityGain!.gain.setTargetAtTime((1 - coast) * 0.22 * outside, t, 0.6);
       if (f.seaX !== undefined && f.seaZ !== undefined) {
         this.setPannerPos("sea", f.seaX, 0, f.seaZ);
       }
+
+      // Rain on the car. Driven by `rain` — what is falling — and never
+      // by `wet`, which is what is already on the road: a soaked road
+      // under a clear sky is silent overhead and loud under the tyres,
+      // and that is the whole reason the two are separate fields.
+      //
+      // The level is measured, not picked. 0.048 RMS is what this file's
+      // own comment above records the mix sitting at with the sea at
+      // idle, and rain hard enough to flood a road and surf fifty-five
+      // metres away are about equally loud — so a downpour is set to
+      // arrive at the same place the sea already does, and the constant
+      // falls out of a measurement this repo had already taken.
+      //
+      // It ducks with speed like everything else in the near field, but
+      // less: at 300 km/h your own wind buries the sea, and rain is
+      // still hitting the glass a foot from your ear.
+      const rain = Math.min(Math.max(f.rain ?? 0, 0), 1);
+      this.rainGain!.gain.setTargetAtTime(
+        rain * 0.5 * (1 - Math.min(0.4, f.speedKmh / 600)), t, 0.4);
+      // Faster water is brighter: a drizzle taps, a downpour hisses.
+      this.rainFilter!.frequency.setTargetAtTime(1500 + rain * 1400, t, 0.4);
+
+      // The underpass. The send is what puts the car in the room, and it
+      // opens over the ramp rather than at the portal — see the
+      // engine's enclosure(), which is where that shape is decided.
+      this.roomSend!.gain.setTargetAtTime(enclosed * 0.42, t, 0.15);
     }
 
     // --- Every other car on the road, in space
@@ -1284,9 +1492,20 @@ export class SoundEngine {
     // loaded it carries the slide and the synth squeal ducks to a
     // supporting layer; otherwise the synth sings alone as before.
     const synthShare = this.sampleSkidGain ? 0.35 : 1;
+    // What the road lets the tyre do.
+    //
+    // The squeal in this file is a stick-slip oscillator, and there is no
+    // stick-slip through a film of water — a wet slide hisses where a dry
+    // one sings. The amount of that is not a new constant: stick-slip
+    // amplitude follows the friction the tyre can actually develop, and
+    // this game already owns that number as one exported pure function,
+    // which the physics is applying to the same tyre on the same frame.
+    // Read it rather than restating it, and the day wetGripLoss moves,
+    // the ear and the grip move together.
+    const grip = wetGripMult(wet); // 1 dry, 0.65 under standing water
     // Four tyres instead of two, so a spin is louder than the drift it
     // came out of even as its pitch falls.
-    const tyreSqueal = skid * (0.2 + yaw * 0.18) * (1 + spin * 0.5) * synthShare;
+    const tyreSqueal = skid * (0.2 + yaw * 0.18) * (1 + spin * 0.5) * synthShare * grip;
     this.skidGain.gain.setTargetAtTime(tyreSqueal, t, 0.05);
     // Roughness climbs with the slide: a gentle scrub barely buzzes, a
     // full slide tears. The modulation adds to the carrier's own gain, so
@@ -1296,22 +1515,34 @@ export class SoundEngine {
     // Rougher in a spin, and slower with it: the tread is juddering
     // across the road rather than singing along it.
     this.skidRough.frequency.setTargetAtTime((34 + yaw * 30) * (1 - spin * 0.45), t, 0.12);
+    // Roughness goes hardest: the buzz IS the stick-slip, so it is the
+    // first thing water takes away. Squared, so a road that has lost a
+    // third of its grip has lost more than a third of its buzz.
     this.skidRoughAmt.gain.setTargetAtTime(
-      tyreSqueal * (0.3 + yaw * 0.35 + spin * 0.4), t, 0.06);
+      tyreSqueal * (0.3 + yaw * 0.35 + spin * 0.4) * grip, t, 0.06);
     // The overtone only really appears once the tyre is properly over,
     // which is what makes a big drift sound different in kind from a
     // scrub rather than merely louder.
     // The overtone is the drift's own singing quality, so it goes away
     // as the slide stops being a drift.
+    // The fifth is the first thing water kills.
     this.skidHarmGain.gain.setTargetAtTime(
-      skid * yaw * 0.085 * (1 - spin * 0.8) * synthShare, t, 0.06);
-    // And the broadband scrub — the roar — comes up in its place.
+      skid * yaw * 0.085 * (1 - spin * 0.8) * synthShare * grip, t, 0.06);
+    // And the broadband scrub — the roar — comes up in its place: on a
+    // wet road, and in a spin, for the same reason. A slide that has
+    // stopped singing has not gone quiet; it has become a hiss. The two
+    // terms are written the same way because they are the same trade.
     this.scrubGain.gain.setTargetAtTime(
-      skid * (0.1 + spin * 0.26) * synthShare, t, 0.05);
+      skid * (0.1 + spin * 0.26 + wet * 0.2) * synthShare, t, 0.05);
     if (this.sampleSkidGain) {
       const bedGain = ((this.sampleSkidGain as GainNode & { userData?: number }).userData ?? 1);
+      // The recorded bed takes the wet law too, and this is the part
+      // that decides whether any of it reaches a player: with a manifest
+      // installed the synth is ducked to a third of the mix, so a wet
+      // law applied only to the synth would be two thirds undone on
+      // every build that ships audio — which is every build.
       this.sampleSkidGain.gain.setTargetAtTime(
-        skid * (0.28 + yaw * 0.22) * (1 + spin * 0.5) * bedGain, t, 0.05);
+        skid * (0.28 + yaw * 0.22) * (1 + spin * 0.5) * bedGain * grip, t, 0.05);
       // And the RECORDING follows the spin too.
       //
       // Everything above bends the synth voice down when the car gets
@@ -1322,8 +1553,13 @@ export class SoundEngine {
       // the spin. The bed is a slide recorded at one speed; playing it
       // slower is what a tyre dragged across its tread rather than along
       // it actually sounds like.
+      // ...and its pitch follows the water as well as the spin. The bed
+      // is a squeal recorded on a dry road; a wet slide is the same
+      // rubber at a lower frequency because the film is carrying part of
+      // the load. Both terms pull the same way, so they multiply.
       if (this.sampleSkidSrc) {
-        this.sampleSkidSrc.playbackRate.setTargetAtTime(1 - spin * 0.3, t, 0.09);
+        this.sampleSkidSrc.playbackRate.setTargetAtTime(
+          (1 - spin * 0.3) * (1 - wet * 0.12), t, 0.09);
       }
     }
 
@@ -1674,6 +1910,17 @@ export class SoundEngine {
       mid: number;
       high: number;
     };
+    /** The world layers, so a test can prove the ear is being told about
+     *  it rather than infer it from a screenshot. */
+    world: {
+      rain: number;
+      rainHz: number;
+      room: number;
+      sea: number;
+      city: number;
+      roll: number;
+      rollHz: number;
+    };
   } {
     return {
       ctx: this.ctx.state,
@@ -1688,6 +1935,15 @@ export class SoundEngine {
         low: this.exLowGain.gain.value,
         mid: this.exhaustGain.gain.value,
         high: this.exHighGain.gain.value,
+      },
+      world: {
+        rain: this.rainGain?.gain.value ?? 0,
+        rainHz: this.rainFilter?.frequency.value ?? 0,
+        room: this.roomSend?.gain.value ?? 0,
+        sea: this.seaGain?.gain.value ?? 0,
+        city: this.cityGain?.gain.value ?? 0,
+        roll: this.rollGain.gain.value,
+        rollHz: this.rollFilter.frequency.value,
       },
     };
   }

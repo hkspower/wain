@@ -4,6 +4,17 @@
 // clips in public/sfx/ are used. If not, every call is a silent no-op and
 // the procedural stings in sound.ts carry the game — so the interface is
 // never broken by a missing asset, only less rich.
+//
+// That silence is a design, and it has to be a design rather than an
+// accident: for a long time it was an accident, and the difference is
+// invisible from outside. See ensureManifest.
+//
+// The eight names below are the interface's own vocabulary and none of
+// them is in the shipped manifest, which carries the six IN-GAME effects
+// (bump, scrape, blowoff, shift, flash, skid) that sound.ts consumes. So
+// the interface is silent today because those clips have not been
+// rendered — which is the documented fallback — and not because the
+// reader could not read the file.
 
 export type SfxName =
   | "ui-tap"
@@ -20,13 +31,32 @@ let loading: Promise<void> | null = null;
 const cache = new Map<string, HTMLAudioElement>();
 let volume = 0.75;
 
-/** Fetch the manifest once; absent manifest means "no generated sfx". */
+/**
+ * Fetch the manifest once; absent manifest means "no generated sfx".
+ *
+ * TWO READERS, ONE FILE. sound.ts reads /sfx/manifest.json as an OBJECT
+ * — `{ bump: { file, gain }, ... }` — which is the shape the generator
+ * writes and the shape that ships. This reader expected an ARRAY of
+ * names, so `Array.isArray` was false on every real manifest, the set
+ * came back empty, and every interface sound in the game — tap, confirm,
+ * xp tick, level up, unlock, victory, defeat, challenge — was a silent
+ * no-op for as long as a manifest existed. Not a missing asset: a schema
+ * mismatch between two readers of one filename, which is why nobody
+ * noticed. The array shape is still accepted, because a generator that
+ * writes one is not wrong, only older.
+ */
 function ensureManifest(): Promise<void> {
   if (loading) return loading;
   loading = fetch("/sfx/manifest.json")
     .then((r) => (r.ok ? r.json() : []))
-    .then((list: string[]) => {
-      manifest = new Set(Array.isArray(list) ? list : []);
+    .then((parsed: unknown) => {
+      manifest = new Set(
+        Array.isArray(parsed)
+          ? (parsed as string[])
+          : parsed && typeof parsed === "object"
+            ? Object.keys(parsed as Record<string, unknown>)
+            : []
+      );
     })
     .catch(() => {
       manifest = new Set();

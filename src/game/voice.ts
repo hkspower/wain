@@ -19,7 +19,26 @@ export class VoiceBox {
    *  not the open air. Bandlimiting it is the entire difference between
    *  "a voice" and "a voice on the radio". */
   private radio = false;
-  private radioCtx: AudioContext | null = null;
+  /**
+   * The game's own bus, once the sound engine exists.
+   *
+   * Every line used to go `new Audio(...).play()` straight at the
+   * device, and the radio path made a SECOND AudioContext of its own —
+   * so the game had two independent outputs and the voices were in
+   * neither mix. Press M and the rival went on taunting you into a
+   * silent game; the limiter and the ceiling that guarantee what leaves
+   * the machine never saw a word of it; and nothing could duck against
+   * a layer that was not there.
+   *
+   * Attached rather than constructed, because VoiceBox is built before
+   * the AudioContext is (a context created outside a user gesture is
+   * born suspended).
+   */
+  private mixCtx: AudioContext | null = null;
+  private mixOut: AudioNode | null = null;
+  /** An element can only be given to createMediaElementSource once, so
+   *  the routing is remembered rather than rebuilt. */
+  private routed = new WeakSet<HTMLAudioElement>();
   private synth: SpeechSynthesis | null = null;
   private male: SpeechSynthesisVoice | null = null;
   private female: SpeechSynthesisVoice | null = null;
@@ -82,13 +101,29 @@ export class VoiceBox {
     this.radio = false;
   }
 
-  /** Squeeze a recorded clip into a car speaker: a narrow band, a
-   *  little grit, and no bass at all. */
-  private routeThroughRadio(el: HTMLAudioElement): void {
+  /**
+   * Put this clip in the game's mix, and — on the radio — squeeze it
+   * into a car speaker on the way: a narrow band, a little grit, and no
+   * bass at all.
+   *
+   * One method for both paths, because the ROUTING is the same question
+   * either way and only the filtering differs. Falls back to playing the
+   * element dry if no bus has been attached, which is what happens in
+   * SSR and in a test that never boots the audio.
+   */
+  private routeToMix(el: HTMLAudioElement): void {
+    if (!this.mixCtx || !this.mixOut || this.routed.has(el)) return;
     try {
-      this.radioCtx ??= new AudioContext();
-      const ctx = this.radioCtx;
+      const ctx = this.mixCtx;
+      const out = this.mixOut;
       const src = ctx.createMediaElementSource(el);
+      this.routed.add(el);
+      if (!this.radio) {
+        // Open air: straight into the mix, so Mute, the limiter and the
+        // ceiling all reach it.
+        src.connect(out);
+        return;
+      }
       const hp = ctx.createBiquadFilter();
       hp.type = "highpass";
       hp.frequency.value = 480;
@@ -102,10 +137,17 @@ export class VoiceBox {
         curve[i] = Math.tanh(x * 2.6);
       }
       drive.curve = curve as Float32Array<ArrayBuffer>;
-      src.connect(hp).connect(lp).connect(drive).connect(ctx.destination);
+      src.connect(hp).connect(lp).connect(drive).connect(out);
     } catch {
       // A clip already routed once cannot be re-routed; it just plays dry
     }
+  }
+
+  /** Hand the voice the game's bus. Called once, after the sound engine
+   *  has a running context. */
+  attachMix(ctx: AudioContext, out: AudioNode): void {
+    this.mixCtx = ctx;
+    this.mixOut = out;
   }
 
   /** Ref-counted, because lines overlap: the duck lifts when the LAST
@@ -138,7 +180,7 @@ export class VoiceBox {
       const audio = new Audio(`/voices/${clipId}.mp3`);
       this.clipAudio = audio;
       audio.volume = 0.9;
-      if (this.radio) this.routeThroughRadio(audio);
+      this.routeToMix(audio);
       let released = false;
       const release = () => {
         if (released) return;
