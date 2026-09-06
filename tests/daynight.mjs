@@ -230,6 +230,128 @@ for (const r of rig) {
   check(offSec < 30, `the world clock is ${offSec.toFixed(0)} s off Kuwait's`);
 }
 
+// --- The light comes from the thing you can see ----------------------
+//
+// It did not. The key light and the visible body rode two independent
+// arcs — different radius, different height law, and a sign flip that
+// put the body on the far side of the sky — so measured across ten hours
+// they were between 49 and 113 degrees apart. At half past five the
+// sunrise arrived from 111 degrees away from where the sun was drawn:
+// every shadow in the game pointed somewhere the sun was not.
+//
+// Underneath that, worse: engine.ts re-centres every sky follower on the
+// camera from the offset it was AUTHORED with, taking x and z and
+// leaving y — so the position this block wrote survived one frame in y
+// and was overwritten in x and z. The sun and the moon had never
+// travelled across the sky at all. They sat at one compass bearing and
+// bobbed up and down with the hour.
+//
+// Measured from the CAMERA, which is the only place the body is ever
+// seen from: measuring its direction from the world origin is what made
+// this look broken after it was fixed.
+{
+  const sky = await page.evaluate(async () => {
+    const e = window.__grnEngine;
+    const THREE = window.__grnThree;
+    e.setPaused(true);
+    let disc = null, halo = null;
+    e.scene.traverse((o) => {
+      if (o.isMesh && o.material?.uniforms?.uSun && !disc) disc = o;
+      if (o.isSprite && o.scale.x > 100 && !halo) halo = o;
+    });
+    if (!disc) return { noDisc: true };
+    const rows = [];
+    for (const h of [0, 3, 5.5, 6.5, 9, 12, 15, 17.5, 18.5, 21]) {
+      e.timeHours = h;
+      e.world.setTimeOfDay(h);
+      e.applyDaylight?.();
+      e.update(1 / 60);
+      const cam = e.camera.position;
+      const kd = new THREE.Vector3().copy(e.world.moonLight.userData.keyDir);
+      const dd = disc.position.clone().sub(cam).normalize();
+      const dist = disc.position.distanceTo(cam);
+      rows.push({
+        h,
+        apart: +((kd.angleTo(dd) * 180) / Math.PI).toFixed(2),
+        deg: +((2 * Math.atan(disc.scale.x / dist) * 180) / Math.PI).toFixed(2),
+        haloDeg: halo ? +((2 * Math.atan(halo.scale.x / 2 / dist) * 180) / Math.PI).toFixed(1) : null,
+        sun: disc.material.uniforms.uSun.value,
+        rgb: (() => { const c = disc.material.uniforms.uColor.value; return [+c.r.toFixed(2), +c.g.toFixed(2), +c.b.toFixed(2)]; })(),
+      });
+    }
+    return { rows };
+  });
+
+  if (sky.noDisc) fail.push("there is no sun or moon in the sky");
+  else {
+    console.log("\nsun & moon   hour   apart   width   halo   sun?  disc rgb");
+    for (const r of sky.rows) {
+      console.log(
+        `             ${String(r.h).padStart(4)}  ${String(r.apart).padStart(6)}°  ` +
+          `${String(r.deg).padStart(5)}°  ${String(r.haloDeg).padStart(5)}°  ` +
+          `${String(r.sun).padStart(4)}  ${JSON.stringify(r.rgb)}`
+      );
+    }
+    const worstApart = Math.max(...sky.rows.map((r) => r.apart));
+    console.log(
+      `             the light is never more than ${worstApart}° from the body it comes from  ` +
+        check(worstApart < 1, `the key light is ${worstApart}° away from the sun or moon you can see`)
+    );
+    // One size, and the same one all day. The real sun and moon are both
+    // 0.53° and equal to within a couple of percent — the only reason a
+    // total eclipse works — so whatever exaggeration this game picks has
+    // to apply to both, and must not wander with the hour.
+    const widths = sky.rows.map((r) => r.deg);
+    const spread = Math.max(...widths) - Math.min(...widths);
+    console.log(
+      `             ${Math.min(...widths)}° to ${Math.max(...widths)}° wide across the day  ` +
+        check(spread < 0.05, `the body changes width by ${spread.toFixed(2)}° as it crosses the sky`)
+    );
+    const sunW = sky.rows.filter((r) => r.sun === 1).map((r) => r.deg);
+    const moonW = sky.rows.filter((r) => r.sun === 0).map((r) => r.deg);
+    check(
+      sunW.length && moonW.length && Math.abs(Math.max(...sunW) - Math.max(...moonW)) < 0.05,
+      `the sun is ${Math.max(...sunW)}° and the moon ${Math.max(...moonW)}° — the real pair are the same width`
+    );
+    // An exaggeration, and a deliberate one: named against the real
+    // figure so nobody has to guess whether 2° was a decision.
+    const REAL = 0.53;
+    const x = Math.max(...widths) / REAL;
+    console.log(
+      `             ${x.toFixed(1)}x life size (the real sun and moon are both ${REAL}°)  ` +
+        check(x > 1.5 && x < 8, `${x.toFixed(1)}x life size is not an exaggeration anybody chose`)
+    );
+    // The halo is the aureole close around the body, not a quarter of
+    // the sky. It was up to 92° across.
+    const haloes = sky.rows.map((r) => r.haloDeg).filter((v) => v !== null);
+    if (haloes.length) {
+      check(
+        Math.max(...haloes) < 25,
+        `the halo reaches ${Math.max(...haloes)}° — wider than the 22° ice-crystal ring a real moon can wear`
+      );
+      check(Math.min(...haloes) > Math.max(...widths), "the halo is smaller than the body it surrounds");
+    }
+    // A moon is rock reflecting sunlight: near neutral. It was drawn
+    // amber while the light it threw was blue — the object and its own
+    // shadows disagreeing about what colour it was.
+    for (const r of sky.rows.filter((q) => q.sun === 0)) {
+      const [rr, , bb] = r.rgb;
+      check(rr - bb < 0.12, `the moon is drawn amber at ${r.h}h (${JSON.stringify(r.rgb)}) — rock reflecting sunlight is near neutral`);
+    }
+    // ...and a low sun IS red, which is real optics: it is seen through
+    // many times the air a high one is and the short wavelengths scatter
+    // out of the beam on the way.
+    const dawn = sky.rows.find((r) => r.h === 6.5);
+    const noon = sky.rows.find((r) => r.h === 12);
+    if (dawn && noon) {
+      console.log(
+        `             a low sun reddens: ${JSON.stringify(dawn.rgb)} at 6:30 against ${JSON.stringify(noon.rgb)} at noon  ` +
+          check(dawn.rgb[2] < noon.rgb[2] - 0.2, "the sun is the same colour at dawn as at noon")
+      );
+    }
+  }
+}
+
 console.log(fail.length?"\nFAILURES:\n - "+fail.join("\n - "):"\nthe day actually turns");
 await b.close();
 process.exit(fail.length?1:0);

@@ -6182,8 +6182,15 @@ export class GameEngine {
 
     // Sky dome, stars and moon ride with the camera — they are backdrop,
     // not geometry, so they must never fall outside the far plane. Each
-    // keeps the offset it was authored with, so the moon stays off to one
-    // side instead of being dragged overhead.
+    // keeps the offset it was AUTHORED with, so the dome and the stars
+    // stay put in the sky rather than being dragged overhead.
+    //
+    // "Authored" is doing real work in that sentence: this reads the
+    // offset rather than the position, and the sun and the moon rewrite
+    // their own offset every time the clock moves (world.ts, the body
+    // block). Anything that wants to travel across the sky has to write
+    // the offset — a position written elsewhere lives exactly one frame.
+    // Height is left alone here, which is why the body sets its own y.
     for (const o of this.world.skyFollowers) {
       const off = o.userData.skyOffset as THREE.Vector3;
       o.position.x = this.camera.position.x + off.x;

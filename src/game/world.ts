@@ -3016,6 +3016,82 @@ const KEY_ELEV_DAY = 54;
 /** How far out the key sits, horizontally, from what it is lighting. */
 const KEY_RADIUS = 520;
 
+/**
+ * How far away the sun or the moon is drawn.
+ *
+ * Any distance does, because a body this far off is a direction and not
+ * a place — it rides the camera (skyFollowers) so it never gets nearer.
+ * What matters is that it sits INSIDE the star sphere at 1750 and
+ * outside everything else in the world.
+ */
+const SKY_BODY_DIST = 1400;
+
+/**
+ * How wide the sun and the moon are drawn, in degrees of arc.
+ *
+ * The real ones are both 0.53 degrees, and they are the SAME width to
+ * within a couple of percent — which is the only reason a total eclipse
+ * is possible at all. This game drew them 4.15 to 20.78 degrees wide,
+ * changing by a factor of 2.75 as they crossed the sky, and drew the sun
+ * at 0.55 times the moon: smaller than the moon, which is backwards.
+ *
+ * A DESIGN VALUE, and it has to be, because 0.53 degrees at this game's
+ * 62-degree field of view is nine pixels tall on a 1080p screen — a dot,
+ * with no visible edge and nothing to light. 2.0 degrees is 35 pixels,
+ * which is where a disc starts reading as a disc: round, with a limb you
+ * can see. Just under four times life size, applied to BOTH bodies so
+ * they stay the same size as each other the way the real pair are.
+ */
+const SKY_BODY_DEG = 2.0;
+/** The real figure the above is exaggerated from, for the test that
+ *  checks the exaggeration is deliberate rather than accidental. */
+const SKY_BODY_REAL_DEG = 0.53;
+
+/**
+ * How hard the moon's face is driven into the exposure.
+ *
+ * Measured, on the rendered pixels, along the path the shot tool takes:
+ * this game tone-maps with ACES, whose curve is nearly flat at the top,
+ * so a disc driven near white comes back as a disc with no inside. At
+ * 1.0 the centre and a point halfway to the limb read 229 and 222 — a
+ * seven-level difference, which is a white circle. At 0.55, 209 and 198.
+ * At 0.20 the same two points read 180 and 150, and thirty levels is
+ * where the maria stop being a rumour.
+ *
+ * That is the whole argument for holding it down here: everyone has seen
+ * the moon, and what they have seen is a disc with markings on it. A
+ * featureless white circle is not a brighter moon, it is a lamp. The sun
+ * gets the opposite treatment and is driven past the ceiling on purpose,
+ * because nobody has ever looked at the sun and seen anything but a hole
+ * in the sky.
+ */
+const MOON_FACE_BRIGHT = 0.2;
+
+/**
+ * How hard the sun's face is driven, by hour.
+ *
+ * Noon has to saturate the LIMB, not just the centre, or the limb
+ * darkening below draws a dark ring and the sun reads as an eclipse.
+ * The limb keeps 1 − uLimb = 0.4 of the centre, and the centre saturates
+ * at about 1.6 on this exposure (measured), so the noon drive is
+ * 1.6 / 0.4 = 4.0, taken to 4.5 for margin.
+ *
+ * The other two are lower on purpose and it is not a look: a low sun is
+ * seen through many times the depth of air a high one is, which is the
+ * same extinction that reddens it, and it takes enough out that a
+ * setting sun is something you can actually look at — soft-edged, with
+ * its limb visible. That is the one hour of the day the darkening is
+ * real to the eye, so it is the one hour the render lets it show.
+ */
+const SUN_FACE_NOON = 4.5;
+const SUN_FACE_GOLD = 2.4;
+const SUN_FACE_TWILIGHT = 1.1;
+
+/** Scratch for aiming the sun/moon disc back at the camera. */
+const _bodyNormal = new THREE.Vector3();
+/** A PlaneGeometry faces +z; this is that, named. */
+const _bodyPlaneNormal = new THREE.Vector3(0, 0, 1);
+
 const _focus = new THREE.Vector3();
 const _rest = new THREE.Quaternion();
 // Scratch for the crowd's wave solves — world-space shoulder, direction
@@ -3048,7 +3124,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // Everything whose windows come on after dark, so one place drives them.
   const litFacades: THREE.MeshStandardMaterial[] = [];
   let starsMatRef: THREE.PointsMaterial | null = null;
-  let moonDiscMat: THREE.MeshBasicMaterial | null = null;
+  let moonDiscMat: THREE.ShaderMaterial | null = null;
   let moonHaloMat: THREE.SpriteMaterial | null = null;
   // The celestial body: the moon after dark, the sun in daylight — one
   // disc that crosses the sky, because two would be a lie half the time.
@@ -3222,9 +3298,129 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     scene.add(sky);
     skyFollowers.push(sky);
 
-    // The moon over the Gulf, with a soft halo
-    moonDiscMat = new THREE.MeshBasicMaterial({ color: 0xfdf3d3, fog: false, transparent: true });
-    const moonDisc = new THREE.Mesh(new THREE.CircleGeometry(70, 32), moonDiscMat);
+    // The moon over the Gulf, with a soft halo.
+    //
+    // A quad with the disc cut out of it in the shader rather than a
+    // CircleGeometry, for two reasons. It is perfectly round at any size
+    // — the 32-segment circle this replaces showed its corners once it
+    // was more than a few degrees wide, and it was up to 20 degrees wide
+    // — and the same fragment shader that decides which pixels are
+    // inside the limb can decide how bright each of them is, which is
+    // the whole difference between a disc and a sticker of a disc.
+    //
+    // WHAT THE TWO BODIES ACTUALLY LOOK LIKE, and they are not the same:
+    //
+    //   The SUN is a ball of gas seen through its own atmosphere, so it
+    //   is limb-DARKENED: the edge is dimmer than the middle, because a
+    //   sightline near the edge stops in a higher, cooler layer than one
+    //   through the centre. The standard visible-light figure is a 60%
+    //   fall from centre to limb, which is uLimb below.
+    //
+    //   The MOON is rock, and it does the opposite of what a lit sphere
+    //   should: it stays bright right out to the edge and reads FLAT.
+    //   That is the opposition surge — the regolith is a retroreflector,
+    //   so it throws light straight back where it came from rather than
+    //   scattering it like a matte ball. It is why a full moon looks
+    //   like a coin and not a sphere, and why the naive fix (shade it
+    //   like a sphere) makes it look wrong.
+    //
+    // The maria are the dark patches, and they are why a moon at this
+    // size stops looking like a lamp: 12% of the disc's brightness,
+    // which is roughly their real contrast against the highlands.
+    //
+    // The moon is FULL, always, and that is not laziness — it follows.
+    // This game draws one body on the key light's own direction, so the
+    // face turned toward the camera is the face being lit, and a body
+    // lit from the direction you are looking at it from is by definition
+    // full. A crescent would mean the light was coming from somewhere
+    // the body is not, which is the bug this whole block exists to fix.
+    moonDiscMat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      fog: false,
+      uniforms: {
+        uColor: { value: new THREE.Color(0xf6f3ee) },
+        uOpacity: { value: 1 },
+        /** 0 = the moon, 1 = the sun. */
+        uSun: { value: 0 },
+        /**
+         * How hard the body is driven into the exposure.
+         *
+         * The two bodies want opposite answers and the reason is what a
+         * person can actually see. Nobody has ever looked at the sun: it
+         * is far past what an eye or a sensor can hold, it blows out to a
+         * white hole with a bloom around it, and its limb darkening is
+         * invisible in practice. Everybody has looked at the moon, and
+         * what they see is a disc WITH MARKINGS — the maria are the
+         * whole reason it reads as a world and not a lamp.
+         *
+         * So the sun is driven over the ceiling deliberately and the
+         * moon is held just under it. Measured on the rendered pixels:
+         * before this, 81% of the moon's face was clipped to pure white
+         * and neither the maria nor the limb survived at all.
+         */
+        uBright: { value: 1 },
+        /** How much dimmer the sun's limb is than its centre. */
+        uLimb: { value: 0.6 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        precision highp float;
+        varying vec2 vUv;
+        uniform vec3 uColor;
+        uniform float uOpacity;
+        uniform float uSun;
+        uniform float uLimb;
+        uniform float uBright;
+
+        // Cheap value noise, for the maria. Fixed in the disc's own frame
+        // so the markings do not crawl as it crosses the sky.
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float noise(vec2 p) {
+          vec2 i = floor(p), f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x),
+                     mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+        }
+
+        void main() {
+          vec2 p = vUv * 2.0 - 1.0;
+          float r = length(p);
+          // The limb, antialiased against however many pixels wide this
+          // disc happens to be — so it is a clean edge at two degrees and
+          // still a clean edge if somebody makes it ten.
+          float aa = fwidth(r) * 1.5;
+          float inside = 1.0 - smoothstep(1.0 - aa, 1.0, r);
+          if (inside <= 0.0) discard;
+
+          // cos of the angle between the sightline and the surface
+          // normal, which is what limb darkening is a function of.
+          float mu = sqrt(max(0.0, 1.0 - r * r));
+          float sunFace = 1.0 - uLimb * (1.0 - mu);
+          // The moon does not darken toward its limb — see above — but a
+          // completely flat disc has no edge at all, so it keeps a
+          // fraction of the fall to sit the rim against the sky.
+          float moonFace = 1.0 - 0.12 * (1.0 - mu);
+          // The maria, at their real contrast against the highlands —
+          // they are about a fifth darker, which is a big difference on
+          // a disc and reads from across a room.
+          float maria = smoothstep(0.35, 0.75, noise(p * 1.9 + 3.7));
+          moonFace *= 1.0 - 0.20 * maria;
+
+          float face = mix(moonFace, sunFace, uSun);
+          gl_FragColor = vec4(uColor * face * uBright, uOpacity * inside);
+        }
+      `,
+    });
+    // A unit quad: the scale carries the real size, set per frame from
+    // SKY_BODY_DEG so it never depends on where the body is.
+    const moonDisc = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), moonDiscMat);
     bodyDisc = moonDisc;
     moonDisc.position.set(-980, 640, -200);
     moonDisc.lookAt(0, 0, 0);
@@ -6152,29 +6348,128 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // than a starfield still hanging in it.
       if (starsMatRef) starsMatRef.opacity = Math.pow(night, 0.7);
 
-      // The visible body rides the same arc as the key light: the moon
-      // while the sun is down, the sun itself once it is up.
+      // The visible body rides the key light's OWN direction.
+      //
+      // It used to ride a second arc of its own — a different radius, a
+      // different height law, and a sign flip that put it on the far side
+      // of the sky. Measured across ten hours, the body and the light it
+      // is supposed to be were between 49 and 113 degrees apart: at half
+      // past five the sunrise came from 111 degrees away from where the
+      // sun was drawn, so every shadow in the game pointed somewhere the
+      // sun was not. Two arcs cannot be kept in step by hand; there is
+      // one arc now, and the body is placed on it, so the light comes
+      // from the thing you can see by construction rather than by
+      // maintenance.
       if (bodyDisc && bodyHalo && moonDiscMat && moonHaloMat) {
         const sunUp = sunAlt > -0.05;
-        const r = 1150;
-        const y = 120 + Math.max(0.05, Math.abs(sunAlt)) * 900;
-        bodyDisc.position.set(Math.cos(az) * -r, y, Math.sin(az) * -r * (sunUp ? 1 : -1));
-        bodyDisc.lookAt(0, y * 0.2, 0);
-        bodyHalo.position.copy(bodyDisc.position);
-        // A sun is small, fierce and white; a moon is soft and pale
-        bodyDisc.scale.setScalar(sunUp ? 0.55 : 1);
-        moonDiscMat.color.setRGB(
-          1,
-          0.95 * night + 0.88 * twilight + 0.9 * gold + 0.97 * day,
-          0.83 * night + 0.62 * twilight + 0.7 * gold + 0.86 * day
-        );
+        const dir = moonLight.userData.keyDir as THREE.Vector3;
+        // Written as the SKY OFFSET, not as a position.
+        //
+        // These ride the camera: engine.ts re-centres every sky follower
+        // on it each frame, taking x and z from the offset the piece was
+        // authored with and leaving y alone. So a position written here
+        // survived in y and was overwritten in x and z on the very next
+        // frame — which is why, for as long as this has existed, the sun
+        // and the moon have never moved ACROSS the sky at all. They sat
+        // at one fixed compass bearing from the camera and bobbed up and
+        // down with the hour. The azimuth in this function was computed,
+        // multiplied out, assigned, and thrown away sixteen milliseconds
+        // later. Write the offset and the two owners agree.
+        const off = bodyDisc.userData.skyOffset as THREE.Vector3;
+        off.set(dir.x * SKY_BODY_DIST, 0, dir.z * SKY_BODY_DIST);
+        bodyDisc.position.y = dir.y * SKY_BODY_DIST;
+        // Face the camera without asking where it is: the body sits at
+        // camera + dir x distance, so the way back to the camera is
+        // always -dir, whatever the camera does next.
+        _bodyNormal.copy(dir).negate();
+        bodyDisc.quaternion.setFromUnitVectors(_bodyPlaneNormal, _bodyNormal);
+        (bodyHalo.userData.skyOffset as THREE.Vector3).copy(off);
+        bodyHalo.position.y = bodyDisc.position.y;
+
+        // One size, for both bodies, at every hour. The disc's half-width
+        // in world units is the distance times the tangent of half the
+        // angle it must subtend — so the angle is what is fixed, and it
+        // stays fixed however far away the body is drawn.
+        const half = SKY_BODY_DIST * Math.tan(THREE.MathUtils.degToRad(SKY_BODY_DEG) / 2);
+        bodyDisc.scale.setScalar(half);
+        moonDiscMat.uniforms.uSun.value = sunUp ? 1 : 0;
+        // The sun is pushed past the ceiling on purpose; the moon is held
+        // under it so its markings survive. See uBright.
+        // A sun you cannot look at, and one you can.
+        //
+        // Limb darkening is real and it is 60% at the very edge, but at
+        // noon nobody has ever seen it: the whole disc is so far past
+        // what an eye or a sensor holds that it saturates to a flat white
+        // hole, limb included. Drive it only to where the CENTRE clips
+        // and the rim comes back — the first version of this did exactly
+        // that and put a dark ring round the sun, a doughnut in the sky.
+        // The rim has to be driven past the ceiling too, which needs
+        // 1/(1 - uLimb) times as much: hence SUN_FACE_NOON.
+        //
+        // A setting sun is the opposite and it is why this rides the
+        // hour rather than being one number. You CAN look at one: the
+        // air has taken most of it out, which is the same extinction
+        // that reddens it, and a low sun genuinely shows a soft edge.
+        moonDiscMat.uniforms.uBright.value = sunUp
+          ? SUN_FACE_TWILIGHT * twilight + SUN_FACE_GOLD * gold + SUN_FACE_NOON * day
+          : MOON_FACE_BRIGHT;
+
+        // Colour. The moon is very nearly neutral — its rock is about as
+        // reflective as worn asphalt and it reflects sunlight, so what
+        // reaches the eye is white with the faintest warm cast. It was
+        // drawn amber, [1, 0.95, 0.83], while the light it threw was blue
+        // — the object and its own shadows disagreeing about what colour
+        // it was.
+        //
+        // The SUN reddens as it sets, and that one is real optics rather
+        // than a look: a low sun is seen through many times the depth of
+        // atmosphere a high one is, and the short wavelengths scatter out
+        // of the beam along the way. So the warmth rides twilight and the
+        // golden band, and noon is white.
+        const c = moonDiscMat.uniforms.uColor.value as THREE.Color;
+        if (sunUp) {
+          c.setRGB(
+            1,
+            0.62 * twilight + 0.80 * gold + 0.97 * day,
+            0.38 * twilight + 0.62 * gold + 0.93 * day
+          );
+        } else {
+          c.setRGB(0.97, 0.96, 0.94);
+        }
         // `lit`, not `day`: the golden band is daylight with a share
         // taken out of it, and anything that means "is the sun up" has to
         // ask for the whole of it or the sun fades out of its own
         // afternoon.
-        moonDiscMat.opacity = 0.35 + 0.65 * Math.max(night, lit);
-        bodyHalo.scale.setScalar(520 * (1 + day * 0.5 + gold * 0.75 + twilight * 0.35));
+        moonDiscMat.uniforms.uOpacity.value = 0.35 + 0.65 * Math.max(night, lit);
+
+        // The halo, sized against the body rather than against nothing.
+        //
+        // It was a flat 520 units at a distance that changed, so it
+        // measured between 27 and 92 degrees across — at its worst a
+        // quarter of the whole sky was halo. What it stands for is the
+        // aureole: the bright ring immediately around a body, thrown by
+        // scattering in the air close to the line of sight, which falls
+        // away within a few degrees. Six body-widths across is 12
+        // degrees, which is inside the 22-degree ice-crystal halo a real
+        // moon sometimes wears and well outside the disc itself.
+        const haloWidths = 6 * (1 + day * 0.35 + gold * 0.5 + twilight * 0.25);
+        bodyHalo.scale.setScalar(half * 2 * haloWidths);
         moonHaloMat.opacity = 0.5 * night + 0.75 * twilight + 0.7 * gold + 0.6 * day;
+        // The aureole takes the body's own colour, because that is what
+        // an aureole is: the body's own light scattered forward by the
+        // air in the few degrees around it. It was a fixed warm cream at
+        // every hour, so the moon's glow was amber while the moon was
+        // not, and the noon sun's glow was amber against a blue sky.
+        //
+        // Measured, so the comment does not claim more than it did: this
+        // did NOT remove the faint dull ring that sits just outside the
+        // noon sun (216 against 234 a little further out, on a sky that
+        // bright). That ring is in the sky dome's own gradient rather
+        // than in the halo, it is about 8%, and it is older than this
+        // work — the halo used to be four to fifteen times wider and had
+        // the same edge. Left as found, and written down rather than
+        // quietly attributed to something this change fixed.
+        moonHaloMat.color.copy(c);
       }
 
       // Streetlights are on a photocell, not a clock: they come on as
