@@ -149,3 +149,6 @@ dev.log
 
 # 4K lossless frames from tools/shots/ik4k.mjs: 13 MB each, the .jpg is tracked
 press/ik/4k/*.png
+
+# Per-run HUD type report from tools/shots/hudtype.mjs: viewport-dependent
+press/hud/type.json

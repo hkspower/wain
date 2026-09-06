@@ -277,9 +277,18 @@ function RevCounter({
             box on a dial that renders about 160 CSS px wide came out at
             8 px on a phone, which is below the size at which a condensed
             face has counters left. */}
+        {/* SVG text does not inherit the page's font stack the way a div
+            does: with no family of its own this fell through to the UI
+            sans, so the rev counter had one typeface on its numerals and
+            unit and another on every label around it. A cluster is one
+            instrument and reads as one typeface. */}
         <text
           x="50" y="79" textAnchor="middle"
+          fontFamily="var(--font-display)"
           fontSize="7" fontWeight="700" letterSpacing="0.6"
+          // React's SVG typings have no fontVariantNumeric prop, so the
+          // figures go on through style, where SVG text takes them.
+          style={{ fontVariantNumeric: "tabular-nums", fontFeatureSettings: '"tnum" 1' }}
           fill="rgba(243,220,180,0.8)"
         >
           x1000 r/min
@@ -338,9 +347,15 @@ function RevCounter({
           className="flex items-baseline justify-center gap-[0.4em]"
           style={{ marginTop: size * 0.03 }}
         >
+          {/* tabular-nums, like the speed above it. Without it this was
+              the worst-behaved thing on the HUD: measured, the gear's box
+              changed width by 13.4 px at 25 px type as the digits went
+              round, so the number jumped sideways on every shift — on a
+              readout the driver checks by its position in the corner of
+              their eye rather than by reading it. */}
           <span
             ref={gearRef}
-            className="grn-display italic leading-none text-sodium-400 [text-shadow:0_0_11px_rgba(245,165,36,0.35)]"
+            className="grn-display italic leading-none tabular-nums text-sodium-400 [text-shadow:0_0_11px_rgba(245,165,36,0.35)]"
             style={{ fontSize: size * 0.125 }}
           >
             N
@@ -1079,8 +1094,15 @@ function raceCut(): { w: number; h: number } | null {
           label.setAttribute("x", tx.toFixed(2));
           label.setAttribute("y", (ty + 2.5).toFixed(2));
           label.setAttribute("text-anchor", "middle");
+          // The display face, and figures of one width. These were the
+          // UI sans — a second typeface on the same instrument — and
+          // proportional, so a "1" and an "8" centred differently on
+          // their own ticks and the scale did not sit evenly.
+          label.setAttribute("font-family", "var(--font-display)");
           label.setAttribute("font-size", "8.6");
           label.setAttribute("font-weight", "700");
+          label.setAttribute("font-variant-numeric", "tabular-nums");
+          label.style.fontFeatureSettings = '"tnum" 1';
           // Warm, like the backlight behind them: on a real cluster the
           // numerals are lit by the same lamps as the face and pick up
           // its colour.
@@ -2097,7 +2119,7 @@ function raceCut(): { w: number; h: number } | null {
                   unit symbol shouted, "80 m" reads as a distance. */}
               <span className="tnum normal-case text-sodium-400/85" />
             </div>
-            <div ref={progressRef} className="grn-label mt-0.5 text-[0.75rem]" />
+            <div ref={progressRef} className="grn-label tabular-nums mt-0.5 text-[0.75rem]" />
             {/* The clock, and whether the night is still open.
                 Racing runs midnight to 05:50 and nothing else on screen
                 would tell you that — a player who flashes at a rival at
@@ -2194,7 +2216,7 @@ function raceCut(): { w: number; h: number } | null {
         <div className="absolute left-1/2 top-24 -translate-x-1/2 text-center">
           <div
             ref={rivalInfoRef}
-            className="grn-display text-base tracking-[0.16em] text-sodium-400 transition-opacity [text-shadow:0_2px_12px_rgba(0,0,0,0.95)]"
+            className="grn-display tabular-nums text-base tracking-[0.16em] text-sodium-400 transition-opacity [text-shadow:0_2px_12px_rgba(0,0,0,0.95)]"
           />
           <div
             ref={flashRef}

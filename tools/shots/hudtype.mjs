@@ -75,6 +75,18 @@ const report = await page.evaluate(async () => {
     const cs = getComputedStyle(el);
     if (cs.visibility === "hidden" || cs.opacity === "0") continue;
 
+    // Is this an INSTRUMENT face, or is it running text?
+    //
+    // The rule matters, because the right answer is opposite for the
+    // two. A readout wants figures of one width so it does not move as
+    // its value changes; a sentence wants proportional figures, which
+    // is what they are for. So the check below applies to the faces the
+    // HUD is built from — the display and label classes, and the rev
+    // counter's own SVG — and leaves prose alone.
+    const cls = typeof el.className === "string" ? el.className : (el.className?.baseVal ?? "");
+    const instrument =
+      /\bgrn-display\b|\bgrn-label\b/.test(cls) || !!el.closest("svg[data-dial], g[data-tach], [data-tach]");
+
     const key = `${own}|${cs.fontFamily}|${cs.fontSize}|${cs.fontWeight}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -117,6 +129,7 @@ const report = await page.evaluate(async () => {
       numeric: cs.fontVariantNumeric,
       features: cs.fontFeatureSettings,
       digitSpread,
+      instrument,
       at: [Math.round(r.x), Math.round(r.y)],
     });
   }
@@ -145,16 +158,60 @@ for (const r of rows) {
       `${String(r.numeric === "normal" ? "" : r.numeric).padEnd(17)} ${r.text}`
   );
 }
-const dancing = report.out.filter((r) => r.digitSpread !== null && r.digitSpread > 0.5);
+const fail = [];
+
+// 1. A readout must not change width as its value does.
+//
+// Half a pixel is the threshold and it is not arbitrary: below that the
+// shift is inside the rasteriser's own rounding and nothing moves on
+// screen. Above it the number walks. The worst this found was the gear
+// at 13.4 px on 25 px type — it jumped sideways on every shift.
+//
+// It covers the whole instrument face, including a unit that happens to
+// carry a numeral — the rev counter's "x1000 r/min" sits under the hub
+// among the numerals it labels, and a dial whose scale is one width and
+// whose unit is another is a dial set two ways. Running text is exempt
+// by the `instrument` rule above, which is the distinction that matters:
+// proportional figures are correct in a sentence and wrong in a readout.
+const dancing = report.out.filter(
+  (r) => r.instrument && r.digitSpread !== null && r.digitSpread > 0.5
+);
 console.log(
-  `\n${dancing.length} numeric readout${dancing.length === 1 ? "" : "s"} whose width changes with the value` +
+  `\n${dancing.length} instrument readout${dancing.length === 1 ? "" : "s"} whose width changes with the value` +
     (dancing.length ? ":" : " — nothing dances")
 );
-for (const d of dancing) console.log(`  ${d.digitSpread} px at ${d.px}px: "${d.text}"`);
+for (const d of dancing) {
+  console.log(`  ${d.digitSpread} px at ${d.px}px: "${d.text}"`);
+  fail.push(`"${d.text}" moves ${d.digitSpread} px as its digits change — it needs tabular figures`);
+}
+
+// 2. One instrument, one typeface.
+//
+// The rev counter had its numerals and its unit in the UI sans while
+// every label around it was the display face, because SVG text does not
+// inherit the page's stack the way a div does. Two typefaces on one dial
+// is the single most visible way to look unfinished.
+const faces = new Set(report.out.filter((r) => r.instrument && r.resolved).map((r) => r.resolved));
+console.log(
+  `\ninstrument faces: ${[...faces].join(", ") || "none"}  ` +
+    (faces.size <= 2 ? "ok" : "FAIL")
+);
+if (faces.size > 2) {
+  fail.push(`the instruments are set in ${faces.size} families (${[...faces].join(", ")}) — a cluster reads as one`);
+}
+
+// 3. Nothing may be set in a family that did not load: the browser will
+//    synthesise a weight or a slant and it looks like a different font.
 const unresolved = report.out.filter((r) => !r.resolved);
 if (unresolved.length) {
-  console.log(`\n${unresolved.length} element(s) whose first family did not load:`);
-  for (const u of unresolved) console.log(`  ${u.family} ${u.weight} — "${u.text}"`);
+  console.log(`\n${unresolved.length} element(s) whose family did not load:`);
+  for (const u of unresolved) {
+    console.log(`  ${u.family} ${u.weight} — "${u.text}"`);
+    fail.push(`"${u.text}" asks for ${u.family} ${u.weight}, which is not loaded — the browser will fake it`);
+  }
 }
+
 console.log("\nwrote press/hud/type.json");
+console.log(fail.length ? `\nFAILURES:\n - ${fail.join("\n - ")}` : "\nthe HUD's type holds still");
 await browser.close();
+process.exit(fail.length ? 1 : 0);
