@@ -166,8 +166,14 @@ export function solveDriverRig(
   // the foot is solved onto the moving face, so a stab of brake reads
   // all the way down the driver's leg.
   for (const leg of rig.legs) {
-    const pedal = leg.side > 0 ? rig.pedals.throttle : rig.pedals.brake;
-    const press = leg.side > 0 ? throttle : brake;
+    // side +1 is the hip at local +x, which is the driver's LEFT — so
+    // the RIGHT leg is side −1, and the right leg is the one that works
+    // the accelerator. This read `side > 0` and put the left foot on the
+    // throttle; with the pedal box mirrored to match the seat as well,
+    // the two errors had been cancelling into crossed legs.
+    const rightLeg = leg.side < 0;
+    const pedal = rightLeg ? rig.pedals.throttle : rig.pedals.brake;
+    const press = rightLeg ? throttle : brake;
     pedal.position.z = (pedal.userData.restZ as number) + press * RIG.driver.pedalTravelZ;
     pedal.position.y = (pedal.userData.restY as number) - press * RIG.driver.pedalTravelY;
     pedal.updateWorldMatrix(true, false);

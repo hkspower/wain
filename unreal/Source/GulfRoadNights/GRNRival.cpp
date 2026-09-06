@@ -38,7 +38,7 @@ void AGRNRival::Init(AGRNTrack* InTrack, AGRNVehiclePawn* InPlayer, int32 RivalI
 
 	// A legend at the wheel, not an empty car pulling alongside you.
 	Driver = GRNDriverRig::Build(this, RootComponent,
-		FVector(GRN_M(0.08f), GRN_M(0.38f), GRN_M(0.42f)));
+		FVector(GRN_M(0.08f), GRN_M(-0.38f), GRN_M(0.42f)));
 }
 
 FString AGRNRival::DisplayName() const

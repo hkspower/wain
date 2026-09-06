@@ -373,8 +373,8 @@ namespace GRNRig
 	constexpr float DriverGripRight = 0.879645943f;
 	constexpr float DriverSteerLock = 2.4f;
 	constexpr float DriverWheelRate = 12.f;
-	constexpr float DriverPedalThrottleX = 0.1f;
-	constexpr float DriverPedalBrakeX = -0.08f;
+	constexpr float DriverPedalThrottleX = -0.1f;
+	constexpr float DriverPedalBrakeX = 0.08f;
 	constexpr float DriverPedalY = 0.09f;
 	constexpr float DriverPedalZ = 0.46f;
 	constexpr float DriverPedalPitch = -0.55f;

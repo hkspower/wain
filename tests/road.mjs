@@ -241,6 +241,98 @@ console.log(
     `worst drift ${worst.toFixed(1)} m (${worstName || "none"})`
 );
 
+// --- 5b. Built like a road in Kuwait ----------------------------------
+//
+// The route is checked above. This is the CROSS-SECTION and the paint —
+// whether the thing you drive on is put together the way a road in
+// Kuwait is put together.
+//
+// Every figure below is named with what it is checked against, because
+// this environment has no route out to an authoritative Kuwaiti source:
+// these are the widely used Gulf/GCC values, not citations. Where a game
+// abstraction departs from a real road on purpose, it is asserted AS the
+// abstraction rather than quietly passed over.
+{
+  const road = await page.evaluate(() => {
+    const e = window.__grnEngine;
+    const THREE = window.__grnThree;
+    const t = e.track;
+    let dash = null, line = null, studs = 0;
+    e.scene.traverse((o) => {
+      if (o.name === "road-dash" && !dash) dash = o;
+      if (o.name === "road-line" && !line) line = o;
+      if (/stud|cat/i.test(o.name)) studs++;
+    });
+    // Spacing measured on the MIDDLE boundary, where the arc is the
+    // lap's own length — an outer lane line runs a longer arc and would
+    // read a longer cycle that is a property of the bend, not the paint.
+    let spacing = null, dashLen = null, dashW = null, count = null;
+    if (dash) {
+      count = dash.count;
+      dashLen = dash.geometry.parameters.height;
+      dashW = dash.geometry.parameters.width;
+      const perLine = count / 3;
+      const a = new THREE.Matrix4(), b = new THREE.Matrix4();
+      const pa = new THREE.Vector3(), pb = new THREE.Vector3();
+      dash.getMatrixAt(perLine, a);
+      dash.getMatrixAt(perLine + 1, b);
+      pa.setFromMatrixPosition(a); pb.setFromMatrixPosition(b);
+      spacing = pa.distanceTo(pb);
+    }
+    let median = 0;
+    e.scene.traverse((o) => { if (/median|divider/i.test(o.name)) median++; });
+    return {
+      halfWidth: t.halfWidthAt(2400), lapLength: t.length,
+      spacing, dashLen, dashW, dashCount: count,
+      hasEdgeLine: !!line, studs, median,
+    };
+  });
+
+  const laneW = (road.halfWidth * 2) / 4;
+  console.log(
+    `\nkuwait road  carriageway ${(road.halfWidth * 2).toFixed(1)} m, four lanes of ${laneW.toFixed(2)} m  ` +
+      check(Math.abs(laneW - 3.5) < 0.01, `lanes are ${laneW.toFixed(2)} m — Kuwait's urban arterial lane is 3.5 m`)
+  );
+
+  const gap = road.spacing - road.dashLen;
+  console.log(
+    `             lane line ${(road.dashW * 1000).toFixed(0)} mm wide, ` +
+      `${road.dashLen} m mark and ${gap.toFixed(2)} m gap (cycle ${road.spacing.toFixed(2)} m)  ` +
+      check(Math.abs(road.dashLen - 3) < 0.01 && Math.abs(gap - 9) < 0.15,
+        `the lane line is ${road.dashLen} m on and ${gap.toFixed(2)} m off — the Gulf pattern is 3 and 9, a 1:3 mark to gap`)
+  );
+  check(road.dashW >= 0.1 && road.dashW <= 0.15,
+    `the lane line is ${(road.dashW * 1000).toFixed(0)} mm wide — a lane line is 100 to 150 mm`);
+  // The cycle must divide the lap exactly, or the last gap sits on the
+  // start line at a different length from every other gap on the road —
+  // and the start line is the datum the distance system is measured
+  // from. It was 19 m against 11 once.
+  const slots = road.dashCount / 3;
+  const closes = Math.abs(road.lapLength / slots - road.spacing);
+  console.log(
+    `             ${slots} marks per line close the lap to ${(closes * 1000).toFixed(0)} mm  ` +
+      check(closes < 0.05, `the last gap on the start line is ${closes.toFixed(2)} m out of step with the rest`)
+  );
+
+  console.log(
+    `             continuous edge lines ${road.hasEdgeLine ? "on both sides" : "MISSING"}  ` +
+      check(road.hasEdgeLine, "the carriageway has no edge lines")
+  );
+
+  // The one deliberate departure, asserted as one. All four lanes run
+  // the same way — this is a circuit, not one carriageway of a divided
+  // road — so lat 0 is an ordinary lane divide and is painted like the
+  // other two. A real four-lane road in Kuwait carrying both directions
+  // has a median between them. Checked so that the day someone adds
+  // oncoming traffic, the paint has to be reconsidered rather than
+  // silently left saying the wrong thing.
+  console.log(
+    `             one-way circuit: ${road.median} median objects, so lat 0 is a lane divide  ` +
+      check(road.median === 0,
+        `there are ${road.median} median objects — if traffic runs both ways now, the centre divide needs a centre line, not a lane dash`)
+  );
+}
+
 // --- 6. The sea is still on the left of the corniche ----------------
 console.log(
   `sea      ${check(m.seaAtStart < 800, `60 m to the left of the corniche is x=${m.seaAtStart.toFixed(0)}, inland`)}  x=${m.seaAtStart.toFixed(0)} at 1500 m`

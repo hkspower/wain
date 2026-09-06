@@ -118,6 +118,7 @@
     "test:size": "node tests/size.mjs",
     "test:soundtiming": "node tests/soundtiming.mjs",
     "test:spin": "node tests/spin.mjs",
+    "hud:type": "node tools/shots/hudtype.mjs",
     "test:rigsync": "node tests/rigsync.mjs",
     "test:aero": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/aero.mjs",
     "test:suspension": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/suspension.mjs",

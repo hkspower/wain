@@ -258,11 +258,36 @@ FGRNDriverRig GRNDriverRig::Build(AActor* Owner, USceneComponent* AttachTo, FVec
 			0.048f, Suit, Dark, 0.05f));
 	}
 
-	// Pedal box, right-hand drive: throttle outboard, brake inboard.
+	// LATERAL VALUES CROSS SIGN ON THE WAY IN, and everything asymmetric
+	// in this rig has to do it.
+	//
+	// The web build's driver frame has local +x on the car's LEFT — that
+	// is measured, not assumed: its driver's head sits 365 mm along the
+	// car's right vector in the negative direction. Unreal is left-handed
+	// with +Y on the car's RIGHT. So a lateral number carried over from
+	// the shared rig header means the opposite side here, and this port
+	// had been reading them straight through: the seat came out on the
+	// right, the pedals and the handbrake mirrored with it, and the whole
+	// car was right-hand drive.
+	//
+	// That is internally consistent and still wrong twice over. Kuwait
+	// drives on the right, so a car there has the wheel on the LEFT; and
+	// the web build already does, so the two ports disagreed about which
+	// side of the car the driver was on.
+	//
+	// Symmetric parts (shoulders, hips, at Side * X) are unaffected — a
+	// mirrored symmetric body is the same body. Only the four asymmetric
+	// placements matter, and they are all here or at the Build call.
+	//
+	// NOT COMPILED IN THIS ENVIRONMENT: there is no Unreal toolchain
+	// here, so this is a stated sign convention applied consistently
+	// rather than something that has been run.
+	// Pedal box for a left-hand-drive car: throttle inboard of the brake,
+	// so it is the rightmost pedal and the right foot works it.
 	auto MakePedal = [&](float XM) -> USceneComponent*
 	{
 		USceneComponent* P = Joint(Owner, Rig.Root,
-			FVector(GRNRig::DriverPedalZ, XM, GRNRig::DriverPedalY) * K,
+			FVector(GRNRig::DriverPedalZ, -XM, GRNRig::DriverPedalY) * K,
 			FRotator(FMath::RadiansToDegrees(GRNRig::DriverPedalPitch), 0.f, 0.f));
 		Shape(Owner, P, Cube(), FVector::ZeroVector, FVector(0.02f, 0.07f, 0.11f), Dark);
 		return P;
@@ -275,7 +300,7 @@ FGRNDriverRig GRNDriverRig::Build(AActor* Owner, USceneComponent* AttachTo, FVec
 	// back toward the driver. The one control a hand leaves the wheel
 	// for, so the inboard arm has somewhere to go during a slide.
 	Rig.Handbrake = Joint(Owner, Rig.Root,
-		FVector(GRNRig::DriverHandbrakeZ, GRNRig::DriverHandbrakeX, GRNRig::DriverHandbrakeY) * K);
+		FVector(GRNRig::DriverHandbrakeZ, -GRNRig::DriverHandbrakeX, GRNRig::DriverHandbrakeY) * K);
 	Rig.HandbrakeRest = GRNRig::DriverHandbrakeTilt;
 	if (Rig.Handbrake)
 	{

@@ -3923,13 +3923,29 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // does not exist. It was the only number in this block with no
     // justification against it.
     const boundaries = [-3.5, 0, 3.5];
-    // An exact division of the lap, so the last dash closes onto the
-    // first. floor(8492.0026 / 14) = 606 left the final dash at 8470 m
-    // and the next at 0: a 19.0 m hole in all three lane lines where
-    // every other gap is 11 m, sitting on the start line — the datum the
-    // whole distance system is measured from. The cross streets already
-    // solve this the same way.
-    const slots = Math.round(L / 14);
+    /**
+     * The lane line's cycle, metres: one 3 m mark plus the gap after it.
+     *
+     * 3 and 9 is the pattern a Gulf lane line is painted in — a 1:3 mark
+     * to gap, which is also what the US manual specifies in feet (10 and
+     * 30) and close to what most metric manuals use. The mark here was
+     * already 3 m. The cycle was 14, which made the gap 11 — a fifth
+     * longer than the standard and the only number in this block with
+     * nothing said for it.
+     *
+     * Its stated reason was that the lap divides exactly into 14 so the
+     * last dash closes onto the first, and that reason is real: at a
+     * nominal cycle that does NOT divide, the final gap came out 19 m
+     * against 11 everywhere else, sitting on the start line. But the
+     * division works at any nominal cycle — round(8492/12) = 708 slots,
+     * an 11.99 m spacing — so it never argued for 14 over 12.
+     *
+     * Stated plainly: this environment has no route to an authoritative
+     * Kuwaiti standard, so 3-and-9 is the widely used Gulf figure rather
+     * than a citation. It replaces a number with no argument at all.
+     */
+    const LANE_LINE_CYCLE_M = 12;
+    const slots = Math.round(L / LANE_LINE_CYCLE_M);
     const spacing = L / slots;
     const perLine = slots;
     const dashes = new THREE.InstancedMesh(dashGeo, dashMat, perLine * boundaries.length);

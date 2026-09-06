@@ -340,9 +340,12 @@ export function kuwaitiDriver(
     arms.push({ shoulder, elbow, hand, upper, lower, side });
   }
 
-  // Pedal box, right-hand drive: throttle outboard, brake inboard. Each
-  // pedal remembers where it sits at rest so the engine can press it in
-  // and the foot's IK target rides the moving face.
+  // Pedal box for a left-hand-drive car, which is what Kuwait drives:
+  // the throttle inboard of the brake, so it is the rightmost pedal and
+  // the right foot works it. See RIG.driver.pedalThrottleX for what this
+  // was and how it was measured. Each pedal remembers where it sits at
+  // rest so the engine can press it in and the foot's IK target rides
+  // the moving face.
   const mkPedal = (x: number): THREE.Object3D => {
     const pedal = new THREE.Object3D();
     pedal.position.set(x, RIG.driver.pedalY, RIG.driver.pedalZ);

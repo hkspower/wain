@@ -210,7 +210,9 @@ const feet = await page.evaluate(()=>{
   if (!rig.legs || !rig.pedals) return null;
   const V = e.camera.position.constructor;
   const measure = () => rig.legs.map((leg)=>{
-    const pedal = leg.side > 0 ? rig.pedals.throttle : rig.pedals.brake;
+    // side -1 is the RIGHT leg (side +1 puts the hip at local +x,
+    // which is the car's left) and the right foot works the accelerator.
+    const pedal = leg.side < 0 ? rig.pedals.throttle : rig.pedals.brake;
     pedal.updateWorldMatrix(true,false);
     const tp = new V(); tp.setFromMatrixPosition(pedal.matrixWorld);
     leg.hand.updateWorldMatrix(true,false);
@@ -231,12 +233,74 @@ const feet = await page.evaluate(()=>{
 });
 if (feet) {
   const worstFoot = Math.max(...[...feet.idle, ...feet.wot, ...feet.braking].map(f=>f.err));
-  const t = (set)=>set.find(f=>f.side>0), b = (set)=>set.find(f=>f.side<0);
+  // The leg on the throttle is the RIGHT one, side -1: side +1 puts the
+  // hip at local +x, which is the car's left. These were the other way
+  // round while the pedal box was mirrored.
+  const t = (set)=>set.find(f=>f.side<0), b = (set)=>set.find(f=>f.side>0);
   console.log(`feet         worst reach error ${worstFoot} m; throttle pedal ${t(feet.idle).z}→${t(feet.wot).z} at WOT, brake ${b(feet.idle).z}→${b(feet.braking).z} braking`);
   check(worstFoot < 0.02, `a foot missed its pedal by ${worstFoot} m`);
   check(t(feet.wot).z - t(feet.idle).z > 0.03, "the throttle pedal does not sink under full throttle");
   check(b(feet.braking).z - b(feet.idle).z > 0.03, "the brake pedal does not sink under braking");
 } else fail.push("driver rig has no legs/pedals");
+
+// --- 3a. The car is left-hand drive, and the pedals agree with the seat -
+//
+// Kuwait drives on the right, so a car there has the wheel on the LEFT.
+// The seat always did. The pedal box did not: measured on the running
+// car, the throttle sat 160 mm to the LEFT of the brake, which put the
+// driver's left foot on the accelerator and their right foot on the
+// brake. That is not a left- or right-hand-drive question — the
+// accelerator is the rightmost pedal in every production car ever built,
+// because it is worked by the right foot.
+//
+// Measured along the car's own right vector, from first principles
+// (forward x up), so it does not depend on anyone's idea of which local
+// axis is which — that idea is exactly what was wrong.
+{
+  const seat = await page.evaluate(() => {
+    const e = window.__grnEngine;
+    const THREE = window.__grnThree;
+    e.setPaused(true);
+    e.player.s = 2400; e.player.lat = 0; e.heading = 0; e.driftYaw = 0; e.player.speed = 0;
+    e.setTouchInput({ throttle: 0, brake: 0, steer: 0 });
+    for (let i = 0; i < 20; i++) e.update(1 / 60);
+    const body = e.carBody;
+    body.updateWorldMatrix(true, true);
+    const M = body.matrixWorld;
+    const origin = new THREE.Vector3().setFromMatrixPosition(M);
+    const fwd = new THREE.Vector3().setFromMatrixColumn(M, 2).setY(0).normalize();
+    const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
+    const rig = body.userData.driver;
+    rig.group.updateWorldMatrix(true, true);
+    const at = (o) => {
+      o.updateWorldMatrix(true, false);
+      return +new THREE.Vector3().setFromMatrixPosition(o.matrixWorld).sub(origin).dot(right).toFixed(3);
+    };
+    // Which leg is anatomically on the right: the hip, not the foot —
+    // the foot is wherever the pedal it was sent to happens to be, so
+    // asking the foot would be asking the answer.
+    const legs = rig.legs.map((l) => ({ side: l.side, hip: at(l.shoulder), foot: at(l.hand) }));
+    return {
+      head: at(rig.head), wheel: at(rig.wheel),
+      throttle: at(rig.pedals.throttle), brake: at(rig.pedals.brake), legs,
+    };
+  });
+  console.log(
+    `\nleft-hand drive  seat ${seat.head} m along the car's right (negative is left), wheel ${seat.wheel}  ` +
+      check(seat.head < -0.1, `the driver sits at ${seat.head} m — Kuwait drives on the right, so the wheel is on the left`)
+  );
+  console.log(
+    `pedals       throttle ${seat.throttle} m, brake ${seat.brake} m  ` +
+      check(seat.throttle > seat.brake,
+        `the throttle is ${(seat.brake - seat.throttle).toFixed(3)} m to the LEFT of the brake — the accelerator is the rightmost pedal in every car`)
+  );
+  const rightLeg = seat.legs.reduce((a, b) => (a.hip > b.hip ? a : b));
+  console.log(
+    `             the right leg (hip ${rightLeg.hip} m, side ${rightLeg.side}) has its foot at ${rightLeg.foot} m  ` +
+      check(Math.abs(rightLeg.foot - seat.throttle) < 0.02,
+        `the right foot is on the brake, not the throttle (foot ${rightLeg.foot} vs throttle ${seat.throttle})`)
+  );
+}
 
 // --- 3b. The road wheels: steered, by Ackermann, on the right knuckle ---
 // Both fronts took the same angle, and all three of a wheel's rotations
@@ -305,7 +369,9 @@ const rivalIk = await page.evaluate(()=>{
     hands.push(+hp.distanceTo(tp).toFixed(4));
   }
   const feet = rig.legs.map((leg)=>{
-    const pedal = leg.side > 0 ? rig.pedals.throttle : rig.pedals.brake;
+    // side -1 is the RIGHT leg (side +1 puts the hip at local +x,
+    // which is the car's left) and the right foot works the accelerator.
+    const pedal = leg.side < 0 ? rig.pedals.throttle : rig.pedals.brake;
     pedal.updateWorldMatrix(true,false);
     const tp = new V(); tp.setFromMatrixPosition(pedal.matrixWorld);
     leg.hand.updateWorldMatrix(true,false);
@@ -801,7 +867,9 @@ check(traffic.lean === 0, "traffic drivers carry legs — the lean build is not 
       }
       let feet = 0;
       for (const leg of rig.legs) {
-        const pedal = leg.side > 0 ? rig.pedals.throttle : rig.pedals.brake;
+        // side -1 is the RIGHT leg (side +1 puts the hip at local +x,
+    // which is the car's left) and the right foot works the accelerator.
+    const pedal = leg.side < 0 ? rig.pedals.throttle : rig.pedals.brake;
         pedal.updateWorldMatrix(true, false);
         const want = new THREE.Vector3().setFromMatrixPosition(pedal.matrixWorld);
         const got = leg.hand.getWorldPosition(new THREE.Vector3());

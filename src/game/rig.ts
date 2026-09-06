@@ -71,9 +71,33 @@ export const RIG = {
     /** How fast the shown wheel chases the steering input. */
     wheelRate: 12,
 
-    /** Pedal faces, right-hand drive: throttle outboard, brake inboard. */
-    pedalThrottleX: 0.1,
-    pedalBrakeX: -0.08,
+    /**
+     * Pedal faces, in the driver's own frame. Local +x is the car's
+     * LEFT — measured, not assumed: the driver's head sits 365 mm along
+     * the car's right vector in the negative direction, which is 365 mm
+     * to the LEFT of the centreline.
+     *
+     * So this game's cars are LEFT-HAND DRIVE, which is what a car in
+     * Kuwait is: Kuwait drives on the right, and a right-hand-traffic
+     * country puts the wheel on the left. The seat has always had this
+     * right. Three comments — here, in characters.ts and in the UE5
+     * pawn — said "right-hand drive" and were describing a car this
+     * game has never built.
+     *
+     * The PEDALS were built to match those comments rather than the
+     * seat, and so came out mirrored: measured on the running car, the
+     * throttle sat 160 mm to the LEFT of the brake, which put the
+     * driver's left foot on the accelerator and their right foot on the
+     * brake. That is not a left- or right-hand-drive question. The
+     * accelerator is the rightmost pedal in every production car ever
+     * built, in every country, because it is worked by the right foot.
+     *
+     * Negative is toward the car's centre from a left-hand seat, so the
+     * throttle is inboard and the brake sits outboard of it. The 180 mm
+     * between them is unchanged; only the handedness was wrong.
+     */
+    pedalThrottleX: -0.1,
+    pedalBrakeX: 0.08,
     pedalY: 0.09,
     pedalZ: 0.46,
     pedalPitch: -0.55,
