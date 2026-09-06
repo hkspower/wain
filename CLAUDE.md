@@ -180,7 +180,7 @@ Four things this depends on, each of which cost a wrong answer first:
   publish rather than as rate limiting. Fetched singly, all three arrived whole
   and matched. When a run of files is needed, fetch them from inside ONE PHP
   script running on the server, sequentially: twenty tiles that way is one cron
-  cycle instead of forty, and it is `scripts/publish-cats.php`.
+  cycle instead of forty, and it is `scripts/publish/publish-cats.php`.
 - **Verify by sha256 against the repo**, not by size, and read it back from the
   ABSOLUTE path — the rule further up this section applies here too. Check it
   AFTER the copy, not after the download: an empty fetch and a failed copy look
@@ -190,7 +190,7 @@ Four things this depends on, each of which cost a wrong answer first:
   where it would sit in the panel in plain text. It is also the reason the
   git-ignore list at the top of this file is not paperwork. Anything committed
   is world-readable, and a script fetched this way is fetched over a path
-  anyone can see — so it must stay READ-ONLY, as `scripts/live-scan.php` says
+  anyone can see — so it must stay READ-ONLY, as `scripts/live/live-scan.php` says
   of itself in its own header.
 
 A PHP installer the owner uploads is still the right shape when the owner
@@ -273,7 +273,7 @@ including the parts that would not have been the first choice.
 
 ## The live database is not the sandbox
 
-Two figures, measured on the server on 2026-09-04 by `scripts/live-scan.php`:
+Two figures, measured on the server on 2026-09-04 by `scripts/live/live-scan.php`:
 
 ```
 db=46 active products / 0 orders / 42 variant rows     qa=MISSING
