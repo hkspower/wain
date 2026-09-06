@@ -25,13 +25,15 @@ void AGRNRival::Init(AGRNTrack* InTrack, AGRNVehiclePawn* InPlayer, int32 RivalI
 	{
 		const FGRNRuntimeRival R = Api->GetRival(DefIndex);
 		Rig = GRNCarFactory::Build(this, RootComponent, R.Style,
-			FLinearColor(R.BodyColor), /*bWing=*/R.Style == EGRNBodyStyle::GTR);
+			FLinearColor(R.BodyColor), /*bWing=*/R.Style == EGRNBodyStyle::GTR,
+			/*bAttackKit=*/false, /*LengthM=*/0.f, &HeroAssets);
 	}
 	else
 	{
 		const FGRNRivalDef& Def = GRNRivals[DefIndex];
 		Rig = GRNCarFactory::Build(this, RootComponent, Def.Style,
-			FLinearColor(Def.BodyColor), /*bWing=*/Def.Style == EGRNBodyStyle::GTR);
+			FLinearColor(Def.BodyColor), /*bWing=*/Def.Style == EGRNBodyStyle::GTR,
+			/*bAttackKit=*/false, /*LengthM=*/0.f, &HeroAssets);
 	}
 
 	// A legend at the wheel, not an empty car pulling alongside you.

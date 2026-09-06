@@ -29,6 +29,8 @@ public:
 
 	void Init(AGRNTrack* InTrack, AGRNVehiclePawn* InPlayer, int32 RivalIndex);
 
+	/** Hero art for the rival's car, when imported; empty builds primitives. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art") FGRNHeroAssets HeroAssets;
 	UPROPERTY() AGRNTrack* Track = nullptr;
 	UPROPERTY() AGRNVehiclePawn* Player = nullptr;
 	/** Set by the game mode before Init; live tables when available. */

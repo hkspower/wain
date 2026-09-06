@@ -273,11 +273,52 @@ Generate project files, open in UE 5.4+, and package for Win64. The DLSS
 options above additionally need the NVIDIA DLSS plugin installed; without
 it those console variables are simply unrecognised and ignored.
 
+## High-end assets from Fab
+
+The factory builds cars out of engine primitives so the project has no
+binary art in it, and every actor that builds a car carries an `Art →
+Hero Assets` slot (`FGRNHeroAssets`, GRNCarFactory.h) for the day it
+does. Fab is Epic's asset store; its plugin ships with the editor from
+5.4 (Window → Fab), signed in with the Epic account that will hold the
+licence. To put a scanned or modelled car in:
+
+1. In Fab, *Add to project* (or *Download* → drag the `.fbx`/`.glb`
+   into Content). Import with **Nanite** on and *Combine Meshes* on, so
+   the body is one `UStaticMesh`; leave the wheels as a separate mesh if
+   the pack has them.
+2. Open `BP_GRNVehiclePawn` (or the C++ defaults), find **Art → Hero
+   Assets**, and set **Body** to the shell and **Wheel** to one wheel.
+   **Paint Slot** is the material slot the garage respray should own
+   (the body paint), **Tail Slot** the lens that flares under braking,
+   **Wheel Slot** the alloy finish; `-1` leaves a slot as imported.
+3. Play. `GRNCarFactory::Build` loads the references, scales the body so
+   its length is the length on the car's card, stands it on the road,
+   and drops the primitive bodywork and kit — the art's own aero and
+   lamps stand in for them. Wheels are scaled to the primitive's
+   diameter so the hub height is unchanged, and mirrored onto the far
+   side. The rig API is identical, so nothing that drives, spins, brakes
+   or lights the car knows the difference. Rivals (`AGRNRival`) and
+   civilians (`AGRNTraffic`) carry the same slot.
+
+The mesh conventions the factory expects: **X forward, Z up**, the body
+standing on Z = 0 after import; the wheel authored with its **axle
+along Y** (the spin is applied as a local pitch; the primitive cylinder
+spins on its own Z because it is rolled onto its side, and the rig
+remembers which it has).
+
+Licensing, stated plainly: Fab's standard licence is per seat and per
+project, so those assets can ship in the packaged UE5 build but not in
+the web build or this repository — which is why the slot is a soft
+reference set in the editor and nothing here depends on the art being
+present. The web build keeps its own Blender-authored shells
+(`public/models/`), which are generated from the game's silhouettes and
+carry no third-party licence.
+
 ## Where to take it next
 
-- **Cars**: the primitive rigs drive and read correctly today; swap
-  `GRNCarFactory::Build` internals for Nanite car scans when art lands —
-  the rig API (wheels, paint MID, tail MID, headlight) stays.
+- **Cars**: the primitive rigs drive and read correctly today; Nanite
+  car scans go in through **Hero Assets** (above) without touching the
+  factory — the rig API (wheels, paint MID, tail MID, headlight) stays.
 - **Garage/results/menus**: the data tables are in `GRNTypes.h`; build
   the screens in UMG against `AGRNGameMode`'s state.
 - **Audio**: port `sound.ts`'s synth via MetaSounds (the layered

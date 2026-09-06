@@ -85,6 +85,9 @@ public:
 	GRNSim::FDriftResult LastDrift;
 
 	// ------------------------------------------------------------- camera
+	/** High-end art for this car, if the project has imported any (Fab,
+	 *  Megascans, a scan): see FGRNHeroAssets. Empty builds the primitives. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art") FGRNHeroAssets HeroAssets;
 	UPROPERTY(VisibleAnywhere) USceneComponent* CarRoot;
 	UPROPERTY(VisibleAnywhere) UCameraComponent* Camera;
 

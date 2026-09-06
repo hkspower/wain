@@ -146,3 +146,6 @@ dev.log
 *-tmp.mjs
 *-tmp.js
 *-tmp.py
+
+# 4K lossless frames from tools/shots/ik4k.mjs: 13 MB each, the .jpg is tracked
+press/ik/4k/*.png

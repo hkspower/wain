@@ -83,13 +83,26 @@ static float StyleRefWidth(EGRNBodyStyle Style)
 }
 
 FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
-	EGRNBodyStyle Style, FLinearColor Paint, bool bWing, bool bAttackKit, float LengthM)
+	EGRNBodyStyle Style, FLinearColor Paint, bool bWing, bool bAttackKit, float LengthM,
+	const FGRNHeroAssets* Hero)
 {
 	FGRNCarRig Rig;
 	Rig.PaintMid = Mid(Parent, Paint);
 	UMaterialInstanceDynamic* Dark = Mid(Parent, FLinearColor(0.02f, 0.02f, 0.025f));
 	UMaterialInstanceDynamic* Glass = Mid(Parent, FLinearColor(0.03f, 0.04f, 0.06f));
 	Rig.TailMid = Mid(Parent, FLinearColor(0.6f, 0.05f, 0.05f));
+
+	// Hero art, when the project has it. Loaded here and not before, so a
+	// project that never imported any still builds and cooks; a reference
+	// that fails to load falls through to the primitives with a warning
+	// rather than an invisible car.
+	UStaticMesh* HeroBody = (Hero && Hero->HasBody()) ? Hero->Body.LoadSynchronous() : nullptr;
+	UStaticMesh* HeroWheel = (Hero && !Hero->Wheel.IsNull()) ? Hero->Wheel.LoadSynchronous() : nullptr;
+	if (Hero && Hero->HasBody() && !HeroBody)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("GRNCarFactory: hero body %s did not load; building primitives"),
+			*Hero->Body.ToString());
+	}
 
 	// Web-build proportions × the 1.12 presence factor. Forward = +X.
 	const float K = 1.12f;
@@ -115,9 +128,38 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 	const float CarLen = LengthM > 1.f ? LengthM : RefLen;
 	const float CarWidth = RefWidth * FMath::Pow(CarLen / RefLen, GRN_WIDTH_FOLLOWS_LENGTH);
 
-	// Lower body: one long slab, nose/tail wedges per silhouette
 	const float BodyLen = CarLen * K;
 	const float BodyH = (bZX ? 0.62f : bGTR ? 0.76f : 0.72f) * K;
+	const float TailX = -BodyLen * 0.5f;
+
+	if (HeroBody)
+	{
+		// The scan, fitted to the length on the card: uniform scale so its
+		// X extent is the car's length, standing on the road at Z 0. Its
+		// own aero, lamps and glass come with it; the primitive kit and
+		// wing are NOT layered on top of art that already has them.
+		UStaticMeshComponent* Shell = NewObject<UStaticMeshComponent>(Parent);
+		Shell->SetStaticMesh(HeroBody);
+		Shell->RegisterComponent();
+		Shell->AttachToComponent(AttachTo, FAttachmentTransformRules::KeepRelativeTransform);
+		const FBox Bounds = HeroBody->GetBoundingBox();
+		const FVector Size = Bounds.GetSize();
+		const float Fit = Size.X > 1.f ? (BodyLen * 100.f) / Size.X : 1.f;
+		Shell->SetRelativeScale3D(FVector(Fit));
+		Shell->SetRelativeLocation(FVector(-Bounds.GetCenter().X * Fit, -Bounds.GetCenter().Y * Fit, -Bounds.Min.Z * Fit));
+		if (Hero->PaintSlot >= 0 && Hero->PaintSlot < Shell->GetNumMaterials() && Rig.PaintMid)
+		{
+			Shell->SetMaterial(Hero->PaintSlot, Rig.PaintMid);
+		}
+		if (Hero->TailSlot >= 0 && Hero->TailSlot < Shell->GetNumMaterials() && Rig.TailMid)
+		{
+			Shell->SetMaterial(Hero->TailSlot, Rig.TailMid);
+		}
+		Shell->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	else
+	{
+	// Lower body: one long slab, nose/tail wedges per silhouette
 	Box(Parent, AttachTo, FVector(0, 0, 0.30f * K + BodyH * 0.5f),
 		FVector(BodyLen, CarWidth * K, BodyH), Rig.PaintMid);
 
@@ -135,7 +177,6 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 		FRotator(bZX ? 9.f : 5.f, 0.f, 0.f));
 
 	// Tail lamps: quad rings on the coupe, a full-width band otherwise
-	const float TailX = -BodyLen * 0.5f;
 	if (bGTR)
 	{
 		for (float Y : { -0.72f, -0.44f, 0.44f, 0.72f })
@@ -198,6 +239,7 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 				FVector(0.16f, 0.06f, 0.26f), Dark);
 		}
 	}
+	} // primitives
 
 	// Wheels: cylinders on their sides, fronts forward per style stance.
 	// The attack kit runs forged bronze; everything else gunmetal dark.
@@ -209,13 +251,31 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 	                            FVector2D(WzR, -0.94f * K), FVector2D(WzR, 0.94f * K) })
 	{
 		UStaticMeshComponent* Wheel = NewObject<UStaticMeshComponent>(Parent);
-		Wheel->SetStaticMesh(Cyl());
 		Wheel->RegisterComponent();
 		Wheel->AttachToComponent(AttachTo, FAttachmentTransformRules::KeepRelativeTransform);
 		Wheel->SetRelativeLocation(FVector(W.X, W.Y, 0.40f * K) * 100.f);
-		Wheel->SetRelativeRotation(FRotator(0.f, 0.f, 90.f));
-		Wheel->SetRelativeScale3D(FVector(0.8f * K, 0.29f * K, 0.8f * K));
-		Wheel->SetMaterial(0, WheelMat);
+		if (HeroWheel)
+		{
+			// The art's wheel, scaled to the diameter the primitive had so
+			// the hub height above stays right; mirrored onto the far side
+			// so the face is outboard on both.
+			Wheel->SetStaticMesh(HeroWheel);
+			Rig.bHeroWheels = true;
+			const FVector Size = HeroWheel->GetBoundingBox().GetSize();
+			const float Fit = Size.Z > 1.f ? (0.8f * K * 100.f) / Size.Z : 1.f;
+			Wheel->SetRelativeScale3D(FVector(Fit, W.Y < 0.f ? -Fit : Fit, Fit));
+			if (Hero->WheelSlot >= 0 && Hero->WheelSlot < Wheel->GetNumMaterials())
+			{
+				Wheel->SetMaterial(Hero->WheelSlot, WheelMat);
+			}
+		}
+		else
+		{
+			Wheel->SetStaticMesh(Cyl());
+			Wheel->SetRelativeRotation(FRotator(0.f, 0.f, 90.f));
+			Wheel->SetRelativeScale3D(FVector(0.8f * K, 0.29f * K, 0.8f * K));
+			Wheel->SetMaterial(0, WheelMat);
+		}
 		Wheel->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		Rig.Wheels.Add(Wheel);
 	}
@@ -239,9 +299,15 @@ void GRNCarFactory::SpinWheels(const FGRNCarRig& Rig, float SpeedMs, float Dt)
 {
 	// Tire radius ≈ 0.40 m → degrees per second at road speed
 	const float DegPerSec = FMath::RadiansToDegrees(SpeedMs / 0.40f);
+	// The primitive is a cylinder rolled onto its side, so its own Z is
+	// the axle and the spin is a local yaw; a hero wheel is authored with
+	// the axle along Y, so its spin is a local pitch.
+	const FRotator Step = Rig.bHeroWheels
+		? FRotator(DegPerSec * Dt, 0.f, 0.f)
+		: FRotator(0.f, DegPerSec * Dt, 0.f);
 	for (UStaticMeshComponent* W : Rig.Wheels)
 	{
-		if (W) W->AddLocalRotation(FRotator(0.f, DegPerSec * Dt, 0.f));
+		if (W) W->AddLocalRotation(Step);
 	}
 }
 

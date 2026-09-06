@@ -23,7 +23,8 @@ void AGRNTraffic::Init(AGRNTrack* InTrack, AGRNVehiclePawn* InPlayer, int32 Seed
 	Lat = GRNLanes[Rand.RandRange(0, 3)];
 	SpeedMs = Rand.FRandRange(18.f, 27.f);
 	Rig = GRNCarFactory::Build(this, RootComponent, EGRNBodyStyle::Sedan,
-		GTrafficColors[Seed % UE_ARRAY_COUNT(GTrafficColors)], false);
+		GTrafficColors[Seed % UE_ARRAY_COUNT(GTrafficColors)], false,
+		/*bAttackKit=*/false, /*LengthM=*/0.f, &HeroAssets);
 	// Civilian cars don't need their own beams lighting the scene
 	if (Rig.Headlight) Rig.Headlight->SetIntensity(4000.f);
 }

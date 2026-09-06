@@ -24,6 +24,8 @@ public:
 
 	void Init(AGRNTrack* InTrack, AGRNVehiclePawn* InPlayer, int32 Seed);
 
+	/** Hero art for civilians, when imported; empty builds primitives. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art") FGRNHeroAssets HeroAssets;
 	UPROPERTY() AGRNTrack* Track = nullptr;
 	UPROPERTY() AGRNVehiclePawn* Player = nullptr;
 

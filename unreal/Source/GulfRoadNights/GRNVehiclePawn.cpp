@@ -82,7 +82,7 @@ void AGRNVehiclePawn::BuildRig(EGRNBodyStyle Style, FLinearColor Paint, bool bWi
 	{
 		if (K != Camera) K->DestroyComponent();
 	}
-	Rig = GRNCarFactory::Build(this, CarRoot, Style, Paint, bWing, bAttackKit, LengthM);
+	Rig = GRNCarFactory::Build(this, CarRoot, Style, Paint, bWing, bAttackKit, LengthM, &HeroAssets);
 	// Right-hand drive, seated behind the wheel. Rebuilt with the car:
 	// the teardown above takes the old driver with the old bodywork.
 	Driver = GRNDriverRig::Build(this, CarRoot, FVector(GRN_M(0.08f), GRN_M(0.38f), GRN_M(0.42f)));
