@@ -31,7 +31,7 @@
  * failing, because a missing binary is not a broken schema.
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -125,12 +125,36 @@ if (applied.status !== 0) {
   process.exit(1);
 }
 
+/* Counted from the catalogue rather than written down.
+ *
+ * These were the literals "44" and "8", and both went stale the day eight
+ * places were added: the catalogue grew, the generator seeded all of it
+ * correctly, and the test failed for being out of date rather than for
+ * anything being wrong. It went unnoticed because `npm run scan` does not
+ * include this suite — it needs a PostgreSQL to run against.
+ *
+ * The property worth asserting was never the number. It is that the seed
+ * carries EVERY place the site ships, and that the ones with no rating arrive
+ * as NULL instead of the broken literal that used to make the whole file
+ * unappliable. Both survive the catalogue growing.
+ *
+ * Counted from places.ts as text, splitting on the record boundary, because
+ * this file is plain Node with no bundler to resolve the `@/` alias — the same
+ * approach the brief generator takes for the same reason. Not the SQL: a
+ * regex over the generated statements also caught rows from the other seeded
+ * tables, which is how the first attempt at this arrived at 56. */
+const catalogue = readFileSync("src/lib/places.ts", "utf8");
+const records = catalogue.split("\n  {\n").slice(1);
+const catalogueCount = records.length;
+const withoutRating = records.filter((r) => !/^\s*rating:/m.test(r)).length;
+
 ok("and seeds every place the site ships",
-  psql("select count(*) from public.places;").out === "44", psql("select count(*) from public.places;").out);
-// The eight that have no rating are the reason the file used to be unappliable.
-ok("including the eight with no rating, as NULL rather than a broken literal",
-  psql("select count(*) from public.places where rating is null;").out === "8",
-  psql("select count(*) from public.places where rating is null;").out);
+  psql("select count(*) from public.places;").out === String(catalogueCount),
+  `db=${psql("select count(*) from public.places;").out}  catalogue=${catalogueCount}`);
+// The ones with no rating are the reason the file used to be unappliable.
+ok("the places with no rating arrive as NULL rather than a broken literal",
+  psql("select count(*) from public.places where rating is null;").out === String(withoutRating),
+  `db=${psql("select count(*) from public.places where rating is null;").out}  catalogue=${withoutRating}`);
 
 console.log("\n── an anonymous visitor: the public site ──");
 {
@@ -140,7 +164,7 @@ console.log("\n── an anonymous visitor: the public site ──");
    * the admin SELECT policy read a table anon cannot touch.
    */
   const r = psql("select count(*) from public.places;", { role: "anon" });
-  ok("can read the published places", r.out === "44", r.err || r.out);
+  ok("can read the published places", r.out === String(catalogueCount), r.err || r.out);
   ok("and gets no error doing it", !/permission denied/i.test(r.err), r.err);
 }
 
@@ -208,7 +232,7 @@ console.log("\n── an admin ──");
   psql(`insert into public.admins(user_id,email) values ('${uid}','boss@wainkw.com');`);
   const as = (sqlText) => psql(sqlText, { role: "authenticated", uid });
   ok("is recognised by is_admin()", as("select public.is_admin();").out === "t");
-  ok("can read every place", as("select count(*) from public.places;").out === "44");
+  ok("can read every place", as("select count(*) from public.places;").out === String(catalogueCount));
   ok("can edit one", as("update public.places set rating = 4.9 where slug = 'kuwait-towers';").code === 0);
   ok("and the edit lands", psql("select rating from public.places where slug='kuwait-towers';").out === "4.9");
   // The admins policy matches on the row, not via is_admin(), precisely so this

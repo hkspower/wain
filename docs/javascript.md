@@ -64,6 +64,49 @@ output is a static export with no server. Nothing untrusted reaches either.
 The fix `npm audit fix --force` offers is Next 16 — a major upgrade, and not
 something to do quietly under the heading of linting.
 
+### The Next 16 upgrade, attempted and reverted
+
+Tried on 6 September, on the current tree, and backed out. `next@16` and
+`eslint-config-next@16` install cleanly and take `npm audit` to **zero
+vulnerabilities**, the export keeps its shape — 63 pages, `places/<slug>/`
+directories, all 52 OG cards — and the build passes. Two things stop it, and
+both are worth knowing before anyone tries again.
+
+**The lint config breaks, and that part is easy.** From 16, eslint-config-next
+ships flat config; before that it was eslintrc-style and had to come through
+`FlatCompat`. Handed a flat config, the compat wrapper walks it as eslintrc and
+dies on the circular reference inside `configs` — «Converting circular
+structure to JSON», with no mention of Next in the message. The fix is two
+lines: import `eslint-config-next/core-web-vitals` directly and spread it,
+dropping FlatCompat.
+
+**The rules behind it are the real cost.** With linting running again, 16
+brings the React-Compiler-era hook rules and the tree fails 32 of them:
+20 `react-hooks/set-state-in-effect`, 8 `react-hooks/refs`,
+3 `react-hooks/immutability`, 1 `react-hooks/purity`. They are not confined to
+the test harness — they land on `usePoll`, `useFrameWidth`, `useListboxKeys`,
+`OrderPanel` and the admin submissions table, which is to say on the polling,
+the keyboard navigation and the measurement code: the parts where a subtle
+behavioural change is hardest to see and most expensive to ship.
+
+Several of them also flag patterns this repo chose on purpose and documented.
+`setNow(new Date())` inside an effect is exactly `set-state-in-effect`, and it
+is there because the clock is not knowable while a page is prerendered — the
+export is one HTML file served to everybody, so a value baked in at build time
+is wrong for every visitor after the one whose build it was.
+
+So the honest options are to do the migration properly — rewrite those sites,
+one hook at a time, with the suites run between each — or to switch the four
+rules off, which trades a real new signal on exactly the code that most needs
+it for an advisory that cannot reach a visitor. Neither belongs inside a
+routine dependency update, and the second is a decision for the owner rather
+than a default.
+
+Meanwhile every in-range update **is** applied: the tree tracks the latest
+patch and minor of everything it depends on. What is pinned back is four
+majors — `next` and `eslint-config-next` (above), `eslint` 10, `@types/node`
+26 and `typescript` 7 — each a migration in its own right.
+
 ---
 
 # What actually reaches a phone
