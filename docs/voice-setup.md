@@ -227,6 +227,19 @@ next lever is `pre_tool_speech: "force"` on both tools, which makes her speak
 before the call rather than relying on the turn after it — a change to the
 call's rhythm, so measure, do not assume.
 
+**A third change, 7 September, that the runner *can* see.** A new test that
+greets her in heavy slang failed on one criterion only: she understood every
+word, answered in Kuwaiti, called `show_places`, and the sentence before the
+call ended on a full stop. So the prompt now says the sentence *before* a tool
+call must itself end on the short question — «شرايك؟», «أفتح لك صفحته؟» — and
+only then call the tool; the tool may be slow or return nothing, and the turn
+has to already be the caller's. That is the pre-tool half of the same silence,
+and it is the half the test runner exercises. Re-run: **10/10 correct,
+hand-back 9 of 10**, and all three replies that called a tool ended on a
+question. The remaining miss (ذكاء ٢) asks its question mid-reply and
+finishes on the place's description, which is the length rule and this rule
+pulling on the same sentence rather than anything to do with tools.
+
 **What is left is the API key**, which is not in this repository and never
 should be:
 

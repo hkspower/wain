@@ -242,23 +242,61 @@ weights are not enforced by the platform — every criterion counts the same in
 its aggregate — so the weighting above is how to *read* a scorecard, not how
 the number is computed.
 
-Nine tests run against the same agent, all passing on 6 September:
+Ten tests run against the same agent, all passing on 7 September:
 
 | Row | Tests |
 | --- | --- |
 | 1 Grounded | المسافة بين مكانين · ذيل قاعدة المعرفة · ذكاء ٧ (a place added to the KB the same day) |
 | 2 Honest limits | ذكاء ٤ (a shop inside a mall, and its menu price) · ذكاء ٦ (a budget, without quoting dinars) |
 | 3 Answered the question | ذكاء ١ (area + children + heat at once) · ذكاء ٢ (the beach at noon in August) · ذكاء ٣ (dinner then coffee, and the two are actually near) · ذكاء ٥ (Friday morning) |
-| 4–6 Manner | no scripted test — measured over the same nine runs instead, see below |
-| 7 Register | المسافة بين مكانين |
+| 4–6 Manner | no scripted test — measured over the same ten runs instead, see below |
+| 7 Register | المسافة بين مكانين · لهجة (a greeting in heavy slang — شخبارج، الشلة، ينقلعون، هاليومين، يمّ البحر، نسولف، شرايج — that she must understand, not ask about, and answer in kind with no MSA and a closing question) |
 
-Rows 4–6 are judged on every run of the nine rather than by a test of their
+Rows 4–6 are judged on every run of the ten rather than by a test of their
 own, because they are properties of every turn, not of a particular question.
-The one that is not yet where it should be is row 6: **7 of 9 runs hand the
-turn back**, and both misses are the two runs that called `show_places` and
-then said nothing after the tool returned. What was done about that, and why
-the test runner cannot see the second half of the fix, is in
-`docs/voice-setup.md`.
+Row 6 was the one not where it should be: on 6 September **7 of 9 runs handed
+the turn back**, and both misses were runs that called `show_places` and then
+said nothing after the tool returned. The client-side half of the fix (the
+tool result now tells her to speak) is in `docs/voice-setup.md`, and the test
+runner cannot see it because it skips the tool. The prompt-side half went in
+on 7 September, after the slang test failed on exactly this and nothing else:
+the sentence *before* a tool call must itself end on a question, so the turn
+is already the caller's if the tool is slow or silent. On the next run all
+three replies that called a tool ended on a question, and the suite went to
+**9 of 10** — the one miss (ذكاء ٢) asks its question in the middle and
+finishes on a description of the place, which is the length rule and the
+hand-back rule pulling against each other, not a tool problem.
+
+**Dialect, measured.** The same day the owner asked for more Kuwaiti in her
+mouth. The vocabulary section of the brief roughly doubled (weather, verbs of
+going out, praise, courtesy formulas, directions, people, food) and an explicit
+list of MSA constructions she is banned from was added — «هل تريد», «يمكنك»,
+«سوف», «لا يوجد», «أستطيع», «حيث», «لذلك». A small script counts Kuwaiti
+markers and MSA leaks over the replies (`measure-dialect.mjs` in the session
+scratchpad; the marker and leak lists are in it). Same tests, temperature 0:
+
+| | 6 Sep (9 runs) | 7 Sep vocab (10) | 7 Sep + pre-tool question (10, live) |
+| --- | ---: | ---: | ---: |
+| Kuwaiti markers per reply | 4.6 | 5.7 | **5.8** |
+| markers per 100 words | 12 | 19 | **19** |
+| MSA leaks, total | 7 | 1 | **0** |
+| replies with no leak | 6/9 | 9/10 | **10/10** |
+| hand-back question | 7/9 | 8/10 | **9/10** |
+| mean length (chars) | 178 | 170 | **170** |
+| at 11.44 c/s | 15.6s | 14.9s | **14.9s** |
+
+The leaks that went were «أهلاً بك» as an opener (three times), «ممتاز»,
+«محددة», «معينة», «مناسب لل». What replaced them was not stuffing: the
+densest reply (32 markers per 100 words) is the Friday-morning one, and it
+reads like a sentence — «حياك! أبشر، الجمعة الصبح أغلب الأماكن تكون هادية،
+بس لو تبي طلعة حلوة مع الربع عقب العصر، مقاهي المباركية …». Her answer to the
+slang greeting is the one to read if only one is read: «يا هلا فيك! أبشر، إذا
+تبون قعدة يمّ البحر تشربون چاي وتسولفون، كافيهات شارع الخليج فنانة حقكم. أحلى
+شي تروحون لها عقب المغرب، الجو يكون زين والجلسات على البحر تهبل. شرايك أفتح
+لك صفحتها؟» — she took «ينقلعون» as going out, «الشلة» as the plural it is
+(تبون، تشربون، تروحون), and answered the «شخبارج» with a word. Length also
+came back under the ceiling for the first time, which was not the aim and is
+worth not undoing.
 
 ---
 
