@@ -62,6 +62,31 @@ and 12.0 at the agent's speed of 1.06. The 9.4 figure is not wrong; it is
 measuring something else. It came from a two-utterance sample, and the silence
 between two utterances is counted in the duration but not in the characters.
 
+**And the 11.3 was too generous — corrected 7 September.** Re-measured on a
+242-character line through the deployed voice, one continuous utterance:
+
+| model | duration | c/s at 1.00 | c/s at the agent's 1.06 |
+| --- | ---: | ---: | ---: |
+| `eleven_turbo_v2_5` (was live) | 25.22s | 9.60 | **10.17** |
+| `eleven_flash_v2_5` (now live) | 22.43s | 10.79 | **11.44** |
+
+So the old model ran at 10.17, not 12.0 — about 15% slower than this file
+claimed. That is not a rounding quarrel, because the whole prompt is built on
+a fifteen-second ceiling («أي جواب يطول أكثر من خمستعشر ثانية صار خطبة مو
+خدمة»). At her measured 178-character mean the real number was **17.5
+seconds** — over her own limit, on every answer of average length, for as long
+as the wrong rate went unchecked. Nothing in the prompt was wrong; the budget
+it was written against was.
+
+Use **11.4 c/s** now. 178 characters is 15.6 seconds, which is at the ceiling
+rather than four seconds past it — and it is the model change below, not any
+editing, that put it there.
+
+One caveat on the arithmetic, stated rather than buried: both numbers were
+generated at speed 1.00, because the generation endpoint takes no speed
+parameter. The 1.06 column is scaled, which assumes speed scales linearly. It
+is a reasonable assumption and it is not a measurement.
+
 So use the rate that matches the pipeline. The recorded clips in `voice-lines`
 are one utterance per sentence, and 9.4 is theirs — the ~15s ceiling Chrome
 puts on a single utterance is why they are split that way, and that stays
@@ -85,6 +110,45 @@ calls are a generate and a transcribe on one flow.
 One limit, stated rather than glossed: the round trip runs at the voice's
 default stability, not the agent's 0.35, so it proves the voice and model say
 these words correctly — not that every setting on top of them preserves it.
+
+## The TTS model and the sample rate, changed 7 September
+
+Two settings had been sitting untouched since the agent was built, and neither
+survived being looked at.
+
+**She was running a deprecated model.** `eleven_turbo_v2_5` is marked in the
+API's own enum as *"Deprecated: Use eleven_flash_v2_5 instead."* It still
+worked, which is exactly why nobody noticed. Now on `eleven_flash_v2_5` — the
+successor the deprecation notice names, not a guess at what might be better.
+
+The swap is not only housekeeping: on the identical line it is 22.43s against
+25.22s, 11% shorter, and that is what brings her mean answer back under the
+fifteen seconds the prompt is written around. A pronunciation round-trip was
+run on both before switching, and both came back character-identical to the
+source — چاي, باچر, مقاهي المباركية, جسر الشيخ جابر, ستة وثلاثين. So the
+faster model gives up nothing on the hard cases.
+
+**And she was speaking at 16 kHz.** `agent_output_audio_format` was
+`pcm_16000`, which caps the audible band at 8 kHz — the telephone ceiling.
+شوق is not on a telephone; she is delivered through a browser widget on
+wainkw.com, where there is no reason to accept a phone line's bandwidth. Now
+`pcm_24000`.
+
+That one is a judgement rather than a defect. It costs bandwidth — roughly
+384 kbps against 256 for raw PCM — and the gain is in sibilance and air rather
+than intelligibility, which was already fine. If Kuwaiti mobile data ever makes
+that a problem, `pcm_16000` is one field away and nothing else depends on it.
+
+**`optimize_streaming_latency: 3` is dead and cannot be removed.** The API
+marks it *"Deprecated: this field is a no-op and is ignored"*, and it carries a
+default, so there is no value that makes it go away — setting it would be
+churn against a field nothing reads. Left as it is, recorded here so the next
+person to see it does not go looking for what it does.
+
+Levels were measured at the same time, through Chromium's decoder the way
+`clip-levels.mjs` does it: peak −2.5 dBFS and gated RMS −16.4 on the old
+model, −1.9 and −16.1 on the new. No clipping either way, and both sit close
+to the −4.3 / −17.0 recorded from the first sample.
 
 ## Two turn settings, both measured, one kept
 
