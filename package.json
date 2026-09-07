@@ -24,6 +24,7 @@
     "audit:places": "node scripts/audit-places.mjs",
     "test:orders": "node tests/run-orders.mjs",
     "test:net": "node tests/run-net.mjs",
+    "test:register": "node tests/run-register.mjs",
     "audit:icons": "node scripts/audit-icons.mjs",
     "audit:htaccess": "node scripts/audit-htaccess.mjs",
     "audit:type": "node scripts/audit-type.mjs",

@@ -5,6 +5,39 @@ account. This is the only place on the site where a visitor writes to the
 database, so it is worth understanding exactly what that does and does not
 allow.
 
+## What the owner has to write
+
+Four things, and every one of them is something only they can answer:
+
+| field | why it cannot be filled in for them |
+| --- | --- |
+| اسم المكان بالعربي | the name |
+| المنطقة | where it is |
+| اسمك | who we are replying to |
+| إيميلك | where the reply goes |
+
+The category has a default and never blocks the form. Everything else is
+optional: the address, the coordinates, the longer description, the bio, the
+products, the public phone, Instagram, the website, the logo and the photos.
+
+Two fields used to be required and are not any more, because they were the
+wrong things to ask a business in Kuwait for.
+
+- **The English name.** Plenty of owners do not write English, and the site
+  does not need theirs — `name` is a reference field and the admin sets the
+  real English at approval. Left blank, it is sent as the Arabic name.
+- **The tagline.** It is the marketing line on the card, and the form already
+  promised «يساعدنا نكتب صفحة أحلى لمكانك» — the team writes the copy. Left
+  blank, it is sent as «الاسم في المنطقة», a plain statement of what and
+  where, clamped to the 160 characters the column accepts.
+
+Neither fallback invents anything, and both are placeholders an admin
+rewrites before publishing, which was already true of every submission. They
+are filled on the way out rather than by relaxing the table, so nothing has
+to be migrated: `name` and `tagline_ar` are still `not null` with their
+length checks, and `fillWhatTheOwnerNeedNotWrite` in `lib/submissions.ts` is
+what satisfies them. `npm run test:register` covers it.
+
 ## The flow
 
 1. An owner fills the form at **`/add/`**.

@@ -27,12 +27,25 @@ const EMPTY: SubmissionInput = {
 
 type Errors = Partial<Record<keyof SubmissionInput, string>>;
 
+/**
+ * Four things, not six.
+ *
+ * The English name and the tagline used to be required and are not any more:
+ * see fillWhatTheOwnerNeedNotWrite in lib/submissions. Everything still
+ * asked for is something only the owner can answer — what the place is
+ * called, where it is, who we are talking to, and how to reach them.
+ *
+ * The two that were dropped are still VALIDATED when they are filled in,
+ * because an English name of one character or a two-character tagline is a
+ * slip rather than a decision, and the table rejects both.
+ */
 function validate(v: SubmissionInput): Errors {
   const e: Errors = {};
   if (v.nameAr.trim().length < 2) e.nameAr = "اكتب اسم المكان بالعربي.";
-  if (v.name.trim().length < 2) e.name = "اكتب الاسم بالإنجليزي.";
+  if (v.name.trim() && v.name.trim().length < 2) e.name = "الاسم بالإنجليزي قصير — أكمله أو خلّه فاضي.";
   if (v.areaAr.trim().length < 2) e.areaAr = "اكتب المنطقة.";
-  if (v.taglineAr.trim().length < 4) e.taglineAr = "اكتب سطر يوصف المكان.";
+  if (v.taglineAr.trim() && v.taglineAr.trim().length < 4)
+    e.taglineAr = "السطر قصير — أكمله أو خلّه فاضي ونكتبه لك.";
   if (v.contactName.trim().length < 2) e.contactName = "اكتب اسمك.";
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.contactEmail.trim()))
     e.contactEmail = "اكتب إيميل صحيح عشان نرد عليك.";
@@ -186,16 +199,18 @@ export default function AddBusinessClient() {
           </div>
 
           <div>
-            <label htmlFor="f-name" className={label}>الاسم بالإنجليزي *</label>
+            <label htmlFor="f-name" className={label}>الاسم بالإنجليزي</label>
             <input
               id="f-name" dir="ltr" className={field} value={v.name}
               data-invalid={!!errors.name}
               aria-invalid={!!errors.name}
-              aria-describedby={errors.name ? "e-name" : undefined}
+              aria-describedby={errors.name ? "e-name" : "h-name"}
               onChange={(e) => set("name", e.target.value)}
               placeholder="Deera Cafe"
             />
-            {errors.name && <p id="e-name" className="mt-1 text-xs font-semibold text-coral-700">{errors.name}</p>}
+            {errors.name
+              ? <p id="e-name" className="mt-1 text-xs font-semibold text-coral-700">{errors.name}</p>
+              : <p id="h-name" className={hint}>اختياري — إذا ما كتبته، نكتبه إحنا.</p>}
           </div>
         </div>
 
@@ -274,7 +289,7 @@ export default function AddBusinessClient() {
         </div>
 
         <div className="mt-4">
-          <label htmlFor="f-tagline" className={label}>سطر يوصف المكان *</label>
+          <label htmlFor="f-tagline" className={label}>سطر يوصف المكان</label>
           <input
             id="f-tagline" className={field} value={v.taglineAr} maxLength={160}
             data-invalid={!!errors.taglineAr}
@@ -284,7 +299,7 @@ export default function AddBusinessClient() {
           />
           {errors.taglineAr
             ? <p className="mt-1 text-xs font-semibold text-coral-700">{errors.taglineAr}</p>
-            : <p className={hint}>هذا اللي يطلع تحت اسم المكان في القائمة.</p>}
+            : <p className={hint}>اختياري — هذا اللي يطلع تحت اسم المكان في القائمة، وإذا تركته نكتبه لك.</p>}
         </div>
 
         <div className="mt-4">
