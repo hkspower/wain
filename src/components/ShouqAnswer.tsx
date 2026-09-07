@@ -64,7 +64,7 @@ export default function ShouqAnswer({ parts }: { parts: SpeechPart[] }) {
        */
       aria-live="polite"
       aria-atomic="true"
-      className="mb-5 rounded-3xl border border-coral-200 bg-gradient-to-b from-coral-50/80 to-white p-4 shadow-sm standalone:mb-4 sm:p-5"
+      className="mb-4 rounded-3xl border border-coral-200 bg-gradient-to-b from-coral-50/80 to-white p-4 shadow-sm sm:p-5"
     >
       <div className="flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-coral-800">

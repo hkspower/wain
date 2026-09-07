@@ -102,7 +102,7 @@ export default function ShareHangout({ place }: { place: Place }) {
   if (!now || !when) return null;
 
   return (
-    <section className="mt-9 rounded-3xl border border-line bg-white p-6 shadow-sm standalone:mt-5 standalone:p-4">
+    <section className="mt-5 rounded-3xl border border-line bg-white p-4 shadow-sm">
       <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-ink-900">
         <IconSend className="size-5 text-coral-700" />
         رسّلها للربع

@@ -93,7 +93,7 @@ export default function SearchMap({
   if (places.length === 0) return null;
 
   return (
-    <section className="mb-6 standalone:mb-4" aria-labelledby="search-map-heading">
+    <section className="mb-4" aria-labelledby="search-map-heading">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2
           id="search-map-heading"
@@ -123,7 +123,7 @@ export default function SearchMap({
         // inside it — that measurement happens in a layout effect, so this
         // state is never painted.
         style={f ? { aspectRatio: String(f.aspect) } : undefined}
-        className="relative w-full overflow-hidden rounded-3xl border border-line bg-sand-100 shadow-sm standalone:rounded-2xl"
+        className="relative w-full overflow-hidden rounded-2xl border border-line bg-sand-100 shadow-sm"
       >
         {/* Ground for before the tiles paint — and for offline, where the pins
             still carry the answer on their own. */}

@@ -157,7 +157,7 @@ export default function AddBusinessClient() {
   }
 
   return (
-    <form onSubmit={onSubmit} noValidate className="measure space-y-6 standalone:space-y-4">
+    <form onSubmit={onSubmit} noValidate className="measure space-y-4">
       {!supabaseEnabled && (
         <p className="rounded-2xl border border-sun-300 bg-sun-50 px-4 py-3 text-sm font-semibold text-sun-900">
           التسجيل مو موصول بقاعدة البيانات بعد، فالزر ما بيرسل شي. لو تشوف هذي
@@ -166,7 +166,7 @@ export default function AddBusinessClient() {
       )}
 
       {/* ---- the business -------------------------------------------- */}
-      <fieldset className="rounded-3xl border border-line bg-white p-5 shadow-sm standalone:rounded-2xl standalone:p-4">
+      <fieldset className="rounded-2xl border border-line bg-white p-4 shadow-sm">
         <legend className="px-2 font-display text-lg font-semibold text-ink-900">
           معلومات المكان
         </legend>
@@ -324,7 +324,7 @@ export default function AddBusinessClient() {
       </fieldset>
 
       {/* ---- brand and photos ------------------------------------------ */}
-      <fieldset className="rounded-3xl border border-line bg-white p-5 shadow-sm standalone:rounded-2xl standalone:p-4">
+      <fieldset className="rounded-2xl border border-line bg-white p-4 shadow-sm">
         <legend className="px-2 font-display text-lg font-semibold text-ink-900">
           الشعار والصور
         </legend>
@@ -338,7 +338,7 @@ export default function AddBusinessClient() {
       </fieldset>
 
       {/* ---- where ----------------------------------------------------- */}
-      <fieldset className="rounded-3xl border border-line bg-white p-5 shadow-sm standalone:rounded-2xl standalone:p-4">
+      <fieldset className="rounded-2xl border border-line bg-white p-4 shadow-sm">
         <legend className="px-2 font-display text-lg font-semibold text-ink-900">
           وين مكانه بالضبط؟
         </legend>
@@ -404,7 +404,7 @@ export default function AddBusinessClient() {
       </fieldset>
 
       {/* ---- contact ---------------------------------------------------- */}
-      <fieldset className="rounded-3xl border border-line bg-white p-5 shadow-sm standalone:rounded-2xl standalone:p-4">
+      <fieldset className="rounded-2xl border border-line bg-white p-4 shadow-sm">
         <legend className="px-2 font-display text-lg font-semibold text-ink-900">
           التواصل
         </legend>

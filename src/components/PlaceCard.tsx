@@ -40,11 +40,11 @@ export default function PlaceCard({
       className="card-defer group flex h-full flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-line-strong hover:shadow-xl hover:shadow-ink-900/10"
     >
       <div
-        className={`relative flex h-36 items-center justify-center overflow-hidden border-b border-line standalone:h-24 ${categoryTint(place.category)}`}
+        className={`relative flex h-24 items-center justify-center overflow-hidden border-b border-line ${categoryTint(place.category)}`}
       >
         <PlaceIcon
           slug={place.slug}
-          className="size-20 transition duration-500 group-hover:scale-105 standalone:size-14"
+          className="size-14 transition duration-500 group-hover:scale-105"
         />
         {/* No chip at all when there is no rating. A placeholder — a dash, a
             greyed star — would be a worse answer than silence: it draws the
@@ -60,7 +60,7 @@ export default function PlaceCard({
         )}
       </div>
 
-      <div className="flex flex-1 flex-col p-4 standalone:p-3">
+      <div className="flex flex-1 flex-col p-3">
         <div className="flex items-start justify-between gap-3">
           <h3 className="font-display text-lg font-semibold leading-snug text-ink-900 transition group-hover:text-coral-700">
             {place.nameAr}

@@ -91,7 +91,7 @@ export default function QueuePanel({ place }: { place: Place }) {
 
   if (joined !== null) {
     return (
-      <section className="mt-9 rounded-3xl border border-palm-500/30 bg-palm-500/8 p-6 standalone:mt-5 standalone:p-4">
+      <section className="mt-5 rounded-3xl border border-palm-500/30 bg-palm-500/8 p-4">
         <h2 className="flex items-center gap-2 font-display text-xl font-bold text-ink-900">
           <IconCheck className="size-5 text-palm-600" />
           خذيت دورك
@@ -115,7 +115,7 @@ export default function QueuePanel({ place }: { place: Place }) {
   }
 
   return (
-    <section className="mt-9 rounded-3xl border border-line bg-white p-6 shadow-sm standalone:mt-5 standalone:p-4">
+    <section className="mt-5 rounded-3xl border border-line bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-display text-2xl font-bold text-ink-900">خذ دورك</h2>
         <span className="rounded-full bg-sand-100 px-3 py-1 text-xs font-semibold text-ink-600">

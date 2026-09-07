@@ -1,11 +1,17 @@
 @import "tailwindcss";
 
 /* `standalone:` applies only in the installed app (home-screen launch), never
-   in a browser tab. It carries the compact app theme: tighter gutters, denser
-   cards, smaller headings — the website's own spacing is untouched.
-   Two signals, because iOS reports home-screen launches through
-   navigator.standalone and older versions never match the media query;
-   AppShell mirrors that onto <html data-standalone>. */
+   in a browser tab. Two signals, because iOS reports home-screen launches
+   through navigator.standalone and older versions never match the media
+   query; AppShell mirrors that onto <html data-standalone>.
+
+   It used to carry a whole second spacing system — the compact app theme —
+   so the same card was 20px of padding on the website and 16px in the app,
+   and every screen had to remember to write both. There is one spacing
+   system now, and it is the tight one: the compact values were folded into
+   the base classes, so the website looks like the app rather than the app
+   being a special case of the website. What is left behind this variant is
+   the genuine app chrome — the tab bar that only an installed app has. */
 @custom-variant standalone {
   @media (display-mode: standalone) {
     @slot;

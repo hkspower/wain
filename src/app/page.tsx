@@ -22,7 +22,7 @@ export default function HomePage() {
       <section className="relative overflow-hidden bg-sand-50">
         <KuwaitSkyline className="pointer-events-none absolute inset-x-0 bottom-0 h-auto min-h-[210px] w-full" />
 
-        <div className="relative mx-auto max-w-6xl px-4 pb-8 pt-6 standalone:px-3 standalone:pb-6 standalone:pt-4 sm:px-6 sm:pb-16 sm:pt-10">
+        <div className="relative mx-auto max-w-6xl px-3 pb-6 pt-4 sm:px-6 sm:pb-10 sm:pt-8">
           {/* Wordmark */}
           <div className="text-center">
             <span className="relative inline-block">
@@ -53,7 +53,7 @@ export default function HomePage() {
 
       {/* ---------- Categories ---------- */}
       <section className="relative bg-sea-700">
-        <div className="mx-auto max-w-6xl px-4 py-6 standalone:px-3 standalone:py-4 sm:px-6 sm:py-10">
+        <div className="mx-auto max-w-6xl px-3 py-4 sm:px-6 sm:py-8">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 sm:mb-6">
             <h2 className="flex items-center gap-2 font-display text-2xl font-bold text-white sm:text-3xl">
               <IconPinSolid className="size-6 text-sun-300" />
@@ -122,7 +122,7 @@ export default function HomePage() {
 
       {/* ---------- Featured ---------- */}
       <section className="bg-sand-50">
-        <div className="mx-auto max-w-6xl px-4 py-7 standalone:px-3 standalone:py-5 sm:px-6 sm:py-11">
+        <div className="mx-auto max-w-6xl px-3 py-5 sm:px-6 sm:py-8">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3 sm:mb-7">
             <div>
               <h2 className="font-display text-2xl font-bold text-ink-900 sm:text-3xl">
@@ -164,7 +164,7 @@ export default function HomePage() {
 
       {/* ---------- How it works ---------- */}
       <section className="bg-sand-100">
-        <div className="mx-auto max-w-6xl px-4 py-10 standalone:px-3 standalone:py-6 sm:px-6 sm:py-11">
+        <div className="mx-auto max-w-6xl px-3 py-6 sm:px-6 sm:py-8">
           <h2 className="text-center font-display text-2xl font-bold text-ink-900 sm:text-3xl">
             كيف يشتغل وين؟
           </h2>
@@ -232,8 +232,8 @@ export default function HomePage() {
 
       {/* ---------- CTA ---------- */}
       <section className="bg-sand-50">
-        <div className="mx-auto max-w-6xl px-4 pb-8 standalone:px-3 standalone:pb-5 sm:px-6 sm:pb-14">
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-sea-800 to-sea-600 px-6 py-9 text-center shadow-xl sm:py-11">
+        <div className="mx-auto max-w-6xl px-3 pb-5 sm:px-6 sm:pb-8">
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-sea-800 to-sea-600 px-6 py-9 text-center shadow-xl sm:py-8">
             <div
               aria-hidden="true"
               className="pointer-events-none absolute -end-10 -top-10 size-48 rounded-full bg-white/10 blur-2xl"

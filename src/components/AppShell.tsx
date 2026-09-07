@@ -10,11 +10,17 @@ import { useEffect } from "react";
  *    Without it, launching the app offline shows the browser's error page —
  *    which breaks the illusion completely.
  *
- * 2. Marks standalone launches on <html>. The compact app theme keys off
- *    `display-mode: standalone`, but iOS reports a home-screen launch through
- *    the non-standard `navigator.standalone` and older versions never match
- *    that media query — so an iPhone could get the website layout inside the
- *    app frame. The data attribute is a second signal the CSS also accepts.
+ * 2. Marks standalone launches on <html>. The app chrome — the bottom tab
+ *    bar, the hidden desktop nav — keys off `display-mode: standalone`, but
+ *    iOS reports a home-screen launch through the non-standard
+ *    `navigator.standalone` and older versions never match that media query,
+ *    so an iPhone could launch the app and get no tab bar. The data
+ *    attribute is a second signal the CSS also accepts.
+ *
+ *    Spacing is no longer part of this: the compact scale that used to live
+ *    behind the variant is now the site's only spacing, so the app and the
+ *    browser are the same density and nothing about the layout waits on
+ *    this effect to run.
  */
 export default function AppShell() {
   useEffect(() => {

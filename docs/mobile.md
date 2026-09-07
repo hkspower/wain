@@ -112,7 +112,7 @@ air on a 390px phone as on a 1280px desktop. And `/404` carried `px-4` with no
 found only because that route was missing from the audit's list. The page
 nobody plans to visit is exactly the one nobody checks.
 
-Everything ordinary is now `py-8 standalone:py-4 sm:py-14`. `/` and `/404` stay
+Everything ordinary became `py-8 standalone:py-4 sm:py-14`. `/` and `/404` stay
 out by name, with the reason recorded: a full-bleed hero carries its own
 spacing, and a centred near-empty error page wants the extra air.
 
@@ -120,3 +120,31 @@ spacing, and a centred near-empty error page wants the extra air.
 gutter, over eleven routes rather than ten. Nobody can name the difference
 between 32 and 40 on a page they are reading; everybody feels a site where the
 answer changes per route.
+
+### One spacing system, not two
+
+That left the site with **two** spacing systems: a roomy one for the browser
+and a tight one behind `standalone:` for the installed app, written side by
+side on every element — `px-4 py-8 standalone:px-3 standalone:py-4 sm:px-6
+sm:py-14`. Every new screen had to remember both, and one of them was only
+ever seen by people who had added the site to their home screen.
+
+The app should look like the app everywhere, so the compact values were
+folded into the base classes and the variant dropped: the line above is now
+`px-3 py-4 sm:px-6 sm:py-8`. 76 utilities across 23 files, and what is left
+behind `standalone:` is the one thing that is genuinely app-only — the tab
+bar. The desktop rhythm came down with it, because 56px of air above a page
+whose phone rhythm is 16 is not one design.
+
+Measured by the audit, before and after:
+
+| | phone gutter | phone rhythm | desktop gutter | desktop rhythm |
+| --- | ---: | ---: | ---: | ---: |
+| website, before | 16 | 32 | 24 | 56 |
+| installed app, before | 12 | 16 | 12 | 16 |
+| **everywhere, now** | **12** | **16** | **24** | **32** |
+
+Two shells had drifted out of reach of the fold and were caught by the same
+audit: the admin page box (`px-4 py-10`, no compact variant and a rhythm of
+its own) and the navbar (`px-4` while every page box beside it had moved to
+12). Both now sit on the site's gutter.

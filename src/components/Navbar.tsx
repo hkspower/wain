@@ -17,7 +17,7 @@ export default function Navbar() {
   return (
     <header className="app-chrome sticky top-0 z-50 border-b border-line/70 bg-sand-50/85 pt-[env(safe-area-inset-top)] shadow-[0_1px_0_rgba(255,255,255,0.6)_inset] backdrop-blur-xl">
       <nav
-        className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6"
+        className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-3 sm:px-6"
         aria-label="التنقّل الرئيسي"
       >
         {/* Brand */}

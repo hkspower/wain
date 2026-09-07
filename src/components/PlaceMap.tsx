@@ -46,7 +46,7 @@ export default function PlaceMap({
   }`;
 
   return (
-    <section className="mt-9 standalone:mt-5">
+    <section className="mt-5">
       <h2 className="mb-4 flex items-center gap-2 font-display text-2xl font-bold text-ink-900">
         <IconMap className="size-6 text-sea-600" />
         وينه بالضبط؟
