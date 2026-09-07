@@ -91,6 +91,20 @@ await page.evaluate(() => {
   window.__tap = { a, buf: new Float32Array(a.fftSize) };
 });
 
+// Shrink the window to a postage stamp before measuring anything.
+//
+// Nothing here looks at a picture, and the picture is what was eating
+// the clock: this page is a game on a software renderer, every frame
+// costs the main thread hundreds of milliseconds, and the analyser loop
+// runs on that same thread. Two rewrites of the polling made almost no
+// difference for exactly that reason — the tool was never the slow part,
+// the 900 x 520 canvas behind it was. At 80 x 60 a frame is most of a
+// thousand times cheaper and the loop gets the thread back.
+//
+// The audio graph does not care what size the window is.
+await page.setViewportSize({ width: 80, height: 60 });
+await page.waitForTimeout(400);
+
 // Before trusting a single zero below, prove the tap can hear anything
 // at all. A muted game and a broken analyser are indistinguishable from
 // "every sound is silent", and the difference is the whole report — the

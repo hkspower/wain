@@ -33,9 +33,8 @@ Two new scripts:
   measures it at the OUTPUT — after the limiter and the ceiling — rather
   than reading gain nodes, because a voice whose gain is 0.8 and whose
   oscillator was never started looks identical from the node graph and
-  different from one metre away. All sixteen one-shots are audible, 0.13
-  to 0.40 over the idle floor. **The held voices and the file check have
-  not completed inside its timeout yet** — see item 12.
+  different from one metre away. **All thirty-six are audible**: sixteen
+  one-shots, fourteen held voices and six sampled effects on disk.
 - **`npm run test:faces`** checks that all seventeen cars state their own
   front face and that no two are identical. `--records` runs the
   arithmetic half without a browser.
@@ -258,31 +257,28 @@ steering input.
 
 ---
 
-## 12. `check:sounds` has never finished its second half
+## 12. ~~`check:sounds` has never finished its second half~~
 
-It measures sixteen one-shots and then does not come back, so the
-continuous layers — engine, tyre roll, skid, brakes, boost, nitrous,
-rain, the tunnel, the rival alongside — have never been measured at the
-output, and neither has the on-disk file check the tool ends with.
+**Done.** It completes, and everything in it is audible: sixteen
+one-shots 0.19 to 0.75 over the idle floor, fourteen held voices 0.25
+to 0.87 peak, and all six sampled effects on disk. Thirty-six sounds,
+none silent.
 
-Two causes found and fixed, and it still does not finish. It polled the
-analyser on `requestAnimationFrame`, which on a page running a game
-waits for the renderer, so sixteen sounds took ten minutes; it now polls
-on a timer. And it made a separate `page.evaluate` per sound, each one
-queueing behind the renderer's frame work at about twenty-five seconds
-a call; the whole sweep is one call into the page now. After both, the
-single call still has not returned inside eleven minutes, which is no
-longer slowness — something in it stalls, and the next run at this
-should find out what rather than making it faster again.
+Three causes, and the first two were wrong guesses that cost two
+rewrites. It polled the analyser on `requestAnimationFrame`, so it
+waited for the renderer — moved to a timer, barely helped. It made one
+`page.evaluate` per sound, each queueing behind frame work — moved to a
+single call into the page, barely helped.
 
-Until then, "all sixteen one-shots are audible, 0.13 to 0.40 over the
-idle floor" is the whole of what this tool has proved.
+What it actually was: the tool ran the game at 900 x 520 on a software
+renderer, and every frame cost the main thread hundreds of milliseconds.
+The analyser loop shares that thread. **Nothing in this tool looks at a
+picture**, so the window is now 80 x 60 and the whole sweep finishes in
+under a minute.
 
-The file half is separately confirmed by hand: all six files the
-manifest names serve 200.
-
-**Cost**: the layers a player hears for the whole of a race are the ones
-still unmeasured.
+Worth keeping written down because it is the same mistake twice over:
+two rounds of optimising the measurement when the measurement was never
+the slow part.
 
 ## 13. Four of the fleet's eight silhouettes have no authored shell
 
@@ -295,14 +291,11 @@ knowing before reading the manager's warnings as faults.
 
 ## What I would do next, in order
 
-1. **Finish `check:sounds`** (item 12). It is one run away from
-   answering a question nothing else in the suite asks, and the answer
-   is either "the mix is fine" or a list of layers nobody can hear.
-2. **Scope the road network** (item 3). It is the only thing left that
+1. **Scope the road network** (item 3). It is the only thing left that
    changes what the game IS rather than how well it does what it does,
    and it deserves a run at it on its own.
-3. **`grid.mjs`'s hour** (item 7), if anyone wants a lighting
+2. **`grid.mjs`'s hour** (item 7), if anyone wants a lighting
    measurement out of that tool. Small, and currently a footnote.
-4. Nothing else is outstanding. Items 4, 5 and 13 are open by decision:
+3. Nothing else is outstanding. Items 4, 5 and 13 are open by decision:
    one needs egress this environment does not have, and the other is
    a claim I would rather not make than half-make.
