@@ -346,7 +346,7 @@ export const EXHAUSTS: Record<string, ExhaustSpec> = {
  * or 7 a real pickup would lean. Fixing that properly means the pickup
  * getting a body style of its own, which is a bigger change than this.
  */
-const ROLL_DEG_PER_G: Record<"sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup", number> = {
+const ROLL_DEG_PER_G: Record<"sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup" | "super", number> = {
   // The low, wide coupes. Stiff by construction.
   zx: 2.4,
   rx7: 2.4,
@@ -363,6 +363,9 @@ const ROLL_DEG_PER_G: Record<"sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" |
   // roll solver reads, so the pickup now visibly takes a set the way it
   // should have been doing since it was drawn as a saloon.
   pickup: 5.4,
+  // The stiffest thing here, and by construction rather than by tune:
+  // a mid-engined car carries its mass low and between the axles.
+  super: 2.2,
 };
 
 /** What a wide-body kit does to that: arches come with the springs and
@@ -566,7 +569,7 @@ export interface CarModel {
   cls: CarClass;
   price: number;
   /** Body silhouette (cars.ts): sedan, zx wedge, gtr coupe, or rx7. */
-  style?: "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup";
+  style?: "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup" | "super";
   /**
    * How far the car is built, as a body kit. Every machine on this road
    * has been got at — nobody on the corniche at two in the morning is
@@ -914,6 +917,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "storm-s8",
+    style: "super",
     // The big saloon's face: the widest mouth in the game, framed.
     face: { w: 1.3, h: 0.26, pattern: "mesh", pitch: 0.042, surround: "chrome", ducts: true, badge: true },
     drive: "awd",
@@ -1695,7 +1699,7 @@ export interface TuneEffects {
   engineCover: number | null;
   /** How much of the bodywork is cloth rather than steel. */
   carbon: CarbonLevel;
-  bodyStyle: "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup";
+  bodyStyle: "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup" | "super";
 }
 
 /** The numbers a car actually races with: its own base, plus the parts

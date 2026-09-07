@@ -56,7 +56,7 @@ export const EDITABLE = {
   cls: { kind: "enum", of: ["normal", "sport", "supercar"] },
   kit: { kind: "enum", of: ["street", "sport", "attack"] },
   drive: { kind: "enum", of: ["rwd", "fwd", "awd"] },
-  style: { kind: "enum", of: ["sedan", "zx", "gtr", "rx7", "hatch", "pony", "pickup"] },
+  style: { kind: "enum", of: ["sedan", "zx", "gtr", "rx7", "hatch", "pony", "pickup", "super"] },
   finish: { kind: "enum", of: ["gloss", "satin", "matte"] },
   color: { kind: "hex" },
   accent: { kind: "hex" },

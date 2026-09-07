@@ -26,7 +26,7 @@ const shapeSrc = readFileSync(SHAPE_FILE, "utf8");
  *  style missing from here is reported as this file's fault. */
 const CS_NAME = {
   sedan: "Sedan", zx: "ZX", gtr: "GTR", rx7: "RX7",
-  hatch: "Hatch", pony: "Pony", pickup: "Pickup",
+  hatch: "Hatch", pony: "Pony", pickup: "Pickup", super: "Super",
 };
 function unityRef(s, style) {
   const name = CS_NAME[style];

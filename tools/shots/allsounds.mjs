@@ -91,81 +91,12 @@ await page.evaluate(() => {
   window.__tap = { a, buf: new Float32Array(a.fftSize) };
 });
 
-/** Peak amplitude over `ms`, sampled as fast as the page will run. */
-const peakOver = (ms) =>
-  page.evaluate(async (dur) => {
-    const { a, buf } = window.__tap;
-    let peak = 0, rms = 0, n = 0;
-    const t0 = performance.now();
-    while (performance.now() - t0 < dur) {
-      a.getFloatTimeDomainData(buf);
-      let sum = 0;
-      for (let i = 0; i < buf.length; i++) {
-        const v = Math.abs(buf[i]);
-        if (v > peak) peak = v;
-        sum += buf[i] * buf[i];
-      }
-      rms += Math.sqrt(sum / buf.length);
-      n++;
-      // setTimeout, not requestAnimationFrame. rAF is tied to the
-      // compositor, and this page is running a game: a measurement
-      // window that waits for frames waits for the renderer, and the
-      // first version of this tool spent ten minutes on sixteen sounds
-      // and then died on its own timeout half way through the held
-      // voices. Nothing here needs a frame — the analyser is fed by the
-      // audio thread.
-      await new Promise((r) => setTimeout(r, 4));
-    }
-    return { peak: +peak.toFixed(4), rms: +(rms / Math.max(1, n)).toFixed(4) };
-  }, ms);
-
-// The frame the engine actually takes (SoundFrame, sound.ts). Written
-// out in full here rather than half-filled: the fields are optional in
-// the type but not in the arithmetic, and a frame missing rpmFrac put a
-// NaN through setTargetAtTime and took the whole tool down on its first
-// call. A partial frame is not a smaller frame, it is a broken one.
-const FRAME = {
-  speedKmh: 0, throttle: 0, rpmFrac: 0, gear: 1, skid: 0,
-  boost: 0, nosActive: false, brake: 0, driftYaw: 0, spin: 0, limited: 0,
-  liftRate: 0, rumble: 0, coast: 0, rain: 0, wet: 0, enclosure: 0,
-  seaX: 0, seaZ: 400, rival: null, others: [],
-  listener: { x: 0, y: 1, z: 0, fx: 0, fy: 0, fz: -1, ux: 0, uy: 1, uz: 0 },
-};
-
-/** Hold the car still and silent so a one-shot is measured on its own. */
-const idle = () =>
-  page.evaluate((f) => {
-    const s = window.__grnEngine.sound;
-    for (let i = 0; i < 8; i++) s.update(f);
-  }, FRAME);
-
-// Every sound the engine can make, in the order a player meets them.
-// Written out by hand ON PURPOSE: a list built by reflection off the
-// class would grow a new entry the day somebody adds a method and would
-// never notice one that was deleted, which is the direction that
-// matters — a sound that quietly stopped existing.
-const SOUNDS = [
-  ["revStart", (s) => s.revStart(), 520],
-  ["shift", (s) => s.update({ ...s.__f, gear: 2 }) ?? null, 320],
-  ["backfire", (s) => s.backfire(1), 420],
-  ["blowOff", (s) => s.blowOff(), 360],
-  ["bump light", (s) => s.bump(0.25), 360],
-  ["bump hard", (s) => s.bump(1), 460],
-  ["scrape light", (s) => s.scrape(0.3), 360],
-  ["scrape hard", (s) => s.scrape(1), 420],
-  ["flashClick", (s) => s.flashClick(), 300],
-  ["driftLink 1", (s) => s.driftLink(1), 320],
-  ["driftLink 5", (s) => s.driftLink(5), 320],
-  ["battleSting", (s) => s.battleSting(), 520],
-  ["winSting", (s) => s.winSting(), 520],
-  ["loseSting", (s) => s.loseSting(), 520],
-  ["championFanfare", (s) => s.championFanfare(), 1320],
-  ["horn", (s) => { s.hornOn(); setTimeout(() => s.hornOff(), 250); }, 420],
-];
-
-// Before trusting a single zero below, prove the tap can see sound at
-// all. A muted game and a broken analyser are indistinguishable from
-// "every sound is silent", and the difference is the whole report.
+// Before trusting a single zero below, prove the tap can hear anything
+// at all. A muted game and a broken analyser are indistinguishable from
+// "every sound is silent", and the difference is the whole report — the
+// first cut of this tool paused the engine, which drops the master to
+// zero, and then reported with perfect consistency that nothing in the
+// game made a sound.
 const proof = await page.evaluate(async () => {
   const s = window.__grnEngine.sound;
   const o = s.ctx.createOscillator();
@@ -186,60 +117,58 @@ const proof = await page.evaluate(async () => {
   o.disconnect();
   return +peak.toFixed(4);
 });
-console.log(`the tap hears a 440 Hz tone put through the mix bus at ${proof}`);
+console.log(`the tap hears a 440 Hz tone put through the mix bus at ${proof}\n`);
 if (proof < 0.02) {
-  console.log("...which is silence, so the measurements below would all be zero for that reason alone");
+  console.log("...which is silence, so every measurement below would be zero for that reason alone");
   await browser.close();
   process.exit(1);
 }
 
-console.log("\none-shots, peak amplitude at the output (idle floor subtracted)\n");
-await idle();
-const floor = await peakOver(320);
-console.log(`  ${"idle floor".padEnd(18)} peak ${floor.peak.toFixed(4)}  rms ${floor.rms.toFixed(4)}`);
+// The frame the engine actually takes (SoundFrame, sound.ts). Written
+// out in full rather than half-filled: the fields are optional in the
+// type but not in the arithmetic, and a frame missing rpmFrac put a NaN
+// through setTargetAtTime and took the whole tool down on its first
+// call. A partial frame is not a smaller frame, it is a broken one.
+const FRAME = {
+  speedKmh: 0, throttle: 0, rpmFrac: 0, gear: 1, skid: 0,
+  boost: 0, nosActive: false, brake: 0, driftYaw: 0, spin: 0, limited: 0,
+  liftRate: 0, rumble: 0, coast: 0, rain: 0, wet: 0, enclosure: 0,
+  seaX: 0, seaZ: 400, rival: null, others: [],
+  listener: { x: 0, y: 1, z: 0, fx: 0, fy: 0, fz: -1, ux: 0, uy: 1, uz: 0 },
+};
 
-const silent = [];
-for (const [name, , ms] of SOUNDS) {
-  await idle();
-  await page.evaluate(([n, F]) => {
-    const s = window.__grnEngine.sound;
-    window.__F = F;
-    const fire = {
-      revStart: () => s.revStart(),
-      shift: () => s.update({ ...window.__F, speedKmh: 60, rpmFrac: 0.9, throttle: 1, gear: 3 }),
-      backfire: () => s.backfire(1),
-      blowOff: () => s.blowOff(),
-      "bump light": () => s.bump(0.25),
-      "bump hard": () => s.bump(1),
-      "scrape light": () => s.scrape(0.3),
-      "scrape hard": () => s.scrape(1),
-      flashClick: () => s.flashClick(),
-      "driftLink 1": () => s.driftLink(1),
-      "driftLink 5": () => s.driftLink(5),
-      battleSting: () => s.battleSting(),
-      winSting: () => s.winSting(),
-      loseSting: () => s.loseSting(),
-      championFanfare: () => s.championFanfare(),
-      horn: () => { s.hornOn(); setTimeout(() => s.hornOff(), 250); },
-    }[n];
-    fire?.();
-  }, [name, FRAME]);
-  const m = await peakOver(ms);
-  const over = +(m.peak - floor.peak).toFixed(4);
-  const heard = over > 0.002;
-  if (!heard) silent.push(name);
-  console.log(
-    `  ${name.padEnd(18)} peak ${m.peak.toFixed(4)}  +${over.toFixed(4)} over idle  ` +
-      (heard ? "" : "  <- SILENT")
-  );
-}
+// Every sound the engine can make, in the order a player meets them,
+// with the window each is measured over.
+//
+// Written out by hand ON PURPOSE: a list built by reflection off the
+// class would grow an entry the day somebody adds a method and would
+// never notice one that was deleted, which is the direction that
+// matters — a sound that quietly stopped existing.
+const SOUNDS = [
+  ["revStart", 520],
+  ["shift", 320],
+  ["backfire", 420],
+  ["blowOff", 360],
+  ["bump light", 360],
+  ["bump hard", 460],
+  ["scrape light", 360],
+  ["scrape hard", 420],
+  ["flashClick", 300],
+  ["driftLink 1", 320],
+  ["driftLink 5", 320],
+  ["battleSting", 520],
+  ["winSting", 520],
+  ["loseSting", 520],
+  ["championFanfare", 760],
+  ["horn", 420],
+];
 
-// The continuous voices: each is raised on its own from a standing car
-// and the output is read, so a layer that is wired but never sounds is
-// visible as a flat line rather than as a plausible gain value.
+// The continuous voices: each raised on its own from a standing car, so
+// a layer that is wired but never sounds shows as a flat line rather
+// than as a plausible gain value.
 const HELD = [
   ["engine on song", { speedKmh: 90, rpmFrac: 0.8, throttle: 1, gear: 3 }],
-  ["engine on the limiter", { speedKmh: 120, rpmFrac: 1, throttle: 1, gear: 4, limited: 1 }],
+  ["on the limiter", { speedKmh: 120, rpmFrac: 1, throttle: 1, gear: 4, limited: 1 }],
   ["tyre roll at 120", { speedKmh: 120, rpmFrac: 0.5, throttle: 0.5, gear: 5 }],
   ["skid", { speedKmh: 80, rpmFrac: 0.7, throttle: 1, skid: 1, driftYaw: 0.6, gear: 2 }],
   ["brakes", { speedKmh: 120, rpmFrac: 0.4, throttle: 0, brake: 1, gear: 4 }],
@@ -254,42 +183,116 @@ const HELD = [
     rival: { x: 3, y: 0, z: 0, speedKmh: 118, throttle: 1 } }],
   ["the sea", { speedKmh: 60, rpmFrac: 0.4, throttle: 0.4, gear: 3, seaX: 0, seaZ: 12 }],
 ];
-console.log("\nheld voices, peak at the output\n");
-for (const [name, over] of HELD) {
-  await page.evaluate(([base, o]) => {
-    const s = window.__grnEngine.sound;
-    const f = { ...base, ...o };
+
+// ONE call into the page for the whole sweep.
+//
+// This was thirty-odd separate page.evaluate round trips and each one
+// cost about twenty-five seconds: the page is running a game, so every
+// call queues behind the renderer's frame work, and a tool that fires
+// one sound per trip spends its whole budget waiting for a compositor
+// it does not need. Sixteen sounds took ten minutes and the run died on
+// its own timeout twice, half way through the held voices.
+//
+// So the loop lives IN the page. One trip out, one back, and the whole
+// measurement runs on the page's own clock.
+const swept = await page.evaluate(async ([ONESHOTS, HELD_IN, FRAME_IN]) => {
+  const s = window.__grnEngine.sound;
+  const { a, buf } = window.__tap;
+  const idle = () => { for (let i = 0; i < 8; i++) s.update(FRAME_IN); };
+  const hold = (over) => {
+    const f = { ...FRAME_IN, ...over };
     for (let i = 0; i < 30; i++) s.update(f);
-  }, [FRAME, over]);
-  await page.waitForTimeout(220);
-  const m = await peakOver(260);
+  };
+  const peakOver = async (ms) => {
+    let peak = 0, rms = 0, n = 0;
+    const t0 = performance.now();
+    while (performance.now() - t0 < ms) {
+      a.getFloatTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) {
+        const v = Math.abs(buf[i]);
+        if (v > peak) peak = v;
+        sum += buf[i] * buf[i];
+      }
+      rms += Math.sqrt(sum / buf.length);
+      n++;
+      await new Promise((r) => setTimeout(r, 4));
+    }
+    return { peak: +peak.toFixed(4), rms: +(rms / Math.max(1, n)).toFixed(4) };
+  };
+  const fire = {
+    revStart: () => s.revStart(),
+    shift: () => s.update({ ...FRAME_IN, speedKmh: 60, rpmFrac: 0.9, throttle: 1, gear: 3 }),
+    backfire: () => s.backfire(1),
+    blowOff: () => s.blowOff(),
+    "bump light": () => s.bump(0.25),
+    "bump hard": () => s.bump(1),
+    "scrape light": () => s.scrape(0.3),
+    "scrape hard": () => s.scrape(1),
+    flashClick: () => s.flashClick(),
+    "driftLink 1": () => s.driftLink(1),
+    "driftLink 5": () => s.driftLink(5),
+    battleSting: () => s.battleSting(),
+    winSting: () => s.winSting(),
+    loseSting: () => s.loseSting(),
+    championFanfare: () => s.championFanfare(),
+    horn: () => { s.hornOn(); setTimeout(() => s.hornOff(), 250); },
+  };
+  idle();
+  const floor = await peakOver(320);
+  const shots = [];
+  for (const [name, ms] of ONESHOTS) {
+    idle();
+    fire[name]?.();
+    shots.push([name, await peakOver(ms)]);
+  }
+  const held = [];
+  for (const [name, over] of HELD_IN) {
+    hold(over);
+    await new Promise((r) => setTimeout(r, 220));
+    held.push([name, await peakOver(260)]);
+  }
+  // And the files, which fail differently: a manifest entry whose mp3 is
+  // missing plays nothing and logs nothing.
+  const man = await (await fetch("/sfx/manifest.json")).json();
+  const files = [];
+  for (const [id, e] of Object.entries(man)) {
+    const r = await fetch(`/sfx/${e.file}`, { method: "HEAD" });
+    files.push({ id, file: e.file, ok: r.ok, kb: +(+(r.headers.get("content-length") ?? 0) / 1024).toFixed(1) });
+  }
+  return { floor, shots, held, files };
+}, [SOUNDS, HELD, FRAME]);
+
+const silent = [];
+console.log("one-shots, peak amplitude at the output (idle floor subtracted)\n");
+console.log(`  ${"idle floor".padEnd(18)} peak ${swept.floor.peak.toFixed(4)}  rms ${swept.floor.rms.toFixed(4)}`);
+for (const [name, m] of swept.shots) {
+  const over = +(m.peak - swept.floor.peak).toFixed(4);
+  const heard = over > 0.002;
+  if (!heard) silent.push(name);
+  console.log(
+    `  ${name.padEnd(18)} peak ${m.peak.toFixed(4)}  +${over.toFixed(4)} over idle  ` +
+      (heard ? "" : "  <- SILENT")
+  );
+}
+console.log("\nheld voices, peak at the output\n");
+for (const [name, m] of swept.held) {
   const heard = m.peak > 0.004;
   if (!heard) silent.push(name);
   console.log(`  ${name.padEnd(18)} peak ${m.peak.toFixed(4)}  rms ${m.rms.toFixed(4)}` +
     (heard ? "" : "  <- SILENT"));
 }
-
-// And the files, which are a different failure: a manifest entry whose
-// mp3 is missing plays nothing and logs nothing.
-const files = await page.evaluate(async () => {
-  const man = await (await fetch("/sfx/manifest.json")).json();
-  const out = [];
-  for (const [id, e] of Object.entries(man)) {
-    const r = await fetch(`/sfx/${e.file}`, { method: "HEAD" });
-    out.push({ id, file: e.file, ok: r.ok, kb: +(+(r.headers.get("content-length") ?? 0) / 1024).toFixed(1) });
-  }
-  return out;
-});
 console.log("\nsampled effects on disk\n");
-for (const f of files) {
+for (const f of swept.files) {
   if (!f.ok) silent.push(`${f.id} (${f.file})`);
   console.log(`  ${f.id.padEnd(18)} ${f.file.padEnd(16)} ${f.ok ? `${f.kb} kB` : "MISSING"}`);
 }
+const total = swept.shots.length + swept.held.length + swept.files.length;
 
 console.log(
   silent.length
-    ? `\n${silent.length} of ${SOUNDS.length + HELD.length + files.length} made no sound: ${silent.join(", ")}`
-    : `\nall ${SOUNDS.length + HELD.length + files.length} sounds were heard at the output`
+    ? `\n${silent.length} of ${total} made no sound: ${silent.join(", ")}`
+    : `\nall ${total} sounds were heard at the output`
 );
 await browser.close();
 process.exit(silent.length ? 1 : 0);

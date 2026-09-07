@@ -336,7 +336,7 @@ const factorySrc = readFileSync(FACTORY, "utf8");
 /** `case EGRNBodyStyle::X: return 4.31f;` out of one of the two tables. */
 const CPP_NAME = {
   sedan: "Sedan", zx: "ZX", gtr: "GTR", rx7: "RX7",
-  hatch: "Hatch", pony: "Pony", pickup: "Pickup",
+  hatch: "Hatch", pony: "Pony", pickup: "Pickup", super: "Super",
 };
 function ueRef(style) {
   // Mirrors styleEnum in scripts/export-unreal-data.mjs. A style missing

@@ -44,6 +44,7 @@ public static class CarFactory
             case BodyStyle.Hatch: return new Reference { L = 4.28f, W = 1.79f };
             case BodyStyle.Pony: return new Reference { L = 4.90f, W = 1.88f };
             case BodyStyle.Pickup: return new Reference { L = 5.35f, W = 1.95f };
+            case BodyStyle.Super: return new Reference { L = 4.55f, W = 1.94f };
             default: return new Reference { L = 4.70f, W = 1.80f };
         }
     }
@@ -114,6 +115,13 @@ public static class CarFactory
                     Length = len, Width = width, BodyH = 0.70f,
                     CabinLen = len * 0.30f, CabinH = 0.56f, CabinZ = len * 0.04f, CabinRake = 0f,
                     WheelFront = len * 0.303f, WheelRear = -len * 0.295f };
+            // Mid-engined: the cabin is FORWARD of centre, which is the
+            // sign that flips against every other silhouette here.
+            case BodyStyle.Super:
+                return new Shape {
+                    Length = len, Width = width, BodyH = 0.48f,
+                    CabinLen = len * 0.42f, CabinH = 0.36f, CabinZ = len * 0.02f, CabinRake = -8f,
+                    WheelFront = len * 0.300f, WheelRear = -len * 0.308f };
             default: // saloon
                 return new Shape {
                     Length = len, Width = width, BodyH = 0.58f,

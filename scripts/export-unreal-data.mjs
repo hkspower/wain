@@ -206,6 +206,7 @@ const styleEnum = {
   hatch: "Hatch",
   pony: "Pony",
   pickup: "Pickup",
+  super: "Super",
 };
 /**
  * A style this map does not know has to stop the build.

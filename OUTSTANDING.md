@@ -18,12 +18,12 @@ to a partial.
 
 ## Since the last full run
 
-The roster is **seventeen cars over seven silhouettes** — it was fifteen
+The roster is **seventeen cars over eight silhouettes** — it was fifteen
 over six when the numbers further down this file were taken, so read any
 count below as of that date.
 
 Re-checked at `ac87a6d`, and green: `npx tsc --noEmit`, `check:unity`,
-`check:unreal` (both at 17 cars and 7 silhouettes), `check:structure`,
+`check:unreal` (both at 17 cars and 8 silhouettes), `check:structure`,
 `check:arabic`, `check:arabic:grammar`, `test:carsedit`, `test:names`,
 `test:demon` and `test:faces`. Not re-run: the rest.
 
@@ -260,18 +260,23 @@ steering input.
 
 ## 12. `check:sounds` has never finished its second half
 
-It measures sixteen one-shots and then times out somewhere in the
-fourteen held voices, so the continuous layers — engine, tyre roll,
-skid, brakes, wind, rain, boost, nitrous, the rival alongside — have
-never been measured at the output, and neither has the on-disk file
-check the tool ends with.
+It measures sixteen one-shots and then does not come back, so the
+continuous layers — engine, tyre roll, skid, brakes, boost, nitrous,
+rain, the tunnel, the rival alongside — have never been measured at the
+output, and neither has the on-disk file check the tool ends with.
 
-The cause was the tool polling the analyser on `requestAnimationFrame`,
-which on a page running a game waits for the renderer: sixteen sounds
-took ten minutes. It polls on a timer now and the windows are shorter,
-but that has not been confirmed to finish, and until it has, "all
-sixteen one-shots are audible" is the whole of what this tool has
-proved.
+Two causes found and fixed, and it still does not finish. It polled the
+analyser on `requestAnimationFrame`, which on a page running a game
+waits for the renderer, so sixteen sounds took ten minutes; it now polls
+on a timer. And it made a separate `page.evaluate` per sound, each one
+queueing behind the renderer's frame work at about twenty-five seconds
+a call; the whole sweep is one call into the page now. After both, the
+single call still has not returned inside eleven minutes, which is no
+longer slowness — something in it stalls, and the next run at this
+should find out what rather than making it faster again.
+
+Until then, "all sixteen one-shots are audible, 0.13 to 0.40 over the
+idle floor" is the whole of what this tool has proved.
 
 The file half is separately confirmed by hand: all six files the
 manifest names serve 200.
@@ -279,10 +284,11 @@ manifest names serve 200.
 **Cost**: the layers a player hears for the whole of a race are the ones
 still unmeasured.
 
-## 13. Two of the fleet's seven silhouettes have no authored shell
+## 13. Four of the fleet's eight silhouettes have no authored shell
 
-The hatch and the pony are built procedurally, and the pickup added at
-`ac87a6d` joins them — `sync:models` exports four styles, not seven. The
+The hatch and the pony are built procedurally, and the pickup and the
+mid-engined `super` added since join them — `sync:models` exports four
+styles, not eight. The
 car asset manager reports this as a gap on every affected car, which is
 right: it is a real state the game ships in rather than damage. Worth
 knowing before reading the manager's warnings as faults.

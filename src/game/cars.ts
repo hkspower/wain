@@ -21,7 +21,8 @@ import { BODY_EULER_ORDER, WHEEL_EULER_ORDER } from "./suspension";
 
 /** Silhouette family. "zx" is the long-nose fastback wedge of a Z32
  *  300ZX; "gtr" is the boxy, high-decked muscle of an R34 Skyline. */
-export type BodyStyle = "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup";
+export type BodyStyle =
+  | "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup" | "super";
 
 export interface CarColors {
   body: number;
@@ -454,6 +455,15 @@ const CROWN_BY_STYLE: Record<BodyStyle, Record<"body" | "canopy" | "roof", Crown
   // body from a styled one, so it gets the least tuck and the least
   // crown of anything in the fleet — and its shoulder sits HIGH,
   // because the widest point of a truck is its bed rail.
+  // Mid-engined proportions: the widest point is low and far back, over
+  // the rear tyre, and the cabin is a bubble on top of it. So the body
+  // gets the deepest tuck in the fleet and the shoulder sits LOW —
+  // the opposite end of the same dial the pickup is at.
+  super: {
+    body: { tuck: 0.095, roof: 0.034, shoulder: 0.44 },
+    canopy: { tuck: 0.118, roof: 0.030, shoulder: 0.22 },
+    roof: { tuck: 0.036, roof: 0.038, shoulder: 0.5 },
+  },
   pickup: {
     body: { tuck: 0.042, roof: 0.020, shoulder: 0.70 },
     canopy: { tuck: 0.072, roof: 0.024, shoulder: 0.30 },
@@ -852,6 +862,7 @@ const GTR_CABIN_W = 1.701;
 const RX7_CABIN_W = 1.635;
 const HATCH_CABIN_W = 1.556;
 const PICKUP_CABIN_W = 1.70;
+const SUPER_CABIN_W = 1.60;
 
 // Raked glasshouse: windshield, roofline, rear window
 const canopyGeo = extrudeProfile(
@@ -879,6 +890,66 @@ const roofGeo = extrudeProfile(
   ROOF_EDGE,
   0,
   CROWN_BY_STYLE.sedan.roof,
+);
+
+// ---- Mid-engined two-seater: cab-forward, a low flat nose, and a deck
+// that rises behind the cabin over the engine.
+//
+// The Storm S8 is a supercar and was drawn as a SALOON. Every other
+// machine in its class here is a front-engined coupe on one of the
+// three wedge shells; this one had a boot, four doors' worth of flank
+// and a bonnet long enough to put an engine under, which is the one
+// thing a mid-engined car does not have.
+//
+// What separates this from the wedges is where the cabin sits. On a
+// front-engined coupe the screen is behind a long bonnet; here the
+// screen is almost over the front axle and the length behind the
+// cabin is engine rather than boot — so the deck is HIGHER than the
+// bonnet, which is true of no other silhouette in this game.
+const superBodyGeo = extrudeProfile(
+  [
+    [2.14, 0.28],
+    [2.2, 0.5], // a low, flat nose with nothing under it
+    [2.05, 0.6],
+    [1.3, 0.66], // the short bonnet, over a boot rather than a motor
+    [0.72, 0.74], // and up into the screen base
+    [-0.5, 0.9],
+    [-1.35, 0.94], // the deck over the engine — the high point of the body
+    [-2.02, 0.9],
+    [-2.2, 0.72],
+    [-2.26, 0.42],
+    [-2.16, 0.26],
+    [-1.85, 0.2],
+    [1.8, 0.2],
+  ],
+  2.055,
+  BODY_EDGE,
+  2,
+  CROWN_BY_STYLE.super.body,
+);
+const superCanopyGeo = extrudeProfile(
+  [
+    [0.78, 0.76],
+    [0.06, 1.2], // the peak is barely behind the front axle
+    [-0.72, 1.16],
+    [-1.42, 0.9], // and the glass runs down onto the engine deck
+  ],
+  SUPER_CABIN_W,
+  CANOPY_EDGE,
+  0,
+  CROWN_BY_STYLE.super.canopy,
+);
+const superRoofGeo = extrudeProfile(
+  [
+    [0.0, 1.19],
+    [-0.08, 1.23],
+    [-0.62, 1.2],
+    [-0.7, 1.15],
+  ],
+  roofWidth(SUPER_CABIN_W),
+  ROOF_EDGE,
+  0,
+  CROWN_BY_STYLE.super.roof,
 );
 
 // ---- Half-tonne single cab: tall slab sides, a short upright cab well
@@ -1265,6 +1336,7 @@ const STYLE_SCALE: Record<BodyStyle, number> = {
   // The pickup profile is authored at 5.28 m raw against a 5.35 m
   // truck, so this is close to one for the same reason the hatch's is.
   pickup: 0.987 * PRESENCE,
+  super: 0.9 * PRESENCE,
 };
 
 /**
@@ -1301,6 +1373,9 @@ export const STYLE_REAL: Record<BodyStyle, { l: number; w: number }> = {
   // which is the whole reason it needed its own shape: on the saloon
   // body it was a 5.35 m car drawn as a 4.7 m one and stretched.
   pickup: { l: 5.35, w: 1.95 },
+  // Wide and short: a mid-engined two-seater is the only shape here
+  // whose width is close to its wheelbase.
+  super: { l: 4.55, w: 1.94 },
 };
 export const WIDTH_FOLLOWS_LENGTH = 1 / 3;
 
@@ -1377,6 +1452,16 @@ const STYLE_DIMS: Record<BodyStyle, StyleDims> = {
     nose: 2.62, tail: -2.66, roof: [-0.11, 1.62], noseTopY: 0.92, grilleY: 0.66, beltY: 1.04,
     hoodY: 1.06, tailY: 0.95, deckY: 1.0, mirror: [0.03, 1.2, 0.74],
     dashY: 1.12, wiperZ: 0.9, bPillar: [0.84, 1.3, -0.5], creaseY: 0.8,
+  },
+  // The cabin is FORWARD and the deck is behind it, which is the whole
+  // difference between this and the three front-engined coupes: the
+  // windscreen is where a saloon's bonnet is and the engine is where
+  // its back seat is. Everything sits low, and the deck sits high,
+  // because there is a motor under it.
+  super: {
+    nose: 2.28, tail: -2.32, roof: [-0.34, 1.22], noseTopY: 0.46, grilleY: 0.4, beltY: 0.82,
+    hoodY: 0.66, tailY: 0.74, deckY: 0.92, mirror: [0.03, 0.86, 0.62],
+    dashY: 0.82, wiperZ: 0.72, bPillar: [0.76, 0.98, -0.78], creaseY: 0.56,
   },
 };
 
@@ -3264,6 +3349,7 @@ export const FACE_FALLBACK: Record<BodyStyle, FaceSpec> = {
   hatch: { w: 0.96, h: 0.14, pattern: "honeycomb", pitch: 0.04, surround: "body", badge: true },
   pony: { w: 1.3, h: 0.24, pattern: "bar", pitch: 0.1, surround: "chrome", badge: true },
   pickup: { w: 1.4, h: 0.3, pattern: "bar", pitch: 0.13, surround: "chrome", badge: true },
+  super: { w: 0.86, h: 0.1, dy: -0.02, pattern: "mesh", pitch: 0.026, surround: "carbon", ducts: true, lower: true },
 };
 
 const faceCache = new Map<string, THREE.BufferGeometry>();
@@ -4011,7 +4097,9 @@ export function createCar(colors: CarColors): THREE.Group {
 
   const bCabBack = style === "zx" || style === "rx7";
   const [bGeo, cGeo, rGeo] =
-    style === "pickup"
+    style === "super"
+      ? [superBodyGeo, superCanopyGeo, superRoofGeo]
+      : style === "pickup"
       ? [pickupBodyGeo, pickupCanopyGeo, pickupRoofGeo]
       : style === "pony"
       ? [ponyBodyGeo, ponyCanopyGeo, ponyRoofGeo]
@@ -5195,9 +5283,9 @@ export function createCar(colors: CarColors): THREE.Group {
   // the front wheel is right under the cab and there is a long flat run
   // of body behind the rear one.
   const wzF =
-    style === "pickup" ? 1.62 : style === "zx" ? 1.52 : style === "gtr" || style === "rx7" ? 1.45 : 1.42;
+    style === "super" ? 1.36 : style === "pickup" ? 1.62 : style === "zx" ? 1.52 : style === "gtr" || style === "rx7" ? 1.45 : 1.42;
   const wzR =
-    style === "pickup" ? -1.58 : style === "zx" ? -1.48 : style === "gtr" || style === "rx7" ? -1.45 : -1.42;
+    style === "super" ? -1.4 : style === "pickup" ? -1.58 : style === "zx" ? -1.48 : style === "gtr" || style === "rx7" ? -1.45 : -1.42;
 
   /**
    * How long a feature running along the flank is allowed to be.
