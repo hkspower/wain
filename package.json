@@ -59,6 +59,7 @@
     "test:body": "node tests/body.mjs",
     "test:bridges": "node tests/bridges.mjs",
     "test:buildings": "node tests/buildings.mjs",
+    "test:carsedit": "node tests/carsedit.mjs",
     "test:carbon": "node tests/carbon.mjs",
     "test:caching": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/caching.mjs",
     "test:clock": "node tests/clock.mjs",
@@ -118,7 +119,6 @@
     "test:size": "node tests/size.mjs",
     "test:soundtiming": "node tests/soundtiming.mjs",
     "test:spin": "node tests/spin.mjs",
-    "hud:type": "node tools/shots/hudtype.mjs",
     "test:hudtype": "node tools/shots/hudtype.mjs",
     "test:rigsync": "node tests/rigsync.mjs",
     "test:aero": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/aero.mjs",
@@ -145,6 +145,7 @@
     "shots": "node tools/shots/capture.mjs",
     "shots:cars": "node tools/shots/cars.mjs",
     "shots:thumbs": "node tools/shots/cardthumbs.mjs",
+    "hud:type": "node tools/shots/hudtype.mjs",
     "export:film": "node tools/shots/exportfilm.mjs"
   },
   "dependencies": {

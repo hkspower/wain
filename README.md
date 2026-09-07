@@ -93,6 +93,26 @@ tables when offline; `npm run check:unreal` proves the two agree. The
 hub server exposes the write side (`/api/v1/lap`, `/api/v1/career/:name`,
 `/api/v1/leaderboard`) for lap submission and cloud careers.
 
+### Car asset manager (development only)
+
+Sixteen cars, each with a record in `src/game/mods.ts`, a shop image, one
+or two press renders and a shared silhouette. The manager puts all of it
+on one screen and lets you change the record:
+
+```bash
+GRN_CAR_EDITOR=1 npm run dev     # then open /dev/cars on localhost
+```
+
+It writes back to `src/game/mods.ts`, which every port is generated from,
+so a saved edit tells you which sync to run afterwards. It cannot add,
+delete or rename a car — those cross four ports and a save format, and
+belong in a diff a person wrote.
+
+The endpoint answers 404 unless all three of these hold: the build is not
+a production build, `GRN_CAR_EDITOR=1` is set, and the request came in on
+loopback. `npm run test:carsedit` attacks each of them and restores the
+roster byte for byte afterwards.
+
 ## Tech stack
 
 - [Next.js 15](https://nextjs.org) (App Router, React 19, TypeScript)
@@ -133,6 +153,7 @@ src/
 │   ├── race/                 # Gulf Road Nights — the game's UI shell
 │   ├── hub/                  # The online meet: crews, referrals, ledger
 │   ├── api/grn/              # Data API the engine ports read
+│   ├── dev/cars/             # Car asset manager (development only)
 │   ├── layout.tsx            # Root layout, fonts, metadata
 │   └── globals.css           # Tailwind theme, and the game's own classes
 ├── components/               # Shared site components
