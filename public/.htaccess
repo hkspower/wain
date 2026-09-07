@@ -22,6 +22,31 @@ Options -Indexes
   Require all denied
 </FilesMatch>
 
+# …but that rule only sees FILES, and the thing most worth blocking is a
+# DIRECTORY. A request for /.git/config ends in `config`, which does not start
+# with a dot, so the block above waves it through — and <DirectoryMatch> is
+# forbidden in .htaccess, so it cannot be the answer either.
+#
+# This matters the moment the site is deployed by cloning rather than by
+# upload. hPanel's Git deployment checks the branch out *into* public_html and
+# leaves .git sitting there, so the whole repository — every object, every
+# branch it fetched — becomes reachable under the domain. The repository is
+# public, so nothing secret escapes; serving it anyway is still wrong, and the
+# next repository to be deployed this way may not be public.
+#
+# RedirectMatch rather than mod_rewrite on purpose: it needs only mod_alias,
+# and it does not switch on the rewrite engine for a file whose opening
+# comment warns against catch-all rewrites masking real 404s. 404 rather than
+# 403 because a 403 confirms the path is there.
+#
+# .well-known is exempt: it is the one dot-directory that is meant to be
+# fetched (ACME renewals, apple-app-site-association). The export ships none
+# today — checked, not assumed — so the exemption costs nothing now and stops
+# a certificate renewal failing mysteriously later.
+<IfModule mod_alias.c>
+  RedirectMatch 404 "/\.(?!well-known/)"
+</IfModule>
+
 # ---------------------------------------------------------------------------
 # What the previous site left behind
 #
