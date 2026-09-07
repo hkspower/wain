@@ -240,6 +240,25 @@ question. The remaining miss (ذكاء ٢) asks its question mid-reply and
 finishes on the place's description, which is the length rule and this rule
 pulling on the same sentence rather than anything to do with tools.
 
+**And the tool result now tells her what is actually on the screen.** The
+first Arabic result said «the matching places are on the map» for any query
+at all — including a query the search page answered with «ما لقينا شي», so
+she would confirm places that were not there, and a slug she misremembered
+navigated to a 404 and then told her the page was open. `WainAiCall.tsx` now
+runs the same search the page runs (same index, same limit, places only) and
+returns the count and the first three names — «٤ أماكن مطابقة لـ «…» الحين
+على الخريطة قدام الزائر، أولها: …» — or, on zero, «ما لقيت ولا مكان» with an
+instruction to say so and try a wider word; `open_place` checks the slug
+against the catalogue and returns the place's name, or a refusal, before
+anything navigates. The search module is loaded on the first tool call
+rather than imported, so the call chunk that is preloaded on hover of the
+button does not carry the index. The browser test asserts all of it: the
+count and the first name on a real query, the zero-result wording on a
+nonsense one, the name on a real slug, and no navigation on a well-formed
+slug that is not a place. The prompt has a matching line: name the first
+place when names come back, and never say «حطيتهم لك على الخريطة» when the
+result says nothing was found.
+
 **What is left is the API key**, which is not in this repository and never
 should be:
 

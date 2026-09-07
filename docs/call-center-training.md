@@ -242,18 +242,31 @@ weights are not enforced by the platform — every criterion counts the same in
 its aggregate — so the weighting above is how to *read* a scorecard, not how
 the number is computed.
 
-Ten tests run against the same agent, all passing on 7 September:
+Twelve tests run against the same agent, all passing on 7 September:
 
 | Row | Tests |
 | --- | --- |
 | 1 Grounded | المسافة بين مكانين · ذيل قاعدة المعرفة · ذكاء ٧ (a place added to the KB the same day) |
 | 2 Honest limits | ذكاء ٤ (a shop inside a mall, and its menu price) · ذكاء ٦ (a budget, without quoting dinars) |
-| 3 Answered the question | ذكاء ١ (area + children + heat at once) · ذكاء ٢ (the beach at noon in August) · ذكاء ٣ (dinner then coffee, and the two are actually near) · ذكاء ٥ (Friday morning) |
-| 4–6 Manner | no scripted test — measured over the same ten runs instead, see below |
+| 3 Answered the question | ذكاء ١ (area + children + heat at once) · ذكاء ٢ (the beach at noon in August) · ذكاء ٣ (dinner then coffee, and the two are actually near) · ذكاء ٥ (Friday morning) · لهجة ٢ (feelings stated instead of a request — طفشان، ميت جوع، طقة حر، حالتي حالة — that she must read as «Kuwaiti food, indoors, cheap, now», and not as illness) |
 | 7 Register | المسافة بين مكانين · لهجة (a greeting in heavy slang — شخبارج، الشلة، ينقلعون، هاليومين، يمّ البحر، نسولف، شرايج — that she must understand, not ask about, and answer in kind with no MSA and a closing question) |
+| 8 Warm and willing | رد فعل (she recommended المباركية; the caller says it is too far, he is in الفحيحيل, and it is crowded at weekends — she must acknowledge both, not defend it, and offer something on his side of the country) |
+| 4–6 Manner | no scripted test — measured over the same twelve runs instead, see below |
 
-Rows 4–6 are judged on every run of the ten rather than by a test of their
-own, because they are properties of every turn, not of a particular question.
+The last two are the second pass of 7 September, when the owner asked for
+«more feedback and response». What was added is a section of the brief on
+**responding to what comes back** — praise, «too far», «crowded», «I've been»,
+«too dear», «that's not what I meant», a feeling instead of a request, a yes,
+a no, a thanks — each with the shape of the reply (acknowledge in a word,
+second recommendation, question, same length). Her answer to the pushback:
+«زين، بعيدة عليك. إذا أنت بالفحيحيل وتبي قعدة قهوة مع الربع، الكوت مول هناك
+فنان، فيه كافيهات على البحر … وأهدى من المباركية. شرايك فيه؟» — both
+objections answered, the first place not mentioned again except to say the
+second is quieter. And to the feelings: she read «حالتي حالة» as money, not
+illness, and «طقة حر» as heat, and went straight to a cheap Kuwaiti kitchen.
+
+Rows 4–6 are judged on every run rather than by a test of their own,
+because they are properties of every turn, not of a particular question.
 Row 6 was the one not where it should be: on 6 September **7 of 9 runs handed
 the turn back**, and both misses were runs that called `show_places` and then
 said nothing after the tool returned. The client-side half of the fix (the
@@ -275,15 +288,29 @@ list of MSA constructions she is banned from was added — «هل تريد», «
 markers and MSA leaks over the replies (`measure-dialect.mjs` in the session
 scratchpad; the marker and leak lists are in it). Same tests, temperature 0:
 
-| | 6 Sep (9 runs) | 7 Sep vocab (10) | 7 Sep + pre-tool question (10, live) |
-| --- | ---: | ---: | ---: |
-| Kuwaiti markers per reply | 4.6 | 5.7 | **5.8** |
-| markers per 100 words | 12 | 19 | **19** |
-| MSA leaks, total | 7 | 1 | **0** |
-| replies with no leak | 6/9 | 9/10 | **10/10** |
-| hand-back question | 7/9 | 8/10 | **9/10** |
-| mean length (chars) | 178 | 170 | **170** |
-| at 11.44 c/s | 15.6s | 14.9s | **14.9s** |
+| | 6 Sep (9 runs) | 7 Sep vocab (10) | + pre-tool question (10) | + feedback rules, 2nd vocab pass (12, live) |
+| --- | ---: | ---: | ---: | ---: |
+| Kuwaiti markers per reply | 4.6 | 5.7 | 5.8 | **5.6** |
+| markers per 100 words | 12 | 19 | 19 | **18** |
+| MSA leaks, total | 7 | 1 | 0 | **2** |
+| replies with no leak | 6/9 | 9/10 | 10/10 | **10/12** |
+| hand-back question | 7/9 | 8/10 | 9/10 | **11/12** |
+| mean length (chars) | 178 | 170 | 170 | **174** |
+| at 11.44 c/s | 15.6s | 14.9s | 14.9s | **15.2s** |
+
+The last column is the second vocabulary pass (money, feelings, short
+replies, objections, outings, the car, youth slang — roughly ninety more
+entries) plus the responding-to-feedback section. The dialect numbers held
+rather than rose, which is the intended reading of «use less than you
+understand»: the extra words are for hearing him, and two of the twelve
+replies are the two new tests, which are longer questions. The two «leaks»
+the script flags are «مناسب للعيال» and «محلات معينة» — both are heard in
+Kuwait and the list is being strict; they are left in the count rather than
+the list being softened to make the row read zero. The one hand-back miss is
+الزهراء again, a seven-word answer with no question on it, and the bridge
+reply said «حطيت لك إياه على الخريطة» without calling the tool — the same
+row-5 fault seen on the 6th, now with a client-side backstop (see the tool
+results, below and in `docs/voice-setup.md`).
 
 The leaks that went were «أهلاً بك» as an opener (three times), «ممتاز»,
 «محددة», «معينة», «مناسب لل». What replaced them was not stuffing: the

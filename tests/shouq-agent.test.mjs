@@ -101,10 +101,26 @@ ok('show_places reports back to the agent', /قهوة هادية/.test(String(sh
 // back; both halves are what the next turn is for.
 ok('and tells her what the screen now shows', /على الخريطة/.test(String(shown)), String(shown));
 ok('and tells her to hand the turn back', /يرجّع له الدور/.test(String(shown)), String(shown));
+// And it tells her what is really there — the count the search page will
+// show and the first names — rather than «the matching places» whatever the
+// query. She used to confirm places on the map while the page said «ما لقينا
+// شي».
+ok('and tells her how many places matched', /\d+ (مكان مطابق|أماكن مطابقة)/.test(String(shown)), String(shown));
+ok('and names the first of them', /أولها: \S+/.test(String(shown)), String(shown));
 // Results are client-rendered, so wait for them rather than checking the
 // instant the URL changes.
 await p.waitForSelector('a[href^="/places/"]', { timeout: 8000 }).catch(() => {});
 ok('the places really rendered', (await p.locator('a[href^="/places/"]').count()) > 0);
+
+// The empty case comes AFTER the rendering check, because it navigates to a
+// search that has nothing on it — asking «did places render» on that page is
+// asking the wrong page. «زقزقة» is the query shouq-answers proves has no hit
+// in the real index; a longer "nonsense" sentence is not nonsense to a fuzzy
+// search, since «كلمة ما تطابق أي مكان» matched twenty places on «مكان» alone.
+const none = await p.evaluate(() => window.__convaiConfig.clientTools.show_places({ query: 'زقزقة' }));
+ok('a query that finds nothing says so, instead of claiming places are on the map',
+  /ما لقيت ولا مكان/.test(String(none)) && !/الحين على الخريطة/.test(String(none)), String(none));
+ok('and tells her to try a wider word rather than go quiet', /كلمة أوسع/.test(String(none)) && /لا تسكتين/.test(String(none)), String(none));
 
 const opened = await p.evaluate(() => window.__convaiConfig.clientTools.open_place({ slug: 'kuwait-towers' }));
 await p.waitForURL('**/places/kuwait-towers/**', { timeout: 8000 });
@@ -112,15 +128,27 @@ ok('open_place opens the full profile', p.url().includes('/places/kuwait-towers/
 ok('open_place reports back to the agent', /kuwait-towers/.test(String(opened)));
 ok('and tells her the page is open and to hand the turn back',
   /مفتوحة/.test(String(opened)) && /يرجّع له الدور/.test(String(opened)), String(opened));
+ok('and names the place that opened, so she can say it', /أبراج الكويت/.test(String(opened)), String(opened));
+// A well-formed slug that is not in the catalogue used to navigate to a 404
+// and then tell her the page was open.
+const ghostBefore = p.url();
+const ghost = await p.evaluate(() => window.__convaiConfig.clientTools.open_place({ slug: 'no-such-place-zz' }));
+await p.waitForTimeout(600);
+ok('a slug that is not a place is refused, not opened',
+  /ما تغيّر شي على الشاشة/.test(String(ghost)) && !/مفتوحة قدام/.test(String(ghost)), String(ghost));
+ok('and did not navigate', p.url() === ghostBefore, p.url());
 
 console.log('\n── the tools refuse nonsense rather than acting on it ──');
 const before = p.url();
-const bad = await p.evaluate(() => [
+// The tools are async now (they load the search index), so the refusals are
+// promises and have to be awaited before String() — «[object Promise]» is
+// what a missing await looks like here.
+const bad = await p.evaluate(() => Promise.all([
   window.__convaiConfig.clientTools.open_place({ slug: '../../etc/passwd' }),
   window.__convaiConfig.clientTools.open_place({ slug: 'Kuwait Towers' }),
   window.__convaiConfig.clientTools.open_place({}),
   window.__convaiConfig.clientTools.show_places({ query: '   ' }),
-].map(String));
+]).then((results) => results.map(String)));
 await p.waitForTimeout(600);
 // A refusal is also a tool result she speaks from, so it says the one thing
 // that matters to the caller — nothing on the screen changed — rather than a

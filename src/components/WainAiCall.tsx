@@ -353,27 +353,76 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   // silence, which on a phone reads as a dropped line. The result now says, in
   // her own language, what is on the screen and that the caller is waiting:
   // the two things the post-tool turn exists to say.
+  //
+  // And it says what is ACTUALLY on the screen. The first version told her
+  // «the matching places are on the map» whatever the query — including when
+  // the search page was showing «ما لقينا شي», so she would cheerfully confirm
+  // places that were not there. The result now runs the same search the page
+  // runs (same index, same limit) and reports the count and the first names,
+  // so she can name what the caller is looking at, or say plainly that the
+  // words found nothing and try wider ones. open_place likewise checks the
+  // slug against the catalogue before claiming a page opened: a slug she
+  // misremembered used to navigate to a 404 and then tell her it worked.
+  //
+  // The search module is loaded on the first tool call rather than imported:
+  // this component is preloaded on hover of the call button, and the index
+  // belongs to the search route, not to every visitor who might tap it.
   useEffect(() => {
     if (!WAIN_AI_AGENT_ENABLED) return;
+    let indexPromise: Promise<{ mod: typeof import("@/lib/search"); index: import("@/lib/search").SearchIndex }> | null = null;
+    const loadIndex = () =>
+      (indexPromise ??= Promise.all([import("@/lib/search"), import("@/lib/places")]).then(([mod, data]) => ({
+        mod,
+        index: mod.buildIndex(data.places),
+      })));
     const register = (event: Event) => {
       const detail = (event as CustomEvent<{ config?: Record<string, unknown> }>).detail;
       if (!detail?.config) return;
       (detail.config as { clientTools?: Record<string, unknown> }).clientTools = {
-        show_places: ({ query }: { query?: string }) => {
+        show_places: async ({ query }: { query?: string }) => {
           const q = (query ?? "").trim();
           if (!q) return "ما وصلت كلمات بحث — ما تغيّر شي على الشاشة.";
           router.push(`/search?q=${encodeURIComponent(q)}`);
+          let names: string[] = [];
+          let total = -1;
+          try {
+            const { mod, index } = await loadIndex();
+            const hits = mod.search(q, index, { limit: 40 }).filter((h) => h.doc.kind === "place");
+            total = hits.length;
+            names = hits.slice(0, 3).map((h) => h.doc.title);
+          } catch {
+            // The page is still navigating and will show whatever it finds;
+            // fall through to the generic wording rather than fail the call.
+          }
+          if (total === 0) {
+            return (
+              `ما لقيت ولا مكان يطابق «${q}» — الشاشة الحين تقول «ما لقينا شي». ` +
+              "قولي له بصراحة إن هالكلمات ما طلّعت شي، ورشّحي أقرب مكان من معرفتك، " +
+              "ونادي show_places مرة ثانية بكلمة أوسع (مثلاً «بحر» بدل «شاطئ هادي»). لا تسكتين."
+            );
+          }
+          const summary =
+            total > 0
+              ? `${total} ${total === 1 ? "مكان مطابق" : "أماكن مطابقة"} لـ «${q}» الحين على الخريطة قدام الزائر، أولها: ${names.join("، ")}. `
+              : `الأماكن المطابقة لـ «${q}» الحين على الخريطة قدام الزائر. `;
           return (
-            `الأماكن المطابقة لـ «${q}» الحين على الخريطة قدام الزائر. ` +
-            "قولي له بجملة وحدة إنها على الخريطة، واسأليه سؤال قصير يرجّع له الدور. لا تسكتين."
+            summary +
+            "قولي له بجملة وحدة إنها على الخريطة — وسمّي الأول لو ما ذكرتيه — واسأليه سؤال قصير يرجّع له الدور. لا تسكتين."
           );
         },
-        open_place: ({ slug }: { slug?: string }) => {
+        open_place: async ({ slug }: { slug?: string }) => {
           const s = (slug ?? "").trim();
           if (!/^[a-z0-9-]+$/.test(s)) return "ما لقيت مكان بهذا المعرّف — ما تغيّر شي على الشاشة.";
+          const place = await import("@/lib/places").then((m) => m.getPlace(s)).catch(() => undefined);
+          if (!place) {
+            return (
+              `ما فيه مكان بالمعرّف (${s}) في قائمتك — ما تغيّر شي على الشاشة. ` +
+              "تأكدي من الـ slug اللي في قاعدة المعرفة، أو حطي الأماكن على الخريطة بـ show_places بداله."
+            );
+          }
           router.push(`/places/${s}/`);
           return (
-            `صفحة المكان (${s}) الحين مفتوحة قدام الزائر، فيها الصور وبيانات التواصل. ` +
+            `صفحة «${place.nameAr}» (${s}) الحين مفتوحة قدام الزائر، فيها الصور وبيانات التواصل. ` +
             "قولي له إنك فتحتيها، واسأليه سؤال قصير يرجّع له الدور. لا تسكتين."
           );
         },
