@@ -154,6 +154,7 @@ export function buildCars() {
     // clear glass, wearing the kit's stock rally stripe.
     rims: c.rims ?? null,
     livery: c.livery ?? null,
+    face: c.face ?? null,
     glassTint: c.glass?.tint ?? 0,
     glassFilm: c.glass?.film ?? null,
     engine: c.engine,

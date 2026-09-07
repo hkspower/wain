@@ -1842,6 +1842,7 @@ function raceCut(): { w: number; h: number } | null {
             goldRims: tune.goldRims,
             rims: tune.rims,
             livery: tune.livery,
+            face: tune.face,
             tyreSticker: tune.tyreSticker,
             engineCover: tune.engineCover ?? undefined,
             carbon: tune.carbon,

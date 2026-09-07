@@ -114,6 +114,7 @@ const shot = async (car) => {
       // all three showed none of them.
       rims: c.rims ?? undefined,
       livery: c.livery ?? undefined,
+      face: c.face ?? undefined,
       tint: c.glassTint || undefined,
       tintFilm: c.glassFilm ?? undefined,
       // At its real length, or the card shows a silhouette rather than a

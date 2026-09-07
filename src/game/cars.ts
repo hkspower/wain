@@ -21,7 +21,7 @@ import { BODY_EULER_ORDER, WHEEL_EULER_ORDER } from "./suspension";
 
 /** Silhouette family. "zx" is the long-nose fastback wedge of a Z32
  *  300ZX; "gtr" is the boxy, high-decked muscle of an R34 Skyline. */
-export type BodyStyle = "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony";
+export type BodyStyle = "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup";
 
 export interface CarColors {
   body: number;
@@ -41,6 +41,9 @@ export interface CarColors {
   /** The wheel the car was DELIVERED on, when it came with its own.
    *  Absent means the kit decides. See wheelFinishFor for the order. */
   rims?: WheelFinish;
+  /** This car's own front face. Absent falls back to the silhouette's,
+   *  which is what traffic and any caller that predates this gets. */
+  face?: FaceSpec;
   /**
    * A livery the car was built wearing.
    *
@@ -446,6 +449,16 @@ const CROWN_BY_STYLE: Record<BodyStyle, Record<"body" | "canopy" | "roof", Crown
     canopy: { tuck: 0.072, roof: 0.024, shoulder: 0.28 },
     roof: { tuck: 0.026, roof: 0.028, shoulder: 0.5 },
   },
+  // A pickup is a slab. The sides are nearly flat from the rocker to
+  // the bed rail, which is the single thing that separates a working
+  // body from a styled one, so it gets the least tuck and the least
+  // crown of anything in the fleet — and its shoulder sits HIGH,
+  // because the widest point of a truck is its bed rail.
+  pickup: {
+    body: { tuck: 0.042, roof: 0.020, shoulder: 0.70 },
+    canopy: { tuck: 0.072, roof: 0.024, shoulder: 0.30 },
+    roof: { tuck: 0.026, roof: 0.030, shoulder: 0.5 },
+  },
   hatch: {
     body: { tuck: 0.034, roof: 0.022, shoulder: 0.64 },
     canopy: { tuck: 0.060, roof: 0.022, shoulder: 0.30 },
@@ -838,6 +851,7 @@ const PONY_CABIN_W = 1.63;
 const GTR_CABIN_W = 1.701;
 const RX7_CABIN_W = 1.635;
 const HATCH_CABIN_W = 1.556;
+const PICKUP_CABIN_W = 1.70;
 
 // Raked glasshouse: windshield, roofline, rear window
 const canopyGeo = extrudeProfile(
@@ -865,6 +879,73 @@ const roofGeo = extrudeProfile(
   ROOF_EDGE,
   0,
   CROWN_BY_STYLE.sedan.roof,
+);
+
+// ---- Half-tonne single cab: tall slab sides, a short upright cab well
+// forward, and a flat load bed running from behind it to a squared tail.
+//
+// THE ONE CAR IN THE FLEET WHOSE SHAPE WAS WRONG
+//
+// The Jahra Pickup was a saloon. It carried the saloon's side profile —
+// a boot lid, a raked rear screen, a 4.7 m body — scaled up to its
+// 5.35 m length, so the game's only truck was a stretched Deera with a
+// different name and a V8. Every other mismatch in this fleet is a
+// shared body between cars of the same KIND; this one was a different
+// kind of vehicle entirely, and it is the single thing you would notice
+// first if you looked at the roster and asked what did not belong.
+//
+// What makes it read as a truck at a glance, in order of how much each
+// is worth: the deck line running dead flat from the cab to the tail,
+// the cab being SHORT and standing UPRIGHT, and the whole thing sitting
+// about 100 mm higher than anything else here. The bed is a solid deck
+// rather than a well, which is the same simplification the saloon makes
+// about its boot — an extruded side profile cannot express a recess,
+// and at the distance one car sees another it is the deck LINE that
+// carries the shape rather than what is under it.
+const pickupBodyGeo = extrudeProfile(
+  [
+    [2.5, 0.4],
+    [2.58, 0.76], // a tall, upright nose — no wedge anywhere on it
+    [2.46, 0.94],
+    [1.55, 1.04], // the bonnet, long and dead flat
+    [0.92, 1.07], // cowl, where the cab starts
+    [-0.58, 1.07],
+    [-0.66, 1.0], // the step down onto the bed rail
+    [-2.42, 0.99], // and the bed, flat all the way to the tail
+    [-2.56, 0.92],
+    [-2.62, 0.52],
+    [-2.5, 0.3],
+    [-2.1, 0.24],
+    [2.1, 0.24],
+  ],
+  1.960,
+  BODY_EDGE,
+  2,
+  CROWN_BY_STYLE.pickup.body,
+);
+const pickupCanopyGeo = extrudeProfile(
+  [
+    [0.88, 1.03],
+    [0.3, 1.56], // a steep screen, because a cab is a box
+    [-0.5, 1.58],
+    [-0.62, 1.03],
+  ],
+  PICKUP_CABIN_W,
+  CANOPY_EDGE,
+  0,
+  CROWN_BY_STYLE.pickup.canopy,
+);
+const pickupRoofGeo = extrudeProfile(
+  [
+    [0.26, 1.55],
+    [0.18, 1.62],
+    [-0.44, 1.63],
+    [-0.52, 1.56],
+  ],
+  roofWidth(PICKUP_CABIN_W),
+  ROOF_EDGE,
+  0,
+  CROWN_BY_STYLE.pickup.roof,
 );
 
 // ---- Z32-style wedge: long flat nose, cab-back glasshouse, fastback
@@ -1181,6 +1262,9 @@ const STYLE_SCALE: Record<BodyStyle, number> = {
   // 10 cm taller. The profile is authored close to those numbers, so the
   // factor here is near one.
   hatch: 0.935 * PRESENCE,
+  // The pickup profile is authored at 5.28 m raw against a 5.35 m
+  // truck, so this is close to one for the same reason the hatch's is.
+  pickup: 0.987 * PRESENCE,
 };
 
 /**
@@ -1213,6 +1297,10 @@ export const STYLE_REAL: Record<BodyStyle, { l: number; w: number }> = {
   rx7: { l: 4.3, w: 1.76 },
   hatch: { l: 4.28, w: 1.79 },
   pony: { l: 4.9, w: 1.88 },
+  // A single-cab half-tonne. Longer and wider than anything else here,
+  // which is the whole reason it needed its own shape: on the saloon
+  // body it was a 5.35 m car drawn as a 4.7 m one and stretched.
+  pickup: { l: 5.35, w: 1.95 },
 };
 export const WIDTH_FOLLOWS_LENGTH = 1 / 3;
 
@@ -1279,6 +1367,16 @@ const STYLE_DIMS: Record<BodyStyle, StyleDims> = {
     nose: 2.47, tail: -2.45, roof: [-0.44, 1.31], noseTopY: 0.5, grilleY: 0.38, beltY: 0.9,
     hoodY: 0.7, tailY: 0.78, deckY: 0.85, mirror: [0.03, 0.94, 0.62],
     dashY: 0.9, wiperZ: 0.6, bPillar: [0.73, 1.06, -0.52], creaseY: 0.6,
+  },
+  // Everything on this one sits HIGH, and the cabin sits FORWARD: the
+  // belt is where a saloon's roof rail is, the mirror is above a
+  // saloon's glass, and the deck behind the cab is a load bed rather
+  // than a boot lid — which is why deckY is close to beltY here and
+  // 180 mm below it on every other body.
+  pickup: {
+    nose: 2.62, tail: -2.66, roof: [-0.11, 1.62], noseTopY: 0.92, grilleY: 0.66, beltY: 1.04,
+    hoodY: 1.06, tailY: 0.95, deckY: 1.0, mirror: [0.03, 1.2, 0.74],
+    dashY: 1.12, wiperZ: 0.9, bPillar: [0.84, 1.3, -0.5], creaseY: 0.8,
   },
 };
 
@@ -2636,6 +2734,37 @@ const BELT_STRIPE_H = 0.14;
 // The rally pack. Canvas-drawn, cached, and deliberately brand-free —
 // a roundel, a beltline stripe, an abstract falcon swoosh and the flag.
 
+/**
+ * HOW SHARP A STICKER HAS TO BE
+ *
+ * Texels per metre of car, and it is a rule rather than a number typed
+ * into each texture because it was a number typed into each texture:
+ * the roundel got 512 px on 340 mm (1500/m), the hood swoosh got 256 on
+ * 850 (301/m) and the flag got 96 on 240 (400/m). The flag at 400 read
+ * as three stripes with a blob on the end, and it took a render and a
+ * measurement to find out — the hood decal was worse and nobody had
+ * looked, because nothing in this file said what sharp meant.
+ *
+ * 900 is the floor at which a hard edge survives the mipmap at the
+ * distance one car sees another. Anything carrying TYPE wants more, and
+ * asks for it by passing a multiplier.
+ */
+const DECAL_TEXELS_PER_M = 900;
+
+/**
+ * The canvas size for a decal worn at `metres`, rounded up to a power of
+ * two and capped.
+ *
+ * Powers of two because a non-power-of-two canvas silently loses its
+ * mipmaps in WebGL, and a decal without mipmaps is the same aliasing
+ * this rule exists to avoid, arriving by a different road. Capped at
+ * 2048 because a sticker is not a wall.
+ */
+function decalPx(metres: number, sharpness = 1): number {
+  const want = metres * DECAL_TEXELS_PER_M * sharpness;
+  return Math.min(2048, Math.max(128, 2 ** Math.ceil(Math.log2(want))));
+}
+
 const roundelCache = new Map<number, THREE.CanvasTexture>();
 function roundelTexture(num: number): THREE.CanvasTexture {
   const hit = roundelCache.get(num);
@@ -2687,31 +2816,54 @@ function roundelTexture(num: number): THREE.CanvasTexture {
 }
 
 let beltStripeTex: THREE.CanvasTexture | null = null;
+/**
+ * The beltline stripe.
+ *
+ * It was 512 by 64 for a graphic that runs most of the length of a car —
+ * 128 texels to the metre, the lowest density of anything in the pack —
+ * and it got away with it because it is two flat bands. What it did not
+ * get away with was its ENDS: the swept tail is the only diagonal in it,
+ * and a diagonal at 128/m is a staircase the mipmap turns to mush, so
+ * the stripe faded out rather than tapering.
+ *
+ * Now sized by the rule, and given the keyline every real one has —
+ * without it a white band on a white car is a band nobody can see,
+ * which is the argument the roundel already makes about its two edges.
+ */
 function beltStripeTexture(): THREE.CanvasTexture {
   if (beltStripeTex) return beltStripeTex;
+  // Sized for the longest flank in the fleet.
+  const W = decalPx(4);
+  const H = 128;
   const c = document.createElement("canvas");
-  c.width = 512;
-  c.height = 64;
+  c.width = W;
+  c.height = H;
   const ctx = c.getContext("2d")!;
-  ctx.clearRect(0, 0, 512, 64);
-  // Twin racing stripe with a swept tail at both ends
-  const band = (y: number, h: number, col: string) => {
+  ctx.clearRect(0, 0, W, H);
+  const kx = W / 512, ky = H / 64;
+  const band = (y: number, h: number, col: string, grow = 0) => {
+    const yy = (y - grow) * ky;
+    const hh = (h + grow * 2) * ky;
     ctx.fillStyle = col;
     ctx.beginPath();
-    ctx.moveTo(26, y);
-    ctx.lineTo(486, y);
-    ctx.lineTo(506, y + h / 2);
-    ctx.lineTo(486, y + h);
-    ctx.lineTo(26, y + h);
-    ctx.lineTo(6, y + h / 2);
+    ctx.moveTo(26 * kx, yy);
+    ctx.lineTo(486 * kx, yy);
+    ctx.lineTo(506 * kx, yy + hh / 2);
+    ctx.lineTo(486 * kx, yy + hh);
+    ctx.lineTo(26 * kx, yy + hh);
+    ctx.lineTo(6 * kx, yy + hh / 2);
     ctx.closePath();
     ctx.fill();
   };
+  // Keyline first, bands over it, so the outline is a border rather
+  // than a third stripe.
+  band(10, 20, "rgba(12,13,16,0.75)", 2.5);
+  band(38, 14, "rgba(12,13,16,0.75)", 2.5);
   band(10, 20, "#f2f4f7");
   band(38, 14, "#c1121f");
   beltStripeTex = new THREE.CanvasTexture(c);
   beltStripeTex.colorSpace = THREE.SRGBColorSpace;
-  beltStripeTex.anisotropy = 8;
+  beltStripeTex.anisotropy = 16;
   return beltStripeTex;
 }
 
@@ -2881,38 +3033,95 @@ function fullStripeTexture(): THREE.CanvasTexture {
 }
 
 let hoodDecalTex: THREE.CanvasTexture | null = null;
+/**
+ * The falcon on the bonnet.
+ *
+ * Two things were wrong with it and both were invisible from the code.
+ *
+ * It was 256 px on an 850 mm panel — 301 texels to the metre, against
+ * the 400 that made the Kuwait flag read as a smear and the 1500 the
+ * door roundel gets. It carried two lines of TYPE at that density,
+ * which is the least forgiving thing you can put on a sticker.
+ *
+ * And it was rasterised onto a bare canvas rather than through
+ * textTexture, so the Arabic line was drawn with whatever face the
+ * browser had at that instant and baked in. The roundel's comment says
+ * "every decal in this pack had that bug"; this is the one that still
+ * did.
+ *
+ * The bird is drawn as a bird now — swept wings with a leading edge and
+ * a trailing edge, a body, a head and a tail — rather than as two
+ * quadratics meeting at a point, which at any size above a thumbnail
+ * read as a moustache.
+ */
 function hoodDecalTexture(): THREE.CanvasTexture {
   if (hoodDecalTex) return hoodDecalTex;
-  const c = document.createElement("canvas");
-  c.width = 256;
-  c.height = 256;
-  const ctx = c.getContext("2d")!;
-  ctx.clearRect(0, 0, 256, 256);
-  // Abstract falcon swoosh — two sweeping wings over a roundel core
-  ctx.fillStyle = "#f2f4f7";
-  for (const dir of [-1, 1]) {
+  // 1.2x the floor because it carries type. Not more: at 1.6 the rule
+  // rounds up to a 2048 square, which is 16 MB of canvas for a sticker
+  // the size of a dinner plate, and 2410 texels to the metre against
+  // the 1506 the door roundel is sharp at. 1024 gives 1205, which is
+  // the same order as the roundel and a quarter of the memory.
+  const S = decalPx(0.85, 1.2);
+  hoodDecalTex = textTexture(S, S, (ctx) => {
+    ctx.clearRect(0, 0, S, S);
+    const k = S / 256; // the art below is drawn in 256-space
+    ctx.scale(k, k);
+    const INK = "#f2f4f7";
+    const RED = "#c1121f";
+
+    // The falcon, wings back, seen from above — which is the view a
+    // bonnet decal is actually looked at from.
+    ctx.fillStyle = INK;
+    for (const dir of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(128, 74);
+      // leading edge, swept out and back
+      ctx.bezierCurveTo(128 + dir * 46, 66, 128 + dir * 96, 82, 128 + dir * 122, 126);
+      // wingtip, squared off the way a primary feather is
+      ctx.lineTo(128 + dir * 112, 138);
+      // trailing edge, notched back toward the body
+      ctx.bezierCurveTo(128 + dir * 84, 116, 128 + dir * 52, 108, 128 + dir * 26, 116);
+      ctx.lineTo(128 + dir * 18, 96);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // Body and tail: one tapering shape from the shoulders to a fanned end.
     ctx.beginPath();
-    ctx.moveTo(128, 96);
-    ctx.quadraticCurveTo(128 + dir * 100, 60, 128 + dir * 118, 118);
-    ctx.quadraticCurveTo(128 + dir * 70, 104, 128, 128);
+    ctx.moveTo(118, 78);
+    ctx.lineTo(138, 78);
+    ctx.lineTo(146, 140);
+    ctx.lineTo(128, 168);
+    ctx.lineTo(110, 140);
     ctx.closePath();
     ctx.fill();
-  }
-  ctx.fillStyle = "#c1121f";
-  ctx.beginPath();
-  ctx.arc(128, 118, 22, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#f2f4f7";
-  ctx.textAlign = "center";
-  ctx.direction = "rtl";
-  ctx.font = `700 36px ${arabicUI()}`;
-  ctx.fillText("ليالي الخليج", 128, 190);
-  ctx.direction = "ltr";
-  ctx.font = `600 20px ${latinDisplay()}`;
-  ctx.fillText("GULF ROAD NIGHTS", 128, 220);
-  hoodDecalTex = new THREE.CanvasTexture(c);
-  hoodDecalTex.colorSpace = THREE.SRGBColorSpace;
-  hoodDecalTex.anisotropy = 8;
+    // Head and hooked beak, which is the whole reason it reads as a
+    // falcon rather than as an aeroplane.
+    ctx.beginPath();
+    ctx.arc(128, 66, 15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(128, 54);
+    ctx.lineTo(142, 60);
+    ctx.lineTo(132, 72);
+    ctx.closePath();
+    ctx.fill();
+    // The eye, in the one colour on the car that is not the paint.
+    ctx.fillStyle = RED;
+    ctx.beginPath();
+    ctx.arc(133, 63, 4.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // The wordmark, under the bird and clear of its tail.
+    ctx.fillStyle = INK;
+    ctx.textAlign = "center";
+    ctx.direction = "rtl";
+    ctx.font = `700 32px ${arabicUI()}`;
+    ctx.fillText("ليالي الخليج", 128, 206);
+    ctx.direction = "ltr";
+    ctx.font = `600 17px ${latinDisplay()}`;
+    ctx.fillText("GULF ROAD NIGHTS", 128, 230);
+  });
+  hoodDecalTex.anisotropy = 16;
   return hoodDecalTex;
 }
 
@@ -2969,6 +3178,168 @@ function flagDecalTexture(): THREE.CanvasTexture {
   // is seen at a glancing angle, which on a car's side is nearly always.
   flagDecalTex.anisotropy = 16;
   return flagDecalTex;
+}
+
+/**
+ * THE FACE
+ *
+ * What a car looks like from in front, which is the only view a rival
+ * gets of you all night and the one the shop card leads with.
+ *
+ * Until now every car in this game had the same one: a 1050 x 170 dark
+ * rounded box sunk into the nose, with a chrome strip over it. Seventeen
+ * machines, six silhouettes, and one face — so a Deera Sedan and a Storm
+ * S8 were the same rectangle at different heights, and the only thing
+ * telling them apart at a hundred metres was the paint.
+ *
+ * A grille is also not a dark rectangle. It is an APERTURE with
+ * something behind it, and the something is what makes it read as a way
+ * into the engine rather than as a sticker: slats you can count, a mesh
+ * that catches a headlamp, a honeycomb that goes flat black at an angle.
+ * That is the part that was missing, and it is why the old nose looked
+ * closed even on the cars that are mostly radiator.
+ *
+ * So: an aperture per car, a pattern behind it, a surround around it,
+ * and optionally the two things that separate a fast face from a slow
+ * one — brake ducts either side and a mouth under the splitter.
+ */
+export type GrillePattern = "slat" | "mesh" | "honeycomb" | "bar" | "open";
+
+export interface FaceSpec {
+  /** Aperture width and height, metres, and its centre above the road.
+   *  Absent height/y take the silhouette's own grille line. */
+  w: number;
+  h: number;
+  /** Offset from the style's grilleY, so a car can sit its mouth high or
+   *  low on the nose it shares with another. */
+  dy?: number;
+  pattern: GrillePattern;
+  /** Pitch of the slats or the mesh, metres. Smaller is finer, and fine
+   *  is expensive: this is bar count, and bar count is draw distance. */
+  pitch: number;
+  surround: "chrome" | "carbon" | "body" | "none";
+  /** Brake ducts either side of the mouth. */
+  ducts?: boolean;
+  /** A second mouth under the bumper, splitter height. */
+  lower?: boolean;
+  /** A badge in the middle of the aperture. */
+  badge?: boolean;
+}
+
+/** Dark anodised metal behind the aperture — the thing the mesh is made
+ *  of, distinct from the black hole the aperture used to be. */
+const meshMat = new THREE.MeshStandardMaterial({
+  name: "grille-mesh",
+  color: 0x2a2d33,
+  roughness: 0.42,
+  metalness: 0.85,
+  envMapIntensity: 0.9,
+});
+/** The shadow behind the mesh. Not pure black: an aperture with nothing
+ *  in it reads as a hole cut in the car, and a radiator is a surface. */
+const apertureMat = new THREE.MeshStandardMaterial({
+  name: "grille-void",
+  color: 0x0a0b0d,
+  roughness: 0.95,
+  metalness: 0.1,
+});
+
+/**
+ * The face a body wears when nobody has said otherwise.
+ *
+ * Traffic, the intro loop's filler cars and every caller written before
+ * a car could state its own face all arrive here. It is per SILHOUETTE
+ * rather than one shared spec because the six bodies have their noses
+ * in different places and at different widths — a saloon's mouth on an
+ * FD's nose is 200 mm wider than the nose.
+ */
+export const FACE_FALLBACK: Record<BodyStyle, FaceSpec> = {
+  sedan: { w: 1.12, h: 0.19, pattern: "slat", pitch: 0.045, surround: "chrome", badge: true },
+  gtr: { w: 1.2, h: 0.22, pattern: "mesh", pitch: 0.04, surround: "body", ducts: true, lower: true },
+  // The Z32 nose is famously grille-less: a slot under the bumper and
+  // nothing above it. Kept as the fallback for that body because it is
+  // the shape's whole signature, not an omission.
+  zx: { w: 1.26, h: 0.075, dy: -0.02, pattern: "slat", pitch: 0.03, surround: "none", lower: true },
+  rx7: { w: 1.0, h: 0.11, pattern: "mesh", pitch: 0.03, surround: "none", ducts: true, lower: true },
+  hatch: { w: 0.96, h: 0.14, pattern: "honeycomb", pitch: 0.04, surround: "body", badge: true },
+  pony: { w: 1.3, h: 0.24, pattern: "bar", pitch: 0.1, surround: "chrome", badge: true },
+  pickup: { w: 1.4, h: 0.3, pattern: "bar", pitch: 0.13, surround: "chrome", badge: true },
+};
+
+const faceCache = new Map<string, THREE.BufferGeometry>();
+
+/**
+ * The bars behind an aperture, as ONE geometry.
+ *
+ * Merged rather than added one mesh per bar, because a fine mesh is
+ * forty bars each way and eighty draw calls on the front of a car is
+ * eighty draw calls on the front of every car on the road. Cached by
+ * shape, so the sixteen cars sharing a pattern share the buffer.
+ */
+function grillePattern(
+  pattern: GrillePattern,
+  w: number,
+  h: number,
+  pitch: number
+): THREE.BufferGeometry | null {
+  if (pattern === "open") return null;
+  const key = `${pattern}|${w.toFixed(3)}|${h.toFixed(3)}|${pitch.toFixed(3)}`;
+  const hit = faceCache.get(key);
+  if (hit) return hit;
+
+  const parts: THREE.BufferGeometry[] = [];
+  const T = Math.min(0.012, pitch * 0.34); // bar thickness
+  const D = 0.022; // how deep the bars stand in the aperture
+  const at = (g: THREE.BufferGeometry, x: number, y: number, z = 0) => {
+    g.translate(x, y, z);
+    parts.push(g);
+  };
+  if (pattern === "bar") {
+    // Two or three heavy horizontal blades. The face of a big saloon.
+    const n = Math.max(2, Math.round(h / pitch));
+    for (let i = 0; i < n; i++) {
+      const y = -h / 2 + (h * (i + 0.5)) / n;
+      at(new THREE.BoxGeometry(w, Math.min(0.05, (h / n) * 0.5), D), 0, y);
+    }
+  } else if (pattern === "slat") {
+    // Horizontal slats, close together. The classic radiator.
+    const n = Math.max(2, Math.floor(h / pitch));
+    for (let i = 0; i < n; i++) {
+      const y = -h / 2 + (h * (i + 0.5)) / n;
+      at(new THREE.BoxGeometry(w, T, D), 0, y);
+    }
+  } else if (pattern === "mesh") {
+    // A woven grid: bars both ways, the fronts of the vertical set a
+    // little proud so the weave reads as depth rather than as a crossed
+    // line drawing.
+    const rows = Math.max(2, Math.floor(h / pitch));
+    const cols = Math.max(2, Math.floor(w / pitch));
+    for (let i = 0; i < rows; i++) {
+      at(new THREE.BoxGeometry(w, T, D * 0.7), 0, -h / 2 + (h * (i + 0.5)) / rows, -D * 0.15);
+    }
+    for (let i = 0; i < cols; i++) {
+      at(new THREE.BoxGeometry(T, h, D * 0.7), -w / 2 + (w * (i + 0.5)) / cols, 0, D * 0.15);
+    }
+  } else {
+    // Honeycomb, drawn as offset rows of short bars: real hexagons at
+    // this size are geometry nobody can resolve, and the thing the eye
+    // actually reads at a car's length is the STAGGER.
+    const rows = Math.max(2, Math.floor(h / pitch));
+    const cols = Math.max(2, Math.floor(w / pitch));
+    for (let r = 0; r < rows; r++) {
+      const y = -h / 2 + (h * (r + 0.5)) / rows;
+      at(new THREE.BoxGeometry(w, T, D * 0.6), 0, y, -D * 0.15);
+      const off = r % 2 ? (w / cols) * 0.5 : 0;
+      for (let c = 0; c < cols; c++) {
+        const x = -w / 2 + (w * (c + 0.5)) / cols + off;
+        if (Math.abs(x) > w / 2) continue;
+        at(new THREE.BoxGeometry(T, h / rows, D * 0.6), x, y, D * 0.15);
+      }
+    }
+  }
+  const merged = parts.length ? mergeGeometries(parts, false) : null;
+  if (merged) faceCache.set(key, merged);
+  return merged;
 }
 
 /** Sticker plane: lit like paint, slightly emissive so it reads at night,
@@ -3640,7 +4011,9 @@ export function createCar(colors: CarColors): THREE.Group {
 
   const bCabBack = style === "zx" || style === "rx7";
   const [bGeo, cGeo, rGeo] =
-    style === "pony"
+    style === "pickup"
+      ? [pickupBodyGeo, pickupCanopyGeo, pickupRoofGeo]
+      : style === "pony"
       ? [ponyBodyGeo, ponyCanopyGeo, ponyRoofGeo]
       : style === "zx"
       ? [zxBodyGeo, zxCanopyGeo, zxRoofGeo]
@@ -4420,28 +4793,108 @@ export function createCar(colors: CarColors): THREE.Group {
     group.add(cherry);
   }
 
-  // Grille, chrome trim, plates, exhausts — all hung off the style dims
-  if (!bCabBack) {
-    // The Z32 nose is famously grille-less; the others get one
-    const grille = new THREE.Mesh(roundedBox(1.05, 0.17, 0.07, 0.02), grilleMat);
-    grille.position.set(0, d.grilleY, d.nose);
-    group.add(grille);
-    const trim = new THREE.Mesh(roundedBox(1.05, 0.025, 0.08, 0.008), chromeLocal);
-    trim.position.set(0, d.grilleY + 0.09, d.nose);
-    group.add(trim);
+  // ------------------------------------------------------------- the face
+  //
+  // The aperture, what is behind it, and what frames it. Built against
+  // the nose SURFACE at the aperture's own height rather than against
+  // `d.nose`, which is the bodywork's furthest point and is usually
+  // somewhere else: on a car whose nose bows, a grille pinned to the
+  // extreme sat proud of the paint at the top and buried at the bottom.
+  {
+    const f = colors.face ?? FACE_FALLBACK[style] ?? FACE_FALLBACK.sedan;
+    const y = d.grilleY + (f.dy ?? 0);
+    const faceZ = (yy: number, back = 0) =>
+      (noseFaceZ(bGeo, style, yy, true) ?? d.nose) - back;
+
+    // The void first: a surface behind the mesh, sunk into the nose. The
+    // old grille WAS this and nothing else, which is why every car in
+    // the game looked like it had a sticker where its radiator goes.
+    if (f.pattern !== "open") {
+      const void_ = new THREE.Mesh(roundedBox(f.w, f.h, 0.05, 0.018), apertureMat);
+      void_.position.set(0, y, faceZ(y, 0.045));
+      void_.userData.face = "aperture";
+      group.add(void_);
+    }
+    const bars = grillePattern(f.pattern, f.w - 0.03, f.h - 0.03, f.pitch);
+    if (bars) {
+      const m = new THREE.Mesh(bars, meshMat);
+      m.position.set(0, y, faceZ(y, 0.03));
+      m.userData.face = "mesh";
+      group.add(m);
+    }
+    // The surround. A frame, not a bar across the top: a mouth with a
+    // line over it is a mouth with a line over it, and a mouth with an
+    // edge all the way round is a mouth.
+    if (f.surround !== "none") {
+      const mat =
+        f.surround === "chrome" ? chromeLocal : f.surround === "carbon" ? carbonMat : bodyMat;
+      const T = 0.026;
+      const z = faceZ(y, 0.012);
+      for (const [w, h, ox, oy] of [
+        [f.w + T * 2, T, 0, f.h / 2 + T / 2],
+        [f.w + T * 2, T, 0, -f.h / 2 - T / 2],
+        [T, f.h, -f.w / 2 - T / 2, 0],
+        [T, f.h, f.w / 2 + T / 2, 0],
+      ] as const) {
+        const bar = new THREE.Mesh(roundedBox(w, h, 0.055, 0.008), mat);
+        bar.position.set(ox, y + oy, z);
+        bar.userData.face = "surround";
+        group.add(bar);
+      }
+    }
+    // Brake ducts. Two small mouths outboard of the main one, at the
+    // same height — the single cue that says a car was built to be
+    // driven hard rather than to look like it was.
+    if (f.ducts) {
+      const dw = 0.19, dh = Math.min(0.13, f.h * 0.72);
+      for (const sx of [-1, 1] as const) {
+        const x = sx * (f.w / 2 + 0.16);
+        const duct = new THREE.Mesh(roundedBox(dw, dh, 0.05, 0.016), apertureMat);
+        duct.position.set(x, y, faceZ(y, 0.04));
+        duct.userData.face = "duct";
+        group.add(duct);
+        const dm = grillePattern("mesh", dw - 0.03, dh - 0.03, 0.032);
+        if (dm) {
+          const mm = new THREE.Mesh(dm, meshMat);
+          mm.position.set(x, y, faceZ(y, 0.028));
+          mm.userData.face = "duct-mesh";
+          group.add(mm);
+        }
+      }
+    }
+    // The lower mouth, at splitter height. Wider than the upper one on
+    // every car that has both, because that is where the air actually
+    // goes on anything made after about 1995.
+    if (f.lower) {
+      const ly = Math.max(0.2, y - f.h / 2 - 0.13);
+      const lw = f.w * 1.18, lh = 0.1;
+      const low = new THREE.Mesh(roundedBox(lw, lh, 0.05, 0.016), apertureMat);
+      low.position.set(0, ly, faceZ(ly, 0.04));
+      low.userData.face = "lower";
+      group.add(low);
+      const lm = grillePattern("mesh", lw - 0.03, lh - 0.02, 0.036);
+      if (lm) {
+        const mm = new THREE.Mesh(lm, meshMat);
+        mm.position.set(0, ly, faceZ(ly, 0.028));
+        mm.userData.face = "lower-mesh";
+        group.add(mm);
+      }
+    }
+    if (f.badge) {
+      const badge = new THREE.Mesh(roundedBox(0.1, 0.1, 0.03, 0.03), chromeLocal);
+      badge.position.set(0, y, faceZ(y, 0.005));
+      badge.userData.face = "badge";
+      group.add(badge);
+    }
     if (style === "hatch") {
       // The stripe across the nose. Every fast version of a hatch has
       // worn one since the seventies, and it is the single cue that
       // separates the quick one from the shopping one at a distance.
+      const sy = y + f.h / 2 + 0.05;
       const stripe = new THREE.Mesh(roundedBox(1.44, 0.035, 0.05, 0.012), hotStripeMat);
-      stripe.position.set(0, d.grilleY + 0.09, (noseFaceZ(bGeo, style, d.grilleY + 0.09, true) ?? d.nose) - 0.008);
+      stripe.position.set(0, sy, faceZ(sy, 0.008));
       group.add(stripe);
     }
-  } else {
-    // Just a thin cooling slot low in the bumper
-    const slot = new THREE.Mesh(roundedBox(1.3, 0.07, 0.06, 0.02), grilleMat);
-    slot.position.set(0, d.grilleY, (noseFaceZ(bGeo, style, d.grilleY, true) ?? d.nose) - 0.015);
-    group.add(slot);
   }
   // Plates hang on the bumper faces. The anchors are the profile's
   // corner points, and the bumper bows out past them by up to 40 mm, so
@@ -4720,8 +5173,15 @@ export function createCar(colors: CarColors): THREE.Group {
 
   // Wheels with arches; fronts steer, all spin (engine drives userData.wheels)
   const wheels: THREE.Group[] = [];
-  const wzF = style === "zx" ? 1.52 : style === "gtr" || style === "rx7" ? 1.45 : 1.42;
-  const wzR = style === "zx" ? -1.48 : style === "gtr" || style === "rx7" ? -1.45 : -1.42;
+  // Where the axles are. A pickup's wheelbase is the longest thing about
+  // it — 3.2 m under a 5.35 m body against a saloon's 2.84 under 4.7 —
+  // and it is most of what makes a truck read as a truck from the side:
+  // the front wheel is right under the cab and there is a long flat run
+  // of body behind the rear one.
+  const wzF =
+    style === "pickup" ? 1.62 : style === "zx" ? 1.52 : style === "gtr" || style === "rx7" ? 1.45 : 1.42;
+  const wzR =
+    style === "pickup" ? -1.58 : style === "zx" ? -1.48 : style === "gtr" || style === "rx7" ? -1.45 : -1.42;
 
   /**
    * How long a feature running along the flank is allowed to be.

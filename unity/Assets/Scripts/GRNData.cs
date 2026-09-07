@@ -9,7 +9,7 @@
 
 using UnityEngine;
 
-public enum BodyStyle { Sedan, ZX, GTR, RX7, Hatch, Pony }
+public enum BodyStyle { Sedan, ZX, GTR, RX7, Hatch, Pony, Pickup }
 
 public static class GRNData
 {
@@ -361,7 +361,7 @@ public static class GRNData
         new Car {
             Id = "jahra-pickup", Name = "Jahra Pickup", Price = 6000,
             Power = 1f, TopSpeedKmh = 195f, Grip = 12f, Brake = 27f,
-            Paint = Hex(0x6E7F8D), Style = BodyStyle.Sedan, AttackKit = false, Drive = Drivetrain.RWD,
+            Paint = Hex(0x6E7F8D), Style = BodyStyle.Pickup, AttackKit = false, Drive = Drivetrain.RWD,
             Engine = 4, TankLitres = 80f, LengthM = 5.16f,
             LockedRivals = 0, LockedCar = "",
             FactoryBuild = new[] {  },

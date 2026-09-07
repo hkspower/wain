@@ -14,7 +14,7 @@ import type { EngineId, EngineSpec } from "./engines";
 import { loadCrew, type Crew } from "./teams";
 import type { Drivetrain } from "./grip";
 import { HANDLING } from "./handling";
-import type { TyreSticker, WheelFinish, Livery } from "./cars";
+import type { TyreSticker, WheelFinish, Livery, FaceSpec } from "./cars";
 import type { Bulb } from "./bulbs";
 import type { TintFilm } from "./tint";
 import { writeJSON } from "./storage";
@@ -346,7 +346,7 @@ export const EXHAUSTS: Record<string, ExhaustSpec> = {
  * or 7 a real pickup would lean. Fixing that properly means the pickup
  * getting a body style of its own, which is a bigger change than this.
  */
-const ROLL_DEG_PER_G: Record<"sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony", number> = {
+const ROLL_DEG_PER_G: Record<"sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup", number> = {
   // The low, wide coupes. Stiff by construction.
   zx: 2.4,
   rx7: 2.4,
@@ -356,6 +356,13 @@ const ROLL_DEG_PER_G: Record<"sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony", 
   // Road cars, and the ones that should visibly take a set in a corner.
   hatch: 4.0,
   sedan: 4.2,
+  // The softest thing on the road, and by some way. A half-tonne truck
+  // carries its mass high on springs sized for a load it is not
+  // carrying, so it leans harder than anything else here — which is a
+  // handling fact and not a decoration: this number is what the body
+  // roll solver reads, so the pickup now visibly takes a set the way it
+  // should have been doing since it was drawn as a saloon.
+  pickup: 5.4,
 };
 
 /** What a wide-body kit does to that: arches come with the springs and
@@ -559,7 +566,7 @@ export interface CarModel {
   cls: CarClass;
   price: number;
   /** Body silhouette (cars.ts): sedan, zx wedge, gtr coupe, or rx7. */
-  style?: "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony";
+  style?: "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup";
   /**
    * How far the car is built, as a body kit. Every machine on this road
    * has been got at — nobody on the corniche at two in the morning is
@@ -679,6 +686,19 @@ export interface CarModel {
    */
   livery?: Livery;
   /**
+   * This car's own face: the aperture, what is behind it, what frames
+   * it, and whether it has ducts and a lower mouth.
+   *
+   * Per CAR rather than per silhouette, and that is the point. Six
+   * bodies carry seventeen machines, so up to four cars were the same
+   * shape in a different colour and the front of every one of them was
+   * the same 1050 x 170 dark rectangle. A face is the one part of a car
+   * you see for the whole of a race — it is what a rival shows you in
+   * your mirror and what the shop card leads with — and it was the part
+   * that said least about which car you were looking at.
+   */
+  face?: FaceSpec;
+  /**
    * Parts fitted before it leaves the lot, on top of the factory basics.
    *
    * For a machine that is sold already built. Bought, not free: the
@@ -721,6 +741,8 @@ export const CARS: CarModel[] = [
     // the prize, and only then does the road show you what was behind
     // it.
     id: "black-demon",
+    // A mouth and two ducts, all honeycomb, no brightwork anywhere on it.
+    face: { w: 1.22, h: 0.24, pattern: "honeycomb", pitch: 0.038, surround: "carbon", ducts: true, lower: true, badge: false },
     drive: "rwd",
     finish: "gloss",
     name: "Black Demon",
@@ -784,6 +806,8 @@ export const CARS: CarModel[] = [
     // at any price until every legend on the roster has been beaten,
     // which is the only thing in this game that money cannot buy.
     id: "zeta-300-gtr",
+    // The Z32's grille-less nose kept, with the homologation car's ducts cut into it.
+    face: { w: 1.3, h: 0.1, dy: -0.03, pattern: "mesh", pitch: 0.028, surround: "carbon", ducts: true, lower: true },
     drive: "awd",
     finish: "gloss",
     name: "Zeta 300 GTR",
@@ -824,6 +848,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "efreet-rx-kai",
+    // A rotary breathes through its bumper: small mouth, big lower, no frame.
+    face: { w: 0.94, h: 0.13, pattern: "mesh", pitch: 0.026, surround: "none", ducts: true, lower: true },
     drive: "rwd",
     finish: "satin",
     name: "Efreet RX Kai",
@@ -844,6 +870,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "sahara-v12",
+    // Fine slats behind chrome — the grand tourer of the three wedges.
+    face: { w: 1.16, h: 0.13, pattern: "slat", pitch: 0.026, surround: "chrome", lower: true, badge: true },
     drive: "rwd",
     finish: "gloss",
     name: "Sahara V12",
@@ -864,6 +892,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "falcon-720",
+    // Two heavy blades, painted surround: the blunt one.
+    face: { w: 1.24, h: 0.16, pattern: "bar", pitch: 0.075, surround: "body", lower: true },
     drive: "rwd",
     finish: "matte",
     name: "Falcon 720",
@@ -884,6 +914,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "storm-s8",
+    // The big saloon's face: the widest mouth in the game, framed.
+    face: { w: 1.3, h: 0.26, pattern: "mesh", pitch: 0.042, surround: "chrome", ducts: true, badge: true },
     drive: "awd",
     finish: "gloss",
     name: "Storm S8",
@@ -903,6 +935,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "anniversary-30",
+    // Three chrome blades across a full-width mouth. Nothing subtle about it.
+    face: { w: 1.34, h: 0.26, pattern: "bar", pitch: 0.11, surround: "chrome", badge: true },
     drive: "rwd",
     finish: "gloss",
     name: "Bareed 30 Anniversary",
@@ -928,6 +962,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "kaiju-r",
+    // Slats and ducts, body-coloured frame — the box-arched coupe.
+    face: { w: 1.18, h: 0.2, pattern: "slat", pitch: 0.034, surround: "body", ducts: true },
     drive: "awd",
     finish: "gloss",
     name: "Kaiju R",
@@ -948,6 +984,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "efreet-rx",
+    // The same small mouth as the Kai, in chrome and without the ducts.
+    face: { w: 0.9, h: 0.1, pattern: "slat", pitch: 0.024, surround: "chrome", lower: true },
     drive: "rwd",
     finish: "satin",
     name: "Efreet RX",
@@ -968,6 +1006,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "zeta-300",
+    // The stock Z32 slot: nothing above the bumper at all.
+    face: { w: 1.22, h: 0.07, dy: -0.02, pattern: "slat", pitch: 0.028, surround: "none", lower: true },
     drive: "awd",
     finish: "gloss",
     name: "Zeta 300",
@@ -988,6 +1028,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "gulf-coupe-rs",
+    // Honeycomb in a painted frame, under the hot hatch's nose stripe.
+    face: { w: 1.0, h: 0.15, pattern: "honeycomb", pitch: 0.036, surround: "body", badge: true },
     drive: "fwd",
     finish: "gloss",
     name: "Gulf Coupe RS",
@@ -1009,6 +1051,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "salmiya-turbo",
+    // The tuned saloon: the shopping car's face with a mouth cut under it.
+    face: { w: 1.1, h: 0.17, pattern: "slat", pitch: 0.036, surround: "chrome", badge: true, lower: true },
     drive: "fwd",
     finish: "gloss",
     name: "Salmiya Turbo GT",
@@ -1028,6 +1072,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "hawally-2t",
+    // Two bars and a badge. A car from a rental fleet.
+    face: { w: 1.06, h: 0.16, pattern: "bar", pitch: 0.07, surround: "chrome", badge: true },
     drive: "fwd",
     finish: "satin",
     name: "Hawally Sport 2T",
@@ -1047,6 +1093,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "deera-sedan",
+    // The finest slats in the game, which is what a cheap radiator grille is.
+    face: { w: 1.04, h: 0.14, pattern: "slat", pitch: 0.022, surround: "chrome", badge: true },
     drive: "fwd",
     finish: "gloss",
     name: "Deera Sedan",
@@ -1066,6 +1114,9 @@ export const CARS: CarModel[] = [
   },
   {
     id: "jahra-pickup",
+    style: "pickup",
+    // A truck: the tallest, widest aperture here, two fat chrome blades.
+    face: { w: 1.4, h: 0.3, pattern: "bar", pitch: 0.13, surround: "chrome", badge: true },
     drive: "rwd",
     finish: "matte",
     name: "Jahra Pickup",
@@ -1097,6 +1148,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "sharq-hatch",
+    // The smallest face on the road, and painted rather than chromed.
+    face: { w: 0.88, h: 0.11, pattern: "slat", pitch: 0.028, surround: "body", badge: true },
     drive: "fwd",
     finish: "gloss",
     name: "Sharq Hatch",
@@ -1121,6 +1174,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "wain-special",
+    // One blade, no frame. The car you are given.
+    face: { w: 1.0, h: 0.15, pattern: "bar", pitch: 0.08, surround: "none", badge: true },
     drive: "rwd",
     finish: "satin",
     name: "Wain Special",
@@ -1609,6 +1664,8 @@ export interface TuneEffects {
   /** A livery the car was built wearing, as opposed to a sticker pack
    *  bought for it. */
   livery?: Livery;
+  /** This car's own front face. */
+  face?: FaceSpec;
   /** Factory second colour and which stripes it draws, or undefined. */
   accent?: number;
   stripes?: "single" | "twin";
@@ -1638,7 +1695,7 @@ export interface TuneEffects {
   engineCover: number | null;
   /** How much of the bodywork is cloth rather than steel. */
   carbon: CarbonLevel;
-  bodyStyle: "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony";
+  bodyStyle: "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup";
 }
 
 /** The numbers a car actually races with: its own base, plus the parts
@@ -1832,6 +1889,7 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     tintFilm: FILM_OF_PART[eq.film ?? ""] ?? car.glass?.film,
     rims: car.rims,
     livery: car.livery,
+    face: car.face,
     accent: car.accent,
     stripes: car.stripes,
     // A bought finish beats the factory one; otherwise the car wears

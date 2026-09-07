@@ -43,6 +43,7 @@ public static class CarFactory
             case BodyStyle.RX7: return new Reference { L = 4.30f, W = 1.76f };
             case BodyStyle.Hatch: return new Reference { L = 4.28f, W = 1.79f };
             case BodyStyle.Pony: return new Reference { L = 4.90f, W = 1.88f };
+            case BodyStyle.Pickup: return new Reference { L = 5.35f, W = 1.95f };
             default: return new Reference { L = 4.70f, W = 1.80f };
         }
     }
@@ -103,6 +104,16 @@ public static class CarFactory
                     Length = len, Width = width, BodyH = 0.54f,
                     CabinLen = len * 0.50f, CabinH = 0.54f, CabinZ = -len * 0.06f, CabinRake = 0f,
                     WheelFront = len * 0.330f, WheelRear = -len * 0.325f };
+            // A half-tonne single cab: a tall slab body, a SHORT cabin
+            // set well forward, and the longest wheelbase in the fleet.
+            // The cabin fraction is what carries it — 0.30 against a
+            // saloon's 0.447 — because everything behind the cab is bed
+            // rather than car.
+            case BodyStyle.Pickup:
+                return new Shape {
+                    Length = len, Width = width, BodyH = 0.70f,
+                    CabinLen = len * 0.30f, CabinH = 0.56f, CabinZ = len * 0.04f, CabinRake = 0f,
+                    WheelFront = len * 0.303f, WheelRear = -len * 0.295f };
             default: // saloon
                 return new Shape {
                     Length = len, Width = width, BodyH = 0.58f,

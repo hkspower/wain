@@ -334,8 +334,14 @@ if (+clientVersion !== api.apiVersion) {
 const FACTORY = "unreal/Source/GulfRoadNights/GRNCarFactory.cpp";
 const factorySrc = readFileSync(FACTORY, "utf8");
 /** `case EGRNBodyStyle::X: return 4.31f;` out of one of the two tables. */
+const CPP_NAME = {
+  sedan: "Sedan", zx: "ZX", gtr: "GTR", rx7: "RX7",
+  hatch: "Hatch", pony: "Pony", pickup: "Pickup",
+};
 function ueRef(style) {
-  const name = { sedan: "Sedan", zx: "ZX", gtr: "GTR", rx7: "RX7", hatch: "Hatch", pony: "Pony" }[style];
+  // Mirrors styleEnum in scripts/export-unreal-data.mjs. A style missing
+  // here is THIS file's gap, not the port's — see the guard below.
+  const name = CPP_NAME[style];
   if (!name) return null;
   const arm = (fn) => {
     const body = factorySrc.match(new RegExp("static float " + fn + "\\(EGRNBodyStyle Style\\)[\\s\\S]*?\\n\\}"));
@@ -400,7 +406,11 @@ function ueRef(style) {
       const got = ueRef(style);
       const want = shape.reference[style];
       if (!got) {
-        fail(`bodyShape: ${style} has no reference machine in ${FACTORY} — it falls through to the saloon`);
+  fail(
+          CPP_NAME[style]
+            ? `bodyShape: ${style} has no reference machine in ${FACTORY} — it falls through to the saloon`
+            : `bodyShape: this checker has no C++ name for "${style}" — add it to CPP_NAME`
+        );
         shapeOk = false;
         continue;
       }

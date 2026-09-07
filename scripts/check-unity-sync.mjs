@@ -21,8 +21,15 @@ const SHAPE_FILE = "unity/Assets/Scripts/CarFactory.cs";
 const DATA_SHAPE = SHAPE_FILE;
 const shapeSrc = readFileSync(SHAPE_FILE, "utf8");
 /** One `case BodyStyle.X: return new Reference { L = ..f, W = ..f };` */
+/** The C# name for a web style. Mirrors styleEnum in
+ *  scripts/export-unity-data.mjs — see STYLE_NAMES below for why a
+ *  style missing from here is reported as this file's fault. */
+const CS_NAME = {
+  sedan: "Sedan", zx: "ZX", gtr: "GTR", rx7: "RX7",
+  hatch: "Hatch", pony: "Pony", pickup: "Pickup",
+};
 function unityRef(s, style) {
-  const name = { sedan: "Sedan", zx: "ZX", gtr: "GTR", rx7: "RX7", hatch: "Hatch", pony: "Pony" }[style];
+  const name = CS_NAME[style];
   if (!name) return null;
   const m = s.match(
     new RegExp("case BodyStyle\\." + name + ": return new Reference \\{ L = ([0-9.]+)f, W = ([0-9.]+)f \\};")
@@ -364,6 +371,17 @@ if (cars.length !== api.cars.length) {
       shapeOk = false;
     }
     for (const style of styles) {
+      // A style this CHECKER does not know is a different fault from a
+      // style the PORT does not carry, and saying so matters: the
+      // pickup silhouette was added to the web and both ports, and this
+      // file reported "the port has no reference machine" because its
+      // own name table had six entries. That message sends you to the
+      // wrong file.
+      if (!CS_NAME[style]) {
+        fail(`bodyShape: this checker has no C# name for "${style}" — add it to CS_NAME`);
+        shapeOk = false;
+        continue;
+      }
       const got = unityRef(shapeSrc, style);
       const want = shape.reference[style];
       if (!got) {

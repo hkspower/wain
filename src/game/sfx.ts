@@ -26,7 +26,8 @@ export type SfxName =
   | "defeat"
   | "challenge";
 
-let manifest: Set<string> | null = null;
+/** Name -> the file that IS that sound, from the manifest. */
+let manifest: Map<string, string> | null = null;
 let loading: Promise<void> | null = null;
 const cache = new Map<string, HTMLAudioElement>();
 let volume = 0.75;
@@ -50,16 +51,29 @@ function ensureManifest(): Promise<void> {
   loading = fetch("/sfx/manifest.json")
     .then((r) => (r.ok ? r.json() : []))
     .then((parsed: unknown) => {
-      manifest = new Set(
-        Array.isArray(parsed)
-          ? (parsed as string[])
-          : parsed && typeof parsed === "object"
-            ? Object.keys(parsed as Record<string, unknown>)
-            : []
-      );
+      // NAME -> FILE, not just the names.
+      //
+      // The names and the files are not the same strings and were never
+      // meant to be: the manifest says `bump` is `impact.mp3` and `skid`
+      // is `skid-loop.mp3`, which is the whole reason it has a `file`
+      // field. This reader kept only the keys and then built its URLs as
+      // `/sfx/${name}.mp3`, so preloading the shipped set asked for
+      // /sfx/bump.mp3 and /sfx/skid.mp3 — two 404s on every single page
+      // load, for two of the six effects the game actually ships.
+      //
+      // The array shape still works and maps a name to itself, because a
+      // generator that writes one is not wrong, only older.
+      manifest = new Map();
+      if (Array.isArray(parsed)) {
+        for (const n of parsed as string[]) manifest.set(n, `${n}.mp3`);
+      } else if (parsed && typeof parsed === "object") {
+        for (const [n, e] of Object.entries(parsed as Record<string, { file?: string }>)) {
+          manifest.set(n, e?.file ?? `${n}.mp3`);
+        }
+      }
     })
     .catch(() => {
-      manifest = new Set();
+      manifest = new Map();
     });
   return loading;
 }
@@ -76,10 +90,11 @@ export function setSfxVolume(v: number): void {
 export function playSfx(name: SfxName, gain = 1): void {
   if (typeof window === "undefined") return;
   void ensureManifest().then(() => {
-    if (!manifest?.has(name)) return;
+    const file = manifest?.get(name);
+    if (!file) return;
     let base = cache.get(name);
     if (!base) {
-      base = new Audio(`/sfx/${name}.mp3`);
+      base = new Audio(`/sfx/${file}`);
       base.preload = "auto";
       cache.set(name, base);
     }
@@ -96,9 +111,9 @@ export function preloadSfx(): void {
   if (typeof window === "undefined") return;
   void ensureManifest().then(() => {
     if (!manifest) return;
-    for (const name of manifest) {
+    for (const [name, file] of manifest) {
       if (cache.has(name)) continue;
-      const a = new Audio(`/sfx/${name}.mp3`);
+      const a = new Audio(`/sfx/${file}`);
       a.preload = "auto";
       cache.set(name, a);
     }
