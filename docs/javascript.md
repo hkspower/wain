@@ -72,12 +72,39 @@ downloading again.
 
 ## Known advisories
 
-`npm audit` reports three high-severity issues, all in Next's own bundled
-`postcss` and `sharp`, all pre-existing. They are **build-time only**: postcss
-processes CSS this repo wrote, sharp processes images this repo ships, and the
-output is a static export with no server. Nothing untrusted reaches either.
-The fix `npm audit fix --force` offers is Next 16 — a major upgrade, and not
-something to do quietly under the heading of linting.
+Re-measured 7 September: **2 advisories, 1 moderate and 1 high**, and both are
+`postcss`. Counted, not remembered — this section previously said three highs
+rooted in `sharp`, and every part of that is now out of date.
+
+**`sharp` is no longer in the set at all.** The tree carries 0.35.4, and the
+inherited `libvips` CVEs applied below 0.35. It came up with a Next patch
+release rather than by anyone deciding to fix it, which is exactly why the
+number is worth re-reading rather than quoting from the last time.
+
+**Only one copy of postcss is actually vulnerable, and it is not ours.** The
+advisory range is `<=8.5.22` and there are two copies in the tree:
+
+| copy | version | affected |
+| --- | --- | --- |
+| `@tailwindcss/postcss` → `postcss` | 8.5.28 | no — already patched |
+| `next` → `postcss` | 8.4.31 | yes |
+
+So the exposure is the postcss Next pins internally for its own build
+pipeline, which is why the only fix npm offers is `next@16` and why upgrading
+Tailwind would not move it.
+
+**Build-time only, and the specific CVEs say so more clearly than "build-time
+only" does.** Three of the four are `sourceMappingURL` path traversal and
+arbitrary `.map` disclosure; the fourth is XSS via an unescaped `</style>` in
+stringify output. Every one needs *attacker-controlled CSS* as input. The only
+CSS that reaches postcss here is `globals.css` and what Tailwind generates from
+this repo's own class names, at build time, on a machine that is already
+trusted with the deploy credentials. There is no path by which a visitor's
+input becomes CSS, and the output is a static export with no server.
+
+Left alone deliberately, and `npm audit fix --force` is still Next 16 — a
+major upgrade with its own section below, not something to do quietly under
+the heading of linting.
 
 ### The Next 16 upgrade, attempted and reverted
 
@@ -240,8 +267,14 @@ headroom.
 
 ## npm audit
 
-Three high-severity advisories, all the same root: `sharp` below 0.35, pulling
-inherited `libvips` CVEs. `sharp` is a build-time dependency — it renders the
-OG cards in `scripts/gen-og.mjs` — and **is never shipped to a browser**. The
-only fix npm offers is `next@16`, a major upgrade. Left alone deliberately;
-the exposure is a build box, not a visitor.
+Two advisories, one moderate and one high, both `postcss`, and the vulnerable
+copy is the one Next bundles rather than the one Tailwind pulls. The full
+reading — which copy, which CVEs, and why none of them can be reached by a
+visitor — is under **Known advisories** above, kept in one place so the two
+sections cannot drift apart again.
+
+They already had. This one said three highs rooted in `sharp` below 0.35;
+`sharp` is 0.35.4 and has not been in the advisory set for some time. Nothing
+was done to fix it — a Next patch release carried it — which is the whole
+argument for re-running `npm audit` on an update pass instead of repeating
+what the file last said.
