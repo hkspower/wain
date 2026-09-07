@@ -1,0 +1,16 @@
+{
+  "name": "wain",
+  "version": "1.1.0",
+  "commit": "6bef83bac5f74b8407c9a46ca592f5a3e923393a",
+  "branch": "claude/wainkw-design-issues-2bggdi",
+  "dirty": false,
+  "builtAt": "2026-09-07T00:25:55.492Z",
+  "files": 243,
+  "pages": 62,
+  "bytes": 10821622,
+  "digest": "20fb841ae1cf2c18",
+  "backend": {
+    "supabase": false,
+    "host": null
+  }
+}

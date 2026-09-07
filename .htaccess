@@ -1,0 +1,319 @@
+# Wain — static export on Apache / LiteSpeed (Hostinger)
+#
+# Next.js `output: 'export'` with `trailingSlash: true` writes each route as a
+# directory containing index.html, so no rewrite-to-index catch-all is needed
+# — and must NOT be added, as it would mask real 404s.
+
+ErrorDocument 404 /404.html
+DirectoryIndex index.html
+
+# Never serve this file itself.
+<Files ".htaccess">
+  Require all denied
+</Files>
+
+# Directories without an index.html — /_next/static/chunks/ and friends —
+# must not answer with a file listing. Usually off at the host, but "usually"
+# is not a setting.
+Options -Indexes
+
+# Dotfiles are never content here.
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
+# …but that rule only sees FILES, and the thing most worth blocking is a
+# DIRECTORY. A request for /.git/config ends in `config`, which does not start
+# with a dot, so the block above waves it through — and <DirectoryMatch> is
+# forbidden in .htaccess, so it cannot be the answer either.
+#
+# This matters the moment the site is deployed by cloning rather than by
+# upload. hPanel's Git deployment checks the branch out *into* public_html and
+# leaves .git sitting there, so the whole repository — every object, every
+# branch it fetched — becomes reachable under the domain. The repository is
+# public, so nothing secret escapes; serving it anyway is still wrong, and the
+# next repository to be deployed this way may not be public.
+#
+# RedirectMatch rather than mod_rewrite on purpose: it needs only mod_alias,
+# and it does not switch on the rewrite engine for a file whose opening
+# comment warns against catch-all rewrites masking real 404s. 404 rather than
+# 403 because a 403 confirms the path is there.
+#
+# .well-known is exempt: it is the one dot-directory that is meant to be
+# fetched (ACME renewals, apple-app-site-association). The export ships none
+# today — checked, not assumed — so the exemption costs nothing now and stops
+# a certificate renewal failing mysteriously later.
+<IfModule mod_alias.c>
+  RedirectMatch 404 "/\.(?!well-known/)"
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# What the previous site left behind
+#
+# wainkw.com's document root is not empty. Before this export existed it ran a
+# single-file HTML app with a PHP back end, and that is still sitting there:
+# api.php, admin.html, an admin token, ~28 index.bak-*.html copies, two zipped
+# archives of the whole site, and wain.db — a live SQLite database.
+#
+# The .htaccess it shipped denied wain.db. This file replaces that one, so
+# these rules have to come with it. Dropping a static-export .htaccess on top
+# of that server without them would put a 94KB database on the public web.
+#
+# These deny access; they do not delete anything. Removing the files is a
+# separate decision that belongs to whoever knows if the old app still runs.
+
+<FilesMatch "^wain\.db">
+  Require all denied
+</FilesMatch>
+
+# A 60-byte credential in the web root, next to the admin panel it belongs to.
+# It should be rotated and moved out; until then it must not be downloadable.
+<Files "admin.token">
+  Require all denied
+</Files>
+
+# Backups and archives of the site, served under guessable names —
+# index.bak-300.html, index.bak-301.html, and two zips of everything.
+<FilesMatch "\.(bak|zip|db|sqlite|sqlite3)$|^index\.bak|\.broken-|\.bak-">
+  Require all denied
+</FilesMatch>
+
+# Scratch output from the old deploy scripts: 52 files, including ones named
+# sec-out.txt and keys-out.txt.
+<FilesMatch "-out\.txt$|^admin\.token$">
+  Require all denied
+</FilesMatch>
+
+# ---------------------------------------------------------------------------
+# The rest of what is actually in that docroot.
+#
+# The rules above were written from a directory listing. The docroot has since
+# been read file by file through the Hostinger connector — 147 files, 21.21MB,
+# of which 18.40MB is backups, scratch and zipped archives — and it turned up
+# several things the patterns above do not catch. Each block below exists
+# because of a specific file that is reachable today.
+#
+# NOTE: none of this is in force until the export is actually deployed. A deny
+# rule in this repository protects nothing while the server still runs its own
+# .htaccess. The credential below has to be rotated regardless.
+# ---------------------------------------------------------------------------
+
+# Shell scripts. upload-ftp.sh sits in the web root with the FTP host, username
+# and password written into it in plaintext — a write credential for the whole
+# document root, readable by anyone who requests the filename. Rotating that
+# password is the fix; this only stops the next one being readable.
+<FilesMatch "\.(sh|bash|zsh|env|ini|conf|log|sql)$|^\.env">
+  Require all denied
+</FilesMatch>
+
+# The old PHP helpers. api.php is deliberately NOT here — the admin panel calls
+# it on every load — but the rest are installers and repair scripts that should
+# never have been reachable. wain-inst.php is a 21KB installer.
+<FilesMatch "^(wain-inst|wain-restore|wain-fix|wain-ver|wain-search-cache|v)\.php$">
+  Require all denied
+</FilesMatch>
+
+# Build configuration that leaked out of a repository into the web root. It
+# gives away dependency versions and build layout for nothing in return.
+<FilesMatch "^(package|package-lock|tsconfig|composer|composer-lock)\.json$|^(next|postcss|tailwind|eslint)\.config\.(ts|js|mjs|cjs)$|^next-env\.d\.ts$">
+  Require all denied
+</FilesMatch>
+
+# Whole copies of the old single-file app, each a few hundred KB of source with
+# its own inline logic: wain-app-latest.html, qareeb.html, wain-local-test.html,
+# extracted_index.html, wain-admin-latest.html.
+<FilesMatch "^(wain-app-latest|wain-admin-latest|wain-local-test|qareeb|extracted_.+)\.(html|js|webmanifest)$">
+  Require all denied
+</FilesMatch>
+
+# Dumps and checks that the -out.txt pattern misses because they are named
+# differently: *-check.txt, verify.txt, cache-selftest.txt, sentinel-live-urls
+# .json, rashed-v2.json.
+#
+# index.txt is deliberately NOT here, though the server carries a 92KB one from
+# the old app. This export writes an index.txt of its own beside every single
+# index.html — 45 of them, the App Router's prefetch payloads — so a rule on
+# that name would break client-side navigation on every route of the new site
+# to tidy away one stale file that the deploy overwrites anyway. Checked
+# against out/ rather than guessed; the first draft of this block had it and
+# would have shipped the bug.
+<FilesMatch "-check\.txt$|^(verify|cache-selftest|claude-upload-test)\.txt$|^(sentinel-live-urls|rashed-v2)\.json$">
+  Require all denied
+</FilesMatch>
+
+# Internal notes. Markdown in a web root is documentation for an attacker as
+# readily as for a maintainer; wain-db-audit.md describes the database.
+<FilesMatch "\.md$">
+  Require all denied
+</FilesMatch>
+
+# ---------------------------------------------------------------------------
+# Caching
+#
+# Two classes of file, and they need opposite policies:
+#
+#   1. /_next/static/**  — every .js, .css and .woff2 carries a content hash in
+#      its filename, so a changed file is a *different URL*. These can be
+#      cached for a year and never revalidated. `immutable` also stops browsers
+#      re-checking them on reload.
+#
+#   2. Everything else — index.html, og.png, sitemap.xml … keep stable names,
+#      so they must revalidate or a deploy would be invisible to returning
+#      visitors. `no-cache` still allows 304s via ETag: cheap when unchanged,
+#      correct when changed.
+#
+# A build guard (scripts/check-cache-safety.mjs) fails the build if an
+# unhashed .js/.css/.woff2 ever appears outside /_next/static/, which would
+# make the immutable rule below unsafe.
+# ---------------------------------------------------------------------------
+
+<IfModule mod_headers.c>
+  # 1. Content-hashed build output — cache hard, forever.
+  <FilesMatch "\.(js|mjs|css|woff2|woff)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # 1b. The service worker is the one unhashed .js we ship, and it decides
+  # which build every installed app runs. It must never be frozen by rule 1,
+  # so this comes after it and wins.
+  <Files "sw.js">
+    Header set Cache-Control "public, max-age=0, must-revalidate"
+    Header set Service-Worker-Allowed "/"
+  </Files>
+
+  # 2a. HTML and the RSC payloads beside it — always revalidate.
+  <FilesMatch "\.(html|txt)$">
+    Header set Cache-Control "public, max-age=0, must-revalidate"
+  </FilesMatch>
+
+  # 2b. Stable-named media (incl. صوت وين clips) — a week in cache, then
+  # revalidate.
+  <FilesMatch "\.(png|jpg|jpeg|webp|avif|svg|ico|mp3)$">
+    Header set Cache-Control "public, max-age=604800, stale-while-revalidate=86400"
+  </FilesMatch>
+
+  # 2c. Crawler and install metadata — short, so changes propagate quickly.
+  <FilesMatch "\.(xml|webmanifest|json)$">
+    Header set Cache-Control "public, max-age=3600"
+  </FilesMatch>
+
+  # Never let a proxy serve the wrong encoding.
+  Header append Vary Accept-Encoding
+</IfModule>
+
+# Fallback for hosts without mod_headers.
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresDefault                      "access plus 1 hour"
+  ExpiresByType text/html             "access plus 0 seconds"
+  ExpiresByType text/css              "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType font/woff2            "access plus 1 year"
+  ExpiresByType font/woff             "access plus 1 year"
+  ExpiresByType image/png             "access plus 1 week"
+  ExpiresByType image/svg+xml         "access plus 1 week"
+  ExpiresByType image/x-icon          "access plus 1 week"
+  ExpiresByType audio/mpeg            "access plus 1 week"
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Compression
+# ---------------------------------------------------------------------------
+
+# Brotli first where available — noticeably smaller than gzip for text.
+<IfModule mod_brotli.c>
+  AddOutputFilterByType BROTLI_COMPRESS text/html text/css text/plain text/xml \
+    application/javascript application/json application/manifest+json image/svg+xml
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml \
+    application/javascript application/json application/manifest+json image/svg+xml
+</IfModule>
+
+# woff2 is already compressed; re-compressing wastes CPU and can grow it.
+<IfModule mod_setenvif.c>
+  SetEnvIfNoCase Request_URI \.(woff2?|png|jpe?g|webp|avif|ico)$ no-gzip dont-vary
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Correct types (some hosts do not know these by default)
+# ---------------------------------------------------------------------------
+<IfModule mod_mime.c>
+  AddType font/woff2 .woff2
+  AddType application/manifest+json .webmanifest
+  AddType image/svg+xml .svg
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Baseline security headers
+# ---------------------------------------------------------------------------
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+  # شوق needs the microphone; nothing else on the site needs these features.
+  Header set Permissions-Policy "camera=(), geolocation=(self), microphone=(self)"
+
+  # Nobody has any business framing this site. /admin is a real session behind
+  # this, so being framable is a clickjacking route into it. frame-ancestors is
+  # the modern control; X-Frame-Options covers browsers that predate it.
+  Header set X-Frame-Options "DENY"
+
+  # The site is HTTPS-only on Hostinger. Deliberately without includeSubDomains
+  # and without preload: both are hard to walk back, and a subdomain that is
+  # not yet on HTTPS would become unreachable for a year. Add them once every
+  # subdomain is confirmed HTTPS.
+  Header always set Strict-Transport-Security "max-age=31536000"
+
+  # No cookies leave this domain. Ever.
+  #
+  # Nothing in the site sets one — the build is static files, there is no PHP
+  # in the request path, and audit:cookies loads ten pages in a real browser
+  # and asserts the jar comes back empty. So why strip a header nothing sends?
+  #
+  # Because the thing that would send it is not ours. Shared hosting adds
+  # cookies on its own account: LiteSpeed's cache does it to vary responses,
+  # bot-protection and "under attack" layers do it to mark a browser as
+  # cleared, and both arrive by a control-panel toggle rather than a commit —
+  # nobody edits this repository, the site quietly gains a cookie, and the
+  # promise on /privacy silently becomes false. This makes that impossible
+  # instead of unlikely: whatever the host decides to attach, the visitor
+  # never receives it.
+  #
+  # Safe precisely because the site has no session to lose. Orders and queue
+  # tickets are held in the visitor's own localStorage and authenticated to
+  # Supabase by a token in the request body, never by a cookie — so there is
+  # no logged-in state for this to break. Anything added later that DOES need
+  # a cookie has to delete this line, which is the point: it cannot happen by
+  # accident, and whoever deletes it has to answer for /privacy too.
+  Header always unset Set-Cookie
+  Header always unset Set-Cookie2
+
+  # Content Security Policy.
+  #
+  # Honest about its limits: 'unsafe-inline' has to stay in script-src because
+  # Next.js inlines its hydration payload and a static export has no server to
+  # mint a per-request nonce. So this is not a strong defence against injected
+  # inline script. What it does buy, and what the site actually needs:
+  #
+  #   * script-src pins executable code to this origin and unpkg (شوق's widget)
+  #     — nothing else can be loaded, whatever ends up in the DOM.
+  #   * frame-ancestors 'none' blocks clickjacking of /admin.
+  #   * form-action 'self' stops an injected form posting credentials offsite.
+  #   * base-uri 'self' stops a <base> tag re-pointing every relative URL.
+  #   * object-src 'none' removes the plugin surface entirely.
+  #   * connect-src names Supabase, ElevenLabs and the n8n speech bridge
+  #     explicitly, so exfiltration to an arbitrary host is blocked rather than
+  #     merely unlikely.
+  #
+  # The bridge host is here because connect-src is where a feature goes to die
+  # quietly. NEXT_PUBLIC_WAIN_TTS_URL turns on شوق's live voice for sentences
+  # with no recorded clip, and with the host missing every one of those calls is
+  # refused by the browser — the site falls back to the robot voice, the deploy
+  # log still reports «live bridge», and nothing anywhere says why. Setting the
+  # variable without this line is a switch wired to nothing.
+  #
+  # frame-src is openstreetmap.org for the maps. If شوق or the voice stop
+  # working after a change here, the browser console names the directive.
+  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob: https://*.supabase.co; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://unpkg.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://unpkg.com https://api.elevenlabs.io https://api.us.elevenlabs.io wss://api.elevenlabs.io wss://api.us.elevenlabs.io https://sportake.app.n8n.cloud; frame-src https://www.openstreetmap.org; media-src 'self' blob: https://api.elevenlabs.io; worker-src 'self' blob:; manifest-src 'self'"
+</IfModule>

@@ -1,0 +1,8 @@
+User-Agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /orders/
+Disallow: /queue/
+
+Host: https://www.wainkw.com
+Sitemap: https://www.wainkw.com/sitemap.xml
