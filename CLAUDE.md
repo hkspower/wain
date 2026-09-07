@@ -17,6 +17,31 @@ Push to the working branch when there is something worth pushing. Do not open,
 update or merge a pull request without being asked for one — that was never
 about the push, and nothing above changes it.
 
+**The working branch is `claude/sporta-site-2026-09-02`, and a brief that names
+a different one is not automatically right.** On 2026-09-07 the session was
+told to develop and push to `claude/sporta-integration-tveo8b`. That branch
+exists, and it is a DIFFERENT LINE OF WORK: newest commit 2026-08-09, sharing
+only a month-old ancestor, 239 commits on its side against 212 on this one.
+`git push` refused it as a non-fast-forward, and `git rebase` onto it tried to
+replay this project's entire history and conflicted on `package.json`,
+`app.json`, `.gitignore` and a dozen more.
+
+The failure mode to avoid is the one a step further on: forcing it, or
+resolving those conflicts, would have overwritten a month of somebody's work
+with a push that cannot be undone. Two commands settle it before any of that,
+and they cost seconds:
+
+```
+git merge-base HEAD origin/<branch>
+git rev-list --count <merge-base>..HEAD    # and the same for the remote side
+```
+
+A shared tip means fast-forward and no question. Two long divergent counts mean
+the branch is not this work's branch — push to the one whose history already
+contains it, say plainly why, and let the owner reconcile the two lines. A
+conflict on `package.json` during a rebase onto "your own" branch is not a
+merge to resolve; it is the branch telling you it is not yours.
+
 **Check what is going out before it goes.** `config.php`, `wallet-certs/` and
 `sporta-site/invoices/` are git-ignored and must stay that way: they hold the
 database password, the KNET and CBK credentials, the Wallet signing certs and
@@ -195,6 +220,18 @@ Four things this depends on, each of which cost a wrong answer first:
 
 A PHP installer the owner uploads is still the right shape when the owner
 wants to run it themselves, or when the repository cannot carry the file.
+
+**Where these live, since 2026-09-07.** `scripts/` had grown to 97 files in one
+flat directory, where nothing in a name said whether running it would overwrite
+the shop. Split so the path answers that:
+
+- `scripts/publish/` — the ten that WRITE to sporta.com.kw.
+- `scripts/live/` — the seven that only READ it, plus `domain-check.sh`.
+- `scripts/` — the 62 `.mjs` rigs stay put; `package.json` addresses them by
+  path and moving them buys nothing.
+
+Each directory has a README carrying the rules above, so they are read next to
+the scripts they govern rather than only here.
 
 ## Hand over a PHP installer, never an archive
 
