@@ -15,6 +15,7 @@ import {
   computeEffects,
   getCar,
   lockedBy,
+  lockedByCar,
   rivalsBeaten,
   tradeInValue,
 } from "@/game/mods";
@@ -462,6 +463,14 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                       // this machine. Shown rather than hidden: a car
                       // you cannot see is not rare, it is absent.
                       const toGo = owned ? 0 : lockedBy(c, beaten);
+                      // The second key. A car can be past every legend
+                      // and still not be for sale, and a card that only
+                      // ever says "beat N more legends" would tell a
+                      // player who has beaten all of them nothing at
+                      // all — it would just be a greyed-out card with a
+                      // price on it and no way to find out why.
+                      const needsCar = owned ? null : lockedByCar(c, garage.cars);
+                      const shut = toGo > 0 || !!needsCar;
                       const quote = owned ? tradeInValue(garage, c.id) : 0;
                       const lastCar = garage.cars.length <= 1;
                       return (
@@ -471,13 +480,13 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                             setSelling(null);
                             onBuyCar(c.id);
                           }}
-                          disabled={!owned && (!affordable || toGo > 0)}
+                          disabled={!owned && (!affordable || shut)}
                           className={`grn-panel tap p-3.5 text-left transition ${
                             driving
                               ? "border-sodium-400/80 bg-sodium-500/10 shadow-[0_0_30px_-10px_rgba(245,165,36,0.7)]"
                               : owned
                                 ? "border-emerald-400/45 hover:border-emerald-400/70"
-                                : toGo > 0
+                                : shut
                                   ? "cursor-not-allowed border-sodium-400/35 bg-sodium-500/[0.06] opacity-80"
                                   : affordable
                                     ? "hover:border-white/30 hover:bg-white/[0.09]"
@@ -508,7 +517,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                               width={480}
                               height={180}
                               className={`aspect-[8/3] w-full object-contain transition duration-200 ${
-                                toGo > 0 ? "opacity-40 grayscale" : ""
+                                shut ? "opacity-40 grayscale" : ""
                               } ${owned || affordable ? "group-hover:scale-[1.02]" : ""}`}
                             />
                           </div>
@@ -560,6 +569,10 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                                 Not for sale — beat{" "}
                                 <span className="tnum">{toGo}</span> more{" "}
                                 {toGo === 1 ? "legend" : "legends"}
+                              </span>
+                            ) : needsCar ? (
+                              <span className="text-sodium-300">
+                                Not for sale — own the {needsCar.name} first
                               </span>
                             ) : affordable ? (
                               <span className="grn-display text-base tracking-normal text-gulf-300">

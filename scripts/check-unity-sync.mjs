@@ -206,6 +206,7 @@ const cars = carBlocks.map((b) => ({
   tank: +field(b, /TankLitres = ([\d.]+)f/),
   lengthM: +field(b, /LengthM = ([\d.]+)f/),
   lockedRivals: +(b.match(/LockedRivals = (\d+)/)?.[1] ?? 0),
+  lockedCar: b.match(/LockedCar = "([^"]*)"/)?.[1] ?? "",
   factoryBuild: [...(b.match(/FactoryBuild = new\[\] \{([^}]*)\}/)?.[1] ?? "")
     .matchAll(/"([^"]+)"/g)].map((m) => m[1]),
 }));
@@ -243,6 +244,12 @@ if (cars.length !== api.cars.length) {
     if (u.lengthM !== a.lengthM) fail(`car ${a.id} lengthM: ${u.lengthM} vs ${a.lengthM}`);
     if (u.lockedRivals !== a.lockedRivals) {
       fail(`car ${a.id} lockedRivals: ${u.lockedRivals} vs ${a.lockedRivals}`);
+    }
+    // Both halves of the lock, because a port that reads only the count
+    // opens the last car in the game to anybody who has finished the
+    // roster — which is one purchase short of the rule the web plays by.
+    if (u.lockedCar !== (a.lockedCar ?? "")) {
+      fail(`car ${a.id} lockedCar: "${u.lockedCar}" vs "${a.lockedCar ?? ""}"`);
     }
     if (u.factoryBuild.join(",") !== a.factoryBuild.join(",")) {
       fail(`car ${a.id} factoryBuild: [${u.factoryBuild}] vs [${a.factoryBuild}]`);

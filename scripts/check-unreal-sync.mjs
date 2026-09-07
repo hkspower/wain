@@ -142,8 +142,8 @@ const hCars = [...header.matchAll(
   // reads as the header being empty rather than as the checker being
   // blind. Every field between the two is unchecked while it lasts,
   // which is the whole point of this file.
-  /\{ TEXT\("([^"]+)"\), TEXT\("([^"]+)"\), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, FColor\([^)]*\), EGRNBodyStyle::(\w+), (true|false), GRNSim::EDrivetrain::(\w+), (\d+), ([\d.]+)f, ([\d.]+)f, (\d+), TEXT\("([^"]*)"\) \},/g
-)].map(([, id, name, price, power, top, grip, brake, style, kit, drive, engine, tank, lengthM, locked, factory]) => ({
+  /\{ TEXT\("([^"]+)"\), TEXT\("([^"]+)"\), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, FColor\([^)]*\), EGRNBodyStyle::(\w+), (true|false), GRNSim::EDrivetrain::(\w+), (\d+), ([\d.]+)f, ([\d.]+)f, (\d+), TEXT\("([^"]*)"\), TEXT\("([^"]*)"\) \},/g
+)].map(([, id, name, price, power, top, grip, brake, style, kit, drive, engine, tank, lengthM, locked, lockedCar, factory]) => ({
   id, name, price: +price, power: +power, top: +top, grip: +grip, brake: +brake,
   style: style.toLowerCase(),
   attack: kit === "true",
@@ -152,6 +152,7 @@ const hCars = [...header.matchAll(
   tank: +tank,
   lengthM: +lengthM,
   lockedRivals: +locked,
+  lockedCar,
   factoryBuild: factory ? factory.split(",") : [],
 }));
 if (hCars.length !== api.cars.length) {
@@ -182,6 +183,11 @@ if (hCars.length !== api.cars.length) {
     if (h.lengthM !== a.lengthM) fail(`car ${h.id} lengthM: ${h.lengthM} vs ${a.lengthM}`);
     if (h.lockedRivals !== a.lockedRivals) {
       fail(`car ${h.id} lockedRivals: ${h.lockedRivals} vs ${a.lockedRivals}`);
+    }
+    // Both halves of the lock. A port reading only the count opens the
+    // last car in the game to anybody who has finished the roster.
+    if (h.lockedCar !== (a.lockedCar ?? "")) {
+      fail(`car ${h.id} lockedCar: "${h.lockedCar}" vs "${a.lockedCar ?? ""}"`);
     }
     if (h.factoryBuild.join(",") !== a.factoryBuild.join(",")) {
       fail(`car ${h.id} factoryBuild: [${h.factoryBuild}] vs [${a.factoryBuild}]`);

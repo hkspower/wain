@@ -108,6 +108,14 @@ const shot = async (car) => {
       // a stripped supercar, pointing the other way.
       stickers: false,
       goldRims: false,
+      // What the car was DELIVERED wearing, as opposed to what a kit
+      // implies or an owner bought: its own wheel, its own glass, its
+      // own livery. Without these the card for the one car built around
+      // all three showed none of them.
+      rims: c.rims ?? undefined,
+      livery: c.livery ?? undefined,
+      tint: c.glassTint || undefined,
+      tintFilm: c.glassFilm ?? undefined,
       // At its real length, or the card shows a silhouette rather than a
       // car: the fleet runs from a 3.95 m supermini to a 5.35 m pickup
       // and three of them share the saloon profile.

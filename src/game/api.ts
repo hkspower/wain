@@ -146,11 +146,28 @@ export function buildCars() {
     accent: c.accent ?? null,
     stripes: c.stripes ?? null,
     finish: c.finish ?? null,
+    // The rest of what a car LOOKS like as delivered. Published beside
+    // the paint for the same reason the paint is: anything rendering
+    // this roster from the API — the press shots, a port's showroom —
+    // otherwise draws the car the record does not describe. The press
+    // renders were exactly that: a black car on bronze wheels behind
+    // clear glass, wearing the kit's stock rally stripe.
+    rims: c.rims ?? null,
+    livery: c.livery ?? null,
+    glassTint: c.glass?.tint ?? 0,
+    glassFilm: c.glass?.film ?? null,
     engine: c.engine,
     // A car nobody can buy yet is a rule, not a decoration, so it
     // travels with the car. A port that ships the showroom without this
     // sells the one machine the career exists to earn.
     lockedRivals: c.locked?.rivals ?? 0,
+    // The other half of the same rule: a car that is not sold until a
+    // particular machine is already in the driveway. Published beside
+    // the count rather than folded into it, because they are different
+    // questions — "how far have you got" and "what did you get there
+    // in" — and a port that only reads the count sells the last car in
+    // the game to anyone who has finished the roster.
+    lockedCar: c.locked?.car ?? null,
     // Parts fitted before it leaves the lot, in catalogue order.
     factoryBuild: c.factoryBuild ?? [],
     desc: c.desc,

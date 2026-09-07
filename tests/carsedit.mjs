@@ -26,6 +26,19 @@ import { carInventory, inventoryGaps } from "../scripts/lib/car-assets.mjs";
 
 const MODS = "src/game/mods.ts";
 const ORIGINAL = readFileSync(MODS, "utf8");
+
+// How many cars there are, counted a DIFFERENT way from the way the
+// reader counts them.
+//
+// This was the literal 16, and a literal is the wrong instrument twice
+// over: it fails the day somebody adds a car, which is not a defect,
+// and it says nothing about the bug it is here for. The reader's first
+// version found three cars out of sixteen because it read an apostrophe
+// in a comment as a string opener. What catches that is a second,
+// independent count — every `id:` at a car's own indent — disagreeing
+// with the parser's. A number typed at the top of the file catches it
+// only until somebody retypes the number.
+const ROSTER = (ORIGINAL.match(/\n    id: "/g) ?? []).length;
 const fail = [];
 const check = (c, m) => { if (!c) fail.push(m); return c ? "ok" : "FAIL"; };
 
@@ -48,7 +61,7 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.once(sig, () => { res
 {
   const cars = readCars();
   console.log(`roster       ${cars.length} cars: ${cars.slice(0, 3).map((c) => c.id).join(", ")}…`);
-  check(cars.length === 16, `the reader found ${cars.length} cars, not 16`);
+  check(cars.length === ROSTER, `the reader found ${cars.length} cars; the file has ${ROSTER} id lines`);
   check(cars.every((c) => typeof c.id === "string" && c.id), "a car came back without an id");
   const gtr = cars.find((c) => c.id === "zeta-300-gtr");
   check(!!gtr, "the roster is missing the zeta-300-gtr");
@@ -65,7 +78,7 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.once(sig, () => { res
   const w = cars.find((c) => c.id === "wain-special");
   console.log(`write        price ${r.before.price} -> ${r.after.price}, top speed ${r.before.topSpeedKmh} -> ${r.after.topSpeedKmh}`);
   check(w.fields.price === 12345 && w.fields.topSpeedKmh === 199, "the edit did not read back");
-  check(cars.length === 16, "the edit changed how many cars there are");
+  check(cars.length === ROSTER, "the edit changed how many cars there are");
 
   // Only those two lines moved. A writer that reformats, or drops a
   // comment, or shifts a neighbouring car is a writer nobody can trust
@@ -113,7 +126,7 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.once(sig, () => { res
   })();
   const w = back.find((c) => c.id === "wain-special");
   console.log(`injection    a quoted "price: 1" inside a description stays a description  ` +
-    check(w.fields.desc === inject && w.fields.price === 0 && back.length === 16,
+    check(w.fields.desc === inject && w.fields.price === 0 && back.length === ROSTER,
       `an injected field landed: price read back as ${w.fields.price}`));
 }
 
@@ -123,7 +136,7 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.once(sig, () => { res
   const withShop = inv.filter((c) => c.assets.shop.present).length;
   const authored = inv.filter((c) => c.assets.shell.authored).length;
   console.log(`assets       ${inv.length} cars · ${withShop} with a shop image · ${authored} on an authored shell`);
-  check(inv.length === 16, `the inventory found ${inv.length} cars`);
+  check(inv.length === ROSTER, `the inventory found ${inv.length} cars, not ${ROSTER}`);
   check(inv.every((c) => c.assets.shop.path.startsWith("public/cars/")), "a shop image is being looked for in the wrong place");
   check(inv.every((c) => c.silhouetteShared >= 1), "a car is on no silhouette");
   // The gaps list must be honest in both directions: it reports the two
@@ -216,7 +229,7 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.once(sig, () => { res
     const on = await ask("/api/dev/cars");
     const body = on.ok ? await on.json() : null;
     console.log(`route open   GET on loopback -> ${on.status}, ${body?.cars?.length ?? 0} cars  ` +
-      check(on.status === 200 && body?.cars?.length === 16, `the editor did not open (${on.status})`));
+      check(on.status === 200 && body?.cars?.length === ROSTER, `the editor did not open (${on.status})`));
     check(body?.editable && Object.keys(body.editable).length > 5,
       "the schema did not travel with the data, so the form would be a second copy of the rules");
 

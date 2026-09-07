@@ -14,7 +14,7 @@ import type { EngineId, EngineSpec } from "./engines";
 import { loadCrew, type Crew } from "./teams";
 import type { Drivetrain } from "./grip";
 import { HANDLING } from "./handling";
-import type { TyreSticker } from "./cars";
+import type { TyreSticker, WheelFinish, Livery } from "./cars";
 import type { Bulb } from "./bulbs";
 import type { TintFilm } from "./tint";
 import { writeJSON } from "./storage";
@@ -636,7 +636,48 @@ export interface CarModel {
    * was a number with more zeros on it. A car nobody can have yet is a
    * different thing from a car nobody can afford yet.
    */
-  locked?: { rivals: number };
+  /**
+   * What the showroom will not sell until you have it.
+   *
+   * `rivals` is how many legends must be beaten. `car` is a machine that
+   * must already be in the driveway, and it exists because `rivals` had
+   * run out of room: there are eight legends, one car already asks for
+   * all eight, and a second car behind the same gate is not rarer than
+   * the first — it is the same car's rarity written twice.
+   *
+   * So the second key is a different question. Not "how far have you
+   * got" but "what did you get there in". A car you can only buy once
+   * another specific car is yours is the end of a road rather than a
+   * higher number on the same one.
+   */
+  locked?: { rivals: number; car?: string };
+  /**
+   * The glass it leaves the factory in.
+   *
+   * Tint is normally a slider plus a bought film (tint.ts), and that is
+   * right for a car somebody tints. It is wrong for a car that was
+   * DELIVERED behind black glass — that is not a modification, it is
+   * what the machine is, and making the player buy a roll of film to
+   * see the car as it is sold would be the shop overruling the
+   * showroom. Absent means factory clear glass, which is every other
+   * car on the road.
+   */
+  glass?: { tint: number; film: TintFilm };
+  /**
+   * The wheel it is delivered on, when the car came with its own.
+   *
+   * Absent means the kit decides — steel on a street car, silver above
+   * it, forged bronze on the full attack kit. A car with this in its
+   * record overrules that, because a wheel a machine was built around
+   * is part of the machine, not a stage of tune.
+   */
+  rims?: WheelFinish;
+  /**
+   * A livery the car was painted with, as opposed to stickers bought
+   * for it. The rally pack is a garage part and stays one; this is for
+   * the machine that only comes one way.
+   */
+  livery?: Livery;
   /**
    * Parts fitted before it leaves the lot, on top of the factory basics.
    *
@@ -650,14 +691,94 @@ export interface CarModel {
 /** The showroom, richest metal first. */
 export const CARS: CarModel[] = [
   {
+    // THE ONE BEHIND THE ONE YOU CANNOT BUY
+    //
+    // Black paint, black glass, black wheels, and the horned mark on
+    // every side of it. Nobody sells this car and nobody admits to
+    // building it; it is the thing that goes past you at four in the
+    // morning while you are still congratulating yourself.
+    //
+    // It is the hammer to the GTR's scalpel and that is deliberate —
+    // two end-game cars that are the same car is one end-game car with
+    // two prices. The GTR is all-wheel drive, a turbo six and the
+    // highest grip and brake figures in the game: it goes where it is
+    // pointed. This is rear-wheel drive with a blown 5.7 in the nose,
+    // more power and more speed than anything else on the road, and
+    // less grip and less brake than the car it is parked next to. It
+    // will do 415 and it will also put you in the sea.
+    //
+    // WHY IT IS RARE
+    //
+    // Not the price. Rarity in this game already means "beat the
+    // legends", and the GTR asks for all eight of them — the whole
+    // roster — so there is no larger number left to ask for. A second
+    // car behind the same gate is not rarer than the first, it is the
+    // same rarity charged twice.
+    //
+    // So this one asks a different question. Not how far you have got,
+    // but what you got there in: the showroom will not sell it until
+    // the GTR is already in your driveway. You finish the road, you buy
+    // the prize, and only then does the road show you what was behind
+    // it.
+    id: "black-demon",
+    drive: "rwd",
+    finish: "gloss",
+    name: "Black Demon",
+    ar: "الشيطان الأسود",
+    cls: "supercar",
+    kit: "attack",
+    style: "gtr",
+    price: 420000,
+    locked: { rivals: 8, car: "zeta-300-gtr" },
+    engine: "v8-57",
+    lengthM: 4.66,
+    tankLitres: 82,
+    power: 1.85,
+    topSpeedKmh: 415,
+    grip: 17.2,
+    brake: 44,
+    // Not 0x000000. A car at true black has no shading left to describe
+    // its own shape with — it stops being bodywork and becomes a hole
+    // in the picture, which is a thing this game has already had to fix
+    // once on a dark blue. This is black enough that nobody would call
+    // it anything else, and light enough that the sodium lamps still
+    // find the shoulder line.
+    color: 0x0b0a0d,
+    // Delivered behind black glass and on black forged wheels. Both are
+    // in the record rather than in the shop because they are not
+    // modifications — you cannot buy this car without them, and making
+    // the player buy a roll of film to see it as it is sold would be
+    // the garage overruling the showroom.
+    glass: { tint: 95, film: "carbon" },
+    rims: "black",
+    livery: "demon",
+    desc: "Rear-drive, blown 5.7, and the fastest thing on the corniche. Black paint, black glass, black wheels and the horned mark on all four sides. The showroom will not sell it until the Zeta 300 GTR is already yours.",
+    factoryBuild: [
+      "twin-turbo",
+      "intake",
+      "ecu",
+      "exhaust-ti",
+      "brakes-carbon",
+      "tires-slick",
+      "lsd",
+      "coilovers",
+      "cage",
+      "rack",
+      "weight",
+      "nos",
+    ],
+  },
+  {
     // THE ONE YOU CANNOT BUY
     //
     // The GTR homologation of the Zeta 300: the same long-nose wedge,
     // rebuilt around the twin-turbo six with the whole outside of the
     // car turned into aerodynamics — swan-neck wing, splitter, canards,
     // dive planes, skirts and a diffuser — and delivered with the full
-    // house already bolted in. Nothing else in the game is quicker,
-    // stops harder or holds on longer.
+    // house already bolted in. Nothing else in the game stops harder or
+    // holds on longer — the Black Demon above is faster in a straight
+    // line and does not do either, which is the whole difference
+    // between the two of them.
     //
     // Its price is not what makes it rare. The showroom will not sell it
     // at any price until every legend on the roster has been beaten,
@@ -1092,6 +1213,31 @@ export function lockedBy(car: CarModel, beaten = rivalsBeaten()): number {
   return Math.max(0, (car.locked?.rivals ?? 0) - beaten);
 }
 
+/**
+ * The car that has to be in the driveway first, or null.
+ *
+ * The second half of the lock, and a separate function rather than a
+ * second return value from the one above because they are asked in
+ * different places: the showroom card needs both, the buy path needs
+ * both, and the tools that dump the roster only ever wanted the count.
+ *
+ * Returns the MODEL rather than the id so every caller can say the
+ * car's name without looking it up — a locked card that says "you need
+ * zeta-300-gtr" is the save file talking, not the showroom.
+ */
+export function lockedByCar(car: CarModel, owned: string[]): CarModel | null {
+  const need = car.locked?.car;
+  if (!need || owned.includes(need)) return null;
+  return CARS.find((c) => c.id === need) ?? null;
+}
+
+/** Whether the showroom will sell this car at all — both keys, in one
+ *  place, so the button and the rule behind the button cannot disagree
+ *  about what is for sale. */
+export function forSale(car: CarModel, owned: string[], beaten = rivalsBeaten()): boolean {
+  return lockedBy(car, beaten) === 0 && lockedByCar(car, owned) === null;
+}
+
 /** Stake tiers offered before a race; higher rivals allow bigger money. */
 export const WAGERS = [250, 500, 1000, 2500, 5000, 10000, 25000];
 
@@ -1456,6 +1602,13 @@ export interface TuneEffects {
    *  The darkness above is free; this is the part that was paid for,
    *  and without it the slider does nothing. */
   tintFilm?: TintFilm;
+  /** The wheel this car is delivered on, or undefined for the one its
+   *  kit implies. A bought set of gold rims still wins over it — see
+   *  cars.ts, where the order is argued. */
+  rims?: WheelFinish;
+  /** A livery the car was built wearing, as opposed to a sticker pack
+   *  bought for it. */
+  livery?: Livery;
   /** Factory second colour and which stripes it draws, or undefined. */
   accent?: number;
   stripes?: "single" | "twin";
@@ -1671,8 +1824,14 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     // The film gates the darkness. A slider with nothing bought behind
     // it leaves the car on factory glass — which is also what makes the
     // shop entry mean anything.
-    tint: FILM_OF_PART[eq.film ?? ""] ? clampTint(build.tint) : 0,
-    tintFilm: FILM_OF_PART[eq.film ?? ""],
+    // A car delivered behind black glass keeps it whatever the slider
+    // says and whether or not a roll was ever bought. A film that WAS
+    // bought wins, because then the player has chosen — including
+    // choosing to go lighter than the factory did.
+    tint: FILM_OF_PART[eq.film ?? ""] ? clampTint(build.tint) : car.glass?.tint ?? 0,
+    tintFilm: FILM_OF_PART[eq.film ?? ""] ?? car.glass?.film,
+    rims: car.rims,
+    livery: car.livery,
     accent: car.accent,
     stripes: car.stripes,
     // A bought finish beats the factory one; otherwise the car wears

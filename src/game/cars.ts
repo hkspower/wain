@@ -38,6 +38,20 @@ export interface CarColors {
   exhaust?: ExhaustSpec;
   /** Gold rims (garage mod). */
   goldRims?: boolean;
+  /** The wheel the car was DELIVERED on, when it came with its own.
+   *  Absent means the kit decides. See wheelFinishFor for the order. */
+  rims?: WheelFinish;
+  /**
+   * A livery the car was built wearing.
+   *
+   * Distinct from `stickers`, which is the Rally Sticker Pack — a thing
+   * bought in the garage and fitted to whatever you own. This is a
+   * finish that came with the machine and cannot be taken off it, and
+   * it is why the two are separate fields rather than one enum: a car
+   * can wear both, and the pack going on a liveried car must not read
+   * as the livery being replaced.
+   */
+  livery?: Livery;
   /** Sidewall lettering — the tyre sticker package. Cosmetic: it changes
    *  nothing about how the car drives, and the shop says so. */
   tyreSticker?: TyreSticker;
@@ -171,6 +185,12 @@ let goldRimMat: THREE.MeshStandardMaterial | null = null;
 function getGoldRimMat(): THREE.MeshStandardMaterial {
   if (!goldRimMat) {
     goldRimMat = new THREE.MeshStandardMaterial({
+      // Named like every other rim material. It was the only one
+      // without a name, which mattered twice: models.ts swaps authored
+      // geometry by material name, and a test asking "what wheel is
+      // this car wearing" got an empty string back for the one finish a
+      // player actually pays for.
+      name: "rim-gold",
       color: 0xd4af37,
       roughness: 0.18,
       metalness: 1,
@@ -2302,6 +2322,35 @@ const bronzeRimMat = new THREE.MeshStandardMaterial({ name: "rim-bronze",
   metalness: 0.85,
   envMapIntensity: 1.2,
 });
+/**
+ * Satin black forged — the wheel a black car is delivered on.
+ *
+ * NOT 0x000000, for the reason the whole car is not: a wheel at true
+ * black has no shading left to describe its spokes with, so it stops
+ * being a wheel and becomes a dark disc in an arch. This is dark enough
+ * to read as black against the tyre beside it and light enough that the
+ * spoke faces still catch a street lamp, which is what tells you it is
+ * turning. The metalness stays high — it is a machined face, not a
+ * painted steelie — and the roughness sits between the bronze forge and
+ * the polished silver: powder-coated, not lacquered.
+ */
+const blackRimMat = new THREE.MeshStandardMaterial({ name: "rim-black",
+  color: 0x1a1a1e,
+  roughness: 0.38,
+  metalness: 0.9,
+  envMapIntensity: 1.1,
+});
+/** The metal for a finish. A hubcap is not a rim and has none — see
+ *  buildWheel, which reaches for the plastic instead. */
+function rimMatFor(finish: WheelFinish): THREE.MeshStandardMaterial {
+  return finish === "gold"
+    ? getGoldRimMat()
+    : finish === "bronze"
+      ? bronzeRimMat
+      : finish === "black"
+        ? blackRimMat
+        : rimMat;
+}
 // Dry carbon for the aero: near-black, a hint of weave sheen
 /**
  * A thin strip of surface that FOLLOWS a surface.
@@ -2924,7 +2973,7 @@ function flagDecalTexture(): THREE.CanvasTexture {
 
 /** Sticker plane: lit like paint, slightly emissive so it reads at night,
  *  polygon-offset so it never z-fights the panel it sits on. */
-let demonMarkTex: THREE.CanvasTexture | null = null;
+const demonMarkTex = new Map<number, THREE.CanvasTexture>();
 /**
  * The crew mark: a horned skull, drawn here rather than borrowed.
  *
@@ -2932,15 +2981,45 @@ let demonMarkTex: THREE.CanvasTexture | null = null;
  * Bu Torab running with the Dust Devils — so the sticker pack gets a
  * devil's head to match. Every line of it is a path in this function;
  * there is no real emblem behind it.
+ *
+ * Drawn at a size the caller asks for, because the same mark is worn at
+ * two very different ones. At 256 px it is the 320 mm crew badge on a
+ * rear quarter — 800 texels to the metre. The Black Demon wears it at
+ * more than half a metre on four panels, and 256 px across that is 460
+ * texels to the metre, which is the density the Kuwait flag was at when
+ * it read as a smear with a blob on one end. One drawing, two sizes:
+ * the alternative is a second copy of the artwork that drifts from this
+ * one the first time a horn changes.
  */
-function demonMarkTexture(): THREE.CanvasTexture {
-  if (demonMarkTex) return demonMarkTex;
+function demonMarkTexture(px = 256, bold = false): THREE.CanvasTexture {
+  const key = bold ? -px : px;
+  const hit = demonMarkTex.get(key);
+  if (hit) return hit;
   const c = document.createElement("canvas");
-  c.width = c.height = 256;
+  c.width = c.height = px;
   const ctx = c.getContext("2d")!;
-  ctx.clearRect(0, 0, 256, 256);
-  const INK = "#14121a";
-  const EMBER = "#ff5a1f";
+  ctx.clearRect(0, 0, px, px);
+  // Every path below is written in the 256-space it was drawn in, and
+  // the canvas is scaled to whatever was asked for. Line widths scale
+  // with it, which is the point — a 9 px stroke at 512 would be half
+  // the mark it is at 256.
+  ctx.scale(px / 256, px / 256);
+  // The badge is drawn to sit on a car of any colour: near-black ink
+  // with an ember keyline, so it is a solid shape on pale paint and an
+  // outline on dark paint. The Black Demon is the case that breaks it.
+  // Ink at #14121a on paint at #0b0a0d is the same colour twice, and
+  // the keyline that carries the mark at 320 mm on a red car is a
+  // hairline at half a metre on a black one. Rendered and looked at,
+  // the first cut of this livery was a black car with four faint orange
+  // scratches on it — a livery in the record and nowhere else.
+  //
+  // So the bold cut inverts the mark instead of thickening it. Bone
+  // where the badge is ink, and the ember keeps the keyline, the eyes
+  // and the teeth: a skull rather than a silhouette, which is what
+  // reads on black at the distance one car sees another. Same paths,
+  // same mark, drawn to be seen against the paint it was made for.
+  const INK = bold ? "#a9a3b4" : "#14121a";
+  const EMBER = bold ? "#ff6a24" : "#ff5a1f";
 
   // Horns first, so the skull sits over their roots and they read as
   // growing out of it rather than being stuck on the sides.
@@ -2966,7 +3045,7 @@ function demonMarkTexture(): THREE.CanvasTexture {
   // dark paint is a hole rather than a badge.
   ctx.lineJoin = "round";
   ctx.strokeStyle = EMBER;
-  ctx.lineWidth = 9;
+  ctx.lineWidth = bold ? 20 : 9;
   for (const s of [-1, 1]) { horn(s); ctx.stroke(); }
   skull();
   ctx.stroke();
@@ -2997,11 +3076,16 @@ function demonMarkTexture(): THREE.CanvasTexture {
   ctx.closePath();
   ctx.fill();
 
-  demonMarkTex = new THREE.CanvasTexture(c);
-  demonMarkTex.colorSpace = THREE.SRGBColorSpace;
-  demonMarkTex.anisotropy = 8;
-  return demonMarkTex;
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  demonMarkTex.set(key, tex);
+  return tex;
 }
+
+/** How big the mark is drawn for a car that WEARS it rather than badges
+ *  itself with it. */
+const LIVERY_MARK_PX = 512;
 
 const nameDecalCache = new Map<string, THREE.CanvasTexture>();
 /** The car's own name, laid out as a flank wordmark: Latin over Arabic. */
@@ -3196,7 +3280,47 @@ function plateMat(): THREE.MeshStandardMaterial {
  * or the power figure, because it is the one thing an owner changes
  * FIRST when they start spending.
  */
-type WheelFinish = "silver" | "gold" | "bronze" | "steel";
+export type WheelFinish = "silver" | "gold" | "bronze" | "steel" | "black";
+
+/**
+ * Which wheel a car wears — asked in one place because it was asked in
+ * two, in different orders, and they disagreed.
+ *
+ * The material was chosen a thousand lines before the finish was, and
+ * once a factory wheel existed the two orders parted company: a Black
+ * Demon with bought gold rims came out as a gold wheel with black
+ * spokes, because one site said gold and the other said black and the
+ * spoke material is passed to the wheel the finish built. Neither was
+ * wrong on its own; having two of them was.
+ *
+ * The order, and why:
+ *
+ *   gold     A purchase, and purchases win. Somebody who has spent on
+ *            wheels is telling you so, and burying that because the car
+ *            came on something else is the game overruling a decision
+ *            the player paid for.
+ *   factory  What the machine was delivered on. Part of the car the way
+ *            its paint is, not a stage of tune — so it comes ahead of
+ *            the kit, or a car built around black forged wheels would
+ *            wear the attack kit's bronze for the crime of also
+ *            carrying the aero.
+ *   bronze   The full attack kit's forge. A stage of tune: it says how
+ *            far this car has been built.
+ *   steel    A street car with nothing bought — a pressed cover, which
+ *            is the strongest signal in the game that a machine has not
+ *            been got at yet.
+ *   silver   Everything else: a cast alloy.
+ */
+export function wheelFinishFor(colors: CarColors, kit: KitLevel): WheelFinish {
+  if (colors.goldRims) return "gold";
+  if (colors.rims) return colors.rims;
+  if (colors.raceKit) return "bronze";
+  return kit === "street" ? "steel" : "silver";
+}
+
+/** A livery a car is BUILT with, as opposed to a sticker pack bought for
+ *  it in the garage. One so far: the Black Demon's marks. */
+export type Livery = "demon";
 
 /** Hero wheel parts, merged to one geometry per material so a Blender
  *  build can replace each in a single swap (models.ts) — and so four
@@ -3269,13 +3393,13 @@ function buildWheel(
   const spokeMat = steel
     ? hubcapMat
     : opts?.spokeMat ??
-      (finish === "gold" ? getGoldRimMat() : finish === "bronze" ? bronzeRimMat : rimMat);
+      rimMatFor(finish);
   const detailed = opts?.detailed ?? false;
   // Six straight spokes on the forged bronze wheel, five on the street
   // cast — and four on a hubcap, because a pressed cover has a few wide
   // flat vanes rather than a spoke pattern, and that difference in
   // COUNT is what the eye reads at speed even when the shape is coarse.
-  const nSpokes = finish === "bronze" ? 6 : steel ? 4 : 5;
+  const nSpokes = finish === "bronze" || finish === "black" ? 6 : steel ? 4 : 5;
   const w = new THREE.Group();
   // Spin, steer and camber are three writes on this one node; the order
   // they compose in is what keeps the spin on the axle. See suspension.ts.
@@ -3500,8 +3624,7 @@ export function createCar(colors: CarColors): THREE.Group {
   // probe carries the player's own surroundings, and binding it to a
   // shared material would paint the player's reflections onto every car
   // on the road. Traffic keeps the shared mats and skips the cost.
-  const spokeBase =
-    colors.raceKit ? bronzeRimMat : colors.goldRims ? getGoldRimMat() : rimMat;
+  const spokeBase = rimMatFor(wheelFinishFor(colors, kit));
   const spokeLocal = colors.simple ? undefined : spokeBase.clone();
   const chromeLocal = colors.simple ? chromeMat : chromeMat.clone();
   chromeLocal.name = "chrome";
@@ -4657,18 +4780,7 @@ export function createCar(colors: CarColors): THREE.Group {
     [-wheelX, wzR],
     [wheelX, wzR],
   ]) {
-    // Steel wheels and covers on a street car, unless the owner has
-    // bought something. Gold rims are a purchase and they win — somebody
-    // who has spent on wheels is telling you so, and burying that under
-    // a hubcap because the kit is still stock would be the game
-    // overruling a decision the player paid for.
-    const wheelFinish: WheelFinish = colors.raceKit
-      ? "bronze"
-      : colors.goldRims
-        ? "gold"
-        : kit === "street"
-          ? "steel"
-          : "silver";
+    const wheelFinish = wheelFinishFor(colors, kit);
     const wheel = buildWheel(wheelFinish, Math.sign(wx), {
       sticker: colors.tyreSticker,
       detailed: !colors.simple,
@@ -5400,7 +5512,181 @@ export function createCar(colors: CarColors): THREE.Group {
     }
   }
 
-  const wearsLivery = colors.stickers || (kitAtLeast(kit, "sport") && !colors.simple);
+  // ------------------------------------------------------- factory livery
+  //
+  // Stickers the car was BUILT with, not ones bought for it. One so far:
+  // the Black Demon's mark, worn on all four sides.
+  //
+  // Four sides means four, and a car has two of them that are the same
+  // shape and two that are not: the flanks take a plane hung off the
+  // measured half-width, and the bonnet and the deck take one laid on a
+  // slope. Both of those already exist here — the rally pack's quarter
+  // badge and its hood swoosh — so this places the same mark by the same
+  // two methods rather than inventing a third.
+  //
+  // Where this lands on a panel the rally pack also wants, the PACK
+  // gives way (see wearsLivery below). Not because the livery is more
+  // important, but because they are the same mark: a car wearing the
+  // Demon's badge at 580 mm on its rear quarter does not also want the
+  // crew's 320 mm one 20 mm away, and the alternative is a clearance
+  // rule per silhouette, which is what the rest of this section has
+  // spent its comments avoiding.
+  const wearsDemon = colors.livery === "demon" && !colors.simple;
+  if (wearsDemon) {
+    const mark = decalMat(demonMarkTexture(LIVERY_MARK_PX, true));
+    // Lit from inside, more than a sticker is. The ember in this mark is
+    // the only thing on the car that is not black, and on a road whose
+    // light is one sodium lamp every thirty metres a decal at the shared
+    // 0.16 is as dark as the paint around it for most of a lap.
+    mark.emissiveIntensity = 0.42;
+    // Flanks. The rear quarter, which is the one panel clear on every
+    // silhouette in this fleet: no arch through it, no door handle, and
+    // the beltline stripe already stops short of it.
+    //
+    // FOLLOWING the panel, not hung off the car's widest point. Every
+    // flat decal on a flank here is placed at `flankX + 14 mm`, and
+    // flankX is the bounding box — the widest the body ever gets, which
+    // is at the arches. Measured on the quarter, that convention leaves
+    // the sticker 65 mm proud of the paint it is supposed to be stuck
+    // to: at any angle but dead side-on it reads as floating beside the
+    // car. The full-length stripe already solved this by sampling the
+    // shell per column and standing 12 mm off whatever it finds, so the
+    // mark is built the same way. (The rally pack's own flank decals
+    // still use the old placement; moving those moves five silhouettes'
+    // worth of decisions and is not this car's job.)
+    // Centred in the flank's clear middle — between the character crease
+    // and the chrome belt — rather than on the beltline itself, which is
+    // where the crew badge sits and is a moulding rather than a panel.
+    // In the flank's clear lane, between the character crease and the
+    // chrome belt. Dropping it lower buys height — there is bodywork all
+    // the way to the sill — and spends it: the arch is a circle, so the
+    // lower the band the further it reaches, and a 400 mm mark centred
+    // just above the crease came out with its bottom third behind the
+    // rear tyre. Height that is behind a wheel is not height.
+    const QY = (d.creaseY + d.beltY) / 2;
+    // And placed off the run rather than at a z typed in here. -1.45 is
+    // the rear quarter of the body this was developed against and the
+    // middle of the arch on the shortest one in the fleet. flankRun
+    // already knows where each silhouette's arches are; the mark goes
+    // just forward of the rear one, which is the same place on all six.
+    const [qRun, qCtr] = flankRun(QY);
+    const qBack = qCtr - qRun / 2;
+    // As big as the quarter will honestly carry, found by asking it.
+    //
+    // A number picked here is a number picked for one silhouette. The
+    // first one was 580 mm, which is what the run WIDTH allows and has
+    // nothing to do with the height: at that size the top edge is up in
+    // the glasshouse, the ribbon finds no bodywork to follow, and both
+    // flanks came out with no mark at all rather than with a bad one —
+    // which is the failure mode worth having, and is how this was
+    // caught. So the sizes are tried largest first and the first one
+    // the panel accepts is the one worn. Six bodies, no table.
+    for (const sign of [-1, 1] as const) {
+      for (const h of [0.46, 0.40, 0.34, 0.28, 0.22]) {
+        // Nothing wider than the run itself, whatever the panel height
+        // would allow.
+        if (h > qRun - 0.06) continue;
+        const zc = qBack + 0.03 + h / 2;
+        const geo = flankRibbon(bodyShell, sign, zc - h / 2, zc + h / 2, QY, h, 0.012, 48);
+        if (!geo) continue;
+        const m = new THREE.Mesh(geo, mark);
+        m.userData.decal = "demon-flank";
+        group.add(m);
+        break;
+      }
+    }
+    // Bonnet and deck. Both are slopes, so both are levelled the way the
+    // hood swoosh is: the skin is measured at the plane's front and back
+    // edge and the plane is pitched to the fall between them. A flat
+    // plane set to the height at its centre has one end buried and the
+    // other floating, and on the long-nosed bodies that is 100 mm of
+    // error across the decal.
+    // The top surface at a point, INCLUDING whatever is bolted to it.
+    //
+    // skinY reads the body shell, which is the right answer for a bare
+    // bonnet and the wrong one for this car: the attack kit lays a
+    // power bulge down the middle of the hood, 700 mm wide and 35 mm
+    // proud, and a mark levelled against the shell underneath it is
+    // inside it. Rendered, the bonnet was blank and the decal was in
+    // there the whole time — the ray from above hit paint, then the
+    // sticker, then the shell.
+    //
+    // So the ray is cast here too. Everything already in the group is
+    // fair game except other decals, which is what "lay it on the car"
+    // actually means.
+    // World matrices first. Nothing has needed them during the build so
+    // far, so every child still carries the identity it was created
+    // with — the first version of this ray was cast at a car whose
+    // parts were all at the origin, hit nothing above the shell, and
+    // silently fell back to exactly the answer it was written to
+    // replace. It reported no change and looked like a no-op fix.
+    group.updateMatrixWorld(true);
+    const solids: THREE.Mesh[] = [];
+    group.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh && !o.userData?.decal) solids.push(m);
+    });
+    const downRay = new THREE.Raycaster();
+    const DOWN = new THREE.Vector3(0, -1, 0);
+    // Bounded, or the rule reads "the tallest thing over this point" and
+    // the mark on the deck came out levelled against the rear WING —
+    // 300 mm above the boot lid, floating over the car it belongs to.
+    // What is wanted is the panel plus whatever is bolted flush to it:
+    // a bulge, a vent, a stripe.
+    //
+    // 160 mm, measured rather than guessed. The first cut was 90 and it
+    // read as no change at all: the attack kit's power bulge runs level
+    // down a bonnet that falls 105 mm from the scuttle to the nose, so
+    // at the front edge of the mark it stands 113 mm off the shell
+    // beneath it — a bulge by any description, and outside a 90 mm
+    // band. The wing that has to stay excluded is at 300.
+    const FLUSH = 0.16;
+    const topAt = (z: number, fallback: number): number => {
+      const base = skinY(z, fallback);
+      downRay.set(new THREE.Vector3(0, 4, z), DOWN);
+      for (const hit of downRay.intersectObjects(solids, false)) {
+        if (hit.point.y <= base + FLUSH) return Math.max(hit.point.y, base);
+      }
+      return base;
+    };
+    const lay = (z: number, size: number, faceRear: boolean, tag: string) => {
+      const half = size / 2;
+      const yBack = topAt(z - half, d.hoodY);
+      const yFront = topAt(z + half, d.hoodY);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mark);
+      // Read from where it is looked at: the bonnet from the driver's
+      // seat, the deck from the car behind — which is the whole reason
+      // anybody puts a mark back there.
+      m.rotation.z = faceRear ? 0 : Math.PI;
+      m.rotation.x = -Math.PI / 2 + Math.asin(Math.min(0.6, (yBack - yFront) / (2 * half)));
+      m.position.set(0, (yBack + yFront) / 2 + 0.022, z);
+      m.userData.decal = tag;
+      group.add(m);
+    };
+    // Forward of the wipers so it sits on bonnet rather than on the
+    // scuttle, and back from the nose's drop-off. bCabBack is the
+    // cab-backward measure the hood swoosh already uses to tell a
+    // long-nosed body from a short one.
+    lay(bCabBack ? 1.15 : 1.45, 0.8, false, "demon-hood");
+    // And on the deck, clear of a wing's feet at z -1.98.
+    lay(-1.62, 0.55, true, "demon-deck");
+  }
+
+  // The kit's own livery — and a car that came with one of its own does
+  // not also get it.
+  //
+  // From the sport step up, a car wears the rally pack for free: it is
+  // what "built" looks like at that band. That is right for fifteen
+  // cars and wrong for the one that arrives already painted, which came
+  // out of the showroom render wearing a red-and-green beltline stripe,
+  // a racing roundel and a Kuwait flag over the top of its own black
+  // livery. Two liveries is not twice the livery.
+  //
+  // Buying the Rally Sticker Pack still puts it on, because that is a
+  // decision the player made and paid for. What gives way is the kit's
+  // free default, which is nobody's decision.
+  const wearsLivery =
+    colors.stickers || (kitAtLeast(kit, "sport") && !colors.simple && !wearsDemon);
   if (wearsLivery && !colors.simple) {
     // Off the shell's measured flank, not a hand-kept table of the four
     // half-widths. The table happened to be right, but it was a second
@@ -5501,38 +5787,47 @@ export function createCar(colors: CarColors): THREE.Group {
         group.add(word);
       }
       // The crew's horned mark on the rear quarter, clear of the stripe
-      const mark = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.32), demon);
-      mark.position.set(x, d.beltY - 0.02, -1.45);
-      mark.rotation.y = flipY;
-      group.add(mark);
+      // — unless the car was built wearing the same mark at twice the
+      // size on the same panel, in which case this is the pack badging a
+      // car that is already badged.
+      if (!wearsDemon) {
+        const mark = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.32), demon);
+        mark.position.set(x, d.beltY - 0.02, -1.45);
+        mark.rotation.y = flipY;
+        mark.userData.decal = "crew-mark";
+        group.add(mark);
+      }
     }
-    // Falcon swoosh flat on the hood, nosed toward the windshield
-    const hood = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.85, 0.85),
-      decalMat(hoodDecalTexture())
-    );
-    // Laid ON the hood, which is a slope and not a table. A flat plane
-    // set to the skin height at its centre has its back half inside the
-    // bonnet and its front half floating: 0.85 m of decal spans 100 mm
-    // of fall on the long-nosed bodies. Both ends are measured and the
-    // plane is pitched to match.
-    const hoodDecalZ = bCabBack ? 1.15 : 1.45;
-    const HALF = 0.425;
-    const yBack = skinY(hoodDecalZ - HALF, d.hoodY);
-    const yFront = skinY(hoodDecalZ + HALF, d.hoodY);
-    hood.rotation.z = Math.PI; // read the right way up from the driver's seat
-    hood.rotation.x = -Math.PI / 2 + Math.asin(Math.min(0.6, (yBack - yFront) / (2 * HALF)));
-    // A little more than a decal's clearance, because the bonnet bows
-    // between the two points this is levelled against.
-    hood.position.set(
-      0,
-      Math.max(
-        (yBack + yFront) / 2 + 0.022,
-        hoodStripeTop ? hoodStripeTop(hoodDecalZ) + 0.005 : -Infinity
-      ),
-      hoodDecalZ
-    );
-    group.add(hood);
+    // Falcon swoosh flat on the hood, nosed toward the windshield — and
+    // not at all if the livery has already claimed the bonnet.
+    if (!wearsDemon) {
+      const hood = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.85, 0.85),
+        decalMat(hoodDecalTexture())
+      );
+      // Laid ON the hood, which is a slope and not a table. A flat plane
+      // set to the skin height at its centre has its back half inside the
+      // bonnet and its front half floating: 0.85 m of decal spans 100 mm
+      // of fall on the long-nosed bodies. Both ends are measured and the
+      // plane is pitched to match.
+      const hoodDecalZ = bCabBack ? 1.15 : 1.45;
+      const HALF = 0.425;
+      const yBack = skinY(hoodDecalZ - HALF, d.hoodY);
+      const yFront = skinY(hoodDecalZ + HALF, d.hoodY);
+      hood.rotation.z = Math.PI; // read the right way up from the driver's seat
+      hood.rotation.x = -Math.PI / 2 + Math.asin(Math.min(0.6, (yBack - yFront) / (2 * HALF)));
+      // A little more than a decal's clearance, because the bonnet bows
+      // between the two points this is levelled against.
+      hood.position.set(
+        0,
+        Math.max(
+          (yBack + yFront) / 2 + 0.022,
+          hoodStripeTop ? hoodStripeTop(hoodDecalZ) + 0.005 : -Infinity
+        ),
+        hoodDecalZ
+      );
+      group.add(hood);
+    }
   }
 
   // The body's own anchor points, so a camera bolted to this shell can

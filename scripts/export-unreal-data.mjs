@@ -78,7 +78,14 @@ const cars = carsBlock
       engine: f(/engine: "([^"]+)"/),
       tank: +f(/tankLitres: ([\d.]+)/),
       lengthM: +f(/lengthM: ([\d.]+)/),
-      lockedRivals: +(f(/locked: \{ rivals: (\d+) \}/) ?? 0),
+      // Anchored on the field, not on the whole brace. The pattern
+      // used to be `locked: { rivals: (\d+) }` — the entire literal —
+      // so the day a second key was added to it the match failed
+      // silently and the car came through as locked behind nothing.
+      // The port would have sold the last machine in the game to
+      // anybody with the money.
+      lockedRivals: +(f(/locked: \{[^}]*rivals: (\d+)/) ?? 0),
+      lockedCar: f(/locked: \{[^}]*car: "([^"]+)"/) ?? "",
       factoryBuild: (b.match(/factoryBuild: \[(.*?)\]/s)?.[1] ?? "")
         .split(",")
         .map((x) => x.trim().replace(/^"|"$/g, ""))
@@ -405,6 +412,9 @@ struct FGRNCarDef
 	/** Legends that must be beaten before the showroom will sell it.
 	 *  0 for everything money can buy. */
 	int32 LockedRivals;
+	/** A car that must already be owned before the showroom will sell
+	 *  this one. Empty for everything money can buy. */
+	const TCHAR* LockedCar;
 	/** Parts fitted at the factory, comma separated, empty for most. */
 	const TCHAR* FactoryBuild;
 };
@@ -413,7 +423,7 @@ static const FGRNCarDef GRNCars[] = {
 ${cars
   .map(
     (c) =>
-      `\t{ TEXT("${c.id}"), TEXT("${c.name}"), ${c.price}, ${c.power.toFixed(2)}f, ${c.top.toFixed(1)}f, ${c.grip.toFixed(1)}f, ${c.brake.toFixed(1)}f, ${col(c.color)}, ${style(c.style, c.id)}, ${c.kit === "attack" ? "true" : "false"}, GRNSim::EDrivetrain::${c.drive.toUpperCase()}, ${engIndex(c.engine, c.id)}, ${c.tank.toFixed(1)}f, ${c.lengthM.toFixed(2)}f, ${c.lockedRivals}, TEXT("${c.factoryBuild.join(",")}") },`
+      `\t{ TEXT("${c.id}"), TEXT("${c.name}"), ${c.price}, ${c.power.toFixed(2)}f, ${c.top.toFixed(1)}f, ${c.grip.toFixed(1)}f, ${c.brake.toFixed(1)}f, ${col(c.color)}, ${style(c.style, c.id)}, ${c.kit === "attack" ? "true" : "false"}, GRNSim::EDrivetrain::${c.drive.toUpperCase()}, ${engIndex(c.engine, c.id)}, ${c.tank.toFixed(1)}f, ${c.lengthM.toFixed(2)}f, ${c.lockedRivals}, TEXT("${c.lockedCar}"), TEXT("${c.factoryBuild.join(",")}") },`
   )
   .join("\n")}
 };

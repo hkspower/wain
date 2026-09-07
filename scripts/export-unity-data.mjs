@@ -166,7 +166,14 @@ const cars = carsBlock
       engine: f(/engine: "([^"]+)"/),
       tank: +f(/tankLitres: ([\d.]+)/),
       lengthM: +f(/lengthM: ([\d.]+)/),
-      lockedRivals: +(f(/locked: \{ rivals: (\d+) \}/) ?? 0),
+      // Anchored on the field, not on the whole brace. The pattern
+      // used to be `locked: { rivals: (\d+) }` — the entire literal —
+      // so the day a second key was added to it the match failed
+      // silently and the car came through as locked behind nothing.
+      // The port would have sold the last machine in the game to
+      // anybody with the money.
+      lockedRivals: +(f(/locked: \{[^}]*rivals: (\d+)/) ?? 0),
+      lockedCar: f(/locked: \{[^}]*car: "([^"]+)"/) ?? "",
       factoryBuild: (b.match(/factoryBuild: \[(.*?)\]/s)?.[1] ?? "")
         .split(",")
         .map((x) => x.trim().replace(/^"|"$/g, ""))
@@ -423,6 +430,9 @@ ${engines
         /// <summary>Legends that must be beaten before the showroom will
         /// sell it. 0 for everything money can buy.</summary>
         public int LockedRivals;
+        /// <summary>A car that must already be owned before the showroom
+        /// will sell this one. Empty for everything money can buy.</summary>
+        public string LockedCar;
         /// <summary>Parts fitted at the factory. Empty for most.</summary>
         public string[] FactoryBuild;
     }
@@ -436,7 +446,7 @@ ${cars
             Power = ${f(c.power)}, TopSpeedKmh = ${f(c.top)}, Grip = ${f(c.grip)}, Brake = ${f(c.brake)},
             Paint = ${col(c.color)}, Style = ${style(c.style, c.id)}, AttackKit = ${c.kit === "attack" ? "true" : "false"}, Drive = Drivetrain.${c.drive.toUpperCase()},
             Engine = ${engIndex(c.engine, c.id)}, TankLitres = ${f(c.tank)}, LengthM = ${f(c.lengthM)},
-            LockedRivals = ${c.lockedRivals},
+            LockedRivals = ${c.lockedRivals}, LockedCar = "${cs(c.lockedCar)}",
             FactoryBuild = new[] { ${c.factoryBuild.map((x) => `"${x}"`).join(", ")} },
         },`
   )

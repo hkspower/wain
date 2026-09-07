@@ -50,8 +50,10 @@ import {
   CARS,
   getCar,
   lockedBy,
+  forSale,
   rivalsBeaten,
   WAGERS,
+  type CarModel,
 } from "@/game/mods";
 
 /**
@@ -787,11 +789,20 @@ function raceCut(): { w: number; h: number } | null {
   // disabled attribute.
   useEffect(() => {
     const w = window as unknown as {
-      __grnShowroom?: { lockedBy(id: string): number; beaten(): number };
+      __grnShowroom?: {
+        lockedBy(id: string): number;
+        beaten(): number;
+        car(id: string): CarModel;
+      };
     };
     w.__grnShowroom = {
       lockedBy: (id: string) => lockedBy(getCar(id)),
       beaten: rivalsBeaten,
+      // The record itself, so a test can build the car the game would
+      // build rather than a hand-written set of colours that happens to
+      // resemble it. A test that types the paint in is a test that
+      // passes when the showroom's paint changes.
+      car: getCar,
     };
     return () => {
       delete w.__grnShowroom;
@@ -803,8 +814,10 @@ function raceCut(): { w: number; h: number } | null {
     const car = getCar(carId);
     if (!g.cars.includes(carId)) {
       // Money is not the only gate any more. The showroom greys the
-      // locked car out, but the button is not the rule — this is.
-      if (lockedBy(car) > 0) return;
+      // locked car out, but the button is not the rule — this is. Both
+      // keys are asked at once: legends beaten, and the car that has to
+      // be in the driveway before this one is offered at all.
+      if (!forSale(car, g.cars)) return;
       if (g.kd < car.price) return;
       g.kd -= car.price;
       g.cars.push(carId);
@@ -1827,6 +1840,8 @@ function raceCut(): { w: number; h: number } | null {
             underglow: tune.glow ?? undefined,
             spoiler: tune.spoiler,
             goldRims: tune.goldRims,
+            rims: tune.rims,
+            livery: tune.livery,
             tyreSticker: tune.tyreSticker,
             engineCover: tune.engineCover ?? undefined,
             carbon: tune.carbon,
