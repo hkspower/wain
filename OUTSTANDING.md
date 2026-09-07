@@ -4,14 +4,42 @@ Everything below is measured, not remembered — the suite states are from
 a full run, and each entry says what is actually wrong, what it costs,
 and what I would do about it. Ordered by what I would fix first.
 
-Last checked against commit `a174850`, with a full run of every
-`test:*` and `check:*` script behind it.
+Last full run was against commit `a174850`. Everything under
+"Since the last full run" below was measured against `ac87a6d` — a
+PARTIAL re-check, and it says which scripts it actually ran, because a
+file that claims a full run it did not do is worse than one that admits
+to a partial.
 
 > **Nine of the eleven items this file used to list are done.** They are
 > kept below, struck through, with their reasoning intact: the argument
 > for doing a thing is usually also the argument for not undoing it, and
 > the two that are left are the two that were always going to need their
 > own run at them.
+
+## Since the last full run
+
+The roster is **seventeen cars over seven silhouettes** — it was fifteen
+over six when the numbers further down this file were taken, so read any
+count below as of that date.
+
+Re-checked at `ac87a6d`, and green: `npx tsc --noEmit`, `check:unity`,
+`check:unreal` (both at 17 cars and 7 silhouettes), `check:structure`,
+`check:arabic`, `check:arabic:grammar`, `test:carsedit`, `test:names`,
+`test:demon` and `test:faces`. Not re-run: the rest.
+
+Two new scripts:
+
+- **`npm run check:sounds`** fires every sound the engine can make and
+  measures it at the OUTPUT — after the limiter and the ceiling — rather
+  than reading gain nodes, because a voice whose gain is 0.8 and whose
+  oscillator was never started looks identical from the node graph and
+  different from one metre away. All sixteen one-shots are audible, 0.13
+  to 0.40 over the idle floor. **The held voices and the file check have
+  not completed inside its timeout yet** — see item 12.
+- **`npm run test:faces`** checks that all seventeen cars state their own
+  front face and that no two are identical. `--records` runs the
+  arithmetic half without a browser.
+
 
 ## The suite, right now
 
@@ -230,13 +258,45 @@ steering input.
 
 ---
 
+## 12. `check:sounds` has never finished its second half
+
+It measures sixteen one-shots and then times out somewhere in the
+fourteen held voices, so the continuous layers — engine, tyre roll,
+skid, brakes, wind, rain, boost, nitrous, the rival alongside — have
+never been measured at the output, and neither has the on-disk file
+check the tool ends with.
+
+The cause was the tool polling the analyser on `requestAnimationFrame`,
+which on a page running a game waits for the renderer: sixteen sounds
+took ten minutes. It polls on a timer now and the windows are shorter,
+but that has not been confirmed to finish, and until it has, "all
+sixteen one-shots are audible" is the whole of what this tool has
+proved.
+
+The file half is separately confirmed by hand: all six files the
+manifest names serve 200.
+
+**Cost**: the layers a player hears for the whole of a race are the ones
+still unmeasured.
+
+## 13. Two of the fleet's seven silhouettes have no authored shell
+
+The hatch and the pony are built procedurally, and the pickup added at
+`ac87a6d` joins them — `sync:models` exports four styles, not seven. The
+car asset manager reports this as a gap on every affected car, which is
+right: it is a real state the game ships in rather than damage. Worth
+knowing before reading the manager's warnings as faults.
+
 ## What I would do next, in order
 
-1. **Scope the road network** (item 3). It is the only thing left that
+1. **Finish `check:sounds`** (item 12). It is one run away from
+   answering a question nothing else in the suite asks, and the answer
+   is either "the mix is fine" or a list of layers nobody can hear.
+2. **Scope the road network** (item 3). It is the only thing left that
    changes what the game IS rather than how well it does what it does,
    and it deserves a run at it on its own.
-2. **`grid.mjs`'s hour** (item 7), if anyone wants a lighting
+3. **`grid.mjs`'s hour** (item 7), if anyone wants a lighting
    measurement out of that tool. Small, and currently a footnote.
-3. Nothing else is outstanding. Items 4 and 5 are open by decision:
+4. Nothing else is outstanding. Items 4, 5 and 13 are open by decision:
    one needs egress this environment does not have, and the other is
    a claim I would rather not make than half-make.

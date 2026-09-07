@@ -4805,6 +4805,21 @@ export function createCar(colors: CarColors): THREE.Group {
     const y = d.grilleY + (f.dy ?? 0);
     const faceZ = (yy: number, back = 0) =>
       (noseFaceZ(bGeo, style, yy, true) ?? d.nose) - back;
+    /**
+     * Where to put the CENTRE of a part `depth` deep whose front face
+     * should stand `proud` of the nose at that height.
+     *
+     * Anything sunk into the nose can be placed by its centre and be
+     * roughly right, because the error is inside the bodywork. Anything
+     * that stands out cannot: the surround is a 55 mm deep bar, so
+     * placing its centre 12 mm behind the skin puts its front face 15
+     * mm in FRONT of it, and on the three silhouettes whose grille sits
+     * near the bumper's own furthest point that came out 6 mm proud of
+     * the whole car. A chrome surround stands a few millimetres off the
+     * paint. It does not lead the bumper.
+     */
+    const standing = (yy: number, depth: number, proud: number) =>
+      faceZ(yy, depth / 2 - proud);
 
     // The void first: a surface behind the mesh, sunk into the nose. The
     // old grille WAS this and nothing else, which is why every car in
@@ -4829,14 +4844,15 @@ export function createCar(colors: CarColors): THREE.Group {
       const mat =
         f.surround === "chrome" ? chromeLocal : f.surround === "carbon" ? carbonMat : bodyMat;
       const T = 0.026;
-      const z = faceZ(y, 0.012);
+      const DEPTH = 0.055;
+      const z = standing(y, DEPTH, 0.004);
       for (const [w, h, ox, oy] of [
         [f.w + T * 2, T, 0, f.h / 2 + T / 2],
         [f.w + T * 2, T, 0, -f.h / 2 - T / 2],
         [T, f.h, -f.w / 2 - T / 2, 0],
         [T, f.h, f.w / 2 + T / 2, 0],
       ] as const) {
-        const bar = new THREE.Mesh(roundedBox(w, h, 0.055, 0.008), mat);
+        const bar = new THREE.Mesh(roundedBox(w, h, DEPTH, 0.008), mat);
         bar.position.set(ox, y + oy, z);
         bar.userData.face = "surround";
         group.add(bar);
@@ -4882,7 +4898,7 @@ export function createCar(colors: CarColors): THREE.Group {
     }
     if (f.badge) {
       const badge = new THREE.Mesh(roundedBox(0.1, 0.1, 0.03, 0.03), chromeLocal);
-      badge.position.set(0, y, faceZ(y, 0.005));
+      badge.position.set(0, y, standing(y, 0.03, 0.004));
       badge.userData.face = "badge";
       group.add(badge);
     }
