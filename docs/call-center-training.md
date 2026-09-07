@@ -198,14 +198,45 @@ above phrasing. Each row is expressible as an ElevenLabs evaluation criterion
 | 5 | **Said what changed on screen** | 10 | Calls `show_places` silently |
 | 6 | **Handed the turn back** | 10 | Ends on a statement and goes quiet |
 | 7 | **Register** — Kuwaiti, not MSA, not call-centre boilerplate | 10 | «يرجى الانتظار»، «كيف يمكنني مساعدتك»، «تحت أمرك» |
+| 8 | **Warm and willing** — glad to help, respectful whatever the ask, nobody leaves without a place, best fit not first hit | 10 | Curt or clinical; lectures on a refusal; ends on a bare «ما عندي»; a flat list with no choice made |
 
-Rows 1–3 are the call. Rows 4–7 are the manner. A call that scores full marks
-on 4–7 and fails row 1 is a failed call, which is what the weighting says.
+Rows 1–3 are the call. Rows 4–8 are the manner. A call that scores full marks
+on 4–8 and fails row 1 is a failed call, which is what the weighting says.
 
-**This scorecard is attached to the agent, as of 6 September.** All seven rows
-are evaluation criteria on شوق's configuration (`grounded`, `honest_limits`,
+Row 8 was added on 7 September, when the owner asked for her to be respectful,
+cheerful, and to always leave the caller with a solution. It is the one row
+that can pull against row 7's «don't over-stuff the dialect» and against the
+length ceiling, which is why its own text says warmth must not add sentences —
+a short glad line passes, three lines of pleasantries do not.
+
+**And it did pull, measurably.** The personality block went into the prompt in
+two passes, each measured on the same nine tests at temperature 0:
+
+| | before | pass 1 | pass 2 (live) |
+| --- | ---: | ---: | ---: |
+| warm opener (حياك / أبشر / هلا) | 1/9 | 6/9 | **7/9** |
+| any warm word | 3/9 | 7/9 | **8/9** |
+| refusal with an alternative | 3/3 | 3/3 | **3/3** |
+| hand-back question | 7/9 | 8/9 | 7/9 |
+| mean length (chars) | 178 | 214 | **197** |
+| at 11.44 c/s | 15.6s | 18.7s | **17.2s** |
+
+Pass 1 asked her to «say why it is the best place» and she took that as
+licence to list every feature — the extra length was description, not
+pleasantries. Pass 2 made the reason one sentence and the warmth one word,
+and clawed back most of it. Three things are still true and written here
+rather than smoothed over: she is about two seconds over her own ceiling on
+an average answer, and was already at it before any of this; the hand-back
+slipped back to seven of nine, with one answer (الزهراء) that used to end on a
+question now ending on a full stop; and three replies put the closing question
+on its own paragraph, which the prompt forbids and which in speech is only a
+pause. One reply also said «حطيتهم لك على الخريطة» without calling
+`show_places` at all — row 5 exists to catch exactly that on real calls.
+
+**This scorecard is attached to the agent.** All eight rows are evaluation
+criteria on شوق's configuration (`grounded`, `honest_limits`,
 `answered_the_question`, `read_back`, `said_what_changed`, `handed_turn_back`,
-`kuwaiti_register`), scored pass/fail per conversation after every call, with
+`kuwaiti_register`, `warm_and_willing`), scored pass/fail per conversation after every call, with
 row 1 the only one allowed to read the knowledge base while it judges. The
 weights are not enforced by the platform — every criterion counts the same in
 its aggregate — so the weighting above is how to *read* a scorecard, not how
