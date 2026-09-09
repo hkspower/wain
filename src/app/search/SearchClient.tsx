@@ -8,7 +8,8 @@ import SearchResults, { optionId } from "@/components/SearchResults";
 import SearchPlan from "@/components/SearchPlan";
 import ShouqAnswer from "@/components/ShouqAnswer";
 import VoiceControls from "@/components/VoiceControls";
-import { IconClose, IconCompass, IconMic, IconSearch } from "@/components/icons";
+import ShouqCallButton from "@/components/ShouqCallButton";
+import { IconClose, IconCompass, IconSearch } from "@/components/icons";
 import { toArabicDigits } from "@/lib/places";
 import { usePlaces } from "@/lib/usePlaces";
 import { buildIndex, search, type DocKind } from "@/lib/search";
@@ -16,8 +17,6 @@ import { useListboxKeys } from "@/lib/useListboxKeys";
 import { answerParts } from "@/lib/voice-lines";
 import { speak, stop as stopVoice, useVoice } from "@/lib/voice";
 import { haptic } from "@/lib/haptics";
-import { canListen, getRecognition, SPEECH_LANG, transcriptOf, type SpeechRecognitionLike } from "@/lib/speech";
-import { WAIN_AI_COPY } from "@/lib/wain-ai";
 
 const FILTERS: { id: DocKind | "all"; label: string }[] = [
   { id: "all", label: "الكل" },
@@ -233,73 +232,21 @@ export default function SearchClient() {
   // Leaving the page shouldn't leave a voice talking.
   useEffect(() => () => stopVoice(), []);
 
-  /**
-   * The microphone, on the page شوق hands you to.
+  /* The box's own microphone is gone, and شوق is in its place.
    *
-   * Her call owned the only mic on the site, so the page she sends you to
-   * could be REACHED by voice and then only used by typing. «The search box is
-   * the same brain with typed input», says the comment that routes here when
-   * recognition is missing — true in one direction. Now the box listens with
-   * the same engine and the same `ar-KW`, so asking out loud and asking again
-   * are the same gesture rather than two different features.
+   * It was added so the page شوق hands you to could also be USED by voice —
+   * «the search box is the same brain with typed input» — and it did that with
+   * the same engine and the same ar-KW, dictating straight into `q` so the
+   * results moved while the sentence was still being said.
    *
-   * Interim results go straight into `q`, which means the results and the map
-   * move while the sentence is still being said. That is the whole point: the
-   * answer is already forming by the time the speaker stops.
-   *
-   * Rendered only where it can work. A mic that opens a permission prompt and
-   * then does nothing — every Firefox, every older desktop Safari — is worse
-   * than no mic, and `canListen` is read in an effect because the server has
-   * no window to ask.
+   * What it became, once the call moved onto this page, was the second
+   * microphone on it: a mic in the box that dictates, and a coral launcher
+   * beside it that calls, two icons a visitor reads as one offer. In local
+   * mode a call already ends where the mic ended — the sentence lands in `q`
+   * via the `wain:asked` handover above, this page searches it and reads the
+   * answer back — so the behaviour survives the button that is left.
+   * `ShouqCallButton` is that button, in the box, below.
    */
-  const [micReady, setMicReady] = useState(false);
-  useEffect(() => setMicReady(canListen()), []);
-  const [listening, setListening] = useState(false);
-  const recRef = useRef<SpeechRecognitionLike | null>(null);
-  const [micError, setMicError] = useState<string | null>(null);
-
-  // An engine left running past the page is a microphone left open.
-  useEffect(() => () => recRef.current?.abort(), []);
-
-  const toggleMic = useCallback(() => {
-    if (recRef.current) {
-      recRef.current.stop();
-      return;
-    }
-    const rec = getRecognition();
-    if (!rec) {
-      setMicError(WAIN_AI_COPY.unsupported);
-      return;
-    }
-    rec.lang = SPEECH_LANG;
-    rec.interimResults = true;
-    rec.maxAlternatives = 1;
-    recRef.current = rec;
-    setMicError(null);
-    // Listening starts when the engine says so, not when the button was
-    // pressed — everything in between is the permission prompt.
-    rec.onstart = () => {
-      haptic("tap");
-      setListening(true);
-    };
-    rec.onresult = (e) => setQ(transcriptOf(e));
-    rec.onerror = (e) => {
-      // A stop() we asked for reports as an abort. That is not a failure, and
-      // showing «ما سمعناك» for it would blame the visitor for pressing stop.
-      if (e.error !== "aborted") setMicError(WAIN_AI_COPY.noSpeech);
-    };
-    rec.onend = () => {
-      recRef.current = null;
-      setListening(false);
-    };
-    try {
-      rec.start();
-    } catch {
-      recRef.current = null;
-      setListening(false);
-      setMicError(WAIN_AI_COPY.callFailed);
-    }
-  }, []);
 
   /**
    * The keyboard, which this page did not answer at all.
@@ -360,51 +307,27 @@ export default function SearchClient() {
           placeholder="اكتب اسم مكان، منطقة، أو جو…"
           className="w-full rounded-2xl border border-line-control bg-white py-4 pe-4 ps-12 text-lg text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/60 focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
         />
-        {micReady && (
-          <button
-            type="button"
-            onClick={toggleMic}
-            aria-label={listening ? "إيقاف الاستماع" : "اسأل شوق بصوتك"}
-            aria-pressed={listening}
-            className={`absolute inset-y-0 end-3 my-auto grid size-11 place-items-center rounded-full transition ${
-              listening
-                ? "bg-coral-600 text-white shadow-md"
-                : "text-coral-700 hover:bg-coral-50"
-            }`}
-          >
-            <IconMic className="size-5" />
-            {listening && (
-              <span
-                aria-hidden="true"
-                className="absolute inset-0 animate-ping rounded-full bg-coral-500/40 motion-reduce:animate-none"
-              />
-            )}
-          </button>
-        )}
+        {/* Unconditional, unlike the mic it replaces. That was rendered only
+            where `canListen()` was true, because a microphone that opens a
+            permission prompt and then does nothing is worse than none. A call
+            has somewhere to go on every browser: without recognition it says
+            so and leaves the visitor in this box, typing. */}
+        <ShouqCallButton className="absolute inset-y-0 end-3 my-auto" />
         {q && (
           <button
             type="button"
             onClick={() => setQ("")}
             aria-label="مسح البحث"
-            className={`absolute inset-y-0 my-auto grid size-11 place-items-center rounded-full text-ink-500 transition hover:bg-sand-200 hover:text-ink-800 ${
-              micReady ? "end-14" : "end-3"
-            }`}
+            className="absolute inset-y-0 end-14 my-auto grid size-11 place-items-center rounded-full text-ink-500 transition hover:bg-sand-200 hover:text-ink-800"
           >
             <IconClose className="size-4" />
           </button>
         )}
       </div>
 
-      {(listening || micError) && (
-        <p
-          // Not live: the mic button carries aria-pressed, so the state
-          // change is already announced, and a second polite region competing
-          // with شوق's answer means two announcements per query.
-          className={`mt-2 px-1 text-xs font-semibold ${listening ? "text-coral-700" : "text-ink-500"}`}
-        >
-          {listening ? WAIN_AI_COPY.listening : micError}
-        </p>
-      )}
+      {/* The listening line went with the mic. The call has its own sheet, and
+          it says «يرن…» / «متصل» / why it failed with far more room than a
+          caption under a text field ever had. */}
 
       {/* Filters */}
       {q.trim() && (

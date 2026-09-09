@@ -79,10 +79,25 @@ It is rendered now, from the same object that is handed to `speak()`. There is
 no second copy of what she says, which is the only way the written and the
 spoken answer cannot drift.
 
-### The call is placed from here now
+### The call is placed from the box now
 
-The وين AI button is offered on this page and hidden on the other six routes —
-see `docs/call.md` for why the component still lives in the root layout.
+The وين AI button is **inside the query box**, where this page's own
+microphone used to be, and nowhere else on the site — see `docs/call.md` for
+why the component itself still lives in the root layout.
+
+The mic is gone with it. It existed so the page شوق hands you to could also be
+USED by voice, and it did that well: interim results went straight into `q`,
+so the results and the map moved while the sentence was still being said. What
+killed it was the call arriving on the same page — a mic that dictates and a
+launcher that calls, adjacent, both drawn as a microphone-ish glyph, is one
+offer drawn twice. Local mode ends where the mic ended, so the behaviour
+survives the button that was removed.
+
+One difference worth knowing: the mic rendered only where `canListen()` was
+true, because a microphone that opens a permission prompt and then does
+nothing is worse than no microphone. The call button is unconditional — on a
+browser with no recognition it says so and leaves you in this box, typing,
+which is somewhere to be.
 
 That broke two things quietly, and both are worth knowing because neither is
 about شوق. Handing a spoken question over is `sessionStorage` plus a push to

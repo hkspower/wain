@@ -82,12 +82,19 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
 Agent `agent_1701m1gcrccrethae9y3nyv1e116`. 13 attached tests; run them after
 any prompt change.
 
-**The launcher is offered on /search only; the component lives in the root
-layout.** Both are deliberate. Every call already ended on /search, so the
-button belongs there — but `open_place` is a route change and the
-`<elevenlabs-convai>` element is created inside `WainAiCall`, so a call the
-search page owned would be killed by its own tool. It hides its button off
-/search instead of unmounting. Tests assert *visibility*, not presence.
+**The launcher is `ShouqCallButton`, inside the /search query box; the call
+component lives in the root layout.** Both are deliberate. Every call already
+ended on /search, so the button belongs there — and it replaced the box's own
+dictation mic, because a mic and a call button side by side are one offer
+drawn twice. The call cannot move with it: `open_place` is a route change and
+the `<elevenlabs-convai>` element is created inside `WainAiCall`, so a call the
+search page owned would be killed by its own tool.
+
+They are therefore in different trees and talk over **`lib/wain-ai-bus.ts`** —
+one window event to request a call, one to carry the phase back so the button
+can render the pulse and `aria-expanded` honestly. Do the gesture work
+(`haptic`, `primeAudio`) in the button, synchronously: iOS will not unlock
+audio outside a gesture and the call mounts an event later.
 
 **Her tools read `usePlaces()`, not `@/lib/places`.** They used to build an
 index from the build-time snapshot while every listing rendered live rows, so

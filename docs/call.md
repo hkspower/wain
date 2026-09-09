@@ -6,21 +6,39 @@ Tap the وين AI button and the call starts. That is the whole interaction.
 
 They are not the same place, and the difference is load-bearing.
 
-The button is offered on **/search only**. Everything a call does already
-ended there: local mode pushes `/search?q=…`, `show_places` pushes
-`/search?q=…` and then reports what that page found, and a browser with no
-speech recognition is sent to `/search` to type instead. On the privacy policy
-the launcher's only power was to navigate away from the privacy policy.
+**The button is inside the search box** on /search — `ShouqCallButton`, where
+the mic used to be. It went through two homes to get there. It was a coral
+launcher floating over the corner of every page, which was wrong because
+everything a call does already ends on /search: local mode pushes
+`/search?q=…`, `show_places` pushes `/search?q=…` and then reports what that
+page found, and a browser with no speech recognition is sent to `/search` to
+type. On the privacy policy its only power was to navigate away from the
+privacy policy. Then it floated over the corner of /search alone, which was
+still one voice control too many — the box already had a microphone that
+dictated into the field, so two microphone-ish buttons sat side by side
+offering what a visitor reads as the same thing.
 
-The component stays in the **root layout**, above the router, and hides its
-button off /search. It has to: `open_place` is a route change, and the
-`<elevenlabs-convai>` element is created imperatively inside `WainAiCall`, so a
-call the search page owned would be torn down by its own tool — she opens the
-place, says «فتحت لك صفحته، تبي شي ثاني؟», and the line is already dead.
+There is one now, in the box, and it places the call. The dictation the mic
+did is not lost on a browser without the agent: local mode ends where the mic
+ended, with the sentence in the field and the answer read back.
 
-`tests/shouq-flow.test.mjs` asserts both halves by **visibility**, not
-presence: shown on /search, hidden on the other six routes. Presence would
-still pass if somebody put the launcher back everywhere.
+**The component stays in the root layout**, above the router. It has to:
+`open_place` is a route change, and the `<elevenlabs-convai>` element is
+created imperatively inside `WainAiCall`, so a call the search page owned
+would be torn down by its own tool — she opens the place, says «فتحت لك
+صفحته، تبي شي ثاني؟», and the line is already dead.
+
+So the two are in different React trees and talk over `lib/wain-ai-bus.ts`:
+one window event to ask for a call, one to carry the phase back. The phase has
+to come back or the button would be claiming something it cannot see — the
+pulse while ringing, the moving mouth while she talks, and `aria-expanded` on
+a dialog it does not render. The gesture work stays with the button, because
+iOS will not unlock audio outside a user gesture and the call mounts an event
+and a chunk-fetch later, by which time the activation is gone.
+
+`tests/shouq-search.test.mjs` asserts the box has her button and no second
+voice control; `tests/shouq-flow.test.mjs` asserts she is offered on /search
+and nowhere else.
 
 ## What she answers from
 
