@@ -75,7 +75,7 @@ console.log(`\nwain ${version} — deploy plan\n`);
 if (git(["status", "--porcelain"]) !== "") {
   fail("the working tree is dirty. Commit first — a deploy is pinned to a sha,\n  and a dirty build does not correspond to one.");
 }
-const commit = git(["rev-parse", "HEAD"]);
+const head = git(["rev-parse", "HEAD"]);
 const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
 
 /* ── and the export has to be this commit's ──────────────────────────────── */
@@ -83,11 +83,42 @@ if (!existsSync(OUT)) fail("out/ does not exist. Run `npm run release` first.");
 if (!existsSync(join(OUT, "build.json"))) fail("out/build.json is missing. Run `npm run release`.");
 
 const build = JSON.parse(readFileSync(join(OUT, "build.json"), "utf8"));
-if (build.commit !== commit) {
-  fail(`out/ was built from ${build.commit.slice(0, 8)} but HEAD is ${commit.slice(0, 8)}.\n  Run \`npm run release\` to rebuild against HEAD.`);
-}
 if (build.dirty) fail("out/build.json says the build came from a dirty tree.");
 if (!existsSync(archive)) fail(`${relative(ROOT, archive)} is missing. Run \`npm run release\`.`);
+
+/**
+ * There are two commits here, and conflating them made the first run of this
+ * script impossible to satisfy.
+ *
+ * The export is built at one commit — that sha is the build id, so it names
+ * `_next/static/<sha>/` and is what build.json will claim. But the server
+ * fetches the zip over HTTP, which means the zip has to be *in* the
+ * repository, which means committing it — and that commit is necessarily one
+ * later than the build it contains. Requiring them to be equal is requiring
+ * the archive to contain itself.
+ *
+ * So the build commit may be behind HEAD, but only by commits that changed
+ * nothing except the archive. Anything else and out/ is stale.
+ */
+const ARCHIVE_ONLY = new Set([`wain-${version}.zip`, `wain-${version}.zip.sha256`]);
+if (build.commit !== head) {
+  let drift;
+  try {
+    drift = git(["diff", "--name-only", build.commit, head]).split("\n").filter(Boolean);
+  } catch {
+    fail(`out/ was built from ${build.commit.slice(0, 8)}, which is not in this history.\n  Run \`npm run release\`.`);
+  }
+  const real = drift.filter((f) => !ARCHIVE_ONLY.has(f));
+  if (real.length) {
+    fail(
+      `out/ was built from ${build.commit.slice(0, 8)} but HEAD is ${head.slice(0, 8)}, and\n` +
+      `  ${real.length} file(s) changed in between:\n` +
+      real.slice(0, 5).map((f) => `    ${f}`).join("\n") +
+      `\n  Run \`npm run release\` to rebuild against HEAD.`,
+    );
+  }
+}
+const commit = build.commit;
 
 const zipBytes = statSync(archive).size;
 const zipSha = createHash("sha256").update(readFileSync(archive)).digest("hex");
@@ -136,7 +167,37 @@ for (const [path] of required) {
 
 /* ── the commands, and whether they can be sent at all ───────────────────── */
 const repo = git(["remote", "get-url", "origin"]).replace(/^.*github\.com[/:]/, "").replace(/\.git$/, "");
-const url = `https://raw.githubusercontent.com/${repo}/${commit.slice(0, 7)}/wain-${version}.zip`;
+
+/**
+ * Which commit the URL points at is found, not assumed.
+ *
+ * A branch name would be wrong — it moves, and a deploy that quietly fetched
+ * something newer than what was verified is worse than one that fails. HEAD
+ * would be wrong too: HEAD is where the zip was *committed*, which is only the
+ * right answer if this local archive is byte-identical to the one committed
+ * there, and after a rebuild it is not.
+ *
+ * So: hash the local file the way git would, and walk the commits that touched
+ * the archive looking for that exact blob. A match is proof the URL serves
+ * this file. No match means it has not been committed yet, which is a
+ * different problem with a different fix, and the difference is worth saying
+ * out loud rather than discovering as a 404 on the server.
+ */
+const localBlob = git(["hash-object", archive]);
+const touched = git(["log", "--format=%H", "--", `wain-${version}.zip`]).split("\n").filter(Boolean);
+const publish = touched.find((sha) => {
+  try { return git(["rev-parse", `${sha}:wain-${version}.zip`]) === localBlob; } catch { return false; }
+});
+if (!publish) {
+  fail(
+    `wain-${version}.zip is not committed anywhere in this history.\n` +
+    `  The server fetches it over HTTP, so it has to be in the repository:\n` +
+    `    git add -f wain-${version}.zip && git commit && git push\n` +
+    `  Then run this again. (.gitignore lists it, hence -f — it is deleted\n` +
+    `  again once the deploy is verified.)`,
+  );
+}
+const url = `https://raw.githubusercontent.com/${repo}/${publish.slice(0, 7)}/wain-${version}.zip`;
 const zipOnServer = `${DOCROOT}/w.zip`;
 
 const commands = [
@@ -188,6 +249,7 @@ if (!OFFLINE) {
 const plan = {
   version,
   commit,
+  publish,
   branch,
   digest: build.digest,
   docroot: DOCROOT,
@@ -201,7 +263,8 @@ const plan = {
 const planPath = join(ROOT, "deploy-plan.json");
 writeFileSync(planPath, JSON.stringify(plan, null, 2) + "\n");
 
-console.log(`  commit   ${commit.slice(0, 8)}  (${branch})`);
+console.log(`  built    ${commit.slice(0, 8)}  (${branch})`);
+console.log(`  zip at   ${publish.slice(0, 8)}${publish === commit ? "" : "  — the commit that publishes the archive"}`);
 console.log(`  digest   ${build.digest}`);
 console.log(`  archive  ${(zipBytes / 1048576).toFixed(2)} MB, sha256 ${zipSha.slice(0, 16)}…`);
 console.log(`  export   ${Object.keys(files).length} files`);
