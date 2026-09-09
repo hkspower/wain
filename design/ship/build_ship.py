@@ -129,27 +129,34 @@ var T_RESOLVE= 6.5;   // code gives way to the drawn mark
 var T_MARK   = 7.6;
 var T_WORD   = 7.9;   // the wordmark writes in beneath
 
-// ---- layout --------------------------------------------------------------
-var CELL = 13;
-var COLS = Math.ceil(W / CELL);
-var ROWS = Math.ceil(H / CELL);
-var TRAIL = 14;                       // cells of fading tail behind each head
+// ---- two grids, because one grid cannot do both jobs ---------------------
+// The rain and the ship were laid out on the same grid, and the two wants
+// pull opposite ways: the ship needs small cells to be solid, the rain needs
+// large glyphs to be legible. Shrinking the grid to 13px for solidity made
+// the falling code too small to read. So the rain keeps its own coarse grid
+// and the ship keeps a fine one — and the ship's cells are still struck by
+// the rain column that passes over them, so the rain visibly paints the hull.
+var RAIN = 22;                        // the falling code: big enough to read
+var CELL = 13;                        // the ship's fill: small enough to be solid
+var RCOLS = Math.ceil(W / RAIN);
+var RROWS = Math.ceil(H / RAIN);
+var TRAIL = 13;                       // cells of fading tail behind each head
 
 var rnd = mulberry32(20260909);
 var col = [];
-for (var c = 0; c < COLS; c++) {{
+for (var c = 0; c < RCOLS; c++) {{
   col.push({{
-    speed: (0.22 + rnd() * 0.42),     // cells per frame
-    phase: rnd() * ROWS * 3,
-    dim: 0.10 + rnd() * 0.17
+    speed: (0.20 + rnd() * 0.38),     // cells per frame
+    phase: rnd() * RROWS * 3,
+    dim: 0.30 + rnd() * 0.34
   }});
 }}
 
 // ---- the ship's own mask -------------------------------------------------
 // The mark is filled once into an offscreen canvas at the size it will hold on
-// screen; a cell is "in the ship" when that canvas has ink at its centre. This
-// is why the code assembles the real boum and not an outline of one: the mask
-// is the drawing itself.
+// screen. It does two jobs: it says which cells are in the ship, and it is the
+// alpha the code fill is clipped against — so the fill stops exactly at the
+// mark's edge rather than at whichever cell centres happened to fall inside.
 var vb = VIEW.split(/\\s+/).map(Number);
 var SHIP_W = Math.round(W * 0.68);
 var SHIP_H = SHIP_W * (vb[3] / vb[2]);
@@ -157,21 +164,50 @@ var SHIP_X = (W - SHIP_W) / 2;
 var SHIP_Y = (H - SHIP_H) / 2 - H * 0.045;
 var SCALE = SHIP_W / vb[2];
 
+function shipPaths(g) {{
+  g.translate(SHIP_X, SHIP_Y);
+  g.scale(SCALE, SCALE);
+}}
+
 function drawShip(g, alpha) {{
   g.save();
   g.globalAlpha = alpha;
-  g.translate(SHIP_X, SHIP_Y);
-  g.scale(SCALE, SCALE);
+  shipPaths(g);
   for (var i = 0; i < SHIP.length; i++) {{
     var p = SHIP[i], path = new Path2D(p.d);
     if (p.fill === "currentColor") {{ g.fillStyle = TINT_STRONG; g.fill(path); }}
     if (p.w > 0) {{
       g.strokeStyle = TINT_STRONG;
-      g.lineWidth = p.w;
-      g.lineCap = p.cap;
-      g.lineJoin = "round";
+      g.lineWidth = p.w; g.lineCap = p.cap; g.lineJoin = "round";
       g.stroke(path);
     }}
+  }}
+  g.restore();
+}}
+
+// THE BORDER. The code fill alone gives a shape whose edge is made of letter
+// shapes, and at any distance that edge reads as fuzz. Stroking the mark's own
+// outline over the fill draws the boum's line — the stem, the sheer, the leech
+// of each sail — so the shape is stated and the code sits inside it. It is
+// drawn only while the code is standing; the resolved mark is the mark itself,
+// with nothing added to it.
+function drawBorder(g, alpha) {{
+  g.save();
+  g.globalAlpha = alpha;
+  shipPaths(g);
+  g.strokeStyle = TINT_STRONG;
+  g.lineJoin = "round";
+  for (var i = 0; i < SHIP.length; i++) {{
+    var p = SHIP[i], path = new Path2D(p.d);
+    // A filled path gets a THIN outline, not its own weight. The hull is a
+    // filled crescent a few units deep; stroking its outline at the mark's
+    // own 0.6 swallowed the crescent whole and left the code showing as a
+    // ribbon inside a heavy brown shape. The masts and spars are already
+    // lines and keep their true weight — code inside a mast was never going
+    // to be visible, and a mast at half weight is not this mark's mast.
+    g.lineWidth = p.fill === "currentColor" ? 0.34 : p.w;
+    g.lineCap = p.w > 0 ? p.cap : "round";
+    g.stroke(path);
   }}
   g.restore();
 }}
@@ -179,42 +215,50 @@ function drawShip(g, alpha) {{
 var mask = document.createElement("canvas");
 mask.width = W; mask.height = H;
 var mg = mask.getContext("2d");
-// Filled *and* stroked heavily, so the masts and spars — one pixel wide in the
-// original units — are thick enough for a 26px grid to find them. A mast the
-// grid cannot see is a mast the code never builds, and the mark stops being a
-// boum the moment its rig goes missing.
+// Filled *and* stroked heavier than true, so the masts and spars — barely a
+// unit wide in the original drawing — survive into a grid of pixels. A mast
+// the grid cannot see is a mast the code never builds, and the mark stops
+// being a boum the moment its rig goes missing.
 mg.save();
-mg.translate(SHIP_X, SHIP_Y);
-mg.scale(SCALE, SCALE);
+shipPaths(mg);
 for (var i = 0; i < SHIP.length; i++) {{
   var p = SHIP[i], path = new Path2D(p.d);
   mg.fillStyle = "#000";
   if (p.fill === "currentColor") mg.fill(path);
-  if (p.w > 0) {{
-    mg.strokeStyle = "#000";
-    mg.lineWidth = Math.max(p.w, 1.1);
-    mg.lineCap = p.cap; mg.lineJoin = "round";
-    mg.stroke(path);
-  }}
+  mg.strokeStyle = "#000";
+  mg.lineWidth = p.w > 0 ? Math.max(p.w, 1.0) : 0.5;
+  mg.lineCap = p.w > 0 ? p.cap : "round";
+  mg.lineJoin = "round";
+  mg.stroke(path);
 }}
 mg.restore();
 var maskData = mg.getImageData(0, 0, W, H).data;
 function inShip(px, py) {{
   if (px < 0 || py < 0 || px >= W || py >= H) return false;
-  return maskData[((py | 0) * W + (px | 0)) * 4 + 3] > 24;
+  return maskData[((py | 0) * W + (px | 0)) * 4 + 3] > 16;
 }}
 
-// Which cells belong to the ship, and the frame each is struck by its own
-// column's falling head — solved, not accumulated. A column repeats every
-// `period` frames; the strike is the first repetition at or after T_LOCK.
+// The layer the code fill is drawn on, so it can be clipped to the mask before
+// it reaches the page. A glyph is drawn from its centre and spills past the
+// cell it belongs to, so cells chosen by centre alone gave a deckle edge that
+// no amount of grid tuning fixes — the fill has to be cut, not approximated.
+var layer = document.createElement("canvas");
+layer.width = W; layer.height = H;
+var lg = layer.getContext("2d");
+
+// Which cells belong to the ship, and the frame each is struck by the rain
+// column above it — solved, not accumulated. A column repeats every `period`
+// frames; the strike is the first repetition at or after T_LOCK.
 var lockStart = T_LOCK * FPS, lockEnd = T_LOCKED * FPS;
 var cells = [];
-for (var c = 0; c < COLS; c++) {{
-  var period = (ROWS + TRAIL) / col[c].speed;
-  for (var r = 0; r < ROWS; r++) {{
-    var cx = c * CELL + CELL / 2, cy = r * CELL + CELL / 2;
+for (var gx = 0; gx < Math.ceil(W / CELL); gx++) {{
+  for (var gy = 0; gy < Math.ceil(H / CELL); gy++) {{
+    var cx = gx * CELL + CELL / 2, cy = gy * CELL + CELL / 2;
     if (!inShip(cx, cy)) continue;
-    var f0 = ((r + TRAIL) - col[c].phase) / col[c].speed;
+    var rc = Math.min(RCOLS - 1, Math.floor(cx / RAIN));
+    var rr = cy / RAIN;                       // in rain rows, not ship rows
+    var period = (RROWS + TRAIL) / col[rc].speed;
+    var f0 = ((rr + TRAIL) - col[rc].phase) / col[rc].speed;
     var k = Math.ceil((lockStart - f0) / period);
     var at = f0 + Math.max(0, k) * period;
     // A slow column's next pass can fall after the window closes, and that
@@ -223,7 +267,7 @@ for (var c = 0; c < COLS; c++) {{
     // return a larger number than it was given, which is how the holes got
     // there in the first place.
     if (at > lockEnd) at = lockStart + ((at - lockStart) % (lockEnd - lockStart));
-    cells.push({{ c: c, r: r, x: cx, y: cy, at: at }});
+    cells.push({{ c: rc, r: gy, x: cx, y: cy, at: at }});
   }}
 }}
 
@@ -236,11 +280,15 @@ function glyph(c, r, f) {{
 }}
 function ease(x) {{ return x <= 0 ? 0 : x >= 1 ? 1 : 1 - Math.pow(1 - x, 3); }}
 
-// How much each glyph must be widened to fill a cell. Measured once for the
-// thirty-eight glyphs rather than per cell per frame — the same measurement
-// eleven hundred times a frame is the kind of cost that only shows up as a
-// render that never finishes.
+// How much each glyph must be widened to fill a cell. Cairo's glyphs are not
+// one width, and at their natural advance they leave white gutters straight
+// through the sails — the ship read as scattered type rather than a shape.
+// Measured once for the thirty-eight glyphs, not per cell per frame: the same
+// measurement thousands of times a frame only shows up as a render that never
+// finishes. Capped, because a narrow letter blown to three times its width
+// stops being that letter.
 var LOCK_FONT = '800 ' + Math.round(CELL * 1.06) + 'px Cairo, sans-serif';
+var RAIN_FONT = '500 ' + Math.round(RAIN * 0.82) + 'px Cairo, sans-serif';
 var STRETCH = {{}};
 (function () {{
   ctx.save();
@@ -262,53 +310,62 @@ function renderFrame(f) {{
 
   var resolve = ease((t - T_RESOLVE) / (T_MARK - T_RESOLVE));
 
-  // The rain, everywhere — and deliberately faint. The first version gave the
-  // falling heads nearly the weight of the struck cells, and the ship simply
-  // did not appear: with no figure/ground separation the whole frame read as
-  // noise. Ground is texture; the mark is ink.
-  ctx.font = '400 ' + (CELL - 6) + 'px Cairo, sans-serif';
-  for (var c = 0; c < COLS; c++) {{
-    var period = ROWS + TRAIL;
+  // The rain. It is the subject of the piece, not wallpaper, so it is set at a
+  // size that can actually be read and at a weight that holds on white — but
+  // still under the struck cells, because with no separation between figure and
+  // ground the first version read as noise and the ship never appeared at all.
+  ctx.font = RAIN_FONT;
+  ctx.fillStyle = TINT;
+  for (var c = 0; c < RCOLS; c++) {{
+    var period = RROWS + TRAIL;
     var head = ((col[c].phase + f * col[c].speed) % period);
     for (var k = 0; k < TRAIL; k++) {{
       var r = Math.floor(head) - k;
-      if (r < 0 || r >= ROWS) continue;
-      var x = c * CELL + CELL / 2, y = r * CELL + CELL / 2;
-      // a cell the ship has already claimed is drawn by the ship, not here
-      if (inShip(x, y) && f >= lockStart) continue;
-      var a = (1 - k / TRAIL) * col[c].dim * (k === 0 ? 1 : 0.72);
-      a *= (1 - 0.55 * resolve);       // the rain steps back for the mark
-      ctx.fillStyle = TINT;
-      ctx.globalAlpha = Math.max(0, a);
+      if (r < 0 || r >= RROWS) continue;
+      var x = c * RAIN + RAIN / 2, y = r * RAIN + RAIN / 2;
+      // a cell the ship has claimed is drawn by the ship, not here
+      if (f >= lockStart && inShip(x, y)) continue;
+      var a = (1 - k / TRAIL) * col[c].dim * (k === 0 ? 1.35 : 0.8);
+      ctx.globalAlpha = Math.max(0, Math.min(1, a) * (1 - 0.6 * resolve));
       ctx.fillText(glyph(c, r, f), x, y);
     }}
   }}
   ctx.globalAlpha = 1;
 
-  // The ship, struck cell by cell out of the code — and SOLID. Cairo's glyphs
-  // are not one width, so letting them sit at their natural advance left white
-  // gutters right through the sails and the hull read as scattered type rather
-  // than as a shape. Each struck glyph is stretched horizontally to exactly
-  // fill its cell, so the cells abut and the mark is a mass, not a sprinkle.
-  // The stretch is capped: a narrow letter blown to three times its width
-  // stops being that letter, and the rain has to stay readable as Arabic.
-  ctx.font = LOCK_FONT;
-  for (var i = 0; i < cells.length; i++) {{
-    var cl = cells[i];
-    if (f < cl.at) continue;
-    var age = (f - cl.at) / FPS;
-    var pop = ease(age / 0.28);                 // it lands, it does not fade in
-    var g = glyph(cl.c, cl.r, cl.at);
-    ctx.fillStyle = TINT_STRONG;
-    ctx.globalAlpha = (0.82 + 0.18 * pop) * (1 - resolve);
-    ctx.save();
-    ctx.translate(cl.x, cl.y);
-    var s = 1 + 0.45 * (1 - pop);
-    ctx.scale(stretch(g) * s, s);
-    ctx.fillText(g, 0, 0);
-    ctx.restore();
+  // The ship, struck cell by cell — drawn to its own layer and then cut to the
+  // mark's silhouette, so the fill ends where the boum ends.
+  if (resolve < 1) {{
+    lg.clearRect(0, 0, W, H);
+    lg.textAlign = "center";
+    lg.textBaseline = "middle";
+    lg.font = LOCK_FONT;
+    lg.fillStyle = TINT_STRONG;
+    for (var i = 0; i < cells.length; i++) {{
+      var cl = cells[i];
+      if (f < cl.at) continue;
+      var pop = ease((f - cl.at) / FPS / 0.26);   // it lands, it does not fade
+      var g = glyph(cl.c, cl.r, cl.at);
+      lg.globalAlpha = 0.85 + 0.15 * pop;
+      lg.save();
+      lg.translate(cl.x, cl.y);
+      var s = 1 + 0.4 * (1 - pop);
+      lg.scale(stretch(g) * s, s);
+      lg.fillText(g, 0, 0);
+      lg.restore();
+    }}
+    lg.globalAlpha = 1;
+    lg.globalCompositeOperation = "destination-in";
+    lg.drawImage(mask, 0, 0);
+    lg.globalCompositeOperation = "source-over";
+
+    ctx.globalAlpha = 1 - resolve;
+    ctx.drawImage(layer, 0, 0);
+    ctx.globalAlpha = 1;
+
+    // and the outline over it, rising as the hull fills
+    var edge = ease((f - lockStart) / (lockEnd - lockStart));
+    drawBorder(ctx, edge * (1 - resolve));
   }}
-  ctx.globalAlpha = 1;
 
   // and then it is simply the mark
   if (resolve > 0) drawShip(ctx, resolve);
@@ -329,6 +386,16 @@ function renderFrame(f) {{
     ctx.globalAlpha = 1;
   }}
 }}
+
+// Reported so the renderer can refuse a build where cells fall outside the
+// window: such a cell is a hole in the hull that no frame ever fills, and
+// nothing in a finished video says which one it was.
+var late = 0;
+for (var i = 0; i < cells.length; i++) {{
+  if (cells[i].at < lockStart || cells[i].at > lockEnd) late++;
+}}
+window.SHIP_META = {{ fps: FPS, total: TOTAL, frames: Math.round(TOTAL * FPS),
+                     cells: cells.length, late: late }};
 
 window.renderFrame = renderFrame;
 // Reported so the renderer can refuse a build where cells fall outside the
