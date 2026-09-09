@@ -34,6 +34,7 @@
     "check:accel": "node tools/shots/accel.mjs",
     "check:align": "node tools/shots/align.mjs",
     "check:caredges": "node tools/shots/caredges.mjs",
+    "check:connector": "node scripts/check-unreal-connector.mjs",
     "check:dark": "node tools/shots/dark.mjs",
     "check:edges": "node tools/shots/edges.mjs",
     "check:film": "node tools/shots/introfilm.mjs",

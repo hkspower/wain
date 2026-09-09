@@ -4,3 +4,12 @@ Intermediate/
 Saved/
 .vs/
 *.sln
+
+# macOS. Xcode workspaces and their derived data are generated from the
+# .uproject by `unreal/mac/connect.sh` (or by right-clicking the project
+# in Finder), so they are a build output like Binaries/ and Intermediate/
+# and belong in the tree no more than those do.
+*.xcworkspace
+*.xcodeproj
+DerivedData/
+.DS_Store

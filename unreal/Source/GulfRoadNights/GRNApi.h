@@ -19,6 +19,24 @@
 /** The payload version this client understands. */
 #define GRN_API_VERSION 1
 
+/**
+ * The connector's own log category.
+ *
+ * It used to write to LogTemp, along with everything else in the engine
+ * that has not been given a category. That matters more here than it
+ * looks: this subsystem is BUILT to fall back — a failed fetch logs a
+ * warning and the game plays on with the tables baked into GRNTypes.h —
+ * so the log line is the only evidence that anything went wrong, and it
+ * was in the one channel nobody filters for.
+ *
+ * On macOS that is not a hypothetical. A packaged Mac build refuses
+ * cleartext http:// under App Transport Security, so the fetch fails,
+ * the fallback catches it, and the game looks exactly like a working
+ * one. `LogGRNApi` and the GRN.Api.Status command below exist so the
+ * answer to "is it actually connected" is one line, not an inference.
+ */
+DECLARE_LOG_CATEGORY_EXTERN(LogGRNApi, Log, All);
+
 USTRUCT()
 struct FGRNRuntimeRival
 {
@@ -76,6 +94,21 @@ public:
 
 	bool IsLive() const { return bLive; }
 	bool IsReady() const { return bReady; }
+
+	/**
+	 * Why the tables are what they are, in one line, for a human.
+	 *
+	 * Printed at boot and by the GRN.Api.Status console command. The
+	 * point is that "connected" and "quietly using the baked tables"
+	 * stop looking the same from inside the game.
+	 */
+	FString StatusLine() const;
+
+	/** What went wrong on the last attempt, empty if nothing did. */
+	FString LastError;
+	/** The HTTP code the last attempt came back with, 0 if it never got
+	 *  that far — which on macOS is what an ATS refusal looks like. */
+	int32 LastResponseCode = 0;
 
 	// ------------------------------------------------------------ tables
 	// These prefer live data and fall back to the compiled-in tables, so

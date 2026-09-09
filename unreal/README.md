@@ -15,6 +15,76 @@ reviewable, diffable text.
 3. Press Play. The game mode spawns the track, world, player and first
    rival automatically — no map setup needed.
 
+## On macOS
+
+```sh
+npm run dev                  # the web build, in another terminal
+unreal/mac/connect.sh        # checks the link, then generates the Xcode project
+```
+
+`connect.sh` exists because of one property of this port: **it is built
+to fall back.** If `UGRNApiSubsystem` cannot reach the web build it logs
+a warning and plays on with the tables compiled into `GRNTypes.h`. That
+is the right behaviour — a plane, a LAN party, a Steam Deck — and it is
+also why a Mac that cannot reach the server does not fail. It plays a
+slightly older game, quietly. The script asks the questions in the order
+they actually go wrong: is the engine installed and *which* one, can
+this machine reach the server at all, does the payload match what the
+connector reads, and only then generates the Xcode project.
+
+Run it with `--check` to do everything except the Xcode step, and
+`--url http://192.168.1.20:3000` to point at another machine.
+
+**Ask the game itself** which tables it is using:
+
+```
+GRN.Api.Status
+```
+
+in the Unreal console (the tilde key, in Play-In-Editor). One line: the
+URL, whether the data is live or baked, and — if baked — why.
+
+### App Transport Security
+
+This is the macOS-specific trap. A **packaged** `.app` refuses cleartext
+`http://` by default, so the request never reaches a server, the HTTP
+layer returns response code 0, and the fallback catches it. A build
+blocked by ATS, a build with the server switched off, and a build that
+is working perfectly all look identical from inside the game.
+
+- **Play-In-Editor is not affected.** Developing against
+  `http://localhost:3000` from the editor works as-is.
+- **A packaged Mac build talking to `http://` is.** Merge
+  `unreal/Build/Mac/Resources/Info-ATS.plist` into the produced
+  `Info.plist` — in UE 5.4, Project Settings → Platforms → Mac →
+  *Additional Plist Data*. The exception is scoped to `localhost` and
+  `.local`; everything else still goes through ATS.
+- **An `https://` host needs none of it.** Point `-grnapi=` at one and
+  delete the file.
+
+> Not verified on a Mac. This repository's checks run on Linux with no
+> Unreal and no Apple hardware, so the plist and the Xcode step are
+> written from the documented behaviour and have not been watched
+> working. What *is* verified is the part that tells you when they have
+> not: `npm run check:connector` runs anywhere, and `GRN.Api.Status`
+> answers from inside the game.
+
+## Is it actually connected?
+
+```sh
+npm run check:connector                              # against localhost:3000
+npm run check:connector -- --url http://192.168.1.20:3000
+```
+
+Different question from `npm run check:unreal`, and both are worth
+having. `check:unreal` compares the tables **baked into** `GRNTypes.h`
+against the API, so the offline fallback is correct. `check:connector`
+compares the **live path**: every JSON field `ParseGameData` reads by
+name has to exist in the payload the server is serving right now, the
+API versions have to agree, and the tables have to be non-empty. A
+renamed field passes the first and fails the second, and the game would
+have told you nothing.
+
 ## The data API
 
 The Unreal build does not just *copy* the web game's numbers — it can

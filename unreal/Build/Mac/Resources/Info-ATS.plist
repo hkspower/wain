@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  App Transport Security, for PACKAGED macOS builds only.
+
+  WHY THIS FILE EXISTS
+
+  GRNApi fetches the live tables from http://localhost:3000. On Apple
+  platforms a packaged .app refuses cleartext http:// by default — the
+  request never reaches a server, the HTTP layer hands back response
+  code 0, and GRNApi does exactly what it is designed to do: logs a
+  warning and plays on with the tables baked into GRNTypes.h.
+
+  That is the trap. A Mac build with ATS in the way and a Mac build with
+  the server switched off and a Mac build that is working perfectly all
+  look the same from inside the game. `GRN.Api.Status` in the console is
+  the one-line answer; this file is the fix.
+
+  WHEN YOU NEED IT
+
+  - Running from the Unreal Editor (Play In Editor): you do not. The
+    editor is not subject to this.
+  - A packaged Mac build talking to http://: you do.
+  - Talking to an https:// host: you do not — use HTTPS and delete this.
+
+  HOW TO APPLY IT
+
+  Unreal's packaging templates differ between engine versions, so rather
+  than guess at an .ini key that may not exist in yours, merge the dict
+  below into the Info.plist your build produces. In UE 5.4 the reliable
+  route is Project Settings → Platforms → Mac → "Additional Plist Data",
+  pasted as the inner XML; unreal/mac/connect.sh prints this path when
+  it detects a packaged build.
+
+  NOT TESTED HERE. This repository's checks run on Linux with no Unreal
+  and no Mac; the contents below are the standard ATS exception and the
+  reasoning is sound, but nobody has watched it work. If it does not,
+  `GRN.Api.Status` will say so in one line instead of leaving you to
+  guess, which was the actual point.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- Local development servers only. This does NOT open the app to
+		     arbitrary cleartext: everything except these two hosts still
+		     goes through ATS. -->
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>localhost</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key><true/>
+				<key>NSIncludesSubdomains</key><true/>
+			</dict>
+			<key>local</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key><true/>
+				<key>NSIncludesSubdomains</key><true/>
+			</dict>
+		</dict>
+	</dict>
+</dict>
+</plist>
