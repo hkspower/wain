@@ -44,7 +44,14 @@ const walk = (dir, out = []) => {
   }
   return out;
 };
-const files = walk("src").concat(walk("tests"), walk("scripts"));
+// NOT this file. The first version scanned tests/ too, and this file
+// names "gulf-road-nights-garage" a few lines down as the thing it is
+// checking for — so it found its own string, reported fourteen keys and
+// passed happily while the garage key was renamed out of mods.ts. A
+// guard that reads its own assertion as evidence is not a guard.
+const SELF = join("tests", "name.mjs");
+const files = walk("src").concat(walk("scripts"), walk("server"))
+  .filter((f) => f !== SELF);
 const keys = new Set();
 for (const f of files) for (const m of readFileSync(f, "utf8").matchAll(KEY)) keys.add(m[1]);
 console.log(
