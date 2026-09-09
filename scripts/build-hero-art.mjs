@@ -50,9 +50,20 @@ for (const name of names) {
     img.src = 'data:image/webp;base64,' + d
     await img.decode()
     const c = document.createElement('canvas')
-    // The source is 1000 wide, which is already the right size for a phone at
-    // 3x on a 390pt screen once it is cropped to the band. Kept as it is
-    // rather than upscaled or thrown away.
+    // The source is now 1600 wide and is kept as it is — never upscaled, never
+    // thrown away.
+    //
+    // IT USED TO BE 1000, and this comment used to say that was "already the
+    // right size for a phone at 3x on a 390pt screen once it is cropped to the
+    // band". The arithmetic never supported it: 390pt at 3x is 1170 device
+    // pixels, and 1000 cannot reach that even with NO crop at all, let alone
+    // after the band takes ~17% of the width. Measured in Chromium on the
+    // website, which shares this artwork, a 393px phone at DPR 3 was upscaling
+    // it 1.4x. At 1600 the same phone gets 1334 usable pixels against 1179
+    // wanted, and is sharp.
+    //
+    // The cost is real and is the trade: these five bundle into the app for
+    // the offline case, and they went from 304 kB to 532 kB together.
     c.width = img.naturalWidth
     c.height = img.naturalHeight
     c.getContext('2d').drawImage(img, 0, 0)
