@@ -12,9 +12,15 @@ import { loadSupabase, rowToPlace, supabaseEnabled, type PlaceRow } from "@/lib/
  * then fetch the live rows and swap them in, so an admin edit shows up without
  * waiting for a redeploy.
  *
- * A place added in the admin appears in these listings immediately, but its own
- * /places/<slug>/ page is generated at build time, so it only becomes reachable
- * after the next deploy. The admin's publish button exists for exactly that.
+ * Every surface that shows a place reads this: /explore, /search, the ⌘K
+ * palette, and — since PlaceLive — the place's own page. An edit reaches all of
+ * them at once, which is the point; a corrected name that showed in the results
+ * and not on the page they led to was worse than one that showed nowhere.
+ *
+ * What this cannot do is conjure a page that was never built. A place added in
+ * the admin appears in these listings immediately, but /places/<new-slug>/ is
+ * emitted by generateStaticParams at build time, so it 404s until the next
+ * deploy. The admin's publish button exists for exactly that.
  */
 export function usePlaces(): { places: Place[]; live: boolean } {
   const [data, setData] = useState<Place[]>(snapshot);

@@ -55,14 +55,28 @@ Then rebuild. `/admin` will show a login form.
 
 | Change | Visible on the site |
 | --- | --- |
-| Editing an existing place | **Immediately** on `/explore` |
-| Hiding / unhiding a place | **Immediately** on `/explore` |
+| Editing an existing place | **Immediately**, everywhere — `/explore`, `/search`, the palette, and the place's own page |
+| Hiding / unhiding a place | **Immediately** in the listings |
 | Adding a new place | Listed immediately; its own `/places/<slug>/` page after the next deploy |
 | Home page "featured" | After the next deploy |
+| A place's `<title>` and share card | After the next deploy |
 
-The reason is the static export: every place page is generated at build time,
-so a brand-new slug has no page until the site is rebuilt. Push any commit, or
-run the deploy workflow manually, to regenerate.
+Editing used to reach only the listings. A place's own page was a pure function
+of the build-time snapshot, so an admin could fix a phone number, watch it
+appear in search, tap through, and find the old one still there — the one page
+about a place was the last to hear about it. `PlaceLive` now reads the same
+`usePlaces` hook the listings do: the prerendered HTML paints first, and the
+live row replaces it on hydration.
+
+Two things still wait for a deploy, both for the same reason — there is no
+server, so anything decided before the browser runs is decided at build time.
+
+- **A brand-new slug has no page.** `generateStaticParams` can only emit the
+  places that existed at build, and the host answers an unknown path with the
+  404. Push any commit, or run the deploy workflow manually, to regenerate.
+- **`<title>`, the description and the OG image** come from `generateMetadata`,
+  which runs at build. A renamed place shows its new name in the page and its
+  old one in the tab and in a WhatsApp preview until the next build.
 
 ## Keeping the built-in copy fresh
 

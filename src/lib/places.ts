@@ -1,6 +1,6 @@
 import type { MenuItem } from "@/lib/orders";
 
-import { categories, type Category, type CategoryId } from "@/lib/place-kit";
+import { getCategory, type CategoryId } from "@/lib/place-kit";
 
 /**
  * The catalogue itself.
@@ -1449,10 +1449,6 @@ const CATEGORY_TINT: Record<CategoryId, string> = {
 
 export function categoryTint(id: CategoryId): string {
   return CATEGORY_TINT[id];
-}
-
-export function getCategory(id: CategoryId): Category | undefined {
-  return categories.find((c) => c.id === id);
 }
 
 export function countByCategory(id: CategoryId): number {

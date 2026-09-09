@@ -263,6 +263,19 @@ export function distanceAr(km: number, rough = false): string {
 }
 
 /**
+ * A category by id.
+ *
+ * Moved here from `places.ts` for the reason this file exists: it reads
+ * `categories`, which is already here, and touches no place record — but
+ * living next to the catalogue meant any client component that needed a
+ * category name imported the catalogue to get it. `places.ts` re-exports
+ * everything below, so every existing import still resolves.
+ */
+export function getCategory(id: CategoryId): Category | undefined {
+  return categories.find((c) => c.id === id);
+}
+
+/**
  * Whether a place can take a pre-order, and whether it is running a queue.
  *
  * Both live here rather than in `orders.ts` and `queue.ts`, where they were,

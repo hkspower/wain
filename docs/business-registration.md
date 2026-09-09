@@ -54,7 +54,8 @@ what satisfies them. `npm run test:register` covers it.
 A new place appears in listings and search straight away, because those read
 live from Supabase. Its own `/places/<slug>/` page is generated at build time,
 so it becomes reachable after the next deploy — the same as any place added
-in the admin.
+in the admin. Everything *about* an already-published place is live: once the
+page exists, later edits to it need no deploy at all.
 
 ## Logo, bio and photos
 

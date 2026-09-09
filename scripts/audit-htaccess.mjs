@@ -127,6 +127,11 @@ for (const [name, why] of MUST_DENY) {
 const NO_DIRECTIVE_NEEDED = [
   ["https://wa.me", "window.open target — a navigation, not a fetch"],
   ["https://www.google.com", "maps directions link, opened as a navigation"],
+  // Appeared in the bundle when the place page became live-editable: the
+  // business contact block moved from the server to the client, and its
+  // profile link's href moved with it. It is an <a href>, followed as a
+  // navigation — connect-src governs fetches and would be the wrong widening.
+  ["https://www.instagram.com", "business profile link, followed as a navigation"],
   ["https://developer.mozilla.org", "text inside a Next.js error message"],
   ["https://github.com", "text inside a Next.js error message"],
   ["https://nextjs.org", "text inside a Next.js error message"],
