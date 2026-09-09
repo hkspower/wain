@@ -37,6 +37,7 @@ import { RESOLUTIONS, formatBuffer } from "@/game/render";
 import { hudInset, letterbox, RACE_ASPECT } from "@/game/aspect";
 import { padBrand, padLayout, padLabel, type PadBrand } from "@/game/pads";
 import { VIEWS, viewSpec } from "@/game/views";
+import { crewInitials, teamLogoDataUrl, type TeamLogo } from "@/game/teams";
 import {
   EXCLUSIVE_CATS,
   Part,
@@ -796,6 +797,11 @@ function raceCut(): { w: number; h: number } | null {
         beaten(): number;
         car(id: string): CarModel;
         ids(): string[];
+        crestUrl(logo: TeamLogo, size: number, tag: string): string;
+        crews(): Array<{
+          crew: string; area: string; driver: string; arabicName: string;
+          crest: TeamLogo | null; tag: string;
+        }>;
         tuneFor(id: string): TuneEffects;
       };
     };
@@ -819,6 +825,26 @@ function raceCut(): { w: number; h: number } | null {
        * them off one save and the fourth car is carrying the third's
        * turbo.
        */
+      /**
+       * A crew's emblem, drawn by the game's own routine.
+       *
+       * Here for the same reason tuneFor is: a tool that wants a picture
+       * of a crest should get the one the game draws, not its own
+       * reimplementation of shapePath and the tag stamp. tools/shots/
+       * crests.mjs renders the roster sheet through this, so the sheet
+       * cannot drift from what a player sees on the challenge card.
+       */
+      crestUrl: (logo: TeamLogo, size: number, tag: string) =>
+        teamLogoDataUrl(logo, size, tag),
+      crews: () =>
+        RIVALS.map((r) => ({
+          crew: r.crew,
+          area: r.area,
+          driver: r.name,
+          arabicName: r.arabicName,
+          crest: r.crest ?? null,
+          tag: r.crest ? crewInitials(r.crew) : "",
+        })),
       tuneFor: (id: string) => {
         const g: GarageState = {
           kd: 0,
@@ -2658,10 +2684,22 @@ function raceCut(): { w: number; h: number } | null {
                       <Flag code={d.flag} /> {d.country}
                     </span>
                   </div>
-                  <div className="flex items-baseline justify-between gap-3">
+                  <div className="flex items-center justify-between gap-3">
                     <span className="grn-label text-[0.7rem]">Crew</span>
-                    <span className="text-right text-[0.875rem] font-semibold text-white/85">
+                    <span className="flex items-center gap-2 text-right text-[0.875rem] font-semibold text-white/85">
                       {d.crew}
+                      {/* The emblem beside the name it belongs to. Seven
+                          of the eight crews have one; the Ghost of the
+                          Gulf answers "???" to this question and wears
+                          nothing, which is the character. */}
+                      {d.crest && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={teamLogoDataUrl(d.crest, 96, crewInitials(d.crew))}
+                          alt=""
+                          className="h-7 w-7 shrink-0"
+                        />
+                      )}
                     </span>
                   </div>
                   <div className="flex items-baseline justify-between gap-3">
@@ -3740,6 +3778,14 @@ function raceCut(): { w: number; h: number } | null {
               />
               <span>{cine.card.car}</span>
               <span className="text-white/62">·</span>
+              {/* Both plates wear their crew's emblem here — the one
+                  screen where the two cars are named side by side is the
+                  one place a crest earns its keep. */}
+              {cine.card.crest && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={teamLogoDataUrl(cine.card.crest, 72, crewInitials(cine.card.crew))}
+                     alt="" className="h-5 w-5 shrink-0" />
+              )}
               <span>{cine.card.crew}</span>
               <span className="text-white/62">·</span>
               <span>
@@ -3782,6 +3828,11 @@ function raceCut(): { w: number; h: number } | null {
                 </span>
                 <span className="text-white/62">·</span>
                 <span>{cine.you.crew}</span>
+                {cine.you.crest && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={teamLogoDataUrl(cine.you.crest, 72, crewInitials(cine.you.crew))}
+                       alt="" className="h-5 w-5 shrink-0" />
+                )}
                 <span className="text-white/62">·</span>
                 <span>{cine.you.car}</span>
                 <span

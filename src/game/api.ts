@@ -83,6 +83,8 @@ export function buildRivals() {
     bodyStyle: r.bodyStyle ?? "sedan",
     bodyColor: hex(r.bodyColor),
     accentColor: hex(r.accentColor),
+    /** The crew's emblem, or null for the one crew that has no name. */
+    crest: r.crest ?? null,
     topSpeedKmh: r.topSpeedKmh,
     taunt: r.taunt,
     rejectLine: r.rejectLine ?? null,

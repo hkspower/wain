@@ -39,6 +39,28 @@ seal, sets it on a lit disc, and graduates the bezel in 72 stations with
 both name arcs left clear of the ticks. ナイトレーサーズ round the top,
 NIGHT RACERS round the bottom.
 
+## The crews on the roster
+
+| File | Size | Use |
+| --- | --- | --- |
+| `crew-crests.png` | 3840×2064 | the eight crews of the roster, on one sheet |
+
+Not drawn here. The crests are four fields each — shape, symbol, and
+two colours — sitting on the rival records in `src/game/rivals.ts`, and
+`teams.ts` turns those four fields into a picture. `npm run shot:crests`
+lays out and annotates the sheet but does not draw a single emblem: it
+asks the running game for them through `window.__grnShowroom.crestUrl`,
+for the same reason `tools/shots/accel.mjs` drives the real engine. A
+press asset that draws its subject a second way will one day disagree
+with the product and look correct while doing it.
+
+The colours are the rival's own body and accent, so the crest on the
+sheet is the car that turns up. Seven crews have one. The eighth answers
+"???" to country and to crew, and an emblem is what a crew paints on
+itself to be recognised — which is the one thing the Ghost of the Gulf
+is not for. `npm run test:crests` asserts that absence so nobody later
+completes the set.
+
 ## Arabic-primary
 
 The same two marks with the script order reversed — Arabic as the hero,
@@ -129,6 +151,7 @@ at all.
 
 ```bash
 node press/logo/render.mjs   # re-renders all eleven from the .html sources
+npm run shot:crests          # the crew sheet, drawn by the running game
 npm run check:logo           # fonts resolve, sources and outputs all present
 npm run test:name            # the marks and the game agree, and saves are safe
 ```

@@ -1,5 +1,6 @@
 // Rival roster — the bosses of Kuwait's midnight highway, fought in order.
 import { CARS, type CarModel } from "./mods";
+import type { TeamLogo } from "./teams";
 // Speeds are top speeds in km/h; the engine rubber-bands them so every
 // battle stays close until someone's SP (Spirit Points) runs out.
 
@@ -32,6 +33,28 @@ export interface RivalDef {
    * an id here is not in CARS.
    */
   carId?: string;
+  /**
+   * The crew's emblem, in the same four fields a player's crew uses.
+   *
+   * Every one of these crews has had a NAME since the roster was
+   * written — Salmiya Street Kings, Hawally Night Hawks — and it is
+   * printed in nine places: the roster, the dossier, the VS splash, the
+   * results screen, both cinematic cards and the website. It was text in
+   * all nine. Meanwhile teams.ts has drawn crests since the crew feature
+   * landed, and only the PLAYER ever had one, so the one crew in the
+   * game with an emblem was yours and the seven you fight had none.
+   *
+   * Deliberately the same TeamLogo the player builds from rather than a
+   * richer format of its own: two crest systems in one game is two
+   * things to keep in step and two ways for a crest to look wrong, and
+   * whatever renders a player's crew already renders these for free —
+   * including the roof decal in cars.ts.
+   *
+   * The colours are not chosen for the crest. They are the rival's own
+   * body and accent, so the emblem on the card is the car that turns up,
+   * and the two teach each other.
+   */
+  crest?: TeamLogo;
   /** Body silhouette for their car mesh (cars.ts). */
   bodyStyle?: "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony";
   bodyColor: number;
@@ -79,6 +102,8 @@ export function rivalCarName(def: Pick<RivalDef, "carId">): string {
 export const RIVALS: RivalDef[] = [
   {
     id: "abu-shanab",
+    // Kings. The crown is the whole name, so the crest says it and stops.
+    crest: { shape: "shield", symbol: "👑", bg: "#c8cdd6", fg: "#16a34a" },
     distance: "sprint",
     carId: "hawally-2t",
     country: "Kuwait",
@@ -101,6 +126,8 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "bint-aldeera",
+    // Gazelles: the fastest thing that runs on this coast. A diamond because the shape leans the way the animal does.
+    crest: { shape: "diamond", symbol: "🐆", bg: "#b84dd6", fg: "#ffffff" },
     distance: "sprint",
     carId: "salmiya-turbo",
     country: "Kuwait",
@@ -123,6 +150,8 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "al-daboos",
+    // Night Hawks, on hazard yellow and black — the only crest here that reads at a hundred metres, which suits a crew named after a workshop.
+    crest: { shape: "hex", symbol: "🦅", bg: "#f5c211", fg: "#111111" },
     distance: "standard",
     bodyStyle: "zx",
     carId: "gulf-coupe-rs",
@@ -146,6 +175,8 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "bu-machboos",
+    // Phantoms. A moon, and the only round field on the roster: nothing to catch hold of.
+    crest: { shape: "circle", symbol: "🌙", bg: "#e8641b", fg: "#ffffff" },
     distance: "standard",
     bodyStyle: "gtr",
     carId: "storm-s8",
@@ -169,6 +200,8 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "al-saqer",
+    // Junoon is madness, not passion. Fire on red.
+    crest: { shape: "diamond", symbol: "🔥", bg: "#c1121f", fg: "#111111" },
     distance: "long",
     bodyStyle: "zx",
     carId: "falcon-720",
@@ -192,6 +225,8 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "bu-torab",
+    // Dust Devils, out of Doha. The scorpion is the desert's own, and Bu Torab means father of dust.
+    crest: { shape: "shield", symbol: "🦂", bg: "#565f6b", fg: "#d97706" },
     distance: "standard",
     bodyStyle: "zx",
     carId: "zeta-300",
@@ -213,6 +248,8 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "al-sayyaf",
+    // Blade Runners, led by a man called the swordsman. The bolt is the nearest thing to a blade in the set.
+    crest: { shape: "hex", symbol: "⚡", bg: "#0f766e", fg: "#e2e8f0" },
     distance: "long",
     bodyStyle: "gtr",
     carId: "kaiju-r",
@@ -234,6 +271,15 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "shabah-alkhaleej",
+    // NO CREST, and that is the point rather than an omission.
+    //
+    // Every other crew on this roster is a place and a set of people:
+    // Salmiya, Hawally, Jahra, and a name they gave themselves. This one
+    // answers "???" to country and to crew, runs a black car and a black
+    // flag, and is the last thing on the road. An emblem is what a crew
+    // paints on itself to be recognised; the Ghost of the Gulf is the
+    // one driver here who does not want to be. tests/crests.mjs asserts
+    // this absence so nobody later "completes the set".
     distance: "marathon",
     bodyStyle: "gtr",
     carId: "sahara-v12",

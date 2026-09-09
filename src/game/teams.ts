@@ -129,6 +129,27 @@ export function teamLogoDataUrl(logo: TeamLogo, size = 128, tag?: string): strin
   return c.toDataURL();
 }
 
+/**
+ * A tag for a crew that has a NAME and never had a tag.
+ *
+ * The player's crew carries both — you type a name and a 2-4 character
+ * tag, and the tag is what the emblem stamps across its foot. The seven
+ * rival crews on the roster only ever had names, because until their
+ * crests existed there was nothing for a tag to go on. Initials are the
+ * obvious reading of "Salmiya Street Kings" and they are what a crew
+ * like that would actually paint: SSK.
+ *
+ * Words of two letters and under are skipped — "Bayan Blade Runners"
+ * gives BBR and not something with an "of" in it — and the result runs
+ * through sanitizeTag, so it obeys the same four-character limit and the
+ * same alphabet as one a player typed.
+ */
+export function crewInitials(name: string): string {
+  const words = name.split(/\s+/).filter((w) => w.length > 2);
+  const from = words.length ? words : name.split(/\s+/);
+  return sanitizeTag(from.map((w) => w[0] ?? "").join(""));
+}
+
 export function sanitizeTag(raw: string): string {
   // Arabic letters and Arabic-Indic digits count as tag characters.
   //

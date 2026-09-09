@@ -68,6 +68,7 @@ import {
   loadProgress, newlyDone, questLabel, questFraction, saveProgress,
   QUESTS, type Quest, type QuestProgress,
 } from "./quests";
+import { loadCrew, type TeamLogo } from "./teams";
 import {
   ENGINES,
   torqueShape,
@@ -383,6 +384,9 @@ export interface DriverCard {
   name: string;
   arabicName?: string;
   crew: string;
+  /** The crew's emblem. Null for the player when they fly no crew, and
+   *  for the one rival crew that has no name to put on one. */
+  crest?: TeamLogo | null;
   level: number;
   country: string;
   flag: string;
@@ -404,6 +408,8 @@ export interface RivalDossier {
   name: string;
   arabicName: string;
   crew: string;
+  /** The crew's emblem, or null for the one crew with no name. */
+  crest: TeamLogo | null;
   area: string;
   country: string;
   flag: string;
@@ -3251,10 +3257,22 @@ export class GameEngine {
         if (typeof p.flag === "string" && p.flag.trim()) flag = p.flag.trim();
       }
     } catch {}
+    // The crew you actually built, not the word "Privateer".
+    //
+    // teams.ts makes a crew a local identity saved beside the garage —
+    // you build one, it goes on your car — and this card, which is what
+    // the challenge screen and both cinematic plates read, answered
+    // "Privateer" unconditionally. So a player with a crew, a tag and an
+    // emblem was still introduced as crewless on the one screen where
+    // the two cars are put side by side. Privateer is the fallback for
+    // somebody who genuinely flies alone, which is what it always should
+    // have been.
+    const crew = loadCrew();
     return {
       name,
       arabicName: "أنت",
-      crew: "Privateer",
+      crew: crew?.name ?? "Privateer",
+      crest: crew?.logo ?? null,
       level: levelInfo(loadProfileStats().xp).level,
       country,
       flag,
@@ -3282,6 +3300,7 @@ export class GameEngine {
       name: def.name,
       arabicName: def.arabicName,
       crew: def.crew,
+      crest: def.crest ?? null,
       area: def.area,
       country: def.country ?? "Kuwait",
       flag: def.flag ?? "🇰🇼",
@@ -3303,6 +3322,7 @@ export class GameEngine {
       name: def.name,
       arabicName: def.arabicName,
       crew: def.crew,
+      crest: def.crest ?? null,
       level: RIVALS.indexOf(def) + 1,
       country: def.country ?? "Kuwait",
       flag: def.flag ?? "🇰🇼",
