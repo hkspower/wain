@@ -62,15 +62,17 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   CONNECT with a 403 by the sandbox's egress gateway. Report it; never try to
   route around it, and never disable TLS or unset `HTTPS_PROXY`. The `hosa`
   connector's **read** tools work and are the way to verify a deploy.
-- **But the server can pull.** A `hosa` cron does it: `wget` the release zip
-  from a **commit-pinned** `raw.githubusercontent.com` URL, then `unzip -o -q
-  -d <docroot>`. That is Extract's merge behaviour, so the PHP app survives.
-  Delete the jobs and the zip afterwards. Two traps: `createAccountCronJobV1`
-  gets a **403 from Cloudflare** if the command contains `{ … } > log 2>&1` or
-  `$?` — keep it to one program and its arguments — and it can return a uid for
-  a job it never stored, so confirm with `listAccountCronJobsV1`. Check the
-  downloaded size before extracting; a partial archive over a live docroot is
-  the failure worth waiting a firing window to avoid.
+- **But the server can pull.** `npm run deploy:plan` prints the cron commands
+  and the proofs; `npm run deploy:verify -- --observed <hosa readings>.json`
+  checks them. The route is `wget` from a **commit-pinned**
+  `raw.githubusercontent.com` URL, then `unzip -o -q -d <docroot>` — Extract's
+  merge, so the PHP app survives. Delete the jobs and the zip afterwards. Two
+  traps the planner asserts: `createAccountCronJobV1` gets a **403 from
+  Cloudflare** if the command contains `{ … } > log 2>&1` or `$?` — one program
+  and its arguments only — and it can return a uid for a job it never stored,
+  so confirm with `listAccountCronJobsV1`. Check the downloaded size before
+  extracting; a partial archive over a live docroot is the failure worth
+  waiting a firing window to avoid.
 - **hPanel File Manager → Extract.** It merges. The docroot is *shared* — it
   holds eight directories of an older PHP app (`/api/`, `/pay/`, `/knet/`,
   `/assets/` …) that this repo did not put there.
@@ -81,7 +83,10 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   232 files in subdirectories arrived later, so the digest read correct while
   the site had no CSS and every route but `/` was a 404. Always also check
   something that is not at the root — the hashed stylesheet, `/explore/`,
-  `/og/<slug>.jpg`.
+  `/og/<slug>.jpg`. **And sizes cannot tell two builds apart**: a build id is
+  40 hex characters whichever commit it is, so the root files of two different
+  builds are byte-identical. `_next/static/<commit>/` is the one proof whose
+  name carries the commit — `deploy:verify` requires it for that reason.
 - FTP secrets (`FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`) would make
   `deploy.yml` work; 186 runs have failed for want of them. They get added in
   GitHub's settings UI — **never pasted into a chat or a commit**.

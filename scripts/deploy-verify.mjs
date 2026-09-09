@@ -139,11 +139,37 @@ if (extra.length) {
   console.log(`  unzip merges, so these are expected. Nothing references them.`);
 }
 
-/* ── the failure that started all this ───────────────────────────────────── */
+/* ── the failure that started all this, and the one it hides behind ──────── */
 const rootFiles = expected.filter((p) => !p.includes("/"));
 const rootLanded = rootFiles.every((p) => observed[p] === plan.files[p]);
 const deepLanded = plan.required.every(({ path }) => observed[path] === plan.files[path]);
-if (rootLanded && !deepLanded) {
+
+/**
+ * Two different builds can hold the same number of bytes.
+ *
+ * A build id is written into every HTML file, and it is a 40-character hex
+ * sha either way — so an export of one commit and an export of another differ
+ * in content and not in size. Checking this reading against the live site
+ * proved it: `index.html` was 139974 bytes in both, and so were the other
+ * eleven root files, while the two builds were five commits apart.
+ *
+ * That is what the commit-named directory is for. It is the only required
+ * proof whose *name* carries the commit, so it is the only one a
+ * same-size-different-build cannot satisfy. Everything else here compares
+ * sizes and would have said yes.
+ */
+const stampMatches = !buildJsonText || (() => {
+  try { return JSON.parse(buildJsonText).commit === plan.commit; } catch { return false; }
+})();
+
+if (!stampMatches) {
+  console.log(`\n  ⚠  The site is a different build, not a half-finished one.`);
+  console.log(`     build.json names another commit, so nothing here is late — it is`);
+  console.log(`     simply not this deploy. Note that equal sizes did not catch it:`);
+  console.log(`     a build id is 40 hex characters whichever commit it is, so the`);
+  console.log(`     root files match byte-for-byte across different builds. The`);
+  console.log(`     commit-named directory is what caught it.`);
+} else if (rootLanded && !deepLanded) {
   console.log(`\n  ⚠  Every root file is correct and the deep ones are not.`);
   console.log(`     This is exactly the 9 September failure: the root arrived first`);
   console.log(`     and the subdirectories had not arrived yet. Wait and re-read`);

@@ -160,6 +160,15 @@ Nothing here can push bytes to Hostinger. The box can *pull* them, and a cron
 job is a write path — two commands, run once each and then deleted:
 
 ```
+npm run release        # build, stamp, archive
+npm run deploy:plan    # → the exact commands, and what will prove they worked
+```
+
+`deploy:plan` refuses a dirty tree and an `out/` built from anything but HEAD,
+checks the pinned URL is fetchable and the same size as the local archive, and
+checks the commands against the WAF rule below. It prints them filled in:
+
+```
 wget -O /home/<user>/domains/wainkw.com/public_html/w.zip <raw.githubusercontent URL>
 unzip -o -q -d /home/<user>/domains/wainkw.com/public_html /home/<user>/domains/wainkw.com/public_html/w.zip
 ```
@@ -189,6 +198,18 @@ open internet. `wget` fetched 3,715,813 bytes on the first firing.
 Verify the download by size before extracting. Extracting a half-finished
 archive over a live docroot is the one outcome worth waiting five minutes to
 avoid.
+
+Afterwards, `npm run deploy:verify -- --observed <readings.json>` — the
+readings being what the `hosa` connector reports, since nothing here can reach
+the live site. It checks six files below the root as well as the stamp.
+
+**Sizes cannot tell two builds apart.** A build id is written into every HTML
+file and is a 40-character hex sha whichever commit it is, so an export of one
+commit and an export of another have byte-identical root files. Checked
+against the live site on 9 September: `index.html` was 139974 bytes in both,
+and so were the other eleven, while the two builds were five commits apart.
+The only proof that catches this is `_next/static/<commit>/` — the one whose
+*name* carries the commit. Never drop it from the required list.
 
 `unzip` merges, so **the assets of the previous build stay behind** — the old
 hashed stylesheet and chunks accumulate under `_next/static/`. Nothing points

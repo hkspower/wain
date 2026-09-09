@@ -220,16 +220,25 @@ if (!backend.supabase) {
  * the reader is told to go and look, and the safe option is named first —
  * File Manager's Extract merges, which is what you want in a shared docroot.
  */
-console.log(`\nDeploy: upload this zip to public_html and use File Manager's`);
+console.log(`\nDeploy, by hand: upload this zip to public_html and use File Manager's`);
 console.log(`"Extract". It merges — it leaves anything already there alone.`);
+console.log(`\nOr have the server fetch it itself, which is the same merge and needs`);
+console.log(`no upload:   npm run deploy:plan`);
 console.log(`\nhPanel's "deploy static archive" button is NOT the same thing:`);
 console.log(`it EMPTIES public_html first. Only use it once you have looked in`);
 console.log(`the folder and know that everything in it is this export. As of`);
 console.log(`2026-09-09 that was false — /api/, /pay/, /knet/ and /assets/ are`);
 console.log(`an older PHP app still sitting beside the site.`);
-console.log(`\nAfterwards, confirm what landed:`);
-console.log(`    curl -s https://www.wainkw.com/build.json`);
-console.log(`    → version ${version}, digest ${digest}\n`);
+/**
+ * This used to end by naming `curl -s .../build.json` as the confirmation.
+ * That is a root file, and on 2026-09-09 the root landed while all 232 files
+ * in subdirectories did not — the digest read ${digest.slice(0, 4)}… correct while the site
+ * had no CSS and every route but / was a 404. So the digest is still printed,
+ * because it is worth knowing, but it is no longer offered as the check.
+ */
+console.log(`\nAfterwards: npm run deploy:verify`);
+console.log(`It checks ${digest} at the root AND six files below it,`);
+console.log(`because a correct root proves only that the root arrived.\n`);
 if (dirty) {
   console.log(`Note: built from a dirty working tree, so ${shortCommit} does not`);
   console.log(`fully describe it. Commit first for a reproducible release.\n`);
