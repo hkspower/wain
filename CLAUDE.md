@@ -471,6 +471,45 @@ cookies for a shopper** — measured, `Set-Cookie` count 0 on the home page — 
 the byte saving from a cookie-free host is nil. It is worth having as somewhere
 to point a CDN, and it is not worth breaking anything for.
 
+## A file that is only missing can still break a feature completely
+
+`live-file-check.php` on 2026-09-09: `same=163/173 differ=0 missing=10`. Every
+file present was correct, which is why this had never been noticed — the
+publishers all report on what they wrote, and nothing reports on what was never
+sent at all. Two of the ten mattered:
+
+- **`fonts/Alexandria-400.ttf`.** `api/invoice-pdf.php` looks for it in three
+  places and, finding none, `return null`s. **No PDF invoice was generated for
+  any order, ever**, and nothing said so: the caller gets null and the shop
+  carries on. A missing font reads like a cosmetic problem. This one was the
+  invoice system.
+- **`images/` did not exist at all.** `store_brand_logo_file()` serves a brand
+  logo from `images/<slug>/logo.png|webp|jpg` — no tool, no rebuild, drop a
+  file in a folder. The folders were not there, so there was nowhere to drop
+  one. That is half of why `brandLogos=0/8`: the owner has been asked for logos
+  with no place to put them.
+
+Both are now live, verified `same=173/173 differ=0 missing=0`.
+
+**The manifest in that checker is hardcoded, so it goes stale, and a stale
+manifest reports the repository's staleness as the server's.** It was eight
+hashes behind and missing two files that were live — a run would have called
+two live files "missing" and eight correct ones "differ". Regenerate it from
+`git ls-files` before believing a run, and diff the file's own manifest against
+the fresh one afterwards.
+
+**The general rule:** `differ=0` is not "the server is up to date". Ask for
+`missing` too, and treat a file the repository tracks but the server lacks as a
+possible dead feature rather than as tidiness. The question "what did we never
+send?" has a different answer from "what did we send wrong?", and only the
+second one is what a publisher can tell you.
+
+The mkdir that fixed the second case is also the smaller lesson: the first
+attempt created `images/<slug>` but not `images/`, because `images/` exists in
+the repository and that made it feel like a given. Nine files failed
+identically. `ls -d` over cron answered it in one cycle; the shape of a failure
+list is a hypothesis, not a diagnosis.
+
 ## The live shop has no product photographs
 
 `photos=0/46active`, `brandLogos=0/8`, measured 2026-09-05. Every product card
