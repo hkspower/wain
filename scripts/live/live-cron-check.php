@@ -40,15 +40,39 @@ $CFG = '/home/u130124229/domains/sporta.com.kw/public_html/api/config.php';
 // job => the keys it cannot work without. cron_key is deliberately not listed:
 // every job needs it, so naming it eight times says nothing, and it is checked
 // once on its own below.
+//
+// EVERY LIST BELOW IS THE JOB'S ACTUAL GUARD, read from its source, and the
+// first version of this file got two of them wrong by grepping for `$cfg['...']`
+// instead — which finds every key a file MENTIONS, including the optional ones:
+//
+//   voice          had ['tts_model', 'tts_voice_id']. tts_model is optional
+//                  (`$cfg['tts_model'] ?? 'eleven_multilingual_v2'`) and
+//                  tts_key was missing entirely, so a shop with a voice id and
+//                  no API key would have been reported READY.
+//   customer-mail  had ['mail_reply_to'], which nothing checks. It would have
+//                  reported a false "waiting" the moment that field was
+//                  cleared, and a checker that cries wolf is how the real
+//                  four went unnoticed for months.
+//
+// A key that a file reads with `?? default` is not a key it needs. Read the
+// guard, not the mentions.
 $NEEDS = [
+    // cron-push.php:33   vapid_public / vapid_private
     'push'          => ['vapid_public', 'vapid_private'],
+    // cron-assistant.php:31
     'assistant'     => ['n8n_webhook'],
+    // cron-whatsapp.php:50
     'whatsapp'      => ['whatsapp_token', 'whatsapp_phone_number_id'],
+    // cron-fulfilment.php:26
     'fulfilment'    => ['warehouse_email'],
-    'customer-mail' => ['mail_reply_to'],
-    'stock'         => [],                    // needs nothing beyond the key
+    // Guarded on cron_key alone — mail_reply_to is optional.
+    'customer-mail' => [],
+    'stock'         => [],
     'invoice'       => [],
-    'voice'         => ['tts_model', 'tts_voice_id'],
+    // cron-voice.php:88 calls assistant_speech_available(), which is
+    // tts_key && tts_voice_id && cron_key. And the guard sits BEFORE the
+    // prune branch, so ?do=prune does nothing either while the voice is unset.
+    'voice'         => ['tts_key', 'tts_voice_id'],
 ];
 
 $cfg = @include $CFG;
