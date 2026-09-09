@@ -2,6 +2,45 @@
 
 Tap the وين AI button and the call starts. That is the whole interaction.
 
+## Where the button is, and where the component is
+
+They are not the same place, and the difference is load-bearing.
+
+The button is offered on **/search only**. Everything a call does already
+ended there: local mode pushes `/search?q=…`, `show_places` pushes
+`/search?q=…` and then reports what that page found, and a browser with no
+speech recognition is sent to `/search` to type instead. On the privacy policy
+the launcher's only power was to navigate away from the privacy policy.
+
+The component stays in the **root layout**, above the router, and hides its
+button off /search. It has to: `open_place` is a route change, and the
+`<elevenlabs-convai>` element is created imperatively inside `WainAiCall`, so a
+call the search page owned would be torn down by its own tool — she opens the
+place, says «فتحت لك صفحته، تبي شي ثاني؟», and the line is already dead.
+
+`tests/shouq-flow.test.mjs` asserts both halves by **visibility**, not
+presence: shown on /search, hidden on the other six routes. Presence would
+still pass if somebody put the launcher back everywhere.
+
+## What she answers from
+
+The live rows, through `usePlaces()` inside `WainAiCall` — the same ones
+/search, /explore and every place page render.
+
+This was the last part of the site reading the build-time snapshot. Both tool
+results claimed to run «the same search the page runs (same index, same
+limit)», and they did not: they built an index from `@/lib/places` while every
+listing rendered `usePlaces()`. Identical until an admin touches anything, and
+then شوق describes the previous deploy's catalogue to somebody looking at this
+one — she cannot find a place that was added, still finds one that was
+unpublished, reads out the old name of one that was renamed, and `open_place`
+answers «ما فيه مكان بالمعرّف» for a slug the visitor can already see in the
+results behind her.
+
+`places` is in the registration effect's dependencies on purpose: a
+registration left in place across an admin edit would answer from the rows as
+they were when the call started, which is the same staleness one call long.
+
 ## Why it stopped being a hold
 
 The button used to require a three-second press, and the label said so:

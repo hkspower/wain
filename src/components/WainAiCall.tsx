@@ -7,6 +7,7 @@ import { IconClose, IconPhone, IconPinSolid, IconShouq } from "@/components/icon
 import { haptic } from "@/lib/haptics";
 import { getRecognition, SPEECH_LANG, transcriptOf, type SpeechRecognitionLike } from "@/lib/speech";
 import { primeAudio, setEnabled as setVoiceEnabled } from "@/lib/voice";
+import { usePlaces } from "@/lib/usePlaces";
 import { callDuration, connected, hangup, ringback } from "@/lib/call-tones";
 import {
   WAIN_AI_AGENT_ENABLED,
@@ -104,6 +105,24 @@ type Props = {
 
 export default function WainAiCall({ startSignal, onPhase }: Props) {
   const router = useRouter();
+  /**
+   * The rows شوق answers from — live, the same ones every listing renders.
+   *
+   * This is the whole of «full dynamic». The tool results below have always
+   * claimed to run «the same search the page runs (same index, same limit)»,
+   * and they did not: they built an index from `@/lib/places`, the build-time
+   * snapshot, while /search, /explore and every place page render
+   * `usePlaces()`. Identical until an admin touches anything, and then شوق is
+   * describing the previous deploy's catalogue to somebody looking at this
+   * one — she cannot find a place that was added, still finds one that was
+   * unpublished, and reads out the old name of one that was renamed.
+   *
+   * `usePlaces` is one query shared across every component that calls it, so
+   * this costs nothing beyond what the page already paid, and it is only ever
+   * reached from inside this lazily-loaded chunk — the launcher in the root
+   * layout still imports no place data.
+   */
+  const { places } = usePlaces();
   const [phase, setPhase] = useState<Phase>("idle");
   const [transcript, setTranscript] = useState("");
   const [errorText, setErrorText] = useState("");
@@ -364,16 +383,18 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   // slug against the catalogue before claiming a page opened: a slug she
   // misremembered used to navigate to a 404 and then tell her it worked.
   //
-  // The search module is loaded on the first tool call rather than imported:
-  // this component is preloaded on hover of the call button, and the index
-  // belongs to the search route, not to every visitor who might tap it.
+  // The index is built from the LIVE rows above, not from `@/lib/places`, and
+  // rebuilt whenever they change — see the note on `places`. The search module
+  // is still loaded on the first tool call rather than imported: this
+  // component is preloaded on hover of the call button, and the engine belongs
+  // to a conversation that may never happen.
   useEffect(() => {
     if (!WAIN_AI_AGENT_ENABLED) return;
     let indexPromise: Promise<{ mod: typeof import("@/lib/search"); index: import("@/lib/search").SearchIndex }> | null = null;
     const loadIndex = () =>
-      (indexPromise ??= Promise.all([import("@/lib/search"), import("@/lib/places")]).then(([mod, data]) => ({
+      (indexPromise ??= import("@/lib/search").then((mod) => ({
         mod,
-        index: mod.buildIndex(data.places),
+        index: mod.buildIndex(places),
       })));
     const register = (event: Event) => {
       const detail = (event as CustomEvent<{ config?: Record<string, unknown> }>).detail;
@@ -387,9 +408,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           let total = -1;
           try {
             const { mod, index } = await loadIndex();
-            const hits = mod.search(q, index, { limit: 40 }).filter((h) => h.doc.kind === "place");
-            total = hits.length;
-            names = hits.slice(0, 3).map((h) => h.doc.title);
+            const found = mod.search(q, index, { limit: 40 }).filter((h) => h.doc.kind === "place");
+            total = found.length;
+            names = found.slice(0, 3).map((h) => h.doc.title);
           } catch {
             // The page is still navigating and will show whatever it finds;
             // fall through to the generic wording rather than fail the call.
@@ -413,7 +434,11 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
         open_place: async ({ slug }: { slug?: string }) => {
           const s = (slug ?? "").trim();
           if (!/^[a-z0-9-]+$/.test(s)) return "ما لقيت مكان بهذا المعرّف — ما تغيّر شي على الشاشة.";
-          const place = await import("@/lib/places").then((m) => m.getPlace(s)).catch(() => undefined);
+          // The live rows, not `getPlace()` from the snapshot: a place
+          // approved since the last deploy used to make her answer «ما فيه
+          // مكان بالمعرّف» and refuse to navigate — to a page the visitor
+          // could already see in the results behind her.
+          const place = places.find((pl) => pl.slug === s);
           if (!place) {
             return (
               `ما فيه مكان بالمعرّف (${s}) في قائمتك — ما تغيّر شي على الشاشة. ` +
@@ -430,7 +455,11 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     };
     window.addEventListener("elevenlabs-convai:call", register);
     return () => window.removeEventListener("elevenlabs-convai:call", register);
-  }, [router]);
+    // `places` is in here on purpose. The handlers close over the rows, so a
+    // registration left in place across an admin edit would answer from the
+    // rows as they were when the call started — the same staleness this
+    // change is about, only narrower and therefore harder to notice.
+  }, [router, places]);
 
   const dialling = phase === "ringing" || phase === "live";
 

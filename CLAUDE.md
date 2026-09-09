@@ -82,6 +82,23 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
 Agent `agent_1701m1gcrccrethae9y3nyv1e116`. 13 attached tests; run them after
 any prompt change.
 
+**The launcher is offered on /search only; the component lives in the root
+layout.** Both are deliberate. Every call already ended on /search, so the
+button belongs there — but `open_place` is a route change and the
+`<elevenlabs-convai>` element is created inside `WainAiCall`, so a call the
+search page owned would be killed by its own tool. It hides its button off
+/search instead of unmounting. Tests assert *visibility*, not presence.
+
+**Her tools read `usePlaces()`, not `@/lib/places`.** They used to build an
+index from the build-time snapshot while every listing rendered live rows, so
+after an admin edit she could not find a new place, still found an unpublished
+one, and refused to `open_place` a slug already visible in the results.
+
+**Anything that pushes `/search?q=…` from /search is a same-route push**, so
+nothing remounts. `SearchClient` therefore adopts `?q=` and the `wain:asked`
+handover on every params change, not once at mount. The ⌘K palette hits this
+too — it is in the navbar, so it is reachable from /search.
+
 **The live prompt is not generated from `docs/wain-ai-agent.md`.** It is a
 hand-adapted copy. Editing the brief and re-extracting produces garbage. To
 change it: copy the previous `scratchpad/live-prompt-vN.txt`, edit that, send

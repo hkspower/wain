@@ -98,6 +98,10 @@ export default function RootLayout({
         <main id="main-content" className="flex-1">
           {children}
         </main>
+        {/* Above the router, but only *offered* on /search — the button hides
+            itself everywhere else. It has to outlive a route change because
+            `open_place` is a route change: a call mounted by the search page
+            would be killed by its own tool. See WainAi. */}
         <WainAi />
         <AppTabBar />
         <AppShell />

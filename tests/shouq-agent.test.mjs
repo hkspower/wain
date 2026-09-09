@@ -49,12 +49,15 @@ const errors = [];
 p.on('pageerror', (e) => errors.push(e.message));
 
 console.log('\n── with an agent configured, the call goes to her, not the recogniser ──');
-await p.goto(B + '/', { waitUntil: 'networkidle' });
+await p.goto(B + '/search/', { waitUntil: 'networkidle' });
 const fab = p.locator('button[aria-label*="وين AI"]');
 await fab.click();
 await p.waitForSelector('#wain-ai-panel', { timeout: 6000 });
 ok('one tap places the call', true);
-ok('it stays put rather than searching', !p.url().includes('/search'));
+// In agent mode the tap opens a conversation; it must NOT fall through to the
+// dictation flow, which would push a query. The call is placed from /search
+// now, so «is it still off /search» proves nothing — the absence of ?q= does.
+ok('it stays put rather than searching', !p.url().includes('q='), p.url());
 
 const panel = await p.locator('#wain-ai-panel').textContent();
 ok('she introduces herself as شوق', panel.includes('شوق'));
@@ -91,7 +94,10 @@ const tools = await p.evaluate(() => Object.keys(window.__convaiConfig?.clientTo
 ok('both client tools are registered before the widget loads', tools.includes('show_places') && tools.includes('open_place'), tools.join(', '));
 
 const shown = await p.evaluate(() => window.__convaiConfig.clientTools.show_places({ query: 'قهوة هادية' }));
-await p.waitForURL('**/search**', { timeout: 8000 });
+// Waiting for «/search» returns instantly from /search, and the assertion
+// underneath then read the URL before the push had landed. Wait for the thing
+// the tool actually changes.
+await p.waitForURL((u) => decodeURIComponent(u.href).includes('قهوة هادية'), { timeout: 8000 });
 ok('show_places puts the results on screen', decodeURIComponent(p.url()).includes('قهوة هادية'));
 ok('show_places reports back to the agent', /قهوة هادية/.test(String(shown)), String(shown));
 // The result is the model's cue for its post-tool turn. A bare status left

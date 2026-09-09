@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { IconShouq } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
 import { primeAudio } from "@/lib/voice";
@@ -11,9 +12,22 @@ import type { Phase } from "@/components/WainAiCall";
 /**
  * The button that calls شوق — and only the button.
  *
- * This component is in the root layout, so whatever it imports, every page
- * imports: the privacy policy, the about page, a place page nobody will ever
- * place a call from. It used to import the whole call — the ring-back tones,
+ * It lives on the search page now, not in the root layout. Everything a call
+ * does already ended there: dictation pushes `/search?q=…`, `show_places`
+ * pushes `/search?q=…` and then reports what that page found, and a browser
+ * with no speech recognition is sent to `/search` to type instead. The
+ * launcher was on the privacy policy so it could navigate you off the privacy
+ * policy.
+ *
+ * Standing where her results land is also what makes her answers live: the
+ * search page holds the index it is rendering, so it can hand the call the
+ * same `lookup` it uses itself instead of the call building a second one from
+ * the build-time catalogue. See the Props in WainAiCall for what that was
+ * getting wrong.
+ *
+ * The cost of it having been in the root layout: whatever it imports, every
+ * page imports — the privacy policy, the about page, a place page nobody will
+ * ever place a call from. It used to import the whole call — the ring-back tones,
  * the speech-recognition plumbing, the ElevenLabs widget bridge, the transcript
  * view, six phases of sheet markup — and that measured **6.3K gzipped on every
  * page in the site**, for a feature that does nothing until somebody taps.
@@ -34,6 +48,23 @@ const WainAiCall = dynamic(() => import("@/components/WainAiCall"), {
 });
 
 export default function WainAi() {
+  /**
+   * Which page you can call her from.
+   *
+   * The launcher is offered on /search only. What kept it in the root layout
+   * is not where it is offered but what a call has to survive: `open_place`
+   * navigates to a place page, and the widget element is created imperatively
+   * inside `WainAiCall`, so a call mounted by the search page would be torn
+   * down by its own tool mid-sentence — she opens the page, says «فتحت لك
+   * صفحته، تبي شي ثاني؟», and the line is already dead.
+   *
+   * So the component stays above the router and the BUTTON is what moves. A
+   * call in progress outlives the route change; the offer does not follow you
+   * onto the privacy policy.
+   */
+  const pathname = usePathname();
+  const onSearch = pathname?.startsWith("/search") ?? false;
+
   /**
    * Taps, not a boolean.
    *
@@ -103,7 +134,12 @@ export default function WainAi() {
 
   return (
     <>
-      <div className="wain-ai-fab fixed start-5 z-50 flex flex-col items-start gap-2">
+      {/* Hidden, not unmounted, once you leave /search — a call she is on has
+          to keep its own launcher to report the phase back to. */}
+      <div
+        hidden={!onSearch && !open}
+        className="wain-ai-fab fixed start-5 z-50 flex flex-col items-start gap-2"
+      >
         <button
           type="button"
           onClick={onTap}

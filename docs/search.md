@@ -79,6 +79,27 @@ It is rendered now, from the same object that is handed to `speak()`. There is
 no second copy of what she says, which is the only way the written and the
 spoken answer cannot drift.
 
+### The call is placed from here now
+
+The وين AI button is offered on this page and hidden on the other six routes —
+see `docs/call.md` for why the component still lives in the root layout.
+
+That broke two things quietly, and both are worth knowing because neither is
+about شوق. Handing a spoken question over is `sessionStorage` plus a push to
+`/search?q=…`, and **a push to /search from /search remounts nothing**: `q` was
+seeded from the URL once at mount, and the `wain:asked` key was read once at
+mount, so she wrote the question, pushed, and this page never looked. The
+address bar said «قهوة هادية» while the results were for whatever had been
+typed before, and the one flow that exists to be spoken said nothing.
+
+The ⌘K palette had the same bug already and nobody had noticed: it is in the
+navbar, so it is reachable from /search, and its «شوف كل النتائج» pushes
+`/search?q=…` into a page that was ignoring it.
+
+Both now key off `useSearchParams()` rather than mount. `q` is adopted only
+when the incoming value differs from what the box holds, so the page's own
+debounced write of the URL is a no-op coming back and an outside push is not.
+
 | part | rendered as |
 | --- | --- |
 | the echo, when she was asked out loud | a quiet question above the answer |

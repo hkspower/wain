@@ -92,15 +92,36 @@ const onCall = (p) =>
 const hangUp = (p) => p.locator('#wain-ai-panel button', { hasText: 'إنهاء المكالمة' }).click();
 const callAgain = (p) => p.locator('#wain-ai-panel button', { hasText: 'اتصل مرة ثانية' }).click();
 
-console.log('\n── the button is everywhere and correctly described ──');
+console.log('\n── the button is on the page her answers land on, and nowhere else ──');
 {
+  /**
+   * She used to be in the root layout, so this asked for her on all seven
+   * routes. She is on /search now, mounted by SearchClient, because that is
+   * where every call already ended: dictation pushes /search?q=…, show_places
+   * pushes /search?q=… and then reports what that page found, and a browser
+   * with no speech recognition is sent to /search to type instead. On the
+   * privacy policy the launcher's only power was to navigate away from the
+   * privacy policy.
+   *
+   * Visibility, not presence. The component stays mounted above the router so
+   * that a call survives `open_place` navigating to a place page — the widget
+   * element is created inside WainAiCall, so a call the search page owned
+   * would be torn down by its own tool. What moves is the offer: the button
+   * hides itself off /search, and `isVisible()` is the only assertion that can
+   * tell that from «somebody put it back in the layout».
+   */
   const { ctx, p } = await fresh();
-  for (const path of ['/', '/explore/', '/search/', '/about/', '/privacy/', '/add/', '/places/kuwait-towers/']) {
-    await p.goto(B + path, { waitUntil: 'domcontentloaded' });
-    if ((await fab(p).count()) !== 1) { ok(`button present on ${path}`, false); break; }
+  await p.goto(B + '/search/', { waitUntil: 'networkidle' });
+  ok('she is offered on the search page', await fab(p).isVisible());
+
+  const elsewhere = [];
+  for (const path of ['/', '/explore/', '/about/', '/privacy/', '/add/', '/places/kuwait-towers/']) {
+    await p.goto(B + path, { waitUntil: 'networkidle' });
+    if (await fab(p).isVisible()) elsewhere.push(path);
   }
-  ok('button present on all seven routes', true);
-  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  ok('and offered on none of the other six routes', elsewhere.length === 0, elsewhere.join(', '));
+
+  await p.goto(B + '/search/', { waitUntil: 'networkidle' });
   const label = await fab(p).getAttribute('aria-label');
   ok('its label says it places a call', /تكلّم شوق/.test(label), label);
   ok('and no longer asks for a three-second hold', !/ثواني/.test(label), label);
@@ -112,7 +133,7 @@ console.log('\n── the button is everywhere and correctly described ──');
 console.log('\n── one tap places the call ──');
 {
   const { ctx, p } = await fresh();
-  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  await p.goto(B + '/search/', { waitUntil: 'networkidle' });
   await fab(p).click();
   // The sheet has to be up immediately: the whole point of replacing the hold
   // is that the tap does something you can see at once.
@@ -130,7 +151,7 @@ console.log('\n── one tap places the call ──');
 console.log('\n── ringing becomes connected, with a running timer ──');
 {
   const { ctx, p } = await fresh({ stayOpen: true });
-  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  await p.goto(B + '/search/', { waitUntil: 'networkidle' });
   await call(p);
   await p.waitForFunction(
     () => document.querySelector('#wain-ai-panel')?.textContent.includes('متصل'),
@@ -151,7 +172,7 @@ console.log('\n── ringing becomes connected, with a running timer ──');
 console.log('\n── hanging up ends the call and reports how long it ran ──');
 {
   const { ctx, p } = await fresh({ stayOpen: true });
-  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  await p.goto(B + '/search/', { waitUntil: 'networkidle' });
   await call(p);
   await p.waitForFunction(
     () => document.querySelector('#wain-ai-panel')?.textContent.includes('متصل'),
@@ -177,7 +198,7 @@ console.log('\n── the sheet and the launcher do not sit on top of each other
   // globals.css — once as a media query, once as an attribute for iOS — and
   // the comment there says the two lists must stay identical.
   const { ctx, p } = await fresh({ stayOpen: true });
-  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  await p.goto(B + '/search/', { waitUntil: 'networkidle' });
   for (const installed of [false, true]) {
     if (installed) {
       await p.evaluate(() => document.documentElement.setAttribute('data-standalone', 'true'));
@@ -214,7 +235,7 @@ console.log('\n── the hang-up does not come back as a failure ──');
   // call and its duration a fraction of a second after the caller hung up —
   // a hang-up presented to them as something having gone wrong.
   const { ctx, p, errors } = await fresh({ stayOpen: true });
-  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  await p.goto(B + '/search/', { waitUntil: 'networkidle' });
   await call(p);
   await onCall(p);
   await hangUp(p);
@@ -233,7 +254,7 @@ console.log('\n── hanging up and calling straight back ──');
   // recogniser handle, so the new call no longer recognised its own onstart
   // and rang until the caller gave up on it.
   const { ctx, p, errors } = await fresh({ stayOpen: true, abortReportMs: 700 });
-  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  await p.goto(B + '/search/', { waitUntil: 'networkidle' });
   await call(p);
   await onCall(p);
   await hangUp(p);
@@ -254,7 +275,7 @@ console.log('\n── a call that never connects gives up on its own ──');
   // one, the ring-back repeated every four seconds for as long as the sheet
   // was open — the caller's only way out was the button they were waiting on.
   const { ctx, p } = await fresh({ neverStarts: true });
-  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  await p.goto(B + '/search/', { waitUntil: 'networkidle' });
   await call(p);
   // Patient first, and only then impatient: a dial timeout that fires early is
   // worse than none, because it hangs up on the caller mid-permission-prompt.
@@ -280,7 +301,7 @@ console.log('\n── the reason given matches the reason ──');
     ['service-not-allowed', 'المايك مسموح للموقع', 'the microphone is blocked by policy'],
   ]) {
     const { ctx, p } = await fresh({ error: err });
-    await p.goto(B + '/', { waitUntil: 'networkidle' });
+    await p.goto(B + '/search/', { waitUntil: 'networkidle' });
     await call(p);
     await p.waitForSelector('#wain-ai-panel [role=alert]', { timeout: 6000 });
     const t = await sheet(p).textContent();
@@ -293,7 +314,7 @@ console.log('\n── the reason given matches the reason ──');
 console.log('\n── the call connects her, and she answers ──');
 {
   const { ctx, p, errors } = await fresh({ transcript: 'قهوة هادية' });
-  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  await p.goto(B + '/search/', { waitUntil: 'networkidle' });
   await call(p);
   ok('audio is unlocked inside the gesture (iOS)', (await p.evaluate(() => window.__primed)) === 'in-gesture');
   ok('the microphone is asked for in Kuwaiti Arabic', (await p.evaluate(() => window.__recLang)) === 'ar-KW');
@@ -302,7 +323,9 @@ console.log('\n── the call connects her, and she answers ──');
   await p.waitForFunction(() => window.__vibrations.length >= 2, null, { timeout: 6000 }).catch(() => {});
   ok('the tap buzzes, and again when she picks up', (await p.evaluate(() => window.__vibrations.length)) >= 2);
 
-  await p.waitForURL('**/search**', { timeout: 9000 });
+  // Waiting for «/search» is no longer waiting for anything — the call was
+  // placed FROM /search. The query is the event now, so wait for that.
+  await p.waitForURL((u) => decodeURIComponent(u.href).includes('قهوة هادية'), { timeout: 9000 });
   ok('what she heard becomes the search', decodeURIComponent(p.url()).includes('قهوة هادية'));
   await p.waitForFunction(() => window.__said.length > 0, null, { timeout: 8000 });
   const said = (await p.evaluate(() => window.__said)).join(' ');
@@ -324,7 +347,7 @@ console.log('\n── when it goes wrong, she says why ──');
     ['no-speech', 'ما سمعناك', 'nothing heard'],
   ]) {
     const { ctx, p } = await fresh({ error: err });
-    await p.goto(B + '/', { waitUntil: 'networkidle' });
+    await p.goto(B + '/search/', { waitUntil: 'networkidle' });
     await call(p);
     // The failure arrives after the microphone prompt is answered, so the
     // sheet is still ringing when call() returns. Waiting for the alert is
@@ -338,27 +361,40 @@ console.log('\n── when it goes wrong, she says why ──');
   }
   // Heard nothing at all
   const { ctx, p } = await fresh({ transcript: '   ' });
-  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  await p.goto(B + '/search/', { waitUntil: 'networkidle' });
   await call(p);
   await p.waitForSelector('#wain-ai-panel [role=alert]', { timeout: 6000 });
-  ok('an empty transcript does not search for nothing', !p.url().includes('/search'));
+  // «Did it stay off /search» used to be the evidence. The call is placed
+  // from /search now, so the query is: nothing heard, nothing searched for.
+  ok('an empty transcript does not search for nothing', !p.url().includes('q='), p.url());
   await ctx.close();
 }
 
 console.log('\n── a browser with no speech input still gets somewhere ──');
 {
+  /**
+   * «Did it land on /search» used to be the whole assertion, and from /search
+   * it is true before the tap — a test that passes for the wrong reason is
+   * worse than one that fails. What still distinguishes the fallback is that
+   * she SAYS why instead of going quiet: the panel raises an alert naming the
+   * missing speech support, and the typed box is right there behind it.
+   */
   const { ctx, p } = await fresh({ noRecognition: true });
-  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  await p.goto(B + '/search/', { waitUntil: 'networkidle' });
   await fab(p).click();
-  await p.waitForTimeout(1500);
-  ok('it falls back to the typed search rather than dead-ending', p.url().includes('/search'));
+  await p.waitForSelector('#wain-ai-panel [role=alert]', { timeout: 6000 });
+  const why = await p.locator('#wain-ai-panel [role=alert]').first().textContent();
+  ok('it says the browser has no microphone input rather than dead-ending',
+    /متصفح|صوت|ما يدعم/.test(why || ''), why);
+  ok('and the typed box it points at is on the page',
+    (await p.locator('input[aria-label*="بحث"], input[type="search"]').count()) > 0);
   await ctx.close();
 }
 
 console.log('\n── keyboard and screen-reader users place the same call ──');
 {
   const { ctx, p } = await fresh();
-  await p.goto(B + '/about/', { waitUntil: 'networkidle' });
+  await p.goto(B + '/search/', { waitUntil: 'networkidle' });
   await fab(p).focus();
   await p.keyboard.press('Enter');
   await p.waitForSelector('#wain-ai-panel', { timeout: 6000 });
@@ -383,7 +419,7 @@ console.log('\n── شوق has a face, and it is alive ──');
   // a sticker: she blinks while she waits, and her mouth only moves once
   // somebody has actually picked up.
   const { ctx, p } = await fresh({ stayOpen: true });
-  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  await p.goto(B + '/search/', { waitUntil: 'networkidle' });
 
   const faces = () => p.locator('.shouq');
   ok('the launcher shows her face, not a handset', (await faces().count()) === 1);
@@ -444,7 +480,7 @@ console.log('\n── a call that fails says so, in the hand and in the ear ─�
    * The microphone being refused is the failure a real visitor hits most.
    */
   const { ctx, p } = await fresh({ error: 'not-allowed' });
-  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  await p.goto(B + '/search/', { waitUntil: 'networkidle' });
   await call(p);
   await p.waitForFunction(
     () => document.querySelector('#wain-ai-panel')?.textContent.includes('المايك'),
@@ -513,11 +549,33 @@ console.log('\n── the call is not paid for until it is placed ──');
   });
   ok('the privacy page does not ship the call machinery', early.length === 0, early.join(' | '));
 
-  // …but the button that opens it is still there, and still says what it is.
+  /**
+   * And it does not offer the call either any more.
+   *
+   * The claim used to be «the button is there, the call it opens is not». The
+   * button is still mounted — it has to be, so a call outlives `open_place` —
+   * but it is hidden here, so the privacy policy no longer invites anybody
+   * into a feature whose only move from this page was to leave it.
+   */
+  ok('nor offers the call from here',
+    !(await p.locator('button[aria-label*="وين AI"]').first().isVisible()));
+
+  await p.goto(B + '/search/', { waitUntil: 'networkidle' });
   const btn = p.locator('button[aria-label*="وين AI"]').first();
-  ok('the launcher is still on the page', (await btn.count()) > 0);
+  ok('the launcher is on the search page', (await btn.count()) > 0);
   ok('and still carries its accessible name',
     ((await btn.getAttribute('aria-label')) || '').includes('شوق'));
+
+  // Read again HERE: /search legitimately ships the search index, so the
+  // question is whether it ships the CALL before anybody places one.
+  const beforeTap = await p.evaluate(async () => {
+    const srcs = [...document.querySelectorAll('script[src]')].map((s) => s.src);
+    const bodies = await Promise.all(srcs.map((u) => fetch(u).then((r) => r.text()).catch(() => '')));
+    return ['webkitSpeechRecognition', 'elevenlabs-convai']
+      .filter((s) => bodies.some((b) => b.includes(s)));
+  });
+  ok('the search page does not ship it before the tap either',
+    beforeTap.length === 0, beforeTap.join(' | '));
 
   /**
    * Watch the responses, not the DOM.

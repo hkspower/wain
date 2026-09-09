@@ -83,6 +83,27 @@ export default function SearchClient() {
       .filter((p): p is NonNullable<typeof p> => Boolean(p));
   }, [hits, places]);
 
+  /**
+   * A `?q=` that arrives from somewhere else on this same page.
+   *
+   * `q` was seeded from the URL once, at mount, which is right for arriving
+   * here from another route and wrong for everything that pushes `/search?q=…`
+   * while /search is already on screen. Two things do: the ⌘K palette's «شوف
+   * كل النتائج», which is in the navbar and therefore available here, and
+   * شوق's `show_places`, now that the call is placed from this page. Both are
+   * same-route pushes, so nothing remounts, `q` never hears about it, and the
+   * URL and the box disagree — the address bar says «قهوة هادية» and the
+   * results are for whatever was typed before.
+   *
+   * Adopting it only when it differs from what the box holds is what keeps
+   * this from fighting the effect below, which writes the URL *from* `q`: the
+   * echo of our own write is a no-op, an outside push is not.
+   */
+  useEffect(() => {
+    const incoming = params.get("q") ?? "";
+    setQ((current) => (incoming && incoming !== current ? incoming : current));
+  }, [params]);
+
   // Keep ?q= in step with the box so a search can be shared or bookmarked,
   // replacing rather than pushing so Back leaves the page instead of
   // walking through every keystroke.
@@ -117,8 +138,19 @@ export default function SearchClient() {
     if (kind !== "all" && counts[kind] === 0 && counts.all > 0) setKind("all");
   }, [kind, counts]);
 
-  // A question asked out loud, handed over by وين AI. Read once: it belongs to
-  // the arrival, not to every later edit of the query box.
+  /**
+   * A question asked out loud, handed over by وين AI.
+   *
+   * Not «read once at mount» any more, for the same reason as the `?q=` above:
+   * the call is placed from this page now, so handing the question over is a
+   * same-route push and there is no mount to read on. She wrote the key and
+   * pushed, and the page never looked — so she repeated nothing and said
+   * nothing, on the one flow that exists to be spoken.
+   *
+   * Still read-and-delete, so it stays a property of the arrival rather than
+   * of every later edit of the box: the key is gone the moment it is taken,
+   * and re-running on a URL change cannot resurrect it.
+   */
   const [asked, setAsked] = useState<string | null>(null);
   useEffect(() => {
     try {
@@ -130,7 +162,7 @@ export default function SearchClient() {
     } catch {
       /* private mode — no echo */
     }
-  }, []);
+  }, [params]);
 
   /**
    * What شوق says about this search — once, for the page and for the voice.
@@ -499,6 +531,7 @@ export default function SearchClient() {
           </div>
         )}
       </div>
+
     </div>
   );
 }
