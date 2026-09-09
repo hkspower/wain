@@ -242,7 +242,7 @@ weights are not enforced by the platform — every criterion counts the same in
 its aggregate — so the weighting above is how to *read* a scorecard, not how
 the number is computed.
 
-Twelve tests run against the same agent, all passing on 7 September:
+Thirteen tests run against the same agent, all passing on 9 September:
 
 | Row | Tests |
 | --- | --- |
@@ -251,7 +251,8 @@ Twelve tests run against the same agent, all passing on 7 September:
 | 3 Answered the question | ذكاء ١ (area + children + heat at once) · ذكاء ٢ (the beach at noon in August) · ذكاء ٣ (dinner then coffee, and the two are actually near) · ذكاء ٥ (Friday morning) · لهجة ٢ (feelings stated instead of a request — طفشان، ميت جوع، طقة حر، حالتي حالة — that she must read as «Kuwaiti food, indoors, cheap, now», and not as illness) |
 | 7 Register | المسافة بين مكانين · لهجة (a greeting in heavy slang — شخبارج، الشلة، ينقلعون، هاليومين، يمّ البحر، نسولف، شرايج — that she must understand, not ask about, and answer in kind with no MSA and a closing question) |
 | 8 Warm and willing | رد فعل (she recommended المباركية; the caller says it is too far, he is in الفحيحيل, and it is crowded at weekends — she must acknowledge both, not defend it, and offer something on his side of the country) |
-| 4–6 Manner | no scripted test — measured over the same twelve runs instead, see below |
+| 4–6 Manner | no scripted test — measured over the same thirteen runs instead, see below |
+| Registration | تسجيل مكان (a café owner in السالمية asking what registering costs — she must say free, no account, the four fields, that it goes to review with no date promised, and send him to the «سجّل مكانك» page without offering to do it for him) |
 
 The last two are the second pass of 7 September, when the owner asked for
 «more feedback and response». What was added is a section of the brief on
@@ -302,7 +303,7 @@ The last column is the second vocabulary pass (money, feelings, short
 replies, objections, outings, the car, youth slang — roughly ninety more
 entries) plus the responding-to-feedback section. The dialect numbers held
 rather than rose, which is the intended reading of «use less than you
-understand»: the extra words are for hearing him, and two of the twelve
+understand»: the extra words are for hearing him, and two of the thirteen
 replies are the two new tests, which are longer questions. The two «leaks»
 the script flags are «مناسب للعيال» and «محلات معينة» — both are heard in
 Kuwait and the list is being strict; they are left in the count rather than
