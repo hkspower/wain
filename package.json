@@ -60,6 +60,7 @@
     "test:tpay": "node scripts/tpay-test.mjs",
     "test:knet": "node scripts/knet-test.mjs",
     "test:admin": "node scripts/admin-smoke.mjs",
+    "test:image-drop": "node scripts/image-drop-test.mjs",
     "test:admin-contract": "node scripts/admin-contract-test.mjs",
     "test:admin-live": "node scripts/admin-live-test.mjs",
     "test:admin-browser": "node scripts/admin-browser-live.mjs",

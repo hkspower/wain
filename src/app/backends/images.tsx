@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AdminShell } from '@/components/admin-shell';
 import { ThemedText } from '@/components/themed-text';
@@ -17,6 +17,7 @@ import {
   type UploadTarget,
 } from '@/lib/admin';
 import { pickImages, pickedName, PermissionDenied, type Picked } from '@/lib/pick-images';
+import { useImageDrop } from '@/lib/use-image-drop';
 import { useSession } from '@/lib/session';
 import { MAX_PHOTOS, shrinkImage, TooBig } from '@/lib/shrink-image';
 
@@ -137,14 +138,30 @@ export default function ImagesScreen() {
     setNotice(null);
     try {
       const picked = await pickImages(remaining - queue.filter((r) => r.state !== 'failed').length);
-      if (!picked.length) return;
-      setQueue((q) => [...q, ...picked.map((p) => ({ picked: p, name: pickedName(p), state: 'waiting' as const }))]);
+      enqueue(picked);
     } catch (e) {
       setNotice(e instanceof PermissionDenied
         ? 'Sporta needs permission to open your photos. Allow it in your phone’s settings and try again.'
         : String(e));
     }
   };
+
+  /** The same queueing the file dialog does, from a drop or a paste. Shared
+   *  deliberately: two ways in that build the queue differently is two sets of
+   *  bugs, and the second one is always the one nobody tests. */
+  const enqueue = (files: Picked[]) => {
+    if (!files.length) return;
+    setNotice(null);
+    setQueue((q) => [...q, ...files.map((p) => ({ picked: p, name: pickedName(p), state: 'waiting' as const }))]);
+  };
+
+  // Drag a folder's worth onto the page, or paste one. Web only; on a phone
+  // this hook returns immediately and the picker button is the way in.
+  useImageDrop({
+    onFiles: enqueue,
+    limit: remaining - queue.filter((r) => r.state !== 'failed').length,
+    enabled: !!chosen && !busy && remaining > 0,
+  });
 
   const upload = async () => {
     if (!chosen || busy) return;
@@ -301,6 +318,17 @@ export default function ImagesScreen() {
             {gallery === null ? 'Loading its photographs…'
               : `${gallery.length} of ${MAX_PHOTOS} used · room for ${remaining} more`}
           </ThemedText>
+          {/* SAY THAT DROPPING WORKS, or it does not exist. An affordance
+              nobody can see is not a feature — the owner would go on opening
+              the dialog forty-six times. Web only, because there is no drag
+              and no clipboard image on a phone; on native this renders
+              nothing rather than promising something that cannot happen. */}
+          {Platform.OS === 'web' && remaining > 0 && (
+            <ThemedText type="caption" themeColor="textSecondary" style={styles.hint}>
+              Or drag photographs onto this page — or copy one and press{' '}
+              {navigator?.platform?.startsWith('Mac') ? '\u2318V' : 'Ctrl-V'}.
+            </ThemedText>
+          )}
 
           <View style={styles.chips}>
             <Button
