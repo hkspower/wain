@@ -1,6 +1,6 @@
 using UnityEngine;
 
-// Gulf Road Nights — Unity port. Zero scene setup required: this spawns
+// Night Racer — Unity port. Zero scene setup required: this spawns
 // the whole game into whatever scene is open when you press Play.
 public static class Bootstrap
 {

@@ -314,9 +314,9 @@ export default function RoadMapView({
         <div className="min-w-0">
           <div className="grn-label text-[0.7rem] text-white/70">The lap</div>
           <div className="grn-display truncate text-lg leading-tight">
-            Gulf Road Nights{" "}
+            Night Racer{" "}
             <span className="grn-ar text-white/55" lang="ar">
-              ليالي شارع الخليج
+              متسابق الليل
             </span>
           </div>
         </div>

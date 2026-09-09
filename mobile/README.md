@@ -1,4 +1,4 @@
-# Gulf Road Nights on iPhone & Android
+# Night Racer on iPhone & Android
 
 The game ships to phones as a native app via [Capacitor](https://capacitorjs.com):
 the Next.js static export is bundled inside a real iOS/Android app shell, so it

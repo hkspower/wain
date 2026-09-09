@@ -1,4 +1,4 @@
-# Gulf Road Nights — Steam PC build
+# Night Racer — Steam PC build
 
 The game itself lives in the web app (`/race` route). This folder wraps the
 static export in Electron so it ships as a Windows/Linux/macOS desktop game
@@ -64,7 +64,7 @@ which is exactly what Steam depots want — no installer needed.
    "AppBuild"
    {
      "AppID" "YOUR_APP_ID"
-     "Desc" "Gulf Road Nights v1.0"
+     "Desc" "Night Racer v1.0"
      "ContentRoot" "dist/win-unpacked"
      "BuildOutput" "steam_build_output"
      "Depots" { "YOUR_DEPOT_ID" { "FileMapping" { "LocalPath" "*" "DepotPath" "." "recursive" "1" } } }

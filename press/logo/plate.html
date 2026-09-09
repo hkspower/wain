@@ -1,22 +1,27 @@
 <meta charset="utf-8">
-<title>Sodium Cartography — Plate I</title>
+<title>Night Racer — plate</title>
 <style>
-  @font-face { font-family: "Shoulders"; src: url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/BigShoulders-Bold.ttf"); font-weight: 700; }
-  @font-face { font-family: "Shoulders"; src: url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/BigShoulders-Regular.ttf"); font-weight: 400; }
-  @font-face { font-family: "Mono"; src: url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/GeistMono-Regular.ttf"); }
-  @font-face { font-family: "MonoB"; src: url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/GeistMono-Bold.ttf"); }
-  /* Modern Japanese gothic. IPA Gothic (2003) was what the container
-     shipped with; its kana are narrow and its strokes uneven at display
-     size, which is exactly where this type is used. Noto Sans CJK JP is
-     the contemporary equivalent — even stroke weight, open counters, and
-     kana proportioned to sit with Latin rather than beside it. local()
-     first so fontconfig picks the JP face out of the .ttc collection
-     rather than whichever member happens to come first. */
-  @font-face {
-    font-family: "Kana";
-    src: local("Noto Sans CJK JP"), local("NotoSansCJKjp-Regular"),
-         url("file:///usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc");
-  }
+  @font-face { font-family: "Shoulders"; src: url("fonts/BigShoulders-Bold.ttf"); font-weight: 700; }
+  @font-face { font-family: "Shoulders"; src: url("fonts/BigShoulders-Regular.ttf"); font-weight: 400; }
+  @font-face { font-family: "Mono"; src: url("fonts/GeistMono-Regular.ttf"); }
+  @font-face { font-family: "MonoB"; src: url("fonts/GeistMono-Bold.ttf"); }
+  /* Japanese gothic, vendored — and named honestly.
+     
+     This block used to ask for Noto Sans CJK JP with a local() first and
+     a url() into /usr/share/fonts as backup, over a comment explaining
+     that IPA Gothic (2003) was the container's old face and Noto the
+     contemporary replacement. Neither source resolved: there is no Noto
+     CJK on this image and no such .ttc path. Every mark here has been
+     setting its katakana in IPA Gothic the whole time — the face the
+     comment said had been left behind — and nothing said so, because a
+     @font-face that fails just falls through.
+     
+     It is vendored now, under its own name, so the marks render the same
+     on any checkout instead of taking whatever Japanese face a machine
+     happens to have. At the sizes it is used — 17px in the lockups, 25px
+     round the badge — IPA Gothic is perfectly good; the objection to it
+     was about display sizes, and the kana is never set at one. */
+  @font-face { font-family: "Kana"; src: url("fonts/IPAGothic.ttf"); }
   @font-face { font-family: "Arab"; src: url("file:///usr/share/fonts/truetype/freefont/FreeSerif.ttf"); }
 
   :root {
@@ -71,13 +76,19 @@
   /* ---- the one monumental gesture ---- */
   .mark { position: absolute; left: 0; right: 0; text-align: center; }
   .wm {
+    /* inline-block so the tracking solver measures the WORD and not the
+       centred row it sits in — see the note in lockup.html. */
+    display: inline-block;
     font-family: "Shoulders", sans-serif; font-weight: 700;
     transform: skewX(-11deg);
     line-height: 0.82;
     text-transform: uppercase;
   }
-  .wm-1 { font-size: 132px; letter-spacing: 0.004em; color: var(--paper); }
-  .wm-2 { font-size: 132px; letter-spacing: 0.268em; text-indent: 0.268em; color: var(--amber); }
+  /* Solved at render time, not written here — see lockWordmark() below
+     and the longer note in lockup.html. These were 0.004em and 0.268em,
+     tuned for "Gulf Road" over "Nights" in a font that was not loading. */
+  .wm-1 { font-size: 132px; color: var(--paper); }
+  .wm-2 { font-size: 132px; color: var(--amber); }
 
   .rule { position: absolute; background: rgba(232,236,244,0.20); }
   .kana {
@@ -137,7 +148,7 @@
   <div class="lab dim" style="right:96px; top:112px; letter-spacing:0.2em; opacity:0.55;">35°37′02″N &nbsp;139°46′11″E</div>
 
   <!-- vertical index, left rail -->
-  <div class="kana" style="right:104px; top:300px; height:280px;">ガルフロード・ナイツ</div>
+  <div class="kana" style="right:104px; top:300px; height:280px;">ナイトレーサー</div>
 
   <div class="lab cyan" style="left:202px; top:1246px;">Calculated &nbsp;— &nbsp;shoreline arc, r = 1760</div>
   <div class="lab amber" style="left:202px; top:1272px;">Observed &nbsp;— &nbsp;174 standards, mean h = 9.4 m</div>
@@ -147,13 +158,13 @@
 
   <!-- ============ the gesture ============ -->
   <div class="mark" style="top:672px;">
-    <div class="wm wm-1">Gulf Road</div>
+    <div class="wm wm-1">Night</div>
   </div>
   <div class="mark" style="top:786px;">
-    <div class="wm wm-2">Nights</div>
+    <div class="wm wm-2">Racer</div>
   </div>
   <div class="mark" style="top:944px;">
-    <div class="arab">ليالي شارع الخليج</div>
+    <div class="arab">متسابق الليل</div>
   </div>
 
   <div class="vignette"></div>
@@ -166,6 +177,24 @@
 <script>
 const NS = "http://www.w3.org/2000/svg";
 const el = (n, a) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
+
+// The two words of the mark, set to one width. See lockup.html for why
+// this is measured rather than typed.
+function lockWordmark(target) {
+  for (const el of document.querySelectorAll(".wm")) {
+    const at = (t) => { el.style.letterSpacing = t + "em"; return el.getBoundingClientRect().width; };
+    const w0 = at(0), perEm = (at(0.2) - w0) / 0.2;
+    // A zero slope means the element is not measurable as a word. Say so
+    // rather than quietly setting no tracking: check-logo.mjs reads this.
+    if (!(perEm > 1)) { (window.__lockFail ??= []).push(el.textContent.trim()); }
+    const t = perEm > 1 ? Math.max(0, (target - w0) / perEm) : 0;
+    el.style.letterSpacing = t.toFixed(4) + "em";
+    el.style.textIndent = t.toFixed(4) + "em";
+    (window.__lockWidths ??= {})[el.textContent.trim()] =
+      +el.getBoundingClientRect().width.toFixed(1);
+  }
+}
+document.fonts.ready.then(() => lockWordmark(480));
 
 // Deterministic jitter — a plate that redraws differently is not a survey.
 let seed = 20240517;

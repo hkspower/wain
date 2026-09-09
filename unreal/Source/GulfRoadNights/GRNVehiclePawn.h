@@ -1,6 +1,6 @@
 #pragma once
 
-// The player's machine. Not Chaos Vehicles: Gulf Road Nights has its own
+// The player's machine. Not Chaos Vehicles: Night Racer has its own
 // arcade handling model (ported verbatim from the web engine) — cars
 // live in track space, the nose can point past the direction of travel
 // (that is the drift), and the trailing car in a battle bleeds SP.

@@ -190,7 +190,7 @@ for (let i = 0; i < CARS.length; i++) {
   cards.push(`
   <section class="story" data-canvas-width="${W}" data-canvas-height="${H}">
     <div class="brand">GULF ROAD NIGHTS</div>
-    <div class="brand-ar">ليالي شارع الخليج</div>
+    <div class="brand-ar">متسابق الليل</div>
     <div class="index">${n}<span class="of">/${total}</span></div>
 
     <img class="hero" src="${img}" width="${HERO_W}" height="${HERO_H}" alt="${esc(c.name)}">
@@ -229,7 +229,7 @@ const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Gulf Road Nights — the showroom, 16 Story cards</title>
+<title>Night Racer — the showroom, 16 Story cards</title>
 <meta name="hz:slide-selector" content=".story">
 <meta name="hz:canvas-width" content="${W}">
 <meta name="hz:canvas-height" content="${H}">

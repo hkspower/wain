@@ -185,8 +185,8 @@ public class GameController : MonoBehaviour
         else
         {
             Debug.LogWarning(
-                "[Gulf Road Nights] URP not found — running on the built-in pipeline. " +
-                "Install Universal RP and run 'Gulf Road Nights ▸ Setup Rendering' for the full look.");
+                "[Night Racer] URP not found — running on the built-in pipeline. " +
+                "Install Universal RP and run 'Night Racer ▸ Setup Rendering' for the full look.");
             return;
         }
 
@@ -195,7 +195,7 @@ public class GameController : MonoBehaviour
         if (profile == null)
         {
             Debug.LogWarning(
-                "[Gulf Road Nights] No post profile — run 'Gulf Road Nights ▸ Setup Rendering (URP + Post)'.");
+                "[Night Racer] No post profile — run 'Night Racer ▸ Setup Rendering (URP + Post)'.");
             return;
         }
         var volGo = new GameObject("GlobalPostVolume");

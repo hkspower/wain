@@ -53,7 +53,7 @@
   --font-arabic: var(--ff-arabic), "IBM Plex Sans Arabic", "Noto Sans Arabic",
     var(--ff-sans), ui-sans-serif, sans-serif;
 
-  /* Gulf Road Nights — night-racing UI palette. Warm sodium amber for
+  /* Night Racer — night-racing UI palette. Warm sodium amber for
      primary actions, gulf cyan for information, emerald/red for the
      player/rival duality, all on brushed dark glass. */
   /* The menu greys.
@@ -137,7 +137,7 @@ body {
   @apply bg-brand-200 text-brand-900;
 }
 
-/* Gulf Road Nights — collision feedback shake */
+/* Night Racer — collision feedback shake */
 @keyframes race-bump {
   0% { transform: translate(0, 0); }
   25% { transform: translate(-6px, 3px); }
@@ -150,7 +150,7 @@ body {
   animation: race-bump 0.25s ease-out;
 }
 
-/* Gulf Road Nights — VS battle splash */
+/* Night Racer — VS battle splash */
 @keyframes vs-slide-left {
   0% { transform: translateX(-60vw); opacity: 0; }
   18% { transform: translateX(0); opacity: 1; }
@@ -175,7 +175,7 @@ body {
 .vs-slide-right { animation: vs-slide-right 2.4s ease-out forwards; }
 .vs-pop { animation: vs-pop 2.4s ease-out forwards; }
 
-/* Gulf Road Nights — challenge driver cards */
+/* Night Racer — challenge driver cards */
 @keyframes card-in-left {
   0% { transform: translateX(-40px) scale(0.92); opacity: 0; }
   100% { transform: translateX(0) scale(1); opacity: 1; }
@@ -188,7 +188,7 @@ body {
 .card-in-right { animation: card-in-right 0.35s ease-out both 0.12s; }
 
 /* ==========================================================
-   Gulf Road Nights — UI kit
+   Night Racer — UI kit
    Shared surfaces so every panel, popup and card in the game
    reads as one system: same glass, same hairline borders, same
    label typography.

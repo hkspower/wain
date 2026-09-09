@@ -20,7 +20,7 @@ node press/social/render.mjs
 
 Chromium, the same renderer `press/logo` uses, and for the same reason:
 it is the only one here that shapes Arabic correctly. PIL would set
-ليالي شارع الخليج as disconnected letterforms.
+متسابق الليل as disconnected letterforms.
 
 The webfonts come over the network, so the renderer waits on
 `document.fonts.ready` before the shot. A plate captured early is set in

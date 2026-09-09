@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { GRN_API_VERSION, GRN_CACHE_CONTROL } from "@/game/api";
 import { RIVALS } from "@/game/rivals";
 import { CARS } from "@/game/mods";
+import { NAME } from "@/lib/gameSite";
 
 // Discovery document: what a client should hit and what it will find.
 // The Unreal client reads this first and refuses payloads whose
@@ -12,8 +13,8 @@ export function GET() {
   return NextResponse.json(
     {
       apiVersion: GRN_API_VERSION,
-      game: "Gulf Road Nights",
-      arabicName: "ليالي شارع الخليج",
+      game: NAME.en,
+      arabicName: NAME.ar,
       endpoints: {
         gamedata: "/api/grn/v1/gamedata",
         track: "/api/grn/v1/track",

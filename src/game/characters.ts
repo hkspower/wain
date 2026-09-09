@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { RIG } from "./rig";
 import { flagTexture as countryFlag, type FlagId } from "./flags";
 
-// The people of Gulf Road Nights: spectators on the corniche and the
+// The people of Night Racer: spectators on the corniche and the
 // racers who stand beside their machines. Everything here is built from
 // primitives at roughly 1.75 m tall — these are read at 20-plus metres
 // through a windscreen at night, so they are silhouettes with the right

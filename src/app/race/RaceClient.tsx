@@ -3001,10 +3001,10 @@ function raceCut(): { w: number; h: number } | null {
                 Kuwait Xtreme Racer
               </div>
               <h1 className="grn-display menu-wordmark mt-1.5 text-[clamp(2.4rem,12vw,5rem)] italic leading-[0.88]">
-                GULF ROAD <span className="text-sodium-400">NIGHTS</span>
+                NIGHT <span className="text-sodium-400">RACER</span>
               </h1>
               <div className="grn-ar mt-1.5 text-lg text-white/70" dir="rtl" lang="ar">
-                ليالي شارع الخليج
+                متسابق الليل
               </div>
               {/* Whether racing is open, on the screen where you decide
                   to press START. The window is the rule the whole night
@@ -3221,10 +3221,10 @@ function raceCut(): { w: number; h: number } | null {
 
             <div className="grn-dialog mt-5 p-4 sm:p-5">
               <div className="grn-display text-2xl italic">
-                GULF ROAD <span className="text-sodium-400">NIGHTS</span>
+                NIGHT <span className="text-sodium-400">RACER</span>
               </div>
               <div className="grn-ar mt-1 text-base text-white/70" dir="rtl" lang="ar">
-                ليالي شارع الخليج
+                متسابق الليل
               </div>
               <p className="mt-3 text-[0.875rem] leading-relaxed text-white/60">
                 A midnight racer set on Kuwait&apos;s Gulf Road — the corniche from

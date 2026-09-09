@@ -1,6 +1,6 @@
 # Authored textures — the art drop-in
 
-Every surface in Gulf Road Nights ships a procedural texture generated at
+Every surface in Night Racer ships a procedural texture generated at
 runtime, and that is what you see out of the box. Nothing here is required.
 
 This folder is the seam for replacing any of those maps with authored

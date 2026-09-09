@@ -44,7 +44,7 @@ fail=0
 say() { printf '  %-12s %s\n' "$1" "$2"; }
 bad() { printf '  %-12s %s\n' "$1" "$2"; fail=$((fail + 1)); }
 
-echo "Gulf Road Nights — Unreal connector, macOS"
+echo "Night Racer — Unreal connector, macOS"
 echo
 
 # ---- 0. This is a Mac ------------------------------------------------

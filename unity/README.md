@@ -1,4 +1,4 @@
-# Gulf Road Nights — Unity port
+# Night Racer — Unity port
 
 A native Unity build of the game for the Steam release: same Gulf Road
 spline, handling model, rival roster, SP battle rules and Kuwaiti voice
@@ -15,7 +15,7 @@ art assets, no scene wiring.
 1. Install **Unity 6 LTS (6000.0.x)** via Unity Hub.
 2. Unity Hub → **Add** → select this `unity/` folder → open it. The URP
    package restores automatically from `Packages/manifest.json`.
-3. Run the menu item **Gulf Road Nights ▸ Setup Rendering (URP + Post)**
+3. Run the menu item **Night Racer ▸ Setup Rendering (URP + Post)**
    once. It generates the pipeline asset, renderer and post-processing
    profile and wires them into Graphics/Quality settings.
 4. Open any empty scene (File → New Scene → Basic) and press **Play**.

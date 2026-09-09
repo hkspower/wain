@@ -4,7 +4,7 @@
 
 A modern place-discovery app for Kuwait: curated landmarks, food, beaches, shopping, culture, and family spots — each with highlights, the best time to visit, and a price level.
 
-## 🏁 Gulf Road Nights — ليالي شارع الخليج
+## 🏁 Night Racer — متسابق الليل
 
 A built-in **Kuwait Xtreme Racer** game at [`/race`](http://localhost:3000/race): Tokyo-Xtreme-Racer-style midnight highway battles on a 7.3 km lap of the real **Gulf Road** — south along the corniche from the Kuwait Towers past Green Island, the Salmiya marina, and the Scientific Center to Ras Al-Ard, then back north through Hawally and the city skyline (Al Hamra, Liberation Tower, the striped water towers).
 
@@ -150,7 +150,7 @@ src/
 │   ├── explore/              # Search + category filters
 │   ├── places/[slug]/        # Place detail pages (statically generated)
 │   ├── about/                # About Wain
-│   ├── race/                 # Gulf Road Nights — the game's UI shell
+│   ├── race/                 # Night Racer — the game's UI shell
 │   ├── hub/                  # The online meet: crews, referrals, ledger
 │   ├── api/grn/              # Data API the engine ports read
 │   ├── dev/cars/             # Car asset manager (development only)

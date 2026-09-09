@@ -19,11 +19,15 @@ if (!exe) { console.error("no chromium"); process.exit(2); }
 // is no resampling anywhere in this pipeline.
 const LONG_EDGE = 3840;
 
+// NAMING, and the trap in it. The game's marks are `night-racer-*` and
+// the crew's are `night-racers-*` — one letter apart, because the game
+// was renamed to Night Racer while the crew kept the name Night Racers.
+// Read the file you are about to ship twice.
 const jobs = [
-  { file: "plate.html", out: "gulf-road-nights-plate.png", w: 1200, h: 1600 },
-  { file: "lockup.html", out: "gulf-road-nights-logo.png", w: 1600, h: 900 },
-  { file: "lockup.html?bare=1", out: "gulf-road-nights-logo-transparent.png", w: 1600, h: 900, alpha: true },
-  { file: "badge.html", out: "gulf-road-nights-badge.png", w: 900, h: 900, alpha: true },
+  { file: "plate.html", out: "night-racer-plate.png", w: 1200, h: 1600 },
+  { file: "lockup.html", out: "night-racer-logo.png", w: 1600, h: 900 },
+  { file: "lockup.html?bare=1", out: "night-racer-logo-transparent.png", w: 1600, h: 900, alpha: true },
+  { file: "badge.html", out: "night-racer-badge.png", w: 900, h: 900, alpha: true },
   { file: "nr-lockup.html", out: "night-racers-logo.png", w: 1600, h: 900 },
   { file: "nr-lockup.html?bare=1", out: "night-racers-logo-transparent.png", w: 1600, h: 900, alpha: true },
   { file: "nr-emblem.html", out: "night-racers-emblem.png", w: 900, h: 900, alpha: true },

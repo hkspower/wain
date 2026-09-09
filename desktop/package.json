@@ -2,7 +2,7 @@
   "name": "gulf-road-nights-desktop",
   "version": "1.0.0",
   "private": true,
-  "description": "Gulf Road Nights \u2014 Kuwait Xtreme Racer. Electron shell for the Steam PC build.",
+  "description": "Night Racer \u2014 Kuwait Xtreme Racer. Electron shell for the Steam PC build.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -15,7 +15,7 @@
   },
   "build": {
     "appId": "com.wain.gulfroadnights",
-    "productName": "Gulf Road Nights",
+    "productName": "Night Racer",
     "files": [
       "main.js",
       "out/**/*",

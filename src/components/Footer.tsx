@@ -20,7 +20,7 @@ export default function Footer() {
               Explore
             </Link>
             <Link href="/game" className="transition hover:text-brand-700">
-              Gulf Road Nights
+              Night Racer
             </Link>
             <Link href="/about" className="transition hover:text-brand-700">
               About

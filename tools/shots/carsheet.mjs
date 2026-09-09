@@ -266,7 +266,7 @@ const html = `<title>Gulf Road Showroom</title>
 
 <div class="wrap">
   <header class="top">
-    <p class="eyebrow">Gulf Road Nights &middot; <span lang="ar" dir="rtl">ليالي شارع الخليج</span></p>
+    <p class="eyebrow">Night Racer &middot; <span lang="ar" dir="rtl">متسابق الليل</span></p>
     <h1>The Showroom</h1>
     <p class="lede">All ${cars.length} cars, rendered on the game's own turntable under the
       menu's showroom lighting, in the order a player buys them. Every card is the

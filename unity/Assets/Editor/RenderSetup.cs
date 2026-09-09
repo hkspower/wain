@@ -9,7 +9,7 @@ using UnityEngine.Rendering.Universal;
 // settings and the post-processing volume profile the game expects, then
 // wires them into Graphics/Quality settings.
 //
-//   Menu: Gulf Road Nights ▸ Setup Rendering (URP + Post)
+//   Menu: Night Racer ▸ Setup Rendering (URP + Post)
 //
 // Doing this from a script rather than shipping hand-written .asset YAML
 // keeps the GUIDs valid across Unity versions.
@@ -23,7 +23,7 @@ public static class RenderSetup
     const string PipelinePath = Dir + "/GulfRoadURP.asset";
     const string ProfilePath = ResDir + "/GulfRoadPostProfile.asset";
 
-    [MenuItem("Gulf Road Nights/Setup Rendering (URP + Post)")]
+    [MenuItem("Night Racer/Setup Rendering (URP + Post)")]
     public static void Setup()
     {
         Directory.CreateDirectory(Dir);
@@ -132,7 +132,7 @@ public static class RenderSetup
         AssetDatabase.Refresh();
 
         Debug.Log(
-            "[Gulf Road Nights] URP + post-processing configured.\n" +
+            "[Night Racer] URP + post-processing configured.\n" +
             $"  pipeline: {PipelinePath}\n  profile:  {ProfilePath}\n" +
             "Press Play — the game finds the profile automatically."
         );

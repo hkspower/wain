@@ -1,17 +1,16 @@
 <meta charset="utf-8">
-<title>ليالي شارع الخليج — lockup</title>
+<title>متسابق الليل — lockup</title>
 <style>
   @font-face { font-family:"PlexAr"; src:url("fonts/IBMPlexSansArabic-Bold.woff2") format("woff2"); font-weight:700; }
   @font-face { font-family:"PlexAr"; src:url("fonts/IBMPlexSansArabic-Regular.woff2") format("woff2"); font-weight:400; }
-  @font-face { font-family:"Shoulders"; src:url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/BigShoulders-Bold.ttf"); font-weight:700; }
-  @font-face { font-family:"Mono"; src:url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/GeistMono-Regular.ttf"); }
-  /* Modern Japanese gothic — see the note in plate.html. local() first
-     so fontconfig picks the JP face out of the .ttc collection. */
-  @font-face {
-    font-family: "Kana";
-    src: local("Noto Sans CJK JP"), local("NotoSansCJKjp-Regular"),
-         url("file:///usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc");
-  }
+  @font-face { font-family:"Shoulders"; src:url("fonts/BigShoulders-Bold.ttf"); font-weight:700; }
+  @font-face { font-family:"Mono"; src:url("fonts/GeistMono-Regular.ttf"); }
+  /* Japanese gothic, vendored — see the note in lockup.html. Neither the
+     local() nor the url() this used to name resolved on this image, so
+     every mark had been quietly setting its kana in IPA Gothic; it is
+     vendored under its own name now so the result is the same on any
+     checkout. */
+  @font-face { font-family: "Kana"; src: url("fonts/IPAGothic.ttf"); }
   * { margin:0; padding:0; box-sizing:border-box; }
   html, body { width:1600px; height:900px; }
   body { background:#05070e; font-family:"Mono",monospace; -webkit-font-smoothing:antialiased; overflow:hidden; }
@@ -35,7 +34,11 @@
     font-size:112px; line-height:1.24; letter-spacing:0;
     font-synthesis:none;
   }
-  .ar .lay { color:#ffb03c; }   /* ليالي — the amber word, as NIGHTS is */
+  /* The amber word leads on the RIGHT, where the reader starts, and it
+     is the same word the Latin sets in amber: متسابق is RACER. The two
+     hierarchies agree without either being a translation of the other's
+     layout. */
+  .ar .lay { color:#ffb03c; }
   .ar .st  { color:#e8ecf4; }
   .lat { font-family:"Shoulders",sans-serif; font-weight:700; transform:skewX(-11deg);
          font-size:44px; letter-spacing:0.30em; text-indent:0.30em; text-transform:uppercase;
@@ -58,11 +61,11 @@
     </defs>
     <g id="lamps"></g>
   </svg>
-  <div class="row" style="top:196px;"><span class="kana">ガルフロード・ナイツ</span></div>
+  <div class="row" style="top:196px;"><span class="kana">ナイトレーサー</span></div>
   <div class="row" style="top:286px;">
-    <div class="ar"><span class="lay">ليالي</span> <span class="st">شارع الخليج</span></div>
+    <div class="ar"><span class="lay">متسابق</span> <span class="st">الليل</span></div>
   </div>
-  <div class="row" style="top:596px;"><span class="lat">Gulf Road Nights</span></div>
+  <div class="row" style="top:596px;"><span class="lat">Night Racer</span></div>
   <div class="row" style="top:690px;"><span class="tag">Kuwait Xtreme Racer</span></div>
   <div class="vignette"></div>
 </div>
@@ -70,24 +73,34 @@
 if (new URLSearchParams(location.search).has("bare")) document.body.classList.add("bare");
 const NS="http://www.w3.org/2000/svg";
 const el=(n,a)=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;};
-let seed=20240517; const rnd=()=>(seed=(seed*1664525+1013904223)%4294967296)/4294967296;
 {
+  // The same night the Latin lockup surveys, at this composition's
+  // height. See lockup.html for why the motif is an hour and not a road.
   const g=document.getElementById("lamps");
-  const N=88, x0=470, x1=1130, baseY=524, cx=800, cy=-1400, r=1900;
-  g.appendChild(el("rect",{x:x0,y:baseY,width:x1-x0,height:0.8,fill:"url(#rule)"}));
-  for(let i=0;i<N;i++){
-    const t=i/(N-1), x=x0+t*(x1-x0);
-    const dx=x-cx, drop=r-Math.sqrt(Math.max(0,r*r-dx*dx));
-    const y=baseY-drop*0.055;
-    const swell=0.5+0.5*Math.sin(t*Math.PI);
-    const H=(9+swell*24)*(0.9+rnd()*0.2);
-    const edge=Math.min(1,Math.min(t,1-t)/0.2), o=swell*edge;
-    g.appendChild(el("rect",{x:x.toFixed(2),y:(y-H).toFixed(2),width:0.8,height:H.toFixed(2),
-      fill:"#ffb03c","fill-opacity":(o*0.22).toFixed(3)}));
-    g.appendChild(el("circle",{cx:x.toFixed(2),cy:(y-H).toFixed(2),r:1.5,
-      fill:"#ffd7a0","fill-opacity":(0.28+o*0.6).toFixed(3)}));
-    if(i%4===0) g.appendChild(el("circle",{cx:x.toFixed(2),cy:(y-H).toFixed(2),r:8,
-      fill:"#ffb03c","fill-opacity":(o*0.12).toFixed(3),filter:"url(#soft)"}));
+  const x0=470, x1=1130, y=524, W=x1-x0;
+  const OPEN=0, CLOSE=5+50/60;                 // src/game/clock.ts
+  const at=(h)=>x0+(h/24)*W;
+  const txt=(x,yy,str,a)=>{const t=el("text",{x,y:yy,...a});t.textContent=str;return t;};
+  g.appendChild(el("rect",{x:x0,y:y,width:W,height:0.8,fill:"#46c9ee","fill-opacity":0.20}));
+  for(let h=0;h<=24;h++){
+    const major=h%6===0, x=at(h);
+    g.appendChild(el("rect",{x:x.toFixed(2),y:(y-(major?7:3.5)).toFixed(2),
+      width:0.8,height:(major?7:3.5).toFixed(2),
+      fill:"#e8ecf4","fill-opacity":(major?0.34:0.17).toFixed(2)}));
   }
+  const xa=at(OPEN), xb=at(CLOSE);
+  g.appendChild(el("rect",{x:xa.toFixed(2),y:(y-2).toFixed(2),
+    width:(xb-xa).toFixed(2),height:3.6,fill:"#ffb03c","fill-opacity":0.85}));
+  g.appendChild(el("rect",{x:xa.toFixed(2),y:(y-9).toFixed(2),
+    width:(xb-xa).toFixed(2),height:18,fill:"#ffb03c","fill-opacity":0.10,filter:"url(#soft)"}));
+  for(const [x,h] of [[xa,13],[xb,20]])
+    g.appendChild(el("rect",{x:x.toFixed(2),y:(y-h).toFixed(2),width:1.2,height:h,
+      fill:"#ffd7a0","fill-opacity":0.9}));
+  const lab={"font-family":"Mono, monospace","font-size":"12","letter-spacing":"2.2",
+    "fill":"#ffb03c","fill-opacity":"0.72"};
+  g.appendChild(txt(xa.toFixed(2),(y+26).toFixed(2),"00:00",{...lab,"text-anchor":"start"}));
+  g.appendChild(txt(xb.toFixed(2),(y+26).toFixed(2),"05:50",{...lab,"text-anchor":"end"}));
+  g.appendChild(txt(x1.toFixed(2),(y+26).toFixed(2),"24:00",
+    {...lab,"text-anchor":"end","fill":"#46c9ee","fill-opacity":"0.34"}));
 }
 </script>

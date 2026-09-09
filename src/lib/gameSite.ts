@@ -1,5 +1,5 @@
 /**
- * Every word on the Gulf Road Nights site, in both languages, in one
+ * Every word on the Night Racer site, in both languages, in one
  * place.
  *
  * ONE PLACE is the whole design. A bilingual page written the obvious
@@ -40,9 +40,27 @@ export interface Faq {
   a: Bi;
 }
 
+/**
+ * The game's name, and the only place it is written down.
+ *
+ * It was "Gulf Road Nights" until the rename, and that rename is the
+ * reason this comment exists: the title was hardcoded in forty-five
+ * files — page metadata, the API manifest, the desktop shell, a
+ * billboard in the world, four logo plates and five CSS section
+ * headers — so changing it was an archaeology exercise rather than an
+ * edit. Everything in this codebase that can import a string now
+ * imports this one. What cannot (CSS comments, C# and C++ in the ports,
+ * the Steam VDF, markdown) is listed in tests/name.mjs, which fails if
+ * any of them still says the old name.
+ *
+ * NOT renamed, on purpose: the fourteen `gulf-road-nights-*` keys in
+ * localStorage. Those are where every player's garage, career, crew and
+ * progress lives, and a key is an address rather than a label — renaming
+ * one does not move a save, it abandons it. See tests/name.mjs.
+ */
 export const NAME: Bi = {
-  en: "Gulf Road Nights",
-  ar: "ليالي شارع الخليج",
+  en: "Night Racer",
+  ar: "متسابق الليل",
 };
 
 export const TAGLINE: Bi = {

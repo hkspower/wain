@@ -1,4 +1,4 @@
-// Gulf Road Nights — online hub server.
+// Night Racer — online hub server.
 //
 // A single shared room ("the Gulf Road cruise"): relays player positions
 // at 10 Hz, chat, and keeps a session best-lap leaderboard. Positions,
@@ -477,7 +477,7 @@ async function handleRest(req, res) {
   if (path === "/api/v1/status") {
     return sendJson(res, 200, {
       apiVersion: API_VERSION,
-      game: "Gulf Road Nights",
+      game: "Night Racer",
       online: players.size,
       teams: teams.size,
       uptimeSec: Math.round(process.uptime()),
@@ -956,6 +956,6 @@ process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
 httpServer.listen(PORT, () => {
-  console.log(`[hub] Gulf Road Nights hub listening on ws://0.0.0.0:${PORT}`);
+  console.log(`[hub] Night Racer hub listening on ws://0.0.0.0:${PORT}`);
   console.log(`[hub] REST API: http://localhost:${PORT}/api/v1/status`);
 });

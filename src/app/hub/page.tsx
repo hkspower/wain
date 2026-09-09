@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import HubLobby from "./HubLobby";
 
 export const metadata: Metadata = {
-  title: "Online Hub — Gulf Road Nights | Wain?",
+  title: "Online Hub — Night Racer | Wain?",
   description:
-    "The Gulf Road Nights online hub: see who's cruising, chat, check the best-lap leaderboard, and join the shared midnight cruise.",
+    "The Night Racer online hub: see who's cruising, chat, check the best-lap leaderboard, and join the shared midnight cruise.",
 };
 
 export default function HubPage() {

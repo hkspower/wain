@@ -1,20 +1,25 @@
 <meta charset="utf-8">
-<title>Gulf Road Nights — badge</title>
+<title>Night Racer — badge</title>
 <style>
-  @font-face { font-family: "Shoulders"; src: url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/BigShoulders-Bold.ttf"); font-weight:700; }
-  @font-face { font-family: "Mono"; src: url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/GeistMono-Regular.ttf"); }
-  /* Modern Japanese gothic. IPA Gothic (2003) was what the container
-     shipped with; its kana are narrow and its strokes uneven at display
-     size, which is exactly where this type is used. Noto Sans CJK JP is
-     the contemporary equivalent — even stroke weight, open counters, and
-     kana proportioned to sit with Latin rather than beside it. local()
-     first so fontconfig picks the JP face out of the .ttc collection
-     rather than whichever member happens to come first. */
-  @font-face {
-    font-family: "Kana";
-    src: local("Noto Sans CJK JP"), local("NotoSansCJKjp-Regular"),
-         url("file:///usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc");
-  }
+  @font-face { font-family: "Shoulders"; src: url("fonts/BigShoulders-Bold.ttf"); font-weight:700; }
+  @font-face { font-family: "Mono"; src: url("fonts/GeistMono-Regular.ttf"); }
+  /* Japanese gothic, vendored — and named honestly.
+     
+     This block used to ask for Noto Sans CJK JP with a local() first and
+     a url() into /usr/share/fonts as backup, over a comment explaining
+     that IPA Gothic (2003) was the container's old face and Noto the
+     contemporary replacement. Neither source resolved: there is no Noto
+     CJK on this image and no such .ttc path. Every mark here has been
+     setting its katakana in IPA Gothic the whole time — the face the
+     comment said had been left behind — and nothing said so, because a
+     @font-face that fails just falls through.
+     
+     It is vendored now, under its own name, so the marks render the same
+     on any checkout instead of taking whatever Japanese face a machine
+     happens to have. At the sizes it is used — 17px in the lockups, 25px
+     round the badge — IPA Gothic is perfectly good; the objection to it
+     was about display sizes, and the kana is never set at one. */
+  @font-face { font-family: "Kana"; src: url("fonts/IPAGothic.ttf"); }
   * { margin:0; padding:0; box-sizing:border-box; }
   html, body { width:900px; height:900px; background:transparent; overflow:hidden; }
 </style>
@@ -26,7 +31,14 @@
       <stop offset="1" stop-color="#ffb03c" stop-opacity="0.25"/>
     </linearGradient>
     <filter id="soft"><feGaussianBlur stdDeviation="5"/></filter>
-    <path id="topArc" d="M 450 450 m -334 0 a 334 334 0 0 1 668 0" fill="none"/>
+    <!-- Pulled in from r=334. The ring text sets its baseline ON the arc
+         and its glyphs stand OUTWARD from it, so at 334 the katakana
+         occupied 334-359 — straight through the hour ticks (339-352) and
+         under the lit window arc at 352. The house rule for the crew
+         emblem already says the name arcs are left clear of the ticks;
+         this is the same rule, applied to the badge that now has a
+         bright arc to clear. -->
+    <path id="topArc" d="M 450 450 m -302 0 a 302 302 0 0 1 604 0" fill="none"/>
     <path id="botArc" d="M 450 450 m -300 0 a 300 300 0 0 0 600 0" fill="none"/>
   </defs>
 
@@ -36,13 +48,14 @@
   <circle cx="450" cy="450" r="352" stroke="#e8ecf4" stroke-opacity="0.13" stroke-width="0.9"/>
   <circle cx="450" cy="450" r="286" stroke="#e8ecf4" stroke-opacity="0.07" stroke-width="0.8"/>
 
-  <!-- the graduated rim: sixty stations, the measure of an hour -->
+  <!-- the rim, graduated as a day; and the hours the road is open -->
+  <g id="window"></g>
   <g id="rim"></g>
   <!-- the coast, struck through the middle -->
   <g id="coast"></g>
 
   <text font-family="Kana" font-size="25" letter-spacing="13" fill="#e8ecf4" fill-opacity="0.42">
-    <textPath href="#topArc" startOffset="50%" text-anchor="middle">ガルフロード・ナイツ</textPath>
+    <textPath href="#topArc" startOffset="50%" text-anchor="middle">ナイトレーサー</textPath>
   </text>
   <text font-family="Mono" font-size="20" letter-spacing="9.5" fill="#e8ecf4" fill-opacity="0.36">
     <textPath href="#botArc" startOffset="50%" text-anchor="middle">29°22′N · 047°58′E</textPath>
@@ -50,29 +63,72 @@
 
   <!-- the monogram, cut with confidence -->
   <g transform="translate(450 440) skewX(-11)">
-    <text text-anchor="middle" font-family="Shoulders" font-weight="700" font-size="150"
-          letter-spacing="2" fill="#e8ecf4" y="-16">GRN</text>
+    <text text-anchor="middle" font-family="Shoulders" font-weight="700" font-size="176"
+          letter-spacing="6" fill="#e8ecf4" y="-14">NR</text>
     <text text-anchor="middle" font-family="Mono" font-size="15" letter-spacing="10"
-          fill="#ffb03c" fill-opacity="0.9" y="34">NIGHTS</text>
+          fill="#ffb03c" fill-opacity="0.9" y="36">RACER</text>
   </g>
 </svg>
 <script>
 const NS="http://www.w3.org/2000/svg";
 const el=(n,a)=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;};
+
+/* THE RIM IS A DAY, AND THE AMBER IS THE PART YOU MAY DRIVE IN.
+ *
+ * This rim was already graduated in sixty stations and described in the
+ * old README as "the measure of an hour" — decoration that happened to
+ * be shaped like a clock. Under the new name it becomes one for real:
+ * twenty-four stations, midnight at the top, and the arc from
+ * RACE_OPEN_H to RACE_CLOSE_H struck in sodium. Five hours and fifty
+ * minutes of a twenty-four hour circle is 87.5°, so the lit arc is very
+ * nearly the top-right quadrant — which is a fact about the game, not a
+ * composition I chose.
+ *
+ * At app-icon size the amber arc and the NR are all that survive, and
+ * that is the right pair to survive: who, and when.
+ */
+const OPEN=0, CLOSE=5+50/60;                  // src/game/clock.ts
+const ang=(h)=>(h/24)*Math.PI*2-Math.PI/2;    // midnight at twelve o'clock
+{
+  const g=document.getElementById("window"), R=352;
+  const a0=ang(OPEN), a1=ang(CLOSE);
+  const p=(a,r)=>`${(450+Math.cos(a)*r).toFixed(2)} ${(450+Math.sin(a)*r).toFixed(2)}`;
+  // 87.5° is under a half turn, so large-arc stays 0 — but it is written
+  // from the angles rather than hardcoded, so the mark stays correct if
+  // the game's window is ever widened.
+  const large=(a1-a0)>Math.PI?1:0;
+  g.appendChild(el("path",{d:`M ${p(a0,R)} A ${R} ${R} 0 ${large} 1 ${p(a1,R)}`,
+    stroke:"#ffb03c","stroke-opacity":0.9,"stroke-width":4.4,fill:"none","stroke-linecap":"butt"}));
+  g.appendChild(el("path",{d:`M ${p(a0,R)} A ${R} ${R} 0 ${large} 1 ${p(a1,R)}`,
+    stroke:"#ffb03c","stroke-opacity":0.28,"stroke-width":16,fill:"none",filter:"url(#soft)"}));
+  // Both ends stopped, inward, so the window reads as bounded rather
+  // than as a highlight that fades out.
+  for(const a of [a0,a1])
+    g.appendChild(el("line",{x1:p(a,R+9).split(" ")[0],y1:p(a,R+9).split(" ")[1],
+      x2:p(a,R-13).split(" ")[0],y2:p(a,R-13).split(" ")[1],
+      stroke:"#ffd7a0","stroke-opacity":0.85,"stroke-width":2}));
+  // ...and the stops stay short for the same reason: they mark the edge
+  // of the window, they do not need to reach the middle of the disc.
+}
 {
   const g=document.getElementById("rim");
-  for(let i=0;i<60;i++){
-    const a=(i/60)*Math.PI*2-Math.PI/2, major=i%5===0, R=352, L=major?13:7;
+  for(let h=0;h<24;h++){
+    const a=ang(h), major=h%6===0, R=352, L=major?13:7;
+    // Inside the open window the ticks step back: the amber is the
+    // subject there and a full-strength tick would fight it.
+    const open=h>=OPEN&&h<CLOSE, dim=open?0.45:1;
     g.appendChild(el("line",{
       x1:(450+Math.cos(a)*R).toFixed(2), y1:(450+Math.sin(a)*R).toFixed(2),
       x2:(450+Math.cos(a)*(R-L)).toFixed(2), y2:(450+Math.sin(a)*(R-L)).toFixed(2),
-      stroke:"#e8ecf4","stroke-opacity":major?0.34:0.16,"stroke-width":major?1.3:0.8}));
+      stroke:"#e8ecf4","stroke-opacity":((major?0.34:0.16)*dim).toFixed(3),
+      "stroke-width":major?1.3:0.8}));
   }
 }
 {
-  // the same coast as the plate, quoted at badge scale
+  // the same coast as the plate, quoted at badge scale — the WHERE, to
+  // the rim's WHEN
   const g=document.getElementById("coast");
-  const N=46, x0=214, x1=686, baseY=556, cx=450, cy=-760, r=1160;
+  const N=46, x0=214, x1=686, baseY=556, cx=450, r=1160;
   let seed=7717; const rnd=()=>(seed=(seed*1664525+1013904223)%4294967296)/4294967296;
   for(let i=0;i<N;i++){
     const t=i/(N-1), x=x0+t*(x1-x0);

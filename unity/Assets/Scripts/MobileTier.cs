@@ -37,7 +37,7 @@ public static class MobileTier
 
         TrimPipeline();
         TrimPost();
-        Debug.Log("[Gulf Road Nights] Mobile render tier applied.");
+        Debug.Log("[Night Racer] Mobile render tier applied.");
     }
 
     /// Lower the URP asset's render scale and light budget, reflectively so

@@ -339,8 +339,8 @@ export const CHANNELS: MusicChannel[] = [
     // The game's own score, unchanged: A minor, four on the floor, the
     // synthwave the rest of the soundtrack is written in.
     id: "house",
-    name: "Gulf Road Nights",
-    ar: "ليالي شارع الخليج",
+    name: "Night Racer",
+    ar: "متسابق الليل",
     root: 55,
     bpm: 118,
     scale: [0, 3, 7, 12, 15, 12, 7, 3],

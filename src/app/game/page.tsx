@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   title: `${NAME.en} — ${NAME.ar}`,
   description: INTRO.en,
   keywords: [
-    "Gulf Road Nights", "ليالي شارع الخليج", "Kuwait", "racing game",
+    "Night Racer", "متسابق الليل", "Kuwait", "racing game",
     "Gulf Road", "شارع الخليج", "browser game", "Arabic",
   ],
   openGraph: {

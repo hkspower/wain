@@ -1,21 +1,31 @@
 <meta charset="utf-8">
-<title>Gulf Road Nights — lockup</title>
+<title>Night Racer — lockup</title>
 <style>
-  @font-face { font-family: "Shoulders"; src: url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/BigShoulders-Bold.ttf"); font-weight: 700; }
-  @font-face { font-family: "Mono"; src: url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/GeistMono-Regular.ttf"); }
-  /* Modern Japanese gothic. IPA Gothic (2003) was what the container
-     shipped with; its kana are narrow and its strokes uneven at display
-     size, which is exactly where this type is used. Noto Sans CJK JP is
-     the contemporary equivalent — even stroke weight, open counters, and
-     kana proportioned to sit with Latin rather than beside it. local()
-     first so fontconfig picks the JP face out of the .ttc collection
-     rather than whichever member happens to come first. */
-  @font-face {
-    font-family: "Kana";
-    src: local("Noto Sans CJK JP"), local("NotoSansCJKjp-Regular"),
-         url("file:///usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc");
-  }
-  @font-face { font-family: "Arab"; src: url("file:///usr/share/fonts/truetype/freefont/FreeSerif.ttf"); }
+  @font-face { font-family: "Shoulders"; src: url("fonts/BigShoulders-Bold.ttf"); font-weight: 700; }
+  @font-face { font-family: "Mono"; src: url("fonts/GeistMono-Regular.ttf"); }
+  /* Japanese gothic, vendored — and named honestly.
+     
+     This block used to ask for Noto Sans CJK JP with a local() first and
+     a url() into /usr/share/fonts as backup, over a comment explaining
+     that IPA Gothic (2003) was the container's old face and Noto the
+     contemporary replacement. Neither source resolved: there is no Noto
+     CJK on this image and no such .ttc path. Every mark here has been
+     setting its katakana in IPA Gothic the whole time — the face the
+     comment said had been left behind — and nothing said so, because a
+     @font-face that fails just falls through.
+     
+     It is vendored now, under its own name, so the marks render the same
+     on any checkout instead of taking whatever Japanese face a machine
+     happens to have. At the sizes it is used — 17px in the lockups, 25px
+     round the badge — IPA Gothic is perfectly good; the objection to it
+     was about display sizes, and the kana is never set at one. */
+  @font-face { font-family: "Kana"; src: url("fonts/IPAGothic.ttf"); }
+  /* IBM Plex Sans Arabic — the game's own UI face, vendored into fonts/
+     rather than read out of .next/, which is a build directory that gets
+     cleared. FreeSerif was here before and is a fallback, not a choice:
+     it sets the title in a different voice from every Arabic string in
+     the product. */
+  @font-face { font-family: "Arab"; src: url("fonts/IBMPlexSansArabic-Bold.woff2") format("woff2"); font-weight: 700; }
   * { margin:0; padding:0; box-sizing:border-box; }
   html, body { width:1600px; height:900px; }
   body { background:#05070e; font-family:"Mono",monospace; -webkit-font-smoothing:antialiased; overflow:hidden; }
@@ -30,13 +40,28 @@
     background: radial-gradient(74% 66% at 50% 50%, rgba(0,0,0,0) 42%, rgba(0,0,0,0.55) 100%); }
   svg.art { position:absolute; inset:0; }
   .row { position:absolute; left:0; right:0; text-align:center; }
-  .wm { font-family:"Shoulders",sans-serif; font-weight:700; transform:skewX(-11deg);
-        line-height:0.82; text-transform:uppercase; }
-  .wm-1 { font-size:150px; letter-spacing:0.004em; color:#e8ecf4; }
-  .wm-2 { font-size:150px; letter-spacing:0.268em; text-indent:0.268em; color:#ffb03c; }
+  /* inline-block, and not by preference: a block-level .wm measures the
+     full width of the centred row it sits in, so the tracking solver
+     below reads 1600px for both words, computes a slope of zero and
+     silently applies no tracking at all. It fails to a tidy-looking
+     result, which is the worst way for a measurement to fail. */
+  .wm { display:inline-block; font-family:"Shoulders",sans-serif; font-weight:700;
+        transform:skewX(-11deg); line-height:0.82; text-transform:uppercase; }
+  /* The two words are tracked to the SAME width so the pair locks as one
+     block. The tracking is solved at render time rather than written
+     here as two numbers — see the note by lockWordmark(). */
+  .wm-1 { font-size:150px; color:#e8ecf4; }
+  .wm-2 { font-size:150px; color:#ffb03c; }
   .kana { font-family:"Kana",sans-serif; font-size:17px; letter-spacing:0.66em;
           text-indent:0.66em; color:rgba(232,236,244,0.40); }
-  .arab { font-family:"Arab",serif; direction:rtl; font-size:36px; color:rgba(232,236,244,0.72); }
+  /* Never sheared. A synthetic oblique on a cursive script breaks the
+     joins and tilts the counters against the pen's own angle, which is
+     why the game's stylesheet sets font-synthesis:none on every Arabic
+     rule it has. The energy the 11° shear gives the Latin comes from
+     weight and from the colour split instead. */
+  .arab { font-family:"Arab",sans-serif; font-weight:700; direction:rtl; font-size:38px;
+          color:rgba(232,236,244,0.72); font-synthesis:none; }
+  .arab .lead { color:#ffb03c; }
   .tag { font-family:"Mono",monospace; font-size:11px; letter-spacing:0.44em; text-indent:0.44em;
          text-transform:uppercase; color:rgba(232,236,244,0.30); }
 </style>
@@ -44,45 +69,128 @@
   <div class="field"></div>
   <svg class="art" width="1600" height="900" viewBox="0 0 1600 900" fill="none">
     <defs>
-      <linearGradient id="rule" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0" stop-color="#ffb03c" stop-opacity="0"/>
-        <stop offset="0.5" stop-color="#ffb03c" stop-opacity="0.55"/>
-        <stop offset="1" stop-color="#ffb03c" stop-opacity="0"/>
-      </linearGradient>
       <filter id="soft"><feGaussianBlur stdDeviation="6"/></filter>
     </defs>
-    <g id="lamps"></g>
+    <g id="dial"></g>
   </svg>
-  <div class="row" style="top:178px;"><span class="kana">ガルフロード・ナイツ</span></div>
-  <div class="row" style="top:268px;"><div class="wm wm-1">Gulf Road</div></div>
-  <div class="row" style="top:392px;"><div class="wm wm-2">Nights</div></div>
-  <div class="row" style="top:644px;"><span class="arab">ليالي شارع الخليج</span></div>
-  <div class="row" style="top:730px;"><span class="tag">Kuwait Xtreme Racer</span></div>
+  <div class="row" style="top:178px;"><span class="kana">ナイトレーサー</span></div>
+  <div class="row" style="top:268px;"><div class="wm wm-1">Night</div></div>
+  <div class="row" style="top:392px;"><div class="wm wm-2">Racer</div></div>
+  <div class="row" style="top:648px;"><span class="arab"><span class="lead">متسابق</span> الليل</span></div>
+  <div class="row" style="top:754px;"><span class="tag">Kuwait Xtreme Racer</span></div>
   <div class="vignette"></div>
 </div>
 <script>
 if (new URLSearchParams(location.search).has("bare")) document.body.classList.add("bare");
+
+/* THE TWO WORDS ARE MEASURED, NOT GUESSED.
+ *
+ * Setting two stacked words to one width is the whole reason this
+ * lockup reads as a block rather than as two lines that happen to be
+ * near each other, and the obvious way to do it — nudge two
+ * letter-spacing values until the screenshot looks right — encodes the
+ * answer for one font at one size and silently rots when either moves.
+ *
+ * It had already rotted. Every source in this directory loaded Big
+ * Shoulders over an absolute path into a cache outside the repository;
+ * that path stopped existing, the type fell back to a generic sans, and
+ * the tracking here was tuned against the FALLBACK. Restoring the real
+ * face immediately broke the lock: NIGHT came out 472px against RACER's
+ * 392px, under a comment claiming the two were tracked to match.
+ *
+ * So it is solved instead. Width is linear in tracking — every extra em
+ * adds one gap per letter — so two measurements give the slope and the
+ * third line is arithmetic, not iteration. text-indent carries the same
+ * value to cancel the trailing gap, which centring would otherwise count
+ * as part of the word.
+ */
+function lockWordmark(target) {
+  for (const el of document.querySelectorAll(".wm")) {
+    const at = (t) => { el.style.letterSpacing = t + "em"; return el.getBoundingClientRect().width; };
+    const w0 = at(0), perEm = (at(0.2) - w0) / 0.2;
+    // A zero slope means the element is not measurable as a word. Say so
+    // rather than quietly setting no tracking: check-logo.mjs reads this.
+    if (!(perEm > 1)) { (window.__lockFail ??= []).push(el.textContent.trim()); }
+    const t = perEm > 1 ? Math.max(0, (target - w0) / perEm) : 0;
+    el.style.letterSpacing = t.toFixed(4) + "em";
+    el.style.textIndent = t.toFixed(4) + "em";
+    (window.__lockWidths ??= {})[el.textContent.trim()] =
+      +el.getBoundingClientRect().width.toFixed(1);
+  }
+}
+// After the faces land, not before: measuring at parse time measures
+// the fallback, which is the exact mistake this function exists to undo.
+// render.mjs awaits document.fonts.ready too, so the solve is always
+// finished before the shutter.
+document.fonts.ready.then(() => lockWordmark(548));
 const NS="http://www.w3.org/2000/svg";
 const el=(n,a)=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;};
-let seed=20240517; const rnd=()=>(seed=(seed*1664525+1013904223)%4294967296)/4294967296;
-// A single measured run of lamps under the mark: the same coast, quoted.
+const txt=(x,y,s,a)=>{const t=el("text",{x,y,...a});t.textContent=s;return t;};
+
+/* THE MARK UNDER THE NAME
+ *
+ * The old title was a PLACE — Gulf Road — and its mark was a survey of
+ * that place: a measured run of street lamps curving away along a coast.
+ * "Night Racer" is not a place. It is an hour, and the hour is the rule
+ * the entire game runs on: the road opens at midnight and shuts at
+ * 05:50, and outside that window the world is still there and there is
+ * nobody to race. That fact is the most distinctive thing about this
+ * game and it had never once appeared in the identity.
+ *
+ * So the motif changes with the name rather than being recoloured. The
+ * grammar is the same one the rest of the house speaks — measured,
+ * indexed, annotated, amber for what is observed and cyan for what is
+ * calculated — but what is being surveyed is now a night rather than a
+ * road: twenty-four hours drawn to scale, the open window lit in sodium,
+ * the closed hours left as ticks.
+ *
+ * The numbers are the game's own. RACE_OPEN_H and RACE_CLOSE_H in
+ * src/game/clock.ts are 0 and 5 + 50/60, and tests/name.mjs fails if
+ * this file and that file ever disagree — a mark that quotes a figure
+ * the product has since changed is worse than one that quotes none.
+ */
 {
-  const g=document.getElementById("lamps");
-  const N=88, x0=470, x1=1130, baseY=592, cx=800, cy=-1400, r=1900;
-  g.appendChild(el("rect",{x:x0,y:baseY,width:x1-x0,height:0.8,fill:"url(#rule)"}));
-  for(let i=0;i<N;i++){
-    const t=i/(N-1), x=x0+t*(x1-x0);
-    const dx=x-cx, drop=r-Math.sqrt(Math.max(0,r*r-dx*dx));
-    const y=baseY-drop*0.055;
-    const swell=0.5+0.5*Math.sin(t*Math.PI);
-    const H=(9+swell*26)*(0.9+rnd()*0.2);
-    const edge=Math.min(1,Math.min(t,1-t)/0.2), o=swell*edge;
-    g.appendChild(el("rect",{x:x.toFixed(2),y:(y-H).toFixed(2),width:0.8,height:H.toFixed(2),
-      fill:"#ffb03c","fill-opacity":(o*0.22).toFixed(3)}));
-    g.appendChild(el("circle",{cx:x.toFixed(2),cy:(y-H).toFixed(2),r:1.5,
-      fill:"#ffd7a0","fill-opacity":(0.28+o*0.6).toFixed(3)}));
-    if(i%4===0) g.appendChild(el("circle",{cx:x.toFixed(2),cy:(y-H).toFixed(2),r:8,
-      fill:"#ffb03c","fill-opacity":(o*0.12).toFixed(3),filter:"url(#soft)"}));
+  const g=document.getElementById("dial");
+  const x0=470, x1=1130, y=596, W=x1-x0;
+  const OPEN=0, CLOSE=5+50/60;                 // src/game/clock.ts
+  const at=(h)=>x0+(h/24)*W;
+
+  // The whole day, as a hairline. Cyan: this is the calculated part.
+  g.appendChild(el("rect",{x:x0,y:y,width:W,height:0.8,
+    fill:"#46c9ee","fill-opacity":0.20}));
+
+  // Every hour, ticked. The quarter-day marks stand taller so the bar
+  // can be read as a clock rather than as decoration.
+  for(let h=0;h<=24;h++){
+    const major=h%6===0, x=at(h);
+    g.appendChild(el("rect",{x:x.toFixed(2),y:(y-(major?7:3.5)).toFixed(2),
+      width:0.8,height:(major?7:3.5).toFixed(2),
+      fill:"#e8ecf4","fill-opacity":(major?0.34:0.17).toFixed(2)}));
   }
+
+  // The window itself. Amber, because this is the observed part — the
+  // hours the game is actually played in.
+  const xa=at(OPEN), xb=at(CLOSE);
+  g.appendChild(el("rect",{x:xa.toFixed(2),y:(y-2).toFixed(2),
+    width:(xb-xa).toFixed(2),height:3.6,fill:"#ffb03c","fill-opacity":0.85}));
+  g.appendChild(el("rect",{x:xa.toFixed(2),y:(y-9).toFixed(2),
+    width:(xb-xa).toFixed(2),height:18,fill:"#ffb03c","fill-opacity":0.10,
+    filter:"url(#soft)"}));
+
+  // Both ends stopped, and the closing edge given the taller stop: the
+  // window shutting is the thing a player actually runs out of.
+  for(const [x,h] of [[xa,13],[xb,20]])
+    g.appendChild(el("rect",{x:x.toFixed(2),y:(y-h).toFixed(2),width:1.2,height:h,
+      fill:"#ffd7a0","fill-opacity":0.9}));
+
+  // Annotated, in the mono face the rest of the house annotates in.
+  const lab={"font-family":"Mono, monospace","font-size":"12",
+    "letter-spacing":"2.2","fill":"#ffb03c","fill-opacity":"0.72"};
+  g.appendChild(txt(xa.toFixed(2),(y+26).toFixed(2),"00:00",{...lab,"text-anchor":"start"}));
+  g.appendChild(txt(xb.toFixed(2),(y+26).toFixed(2),"05:50",{...lab,"text-anchor":"end"}));
+  g.appendChild(txt(((xa+xb)/2).toFixed(2),(y-24).toFixed(2),"OPEN",
+    {...lab,"text-anchor":"middle","font-size":"10","fill-opacity":"0.42"}));
+  g.appendChild(txt(x1.toFixed(2),(y+26).toFixed(2),"24:00",
+    {...lab,"text-anchor":"end","fill":"#46c9ee","fill-opacity":"0.34"}));
 }
 </script>

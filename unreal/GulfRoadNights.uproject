@@ -2,7 +2,7 @@
 	"FileVersion": 3,
 	"EngineAssociation": "5.4",
 	"Category": "Game",
-	"Description": "Gulf Road Nights — Kuwait Xtreme Racer. Tokyo-style midnight highway battles on Kuwait's real Gulf Road.",
+	"Description": "Night Racer — Kuwait Xtreme Racer. Tokyo-style midnight highway battles on Kuwait's real Gulf Road.",
 	"Modules": [
 		{
 			"Name": "GulfRoadNights",

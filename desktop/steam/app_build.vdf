@@ -5,7 +5,7 @@
 "AppBuild"
 {
 	"AppID" "480"
-	"Desc" "Gulf Road Nights v1.0 — Kuwait Xtreme Racer"
+	"Desc" "Night Racer v1.0 — Kuwait Xtreme Racer"
 	"ContentRoot" "..\\dist\\"
 	"BuildOutput" "..\\steam_build_output\\"
 	"SetLive" "" // set to "beta" or "default" to auto-publish the branch

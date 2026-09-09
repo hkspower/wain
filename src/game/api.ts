@@ -1,4 +1,4 @@
-// The Gulf Road Nights data API payloads.
+// The Night Racer data API payloads.
 //
 // One builder per resource, all reading the same modules the web game
 // runs on — so the JSON an Unreal client fetches can never disagree with
@@ -25,6 +25,7 @@ import {
 import { HANDLING } from "./handling";
 import { STYLE_REAL, WIDTH_FOLLOWS_LENGTH, TIRE_RADIUS } from "./cars";
 import { RIG } from "./rig";
+import { NAME } from "@/lib/gameSite";
 
 /** Bump when a payload shape changes incompatibly. Clients compare it. */
 export const GRN_API_VERSION = 1;
@@ -197,7 +198,7 @@ export function buildParts() {
 export function buildGameData() {
   return {
     apiVersion: GRN_API_VERSION,
-    game: "Gulf Road Nights",
+    game: NAME.en,
     generatedAt: null as string | null, // static payload: no build stamp
     track: buildTrack(),
     rivals: buildRivals(),
