@@ -105,7 +105,30 @@ if ($mode === 'legacy') {
 // the owner to the bank to ask for a credential their integration does not
 // use. An empty Tranportal block is the recommended state there, not a fault.
 if ($mode === 'legacy') {
+    // WHERE THE ID CAME FROM, not just what it is. There are TWO homes for
+    // this one value — config.php, and the `knet` row in the settings table
+    // that /backends writes — and knet_apply_saved_id() lets the DATABASE WIN
+    // silently, falling back to the file. That is right on the payment path: a
+    // database blip must not stop the shop taking money.
+    //
+    // It is wrong HERE, in the report the owner reads before going live,
+    // because the go-live instructions say the commonest failure is the wrong
+    // Tranportal ID and tell you to fix it in config.php. If a value is saved
+    // in /backends, that edit does nothing, the next test transaction fails
+    // the same way, and the ID gets ruled out as the cause. Naming the source
+    // costs one line and collapses the whole trap.
+    $rawCfg = @include $cfgPath;   // include, not require: a broken file must not kill the report
+    $fileId = is_array($rawCfg) ? trim((string) ($rawCfg['tranportal_id'] ?? '')) : '';
+    $effId  = trim((string) ($cfg['tranportal_id'] ?? ''));
+
     echo "  tranportal_id      : " . $set($cfg['tranportal_id'] ?? '', 'YOUR_TRANPORTAL_ID') . "\n";
+    if ($effId !== '' && $effId !== $fileId) {
+        echo "                       ^ from the /backends editor. config.php says '"
+           . ($fileId === '' ? '(empty)' : $fileId) . "' and IS BEING IGNORED.\n"
+           . "                         Editing config.php will not change this. Change it in /backends.\n";
+    } else {
+        echo "                       ^ from config.php (nothing different saved in /backends).\n";
+    }
     echo "  tranportal_password: " . $set($cfg['tranportal_password'] ?? '', 'YOUR_TRANPORTAL_PASSWORD') . "\n";
     echo "  resource_key       : " . $set($cfg['resource_key'] ?? '', 'YOUR_TERMINAL_RESOURCE_KEY') . "\n";
     echo "  response_url: " . ($cfg['response_url'] ?? '') . "\n";
@@ -116,11 +139,14 @@ if ($mode === 'legacy') {
 // ---------------------------------------------------------------------------
 // The two mistakes that fail silently and cost money.
 //
-// setup-config.php catches both, but it is CLI-only — and a Hostinger account
-// whose shell is /sbin/nologin cannot run it, so config.php has to be written
-// by hand in File Manager, with no validation at all. These checks close that
-// gap. They only READ an existing config; writing credentials still never
-// happens over HTTP.
+// There used to be a setup-config.php that caught both, and this comment used
+// to point at it. It is gone — removed from the project, not merely from the
+// server — so these checks are not a supplement to it, they are the only thing
+// standing between a mistyped credential and a live shop. config.php is
+// written by hand in File Manager, with no validation at all.
+//
+// They only READ an existing config; writing credentials never happens over
+// HTTP.
 // ---------------------------------------------------------------------------
 $key = (string) ($cfg['resource_key'] ?? '');
 if ($key !== '' && $key !== 'YOUR_TERMINAL_RESOURCE_KEY') {

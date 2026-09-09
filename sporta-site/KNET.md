@@ -66,6 +66,42 @@ resource key that is not exactly 16 bytes, and the shopper sees *"Payment init
 failed"*. A trailing space or newline from a copy/paste is the usual cause;
 `knet/selftest.php` counts the bytes for you and is the fastest way to catch it.
 
+## Where each setting lives, and which one wins
+
+Read this before editing anything. **One of these six has two homes**, and the
+one you would not guess wins.
+
+| Setting | Lives in | Changed how | If both are set |
+|---|---|---|---|
+| `tranportal_id` | `knet/config.php` **and** the `knet` row of the `settings` table | file: File Manager · database: **/backends** | **the database wins**, silently |
+| `tranportal_password` | `knet/config.php` | File Manager | — |
+| `resource_key` | `knet/config.php` | File Manager | — |
+| `mode` | `knet/config.php` | File Manager | — |
+| `mysql_*` | `knet/config.php`, else inherited from `api/config.php` | File Manager | the file's own value, when it has one |
+| CBK credentials (fallback route) | `pay/config.php` | File Manager | — |
+
+**Only the ID has a second home.** The password and the resource key are never
+read from the database — see the note beside `STORE_SETTING_DEFAULTS` in
+`api/store.php` for why those two stay in the file.
+
+**Why the database wins, and why that is right.** `knet_apply_saved_id()` reads
+the saved ID on every payment and falls back to the file on ANY failure — no
+database, no `settings` table, malformed JSON, a value that fails the
+`[A-Za-z0-9]{3,32}` pattern, a placeholder. None of those may become "this shop
+cannot take money", so it fails open, and every route through `knet_config()`
+goes through it.
+
+**The trap that creates, which is the reason this section exists.** Going live
+below says the commonest failure is the wrong Tranportal ID, and step 3 tells
+you `626101` vs `6261`. If a value was ever saved in /backends, **editing
+`knet/config.php` will not change what the bank receives.** The transaction
+fails identically, and the ID gets ruled out as the cause. So:
+
+* `/knet/selftest.php` names the SOURCE of the ID in force, and says outright
+  when config.php is being ignored. That line is the fastest way to see it.
+* Change the ID **in /backends** if one is saved there. Clearing the field
+  there hands control back to the file.
+
 ## How the shop chooses
 
 `/knet/pay.php` is the KNET door and stays the KNET door — the website's
@@ -120,6 +156,10 @@ bank as `…A2`.
    `tranportal_password` and `resource_key` from the bank. `tranportal_id` is
    already `626101` and `'mode' => 'legacy'` is already set. The resource key
    must be **exactly 16 bytes** — paste it carefully.
+
+   The ID here is only in force while **/backends** has none saved — see
+   "Where each setting lives" above. On a fresh install nothing is saved, so
+   the file's `626101` is what the bank receives.
 2. **Leave the `mysql_*` keys empty.** The orders database is inherited from
    `api/config.php`, so it is named in one place and a password rotated in
    hPanel cannot kill the card path from a file nobody thought to open. Without
@@ -164,9 +204,16 @@ cards. Flip it last.
    Confirm `payment_status` is `paid` and the callback was recorded.
 
 If step 3 fails, the two likely causes in order are the resource key's length
-and the Tranportal ID (`626101` vs `6261`) — and if the bank cannot produce the
-password and key at all, `'mode' => 'official'` moves KNET to the CBK hosted
-page on credentials that already work. See below.
+and the Tranportal ID (`626101` vs `6261`).
+
+**Change the ID wherever the self-test says it is coming from.** If that line
+reads *"from the /backends editor … config.php IS BEING IGNORED"*, editing the
+file achieves nothing and the retry fails the same way — change it in
+/backends, or clear it there to hand control back to the file. This is the one
+place in the whole setup where the obvious edit can be the wrong one.
+
+If the bank cannot produce the password and key at all, `'mode' => 'official'`
+moves KNET to the CBK hosted page on credentials that already work. See below.
 
 ## If the Tranportal credentials turn out not to exist
 

@@ -67,12 +67,36 @@ Set each one's permissions to 600.
   !! api/config.php is what makes the shop work at all. Without it the
      catalogue is empty and every checkout is refused.
 
-Then create your admin sign-in: open
+Then create your admin sign-in.
 
-    https://www.sporta.com.kw/api/setup-admin.php
+  !! There used to be an api/setup-admin.php that did this over the web. It was
+     REMOVED -- anyone who found the name could create an account and own the
+     shop -- and nothing replaced it. There is no web page that makes the first
+     account. You make it by hand, once, and it takes two minutes.
 
-and follow it. That is the account you use at
-https://www.sporta.com.kw/backends -- DELETE setup-admin.php afterwards.
+  1. Mint a password hash. In File Manager create public_html/hash.php holding
+     exactly this one line, open it once in your browser, copy what it prints,
+     then DELETE the file:
+
+         <?php echo password_hash('pick-a-strong-password', PASSWORD_DEFAULT);
+
+  2. hPanel -> Databases -> phpMyAdmin -> your shop's database -> SQL tab, and
+     run this, pasting the hash from step 1 between the quotes:
+
+         insert into admin_users (email, password_hash)
+         values ('you@sporta.com.kw', 'PASTE_THE_HASH_HERE');
+
+  3. Sign in at https://www.sporta.com.kw/backends , and delete hash.php if you
+     have not already.
+
+  It must be a password_hash() hash -- that is what the sign-in checks against,
+  and a plain password in that column simply never matches. Do NOT use an
+  online "bcrypt generator": that is typing your shop's password into a
+  stranger's website.
+
+  You need this account before step 4 -- the KNET Tranportal ID can be set in
+  /backends, and what is saved there overrides knet/config.php. See KNET.md,
+  "Where each setting lives".
 
 --------------------------------------------------------------------------------
 4. PAYMENT CREDENTIALS  (server-side only — never in config.js)
@@ -87,9 +111,12 @@ the two mistakes that fail silently and cost money:
   - an orders database that is not actually reachable (without it the server
     has no authority over the price and every card payment is refused)
 
-When every line reads OK, DELETE these two files from the server:
+When every line reads OK, DELETE this file from the server:
     public_html/knet/selftest.php
-    public_html/knet/setup-config.php
+
+  (There used to be a setup-config.php beside it. It no longer exists in this
+  project at all, so there is nothing to delete -- if you see one on your
+  server it is left over from an old upload and should go.)
 
 --------------------------------------------------------------------------------
 4b. T-PAY  (optional — CBK's online payment link)
@@ -197,12 +224,15 @@ money was recorded.
 Then delete these files from the server. Each one is reachable by anyone
 who knows the name, and none of them has any business on a live shop:
 
-    public_html/go-live.html
-    public_html/knet/selftest.php
-    public_html/knet/setup-config.php
-    public_html/api/setup-admin.php     <- creates the admin account
-    public_html/api/reset-admin.php     <- CHANGES the admin password
-    public_html/api/preflight.php       <- reports your configuration
+    public_html/knet/selftest.php    <- reports your configuration, no password
+
+  THAT IS THE WHOLE LIST as of 2026-09-09, and it used to be six lines long.
+  The other five -- go-live.html, knet/setup-config.php, api/setup-admin.php,
+  api/reset-admin.php and api/preflight.php -- no longer exist in this project,
+  so a current install never had them. They are named here only so that if you
+  DO find one on your server, from an older upload, you know it must go: each
+  was reachable by anyone who knew the name, and between them they created an
+  admin account, changed the admin password, and reported your configuration.
 
   !! reset-admin.php is the one to be strict about. Its only authority is the
      cron_key from api/config.php, so for as long as it sits there, anybody

@@ -598,6 +598,58 @@ the repository and that made it feel like a given. Nine files failed
 identically. `ls -d` over cron answered it in one cycle; the shape of a failure
 list is a hypothesis, not a diagnosis.
 
+## The Tranportal ID has two homes, and the one you would not guess wins
+
+`knet/config.php` holds it, and so does the `knet` row of the `settings` table
+that /backends writes. `knet_apply_saved_id()` lets the **database win**,
+silently, falling back to the file on any failure — no database, no table, bad
+JSON, a value failing `[A-Za-z0-9]{3,32}`, a placeholder. That direction is
+right: none of those may become "this shop cannot take money".
+
+**The trap it created, and I created it.** KNET.md says the commonest go-live
+failure is the wrong Tranportal ID and tells you to fix it in `knet/config.php`.
+If anything is saved in /backends that edit does nothing, the retry fails
+identically, and the ID gets ruled out as the cause. I built the editor and
+never touched the setup document.
+
+Arranged on 2026-09-09: KNET.md has a **"Where each setting lives"** table —
+all six settings, which are file-only, which has two homes, which wins — and
+`/knet/selftest.php` now names the SOURCE of the ID in force, saying outright
+when config.php is being ignored. Only the ID has a second home; the password
+and resource key are never read from the database.
+
+**The setup instructions were largely fiction.** Of the six files README-FIRST
+tells the owner to delete before going live, **five no longer exist** — only
+`selftest.php` does, and that is the one that genuinely must go. Worse, step 3
+sent the owner to `api/setup-admin.php` to create their admin account, and that
+file is gone with **nothing replacing it**: `admin.php` has no create route, it
+only answers `no_admin_account` (409). There is no web page that makes the first
+account. That blocked the KNET setup, because /backends is now where the ID
+lives. README-FIRST now carries the real method — a `password_hash()` minted by
+a one-line throwaway PHP file, then an insert in phpMyAdmin, which is exactly
+what `sandbox.sh` does.
+
+**A list that is mostly wrong trains the reader to skim it**, and the one true
+item on it was the dangerous one. When a file is deleted, grep for its name.
+
+### Two ways a fixture can be worthless, both found here in one hour
+
+The precedence test in `knet-test.mjs` went green twice while proving nothing.
+
+1. **An empty fixture.** It ran after the rig had emptied the legacy block, so
+   "the database wins" compared `999777` to `''` and "control returns to the
+   file" compared `''` to `''`. Both pass whether the code works or not.
+2. **A fixture measured through the code under test.** Fixed the first, then
+   mutation-tested: forcing `knet_config()` to answer `STUCK` whenever no row
+   exists was reported as *"clearing it hands control back to config.php
+   (STUCK)"* — green. The expected value came from `knet_config()`, so the
+   mutation corrupted the fixture and the assertion in the same stroke.
+
+The expected value must come from somewhere the mutation cannot reach — here,
+reading `config.php` directly. **Mutating in one direction is not enough
+either:** the first mutation (override removed) was caught immediately, and it
+was the second, in the fallback direction, that exposed both holes.
+
 ## The live shop has no product photographs
 
 `photos=0/46active`, `brandLogos=0/8`, measured 2026-09-05. Every product card

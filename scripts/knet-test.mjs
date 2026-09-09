@@ -195,8 +195,64 @@ try {
     check(/Unknown order/.test(ghost),
       'and an order the database cannot confirm is still refused', ghost.slice(0, 60))
   }
+
+  // ============================================ the ID's SECOND home
+  //
+  // WHY THIS IS HERE AT ALL, when admin-live-test.mjs already covers it well —
+  // it saves an ID through the admin route, proves knet_config() hands that
+  // saved value to the gateway, proves a malformed one and the placeholder are
+  // refused, and statically insists every return in knet_config() applies the
+  // override. None of that is repeated here.
+  //
+  // It is here because of WHERE it was. A person editing knet.php runs
+  // `npm run test:knet`, and this rig said nothing at all about the fact that
+  // tranportal_id has two homes and the DATABASE WINS. The coverage was real
+  // and unfindable from the file it protects. So: a pointer, and the one
+  // direction measured at the gateway's own loader rather than through the
+  // admin route that wrote it — clearing the row must hand control back to
+  // knet/config.php, or an owner who empties the field in /backends is left
+  // with a shop still paying to an ID they can no longer see.
+  console.log('\n--- the saved Tranportal ID overrides the file')
+  {
+    // PUT A REAL ID BACK IN THE FILE FIRST. The section above leaves the legacy
+    // block EMPTIED, and the first version of this ran straight after it: the
+    // file's id was '', so "the database wins" compared 999777 against nothing
+    // and "control goes back to config.php" compared '' against '' — which
+    // passes whether the fallback works or not. It went green and proved
+    // nothing. A comparison against an empty fixture is not a comparison.
+    setLegacy(true)
+
+    const idOf = () => execFileSync('php', ['-r',
+      `require "${CFG.replace(/config\.php$/, 'knet.php')}"; $c = knet_config(); echo (string)($c["tranportal_id"] ?? "");`
+    ], { encoding: 'utf8' }).trim()
+
+    /* READ THE FILE, NOT knet_config(). This was `idOf()` — the same loader the
+       assertions test — and that made the fixture worthless: a mutant that
+       broke the fallback ALSO corrupted the expected value, so the two matched
+       and the check went green. Proven, not theorised: forcing knet_config()
+       to return 'STUCK' whenever no row exists was reported as "clearing it
+       hands control back to config.php (STUCK)". The expected value has to
+       come from somewhere the mutation cannot reach. */
+    const fileId = execFileSync('php', ['-r',
+      `$c = require "${CFG}"; echo (string)($c["tranportal_id"] ?? "");`
+    ], { encoding: 'utf8' }).trim()
+
+    db(`insert into settings (name, value) values ('knet', '{"tranportal_id":"999777"}')
+        on duplicate key update value = values(value)`)
+    const saved = idOf()
+    check(saved === '999777', `a saved ID reaches the gateway (${saved || 'nothing'})`)
+    check(saved !== fileId, `and it is NOT the file's ${fileId} — the database wins`)
+
+    db(`delete from settings where name = 'knet'`)
+    const backToFile = idOf()
+    check(backToFile === fileId,
+      `clearing it hands control back to config.php (${backToFile || 'nothing'})`)
+  }
 } finally {
   writeFileSync(CFG, original)
+  // Leave no saved ID behind: the next rig to run would inherit it silently,
+  // which is the whole failure mode this section exists to describe.
+  try { db(`delete from settings where name = 'knet'`) } catch { /* table may not exist */ }
 }
 
 // A rig that leaves the sandbox unable to take a payment has done more damage
