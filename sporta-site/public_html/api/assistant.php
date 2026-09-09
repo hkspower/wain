@@ -92,14 +92,33 @@ function assistant_intent(PDO $db, string $text): string
         return 'cancel';
     }
 
-    if (assistant_find_track($text) !== null) return 'order_status';
+    // An order that EXISTS is an order question, whatever else the sentence
+    // says. A candidate that is not in the table is only an order question if
+    // it carries a digit — a mistyped real number — and otherwise it is a word
+    // beginning "sp" and the rules below get their turn.
+    $track = assistant_find_track($text);
+    if ($track !== null
+        && (assistant_track_exists($db, $track) || preg_match('/[0-9]/', $track))) {
+        return 'order_status';
+    }
 
     // 'tracking', not 'track': "do you have a tracksuit" contains "track", and
     // a substring match on it answered a shopping question with a request for
     // an order number.
+    // A PARCEL THAT NEVER CAME. "my package never came" named no product, so it
+    // fell to search and the customer was told "I couldn't find anything by that
+    // name" — a lost-delivery complaint answered as a catalogue miss, which is
+    // the worst moment in this whole table to sound like a shrug. The phrases
+    // are about a SHIPMENT that failed, so they belong here rather than in
+    // delivery: this branch asks for the order number, which is the only thing
+    // that can actually resolve it.
     if (assistant_has($t, ['طلبي', 'طلبيتي', 'وين طلب', 'اين طلب', 'تتبع', 'رقم الطلب', 'حاله الطلب',
+                           'ما وصل', 'ماوصل', 'ما وصلني', 'ما استلمت', 'متاخر', 'تاخر الطلب',
                            'my order', 'where is my order', 'tracking', 'track my', 'track order',
-                           'order status', 'order number'])) {
+                           'order status', 'order number',
+                           'never came', 'never arrived', 'not arrived', "hasn't arrived",
+                           'hasnt arrived', "didn't arrive", 'didnt arrive', 'still waiting',
+                           'my package', 'my parcel', 'lost my'])) {
         return 'order_status';
     }
     // RETURNS, above delivery — because "is the return free or do I pay the
@@ -108,9 +127,20 @@ function assistant_intent(PDO $db, string $text): string
     // naming a return or an exchange is about that, whatever logistics word
     // rides along. Both the noun and the VERB of each: "أبي أستبدل" shares no
     // whole word with "استبدال", and matching only the noun missed live Arabic.
+    // CHANGING THE SIZE AFTER ORDERING IS AN EXCHANGE. "ممكن اغير المقاس بعد
+    // الطلب" shares no word with استبدال, so it reached the sizes branch and was
+    // answered with the size ADVISER — a tool for choosing before you buy, to
+    // someone who has already bought. The shop's answer is better than the one
+    // they got: exchanges are free within 14 days. Only phrases that pair
+    // changing with a size or an order are listed, so "what size do you
+    // recommend" stays a sizing question.
     if (assistant_has($t, ['ارجاع', 'ارجع', 'استرجاع', 'استرجع', 'استبدال', 'استبدل', 'ابدل',
                            'تبديل', 'مرتجع', 'استرداد', 'رجع',
-                           'return', 'refund', 'exchange', 'send back'])) {
+                           'اغير المقاس', 'تغيير المقاس', 'غير المقاس', 'ابي اغير المقاس',
+                           'اغير الطلب', 'تغيير الطلب',
+                           'return', 'refund', 'exchange', 'send back',
+                           'change the size', 'change my size', 'change size', 'wrong size',
+                           'swap the size', 'change my order'])) {
         return 'returns';
     }
     // OUTSIDE KUWAIT, BEFORE delivery. "do you ship to Dubai" would otherwise be
@@ -129,9 +159,15 @@ function assistant_intent(PDO $db, string $text): string
     // ahead of the delivery branch, asking whether COD is accepted was answered
     // with the delivery-fee line. Only the unambiguous multi-word COD phrases,
     // never bare 'cod' (that would eat "discount code").
+    // 'pay cash' / 'cash when' added: "can I pay cash when it arrives" carries
+    // 'arrive', so the delivery branch below took it and answered a question
+    // about COD with the delivery fee. Every phrase here pairs CASH with the
+    // moment of handover, which no delivery-time question does.
     if (assistant_has($t, ['cash on delivery', 'pay on delivery', 'عند الاستلام',
                            'كاش عند الاستلام', 'الدفع عند الاستلام', 'كاش عند التوصيل',
-                           'دفع عند التوصيل'])) {
+                           'دفع عند التوصيل',
+                           'pay cash', 'cash when', 'cash on arrival', 'cash when it arrives',
+                           'كاش لما', 'ادفع كاش', 'نقدا عند'])) {
         return 'payment';
     }
     // 'توصل'/'توصلون' added: the Gulf second-person "do you deliver" — the single
@@ -152,8 +188,14 @@ function assistant_intent(PDO $db, string $text): string
                            'split payment', 'pay later', 'pay in 4', 'financing'])) {
         return 'installments';
     }
+    // BARE 'cod' IS GONE, and the branch twenty lines above already said why:
+    // "never bare 'cod' (that would eat 'discount code')". It was written there
+    // and then left in this list, so "is there a discount code" was answered
+    // "We accept KNET and cash on delivery" — 'code' contains 'cod'. The
+    // multi-word COD phrases are all handled in that earlier guard, so nothing
+    // is lost by dropping it here.
     if (assistant_has($t, ['دفع', 'كي نت', 'كينت', 'knet', 'فيزا', 'ماستر', 'الدفع عند الاستلام',
-                           'pay', 'payment', 'card', 'cash on delivery', 'cod', 'tpay', 't-pay',
+                           'pay', 'payment', 'card', 'cash on delivery', 'tpay', 't-pay',
                            'visa', 'mastercard', 'apple pay', 'ابل باي'])) {
         return 'payment';
     }
@@ -205,13 +247,32 @@ function assistant_intent(PDO $db, string $text): string
     if (assistant_has($t, ['انصح', 'تنصح', 'نصيحه', 'اقترح', 'اقتراح', 'وش تنصح', 'شنو تنصح',
                            'الاكثر مبيعا', 'اكثر مبيعا', 'مبيع', 'تقترح', 'الافضل', 'الاكثر طلبا',
                            'عروض', 'تخفيضات', 'تخفيض', 'خصومات', 'خصم',
+                           // GIFTS. "ابي هديه لصديقي" names no product, so search told a
+                           // customer with money in hand that the shop had nothing.
+                           'هديه', 'هديات', 'هدايا', 'gift', 'present for',
+                           // The Arabic discount words were here and the English ones were
+                           // not, so "is there a discount code" had nowhere to go.
+                           // NOT bare 'sale': it is a substring of 'wholesale', and this
+                           // branch runs before contact, so it stole the bulk enquiry the
+                           // same edit was adding. 'on sale' below already covers the real
+                           // question.
+                           'discount', 'promo', 'promo code', 'coupon', 'voucher',
                            'recommend', 'suggest', 'suggestion', 'best seller', 'bestseller',
                            'best selling', 'best-selling', 'bestselling', 'top seller',
                            'popular', 'what should i', 'on sale', 'deals', 'offers', 'featured'])) {
         return 'recommend';
     }
+    // BULK AND WHOLESALE ARE A SALES LEAD, and they end up here deliberately:
+    // this intent hands off to a person. "i want to buy 20 shirts for my team"
+    // was answered "Here is what I found:" with a product list, which is the
+    // shop replying to its largest enquiry of the day as though it were a
+    // browse. Nobody here can quote a bulk price, so the only right move is to
+    // put a human on it.
     if (assistant_has($t, ['تواصل', 'اتصال', 'خدمه العملاء', 'موظف', 'انسان', 'واتساب', 'رقمكم',
-                           'contact', 'human', 'agent', 'speak to', 'phone', 'whatsapp', 'email'])) {
+                           'بالجمله', 'جمله', 'كميه', 'كميات', 'طلب كبير', 'لفريق', 'للفريق',
+                           'contact', 'human', 'agent', 'speak to', 'phone', 'whatsapp', 'email',
+                           'wholesale', 'bulk', 'in bulk', 'for my team', 'for our team',
+                           'large order', 'corporate'])) {
         return 'contact';
     }
     // AUTHENTICITY / WARRANTY — a trust question no action intent owns, and one
@@ -262,8 +323,14 @@ function assistant_intent(PDO $db, string $text): string
     // "hours" or "open" (which appear in half the delivery questions).
     if (assistant_has($t, ['ساعات العمل', 'اوقات العمل', 'اوقات الدوام', 'وقت الدوام', 'الدوام',
                            'دوامكم', 'متي تفتحون', 'متي يفتح', 'مفتوحين',
+                           'متي تسكرون', 'تسكرون', 'متي تقفلون',
                            'working hours', 'opening hours', 'business hours', 'are you open',
-                           'open now', 'when do you open', 'what time do you open'])) {
+                           'open now', 'when do you open', 'what time do you open',
+                           // CLOSING, not just opening. "what time do you close today" matched
+                           // nothing here and fell to product search. An online shop never
+                           // closes, which is the reassuring answer this branch already gives.
+                           'what time do you close', 'when do you close', 'do you close',
+                           'closing time', 'still open'])) {
         return 'hours';
     }
     // The Latin greetings are matched WHOLE-WORD, and that is a bug fix, not a
@@ -312,6 +379,32 @@ function assistant_find_track(string $text): ?string
     $norm = assistant_normalise($text);
     // The separators are closed up only INSIDE a run that already begins with
     // SP, so a hyphen anywhere else in the sentence is left exactly as it is.
+    // THIS RETURNS A CANDIDATE, NOT A VERDICT. See assistant_track_exists()
+    // below and the branch in assistant_intent() that uses them together.
+    //
+    // This function used to weld any run beginning "sp" onto the words after
+    // it, so "do you have sports bras" became SPORTSBRAS, matched, and the
+    // shopper was asked for their order number. In a SPORTSWEAR shop. Measured
+    // before the fix, every one of these was read as an order lookup:
+    //
+    //   do you have sports bras / i need a sports bra / do you sell sportswear
+    //   any special offers / can I speak to someone / spring collection?
+    //
+    // THE FIRST FIX FOR THIS WAS WRONG, and the existing suite caught it before
+    // it went anywhere. It required a DIGIT, reasoning that newTrackId() in
+    // checkout.tsx is 'SP' plus two uint32s in base36 padded with '0', so every
+    // real id must carry one. The arithmetic is right and the conclusion was
+    // not: that is only the APP's generator. api.php accepts
+    // /^[A-Za-z0-9]{6,30}$/ from the client, the website's own bundle has no
+    // source in this repo, and the suite's fixture is SPMTTZNEXARIG — thirteen
+    // letters, no digit. The rule would have stopped the assistant finding real
+    // orders, which is worse than what it fixed.
+    //
+    // So the shape of the string is not asked to answer this at all. The
+    // candidate is looked UP: an order that exists is an order number, and
+    // SPORTSWEAR is not in the orders table. A digit is kept only as a second
+    // chance, so a customer who MISTYPES a real-looking number still gets
+    // "I couldn't find that order" instead of a page of jackets.
     $t = preg_replace_callback(
         '/\b(sp)[\s\-_]*([a-z0-9][a-z0-9\s\-_]{4,34})/iu',
         static fn (array $m): string => $m[1] . preg_replace('/[\s\-_]+/', '', $m[2]),
@@ -322,6 +415,24 @@ function assistant_find_track(string $text): ?string
         return strtoupper($m[1]);
     }
     return null;
+}
+
+// IS THAT CANDIDATE ACTUALLY AN ORDER? The question the shape of the string
+// cannot answer, asked of the only thing that can.
+//
+// Never throws. This runs on the chat path, and a database hiccup must degrade
+// to "route by the words" rather than take the assistant down. `false` is the
+// safe answer: it hands the message to the keyword rules, which still send
+// "where is my order" to order_status.
+function assistant_track_exists(PDO $db, string $track): bool
+{
+    try {
+        $q = $db->prepare('select 1 from orders where track_id = ? limit 1');
+        $q->execute([$track]);
+        return (bool) $q->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
+    }
 }
 
 // -------------------------------------------------------- availability cues

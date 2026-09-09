@@ -140,6 +140,30 @@ await fetch(`${API}/api.php?r=order`, {
   }),
 })
 
+// A SECOND ORDER WHOSE NUMBER HAS NO DIGIT IN IT, and it has to be forced.
+// `track` above is Date.now() in base36, so whether it contains a digit
+// depends on the MILLISECOND the rig runs: SPMTTZNEXARIG one hour and
+// SPMTTZRY12RIG the next. That is fine for what it tests, and useless for the
+// property below — the digit-free case is the one that broke a fix, and a
+// fixture that only sometimes has the property only sometimes tests it.
+// Measured: mutating the server to demand a digit was caught in the morning
+// and went green in the afternoon.
+const trackPlain = 'SP' + Date.now().toString(36).toUpperCase()
+  .replace(/[0-9]/g, (d) => 'GHJKLMNPQR'[Number(d)]) + 'RIG'
+await fetch(`${API}/api.php?r=order`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    track_id: trackPlain, payment_method: 'cod', lang: 'ar',
+    items: [{ slug: line.slug, size: line.size, qty: 1 }],
+    customer: {
+      name: 'Assistant Rig', phone: '5' + String(Date.now() + 1).slice(-7),
+      email: 'rig@example.com', governorate: 'hawalli', area: 'Salmiya',
+      block: '4', street: '12', building: '8',
+    },
+  }),
+})
+
 const known = await ask(`وين طلبي ${track}`)
 check(known.body?.intent === 'order_status', `an order number is recognised (${known.body?.intent})`)
 check(known.body?.data?.track === track, `and the order looked up is that one (${known.body?.data?.track})`)
@@ -353,6 +377,56 @@ if (famItems.length > 1) {
     `${famItems.length} colours shown, and the sentence singles none of them out`
     + (named.length ? ` — named ${named.join(', ')}` : ''))
 }
+
+// --- a word beginning "sp" is not an order number -------------------------
+//
+// assistant_find_track() welds any run starting "sp" onto the words after it,
+// so SPORTS BRAS became SPORTSBRAS, matched, and the shopper was answered
+// "Send me your order number". In a sportswear shop, on the single most likely
+// question it will ever be asked. Every line below was measured failing.
+//
+// The fix looks the candidate UP rather than judging its shape, so BOTH
+// directions have to be held here: an invented word must not be an order, and
+// a real order must still be found — including one with no digit in it, which
+// is what killed the first attempt at this.
+for (const [msg, why] of [
+  ['do you have sports bras', 'the shop sells one'],
+  ['i need a sports bra', 'the same question, asked the other way'],
+  ['do you sell sportswear', 'ten letters, all of them a word'],
+  ['any special offers', '"special"'],
+  ['can I speak to someone', '"speak" — and this one must reach a HUMAN'],
+  ['spring collection?', '"spring"'],
+  ['do you do sponsorship', '"sponsorship"'],
+]) {
+  const r = await ask(msg)
+  check(r.body?.intent !== 'order_status',
+    `"${msg}" is not read as an order number — ${why}`, `got ${r.body?.intent}`)
+}
+
+// The other direction, and the one that matters more: a real number, in the
+// three shapes a customer actually sends it, must still be found. track here
+// carries no digit at all — that is deliberate, and it is why the first fix
+// (which demanded one) was wrong.
+check(!/[0-9]/.test(trackPlain),
+  `the digit-free fixture really has no digit (${trackPlain})`)
+for (const form of [trackPlain, `SP-${trackPlain.slice(2)}`, `SP ${trackPlain.slice(2)}`,
+                    `where is ${trackPlain}`, track]) {
+  const r = await ask(form)
+  check(r.body?.intent === 'order_status',
+    `a real order number is still found: "${form}"`, `got ${r.body?.intent}`)
+}
+
+// A MISTYPED NUMBER IS STILL AN ORDER QUESTION. This is what the digit
+// fallback is for, and without it the case is invisible: a customer who gets
+// one character wrong has a string that is not in the table, and looking it up
+// alone would drop them into product search. With the fallback they reach
+// order_status and are told the order was not found, which is the truth and
+// is actionable. Mutation-tested: removing the fallback turns this red and
+// nothing else.
+const typo = await ask('SP1AU702NKHTKDV')
+check(typo.body?.intent === 'order_status',
+  'a well-formed number that is NOT in the table is still an order question',
+  `got ${typo.body?.intent}`)
 
 // THE CEILING IS READ OUT OF api.php, not written down here. It was hard-coded
 // as 34 requests against a limit of 30, and when the limit was raised to 60
