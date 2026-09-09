@@ -141,10 +141,28 @@ check(entries.fwd !== "power", `a front-driver should not power-over (got "${ent
 // way of reading the roster outside the browser, not two.
 const modsSrc = readFileSync("src/game/mods.ts", "utf8");
 const carsBlock = modsSrc.match(/export const CARS[^=]*=\s*\[(.*?)\n\];/s)[1];
-const ids = [...carsBlock.matchAll(/^\s{4}id: "([a-z0-9-]+)",\n\s{4}drive: "(fwd|rwd|awd)",/gm)];
+//
+// Read as BLOCKS, one per car, rather than as a pair of adjacent lines.
+// The first cut of this required `drive:` on the line immediately after
+// `id:`, which is a claim about how the roster is FORMATTED and not
+// about what it says. It held until a car gained a field in between —
+// `zeroTo100s` and `face` both landed there — and then the pattern
+// matched zero of the seventeen and this file reported that not one car
+// in the game declared a drivetrain, that the showroom sold only one
+// layout, and that the GTR was not all-wheel drive. All three were
+// false, all three had the same cause, and every car had always been
+// right. A test that reads source as text has to parse it as loosely as
+// the language allows, or it fails on the day somebody adds a comment.
+const carBlocks = carsBlock.split(/^ {4}id: "/m).slice(1);
+const total = carBlocks.length;
+const ids = [];
+for (const block of carBlocks) {
+  const id = block.match(/^([a-z0-9-]+)"/)?.[1];
+  const d = block.match(/^ {4}drive: "(fwd|rwd|awd)",$/m)?.[1];
+  if (id && d) ids.push([null, id, d]);
+}
 const byDrive = {};
 for (const [, , d] of ids) byDrive[d] = (byDrive[d] ?? 0) + 1;
-const total = [...carsBlock.matchAll(/^\s{4}id: "[a-z0-9-]+",/gm)].length;
 console.log(
   `\nshowroom     ${Object.entries(byDrive).map(([d, n]) => `${n} ${d}`).join(", ")} across ${total} cars`
 );

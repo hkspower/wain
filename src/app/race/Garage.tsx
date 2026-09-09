@@ -57,7 +57,13 @@ const PERFORMANCE_CATS: Array<{ cat: string; label: string }> = [
   { cat: "brakes", label: "BRAKES · البريكات" },
   { cat: "tires", label: "TIRES · التواير" },
   { cat: "gearbox", label: "GEARBOX · القير" },
-  { cat: "chassis", label: "CHASSIS & DIFF · الهيكل" },
+  // The diff left the chassis section and became a slot of its own: one
+  // axle takes one differential, and a welded spool and a clutch pack
+  // are opposite answers rather than two parts to own at once. Directly
+  // under TIRES on purpose — what the diff does is decide how much of
+  // the engine the tires get, so the two are read together.
+  { cat: "diff", label: "DIFFERENTIAL · الدفرنس" },
+  { cat: "chassis", label: "CHASSIS · الهيكل" },
   { cat: "extras", label: "EXTRAS & NOS · الإضافات" },
 ];
 const STYLE_CATS: Array<{ cat: string; label: string }> = [

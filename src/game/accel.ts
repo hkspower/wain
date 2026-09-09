@@ -61,6 +61,11 @@ export interface LaunchCar {
   downforce: number;
   /** What the driven axle can put down, as a fraction of grip. */
   tractionMult: number;
+  /** What fraction of that grip the driven axle can deliver — see
+   *  DRIVE_SHARE. The solver has to carry it or it would solve a launch
+   *  against a cap the game does not use, and every card would be a
+   *  promise the car misses the moment it breaks traction. */
+  driveShare: number;
   /** The block. Its torque curve is most of why two cars with the same
    *  thrust figure do not do the same time. */
   engine: EngineSpec;
@@ -108,7 +113,8 @@ function tractionAt(car: LaunchCar, v: number): number {
   return (
     gripAtSpeed(car.gripAccel, car.downforce, v) *
     (0.8 + 0.2 * Math.min(1, v / 22)) *
-    car.tractionMult
+    car.tractionMult *
+    car.driveShare
   );
 }
 
@@ -242,6 +248,11 @@ export function zeroTo100For(tune: {
   gripAccel: number;
   downforce: number;
   tractionMult: number;
+  /** What fraction of that grip the driven axle can deliver — see
+   *  DRIVE_SHARE. The solver has to carry it or it would solve a launch
+   *  against a cap the game does not use, and every card would be a
+   *  promise the car misses the moment it breaks traction. */
+  driveShare: number;
   boostMult: number;
   aspiration: string;
   engine: EngineSpec;
@@ -256,6 +267,7 @@ export function zeroTo100For(tune: {
     gripAccel: tune.gripAccel,
     downforce: tune.downforce,
     tractionMult: tune.tractionMult,
+    driveShare: tune.driveShare,
     engine: tune.engine,
     boostMult: tune.boostMult,
     twinTurbo: tune.aspiration === "twin",

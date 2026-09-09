@@ -4559,6 +4559,10 @@ export class GameEngine {
       grip *
       (0.8 + 0.2 * Math.min(1, p.speed / 22)) *
       this.tune.tractionMult *
+      // Only the driven wheels can push, and they carry a fraction of
+      // the car. Without this the cap was the whole car's lateral grip
+      // and no car in the game ever reached it — see DRIVE_SHARE.
+      this.tune.driveShare *
       // Squat presses the driven axle into the road. Bounded tightly —
       // see grip.ts — because uncapped this feeds itself.
       load.driveScale;

@@ -40,6 +40,59 @@ Two new scripts:
   arithmetic half without a browser.
 
 
+### The traction system was inert, and two features on top of it were unreachable
+
+Found while adding the differential ladder, by measuring rather than
+reading. The longitudinal traction cap used the car's whole grip figure
+with no account of **which** wheels drive or how much of the car sits on
+them. Measured over a full-throttle run through the gears, with boost,
+on all seventeen cars:
+
+| build | peak thrust ÷ traction cap | cars that broke traction |
+| --- | --- | --- |
+| standard | 0.47 – 0.96 | **0 of 17** |
+| engine bought | 0.63 – 1.24 | 6 of 17, for 0.3–1.8 s |
+| fully built | 0.47 – 0.96 | **0 of 17** |
+
+The third row is the sharp one: tyres and coilovers raise the cap by
+more than the engine raises thrust, so the *endgame* car was the one
+car that could not light a tyre up, and a player chasing power watched
+their wheelspin vanish as they got faster.
+
+`wheelspin` was therefore zero almost always, and both features written
+on top of it were unreachable code: the power-over drift entry in
+`drift.ts` (needs `wheelspin > H.powerOverSpin`) and the burnout in
+`engine.ts` (needs `> 3`). So was every traction part in the shop —
+raising a cap nothing reaches buys nothing, which is why the 1300 KD
+Limited-Slip Diff did nothing measurable on fifteen of the seventeen.
+
+`DRIVE_SHARE` in `grip.ts` is the missing term (awd 0.92, rwd 0.72, fwd
+0.62). No card in the showroom moved by more than 0.004 s — the launch
+solver simply asks for more thrust and the car spends the excess as
+smoke on its way to the same 100 km/h. `npm run test:traction` is the
+guard, and it is red against the old numbers.
+
+### Three tests were reporting failures that were their own
+
+Worth recording as a pattern, since it is now the third time this
+session:
+
+- **`test:drivetrain`** reported that *all seventeen cars fail to say
+  which wheels they drive*, that the showroom sold only one layout, and
+  that the GTR was not all-wheel drive. All three were false and all
+  three had one cause: the roster was read with a regex requiring
+  `drive:` on the line **immediately** after `id:`, and cars had since
+  gained `zeroTo100s` and `face` in between. Every car had always been
+  right. Now parsed as per-car blocks.
+- **`test:accel`**'s solver check hand-builds a `LaunchCar` literal. When
+  `LaunchCar` gained `driveShare`, the absent field became `undefined`,
+  `undefined` in the traction cap became `NaN`, every comparison in the
+  bisection then went the same way, and it reported a tidy
+  "Infinity% off" as though the arithmetic were at fault. It now names a
+  non-finite time as its own kind of failure.
+- The measurement probes for this work had the same `LaunchCar` hole and
+  reported peak thrust ratios of 34–113× before it was caught.
+
 ## The suite, right now
 
 Fifty-seven scripts: forty-odd behavioural suites, the static checks,

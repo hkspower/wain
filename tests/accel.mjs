@@ -30,6 +30,7 @@ import { existsSync } from "node:fs";
 import { CARS } from "../src/game/mods.ts";
 import { launchThrustFor, timeTo100, launchG, LAUNCH_REF } from "../src/game/accel.ts";
 import { getEngine } from "../src/game/engines.ts";
+import { driveShareFor } from "../src/game/grip.ts";
 
 const fail = [];
 const check = (c, m) => { if (!c) fail.push(m); return c ? "ok" : "FAIL"; };
@@ -101,11 +102,26 @@ const check = (c, m) => { if (!c) fail.push(m); return c ? "ok" : "FAIL"; };
       gripAccel: car.grip,
       downforce: 0,
       tractionMult: 1,
+      // The drivetrain's share of the grip. Not decoration: leaving it
+      // off this literal is how this check first went red for the wrong
+      // reason — an absent field is `undefined`, `undefined` multiplied
+      // into the traction cap is NaN, every comparison in the bisection
+      // then goes the same way, and the solver reports a clean
+      // "Infinity% off" as though the arithmetic were at fault rather
+      // than the car it was handed.
+      driveShare: driveShareFor(car.drive),
       engine: getEngine(car.engine),
       boostMult: 0,
       twinTurbo: false,
     };
     const got = timeTo100(launchThrustFor(car.zeroTo100s, lc), lc);
+    // Said out loud, because a non-finite time is a DIFFERENT failure
+    // from a solver that converged somewhere wrong, and the percentage
+    // cannot tell the two apart.
+    if (!Number.isFinite(got)) {
+      fail.push(`${car.id}: the model never reaches 100 km/h — check every field of LaunchCar is set`);
+      continue;
+    }
     const err = Math.abs(got - car.zeroTo100s) / car.zeroTo100s;
     if (err > worst) { worst = err; worstId = car.id; }
   }

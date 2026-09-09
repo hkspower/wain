@@ -206,3 +206,69 @@ export function downforceGrip(downforce: number, speed: number): number {
   const v = speed / H.downforceRefSpeed;
   return Math.min(H.downforceMax, downforce * v * v);
 }
+
+/**
+ * How much of the car's grip the DRIVEN wheels can actually put down.
+ *
+ * gripAtSpeed answers a lateral question — what the whole car will hold
+ * in a corner, four loaded tyres working together. Acceleration is not
+ * that question. Only the driven axle can push, it carries a fraction of
+ * the mass, and on a front-driver that fraction gets SMALLER the harder
+ * you accelerate, because the weight is moving the other way.
+ *
+ * Leaving this out is most of why the game had almost no wheelspin.
+ * Measured over a full-throttle run through the gears, with boost, on
+ * every car in the roster:
+ *
+ *   standard          thrust peaked at 0.47 to 0.96 of the cap. Under
+ *                     it, always, on all seventeen. Not one car in the
+ *                     showroom could break traction at all.
+ *   engine bought     six of the seventeen could, for 0.3 to 1.8s.
+ *   fully built       none of them could. Back to 0.47-0.96.
+ *
+ * That last row is the part worth staring at. Buying tires and
+ * coilovers raises the cap by MORE than buying the engine raises
+ * thrust, so the endgame car — the one with everything fitted — was the
+ * one car that could not light a tire up, and a player chasing power
+ * watched their wheelspin disappear as they got faster.
+ *
+ * Two features are written on top of `wheelspin` and neither could
+ * reach: the power-over drift entry in drift.ts, which needs it past
+ * H.powerOverSpin, and the burnout in engine.ts, which needs it past 3.
+ * So could no traction part in the shop — raising a cap that thrust
+ * never reaches buys precisely nothing, which is what made a 1300 KD
+ * limited-slip diff do nothing measurable on fifteen of the seventeen.
+ *
+ * The engine's own comment beside the cap said "launches are
+ * traction-limited... which is why the big-power cars leave the line in
+ * smoke instead of teleporting." It described the intent exactly. The
+ * numbers never delivered it.
+ *
+ * The figures are chosen against that measurement rather than picked to
+ * sound right. At these values no card in the showroom moves by more
+ * than four thousandths of a second — the launch solver simply asks for
+ * more thrust, and the car spends the excess as smoke on its way to the
+ * same 100 km/h — while the fully built cars that could not spin a wheel
+ * now spin for two to three seconds of a run, and the rear-drive sports
+ * cars break traction standard. The all-wheel-drive cars still do not,
+ * at any build, which is the entire argument for all-wheel drive and the
+ * game had no way to make it before: the cap did not know what drove.
+ */
+export const DRIVE_SHARE: Readonly<Record<Drivetrain, number>> = {
+  // Four driven wheels, so nearly all of it — "nearly" because a tyre
+  // carrying the car's mass transfer cannot also give up its whole
+  // lateral figure longitudinally.
+  awd: 0.92,
+  // Two wheels, on the axle that squat is pressing DOWN. The reference
+  // case, and the one the sports cars sit on.
+  rwd: 0.72,
+  // Two wheels on the axle that acceleration is UNLOADING. A front
+  // driver fights itself off the line, which is why the cheap cars in
+  // this game now scrabble and the expensive ones hook up.
+  fwd: 0.62,
+};
+
+/** The share for a drivetrain, defaulting to rear-drive. */
+export function driveShareFor(drive: Drivetrain | undefined): number {
+  return DRIVE_SHARE[drive ?? "rwd"] ?? DRIVE_SHARE.rwd;
+}

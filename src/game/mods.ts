@@ -13,7 +13,7 @@ import { launchThrustFor } from "./accel";
 import { ATTITUDE } from "./attitude";
 import type { EngineId, EngineSpec } from "./engines";
 import { loadCrew, type Crew } from "./teams";
-import type { Drivetrain } from "./grip";
+import { driveShareFor, type Drivetrain } from "./grip";
 import { HANDLING } from "./handling";
 import type { TyreSticker, WheelFinish, Livery, FaceSpec } from "./cars";
 import type { Bulb } from "./bulbs";
@@ -40,6 +40,7 @@ export type ExclusiveCat =
   | "sidewall"
   | "bulbs"
   | "film"
+  | "diff"
   | "carbon";
 export type Category = ExclusiveCat | "internals" | "chassis" | "extras";
 
@@ -70,6 +71,13 @@ export const EXCLUSIVE_CATS: ReadonlySet<string> = new Set([
   // stays the free slider it has always been, because darkness is a
   // continuum and the product is not.
   "film",
+  // The differential. One axle, one diff, and which one is fitted is the
+  // whole decision — a welded spool and a clutch pack are opposite
+  // answers to the same question, so owning both and running both is not
+  // a thing a car can do. It was a single always-on tick-box before this
+  // (buy the LSD or do not), which made a 1300 KD part with no
+  // alternative and no downside.
+  "diff",
   "carbon",
 ]);
 
@@ -127,9 +135,29 @@ export const PARTS: Part[] = [
   // Gearbox — exclusive. The same engine, geared for a different fight.
   { id: "gearbox-close", cat: "gearbox", name: "Close-Ratio Box", ar: "قير قصير", price: 1400, desc: "+20% acceleration, 16 km/h off the governor — for the corniche, not the straight" },
   { id: "gearbox-tall", cat: "gearbox", name: "Tall Final Drive", ar: "قير طويل", price: 1400, desc: "−12% acceleration for 16 km/h more governor — for the long inland run" },
+  // Differential — exclusive. One axle, one diff.
+  //
+  // What is on sale here is a TRADE, not a ladder of strictly better
+  // parts: everything that puts more torque on the road also makes the
+  // car less willing to turn, and the expensive one is expensive because
+  // it is the one that does not. The spool out-drags the clutch pack for
+  // a third of the money and will not go round a roundabout.
+  //
+  // The descriptions say when a diff is worth buying, out loud, because
+  // measurement says it usually is not yet. A diff only pays once the
+  // engine can out-pull the tires: on a standard car every one of these
+  // is worth exactly nothing off the line — the thrust never reaches the
+  // traction cap, so raising the cap changes nothing — and on the same
+  // car with the power roughly doubled the spool is worth half a second
+  // to 100. Selling that as "far less wheelspin off the line" with no
+  // condition attached, which is what the old single LSD said, is a
+  // 1300 KD part that does nothing for the player most likely to buy it.
+  { id: "diff-open", cat: "diff", name: "Open Diff", ar: "دفرنس عادي", price: 0, desc: "What the car came with. One wheel takes the power and lights up; the other one waits. Free, fitted, and the thing every diff below is an argument with" },
+  { id: "diff-spool", cat: "diff", name: "Welded Spool", ar: "دفرنس ملحوم", price: 900, desc: "Welded solid: both wheels turn together, always. The most drive you can buy and the cheapest — and the axle now fights every corner, so the nose washes wide unless you are sideways. Worth it once the engine can out-pull the tires; before that, nothing" },
+  { id: "lsd", cat: "diff", name: "Limited-Slip Diff", ar: "دفرنس", price: 1300, desc: "Locks under power and frees off it: both rear tires pull, and a slide you can steer. Modest next to the spool, and it does not cost you the corner. Worth it once the engine can out-pull the tires; before that, nothing" },
+  { id: "diff-clutch", cat: "diff", name: "Clutch-Pack LSD", ar: "دفرنس كلتشات", price: 2400, desc: "Adjustable plates: nearly the spool's drive with none of its manners, and it helps the car rotate on the way out instead of pushing. The dear one, and the only one with no downside. Worth it once the engine can out-pull the tires; before that, nothing" },
   // Chassis — additive, always active once fitted. These are the parts
   // that argue with the tire model rather than the engine.
-  { id: "lsd", cat: "chassis", name: "Limited-Slip Diff", ar: "دفرنس", price: 1300, desc: "Both rear tires pull: far less wheelspin off the line, and a slide you can steer" },
   { id: "coilovers", cat: "chassis", name: "Coilovers", ar: "مساعدات", price: 900, desc: "Stiffer platform: the nose still turns in under heavy braking" },
   { id: "cage", cat: "chassis", name: "Roll Cage", ar: "قفص حماية", price: 1500, desc: "Rigid shell: contact costs far less speed and SP — the price is a little weight" },
   { id: "rack", cat: "chassis", name: "Quick Steering Rack", ar: "دركسون سريع", price: 700, desc: "Faster hands: the car answers the wheel almost immediately" },
@@ -1418,9 +1446,18 @@ export interface GarageState {
  *  has to remember to apply. */
 export function freshBuild(carId?: string): CarBuild {
   const build: CarBuild = {
-    // The basic panel filter comes with the car, like the paint does.
-    owned: ["paint-white", "glow-none", "intake-basic"],
-    equipped: { paint: "paint-white", glow: "glow-none", intake: "intake-basic" },
+    // The basic panel filter comes with the car, like the paint does —
+    // and so does the open diff, because a car without a differential
+    // does not roll out of a showroom. Both are free and both are
+    // fitted, so the slot is never empty and the shop always has a
+    // "this is what you have now" to argue against.
+    owned: ["paint-white", "glow-none", "intake-basic", "diff-open"],
+    equipped: {
+      paint: "paint-white",
+      glow: "glow-none",
+      intake: "intake-basic",
+      diff: "diff-open",
+    },
   };
   const factory = carId ? CARS.find((c) => c.id === carId)?.factoryBuild : undefined;
   for (const id of factory ?? []) {
@@ -1538,6 +1575,17 @@ export function loadGarage(): GarageState {
           // choice the player made. They keep it, on the cheap film,
           // free: nobody pays twice for something they already had, and
           // dyed is the roll a free tint job was.
+          // And the diff. It was an always-on chassis tick-box — own the
+          // LSD and every car you own had one — and it is an exclusive
+          // slot now, with a free open diff underneath it and two other
+          // answers beside it. A player who paid 1300 KD for the LSD
+          // keeps it fitted; everybody else gets the open diff their car
+          // has always actually had, so no save loads with an empty axle
+          // and less traction than a brand new one.
+          if (!b.owned.includes("diff-open")) b.owned.push("diff-open");
+          if (!b.equipped.diff) {
+            b.equipped.diff = b.owned.includes("lsd") ? "lsd" : "diff-open";
+          }
           if (clampTint(b.tint) > 0 && !b.equipped.film) {
             if (!b.owned.includes("film-dyed")) b.owned.push("film-dyed");
             b.equipped.film = "film-dyed";
@@ -1696,6 +1744,11 @@ export interface TuneEffects {
   /** Scales what the driven axle can transmit — an LSD puts both rear
    *  tires to work, so less torque is wasted as wheelspin. */
   tractionMult: number;
+  /** The fraction of the car's grip the DRIVEN wheels can deliver, from
+   *  the drivetrain — see DRIVE_SHARE in grip.ts. Read by the engine's
+   *  traction cap and by the launch solver, which have to agree or a
+   *  card becomes a promise the car misses. */
+  driveShare: number;
   /** Scales how much braking/wheelspin blunts turn-in (base 1). */
   understeerMult: number;
   /** Scales the drift angle cap: drift tires let the tail out further. */
@@ -1905,8 +1958,27 @@ export function computeEffects(
   let steerRate: number = HANDLING.steerSmoothRate;
   let crashResist = 0;
   const rollDegPerG = rollGradientFor(car.style ?? "sedan", car.kit ?? "street", has("coilovers"));
-  if (has("lsd")) tractionMult += 0.16;
   if (has("coilovers")) { understeerMult = 0.55; gripAccel += 0.4; }
+  // The diff, read from the SLOT and applied after the coilovers, so the
+  // two compose instead of overwriting each other. Coilovers assign
+  // understeerMult; a diff scales whatever it has become, which is the
+  // only order in which "stiff platform AND a welded axle" means both.
+  //
+  // The traction figures stop at 1.34 rather than climbing to a round
+  // 1.5 because that is where they stop being worth anything: measured
+  // across the roster at double power, going 1.34 -> 1.45 buys between
+  // 0.00 and 0.07s to 100 while 1.16 -> 1.34 buys up to 0.25s. Past the
+  // point where thrust no longer exceeds the cap, more cap is free
+  // nothing, and a shop should not price it as if it were not.
+  const DIFFS: Record<string, { traction: number; understeer: number }> = {
+    "diff-open": { traction: 1, understeer: 1 },
+    "diff-spool": { traction: 1.34, understeer: 1.55 },
+    lsd: { traction: 1.16, understeer: 0.95 },
+    "diff-clutch": { traction: 1.3, understeer: 0.85 },
+  };
+  const diff = DIFFS[eq.diff ?? "diff-open"] ?? DIFFS["diff-open"];
+  tractionMult *= diff.traction;
+  understeerMult *= diff.understeer;
   if (has("cage")) { crashResist = 0.55; gripAccel += 0.3; accelMult *= 0.97; }
   // The quick rack is a MULTIPLE of the standard one, so it stays a
   // genuine upgrade whatever the base becomes. 1.4x of 13 is 18.2, which
@@ -1977,6 +2049,7 @@ export function computeEffects(
     gripAccel,
     downforce,
     tractionMult,
+    driveShare: driveShareFor(car.drive),
     // The block as DELIVERED, not as swapped: the card describes the
     // car the showroom sells, so a player who fits a different engine
     // should beat it or miss it, not redefine it.
@@ -2010,6 +2083,7 @@ export function computeEffects(
     downforce,
     slipMult,
     tractionMult,
+    driveShare: driveShareFor(car.drive),
     understeerMult,
     driftAngleMult,
     steerRate,
