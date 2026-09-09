@@ -450,7 +450,13 @@ FileETag MTime Size
   # it here is the price the comment above names; htaccess-test checks EVERY
   # un-hashed file in assets/ rather than this list, so forgetting is caught
   # at commit time rather than by a customer holding a stale footer.
-  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(brand-badge|contact|card|footer|returns-request|returns-link|track-guard|theme)\.js$">
+  #
+  # brand-logos.js is the ninth, 2026-09-09 — and the rig caught it AFTER it
+  # had already been published, which is the comment above earning its keep in
+  # the wrong direction. Its stale-copy failure is the quiet kind: the upload
+  # card on the panel's Brands screen simply keeps whatever behaviour the
+  # cached copy had, on the one person who most needs the new one.
+  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(brand-badge|brand-logos|contact|card|footer|returns-request|returns-link|track-guard|theme)\.js$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 
