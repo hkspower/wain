@@ -486,35 +486,39 @@ FileETag MTime Size
   # ---- Cookies ----
   # The storefront sets NO cookies. Nothing in src/ touches document.cookie; the
   # cart, wishlist, theme and language live in localStorage, and the admin's
-  # admin session does too. So there is no consent banner because there is
-  # nothing to consent to, and this rule currently rewrites nothing.
+  # session does too. So there is no consent banner because there is nothing to
+  # consent to.
   #
-  # It is here for the cookie that is not ours. PHP emits PHPSESSID the moment
-  # anything calls session_start(); Hostinger can inject its own; a future
-  # feature will add one and forget the flags. Any of those arriving without
-  # Secure gets Secure and SameSite=Lax added on the way out — so a cookie
-  # cannot leak over a downgraded connection or ride along on a cross-site POST,
-  # whether or not whoever set it remembered.
+  # TWO `Header edit` LINES USED TO SIT HERE, and they were REMOVED on
+  # 2026-09-09 because they had never once run. They were meant to add Secure
+  # and SameSite=Lax to any cookie that arrived without them — PHPSESSID from a
+  # bare session_start(), something Hostinger injected, a future feature whose
+  # author forgot. They were tested carefully, against Apache 2.4.58, where
+  # they work perfectly. Production is LiteSpeed, which does not implement
+  # `Header edit` at all: it emitted the directive AS A HEADER instead of
+  # applying it, so every response the shop has ever served carried two junk
+  # headers literally named `edit:` whose values were these two lines.
+  # Measured on the live server the day they were removed:
   #
-  # The negative lookahead is what stops a second "; Secure" being appended to a
-  # cookie that already had it.
+  #   edit=2   two `edit:` headers on the home page
+  #   L=  edit: Set-Cookie "(?i)^((?!.*;\s*Secure).*)$" "$1; Secure"|  edit: ...
   #
-  # `edit`, NOT `edit*`, and not `always`. Both were tried against Apache 2.4.58:
-  #   * `Header edit*` SEGFAULTED the worker on every request that carried a
-  #     Set-Cookie — with or without the lookahead. It is documented as "every
-  #     instance" and is not safe to use here.
-  #   * `always` writes to err_headers_out, and PHP's setcookie() writes to
-  #     headers_out, so an `always edit` would silently never see PHPSESSID —
-  #     the one cookie this rule exists for.
-  # Plain `edit` was verified to rewrite BOTH of two Set-Cookie headers on one
-  # response, so the `*` bought nothing even before it crashed.
+  # and NO real Set-Cookie header on that page at all, which is the other half
+  # of why this cost nothing to lose.
   #
-  # HttpOnly is deliberately NOT forced here: it is right for a session cookie
-  # and wrong for one a script is meant to read, and silently breaking a future
-  # feature is worse than this rule not covering it. The payment endpoints, where
-  # no script reads anything, do force it — see dropin/php-*/.htaccess.
-  Header edit Set-Cookie "(?i)^((?!.*;\s*Secure).*)$" "$1; Secure"
-  Header edit Set-Cookie "(?i)^((?!.*;\s*SameSite=).*)$" "$1; SameSite=Lax"
+  # WHERE THE PROTECTION ACTUALLY LIVES, and where it always did:
+  # store_session_start() in api/store.php, which is the ONLY function in this
+  # project that starts a session — admin.php, orders-print.php and store.php
+  # itself all route through it, checked. It sets secure, httponly and
+  # samesite=Strict on the cookie params, and names the cookie `__Host-`
+  # prefixed over HTTPS so no other host can write it. That is honoured by
+  # every server, because PHP sets it rather than the web server rewriting it
+  # afterwards — which is the general rule this taught: set a cookie's flags
+  # where the cookie is MADE. A rewrite is a second thing that has to be
+  # implemented, and on the server that matters, it was not.
+  #
+  # If a bare session_start() is ever added, it will not be covered. Route it
+  # through store_session_start() rather than reviving a rewrite.
 
   # Turn off browser features the storefront never uses.
   Header set Permissions-Policy "accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), usb=(), xr-spatial-tracking=()"

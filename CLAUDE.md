@@ -340,11 +340,24 @@ including the parts that would not have been the first choice.
 
 ## The live database is not the sandbox
 
-Two figures, measured on the server on 2026-09-04 by `scripts/live/live-scan.php`:
+Measured on the server by `scripts/live/live-scan.php`. The 2026-09-04 reading
+is kept beside the current one because the gap between them is the owner
+working, not the code changing:
 
 ```
-db=46 active products / 0 orders / 42 variant rows     qa=MISSING
+2026-09-04  db=46p / 0o / 42v                  qa=MISSING
+2026-09-09  db=46p / 0o / 162v  nosize=4       qa=yes      | no problems
 ```
+
+**Both gaps below are now closed by the owner, and neither by anything here.**
+`assistant_qa` exists, so the سبورتا AI can answer a taught question. Variant
+rows went 42 → 162, so the catalogue is buyable — except **four accessories
+with no size row at all**: `cagliari-calcio-backpack`,
+`cagliari-calcio-backpack-navy`, `denver-nuggets-cap-navy`,
+`gymshark-phone-strap`. A one-size row is obviously what they want and it is
+still stock data, so it is still the owner's to enter, not mine to invent.
+
+The paragraphs below are the original finding, kept for the lesson in them.
 
 **Zero orders.** `npm run test:db` reports 608 orders and 336 variants, and
 every one of those is SEED DATA in the local sandbox. They were quoted in this
@@ -454,6 +467,36 @@ host's `Access-Control-Allow-Origin` and `X-Robots-Tag` arrived exactly as
 written. So the fix for cookie flags is to set them where the cookie is made —
 `session.cookie_secure`, `session.cookie_samesite` — which is honoured by both
 servers, rather than rewriting headers afterwards.
+
+**Done on 2026-09-09, and there were FIVE of those lines, not two.** The other
+three were in `pay/.htaccess` and `knet/.htaccess` — the payment endpoints,
+forcing Secure, HttpOnly and SameSite=Lax — and they had never run either, so
+every payment response leaked three `edit:` headers containing its own source.
+The storefront's two were the ones that had been noticed; the payment ones were
+found by the guard, not by looking.
+
+All five removed. Nothing was lost, because nothing they protected exists:
+`store_session_start()` in `api/store.php` is the ONLY place this project
+starts a session — admin.php, orders-print.php and store.php itself all route
+through it, checked — and it already sets secure, httponly and samesite=Strict
+on the cookie params, with a `__Host-` name over HTTPS. `pay/` and `knet/`
+contain no `session_start`, no `setcookie` and no `Set-Cookie` at all.
+
+`scripts/cookie-flags-test.mjs` (`npm run test:cookie-flags`) holds it: no
+`.htaccess` may carry a `Header edit` DIRECTIVE (matching the words would fail
+on the comment explaining the removal, so the guard would have been deleted);
+no file may start a session outside `store_session_start()`; and a real sign-in
+against the sandbox must come back HttpOnly and SameSite=Strict. Mutation-tested
+three ways — a restored directive, a weakened samesite, a bare `session_start()`
+in a new file — each caught.
+
+Two things it cost to get right, both worth keeping. The guard's first version
+flagged a line of PROSE about `session_start()` inside a `//` comment; the
+tempting fix is to loosen the check, which is to break it — strip the comment
+instead. And its sign-in used `order by id limit 1`, which picked `rig@local`
+rather than the account `sandbox.sh` seeds, so three cookie assertions failed
+for a reason that had nothing to do with cookies. **A fixture chosen by
+position is a fixture chosen at random.** Name it.
 
 The rule: **for anything in `.htaccess` beyond rewrite and `Header set`, ask the
 live server what it actually sends.** The rig proves syntax and intent; only
