@@ -203,23 +203,30 @@ if (!backend.supabase) {
 }
 
 /**
- * This used to say «do NOT use hPanel's deploy-static-archive button — it
- * empties the folder first, and wain.db is still live in there».
+ * This first said «do NOT use hPanel's deploy-static-archive button — it
+ * empties the folder first, and wain.db is still live in there». Then wain.db
+ * went, a check on 2026-09-03 found 180 files in the docroot and every one of
+ * them output of this export, and the line was relaxed to «fine — it currently
+ * does hold nothing else».
  *
- * wain.db is no longer there. Checked through the Hostinger API on 2026-09-03:
- * /domains/wainkw.com/public_html holds 180 files at full depth and every one
- * of them is output of this export. So the warning was telling people to avoid
- * the one button that makes this a two-click job, on the strength of a file
- * that had already gone.
+ * That "currently" was the mistake. It froze one morning's reading into a
+ * fact, and a docroot is not a fact: on 2026-09-09 the same check found eight
+ * directories that are NOT this export — api, pay, knet, assets, cats, hero,
+ * images, fonts — with /api/ alone holding 54 files of a live PHP application
+ * (store.php, admin.php, assistant.php, wallet.php and ~25 .sql dumps). Six
+ * days turned reassurance into an instruction to delete somebody's back end.
  *
- * The caution it was really making is still worth keeping, so it is stated as
- * the condition rather than as a fact about one filename: emptying the folder
- * is only safe while nothing LIVES in it.
+ * So it no longer claims to know. The condition is the whole of the advice,
+ * the reader is told to go and look, and the safe option is named first —
+ * File Manager's Extract merges, which is what you want in a shared docroot.
  */
-console.log(`\nDeploy: extract into public_html.`);
-console.log(`hPanel's "deploy static archive" button empties the folder first,`);
-console.log(`which is fine while the folder holds nothing but this export —`);
-console.log(`it currently does. Check before trusting that twice.`);
+console.log(`\nDeploy: upload this zip to public_html and use File Manager's`);
+console.log(`"Extract". It merges — it leaves anything already there alone.`);
+console.log(`\nhPanel's "deploy static archive" button is NOT the same thing:`);
+console.log(`it EMPTIES public_html first. Only use it once you have looked in`);
+console.log(`the folder and know that everything in it is this export. As of`);
+console.log(`2026-09-09 that was false — /api/, /pay/, /knet/ and /assets/ are`);
+console.log(`an older PHP app still sitting beside the site.`);
 console.log(`\nAfterwards, confirm what landed:`);
 console.log(`    curl -s https://www.wainkw.com/build.json`);
 console.log(`    → version ${version}, digest ${digest}\n`);
