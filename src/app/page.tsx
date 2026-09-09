@@ -55,9 +55,13 @@ export default function HomePage() {
       <section className="relative bg-sea-700">
         <div className="mx-auto max-w-6xl px-3 py-4 sm:px-6 sm:py-8">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 sm:mb-6">
+            {/* The site asks this in three places and they have to agree:
+                here, on /search, and in the ⌘K palette — the last two the
+                moment the search box is focused and still empty. Reword one
+                and the site is asking two questions for the same thing. */}
             <h2 className="flex items-center gap-2 font-display text-2xl font-bold text-white sm:text-3xl">
               <IconPinSolid className="size-6 text-sun-300" />
-              وش تدوّر؟
+              شنو تدوّر؟
             </h2>
             <Link
               href="/explore"

@@ -413,7 +413,20 @@ export default function SearchClient() {
 
         {!q.trim() ? (
           <section>
-            <h2 className="mb-3 text-sm font-semibold text-ink-600">جرّب تدوّر عن</h2>
+            {/* The second thing that happens: the visitor hits the search
+                bar, and the page asks. It read «جرّب تدوّر عن» — a caption
+                introducing the chips as examples — so the first move was
+                the visitor's and the page only labelled it. As a question
+                the chips become answers to it, which is what they are.
+
+                Same words as the category band on the home page and the
+                empty palette, on purpose: one question, asked at each of
+                the three points where it can be answered.
+
+                A step up from text-sm/ink-600 because the role changed. At
+                caption weight a question reads as a footnote to the chips
+                rather than the thing they answer. */}
+            <h2 className="mb-3 text-base font-semibold text-ink-800">شنو تدوّر؟</h2>
             <ul className="flex flex-wrap gap-2">
               {SUGGESTIONS.map((s) => (
                 <li key={s}>

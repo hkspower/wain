@@ -198,6 +198,50 @@ console.log('\n── a query with no answer says so, and still offers a way on 
   await ctx.close();
 }
 
+/* The site asks one question, in three places, and they drift apart silently.
+ *
+ * «شنو تدوّر؟» heads the category band on the home page and is what both
+ * search surfaces say the moment the box is focused and still empty — the
+ * second thing that happens after the visitor hits the search bar. Three
+ * literals in three files, and nothing but a comment holding them together:
+ * reword one and the site asks two questions for the same thing, which reads
+ * as two different features.
+ *
+ * Pinned as one constant on purpose. Changing the wording should mean editing
+ * this line and all three surfaces, not discovering months later that /search
+ * and the palette disagree. */
+const ASK = 'شنو تدوّر؟';
+
+console.log('\n── the same question, wherever it can be answered ──');
+{
+  const { ctx, p, errors } = await open();
+
+  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  const home = await p.locator('main, body').first().textContent();
+  ok('the home page band asks it', home.includes(ASK), home.slice(0, 160));
+
+  // Straight to the empty search page: no ?q=, so this is exactly what a
+  // visitor sees between hitting the bar and typing anything.
+  await p.goto(B + '/search/', { waitUntil: 'networkidle' });
+  await p.waitForTimeout(400);
+  const searchPage = await p.locator('body').textContent();
+  ok('/search asks it before a single key is pressed', searchPage.includes(ASK), searchPage.slice(0, 160));
+
+  // And the palette, which opens with the caret already in the box.
+  await p.goto(B + '/', { waitUntil: 'networkidle' });
+  await p.locator(BUTTON).first().click();
+  await p.locator(BOX).waitFor({ state: 'visible', timeout: 15000 });
+  const palette = await p.locator('[role="dialog"]').textContent();
+  ok('the empty palette asks it too', palette.includes(ASK), palette.slice(0, 160));
+
+  // The scope is the one thing the placeholder cannot say, so it must survive
+  // the rewrite that put the question above it.
+  ok('and still says it searches all of wain', palette.includes('كل أماكن وين'), palette.slice(0, 160));
+
+  ok('no page errors', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
 console.log(`\n${pass} passed, ${fails.length} failed`);
 await browser.close();
 if (fails.length) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

@@ -99,9 +99,17 @@ export default function SearchPaletteDialog({ onClose }: { onClose: () => void }
 
         <div className="max-h-[55vh] overflow-y-auto p-3">
           {q.trim() === "" ? (
-            <p className="px-2 py-6 text-center text-sm text-ink-500">
-              اكتب عشان تدوّر في كل أماكن وين.
-            </p>
+            /* The palette opens with the caret already in the box, so
+               «اكتب عشان تدوّر» was telling the visitor to do the thing the
+               dialog had just done for them. The ask goes here instead —
+               the same question the home page's band and /search put to
+               them — and the scope it used to carry stays underneath,
+               because «all of wain» is the part the placeholder does not
+               say. */
+            <div className="px-2 py-6 text-center">
+              <p className="text-base font-semibold text-ink-800">شنو تدوّر؟</p>
+              <p className="mt-1 text-sm text-ink-500">ندوّر لك في كل أماكن وين.</p>
+            </div>
           ) : hits.length ? (
             <SearchResults hits={hits} activeIndex={active} onNavigate={close} listboxId={LISTBOX_ID} />
           ) : (
