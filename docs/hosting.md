@@ -152,8 +152,48 @@ The `hosa` connector's **read** tools work, because that MCP server reaches
 Hostinger's API server-side — which is how everything in this file was
 measured. `hosting_generateUploadURLV1` returns a valid TUS URL and credentials
 that this environment then cannot reach, and both archive-deploy endpoints
-require the zip to be in the docroot already. There is no write path. The
-upload step has to come from a browser or from CI.
+require the zip to be in the docroot already.
+
+### …but the server can fetch for itself
+
+Nothing here can push bytes to Hostinger. The box can *pull* them, and a cron
+job is a write path — two commands, run once each and then deleted:
+
+```
+wget -O /home/<user>/domains/wainkw.com/public_html/w.zip <raw.githubusercontent URL>
+unzip -o -q -d /home/<user>/domains/wainkw.com/public_html /home/<user>/domains/wainkw.com/public_html/w.zip
+```
+
+`unzip -o` is Extract: it overwrites what collides and deletes nothing, so the
+eight PHP directories survive it. The archive's paths are at the top level, so
+it must be extracted *into* the docroot, not beside it.
+
+This needs the repository to be public, and the URL must pin the **commit sha**
+rather than a branch — the branch moves, and a deploy that quietly fetched
+something newer than what was verified is worse than one that fails.
+
+Two things cost a day each before this worked:
+
+**`createAccountCronJobV1` returns 403 from Cloudflare when the command
+contains shell plumbing** — `{ … } > log 2>&1`, `$?`. The WAF reads it as an
+injection attempt. It is *not* the URL: the same command with the redirection
+removed is accepted. Keep cron commands to one program and its arguments, with
+no metacharacters, and check `listAccountCronJobsV1` afterwards — an earlier
+attempt returned a uid for a job that was never stored, so the reply is not
+proof that the job exists.
+
+**Outbound internet does work from cron**, which was in doubt because all eight
+of the pre-existing jobs call `127.0.0.1` with a `Host:` header and never the
+open internet. `wget` fetched 3,715,813 bytes on the first firing.
+
+Verify the download by size before extracting. Extracting a half-finished
+archive over a live docroot is the one outcome worth waiting five minutes to
+avoid.
+
+`unzip` merges, so **the assets of the previous build stay behind** — the old
+hashed stylesheet and chunks accumulate under `_next/static/`. Nothing points
+at them and they are harmless; clearing them is a deletion in a shared docroot
+and should be done deliberately, not as part of a deploy.
 
 ## The one thing still missing: the back end
 

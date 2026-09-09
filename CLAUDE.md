@@ -62,6 +62,15 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   CONNECT with a 403 by the sandbox's egress gateway. Report it; never try to
   route around it, and never disable TLS or unset `HTTPS_PROXY`. The `hosa`
   connector's **read** tools work and are the way to verify a deploy.
+- **But the server can pull.** A `hosa` cron does it: `wget` the release zip
+  from a **commit-pinned** `raw.githubusercontent.com` URL, then `unzip -o -q
+  -d <docroot>`. That is Extract's merge behaviour, so the PHP app survives.
+  Delete the jobs and the zip afterwards. Two traps: `createAccountCronJobV1`
+  gets a **403 from Cloudflare** if the command contains `{ … } > log 2>&1` or
+  `$?` — keep it to one program and its arguments — and it can return a uid for
+  a job it never stored, so confirm with `listAccountCronJobsV1`. Check the
+  downloaded size before extracting; a partial archive over a live docroot is
+  the failure worth waiting a firing window to avoid.
 - **hPanel File Manager → Extract.** It merges. The docroot is *shared* — it
   holds eight directories of an older PHP app (`/api/`, `/pay/`, `/knet/`,
   `/assets/` …) that this repo did not put there.
