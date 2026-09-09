@@ -315,11 +315,34 @@ seven jobs that died on DNS for months while the panel looked healthy.
 The others are untouched: `cron-stock` hourly, `cron-customer-mail` `*/10`,
 `cron-invoice` `*/15`, `cron-voice` monthly.
 
-**`cron-voice` is a FIFTH job that cannot work** — it wants `tts_voice_id` —
-and I first reported it among the working ones because its last output was
-empty and I read that as "nothing to do". It runs monthly, so it wastes
-twelve runs a year rather than thousands, which is why it is left alone. An
-empty output is not a healthy one; `live-cron-check.php` is what says which.
+**`cron-voice` is a FIFTH job that cannot work** — it wants `tts_key` and
+`tts_voice_id` — and I first reported it among the working ones because its
+last output was empty. It runs monthly, so it wastes twelve runs a year rather
+than thousands, which is why it is left alone. Note that its guard sits BEFORE
+the prune branch, so `?do=prune` does nothing either: the job cannot even tidy
+its cache until the voice is configured.
+
+**AN EMPTY CRON OUTPUT MEANS AT LEAST THREE DIFFERENT THINGS**, and only the
+source says which:
+
+- **Healthy, by design.** `cron-invoice` prints nothing on success and explains
+  why in its own comment — *"a cron job that prints on every run is a cron job
+  that emails on every run... A quiet cron is a working cron, and the day it
+  speaks is the day to read it."*
+- **Has not run inside the panel's retention.** `cron-voice` is monthly.
+- **Ran and died before printing.** Not seen here, and indistinguishable from
+  the other two without reading the code.
+
+Reading empty as "fine" is what put voice in the working column. `ready=3/8` is
+the number to trust, not the silence.
+
+**The checker was wrong twice, and a full check found it.** It had been built
+by grepping each file for `$cfg['...']`, which finds every key a file MENTIONS
+rather than the ones it GUARDS on: `voice` listed the optional `tts_model` and
+omitted `tts_key` entirely (so a shop with a voice id and no API key would have
+read as READY), and `customer-mail` listed `mail_reply_to`, which nothing
+checks. **A key read with `?? default` is not a key the job needs.** Each entry
+now cites the line of the guard it came from.
 
 **The staggering is deliberate.** Hourly jobs all at `0 * * * *` fire together;
 :05, :20, :35 and :50 spread them, and the two that already existed keep their
