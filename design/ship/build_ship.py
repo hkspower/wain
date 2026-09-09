@@ -233,17 +233,30 @@ function drawBorder(g, alpha, at) {{
   g.globalAlpha = alpha;
   shipPaths(g, at);
   g.strokeStyle = TINT_STRONG;
-  g.lineJoin = "round";
+  g.miterLimit = 10;
   for (var i = 0; i < SHIP.length; i++) {{
     var p = SHIP[i], path = new Path2D(p.d);
+    var filled = p.fill === "currentColor";
     // A filled path gets a THIN outline, not its own weight. The hull is a
     // filled crescent a few units deep; stroking its outline at the mark's
     // own 0.6 swallowed the crescent whole and left the code showing as a
     // ribbon inside a heavy brown shape. The masts and spars are already
     // lines and keep their true weight — code inside a mast was never going
     // to be visible, and a mast at half weight is not this mark's mast.
-    g.lineWidth = p.fill === "currentColor" ? 0.34 : p.w;
-    g.lineCap = p.w > 0 ? p.cap : "round";
+    g.lineWidth = filled ? 0.34 : p.w;
+    // MITRED, NOT ROUNDED, on the filled paths — and they are every sharp
+    // corner the mark has: the peak and tack of each lateen sail, and the
+    // points of the hull crescent fore and aft. A round join runs an arc of
+    // the stroke's own width across each of those, so the outline bulged
+    // where the drawing is sharpest and the whole boum read soft. The
+    // shallowest angle here is the sail peak at 41°, a miter ratio of 2.9 —
+    // far inside the limit, so every corner comes to its true point.
+    //
+    // The mark's OWN lines keep their own ends: the waterline, the sheer and
+    // the spars are drawn stroke-linecap="round" in the sprite, and that is
+    // the locked drawing, not a choice to make here.
+    g.lineJoin = filled ? "miter" : "round";
+    g.lineCap = filled ? "butt" : p.cap;
     g.stroke(path);
   }}
   g.restore();
@@ -257,6 +270,7 @@ var mg = mask.getContext("2d");
 // the grid cannot see is a mast the code never builds, and the mark stops
 // being a boum the moment its rig goes missing.
 mg.save();
+mg.miterLimit = 10;
 shipPaths(mg);
 for (var i = 0; i < SHIP.length; i++) {{
   var p = SHIP[i], path = new Path2D(p.d);
@@ -264,8 +278,11 @@ for (var i = 0; i < SHIP.length; i++) {{
   if (p.fill === "currentColor") mg.fill(path);
   mg.strokeStyle = "#000";
   mg.lineWidth = p.w > 0 ? Math.max(p.w, 1.0) : 0.5;
-  mg.lineCap = p.w > 0 ? p.cap : "round";
-  mg.lineJoin = "round";
+  // the clip is mitred for the same reason the border is: a rounded join
+  // here cuts the code fill back in an arc at every sharp corner, so the
+  // sail peaks would come to a soft point no matter how the border is drawn
+  mg.lineJoin = p.fill === "currentColor" ? "miter" : "round";
+  mg.lineCap = p.fill === "currentColor" ? "butt" : p.cap;
   mg.stroke(path);
 }}
 mg.restore();
