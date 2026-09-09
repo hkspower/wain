@@ -1573,3 +1573,47 @@ a[href*="/product/"]:has(> img[src^="data:image/svg+xml"])::after,
    "مجموعة" renders as disconnected letters — it is not a subtle degradation,
    it is broken text. Hence [dir=ltr], not a blanket rule. */
 [dir=ltr] [class*="hero-h-md"] h1 { letter-spacing: -.015em; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * NO FILTERS ON THE SHOP — 2026-09-09, on the owner's instruction.
+ *
+ * The shop page carried four narrowing controls: a row of CATEGORY pills, a
+ * SIZE row, a FIT row, and the `?q=` search the header's box fills. Three of
+ * them are removed here. Every product is on the page, always.
+ *
+ * WHY CSS AND NOT THE SOURCE. The storefront is a prebuilt bundle with no
+ * source in this repository, so the only reach into it is the DOM. That is
+ * enough here, and cleanly so: each filter's state starts OFF in the bundle
+ * (`useState('all')` for the category, `null` for size and fit) and nothing
+ * but these controls ever sets it. Remove the controls and the filters can
+ * never turn on — the removal is total, not cosmetic.
+ *
+ * WHAT IS DELIBERATELY LEFT:
+ *
+ *   SORT (the select beside the heading) stays. Sorting narrows nothing —
+ *   every product is still on the page in a different order, and the control
+ *   that changed it is still there to change it back. It is not a filter.
+ *
+ *   SEARCH (`?q=`) stays. It is the header's search box, reachable from every
+ *   page, and hiding the shop's response to it would leave a box that appears
+ *   to do nothing. If it should go too, it goes from the header, not here.
+ *
+ * WHY THESE SELECTORS. The bundle gives these rows no id and no class of
+ * their own — they are Tailwind utility strings — so they are matched by what
+ * they CONTAIN, which is the part that describes them:
+ *
+ *   the category row is the only `mb-8` block whose direct children are
+ *   toggle buttons (`aria-pressed`)
+ *   the size and fit rows are the only blocks containing `.filter-scroller`,
+ *   which IS a real class and is used nowhere else
+ *
+ * Both were checked in a browser against /shop and a product page, because a
+ * utility-class selector that matches one row too many takes a control off a
+ * page nobody was looking at.
+ *
+ * display:none rather than hidden-but-present: a row still in the tab order
+ * is a set of controls a keyboard visitor reaches and cannot see. */
+.mb-8:has(> button[aria-pressed]),
+.mb-8:has(.filter-scroller) {
+  display: none !important;
+}

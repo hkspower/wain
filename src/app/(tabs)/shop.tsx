@@ -1,4 +1,3 @@
-import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -12,7 +11,6 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useCart } from '@/lib/cart';
-import { categoryName, type CategoryId } from '@/lib/catalog';
 import { formatNumber } from '@/lib/money';
 import { useLang } from '@/lib/i18n';
 
@@ -25,11 +23,12 @@ export default function ShopScreen() {
   /**
    * A HORIZONTAL LIST IN ARABIC STARTS AT ITS OTHER END.
    *
-   * The chips are laid out row-reverse, so the first one — «الكل» — sits at
-   * the far right of the content. A ScrollView opens at scrollLeft 0, which is
-   * the LEFT, so the first chip was off the screen: measured at x=382 on a
-   * 390px phone, three quarters of it past the edge. The filter a customer
-   * wants most often was the one they had to go looking for.
+   * The chips are laid out row-reverse, so the first one — «الأحدث», and
+   * «الكل» on the category row this used to serve as well — sits at the far
+   * right of the content. A ScrollView opens at scrollLeft 0, which is the
+   * LEFT, so the first chip was off the screen: measured at x=382 on a 390px
+   * phone, three quarters of it past the edge. The control a customer wants
+   * most often was the one they had to go looking for.
    *
    * React Native does not do this for you on either platform, and it is not
    * something a screenshot in English can ever show.
@@ -42,29 +41,36 @@ export default function ShopScreen() {
       // the chips' 48pt hit areas resize it after the first pass — and a
       // scroll issued against the old width lands short, which puts the first
       // chip back off the screen. Cheap, idempotent, and it is the difference
-      // between the filter row opening on "All" and opening on nothing.
+      // between the row opening on its first chip and opening on nothing.
       requestAnimationFrame(() => ref.current?.scrollToEnd({ animated: false }));
     },
     [dir],
   );
-  const filterRow = useRef<ScrollView>(null);
   const sortRow = useRef<ScrollView>(null);
-  const { products, categories } = useCart();
-  const params = useLocalSearchParams<{ category?: string }>();
+  const { products } = useCart();
 
-  // The tab is reachable both from the tab bar and from a category tile, so
-  // the filter starts from the route and is then owned by the screen.
-  const [filter, setFilter] = useState<CategoryId | 'all'>(
-    (params.category as CategoryId | undefined) ?? 'all',
-  );
+  /**
+   * NO CATEGORY FILTER — removed 2026-09-09 on the owner's instruction. The
+   * shop shows everything, always.
+   *
+   * WHAT WENT WITH IT, and why it could not stay: the screen used to accept a
+   * `?category=` route parameter, which is how the home screen's four tiles
+   * opened it already narrowed. With no pill row there is no visible way back
+   * to "all", so honouring that parameter would have left a customer in a
+   * subset of the shop with nothing on screen to say so and no control to undo
+   * it. The tiles now open the whole shop — see (tabs)/index.tsx.
+   *
+   * The SORT row stays. Sorting narrows nothing: every product is still on the
+   * page, in a different order, and the control that changed it is still there
+   * to change back.
+   */
   const [sort, setSort] = useState<Sort>('new');
 
   const shown = useMemo(() => {
-    const list = filter === 'all' ? products : products.filter((p) => p.category === filter);
-    if (sort === 'low') return [...list].sort((a, b) => a.price - b.price);
-    if (sort === 'high') return [...list].sort((a, b) => b.price - a.price);
-    return list;
-  }, [products, filter, sort]);
+    if (sort === 'low') return [...products].sort((a, b) => a.price - b.price);
+    if (sort === 'high') return [...products].sort((a, b) => b.price - a.price);
+    return products;
+  }, [products, sort]);
 
   const Chip = ({
     label,
@@ -78,7 +84,7 @@ export default function ShopScreen() {
     <Pressable
       accessibilityRole="button"
       // `selected` is not valid aria on a button and the web build drops it,
-      // so every filter announced identically whether it was on or off.
+      // so every chip announced identically whether it was on or off.
       // `pressed` is the attribute for a button that is on; `selected` stays
       // for native, which reads it directly. This is a LOCAL copy of the chip
       // rather than components/ui/chip.tsx — the shared one exists to stop
@@ -86,7 +92,7 @@ export default function ShopScreen() {
       accessibilityState={{ selected: active }}
       aria-pressed={active}
       onPress={onPress}
-      // The pill is 36pt because that is how the filter row is meant to look.
+      // The pill is 36pt because that is how the chip row is meant to look.
       // The thing you TAP is this, and it is 48 — measured at 36 before, which
       // is under the 44 a phone is expected to offer and small enough to miss
       // with a thumb on a moving bus. The pill inside is unchanged.
@@ -105,26 +111,10 @@ export default function ShopScreen() {
     <Screen
       tabBar
       stickyHeader={
-        /* The filters stay on screen while the grid scrolls. On a phone the
+        /* The sort row stays on screen while the grid scrolls. On a phone the
            alternative is scrolling back to the top to change your mind. */
-        <ThemedView type="background" style={styles.filterBar}>
+        <ThemedView type="background" style={styles.sortBar}>
           <ContentColumn>
-            <ScrollView
-              ref={filterRow}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              onContentSizeChange={startAtReadingEdge(filterRow)}
-              contentContainerStyle={[styles.chipRow, row]}>
-              <Chip label={t.shop.all} active={filter === 'all'} onPress={() => setFilter('all')} />
-              {categories.map((c) => (
-                <Chip
-                  key={c.id}
-                  label={categoryName(c, lang)}
-                  active={filter === c.id}
-                  onPress={() => setFilter(c.id)}
-                />
-              ))}
-            </ScrollView>
             <ScrollView
               ref={sortRow}
               horizontal
@@ -163,7 +153,7 @@ export default function ShopScreen() {
 }
 
 const styles = StyleSheet.create({
-  filterBar: {
+  sortBar: {
     paddingTop: Spacing.two,
     paddingBottom: Spacing.two,
     gap: Spacing.two,

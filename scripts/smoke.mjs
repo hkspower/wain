@@ -187,42 +187,58 @@ const cardsPerRow = () =>
   })
 check((await cardsPerRow()) === 2, 'the home grid is two cards across')
 
-// --- shop, filtering -----------------------------------------------------
+// --- shop, which narrows nothing -----------------------------------------
 await go('/shop')
 const before = await p.locator('a[href*="/product/"]').count()
 check(before > 0, `shop lists products (${before})`)
 
-// --- the first filter chip is on screen in Arabic ------------------------
-// The chips lay out row-reverse, so «الكل» is at the far right of the content
-// and a ScrollView opens at the LEFT. It measured x=382 on a 390px phone —
-// three quarters of it past the edge — and the filter customers reach for most
-// was the one they had to go hunting for. Invisible in English, and invisible
-// in any screenshot taken in English.
+// --- the first chip is on screen in Arabic -------------------------------
+// The chips lay out row-reverse, so the first one is at the far RIGHT of the
+// content and a ScrollView opens at the LEFT. It measured x=382 on a 390px
+// phone — three quarters of it past the edge. Invisible in English, and
+// invisible in any screenshot taken in English.
+//
+// This used to look for «الكل», the category row's first chip. The category
+// filter was removed on 2026-09-09; the sort row is laid out by the same
+// helper and has the same failure, so the check follows it there rather than
+// being deleted with the row it happened to be written against.
 const firstChip = await p.evaluate(() => {
   const leaf = [...document.querySelectorAll('*')].find(
-    (d) => d.children.length === 0 && d.textContent?.trim() === 'الكل',
+    (d) => d.children.length === 0 && d.textContent?.trim() === 'الأحدث',
   )
   if (!leaf) return null
   const r = leaf.getBoundingClientRect()
   return { x: Math.round(r.x), right: Math.round(r.x + r.width) }
 })
 check(!!firstChip && firstChip.x >= 0 && firstChip.right <= 390,
-  `the first filter chip is fully on screen (${firstChip?.x}–${firstChip?.right})`)
+  `the first chip is fully on screen (${firstChip?.x}–${firstChip?.right})`)
+
+// NOTHING NARROWS THE GRID any more, and that is the assertion. The old one
+// clicked «إكسسوارات» and required the count to FALL; its replacement requires
+// that no control on the screen can make it fall, which is what "remove all
+// filters" actually means. A rig that merely stopped clicking would have gone
+// green whether or not the filter came back.
+const chips = await p.getByRole('button').all()
+let narrowed = null
+for (const c of chips) {
+  const label = (await c.textContent())?.trim()
+  if (!label) continue
+  await c.click().catch(() => {})
+  await p.waitForTimeout(350)
+  const n = await p.locator('a[href*="/product/"]').count()
+  if (n < before) { narrowed = `${label} (${before} → ${n})`; break }
+}
+check(narrowed === null, `no control on the shop narrows the grid${narrowed ? ` — ${narrowed}` : ''}`)
 
 // Checked on BOTH screens: they carry the same grid written out twice, and
 // mutating only the shop's copy left the home check green.
 check((await cardsPerRow()) === 2, 'the shop grid is two cards across')
-await p.getByRole('button', { name: 'إكسسوارات' }).first().click()
-await p.waitForTimeout(500)
-const after = await p.locator('a[href*="/product/"]').count()
-check(after > 0 && after < before, `category filter narrows the grid (${before} → ${after})`)
 await shot('shop-ar')
 
 // --- the badges on the grid ----------------------------------------------
-// Back to every product first: the filter test above left the grid on
-// accessories, and three of the four badges live on other categories.
-await p.getByRole('button', { name: 'الكل' }).first().click()
-await p.waitForTimeout(600)
+// No "back to every product" step: the grid IS every product now. It used to
+// need one, because the check above left it filtered to accessories and three
+// of the four badges live on other categories.
 // All four states, on the same screen. Two of them were unreachable when the
 // badge was written: nothing in the bundled catalogue was out of stock or
 // nearly gone, so the code existed and could never run.

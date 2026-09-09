@@ -474,6 +474,59 @@ second theme outright, and `assertTheme()` asks the live page what settled
 rather than trusting what was seeded, so they also complain in the other
 direction if the pin is ever removed.
 
+## The shop narrows nothing — no filters, 2026-09-09
+
+Asked for in as many words. There were **more of them than the word suggests**,
+and they were in two different places:
+
+* **The app** (`(tabs)/shop.tsx`): a category pill row, and a `?category=`
+  route parameter the home screen's four tiles used to open the shop already
+  narrowed. Both gone. **The parameter could not stay** — with no pill row
+  there is nothing on screen saying the grid is narrowed and no control to undo
+  it, so the tiles now open the whole shop.
+* **The website** (`Shop-BYKJiDn8.js`): category pills, a SIZE row and a FIT
+  row. I first reported the site as having no filters at all, from the
+  translation strings — `gridHeading: 'All products'`, `loadMore` — and that
+  was wrong: the filtering is in the chunk, not in the copy. **Reading the
+  labels is not reading the code.**
+
+**Sort stays, on both.** Sorting narrows nothing — every product is still on
+the page in a different order, and the control that changed it is still there
+to change it back. So does the header's `?q=` search; hiding the shop's
+response to it would leave a search box that appears to do nothing.
+
+The site half is CSS, because the bundle has no source here — and that is
+enough rather than cosmetic: every filter's state starts OFF in the bundle
+(`useState('all')`, `null`, `null`) and nothing but those controls ever sets
+it. Remove the controls and the filter can never turn on.
+
+**The selectors are structural** (`.mb-8:has(> button[aria-pressed])`,
+`.mb-8:has(.filter-scroller)`) because the rows have no id and no class of
+their own, and a utility-class selector that matches one row too many takes a
+control off a page nobody is looking at. `npm run test:no-filters` is therefore
+half about the OTHER pages.
+
+**Two rigs were wrong before the code was**, both in the direction of
+comfortable silence:
+
+- The new rig counted every `button[aria-pressed]` and reported 12 visible on a
+  shop whose filters were correctly hidden — they were the **wishlist hearts**
+  on the product cards. It now counts the ROWS.
+- Its product-page check asked whether the two selectors *written in the CSS*
+  reach that page, so a mutation to a WIDER selector hid the product page's
+  wishlist heart and the rig passed anyway. The invariant is now stated without
+  naming a selector: on a product page nothing toggleable may be hidden, by any
+  rule, from anywhere. **A guard that names the thing it expects to go wrong
+  only catches that thing.**
+
+`smoke.mjs` tested the filter it now had to lose. Its RTL first-chip check
+moved to the sort row — same helper, same failure — rather than being deleted
+with the row it happened to be written against, and its "the category filter
+narrows the grid" assertion was **inverted**: it now presses every control on
+the screen and requires that none of them makes the count fall. A rig that
+merely stopped clicking would have gone green whether or not the filter
+returned.
+
 ## Do not redesign without approval
 
 The visual design is the owner's, not something to improve on the way past. Do
