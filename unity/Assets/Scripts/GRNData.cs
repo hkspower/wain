@@ -568,6 +568,7 @@ public static class GRNData
         public const float BrakeGripK = 1.05f;
         public const float BrakePadK = 0.25f;
         public const float TrailBrakeK = 0.6f;
+        public const float PowerCircleK = 0.45f;
         public const float LatDemandSpeed = 40f;
         public const float UndersteerK = 0.35f;
         public const float CornerScrubK = 0.3f;
@@ -738,6 +739,7 @@ public static class GRNData
         public const double BrakeGripK = 1.05;
         public const double BrakePadK = 0.25;
         public const double TrailBrakeK = 0.6;
+        public const double PowerCircleK = 0.45;
         public const double LatDemandSpeed = 40;
         public const double UndersteerK = 0.35;
         public const double CornerScrubK = 0.3;

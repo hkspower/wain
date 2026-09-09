@@ -34,7 +34,7 @@ import type { DriverRig } from "./characters";
 import { solveDriverRig } from "./driver";
 import { FLAGS, FLAG_IDS, flagTexture } from "./flags";
 import { verticalFov, chaseDolly, RACE_DOLLY } from "./aspect";
-import { gripAtSpeed, newLoadState, solveLoad, type LoadResult } from "./grip";
+import { driveCap, gripAtSpeed, newLoadState, solveLoad, type LoadResult } from "./grip";
 import { bestTow, solveTow, NO_TOW, TOW_REACH, type TowInput, type TowResult } from "./slipstream";
 import { buildRoadMap, nextStation, type RoadMap } from "./roadmap";
 import {
@@ -4555,17 +4555,24 @@ export class GameEngine {
     // frame's acceleration, which is the physically correct order: load
     // lags the pedal by the time the springs take to compress.
     const load = this.load;
-    const tractionCap =
-      grip *
-      (0.8 + 0.2 * Math.min(1, p.speed / 22)) *
-      this.tune.tractionMult *
-      // Only the driven wheels can push, and they carry a fraction of
-      // the car. Without this the cap was the whole car's lateral grip
-      // and no car in the game ever reached it — see DRIVE_SHARE.
-      this.tune.driveShare *
+    // How much of the tyre the corner is already using. Computed here
+    // rather than where the brakes use it, because BOTH sides of the
+    // friction circle need it and it depends on nothing between.
+    const latDemand = Math.min(1, (Math.abs(this.steerSmooth) * p.speed) / 40);
+    // What the driven wheels can put down: grip, the ramp with speed,
+    // the differential, how many wheels drive, how much of the tyre the
+    // corner is already using, and squat. One expression, in grip.ts,
+    // because the launch solver has to solve against exactly it.
+    const tractionCap = driveCap({
+      grip,
+      speed: p.speed,
+      tractionMult: this.tune.tractionMult,
+      driveShare: this.tune.driveShare,
+      latDemand,
       // Squat presses the driven axle into the road. Bounded tightly —
       // see grip.ts — because uncapped this feeds itself.
-      load.driveScale;
+      driveScale: load.driveScale,
+    });
     this.wheelspin = Math.max(0, engineAccel - tractionCap) * driveGrip;
     const accel =
       Math.min(engineAccel, tractionCap) * driveGrip + (this.nosActive ? 14 : 0);
@@ -4576,7 +4583,6 @@ export class GameEngine {
     // most of the ceiling. Everything past that ceiling — locking,
     // anti-lock, fade, and the rotation a light rear gives up — is
     // brakes.ts; this is where its answer is applied.
-    const latDemand = Math.min(1, (Math.abs(this.steerSmooth) * p.speed) / 40);
     const brakeCap = brakeCeiling(this.tune, latDemand, grip);
     const bk = solveBrakes(this.bs, {
       dt,

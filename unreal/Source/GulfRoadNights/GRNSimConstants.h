@@ -123,6 +123,7 @@ namespace GRNHandling
 	constexpr float BrakeGripK = 1.05f;
 	constexpr float BrakePadK = 0.25f;
 	constexpr float TrailBrakeK = 0.6f;
+	constexpr float PowerCircleK = 0.45f;
 	constexpr float LatDemandSpeed = 40.f;
 	constexpr float UndersteerK = 0.35f;
 	constexpr float CornerScrubK = 0.3f;
@@ -294,6 +295,7 @@ namespace GRNExact
 	constexpr double BrakeGripK = 1.05;
 	constexpr double BrakePadK = 0.25;
 	constexpr double TrailBrakeK = 0.6;
+	constexpr double PowerCircleK = 0.45;
 	constexpr double LatDemandSpeed = 40;
 	constexpr double UndersteerK = 0.35;
 	constexpr double CornerScrubK = 0.3;

@@ -37,7 +37,7 @@
 // than against a browser.
 
 import { HANDLING as H } from "./handling";
-import { gripAtSpeed } from "./grip";
+import { driveCap, gripAtSpeed } from "./grip";
 import { GEARS, revFractionIn, upshiftAt } from "./gears";
 import { torqueShape, type EngineSpec } from "./engines";
 
@@ -111,10 +111,17 @@ export function torqueAtSpeed(engine: EngineSpec, kmh: number, gear: number): nu
  */
 function tractionAt(car: LaunchCar, v: number): number {
   return (
-    gripAtSpeed(car.gripAccel, car.downforce, v) *
-    (0.8 + 0.2 * Math.min(1, v / 22)) *
-    car.tractionMult *
-    car.driveShare
+    driveCap({
+      grip: gripAtSpeed(car.gripAccel, car.downforce, v),
+      speed: v,
+      tractionMult: car.tractionMult,
+      driveShare: car.driveShare,
+      // A standing start is a straight line and the springs have not
+      // settled yet: no lateral demand, no squat. Both left at their
+      // defaults on purpose, so the solved figure is one the car meets
+      // WITHOUT help from either and beats slightly with — the right
+      // way round for a number a showroom prints.
+    })
   );
 }
 

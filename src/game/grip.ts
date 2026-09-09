@@ -272,3 +272,44 @@ export const DRIVE_SHARE: Readonly<Record<Drivetrain, number>> = {
 export function driveShareFor(drive: Drivetrain | undefined): number {
   return DRIVE_SHARE[drive ?? "rwd"] ?? DRIVE_SHARE.rwd;
 }
+
+/**
+ * The most acceleration the driven wheels can put down, right now.
+ *
+ * Exported for exactly the reason brakeCeiling is: the engine runs this
+ * every frame and the launch solver in accel.ts has to solve against
+ * the same expression, and a second copy is a second thing to keep in
+ * step. That is not hypothetical here — the two copies had already
+ * drifted apart by one term the day DRIVE_SHARE was added, and a solver
+ * working from a cap the game does not use turns every card in the
+ * showroom into a promise the car misses the moment it breaks traction.
+ */
+export function driveCap(i: {
+  /** Lateral grip as it is at this speed — gripAtSpeed's answer, with
+   *  the weather already in it. */
+  grip: number;
+  speed: number;
+  /** The differential. */
+  tractionMult: number;
+  /** The drivetrain — see DRIVE_SHARE. */
+  driveShare: number;
+  /** 0..1 of the tyre already spent cornering. Straight ahead is 0,
+   *  which is what a standing start is, and why cards do not move. */
+  latDemand?: number;
+  /** Squat, from solveLoad. 1 is a car whose springs have not settled. */
+  driveScale?: number;
+}): number {
+  const lat = Math.min(1, Math.max(0, i.latDemand ?? 0));
+  return (
+    i.grip *
+    // Traction climbs as speed builds — weight settles, aero starts
+    // working — so launches are traction-limited and the top end stays
+    // power-limited.
+    (0.8 + 0.2 * Math.min(1, i.speed / H.tractionRampSpeed)) *
+    i.tractionMult *
+    i.driveShare *
+    // The friction circle, on the driving side of it.
+    Math.sqrt(1 - H.powerCircleK * lat * lat) *
+    (i.driveScale ?? 1)
+  );
+}

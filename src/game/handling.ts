@@ -434,6 +434,15 @@ export const HANDLING = {
   brakePadK: 0.25,
   /** Friction circle: braking lost to steering demand (and vice versa). */
   trailBrakeK: 0.6,
+  /** The same circle, on the DRIVE axle: a tyre cornering hard has less
+   *  left to put power down with. Braking has respected this since
+   *  brakeCeiling was written and driving never did, which meant a car
+   *  at full lock could deploy exactly as much torque as one going
+   *  straight — half a friction circle, and the wrong half for a game
+   *  whose whole subject is getting power to the road. Lower than
+   *  trailBrakeK because the axle that steers and the axle that drives
+   *  are the same two tyres only on a front-driver. */
+  powerCircleK: 0.45,
   latDemandSpeed: 40,
   understeerK: 0.35,
   /** Front tires scrub speed when held near the cornering limit. */

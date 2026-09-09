@@ -21,7 +21,8 @@
 import { CARS, PARTS, EXCLUSIVE_CATS, computeEffects, freshBuild, loadGarage } from "../src/game/mods.ts";
 import { launchThrustFor, timeTo100 } from "../src/game/accel.ts";
 import { getEngine } from "../src/game/engines.ts";
-import { driveShareFor } from "../src/game/grip.ts";
+import { driveCap, driveShareFor } from "../src/game/grip.ts";
+import { readFileSync } from "node:fs";
 
 const fail = [];
 const check = (c, m) => { if (!c) fail.push(m); return c ? "ok" : "FAIL"; };
@@ -228,6 +229,45 @@ const byId = (id) => DIFFS.find((d) => d.id === id);
       check(share("awd") > share("rwd"), `all-wheel drive puts down no more than rear`) +
       check(share("rwd") > share("fwd"), `a front driver puts down as much as a rear one`) +
       check(share("awd") <= 1, `a driven axle delivers more than the car's whole grip`)
+  );
+}
+
+// ---- 4c. A tyre has one budget ---------------------------------------
+//
+// The friction circle, on the driving side. brakeCeiling has applied it
+// to braking since the day it was written; the drive cap never did, so
+// a car at full lock could deploy exactly as much torque as one going
+// straight. Half a circle, and the wrong half for a game about getting
+// power to the road.
+{
+  const base = { grip: 14, speed: 30, tractionMult: 1, driveShare: 1 };
+  const straight = driveCap(base);
+  const cornering = driveCap({ ...base, latDemand: 1 });
+  const half = driveCap({ ...base, latDemand: 0.5 });
+  console.log(
+    `at full lock the drive axle keeps ${((cornering / straight) * 100).toFixed(0)}% of its bite  ` +
+      check(cornering < straight, `cornering costs the drive axle nothing`) +
+      check(half > cornering && half < straight, `the circle is not monotonic in lateral demand`) +
+      // A car that cannot accelerate at all mid-corner is not a car.
+      check(cornering / straight > 0.5, `full lock leaves only ${((cornering / straight) * 100).toFixed(0)}%: the car cannot drive out of a corner`)
+  );
+  // The one thing that must NOT move: a standing start is straight, so
+  // the circle has to be inert there or every card in the showroom
+  // shifts the day this constant is touched.
+  console.log(
+    `and a standing start is unaffected  ` +
+      check(driveCap({ ...base, speed: 0, latDemand: 0 }) === driveCap({ ...base, speed: 0 }),
+        `the default lateral demand is not zero`)
+  );
+  // Both callers must go through it. accel.ts solving against a
+  // different cap than engine.ts runs is how a card becomes a lie, and
+  // it had already happened once.
+  const users = ["src/game/engine.ts", "src/game/accel.ts"].filter(
+    (f) => !/driveCap\(/.test(readFileSync(f, "utf8"))
+  );
+  console.log(
+    `the engine and the solver read the same cap  ` +
+      check(users.length === 0, `builds its own traction cap: ${users.join(", ")}`)
   );
 }
 
