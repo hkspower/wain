@@ -44,11 +44,23 @@ try {
     );
 } catch (Throwable $e) { echo "HERO failed=no-db\n"; exit; }
 
-// The widest box the art is painted into, and the share of the width that
-// survives object-fit: cover at that ratio. Both from sporta-ui.css.
+// MEASURED IN A BROWSER, not read off the CSS. The first version of this file
+// took 1.90 and 75% from the comments in sporta-ui.css and was wrong on both:
+// 1.90 is the RATIO, but the 60svh cap binds on every ordinary window, so the
+// box a 1280x900 laptop actually paints is 1280x540 — an aspect of 2.37, which
+// crops only 6% of a 2.52:1 source, not 25%.
+//
+//   desktop 1280x900   box 1280x540  aspect 2.37  keeps 94%
+//   phone   393x852    box 393x187   aspect 2.10  keeps 83%
+//
+// The correction matters because it moves the fault. Cropping was never the
+// problem; RESOLUTION is. Both boxes are served the same file whatever the
+// device pixel ratio — there is no 2x asset — so a DPR-2 laptop wants 2560
+// device pixels and gets 1504, and a DPR-3 phone wants 1179 and gets 833.
 const BOX_W   = 1280;   // an ordinary laptop; wider screens exist and are worse
-const RATIO   = 1.90;   // --hero-h-md
-const KEEP    = 0.75;   // share of a 2.52:1 source left after cropping to 1.90
+const RATIO   = 2.37;   // the box the 60svh cap actually produces there
+const KEEP    = 0.94;   // share of a 2.52:1 source left after cropping to 2.37
+const DPR     = 2;      // what an ordinary laptop or phone has today
 
 $rows = $db->query(
     'select id, sort, active, image_w w, image_h h,
@@ -58,7 +70,30 @@ $rows = $db->query(
        from hero_slides order by sort, id'
 )->fetchAll();
 
-if (!$rows) { echo "HERO slides=0 — the shop has no banners\n"; exit; }
+// NO SLIDES IS THE NORMAL STATE, not an error, and reporting only that would
+// leave the question unanswered. With the table empty the shop draws the five
+// banners SHIPPED IN THE DOCROOT, so measure those instead — they are the
+// pictures a visitor is actually looking at.
+if (!$rows) {
+    $shipped = [];
+    foreach (['desktop', 'mobile'] as $kind) {
+        $dir = $ROOT . '/hero/' . $kind;
+        if (!is_dir($dir)) continue;
+        $w = 0; $h = 0; $kb = 0; $n = 0;
+        foreach (glob($dir . '/*.webp') ?: [] as $f) {
+            $sz = @getimagesize($f);
+            if (!$sz) continue;
+            $w = max($w, (int) $sz[0]); $h = max($h, (int) $sz[1]);
+            $kb += (int) round(filesize($f) / 1024); $n++;
+        }
+        if ($n) $shipped[] = $kind . '=' . $n . 'x' . $w . 'x' . $h
+                           . '/' . round($w / max($h, 1), 2) . ':1/' . $kb . 'kB total';
+    }
+    $need = (int) round(BOX_W / KEEP) * DPR;
+    echo 'HERO slides=0 (the shipped banners are in use) ' . implode(' ', $shipped)
+       . ' needForDpr' . DPR . '=' . $need . "px\n";
+    exit;
+}
 
 $soft = 0; $narrow = 0; $heavy = 0; $bits = [];
 
@@ -70,7 +105,7 @@ foreach ($rows as $r) {
     // What actually survives the crop, and what it is painted across.
     $usable = (int) round($w * KEEP);
     $need1x = (int) round(BOX_W / KEEP);        // source width for a crisp 1x
-    $need2x = $need1x * 2;
+    $need2x = $need1x * DPR;
 
     if ($w < $need1x) $narrow++;
     if ($w < $need2x) $soft++;
