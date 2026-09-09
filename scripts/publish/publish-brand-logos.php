@@ -42,7 +42,7 @@
  * content hash, so sw.js treats both network-first.
  */
 
-$COMMIT = 'PLACEHOLDER_COMMIT';
+$COMMIT = '755358b';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
         . '/sporta-site/public_html/';
