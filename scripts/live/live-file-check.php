@@ -179,7 +179,6 @@ $WANT = [
     'knet/config.example.php' => '8b12abd7be354864ca71d69408462744c39a500a648110557aeddf13a30bad4c',
     'knet/knet.php' => '3320c512cfafd5273fa5f60a250fa0ec9938dcb81c3b5b8fe3bee07134198569',
     'knet/pay.php' => '6333fa7c407b9d279ec70270bf7ed1c845bd4a1a53398814d894fa7cd4247b35',
-    'knet/selftest.php' => '189c873882dd6e04968f30d678c42db12b624b4f3f5bae704a8f3fb5f2633374',
     'llms.txt' => '03153eaebba2b4f47670ce5dfeec4f0babee0f5313faf863ba786a5e32209faf',
     'logo-white.png' => '4e60bc404ce37d63e97b925814c902d1deb4322778953876fca096bb29925ffe',
     'logo-white.webp' => '2d282c40925a4a6d86ef9c64db289b7c5da6bf8927ec0d1ba3e1725f571ef2ce',
@@ -201,6 +200,28 @@ $WANT = [
     'sw.js' => '5dc25615f9c6ee6d4c164107c5b860c78e599371cf56fb11dd4b537d21f499c4',
 ];
 
+// FILES THAT MUST NOT BE ON A LIVE SERVER.
+//
+// README-FIRST tells the owner to delete these before going live. That list was
+// SIX names long and five of them had not existed for months — and a list that
+// is mostly wrong teaches you to skim it, which is dangerous when the one true
+// entry is the one that matters. knet/selftest.php was really there, on a
+// production shop, reporting the configuration without asking for a password;
+// it was deleted on 2026-09-09 and this is what stops it coming back unnoticed.
+//
+// They are named here rather than only in prose because a check runs and prose
+// does not. Each is a page anyone who knows the name can open: between them
+// they created an admin account, changed the admin password, wrote the bank's
+// credentials from a request, and reported the configuration.
+$MUSTNOT = [
+    'knet/selftest.php',
+    'knet/setup-config.php',
+    'api/setup-admin.php',
+    'api/reset-admin.php',
+    'api/preflight.php',
+    'go-live.html',
+];
+
 $same = 0; $diff = []; $miss = [];
 foreach ($WANT as $rel => $sha) {
     $p = $ROOT . '/' . $rel;
@@ -209,7 +230,13 @@ foreach ($WANT as $rel => $sha) {
     $diff[] = $rel;
 }
 
+$present = [];
+foreach ($MUSTNOT as $rel) {
+    if (is_file($ROOT . '/' . $rel)) $present[] = $rel;
+}
+
 echo 'FILES same=' . $same . '/' . count($WANT)
    . ' differ=' . (count($diff) ? count($diff) . ':' . implode(',', array_slice($diff, 0, 25)) : '0')
    . ' missing=' . (count($miss) ? count($miss) . ':' . implode(',', array_slice($miss, 0, 25)) : '0')
+   . ' mustNotBeHere=' . (count($present) ? count($present) . ':' . implode(',', $present) : '0')
    . "\n";

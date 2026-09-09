@@ -632,6 +632,27 @@ what `sandbox.sh` does.
 **A list that is mostly wrong trains the reader to skim it**, and the one true
 item on it was the dangerous one. When a file is deleted, grep for its name.
 
+**`knet/selftest.php` was deleted from the live server on 2026-09-09**, on the
+owner's instruction, and the shop was unaffected (`home=38561` before and
+after). Verified by absolute path rather than by the URL going quiet — an empty
+fetch and a failed fetch look identical:
+
+```
+knet=callback.php,config.example.php,config.php,knet.php,pay.php
+```
+
+It had been sitting on a shop with `knetEnv=production`, where it disables
+itself — so it was inert, not leaking. Inert is not the same as gone.
+
+**The delete list is now a CHECK, not prose.** `live-file-check.php` carries a
+`$MUSTNOT` list of all six names and reports `mustNotBeHere=`, so any of them
+reappearing on the server is measured rather than remembered. Tested both ways:
+against the repository, where `selftest.php` exists, it reports
+`mustNotBeHere=1:knet/selftest.php`; with the file moved aside — the live
+server's real state — `mustNotBeHere=0`. `selftest.php` is also out of the
+`$WANT` manifest, or every future run would report it missing for ever, which
+is how a real signal gets trained into noise.
+
 ### Two ways a fixture can be worthless, both found here in one hour
 
 The precedence test in `knet-test.mjs` went green twice while proving nothing.
