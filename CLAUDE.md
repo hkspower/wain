@@ -351,11 +351,30 @@ working, not the code changing:
 
 **Both gaps below are now closed by the owner, and neither by anything here.**
 `assistant_qa` exists, so the سبورتا AI can answer a taught question. Variant
-rows went 42 → 162, so the catalogue is buyable — except **four accessories
-with no size row at all**: `cagliari-calcio-backpack`,
-`cagliari-calcio-backpack-navy`, `denver-nuggets-cap-navy`,
-`gymshark-phone-strap`. A one-size row is obviously what they want and it is
-still stock data, so it is still the owner's to enter, not mine to invent.
+rows went 42 → 162, so the catalogue is buyable.
+
+**The last four are done too, on 2026-09-09.** `cagliari-calcio-backpack`,
+`cagliari-calcio-backpack-navy`, `denver-nuggets-cap-navy` and
+`gymshark-phone-strap` had NO variant rows, and I twice called that
+"unbuyable", which understated it: `store_stock_claim()` skips a slug with no
+rows by design, so they were stock-UNTRACKED and nothing would have stopped an
+order for a hundred. Each now has a `ONE` row at stock 0 — the owner chose 0
+over a guess — so the shop shows a size, reads out of stock, and enforces the
+count from here on. The real number goes in /backends.
+
+Three things about that worth keeping:
+
+* **`ONE` is in `STORE_SIZES` already**, and it is three characters because
+  `size` is `varchar(4)`: "One Size" does not fit. The schema chose the token.
+* **The SKU must be derived by `variant_save`'s own formula**
+  (`strtoupper(substr($slug, 0, 26) . '-' . $size)`), or /backends later writes
+  a SECOND row for the same garment and size. The longest lands at exactly 30
+  characters, which is the column width.
+* **Two of my hypotheses were wrong and cost nothing only because I checked.**
+  `admin.php` and `api.php` do exclude `ONE` from their size lists — but those
+  are a size CHART and "what size do you usually wear", where it correctly has
+  no place, not stale copies of the stock list. And `variant_save` accepts
+  `ONE` fine, so the panel could always have done this; nobody had.
 
 The paragraphs below are the original finding, kept for the lesson in them.
 
