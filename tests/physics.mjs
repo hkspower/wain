@@ -11,6 +11,7 @@
 //   npm run test:physics
 import { chromium } from "playwright-core";
 import { existsSync } from "node:fs";
+import { HANDLING as H } from "../src/game/handling.ts";
 
 const C = [
   process.env.CHROME_PATH,
@@ -44,8 +45,36 @@ await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 120000 })
 const fail = [];
 const check = (c, m) => { if (!c) fail.push(m); return c ? "ok" : "FAIL"; };
 
-const stage = () => page.evaluate(() => {
+// The car under test, named rather than inherited.
+//
+// This file used to measure whatever the save happened to hold, and
+// after `localStorage.clear()` above that is the Wain Special — the
+// free hatchback, 11.5 seconds to 100. Three checks below describe a
+// car launching hard: 0-100 inside six seconds, wheelspin off the line,
+// and the tail coming round on throttle alone. None of those are true
+// of a free hatchback, and none of them SHOULD be.
+//
+// They passed once because acceleration used to be broken in a way that
+// flattered every car. Thrust came out at `19 * power` — 19 to 35 m/s²
+// against a traction cap of 12 to 18 — so the cap always bound, every
+// car in the game launched at its own grip figure, and the free car
+// posted 2.9 seconds while lighting its tyres up. accel.ts made
+// acceleration a solved number that meets the card, the free car went
+// back to being a free car, and these three checks have been measuring
+// the wrong subject ever since.
+//
+// So those three name their subject: a rear-drive V12 with the power to
+// do what they describe. Everything else keeps measuring the free car,
+// because every other band in this file — braking distance, handbrake
+// angle, crash severity, disc temperature — was calibrated against it,
+// and a V12 stops from 130 in 22.5 m against the hatchback's 31.2. One
+// subject for the whole file would silently restate all of them.
+const HARD = "sahara-v12";
+const STOCK = "wain-special";
+
+const stage = (subject = STOCK) => page.evaluate((subject) => {
   const e = window.__grnEngine;
+  e.tune = window.__grnShowroom.tuneFor(subject);
   e.setPaused(true);
   e.player.s = 2400; // metres from the line: straight, far from the plaza
   e.player.lat = 0;
@@ -67,10 +96,10 @@ const stage = () => page.evaluate(() => {
   for (const t of e.traffic) t.s = e.track.wrap(e.player.s + e.track.length / 2);
   e.setTouchInput({ throttle: 0, brake: 0, steer: 0 });
   e.touch.drift = false;
-});
+}, subject);
 
 // --- 1. Launch: traction-limited, with wheelspin ---
-await stage();
+await stage(HARD);
 const launch = await page.evaluate(() => {
   const e = window.__grnEngine;
   let t100 = null, spinPeak = 0, accel0 = 0;
@@ -188,22 +217,30 @@ console.log(`understeer  heading after 0.5s: free ${understeer.free}, braking ${
   check(understeer.braking < understeer.free * 0.85, "hard braking does not blunt turn-in"));
 
 // --- 5. Power-over: full throttle + full lock hangs the tail out, no handbrake ---
-await stage();
+await stage(HARD);
 const power = await page.evaluate(() => {
   const e = window.__grnEngine;
   e.player.speed = 24;
-  let peak = 0;
+  let peak = 0, spin = 0;
   for (let i = 0; i < 90; i++) {
     e.player.speed = Math.max(e.player.speed, 20); // stay in the window
     e.setTouchInput({ throttle: 1, steer: 1 });
     e.update(1 / 60);
     peak = Math.max(peak, Math.abs(e.driftYaw));
+    // The gate, not just the outcome. Power-over needs wheelspin past
+    // H.powerOverSpin, and "driftYaw stayed 0" cannot tell you whether
+    // the tyres never let go or whether they did and the drift solver
+    // ignored it. Those are different bugs in different files.
+    spin = Math.max(spin, e.wheelspin);
     e.player.lat = 0;
   }
-  return +peak.toFixed(3);
+  return { yaw: +peak.toFixed(3), spin: +spin.toFixed(2) };
 });
-console.log(`power-over  driftYaw ${power} rad with no handbrake  ` +
-  check(power > 0.1, "power-over never breaks the rear loose"));
+console.log(`power-over  driftYaw ${power.yaw} rad with no handbrake, peak wheelspin ${power.spin} m/s²  ` +
+  check(power.yaw > 0.1,
+    power.spin < H.powerOverSpin
+      ? `the tyres never let go at this speed (wheelspin ${power.spin} m/s², gate ${H.powerOverSpin}): at 86 km/h in a tall gear thrust is well under the traction cap, so the gate is unreachable here for any car in the fleet`
+      : `wheelspin reached ${power.spin} m/s² and the drift solver still did not break the rear loose`));
 // Handbrake still out-angles it
 await stage();
 await page.waitForTimeout(150);
@@ -230,7 +267,10 @@ const hb = await page.evaluate(() => {
   return { peak: +peak.toFixed(3), spun };
 });
 console.log(`handbrake   driftYaw ${hb.peak} rad held on the lock  ` +
-  check(hb.peak > power, "handbrake no longer out-angles power-over"));
+  // .yaw, not the whole reading. This compared against the bare number
+  // until power-over started returning the wheelspin beside it, and
+  // `number > object` is quietly false forever rather than an error.
+  check(hb.peak > power.yaw, `handbrake ${hb.peak} rad no longer out-angles power-over's ${power.yaw}`));
 check(!hb.spun, "a handbrake slide driven on measured lock still spins — the drift cannot be held");
 
 // --- 6. Crash severity: glancing scrape vs steep plunge into the wall ---

@@ -111,7 +111,7 @@
     "test:paints": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/paints.mjs",
     "test:pads": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/pads.mjs",
     "test:parity": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/parity.mjs",
-    "test:physics": "node tests/physics.mjs",
+    "test:physics": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/physics.mjs",
     "test:planting": "node tests/planting.mjs",
     "test:race": "node tests/fullrace.mjs",
     "test:radio": "node tests/radio.mjs",

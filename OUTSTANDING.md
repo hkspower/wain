@@ -72,6 +72,25 @@ solver simply asks for more thrust and the car spends the excess as
 smoke on its way to the same 100 km/h. `npm run test:traction` is the
 guard, and it is red against the old numbers.
 
+### Power-over drift works now, and my arithmetic said it could not
+
+Worth keeping as a caution about probes. `DRIVE_SHARE` woke wheelspin up
+at the launch, which is what made the diff ladder worth buying. I then
+predicted, from a node probe, that it could NOT wake power-over: at
+24 m/s the probe had every car's thrust well under its traction cap —
+Sahara V12 7.6 against 13.5, Black Demon 9.6 against 21.3 — and I was
+ready to write the feature off as structurally unreachable and move on.
+
+Driven in the actual engine it produces **3.42 m/s² of wheelspin and
+0.18 rad of yaw**, and the check passes.
+
+The probe was wrong about the GEAR. It derived one by walking
+`upshiftAt` from the speed; the engine holds `gearHeld` and only changes
+up on crossing a point from the gear it is in, so a car placed at 24 m/s
+from a standing stage is still in first, deep into the launch torque
+blend, with far more thrust than the probe allowed. A pure-arithmetic
+model of a stateful system is right only where the state agrees with it.
+
 ### Three tests were reporting failures that were their own
 
 Worth recording as a pattern, since it is now the third time this
@@ -90,8 +109,29 @@ session:
   bisection then went the same way, and it reported a tidy
   "Infinity% off" as though the arithmetic were at fault. It now names a
   non-finite time as its own kind of failure.
+- **`test:physics`** cleared `localStorage` and then measured whatever
+  car a fresh save holds — the Wain Special, the free hatchback, 11.5 s
+  to 100 — while three of its checks describe a car launching hard
+  (0-100 inside six seconds, wheelspin off the line, the tail coming
+  round on throttle alone). Those passed only because acceleration used
+  to be broken in a way that flattered everything: thrust came out at
+  `19 * power`, the traction cap always bound, and the free car posted
+  2.9 s while smoking its tyres. `accel.ts` made acceleration a solved
+  number, the free car went back to being a free car, and these checks
+  have been measuring the wrong subject since. Each section now names the
+  car its claim is about: the launch and power-over checks stage a
+  rear-drive V12, everything else keeps the hatchback, because braking
+  distance, handbrake angle, lock-up and disc temperature were all
+  calibrated against it — staging the V12 for the whole file fixed three
+  checks and quietly restated four others.
 - The measurement probes for this work had the same `LaunchCar` hole and
   reported peak thrust ratios of 34–113× before it was caught.
+
+A pattern worth naming: **six** of the failures investigated this
+session were in the measuring apparatus, not the game — and one more (the
+power-over prediction above) would have been a wrong conclusion drawn
+from a correct-looking probe. The instrument is wrong before the product
+is, more often than not.
 
 ## The suite, right now
 
