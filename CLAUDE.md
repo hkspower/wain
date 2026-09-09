@@ -122,8 +122,23 @@ too — it is in the navbar, so it is reachable from /search.
 
 **The live prompt is not generated from `docs/wain-ai-agent.md`.** It is a
 hand-adapted copy. Editing the brief and re-extracting produces garbage. To
-change it: copy the previous `scratchpad/live-prompt-vN.txt`, edit that, send
-it, and mirror the change into `scripts/wain-ai-brief.mjs` by hand.
+change it: read the live prompt with `agents_get`, edit *that* text, send it,
+and mirror the change into `scripts/wain-ai-brief.mjs` by hand.
+
+This used to say «copy the previous `scratchpad/live-prompt-vN.txt`». That
+directory is not in the repository, so those files exist only inside whichever
+container wrote them and are gone by the next session — following the
+instruction literally means starting from nothing and rewriting the prompt
+from the brief, which is the one thing the paragraph above forbids. The agent
+itself is the copy that always exists, and `agents_get` returns it in full.
+
+**The knowledge base is a URL pinned to a commit**, not an upload:
+`raw.githubusercontent.com/hkspower/wain/<sha>/docs/wain-ai-kb.md`, currently
+`ab034b0`. ElevenLabs fetches it once, at the moment it is attached — its
+`last_updated` never moves on its own — so a KB edit needs a new commit *and*
+re-pointing the document. `npm run ai:brief` regenerates that file from
+`places.ts`; if the regenerated file is byte-identical to the committed one,
+the live KB is current and there is nothing to send.
 
 `agents_update` must be sent with the top-level `prompt` **alone** — if both
 `prompt` and `body` are sent, `body` wins silently.
