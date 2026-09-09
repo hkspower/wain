@@ -104,8 +104,36 @@ here, and each one cost a wrong answer first:
   200 all produced a zero-byte file, and the 200s failed again on a completely
   empty account, so it is not contention either. Six chunk sizes were burned
   finding this out.
-- **Output capture returns only the last line.** Put everything on one line
-  with `echo "a=$(…) b=$(…)"` or the diagnosis is half a diagnosis.
+- **Output capture returns the LAST COMMAND'S output, not the last line of the
+  job.** Measured 2026-09-09, the same script two ways:
+
+  ```
+  wget -qO r.php <url> && php r.php                  -> CRON key=set ready=3/8...
+  wget -qO r.php <url> && php r.php; rm -f r.php     -> ""
+  ```
+
+  `rm` prints nothing, and appending it wiped the answer entirely. So the
+  command whose output you want must be **last**, and a tidy-up tacked on the
+  end costs you the result. Within one command, put everything on one line with
+  `echo "a=$(…) b=$(…)"` or the diagnosis is half a diagnosis.
+
+- **ONE CYCLE, NOT THREE. This is the biggest time saving available here.**
+  The habit was: a job to fetch, a job to run, a job to clean up — three
+  minutes of waiting for one answer, and the owner noticed before I did. The
+  whole thing fits in one job:
+
+  ```
+  wget -qO r.php https://raw.githubusercontent.com/hkspower/wain/<sha>/<path> && php r.php
+  ```
+
+  Two things make it fit. **A relative path writes to the home directory** —
+  the same fact that makes `cd` dangerous makes `r.php` short and correct here,
+  and all three references agree because they are all relative. And there is no
+  cleanup job: the next fetch overwrites the same `r.php`, so one scratch file
+  is reused for ever. About 130 characters, well inside every limit.
+
+  The one rule that comes with it: **nothing after `php r.php`**, per the entry
+  above.
 - **The domain resolves again as of 2026-09-09, and the shop is reachable.**
   Measured from the server by `scripts/live/domain-check.sh`, against the
   registry itself:
@@ -284,8 +312,14 @@ and none of it visible: a job's output is readable only one at a time through
 the panel, and nothing reads it. **Loud and unheard** — the same shape as the
 seven jobs that died on DNS for months while the panel looked healthy.
 
-The four working ones are untouched: `cron-stock` hourly, `cron-customer-mail`
-`*/10`, `cron-invoice` `*/15`, `cron-voice` monthly.
+The others are untouched: `cron-stock` hourly, `cron-customer-mail` `*/10`,
+`cron-invoice` `*/15`, `cron-voice` monthly.
+
+**`cron-voice` is a FIFTH job that cannot work** — it wants `tts_voice_id` —
+and I first reported it among the working ones because its last output was
+empty and I read that as "nothing to do". It runs monthly, so it wastes
+twelve runs a year rather than thousands, which is why it is left alone. An
+empty output is not a healthy one; `live-cron-check.php` is what says which.
 
 **The staggering is deliberate.** Hourly jobs all at `0 * * * *` fire together;
 :05, :20, :35 and :50 spread them, and the two that already existed keep their
