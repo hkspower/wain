@@ -263,6 +263,52 @@ the shop. Split so the path answers that:
 Each directory has a README carrying the rules above, so they are read next to
 the scripts they govern rather than only here.
 
+## The scheduled jobs, and which of them can do anything
+
+Measured 2026-09-09 by reading every job's last output through the panel, and
+independently by `scripts/live/live-cron-check.php`, which reports the same
+thing from the config keys and never prints a value.
+
+**Four of the eight were erroring on EVERY run, and had been for as long as
+they existed** — waiting on credentials that are not in `api/config.php`:
+
+| job | needs | was | now |
+|---|---|---|---|
+| cron-push | `vapid_public`, `vapid_private` | **every minute** | `5 * * * *` |
+| cron-assistant | `n8n_webhook` | `*/5` | `20 * * * *` |
+| cron-whatsapp | `whatsapp_token`, `whatsapp_phone_number_id` | `*/2` | `35 * * * *` |
+| cron-fulfilment | `warehouse_email` | `*/10` | `50 * * * *` |
+
+That was ~2,400 PHP processes a day on shared hosting producing the same error,
+and none of it visible: a job's output is readable only one at a time through
+the panel, and nothing reads it. **Loud and unheard** — the same shape as the
+seven jobs that died on DNS for months while the panel looked healthy.
+
+The four working ones are untouched: `cron-stock` hourly, `cron-customer-mail`
+`*/10`, `cron-invoice` `*/15`, `cron-voice` monthly.
+
+**The staggering is deliberate.** Hourly jobs all at `0 * * * *` fire together;
+:05, :20, :35 and :50 spread them, and the two that already existed keep their
+own minutes.
+
+**RESTORING THEM IS THE OWNER'S CALL AND MUST BE ASKED FOR.** The moment a
+credential is added, that job is running at an hour's latency and will look
+broken. The owner has said `cron-push` should go back to **every minute**
+(`* * * * *`) as soon as the VAPID keys are in. The others' original schedules
+are in the table above.
+
+**The commands are NOT written here, and must not be.** Every one carries the
+cron key as a query parameter, and this repository is public — checked, it has
+never been committed and `git log -S` finds it nowhere in history. To change a
+schedule, list the jobs, keep the command exactly as it is, and recreate with a
+new time.
+
+**The API has no update, only create and delete — and the create can fail
+silently.** Changing `cron-fulfilment` returned `{"uid":"","time":"","command":""}`,
+an empty success, and the job was simply gone: deleted, not recreated. A list
+afterwards is the only thing that caught it. **Always list after a change**, and
+never treat a create response as proof the job exists.
+
 ## Hand over a PHP installer, never an archive
 
 The File Manager's **Extract REPLACES a directory rather than merging into it**.
