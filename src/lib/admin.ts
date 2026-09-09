@@ -239,6 +239,37 @@ export interface FooterText {
   managedAr: string; managedEn: string;
 }
 
+/** The shop's theme. Every field may be '' — which the server and
+ *  assets/theme.js both read as "leave the built stylesheet alone", never as
+ *  "set this to nothing". A theme that has never been saved leaves the site
+ *  pixel-identical to one without the feature.
+ *
+ *  THE TWO COLOUR FORMATS ARE NOT INTERCHANGEABLE and the server refuses the
+ *  wrong one per field. `brand` is a hex colour because the stylesheet uses it
+ *  as a plain colour; `accent` and both `accentText` values are BARE HSL
+ *  TRIPLES ("243 75% 59%") because the stylesheet wraps them in hsl() itself,
+ *  and a hex there produces hsl(#e0561c), which is not a colour at all.
+ *
+ *  There are two accent-text values because the built stylesheet has two: a
+ *  dark orange on white, a light one on the dark ground. One value for both is
+ *  how a theme editor produces text nobody can read in one mode. */
+export interface ThemeSettings {
+  /** #rrggbb */
+  brand: string;
+  /** "H S% L%" */
+  accent: string;
+  accentTextLight: string;
+  accentTextDark: string;
+  /** A family NAME, not a stack — the shop's own faces are added behind it. */
+  fontHead: string;
+  fontBody: string;
+  /** A length with its unit. The server caps radius at 2rem and space at
+   *  0.5rem: space is the base every margin and padding is a multiple of, so a
+   *  large value is not a bold theme, it is a broken page. */
+  radius: string;
+  space: string;
+}
+
 export interface ContactDetails {
   /** As it should be PRINTED, spaces and all. The tel: link is built from it. */
   phone: string;
@@ -813,6 +844,37 @@ export const adminApi = {
       managedAr: g('managed_ar'), managedEn: g('managed_en'),
     }
   },
+
+  // ------------------------------------------------------------------ theme
+  //
+  // Read from the STOREFRONT route for the same reason the footer is: the shop
+  // paints itself from api.php?r=theme, so the panel reads the same place and
+  // the two cannot drift apart without somebody seeing it.
+  theme: async (): Promise<ThemeSettings> => {
+    const res = await fetch(`${API_BASE}/api.php?r=theme`, { headers: { Accept: 'application/json' } })
+    if (!res.ok) throw new Error(`theme: HTTP ${res.status}`)
+    // snake_case on the wire, camelCase in the panel — the same boundary the
+    // footer above crosses, and the same place it was got wrong once.
+    const w = (await res.json()) as Record<string, unknown>
+    const g = (k: string) => (typeof w[k] === 'string' ? (w[k] as string) : '')
+    return {
+      brand: g('brand'), accent: g('accent'),
+      accentTextLight: g('accent_text_light'), accentTextDark: g('accent_text_dark'),
+      fontHead: g('font_head'), fontBody: g('font_body'),
+      radius: g('radius'), space: g('space'),
+    }
+  },
+
+  saveTheme: (v: ThemeSettings) =>
+    call<Record<string, string>>('settings_save', {
+      name: 'theme',
+      value: {
+        brand: v.brand, accent: v.accent,
+        accent_text_light: v.accentTextLight, accent_text_dark: v.accentTextDark,
+        font_head: v.fontHead, font_body: v.fontBody,
+        radius: v.radius, space: v.space,
+      },
+    }),
 
   saveFooter: (v: FooterText) =>
     call<{ ok: true }>('settings_save', {

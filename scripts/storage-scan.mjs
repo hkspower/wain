@@ -153,8 +153,36 @@ for (const [label, base, routes] of [
     await p.waitForTimeout(1200)
     promises = await p.evaluate(() =>
       /تذكّر عنواني|تذكر عنواني|remember my address/i.test(document.body.innerText))
+    // A BAG FIRST, OR THE CHECKOUT RENDERS NOTHING TO LOOK AT. This walked
+    // straight to /checkout with an empty cart, where the page shows no form,
+    // no inputs and therefore no control — so `offers` was false whatever the
+    // shop did, and the check could never pass. It was not reporting a missing
+    // tick box; it was reporting an empty bag, and the two are indistinguishable
+    // from the outside. Added through the shop's own UI rather than by seeding
+    // localStorage, because the cart's shape belongs to the bundle.
+    await p.goto(`${SITE}/shop`, { waitUntil: 'networkidle', timeout: 25000 })
+    await p.waitForTimeout(2500)
+    const first = await p.$('a[href*="/product/"]')
+    if (first) {
+      await first.click()
+      await p.waitForTimeout(2500)
+      for (const sel of ['button:has-text("M")', 'button:has-text("L")']) {
+        const size = await p.$(sel)
+        if (size) { await size.click(); break }
+      }
+      await p.waitForTimeout(400)
+      for (const t of ['أضف', 'Add', 'السلة', 'Bag']) {
+        const add = await p.$(`button:has-text("${t}")`)
+        if (add) { await add.click(); break }
+      }
+      await p.waitForTimeout(1200)
+    }
+
     await p.goto(`${SITE}/checkout`, { waitUntil: 'networkidle', timeout: 25000 })
-    await p.waitForTimeout(1500)
+    await p.waitForTimeout(2500)
+    // If the bag walk failed the checkout is still empty, and a "no control"
+    // verdict would again be about the bag. Say which it is.
+    if (!(await p.$('form'))) note('the checkout rendered no form — the bag walk did not take')
     offers = await p.evaluate(() =>
       [...document.querySelectorAll('input[type=checkbox], [role="checkbox"], [role="switch"]')]
         .some((e) => /تذكّر|تذكر|remember|احفظ|save/i.test(

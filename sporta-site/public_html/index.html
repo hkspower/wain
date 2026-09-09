@@ -629,6 +629,13 @@
     <!-- The footer's prose, editable from /backends. Same technique as
          contact.js above: a text swap after render, empty means leave it. -->
     <script src="/assets/footer.js" defer></script>
+    <!-- The owner's colours, fonts and corner radius, from /backends. Every
+         field is empty by default and empty changes nothing, so a shop that
+         has never opened the editor looks exactly as it does today. It cannot
+         apply before first paint — the values come from a fetch — so the
+         theme settles a moment after load rather than blocking the page. -->
+    <script src="/assets/theme.js" defer></script>
+
     <!-- The brand logo on grid cards. The product page already draws its
          own; this is the missing half, in the same .brand-chip markup. -->
     <script src="/assets/brand-badge.js" defer></script>

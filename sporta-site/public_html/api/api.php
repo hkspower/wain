@@ -160,6 +160,17 @@ $STORE_LIMITS = [
     'brand_logo'  => null,        // hashed URL, one-year immutable cache — the
                                   // browser asks once per logo, ever.
     'stock'       => [600, 60],
+    // THE FOOTER AND THE THEME are read on EVERY page load, by everyone, and
+    // they are the same few strings for all of them. They belong with the
+    // catalogue reads rather than in the shared `default` bucket they were
+    // falling into: that bucket is 120/60 and is drawn on by every unlisted
+    // route AND every garbage ?r= a scanner sends, all counted against one key
+    // per IP. Behind a carrier's NAT — the case the note further down this
+    // table is about — that is a real visitor losing the shop's colours
+    // because somebody else on the same address was being probed.
+    // (footer was already in this position before theme joined it.)
+    'footer'      => [600, 60],
+    'theme'       => [600, 60],
     'status'      => [300, 60],
     'invoice'     => [300, 60],
     'assistant'   => [60, 60],
@@ -428,6 +439,14 @@ if ($r === 'contact') {
 // than this JSON again.
 if ($r === 'footer') {
     store_out_cacheable(store_setting($db, 'footer'));
+}
+
+// THE THEME, read by assets/theme.js on every page. Cacheable for the same
+// reason the footer is: it is the same eight strings for every visitor, it
+// changes when the owner edits it, and it must not put a database round trip
+// in front of the first paint of every page in the shop.
+if ($r === 'theme') {
+    store_out_cacheable(store_setting($db, 'theme'));
 }
 
 if ($r === 'slides') {

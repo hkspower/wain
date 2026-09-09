@@ -1104,6 +1104,86 @@ if ($r === 'settings_save' && $method === 'POST') {
     $name = (string)($b['name'] ?? '');
     $v = is_array($b['value'] ?? null) ? $b['value'] : [];
 
+    if ($name === 'theme') {
+        // THE THEME. Eight fields, and unlike the footer every one of them has
+        // a SHAPE, so every one is validated rather than capped.
+        //
+        // A theme is not prose: a value that is not a colour does not look
+        // wrong, it produces a declaration the browser discards, and the
+        // owner sees no change and no error and concludes the feature is
+        // broken. So a malformed value is REFUSED here, loudly, with the field
+        // named — rather than stored and silently ignored by the stylesheet.
+        //
+        // EMPTY IS ALWAYS ALLOWED and always means "leave the built stylesheet
+        // alone". That is the state every shop starts in and the way back from
+        // an edit that turned out wrong, so clearing a field must never fail.
+        //
+        // THE TWO COLOUR FORMATS ARE NOT INTERCHANGEABLE, and this is the part
+        // that would otherwise cost an afternoon. --brand is used as a plain
+        // colour (`#e0561c`). --accent and --accent-text are consumed as
+        // `hsl(var(--accent))`, so they must be BARE HSL TRIPLES with no
+        // hsl() and no commas — storing a hex there yields hsl(#e0561c), which
+        // is not a colour, and the page loses its accent entirely.
+        $err = null;
+        $one = static function (string $k, string $re) use ($v, &$err): string {
+            $raw = trim((string) ($v[$k] ?? ''));
+            if ($raw === '' || $err !== null) return '';
+            if (!preg_match($re, $raw)) { $err = $k; return ''; }
+            return $raw;
+        };
+
+        $HEX = '/^#[0-9A-Fa-f]{6}$/';
+        // "H S% L%" — the three numbers Tailwind expects, spaces only.
+        $HSL = '/^\d{1,3}(\.\d+)?\s+\d{1,3}(\.\d+)?%\s+\d{1,3}(\.\d+)?%$/';
+        // A font NAME, not a stack: the shop self-hosts four faces and a stack
+        // naming a fifth would silently fetch nothing and fall back. Letters,
+        // digits, spaces and hyphens, and the browser gets the fallbacks.
+        $FONT = '/^[A-Za-z0-9 \-]{2,40}$/';
+        // A CSS length WITH A CEILING, and the ceiling is the point.
+        //
+        // A pattern alone is not enough here. '99rem' matches any sane-looking
+        // length regex and is a catastrophe: --spacing is Tailwind's base unit
+        // and EVERY padding and margin in the shop is a multiple of it, so
+        // ninety-nine of them is a page whose first element is off the bottom
+        // of the screen. The radius knob scales three corner sizes and does
+        // the same thing to every card and button.
+        //
+        // So these two are range-checked, not just shape-checked. The built
+        // values are --spacing .25rem and radii .375/.5/.75rem; the bounds
+        // below are generous around them and nowhere near destructive.
+        $len = static function (string $k, float $maxRem) use ($v, &$err): string {
+            $raw = trim((string) ($v[$k] ?? ''));
+            if ($raw === '' || $err !== null) return '';
+            if (!preg_match('/^([0-9]{1,3}(\.[0-9]{1,3})?)(px|rem)$/', $raw, $m)) {
+                $err = $k; return '';
+            }
+            // One scale to compare on. 16px to the rem is the browser default
+            // and the only figure available server-side; a visitor who has
+            // changed their base size shifts both the built values and this
+            // one together, so the RELATIONSHIP the bound protects survives.
+            $rem = $m[3] === 'px' ? ((float) $m[1]) / 16.0 : (float) $m[1];
+            if ($rem > $maxRem) { $err = $k; return ''; }
+            return $raw;
+        };
+
+        $out = [
+            'brand'             => $one('brand', $HEX),
+            'accent'            => $one('accent', $HSL),
+            'accent_text_light' => $one('accent_text_light', $HSL),
+            'accent_text_dark'  => $one('accent_text_dark', $HSL),
+            'font_head'         => $one('font_head', $FONT),
+            'font_body'         => $one('font_body', $FONT),
+            // 2rem of corner is a pill; 0.5rem of base spacing is double the
+            // built value and already a very airy shop. Beyond either, the
+            // owner is not theming, they are breaking the page.
+            'radius'            => $len('radius', 2.0),
+            'space'             => $len('space', 0.5),
+        ];
+        if ($err !== null) store_fail('invalid_theme_' . $err);
+        store_setting_save($db, 'theme', $out);
+        store_out(store_setting($db, 'theme'));
+    }
+
     if ($name === 'footer') {
         // THE FOOTER'S PROSE. Ten fields, five in each language.
         //

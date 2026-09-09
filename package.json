@@ -107,7 +107,8 @@
     "preview:site": "node scripts/site-preview-pdf.mjs",
     "test:brand-badge": "node scripts/brand-badge-test.mjs",
     "test:placeholder": "node scripts/placeholder-test.mjs",
-    "test:cookie-flags": "node scripts/cookie-flags-test.mjs"
+    "test:cookie-flags": "node scripts/cookie-flags-test.mjs",
+    "test:theme": "node scripts/theme-test.mjs"
   },
   "private": true
 }

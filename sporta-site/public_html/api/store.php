@@ -1788,6 +1788,28 @@ const STORE_SETTING_DEFAULTS = [
     // Empty means "use whatever knet/config.php says", which is what every
     // shop has today and what happens if this row is never written.
     'knet'      => ['tranportal_id' => ''],
+    // THE THEME. Colours, the two font families, and the two shape numbers.
+    //
+    // EVERY VALUE IS '' BY DEFAULT, and empty means "leave the built stylesheet
+    // alone" — the same rule the footer follows. The shop's look is compiled
+    // into a bundle whose source is not in this repository, so the only safe
+    // default is to change nothing at all: a theme row that has never been
+    // written must leave the site pixel-identical.
+    //
+    // The colours are stored EXACTLY AS THE STYLESHEET WANTS THEM, which is not
+    // one format. `--brand` is a hex colour and `--accent`/`--accent-text` are
+    // bare HSL triples ("243 75% 59%"), because Tailwind wraps them in hsl()
+    // itself; storing "#4f46e5" in accent would produce hsl(#4f46e5) and no
+    // colour at all. admin.php validates each field against the format its own
+    // variable uses rather than against one idea of "a colour".
+    //
+    // accent_text has a light and a dark value because the built stylesheet
+    // does: 19 88% 34% on white, 24 100% 66% on the dark ground. One value for
+    // both is how a theme editor produces unreadable text in one mode.
+    'theme'     => ['brand' => '', 'accent' => '',
+                    'accent_text_light' => '', 'accent_text_dark' => '',
+                    'font_head' => '', 'font_body' => '',
+                    'radius' => '', 'space' => ''],
     // THE FOOTER'S PROSE, in both languages.
     //
     // Every value is '' by default and empty means "leave the built-in text

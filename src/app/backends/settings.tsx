@@ -14,6 +14,7 @@ import {
   type ContactDetails,
   type FooterText,
   type PromoBar,
+  type ThemeSettings,
 } from '@/lib/admin';
 import { useSession } from '@/lib/session';
 
@@ -47,6 +48,9 @@ export default function SettingsScreen() {
      means "the ID lives in knet/config.php", which is the normal case, and a
      screen that showed only the box would read as "no ID configured". */
   const [footer, setFooter] = useState<FooterText | null>(null);
+  const [theme, setTheme] = useState<ThemeSettings | null>(null);
+  const [themeBusy, setThemeBusy] = useState(false);
+  const [themeNote, setThemeNote] = useState<string | null>(null);
   const [knetId, setKnetId] = useState('');
   const [knetSource, setKnetSource] = useState<'file' | 'database'>('file');
   const [loading, setLoading] = useState(true);
@@ -67,11 +71,13 @@ export default function SettingsScreen() {
     if (!token) return;
     setLoading(true);
     setError(null);
-    Promise.all([adminApi.promoBar(), adminApi.contact(), adminApi.knetSettings(), adminApi.footer()])
-      .then(([b, c, k, f]) => {
+    Promise.all([adminApi.promoBar(), adminApi.contact(), adminApi.knetSettings(),
+                 adminApi.footer(), adminApi.theme()])
+      .then(([b, c, k, f, t]) => {
         setBar(b);
         setContact(c);
         setFooter(f);
+        setTheme(t);
         setKnetId(k.tranportal_id);
         setKnetSource(k.source);
       })
@@ -149,6 +155,29 @@ export default function SettingsScreen() {
      read back. The server caps each field, and showing the owner the stored
      value rather than what they typed is how a silent truncation stops being
      a mystery. */
+  const setT = (k: keyof ThemeSettings, v: string) =>
+    setTheme((t) => (t ? { ...t, [k]: v } : t));
+
+  const saveTheme = async () => {
+    if (!theme) return;
+    setThemeBusy(true);
+    setThemeNote(null);
+    try {
+      await adminApi.saveTheme(theme);
+      setTheme(await adminApi.theme());
+      setThemeNote('Saved. The website picks this up on the next page load.');
+    } catch (e) {
+      if (e instanceof Unauthorized) throw e;
+      // THE SERVER NAMES THE FIELD IT REFUSED — invalid_theme_accent, and so
+      // on — because a colour in the wrong format does not look wrong, it
+      // produces a declaration the browser discards. Showing the raw token is
+      // worth more here than a tidy sentence that hides which box to fix.
+      setThemeNote(String(e));
+    } finally {
+      setThemeBusy(false);
+    }
+  };
+
   const saveFooter = async () => {
     if (!footer || footerBusy) return;
     setFooterBusy(true);
@@ -362,6 +391,48 @@ export default function SettingsScreen() {
             </ThemedText>
           )}
           <Button label="Save footer" onPress={saveFooter} busy={footerBusy} />
+        </Card>
+      )}
+
+      {theme && (
+        <Card style={styles.card}>
+          <ThemedText type="heading">Theme</ThemedText>
+          <ThemedText type="caption" themeColor="textSecondary" style={styles.hint}>
+            The shop&apos;s colours, fonts and corners. Leave a field empty to keep
+            what the site was built with — empty never blanks anything, and
+            clearing a field is the way back from an edit you did not like.
+          </ThemedText>
+
+          <Field label="Brand colour — hex, e.g. #e0561c" value={theme.brand}
+            onChangeText={(v) => setT('brand', v)} />
+          {/* NOT hex. The stylesheet writes hsl(var(--accent)), so these three
+              are bare triples; a hex here yields hsl(#e0561c) and no colour.
+              The label says so rather than leaving it to be discovered. */}
+          <Field label="Accent — HSL triple, e.g. 243 75% 59%" value={theme.accent}
+            onChangeText={(v) => setT('accent', v)} />
+          <Field label="Accent text on light — HSL triple" value={theme.accentTextLight}
+            onChangeText={(v) => setT('accentTextLight', v)} />
+          <Field label="Accent text on dark — HSL triple" value={theme.accentTextDark}
+            onChangeText={(v) => setT('accentTextDark', v)} />
+
+          <Field label="Heading font — family name" value={theme.fontHead}
+            onChangeText={(v) => setT('fontHead', v)} />
+          <Field label="Body font — family name" value={theme.fontBody}
+            onChangeText={(v) => setT('fontBody', v)} />
+
+          <Field label="Corner radius — up to 2rem" value={theme.radius}
+            onChangeText={(v) => setT('radius', v)} />
+          {/* The one that can genuinely break the page: every margin and
+              padding in the shop is a multiple of it. Capped server-side. */}
+          <Field label="Spacing base — up to 0.5rem (built value 0.25rem)" value={theme.space}
+            onChangeText={(v) => setT('space', v)} />
+
+          {themeNote && (
+            <ThemedText type="label" themeColor="textSecondary" style={styles.note}>
+              {themeNote}
+            </ThemedText>
+          )}
+          <Button label="Save theme" onPress={saveTheme} busy={themeBusy} />
         </Card>
       )}
 
