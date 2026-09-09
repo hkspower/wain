@@ -1120,10 +1120,17 @@ if ($r === 'settings_save' && $method === 'POST') {
         //
         // THE TWO COLOUR FORMATS ARE NOT INTERCHANGEABLE, and this is the part
         // that would otherwise cost an afternoon. --brand is used as a plain
-        // colour (`#e0561c`). --accent and --accent-text are consumed as
-        // `hsl(var(--accent))`, so they must be BARE HSL TRIPLES with no
+        // colour (`#e0561c`). --accent-text is consumed as
+        // `hsl(var(--accent-text))`, so it must be a BARE HSL TRIPLE with no
         // hsl() and no commas — storing a hex there yields hsl(#e0561c), which
         // is not a colour, and the page loses its accent entirely.
+        //
+        // `accent` USED TO BE HERE AND IS GONE. Measured 2026-09-09: --accent
+        // is declared on :root and read by NOTHING — `.text-accent` resolves to
+        // --accent-text, and `var(--accent)` appears in no stylesheet in this
+        // project. It was a field in the editor that changed the shop in no way
+        // at all. Any value a shop already saved simply stops being written
+        // back; it was inert the whole time.
         $err = null;
         $one = static function (string $k, string $re) use ($v, &$err): string {
             $raw = trim((string) ($v[$k] ?? ''));
@@ -1168,7 +1175,6 @@ if ($r === 'settings_save' && $method === 'POST') {
 
         $out = [
             'brand'             => $one('brand', $HEX),
-            'accent'            => $one('accent', $HSL),
             'accent_text_light' => $one('accent_text_light', $HSL),
             'accent_text_dark'  => $one('accent_text_dark', $HSL),
             'font_head'         => $one('font_head', $FONT),

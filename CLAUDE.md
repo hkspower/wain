@@ -527,6 +527,71 @@ the screen and requires that none of them makes the count fall. A rig that
 merely stopped clicking would have gone green whether or not the filter
 returned.
 
+## The brand colour lived in THREE places, and the editor wrote none that mattered
+
+Found by scanning the theme on 2026-09-09, after building a theme editor that
+appeared to work.
+
+- **`--brand`** is on `:root` and is read by **one rule in the whole stylesheet**
+  — the skip link. Tailwind v4 compiled the colour to LITERAL HEX in every
+  utility class: `.bg-brand{background-color:#e0561c}`, 51 occurrences across
+  the three values. So the editor's brand control moved the skip link.
+- **`--primary`**, in HSL CHANNELS (`18 78% 49%`, no `hsl()`), is what
+  `.btn-primary` uses. Nobody had written it, so the shop's main call to action
+  stayed orange under any theme.
+- **`--sp-ember-fill` in `sporta-dark.css`**, and this one **wins over both**:
+  `[data-theme=dark] .btn-primary{background-color:var(--sp-ember-fill)
+  !important}`. Setting `--brand` AND `--primary` to blue still left every
+  primary button orange, and nothing in the built stylesheet explained why.
+
+**Checking that a token EXISTS is not checking that anything READS it.** That
+is the same mistake as a route name that exists in the app and in no server,
+and I made it twice in one file: `--accent` is declared on `:root` and read
+NOWHERE (`.text-accent` resolves to `--accent-text`), so the editor had a
+second control that did nothing. It is gone from the editor, from `admin.php`
+and from `admin.ts`.
+
+`scripts/make-brand-tokens.mjs` reads the built stylesheet and regenerates a
+block in `sporta-ui.css` re-stating all 48 rules in terms of the token, literal
+first and `color-mix()` second. `--check` fails at commit time when the two
+drift. `theme.js` derives `--brand-dark` and `--brand-bright` from the one
+colour the owner picks, by the deltas **measured** between the shipped three —
+fed the shop's own orange it returns the shop's own other two, which the rig
+asserts against the design's literals rather than against its own formula.
+
+**Emitting invalid CSS reports nothing at all.** The generated block opened
+`/* … */` and then continued with ` * prose` lines, which are not a comment
+after the first `*/` — the parser discarded everything to the next one,
+`:root` included. No error, anywhere; only a variable coming back empty from
+`getComputedStyle` showed it, and only because a rig asked.
+
+**The hero and tile gradients keep their dark stops.** Only the brand-coloured
+glow in each is tokenised. Turning `#35200e` into a token needs a designer to
+say what a blue shop's warm-brown shadow should be, and that is a redesign.
+
+## Four declared font faces did not exist, and every rig said the fonts were fine
+
+`assets/index-*.css` declares EIGHT `@font-face` rules for IBM Plex Sans
+Arabic — 400, 600, 700, each split Arabic/Latin. Only the two 600 files were
+ever shipped; the other four 404'd.
+
+**Nothing was visibly broken, and that is the trap.** A browser fetches a face
+only when text actually uses that family at that weight, and none does at 400
+or 700 — so `font-audit.mjs` passed truthfully, saying *"every font the shop
+asks for actually answers"*. It was asking about the faces the pages REQUEST,
+not the ones the stylesheet DECLARES. The first `font-weight: 400` on a Plex
+element would have fallen to Arial mid-paragraph.
+
+Built rather than deleted, because the declarations live in a CONTENT-HASHED
+file that `sw.js` caches cache-first for ever — editing one in place pins every
+returning visitor. `scripts/build-plex-subsets.py` READS the unicode-ranges out
+of the stylesheet's own rules rather than repeating them, so the subsets cover
+exactly what the browser was told they cover.
+
+The audit now asks both questions, and the "every shipped file is used" check
+became "fetched OR declared" — the old wording would have pushed towards
+deleting the files again and restoring the silent fallback.
+
 ## Do not redesign without approval
 
 The visual design is the owner's, not something to improve on the way past. Do

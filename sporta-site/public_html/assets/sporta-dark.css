@@ -131,8 +131,19 @@
   --sp-silver-mid: #878e95;
   --sp-silver: #a6acb2;
   --sp-text: #eaecee;
-  --sp-ember: #ff7b17;
-  --sp-ember-fill: #e0561c;
+  /* THE THIRD HOME OF THE BRAND COLOUR, and the one that beats the other two.
+     `[data-theme=dark] .btn-primary` below sets background-color from
+     --sp-ember-fill with !important, so the shop's main call to action took its
+     colour from here and from nowhere else — measured 2026-09-09, when setting
+     --brand AND --primary to blue left every primary button orange and no rule
+     in the built stylesheet explained why.
+
+     Pointed at the tokens now, with the literals as fallbacks so this file is
+     unchanged on its own. The fallback is not decoration: sporta-dark.css is
+     linked BEFORE the theme overlay writes anything, and a page that never
+     loads theme.js must still be the shop. */
+  --sp-ember: var(--brand-bright, #ff7b17);
+  --sp-ember-fill: var(--brand, #e0561c);
   --sp-on-ember: #171a1e;
 }
 

@@ -63,6 +63,8 @@
     "test:image-drop": "node scripts/image-drop-test.mjs",
     "test:one-mode": "node scripts/one-mode-test.mjs",
     "test:no-filters": "node scripts/no-filters-test.mjs",
+    "test:brand-token": "node scripts/brand-token-test.mjs",
+    "make:brand-tokens": "node scripts/make-brand-tokens.mjs",
     "test:admin-contract": "node scripts/admin-contract-test.mjs",
     "test:admin-live": "node scripts/admin-live-test.mjs",
     "test:admin-browser": "node scripts/admin-browser-live.mjs",

@@ -246,7 +246,7 @@ export interface FooterText {
  *
  *  THE TWO COLOUR FORMATS ARE NOT INTERCHANGEABLE and the server refuses the
  *  wrong one per field. `brand` is a hex colour because the stylesheet uses it
- *  as a plain colour; `accent` and both `accentText` values are BARE HSL
+ *  as a plain colour; both `accentText` values are BARE HSL
  *  TRIPLES ("243 75% 59%") because the stylesheet wraps them in hsl() itself,
  *  and a hex there produces hsl(#e0561c), which is not a colour at all.
  *
@@ -257,7 +257,6 @@ export interface ThemeSettings {
   /** #rrggbb */
   brand: string;
   /** "H S% L%" */
-  accent: string;
   accentTextLight: string;
   accentTextDark: string;
   /** A family NAME, not a stack — the shop's own faces are added behind it. */
@@ -858,7 +857,7 @@ export const adminApi = {
     const w = (await res.json()) as Record<string, unknown>
     const g = (k: string) => (typeof w[k] === 'string' ? (w[k] as string) : '')
     return {
-      brand: g('brand'), accent: g('accent'),
+      brand: g('brand'),
       accentTextLight: g('accent_text_light'), accentTextDark: g('accent_text_dark'),
       fontHead: g('font_head'), fontBody: g('font_body'),
       radius: g('radius'), space: g('space'),
@@ -869,7 +868,7 @@ export const adminApi = {
     call<Record<string, string>>('settings_save', {
       name: 'theme',
       value: {
-        brand: v.brand, accent: v.accent,
+        brand: v.brand,
         accent_text_light: v.accentTextLight, accent_text_dark: v.accentTextDark,
         font_head: v.fontHead, font_body: v.fontBody,
         radius: v.radius, space: v.space,

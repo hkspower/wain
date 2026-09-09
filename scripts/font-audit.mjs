@@ -165,11 +165,57 @@ const bad = [...fetched.entries()].filter(([, st]) => ![...st].every((s) => s ==
 check(bad.length === 0, 'every font the shop asks for actually answers',
   bad.map(([f, st]) => `${f} ${[...st].join('/')}`).join(' | '))
 
+// --- every face the STYLESHEET DECLARES exists, asked for or not ------------
+//
+// A DIFFERENT QUESTION FROM THE ONE ABOVE, and the gap between them hid four
+// missing files for as long as they have been missing. The check above asks
+// whether the faces the pages REQUESTED came back — and a browser requests a
+// face only when some text actually uses that family at that weight. Nothing on
+// the shop currently sets IBM Plex Sans Arabic at 400 or 700, so those four
+// files were never fetched, never 404'd, and the audit passed truthfully while
+// `plex-400-arabic.woff2`, `plex-400-latin.woff2`, `plex-700-arabic.woff2` and
+// `plex-700-latin.woff2` did not exist at all.
+//
+// The first `font-weight: 400` anyone puts on a Plex element would have fallen
+// to Arial mid-paragraph, with no error anywhere. So this asks the other
+// question: fetch every src the stylesheet names, whether or not a page wants
+// it today.
+const declared = [...new Set(faces.map((f) => f.file).filter(Boolean))]
+const missing = []
+for (const file of declared) {
+  const res = await fetch(new URL('/fonts/' + file, BASE)).catch(() => null)
+  if (!res || res.status !== 200) missing.push(`${file} ${res ? res.status : 'unreachable'}`)
+}
+check(missing.length === 0,
+  `every face the stylesheet DECLARES exists on the server (${declared.length})`,
+  missing.join(' | '))
+
 // --- every file on disk earns its place ------------------------------------
-const unused = onDisk.filter((f) => !fetched.has(f))
-check(unused.length === 0,
-  `every shipped font file is used by some page (${onDisk.length} files)`,
-  `never fetched on any route in either language: ${unused.join(', ')}`)
+//
+// DECLARED COUNTS AS EARNING IT. This used to require that every file be
+// FETCHED by some page, which was right when the shipped set and the declared
+// set were the same four files. They are eight now: the stylesheet declares
+// Plex at 400, 600 and 700, and the 400 and 700 pairs were missing entirely
+// until 2026-09-09. Shipping them is what makes those declarations true, and a
+// browser will fetch them the moment any text uses those weights — so demanding
+// a fetch today would push towards deleting the files again and restoring the
+// silent fallback to Arial.
+//
+// What the check still catches is the thing it was written for: a file sitting
+// in fonts/ that NOTHING mentions — a leftover from a renamed subset, paid for
+// in repository size and in one more thing to publish.
+const orphans = onDisk.filter((f) => !fetched.has(f) && !declared.includes(f))
+check(orphans.length === 0,
+  `every shipped font file is fetched or declared (${onDisk.length} files)`,
+  `neither fetched on any route nor named by a @font-face: ${orphans.join(', ')}`)
+
+const declaredNotFetched = onDisk.filter((f) => !fetched.has(f) && declared.includes(f))
+if (declaredNotFetched.length) {
+  console.log(`\n--   ${declaredNotFetched.length} shipped face(s) are declared but no page uses them yet:\n` +
+    `       ${declaredNotFetched.join(', ')}\n` +
+    '     Not a fault: they exist so the declaration is not a 404 waiting for the\n' +
+    '     first element that asks for that weight. They cost nothing until then.')
+}
 
 // --- swap, on every face ---------------------------------------------------
 const noSwap = faces.filter((f) => f.file && f.display !== 'swap')

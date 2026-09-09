@@ -405,11 +405,9 @@ export default function SettingsScreen() {
 
           <Field label="Brand colour — hex, e.g. #e0561c" value={theme.brand}
             onChangeText={(v) => setT('brand', v)} />
-          {/* NOT hex. The stylesheet writes hsl(var(--accent)), so these three
+          {/* NOT hex. The stylesheet writes hsl(var(--accent-text)), so these two
               are bare triples; a hex here yields hsl(#e0561c) and no colour.
               The label says so rather than leaving it to be discovered. */}
-          <Field label="Accent — HSL triple, e.g. 243 75% 59%" value={theme.accent}
-            onChangeText={(v) => setT('accent', v)} />
           <Field label="Accent text on light — HSL triple" value={theme.accentTextLight}
             onChangeText={(v) => setT('accentTextLight', v)} />
           <Field label="Accent text on dark — HSL triple" value={theme.accentTextDark}

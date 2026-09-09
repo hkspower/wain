@@ -47,7 +47,9 @@ const read = (page) => page.evaluate(() => {
   const cs = getComputedStyle(document.documentElement)
   return {
     brand: cs.getPropertyValue('--brand').trim(),
-    accent: cs.getPropertyValue('--accent').trim(),
+    brandDark: cs.getPropertyValue('--brand-dark').trim(),
+    brandBright: cs.getPropertyValue('--brand-bright').trim(),
+    primary: cs.getPropertyValue('--primary').trim(),
     accentText: cs.getPropertyValue('--accent-text').trim(),
     spacing: cs.getPropertyValue('--spacing').trim(),
     radiusLg: cs.getPropertyValue('--radius-lg').trim(),
@@ -70,14 +72,21 @@ try {
   console.log('--- nothing saved')
   check(before.tags === 1, `the override stylesheet is present but empty (${before.tags} tag)`)
   check(before.brand === '#e0561c', `--brand is the built value (${before.brand})`)
-  check(before.accent === '243 75% 59%', `--accent is the built value (${before.accent})`)
+  // --accent was checked here and is gone with the field: measured 2026-09-09,
+  // nothing in any stylesheet reads var(--accent), so an assertion about it was
+  // an assertion about a value with no consumer. The three below replace it and
+  // all three DO have consumers — the utility classes, the dark theme's
+  // !important button rule, and hsl(var(--primary)).
+  check(before.brandDark === '#b8430f', `--brand-dark falls back to the built value (${before.brandDark})`)
+  check(before.brandBright === '#ff7b17', `--brand-bright falls back to the built value (${before.brandBright})`)
+  check(before.primary === '18 78% 49%', `--primary is the built value (${before.primary})`)
   check(before.spacing === '.25rem' || before.spacing === '0.25rem',
     `--spacing is the built value (${before.spacing})`)
   check(/Alexandria/.test(before.bodyFont), `body still uses Alexandria (${before.bodyFont.slice(0, 40)})`)
 
   // ---- 2. a theme saved: every field reaches the browser -------------------
   setTheme({
-    brand: '#0a7d5a', accent: '160 84% 39%',
+    brand: '#0a7d5a',
     accent_text_light: '160 90% 24%', accent_text_dark: '160 70% 70%',
     font_head: 'Georgia', font_body: 'Verdana',
     radius: '1rem', space: '0.375rem',
@@ -89,7 +98,15 @@ try {
 
   console.log('\n--- a theme saved')
   check(after.brand === '#0a7d5a', `--brand is the owner's (${after.brand})`)
-  check(after.accent === '160 84% 39%', `--accent is the owner's (${after.accent})`)
+  /* THE FAMILY, DERIVED FROM THE ONE COLOUR. The owner picks one green; the
+     other two and the HSL channels come from it, and every one of them has a
+     consumer — which the old --accent assertion did not. */
+  check(after.brandDark !== '#b8430f' && /^#[0-9a-f]{6}$/.test(after.brandDark),
+    `--brand-dark followed the brand (${after.brandDark})`)
+  check(after.brandBright !== '#ff7b17' && /^#[0-9a-f]{6}$/.test(after.brandBright),
+    `--brand-bright followed the brand (${after.brandBright})`)
+  check(/^16\d(\.\d+)? /.test(after.primary),
+    `--primary followed the brand, in channels (${after.primary})`)
   /* THE MODE HAS TO BE SET BEFORE THIS IS ASKED. The first version of this
      check asserted the light value on a freshly loaded page and failed —
      because the shop DEFAULTS TO DARK (data-theme="dark", sporta_theme
