@@ -592,6 +592,56 @@ The audit now asks both questions, and the "every shipped file is used" check
 became "fetched OR declared" — the old wording would have pushed towards
 deleting the files again and restoring the silent fallback.
 
+## An inline script is allowed by a HASH, and editing it silently disables it
+
+`index.html` carries five inline scripts and `.htaccess` names each one by
+sha256. The boot script — the one that decides the language before the first
+paint, pins the theme and caches the hero height — is one of them.
+
+**The one-mode change edited that script and did not update the hash.** So from
+that publish until 2026-09-09 the live server REFUSED TO RUN IT. Measured from
+the server:
+
+```
+hashesAllowed=5 inlineScripts=5 allowed=4 BLOCKED=1
+```
+
+Nothing reports this. The browser writes one console line nobody reads, and the
+symptoms — a page that flips from English to Arabic, a theme that does not
+stick, the hero jumping — look like anything but a security header. It was
+found by `npm run test:csp` going red on an unrelated commit, not by looking.
+
+**`scripts/live/live-csp-check.php` asks the server the question directly**, and
+that is the only way to ask it: reading `.htaccess` tells you what the
+repository thinks, and the live copy is not always the repository's. It compares
+the policy the server SENDS against the page the server SENDS.
+
+So: **`test:csp` before publishing anything that touches `index.html`**, and
+treat a changed inline script as a two-file change.
+
+## The website's panel and the app's panel are two different programs
+
+`/backends` on sporta.com.kw is a prebuilt bundle with no source here. The
+Expo app has its own `/backends` screens. **A screen added to one does not
+exist in the other** — the KNET editor, the footer editor, the theme editor and
+the brand-logo uploader all began app-only, and "it is in /backends" was true
+of a panel the owner does not open in a browser.
+
+The way into the website's panel is the overlay pattern the storefront already
+uses (`contact.js`, `footer.js`, `theme.js`): add a card, touch nothing that
+exists, and do nothing outside the screen it belongs to.
+`assets/brand-logos.js` is the first one that WRITES — and it needs no
+credential of its own, because it runs on the shop's origin inside the panel
+and the session cookie is already there. The request shape was read out of the
+bundle rather than guessed: `/api/admin.php?r=`, `X-Sporta-Admin: 1`,
+`credentials: include`.
+
+**`brand_save` is one route for create AND rename**, so anything writing a logo
+must resend `name_en`, `name_ar`, `slug` and `sort`. An overlay that sent only
+the logo would blank the brand's name while appearing to upload a picture, and
+nothing on screen would show it. Both rigs assert the name survives, and the
+mutation that sends a wrong one fails them.
+
 ## Do not redesign without approval
 
 The visual design is the owner's, not something to improve on the way past. Do
