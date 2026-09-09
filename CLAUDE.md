@@ -106,10 +106,39 @@ here, and each one cost a wrong answer first:
   finding this out.
 - **Output capture returns only the last line.** Put everything on one line
   with `echo "a=$(…) b=$(…)"` or the diagnosis is half a diagnosis.
-- **The domain does not resolve — and that is NOT a server quirk.** This entry
-  used to say "the server cannot resolve its own domain", and treating that as a
-  local oddity is how it went unexamined for weeks. Measured on 2026-09-05, from
-  the server, against Google's public DNS:
+- **The domain resolves again as of 2026-09-09, and the shop is reachable.**
+  Measured from the server by `scripts/live/domain-check.sh`, against the
+  registry itself:
+
+  ```
+  2026-09-05  tldNS=5 via=pch.nic.kw. google=NXDOMAIN cloudflare=NXDOMAIN registryStatus=NXDOMAIN registryNSrecords=0 soa=none
+  2026-09-09  tldNS=5 via=c.nic.kw.   google=NOERROR  cloudflare=NOERROR  registryStatus=NOERROR  registryNSrecords=2 soa=ns1.dns-parking.com.
+  ```
+
+  A delegation exists again where there was none, so the registration was
+  restored at the registrar — the one place this repository said it would have
+  to be. Confirmed end to end rather than from DNS alone, over the PUBLIC name
+  from the server: `home=38561 api=21773`, the second being the same healthy
+  products response recorded elsewhere in this file. The Hostinger zone was
+  intact throughout and needed no change: `@` and `www` ALIAS/CNAME to
+  `*.cdn.hstgr.net`, `static` present, MX/SPF/DKIM/DMARC all in place.
+
+  **`sporta.com.kw` is NOT in the Hostinger account** — `domains_getDomainListV1`
+  lists seven domains and this is not one of them. The registration is with a
+  Kuwaiti registrar and nothing in the Hostinger panel can renew it. That is
+  why the panel looked healthy for the whole outage, and it is worth knowing
+  before the next renewal comes round.
+
+  **Do not measure this from the container.** Local `gethostbyname` answered
+  with addresses while the proxy refused the actual connection and reported
+  `ip=127.0.0.1` — the resolver here is the agent proxy, and it will
+  confidently answer for a name it then declines to reach. Ask the server.
+
+  The history below is kept because the lesson outlived the fault.
+
+  **It used to say "the server cannot resolve its own domain"**, and treating
+  that as a local oddity is how it went unexamined for weeks. Measured on
+  2026-09-05, from the server, against Google's public DNS:
 
   ```
   www.sporta.com.kw.cdn.hstgr.net  → resolves, 2 addresses   (the CNAME target is fine)
@@ -126,8 +155,9 @@ here, and each one cost a wrong answer first:
   not DNSSEC. The Hostinger zone is intact the whole time, which is exactly why
   the panel looks healthy while the site is unreachable.
 
-  **Only the registrar can fix it.** Nothing in this repository, in Hostinger's
-  DNS panel, or on the server will bring the name back.
+  **Only the registrar could fix it**, and that is what happened — nothing in
+  this repository, in Hostinger's DNS panel, or on the server would have
+  brought the name back, and nothing there was ever the fault.
 
   **The lesson that generalises:** a workaround can be correct and its
   explanation still wrong, and the wrong explanation is the expensive half. The
@@ -465,6 +495,21 @@ www.sporta.com.kw    → Hostname www.sporta.com.kw does match certificate
 
 No SSL certificate yet. Publishing the reference move before one exists gives
 every visitor an unstyled page with no JavaScript.
+
+**The certificate now exists — measured 2026-09-09**, once the registration
+came back and the host could be validated:
+
+```
+wget -qO- https://static.sporta.com.kw/assets/sporta-ui.css | wc -c   → 73866
+```
+
+Verification ON, no `--no-check-certificate`, and 73,866 bytes is the current
+file byte for byte. So the blocker is gone and the move is now merely a
+decision.
+
+**It is still not obviously worth making**, for the reason below that has not
+changed: the storefront sets zero cookies, so the saving is nil. Ask before
+moving the references; do not treat an unblocked task as an approved one.
 
 And the thing worth remembering before finishing it: **the storefront sets ZERO
 cookies for a shopper** — measured, `Set-Cookie` count 0 on the home page — so
