@@ -751,6 +751,43 @@ and writes nothing. A throttled or dead endpoint counts as WRONG there, because
 the endpoint is rationed per IP and a check that reads its own throttling as
 success is this project's favourite way to be lied to.
 
+## A failing check is a claim, not a finding
+
+`storage-scan.mjs` failed for weeks on this, in these words: *"sporta.delivery
+is written to localStorage, which never expires, and the checkout offers no
+control — while the privacy page tells the customer it is kept only if they
+tick a box."* Every clause of that is checkable and I checked none of them
+before building the tick box it asked for.
+
+**The checkout already had one.** Rendered by the bundle, labelled *احفظ هذه
+البيانات على هذا الجهاز*, ticked by default, and wired: the bundle carries
+`localStorage.setItem(_t, t ? '1' : '0')` and persists the choice at submit,
+which is coherent because the address is only saved at submit anyway.
+
+The scan visited `/checkout` **with an empty cart**, where the page renders no
+form, no inputs and therefore no checkbox — so its `offers` was false whatever
+the shop did. It was never reporting a missing control. It was reporting an
+empty bag, and from outside the two are identical.
+
+What I shipped as a result: an overlay adding a SECOND, duplicate checkbox
+beside the real one. It was tested, it passed its own rig, and every assertion
+in that rig was true. It was also entirely unnecessary, and it has been
+deleted. The fix that remains is the one-line-of-reasoning one — the scan now
+fills the bag through the shop's own UI before judging the checkout, and says
+so when the walk does not take, so "no control" can never again mean "no page".
+
+**The rule.** A check that has been red for a while is a hypothesis about the
+code, and the first move is to reproduce its claim BY HAND. That costs one
+browser and five minutes. Believing it cost a feature, and the mutation test
+that would have caught it — removing my script and watching the scan go red —
+is the thing I ran last instead of first: it stayed green, which was the
+evidence that my script had never been what made it pass.
+
+This is the same family as "a suite that finds NOTHING is reporting its own
+environment", one section up, and the inverse of it: that one is a check that
+passes for the wrong reason, this is a check that FAILS for the wrong reason,
+and the second is more expensive because it looks like work to do.
+
 ## The live shop has no product photographs
 
 `photos=0/46active`, `brandLogos=0/8`, measured 2026-09-05. Every product card
