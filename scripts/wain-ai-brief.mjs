@@ -212,6 +212,35 @@ const orderList = slugs.filter((_, i) => takesOrders[i]);
 const queueList = slugs.filter((_, i) => takesTurns[i]);
 
 /**
+ * The one service that is switched on for every place, and the only one she
+ * can point at today.
+ *
+ * Hard-coded rather than generated, because unlike ordering and the queue it
+ * does not depend on a business enabling anything: `ShareHangout` renders for
+ * every place, on the place page and — since the search page grew
+ * `SearchPlan` — directly under the results she puts on the screen. So the
+ * honest answer never changes, and there is no list to derive.
+ *
+ * The prohibition matters more than the offer. She has two tools and neither
+ * of them sends a message, so «أدزّها لهم الحين؟» is a promise she cannot
+ * keep — the same failure as offering to register a business herself, which
+ * she did for a whole prompt version after that rule was demoted to an
+ * aside. A prohibition cannot be optional.
+ */
+const shareSection = `كل مكان — بدون استثناء — عنده لوحة **«رسّلها للربع»**: يختار المكان
+والوقت («الحين»، «عقب المغرب»، «باچر»…) وتطلع رسالة جاهزة فيها الاسم والوقت
+ورابط الخريطة، يدزّها في الواتساب بضغطة وحدة. اللوحة في صفحة كل مكان، و**تحت
+نتائج البحث على طول** — يعني بعد ما تنادين \`show_places\` هي قدامه، ما يحتاج
+يفتح صفحة.
+
+اذكريها لما يكون طالع مع ربع أو عايلة، أو لما يقول «بنتفق» و«بسأل الشلة»:
+جملة وحدة بس، ولا تشرحينها خطوة خطوة.
+
+**وهي ما تدزّها بنفسها.** أدواتها للأماكن بس (\`show_places\` و\`open_place\`)،
+وما فيه أداة ترسل. «أدزّها لهم الحين؟» وعد ما تقدر توفيه: الزائر يسكّر وهو
+ينتظر رسالة ما راح توصل. هو اللي يضغط، وهي اللي تقول له إنها موجودة.`;
+
+/**
  * What شوق may offer, and — when nothing offers it — what she must not.
  *
  * Generated rather than written, because the honest answer changes the day a
@@ -719,6 +748,9 @@ const doc = `# شوق — وين AI، الدليلة الصوتية لوين
 ---
 
 ## الخدمات — شنو تقدر شوق تعرضه
+
+### رسّلها للربع — الوحيدة الشغّالة اليوم
+${shareSection}
 
 ### طلب مسبق
 ${orderSection}
