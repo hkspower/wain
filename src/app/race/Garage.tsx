@@ -86,6 +86,31 @@ const STYLE_CATS: Array<{ cat: string; label: string }> = [
   { cat: "film", label: "WINDOW FILM · فيلم الزجاج" },
 ];
 
+/**
+ * What a drivetrain means, in the two sentences a shop gets.
+ *
+ * Not decoration. Acceleration is capped by what the DRIVEN wheels can
+ * put down, and that is 0.92 of the car's grip on all-wheel drive
+ * against 0.62 on a front-driver — half again as much, and the
+ * difference between a car that hooks up and one that scrabbles. A
+ * player comparing two cars could not see it anywhere before this,
+ * because until DRIVE_SHARE it did not cost anything.
+ */
+const DRIVE_COPY: Record<string, { tag: string; what: string }> = {
+  awd: {
+    tag: "all four wheels",
+    what: "four contact patches share the torque, so it puts its power down where the others are still spinning — and it is the hardest of the three to make slide.",
+  },
+  rwd: {
+    tag: "rear wheels",
+    what: "accelerating presses the driven axle into the road, so it finds grip as it squats — and hangs the tail out when it runs out.",
+  },
+  fwd: {
+    tag: "front wheels",
+    what: "that same weight transfer UNLOADS the axle doing the pulling, so it fights itself off the line and pushes wide instead of stepping out.",
+  },
+};
+
 /** Spec bar ranges: min hides the floor, max is the best build in the
  *  game — measured, not guessed. The Zeta 300 GTR as it is delivered
  *  reads 3.15x on boost, 445 km/h, 46.4 braking and 23.9 grip, and a bar
@@ -685,6 +710,26 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                       nothing here and that is what you race. Every engine
                       makes the same power on average; where it makes it is
                       the whole decision.
+                    </p>
+                  )}
+                  {cat === "diff" && (
+                    // Which wheels drive was never printed anywhere in
+                    // this game, and it used to cost nothing: the
+                    // traction cap ignored the drivetrain entirely. It
+                    // does not now — see DRIVE_SHARE — and it is the
+                    // single biggest thing deciding whether a car can
+                    // use its engine, so the shop has to say it out
+                    // loud. Here rather than beside the engine, because
+                    // a differential and a drivetrain are one
+                    // conversation: what actually reaches the road.
+                    <p className="mt-2 text-[0.8rem] leading-5 text-white/74">
+                      {car.name} drives its{" "}
+                      <span className="text-white/80">
+                        {DRIVE_COPY[fx.drive].tag}
+                      </span>{" "}
+                      — {DRIVE_COPY[fx.drive].what} Nothing in this section
+                      changes that; what it changes is how much of the
+                      engine those wheels can take.
                     </p>
                   )}
                   <div className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
