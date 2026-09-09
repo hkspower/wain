@@ -33,7 +33,7 @@
  */
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join, dirname, extname } from "node:path";
 import { requireFreshBuild } from "./stale-build.mjs";
 import { fileURLToPath } from "node:url";
@@ -69,6 +69,12 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
     if (p.endsWith("/")) p += "index.html";
     let f = join(OUT, p);
     if (!existsSync(f) && existsSync(f + ".html")) f += ".html";
+    // A request for "/search" rather than "/search/" resolves to a directory,
+    // and readFileSync on one throws EISDIR *inside the request handler* —
+    // which killed this server and took every suite after it down with it,
+    // reporting the whole thing as ERR_CONNECTION_REFUSED. The real host
+    // serves the directory index here, so this does too.
+    if (existsSync(f) && statSync(f).isDirectory()) f = join(f, "index.html");
     if (!existsSync(f) || !f.startsWith(OUT)) { res.writeHead(404); return res.end("nope"); }
     res.writeHead(200, { "content-type": MIME[extname(f)] ?? "application/octet-stream" });
     res.end(readFileSync(f));
@@ -88,6 +94,9 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
 
   console.log("\n════ شوق في البحث: her answer on the page, and the box listening ════");
   failed += (await run("node", ["tests/shouq-search.test.mjs"], { env })) === 0 ? 0 : 1;
+
+  console.log("\n════ الطلعة من البحث: acting on a result without leaving it ════");
+  failed += (await run("node", ["tests/search-plan.test.mjs"], { env })) === 0 ? 0 : 1;
 
   console.log("\n════ السحب: how the category rail feels under a thumb ════");
   failed += (await run("node", ["tests/swipe.test.mjs"], { env })) === 0 ? 0 : 1;

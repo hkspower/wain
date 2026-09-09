@@ -15,9 +15,6 @@ import {
   countAr,
   toArabicDigits,
 } from "@/lib/place-kit";
-// A type only — `import type` is erased at compile time, so naming the
-// catalogue's own module here costs nothing in the bundle.
-import type { Place } from "@/lib/places";
 
 /**
  * الطابور — take your turn at the salon.
@@ -45,10 +42,13 @@ export const SALON_LABEL: Record<SalonKind, string> = {
   women: "نسائي",
 };
 
-/** Whether this place is running a queue a customer can join right now. */
-export function takesQueue(place: Place): boolean {
-  return Boolean(place.takesQueue && place.salonKind);
-}
+/**
+ * Whether this place is running a queue a customer can join right now.
+ *
+ * Defined in `place-kit.ts` and re-exported here, for the same reason as
+ * `acceptsOrders` — see the note there.
+ */
+export { takesQueue } from "@/lib/place-kit";
 
 export type TicketStatus = "waiting" | "called" | "served" | "no_show" | "left";
 

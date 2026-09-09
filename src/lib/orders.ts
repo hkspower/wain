@@ -12,9 +12,6 @@ import {
   clampPrepMinutes,
   toArabicDigits,
 } from "@/lib/place-kit";
-// A type only — `import type` is erased at compile time, so naming the
-// catalogue's own module here costs nothing in the bundle.
-import type { Place } from "@/lib/places";
 
 /**
  * طلب مسبق — order ahead, pay when you collect.
@@ -515,7 +512,11 @@ export async function submitOrder(
   };
 }
 
-/** Whether a place can take a pre-order at all. */
-export function acceptsOrders(place: Place): boolean {
-  return Boolean(place.acceptsOrders && (place.menuAr?.length ?? 0) > 0);
-}
+/**
+ * Whether a place can take a pre-order at all.
+ *
+ * Defined in `place-kit.ts` and re-exported here, so callers that already import
+ * this module keep working while callers that only want the question — the
+ * search page — can ask it without pulling in Supabase. See the note there.
+ */
+export { acceptsOrders } from "@/lib/place-kit";

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import SearchMap from "@/components/SearchMap";
 import SearchResults, { optionId } from "@/components/SearchResults";
+import SearchPlan from "@/components/SearchPlan";
 import ShouqAnswer from "@/components/ShouqAnswer";
 import VoiceControls from "@/components/VoiceControls";
 import { IconClose, IconCompass, IconMic, IconSearch } from "@/components/icons";
@@ -433,6 +434,14 @@ export default function SearchClient() {
              of empty page; this says «catching up» quietly and keeps what is
              on screen readable, which is usually still the right answer. */
           <div className={settling ? "opacity-60 transition-opacity duration-150" : "transition-opacity duration-150"}>
+            {/* Before the count, the map and the list, because it is the only
+                thing on this page that finishes the errand. Everything under
+                it is browsing. */}
+            <SearchPlan
+              places={hitPlaces}
+              activeSlug={activeSlug}
+              onActiveSlug={setActiveSlug}
+            />
             {/* Not a live region any more: ShouqAnswer took the role, and it
                 says what the top result IS rather than how many there are. */}
             <p className="mb-4 text-sm text-ink-500">

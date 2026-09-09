@@ -261,3 +261,30 @@ export function distanceAr(km: number, rough = false): string {
   const one = Math.round(km * 10) / 10;
   return `${Number.isInteger(one) ? toArabicDigits(one) : toArabicNumber(one)} كم`;
 }
+
+/**
+ * Whether a place can take a pre-order, and whether it is running a queue.
+ *
+ * Both live here rather than in `orders.ts` and `queue.ts`, where they were,
+ * because each reads two fields off a Place and calls no service — while their
+ * old homes are `"use client"` modules carrying the Supabase bridge and the
+ * network layer. The search page needs the questions and none of the
+ * machinery: asking them from there pulled 6KB of first-load JavaScript onto a
+ * route that never places an order (measured, 148KB → 154KB).
+ *
+ * They are NOT in `places.ts`, which was the first attempt and the wrong one.
+ * Re-exporting from there gave `orders.ts` and `queue.ts` a *value* dependency
+ * on the catalogue where they had only ever had a type, and the catalogue duly
+ * reappeared in the shared chunk — the exact regression the header of this file
+ * describes and `audit:js` guards. `import type` below is erased at compile
+ * time, so this file still imports no places.
+ */
+import type { Place } from "@/lib/places";
+
+export function acceptsOrders(place: Place): boolean {
+  return Boolean(place.acceptsOrders && (place.menuAr?.length ?? 0) > 0);
+}
+
+export function takesQueue(place: Place): boolean {
+  return Boolean(place.takesQueue && place.salonKind);
+}

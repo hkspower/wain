@@ -141,11 +141,44 @@ sheet, the popup and the clipboard each removed in turn. On any one device only
 one link of that chain ever runs, which is exactly what makes the other two the
 kind of code that stays broken for a year.
 
-## Where it is not
+## Where it is not — and where it now also is
 
-The place page only. Search results and cards do not carry it: the place page is
-where the decision is made, and a send button on every card is a send button
-nobody reads.
+**Not on a card.** No result row carries a send button, and that part of the
+original rule stands: a send button on every card is a send button nobody
+reads, and `SearchResults` is a real listbox whose options must not contain
+interactive children — dropping a button into each row would break the
+keyboard and the screen reader for the sake of a tap.
+
+**But it is on the search page**, as one panel rather than forty buttons —
+`SearchPlan`, above the count and the map. The old rule said the place page is
+where the decision is made. That was true when the only way to search was to
+type; it stopped being true when شوق started calling `show_places`. She puts
+places on the screen, says «حطيتهم لك على الخريطة», and the visitor is looking
+at a list they cannot act on while she is still on the line. Her entire job is
+to end the argument in the group, and the last step of ending it lived two
+navigations away — open the place, scroll past the order and queue panels,
+pick a time, send. «في أقل من دقيقة» was not true.
+
+The panel is the same `ShareHangout` component, given `choices`. It is not a
+second implementation: the summer rule, the expiring hours and the message
+format are subtle enough that a copy would drift within a week, so the search
+page passes a list of places and the place page passes none.
+
+Which place it is about follows what the page is already pointing at — the
+active slug the map and the list share — falling back to the top result, so it
+is useful on arrival rather than after a choice. The chips carry the target
+even when it came from a pin far down the list, because a selected chip that is
+not in the row looks like a panel that has lost its selection.
+
+Ordering and the queue appear here as links, and only where the business
+switched them on — today that is none of the fifty-two. They are links rather
+than panels because an order is a menu, quantities and a collection time, which
+is a page's worth of decisions; what belongs on a result is knowing the place
+takes orders at all.
+
+`tests/search-plan.test.mjs` covers the part that is only true here: that the
+message names the place the panel says it is about, and keeps naming the right
+one after the target changes.
 
 ---
 

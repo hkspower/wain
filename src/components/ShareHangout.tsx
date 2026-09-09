@@ -26,11 +26,37 @@ import {
  * The time is chosen before sending and never after, because the message is
  * composed from it — there is no editing a WhatsApp message once it is in
  * somebody's chat.
+ *
+ * `choices` is the search page's addition, and it is why this panel is one
+ * component rather than two. There, the place is not settled — the visitor is
+ * looking at forty results — so the panel asks WHICH before it asks WHEN. On a
+ * place page the question is already answered by the URL, nothing is passed,
+ * and the row does not render. Two copies of the time rules is the thing this
+ * avoids: the summer rule, the expiring hours and the message format are
+ * subtle enough that a second implementation would drift within a week.
  */
-export default function ShareHangout({ place }: { place: Place }) {
+export default function ShareHangout({
+  place,
+  choices,
+  onChoose,
+}: {
+  place: Place;
+  /** Places the visitor may switch between. Fewer than two renders no row. */
+  choices?: Place[];
+  onChoose?: (slug: string) => void;
+}) {
   const [when, setWhen] = useState<WhenId | null>(null);
   const [outcome, setOutcome] = useState<ShareOutcome | null>(null);
   const [busy, setBusy] = useState(false);
+
+  /**
+   * A result from the last place is not a result about this one.
+   *
+   * Without this, sending «مقاهي المباركية» and then switching the target left
+   * «انتسخت — الصقها بالجروب» sitting under a different name, which reads as a
+   * claim that the new place was sent too.
+   */
+  useEffect(() => setOutcome(null), [place.slug]);
 
   // The hour decides both which options exist and which is preselected, and
   // the hour is not knowable while this is prerendered — the exported HTML is
@@ -110,6 +136,35 @@ export default function ShareHangout({ place }: { place: Place }) {
       <p className="mt-1.5 text-sm leading-relaxed text-ink-500">
         اختر الوقت وارسل المكان للجروب — بالموقع والرابط، وخلّص النقاش.
       </p>
+
+      {/* Which place — only where the place is still in question. The chips
+          match the filter chips above the results rather than inventing a
+          second selected-chip style for the same page. */}
+      {choices && choices.length > 1 && (
+        <fieldset className="mt-4">
+          <legend className="text-xs font-semibold text-ink-600">أي مكان؟</legend>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {choices.map((c) => {
+              const active = c.slug === place.slug;
+              return (
+                <button
+                  key={c.slug}
+                  type="button"
+                  onClick={() => { haptic("select"); onChoose?.(c.slug); }}
+                  aria-pressed={active}
+                  className={`min-h-11 max-w-full truncate rounded-full px-4 text-sm font-semibold transition ${
+                    active
+                      ? "bg-ink-900 text-white"
+                      : "border border-line-control bg-white text-ink-600 hover:border-sea-300"
+                  }`}
+                >
+                  {c.nameAr}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+      )}
 
       <fieldset className="mt-4">
         <legend className="text-xs font-semibold text-ink-600">متى؟</legend>
