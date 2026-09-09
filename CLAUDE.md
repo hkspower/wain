@@ -690,6 +690,67 @@ reading `config.php` directly. **Mutating in one direction is not enough
 either:** the first mutation (override removed) was caught immediately, and it
 was the second, in the fallback direction, that exposed both holes.
 
+## "do you have sports bras" was read as an order number
+
+In a sportswear shop. `assistant_find_track()` welded any run beginning "sp"
+onto the words after it, so SPORTS BRAS became SPORTSBRAS, matched
+`SP[A-Z0-9]{6,28}`, and the shopper was answered *"Send me your order number"*.
+Measured on 2026-09-09, every one of these was an order lookup: sports bras,
+sports bra, sportswear, special offers, spring collection, sponsorship — and
+**"can I speak to someone"**, which meant the one message that must reach a
+human never did.
+
+**The first fix was wrong, and the existing suite caught it.** It required a
+DIGIT, reasoning from `newTrackId()` in checkout.tsx: `'SP'` plus two uint32s in
+base36 `padStart(7,'0')`, so a seven-character part starts with `1` and anything
+shorter is padded — a digit is guaranteed. The arithmetic is correct and the
+conclusion was not: that is only the APP's generator. `api.php` accepts
+`/^[A-Za-z0-9]{6,30}$/` from the client, the website's own bundle has no source
+in this repo, and the rig's fixture was `SPMTTZNEXARIG`. **Proving a property of
+one producer is not proving it of the format.**
+
+The shape of the string no longer decides anything. The candidate is LOOKED UP:
+an order that exists is an order number, and SPORTSWEAR is not in the orders
+table. A digit survives only as a second chance, so a mistyped number still gets
+"order not found" instead of a page of jackets.
+
+### A fixture that only sometimes has the property only sometimes tests it
+
+The rig's track id is `Date.now().toString(36)`, so whether it contains a digit
+depends on the millisecond. The digit mutation was caught in the morning
+(`SPMTTZNEXARIG`) and passed in the afternoon (`SPMTTZRY12RIG`). The rig now
+mints a SECOND order whose id is forced letter-only, and asserts it is
+letter-only before using it. Mutation-tested three ways — restore the welding,
+demand a digit, drop the mistype fallback — each caught by the check written
+for it, and the third only after it was added on purpose.
+
+### Ask it what a customer would ask
+
+Six more routing faults came out of one twenty-four-question probe, and none of
+them was a "sorry, I did not follow" — they were all CONFIDENT WRONG ANSWERS,
+which is why nothing had ever reported them:
+
+| asked | went to | should be |
+|---|---|---|
+| my package never came | search — *"couldn't find anything by that name"* | order_status |
+| what time do you close today | search | hours (the intent existed; only "open" was listed) |
+| can I pay cash when it arrives | delivery | payment |
+| is there a discount code | payment | recommend |
+| ممكن اغير المقاس بعد الطلب | sizes | returns — exchanges are free for 14 days |
+| ابي هديه لصديقي | search | recommend |
+| 20 shirts for my team | search | contact, so a person sees it |
+
+`is there a discount code` is the one to remember: `code` contains `cod`, and
+the branch twenty lines above the payment list says in as many words *"never
+bare 'cod' (that would eat 'discount code')"*. It was written there and the
+payment list carried it anyway. **A rule recorded in a comment is not a rule
+applied in the code.**
+
+`scripts/live/live-assistant-check.php` asks the LIVE shop all nine, any time,
+and writes nothing. A throttled or dead endpoint counts as WRONG there, because
+the endpoint is rationed per IP and a check that reads its own throttling as
+success is this project's favourite way to be lied to.
+
 ## The live shop has no product photographs
 
 `photos=0/46active`, `brandLogos=0/8`, measured 2026-09-05. Every product card
