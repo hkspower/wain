@@ -891,6 +891,53 @@ environment", one section up, and the inverse of it: that one is a check that
 passes for the wrong reason, this is a check that FAILS for the wrong reason,
 and the second is more expensive because it looks like work to do.
 
+## Card payment is pointed at the REAL bank with placeholder credentials
+
+Measured 2026-09-09 by `scripts/live/live-pay-check.php`:
+
+```
+PAY client_id=PLACEHOLDER client_secret=PLACEHOLDER encrp_key=PLACEHOLDER
+    env=production gateway=pg.cbk.com payType=shopper-chooses returnUrl=ok
+```
+
+Somebody copied `pay/config.example.php` to `pay/config.php`, set `env` to
+production and the return URL correctly, and never filled the three
+credentials. So the shop is aimed at CBK's LIVE gateway — `pg.cbk.com`, not
+`pgtest` — while carrying `YOUR_CLIENT_ID`. **Both KNET and T-Pay would fail at
+the Authenticate call**, and they fail for a shopper who has already chosen a
+payment method and typed their address.
+
+Nobody has met it because the shop has taken no orders. That is luck, not
+safety.
+
+**"Present" is not "configured", and this is why the check reports PLACEHOLDER
+as its own state.** Every value here is non-empty, so any check asking merely
+whether a key is set would call this ready. `config.example.php` ships
+`YOUR_*` and the sandbox ships `SANDBOX_NOT_A_REAL_*`; both are present and
+both mean the shop cannot take money.
+
+### T-Pay and KNET are ONE integration, not two
+
+Worth knowing before anyone goes looking for a T-Pay SDK. `pay/cbk.php`
+implements CBK's hosted gateway from the Integration & Reference Manual v2.93,
+and the two payment methods are the same credentials, the same
+`/ePay/api/cbk/online/pg/merchant/Authenticate` call, the same
+`/ePay/pg/epay?_v=<token>` checkout and the same verify — with
+`tij_MerchPayType` choosing the face: `''` shopper chooses, `'1'` KNET,
+`'2'` T-Pay QR. `store.php` routes `tpay` to `?paytype=2` and
+`payments-test.mjs` pins it.
+
+So there is nothing to BUILD for T-Pay. What is missing is commercial: the
+merchant agreement and the three credentials.
+
+**The one thing not verified against a primary source** is that `2` is T-Pay.
+The `tij_*` names are corroborated by independent third-party CBK integrations,
+and CBK's own material confirms the gateway serves both KNET and T-Pay QR — but
+no public source states the numeric mapping, `www.cbk.com` is blocked by this
+environment's egress proxy, and the manual is not in this repository. It is
+asserted in a comment and pinned by a test, which is not the same as confirmed.
+Ask the bank.
+
 ## The live shop has no product photographs
 
 `photos=0/46active`, `brandLogos=0/8`, measured 2026-09-05. Every product card
