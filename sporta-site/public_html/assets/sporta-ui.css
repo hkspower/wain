@@ -1496,3 +1496,80 @@ a[href*="/product/"]:has(> img[src^="data:image/svg+xml"])::after,
   opacity: 0.16;
   pointer-events: none;
 }
+
+/* --------------------------------------------------------- hero: less haze */
+/* THREE SEPARATE EFFECTS were reading as "shadow", and the owner asked for all
+   three turned down. They are listed here with the values they had, because
+   every one of them lives in the compiled bundle where nobody can read them:
+
+     the blurred backdrop   a copy of the photograph, scale-110, blur(40px)
+                            at opacity .6, filling what the photo does not reach
+     the orange wash        radial-gradient at ~0.32 alpha from the lower corner
+     the button's glow      0 8px 20px -8px at .6 alpha under the CTA
+
+   MEASURED, not guessed: read out of getComputedStyle on the rendered hero,
+   which is the only way to see them at all — the classes are Tailwind's and
+   the gradients are minified into one line of the build's stylesheet. */
+
+/* 1. The haze. Halved and tightened rather than removed: it exists to fill the
+      letterbox around a 2.52:1 photograph in a shallower box, and deleting it
+      leaves a hard dark band at the edges instead. */
+.hero-strength img.blur-2xl,
+.hero-cardio   img.blur-2xl,
+.hero-arena    img.blur-2xl { opacity: .34; filter: blur(26px); }
+
+/* 2. The orange wash, at half strength. Every one of these six restates the
+      bundle's own rule with ONLY the radial's alpha changed — the linear
+      gradient behind it is copied byte for byte, and the three classes each
+      have their own position and their own alpha (52, 42, 47 hex). Restating
+      is the only way to lower one layer of a multi-layer background; there is
+      no per-layer opacity in CSS. Both directions, because the bundle mirrors
+      the radial for RTL and dropping that would move the glow across the page
+      on the Arabic site. */
+.hero-strength { background: radial-gradient(60% 110% at 78% 100%, #ff7b1729 0%, #0000 60%), linear-gradient(112deg, #14161a 0%, #1b2026 48%, #35200e 100%); }
+.hero-cardio   { background: radial-gradient(70% 100% at 72% 100%, #ff7b1721 0%, #0000 64%), linear-gradient(112deg, #12151a 0%, #1a2028 50%, #2f1d10 100%); }
+.hero-arena    { background: radial-gradient(55% 110% at 80% 100%, #ff7b1724 0%, #0000 60%), linear-gradient(112deg, #131519 0%, #171d26 46%, #2c1c10 100%); }
+[dir=rtl] .hero-strength { background: radial-gradient(60% 110% at 22% 100%, #ff7b1729 0%, #0000 60%), linear-gradient(-112deg, #14161a 0%, #1b2026 48%, #35200e 100%); }
+[dir=rtl] .hero-cardio   { background: radial-gradient(70% 100% at 28% 100%, #ff7b1721 0%, #0000 64%), linear-gradient(-112deg, #12151a 0%, #1a2028 50%, #2f1d10 100%); }
+[dir=rtl] .hero-arena    { background: radial-gradient(55% 110% at 20% 100%, #ff7b1724 0%, #0000 60%), linear-gradient(-112deg, #131519 0%, #171d26 46%, #2c1c10 100%); }
+
+/* 3. The button's glow, SCOPED TO THE HERO and not to .btn-primary at large.
+      That class is on the add-to-bag button, the cart, the checkout and the
+      panel; the owner was looking at the hero when they asked, and quietly
+      restyling every primary button in the shop is a bigger change than the
+      one requested. Say the word and the same two lines go on .btn-primary. */
+.hero-strength .btn-primary,
+.hero-cardio   .btn-primary,
+.hero-arena    .btn-primary { box-shadow: 0 4px 12px -6px hsl(var(--primary) / .25); }
+
+/* ------------------------------------------- hero: the headline's own type */
+/* ONLY REACHES AN UPLOADED PHOTO SLIDE, and that is the point. The five
+   SHIPPED banners carry their words inside the .webp — the page's own <h1> and
+   <p> for those are `sr-only`, present for a screen reader and painted
+   nowhere. So there is no CSS anywhere that can restyle the headline a visitor
+   currently sees; it is pixels. Upload a plain photograph as a hero slide and
+   the shop renders the title and subtitle as REAL text, which these rules
+   then style.
+
+   THE SELECTOR IS THE CONTAINER'S OWN CLASS, not .hero-strength. Those three
+   classes belong to the DRAWN slides; a photo slide's wrapper is the
+   `md:min-h-[var(--hero-h-md,640px)]` utility, checked in the DOM rather than
+   assumed — a rule written against .hero-strength would have matched nothing
+   on the very slides it exists for.
+
+   ALIGNMENT IS DELIBERATELY UNTOUCHED. Measured on both: headline, subtitle
+   and button already share one edge — 1255px on a 1280 desktop, 377px on a
+   393 phone — and text-align: start is correct in both directions. There was
+   nothing to fix and moving it would have been a change for its own sake. */
+
+/* 1.30 is loose for display type, and on the phone the headline WRAPS — 48px
+   over two lines at 62.4px leading, which reads as two separate sentences.
+   1.12 closes it up. Single-line desktop headlines are unaffected either way,
+   so this costs nothing where it is not needed. */
+[class*="hero-h-md"] h1 { line-height: 1.12; }
+
+/* Tracking, LATIN ONLY. Large display type wants slightly negative tracking;
+   ARABIC MUST NEVER HAVE ANY. Letter-spacing breaks the cursive joins, so
+   "مجموعة" renders as disconnected letters — it is not a subtle degradation,
+   it is broken text. Hence [dir=ltr], not a blanket rule. */
+[dir=ltr] [class*="hero-h-md"] h1 { letter-spacing: -.015em; }
