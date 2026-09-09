@@ -1,0 +1,5 @@
+# The rendered animation is a build product: render_ship.py reproduces it
+# exactly from ship.html — every frame is a pure function of its index — so the
+# repository keeps the source and not the H.264. The poster and the stills stay:
+# the poster is a deliverable, and the stills are what you look at in a review.
+ship.mp4
