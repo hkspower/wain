@@ -150,6 +150,28 @@ Levels were measured at the same time, through Chromium's decoder the way
 model, −1.9 and −16.1 on the new. No clipping either way, and both sit close
 to the −4.3 / −17.0 recorded from the first sample.
 
+**`multilingual_v2` was measured on 9 September, so nobody has to wonder.**
+The same 131-character line through Talya: flash **10.87s**, turbo **13.37s**,
+multilingual **13.42s**. Multilingual is not a better turbo — it is the same
+length — so everything above flash costs 23% more talking and buys nothing on
+the axis the prompt is written around, which is answers under fifteen seconds.
+The 11% measured on 7 September holds at a different length, from a different
+direction.
+
+That gap is the reason to leave `speed: 1.06` and `stability: 0.35` alone as
+well. They read as "she is rushing" if you meet them cold; they are in
+`docs/wain-ai-agent.md` as deliberate — «الدليل يمشي أسرع من الراوي», and low
+stability is what makes a voice read young rather than composed.
+
+**Arabic-Indic digits were round-tripped through the live path too.** «مجمع
+٣٦٠ في الزهراء» came back character-identical. That is weaker than it looks —
+Scribe writes ٣٦٠ whether she said «ثلاثمية وستين» or «ثلاثة ستة صفر», so it
+rules out the digits being *dropped* and little else. Worth knowing because
+`forSpeech()` does **not** run on the live path: it normalises ١٨٧ → 187 and
+چ → تش for the clips and the browser fallback only. The agent's own
+`text_normalisation_type` is `system_prompt`, and the prompt says nothing
+about digits.
+
 ## Two turn settings, both measured, one kept
 
 **The thinking filler is on, at five seconds.** `soft_timeout_config` had a
