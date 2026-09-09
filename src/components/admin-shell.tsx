@@ -61,6 +61,10 @@ export function AdminShell({
     // attached to something the shop sells — and before Settings, which is
     // where things go that are changed once a year.
     ['/backends/brands', 'Brands'],
+    // Its own entry rather than a button inside Brands, because it is a
+    // different job: Brands is one brand at a time and mostly about names,
+    // this is a folder of logos and every brand at once.
+    ['/backends/brand-logos', 'Brand logos'],
     ['/backends/settings', 'Settings'],
   ];
 
