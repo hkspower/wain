@@ -36,13 +36,10 @@
  * card that brand sells, so every assignment is reversible until then.
  *
  * ---------------------------------------------------------------------------
- * THE REQUEST SHAPE IS THE PANEL'S OWN, read out of the bundle rather than
- * guessed: `/api/admin.php?r=<route>`, `X-Sporta-Admin: 1`,
- * `credentials: include`. The header is not optional — store_require_admin_header()
- * answers 400 without it — and the session cookie is `__Host-` + SameSite=Strict,
- * which works here only because this runs on the shop's own origin inside the
- * panel. That is also why this file can exist at all: it needs no credential of
- * its own and stores none.
+ * THE REQUEST SHAPE, THE FILENAME FOLDING AND THE SHRINKING now live in
+ * admin-upload.js, shared with product-photos.js — see that file for why each
+ * is the way it is. It must be loaded first; if it is not, this does nothing
+ * rather than throwing.
  *
  * brand_save IS ONE ROUTE FOR CREATE AND RENAME, so every save must carry
  * name_en, name_ar, slug and sort as well as the logo. Sending only the logo
@@ -53,74 +50,19 @@
 (function () {
   'use strict'
 
-  var API = '/api/admin.php?r='
-  var MAX_BASE64 = 900000      // store.php, STORE_PRODUCT_IMAGE_MAX
-  var LONGEST = 1400
-  var QUALITIES = [0.82, 0.72, 0.62, 0.5, 0.4]
-
-  function call(route, method, body) {
-    return fetch(API + route, {
-      method: method || 'GET',
-      headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' },
-      credentials: 'include',
-      body: body === undefined ? undefined : JSON.stringify(body),
-    }).then(function (r) {
-      return r.json().catch(function () { return null }).then(function (d) {
-        if (!r.ok || (d && d.error)) throw new Error((d && d.error) || ('http ' + r.status))
-        return d
-      })
-    })
-  }
-
-  /** Fold a filename or a name to the shape a slug has. Extension and the
-   *  trailing words an export tool adds are dropped; they are not part of
-   *  anyone's brand. */
-  function fold(s) {
-    return String(s || '')
-      .replace(/\.[a-z0-9]{2,5}$/i, '')
-      .toLowerCase()
-      .replace(/[^a-z0-9؀-ۿ]+/g, '-')
-      .replace(/-(logo|icon|mark|brand|final|copy|[0-9]{1,3})$/g, '')
-      .replace(/^-+|-+$/g, '')
-  }
-
-  /** Re-encode to WebP under the server's cap. The same ladder the app uses:
-   *  drop quality before dropping pixels, because a logo that has been scaled
-   *  down cannot be scaled back up and a logo at 0.4 quality still reads. */
+  // The shared helpers, from admin-upload.js. They were three copies of the
+  // same fifty lines the moment product-photos.js was written, which is the
+  // drift this project has already paid for once. Absent means a
+  // half-published set: do nothing rather than throw, so the panel stays
+  // usable and the card is merely missing.
+  var U = window.sportaUpload
+  if (!U) return
+  var call = U.call
+  var fold = U.fold
+  /** The logo needs no pixel size — brand_save stores the picture and nothing
+   *  else — so this keeps the old one-value shape and drops the rest. */
   function shrink(file) {
-    return createImageBitmap(file).then(
-      function (bm) {
-        var scale = Math.min(1, LONGEST / Math.max(bm.width, bm.height))
-        var w = Math.max(1, Math.round(bm.width * scale))
-        var h = Math.max(1, Math.round(bm.height * scale))
-        var c = document.createElement('canvas')
-        c.width = w
-        c.height = h
-        // No fill: a logo is usually transparent, and painting white behind it
-        // puts a white rectangle on every dark product card.
-        c.getContext('2d').drawImage(bm, 0, 0, w, h)
-
-        var i = 0
-        function attempt() {
-          var uri = c.toDataURL('image/webp', QUALITIES[i])
-          if (uri.length <= MAX_BASE64 || i >= QUALITIES.length - 1) {
-            if (uri.length > MAX_BASE64) {
-              throw new Error('still ' + Math.round(uri.length / 1024) + ' kB at the lowest quality')
-            }
-            return uri
-          }
-          i++
-          return attempt()
-        }
-        return attempt()
-      },
-      function () {
-        var heic = /\.(heic|heif)$/i.test(file.name) || /heic|heif/i.test(file.type)
-        throw new Error(heic
-          ? 'this browser cannot open HEIC photographs — on the iPhone, Settings, Camera, Formats, Most Compatible saves them as JPEG'
-          : 'not a picture this browser can open')
-      }
-    )
+    return U.shrink(file).then(function (s) { return s.dataUri })
   }
 
   // ---------------------------------------------------------------- the card

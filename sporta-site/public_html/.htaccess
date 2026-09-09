@@ -456,7 +456,7 @@ FileETag MTime Size
   # the wrong direction. Its stale-copy failure is the quiet kind: the upload
   # card on the panel's Brands screen simply keeps whatever behaviour the
   # cached copy had, on the one person who most needs the new one.
-  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(brand-badge|brand-logos|contact|card|footer|returns-request|returns-link|track-guard|theme)\.js$">
+  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|footer|product-photos|returns-request|returns-link|track-guard|theme)\.js$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 

@@ -66,6 +66,7 @@
     "test:brand-token": "node scripts/brand-token-test.mjs",
     "test:brand-logos": "node scripts/brand-logos-test.mjs",
     "test:brand-logos-site": "node scripts/brand-logos-site-test.mjs",
+    "test:product-photos-site": "node scripts/product-photos-site-test.mjs",
     "make:brand-tokens": "node scripts/make-brand-tokens.mjs",
     "test:admin-contract": "node scripts/admin-contract-test.mjs",
     "test:admin-live": "node scripts/admin-live-test.mjs",
