@@ -654,6 +654,13 @@
          on a bundle whose source is not here. Deleting this line reverts it. -->
     <script src="/assets/returns-link.js" defer></script>
 
+    <!-- Upload every brand's logo in one go, on the panel's Brands screen. The
+         app has a screen for this and the website's panel is a different
+         program, so it is done the way everything else here reaches that
+         bundle: DOM surgery, adding a card and changing nothing that exists.
+         It does nothing at all on any page but /backends. -->
+    <script src="/assets/brand-logos.js" defer></script>
+
     <!-- /track's one field carries no `required`, so pressing Track on an
          empty box did nothing at all — no message, no hint, no outline. This
          adds the attribute the bundle cannot be edited to include, and the
