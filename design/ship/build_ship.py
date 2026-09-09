@@ -119,13 +119,18 @@ function hash3(a, b, c) {{
 // Seconds, not frames, so the shape of the film survives a change of fps.
 var T_RAIN   = 0.0;   // rain establishes
 var T_LOCK   = 1.6;   // the rain starts painting the hull
-var T_LOCKED = 6.2;   // every cell of the mark has been struck
-var T_RESOLVE= 6.2;   // code gives way to the drawn mark
-var T_MARK   = 7.4;
-var T_WORD   = 7.8;   // the wordmark writes in beneath
+var T_LOCKED = 5.5;   // every cell of the mark has been struck
+// A full second where the ship simply STANDS, complete and solid in code,
+// before anything else happens. Without it T_LOCKED and T_RESOLVE were the
+// same instant: the mark was finished and already dissolving on the same
+// frame, so the one picture the whole animation is building towards was
+// never actually on screen.
+var T_RESOLVE= 6.5;   // code gives way to the drawn mark
+var T_MARK   = 7.6;
+var T_WORD   = 7.9;   // the wordmark writes in beneath
 
 // ---- layout --------------------------------------------------------------
-var CELL = 17;
+var CELL = 13;
 var COLS = Math.ceil(W / CELL);
 var ROWS = Math.ceil(H / CELL);
 var TRAIL = 14;                       // cells of fading tail behind each head
@@ -196,7 +201,7 @@ mg.restore();
 var maskData = mg.getImageData(0, 0, W, H).data;
 function inShip(px, py) {{
   if (px < 0 || py < 0 || px >= W || py >= H) return false;
-  return maskData[((py | 0) * W + (px | 0)) * 4 + 3] > 40;
+  return maskData[((py | 0) * W + (px | 0)) * 4 + 3] > 24;
 }}
 
 // Which cells belong to the ship, and the frame each is struck by its own
@@ -231,6 +236,23 @@ function glyph(c, r, f) {{
 }}
 function ease(x) {{ return x <= 0 ? 0 : x >= 1 ? 1 : 1 - Math.pow(1 - x, 3); }}
 
+// How much each glyph must be widened to fill a cell. Measured once for the
+// thirty-eight glyphs rather than per cell per frame — the same measurement
+// eleven hundred times a frame is the kind of cost that only shows up as a
+// render that never finishes.
+var LOCK_FONT = '800 ' + Math.round(CELL * 1.06) + 'px Cairo, sans-serif';
+var STRETCH = {{}};
+(function () {{
+  ctx.save();
+  ctx.font = LOCK_FONT;
+  for (var i = 0; i < GLYPHS.length; i++) {{
+    var w = ctx.measureText(GLYPHS[i]).width;
+    STRETCH[GLYPHS[i]] = w > 0.5 ? Math.min(2.1, CELL / w) : 1;
+  }}
+  ctx.restore();
+}})();
+function stretch(g) {{ return STRETCH[g] || 1; }}
+
 function renderFrame(f) {{
   var t = f / FPS;
   ctx.fillStyle = "#fff";
@@ -263,20 +285,27 @@ function renderFrame(f) {{
   }}
   ctx.globalAlpha = 1;
 
-  // the ship, struck cell by cell out of the code
-  ctx.font = '800 ' + (CELL - 4) + 'px Cairo, sans-serif';
+  // The ship, struck cell by cell out of the code — and SOLID. Cairo's glyphs
+  // are not one width, so letting them sit at their natural advance left white
+  // gutters right through the sails and the hull read as scattered type rather
+  // than as a shape. Each struck glyph is stretched horizontally to exactly
+  // fill its cell, so the cells abut and the mark is a mass, not a sprinkle.
+  // The stretch is capped: a narrow letter blown to three times its width
+  // stops being that letter, and the rain has to stay readable as Arabic.
+  ctx.font = LOCK_FONT;
   for (var i = 0; i < cells.length; i++) {{
     var cl = cells[i];
     if (f < cl.at) continue;
     var age = (f - cl.at) / FPS;
     var pop = ease(age / 0.28);                 // it lands, it does not fade in
+    var g = glyph(cl.c, cl.r, cl.at);
     ctx.fillStyle = TINT_STRONG;
-    ctx.globalAlpha = (0.72 + 0.28 * pop) * (1 - resolve);
+    ctx.globalAlpha = (0.82 + 0.18 * pop) * (1 - resolve);
     ctx.save();
     ctx.translate(cl.x, cl.y);
-    var s = 1 + 0.5 * (1 - pop);
-    ctx.scale(s, s);
-    ctx.fillText(glyph(cl.c, cl.r, cl.at), 0, 0);
+    var s = 1 + 0.45 * (1 - pop);
+    ctx.scale(stretch(g) * s, s);
+    ctx.fillText(g, 0, 0);
     ctx.restore();
   }}
   ctx.globalAlpha = 1;

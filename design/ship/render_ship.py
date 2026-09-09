@@ -68,7 +68,7 @@ def main():
         if a.stills:
             out = HERE / "stills"
             out.mkdir(exist_ok=True)
-            for i, f in enumerate([12, 60, 130, 183, 225, 285]):
+            for i, f in enumerate([12, 60, 130, 178, 230, 288]):
                 page.evaluate("f => window.renderFrame(f)", f)
                 page.screenshot(path=str(out / f"{i}-f{f:03d}.png"))
                 print(f"    {i}-f{f:03d}.png   t={f/meta['fps']:.1f}s")
