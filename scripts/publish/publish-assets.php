@@ -65,13 +65,26 @@ $FILES = [
     "images/vanquish/PUT-LOGO-HERE.txt" => "7b634c7c39ee98859bfca99b0bcc1b41e536a1e1b74f42780435a244f39d36d1",
 ];
 
-/** The only directory this script may bring into existence: images/<slug>.
- *  Same pattern store_brand_logo_file() checks a slug against before reading. */
+/** The only directories this script may bring into existence: images/ itself,
+ *  and images/<slug> below it. The slug pattern is the same one
+ *  store_brand_logo_file() checks against before it will read a logo.
+ *
+ *  IT CREATES TWO LEVELS BECAUSE THE FIRST RUN PROVED IT HAD TO. The first
+ *  version made only images/<slug>, on the assumption images/ was already
+ *  there — it is in the repository, so it felt like a given. On the server it
+ *  does not exist at all, and a non-recursive mkdir into a missing parent
+ *  fails, so all nine files failed identically while the font beside them
+ *  wrote fine. Verified with `ls -d` over cron rather than inferred from the
+ *  shape of the failure list. */
 function pub_ensure_dir(string $root, string $rel): bool {
     $dir = dirname($root . '/' . $rel);
     if (is_dir($dir)) return true;
-    if (!preg_match('#^images/([a-z0-9][a-z0-9-]{0,63})/[^/]+$#', $rel)) return false;
-    return @mkdir($dir, 0755) && is_dir($dir);
+    // images/<file> and images/<slug>/<file>, and nothing else, ever.
+    if (!preg_match('#^images/(?:[a-z0-9][a-z0-9-]{0,63}/)?[^/]+$#', $rel)) return false;
+    foreach ([$root . '/images', $dir] as $d) {
+        if (!is_dir($d) && !@mkdir($d, 0755)) return false;
+    }
+    return is_dir($dir);
 }
 
 $wrote = 0; $same = 0; $bad = []; $failed = [];
