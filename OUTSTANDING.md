@@ -91,6 +91,16 @@ from a standing stage is still in first, deep into the launch torque
 blend, with far more thrust than the probe allowed. A pure-arithmetic
 model of a stateful system is right only where the state agrees with it.
 
+**Left thin on purpose.** With the split in place `test:physics` is
+green end to end, but power-over passes at **0.101 rad against a bar of
+0.1** — one per cent of margin, which is a red waiting to happen. The
+tyres are not the marginal part (wheelspin 3.41 against a gate of 1.2);
+what is thin is how much angle the drift solver makes of that at 24 m/s.
+Buying margin by retuning the solver would be changing the game to make
+a test comfortable, so the threshold is printed beside the reading and
+left alone. If it starts flaking, the fix is the ratio-based gate
+described above, not a looser bar.
+
 ### Three tests were reporting failures that were their own
 
 Worth recording as a pattern, since it is now the third time this

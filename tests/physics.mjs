@@ -236,7 +236,15 @@ const power = await page.evaluate(() => {
   }
   return { yaw: +peak.toFixed(3), spin: +spin.toFixed(2) };
 });
-console.log(`power-over  driftYaw ${power.yaw} rad with no handbrake, peak wheelspin ${power.spin} m/s²  ` +
+// The threshold is printed beside the reading on purpose: this one
+// passes at 0.101 rad against a bar of 0.1, a margin of one per cent,
+// and a green that close is a red waiting for any constant in the yaw
+// model to move a hair. The tyres are not the marginal part — wheelspin
+// is 3.41 against a gate of 1.2 — so what is thin is how much ANGLE the
+// drift solver makes of it at this speed. Buying margin by retuning the
+// solver would be changing the game to make a test comfortable, so it
+// is left alone and said out loud instead.
+console.log(`power-over  driftYaw ${power.yaw} rad (needs >0.1) with no handbrake, peak wheelspin ${power.spin} m/s² (gate ${H.powerOverSpin})  ` +
   check(power.yaw > 0.1,
     power.spin < H.powerOverSpin
       ? `the tyres never let go at this speed (wheelspin ${power.spin} m/s², gate ${H.powerOverSpin}): at 86 km/h in a tall gear thrust is well under the traction cap, so the gate is unreachable here for any car in the fleet`
