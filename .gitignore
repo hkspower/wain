@@ -55,3 +55,6 @@ photos-src/
 
 # The full-site PDF is a rendered artefact, regenerated on demand.
 wainkw-site.pdf
+
+# `npm run deploy:plan` writes this; it is a reading of one build, not source.
+/deploy-plan.json
