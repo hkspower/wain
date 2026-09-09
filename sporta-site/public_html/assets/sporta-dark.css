@@ -442,6 +442,39 @@
   :root:not([data-theme='dark']) .eyebrow {
     color: #171a1e !important;
   }
+
+  /* --- EXCEPT THE TWO SURFACES THAT ARE DARK IN BOTH THEMES -------------- */
+  /* The rule above is right about the PAGE and wrong about the header and the
+     footer, and nothing had noticed because the shop opens in dark mode.
+     Measured in light mode:
+
+       #171a1e on #2b3138   1.33:1   what the rule above produces there
+       #ff7b17 on #ffffff   2.59:1   why that rule exists at all
+       #eaecee on #2b3138  11.09:1   this
+
+     1.33:1 is not "low contrast", it is text you cannot read: near-black ink
+     on the dark silver bar. It hit the ACTIVE nav link — so on the light theme
+     the page you are on was the one word in the header that vanished — and
+     both footer column headings, «معلومات» and «التنقل».
+
+     #eaecee is not a new colour. It is --sp-text, exactly what the dark theme
+     paints these same elements, and using it here is the point rather than a
+     coincidence: the header and the footer are dark in BOTH themes, so they
+     should look the SAME in both. The light theme's job is the page between
+     them.
+     
+     Higher specificity than the rule above (0,4,0 against 0,3,0), which is what
+     lets it win between two !important declarations. */
+  :root:not([data-theme='dark']) .app-header .text-accent,
+  :root:not([data-theme='dark']) .app-header .text-brand-dark,
+  :root:not([data-theme='dark']) .app-header .text-brand-bright,
+  :root:not([data-theme='dark']) .app-header .eyebrow,
+  :root:not([data-theme='dark']) footer .text-accent,
+  :root:not([data-theme='dark']) footer .text-brand-dark,
+  :root:not([data-theme='dark']) footer .text-brand-bright,
+  :root:not([data-theme='dark']) footer .eyebrow {
+    color: #eaecee !important;
+  }
   :root:not([data-theme='dark']) .bg-brand:not(.btn-primary),
   :root:not([data-theme='dark']) .skip-link {
     color: #ffffff !important;
@@ -470,4 +503,29 @@
 :root:not([data-theme='dark']) input.border-slate-300,
 :root:not([data-theme='dark']) button.border-black\/15 {
   border-color: var(--sp-silver-mid) !important;
+}
+
+/* --- the breadcrumb separator, on the light theme ------------------------- */
+/* `.text-slate-300` is #cad5e2, which is 1.23:1 on the breadcrumb's own panel
+ * (#e8eaed). That is a slash nobody can see, and the breadcrumb reads as one
+ * run-on line of links instead of a path.
+ *
+ * #7a8188 is the silver already at :root — not a new colour — and it measures
+ * 3.27:1 there. The candidates were computed rather than chosen by eye:
+ *
+ *   #cad5e2  1.23:1   slate-300, what it is now
+ *   #a6acb2  1.90:1   --sp-silver
+ *   #878e95  2.75:1   --sp-silver-mid
+ *   #7a8188  3.27:1   this
+ *
+ * 3:1 is the target because a separator is a graphical element, not body text
+ * — it should be legible without competing with the links either side of it,
+ * which is why this stops at the first value that clears the bar rather than
+ * going darker.
+ *
+ * Light theme only. In dark mode the same class sits on a dark ground where it
+ * already reads, and the dark block above does not touch it. */
+:root:not([data-theme='dark']) nav .text-slate-300,
+:root:not([data-theme='dark']) ol .text-slate-300 {
+  color: #7a8188;
 }
