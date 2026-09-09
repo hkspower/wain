@@ -158,21 +158,58 @@ for (var c = 0; c < RCOLS; c++) {{
 // alpha the code fill is clipped against — so the fill stops exactly at the
 // mark's edge rather than at whichever cell centres happened to fall inside.
 var vb = VIEW.split(/\\s+/).map(Number);
-var SHIP_W = Math.round(W * 0.68);
-var SHIP_H = SHIP_W * (vb[3] / vb[2]);
-var SHIP_X = (W - SHIP_W) / 2;
-var SHIP_Y = (H - SHIP_H) / 2 - H * 0.045;
-var SCALE = SHIP_W / vb[2];
 
-function shipPaths(g) {{
-  g.translate(SHIP_X, SHIP_Y);
-  g.scale(SCALE, SCALE);
+// TWO SIZES. While the code builds her the boum fills the frame — 80% of its
+// width — because that is the spectacle. Then she settles into the company's
+// LOCKUP: the mark, «المهلب», Almuhallab Code, «شركة برمجة وأنظمة», at the
+// proportions the site's own masthead uses (mark 74px tall, name 30px,
+// English 14px with .1em tracking, descriptor 12px, 8px under the mark and 4px
+// between lines). The first version sized the wordmark by eye at about a
+// third of that ratio, which made the ending a ship with a caption rather
+// than the company's logo. Everything below is derived from M, the mark's
+// height in the lockup, so the ratios cannot drift from the masthead's.
+var BIG_W = Math.round(W * 0.80);
+var BIG_H = BIG_W * (vb[3] / vb[2]);
+var BIG_X = (W - BIG_W) / 2;
+var BIG_Y = (H - BIG_H) / 2;
+var BIG_S = BIG_W / vb[2];
+
+var M = 74;                                 // the masthead's mark height
+var LK = {{                                  // the lockup, in units of M
+  gap: 8 / M, name: 30 / M, nameLH: 1.2, en: 14 / M, enLH: 1.3,
+  small: 12 / M, smallLH: 1.3, line: 4 / M
+}};
+// total lockup height in M: mark + gap + name + line + en + line + small
+var LOCK_TOTAL = 1 + LK.gap + LK.name * LK.nameLH + LK.line +
+                 LK.en * LK.enLH + LK.line + LK.small * LK.smallLH;
+var LOCK_MH = Math.round(H * 0.86 / LOCK_TOTAL);   // mark height in the lockup
+var LOCK_W = LOCK_MH * (vb[2] / vb[3]);
+var LOCK_X = (W - LOCK_W) / 2;
+var LOCK_Y = (H - LOCK_MH * LOCK_TOTAL) / 2;
+var LOCK_S = LOCK_W / vb[2];
+
+// the mask and the cells are built at the BIG size — that is where the code is
+var SHIP_X = BIG_X, SHIP_Y = BIG_Y, SCALE = BIG_S;
+
+// where the ship is on a given frame: big while she is code, settling into
+// the lockup as she resolves
+function shipAt(settle) {{
+  var k = ease(settle);
+  return {{ x: BIG_X + (LOCK_X - BIG_X) * k,
+           y: BIG_Y + (LOCK_Y - BIG_Y) * k,
+           s: BIG_S + (LOCK_S - BIG_S) * k }};
 }}
 
-function drawShip(g, alpha) {{
+function shipPaths(g, at) {{
+  at = at || {{ x: BIG_X, y: BIG_Y, s: BIG_S }};
+  g.translate(at.x, at.y);
+  g.scale(at.s, at.s);
+}}
+
+function drawShip(g, alpha, at) {{
   g.save();
   g.globalAlpha = alpha;
-  shipPaths(g);
+  shipPaths(g, at);
   for (var i = 0; i < SHIP.length; i++) {{
     var p = SHIP[i], path = new Path2D(p.d);
     if (p.fill === "currentColor") {{ g.fillStyle = TINT_STRONG; g.fill(path); }}
@@ -191,10 +228,10 @@ function drawShip(g, alpha) {{
 // of each sail — so the shape is stated and the code sits inside it. It is
 // drawn only while the code is standing; the resolved mark is the mark itself,
 // with nothing added to it.
-function drawBorder(g, alpha) {{
+function drawBorder(g, alpha, at) {{
   g.save();
   g.globalAlpha = alpha;
-  shipPaths(g);
+  shipPaths(g, at);
   g.strokeStyle = TINT_STRONG;
   g.lineJoin = "round";
   for (var i = 0; i < SHIP.length; i++) {{
@@ -309,6 +346,7 @@ function renderFrame(f) {{
   ctx.textBaseline = "middle";
 
   var resolve = ease((t - T_RESOLVE) / (T_MARK - T_RESOLVE));
+  var at = shipAt(resolve);
 
   // The rain. It is the subject of the piece, not wallpaper, so it is set at a
   // size that can actually be read and at a weight that holds on white — but
@@ -323,10 +361,15 @@ function renderFrame(f) {{
       var r = Math.floor(head) - k;
       if (r < 0 || r >= RROWS) continue;
       var x = c * RAIN + RAIN / 2, y = r * RAIN + RAIN / 2;
-      // a cell the ship has claimed is drawn by the ship, not here
-      if (f >= lockStart && inShip(x, y)) continue;
       var a = (1 - k / TRAIL) * col[c].dim * (k === 0 ? 1.35 : 0.8);
-      ctx.globalAlpha = Math.max(0, Math.min(1, a) * (1 - 0.6 * resolve));
+      a *= (1 - 0.6 * resolve);
+      // A cell the code-ship has claimed is drawn by the ship, not here — but
+      // only while the code is standing. Once she settles into the lockup the
+      // rain returns to where she was, fading in as the code fades out; left
+      // as a hard skip, a ship-shaped hole stayed in the rain for the rest of
+      // the film, under the resolved mark, exactly where she used to be.
+      if (f >= lockStart && inShip(x, y)) a *= resolve;
+      ctx.globalAlpha = Math.max(0, Math.min(1, a));
       ctx.fillText(glyph(c, r, f), x, y);
     }}
   }}
@@ -358,32 +401,51 @@ function renderFrame(f) {{
     lg.drawImage(mask, 0, 0);
     lg.globalCompositeOperation = "source-over";
 
+    // The code layer moves WITH the ship as she settles. It was drawn at the
+    // big size; mapping it onto the frame's transform keeps code and mark on
+    // top of each other through the crossfade — otherwise the mark would
+    // slide out from under a fixed block of code and the hand-over would show.
+    var k = at.s / BIG_S;
+    ctx.save();
     ctx.globalAlpha = 1 - resolve;
+    ctx.translate(at.x, at.y);
+    ctx.scale(k, k);
+    ctx.translate(-BIG_X, -BIG_Y);
     ctx.drawImage(layer, 0, 0);
-    ctx.globalAlpha = 1;
+    ctx.restore();
 
     // and the outline over it, rising as the hull fills
     var edge = ease((f - lockStart) / (lockEnd - lockStart));
-    drawBorder(ctx, edge * (1 - resolve));
+    drawBorder(ctx, edge * (1 - resolve), at);
   }}
 
   // and then it is simply the mark
-  if (resolve > 0) drawShip(ctx, resolve);
+  if (resolve > 0) drawShip(ctx, resolve, at);
 
-  // the wordmark, in the locked lockup order
+  // The wordmark, in the lockup's own order and proportions. Every size here
+  // is a ratio of the mark's height, taken from the masthead stylesheet.
   var wa = ease((t - T_WORD) / 1.0);
   if (wa > 0) {{
-    var baseY = SHIP_Y + SHIP_H + H * 0.055;
+    var mh = LOCK_MH, y = LOCK_Y + mh + LK.gap * mh;
     ctx.globalAlpha = wa;
+    ctx.textBaseline = "top";
     ctx.fillStyle = TINT;
-    ctx.font = '800 ' + Math.round(H * 0.085) + 'px Cairo, sans-serif';
-    ctx.fillText("المهلب", W / 2, baseY);
+    ctx.font = '800 ' + Math.round(LK.name * mh) + 'px Cairo, sans-serif';
+    ctx.fillText("المهلب", W / 2, y);
+    y += LK.name * mh * LK.nameLH + LK.line * mh;
     ctx.fillStyle = TINT_STRONG;
-    ctx.font = '700 ' + Math.round(H * 0.036) + 'px Cairo, sans-serif';
-    ctx.fillText("Almuhallab Code", W / 2, baseY + H * 0.078);
-    ctx.font = '400 ' + Math.round(H * 0.028) + 'px Cairo, sans-serif';
-    ctx.fillText("شركة برمجة وأنظمة", W / 2, baseY + H * 0.126);
+    ctx.font = '700 ' + Math.round(LK.en * mh) + 'px Cairo, sans-serif';
+    // the masthead tracks the English line at .1em; Chromium's canvas honours
+    // letterSpacing, and on a browser that does not the line simply sets tight
+    if ("letterSpacing" in ctx) ctx.letterSpacing = (LK.en * mh * 0.1) + "px";
+    ctx.fillText("Almuhallab Code", W / 2, y);
+    if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+    y += LK.en * mh * LK.enLH + LK.line * mh;
+    ctx.globalAlpha = wa * 0.82;              // the descriptor sits back, as on the bar
+    ctx.font = '500 ' + Math.round(LK.small * mh) + 'px Cairo, sans-serif';
+    ctx.fillText("شركة برمجة وأنظمة", W / 2, y);
     ctx.globalAlpha = 1;
+    ctx.textBaseline = "middle";
   }}
 }}
 
