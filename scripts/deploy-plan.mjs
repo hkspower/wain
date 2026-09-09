@@ -58,6 +58,16 @@ const fail = (msg) => {
 
 const git = (args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();
 
+/**
+ * The same, for calls that are *expected* to fail — asking whether a blob is
+ * in a commit is a question, not an error. Without this git writes «fatal:
+ * path … exists on disk, but not in <sha>» to stderr for every commit that
+ * does not have it, and a run that ends in a clear message is preceded by a
+ * screenful of fatals that look like the actual problem.
+ */
+const gitQuiet = (args) =>
+  execFileSync("git", args, { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+
 const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
 const { version } = pkg;
 const archive = join(ROOT, `wain-${version}.zip`);
@@ -186,7 +196,7 @@ const repo = git(["remote", "get-url", "origin"]).replace(/^.*github\.com[/:]/, 
 const localBlob = git(["hash-object", archive]);
 const touched = git(["log", "--format=%H", "--", `wain-${version}.zip`]).split("\n").filter(Boolean);
 const publish = touched.find((sha) => {
-  try { return git(["rev-parse", `${sha}:wain-${version}.zip`]) === localBlob; } catch { return false; }
+  try { return gitQuiet(["rev-parse", `${sha}:wain-${version}.zip`]) === localBlob; } catch { return false; }
 });
 if (!publish) {
   fail(
