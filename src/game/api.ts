@@ -133,6 +133,12 @@ export function buildCars() {
     /** Overall length, metres. The shell is fitted to this number, so a
      *  port that ignores it ships a fleet of different cars. */
     lengthM: c.lengthM,
+    // The launch, as DATA rather than as a label. accel.ts solves the
+    // thrust until a forward integration of the game's own longitudinal
+    // model lands on this, so a port that reads it builds a car whose
+    // card and stopwatch agree — which is the whole reason the number
+    // exists.
+    zeroTo100s: c.zeroTo100s,
     color: hex(c.color),
     bodyStyle: c.style ?? "sedan",
     /** Which wheels the engine drives. Not a trim detail: front and rear

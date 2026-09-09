@@ -142,8 +142,8 @@ const hCars = [...header.matchAll(
   // reads as the header being empty rather than as the checker being
   // blind. Every field between the two is unchecked while it lasts,
   // which is the whole point of this file.
-  /\{ TEXT\("([^"]+)"\), TEXT\("([^"]+)"\), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, FColor\([^)]*\), EGRNBodyStyle::(\w+), (true|false), GRNSim::EDrivetrain::(\w+), (\d+), ([\d.]+)f, ([\d.]+)f, (\d+), TEXT\("([^"]*)"\), TEXT\("([^"]*)"\) \},/g
-)].map(([, id, name, price, power, top, grip, brake, style, kit, drive, engine, tank, lengthM, locked, lockedCar, factory]) => ({
+  /\{ TEXT\("([^"]+)"\), TEXT\("([^"]+)"\), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, FColor\([^)]*\), EGRNBodyStyle::(\w+), (true|false), GRNSim::EDrivetrain::(\w+), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, (\d+), TEXT\("([^"]*)"\), TEXT\("([^"]*)"\) \},/g
+)].map(([, id, name, price, power, top, grip, brake, style, kit, drive, engine, tank, lengthM, zeroTo100s, locked, lockedCar, factory]) => ({
   id, name, price: +price, power: +power, top: +top, grip: +grip, brake: +brake,
   style: style.toLowerCase(),
   attack: kit === "true",
@@ -151,6 +151,7 @@ const hCars = [...header.matchAll(
   engine: +engine,
   tank: +tank,
   lengthM: +lengthM,
+  zeroTo100s: +zeroTo100s,
   lockedRivals: +locked,
   lockedCar,
   factoryBuild: factory ? factory.split(",") : [],
@@ -181,6 +182,10 @@ if (hCars.length !== api.cars.length) {
     // The rule that makes the rarest car rare, and the build it is sold
     // with. A port that drops either sells a different game.
     if (h.lengthM !== a.lengthM) fail(`car ${h.id} lengthM: ${h.lengthM} vs ${a.lengthM}`);
+    // The launch, for the reason the Unity check gives.
+    if (h.zeroTo100s !== a.zeroTo100s) {
+      fail(`car ${h.id} zeroTo100s: ${h.zeroTo100s} vs ${a.zeroTo100s}`);
+    }
     if (h.lockedRivals !== a.lockedRivals) {
       fail(`car ${h.id} lockedRivals: ${h.lockedRivals} vs ${a.lockedRivals}`);
     }

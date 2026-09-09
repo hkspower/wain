@@ -212,6 +212,7 @@ const cars = carBlocks.map((b) => ({
   engine: +field(b, /Engine = (\d+)/),
   tank: +field(b, /TankLitres = ([\d.]+)f/),
   lengthM: +field(b, /LengthM = ([\d.]+)f/),
+  zeroTo100s: +field(b, /ZeroTo100s = ([\d.]+)f/),
   lockedRivals: +(b.match(/LockedRivals = (\d+)/)?.[1] ?? 0),
   lockedCar: b.match(/LockedCar = "([^"]*)"/)?.[1] ?? "",
   factoryBuild: [...(b.match(/FactoryBuild = new\[\] \{([^}]*)\}/)?.[1] ?? "")
@@ -249,6 +250,13 @@ if (cars.length !== api.cars.length) {
     // The rule that makes the rarest car rare, and the build it is sold
     // with. A port that drops either sells a different game.
     if (u.lengthM !== a.lengthM) fail(`car ${a.id} lengthM: ${u.lengthM} vs ${a.lengthM}`);
+    // The launch. A port that drops this builds a car whose card says
+    // one thing and whose stopwatch says another — which is the exact
+    // fault the web side had before accel.ts, and the reason the number
+    // exists at all.
+    if (u.zeroTo100s !== a.zeroTo100s) {
+      fail(`car ${a.id} zeroTo100s: ${u.zeroTo100s} vs ${a.zeroTo100s}`);
+    }
     if (u.lockedRivals !== a.lockedRivals) {
       fail(`car ${a.id} lockedRivals: ${u.lockedRivals} vs ${a.lockedRivals}`);
     }

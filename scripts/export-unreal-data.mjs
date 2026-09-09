@@ -78,6 +78,7 @@ const cars = carsBlock
       engine: f(/engine: "([^"]+)"/),
       tank: +f(/tankLitres: ([\d.]+)/),
       lengthM: +f(/lengthM: ([\d.]+)/),
+      zeroTo100s: +f(/zeroTo100s: ([\d.]+)/),
       // Anchored on the field, not on the whole brace. The pattern
       // used to be `locked: { rivals: (\d+) }` — the entire literal —
       // so the day a second key was added to it the match failed
@@ -411,6 +412,9 @@ struct FGRNCarDef
 	/** Overall length, metres. The shell is scaled until it measures
 	 *  this — see createCar in src/game/cars.ts. */
 	float LengthM;
+	/** Zero to a hundred, seconds, stock. DATA the sim is solved to hit —
+	 *  see accel.ts on the web side. */
+	float ZeroTo100s;
 	/** Legends that must be beaten before the showroom will sell it.
 	 *  0 for everything money can buy. */
 	int32 LockedRivals;
@@ -425,7 +429,7 @@ static const FGRNCarDef GRNCars[] = {
 ${cars
   .map(
     (c) =>
-      `\t{ TEXT("${c.id}"), TEXT("${c.name}"), ${c.price}, ${c.power.toFixed(2)}f, ${c.top.toFixed(1)}f, ${c.grip.toFixed(1)}f, ${c.brake.toFixed(1)}f, ${col(c.color)}, ${style(c.style, c.id)}, ${c.kit === "attack" ? "true" : "false"}, GRNSim::EDrivetrain::${c.drive.toUpperCase()}, ${engIndex(c.engine, c.id)}, ${c.tank.toFixed(1)}f, ${c.lengthM.toFixed(2)}f, ${c.lockedRivals}, TEXT("${c.lockedCar}"), TEXT("${c.factoryBuild.join(",")}") },`
+      `\t{ TEXT("${c.id}"), TEXT("${c.name}"), ${c.price}, ${c.power.toFixed(2)}f, ${c.top.toFixed(1)}f, ${c.grip.toFixed(1)}f, ${c.brake.toFixed(1)}f, ${col(c.color)}, ${style(c.style, c.id)}, ${c.kit === "attack" ? "true" : "false"}, GRNSim::EDrivetrain::${c.drive.toUpperCase()}, ${engIndex(c.engine, c.id)}, ${c.tank.toFixed(1)}f, ${c.lengthM.toFixed(2)}f, ${c.zeroTo100s.toFixed(2)}f, ${c.lockedRivals}, TEXT("${c.lockedCar}"), TEXT("${c.factoryBuild.join(",")}") },`
   )
   .join("\n")}
 };

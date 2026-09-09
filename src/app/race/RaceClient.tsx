@@ -53,7 +53,9 @@ import {
   forSale,
   rivalsBeaten,
   WAGERS,
+  computeEffects,
   type CarModel,
+  type TuneEffects,
 } from "@/game/mods";
 
 /**
@@ -793,6 +795,8 @@ function raceCut(): { w: number; h: number } | null {
         lockedBy(id: string): number;
         beaten(): number;
         car(id: string): CarModel;
+        ids(): string[];
+        tuneFor(id: string): TuneEffects;
       };
     };
     w.__grnShowroom = {
@@ -803,6 +807,28 @@ function raceCut(): { w: number; h: number } | null {
       // resemble it. A test that types the paint in is a test that
       // passes when the showroom's paint changes.
       car: getCar,
+      ids: () => CARS.map((c) => c.id),
+      /**
+       * What this car drives like AS THE SHOWROOM SELLS IT: its factory
+       * build fitted, nothing bought, no other car's parts left on it.
+       *
+       * A hook rather than something a test assembles, because a tune is
+       * the car times its engine times eleven parts, and a test that
+       * builds one by hand is testing its own arithmetic. It is also the
+       * only honest way to compare seventeen cars to each other — run
+       * them off one save and the fourth car is carrying the third's
+       * turbo.
+       */
+      tuneFor: (id: string) => {
+        const g: GarageState = {
+          kd: 0,
+          cars: [id],
+          car: id,
+          builds: {},
+        };
+        editBuild(g, id);
+        return computeEffects(g);
+      },
     };
     return () => {
       delete w.__grnShowroom;

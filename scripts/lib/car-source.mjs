@@ -48,6 +48,10 @@ export const EDITABLE = {
   price: { kind: "int", min: 0, max: 1_000_000 },
   power: { kind: "number", min: 0.1, max: 4 },
   topSpeedKmh: { kind: "int", min: 40, max: 500 },
+  // 0-100 in seconds. The floor is 1.8 because nothing on four road
+  // tyres has ever gone quicker and a smaller number would just be a
+  // car the solver cannot build; the ceiling is a bus.
+  zeroTo100s: { kind: "number", min: 1.8, max: 30 },
   grip: { kind: "number", min: 1, max: 40 },
   brake: { kind: "number", min: 1, max: 120 },
   tankLitres: { kind: "number", min: 1, max: 200 },

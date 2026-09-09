@@ -9,6 +9,7 @@
 // mods.ts — the drivetrain and area-guide tests both hit it — for a
 // reason that had nothing to do with what they were testing.
 import { getEngine } from "./engines";
+import { launchThrustFor } from "./accel";
 import { ATTITUDE } from "./attitude";
 import type { EngineId, EngineSpec } from "./engines";
 import { loadCrew, type Crew } from "./teams";
@@ -633,6 +634,27 @@ export interface CarModel {
    *  the engine tunes its thrust curve so the number is the real
    *  terminal speed rather than an advertisement. */
   topSpeedKmh: number;
+  /**
+   * Zero to a hundred, in seconds. Stock, as the showroom sells it.
+   *
+   * The same kind of number as topSpeedKmh and lengthM, and added for
+   * the same reason: it is DATA the simulation is solved to hit, not a
+   * label. accel.ts bisects the launch thrust until a forward
+   * integration of the game's own longitudinal model lands on this
+   * figure, so the card and the stopwatch agree.
+   *
+   * Before this, acceleration was `power` alone — a multiplier between
+   * 0.98 and 1.85 that appeared on no card and, measured, did not bind
+   * on anything: thrust came out above the traction cap on every car in
+   * the game, so all seventeen launched at their own GRIP figure and
+   * the power number was decoration. The Black Demon pulled 2.44 g and
+   * a 195 km/h pickup out-dragged four sports cars.
+   *
+   * `power` is still here and still means something — it is what parts
+   * multiply, so a built car beats its card, which is what a garage is
+   * for.
+   */
+  zeroTo100s: number;
   grip: number; // lateral grip m/s²
   brake: number; // braking m/s²
   color: number; // factory paint
@@ -744,6 +766,8 @@ export const CARS: CarModel[] = [
     // the prize, and only then does the road show you what was behind
     // it.
     id: "black-demon",
+    // Rear-drive and blown: it makes more power than it can put down, which is what a hypercar without four driven wheels does.
+    zeroTo100s: 2.6,
     // A mouth and two ducts, all honeycomb, no brightwork anywhere on it.
     face: { w: 1.22, h: 0.24, pattern: "honeycomb", pitch: 0.038, surround: "carbon", ducts: true, lower: true, badge: false },
     drive: "rwd",
@@ -809,6 +833,8 @@ export const CARS: CarModel[] = [
     // at any price until every legend on the roster has been beaten,
     // which is the only thing in this game that money cannot buy.
     id: "zeta-300-gtr",
+    // All four wheels driven and a factory launch: the quickest thing here off the line, which is the half of the argument the Demon loses.
+    zeroTo100s: 2.4,
     // The Z32's grille-less nose kept, with the homologation car's ducts cut into it.
     face: { w: 1.3, h: 0.1, dy: -0.03, pattern: "mesh", pitch: 0.028, surround: "carbon", ducts: true, lower: true },
     drive: "awd",
@@ -851,6 +877,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "efreet-rx-kai",
+    // A rotary makes its power high up, so it is quicker down the road than away from the line.
+    zeroTo100s: 3.0,
     // A rotary breathes through its bumper: small mouth, big lower, no frame.
     face: { w: 0.94, h: 0.13, pattern: "mesh", pitch: 0.026, surround: "none", ducts: true, lower: true },
     drive: "rwd",
@@ -873,6 +901,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "sahara-v12",
+    // A grand tourer: fast, and not trying to break your neck about it.
+    zeroTo100s: 3.2,
     // Fine slats behind chrome — the grand tourer of the three wedges.
     face: { w: 1.16, h: 0.13, pattern: "slat", pitch: 0.026, surround: "chrome", lower: true, badge: true },
     drive: "rwd",
@@ -895,6 +925,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "falcon-720",
+    zeroTo100s: 3.4,
     // Two heavy blades, painted surround: the blunt one.
     face: { w: 1.24, h: 0.16, pattern: "bar", pitch: 0.075, surround: "body", lower: true },
     drive: "rwd",
@@ -917,6 +948,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "storm-s8",
+    // A supercar-class saloon carries saloon weight.
+    zeroTo100s: 3.8,
     style: "super",
     // The big saloon's face: the widest mouth in the game, framed.
     face: { w: 1.3, h: 0.26, pattern: "mesh", pitch: 0.042, surround: "chrome", ducts: true, badge: true },
@@ -939,6 +972,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "anniversary-30",
+    // A pony car: all of it at the back, none of it in the tyres.
+    zeroTo100s: 4.8,
     // Three chrome blades across a full-width mouth. Nothing subtle about it.
     face: { w: 1.34, h: 0.26, pattern: "bar", pitch: 0.11, surround: "chrome", badge: true },
     drive: "rwd",
@@ -966,6 +1001,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "kaiju-r",
+    zeroTo100s: 4.4,
     // Slats and ducts, body-coloured frame — the box-arched coupe.
     face: { w: 1.18, h: 0.2, pattern: "slat", pitch: 0.034, surround: "body", ducts: true },
     drive: "awd",
@@ -988,6 +1024,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "efreet-rx",
+    zeroTo100s: 5.2,
     // The same small mouth as the Kai, in chrome and without the ducts.
     face: { w: 0.9, h: 0.1, pattern: "slat", pitch: 0.024, surround: "chrome", lower: true },
     drive: "rwd",
@@ -1010,6 +1047,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "zeta-300",
+    zeroTo100s: 5.8,
     // The stock Z32 slot: nothing above the bumper at all.
     face: { w: 1.22, h: 0.07, dy: -0.02, pattern: "slat", pitch: 0.028, surround: "none", lower: true },
     drive: "awd",
@@ -1032,6 +1070,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "gulf-coupe-rs",
+    // Front-driven, so it spends the first metre pushing its own nose up.
+    zeroTo100s: 5.6,
     // Honeycomb in a painted frame, under the hot hatch's nose stripe.
     face: { w: 1.0, h: 0.15, pattern: "honeycomb", pitch: 0.036, surround: "body", badge: true },
     drive: "fwd",
@@ -1055,6 +1095,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "salmiya-turbo",
+    zeroTo100s: 6.6,
     // The tuned saloon: the shopping car's face with a mouth cut under it.
     face: { w: 1.1, h: 0.17, pattern: "slat", pitch: 0.036, surround: "chrome", badge: true, lower: true },
     drive: "fwd",
@@ -1076,6 +1117,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "hawally-2t",
+    zeroTo100s: 8.2,
     // Two bars and a badge. A car from a rental fleet.
     face: { w: 1.06, h: 0.16, pattern: "bar", pitch: 0.07, surround: "chrome", badge: true },
     drive: "fwd",
@@ -1097,6 +1139,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "deera-sedan",
+    zeroTo100s: 9.5,
     // The finest slats in the game, which is what a cheap radiator grille is.
     face: { w: 1.04, h: 0.14, pattern: "slat", pitch: 0.022, surround: "chrome", badge: true },
     drive: "fwd",
@@ -1118,6 +1161,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "jahra-pickup",
+    // A V8 in a truck is genuinely quick in a straight line and nowhere else, which is the whole joke of this vehicle.
+    zeroTo100s: 8.0,
     style: "pickup",
     // A truck: the tallest, widest aperture here, two fat chrome blades.
     face: { w: 1.4, h: 0.3, pattern: "bar", pitch: 0.13, surround: "chrome", badge: true },
@@ -1152,6 +1197,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "sharq-hatch",
+    // The slowest thing here after the one you are given.
+    zeroTo100s: 10.8,
     // The smallest face on the road, and painted rather than chromed.
     face: { w: 0.88, h: 0.11, pattern: "slat", pitch: 0.028, surround: "body", badge: true },
     drive: "fwd",
@@ -1178,6 +1225,8 @@ export const CARS: CarModel[] = [
   },
   {
     id: "wain-special",
+    // The car you start with. It is not supposed to win anything.
+    zeroTo100s: 11.5,
     // One blade, no frame. The car you are given.
     face: { w: 1.0, h: 0.15, pattern: "bar", pitch: 0.08, surround: "none", badge: true },
     drive: "rwd",
@@ -1604,6 +1653,29 @@ export interface TuneEffects {
   /** The car's name in Arabic, for the flank wordmark decal. */
   carNameAr: string;
   accelMult: number; // multiplies base acceleration
+  /**
+   * The launch thrust, in m/s², solved so the STOCK car reaches 100
+   * km/h in the time on its card. See accel.ts.
+   *
+   * This replaced a bare 19 in engine.ts — a constant that made every
+   * car's engine stronger than its own tyres, so the traction cap was
+   * always the binding one and the whole fleet launched at its grip
+   * figure instead of its power.
+   */
+  launchThrust: number;
+  /** The card's own 0-100, carried through so a readout can show what
+   *  the car is supposed to do beside what it just did. */
+  zeroTo100s: number;
+  /**
+   * accelMult as the car left the showroom.
+   *
+   * The ratio of the live accelMult to this is what PARTS have added,
+   * and that ratio is what multiplies the solved thrust — so a stock
+   * car makes its card exactly and a built one beats it, which is the
+   * whole point of a garage. Without it the parts would have to be
+   * re-solved into the thrust and a turbo would buy nothing.
+   */
+  stockAccelMult: number;
   /** Governed top speed in km/h after mods — the engine will not let
    *  the car past it, and tunes its thrust curve to reach it. */
   topSpeedKmh: number;
@@ -1705,7 +1777,23 @@ export interface TuneEffects {
 /** The numbers a car actually races with: its own base, plus the parts
  *  bought for IT. Pass a carId to price up a machine you are not
  *  currently sitting in. */
-export function computeEffects(g: GarageState, carId: string = g.car): TuneEffects {
+export function computeEffects(
+  g: GarageState,
+  carId: string = g.car,
+  /**
+   * Internal. Set on the one recursive pass that works out what this
+   * car's accelMult is AS THE SHOWROOM SELLS IT, so the launch solve
+   * has something to be a multiple of.
+   *
+   * A recursion rather than a second copy of the arithmetic: accelMult
+   * accumulates from ten places — the engine, the ECU, the exhaust, the
+   * intake, weight reduction, the aspiration, the gearbox, the cage and
+   * carbon — and a helper that re-derived "what would this be stock"
+   * would be that list written twice, which is how the two copies of
+   * the wheel rule came to disagree.
+   */
+  stockPass = false
+): TuneEffects {
   const build = buildOf(g, carId);
   const has = (id: string) => build.owned.includes(id);
   const eq = build.equipped;
@@ -1843,6 +1931,67 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
   brakeForce *= lightness;
   gripAccel *= lightness;
 
+  // ------------------------------------------------------ the launch
+  //
+  // The thrust that makes this car reach 100 km/h in the time on its
+  // card. Solved here rather than in the engine because it depends on
+  // nothing that changes between frames — grip, traction and the
+  // governor are all settled by the time a tune exists — and solving it
+  // per frame would be forty bisection steps sixty times a second for
+  // an answer that cannot have moved.
+  //
+  // SOLVED STOCK, ON PURPOSE. The card is what the showroom sells, so
+  // the target is met by the car as delivered; what the garage adds is
+  // then a MULTIPLE of that, which is why stockAccelMult is carried
+  // alongside. A player who fits a turbo should beat the card, and a
+  // solve that folded the turbo in would leave them exactly on it.
+  // What this car's accelMult is with its factory build and nothing
+  // bought — which for most cars is just the engine, and for the two
+  // that are sold already built is the engine plus the twelve parts
+  // they come with.
+  const stockRef = stockPass
+    ? null
+    : computeEffects(
+        { kd: 0, cars: [carId], car: carId, builds: { [carId]: freshBuild(carId) } },
+        carId,
+        true
+      );
+  const stockAccelMult = stockRef ? stockRef.accelMult : accelMult;
+  // The boost the car is DELIVERED with, for the same reason: a car sold
+  // with a twin turbo makes its card with the turbo, and one that has a
+  // turbo bought for it beats the card. Reading the live values here
+  // would fold the purchase into the target and the upgrade would buy
+  // the owner nothing at all.
+  const stockBoostMult = stockRef ? stockRef.boostMult : boostMult;
+  const stockAspiration = stockRef ? stockRef.aspiration : aspiration;
+  // Two passes, because the two numbers depend on each other: the
+  // thrust curve's asymptote is solved from the governor AND the
+  // thrust, and the thrust is solved against the asymptote. The
+  // coupling is weak — at 100 km/h the car is a quarter of the way to
+  // the asymptote at most — so one round trip settles it to well under
+  // a hundredth of a second, and the second pass is there because
+  // "weak" is not "absent" and the cost is nothing.
+  const limitMs = car.topSpeedKmh / 3.6;
+  const launchCar = {
+    ceiling: Math.max(115, limitMs * 1.25),
+    gripAccel,
+    downforce,
+    tractionMult,
+    // The block as DELIVERED, not as swapped: the card describes the
+    // car the showroom sells, so a player who fits a different engine
+    // should beat it or miss it, not redefine it.
+    engine: getEngine(car.engine),
+    boostMult: stockBoostMult,
+    twinTurbo: stockAspiration === "twin",
+  };
+  let launchThrust = stockPass ? 0 : launchThrustFor(car.zeroTo100s, launchCar);
+  if (!stockPass) {
+    const dragAtLimit = (0.0012 * limitMs * limitMs + 1.2) * 0.35;
+    const headroom = 1 - dragAtLimit / launchThrust;
+    launchCar.ceiling = Math.max(115, headroom > 0.08 ? limitMs / headroom : limitMs * 12);
+    launchThrust = launchThrustFor(car.zeroTo100s, launchCar);
+  }
+
   return {
     carId: car.id,
     carName: car.name,
@@ -1850,6 +1999,9 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     drive: car.drive ?? "rwd",
     bodyStyle: car.style ?? "sedan",
     accelMult,
+    stockAccelMult,
+    zeroTo100s: car.zeroTo100s,
+    launchThrust,
     topSpeedKmh,
     brakeForce,
     brakeThermalMult,

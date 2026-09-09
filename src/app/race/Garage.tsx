@@ -19,6 +19,7 @@ import {
   rivalsBeaten,
   tradeInValue,
 } from "@/game/mods";
+import { zeroTo100For } from "@/game/accel";
 import { getEngine, layoutTag } from "@/game/engines";
 import {
   DEFAULT_LOGO,
@@ -86,6 +87,11 @@ const STYLE_CATS: Array<{ cat: string; label: string }> = [
  *  comparison. */
 const SPECS = [
   { key: "power", label: "POWER", min: 0.8, max: 3.2 },
+  // Inverted on the bar, because less is better and a meter that grows
+  // as a car gets slower is a meter read backwards. The band is the
+  // roster's own: the free car is eleven and a half seconds, the
+  // homologation special is two and a half.
+  { key: "launch", label: "0-100", min: 12, max: 2, invert: true },
   { key: "top", label: "TOP SPEED", min: 170, max: 460 },
   { key: "brakes", label: "BRAKES", min: 20, max: 50 },
   { key: "grip", label: "GRIP", min: 8, max: 24 },
@@ -210,14 +216,19 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
   // Effective power counts the blower at full boost — what you feel
   const power = fx.accelMult * (1 + fx.boostMult);
   const top = topSpeedKmh(power, fx.topSpeedKmh);
+  // What THIS build does to a hundred, not what the card says. The card
+  // is the stock car; the point of a garage is that the number moves.
+  const launch = zeroTo100For(fx);
   const specValues = {
     power,
+    launch,
     top,
     brakes: fx.brakeForce,
     grip: fx.gripAccel,
   };
   const specDisplay = {
     power: `${power.toFixed(2)}×`,
+    launch: `${launch.toFixed(1)}s`,
     top: `${Math.round(top)} km/h`,
     brakes: String(Math.round(fx.brakeForce)),
     grip: fx.gripAccel.toFixed(1),

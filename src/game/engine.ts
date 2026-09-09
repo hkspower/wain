@@ -4481,8 +4481,26 @@ export class GameEngine {
     const limiterCut = inTopGear
       ? 1
       : 1 - (1 - HANDLING.limiterTorqueCut) * this.revLimited;
+    // THRUST, in m/s², from the number on the car's card.
+    //
+    // This was `19 * accelMult` — a constant that made every engine in
+    // the game stronger than its own tyres, so the traction cap below
+    // was always the binding one and all seventeen cars launched at
+    // their GRIP figure rather than their power. Measured, the Black
+    // Demon pulled 2.44 g to 100 km/h and a 195 km/h pickup out-dragged
+    // four sports cars. accel.ts solves this per car from its stated
+    // 0-100 instead; see tools/shots/accel.mjs for the fleet before and
+    // after.
+    //
+    // What the garage adds is a MULTIPLE of the solved figure, so the
+    // stock car makes its card and a built one beats it.
+    const partsGain =
+      this.tune.stockAccelMult > 0
+        ? this.tune.accelMult / this.tune.stockAccelMult
+        : 1;
     const power =
-      this.tune.accelMult *
+      this.tune.launchThrust *
+      partsGain *
       torque *
       shiftCut *
       limiterCut *
@@ -4495,7 +4513,7 @@ export class GameEngine {
     // the governor is a ceiling, never a promise of thrust.
     const limitMs = this.tune.topSpeedKmh / KMH;
     const dragAtLimit = (0.0012 * limitMs * limitMs + 1.2) * 0.35;
-    const headroom = 1 - dragAtLimit / (19 * power);
+    const headroom = 1 - dragAtLimit / power;
     // The curve keeps its old shape (115 m/s asymptote) unless the car's
     // governor needs more room than that. Tying it *down* to a slow car's
     // limiter would flatten the mid-range until the tires never lit up.
@@ -4510,7 +4528,7 @@ export class GameEngine {
     // which is why the big-power cars leave the line in smoke instead of
     // teleporting.
     const engineAccel =
-      this.throttle * Math.max(0, 19 * power * (1 - p.speed / ceiling));
+      this.throttle * Math.max(0, power * (1 - p.speed / ceiling));
     // Grip, as it is at this speed. The tyres are a constant; the aero
     // is not — a wing works on air and there is four times as much of it
     // at twice the speed. Everything grip-limited below reads this one

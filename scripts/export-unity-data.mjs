@@ -166,6 +166,7 @@ const cars = carsBlock
       engine: f(/engine: "([^"]+)"/),
       tank: +f(/tankLitres: ([\d.]+)/),
       lengthM: +f(/lengthM: ([\d.]+)/),
+      zeroTo100s: +f(/zeroTo100s: ([\d.]+)/),
       // Anchored on the field, not on the whole brace. The pattern
       // used to be `locked: { rivals: (\d+) }` — the entire literal —
       // so the day a second key was added to it the match failed
@@ -429,6 +430,11 @@ ${engines
         /// <summary>Overall length, metres. The shell is scaled until it
         /// measures this — see createCar in src/game/cars.ts.</summary>
         public float LengthM;
+        /// <summary>Zero to a hundred, seconds, stock. DATA the sim is
+        /// solved to hit — see accel.ts on the web side, which bisects
+        /// the launch thrust until a forward integration lands on
+        /// it.</summary>
+        public float ZeroTo100s;
         /// <summary>Legends that must be beaten before the showroom will
         /// sell it. 0 for everything money can buy.</summary>
         public int LockedRivals;
@@ -448,6 +454,7 @@ ${cars
             Power = ${f(c.power)}, TopSpeedKmh = ${f(c.top)}, Grip = ${f(c.grip)}, Brake = ${f(c.brake)},
             Paint = ${col(c.color)}, Style = ${style(c.style, c.id)}, AttackKit = ${c.kit === "attack" ? "true" : "false"}, Drive = Drivetrain.${c.drive.toUpperCase()},
             Engine = ${engIndex(c.engine, c.id)}, TankLitres = ${f(c.tank)}, LengthM = ${f(c.lengthM)},
+            ZeroTo100s = ${f(c.zeroTo100s)},
             LockedRivals = ${c.lockedRivals}, LockedCar = "${cs(c.lockedCar)}",
             FactoryBuild = new[] { ${c.factoryBuild.map((x) => `"${x}"`).join(", ")} },
         },`
