@@ -50,9 +50,11 @@
  * numbers are printed so a person can judge them; the rig has no opinion.
  */
 import { chromium } from 'playwright'
+import { assertTheme, refuseSecondTheme } from './_theme-seed.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:4300'
 const THEME = process.env.THEME === 'light' ? 'light' : 'dark'
+refuseSecondTheme(THEME)
 const PAGES = ['/', '/shop', '/cart', '/contact', '/about']
 
 // WCAG 1.4.11. Not a number chosen here.
@@ -79,6 +81,7 @@ const measure = async (path) => {
   await page.evaluate((t) => { try { localStorage.setItem('sporta_theme', t) } catch {} }, THEME)
   await page.reload()
   await page.waitForTimeout(1700)
+  await assertTheme(page, THEME)
   return page.evaluate((NEEDED) => {
     // A 1x1 CANVAS, because Tailwind v4 hands back oklab()/lab() from
     // getComputedStyle and no regex parses those. Painting the value and

@@ -429,6 +429,51 @@ where they were.
 If that message never appears, the page did not come from the server at all. A
 private tab bypasses the worker and settles it in ten seconds.
 
+## One mode. The light theme still exists in the files and is unreachable
+
+Asked for on 2026-09-09: one mode, not a dark/light pair. Dark, because that is
+what the shop already defaulted to, what `theme-color` (`#0d0e10`) says, and
+what the hero art and the header were tuned against.
+
+Three things hold it, and **the bundle is why none of them alone would**. Its
+`ThemeProvider` initialises from `localStorage.sporta_theme || 'dark'` and
+writes `data-theme` in an effect AFTER hydration — so pinning the attribute in
+`index.html` would be undone one frame later for anyone who had ever chosen
+light.
+
+- `index.html` **writes** `sporta_theme = 'dark'` before any module loads, then
+  sets the attribute. The write is the part that matters.
+- `sporta-dark.css` hides the header's toggle. It has no id and no class of its
+  own — `tap flex items-center …` is shared with the cart and wishlist buttons
+  — so it is matched by `aria-label`, and all four strings are listed
+  (`Light mode`, `Dark mode`, `الوضع الفاتح`, `الوضع الليلي`) because the button
+  shows the mode it would switch TO, in whichever language is loaded.
+- The app: `src/hooks/use-color-scheme.ts` and its `.web.ts` twin return
+  `'dark'`, and `app.json` carries `userInterfaceStyle: "dark"` for the native
+  chrome the hook cannot reach. `app-tabs.tsx` was the one screen importing
+  `useColorScheme` from `react-native` directly, so it would have gone on
+  drawing a light tab bar under a dark app.
+
+**The light rules are deliberately left in place** — the whole
+`:root:not([data-theme='dark'])` half of `sporta-dark.css`, and `Colors.light`.
+They cost nothing while nothing matches, and they are what a revert needs.
+Deleting them turns a two-line change back into an afternoon.
+
+`npm run test:one-mode` holds it, in a browser and after hydration, because a
+static read of `index.html` proves only what the FIRST frame looks like. It
+checks the returning visitor who had chosen light, not just a fresh browser —
+that visitor is the one person who would otherwise still see the old shop, and
+nobody would notice. Mutation-tested both ways: un-hide the toggle, and let a
+saved choice win again.
+
+**Four rigs took `THEME=light` and would now have lied.** `border`, `dark`,
+`glare` and `site-contrast` seeded the key, reloaded, and would have measured
+the DARK shop while printing "the light theme" over every line — every number
+right, every heading wrong. `scripts/_theme-seed.mjs` makes them refuse the
+second theme outright, and `assertTheme()` asks the live page what settled
+rather than trusting what was seeded, so they also complain in the other
+direction if the pin is ever removed.
+
 ## Do not redesign without approval
 
 The visual design is the owner's, not something to improve on the way past. Do

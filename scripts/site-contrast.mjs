@@ -20,9 +20,11 @@
  * it.
  */
 import { chromium } from 'playwright'
+import { assertTheme, refuseSecondTheme } from './_theme-seed.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:4300'
 const THEME = process.env.THEME ?? 'dark'
+refuseSecondTheme(THEME)
 const PAGES = ['/', '/shop', '/cart', '/checkout', '/about', '/contact',
                '/product/cloudsoft-jacket-army-green', '/returns', '/privacy', '/terms']
 
@@ -36,6 +38,8 @@ const check = (ok, what) => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FA
 
 await p.goto(BASE + '/', { waitUntil: 'domcontentloaded' })
 await p.evaluate((t) => localStorage.setItem('sporta_theme', t), THEME)
+await p.reload({ waitUntil: 'networkidle' })
+await assertTheme(p, THEME)
 
 for (const path of PAGES) {
   await p.goto(BASE + path, { waitUntil: 'networkidle' })

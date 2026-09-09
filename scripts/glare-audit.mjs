@@ -29,10 +29,12 @@
  * Two thresholds, and the reasoning for each is in the code below.
  */
 import { chromium } from 'playwright'
+import { assertTheme, refuseSecondTheme } from './_theme-seed.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:4300'
 const APP = process.env.APP ?? 'http://127.0.0.1:4173'
 const THEME = process.env.THEME ?? 'dark'
+refuseSecondTheme(THEME)
 
 const PAGES = [
   ['site', BASE, '/'], ['site', BASE, '/shop'], ['site', BASE, '/cart'],
@@ -209,6 +211,7 @@ for (const [half, base, path] of PAGES) {
     await p.goto(base + '/', { waitUntil: 'domcontentloaded' })
     await p.evaluate((t) => localStorage.setItem('sporta_theme', t), THEME)
     await p.goto(base + path, { waitUntil: 'networkidle' })
+    if (half === 'site') await assertTheme(p, THEME)
   } catch (e) {
     check(false, `${where} loads`, String(e).slice(0, 80))
     continue
