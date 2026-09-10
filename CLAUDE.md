@@ -203,6 +203,20 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   one upload path on the blocked host. The write path is the cron job: the
   server fetching from a commit-pinned raw URL and running what it fetched.
   Delete the fetched `.php` and the job afterwards.
+- **The crontab is shared, and a job you did not create is probably not a
+  problem.** This account carries seven sites, and other sessions use the same
+  fetch-pin-run write path. Two turned up on 10 September — `remove-strays.php`
+  and `live-revalidate-check.php`, both pinned to commits on this repository,
+  both per-minute, both belonging to work on **sporta**. Each looked alarming
+  (a per-minute job downloading and executing PHP) and each was a run-once
+  diagnostic that its own session deleted minutes later, the same pattern this
+  file recommends.
+
+  So: read it before reacting. `get_commit` on the pinned sha names the author
+  and the session, and the file itself says what it does. **Do not delete another
+  session's job** — one of those two was mid-measurement — and do not count it as
+  a leftover. The account's own standing jobs are the eight sporta ones; anything
+  else is someone working, and it will go.
 - FTP secrets (`FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`) would make
   `deploy.yml` work; 186 runs have failed for want of them. They get added in
   GitHub's settings UI — **never pasted into a chat or a commit**.
