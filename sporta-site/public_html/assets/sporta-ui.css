@@ -255,9 +255,48 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
    and it has to keep doing so: it is what stops the hero resizing under
    whoever is reading it. Overriding the variable rather than the height means
    the pre-paint shell and the mounted component still read the same number. */
+/* AND THEN THE CAP CROPPED THE BANNER THE OTHER WAY, which nothing above
+   anticipated. Every line of the reasoning up to here is about a box TALLER
+   than the artwork's 2.52:1 — it crops the sides, the crop is pinned at 15%,
+   and the typography in the left half survives. The svh cap quietly inverts
+   that. `min(100vw/1.90, 60svh)` stops being a ratio the moment the cap binds,
+   and on a wide window the box comes out WIDER than 2.52 — so `cover` crops
+   the HEIGHT instead, and object-position is `15% center`, so it takes equal
+   bites out of the top and the bottom. Measured 2026-09-10:
+
+     1280x900    box 2.37:1   100% of the banner's height        (cap not binding)
+     1920x1080   box 2.96:1    85%   — 7.5% off the top and the bottom
+     1600x900    box 2.96:1    85%   — every 16:9 screen, which is most of them
+     1440x700    box 3.43:1    74%   — the strapline clipped at the bottom edge
+
+   16:9 is the commonest desktop shape there is, so this was the normal case,
+   not an edge one. Rendered and looked at rather than reasoned about: at
+   1440x700 "STRENGTH · MUSCLE · POWER" runs off the bottom of the frame.
+
+   THE FLOOR, chosen by the owner on 2026-09-10 out of three measured options
+   (bars at the sides, a taller hero, or leaving the crop): the banner is never
+   cropped vertically and stays edge to edge, and the hero is allowed past the
+   cap to pay for it.
+
+     height = max(100vw / 2.52, min(100vw / 1.90, 60svh))
+
+   The cap SURVIVES EVERYWHERE IT IS NOT THE CAUSE. It only loses on a window
+   wide enough that honouring it would cut the artwork:
+
+     1280x900    540 -> 540   60% -> 60%   unchanged, cap still binding
+     1920x1080   648 -> 762   60% -> 71%
+     1440x700    420 -> 571   60% -> 82%
+
+   That is taller than the 70svh the owner rejected in the round above, and it
+   is the trade they picked with those numbers in front of them. The 1.90 ratio
+   and the 60svh cap are both untouched; this only adds a floor under them.
+
+   2.52 is the artwork's own ratio, so the floor is the shape of the picture
+   rather than a number to taste. If a wider banner is ever supplied, this
+   floor is the line to move, and nothing else here. */
 :root {
   --hero-h: calc(100vw / 2.10 + 128px) !important;
-  --hero-h-md: min(calc(100vw / 1.90), 60svh) !important;
+  --hero-h-md: max(calc(100vw / 2.52), min(calc(100vw / 1.90), 60svh)) !important;
 }
 
 /* AND THE COMPONENT ITSELF, which is what actually sizes the mounted hero.
@@ -291,6 +330,15 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
      * 108px at 1920x1080, which is the page jumping at mount, which is the one
      * failure the boot script exists to prevent. Both halves, or neither. */
     max-height: 60svh !important;
+    /* AND THE FLOOR, the other half of the pair above. min-height beats
+     * max-height when the two disagree, which is exactly the arithmetic
+     * wanted: the cap applies until honouring it would make the box wider
+     * than the artwork, and from there the picture's own 2.52:1 decides.
+     * Together with aspect-ratio and max-height this resolves to
+     * max(100vw/2.52, min(100vw/1.90, 60svh)) — the same number the variable
+     * carries, because the shell and the mounted hero disagreeing is the one
+     * failure the boot script exists to prevent. */
+    min-height: calc(100vw / 2.52) !important;
   }
 }
 

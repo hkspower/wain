@@ -274,8 +274,15 @@
           //
           // 128px is the strip, not a guess: py-6 top and bottom (48) + a 48px
           // button + pb-8 (32). Measured identical at 390 and 430.
+          // AND THE SAME AGREEMENT ON THE PHONE. This said 2.52 + 128px and the
+          // stylesheet says 2.10 + 104px — 283px against 290px at 390 wide, so
+          // the shell was 7px short of the hero it stands in for. Both numbers
+          // moved in sporta-ui.css (the ratio when the owner called the phone
+          // hero too tall, the strip when the band under it was tightened from
+          // 128 to what the button and the controls actually need) and neither
+          // moved here. Same formula, same two files, written out twice.
           el.style.setProperty('--hero-h',
-            kind === 'slides' ? h[0] : 'calc(100vw / 2.52 + 128px)')
+            kind === 'slides' ? h[0] : 'calc(100vw / 2.10 + 104px)')
           // THE DESKTOP HEIGHT DEPENDS ON WHICH HERO IS COMING, and getting it
           // wrong is a layout shift on the largest element of the site.
           //
@@ -286,11 +293,33 @@
           // setting. Which one it will be is cached by HeroSlider on the last
           // visit, because /api cannot answer before this paint.
           //
-          // The clamp matches the component's md:max-h-[80svh] exactly. If the
-          // two ever disagree the shell stops matching the hero, which is the
-          // one thing this script exists to guarantee.
+          // The clamp used to match the component's md:max-h-[80svh] exactly.
+          // If the two ever disagree the shell stops matching the hero, which
+          // is the one thing this script exists to guarantee — AND THEY HAD
+          // DISAGREED, by up to 152px, for as long as sporta-ui.css has been
+          // published. That file overrides --hero-h-md with !important, which
+          // beats a normal inline property, so this line stopped deciding
+          // anything the moment the stylesheet loaded; what it still decides is
+          // the FIRST frame, before the stylesheet applies. Measured 2026-09-10,
+          // this value against the stylesheet's:
+          //
+          //   768x1024   305 vs 404   1280x900  508 vs 540
+          //   1920x1080  762 vs 648   2560x1440 1016 vs 864
+          //
+          // So the two numbers below are now one number, written the same way
+          // in both files. It is the stylesheet's, because that is the one the
+          // mounted hero actually gets:
+          //
+          //   max(100vw/2.52, min(100vw/1.90, 60svh))
+          //
+          // 2.52 is the artwork's own ratio and is the floor that stops a wide
+          // window cropping the banner's top and bottom; 1.90 and the 60svh cap
+          // are the shape and the share of the screen the owner chose. Change
+          // one file and you must change the other, or the shell and the hero
+          // disagree again and the page jumps at mount.
           el.style.setProperty('--hero-h-md',
-            kind === 'slides' ? h[1] : 'min(calc(100vw / 2.52), 80svh)')
+            kind === 'slides' ? h[1]
+              : 'max(calc(100vw / 2.52), min(calc(100vw / 1.90), 60svh))')
 
           // THE HERO BANNER, requested here rather than in the markup above.
           //

@@ -1232,6 +1232,85 @@ t=461ms — the product grid arriving after its fetch — with the cards themsel
 not moving. At 390px it is 0.0009. Fixing it means reserving the grid's height
 before the products land, which is inside the bundle that has no source here.
 
+## A cap is not a ratio, and on a wide screen it cropped the banner the other way
+
+The hero's height had moved eight times and nothing had ever measured it.
+Every line of the two hundred in `sporta-ui.css` reasons about a box TALLER
+than the artwork's 2.52:1 — it crops the SIDES, the crop is pinned at 15%, and
+the banner's typography lives in the left half and survives.
+
+**`min(100vw/1.90, 60svh)` stops being a ratio the moment the cap binds.** On a
+wide window the box came out WIDER than 2.52, so `cover` cropped the HEIGHT
+instead — and `object-position` is `15% center`, so it took equal bites off the
+top and the bottom. Measured 2026-09-10:
+
+```
+1280x900    box 2.37:1   100%   (cap not binding — the window it was tuned on)
+1920x1080   box 2.96:1    85%   7.5% off the top and the bottom
+1600x900    box 2.96:1    85%   every 16:9 screen, which is most of them
+1440x700    box 3.43:1    74%   "STRENGTH · MUSCLE · POWER" clipped off the bottom
+```
+
+**16:9 is the commonest desktop shape there is, so this was the NORMAL case,
+not an edge one** — and it had been invisible because the whole discussion in
+that file, including the part that chose 60svh, was about the other axis. A
+constraint added for one reason silently inverted a property three sections of
+comments depend on. When a cap is added over a ratio, ask what happens at the
+end of the range where the cap wins, not just at the one that prompted it.
+
+The owner chose the full-bleed banner out of three rendered options — bars at
+the sides, a taller hero, or leaving the crop. So a FLOOR went under the cap:
+
+```
+height = max(100vw / 2.52, min(100vw / 1.90, 60svh))
+```
+
+The cap survives everywhere it is not itself the cause; it only loses on a
+window wide enough that honouring it would cut the artwork. 1280x900 is still
+540px and still 60%. 1920x1080 goes 648 → 762 (60% → 71%) and 1440x700 goes
+420 → 571 (60% → 82%), which is taller than the 70svh rejected earlier and is
+the trade that was picked with those numbers in front of the owner.
+
+**2.52 is the artwork's own ratio, so the floor is the shape of the picture
+rather than a number to taste.** A wider banner is the one change that would
+dissolve the trade entirely, and it is the owner's to supply.
+
+### The shell and the hero had disagreed by up to 152px, in two files
+
+`index.html` paints a `.boot-hero` before React exists and `sporta-ui.css`
+sizes the real one. The file says at length that moving one without the other
+makes the page jump at mount — *the single failure the boot script exists to
+prevent* — and the two had carried different formulas for as long as
+`sporta-ui.css` has been published:
+
+```
+768x1024   305 vs 404     1280x900   508 vs 540
+1920x1080  762 vs 648     2560x1440  1016 vs 864     390x844  283 vs 290
+```
+
+The stylesheet overrides `--hero-h-md` with `!important`, which beats a normal
+inline property — so the boot script's value stopped deciding anything the
+moment the stylesheet loaded, and what it still decided was the FIRST frame.
+Both files now carry the same formula, on both axes.
+
+**CLS cannot see this and never reported it.** The shell is REMOVED wholesale
+and the app painted in its place, so nothing "moves" by the metric's
+definition — `index.html` says so in its own comment. It is only ever visible
+to a person. A rule that two files must agree needs a test, not a comment in
+each of them.
+
+`npm run test:hero-size` measures eight real viewports and asserts three things:
+the box is never wider than the banner (against the image's OWN
+`naturalWidth/naturalHeight`, so a new banner keeps testing the truth rather
+than a number copied out of a comment), the shell matches the mounted hero, and
+the cap still binds at 1280x900 — because a floor that quietly swallowed the cap
+would hand back the tall hero the owner cut twice. Mutation-tested three ways:
+the floor removed (reproduces the original 85%/73% crop exactly), the shell left
+behind, and the cap removed — each caught by the check written for it.
+
+**Editing the boot script means editing the CSP hash**, per the section above,
+and `test:csp` caught it both times. One hash in, one stale hash out.
+
 ## Card payment is pointed at the REAL bank with placeholder credentials
 
 Measured 2026-09-09 by `scripts/live/live-pay-check.php`:
