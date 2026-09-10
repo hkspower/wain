@@ -695,6 +695,18 @@
          clears it. -->
     <script src="/assets/custom-css.js" defer></script>
 
+    <!-- The Shop rules card, also on the panel's Settings screen: delivery, the
+         returns window, the cash-on-delivery limit, the review reward, the
+         discount cap, the delivery areas, and which sizes and fits are offered.
+         Every one of those was a PHP constant until now, so changing one meant
+         a code edit and a publish.
+
+         It draws its lists from the server's own `allowed`, never from a list
+         written in the file — sizes and fits are pinned by CHECK constraints on
+         order_items, and a picker offering a size MySQL will refuse is a
+         checkout that dies on its last step. -->
+    <script src="/assets/rules.js" defer></script>
+
     <!-- /track's one field carries no `required`, so pressing Track on an
          empty box did nothing at all — no message, no hint, no outline. This
          adds the attribute the bundle cannot be edited to include, and the

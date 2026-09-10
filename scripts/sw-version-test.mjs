@@ -32,22 +32,41 @@
  * It reads git and the repository. It writes nothing.
  */
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 
 const SW = 'sporta-site/public_html/sw.js'
 
-// The fixed names sw.js names in its own comment. Kept in step with that list
-// deliberately: a new overlay added to /assets/ belongs in both, and the check
-// below fails loudly if one of these stops existing rather than passing quietly.
-const FIXED = [
-  'assets/sporta-ui.css',
-  'assets/sporta-dark.css',
-  'assets/contact.js',
-  'assets/card.js',
-  'assets/returns-link.js',
-  'assets/returns-request.js',
-  'assets/track-guard.js',
-].map((p) => `sporta-site/public_html/${p}`)
+// THE FIXED NAMES, DERIVED rather than listed.
+//
+// This was a hand-written list of seven, copied from sw.js's own comment. By
+// 2026-09-10 assets/ held FIFTEEN files with fixed names — admin-upload.js,
+// brand-badge.js, brand-logos.js, custom-css.js, footer.js, product-photos.js,
+// theme.js and rules.js had all been added since — and the rig went on
+// watching the original seven and reporting "all ok" about the other eight.
+//
+// That is this repository's own lesson wearing a new hat: a guard that names
+// the thing it expects to go wrong only catches that thing. So the list is now
+// read off the directory, and anything added to assets/ tomorrow is watched the
+// day it lands, with nobody having to remember.
+//
+// A fixed name is simply one that is NOT content-hashed — the same test sw.js
+// makes at runtime, and the whole justification for caching hard: a hashed name
+// changes when its bytes do, so a cached copy can never be stale.
+const HASHED = /-[A-Za-z0-9_-]{8,}\.(js|css)$/
+const ASSETS = 'sporta-site/public_html/assets'
+// An unreadable directory is reported as a finding, not as a stack trace. A
+// crash is at least loud, but it reads as "the rig is broken" when what it
+// means is "the thing being watched is not where it was".
+let FIXED = []
+let derivationError = ''
+try {
+  FIXED = readdirSync(ASSETS)
+    .filter((f) => /\.(js|css)$/.test(f) && !HASHED.test(f))
+    .sort()
+    .map((f) => `${ASSETS}/${f}`)
+} catch (e) {
+  derivationError = String(e.message ?? e)
+}
 
 let fails = 0
 const check = (ok, what, detail = '') => {
@@ -60,12 +79,14 @@ const version = (readFileSync(SW, 'utf8').match(/^const VERSION = '([^']+)'/m) ?
 check(!!version, 'sw.js declares a VERSION', version ?? '(none found)')
 if (!version) process.exit(1)
 
-// Every file must exist, or this rig would silently stop watching one.
-const missing = FIXED.filter((f) => {
-  try { readFileSync(f); return false } catch { return true }
-})
-check(missing.length === 0, 'every fixed-name asset it watches exists',
-  missing.length ? missing.join(', ') : `${FIXED.length} files`)
+// A DERIVED list can come back empty — a moved directory, a changed suffix —
+// and an empty list is watched perfectly and reports nothing. Zero findings and
+// zero files produce identical output, so the count is asserted before anything
+// is concluded from it. The floor is the seven sw.js names in its own comment;
+// fewer than that means the derivation broke, not that files were deleted.
+check(FIXED.length >= 7, 'the fixed-name asset list was actually derived',
+  derivationError || `${FIXED.length} found: ${FIXED.map((f) => f.split('/').pop()).join(', ')}`)
+if (FIXED.length < 7) process.exit(1)
 
 /** The last commit that changed the VERSION line itself — not sw.js generally,
  *  which changes for comments and rule edits that do not free anybody. */
@@ -78,9 +99,9 @@ if (!bumpCommit) {
 }
 
 // Changed in a commit AFTER the bump, or dirty in the working tree right now.
-const changedSince = git('diff', '--name-only', `${bumpCommit}..HEAD`, '--', ...FIXED)
+const changedSince = git('diff', '--name-only', '--diff-filter=M', `${bumpCommit}..HEAD`, '--', ...FIXED)
   .split('\n').filter(Boolean)
-const changedNow = git('diff', '--name-only', '--', ...FIXED).split('\n').filter(Boolean)
+const changedNow = git('diff', '--name-only', '--diff-filter=M', '--', ...FIXED).split('\n').filter(Boolean)
 const owed = [...new Set([...changedSince, ...changedNow])]
 
 check(owed.length === 0,

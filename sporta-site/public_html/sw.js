@@ -21,14 +21,23 @@
 //      never be stale.
 //
 //      THE HASH IS THE WHOLE JUSTIFICATION, and this rule used to be written as
-//      "anything under /assets/", which is not the same set. Seven files live
-//      there with FIXED names: sporta-ui.css, sporta-dark.css, contact.js,
-//      card.js, returns-link.js, returns-request.js and track-guard.js. Their
-//      names never change, so "a hit is correct by construction" was false for
-//      every one of them, and cache-first-never-re-asked meant a returning
-//      visitor was pinned to whatever copy they first cached — for ever. The
-//      cache only rotates when VERSION changes, and VERSION had not changed
-//      since those files were written.
+//      "anything under /assets/", which is not the same set. A growing number
+//      of files live there with FIXED names — the two stylesheets and every
+//      hand-written overlay — and their names never change, so "a hit is
+//      correct by construction" was false for every one of them, and
+//      cache-first-never-re-asked meant a returning visitor was pinned to
+//      whatever copy they first cached, for ever. The cache only rotates when
+//      VERSION changes, and VERSION had not changed since those files were
+//      written.
+//
+//      THE COUNT IS NOT WRITTEN DOWN HERE ANY MORE, and that is the point. It
+//      said "seven files: sporta-ui.css, sporta-dark.css, contact.js, card.js,
+//      returns-link.js, returns-request.js and track-guard.js" — and by
+//      2026-09-10 there were FIFTEEN. Eight overlays had been added since, and
+//      the guard that was supposed to watch this had copied the list of seven
+//      out of this very comment, so it went on reporting "all ok" about the
+//      other eight. npm run test:sw-version now DERIVES the list from the
+//      directory: anything not content-hashed is watched, the day it lands.
 //
 //      That is exactly the fault 2b already records for images, one directory
 //      up and unnoticed: a file whose bytes change under a fixed name cannot be

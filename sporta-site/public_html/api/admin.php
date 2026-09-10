@@ -1463,6 +1463,38 @@ if ($r === 'settings_save' && $method === 'POST') {
 // force. `source` says which, so the panel can tell the owner "this is the
 // one taking payments" rather than showing them an empty box beside a shop
 // that is charging cards perfectly well.
+// THE SHOP'S NUMBERS, all nine, for the panel that edits them.
+//
+// WHY THIS EXISTS WHEN ?r=slides ALREADY CARRIES THEM: that one carries the
+// PUBLIC SIX. cod_open_max, discount_max_pct and review_reward_pct are withheld
+// there because each tells anyone probing the shop exactly where its edge is.
+// The panel has to show all nine or the owner cannot edit the three it hides,
+// so they are read here instead — behind the same session and the same
+// X-Sporta-Admin gate as every other route in this file. Same reasoning as
+// ?r=knet directly below: a value the storefront must not hand out gets an
+// admin route rather than a public one.
+//
+// AND IT IS A READ, not a save with an empty body. Reading by writing would
+// mean opening the settings screen rewrites the row — so a panel opened and
+// closed would look, in any audit, exactly like a deliberate change.
+if ($r === 'rules' && $method === 'GET') {
+    store_out([
+        'rules'    => store_rules($db),
+        // What the shop shipped with, so the panel can offer "back to the
+        // default" per field and show which values are the owner's own.
+        'defaults' => store_rule_defaults(),
+        // The full sets a list may be drawn from. The panel must not invent
+        // these: sizes and fits are pinned by the schema's CHECK constraints,
+        // and a picker offering a size MySQL will refuse is a checkout that
+        // dies on its last step.
+        'allowed'  => [
+            'sizes'        => STORE_SIZES,
+            'fits'         => STORE_FITS,
+            'governorates' => STORE_GOVERNORATES,
+        ],
+    ]);
+}
+
 if ($r === 'knet' && $method === 'GET') {
     $set = store_setting($db, 'knet');
     $id  = (string) ($set['tranportal_id'] ?? '');
