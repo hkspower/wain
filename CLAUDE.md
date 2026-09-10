@@ -108,11 +108,32 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
 - **The archive is the recurring bleed, and `--archive-url` is the way out.**
   Nearly 25MB of that 39MB is seven copies of `wain-<version>.zip`, committed
   and removed six separate times; the removals reclaim nothing. Nothing in the
-  process needs it to be in git — the server does a plain `wget`. Upload it
-  anywhere public and pass `npm run deploy:plan -- --archive-url https://…`
-  and no blob enters history at all. A GitHub Release asset is the obvious
-  host; note that the GitHub tools in this environment can READ releases and
-  cannot publish one, so creating it is a step for a person.
+  process needs it to be in git — the server does a plain `wget`. Put it on any
+  public HTTPS host and pass `npm run deploy:plan -- --archive-url https://…`
+  and no blob enters history at all. The flag is host-agnostic on purpose. It
+  checks two things and nothing else: the scheme is https, and the bytes the
+  URL serves match the local archive exactly.
+
+- **There is already a proper deploy endpoint on the server, and this file did
+  not know about it.** `public_html/api/deploy.php`, 240 lines, and its own
+  header says it "replaces the unsafe pattern of `wget zip && unzip -o` over a
+  live web root" — which is precisely the route documented above and used on
+  10 September. It is better in every respect: HMAC-SHA256 signed requests with
+  the secret outside `public_html`, a replay window of ten minutes, SHA-256
+  verified before anything is written, staged in `../storage` and never
+  unpacked into the live root, `api`/`knet`/`pay`/`admin`/`queue`/`orders`/
+  `storage`/`.htaccess` refused outright, `.php` inside an artifact refused,
+  manifest-based cleanup of stale build files, and the previous three releases
+  kept for rollback. POST `{url, sha256, version, ts}` with
+  `X-Deploy-Signature: sha256=<hmac>`.
+
+  Two things stop this session from using it, both worth knowing before anyone
+  tries. **Its `ALLOWED_HOSTS` is `raw.githubusercontent.com`, `github.com`,
+  `codeload.github.com` and nothing else**, so an artifact hosted anywhere else
+  is refused with `host_not_allowed` until that constant is edited on the
+  server. And **`www.wainkw.com` is refused at CONNECT by the sandbox gateway
+  exactly like the file host**, so the POST cannot be sent from here at all.
+  Verified 10 September: both answer 403 at the tunnel.
 - FTP secrets (`FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`) would make
   `deploy.yml` work; 186 runs have failed for want of them. They get added in
   GitHub's settings UI — **never pasted into a chat or a commit**.

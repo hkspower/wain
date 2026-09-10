@@ -154,6 +154,42 @@ measured. `hosting_generateUploadURLV1` returns a valid TUS URL and credentials
 that this environment then cannot reach, and both archive-deploy endpoints
 require the zip to be in the docroot already.
 
+### The server already has a better endpoint than the one below
+
+`public_html/api/deploy.php` was found on 10 September and nothing in this
+repository mentioned it, which is why the route documented below is the one
+that keeps being used. Its own header states its purpose: it "replaces the
+unsafe pattern of `wget zip && unzip -o` over a live web root". That is the
+route below, verbatim.
+
+What it does better: HMAC-SHA256 signed requests with the secret in
+`<domain>/storage/deploy.secret`, outside `public_html`; a ten-minute replay
+window; the SHA-256 checked before a byte is written; the archive staged in
+`../storage/deploy` and never unpacked into the live root; `api`, `knet`,
+`pay`, `admin`, `queue`, `orders`, `storage`, `cgi-bin`, `.well-known`,
+`.htaccess` and `config.php` refused outright; `.php` inside an artifact
+refused; manifest-based cleanup that removes stale build files instead of
+letting old `_next/static/<sha>/` directories pile up; and the previous three
+releases kept for rollback.
+
+```
+POST https://www.wainkw.com/api/deploy.php
+X-Deploy-Signature: sha256=<hmac-sha256 of the raw body, keyed by the secret>
+
+{ "url": "https://…/wain-1.1.0.zip", "sha256": "<64 hex>",
+  "version": "1.1.0", "ts": <unix seconds> }
+```
+
+Two reasons this session could not use it, both measured on 10 September:
+
+- **`ALLOWED_HOSTS` is `raw.githubusercontent.com`, `github.com` and
+  `codeload.github.com`.** Anything else is refused with `host_not_allowed`.
+  Hosting the artifact away from GitHub therefore needs that constant edited
+  on the server first; the endpoint is otherwise host-agnostic.
+- **`www.wainkw.com` is refused at CONNECT by the sandbox gateway**, the same
+  403 as the file host, so the POST cannot be sent from this environment at
+  all. It has to come from somewhere with ordinary outbound access.
+
 ### …but the server can fetch for itself
 
 Nothing here can push bytes to Hostinger. The box can *pull* them, and a cron
