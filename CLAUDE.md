@@ -72,7 +72,10 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   and its arguments only — and it can return a uid for a job it never stored,
   so confirm with `listAccountCronJobsV1`. Check the downloaded size before
   extracting; a partial archive over a live docroot is the failure worth
-  waiting a firing window to avoid.
+  waiting a firing window to avoid. **The hosa file listing lags two to three
+  minutes** behind the disk: after wget had saved the whole zip the listing
+  still showed no `w.zip`, which reads as a failed fetch. `getCronJobOutputV1`
+  is the faster truth — wget's own `saved [N/N]` line.
 - **hPanel File Manager → Extract.** It merges. The docroot is *shared* — it
   holds eight directories of an older PHP app (`/api/`, `/pay/`, `/knet/`,
   `/assets/` …) that this repo did not put there.
@@ -93,8 +96,19 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
 
 ## شوق, the ElevenLabs agent
 
-Agent `agent_1701m1gcrccrethae9y3nyv1e116`. 13 attached tests; run them after
-any prompt change.
+Agent `agent_1701m1gcrccrethae9y3nyv1e116`. 20 attached tests; run them after
+any prompt change, `repeat_count: 2` — at temperature 0 a failure that shows
+once shows twice, and a judge that passes once and fails once is a judge
+problem. There is no update-test tool: to sharpen a judge, delete the test
+and recreate it, then re-attach the new id.
+
+**A rule she keeps breaking is usually placed wrong, not worded wrong.** The
+season override («outdoors in summer → after sunset») sat in the calendar
+section and lost every time to the KB's own «أحسن وقت» line, because she
+reads that line at the moment she writes step ٣. Restating it *inside* step
+٣, with the forbidden words named and one worked example, fixed it on the
+first try. Gemini-flash at temperature 0 obeys word-bans and examples far
+better than principles.
 
 **The launcher is `ShouqCallButton`, inside the /search query box; the call
 component lives in the root layout.** Both are deliberate. Every call already
