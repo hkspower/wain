@@ -858,12 +858,54 @@ zip recoverable when I had wrongly written it off, and what made "did it come
 back, or did it never go?" answerable at all — the attic copy's timestamps are
 half of the evidence above.
 
-`live-who-writes-tiles.php` names one candidate out of 39 server-side scripts:
-**`api/deploy.php`**, which is itself untracked, carries `copy`,
-`file_put_contents`, `fopen` and `exec`, and was modified at 06:27 the same
-morning. It is not to be deleted on a guess — it may be a deployment path the
-owner relies on, and the evidence that removals get undone is exactly the
-evidence that acting harder would be a bad idea. **Ask the owner what it is.**
+**`api/deploy.php` was accused of it BY ME, and it is innocent.**
+`live-who-writes-tiles.php` reported it as the single candidate out of 39
+scripts, and I passed that to the owner. The needle list contained `copy(` and
+so did the write list, and a file had to match BOTH — so the conjunction was a
+tautology satisfied by any file containing `copy(`. `deploy.php` does not
+contain the string `cats` anywhere.
+
+Read since, through the Hostinger file API rather than over a public URL: it is
+a signed-POST deploy endpoint, and a careful one — HMAC-SHA256 against a secret
+outside `public_html`, an artifact host allow-list, sha256 verified before
+anything is written, staged in `storage/` and never unpacked into the live
+root, `.php` inside an artifact REFUSED, `api`/`knet`/`pay`/`.htaccess`/
+`config.php` protected by name, manifest-based pruning, three releases kept for
+rollback. It is the thing that replaced `wget zip && unzip -o`, which is very
+likely what `SPORTA-BACKEND.zip` was for. **And it cannot fire on a timer at
+all** — it only acts on a signed POST, so it was never a candidate for a
+per-minute restore, which one look at it would have said before the grep did.
+
+**An extractor's two halves must not share a term**, or the AND between them
+stops meaning anything. Same family as the route extractor whose character
+class silently dropped a name.
+
+**Corrected, the answer is that NOTHING on the account writes it.** 5,040 files
+across the docroot AND the home directory — the first version scanned only the
+docroot, which cannot contain the answer if the writer lives where cron's
+relative paths land. Two hits, both spurious: the scanner's own `r.php` matching
+its own text, and an unrelated `wainkw.com` bundle containing `exec`.
+
+**And the restore is real, with the confound removed.** The earlier runs deleted
+the removal job about thirty seconds before the file returned, and the delete is
+asynchronous — so "my own job re-ran" was live. Repeated 2026-09-10 with a
+ONE-SHOT job at a named minute, deleted immediately, nothing of mine scheduled
+for the next eleven:
+
+```
+15:04:02  moved to the attic, all four plain names 404 in the same run
+15:05:02  back on disk, byte-identical
+15:05 -> 15:18  untouched, while a per-minute job of mine ran throughout
+```
+
+So: something on this server heals that one file within a minute of its going
+missing, does nothing while it is present, and is not a script this account
+owns. It is not `deploy.php`, not a backup (the zip moved in the same run has
+never returned), and not any of the nine listed jobs by their commands. **It is
+the owner's panel to answer** — a Git auto-deployment, a host-level repair, or
+a job under another user. Do not remove anything else on a guess: three
+removals have now been undone, and the thing that undoes them has not been
+seen.
 
 **And it revealed a NINTH cron job**, which every earlier reading of this file
 missed because the list was eight long every time it was looked at:
