@@ -991,6 +991,108 @@ declined=0 throttled=0 withoutHeader=401-refused`. Every one of the 74 routes
 behind the gate answered 401, which is the gate holding — and now it is
 distinguishable from the limiter holding.
 
+## The shop's numbers are the owner's — nine rules, 2026-09-10
+
+Asked for as "make full dynamic all". Delivery, a new free-delivery threshold,
+the returns window, the cash-on-delivery limit, the review reward, the discount
+cap, the governorates served, and which sizes and fits are offered were all PHP
+constants, so changing one meant a code edit and a publish.
+
+They are a `rules` settings row now, and **the constant is the DEFAULT while the
+row is the OVERRIDE, one direction only.** That keeps one home per number:
+change the constant and every shop that never opens the panel follows. It also
+fails towards the shipped value — a missing, unreadable or half-written row
+leaves the shop behaving exactly as before, never with a delivery fee of zero or
+an empty list of governorates, which are the two ways this could quietly cost
+money. `store_rules()` reads it, `store_rule()` reads one, and an EMPTY list is
+read as absence rather than as "this shop delivers nowhere".
+
+**The defaults live in a FUNCTION, not in `STORE_SETTING_DEFAULTS`**, because
+several of the constants behind them are declared LATER in `store.php` than that
+array is, and a top-level `const` is executed in order — referencing one from
+above it is an undefined-constant fatal on the first request.
+
+### Sizes and fits are a SUBSET, and the schema is why
+
+This was going to be a free list until `order_items` was read:
+
+```sql
+constraint items_size_ck check (size is null or size in ('S','M',…,'ONE')),
+constraint items_fit_ck  check (fit  is null or fit  in ('normal',…,'tank'))
+```
+
+**A size invented in the panel would pass PHP and then be refused by MySQL at
+insert** — a checkout that dies on its last step, and a `variant_save` that
+500s. So the owner picks WHICH known sizes this shop offers and in what order (a
+shop that does not stock 5XL can drop it), and adding a genuinely new one is a
+schema migration rather than a setting. `test:rules` asserts `STORE_SIZES` and
+`STORE_FITS` still equal those CHECK lists, **parsed out of both files rather
+than restated**, so the two homes cannot drift — and it fails loudly when a
+parse finds nothing, because two empty lists compare equal.
+
+**The orphan guard** refuses to drop a size that has `product_variants` rows,
+and names them with counts. Dropping one tidies nothing: the rows keep their
+stock and stop being orderable, so the garment goes on showing a size nobody can
+buy and nothing reports it. "You cannot remove XL" is not actionable; "XL has 42
+stock rows" is.
+
+### Delivery is ONE function, because there are two call sites
+
+`?r=discount` quotes the checkout and `?r=order` charges it. api.php already
+warned that leaving the fee out of the quote *"would put a total on screen that
+is 1.000 KWD lower than the one the bank asks for"* — **a free-delivery
+threshold applied in one of the two is that same bug with a friendlier face**,
+so `store_delivery_fils()` decides for both and the rig places a REAL ORDER and
+compares it with the quote at both sides of the threshold. The threshold is
+measured on goods AFTER the discount, which cannot be gamed by stacking one to
+cross the line.
+
+### Six of the nine are public; three are not
+
+`cod_open_max`, `discount_max_pct` and `review_reward_pct` are withheld from
+`?r=slides`. Each tells anyone probing the shop exactly where its edge is, and
+none changes what a page shows. The panel needs all nine, so it reads
+`admin.php?r=rules` — the same argument as the Tranportal ID above. **And that
+is a READ, not a save with an empty body:** reading by writing would mean
+opening the settings screen rewrites the row, so a panel opened and closed would
+look in any audit like a deliberate change.
+
+### Both panels, this time
+
+`assets/rules.js` for the website's `/backends` and `src/app/backends/rules.tsx`
+for the app's. **The KNET editor, the footer editor, the theme editor and the
+brand-logo uploader all began app-only** and this file records how long that
+went unnoticed; having just built the website card, the same mistake was
+available in the other direction. Every picker is built from the server's
+`allowed`, never from a list in the client — a list typed into two clients is a
+third and fourth home for it.
+
+**The panel rig caught a bug whose own comment denied it.** `rules.js` claimed
+that on a refusal "the form keeps what the owner typed" — and `render()` rebuilt
+every field from state, so the box just unticked re-ticked itself and the edit
+vanished under the message explaining why it was refused. **A comment asserting
+a behaviour is not that behaviour**, which is the same lesson as the `cod`
+branch that documented the rule it did not apply.
+
+### The service-worker guard was watching 7 of 15
+
+Found on the way past, because `rules.js` is a new fixed-name asset.
+`sw-version-test` had copied its list of seven out of `sw.js`'s own comment, and
+`assets/` had grown to FIFTEEN un-hashed files — `theme.js`, `custom-css.js`,
+`brand-logos.js`, `footer.js`, `admin-upload.js`, `product-photos.js`,
+`brand-badge.js` and now `rules.js` were all cache-pinnable and none was
+watched, while the rig reported "all ok". It DERIVES the list from the directory
+now, so anything added tomorrow is watched the day it lands, and it asserts the
+derivation found something — an empty list is watched perfectly and reports
+nothing.
+
+It also distinguishes MODIFIED from ADDED: a new file strands nobody, because no
+browser holds a stale copy of a file that did not exist, so adding one no longer
+demands a version bump it does not need.
+
+**A guard that names the thing it expects to go wrong only catches that thing** —
+already in this file, and it had been true of the guard written to enforce it.
+
 ## Do not redesign without approval
 
 The visual design is the owner's, not something to improve on the way past. Do
