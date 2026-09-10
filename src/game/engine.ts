@@ -377,6 +377,11 @@ export interface HudData {
      *  zero for the whole life of an engine the box changes up early —
      *  which is most of them, and the point of EngineSpec.shiftAt. */
     limiter: number;
+    /** Draw the race cluster: the whole scale red rather than a red
+     *  segment at the end of it. EngineSpec.redCluster, carried through
+     *  so the HUD does not have to import the engine table to find out
+     *  what it is drawing. */
+    redCluster: boolean;
   };
 }
 
@@ -7017,6 +7022,7 @@ export class GameEngine {
           rpm: rpmAt(eng, frac),
           idle: eng.idleRpm,
           redline: eng.redlineRpm,
+          redCluster: eng.redCluster === true,
           frac,
           gear: this.player.speed * KMH < 2 ? 0 : this.gearHeld + 1,
           shift: frac > 0.93,

@@ -49,6 +49,8 @@
     "check:paint": "node tools/shots/paint.mjs",
     "check:paint:colors": "node tools/shots/paintcolors.mjs",
     "check:sharp": "node tools/shots/sharpness.mjs",
+    "check:hud": "node tools/shots/hudsharp.mjs",
+    "shot:tach": "node tools/shots/tach.mjs",
     "check:tint": "node tools/shots/tint.mjs",
     "check:site": "node tools/shots/site.mjs",
     "check:stripe": "node tools/shots/stripe.mjs",

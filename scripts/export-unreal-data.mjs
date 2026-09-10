@@ -130,7 +130,14 @@ const engines = engBlock
     };
   })
   .filter(Boolean);
-if (engines.length !== 5) throw new Error(`engine parse failed (${engines.length}, want 5)`);
+// Six since the Saqr 4.0 FP. The count is asserted rather than trusted
+// because the parse below is a regex over engines.ts: a field added in a
+// shape it does not expect drops an engine silently, and a port that
+// quietly ships five of six engines is the kind of fault that turns up
+// months later as "the 9,000 one is missing on console".
+const WANT_ENGINES = 6;
+if (engines.length !== WANT_ENGINES)
+  throw new Error(`engine parse failed (${engines.length}, want ${WANT_ENGINES})`);
 const layoutEnumMap = {
   inline: "EGRNEngineLayout::Inline",
   flat: "EGRNEngineLayout::Flat",

@@ -220,10 +220,14 @@ function RevCounter({
           {/* Backlight. Warm, because the whole game is lit by sodium and
               an instrument lit any other colour would be the one cold
               thing on the screen. */}
+          {/* Sodium by default, and a variable so the race cluster can
+              change the LAMP rather than paint red over an amber one.
+              An instrument lit from behind is lit in one colour; a red
+              face under a warm lamp reads as an orange face. */}
           <radialGradient id="tach-glow" cx="50%" cy="50%" r="50%">
-            <stop offset="55%" stopColor="#f5a524" stopOpacity="0" />
-            <stop offset="88%" stopColor="#f5a524" stopOpacity="0.14" />
-            <stop offset="100%" stopColor="#f5a524" stopOpacity="0" />
+            <stop offset="55%" stopColor="var(--tach-lamp, #f5a524)" stopOpacity="0" />
+            <stop offset="88%" stopColor="var(--tach-lamp, #f5a524)" stopOpacity="0.14" />
+            <stop offset="100%" stopColor="var(--tach-lamp, #f5a524)" stopOpacity="0" />
           </radialGradient>
         </defs>
 
@@ -243,7 +247,8 @@ function RevCounter({
             part of the sweep the needle has not reached. */}
         <path
           d={tachArc(0, 1, 40)}
-          fill="none" stroke="rgba(214,226,240,0.16)" strokeWidth="2.6" strokeLinecap="butt"
+          fill="none" stroke="var(--tach-ring, rgba(214,226,240,0.16))"
+          strokeWidth="2.6" strokeLinecap="butt"
         />
         {/* The redline, ON the ring rather than beside it, which is where
             a real one is: the last segment of the scale, in red. Its
@@ -294,7 +299,7 @@ function RevCounter({
           // React's SVG typings have no fontVariantNumeric prop, so the
           // figures go on through style, where SVG text takes them.
           style={{ fontVariantNumeric: "tabular-nums", fontFeatureSettings: '"tnum" 1' }}
-          fill="rgba(243,220,180,0.8)"
+          fill="var(--tach-ink, rgba(243,220,180,0.8))"
         >
           x1000 r/min
         </text>
@@ -1104,14 +1109,70 @@ function raceCut(): { w: number; h: number } | null {
         const svgns = "http://www.w3.org/2000/svg";
         const g2 = ticksRef.current;
         while (g2.firstChild) g2.removeChild(g2.firstChild);
-        const redFrom = (t.redline * 0.895 - t.idle) / (t.redline - t.idle);
-        const REDLINE = t.redline * 0.895;
+        /* THE RACE CLUSTER.
+         *
+         * A road dial marks the LAST of its scale in red, and that mark
+         * means "not past here". The Saqr is geared to sit on its
+         * limiter in every gear — shiftAt 1.0, peak power at 0.94 of the
+         * band — so the top of its dial is where the engine is being
+         * used correctly, and marking it as the forbidden part says the
+         * opposite of what is true. The whole face goes red instead: the
+         * scale, the ticks, the numerals and the lamp behind them.
+         *
+         * The lamp matters as much as the paint. Leaving the sodium
+         * backlight under a red face gives an orange face, because an
+         * instrument lit from behind is lit in one colour — so the race
+         * cluster changes the bulb rather than painting over the glass.
+         */
+        const race = t.redCluster;
+        const dial = ticksRef.current.ownerSVGElement;
+        if (dial) {
+          dial.style.setProperty("--tach-lamp", race ? "#ff2a18" : "#f5a524");
+          dial.style.setProperty(
+            "--tach-ring",
+            race ? "rgba(255,86,70,0.30)" : "rgba(214,226,240,0.16)"
+          );
+          dial.style.setProperty(
+            "--tach-ink",
+            race ? "rgba(255,176,168,0.85)" : "rgba(243,220,180,0.8)"
+          );
+        }
+        // On a race cluster the red arc IS the scale, so it starts at
+        // the bottom of the sweep rather than at 89.5% of it.
+        const redFrom = race
+          ? 0
+          : (t.redline * 0.895 - t.idle) / (t.redline - t.idle);
+        // And every tick is a red tick: REDLINE below is the rpm at
+        // which the markings turn, so putting it at idle turns all of
+        // them without a second branch at each drawing site.
+        const REDLINE = race ? t.idle : t.redline * 0.895;
         const redArc = tachArc(Math.max(0, redFrom), 1, 40);
-        if (redlineRef.current) redlineRef.current.setAttribute("d", redArc);
+        if (redlineRef.current) {
+          redlineRef.current.setAttribute("d", redArc);
+          // Deeper on a race face: this arc is now the whole scale
+          // rather than a warning at the end of it, and at the road
+          // dial's brightness a full ring of #e01b0f glares enough to
+          // cost the needle its contrast against it.
+          redlineRef.current.setAttribute("stroke", race ? "#b81208" : "#e01b0f");
+        }
         // The alert sits exactly on the redline, so it has to be laid
         // out with it — an engine swap moves both or the flash lands
         // somewhere the red arc is not.
-        if (limiterRef.current) limiterRef.current.setAttribute("d", redArc);
+        if (limiterRef.current) {
+          // The alert always sits on the last segment, even when the red
+          // arc under it has grown to the whole scale. A shift light
+          // that lights the entire face has nothing to say — on a race
+          // cluster the face is already red, so the flash has to be the
+          // part that CHANGES, and it changes where the limiter is.
+          limiterRef.current.setAttribute(
+            "d",
+            race
+              ? tachArc(Math.max(0, (t.redline * 0.895 - t.idle) / (t.redline - t.idle)), 1, 40)
+              : redArc
+          );
+          // Hotter than the face it lands on, or it disappears into it.
+          limiterRef.current.setAttribute("stroke", race ? "#ffd7cf" : "#ff2a18");
+        }
         const line = (from: number, to: number, f: number, w: string, c: string) => {
           const [x0, y0] = tachPoint(f, from);
           const [x1, y1] = tachPoint(f, to);

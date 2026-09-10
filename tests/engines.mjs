@@ -60,12 +60,17 @@ const fail = [];
 const check = (c, m) => { if (!c) fail.push(m); return c ? "ok" : "FAIL"; };
 
 // --- 1. The roster ---------------------------------------------------
+// Two 4s, two 6s and two 8s. The second eight is the Saqr 4.0 FP, and it
+// is a pair with the Ghazi 5.7 rather than a second helping of it: same
+// cylinder count, opposite everything else. Cross-plane against
+// flat-plane, 6,200 against 9,000, torque from idle against nothing
+// under 6,500 — see the curve table this file prints.
 const specs = await page.evaluate(() => window.__grnEngines.map((e) => ({ ...e })));
 const counts = specs.reduce((a, e) => ((a[e.cylinders] = (a[e.cylinders] ?? 0) + 1), a), {});
 console.log(
   `roster    ${check(
-    specs.length === 5 && counts[4] === 2 && counts[6] === 2 && counts[8] === 1,
-    `roster is ${specs.length} engines: ${JSON.stringify(counts)} — want two 4s, two 6s, one 8`
+    specs.length === 6 && counts[4] === 2 && counts[6] === 2 && counts[8] === 2,
+    `roster is ${specs.length} engines: ${JSON.stringify(counts)} — want two 4s, two 6s, two 8s`
   )}  ${specs.map((e) => `${e.name.split(" ")[0]}(${e.cylinders})`).join(" ")}`
 );
 

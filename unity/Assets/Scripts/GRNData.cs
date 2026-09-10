@@ -192,6 +192,14 @@ public static class GRNData
             SubMix = 0.5f, LopeDepth = 0.24f, Price = 6500,
             Norm = 0.799539f,
         },
+        new Engine {
+            Id = "v8-40fp", Name = "Saqr 4.0 FP", Cylinders = 8, Layout = EngineLayout.Vee,
+            Litres = 4f, IdleRpm = 1150f, RedlineRpm = 9000f,
+            PeakAt = 0.94f, Breadth = 0.18f, Floor = 0.16f,
+            PowerMult = 1.3f, MassKg = 42f,
+            SubMix = 0.14f, LopeDepth = 0f, Price = 34000,
+            Norm = 0.431571f,
+        },
     };
 
     /// <summary>Lowest rev fraction the gearbox ever asks for.</summary>
@@ -913,6 +921,7 @@ public static class GRNData
         new Part { Id = "engine-f6-25", Cat = "engine", Price = 3800 },
         new Part { Id = "engine-i6-30tt", Cat = "engine", Price = 5200 },
         new Part { Id = "engine-v8-57", Cat = "engine", Price = 6500 },
+        new Part { Id = "engine-v8-40fp", Cat = "engine", Price = 34000 },
         new Part { Id = "turbo", Cat = "aspiration", Price = 1200 },
         new Part { Id = "supercharger", Cat = "aspiration", Price = 1500 },
         new Part { Id = "twin-turbo", Cat = "aspiration", Price = 2800 },

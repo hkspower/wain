@@ -43,7 +43,13 @@
  */
 
 export type EngineLayout = "inline" | "flat" | "vee";
-export type EngineId = "i4-16" | "i4-20t" | "f6-25" | "i6-30tt" | "v8-57";
+export type EngineId =
+  | "i4-16"
+  | "i4-20t"
+  | "f6-25"
+  | "i6-30tt"
+  | "v8-57"
+  | "v8-40fp";
 
 export interface EngineSpec {
   id: EngineId;
@@ -97,8 +103,20 @@ export interface EngineSpec {
    *  are felt as much as heard. */
   subMix: number;
   /** Cross-plane lope depth, 0..1, modulating the exhaust at half
-   *  crank order. Only the V8 has one. */
+   *  crank order. Only the cross-plane V8 has one — the flat-plane fires
+   *  evenly and has none, which is most of what separates the two. */
   lopeDepth: number;
+  /** Draw the rev counter as a race cluster: the whole scale red rather
+   *  than a red segment at the end of it.
+   *
+   *  This is presentation and not simulation, and it belongs on the
+   *  engine anyway, because a cluster is chosen FOR an engine. A road
+   *  car marks the last of its scale in red to say "not past here"; an
+   *  engine geared to sit on its limiter in every gear is being used
+   *  correctly at the top of the dial, so marking the top as the
+   *  forbidden part says the wrong thing. The ports ignore this — they
+   *  draw their own instruments. */
+  redCluster?: boolean;
   price: number;
   desc: string;
 }
@@ -232,6 +250,55 @@ export const ENGINES: EngineSpec[] = [
     lopeDepth: 0.24,
     price: 6500,
     desc: "Cross-plane V8. Torque from idle, done by 6,200, and it lopes at every traffic light on the corniche.",
+  },
+  {
+    id: "v8-40fp",
+    name: "Saqr 4.0 FP",
+    ar: "صقر ٤٫٠",
+    cylinders: 8,
+    layout: "vee",
+    litres: 4.0,
+    // The highest idle in the game, and not for effect: a flat-plane
+    // race crank has no counterweights worth the name and will not run
+    // smoothly down where a road V8 sits.
+    idleRpm: 1150,
+    // NINE THOUSAND. The number this engine exists for, and the reason
+    // the rev counter had to learn a second face — see redCluster.
+    redlineRpm: 9000,
+    // To the limiter in every gear, like the 1.6 and unlike everything
+    // between them. With peak power at 0.94 of the band there is nowhere
+    // else to be: short-shifting this drops it off the cam entirely.
+    shiftAt: 1.0,
+    // The most extreme curve in the file, deliberately. The 1.6 peaks at
+    // 0.88 and keeps 0.26 at idle; this peaks at 0.94 and keeps 0.16,
+    // over the narrowest band here. It is the 5.7's exact opposite: that
+    // engine gives you everything at once and is finished by 6,200, this
+    // one gives you nothing until 6,500 and then goes off.
+    peakAt: 0.94,
+    breadth: 0.18,
+    floor: 0.16,
+    powerMult: 1.3,
+    // Four litres of aluminium against the 5.7's 115 kg of iron. Still
+    // eight cylinders, so it is no featherweight — the point of the
+    // engine is the rev range, not the scales.
+    massKg: 42,
+    // A flat-plane V8 fires evenly and screams; it has almost nothing on
+    // the sub-octave, which is the whole audible difference between this
+    // and the Ghazi. The lowest in the game.
+    subMix: 0.14,
+    // And no lope at all. The 5.7's burble is a CROSS-plane artefact —
+    // the uneven firing of two banks sharing a 90-degree crank. Give
+    // this one a lope and it stops being a flat-plane, which is the only
+    // thing it is.
+    lopeDepth: 0,
+    // The face goes red. A UI flag rather than a simulation one, and it
+    // rides on the engine because the cluster is chosen for the engine:
+    // a race dial is fitted to a car that needs the whole scale, not
+    // bought separately to make a road car look fast. The ports ignore
+    // it — they draw their own instruments.
+    redCluster: true,
+    price: 34000,
+    desc: "Flat-plane V8. Nothing at all under 6,500, then it goes to 9,000 and does not stop screaming until it gets there.",
   },
 ];
 

@@ -100,6 +100,7 @@ static const FGRNEngineDef GRNEngines[] = {
 	{ TEXT("f6-25"), TEXT("Nejma Flat-Six"), 6, EGRNEngineLayout::Flat, 2.5f, 900.0f, 7800.0f, 0.72f, 0.34f, 0.44f, 1.05f, 12.0f, 0.34f, 0.00f, 3800 },
 	{ TEXT("i6-30tt"), TEXT("Sahil 3.0 TT"), 6, EGRNEngineLayout::Inline, 3.0f, 750.0f, 7000.0f, 0.58f, 0.46f, 0.66f, 1.10f, 48.0f, 0.38f, 0.00f, 5200 },
 	{ TEXT("v8-57"), TEXT("Ghazi 5.7 V8"), 8, EGRNEngineLayout::Vee, 5.7f, 700.0f, 6200.0f, 0.24f, 0.36f, 0.46f, 1.12f, 115.0f, 0.50f, 0.24f, 6500 },
+	{ TEXT("v8-40fp"), TEXT("Saqr 4.0 FP"), 8, EGRNEngineLayout::Vee, 4.0f, 1150.0f, 9000.0f, 0.94f, 0.18f, 0.16f, 1.30f, 42.0f, 0.14f, 0.00f, 34000 },
 };
 static const int32 GRNEngineCount = UE_ARRAY_COUNT(GRNEngines);
 
@@ -116,6 +117,7 @@ static const float GRNEngineNorm[] = {
 	0.850061f,
 	0.954355f,
 	0.799539f,
+	0.431571f,
 };
 
 /** Torque multiplier at a point in the rev range. Averages to exactly
