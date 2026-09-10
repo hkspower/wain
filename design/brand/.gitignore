@@ -1,0 +1,4 @@
+# The seeded canvas page is a build product: build_marks.py writes the
+# artboards and seed-canvas.mjs assembles this from them, so the repository
+# keeps the source and not the ~2 MiB editor payload baked into every copy.
+almuhallab-mark-directions.html
