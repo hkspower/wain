@@ -84,6 +84,7 @@
     "test:assistant": "node scripts/assistant-test.mjs",
     "test:csp": "node scripts/csp-check.mjs",
     "test:htaccess": "node scripts/htaccess-test.mjs",
+    "test:sw-version": "node scripts/sw-version-test.mjs",
     "test:package": "node scripts/package-check.mjs",
     "test:css": "node scripts/css-audit.mjs",
     "test:images": "node scripts/image-audit.mjs",

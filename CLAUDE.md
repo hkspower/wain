@@ -424,6 +424,56 @@ the network-first path their header already asks for. And **bump `VERSION` with
 any such fix**, because the fix alone leaves everyone already pinned exactly
 where they were.
 
+### The bump was missed AGAIN, by me, on 2026-09-10 — so it is a test now
+
+The owner reported *"I change something and the shop still shows the old
+version"*, and **every layer measured innocent**, which is what made it hard:
+
+```
+origin      Cache-Control: no-cache, must-revalidate   (/ and the API)
+CDN edge    x-hcdn-cache-status: BYPASS                (Server: hcdn)
+sw.js       un-hashed files fall to rule 3, network-first
+database    variants 162 -> 166 — the owner's edits WERE saving
+```
+
+**All three cache readings are measurements of the CURRENT worker.** The stale
+copy is in none of them. It is in a cache belonging to a worker that no longer
+exists anywhere except in a visitor's browser — running the OLD rules, where
+everything under `/assets/` was cache-first and never re-asked.
+
+That day's publisher argued, in its own header, *"no service-worker bump,
+checked rather than assumed: both files have fixed names and fall through to
+rule 3, network-first"*. Every clause true, of a browser already running this
+worker. `sw.js` said so one paragraph above the constant — *"the bump is what
+actually frees them"* — and I read that as being about the day it was written
+rather than about every day after. **A rule that lives only in a comment gets
+read as history.**
+
+`npm run test:sw-version` is that rule as a check: it finds the commit that last
+touched the `VERSION` line and fails if any of the seven fixed-name assets
+changed after it, in a later commit or in the working tree right now. No stored
+state — git already knows. Mutation-tested both ways: editing `sporta-ui.css`
+without a bump (caught, naming the file), and one of the seven going missing
+(caught, so the rig cannot quietly stop watching one).
+
+**Proved against the real sequence rather than asserted.** Serving the OLD
+`sw.js` first gives a browser `sporta-shell-v9-theme1` and
+`sporta-assets-v9-theme1`, with a deliberately stale `sporta-ui.css` planted in
+the second; swapping in the new `sw.js` and reloading leaves only the `v10`
+caches. Every old one dropped.
+
+**Two earlier attempts at that proof reported nothing rather than failing**, and
+both are the house speciality:
+
+- The first planted the old cache while `v10` was ALREADY active, so no
+  activation followed and there was nothing to delete. It reported the old cache
+  surviving — true, and about the test rather than the code.
+- The second ran against **`127.0.0.1`**, where the bundle's own guard —
+  `location.protocol === 'https:' || location.hostname === 'localhost'` — means
+  the worker never registers at all. `reg: false`, and every conclusion drawn
+  from it worthless. **The sandbox is `localhost` for service-worker work and
+  `127.0.0.1` for everything else**, and the two are not interchangeable.
+
 **A blank page with no boot message means the worker, not the server.**
 `index.html` prints a diagnostic after ten seconds naming the file that failed.
 If that message never appears, the page did not come from the server at all. A
