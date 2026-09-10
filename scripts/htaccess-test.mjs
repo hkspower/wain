@@ -284,6 +284,20 @@ try {
     ['knet-payments.log', 'trackid=SPDECOY2 amt=8.000 result=CAPTURED'],
     ['backup.sql', 'insert into orders values (1, "SPDECOY3", "96555512345");'],
     ['dump.bak', 'db_pass=decoy'],
+    // A PUBLISHER'S OWN BACKUP. The deny list above covers `.bak` but is
+    // ANCHORED — `.bak-20260910-095004` matches nothing in it — and five of
+    // these accumulated in the live web root before anyone looked. All five
+    // answered 403.
+    //
+    // WHAT REFUSES IT IS NOT SETTLED BY THIS CHECK, and saying so is the
+    // point. Apache and LiteSpeed both ship `^\.ht` deny in their MAIN
+    // configuration; .htaccess now names the same rule so the project owns it
+    // rather than inheriting it. Mutation-tested: removing our rule leaves
+    // this decoy still refused, because THIS Apache has the global one too.
+    // So the assertion proves the file is refused — which is what matters —
+    // and cannot prove which rule did it. A comment claiming otherwise was
+    // written here first and measured false within the minute.
+    ['.htaccess.bak-20260910-095004', 'RewriteEngine On # decoy'],
   ]
   for (const [name, body] of decoys) writeFileSync(`${DOCROOT}/${name}`, body)
   try {

@@ -90,7 +90,14 @@ foreach ($FILES as $rel => $want) {
     // file here that can take the whole shop down if it is wrong, and a copy
     // beside it is the difference between a rename and a restore.
     if ($rel === '.htaccess' && is_file($target)) {
-        @copy($target, $ROOT . '/.htaccess.bak-' . date('Ymd-His'));
+        // ABOVE the web root, not beside the file. These backups used to be
+        // written into public_html, where five of them accumulated — and
+        // whether they were fetchable turned out to depend on a `^\.ht` deny
+        // rule that is NOT in this project's .htaccess at all: the server
+        // provides it. Relying on a default nobody here can see or test is
+        // exactly the shape this project has been bitten by before. One
+        // directory up is outside the docroot, so the question cannot arise.
+        @copy($target, dirname($ROOT) . '/.htaccess.bak-' . date('Ymd-His'));
     }
 
     $dir = dirname($target);

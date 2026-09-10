@@ -660,6 +660,31 @@ RedirectMatch 404 (?i)(^|/)__MACOSX(/|$)
   Require all denied
 </FilesMatch>
 
+# ---- ANYTHING STARTING .ht, WHICH THE SERVER ALREADY DOES AND WE DO NOT OWN ----
+#
+# Apache and LiteSpeed both ship a global `<FilesMatch "^\.ht">Require all
+# denied</FilesMatch>` in their MAIN configuration, and it is why .htaccess
+# itself is not fetchable. It is not in this file, and until 2026-09-10 nothing
+# here had ever checked that it was in force.
+#
+# WHAT MADE THAT WORTH CLOSING. The publishers used to write a timestamped
+# backup — .htaccess.bak-20260910-095004 — next to the file they replaced, and
+# five of them accumulated in the web root. The deny list below covers `.bak`,
+# but it is anchored: `.bak-20260910-095004` matches nothing in it. Measured on
+# the live server, all five answered 403 — saved by the server's own rule, not
+# by anything this project wrote or tests.
+#
+# The publishers now write those backups ABOVE the docroot, so the case should
+# not arise. This is the second lock, and it is honest about what it buys: a
+# defence you inherit is a defence you cannot see change. It does NOT buy a
+# test — htaccess-test.mjs plants such a backup and watches it refused, but
+# removing this block leaves it refused all the same, because the rig's Apache
+# ships the global rule too. The assertion proves the file is closed, not which
+# rule closed it.
+<FilesMatch "(?i)^\.ht">
+  Require all denied
+</FilesMatch>
+
 # ---- .txt: DENIED BY DEFAULT, with the two that must be public named ----
 #
 # The list above covers .bak, .sql, .log, .env, .zip, .md and a dozen more —
