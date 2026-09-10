@@ -38,7 +38,7 @@
  *   - pinned to one COMMIT, not a branch
  */
 
-$COMMIT = '__COMMIT__';
+$COMMIT = '36c3ed1';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $WANT   = 'fe79584c67c4c64b886c718bf829808f14d5e93eeda408c1a96c1ec4506838eb';
 $MUSTBE = '309ce3cf0055a46e7cf403b6655d35fdffbedf10144fd02dff779ddfbbc901d4';
