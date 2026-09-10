@@ -90,6 +90,29 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   40 hex characters whichever commit it is, so the root files of two different
   builds are byte-identical. `_next/static/<commit>/` is the one proof whose
   name carries the commit — `deploy:verify` requires it for that reason.
+- **This repository is not just wain, and that governs what can be done about
+  its size.** `.git` is 410MB, 345MB of it blobs over 1MB, and it is tempting
+  to read that as wain's mess to clean up. It is not. Eleven branches descend
+  from one root commit dated 9 June, and the weight belongs to four other
+  projects: the design plates are shared with `claude/almuhalla-code-editor`,
+  the press images are `claude/tokyo-racer-kuwait`, the brand assets are
+  `claude/sporta-integration` and `deploy` (which shares no root with the
+  rest), the website previews are `claude/delivery-cars-website`. Measured:
+  only **39MB is reachable from wain's branch alone**. Rewriting history to
+  reclaim the rest means rewriting four other teams' branches.
+- **And rewriting even wain's own 39MB breaks شوق.** Every commit on this
+  branch is unique to it, including `ab034b0` — the commit the knowledge base
+  URL is pinned to. A rewrite changes that hash, the pinned URL starts
+  answering 404, and the next time ElevenLabs refetches the document she loses
+  her catalogue. Any rewrite has to repoint the KB in the same sitting.
+- **The archive is the recurring bleed, and `--archive-url` is the way out.**
+  Nearly 25MB of that 39MB is seven copies of `wain-<version>.zip`, committed
+  and removed six separate times; the removals reclaim nothing. Nothing in the
+  process needs it to be in git — the server does a plain `wget`. Upload it
+  anywhere public and pass `npm run deploy:plan -- --archive-url https://…`
+  and no blob enters history at all. A GitHub Release asset is the obvious
+  host; note that the GitHub tools in this environment can READ releases and
+  cannot publish one, so creating it is a step for a person.
 - FTP secrets (`FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`) would make
   `deploy.yml` work; 186 runs have failed for want of them. They get added in
   GitHub's settings UI — **never pasted into a chat or a commit**.

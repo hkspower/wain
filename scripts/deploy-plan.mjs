@@ -193,21 +193,57 @@ const repo = git(["remote", "get-url", "origin"]).replace(/^.*github\.com[/:]/, 
  * different problem with a different fix, and the difference is worth saying
  * out loud rather than discovering as a 404 on the server.
  */
-const localBlob = git(["hash-object", archive]);
-const touched = git(["log", "--format=%H", "--", `wain-${version}.zip`]).split("\n").filter(Boolean);
-const publish = touched.find((sha) => {
-  try { return gitQuiet(["rev-parse", `${sha}:wain-${version}.zip`]) === localBlob; } catch { return false; }
-});
-if (!publish) {
-  fail(
-    `wain-${version}.zip is not committed anywhere in this history.\n` +
-    `  The server fetches it over HTTP, so it has to be in the repository:\n` +
-    `    git add -f wain-${version}.zip && git commit && git push\n` +
-    `  Then run this again. (.gitignore lists it, hence -f — it is deleted\n` +
-    `  again once the deploy is verified.)`,
-  );
+/**
+ * `--archive-url <url>` — fetch from somewhere that is not the git history.
+ *
+ * The committed-archive route below works, and it costs about 4MB of permanent
+ * history per deploy. Six of them have been committed and removed already, and
+ * the removals reclaim nothing: 25MB of this repository is old copies of this
+ * one file. Nothing in the process needs them to be in git. The server does a
+ * plain `wget`, so any URL it can reach will do — a GitHub Release asset is
+ * the obvious one, since release assets live outside the object database
+ * entirely.
+ *
+ * Passing a URL skips the commit hunt and everything downstream is unchanged,
+ * including the size check below, which is the property that actually matters:
+ * whatever the URL serves must be byte-for-byte this archive.
+ *
+ * Removing the committed route was tempting and would have been wrong. It is
+ * the one that needs no credentials and no second host, and this environment
+ * cannot create a release — the GitHub tools here can read releases and not
+ * publish them — so a plan that depended on one would have left no way to
+ * deploy at all.
+ */
+const archiveUrlArg = (() => {
+  const i = process.argv.indexOf("--archive-url");
+  return i !== -1 ? process.argv[i + 1] : null;
+})();
+
+let url;
+if (archiveUrlArg) {
+  if (!/^https:\/\//.test(archiveUrlArg)) {
+    fail(`--archive-url must be https. The server fetches it over the open internet.`);
+  }
+  url = archiveUrlArg;
+} else {
+  const localBlob = git(["hash-object", archive]);
+  const touched = git(["log", "--format=%H", "--", `wain-${version}.zip`]).split("\n").filter(Boolean);
+  const publish = touched.find((sha) => {
+    try { return gitQuiet(["rev-parse", `${sha}:wain-${version}.zip`]) === localBlob; } catch { return false; }
+  });
+  if (!publish) {
+    fail(
+      `wain-${version}.zip is not committed anywhere in this history.\n` +
+      `  The server fetches it over HTTP, so it has to be reachable. Either:\n` +
+      `    git add -f wain-${version}.zip && git commit && git push\n` +
+      `  (.gitignore lists it, hence -f — it is deleted again once verified,\n` +
+      `   though the blob stays in history, which is why the other way exists)\n` +
+      `  or upload it anywhere the server can reach and pass the URL:\n` +
+      `    npm run deploy:plan -- --archive-url https://…/wain-${version}.zip`,
+    );
+  }
+  url = `https://raw.githubusercontent.com/${repo}/${publish.slice(0, 7)}/wain-${version}.zip`;
 }
-const url = `https://raw.githubusercontent.com/${repo}/${publish.slice(0, 7)}/wain-${version}.zip`;
 const zipOnServer = `${DOCROOT}/w.zip`;
 
 const commands = [
@@ -243,8 +279,11 @@ if (!OFFLINE) {
     if (code !== "200") {
       urlState = `HTTP ${code}`;
       console.log(`  ⚠  ${url}`);
-      console.log(`     answers ${code}. The zip has to be committed and pushed at this sha`);
-      console.log(`     before a cron can fetch it, and the repository has to be public.\n`);
+      console.log(`     answers ${code}. ${archiveUrlArg
+        ? "Whatever is serving this has to be public and hold the exact archive."
+        : "The zip has to be committed and pushed at this sha"}`);
+      if (!archiveUrlArg) console.log(`     before a cron can fetch it, and the repository has to be public.`);
+      console.log("");
     } else if (len && Number(len[1]) !== zipBytes) {
       fail(`the URL serves ${len[1]} bytes but the local archive is ${zipBytes}.\n  These must be the same file.`);
     } else {
