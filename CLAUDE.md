@@ -93,6 +93,35 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   40 hex characters whichever commit it is, so the root files of two different
   builds are byte-identical. `_next/static/<commit>/` is the one proof whose
   name carries the commit — `deploy:verify` requires it for that reason.
+- **There are two stages now: `staging.wainkw.com`, then `www`.** A push
+  deploys to staging; production only ever runs from a `workflow_dispatch`
+  where a person chose it. Promoting means dispatching at the commit that was
+  staged — exact rather than approximate, because `generateBuildId` is the
+  commit sha on a clean tree, so the same commit rebuilds to the same digest.
+
+  **Staging's docroot is `public_html/staging` — inside production's.** The
+  panel puts subdomain roots there and it is not a choice, so three things
+  follow, all handled rather than remembered: `staging` is in production's
+  `PROTECTED_PATHS`; `www.wainkw.com/staging/` is a 404 under any host but
+  staging's own, or it would be a second indexable copy of the site; and the
+  `noindex` header is keyed on `Host` inside the **export's own** `.htaccess`,
+  because staging's root sits BELOW `public_html` and Apache never reads the
+  parent `.htaccess` for it — a rule written up there would silently not apply.
+
+  **Its endpoint is generated, not copied**, by
+  `scripts/publish/setup-staging-endpoint.php`, so the two cannot drift; re-run
+  it after patching production's and staging re-inherits the fix. Three paths
+  differ. `$WEBROOT` and `$ROOT` because `dirname(__DIR__, 2)` is only correct
+  at `public_html/api` — one level deeper it resolves to `public_html` and the
+  copy would publish into a path that does not exist and report success. And
+  `$WORK`, which is the one that matters: **the manifest must not be shared**,
+  or each deploy's prune would delete the other environment's files. `$STORAGE`
+  IS shared, so one `DEPLOY_SECRET` serves both.
+
+  By hand: `php d.php probe staging`, `php d.php <url> <sha> <version> staging`.
+  The stage defaults to **production** when omitted — a forgotten argument then
+  deploys where it always did, rather than quietly publishing somewhere nobody
+  is watching.
 - **Diff the whole docroot against `out/`, not just the routes.** Asking each
   page what it references finds what the *site* uses; only a full listing finds
   what is on the disk that no page admits to. `public_html/assets/` held a
