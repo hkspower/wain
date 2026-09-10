@@ -338,20 +338,70 @@ thing from the config keys and never prints a value.
 **Four of the eight were erroring on EVERY run, and had been for as long as
 they existed** — waiting on credentials that are not in `api/config.php`:
 
-| job | needs | was | now |
-|---|---|---|---|
-| cron-push | `vapid_public`, `vapid_private` | **every minute** | `5 * * * *` |
-| cron-assistant | `n8n_webhook` | `*/5` | `20 * * * *` |
-| cron-whatsapp | `whatsapp_token`, `whatsapp_phone_number_id` | `*/2` | `35 * * * *` |
-| cron-fulfilment | `warehouse_email` | `*/10` | `50 * * * *` |
+| job | needs | was | then | now (2026-09-10) |
+|---|---|---|---|---|
+| cron-push | `vapid_public`, `vapid_private` | **every minute** | `5 * * * *` | `0 4 1 1 *` |
+| cron-assistant | `n8n_webhook`, `n8n_secret` | `*/5` | `20 * * * *` | `10 4 1 1 *` |
+| cron-whatsapp | `whatsapp_token`, `whatsapp_phone_number_id` | `*/2` | `35 * * * *` | `20 4 1 1 *` |
+| cron-fulfilment | `warehouse_email` | `*/10` | `50 * * * *` | `30 4 1 1 *` |
 
 That was ~2,400 PHP processes a day on shared hosting producing the same error,
 and none of it visible: a job's output is readable only one at a time through
 the panel, and nothing reads it. **Loud and unheard** — the same shape as the
 seven jobs that died on DNS for months while the panel looked healthy.
 
-The others are untouched: `cron-stock` hourly, `cron-customer-mail` `*/10`,
-`cron-invoice` `*/15`, `cron-voice` monthly.
+The others keep their schedules: `cron-stock` hourly, `cron-customer-mail`
+`*/10`, `cron-invoice` `*/15`, `cron-voice` monthly.
+
+### Dormant rather than deleted, and `-nv` rather than `-q` — 2026-09-10
+
+The owner approved both, in as many words, having been shown the trade in each.
+
+**The four that cannot work are now ANNUAL, not gone.** `0 4 1 1 *` and three
+staggered minutes after it. Deleting them would have been the obvious reading of
+"disable", and it is the wrong one **because the command is the thing that
+cannot be recreated**: every one carries the cron key, this repository is public,
+and the key is written down nowhere. A dormant job keeps its command in the
+panel where the owner can see and re-time it; a deleted job takes the key with
+it. **Preserve the command, change the clock.**
+
+The cost is the trap this section already names, made worse: the moment the
+credentials go in, these will look broken for up to a year rather than an hour.
+`cron-push` still wants `* * * * *` and the rest want the middle column back.
+
+**Create BEFORE delete, and list after.** The API has no update, so a schedule
+change is a delete plus a create, and a create has been seen to return an empty
+success while the job simply vanished. Creating first means a silent failure
+leaves the OLD job standing and nothing is lost. The one exception was
+`cron-customer-mail`, done delete-first on purpose: it sends real email, and two
+of it existing for even a moment could double-send to a customer. That is the
+trade — a recoverable loss against an unrecoverable send.
+
+**Every wget job now uses `-nv -O-` in place of `-qO-`.** `-q` is what hid the
+DNS failure that killed seven jobs for months; the panel looked healthy because
+wget's error had been thrown away. `-nv` keeps errors and drops the progress
+noise. `-nvO-` is NOT safe as one token — it is two flags, `-nv -O-`.
+
+**And it exposed a warning that has been on every run all along**, proved on a
+throwaway job against `?r=slides` before any real job was touched:
+
+```
+The certificate's owner does not match hostname ‘127.0.0.1’
+{"slides":[],…}
+2026-09-10 21:17:01 URL:https://127.0.0.1/api/api.php?r=slides [633/633] -> "-" [1]
+```
+
+That line is EXPECTED and permanent: the loopback form connects by address while
+the certificate is for the public name, which is the whole point of
+`--no-check-certificate`. It cannot be silenced without silencing real errors
+too. So **a captured output that begins with that one line is a healthy run**,
+and the thing to read is whether anything ELSE appears. Using the public name
+instead would remove it and reintroduce the DNS dependency that caused the
+original outage — not worth it.
+
+The three-line shape above is also what a working run now looks like: warning,
+body, then a summary line naming the URL, the byte count and the exit. A missing
+summary line means the fetch never completed.
 
 **`cron-voice` is a FIFTH job that cannot work** — it wants `tts_key` and
 `tts_voice_id` — and I first reported it among the working ones because its
@@ -374,7 +424,32 @@ source says which:
 Reading empty as "fine" is what put voice in the working column. `ready=3/8` is
 the number to trust, not the silence.
 
-**The checker was wrong twice, and a full check found it.** It had been built
+**It was wrong a THIRD time, and its own new drift alarm found that one.**
+`cron-assistant` guards on `n8n_secret` as well as `n8n_webhook` — both
+`store_out(…, 503)` early exits, twenty lines apart, the second because
+*"signing with an empty key is a signature that proves nothing"* — and only the
+webhook was listed. A shop with the URL filled in and the secret not would have
+read as **READY** while the job 503'd every run. Same bug as the two below,
+third key, found on the alarm's first run rather than by a person.
+
+The alarm is not a re-derivation and must not become one: two of the nine do not
+use the plain `($cfg['k'] ?? '') === ''` form — `cron-whatsapp` assigns then
+tests, `cron-voice` defers to `assistant_speech_available()` — so an extractor
+matching only that form turns every job it cannot parse into a job that needs
+nothing. It reports `newGuard` (a plain guard the list omits) and `stale` (a
+listed key the job no longer contains), and checks the indirect ones where they
+actually live: the job must still CALL the helper and the helper must still TEST
+each key. `guardsSeen` is printed BEFORE both, because a check that finds
+nothing passes every comparison under it.
+
+Mutation-tested seven ways, and the seventh found a real hole: the extractor
+anchored at `if (` with `[^)]*`, which cannot cross a closing bracket, so on a
+compound guard it read the first key and stopped — a job adding a SECOND key to
+an existing guard would have passed. Reading every key on the line took
+`guardsSeen` from 4 to 5 on the unmutated shop, `vapid_private` becoming visible
+for the first time.
+
+**The checker was wrong twice before that, and a full check found it.** It had been built
 by grepping each file for `$cfg['...']`, which finds every key a file MENTIONS
 rather than the ones it GUARDS on: `voice` listed the optional `tts_model` and
 omitted `tts_key` entirely (so a shop with a voice id and no API key would have
