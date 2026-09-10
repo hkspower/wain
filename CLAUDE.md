@@ -1178,6 +1178,60 @@ environment", one section up, and the inverse of it: that one is a check that
 passes for the wrong reason, this is a check that FAILS for the wrong reason,
 and the second is more expensive because it looks like work to do.
 
+### An attribute is advice to the browser. The fault is what the visitor gets
+
+`image-render-audit.mjs` was written to ask what a picture does ON the page, and
+its first version failed two things, confidently, and both were false:
+
+- **"No `width`/`height` on the hero and the four tiles"**, on the grounds that
+  an unsized box jumps when the bytes arrive. The home page's CLS is **0.0002**
+  and no image is in it: every one of those images is `position:absolute` inside
+  a sized frame, so it is out of flow and cannot move anything, attributes or
+  no attributes.
+- **"`loading=lazy` on two tiles in the first screenful"**, on the grounds that
+  the visitor waits for them. Measured at 390px with nothing scrolled, all four
+  tiles are requested at **+202ms** alongside everything else — Chrome fetches
+  an in-viewport lazy image at layout, so the attribute cost nothing.
+
+Both read an ATTRIBUTE as though it were the FAULT. The attribute is advice; the
+fault is the visitor's experience, and only the second one is worth failing a
+build over. So each check now measures the visitor's side — a real shove, a real
+unfetched image — and the shop passes, because the shop was never wrong.
+
+**Getting there took three wrong instruments, and only mutation testing found
+any of them.** Worth keeping, because each looked right:
+
+1. **Reading the shift's `sources` for an `<img>`.** A layout-shift entry blames
+   the elements that were DISPLACED — everything BELOW the image — and the image
+   that grew is frequently not in that list at all. Wrong list.
+2. **Watching for the growth on localhost.** The bytes arrive inside the first
+   animation frame, so a ResizeObserver never sees two different heights. The
+   fault only exists on a slow connection, so the rig now holds every image back
+   700ms and reproduces the shopper's one. **A fault you cannot make happen is a
+   fault you cannot measure.**
+3. **`observe(document.documentElement)` from an init script.** Measured:
+   `documentElement` is **null** that early, so `observe` threw
+   `parameter 1 is not of type 'Node'`, killed the rest of the function, and the
+   ResizeObserver was attached to NOTHING. The rig then reported
+   `ok  no in-flow image grows` against a page visibly shoving itself about —
+   twice — because **zero observations and no faults produce identical output.**
+
+That third one is this repository's oldest lesson wearing a new hat, next to the
+route extractor that dropped a capital letter and the suite that found 0
+controls. The fix generalises: **a watcher must assert that it watched.** The rig
+now carries `the size watcher actually observed images on every page` — `65
+observations` on a good run — and it is checked BEFORE the result it guards.
+Mutation-tested in three directions: an unsized in-flow image (caught, 0px→79px),
+the same image absolutely positioned (correctly passes — out of flow is not a
+fault), and the watcher itself disabled (caught by the observation count, not
+read as green).
+
+Reported rather than failed, for the owner: `/shop` measures **CLS 0.15 at
+1280px**, and it is not an image. The blame is an `::after` growing 0→194px at
+t=461ms — the product grid arriving after its fetch — with the cards themselves
+not moving. At 390px it is 0.0009. Fixing it means reserving the grid's height
+before the products land, which is inside the bundle that has no source here.
+
 ## Card payment is pointed at the REAL bank with placeholder credentials
 
 Measured 2026-09-09 by `scripts/live/live-pay-check.php`:

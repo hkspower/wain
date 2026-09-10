@@ -51,6 +51,7 @@
     "test:color": "node scripts/color-test.mjs",
     "test:contrast": "node scripts/contrast-test.mjs",
     "test:art": "node scripts/art-test.mjs",
+    "test:image-render": "node scripts/image-render-audit.mjs",
     "test:live": "node scripts/live-api-test.mjs",
     "test:payments": "node scripts/payments-test.mjs",
     "test:cart": "node scripts/cart-test.mjs",
