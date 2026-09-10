@@ -914,6 +914,14 @@ A different site, and nothing to do with this one — but "none of the jobs runs
 every minute" was a sentence written from a list, and the list had changed.
 **Re-list before reasoning from a list.**
 
+**Then it vanished again, within half an hour, and nothing here deleted it.**
+Present at 14:51, gone at 15:19, back to the same eight. So the cron list on
+this account is not stable either, and a job seen once may not be there when
+the next reading looks — which is the same property as a file that heals
+itself, on a different surface. Both say the same thing: **this account has a
+manager that is not us.** Record the reading with its timestamp; do not treat
+either list as a standing fact.
+
 **What this costs the rules above.** Every publisher in `scripts/publish/`
 verifies its work in the same breath as doing it, and each was right to. None
 of them can see a file that returns a minute later. `differ=0` and a green
