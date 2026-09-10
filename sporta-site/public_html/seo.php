@@ -44,6 +44,78 @@ if ($html === false) {
     exit('Store shell missing.');
 }
 
+/* ------------------------------------------------------------- sending it out
+ *
+ * EVERY ROUTE ON THIS SITE COMES THROUGH HERE — `/`, /shop, /cart, /checkout,
+ * every /product/<slug> — because .htaccess rewrites them all to this file. So
+ * whatever this function does, it does on every navigation a shopper makes.
+ *
+ * IT SENT NO VALIDATOR, AND THAT COST A FULL PAGE EVERY TIME. `max-age=0,
+ * must-revalidate` is the right policy: ask the server before reusing this. But
+ * `no-cache`/`max-age=0` only buys anything if the server can answer "still the
+ * same" — and answering that needs an ETag or a Last-Modified. PHP sends
+ * neither on its own, and a static file gets them from the web server, which is
+ * why every OTHER file on this shop had one and the home page did not.
+ *
+ * Measured on the live server, 2026-09-10, by
+ * scripts/live/live-revalidate-check.php:
+ *
+ *   shell   200/42810  v=NONE     inm=no-etag  ims=no-lm    <- this file
+ *   worker  200/18880  v=etag+lm  inm=304/0
+ *   fixed   200/92856  v=etag+lm  inm=304/0
+ *   api     200/21773  v=etag     inm=304/0
+ *
+ * So Chrome and Safari both re-downloaded 42,810 bytes on every single
+ * navigation, and neither had any way not to. With the ETag below the same
+ * request is a 304 with an empty body whenever nothing has changed.
+ *
+ * A HASH OF THE BODY IS AN HONEST ETAG HERE because this page is a pure
+ * function of the URL: the language comes from ?lang=en rather than from
+ * Accept-Language, nothing reads a cookie, and there is no clock, no nonce and
+ * no random value anywhere in it. Two requests for one URL produce identical
+ * bytes, so the tag changes exactly when the page does — when the shell is
+ * republished, or when a product's name or price is edited in /backends.
+ *
+ * NO `Vary` IS NEEDED for the same reason. If this ever starts reading
+ * Accept-Language, a Vary must be added in the same commit, or a shared cache
+ * will hand an Arabic page to an English shopper.
+ *
+ * THE FALLBACK BRANCH USES THIS TOO, and that is safe rather than sloppy: it
+ * serves a DEGRADED shell, and its own comment argues such a page must not be
+ * pinned. It is not pinned — `max-age=0, must-revalidate` still forces the ask
+ * on every visit, and the moment the fault clears the body differs, so the tag
+ * differs and the shopper gets a 200 with the good page. A 304 fires only while
+ * the bytes really are the ones the browser already holds.
+ */
+function seo_send(string $html): never
+{
+    $etag = '"' . sha1($html) . '"';
+
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: public, max-age=0, must-revalidate');
+    header('ETag: ' . $etag);
+
+    /* A conditional request may carry SEVERAL tags, and any cache in the path
+       is allowed to weaken one to W/"…". Comparing the whole header as one
+       string is how a 304 silently never fires — store_out_cacheable() carries
+       the same loop for the same reason, and calls that failure "a slower
+       no-store with extra steps". */
+    $inm = trim((string) ($_SERVER['HTTP_IF_NONE_MATCH'] ?? ''));
+    if ($inm !== '' && $inm !== '*') {
+        foreach (explode(',', $inm) as $tag) {
+            $tag = trim($tag);
+            if (str_starts_with($tag, 'W/')) $tag = substr($tag, 2);
+            if ($tag === $etag) {
+                http_response_code(304);
+                exit;   /* 304 carries no body, by definition */
+            }
+        }
+    }
+
+    echo $html;
+    exit;
+}
+
 /* ------------------------------------------------------------------ helpers */
 
 function e(?string $s): string
@@ -226,10 +298,7 @@ try {
        the shop looks broken long after it is fixed. Measured on 2026-09-05 —
        the .htaccess rig reported "NOTHING, so every cache guesses" for `/`,
        which is how this branch was found at all. */
-    header('Content-Type: text/html; charset=utf-8');
-    header('Cache-Control: public, max-age=0, must-revalidate');
-    echo $html;
-    exit;
+    seo_send($html);
 }
 
 /* ------------------------------------------------------ build the head block */
@@ -298,6 +367,4 @@ $html = preg_replace(
     1
 );
 
-header('Content-Type: text/html; charset=utf-8');
-header('Cache-Control: public, max-age=0, must-revalidate');
-echo $html;
+seo_send($html);

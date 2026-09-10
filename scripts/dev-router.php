@@ -21,6 +21,13 @@
 //      rigs open the app's 404 screen while curl, which asks for the file,
 //      gets the real page. That difference cost a diagnosis: the page was
 //      served correctly and the test could not see it.
+//   3. THE SEO SHIM. Live, `/` and every SPA route are rewritten to seo.php,
+//      which injects the per-route <head> and — since 2026-09-10 — the ETag
+//      that lets a navigation revalidate for nothing instead of re-sending
+//      42 kB. The sandbox served index.html straight from disk, so seo.php
+//      had NEVER been exercised by any rig here: not its canonical, not its
+//      hreflang, not its Open Graph tags, and not the fail-safe branch. Every
+//      one of those measured "fine" locally by never running.
 
 declare(strict_types=1);
 
@@ -36,6 +43,32 @@ $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
 // Removing it here as well is not tidiness: this router is what the sandbox
 // serves, php -S never reads .htaccess, and a measurement taken with only one
 // of the two changed measures nothing at all.
+
+// THE SEO SHIM, mirroring .htaccess:
+//     RewriteRule ^$ /seo.php [L]
+//     RewriteRule ^(shop|cart|checkout|about|contact|wishlist|track|returns|terms|privacy|review)/?$ /seo.php [L]
+//     RewriteRule ^product/[^/]+/?$  /seo.php [L]
+//     RewriteRule ^payment/result/?$ /seo.php [L]
+//
+// REAL FILES WIN FIRST, exactly as the RewriteCond %{REQUEST_FILENAME} -f
+// above those rules does. Without that guard this router would hand
+// /assets/index-*.css to seo.php and the sandbox would serve the HTML shell
+// with a stylesheet's Content-Type — which is not a subtle failure, but it is
+// a confusing one to diagnose from a blank page.
+$seoRoutes = '#^/(shop|cart|checkout|about|contact|wishlist|track|returns|terms|privacy|review)/?$'
+           . '|^/product/[^/]+/?$'
+           . '|^/payment/result/?$#';
+if ($uri === '/' || preg_match($seoRoutes, $uri)) {
+    $onDisk = $_SERVER['DOCUMENT_ROOT'] . $uri;
+    if ($uri === '/' || !is_file($onDisk)) {
+        // seo.php reads index.html itself and echoes the result, so it is
+        // included rather than redirected to — the same one internal hop the
+        // rewrite makes live.
+        $_SERVER['SCRIPT_NAME'] = '/seo.php';
+        require $_SERVER['DOCUMENT_ROOT'] . '/seo.php';
+        exit;
+    }
+}
 
 // The flat pages, which are NOT routes in the built app.
 //   .htaccess: RewriteCond %{DOCUMENT_ROOT}/card.html -f
