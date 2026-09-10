@@ -23,6 +23,21 @@
 // can — a pixel count on a software renderer is a noisy thing to hang a
 // suite on — and keeps exactly one pixel measurement, the one that
 // proves the car's shadow reaches the world at all.
+//
+// AND THE OTHER SHADOW. Two different things darken the road under a
+// car and only one of them is a shadow in the renderer's sense:
+//
+//   the CAST shadow   the moon, through a shadow map. Everything above.
+//   the CONTACT       a decal, standing in for the ambient occlusion
+//                     this renderer does not compute — the body is a lid
+//                     over that patch of road.
+//
+// At midnight the cast shadow removes a mean of 5.8 of 255, and that is
+// not a bug to fix with resolution: the moon is a small part of what
+// lights that asphalt next to ambient, the street lamps and the car's
+// own headlight bounce, so taking it away barely moves the pixel. The
+// contact decal is what actually grounds the car, and it gets its own
+// section at the end.
 
 import { chromium } from "playwright-core";
 import { existsSync } from "node:fs";
@@ -63,6 +78,23 @@ const r = await page.evaluate(async () => {
   const e = window.__grnEngine;
   e.setPaused(true);
   e.applyQualityTier("high");
+  // PIN THE CLOCK FIRST, or the hour set below does not survive the
+  // update loop.
+  //
+  // The engine's clock defaults to the real one: update() calls
+  // kuwaitHours() and re-runs setTimeOfDay with the answer. So this file
+  // set midnight, ran sixty frames, and measured whatever time it
+  // happened to be in Kuwait — which is why it reported the key at 54
+  // degrees "at midnight", the exact signature of the |sin| bug this
+  // file was written to catch, and why the key appeared to point the
+  // same way at midnight as at noon. Both readings were noon.
+  //
+  // The key light was fine the whole time. Measured across the day it
+  // rides 26 degrees at night, 12 at twilight and 54 at noon, exactly as
+  // KEY_ELEV_* specifies. The instrument was wrong before the renderer
+  // was — again.
+  e.timeReal = false;
+  e.timeCycling = false;
   e.timeHours = 0.5;
   e.world.setTimeOfDay(0.5);
   e.applyDaylight();
@@ -190,12 +222,42 @@ const r = await page.evaluate(async () => {
   car.visible = true;
   e.bloomPass.enabled = bloomWas;
 
-  // --- 5. the blob steps back ------------------------------------------
+  // --- 5. the contact shadow -------------------------------------------
+  //
+  // This used to A/B the quality tiers, because the decal was turned
+  // down whenever a real shadow was drawn — on the grounds that it was
+  // swallowing 40% of one. That was measured, and it was true of what it
+  // was measured on: a 2.9 x 5.8 m oval, bigger than most of the cars in
+  // the game. Re-measured against the footprint that replaced it, the
+  // decal costs the cast shadow 1.1% of its pixels and nothing of its
+  // depth, while halving it cost a third of the decal's own mean. So the
+  // halving is gone and the tier A/B with it; what is checked now is
+  // that the decal is the size of its car and the shape of one.
   const blob = e.carBody?.userData?.contact;
-  out.blobHigh = +(blob?.material?.opacity ?? -1).toFixed(2);
-  e.applyQualityTier("battery");
-  out.blobBattery = +(blob?.material?.opacity ?? -1).toFixed(2);
-  e.applyQualityTier("high");
+  out.blobOpacity = +(blob?.material?.opacity ?? -1).toFixed(2);
+  out.blobScale = +(blob?.scale?.x ?? -1).toFixed(3);
+  out.carScale = +(e.carBody?.scale?.x ?? -1).toFixed(3);
+  out.blobL = +((blob?.geometry?.parameters?.height ?? 0) * (blob?.scale?.x ?? 1)).toFixed(2);
+  out.blobW = +((blob?.geometry?.parameters?.width ?? 0) * (blob?.scale?.x ?? 1)).toFixed(2);
+  out.carLengthM = e.tune?.lengthM ?? null;
+  // The texture, sampled in plane space: u across the width, v along the
+  // length. An oval passes every size check above and still reads as a
+  // puddle; these are the samples an oval fails.
+  {
+    const img = blob?.material?.map?.image;
+    const g = document.createElement("canvas");
+    g.width = img.width; g.height = img.height;
+    const gx = g.getContext("2d");
+    gx.drawImage(img, 0, 0);
+    const a = (u, v) =>
+      gx.getImageData(Math.round(u * (g.width - 1)), Math.round(v * (g.height - 1)), 1, 1).data[3];
+    out.alpha = {
+      sill: Math.min(a(0.2, 0.5), a(0.8, 0.5)),
+      wheel: Math.min(a(0.22, 0.24), a(0.78, 0.24), a(0.22, 0.76), a(0.78, 0.76)),
+      bay: a(0.5, 0.5),
+      corner: a(0.02, 0.02),
+    };
+  }
 
   // --- 6. the hour reaches the light -----------------------------------
   // LAST, on purpose. Moving the clock changes the key's direction but
@@ -239,8 +301,24 @@ console.log(`\n  overhead        ${r.withCar.px} px in shadow with the car, ${r.
 console.log(`  the car throws  ${check(r.withCar.px > r.withoutCar.px * 1.15, `the car adds only ${r.withCar.px - r.withoutCar.px} shadow pixels — it is not casting onto the world`)}  ` +
   `+${r.withCar.px - r.withoutCar.px} px, peak ${r.withoutCar.peak} -> ${r.withCar.peak}`);
 
-console.log(`\n  contact blob    ${r.blobHigh} with real shadows, ${r.blobBattery} without`);
-console.log(`  blob steps back ${check(r.blobHigh < r.blobBattery, "the fake contact decal is at full strength alongside a real shadow, and hides it")}`);
+console.log(`\n  contact         ${r.blobW} x ${r.blobL} m around a ${r.carLengthM} m car, strength ${r.blobOpacity}`);
+// The player's plane is re-parented onto the unscaled playerMesh so the
+// pitching body cannot tilt it into the asphalt — but it is SIZED in the
+// car's local units, before the length fit scales the shell onto its
+// published metres. Lift it out of the scaled group without carrying the
+// scale and it is wrong by exactly the fit, on the one car the camera is
+// always pointed at.
+console.log(`  sized to its car ${check(Math.abs(r.blobScale - r.carScale) < 1e-3, `contact scale ${r.blobScale} against car ${r.carScale}: it was lifted out of the scaled group and left behind`)}  ` +
+  `and ${check(r.carLengthM ? Math.abs(r.blobL - (r.carLengthM + 0.88)) < 0.6 : true, `plane is ${r.blobL} m long against a ${r.carLengthM} m car plus its reach`)}`);
+// Full strength, and by declaration rather than by whichever caller went
+// last: this used to be set during a quality change and nowhere else, so
+// a session where the tier never moved ran a different contact shadow
+// from one where it did.
+console.log(`  full strength   ${check(r.blobOpacity === 1, `contact opacity is ${r.blobOpacity} — something is halving it again`)}`);
+console.log(`  shaped like a car ${check(r.alpha.wheel > r.alpha.bay, `the four contact patches are gone: wheels at alpha ${r.alpha.wheel} against ${r.alpha.bay} between the axles`)}  ` +
+  check(r.alpha.sill > 100, `alpha at the sill is ${r.alpha.sill}: it has faded out before it clears the bodywork, which is the only part anyone sees`) +
+  check(r.alpha.corner < 40, `the corner of the plane is at alpha ${r.alpha.corner} — no falloff, so it will show as a box`) +
+  `  wheels ${r.alpha.wheel}, sill ${r.alpha.sill}, corner ${r.alpha.corner}`);
 
 if (r.worst?.length) console.log(`  clipped e.g.    ${JSON.stringify(r.worst)} against near/far ${JSON.stringify(r.nearFar)}`);
 if (errors.length) console.log(`\n  page errors: ${errors.slice(0, 3).join(" | ")}`);

@@ -125,6 +125,7 @@
     "test:roadname": "node tests/roadname.mjs",
     "test:roofline": "node tests/roofline.mjs",
     "test:runs": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/quests.mjs",
+    "test:shadowsXX": "node tests/shadows.mjs",
     "test:shadows": "node tests/shadows.mjs",
     "test:shop": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/shop.mjs",
     "test:size": "node tests/size.mjs",

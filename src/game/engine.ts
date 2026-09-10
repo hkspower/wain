@@ -11,7 +11,7 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, COAST_FADE_M, STATIONS, FORECOURT, LAP, TUNNEL_BOX, LAP_LENGTH } from "./track";
 import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
-import { createCar, crownShell, CROWN, paintMetalness, setContactStrength, TAIL } from "./cars";
+import { createCar, crownShell, CROWN, paintMetalness, TAIL } from "./cars";
 import { RIVALS, RivalDef, rivalCar as rivalCarOf, rivalCarName } from "./rivals";
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
@@ -1711,7 +1711,17 @@ export class GameEngine {
     // The contact blob must stay flat on the road — carBody pitches and
     // rolls with weight transfer, which would tilt it into the asphalt
     const contact = this.carBody.userData.contact as THREE.Object3D | undefined;
-    if (contact) this.playerMesh.add(contact);
+    // ...carrying the shell's scale with it. The contact plane is sized
+    // in the car's LOCAL units — the shell's own extents, before the
+    // length fit scales the group onto its published metres — so a plane
+    // lifted out of that group and parented to the unscaled playerMesh
+    // is the wrong size by exactly the fit. A rival keeps theirs inside
+    // the group and has always been right; the player's was 8-12% too
+    // big, on the one car the camera is always looking at.
+    if (contact) {
+      contact.scale.copy(this.carBody.scale);
+      this.playerMesh.add(contact);
+    }
     this.scene.add(this.playerMesh);
 
     this.lampRig = new THREE.Group();
@@ -2417,10 +2427,6 @@ export class GameEngine {
       this.bloomPass.enabled = false;
       this.world.moonLight.castShadow = false;
       this.headlight.castShadow = false;
-      // The blob goes back to full strength as the real shadow leaves,
-      // so a machine that drops to this tier does not also lose the only
-      // thing keeping its cars on the road.
-      this.applyContactStrength();
       // Performance mode drops the samples too: multisampling is a
       // per-pixel cost on the geometry pass and this tier exists because
       // the machine could not keep up. FXAA is what is left, and here it
@@ -2666,20 +2672,6 @@ export class GameEngine {
     this.lightUp.crossVectors(this.lightRight, this.moonDir).normalize();
   }
 
-  /**
-   * Turn the painted-on contact blob down when a real shadow is being
-   * drawn, and back up when it is not.
-   *
-   * The blob predates the car ever having a visible shadow, and with the
-   * key raked it now competes with the real one for the same asphalt —
-   * measured swallowing 40% of it. It stays at full strength wherever
-   * shadow casting is off, because there it is not competing with
-   * anything: it IS the shadow.
-   */
-  private applyContactStrength(): void {
-    setContactStrength(this.world.moonLight.castShadow ? 0.5 : 1);
-  }
-
   private applyDaylight(): void {
     this.syncKeyDirection();
     const dark = 1 - this.daylight;
@@ -2728,7 +2720,6 @@ export class GameEngine {
     this.bloomPass.enabled = high || balanced;
     this.world.moonLight.castShadow = high || balanced;
     this.headlight.castShadow = high || balanced;
-    this.applyContactStrength();
     // Multisampling where the machine can afford it, and FXAA only where
     // it cannot — never both.
     //
@@ -2979,7 +2970,6 @@ export class GameEngine {
       this.bloomPass.enabled = !this.bloomPass.enabled;
       this.world.moonLight.castShadow = this.bloomPass.enabled;
       this.headlight.castShadow = this.bloomPass.enabled;
-      this.applyContactStrength();
       // Same rule as the tier ladder: samples when the effects are on,
       // FXAA only when they are off. Never both — see applyQualityTier.
       this.msaaTarget.samples = this.bloomPass.enabled ? 4 : 0;
@@ -3688,7 +3678,11 @@ export class GameEngine {
     );
     this.playerMesh.add(this.carBody);
     const newContact = this.carBody.userData.contact as THREE.Object3D | undefined;
-    if (newContact) this.playerMesh.add(newContact);
+    // Same scale carry as the first build — see the note there.
+    if (newContact) {
+      newContact.scale.copy(this.carBody.scale);
+      this.playerMesh.add(newContact);
+    }
     // The in-car rig hung off the old shell and went with it.
     this.buildViewRig();
     this.fitLampsToCar();

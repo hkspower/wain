@@ -254,21 +254,93 @@ function headlightStarTexture(): THREE.CanvasTexture {
 // Glow shapes live in glow.ts: a lamp seen directly and a pool of neon
 // on the tarmac need opposite falloffs, and they used to share one.
 
-// Soft dark blob under every car — grounds it on the asphalt even where
-// the moon shadow falls subtle. Geometry/material shared across all cars
-// (created per car they'd leak on rival rematches and remote re-styles).
-const contactGeo = new THREE.PlaneGeometry(2.9, 5.8);
-let contactMatShared: THREE.MeshBasicMaterial | null = null;
-function contactMat(): THREE.MeshBasicMaterial {
-  if (!contactMatShared) {
-    contactMatShared = new THREE.MeshBasicMaterial({
-      map: contactShadowTexture(),
-      transparent: true,
-      depthWrite: false,
-    });
+// The occlusion under every car — what actually grounds it on the
+// asphalt at midnight, where the moon's own shadow is nearly nothing.
+//
+// Shared by SILHOUETTE rather than by car. The old pair was one geometry
+// and one material for the whole game, which is cheaper still but meant
+// every car in the fleet — a 3.9 m hatch and a 5.35 m pickup — sat on
+// the same 2.9 x 5.8 m oval. Cars are fitted to real lengths now (see
+// the length fit below), so one plane cannot be right for two of them.
+// Six shells means at most six of each, built once and handed out.
+const contactGeoCache = new Map<string, THREE.PlaneGeometry>();
+const contactMatCache = new Map<string, THREE.MeshBasicMaterial>();
+const contactMats: THREE.MeshBasicMaterial[] = [];
+function contactPlane(
+  style: BodyStyle,
+  bodyW: number,
+  bodyL: number,
+  frontZ: number,
+  rearZ: number,
+  trackHalf: number
+): { geo: THREE.PlaneGeometry; mat: THREE.MeshBasicMaterial } {
+  const w = bodyW + CONTACT_REACH_M * 2;
+  const l = bodyL + CONTACT_REACH_M * 2;
+  const key = style;
+  let geo = contactGeoCache.get(key);
+  if (!geo) {
+    geo = new THREE.PlaneGeometry(w, l);
+    contactGeoCache.set(key, geo);
   }
-  return contactMatShared;
+  let mat = contactMatCache.get(key);
+  if (!mat) {
+    // Plane space: u across the width, v along the length. The plane is
+    // rotated -90° about x when it is added, which puts +v at the NOSE,
+    // so the axle v's are measured from the nose the same way.
+    mat = new THREE.MeshBasicMaterial({
+      map: contactShadowTexture(
+        bodyW / 2 / w,
+        bodyL / 2 / l,
+        0.5 - frontZ / l,
+        0.5 - rearZ / l,
+        trackHalf / w
+      ),
+      transparent: true,
+      opacity: contactStrength,
+      depthWrite: false,
+      // Never lit and never in anyone's shadow: this IS a shadow. Left
+      // to the default it would be darkened by the moon shadow it is
+      // standing in for, which is a shadow of a shadow.
+      fog: true,
+    });
+    contactMatCache.set(key, mat);
+    contactMats.push(mat);
+  }
+  return { geo, mat };
 }
+
+/**
+ * How strongly the contact shadow shows, 0..1.
+ *
+ * One number, applied when a material is built and to every material
+ * already built. It used to be left to whoever called last: the material
+ * was created at its own default and the engine set it during a quality
+ * change, so a session where the tier never changed ran a different
+ * contact shadow from one where it did, and neither was written down as
+ * the intended one.
+ */
+let contactStrength = 1;
+/*
+ * WHY 1, AND NOT 0.5 UNDER A REAL SHADOW.
+ *
+ * The engine used to halve this whenever the moon was casting, on the
+ * grounds that the painted blob was "swallowing 40%" of the real shadow
+ * they share the asphalt with. That was measured, and it was true of the
+ * thing it was measured on: a 2.9 x 5.8 m oval, larger than most of the
+ * cars in the game and centred on the same patch of road.
+ *
+ * Re-measured against the footprint above, at night, from a raking
+ * three-quarter, by rendering the frame twice and differencing:
+ *
+ *   the cast shadow, blob on   10,793 px   mean -5.8   peak -22.1
+ *   the cast shadow, blob off  10,913 px   mean -5.8   peak -22.1
+ *
+ * The blob costs the cast shadow 1.1% of its pixels and nothing at all
+ * of its depth. Halving the contact to buy that back cost a third of its
+ * mean (8.2 -> 5.5) and half its peak (108 -> 54) — paying a lot for
+ * almost nothing, against a figure that stopped being true when the
+ * shape changed. So the halving is gone, and this is the one number.
+ */
 
 /**
  * How strongly the painted-on contact blob shows, 0..1.
@@ -288,23 +360,112 @@ function contactMat(): THREE.MeshBasicMaterial {
  * assignment for the whole road.
  */
 export function setContactStrength(v: number): void {
-  contactMat().opacity = v;
+  contactStrength = v;
+  for (const m of contactMats) m.opacity = v;
 }
-let contactTexShared: THREE.CanvasTexture | null = null;
-function contactShadowTexture(): THREE.CanvasTexture {
-  if (contactTexShared) return contactTexShared;
+/**
+ * How far the occlusion reaches past the sill, in metres.
+ *
+ * The whole visible part of a contact shadow is this band. Under the car
+ * is hidden by the car, so however dark it is there costs nothing and
+ * shows nothing — measured, the old blob put 0.29% of the frame on
+ * screen against the cast shadow's 2.26%, because nearly all of it was
+ * beneath the bodywork.
+ */
+const CONTACT_REACH_M = 0.44;
+
+/**
+ * The contact shadow, shaped like the car that casts it.
+ *
+ * WHAT WAS HERE: one 128px radial gradient, stretched onto a 2.9 x 5.8 m
+ * plane for every car in the game. A radial gradient on a rectangle is
+ * an OVAL, which is not the plan view of anything with wheels, and its
+ * alpha peaked at 0.5 in the middle and reached zero exactly at the
+ * edge — so the strongest part was under the car where nothing can see
+ * it, and the part sticking out past the sill, which is the only part
+ * anyone ever sees, had faded to nothing by the time it got there.
+ *
+ * Measured at night from a raking three-quarter: the car darkened 0.29%
+ * of the frame by a mean of 5.6/255. A car on a road it is not touching.
+ *
+ * WHY THIS AND NOT A BIGGER SHADOW MAP: the moon's cast shadow removes
+ * 5.8/255 at night, and it is faint for a real reason rather than a
+ * fixable one — the moon contributes little of the asphalt's brightness
+ * next to ambient, street lamps and the car's own headlight bounce, so
+ * taking the moon away barely changes the pixel. What actually grounds a
+ * car at midnight is AMBIENT OCCLUSION: the body is a lid over that
+ * patch of road, and no amount of shadow-map resolution models a lid.
+ *
+ * So this draws the lid. A rounded footprint the size of the body, four
+ * darker patches where the tyres meet the road, and a blurred falloff
+ * that is still strong where it emerges from under the sill.
+ *
+ * Cached per silhouette rather than per car: the shape is the same for
+ * every car on a given shell and the plane is what carries the size.
+ */
+const contactTexCache = new Map<string, THREE.CanvasTexture>();
+function contactShadowTexture(
+  /** Half-width and half-length of the BODY within the plane, 0..0.5. */
+  bodyU: number,
+  bodyV: number,
+  /** Axle centres along the plane, 0..1 from the nose. */
+  frontV: number,
+  rearV: number,
+  /** Track half-width as a fraction of the plane, 0..0.5. */
+  trackU: number
+): THREE.CanvasTexture {
+  const key = [bodyU, bodyV, frontV, rearV, trackU].map((n) => n.toFixed(3)).join("/");
+  const hit = contactTexCache.get(key);
+  if (hit) return hit;
+
+  const S = 256;
   const c = document.createElement("canvas");
-  c.width = 128;
-  c.height = 128;
+  c.width = c.height = S;
   const ctx = c.getContext("2d")!;
-  const g = ctx.createRadialGradient(64, 64, 8, 64, 64, 62);
-  g.addColorStop(0, "rgba(0,0,0,0.5)");
-  g.addColorStop(0.6, "rgba(0,0,0,0.32)");
-  g.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 128, 128);
-  contactTexShared = new THREE.CanvasTexture(c);
-  return contactTexShared;
+
+  // Everything is drawn hard and blurred once at the end. Compositing a
+  // stack of soft gradients gives a muddy edge; one blur over solid
+  // shapes gives a penumbra with a consistent width, which is what a
+  // contact shadow has.
+  const soft = document.createElement("canvas");
+  soft.width = soft.height = S;
+  const sx = soft.getContext("2d")!;
+
+  // The body, as a rounded rectangle. 0.62 rather than the old 0.5:
+  // this is the level the band OUTSIDE the sill inherits, and it is the
+  // only level that ends up on screen.
+  sx.fillStyle = "rgba(0,0,0,0.62)";
+  const bw = bodyU * 2 * S;
+  const bh = bodyV * 2 * S;
+  const bx = (S - bw) / 2;
+  const by = (S - bh) / 2;
+  sx.beginPath();
+  sx.roundRect(bx, by, bw, bh, Math.min(bw, bh) * 0.28);
+  sx.fill();
+
+  // The tyres. Darkest and tightest: a contact patch is the one place
+  // under a car where the gap to the road is zero, and it is what makes
+  // the eye read four wheels rather than a hovering slab.
+  sx.fillStyle = "rgba(0,0,0,0.95)";
+  for (const v of [frontV, rearV]) {
+    for (const sgn of [-1, 1]) {
+      sx.beginPath();
+      sx.ellipse(S / 2 + sgn * trackU * S, v * S, S * 0.055, S * 0.085, 0, 0, Math.PI * 2);
+      sx.fill();
+    }
+  }
+
+  // One blur, sized so the penumbra is about the reach. Chromium's
+  // canvas filter is a real Gaussian, so this is a proper falloff rather
+  // than a stack of stops approximating one.
+  ctx.filter = `blur(${Math.round(S * 0.055)}px)`;
+  ctx.drawImage(soft, 0, 0);
+  ctx.filter = "none";
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  contactTexCache.set(key, tex);
+  return tex;
 }
 
 /** Chamfered box. Real sheet metal never meets at a sharp 90 degrees —
@@ -5491,10 +5652,26 @@ export function createCar(colors: CarColors): THREE.Group {
     }
   }
 
-  // Contact shadow blob — all cars, traffic included. Sits above the lane
-  // paint (y 0.03) so it darkens markings like a real shadow. Exposed via
-  // userData so the engine can re-parent it off the pitching player body.
-  const contact = new THREE.Mesh(contactGeo, contactMat());
+  // The contact shadow — all cars, traffic included. Sits above the lane
+  // paint (y 0.03) so it darkens markings like a real shadow does.
+  // Exposed via userData so the engine can re-parent it off the pitching
+  // player body.
+  //
+  // Sized from THIS car: the body's own extents and its own axles, so a
+  // hatch gets a hatch's footprint and a pickup gets a pickup's long
+  // wheelbase with a flat run of shadow behind the rear wheel. It used
+  // to be one 2.9 x 5.8 m plane for the whole fleet.
+  bGeo.computeBoundingBox();
+  const bb = bGeo.boundingBox!;
+  const { geo: contactG, mat: contactM } = contactPlane(
+    style,
+    flankX * 2,
+    bb.max.z - bb.min.z,
+    wzF,
+    wzR,
+    flankX * 0.92
+  );
+  const contact = new THREE.Mesh(contactG, contactM);
   contact.rotation.x = -Math.PI / 2;
   contact.position.y = 0.035;
   contact.userData.noShadow = true;
