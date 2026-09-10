@@ -296,9 +296,26 @@ const hostAllowedByDefault = ["raw.githubusercontent.com", "github.com", "codelo
  * afterwards. That part cannot be checked from here; it is in the runbook.
  */
 const SAFE = /^[A-Za-z0-9 _\-./:=?&@]+$/;
+
+/**
+ * The command field also has a length cap, which is a 422 rather than a 403 and
+ * so looks nothing like the WAF refusal above. Measured while clearing stale
+ * build files: two 101-character paths plus `rm -rf ` went through, three did
+ * not. So the ceiling is above 210 and below 279, and 210 is the largest length
+ * actually observed to work. A long artifact URL is the realistic way to exceed
+ * it — the deploy command carries a URL, a 64-character digest and a version.
+ */
+const MAX_COMMAND = 210;
 for (const { step, command } of commands) {
   if (!SAFE.test(command)) {
     fail(`the ${step} command contains a shell metacharacter:\n    ${command}\n  Cloudflare's WAF answers 403 for these. One program and its arguments only.`);
+  }
+  if (command.length > MAX_COMMAND) {
+    fail(
+      `the ${step} command is ${command.length} characters, past the ${MAX_COMMAND} that is\n` +
+      `  known to be accepted — createAccountCronJobV1 answers 422, not 403, so it\n` +
+      `  will not look like the WAF rule above. Shorten the artifact URL:\n    ${command}`,
+    );
   }
 }
 
