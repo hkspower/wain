@@ -37,6 +37,34 @@ await page.evaluate(async ()=>{
   // depending on how the machine felt that minute — which moves the
   // bloom and therefore the histogram. An explicit tier turns DRS off.
   e.applyQualityTier("high");
+  // PIN THE CLOCK, ONCE, BEFORE ANYTHING IS MEASURED.
+  //
+  // Every hour this file sets was being handed straight back. The engine
+  // defaults to the real clock — update() runs `timeHours =
+  // kuwaitHours()` — and the pause flag does NOT stop it: the gate is in
+  // the rAF loop (`if (!this.paused) this.update(dt)`), so a test that
+  // calls update() by hand runs the clock block whether it is paused or
+  // not. Every section here does exactly that.
+  //
+  // Three checks were failing on it, and all three read as grading bugs:
+  //
+  //   "auto exposure did not stop down for daylight" — it metered 22:30
+  //     and 12:30, both of which collapsed to whatever time it was in
+  //     Kuwait, so the two exposures came back identical and a strict
+  //     noon < night could not hold.
+  //   "a stop down at night did not darken most of the picture" — the
+  //     paired shots were not at night. Its sibling check on the frame
+  //     mean passed; only the per-pixel ratio missed, which is what a
+  //     3:1 bar calibrated on a night frame does when handed a day one.
+  //   "a battle does not pull the colour back" — the situation grade is
+  //     night-weighted, so measured at midday there was little colour
+  //     left for a battle to drain.
+  //
+  // The same trap put the key light at 54 degrees "at midnight" in
+  // tests/shadows.mjs and made it look as though the |sin| bug had come
+  // back. The instrument is wrong before the renderer is.
+  e.timeReal = false;
+  e.timeCycling = false;
   e.timeHours = 22.5; e.world.setTimeOfDay(22.5); e.applyDaylight();
   e.player.s = 2203; e.player.lat = 0; e.player.speed = 32;
   for (const t of e.traffic) t.s = e.track.wrap(e.player.s + e.track.length/2);
@@ -536,7 +564,6 @@ console.log(`            luminance across the four: ${lums.join(" / ")}  ` +
 {
   const r = await page.evaluate(async () => {
     const e = window.__grnEngine;
-    e.timeReal = false; e.timeCycling = false;
     e.timeHours = 1.5; e.world.setTimeOfDay(1.5); e.applyDaylight();
     e.player.s = 2400; e.player.lat = 0; e.player.speed = 24;
     for (const t of e.traffic) t.s = e.track.wrap(e.player.s + e.track.length / 2);
@@ -571,6 +598,87 @@ console.log(`            luminance across the four: ${lums.join(" / ")}  ` +
   // ...and still unmistakably the brightest thing out there. Taking the
   // clipping out by making the paint grey would be the wrong cure.
   check(r.paint > r.median * 2.2, `paint reads ${r.paint} against a road at ${r.median} — the markings have lost their authority`);
+}
+
+// ---- the lighting gradient has no corners in it ----------------------
+//
+// Every lighting property in setTimeOfDay is a blend of four keyframes —
+// night, twilight, gold, day — through weights derived from the sun's
+// altitude. The weights were straight ramps that stopped dead at each
+// end, so the light did not jump in VALUE at those points, it jumped in
+// RATE, which is the thing an eye is good at catching. A day turns in
+// sixteen minutes, so a game hour is forty seconds and the two dawn
+// corners were forty-nine seconds apart.
+//
+// Measured off the key light itself rather than off the weights, because
+// the weights are local to that function and what matters is what comes
+// out of it. Differencing twice turns a corner into a spike; on a smooth
+// curve the spikes spread into their neighbours instead.
+{
+  const r = await page.evaluate(async () => {
+    const e = window.__grnEngine;
+    const STEP = 0.02;
+    const ints = [], elevs = [], sums = [];
+    for (let h = 0; h < 24; h += STEP) {
+      e.world.setTimeOfDay(h);
+      const k = e.world.moonLight;
+      ints.push(k.intensity);
+      elevs.push(Math.asin(Math.max(-1, Math.min(1, k.userData.keyDir.y))));
+    }
+    e.world.setTimeOfDay(22.5);
+    const curvature = (ys) => {
+      const range = Math.max(...ys) - Math.min(...ys);
+      let worst = 0, at = 0;
+      for (let i = 1; i < ys.length - 1; i++) {
+        const d2 = Math.abs(ys[i + 1] - 2 * ys[i] + ys[i - 1]);
+        if (d2 > worst) { worst = d2; at = i * STEP; }
+      }
+      // Scale-free: a corner as a fraction of the curve's own travel, so
+      // the bar does not move when a keyframe is retuned.
+      return { worst: +(worst / Math.max(range, 1e-9)).toExponential(2),
+               atHour: +at.toFixed(2), range: +range.toFixed(3) };
+    };
+    return { intensity: curvature(ints), elevation: curvature(elevs) };
+  });
+  console.log(
+    `light curve  intensity worst bend ${r.intensity.worst} at ${r.intensity.atHour}h ` +
+      `(over a range of ${r.intensity.range}); elevation ${r.elevation.worst} at ${r.elevation.atHour}h`
+  );
+  // Linear ramps measured 7.7e-3 on intensity; smoothstep measures about
+  // 1.0e-3. 3e-3 sits between them with room either side.
+  check(+r.intensity.worst < 3e-3,
+    `the key's intensity turns a corner at ${r.intensity.atHour}h (${r.intensity.worst} of its range) — the blend weights are ramping linearly again`);
+  check(+r.elevation.worst < 6e-3,
+    `the key's height turns a corner at ${r.elevation.atHour}h (${r.elevation.worst} of its range)`);
+}
+
+// ---- and the four weights still partition the day --------------------
+//
+// twilight is 1 - lit - night and day is lit - gold, so the four sum to
+// one by construction — but only while lit and night can never both be
+// positive at the same altitude. That is the way this partition breaks,
+// and it breaks silently: the blend just starts returning more than it
+// was given. Checked through the delivered light, by confirming the key
+// never brightens past its brightest keyframe or dims below its dimmest.
+{
+  const r = await page.evaluate(async () => {
+    const e = window.__grnEngine;
+    let min = Infinity, max = -Infinity, minAt = 0, maxAt = 0;
+    for (let h = 0; h < 24; h += 0.02) {
+      e.world.setTimeOfDay(h);
+      const i = e.world.moonLight.intensity;
+      if (i < min) { min = i; minAt = h; }
+      if (i > max) { max = i; maxAt = h; }
+    }
+    e.world.setTimeOfDay(22.5);
+    return { min: +min.toFixed(4), max: +max.toFixed(4),
+             minAt: +minAt.toFixed(2), maxAt: +maxAt.toFixed(2) };
+  });
+  console.log(`             key intensity spans ${r.min} (${r.minAt}h) to ${r.max} (${r.maxAt}h)`);
+  // The keyframes are 1.15 night, 1.5 twilight, 2.75 gold, 3.1 day. A
+  // partition that sums to one can never leave that envelope.
+  check(r.min >= 1.15 - 1e-3, `the key falls to ${r.min}, under its dimmest keyframe — the weights sum to less than one somewhere`);
+  check(r.max <= 3.1 + 1e-3, `the key climbs to ${r.max}, over its brightest keyframe — the weights sum to more than one somewhere`);
 }
 
 console.log(fail.length?"\nFAILURES:\n - "+fail.join("\n - "):"\nthe grade grades");
