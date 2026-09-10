@@ -1091,12 +1091,40 @@ sent at all. Two of the ten mattered:
 
 Both are now live, verified `same=173/173 differ=0 missing=0`.
 
-**The manifest in that checker is hardcoded, so it goes stale, and a stale
+**The manifest in that checker WAS hardcoded, so it went stale, and a stale
 manifest reports the repository's staleness as the server's.** It was eight
 hashes behind and missing two files that were live — a run would have called
-two live files "missing" and eight correct ones "differ". Regenerate it from
-`git ls-files` before believing a run, and diff the file's own manifest against
-the fresh one afterwards.
+two live files "missing" and eight correct ones "differ".
+
+**The instruction here used to be "regenerate it from `git ls-files` before
+believing a run", and that was not enough: it went stale again within the
+hour.** On 2026-09-10, minutes after publishing eight files, the manifest was
+behind by exactly those eight — so the next run would have reported the server
+as wrong about the very files that had just been made right. **A checker that
+reports the repository's staleness as the server's does not merely mislead; it
+points at work that is already done**, and the obvious response to its report is
+to republish files that are already correct.
+
+So it is generated now: `npm run make:file-manifest` writes it, and
+`npm run test:file-manifest` FAILS on drift and names what drifted. A rule that
+needs remembering every time is a rule that will one day not be — the same
+argument as `make-brand-tokens.mjs --check`, which is why that one exists too.
+
+`$MUSTNOT` is read OUT of the PHP by the generator rather than repeated in it.
+Those six files must not be on the server, so they must not be in `$WANT`
+either — an entry in both would report `missing` for ever, which is how a real
+signal gets trained into noise. One home, and the two cannot disagree.
+
+The generator carries two guards for failures this file already records: it
+refuses to write a manifest from a suspiciously short file list, because an
+empty manifest reports `same=0/0` and reads like a clean run; and it checks its
+own replacement afterwards, because a replacement that matches nothing is a
+no-op that looks like success.
+
+**Measured with a fresh manifest on 2026-09-10: `FILES same=182/182 differ=0
+missing=0 mustNotBeHere=0`** — the live docroot matches the repository exactly,
+every tracked file, and none of the six that must not be there is present. With
+the STALE manifest the same server would have reported `differ=8`.
 
 **The general rule:** `differ=0` is not "the server is up to date". Ask for
 `missing` too, and treat a file the repository tracks but the server lacks as a
