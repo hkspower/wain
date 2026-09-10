@@ -146,16 +146,48 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   even starts. Adopting the endpoint means first separating the directories the
   PHP app owns from the names the static site also uses.
 
-  Two further blockers. **Its `ALLOWED_HOSTS` is `raw.githubusercontent.com`,
-  `github.com`, `codeload.github.com` and nothing else**, so an artifact hosted
-  anywhere else is refused with `host_not_allowed` until that constant is
-  edited on the server. And **`www.wainkw.com` is refused at CONNECT by the
-  sandbox gateway exactly like the file host**, so the POST cannot be sent from
-  here at all. Verified 10 September: both answer 403 at the tunnel.
+  **This is now fixed on the server** by `scripts/publish/patch-deploy-endpoint.php`,
+  applied 10 September: `admin`, `queue`, `orders` and `.htaccess` are writable,
+  and `assets`, `cats`, `fonts`, `hero`, `images` — the PHP app's, which were
+  *not* protected before — now are. Verified by reading the live file back.
 
-  The `hosa` connector has **no file-write tool** — its file access is
-  read-only, and the one upload path it offers is the TUS URL on the blocked
-  host. So none of these edits can be made from this environment either.
+  **The «it cannot be reached from here» blocker was a mistake, and it is worth
+  knowing why.** This file used to say the POST could not be sent because
+  `www.wainkw.com` is refused at CONNECT by the sandbox gateway. That is true
+  and irrelevant: it confuses «unreachable from this session» with
+  «unreachable». **The server can call itself**, which is what sporta's eight
+  cron jobs have always done —
+
+  ```
+  wget -qO- --no-check-certificate --header=Host:www.sporta.com.kw https://127.0.0.1/api/…
+  ```
+
+  — and the same shape reaches wain. Proved with a GET that came back carrying
+  deploy.php's own `{"ok":false,"error":"method_not_allowed"}`, its 405 branch,
+  so the request reached PHP and the `Host:` header picked the right docroot.
+  The certificate is for the domain, not for `127.0.0.1`, hence
+  `--no-check-certificate` — the connection never leaves the machine, which is
+  the point of the loopback. **Before concluding that anything on this host is
+  unreachable, check whether the host can do it to itself.**
+
+  So the route is now: **`scripts/publish/deploy-call.php`**, fetched by cron
+  and run. It reads `storage/deploy.secret` on the server, signs, and POSTs over
+  the loopback; only the HMAC leaves the process, which is why the script is
+  safe to keep in the repository. `php d.php probe` sends a correctly signed
+  request that can only fail *after* the signature check, so `host_not_allowed`
+  coming back proves the HMAC was accepted without downloading or writing
+  anything. That probe passes. `npm run deploy:plan` now prints this route.
+
+  Still true: `ALLOWED_HOSTS` is GitHub-only, so an artifact hosted anywhere
+  else needs its hostname in `<domain>/storage/deploy.hosts`, one per line —
+  the patch added that file's support precisely so the host list can change
+  without editing an endpoint inside `public_html`. The planner prints the
+  `printf` line when the archive host is not GitHub.
+
+  The `hosa` connector still has **no file-write tool** — read-only, with its
+  one upload path on the blocked host. The write path is the cron job: the
+  server fetching from a commit-pinned raw URL and running what it fetched.
+  Delete the fetched `.php` and the job afterwards.
 - FTP secrets (`FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`) would make
   `deploy.yml` work; 186 runs have failed for want of them. They get added in
   GitHub's settings UI — **never pasted into a chat or a commit**.

@@ -170,7 +170,20 @@ Verified as far as this environment allows, which is not all the way:
   containing spaces and a URL all correctly ignored.
 - The endpoint's artifact walk simulated over the real `out/`: 245 files, seven
   refused by the current list and none by the patched one, no executables.
-- **Not** tested against the live endpoint. `www.wainkw.com` is refused at
-  CONNECT by the sandbox gateway, so no request can be sent from here at all.
-  Treat the patch as a proposal until `php -l` passes on the server and one
-  deploy has been watched.
+**Applied on 10 September, and this file is now history rather than a to-do.**
+`scripts/publish/patch-deploy-endpoint.php` makes the same two changes as code,
+because that turned out to be the only way to write to the server: the account
+fetches the script from a commit-pinned raw URL and runs it from cron. The live
+file was read back afterwards and carries the new list.
+
+The line that used to sit here said the patch could not be tested "because
+`www.wainkw.com` is refused at CONNECT by the sandbox gateway", and that
+inference was wrong — see **Reaching it: the server calls itself** in
+`docs/hosting.md`. The gateway blocks *this session*, not the server, and the
+server can call itself over `https://127.0.0.1` with a `Host:` header exactly
+as sporta's cron jobs always have. The endpoint answers, the signed probe
+passes, and `npm run deploy:plan` now prints that route.
+
+Prefer the script to this patch: it backs the endpoint up, lints the result and
+restores the backup if the lint fails, and it is idempotent. Keep the patch as
+the readable statement of *what* changed and why.

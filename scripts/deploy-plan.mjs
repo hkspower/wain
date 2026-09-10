@@ -246,13 +246,44 @@ if (archiveUrlArg) {
   }
   url = `https://raw.githubusercontent.com/${repo}/${publish.slice(0, 7)}/wain-${version}.zip`;
 }
-const zipOnServer = `${DOCROOT}/w.zip`;
+/**
+ * The route is the server calling its own deploy endpoint over the loopback.
+ *
+ * This used to be `wget` the zip and `unzip -o` it straight over the live
+ * docroot, which is what `public_html/api/deploy.php` was written to replace —
+ * its own header says so. That endpoint was skipped for months on the belief
+ * that it could not be reached, because www.wainkw.com is refused at CONNECT by
+ * the sandbox gateway. That was a confusion between "unreachable from the
+ * session" and "unreachable": sporta's eight cron jobs have always called their
+ * own site as `--header=Host:… https://127.0.0.1/api/…`, and the same shape
+ * reaches wain. Proved with a GET that returned deploy.php's own 405 body.
+ *
+ * What that buys over unzip: the artifact is checksum-verified before anything
+ * is written, staged outside the web root rather than expanded onto it, refused
+ * if it contains .php or a traversal or one of the PHP application's
+ * directories, and — the one this repository paid for by hand — pruned against
+ * the previous manifest, so a deploy no longer leaves the last build's chunks
+ * behind forever.
+ *
+ * Three cron jobs, because the command field caps between 210 and 279
+ * characters and fetch-and-run does not fit alongside the arguments.
+ */
+const callerUrl = `https://raw.githubusercontent.com/${repo}/${commit}/scripts/publish/deploy-call.php`;
 
 const commands = [
-  { step: "fetch", command: `wget -O ${zipOnServer} ${url}` },
-  { step: "extract", command: `unzip -o -q -d ${DOCROOT} ${zipOnServer}` },
-  { step: "clean", command: `rm -f ${zipOnServer}` },
+  { step: "fetch the caller", command: `wget -qO d.php ${callerUrl}` },
+  { step: "deploy", command: `php d.php ${url} ${zipSha} ${version}` },
+  { step: "clean", command: `rm -f d.php` },
 ];
+
+/**
+ * deploy.php's ALLOWED_HOSTS is GitHub-only. `storage/deploy.hosts` extends it,
+ * which is the whole reason that file exists — so that hosting the archive
+ * elsewhere does not mean editing an endpoint inside public_html.
+ */
+const artifactHost = new URL(url).hostname;
+const hostAllowedByDefault = ["raw.githubusercontent.com", "github.com", "codeload.github.com"]
+  .includes(artifactHost);
 
 /**
  * Hostinger puts Cloudflare in front of the cron-create endpoint, and its WAF
@@ -327,12 +358,25 @@ console.log(`           ${urlState === "200" ? "✓ reachable, and the same size
 console.log(`\n▸ run these in order, one cron job each, deleting it after it fires`);
 for (const { step, command } of commands) console.log(`\n  ${step}\n    ${command}`);
 
-console.log(`\n▸ after the fetch, check w.zip is ${zipBytes} bytes before extracting.`);
-console.log(`  Extracting a half-finished archive over a live docroot is the one`);
-console.log(`  outcome worth waiting a firing window to avoid.`);
+if (!hostAllowedByDefault) {
+  console.log(`\n▸ ${artifactHost} is not in deploy.php's ALLOWED_HOSTS, so the`);
+  console.log(`  endpoint will answer host_not_allowed until it is listed. One line,`);
+  console.log(`  outside public_html, and it survives any later edit of the endpoint:`);
+  console.log(`\n    printf '%s\\n' ${artifactHost} > ~/domains/wainkw.com/storage/deploy.hosts`);
+}
 
-console.log(`\n▸ createAccountCronJobV1 can return a uid for a job it never stored.`);
-console.log(`  List the jobs afterwards; the reply is not proof.`);
+console.log(`\n▸ the half-download trap is gone: deploy.php verifies sha256 against`);
+console.log(`  ${zipSha.slice(0, 16)}… before it writes anything, and stages outside`);
+console.log(`  the web root. A truncated fetch is a 422, not a broken site.`);
+
+console.log(`\n▸ read the reply with getCronJobOutputV1. {"ok":true,...} carries the`);
+console.log(`  file counts; anything else names the step that refused and why.`);
+console.log(`  \`php d.php probe\` first if you want the signature checked on its own —`);
+console.log(`  it is refused at the host check, which is after the HMAC.`);
+
+console.log(`\n▸ createAccountCronJobV1 can return a uid for a job it never stored,`);
+console.log(`  and deleteAccountCronJobV1 can accept a delete it does not perform.`);
+console.log(`  List the jobs after both; neither reply is proof.`);
 
 console.log(`\n▸ then: npm run deploy:verify -- --observed <what the server reports>`);
 console.log(`  ${relative(ROOT, planPath)} holds all ${Object.keys(files).length} expected files and ${required.length} required proofs.\n`);

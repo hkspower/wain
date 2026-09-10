@@ -157,10 +157,13 @@ require the zip to be in the docroot already.
 ### The server already has a better endpoint than the one below
 
 `public_html/api/deploy.php` was found on 10 September and nothing in this
-repository mentioned it, which is why the route documented below is the one
-that keeps being used. Its own header states its purpose: it "replaces the
-unsafe pattern of `wget zip && unzip -o` over a live web root". That is the
+repository mentioned it, which is why the `wget`-and-`unzip` route was the one
+that kept being used. Its own header states its purpose: it "replaces the
+unsafe pattern of `wget zip && unzip -o` over a live web root". That was the
 route below, verbatim.
+
+**This is now the route `deploy:plan` prints.** The section after it is kept as
+a fallback, for a day when the endpoint is broken or its secret is missing.
 
 What it does better: HMAC-SHA256 signed requests with the secret in
 `<domain>/storage/deploy.secret`, outside `public_html`; a ten-minute replay
@@ -180,31 +183,101 @@ X-Deploy-Signature: sha256=<hmac-sha256 of the raw body, keyed by the secret>
   "version": "1.1.0", "ts": <unix seconds> }
 ```
 
-**It would refuse this site's export today, and that is the finding that
-matters most.** `PROTECTED_PATHS` lists `admin`, `queue` and `orders`, and
-those are wain's own routes — `out/admin/`, `out/queue/`, `out/orders/` are
-static pages this site publishes. `.htaccess` is on the list too, and the
-export ships one. The endpoint refuses an artifact containing any of them with
+**It refused this site's export, and that was the finding that mattered
+most.** `PROTECTED_PATHS` listed `admin`, `queue` and `orders`, and those are
+wain's own routes — `out/admin/`, `out/queue/`, `out/orders/` are static pages
+this site publishes. `.htaccess` was on the list too, and the export ships one.
+The endpoint refuses an artifact containing any of them with
 `artifact_touches_protected_path` before it downloads anything, so a deploy of
-this build stops at the first of the four. The list reads as though it was
-written for the PHP app alone, when three of its entries now belong to the
-Next export instead. Extending `ALLOWED_HOSTS` is therefore not sufficient:
-whoever adopts this endpoint has to separate "directories the PHP app owns"
-from "directory names the static site also uses", and only the first should be
-protected.
+this build stopped at the first of the four. The list read as though written
+for the PHP app alone, when four of its entries had come to belong to the Next
+export instead — and, worse, it did **not** list `assets`, `cats`, `fonts`,
+`hero` or `images`, which really are the PHP app's. An artifact carrying one of
+those would have overwritten that application's files, and step 9's manifest
+prune would have deleted them on the next deploy.
 
-Two further reasons this session could not use it, both measured on
-10 September:
+**Fixed on 10 September** by `scripts/publish/patch-deploy-endpoint.php`, and
+confirmed by reading the live file back — 267 lines where there were 240. The
+script backs the endpoint up, lints the result and restores the backup if the
+lint fails, because a syntax error there kills the only deploy path the site
+has. It is idempotent: a second run answers `already_patched`.
 
-- **`ALLOWED_HOSTS` is `raw.githubusercontent.com`, `github.com` and
-  `codeload.github.com`.** Anything else is refused with `host_not_allowed`.
-  Hosting the artifact away from GitHub therefore needs that constant edited
-  on the server first; the endpoint is otherwise host-agnostic.
-- **`www.wainkw.com` is refused at CONNECT by the sandbox gateway**, the same
-  403 as the file host, so the POST cannot be sent from this environment at
-  all. It has to come from somewhere with ordinary outbound access.
+`ALLOWED_HOSTS` is still `raw.githubusercontent.com`, `github.com` and
+`codeload.github.com`, and anything else is refused with `host_not_allowed`.
+The patch added a `<domain>/storage/deploy.hosts` file — one hostname per line,
+blanks and `#comments` ignored, malformed lines dropped rather than silently
+widening the check — so hosting the artifact elsewhere no longer means editing
+a file inside `public_html`. `deploy:plan` prints the `printf` line for you
+when the archive host is not GitHub.
 
-### …but the server can fetch for itself
+### Reaching it: the server calls itself
+
+The other blocker was not real, and the way it was wrong is the reusable part.
+This document said the POST could not be sent because `www.wainkw.com` is
+refused at CONNECT by the sandbox gateway. True, and beside the point: it
+confused **unreachable from this session** with **unreachable**.
+
+The answer had been sitting in the crontab the whole time. All eight of
+sporta's jobs call their own site over the loopback with a `Host:` header
+rather than going out to the internet and back:
+
+```
+wget -qO- --timeout=30 --tries=1 --content-on-error --no-check-certificate \
+     --header=Host:www.sporta.com.kw "https://127.0.0.1/api/cron-push.php?key=…"
+```
+
+The same shape reaches wain. Proved with a GET, which is harmless because
+`deploy.php`'s first check is the method:
+
+```
+wget -qO- --no-check-certificate --header=Host:www.wainkw.com https://127.0.0.1/api/deploy.php
+→ {"ok": false, "error": "method_not_allowed"}
+```
+
+That body is deploy.php's own 405 branch, so the request reached PHP, TLS
+terminated, and the `Host:` header selected the right docroot. The certificate
+is issued for the domain and not for `127.0.0.1`, hence
+`--no-check-certificate`; the connection never leaves the machine, which is the
+whole reason to use the loopback.
+
+**Before recording that something on this host cannot be done, check whether
+the host can do it to itself.** That one question would have saved months of
+`wget zip && unzip -o` over a live web root.
+
+`scripts/publish/deploy-call.php` is the caller. It reads
+`storage/deploy.secret` on the server, signs the body, and POSTs over the
+loopback. The secret is never printed and never leaves the process — only the
+HMAC does — which is why the script is safe to keep in the repository.
+
+`php d.php probe` checks the signature on its own. It sends a correctly signed
+request whose host is deliberately not allowed; since deploy.php tests method,
+secret, signature, JSON, sha format, timestamp and *then* host, in that order,
+`host_not_allowed` coming back proves the HMAC was accepted, with nothing
+downloaded and nothing written. Measured 10 September:
+
+```
+{"http": 400, "response": {"ok": false, "error": "host_not_allowed",
+ "host": "deploy-probe.invalid"},
+ "signature": "accepted — the request got past the HMAC check"}
+```
+
+Three cron jobs, because the command field caps between 210 and 279 characters
+and fetch-and-run does not fit alongside the arguments:
+
+```
+wget -qO d.php https://raw.githubusercontent.com/hkspower/wain/<sha>/scripts/publish/deploy-call.php
+php d.php <artifact-url> <sha256> <version>
+rm -f d.php
+```
+
+`getCronJobOutputV1` is how the reply is read. `{"ok":true,…}` carries the
+file counts; anything else names the step that refused and why.
+
+### The older route: wget and unzip, straight over the docroot
+
+Superseded by the endpoint above, and kept because it needs no secret and no
+endpoint — the thing to fall back on if either is missing. Everything in it
+about the WAF, cron output and build-id proofs still applies to both routes.
 
 Nothing here can push bytes to Hostinger. The box can *pull* them, and a cron
 job is a write path — two commands, run once each and then deleted:
