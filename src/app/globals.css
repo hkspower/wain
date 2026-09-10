@@ -214,15 +214,44 @@
      Latin defaults. text-2xs stays at 1.45 and is not part of this curve — it
      is a badge size, always one line, where the ratio sets a box height rather
      than the distance between two lines of reading. */
-  --text-xs--line-height: 1.7;
-  --text-sm--line-height: 1.65;
-  --text-base--line-height: 1.6;
-  --text-lg--line-height: 1.6;
-  --text-xl--line-height: 1.5;
-  --text-2xl--line-height: 1.4;
-  --text-3xl--line-height: 1.3;
-  --text-4xl--line-height: 1.25;
-  --text-5xl--line-height: 1.2;
+  /* Compact pass. Every ratio came down, and the ladder above is intact — still
+     looser as the type gets smaller, because that is where Arabic's dots and
+     descenders have the least room.
+
+     The floor is not a number here, it is a collision. 14px carries 492 nodes
+     and 12px carries 518, so those two were moved least: 1.65→1.5 and 1.7→1.55
+     still leave more air than Tailwind's Latin defaults (1.43 and 1.33) that
+     this ladder was built to correct. The display sizes had the most to give
+     and give it: a 46px heading at 1.05 saves more height on its own than
+     every body ratio put together.
+
+     Checked by rendering, not by arithmetic — a ratio that clears the metrics
+     can still collide once a heading wraps to two lines. */
+  --text-xs--line-height: 1.55;
+  --text-sm--line-height: 1.5;
+  --text-base--line-height: 1.5;
+  --text-lg--line-height: 1.4;
+  --text-xl--line-height: 1.3;
+  --text-2xl--line-height: 1.2;
+  --text-3xl--line-height: 1.15;
+  --text-4xl--line-height: 1.1;
+  --text-5xl--line-height: 1.05;
+  --text-6xl--line-height: 1.05;
+
+  /* The display sizes, declared so they can come down.
+
+     They were Tailwind's defaults — 24/30/36/48/60 — and only about eighty
+     nodes on the whole site sit at them, so shrinking them buys little text
+     and a lot of page: these are the sizes that set how much of a screen is
+     spent before the first result. The body end (11 through 20) is deliberately
+     NOT here. It is already near the floor, it carries a thousand nodes, and
+     the audit refuses steps closer than 1.5px apart — dropping base to 17 to
+     save a pixel would collide with lg and buy nothing worth having. */
+  --text-2xl: 1.375rem; /* 22px — was 24 */
+  --text-3xl: 1.625rem; /* 26px — was 30 */
+  --text-4xl: 1.875rem; /* 30px — was 36 */
+  --text-5xl: 2.375rem; /* 38px — was 48 */
+  --text-6xl: 2.875rem; /* 46px — was 60 */
 
   /* Corner scale. Tailwind's defaults (xl 12 / 2xl 16 / 3xl 24) put a 24px
      round on every card, which at a 328px mobile card reads soft and toy-like.

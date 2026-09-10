@@ -175,7 +175,7 @@ export default function SearchResults({
             onMouseLeave={() => slug && onActiveSlug?.(null)}
             onFocus={() => slug && onActiveSlug?.(slug)}
             onBlur={() => slug && onActiveSlug?.(null)}
-            className={`group flex items-center gap-3 rounded-2xl border p-3 transition ${
+            className={`group flex items-center gap-2 rounded-xl border p-2 transition ${
               i === activeIndex
                 ? "border-sea-300 bg-sea-50/60 ring-2 ring-sea-100"
                 : linked

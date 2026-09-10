@@ -22,7 +22,7 @@ export default function HomePage() {
       <section className="relative overflow-hidden bg-sand-50">
         <KuwaitSkyline className="pointer-events-none absolute inset-x-0 bottom-0 h-auto min-h-[210px] w-full" />
 
-        <div className="relative mx-auto max-w-6xl px-3 pb-6 pt-4 sm:px-6 sm:pb-10 sm:pt-8">
+        <div className="relative mx-auto max-w-6xl px-2.5 pb-2 pt-2 sm:px-4 sm:pb-3 sm:pt-3">
           {/* Wordmark */}
           <div className="text-center">
             <span className="relative inline-block">
@@ -53,7 +53,7 @@ export default function HomePage() {
 
       {/* ---------- Categories ---------- */}
       <section className="relative bg-sea-700">
-        <div className="mx-auto max-w-6xl px-3 py-4 sm:px-6 sm:py-8">
+        <div className="mx-auto max-w-6xl px-2.5 py-2 sm:px-4 sm:py-3">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 sm:mb-6">
             {/* The site asks this in three places and they have to agree:
                 here, on /search, and in the ⌘K palette — the last two the
@@ -89,11 +89,11 @@ export default function HomePage() {
               back-navigation. Flicking to the end of the rail could leave the
               site.
 
-              scroll-px-4 to match px-4. Snapping aligns to the scrollport, which
+              scroll-px-2.5 to match px-2.5. Snapping aligns to the scrollport, which
               ignores padding unless scroll-padding says otherwise, so the rail
               settled 16px away from its own start on load — measurably, before
               any touch. The two now agree, and it rests where it belongs. */}
-          <ul className="-mx-4 flex snap-x snap-proximity gap-3 overflow-x-auto overscroll-x-contain scroll-px-4 px-4 pb-2 [mask-image:linear-gradient(to_left,transparent,#000_1.25rem,#000_calc(100%-1.25rem),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:scroll-px-0 sm:px-0 lg:grid lg:grid-cols-9 lg:overflow-visible lg:pb-0 lg:[mask-image:none]">
+          <ul className="-mx-2.5 flex snap-x snap-proximity gap-3 overflow-x-auto overscroll-x-contain scroll-px-2.5 px-2.5 pb-2 [mask-image:linear-gradient(to_left,transparent,#000_1.25rem,#000_calc(100%-1.25rem),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:scroll-px-0 sm:px-0 lg:grid lg:grid-cols-9 lg:overflow-visible lg:pb-0 lg:[mask-image:none]">
             <li className="w-28 shrink-0 snap-start sm:w-32 lg:w-auto">
               <Link
                 href="/explore"
@@ -126,7 +126,7 @@ export default function HomePage() {
 
       {/* ---------- Featured ---------- */}
       <section className="bg-sand-50">
-        <div className="mx-auto max-w-6xl px-3 py-5 sm:px-6 sm:py-8">
+        <div className="mx-auto max-w-6xl px-2.5 py-2 sm:px-4 sm:py-3">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3 sm:mb-7">
             <div>
               <h2 className="font-display text-2xl font-bold text-ink-900 sm:text-3xl">
@@ -155,8 +155,8 @@ export default function HomePage() {
               measured reasons: proximity snapping so a small nudge is not
               corrected into a whole-card jump, overscroll-x-contain so a flick
               past the end cannot trigger the browser's back gesture, and
-              scroll-px-4 matching px-4 so the rail rests at its own start. */}
-          <ul className="-mx-4 flex snap-x snap-proximity gap-4 overflow-x-auto overscroll-x-contain scroll-px-4 px-4 pb-2 [mask-image:linear-gradient(to_left,transparent,#000_1.25rem,#000_calc(100%-1.25rem),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0 sm:[mask-image:none] lg:grid-cols-3">
+              scroll-px-2.5 matching px-2.5 so the rail rests at its own start. */}
+          <ul className="-mx-2.5 flex snap-x snap-proximity gap-4 overflow-x-auto overscroll-x-contain scroll-px-2.5 px-2.5 pb-2 [mask-image:linear-gradient(to_left,transparent,#000_1.25rem,#000_calc(100%-1.25rem),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0 sm:[mask-image:none] lg:grid-cols-3">
             {featured.map((place) => (
               <li key={place.slug} className="w-64 shrink-0 snap-start sm:w-auto">
                 <PlaceCard place={place} />
@@ -168,7 +168,7 @@ export default function HomePage() {
 
       {/* ---------- How it works ---------- */}
       <section className="bg-sand-100">
-        <div className="mx-auto max-w-6xl px-3 py-6 sm:px-6 sm:py-8">
+        <div className="mx-auto max-w-6xl px-2.5 py-2 sm:px-4 sm:py-3">
           <h2 className="text-center font-display text-2xl font-bold text-ink-900 sm:text-3xl">
             كيف يشتغل وين؟
           </h2>
@@ -236,7 +236,7 @@ export default function HomePage() {
 
       {/* ---------- CTA ---------- */}
       <section className="bg-sand-50">
-        <div className="mx-auto max-w-6xl px-3 pb-5 sm:px-6 sm:pb-8">
+        <div className="mx-auto max-w-6xl px-2.5 pb-2 sm:px-4 sm:pb-3">
           <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-sea-800 to-sea-600 px-6 py-9 text-center shadow-xl sm:py-8">
             <div
               aria-hidden="true"

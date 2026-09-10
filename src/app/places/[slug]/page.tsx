@@ -97,10 +97,10 @@ export default async function PlacePage({
 
   const relatedNode = related.length > 0 && (
     <section className="mt-12">
-      <h2 className="mb-5 font-display text-2xl font-bold text-ink-900">
+      <h2 className="mb-2 font-display text-xl font-bold text-ink-900">
         أماكن مشابهة
       </h2>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
         {related.map((p) => (
           <PlaceCard key={p.slug} place={p} awayKm={distanceKm(place, p)} />
         ))}

@@ -19,7 +19,7 @@ const noCookies = [
 
 export default function PrivacyPage() {
   return (
-    <div className="measure mx-auto max-w-3xl px-3 py-4 sm:px-6 sm:py-8">
+    <div className="measure mx-auto max-w-3xl px-2.5 py-2 sm:px-4 sm:py-3">
       <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
         الخصوصية والكوكيز
       </h1>

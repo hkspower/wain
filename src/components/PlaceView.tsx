@@ -84,12 +84,17 @@ export default function PlaceView({
   const category = getCategory(place.category);
 
   return (
-    <div className="mx-auto max-w-4xl px-3 py-4 sm:px-6 sm:py-8">
+    <div className="mx-auto max-w-4xl px-2.5 py-2 sm:px-4 sm:py-3">
       {/* Breadcrumb */}
-      <nav className="mb-5 text-sm text-ink-500" aria-label="مسار التنقّل">
+      {/* text-sm, not text-xs. «استكشف» is four letters, and the link is only
+          as wide as its word: at 12px it measured 42px across, under the 44px
+          the thumb needs. The row's height was never the problem — min-h-11
+          has always been there — so the saving here is the margin, not the
+          type. */}
+      <nav className="mb-2 text-sm text-ink-500" aria-label="مسار التنقّل">
         <Link
           href="/explore"
-          className="inline-flex min-h-11 items-center transition hover:text-coral-700"
+          className="inline-flex min-h-11 items-center px-1 transition hover:text-coral-700"
         >
           استكشف
         </Link>
@@ -103,12 +108,12 @@ export default function PlaceView({
 
       {/* Hero */}
       <div
-        className={`relative flex h-40 items-center justify-center overflow-hidden rounded-3xl shadow-lg sm:h-64 ${heroClass}`}
+        className={`relative flex h-28 items-center justify-center overflow-hidden rounded-2xl shadow-lg sm:h-40 ${heroClass}`}
       >
         {art}
         {place.rating !== undefined && (
           <span
-            className="absolute start-4 top-4 flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-sm font-semibold text-ink-800 shadow-sm backdrop-blur"
+            className="absolute start-2.5 top-2.5 flex items-center gap-1 rounded-full bg-white/95 px-2 py-1 text-xs font-semibold text-ink-800 shadow-sm backdrop-blur"
             aria-label={`التقييم ${toArabicNumber(place.rating)} من ٥`}
           >
             <IconStar className="size-4 text-sun-500" />
@@ -119,18 +124,18 @@ export default function PlaceView({
       {credit}
 
       {/* Header */}
-      <div className="mt-7 flex items-start gap-4">
+      <div className="mt-3 flex items-start gap-2.5">
         <BusinessBrand place={place} />
         <div className="min-w-0">
           <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
             {place.nameAr}
           </h1>
-          <p className="mt-1 text-lg text-ink-500">
+          <p className="mt-0.5 text-sm text-ink-500">
             <span lang="en" dir="ltr">
               {place.name}
             </span>
           </p>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
             {category && (
               <span className="rounded-full bg-sea-50 px-3 py-1.5 text-sm font-semibold text-sea-700">
                 {category.ar}
@@ -156,7 +161,7 @@ export default function PlaceView({
         </div>
       </div>
 
-      <p className="mt-3 flex items-center gap-1.5 text-ink-500">
+      <p className="mt-1.5 flex items-center gap-1.5 text-sm text-ink-500">
         <IconPinSolid className="size-4 text-coral-600" />
         {place.areaAr}، الكويت
       </p>
@@ -166,7 +171,16 @@ export default function PlaceView({
           can see what they have been invited to before being told when. */}
       <InviteBanner place={place} />
 
-      <p className="mt-6 max-w-[46ch] text-lg leading-relaxed text-ink-600">{place.descriptionAr}</p>
+      {/* The cap stays in ch, not in the .measure class — that one styles a
+          prose container's children, and this is the paragraph itself.
+
+          And it stays at 46ch. Widening it to 52 while dropping the type from
+          18px to 16 put this paragraph at exactly 80 characters to the line,
+          the number `audit:type` calls the edge of comfortable. `ch` is the
+          width of a zero, and Arabic does not average one zero per character,
+          so the two numbers move apart: 46ch measured 71 characters before and
+          71 after. */}
+      <p className="mt-3 max-w-[46ch] text-base text-ink-600">{place.descriptionAr}</p>
 
       <BusinessBio place={place} />
       <BusinessContact place={place} />
@@ -177,13 +191,13 @@ export default function PlaceView({
       <BusinessGallery place={place} />
 
       {/* Details */}
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-3xl border border-line bg-white p-4 shadow-sm">
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div className="rounded-2xl border border-line bg-white p-3 shadow-sm">
           <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-ink-900">
             <IconSparkle className="size-5 text-sun-600" />
             أبرز ما فيه
           </h2>
-          <ul className="mt-3 space-y-2.5">
+          <ul className="mt-2 space-y-1.5">
             {place.highlightsAr.map((h) => (
               <li key={h} className="flex items-start gap-2 text-sm text-ink-600">
                 <IconCheck className="mt-0.5 size-4 shrink-0 text-palm-500" />
@@ -193,26 +207,26 @@ export default function PlaceView({
           </ul>
         </div>
 
-        <div className="rounded-3xl border border-line bg-white p-4 shadow-sm">
+        <div className="rounded-2xl border border-line bg-white p-3 shadow-sm">
           <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-ink-900">
             <IconClock className="size-5 text-sea-600" />
             أحسن وقت للزيارة
           </h2>
-          <p className="mt-2.5 text-sm text-ink-600">{place.bestTimeAr}</p>
+          <p className="mt-1.5 text-sm text-ink-600">{place.bestTimeAr}</p>
 
-          <h2 className="mt-6 flex items-center gap-2 font-display text-lg font-semibold text-ink-900">
+          <h2 className="mt-4 flex items-center gap-2 font-display text-base font-semibold text-ink-900">
             <IconCoins className="size-5 text-sand-600" />
             مستوى الأسعار
           </h2>
-          <p className="mt-2.5 text-sm text-ink-600">{priceLabel[place.priceLevel]}</p>
+          <p className="mt-1.5 text-sm text-ink-600">{priceLabel[place.priceLevel]}</p>
 
           {/* Kuwait's weather decides most outings for a third of the year, so
               it belongs on the page and not only in the search index. */}
-          <h2 className="mt-6 flex items-center gap-2 font-display text-lg font-semibold text-ink-900">
+          <h2 className="mt-4 flex items-center gap-2 font-display text-base font-semibold text-ink-900">
             <IconSun className="size-5 text-sun-600" />
             الجو والموسم
           </h2>
-          <p className="mt-2.5 flex flex-wrap items-center gap-2 text-sm text-ink-600">
+          <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-sm text-ink-600">
             <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${SETTING_TONE[place.setting]}`}>
               {SETTING_LABEL[place.setting]}
             </span>
@@ -223,7 +237,7 @@ export default function PlaceView({
               not «no» — see `shisha` in lib/places — so there is nothing to
               render for the places without one. */}
           {place.shisha && (
-            <p className="mt-2.5 flex items-center gap-2 text-sm text-ink-600">
+            <p className="mt-1.5 flex items-center gap-2 text-sm text-ink-600">
               <span className="rounded-full bg-palm-500/12 px-2.5 py-1 text-xs font-semibold text-palm-700">
                 فيه شيشة
               </span>
@@ -236,7 +250,7 @@ export default function PlaceView({
 
       {related}
 
-      <div className="mt-12 text-center">
+      <div className="mt-6 text-center">
         <Link
           href="/explore"
           className="inline-flex items-center gap-2 rounded-xl border border-line-control bg-white px-6 py-3 font-semibold text-ink-700 shadow-sm transition hover:border-sea-300 hover:text-sea-700"

@@ -179,11 +179,59 @@ early draft denied `index.txt` and would have broken client-side navigation on
 every route to tidy one stale file.
 
 **Known failing, pre-existing, verified against an untouched baseline:** the
-swipe suite's 4px scroll-snap assertion, and `audit:mobile`'s 4px overflow
-from the `sr-only` skip link.
+swipe suite's 4px scroll-snap assertion. Re-verified by stashing the working
+tree, rebuilding and running the suite on a clean checkout: same assertion,
+same 124px, same 17-passed-1-failed. It is the only red left, and `npm run
+scan` now exits 0 all the way through `audit:photos`.
+
+This used to also list «`audit:mobile`'s 4px overflow from the `sr-only` skip
+link», and that description was wrong in a way worth remembering. The audit
+names every element sitting past the viewport edge, and the skip link — an
+absolutely-positioned 1px box pinned to the inline start of an already
+too-wide document — sorted to the top of that list. It was a passenger. Hiding
+it changed the width not at all; hiding `<main>` fixed it. The cause was a
+scroll rail on the home page bleeding `-mx-4` into a `px-3` gutter, so the page
+was 4px wider than the screen — and 6px once the gutter went to `px-2.5`, which
+is what made it visible. **A full-bleed rail's negative margin must equal the
+page gutter**, or every route slides sideways. The first row of an overflow
+report is the symptom, not the cause.
+
+## The scale is compact on purpose
+
+Asked for «ultra compact», measured, and kept the three floors that were
+explicitly ruled load-bearing: **text never below 11px, tap targets never below
+44px, text fields never below 16px.** All three are enforced by `audit:mobile`
+and the first by `audit:type`, so they are not a promise, they are a check.
+
+Density therefore comes from space and layout, never from shrinking the things
+themselves:
+
+- **Gutter 10px phone / 16px desktop, rhythm 8px / 12px.** One value each,
+  every route, which is what `audit:padding` asserts. The nineteen page shells
+  and the navbar were rewritten together — the navbar shares the gutter, so
+  changing one without the other misaligns the header from the page under it.
+- **Leading came down across the ladder**, most at the display end and least at
+  12px and 14px, which carry a thousand nodes between them. The ladder itself
+  is unchanged: still looser as the type gets smaller.
+- **Only the display sizes shrank** (24/30/36/48/60 → 22/26/30/38/46). The body
+  end did not. `audit:type` refuses steps closer than 1.5px apart, so dropping
+  `text-base` to 17 to save a pixel would have collided with `text-lg` and
+  bought nothing.
+- **/explore and «أماكن مشابهة» are two cards to a phone row.** The card's tint
+  band went 96px → 56px; it is a category cue, not a picture. The category chip
+  inside the card is hidden below `sm` because the row had no width for it, and
+  nothing is lost — the tint band and its mark ARE the category.
+
+Measured on a 390px phone: /explore 14591px → 5224px, a place page 2893px →
+2183px. Desktop /explore 4923px → 2210px.
+
+**When a tap target is too small, the type is usually not the reason.**
+«استكشف» in the breadcrumb failed at 42px wide because it is four letters and
+the link is only as wide as its word. Its height was never in question. The
+saving there was the margin.
 
 ## Style
 
-No redesigns. Fix the current theme. Comments in this codebase explain *why*
+No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
 and record the bug that made the rule necessary — match that, and do not add
 decorative commentary.

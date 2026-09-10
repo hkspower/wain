@@ -49,18 +49,18 @@ export default function ExploreClient() {
   }, [query, category, places]);
 
   return (
-    <div className="mx-auto max-w-6xl px-3 py-4 sm:px-6 sm:py-8">
-      <header className="mb-7">
+    <div className="mx-auto max-w-6xl px-2.5 py-2 sm:px-4 sm:py-3">
+      <header className="mb-3">
         <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
           استكشف الكويت
         </h1>
-        <p className="mt-2 text-ink-500">
+        <p className="mt-1 text-xs text-ink-500 sm:text-sm">
           {countAr(places.length, PLACES_COUNT)}، وما عاد فيه «ما أدري، اختر أنت».
         </p>
       </header>
 
       {/* Search */}
-      <div className="relative mb-5">
+      <div className="relative mb-2.5">
         <span
           aria-hidden="true"
           className="pointer-events-none absolute inset-y-0 start-4 flex items-center text-ink-500"
@@ -73,17 +73,17 @@ export default function ExploreClient() {
           onChange={(e) => setQuery(e.target.value)}
           aria-label="ابحث عن مكان أو منطقة"
           placeholder="دوّر على مكان أو منطقة…"
-          className="w-full rounded-2xl border border-line bg-white py-3.5 pe-4 ps-12 text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/70 focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
+          className="w-full rounded-2xl border border-line bg-white py-2.5 pe-3 ps-11 text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/70 focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
         />
       </div>
 
       {/* Category rail */}
-      <div className="mb-8 flex flex-wrap gap-2" role="group" aria-label="تصفية حسب التصنيف">
+      <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="تصفية حسب التصنيف">
         <button
           type="button"
           onClick={() => { haptic("select"); setCategory("all"); }}
           aria-pressed={category === "all"}
-          className={`flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition ${
+          className={`flex min-h-11 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
             category === "all"
               ? "bg-ink-900 text-white shadow-sm"
               : "border border-line bg-white text-ink-600 hover:border-sea-300 hover:text-sea-700"
@@ -98,7 +98,7 @@ export default function ExploreClient() {
             type="button"
             onClick={() => { haptic("select"); setCategory(cat.id); }}
             aria-pressed={category === cat.id}
-            className={`flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition ${
+            className={`flex min-h-11 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
               category === cat.id
                 ? "bg-ink-900 text-white shadow-sm"
                 : "border border-line bg-white text-ink-600 hover:border-sea-300 hover:text-sea-700"
@@ -113,17 +113,17 @@ export default function ExploreClient() {
       {/* Results */}
       {filtered.length > 0 ? (
         <>
-          <h2 className="mb-4 text-sm font-semibold text-ink-500">
+          <h2 className="mb-1.5 text-xs font-semibold text-ink-500">
             {countAr(filtered.length, RESULTS_COUNT)}
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
             {filtered.map((place) => (
               <PlaceCard key={place.slug} place={place} />
             ))}
           </div>
         </>
       ) : (
-        <div className="rounded-3xl border border-dashed border-line-strong bg-sand-100/70 py-20 text-center">
+        <div className="rounded-3xl border border-dashed border-line-strong bg-sand-100/70 py-10 text-center">
           <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-sand-100 text-sand-600" aria-hidden="true">
             <IconCompass className="size-9" />
           </span>

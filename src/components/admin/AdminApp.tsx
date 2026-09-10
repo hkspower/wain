@@ -251,7 +251,7 @@ export default function AdminApp() {
     : rows;
 
   return (
-    <div className="mx-auto max-w-5xl px-3 py-4 sm:px-6 sm:py-8">
+    <div className="mx-auto max-w-5xl px-2.5 py-2 sm:px-4 sm:py-3">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <WainLogo className="size-10" />
@@ -503,7 +503,7 @@ function Banner({
 
 function NotConfigured() {
   return (
-    <div className="measure mx-auto max-w-2xl px-3 py-4 sm:px-6 sm:py-8">
+    <div className="measure mx-auto max-w-2xl px-2.5 py-2 sm:px-4 sm:py-3">
       <h1 className="font-display text-2xl font-bold text-ink-900">لوحة التحكّم مو مفعّلة</h1>
       <p className="mt-3 text-sm leading-relaxed text-ink-600">
         ما فيه إعداد لقاعدة البيانات في هذا البناء. الموقع يشتغل عادي من بياناته
@@ -528,7 +528,7 @@ function NotConfigured() {
 
 function NotAllowed({ email }: { email: string }) {
   return (
-    <div className="mx-auto max-w-lg px-3 py-4 sm:px-6 sm:py-8 text-center">
+    <div className="mx-auto max-w-lg px-2.5 py-2 sm:px-4 sm:py-3 text-center">
       <h1 className="font-display text-2xl font-bold text-ink-900">ما عندك صلاحية</h1>
       <p className="mt-3 text-sm leading-relaxed text-ink-600">
         دخلت باسم <strong dir="ltr">{email}</strong>، بس هذا الحساب مو مضاف في
@@ -562,7 +562,7 @@ function SignIn({ error, onError }: { error: string; onError: (s: string) => voi
   }
 
   return (
-    <div className="mx-auto flex min-h-[70vh] max-w-sm flex-col justify-center px-3">
+    <div className="mx-auto flex min-h-[70vh] max-w-sm flex-col justify-center px-2.5">
       <div className="mb-6 flex flex-col items-center gap-3 text-center">
         <WainLogo className="size-14" />
         <h1 className="font-display text-2xl font-bold text-ink-900">لوحة التحكّم</h1>

@@ -88,6 +88,14 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" className={plex.variable}>
       <body className="flex min-h-screen flex-col font-sans">
+        {/* This link is NOT why the home page used to scroll sideways, however
+            much it looked like it. `audit:mobile` names every element sitting
+            past the viewport edge, and an `sr-only` element pinned to the
+            inline start of an already-too-wide document is the first row in
+            that list — a passenger, printed above the driver. Hiding it left
+            the document exactly as wide; hiding <main> fixed it. The cause was
+            a scroll rail on the home page bleeding 16px into a 10px gutter.
+            Left as it was, so the next reader does not re-fix it. */}
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-[100] focus:rounded-xl focus:bg-ink-900 focus:px-4 focus:py-2 focus:font-semibold focus:text-white focus:shadow-lg"

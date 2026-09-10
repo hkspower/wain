@@ -3,7 +3,7 @@ import { IconCompass, IconGo } from "@/components/icons";
 
 export default function NotFound() {
   return (
-    <div className="mx-auto flex max-w-2xl flex-col items-center px-3 py-16 text-center sm:px-6 sm:py-16">
+    <div className="mx-auto flex max-w-2xl flex-col items-center px-2.5 py-8 text-center sm:px-4 sm:py-8">
       <span
         className="grid size-24 place-items-center rounded-3xl bg-gradient-to-b from-sun-200 to-sun-400 text-ink-900 shadow-lg shadow-sun-400/40"
         aria-hidden="true"
