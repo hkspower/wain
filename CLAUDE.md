@@ -1413,6 +1413,61 @@ behind, and the cap removed — each caught by the check written for it.
 **Editing the boot script means editing the CSP hash**, per the section above,
 and `test:csp` caught it both times. One hash in, one stale hash out.
 
+## A collector you cannot trust to expire late cannot be trusted not to expire early
+
+Asked on 2026-09-10 to make signing in to /backends easier. **My first
+measurement was wrong and I nearly built on it:** I read PHP's
+`session.gc_maxlifetime` (1440s), found nothing overriding it, and reported "24
+minutes idle". The real timeout is `STORE_ADMIN_IDLE_SECONDS` — the app runs
+its own two clocks, idle and absolute, and `store_session_admin()` says so in a
+comment I had not read yet. **Reading the platform default is not reading the
+program.**
+
+But there was a real fault underneath, and it is the interesting half.
+`store_session_admin()` does its own timing, and its reasoning is right:
+
+> *"Expiry is ours rather than PHP's garbage collector's, because that
+> collector is shared hosting's to configure: its lifetime is whatever the host
+> set, it only runs probabilistically."*
+
+That argument stops one line short. A collector you cannot trust to expire a
+session LATE is the same collector you cannot trust not to expire one EARLY.
+Nothing set `gc_maxlifetime`, so PHP's 1440-second default stood: **the session
+FILE was deletable after 24 minutes idle**, and the 8-hour window above it was
+a ceiling nobody could reach. The panel signed you out mid-afternoon for a
+reason nothing in the file mentioned — and every existing auth test passed
+throughout, because they all sign in and act within seconds.
+
+Fixed by setting `gc_maxlifetime` to the idle constant, and **raising it cannot
+lengthen a session**, which is exactly what makes it safe: `store_session_admin()`
+is still the only thing that decides, and it still ends the session at idle or
+absolute. All it buys is that the file survives long enough for that decision
+to be the one taken. Idle went 8h → 12h at the owner's request; the absolute
+7-day clock and the session cookie (`lifetime => 0`, so browser close still
+signs out) are the owner's explicit choice and unchanged.
+
+**The one case it does not cover** is a `save_path` shared with other accounts,
+where somebody else's collector reaps our files on their lifetime. Hostinger
+gives each account its own path, so the setting governs — but if sign-ins start
+expiring early again, measure that rather than re-reading this line.
+
+`npm run test:session-life` holds it. The assertion that matters is not the new
+number but the second one: a longer collector window is precisely the change
+that buys convenience with security, so the rig drives a REAL session past the
+idle limit — by ageing `seen_at` in the session store, so the server's own clock
+decides rather than a constant being compared with itself — and requires `me` to
+come back null and a data route to 401. It also asserts a fresh session stays
+alive first, or that check would pass on a server that refuses everybody.
+Mutation-tested three ways: the collector back at 1440 (caught), the expiry no
+longer enforced (caught — `me` answered with the account and `stats` returned
+200), and the cookie made persistent against the owner's choice (caught).
+
+**The login form was already right** and needed nothing: a real `<form>`,
+`autocomplete="username"` and `autocomplete="current-password"`, a submit
+button. Password managers could always fill it. The friction was never the
+form, and the first thing to check when someone says a login is tedious is how
+long the last one lasted.
+
 ## Card payment is pointed at the REAL bank with placeholder credentials
 
 Measured 2026-09-09 by `scripts/live/live-pay-check.php`:

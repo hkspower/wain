@@ -1147,7 +1147,9 @@ function store_is_https(): bool {
 // away from, absolute expiry so a session cannot live indefinitely by being
 // touched. Generous on purpose; this is a shop, not a bank, and a re-login
 // every hour would only teach the owner to leave the password in a browser.
-const STORE_ADMIN_IDLE_SECONDS     = 8 * 3600;
+// 12 rather than 8, asked for on 2026-09-10: a working day with the panel open
+// should not need a second sign-in. The absolute clock is untouched.
+const STORE_ADMIN_IDLE_SECONDS     = 12 * 3600;
 const STORE_ADMIN_ABSOLUTE_SECONDS = 7 * 86400;
 
 function store_session_start(): void {
@@ -1166,6 +1168,29 @@ function store_session_start(): void {
     // Only over HTTPS, because a browser must REJECT a __Host- cookie that is
     // not Secure — using the prefix on http would lock the admin out of a
     // local or half-configured server entirely.
+    // AND THE GARBAGE COLLECTOR HAS TO BE TOLD, or the two clocks below are a
+    // ceiling nobody reaches. store_session_admin() expires a session after
+    // STORE_ADMIN_IDLE_SECONDS and says, correctly, that it does its own timing
+    // because the collector "is shared hosting's to configure". That is the
+    // reason it cannot be trusted to expire a session LATE — and the same fact
+    // means it cannot be trusted not to expire one EARLY. PHP's default
+    // session.gc_maxlifetime is 1440 seconds, so on a host that leaves it there
+    // the session FILE can be deleted after 24 minutes idle and the 12 hours
+    // above never happen. The panel then signs you out mid-afternoon for a
+    // reason nothing in this file mentions.
+    //
+    // Raising it CANNOT lengthen a session, which is what makes this safe:
+    // store_session_admin() is still the only thing that decides, and it still
+    // ends the session at 12 hours idle or 7 days absolute. All this buys is
+    // that the file survives long enough for that decision to be the one taken.
+    //
+    // The remaining case this does NOT cover is a save_path shared with other
+    // accounts, where somebody else's collector reaps our files on their
+    // lifetime. Hostinger gives each account its own path, so the setting above
+    // governs — but if sign-ins ever start expiring early again, that is the
+    // thing to measure rather than this line.
+    ini_set('session.gc_maxlifetime', (string) STORE_ADMIN_IDLE_SECONDS);
+
     session_name($secure ? '__Host-sporta_admin' : 'sporta_admin');
     session_set_cookie_params([
         'lifetime' => 0,            // session cookie: closes with the browser
