@@ -642,6 +642,51 @@ the logo would blank the brand's name while appearing to upload a picture, and
 nothing on screen would show it. Both rigs assert the name survives, and the
 mutation that sends a wrong one fails them.
 
+## A workaround can be right and its side effects unmeasured
+
+The category tiles asked for `/cats/<crop>/<id>.jpg` and the files on disk were
+`art-<id>.jpg`. Four 404s on the home page, found by `site-scan.sh`, fixed with
+an internal rewrite. Correct, and it cost two things nobody looked for.
+
+**The tile component renders TWO `<picture>` blocks.** The first asks for the
+plain name and carries one jpeg. Only when that ERRORS does it fall to the
+second — and the second is the good one: webp sources, and the `-rtl` suffix
+that selects the Arabic composition. Bridging the first name onto a real file
+meant the second never rendered. Measured in a browser, both languages,
+2026-09-09:
+
+```
+desktop  285 kB of jpeg  ->  203 kB of webp     82 kB a load
+phone    212 kB          ->  145 kB
+Arabic   art-men.jpg     ->  art-men-rtl.webp
+```
+
+**Three rigs had been taught the wrong thing by the workaround.** `site-scan.sh`
+asserted the plain name was 200 (the bridge made it so), `site-scan.mjs`
+asserted nothing 404s (likewise), and `image-audit.mjs` asserted the bridge
+resolved. All three now expect exactly four plain-name 404s and still fail on
+any other — **a rig that encodes a workaround's world stops being able to see
+past it.**
+
+**The app had the same bug the other way up.** `categoryArt()` asked for
+`art-<id>.jpg` whatever the language, and `RemoteArt` paints the remote layer ON
+TOP of the bundled one — so an Arabic phone with a network had the English frame
+covering the Arabic frame the app ships. It takes a direction now and asks
+`category-art.ts` which ids have one, rather than carrying a second list.
+
+**Change `.htaccess` and `dev-router.php` together.** The sandbox is `php -S`,
+which never reads `.htaccess`; a measurement taken with only one of the two
+changed measures nothing. The first attempt at this measured exactly that.
+
+**And a check run in the same breath as the write can measure the state before
+it.** The publisher reported `plainName=STILL-BRIDGED` seconds after writing the
+new `.htaccess`; a probe a minute later found the rule gone and the URL 404 by
+all three routes — plain, cache-busted and `no-cache`. The bytes had been
+verified by sha256 at write time, so the disagreement was LiteSpeed still
+holding the old parse, not a failed publish. `scripts/live/live-tile-probe.php`
+is what tells those apart, and the general rule is: **if a publisher's own check
+contradicts its own verified write, re-ask before believing either.**
+
 ## Do not redesign without approval
 
 The visual design is the owner's, not something to improve on the way past. Do
