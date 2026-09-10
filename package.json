@@ -96,6 +96,7 @@
     "test:styles": "node scripts/style-audit.mjs",
     "test:db": "php scripts/db-audit.php",
     "test:install": "node scripts/install-sql-test.mjs",
+    "test:sql-safety": "node scripts/sql-safety-test.mjs",
     "test:site-contrast": "node scripts/site-contrast.mjs",
     "test:borders": "node scripts/border-audit.mjs",
     "test:buttons": "node scripts/button-audit.mjs",
