@@ -33,6 +33,7 @@ start over.
 
 import json
 import hashlib
+import os
 import re
 import sys
 from http.cookies import SimpleCookie
@@ -43,7 +44,22 @@ from pathlib import Path
 EMAIL, PASSWORD = 'manager@sporta.com.kw', 'correct horse'
 SESSION = 'mock-session-1'
 COOKIE = 'sporta_admin'
-DIST = Path(__file__).resolve().parent.parent / 'dist'
+# WHICH EXPORT THIS SERVES, and it is deliberately NOT dist/.
+#
+# The app bakes its API base in at BUILD time (src/lib/config.ts), so one export
+# cannot serve two origins. The panel rigs need a build pointing at THIS server,
+# because the admin cookie is SameSite=Strict and cannot ride a cross-origin
+# request; test:pages and test:shop need a build pointing at the ordinary
+# sandbox. Measured 2026-09-10: rebuilding dist/ for the first set broke the
+# second with CORS errors, and rebuilding it back broke the first again — so a
+# single full test run could never be green, in either direction, and the
+# failures each named the other set's build.
+#
+# Two exports, one per origin. dist-panel/ is built by scripts/sandbox.sh with
+# EXPO_PUBLIC_API_BASE pointed here; dist/ keeps the default and is what
+# serve-dist.py hands out on 4173.
+DIST = Path(__file__).resolve().parent.parent / (
+    os.environ.get('MOCK_DIST') or 'dist-panel')
 
 
 def _fresh():

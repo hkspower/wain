@@ -230,6 +230,39 @@ if [ "${SANDBOX_DB_NAME:-sporta}" = "sporta" ]; then
 fi
 
 cd "$ROOT"
+
+# ---- the panel's own export --------------------------------------------------
+#
+# THE APP BAKES ITS API BASE IN AT BUILD TIME, so one export cannot serve two
+# origins, and this project had exactly two that it needs:
+#
+#   dist/         the ordinary build, served on 4173 — test:pages, test:shop
+#   dist-panel/   pointed at the mock on 8899 — test:admin, test:image-drop,
+#                 test:admin-mobile, because the admin cookie is SameSite=Strict
+#                 and cannot ride a cross-origin request
+#
+# Measured 2026-09-10: rebuilding dist/ for the panel set broke the other with
+# CORS errors, rebuilding it back broke the panel set again, and each failure
+# named the other set's build. A full test run could not be green in one pass in
+# either direction. Two exports removes the choice.
+#
+# Built only when missing, because it is a two-minute export and this script is
+# run constantly. `rm -rf dist-panel` is how to force it after changing anything
+# the panel screens use — and `--clear` is not optional, because EXPO_PUBLIC_*
+# values are inlined at transform time and Metro's cache serves the old one.
+if [ ! -d "$ROOT/dist-panel" ]; then
+  echo "--   building dist-panel (the panel's own export, pointed at the mock)"
+  if EXPO_PUBLIC_API_BASE=http://127.0.0.1:8899 \
+     npx expo export --platform web --clear --output-dir dist-panel >/dev/null 2>&1; then
+    echo "ok   dist-panel built"
+  else
+    echo "--   dist-panel build FAILED — test:admin, test:image-drop and"
+    echo "     test:admin-mobile will fail at sign-in until it succeeds"
+  fi
+else
+  echo "ok   dist-panel present (rm -rf dist-panel to rebuild it)"
+fi
+
 # 401 is the right answer from the mock with no token — it means it is awake.
 up mock-admin 'http://127.0.0.1:8899/admin.php?r=today' 401 python3 scripts/mock-admin.py 8899
 up dist 'http://127.0.0.1:4173/shop' 200 python3 scripts/serve-dist.py 4173

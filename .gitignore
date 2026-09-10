@@ -44,6 +44,7 @@ example
 
 # expo web export output
 /dist
+/dist-panel
 
 # Local test rig only — real credentials live on the server and are never here.
 sporta-site/public_html/api/config.php
