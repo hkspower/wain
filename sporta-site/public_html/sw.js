@@ -71,7 +71,30 @@
 // keep using. Activating a new version deletes every cache that is not the
 // current one, so the bump is what actually frees them — the fix alone would
 // leave the people it was written for exactly where they were.
-const VERSION = 'v9-theme1'
+//
+// BUMPED AGAIN ON 2026-09-10, and the reason is a mistake worth writing down.
+// That day's publish carried the hero floor, the restored dark/white toggle and
+// a carousel-dot fix — all of them in sporta-ui.css and sporta-dark.css — and
+// its publisher argued, in as many words, "no service-worker bump, checked
+// rather than assumed: both files have fixed names and fall through to rule 3,
+// network-first."
+//
+// Every clause of that is true, and it is true OF A BROWSER ALREADY RUNNING
+// THIS WORKER. A browser still running an OLDER one is executing the OLD rules,
+// where everything under /assets/ was cache-first and never re-asked — so it
+// holds sporta-ui.css from whenever it first visited and will not ask again.
+// The paragraph above says precisely this and I read it as being about the day
+// it was written rather than about every day after.
+//
+// The owner's report was "I change something and the shop still shows the old
+// version", and every layer measured innocent: origin no-cache, hcdn
+// BYPASS, this worker network-first. All three were measurements of the CURRENT
+// worker. The stale copy is not in any of them; it is in a cache belonging to a
+// worker that no longer exists anywhere but in a visitor's browser.
+//
+// So: a fix to the RULES only helps arrivals. A VERSION bump is what reaches
+// the people the fix was written for, and it costs one re-download each.
+const VERSION = 'v10-refresh1'
 const SHELL = `sporta-shell-${VERSION}`
 const ASSETS = `sporta-assets-${VERSION}`
 
