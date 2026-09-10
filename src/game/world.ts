@@ -3872,8 +3872,35 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // the road and mosaic above stand unchanged.
   void applyTextureManifest({ road: roadMat, plaza: plazaMosaicMat });
 
+  /**
+   * The white, and why it is not white.
+   *
+   * This was 0xf6f6f2 — 246 of 255, a reflectance of about 0.96, which
+   * is not road paint. It is closer to fresh snow, and it is above what
+   * any diffuse surface outdoors returns. Thermoplastic line paint is
+   * 0.75 to 0.85 when it is laid and falls from there with traffic; the
+   * reason a marking is the brightest thing on a night road is that it
+   * is retroreflective back at your headlights, not that its albedo is
+   * near one.
+   *
+   * Measured from the gameplay camera at 01:30, over the lower half of
+   * the frame, sweeping this value:
+   *
+   *   0xf6f6f2   paint 244.9   2.03% of the street at 255
+   *   0xdeded6         235.8   1.31%
+   *   0xc9c9c2         231.8   0.82%
+   *   0xb0b0a8         224.8   0.44%
+   *
+   * At 0.96 a fiftieth of the street is pinned at pure white, and a
+   * pinned pixel has no tone left in it: it cannot take a shadow, it
+   * cannot show wear, and it cannot get brighter under a lamp because it
+   * is already at the ceiling. Dropping to 0xc9c9c2 halves that, leaves
+   * the paint 231.8 against the road's 78 — still three times the
+   * asphalt and still plainly the brightest thing out there — and moves
+   * the street's own median by 2.7 of 255, which is nothing.
+   */
   const lineMat = new THREE.MeshStandardMaterial({
-    color: 0xf6f6f2,
+    color: 0xc9c9c2,
     emissive: 0xa8a8a0,
     emissiveIntensity: 0.5,
     roughness: 0.5,
@@ -3909,7 +3936,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const dashGeo = new THREE.PlaneGeometry(0.14, 3);
     dashGeo.rotateX(-Math.PI / 2);
     const dashMat = new THREE.MeshStandardMaterial({
-      color: 0xf2f2ee,
+      // A touch duller than the edge line, as it was — a lane divide
+      // takes more tyre than the edge does. See lineMat for why neither
+      // of them is 0.96 white any more.
+      color: 0xc5c5be,
       emissive: 0x9a9a92,
       emissiveIntensity: 0.45,
       roughness: 0.55, // thermoplastic paint, slightly glossier than asphalt

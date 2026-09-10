@@ -516,6 +516,63 @@ console.log(`            luminance across the four: ${lums.join(" / ")}  ` +
   );
 }
 
+// ---- the street's whites are not pinned at white ---------------------
+//
+// Road paint is the brightest thing on a night road, and it used to be
+// the brightest thing a frame can hold: the markings were 0xf6f6f2, a
+// reflectance of about 0.96, which is not paint — it is above what any
+// diffuse surface outdoors returns, and closer to fresh snow. Real
+// thermoplastic line paint is 0.75 to 0.85 when it is laid. The reason a
+// marking blazes at night is that it throws your headlights back at you,
+// not that its albedo is near one.
+//
+// A pixel at 255 has no tone left in it. It cannot take a shadow, it
+// cannot show wear, and it cannot get brighter under a lamp because it
+// is already at the ceiling — so a fiftieth of the night street was a
+// flat white cut-out. Measured from the gameplay camera over the lower
+// half of the frame, dropping the albedo to 0xc9c9c2 took that from
+// 2.03% to 0.84% while leaving the street's own median at 80.5 of 255
+// and the paint at nearly three times the road.
+{
+  const r = await page.evaluate(async () => {
+    const e = window.__grnEngine;
+    e.timeReal = false; e.timeCycling = false;
+    e.timeHours = 1.5; e.world.setTimeOfDay(1.5); e.applyDaylight();
+    e.player.s = 2400; e.player.lat = 0; e.player.speed = 24;
+    for (const t of e.traffic) t.s = e.track.wrap(e.player.s + e.track.length / 2);
+    for (let i = 0; i < 150; i++) { e.setTouchInput({ throttle: 0.3 }); e.update(1 / 60); }
+    // Render in THIS tick: the drawing buffer is cleared once a frame has
+    // been presented, so a readback after the rAF loop comes back black.
+    for (let i = 0; i < 6; i++) e.composer.render();
+    const gl = e.renderer.domElement, g = document.createElement("canvas");
+    g.width = gl.width; g.height = gl.height;
+    const c = g.getContext("2d"); c.drawImage(gl, 0, 0);
+    const im = c.getImageData(0, 0, g.width, g.height);
+    const W = g.width, H = g.height, vals = [];
+    // The lower half only. A whole-frame histogram is dominated by the
+    // sky, and this is a question about the street.
+    for (let y = Math.round(H * 0.55); y < H; y++)
+      for (let x = 0; x < W; x += 2) {
+        const j = ((y * W) + x) * 4;
+        vals.push(0.2126 * im.data[j] + 0.7152 * im.data[j + 1] + 0.0722 * im.data[j + 2]);
+      }
+    vals.sort((a, b) => a - b);
+    const q = (v) => +vals[Math.floor(v * (vals.length - 1))].toFixed(1);
+    const cut = q(0.97);
+    let n = 0, sum = 0, clip = 0;
+    for (const v of vals) { if (v >= cut) { n++; sum += v; } if (v >= 254) clip++; }
+    return { median: q(0.5), paint: +(sum / n).toFixed(1),
+      clipPct: +(100 * clip / vals.length).toFixed(2) };
+  });
+  console.log(
+    `street 01:30  road ${r.median}, paint ${r.paint}, ${r.clipPct}% pinned at 255`
+  );
+  check(r.clipPct < 1.4, `${r.clipPct}% of the night street is pinned at pure white — the markings are blown and have no tone left to shade`);
+  // ...and still unmistakably the brightest thing out there. Taking the
+  // clipping out by making the paint grey would be the wrong cure.
+  check(r.paint > r.median * 2.2, `paint reads ${r.paint} against a road at ${r.median} — the markings have lost their authority`);
+}
+
 console.log(fail.length?"\nFAILURES:\n - "+fail.join("\n - "):"\nthe grade grades");
 await b.close();
 process.exit(fail.length?1:0);
