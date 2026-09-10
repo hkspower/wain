@@ -1232,6 +1232,48 @@ t=461ms — the product grid arriving after its fetch — with the cards themsel
 not moving. At 390px it is 0.0009. Fixing it means reserving the grid's height
 before the products land, which is inside the bundle that has no source here.
 
+### A headless browser has a MOUSE, so every `pointer: coarse` rule is inert
+
+Asked on 2026-09-10 to check every box, icon and text and fix anything very
+large. Nothing was large — text tops out at 46px, icons run 12–22px with one
+56px empty-cart illustration, cards are exactly 4:5, and no page scrolls
+sideways in either language. What the scan DID report was eleven controls under
+the 44px tap target: the bag at 22px, close at 22px, the language toggle at
+28px, the hero's arrows and pause at 32px and its five dots at 24px.
+
+**All eleven were already fixed, and the fix was already correct.** There is a
+`carousel targets` block in `sporta-ui.css` that grows the arrows and the pause
+button to 44x44 with a transparent overlay, and the site's own `.tap` helper
+does the same for the header controls. Both live inside
+`@media (pointer: coarse)` — which is right, because a mouse is precise and a
+thumb is not. Playwright's default context reports a FINE pointer, so the media
+query correctly did not match and the rig measured the un-widened boxes.
+
+`hasTouch: true, isMobile: true` is what makes it match. With it, the under-44
+list drops from 15 to the dots (24x44) and some product-title links inside
+cards that are themselves 175x219 and clickable in full.
+
+**I had already re-derived, from scratch, the exact reasoning that block
+records** — that the dots sit on a 26px pitch, so a 44-wide hit area would
+overlap its neighbour and a tap near the edge would select the WRONG slide,
+which is worse than a small target because it does the wrong thing rather than
+nothing. The block says so in its own words, and adds the part I had not got
+to: at 24x24 the dots already meet WCAG 2.5.8 (AA), and it is 2.5.5 (AAA) and
+Apple's 44 they miss, and closing that needs the dots spaced further apart,
+which is a change to the hero's design and the owner's to make.
+
+So this is the duplicate-checkbox mistake with a different mask: **an
+environment default made a working feature look absent.** The scan was not
+measuring the shop, it was measuring a browser that has no fingers. Before
+reporting a control as too small — or a media query's effect as missing —
+emulate the condition the rule is written for, and check whether the fix is
+already there. `grep -n 'pointer: coarse'` would have answered it in one
+command, and I ran the browser first.
+
+The general form, which this file keeps rediscovering: **a rule that is
+CONDITIONAL is invisible until you reproduce its condition**, and a rig that
+does not reproduce it reports the condition's absence as the code's.
+
 ## A cap is not a ratio, and on a wide screen it cropped the banner the other way
 
 The hero's height had moved eight times and nothing had ever measured it.
