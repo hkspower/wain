@@ -7,6 +7,40 @@
 ErrorDocument 404 /404.html
 DirectoryIndex index.html
 
+# ---- staging.wainkw.com ----------------------------------------------------
+#
+# Staging is a Hostinger subdomain whose document root is a directory INSIDE
+# production's: /public_html/staging. That is not a choice — the panel creates
+# subdomain roots under the site's public directory — and it has two
+# consequences, both handled here rather than by remembering.
+#
+# 1. The same files answer on a SECOND url, www.wainkw.com/staging/, under the
+#    production host. A copy of a 52-page Arabic site at a second address is
+#    duplicate content competing with the real one, which is the single way a
+#    staging site does lasting damage. So that path is 404 under any host but
+#    staging's own. The staging host never sees it: for staging.wainkw.com the
+#    document root IS that directory, so its request paths do not start with
+#    /staging and this rule cannot touch them.
+#
+# 2. Because staging's document root sits BELOW public_html, Apache does not
+#    read public_html/.htaccess for it — a rule written up there would silently
+#    not apply. This file is shipped IN the export, so it lands in both
+#    docroots and is the one place a rule reaches staging at all. Keyed on the
+#    Host so the very same bytes are correct in production, where it is inert.
+#
+# X-Robots-Tag rather than robots.txt: the export ships one robots.txt for both
+# and it allows crawling. A Disallow only asks a crawler not to FETCH — a url
+# it learns about elsewhere can still be indexed, listed without a description.
+# The header is what actually forbids indexing, and `always` so it survives an
+# error response too.
+<IfModule mod_setenvif.c>
+  SetEnvIf Host ^staging\. WAIN_STAGING=1
+</IfModule>
+<IfModule mod_headers.c>
+  Header always set X-Robots-Tag "noindex, nofollow" env=WAIN_STAGING
+</IfModule>
+RedirectMatch 404 ^/staging(/|$)
+
 # Never serve this file itself.
 <Files ".htaccess">
   Require all denied
