@@ -1139,6 +1139,49 @@ separate checks), and the tag compared as a whole header rather than per tag —
 which is how a 304 silently never fires, and is why `store_out_cacheable()`
 carries the same loop.
 
+### The loopback is not the shopper's path, and nothing here had ever checked it
+
+Every cache measurement this project has made — `live-cache-check`,
+`live-revalidate-check`, and every publisher's own verification — uses the
+loopback form, `https://127.0.0.1/` with a `Host:` header. **That reaches
+LiteSpeed directly and BYPASSES the CDN.** It is the right tool for "did the
+bytes land" and the wrong one for "what does a shopper get", because a
+shopper's request traverses `hcdn` first and a CDN is a shared cache: it may
+strip a header, decline to forward a conditional request, or answer from its
+own copy.
+
+So the ETag could have been perfect at the origin and worth nothing in Kuwait,
+and **every check this repository owns would have reported success.**
+`scripts/live/live-edge-check.php` asks both paths and puts them side by side.
+Measured 2026-09-10:
+
+```
+/      origin=200/42810  edge=200/42810  cdn=BYPASS  origin304=304  edge304=304
+       originTag=8c38fcd253f9…   edgeTag=W/8c38fcd253f9…
+       enc=gzip  encTag=same  varyGzip=Accept-Encoding  varyPlain=-
+```
+
+**The CDN weakens the tag to `W/"…"`, and that is the whole reason the
+defensive loop matters.** `seo_send()` strips a `W/` prefix and compares each
+tag in a list, copied from `store_out_cacheable()` — which calls getting it
+wrong "a slower no-store with extra steps". Had it compared the raw header, the
+ORIGIN would have answered 304 on every check while the EDGE answered 200 for
+every real shopper, for ever. The care was load-bearing on the live path and
+invisible on the tested one.
+
+**And `tagsMatch=DIFFER` is not by itself a finding.** The first version of the
+checker printed only that, on bodies of identical length — which has two very
+different explanations, a transformed tag or different bytes, and no way to tell
+them apart. Printing both tags settled it in one run. A comparison that reports
+only "not equal" hands you a question you then have to guess at.
+
+The gzip half came out clean: `varyGzip=Accept-Encoding`, so one strong tag
+covering both encodings is safe here — a shared cache keys on the encoding and
+cannot hand a gzipped copy to a client that never asked. `varyPlain=-` is
+correct; an unencoded response has nothing to vary on. **That was worth asking
+rather than assuming**, because the hazard belonged to the new ETag rather than
+predating it.
+
 ### The sandbox had never once run seo.php
 
 `php -S` reads no `.htaccess`, so `/` was served straight from disk locally.
