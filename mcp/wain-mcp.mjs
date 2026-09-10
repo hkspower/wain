@@ -32,6 +32,14 @@
  *
  * That means a client gets exactly what /search would show for the same words:
  * the same tokenizer, the same Arabic normalisation, the same scoring.
+ *
+ * ## And the same set of things to DO
+ *
+ * `src/lib/wain-hub.ts` is the site's list of what wain can do — browse, call
+ * شوق, register a place — and it is drawn by `SearchHub`, which is what the
+ * search button opens onto. `list_actions` is that list, bundled the same way,
+ * so «what can wain do» has one answer whether it is asked over stdio or by
+ * tapping the search button. Adding a row there adds it to both.
  */
 
 import { execFileSync } from "node:child_process";
@@ -46,7 +54,7 @@ const PROTOCOL_VERSION = "2024-11-05";
 /* ── load the site's own modules ──────────────────────────────────────────── */
 
 const tmp = mkdtempSync(join(tmpdir(), "wain-mcp-"));
-let places, categories, buildIndex, search;
+let places, categories, buildIndex, search, HUB_ACTIONS, WAIN_ORIGIN;
 try {
   // The local esbuild, not `npx -y`: this starts on every client launch and
   // must not depend on the network or on a registry round-trip.
@@ -60,13 +68,16 @@ try {
   writeFileSync(
     entry,
     `export { places, categories } from ${JSON.stringify(join(ROOT, "src/lib/places.ts"))};\n` +
-      `export { buildIndex, search } from ${JSON.stringify(join(ROOT, "src/lib/search.ts"))};\n`
+      `export { buildIndex, search } from ${JSON.stringify(join(ROOT, "src/lib/search.ts"))};\n` +
+      `export { HUB_ACTIONS, WAIN_ORIGIN } from ${JSON.stringify(join(ROOT, "src/lib/wain-hub.ts"))};\n`
   );
   execFileSync(bin, [
     entry, "--bundle", "--format=esm", `--alias:@=${join(ROOT, "src")}`,
     `--outfile=${bundle}`, "--log-level=error",
   ], { cwd: ROOT, stdio: "pipe" });
-  ({ places, categories, buildIndex, search } = await import(pathToFileURL(bundle).href));
+  ({ places, categories, buildIndex, search, HUB_ACTIONS, WAIN_ORIGIN } = await import(
+    pathToFileURL(bundle).href
+  ));
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }
@@ -74,6 +85,15 @@ try {
 const index = buildIndex(places);
 
 /* ── what a place looks like on the way out ───────────────────────────────── */
+
+/**
+ * Site-relative → absolute, from the site's own constant.
+ *
+ * Every url this server hands back is one a client may open, and the origin was
+ * written out four times by hand. `wain-hub.ts` already had to hold it for the
+ * same reason, so it holds it once.
+ */
+const absolute = (href) => `${WAIN_ORIGIN}${href}`;
 
 /**
  * Trimmed deliberately. The full record carries menus, opening tables, salon
@@ -89,7 +109,7 @@ const summarise = (p) => ({
   category: p.category,
   area_ar: p.areaAr,
   tagline_ar: p.taglineAr,
-  url: `https://www.wainkw.com/places/${p.slug}/`,
+  url: absolute(`/places/${p.slug}/`),
 });
 
 const bySlug = new Map(places.map((p) => [p.slug, p]));
@@ -147,6 +167,16 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: "list_actions",
+    description:
+      "What wain can do besides answer a search: browse the whole catalogue, register a Kuwait " +
+      "business for free, or call Shouq — the site's Arabic-speaking guide — and ask out loud. " +
+      "This is exactly the set the site's own search hub offers a visitor, from the same list, " +
+      "so an answer here and the site cannot disagree. A \"call\" action happens in a browser " +
+      "and cannot be placed from here; its url is the page that places it.",
+    inputSchema: { type: "object", properties: {} },
+  },
 ];
 
 function callTool(name, args = {}) {
@@ -164,7 +194,16 @@ function callTool(name, args = {}) {
           const place = h.doc.kind === "place" ? bySlug.get(h.doc.id.replace(/^place:/, "")) : null;
           return place
             ? { kind: "place", score: h.score, ...summarise(place) }
-            : { kind: h.doc.kind, score: h.score, id: h.doc.id, title_ar: h.doc.titleAr ?? h.doc.title };
+            : {
+                kind: h.doc.kind,
+                score: h.score,
+                id: h.doc.id,
+                title_ar: h.doc.titleAr ?? h.doc.title,
+                // A category or an area used to come back as an id and a title
+                // with no way to reach it — the one result kind a client could
+                // see and not open. The doc has carried the url all along.
+                url: absolute(h.doc.url),
+              };
         }),
       };
     }
@@ -178,7 +217,7 @@ function callTool(name, args = {}) {
           .map((h) => h.doc.id.replace(/^place:/, ""));
         return { error: `no place with slug "${args.slug}"`, did_you_mean: near };
       }
-      return { ...place, url: `https://www.wainkw.com/places/${place.slug}/` };
+      return { ...place, url: absolute(`/places/${place.slug}/`) };
     }
     case "list_categories":
       return {
@@ -188,7 +227,7 @@ function callTool(name, args = {}) {
           en: c.en,
           blurb_ar: c.blurbAr,
           places: places.filter((p) => p.category === c.id).length,
-          url: `https://www.wainkw.com/explore/?category=${c.id}`,
+          url: absolute(`/explore/?category=${c.id}`),
         })),
       };
     case "list_places": {
@@ -199,6 +238,17 @@ function callTool(name, args = {}) {
       const list = cat ? places.filter((p) => p.category === cat) : places;
       return { count: list.length, category: cat, places: list.map(summarise) };
     }
+    case "list_actions":
+      return {
+        actions: HUB_ACTIONS.map((a) => ({
+          id: a.id,
+          kind: a.kind,
+          ar: a.ar,
+          en: a.en,
+          what_ar: a.hintAr,
+          url: absolute(a.href),
+        })),
+      };
     default:
       return { error: `unknown tool "${name}"` };
   }
@@ -221,7 +271,7 @@ function handle(msg) {
       return reply(id, {
         protocolVersion: PROTOCOL_VERSION,
         capabilities: { tools: {} },
-        serverInfo: { name: "wain", version: "1.1.0" },
+        serverInfo: { name: "wain", version: "1.2.0" },
       });
     case "notifications/initialized":
     case "initialized":

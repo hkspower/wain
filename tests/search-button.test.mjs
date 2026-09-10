@@ -242,6 +242,67 @@ console.log('\n── the same question, wherever it can be answered ──');
   await ctx.close();
 }
 
+/**
+ * The hub.
+ *
+ * The search button is the only control on every route, so it is the middle of
+ * the site — and it used to be the middle of nothing: an empty box met a
+ * sentence, a failed query met «ما لقينا شي.», and neither offered a way on.
+ * /search had been given one; the palette, which is the same search box on
+ * every other page, had not.
+ *
+ * These check the palette specifically, because that is the surface that had
+ * nothing. `tests/mcp.test.mjs` pins the action list itself against
+ * `lib/wain-hub.ts`, so what is asserted here is that the palette DRAWS it.
+ */
+console.log('\n── the search button opens onto everything wain does ──');
+{
+  const { ctx, p, errors } = await open();
+  await p.goto(B + '/privacy/', { waitUntil: 'networkidle' });
+  await p.locator(BUTTON).first().click();
+  await p.locator(BOX).waitFor({ state: 'visible', timeout: 15000 });
+
+  const dialog = p.locator('[role="dialog"]');
+  const chips = dialog.locator('a[href*="/explore/?category="]');
+  ok('the empty palette offers all eight categories', (await chips.count()) === 8,
+     `${await chips.count()} chips`);
+  ok('and a way to call شوق', (await dialog.locator('button[aria-controls="wain-ai-panel"]').count()) === 1);
+  ok('and the whole catalogue', (await dialog.locator('a[href="/explore/"]').count()) === 1);
+  ok('and registering a place, which was a footer link and nowhere else',
+     (await dialog.locator('a[href="/add/"]').count()) === 1);
+
+  // The call button is named by visible text through aria-labelledby, and that
+  // id comes from useId because two hubs can exist at once — the palette opens
+  // over /search, which has one of its own. A collision would point a screen
+  // reader at the wrong sentence, or at nothing.
+  const named = await dialog.locator('button[aria-controls="wain-ai-panel"]').evaluate((el) => {
+    const id = el.getAttribute('aria-labelledby');
+    const target = id ? el.ownerDocument.getElementById(id) : null;
+    return { id, text: target ? target.textContent.trim() : null,
+             copies: id ? el.ownerDocument.querySelectorAll(`[id="${id}"]`).length : 0 };
+  });
+  ok('its name resolves to visible text, once', named.copies === 1 && Boolean(named.text),
+     JSON.stringify(named));
+
+  // A dead end is where this matters most, and it was the plainest one on the
+  // site: four words and no exit.
+  await p.locator(BOX).fill('زبربر');
+  await p.waitForTimeout(400);
+  const dead = await dialog.textContent();
+  ok('a failed query still says so', dead.includes('ما لقينا شي'), dead.slice(0, 120));
+  ok('but it is no longer a dead end', (await chips.count()) === 8, dead.slice(0, 200));
+
+  // Taking one has to close the palette, or the visitor lands on /explore with
+  // a modal still over it.
+  await chips.first().click();
+  await p.waitForTimeout(600);
+  ok('taking a category navigates', p.url().includes('/explore/?category='), p.url());
+  ok('and closes the palette behind it', (await p.locator('[role="dialog"]').count()) === 0);
+
+  ok('no page errors', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
 console.log(`\n${pass} passed, ${fails.length} failed`);
 await browser.close();
 if (fails.length) { console.log('FAILED: ' + fails.join(' | ')); process.exit(1); }

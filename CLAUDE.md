@@ -363,8 +363,8 @@ herself — a promise she cannot keep.
 ## wain speaks MCP
 
 `mcp/wain-mcp.mjs`, pointed at by `.mcp.json`, so opening this repository in an
-MCP client is the whole setup — no install, no config, no key. Four tools:
-`search_places`, `get_place`, `list_categories`, `list_places`.
+MCP client is the whole setup — no install, no config, no key. Five tools:
+`search_places`, `get_place`, `list_categories`, `list_places`, `list_actions`.
 
 **It loads `src/lib/places.ts` and `src/lib/search.ts`, bundled once at startup
 with the local esbuild** — the same trick `scripts/audit-places.mjs` uses, and
@@ -388,6 +388,38 @@ the messages after it.
 **A tool failure is content with `isError`, never a JSON-RPC error.** A model
 can read the first and recover — `get_place` on a bad slug answers with
 `did_you_mean` — and cannot see the second at all.
+
+## The search button is the middle of the site
+
+It is the only control in the root layout that leads anywhere the navbar does
+not, so it is where wain's moves belong — and it led nowhere. The ⌘K palette
+met an empty box with a sentence and a failed query with «ما لقينا شي.»,
+which is one dead end drawn twice, while /search had already been given a way
+on and «سجّل مكانك» existed only as a footer link. Three surfaces answering
+one question three ways.
+
+**`src/lib/wain-hub.ts` is the answer once; `SearchHub` draws it.** The palette
+(empty AND no-results) and /search's dead end are the same component now, so
+they cannot drift. Same rule as `place-kit.ts`: **nothing in `wain-hub.ts` may
+import the catalogue** — it is reachable from the palette button, which is in
+the root layout, and `audit:js` fails if place records follow it there. Cost
+measured: shared stayed 119.3K, `/search` went 158.4K → 158.6K.
+
+**`mcp/wain-mcp.mjs` bundles that same file as `list_actions`**, so «what can
+wain do» has one answer whether it is asked over stdio or by tapping the search
+button. `tests/mcp.test.mjs` asserts equality with the module rather than a
+retyped list — a copy would pass the day it was written.
+
+**Ordering and the queue are deliberately not in the hub.** 0 of 52 places
+satisfy `acceptsOrders` or `takesQueue`, so a «طلباتي» row advertises a door
+onto nothing; `OrdersLink` already covers the case that matters. Add the row
+when a place takes orders and both surfaces get it.
+
+`ShouqCallButton` gained `onTapped`, which the palette needs: it is a modal at
+z-60 and the call sheet mounts in the root layout, so a call placed from inside
+it would ring underneath its own backdrop. Not an `onClick` on a wrapper — the
+tap has to reach `primeAudio` first, and a bubbling handler that closes the
+dialog could unmount the button mid-gesture.
 
 ## Checks
 

@@ -30,8 +30,20 @@ import type { Phase } from "@/components/WainAiCall";
 export default function ShouqCallButton({
   className = "",
   labelledBy,
+  onTapped,
 }: {
   className?: string;
+  /**
+   * Run synchronously right after the call is requested — for a surface that
+   * has to get out of the way.
+   *
+   * The ⌘K palette is the one that needs it: it is a modal at z-60 and the call
+   * sheet mounts in the root layout, so a call placed from inside the palette
+   * rings underneath its own backdrop. Not an `onClick` on a wrapper, because
+   * the tap has to reach `primeAudio` first and a bubbling handler that closes
+   * the dialog could unmount this button mid-gesture.
+   */
+  onTapped?: () => void;
   /**
    * Id of visible text that already names this button, used INSTEAD of the
    * built-in aria-label.
@@ -88,7 +100,8 @@ export default function ShouqCallButton({
      */
     setPhase((p) => (p === "idle" || p === "ended" || p === "error" ? "ringing" : p));
     requestCall();
-  }, []);
+    onTapped?.();
+  }, [onTapped]);
 
   return (
     <button

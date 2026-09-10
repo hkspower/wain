@@ -2,18 +2,15 @@
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import SearchMap from "@/components/SearchMap";
 import SearchResults, { optionId } from "@/components/SearchResults";
 import SearchPlan from "@/components/SearchPlan";
 import ShouqAnswer from "@/components/ShouqAnswer";
 import VoiceControls from "@/components/VoiceControls";
 import ShouqCallButton from "@/components/ShouqCallButton";
+import SearchHub from "@/components/SearchHub";
 import { IconClose, IconCompass, IconSearch } from "@/components/icons";
-import CategoryIcon from "@/components/CategoryIcon";
 import { toArabicDigits } from "@/lib/places";
-import { categories } from "@/lib/place-kit";
-import { WAIN_AI_COPY } from "@/lib/wain-ai";
 import { usePlaces } from "@/lib/usePlaces";
 import { buildIndex, search, type DocKind } from "@/lib/search";
 import { useListboxKeys } from "@/lib/useListboxKeys";
@@ -447,61 +444,11 @@ export default function SearchClient() {
 
             {/* A dead end used to offer one way out — «تصفّح الأماكن», the whole
                 catalogue — which answers "I give up" and not "I still want
-                something". The two things that actually finish the errand from
-                here are a narrower place to look and a person to ask, so both
-                are offered, as a choice rather than a paragraph.
-
-                Categories first because they are cheap: eight taps, no
-                permission, no waiting. The call is second because it costs a
-                microphone and a moment, and because a visitor who knows what
-                they want will have taken a chip before they read this far. */}
-            <h3 className="mt-7 text-sm font-semibold text-ink-700">دوّر بالتصنيف</h3>
-            <ul className="mx-auto mt-3 flex max-w-lg flex-wrap justify-center gap-2">
-              {categories.map((cat) => (
-                <li key={cat.id}>
-                  {/* Straight to /explore with the filter already applied,
-                      rather than putting the category's name back in this box:
-                      re-searching the word that just failed is the one move
-                      guaranteed to land here again. */}
-                  <Link
-                    href={`/explore/?category=${cat.id}`}
-                    className="flex min-h-11 items-center gap-2 rounded-full border border-line-control bg-white px-3.5 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
-                  >
-                    <CategoryIcon name={cat.icon} className="size-4 text-ink-500" />
-                    {cat.ar}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-
-            {/* «or» drawn as a rule rather than written as a sentence, so the
-                two offers read as alternatives at a glance instead of a list
-                to work through. */}
-            <div className="mx-auto mt-6 flex max-w-xs items-center gap-3" aria-hidden="true">
-              <span className="h-px flex-1 bg-line-strong" />
-              <span className="text-2xs font-semibold text-ink-500">أو</span>
-              <span className="h-px flex-1 bg-line-strong" />
-            </div>
-
-            {/* The same ShouqCallButton as the one in the query box, not a
-                second implementation. It has to be: the tap spends the user
-                gesture synchronously on `haptic` and `primeAudio`, because iOS
-                will not unlock audio outside one and the call mounts an event
-                later. A bespoke "call شوق" button here would look identical and
-                ring silently. */}
-            <div className="mt-4 flex items-center justify-center gap-3">
-              <ShouqCallButton labelledBy="wain-search-call-hint" />
-              <span id="wain-search-call-hint" className="text-sm font-semibold text-ink-700">
-                {WAIN_AI_COPY.callHint}
-              </span>
-            </div>
-
-            <Link
-              href="/explore"
-              className="mt-6 inline-flex min-h-11 items-center text-sm font-semibold text-ink-500 underline underline-offset-4 transition hover:text-ink-700"
-            >
-              أو تصفّح كل الأماكن
-            </Link>
+                something". The ways on live in SearchHub now, because the ⌘K
+                palette met the same dead end with «ما لقينا شي.» and nothing
+                else: two surfaces of one search box, answering the same
+                question differently. One component, drawn in both. */}
+            <SearchHub className="mt-7" />
           </div>
         )}
       </div>

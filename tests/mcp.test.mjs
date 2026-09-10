@@ -105,8 +105,8 @@ console.log("\n── the tools ──");
   const tools = messages[0].result.tools;
   const names = tools.map((t) => t.name).sort();
   ok(
-    names.join(",") === "get_place,list_categories,list_places,search_places",
-    `four tools listed: ${names.join(", ")}`
+    names.join(",") === "get_place,list_actions,list_categories,list_places,search_places",
+    `five tools listed: ${names.join(", ")}`
   );
   ok(tools.every((t) => t.description && t.inputSchema?.type === "object"), "each has a description and an object schema");
   ok(
@@ -183,7 +183,8 @@ console.log("\n── it agrees with the site's own search ──");
   writeFileSync(
     entry,
     `export { places } from ${JSON.stringify(join(ROOT, "src/lib/places.ts"))};\n` +
-      `export { buildIndex, search } from ${JSON.stringify(join(ROOT, "src/lib/search.ts"))};\n`
+      `export { buildIndex, search } from ${JSON.stringify(join(ROOT, "src/lib/search.ts"))};\n` +
+      `export { HUB_ACTIONS, WAIN_ORIGIN } from ${JSON.stringify(join(ROOT, "src/lib/wain-hub.ts"))};\n`
   );
   execFileSync(join(ROOT, "node_modules/.bin/esbuild"), [
     entry, "--bundle", "--format=esm", `--alias:@=${join(ROOT, "src")}`,
@@ -200,6 +201,42 @@ console.log("\n── it agrees with the site's own search ──");
     ok(
       JSON.stringify(direct) === JSON.stringify(viaMcp),
       `«${q}» — MCP returns exactly what the site's search returns (${direct.length})`
+    );
+  }
+
+  // Same argument, applied to what wain can DO. The point of list_actions is
+  // that a client and a visitor are offered one set under one set of names, so
+  // the assertion is equality with the module the search hub draws from — not
+  // a list retyped here, which would pass today and drift on the first change.
+  {
+    const { messages } = await session([call(1, "list_actions")]);
+    const got = textOf(messages[0]).actions;
+    ok(
+      got.map((a) => a.id).join(",") === site.HUB_ACTIONS.map((a) => a.id).join(","),
+      `list_actions is the hub's own list, in order (${got.map((a) => a.id).join(", ")})`
+    );
+    ok(
+      got.every((a, i) => a.ar === site.HUB_ACTIONS[i].ar && a.what_ar === site.HUB_ACTIONS[i].hintAr),
+      "and carries the same Arabic a visitor reads on the site"
+    );
+    ok(
+      got.every((a, i) => a.url === site.WAIN_ORIGIN + site.HUB_ACTIONS[i].href),
+      "every action url is absolute and trailing-slashed, so it can be opened as-is"
+    );
+    // A call happens in a browser. Saying so in `kind` is what stops a client
+    // treating it as something it can perform.
+    ok(got.some((a) => a.kind === "call") && got.some((a) => a.kind === "route"),
+      "both kinds are present and told apart");
+  }
+
+  // Categories and areas used to come back as an id and a title with nothing to
+  // open — the one result kind a client could see and not reach.
+  {
+    const { messages } = await session([call(1, "search_places", { query: "قهوة", limit: 10 })]);
+    const nonPlaces = textOf(messages[0]).results.filter((r) => r.kind !== "place");
+    ok(
+      nonPlaces.length > 0 && nonPlaces.every((r) => r.url?.startsWith(site.WAIN_ORIGIN + "/")),
+      `every non-place result carries a url (${nonPlaces.length} checked)`
     );
   }
 }

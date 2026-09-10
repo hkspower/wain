@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import SearchResults, { optionId } from "@/components/SearchResults";
+import SearchHub from "@/components/SearchHub";
 import { IconSearch } from "@/components/icons";
 import { usePlaces } from "@/lib/usePlaces";
 import { buildIndex, search } from "@/lib/search";
@@ -109,11 +110,23 @@ export default function SearchPaletteDialog({ onClose }: { onClose: () => void }
             <div className="px-2 py-6 text-center">
               <p className="text-base font-semibold text-ink-800">شنو تدوّر؟</p>
               <p className="mt-1 text-sm text-ink-500">ندوّر لك في كل أماكن وين.</p>
+              {/* The question, and then the answers to it. This dialog is
+                  reachable from every route — it is the only control that is —
+                  so it is where the site's moves belong, and it used to offer
+                  none of them: a visitor who opened ⌘K without a word in mind
+                  read a sentence and closed it again. */}
+              <SearchHub className="mt-6" onNavigate={close} />
             </div>
           ) : hits.length ? (
             <SearchResults hits={hits} activeIndex={active} onNavigate={close} listboxId={LISTBOX_ID} />
           ) : (
-            <p className="px-2 py-6 text-center text-sm text-ink-500">ما لقينا شي.</p>
+            /* «ما لقينا شي.» on its own was the dead end /search had already
+               been given a way out of, still being drawn here. Same way out,
+               same component. */
+            <div className="px-2 py-6 text-center">
+              <p className="text-sm text-ink-500">ما لقينا شي.</p>
+              <SearchHub className="mt-6" onNavigate={close} />
+            </div>
           )}
         </div>
 
