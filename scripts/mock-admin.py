@@ -395,6 +395,23 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, {'email': EMAIL, 'need_code': False}, set_cookie=SESSION)
             return self._json(401, {'error': 'bad_credentials'})
 
+        if r == 'register':
+            # THE FIXTURE ALWAYS HAS AN ACCOUNT, so this fixture always answers
+            # already_set_up — which is what the real admin.php answers on any
+            # shop that has ever been set up, and therefore what the panel meets
+            # in every state this mock is used to test.
+            #
+            # It is here because the contract guard demands it: the app calls
+            # `register`, and a route the app calls that the fixture does not
+            # implement is the exact divergence that guard exists to catch. The
+            # first-account PATH is tested against the real server instead —
+            # scripts/first-admin-test.mjs empties admin_users and drives it —
+            # because emptying an auth table is not something a fixture can
+            # honestly simulate.
+            if self.headers.get('X-Sporta-Admin') != '1':
+                return self._json(400, {'error': 'bad_request'})
+            return self._json(409, {'error': 'already_set_up'})
+
         if r == 'login_code':
             # The fixture account has no second factor enrolled, so there is
             # never a pending marker for a code to complete — which is exactly

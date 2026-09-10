@@ -32,7 +32,7 @@ export default function BackendsHome() {
 
 function SignIn() {
   const theme = useTheme();
-  const { signIn, signInCode, resendCode } = useSession();
+  const { signIn, signUp, signInCode, resendCode } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   // The second factor. Null until the server says one is enrolled — the
@@ -47,13 +47,22 @@ function SignIn() {
   const [resent, setResent] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** True once the server has said this shop has NO administrator. The form
+   *  becomes "make the first account" rather than "sign in" — same two fields,
+   *  a different verb, because they are the same two facts. */
+  const [firstRun, setFirstRun] = useState(false);
 
   const submit = async () => {
     if (busy) return;
     setBusy(true);
     setError(null);
     try {
-      if (code !== null) {
+      if (firstRun) {
+        // THE ROUTE CAN ONLY EVER FIRE ONCE, and the server is what enforces
+        // that — behind a named lock, answering already_set_up forever after.
+        // Nothing here is trusted to keep it to one account.
+        await signUp(email, password);
+      } else if (code !== null) {
         await signInCode(code);
       } else {
         const res = await signIn(email, password);
@@ -72,8 +81,20 @@ function SignIn() {
             ? 'That code was not accepted.'
             : 'Wrong email or password.'
           : e instanceof Error && e.message === 'no_admin_account'
-            ? 'No admin account exists on this server yet — see api/setup-admin.php.'
-            : String(e),
+            // IT USED TO SAY "see api/setup-admin.php", and that file has been
+            // gone for as long as this message has existed — live-file-check
+            // lists it under mustNotBeHere, so the repository actively
+            // guarantees its absence. The one screen that knew what was wrong
+            // sent the owner to a 404. Now it offers the fix instead.
+            ? (setFirstRun(true),
+               'This shop has no administrator yet. Choose an email and a password — this makes the first account, and it can only be done once.')
+            : e instanceof Error && e.message === 'already_set_up'
+              ? 'Somebody already made the first account. Sign in instead.'
+              : e instanceof Error && e.message === 'password_too_short'
+                ? 'The password must be at least twelve characters.'
+                : e instanceof Error && e.message === 'bad_email'
+                  ? 'That is not an email address the server will take.'
+                  : String(e),
       );
     } finally {
       setBusy(false);
@@ -111,8 +132,13 @@ function SignIn() {
             onChangeText={setPassword}
             secureTextEntry
             autoCapitalize="none"
-            autoComplete="current-password"
-            textContentType="password"
+            // NEW PASSWORD WHEN THERE IS NO ACCOUNT: the two hints mean
+            // opposite things to a password manager — one offers what is
+            // stored, the other offers to generate and save. Getting this
+            // wrong on the first-account form is how a manager silently fails
+            // to save the only password to the shop.
+            autoComplete={firstRun ? 'new-password' : 'current-password'}
+            textContentType={firstRun ? 'newPassword' : 'password'}
             accessibilityLabel="Password"
             onSubmitEditing={submit}
             style={[
@@ -207,7 +233,15 @@ function SignIn() {
           )}
 
           <Button
-            label={busy ? 'Signing in…' : code !== null ? 'Verify code' : 'Sign in'}
+            label={
+              busy
+                ? (firstRun ? 'Creating…' : 'Signing in…')
+                : firstRun
+                  ? 'Create the first account'
+                  : code !== null
+                    ? 'Verify code'
+                    : 'Sign in'
+            }
             onPress={submit}
             busy={busy}
             style={styles.primary}

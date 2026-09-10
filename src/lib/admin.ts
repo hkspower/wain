@@ -607,6 +607,27 @@ export const adminApi = {
 
   loginCode: (code: string) => call<{ email: string }>('login_code', { code }),
 
+  /** Make the FIRST administrator, and only ever the first.
+   *
+   *  THE SCREEN THAT NEEDED THIS COULD ALREADY DIAGNOSE THE PROBLEM AND NOT
+   *  FIX IT. `me` answers 409 no_admin_account on a shop whose admin_users is
+   *  empty, and the sign-in screen turned that into "see api/setup-admin.php"
+   *  — a file this repository deliberately guarantees is absent
+   *  (live-file-check.php lists it under mustNotBeHere). So the one screen that
+   *  knew what was wrong sent the owner to a 404.
+   *
+   *  IT IS NOT A SIGN-UP. admin.php's `register` fires only while admin_users
+   *  holds nothing, behind a named lock, and answers already_set_up forever
+   *  after. On a shop with an administrator this cannot add a second account
+   *  and cannot reach the first — which is why it is safe to expose here.
+   *  Adding a COLLEAGUE is a different job, behind the gate, and is not this.
+   *
+   *  It grants the session on success, through the same function both login
+   *  paths end in: they chose the password one line ago, and asking them to
+   *  type it again proves nothing. */
+  register: (email: string, password: string) =>
+    call<{ email: string }>('register', { email, password }),
+
   /** Post the emailed code again, while sign-in is half done. The server
    *  refuses more than one a minute and can only ever mail the account the
    *  pending marker names. */

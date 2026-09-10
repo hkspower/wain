@@ -48,6 +48,14 @@ type Ctx = {
     | { need: 'code'; via: 'totp' | 'email'; sentTo: string | null; sent: boolean | null }
   >;
   signInCode: (code: string) => Promise<void>;
+  /** Make the FIRST administrator and adopt the session it grants.
+   *
+   *  It lives here rather than being called straight from the screen so that
+   *  "who is signed in" stays one fact in one place — a screen that set its own
+   *  token would be a second answer to that question, and the two would drift
+   *  the first time either changed. The server enforces first-account-only;
+   *  nothing on this side is trusted to. */
+  signUp: (email: string, password: string) => Promise<void>;
   resendCode: () => Promise<{ sent: boolean; to: string }>;
   signOut: () => void;
 };
@@ -89,6 +97,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
    *  signInCode, and the server refuses more than one a minute. */
   const resendCode = useCallback(() => adminApi.loginCodeResend(), []);
 
+  const signUp = useCallback(async (email: string, password: string) => {
+    // register grants the session itself — the same store_admin_grant() both
+    // login paths end in — so there is nothing to sign in with afterwards and
+    // no second round trip to make.
+    const who = await adminApi.register(email.trim(), password);
+    setToken(who.email);
+  }, []);
+
   const signInCode = useCallback(async (code: string) => {
     const who = await adminApi.loginCode(code.trim());
     setToken(who.email);
@@ -103,8 +119,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<Ctx>(
-    () => ({ token, name: token, ready, signIn, signInCode, resendCode, signOut }),
-    [token, ready, signIn, signInCode, resendCode, signOut],
+    () => ({ token, name: token, ready, signIn, signUp, signInCode, resendCode, signOut }),
+    [token, ready, signIn, signUp, signInCode, resendCode, signOut],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
