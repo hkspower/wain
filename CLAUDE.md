@@ -771,6 +771,39 @@ covering the Arabic frame the app ships. It takes a direction now and asks
 which never reads `.htaccess`; a measurement taken with only one of the two
 changed measures nothing. The first attempt at this measured exactly that.
 
+**Removing the RULE did not remove the FAULT, because a FILE was doing it too.**
+Measured 2026-09-10 by `scripts/live/live-tile-names.php`, cache-busted, all
+eight plain names across both crops:
+
+```
+desktop/accessories=404  desktop/men=404  desktop/women=404  desktop/outlet=200/img/59388
+mobile/accessories=404   mobile/men=404   mobile/women=404   mobile/outlet=404
+STILL-BRIDGED=desktop/outlet
+```
+
+`cats/desktop/outlet.jpg` is on the server and in no commit — found by
+`live-file-check.php`'s untracked walk, not by anything looking for it. 59,388
+bytes, the same size as `art-outlet.jpg` beside it, so it is a copy of the
+artwork saved under the bridging name. The rewrite is gone; this one tile is
+bridged by a duplicate instead, and every desktop visitor gets the 59 kB jpeg
+rather than the 45 kB webp. No language fault here — outlet has no `-rtl`
+composition — but the mechanism is the one that would cost it if it did.
+
+**Three rigs assert exactly four plain-name 404s and all three run against the
+sandbox**, so none of them can see this: a stray file on the live server is
+invisible to every check that measures a checkout. The question `differ=0` never
+asks is not only "what did we never send?" but "what is there that we never
+sent?"
+
+The script derives the ids from the artwork on disk, and the first version did
+not — it listed four by hand, and two were invented: `kids`, which is not a
+category, and a `phone` crop really called `mobile`. Both answered exactly as a
+correct server would, a 404 and an absent directory, so they read as two extra
+passing checks while `accessories` was never asked about at all. **A fixture
+typed from memory is a fixture chosen at random**, which this file already
+records of a sign-in that picked `rig@local` and a light-theme reading taken
+from a product card.
+
 **And a check run in the same breath as the write can measure the state before
 it.** The publisher reported `plainName=STILL-BRIDGED` seconds after writing the
 new `.htaccess`; a probe a minute later found the rule gone and the URL 404 by

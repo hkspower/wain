@@ -17,6 +17,12 @@ live shop's zero. **Ask the server.**
   production proves the directive is implemented.
 - `live-config-url.php`, `live-image-check.php`, `live-seo-check.php` — config
   origin, product imagery, and the SEO shell.
+- `live-tile-probe.php`, `live-tile-names.php` — the category tiles. The first
+  asks whether the plain-name rewrite is gone; the second asks whether a
+  leftover FILE keeps a tile bridged anyway, which is the same fault with no
+  rule behind it. Both matter because the tile component only falls to its good
+  `<picture>` — webp, and the `-rtl` Arabic composition — when the plain name
+  ERRORS.
 - `domain-check.sh` — DNS from the registry down. Written after
   "the server cannot resolve its own domain" was treated as a quirk for weeks
   when it was NXDOMAIN at the .com.kw registry.
