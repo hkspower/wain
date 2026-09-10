@@ -16,6 +16,14 @@
 /wain-*.zip
 /wain-*.zip.sha256
 /wain-source.zip
+# ...and the same archive under a name the server will actually serve. Both
+# docroots on the account deny `.zip` in .htaccess, so an artifact uploaded
+# there has to carry a different extension — deploy.php reads the bytes with
+# ZipArchive and never looks at the name. Ignored by EXTENSION rather than by
+# the one name in use: this is the third time an archive has been ignored by a
+# specific spelling and appeared again under another, and 25MB of this history
+# is the bill for the first two.
+/wain-*.bin
 
 # misc
 .DS_Store
