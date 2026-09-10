@@ -127,13 +127,23 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   kept for rollback. POST `{url, sha256, version, ts}` with
   `X-Deploy-Signature: sha256=<hmac>`.
 
-  Two things stop this session from using it, both worth knowing before anyone
-  tries. **Its `ALLOWED_HOSTS` is `raw.githubusercontent.com`, `github.com`,
-  `codeload.github.com` and nothing else**, so an artifact hosted anywhere else
-  is refused with `host_not_allowed` until that constant is edited on the
-  server. And **`www.wainkw.com` is refused at CONNECT by the sandbox gateway
-  exactly like the file host**, so the POST cannot be sent from here at all.
-  Verified 10 September: both answer 403 at the tunnel.
+  **It would refuse this export today.** `PROTECTED_PATHS` contains `admin`,
+  `queue`, `orders` and `.htaccess`, and all four are things wain publishes —
+  they are static routes of this site, not the PHP app's. Any artifact holding
+  them is rejected with `artifact_touches_protected_path` before the download
+  even starts. Adopting the endpoint means first separating the directories the
+  PHP app owns from the names the static site also uses.
+
+  Two further blockers. **Its `ALLOWED_HOSTS` is `raw.githubusercontent.com`,
+  `github.com`, `codeload.github.com` and nothing else**, so an artifact hosted
+  anywhere else is refused with `host_not_allowed` until that constant is
+  edited on the server. And **`www.wainkw.com` is refused at CONNECT by the
+  sandbox gateway exactly like the file host**, so the POST cannot be sent from
+  here at all. Verified 10 September: both answer 403 at the tunnel.
+
+  The `hosa` connector has **no file-write tool** — its file access is
+  read-only, and the one upload path it offers is the TUS URL on the blocked
+  host. So none of these edits can be made from this environment either.
 - FTP secrets (`FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`) would make
   `deploy.yml` work; 186 runs have failed for want of them. They get added in
   GitHub's settings UI — **never pasted into a chat or a commit**.

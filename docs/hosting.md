@@ -180,7 +180,21 @@ X-Deploy-Signature: sha256=<hmac-sha256 of the raw body, keyed by the secret>
   "version": "1.1.0", "ts": <unix seconds> }
 ```
 
-Two reasons this session could not use it, both measured on 10 September:
+**It would refuse this site's export today, and that is the finding that
+matters most.** `PROTECTED_PATHS` lists `admin`, `queue` and `orders`, and
+those are wain's own routes — `out/admin/`, `out/queue/`, `out/orders/` are
+static pages this site publishes. `.htaccess` is on the list too, and the
+export ships one. The endpoint refuses an artifact containing any of them with
+`artifact_touches_protected_path` before it downloads anything, so a deploy of
+this build stops at the first of the four. The list reads as though it was
+written for the PHP app alone, when three of its entries now belong to the
+Next export instead. Extending `ALLOWED_HOSTS` is therefore not sufficient:
+whoever adopts this endpoint has to separate "directories the PHP app owns"
+from "directory names the static site also uses", and only the first should be
+protected.
+
+Two further reasons this session could not use it, both measured on
+10 September:
 
 - **`ALLOWED_HOSTS` is `raw.githubusercontent.com`, `github.com` and
   `codeload.github.com`.** Anything else is refused with `host_not_allowed`.
