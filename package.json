@@ -59,6 +59,7 @@
     "check:wheels": "node tools/shots/wheels.mjs",
     "test:traction": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/traction.mjs",
     "test:accel": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/accel.mjs",
+    "test:launch": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/launch.mjs",
     "test:areas": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/areas.mjs",
     "test:aspect": "node --experimental-strip-types tests/aspect.mjs",
     "test:assets": "node tests/assets.mjs",
