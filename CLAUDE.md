@@ -287,6 +287,21 @@ Four things this depends on, each of which cost a wrong answer first:
   and matched. When a run of files is needed, fetch them from inside ONE PHP
   script running on the server, sequentially: twenty tiles that way is one cron
   cycle instead of forty, and it is `scripts/publish/publish-cats.php`.
+- **A publisher's `$COMMIT` pins the ARTIFACTS, not the publisher. Fetch the
+  SCRIPT from HEAD.** Measured 2026-09-10: `publish-pending.php` was fetched at
+  `ec28737`, the value written inside it, and reported `alreadyOk=8` with no
+  `swVersion` field at all. Both were correct — at that commit the file list was
+  eight long and the service-worker entry and its check had not been added yet.
+  Re-fetched from HEAD the same run reports `alreadyOk=9 swVersion=v10-refresh1`.
+
+  So the older script silently did LESS than the current one, and said so only
+  in a count nobody would question. Nothing was wrong on the server either time;
+  the run simply did not cover the ninth file. **A publisher that grows a file
+  list is a publisher whose old copies under-publish in silence** — the failure
+  is a smaller number, not an error. Fetch the script from the newest commit and
+  let its own `$COMMIT` decide where the CONTENT comes from; the two are
+  different questions and only one of them is written in the file.
+
 - **Verify by sha256 against the repo**, not by size, and read it back from the
   ABSOLUTE path — the rule further up this section applies here too. Check it
   AFTER the copy, not after the download: an empty fetch and a failed copy look
