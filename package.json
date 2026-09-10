@@ -63,7 +63,7 @@
     "test:knet": "node scripts/knet-test.mjs",
     "test:admin": "node scripts/admin-smoke.mjs",
     "test:image-drop": "node scripts/image-drop-test.mjs",
-    "test:one-mode": "node scripts/one-mode-test.mjs",
+    "test:both-modes": "node scripts/both-modes-test.mjs",
     "test:no-filters": "node scripts/no-filters-test.mjs",
     "test:tile-art": "node scripts/tile-art-test.mjs",
     "test:custom-css": "node scripts/custom-css-test.mjs",

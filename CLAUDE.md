@@ -429,7 +429,50 @@ where they were.
 If that message never appears, the page did not come from the server at all. A
 private tab bypasses the worker and settles it in ten seconds.
 
-## One mode. The light theme still exists in the files and is unreachable
+## Both modes again — the toggle is back, 2026-09-10
+
+**Reversed by the owner the day after it was made.** One mode was asked for on
+2026-09-09 and the shopper's toggle was asked back on 2026-09-10, out of four
+measured options: an owner-only choice in /backends, the toggle back, both, or
+flipping the single mode to white. They chose the toggle.
+
+**It cost one `git revert` of `9d3e087` and two conflicts**, and that is the
+entire argument for the paragraph the old section ended with. The light rules
+were deliberately left in `sporta-dark.css` and `Colors.light` rather than
+deleted, on the grounds that *"they cost nothing while nothing matches, and
+they are what a revert needs. Deleting them turns a two-line change back into
+an afternoon."* A day later the revert was needed and it was a two-line change.
+**Delete the branch you are not taking and you have decided for everyone who
+comes after.**
+
+The revert auto-merged `index.html` and `sporta-dark.css` cleanly even though
+both had been rewritten since — the hero floor and the `--sp-ember` tokens
+survived untouched — and conflicted only in `CLAUDE.md` and `package.json`,
+which are the two files where a conflict is a prompt to think rather than a
+merge to resolve.
+
+**What was measured before offering it**, because "the files are still there"
+is not "it still works": the light theme was forced in a browser and the shop
+rendered correctly — body luminance 32 → 234, titles and prices dark on light
+and readable. One reading nearly went in the report as a fault: text measured
+`rgb(255,255,255)` on the light shop, which looks like white-on-white until you
+notice the element sampled was inside a product card, and the cards are dark in
+both modes. **A fixture chosen by `find` is a fixture chosen at random** — the
+same lesson as the sign-in that picked `rig@local`. The dark rectangles on the
+light shop are the missing-photo placeholders (`photos=0/46`), not a theme
+fault.
+
+`npm run test:both-modes` replaces `test:one-mode` and asserts the opposite:
+the toggle is visible, pressing it changes `data-theme` AND a real computed
+colour, the choice survives a reload, and neither mode is pinned. The four
+theme rigs that `_theme-seed.mjs` had taught to refuse `THEME=light` accept it
+again, which is the half a straight revert gets right and a hand-written undo
+would have missed.
+
+The section below is kept as it was written, because the reasoning in it is
+still the reasoning — it is simply no longer in force.
+
+### The original: one mode, dark only (2026-09-09, superseded)
 
 Asked for on 2026-09-09: one mode, not a dark/light pair. Dark, because that is
 what the shop already defaulted to, what `theme-color` (`#0d0e10`) says, and

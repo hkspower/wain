@@ -491,6 +491,35 @@
     color: #ffffff !important;
     background-color: #4a5058 !important;
   }
+  /* --- AND THE THIRD SURFACE THAT IS DARK IN BOTH THEMES: THE HERO -------- */
+  /* The exception above covers the header and the footer and stops there,
+     because it was written about `color`. The rule immediately above it sets a
+     BACKGROUND, and the carousel's active dot sits on the hero photograph —
+     which is a dark image in both themes, exactly like the header and the
+     footer. So the dot came out #4a5058 on the artwork.
+
+     Measured by `THEME=light npm run test:dark` the moment the light theme
+     became reachable again: 2.14:1, against the 3:1 that rule cites for
+     itself. The one control that says WHICH SLIDE YOU ARE ON, invisible.
+
+     It had never been reported because the light theme has been unreachable
+     since 2026-09-09 and this rig refused to run against it. Restoring the
+     toggle is what surfaced it — a whole theme nobody could open is a whole
+     theme nobody was measuring.
+
+     #a6acb2 is not a new colour: it is --sp-silver, precisely what the DARK
+     theme paints this same dot, and using it here is the point rather than a
+     coincidence. The argument is the one the block above already makes — a
+     surface that is dark in both themes should look the SAME in both.
+
+     Scoped to the dot by aria-current, which is the semantic marker the bundle
+     already sets, rather than to the utility class it happens to carry:
+     measured, this matches exactly one element on the page and no other
+     .bg-brand — the badges and chips on the light PAGE keep #4a5058, which is
+     right for them. */
+  :root:not([data-theme='dark']) .group\/dot[aria-current='true'] > .bg-brand {
+    background-color: #a6acb2 !important;
+  }
   :root:not([data-theme='dark']) .border-brand,
   :root:not([data-theme='dark']) .border-accent {
     border-color: #4a5058 !important;
@@ -539,34 +568,4 @@
 :root:not([data-theme='dark']) nav .text-slate-300,
 :root:not([data-theme='dark']) ol .text-slate-300 {
   color: #7a8188;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
- * ONE MODE, NOT TWO — 2026-09-09, on the owner's instruction.
- *
- * The shop is dark. index.html now pins data-theme="dark" and writes the
- * `sporta_theme` key before the bundle loads, so the light theme is never
- * selected; this removes the only control that could select it.
- *
- * WHY BY aria-label. The bundle is prebuilt and has no source in this
- * repository, and the header's theme button carries no id and no class of its
- * own — `tap flex items-center justify-center transition hover:scale-110` is
- * shared with the cart and wishlist buttons beside it. The aria-label is the
- * only thing that identifies it, and it is one of four strings: the button
- * shows the label of the mode it would switch TO, in whichever language is
- * loaded. All four are listed so this holds if the pin is ever removed.
- *
- * display:none, not visibility or opacity: a hidden-but-present button is
- * still in the tab order, and a keyboard visitor would land on a control that
- * appears to do nothing.
- *
- * The light-theme rules above are deliberately LEFT IN PLACE. They cost
- * nothing while no element ever matches `:root:not([data-theme='dark'])`, and
- * they are what the light theme would need if the owner ever wants it back —
- * deleting them would turn a two-line revert into an afternoon. */
-.app-header button[aria-label='Light mode'],
-.app-header button[aria-label='Dark mode'],
-.app-header button[aria-label='الوضع الفاتح'],
-.app-header button[aria-label='الوضع الليلي'] {
-  display: none !important;
 }

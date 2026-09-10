@@ -32,7 +32,6 @@
  *     site actually draws, which is how an inconsistency shows up.
  */
 import { chromium } from 'playwright'
-import { assertTheme } from './_theme-seed.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:4300'
 const PAGES = ['/', '/shop', '/cart', '/checkout', '/about', '/contact',
@@ -41,10 +40,7 @@ const VIEWS = [
   { name: 'phone  ', width: 390, height: 844 },
   { name: 'desktop', width: 1280, height: 1000 },
 ]
-// ONE MODE as of 2026-09-09 — 'light' was here and is gone, not commented
-// out: a loop over a theme the shop cannot enter would have run the whole scan
-// twice over the same dark pages and reported the second pass as light.
-const THEMES = ['dark']
+const THEMES = ['dark', 'light']
 
 let fails = 0, edges = 0
 const quiet = []
@@ -184,8 +180,6 @@ for (const theme of THEMES) {
     const p = await b.newPage({ viewport: { width: view.width, height: view.height } })
     await p.goto(BASE + '/', { waitUntil: 'domcontentloaded' })
     await p.evaluate((t) => localStorage.setItem('sporta_theme', t), theme)
-    await p.reload({ waitUntil: 'networkidle' })
-    await assertTheme(p, theme)
 
     let invisible = 0, seen = 0
     for (const path of PAGES) {

@@ -227,24 +227,15 @@
           // DOMContentLoaded, and a flash of the beige light theme on every
           // single page load. Reading the saved choice — or the OS preference
           // when there is none — costs nothing here.
-          // DARK IS THE SHOP'S ONLY LOOK, as of 2026-09-09, on the owner's
-          // instruction: one mode, not two. Sporta is black, dark silver and
-          // orange, and the light theme was a second shop nobody had asked
-          // for — a different header, a different footer, a hero tuned against
-          // dark ground and painted on beige.
-          //
-          // THE WRITE IS THE POINT, not the read. The bundle's ThemeProvider
-          // initialises from this key (`localStorage.getItem('sporta_theme')
-          // || 'dark'`) and then writes data-theme in an effect, so setting
-          // the attribute here alone would be undone at hydration for anyone
-          // who had ever chosen light. Overwriting the key first means the
-          // provider hydrates to dark and agrees with the first frame.
-          //
-          // The header's toggle is hidden in sporta-dark.css by its aria-label
-          // — the bundle has no source here — so nothing can flip it back.
-          localStorage.setItem('sporta_theme', 'dark')
-          el.dataset.theme = 'dark'
-          el.style.colorScheme = 'dark'
+          // DARK IS THE SHOP'S OWN LOOK, not a preference to be inferred.
+          // Sporta is black, dark silver and orange; the light theme still
+          // exists and the header toggle still reaches it, but a first-time
+          // visitor on a light laptop was being shown the wrong shop. A saved
+          // choice always wins — only the DEFAULT changed.
+          var t = localStorage.getItem('sporta_theme')
+          if (!t) t = 'dark'
+          el.dataset.theme = t
+          el.style.colorScheme = t
           // THE HERO'S HEIGHT, BEFORE THE FIRST PAINT.
           //
           // The height is an owner setting that arrives with /api?r=slides —

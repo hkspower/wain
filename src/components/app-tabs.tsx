@@ -1,9 +1,7 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
-/* The project's hook, not React Native's. This was the one call site reading
-   the OS preference directly, so it would have gone on drawing light tab bars
-   under a dark app — the exact split the single mode exists to remove. */
+import { useColorScheme } from 'react-native';
+
 import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useCart } from '@/lib/cart';
 import { useLang } from '@/lib/i18n';
 
