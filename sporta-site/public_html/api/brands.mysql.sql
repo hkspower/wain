@@ -29,4 +29,6 @@ insert into brands (slug, name_en, name_ar, sort) values
   ('gymshark',     'Gymshark',      'جيم شارك',      5),
   ('eyesportwear', 'Eyesportwear',  'آي سبورت وير',  6),
   ('nba',          'NBA',           'إن بي إيه',     7)
-on duplicate key update name_en = values(name_en), name_ar = values(name_ar);
+-- Same rule as the products seed: a brand already in the database keeps the
+-- name it has. Both columns are editable through brand_save.
+on duplicate key update slug = slug;   -- never clobber a value already set

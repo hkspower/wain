@@ -184,14 +184,21 @@ fi
 printf "  Going live needs no terminal and no SSH:\n"
 printf "    1. upload public_html/ in File Manager\n"
 printf "    2. create api/config.php from api/config.example.php  (the 4 MySQL values)\n"
-printf "    3. import api/install.mysql.sql in phpMyAdmin — ONE file, and that is\n"
+printf "    3. import database-sql/IMPORT-THIS-ONE.sql in phpMyAdmin — ONE file,\n"
 # It said "ONE file" and then listed migrations to run after it, which is a
-# contradiction the reader has to resolve by guessing. Verified from empty this
-# session: a database created by importing only install.mysql.sql has all
-# fourteen tables and takes a real order. The separate migrations still ship,
-# for re-running one on purpose; they are not part of a normal install.
-printf "       the whole database step. It carries every migration and the seed,\n"
-printf "       in order, and is safe to re-run over an existing shop.\n"
+# contradiction the reader has to resolve by guessing. The separate migrations
+# still ship, for re-running one on purpose; they are not part of a normal
+# install.
+#
+# AND IT NAMED THE WRONG FILE. This pointed at api/install.mysql.sql, a STALE
+# output of an earlier make-install-sql.mjs — four parts rather than ten, so it
+# lacks the returns tables, the admin's email code and the assistant Q&A table.
+# Worse, until 2026-09-10 it still carried the on-duplicate-key clause that
+# overwrote a hand-priced product with the seed's figure: the very bug whose fix
+# landed in database-sql/ and never reached the copy the owner was told to use.
+printf "       and that is the whole database step. It carries every migration\n"
+printf "       and the seed, in order, and is safe to re-run over an existing\n"
+printf "       shop: nothing already in the database is overwritten.\n"
 printf "    4. create knet/config.php and pay/config.php from their examples\n"
 printf "    5. add the cron jobs: cron-fulfilment.php (5 min), cron-stock.php (15 min)\n"
 printf "    6. open %s/api/preflight.php — it names whatever is still wrong,\n" "$SITE"
