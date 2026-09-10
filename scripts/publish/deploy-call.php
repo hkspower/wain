@@ -2,8 +2,11 @@
 /**
  * Calls this site's own deploy endpoint, from the server, over the loopback.
  *
- *   php d.php probe
- *   php d.php <artifact-url> <sha256> <version>
+ *   php d.php probe [staging|production]
+ *   php d.php <artifact-url> <sha256> <version> [staging|production]
+ *
+ * The stage defaults to production when omitted, so a forgotten argument can
+ * never send a deploy somewhere unintended — staging has to be asked for.
  *
  * WHY THE LOOPBACK
  *
@@ -42,6 +45,24 @@ declare(strict_types=1);
 
 $home   = getenv('HOME') ?: __DIR__;
 $domain = 'wainkw.com';
+
+/**
+ * Which site this call is aimed at. Both endpoints answer on the same loopback
+ * address and are told apart only by the Host header — staging's document root
+ * is public_html/staging, so its request path is /api/deploy.php exactly like
+ * production's. Default is production, so an omitted argument can never send a
+ * deploy somewhere unintended by accident; staging has to be asked for.
+ */
+function siteHost(?string $given, string $domain): string {
+    if ($given === null || $given === '') return "www.$domain";
+    if ($given === 'staging') return "staging.$domain";
+    if ($given === 'production' || $given === 'www') return "www.$domain";
+    if (!preg_match('/^[a-z0-9][a-z0-9.-]*\.' . preg_quote($domain, '/') . '$/i', $given)) {
+        done(['ok' => false, 'error' => 'bad_host', 'given' => $given,
+              'hint' => "use 'staging', 'production', or a hostname under $domain"]);
+    }
+    return strtolower($given);
+}
 $secretFile = "$home/domains/$domain/storage/deploy.secret";
 
 function done(array $r): never { echo json_encode($r, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), "\n"; exit; }
@@ -99,6 +120,7 @@ if ($mode === 'probe') {
         'version' => 'probe',
         'ts'      => time(),
     ];
+    $host = siteHost($argv[2] ?? null, $domain);
 } elseif ($mode !== '' && ($argv[2] ?? '') !== '') {
     $payload = [
         'url'     => $mode,
@@ -109,9 +131,11 @@ if ($mode === 'probe') {
     if (!preg_match('/^[a-f0-9]{64}$/', $payload['sha256'])) {
         done(['ok' => false, 'error' => 'bad_sha256_argument']);
     }
+    $host = siteHost($argv[4] ?? null, $domain);
 } else {
     done(['ok' => false, 'error' => 'usage',
-          'usage' => ['php d.php probe', 'php d.php <artifact-url> <sha256> <version>']]);
+          'usage' => ['php d.php probe [staging|production]',
+                      'php d.php <artifact-url> <sha256> <version> [staging|production]']]);
 }
 
 $raw = json_encode($payload, JSON_UNESCAPED_SLASHES);
@@ -129,7 +153,7 @@ curl_setopt_array($ch, [
     // has to cover a real deploy and not just the reply.
     CURLOPT_TIMEOUT        => 300,
     CURLOPT_HTTPHEADER     => [
-        "Host: www.$domain",
+        "Host: $host",
         'Content-Type: application/json',
         "X-Deploy-Signature: $sig",
     ],
@@ -142,7 +166,7 @@ curl_close($ch);
 if ($body === false) done(['ok' => false, 'error' => 'transport', 'curl' => $err]);
 
 $parsed = json_decode((string) $body, true);
-$result = ['http' => $code, 'response' => $parsed ?? (string) $body];
+$result = ['host' => $host, 'http' => $code, 'response' => $parsed ?? (string) $body];
 
 if ($mode === 'probe') {
     $got = is_array($parsed) ? ($parsed['error'] ?? '') : '';
