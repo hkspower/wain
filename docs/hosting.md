@@ -300,6 +300,36 @@ the root has proved nothing before:
 
 Only the superseded build-id directory was left behind, and it was removed.
 
+### The second deploy, and the prune proved
+
+The claim above — that the endpoint now deletes what a build stops shipping —
+was untested until a second deploy had a manifest to compare against. It was
+made falsifiable first. Nothing under `src/` or `public/` had changed, so the
+two exports differed in exactly four paths and the prediction was `removed: 2`:
+
+```
+gone   _next/static/8e36f584…/_buildManifest.js  _ssgManifest.js
+new    _next/static/1c09211…/_buildManifest.js  _ssgManifest.js
+```
+
+```
+{"ok": true, "version": "1.1.0", "deployed": 245, "removed": 2}
+```
+
+**The prune works.** Every hashed chunk kept its name because the code did not
+move, and the endpoint removed precisely the two files that stopped being
+shipped — not one more.
+
+**But it leaves the empty directory behind.** Step 9 calls `@unlink` on each
+stale file and never `rmdir`s what it empties, so
+`_next/static/8e36f584…/` survived as an empty directory and had to be removed
+with a separate `rmdir`. Harmless — an empty directory is an inode, not a
+served file, and no request can reach it — but one accumulates per deploy, and
+in a shared docroot a growing list of 40-hex directories is exactly the kind of
+litter someone later has to identify before they dare delete it. Worth an
+`rmdir` after a deploy that reports a non-zero `removed`, or a line in the
+endpoint if it is ever edited again.
+
 ### Where the artifact goes
 
 **wainkw.com's own docroot, and not one of the other sites on the account.**

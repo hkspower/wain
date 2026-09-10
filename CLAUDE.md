@@ -186,10 +186,16 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   `wain-<version>.bin` and delete it afterwards. `docs/hosting.md` §*Where the
   artifact goes*.
 
-  **`removed: 0` on that run was correct, and it will not stay 0.** The prune
-  compares against the previous manifest and there was none. `manifest.json`
-  now exists, so from the next deploy onward the endpoint deletes what the build
-  stopped shipping — which closes the stale-asset problem for good.
+  **`removed: 0` on that run was correct, and it did not stay 0.** The prune
+  compares against the previous manifest and there was none. The second deploy
+  the same day returned **`removed: 2`**, against a prediction of exactly 2 made
+  before it ran — the two build-id manifest files, the only paths that differed
+  between two code-identical builds. The stale-asset problem is closed.
+
+  One thing it does not do: **`rmdir`.** Step 9 unlinks stale files and leaves
+  the directories it empties, so `_next/static/<old sha>/` survives as an empty
+  directory. Harmless — nothing can request it — but one appears per deploy, so
+  `rmdir` it whenever `removed` comes back non-zero.
 
   Still true: `ALLOWED_HOSTS` is GitHub-only, so an artifact hosted anywhere
   else needs its hostname in `<domain>/storage/deploy.hosts`, one per line —
