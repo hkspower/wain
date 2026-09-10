@@ -205,6 +205,25 @@ console.log('\n--- the end of the page')
     })
     return hit
   })
+  // DEBUG=1 prints the geometry when this fails, because the failure message
+  // alone ("the bar covers …") cannot tell a page that scrolled short from a
+  // clearance that is too small — and the two want opposite fixes. Measured
+  // 2026-09-10: a plain load of this page scrolls to its true bottom and
+  // covers nothing, while this rig's run stops 54px short with innerHeight
+  // reporting 863 against a 850 viewport. Same context flags, different
+  // number, and the padding is not the variable.
+  if (covered.length && process.env.DEBUG) {
+    const g = await page.evaluate(() => {
+      const bar = document.querySelector('.action-bar').getBoundingClientRect()
+      const f = document.querySelector('.app-footer')
+      return { barTop: Math.round(bar.top), barH: Math.round(bar.height),
+               footerPad: f ? getComputedStyle(f).paddingBottom : 'no footer',
+               footerBottom: f ? Math.round(f.getBoundingClientRect().bottom) : 0,
+               innerH: window.innerHeight, scrollY: Math.round(window.scrollY),
+               docH: document.body.scrollHeight }
+    })
+    console.log('DEBUG', JSON.stringify(g))
+  }
   check(covered.length === 0,
     'scrolled all the way down, the bar covers nothing — including the shop\'s own legal lines',
     covered.join(' | '))

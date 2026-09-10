@@ -214,26 +214,55 @@ const ask = (path) => {
 }
 
 if (apache) {
-  for (const [asked, is] of [
-    ['/cats/desktop/men.jpg', 'cats/desktop/art-men.jpg'],
-    ['/cats/mobile/women.webp', 'cats/mobile/art-women.webp'],
-    ['/cats/desktop/men-rtl.jpg', 'cats/desktop/art-men-rtl.jpg'],
-    ['/cats/desktop/outlet.jpg', 'cats/desktop/art-outlet.jpg'],
+  // THE PLAIN NAME MUST 404 NOW, and this block used to assert the opposite.
+  //
+  // A rewrite bridged /cats/<crop>/<id>.jpg onto art-<id>.jpg. It removed four
+  // 404s from the home page and, with them, the tile component's whole second
+  // <picture> — the one carrying the webp sources and the `-rtl` Arabic
+  // composition. Measured 2026-09-09: 82 kB a load on desktop, 67 kB on the
+  // phone crop, and the English frame shown to Arabic readers. The bridge is
+  // gone; see public_html/.htaccess for the long version.
+  //
+  // So what is asserted here is the inverse, and it is still a real assertion:
+  // the plain name must NOT resolve to an image, or the component silently
+  // stops using its better path again.
+  for (const asked of [
+    '/cats/desktop/men.jpg',
+    '/cats/mobile/women.webp',
+    '/cats/desktop/men-rtl.jpg',
+    '/cats/desktop/outlet.jpg',
+  ]) {
+    const r = ask(asked)
+    check(!r.type.startsWith('image/'),
+      `${asked} does not resolve to an image — the tile falls to webp and the Arabic frame`,
+      `${r.status}, ${r.type}`)
+  }
+
+  // AND THE REAL NAMES STILL SERVE, which the block above no longer covers.
+  // Dropping the bridge check without this would have left "the tiles work" as
+  // an assertion nothing made.
+  for (const is of [
+    'cats/desktop/art-men.jpg',
+    'cats/mobile/art-women.webp',
+    'cats/desktop/art-men-rtl.jpg',
+    'cats/mobile/art-women-rtl.jpg',
+    'cats/desktop/art-outlet.jpg',
   ]) {
     if (!existsSync(`${DOCROOT}/${is}`)) continue   // already reported as missing above
-    const r = ask(asked)
+    const r = ask('/' + is)
     const want = statSync(`${DOCROOT}/${is}`).size
     // THE SIZE IS THE ASSERTION, not the 200. The SPA fallback answers 200 for
-    // anything, so a rewrite that stopped working would still look fine here
-    // and would hand the browser index.html with an <img> around it.
+    // anything, so a path that stopped resolving would still look fine here and
+    // would hand the browser index.html with an <img> around it.
     check(r.status === 200 && r.type.startsWith('image/') && r.bytes === want,
-      `${asked} -> ${is} (${r.status}, ${r.type}, ${r.bytes} B of ${want})`)
+      `/${is} serves its own bytes (${r.status}, ${r.type}, ${r.bytes} B of ${want})`)
   }
 
   // Disk artwork must be cacheable but REPLACEABLE. Its filenames are fixed,
   // so `immutable` would mean a swapped hero never reaches anyone who has
-  // already seen the old one.
-  const tile = ask("/cats/desktop/men.jpg")
+  // already seen the old one. Asked of a REAL file now: the plain name is a
+  // 404 page, and measuring the cache header of a 404 page measures nothing.
+  const tile = ask("/cats/desktop/art-men.jpg")
   const maxAge = Number(tile.cache.match(/max-age=(\d+)/)?.[1] ?? 0)
   check(maxAge > 0 && !/immutable/.test(tile.cache),
     `shipped artwork is cached but replaceable — "${tile.cache || '(none)'}"`)
