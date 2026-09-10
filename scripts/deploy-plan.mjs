@@ -153,9 +153,13 @@ const files = {};
  * image are three different subdirectory depths. A deploy that satisfies all
  * six did not land only its root.
  */
-const cssDir = "_next/static/css";
-const css = Object.keys(files).filter((f) => f.startsWith(`${cssDir}/`) && f.endsWith(".css"));
-if (css.length !== 1) fail(`expected exactly one stylesheet in ${cssDir}, found ${css.length}`);
+// Located by extension, not by directory. Next 15 put the stylesheet in
+// `_next/static/css/`, Next 16 puts it in `_next/static/chunks/` — and a
+// required proof that names a directory the framework has since renamed does
+// not fail loudly, it fails as "expected exactly one stylesheet, found 0",
+// which reads like the build lost its CSS.
+const css = Object.keys(files).filter((f) => f.startsWith("_next/static/") && f.endsWith(".css"));
+if (css.length !== 1) fail(`expected exactly one stylesheet under _next/static, found ${css.length}`);
 
 const searchChunk = Object.keys(files).find((f) => /^_next\/static\/chunks\/app\/search\/page-[0-9a-f]+\.js$/.test(f));
 if (!searchChunk) fail("could not find the /search page chunk in the export");

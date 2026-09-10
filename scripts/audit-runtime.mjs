@@ -33,7 +33,14 @@ function routes(dir = OUT, acc = []) {
     if (statSync(full).isDirectory()) routes(full, acc);
     else if (name === "index.html") {
       const r = "/" + relative(OUT, dirname(full)).replace(/\\/g, "/");
-      acc.push(r === "/." ? "/" : r + "/");
+      // The root is `relative(OUT, OUT)` === "" — NOT "." — so a guard written
+      // against "/." never fired and the home page was requested as "//" on
+      // every run this audit has ever made. Next 15 served it anyway, so the
+      // one route every visitor sees was the one route never really tested.
+      // Next 16 does not: its router builds a URL from the pathname inside a
+      // useMemo and throws `Failed to construct 'URL': Invalid URL`, which is
+      // how a six-month-old bug in this file surfaced as a framework problem.
+      acc.push(r === "/" ? "/" : r + "/");
     }
   }
   return acc;

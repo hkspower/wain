@@ -31,7 +31,7 @@
  * deliberately exempt.
  */
 import { createServer } from "node:http";
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -75,13 +75,24 @@ const SELF_PADDED = new Set([".app-chrome"]);
 
 console.log("\n── anything fixed to an edge clears the notch and the home bar ──");
 {
-  const cssDir = join(OUT, "_next/static/css");
-  const css = existsSync(cssDir)
-    ? readdirSync(cssDir).filter((f) => f.endsWith(".css"))
-        .map((f) => readFileSync(join(cssDir, f), "utf8")).join("\n")
-    : "";
+  // Find the stylesheet wherever the framework put it, rather than naming the
+  // directory. Next 15 emitted `_next/static/css/<hash>.css`; Next 16 emits
+  // `_next/static/chunks/<name>.css`, and a hard-coded path turned that move
+  // into "no stylesheet exists", which reads as a broken build rather than a
+  // renamed directory. The whole of _next/static is small and the search costs
+  // nothing.
+  const cssFiles = [];
+  (function walk(dir) {
+    if (!existsSync(dir)) return;
+    for (const name of readdirSync(dir)) {
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) walk(full);
+      else if (name.endsWith(".css")) cssFiles.push(full);
+    }
+  })(join(OUT, "_next/static"));
+  const css = cssFiles.map((f) => readFileSync(f, "utf8")).join("\n");
   if (!css) {
-    console.log("  ✗ no stylesheet in out/_next/static/css");
+    console.log("  ✗ no stylesheet anywhere under out/_next/static");
     problems++;
   } else {
     // Rules that place something against the bottom or top edge by name.

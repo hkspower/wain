@@ -339,19 +339,38 @@ zero. Remove the override and they come back.
 semver-`Wanted` version, so nothing here is driven by security — the only
 updates left are majors, and each is blocked:
 
-- **`next@16` builds and then breaks the home page at runtime.** All 62 pages
-  prerender, the build exits 0, and `audit:runtime` then opens `/` and gets
-  `uncaught: Failed to construct 'URL': Invalid URL` on both viewports. Every
-  other route passes. A green build is not evidence here; the runtime audit is.
-- **Its bundled `eslint-plugin-react-hooks` 6 flags 33 pre-existing patterns**
-  across 17 files — 21 `set-state-in-effect`, 8 `refs`, 3 `immutability`,
-  1 `purity`. New rules, not new bugs, but they land on `usePoll`,
-  `WainAiCall`, `SearchClient` and the admin screens, which is the tuned
-  behaviour this project has paid for twice. Silencing them would remove the
-  guard; fixing them is its own job, not a version bump.
+- **It costs 29.5K gzipped on every page, and that is the reason.** Measured
+  like for like — same tree, same audit, only the framework swapped:
+
+  | | 15.5.25 | 16.3.4 |
+  |---|---|---|
+  | shared, paid by every route | **119.3K** | **148.8K** |
+  | `/search/` | 158.4K | 183.2K |
+  | a place page | 145.1K | 182.8K |
+
+  A quarter more baseline JavaScript on a site whose audience is on phones in
+  Kuwait, and it puts 53 routes over the 175K budget `audit:js` enforces. Every
+  other objection below turned out to be fixable or imaginary; this one is a
+  measurement, and it is what settled it.
+- **The «Next 16 breaks the home page» claim was wrong, and worth knowing why.**
+  `audit:runtime` reported `Failed to construct 'URL': Invalid URL` on `/` — and
+  the bug was in the audit, which had been requesting `//` since it was written,
+  because `relative(OUT, OUT)` is `""` and the guard tested for `"."`. Next 15
+  served the double slash; Next 16's router throws on it. So **the one route
+  every visitor sees had never actually been runtime-audited.** Fixed, and it
+  passes on both versions.
+- **Its bundled `eslint-plugin-react-hooks` 6 flags 30 places, and they are not
+  bugs.** Most are one pattern that `output: 'export'` forces: a client-only
+  value — the query string, `localStorage`, `new Date()` — read in an effect on
+  mount, because during prerender there is no `window`. The rule's answer is
+  `useSyncExternalStore` across seventeen files including `usePoll`,
+  `WainAiCall` and `SearchClient`. Not a version bump's worth of risk.
 - **`next build` on 16 rewrites `tsconfig.json` in place**, flipping
   `jsx: "preserve"` to `"react-jsx"` and adding `.next/dev/types`. It does it
   silently, so check `git status` after any attempt.
+- **It moves the stylesheet**, `_next/static/css/<hash>.css` →
+  `_next/static/chunks/<name>.css`. Two scripts named that directory and now
+  find it by extension instead, so they survive the move either way.
 - **`eslint@10` and `typescript@7` are both refused by peers** —
   `typescript-eslint@8` is the pin in each case. Do not reach for
   `--legacy-peer-deps`: a half-resolved lint tree disables `npm run scan`,
