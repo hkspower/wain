@@ -334,6 +334,37 @@ Tailwind already resolves 8.5.28 in the same build, so the override makes both
 copies agree on the patched one instead. Audit goes from two vulnerabilities to
 zero. Remove the override and they come back.
 
+**Next 16 was tried on 10 September and reverted. Do not retry it casually.**
+`npm audit` is at **0 vulnerabilities** and every dependency is already at its
+semver-`Wanted` version, so nothing here is driven by security — the only
+updates left are majors, and each is blocked:
+
+- **`next@16` builds and then breaks the home page at runtime.** All 62 pages
+  prerender, the build exits 0, and `audit:runtime` then opens `/` and gets
+  `uncaught: Failed to construct 'URL': Invalid URL` on both viewports. Every
+  other route passes. A green build is not evidence here; the runtime audit is.
+- **Its bundled `eslint-plugin-react-hooks` 6 flags 33 pre-existing patterns**
+  across 17 files — 21 `set-state-in-effect`, 8 `refs`, 3 `immutability`,
+  1 `purity`. New rules, not new bugs, but they land on `usePoll`,
+  `WainAiCall`, `SearchClient` and the admin screens, which is the tuned
+  behaviour this project has paid for twice. Silencing them would remove the
+  guard; fixing them is its own job, not a version bump.
+- **`next build` on 16 rewrites `tsconfig.json` in place**, flipping
+  `jsx: "preserve"` to `"react-jsx"` and adding `.next/dev/types`. It does it
+  silently, so check `git status` after any attempt.
+- **`eslint@10` and `typescript@7` are both refused by peers** —
+  `typescript-eslint@8` is the pin in each case. Do not reach for
+  `--legacy-peer-deps`: a half-resolved lint tree disables `npm run scan`,
+  which is the thing standing between this repository and the live site.
+
+One finding worth keeping for whoever does attempt it: **`eslint-config-next` 16
+ships a real flat config**, so `...compat.extends("next/core-web-vitals")` must
+become `import nextCoreWebVitals from "eslint-config-next/core-web-vitals"` and
+a plain spread. Leaving `FlatCompat` wrapped around an already-flat config makes
+`extends` walk into itself, and eslint dies while trying to *print* the error —
+`property 'react' closes the circle`, with a stack inside `@eslint/eslintrc`. It
+reads like a broken plugin rather than a wrapper one version out of date.
+
 **Known failing, pre-existing, verified against an untouched baseline:** the
 swipe suite's 4px scroll-snap assertion. Re-verified by stashing the working
 tree, rebuilding and running the suite on a clean checkout: same assertion,
