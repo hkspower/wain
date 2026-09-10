@@ -196,6 +196,48 @@ is what made it visible. **A full-bleed rail's negative margin must equal the
 page gutter**, or every route slides sideways. The first row of an overflow
 report is the symptom, not the cause.
 
+## It is already one page
+
+Worth knowing before anyone proposes making it one: `output: 'export'` does
+not mean full page loads. The export ships an HTML file per route **and** an
+RSC payload per route — those are the 62 `.txt` files, and the reason
+`audit:htaccess` may not deny `index.txt` — so the router swaps views
+client-side and the document never reloads. Measured with a marker on
+`window`: it survives explore → a place, home → explore and explore → about,
+with zero document loads. The 52 static HTML files are what make links,
+WhatsApp previews and indexing work; deleting them to «become an SPA» would
+trade all of that for something the site already had.
+
+What was missing was only that a route change looked like a page swap:
+
+- **`RouteTransitions.tsx`** runs forward navigations inside
+  `document.startViewTransition`, so screens crossfade. Clicks are intercepted
+  in the capture phase because the transition has to CAUSE the DOM change and
+  there is no router event to hang that on. It does not touch back/forward,
+  modified clicks, external links or `open_place`, and it does not attach at
+  all without the API or under reduced motion.
+- **`ScrollMemory.tsx`** puts you back where you were on a list.
+
+**The scroll bug is worth reading before touching either file.** Leaving
+/explore at 1800px and pressing back landed at 643px every time. The browser
+applies its restore in the same frame the list returns, while the document is
+still part-built, and clamps against a height that is not there yet — 643 is
+exactly `1487 - 844`. The same clamp fires on the way OUT, which is what makes
+this a two-part trap: a recorder that watches scroll events faithfully records
+the clamped value over the real one. Two versions died there, one writing
+`window.scrollY` in an effect cleanup (which runs after the router has already
+scrolled the new screen to the top, so it recorded 0) and one recording from a
+scroll listener (which recorded 643). Recording now freezes the moment a
+navigation starts and thaws when the next screen arrives.
+
+Ruled out by measurement before any of it was written, each of which looked
+obviously guilty: the View Transition wrapper, `content-visibility` on the
+cards, and the stale `contain-intrinsic-size`.
+
+**Nothing in the root layout may call `useSearchParams`.** It suspends its
+caller during static rendering, so in the layout it would wrap the whole app
+shell in exactly the collapse-for-a-frame described above.
+
 ## The scale is compact on purpose
 
 Asked for «ultra compact», measured, and kept the three floors that were
@@ -221,6 +263,13 @@ themselves:
   band went 96px → 56px; it is a category cue, not a picture. The category chip
   inside the card is hidden below `sm` because the row had no width for it, and
   nothing is lost — the tint band and its mark ARE the category.
+
+**Change the card and you must re-measure `contain-intrinsic-size`.** It is the
+height `.card-defer` claims for cards below the fold, and it went stale the
+moment the grid changed shape: still saying 272px when cards had become
+136–174px, so /explore claimed 6815px of document and settled at 5601px as the
+rest rendered. A 1214px lie is the page shrinking under a reader's thumb, and
+it is the one number that property exists to get right.
 
 Measured on a 390px phone: /explore 14591px → 5224px, a place page 2893px →
 2183px. Desktop /explore 4923px → 2210px.

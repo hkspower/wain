@@ -286,8 +286,22 @@
   --shadow: var(--shadow-sm);
 }
 
-html {
+/* `scroll-behavior: smooth` sat on `html` unconditionally, and the browser
+   applies it to scroll RESTORATION too. Coming back from a place to the list
+   did not put you where you were — it animated you there, a second of the page
+   scrolling itself while you watched, which is the most website-like thing the
+   site did. Measured: leaving the list at 601px and watching it travel
+   14 → 115 → 461 → 760 → 868 over the following second.
+
+   `:focus-within` is the scope that separates the two. An anchor jump moves
+   focus, so in-page links still glide; restoration and programmatic scrolling
+   do not, so they land instantly. Reduced motion is handled further down and
+   turns even this off. */
+html:focus-within {
   scroll-behavior: smooth;
+}
+
+html {
   -webkit-tap-highlight-color: transparent;
   /* Rotating the phone must not resize type under the layout. */
   -webkit-text-size-adjust: 100%;
@@ -427,13 +441,45 @@ html[data-standalone="true"] .wain-ai-panel {
   @apply bg-sun-200 text-ink-900;
 }
 
+/* Route transitions. See RouteTransitions.tsx for what runs them.
+
+   The browser's default crossfade is the right shape and the wrong length —
+   it runs a quarter of a second, which on a navigation that completes in about
+   a tenth turns an instant app into a site that fades. 160ms is under the
+   threshold where a transition reads as a delay and over the one where it
+   reads as a flicker. The navbar and the tab bar are inside the snapshot and
+   crossfade with everything else, which is correct: they are identical across
+   routes, so a crossfade between two identical bitmaps is invisible.
+
+   These pseudo-elements are NOT matched by the `*` in the reduced-motion block
+   above, so they get their own rule there. The component also declines to
+   attach its listener at all under reduced motion, and this covers the case
+   where the preference changes while the page is open. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 160ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+
 /* Visible keyboard focus for all interactive elements */
 :where(a, button, input, select, textarea):focus-visible {
   @apply outline-none ring-2 ring-sea-600 ring-offset-2 ring-offset-sand-50;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html {
+  /* `html:focus-within` is listed too, and not for tidiness: it is more
+     specific than a bare `html`, so without it the smooth-scroll rule above
+     would outrank this one. The `*` block below happens to catch it with
+     `!important`, but a rule that depends on a later rule's side effect is a
+     rule waiting to be deleted by someone reasonable. */
+  html,
+  html:focus-within {
     scroll-behavior: auto;
   }
 
@@ -576,11 +622,23 @@ h1, h2, h3 {
    defers work, it does not hide content. */
 .card-defer {
   content-visibility: auto;
-  /* 272px, not 268: measured across all 44 cards at 390px, the real height is
-     270-272. Four pixels each over 44 cards is 176px of page-height error
-     before anything has rendered, which is the one number this property
-     exists to get right. */
-  contain-intrinsic-size: auto 272px;
+  /* Re-measured after the compact pass, and it had to be: the old hint said
+     272px, from when cards were one to a phone row. They are two to a row now
+     and 136-174px tall, most of them 154px, so explore claimed 6815px of
+     document and settled at 5601px once the cards below the fold rendered.
+     A 1214px lie is not a rounding error — it is the page shrinking under a
+     reader's thumb, and it put the browser in the wrong place when they came
+     back to the list. The one number this property exists to get right had
+     gone wrong in exactly the way its own comment warned about.
+
+     Two values because the grid is not the same shape at both widths: 52 cards
+     of 154px on a phone, a uniform 140px from `sm` up. */
+  contain-intrinsic-size: auto 154px;
+}
+@media (min-width: 640px) {
+  .card-defer {
+    contain-intrinsic-size: auto 140px;
+  }
 }
 
 /* --- شوق, alive -----------------------------------------------------------

@@ -175,6 +175,12 @@ export default function MapPin({
 
       <Link
         href={`/places/${place.slug}`}
+        /* This pin decides for itself whether a click navigates — see onClick
+           below — and it decides in React's bubble phase. RouteTransitions
+           listens in the capture phase, so without this it would answer the
+           click first and open the place on the tap that was only meant to
+           select it. The map-pin suite catches exactly that. */
+        data-no-view-transition=""
         onMouseEnter={() => onActive(place.slug)}
         onMouseLeave={() => onActive(null)}
         onFocus={() => onActive(place.slug)}

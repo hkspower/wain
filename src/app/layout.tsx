@@ -3,6 +3,8 @@ import { IBM_Plex_Sans_Arabic } from "next/font/google";
 import AppShell from "@/components/AppShell";
 import AppTabBar from "@/components/AppTabBar";
 import Navbar from "@/components/Navbar";
+import RouteTransitions from "@/components/RouteTransitions";
+import ScrollMemory from "@/components/ScrollMemory";
 import WainAi from "@/components/WainAi";
 import "./globals.css";
 
@@ -113,6 +115,8 @@ export default function RootLayout({
         <WainAi />
         <AppTabBar />
         <AppShell />
+        <RouteTransitions />
+        <ScrollMemory />
       </body>
     </html>
   );
