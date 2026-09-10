@@ -391,17 +391,24 @@ if (!hostAllowedByDefault) {
 }
 
 /**
- * Both docroots on this account deny `.zip`, so an artifact served from either
- * one is a 403 and the deploy fails at the download. deploy.php reads the bytes
- * with ZipArchive and never looks at the name, so the fix is the extension.
+ * Serving the artifact from wainkw.com's own docroot is the intended
+ * arrangement — see "Where the artifact goes" in docs/hosting.md — but the
+ * site's own `.htaccess` denies `.zip`, so the obvious filename 403s and the
+ * deploy stops at download_failed. The endpoint reads the bytes with
+ * ZipArchive and never looks at the name, so the fix is the extension.
+ *
+ * The check covers the other domains on the account too, not to invite hosting
+ * there — that mixes one project's artifact into another project's web root —
+ * but because pointing at one by mistake fails the same way, for the same
+ * reason, and the error the endpoint returns says only "403".
  */
 if (/\.(zip|tar|gz|bak|sql|log|json|sh|env|md|ts|mjs)$/i.test(new URL(url).pathname)
-    && /(^|\.)(sporta\.com\.kw|wainkw\.com)$/i.test(artifactHost)) {
-  console.log(`\n▸ ${artifactHost} denies this extension in .htaccess — sporta's rule`);
-  console.log(`  names zip|tar|gz|…, wain's names bak|zip|db|… — so the fetch would be a`);
-  console.log(`  403 and the deploy would stop at download_failed. Rename the uploaded`);
-  console.log(`  file to something not on either list (.bin) and pass that URL. The`);
-  console.log(`  endpoint opens the bytes with ZipArchive and never reads the name.`);
+    && /(^|\.)(wainkw\.com|sporta\.com\.kw|mawsoool\.com|almuhallab-code\.com)$/i.test(artifactHost)) {
+  console.log(`\n▸ ${artifactHost} denies this extension in .htaccess, so the fetch`);
+  console.log(`  would be a 403 and the deploy would stop at download_failed. wain's own`);
+  console.log(`  rule names bak|zip|db|sqlite; the shop's names zip|tar|gz and more.`);
+  console.log(`  Rename the uploaded file to something on no deny list (.bin) and pass`);
+  console.log(`  that URL — the endpoint never reads the name, only the bytes.`);
 }
 
 console.log(`\n▸ the half-download trap is gone: deploy.php verifies sha256 against`);

@@ -273,6 +273,45 @@ rm -f d.php
 `getCronJobOutputV1` is how the reply is read. `{"ok":true,…}` carries the
 file counts; anything else names the step that refused and why.
 
+### Where the artifact goes
+
+**wainkw.com's own docroot, and not one of the other sites on the account.**
+
+The account holds seven sites and the temptation is to drop the archive in
+whichever docroot is handiest — the shop's, since it is the *main* vhost. Don't.
+That puts one project's build output inside another project's web root, where it
+is nobody's to clean up, it is served under that project's domain, and the next
+person auditing the shop for strays finds a 3.5MB file with no owner. The last
+audit of that docroot found exactly that shape of leftover and had to go and ask
+whose it was. wain's artifact is wain's, and it belongs under wain's domain.
+
+**It cannot be called `.zip`.** wain's own `.htaccess` denies it:
+
+```
+<FilesMatch "\.(bak|zip|db|sqlite|sqlite3)$|^index\.bak|\.broken-|\.bak-">
+  Require all denied
+```
+
+and the shop's list is longer still — `zip|tar|gz|mjs|ts|md|json|…` — with its
+own comment naming `sporta-dist.zip` as the leftover it was written to stop. So
+a `.zip` at either root answers 403 and `deploy.php` reports `download_failed`.
+
+That is the rule working, so the answer is the filename rather than an
+exemption: `deploy.php` fetches the URL and opens the bytes with `ZipArchive`,
+and never looks at the name. **Upload it as `wain-<version>.bin`.** Checked
+against all nine of wain's deny patterns, and there are no rewrite rules in that
+file at all — the export is static with `trailingSlash`, so Apache serves a real
+file at the root directly.
+
+Nothing is exposed by this. The artifact is `out/`, which is the public website;
+every byte in it is already served from that same domain. Delete it after the
+deploy anyway — `rm -f` in the same cron pattern — so the docroot does not
+collect the thing this section is about.
+
+`.gitignore` carries `/wain-*.bin` alongside `/wain-*.zip`. It is ignored by
+extension deliberately: an archive has twice been ignored under one spelling and
+reappeared under another, and 25MB of this repository's history is that bill.
+
 ### The older route: wget and unzip, straight over the docroot
 
 Superseded by the endpoint above, and kept because it needs no secret and no
