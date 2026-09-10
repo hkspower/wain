@@ -1,5 +1,42 @@
 name: Deploy Wain to Hostinger
 
+# Deploys through the site's own signed endpoint, not FTP.
+#
+# WHY THIS CHANGED
+#
+# The FTP path in this file ran 186 times and succeeded 0 of them, because
+# FTP_SERVER / FTP_USERNAME / FTP_PASSWORD were never set. It also carried the
+# problem the whole file was built around: FTP writes file by file into a
+# SHARED docroot — one that holds another application's eight directories — so
+# a wrong `server-dir` publishes wain over the primary domain with a green
+# tick, and a half-finished upload leaves a live site referencing assets that
+# have not arrived. Two steps here existed only to guess at that directory.
+#
+# `public_html/api/deploy.php` removes all of it. One signed POST: the artifact
+# is checksum-verified before a byte is written, staged outside the web root,
+# refused if it contains .php or a traversal or one of the PHP app's
+# directories, published atomically per file, and pruned against the previous
+# manifest so a build that stops shipping something takes it down with it.
+#
+# It needs ONE secret, DEPLOY_SECRET — the same value as
+# <domain>/storage/deploy.secret on the server. The three FTP secrets are no
+# longer used by anything.
+#
+# WHY THE ARTIFACT GOES TO A RELEASE
+#
+# The endpoint FETCHES the artifact; it does not accept an upload. So the zip
+# has to sit on a public https host that deploy.php's ALLOWED_HOSTS permits,
+# and a release asset is the one that costs nothing: `github.com` is already
+# allowed, and release assets live outside the git object database — so unlike
+# committing the zip, this adds nothing permanent to a repository where 25MB of
+# history is already old copies of exactly that file.
+#
+# The asset is named .bin rather than .zip on purpose. It is fetched from
+# GitHub here so the extension does not matter to this workflow — but the same
+# artifact is uploaded by hand to the site's own docroot when a person deploys
+# without CI, and wain's .htaccess denies `\.(bak|zip|db|sqlite|sqlite3)$`.
+# One name for both routes is one fewer thing to get wrong at 2am.
+
 on:
   push:
     branches: [claude/wainkw-design-issues-2bggdi]
@@ -8,6 +45,9 @@ on:
 concurrency:
   group: deploy-hostinger
   cancel-in-progress: true
+
+permissions:
+  contents: write # to create the release that carries the artifact
 
 jobs:
   build-and-deploy:
@@ -22,26 +62,20 @@ jobs:
           node-version: 22
           cache: npm
 
-      # Fail early with a readable message instead of the FTP action's
-      # cryptic "Input required and not supplied: server".
-      - name: Check FTP credentials are configured
+      # Fail early and legibly rather than at the POST, where a missing secret
+      # signs an empty string and comes back as a flat `bad_signature`.
+      - name: Check the deploy secret is configured
         env:
-          FTP_SERVER: ${{ secrets.FTP_SERVER }}
-          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          DEPLOY_SECRET: ${{ secrets.DEPLOY_SECRET }}
         run: |
-          missing=""
-          [ -z "$FTP_SERVER" ]   && missing="$missing FTP_SERVER"
-          [ -z "$FTP_USERNAME" ] && missing="$missing FTP_USERNAME"
-          [ -z "$FTP_PASSWORD" ] && missing="$missing FTP_PASSWORD"
-          if [ -n "$missing" ]; then
-            echo "::error::Missing repository secret(s):$missing"
-            echo "Add them at: Settings -> Secrets and variables -> Actions -> New repository secret"
-            echo "Values come from hPanel -> Files -> FTP Accounts."
-            echo "FTP_SERVER must be the bare host or IP (e.g. ftp.wainkw.com) - no ftp:// prefix, no path."
+          if [ -z "$DEPLOY_SECRET" ]; then
+            echo "::error::Missing repository secret DEPLOY_SECRET"
+            echo "Add it at: Settings -> Secrets and variables -> Actions -> New repository secret"
+            echo "The value is the contents of ~/domains/wainkw.com/storage/deploy.secret"
+            echo "on the Hostinger account — the same key api/deploy.php verifies against."
             exit 1
           fi
-          echo "All three FTP secrets are present."
+          echo "DEPLOY_SECRET is present."
 
       - name: Install dependencies
         run: npm ci
@@ -67,10 +101,6 @@ jobs:
         # snapshot in places.ts, but ordering, the queue and the submission
         # form are inert and /admin says so.
         #
-        # They were missing from this step entirely, so setting the secrets in
-        # GitHub would not have been enough on its own: the build would still
-        # have shipped without a back end and the failure is quiet.
-        #
         # The anon key is public by design — row level security decides what it
         # can do — but it goes in `secrets` rather than `vars` so it is masked
         # in logs. Never put the service_role key here; it bypasses RLS.
@@ -82,14 +112,9 @@ jobs:
         run: npm run build
 
       # /privacy promises the visitor there are no cookies, and a promise
-      # nothing checks is a promise that expires. This loads the built pages in
-      # a real browser and fails the deploy if a cookie appears — which is the
-      # only way the promise survives a dependency bump nobody read.
-      #
-      # Non-blocking on purpose: it needs a browser download, and a runner that
-      # cannot fetch one must not be able to hold the site hostage. A genuine
-      # cookie still shows up red in the log, and audit:cookies run locally is
-      # the blocking gate.
+      # nothing checks is a promise that expires. Non-blocking on purpose: it
+      # needs a browser download, and a runner that cannot fetch one must not
+      # be able to hold the site hostage.
       - name: No cookies
         continue-on-error: true
         run: npx playwright install --with-deps chromium && npm run audit:cookies
@@ -108,11 +133,6 @@ jobs:
           else
             echo "::warning::Supabase is NOT configured — this build ships with ordering, the queue and the submission form inert. Set the SUPABASE_URL variable and SUPABASE_ANON_KEY secret to enable them."
           fi
-          # No longer a warning when unset, and the reason is the fix: the
-          # agent id is compiled into wain-ai.ts, so an unset variable ships
-          # شوق rather than the fallback. The variable is now an override —
-          # point a build at a staging agent, or set it empty on purpose to
-          # ship the browser-speech path. Both are worth naming in the log.
           if [ -z "$AGENT" ]; then
             echo "شوق: agent mode (built-in default — see docs/wain-ai-agent.md)"
           elif [ "$AGENT" = "none" ]; then
@@ -120,11 +140,6 @@ jobs:
           else
             echo "شوق: agent mode (override: $AGENT)"
           fi
-          # Not a warning when unset. The bridge is an upgrade to a path that
-          # already works: without it a runtime-assembled sentence is read by
-          # the browser's own voice, which is the behaviour the site shipped
-          # with. Worth stating either way so a deploy says which voice a
-          # visitor will actually hear.
           if [ -n "$TTS" ]; then
             echo "صوت وين: live bridge ($TTS) — runtime sentences in her own voice"
           else
@@ -136,100 +151,94 @@ jobs:
           test -f out/index.html || { echo "::error::out/index.html missing"; exit 1; }
           test -f out/.htaccess || echo "::warning::out/.htaccess missing - custom 404 will not work"
           test -f out/build.json || { echo "::error::out/build.json missing - cannot verify the deploy"; exit 1; }
-          echo "DIGEST=$(node -p 'require("./out/build.json").digest')" >> "$GITHUB_ENV"
+          # Read the build id off the export rather than assuming it is the
+          # commit sha. next.config only uses the sha when `git status` is
+          # clean, and it falls back to a random id otherwise — which is the
+          # documented behaviour, not a fault. The voice step writes into the
+          # working tree when its secrets are set, so on CI that fallback is
+          # reachable, and a check that hard-coded GITHUB_SHA would 404 on a
+          # deploy that had in fact landed perfectly.
+          build_id=$(find out/_next/static -maxdepth 1 -type d -name '*' \
+            ! -name static ! -name chunks ! -name media ! -name css \
+            -printf '%f\n' | head -1)
+          test -n "$build_id" || { echo "::error::no build-id directory in out/_next/static"; exit 1; }
+          {
+            echo "DIGEST=$(node -p 'require("./out/build.json").digest')"
+            echo "VERSION=$(node -p 'require("./package.json").version')"
+            echo "BUILD_ID=$build_id"
+          } >> "$GITHUB_ENV"
           echo "Pages built: $(find out -name index.html | wc -l)"
+          echo "Build id: $build_id"
 
-      # The most likely way a first deploy goes wrong, and it goes wrong
-      # quietly. Which directory an FTP account lands in depends on how it was
-      # created: the main account for u130124229 lands at /home/u130124229, so
-      # the site's docroot is /domains/wainkw.com/public_html/, while a
-      # per-website account created from hPanel is chrooted to that docroot
-      # already and wants `/`. Upload to the wrong one and the FTP step still
-      # reports success — the bytes land somewhere real, just not where the
-      # domain is served from — and the failure only appears two steps later
-      # as "build.json could not be read", which does not sound like a path
-      # problem to anyone reading it for the first time.
-      #
-      # So ask the server which layout this account has rather than guessing.
-      # An explicit FTP_SERVER_DIR variable always wins, and if the probe
-      # cannot answer for any reason it falls back to the documented default —
-      # so this can only do better than the hard-coded value it replaces.
-      - name: Work out which directory this FTP account lands in
-        env:
-          FTP_SERVER: ${{ secrets.FTP_SERVER }}
-          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          OVERRIDE: ${{ vars.FTP_SERVER_DIR }}
-          PROTOCOL: ${{ vars.FTP_PROTOCOL || 'ftps' }}
-          DEFAULT_DIR: /domains/wainkw.com/public_html/
+      # Zipped from INSIDE out/, so the entries are at the top level. The
+      # endpoint extracts to a staging directory and copies from there; a
+      # wrapper directory would publish the whole site one level down.
+      - name: Pack the artifact
         run: |
-          set -u
-          if [ -n "$OVERRIDE" ]; then
-            echo "FTP_SERVER_DIR is set explicitly — using it and skipping the probe."
-            echo "SERVER_DIR=$OVERRIDE" >> "$GITHUB_ENV"
-            exit 0
+          cd out && zip -q -r -X "../wain-${VERSION}.bin" . && cd ..
+          echo "SHA256=$(sha256sum "wain-${VERSION}.bin" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+          ls -l "wain-${VERSION}.bin"
+
+      # Tagged by commit, so the URL the endpoint fetches names exactly what
+      # was built — the same discipline as the commit-pinned URLs used when a
+      # person deploys by hand.
+      - name: Publish the artifact as a release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="deploy-${GITHUB_SHA}"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" \
+              --title "Deploy ${GITHUB_SHA:0:8}" \
+              --notes "Static export of ${GITHUB_SHA}. Fetched by api/deploy.php; not a user-facing release." \
+              --prerelease
           fi
+          gh release upload "$tag" "wain-${VERSION}.bin" --clobber
+          echo "ARTIFACT_URL=https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/wain-${VERSION}.bin" >> "$GITHUB_ENV"
 
-          # -sS keeps the credentials out of the log. Never add -v here.
-          ssl=""
-          [ "$PROTOCOL" = "ftps" ] && ssl="--ssl-reqd"
-          listing=$(curl -sS $ssl --max-time 30 --list-only \
-            --user "$FTP_USERNAME:$FTP_PASSWORD" \
-            "ftp://$FTP_SERVER/" 2>/dev/null) || listing=""
+      # The signature is over the exact bytes POSTed, so the body is written to
+      # a file and both the signing and the request read that same file. Piping
+      # a string into openssl and then re-typing it into curl is how a trailing
+      # newline gets into one and not the other, and the endpoint answers
+      # `bad_signature` with nothing to say which side is wrong.
+      - name: Deploy through the signed endpoint
+        env:
+          DEPLOY_SECRET: ${{ secrets.DEPLOY_SECRET }}
+        run: |
+          set -euo pipefail
+          printf '{"url":"%s","sha256":"%s","version":"%s","ts":%s}' \
+            "$ARTIFACT_URL" "$SHA256" "$VERSION" "$(date +%s)" > body.json
 
-          if [ -z "$listing" ]; then
-            echo "::warning::Could not list the FTP root, so the docroot was not detected."
-            echo "Falling back to $DEFAULT_DIR. If the deploy then reports that build.json"
-            echo "could not be read, set the FTP_SERVER_DIR variable to '/' and re-run."
-            echo "SERVER_DIR=$DEFAULT_DIR" >> "$GITHUB_ENV"
-            exit 0
+          sig=$(openssl dgst -sha256 -hmac "$DEPLOY_SECRET" -r < body.json | cut -d' ' -f1)
+
+          code=$(curl -sS -o response.json -w '%{http_code}' \
+            --max-time 300 \
+            -H "Content-Type: application/json" \
+            -H "X-Deploy-Signature: sha256=${sig}" \
+            --data-binary @body.json \
+            https://www.wainkw.com/api/deploy.php)
+
+          echo "HTTP $code"
+          cat response.json; echo
+
+          if [ "$code" != "200" ]; then
+            echo "::error::The deploy endpoint refused this build (HTTP $code)."
+            echo "The error field in the response names the step that stopped it:"
+            echo "  bad_signature    DEPLOY_SECRET does not match storage/deploy.secret"
+            echo "  host_not_allowed github.com missing from ALLOWED_HOSTS or storage/deploy.hosts"
+            echo "  checksum_mismatch the release asset is not the file that was built"
+            echo "  artifact_touches_protected_path the export contains a name the PHP app owns"
+            exit 1
           fi
-
-          if printf '%s\n' "$listing" | grep -qE '(^|/)domains/?$'; then
-            echo "This account lands at the home directory — publishing to $DEFAULT_DIR."
-            echo "SERVER_DIR=$DEFAULT_DIR" >> "$GITHUB_ENV"
-          else
-            echo "No 'domains' entry at the root, so this account is chrooted to a docroot."
-            echo "Publishing to / instead."
-            echo "SERVER_DIR=/" >> "$GITHUB_ENV"
-          fi
-
-      - name: Deploy out/ to Hostinger
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          # Hostinger supports explicit FTPS. Override by setting a repo
-          # variable FTP_PROTOCOL to "ftp" if plain FTP is required.
-          protocol: ${{ vars.FTP_PROTOCOL || 'ftps' }}
-          port: ${{ vars.FTP_PORT || 21 }}
-          local-dir: ./out/
-          # wainkw.com is an ADDON domain on account u130124229 — its document
-          # root is /home/u130124229/domains/wainkw.com/public_html, NOT the
-          # account's /public_html, which belongs to the primary domain.
-          # Getting this wrong publishes wain over the primary domain instead,
-          # silently and with a green tick.
-          #
-          # Worked out by the step above from what the account actually shows
-          # at its root, overridable with the FTP_SERVER_DIR variable, and
-          # caught by the verification step below if both of those are wrong.
-          server-dir: ${{ env.SERVER_DIR }}
-          # Never delete unrelated files that already live on the host.
-          dangerous-clean-slate: false
 
       # A deploy that reports success and did not land is the failure mode this
       # whole file is built around: the site sat for months serving an
       # index.html whose assets had never been uploaded, and nothing anywhere
-      # said so. `build.json` is written into the export for exactly this — one
-      # request, no credentials, answers "what is actually up there".
-      #
-      # So the run does not end at "FTP finished". It reads the digest back off
-      # the live site and fails if it is not the one just built.
+      # said so. `build.json` answers "what is actually up there" in one
+      # request, with no credentials.
       - name: Verify what actually landed
         run: |
           URL="https://www.wainkw.com/build.json"
-          # The upload has to settle, and any CDN in front of it has to let go.
           for attempt in 1 2 3 4 5; do
             live=$(curl -fsS --max-time 20 -H 'Cache-Control: no-cache' "$URL" || echo '')
             got=$(printf '%s' "$live" | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).digest' 2>/dev/null || echo '')
@@ -240,18 +249,39 @@ jobs:
 
           if [ -z "$got" ]; then
             echo "::error::Deployed, but https://www.wainkw.com/build.json could not be read."
-            echo "The FTP step reported success, so the bytes went SOMEWHERE — most likely"
-            echo "the wrong directory. wainkw.com is an addon domain; set the FTP_SERVER_DIR"
-            echo "variable to '/' if your FTP account is chrooted to the site's own docroot."
             exit 1
           fi
 
           if [ "$got" != "$DIGEST" ]; then
-            echo "::error::Deployed, but the live site is still serving a different build."
+            echo "::error::The endpoint reported success but the live site serves a different build."
             echo "  expected digest: $DIGEST"
             echo "  live digest:     $got"
-            echo "Either the upload went to another directory, or something is caching it."
+            echo "Most likely something is caching it — build.json is served no-store by .htaccess,"
+            echo "so check that rule before suspecting the deploy."
             exit 1
           fi
 
           echo "Live at https://www.wainkw.com/ — digest $got, matches this build."
+
+      # A root file matching proves the root arrived and nothing else: on
+      # 9 September build.json read correct while every route but / was a 404,
+      # because the subdirectories had not landed. So check something that is
+      # NOT at the root, and check the one proof whose NAME carries the commit.
+      - name: Check the deploy reached below the root
+        run: |
+          fail=0
+          for path in \
+            "/_next/static/${BUILD_ID}/_buildManifest.js" \
+            "/explore/" \
+            "/places/kuwait-towers/"
+          do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://www.wainkw.com${path}")
+            if [ "$code" = "200" ]; then
+              echo "  ok   $path"
+            else
+              echo "::error::  $code  $path"
+              fail=1
+            fi
+          done
+          [ "$fail" = "0" ] || { echo "::error::The root landed but the tree below it did not."; exit 1; }
+          echo "Root, a hashed asset named for this commit, and two nested routes all answer 200."

@@ -242,9 +242,27 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   session's job** — one of those two was mid-measurement — and do not count it as
   a leftover. The account's own standing jobs are the eight sporta ones; anything
   else is someone working, and it will go.
-- FTP secrets (`FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`) would make
-  `deploy.yml` work; 186 runs have failed for want of them. They get added in
-  GitHub's settings UI — **never pasted into a chat or a commit**.
+- **`deploy.yml` goes through the endpoint now, and wants ONE secret:
+  `DEPLOY_SECRET`** — the contents of `<domain>/storage/deploy.secret`, added in
+  GitHub's settings UI and **never pasted into a chat or a commit**. The three
+  FTP secrets are no longer used by anything; that path ran 186 times and
+  succeeded 0, and it carried the fault this whole file is about: FTP writes
+  file by file into a *shared* docroot, so a wrong `server-dir` publishes wain
+  over the primary domain with a green tick, and a half-finished upload leaves a
+  live site pointing at assets that never arrived.
+
+  CI can do what this sandbox cannot: a GitHub runner reaches
+  `www.wainkw.com` over the ordinary internet, so it signs and POSTs directly
+  rather than going through cron. The artifact rides as a **release asset** —
+  `github.com` is already in `ALLOWED_HOSTS`, and release assets live outside
+  the object database, so nothing enters history. Verified before it ever ran:
+  `openssl dgst -sha256 -hmac` matches PHP's `hash_hmac` byte for byte, and the
+  workflow's `zip` produces the same 245 entry names as `make-release`, so a CI
+  deploy and a hand deploy write the same manifest — had they differed, the next
+  prune would have deleted the site.
+
+  With the secret set, a push to this branch deploys and **nobody uploads
+  anything by hand**. Without it the run stops at the first step and says so.
 
 ## شوق, the ElevenLabs agent
 
