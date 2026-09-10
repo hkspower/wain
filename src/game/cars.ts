@@ -2937,6 +2937,42 @@ const chromeMat = new THREE.MeshStandardMaterial({ name: "chrome",
  * constant over a wider lobe and gets the same constant back. What would
  * fix it is a busier environment, which is a much larger change than a
  * texture, and not one to make by accident while adjusting paint.
+ *
+ * TRIED A SECOND TIME, ON THE CLEARCOAT NORMAL, AND IT IS WORSE THAN
+ * NOTHING.
+ *
+ * The paragraph above was read as being about the BODY normal, and the
+ * argument was that perturbing only the lacquer above the paint is a
+ * different proposition: it leaves the basecoat flat and the colour
+ * even, and moves nothing but the reflection. That reasoning is sound
+ * and the result still does not care, because the objection was never
+ * about which normal was bent — it is about there being nothing in the
+ * environment for a bent normal to find.
+ *
+ * Measured through tools/shots/paint.mjs, on body pixels only, under the
+ * lamps, on gloss #c1272d, sweeping the wavelength as well as the depth
+ * in case the peel was simply too fine to resolve:
+ *
+ *   peel          body   spec   grain
+ *   off           57.2   158.9  13.85
+ *   11  (11 mm)   54.6   147.7  11.94
+ *   6   (21 mm)   53.3   153.0  11.78
+ *   3   (42 mm)   52.4   151.9  11.49
+ *   1.5 (83 mm)   51.6   149.7  11.26
+ *
+ * Monotone, in the wrong direction, at every wavelength tried. The peel
+ * does not fail to do anything — it darkens the bodywork and takes
+ * texture OFF it, and coarsening it makes both worse rather than better.
+ * A tilted clearcoat normal costs specular energy at that pixel and buys
+ * back a sample of the same near-uniform dome, so the trade is a pure
+ * loss. By 83 mm it is not orange peel any more anyway; that is
+ * coachwork waviness, and it was only reached to prove the trend had no
+ * turning point.
+ *
+ * The sub-pixel theory was the obvious defence of the idea and it is
+ * dead: if minification were eating the effect, coarsening it would have
+ * recovered the grain, and it does the opposite. Do not build this a
+ * third time without first changing what the car is reflecting.
  */
 
 
