@@ -79,9 +79,22 @@ for (const j of jobs) {
   if (!existsSync(join(DIR, j.file))) fail.push(`render.mjs builds ${j.out} from a missing source: ${j.file}`);
   if (!existsSync(join(DIR, j.out))) fail.push(`render.mjs declares ${j.out} and it has never been rendered`);
 }
-const declared = new Set(jobs.map((j) => j.out));
+// Plates rendered by something other than render.mjs. The rule being
+// kept is "every PNG in here has a named producer", not "render.mjs
+// makes all of them" — the crest sheet is drawn by the running game
+// through a debug hook, which is the whole point of it, so it could
+// never be a render.mjs job. Declaring it keeps the guard's teeth: an
+// entry whose tool has gone is still a failure, and a PNG nobody claims
+// is still a failure.
+const FOREIGN = {
+  "crew-crests.png": "tools/shots/crests.mjs",
+};
+for (const [out, tool] of Object.entries(FOREIGN)) {
+  if (!existsSync(tool)) fail.push(`${out} is declared as rendered by ${tool}, and that file is gone`);
+}
+const declared = new Set([...jobs.map((j) => j.out), ...Object.keys(FOREIGN)]);
 for (const f of readdirSync(DIR).filter((f) => f.endsWith(".png"))) {
-  if (!declared.has(f)) fail.push(`${f} is in the folder and no job renders it — stale, or renamed and not cleaned up`);
+  if (!declared.has(f)) fail.push(`${f} is in the folder and nothing renders it — stale, or renamed and not cleaned up`);
 }
 const built = new Set(jobs.map((j) => j.file));
 for (const f of sources) {
@@ -89,7 +102,7 @@ for (const f of sources) {
 }
 
 console.log(
-  `${sources.length} sources, ${jobs.length} plates, ${faces.size} vendored faces  ` +
+  `${sources.length} sources, ${jobs.length} plates + ${Object.keys(FOREIGN).length} drawn by the game, ${faces.size} vendored faces  ` +
     (missing.length ? "FAIL" : "ok")
 );
 for (const m of missing) fail.push(`a source asks for ${m} and it is not vendored`);
