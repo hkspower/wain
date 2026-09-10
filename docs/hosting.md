@@ -273,6 +273,33 @@ rm -f d.php
 `getCronJobOutputV1` is how the reply is read. `{"ok":true,…}` carries the
 file counts; anything else names the step that refused and why.
 
+### The first deploy through it, 10 September
+
+```
+{"http": 200, "response": {"ok": true, "version": "1.1.0",
+ "deployed": 245, "removed": 0, "at": "2026-09-10T16:30:01+00:00"}}
+```
+
+`removed: 0` is not a fault. Step 9 prunes against the PREVIOUS manifest, and
+there was none — this was the first deploy the endpoint had ever served. From
+here on `storage/deploy/manifest.json` exists, so **the stale-asset problem is
+closed permanently**: what a deploy stops shipping, the next deploy deletes. The
+37 files cleared by hand earlier that day were the last time that should ever be
+necessary.
+
+Verified afterwards, and at more than the root because a correct `build.json` at
+the root has proved nothing before:
+
+- `build.json` → commit `8e36f584`
+- `_next/static/8e36f5842bd82577dbb0e27ff5099ccda463aa26/` exists — the proof
+  whose *name* carries the commit
+- `/explore/index.html` carries `"b":"8e36f584…"` and every chunk it names is on
+  disk
+- the 39 files under `_next/static/chunks` are all in the new build and none is
+  orphaned — the two builds were code-identical, so the hashes did not move
+
+Only the superseded build-id directory was left behind, and it was removed.
+
 ### Where the artifact goes
 
 **wainkw.com's own docroot, and not one of the other sites on the account.**

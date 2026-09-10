@@ -178,11 +178,26 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   coming back proves the HMAC was accepted without downloading or writing
   anything. That probe passes. `npm run deploy:plan` now prints this route.
 
+  **First deploy through it: 10 September, `{"ok":true,"deployed":245}`.** The
+  artifact went in wain's *own* docroot — not the shop's, which would put one
+  project's build output in another project's web root — and it cannot be named
+  `.zip`, because wain's `.htaccess` denies `bak|zip|db|sqlite`. `deploy.php`
+  reads the bytes with `ZipArchive` and never looks at the name, so upload it as
+  `wain-<version>.bin` and delete it afterwards. `docs/hosting.md` §*Where the
+  artifact goes*.
+
+  **`removed: 0` on that run was correct, and it will not stay 0.** The prune
+  compares against the previous manifest and there was none. `manifest.json`
+  now exists, so from the next deploy onward the endpoint deletes what the build
+  stopped shipping — which closes the stale-asset problem for good.
+
   Still true: `ALLOWED_HOSTS` is GitHub-only, so an artifact hosted anywhere
   else needs its hostname in `<domain>/storage/deploy.hosts`, one per line —
   the patch added that file's support precisely so the host list can change
-  without editing an endpoint inside `public_html`. The planner prints the
-  `printf` line when the archive host is not GitHub.
+  without editing an endpoint inside `public_html`. Write it with
+  `php d.php allow <host>`, **not** `printf … > file`: a redirection is the
+  shell plumbing the WAF answers 403 for, so that one-liner cannot be a cron
+  job at all.
 
   The `hosa` connector still has **no file-write tool** — read-only, with its
   one upload path on the blocked host. The write path is the cron job: the
