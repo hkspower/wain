@@ -100,16 +100,42 @@ mkdirSync("press/paint", { recursive: true });
 // reflect, and out on the dark coast where it has almost nothing. The
 // two say different things: the first is about highlights, the second
 // about whether a panel dies when nothing is shining on it.
-const SPOTS = [["lamps", 587], ["dark", 1300]];
+const ALL_SPOTS = [["lamps", 587], ["dark", 1300]];
+// One spot, when a sweep only needs one. Each measurement drives the
+// engine for two settle passes and renders an extra ID frame on a
+// software rasteriser, so a five-way sweep across both spots does not
+// finish inside a sensible timeout — and a sweep that gets killed
+// reports nothing at all.
+const SPOTS = process.env.SPOT
+  ? ALL_SPOTS.filter(([n]) => n === process.env.SPOT)
+  : ALL_SPOTS;
+if (!SPOTS.length) { console.error(`no spot named ${process.env.SPOT}`); process.exit(2); }
 // A scan, when asked for one: PAINT="rough,metal,ccRough; ..." puts each
 // setting on the live material and measures it in the same session, so
 // the comparison is against the same frame rather than against another
 // run of the game.
 const SCAN = (process.env.PAINT || "").split(";").map((t) => t.trim()).filter(Boolean);
 const SETTINGS = SCAN.length ? SCAN.map((t) => t.split(",").map(Number)) : [null];
+// The orange peel, on the same axis and through the same segmentation.
+//
+// A first sweep of the peel was taken with a FULL-FRAME grain reading and
+// it said the peel made the car LESS grainy, which is not a thing a
+// normal map can do. The number was right and the subject was wrong: most
+// of the frame is road and sky, the peel moves neither, and a peel that
+// darkens a few body pixels drags the whole-frame mean down. Whatever the
+// peel does, it does it on bodywork, so it has to be read on the pixels
+// this tool already segments out.
+//
+//   PEEL="off; 11,0.35; 6,0.35; 3,0.35" node tools/shots/paint.mjs
+//
+// Each entry is `repeat,scale` — tiles per world metre against the
+// material's normal scale — or `off` for no clearcoat normal at all.
+const PEELS = (process.env.PEEL || "").split(";").map((t) => t.trim()).filter(Boolean);
+const PEELSET = PEELS.length ? PEELS : [null];
 for (const [where, m] of SPOTS) {
  for (const set of SETTINGS) {
-  const r = await page.evaluate(async ([m, set]) => {
+  for (const peel of PEELSET) {
+  const r = await page.evaluate(async ([m, set, peel]) => {
     const THREE = window.__grnThree;
     const e = window.__grnEngine;
     e.setPaused(true);
@@ -139,6 +165,24 @@ for (const [where, m] of SPOTS) {
       bm.roughness = set[0];
       bm.metalness = set[1];
       bm.clearcoatRoughness = set[2];
+      bm.needsUpdate = true;
+    }
+    if (peel) {
+      const bm = e.carBody.userData.bodyMat;
+      // Stash the map the game built before the first `off` throws it
+      // away, or the rest of the sweep measures a car with no lacquer
+      // texture and reports it as every setting.
+      window.__peelTex ??= bm.clearcoatNormalMap;
+      if (peel === "off") {
+        bm.clearcoatNormalMap = null;
+      } else {
+        const [rep, sc] = peel.split(",").map(Number);
+        bm.clearcoatNormalMap = window.__peelTex;
+        // The texture is shared by every car, so this is a global poke —
+        // which is what we want: one map, measured at several sizes.
+        bm.clearcoatNormalMap.repeat.set(rep, rep);
+        bm.clearcoatNormalScale.set(sc, sc);
+      }
       bm.needsUpdate = true;
     }
     if (window.__mapScale !== undefined) {
@@ -306,22 +350,24 @@ for (const [where, m] of SPOTS) {
       grain: gN ? +(gSum / gN).toFixed(2) : 0,
       png: c.toDataURL("image/png").split(",")[1],
     };
-  }, [m, set]);
-  if (!set) writeFileSync(`press/paint/${where}.png`, Buffer.from(r.png, "base64"));
+  }, [m, set, peel]);
+  if (!set && !peel) writeFileSync(`press/paint/${where}.png`, Buffer.from(r.png, "base64"));
   const ratio = r.body > 0 ? (r.spec / r.body).toFixed(1) : "inf";
+  const tag = peel ? (peel === "off" ? "peel off" : `peel ${peel}`) : null;
   console.log(
-    `${where.padEnd(6)} ${set ? `r${set[0]} m${set[1]} cc${set[2]}` : "current".padEnd(18)}` +
+    `${where.padEnd(6)} ${(set ? `r${set[0]} m${set[1]} cc${set[2]}` : tag ?? "current").padEnd(18)}` +
       `  dead ${String(r.dead).padStart(5)}%   ` +
       `body ${String(r.body).padStart(5)}   spec ${String(r.spec).padStart(5)}   ` +
       `ratio ${String(ratio).padStart(6)}   highlight ${String(r.tight).padStart(5)}%   ` +
       `grain ${String(r.grain).padStart(5)}`
   );
-  if (!set) {
+  if (!set && !peel) {
     console.log(
       `       on ${r.mat.colour} rough ${r.mat.roughness} metal ${r.mat.metalness} ` +
         `clearcoat ${r.mat.clearcoat}/${r.mat.ccRough} env ${r.mat.env}` +
         `${r.mat.clearcoat < 0.9 ? "  <- NOT the gloss finish" : ""}`
     );
+  }
   }
  }
 }
