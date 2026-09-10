@@ -586,8 +586,78 @@ function raceCut(): { w: number; h: number } | null {
   const progressRef = useRef<HTMLDivElement>(null);
   const clockRef = useRef<HTMLDivElement>(null);
   const flashRef = useRef<HTMLDivElement>(null);
+  /** The title block: the strapline is tracked to the wordmark's width
+   *  at render time — see the effect by lockStrapline(). */
+  const wordmarkRef = useRef<HTMLHeadingElement>(null);
+  const straplineRef = useRef<HTMLDivElement>(null);
 
   const [phase, setPhase] = useState<Phase>("menu");
+
+  /* THE STRAPLINE IS MEASURED AGAINST THE TITLE, NOT GUESSED.
+   *
+   * The press lockup's whole premise is that the parts of the mark are
+   * set to ONE width, so the block reads as a designed object rather
+   * than as lines that happen to be stacked. In the game the strapline
+   * carried a hand-typed tracking-[0.45em] and came out whatever width
+   * that happened to be — usually short of the title, which is the one
+   * proportion that makes a lockup look unresolved.
+   *
+   * Solved rather than nudged, for the reason press/logo/lockup.html
+   * gives at length: width is linear in tracking, so two measurements
+   * give the slope and the answer is arithmetic. A number tuned by eye
+   * here would be tuned for one font at one viewport and would rot the
+   * moment the clamp() on the wordmark moved it — which it does, at
+   * every breakpoint.
+   *
+   * text-indent carries the same value so the trailing gap after the
+   * last letter does not push the centred line off-centre.
+   */
+  useEffect(() => {
+    if (phase !== "menu") return;
+    const lock = () => {
+      const wm = wordmarkRef.current;
+      const sl = straplineRef.current;
+      if (!wm || !sl) return;
+      const target = wm.getBoundingClientRect().width;
+      if (!(target > 1)) return;
+      const at = (t: number) => {
+        sl.style.letterSpacing = `${t}em`;
+        return sl.getBoundingClientRect().width;
+      };
+      // The strapline is a block-level div: measured as-is it reports the
+      // width of the centred ROW, not of the words, and the slope comes
+      // out zero. The lockup learned this the expensive way — it applied
+      // no tracking at all and looked tidy while doing it.
+      const prevDisplay = sl.style.display;
+      sl.style.display = "inline-block";
+      const w0 = at(0);
+      const perEm = (at(0.2) - w0) / 0.2;
+      if (perEm > 1) {
+        const t = Math.max(0, (target - w0) / perEm);
+        sl.style.letterSpacing = `${t.toFixed(4)}em`;
+        sl.style.textIndent = `${t.toFixed(4)}em`;
+      } else {
+        // Not measurable as a word — put back what the stylesheet asked
+        // for rather than silently setting none.
+        sl.style.letterSpacing = "";
+        sl.style.textIndent = "";
+      }
+      sl.style.display = prevDisplay;
+    };
+    // After the faces land: measuring at mount measures the fallback,
+    // and the fallback is a different width.
+    let ro: ResizeObserver | null = null;
+    document.fonts.ready.then(() => {
+      lock();
+      // The wordmark is clamp()-sized, so its width changes with the
+      // viewport and the lock has to be re-solved when it does.
+      if (wordmarkRef.current) {
+        ro = new ResizeObserver(lock);
+        ro.observe(wordmarkRef.current);
+      }
+    });
+    return () => ro?.disconnect();
+  }, [phase]);
 
   // HUD scale rides the viewport: authored against a ~1500x850 layout,
   // it enlarges on 1080p/4K screens instead of shrinking into the corner
@@ -3096,11 +3166,27 @@ function raceCut(): { w: number; h: number } | null {
              <div className="menu-col">
             {/* Title */}
             <div className="menu-title mt-5 text-center sm:mt-7">
-              <div className="grn-label text-xs tracking-[0.45em] text-gulf-400 [text-shadow:0_0_20px_rgba(56,201,238,0.5)]">
+              {/* The strapline, un-haloed. It used to carry a 20px cyan
+                  glow while the title under it carried nothing, which put
+                  the brightest thing on the screen on the smallest line.
+                  It is a caption and it should read as one — the press
+                  lockup sets this same line in dim paper white for the
+                  same reason.
+
+                  No text colour class here, because one would be a lie:
+                  .grn-label declares its own colour and is emitted after
+                  Tailwind's utilities, so it wins. Measured, this line
+                  computes to white at 62% — it was carrying text-gulf-400
+                  and has never once been cyan. The glow was the only cyan
+                  on it, and the glow is what has gone. */}
+              <div ref={straplineRef} className="grn-label text-xs tracking-[0.45em]">
                 Kuwait Xtreme Racer
               </div>
-              <h1 className="grn-display menu-wordmark mt-1.5 text-[clamp(2.4rem,12vw,5rem)] italic leading-[0.88]">
-                NIGHT <span className="text-sodium-400">RACER</span>
+              <h1
+                ref={wordmarkRef}
+                className="grn-display menu-wordmark mt-1.5 inline-block text-[clamp(2.4rem,12vw,5rem)] italic leading-[0.88]"
+              >
+                NIGHT <span className="wm-lit">RACER</span>
               </h1>
               <div className="grn-ar mt-1.5 text-lg text-white/70" dir="rtl" lang="ar">
                 متسابق الليل

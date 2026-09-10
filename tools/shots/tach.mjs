@@ -53,7 +53,7 @@ await page.click("text=START ENGINE");
 let live = false;
 for (let attempt = 0; attempt < 2 && !live; attempt++) {
   try {
-    await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 120000 });
+    await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 300000 });
     live = true;
   } catch {
     if (attempt === 0) { console.log("engine not up in two minutes, one more try"); continue; }

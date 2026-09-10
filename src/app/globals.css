@@ -985,6 +985,44 @@ html[data-large-hud="1"] .hud-scale {
   }
 }
 
+/* THE TITLE, LIT LIKE THE STREET IT IS NAMED AFTER.
+ *
+ * The wordmark had no treatment of its own at all — no rule in this file,
+ * just the utilities on the element. Meanwhile the 11px strapline above
+ * it carried a 20px cyan halo. So the smallest line on the screen was the
+ * most lit one and the biggest was flat, which is the hierarchy exactly
+ * upside down: the eye went to the label, not to the name of the game.
+ *
+ * Three things, and only three, because the mark is already right — the
+ * press lockup's own devices are the paper/sodium split and a condensed
+ * italic, and both are here.
+ *
+ * 1. A dark drop. The menu sits over the intro loop, which is two cars
+ *    rolling past under sodium lamps, so the ground behind the title
+ *    MOVES and is sometimes bright. A tight shadow is what keeps the
+ *    mark off it. Tight and dark rather than wide and coloured: this one
+ *    is for separation, not for glow.
+ * 2. The sodium word glows and the paper word does not. Amber is the lit
+ *    thing in this identity everywhere else it appears — the lamps, the
+ *    open-hours bar on the press mark, the primary action — and lighting
+ *    both words equally would just make the pair brighter rather than
+ *    making one of them lead.
+ * 3. A hair of negative tracking. Condensed display faces are drawn with
+ *    their sidebearings set for text sizes; at 5rem the gaps open up and
+ *    the word stops reading as one shape.
+ */
+.menu-wordmark {
+  letter-spacing: -0.012em;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.9);
+}
+.menu-wordmark .wm-lit {
+  color: var(--color-sodium-400);
+  /* Wide and soft under the tight dark one, in that order: the glow is
+     the lamp behind the letter and the drop is the letter's own edge, so
+     the edge has to win. */
+  text-shadow: 0 0 38px rgba(245, 165, 36, 0.42), 0 2px 16px rgba(0, 0, 0, 0.9);
+}
+
 /* Menu list: a row per item, with the selected one lit and stepped in.
    The caret and the rule are what make a list of buttons read as a
    console menu rather than a web form. */
