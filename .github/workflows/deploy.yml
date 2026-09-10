@@ -37,10 +37,34 @@ name: Deploy Wain to Hostinger
 # without CI, and wain's .htaccess denies `\.(bak|zip|db|sqlite|sqlite3)$`.
 # One name for both routes is one fewer thing to get wrong at 2am.
 
+# STAGES
+#
+# A push stages. Production is a deliberate act.
+#
+# `staging.wainkw.com` is the same artifact, deployed through its own endpoint
+# into its own docroot with its own manifest — a rehearsal of the deploy, not
+# only a preview of the pages. It is noindex and nofollow via the export's own
+# .htaccess, keyed on the Host, so it cannot compete with the live site.
+#
+# Production runs only from workflow_dispatch with `target: production`, so
+# reaching visitors is something a person chooses rather than something a merge
+# does. Promoting means dispatching this workflow AT THE COMMIT THAT WAS
+# STAGED — the Run workflow menu takes a ref — and that is sound rather than
+# approximate: `generateBuildId` is the commit sha whenever the tree is clean,
+# which is the whole reason next.config sets it, so the same commit produces
+# the same digest and the run verifies that digest against what it just built.
+# Dispatch a DIFFERENT commit and you have shipped something nobody looked at,
+# which is the one way to misuse this.
 on:
   push:
     branches: [claude/wainkw-design-issues-2bggdi]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Where to deploy"
+        type: choice
+        default: staging
+        options: [staging, production]
 
 concurrency:
   group: deploy-hostinger
@@ -55,6 +79,29 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      # One place decides which stage this run is, so no later step has to
+      # re-derive it from the event and get it subtly different. A push is
+      # always staging; production only ever comes from a person choosing it.
+      - name: Work out which stage this is
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          stage="${TARGET:-staging}"
+          if [ "$stage" = "production" ]; then
+            host="www.wainkw.com"
+            endpoint="https://www.wainkw.com/api/deploy.php"
+          else
+            stage="staging"
+            host="staging.wainkw.com"
+            endpoint="https://staging.wainkw.com/api/deploy.php"
+          fi
+          {
+            echo "STAGE=$stage"
+            echo "SITE_HOST=$host"
+            echo "ENDPOINT=$endpoint"
+          } >> "$GITHUB_ENV"
+          echo "::notice::Deploying to $stage — https://$host/"
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -216,7 +263,7 @@ jobs:
             -H "Content-Type: application/json" \
             -H "X-Deploy-Signature: sha256=${sig}" \
             --data-binary @body.json \
-            https://www.wainkw.com/api/deploy.php)
+            "$ENDPOINT")
 
           echo "HTTP $code"
           cat response.json; echo
@@ -238,7 +285,7 @@ jobs:
       # request, with no credentials.
       - name: Verify what actually landed
         run: |
-          URL="https://www.wainkw.com/build.json"
+          URL="https://${SITE_HOST}/build.json"
           for attempt in 1 2 3 4 5; do
             live=$(curl -fsS --max-time 20 -H 'Cache-Control: no-cache' "$URL" || echo '')
             got=$(printf '%s' "$live" | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).digest' 2>/dev/null || echo '')
@@ -248,7 +295,7 @@ jobs:
           done
 
           if [ -z "$got" ]; then
-            echo "::error::Deployed, but https://www.wainkw.com/build.json could not be read."
+            echo "::error::Deployed, but https://${SITE_HOST}/build.json could not be read."
             exit 1
           fi
 
@@ -261,7 +308,7 @@ jobs:
             exit 1
           fi
 
-          echo "Live at https://www.wainkw.com/ — digest $got, matches this build."
+          echo "Live at https://${SITE_HOST}/ — digest $got, matches this build."
 
       # A root file matching proves the root arrived and nothing else: on
       # 9 September build.json read correct while every route but / was a 404,
@@ -275,7 +322,7 @@ jobs:
             "/explore/" \
             "/places/kuwait-towers/"
           do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://www.wainkw.com${path}")
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://${SITE_HOST}${path}")
             if [ "$code" = "200" ]; then
               echo "  ok   $path"
             else
