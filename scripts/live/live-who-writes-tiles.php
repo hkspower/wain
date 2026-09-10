@@ -22,44 +22,74 @@
  * minute and none names cats/ in its command. So the writer is either a PHP
  * file reachable from one of them, or something outside cron entirely.
  */
-$root = '/home/u130124229/domains/sporta.com.kw/public_html';
+/* BOTH roots. The first version scanned only the docroot, which cannot contain
+   the answer if the writer is a leftover script in the home directory — and
+   the home directory is exactly where scripts land here, because a relative
+   path in a cron command writes there. This channel's own scratch file, r.php,
+   lives there for that reason. */
+$roots = [
+    'web'  => '/home/u130124229/domains/sporta.com.kw/public_html',
+    'home' => '/home/u130124229',
+];
+$root = $roots['web'];
 
-/* Anything that could produce the file: the literal name, the copy/write
-   primitives aimed at the tile directory, and the two publishers this project
-   ships that know how to make tiles. */
-$NEEDLES = ['outlet.jpg', 'art-outlet', '/cats/', 'cats/desktop', 'publish-cats', 'copy('];
+/* Names of the TARGET only. `copy(` was in this list in the first version and
+   it is also in the write list below, so the conjunction "names the target AND
+   can write" was satisfied by any file containing `copy(` — a tautology, and
+   it produced exactly one candidate, api/deploy.php, which does not contain
+   the string `cats` anywhere. I reported that file to the owner as the writer.
+   It is a signed-POST deploy endpoint that cannot fire on a timer at all.
 
-$hits = []; $scanned = 0;
-$it = new RecursiveIteratorIterator(
-    new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)
-);
-foreach ($it as $f) {
-    if (!$f->isFile()) continue;
-    if (!preg_match('/\.(php|sh|js|cgi|pl|py)$/i', $f->getFilename())) continue;
-    // The built bundle mentions the tile names constantly and writes nothing;
-    // including it would bury the answer in 40 matches.
-    $rel = substr($f->getPathname(), strlen($root) + 1);
-    if (strpos($rel, 'assets/') === 0) continue;
-    $scanned++;
+   The lesson is this repository's own, in a new place: an extractor's two
+   halves must not share a term, or the AND between them stops meaning
+   anything. Same family as the route extractor whose character class silently
+   dropped a name — a check that cannot fail is not a check. */
+$NEEDLES = ['outlet.jpg', 'art-outlet', 'cats/desktop', 'cats/mobile', '/cats/', 'publish-cats'];
 
-    $body = (string) @file_get_contents($f->getPathname());
-    if ($body === '') continue;
+$hits = []; $named = []; $scanned = 0;
 
-    // Only report a file that both NAMES the target and can WRITE.
-    $names = false;
-    foreach ($NEEDLES as $n) if (strpos($body, $n) !== false) { $names = true; break; }
-    if (!$names) continue;
+foreach ($roots as $label => $base) {
+    if (!is_dir($base)) continue;
+    $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($base, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::LEAVES_ONLY,
+        RecursiveIteratorIterator::CATCH_GET_CHILD   // unreadable dirs must not abort the walk
+    );
+    foreach ($it as $f) {
+        if (!$f->isFile()) continue;
+        if (!preg_match('/\.(php|sh|js|cgi|pl|py)$/i', $f->getFilename())) continue;
 
-    $writes = [];
-    foreach (['copy(', 'file_put_contents(', 'rename(', 'imagejpeg(', 'fopen(', 'exec(',
-              'shell_exec(', 'system(', 'passthru('] as $w) {
-        if (strpos($body, $w) !== false) $writes[] = rtrim($w, '(');
+        $path = $f->getPathname();
+        // The home walk would otherwise re-scan the docroot underneath it.
+        if ($label === 'home' && strpos($path, $roots['web']) === 0) continue;
+        $rel = $label . ':' . substr($path, strlen($base) + 1);
+        // The built bundle names the tiles constantly and writes nothing.
+        if (strpos($rel, 'web:assets/') === 0) continue;
+        $scanned++;
+
+        $body = (string) @file_get_contents($path);
+        if ($body === '') continue;
+
+        $names = false;
+        foreach ($NEEDLES as $n) if (strpos($body, $n) !== false) { $names = true; break; }
+        if (!$names) continue;
+
+        // Reported SEPARATELY from the writers. A file that names the target and
+        // cannot write is not a candidate, but "which files even mention it?" is
+        // the question to fall back on when the candidate list comes out empty —
+        // and an empty list must not be the end of the enquiry.
+        $named[] = $rel;
+
+        $writes = [];
+        foreach (['copy(', 'file_put_contents(', 'rename(', 'imagejpeg(', 'fopen(', 'exec(',
+                  'shell_exec(', 'system(', 'passthru('] as $w) {
+            if (strpos($body, $w) !== false) $writes[] = rtrim($w, '(');
+        }
+        if ($writes) $hits[] = $rel . '{' . implode('+', $writes) . '}';
     }
-    if (!$writes) continue;
-
-    $hits[] = $rel . '{' . implode('+', $writes) . '}';
 }
 
 echo 'TILEWRITERS scanned=' . $scanned
-   . ' candidates=' . (count($hits) ? count($hits) . ':' . implode(' ', $hits) : '0')
+   . ' writers=' . (count($hits) ? count($hits) . ':' . implode(' ', $hits) : '0')
+   . ' mentionOnly=' . (count($named) ? count($named) . ':' . implode(' ', array_slice($named, 0, 12)) : '0')
    . "\n";
