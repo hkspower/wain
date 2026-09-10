@@ -230,8 +230,91 @@ console.log(
   `            a stop down at night: mean ${nDown.mean} vs ${n0.mean}, ` +
     `${darker} pixels darker and ${lighter} lighter of ${nDown.luma.length}`
 );
+// WHERE THE LIGHTER PIXELS ARE, NOT JUST HOW MANY.
+//
+// The ratio alone cannot tell a grading bug from the grade working. A
+// stop down is SUPPOSED to lift the bottom of the frame a little — the
+// shadow toe and the black-point rescale exist to keep a darkened
+// picture off the floor, and this file already describes them doing
+// exactly that in daylight. So a count of pixels that went up is only
+// alarming if they went up somewhere they had no business going up.
+//
+// Banded by where the pixel STARTED: if the lift is in the deep shadows
+// the toe is doing its job; if it is in the midtones or the highlights
+// the exposure control is not controlling exposure.
+const BANDS = [[0, 24, "deep shadow"], [24, 64, "shadow"], [64, 140, "midtone"], [140, 256, "highlight"]];
+const bandsOf = (ref, shot) =>
+  BANDS.map(([lo, hi, name]) => {
+    let up = 0, down = 0, n = 0;
+    for (let i = 0; i < ref.luma.length; i++) {
+      const a = ref.luma[i];
+      if (a < lo || a >= hi) continue;
+      n++;
+      if (shot.luma[i] > a) up++;
+      else if (shot.luma[i] < a) down++;
+    }
+    return { name, n, up, down };
+  });
+const bands = bandsOf(n0, nDown);
+// THE CONTROL, AND IT IS NOT OPTIONAL.
+//
+// This frame carries luminance-weighted grain, and the highlight band is
+// 350 pixels of 8160. Comparing the SAME pixel between two shots asks
+// how many went up — and grain moves pixels up and down for reasons that
+// have nothing to do with exposure. So the identical pair is shot first:
+// n0 against n0again, no setting changed between them. Whatever churn
+// that produces is the floor, and any band where the stop-down does not
+// beat its own null result is a band this test cannot speak about.
+const n0again = await shoot({ ev: 0, hour: 22.5 });
+const nullBands = bandsOf(n0, n0again);
+console.log(`            control: the same shot twice, nothing changed`);
+for (const b of nullBands)
+  console.log(
+    `              ${b.name.padEnd(12)} ${String(b.n).padStart(5)} px  ` +
+      `${String(b.down).padStart(5)} darker  ${String(b.up).padStart(5)} lighter` +
+      `${b.n ? `  (${((b.up / b.n) * 100).toFixed(0)}% up)` : ""}`
+  );
+for (const b of bands)
+  console.log(
+    `              ${b.name.padEnd(12)} ${String(b.n).padStart(5)} px  ` +
+      `${String(b.down).padStart(5)} darker  ${String(b.up).padStart(5)} lighter` +
+      `${b.n ? `  (${((b.up / b.n) * 100).toFixed(0)}% up)` : ""}`
+  );
 check(nDown.mean < n0.mean, "a stop down at night did not darken the frame");
-check(darker > lighter * 3, "a stop down at night did not darken most of the picture");
+
+// THE BAR IS THE FRAME'S OWN NOISE, NOT A NUMBER SOMEBODY PICKED.
+//
+// The old check was `darker > lighter * 3` over the whole frame and it
+// failed at 2.47:1. The obvious reading — that 3 was miscalibrated — is
+// wrong, and the two blocks above are what says so.
+//
+// Banded, the deep shadows do exactly what a stop down should: 1% of
+// them go up, against 21% when the same shot is taken twice with nothing
+// changed. Every band above the toe does the opposite. Midtones go 66%
+// up against a 31% floor; highlights 76% against 33%. That is not the
+// shadow toe giving light back, and it is not grain — it is three times
+// the churn grain produces, in the direction exposure was told to go the
+// other way.
+//
+// So each band is held to its OWN null result. A stop down has to leave
+// a band with fewer pixels rising than doing nothing at all does, which
+// needs no threshold to be argued about and cannot drift when the grain
+// is retuned.
+const floorFor = Object.fromEntries(nullBands.map((b) => [b.name, b.n ? b.up / b.n : 0]));
+const rose = bands.filter((b) => b.n > 40 && b.up / b.n >= floorFor[b.name]);
+console.log(
+  `            each band against its own null result  ` +
+    (rose.length ? "FAIL" : "ok") + "  " +
+    // The whole name. Abbreviating to the last word printed "deep
+    // shadow" and "shadow" as the same label, which is a report with two
+    // rows called the same thing and different numbers in them.
+    bands.map((b) => `${b.name} ${((b.up / b.n) * 100).toFixed(0)}/${((floorFor[b.name]) * 100).toFixed(0)}%`).join("  ")
+);
+check(
+  rose.length === 0,
+  `a stop down at night lifted ${rose.map((b) => b.name).join(", ")} — ` +
+    rose.map((b) => `${b.name} ${((b.up / b.n) * 100).toFixed(0)}% up against a ${((floorFor[b.name]) * 100).toFixed(0)}% noise floor`).join("; ")
+);
 
 // --- 1b. There is white in the picture ------------------------------
 //
