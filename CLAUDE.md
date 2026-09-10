@@ -178,6 +178,19 @@ every file in `out/`. A rule may only deny what the site does not ship: an
 early draft denied `index.txt` and would have broken client-side navigation on
 every route to tidy one stale file.
 
+`npm run test:db` needs the PostgreSQL binaries on PATH and they are not on it
+by default here — only `psql` is. It looks like a broken suite and is not:
+`PATH="/usr/lib/postgresql/16/bin:$PATH" npm run test:db` passes 27
+assertions. `test:api` needs PHP, which is installed, and passes 40.
+
+**`postcss` is pinned by an `overrides` entry, and that is load-bearing.**
+Next 15 depends on 8.4.31; four advisories, one of them high, need 8.5.23 or
+later. `npm audit fix` offers only Next 16, a major upgrade of the framework
+this whole static export is built on, to correct a transitive dependency.
+Tailwind already resolves 8.5.28 in the same build, so the override makes both
+copies agree on the patched one instead. Audit goes from two vulnerabilities to
+zero. Remove the override and they come back.
+
 **Known failing, pre-existing, verified against an untouched baseline:** the
 swipe suite's 4px scroll-snap assertion. Re-verified by stashing the working
 tree, rebuilding and running the suite on a clean checkout: same assertion,

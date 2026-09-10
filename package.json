@@ -51,7 +51,9 @@
     "audit:photos": "node scripts/audit-photos.mjs",
     "audit:cookies": "node scripts/audit-cookies.mjs",
     "deploy:plan": "node scripts/deploy-plan.mjs",
-    "deploy:verify": "node scripts/deploy-verify.mjs"
+    "deploy:verify": "node scripts/deploy-verify.mjs",
+    "preview": "node scripts/gen-preview.mjs",
+    "scan:design": "node scripts/scan-design.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.1",
@@ -73,5 +75,8 @@
     "tailwindcss": "^4.1.8",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.67.0"
+  },
+  "overrides": {
+    "postcss": "^8.5.28"
   }
 }
