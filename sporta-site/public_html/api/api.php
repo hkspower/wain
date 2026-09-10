@@ -472,8 +472,19 @@ if ($r === 'slides') {
     $bar['live'] = (bool)$bar['enabled'] && store_window_open($bar['starts_at'] ?? null, $bar['ends_at'] ?? null);
     unset($bar['starts_at'], $bar['ends_at']);
 
-    // Cacheable: shipped artwork and two owner settings, no customer in it.
-    store_out_cacheable(['slides' => $rows, 'hero' => store_setting($db, 'hero'), 'promo_bar' => $bar]);
+    // Cacheable: shipped artwork and owner settings, no customer in it.
+    //
+    // `rules` rides along here rather than getting an endpoint of its own
+    // because every page that needs it already asks for this one, and a second
+    // request for six numbers would be a second round trip on the home page's
+    // critical path. It is the PUBLIC subset — store_rules_public() says which
+    // three it withholds and why.
+    store_out_cacheable([
+        'slides'    => $rows,
+        'hero'      => store_setting($db, 'hero'),
+        'promo_bar' => $bar,
+        'rules'     => store_rules_public($db),
+    ]);
 }
 
 // One slide's bytes.
@@ -693,7 +704,7 @@ if ($r === 'discount' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // the same code that will charge it; leaving the fee out here would put a
     // total on screen that is 1.000 KWD lower than the one the bank asks for,
     // which is the exact drift the shared-code rule was written to prevent.
-    $previewDelivery = STORE_DELIVERY_FEE_FILS;
+    $previewDelivery = store_delivery_fils($db, $sub - $res['total_fils']);
     store_out([
         'subtotal' => (float)store_kwd($sub),
         'discount' => (float)store_kwd($res['total_fils']),
@@ -835,7 +846,7 @@ if ($r === 'review_invite') {
         // The offer, from the server. The page must never name its own number:
         // the percentage the customer is promised and the percentage checkout
         // applies have to be the same one.
-        'reward_pct' => STORE_REVIEW_REWARD_PCT,
+        'reward_pct' => store_rule($db, 'review_reward_pct'),
     ]);
 }
 
@@ -866,7 +877,7 @@ if ($r === 'review') {
         'ok'         => true,
         'already'    => $res['already'],
         'code'       => $res['code'],
-        'reward_pct' => STORE_REVIEW_REWARD_PCT,
+        'reward_pct' => store_rule($db, 'review_reward_pct'),
     ]);
 }
 
@@ -1137,7 +1148,7 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $email = store_email($customer['email'] ?? null);
     if ($email === null) store_fail('invalid_email');
     $gov = trim((string)($customer['governorate'] ?? ''));
-    if (!in_array($gov, STORE_GOVERNORATES, true)) store_fail('invalid_governorate');
+    if (!in_array($gov, store_rule($db, 'governorates'), true)) store_fail('invalid_governorate');
 
     // IS THIS CUSTOMER ALLOWED TO ORDER THIS WAY? Checked here — after the
     // phone is canonical, before anything is written or any mail is queued.
@@ -1178,8 +1189,11 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // is where money goes missing.
     $goodsFils = $subtotalFils - $discountFils;
     if ($goodsFils <= 0) store_fail('zero_amount');
-    // Delivery last, so no discount can eat into it. See STORE_DELIVERY_FEE_FILS.
-    $deliveryFils = STORE_DELIVERY_FEE_FILS;
+    // Delivery last, so no discount can eat into it. The fee, and whether a
+    // free-delivery threshold waives it, are the shop's rules — store.php's
+    // store_delivery_fils is the ONE place that decides, and ?r=discount quotes
+    // the checkout with the same call.
+    $deliveryFils = store_delivery_fils($db, $goodsFils);
     $amountFils   = $goodsFils + $deliveryFils;
 
     $db->beginTransaction();

@@ -810,7 +810,7 @@ if ($r === 'variant_save' && $method === 'POST') {
     // The same list the CHECK constraint and the order path use. Read from the
     // constant rather than retyped, so a size added in one place cannot be
     // creatable here and unorderable at checkout.
-    if (!in_array($size, STORE_SIZES, true)) store_fail('invalid_size');
+    if (!in_array($size, store_rule($db, 'sizes'), true)) store_fail('invalid_size');
 
     // The garment has to exist. Without this the ladder can be built against a
     // typo'd slug, where it is invisible to the shop and to this screen's own
@@ -1340,10 +1340,109 @@ if ($r === 'settings_save' && $method === 'POST') {
             'instagram'  => preg_replace('/[^A-Za-z0-9._]/', '',
                                 mb_substr(trim((string)($v['instagram'] ?? '')), 0, 40)),
         ]);
+    } elseif ($name === 'rules') {
+        // THE SHOP'S NUMBERS. store.php's store_rule_defaults() is the home of
+        // the defaults and the long explanation; this is the gate.
+        //
+        // EVERY FIELD IS OPTIONAL and an absent one keeps what is stored, so a
+        // panel that sends one field does not silently reset the other eight.
+        // That is the opposite of the footer's rule, and deliberately: a blank
+        // footer line means "no line", while a blank delivery fee does not mean
+        // "delivery is free" — it means the field was not on the form.
+        $cur = store_rules($db);
+
+        // A number the owner can see the effect of is still a number that can
+        // be typed wrong, and each of these fails in a direction that costs
+        // money rather than looking odd. So each is clamped to a range with a
+        // reason, and a value outside it is REFUSED with its own name rather
+        // than quietly pulled to the edge — a delivery fee silently clamped
+        // from 100.000 to 50.000 is a shop charging something nobody chose.
+        $int = static function (string $key, int $lo, int $hi) use ($v, $cur): int {
+            if (!array_key_exists($key, $v)) return (int) $cur[$key];
+            $raw = $v[$key];
+            if (!is_int($raw) && !(is_string($raw) && preg_match('/^\d+$/', trim($raw)))) {
+                store_fail('rule_not_a_number:' . $key);
+            }
+            $n = (int) $raw;
+            if ($n < $lo || $n > $hi) store_fail('rule_out_of_range:' . $key);
+            return $n;
+        };
+
+        // A list must be a SUBSET of what shipped, non-empty, and is stored in
+        // the order given — the panel's ordering is what the shop displays.
+        $subset = static function (string $key, array $allowed) use ($v, $cur): array {
+            if (!array_key_exists($key, $v)) return $cur[$key];
+            if (!is_array($v[$key])) store_fail('rule_not_a_list:' . $key);
+            $out = [];
+            foreach ($v[$key] as $item) {
+                $s = is_string($item) ? trim($item) : '';
+                if (!in_array($s, $allowed, true)) store_fail('rule_unknown_value:' . $key . ':' . $s);
+                if (!in_array($s, $out, true)) $out[] = $s;   // a duplicate is a slip, not a refusal
+            }
+            // An empty list is refused rather than stored. store_rules() would
+            // read it back as absence and serve the default, so the panel would
+            // show the full list again and the owner would conclude the save
+            // did not work — which is worse than being told no.
+            if ($out === []) store_fail('rule_empty_list:' . $key);
+            return $out;
+        };
+
+        $sizes = $subset('sizes', STORE_SIZES);
+        $fits  = $subset('fits',  STORE_FITS);
+        $govs  = $subset('governorates', STORE_GOVERNORATES);
+
+        // THE ORPHAN GUARD, and the reason sizes are not simply a free list.
+        //
+        // Dropping a size the shop has stock rows for does not tidy anything:
+        // those product_variants rows stay, keep their stock, and stop being
+        // orderable — store_price_lines refuses the size at checkout. The
+        // garment goes on showing a size nobody can buy, and nothing reports
+        // it. So the save is refused and the sizes are NAMED with how many rows
+        // each one holds, because "you cannot remove XL" is not actionable and
+        // "XL has 7 stock rows" is.
+        $dropped = array_values(array_diff(STORE_SIZES, $sizes));
+        if ($dropped) {
+            $q = $db->prepare(
+                'select size, count(*) c from product_variants
+                  where size in (' . implode(',', array_fill(0, count($dropped), '?')) . ')
+                  group by size having c > 0'
+            );
+            $q->execute($dropped);
+            $inUse = [];
+            foreach ($q as $row) $inUse[] = $row['size'] . '(' . (int) $row['c'] . ')';
+            if ($inUse) store_fail('rule_size_in_use:' . implode(',', $inUse));
+        }
+
+        $discountMax = $int('discount_max_pct', 1, 90);
+        $reward      = $int('review_reward_pct', 0, 90);
+        // A review reward is issued as a discount, and store_discounts_for caps
+        // the total at discount_max_pct. A reward above the cap would be
+        // written, look right in the panel, and then be trimmed at checkout —
+        // the customer is promised 30% and given 20%, and only they find out.
+        if ($reward > $discountMax) store_fail('rule_reward_above_cap');
+
+        store_setting_save($db, 'rules', [
+            // 0 is allowed and means delivery is free for everyone, which is a
+            // real choice; the ceiling is 50.000 KWD, far past any real fee and
+            // low enough that a fils/KWD mix-up (1000 typed as 1000000) is
+            // caught rather than charged.
+            'delivery_fee_fils'  => $int('delivery_fee_fils', 0, 50000),
+            'free_delivery_fils' => $int('free_delivery_fils', 0, 1000000),
+            'return_days'        => $int('return_days', 1, 365),
+            'cod_open_max'       => $int('cod_open_max', 1, 50),
+            'review_reward_pct'  => $reward,
+            'discount_max_pct'   => $discountMax,
+            'governorates'       => $govs,
+            'sizes'              => $sizes,
+            'fits'               => $fits,
+        ]);
     } else {
         store_fail('unknown_setting');
     }
-    store_out(store_setting($db, $name));
+    // `rules` is not in STORE_SETTING_DEFAULTS — its defaults are built at call
+    // time, because several of the constants behind them are declared later in
+    // store.php than that array is. So it reads back through its own accessor.
+    store_out($name === 'rules' ? store_rules($db) : store_setting($db, $name));
 }
 
 // --------------------------------------------------------------- knet, read

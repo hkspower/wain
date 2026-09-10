@@ -849,7 +849,7 @@ function store_order_guard(PDO $db, string $phone, string $method): void {
             and fulfilment_status not in ('delivered', 'cancelled')"
     );
     $q->execute([$phone]);
-    if ((int) $q->fetchColumn() >= STORE_COD_OPEN_MAX) {
+    if ((int) $q->fetchColumn() >= (int) store_rule($db, 'cod_open_max')) {
         // 409, not 429: this is not "too fast", it is "settle what you have".
         // A shopper who reads the message can act on it; a rate-limit message
         // would tell them to wait, which will never help.
@@ -1781,9 +1781,11 @@ function store_require_fresh_code(PDO $db, array $who, string $code): void {
 // Reads are cached per request. api.php?r=slides asks for two of these and the
 // home page asks for the same two again on the next request; there is no
 // reason for either to hit the table twice.
-function store_settings(PDO $db): array {
+function store_settings(?PDO $db = null, bool $forget = false): array {
     static $all = null;
+    if ($forget) { $all = null; return []; }
     if ($all === null) {
+        if ($db === null) return [];
         $all = [];
         foreach ($db->query('select name, value from settings') as $row) {
             $decoded = json_decode((string)$row['value'], true);
@@ -1791,6 +1793,13 @@ function store_settings(PDO $db): array {
         }
     }
     return $all;
+}
+
+// Drop the request-lifetime cache above. Called by store_setting_save, so that
+// a route which writes and then reads back sees what it wrote rather than what
+// was there when the request started.
+function store_settings_forget(): void {
+    store_settings(null, true);
 }
 
 // One setting, merged over its defaults.
@@ -1898,6 +1907,140 @@ function store_setting_save(PDO $db, string $name, array $value): void {
     $db->prepare('insert into settings (name, value) values (?, ?)
                   on duplicate key update value = values(value)')
        ->execute([$name, json_encode($value, JSON_UNESCAPED_UNICODE)]);
+    // store_settings() caches the whole table for the request. Without this, a
+    // save followed by a read in the SAME request returns the value from
+    // before the write — which is what a validating save route does when it
+    // re-reads to confirm, and it would confirm the old value happily.
+    store_settings_forget();
+}
+
+// ------------------------------------------------------------------ the rules
+//
+// THE SHOP'S NUMBERS, so the owner can change them without a developer, a code
+// edit and a publish. Delivery, returns, the COD limit, the review reward, the
+// discount cap, the governorates served, and which sizes and fits are offered.
+//
+// WHY THESE DEFAULTS LIVE IN A FUNCTION and not in STORE_SETTING_DEFAULTS: some
+// of the constants below are declared LATER in this file than that array is,
+// and a top-level `const` is executed in order — referencing one from above it
+// is an undefined-constant fatal on the first request. A function body is
+// evaluated when it is called, by which time the whole file has run.
+//
+// THE CONSTANT IS THE DEFAULT AND THE ROW IS THE OVERRIDE, one direction only.
+// That keeps a single home for each number: change the constant and every shop
+// that has never touched the panel follows, which is what a default is for.
+//
+// AND IT MUST FAIL TOWARDS THE SHIPPED VALUE. A shop whose settings row is
+// missing, unreadable or half-written still has to take an order. Every read
+// here merges over the constants, so the worst case is the shop behaving
+// exactly as it did before this feature existed — never a delivery fee of zero
+// or an empty list of governorates, which are the two ways this could quietly
+// cost money.
+//
+// SIZES AND FITS ARE A SUBSET, NOT A FREE LIST, and that is the schema's rule
+// rather than a preference. order_items carries
+//   check (size is null or size in ('S','M',...,'ONE'))
+//   check (fit  is null or fit  in ('normal',...,'tank'))
+// so a size invented in the panel would pass PHP and then be REFUSED BY MYSQL
+// at insert — a checkout that dies on its last step, and a variant_save that
+// 500s. The owner can therefore choose WHICH of the known sizes this shop
+// offers and in what order (a shop that does not stock 5XL can drop it), and
+// admin.php refuses anything outside the set. Adding a genuinely new size is a
+// schema migration, not a setting.
+//
+// scripts/rules-test.mjs asserts STORE_SIZES and STORE_FITS still equal the
+// lists in schema.mysql.sql's CHECK constraints, because the moment those two
+// disagree this validation is either rejecting a legal size or admitting an
+// illegal one, and neither says so.
+function store_rule_defaults(): array {
+    return [
+        'delivery_fee_fils'  => STORE_DELIVERY_FEE_FILS,
+        // 0 means "no free-delivery threshold", which is the shop's behaviour
+        // today — there has never been one. A positive value is the subtotal in
+        // fils at or above which delivery costs nothing.
+        'free_delivery_fils' => 0,
+        'return_days'        => STORE_RETURN_DAYS,
+        'cod_open_max'       => STORE_COD_OPEN_MAX,
+        'review_reward_pct'  => STORE_REVIEW_REWARD_PCT,
+        'discount_max_pct'   => STORE_DISCOUNT_MAX_PCT,
+        'governorates'       => STORE_GOVERNORATES,
+        'sizes'              => STORE_SIZES,
+        'fits'               => STORE_FITS,
+    ];
+}
+
+/** Every rule, the saved row merged over the shipped defaults. */
+function store_rules(PDO $db): array {
+    $saved = store_settings($db)['rules'] ?? [];
+    $out   = store_rule_defaults();
+    foreach ($out as $k => $default) {
+        if (!array_key_exists($k, $saved)) continue;
+        $v = $saved[$k];
+        // A list that has been emptied — by a bad write, a truncated JSON, a
+        // migration — must not become "this shop delivers nowhere" or "this
+        // garment has no sizes". An empty list is not a choice anyone makes in
+        // the panel, so it is read as absence and the default stands.
+        if (is_array($default)) { if (is_array($v) && $v !== []) $out[$k] = array_values($v); continue; }
+        if (is_int($default) && (is_int($v) || (is_string($v) && ctype_digit($v)))) $out[$k] = (int) $v;
+    }
+    return $out;
+}
+
+/** One rule. Named separately because most call sites want exactly one. */
+function store_rule(PDO $db, string $key) {
+    return store_rules($db)[$key] ?? null;
+}
+
+// THE RULES A CUSTOMER'S PAGE NEEDS, and only those.
+//
+// SIX OF THE NINE, and the three left out are the point of having this
+// function rather than handing over store_rules(). `cod_open_max`,
+// `discount_max_pct` and `review_reward_pct` are the shop's internal limits:
+// each one tells somebody probing the shop exactly where the edge is — how
+// many unpaid cash orders can be opened before the guard trips, and how much
+// stacking is worth attempting. None of them changes anything a customer sees
+// on a page, so none of them is worth the telling.
+//
+// The six that remain are all things the shop already states out loud: what
+// delivery costs, when it is free, how long returns are open, where it
+// delivers, and which sizes and fits exist. A page that has to hard-code those
+// is a page that goes out of date the day the owner changes one — which is the
+// whole reason these stopped being constants.
+function store_rules_public(PDO $db): array {
+    $r = store_rules($db);
+    return [
+        'delivery_fee_fils'  => (int) $r['delivery_fee_fils'],
+        'free_delivery_fils' => (int) $r['free_delivery_fils'],
+        'return_days'        => (int) $r['return_days'],
+        'governorates'       => $r['governorates'],
+        'sizes'              => $r['sizes'],
+        'fits'               => $r['fits'],
+    ];
+}
+
+// WHAT DELIVERY COSTS on an order whose goods come to $goodsFils AFTER any
+// discount.
+//
+// ONE FUNCTION, because there are two call sites and they must never disagree:
+// ?r=discount quotes the checkout a number, and ?r=order charges it. api.php
+// says so itself where it computes the quote — "leaving the fee out here would
+// put a total on screen that is 1.000 KWD lower than the one the bank asks
+// for, which is the exact drift the shared-code rule was written to prevent."
+// A free-delivery threshold applied in one of the two would be that same bug
+// with a friendlier face: the shopper is shown free delivery and charged for
+// it, or the reverse.
+//
+// The threshold is measured on goods AFTER the discount, which is the stricter
+// reading and the one the customer can verify from the line they can see. It
+// also cannot be gamed by stacking a discount to cross the line: the discount
+// lowers the figure being tested, it does not raise it.
+//
+// 0 means no threshold, which is every shop until someone sets one.
+function store_delivery_fils(PDO $db, int $goodsFils): int {
+    $r    = store_rules($db);
+    $free = (int) $r['free_delivery_fils'];
+    if ($free > 0 && $goodsFils >= $free) return 0;
+    return (int) $r['delivery_fee_fils'];
 }
 
 // Is a dated window open right now? Either end may be null, meaning "no bound".
@@ -2040,7 +2183,7 @@ function store_discounts_for(PDO $db, array $lines, int $subtotalFils, ?string $
     // 3. the cap. Trimmed from the LAST rule backwards so the first (best)
     //    discount survives intact and the customer sees the one they were
     //    promised, not two halves of two.
-    $cap = intdiv($subtotalFils * STORE_DISCOUNT_MAX_PCT, 100);
+    $cap = intdiv($subtotalFils * (int) store_rule($db, 'discount_max_pct'), 100);
     $total = array_sum(array_column($applied, 'fils'));
     for ($i = count($applied) - 1; $i >= 0 && $total > $cap; $i--) {
         $trim = min($applied[$i]['fils'], $total - $cap);
@@ -2212,8 +2355,8 @@ function store_price_lines(PDO $db, array $items): array {
         $fit  = strtolower(trim((string)($item['fit'] ?? '')));
         // Rejected, never silently dropped — a dropped size is an order that
         // looks complete and does not say which size to pack.
-        if ($size !== '' && !in_array($size, STORE_SIZES, true)) store_fail('invalid_size');
-        if ($fit  !== '' && !in_array($fit,  STORE_FITS,  true)) store_fail('invalid_fit');
+        if ($size !== '' && !in_array($size, store_rule($db, 'sizes'), true)) store_fail('invalid_size');
+        if ($fit  !== '' && !in_array($fit,  store_rule($db, 'fits'),  true)) store_fail('invalid_fit');
 
         $q->execute([(string)($item['slug'] ?? '')]);
         $prod = $q->fetch();
@@ -2380,7 +2523,7 @@ function store_review_order(PDO $db, string $trackId, string $token): ?array {
 // twice if reviews minted their own kind of code. The 60% stack cap and the
 // 90% per-rule ceiling apply to this exactly as they apply to everything else.
 function store_review_reward(PDO $db, int $orderId): ?string {
-    $pct = (float) STORE_REVIEW_REWARD_PCT;
+    $pct = (float) store_rule($db, 'review_reward_pct');
     if ($pct <= 0) return null;   // the shop can turn the reward off entirely
 
     // Unambiguous alphabet: no O/0, no I/1. This code is read off a phone
@@ -2485,10 +2628,17 @@ function store_return_ref(): string {
 // when the parcel was marked delivered; orders that predate that column, or
 // that are marked delivered without a timestamp, fall back to created_at,
 // which is the only other date the row has and is never later than delivery.
-function store_return_window(array $order, ?string $now = null): array {
+//
+// THE WINDOW IS A RULE THE OWNER CAN CHANGE, so it is PASSED IN rather than
+// read here: this is the one function in the group with no $db, and giving it
+// one so it could look up a single number would mean every caller had to have
+// a connection to ask how long fourteen days is. The default is the shipped
+// constant, so a caller that does not care still gets the shop's policy.
+function store_return_window(array $order, ?string $now = null, ?int $days = null): array {
+    $days = $days === null ? STORE_RETURN_DAYS : max(1, $days);
     $from = $order['fulfilled_at'] ?: $order['created_at'];
     $start = strtotime((string)$from);
-    $deadline = $start + (STORE_RETURN_DAYS * 86400);
+    $deadline = $start + ($days * 86400);
     $at = $now === null ? time() : strtotime($now);
     return [
         'from'      => date('Y-m-d H:i:s', $start),
@@ -2524,7 +2674,7 @@ function store_return_lookup(PDO $db, string $ref, string $phone): array {
     if ($o['payment_status'] !== 'paid')          return ['error' => 'return_not_paid'];
     if ($o['fulfilment_status'] === 'cancelled')  return ['error' => 'return_cancelled'];
 
-    $window = store_return_window($o);
+    $window = store_return_window($o, null, (int) store_rule($db, 'return_days'));
 
     $it = $db->prepare(
         // coalesce for the same reason ?r=invoice uses it: the snapshot is
@@ -2620,7 +2770,7 @@ function store_return_create(PDO $db, array $in): array {
         if ($line === null) return ['error' => 'return_line_unknown'];
         if ($qty < 1 || $qty > $line['available']) return ['error' => 'return_qty'];
         $size = strtoupper(trim((string)($row['want_size'] ?? '')));
-        if ($size !== '' && !in_array($size, STORE_SIZES, true)) return ['error' => 'return_size'];
+        if ($size !== '' && !in_array($size, store_rule($db, 'sizes'), true)) return ['error' => 'return_size'];
         if ($in['kind'] === 'exchange' && $line['no_exchange']) return ['error' => 'return_no_exchange'];
         // A size is meaningless on a return: nothing is being sent back out.
         if ($in['kind'] === 'return') $size = '';
