@@ -43,21 +43,38 @@ $ask = static function (string $path): string {
     return $code . (strpos($type, 'image/') === 0 ? '/img/' : '/non/') . strlen($body);
 };
 
-$out = [];
-foreach (['men', 'women', 'kids', 'outlet'] as $id) {
-    // Cache-busted, so the answer is about the disk rather than about a copy
-    // cached while the bridge was still in force.
-    $out[] = $id . '=' . $ask('/cats/desktop/' . $id . '.jpg?cb=' . bin2hex(random_bytes(4)));
-}
-
-// What is actually on disk under both crops, which is the other half: a URL
-// that answers cannot be explained without knowing whether a file is there.
-$dirs = [];
-foreach (['desktop', 'phone'] as $crop) {
+/* The names are DERIVED from the artwork on disk, not listed here. The first
+   version of this script listed four by hand and two of them were invented —
+   `kids`, which is not a category, and a `phone` crop that is really called
+   `mobile`. Both answered exactly as a correct server would, so the run read as
+   two more passing checks. A fixture typed from memory is a fixture chosen at
+   random; the directory already knows the answer. */
+$dirs = []; $out = []; $bridged = [];
+foreach (['desktop', 'mobile'] as $crop) {
     $d = $root . '/cats/' . $crop;
-    $f = is_dir($d) ? array_values(array_diff(scandir($d), ['.', '..'])) : [];
-    sort($f);
-    $dirs[] = $crop . '[' . implode(' ', $f) . ']';
+    if (!is_dir($d)) { $dirs[] = $crop . '=NO-SUCH-DIR'; continue; }
+
+    $files = array_values(array_diff(scandir($d), ['.', '..']));
+    sort($files);
+    $dirs[] = $crop . '[' . implode(' ', $files) . ']';
+
+    $ids = [];
+    foreach ($files as $f) {
+        // art-<id>.jpg, minus the -rtl compositions and the infobar, which is
+        // referenced by its real name and has no plain-name twin.
+        if (preg_match('/^art-([a-z0-9-]+?)(-rtl)?\.jpg$/', $f, $m)) $ids[$m[1]] = true;
+    }
+    ksort($ids);
+
+    foreach (array_keys($ids) as $id) {
+        // Cache-busted, so the answer is about the disk rather than about a
+        // copy cached while the bridge was still in force.
+        $r = $ask('/cats/' . $crop . '/' . $id . '.jpg?cb=' . bin2hex(random_bytes(4)));
+        $out[] = $crop . '/' . $id . '=' . $r;
+        if (strpos($r, '200/') === 0) $bridged[] = $crop . '/' . $id;
+    }
 }
 
-echo 'TILENAMES ' . implode(' ', $out) . ' | ' . implode(' ', $dirs) . "\n";
+echo 'TILENAMES ' . implode(' ', $out)
+   . ' STILL-BRIDGED=' . (count($bridged) ? implode(',', $bridged) : '0')
+   . ' | ' . implode(' ', $dirs) . "\n";
