@@ -46,6 +46,43 @@ $secretFile = "$home/domains/$domain/storage/deploy.secret";
 
 function done(array $r): never { echo json_encode($r, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), "\n"; exit; }
 
+$mode = $argv[1] ?? '';
+
+/**
+ * `allow <hostname>` — add an artifact host to <domain>/storage/deploy.hosts.
+ *
+ * This exists because the obvious way to write that file cannot be run here.
+ * `printf '%s\n' host > …/deploy.hosts` contains a redirection, and Cloudflare's
+ * WAF in front of createAccountCronJobV1 reads shell plumbing as an injection
+ * attempt and answers 403 — the same rule that forbids `{ … } > log 2>&1`. So
+ * the one-liner is only usable from a real shell, which is not always to hand.
+ * Doing it in PHP keeps the whole deploy inside the cron write path.
+ *
+ * Needs no secret, so it runs before the secret is read.
+ */
+if ($mode === 'allow') {
+    $host = strtolower(trim((string) ($argv[2] ?? '')));
+    // Same shape deploy.php's allowedHosts() will accept. A URL, a port or a
+    // path here would silently widen the check to something that never matches
+    // parse_url's host — so it is refused now rather than puzzled over later.
+    if (!preg_match('/^[a-z0-9][a-z0-9.-]*[a-z0-9]$/', $host) || !str_contains($host, '.')) {
+        done(['ok' => false, 'error' => 'bad_hostname', 'given' => $argv[2] ?? null,
+              'hint' => 'a bare hostname — no scheme, no port, no path']);
+    }
+    $f = "$home/domains/$domain/storage/deploy.hosts";
+    $lines = is_readable($f)
+        ? array_values(array_filter(array_map('trim', preg_split('/\R/', (string) file_get_contents($f)) ?: [])))
+        : [];
+    if (in_array($host, $lines, true)) done(['ok' => true, 'status' => 'already_listed', 'hosts' => $lines]);
+    $lines[] = $host;
+    if (!is_dir(dirname($f))) done(['ok' => false, 'error' => 'no_storage_dir', 'path' => dirname($f)]);
+    if (file_put_contents($f, implode("\n", $lines) . "\n") === false) {
+        done(['ok' => false, 'error' => 'write_failed', 'path' => $f]);
+    }
+    @chmod($f, 0600);
+    done(['ok' => true, 'status' => 'added', 'hosts' => $lines, 'path' => $f]);
+}
+
 if (!is_readable($secretFile)) {
     done(['ok' => false, 'error' => 'secret_unreadable', 'path' => $secretFile,
           'hint' => 'deploy.php answers secret_not_configured for the same reason; create it, 0600']);
@@ -53,7 +90,6 @@ if (!is_readable($secretFile)) {
 $secret = trim((string) file_get_contents($secretFile));
 if ($secret === '') done(['ok' => false, 'error' => 'secret_empty']);
 
-$mode = $argv[1] ?? '';
 if ($mode === 'probe') {
     // A well-formed sha and a fresh timestamp, so the only thing left to fail
     // is the host — which is checked after the signature.

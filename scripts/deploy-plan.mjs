@@ -270,20 +270,28 @@ if (archiveUrlArg) {
  */
 const callerUrl = `https://raw.githubusercontent.com/${repo}/${commit}/scripts/publish/deploy-call.php`;
 
-const commands = [
-  { step: "fetch the caller", command: `wget -qO d.php ${callerUrl}` },
-  { step: "deploy", command: `php d.php ${url} ${zipSha} ${version}` },
-  { step: "clean", command: `rm -f d.php` },
-];
-
 /**
  * deploy.php's ALLOWED_HOSTS is GitHub-only. `storage/deploy.hosts` extends it,
  * which is the whole reason that file exists — so that hosting the archive
  * elsewhere does not mean editing an endpoint inside public_html.
+ *
+ * The `allow` step writes that file through the caller rather than a shell
+ * redirection, and that is not a stylistic choice: `printf … > deploy.hosts`
+ * contains a `>`, which is exactly the plumbing the WAF rule below refuses. The
+ * one-liner reads fine and cannot be run as a cron job at all.
  */
 const artifactHost = new URL(url).hostname;
 const hostAllowedByDefault = ["raw.githubusercontent.com", "github.com", "codeload.github.com"]
   .includes(artifactHost);
+
+const commands = [
+  { step: "fetch the caller", command: `wget -qO d.php ${callerUrl}` },
+  ...(hostAllowedByDefault
+    ? []
+    : [{ step: "allow the host", command: `php d.php allow ${artifactHost}` }]),
+  { step: "deploy", command: `php d.php ${url} ${zipSha} ${version}` },
+  { step: "clean", command: `rm -f d.php` },
+];
 
 /**
  * Hostinger puts Cloudflare in front of the cron-create endpoint, and its WAF
@@ -376,10 +384,24 @@ console.log(`\n▸ run these in order, one cron job each, deleting it after it f
 for (const { step, command } of commands) console.log(`\n  ${step}\n    ${command}`);
 
 if (!hostAllowedByDefault) {
-  console.log(`\n▸ ${artifactHost} is not in deploy.php's ALLOWED_HOSTS, so the`);
-  console.log(`  endpoint will answer host_not_allowed until it is listed. One line,`);
-  console.log(`  outside public_html, and it survives any later edit of the endpoint:`);
-  console.log(`\n    printf '%s\\n' ${artifactHost} > ~/domains/wainkw.com/storage/deploy.hosts`);
+  console.log(`\n▸ ${artifactHost} is not in deploy.php's ALLOWED_HOSTS, which is why`);
+  console.log(`  the «allow the host» step is in the list — without it the endpoint`);
+  console.log(`  answers host_not_allowed. It writes one line to storage/deploy.hosts,`);
+  console.log(`  outside public_html, and survives any later edit of the endpoint.`);
+}
+
+/**
+ * Both docroots on this account deny `.zip`, so an artifact served from either
+ * one is a 403 and the deploy fails at the download. deploy.php reads the bytes
+ * with ZipArchive and never looks at the name, so the fix is the extension.
+ */
+if (/\.(zip|tar|gz|bak|sql|log|json|sh|env|md|ts|mjs)$/i.test(new URL(url).pathname)
+    && /(^|\.)(sporta\.com\.kw|wainkw\.com)$/i.test(artifactHost)) {
+  console.log(`\n▸ ${artifactHost} denies this extension in .htaccess — sporta's rule`);
+  console.log(`  names zip|tar|gz|…, wain's names bak|zip|db|… — so the fetch would be a`);
+  console.log(`  403 and the deploy would stop at download_failed. Rename the uploaded`);
+  console.log(`  file to something not on either list (.bin) and pass that URL. The`);
+  console.log(`  endpoint opens the bytes with ZipArchive and never reads the name.`);
 }
 
 console.log(`\n▸ the half-download trap is gone: deploy.php verifies sha256 against`);
