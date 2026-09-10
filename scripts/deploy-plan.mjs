@@ -220,6 +220,8 @@ const archiveUrlArg = (() => {
 })();
 
 let url;
+/** The commit that serves the archive, or null when it is hosted elsewhere. */
+let publish = null;
 if (archiveUrlArg) {
   if (!/^https:\/\//.test(archiveUrlArg)) {
     fail(`--archive-url must be https. The server fetches it over the open internet.`);
@@ -228,7 +230,7 @@ if (archiveUrlArg) {
 } else {
   const localBlob = git(["hash-object", archive]);
   const touched = git(["log", "--format=%H", "--", `wain-${version}.zip`]).split("\n").filter(Boolean);
-  const publish = touched.find((sha) => {
+  publish = touched.find((sha) => {
     try { return gitQuiet(["rev-parse", `${sha}:wain-${version}.zip`]) === localBlob; } catch { return false; }
   });
   if (!publish) {
@@ -313,7 +315,9 @@ const planPath = join(ROOT, "deploy-plan.json");
 writeFileSync(planPath, JSON.stringify(plan, null, 2) + "\n");
 
 console.log(`  built    ${commit.slice(0, 8)}  (${branch})`);
-console.log(`  zip at   ${publish.slice(0, 8)}${publish === commit ? "" : "  — the commit that publishes the archive"}`);
+console.log(publish
+  ? `  zip at   ${publish.slice(0, 8)}${publish === commit ? "" : "  — the commit that publishes the archive"}`
+  : `  zip at   hosted outside the repository — nothing enters history`);
 console.log(`  digest   ${build.digest}`);
 console.log(`  archive  ${(zipBytes / 1048576).toFixed(2)} MB, sha256 ${zipSha.slice(0, 16)}…`);
 console.log(`  export   ${Object.keys(files).length} files`);
