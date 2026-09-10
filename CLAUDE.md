@@ -1822,10 +1822,38 @@ fault), and the watcher itself disabled (caught by the observation count, not
 read as green).
 
 Reported rather than failed, for the owner: `/shop` measures **CLS 0.15 at
-1280px**, and it is not an image. The blame is an `::after` growing 0→194px at
-t=461ms — the product grid arriving after its fetch — with the cards themselves
-not moving. At 390px it is 0.0009. Fixing it means reserving the grid's height
-before the products land, which is inside the bundle that has no source here.
+1280px**, and it is not an image. The blame is an `::after` growing 0→194px,
+with the cards themselves not moving. At 390px it is 0.0009.
+
+**AND THE EXPLANATION ATTACHED TO IT WAS WRONG — corrected 2026-09-10.** It said
+the cause was "the product grid arriving after its fetch" and that the fix was
+to reserve the grid's height. Both are false, and I nearly spent an afternoon on
+the second before checking the first:
+
+- **The grid does not arrive late.** Measured from `domcontentloaded`: the
+  section is 1388px tall in the first snapshot, with all twelve cards in it.
+  Aborting `?r=products` outright changes nothing — the page renders populated
+  regardless.
+- **The `::after` is `position: absolute`** on the product-card link, an empty
+  decorative overlay. The shift entry shows it going `y0,h0 -> y706,h194` while
+  every OTHER source in the same entry has IDENTICAL rects — `706,194 ->
+  706,194`. They are listed as displaced and did not move a pixel.
+- **Nothing on the page moves at all.** The honest check is not the metric but
+  the visitor: sampling the real y of the heading, the first card, the fifth
+  card and the footer every 100ms from first paint gives `216 216`, `229 229`,
+  `706 706`, `1847 1847`. Not one of them shifts.
+
+So the 0.15 is a METRIC ARTEFACT: an out-of-flow pseudo-element gaining size
+scores as instability and cannot displace anything. This file already carries
+the rule twice — *"out of flow is not a fault"*, and *"an attribute is advice to
+the browser; the fault is what the visitor gets"* — and the note above was
+written in defiance of both, by reading the `sources` list as though it named
+the culprit. **A layout-shift entry names what was DISPLACED, and when nothing
+moved it names them anyway.**
+
+Nothing to fix. If it is ever worth silencing the number for a Lighthouse
+report, that is cosmetics on a metric, not a repair to the shop — and it belongs
+in the bundle, which has no source here.
 
 ### A headless browser has a MOUSE, so every `pointer: coarse` rule is inert
 
