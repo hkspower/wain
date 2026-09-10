@@ -937,6 +937,16 @@ itself, on a different surface. Both say the same thing: **this account has a
 manager that is not us.** Record the reading with its timestamp; do not treat
 either list as a standing fact.
 
+**Seen a second time within the hour, and it is a different job again.** At
+15:31 the list was nine long once more: `* * * * *`, `rm -f p.php d.php` — two
+relative paths, so the HOME directory, which is where this channel's own
+scratch file lands. Something is sweeping scratch files every minute. It only
+removes, so it is not what restores the tile, but it is the same shape:
+appearing and disappearing between readings, and touching exactly the working
+area this channel uses. **Do not delete these; they are not ours.** And do not
+be surprised when a scratch file vanishes mid-diagnosis — that is now a known
+property of the account rather than a mystery to chase.
+
 **What this costs the rules above.** Every publisher in `scripts/publish/`
 verifies its work in the same breath as doing it, and each was right to. None
 of them can see a file that returns a minute later. `differ=0` and a green
