@@ -117,6 +117,29 @@ here, and each one cost a wrong answer first:
   end costs you the result. Within one command, put everything on one line with
   `echo "a=$(…) b=$(…)"` or the diagnosis is half a diagnosis.
 
+- **AND IT IS THE LAST RUN'S OUTPUT, WHICH ON A `* * * * *` JOB IS NOT THE RUN
+  THAT DID THE WORK.** These jobs fire every minute and the panel keeps one
+  answer, so a job that CHANGES something reports its first run for sixty
+  seconds and then overwrites it with a run that finds the work already done.
+  Measured 2026-09-10 by `remove-strays.php`, which moves two files:
+
+  ```
+  14:22 run   moved the zip                    (never read — overwritten)
+  14:23 run   SPORTA-BACKEND.zip=already-gone  (what the panel showed)
+  ```
+
+  I read the second and told the owner the zip had not been there, then found
+  it in the attic with a ctime of 14:22:01 — moved by the run I never saw.
+  **`already-gone` is what a successful run looks like one minute later**, and
+  it is indistinguishable from a path that was always wrong.
+
+  Two ways out, and prefer the first: for anything that WRITES, delete the job
+  as soon as the first output appears, so the run you read is the run that
+  acted. Otherwise make the script report the STATE rather than its own verb —
+  it already checks the destination, so say `inAttic=59388` rather than
+  `already-gone` — because a state reads the same on every run and an event
+  does not.
+
 - **ONE CYCLE, NOT THREE. This is the biggest time saving available here.**
   The habit was: a job to fetch, a job to run, a job to clean up — three
   minutes of waiting for one answer, and the owner noticed before I did. The
@@ -822,6 +845,18 @@ MISSING does nothing on a normal day**, which is why nothing has ever reported
 it. `SPORTA-BACKEND.zip`, moved in the same run, has NOT come back — so this is
 not a backup restoring the docroot wholesale, it is something specific to the
 category art.
+
+**`SPORTA-BACKEND.zip` DID go, and I said it had not.** It is in the attic at
+445,316 bytes with a ctime of 14:22:01 — moved by the run whose output the next
+minute's run overwrote, per the cron entry above. 445 KB of source is out of
+the web root and recoverable by one rename; nothing has put it back.
+
+**The attic is `/home/u130124229/removed-2026-09-10`**, outside `public_html`,
+so nothing serves it. That is the shape to keep: **a removal from a live server
+should be a rename, not an `rm`.** It cost nothing here and it is what made the
+zip recoverable when I had wrongly written it off, and what made "did it come
+back, or did it never go?" answerable at all — the attic copy's timestamps are
+half of the evidence above.
 
 `live-who-writes-tiles.php` names one candidate out of 39 server-side scripts:
 **`api/deploy.php`**, which is itself untracked, carries `copy`,
