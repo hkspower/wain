@@ -59,6 +59,30 @@ if (tracked.length < 50) {
   process.exit(2)
 }
 
+// UNTRACKED FILES ARE INVISIBLE TO `git ls-files`, AND THAT COST A PUBLISH.
+// Measured 2026-09-10: four new files — three pieces of artwork and
+// assets/tile-art.js — were written, this generator was run, and it reported
+// 183 files, exactly the count from before they existed. They were not yet
+// `git add`ed. Every check downstream then agreed the shop was complete:
+// test:file-manifest passed against the short list, and the staged publisher
+// (which trusts this manifest as its only file list) reported
+// `stage2=123/123 complete` and published index.html — a shell REFERENCING a
+// script that had never been sent.
+//
+// Nothing anywhere was wrong except the moment the generator ran. So it refuses
+// now rather than warning: a warning in a run whose last line says "wrote 187
+// files" is a warning nobody reads.
+const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard', 'sporta-site/public_html'],
+  { encoding: 'utf8' }).split('\n').filter(Boolean)
+if (untracked.length) {
+  console.error(`${untracked.length} file(s) under the docroot are not tracked, so git ls-files cannot see them`)
+  for (const f of untracked.slice(0, 12)) console.error(`  ${f}`)
+  if (untracked.length > 12) console.error(`  … and ${untracked.length - 12} more`)
+  console.error('\ngit add them first — a manifest written now would omit them, and every')
+  console.error('check downstream would report the server complete while they were never sent.')
+  process.exit(2)
+}
+
 const rows = []
 for (const path of tracked.sort()) {
   const rel = path.slice(PREFIX.length)
