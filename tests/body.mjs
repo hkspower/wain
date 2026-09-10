@@ -377,6 +377,60 @@ const rivalCase = await page.evaluate(() => {
     rollMax: r.body.rollMax, car: r.def.carId, roadY, handZ, order, tPeak, tHub, tRollMax: t0.body.rollMax,
   };
 });
+// --- ...and it is THEIR car, not a sedan ------------------------------
+//
+// The check above reads rollMax back off the rival's own body and
+// compares the lean to it, so it agrees with whatever the code put
+// there. That is not nothing — it catches the shell and the law drifting
+// apart — but it cannot catch the rival being given the WRONG law, and
+// the rival it measures is Abu Shanab in the Hawally 2T, which is a
+// street sedan. rollMaxFor("sedan", "street") and rollMaxFor() are the
+// same 5.99 degrees, so the one rival on the road is the one car in the
+// roster where a fallback to the default is invisible.
+//
+// Verified by mutation: replacing the rival's
+// rollMaxFor(car.style, car.kit) with a bare rollMaxFor() — every rival
+// in the game leaning like a saloon, the Storm S8 2.6 times softer than
+// it should be — left this file entirely green.
+//
+// So walk the roster. Seven of the eight rivals drive something that is
+// not a street sedan, and their spread is the evidence: a supercar on an
+// attack kit leans 2.26 degrees where the saloon leans 5.99.
+const rivalSpread = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  const proto = Object.getPrototypeOf(e);
+  const seen = [];
+  const was = e.rivalIndex;
+  for (let i = 0; i < 8; i++) {
+    e.rivalIndex = i;
+    proto.spawnRival.call(e);
+    if (!e.rival) continue;
+    seen.push({ car: e.rival.def.carId ?? "?", rollMax: +e.rival.body.rollMax.toFixed(6) });
+  }
+  e.rivalIndex = was;
+  proto.spawnRival.call(e);
+  return seen;
+});
+{
+  const DEGF = (r) => (r * DEG).toFixed(2);
+  const values = rivalSpread.map((r) => r.rollMax);
+  const distinct = new Set(values).size;
+  const soft = Math.max(...values), stiff = Math.min(...values);
+  console.log(
+    `roster    ${rivalSpread.length} rivals, ${distinct} different roll gradients between them  ` +
+      rivalSpread.map((r) => `${r.car}:${DEGF(r.rollMax)}`).join("  ")
+  );
+  console.log(
+    `each own  ${check(distinct > 1,
+      "every rival on the roster leans by the same number — they are being given the default gradient instead of their own car's")}  ` +
+      `softest ${DEGF(soft)} deg, stiffest ${DEGF(stiff)} deg  ` +
+      // A supercar and a saloon must not lean alike. Ratio rather than a
+      // level, so retuning ROLL_DEG_PER_G does not move the bar.
+      check(soft / stiff > 1.8,
+        `the softest rival leans only ${(soft / stiff).toFixed(2)}x the stiffest — the roster has lost its spread`)
+  );
+}
+
 if (!rivalCase) fail.push("no rival to measure");
 else {
   const c = rivalCase;
