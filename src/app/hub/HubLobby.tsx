@@ -456,8 +456,11 @@ export default function HubLobby() {
                 <button onClick={join} className="grn-btn mt-3 w-full py-2 text-sm">
                   Try again
                 </button>
+                {/* 11px is already at this project's legibility floor;
+                    white/40 on top of it put the one line that tells you
+                    how to fix a failed connection under 4:1. */}
                 {LOCAL_HUB && (
-                  <p className="mt-3 text-[11px] leading-4 text-white/40">
+                  <p className="mt-3 text-[11px] leading-4 text-white/62">
                     Running it locally? Start the hub with{" "}
                     <code className="rounded bg-black/40 px-1">npm run hub</code>.
                   </p>

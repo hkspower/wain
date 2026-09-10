@@ -263,11 +263,30 @@ const COLLECT = `(() => {
       return parts.join(" > ");
     })();
 
+    // FLUID vs STATIC — two type systems, and only one of them has a
+    // scale.
+    //
+    // The HUD's instruments size their own type from the gauge: the
+    // gear reads fontSize: size * 0.125, the rev counter's unit is
+    // fontSize 7 inside a 100-unit viewBox. Those are PROPORTIONS of a
+    // dial, and they must scale with the dial — a tachometer whose
+    // legend snapped to a 16px UI step would have the legend grow
+    // relative to the face every time the face shrank.
+    //
+    // Measured against the static scale they land on arbitrary values
+    // (14.82px, 25px) and look exactly like somebody hand-typing sizes,
+    // which is the one thing the STEPS check below is for. So they are
+    // marked here and counted separately. An inline font-size or an SVG
+    // text node is the whole of the rule, because those are the only
+    // two ways this project sets type from a measurement.
+    const fluid = !!(el.style && el.style.fontSize) || el.ownerSVGElement != null ||
+      el.tagName.toLowerCase() === "text";
     rows.push({
       text: raw.trim().slice(0, 34),
       fg: hex(fg),
       bg: hex(bg),
       path,
+      fluid,
       px: +px.toFixed(2),
       weight,
       lh: +lh.toFixed(2),
@@ -355,9 +374,14 @@ const browser = await chromium.launch({
 await selfTest(browser);
 if (process.argv.includes("--self-test")) { await browser.close(); process.exit(0); }
 
+// Screens the walk could not get to. A screen that times out reports one
+// line and then leaves no trace in any of the four findings, so the
+// summary below reads exactly like a clean sweep of everything — see the
+// note by the count.
+const unreached = [];
 for (const size of SIZES) {
   for (const s of screens) {
-    const page = await browser.newPage({ viewport: { width: size.w, height: size.h } });
+    let page = await browser.newPage({ viewport: { width: size.w, height: size.h } });
     page.setDefaultTimeout(240000);
     page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
     await page.goto("http://localhost:3000/race", { waitUntil: "domcontentloaded" });
@@ -369,13 +393,43 @@ for (const size of SIZES) {
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForSelector("text=START ENGINE", { timeout: 120000 });
     await page.evaluate(() => document.fonts.ready);
-    try {
-      await s.go(page);
-    } catch (e) {
-      console.log(`${size.name} / ${s.name}: could not reach it — ${e.message.split("\n")[0]}`);
-      await page.close();
-      continue;
+    // One retry, on a fresh page.
+    //
+    // The race HUD boots a WebGL scene, and on the software rasteriser
+    // this runs on that is minutes of solid CPU. Measured alone it is up
+    // in ten seconds; measured while another browser is grinding through
+    // a render sweep it can miss a four-minute deadline. A screen that
+    // drops out of the walk for that reason takes its whole type census
+    // with it and turns four clean findings into four unknowns, so it is
+    // worth one more attempt before believing it.
+    let reached = false;
+    for (let attempt = 0; attempt < 2 && !reached; attempt++) {
+      try {
+        await s.go(page);
+        reached = true;
+      } catch (e) {
+        if (attempt === 0) {
+          console.log(`${size.name} / ${s.name}: timed out, retrying once`);
+          await page.close();
+          page = await browser.newPage({ viewport: { width: size.w, height: size.h } });
+          page.setDefaultTimeout(240000);
+          page.on("pageerror", (err) => console.log("PAGEERROR:", err.message));
+          await page.goto("http://localhost:3000/race", { waitUntil: "domcontentloaded" });
+          await page.evaluate(() => {
+            localStorage.clear();
+            localStorage.setItem("gulf-road-nights-onboarded", "2");
+            localStorage.setItem("gulf-road-nights-coach", "3");
+          });
+          await page.reload({ waitUntil: "domcontentloaded" });
+          await page.waitForSelector("text=START ENGINE", { timeout: 120000 });
+          await page.evaluate(() => document.fonts.ready);
+          continue;
+        }
+        console.log(`${size.name} / ${s.name}: could not reach it — ${e.message.split("\n")[0]}`);
+        unreached.push(`${size.name} / ${s.name}`);
+      }
     }
+    if (!reached) { await page.close(); continue; }
     await page.evaluate(() => document.fonts.ready);
     const rows = await page.evaluate(COLLECT);
     for (const r of rows) all.push({ ...r, screen: s.name, size: size.name });
@@ -388,18 +442,125 @@ if (!all.length) { console.error("no text was measured — the walk found nothin
 
 // ---- the scale ----------------------------------------------------
 const byPx = new Map();
-for (const r of all) byPx.set(r.px, (byPx.get(r.px) || 0) + 1);
+const staticRuns = all.filter((r) => !r.fluid);
+const fluidRuns = all.filter((r) => r.fluid);
+for (const r of staticRuns) byPx.set(r.px, (byPx.get(r.px) || 0) + 1);
 const scale = [...byPx.entries()].sort((a, b) => a[0] - b[0]);
-console.log(`\n${all.length} runs of text across ${SIZES.length * screens.length} screen/size combinations\n`);
-console.log("THE SCALE — every distinct rendered size");
-let line = "";
+// COUNT WHAT WAS WALKED, NOT WHAT WAS PLANNED.
+//
+// This said `SIZES.length * screens.length` — the number of screens the
+// tool INTENDED to visit — and printed it whether or not it got to any of
+// them. The race HUD timed out at both sizes and this line still claimed
+// six combinations, above a report of 0 tiny, 0 tracked and 0 crammed.
+// Every one of those zeroes was true of the four screens it reached and
+// unknown of the two it did not, and nothing in the output said which.
+//
+// The HUD is the screen with the most type on it and the only one a
+// player reads at speed, so "could not reach it" is the most serious
+// thing this tool can say, not a note in passing. It is a failure now.
+const planned = SIZES.length * screens.length;
+const walked = planned - unreached.length;
+console.log(
+  `\n${all.length} runs of text across ${walked} of ${planned} screen/size combinations` +
+    (unreached.length ? ` — NOT MEASURED: ${unreached.join(", ")}` : "") +
+    `\n`
+);
+// THE SCALE, CLUSTERED — because 41 was never 41 decisions.
+//
+// This used to print every distinct FLOAT it measured and call the count
+// "distinct sizes". It read 41, which sounds like an interface with no
+// scale at all. It is not: 11.14 / 11.19 / 11.2 / 11.46 / 11.51 / 11.52
+// are one authored size seen through rem rounding, a 0.96 panel scale
+// and two viewport widths. Counting them separately turns rounding noise
+// into a design finding, and buries the real one underneath it.
+//
+// Grouped at 4%, the same measurements are eleven sizes. THAT is the
+// scale, and it is where the actual fault lives: two steps in it are
+// too small to be steps.
+const CLUSTER = 1.04;
+/** A step below this ratio is not a step — see the note under STEPS. */
+const MIN_STEP = 1.08;
+const clusters = [];
 for (const [px, n] of scale) {
-  const cell = `${px}px x${n}`.padEnd(14);
-  line += cell;
-  if (line.length >= 84) { console.log("  " + line); line = ""; }
+  const last = clusters[clusters.length - 1];
+  // Anchored on the cluster's FIRST value, not its last.
+  //
+  // Chaining on the running maximum lets a cluster walk: 11.18 admits
+  // 11.46, which admits 11.9, which admits 12.16, and a group whose
+  // members are each within 4% of a neighbour spans 8.8% end to end. It
+  // swallowed a genuine step — 11.5 and 12 are different sizes — and
+  // whether it did so depended on whether the intermediate values
+  // happened to be on screen that run. One walk reported eleven values
+  // in that cluster and no step; the next, with one screen missing,
+  // reported two clusters and a step. Same interface, same stylesheet,
+  // opposite findings.
+  if (last && px <= last.lo * CLUSTER) {
+    last.hi = px;
+    last.n += n;
+    last.values.push(px);
+  } else {
+    clusters.push({ lo: px, hi: px, n, values: [px] });
+  }
 }
-if (line) console.log("  " + line);
-console.log(`  ${scale.length} distinct sizes; ${scale.filter(([p]) => p < MIN_PX).length} of them below ${MIN_PX}px`);
+// The size a cluster IS: the value most of its runs are actually set at,
+// not the midpoint of a range that only exists because of rounding.
+for (const c of clusters) {
+  let best = null;
+  for (const v of c.values) {
+    const n = byPx.get(v) || 0;
+    if (!best || n > best.n) best = { px: v, n };
+  }
+  c.px = best.px;
+}
+console.log("THE SCALE — static type, grouped at 4% (rounding is not a decision)");
+for (const c of clusters) {
+  const spread = c.values.length > 1 ? ` (${c.lo}–${c.hi}, ${c.values.length} values)` : "";
+  console.log(`  ${String(c.px).padStart(6)}px  ${String(c.n).padStart(3)} runs${spread}`);
+}
+console.log(
+  `  ${clusters.length} sizes from ${scale.length} measured values; ` +
+    `${scale.filter(([p]) => p < MIN_PX).length} below ${MIN_PX}px`
+);
+
+// The instrument type, listed rather than scored. It has no scale to be
+// off, but it should not be invisible either — a gauge legend that has
+// drifted to a tenth of its dial is still worth being able to see.
+if (fluidRuns.length) {
+  const fl = new Map();
+  for (const r of fluidRuns) fl.set(r.px, (fl.get(r.px) || 0) + 1);
+  console.log(
+    `  fluid (sized from an instrument, not from the scale): ` +
+      [...fl.entries()].sort((a, b) => a[0] - b[0]).map(([px, n]) => `${px}px x${n}`).join("  ")
+  );
+}
+
+// ---- STEPS: sizes too close together to be different ----------------
+//
+// A type scale works because its steps are big enough to SEE. Two sizes
+// 4% apart are not a large and a small — they are one size that two
+// people set slightly differently, and every screen carrying both looks
+// subtly misaligned without anything being identifiably wrong. This is
+// the fault the raw list of 41 floats was hiding.
+const steps = [];
+for (let i = 1; i < clusters.length; i++) {
+  const ratio = clusters[i].px / clusters[i - 1].px;
+  if (ratio < MIN_STEP) steps.push({ a: clusters[i - 1], b: clusters[i], ratio });
+}
+console.log("");
+console.log(`STEPS — sizes closer than ${Math.round((MIN_STEP - 1) * 100)}% apart: ${steps.length}`);
+for (const st of steps) {
+  console.log(
+    `    ${st.a.px}px and ${st.b.px}px are ${((st.ratio - 1) * 100).toFixed(1)}% apart` +
+      `  (${st.a.n} and ${st.b.n} runs)`
+  );
+  // Name them, or there is no way to act on the finding.
+  for (const c of [st.a, st.b]) {
+    const ex = staticRuns.filter((r) => c.values.includes(r.px)).slice(0, 3);
+    for (const r of ex) {
+      console.log(`      ${String(c.px).padStart(6)}px  ${r.screen.padEnd(7)} ${JSON.stringify(r.text.slice(0, 34))}  ${r.path ?? ""}`.slice(0, 190));
+    }
+  }
+}
 
 // ---- the faults ---------------------------------------------------
 const fault = (k) => all.filter((r) => r[k]);
@@ -434,16 +595,28 @@ show("CRAMMED — wrapped text set tighter than " + CRAMP, crammed,
 
 mkdirSync("press/type", { recursive: true });
 writeFileSync("press/type/type.json", JSON.stringify({
-  scale: scale.map(([px, n]) => ({ px, n })),
+  measured: scale.map(([px, n]) => ({ px, n })),
+  scale: clusters.map((c) => ({ px: c.px, n: c.n, values: c.values })),
+  steps: steps.map((s) => ({ a: s.a.px, b: s.b.px, ratio: +s.ratio.toFixed(3) })),
+  unreached,
   tiny, faint, tracked, crammed,
 }, null, 2));
 
 const fails = [];
+// An unreachable screen is a failure, not a footnote. Nothing else in
+// this report distinguishes "no bad type here" from "never looked".
+if (unreached.length)
+  fails.push(`${unreached.length} screen/size combination(s) never measured: ${unreached.join(", ")}`);
+if (steps.length)
+  fails.push(
+    `${steps.length} pair(s) of sizes closer than ${Math.round((MIN_STEP - 1) * 100)}% — ` +
+      steps.map((s) => `${s.a.px}/${s.b.px}`).join(", ")
+  );
 if (tiny.length) fails.push(`${tiny.length} runs of text below ${MIN_PX}px`);
 if (faint.length) fails.push(`${faint.length} runs under the contrast floor`);
 if (tracked.length) fails.push(`${tracked.length} runs of Arabic with letter-spacing on them`);
 if (crammed.length) fails.push(`${crammed.length} wrapped runs set tighter than ${CRAMP}`);
 console.log("");
-console.log(fails.length ? `FAILURES:\n - ${fails.join("\n - ")}` : "every run of text is legible, contrasty and set on a scale");
+console.log(fails.length ? `FAILURES:\n - ${fails.join("\n - ")}` : "every screen was walked, and every run of text is legible, contrasty and set on a scale");
 console.log("\npress/type/type.json");
 process.exit(fails.length ? 1 : 0);

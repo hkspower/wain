@@ -3056,7 +3056,16 @@ function raceCut(): { w: number; h: number } | null {
                     {String(kwNow.getHours()).padStart(2, "0")}:
                     {String(kwNow.getMinutes()).padStart(2, "0")}
                   </span>
-                  <span className="text-white/40">Kuwait</span>
+                  {/* 62%, not 40%. This says WHICH clock the time beside
+                      it is on — Kuwait's, never the browser's — which is
+                      the whole reason the pill exists, and at white/40
+                      over this pill's bg-black/30 it composited to
+                      #666 on black: 3.66:1, under the 4.5:1 floor.
+                      Dropping the override lets it take .grn-label's own
+                      62%, which keeps it quieter than the 85% time next
+                      to it — the hierarchy was right, the bottom of it
+                      was just below the legibility floor. */}
+                  <span>Kuwait</span>
                   {racingOpenNow() ? (
                     <span className="text-emerald-300">racing open · till 05:50</span>
                   ) : (
@@ -3123,8 +3132,17 @@ function raceCut(): { w: number; h: number } | null {
                       screen. The number is the same one their car
                       actually wears on its doors, so the card and the
                       machine you are about to meet agree. */}
+                  {/* text-lg, not text-[1.05rem]. 1.05rem renders at
+                      16.8px, which is 5% from the text-base beside it and
+                      7% from text-lg — close enough to either that it
+                      reads as one of them set slightly wrong rather than
+                      as a size of its own. It was the only hand-typed
+                      size left in the static scale, and check:type fails
+                      on steps under 8% now so it cannot come back. 18px
+                      of condensed display in a 44px plate is also the
+                      proportion a real racing number is painted at. */}
                   <span
-                    className="grn-display tnum relative grid size-11 shrink-0 place-items-center rounded-lg border border-white/20 text-[1.05rem] leading-none"
+                    className="grn-display tnum relative grid size-11 shrink-0 place-items-center rounded-lg border border-white/20 text-lg leading-none"
                     style={plate(RIVALS[beaten].bodyColor)}
                     aria-hidden
                   >
@@ -3885,7 +3903,10 @@ function raceCut(): { w: number; h: number } | null {
                   </div>
                 ))}
               </div>
-              <div className="mt-1 text-[0.7rem] text-white/40">
+              {/* white/62: this line names the pad the glyphs above it
+                  are drawn for, so a player comparing them has to be
+                  able to read it. Same 3.66:1 as the clock pill. */}
+              <div className="mt-1 text-[0.7rem] text-white/62">
                 {pad ? (pad === "playstation" ? "PlayStation layout" : pad === "xbox" ? "Xbox layout" : "Generic pad") : "Plug in a pad to see its own buttons"}
               </div>
             </div>

@@ -452,7 +452,11 @@ function Stat({ n, label, small }: { n: string; label: string; small?: boolean }
 function Row({ k, v }: { k: string; v: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-white/40">{k}</dt>
+      {/* The term half of a spec row. It was white/40 against a white/80
+          value: the number was legible and the word saying what the
+          number MEANS was not. 62% keeps the value dominant without
+          putting the label under the floor. */}
+      <dt className="text-white/62">{k}</dt>
       <dd className="text-white/80">{v}</dd>
     </div>
   );
