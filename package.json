@@ -63,6 +63,7 @@
     "test:image-drop": "node scripts/image-drop-test.mjs",
     "test:one-mode": "node scripts/one-mode-test.mjs",
     "test:no-filters": "node scripts/no-filters-test.mjs",
+    "test:tile-art": "node scripts/tile-art-test.mjs",
     "test:brand-token": "node scripts/brand-token-test.mjs",
     "test:brand-logos": "node scripts/brand-logos-test.mjs",
     "test:brand-logos-site": "node scripts/brand-logos-site-test.mjs",

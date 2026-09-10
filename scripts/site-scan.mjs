@@ -170,7 +170,21 @@ for (const route of PAGES) {
   const errors = []
   const dead = []
   p.removeAllListeners('console'); p.removeAllListeners('pageerror'); p.removeAllListeners('response')
-  p.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
+  // A 404 writes a console error too, and four of them are deliberate — see
+  // the tile note below. Filtering here rather than at the assertion keeps the
+  // "no console errors" check meaning what it says: a REAL error.
+  const TILE_NOISE = /cats\/(mobile|desktop)\/(men|women|accessories|outlet)\.(jpe?g|webp)/
+  p.on('console', (m) => {
+    if (m.type() !== 'error') return
+    const text = m.text()
+    if (TILE_NOISE.test(text)) return
+    // Chromium reports a failed subresource without naming it in the message,
+    // so the name has to come from the request that failed. Anything that is
+    // only "status of 404" while every 404 on the page is an expected tile
+    // probe is that same event seen from the console side.
+    if (/status of 404/.test(text) && dead.every((d) => TILE_NOISE.test(d))) return
+    errors.push(text)
+  })
   p.on('pageerror', (e) => errors.push(String(e)))
   p.on('response', (r) => r.status() >= 400 && dead.push(`${r.url().replace(BASE, '')} (${r.status()})`))
 
@@ -199,7 +213,21 @@ for (const route of PAGES) {
   check(seen.text > 100, `${label} renders (${seen.text} chars)`)
   check(seen.over <= 1, `${label} does not scroll sideways (${seen.over}px)`)
   check(errors.length === 0, `${label} no console errors${errors.length ? ` — ${errors[0].slice(0, 80)}` : ''}`)
-  check(dead.length === 0, `${label} nothing 404s${dead.length ? ` — ${dead.slice(0, 2).join(', ')}` : ''}`)
+  // FOUR OF THESE ARE DELIBERATE. The category tiles ask for
+  // /cats/<crop>/<id>.jpg first and fall to a second <picture> when it errors;
+  // the second is the one with the webp sources and the Arabic composition, so
+  // the 404 is how the component finds its better path. A rewrite used to hide
+  // them and cost 82 kB a load plus the Arabic frame — see public_html/.htaccess.
+  // Anything ELSE that 404s is still a fault, which is why this filters rather
+  // than being switched off.
+  // The entries carry a ` (404)` suffix, so this matches the PATH inside the
+  // string rather than anchoring at the end — the first version anchored with
+  // `$` and matched nothing, which reported the shop's correct behaviour as a
+  // fault and would have gone on doing so.
+  const TILE_404 = /\/cats\/(mobile|desktop)\/(men|women|accessories|outlet)\.(jpe?g|webp)\b/
+  const unexpected = dead.filter((d) => !TILE_404.test(d))
+  check(unexpected.length === 0,
+    `${label} nothing 404s that should not${unexpected.length ? ` — ${unexpected.slice(0, 2).join(', ')}` : ''}`)
   check(seen.imgs.length === 0, `${label} every image loads${seen.imgs.length ? ` — ${seen.imgs[0].replace(BASE, '')}` : ''}`)
   warn(seen.title.length > 0, `${label} has a title (${seen.title.slice(0, 40) || 'empty'})`)
   warn(seen.lang === 'ar' && seen.dir === 'rtl', `${label} is Arabic right-to-left (lang=${seen.lang} dir=${seen.dir})`)

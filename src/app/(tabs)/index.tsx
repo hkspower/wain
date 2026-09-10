@@ -49,7 +49,7 @@ export default function HomeScreen() {
                 onPress={() => router.push('/shop')}
                 style={press()}>
                 <RemoteArt
-                  uri={categoryArt(cat.id)}
+                  uri={categoryArt(cat.id, dir)}
                   bundled={bundledCategoryArt(cat.id, dir)}
                   ground={cat.color}
                   emoji={cat.emoji}

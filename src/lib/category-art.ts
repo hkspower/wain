@@ -47,6 +47,16 @@ const ART: Record<CategoryId, Art> = {
   outlet: { ltr: require('@/assets/cats/art-outlet.jpg') },
 };
 
+/** Whether this category HAS an Arabic composition at all.
+ *
+ *  Exported so lib/assets.ts can ask before requesting one from the server.
+ *  The two live in different files and the answer must not: a hard-coded list
+ *  over there would drift from this map the first time a category gains or
+ *  loses an -rtl frame, and the symptom would be a 404 on every home page load
+ *  or — worse — an English frame on an Arabic phone with nothing reporting it.
+ */
+export const hasRtlArt = (id: CategoryId): boolean => !!ART[id]?.rtl;
+
 /** The bundled frame for a category, in the direction being read. */
 export const bundledCategoryArt = (id: CategoryId, dir: 'rtl' | 'ltr'): number | undefined => {
   const art = ART[id];

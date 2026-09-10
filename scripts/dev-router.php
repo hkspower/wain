@@ -26,18 +26,16 @@ declare(strict_types=1);
 
 $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
 
-// The category-tile name bridge — same pattern, same guard (!-f), same target
-// as the RewriteRule in public_html/.htaccess. Change them together.
-if (preg_match('#^/cats/(mobile|desktop)/(men|women|accessories|outlet)(-rtl)?\.(jpe?g|webp)$#', $uri, $m)
-    && !is_file($_SERVER['DOCUMENT_ROOT'] . $uri)) {
-    $bridged = "/cats/{$m[1]}/art-{$m[2]}{$m[3]}.{$m[4]}";
-    $file = $_SERVER['DOCUMENT_ROOT'] . $bridged;
-    if (is_file($file)) {
-        header('Content-Type: ' . ($m[4] === 'webp' ? 'image/webp' : 'image/jpeg'));
-        readfile($file);
-        exit;
-    }
-}
+// THE CATEGORY-TILE NAME BRIDGE WAS HERE AND IS GONE, with the matching
+// RewriteRule in public_html/.htaccess — see the long note there for why.
+// Short version: bridging /cats/<crop>/<id>.jpg onto art-<id>.jpg made the
+// tile component's FIRST <picture> succeed, so its second one never rendered —
+// and the second is the one carrying the webp sources and the `-rtl` Arabic
+// composition. Four cheap 404s buy both back.
+//
+// Removing it here as well is not tidiness: this router is what the sandbox
+// serves, php -S never reads .htaccess, and a measurement taken with only one
+// of the two changed measures nothing at all.
 
 // The flat pages, which are NOT routes in the built app.
 //   .htaccess: RewriteCond %{DOCUMENT_ROOT}/card.html -f

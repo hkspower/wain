@@ -108,15 +108,26 @@ for pair in "/pay/pay.php|T-Pay" "/knet/pay.php|KNET"; do
 done
 
 # --- the pictures the home page asks for ---------------------------------
-# The package we hold requests /cats/mobile/<id>.jpg while shipping
-# art-<id>.jpg. If these 404 on the live site, the four category tiles on the
-# busiest page are blank.
+# THE PLAIN NAME IS SUPPOSED TO 404 NOW, and this check had it backwards.
+#
+# The tile component asks for /cats/<crop>/<id>.jpg first and falls to a
+# SECOND <picture> when that errors — and the second is the one carrying the
+# webp sources and the `-rtl` Arabic composition. A rewrite used to bridge the
+# first name onto art-<id>.jpg; it removed these 404s and, with them, webp and
+# the Arabic frame. It is gone (see public_html/.htaccess), so what this must
+# assert is that art-<id> is there, not that <id> is.
 for id in men women accessories outlet; do
-  c=$(code "$BASE/cats/mobile/$id.jpg")
   a=$(code "$BASE/cats/mobile/art-$id.jpg")
-  if [ "$c" = "200" ]; then ok "/cats/mobile/$id.jpg is there (200)"
-  elif [ "$a" = "200" ]; then bad "/cats/mobile/$id.jpg is $c — but art-$id.jpg is 200 (the site asks for the wrong name)"
-  else bad "/cats/mobile/$id.jpg is $c and art-$id.jpg is $a (neither is there)"; fi
+  w=$(code "$BASE/cats/mobile/art-$id.webp")
+  if [ "$a" = "200" ] && [ "$w" = "200" ]; then ok "/cats/mobile/art-$id: jpg and webp are both there"
+  elif [ "$a" = "200" ]; then bad "/cats/mobile/art-$id.webp is $w — the tile falls back to the heavier jpeg"
+  else bad "/cats/mobile/art-$id.jpg is $a (the tile has nothing to show)"; fi
+done
+# And the Arabic composition, which only the fallback path ever asks for.
+for id in men; do
+  r=$(code "$BASE/cats/mobile/art-$id-rtl.webp")
+  if [ "$r" = "200" ]; then ok "/cats/mobile/art-$id-rtl.webp is there — Arabic gets its own frame"
+  else bad "/cats/mobile/art-$id-rtl.webp is $r — Arabic falls back to the English composition"; fi
 done
 
 # --- what a crawler reads ------------------------------------------------

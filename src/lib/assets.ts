@@ -5,12 +5,14 @@
  * of the paths under it.
  */
 
+import { hasRtlArt } from '@/lib/category-art';
+import type { CategoryId } from '@/lib/catalog';
 import { ASSET_BASE } from '@/lib/config';
 
 export { ASSET_BASE };
 
 /**
- * Category artwork.
+ * Category artwork, in the direction being read.
  *
  * /cats/mobile/, not /cats/. The shop keeps two crops of every tile — a tall
  * one for phones and a wide one for desktop — and the bare /cats/art-men.jpg
@@ -18,8 +20,26 @@ export { ASSET_BASE };
  * page load since the app was written, silently: RemoteArt paints the bundled
  * photograph underneath, so the only symptom was that uploading a new tile to
  * the shop never changed anything in the app.
+ *
+ * THE DIRECTION ARGUMENT IS THE SECOND HALF OF THAT BUG, and it was worse.
+ * This used to ask for art-<id>.jpg whatever the language, and RemoteArt paints
+ * the remote layer ON TOP of the bundled one — so on an Arabic phone with a
+ * network, the English frame covered the Arabic frame the app ships. That is
+ * precisely the fault category-art.ts records measuring: "with the English
+ * frame in Arabic, the copy landed on the runner herself". The app carried the
+ * right picture and then hid it behind the wrong one, everywhere except
+ * offline.
+ *
+ * hasRtlArt() rather than a list here: only men and women have an Arabic
+ * composition — a flat-lay and a wall of shelves have no subject standing on
+ * one side — and asking the server for art-outlet-rtl.jpg would be a 404 on
+ * every load. The answer comes from the same map that owns the bundled frames,
+ * so the two cannot disagree.
  */
-export const categoryArt = (id: string) => `${ASSET_BASE}/cats/mobile/art-${id}.jpg`;
+export const categoryArt = (id: string, dir: 'rtl' | 'ltr' = 'ltr') => {
+  const rtl = dir === 'rtl' && hasRtlArt(id as CategoryId);
+  return `${ASSET_BASE}/cats/mobile/art-${id}${rtl ? '-rtl' : ''}.jpg`;
+};
 
 /**
  * Product photography, as the shop reports it.

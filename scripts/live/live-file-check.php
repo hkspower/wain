@@ -26,7 +26,7 @@ $ROOT = '/home/u130124229/domains/sporta.com.kw/public_html';
 
 // path => sha256 in the repository.
 $WANT = [
-    '.htaccess' => 'f782e39d61cd6968492cbf324a2792aac3d2af7823c0606c7c799487bc2f8505',
+    '.htaccess' => 'f09e1308cffc48b9e1d1deacabc9e06a8c950e81246e75424aaf354869d376a6',
     'api/.htaccess' => '574ff6d3712c69ad6a119652dd976afbad0e065cec35c198ceed85bfc72c3be2',
     'api/accounting.mysql.sql' => '865458325a463d3127bbb45cb1a3d5c0c9a603c7656cdde85c280ffb7f8ed716',
     'api/accounting.php' => '0e508c851de94808626164518d8394e6c65508ec2733efd16be7a278b2825963',
@@ -143,6 +143,7 @@ $WANT = [
     'cats/mobile/art-men.webp' => '4f097dd443fc8cbb24e4d6909e8e0ab8fec01f2ec2f8ec35b3e9be094404cdc3',
     'cats/mobile/art-outlet.jpg' => '451a9315fcf5aa0d2fa6f49f6511980776c31c78862a1da621e8fc7d4f1af219',
     'cats/mobile/art-outlet.webp' => '389d0ee80b953f2e49fdef0f91c80e3e6a238e316b4833be097b9c1d8036195b',
+    'cats/mobile/art-women-rtl.jpg' => '5f6d6a54ee334c137164d8243b4902470918290a84d87ae4033553e891df094f',
     'cats/mobile/art-women.jpg' => '17ea92c07c35388232b7cb0bcfe5c273d90797694c937b4ce576b1d2ffb37f14',
     'cats/mobile/art-women.webp' => '39f47a5bf0c652e5e8cdedc9386e74ffab3042dfc9241124f36b2cb105a6927b',
     'cats/mobile/infobar.jpg' => '3f737a054397e2946c175444e14c76c7eb2356dc81be7cd504afa05fb9494a16',

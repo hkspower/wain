@@ -103,20 +103,36 @@ Options -Indexes
   RewriteCond %{REQUEST_URI} ^/index\.php$
   RewriteRule ^ https://www.sporta.com.kw/ [R=301,L]
 
-  # ---- The category tiles ask for a name the folder does not carry ----
+  # ---- THE CATEGORY-TILE NAME BRIDGE IS GONE, and removing it is the fix ----
   #
-  # The built storefront requests /cats/{mobile,desktop}/<id>.jpg|webp; the
-  # files on disk are art-<id>.jpg|webp. Found by scripts/site-scan.sh: four
-  # 404s on the home page, one per tile, on every load. The site is built
-  # JS whose source is lost, so the server bridges the name instead — an
-  # INTERNAL rewrite (no [R]): the browser keeps the URL it asked for and
-  # the immutable cache header stays attached to it.
+  # What was here: an internal rewrite from /cats/<crop>/<id>.jpg to
+  # /cats/<crop>/art-<id>.jpg, added because site-scan.sh found four 404s on
+  # the home page, one per tile, on every load. It removed the 404s. It also
+  # removed two things nobody measured.
   #
-  # Guarded on !-f so that uploading a file under the plain name simply wins,
-  # and anchored to the four ids so this cannot rename anything else — the
-  # infobar, for one, is asked for by its real name and must stay untouched.
-  RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI} !-f
-  RewriteRule ^cats/(mobile|desktop)/(men|women|accessories|outlet)(-rtl)?\.(jpe?g|webp)$ /cats/$1/art-$2$3.$4 [L]
+  # The tile component renders TWO <picture> blocks. The first asks for the
+  # plain name and carries a single jpeg. Only when that ERRORS does it fall to
+  # the second — and the second is the good one: it carries webp sources, and it
+  # carries the `-rtl` suffix that selects the ARABIC COMPOSITION. So bridging
+  # the first request to a real file meant the second never rendered:
+  #
+  #   with the bridge      art-men.jpg  63 kB   English frame in Arabic
+  #   without it           art-men-rtl.webp 40 kB   Arabic frame
+  #
+  # Measured on the home page, both languages, 2026-09-09. Across the four
+  # desktop tiles it is 285 kB of jpeg against 203 kB of webp — 82 kB a load —
+  # and on the phone crops 212 kB against 145 kB. The Arabic men tile had been
+  # showing the English composition since the bridge went in, which is the fault
+  # scripts/make-rtl-art.mjs and the shipped art-men-rtl files exist to prevent.
+  #
+  # THE FOUR 404s ARE THE PRICE AND THEY ARE DELIBERATE. They are 552 bytes
+  # each, they are how the component discovers it must use its better path, and
+  # site-scan.sh and site-scan.mjs are told to expect them rather than being
+  # left to report the shop's correct behaviour as a fault.
+  #
+  # scripts/dev-router.php carried the same bridge and lost it in the same
+  # commit — the sandbox is php -S, which never reads this file, so a
+  # measurement taken there with only .htaccess changed measures nothing.
 
   # /shop/ -> /shop . Canonicals and internal links never use a trailing slash;
   # this stops the slashed spelling becoming a second indexable URL.
