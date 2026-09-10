@@ -49,10 +49,14 @@ let problems = 0;
 
 /* ── the edges ─────────────────────────────────────────────────────────────
    Selectors that pin something to a screen edge and legitimately need no
-   inset of their own, with the reason. Everything else must carry one. */
-const NO_INSET_NEEDED = {
-  ".wain-ai-panel": "anchored above the launcher, which carries the inset for both",
-};
+   inset of their own, with the reason. Everything else must carry one.
+
+   Empty on purpose. `.wain-ai-panel` sat here, exempt because it was anchored
+   above شوق's floating launcher and the launcher carried the inset for both.
+   The launcher moved into the /search query box and the panel now carries its
+   own, so the exemption was granting something already earned — and stating a
+   reason that had stopped being true, which is worse than granting it. */
+const NO_INSET_NEEDED = {};
 
 /**
  * Tailwind's positional utilities are named after their value — `.bottom-0`,

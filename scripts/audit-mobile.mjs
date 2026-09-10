@@ -174,13 +174,16 @@ for (const vp of WIDTHS) {
         if (hiddenUntilFocused(el)) { out.hidden++; continue; }
         const r = el.getBoundingClientRect();
         const inMap = el.closest("[data-map-frame]") !== null;
-        // A fixed control floats over the page by definition — شوق's launcher
+        // A fixed control floats over the page by definition — the call sheet
         // is *meant* to sit above whatever is scrolled under it. Measuring its
         // distance to whatever happens to be beneath it at scroll zero is
-        // measuring the scroll position, not the design. What matters is that
-        // the page ends with room to clear it, which is the body padding.
-        const floating = getComputedStyle(el).position === "fixed" ||
-          el.closest(".wain-ai-fab") !== null;
+        // measuring the scroll position, not the design.
+        //
+        // This used to also match `.wain-ai-fab`, شوق's floating launcher.
+        // That launcher became `ShouqCallButton` inside the /search query box,
+        // where it scrolls with the page and is crowd-checked like any other
+        // control, so the clause matched nothing and only implied otherwise.
+        const floating = getComputedStyle(el).position === "fixed";
         boxes.push({ r, el, inMap, floating });
         if (inMap) continue;
         if (r.width < 44 || r.height < 44) {
