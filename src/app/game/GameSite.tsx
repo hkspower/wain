@@ -102,7 +102,7 @@ export default function GameSite({
 
         <div className="mx-auto max-w-6xl px-4 pb-20 pt-14 sm:px-6 sm:pb-28 sm:pt-20">
           <div className="flex items-center justify-between gap-4">
-            <span className="grn-label rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[0.7rem] text-white/70">
+            <span className="grn-label rounded-full border border-white/15 bg-white/5 px-3 py-1 text-2xs text-white/70">
               🇰🇼 {t({ en: "Kuwait, after midnight", ar: "الكويت، بعد منتصف الليل" })}
             </span>
             <LangSwitch lang={lang} onChange={choose} />
@@ -212,7 +212,7 @@ export default function GameSite({
           <SectionHead title={t(ROAD.heading)} />
           <p className="max-w-3xl leading-7 text-white/70">{t(ROAD.body)}</p>
 
-          <h3 className="grn-label mt-9 text-[0.72rem] text-white/50">
+          <h3 className="grn-label mt-9 text-2xs text-white/50">
             {t(ROAD.roadsLabel)}
           </h3>
           <div className="mt-3 flex flex-wrap gap-3">
@@ -226,7 +226,7 @@ export default function GameSite({
             ))}
           </div>
 
-          <h3 className="grn-label mt-8 text-[0.72rem] text-white/50">
+          <h3 className="grn-label mt-8 text-2xs text-white/50">
             {t(ROAD.districtsLabel)}
           </h3>
           <ol className="mt-3 flex flex-wrap gap-2">
@@ -267,7 +267,7 @@ export default function GameSite({
                   <h3 className="font-bold" dir="ltr">{c.name}</h3>
                   <span className="grn-ar text-sm text-white/70" lang="ar">{c.ar}</span>
                 </div>
-                <p className="grn-label mt-1 text-[0.68rem] text-white/45">
+                <p className="grn-label mt-1 text-2xs text-white/45">
                   {t(FLEET.classes[c.cls] ?? { en: c.cls, ar: c.cls })}
                 </p>
                 <dl className="mt-3 space-y-1 text-sm text-white/65">
@@ -444,7 +444,7 @@ function Stat({ n, label, small }: { n: string; label: string; small?: boolean }
       >
         {n}
       </dt>
-      <dd className="grn-label mt-0.5 text-[0.68rem] text-white/45">{label}</dd>
+      <dd className="grn-label mt-0.5 text-2xs text-white/45">{label}</dd>
     </div>
   );
 }

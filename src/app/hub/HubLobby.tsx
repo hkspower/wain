@@ -265,7 +265,7 @@ export default function HubLobby() {
         </div>
 
         <div className="mt-6 text-center">
-          <div className="grn-label text-[0.8rem] tracking-[0.42em] text-gulf-400 [text-shadow:0_0_18px_rgba(56,201,238,0.45)]">
+          <div className="grn-label text-xs tracking-[0.42em] text-gulf-400 [text-shadow:0_0_18px_rgba(56,201,238,0.45)]">
             Online Hub
           </div>
           <h1 className="grn-display mt-2 text-5xl italic leading-[0.95] sm:text-6xl">
@@ -292,7 +292,7 @@ export default function HubLobby() {
             {known ? (
               <>
                 <div className="text-center">
-                  <div className="grn-label text-[0.7rem] text-white/60">Welcome back</div>
+                  <div className="grn-label text-2xs text-white/60">Welcome back</div>
                   <div className="grn-display mt-1 text-3xl italic">{name}</div>
                   <div className="mt-2 flex items-center justify-center gap-2">
                     <span
@@ -324,7 +324,7 @@ export default function HubLobby() {
               </>
             ) : (
               <>
-                <label className="grn-label text-[0.75rem]" htmlFor="driver-name">
+                <label className="grn-label text-xs" htmlFor="driver-name">
                   Driver name — <span className="grn-ar" lang="ar">اسم السائق</span>
                 </label>
                 <div className="mt-2 flex gap-2">
@@ -382,7 +382,7 @@ export default function HubLobby() {
                   </div>
                 )}
 
-                <label className="grn-label mt-6 block text-[0.75rem]">
+                <label className="grn-label mt-6 block text-xs">
                   Car colour — <span className="grn-ar" lang="ar">لون السيارة</span>
                 </label>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -481,7 +481,7 @@ export default function HubLobby() {
           <div className="mt-8 grid gap-6 lg:grid-cols-3">
             {/* Drivers online */}
             <div className="grn-panel p-5">
-              <h2 className="grn-label border-b border-white/10 pb-2 text-[0.75rem]">
+              <h2 className="grn-label border-b border-white/10 pb-2 text-xs">
                 Drivers online — <span className="text-gulf-300">{players.length}</span>
               </h2>
               <ul className="mt-3 space-y-2">
@@ -513,7 +513,7 @@ export default function HubLobby() {
 
             {/* Chat */}
             <div className="grn-panel flex flex-col p-5">
-              <h2 className="grn-label border-b border-white/10 pb-2 text-[0.75rem]">
+              <h2 className="grn-label border-b border-white/10 pb-2 text-xs">
                 Diwaniya chat — <span className="grn-ar" lang="ar">الديوانية</span>
               </h2>
               <div className="mt-3 h-64 flex-1 space-y-1.5 overflow-y-auto pr-1 text-sm">
@@ -549,7 +549,7 @@ export default function HubLobby() {
             {/* Crews */}
             <div className="grn-panel p-5 lg:col-span-3">
               <div className="flex items-center justify-between">
-                <h2 className="grn-label text-[0.75rem]">
+                <h2 className="grn-label text-xs">
                   Crews — <span className="grn-ar" lang="ar">الفرق</span>
                 </h2>
                 {myTeam ? (
@@ -580,7 +580,7 @@ export default function HubLobby() {
                   />
                   <div className="min-w-0">
                     <div className="grn-display text-3xl italic leading-none">{myTeam.name}</div>
-                    <div className="grn-label mt-1 text-[0.7rem] text-sodium-400">
+                    <div className="grn-label mt-1 text-2xs text-sodium-400">
                       [{myTeam.tag}] · founded by {myTeam.founder}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
@@ -650,7 +650,7 @@ export default function HubLobby() {
                     />
                     <div className="min-w-0 flex-1">
                       <div className="grn-display truncate text-lg leading-tight">{t.name}</div>
-                      <div className="grn-label text-[0.7rem]">
+                      <div className="grn-label text-2xs">
                         [{t.tag}] · {t.members.length}{" "}
                         {t.members.length === 1 ? "driver" : "drivers"}
                       </div>
@@ -673,7 +673,7 @@ export default function HubLobby() {
                 no count of its own: a referral tally a player can edit
                 is not a referral tally. */}
             <div className="grn-panel p-5">
-              <h2 className="grn-label border-b border-white/10 pb-2 text-[0.75rem]">
+              <h2 className="grn-label border-b border-white/10 pb-2 text-xs">
                 Community — <span className="grn-ar" lang="ar">المجتمع</span>
               </h2>
               <p className="mt-1 text-[11px] leading-5 text-white/62">
@@ -682,7 +682,7 @@ export default function HubLobby() {
               </p>
 
               <div className="mt-4">
-                <div className="grn-label text-[0.7rem] text-white/70">Your code</div>
+                <div className="grn-label text-2xs text-white/70">Your code</div>
                 <div className="mt-1.5 flex items-center gap-2">
                   <code className="grn-display flex-1 rounded border border-white/15 bg-black/30 px-3 py-2 text-lg tracking-[0.3em] text-sodium-400">
                     {myCode || "—"}
@@ -698,7 +698,7 @@ export default function HubLobby() {
                       );
                     }}
                     disabled={!myCode}
-                    className="grn-btn-primary shrink-0 px-3 py-2 text-[0.8rem] disabled:opacity-40"
+                    className="grn-btn-primary shrink-0 px-3 py-2 text-xs disabled:opacity-40"
                   >
                     {copied ? "Copied ✓" : "Copy link"}
                   </button>
@@ -725,7 +725,7 @@ export default function HubLobby() {
                 </p>
               ) : (
                 <div className="mt-4">
-                  <div className="grn-label text-[0.7rem] text-white/70">
+                  <div className="grn-label text-2xs text-white/70">
                     Got a friend&apos;s code?
                   </div>
                   <div className="mt-1.5 flex items-center gap-2">
@@ -742,7 +742,7 @@ export default function HubLobby() {
                         clientRef.current?.claimInvite(codeDraft);
                       }}
                       disabled={!isCodeShaped(codeDraft) || status !== "online"}
-                      className="grn-btn-primary shrink-0 px-3 py-2 text-[0.8rem] disabled:opacity-40"
+                      className="grn-btn-primary shrink-0 px-3 py-2 text-xs disabled:opacity-40"
                     >
                       Redeem
                     </button>
@@ -766,7 +766,7 @@ export default function HubLobby() {
                 menu because every one of them needs another player, and
                 this is the page about other players. */}
             <div className="grn-panel p-5">
-              <h2 className="grn-label border-b border-white/10 pb-2 text-[0.75rem]">
+              <h2 className="grn-label border-b border-white/10 pb-2 text-xs">
                 Runs — <span className="grn-ar" lang="ar">المشاوير</span>
               </h2>
               <p className="mt-1 text-[11px] leading-5 text-white/62">
@@ -780,7 +780,7 @@ export default function HubLobby() {
                     <li key={q.id}>
                       <div className="flex items-baseline justify-between gap-3">
                         <span
-                          className={`grn-label text-[0.72rem] ${
+                          className={`grn-label text-2xs ${
                             done ? "text-emerald-300" : "text-white/85"
                           }`}
                         >
@@ -816,7 +816,7 @@ export default function HubLobby() {
 
             {/* Leaderboard */}
             <div className="grn-panel p-5">
-              <h2 className="grn-label border-b border-white/10 pb-2 text-[0.75rem]">
+              <h2 className="grn-label border-b border-white/10 pb-2 text-xs">
                 Best laps — <span className="grn-ar" lang="ar">أفضل اللفات</span>
               </h2>
               <p className="mt-1 text-[11px] text-white/62">

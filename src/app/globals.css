@@ -88,6 +88,40 @@
   --color-steel-800: #282a2d;
   --color-steel-700: #2a2c2f;
   --color-steel-600: #303337;
+  /* THE SMALL END OF THE TYPE SCALE HAS A NAME NOW.
+   *
+   * Below Tailwind's text-xs this interface had eight hand-typed sizes:
+   * 0.62, 0.68, 0.7, 0.72, 0.75, 0.8, 0.875 and 0.95rem. That is not a
+   * scale, it is 0.05rem of drift accumulated one component at a time,
+   * and two of them — 0.62rem and 0.68rem — rendered at 9.9px and 10.9px,
+   * under the 11px floor this project holds text to.
+   *
+   * Four steps now, at a ratio the eye can actually resolve: 11.2 / 12.8
+   * / 14 / 16, or 14% / 9% / 14% apart. check:type fails on any two
+   * sizes closer than 8%, which is what stops a ninth value from being
+   * typed in next month.
+   *
+   * THE FLOOR STEP IS SET FROM WHAT RENDERS, NOT FROM WHAT IS WRITTEN.
+   * It was 0.6875rem first, on the reasoning that 0.6875 x 16 is exactly
+   * the 11px floor. It is not: the desktop menu is scaled to fit its
+   * column, and under that scale 11px arrives as 10.88px — 26 runs of
+   * menu type under a floor that the value had been chosen to sit on.
+   * 0.7rem is 11.2px, which is where the biggest group of these sizes
+   * already was, and it survives the menu's scale at 11.08px. A size
+   * that only clears the floor before the page scales it has not
+   * cleared the floor.
+   *
+   * 11px is the floor and not a step below it: it is where the counters
+   * of a condensed face close up at arm's length. */
+  --text-2xs: 0.7rem;
+  /* 0.8rem, over Tailwind's 0.75rem. The old scale had BOTH: 0.75 and
+     0.8 rem sat 6.7% apart doing the same job in different components.
+     Redefining the token moves the fifteen bare text-xs uses onto the
+     same step as the forty-three that spelled 0.8rem out by hand,
+     instead of leaving two small sizes that differ by less than the eye
+     resolves. It also puts a real 14% gap under text-sm. */
+  --text-xs: 0.8rem;
+
   --color-sodium-400: #ffc45c;
   --color-sodium-500: #f5a524;
   --color-gulf-300: #7fe3ff;
@@ -250,7 +284,13 @@ body {
 .grn-label {
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 0.72rem;
+  /* 0.6875rem — the scale's 11px step, down from a hand-typed 0.72rem
+     that rendered at 11.52px and sat 4% from the 12px beside it. Two
+     sizes 4% apart are not a large and a small; they are one size two
+     people set differently. This one is uppercase and tracked 0.22em, so
+     it reads a good deal larger than 11px and loses nothing by being
+     measured at it. */
+  font-size: var(--text-2xs);
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: color-mix(in oklab, white 62%, transparent);
@@ -993,7 +1033,10 @@ html[data-large-hud="1"] .hud-scale {
   color: rgba(255, 255, 255, 0.62);
 }
 .menu-item.is-minor .menu-item-label {
-  font-size: 0.98rem;
+  /* 1rem, not 0.98. The 2% between them is not a step down in voice —
+     the step down is the missing bed, the missing hint and the lighter
+     colour above. It just put a 33rd value in the scale. */
+  font-size: 1rem;
 }
 .menu-item.is-minor .menu-item-icon {
   opacity: 0.7;
@@ -1056,8 +1099,12 @@ html[data-large-hud="1"] .hud-scale {
   /* 0.66rem landed at 10.5px under the menu's own scale — under the
      eleven-pixel floor where a condensed face closes its counters — and
      0.42 white put it at 3.9:1 against the lit menu row. This line is
-     the only sentence on the main menu that says what the button does. */
-  font-size: 0.76rem;
+     the only sentence on the main menu that says what the button does.
+     0.76rem was the hand-fix for that, and it rendered at 12.16px: 5%
+     from the 12.8px next to it, which is one size set twice rather than
+     two sizes. On the token it clears the floor for the same reason and
+     stops being a value of its own. */
+  font-size: var(--text-xs);
   line-height: 1.35;
   color: rgba(255, 255, 255, 0.72);
 }

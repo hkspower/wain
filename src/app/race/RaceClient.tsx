@@ -1232,7 +1232,7 @@ function raceCut(): { w: number; h: number } | null {
           const label = d.racingOpen ? "RACING" : "ROLLING";
           if (state.textContent !== label) {
             state.textContent = label;
-            state.className = `rounded-sm px-1.5 py-px text-[0.7rem] ${
+            state.className = `rounded-sm px-1.5 py-px text-2xs ${
               d.racingOpen
                 ? "bg-sodium-500/25 text-sodium-400"
                 : "bg-white/10 text-white/55"
@@ -2167,8 +2167,8 @@ function raceCut(): { w: number; h: number } | null {
                 after a road and never used to say which one you were
                 on. */}
             <div ref={roadRef} className="flex items-baseline gap-1.5">
-              <span className="grn-label text-[0.7rem] text-sodium-400/90" />
-              <span className="grn-ar text-[0.75rem] text-white/70" lang="ar" />
+              <span className="grn-label text-2xs text-sodium-400/90" />
+              <span className="grn-ar text-xs text-white/70" lang="ar" />
             </div>
             <div ref={areaRef} className="flex items-baseline gap-2 text-xl leading-tight">
               <span className="grn-display tracking-wide" />
@@ -2178,30 +2178,30 @@ function raceCut(): { w: number; h: number } | null {
                 name where you already are, which a driver can see out of
                 the window; the only part of this plate that tells you
                 something you cannot see yet is this one. */}
-            <div ref={nextRef} className="grn-label mt-0.5 flex items-baseline gap-1.5 text-[0.7rem]">
+            <div ref={nextRef} className="grn-label mt-0.5 flex items-baseline gap-1.5 text-2xs">
               <span className="text-white/62" />
               <span className="text-white/70" />
-              <span className="grn-ar text-[0.75rem] text-white/70" lang="ar" />
+              <span className="grn-ar text-xs text-white/70" lang="ar" />
               {/* normal-case, because grn-label uppercases everything and
                   a distance is not an abbreviation: "80 M" reads as a
                   unit symbol shouted, "80 m" reads as a distance. */}
               <span className="tnum normal-case text-sodium-400/85" />
             </div>
-            <div ref={progressRef} className="grn-label tabular-nums mt-0.5 text-[0.75rem]" />
+            <div ref={progressRef} className="grn-label tabular-nums mt-0.5 text-xs" />
             {/* The clock, and whether the night is still open.
                 Racing runs midnight to 05:50 and nothing else on screen
                 would tell you that — a player who flashes at a rival at
                 six in the morning and gets nothing deserves to have been
                 able to see why. */}
-            <div ref={clockRef} className="grn-label mt-1 flex items-center gap-1.5 text-[0.75rem]">
+            <div ref={clockRef} className="grn-label mt-1 flex items-center gap-1.5 text-xs">
               <span className="tnum text-white/80" />
-              <span className="rounded-sm px-1.5 py-px text-[0.7rem]" />
+              <span className="rounded-sm px-1.5 py-px text-2xs" />
             </div>
           </div>
           {onlineCount !== null && (
             <div className="grn-panel mt-2 inline-flex items-center gap-1.5 px-3 py-1">
               <span className="size-1.5 rounded-full bg-gulf-400 shadow-[0_0_8px_var(--color-gulf-400)]" />
-              <span className="grn-label text-[0.75rem] text-gulf-300">
+              <span className="grn-label text-xs text-gulf-300">
                 {onlineCount} cruising online
               </span>
             </div>
@@ -2219,10 +2219,10 @@ function raceCut(): { w: number; h: number } | null {
             className="grn-panel mt-2 w-56 px-3 py-2 text-left"
           >
             <div className="flex items-baseline justify-between gap-2">
-              <div ref={runNameRef} className="grn-label text-[0.75rem] text-sodium-400" />
-              <span ref={runLabelRef} className="tnum text-[0.7rem] text-white/70" />
+              <div ref={runNameRef} className="grn-label text-xs text-sodium-400" />
+              <span ref={runLabelRef} className="tnum text-2xs text-white/70" />
             </div>
-            <div ref={runHintRef} className="mt-0.5 text-[0.68rem] leading-4 text-white/72" />
+            <div ref={runHintRef} className="mt-0.5 text-2xs leading-4 text-white/72" />
             <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/12">
               <div
                 ref={runBarRef}
@@ -2251,10 +2251,10 @@ function raceCut(): { w: number; h: number } | null {
           className="absolute left-1/2 top-4 w-[min(560px,90vw)] -translate-x-1/2 opacity-0 transition-opacity"
         >
           <div className="mb-1.5 flex items-end justify-between">
-            <span className="grn-label text-[0.75rem] text-emerald-300 [text-shadow:0_0_8px_rgba(52,211,153,0.45)]">
+            <span className="grn-label text-xs text-emerald-300 [text-shadow:0_0_8px_rgba(52,211,153,0.45)]">
               ▲ SP <span className="grn-ar" lang="ar">أنت</span>
             </span>
-            <span className="grn-label rival-ink text-[0.75rem] text-rose-300 [text-shadow:0_0_8px_rgba(251,113,133,0.45)]">
+            <span className="grn-label rival-ink text-xs text-rose-300 [text-shadow:0_0_8px_rgba(251,113,133,0.45)]">
               ▼ Rival SP
             </span>
           </div>
@@ -2276,7 +2276,7 @@ function raceCut(): { w: number; h: number } | null {
           />
           <div
             ref={raceLeftRef}
-            className="grn-label mt-1 text-center text-[0.72rem] tabular-nums [text-shadow:0_2px_10px_rgba(0,0,0,0.9)]"
+            className="grn-label mt-1 text-center text-2xs tabular-nums [text-shadow:0_2px_10px_rgba(0,0,0,0.9)]"
           />
         </div>
 
@@ -2356,7 +2356,7 @@ function raceCut(): { w: number; h: number } | null {
               looking at it — and the whole reason this is on screen is
               to send the driver hunting for the wake. */}
           <div ref={towWrapRef} className="items-center gap-2" style={{ display: "none" }}>
-            <span className="grn-label w-11 text-[0.7rem] text-sodium-300">Tow</span>
+            <span className="grn-label w-11 text-2xs text-sodium-300">Tow</span>
             <div className="grn-meter h-1.5 w-44 -skew-x-12">
               <div
                 ref={towRef}
@@ -2366,7 +2366,7 @@ function raceCut(): { w: number; h: number } | null {
             </div>
           </div>
           <div ref={boostWrapRef} className="mt-1 items-center gap-2" style={{ display: "none" }}>
-            <span className="grn-label w-11 text-[0.7rem] text-gulf-300">Boost</span>
+            <span className="grn-label w-11 text-2xs text-gulf-300">Boost</span>
             <div className="grn-meter h-1.5 w-44 -skew-x-12">
               <div
                 ref={boostRef}
@@ -2380,13 +2380,13 @@ function raceCut(): { w: number; h: number } | null {
               player spends, and the one you can run out of is the one
               that has to be readable without looking away from the road. */}
           <div ref={nosWrapRef} className="mt-1 items-center gap-2" style={{ display: "none" }}>
-            <span className="grn-label w-11 text-[0.7rem] text-indigo-300">NOS</span>
+            <span className="grn-label w-11 text-2xs text-indigo-300">NOS</span>
             <div ref={nosTrackRef} className="nos-meter h-2.5 w-44 -skew-x-12" data-state="charged">
               <div ref={nosRef} className="nos-fill" style={{ width: "100%" }} />
             </div>
             <span
               ref={nosPctRef}
-              className="grn-label w-12 text-right text-[0.7rem] tabular-nums text-indigo-200"
+              className="grn-label w-12 text-right text-2xs tabular-nums text-indigo-200"
             >
               100%
             </span>
@@ -2396,20 +2396,20 @@ function raceCut(): { w: number; h: number } | null {
               bought. It reads in litres because that is the unit the
               pump charges in and the unit the driver has to think in. */}
           <div className="mt-1 flex items-center gap-2">
-            <span className="grn-label w-11 text-[0.7rem] text-emerald-300">Fuel</span>
+            <span className="grn-label w-11 text-2xs text-emerald-300">Fuel</span>
             <div ref={fuelTrackRef} className="nos-meter h-2.5 w-44 -skew-x-12" data-state="ok">
               <div ref={fuelRef} className="fuel-fill" style={{ width: "100%" }} />
             </div>
             <span
               ref={fuelLabelRef}
-              className="grn-label w-20 text-right text-[0.7rem] tabular-nums text-emerald-200"
+              className="grn-label w-20 text-right text-2xs tabular-nums text-emerald-200"
             >
               — L
             </span>
           </div>
           <div
             ref={pumpRef}
-            className="grn-label mt-1 text-[0.7rem] tracking-wide text-cyan-300 transition-opacity"
+            className="grn-label mt-1 text-2xs tracking-wide text-cyan-300 transition-opacity"
             style={{ opacity: 0 }}
           />
           </div>
@@ -2422,7 +2422,7 @@ function raceCut(): { w: number; h: number } | null {
         <div className="hud-safe-b hud-safe-r absolute flex flex-col items-end gap-2">
           <button
             onClick={toggleFullscreen}
-            className="pointer-events-auto grn-panel px-2.5 py-1 font-display text-[0.8rem] tracking-wide text-white/60 hover:bg-white/10"
+            className="pointer-events-auto grn-panel px-2.5 py-1 font-display text-xs tracking-wide text-white/60 hover:bg-white/10"
             title={isFs ? "Exit fullscreen" : "Fullscreen"}
           >
             {isFs ? "⛶ exit" : "⛶ fullscreen"}
@@ -2445,12 +2445,12 @@ function raceCut(): { w: number; h: number } | null {
             className="pointer-events-auto grn-panel relative p-1 transition hover:border-white/35 disabled:opacity-60"
           >
             <canvas ref={mapRef} width={320} height={320} className="size-[116px]" />
-            <span className="grn-label absolute inset-x-0 bottom-1 text-center text-[0.7rem] text-white/70">
+            <span className="grn-label absolute inset-x-0 bottom-1 text-center text-2xs text-white/70">
               tap to open
             </span>
           </button>
           <div
-            className={`grn-info hud-hint px-3 py-2 text-right font-display text-[0.8rem] leading-[1.35] ${
+            className={`grn-info hud-hint px-3 py-2 text-right font-display text-xs leading-[1.35] ${
               isTouch ? "hidden" : ""
             } ${hintDone ? "hud-hint-gone" : ""}`}
           >
@@ -2469,7 +2469,7 @@ function raceCut(): { w: number; h: number } | null {
         <div className="pointer-events-none absolute left-1/2 top-24 z-[6] -translate-x-1/2">
           <button
             onClick={() => setDossier(engineRef.current?.sizeUpRival() ?? null)}
-            className="grn-info pointer-events-auto px-3 py-1.5 font-display text-[0.8rem] tracking-[0.08em]"
+            className="grn-info pointer-events-auto px-3 py-1.5 font-display text-xs tracking-[0.08em]"
           >
             TAB · SIZE UP THE DRIVER
           </button>
@@ -2486,7 +2486,7 @@ function raceCut(): { w: number; h: number } | null {
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="grn-info-key text-[0.7rem]">
+                <div className="grn-info-key text-2xs">
                   Legend {dossier.order} of {dossier.total} · {dossier.country}
                 </div>
                 <div className="grn-display truncate text-3xl leading-none">{dossier.name}</div>
@@ -2518,17 +2518,17 @@ function raceCut(): { w: number; h: number } | null {
                 ] as const
               ).map(([k, v]) => (
                 <div key={k}>
-                  <div className="grn-info-key text-[0.7rem]">{k}</div>
+                  <div className="grn-info-key text-2xs">{k}</div>
                   <div className="grn-display text-base leading-tight">{v}</div>
                 </div>
               ))}
             </div>
 
-            <div className="grn-info-rule mt-4 border-t pt-3 text-[0.875rem] leading-6">
+            <div className="grn-info-rule mt-4 border-t pt-3 text-sm leading-6">
               &ldquo;{dossier.taunt}&rdquo;
             </div>
             <div className="mt-4 flex items-center justify-between gap-3">
-              <span className="grn-info-key text-[0.7rem]">
+              <span className="grn-info-key text-2xs">
                 {dossier.beaten ? (
                   <span className="grn-info-accent">Beaten — rematch any time</span>
                 ) : (
@@ -2537,7 +2537,7 @@ function raceCut(): { w: number; h: number } | null {
               </span>
               <button
                 onClick={() => setDossier(null)}
-                className="grn-btn tap border-2 border-black px-4 py-1.5 text-[0.8rem] font-bold text-black hover:bg-black hover:text-white"
+                className="grn-btn tap border-2 border-black px-4 py-1.5 text-xs font-bold text-black hover:bg-black hover:text-white"
               >
                 CLOSE
               </button>
@@ -2550,9 +2550,9 @@ function raceCut(): { w: number; h: number } | null {
       {phase === "playing" && nearby && !invite && !duelResult && !cine && (
         <div className="pointer-events-none absolute left-1/2 top-40 z-[6] -translate-x-1/2 text-center">
           <div className="grn-panel px-4 py-2">
-            <div className="grn-label text-[0.7rem] text-gulf-300">Online driver</div>
+            <div className="grn-label text-2xs text-gulf-300">Online driver</div>
             <div className="grn-display text-xl leading-tight">{nearby.name}</div>
-            <div className="grn-label mt-0.5 text-[0.7rem]">
+            <div className="grn-label mt-0.5 text-2xs">
               {Math.abs(Math.round(nearby.dist))} m {nearby.dist >= 0 ? "ahead" : "behind"}
             </div>
             <div className="mt-2 flex items-center justify-center gap-1.5">
@@ -2564,7 +2564,7 @@ function raceCut(): { w: number; h: number } | null {
                   const i = tiers.indexOf(wager);
                   setWager(tiers[(i + 1) % tiers.length] ?? 0);
                 }}
-                className="pointer-events-auto grn-btn border border-white/20 px-2.5 py-1.5 text-[0.75rem] text-white/70 hover:bg-white/10"
+                className="pointer-events-auto grn-btn border border-white/20 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/10"
                 title="Cycle the stake"
               >
                 ⇅
@@ -2584,7 +2584,7 @@ function raceCut(): { w: number; h: number } | null {
       {invite && !cine && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 px-6 backdrop-blur-sm">
           <div className="grn-dialog w-full max-w-md px-9 py-8 text-center">
-            <div className="grn-label text-[0.75rem] text-gulf-300">Incoming challenge</div>
+            <div className="grn-label text-xs text-gulf-300">Incoming challenge</div>
             <div className="grn-display mt-2 text-4xl italic">
               {invite.tag ? <span className="text-sodium-400">[{invite.tag}] </span> : null}
               {invite.name}
@@ -2629,7 +2629,7 @@ function raceCut(): { w: number; h: number } | null {
             >
               {duelResult.won ? "DUEL WON" : "DUEL LOST"}
             </div>
-            <div className="grn-label mt-3 text-[0.75rem]">{duelResult.reason}</div>
+            <div className="grn-label mt-3 text-xs">{duelResult.reason}</div>
             {duelResult.wager > 0 && (
               <div className="grn-display mt-2 text-2xl text-sodium-400">
                 {duelResult.won ? "+" : "−"}
@@ -2643,7 +2643,7 @@ function raceCut(): { w: number; h: number } | null {
       {/* Challenge cards — both drivers revealed, rival answers */}
       {challenge && phase === "playing" && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center overflow-y-auto bg-black/70 px-4 py-6">
-          <div className="grn-label text-[0.8rem] tracking-[0.42em] text-gulf-300 [text-shadow:0_0_12px_rgba(56,201,238,0.36)]">
+          <div className="grn-label text-xs tracking-[0.42em] text-gulf-300 [text-shadow:0_0_12px_rgba(56,201,238,0.36)]">
             Headlights flashed ×3 — <span className="grn-ar" lang="ar">التحدي</span>
           </div>
           <div className="mt-4 flex w-full max-w-3xl items-stretch justify-center gap-4">
@@ -2658,7 +2658,7 @@ function raceCut(): { w: number; h: number } | null {
               >
                 <div className="flex items-center justify-between">
                   <span
-                    className={`grn-label text-[0.75rem] ${
+                    className={`grn-label text-xs ${
                       i === 0 ? "text-emerald-300" : "text-rose-300"
                     }`}
                   >
@@ -2675,18 +2675,18 @@ function raceCut(): { w: number; h: number } | null {
                 )}
                 <div className="mt-4 space-y-1.5 border-t border-white/10 pt-3 text-sm">
                   <div className="flex items-baseline justify-between">
-                    <span className="grn-label text-[0.7rem]">Level</span>
+                    <span className="grn-label text-2xs">Level</span>
                     <span className="grn-display text-lg text-sodium-400">LV. {d.level}</span>
                   </div>
                   <div className="flex items-baseline justify-between">
-                    <span className="grn-label text-[0.7rem]">Country</span>
+                    <span className="grn-label text-2xs">Country</span>
                     <span className="font-semibold">
                       <Flag code={d.flag} /> {d.country}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <span className="grn-label text-[0.7rem]">Crew</span>
-                    <span className="flex items-center gap-2 text-right text-[0.875rem] font-semibold text-white/85">
+                    <span className="grn-label text-2xs">Crew</span>
+                    <span className="flex items-center gap-2 text-right text-sm font-semibold text-white/85">
                       {d.crew}
                       {/* The emblem beside the name it belongs to. Seven
                           of the eight crews have one; the Ghost of the
@@ -2703,8 +2703,8 @@ function raceCut(): { w: number; h: number } | null {
                     </span>
                   </div>
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className="grn-label text-[0.7rem]">Car</span>
-                    <span className="grn-display text-right text-[0.95rem] text-gulf-300">
+                    <span className="grn-label text-2xs">Car</span>
+                    <span className="grn-display text-right text-base text-gulf-300">
                       {i === 0 ? getCar(raceCar).name : d.car}
                     </span>
                   </div>
@@ -2716,7 +2716,7 @@ function raceCut(): { w: number; h: number } | null {
             {challenge.answer === null && !challenge.sent ? (
               <div className="grn-panel px-5 py-4 text-left">
                 {/* Pick the machine */}
-                <div className="grn-label text-[0.7rem]">
+                <div className="grn-label text-2xs">
                   Your car — <span className="grn-ar" lang="ar">اختر سيارتك</span>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -2734,7 +2734,7 @@ function raceCut(): { w: number; h: number } | null {
                         }`}
                       >
                         <div className="grn-display text-sm leading-tight">{c.name}</div>
-                        <div className="grn-label text-[0.7rem]">{c.cls}</div>
+                        <div className="grn-label text-2xs">{c.cls}</div>
                       </button>
                     );
                   })}
@@ -2745,7 +2745,7 @@ function raceCut(): { w: number; h: number } | null {
                     sprint and an all-nighter are different races in the
                     same car, and how much you are willing to put on it
                     follows from which one you picked. */}
-                <div className="grn-label mt-4 text-[0.7rem]">
+                <div className="grn-label mt-4 text-2xs">
                   Distance — <span className="grn-ar" lang="ar">المسافة</span>
                   <span className="ml-2 text-white/66">
                     they usually run {distanceById(challenge.rivalDistance).km} km
@@ -2765,7 +2765,7 @@ function raceCut(): { w: number; h: number } | null {
                     >
                       {d.km} KM
                       {d.id === challenge.rivalDistance && (
-                        <span className="ml-1.5 text-[0.62rem] text-white/50">theirs</span>
+                        <span className="ml-1.5 text-2xs text-white/50">theirs</span>
                       )}
                     </button>
                   ))}
@@ -2784,7 +2784,7 @@ function raceCut(): { w: number; h: number } | null {
                 </p>
 
                 {/* Pick the purse */}
-                <div className="grn-label mt-4 text-[0.7rem]">
+                <div className="grn-label mt-4 text-2xs">
                   Stake — <span className="grn-ar" lang="ar">مبلغ السباق</span>
                   <span className="ml-2 text-white/66">
                     winner takes both · max {challenge.maxWager} KD
@@ -2836,7 +2836,7 @@ function raceCut(): { w: number; h: number } | null {
                 <div className="grn-display text-4xl italic text-emerald-400 [text-shadow:0_0_18px_rgba(52,211,153,0.5)]">
                   ACCEPTED — <span className="grn-ar" lang="ar">قبل التحدي</span> ✓
                 </div>
-                <div className="grn-label mt-1.5 text-[0.75rem] text-sodium-400">
+                <div className="grn-label mt-1.5 text-xs text-sodium-400">
                   {challenge.answer.reason}
                 </div>
               </div>
@@ -2873,7 +2873,7 @@ function raceCut(): { w: number; h: number } | null {
               {vsRival.name}
             </div>
             <div className="grn-ar mt-1 text-xl text-white/80" lang="ar">{vsRival.arabicName}</div>
-            <div className="grn-label mt-2 text-[0.75rem]">{vsRival.crew}</div>
+            <div className="grn-label mt-2 text-xs">{vsRival.crew}</div>
             <div className="mt-2.5 text-sm italic text-white/70">&quot;{vsRival.taunt}&quot;</div>
           </div>
         </div>
@@ -2907,7 +2907,7 @@ function raceCut(): { w: number; h: number } | null {
             <div className="flex flex-wrap items-center justify-center gap-2">
               <button
                 onPointerDown={() => engineRef.current?.touchFlash()}
-                className="tap grn-panel grn-label px-5 py-3.5 text-[0.7rem] text-gulf-300 active:bg-gulf-500/25"
+                className="tap grn-panel grn-label px-5 py-3.5 text-2xs text-gulf-300 active:bg-gulf-500/25"
               >
                 Flash
               </button>
@@ -2915,7 +2915,7 @@ function raceCut(): { w: number; h: number } | null {
                 onPointerDown={() => engineRef.current?.touchNos(true)}
                 onPointerUp={() => engineRef.current?.touchNos(false)}
                 onPointerCancel={() => engineRef.current?.touchNos(false)}
-                className="tap grn-panel grn-label px-5 py-3.5 text-[0.7rem] text-indigo-300 active:bg-indigo-500/25"
+                className="tap grn-panel grn-label px-5 py-3.5 text-2xs text-indigo-300 active:bg-indigo-500/25"
               >
                 NOS
               </button>
@@ -2923,7 +2923,7 @@ function raceCut(): { w: number; h: number } | null {
                 onPointerDown={() => engineRef.current?.touchHorn(true)}
                 onPointerUp={() => engineRef.current?.touchHorn(false)}
                 onPointerCancel={() => engineRef.current?.touchHorn(false)}
-                className="tap grn-panel grn-label px-5 py-3.5 text-[0.7rem] text-white/70 active:bg-white/20"
+                className="tap grn-panel grn-label px-5 py-3.5 text-2xs text-white/70 active:bg-white/20"
               >
                 Horn
               </button>
@@ -2937,7 +2937,7 @@ function raceCut(): { w: number; h: number } | null {
                 }}
                 onPointerUp={() => engineRef.current?.touchDrift(false)}
                 onPointerCancel={() => engineRef.current?.touchDrift(false)}
-                className="tap grn-panel grn-label grid size-[4.5rem] place-items-center text-[0.7rem] text-sodium-400 active:bg-sodium-500/25"
+                className="tap grn-panel grn-label grid size-[4.5rem] place-items-center text-2xs text-sodium-400 active:bg-sodium-500/25"
               >
                 Drift
               </button>
@@ -2948,7 +2948,7 @@ function raceCut(): { w: number; h: number } | null {
                 }}
                 onPointerUp={() => engineRef.current?.setTouchInput({ brake: 0 })}
                 onPointerCancel={() => engineRef.current?.setTouchInput({ brake: 0 })}
-                className="tap grn-panel grn-label grid size-[4.5rem] place-items-center text-[0.75rem] text-rose-300 active:bg-rose-500/25"
+                className="tap grn-panel grn-label grid size-[4.5rem] place-items-center text-xs text-rose-300 active:bg-rose-500/25"
               >
                 Brake
               </button>
@@ -2959,7 +2959,7 @@ function raceCut(): { w: number; h: number } | null {
                 }}
                 onPointerUp={() => engineRef.current?.setTouchInput({ throttle: 0 })}
                 onPointerCancel={() => engineRef.current?.setTouchInput({ throttle: 0 })}
-                className="tap grn-panel grn-label grid size-[5.5rem] place-items-center text-[0.75rem] text-emerald-300 active:bg-emerald-500/25"
+                className="tap grn-panel grn-label grid size-[5.5rem] place-items-center text-xs text-emerald-300 active:bg-emerald-500/25"
               >
                 Gas
               </button>
@@ -3004,7 +3004,7 @@ function raceCut(): { w: number; h: number } | null {
                     {rank.en}{" "}
                     <span className="grn-ar hidden text-white/74 sm:inline" lang="ar">{rank.ar}</span>
                   </span>
-                  <span className="grn-label tnum shrink-0 text-[0.7rem] text-white/70">
+                  <span className="grn-label tnum shrink-0 text-2xs text-white/70">
                     {lvl.into}/{lvl.need} XP
                   </span>
                 </div>
@@ -3016,10 +3016,10 @@ function raceCut(): { w: number; h: number } | null {
                 </div>
               </div>
               <div className="shrink-0 text-right">
-                <div className="grn-label text-[0.7rem] text-white/70">Balance</div>
+                <div className="grn-label text-2xs text-white/70">Balance</div>
                 <div className="grn-display tnum text-lg leading-tight text-sodium-400">
                   {(garage?.kd ?? 0).toLocaleString()}
-                  <span className="ml-0.5 text-[0.7rem] text-white/74">KD</span>
+                  <span className="ml-0.5 text-2xs text-white/74">KD</span>
                 </div>
               </div>
               <button
@@ -3035,7 +3035,7 @@ function raceCut(): { w: number; h: number } | null {
              <div className="menu-col">
             {/* Title */}
             <div className="menu-title mt-5 text-center sm:mt-7">
-              <div className="grn-label text-[0.75rem] tracking-[0.45em] text-gulf-400 [text-shadow:0_0_20px_rgba(56,201,238,0.5)]">
+              <div className="grn-label text-xs tracking-[0.45em] text-gulf-400 [text-shadow:0_0_20px_rgba(56,201,238,0.5)]">
                 Kuwait Xtreme Racer
               </div>
               <h1 className="grn-display menu-wordmark mt-1.5 text-[clamp(2.4rem,12vw,5rem)] italic leading-[0.88]">
@@ -3051,7 +3051,7 @@ function raceCut(): { w: number; h: number } | null {
                   the road. Same clock the world runs on: Kuwait's, by
                   IANA zone, never the browser's. */}
               {kwNow && (
-                <div className="grn-label mt-2.5 inline-flex items-center gap-2 rounded-full border border-white/12 bg-black/30 px-3 py-1 text-[0.72rem]">
+                <div className="grn-label mt-2.5 inline-flex items-center gap-2 rounded-full border border-white/12 bg-black/30 px-3 py-1 text-2xs">
                   <span className="tnum text-white/85">
                     {String(kwNow.getHours()).padStart(2, "0")}:
                     {String(kwNow.getMinutes()).padStart(2, "0")}
@@ -3094,7 +3094,7 @@ function raceCut(): { w: number; h: number } | null {
                     className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-2 text-center"
                   >
                     <div className="grn-display tnum text-base leading-tight text-white">{x.v}</div>
-                    <div className="grn-label text-[0.7rem] text-white/70">{x.k}</div>
+                    <div className="grn-label text-2xs text-white/70">{x.k}</div>
                   </div>
                 ))}
               </div>
@@ -3106,10 +3106,10 @@ function raceCut(): { w: number; h: number } | null {
             {/* Next race — the one thing the menu is for */}
             <div className="grn-dialog mt-5 p-4 sm:p-5">
               <div className="flex items-center justify-between">
-                <span className="grn-label text-[0.7rem] text-gulf-400">
+                <span className="grn-label text-2xs text-gulf-400">
                   {beaten >= RIVALS.length ? "Career complete" : "Next race"}
                 </span>
-                <span className="grn-label tnum text-[0.7rem] text-white/70">
+                <span className="grn-label tnum text-2xs text-white/70">
                   {beaten} / {RIVALS.length} legends beaten
                 </span>
               </div>
@@ -3118,7 +3118,7 @@ function raceCut(): { w: number; h: number } | null {
                   <IconCrown size={30} className="text-sodium-400" />
                   <div>
                     <div className="grn-display text-xl text-sodium-400">King of Gulf Road</div>
-                    <div className="text-[0.8rem] text-white/55">
+                    <div className="text-xs text-white/55">
                       Every street is yours — run it back for the times.
                     </div>
                   </div>
@@ -3153,7 +3153,7 @@ function raceCut(): { w: number; h: number } | null {
                       {RIVALS[beaten].name}{" "}
                       <span className="grn-ar text-white/60" lang="ar">{RIVALS[beaten].arabicName}</span>
                     </div>
-                    <div className="truncate text-[0.8rem] text-white/55">
+                    <div className="truncate text-xs text-white/55">
                       {RIVALS[beaten].crew} · {RIVALS[beaten].area} ·{" "}
                       {/* Their signature distance — the ladder's
                           difficulty curve in a number the player can
@@ -3162,7 +3162,7 @@ function raceCut(): { w: number; h: number } | null {
                     </div>
                   </div>
                   <div className="ml-auto shrink-0 text-right">
-                    <div className="grn-label text-[0.7rem] text-white/70">Prize</div>
+                    <div className="grn-label text-2xs text-white/70">Prize</div>
                     <div className="grn-display tnum text-base text-sodium-400">
                       {(400 + beaten * 300).toLocaleString()} KD
                     </div>
@@ -3218,7 +3218,7 @@ function raceCut(): { w: number; h: number } | null {
                 </button>
               ))}
             </nav>
-            <div className="grn-label mt-2 text-center text-[0.7rem] text-white/62">
+            <div className="grn-label mt-2 text-center text-2xs text-white/62">
               ↑ ↓ to choose · Enter to select
             </div>
 
@@ -3226,7 +3226,7 @@ function raceCut(): { w: number; h: number } | null {
             </div>
 
             <div className="mt-auto flex items-center justify-between pt-4">
-              <span className="grn-label text-[0.7rem] text-white/58">
+              <span className="grn-label text-2xs text-white/58">
                 {carName(garage) && (
                   <>
                     {carName(garage)}{" "}
@@ -3236,14 +3236,14 @@ function raceCut(): { w: number; h: number } | null {
               </span>
               <span className="flex items-center gap-3">
                 {runsDone !== null && (
-                  <span className="grn-label tnum text-[0.7rem] text-white/58">
+                  <span className="grn-label tnum text-2xs text-white/58">
                     {runsDone}/{QUESTS.length} runs{" "}
                     <span className="grn-ar text-white/50" lang="ar">مشاوير</span>
                   </span>
                 )}
                 <a
                   href="/hub"
-                  className="grn-label text-[0.7rem] text-gulf-300 underline-offset-4 hover:underline"
+                  className="grn-label text-2xs text-gulf-300 underline-offset-4 hover:underline"
                 >
                   Online hub →
                 </a>
@@ -3260,7 +3260,7 @@ function raceCut(): { w: number; h: number } | null {
           <div className="mx-auto max-w-xl">
             <div className="flex items-center justify-between">
               <div>
-                <div className="grn-label text-[0.8rem] tracking-[0.42em] text-gulf-400">
+                <div className="grn-label text-xs tracking-[0.42em] text-gulf-400">
                   Credits
                 </div>
                 <h2 className="grn-display mt-1 text-4xl italic">
@@ -3282,7 +3282,7 @@ function raceCut(): { w: number; h: number } | null {
               <div className="grn-ar mt-1 text-base text-white/70" dir="rtl" lang="ar">
                 متسابق الليل
               </div>
-              <p className="mt-3 text-[0.875rem] leading-relaxed text-white/60">
+              <p className="mt-3 text-sm leading-relaxed text-white/60">
                 A midnight racer set on Kuwait&apos;s Gulf Road — the corniche from
                 Sharq to Salmiya, its sodium lamps, its water towers and the
                 traffic you have to read your way through. Every car, character
@@ -3322,21 +3322,21 @@ function raceCut(): { w: number; h: number } | null {
             ].map((sec) => (
               <div key={sec.h} className="grn-dialog mt-3 p-4 sm:p-5">
                 <div className="flex items-baseline justify-between">
-                  <span className="grn-label text-[0.7rem] text-gulf-400">{sec.h}</span>
-                  <span className="grn-ar text-[0.875rem] text-white/62" lang="ar">{sec.ar}</span>
+                  <span className="grn-label text-2xs text-gulf-400">{sec.h}</span>
+                  <span className="grn-ar text-sm text-white/62" lang="ar">{sec.ar}</span>
                 </div>
                 <dl className="mt-2 space-y-2">
                   {sec.rows.map(([k, v]) => (
                     <div key={k}>
                       <dt className="grn-display text-base text-white">{k}</dt>
-                      <dd className="text-[0.8rem] text-white/74">{v}</dd>
+                      <dd className="text-xs text-white/74">{v}</dd>
                     </div>
                   ))}
                 </dl>
               </div>
             ))}
 
-            <div className="grn-label mt-5 pb-4 text-center text-[0.7rem] text-white/58">
+            <div className="grn-label mt-5 pb-4 text-center text-2xs text-white/58">
               Made for the road between Sharq and Salmiya
             </div>
           </div>
@@ -3349,7 +3349,7 @@ function raceCut(): { w: number; h: number } | null {
           <div className="mx-auto max-w-xl">
             <div className="flex items-center justify-between">
               <div>
-                <div className="grn-label text-[0.8rem] tracking-[0.42em] text-gulf-400">
+                <div className="grn-label text-xs tracking-[0.42em] text-gulf-400">
                   Settings
                 </div>
                 <h2 className="grn-display mt-1 text-4xl italic">
@@ -3365,7 +3365,7 @@ function raceCut(): { w: number; h: number } | null {
             </div>
 
             {/* Accessibility */}
-            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-[0.75rem]">
+            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-xs">
               Accessibility · إمكانية الوصول
             </h3>
             <div className="mt-3 space-y-2">
@@ -3386,7 +3386,7 @@ function raceCut(): { w: number; h: number } | null {
                 >
                   <span>
                     <span className="grn-display block text-lg leading-tight">{label}</span>
-                    <span className="text-[0.8rem] text-white/74">{hint}</span>
+                    <span className="text-xs text-white/74">{hint}</span>
                   </span>
                   <span
                     className={`relative h-7 w-12 shrink-0 rounded-full transition ${
@@ -3404,7 +3404,7 @@ function raceCut(): { w: number; h: number } | null {
             </div>
 
             {/* Quality */}
-            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-[0.75rem]">
+            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-xs">
               Graphics · الرسومات
             </h3>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -3422,7 +3422,7 @@ function raceCut(): { w: number; h: number } | null {
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-[0.8rem] text-white/70">
+            <p className="mt-2 text-xs text-white/70">
               Auto measures your frame rate for six seconds and drops glow and shadows if the
               device can&apos;t hold it; Balanced and Battery also cap Native. This tier is the
               effects — the resolution below is the pixels, and a resolution you choose there is
@@ -3430,7 +3430,7 @@ function raceCut(): { w: number; h: number } | null {
             </p>
 
             {/* Resolution */}
-            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-[0.75rem]">
+            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-xs">
               Resolution · الدقة
             </h3>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -3445,7 +3445,7 @@ function raceCut(): { w: number; h: number } | null {
                   }`}
                 >
                   <span className="grn-display block text-base leading-tight">{r.label}</span>
-                  <span className="mt-0.5 block text-[0.7rem] leading-tight text-white/66">
+                  <span className="mt-0.5 block text-2xs leading-tight text-white/66">
                     {r.hint}
                   </span>
                 </button>
@@ -3457,12 +3457,12 @@ function raceCut(): { w: number; h: number } | null {
             {renderInfo && (
               <div className="grn-panel mt-3 p-3.5">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                  <span className="grn-label text-[0.7rem]">Rendering at</span>
+                  <span className="grn-label text-2xs">Rendering at</span>
                   <span className="grn-display tnum text-lg leading-none text-sodium-400">
                     {formatBuffer(renderInfo.buffer[0], renderInfo.buffer[1])}
                   </span>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[0.8rem] text-white/70">
+                <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-white/70">
                   <span>
                     Window{" "}
                     <span className="tnum text-white/70">
@@ -3490,7 +3490,7 @@ function raceCut(): { w: number; h: number } | null {
                   settings.resolution === "native" && (
                     <button
                       onClick={toggleFullscreen}
-                      className="grn-btn tap mt-3 border border-white/15 px-4 py-2 text-[0.8rem] text-white/75 hover:bg-white/10"
+                      className="grn-btn tap mt-3 border border-white/15 px-4 py-2 text-xs text-white/75 hover:bg-white/10"
                     >
                       Go fullscreen for the panel&apos;s full{" "}
                       <span className="tnum">{renderInfo.display[1]}</span> lines
@@ -3498,7 +3498,7 @@ function raceCut(): { w: number; h: number } | null {
                   )}
               </div>
             )}
-            <p className="mt-2 text-[0.8rem] text-white/70">
+            <p className="mt-2 text-xs text-white/70">
               Native is one rendered pixel per pixel of your display — 4K on a 4K panel, and only
               in fullscreen. The rest are fixed line counts fitted to your window&apos;s shape, so
               4K really is 2160 lines whatever size the window is: pick it above your display to
@@ -3507,7 +3507,7 @@ function raceCut(): { w: number; h: number } | null {
             </p>
 
             {/* Camera */}
-            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-[0.75rem]">
+            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-xs">
               Camera · الكاميرا
             </h3>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -3522,13 +3522,13 @@ function raceCut(): { w: number; h: number } | null {
                   }`}
                 >
                   <span className="grn-display block text-base leading-tight">{v.label}</span>
-                  <span className="mt-0.5 block text-[0.7rem] leading-tight text-white/66">
+                  <span className="mt-0.5 block text-2xs leading-tight text-white/66">
                     {v.hint}
                   </span>
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-[0.8rem] text-white/70">
+            <p className="mt-2 text-xs text-white/70">
               Press <span className="text-white/75">C</span> during a race to cycle. Chase and
               Close follow the road, so the car yaws inside the shot and you can see what it is
               doing; Bonnet, Bumper and Cockpit are bolted to the shell and go where it goes —
@@ -3536,7 +3536,7 @@ function raceCut(): { w: number; h: number } | null {
             </p>
 
             {/* Frame pacing */}
-            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-[0.75rem]">
+            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-xs">
               Frame rate · معدل الإطارات
             </h3>
             <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-8">
@@ -3565,7 +3565,7 @@ function raceCut(): { w: number; h: number } | null {
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-[0.8rem] text-white/70">
+            <p className="mt-2 text-xs text-white/70">
               Display follows your panel&apos;s own refresh rate. G-Sync sits a few frames under
               it, which is what keeps a variable-refresh screen inside its window instead of
               falling back to v-sync. Browsers lock rendering to v-sync and offer no way to
@@ -3573,17 +3573,17 @@ function raceCut(): { w: number; h: number } | null {
             </p>
 
             {/* Time of day */}
-            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-[0.75rem]">
+            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-xs">
               Sky · السما
             </h3>
             {/* Picture */}
-            <h3 className="grn-label mt-6 text-[0.75rem] text-white/70">
+            <h3 className="grn-label mt-6 text-xs text-white/70">
               PICTURE · <span className="grn-ar" lang="ar">الصورة</span>
             </h3>
             <label className="mt-3 flex items-center justify-between gap-3 text-sm">
               <span>
                 Auto exposure
-                <span className="block text-[0.75rem] text-white/70">
+                <span className="block text-xs text-white/70">
                   Meters the scene and adapts, like an eye
                 </span>
               </span>
@@ -3610,7 +3610,7 @@ function raceCut(): { w: number; h: number } | null {
                   <span>
                     {label} <span className="grn-ar text-white/74" lang="ar">{ar}</span>
                   </span>
-                  <span className="grn-display text-[0.875rem] text-sodium-400">
+                  <span className="grn-display text-sm text-sodium-400">
                     {fmt(settings[key] as number)}
                   </span>
                 </span>
@@ -3649,7 +3649,7 @@ function raceCut(): { w: number; h: number } | null {
                   <span className="grn-display block text-base">
                     {label} <span className="grn-ar text-white/55" lang="ar">{ar}</span>
                   </span>
-                  <span className="block text-[0.8rem] text-white/74">{desc}</span>
+                  <span className="block text-xs text-white/74">{desc}</span>
                 </button>
               ))}
             </div>
@@ -3677,13 +3677,13 @@ function raceCut(): { w: number; h: number } | null {
                   <span className="grn-display block text-base">
                     {label} <span className="grn-ar text-white/55" lang="ar">{ar}</span>
                   </span>
-                  <span className="block text-[0.8rem] text-white/74">{desc}</span>
+                  <span className="block text-xs text-white/74">{desc}</span>
                 </button>
               ))}
             </div>
 
             {/* Audio */}
-            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-[0.75rem]">
+            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-xs">
               Audio · الصوت
             </h3>
             <div className="mt-3 space-y-4">
@@ -3695,7 +3695,7 @@ function raceCut(): { w: number; h: number } | null {
               ).map(([key, label]) => (
                 <label key={key} className="block">
                   <span className="flex items-baseline justify-between">
-                    <span className="grn-label text-[0.75rem]">{label}</span>
+                    <span className="grn-label text-xs">{label}</span>
                     <span className="grn-display text-sm text-white/70">
                       {Math.round(settings[key] * 100)}%
                     </span>
@@ -3753,7 +3753,7 @@ function raceCut(): { w: number; h: number } | null {
             <div className="grn-ar mt-3 text-2xl text-white/85" dir="rtl" lang="ar">
               ملك شارع الخليج
             </div>
-            <div className="mx-auto mt-4 max-w-md text-[0.95rem] leading-6 text-white/65">
+            <div className="mx-auto mt-4 max-w-md text-base leading-6 text-white/65">
               Every legend on the roster defeated — from Salmiya to Jahra, the street is yours. Mabrook!
             </div>
             <button
@@ -3780,7 +3780,7 @@ function raceCut(): { w: number; h: number } | null {
           <div className="cine-bar cine-bar-b" />
           {/* Rival card rides the lower bar */}
           <div className="cine-card absolute bottom-[calc(11vh+env(safe-area-inset-bottom))] left-[calc(env(safe-area-inset-left)+1.25rem)]">
-            <div className="grn-label text-[0.7rem] text-sodium-400">
+            <div className="grn-label text-2xs text-sodium-400">
               Challenger · تحدي
             </div>
             <div className="grn-display mt-0.5 text-[clamp(1.6rem,6vw,2.6rem)] italic leading-none text-white [text-shadow:0_2px_18px_rgba(0,0,0,0.9)]">
@@ -3789,7 +3789,7 @@ function raceCut(): { w: number; h: number } | null {
                 {cine.card.arabicName}
               </span>
             </div>
-            <div className="mt-1 flex items-center gap-2 text-[0.8rem] text-white/70">
+            <div className="mt-1 flex items-center gap-2 text-xs text-white/70">
               <span
                 className="inline-block size-3 rounded-sm border border-white/25"
                 style={{ background: `#${cine.card.color.toString(16).padStart(6, "0")}` }}
@@ -3810,7 +3810,7 @@ function raceCut(): { w: number; h: number } | null {
                 LV {cine.card.level} <Flag code={cine.card.flag} />
               </span>
             </div>
-            <div className="grn-display mt-1.5 text-[0.875rem] tracking-[0.12em] text-sodium-400">
+            <div className="grn-display mt-1.5 text-sm tracking-[0.12em] text-sodium-400">
               {cine.stake > 0 ? (
                 <>
                   {cine.stake.toLocaleString()} KD EACH — ON THE LINE{" "}
@@ -3828,19 +3828,19 @@ function raceCut(): { w: number; h: number } | null {
             <div className="grn-display text-[clamp(2rem,7vw,3.4rem)] italic leading-none text-sodium-400 [text-shadow:0_0_26px_rgba(255,170,60,0.55),0_2px_18px_rgba(0,0,0,0.9)]">
               VS
             </div>
-            <div className="grn-ar-display text-[0.875rem] text-white/60" lang="ar">ضد</div>
+            <div className="grn-ar-display text-sm text-white/60" lang="ar">ضد</div>
           </div>
 
           {/* Your side of the frame, mirrored on the right bar */}
           {cine.you && (
             <div className="cine-card absolute bottom-[calc(11vh+env(safe-area-inset-bottom))] right-[calc(env(safe-area-inset-right)+1.25rem)] text-right">
-              <div className="grn-label text-[0.7rem] text-gulf-300">
+              <div className="grn-label text-2xs text-gulf-300">
                 You · <span className="grn-ar" lang="ar">أنت</span>
               </div>
               <div className="grn-display mt-0.5 text-[clamp(1.6rem,6vw,2.6rem)] italic leading-none text-white [text-shadow:0_2px_18px_rgba(0,0,0,0.9)]">
                 {cine.you.name}
               </div>
-              <div className="mt-1 flex items-center justify-end gap-2 text-[0.8rem] text-white/70">
+              <div className="mt-1 flex items-center justify-end gap-2 text-xs text-white/70">
                 <span>
                   LV {cine.you.level} <Flag code={cine.you.flag} />
                 </span>
@@ -3860,7 +3860,7 @@ function raceCut(): { w: number; h: number } | null {
               </div>
             </div>
           )}
-          <div className="grn-label cine-skip absolute bottom-[calc(3vh+env(safe-area-inset-bottom))] right-[calc(env(safe-area-inset-right)+1.25rem)] text-[0.7rem] text-white/74">
+          <div className="grn-label cine-skip absolute bottom-[calc(3vh+env(safe-area-inset-bottom))] right-[calc(env(safe-area-inset-right)+1.25rem)] text-2xs text-white/74">
             tap to skip ▸▸
           </div>
         </button>
@@ -3879,14 +3879,14 @@ function raceCut(): { w: number; h: number } | null {
                 step lands at 3.27:1, under the 4.5 floor check:menus
                 enforces. A label nobody can read is not a quieter
                 label, it is a missing one. */}
-            <div className="grn-label text-[0.7rem] tracking-[0.4em] text-gulf-300">Paused</div>
+            <div className="grn-label text-2xs tracking-[0.4em] text-gulf-300">Paused</div>
             <div className="grn-display mt-1 text-3xl italic">
               PIT STOP <span className="grn-ar not-italic text-white/60" lang="ar">وقفة</span>
             </div>
             {/* The controls live here now. The corner of the screen used
                 to carry them for the whole session, which made the
                 busiest box on the HUD a thing you read once. */}
-            <div className="mt-4 font-display text-[0.8rem] leading-[1.5] tracking-wide text-white/70">
+            <div className="mt-4 font-display text-xs leading-[1.5] tracking-wide text-white/70">
               W/↑ accelerate · S/↓ brake · A D steer
               <br />Space drift · N nitro · F flash
               <br />M mute · B music · V voices
@@ -3895,7 +3895,7 @@ function raceCut(): { w: number; h: number } | null {
                   B on an Xbox pad, plain names on anything else. Before
                   this the whole documentation of a controller was the two
                   words "gamepad supported". */}
-              <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-left text-[0.8rem] text-white/80">
+              <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-left text-xs text-white/80">
                 {padLayout(pad ?? "generic").map((r) => (
                   <div key={r.action} className="flex justify-between gap-3">
                     <span className="text-white/60">{r.action}</span>
@@ -3906,7 +3906,7 @@ function raceCut(): { w: number; h: number } | null {
               {/* white/62: this line names the pad the glyphs above it
                   are drawn for, so a player comparing them has to be
                   able to read it. Same 3.66:1 as the clock pill. */}
-              <div className="mt-1 text-[0.7rem] text-white/62">
+              <div className="mt-1 text-2xs text-white/62">
                 {pad ? (pad === "playstation" ? "PlayStation layout" : pad === "xbox" ? "Xbox layout" : "Generic pad") : "Plug in a pad to see its own buttons"}
               </div>
             </div>
@@ -3940,7 +3940,7 @@ function raceCut(): { w: number; h: number } | null {
                 EXIT TO MENU
               </button>
             </div>
-            <p className="grn-label mt-4 text-[0.7rem] text-white/66">
+            <p className="grn-label mt-4 text-2xs text-white/66">
               Esc / {padLabel("pause", pad ?? "generic")} to resume · progress is saved
             </p>
           </div>
@@ -3950,7 +3950,7 @@ function raceCut(): { w: number; h: number } | null {
       {/* Loading — the engine build takes a beat on a phone */}
       {phase === "loading" && (
         <div className="safe-pad absolute inset-0 z-20 flex flex-col items-center justify-center menu-backdrop">
-          <div className="grn-label text-[0.7rem] tracking-[0.45em] text-gulf-400">
+          <div className="grn-label text-2xs tracking-[0.45em] text-gulf-400">
             Warming up
           </div>
           <div className="grn-display mt-2 text-[clamp(1.4rem,6vw,2.2rem)] italic">
@@ -3964,7 +3964,7 @@ function raceCut(): { w: number; h: number } | null {
             <div className="skeleton h-3 w-2/3" />
             <div className="skeleton h-3 w-1/2" />
           </div>
-          <p className="mt-6 max-w-sm text-center text-[0.8rem] leading-5 text-white/66">
+          <p className="mt-6 max-w-sm text-center text-xs leading-5 text-white/66">
             Tip: flash your headlights three times behind a rival to start a
             battle — the trailing car loses SP.
           </p>

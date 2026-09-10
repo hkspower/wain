@@ -279,8 +279,26 @@ const COLLECT = `(() => {
     // marked here and counted separately. An inline font-size or an SVG
     // text node is the whole of the rule, because those are the only
     // two ways this project sets type from a measurement.
+    // An em-based size is the third case, and it is the Arabic one. The
+    // place plate sets شرق at text-[0.95em] inside a text-xl row:
+    // Arabic and Latin do not appear the same size when set at the same
+    // size, so the Arabic is taken down a notch to match the Latin
+    // beside it optically. That 0.95 is chosen against its NEIGHBOUR,
+    // which is the definition of a size that is not picked from the
+    // scale — and it lands on 19px, 5% from both 18 and 20, and gets
+    // reported as two more broken steps.
+    const clsStr = (el.className && el.className.baseVal !== undefined
+      ? el.className.baseVal : el.className) || "";
+    // Backslashes are DOUBLED because this whole block is a template
+    // literal: \b in a template literal is a backspace character and \d
+    // is a literal d, so the single-escaped version of this regex
+    // compiled to something that matched nothing and silently reported
+    // the Arabic as two more broken steps. Every other pattern in here
+    // is doubled for the same reason.
+    const emSized = /\\btext-\\[[\\d.]+em\\]/.test(String(clsStr)) ||
+      /em$/.test((el.style && el.style.fontSize) || "");
     const fluid = !!(el.style && el.style.fontSize) || el.ownerSVGElement != null ||
-      el.tagName.toLowerCase() === "text";
+      el.tagName.toLowerCase() === "text" || emSized;
     rows.push({
       text: raw.trim().slice(0, 34),
       fg: hex(fg),
@@ -529,7 +547,7 @@ if (fluidRuns.length) {
   const fl = new Map();
   for (const r of fluidRuns) fl.set(r.px, (fl.get(r.px) || 0) + 1);
   console.log(
-    `  fluid (sized from an instrument, not from the scale): ` +
+    `  derived (sized from an instrument or from a neighbour, not from the scale): ` +
       [...fl.entries()].sort((a, b) => a[0] - b[0]).map(([px, n]) => `${px}px x${n}`).join("  ")
   );
 }

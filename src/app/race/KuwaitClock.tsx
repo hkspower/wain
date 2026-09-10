@@ -158,9 +158,9 @@ export default function KuwaitClock() {
         <span
           ref={textRef}
           data-testid="kuwait-clock-digits"
-          className="grn-display text-[0.8rem] tabular-nums tracking-[0.08em] text-white/85"
+          className="grn-display text-xs tabular-nums tracking-[0.08em] text-white/85"
         />
-        <span className="grn-label text-[0.7rem] tracking-[0.16em] text-white/70">
+        <span className="grn-label text-2xs tracking-[0.16em] text-white/70">
           KWT
         </span>
       </div>
