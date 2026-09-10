@@ -114,6 +114,21 @@ foreach (['/', '/shop'] as $path) {
     // And the compressed form, to see whether one strong tag covers both.
     $g = ask('origin', $path, [], true);
 
+    // SHOW THE TWO TAGS rather than only whether they match. The first run
+    // reported tagsMatch=DIFFER on bodies of identical length, which has two
+    // very different explanations — the CDN transforming the tag (benign, and
+    // a weakened W/ form is explicitly allowed) or the edge serving different
+    // bytes (not benign at all). "DIFFER" alone cannot tell them apart, and
+    // guessing between them is how a real fault gets written off.
+    $shortTag = static function (string $t): string {
+        if ($t === '') return 'none';
+        $weak = str_starts_with($t, 'W/');
+        $core = trim($weak ? substr($t, 2) : $t, '"');
+        // Enough to compare by eye, and it is a hash of public bytes, not a
+        // secret — but there is no reason to print all forty characters twice.
+        return ($weak ? 'W/' : '') . substr($core, 0, 12) . (strlen($core) > 12 ? '…' : '');
+    };
+
     $out[] = $path . '{'
         . 'origin=' . $o['code'] . '/' . $o['len'] . ($o['etag'] === '' ? '/NO-ETAG' : '')
         . ' edge=' . $e['code'] . '/' . $e['len'] . ($e['etag'] === '' ? '/NO-ETAG' : '')
@@ -122,9 +137,17 @@ foreach (['/', '/shop'] as $path) {
         . ' tagsMatch=' . ($o['etag'] !== '' && $o['etag'] === $e['etag'] ? 'yes'
                           : ($e['etag'] === '' ? 'edge-has-none' : 'DIFFER'))
         . ' origin304=' . $o304 . ' edge304=' . $e304
+        . ' originTag=' . $shortTag($o['etag'])
+        . ' edgeTag=' . $shortTag($e['etag'])
         . ' enc=' . $g['enc']
         . ' encTag=' . ($g['etag'] === '' ? 'none' : ($g['etag'] === $o['etag'] ? 'same' : 'differs'))
-        . ' vary=' . $o['vary']
+        // THE VARY THAT MATTERS IS THE COMPRESSED RESPONSE'S. The first version
+        // read it off the identity reply, where a server has no reason to send
+        // one — so it reported `vary=-` about a response that was never the
+        // question. Vary: Accept-Encoding earns its place on the reply that IS
+        // encoded.
+        . ' varyGzip=' . $g['vary']
+        . ' varyPlain=' . $o['vary']
         . ' cc=' . $o['cc']
         . '}';
 }
