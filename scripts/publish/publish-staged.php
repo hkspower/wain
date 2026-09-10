@@ -3,11 +3,21 @@
  * The whole docroot, rolled out in THREE STAGES with a gate between each.
  *
  *   wget -qO r.php https://raw.githubusercontent.com/hkspower/wain/<sha>/scripts/publish/publish-staged.php && php r.php
- *   …the same with `php r.php 1`, then `2`, then `3`
  *
- * With NO argument it writes NOTHING and reports what each stage would do. That
- * is the default on purpose: a publisher whose default is to publish is one
- * that publishes when somebody is only looking.
+ * Run it THREE TIMES. Each run advances the rollout by exactly ONE stage — the
+ * first stage that is not already complete — so the three cron cycles are the
+ * three stages, in order, and there is nothing to remember between them. When
+ * every stage is complete it writes NOTHING and instead runs all three
+ * verifications, so a fourth run is a full read-only report.
+ *
+ * IT TAKES NO ARGUMENT, and that is not a preference. Measured 2026-09-10:
+ * `php r.php 1` through this channel produced an EMPTY output twice running,
+ * where the identical command without the trailing argument answered first
+ * time. Add it to the list of things this channel silently drops — alongside
+ * $VAR expansions, `%`, quoted metacharacters and anything after the command
+ * whose output you want. The stage therefore comes from the SERVER'S OWN STATE
+ * rather than from a parameter, which is better anyway: the run cannot be told
+ * to do a stage the gate would refuse.
  *
  * WHY THREE, AND WHY THIS ORDER. The order is not "small things first"; it is
  * the only order in which the shop is a working shop at every moment BETWEEN
@@ -48,11 +58,12 @@
  *          freeing them onto are already on disk. Bumped in stage 2 it would
  *          drop caches and re-fetch against the old shell for one stage.
  *
- * THE GATE. Stage N refuses to run unless every earlier stage is complete —
- * complete meaning every one of its files matches its sha256 on disk, not
- * "I ran it". That is what makes this a rollout rather than three scripts that
- * happen to be numbered, and it is why a half-finished stage 1 cannot be
- * followed by a stage 2 that quietly builds on it.
+ * THE GATE IS THE SELECTION. The stage a run performs is the FIRST one not
+ * already complete — complete meaning every one of its files matches its sha256
+ * on disk, not "I ran it". So a half-finished stage 1 is simply chosen again,
+ * and stage 2 cannot be reached over the top of it. That is what makes this a
+ * rollout rather than three scripts that happen to be numbered, and there is no
+ * way to ask for a stage the gate would refuse, because nothing is asked for.
  *
  * ONE HOME FOR THE FILE LIST. The manifest is NOT repeated here. It is fetched
  * from scripts/live/live-file-check.php at the same commit and parsed — that
@@ -84,9 +95,6 @@ $COMMIT = '2c79a76';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $RAW    = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT . '/';
 $BASE   = $RAW . 'sporta-site/public_html/';
-
-$stage = isset($argv[1]) ? (int) $argv[1] : 0;
-if ($stage < 0 || $stage > 3) { echo "STAGED bad stage — use 1, 2, 3, or none to report\n"; exit(1); }
 
 /* ------------------------------------------------- the manifest, fetched --- */
 
@@ -150,33 +158,91 @@ $state = static function (array $files) use ($ROOT): array {
     return [$ok, $todo];
 };
 
-/* ------------------------------------------------------------- reporting --- */
 
-if ($stage === 0) {
-    $out = [];
-    foreach ([1, 2, 3] as $n) {
-        [$ok, $todo] = $state($buckets[$n]);
-        $out[] = "stage$n=" . $ok . '/' . count($buckets[$n])
-               . ($todo ? ' todo:' . implode(',', array_slice($todo, 0, 6))
-                          . (count($todo) > 6 ? '+' . (count($todo) - 6) : '') : '');
+/* ------------------------------------------------- one request, verifying -- */
+
+$serve = static function (string $path): array {
+    $ch = curl_init('https://127.0.0.1' . $path);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HEADER         => true,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
+        CURLOPT_HTTPHEADER     => ['Host: www.sporta.com.kw'],
+        CURLOPT_TIMEOUT        => 30,
+    ]);
+    $out  = (string) curl_exec($ch);
+    $size = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    return [substr($out, 0, $size), substr($out, $size), $code];
+};
+
+/* What each stage is asked to PROVE, and it is a different question per stage.
+   A byte count would read as success for all three whatever happened. */
+$prove = static function (int $n) use ($serve): string {
+    if ($n === 1) {
+        // The server still answers, and still refuses what it should refuse. A
+        // broken PHP file is a 500 on every page, so a failure here is total
+        // and immediate — which is exactly why this stage goes first, while
+        // every visitor is still being served yesterday's page.
+        [, $prod, $c1] = $serve('/api/api.php?r=products');
+        [, , $c2]      = $serve('/api/admin.php?r=stats');
+        return 'api=' . $c1 . '/' . strlen($prod)
+             . ' adminGate=' . $c2 . ($c2 === 401 ? '(gated)' : ($c2 === 200 ? '(LEAK)' : ''));
     }
-    echo 'STAGED report manifest=' . count($want) . ' ' . implode(' ', $out)
-       . ' nextStage=' . (static function () use ($buckets, $state) {
-            foreach ([1, 2, 3] as $n) { [, $t] = $state($buckets[$n]); if ($t) return $n; }
-            return 'none';
-         })() . "\n";
-    exit(0);
+    if ($n === 2) {
+        // The assets answer. Nothing references the new ones yet — that is
+        // stage 3 — so this asks only that they are there and non-empty.
+        $ok = 0; $bytes = 0;
+        foreach (['/assets/sporta-ui.css', '/assets/sporta-dark.css', '/assets/rules.js'] as $p) {
+            [, $b, $c] = $serve($p);
+            if ($c === 200 && $b !== '') { $ok++; $bytes += strlen($b); }
+        }
+        return 'assets=' . $ok . '/3 assetBytes=' . $bytes;
+    }
+    // THE ONE THAT MATTERS. Re-derive the sha256 of every inline script the
+    // SERVED page carries and compare it against the policy the server SENDS.
+    // Reading .htaccess would only say what the repository thinks.
+    [$head, $html, $c] = $serve('/');
+    $declared = [];
+    if (preg_match('/content-security-policy:.*/i', $head, $mm)) {
+        preg_match_all("/'(sha256-[A-Za-z0-9+\/=]+)'/", $mm[0], $d);
+        $declared = $d[1];
+    }
+    preg_match_all('/<script(?![^>]*\bsrc=)[^>]*>(.*?)<\/script>/s', $html, $s);
+    $blocked = 0;
+    foreach ($s[1] as $b) {
+        if (!in_array('sha256-' . base64_encode(hash('sha256', $b, true)), $declared, true)) $blocked++;
+    }
+    return 'shell=' . $c . '/' . strlen($html)
+         . ' inlineScripts=' . count($s[1]) . ' cspHashes=' . count($declared) . ' BLOCKED=' . $blocked
+         . ' swVersion=' . (preg_match("/const VERSION = '([^']+)'/", $serve('/sw.js')[1], $v) ? $v[1] : 'UNREADABLE');
+};
+
+/* ------------------------------------------- which stage this run is for --- */
+
+/* THE GATE IS THE SELECTION. The stage is the first one not already complete
+   on disk — complete meaning every file matches its sha256, not "I ran it" —
+   so a half-finished stage is simply chosen again, and a later stage can never
+   be reached over the top of an earlier one. There is no way to ask for a
+   stage the gate would refuse, because nothing is asked for. */
+$stage = 0;
+$counts = [];
+foreach ([1, 2, 3] as $n) {
+    [$ok, $todo] = $state($buckets[$n]);
+    $counts[] = 'stage' . $n . '=' . $ok . '/' . count($buckets[$n]);
+    if ($stage === 0 && $todo) $stage = $n;
 }
 
-/* ----------------------------------------------------------------- gate ---- */
-
-foreach (range(1, $stage - 1) as $n) {
-    [$ok, $todo] = $state($buckets[$n]);
-    if ($todo) {
-        echo 'STAGED REFUSED stage=' . $stage . ' because stage' . $n . '=' . $ok . '/'
-           . count($buckets[$n]) . ' incomplete: ' . implode(',', array_slice($todo, 0, 6)) . "\n";
-        exit(1);
-    }
+/* Nothing to do: the rollout is complete, so this run is a read-only report and
+   every stage's own verification is run. A publisher with nothing to publish
+   should still be able to tell you the shop is right. */
+if ($stage === 0) {
+    echo 'STAGED complete manifest=' . count($want) . ' ' . implode(' ', $counts)
+       . ' | 1{' . $prove(1) . '} 2{' . $prove(2) . '} 3{' . $prove(3) . '}'
+       . "\n";
+    exit(0);
 }
 
 /* ---------------------------------------------------------------- write ---- */
@@ -201,68 +267,15 @@ foreach ($files as $rel => $sha) {
     else $failed[] = $rel;
 }
 
-/* --------------------------------------------------------------- verify ---- */
-
-$serve = static function (string $path): array {
-    $ch = curl_init('https://127.0.0.1' . $path);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HEADER         => true,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => false,
-        CURLOPT_HTTPHEADER     => ['Host: www.sporta.com.kw'],
-        CURLOPT_TIMEOUT        => 30,
-    ]);
-    $out  = (string) curl_exec($ch);
-    $size = (int) curl_getinfo($ch, CURLINFO_HEADER_SIZE);
-    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    return [substr($out, 0, $size), substr($out, $size), $code];
-};
-
-/* What each stage is asked to PROVE, which is different per stage. A byte count
-   would read as success for all three whatever happened. */
-$proof = '';
-if ($stage === 1) {
-    // The server still answers, and still refuses what it should refuse. A
-    // broken PHP file is a 500 on every page, so this is the stage where a
-    // failure is total and immediate.
-    [, $prod, $c1] = $serve('/api/api.php?r=products');
-    [, , $c2]      = $serve('/api/admin.php?r=stats');
-    $proof = ' api=' . $c1 . '/' . strlen($prod)
-           . ' adminGate=' . $c2 . ($c2 === 401 ? '(gated)' : ($c2 === 200 ? '(LEAK)' : ''));
-} elseif ($stage === 2) {
-    // The assets answer and are the bytes just written. Nothing references the
-    // new ones yet — that is stage 3 — so this asks only that they are there.
-    $n = 0; $bytes = 0;
-    foreach (['/assets/sporta-ui.css', '/assets/sporta-dark.css', '/assets/rules.js'] as $p) {
-        [, $b, $c] = $serve($p);
-        if ($c === 200 && $b !== '') { $n++; $bytes += strlen($b); }
-    }
-    $proof = ' assets=' . $n . '/3 assetBytes=' . $bytes;
-} else {
-    // THE ONE THAT MATTERS. Re-derive the sha256 of every inline script the
-    // served page carries and compare it with the policy the server SENDS.
-    // Reading .htaccess would only say what the repository thinks.
-    [$head, $html, $c] = $serve('/');
-    $declared = [];
-    if (preg_match('/content-security-policy:.*/i', $head, $mm)) {
-        preg_match_all("/'(sha256-[A-Za-z0-9+\/=]+)'/", $mm[0], $d);
-        $declared = $d[1];
-    }
-    preg_match_all('/<script(?![^>]*\bsrc=)[^>]*>(.*?)<\/script>/s', $html, $s);
-    $blocked = 0;
-    foreach ($s[1] as $b) {
-        if (!in_array('sha256-' . base64_encode(hash('sha256', $b, true)), $declared, true)) $blocked++;
-    }
-    $proof = ' shell=' . $c . '/' . strlen($html)
-           . ' inlineScripts=' . count($s[1]) . ' cspHashes=' . count($declared) . ' BLOCKED=' . $blocked
-           . ' swVersion=' . (preg_match("/const VERSION = '([^']+)'/", $serve('/sw.js')[1], $v) ? $v[1] : 'UNREADABLE');
-}
-
-echo 'STAGED stage=' . $stage . '/' . count($files)
+/* A check run in the same breath as a write can measure the state BEFORE it —
+   this docroot has a writer that acts on a delay and LiteSpeed has been seen
+   holding an old parse seconds after a verified write. The bytes above were
+   verified by sha256; if the line below disagrees with them, re-ask a minute
+   later before believing either. */
+echo 'STAGED ran=' . $stage . ' of=' . count($files)
    . ' wrote=' . $wrote . ' alreadyOk=' . $same
    . ' hashMismatch=' . (count($bad) ? implode(',', $bad) : '0')
    . ' failed=' . (count($failed) ? implode(',', $failed) : '0')
-   . $proof
+   . ' | ' . $prove($stage)
+   . ' | ' . implode(' ', $counts) . ' (before this run)'
    . "\n";
