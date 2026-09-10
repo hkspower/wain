@@ -1,6 +1,6 @@
 <?php
 /**
- * Publish EVERYTHING WAITING as of 2026-09-10 — eight files, one run.
+ * Publish EVERYTHING WAITING as of 2026-09-10 — nine files, one run.
  *
  *   php /home/<user>/publish-pending.php
  *
@@ -44,7 +44,7 @@
  * the gap between two renames.
  *
  * WHY IT IS SAFE TO FETCH AND RUN. Plain HTTP from a PUBLIC repository:
- *   - eight paths, named below, nothing derived from input
+ *   - nine paths, named below, nothing derived from input
  *   - each checked against the sha256 recorded here BEFORE it is written
  *   - pinned to one COMMIT, not a branch (the working branch has a slash in it,
  *     which makes a raw.githubusercontent ref ambiguous — it returns an EMPTY
@@ -55,11 +55,28 @@
  *   - IDEMPOTENT: a file already matching its hash is skipped, so re-running
  *     costs nothing and a half-finished run completes on the next one
  *
- * NO SERVICE-WORKER BUMP, checked rather than assumed. sw.js caches
- * cache-first only what matches a HASHED name (`-<8+ chars>.css|js`); both CSS
- * files here have fixed names and fall through to rule 3, network-first, and
- * index.html is a navigation, likewise. Both reach a returning visitor on the
- * next load without rotating everyone's cache.
+ *   THE SERVICE-WORKER BUMP  sw.js
+ *     AND THIS PARAGRAPH USED TO SAY THE OPPOSITE. It read "no service-worker
+ *     bump, checked rather than assumed: sw.js caches cache-first only what
+ *     matches a HASHED name, and both CSS files here have fixed names and fall
+ *     through to rule 3, network-first". Every clause of that is true — OF A
+ *     BROWSER ALREADY RUNNING THIS WORKER.
+ *
+ *     A browser still running an OLDER worker is executing the OLDER rules,
+ *     where everything under /assets/ was cache-first and never re-asked. It
+ *     holds sporta-ui.css from whenever it first visited and does not ask
+ *     again, so none of the three changes above reaches it. The owner reported
+ *     exactly that — "I change something and the shop still shows the old
+ *     version" — while the origin sent no-cache, the CDN said BYPASS and this
+ *     worker was network-first. All three were measurements of the CURRENT
+ *     worker; the stale copy was in a cache belonging to one that exists only
+ *     in a visitor's browser.
+ *
+ *     Activating a new VERSION deletes every cache that is not the current one.
+ *     That is what frees them, and it costs each visitor one re-download.
+ *     npm run test:sw-version now fails when a fixed-name asset changes without
+ *     it, because the rule had been written in sw.js's own comments and missed
+ *     twice anyway.
  *
  * THE CHECK ASKS THE SERVER, over the loopback, for the thing each change was
  * made FOR rather than for a byte count — and it re-derives the sha256 of every
@@ -68,7 +85,7 @@
  * would only say what the repository thinks.
  */
 
-$COMMIT = '85c4131';
+$COMMIT = 'ec28737';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
         . '/sporta-site/public_html/';
@@ -84,6 +101,11 @@ $FILES = [
     'api/seed.mysql.sql'     => 'bd51a938063ff63d7fb381290c42196ffde93d9d5b065f5da6bac3d10b7f0d88',
     'api/install.mysql.sql'  => 'a2e3fc99c8286ee94fc176b256345b81bb111292fb99fc1af21cddb51deafbae',
     'api/brands.mysql.sql'   => '7f781441054267db1cfb90a356cfdc8817d62d80670ced83d9ba0be047bba110',
+    // THE BUMP, and the only file in this list that is not already live. A fix
+    // to sw.js's RULES reaches new arrivals; the VERSION is what drops the
+    // caches of a browser still running the previous worker, which is where a
+    // stale sporta-ui.css actually sits. See test:sw-version.
+    'sw.js'                  => '0d893edb4a80db8325c2b634cc1ee3f2467df727a1648d74e7ed4e62954fca6d',
 ];
 
 $wrote = 0; $same = 0; $bad = []; $failed = [];
@@ -165,4 +187,7 @@ echo 'PENDING wrote=' . $wrote . ' alreadyOk=' . $same
    // the shop actually loads.
    . ' sessionGc=' . (strpos(@file_get_contents($ROOT . '/api/store.php') ?: '',
                              "ini_set('session.gc_maxlifetime'") !== false ? 'ok' : 'MISSING')
+   // The version the SERVER serves, not the one on disk: this is the string a
+   // returning browser compares against its own worker, and the whole point.
+   . ' swVersion=' . (preg_match("/const VERSION = '([^']+)'/", $serve('/sw.js')[1], $m) ? $m[1] : 'UNREADABLE')
    . "\n";
