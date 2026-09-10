@@ -413,6 +413,15 @@ export default function SettingsScreen() {
           <Field label="Accent text on dark — HSL triple" value={theme.accentTextDark}
             onChangeText={(v) => setT('accentTextDark', v)} />
 
+          {/* THE ONE FIELD WITH NO SHAPE. Everything above is checked against
+              the format its own variable uses; this is appended to the
+              storefront as written. It is not applied on /backends — see
+              assets/theme.js — so however badly a rule goes, this box still
+              works and emptying it is always the way back. */}
+          <Field label="Extra CSS — added last, and never applied to this panel"
+            value={theme.css} multiline
+            onChangeText={(v) => setT('css', v)} />
+
           <Field label="Heading font — family name" value={theme.fontHead}
             onChangeText={(v) => setT('fontHead', v)} />
           <Field label="Body font — family name" value={theme.fontBody}

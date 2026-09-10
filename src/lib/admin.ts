@@ -267,6 +267,12 @@ export interface ThemeSettings {
    *  large value is not a bold theme, it is a broken page. */
   radius: string;
   space: string;
+  /** ARBITRARY CSS, appended after everything else on the storefront — and
+   *  deliberately NOT applied on /backends, so a rule that hides the shop can
+   *  never hide the box that clears it. The server bounds it rather than
+   *  parsing it: 20 kB, no `</` (the one sequence that could end the <style>
+   *  element), no NUL. Empty means nothing is emitted, which is the way back. */
+  css: string;
 }
 
 export interface ContactDetails {
@@ -860,7 +866,7 @@ export const adminApi = {
       brand: g('brand'),
       accentTextLight: g('accent_text_light'), accentTextDark: g('accent_text_dark'),
       fontHead: g('font_head'), fontBody: g('font_body'),
-      radius: g('radius'), space: g('space'),
+      radius: g('radius'), space: g('space'), css: g('css'),
     }
   },
 
@@ -871,7 +877,7 @@ export const adminApi = {
         brand: v.brand,
         accent_text_light: v.accentTextLight, accent_text_dark: v.accentTextDark,
         font_head: v.fontHead, font_body: v.fontBody,
-        radius: v.radius, space: v.space,
+        radius: v.radius, space: v.space, css: v.css,
       },
     }),
 

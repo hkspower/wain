@@ -178,6 +178,24 @@
                STACK + '; }\n'
       }
 
+      /* THE OWNER'S OWN CSS, LAST, so it wins over everything above without
+         needing !important — and appended to the same <style>, so there is one
+         override element on the page rather than two racing each other.
+
+         NOT ON /backends. This is arbitrary CSS and it can hide anything,
+         including the box it was typed into. Skipping it on the panel means
+         the way back is always reachable: whatever it does to the shop, the
+         field that clears it still works. A theme editor that can lock you out
+         of the theme editor is not a feature.
+
+         textContent, never innerHTML: assigning to a <style> element's
+         textContent sets the stylesheet and parses no markup at all, so
+         `</style>` in the value cannot end the element. admin.php refuses `</`
+         as well — two guards for one hole, because this is the one field with
+         no shape to check. */
+      var onPanel = /^\/backends(\/|$)/.test(location.pathname)
+      if (t.css && !onPanel) css += '\n/* custom */\n' + t.css + '\n'
+
       el.textContent = css
     })
     .catch(function () { /* No theme is the built theme. Never a broken page. */ })

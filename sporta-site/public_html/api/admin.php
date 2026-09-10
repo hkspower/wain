@@ -1173,6 +1173,33 @@ if ($r === 'settings_save' && $method === 'POST') {
             return $raw;
         };
 
+        // THE FREE-FORM STYLESHEET. Everything else here has a shape; this one
+        // cannot, so it is bounded rather than parsed:
+        //
+        //   20 kB, which is three times the hand-written sporta-ui additions
+        //   and far short of anything that arrived by accident.
+        //
+        //   NO `</` ANYWHERE. That sequence never appears in valid CSS and is
+        //   the only thing that could end the <style> element and become
+        //   markup. assets/theme.js assigns this with textContent, which does
+        //   not parse markup at all, so this is defence in depth rather than
+        //   the only guard — but the next thing that consumes this value may
+        //   not be so careful, and the rule costs one line.
+        //
+        //   NO NUL BYTES, which nothing legitimate contains and which truncate
+        //   strings in half the things that will touch this.
+        //
+        // It is NOT validated as CSS. A browser ignores a declaration it
+        // cannot parse, so a typo costs the rule and nothing else — and a
+        // server that tried to be a CSS parser would reject tomorrow's valid
+        // syntax, which is a worse failure than a rule that does not apply.
+        $css = (string) ($v['css'] ?? '');
+        if ($css !== '' && $err === null) {
+            if (strlen($css) > 20000)          $err = 'css_too_long';
+            elseif (strpos($css, '</') !== false) $err = 'css_has_markup';
+            elseif (strpos($css, "\0") !== false) $err = 'css_has_nul';
+        }
+
         $out = [
             'brand'             => $one('brand', $HEX),
             'accent_text_light' => $one('accent_text_light', $HSL),
@@ -1184,6 +1211,7 @@ if ($r === 'settings_save' && $method === 'POST') {
             // owner is not theming, they are breaking the page.
             'radius'            => $len('radius', 2.0),
             'space'             => $len('space', 0.5),
+            'css'               => $err === null ? trim($css) : '',
         ];
         if ($err !== null) store_fail('invalid_theme_' . $err);
         store_setting_save($db, 'theme', $out);

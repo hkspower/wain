@@ -1806,10 +1806,22 @@ const STORE_SETTING_DEFAULTS = [
     // accent_text has a light and a dark value because the built stylesheet
     // does: 19 88% 34% on white, 24 100% 66% on the dark ground. One value for
     // both is how a theme editor produces unreadable text in one mode.
+    //
+    // `css` IS THE ESCAPE HATCH AND THE LOADED GUN. Everything above has a
+    // shape the server can check; this is arbitrary CSS, appended last, and it
+    // can do anything CSS can do — including hiding the whole page. Two things
+    // make it survivable, and both are deliberate:
+    //
+    //   assets/theme.js does NOT apply it on /backends, so however badly it
+    //   goes the panel that can clear it is still usable. A theme editor that
+    //   can lock you out of the theme editor is not a feature.
+    //
+    //   Empty means nothing is emitted, so clearing the box is the way back
+    //   and clearing it can never fail — the same rule as every field above.
     'theme'     => ['brand' => '', 'accent' => '',
                     'accent_text_light' => '', 'accent_text_dark' => '',
                     'font_head' => '', 'font_body' => '',
-                    'radius' => '', 'space' => ''],
+                    'radius' => '', 'space' => '', 'css' => ''],
     // THE FOOTER'S PROSE, in both languages.
     //
     // Every value is '' by default and empty means "leave the built-in text
