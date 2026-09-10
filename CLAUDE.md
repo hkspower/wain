@@ -1093,6 +1093,93 @@ demands a version bump it does not need.
 **A guard that names the thing it expects to go wrong only catches that thing** —
 already in this file, and it had been true of the guard written to enforce it.
 
+## `no-cache` with no validator is a slower `no-store` — 2026-09-10
+
+Asked to improve caching and cookies for Chrome and Safari. The cookies were
+already right; the caching had one hole, and it was on the busiest page.
+
+Measured on the live server by `scripts/live/live-revalidate-check.php`, which
+asks what the policy COSTS rather than what it IS — the existing
+`live-cache-check.php` reports the `Cache-Control` and stops there:
+
+```
+shell   200/42810  cc=no-cache,must-revalidate  v=NONE     inm=no-etag  ims=no-lm
+worker  200/18880  cc=no-cache,must-revalidate  v=etag+lm  inm=304/0
+fixed   200/92856  cc=no-cache,must-revalidate  v=etag+lm  inm=304/0
+hashed  200/91444  cc=public,max-age=31536000,immutable    inm=304/0
+api     200/21773  cc=no-cache,must-revalidate  v=etag     inm=304/0
+image   200/45008  cc=public,max-age=86400,swr             inm=304/0
+```
+
+**`no-cache` does not mean "do not cache". It means "ask before reusing."** The
+asking is only cheap if the response carries a validator and the server answers
+a conditional request with an empty 304. Every file on the shop could do that
+except the one page every visit starts at — so Chrome and Safari BOTH re-sent
+42,810 bytes on every navigation, with no way to avoid it.
+
+**Because `/` is not a static file.** `.htaccess` rewrites it — and every SPA
+route — to `seo.php`, and PHP sends no ETag or Last-Modified of its own. The
+static files beside it get theirs from the web server, which is exactly why the
+fault was invisible: every neighbour of the broken thing was correct.
+
+`seo.php` now hashes its own output into an ETag. **A hash is honest here
+because the page is a pure function of the URL**: the language comes from
+`?lang=en` and not from `Accept-Language`, nothing reads a cookie, and there is
+no clock, nonce or random value in it. If that ever changes, a `Vary` must be
+added in the same commit or a shared cache will hand an Arabic page to an
+English shopper.
+
+**The dangerous half is the opposite one.** An ETag that never moves pins every
+visitor to a page that no longer exists, silently and for ever — the
+service-worker failure this file already records, one layer down. So
+`test:seo-cache` edits a product name in the database and requires that the
+tag MOVES and that the OLD tag now answers 200. Mutation-tested three ways: the
+ETag removed (the state before today), a CONSTANT ETag (caught by three
+separate checks), and the tag compared as a whole header rather than per tag —
+which is how a 304 silently never fires, and is why `store_out_cacheable()`
+carries the same loop.
+
+### The sandbox had never once run seo.php
+
+`php -S` reads no `.htaccess`, so `/` was served straight from disk locally.
+**Not one rig had ever exercised the SEO shim** — not its canonical, not its
+hreflang, not its Open Graph tags, not its fail-safe branch. All of it measured
+"fine" by never running. `scripts/dev-router.php` now mirrors those rewrites,
+with the same real-file-wins guard, per the standing rule that the two are
+changed together.
+
+**The rig found a real bug in its own first version**, and it is the familiar
+shape: it edited `name_en` and asked the DEFAULT product page, which is ARABIC
+and renders `name_ar`. The tag correctly did not move, and the rig reported a
+staleness bug in code that was right. **A fixture that does not have the
+property under test does not test it, and the failure it produces is
+indistinguishable from the real fault.** It now drives each language against
+the column that language prints, which also proves the two are independently
+keyed.
+
+### What was already right, and stays
+
+- **The storefront sets no cookies at all** — `setck=0` on every public route,
+  re-asserted by the rig. The admin session cookie is `__Host-` prefixed,
+  Secure, HttpOnly and `SameSite=Strict`, set where the cookie is made rather
+  than by a `Header edit` LiteSpeed ignores.
+- **Nothing sends `no-store` on a NAVIGATION**, which matters more than it
+  looks: it disables the back/forward cache in both browsers and turns the back
+  button from instant into a full reload. It is one word, easily added in a
+  hurry to "stop caching", and the rig now guards it.
+
+### The Safari difference that is NOT fixed, and is the owner's call
+
+Safari evicts all script-writable storage after **seven days** without a visit —
+`localStorage`, IndexedDB, and the service worker's caches and registration.
+The shopper's language and theme live in `localStorage`, so a Safari user who
+visits less often than weekly gets the default back every time and the worker
+re-installs from scratch. Chrome does not do this.
+
+The fix would be a server-set cookie, and that would end the zero-cookie
+property recorded above, which was deliberate. **Do not make that trade without
+asking** — it is a privacy posture, not an implementation detail.
+
 ## Do not redesign without approval
 
 The visual design is the owner's, not something to improve on the way past. Do
