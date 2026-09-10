@@ -27,7 +27,24 @@ import type { Phase } from "@/components/WainAiCall";
  * `open_place` would kill it while navigating; this only asks. See
  * `lib/wain-ai-bus.ts`.
  */
-export default function ShouqCallButton({ className = "" }: { className?: string }) {
+export default function ShouqCallButton({
+  className = "",
+  labelledBy,
+}: {
+  className?: string;
+  /**
+   * Id of visible text that already names this button, used INSTEAD of the
+   * built-in aria-label.
+   *
+   * There are two of these on /search now — one in the query box, one in the
+   * empty state — and they had the same accessible name, so a screen reader's
+   * button list read «وين AI — اضغط عشان تكلّم شوق» twice with nothing to tell
+   * them apart. The one in the empty state sits beside that sentence in plain
+   * sight, so pointing at it makes the visible words the name rather than
+   * repeating them, and the two buttons stop being indistinguishable.
+   */
+  labelledBy?: string;
+}) {
   const [phase, setPhase] = useState<Phase>("idle");
 
   useEffect(() => onPhase(setPhase), []);
@@ -80,7 +97,8 @@ export default function ShouqCallButton({ className = "" }: { className?: string
       onPointerEnter={preload}
       onTouchStart={preload}
       onFocus={preload}
-      aria-label={`${WAIN_AI_COPY.launcher} — ${WAIN_AI_COPY.callHint}`}
+      aria-label={labelledBy ? undefined : `${WAIN_AI_COPY.launcher} — ${WAIN_AI_COPY.callHint}`}
+      aria-labelledby={labelledBy}
       aria-expanded={open}
       aria-controls="wain-ai-panel"
       className={`grid size-11 place-items-center rounded-full transition ${
