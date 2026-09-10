@@ -232,6 +232,41 @@ $MUSTNOT = [
     'go-live.html',
 ];
 
+/* Untracked paths that BELONG on the server. Everything else the walk finds is
+   reported, so this list is the difference between a signal and noise.
+
+   THE CHECKER USED TO ANSWER TWO QUESTIONS AND THERE ARE THREE. "What did we
+   send wrong?" is `differ`; "what did we never send?" is `missing`; and the one
+   nothing asked was "what is here that we never sent at all?" On 2026-09-10 it
+   reported same=182/182 differ=0 missing=0 — a clean bill — while three
+   untracked files sat in the docroot, one of them a 240-line endpoint that
+   downloads artifacts and writes them into the web root. A manifest can only
+   ever vouch for the files it lists. */
+$EXPECTED_EXTRA = [
+    // Credentials, git-ignored on purpose — the database password, the KNET and
+    // CBK values. Their ABSENCE would be the fault; their presence is correct.
+    'api/config.php', 'knet/config.php', 'pay/config.php',
+];
+// Whole subtrees that are the owner's data or the server's own, not the
+// repository's: brand logos dropped in by hand, generated invoices, the Wallet
+// signing certs, and anything staged outside public_html.
+$EXPECTED_DIRS = ['images/', 'invoices/', 'api/wallet-certs/', 'storage/'];
+
+/** Every file actually present under the docroot, relative to it. */
+$walkAll = static function (string $root): array {
+    if (!is_dir($root)) return [];
+    $out = [];
+    $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+    foreach ($it as $f) {
+        if (!$f->isFile()) continue;
+        $out[] = ltrim(str_replace($root, '', $f->getPathname()), '/');
+    }
+    return $out;
+};
+
 $same = 0; $diff = []; $miss = [];
 foreach ($WANT as $rel => $sha) {
     $p = $ROOT . '/' . $rel;
@@ -245,8 +280,29 @@ foreach ($MUSTNOT as $rel) {
     if (is_file($ROOT . '/' . $rel)) $present[] = $rel;
 }
 
+/* The third question. Anything on disk that the manifest does not list, is not
+   a known credential file, and does not live under one of the owner's own
+   subtrees. Reported by NAME, because a count would only prompt another run. */
+$extra = [];
+foreach ($walkAll($ROOT) as $rel) {
+    if (isset($WANT[$rel])) continue;
+    if (in_array($rel, $EXPECTED_EXTRA, true)) continue;
+    foreach ($EXPECTED_DIRS as $d) { if (str_starts_with($rel, $d)) continue 2; }
+    // A file on the MUSTNOT list is already reported, and better, above.
+    if (in_array($rel, $MUSTNOT, true)) continue;
+    $extra[] = $rel;
+}
+sort($extra);
+
+/* A walk that finds nothing would report untracked=0, which reads exactly like
+   a clean docroot. The manifest is proof the walk works: every tracked file
+   should have been seen. */
+$walked = count($walkAll($ROOT));
+
 echo 'FILES same=' . $same . '/' . count($WANT)
    . ' differ=' . (count($diff) ? count($diff) . ':' . implode(',', array_slice($diff, 0, 25)) : '0')
    . ' missing=' . (count($miss) ? count($miss) . ':' . implode(',', array_slice($miss, 0, 25)) : '0')
    . ' mustNotBeHere=' . (count($present) ? count($present) . ':' . implode(',', $present) : '0')
+   . ' walked=' . $walked
+   . ' untracked=' . (count($extra) ? count($extra) . ':' . implode(',', array_slice($extra, 0, 25)) : '0')
    . "\n";
