@@ -103,6 +103,21 @@ Options -Indexes
   RewriteCond %{REQUEST_URI} ^/index\.php$
   RewriteRule ^ https://www.sporta.com.kw/ [R=301,L]
 
+  # /default.php -> / . Hostinger's stock "Default page" placeholder, found by
+  # live-file-check.php's untracked walk — it is in no commit and answers 200 on
+  # the shop's own domain, 16 kB of purple Hostinger branding with a link to
+  # hpanel. Read through the file API rather than over a public URL: it is inert
+  # HTML with no PHP logic in it, so this is a second indexable page and a piece
+  # of somebody else's branding on the shop, not a security problem.
+  #
+  # A 301 rather than a delete, deliberately. Three removals from this docroot
+  # have now been undone by something on the account that is not us, and a
+  # rewrite needs no cooperation from whatever that is: the file can sit there
+  # for ever and nobody will be served it. Same shape, same reasoning and the
+  # same anchoring as the index.php rule above.
+  RewriteCond %{REQUEST_URI} ^/default\.php$
+  RewriteRule ^ https://www.sporta.com.kw/ [R=301,L]
+
   # ---- THE CATEGORY-TILE NAME BRIDGE IS GONE, and removing it is the fix ----
   #
   # What was here: an internal rewrite from /cats/<crop>/<id>.jpg to

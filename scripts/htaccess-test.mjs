@@ -230,6 +230,24 @@ try {
   check(get('/index.html').to === 'https://www.sporta.com.kw/',
     '/index.html redirects to / so it cannot be indexed twice')
 
+  // THE TWO HOST LEFTOVERS. Neither is in any commit and both answer 200 on the
+  // shop's own domain if nothing intercepts them: index.php is the previous PHP
+  // site's front controller, default.php is Hostinger's stock placeholder — 16
+  // kB of purple branding with a link to hpanel — found by live-file-check's
+  // untracked walk rather than by anything looking for it.
+  //
+  // Asserted here rather than removed from the server, because three removals
+  // from that docroot have been undone by something on the account that is not
+  // us. A rewrite needs no cooperation from whatever that is; the file may sit
+  // there for ever and nobody is served it. Both are checked BY REQUEST, not by
+  // reading the rule, because a rule in the repository is not a rule the live
+  // server is running.
+  for (const leftover of ['/index.php', '/default.php']) {
+    const r = get(leftover)
+    check(r.status === 301 && r.to === 'https://www.sporta.com.kw/',
+      `${leftover} is a leftover and 301s to the shop`, `${r.status} ${r.to}`)
+  }
+
   console.log('\n--- .txt, both directions')
   // ROBOTS.TXT IS THE DANGEROUS HALF OF THIS RULE. .txt is denied by default
   // because a hand-over note naming which file holds the database password was
