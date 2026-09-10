@@ -104,7 +104,6 @@ try {
    *  elements against 204 — enough to pass any number picked in advance. */
   const visible = () => p.evaluate(() =>
     [...document.querySelectorAll('body *')].filter((e) => e.offsetParent !== null).length)
-  const baseline = await visible()
 
   // --- 2. it reaches the storefront ---------------------------------------
   const note = await saveCss(`.app-header { ${MARK}; }`)
@@ -131,6 +130,27 @@ try {
   // instead of failing, and a grep for FAIL found nothing. A rig that crashes
   // where it should fail hides its own result, and this is the assertion the
   // whole feature's safety rests on.
+  // THE BASELINE IS TAKEN ON THE SCREEN THE RELOAD LANDS ON, and that is the
+  // whole correction here. It used to be measured on SETTINGS — 273 painted
+  // elements — and then compared against a post-reload measurement, but a
+  // reload of /backends returns to OVERVIEW, which is a smaller screen. The rig
+  // reported `204 of 273` and read as "the hostile CSS hid a quarter of the
+  // panel"; the truth was that it had measured two different pages. The
+  // comment two paragraphs down still said "MEASURED BEFORE ANYTHING IS
+  // CLICKED", which had stopped being true of the code beneath it — and the
+  // author's own note above records 204 as the HEALTHY number against a
+  // poisoned 92, which is Overview both times.
+  //
+  // So: reload first, measure there, then poison and reload again. Like for
+  // like, with no assumption about which screen a reload chooses.
+  await p.reload({ waitUntil: 'networkidle' })
+  await p.waitForTimeout(3000)
+  const baseline = await visible()
+  // A baseline of nothing would make any comparison below pass. Assert it
+  // found a panel before trusting the ratio it feeds.
+  check(baseline > 50, 'the panel was actually painted before poisoning it', `${baseline} elements`)
+
+  await openSettings()
   await saveCss('* { display: none !important; }')
   await p.reload({ waitUntil: 'networkidle' })
   await p.waitForTimeout(3000)

@@ -187,8 +187,41 @@ console.log('\n--- and then gets out of the way')
 
 console.log('\n--- the end of the page')
 {
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+  // SCROLL UNTIL IT STOPS MOVING, then prove it arrived. A single
+  // `scrollTo(0, document.body.scrollHeight)` is a REQUEST, not an arrival: it
+  // fires once, against a height that is the BODY's rather than the scrolling
+  // element's, and it landed 79px short here every run —
+  //
+  //   docH 3190, innerH 850  ->  bottom is 2340, and scrollY stopped at 2261
+  //
+  // which put the footer's last line 79px below the fold. The bar was then
+  // correctly reported as covering it, and the shop was never wrong: the
+  // clearance is 80px against a 73px bar, which is right. **A page that
+  // scrolled short and a clearance that is too small produce the identical
+  // failure and want opposite fixes**, and the note below this used to record
+  // that ambiguity rather than remove it.
+  await page.evaluate(async () => {
+    const el = document.scrollingElement || document.documentElement
+    let last = -1
+    for (let i = 0; i < 30 && el.scrollTop !== last; i++) {
+      last = el.scrollTop
+      el.scrollTo(0, el.scrollHeight)
+      await new Promise((r) => setTimeout(r, 100))
+    }
+  })
   await page.waitForTimeout(600)
+
+  // And ASSERT the arrival before reading anything into what the bar covers —
+  // this repository's oldest lesson, that a watcher must assert that it
+  // watched. Without this the check below reports a shop fault whenever the
+  // scroll is the thing that failed.
+  const atBottom = await page.evaluate(() => {
+    const el = document.scrollingElement || document.documentElement
+    return { short: Math.round(el.scrollHeight - el.clientHeight - el.scrollTop) }
+  })
+  check(atBottom.short <= 2, 'the page actually reached its bottom',
+    `stopped ${atBottom.short}px short — the coverage check below cannot mean anything until this passes`)
+
   const covered = await page.evaluate(() => {
     const bar = document.querySelector('.action-bar').getBoundingClientRect()
     const hit = []

@@ -472,7 +472,24 @@ FileETag MTime Size
   # the wrong direction. Its stale-copy failure is the quiet kind: the upload
   # card on the panel's Brands screen simply keeps whatever behaviour the
   # cached copy had, on the one person who most needs the new one.
-  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|product-photos|returns-request|returns-link|track-guard|theme)\.js$">
+  # rules.js is the tenth, 2026-09-10 with the shop-rules card — and it was
+  # published BEFORE this line was added, so for a day the one asset that edits
+  # the delivery fee, the returns window and the governorates served was on
+  # heuristic caching. `test:htaccess` is what said so, in the only way it can:
+  # "assets/rules.js names no content hash, so it states its own freshness —
+  # NOTHING". Its stale-copy failure is the expensive kind rather than the quiet
+  # one: an owner on a cached copy edits numbers in a form that no longer matches
+  # the server's, and the shop's own prices are what is at stake.
+  #
+  # THAT IS THE THIRD TIME THIS LIST HAS BEEN THE LAST TO KNOW — track-guard,
+  # brand-logos and now rules — and each entry above promises the next person
+  # will remember. **They will not.** What has actually caught two of the three
+  # is the rig, which checks EVERY un-hashed file in assets/ rather than reading
+  # this list. The list is still the safer half of the trade the comment above
+  # describes; the honest reading is that its price is paid by the rig and not by
+  # anybody's memory, and the rig is therefore the part that must not be
+  # weakened.
+  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|product-photos|returns-request|returns-link|rules|track-guard|theme)\.js$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 
