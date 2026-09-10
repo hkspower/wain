@@ -70,7 +70,10 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   traps the planner asserts: `createAccountCronJobV1` gets a **403 from
   Cloudflare** if the command contains `{ … } > log 2>&1` or `$?` — one program
   and its arguments only — and it can return a uid for a job it never stored,
-  so confirm with `listAccountCronJobsV1`. Check the downloaded size before
+  so confirm with `listAccountCronJobsV1`. **`deleteAccountCronJobV1` lies the
+  same way**: it answered «Request accepted» for a job that was still running a
+  minute later, so list after deleting too, not just after creating. Check the
+  downloaded size before
   extracting; a partial archive over a live docroot is the failure worth
   waiting a firing window to avoid. **The hosa file listing lags two to three
   minutes** behind the disk: after wget had saved the whole zip the listing
@@ -90,6 +93,15 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   40 hex characters whichever commit it is, so the root files of two different
   builds are byte-identical. `_next/static/<commit>/` is the one proof whose
   name carries the commit — `deploy:verify` requires it for that reason.
+- **`unzip` merges, so every deploy leaves the last one's assets behind.**
+  Cleared once, on 10 September: 37 files, ~1.1MB, six builds' worth. Two
+  measurements from it are worth keeping. A path the WAF will not accept —
+  `places/[slug]/`, brackets being outside `[A-Za-z0-9 _\-./:=?&@]` — is still
+  reachable as `find <dir> -name <basename> -delete`, which names the file
+  without typing the bracket. And the command field caps between 210 and 279
+  characters, so **two absolute paths per job** is the batch that always fits.
+  Pick the list from the *live* HTML, never from `out/`: a local build is
+  usually ahead of the deploy and names files the server has never had.
 - **This repository is not just wain, and that governs what can be done about
   its size.** `.git` is 410MB, 345MB of it blobs over 1MB, and it is tempting
   to read that as wain's mess to clean up. It is not. Eleven branches descend

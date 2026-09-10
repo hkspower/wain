@@ -266,6 +266,48 @@ hashed stylesheet and chunks accumulate under `_next/static/`. Nothing points
 at them and they are harmless; clearing them is a deletion in a shared docroot
 and should be done deliberately, not as part of a deploy.
 
+### Clearing them, when it is done deliberately
+
+Done once, on 10 September: 37 superseded files, ~1.1 MB, six builds' worth.
+The method is the same cron job as the deploy — `rm -f` with absolute paths,
+created, allowed to fire, then deleted.
+
+What made it safe was choosing the list twice over. Every candidate was absent
+from the export that is live, *and* absent from the reference list of every
+route's HTML — `_next/static/…` appears in the `<script src>` tags and again in
+the RSC payload, so the pages name their own dependencies and can be read back
+from the server. Afterwards the same reading was repeated: home, a place page,
+`/search/`, `/explore/` and `/admin/` name 20-odd distinct assets between them
+and every one still exists. Do that check against the *live* HTML, not `out/` —
+a local build is usually ahead of the deploy and names files the server has
+never had.
+
+Three things the API did that the deploy notes did not predict:
+
+**A path containing a character the WAF rejects is still reachable — through
+`find`.** `_next/static/chunks/app/places/[slug]/` cannot be typed into a cron
+command: brackets are outside the accepted set, which measures as
+`[A-Za-z0-9 _\-./:=?&@]`. But `find <dir> -name <basename> -delete` names the
+same file without a bracket in the command, and is accepted. One program and
+its arguments, so it satisfies the WAF rule above too.
+
+**The command length cap is above 210 characters and below 279.** Measured:
+two 101-character paths plus `rm -rf ` is accepted, three are a 422. Two full
+paths per job is the batch size that always fits.
+
+**`deleteAccountCronJobV1` answers `{"message":"Request accepted"}` for a job
+it does not delete.** One of sixteen survived its delete and had to be sent
+again. This is the mirror of the create call returning a uid for a job it never
+stored, and it has the same remedy: `listAccountCronJobsV1` is the only proof
+either way. List after deleting, and expect to find the account back at exactly
+the jobs that were there before — anything left behind is a per-minute `rm`
+still running.
+
+The build-id directories go too: `_next/static/<40-hex>/` holds only
+`_buildManifest.js` and `_ssgManifest.js`, ~1.2 KB a build, and only the
+current one is ever requested. Read the live `build.json` to learn which that
+is. Do not infer it from `out/`.
+
 ## The one thing still missing: the back end
 
 The live build carries no Supabase configuration, and a static export bakes
