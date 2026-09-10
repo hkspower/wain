@@ -71,16 +71,49 @@ const html = `<!doctype html><meta charset="utf-8">
   .tag { position: absolute; left: 194px; top: 1004px; color: #a6acb2; font-weight: 600;
          font-size: 38px; letter-spacing: .3em; }
 
-  /* The S on the garments: the shop's own mark, dropped to the fabric with a
-     touch of transparency so it reads as print rather than a sticker. */
-  .mark { position: absolute; opacity: .86; filter: drop-shadow(0 2px 6px rgba(0,0,0,.5)); }
+  /* THE S ON THE GARMENTS, PRINTED RATHER THAN PASTED.
+     A flat overlay reads as a sticker because it ignores the cloth: it keeps
+     its own even tone across folds the fabric plainly has, and it sits on the
+     picture plane while the chest is turned. Three things fix that, and the
+     middle one does most of the work:
+
+       1. the mark is put on the BODY's plane — a small rotate and skew taken
+          from the way each figure stands, not from the frame;
+       2. the PHOTOGRAPH ITSELF is composited back over the mark in overlay blend,
+          clipped to the mark's own box, so every fold, shadow and rim highlight
+          on that piece of shirt modulates the print exactly as it modulates the
+          cloth around it — the shading is the real shading, not an invented one;
+       3. a sub-pixel blur and a hair of transparency, because a screen print on
+          jersey has no razor edge and this photograph has a focus falloff the
+          mark has to share. */
+  .mark { position: absolute; overflow: hidden; opacity: .82;
+          filter: blur(.7px) saturate(.96);
+          -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+          -webkit-mask-position: 0 0; mask-position: 0 0; }
+  .mark .s   { position: absolute; left: 0; top: 0; display: block; }
+  /* SHADING ONLY, PIVOTED ON MID-GREY. The first version blended the photograph
+     in overlay, and overlay against a near-black shirt multiplies: measured, the
+     brand's 255,124,23 (hue 26) printed as 197,13,5 (hue 3) — the green channel
+     collapsed and the mark went RED. A brand mark that is nearly the brand
+     colour is the same failure as a logo that is nearly the logo.
+     So the fabric layer is reduced to LUMINANCE, lifted until its mid-tone sits
+     on 50% grey and flattened, then blended in soft-light — which is identity at
+     mid-grey. The folds still push either side of it; the hue does not move. */
+  .mark .fab { position: absolute; mix-blend-mode: soft-light; opacity: .88;
+               filter: grayscale(1) brightness(5.6) contrast(.42); }
 </style>
 <div class="stage">
   <div class="shot"><img src="data:image/png;base64,${b64(SRC)}"></div>
   <div class="wash"></div>
 
-  <img class="mark" id="m1" src="data:image/png;base64,${b64(R + 'logo-white.png')}">
-  <img class="mark" id="m2" src="data:image/png;base64,${b64(R + 'logo-white.png')}">
+  <div class="mark" id="m1">
+    <img class="s" src="data:image/png;base64,${b64(R + 'logo-white.png')}">
+    <img class="fab" src="data:image/png;base64,${b64(SRC)}">
+  </div>
+  <div class="mark" id="m2">
+    <img class="s" src="data:image/png;base64,${b64(R + 'logo-white.png')}">
+    <img class="fab" src="data:image/png;base64,${b64(SRC)}">
+  </div>
 
   <div class="type">
     <img class="lock" src="data:image/png;base64,${b64(R + 'logo-white.png')}">
@@ -94,16 +127,48 @@ const html = `<!doctype html><meta charset="utf-8">
   /* Only the S, cropped out of the lockup by the orange run measured in the
      file (x 0..165 of 800), and placed on each chest. */
   const S_W = 165, LOCK_W = 800, LOCK_H = 246
-  function markAt(el, cx, cy, w) {
+  const PHOTO_W = ${W}, PHOTO_TOP = ${-90 * (W / 2560)}
+
+  /* cx, cy, w in the PHOTOGRAPH's own pixels; rot/skew put the mark on the
+     plane the chest is actually turned to. */
+  function markAt(el, cx, cy, w, rot, skew) {
     const scale = w / S_W
-    el.style.width = (LOCK_W * scale) + 'px'
-    el.style.clipPath = 'inset(0 ' + ((1 - S_W / LOCK_W) * 100) + '% 0 0)'
-    el.style.left = (cx - w / 2) + 'px'
-    el.style.top  = (cy - (LOCK_H * scale) / 2) + 'px'
+    const h = LOCK_H * scale
+    const left = cx - w / 2, top = cy - h / 2
+
+    el.style.left = left + 'px'
+    el.style.top = top + 'px'
+    el.style.width = w + 'px'
+    el.style.height = h + 'px'
+    el.style.transform = 'rotate(' + rot + 'deg) skewY(' + skew + 'deg)'
+    el.style.transformOrigin = '50% 50%'
+
+    // the lockup, scaled so its S is exactly w wide; the container clips the rest
+    el.querySelector('.s').style.width = (LOCK_W * scale) + 'px'
+
+    /* AND THE CONTAINER IS MASKED TO THE LETTERFORM, not left as a box. The
+       shading layer below fills its rectangle, and soft-light over the
+       transparent corners painted a visible grey PANEL around the S — the mark
+       looked appliqued onto a patch. Masking the whole container with the same
+       lockup, at the same size and origin, means the fabric's shading exists
+       only inside the glyph. */
+    const m = 'url(' + el.querySelector('.s').src + ')'
+    el.style.webkitMaskImage = m
+    el.style.maskImage = m
+    el.style.webkitMaskSize = (LOCK_W * scale) + 'px auto'
+    el.style.maskSize = (LOCK_W * scale) + 'px auto'
+
+    // the photograph, put back exactly where it sits in the stage, so the piece
+    // of shirt showing through the mark's box is the SAME piece of shirt
+    const fab = el.querySelector('.fab')
+    fab.style.width = PHOTO_W + 'px'
+    fab.style.left = -left + 'px'
+    fab.style.top = (PHOTO_TOP - top) + 'px'
   }
-  const k = ${W} / 2560
-  markAt(document.getElementById('m1'), 1664 * k, (704 - 90) * k, 118 * k)
-  markAt(document.getElementById('m2'), 2128 * k, (726 - 90) * k, 74 * k)
+
+  const k = PHOTO_W / 2560
+  markAt(document.getElementById('m1'), 1664 * k, (704 - 90) * k, 118 * k, -4, 3)
+  markAt(document.getElementById('m2'), 2128 * k, (726 - 90) * k, 74 * k, -3, 2)
 </script>`
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
