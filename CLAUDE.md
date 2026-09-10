@@ -687,6 +687,35 @@ holding the old parse, not a failed publish. `scripts/live/live-tile-probe.php`
 is what tells those apart, and the general rule is: **if a publisher's own check
 contradicts its own verified write, re-ask before believing either.**
 
+## A throttled probe cannot prove a gate holds
+
+`live-admin-gate.php` asks the live server whether anything behind
+`store_require_admin()` answers 200 without a session. Its first run fired 75
+requests in a tight loop, the shop's own rate limiter answered them, and it
+reported `answering200=0`.
+
+**That reads as "every route is protected" and would have read exactly the same
+on a server whose gate was wide open** — every request was refused before it
+reached the gate at all. The same failure this file already records for the
+assistant checker, walked into again by the person who wrote that entry.
+
+Fixed by CLASSIFYING each refusal rather than counting the absence of 200s:
+401/403 is the gate, 400/404/405 is the route declining the shape of the
+request, and 429/503 is the throttle — which is not an answer, and makes the
+run say **INCONCLUSIVE**. Requests are paced so it usually does not arise.
+
+The same run reported `withoutHeader=500` and that was the throttle too. The
+check was also aimed at the wrong route: `me` sits ABOVE the gate and never
+required `X-Sporta-Admin` — the sandbox answers 200 with `null` and always
+has. Confirmed on the live server by `live-me-probe.php`:
+`withHeader=200/4/null withoutHeader=200/4/null`, PHP 8.5.4, identical to the
+sandbox.
+
+The honest reading, once paced: `guarded=74 answering200=0 gated=74
+declined=0 throttled=0 withoutHeader=401-refused`. Every one of the 74 routes
+behind the gate answered 401, which is the gate holding — and now it is
+distinguishable from the limiter holding.
+
 ## Do not redesign without approval
 
 The visual design is the owner's, not something to improve on the way past. Do
