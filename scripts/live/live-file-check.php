@@ -119,6 +119,7 @@ $WANT = [
     'assets/returns-link.js' => '07a9d4753e0120988fe95e43d618760cfde9a3b1cfdabb31b209b2ae8a01ce10',
     'assets/returns-request.js' => '3cc4b82d3fd70cdd6689f52d57894c679d48db2b3a45cc115b9b90b9d10ea830',
     'assets/rolldown-runtime-QTnfLwEv.js' => '5db5ba82eef00d1dee7e86e663098c9427d01183a88d357437daff295aec3e75',
+    'assets/rules.js' => 'fa86168f7f56278bb8f2dfc5fc3f447907e89c39940ab2f7932a8a1455c35d31',
     'assets/sporta-dark.css' => '0ea59b2c0ef1638e42c54839b43c42c24dadb511cc18fd293d21c9bfbadb096a',
     'assets/sporta-ui.css' => '8f65d85a6176ce50e92c448090af4caa6bb59ca212ca5b33c70ff915d639c6bf',
     'assets/theme.js' => '9e7403a23f64d536ce66b86feb07a264c48d15761d17eb53e608b3c959ae8992',

@@ -111,6 +111,7 @@
     "test:session-life": "node scripts/session-life-test.mjs",
     "test:returns": "node scripts/returns-test.mjs",
     "test:rules": "node scripts/rules-test.mjs",
+    "test:rules-panel": "node scripts/rules-panel-test.mjs",
     "scan:storage": "node scripts/storage-scan.mjs",
     "scan:site": "node scripts/site-scan.mjs",
     "scan:site:curl": "bash scripts/site-scan.sh",
