@@ -113,6 +113,8 @@
     "test:rules": "node scripts/rules-test.mjs",
     "test:rules-panel": "node scripts/rules-panel-test.mjs",
     "test:seo-cache": "node scripts/seo-cache-test.mjs",
+    "test:image-sizes": "node scripts/image-size-test.mjs",
+    "make:hero-sizes": "node scripts/make-hero-sizes.mjs",
     "scan:storage": "node scripts/storage-scan.mjs",
     "scan:site": "node scripts/site-scan.mjs",
     "scan:site:curl": "bash scripts/site-scan.sh",
