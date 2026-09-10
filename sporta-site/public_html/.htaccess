@@ -481,6 +481,10 @@ FileETag MTime Size
   # one: an owner on a cached copy edits numbers in a form that no longer matches
   # the server's, and the shop's own prices are what is at stake.
   #
+  # tile-art.js is the eleventh, 2026-09-10 — added in the same commit as the
+  # rule this time, which is what the paragraph below asks for and what the two
+  # entries above it did not manage.
+  #
   # THAT IS THE THIRD TIME THIS LIST HAS BEEN THE LAST TO KNOW — track-guard,
   # brand-logos and now rules — and each entry above promises the next person
   # will remember. **They will not.** What has actually caught two of the three
@@ -489,7 +493,7 @@ FileETag MTime Size
   # describes; the honest reading is that its price is paid by the rig and not by
   # anybody's memory, and the rig is therefore the part that must not be
   # weakened.
-  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|product-photos|returns-request|returns-link|rules|track-guard|theme)\.js$">
+  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme)\.js$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 

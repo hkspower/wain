@@ -26,7 +26,7 @@ $ROOT = '/home/u130124229/domains/sporta.com.kw/public_html';
 
 // path => sha256 in the repository.
 $WANT = [
-    '.htaccess' => '83ed52266a9611717c4e0008743062bc101269d5feb8cfe1aea9247d83e179f4',
+    '.htaccess' => '3380eac16e656107c10eeb6659a702964ef1ec64553b512af4c369cb03ec55a9',
     'api/.htaccess' => '574ff6d3712c69ad6a119652dd976afbad0e065cec35c198ceed85bfc72c3be2',
     'api/accounting.mysql.sql' => '865458325a463d3127bbb45cb1a3d5c0c9a603c7656cdde85c280ffb7f8ed716',
     'api/accounting.php' => '0e508c851de94808626164518d8394e6c65508ec2733efd16be7a278b2825963',
@@ -184,7 +184,7 @@ $WANT = [
     'images/rheo/PUT-LOGO-HERE.txt' => 'a4b7c2a548abf314ae74fb2f658db993f589697428ce841feb93dee4bf2b16f1',
     'images/sporta/PUT-LOGO-HERE.txt' => '1a3a4e03d799fea20641304473e95ded5b25321badebbffc6d3988985b797300',
     'images/vanquish/PUT-LOGO-HERE.txt' => '7b634c7c39ee98859bfca99b0bcc1b41e536a1e1b74f42780435a244f39d36d1',
-    'index.html' => '5fb809488930b331507178487d0882db153e3a7e5f07b0328f500dc5ce8025b1',
+    'index.html' => 'a6a82c426d80010e17114361af6fafacf98b2ae2b79ca1660b48cbcd439306bc',
     'knet/.htaccess' => '75d8e990375bfd2c0e1f6304886d120aeb3676720d58ea2f40faabe224a6ba03',
     'knet/callback.php' => '4e217d7d4c8f59e6cce67b71ad9726297dcc83eb2c8dc2a08a56f95cc826d519',
     'knet/config.example.php' => '8b12abd7be354864ca71d69408462744c39a500a648110557aeddf13a30bad4c',

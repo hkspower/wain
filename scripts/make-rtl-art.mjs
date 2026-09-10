@@ -28,7 +28,7 @@
  * library, and the browser is already here for the tests.
  */
 import { chromium } from 'playwright'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 
 // Which frames get an Arabic composition, and how much of the canvas the
 // subject occupies in each. Only the two with a PERSON in them: the flat-lay
@@ -38,15 +38,89 @@ const JOBS = [
   { id: 'men', figAspect: 896 / 1200, margin: 0.04 },
   { id: 'women', figAspect: 896 / 1200, margin: 0.04 },
 ]
-const QUALITY = 0.9
+
+/* ---------------------------------------------------------------------------
+ * THE WEBSITE'S TILES WERE ONLY HALF BUILT, AND ONLY IN ARABIC — 2026-09-10
+ * ---------------------------------------------------------------------------
+ *
+ * This script built `assets/cats/`, which is what the APP bundles, and stopped
+ * there. The website serves a different set — `cats/desktop/` at 1216x706 and
+ * `cats/mobile/` at 900x570, which are different COMPOSITIONS rather than two
+ * sizes of one picture — and the Arabic halves of that set were incomplete:
+ *
+ *     cats/desktop/art-men-rtl.{jpg,webp}    present
+ *     cats/mobile/art-men-rtl.{jpg,webp}     present
+ *     cats/mobile/art-women-rtl.jpg          present — but byte-identical to
+ *                                            assets/cats/art-women-rtl.jpg, so
+ *                                            a hand copy, and no .webp beside it
+ *     cats/desktop/art-women-rtl.*           ABSENT
+ *
+ * Measured in a browser at 1440x900 and 390x844: an Arabic shopper is served
+ * `art-women.webp` — the ENGLISH composition, figure and copy on the wrong
+ * side — on BOTH breakpoints, while the men's tile beside it is correct. The
+ * `<picture>` asks for webp first, so even the hand-copied mobile jpg is never
+ * reached. Nothing reported it, because every file the page requested answered
+ * 200: the missing ones were never asked for.
+ *
+ * So the targets are enumerated rather than assumed, each built from ITS OWN
+ * crop's English base — the desktop Arabic frame cannot come from the 900px
+ * source, which is both smaller and a different composition, and upscaling it
+ * would be soft where the men's tile beside it is sharp.
+ *
+ * EXISTING FILES ARE NEVER OVERWRITTEN without --force. The men's art is live
+ * and correct; regenerating it here would put a fresh encode of an unchanged
+ * picture onto the shop for no reason, and a jpeg re-encode is never free.
+ * `--force` exists so the recipe can be proved against what shipped, which is
+ * what `--verify` does without touching anything.
+ */
+/* QUALITY PER CROP, MEASURED RATHER THAN CHOSEN. --verify proved 0.9 exact for
+ * assets/cats — both men and women rebuild byte-for-byte — and proved the
+ * website's set is NOT 0.9: its shipped art-men-rtl came back consistently
+ * ~18% smaller than a 0.9 rebuild. Re-encoding that shipped file across a
+ * sweep put the setting at 0.85:
+ *
+ *     shipped 39740b     q0.80 33454   q0.85 39296   q0.90 48910
+ *
+ * Using 0.9 there would have made the women's Arabic tile visibly heavier than
+ * the men's tile beside it, for no gain a shopper could see — the two sit side
+ * by side on the same row, so they must be encoded alike. */
+const CROPS = [
+  { dir: 'assets/cats', ext: 'jpg', also: [], quality: 0.9 },
+  { dir: 'sporta-site/public_html/cats/desktop', ext: 'webp', also: ['jpg'], quality: 0.85 },
+  { dir: 'sporta-site/public_html/cats/mobile', ext: 'webp', also: ['jpg'], quality: 0.85 },
+]
+
+const force = process.argv.includes('--force')
+const verify = process.argv.includes('--verify')
 
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
 const p = await b.newPage()
 
+/** Every (source, outputs) pair, flattened so nothing is implied. */
+const TARGETS = []
 for (const job of JOBS) {
-  const SRC = `assets/cats/art-${job.id}.jpg`
-  const OUT = `assets/cats/art-${job.id}-rtl.jpg`
-  const dataUrl = 'data:image/jpeg;base64,' + readFileSync(SRC).toString('base64')
+  for (const crop of CROPS) {
+    const src = `${crop.dir}/art-${job.id}.${crop.ext}`
+    if (!existsSync(src)) continue          // reported after the loop, not silently
+    TARGETS.push({
+      job, src, quality: crop.quality,
+      outs: [crop.ext, ...crop.also].map((e) => `${crop.dir}/art-${job.id}-rtl.${e}`),
+    })
+  }
+}
+// A run with nothing to do and a run that found nothing look identical.
+if (TARGETS.length === 0) {
+  console.error('no source art found — is this the repository root?')
+  process.exit(1)
+}
+
+let wrote = 0, skipped = 0, same = 0, differ = 0
+
+for (const target of TARGETS) {
+  const { job } = target
+  const SRC = target.src
+  const mime = SRC.endsWith('.webp') ? 'image/webp' : 'image/jpeg'
+  const dataUrl = `data:${mime};base64,` + readFileSync(SRC).toString('base64')
 
   const out = await p.evaluate(
   async ({ src, figAspect, margin, quality }) => {
@@ -128,13 +202,46 @@ for (const job of JOBS) {
 
     ctx.drawImage(mask, figw - seam, 0)
 
-    return { data: c.toDataURL('image/jpeg', quality), w: W, h: H }
+    return {
+      jpg: c.toDataURL('image/jpeg', quality),
+      webp: c.toDataURL('image/webp', quality),
+      w: W, h: H,
+    }
   },
-    { src: dataUrl, figAspect: job.figAspect, margin: job.margin, quality: QUALITY },
+    { src: dataUrl, figAspect: job.figAspect, margin: job.margin, quality: target.quality },
   )
 
-  writeFileSync(OUT, Buffer.from(out.data.split(',')[1], 'base64'))
-  console.log(`${OUT}  ${out.w}x${out.h}  ${Math.round(readFileSync(OUT).length / 1024)} kB`)
+  for (const OUT of target.outs) {
+    const bytes = Buffer.from((OUT.endsWith('.webp') ? out.webp : out.jpg).split(',')[1], 'base64')
+
+    if (verify) {
+      // Prove the committed recipe is the one that produced what shipped,
+      // without writing anything. A file that does not exist is the finding
+      // rather than a pass — this is the check that would have caught the
+      // missing women's frames months ago.
+      if (!existsSync(OUT)) { differ++; console.log(`ABSENT  ${OUT}`); continue }
+      const have = readFileSync(OUT)
+      const eq = have.length === bytes.length && have.equals(bytes)
+      eq ? same++ : differ++
+      console.log(`${eq ? 'same  ' : 'DIFFER'}  ${OUT}  shipped=${have.length}b rebuilt=${bytes.length}b`)
+      continue
+    }
+
+    if (existsSync(OUT) && !force) {
+      skipped++
+      console.log(`skip    ${OUT}  (exists — --force to rebuild)`)
+      continue
+    }
+
+    writeFileSync(OUT, bytes)
+    wrote++
+    console.log(`write   ${OUT}  ${out.w}x${out.h}  ${Math.round(bytes.length / 1024)} kB`)
+  }
 }
 
 await b.close()
+
+console.log(verify
+  ? `\n${same} match the recipe, ${differ} do not`
+  : `\nwrote ${wrote}, skipped ${skipped}`)
+if (verify && differ) process.exit(1)
