@@ -66,6 +66,11 @@ export function AdminShell({
     // this is a folder of logos and every brand at once.
     ['/backends/brand-logos', 'Brand logos'],
     ['/backends/settings', 'Settings'],
+    // Last, next to Settings, because it is the same kind of thing — changed
+    // rarely and deliberately — but its own entry rather than a card inside
+    // Settings: these nine numbers are ONE policy the server checks against
+    // itself, so they save together, and Settings saves each card separately.
+    ['/backends/rules', 'Shop rules'],
   ];
 
   return (

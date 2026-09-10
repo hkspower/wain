@@ -109,6 +109,18 @@ def _fresh():
                       'text_ar': 'التوصيل خلال ٢٤ ساعة داخل الكويت',
                       'href': '', 'starts_at': None, 'ends_at': None},
         'knet': {'tranportal_id': ''},
+        # THE SHOP'S NUMBERS, seeded with the same values store_rule_defaults()
+        # returns. A mock that started these at zero would let a screen be
+        # built against a shop with free delivery and no returns window, which
+        # production has never been.
+        'rules': {
+            'delivery_fee_fils': 1000, 'free_delivery_fils': 0, 'return_days': 14,
+            'cod_open_max': 3, 'review_reward_pct': 20, 'discount_max_pct': 60,
+            'governorates': ['capital', 'hawalli', 'farwaniya',
+                             'mubarak-al-kabeer', 'ahmadi', 'jahra'],
+            'sizes': ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', 'ONE'],
+            'fits': ['normal', 'slim', 'loose', 'oversize', 'boxy', 'tank'],
+        },
         'footer': {k: '' for k in (
             'tagline_ar', 'tagline_en', 'club_title_ar', 'club_title_en',
             'club_text_ar', 'club_text_en', 'rights_ar', 'rights_en',
@@ -192,6 +204,18 @@ def _fresh():
             'next_discount': 3, 'settings': settings, 'returns': returns,
             'otp_enabled': False, 'otp_code': None}
 
+
+# The sets a rule list may be drawn from, and the shipped defaults. Kept beside
+# STATE so the GET route and the save branch read ONE copy — two lists here
+# would drift from each other before they drifted from admin.php.
+ALLOWED_SIZES = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', 'ONE']
+ALLOWED_FITS = ['normal', 'slim', 'loose', 'oversize', 'boxy', 'tank']
+ALLOWED_GOVS = ['capital', 'hawalli', 'farwaniya', 'mubarak-al-kabeer', 'ahmadi', 'jahra']
+RULE_DEFAULTS = {
+    'delivery_fee_fils': 1000, 'free_delivery_fils': 0, 'return_days': 14,
+    'cod_open_max': 3, 'review_reward_pct': 20, 'discount_max_pct': 60,
+    'governorates': ALLOWED_GOVS, 'sizes': ALLOWED_SIZES, 'fits': ALLOWED_FITS,
+}
 
 STATE = _fresh()
 
@@ -342,6 +366,22 @@ class Handler(BaseHTTPRequestHandler):
                 {'id': i['id'], 'sort': i['sort'],
                  'url': f"api.php?r=product_image&id={i['id']}&v={i['v']}",
                  'width': i['width'], 'height': i['height']} for i in rows]})
+
+        if r == 'rules':
+            # Mirrors admin.php: the rules, the shipped defaults so a screen can
+            # offer "back to the default", and the SETS a list may be drawn
+            # from. `allowed` is the important half — sizes and fits are pinned
+            # by CHECK constraints on order_items, so a picker built from a list
+            # typed in the app would offer a size MySQL refuses at insert.
+            return self._json(200, {
+                'rules': STATE['settings']['rules'],
+                'defaults': RULE_DEFAULTS,
+                'allowed': {
+                    'sizes': ALLOWED_SIZES,
+                    'fits': ALLOWED_FITS,
+                    'governorates': ALLOWED_GOVS,
+                },
+            })
 
         if r == 'knet':
             # Mirrors admin.php: the saved ID, and which of the two sources is
@@ -576,6 +616,61 @@ class Handler(BaseHTTPRequestHandler):
                     k: str(v.get(k) or '').strip()[:caps[k]] for k in keys
                 }
                 return self._json(200, STATE['settings']['footer'])
+            if name == 'rules':
+                # THE REFUSALS ARE THE POINT OF HAVING THIS HERE. The panel's
+                # messages are written against these exact codes, and a mock
+                # that accepted everything would let a screen ship with a
+                # message for a failure the real server produces and this one
+                # never did.
+                cur = dict(STATE['settings']['rules'])
+                ranges = {'delivery_fee_fils': (0, 50000), 'free_delivery_fils': (0, 1000000),
+                          'return_days': (1, 365), 'cod_open_max': (1, 50),
+                          'review_reward_pct': (0, 90), 'discount_max_pct': (1, 90)}
+                out = dict(cur)
+                for k, (lo, hi) in ranges.items():
+                    if k not in v:
+                        continue
+                    raw = v[k]
+                    if isinstance(raw, bool) or not (isinstance(raw, int)
+                                                     or (isinstance(raw, str) and raw.strip().isdigit())):
+                        return self._json(422, {'error': 'rule_not_a_number:' + k})
+                    n = int(raw)
+                    if n < lo or n > hi:
+                        return self._json(422, {'error': 'rule_out_of_range:' + k})
+                    out[k] = n
+                for k, allowed in (('sizes', ALLOWED_SIZES), ('fits', ALLOWED_FITS),
+                                   ('governorates', ALLOWED_GOVS)):
+                    if k not in v:
+                        continue
+                    if not isinstance(v[k], list):
+                        return self._json(422, {'error': 'rule_not_a_list:' + k})
+                    picked = []
+                    for item in v[k]:
+                        sv = item.strip() if isinstance(item, str) else ''
+                        if sv not in allowed:
+                            return self._json(422, {'error': 'rule_unknown_value:%s:%s' % (k, sv)})
+                        if sv not in picked:
+                            picked.append(sv)
+                    if not picked:
+                        return self._json(422, {'error': 'rule_empty_list:' + k})
+                    out[k] = picked
+                if out['review_reward_pct'] > out['discount_max_pct']:
+                    return self._json(422, {'error': 'rule_reward_above_cap'})
+                # The orphan guard is admin.php's and needs product_variants, so
+                # it is approximated here from the mock's own variants — the
+                # message shape matters more than the counts, because that is
+                # what the screen renders.
+                dropped = [z for z in ALLOWED_SIZES if z not in out['sizes']]
+                in_use = []
+                for z in dropped:
+                    n = sum(1 for x in STATE.get('variants', []) if x.get('size') == z)
+                    if n:
+                        in_use.append('%s(%d)' % (z, n))
+                if in_use:
+                    return self._json(422, {'error': 'rule_size_in_use:' + ','.join(in_use)})
+                STATE['settings']['rules'] = out
+                return self._json(200, out)
+
             if name == 'knet':
                 # The same validation admin.php does, in the same order, so a
                 # bad ID is refused here too rather than only in production.

@@ -489,6 +489,24 @@ function toDiscount(d: WireDiscount): Discount {
 
 // ------------------------------------------------------------------ returns
 
+/** The shop's nine editable numbers, exactly as ?r=rules sends them.
+ *
+ *  MONEY IS INTEGER FILS, like every other price the server speaks. A screen
+ *  that shows KWD converts on the way in and out; doing it here would put two
+ *  units behind one name, which is how a 1.500 fee becomes 1.000. */
+export type ShopRules = {
+  delivery_fee_fils: number;
+  /** 0 means no threshold — orders at or above this pay no delivery. */
+  free_delivery_fils: number;
+  return_days: number;
+  cod_open_max: number;
+  review_reward_pct: number;
+  discount_max_pct: number;
+  governorates: string[];
+  sizes: string[];
+  fits: string[];
+};
+
 /** A return or exchange request, as ?r=returns sends it. */
 type WireReturn = {
   id: number;
@@ -1066,4 +1084,41 @@ export const adminApi = {
    *  a customer told no is told why — and is optional everywhere else. */
   setReturnStatus: (id: number, status: ReturnStatus, note?: string) =>
     call<{ ok: true }>('return_status', { id, status, note: note ?? null }),
+
+  // ------------------------------------------------------------- shop rules
+  //
+  // Delivery, returns, the cash-on-delivery limit, the review reward, the
+  // discount cap, the delivery areas, and which sizes and fits are offered.
+  // Every one was a PHP constant until 2026-09-10, so changing one meant a code
+  // edit and a publish.
+  //
+  // READ FROM ?r=rules, NOT from api.php?r=slides, and this is the one place
+  // that rule is inverted on purpose. The promo bar and the contact details are
+  // deliberately read from the storefront route above — reading the panel's
+  // idea of the bar from a different endpoint than the shop's would let the two
+  // disagree invisibly. That reasoning is right for anything a CUSTOMER sees.
+  //
+  // It is wrong here, because ?r=slides carries only the PUBLIC SIX. The three
+  // it withholds — cod_open_max, discount_max_pct, review_reward_pct — each
+  // tell anyone probing the shop exactly where its edge is, and the panel has
+  // to show all nine or the owner cannot edit them. So they come from an admin
+  // route behind the same session and X-Sporta-Admin gate as everything else
+  // here, the same argument as knetSettings above.
+  //
+  // `allowed` comes back with them and MUST be what any picker is built from.
+  // Sizes and fits are pinned by CHECK constraints on order_items, so a screen
+  // offering a size MySQL will refuse is a checkout that dies on its last step.
+  // A list written in the app would be a third home for it.
+  rules: () => call<{
+    rules: ShopRules;
+    defaults: ShopRules;
+    allowed: { sizes: string[]; fits: string[]; governorates: string[] };
+  }>('rules'),
+
+  /** Save any subset. An absent field keeps what is stored, so a screen that
+   *  edits one number does not reset the other eight. The server refuses a bad
+   *  value with the field named — see admin.php — rather than clamping it, so
+   *  the caller must show what came back rather than assume success. */
+  saveRules: (value: Partial<ShopRules>) =>
+    call<ShopRules>('settings_save', { name: 'rules', value }),
 };
