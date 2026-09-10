@@ -804,6 +804,45 @@ typed from memory is a fixture chosen at random**, which this file already
 records of a sign-in that picked `rig@local` and a light-theme reading taken
 from a product card.
 
+### Removing it did not stick, and that is the real finding
+
+The owner approved removing it on 2026-09-10. It was moved into
+`/home/u130124229/removed-2026-09-10` rather than unlinked, and verified from
+both ends — gone from the docroot, landed in the attic at the same size, all
+four plain tile names 404 in the same run. **Both times it came back.**
+
+```
+moved 14:23:01  ->  back 14:24:01     then untouched
+moved 14:39:01  ->  back 14:40:01     then untouched for eight minutes
+```
+
+Byte-identical to `art-outlet.jpg` beside it (sha256 `8c0675b4f9ed`), at the
+cron tick, and then left alone. **A writer that only acts when the file is
+MISSING does nothing on a normal day**, which is why nothing has ever reported
+it. `SPORTA-BACKEND.zip`, moved in the same run, has NOT come back — so this is
+not a backup restoring the docroot wholesale, it is something specific to the
+category art.
+
+`live-who-writes-tiles.php` names one candidate out of 39 server-side scripts:
+**`api/deploy.php`**, which is itself untracked, carries `copy`,
+`file_put_contents`, `fopen` and `exec`, and was modified at 06:27 the same
+morning. It is not to be deleted on a guess — it may be a deployment path the
+owner relies on, and the evidence that removals get undone is exactly the
+evidence that acting harder would be a bad idea. **Ask the owner what it is.**
+
+**And it revealed a NINTH cron job**, which every earlier reading of this file
+missed because the list was eight long every time it was looked at:
+`* * * * *`, an `rm -f` of two Next.js CSS files under `domains/wainkw.com`.
+A different site, and nothing to do with this one — but "none of the jobs runs
+every minute" was a sentence written from a list, and the list had changed.
+**Re-list before reasoning from a list.**
+
+**What this costs the rules above.** Every publisher in `scripts/publish/`
+verifies its work in the same breath as doing it, and each was right to. None
+of them can see a file that returns a minute later. `differ=0` and a green
+publish are both measurements of one instant, and this docroot has a writer
+that acts on a delay.
+
 **And a check run in the same breath as the write can measure the state before
 it.** The publisher reported `plainName=STILL-BRIDGED` seconds after writing the
 new `.htaccess`; a probe a minute later found the rule gone and the URL 404 by
