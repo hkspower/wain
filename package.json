@@ -97,6 +97,8 @@
     "test:db": "php scripts/db-audit.php",
     "test:install": "node scripts/install-sql-test.mjs",
     "test:sql-safety": "node scripts/sql-safety-test.mjs",
+    "make:file-manifest": "node scripts/make-file-manifest.mjs",
+    "test:file-manifest": "node scripts/make-file-manifest.mjs --check",
     "test:site-contrast": "node scripts/site-contrast.mjs",
     "test:borders": "node scripts/border-audit.mjs",
     "test:buttons": "node scripts/button-audit.mjs",
