@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "wain": {
+      "command": "node",
+      "args": ["mcp/wain-mcp.mjs"]
+    }
+  }
+}

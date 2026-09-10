@@ -360,6 +360,35 @@ A prohibition cannot be optional. Moving «ما تسجّلين له بنفسك»
 say-only-if-asked section made her start offering to register businesses
 herself — a promise she cannot keep.
 
+## wain speaks MCP
+
+`mcp/wain-mcp.mjs`, pointed at by `.mcp.json`, so opening this repository in an
+MCP client is the whole setup — no install, no config, no key. Four tools:
+`search_places`, `get_place`, `list_categories`, `list_places`.
+
+**It loads `src/lib/places.ts` and `src/lib/search.ts`, bundled once at startup
+with the local esbuild** — the same trick `scripts/audit-places.mjs` uses, and
+for the same reason. A JSON snapshot of the catalogue would pass its tests the
+day it was written and drift the first time somebody edited one and not the
+other, and an answer here that disagreed with the site would be worse than no
+answer. `test:mcp` asks both the server and `search()` the same four questions
+and requires identical result lists, so drift fails a test rather than
+misleading someone.
+
+**No `@modelcontextprotocol/sdk`, deliberately.** It was tried first and pulls
+**68 packages** — express, hono, cors, body-parser, ajv, eventsource — an HTTP
+server stack, into a project whose first principle is that there is no server,
+and onto every `npm ci` the deploy runs. All of it to carry newline-delimited
+JSON-RPC between two pipes. So the transport is written out, and the parts an
+SDK would have provided are exactly the parts `tests/mcp.test.mjs` proves
+against a real child process: two messages in one write, a notification that
+must never be answered, an unknown method, a malformed line that must not stop
+the messages after it.
+
+**A tool failure is content with `isError`, never a JSON-RPC error.** A model
+can read the first and recover — `get_place` on a bad slug answers with
+`did_you_mean` — and cannot see the second at all.
+
 ## Checks
 
 `npm run scan` is lint plus ~20 audits. Browser suites: `test:hangout`

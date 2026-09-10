@@ -53,7 +53,9 @@
     "deploy:plan": "node scripts/deploy-plan.mjs",
     "deploy:verify": "node scripts/deploy-verify.mjs",
     "preview": "node scripts/gen-preview.mjs",
-    "scan:design": "node scripts/scan-design.mjs"
+    "scan:design": "node scripts/scan-design.mjs",
+    "mcp": "node mcp/wain-mcp.mjs",
+    "test:mcp": "node tests/mcp.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.1",
