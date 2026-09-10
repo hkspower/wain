@@ -451,6 +451,31 @@ and every one still exists. Do that check against the *live* HTML, not `out/` �
 a local build is usually ahead of the deploy and names files the server has
 never had.
 
+**And it was still not enough, because there was a second copy of the site.**
+The check asked every *route* what it needed. It did not ask whether anything
+outside the routes referenced those chunks — and `public_html/assets/` held an
+entire wain export from 9 September, commit `8b7b8e56`, extracted into the PHP
+application's directory by some earlier deploy. `assets/index.html` named
+`0fc52fdd728fbe76.css`, `webpack-7f9c2ad79b9d96b6.js` and four more of the
+files cleared that morning, so the cleanup turned a duplicate homepage into a
+broken one, served at `www.wainkw.com/assets/` and reachable by a crawler.
+
+Found the next day by diffing the whole live docroot against `out/`, which is
+the check that would have caught it first: eleven files in `assets/` carried
+wain's exact byte sizes, and `assets/build.json` said `"name": "wain"` outright.
+All eleven were removed; the 33 that remain are the PHP app's.
+
+Two lessons, and the second is the general one:
+
+- **Diff the docroot, not the routes.** Asking each page what it needs finds
+  what the *site* uses. Only a full listing finds what is on the disk that no
+  page admits to.
+- **A shared docroot can contain a second copy of your own site.** Nothing in
+  the export, the manifest or the route HTML mentions `assets/`, so nothing in
+  this repository could have known. `deploy.php` now protects `assets` among the
+  PHP app's directories, so a future deploy cannot recreate it — but the
+  possibility is the thing to remember, not that one directory.
+
 Three things the API did that the deploy notes did not predict:
 
 **A path containing a character the WAF rejects is still reachable — through

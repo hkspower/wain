@@ -93,6 +93,16 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   40 hex characters whichever commit it is, so the root files of two different
   builds are byte-identical. `_next/static/<commit>/` is the one proof whose
   name carries the commit — `deploy:verify` requires it for that reason.
+- **Diff the whole docroot against `out/`, not just the routes.** Asking each
+  page what it references finds what the *site* uses; only a full listing finds
+  what is on the disk that no page admits to. `public_html/assets/` held a
+  complete wain export from 9 September — `assets/build.json` said
+  `"name": "wain"` — extracted into the PHP app's directory by some earlier
+  deploy, and nothing in this repository could have known: not the export, not
+  the manifest, not any route's HTML. Clearing stale chunks broke that copy into
+  an unstyled homepage served at `/assets/`. Removed, and `deploy.php` now
+  protects `assets`, so a deploy cannot recreate it — but **a shared docroot can
+  hold a second copy of your own site** is the part worth remembering.
 - **`unzip` merges, so every deploy leaves the last one's assets behind.**
   Cleared once, on 10 September: 37 files, ~1.1MB, six builds' worth. Two
   measurements from it are worth keeping. A path the WAF will not accept —
