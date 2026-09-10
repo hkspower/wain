@@ -144,3 +144,33 @@ So the two paths are no longer equal. Deleting the old app is off the table
 until the business has somewhere else to run its orders from. Hardening it in
 place is the live option, and it needs the `admin.html` change above to go with
 it.
+
+## deploy-endpoint.patch
+
+`public_html/api/deploy.php` on wainkw.com is a signed, staged, rollback-capable
+deploy endpoint. It is not in this repository — only the patch beside this file
+is — for the same reason `api.php` is: nothing reviewed it while the only copy
+sat on the server. This one was found on 10 September, after a deploy had
+already been run the unsafe way its own header warns about.
+
+It cannot deploy this site as it stands. `PROTECTED_PATHS` refuses seven of the
+245 files in the export, because `admin`, `queue` and `orders` are static routes
+this site publishes and `.htaccess` is the site's own file. It also fails to
+protect `assets`, `cats`, `fonts`, `hero` and `images`, which the older PHP
+application owns — the quieter fault, and the one that would have let an
+artifact overwrite that application and then delete it on the next prune.
+
+`deploy-endpoint.patch` fixes both, and makes the artifact host list readable
+from `<domain>/storage/deploy.hosts` so it can change without re-patching PHP.
+
+Verified as far as this environment allows, which is not all the way:
+
+- `php -l` clean, and the new `allowedHosts()` exercised — defaults alone with
+  no file, one hostname added from a file, with comments, blanks, a line
+  containing spaces and a URL all correctly ignored.
+- The endpoint's artifact walk simulated over the real `out/`: 245 files, seven
+  refused by the current list and none by the patched one, no executables.
+- **Not** tested against the live endpoint. `www.wainkw.com` is refused at
+  CONNECT by the sandbox gateway, so no request can be sent from here at all.
+  Treat the patch as a proposal until `php -l` passes on the server and one
+  deploy has been watched.

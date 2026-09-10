@@ -1,0 +1,134 @@
+Two changes to public_html/api/deploy.php on wainkw.com.
+
+Apply on the server, from the domain directory:
+
+    cd ~/domains/wainkw.com
+    cp public_html/api/deploy.php public_html/api/deploy.php.bak
+    patch -p0 public_html/api/deploy.php < deploy-endpoint.patch
+
+The endpoint is not in this repository, only this patch is, because nothing in
+this environment can write to that server: the `hosa` connector's file access
+is read-only, its one upload path is a TUS URL on a host the sandbox gateway
+refuses at CONNECT, and www.wainkw.com is refused the same way. Every line
+below was read out of the live file with `hosting_getWebsiteFileContentV1` on
+10 September, so the context should match exactly.
+
+
+WHY 1 — the endpoint refuses this site's own export
+
+PROTECTED_PATHS is checked against the first path segment of every entry in the
+artifact, and rejects the whole archive with `artifact_touches_protected_path`
+before anything is downloaded. It lists `admin`, `queue`, `orders` and
+`.htaccess`. All four are wain's: /admin/, /queue/ and /orders/ are static
+routes this site publishes, and the .htaccess in the docroot is byte-identical
+to the one in the export — 15672 bytes, header "Wain — static export on Apache
+/ LiteSpeed (Hostinger)". So the endpoint cannot deploy this site at all. It
+stops at the first of the four.
+
+WHY 2 — and it does not protect five directories that do need protecting
+
+Measured by listing the docroot and diffing it against the export. Everything
+in the export is wain's; everything else in the docroot belongs to the older
+PHP application:
+
+  wain publishes   .htaccess 404 404.html _next about add admin apple-icon.png
+                   brand build.json explore icon.svg index.html index.txt
+                   manifest.webmanifest og og.jpg orders places privacy queue
+                   robots.txt search sitemap.xml sw.js voice
+
+  the PHP app has  api assets cats fonts hero images knet pay
+
+`assets`, `cats`, `fonts`, `hero` and `images` are the PHP app's and are not on
+the protected list, so an artifact containing any of them would overwrite that
+application's files and the manifest prune would then delete them on the next
+deploy. That is the quieter of the two faults and the more expensive one.
+
+The replacement list is exactly "what the PHP app owns", plus the paths that
+should never be written from an artifact under any circumstances.
+
+.htaccess is deliberately NOT protected any more. It is wain's file, it is in
+the export, and protecting it means the site can never correct its own caching
+or routing rules through this endpoint. It is also the single highest-blast-
+radius file in the docroot, since Apache reads it for both applications, so
+`npm run audit:htaccess` checking every deny rule against every shipped file
+stays the thing that has to be green before a deploy.
+
+
+--- public_html/api/deploy.php
++++ public_html/api/deploy.php
+@@
+ const PROTECTED_PATHS = [
+-    'api', 'knet', 'pay', 'admin', 'queue', 'orders',
+-    'storage', 'cgi-bin', '.well-known',
+-    '.htaccess', 'config.php',
++    // The older PHP application's directories. Measured against the docroot
++    // on 2026-09-10 by diffing it with the static export: everything here is
++    // absent from the export, everything absent from here is in it.
++    'api', 'assets', 'cats', 'fonts', 'hero', 'images', 'knet', 'pay',
++    // Never writable from an artifact, whoever owns them.
++    'storage', 'cgi-bin', '.well-known', 'config.php',
++    // NOT protected, and each on purpose: 'admin', 'queue' and 'orders' are
++    // static routes the site publishes, and '.htaccess' is the site's own —
++    // protecting them refused every deploy this endpoint was built to serve.
+ ];
+
+-const ALLOWED_HOSTS  = ['raw.githubusercontent.com', 'github.com', 'codeload.github.com'];
++/**
++ * Default artifact hosts. Add others in <domain>/storage/deploy.hosts, one
++ * hostname per line, blanks and #comments ignored — a file rather than an edit
++ * here, so changing where artifacts live does not mean re-patching this
++ * endpoint and does not put the list inside public_html.
++ */
++const ALLOWED_HOSTS  = ['raw.githubusercontent.com', 'github.com', 'codeload.github.com'];
+ const MAX_BYTES      = 200 * 1024 * 1024;
+ const KEEP_RELEASES  = 3;
+@@
+ function isProtected(string $rel): bool {
+     $first = explode('/', str_replace('\\', '/', $rel))[0];
+     return in_array($first, PROTECTED_PATHS, true);
+ }
++
++function allowedHosts(): array {
++    global $STORAGE;
++    $hosts = ALLOWED_HOSTS;
++    $file  = $STORAGE . '/deploy.hosts';
++    if (is_readable($file)) {
++        foreach (preg_split('/\R/', (string) file_get_contents($file)) ?: [] as $line) {
++            $line = trim($line);
++            if ($line === '' || $line[0] === '#') continue;
++            // A hostname only. A URL, a port or a path here would silently
++            // widen the check to something that never matches parse_url's host.
++            if (preg_match('/^[a-z0-9.-]+$/i', $line)) $hosts[] = strtolower($line);
++        }
++    }
++    return array_values(array_unique($hosts));
++}
+@@
+ $host = parse_url($url, PHP_URL_HOST) ?: '';
+-if (parse_url($url, PHP_URL_SCHEME) !== 'https' || !in_array($host, ALLOWED_HOSTS, true)) {
++if (parse_url($url, PHP_URL_SCHEME) !== 'https' || !in_array(strtolower($host), allowedHosts(), true)) {
+     out(400, ['ok' => false, 'error' => 'host_not_allowed', 'host' => $host]);
+ }
+
+
+AFTERWARDS
+
+  1. Add the artifact host, if it is not GitHub:
+
+       printf '%s\n' files.example.com > ~/domains/wainkw.com/storage/deploy.hosts
+       chmod 600 ~/domains/wainkw.com/storage/deploy.hosts
+
+  2. Check it still parses before trusting it:
+
+       php -l public_html/api/deploy.php
+
+  3. First deploy through it should be watched. `storage/deploy/deploy.log`
+     records one line per attempt, and `storage/deploy/manifest.json` is what
+     the prune step reads next time — an empty or wrong manifest on the first
+     run is the case worth catching, because it decides what gets deleted on
+     the second.
+
+  4. Nothing here has been tested against the live endpoint. It cannot be from
+     this environment; the site is unreachable at CONNECT. The patch is a
+     reading of the file plus a measurement of the docroot, and it should be
+     treated as a proposal until `php -l` passes and one deploy has run.
