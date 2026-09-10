@@ -123,20 +123,36 @@ for (const [name, s, what] of STATIONS) {
     // the sky, and inside a tunnel it is concrete a metre from the
     // camera. Their brightness is not the tell — the tell is that the
     // ceiling is LIT and the night sky is not.
-    let topSum = 0, topN = 0;
+    let topSum = 0, topN = 0, topBlue = 0, halfN = 0, halfBright = 0;
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         const i = (y * W + x) * 4;
         const l = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
         sum += l; n++;
         if (l > 40) lit++;
-        if (y < H / 8) { topSum += l; topN++; }
+        if (y < H / 8) {
+          topSum += l; topN++;
+          // Blue minus red. This game's night sky is a saturated blue and
+          // a concrete soffit is not, so this separates "there is sky up
+          // there" from "there is a roof up there" in a way brightness
+          // cannot — see the note by the checks.
+          topBlue += d[i + 2] - d[i];
+        }
+        // The lamps are counted over the top HALF, not the top eighth.
+        // The eighth is the sky/roof band and it was reused here without
+        // checking, which reported 0% strip lights in a frame that has
+        // eight of them in it: from ten metres back the ceiling fittings
+        // sit around a quarter to two fifths of the way down the picture,
+        // well below a band drawn to catch the sky.
+        if (y < H / 2) { halfN++; if (l > 180) halfBright++; }
       }
     }
     return {
       mean: +(sum / n).toFixed(1),
       lit: +((lit / n) * 100).toFixed(1),
       top: +(topSum / topN).toFixed(1),
+      blue: +(topBlue / topN).toFixed(1),
+      lamps: +((halfBright / halfN) * 100).toFixed(2),
       // How far the camera is from the car it is supposed to be behind.
       // Reported so a shot taken mid-lerp can never again be read as a
       // statement about the world.
@@ -148,7 +164,8 @@ for (const [name, s, what] of STATIONS) {
   rows.push({ name, s, what, ...r });
   console.log(
     `${name.padEnd(9)} s=${String(s).padStart(4)}  mean ${String(r.mean).padStart(5)}  ` +
-      `lit ${String(r.lit).padStart(5)}%  roof band ${String(r.top).padStart(5)}  ` +
+      `lit ${String(r.lit).padStart(5)}%  roof ${String(r.top).padStart(5)}  ` +
+      `blue ${String(r.blue).padStart(6)}  lamps ${String(r.lamps).padStart(5)}%  ` +
       `cam ${String(r.camDist).padStart(5)} m   ${what}`
   );
   if (r.camDist > 25)
@@ -156,17 +173,34 @@ for (const [name, s, what] of STATIONS) {
 }
 await browser.close();
 
-// Inside is not outside. If the middle of the tunnel measures the same
-// as the approach, the roof is not there.
+// INSIDE IS NOT OUTSIDE — BUT NOT BY BRIGHTNESS.
+//
+// The first version of these checks asserted that the roof band inside
+// reads BRIGHTER than the sky band outside, and that the middle of the
+// tunnel is a larger fraction lit than the approach. Both are false, and
+// measuring them said so: this game's night sky sits around 57 in that
+// band and its road is lit by lamps the whole way, so the approach comes
+// out at 97 mean and 91% lit while a concrete soffit under strip lights
+// comes out darker than the sky it replaces. A real tunnel is like that
+// too — the ceiling is the dimmest surface in it.
+//
+// What is actually true is that the sky is GONE. This sky is a saturated
+// blue and concrete is neutral, so blue-minus-red over the top of the
+// frame separates the two cleanly however bright either happens to be.
+// And the strip lights have to be in shot, which is what says the tunnel
+// is lit at all rather than merely roofed.
 const approach = rows.find((r) => r.name === "approach");
 const middle = rows.find((r) => r.name === "middle");
-if (!(middle.top > approach.top * 1.5))
+if (!(middle.blue < approach.blue * 0.5))
   fail.push(
-    `the tunnel's ceiling band reads ${middle.top} against ${approach.top} under open sky — ` +
-      `a lit roof should be well brighter than a night sky`
+    `overhead in the tunnel still reads like sky: blue-minus-red ${middle.blue} ` +
+      `against ${approach.blue} out under the open sky`
   );
-if (!(middle.lit > approach.lit))
-  fail.push(`the middle of the tunnel (${middle.lit}% lit) is no brighter than the approach (${approach.lit}%)`);
+if (!(middle.lamps > 0.5))
+  fail.push(
+    `no strip lights overhead in the middle of the tunnel — ` +
+      `${middle.lamps}% of the upper half is above 180, so nothing up there is lit`
+  );
 
 if (fail.length) {
   console.error(`\n${fail.length} problem(s):\n`);

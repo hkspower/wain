@@ -805,6 +805,125 @@ function concreteTexture(): THREE.CanvasTexture {
   return tex;
 }
 
+/**
+ * The underpass wall — and it is authored SIDEWAYS on purpose.
+ *
+ * buildWall lays its UVs out as u = height (0 at the road, 1 at the
+ * soffit) and v = distance along the tunnel over 14 m. So on this canvas
+ * the X axis is HEIGHT and the Y axis is LENGTH, which is the opposite
+ * of how anybody draws a wall and the reason this is its own function
+ * rather than a few extra strokes on concreteTexture(): every band here
+ * is a vertical stripe standing for a horizontal course.
+ *
+ * What is drawn is what a road tunnel actually has, bottom to top:
+ *
+ *   a plinth, dark and wet — the bit that gets hit by spray and never
+ *   dries. This is most of why the old flat grey read as a corridor
+ *   rather than a road: there was nothing to say which end was the
+ *   ground.
+ *
+ *   a tiled dado to about 2.5 m, in a pale ceramic. Tunnels are tiled to
+ *   head height for a reason a night racing game should care about — it
+ *   is there to bounce headlights back onto the carriageway — so it is
+ *   the lightest thing in here and it carries its own grout.
+ *
+ *   bare concrete above that, dirtier as it climbs, because nothing
+ *   washes it.
+ *
+ * Plus an expansion joint once per tile: a real tunnel is cast in bays
+ * and the seam between them is the thing that tells you how fast you are
+ * going when everything else is a smooth grey wall.
+ */
+function tunnelWallTexture(): THREE.CanvasTexture {
+  const S = 256;
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const ctx = c.getContext("2d")!;
+  // X in pixels for a height in metres, against TUNNEL_BOX.height.
+  const atM = (m: number) => (m / TUNNEL_BOX.height) * S;
+  // Y in pixels for a distance in metres. The map is repeated twice over
+  // buildWall's 14 m of v, so one tile is seven metres of tunnel.
+  const TILE_M = 7;
+  const atL = (m: number) => (m / TILE_M) * S;
+
+  // Bare concrete everywhere first; the courses go on top.
+  ctx.fillStyle = "#787b81";
+  ctx.fillRect(0, 0, S, S);
+  for (let i = 0; i < 4200; i++) {
+    const g = 100 + rand() * 46;
+    ctx.fillStyle = `rgba(${g},${g + 2},${g + 6},${0.18 + rand() * 0.36})`;
+    ctx.fillRect(rand() * S, rand() * S, 1.5, 1.5);
+  }
+
+  // ---- the tiled dado, 0.35 m to 2.5 m ----
+  const dadoLo = atM(0.35), dadoHi = atM(2.5);
+  ctx.fillStyle = "#cfd3d0";
+  ctx.fillRect(dadoLo, 0, dadoHi - dadoLo, S);
+  // Ceramic is not one colour: vary it per tile so the courses read.
+  const TILE = 0.25; // metres, both ways
+  for (let m = 0.35; m < 2.5; m += TILE) {
+    for (let n = 0; n < TILE_M; n += TILE) {
+      const v = 198 + rand() * 26;
+      ctx.fillStyle = `rgba(${v},${v + 3},${v},0.55)`;
+      ctx.fillRect(atM(m), atL(n), atM(TILE) - 1, atL(TILE) - 1);
+    }
+  }
+  // Grout, both ways.
+  ctx.strokeStyle = "rgba(120,124,124,0.75)";
+  ctx.lineWidth = 1;
+  for (let m = 0.35; m <= 2.5 + 1e-6; m += TILE) {
+    ctx.beginPath(); ctx.moveTo(atM(m), 0); ctx.lineTo(atM(m), S); ctx.stroke();
+  }
+  for (let n = 0; n <= TILE_M + 1e-6; n += TILE) {
+    ctx.beginPath(); ctx.moveTo(dadoLo, atL(n)); ctx.lineTo(dadoHi, atL(n)); ctx.stroke();
+  }
+
+  // ---- the plinth, road level to 0.35 m ----
+  const plinth = ctx.createLinearGradient(0, 0, atM(0.55), 0);
+  plinth.addColorStop(0, "rgba(24,25,28,0.96)");
+  plinth.addColorStop(0.62, "rgba(38,40,44,0.85)");
+  plinth.addColorStop(1, "rgba(60,62,66,0)");
+  ctx.fillStyle = plinth;
+  ctx.fillRect(0, 0, atM(0.55), S);
+
+  // ---- grime: heavy at the bottom of the tile, thinning upward ----
+  const grime = ctx.createLinearGradient(atM(0.35), 0, atM(1.5), 0);
+  grime.addColorStop(0, "rgba(46,44,38,0.5)");
+  grime.addColorStop(1, "rgba(46,44,38,0)");
+  ctx.fillStyle = grime;
+  ctx.fillRect(atM(0.35), 0, atM(1.5) - atM(0.35), S);
+  // And soot high up, where the exhaust collects against the soffit.
+  const soot = ctx.createLinearGradient(atM(3.4), 0, S, 0);
+  soot.addColorStop(0, "rgba(30,30,32,0)");
+  soot.addColorStop(1, "rgba(30,30,32,0.22)");
+  ctx.fillStyle = soot;
+  ctx.fillRect(atM(3.4), 0, S - atM(3.4), S);
+
+  // Run-off streaks down the bare concrete — vertical on the wall, which
+  // is horizontal here.
+  for (let i = 0; i < 16; i++) {
+    const at = atL(rand() * TILE_M);
+    ctx.fillStyle = `rgba(38,40,42,${0.05 + rand() * 0.12})`;
+    ctx.fillRect(atM(2.5), at, S - atM(2.5), 1.5 + rand() * 5);
+  }
+
+  // ---- the expansion joint, once per bay ----
+  ctx.fillStyle = "rgba(22,23,26,0.85)";
+  ctx.fillRect(0, 0, S, 2.5);
+  ctx.fillStyle = "rgba(150,153,155,0.25)";
+  ctx.fillRect(0, 2.5, S, 1);
+
+  const tex = new THREE.CanvasTexture(c);
+  // Length repeats; height must NOT — the courses are absolute
+  // positions up the wall, and tiling them would put a second plinth in
+  // the ceiling.
+  tex.wrapS = THREE.ClampToEdgeWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
 function paverTexture(): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = 128;
@@ -5277,9 +5396,9 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
 
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
-    const up = new THREE.Vector3(0, 1, 0);
     const pos = new THREE.Vector3();
     const scl = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
     const p2 = new THREE.Vector3();
     const tmp2 = new THREE.Vector3();
     const tint = new THREE.Color();
@@ -5331,11 +5450,26 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
 
   // The underpass: concrete walls + ceiling, sodium strip lights inside
   {
+    // The soffit keeps the plain cast concrete — a ceiling has no
+    // courses on it, and the tiled wall would put a dado overhead.
     const concreteMap = concreteTexture();
     concreteMap.repeat.set(1, 2);
     const concrete = new THREE.MeshStandardMaterial({
       map: concreteMap,
       roughness: 0.95,
+      side: THREE.DoubleSide,
+    });
+    // The walls get their own face: plinth, tiled dado, dirty concrete
+    // above. See tunnelWallTexture — it is drawn sideways because
+    // buildWall's u is height, not length.
+    const wallMap = tunnelWallTexture();
+    wallMap.repeat.set(1, 2);
+    const wallMat = new THREE.MeshStandardMaterial({
+      map: wallMap,
+      // Less rough than the soffit: glazed tile is most of what the eye
+      // sees down here, and it is the surface that throws headlights
+      // back onto the road.
+      roughness: 0.72,
       side: THREE.DoubleSide,
     });
     // The box's dimensions live in track.ts beside the span they apply
@@ -5345,11 +5479,11 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const { halfWidth: tw, height: th } = TUNNEL_BOX;
     const wallL = new THREE.Mesh(
       buildWall(track, -tw, 0, th, 6, TUNNEL_U.from, TUNNEL_U.to),
-      concrete
+      wallMat
     );
     const wallR = new THREE.Mesh(
       buildWall(track, tw, 0, th, 6, TUNNEL_U.from, TUNNEL_U.to),
-      concrete
+      wallMat
     );
     const ceiling = new THREE.Mesh(
       buildRibbon(track, -tw, tw, th, 6, TUNNEL_U.from, TUNNEL_U.to),
@@ -5424,6 +5558,80 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     tpools.instanceMatrix.needsUpdate = true;
     scene.add(strips, tpools);
     scene.add(coronaPoints(stripPositions, 0xdbe7ff, 2.6));
+
+    /* THE SERVICE RUN, AND THE STUDS.
+     *
+     * Two things a tunnel has that a corridor does not, and between them
+     * they are what stops a smooth grey wall from being a smooth grey
+     * wall at 200 km/h.
+     *
+     * The tray is the cable duct every tunnel carries at high level —
+     * power for the lights overhead, and the one horizontal line in here
+     * that runs unbroken from portal to portal. It is what gives the
+     * wall a vanishing point of its own instead of leaving that job to
+     * the ceiling strips.
+     *
+     * The studs are the reason this is worth doing at all. A tiled wall
+     * is lit by whatever the ceiling gives it; a reflective delineator
+     * is lit by YOUR headlights, so it arrives out of the dark, brightens
+     * as you close on it and goes past — and a row of them at a fixed
+     * spacing is the strongest speed cue in the whole tunnel. Every 18 m,
+     * because that is close enough to read as a stream at speed and far
+     * enough not to become a solid line.
+     */
+    const runM = (TUNNEL_U.to - TUNNEL_U.from) * L;
+    const trayN = Math.floor(runM / 4);
+    // Galvanised, not black. At 0x2f3237 against a pale tiled wall this
+    // was the highest-contrast thing in the tunnel — a row of dark slabs
+    // that read as structural beams somebody had left in the way, and
+    // the first thing the eye went to in every shot. A cable duct is
+    // dull grey steel and it is supposed to be furniture.
+    const trayMat = new THREE.MeshStandardMaterial({ color: 0x8d9198, roughness: 0.62, metalness: 0.5 });
+    // Slightly longer than the spacing so consecutive segments overlap
+    // through the corners: a tray with gaps in it on every bend is a
+    // dashed line, and a dashed line is not a duct.
+    const tray = new THREE.InstancedMesh(new THREE.BoxGeometry(0.24, 0.16, 4.6), trayMat, trayN * 2);
+    // Amber one side, white the other, which is the convention and also
+    // the only way to know which wall you are looking at when the tunnel
+    // is symmetrical and you are sideways.
+    const studGeo = new THREE.BoxGeometry(0.1, 0.12, 0.3);
+    const studMats = [
+      new THREE.MeshStandardMaterial({ color: 0xfff3d8, emissive: 0xffcf82, emissiveIntensity: 0.85, roughness: 0.35, fog: false }),
+      new THREE.MeshStandardMaterial({ color: 0xf2f6ff, emissive: 0xdbe7ff, emissiveIntensity: 0.85, roughness: 0.35, fog: false }),
+    ];
+    const studN = Math.floor(runM / 18);
+    const studs = [
+      new THREE.InstancedMesh(studGeo, studMats[0], studN),
+      new THREE.InstancedMesh(studGeo, studMats[1], studN),
+    ];
+    const q = new THREE.Quaternion();
+    const one = new THREE.Vector3(1, 1, 1);
+    // Both of these sit ON the wall, so they have to be turned to follow
+    // it. The strips above get away with a bare translation because they
+    // are square in plan; a 4.5 m duct laid across the tunnel would be a
+    // girder.
+    const place = (sAt: number, lat: number, y: number, mesh: THREE.InstancedMesh, at: number) => {
+      track.pose(sAt, lat, p, tmp);
+      q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tmp.clone().setY(0).normalize());
+      m.compose(new THREE.Vector3(p.x, y, p.z), q, one);
+      mesh.setMatrixAt(at, m);
+    };
+    for (let i = 0; i < trayN; i++) {
+      const sAt = (TUNNEL_U.from + 0.001) * L + i * 4;
+      // 4.95 m, up out of the eye line and tight under the soffit, which
+      // is where a duct is actually clipped.
+      place(sAt, -(tw - 0.14), 4.95, tray, i * 2);
+      place(sAt, tw - 0.14, 4.95, tray, i * 2 + 1);
+    }
+    tray.instanceMatrix.needsUpdate = true;
+    for (let i = 0; i < studN; i++) {
+      const sAt = (TUNNEL_U.from + 0.004) * L + i * 18;
+      // 0.95 m: headlight height, which is the whole point of a stud.
+      place(sAt, -(tw - 0.12), 0.95, studs[0], i);
+      place(sAt, tw - 0.12, 0.95, studs[1], i);
+    }
+    for (const st of studs) st.instanceMatrix.needsUpdate = true;
+    scene.add(tray, studs[0], studs[1]);
   }
 
   // Illuminated billboards — the TXR night-expressway signature,
