@@ -202,10 +202,19 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   before it ran — the two build-id manifest files, the only paths that differed
   between two code-identical builds. The stale-asset problem is closed.
 
-  One thing it does not do: **`rmdir`.** Step 9 unlinks stale files and leaves
-  the directories it empties, so `_next/static/<old sha>/` survives as an empty
-  directory. Harmless — nothing can request it — but one appears per deploy, so
-  `rmdir` it whenever `removed` comes back non-zero.
+  **It rmdirs too, since 10 September.** Step 9 used to unlink stale files and
+  leave the directories it emptied, so `_next/static/<old sha>/` survived every
+  deploy as an empty shell. `scripts/publish/patch-deploy-prune-dirs.php` added
+  the walk-up; the reply now carries `emptied` beside `removed` and the log line
+  carries `dirs=`.
+
+  **A deploy job is per-minute, so read the output as the LAST run, not the
+  only one.** The third deploy answered `removed: 0, emptied: 0` and looked like
+  the new prune had done nothing — it had fired twice, and the reading was of
+  the second, idempotent pass. The disk settled it: the previous build's
+  directory was gone, files and all. So **check the filesystem, not the reply**,
+  and delete the job as soon as it has fired once. That a second run is a clean
+  no-op is worth knowing on its own: the deploy is safely repeatable.
 
   Still true: `ALLOWED_HOSTS` is GitHub-only, so an artifact hosted anywhere
   else needs its hostname in `<domain>/storage/deploy.hosts`, one per line —
