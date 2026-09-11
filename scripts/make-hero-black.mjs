@@ -20,6 +20,15 @@ import { readFileSync, writeFileSync } from 'node:fs'
 
 const SRC = process.argv[2]
 const write = process.argv.includes('--write')
+
+/* THE CHEST PRINTS ARE OPTIONAL, and off by default since 2026-09-11 — the
+ * owner asked for the banner without them. The whole mark pipeline is KEPT
+ * rather than deleted: it is measured, mutation-tested and correct (hue 27/28
+ * against the brand's 26, shading taken from the fabric itself, masked to the
+ * letterform), and `--marks` brings it straight back. Deleting the branch you
+ * are not taking decides for everyone who comes after, and this project has
+ * already paid once for that and once for the reverse. */
+const marks = process.argv.includes('--marks')
 if (!SRC) { console.error('usage: node scripts/make-hero-black.mjs <photo.png> [--write]'); process.exit(1) }
 
 const R = 'sporta-site/public_html/'
@@ -47,7 +56,16 @@ const W = 3200, H = Math.round(3200 / 2.52)   // 1270
  * being scaled down — scaling them would leave them floating in a 1270px band
  * they no longer fill. */
 const PHONE_EDGE = 0.858 * W          // 2746 — nothing that matters may sit right of this
-const SHIFT = -453                    // photo left offset, derived from the woman's edge
+const SHIFT = -233                    // photo left offset, derived from the woman's edge
+
+/* WHY -233 AND NOT -453. The first value was set while an orange S sat on each
+ * chest; with the prints gone the picture showed what they had been masking —
+ * roughly 735px of dead black between the woman and the right edge, with the
+ * pair crowded toward the type instead of anchored to the frame. Moving them
+ * right fills that void and doubles the gap between the man's arm and the
+ * band's tail. The limit is the phone crop above: the woman's right edge lands
+ * at 2685 against a crop line of 2746, so she clears it by 61px. There is no
+ * more room than that — do not shift further right without re-measuring. */
 
 const html = `<!doctype html><meta charset="utf-8">
 <style>
@@ -78,7 +96,7 @@ const html = `<!doctype html><meta charset="utf-8">
      printing fault rather than as a background. */
   .wash { position: absolute; inset: 0;
           background: linear-gradient(90deg, #0a0b0c 0%, #0a0b0c 22%, rgba(10,11,12,.88) 31%,
-                                              rgba(10,11,12,.34) 38%, rgba(10,11,12,0) 46%); }
+                                              rgba(10,11,12,.34) 34%, rgba(10,11,12,0) 40%); }
 
   .type { position: absolute; left: 190px; top: 232px; width: 1750px; }
   .lock { width: 560px; display: block; }
@@ -132,6 +150,7 @@ const html = `<!doctype html><meta charset="utf-8">
   <div class="shot"><img src="data:image/png;base64,${b64(SRC)}"></div>
   <div class="wash"></div>
 
+  ${marks ? `
   <div class="mark" id="m1">
     <img class="s" src="data:image/png;base64,${b64(R + 'logo-white.png')}">
     <img class="fab" src="data:image/png;base64,${b64(SRC)}">
@@ -139,7 +158,7 @@ const html = `<!doctype html><meta charset="utf-8">
   <div class="mark" id="m2">
     <img class="s" src="data:image/png;base64,${b64(R + 'logo-white.png')}">
     <img class="fab" src="data:image/png;base64,${b64(SRC)}">
-  </div>
+  </div>` : ''}
 
   <div class="type">
     <img class="lock" src="data:image/png;base64,${b64(R + 'logo-white.png')}">
@@ -201,8 +220,10 @@ const html = `<!doctype html><meta charset="utf-8">
      a logo. */
   const k = PHOTO_W / 2560
   const SH = ${SHIFT}
-  markAt(document.getElementById('m1'), 1560 * k + SH, 755 * k, 200 * k, -4, 3)
-  markAt(document.getElementById('m2'), 2065 * k + SH, 755 * k, 130 * k, -3, 2)
+  if (${marks}) {
+    markAt(document.getElementById('m1'), 1560 * k + SH, 755 * k, 200 * k, -4, 3)
+    markAt(document.getElementById('m2'), 2065 * k + SH, 755 * k, 130 * k, -3, 2)
+  }
 </script>`
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
