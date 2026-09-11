@@ -45,7 +45,16 @@ export function solveDriverRig(
    *  leaves the rim for the lever while this is up — the one move in
    *  the cab where a hand goes somewhere other than the wheel, and the
    *  move this game is named for. */
-  handbrake = 0
+  handbrake = 0,
+  /**
+   * A gearchange in progress, signed: +1 is the peak of an upshift, -1
+   * a downshift, 0 no shift. The caller shapes it as a PULSE that leaves
+   * zero when the change begins and returns to it when the change ends
+   * — the engine uses sin(pi * progress) over its own shift window — so
+   * the hand flicks to the knob and back inside the time the revs take
+   * to fall. Default 0: every caller that does not shift is untouched.
+   */
+  shift = 0
 ): void {
   // The body first, because everything else is solved onto targets and
   // will follow it. Lean away from the cornering force and fold
@@ -106,6 +115,20 @@ export function solveDriverRig(
     rig.handbrake.updateWorldMatrix(true, false);
   }
 
+  // The gear lever. Guarded like the handbrake: lean rigs have a stub
+  // that was never added to the scene, and a blend that is home and
+  // being asked for nothing is work with no pixels. The direction is
+  // latched while a shift is live so the lever does not flip as the
+  // pulse passes back through zero.
+  if (shift !== 0 || rig.shiftBlend > 1e-4) {
+    if (shift !== 0) rig.shiftDir = Math.sign(shift);
+    const want = Math.min(1, Math.abs(shift));
+    rig.shiftBlend += (want - rig.shiftBlend) * Math.min(1, dt * RIG.driver.shiftRate);
+    const rest = (rig.gear.userData.restRotX as number) ?? RIG.driver.gearTilt;
+    rig.gear.rotation.x = rest + rig.shiftDir * RIG.driver.gearThrow * rig.shiftBlend;
+    rig.gear.updateWorldMatrix(true, false);
+  }
+
   rig.wheel.updateWorldMatrix(true, false);
   for (const arm of rig.arms) {
     const grip = arm.side < 0 ? RIG.driver.gripLeft : RIG.driver.gripRight;
@@ -139,6 +162,15 @@ export function solveDriverRig(
       _v2.set(0, RIG.driver.handbrakeLen, 0);
       rig.handbrake.localToWorld(_v2);
       _v1.lerp(_v2, rig.hbBlend);
+    } else if (arm.side === inboard && rig.shiftBlend > 0.001) {
+      // Same hand, second lever. The handbrake branch above wins when
+      // both are live: a drift is deliberate and a gearchange is not,
+      // and a hand torn between two grips ends up on neither. Only a
+      // fraction of the way — see shiftReach — because a shift is a
+      // flick, and a hand planted on the knob reads as a stall.
+      _v2.set(0, RIG.driver.gearLen, 0);
+      rig.gear.localToWorld(_v2);
+      _v1.lerp(_v2, rig.shiftBlend * RIG.driver.shiftReach);
     }
 
     // Elbows break outward and down — the pole is what stops a solved

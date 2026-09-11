@@ -165,6 +165,37 @@ export const RIG = {
     neckYaw: 0.7,
     neckPitch: 0.28,
     neckRate: 5,
+
+    /**
+     * THE GEAR LEVER — the second control a hand leaves the wheel for.
+     *
+     * The handbrake proved the move: a lever bolted to the car, the
+     * inboard hand solved off the rim onto its grip and back. The rig
+     * had no gearchange at all, so a car that visibly shifts — the
+     * revs fall, the torque cuts, the needle swings — did it with both
+     * hands at ten-to-two. A floor shifter on the console, forward of
+     * the handbrake, and a quick flick rather than a plant: a real
+     * upshift is a quarter of a second and the hand is back on the rim
+     * before the needle has settled.
+     *
+     * Inboard is the driver's right in this left-hand-drive car, which
+     * is the hand the handbrake already uses; when both want it the
+     * handbrake wins, because a drift is deliberate and a shift is not.
+     */
+    gearX: -0.24,
+    gearY: 0.2,
+    gearZ: 0.24,
+    gearLen: 0.17,
+    /** Rest rake, radians about x. */
+    gearTilt: 0.55,
+    /** How far it rocks on a shift: forward on an upshift, back on a down. */
+    gearThrow: 0.42,
+    /** How far the hand commits toward the knob at the peak of the flick;
+     *  1 would plant it there, and a plant reads as a stall. */
+    shiftReach: 0.75,
+    /** Hand and lever blend rate. Faster than the handbrake's 10: a shift
+     *  is over in 0.22 s and the blend has to get there and back inside it. */
+    shiftRate: 22,
   },
 
   /** What the rival's driver is seen doing, derived from the AI's own

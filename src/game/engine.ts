@@ -3363,6 +3363,21 @@ export class GameEngine {
    * somebody up, and a full-screen card over a duel is a pause button
    * with extra steps.
    */
+  /**
+   * The gearchange as a pulse for the driver's hand: 0 at rest, rising
+   * to +1 (upshift) or -1 (downshift) in the MIDDLE of the shift window
+   * and back to 0 by its end. sin(pi * progress) over the same shiftT
+   * the revs are blended on, so the hand and the needle move to one
+   * clock. Zero outside a shift — most frames — and the solver skips
+   * the lever entirely at zero.
+   */
+  private shiftPulse(): number {
+    if (this.shiftT <= 0) return 0;
+    const total = this.shiftUp ? HANDLING.shiftUpTime : HANDLING.shiftDownTime;
+    const k = Math.min(1, Math.max(0, 1 - this.shiftT / total));
+    return Math.sin(Math.PI * k) * (this.shiftUp ? 1 : -1);
+  }
+
   /** Somebody on the road said something. The HUD owns the feed; the
    *  cue belongs to the engine because the engine owns the mixer, and a
    *  UI reaching into a private SoundEngine to make one pip is how a
@@ -6515,7 +6530,8 @@ export class GameEngine {
       // the physics uses, so the hand and the rear axle answer the same
       // press — a driver whose hand is on the wheel while the tail is
       // out is a car sliding with nobody making it.
-      this.handbrake ? 1 : 0
+      this.handbrake ? 1 : 0,
+      this.shiftPulse()
     );
   }
 

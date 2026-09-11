@@ -407,6 +407,14 @@ namespace GRNRig
 	constexpr float DriverNeckYaw = 0.7f;
 	constexpr float DriverNeckPitch = 0.28f;
 	constexpr float DriverNeckRate = 5.f;
+	constexpr float DriverGearX = -0.24f;
+	constexpr float DriverGearY = 0.2f;
+	constexpr float DriverGearZ = 0.24f;
+	constexpr float DriverGearLen = 0.17f;
+	constexpr float DriverGearTilt = 0.55f;
+	constexpr float DriverGearThrow = 0.42f;
+	constexpr float DriverShiftReach = 0.75f;
+	constexpr float DriverShiftRate = 22.f;
 	constexpr float RivalSteerPerLat = 0.45f;
 	constexpr float RivalSteerRate = 4.f;
 	constexpr float RivalPedalRate = 6.f;

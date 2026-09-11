@@ -206,6 +206,16 @@ export interface DriverRig {
    *  free function: it must ease identically whichever engine, menu or
    *  film happens to be calling it this frame. */
   hbBlend: number;
+  /** The gear lever, pivoting at its base like the handbrake; userData
+   *  .restRotX is its rest rake. A stub on lean rigs for the same
+   *  reason the handbrake is one. */
+  gear: THREE.Object3D;
+  /** How far the inboard hand is committed to the knob, and which way
+   *  the lever is being pushed (+1 up, -1 down). The direction is kept
+   *  because the pulse that drives the blend passes through zero at
+   *  both ends of a shift, and a blend easing home must not flip. */
+  shiftBlend: number;
+  shiftDir: number;
 }
 
 /**
@@ -435,6 +445,26 @@ export function kuwaitiDriver(
     group.add(handbrake);
   }
 
+  // The gear lever, on the console forward of the handbrake. Same
+  // construction — a pivot at the base, a rod, a knob — and the same
+  // reason to exist: the car visibly shifts, and until now it did so
+  // with both hands on the wheel.
+  const gear = new THREE.Object3D();
+  if (!lean) {
+    gear.position.set(RIG.driver.gearX, RIG.driver.gearY, RIG.driver.gearZ);
+    gear.rotation.x = RIG.driver.gearTilt;
+    gear.userData.restRotX = gear.rotation.x;
+    const gLen = RIG.driver.gearLen;
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.016, gLen, 6), dark);
+    rod.position.y = gLen / 2;
+    gear.add(rod);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), suit);
+    knob.userData.driverPart = "gear-knob";
+    knob.position.y = gLen;
+    gear.add(knob);
+    group.add(gear);
+  }
+
   // Legs: hip → knee → foot, the same two-bone chains as the arms, so
   // the feet can be solved onto the pedals and follow them as they
   // press. The rest pose reads as seated even before a solver runs —
@@ -476,7 +506,11 @@ export function kuwaitiDriver(
     // pasted onto the scene rather than standing in it.
     o.receiveShadow = true;
   });
-  return { group, lean: body, arms, legs, head, wheel, wheelRadius, pedals , handbrake, hbBlend: 0 };
+  return {
+    group, lean: body, arms, legs, head, wheel, wheelRadius, pedals,
+    handbrake, hbBlend: 0,
+    gear, shiftBlend: 0, shiftDir: 1,
+  };
 }
 
 export interface RacerLook {

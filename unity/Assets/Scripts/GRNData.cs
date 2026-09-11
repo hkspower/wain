@@ -868,6 +868,14 @@ public static class GRNData
         public const float DriverNeckYaw = 0.7f;
         public const float DriverNeckPitch = 0.28f;
         public const float DriverNeckRate = 5f;
+        public const float DriverGearX = -0.24f;
+        public const float DriverGearY = 0.2f;
+        public const float DriverGearZ = 0.24f;
+        public const float DriverGearLen = 0.17f;
+        public const float DriverGearTilt = 0.55f;
+        public const float DriverGearThrow = 0.42f;
+        public const float DriverShiftReach = 0.75f;
+        public const float DriverShiftRate = 22f;
         public const float RivalSteerPerLat = 0.45f;
         public const float RivalSteerRate = 4f;
         public const float RivalPedalRate = 6f;
