@@ -707,6 +707,24 @@
          checkout that dies on its last step. -->
     <script src="/assets/rules.js" defer></script>
 
+    <!-- "Sign in with Google" on /backends, beside the password form rather
+         than instead of it. Google sign-in can fail for reasons this shop
+         cannot see or fix — an outage, a blocked script, a corporate policy,
+         the wrong account signed in — and a panel whose only door depends on
+         somebody else's service is a panel that can be locked.
+
+         It does nothing on any other page: the script returns immediately
+         unless the path is /backends, so the storefront pays a download and no
+         request. Google's own script is fetched only once a configured client
+         id has come back from the server, so a shop that has not set one loads
+         nothing third-party at all.
+
+         The CSP in .htaccess names accounts.google.com for /backends ONLY —
+         script-src, frame-src and connect-src, because the button is a script
+         that draws an iframe and calls home. Under the storefront policy it
+         fails three times over and silently. -->
+    <script src="/assets/google-signin.js" defer></script>
+
     <!-- /track's one field carries no `required`, so pressing Track on an
          empty box did nothing at all — no message, no hint, no outline. This
          adds the attribute the bundle cannot be edited to include, and the

@@ -1896,6 +1896,14 @@ const STORE_SETTING_DEFAULTS = [
     // Empty means "use whatever knet/config.php says", which is what every
     // shop has today and what happens if this row is never written.
     'knet'      => ['tranportal_id' => ''],
+    // GOOGLE SIGN-IN for /backends. The client id is NOT a secret — it is
+    // compiled into the page for the browser — which is why it can live here
+    // rather than in a git-ignored file. `enabled` is separate so the owner can
+    // turn the button off without losing the id they pasted in.
+    //
+    // Empty client id means OFF, and store_google_login() fails closed on it:
+    // a shop that never configures this has no Google route into it at all.
+    'google_auth' => ['client_id' => '', 'enabled' => false],
     // THE THEME. Colours, the two font families, and the two shape numbers.
     //
     // EVERY VALUE IS '' BY DEFAULT, and empty means "leave the built stylesheet
@@ -2876,4 +2884,231 @@ function store_return_create(PDO $db, array $in): array {
             if ($attempt >= 2) throw $e;
         }
     }
+}
+
+// ---------------------------------------------------------- Google sign-in
+//
+// WHY AN ID TOKEN AND NOT AN AUTHORISATION CODE. The code flow needs a CLIENT
+// SECRET on the server and a registered redirect URI; the ID-token flow needs
+// neither, because the only thing that travels is a JWT Google has signed and
+// this server verifies against Google's published keys. One fewer secret on a
+// shared host is worth more here than anything the code flow adds — the shop
+// wants to know WHO is at the keyboard, not to call Google's APIs later.
+//
+// THE CLIENT ID IS NOT A SECRET. It is compiled into the page for the browser
+// to use, and it lives in the `google_auth` settings row so the owner can set
+// it in /backends rather than editing a file. What makes it load-bearing is
+// `aud`: a token minted for somebody ELSE's client id is a valid Google token
+// and must not sign anyone in here.
+
+const STORE_GOOGLE_JWKS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
+const STORE_GOOGLE_ISSUERS  = ['accounts.google.com', 'https://accounts.google.com'];
+// Clock skew tolerance. Google's own guidance is to allow a little; a shared
+// host's clock is not NTP-tight and a minute either way is not a weakening
+// worth the support calls it avoids.
+const STORE_GOOGLE_LEEWAY   = 60;
+
+function store_b64url_decode(string $s): string {
+    $s = strtr($s, '-_', '+/');
+    $pad = strlen($s) % 4;
+    if ($pad) $s .= str_repeat('=', 4 - $pad);
+    $out = base64_decode($s, true);
+    return $out === false ? '' : $out;
+}
+
+/** ASN.1 DER length bytes — short form under 128, long form above. */
+function store_asn1_len(int $len): string {
+    if ($len < 0x80) return chr($len);
+    $s = '';
+    while ($len > 0) { $s = chr($len & 0xff) . $s; $len >>= 8; }
+    return chr(0x80 | strlen($s)) . $s;
+}
+
+/**
+ * A JWK's modulus and exponent as a PEM public key.
+ *
+ * PHP has no JWK reader, so the SubjectPublicKeyInfo is assembled by hand. The
+ * one subtlety is the leading zero: an ASN.1 INTEGER is SIGNED, so a modulus
+ * whose top bit is set must be prefixed with 0x00 or it decodes as negative and
+ * openssl_verify fails for a key that is perfectly good.
+ */
+function store_jwk_to_pem(string $nB64, string $eB64): ?string {
+    $n = store_b64url_decode($nB64);
+    $e = store_b64url_decode($eB64);
+    if ($n === '' || $e === '') return null;
+
+    $int = static function (string $x): string {
+        $x = ltrim($x, "\x00");
+        if ($x === '') $x = "\x00";
+        if (ord($x[0]) > 0x7f) $x = "\x00" . $x;
+        return "\x02" . store_asn1_len(strlen($x)) . $x;
+    };
+    $rsa  = $int($n) . $int($e);
+    $seq  = "\x30" . store_asn1_len(strlen($rsa)) . $rsa;
+    $algo = "\x30\x0d\x06\x09\x2a\x86\x48\x86\xf7\x0d\x01\x01\x01\x05\x00"; // rsaEncryption, NULL
+    $bit  = "\x03" . store_asn1_len(strlen($seq) + 1) . "\x00" . $seq;
+    $spki = "\x30" . store_asn1_len(strlen($algo . $bit)) . $algo . $bit;
+
+    return "-----BEGIN PUBLIC KEY-----\n"
+         . chunk_split(base64_encode($spki), 64, "\n")
+         . "-----END PUBLIC KEY-----\n";
+}
+
+/**
+ * Google's signing keys, cached on disk.
+ *
+ * They rotate, so this cannot be pinned — and it must not be fetched on every
+ * sign-in either, because that makes Google's availability a dependency of
+ * getting into your own shop. Cached for an hour, and a STALE CACHE IS USED if
+ * the refetch fails: a key that verified a minute ago is better than no sign-in
+ * at all, and the signature check is what provides the security either way.
+ */
+function store_google_jwks(): array {
+    $file = sys_get_temp_dir() . '/sporta-google-jwks.json';
+    $fresh = is_file($file) && (time() - (int) @filemtime($file)) < 3600;
+    if ($fresh) {
+        $j = json_decode((string) @file_get_contents($file), true);
+        if (is_array($j) && !empty($j['keys'])) return $j['keys'];
+    }
+
+    $ch = curl_init(STORE_GOOGLE_JWKS_URL);
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 10,
+                            CURLOPT_SSL_VERIFYPEER => true]);
+    $body = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if (is_string($body) && $code === 200) {
+        $j = json_decode($body, true);
+        if (is_array($j) && !empty($j['keys'])) {
+            @file_put_contents($file, $body);
+            return $j['keys'];
+        }
+    }
+    // The refetch failed. Fall back to whatever is on disk, however old.
+    $j = json_decode((string) @file_get_contents($file), true);
+    return is_array($j) ? ($j['keys'] ?? []) : [];
+}
+
+/**
+ * Verify a Google ID token. Returns the claims, or null.
+ *
+ * NOTHING IN THE TOKEN IS TRUSTED UNTIL THE SIGNATURE IS CHECKED, and that
+ * includes the `kid` used to pick the key — which is fine, because picking the
+ * wrong key makes the signature fail rather than pass.
+ *
+ * `$jwks` exists so a test can supply its own key set and mint its own tokens.
+ * It is an argument rather than a setting precisely so that nothing reachable
+ * from a REQUEST can substitute a key set: production calls this with null and
+ * only ever verifies against Google.
+ */
+function store_google_verify(string $token, string $clientId, ?array $jwks = null): ?array {
+    if ($clientId === '') return null;                 // feature off: fail closed
+    $parts = explode('.', $token);
+    if (count($parts) !== 3) return null;
+    [$h64, $p64, $s64] = $parts;
+
+    $head = json_decode(store_b64url_decode($h64), true);
+    $body = json_decode(store_b64url_decode($p64), true);
+    $sig  = store_b64url_decode($s64);
+    if (!is_array($head) || !is_array($body) || $sig === '') return null;
+
+    // ALG IS PINNED. Accepting the token's own choice is how "alg: none" and
+    // the HMAC-with-the-public-key confusion both work; there is exactly one
+    // algorithm Google signs these with and it is named here, not read.
+    if (($head['alg'] ?? '') !== 'RS256') return null;
+
+    $keys = $jwks ?? store_google_jwks();
+    $kid  = (string) ($head['kid'] ?? '');
+    $pem  = null;
+    foreach ($keys as $k) {
+        if ((string) ($k['kid'] ?? '') !== $kid) continue;
+        if (($k['kty'] ?? '') !== 'RSA') continue;
+        $pem = store_jwk_to_pem((string) ($k['n'] ?? ''), (string) ($k['e'] ?? ''));
+        break;
+    }
+    if ($pem === null) return null;
+
+    if (openssl_verify($h64 . '.' . $p64, $sig, $pem, OPENSSL_ALGO_SHA256) !== 1) return null;
+
+    // Signature good. Now the claims — every one of these is a way a genuine,
+    // correctly signed Google token still must not sign anyone in here.
+    $now = time();
+    if (!in_array((string) ($body['iss'] ?? ''), STORE_GOOGLE_ISSUERS, true)) return null;
+    if (!hash_equals($clientId, (string) ($body['aud'] ?? ''))) return null;   // minted for another site
+    if ((int) ($body['exp'] ?? 0) < $now - STORE_GOOGLE_LEEWAY) return null;
+    if ((int) ($body['iat'] ?? 0) > $now + STORE_GOOGLE_LEEWAY) return null;
+
+    // email_verified can arrive as a bool or the string "true" depending on the
+    // flow, and an UNVERIFIED address is somebody's claim rather than Google's.
+    $ev = $body['email_verified'] ?? false;
+    if ($ev !== true && $ev !== 'true') return null;
+
+    $email = strtolower(trim((string) ($body['email'] ?? '')));
+    if ($email === '') return null;
+    $body['email'] = $email;
+    return $body;
+}
+
+/**
+ * Sign in with Google. Mirrors store_login()'s contract exactly.
+ *
+ * IT NEVER CREATES AN ACCOUNT. The address must already be in admin_users, and
+ * that table stays the only answer to "who may run this shop" — otherwise the
+ * allow-list would be "anyone with a Google account", which is everyone.
+ *
+ * AND IT DOES NOT SKIP THE SECOND FACTOR. An account with TOTP or email OTP
+ * enrolled is asked for it here exactly as the password path asks, by setting
+ * the same pending marker. Signing in with Google is proof of an EMAIL, and an
+ * admin who deliberately enrolled an authenticator did so to require something
+ * beyond an email — letting Google past it would silently weaken every account
+ * that had taken the trouble, and nothing on screen would say so.
+ */
+function store_google_login(string $idToken): array {
+    $db = store_db();
+    $cfg = store_setting($db, 'google_auth');
+    $clientId = trim((string) ($cfg['client_id'] ?? ''));
+    if ($clientId === '' || empty($cfg['enabled'])) store_fail('google_not_configured', 503);
+
+    $claims = store_google_verify($idToken, $clientId);
+    // ONE ERROR FOR EVERY WAY THE TOKEN CAN BE WRONG. Expired, wrong audience,
+    // bad signature and unverified address are all "this token does not sign
+    // you in", and telling them apart is a probe for how to make one that does.
+    if ($claims === null) store_fail('google_bad_token', 401);
+
+    $q = $db->prepare('select id, email, locked_until, totp_secret, totp_enabled, email_otp_enabled
+                         from admin_users where lower(email) = ? limit 1');
+    $q->execute([$claims['email']]);
+    $u = $q->fetch();
+
+    // NOT AN ADMIN IS NOT A DIFFERENT ANSWER FROM A BAD TOKEN, for the same
+    // reason: it would turn this route into an oracle for which addresses run
+    // the shop, answerable by anyone with any Google account.
+    if (!$u) store_fail('google_bad_token', 401);
+    if ($u['locked_until'] !== null && strtotime((string) $u['locked_until']) > time()) {
+        store_fail('locked', 429);
+    }
+
+    $hasTotp  = (int) ($u['totp_enabled'] ?? 0) === 1 && (string) ($u['totp_secret'] ?? '') !== '';
+    $hasEmail = !$hasTotp && (int) ($u['email_otp_enabled'] ?? 0) === 1;
+
+    if ($hasTotp || $hasEmail) {
+        store_session_start();
+        session_regenerate_id(true);
+        unset($_SESSION['admin_id'], $_SESSION['admin_email']);
+        $_SESSION['pending_admin_id'] = (int) $u['id'];
+        $_SESSION['pending_at'] = time();
+        $_SESSION['pending_via'] = $hasTotp ? 'totp' : 'email';
+
+        $out = ['id' => (int) $u['id'], 'email' => $u['email'], 'need_code' => true,
+                'code_via' => $hasTotp ? 'totp' : 'email'];
+        if ($hasEmail) {
+            store_email_otp_issue($db, $u);
+            $out['code_sent_to'] = store_mask_email((string) $u['email']);
+        }
+        return $out;
+    }
+
+    store_admin_grant($db, $u);
+    return ['id' => (int) $u['id'], 'email' => $u['email']];
 }

@@ -397,6 +397,43 @@ try {
     check(/no-cache|must-revalidate|max-age=0/.test(cc),
       `assets/${f} names no content hash, so it states its own freshness — "${cc || 'NOTHING'}"`)
   }
+
+  // ---- THE PANEL'S CSP IS WIDER THAN THE SHOP'S, AND ONLY THE PANEL'S ----
+  //
+  // Google sign-in needs accounts.google.com in script-src, frame-src AND
+  // connect-src: the button is a third-party script that draws a third-party
+  // iframe and calls home. Naming a host in script-src lets it run code on this
+  // origin, so the storefront — every product page, the checkout, the page that
+  // takes a card — must not carry it.
+  //
+  // BOTH HALVES ARE ASSERTED, because each fails silently in its own direction.
+  // If SetEnvIf never fires, the panel gets the strict policy and the button is
+  // blocked three times over with nothing on screen but an absent button. If it
+  // fires too widely, the shop quietly gains a third-party script host and
+  // nothing ever reports THAT at all.
+  const cspOn = (p) => headerOn('www.sporta.com.kw', p, 'Content-Security-Policy')
+  const shop = cspOn('/')
+  const panel = cspOn('/backends')
+
+  check(shop !== '' && panel !== '', 'both / and /backends set a Content-Security-Policy')
+  check(!shop.includes('accounts.google.com'),
+    'the STOREFRONT policy does not name accounts.google.com',
+    shop.includes('accounts.google.com')
+      ? 'the widening leaked past /backends onto every page of the shop' : '')
+  for (const d of ['script-src', 'connect-src', 'frame-src']) {
+    const seg = panel.match(new RegExp(`(?:^|;)\\s*${d}\\s+([^;]*)`))?.[1] ?? ''
+    check(seg.includes('https://accounts.google.com'),
+      `the PANEL policy names accounts.google.com in ${d}`,
+      `got "${seg || 'the directive is absent'}" — the sign-in button cannot load`)
+  }
+  // A deeper panel path must be covered too: the route is /backends/orders and
+  // the like, and a rule anchored to the exact string would miss every one.
+  check((cspOn('/backends/orders') || '').includes('accounts.google.com'),
+    'a nested panel path gets the panel policy too', '/backends/orders')
+  // And the storefront's own deeper paths must NOT — "backends" appearing
+  // anywhere in a URL is not the panel.
+  check(!(cspOn('/shop/backends-hoodie') || '').includes('accounts.google.com'),
+    'a product path merely containing "backends" gets the SHOP policy')
 } finally {
   stop()
   rmSync(CONF, { force: true })

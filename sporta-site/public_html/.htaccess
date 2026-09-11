@@ -13,6 +13,31 @@
   RewriteRule "(?i)(^|/)\.(?!well-known)" - [F,L]
 </IfModule>
 
+# ---- Flag the ADMIN PANEL, before anything rewrites the URI ----
+#
+# Google sign-in needs accounts.google.com in three CSP directives, and only
+# /backends may have them — naming a third-party host in script-src lets it run
+# code on this origin, and the storefront gains nothing from a sign-in button.
+# The policies themselves are further down; this only raises the flag.
+#
+# IT MUST BE HERE, AT THE TOP. SetEnvIf was the obvious way and a real Apache
+# refused it: /backends is rewritten to the SPA shell, and an internal redirect
+# re-evaluates the config with the NEW uri, by which time nothing matches
+# ^/backends. Moving the same test into mod_rewrite was not enough either while
+# it sat beside the policies — the SPA rule had already fired with [L] and
+# never reached it. Both attempts failed SILENTLY, giving the panel the strict
+# policy and the sign-in button no way to load, with nothing on screen but an
+# absent button. htaccess-test asserts both halves against a real Apache now.
+#
+# Apache re-exposes an env var across an internal redirect under a REDIRECT_
+# prefix, so both names are honoured where the header is set: which one arrives
+# depends on how many rewrites the request went through.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{REQUEST_URI} ^/backends(/|$)
+  RewriteRule ^ - [E=SPORTA_PANEL:1]
+</IfModule>
+
 # ---- index.html is the homepage, never index.php ----
 # The live server still has an index.php from the previous PHP site sitting
 # beside index.html. Hostinger's default DirectoryIndex lists index.php first,
@@ -508,7 +533,9 @@ FileETag MTime Size
   # describes; the honest reading is that its price is paid by the rig and not by
   # anybody's memory, and the rig is therefore the part that must not be
   # weakened.
-  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme)\.js$">
+  # google-signin.js is the twelfth, 2026-09-11 — added in the same commit as
+  # the file, per the paragraph above.
+  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme)\.js$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 
@@ -614,7 +641,36 @@ FileETag MTime Size
   # them, and /api stays same-origin, which is the whole reason connect-src is
   # 'self' in the first place.
 
+  # ---- GOOGLE SIGN-IN NEEDS THREE HOSTS, AND ONLY /backends GETS THEM ----
+  #
+  # The button is a third-party script that renders a third-party iframe and
+  # talks to a third-party host, so it needs script-src, frame-src AND
+  # connect-src widened. Under the policy above it fails three times over, and
+  # SILENTLY from the page's point of view — a blocked script is a button that
+  # never appears, which reads as "the feature does not work" rather than as "a
+  # header needs a hostname".
+  #
+  # WHY IT IS SCOPED RATHER THAN ADDED TO THE ONE POLICY. Naming a third-party
+  # host in script-src means that host can run script on this origin, and the
+  # storefront — every product page, the checkout, the page that takes a card —
+  # gains nothing from Google sign-in and must not pay for it. The widening
+  # applies to the ADMIN PANEL and nowhere else, which is also the only place
+  # the button is ever drawn.
+  #
+  # It applies whether or not the feature is switched on, because a header is
+  # not conditional on a database row. That is the residual cost, it is bounded
+  # to /backends, and it is the owner's to weigh.
+  #
+  # SetEnvIf reads the ORIGINAL request URI, before the SPA rewrite turns
+  # /backends into seo.php — which is what makes this work at all. And
+  # `Header set … env=` is the construct PROVED to work on LiteSpeed when the
+  # asset host's headers were added; `Header edit` is the one it ignores.
+
   Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data: https://static.sporta.com.kw; font-src 'self' https://fonts.gstatic.com https://static.sporta.com.kw; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://static.sporta.com.kw; script-src 'self' 'unsafe-inline' https://static.sporta.com.kw 'sha256-uVPKOtsMYAf7FztyOPYYXbXi26fPX1PDSCHi0ElEcwI=' 'sha256-cjoWREjcBy+UzPMYa0jITgbBVErQ/EChuDXXLfECmMc=' 'sha256-t69TolQvo9IFKcAXMpUhlAbOSYffWq4MTuJVCW3jtOk=' 'sha256-eBvItIAmW2SCCf2xYejbf7VLxxDbDzAysm8o3MR6vBc=' 'sha256-3Q938IqtNwCx+HP/Sq+E16ifD8xGD/Q0IuWW9/ZclAM='; connect-src 'self'; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests"
+
+  Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data: https://static.sporta.com.kw; font-src 'self' https://fonts.gstatic.com https://static.sporta.com.kw; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://static.sporta.com.kw; script-src 'self' 'unsafe-inline' https://static.sporta.com.kw https://accounts.google.com 'sha256-uVPKOtsMYAf7FztyOPYYXbXi26fPX1PDSCHi0ElEcwI=' 'sha256-cjoWREjcBy+UzPMYa0jITgbBVErQ/EChuDXXLfECmMc=' 'sha256-t69TolQvo9IFKcAXMpUhlAbOSYffWq4MTuJVCW3jtOk=' 'sha256-eBvItIAmW2SCCf2xYejbf7VLxxDbDzAysm8o3MR6vBc=' 'sha256-3Q938IqtNwCx+HP/Sq+E16ifD8xGD/Q0IuWW9/ZclAM='; connect-src 'self' https://accounts.google.com; frame-src https://accounts.google.com; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests" env=SPORTA_PANEL
+
+  Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data: https://static.sporta.com.kw; font-src 'self' https://fonts.gstatic.com https://static.sporta.com.kw; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://static.sporta.com.kw; script-src 'self' 'unsafe-inline' https://static.sporta.com.kw https://accounts.google.com 'sha256-uVPKOtsMYAf7FztyOPYYXbXi26fPX1PDSCHi0ElEcwI=' 'sha256-cjoWREjcBy+UzPMYa0jITgbBVErQ/EChuDXXLfECmMc=' 'sha256-t69TolQvo9IFKcAXMpUhlAbOSYffWq4MTuJVCW3jtOk=' 'sha256-eBvItIAmW2SCCf2xYejbf7VLxxDbDzAysm8o3MR6vBc=' 'sha256-3Q938IqtNwCx+HP/Sq+E16ifD8xGD/Q0IuWW9/ZclAM='; connect-src 'self' https://accounts.google.com; frame-src https://accounts.google.com; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests" env=REDIRECT_SPORTA_PANEL
 
   # ---- static.sporta.com.kw: the headers that make a second origin usable ----
   #

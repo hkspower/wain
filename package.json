@@ -52,6 +52,7 @@
     "test:contrast": "node scripts/contrast-test.mjs",
     "test:art": "node scripts/art-test.mjs",
     "test:image-render": "node scripts/image-render-audit.mjs",
+    "test:google-auth": "node scripts/google-auth-test.mjs",
     "test:hero-size": "node scripts/hero-size-test.mjs",
     "test:live": "node scripts/live-api-test.mjs",
     "test:payments": "node scripts/payments-test.mjs",

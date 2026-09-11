@@ -193,6 +193,77 @@ if ($r === 'login_code' && $method === 'POST') {
     store_out(['email' => $who['email']]);
 }
 
+// ------------------------------------------------------------ Google sign-in
+//
+// BOTH OF THESE ARE ABOVE THE GATE, and they have to be: the whole point is to
+// be reachable by somebody who is not signed in yet.
+//
+// `google_config` answers before any sign-in because the LOGIN SCREEN needs the
+// client id to draw the button at all. That is not a leak — the client id is
+// compiled into every page that uses Google sign-in anywhere on the web, and it
+// is useless without a token Google will only mint for this origin. The SECRET
+// half of Google sign-in does not exist in this flow; there is nothing here to
+// withhold. It deliberately returns nothing else about the shop.
+if ($r === 'google_config') {
+    store_require_admin_header();
+    $cfg = store_setting($db, 'google_auth');
+    $id = trim((string)($cfg['client_id'] ?? ''));
+    store_out([
+        // ENABLED MEANS BOTH, so a half-configured shop draws no button rather
+        // than one that fails when pressed.
+        'enabled'   => $id !== '' && !empty($cfg['enabled']),
+        'client_id' => $id === '' ? null : $id,
+    ]);
+}
+
+// The token comes back to us and is verified HERE. Nothing the browser says
+// about who it is survives past store_google_verify(); the only thing that
+// signs anyone in is Google's signature over claims naming this client id.
+if ($r === 'google_login' && $method === 'POST') {
+    store_require_admin_header();
+    $b = store_body();
+    $who = store_google_login((string)($b['credential'] ?? ''));
+    // The SAME shape as ?r=login, because the screen after it is the same
+    // screen: an account with a second factor still has to prove it, and a
+    // caller that treated these two answers differently would skip that step
+    // for exactly the accounts that asked for it.
+    store_out([
+        'email'        => $who['email'],
+        'need_code'    => !empty($who['need_code']),
+        'code_via'     => $who['code_via'] ?? null,
+        'code_sent_to' => $who['code_sent_to'] ?? null,
+    ]);
+}
+
+// Saving the client id. BELOW the two routes above and deliberately different:
+// reading the id is public because the login screen needs it, writing it is not
+// — anyone who could set it could point the shop's sign-in at their own Google
+// project and let their own accounts in. So this one goes through the gate like
+// every other save.
+//
+// It is a WRITE only. Reading happens through `google_config` above, because a
+// save with an empty body as a read would mean opening the settings screen
+// rewrites the row — and a panel opened and closed would look, in any audit,
+// like somebody deliberately changed the shop's sign-in.
+if ($r === 'google_save' && $method === 'POST') {
+    store_require_admin();
+    $b = store_body();
+    $id = trim((string)($b['client_id'] ?? ''));
+    // Google's own format. Checked so a pasted mistake fails HERE, with a
+    // message, rather than as a button that draws and then refuses everyone.
+    if ($id !== '' && !preg_match('/^[A-Za-z0-9-]+\.apps\.googleusercontent\.com$/', $id)) {
+        store_fail('bad_client_id');
+    }
+    store_setting_save($db, 'google_auth', [
+        'client_id' => $id,
+        // An empty id cannot be enabled: that is the state that draws a button
+        // which fails when pressed.
+        'enabled'   => $id !== '' && !empty($b['enabled']),
+    ]);
+    $cfg = store_setting($db, 'google_auth');
+    store_out(['client_id' => $cfg['client_id'], 'enabled' => !empty($cfg['enabled'])]);
+}
+
 if ($r === 'logout' && $method === 'POST') {
     store_session_start();
     // Clears the cookie as well as the server-side session. Emptying $_SESSION
