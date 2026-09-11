@@ -317,7 +317,7 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
  *      is too tight puts a halo back, which is what we are removing.
  */
 const prep = await browser.newPage()
-const graded = await prep.evaluate(async ({ src, knee, roll, darkTo, darkCut, amount, radius }) => {
+const graded = await prep.evaluate(async ({ src, knee, roll, floorC, amount, radius, amountSharp, radiusSharp }) => {
   const img = new Image(); img.src = src; await img.decode()
   const w = img.naturalWidth, h = img.naturalHeight
   const c = document.createElement('canvas'); c.width = w; c.height = h
@@ -325,18 +325,33 @@ const graded = await prep.evaluate(async ({ src, knee, roll, darkTo, darkCut, am
   k.drawImage(img, 0, 0)
   const im = k.getImageData(0, 0, w, h), px = im.data
 
-  // --- 1 + 2: saturation, in HSV, per pixel
+  // --- 1 + 2: chroma, in HSV, per pixel
+  /* ONE CURVE, KEYED TO BRIGHTNESS, because the measurements hand us a clean
+     separation and a global cut does not have one. After the first grade:
+     the rim sat at meanV 102, the faces at meanV 182. So chroma can be taken
+     out of everything below skin brightness — which is the rim, the hair
+     halo, the cyan edge and the cast on the cloth — while faces keep their
+     warmth untouched. A flat desaturation strong enough to kill the rim makes
+     people look ill; this one never reaches them. */
   for (let o = 0; o < px.length; o += 4) {
     const r = px[o], g = px[o + 1], b = px[o + 2]
     const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn
     if (!mx || !d) continue
-    let S = d / mx
-    if (S > knee) S = knee + (S - knee) * roll                    // compress the loud
-    if (mx < darkCut) {                                           // neutralise the darks
-      const t = mx / darkCut
-      S *= darkTo + (1 - darkTo) * t
+    const S0 = d / mx
+    let S = S0
+    if (S > knee) S = knee + (S - knee) * roll          // compress the loud
+
+    /* the brightness ramp: nothing below 60, half by 120, free above 170 */
+    let f
+    if (mx <= 60) f = floorC
+    else if (mx >= 170) f = 1
+    else {
+      const t = (mx - 60) / 110
+      f = floorC + (1 - floorC) * (t * t * (3 - 2 * t))
     }
-    const scale = S / (d / mx)
+    S *= f
+
+    const scale = S / S0
     px[o]     = Math.round(mx - (mx - r) * scale)
     px[o + 1] = Math.round(mx - (mx - g) * scale)
     px[o + 2] = Math.round(mx - (mx - b) * scale)
@@ -346,7 +361,7 @@ const graded = await prep.evaluate(async ({ src, knee, roll, darkTo, darkCut, am
   const lum = new Float32Array(w * h)
   for (let q = 0, o = 0; q < w * h; q++, o += 4)
     lum[q] = 0.299 * px[o] + 0.587 * px[o + 1] + 0.114 * px[o + 2]
-  const blur = (srcArr) => {
+  const blur = (srcArr, radius) => {
     const t1 = new Float32Array(w * h), out = new Float32Array(w * h)
     for (let y = 0; y < h; y++) { let sum = 0
       for (let x = -radius; x <= radius; x++) sum += srcArr[y * w + Math.min(w - 1, Math.max(0, x))]
@@ -360,9 +375,16 @@ const graded = await prep.evaluate(async ({ src, knee, roll, darkTo, darkCut, am
         sum += t1[Math.min(h - 1, Math.max(0, y + radius + 1)) * w + x] } }
     return out
   }
-  const soft = blur(blur(lum))
+  /* TWO PASSES, because clarity and sharpness are different operations and the
+     first grade only did one. A wide radius lifts local contrast — the weave
+     and the fall of the cloth. A tight radius is what actually reads as SHARP:
+     seam stitching, collar ribbing, the edge of a sleeve. Doing only the wide
+     one makes an image that is contrastier but no crisper, which is what
+     "clearer but still not sharp" looks like. */
+  const wide = blur(blur(lum, radius), radius)
+  const tight = blur(lum, radiusSharp)
   for (let q = 0, o = 0; q < w * h; q++, o += 4) {
-    const boost = (lum[q] - soft[q]) * amount
+    const boost = (lum[q] - wide[q]) * amount + (lum[q] - tight[q]) * amountSharp
     for (let ch = 0; ch < 3; ch++) {
       const v = px[o + ch] + boost
       px[o + ch] = v < 0 ? 0 : v > 255 ? 255 : v
@@ -370,8 +392,9 @@ const graded = await prep.evaluate(async ({ src, knee, roll, darkTo, darkCut, am
   }
   k.putImageData(im, 0, 0)
   return c.toDataURL('image/png')
-}, { src: 'data:image/png;base64,' + b64(SRC), knee: 0.30, roll: 0.45,
-     darkTo: 0.38, darkCut: 120, amount: 0.38, radius: 10 })
+}, { src: 'data:image/png;base64,' + b64(SRC),
+     knee: 0.26, roll: 0.34, floorC: 0.22,
+     amount: 0.40, radius: 10, amountSharp: 0.55, radiusSharp: 2 })
 await prep.close()
 const GRADED = graded.split(',')[1]
 
