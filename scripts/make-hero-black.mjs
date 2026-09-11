@@ -48,8 +48,14 @@ const marks = process.argv.includes('--marks')
  * raster the moment they change. */
 const COPY = {
   eyebrow: 'NEW IN &middot; MEN &amp; WOMEN',
-  headline: 'THE BLACK EDIT',
-  arabic: 'تشكيلة الأسود',
+  /* THE HEADLINE IS ARABIC NOW, in the band, with the English as its
+     counterpart beneath — the mirror of the shipped frames, and the right way
+     round for a storefront that opens in Arabic.
+     The owner wrote «شغفك يبدا هنا»; it is set here as «شغفك يبدأ هنا», with
+     the hamza, which is the correct spelling of يبدأ. */
+  headline: 'شغفك يبدأ هنا',
+  headlineRtl: true,
+  sub: 'WHERE YOUR PASSION STARTS',
   strapline: 'TRAIN &middot; PERFORM &middot; RECOVER',
 }
 if (!SRC) { console.error('usage: node scripts/make-hero-black.mjs <photo.png> [--write]'); process.exit(1) }
@@ -139,17 +145,30 @@ const html = `<!doctype html><meta charset="utf-8">
      mean 32.7 against a backdrop near 10, so the threshold has honest room.
 
      No angled tail any more: a tail is how a band ENDS, and this one does not. */
-  .band { position: absolute; left: 0; top: 612px; height: 212px; width: 100%;
+  .band { position: absolute; left: 0; top: 606px; height: 226px; width: 100%;
           background: #f5821f; display: flex; align-items: center; }
 
   /* The figures, put back over the band. Same geometry as .shot img exactly, or
      they would sit a pixel off their own shadow. */
   .cutout { position: absolute; left: ${SHIFT}px; top: 0; width: ${W}px; }
-  .band h1 { color: #171a1e; font-weight: 700; font-size: 130px; letter-spacing: .01em;
+  .band h1 { color: #171a1e; font-weight: 700; font-size: 138px; letter-spacing: .01em;
              padding-left: 190px; line-height: 1; }
 
-  .ar { position: absolute; left: 190px; top: 876px; color: #eaecee; font-weight: 700;
-        font-size: 82px; direction: rtl; }
+  /* THE BAND IS 226px, NOT THE 212 THE LATIN HEADLINE USED. Arabic ascenders and
+     descenders are taller than Latin caps: at 158px the ink measured 599..836
+     against a band of 612..824 and clipped at both ends, so the horizontal room
+     the line appeared to have was not room at all. 138px in a 226px band
+     measures clear, and the check now reports the ink box against the band on
+     every run rather than leaving it to the eye. */
+
+  /* The band's headline carries the Arabic, so this line carries the English.
+     dir is set on the element rather than the stylesheet because the two swap
+     depending on which language leads. Left-aligned in both, because the hero's
+     type block is physically left in every shipped frame — the files are not
+     mirrored, and CLAUDE.md records that as deliberate. */
+  .band h1[dir='rtl'] { direction: rtl; text-align: left; }
+  .sub { position: absolute; left: 192px; top: 884px; color: #eaecee; font-weight: 600;
+         font-size: 58px; letter-spacing: .10em; }
   .tag { position: absolute; left: 194px; top: 1004px; color: #a6acb2; font-weight: 600;
          font-size: 38px; letter-spacing: .3em; }
 
@@ -202,9 +221,9 @@ const html = `<!doctype html><meta charset="utf-8">
     <img class="lock" src="data:image/png;base64,${b64(R + 'logo-white.png')}">
     <div class="eyebrow">${COPY.eyebrow}</div>
   </div>
-  <div class="band"><h1>${COPY.headline}</h1></div>
+  <div class="band"><h1${COPY.headlineRtl ? " dir='rtl'" : ''}>${COPY.headline}</h1></div>
   <img class="cutout" id="cutout">
-  <div class="ar">${COPY.arabic}</div>
+  <div class="sub">${COPY.sub}</div>
   <div class="tag">${COPY.strapline}</div>
 </div>
 <script>
@@ -398,11 +417,19 @@ const fit = await page.evaluate(() => {
     r.selectNodeContents(el)
     return Math.round(r.getBoundingClientRect().right)
   }
+  const h1 = document.querySelector('.band h1')
+  const band = document.querySelector('.band').getBoundingClientRect()
+  const r = document.createRange(); r.selectNodeContents(h1)
+  const t = r.getBoundingClientRect()
   return { headlineEnds: ink('.band h1'), eyebrowEnds: ink('.eyebrow'),
-           arabicEnds: ink('.ar'), strapEnds: ink('.tag') }
+           subEnds: ink('.sub'), strapEnds: ink('.tag'),
+           bandTop: Math.round(band.top), bandBottom: Math.round(band.bottom),
+           inkTop: Math.round(t.top), inkBottom: Math.round(t.bottom) }
 })
 console.log(`ink ends — headline ${fit.headlineEnds}  eyebrow ${fit.eyebrowEnds}`
-  + `  arabic ${fit.arabicEnds}  strapline ${fit.strapEnds}   (the man's left edge is ~1296)`)
+  + `  sub ${fit.subEnds}  strapline ${fit.strapEnds}   (the man's left edge is ~1296)`)
+console.log(`headline ink ${fit.inkTop}..${fit.inkBottom} inside band ${fit.bandTop}..${fit.bandBottom}`
+  + `   ${fit.inkTop >= fit.bandTop && fit.inkBottom <= fit.bandBottom ? 'clear' : 'CLIPPING'}`)
 const png = await page.screenshot()
 
 /* webp at both hero sizes, from the one 3200px render — the same Chromium
