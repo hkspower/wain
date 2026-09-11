@@ -85,6 +85,7 @@ They had diverged. Checked all three on 11 September:
 | `scripts/gen-voice.mjs` — renders the clips | `rh16DBXwtscjdPFeMBYf` Talya | `eleven_multilingual_v2` |
 | the live ElevenLabs agent | `rh16DBXwtscjdPFeMBYf` | `eleven_flash_v2_5` |
 | the n8n bridge, before the fix | **`w0uhBAmNIG5kUDeaFEsA`** Maryam Essa | `eleven_multilingual_v2` |
+| `scripts/publish/tts-endpoint.php` — the bridge now | `rh16DBXwtscjdPFeMBYf` Talya | `eleven_multilingual_v2` |
 
 Stability, similarity, style and speed all matched. **The voice id alone did
 not**, which is the hardest field to notice going wrong: nothing breaks, no
@@ -95,17 +96,35 @@ Corrected in the workflow, with the reason written into the node.
 because those two interleave; the agent runs `flash` for latency and its audio
 is never heard spliced into a recorded line.
 
-**Nothing checks this.** The bridge lives in n8n cloud, not in this repository,
-so `npm run scan` cannot reach it — the table above is the written reference,
-and it has to be compared by hand when either side changes.
+**Nothing checked this, and that is what moved the bridge.** The n8n workflow
+lived in n8n cloud, not in this repository, so `npm run scan` could not reach
+it — the table above was the written reference and had to be compared by hand,
+which is exactly how a written reference fails.
 
-### Both switches are off, and one without the other is worse than neither
+`npm run audit:tts` now enforces the last row. It asks `gen-voice.mjs
+--rendition` and `php scripts/publish/tts-endpoint.php table` for their own
+tables — each read by its own interpreter, so renaming a constant or
+reformatting the object cannot fool it the way a regex over the source would —
+and fails naming the field that differs. A clip and a live sentence are still
+heard back to back inside one answer; the difference is that a disagreement is
+now a red scan instead of a different woman.
 
-- `NEXT_PUBLIC_WAIN_TTS_URL` is unset (CI reads `vars.WAIN_TTS_URL`; the deploy
-  workflow prints a line saying so). Unset, the site never calls the bridge and
-  runtime sentences fall back to the browser voice.
-- The bridge workflow itself is inactive, so `/webhook/fahad-tts` answers 404.
+The agent's row stays deliberately unequal: it runs `flash` for latency and its
+audio is never heard spliced into a recorded line, so it is out of scope for
+the check rather than an exception to it.
 
-Turning on the variable while the workflow is off buys a four-second wait and
-then the robot; turning on the workflow while the variable is unset changes
-nothing. Both, or neither.
+### One switch now, not two
+
+- **The site needs no variable.** `voice.ts` defaults to `/api/tts.php` — the
+  same relative path on staging and production, on the origin the page came
+  from. `NEXT_PUBLIC_WAIN_TTS_URL` still overrides, and «none» turns the bridge
+  off; unset is the working case.
+- **The endpoint is installed** on both stages, byte-identical, and answers
+  `503 not_configured` until `<domain>/storage/elevenlabs.key` has a key in it.
+
+So the half-on state is gone. It used to be that turning on the variable while
+the workflow was off bought a four-second wait and then the robot, and turning
+on the workflow while the variable was unset changed nothing. What is left is
+one file with one value in it, and until it is filled the site behaves exactly
+as it does today: recorded clips where they exist, the browser voice elsewhere,
+one cheap 503 per visit.

@@ -567,15 +567,29 @@ silently and has to be compared by hand. Twelve workflows; four are wain's.
   Its secret comes from the n8n variable `WAIN_TOOL_SECRET` and **fails closed**
   when unset; path jail, per-project roots, `.htaccess` directive blocking. It
   writes text files only — no `.zip`, so it is not a way to deploy a build.
-- **`Wain + Sporta — Kuwaiti TTS` on `/webhook/fahad-tts`** — speaks the
-  sentences the recorded clip library cannot cover. **Its voice table must
-  match `scripts/gen-voice.mjs`**, because a clip and a live sentence are heard
-  inside one utterance. It had drifted to a different woman entirely (Maryam
-  Essa vs Talya `rh16DBXwtscjdPFeMBYf`) with every other setting identical —
-  the voice id is the hardest field to catch, because nothing breaks. Its model
-  stays `eleven_multilingual_v2` to match the CLIPS, deliberately not the
-  agent's `flash`, which is never heard spliced into a recorded line.
-  `docs/voice.md` holds the three-way table.
+- **`Wain + Sporta — Kuwaiti TTS` on `/webhook/fahad-tts`** — **no longer
+  wain's bridge; sporta's only.** It speaks the sentences the recorded clip
+  library cannot cover, its model stays `eleven_multilingual_v2` to match the
+  CLIPS rather than the agent's `flash`, and its voice table had drifted to a
+  different woman entirely (Maryam Essa vs Talya `rh16DBXwtscjdPFeMBYf`) with
+  every other setting identical — the voice id is the hardest field to catch,
+  because nothing breaks.
+
+  **It cannot authenticate, and that is why wain left.** Its `httpHeaderAuth`
+  credential `jBrpSddRghia55zW` is EMPTY, so ElevenLabs answers «Neither
+  authorization header nor xi-api-key received» — a 401 on every call
+  (execution 314). The node itself is wired correctly:
+  `authentication: genericCredentialType`, `genericAuthType: httpHeaderAuth`,
+  credential attached. It is the credential's own data that is blank, and
+  **the n8n MCP server has `list_credentials` and no credential-write tool**,
+  so no session can fix this. It is a field in the n8n UI, and until somebody
+  fills it in this workflow is a 401 for sporta too.
+
+  wain's bridge is **`/api/tts.php` on wain's own origin** now — see the صوت
+  وين section below. The drift described above is the other half of the reason:
+  nothing in `npm run scan` could see a workflow that is not in this
+  repository, and what replaced it is checked by `npm run audit:tts` on every
+  scan.
 - **`الحارس` — the site sentinel.** Its detection is right: it refuses to trust
   a status code and requires `_next/static` in the homepage plus «أبراج الكويت»
   in a place page, because a root without its subdirectories answers a healthy
@@ -653,13 +667,66 @@ rather than discovering this afterwards. **A feature that dirties the tree
 disables the build-id proof — check that before adding a build step that
 writes.**
 
-**Two pairs of switches, and in both the half-on state is worse than off.**
-صوت وين's bridge needs `NEXT_PUBLIC_WAIN_TTS_URL` set AND the workflow active;
-the variable alone buys a four-second wait and then the browser voice, the
-workflow alone changes nothing. And **nothing is watching this site**: the
-Sentinel is inactive and its WhatsApp node still says
-`REPLACE_PHONE_NUMBER_ID`. That is how شوق's agent mode stayed broken in
-production for months.
+## The live bridge is wain's own, and it is installed
+
+`scripts/publish/tts-endpoint.php`, serving **`/api/tts.php`** on both stages,
+installed 11 September at `01b7429a4dbe6983` — 19,821 bytes, the same
+fingerprint on production and staging and on the copy in this repository.
+Proved live the way `deploy.php` was: a loopback GET came back carrying its own
+`{"ok":false,"error":"method_not_allowed"}` and a 405, so the request reached
+PHP and the `Host:` header picked wain's docroot.
+
+**It is inert until `<domain>/storage/elevenlabs.key` is filled in** — the
+installer creates it empty at 0600 and never writes a key, because this file is
+fetched from a public URL to be run, so anything it carried would be public.
+Until then every call is `503 not_configured` and nothing is spent.
+
+**This used to be a pair of switches whose half-on state was worse than off**:
+`NEXT_PUBLIC_WAIN_TTS_URL` set AND the n8n workflow active, where the variable
+alone bought a four-second wait and then the robot. There is no variable now.
+`/api/tts.php` is a relative path on the site's own origin — not a secret, not
+an origin to allowlist, the same string on staging as in production — so
+`voice.ts` defaults to it, with `||` and a «none» off switch for the reason
+written up in `wain-ai.ts`. The variable still overrides.
+
+**Defaulting it on is only free because voice.ts gives up.** 404, 503 and 403
+cannot change while a page is open, so the first one is remembered and the rest
+of that visit's sentences go straight to the browser voice. A timeout, a 5xx or
+a 429 is NOT remembered — those a second attempt can win, and a render the
+listener abandoned has still been cached server-side, so the next sentence may
+be instant. `ignore_user_abort` is what makes that true: the four-second
+deadline gives up on the *listener*, never on the render, so the characters are
+paid for exactly once whoever hears them.
+
+**The cache is the cost control, not the rate limit.** These sentences are
+assembled from a 52-place catalogue, so the space is bounded and the spend
+converges to it instead of growing with traffic — which n8n, re-rendering every
+request, could never do. The daily cap counts MISSES only; hits are free and
+uncapped, or a popular sentence would switch the feature off for the reason it
+exists to avoid. Text is whitespace-normalised before it is hashed, and the
+hash covers the rendition (voice, settings, model, format) and not only the
+text — the same identity `gen-voice.mjs` learned to hash after a text-only
+digest served the old voice for ever.
+
+**`npm run audit:tts` is the anti-drift check, and it is why this is in the
+repository at all.** It asks `gen-voice.mjs --rendition` and
+`php tts-endpoint.php table` for their own tables, each by its own
+interpreter — a regex over either source would pass the day it was written —
+and fails when they disagree, naming the field. Confirmed it can go red, not
+only green. `npm run test:tts` is 25 assertions against a real PHP server with
+a stub upstream; the stub is reached through `WAIN_TTS_API_BASE`, a seam that
+exists so no test ever spends a character.
+
+**One trap it already avoids.** `dirname(__DIR__, 2)` is right at
+`public_html/api` and wrong at `public_html/staging/api` — one level deeper it
+lands on `public_html`, and the endpoint would report itself unconfigured on
+staging only, silently. That off-by-one had to be special-cased once already,
+in `setup-staging-endpoint.php`. `storageDir()` walks UP instead, so the two
+installed copies are byte-identical and one fingerprint describes both.
+
+**And nothing is watching this site**: the Sentinel is inactive and its
+WhatsApp node still says `REPLACE_PHONE_NUMBER_ID`. That is how شوق's agent
+mode stayed broken in production for months.
 
 The rest (`راشد`, Intelligence Center, `أنيلكا`, `سالم` ×2) are inactive and
 blocked on order/queue data that does not exist, not stale. Sporta's, Albahhar's
@@ -728,10 +795,11 @@ dialog could unmount the button mid-gesture.
 
 ## Checks
 
-`npm run scan` is lint plus ~21 audits. Browser suites: `test:hangout`
+`npm run scan` is lint plus ~22 audits. Browser suites: `test:hangout`
 (hangout, hangout-page, map-pin, search-button, search-keys, shouq-search,
 search-plan, swipe), `test:journey`, `test:register`, `test:shouq`,
-`test:orders`, `test:net`.
+`test:orders`, `test:net`. PHP suites, neither in `scan` because neither can
+assume php: `test:api` (40) and `test:tts` (25).
 
 Browser suites serve `out/` and most of them do **not** build it.
 `tests/stale-build.mjs` compares `out/index.html` against the newest file in
