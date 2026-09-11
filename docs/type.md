@@ -120,3 +120,38 @@ the whole argument for a check over a one-off pass.
 `.measure` is opt-in: it caps `p`, `li` and `blockquote` inside it, and adds
 `text-wrap: pretty` so a paragraph does not end on an orphaned word. Headings
 get `text-wrap: balance` globally.
+
+## Taking the type into Adobe — the Regular has no `-Regular`
+
+`IBM Plex Sans Arabic` is the whole typeface of this site: `--font-display` and
+`--font-sans` both resolve to it, loaded from Google Fonts at 400, 600 and 700.
+It is also in **Adobe Fonts** (foundry IBM, family `ibm-plex-arabic`, eight
+weights 100–700, `full` and `trial`), with `ar`, `fa` and `ur` in its language
+support alongside the Latin the site also subsets. So a poster, a deck or an
+Express document can be set in the site's own face rather than an approximation
+of it.
+
+Two traps, both measured against the Adobe Fonts library rather than guessed,
+because both fail silently — a wrong PostScript name does not error, it
+substitutes:
+
+- **Weight 400 is `IBMPlexSansArabic`, with no style suffix.** Every other
+  weight is `Family-Style` — `-Light`, `-Medium`, `-SemiBold`, `-Bold` — so
+  `IBMPlexSansArabic-Regular` is the obvious guess and it does not exist:
+  looked up, it comes back `not_found`. The body weight of this entire site is
+  the one name that breaks the pattern.
+- **Asking for the family by name gives you Light, not Regular.** The bare
+  string `IBM Plex Sans Arabic` resolves to `IBMPlexSansArabic-Light` (300).
+  Body copy set that way is a weight lighter than the site, which reads as a
+  different design rather than as an error.
+
+The three the site actually uses:
+
+| CSS weight | Adobe PostScript name |
+|---|---|
+| 400 | `IBMPlexSansArabic` |
+| 600 | `IBMPlexSansArabic-SemiBold` |
+| 700 | `IBMPlexSansArabic-Bold` |
+
+500 is deliberately absent — see `layout.tsx`: two labels wanted it, it cost two
+more preloaded files, and they went to 600, which the site loads anyway.
