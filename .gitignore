@@ -45,3 +45,7 @@ example
 # Flutter build output and local tooling state
 nokhatha_app/build/
 nokhatha_app/.dart_tool/
+
+# Python bytecode from the design scripts
+__pycache__/
+*.pyc
