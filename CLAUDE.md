@@ -2212,6 +2212,141 @@ design decision for the owner, not a number to tune.
 **Undoing the publish is one statement**, which is what made it reasonable to
 ship and then report: `update hero_slides set active = 0 where id = 1`.
 
+## "Not fetched" is not "not needed" — the category image audit, 2026-09-11
+
+Asked to check every category image and remove any that were not needed. **None
+were**, and getting to that answer took being wrong twice in the same hour, both
+times in the direction of deleting something real.
+
+The inventory is 7 names × jpg+webp × desktop+mobile in `cats/`, plus 5 × webp ×
+2 crops in `hero/`. A browser was asked what it actually fetches, in both
+languages and both crops:
+
+- **Only `.webp` is ever requested. Not one of the 14 jpgs.** Which reads as
+  fourteen dead files — until the `<picture>` markup is dumped, and every tile
+  carries `source[image/jpeg]` with `img.src` pointing at the mobile jpg. They
+  are the no-webp fallback. **Declared and never fetched is the normal state of
+  a fallback**, which is exactly the entry above about four font faces, reached
+  from the opposite side.
+- **Four of the five hero files looked dead too**, and that was worse reasoning:
+  they are named in the bundle only as slide IDS, so a grep for a path finds
+  nothing. But the bundle composes the path — `zn='/hero'`, `Bn='.webp'` — and
+  the other four are simply the carousel slides that had not come round inside a
+  1.5-second wait. Advancing the carousel by hand fetched all ten.
+
+So the rule, which this file keeps re-learning on new surfaces: **a fetch log is
+a record of what one visit needed, not of what the shop needs.** Ask the markup
+what is DECLARED and the code what it can COMPOSE before calling a file unused.
+
+**The one genuinely unneeded image is not in the repository.** It is
+`cats/desktop/outlet.jpg` on the live server — the stray bridging duplicate,
+still there, still byte-identical to `art-outlet.jpg`. Three removals have been
+undone by something that is not this account, so it stays until the owner finds
+the writer.
+
+**And one real waste, which is a fetch rather than a file.** An Arabic visitor
+downloads BOTH women's compositions — the bundle renders `art-women.webp` and
+`tile-art.js` then swaps to `art-women-rtl.webp`. ~25 kB desktop, ~18 kB mobile,
+on the shop's default language. `tile-art.js` acknowledges the cost in its own
+header; removing it needs the bundle, which has no source here.
+
+## An extension the owner is likely to use, that the shop could not see
+
+`images/<slug>/logo.*` is the owner's ONLY upload route that needs no panel, and
+it matched exactly three names — `logo.png`, `logo.webp`, `logo.jpg` — with
+`is_file()`. **Linux is case-sensitive**, so `logo.PNG` and `logo.JPG` were
+invisible, and so was **`logo.jpeg`**, which is the commoner spelling and what
+most export dialogues produce. The folder is right, the picture is in it, and
+the shop serves a placeholder for ever. `brandLogos=0/8` is consistent with
+exactly this, though it does not prove it.
+
+**The second half is that finding the file is not enough.** The route sends
+`X-Content-Type-Options: nosniff`, so a `Content-Type` that does not match the
+bytes is not a detail — the browser REFUSES to draw the image. The type came
+from a map keyed on the extension ending `?? 'image/png'`, which means:
+
+- any extension added to one list and forgotten in the other is served as a PNG
+  and cannot render — **mutation-tested, and `logo.jpeg` comes back as
+  `image/png`**;
+- an owner who exports a PNG and saves it as `logo.jpg` hits the same wall from
+  the other side.
+
+Both are fixed by reading the file's own first bytes, which is the check
+`store_data_image()` already makes of an uploaded data: URI — so the two ways
+into this shop now agree about what an image is.
+
+**And the fallback in the fix was the bug wearing a hat.** The first
+`store_brand_logo_mime()` ended `?? STORE_BRAND_LOGO_TYPES[extension]`,
+reasoning that a file too short to identify should still be served under its
+name. Its own rig caught it on the first run: a PHP source file called
+`logo.png` was served as `image/png`. **"Too short to identify" and "not an
+image" are the same thing to any browser that has to draw it.** There is no
+fallback now; null means do not serve, and the route falls through.
+
+## One policy, two definitions, and they disagreed about ten real garments
+
+Asked to review the delivery and returns policy on 2026-09-11.
+
+**`?r=products` labelled products from the `products.no_exchange` COLUMN, while
+`store_return_lookup()` and the size adviser both decided with
+`category === 'women'`.** Each half was self-consistent, nothing compared them,
+and on the live catalogue they disagreed:
+
+```
+accessories  no_exchange=0   n=4
+men          no_exchange=0   n=12
+outerwear    no_exchange=0   n=1
+outerwear    no_exchange=1   n=10   <- column says no, category says yes
+women        no_exchange=1   n=19
+```
+
+So the shop TOLD the shopper ten jackets could not be exchanged and then
+accepted the exchange. The owner chose the category as the rule, and it is the
+right half: it is what is ENFORCED, what all three customer-facing strings say,
+and **the only one of the two anyone can influence — `admin.php` contains no
+`no_exchange` at all**, so the column cannot be edited in /backends. A flag
+nothing can set and nothing enforces is not a policy; it is seed data being
+shown to customers.
+
+`npm run test:no-exchange` is a **parity** test, not a behaviour test. It does
+not assert that women's clothing is the rule — that is the owner's and it may
+change — it asserts the listing and the returns path give the SAME answer for
+every product, which is the property that broke. It refuses to pass on a
+one-sided catalogue, because a shop with no women's wear agrees with every rule
+ever written.
+
+### The storefront reads none of the nine rules
+
+The "make full dynamic" work moved nine numbers into a settings row and
+published six of them on `?r=slides`. **The storefront bundle does not read them.**
+Zero occurrences of `rules`, `return_days`, `delivery_fee_fils`,
+`free_delivery_fils` or `governorates` — only `assets/rules.js`, which is the
+panel card. Measured by setting `return_days` to 3:
+
+```
+store_return_window  delivered 5 days ago -> open=false  days_left=0
+/returns  (ar)       "استبدال مجاني خلال ١٤ يومًا من الاستلام"
+/returns  (en)       "Free exchange within 14 days of delivery"
+```
+
+The code enforces the owner's number and the page goes on promising fourteen.
+
+**Exactly two of the nine are stated in fixed copy** — the returns window and
+the six governorate names. No fee and no free-delivery threshold appear
+anywhere, so the other seven are safe, and that was worth measuring rather than
+assuming: it decides how much of this matters.
+
+**Dropping a governorate is the worse of the two.** `api.php` validates it and
+fails `invalid_governorate` at `?r=order`, while the checkout still lists all
+six — so the customer fills in the whole form, chooses a payment method, and is
+refused at the last step. That is the same shape the rules section already
+worried about for SIZES, and it is real here.
+
+The owner chose a warning over locking the fields, so both panels now say so on
+those two fields, where the owner is standing when it matters. **A warning in
+the panel is not a fix** — the fix is a bundle that reads the rules, and there
+is no source for it here.
+
 ## The live shop has no product photographs
 
 `photos=0/46active`, `brandLogos=0/8`, measured 2026-09-05. Every product card
