@@ -1,0 +1,762 @@
+/* ==========================================================================
+   موصول — MAWSOOL | ورقة الأنماط
+   الخط: Alexandria (متغيّر ١٠٠–٩٠٠) مستضاف محليًا — رخصة SIL OFL
+   ألوان الهوية من الشعار: أزرق مخضر #1A8E9B + برتقالي #F69625
+
+   الموقع صفحةٌ واحدة: وكيل موصول. وكانت ورقتين لصفحتين — تعريفيةٌ ووكيل —
+   فلمّا بقي الوكيل وحده بقيت معه أنماطُ ما زال: ٢٧٨ منتقيًا من ٣٦١ لا
+   يطابق شيئًا على هذه الصفحة، و٥٢ رمزًا من ٩٧ لا يُذكر.
+
+   ولم تُهذَّب باليد: استُنطقت الصفحة في حالاتها كلّها (افتتاح · اقتراح
+   «هل تقصد؟» · حوار · تأكيد · متصفّح بلا صوت · نشرٌ بلا HTTPS) على أربعة
+   عروض، وسُئل كلُّ منتقٍ **بصيغته في المصدر** أيطابق شيئًا — لأنّ المتصفّح
+   يعيد صياغة المنتقي، فمطابقةُ نصِّه على CSSOM أسقطت `box-sizing` نفسها.
+   وكلُّ حالةٍ تُثبَت قبل أن تُقاس: حالةٌ لم تُرسم تجعل قواعدها تبدو ميتة.
+   والحكم على الناتج فرقُ الأنماط المحسوبة ولقطاتُ الشاشة، لا القائمة.
+   ========================================================================== */
+
+/* ------------------------------- الخطوط -------------------------------- */
+/* الحروف العربية والأرقام العربية-الهندية */
+@font-face {
+  font-family: "Alexandria";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("assets/fonts/alexandria-arabic.woff2") format("woff2");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1,
+    U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF,
+    U+FE70-FE74, U+FE76-FEFC, U+10E60-10E7E, U+1EE00-1EE03;
+}
+
+/* الحروف اللاتينية والأرقام والرموز */
+@font-face {
+  font-family: "Alexandria";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("assets/fonts/alexandria-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  /* ألوان الشعار — وما بقي منها هو ما تستعمله هذه الصفحة فعلًا */
+  --teal-950: #06282e;
+  --teal-900: #0a3f47;
+  --teal-800: #0f6b76;
+  --teal-700: #127683;
+  --teal-600: #1A8E9B;   /* اللون الأساسي من الشعار */
+  /* أفتح درجة يبقى معها النص الأبيض فوق 4.5:1 — سطح الأزرار */
+  --teal-cta: #15818e;
+  --teal-500: #22a7b4;   /* حلقة الاستماع وقلب تدرّج الميكروفون */
+  --teal-300: #7fd6de;
+  --teal-50:  #f0fafb;
+  --orange-700: #a85c08;
+
+  --ink:      #0e2f35;
+  --ink-mid:  #3d5f66;
+  /* ‎#4e6e74 يعطي ٥٫٥٢ على الأبيض فقط، فأيّ سطحٍ مائلٍ للرمادي يُسقطه تحت ٤٫٥ */
+  --ink-soft: #48666c;
+  /* النصّ النائب نصٌّ مرئيّ لا يستثنيه المعيار: ‎#6f9096 كان يعطي ٣٫٤٤ على
+     الأبيض. هذا يعطي ٤٫٩٣ على الأبيض و٤٫٧٢ على bg-soft. */
+  --ink-faint: #54767c;
+  --line:     #c8dde1;   /* فاصلٌ وحدُّ سطحٍ ساكن */
+  /* حدّ عنصرٍ تفاعليّ: المعيار يطلب ٣:١ لحدود ما يُنقر ويُكتب فيه.
+     هذا يعطي ٣٫١٩ على الأبيض و٣٫٠٦ على bg-soft. */
+  --line-ctl: #6b97a2;
+  --bg:       #ffffff;
+  --bg-soft:  #f6fbfb;
+  --glow:     rgba(26, 142, 155, .10);   /* ضوء الأرضيّة */
+  /* حبرٌ على السطح البرتقاليّ الفاتح: ‎--orange-700
+     يعطي عليه ٤٫٥٣، وعند حافّة الحدّ يهبط إلى ٣٫٩٧. هذا يعطي ٧٫٠٥ و٥٫٤١. */
+  --on-warm:  #7d4405;
+  /* حبر الكلمة الواحدة. رمزٌ لا لونٌ مثبّت: كُتب `--teal-900` مباشرةً
+     فبقي داكنًا على الأرضيّة الداكنة — ١٫٣٧ حين قِيس من البكسل. */
+  --word:     var(--teal-900);
+  /* حبرٌ بلون الهوية **على سطح**: الرابط، ورمز الطلب، والكلمة المشدّدة في
+     ردّ الوكيل. رمزٌ واحد لأنّ الوضع الداكن يقلبه كلَّه دفعةً — وبغيره
+     بقي رمز الطلب ‎#127683 على سطحٍ داكن فأعطى ٢٫٦٣ حين قِيس من البكسل،
+     وهو أهمّ ما على شاشة التأكيد. */
+  --brand-ink:      var(--teal-700);
+  --brand-ink-str:  var(--teal-800);
+  --brand-surf:     var(--teal-50);   /* سطحٌ خفيف بلون الهوية */
+
+  /* سطحٌ واحد يكفي صفحةً واحدة: بطاقة الطلب وفقاعة الوكيل وشاشة التأكيد */
+  --surf-1:      #ffffff;
+  --surf-1-line: var(--line);
+
+  /* زوايا لدنة. كانت ٦–١٠px وهي لغةُ واجهاتٍ أقدم؛ والصفحة اليوم ثلاثة
+     أسطحٍ كبيرة لا شبكةُ بطاقاتٍ صغيرة، والسطح الكبير يحتمل قوسًا أوسع. */
+  --radius-sm:   10px;   /* الأزرار الصغيرة والشارات */
+  --radius:      16px;   /* البطاقة والفقاعة */
+  --radius-lg:   22px;   /* مساحة الكتابة وشاشة التأكيد */
+  --radius-pill: 999px;  /* الميكروفون وروابط الشريط */
+
+  /* عمقٌ بثلاث درجات، كلٌّ منها طبقتان: ظلٌّ قريبٌ ضيّق يرسم الحافّة،
+     وظلٌّ بعيدٌ واسع يفصل السطح عن أرضيّته. كانت حافّةً صلبة (‏0 2px 0)
+     تُقرأ اليوم كزرٍّ مرسومٍ في التسعينيات. */
+  --shadow-sm: 0 1px 2px rgba(10, 63, 71, .05), 0 2px 6px -1px rgba(10, 63, 71, .06);
+  --shadow:    0 1px 2px rgba(10, 63, 71, .05), 0 8px 20px -6px rgba(10, 63, 71, .12);
+  --shadow-lg: 0 2px 4px rgba(10, 63, 71, .05), 0 20px 44px -12px rgba(10, 63, 71, .20);
+  /* ظلُّ الميكروفون بلون الهوية لا بالرماديّ: يجعله يضيء لا يثقل */
+  --shadow-mic: 0 2px 6px rgba(10, 63, 71, .16), 0 12px 28px -8px rgba(15, 107, 118, .45);
+
+  /* حلقة التركيز: هالةٌ بلون الهوية تحيط بالسطح كلّه */
+  --halo:      0 0 0 4px rgba(26, 142, 155, .18);
+  --halo-warm: 0 0 0 4px rgba(246, 150, 37, .22);
+
+  --font: "Alexandria", "Noto Kufi Arabic", "Segoe UI", system-ui, sans-serif;
+
+  /* سلّم المقاسات. مرساة الـrem جذرُ المتصفّح (١٦px) لا `body`.
+     والسجلّ رسميّ: طرف السلّم الأعلى مضغوط — الترتيب هو ما يقيم الهرم لا
+     الحجم، ولا وزنَ فوق ٧٠٠ في الصفحة. */
+  /* السلّم نزل درجةً كاملة: الصفحة صارت شيئًا واحدًا يُكتب فيه، ومساحة
+     الكتابة هي التي تكبر لا العنوان. كان العنوان ٢٧–٣٤px والتمهيد ١٧،
+     فيأخذان الشاشة ويبقى للطلب سطرٌ نحيل. صارا ٢١–٢٦ و١٥. */
+  --fs-xs:  .75rem;
+  --fs-sm:  .82rem;
+  --fs-md:  .9rem;
+  --fs-lg:  .94rem;
+  --fs-h3:  clamp(1.05rem, .95rem + .35vw, 1.16rem);
+  --fs-h2:  clamp(1.16rem, .95rem + .6vw, 1.4rem);
+  --fs-h1:  clamp(1.32rem, 1rem + .95vw, 1.64rem);
+  /* رمز الطلب في شاشة التأكيد: بيانٌ يُحفظ، فسقفه دون العنوان الذي فوقه */
+  --fs-big: clamp(1.34rem, 1.06rem + .72vw, 1.6rem);
+  /* الكلمة الوحيدة على الصفحة — سلّمٌ خاصّ بها، فوق سلّم العناوين */
+  --fs-word: clamp(2.1rem, 1.5rem + 2.6vw, 3.1rem);
+
+  /* سلّم ارتفاع السطر. تبقى `line-height: 1` حرفيّةً حيث الصندوق مربّعُ
+     محرفٍ لا سطرُ نصّ. */
+  --lh-tight: 1.3;   /* العناوين الكبرى */
+  --lh-snug:  1.4;   /* العناوين والأزرار */
+  --lh-ui:    1.7;   /* سطرٌ مفرد: تسمية · وسم */
+  --lh-body:  1.9;   /* متنٌ يلتفّ إلى أكثر من سطر */
+
+  --pad-ctl: .82rem;     /* الحشو الرأسيّ لكل ما يُنقر ويُكتب فيه */
+  --focus:   var(--ink); /* حلقة التركيز — حبرٌ لا لونُ هوية، ليُرى فوق كل سطح */
+
+  /* مدّتان لا إحدى عشرة: لا يفرّق النظر بين أكثرها */
+  --t-fast: .16s;   /* لونٌ أو شفافية */
+  --t:      .25s;   /* الافتراضي */
+  --ease:     cubic-bezier(.22, .61, .36, 1);
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+}
+
+/* ------------------------------ الوضع الداكن ------------------------------ */
+/*
+ * لا صورةَ مقلوبة بل لوحةٌ ثانية. القلب الآليّ (`filter: invert`) يقلب
+ * الشعار والصور معه، ويعطي رماديّاتٍ ميّتة. وهذه درجاتٌ مختارة من عائلة
+ * الهوية نفسها: الأرضيّة تيلٌ شديد العتمة لا أسود، فتبقى الصفحة «موصول»
+ * في الوضعين.
+ *
+ * وكلُّ زوجٍ هنا **مقيس** لا مقدَّر: فحصُ التباين يمرّ على الصفحة في
+ * الوضعين، ويرفض ما دون ٤٫٥ للنصّ و٣ لحدود ما يُنقر.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:       #071c20;
+    --bg-soft:  #0a262b;
+    --glow:     rgba(34, 167, 180, .13);
+
+    --surf-1:      #0f3037;
+    --surf-1-line: #24545d;
+
+    --ink:       #e9f6f8;
+    --ink-mid:   #c3dee3;
+    --ink-soft:  #a8c9cf;
+    --ink-faint: #93b7bd;
+
+    --line:     #214d56;
+    --line-ctl: #6ea3ad;
+
+    /* الحبر على الأزرار يبقى أبيض، فالسطح يبقى غامقًا بما يكفي */
+    --teal-cta: #14727e;
+
+    --on-warm: #ffce8f;
+    --word:    #bfe6ec;
+    --brand-ink:     #8fdae3;
+    --brand-ink-str: #b4e8ef;
+    --brand-surf:    #143a42;
+
+    /* حلقة التركيز حبرٌ فاتح ليُرى على الأسطح الداكنة */
+    --focus: #e9f6f8;
+    --halo:  0 0 0 4px rgba(34, 167, 180, .30);
+
+    /* الظلال لا تُرى على أرضيّةٍ داكنة، فيحلّ محلّها حدٌّ أوضح وضوءٌ خفيف */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .35);
+    --shadow:    0 2px 6px rgba(0, 0, 0, .40), 0 12px 28px -10px rgba(0, 0, 0, .55);
+    --shadow-lg: 0 4px 10px rgba(0, 0, 0, .45), 0 24px 52px -14px rgba(0, 0, 0, .65);
+    --shadow-mic: 0 2px 8px rgba(0, 0, 0, .5), 0 14px 32px -10px rgba(34, 167, 180, .40);
+  }
+
+  /* الشعار: تُختار رسمته الداكنة في `index.html` عبر `<picture>`، فلا لوحَ
+     أبيضَ تحته. كان اللوح حلًّا لغياب الرسمة الثانية، والرسمة موجودة. */
+}
+
+/* ------------------------------- الأساسيات ------------------------------- */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  /* يُعلم المتصفّح أنّ الصفحة تعرف الوضعين، فتتبعه أدواتُه: شريط
+     التمرير، ومؤشّر الكتابة، وتحديد النصّ، والقوائم الأصيلة. بغيره تبقى
+     فاتحةً على صفحةٍ داكنة. */
+  color-scheme: light dark;
+  scroll-behavior: smooth;
+  scroll-padding-top: 104px;
+  -webkit-text-size-adjust: 100%;
+  /* يمنع أيّ عنصرٍ خارج الحدّ من توليد تمرير أفقي في الاتجاه RTL.
+     و`clip` لا `hidden` عمدًا: `hidden` يصنع حاوية تمرير. */
+  overflow-x: clip;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: var(--fs-lg);
+  font-weight: 400;
+  /* الخط العربي يحتاج تباعد أسطر أوسع ليتنفّس */
+  line-height: var(--lh-body);
+  color: var(--ink);
+  /* أرضيّةٌ فيها ضوءٌ خافت من الأعلى بدل لونٍ مسطّح: يعطي الشاشة عمقًا
+     ويجعل الأسطح البيضاء تطفو فوقها. والتدرّج ثابتٌ لا يتحرّك مع
+     التمرير (`fixed`) فلا يظهر خطٌّ عند حافّة الشاشة. */
+  background:
+    radial-gradient(120% 80% at 50% -10%, var(--glow), transparent 62%),
+    var(--bg);
+  background-attachment: fixed;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-kerning: normal;
+  /* **ولا `overflow-x: hidden` هنا.** كان مكرّرًا لما على `html`، لكنه
+     يجعل `body` حاويةَ تمرير — و`position: sticky` داخل حاوية تمرير يلتصق
+     بها لا بالشاشة. فلمّا صارت مساحة الكتابة تنمو، وقع أسفل الملتقط عند
+     ١٠٥٥ في شاشةٍ طولها ٨٤٤ ولم يلتصق. و`clip` على `html` يكفي المنع
+     ولا يصنع حاوية. */
+}
+
+/* العناوين: وزنٌ واحد للجميع — **٧٠٠ سقفًا**. كان ٨٠٠ على h1 وh2 وعلى كل
+   رقم عرضٍ في الصفحة، وهو أثقل ممّا يليق بجهةٍ تُخاطب تاجرًا: يقرأه القارئ
+   صياحًا. و٧٠٠ يفصل العنوان عن متنه فصلًا كافيًا بلا رفع صوت.
+   لا نستخدم letter-spacing سالبًا لأن الخط العربي متصل ويتشوّه به. */
+h1, h2, h3, h4 {
+  margin: 0 0 .55em;
+  font-weight: 700;
+  line-height: var(--lh-snug);
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+h1 { font-size: var(--fs-h1); line-height: var(--lh-tight); }
+
+h2 { font-size: var(--fs-h2); }
+
+p { margin: 0 0 1em; text-wrap: pretty; }
+
+a { color: var(--brand-ink); text-decoration: none; transition: color var(--t-fast) var(--ease); }
+
+a:hover { color: var(--orange-700); }
+
+b, strong { font-weight: 700; }
+
+img, svg { max-width: 100%; }
+
+ul, ol { margin: 0; padding: 0; list-style: none; }
+
+::selection { background: var(--teal-600); color: #fff; }
+
+.sr-only, .skip-link:not(:focus) {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* حلقة التركيز. كانت ‎--orange-600 وهي ٢٫٢٦ على الأبيض — تحت عتبة ٣:١
+   التي يطلبها المعيار لمؤشّر التركيز (WCAG 1.4.11)، أي أنّ أظهر مؤشّرٍ في
+   الصفحة كان غير مطابق. ولا لونَ واحد يبلغ ٣ على كل الأسطح: الغامق يسقط
+   على الداكن والفاتح يسقط على الفاتح. فالحلّ رمزٌ يرث: حبرٌ داكن على
+   الفاتح (١٤٫٢٢ على الأبيض · ٦٫٣٠ على الزرّ البرتقالي · ٣٫٠٩ على الزرّ
+   التيل)، وأبيض على الداكن (١٥٫٥٥ على teal-950 · ١١٫٥٧ على teal-900 ·
+   ٦٫٢٠ على teal-800 · ٥٫٣٢ على teal-700). */
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+
+/* سُمك الحدّ المرسوم. كانت السمة ‎stroke-width موضوعةً على كل ‎<symbol>‎،
+   وسمةُ العنصر تغلب الوراثة — فقاعدة ‎.ic هذه كانت ميّتة تمامًا. ولأنّ
+   الرمز الواحد يُرسم بمقاسات ١٥ و١٧ و٢٠ و٢٨ و٣٠ من مربّعٍ وحداته ٢٤،
+   كان السمك المرسوم يتراوح من ١٫٢٥px إلى ٣px — ستّ قيمٍ في صفحةٍ واحدة،
+   والأثقل يجاور الأخفّ في الشريط العلوي.
+   حُذفت السمة من الرموز، وصار السمك يُضبط لكل مقاسٍ ليخرج ١٫٧px مرسومة:
+   السمك = ١٫٧ × ٢٤ ÷ مقاس المربّع. */
+.ic { width: 20px; height: 20px; flex: none; stroke-width: 2.04; }
+
+.ic--lg { width: 28px; height: 28px; stroke-width: 1.46; }
+
+/* --------------------------------- الأزرار -------------------------------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: .55rem;
+  font-family: var(--font); font-weight: 700; font-size: var(--fs-md); line-height: var(--lh-snug);
+  padding: var(--pad-ctl) 1.7rem; border-radius: var(--radius-sm); border: 1.5px solid transparent;
+  cursor: pointer; position: relative; isolation: isolate;
+  transition: transform var(--t-fast) var(--ease-out), box-shadow var(--t) var(--ease),
+              background-color var(--t) var(--ease), color var(--t) var(--ease), border-color var(--t) var(--ease);
+  white-space: nowrap;
+}
+
+.btn:hover { transform: translateY(-2px); }
+
+.btn:active { transform: translateY(0) scale(.99); }
+
+.btn--lg { padding: 1rem 2.1rem; font-size: var(--fs-lg); }
+
+.btn--primary {
+  /* تدرّجٌ خفيف لا لونٌ مسطّح: درجتان متجاورتان تعطيان السطح حجمًا بلا
+     أن يُرى التدرّج تدرّجًا. */
+  background: linear-gradient(180deg, var(--teal-700), var(--teal-cta));
+  color: #fff; box-shadow: var(--shadow);
+}
+
+.btn--primary:hover {
+  color: #fff; background: linear-gradient(180deg, var(--teal-800), var(--teal-700));
+  box-shadow: var(--shadow-lg);
+}
+
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+
+/* الشريط يمتدّ من الحافة اليمنى نحو اليسار، فتحريكه يمينًا بنصف عرضه
+   يُدخل النسخة الثانية مكان الأولى تمامًا فيبدو الدوران بلا انقطاع */
+
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(246, 150, 37, .5); } 100% { box-shadow: 0 0 0 12px rgba(246, 150, 37, 0); } }
+
+@media (max-width: 860px) {
+  html { scroll-padding-top: 84px; }
+}
+
+@media (max-width: 620px) {
+  body { font-size: 1rem; line-height: var(--lh-body); }
+
+  /* المقاسان يُضبطان على الجذر لا على الزرّ: الفوتر يقرأ المتغيّرين نفسيهما
+       ليحجز المكان، فلو ضُبطا على الزرّ وحده لاختلّ الحجز عن الواقع. */
+  :root { --float-size: 50px; --float-inset: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+      animation-duration: .001ms !important; animation-iteration-count: 1 !important;
+      transition-duration: .001ms !important; scroll-behavior: auto !important;
+    }
+}
+
+@media print {
+  body { font-size: 11pt; line-height: var(--lh-ui); color: #000; }
+}
+
+/* صفحة الطلب الصوتي — واجهة موصول الأمامية، وهي الصفحة كلّها.
+   كانت هذه المكوّنات في ورقةٍ ثانية ترث رموز `styles.css`؛ ولمّا صار
+   الموقع صفحةً واحدة اندمجت الورقتان هنا، فالرموز أعلى هذا الملفّ نفسه.
+   والقواعد قائمة كما كانت: لا وزن فوق ٧٠٠، لا تدرّج يعبر صبغة، كل هدف
+   لمسٍ ٤٤ بكسلًا فأكبر، والحدود التفاعلية ٣:١ على خلفيّتها. */
+/* قاعدة `[hidden]` في المتصفّح تأتي من ورقته هو، وأيّ `display` من ورقة
+   المؤلّف يهزمها — فزرّ الإرسال «المخفيّ» كان يُرسم لأن `.btn` ترسم
+   `display`. القاعدة هنا تُعيد للسمة معناها في هذه الصفحة كلّها. */
+.vo [hidden], .vo-composer[hidden] { display: none !important; }
+
+.sr-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+body.vo {
+  min-height: 100dvh; display: flex; flex-direction: column;
+  background: var(--bg-soft);
+}
+
+/* ------------------------------ الترويسة ------------------------------ */
+.vo-top {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; padding: .55rem clamp(1rem, 4vw, 2.2rem);
+  background: var(--surf-1); border-bottom: 1px solid var(--line);
+}
+
+/* الشعار رابط: يمتدّ على ارتفاع الشريط فيبلغ هدف اللمس ولا تكبر الصورة */
+.vo-top__brand { display: flex; align-items: center; min-height: 44px; }
+
+.vo-top__brand img { height: 34px; width: auto; display: block; }
+
+.vo-top__nav { display: flex; gap: .4rem; }
+
+.vo-top__nav a {
+  display: inline-flex; align-items: center; min-height: 44px;
+  padding: 0 .8rem; border-radius: var(--radius-sm);
+  color: var(--ink-mid); font-size: var(--fs-sm); font-weight: 600;
+  text-decoration: none; transition: color var(--t-fast), background var(--t-fast);
+}
+
+.vo-top__nav a:hover { color: var(--brand-ink-str); background: var(--brand-surf); }
+
+/* الشريط أيقوناتٌ لا كلمات: لا نصّ ساكن على الصفحة، والاسم في
+   `aria-label` فيقرؤه قارئ الشاشة. */
+.vo-top__nav a { min-width: 44px; justify-content: center; padding-inline: .5rem; }
+.vo-top__nav a .ic { width: 19px; height: 19px; stroke-width: 2.15; }
+
+/* ------------------------------- المتن ------------------------------- */
+.vo-main {
+  flex: 1; width: min(640px, 100% - 2rem); margin-inline: auto;
+  padding-block: clamp(1.2rem, 4vh, 2.6rem) 1rem;
+  display: flex; flex-direction: column; gap: 1rem;
+}
+
+/* **قبل أوّل رسالة: الكلمة والملتقط شيءٌ واحد في وسط الشاشة.**
+   كان الافتتاح يتوسّط المتن والملتقط ملتصقًا بالأسفل، فيقع بينهما فراغٌ
+   أصمّ يبلغ ستّمئة بكسل على الجوّال — كلمةٌ معلّقةٌ في أعلى وحقلٌ منفيٌّ
+   إلى الأسفل. فيُرفع الالتصاق ما دام الافتتاح ظاهرًا، ويجتمع الاثنان
+   بهامشين تلقائيَّين فيصيران كتلةً واحدة متوسّطة.
+   وبعد أوّل رسالة يعود الملتقط ملتصقًا ويتدفّق الحوار من الأعلى.
+   `:has` مدعوم في المتصفّحات المستهدفة، وسقوطه يُعيد السلوك السابق. */
+.vo:has(.vo-hero:not([hidden])) .vo-main {
+  flex: 0 0 auto;
+  margin-block-start: auto;
+  justify-content: center;
+}
+
+.vo:has(.vo-hero:not([hidden])) .vo-composer {
+  position: static;
+  margin-block-end: auto;
+  border-top: 0;
+  background: transparent;
+}
+
+/* **المركز البصريّ فوق المركز الهندسيّ.**
+   الهامشان التلقائيّان يضعان الكتلة في منتصف الارتفاع بالحساب، فقِيست
+   فوقعت عند ٥٦٪ منه — أي تحت المنتصف، لأن الترويسة تشغل أعلى الصفحة
+   فتثقل الأعلى بصريًّا بينما يبقى الحساب على الفراغ وحده. والعين تقرأ ذلك
+   هبوطًا لا توسّطًا. فيُوسَّع الفراغ السفليّ فترتفع الكتلة إليه.
+   وهذا في حال الافتتاح وحدها: بعد أوّل رسالة يلتصق الملتقط بالأسفل. */
+.vo:has(.vo-hero:not([hidden])) {
+  padding-block-end: clamp(2.5rem, 13vh, 7rem);
+}
+
+.vo-hero { text-align: center; padding-block: 0 .2rem; }
+
+.vo-hero h1 {
+  /* الكلمة الواحدة تحمل الصفحة وحدها، فتُعطى حجمًا يوازي ذلك: قِيست عند
+     ‏٢١px على الجوّال — حجمُ عنوانٍ في صفحةٍ مزدحمة، لا حجمُ الكلمة الوحيدة
+     في صفحةٍ خالية. والوزن يبقى ٧٠٠ كقاعدة الموقع، فالحجم وحده يحمل الفرق.
+     وتباعدُ حروفٍ موجب لا سالب — العربية متصلة الحروف والسالب يشوّهها. */
+  font-size: var(--fs-word);
+  line-height: 1.15;
+  margin-bottom: .38em;
+  letter-spacing: .02em;
+  color: var(--word);
+}
+
+/* ------------------------------- الحوار ------------------------------- */
+/* ما يُمرَّر إليه يقف فوق الملتقط لا تحته. الملتقط ملتصقٌ بأسفل الشاشة،
+   فتمريرٌ «إلى أدنى ما يكفي» يوقف الهدف عند الحافّة السفلى — أي تحته.
+   قِيس ذلك على ٣٢٠px: زرّ «أرسل الطلب» صار غير قابلٍ للضغط لأنّ المساحة
+   فوقه. وارتفاع الملتقط يتغيّر مع نموّ المساحة، فيكتبه JS في ‎--composer-h. */
+.vo-chat, .vo-card, .vo-done, .vo-card__send, .vo-msg, .vo-hintbtn {
+  scroll-margin-block-end: calc(var(--composer-h, 10rem) + .75rem);
+}
+
+.vo-chat { display: flex; flex-direction: column; gap: .6rem; }
+
+/* دخولٌ قصير: الفقاعة تصعد قليلًا وتظهر. ما يتحرّك في الواجهة يجب أن
+   يقول شيئًا — وهذا يقول «هذا جديد». */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.vo-msg, .vo-card, .vo-done { animation: rise var(--t) var(--ease-out) both; }
+
+.vo-msg {
+  max-width: 85%; padding: .7rem 1rem; border-radius: var(--radius);
+  font-size: var(--fs-md); line-height: var(--lh-body);
+  overflow-wrap: break-word;
+}
+
+.vo-msg--user {
+  align-self: flex-start;                    /* في RTL: جهة القارئ */
+  background: var(--teal-800); color: #fff;
+  border-start-start-radius: var(--radius-sm);
+}
+
+.vo-msg--agent {
+  align-self: flex-end;
+  background: var(--surf-1); color: var(--ink);
+  border: 1px solid var(--line); border-start-end-radius: var(--radius-sm);
+}
+
+.vo-msg--agent b { color: var(--brand-ink-str); }
+
+/* اقتراح «هل تقصد…؟» — زرّ داخل فقاعة الوكيل */
+.vo-msg .vo-hintbtn {
+  display: inline-flex; align-items: center; min-height: 44px;
+  margin-top: .4rem; padding: 0 1rem;
+  font-family: var(--font); font-size: var(--fs-sm); font-weight: 700;
+  color: var(--brand-ink-str); background: var(--brand-surf);
+  border: 1px solid var(--line-ctl); border-radius: var(--radius-sm);
+  cursor: pointer; transition: background var(--t-fast), border-color var(--t-fast);
+}
+
+.vo-msg .vo-hintbtn:hover { background: #fff; border-color: var(--teal-700); }
+
+/* فقاعةُ الانتظار: ثلاث نقاطٍ تقول «سمعتك، أقرأ» بلا كلمة.
+   قِيس الصمت على شبكةٍ بطيئة فكان ٢٫٥ ثانية بلا أيّ أثر بعد كلام الزبون،
+   فلا يدري: أوصلت ضغطته أم ضاعت؟ فيُعيدها — ومن إعادتها وقع سباقٌ أضاع
+   جملة. والكلمة هنا أسوأ من النقاط: «جارٍ التحميل…» تُقرأ عطلًا، والنقاط
+   تُقرأ إصغاءً. */
+.vo-msg--waiting { padding-block: .85rem; }
+
+.vo-dots { display: inline-flex; gap: .3rem; }
+.vo-dots i {
+  width: .45rem; height: .45rem; border-radius: 50%;
+  background: var(--brand-ink-str); opacity: .35;
+  animation: dot 1.1s var(--ease-out) infinite;
+}
+.vo-dots i:nth-child(2) { animation-delay: .18s; }
+.vo-dots i:nth-child(3) { animation-delay: .36s; }
+
+@keyframes dot {
+  0%, 60%, 100% { opacity: .3; transform: none; }
+  30%           { opacity: 1;  transform: translateY(-3px); }
+}
+
+/* ومن أطفأ الحركة يرى النقاط ساكنةً ظاهرة — الإشارة تبقى، والحركة تذهب */
+@media (prefers-reduced-motion: reduce) {
+  .vo-dots i { animation: none; opacity: .6; }
+}
+
+/* ---------------------------- بطاقة الطلب ---------------------------- */
+.vo-card {
+  background: var(--surf-1); border: 1px solid var(--surf-1-line);
+  border-radius: var(--radius); padding: 1.05rem 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.vo-card__title { font-size: var(--fs-lg); margin-bottom: .5em; }
+
+.vo-card__list { list-style: none; margin: 0; padding: 0; }
+
+.vo-card__list li {
+  display: flex; align-items: baseline; gap: .55rem;
+  padding-block: .3rem; font-size: var(--fs-md); line-height: var(--lh-ui);
+  color: var(--ink);
+}
+
+.vo-card__list li::before {
+  content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--teal-700); transform: translateY(-1px);
+}
+
+.vo-card__missing { list-style: none; margin: .5rem 0 0; padding: 0; }
+
+.vo-card__missing li {
+  color: var(--on-warm); font-size: var(--fs-sm); line-height: var(--lh-body);
+  padding-block: .2rem;
+}
+
+.vo-card__send { width: 100%; margin-top: .9rem; justify-content: center; }
+
+/* ------------------------------ التأكيد ------------------------------ */
+.vo-done {
+  background: var(--surf-1); border: 1px solid var(--line);
+  border-radius: var(--radius-lg); padding: 1.5rem 1.25rem; text-align: center;
+  box-shadow: var(--shadow);
+}
+
+.vo-done__mark {
+  width: 56px; height: 56px; margin: 0 auto .8rem; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--brand-surf); border: 2px solid var(--brand-ink); color: var(--brand-ink-str);
+}
+
+.vo-done__mark .ic { width: 26px; height: 26px; stroke-width: 2.1; }
+
+.vo-done h2 { font-size: var(--fs-h3); margin-bottom: .3em; }
+
+.vo-done__code {
+  font-size: var(--fs-big); font-weight: 700; color: var(--brand-ink);
+  letter-spacing: .02em;
+}
+
+.vo-done p { color: var(--ink-mid); font-size: var(--fs-md); line-height: var(--lh-body); margin: .5rem 0 0; }
+
+.vo-done .btn { margin-top: 1.1rem; }
+
+/* ------------------------------ الملتقط ------------------------------ */
+.vo-composer {
+  position: sticky; bottom: 0; z-index: 20;
+  background: var(--surf-1); border-top: 1px solid var(--line);
+  padding: .8rem clamp(1rem, 4vw, 2.2rem)
+           calc(.8rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* الزرّان على قاعدةٍ واحدة مع أسفل المساحة. كانا في وسطها، فلمّا صارت
+   المساحة تنمو صار الميكروفون يطفو في منتصفها منفصلًا عمّا حوله. */
+.vo-composer__inner {
+  display: flex; align-items: flex-end; gap: .7rem;
+  width: min(640px, 100%); margin-inline: auto;
+}
+
+/* زرّ الصوت: أكبر عنصر في الصفحة — هو الطريق الأول */
+.vo-mic {
+  flex: none; width: 68px; height: 68px; border-radius: var(--radius-pill);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font); cursor: pointer;
+  color: #fff;
+  background: radial-gradient(120% 120% at 50% 0%, var(--teal-600), var(--teal-800) 70%);
+  border: 0;
+  box-shadow: var(--shadow-mic);
+  transition: transform var(--t-fast) var(--ease-out),
+              box-shadow var(--t) var(--ease), filter var(--t-fast);
+}
+
+.vo-mic:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.vo-mic:active { transform: translateY(0) scale(.97); }
+
+/* أثناء الاستماع: حلقةٌ تنبض حول الزرّ — علامةٌ ترى بطرف العين أنّ
+   الجهاز يسمع. والحالة مقروءة من `aria-pressed` نفسها لا من صنفٍ ثانٍ
+   يمكن أن يتخلّف عنها. */
+.vo-mic[aria-pressed="true"] {
+  background: radial-gradient(120% 120% at 50% 0%, var(--teal-500), var(--teal-700) 70%);
+}
+
+.vo-mic[aria-pressed="true"]::after {
+  content: ""; position: absolute; inset: -6px;
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--teal-600);
+  animation: mic-ring 1.6s var(--ease) infinite;
+}
+
+.vo-mic { position: relative; }
+
+@keyframes mic-ring {
+  0%   { opacity: .55; transform: scale(1); }
+  70%  { opacity: 0;   transform: scale(1.28); }
+  100% { opacity: 0;   transform: scale(1.28); }
+}
+
+.vo-mic .ic--lg { width: 28px; height: 28px; stroke-width: 1.46; }
+
+@media (prefers-reduced-motion: reduce) {
+  .vo-mic { animation: none !important; }
+}
+
+.vo-mic[hidden] { display: none; }
+
+.vo-typebar {
+  /* الزرّ ينزل إلى أسفل المساحة لا إلى وسطها: المساحة تنمو مع الكلام،
+     وزرٌّ يطفو في المنتصف يتحرّك مع كل سطر. */
+  /* `min-width: 0` لا غنى عنه: عنصر flex لا ينكمش دون عرض محتواه الأدنى
+     افتراضًا، و`<textarea>` بلا `cols` عرضه الأصيل عشرون محرفًا — فدفع
+     الشريطَ إلى ٣٦٩px في شاشة ٣٢٠ وأخرج الصفحة عن حدّها. */
+  flex: 1; min-width: 0; display: flex; align-items: flex-end; gap: .5rem;
+  background: var(--surf-1); border: 1px solid var(--line-ctl);
+  border-radius: var(--radius-lg); padding-inline-start: 1.1rem;
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--t-fast), box-shadow var(--t) var(--ease);
+}
+
+.vo-typebar:focus-within {
+  border-color: var(--teal-600);
+  box-shadow: var(--halo), var(--shadow);
+}
+
+/* مساحةٌ لا سطر. الطلب جملتان أو ثلاث («اسمي… ورقمي… من… إلى…»)، وكان
+   الحقل سطرًا واحدًا يخفي أوّل الكلام عند آخره — والصوت يكتب فيه فقرةً
+   كاملة فلا يرى الزبون ما سُمع منه. تبدأ بثلاثة أسطر وتنمو مع الكتابة. */
+.vo-typebar textarea {
+  flex: 1; min-width: 0; border: 0; background: none; outline: none;
+  resize: none; overflow-y: auto;
+  font-family: var(--font);
+  /* **١٦px عتبةٌ لا تُخفَض**: سفاري على iOS يُقرّب الصفحة تلقائيًّا عند
+     التركيز على حقلٍ خطُّه أصغر منها، فيقفز التخطيط في وجه الزبون. وحدها
+     في الصفحة تبقى فوق سلّم المقاسات الجديد لهذا السبب. */
+  font-size: 16px;
+  line-height: var(--lh-ui);
+  color: var(--ink); padding-block: .85rem;
+  /* سقفٌ يُبقي **الملتقط كلّه** داخل الشاشة لا المساحة وحدها: عند ٤٠vh
+     كان أسفل الملتقط يقع تحت الطيّة بثمانية عشر بكسلًا فيُقتطع سطر
+     التلميح. والباقي فوقه يُمرَّر داخل المساحة. */
+  max-height: 30vh;
+}
+
+.vo-typebar__send {
+  flex: none; width: 48px; height: 48px; margin: 5px;
+  display: flex; align-items: center; justify-content: center;
+  border: 0; border-radius: calc(var(--radius-lg) - 6px);
+  background: linear-gradient(180deg, var(--teal-700), var(--teal-800));
+  color: #fff; cursor: pointer;
+  transition: filter var(--t-fast), transform var(--t-fast) var(--ease-out);
+}
+
+/* ما دام لا شيء ليُرسل: الزرّ حاضرٌ ولا يَعِد. لا يُخفى ولا يُعطَّل —
+   إخفاؤه يجعل الملتقط يقفز حين تُكتب أوّل حرف، وتعطيله يسقطه من ترتيب
+   لوحة المفاتيح. يهدأ فقط: سطحٌ ساكن وحبرٌ باقٍ فوق نسبة التباين. */
+.vo-typebar__send[data-ready="no"] {
+  background: var(--brand-surf);
+  color: var(--brand-ink-str);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.vo-typebar__send:hover { filter: brightness(1.08); }
+.vo-typebar__send[data-ready="no"]:hover { filter: none; background: var(--surf-1); }
+.vo-typebar__send:active { transform: scale(.96); }
+
+.vo-typebar__send .ic { width: 20px; height: 20px; stroke-width: 2.04; }
+
+.vo-composer__hint {
+  width: min(640px, 100%); margin: .45rem auto 0;
+  color: var(--ink-faint); font-size: var(--fs-xs); line-height: var(--lh-ui);
+  text-align: center;
+}
+
+/* **والالتقاط قائم: يُقال بالحبر لا بالنصّ وحده.**
+   `order.js` يضيف هذا الصنف عند بدء الاستماع ويرفعه عند انتهائه، ولم تكن
+   له قاعدةٌ أصلًا — فالسطر يتغيّر نصُّه ولونه واحد. والاشتقاق أسقطه لأنّه
+   لا يظهر في HTML: يُكتب في وقت التشغيل وحده. ونقطةٌ نابضة تسبقه تقول
+   «مفتوح» بلا كلمة، فالميكروفون المفتوح أولى ما يُرى. */
+.vo-composer__hint.is-listening {
+  color: var(--brand-ink-str); font-weight: 600;
+}
+
+.vo-composer__hint.is-listening::before {
+  content: ''; display: inline-block; vertical-align: middle;
+  width: .5rem; height: .5rem; margin-inline-end: .4rem;
+  background: var(--brand-ink-str); border-radius: 50%;
+  animation: listening 1.4s var(--ease-out) infinite;
+}
+
+@keyframes listening { 50% { opacity: .25; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .vo-composer__hint.is-listening::before { animation: none; }
+}
+
+/* السطر الثاني في فقاعة الوكيل: طريقُ الإنسان حين لا يكفي الوكيل.
+   يُنشئه JS ولا قاعدة له كانت — فيُقرأ بحجم الكلام الأصلي ووزنه، وهو
+   حاشيةٌ لا أصل. */
+.vo-msg__aside {
+  display: block; margin-top: .35rem;
+  font-size: var(--fs-sm); color: var(--ink-soft);
+}
+
+/* ------------------------------- الجوال ------------------------------- */
+@media (max-width: 480px) {
+  .vo-main { width: calc(100% - 1.6rem); }
+
+  .vo-msg { max-width: 92%; }
+
+  /* على الشاشة الضيّقة تأخذ المساحة السطر كلّه وينزل الميكروفون تحتها.
+     كانا في صفٍّ واحد فبقي للكتابة ١٣٩px من ٣٢٠ — ثلاثة أسطر في خمسة
+     عشر محرفًا. وبالنزول صارت ٢٥٦: سبعون بالمئة زيادة، والميكروفون
+     أظهر لا أخفى. */
+  .vo-composer__inner { flex-wrap: wrap; justify-content: center; gap: .55rem; }
+  .vo-typebar { flex: 1 1 100%; order: 1; }
+  .vo-mic { order: 2; width: 56px; height: 56px; }
+
+}
+

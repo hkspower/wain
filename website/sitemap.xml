@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  صفحةٌ واحدة: وكيل الطلب. وأقسامها داخلية،
+  فلا تُدرج المرابط (#fragments) — محرّكات البحث لا تفهرسها عناوين مستقلّة،
+  وإدراجها يضخّم الخريطة بلا أثر.
+
+  lastmod لكل صفحة من آخر تعديل عليها في سجلّ git لا من تاريخ البناء —
+  إعادة بناء لا تغيّر المحتوى يجب ألّا تدّعي تحديثًا، وتاريخٌ واحد لصفحتين
+  يكذب على إحداهما.
+  يُحدَّث بـ: node website/tools/make-sitemap.mjs
+
+  النطاق يُستبدل آليًا عند البناء: --domain=نطاقك
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://mawsool.com.kw/</loc>
+    <lastmod>2026-09-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>
