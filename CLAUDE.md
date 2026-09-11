@@ -262,6 +262,33 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   `php …/d.php allow <host>` adds it to `storage/deploy.hosts`. The mechanism
   stopped depending on GitHub; the payload has not.
 
+  **The site went from `1bbf0e7` to `52e635e` on 11 September, and شوق's agent
+  mode reached production for the first time.** `{"ok":true,"deployed":246,
+  "removed":10,"emptied":1}` through the installed caller, one cron job, no
+  staging step — production's endpoint was the one already probed this session,
+  the artifact is sha256-verified before a byte is written, and the state being
+  replaced was known-broken for the feature being fixed.
+
+  **Verified below the root, and the content hash is the strongest proof there
+  is.** `build.json` said `52e635e5` / `24d1bb330e02434f`, which proves nothing
+  on its own. What proves it: `_next/static/52e635e5…/` is the only build-id
+  directory left; `_next/static/css/` holds exactly one stylesheet,
+  `eff40f810fed1f9d.css`; `/explore/` has its `index.html` and `index.txt`; and
+  **the two chunks that carry شوق are on disk under their content-hashed
+  names** — `chunks/app/layout-b6d6ff5e116afa4f.js` (18318 B) and
+  `chunks/app/search/page-2e9b8c56c8589fc6.js` (14632 B), each the only file in
+  its directory. A content hash means the bytes match the artifact, and the
+  artifact was checked before upload for the exact `@0.18.1` pin, for no
+  surviving range, and for the agent id in both chunks. So «شوق works live» was
+  established without reading a megabyte of minified JavaScript off the server.
+
+  **It cost one ~3.6MB blob in git**, because the sandbox cannot upload to
+  Hostinger and cannot cut a release, which leaves the committed-archive route
+  that `deploy-plan.mjs` kept for exactly this. Removing the file afterwards
+  reclaims nothing and a rewrite is barred by شوق's pinned KB. **`DEPLOY_SECRET`
+  makes the next one cost zero** — CI rides a release asset, outside the object
+  database.
+
   **First deploy through it: 10 September, `{"ok":true,"deployed":245}`.** The
   artifact went in wain's *own* docroot — not the shop's, which would put one
   project's build output in another project's web root — and it cannot be named
@@ -389,6 +416,22 @@ a 302 to the package entry and a range answers one to the resolved version
 first, so a bare pin puts two redirects in front of 451KB at the moment of a
 tap. **A test that asserts a property this loosely is worse than no test**, and
 that is the part worth carrying forward.
+
+**And the built-in default that keeps her on was unreachable from CI.**
+`WAIN_AI_AGENT_ID` came from `process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID ??
+DEFAULT_AGENT_ID`, and `??` falls back only on null/undefined. GitHub expands
+`${{ vars.ELEVENLABS_AGENT_ID }}` to **`""`** when the variable has never been
+set — which it never was — so the empty string came through as the agent id and
+every CI build shipped the browser-speech fallback. The default exists to stop
+exactly that («a feature that ships switched off by default ships switched
+off») and could not, because the only place that sets this variable is the only
+place `??` refuses to fall back for. Silently: `deploy.yml` prints «شوق: agent
+mode (built-in default)» for an empty AGENT, so the log asserted she was in a
+build that had her out. Now `||`, which is what the «none» sentinel beside it
+always implied. `audit:shouq-call` asks the module what it decides under unset,
+empty and «none» — in a child process, because `process.env` is read at module
+load and Node caches modules — and it was confirmed to go red on the empty case
+and only that one.
 
 **The call is warmed before it is placed.** `ShouqCallButton` fires
 `warmCall()` on hover/focus/touch — a `preconnect` to `unpkg.com` *without*
