@@ -16,11 +16,23 @@
       --bg: #ffffff;
       --panel: #ffffff;
       --panel-2: #f1f4f8;
-      --border: #d0d7e1; --dot-js: #836407; --code-dim: #5e6979; --warn-bg: #ffffff; --info: #1964ce; --good: #02783d; --border-input: #858d99; --panel-3: #e6ebf1;
+      --border: #d0d7e1; --dot-js: #836407; --code-dim: #5e6979; --warn-bg: #ffffff; --info: #1964ce; --good: #02783d; --border-input: #7c858c; --panel-3: #e6ebf1;
       --text: #1b2430;
-      --muted: #586981;
+      --muted: #434d55;
       --tint: #7a4418;
       --tint-strong: #6f3f1c;
+      /* THE BROWN BAR IS A SURFACE, and it needs its own ink set. Everything
+         on it used to be white at an alpha, and an alpha is not a colour: it
+         composites against whatever is underneath and the result is a value
+         nobody solved. Over #6f3f1c the .82 tagline resolved to #e5dcd6 — a
+         BEIGE at 6.47:1, under the 7:1 body floor and against this project's
+         own no-beige rule, invisible to the existing check because that check
+         reads declared surface tokens and this was a composited ink. And the
+         .4 control border resolved to #a98c77 at 2.79:1, under the 3:1 floor
+         for a boundary you have to see in order to click. */
+      --on-bar: #ffffff;        /* every visible label on the bar · 8.74:1 */
+      --on-bar-bd: #b6bbbe;     /* the only boundary for a control on it · 4.51:1 */
+      --on-bar-fill: #865e40;   /* hover/active fill and the bar's hairline · white on it 5.69:1 */
       --sand: #9e5603; --sand-vivid: #e3a556;
       --danger: #ce1925;
       --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;

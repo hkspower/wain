@@ -82,11 +82,23 @@
       --bg: #ffffff;
       --panel: #ffffff;
       --panel-2: #f1f4f8;
-      --border: #d0d7e1; --dot-js: #836407; --code-dim: #5e6979; --warn-bg: #ffffff; --info: #1964ce; --good: #02783d; --border-input: #858d99; --panel-3: #e6ebf1;
+      --border: #d0d7e1; --dot-js: #836407; --code-dim: #5e6979; --warn-bg: #ffffff; --info: #1964ce; --good: #02783d; --border-input: #7c858c; --panel-3: #e6ebf1;
       --text: #1b2430;
-      --muted: #586981;
+      --muted: #434d55;
       --tint: #7a4418;
       --tint-strong: #6f3f1c;
+      /* THE BROWN BAR IS A SURFACE, and it needs its own ink set. Everything
+         on it used to be white at an alpha, and an alpha is not a colour: it
+         composites against whatever is underneath and the result is a value
+         nobody solved. Over #6f3f1c the .82 tagline resolved to #e5dcd6 — a
+         BEIGE at 6.47:1, under the 7:1 body floor and against this project's
+         own no-beige rule, invisible to the existing check because that check
+         reads declared surface tokens and this was a composited ink. And the
+         .4 control border resolved to #a98c77 at 2.79:1, under the 3:1 floor
+         for a boundary you have to see in order to click. */
+      --on-bar: #ffffff;        /* every visible label on the bar · 8.74:1 */
+      --on-bar-bd: #b6bbbe;     /* the only boundary for a control on it · 4.51:1 */
+      --on-bar-fill: #865e40;   /* hover/active fill and the bar's hairline · white on it 5.69:1 */
       --sand: #9e5603; --sand-vivid: #e3a556;
       --danger: #ce1925;
       --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -110,16 +122,16 @@
     header {
       display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
       padding: 12px 20px; background: var(--tint-strong);
-      border-bottom: 1px solid rgba(255,255,255,.16);
+      border-bottom: 1px solid var(--on-bar-fill);
       position: sticky; top: 0; z-index: 50;
     }
     .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; color: #fff; }
     .brand .logo {
       width: 34px; height: 34px; border-radius: 10px;
-      background: rgba(255,255,255,.18); color: #fff;
+      background: var(--on-bar-fill); color: #fff;
       display: grid; place-items: center; font-size: 17px; color: #fff;
     }
-    .brand small { display: block; font-weight: 500; color: rgba(255,255,255,.82); font-size: 11px; }
+    .brand small { display: block; font-weight: 500; color: var(--on-bar); font-size: 11px; }
     nav { display: flex; gap: 4px; margin-inline-start: auto; flex-wrap: wrap; }
     nav a, .btn {
       font-size: 13.5px; font-weight: 600; color: var(--text);
@@ -130,12 +142,12 @@
        call to action, and an outlined logout — the brand red measures 1.6:1
        against this brown and is unreadable, so it stays for in-page use only */
     nav a { color: #fff; }
-    nav a:hover { background: rgba(255,255,255,.16); }
-    nav a.active { background: rgba(255,255,255,.18); border-color: rgba(255,255,255,.5); color: #fff; }
+    nav a:hover { background: var(--on-bar-fill); }
+    nav a.active { background: var(--on-bar-fill); border-color: var(--on-bar-bd); color: #fff; }
     nav .btn.primary { background: #fff; color: var(--tint-strong); border-color: #fff; }
-    nav .btn.outline { background: transparent; color: #fff; border-color: rgba(255,255,255,.4); }
-    nav .btn.danger { background: transparent; color: #fff; border-color: rgba(255,255,255,.4); }
-    nav .btn.outline:hover, nav .btn.danger:hover { background: rgba(255,255,255,.16); }
+    nav .btn.outline { background: transparent; color: #fff; border-color: var(--on-bar-bd); }
+    nav .btn.danger { background: transparent; color: #fff; border-color: var(--on-bar-bd); }
+    nav .btn.outline:hover, nav .btn.danger:hover { background: var(--on-bar-fill); }
     header a:focus-visible, header button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
     .btn.primary { background: var(--tint-strong); color: #fff; }
     .btn.outline { border-color: var(--border); background: var(--panel-2); }

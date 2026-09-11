@@ -227,6 +227,38 @@ def static_checks():
             warm.append(f"{tok}={L[tok]}")
     check(S, "light surfaces are not beige (no warm cast)", not warm, ", ".join(warm))
 
+    # NO BEIGE, COMPUTED — NOT DECLARED. The check above reads five DECLARED
+    # surface tokens, so it could never see the beige the site actually shipped:
+    # the masthead tagline and البحار's second line were rgba(255,255,255,.82)
+    # over #6f3f1c, which composites to #e5dcd6 — red thirteen above blue,
+    # luminance 0.74, a beige — and the البحار pill's outline composited to
+    # #a98c77 at 2.79:1, under the boundary floor. An alpha is not a colour:
+    # it is a promise to become one against whatever turns out to be behind it.
+    # So every white alpha that lands on the brown ground is composited here
+    # and judged as the ink or boundary it becomes.
+    BROWN = L["tint-strong"]
+    def _over(alpha, bg):
+        f, b = _rgb("#ffffff"), _rgb(bg)
+        return "#%02x%02x%02x" % tuple(round(f[i] * alpha + b[i] * (1 - alpha))
+                                       for i in range(3))
+    composited = []
+    for page, txt in texts.items():
+        styles = "".join(re.findall(r"<style[^>]*>(.*?)</style>", txt, re.S))
+        for decl in re.findall(r"[^;{}\n]*rgba\(\s*255\s*,\s*255\s*,\s*255\s*,"
+                               r"\s*(?:0?\.\d+)\s*\)[^;{}\n]*", styles):
+            if ".rip" in decl or "railwrap" in decl or "gradient" in decl:
+                continue            # not on the bar: a ripple and two fades over --bg
+            if not re.search(r"(?:^|[\s;{])(?:color|background|background-color|"
+                             r"border|border-color|border-top|border-bottom|fill|stroke)\s*:", decl):
+                continue            # box-shadow is exempt: a shadow IS a translucent overlay
+            a = float(re.search(r"rgba\(\s*255\s*,\s*255\s*,\s*255\s*,\s*(0?\.\d+)", decl).group(1))
+            got = _over(a, BROWN)
+            r, g, b = _rgb(got)
+            if r > b + 6 and lum(got) > 0.35:
+                composited.append(f"{page}: {got} (a={a})")
+    check(S, "no alpha over the brown bar composites to a beige",
+          not composited, ", ".join(composited[:4]))
+
     # the site is white on every device — a dark preference must not repaint it
     for p, t in texts.items():
         check(S, f"{p}: carries no dark-theme override", "prefers-color-scheme: dark" not in t)
@@ -244,9 +276,38 @@ def static_checks():
         check(S, f"{label}: white on primary button >= 4.5",
               contrast("#ffffff", P["tint-strong"]) >= 4.5,
               f"{contrast('#ffffff', P['tint-strong']):.2f}")
-        check(S, f"{label}: field border >= 3:1",
-              contrast(P["border-input"], P["panel-2"]) >= 3.0,
-              f"{contrast(P['border-input'], P['panel-2']):.2f}")
+        # THE BINDING GROUND IS THE DARKEST SURFACE THE INK CAN LAND ON.
+        # This check used to name --panel-2 and only --panel-2, where the
+        # border measured 3.04:1 and passed by four hundredths — while the
+        # same border sat on --panel-3 at nizam.html:149 and :177 measuring
+        # 2.80:1, below the floor, for as long as the check existed. A check
+        # that tests the second-darkest surface cannot see the darkest one.
+        worst = min(("panel", "bg", "panel-2", "panel-3"),
+                    key=lambda s: contrast(P["border-input"], P[s]))
+        check(S, f"{label}: field border >= 3:1 on EVERY surface",
+              contrast(P["border-input"], P[worst]) >= 3.0,
+              f"worst is {worst} at {contrast(P['border-input'], P[worst]):.2f}")
+
+        # --muted carries running copy — .sub leads, card lines, footer text —
+        # so it is body, and body is 7:1. It was graded at 4.5 above with the
+        # non-body inks and measured 4.67:1 on --panel-3: passing the wrong
+        # floor by a sixth of a point.
+        mworst = min(("panel", "bg", "panel-2", "panel-3"),
+                     key=lambda s: contrast(P["muted"], P[s]))
+        check(S, f"{label}: --muted is body-grade (>= 7:1) on every surface",
+              contrast(P["muted"], P[mworst]) >= 7.0,
+              f"worst is {mworst} at {contrast(P['muted'], P[mworst]):.2f}")
+
+        # THE BROWN BAR IS A FOURTH GROUND with its own ink set.
+        check(S, f"{label}: bar ink >= 4.5 on the bar",
+              contrast(P["on-bar"], P["tint-strong"]) >= 4.5,
+              f"{contrast(P['on-bar'], P['tint-strong']):.2f}")
+        check(S, f"{label}: bar control boundary >= 3:1 on the bar",
+              contrast(P["on-bar-bd"], P["tint-strong"]) >= 3.0,
+              f"{contrast(P['on-bar-bd'], P['tint-strong']):.2f}")
+        check(S, f"{label}: white on the bar's own fill >= 4.5",
+              contrast("#ffffff", P["on-bar-fill"]) >= 4.5,
+              f"{contrast('#ffffff', P['on-bar-fill']):.2f}")
 
     # links and the service-worker precache must resolve to real files
     broken = []

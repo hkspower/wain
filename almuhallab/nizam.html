@@ -79,9 +79,21 @@
     :root {
       color-scheme: light;   /* the site is white on every device, dark preference included */
       --bg: #ffffff; --panel: #ffffff; --panel-2: #f1f4f8; --panel-3: #e6ebf1;
-      --border: #d0d7e1; --border-input: #858d99;
-      --text: #1b2430; --muted: #586981;
+      --border: #d0d7e1; --border-input: #7c858c;
+      --text: #1b2430; --muted: #434d55;
       --tint: #7a4418; --tint-strong: #6f3f1c;
+      /* THE BROWN BAR IS A SURFACE, and it needs its own ink set. Everything
+         on it used to be white at an alpha, and an alpha is not a colour: it
+         composites against whatever is underneath and the result is a value
+         nobody solved. Over #6f3f1c the .82 tagline resolved to #e5dcd6 — a
+         BEIGE at 6.47:1, under the 7:1 body floor and against this project's
+         own no-beige rule, invisible to the existing check because that check
+         reads declared surface tokens and this was a composited ink. And the
+         .4 control border resolved to #a98c77 at 2.79:1, under the 3:1 floor
+         for a boundary you have to see in order to click. */
+      --on-bar: #ffffff;        /* every visible label on the bar · 8.74:1 */
+      --on-bar-bd: #b6bbbe;     /* the only boundary for a control on it · 4.51:1 */
+      --on-bar-fill: #865e40;   /* hover/active fill and the bar's hairline · white on it 5.69:1 */
       --sand: #9e5603; --sand-vivid: #e3a556;
       --good: #02783d; --danger: #ce1925; --info: #1964ce; --warn-bg: #ffffff;
       --code-dim: #5e6979; --dot-js: #836407;
@@ -105,18 +117,18 @@
        keep their row layout so the nav and tabs stay within reach; the company
        page centres its mark. */
     header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 20px;
-      background: var(--tint-strong); border-bottom: 1px solid rgba(255,255,255,.16); }
+      background: var(--tint-strong); border-bottom: 1px solid var(--on-bar-fill); }
     .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; color: #fff; }
     .brand .logo { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
-      font-size: 17px; background: rgba(255,255,255,.18); color: #fff; }
+      font-size: 17px; background: var(--on-bar-fill); color: #fff; }
     .brand h1 { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.35; color: #fff; }
-    .brand small { display: block; font-weight: 500; font-size: 11px; color: rgba(255,255,255,.82); }
+    .brand small { display: block; font-weight: 500; font-size: 11px; color: var(--on-bar); }
     nav.site { display: flex; gap: 4px; margin-inline-start: auto; flex-wrap: wrap; align-items: center; }
     nav.site a { font-size: 13.5px; font-weight: 600; padding: 12px 16px;
       border-radius: 9px; border: 1px solid transparent; }
     nav.site a { color: #fff; }
-    nav.site a:hover { background: rgba(255,255,255,.16); }
-    nav.site .btn { color: #fff; border-color: rgba(255,255,255,.4); background: transparent; }
+    nav.site a:hover { background: var(--on-bar-fill); }
+    nav.site .btn { color: #fff; border-color: var(--on-bar-bd); background: transparent; }
     nav.site .btn.primary { background: #fff; color: var(--tint-strong); border-color: #fff; }
     header a:focus-visible, header button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
     /* header and tabs travel together, so the tab strip needs no magic offset */

@@ -1,0 +1,380 @@
+{
+  "ranking": [
+    {
+      "stance": "systems",
+      "mean": 6.25
+    },
+    {
+      "stance": "swiss",
+      "mean": 5.75
+    },
+    {
+      "stance": "editorial",
+      "mean": 5.5
+    },
+    {
+      "stance": "quiet",
+      "mean": 5.5
+    },
+    {
+      "stance": "arabic-geometric",
+      "mean": 5.38
+    }
+  ],
+  "synthesis": {
+    "winner": "systems",
+    "why_it_won": "All five stances were fully judged (4 judges each, none missing), so no stance is being credited or penalised for thin scrutiny. `systems` won on the mean (6.25) and, more decisively, on honesty: across four independent recomputations it was the only stance where every stated ratio reproduced, its single \"miss\" being that it quoted CLAUDE.md's own rounding of 1.6 for --danger on the bar (true value 1.577). Each runner-up was caught making a claim it did not have. `arabic-geometric` states --tint \"clears 3:1 as a focus ring on every surface\" — I compute 1.11:1 on the masthead brown, a surface it keeps. `editorial` invented a \"5.07:1 would be needed\" threshold that exists in no standard (it is the ratio of a different token) and specified --accent eyebrows on brown at 4.07:1 two paragraphs after banning that pairing. `quiet` put the lockup's third line in --muted at 1.62:1 on the bar — worse than the red it correctly bans there, and a regression from 6.47:1. `swiss`'s headline fix rested on a false premise about the codebase: I grepped it, and --sand-vivid is never an ink (six uses, all gradients/decorative borders), while --sand #9e5603 already is the warning ink at 5.55:1 across nine call sites including nizam.html:877's own COLORS map — the proposed --warn #9d6300 is dimmer than the token it overlooked. `systems` also found the two defects I independently confirmed live: --border-input at 2.80:1 on --panel-3 (real, at nizam.html:149+177, and invisible to the suite because test_suite.py only ever tests it against --panel-2 at 3.04:1), and --muted at 4.67:1 carrying body copy. Its faults — forgetting the brown bar is a surface, naming a typeface with no provenance, renaming tokens the suite pins — are all coverage faults fixable by graft. A stance that states thirty ratios and gets thirty right is one you can argue with; the others must first be re-measured.",
+    "grafts": [
+      "From the accessibility judge of the winning stance: the brown bar is a fourth ground, not a decoration. `systems` called --panel-3 'the darkest surface a control can land on' while keeping a #6f3f1c masthead that carries `nav .btn.outline`. I verified the live border rgba(255,255,255,.4) composites to #a98c77 = 2.79:1, below the 3:1 boundary floor. Grafted as three new tokens (--on-bar, --on-bar-bd, --on-bar-fill) so one ground's rules can never be applied to a ground 7.3:1 away.",
+      "From the brand-fit judge of the winning stance: fix the digits inside Cairo instead of importing a second face. I confirmed with fontTools that all four bundled files carry zero ASCII digits and only the letter 'A' — but Arabic-Indic U+0660-0669 ARE present, so the subset dropped Latin digits from a family that has them upstream. Re-subsetting is one face, no new licence, no new precache entry, no CSP question. Geist Mono had no provenance, no licence, no weight count and no stated relationship to the existing --mono token.",
+      "From `swiss`: the 44px touch target falls out of the ramp arithmetic instead of being asserted beside it — control 14px x 1.4286 = a 20px line box, plus 12 + 12 padding = 44px exactly. Also its integer-4px-line-box discipline, which I obtained without distorting sizes: all eight steps compute to 72/48/36/32/28/28/20/20.",
+      "From `quiet`: do not churn what passes. --text, and all six state inks, are left exactly as they are — re-solving working colours to satisfy a change nobody can see moves four pages plus two chart ramps for nothing. Also its deletion of `50%` as a duplicate of 999px on squares and a bug on non-squares (verified: 7 live uses).",
+      "From `editorial`, `quiet` and `arabic-geometric` converging independently: opacity is not a colour. I computed the trap they each found — rgba(255,255,255,.82) over the bar resolves to #e5dcd6, a warm beige at 6.47:1, below the body floor, and invisible to the existing no-beige test because that test reads five declared surface tokens and this is a composited ink. Every alpha over the bar is promoted to the solved hex it already composites to.",
+      "From `arabic-geometric`: state every token against three grounds and let the darkest be the binding number — and the corollary that a hairline is never the sole boundary inside a recessed block, since --border measures 1.21:1 on --panel-3.",
+      "From every buildability judge: keep the CORE token names. test_suite.py hard-requires fourteen names on every page and reads them with a bare `L[tok]`, so a rename raises KeyError and kills the run rather than failing a check. Values change; names never. This alone converts `systems` from unshippable to a small diff.",
+      "From the durability judges of `systems` and `swiss`: the radius defect is drift, not the value. Thirteen distinct radii over 77 declarations, with 3px, 6px, 7px and 11px appearing once each. I reduced to three values already dominant in the file (8 / 12 / 999) rather than betting the identity on 0px or 3px, both of which those judges correctly identified as a 2023-2026 position that dates on the same clock as the 999px pills it would replace."
+    ],
+    "tokens": [
+      {
+        "token": "--bg",
+        "value": "#ffffff",
+        "role": "surface — the page",
+        "contrast": "1.00:1 vs white; 8.74:1 against the masthead bar"
+      },
+      {
+        "token": "--panel",
+        "value": "#ffffff",
+        "role": "surface — cards, and the only ground a chart may sit on",
+        "contrast": "1.00:1 vs white"
+      },
+      {
+        "token": "--panel-2",
+        "value": "#f1f4f8",
+        "role": "surface — first recess: inputs at rest, row hover, zebra, the footer base",
+        "contrast": "1.10:1 vs white"
+      },
+      {
+        "token": "--panel-3",
+        "value": "#e6ebf1",
+        "role": "surface — THE FLOOR. Deepest recess below the bar: computed-total fields, table header strip, chips. Every ink below is solved against this",
+        "contrast": "1.20:1 vs white; 1.09:1 vs --panel-2"
+      },
+      {
+        "token": "--warn-bg",
+        "value": "#ffffff",
+        "role": "surface — warning banner ground (kept; it is white, so --sand on it is 5.55:1)",
+        "contrast": "1.00:1 vs white"
+      },
+      {
+        "token": "--text",
+        "value": "#1b2430",
+        "role": "ink — body and headings. UNCHANGED: it already clears the 7:1 body floor on the darkest ground with room, and 100+ call sites is churn for nothing",
+        "contrast": "13.06:1 on --panel-3 · 14.19:1 on --panel-2 · 15.65:1 on white"
+      },
+      {
+        "token": "--muted",
+        "value": "#434d55",
+        "role": "ink — secondary body: .sub leads, card lines, footer copy, column heads. CHANGED from #586981, which measured 4.67:1 on --panel-3 while carrying body-length copy",
+        "contrast": "7.20:1 on --panel-3 · 7.83:1 on --panel-2 · 8.64:1 on white — body-grade on every surface it can land on"
+      },
+      {
+        "token": "--code-dim",
+        "value": "#5e6979",
+        "role": "ink — dimmed code, non-body. Unchanged",
+        "contrast": "4.64:1 on --panel-3 · 5.57:1 on white"
+      },
+      {
+        "token": "--border",
+        "value": "#d0d7e1",
+        "role": "border — DECORATIVE ONLY: card edges, dividers, table row lines. Declared exemption from 3:1, and it is never the sole bound of a control nor used inside a recessed block",
+        "contrast": "1.45:1 on white · 1.21:1 on --panel-3 (i.e. invisible there — hence the rule)"
+      },
+      {
+        "token": "--border-input",
+        "value": "#7c858c",
+        "role": "border — the ONLY boundary for anything you touch, and the stroke for essential non-text marks (icon strokes, flow wires). CHANGED from #858d99, which measured 2.80:1 on --panel-3, a live failure at nizam.html:149+177",
+        "contrast": "3.13:1 on --panel-3 · 3.40:1 on --panel-2 · 3.76:1 on white"
+      },
+      {
+        "token": "--tint",
+        "value": "#7a4418",
+        "role": "accent — LOCKED. Links, active state, the focus ring, the mark on white, the 2px roll-up rule",
+        "contrast": "7.87:1 white · 7.14:1 --panel-2 · 6.57:1 --panel-3 · 1.11:1 on the bar (never there)"
+      },
+      {
+        "token": "--tint-strong",
+        "value": "#6f3f1c",
+        "role": "accent/surface — LOCKED. The masthead bar, theme-color, the grand-total rule",
+        "contrast": "8.74:1 white-on-it · 7.29:1 as ink on --panel-3"
+      },
+      {
+        "token": "--on-bar",
+        "value": "#ffffff",
+        "role": "NEW · bar ink — every visible label inside header, solid, never an alpha. All three lockup lines included",
+        "contrast": "8.74:1 on --tint-strong — body-grade"
+      },
+      {
+        "token": "--on-bar-bd",
+        "value": "#b6bbbe",
+        "role": "NEW · bar border — the only boundary for a control on the bar (nav .btn.outline, logout). Replaces rgba(255,255,255,.4)",
+        "contrast": "4.51:1 on --tint-strong (the alpha it replaces measured 2.79:1, below the 3:1 floor)"
+      },
+      {
+        "token": "--on-bar-fill",
+        "value": "#865e40",
+        "role": "NEW · bar fill — hover and active inside header, and the bar's lower hairline. The exact colour rgba(255,255,255,.16) already composites to, promoted to a hex so it is measurable and cannot drift with its ground",
+        "contrast": "white on it 5.69:1 · 1.53:1 against the bar"
+      },
+      {
+        "token": "--sand",
+        "value": "#9e5603",
+        "role": "state — the warning ink (banners, legends, st-0, nizam's COLORS.warn). Unchanged; it was never the defect",
+        "contrast": "4.63:1 on --panel-3 · 5.55:1 on white · 1.58:1 on the bar (banned there)"
+      },
+      {
+        "token": "--sand-vivid",
+        "value": "#e3a556",
+        "role": "state — the brand amber, GRAPHIC ONLY: the logo gradient, the البحار halo, hover borders. Never text, never a control boundary",
+        "contrast": "2.15:1 white · 1.79:1 --panel-3 · 4.07:1 on the bar (the one ground it clears 3:1)"
+      },
+      {
+        "token": "--good",
+        "value": "#02783d",
+        "role": "state — profit, delivered, valid. Unchanged. Never the only signal: always paired with a sign, direction or glyph",
+        "contrast": "4.66:1 on --panel-3 · 5.59:1 on white"
+      },
+      {
+        "token": "--danger",
+        "value": "#ce1925",
+        "role": "state — loss, filing-blocking errors, destructive actions. Unchanged",
+        "contrast": "4.62:1 on --panel-3 · 5.54:1 on white · 1.58:1 on the bar — banned there, as the repo already records"
+      },
+      {
+        "token": "--info",
+        "value": "#1964ce",
+        "role": "state — neutral notice, suggestions with amounts. Unchanged",
+        "contrast": "4.66:1 on --panel-3 · 5.59:1 on white"
+      },
+      {
+        "token": "--dot-js",
+        "value": "#836407",
+        "role": "state — the JS-live dot. Unchanged",
+        "contrast": "4.62:1 on --panel-3 · 5.54:1 on white"
+      },
+      {
+        "token": "--ord-1",
+        "value": "#c08552",
+        "role": "viz — ordinal one-hue ramp, step 1. Must now be declared on all four pages for token parity",
+        "contrast": "3.13:1 on white (chart floor is 2:1)"
+      },
+      {
+        "token": "--ord-2",
+        "value": "#a86f42",
+        "role": "viz — ordinal step 2",
+        "contrast": "4.19:1 on white; 1.34:1 separation from --ord-1"
+      },
+      {
+        "token": "--ord-3",
+        "value": "#8f5a33",
+        "role": "viz — ordinal step 3",
+        "contrast": "5.71:1 on white; 1.36:1 separation from --ord-2"
+      },
+      {
+        "token": "--ord-4",
+        "value": "#763f22",
+        "role": "viz — ordinal step 4",
+        "contrast": "8.39:1 on white; 1.47:1 separation from --ord-3"
+      },
+      {
+        "token": "--ord-5",
+        "value": "#5e3218",
+        "role": "viz — ordinal step 5",
+        "contrast": "10.79:1 on white; 1.29:1 separation from --ord-4"
+      },
+      {
+        "token": "--viz-pos",
+        "value": "#02783d",
+        "role": "viz — diverging pair, positive. Sign is also carried by bar direction and a signed label",
+        "contrast": "5.59:1 on white"
+      },
+      {
+        "token": "--viz-neg",
+        "value": "#ce1925",
+        "role": "viz — diverging pair, negative",
+        "contrast": "5.54:1 on white"
+      },
+      {
+        "token": "--viz-zero",
+        "value": "#acb4bf",
+        "role": "viz — the zero line and neutral marks. This is why charts are fenced to white: it clears the 2:1 chart floor on --panel/--bg and fails it on --panel-3",
+        "contrast": "2.09:1 on white · 1.75:1 on --panel-3 (fails there)"
+      },
+      {
+        "token": "--viz-grid",
+        "value": "#dee4ec",
+        "role": "viz — grid lines only, never a mark",
+        "contrast": "1.28:1 on white — decorative, declared"
+      },
+      {
+        "token": "--r-sm",
+        "value": "8px",
+        "role": "NEW · radius — controls: buttons, inputs, selects, chips, the 38px icon tiles. Absorbs today's 2/3/6/7/8/9px",
+        "contrast": "n/a"
+      },
+      {
+        "token": "--r",
+        "value": "12px",
+        "role": "NEW · radius — the system radius: cards, panels, tables, tiles, wells, images. Absorbs today's 10/11/12/14/16px",
+        "contrast": "n/a"
+      },
+      {
+        "token": "--r-pill",
+        "value": "999px",
+        "role": "NEW · radius — only things that are genuinely pills or discs: chips, rail dots, the live dot, the white CTA, the البحار disc. `50%` is deleted as a duplicate here and a bug on non-squares",
+        "contrast": "n/a"
+      },
+      {
+        "token": "--lift",
+        "value": "0 8px 24px rgba(27,36,48,.22)",
+        "role": "NEW · elevation — the ONE shadow, for things that genuinely float above the page: toast, tooltip/popover, the fixed mobile tab bar, the scrolled masthead edge. Nothing in normal flow casts one",
+        "contrast": "n/a"
+      },
+      {
+        "token": "--sans",
+        "value": "\"Cairo\", system-ui, -apple-system, \"Segoe UI\", Roboto, \"Noto Kufi Arabic\", \"Noto Sans Arabic\", sans-serif",
+        "role": "font — unchanged, but the bundled files are re-subset to carry U+0030–0039 so the digits stop being the device's",
+        "contrast": "n/a"
+      },
+      {
+        "token": "--mono",
+        "value": "ui-monospace, \"SF Mono\", Menlo, Consolas, monospace",
+        "role": "font — unchanged. Code blocks and tickers only; it is NOT the figure face",
+        "contrast": "n/a"
+      }
+    ],
+    "type_ramp": [
+      {
+        "name": "display",
+        "size_px": 52,
+        "weight": 800,
+        "line_height": 1.3846,
+        "letter_spacing": "0",
+        "use": "Hero h1 only, one per page. Ships as the existing clamp(32px, 5.6vw, 52px) with the floor raised from 30 to 32 so it lands on the scale. Line box 72px = 18x4. 1.3846 is the tightest the Cairo damma floor allows at this size — verified in a render, no collision with the line above."
+      },
+      {
+        "name": "section",
+        "size_px": 34,
+        "weight": 800,
+        "line_height": 1.4118,
+        "letter_spacing": "0",
+        "use": "h2.section on the company page, and the hero counters (which additionally take font-variant-numeric: tabular-nums and dir=\"ltr\"). Line box 48px = 12x4. Replaces today's 30/27/25 cluster, three sizes that were never distinguishable in place."
+      },
+      {
+        "name": "title",
+        "size_px": 24,
+        "weight": 700,
+        "line_height": 1.5,
+        "letter_spacing": "0",
+        "use": "h3, the wide .product row headings, page titles on the product screens, XBRL statement-total labels. Line box 36px = 9x4. Replaces 22/20/19."
+      },
+      {
+        "name": "subtitle",
+        "size_px": 20,
+        "weight": 700,
+        "line_height": 1.6,
+        "letter_spacing": "0",
+        "use": "Card titles, fieldset legends, statement-block titles, footer column heads. Line box 32px = 8x4."
+      },
+      {
+        "name": "lead",
+        "size_px": 18,
+        "weight": 500,
+        "line_height": 1.5556,
+        "letter_spacing": "0",
+        "use": "The .sub line under a heading and the hero standfirst, at most one per section, set in --muted. Line box 28px = 7x4. Weight 500 is the bundled file that also serves the 600 slot — not 400, because a lead that is only bigger reads as body that overflowed."
+      },
+      {
+        "name": "body",
+        "size_px": 16,
+        "weight": 400,
+        "line_height": 1.75,
+        "letter_spacing": "0",
+        "use": "All running Arabic prose, all table cells, and EVERY form input — 16px is also the iOS zoom-on-focus floor the mobile shell already depends on, so the ramp's floor for a control and the accessibility floor are the same number. Line box 28px = 7x4. Up from today's 13/13.5px, which is the single largest reason the page reads as an admin panel."
+      },
+      {
+        "name": "control",
+        "size_px": 14,
+        "weight": 500,
+        "line_height": 1.4286,
+        "letter_spacing": "0 for Arabic; 0.06em permitted only inside a .en / :lang(en) LTR isolate",
+        "use": "Nav links, buttons, chips, footer links, table column heads, rail arrows. Line box 20px = 5x4, so 20 + 12 + 12 = 44px and the WCAG target falls out of the ramp instead of being asserted beside it. Replaces 15.5/15/14.5/14."
+      },
+      {
+        "name": "label",
+        "size_px": 12,
+        "weight": 700,
+        "line_height": 1.6667,
+        "letter_spacing": "0 for Arabic; 0.06em permitted only inside a .en / :lang(en) LTR isolate",
+        "use": "Eyebrows, unit labels (د.ك), captions, the legal line, «مُحتسب تلقائياً» notes. Line box 20px = 5x4. THE FLOOR — nothing smaller ships, which kills today's 11/11.5/12.5px cluster and the single 9px."
+      }
+    ],
+    "spacing": [
+      4,
+      6,
+      8,
+      12,
+      16,
+      20,
+      24,
+      32,
+      40,
+      56
+    ],
+    "rules": [
+      "TOKEN PARITY — every page's :root declares the same token NAMES with the same VALUES. Names are never renamed, only revalued; new tokens are added alongside the fourteen CORE names the suite reads with a bare L[tok]. Test: parse :root from all four pages; fail on any name present on one and absent on another, or holding two values. Fails today if --ord-* stays on two pages only, and would crash rather than fail if any CORE name were renamed.",
+      "THE BINDING GROUND IS THE DARKEST SURFACE THE INK CAN LAND ON, NOT WHITE. --text and --muted clear 7.0:1 against --panel-3; --sand, --good, --danger, --info, --code-dim, --dot-js clear 4.5:1 against it; --border-input clears 3.0:1 against it. Test: compute all seven pairings. Fails on reverting --muted to #586981 (4.67) or --border-input to #858d99 (2.80). This closes a real gap: test_suite.py currently tests --border-input against --panel-2 only, where it passes at 3.04.",
+      "--panel-3 IS THE FLOOR. No rule below the masthead sets a background darker than --panel-3. Test: in-browser, sweep computed backgroundColor of every visible element outside <header>, compute relative luminance, fail on any below --panel-3's (0.7900). Fails on adding a #dde3ea well. This is what makes the state inks' ~0.13 headroom safe by rule rather than by luck.",
+      "THE BROWN BAR IS A SURFACE AND CARRIES ITS OWN INK SET. Every visible label inside <header> computes to exactly #ffffff; every control boundary inside <header> clears 3.0:1 against --tint-strong; the bar's only fill is --on-bar-fill. Test: in-browser per page. Fails today on nav .btn.outline at 2.79:1 (nizam:119, admin:112/122, nokhatha:136).",
+      "OPACITY IS NOT A COLOUR. No rgba() appears in color, background, background-color, border-color, fill or stroke in any authored stylesheet; every translucent value is replaced by the solved hex it composites to. box-shadow is exempt — a shadow is by definition a translucent overlay and is never a surface or an ink. Test: grep the <style> blocks. Fails today on twelve occurrences across the four pages.",
+      "NO BEIGE, COMPUTED NOT DECLARED. For every visible element, read computed color AND background-color; fail any whose relative luminance > 0.35 and whose red channel exceeds its blue by more than 6. --tint-strong and --on-bar-fill are exempt by name — brown as ink-as-field is the one sanctioned exception. Test: in-browser. Fails today on the masthead tagline, whose rgba(255,255,255,.82) composites to #e5dcd6 (r 229, b 214, L 0.74) — a beige the existing five-token check cannot see because it is a composited ink, not a declared surface.",
+      "--tint IS BODY-GRADE ON WHITE AND --panel-2 ONLY. Brand-coloured copy longer than 120 characters may sit on --bg/--panel (7.87) or --panel-2 (7.14) but never on --panel-3 (6.57, below the 7:1 body floor). Test: fail any element whose computed color is --tint, whose painted background resolves to --panel-3, and whose textContent exceeds 120 characters.",
+      "--border IS DECORATIVE AND NEVER THE SOLE BOUNDARY OF A CONTROL, NOR USED INSIDE A RECESSED BLOCK. Test: every input, select, textarea, button, [role=button] and .btn computes a border-color clearing 3.0:1 against its own painted background; and no element whose painted background is --panel-2 or --panel-3 carries a border-color equal to --border. Fails today on .arrow (index:347) and .btn.outline, both bordered in var(--border) at 1.45:1.",
+      "GRAPHIC-ONLY COLOURS CARRY NO TEXT AND NO CONTROL. --sand-vivid and --viz-zero never appear as a computed color on an element with text content, nor as a border-color on a control. Charts sit on --bg or --panel only, never on --panel-3, so the 2:1 chart-mark floor holds (--viz-zero is 2.09:1 on white and 1.75:1 on --panel-3). Test: in-browser, walk every inline <svg> chart to its nearest painted ancestor background and fail if it is --panel-3.",
+      "EVERY FIGURE CARRIES dir=\"ltr\". Any element whose text contains a signed or bracketed number, a currency amount, the CR number or a phone number sits inside dir=\"ltr\" (itself or an ancestor below the RTL paragraph root). Test: in-browser, assert the attribute on every such node. Fails today across all four pages — I reproduced the consequence in the repo's own Chromium: in RTL with no dir, +4,318.625 lays out as 4,318.625+, U+2212 1,204.000 as 1,204.000−, and +965 6589 4110 as 4110 6589 965+. nizam.html builds exactly those strings at lines 690 and 712 and carries two dir=\"ltr\" attributes in 1457 lines; admin.html and nokhatha.html carry none.",
+      "EIGHT TYPE SIZES, NO NINTH. Every computed font-size across the four pages is one of 52, 34, 24, 20, 18, 16, 14, 12 (the hero clamp resolving anywhere in 32–52 is exempt). Test: in-browser sweep of computed fontSize. Fails today — index.html alone computes 21 distinct values including single appearances of 9px, 19px, 25px and 27px, and the 11/11.5/12.5/13.5/14.5/15.5 half-step cluster.",
+      "EVERY LINE BOX IS AN INTEGER MULTIPLE OF 4px AND EVERY RATIO CLEARS 1.35. Test: in-browser, for every text element assert lineHeight/fontSize >= 1.35 and lineHeight % 4 === 0. All eight steps satisfy it by construction: 72, 48, 36, 32, 28, 28, 20, 20. Fails on any nudged optical leading, and it is what keeps Arabic text on the same unit as the space around it.",
+      "EVERY INTERACTIVE ROW MEASURES 44px AND EVERY CONTROL SETS 16px. Test: in-browser, assert getBoundingClientRect().height >= 44 on every interactive target and computed fontSize >= 16 on every input, select and textarea. The first is arithmetic from the ramp (20 + 12 + 12), not an assertion beside it.",
+      "ARABIC IS NEVER LETTER-SPACED. Test: fail any element whose computed letter-spacing is not 'normal' or 0 and whose textContent contains a character in U+0600–U+06FF. Tracking is legal only inside a direction:ltr; unicode-bidi:isolate span — the .en wordmark line and Latin labels. Cairo is cursive and CSS tracking is applied after shaping, so it opens the joining stroke and the word comes apart.",
+      "FOUR WEIGHTS, AND 600 ONLY BECAUSE IT IS MAPPED. Test: computed fontWeight is in {400, 500, 700, 800} — or 600, and then only if an @font-face rule for weight 600 pointing at cairo-500.woff2 exists in the same file. Fails if a weight is requested that would be synthesised.",
+      "THREE RADII AND NO 50%. Test: sweep computed borderRadius; fail on any value outside {0, 8px, 12px, 999px}. Fails today on thirteen distinct values over 77 declarations, including 3px, 6px, 7px and 11px appearing once each, and seven uses of 50%.",
+      "NOTHING IN NORMAL FLOW CASTS A SHADOW. box-shadow is permitted only on the scrolled masthead edge, the fixed mobile tab bar, a toast, and a tooltip/popover. Test: sweep computed boxShadow on every element whose position is static or relative and fail on any value other than 'none' outside that allowlist. Fails today on the 0 10px 24px hover lift. The zero-blur ring idiom (0 0 0 1px) is exempt — it is a border drawn without changing layout, not elevation.",
+      "SPACING IS ONE CLOSED SCALE. Every computed integer padding, margin and gap is in {0, 4, 6, 8, 12, 16, 20, 24, 32, 40, 56} plus 44 for the flow number's gutter. Test: the suite's existing SCALE check, unchanged. This is the one check every losing stance broke — swiss added 48/64/96/128, quiet added 72/96, arabic-geometric renamed the ladder.",
+      "THE DIGIT FACE IS OWNED. Every bundled Cairo woff2 declares coverage of U+0030–U+0039. Test: load each file and assert the cmap contains 0x30 through 0x39. Fails today on all four files — I confirmed each carries 393 glyphs, zero ASCII digits, and exactly one Latin letter ('A'), so every KWD amount, every hero counter, +965 6589 4110, and thirteen of the fourteen letters of 'Almuhallab Code' render in whatever face the device happens to have.",
+      "FOCUS IS NEVER REMOVED AND ALWAYS CLEARS ITS GROUND. Below the bar: 2px solid var(--tint) at 2px offset (7.87 / 7.14 / 6.57 on the three surfaces). Inside <header>: 2px solid var(--on-bar) at 2px offset (8.74). Test: in-browser, focus every focusable control on every page, assert computed outline-width >= 2px and that the outline colour clears 3:1 against the nearest painted background. Fails if the generic --tint rule is ever allowed to apply on the bar, where it measures 1.11:1."
+    ],
+    "mark_recommendation": "KEEP THE BOUM, and treat a change as a separate, owner-initiated decision. I rendered all four candidates in both forms at 16/20/24/32/48/80, positive and reversed on the bar, and looked at them — which is what build_marks.py's own board asks for («رأيتُه في سلّم المقاسات هنا، فانظر إليه بنفسك قبل أن تقرّر»). Two of the four fail outright at the mark's real working size. The ASTROLABE compact form is a circle with a diagonal through it at 16, 20 and 24px — a prohibition sign. The file contradicts itself here: the COMPACT code comment claims the shortened alidade fixed it, while the Arabic board entry still reports the flaw; the render settles it, because the gap between the alidade's end and the rim is sub-pixel at favicon size. The MEEM reads as the numeral 9 (or a lowercase q) at every size from 16 to 80, positive and reversed — which is disqualifying on a site whose own rule is one numeral system, Latin digits: the favicon would be a digit. That is a defect in this drawing, not in the idea; square-Kufic ميم remains the most ownable of the four and could be redrawn out of it, but redrawing is not choosing among the four. The SAIL is identical at 16 and 80 because it is one filled mass, and it is the only one with no small-size failure — but its compact form drops the waterline bar that is the only thing making it a sail rather than a wedge, so the form that ships on the favicon, the PWA icon and a polo carries no nautical read at all, and build_marks.py itself calls it «أعمّها». The STAR does not fail — it is a distinct silhouette at every size — but its construction (two legible squares, the entire distinctiveness argument) does not separate below about 32px; at 16–20px it is a rosette or a cog. So the honest ranking if the owner does proceed is: star (safe, generic, no failure mode), then a REDRAWN meem (most ownable, but only after the 9 is engineered out and re-rendered). Against that, the incumbent boum is specific, culturally located, four weeks old, redrawn at the owner's word after an independent review, locked by CLAUDE.md and pinned by six literal path signatures across three files with seven generators downstream. Replacing a mark on its third iteration in one quarter with the candidate its own brief calls the least distinctive is a regression, not a modernisation. Nothing in the palette, the ramp, the spacing or the rules above depends on this decision.",
+    "what_changes_on_the_site": [
+      "almuhallab/index.html — :root: two value changes (--muted #586981→#434d55, --border-input #858d99→#7c858c), three new bar tokens (--on-bar, --on-bar-bd, --on-bar-fill), three radius tokens, one --lift token, and the nine --ord-*/--viz-* tokens added for cross-page parity. Body: the five rgba() colour values at lines 297–300, 373–374 and 907 replaced by solved hexes; 21 computed font-sizes collapsed to the 8-step ramp; 11 radii collapsed to 8/12/999 with the six 50% uses re-pointed; the 0 10px 24px hover lift removed (hover becomes a border swap from --border to --border-input); dir=\"ltr\" added to the four hero counters and the phone number; .arrow (line 347) and .btn.outline re-bordered from --border to --border-input; the focus rule split so the bar gets 2px solid var(--on-bar).",
+      "almuhallab/nizam.html — the same :root. The real fix lands here: line 149's `border: 1px solid var(--border-input)` combined with line 177's `fieldset label.total input { background: var(--panel-3) }` is the live 2.80:1 failure, and the new value makes it 3.13:1. dir=\"ltr\" on every amount the script builds — the signed strings at lines 690 and 712, the totals, the year headers and the CR number (the file carries two dir=\"ltr\" attributes in 1457 lines today). Ramp and radii collapse. The mobile bottom tab bar's shadow (line 259) stays — it is on the --lift allowlist. The @media print block loses nothing.",
+      "almuhallab/admin.html — the same :root, including its own --ord-*/--viz-* which become the canonical values for all four pages. Bar tokens replace the rgba() at lines 100–123. dir=\"ltr\" added (the file has none). The tooltip shadow at line 171 is re-pointed at --lift. The runtime ramp at line 593 (`\"var(--ord-\" + Math.min(5, i + 1) + \")\"`) is untouched — the five-step ramp is kept, which is why no stance's three-step cap was adopted. Charts stay on --panel, never --panel-3, so --viz-zero holds 2.09:1.",
+      "almuhallab/nokhatha.html — the same :root. nav .btn.outline (line 136) and the header controls re-bordered from rgba(255,255,255,.4) at 2.79:1 to --on-bar-bd at 4.51:1; .brand small (line 122) from rgba(255,255,255,.82) to solid --on-bar at 8.74:1, with hierarchy from 12px/500 instead of alpha. The 0 0 0 1px var(--tint-strong) ring on .plan.featured stays — it is a border, not elevation. Ramp and radii collapse.",
+      "almuhallab/fonts/cairo-400.woff2, cairo-500.woff2, cairo-700.woff2, cairo-800.woff2 — re-subset from upstream Cairo to add U+0030–U+0039 plus , . - + ( ) % / : and U+2212, keeping the Arabic subset intact. Same four filenames, so nothing else moves. Each file currently carries 393 glyphs with zero ASCII digits; the Arabic-Indic ٠–٩ are already present, which is the proof that upstream has the Latin digits and this subset simply dropped them. Expect roughly +3–5 KB total against today's 54 KB.",
+      "almuhallab/sw.js — no path changes (the four font filenames are unchanged), but the cache version must be bumped so the re-subset files are actually fetched rather than served from the old precache.",
+      "almuhallab/index.html line 230 comment — the note reading \"Arabic subset only; Latin and digits stay on the system face\" is now false and must be rewritten; it is the documented decision this change reverses.",
+      "design/test_suite.py — raise the muted floor in the contrast loop from `need = 4.5` to 7.0 (CLAUDE.md already says body >= 7:1; the test did not enforce it). Add --panel-3 as a ground for the field-border check, which today reads `contrast(P[\"border-input\"], P[\"panel-2\"]) >= 3.0` and is the only reason the 2.80:1 failure survived 646 checks. Extend the no-beige check from five declared surface tokens to computed color and background-color in the browser, so a composited ink like #e5dcd6 can fail. Add the bar-ground, alpha-ban, dir=\"ltr\", ramp, line-box, radius, shadow-allowlist and digit-coverage checks. Each of these must be proved able to fail before it is counted, per the repo's own rule.",
+      "design/design_system.py — re-run. It extracts tokens from the :root block and component CSS from the stylesheet, so its --check will fail until design/design-system/ is regenerated. No code change needed.",
+      "CLAUDE.md — record the two revalued tokens with their before/after ratios, the three new bar tokens and the rule that the masthead is a fourth ground, the promotion of every bar alpha to a hex, the 8-step ramp, the three radii, and the font re-subset. Note that the no-beige rule is now enforced on computed colour, not only on declared surfaces.",
+      "design/logo_pack.py, design/og_image.py, design/instagram_covers.py, design/windows_icon.py, design/macos_icon.py, design/ads.py, design/film/, almuhallab/logo.svg, almuhallab/favicon.svg, almuhallab/icon.svg — NO CHANGE. All are mark-derived and all are blocked on the mark decision. None of them reads a colour token that moved."
+    ],
+    "open_questions": [
+      "THE MARK, and everything drawn from it. Blocked on the owner, in so many words: logo.svg, favicon.svg, the #i-boum/#i-sail sprite, the 39-file logo pack, og.png, the 13 Instagram images, both app icons, the film, the ads, the PDF sample cover, and the six path signatures in identity_checks(). Nothing in the palette, ramp, spacing or rules waits on this.",
+      "Does upstream Cairo carry the `tnum` feature? The bundled subset does not — its feature set is ccmp, fina, init, kern, locl, mark, medi, mkmk, rlig — so the eleven `font-variant-numeric: tabular-nums` declarations across nizam, admin and nokhatha currently apply to whatever face the device supplies. If the re-subset can include `tnum`, columns align by the font; if not, statement columns need explicit ch widths and the declarations should be removed rather than left as decoration.",
+      "Re-subsetting Cairo reverses a decision the code documents at index.html:230. It is a correctness fix, not an identity change, but the owner should confirm it — the cost is a few KB and the benefit is that a financial table's digits stop being the device's digits.",
+      "--muted moves from 5.60:1 to 8.64:1 on white. I looked at it rendered and it reads correctly as secondary, but the footer's four link columns are the one place a heavier secondary could tip toward looking like primary text. Worth a look in place before committing.",
+      "The `section` step at 34px is a large move from today's 22px h2. It is right for the company page's short-copy-carried-by-icons register; it needs to be looked at inside the scroll-snap rails, where a taller heading eats into the visible track.",
+      "--on-bar-fill #865e40 is a warm brown and therefore the one token that could be argued into the no-beige rule. It is the exact colour the current rgba(255,255,255,.16) already composites to — zero visual change — but the exemption is by name, so if a future edit lightens it the rule has no opinion. It should probably be pinned to that literal hex in the suite.",
+      "Whether the state inks (--sand 4.63, --danger 4.62, --good 4.66, --info 4.66 on --panel-3) should be re-solved for margin. I kept them: they pass, and moving four colours touches four pages plus two chart ramps. The floor rule makes the ~0.13 headroom safe, but if a darker recess is ever wanted, all four must be re-solved first."
+    ],
+    "summary": "`systems` wins — highest mean, and the only stance no judge caught overstating a ratio. Each runner-up was: `arabic-geometric` claimed --tint clears 3:1 as a focus ring \"on every surface\" (1.11:1 on the bar); `editorial` invented a 5.07:1 threshold; `quiet` put 1.62:1 text on the masthead; `swiss` built its headline fix on --sand-vivid being the warning ink, which I grepped and it is not.\n\nI verified the two live defects: --border-input at 2.80:1 on --panel-3 (real at nizam.html:149+177, invisible because the suite only tests it against --panel-2), and --muted at 4.67:1 carrying body copy. Fixed to 3.13 and 7.20.\n\nGrafted: the brown bar as a fourth ground with its own three tokens; digits fixed by re-subsetting Cairo rather than importing a second face; 44px falling out of the ramp; alphas promoted to hexes.\n\nI rendered the four candidate marks and looked: the astrolabe is a prohibition sign at 16px, the meem is a numeral 9. Keep the boum.\n\nPalette, ramp, spacing and twenty testable rules ship now; only the mark is blocked."
+  }
+}
