@@ -84,6 +84,20 @@ cbk-payments.log
 # prevent; it was just spelled too narrowly to do it.
 *.zip
 
+# ONE EXCEPTION, and it is narrow on purpose: the deploy endpoint's test
+# fixture. `scripts/fixtures/deploy-demo.zip` is 502 bytes and it has to be IN
+# the repository, because api/deploy.php only accepts artifacts from
+# raw.githubusercontent.com and two other GitHub hosts — so the only way to
+# test a real deploy is to have GitHub serve a real artifact. The alternative
+# was widening that allow-list to suit a test, which is changing production to
+# suit a test.
+#
+# The path is pinned, not the extension: anything else ending .zip stays
+# ignored, including a package built into scripts/ by accident. The rule above
+# was widened once already because it was spelled too narrowly; this exception
+# is spelled as tightly as it can be for the same reason.
+!scripts/fixtures/deploy-demo.zip
+
 # Scratch probes. Every session writes scripts/_probe.mjs to measure something
 # once; one of them was committed. The leading underscore is the convention and
 # package-check.mjs already refuses files matching it inside the docroot.
