@@ -111,6 +111,7 @@
     "test:totp": "node scripts/totp-test.mjs",
     "test:session-life": "node scripts/session-life-test.mjs",
     "test:returns": "node scripts/returns-test.mjs",
+    "test:no-exchange": "node scripts/no-exchange-parity-test.mjs",
     "test:rules": "node scripts/rules-test.mjs",
     "test:rules-panel": "node scripts/rules-panel-test.mjs",
     "test:seo-cache": "node scripts/seo-cache-test.mjs",

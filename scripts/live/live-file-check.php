@@ -32,7 +32,7 @@ $WANT = [
     'api/accounting.php' => '0e508c851de94808626164518d8394e6c65508ec2733efd16be7a278b2825963',
     'api/admin.php' => '1e0fbaa6e0b767f1e2f003746e2f0e9a52cb4f67d1249ef9fc222caeed9af65a',
     'api/antifraud.mysql.sql' => '861285918d5a45a38913a2cd3300b49d825e3a6691ea81411f31b6840808275e',
-    'api/api.php' => 'd1fa6fc326ef40ed5547ba9a55a2548c795531375f7657a21d0f18a8562e2e5b',
+    'api/api.php' => '2058f295b2cabf7dd071922cdb8915658033bd661a58706b8b08099be334ed6b',
     'api/arabic.php' => 'ee95e3677275fe690cde28c627d98d32d903118ae9c4f418e0fb1dca65c72cd9',
     'api/assistant.mysql.sql' => 'c7d041e64a9576eeba376d9d1430f8b5f7f428547d175d73d65d0e62e6b6eeb9',
     'api/assistant.php' => 'f76fbd923ca4ac6935109d6cb0e1490f1aa96c882b4fdd3a19b056bd0a707acc',
@@ -119,7 +119,7 @@ $WANT = [
     'assets/returns-link.js' => '07a9d4753e0120988fe95e43d618760cfde9a3b1cfdabb31b209b2ae8a01ce10',
     'assets/returns-request.js' => '3cc4b82d3fd70cdd6689f52d57894c679d48db2b3a45cc115b9b90b9d10ea830',
     'assets/rolldown-runtime-QTnfLwEv.js' => '5db5ba82eef00d1dee7e86e663098c9427d01183a88d357437daff295aec3e75',
-    'assets/rules.js' => 'fa86168f7f56278bb8f2dfc5fc3f447907e89c39940ab2f7932a8a1455c35d31',
+    'assets/rules.js' => '5c1af19d34b7642e10a54865fdbd3d7017c64d29c14ac879e6d3c707c9fd0e51',
     'assets/sporta-dark.css' => '0ea59b2c0ef1638e42c54839b43c42c24dadb511cc18fd293d21c9bfbadb096a',
     'assets/sporta-ui.css' => 'cbfcd021edf9d22e62d25b97aede98bd36ffc6b2c4f8090baacb393aa75e257b',
     'assets/theme.js' => '9e7403a23f64d536ce66b86feb07a264c48d15761d17eb53e608b3c959ae8992',
@@ -212,7 +212,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => '1ba2a01e9f35e80a67b4b6047afcb5370b4005074a150ade4907a578cb0ebf4a',
-    'sw.js' => '14f8a2f1af673e91ea73d299c0c9fa77539a0c41127df7ea637421406ffe5ae8',
+    'sw.js' => '40825bb51e876d46e6d7ff1285d0bfe2719452c9a15712dfb4c2016e6c98b1e9',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.

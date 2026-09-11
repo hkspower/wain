@@ -256,7 +256,11 @@ export default function RulesScreen() {
             onChangeText={(t) => setText({ ...text, return_days: t })}
             keyboardType="number-pad"
           />
-          <ThemedText style={styles.hint}>Counted from delivery, not from the order.</ThemedText>
+          <ThemedText style={styles.hint}>
+            Counted from delivery, not from the order. WARNING: the shop’s pages say
+            “14 days” in fixed text, so changing this changes what is enforced but not
+            what customers are told.
+          </ThemedText>
 
           <Field
             label="Unpaid cash orders per customer"
@@ -283,7 +287,9 @@ export default function RulesScreen() {
           </ThemedText>
 
           {chips('governorates', 'Delivery areas',
-            'A customer outside these cannot check out.')}
+            'A customer outside these cannot check out. WARNING: the checkout still lists '
+            + 'all six areas in fixed text, so removing one does not hide it — the customer '
+            + 'fills the whole form and is refused at the last step.')}
           {chips('sizes', 'Sizes',
             'Which of the sizes this shop offers, in the order they appear.')}
           {chips('fits', 'Fits', 'Which fits a customer may choose from.')}

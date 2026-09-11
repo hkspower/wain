@@ -115,13 +115,13 @@
     ['free_delivery_fils', 'Free delivery over', 'Orders at or above this pay no delivery. 0 turns it off.'],
   ]
   var COUNTS = [
-    ['return_days', 'Returns window', 'days', 'Counted from delivery, not from the order.'],
+    ['return_days', 'Returns window', 'days', 'Counted from delivery, not from the order. WARNING: the shop’s pages say “14 days” in fixed text, so changing this changes what is enforced but not what customers are told.'],
     ['cod_open_max', 'Unpaid cash orders', 'per customer', 'How many cash-on-delivery orders one phone number may have open at once.'],
     ['review_reward_pct', 'Review reward', '%', 'The discount a customer gets for reviewing something they bought.'],
     ['discount_max_pct', 'Discount cap', '%', 'The most any combination of discounts may take off one order.'],
   ]
   var LISTS = [
-    ['governorates', 'Delivery areas', 'A customer outside these cannot check out.'],
+    ['governorates', 'Delivery areas', 'A customer outside these cannot check out. WARNING: the checkout still lists all six areas in fixed text, so removing one does not hide it — the customer fills the whole form and is refused at the last step.'],
     ['sizes', 'Sizes', 'Which of the sizes this shop offers, in the order they appear.'],
     ['fits', 'Fits', 'Which fits a customer may choose from.'],
   ]

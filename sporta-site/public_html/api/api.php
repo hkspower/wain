@@ -309,7 +309,27 @@ if ($r === 'products') {
         // Women's clothing cannot be exchanged. The storefront needs this to
         // say so on the product page and to refuse the item on /returns —
         // finding out at the pickup is the worst possible moment.
-        $row['no_exchange'] = (bool)$row['no_exchange'];
+        //
+        // FROM THE CATEGORY, NOT THE COLUMN, and the two are not the same thing.
+        // This read `(bool)$row['no_exchange']` — the products.no_exchange
+        // column — while store_return_lookup() and the size adviser BOTH decide
+        // with `category === 'women'`. Two definitions of one policy, and on the
+        // real catalogue they disagreed: 10 outerwear garments carry the column
+        // set with a category that is not women, so the shop TOLD the shopper
+        // those jackets could not be exchanged and then accepted the exchange.
+        // The label was the wrong half — nothing refuses them.
+        //
+        // The category wins because it is what is actually enforced, what all
+        // three customer-facing strings say ("Women's clothing cannot be
+        // exchanged"), and the only one of the two an owner can influence:
+        // admin.php has no no_exchange anywhere, so the column cannot be edited
+        // in /backends at all. A flag nothing can set and nothing enforces is
+        // not a policy, it is seed data being shown to customers.
+        //
+        // Making it per-garment and editable is a real option and a bigger one;
+        // it needs product_save, both panels and the returns route, and it is
+        // the owner's call rather than a repair.
+        $row['no_exchange'] = ((string)$row['category']) === 'women';
         unset($row['sale_price'], $row['sale_starts_at'], $row['sale_ends_at']);
     }
     unset($row);
