@@ -229,10 +229,18 @@ jobs:
           else
             echo "شوق: agent mode (override: $AGENT)"
           fi
-          if [ -n "$TTS" ]; then
-            echo "صوت وين: live bridge ($TTS) — runtime sentences in her own voice"
+          # The bridge is /api/tts.php on this site's own origin and is the
+          # DEFAULT now, so an unset variable is the normal, working case. It
+          # used to print "recorded clips only" here, back when the bridge was
+          # an n8n webhook needing a URL nobody had set. Warn on "none"
+          # instead — the deliberate off switch — exactly as the AGENT block
+          # above does, and for the same reason.
+          if [ -z "$TTS" ]; then
+            echo "صوت وين: live bridge (built-in default /api/tts.php) — runtime sentences in her own voice, once the key is on the server"
+          elif [ "$TTS" = "none" ]; then
+            echo "::warning::WAIN_TTS_URL is \"none\" — runtime sentences in this build fall back to the browser voice."
           else
-            echo "صوت وين: recorded clips only — runtime sentences fall back to the browser voice. Set the WAIN_TTS_URL variable to enable the bridge."
+            echo "صوت وين: live bridge (override: $TTS)"
           fi
 
       - name: Verify build output

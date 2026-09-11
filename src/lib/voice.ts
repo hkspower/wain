@@ -22,20 +22,57 @@ export { PERSONAS, type PersonaId };
  * and the drop from a Kuwaiti woman to a robot is the loudest thing on the
  * page — louder than anything either voice actually says.
  *
- * The bridge is an n8n webhook that holds the ElevenLabs key server-side, so
- * the static export still ships no credential; that constraint is the reason
- * the clip pipeline exists at all and it is not being relaxed here. The
- * workflow renders the same voice with the same settings the clips were
- * recorded with — its «اختر الصوت» node and `scripts/gen-voice.mjs` carry the
- * same table on purpose, because a clip and a live sentence are heard one
- * after the other inside a single utterance, and any difference between them
- * is audible as the speaker changing mid-sentence.
+ * The bridge holds the ElevenLabs key server-side, so the static export still
+ * ships no credential; that constraint is the reason the clip pipeline exists
+ * at all and it is not being relaxed here. It renders the same voice with the
+ * same settings the clips were recorded with — `scripts/publish/tts-endpoint.php`
+ * and `scripts/gen-voice.mjs` carry the same table on purpose, because a clip
+ * and a live sentence are heard one after the other inside a single utterance,
+ * and any difference between them is audible as the speaker changing
+ * mid-sentence. `npm run audit:tts` compares the two on every scan.
  *
- * Unset, nothing about the site changes. Set and unreachable, the browser
- * voice speaks after at most TTS_DEADLINE_MS. This is an upgrade to a path
- * that already worked, never a dependency.
+ * ## Why this is a default rather than a variable
+ *
+ * It was `process.env.NEXT_PUBLIC_WAIN_TTS_URL ?? ""`, pointed at an n8n
+ * webhook on an instance shared with another project, and it needed TWO
+ * switches: the variable set AND that workflow active. Neither was ever done,
+ * so every runtime sentence on the live site was read by the browser's robot —
+ * and the half-on state was worse than off, because the variable alone bought
+ * a four-second wait before the same robot.
+ *
+ * `/api/tts.php` is served by the host the page came from. It is not a secret,
+ * it is not an origin anyone has to allowlist, and it is the same relative path
+ * on staging as in production — so there is nothing left for a variable to
+ * carry. A feature that ships switched off by default ships switched off.
+ *
+ * The variable still overrides, and `||` rather than `??` for the reason
+ * written up in wain-ai.ts: an unset GitHub Actions variable expands to `""`,
+ * which `??` passes through as the value. Write «none» to turn the bridge off.
+ *
+ * Unreachable or unconfigured, the browser voice speaks — once, for the whole
+ * page, because `bridgeOff` below stops it asking again. This is an upgrade to
+ * a path that already worked, never a dependency.
  */
-const TTS_URL = process.env.NEXT_PUBLIC_WAIN_TTS_URL ?? "";
+const TTS_CONFIGURED = process.env.NEXT_PUBLIC_WAIN_TTS_URL || "/api/tts.php";
+const TTS_URL = TTS_CONFIGURED.trim().toLowerCase() === "none" ? "" : TTS_CONFIGURED;
+
+/**
+ * Set when the bridge has said, in so many words, that it will not work.
+ *
+ * Defaulting the URL on means a site whose endpoint is not installed, or whose
+ * key has not been pasted in yet, would otherwise pay a failed request before
+ * EVERY runtime sentence. One is fine; one per sentence is a tax on the
+ * feature being unfinished.
+ *
+ * Only the answers that cannot change within a page are remembered: 404 (not
+ * installed), 503 (`not_configured`, or the day's render budget spent — both
+ * stay true for the rest of this visit) and 403 (this origin is not allowed,
+ * which is a deployment fact). A timeout, a 5xx from ElevenLabs or a 429 are
+ * NOT remembered — those are the ones a second attempt can win, and a cold
+ * render that the listener gave up on has still been cached server-side, so
+ * the next sentence may well be instant.
+ */
+let bridgeOff = false;
 
 /**
  * How long to wait for the bridge before giving the line to the browser.
@@ -45,6 +82,11 @@ const TTS_URL = process.env.NEXT_PUBLIC_WAIN_TTS_URL ?? "";
  * visitor will wait for an answer they asked for out loud — a render plus a
  * transfer on a Kuwaiti mobile connection normally lands well inside it, and
  * anything that does not, isn't going to.
+ *
+ * Giving up here does not waste the render. The endpoint sets
+ * `ignore_user_abort`, so a sentence abandoned at four seconds still finishes
+ * and lands in its cache — this visitor hears the robot, the next one hears
+ * شوق, and the characters are paid for exactly once either way.
  */
 const TTS_DEADLINE_MS = 4_000;
 
@@ -582,7 +624,7 @@ function releaseLive() {
  *  caller would do the same thing about — unconfigured, offline, slow, non-2xx,
  *  or a body that is not audio — so the fallback has exactly one condition. */
 async function speakLive(text: string, mine: number): Promise<boolean> {
-  if (!TTS_URL) return false;
+  if (!TTS_URL || bridgeOff) return false;
   releaseLive();
   try {
     const res = await deadlineFetch(TTS_URL, {
@@ -595,7 +637,12 @@ async function speakLive(text: string, mine: number): Promise<boolean> {
       body: JSON.stringify({ persona: snapshot.persona, text: forSpeech(text) }),
       signal: AbortSignal.timeout(TTS_DEADLINE_MS),
     });
-    if (!res.ok) return false;
+    if (!res.ok) {
+      // See bridgeOff: these three cannot change while this page is open, so
+      // asking again only delays every later sentence by a round trip.
+      if (res.status === 404 || res.status === 503 || res.status === 403) bridgeOff = true;
+      return false;
+    }
     const blob = await res.blob();
     // A zero-length or non-audio body plays as silence, and silence is
     // indistinguishable from a working call — the visitor just thinks she

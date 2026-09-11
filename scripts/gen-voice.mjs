@@ -155,6 +155,29 @@ const MODEL = process.env.ELEVEN_MODEL ?? "eleven_multilingual_v2";
 // size — and this site counts its bytes everywhere else.
 const OUTPUT_FORMAT = process.env.ELEVEN_FORMAT ?? "mp3_44100_64";
 
+/**
+ * `--rendition` — print the voice table as JSON and stop.
+ *
+ * Exists so `npm run audit:tts` can compare this table against the live
+ * bridge's copy of it in scripts/publish/tts-endpoint.php without re-typing it
+ * or grepping for it. Both sides are asked for their own values, by their own
+ * interpreter, so a rename or a reformat cannot fool the comparison the way a
+ * regex over the source would.
+ *
+ * Before the API-key check, deliberately: this reads nothing and spends
+ * nothing, so it must work in a checkout that has no key — which is every
+ * checkout.
+ */
+if (args.has("--rendition")) {
+  console.log(JSON.stringify(
+    { model: MODEL, format: OUTPUT_FORMAT, voices: Object.fromEntries(
+      Object.keys(RENDITION).map((p) => [p, { voiceId: VOICE_IDS[p], settings: RENDITION[p] }])
+    ) },
+    null, 2
+  ));
+  process.exit(0);
+}
+
 if (!DRY && !API_KEY) {
   if (CI) {
     console.log("gen-voice: ELEVENLABS_API_KEY not set — skipping clip generation.");
