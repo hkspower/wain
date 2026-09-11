@@ -406,6 +406,26 @@ A prohibition cannot be optional. Moving «ما تسجّلين له بنفسك»
 say-only-if-asked section made her start offering to register businesses
 herself — a promise she cannot keep.
 
+**Her third tool, `report_gap`, was chosen for what it does NOT promise.**
+Everything she could usefully *do* for a caller — send the WhatsApp, register
+the business — her prompt forbids precisely because she cannot finish it, and a
+tool that lets her half-finish one is worse than none. So the action is the one
+with no recipient: record what a caller asked for that the 52 places do not
+cover. Webhook, `post_tool_speech` with `pre_tool_speech` **off** — nothing is
+being waited on, so a waiting line would be the lie. It returns nothing.
+
+**The instruction lives in the tool's description, not in the prompt.** The
+description is the text she reads at the moment she decides to call, which is
+where the season-override lesson above says a rule has to sit; and the prompt is
+~15K characters of tuned Arabic with no update-in-place — retyping it to add two
+lines is the larger risk. All 20 attached tests passed against the live agent
+after attaching.
+
+**No shared secret, deliberately.** It is write-only and answers nothing, and a
+secret would have to live either in the agent config (readable) or in an n8n
+variable — which is the `REPLACE_PHONE_NUMBER_ID` failure mode: unset, silent,
+and discovered months later.
+
 ## There is an n8n instance, and part of wain runs on it
 
 `sportake.app.n8n.cloud`, shared with sporta. **Nothing in `npm run scan` can
@@ -436,6 +456,9 @@ silently and has to be compared by hand. Twelve workflows; four are wain's.
   documentation with a pager: when the deploy path changes, its prompt does.**
 - **`Wain — Events Hub`** — verified current 11 September: its formatter matches
   `orders.ts` and `places.ts` field for field. Nothing posts to it yet.
+- **`Wain — ما لقت شوق (فجوات الكتالوق)`** on `/webhook/wain-gap`, active —
+  شوق's one webhook tool. Four nodes into the data table `wain_gaps`
+  (`CyBLQKa6LcdgFUAX`). See the شوق section for why it has no shared secret.
 
 **Two pairs of switches, and in both the half-on state is worse than off.**
 صوت وين's bridge needs `NEXT_PUBLIC_WAIN_TTS_URL` set AND the workflow active;
