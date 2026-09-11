@@ -2495,6 +2495,57 @@ and the repository's OWN 6.3 MB zip refused `422 executable_in_artifact`.
 **Nothing has been deployed to the live shop.** The endpoint works and is
 unused; using it writes files into the docroot and is the owner's call.
 
+### "No .php in an artifact" did not mean what it says — the real hole
+
+Found by RE-READING the finished file rather than trusting the round that had
+just been tested, and it is the most serious thing this endpoint had. The `.php`
+regex was the only execution guard of its kind, so every one of these was
+accepted and written — measured against the real functions, not reasoned about:
+
+```
+assets/.user.ini   assets/.htaccess   assets/x.php5   assets/x.pht   WRITTEN
+```
+
+- **`.user.ini` is PHP's own per-directory config** under CGI/FastCGI, and
+  `auto_prepend_file` in it runs an arbitrary file on every request to that
+  directory. That is code execution **with no `.php` entry anywhere in the
+  archive** — the guarantee in the header defeated completely, by a file the
+  guard never looked at.
+- **`.htaccess` can map any extension to the PHP handler**, so a deployed `.txt`
+  becomes code. `PROTECTED_PATHS` DOES list `.htaccess` — but `isProtected()`
+  tests the FIRST path segment, so it guarded the web root's own and nothing one
+  directory deeper. **A name in a protection list is not protected; the function
+  that reads the list decides.**
+- `.php5` and `.pht` are commonly mapped to PHP by shared hosts.
+
+Post-authentication, so not a remote hole — and that is not much comfort,
+because **the entire point of refusing `.php` is to bound what a MISTAKEN or
+TAMPERED artifact can do**, and one that can write `.user.ini` is unbounded.
+
+`isDangerous()` matches on the BASENAME so it holds at any depth, and is called
+by BOTH the entry check and the copy loop — those see different strings, a zip
+name and a collapsed relative path, and this file has already had one guard go
+inert by being wired to only one of two.
+
+### A silent @copy failure was data loss, not a smaller number
+
+`@copy` failing skipped the file, left `$copied` lower, and still answered
+`ok: true`. Disk full or one bad permission is enough. **And the prune two
+blocks later turns that into deletion**: it removes everything in the OLD
+manifest missing from the NEW one, which is exactly the file that failed to
+copy. The replacement does not arrive AND the original is removed.
+
+A failure now stops before the prune, does not rewrite the manifest — the old
+one still describes what is really on disk — and names what did not land.
+
+Both mutation-tested, three ways, each caught naming its own cause; and the e2e
+deploy still succeeds, which is what says the new guard is not over-broad.
+
+**The lesson, and it is why the file was re-read at all:** a round of fixes that
+passes its own tests is evidence about the things it changed, and nothing else.
+The three defects found first were real; the fourth was worth more than all of
+them, and nothing in that round would ever have surfaced it.
+
 ## The live shop has no product photographs
 
 `photos=0/46active`, `brandLogos=0/8`, measured 2026-09-05. Every product card
