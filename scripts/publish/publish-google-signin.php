@@ -32,7 +32,7 @@
  * $COMMIT pins the files; fetch this script from HEAD. Full forty characters.
  */
 
-$COMMIT = '58f5672d2ea8cd48c174f4f6fd2b431818cca92a';
+$COMMIT = '5156ebc4066c2017c1a96ac15920960fc965407c';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw';
 $WEB    = $ROOT . '/public_html';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
@@ -40,7 +40,7 @@ $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
 
 $FILES = [
     'assets/google-signin.js' => '49eff5cdc6787576e4cb28e3fb67de505ab9c167f920d0d507f498643522eba1',
-    'api/store.php'           => '647c7496a08f7fcc88dce7525900afe39938ba7358d8963936e100a47110bb5a',
+    'api/store.php'           => '9bedcf6f4563b296257527a698167055a1eb9e1d9200a891fe581c4157abe77e',
     'api/admin.php'           => '69272f22147e8fe509e822181e31b1cee8f26b0d900889bf0054bcd7475b097f',
     'index.html'              => '582f1c4049051d65135deebf733b4b02cfb6455d334a7073c46ca44330338fb4',
     '.htaccess'               => '7c073577e89558f769862649394f7b749ec266534da6138ddba66123ee90c6e4',
