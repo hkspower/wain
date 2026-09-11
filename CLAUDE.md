@@ -2153,6 +2153,65 @@ environment's egress proxy, and the manual is not in this repository. It is
 asserted in a comment and pinned by a test, which is not the same as confirmed.
 Ask the bank.
 
+## A hero slide is a ROW, not a file — and raw.githubusercontent will not take a short SHA
+
+Published the all-black banner as the shop's hero on 2026-09-11. Three things
+came out of it, and two of them contradict something that had been assumed.
+
+**`/hero/*.webp` is not the hero.** Those five files are painted by
+`index.html`'s boot shell before React exists; the React hero reads
+`?r=slides`, and a photo slide lives in `hero_slides.image` as a data: URI
+served through `?r=slide_image`. api.php says so in its own words — *"this is
+what makes storing images in the database cost the same as storing them as
+files, and it is why nothing on this server needs write access to the web
+root."* So publishing a hero is a DATABASE write, `scripts/publish/publish-hero-slide.php`,
+and the artwork belongs OUTSIDE `public_html` (`assets/hero/`) or it becomes a
+tracked docroot file the server must also hold for nothing.
+
+**With no rows the bundle falls back to five DRAWN slides**, so adding the
+first photo is not "another slide in the carousel" — it is the moment the front
+page stops showing drawn art. One active row means one slide, and the arrows
+and dots hide themselves at `b > 1`.
+
+**Every text column is left null**, because the headline is burnt into the
+artwork. Filling `title_ar` would draw the shop's overlay on top of type that
+is already there, in another font at another size.
+
+### The abbreviated SHA answers 404, silently
+
+`raw.githubusercontent.com/<owner>/<repo>/21e4687/<path>` returned **404 three
+times running** while the same artwork at the full forty characters returned
+200. Other publishers here carry short shas and happened to work, which is
+worse than failing outright: **an unresolvable ref is an EMPTY FETCH**, and this
+file already records a publish lost to exactly that — a branch name with a
+slash in it, read as a ref, returning nothing and saying nothing. It was caught
+here only because the publisher checks the HTTP code before the hash.
+
+So: **pin the full sha, and check the code, not just the bytes.**
+
+### The phone hero HALVES when the slide is a photograph
+
+Measured in a browser at 390x844, the same page with the row on and off:
+
+```
+photo slide   390x155     desktop 1280x540
+drawn slides  390x290     desktop 1280x540
+```
+
+Desktop is identical; the phone loses half its hero. The cause is that the
+hero's min-height is `md:min-h-[…]` — it applies only from 768px — so below
+that the image's own 2.52:1 ratio sizes the box. Setting `image_w`/`image_h`
+to null changes nothing; it is the rendered aspect, not the attributes.
+
+**And it cannot be fixed by cropping.** A phone box at the drawn slides' 1.34:1
+with `cover` would show about half the banner's width, cutting either the
+headline or a model. A wide banner is wide. The real answer is a phone
+composition of its own, and the schema holds ONE image per slide — so it is a
+design decision for the owner, not a number to tune.
+
+**Undoing the publish is one statement**, which is what made it reasonable to
+ship and then report: `update hero_slides set active = 0 where id = 1`.
+
 ## The live shop has no product photographs
 
 `photos=0/46active`, `brandLogos=0/8`, measured 2026-09-05. Every product card
