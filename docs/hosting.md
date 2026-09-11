@@ -546,3 +546,38 @@ this repository controls; it can change between two deploys and did.
 
 Anything here that says what is on the server carries the date it was read, and
 should be re-read before it is trusted for something destructive.
+
+## The site monitor lives outside this repo, and its advice can go stale
+
+`Wain — AI Site Sentinel (الحارس)` in n8n polls `www.wainkw.com/`, a place page
+and sporta every ten minutes, and hands anything that looks wrong to Claude for
+a diagnosis that goes out over WhatsApp.
+
+**Its detection logic is right and was left alone.** It does not trust the
+status code: it requires `_next/static` in the homepage body and «أبراج الكويت»
+in `/places/kuwait-towers/`, because a root that arrived without its
+subdirectories answers a perfectly healthy 200 while the site has no CSS and
+every route but `/` is a 404 — the 9 September failure, written up above.
+
+**Its diagnosis prompt had gone stale, and that is the part that matters**,
+because the prompt is what a human is told to *do*. It described the FTP era:
+«the most common fault is index.html uploaded without `_next/` beside it» and
+the fix is to re-upload `out/` by hand through hPanel. Both are now wrong.
+Deploys go through the signed endpoint, which verifies a sha256 before writing,
+stages outside the live root and prunes against a manifest — so a partial
+upload is no longer the likely cause, and **a hand upload would leave the
+manifest disagreeing with the disk, so the next deploy prunes live files.** The
+prompt now says that, and says the repair is to re-run the deploy (safely
+repeatable) or roll back to one of the three releases the endpoint keeps.
+
+Two things worth carrying:
+
+- **An automation that gives instructions is documentation with a pager**, and
+  it drifts the same way documentation does, except nothing in `npm run scan`
+  can see it — it lives in n8n cloud. When the deploy path changes, the
+  Sentinel's prompt changes with it.
+- **It cannot alert yet.** Its WhatsApp node still carries
+  `REPLACE_PHONE_NUMBER_ID` and `REPLACE_YOUR_NUMBER_9655xxxxxxx`, and the
+  workflow is inactive. Until both are filled and it is switched on, **nothing
+  is watching this site** — which is how شوق's agent mode stayed broken in
+  production without anyone noticing.
