@@ -98,6 +98,12 @@ export const ASSETS = [
   { path: "press/type", kind: "kept", by: "tools/shots/type.mjs", what: "The HUD's numerals, held still." },
   { path: "press/volume", kind: "kept", by: "tools/shots/volume.mjs", what: "The car's own silhouette against the light." },
   { path: "press/audio", kind: "kept", by: "tools/shots/audioglitch.mjs", what: "The glitch report, as a file." },
+  { path: "press/tach", kind: "kept", by: "tools/shots/tach.mjs",
+    what: "Both rev counter faces — the road dial and the race cluster — drawn by the running game." },
+  { path: "press/tunnel", kind: "kept", by: "tools/shots/tunnel.mjs",
+    what: "The Second Ring underpass, four stations through it." },
+  { path: "press/menu", kind: "kept", by: "—",
+    what: "The title block, at the two widths the strapline solves its tracking for." },
 
   // ---- Split: the deliverable and the working files share a folder
   // because they are the same shot at two fidelities.

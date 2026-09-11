@@ -31,6 +31,9 @@ whether it belongs in the history at all.
 | `type/` | The HUD's numerals, held still. | `tools/shots/type.mjs` | kept |
 | `volume/` | The car's own silhouette against the light. | `tools/shots/volume.mjs` | kept |
 | `audio/` | The glitch report, as a file. | `tools/shots/audioglitch.mjs` | kept |
+| `tach/` | Both rev counter faces — the road dial and the race cluster — drawn by the running game. | `tools/shots/tach.mjs` | kept |
+| `tunnel/` | The Second Ring underpass, four stations through it. | `tools/shots/tunnel.mjs` | kept |
+| `menu/` | The title block, at the two widths the strapline solves its tracking for. | by hand | kept |
 | `film/` | The pre-race film, both encodings, and its poster frames. The 336 JPEGs it was made from are not the artefact. | `tools/shots/exportfilm.mjs` | part kept |
 | `ik/` | The rig at 4K. The JPEGs are the deliverable; the lossless PNGs beside them are 13 MB each. | `tools/shots/ik4k.mjs` | part kept |
 | `views/` | Car elevations, rendered on demand. | `tools/shots/car-views.mjs` | regenerated |
