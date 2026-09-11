@@ -2433,6 +2433,68 @@ base the change was built on nor the result, it stops with
 `REFUSED-UNEXPECTED-BASE` rather than discarding somebody else's edit, and it
 keeps the old copy in `storage/` as the rollback.
 
+### The endpoint was never the problem. Nothing could talk to it
+
+`scripts/deploy-sign.mjs` is the half that did not exist, and its absence is the
+whole reason for `manifest=none artifacts=0` and three log lines of
+`FAIL bad_signature`. Four things make a signature verify, each easy to get
+wrong and each producing the same opaque error:
+
+1. **The HMAC is over the EXACT REQUEST BODY BYTES.** Serialise once, sign that
+   string, send that string. Re-serialising between the two — a different key
+   order, a space after a colon — changes the hash and nothing says so.
+2. The header is `X-Deploy-Signature`, value prefixed `sha256=`.
+3. The secret is `trim()`ed on the server, so a trailing newline is fine
+   *because both sides trim*.
+4. `ts` is SECONDS. Milliseconds land ~55,000 years out and are refused as
+   `stale_request`, which at least names itself.
+
+Mutation-tested by breaking 1, 2 and 4 in the client: the first two produce
+`bad_signature` — **exactly the error in all three live log lines** — and the
+third `stale_request`. So the shop's dead endpoint is fully consistent with a
+client making one of these, rather than with anything wrong on the server.
+
+**The secret is never accepted on the command line**, where it would sit in
+shell history and the process list for every user on the machine. A file or the
+environment.
+
+### `test:deploy-e2e` — and why `test:deploy-endpoint` could not do it
+
+The guard-chain rig says in its own header that every one of its checks is
+satisfied by an endpoint that refuses everything: the download, checksum,
+extraction, wrapper collapse, copy and manifest were all untested. They need a
+real artifact on one of three GitHub hosts.
+
+So the e2e rig commits one — `scripts/fixtures/deploy-demo.zip`, 502 bytes —
+and lets `raw.githubusercontent.com` serve it. **The alternative was widening
+the endpoint's allow-list to suit a test, which is changing production to suit a
+test.** It needed a narrow `!scripts/fixtures/deploy-demo.zip` past the blanket
+`*.zip` ignore, pinned by PATH so nothing else slips through; the blanket rule
+was widened once already for being spelled too narrowly.
+
+**The fixture is WRAPPED on purpose** (`sporta-deploy-demo/…`), because that is
+the shape GitHub produces and the shape the wrapper collapse and the
+protected-path fix are both about. A flat one exercises neither.
+
+**The client is run as a PROGRAM, not reproduced.** Everything else in that rig
+signs inline, which tests a copy and would go on passing after the client broke.
+The manifest's `version` is then checked to be the client's own, which proves
+the body it built is the body the server parsed rather than merely that
+something validly signed arrived.
+
+**Its last check failed first for the wrong reason**, which is the house
+speciality and worth keeping: it listed protected directories that EXIST, and
+`api/` exists because the rig puts `deploy.php` in it. The invariant is not
+"api/ is absent" — it cannot be — but that no protected directory GAINED
+anything and that `deploy.php` is still byte-for-byte itself.
+
+Measured: `deployed=2 removed=0`, both files on disk, the wrapper collapsed, the
+manifest carrying collapsed paths, a wrong sha refused `422 checksum_mismatch`,
+and the repository's OWN 6.3 MB zip refused `422 executable_in_artifact`.
+
+**Nothing has been deployed to the live shop.** The endpoint works and is
+unused; using it writes files into the docroot and is the owner's call.
+
 ## The live shop has no product photographs
 
 `photos=0/46active`, `brandLogos=0/8`, measured 2026-09-05. Every product card
