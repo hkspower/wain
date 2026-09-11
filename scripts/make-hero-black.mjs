@@ -96,7 +96,7 @@ const SHIFT = -233                    // photo left offset, derived from the wom
  * at 2685 against a crop line of 2746, so she clears it by 61px. There is no
  * more room than that — do not shift further right without re-measuring. */
 
-const html = `<!doctype html><meta charset="utf-8">
+const makeHtml = (GRADED) => `<!doctype html><meta charset="utf-8">
 <style>
   @font-face { font-family: Plex; src: url(${font('plex-700-latin.woff2')}) format('woff2');
                font-weight: 700; unicode-range: U+0000-024F, U+2000-206F; }
@@ -204,17 +204,17 @@ const html = `<!doctype html><meta charset="utf-8">
                filter: grayscale(1) brightness(5.6) contrast(.42); }
 </style>
 <div class="stage">
-  <div class="shot"><img src="data:image/png;base64,${b64(SRC)}"></div>
+  <div class="shot"><img src="data:image/png;base64,${GRADED}"></div>
   <div class="wash"></div>
 
   ${marks ? `
   <div class="mark" id="m1">
     <img class="s" src="data:image/png;base64,${b64(R + 'logo-white.png')}">
-    <img class="fab" src="data:image/png;base64,${b64(SRC)}">
+    <img class="fab" src="data:image/png;base64,${GRADED}">
   </div>
   <div class="mark" id="m2">
     <img class="s" src="data:image/png;base64,${b64(R + 'logo-white.png')}">
-    <img class="fab" src="data:image/png;base64,${b64(SRC)}">
+    <img class="fab" src="data:image/png;base64,${GRADED}">
   </div>` : ''}
 
   <div class="type">
@@ -285,6 +285,97 @@ const html = `<!doctype html><meta charset="utf-8">
 </script>`
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+
+/* ---------------------------------------------------------------------------
+ * GRADE THE PHOTOGRAPH FIRST, once, and composite from the result.
+ * ---------------------------------------------------------------------------
+ * Measured on the ungraded banner, and only one of the two faults was the one
+ * being complained about:
+ *
+ *   the woman's amber rim   meanSat 0.64   94% of pixels over 0.35   hue 0
+ *   the man's shirt         meanSat 0.40   hue 210 (54%) and 180 (44%)
+ *   faces                   meanSat 0.37   hue 0
+ *
+ * The rim really is hot. But the GARMENTS were reading blue — the cool kicker
+ * spilling across the fabric at 0.40 saturation, which on a banner whose whole
+ * subject is black clothing is worse than the glow: the product was not the
+ * colour it is sold as.
+ *
+ * Three passes, each aimed at one of those numbers:
+ *
+ *   1. SATURATION COMPRESSION above a knee. Leaves ordinary colour alone and
+ *      pulls down only what is screaming, so skin at 0.37 barely moves while
+ *      the rim at 0.64 comes back hard.
+ *   2. CHROMA ROLL-OFF IN THE DARKS. A cast lives where the signal is weakest;
+ *      below V=120 the saturation is scaled down on a ramp, so black cloth goes
+ *      neutral and faces at V=181 are untouched. This is the fix for the blue,
+ *      and it is deliberately tone-keyed rather than hue-keyed — keying on hue
+ *      would also strip the cyan from the backdrop's own kicker, which is
+ *      lighting rather than a cast.
+ *   3. LOCAL CONTRAST on luminance only, so weave and seams read without
+ *      touching colour. Wide radius and a modest amount: an unsharp mask that
+ *      is too tight puts a halo back, which is what we are removing.
+ */
+const prep = await browser.newPage()
+const graded = await prep.evaluate(async ({ src, knee, roll, darkTo, darkCut, amount, radius }) => {
+  const img = new Image(); img.src = src; await img.decode()
+  const w = img.naturalWidth, h = img.naturalHeight
+  const c = document.createElement('canvas'); c.width = w; c.height = h
+  const k = c.getContext('2d', { willReadFrequently: true })
+  k.drawImage(img, 0, 0)
+  const im = k.getImageData(0, 0, w, h), px = im.data
+
+  // --- 1 + 2: saturation, in HSV, per pixel
+  for (let o = 0; o < px.length; o += 4) {
+    const r = px[o], g = px[o + 1], b = px[o + 2]
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn
+    if (!mx || !d) continue
+    let S = d / mx
+    if (S > knee) S = knee + (S - knee) * roll                    // compress the loud
+    if (mx < darkCut) {                                           // neutralise the darks
+      const t = mx / darkCut
+      S *= darkTo + (1 - darkTo) * t
+    }
+    const scale = S / (d / mx)
+    px[o]     = Math.round(mx - (mx - r) * scale)
+    px[o + 1] = Math.round(mx - (mx - g) * scale)
+    px[o + 2] = Math.round(mx - (mx - b) * scale)
+  }
+
+  // --- 3: local contrast on luminance
+  const lum = new Float32Array(w * h)
+  for (let q = 0, o = 0; q < w * h; q++, o += 4)
+    lum[q] = 0.299 * px[o] + 0.587 * px[o + 1] + 0.114 * px[o + 2]
+  const blur = (srcArr) => {
+    const t1 = new Float32Array(w * h), out = new Float32Array(w * h)
+    for (let y = 0; y < h; y++) { let sum = 0
+      for (let x = -radius; x <= radius; x++) sum += srcArr[y * w + Math.min(w - 1, Math.max(0, x))]
+      for (let x = 0; x < w; x++) { t1[y * w + x] = sum / (radius * 2 + 1)
+        sum -= srcArr[y * w + Math.min(w - 1, Math.max(0, x - radius))]
+        sum += srcArr[y * w + Math.min(w - 1, Math.max(0, x + radius + 1))] } }
+    for (let x = 0; x < w; x++) { let sum = 0
+      for (let y = -radius; y <= radius; y++) sum += t1[Math.min(h - 1, Math.max(0, y)) * w + x]
+      for (let y = 0; y < h; y++) { out[y * w + x] = sum / (radius * 2 + 1)
+        sum -= t1[Math.min(h - 1, Math.max(0, y - radius)) * w + x]
+        sum += t1[Math.min(h - 1, Math.max(0, y + radius + 1)) * w + x] } }
+    return out
+  }
+  const soft = blur(blur(lum))
+  for (let q = 0, o = 0; q < w * h; q++, o += 4) {
+    const boost = (lum[q] - soft[q]) * amount
+    for (let ch = 0; ch < 3; ch++) {
+      const v = px[o + ch] + boost
+      px[o + ch] = v < 0 ? 0 : v > 255 ? 255 : v
+    }
+  }
+  k.putImageData(im, 0, 0)
+  return c.toDataURL('image/png')
+}, { src: 'data:image/png;base64,' + b64(SRC), knee: 0.30, roll: 0.45,
+     darkTo: 0.38, darkCut: 120, amount: 0.38, radius: 10 })
+await prep.close()
+const GRADED = graded.split(',')[1]
+
+const html = makeHtml(GRADED)
 const page = await browser.newPage({ viewport: { width: W, height: H } })
 await page.setContent(html, { waitUntil: 'networkidle' })
 
@@ -292,14 +383,30 @@ await page.setContent(html, { waitUntil: 'networkidle' })
    above the band. lo/hi are a smoothstep across the gap between the backdrop
    and the garments — wide enough that hair and rim light feather rather than
    cut, narrow enough that the backdrop stays fully transparent. */
-await page.evaluate(async ({ src, w, t, radius }) => {
+await page.evaluate(async ({ src, maskSrc, w, t, radius }) => {
+  /* TWO IMAGES, AND THAT SEPARATION IS THE POINT. The pixels come from the
+     GRADED photograph; the alpha is computed from the UNGRADED one.
+     The mask's threshold and its run test were tuned against measured tone
+     separations — backdrop p95 11.4 against garments whose darkest fifth sits
+     at 7 and 10.4 — and the grade moves exactly those numbers. Deriving the
+     mask from the graded image invalidated them: the band came back broken
+     across 203 columns where it had been perfect. The mask is geometry, the
+     grade is colour, and they are kept apart. */
   const i = new Image(); i.src = src; await i.decode()
+  const mi = new Image(); mi.src = maskSrc; await mi.decode()
   const h = Math.round(i.height * w / i.width)
   const c = document.createElement('canvas'); c.width = w; c.height = h
   const k = c.getContext('2d', { willReadFrequently: true })
   k.imageSmoothingEnabled = true; k.imageSmoothingQuality = 'high'
   k.drawImage(i, 0, 0, w, h)
   const im = k.getImageData(0, 0, w, h), px = im.data
+
+  // the ungraded copy, read only for its luminance
+  const mc = document.createElement('canvas'); mc.width = w; mc.height = h
+  const mk = mc.getContext('2d', { willReadFrequently: true })
+  mk.imageSmoothingEnabled = true; mk.imageSmoothingQuality = 'high'
+  mk.drawImage(mi, 0, 0, w, h)
+  const mpx = mk.getImageData(0, 0, w, h).data
 
   /* A PLAIN LUMINANCE RAMP LEAKED, and the leak is what a straight threshold
      always does here: the garments are dark, so their shadowed panels sat
@@ -327,7 +434,7 @@ await page.evaluate(async ({ src, w, t, radius }) => {
      shadow. The remap window is therefore biased low, which dilates. */
   const a = new Float32Array(w * h)
   for (let q = 0, o = 0; q < w * h; q++, o += 4) {
-    const l = 0.299 * px[o] + 0.587 * px[o + 1] + 0.114 * px[o + 2]
+    const l = 0.299 * mpx[o] + 0.587 * mpx[o + 1] + 0.114 * mpx[o + 2]
     a[q] = l > t ? 1 : 0
   }
 
@@ -398,7 +505,8 @@ await page.evaluate(async ({ src, w, t, radius }) => {
   k.putImageData(im, 0, 0)
   const el = document.getElementById('cutout')
   await new Promise((r) => { el.onload = r; el.src = c.toDataURL('image/png') })
-}, { src: 'data:image/png;base64,' + b64(SRC), w: W, t: 12, radius: 12 })
+}, { src: 'data:image/png;base64,' + GRADED,
+     maskSrc: 'data:image/png;base64,' + b64(SRC), w: W, t: 12, radius: 12 })
 
 await page.evaluate(() => document.fonts.ready)
 await page.waitForTimeout(600)
