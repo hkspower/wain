@@ -323,6 +323,14 @@ can render the pulse and `aria-expanded` honestly. Do the gesture work
 (`haptic`, `primeAudio`) in the button, synchronously: iOS will not unlock
 audio outside a gesture and the call mounts an event later.
 
+**Her origin allowlist is the other thing that can silently refuse a call.**
+`require_origin_header` is on, so a call is refused unless its Host is listed.
+`staging.wainkw.com` was added on 11 September — it was missing, and staging
+would have failed the moment it served the site, with no clue on wain's side.
+`agents_update` deep-merges: sending `platform_settings.auth` alone came back
+with the 20 attached tests, the 8 criteria, the prompt and both tools intact.
+Verify that from the response anyway.
+
 **The widget URL must name an exact version AND the entry file**, and
 `npm run audit:shouq-call` enforces both. It said
 `@elevenlabs/convai-widget-embed@1` for months — a semver *range*, on a package
@@ -397,6 +405,49 @@ the live KB is current and there is nothing to send.
 A prohibition cannot be optional. Moving «ما تسجّلين له بنفسك» into the
 say-only-if-asked section made her start offering to register businesses
 herself — a promise she cannot keep.
+
+## There is an n8n instance, and part of wain runs on it
+
+`sportake.app.n8n.cloud`, shared with sporta. **Nothing in `npm run scan` can
+see any of it** — it is not in this repository — so everything below drifts
+silently and has to be compared by hand. Twelve workflows; four are wain's.
+
+- **`أداة ملفات وين 🔧` — the only ACTIVE workflow on the whole instance.**
+  POST `/webhook/wain-file-tool`, grep/patch/create files on Hostinger over FTP.
+  Its secret comes from the n8n variable `WAIN_TOOL_SECRET` and **fails closed**
+  when unset; path jail, per-project roots, `.htaccess` directive blocking. It
+  writes text files only — no `.zip`, so it is not a way to deploy a build.
+- **`Wain + Sporta — Kuwaiti TTS` on `/webhook/fahad-tts`** — speaks the
+  sentences the recorded clip library cannot cover. **Its voice table must
+  match `scripts/gen-voice.mjs`**, because a clip and a live sentence are heard
+  inside one utterance. It had drifted to a different woman entirely (Maryam
+  Essa vs Talya `rh16DBXwtscjdPFeMBYf`) with every other setting identical —
+  the voice id is the hardest field to catch, because nothing breaks. Its model
+  stays `eleven_multilingual_v2` to match the CLIPS, deliberately not the
+  agent's `flash`, which is never heard spliced into a recorded line.
+  `docs/voice.md` holds the three-way table.
+- **`الحارس` — the site sentinel.** Its detection is right: it refuses to trust
+  a status code and requires `_next/static` in the homepage plus «أبراج الكويت»
+  in a place page, because a root without its subdirectories answers a healthy
+  200 over a site with no CSS. **Its diagnosis prompt is the part that goes
+  stale**, and it did — it still prescribed hand-uploading `out/` through
+  hPanel, which would now leave the manifest disagreeing with the disk so the
+  next deploy prunes live files. **An automation that gives instructions is
+  documentation with a pager: when the deploy path changes, its prompt does.**
+- **`Wain — Events Hub`** — verified current 11 September: its formatter matches
+  `orders.ts` and `places.ts` field for field. Nothing posts to it yet.
+
+**Two pairs of switches, and in both the half-on state is worse than off.**
+صوت وين's bridge needs `NEXT_PUBLIC_WAIN_TTS_URL` set AND the workflow active;
+the variable alone buys a four-second wait and then the browser voice, the
+workflow alone changes nothing. And **nothing is watching this site**: the
+Sentinel is inactive and its WhatsApp node still says
+`REPLACE_PHONE_NUMBER_ID`. That is how شوق's agent mode stayed broken in
+production for months.
+
+The rest (`راشد`, Intelligence Center, `أنيلكا`, `سالم` ×2) are inactive and
+blocked on order/queue data that does not exist, not stale. Sporta's, Albahhar's
+and the MySQL monitor are not wain's — leave them.
 
 ## wain speaks MCP
 
@@ -656,6 +707,12 @@ it is the one number that property exists to get right.
 
 Measured on a 390px phone: /explore 14591px → 5224px, a place page 2893px →
 2183px. Desktop /explore 4923px → 2210px.
+
+**Setting the site's type in an Adobe surface has one trap worth knowing**:
+weight 400 is `IBMPlexSansArabic` with NO `-Regular` suffix — every other weight
+is `Family-Style`, so the obvious guess is `not_found` — and asking for the bare
+family name gives you Light (300), not Regular. A wrong PostScript name does not
+error, it substitutes, so it reads as a design decision. `docs/type.md`.
 
 **When a tap target is too small, the type is usually not the reason.**
 «استكشف» in the breadcrumb failed at 42px wide because it is four letters and
