@@ -209,13 +209,44 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   the point of the loopback. **Before concluding that anything on this host is
   unreachable, check whether the host can do it to itself.**
 
-  So the route is now: **`scripts/publish/deploy-call.php`**, fetched by cron
-  and run. It reads `storage/deploy.secret` on the server, signs, and POSTs over
-  the loopback; only the HMAC leaves the process, which is why the script is
-  safe to keep in the repository. `php d.php probe` sends a correctly signed
-  request that can only fail *after* the signature check, so `host_not_allowed`
-  coming back proves the HMAC was accepted without downloading or writing
-  anything. That probe passes. `npm run deploy:plan` now prints this route.
+  So the route is now: **`scripts/publish/deploy-call.php`**. It reads
+  `storage/deploy.secret` on the server, signs, and POSTs over the loopback;
+  only the HMAC leaves the process, which is why the script is safe to keep in
+  the repository. `php d.php probe` sends a correctly signed request that can
+  only fail *after* the signature check, so `host_not_allowed` coming back
+  proves the HMAC was accepted without downloading or writing anything. That
+  probe passes. `npm run deploy:plan` prints this route.
+
+- **The caller is INSTALLED, not fetched at the head of every deploy.** It used
+  to be `wget -qO d.php <raw.githubusercontent URL>` … `rm -f d.php` around
+  every single deploy — three or four cron jobs, and a host with nothing to do
+  with this server on the critical path of a deploy that never needs to leave
+  the machine, pinned to a sha that a history rewrite would move. `php d.php
+  install` copies it to **`<domain>/storage/d.php`** and a deploy is then one
+  command:
+
+  ```
+  php /home/u130124229/domains/wainkw.com/storage/d.php <url> <sha256> <version>
+  ```
+
+  `storage/` and not `public_html/`, for two reasons that both matter: a PHP
+  file in the docroot is a URL, and this one signs deploys; and `storage/` is
+  the one directory `deploy.php` never prunes — everything it deletes is under
+  `storage/deploy/`. **The 49-character path is what makes it fit**: that
+  command measures 196 against a cap between 210 and 279.
+
+  **Installing is still fetch-pin-run, just once** — `wget`, `php d.php
+  install`, `rm` — because there is no other way to write to this account from
+  here. Re-run it only when `deploy-call.php` changes.
+
+  **`php …/d.php version` is the only way to see what is installed.**
+  `storage/` is outside the docroot, so no read tool here can look; the planner
+  prints the repository copy's fingerprint and the server prints its own.
+
+  **Only the artifact still comes from GitHub, and only because bytes cannot be
+  pushed to this account at all.** `--archive-url` takes any HTTPS host and
+  `php …/d.php allow <host>` adds it to `storage/deploy.hosts`. The mechanism
+  stopped depending on GitHub; the payload has not.
 
   **First deploy through it: 10 September, `{"ok":true,"deployed":245}`.** The
   artifact went in wain's *own* docroot — not the shop's, which would put one

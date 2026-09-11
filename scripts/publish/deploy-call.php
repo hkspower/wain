@@ -2,11 +2,36 @@
 /**
  * Calls this site's own deploy endpoint, from the server, over the loopback.
  *
+ *   php d.php install
+ *   php d.php version
  *   php d.php probe [staging|production]
  *   php d.php <artifact-url> <sha256> <version> [staging|production]
  *
  * The stage defaults to production when omitted, so a forgotten argument can
  * never send a deploy somewhere unintended — staging has to be asked for.
+ *
+ * IT IS INSTALLED ONCE, NOT FETCHED EVERY TIME
+ *
+ * This used to arrive by `wget -qO d.php https://raw.githubusercontent.com/…`
+ * at the head of every single deploy, and be `rm`ed at the end of it. That
+ * works, and it put GitHub on the critical path of a deploy that otherwise has
+ * no reason to leave the machine: three or four cron jobs where one would do,
+ * and a deploy that cannot run at all while raw.githubusercontent.com is having
+ * a bad morning — or after a history rewrite moves the sha it is pinned to,
+ * which is a thing this repository has had to plan around for شوق's knowledge
+ * base already.
+ *
+ * So `install` copies it next to the secret it reads, at
+ * <domain>/storage/d.php, and the recurring deploy is one command naming that
+ * path. The fetch-pin-run route is still how the file gets there the first time
+ * and after an edit — there is no other way to write to this account from a
+ * sandbox that cannot reach it — but that is once, not every time.
+ *
+ * `version` exists because an installed copy can go stale silently. It prints
+ * the same fingerprint `npm run deploy:plan` prints for the repository's copy;
+ * if they differ, the server is running an older caller and the plan says to
+ * reinstall. Nothing else can notice that — the file is outside the docroot and
+ * no read tool here can see it.
  *
  * WHY THE LOOPBACK
  *
@@ -65,9 +90,65 @@ function siteHost(?string $given, string $domain): string {
 }
 $secretFile = "$home/domains/$domain/storage/deploy.secret";
 
+/**
+ * Where the installed copy lives, and why it is not in public_html.
+ *
+ * It reads the deploy secret, so it belongs on the same side of the web root as
+ * the secret does — a PHP file inside public_html is a URL, and this one would
+ * be a URL that signs deploys. storage/ is also the one directory deploy.php
+ * never prunes: everything it deletes is under storage/deploy/, so an installed
+ * caller cannot be swept away by the thing it calls.
+ */
+$installPath = "$home/domains/$domain/storage/d.php";
+
 function done(array $r): never { echo json_encode($r, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), "\n"; exit; }
 
+/** Short sha256 of a caller, so two copies can be compared in one glance. */
+function fingerprint(string $file): ?string {
+    $h = @hash_file('sha256', $file);
+    return $h === false ? null : substr($h, 0, 16);
+}
+
 $mode = $argv[1] ?? '';
+
+/**
+ * `install` — put this file at storage/d.php so no later deploy fetches it.
+ *
+ * Needs no secret: it only copies a file the account already has. Deliberately
+ * overwrites, and reports the fingerprint it replaced, because the reason to
+ * run it a second time is always that the repository's copy has changed and the
+ * output is the only record of which version the server is now on.
+ */
+if ($mode === 'install') {
+    $was = fingerprint($installPath);
+    if (realpath(__FILE__) === realpath($installPath)) {
+        done(['ok' => true, 'status' => 'already_installed', 'path' => $installPath,
+              'fingerprint' => $was, 'note' => 'run from the installed copy — nothing to do']);
+    }
+    if (!is_dir(dirname($installPath))) {
+        done(['ok' => false, 'error' => 'no_storage_dir', 'path' => dirname($installPath)]);
+    }
+    if (!@copy(__FILE__, $installPath)) {
+        done(['ok' => false, 'error' => 'copy_failed', 'from' => __FILE__, 'to' => $installPath]);
+    }
+    @chmod($installPath, 0600);
+    done(['ok' => true, 'status' => $was === null ? 'installed' : 'replaced',
+          'path' => $installPath, 'was' => $was, 'fingerprint' => fingerprint($installPath)]);
+}
+
+/**
+ * `version` — which caller is on this server.
+ *
+ * The only way to answer that. storage/ is outside the document root, so no
+ * read tool in a session can see the file; `npm run deploy:plan` prints the
+ * repository copy's fingerprint and this prints the server's, and a deploy plan
+ * that assumes a feature the installed copy does not have fails in the cron
+ * output rather than in the docroot.
+ */
+if ($mode === 'version') {
+    done(['ok' => true, 'running' => fingerprint(__FILE__), 'from' => __FILE__,
+          'installed' => fingerprint($installPath), 'path' => $installPath]);
+}
 
 /**
  * `allow <hostname>` — add an artifact host to <domain>/storage/deploy.hosts.
@@ -134,7 +215,10 @@ if ($mode === 'probe') {
     $host = siteHost($argv[4] ?? null, $domain);
 } else {
     done(['ok' => false, 'error' => 'usage',
-          'usage' => ['php d.php probe [staging|production]',
+          'usage' => ['php d.php install',
+                      'php d.php version',
+                      'php d.php allow <hostname>',
+                      'php d.php probe [staging|production]',
                       'php d.php <artifact-url> <sha256> <version> [staging|production]']]);
 }
 

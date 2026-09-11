@@ -261,8 +261,12 @@ downloaded and nothing written. Measured 10 September:
  "signature": "accepted — the request got past the HMAC check"}
 ```
 
-Three cron jobs, because the command field caps between 210 and 279 characters
-and fetch-and-run does not fit alongside the arguments:
+`getCronJobOutputV1` is how the reply is read. `{"ok":true,…}` carries the
+file counts; anything else names the step that refused and why.
+
+### The caller is installed, not fetched every time
+
+A deploy used to be three or four cron jobs, and it began at GitHub:
 
 ```
 wget -qO d.php https://raw.githubusercontent.com/hkspower/wain/<sha>/scripts/publish/deploy-call.php
@@ -270,8 +274,55 @@ php d.php <artifact-url> <sha256> <version>
 rm -f d.php
 ```
 
-`getCronJobOutputV1` is how the reply is read. `{"ok":true,…}` carries the
-file counts; anything else names the step that refused and why.
+That works. It also put a host with nothing to do with this server on the
+critical path of every single deploy — and pinned it to a sha, which is a thing
+this repository has already had to plan a history rewrite around once, for
+شوق's knowledge base. A deploy of a static site to a machine that can call
+itself has no reason to leave the machine at all.
+
+So the caller is installed once, beside the secret it reads:
+
+```
+php /home/u130124229/domains/wainkw.com/storage/d.php <artifact-url> <sha256> <version>
+```
+
+One job. Nothing fetched, nothing to clean up. `storage/` rather than
+`public_html/` for two reasons that both matter: a PHP file inside the docroot
+is a URL, and this one signs deploys; and `storage/` is the one directory
+`deploy.php` never prunes — everything it deletes is under `storage/deploy/`,
+so the caller cannot be swept away by the thing it calls.
+
+The 49-character absolute path is what makes this fit. The command field caps
+between 210 and 279 characters; a deploy command carrying that path, a release
+URL, a 64-character digest and a version measures **196**.
+
+**Installing it is still the fetch-pin-run write path — just once.** There is no
+other way to write to this account from a session that cannot reach it:
+
+```
+wget -qO d.php https://raw.githubusercontent.com/hkspower/wain/<sha>/scripts/publish/deploy-call.php
+php d.php install
+rm -f d.php
+```
+
+Run it again when `scripts/publish/deploy-call.php` changes, and only then.
+`install` overwrites deliberately and reports the fingerprint it replaced, so
+the cron output is the record of which version the server moved to.
+
+**`php …/d.php version` is the only way to find out what is installed.**
+`storage/` is outside the docroot, so `hosting_getWebsiteFileContentV1` cannot
+see it and neither can anything else here. `npm run deploy:plan` prints the
+repository copy's fingerprint; ask the server for its own and compare. A plan
+that assumes a caller feature the server does not have then fails in a cron
+output instead of in the docroot.
+
+**What is still not native, and why.** The artifact bytes. Nothing in a session
+can push them to this account — the file host is refused at CONNECT and so is
+`www.wainkw.com` — so the server has to pull them from somewhere public. GitHub
+is the default rather than a requirement: `--archive-url` takes any HTTPS host
+and `php …/d.php allow <host>` adds it to `storage/deploy.hosts`, which is
+exactly what that file exists for. What changed here is that the *mechanism*
+stopped depending on GitHub; only the payload still does.
 
 ### The first deploy through it, 10 September
 

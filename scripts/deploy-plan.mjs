@@ -4,9 +4,9 @@
  *
  * Nothing here can push bytes to Hostinger — the upload host is refused at
  * CONNECT by the sandbox's egress gateway. The server can *pull*, though, and
- * a cron job is a write path: wget the release zip from a commit-pinned raw
- * GitHub URL, then unzip it into the docroot. `docs/hosting.md` has the
- * measured detail.
+ * a cron job is a write path. The deploy itself is one command now: an
+ * installed caller signs a request to the site's own endpoint over the
+ * loopback, and GitHub is not in it. `docs/hosting.md` has the measured detail.
  *
  * That worked by hand on 2026-09-09 and took two false starts to get there,
  * both of which are now assertions in this file rather than things to
@@ -50,6 +50,23 @@ const OFFLINE = process.argv.includes("--offline");
  * and every check here still passes, because it is looking at the wrong place.
  */
 const DOCROOT = "/home/u130124229/domains/wainkw.com/public_html";
+
+/**
+ * The installed caller, which is what makes a deploy stop touching GitHub.
+ *
+ * Every deploy used to begin `wget -qO d.php https://raw.githubusercontent.com/…`
+ * and end `rm -f d.php`, so the recurring path ran through a host that has
+ * nothing to do with this server, in three or four cron jobs where one would
+ * do. `php d.php install` puts it beside the secret it reads — storage/, which
+ * is outside public_html and the one directory deploy.php never prunes — and
+ * from then on a deploy is one command naming this path.
+ *
+ * Sibling of the docroot, not derived by walking up from it, because
+ * `dirname()` on a path this exact is the kind of cleverness that silently
+ * resolves one level wrong — which is the bug `setup-staging-endpoint.php`
+ * exists to avoid in the endpoint itself.
+ */
+const INSTALLED = "/home/u130124229/domains/wainkw.com/storage/d.php";
 
 const fail = (msg) => {
   console.error(`\n✗ ${msg}\n`);
@@ -269,8 +286,12 @@ if (archiveUrlArg) {
  * the previous manifest, so a deploy no longer leaves the last build's chunks
  * behind forever.
  *
- * Three cron jobs, because the command field caps between 210 and 279
- * characters and fetch-and-run does not fit alongside the arguments.
+ * One cron job, now that the caller is installed rather than fetched. It was
+ * three or four: fetch, maybe allow, deploy, clean. The command field caps
+ * between 210 and 279 characters, which is why fetch-and-run could never be
+ * one line — and the absolute path to the installed caller is 49 characters,
+ * so a deploy command carrying it, a release URL, a 64-character digest and a
+ * version still fits inside 210 with room to spare.
  */
 const callerUrl = `https://raw.githubusercontent.com/${repo}/${commit}/scripts/publish/deploy-call.php`;
 
@@ -288,14 +309,41 @@ const artifactHost = new URL(url).hostname;
 const hostAllowedByDefault = ["raw.githubusercontent.com", "github.com", "codeload.github.com"]
   .includes(artifactHost);
 
+/**
+ * The recurring deploy: one command, no GitHub, nothing to clean up.
+ *
+ * `allow` is in the list only when the artifact is somewhere deploy.php's
+ * built-in ALLOWED_HOSTS does not cover. It is idempotent — the caller answers
+ * `already_listed` and writes nothing — so leaving it in on a later run of the
+ * same plan costs a cron firing and changes nothing.
+ */
 const commands = [
-  { step: "fetch the caller", command: `wget -qO d.php ${callerUrl}` },
   ...(hostAllowedByDefault
     ? []
-    : [{ step: "allow the host", command: `php d.php allow ${artifactHost}` }]),
-  { step: "deploy", command: `php d.php ${url} ${zipSha} ${version}` },
+    : [{ step: "allow the host", command: `php ${INSTALLED} allow ${artifactHost}` }]),
+  { step: "deploy", command: `php ${INSTALLED} ${url} ${zipSha} ${version}` },
+];
+
+/**
+ * The one-time route, which is also the only way to write to this account from
+ * here: the server fetches a commit-pinned file and runs it. Needed again only
+ * when scripts/publish/deploy-call.php changes — which `version` below is how
+ * anyone finds out about, since storage/ is outside the docroot and no read
+ * tool in a session can see what is installed there.
+ */
+const bootstrap = [
+  { step: "fetch the caller", command: `wget -qO d.php ${callerUrl}` },
+  { step: "install it", command: `php d.php install` },
   { step: "clean", command: `rm -f d.php` },
 ];
+
+/** Ask the server which caller it has. Compare with `callerFingerprint`. */
+const checkCommand = `php ${INSTALLED} version`;
+
+const callerFingerprint = createHash("sha256")
+  .update(readFileSync(join(ROOT, "scripts/publish/deploy-call.php")))
+  .digest("hex")
+  .slice(0, 16);
 
 /**
  * Hostinger puts Cloudflare in front of the cron-create endpoint, and its WAF
@@ -318,7 +366,7 @@ const SAFE = /^[A-Za-z0-9 _\-./:=?&@]+$/;
  * it — the deploy command carries a URL, a 64-character digest and a version.
  */
 const MAX_COMMAND = 210;
-for (const { step, command } of commands) {
+for (const { step, command } of [...commands, ...bootstrap, { step: "check", command: checkCommand }]) {
   if (!SAFE.test(command)) {
     fail(`the ${step} command contains a shell metacharacter:\n    ${command}\n  Cloudflare's WAF answers 403 for these. One program and its arguments only.`);
   }
@@ -326,7 +374,7 @@ for (const { step, command } of commands) {
     fail(
       `the ${step} command is ${command.length} characters, past the ${MAX_COMMAND} that is\n` +
       `  known to be accepted — createAccountCronJobV1 answers 422, not 403, so it\n` +
-      `  will not look like the WAF rule above. Shorten the artifact URL:\n    ${command}`,
+      `  will not look like the WAF rule above. Shorten the URL it carries:\n    ${command}`,
     );
   }
 }
@@ -367,7 +415,10 @@ const plan = {
   url,
   urlState,
   archive: { name: `wain-${version}.zip`, bytes: zipBytes, sha256: zipSha },
+  caller: { path: INSTALLED, fingerprint: callerFingerprint, url: callerUrl },
   commands,
+  bootstrap,
+  check: checkCommand,
   required: required.map(([path, why]) => ({ path, why })),
   files,
 };
@@ -384,8 +435,25 @@ console.log(`  export   ${Object.keys(files).length} files`);
 console.log(`  url      ${url}`);
 console.log(`           ${urlState === "200" ? "✓ reachable, and the same size as the local archive" : urlState}`);
 
+console.log(`  caller   ${callerFingerprint}  installed at ${INSTALLED}`);
+
 console.log(`\n▸ run these in order, one cron job each, deleting it after it fires`);
 for (const { step, command } of commands) console.log(`\n  ${step}\n    ${command}`);
+
+console.log(`\n▸ that is the whole deploy. It fetches nothing from GitHub and leaves`);
+console.log(`  nothing behind, because the caller is installed on the server rather`);
+console.log(`  than wget'd at the head of every deploy and rm'd at the end of it.`);
+console.log(`  Only the artifact still comes over the internet, and only because no`);
+console.log(`  session can push bytes to this account at all.`);
+
+console.log(`\n▸ if the caller is NOT installed yet, or scripts/publish/deploy-call.php`);
+console.log(`  has changed since it was, run this once first — it is the same`);
+console.log(`  fetch-pin-run write path, used once instead of every time:`);
+for (const { step, command } of bootstrap) console.log(`\n  ${step}\n    ${command}`);
+
+console.log(`\n▸ storage/ is outside the docroot, so nothing here can read what is`);
+console.log(`  installed. Ask the server instead, and compare with ${callerFingerprint}:`);
+console.log(`\n    ${checkCommand}`);
 
 if (!hostAllowedByDefault) {
   console.log(`\n▸ ${artifactHost} is not in deploy.php's ALLOWED_HOSTS, which is why`);
@@ -421,7 +489,8 @@ console.log(`  the web root. A truncated fetch is a 422, not a broken site.`);
 
 console.log(`\n▸ read the reply with getCronJobOutputV1. {"ok":true,...} carries the`);
 console.log(`  file counts; anything else names the step that refused and why.`);
-console.log(`  \`php d.php probe\` first if you want the signature checked on its own —`);
+console.log(`  \`php ${INSTALLED} probe\` first if you want the`);
+console.log(`  signature checked on its own —`);
 console.log(`  it is refused at the host check, which is after the HMAC.`);
 
 console.log(`\n▸ createAccountCronJobV1 can return a uid for a job it never stored,`);
