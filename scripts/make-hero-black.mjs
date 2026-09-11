@@ -103,10 +103,25 @@ const html = `<!doctype html><meta charset="utf-8">
   .eyebrow { margin-top: 62px; color: #eaecee; font-weight: 600; font-size: 60px;
              letter-spacing: .22em; }
 
-  /* Full-bleed orange band with the angled tail the shipped frames use. */
-  .band { position: absolute; left: 0; top: 612px; height: 212px; width: 1040px;
-          background: #f5821f; clip-path: polygon(0 0, 100% 0, calc(100% - 74px) 100%, 0 100%);
-          display: flex; align-items: center; }
+  /* THE ORANGE BAND RUNS THE FULL WIDTH, edge to edge, and the athletes stand
+     IN FRONT OF IT. A full-width band drawn over the photograph would paint
+     across their torsos; drawn under it, the photograph's own opaque black
+     backdrop would hide it completely. So the figures are cut out of the
+     photograph and laid back on top — the band passes behind them.
+
+     The cutout is a luminance mask, which works here only because the backdrop
+     really is near-black: measured on this photograph, columns 0-760 of the
+     mask are entirely empty, the two figures run 0.43-0.79 solid, and the dip
+     to 0.09 at column 1160 is the real gap between them. The garments sit at
+     mean 32.7 against a backdrop near 10, so the threshold has honest room.
+
+     No angled tail any more: a tail is how a band ENDS, and this one does not. */
+  .band { position: absolute; left: 0; top: 612px; height: 212px; width: 100%;
+          background: #f5821f; display: flex; align-items: center; }
+
+  /* The figures, put back over the band. Same geometry as .shot img exactly, or
+     they would sit a pixel off their own shadow. */
+  .cutout { position: absolute; left: ${SHIFT}px; top: 0; width: ${W}px; }
   .band h1 { color: #171a1e; font-weight: 700; font-size: 152px; letter-spacing: .01em;
              padding-left: 190px; line-height: 1; }
 
@@ -165,6 +180,7 @@ const html = `<!doctype html><meta charset="utf-8">
     <div class="eyebrow">MEN &amp; WOMEN</div>
   </div>
   <div class="band"><h1>ALL BLACK</h1></div>
+  <img class="cutout" id="cutout">
   <div class="ar">الأسود بالكامل</div>
   <div class="tag">FOR HIM &middot; FOR HER</div>
 </div>
@@ -229,6 +245,106 @@ const html = `<!doctype html><meta charset="utf-8">
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
 const page = await browser.newPage({ viewport: { width: W, height: H } })
 await page.setContent(html, { waitUntil: 'networkidle' })
+
+/* Build the figure cutout from the photograph itself and hand it to the layer
+   above the band. lo/hi are a smoothstep across the gap between the backdrop
+   and the garments — wide enough that hair and rim light feather rather than
+   cut, narrow enough that the backdrop stays fully transparent. */
+await page.evaluate(async ({ src, w, t, radius }) => {
+  const i = new Image(); i.src = src; await i.decode()
+  const h = Math.round(i.height * w / i.width)
+  const c = document.createElement('canvas'); c.width = w; c.height = h
+  const k = c.getContext('2d', { willReadFrequently: true })
+  k.imageSmoothingEnabled = true; k.imageSmoothingQuality = 'high'
+  k.drawImage(i, 0, 0, w, h)
+  const im = k.getImageData(0, 0, w, h), px = im.data
+
+  /* A PLAIN LUMINANCE RAMP LEAKED, and the leak is what a straight threshold
+     always does here: the garments are dark, so their shadowed panels sat
+     part-transparent and the orange band showed THROUGH the clothing — visible
+     mottling across the man's shoulder and a soft orange cloud where the
+     backdrop's own rim glow sits. Both are the same fault read two ways.
+
+     So: a hard threshold, then a morphological CLOSE approximated by a box blur
+     and a steep remap. A hole smaller than the blur radius fills; a gap larger
+     than it stays open — which is exactly the behaviour needed, because the
+     real gap between the two figures is ~60px wide and must NOT be bridged
+     while a 10px shadow inside a sleeve must be.
+
+     AND THE MASK IS DELIBERATELY OVER-INCLUSIVE, because the measured
+     distributions say no threshold can be exact. At the cutout's working scale:
+
+       backdrop beside the figures   p5 9.4   p50 10.4   p95 11.4   (flat)
+       the woman's torso             p5 7.0   p25 16.2   p50 44.0
+       the man's torso               p5 10.4  p25 31.1   p50 41.5
+
+     The darkest fifth of both garments sits AT OR BELOW the backdrop next to
+     them, so the two populations genuinely overlap and any cut costs something.
+     Erring tight puts ORANGE THROUGH A SHIRT; erring loose leaves a thin dark
+     halo around the figures where they meet the band, which reads as their own
+     shadow. The remap window is therefore biased low, which dilates. */
+  const a = new Float32Array(w * h)
+  for (let q = 0, o = 0; q < w * h; q++, o += 4) {
+    const l = 0.299 * px[o] + 0.587 * px[o + 1] + 0.114 * px[o + 2]
+    a[q] = l > t ? 1 : 0
+  }
+
+  // separable box blur over the alpha only
+  const tmp = new Float32Array(w * h)
+  for (let y = 0; y < h; y++) {
+    let sum = 0
+    for (let x = -radius; x <= radius; x++) sum += a[y * w + Math.min(w - 1, Math.max(0, x))]
+    for (let x = 0; x < w; x++) {
+      tmp[y * w + x] = sum / (radius * 2 + 1)
+      sum -= a[y * w + Math.min(w - 1, Math.max(0, x - radius))]
+      sum += a[y * w + Math.min(w - 1, Math.max(0, x + radius + 1))]
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    let sum = 0
+    for (let y = -radius; y <= radius; y++) sum += tmp[Math.min(h - 1, Math.max(0, y)) * w + x]
+    for (let y = 0; y < h; y++) {
+      a[y * w + x] = sum / (radius * 2 + 1)
+      sum -= tmp[Math.min(h - 1, Math.max(0, y - radius)) * w + x]
+      sum += tmp[Math.min(h - 1, Math.max(0, y + radius + 1)) * w + x]
+    }
+  }
+
+  // steep remap: closes what the blur filled, keeps a 1-2px feather at the edge
+  for (let q = 0, o = 0; q < w * h; q++, o += 4) {
+    let v = (a[q] - 0.20) / (0.50 - 0.20)
+    v = v < 0 ? 0 : v > 1 ? 1 : v
+    px[o + 3] = Math.round(v * v * (3 - 2 * v) * 255)
+  }
+  /* STRAY SPECKS AND THE PHOTOGRAPH'S OWN EDGE. The dilated mask picked up a
+     ragged notch at the right where the photograph ends and the plate begins —
+     a sliver of border and a patch of backdrop that crossed the threshold,
+     punched into the band as a dark jag. Neither belongs to a figure.
+
+     Killed by column weight rather than by a hardcoded x-range: a column that
+     carries less than a few per cent of the heaviest column's alpha is not part
+     of a person, it is a speck. The figures' own columns are an order of
+     magnitude above that, and the outermost hair wisps this drops are at the
+     silhouette edge where losing a sliver is invisible. The border is zeroed
+     outright, because an edge pixel is never a figure. */
+  const colSum = new Float32Array(w)
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) colSum[x] += px[(y * w + x) * 4 + 3]
+  let maxCol = 0
+  for (let x = 0; x < w; x++) if (colSum[x] > maxCol) maxCol = colSum[x]
+  const floor = maxCol * 0.03
+  for (let x = 0; x < w; x++) {
+    const dead = colSum[x] < floor || x < 14 || x > w - 28
+    if (!dead) continue
+    for (let y = 0; y < h; y++) px[(y * w + x) * 4 + 3] = 0
+  }
+  for (let x = 0; x < w; x++) for (let y = 0; y < 14; y++) px[(y*w+x)*4+3] = 0
+  for (let x = 0; x < w; x++) for (let y = h - 14; y < h; y++) px[(y*w+x)*4+3] = 0
+
+  k.putImageData(im, 0, 0)
+  const el = document.getElementById('cutout')
+  await new Promise((r) => { el.onload = r; el.src = c.toDataURL('image/png') })
+}, { src: 'data:image/png;base64,' + b64(SRC), w: W, t: 12, radius: 12 })
+
 await page.evaluate(() => document.fonts.ready)
 await page.waitForTimeout(600)
 const png = await page.screenshot()
