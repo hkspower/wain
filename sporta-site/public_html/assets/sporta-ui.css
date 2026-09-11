@@ -1080,6 +1080,25 @@ html:not([data-theme='dark']) .cart-drawer > header button.tap.text-slate-400 {
   min-height: 2rem;
   line-height: 1.35;
   padding-block: 0.25rem;
+  /* THE SECOND LINE WAS AN ORPHAN, and on the commonest phone it was two words.
+   * The bar is `text-center`, so a lopsided wrap reads as a mistake rather than
+   * as a line break. Measured, every width where the sentence wraps:
+   *
+   *     320px   281 + 99   the short line is 35% of the long one
+   *     360px   318 + 62   19%
+   *     390px   318 + 62   19%   <- iPhone 14/15/16
+   *     430px+  one line, nothing to balance
+   *
+   * `balance` asks the browser to even the lines out instead of filling the
+   * first and dropping what is left. It changes NO other property — same font,
+   * same size, same two lines, same height — so it cannot move the header or
+   * push the hero down, which is what ruled out the taller-bar fixes above.
+   *
+   * It is also free where it does nothing: a browser without it ignores the
+   * declaration and keeps today's wrap, and at 430px and wider there is one
+   * line and balancing is a no-op. Browsers cap balancing at a handful of
+   * lines, which this bar can never exceed. */
+  text-wrap: balance;
 }
 
 /* -------------------------------------------------------------------------
