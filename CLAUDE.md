@@ -282,6 +282,20 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   surviving range, and for the agent id in both chunks. So «شوق works live» was
   established without reading a megabyte of minified JavaScript off the server.
 
+  **Assets cannot be uploaded beside a deploy — only inside one.** Step 9
+  prunes against the manifest, so anything on the disk that is not in the
+  artifact is deleted by the next deploy. That is the feature, and it is also
+  why «upload the images separately» is a trap: the separate copy survives
+  until the next release and then vanishes, which is how `public_html/assets/`
+  became a mystery in the first place. Everything the site serves ships in
+  `out/`.
+
+  And the obvious top-level names are not available: `images`, `fonts`,
+  `assets`, `cats` and `hero` are the PHP app's and are in `PROTECTED_PATHS`,
+  so an artifact carrying any of them is refused whole with
+  `artifact_touches_protected_path`. wain's own assets live at `og/`, `brand/`,
+  `voice/` and `_next/static/media/` for exactly that reason.
+
   **It cost one ~3.6MB blob in git**, because the sandbox cannot upload to
   Hostinger and cannot cut a release, which leaves the committed-archive route
   that `deploy-plan.mjs` kept for exactly this. Removing the file afterwards
