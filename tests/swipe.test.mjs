@@ -20,8 +20,10 @@ import { chromium } from 'playwright';
  * away from its start position on load, before anyone touched it.
  *
  * The risk in the fix is over-correcting — making the swipe comfortable by
- * quietly making snapping do nothing at all. So this tests BOTH directions: a
- * graze must be left alone, and a real flick must still be caught.
+ * quietly making snapping do nothing at all — so this checks that the rail
+ * still snaps. It does NOT check that a graze is left alone, though it used to
+ * claim to: see the measured table further down for why that half cannot be
+ * tested from here, and what replaced it.
  */
 const B = process.env.WAIN_URL || 'http://127.0.0.1:4207';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
@@ -75,27 +77,35 @@ console.log('\n── it rests where it belongs ──');
   ok(`at rest the rail is at its start, not offset by the gutter (${at}px)`, at === 0, `${at}px`);
 }
 
-console.log('\n── the strictness actually took effect ──');
+console.log('\n── snapping is switched on and assisting ──');
 /**
- * What this can and cannot measure, stated plainly, because the distinction
- * caught me out while writing it.
+ * What this can and cannot measure — rewritten, because the version that stood
+ * here claimed something that is not true and had a red line to prove it.
  *
- * `scrollBy({behavior:'instant'})` is a PROGRAMMATIC scroll, and the spec
- * re-applies snap positions after those regardless of strictness. It is not the
- * path a thumb takes: a touch drag tracks the finger and resolves on release,
- * using where the fling comes to rest — which is exactly where mandatory and
- * proximity differ most, because mandatory MUST land on a snap point and
- * proximity may leave the rail wherever momentum ended.
+ * It asserted that a 4px programmatic nudge is «left where it was put» under
+ * proximity and would be corrected to 124px under mandatory, and it failed on
+ * every run. Measured on this page, all four trials, the three modes side by
+ * side:
  *
- * The real path is a compositor gesture, and
- * `Input.synthesizeScrollGesture` produces no scroll at all in this headless
- * browser — neither the rail nor the page moves — so the felt behaviour cannot
- * be measured here at all. Nothing below should be read as testing it.
+ *     x proximity    4→124   62→124   118→124   240→248
+ *     x mandatory    4→124   62→124   118→124   240→248
+ *     none           4→4     62→62    118→118   240→240
  *
- * What the programmatic path does give is a reliable tripwire on the setting:
- * under `mandatory` a 4px scroll was corrected to 124px, a whole card; under
- * `proximity` it stays where it was put. That distinguishes the two modes, so
- * it catches a revert, which is what this test is for.
+ * Proximity and mandatory are IDENTICAL here. `scrollBy({behavior:'instant'})`
+ * is a programmatic scroll, and Chrome re-snaps after one in the direction of
+ * travel whatever the strictness — the file's own header said the spec re-snaps
+ * «regardless of strictness» and then built an assertion on the two differing.
+ * So the failing line was unreachable except by turning snapping off, and,
+ * worse, the two GREEN lines beside it pass under mandatory too: the section
+ * could not catch the revert it exists to catch.
+ *
+ * The felt difference is a compositor gesture — a drag that tracks the finger
+ * and resolves on a fling — and `Input.synthesizeScrollGesture` moves nothing
+ * in this headless browser, so it cannot be measured here at all.
+ *
+ * What IS measurable is the two things below, and the strictness itself is
+ * already asserted from the computed value further up («snapping is proximity,
+ * not mandatory»), which is the check that actually catches a revert.
  */
 {
   const trial = (px) =>
@@ -110,19 +120,20 @@ console.log('\n── the strictness actually took effect ──');
         }),
       px
     );
-  const tiny = await trial(4);
-  ok(`a 4px scroll is left where it was put (${tiny}px; mandatory corrected this to 124px)`,
-    Math.abs(tiny - 4) <= 2, `landed ${tiny}px`);
 
-  // The other half: proximity must still ASSIST, or the rail has simply lost
-  // its snapping and the cards will come to rest half off the screen.
   // 124px is the stride — a 112px card plus the 12px gap.
   const near = await trial(118);
-  ok(`stopping 6px short of a card edge is still assisted to it (118 → ${near})`,
+  ok(`stopping 6px short of a card edge is assisted to it (118 → ${near})`,
     near === 124, `${near}`);
   const far = await trial(240);
-  ok(`stopping 8px short of two cards is still assisted to them (240 → ${far})`,
+  ok(`stopping 8px short of two cards is assisted to them (240 → ${far})`,
     far === 248, `${far}`);
+  // The one trial that separates «snapping on» from «snapping off»: with
+  // scroll-snap-type:none a 4px nudge stays at 4px, and it is the only mode
+  // that leaves it there.
+  const tiny = await trial(4);
+  ok(`a nudge is resolved to a card edge rather than left mid-card (4 → ${tiny})`,
+    tiny === 124, `landed ${tiny}px — snapping is off`);
 }
 
 console.log('\n── and the desktop grid is untouched ──');

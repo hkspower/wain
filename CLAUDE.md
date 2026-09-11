@@ -539,11 +539,33 @@ a plain spread. Leaving `FlatCompat` wrapped around an already-flat config makes
 `property 'react' closes the circle`, with a stack inside `@eslint/eslintrc`. It
 reads like a broken plugin rather than a wrapper one version out of date.
 
-**Known failing, pre-existing, verified against an untouched baseline:** the
-swipe suite's 4px scroll-snap assertion. Re-verified by stashing the working
-tree, rebuilding and running the suite on a clean checkout: same assertion,
-same 124px, same 17-passed-1-failed. It is the only red left, and `npm run
-scan` now exits 0 all the way through `audit:photos`.
+**There is no red left, and the last one was the test's fault, not the code's.**
+The swipe suite's «a 4px scroll is left where it was put» failed on every run
+for weeks and was written down here as known-failing. It was unpassable.
+Measured on the home page's category rail, all three modes side by side:
+
+| `scroll-snap-type` | 4px | 62px | 118px | 240px |
+|---|---|---|---|---|
+| `x proximity` | →124 | →124 | →124 | →248 |
+| `x mandatory` | →124 | →124 | →124 | →248 |
+| `none` | →4 | →62 | →118 | →240 |
+
+**Proximity and mandatory are identical on that path.** `scrollBy({behavior:
+'instant'})` is a programmatic scroll and Chrome re-snaps after one in the
+direction of travel whatever the strictness — which the suite's own header
+already said, before building an assertion on the two differing. So the red
+line could only have gone green with snapping switched off, and, worse, the
+two GREEN assertions beside it pass under mandatory too: **the section could
+not catch the revert it existed to catch.** Rewritten around what is
+measurable — snapping is on and assisting — and the strictness itself is
+asserted from the computed value, which is the check that does catch a revert.
+The felt difference is a compositor fling and `Input.synthesizeScrollGesture`
+moves nothing headless, so it cannot be tested here at all.
+
+Second time in two days that a loosely-written assertion was worse than none —
+see `/convai-widget-embed@\d/` above, which could not tell `@1` from `@0.18.1`.
+**When a test has been failing or passing «always», check that it can do the
+other thing.**
 
 This used to also list «`audit:mobile`'s 4px overflow from the `sr-only` skip
 link», and that description was wrong in a way worth remembering. The audit
