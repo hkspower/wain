@@ -3686,7 +3686,7 @@ function raceCut(): { w: number; h: number } | null {
 
             {/* Accessibility */}
             <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-xs">
-              Accessibility · إمكانية الوصول
+              Accessibility · <span className="grn-ar" lang="ar">إمكانية الوصول</span>
             </h3>
             <div className="mt-3 space-y-2">
               {(
@@ -3725,7 +3725,7 @@ function raceCut(): { w: number; h: number } | null {
 
             {/* Quality */}
             <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-xs">
-              Graphics · الرسومات
+              Graphics · <span className="grn-ar" lang="ar">الرسومات</span>
             </h3>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
               {(["auto", "ultra", "high", "balanced", "battery"] as const).map((q) => (
@@ -3751,7 +3751,7 @@ function raceCut(): { w: number; h: number } | null {
 
             {/* Resolution */}
             <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-xs">
-              Resolution · الدقة
+              Resolution · <span className="grn-ar" lang="ar">الدقة</span>
             </h3>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
               {RESOLUTIONS.map((r) => (
@@ -3828,7 +3828,7 @@ function raceCut(): { w: number; h: number } | null {
 
             {/* Camera */}
             <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-xs">
-              Camera · الكاميرا
+              Camera · <span className="grn-ar" lang="ar">الكاميرا</span>
             </h3>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
               {VIEWS.map((v) => (
@@ -3857,7 +3857,7 @@ function raceCut(): { w: number; h: number } | null {
 
             {/* Frame pacing */}
             <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-xs">
-              Frame rate · معدل الإطارات
+              Frame rate · <span className="grn-ar" lang="ar">معدل الإطارات</span>
             </h3>
             <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-8">
               {(
@@ -3894,7 +3894,7 @@ function raceCut(): { w: number; h: number } | null {
 
             {/* Time of day */}
             <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-xs">
-              Sky · السما
+              Sky · <span className="grn-ar" lang="ar">السما</span>
             </h3>
             {/* Picture */}
             <h3 className="grn-label mt-6 text-xs text-white/70">
@@ -4004,7 +4004,7 @@ function raceCut(): { w: number; h: number } | null {
 
             {/* Audio */}
             <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-xs">
-              Audio · الصوت
+              Audio · <span className="grn-ar" lang="ar">الصوت</span>
             </h3>
             <div className="mt-3 space-y-4">
               {(
@@ -4101,7 +4101,7 @@ function raceCut(): { w: number; h: number } | null {
           {/* Rival card rides the lower bar */}
           <div className="cine-card absolute bottom-[calc(11vh+env(safe-area-inset-bottom))] left-[calc(env(safe-area-inset-left)+1.25rem)]">
             <div className="grn-label text-2xs text-sodium-400">
-              Challenger · تحدي
+              Challenger · <span className="grn-ar" lang="ar">تحدي</span>
             </div>
             <div className="grn-display mt-0.5 text-[clamp(1.6rem,6vw,2.6rem)] italic leading-none text-white [text-shadow:0_2px_18px_rgba(0,0,0,0.9)]">
               {cine.card.name}{" "}

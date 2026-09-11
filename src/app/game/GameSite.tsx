@@ -102,7 +102,13 @@ export default function GameSite({
 
         <div className="mx-auto max-w-6xl px-4 pb-20 pt-14 sm:px-6 sm:pb-28 sm:pt-20">
           <div className="flex items-center justify-between gap-4">
-            <span className="grn-label rounded-full border border-white/15 bg-white/5 px-3 py-1 text-2xs text-white/70">
+            {/* ${arc} so the pill takes the Arabic face in Arabic mode.
+                .grn-label tracks 0.22em, and in Arabic that does not
+                letterspace the phrase, it breaks the joins — the one
+                typographic error this project treats as absolute. The
+                string here is localized rather than bilingual, so the
+                fix is on the element, not a span inside it. */}
+            <span className={`grn-label rounded-full border border-white/15 bg-white/5 px-3 py-1 text-2xs text-white/70 ${arc}`}>
               🇰🇼 {t({ en: "Kuwait, after midnight", ar: "الكويت، بعد منتصف الليل" })}
             </span>
             <LangSwitch lang={lang} onChange={choose} />

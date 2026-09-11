@@ -869,7 +869,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                   because tint is bodywork. */}
               <div className="mt-5">
                 <h3 className="grn-label border-b border-white/10 pb-2 text-xs">
-                  WINDOW TINT · تظليل
+                  WINDOW TINT · <span className="grn-ar" lang="ar">تظليل</span>
                 </h3>
                 <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.03] p-4">
                   <div className="flex items-baseline justify-between">

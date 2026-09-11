@@ -238,7 +238,14 @@ export default function Onboarding({
             ))}
           </div>
           <button onClick={next} className="grn-btn grn-btn-primary tap px-6 py-3 text-sm">
-            {last ? "LET'S GO — يلا" : "NEXT"}
+            {/* .grn-btn tracks 0.06em and يلا was inheriting it. */}
+            {last ? (
+              <>
+                LET&apos;S GO — <span className="grn-ar" lang="ar">يلا</span>
+              </>
+            ) : (
+              "NEXT"
+            )}
           </button>
         </div>
       </div>
