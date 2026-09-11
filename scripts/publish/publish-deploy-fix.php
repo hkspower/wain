@@ -6,37 +6,49 @@
  * writes into the live web root. Two things make this safe to publish rather
  * than merely quick.
  *
- * THE BASE WAS PROVED, NOT ASSUMED. The repository's copy was transcribed from
- * the server and its sha256 compared against the server's own —
- * 368355e52ec4fe2c…bbc2e on both sides, 240 lines and 8347 bytes either way —
- * BEFORE a line was changed. So what is published differs from what is there by
- * exactly the three fixes and nothing else. $WAS below is that hash, and this
- * script REFUSES to write if the live file is not it: something else has edited
- * deploy.php since, and overwriting that blind would discard it.
+ * THE BASE WAS PROVED, NOT ASSUMED. $WAS is the sha256 of what should be on the
+ * server right now — the round published earlier today, itself verified against
+ * the server's own hash before a line of it was changed. This script REFUSES to
+ * write if the live file is not exactly that: something else has edited
+ * deploy.php since, and overwriting that blind would discard it with no record.
  *
  * IT HAS NEVER RUN. manifest=none, artifacts=0, and all three lines of its log
  * are FAIL bad_signature — so there is no working deploy to break. The guard
  * chain is unchanged either way: method, signature, replay window, sha shape
  * and host allow-list are byte-identical to what is live.
  *
- * THE FIXES
- *   - the size cap read only the declared Content-Length, so a chunked
- *     response from codeload.github.com capped at nothing;
- *   - the protected-path check on zip entries tested the first path segment,
- *     which in a GitHub archive is the `wain-<sha>` wrapper and never `api`,
- *     making that layer inert for every archive this endpoint deploys;
- *   - the staged path was stripped with str_replace rather than as a prefix.
+ * THIS ROUND IS A SECURITY FIX, and it is the one that matters most of the five
+ * this endpoint has had. The header's promise — "never executes downloaded
+ * code; .php in an artifact is refused" — was FALSE, because the .php regex was
+ * the only execution guard of its kind. Measured against the real functions,
+ * all of these were accepted and written:
+ *
+ *     assets/.user.ini    assets/.htaccess    assets/x.php5    assets/x.pht
+ *
+ * `.user.ini` is PHP's per-directory config under CGI/FastCGI: auto_prepend_file
+ * in it runs an arbitrary file on every request to that directory, with no .php
+ * entry anywhere in the archive. `.htaccess` can map any extension to the PHP
+ * handler. PROTECTED_PATHS does list `.htaccess`, but isProtected() tests the
+ * FIRST path segment, so it guarded the web root's own and nothing deeper.
+ *
+ * AND a failed @copy was silent — ok:true with a smaller count — after which the
+ * prune deleted the still-good OLD file for being absent from the short new
+ * manifest. The replacement did not arrive and the original was removed.
+ *
+ * The earlier round's three fixes (the size cap on a chunked response, the inert
+ * protected-path check on wrapped archives, the str_replace prefix strip) are
+ * already live and are carried forward unchanged.
  *
  * $COMMIT PINS THE FILE, NOT THIS SCRIPT — fetch the script from HEAD, and the
  * FULL forty characters, because an abbreviated sha 404s on
  * raw.githubusercontent and an unresolvable ref is an empty fetch.
  */
 
-$COMMIT = '68cb1da53d120fc0fa76e793da33214debb57365';
+$COMMIT = 'f910543bd96369b7460bb7562859f07394283a4d';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $REL    = 'api/deploy.php';
-$WAS    = '368355e52ec4fe2c5ddee00b521cc4143741143b4dde943585c38a55778bbc2e';
-$WANT   = 'c9bfa1c1b73cc38ad182a4a01de0bff5541e9d2bc7a651e6f0bc0cece11aab00';
+$WAS    = 'c9bfa1c1b73cc38ad182a4a01de0bff5541e9d2bc7a651e6f0bc0cece11aab00';
+$WANT   = 'e3ab2a969bb4745a5f8b4b90e07d0881f08566b3757d216af0a2699ea12c01b7';
 
 $target = $ROOT . '/' . $REL;
 $bits   = [];
