@@ -44,11 +44,23 @@
  * only the empty check there was no way to turn شوق off from CI at all, and
  * the off switch matters most on the day she says something wrong on the live
  * site and the owner needs it without waiting for a commit.
+ *
+ * `||` and not `??`, and the difference is the whole point of the paragraph
+ * above. `??` falls back only on null/undefined, so an empty string — which is
+ * exactly what `${{ vars.ELEVENLABS_AGENT_ID }}` expands to when the variable
+ * has never been set — came through as the id itself and switched شوق OFF. The
+ * default beside it was written to stop precisely that, and could not: it was
+ * unreachable from CI, which is the only place that sets this at all.
+ *
+ * Worse, it was unreachable *silently*. deploy.yml prints «شوق: agent mode
+ * (built-in default)» for an empty AGENT, so the run log said she was on while
+ * the bundle it had just built had her off. Nothing else looks. `||` makes the
+ * comment above true: unset or empty → the default, «none» → off.
  */
 const DEFAULT_AGENT_ID = "agent_1701m1gcrccrethae9y3nyv1e116";
 const OFF = "none";
 
-const configured = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID ?? DEFAULT_AGENT_ID;
+const configured = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID || DEFAULT_AGENT_ID;
 
 export const WAIN_AI_AGENT_ID =
   configured.trim().toLowerCase() === OFF ? "" : configured;

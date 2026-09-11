@@ -43,6 +43,8 @@ const note = (m) => { notes++; console.log(`  · ${m}`); };
    source would keep passing if the export were renamed or moved. */
 const tmp = mkdtempSync(join(tmpdir(), "wain-shouq-call-"));
 let SRC, ORIGIN, AGENT_ENABLED;
+/** Is شوق on, for a given value of the build-time variable? */
+let enabledWhen = () => null;
 try {
   const entry = join(tmp, "e.mjs");
   const bundle = join(tmp, "b.mjs");
@@ -59,8 +61,28 @@ try {
   SRC = mod.WAIN_AI_WIDGET_SRC;
   ORIGIN = mod.WAIN_AI_WIDGET_ORIGIN;
   AGENT_ENABLED = mod.WAIN_AI_AGENT_ENABLED;
+
+  /**
+   * Ask the same module what it would decide under a given variable.
+   *
+   * A child process because `process.env` is read at module load and Node
+   * caches modules; esbuild leaves the read intact in a node bundle, so the
+   * only honest way to vary it is to load it again somewhere else.
+   */
+  enabledWhen = (value) =>
+    execFileSync(process.execPath, [
+      "-e",
+      `import(${JSON.stringify(pathToFileURL(bundle).href)})` +
+        `.then((m) => console.log(m.WAIN_AI_AGENT_ENABLED ? "on" : "off"))`,
+    ], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      env: value === undefined
+        ? { ...process.env, NEXT_PUBLIC_ELEVENLABS_AGENT_ID: undefined }
+        : { ...process.env, NEXT_PUBLIC_ELEVENLABS_AGENT_ID: value },
+    }).trim();
 } finally {
-  rmSync(tmp, { recursive: true, force: true });
+  // Deliberately NOT removed here — enabledWhen() re-imports the bundle below.
 }
 
 console.log("\n── the widget URL a call depends on ──");
@@ -123,6 +145,42 @@ if (!m) {
     }
   }
 }
+
+/**
+ * ── and whether a build actually carries her ──────────────────────────────
+ *
+ * The URL above only matters if agent mode is on, and it was off in exactly
+ * the place that matters and nowhere anyone would look. `${{ vars.X }}` in
+ * GitHub Actions expands to "" when the variable has never been set, and
+ * `process.env.X ?? DEFAULT` does not fall back on "" — so every CI build
+ * shipped the browser-speech fallback while deploy.yml's own log printed
+ * «شوق: agent mode (built-in default)».
+ *
+ * Three values, because each is a different real situation: a hand build here
+ * (unset), a CI build with the variable never set (empty), and the owner
+ * deliberately turning her off (none). Nothing else in the repository can tell
+ * them apart.
+ */
+console.log("\n── does a build carry شوق ──");
+{
+  const cases = [
+    [undefined, "on", "unset — a build from a laptop or a sandbox"],
+    ["", "on", "empty — an unset GitHub variable reaches the build as \"\""],
+    ["none", "off", "«none» — the deliberate off switch"],
+  ];
+  for (const [value, want, why] of cases) {
+    const got = enabledWhen(value);
+    if (got !== want) {
+      fail(`${why}: expected ${want}, got ${got}`,
+           want === "on"
+             ? "This is the bug that shipped: the built-in default is unreachable,\n" +
+               "      so CI builds شوق out while the run log says she is in."
+             : "The off switch has stopped working — there is now no way to take\n" +
+               "      her off the live site without a commit.");
+    } else ok(`${why} → ${got}`);
+  }
+}
+rmSync(tmp, { recursive: true, force: true });
 
 // A URL nobody fetches is not a bug, so say which case this is.
 if (!AGENT_ENABLED) note("agent mode is switched off in this build — the URL is unused until it is on");
