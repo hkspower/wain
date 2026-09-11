@@ -130,12 +130,54 @@ jobs:
       # صوت وين: pre-render the two ElevenLabs voices when the secrets are
       # configured; without them the step logs a notice and the site falls
       # back to the browser's own Arabic voice.
+      #
+      # THE CACHE IS NOT AN OPTIMISATION, IT IS WHAT MAKES THIS AFFORDABLE.
+      #
+      # The library is 324 clips — 162 lines each for شوق and سالم, 13,247
+      # characters — rendered one at a time with a deliberate 350ms pause
+      # between calls: roughly 13 minutes of wall clock, and about $2.40 at the
+      # rate the one real render in docs/voice-sample/ measured. A checkout is
+      # fresh, so without a cache that is paid IN FULL on every push to this
+      # branch — for a set of sentences that changes a few times a year.
+      #
+      # gen-voice.mjs already knows how to be incremental: every clip carries a
+      # hash of {text, voiceId, model, format, settings} and is re-recorded
+      # only when that moves. It just needs last run's files to be there. So
+      # the exact key pins everything that can change a clip, and the prefix
+      # restore-key hands over the previous library when one of them does —
+      # which is the case that matters: editing one line then costs one render,
+      # not 324.
+      - name: Restore the voice clip library
+        id: voice-cache
+        uses: actions/cache@v4
+        with:
+          path: public/voice
+          key: voice-${{ hashFiles('src/lib/voice-lines.ts', 'src/lib/arabic.ts', 'src/lib/places.ts', 'scripts/gen-voice.mjs') }}
+          restore-keys: voice-
+
       - name: Generate voice clips (optional)
         env:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           ELEVEN_VOICE_SHOUQ: ${{ secrets.ELEVEN_VOICE_SHOUQ }}
           ELEVEN_VOICE_SALEM: ${{ secrets.ELEVEN_VOICE_SALEM }}
         run: node scripts/gen-voice.mjs --ci
+
+      # Said out loud, because the failure this guards against is silent: a
+      # build with no clips sounds like a screen reader and passes every check.
+      - name: Report صوت وين's coverage
+        run: |
+          if [ -f public/voice/manifest.json ]; then
+            n=$(node -p 'Object.keys(require("./public/voice/manifest.json").clips||{}).length')
+            b=$(du -sh public/voice | cut -f1)
+            echo "صوت وين: $n recorded clips ($b) ride in this artifact."
+          else
+            echo "::warning::صوت وين has NO recorded clips — every spoken line falls back to the browser's Arabic voice. Set the ELEVENLABS_API_KEY secret to render them."
+          fi
+          # public/voice is gitignored, so this must still be empty — the build
+          # id is the commit sha only while it is, and _next/static/<commit>/
+          # is what deploy:verify proves the deploy with.
+          test -z "$(git status --porcelain)" \
+            || { echo "::error::The tree is dirty before the build, so the build id will be random and _next/static/<commit>/ will not exist."; git status --porcelain | head; exit 1; }
 
       - name: Build static site (produces out/)
         # فهد only renders when this is set; an unset value ships the site
@@ -201,10 +243,10 @@ jobs:
           # Read the build id off the export rather than assuming it is the
           # commit sha. next.config only uses the sha when `git status` is
           # clean, and it falls back to a random id otherwise — which is the
-          # documented behaviour, not a fault. The voice step writes into the
-          # working tree when its secrets are set, so on CI that fallback is
-          # reachable, and a check that hard-coded GITHUB_SHA would 404 on a
-          # deploy that had in fact landed perfectly.
+          # documented behaviour, not a fault. The step above asserts the tree
+          # IS clean, so on CI this should always be the sha; reading it from
+          # the export anyway means a future step that dirties the tree
+          # degrades the proof rather than 404ing a deploy that landed fine.
           build_id=$(find out/_next/static -maxdepth 1 -type d -name '*' \
             ! -name static ! -name chunks ! -name media ! -name css \
             -printf '%f\n' | head -1)

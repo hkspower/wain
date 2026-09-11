@@ -61,6 +61,29 @@ design/**/*.html
 # is committed, these are not. See src/lib/photos.ts.
 photos-src/
 
+# صوت وين's clip library. 324 ElevenLabs renders and the manifest cataloguing
+# them, written by scripts/gen-voice.mjs — output, not source: the sentences
+# live in src/lib/voice-lines.ts and the rendition in gen-voice.mjs, and the
+# manifest hashes both so a changed line re-records only itself.
+#
+# Ignored for two measured reasons, not tidiness.
+#
+# 1. It is ~14MB of mp3. This repository already carries 25MB of removed-and-
+#    recommitted zip archives that reclaim nothing and cannot be rewritten away
+#    (شوق's knowledge base is pinned to a commit on this branch). A voice
+#    library committed once is that bill again, permanently.
+# 2. next.config's buildIdFromGit falls back to a RANDOM build id when
+#    `git status --porcelain` is not empty, and CI generates these clips into
+#    the working tree before `npm run build`. Untracked, they were 324 `??`
+#    lines: the moment ELEVENLABS_API_KEY was set, every deploy would have
+#    silently lost the `_next/static/<commit>/` proof that deploy:verify
+#    depends on, and the "CI always builds clean" promise in that file with it.
+#    Turning شوق's voice on must not cost the deploy its evidence.
+#
+# audit:voice treats a missing manifest as «not generated yet», which is what a
+# fresh clone is.
+/public/voice/
+
 # The full-site PDF is a rendered artefact, regenerated on demand.
 wainkw-site.pdf
 

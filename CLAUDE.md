@@ -617,9 +617,41 @@ step dirties the tree, which makes `generateBuildId` fall back to a random id,
 so its verification reads the build id off the export rather than assuming
 `GITHUB_SHA`.
 
-Measured while looking: the library is **324 lines and 24,026 characters**, not
-the 226 the script's own docstring says — that number predates the catalogue
-growing from 33 places to 52. About 24,000 credits, roughly $4.40 for the set.
+Measured while looking: the library is **324 lines and 13,247 characters** —
+6,623 for شوق and 6,624 for سالم — not the 226 the script's own docstring says,
+which predates the catalogue growing from 33 places to 52. At the sample's
+measured rate (75.99 credits ≈ $0.014) that is **about $2.40** for the set.
+
+**24,026 characters was written here first and it was wrong** — nearly double.
+Re-measured by asking `buildClipLines` itself, twice, raw and through
+`forSpeech`: 13,261 and 13,247. Worth the correction because the number is the
+whole argument for caching the library in CI rather than re-rendering it, and a
+cost estimate that is out by 2× is not evidence.
+
+**And CI re-rendered all 324 on every push, until 11 September.** A checkout is
+fresh, so `gen-voice.mjs`'s per-clip hash — which exists precisely to make a run
+incremental — had nothing to compare against and no files to keep. ~13 minutes
+and the full bill per push, for sentences that change a few times a year.
+`actions/cache` on `public/voice/` fixes it; the exact key hashes everything
+that can change a clip and the `voice-` prefix restore-key hands over the
+previous library when one moves, so a line edit costs one render. Correctness
+never depended on the key: a restored clip whose hash no longer matches is
+re-recorded anyway.
+
+**Generating the clips also silently cost the deploy its proof, and that is the
+part worth carrying.** `buildIdFromGit` returns null — Next's random id — when
+`git status --porcelain` is not empty, and the voice step writes into the
+working tree *before* `npm run build`. `public/voice/` was not ignored, so 324
+untracked mp3s and a modified manifest meant that the moment
+`ELEVENLABS_API_KEY` was set, every deploy would have shipped
+`_next/static/<random>/` instead of `_next/static/<commit>/` — the one artefact
+whose name carries the commit, and the thing `deploy:verify` requires. Nothing
+would have failed. `public/voice/` is gitignored now (it is output, and 14MB of
+it, in a repository already carrying 25MB of committed archives that cannot be
+rewritten away), and deploy.yml asserts the tree is clean before it builds
+rather than discovering this afterwards. **A feature that dirties the tree
+disables the build-id proof — check that before adding a build step that
+writes.**
 
 **Two pairs of switches, and in both the half-on state is worse than off.**
 صوت وين's bridge needs `NEXT_PUBLIC_WAIN_TTS_URL` set AND the workflow active;

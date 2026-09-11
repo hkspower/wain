@@ -24,7 +24,7 @@ same sentence. `gen-voice.mjs` hashes the *normalised* text, so editing
 `forSpeech` itself re-records the clips it changes. The screen is untouched;
 this string never reaches it.
 
-The tests assert over the whole catalogue (113 lines), not six hand-picked
+The tests assert over the whole catalogue (162 lines per persona), not six hand-picked
 strings, and include the negative case — the raw lines really do contain
 Arabic-Indic digits and an em dash, so the two "nothing survives" assertions
 are not passing by testing nothing.

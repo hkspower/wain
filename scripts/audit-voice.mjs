@@ -68,17 +68,25 @@ const want = personas.reduce((n, p) => n + expected[p].size, 0);
 
 console.log("\n── صوت وين: what is actually recorded ──");
 
+/* An ABSENT manifest is «nothing has been generated», not a fault.
+   It used to exit 1 here, which was right while `public/voice/manifest.json`
+   was a committed file: missing then meant somebody had deleted it. The whole
+   directory is generated output now and gitignored — a fresh clone has no
+   manifest at all — so «missing» and «version 0, no clips» are the same
+   situation, and this file's own header says that one warns rather than fails.
+   Exiting 1 on it would have made `npm run scan` red on every clean checkout. */
+let manifest = { version: 0, clips: {} };
 if (!existsSync(MANIFEST)) {
-  console.log("  ✗ public/voice/manifest.json is missing entirely.");
-  process.exit(1);
-}
-
-let manifest;
-try {
-  manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));
-} catch (e) {
-  console.log(`  ✗ manifest.json is not valid JSON: ${e.message}`);
-  process.exit(1);
+  console.log("  · public/voice/ has not been generated in this checkout.");
+} else {
+  try {
+    manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));
+  } catch (e) {
+    // A manifest that IS there and is unreadable is still a fault: speak()
+    // would resolve nothing and nobody would know why.
+    console.log(`  ✗ manifest.json is not valid JSON: ${e.message}`);
+    process.exit(1);
+  }
 }
 
 const clips = manifest.clips ?? {};

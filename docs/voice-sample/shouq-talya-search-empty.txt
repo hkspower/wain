@@ -39,9 +39,12 @@ with the script.
 
 ## The library, measured
 
-324 lines, 24,026 characters — not the 226 the script's docstring still says,
+324 lines, 13,247 characters — not the 226 the script's docstring still says,
 which was true when the catalogue had 33 places and is not now that it has 52.
-At this sample's rate that is ≈24,000 credits, about $4.40 for the whole set.
+At this sample's rate that is about $2.40 for the whole set.
+
+(24,026 characters was written here first, and it was nearly double. Re-counted
+by asking buildClipLines itself: 13,261 raw, 13,247 through forSpeech.)
 
     ELEVENLABS_API_KEY=… npm run voice:sample   # one call, listen first
     ELEVENLABS_API_KEY=… node scripts/gen-voice.mjs

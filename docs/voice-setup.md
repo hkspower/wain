@@ -12,12 +12,23 @@ by `scripts/gen-voice.mjs` and shipped as part of the site under
 browser's own Arabic voice reads the same sentences (the shared source of
 truth is `src/lib/voice-lines.ts`).
 
-## Status, measured 5 September 2026
+## Status, measured 11 September 2026
 
-**Nothing is recorded yet.** `public/voice/manifest.json` is
-`{"version": 0, "clips": {}}` — zero of the **276** lines (138 per persona).
+**Nothing is recorded yet** — zero of the **324** lines (162 per persona).
 Every spoken line on the live site is read by the browser's own Arabic
 synthesiser. That is why شوق sounds like a screen reader.
+
+**One real render exists**, `docs/voice-sample/shouq-talya-search-empty.mp3`:
+her `search-empty` line in Talya, generated through the ElevenLabs connector.
+It is a sample and deliberately not in `public/voice/` — it came out at 128
+kbps and at the connector's default settings rather than the `mp3_44100_64`,
+`stability 0.35`, `similarity_boost 0.8` the library is specified at, and a
+library rendered at the wrong settings is the drift `docs/voice.md` exists to
+prevent. Use it to hear her; generate the library with the script.
+
+**Everything except the key is now wired.** The route is §4 below — CI, with
+the library cached between runs. `ELEVENLABS_API_KEY` in GitHub's secrets UI
+is the whole remaining step.
 
 **The blocker that caused it is gone.** Until now both the clip generator and
 the live conversational agent pointed at `w0uhBAmNIG5kUDeaFEsA` (Maryam Essa,
@@ -325,7 +336,7 @@ down so nobody has to rediscover it.
 
 **سالم** is `Ywuz3KyW2N5pqKNpwcCL` (Eid), Gulf male, and has always resolved.
 
-## 2. Hear one line before generating 226
+## 2. Hear one line before generating 324
 
 ```bash
 export ELEVENLABS_API_KEY="sk_..."       # Profile → API keys
@@ -339,7 +350,7 @@ utterance in the shape شوق actually speaks: greeting, suggestion, best time,
 summer warning. **Listen to it before going further.** Everything likely to be
 wrong the first time is audible in the first five seconds: a mistyped key, a
 voice ID from the wrong account, a model that renders Arabic badly, or a voice
-that simply doesn't sound like a young Kuwaiti woman. The full library is 226
+that simply doesn't sound like a young Kuwaiti woman. The full library is 324
 paid calls and there is no reason to spend them on a voice you haven't heard.
 
 There is also a placeholder you can play right now, with no key at all:
@@ -357,10 +368,16 @@ node scripts/gen-voice.mjs --dry-run     # preview all lines, no API calls
 node scripts/gen-voice.mjs               # generate missing and changed clips
 ```
 
-This writes 226 MP3s (113 lines × 2 personas: greeting, connectors, and a full
-suggestion + short name + best time for every place) plus
+This writes **324 MP3s** (162 lines × 2 personas: greeting, connectors, and a
+full suggestion + short name + best time for every place) plus
 `public/voice/manifest.json`. Then build and deploy as usual — the clips ride
-along in `out/`.
+along in `out/`, and they have to: `deploy.php` prunes against the manifest, so
+anything uploaded beside a deploy is deleted by the next one.
+
+The count moves with the catalogue. It was 226 when there were 33 places and is
+324 at 52, so a number written down here is a reading rather than a constant —
+`node scripts/gen-voice.mjs --dry-run` prints the current one and spends
+nothing.
 
 **Editing a line re-records it automatically.** The manifest stores a hash of
 the exact sentence behind every clip, and a clip whose sentence no longer
@@ -371,17 +388,70 @@ voice — with the recording winning, because the clip path takes priority
 whenever clips exist. `--force` still re-renders everything, but you should no
 longer need it for a copy change.
 
-## 4. Or let CI do it
+## 4. Or let CI do it — which is the only route that works today
 
-Add three repository secrets (Settings → Secrets and variables → Actions):
+Add one repository secret (Settings → Secrets and variables → Actions):
 
 - `ELEVENLABS_API_KEY`
-- `ELEVEN_VOICE_SHOUQ`
-- `ELEVEN_VOICE_SALEM`
+
+`ELEVEN_VOICE_SHOUQ` and `ELEVEN_VOICE_SALEM` are optional overrides; without
+them the generator uses the ids in `DEFAULT_VOICE_IDS`, which are the voices
+this workspace actually owns and the ones the n8n TTS bridge is set to.
 
 The deploy workflow runs `gen-voice.mjs --ci` before each build: with the
-secrets set it renders any missing clips; without them it logs a notice and
-ships the browser-voice fallback.
+secret set it renders any missing clips; without it the step logs a notice,
+the next step warns, and the build ships the browser-voice fallback.
+
+**This sandbox cannot do it, and an API key would not change that.**
+`api.elevenlabs.io` is refused at CONNECT by the egress gateway here — the
+same block that stops uploads to Hostinger — so `npm run voice:sample` answers
+`403 … Host not in allowlist` whether a key is set or not. A GitHub runner
+reaches it over the ordinary internet. The key belongs in GitHub's secrets UI
+and nowhere else: not in a chat message, not in a file, not in this repository.
+
+### The library is cached between runs, and that is load-bearing
+
+Measured, not estimated: **324 clips, 13,247 characters**, 162 lines per
+persona. The generator renders them one at a time with a 350ms pause between
+calls, which is **~13 minutes** and **about $2.40** for a cold run — priced off
+the one real render this repository has, 75.99 credits ≈ $0.014 for a 90-
+character line. A checkout is fresh, so without a cache that is paid
+in full on **every push** — for a set of sentences that changes a few times a
+year.
+
+So `actions/cache` restores `public/voice/` before the step. The exact key
+hashes everything that can change a clip (`voice-lines.ts`, `arabic.ts`,
+`places.ts`, `gen-voice.mjs`); the `voice-` prefix restore-key hands over the
+previous library when one of them moves, which is the case that matters —
+editing one line then costs one render, not 324. Correctness does not depend
+on the key being right: every clip carries a hash of
+`{text, voiceId, model, format, settings}`, so a restored file that no longer
+matches is re-recorded regardless. The key only decides how much is reused.
+
+### `public/voice/` is gitignored, and that is also load-bearing
+
+It is generated output — ~14MB of MP3 plus the manifest cataloguing it — and
+it is ignored for two measured reasons.
+
+**It would be 14MB in git for ever.** This repository already carries 25MB of
+release archives committed and removed six times over; the removals reclaim
+nothing, and history cannot be rewritten because شوق's knowledge base is
+pinned to a commit on this branch.
+
+**And it would have cost the deploy its proof.** `next.config`'s
+`buildIdFromGit` falls back to a **random** build id whenever
+`git status --porcelain` is not empty, and CI generates these clips into the
+working tree *before* `npm run build`. Untracked, they were 324 `??` lines: the
+moment `ELEVENLABS_API_KEY` was set, every deploy would have shipped
+`_next/static/<random>/` instead of `_next/static/<commit>/` — which is the one
+artefact whose name carries the commit, and the thing `deploy:verify` proves a
+deploy with. Turning شوق's voice on must not silently take away the evidence
+that the deploy landed. The workflow now asserts the tree is clean before it
+builds, so that can never be discovered after the fact.
+
+A fresh clone therefore has no `public/voice/` at all. `audit:voice` treats
+that as «not generated yet» and warns, exactly as it already did for a manifest
+with zero clips.
 
 ## How it behaves in the site
 
@@ -392,8 +462,9 @@ ships the browser-voice fallback.
   place and up to two related ones.
 - Preferences persist in the visitor's Local Storage only (documented on
   the privacy page). Clips are cached for a week by `.htaccess`.
-- Costs: generation is a one-time ~7,000 characters per persona; visitors
-  stream the static MP3s from your hosting, never from ElevenLabs.
+- Costs: generation is 6,623 characters for شوق and 6,624 for سالم, once per
+  change rather than once per visitor; visitors stream the static MP3s from
+  your hosting, never from ElevenLabs.
 
 ## What is tested
 
@@ -425,7 +496,7 @@ The hash now covers the text, the voice id, the model, the output format and
 the voice settings. A run that re-records because of one of those says
 `rendition changed` rather than `line changed`, so the log distinguishes «this
 sentence moved» from «this voice moved». `tests/voice-pipeline.test.mjs`
-proves it: swap شوق's voice and all 137 of her clips are re-recorded while
+proves it: swap شوق's voice and every one of her clips is re-recorded while
 سالم's are left alone. With the old hash that same test records nothing.
 
 ---
