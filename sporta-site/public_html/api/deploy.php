@@ -95,6 +95,47 @@ function isProtectedEntry(string $n, bool $wrapped): bool {
     return $n !== '' && isProtected($n);
 }
 
+/**
+ * Anything that can make the server EXECUTE what this endpoint writes.
+ *
+ * THE HEADER'S PROMISE WAS FALSE, and the `.php` check is not what made it so —
+ * it is that the check was the only one. Measured 2026-09-11 against the real
+ * guards, every one of these was accepted and written:
+ *
+ *     assets/.user.ini    assets/.htaccess    assets/x.php5    assets/x.pht
+ *
+ * `PROTECTED_PATHS` does list `.htaccess`, but `isProtected()` tests the FIRST
+ * path segment — so it guards the web root's own and nothing one directory
+ * deeper. And each of those four turns "no PHP in the artifact" into nothing:
+ *
+ *   - `.user.ini` is PHP's own per-directory config under CGI/FastCGI, and
+ *     `auto_prepend_file` in it runs an arbitrary file on every request to that
+ *     directory. Straight to execution, no .php entry needed.
+ *   - `.htaccess` can map any extension to the PHP handler, so a deployed
+ *     `.txt` becomes code.
+ *   - `.php5`, `.pht`, `.phtm` and friends are commonly mapped to PHP.
+ *
+ * It is post-authentication — a valid signature is still required — but the
+ * whole point of refusing `.php` is to bound what a MISTAKEN or TAMPERED
+ * artifact can do, and an artifact that can write `.user.ini` is unbounded.
+ *
+ * Matched on the BASENAME, so it holds at any depth, and used by BOTH the
+ * entry check and the copy loop: those two see different strings — a zip entry
+ * and a collapsed relative path — and a guard applied to only one of them is
+ * the inert-layer failure this file has already had once.
+ */
+const DANGEROUS_NAMES = ['.htaccess', '.htpasswd', '.user.ini'];
+
+function isDangerous(string $rel): bool {
+    $rel  = ltrim(str_replace('\\', '/', $rel), '/');
+    $base = strtolower(basename($rel));
+    if ($base === '') return false;
+    if (in_array($base, DANGEROUS_NAMES, true)) return true;
+    // php, php3..php8, phps, phtml, phtm, pht, phar — plus the other handlers
+    // a shared host routinely has enabled.
+    return (bool) preg_match('/\.(php[0-9s]?|phtml?|pht|phar|cgi|pl|py|sh)$/', $base);
+}
+
 /* ---------- 1. method ---------- */
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     out(405, ['ok' => false, 'error' => 'method_not_allowed']);
@@ -228,7 +269,7 @@ for ($i = 0; $i < $za->numFiles; $i++) {
         $za->close(); @unlink($zip);
         out(422, ['ok' => false, 'error' => 'unsafe_path', 'entry' => $n]);
     }
-    if (preg_match('/\.(php|phar|phtml|cgi|sh)$/i', $n)) {
+    if (isDangerous($n)) {
         $za->close(); @unlink($zip);
         out(422, ['ok' => false, 'error' => 'executable_in_artifact', 'entry' => $n]);
     }
@@ -252,6 +293,7 @@ if (count($entries) === 1 && is_dir("$stage/{$entries[0]}")) {
 
 /* ---------- 8. publish ---------- */
 $newManifest = [];
+$failed = [];
 $copied = 0;
 $it = new RecursiveIteratorIterator(
     new RecursiveDirectoryIterator($stage, FilesystemIterator::SKIP_DOTS)
@@ -267,11 +309,47 @@ foreach ($it as $f) {
     // An empty $rel now means "outside the staging directory", which is not a
     // file this endpoint may write anywhere. It was already skipped below; it
     // is worth keeping that way round rather than falling back to the full path.
-    if ($rel === '' || isProtected($rel)) continue;
+    // isDangerous as well as isProtected, on the COLLAPSED path. The entry
+    // loop above sees zip names; this sees what will actually be written, and
+    // a guard on only one of the two is a guard on neither.
+    if ($rel === '' || isProtected($rel) || isDangerous($rel)) continue;
     $dest = "$WEBROOT/$rel";
     $dir  = dirname($dest);
     if (!is_dir($dir)) @mkdir($dir, 0755, true);
     if (@copy($f->getPathname(), $dest)) { $newManifest[] = $rel; $copied++; }
+    else $failed[] = $rel;
+}
+
+/* ---------- 8b. a PARTIAL deploy must not be reported as a whole one -------
+ *
+ * `@copy` failing was silent: the file was skipped, `$copied` did not count it,
+ * and the response said `ok: true` with a smaller number nobody would question.
+ * Disk full or one bad permission is enough.
+ *
+ * AND THE PRUNE BELOW TURNS THAT INTO DATA LOSS. It deletes everything in the
+ * OLD manifest that is not in the NEW one — so a file that failed to copy is
+ * missing from the new manifest, and the still-good old copy is deleted for
+ * being stale. The shop loses a file precisely because the replacement did not
+ * arrive.
+ *
+ * So a failure stops here: the manifest is NOT rewritten (the old one still
+ * describes what is really on disk), nothing is pruned, and the response says
+ * what did not land. Some files have already been written — that cannot be
+ * undone at this point and pretending otherwise would be the same lie in the
+ * other direction — so it reports both numbers and names the failures.
+ */
+if ($failed) {
+    rrmdir("$WORK/stage-$stamp");
+    flock($lock, LOCK_UN); fclose($lock);
+    logline('FAIL partial version=' . $version . ' wrote=' . $copied
+          . ' failed=' . count($failed) . ' first=' . $failed[0]);
+    out(500, [
+        'ok'       => false,
+        'error'    => 'partial_deploy',
+        'deployed' => $copied,
+        'failed'   => array_slice($failed, 0, 20),
+        'note'     => 'nothing was pruned and the manifest was not updated',
+    ]);
 }
 
 /* ---------- 9. prune stale files from previous manifest ---------- */

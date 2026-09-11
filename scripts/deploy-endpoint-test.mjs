@@ -194,6 +194,74 @@ echo json_encode($out);
   }
 }
 
+/* ============ 3a2. isDangerous — the guarantee the header makes, tested */
+// Found 2026-09-11 by re-reading the file: the `.php` regex was the ONLY
+// execution guard, and `PROTECTED_PATHS` lists `.htaccess` but isProtected()
+// tests the FIRST segment, so it guarded the web root's own and nothing deeper.
+// assets/.user.ini, assets/.htaccess, assets/x.php5 and assets/x.pht were all
+// accepted and written — and .user.ini alone is arbitrary code execution via
+// auto_prepend_file, which makes "no .php in an artifact" mean nothing.
+{
+  const fnD = grab('isDangerous')
+  const namesConst = php.match(/const DANGEROUS_NAMES = \[[\s\S]*?\];/)
+  if (!fnD || !namesConst) {
+    bad('isDangerous exists in deploy.php', `fn=${!!fnD} names=${!!namesConst}`)
+  } else {
+    const CASES = [
+      ['assets/.user.ini',     true,  'PHP per-directory config — auto_prepend_file is code execution'],
+      ['assets/.htaccess',     true,  'can map any extension to the PHP handler'],
+      ['deep/a/b/.user.ini',   true,  'at any depth, not just the first segment'],
+      ['assets/.htpasswd',     true,  'credentials'],
+      ['assets/x.php5',        true,  'commonly mapped to PHP'],
+      ['assets/x.pht',         true,  'likewise'],
+      ['assets/x.PHP',         true,  'case must not matter'],
+      ['assets/x.phar',        true,  'a PHP archive'],
+      ['assets/app.css',       false, 'an ordinary asset must still deploy'],
+      ['assets/logo.webp',     false, 'likewise'],
+      ['deploy-selftest.txt',  false, 'and the e2e fixture must still deploy'],
+    ]
+    const hp2 = join(base, 'danger.php')
+    writeFileSync(hp2, `<?php\n${namesConst[0]}\n${fnD}\n`
+      + `$c = json_decode('${JSON.stringify(CASES.map(c => c[0]))}', true);\n`
+      + `$o = []; foreach ($c as $x) { $o[] = isDangerous($x) ? 1 : 0; } echo json_encode($o);\n`)
+    let got = null
+    try { got = JSON.parse(execFileSync('php', [hp2], { encoding: 'utf8' })) } catch (e) {
+      bad('isDangerous ran', String(e.message).slice(0, 120))
+    }
+    if (got) {
+      const wrong = CASES.map((c, i) => [c, got[i]]).filter(([c, g]) => Boolean(g) !== c[1])
+      wrong.length
+        ? bad('isDangerous refuses everything that can become code, and nothing else',
+              wrong.map(([c, g]) => `${c[0]} got=${!!g} want=${c[1]} (${c[2]})`).join('; '))
+        : ok('isDangerous refuses everything that can become code, and nothing else',
+             `${CASES.length} cases`)
+    }
+  }
+}
+
+// AND BOTH LOOPS CALL IT. The entry loop sees zip names and the copy loop sees
+// collapsed relative paths — different strings — so a guard wired into only one
+// of them is the inert layer this file has already had once.
+{
+  const entryLoop = /if \(isDangerous\(\$n\)\)/.test(php)
+  const copyLoop = /isProtected\(\$rel\)\s*\|\|\s*isDangerous\(\$rel\)/.test(php)
+  entryLoop && copyLoop
+    ? ok('both the entry check and the copy loop call isDangerous')
+    : bad('both the entry check and the copy loop call isDangerous',
+          `entryLoop=${entryLoop} copyLoop=${copyLoop} — a guard on one string is a guard on neither`)
+}
+
+// A PARTIAL DEPLOY MUST NOT PRUNE. @copy failing was silent, so the response
+// said ok:true with a smaller count — and the prune then deleted the still-good
+// OLD file for being absent from the short new manifest. The replacement did
+// not arrive AND the original was removed.
+{
+  /partial_deploy/.test(php) && /if \(\$failed\)/.test(php)
+    ? ok('a failed copy stops the deploy before the prune', 'partial_deploy, manifest not rewritten')
+    : bad('a failed copy stops the deploy before the prune',
+          'a silent @copy failure still reports success and then prunes the file it failed to replace')
+}
+
 /* ===================== 3b. and the STAGING LOOP actually calls it */
 // MUTATION TESTING PUT THIS HERE. The checks above run isProtectedEntry and
 // prove it correct — and reverting the call site to the old `isProtected($n)`
