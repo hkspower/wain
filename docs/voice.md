@@ -70,3 +70,42 @@ When the clips exist, the fix is the double buffer plus a `stop()` that
 distinguishes "abandon this utterance" from "advance within it" — and the
 assertion to write first is the one that caught both attempts: no clip is ever
 fetched twice.
+
+## The n8n bridge carries the same voice table, and nothing enforces it
+
+`src/lib/voice.ts` and the bridge's «اختر الصوت» node both say the voices must
+match `scripts/gen-voice.mjs` «because a clip and a live sentence are heard one
+after the other inside a single utterance, and any difference between them is
+audible as the speaker changing mid-sentence».
+
+They had diverged. Checked all three on 11 September:
+
+| source | شوق's voice | model |
+|---|---|---|
+| `scripts/gen-voice.mjs` — renders the clips | `rh16DBXwtscjdPFeMBYf` Talya | `eleven_multilingual_v2` |
+| the live ElevenLabs agent | `rh16DBXwtscjdPFeMBYf` | `eleven_flash_v2_5` |
+| the n8n bridge, before the fix | **`w0uhBAmNIG5kUDeaFEsA`** Maryam Essa | `eleven_multilingual_v2` |
+
+Stability, similarity, style and speed all matched. **The voice id alone did
+not**, which is the hardest field to notice going wrong: nothing breaks, no
+request fails, the audio plays — a different woman finishes the sentence.
+Corrected in the workflow, with the reason written into the node.
+
+**The model is deliberately NOT the agent's.** The bridge matches the *clips*,
+because those two interleave; the agent runs `flash` for latency and its audio
+is never heard spliced into a recorded line.
+
+**Nothing checks this.** The bridge lives in n8n cloud, not in this repository,
+so `npm run scan` cannot reach it — the table above is the written reference,
+and it has to be compared by hand when either side changes.
+
+### Both switches are off, and one without the other is worse than neither
+
+- `NEXT_PUBLIC_WAIN_TTS_URL` is unset (CI reads `vars.WAIN_TTS_URL`; the deploy
+  workflow prints a line saying so). Unset, the site never calls the bridge and
+  runtime sentences fall back to the browser voice.
+- The bridge workflow itself is inactive, so `/webhook/fahad-tts` answers 404.
+
+Turning on the variable while the workflow is off buys a four-second wait and
+then the robot; turning on the workflow while the variable is unset changes
+nothing. Both, or neither.
