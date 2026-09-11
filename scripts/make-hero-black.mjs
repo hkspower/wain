@@ -29,6 +29,29 @@ const write = process.argv.includes('--write')
  * are not taking decides for everyone who comes after, and this project has
  * already paid once for that and once for the reverse. */
 const marks = process.argv.includes('--marks')
+
+/* THE COPY, in one place, because it is the part most likely to change and the
+ * part the owner owns. The shipped frames set the pattern and it is followed
+ * rather than invented: a small English category line, a headline in the orange
+ * band, the Arabic beneath it, and a three-term strapline last
+ * ("MEN'S TRAINING" / "BODY BUILDING" / كمال الأجسام / "STRENGTH · MUSCLE · POWER").
+ *
+ * "ALL BLACK" stated a colour. A commercial hero has to name something you can
+ * SHOP, so the headline is the range and the Arabic is its true counterpart
+ * rather than a literal translation — تشكيلة is the word a Gulf retailer uses
+ * for an edit or a collection, which is what "EDIT" means here. The strapline
+ * moves from an attribute list to the training cycle, so it reads as a reason
+ * to buy rather than as three adjectives.
+ *
+ * NOTHING HERE IS A CLAIM ABOUT THE SHOP. No price, no delivery promise, no
+ * discount — those are facts the owner sets in /backends and they go stale in a
+ * raster the moment they change. */
+const COPY = {
+  eyebrow: 'NEW IN &middot; MEN &amp; WOMEN',
+  headline: 'THE BLACK EDIT',
+  arabic: 'تشكيلة الأسود',
+  strapline: 'TRAIN &middot; PERFORM &middot; RECOVER',
+}
 if (!SRC) { console.error('usage: node scripts/make-hero-black.mjs <photo.png> [--write]'); process.exit(1) }
 
 const R = 'sporta-site/public_html/'
@@ -122,7 +145,7 @@ const html = `<!doctype html><meta charset="utf-8">
   /* The figures, put back over the band. Same geometry as .shot img exactly, or
      they would sit a pixel off their own shadow. */
   .cutout { position: absolute; left: ${SHIFT}px; top: 0; width: ${W}px; }
-  .band h1 { color: #171a1e; font-weight: 700; font-size: 152px; letter-spacing: .01em;
+  .band h1 { color: #171a1e; font-weight: 700; font-size: 130px; letter-spacing: .01em;
              padding-left: 190px; line-height: 1; }
 
   .ar { position: absolute; left: 190px; top: 876px; color: #eaecee; font-weight: 700;
@@ -177,12 +200,12 @@ const html = `<!doctype html><meta charset="utf-8">
 
   <div class="type">
     <img class="lock" src="data:image/png;base64,${b64(R + 'logo-white.png')}">
-    <div class="eyebrow">MEN &amp; WOMEN</div>
+    <div class="eyebrow">${COPY.eyebrow}</div>
   </div>
-  <div class="band"><h1>ALL BLACK</h1></div>
+  <div class="band"><h1>${COPY.headline}</h1></div>
   <img class="cutout" id="cutout">
-  <div class="ar">الأسود بالكامل</div>
-  <div class="tag">FOR HIM &middot; FOR HER</div>
+  <div class="ar">${COPY.arabic}</div>
+  <div class="tag">${COPY.strapline}</div>
 </div>
 <script>
   /* Only the S, cropped out of the lockup by the orange run measured in the
@@ -316,25 +339,38 @@ await page.evaluate(async ({ src, w, t, radius }) => {
     v = v < 0 ? 0 : v > 1 ? 1 : v
     px[o + 3] = Math.round(v * v * (3 - 2 * v) * 255)
   }
-  /* STRAY SPECKS AND THE PHOTOGRAPH'S OWN EDGE. The dilated mask picked up a
-     ragged notch at the right where the photograph ends and the plate begins —
-     a sliver of border and a patch of backdrop that crossed the threshold,
-     punched into the band as a dark jag. Neither belongs to a figure.
+  /* STRAY MASS AT THE PHOTOGRAPH'S RIGHT EDGE, and a weight threshold is the
+     WRONG TOOL for it. A ragged dark patch was punching into the band; the
+     first guess was a speck, so columns carrying under 3% of the heaviest
+     column's alpha were dropped. It survived — measured, those columns carry
+     9% to 14%, rising to 21% at the very edge. It is not a speck, it is a tall
+     bright strip in the photograph's own right margin, and no percentage floor
+     separates it from a figure without also eating one.
 
-     Killed by column weight rather than by a hardcoded x-range: a column that
-     carries less than a few per cent of the heaviest column's alpha is not part
-     of a person, it is a speck. The figures' own columns are an order of
-     magnitude above that, and the outermost hair wisps this drops are at the
-     silhouette edge where losing a sliver is invisible. The border is zeroed
-     outright, because an edge pixel is never a figure. */
+     What DOES separate them is connectedness. The figures are two contiguous
+     runs of heavy columns; the artifact is a separate run beyond the woman,
+     with nothing but backdrop between. So the columns are labelled into runs
+     and a run is kept only if it PEAKS like a person — a quarter of the
+     heaviest column. The artifact peaks at 21% and goes; both figures peak far
+     above and stay. The inter-figure gap is preserved because they are two
+     runs, not one, and each is judged on its own peak. */
   const colSum = new Float32Array(w)
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) colSum[x] += px[(y * w + x) * 4 + 3]
   let maxCol = 0
   for (let x = 0; x < w; x++) if (colSum[x] > maxCol) maxCol = colSum[x]
-  const floor = maxCol * 0.03
+
+  const live = maxCol * 0.01          // a column with anything in it at all
+  const peak = maxCol * 0.25          // what a run must reach to be a person
+  const keep = new Uint8Array(w)
   for (let x = 0; x < w; x++) {
-    const dead = colSum[x] < floor || x < 14 || x > w - 28
-    if (!dead) continue
+    if (colSum[x] < live) continue
+    let end = x, hi = 0
+    while (end < w && colSum[end] >= live) { if (colSum[end] > hi) hi = colSum[end]; end++ }
+    if (hi >= peak) for (let q = x; q < end; q++) keep[q] = 1
+    x = end
+  }
+  for (let x = 0; x < w; x++) {
+    if (keep[x] && x >= 14 && x <= w - 15) continue
     for (let y = 0; y < h; y++) px[(y * w + x) * 4 + 3] = 0
   }
   for (let x = 0; x < w; x++) for (let y = 0; y < 14; y++) px[(y*w+x)*4+3] = 0
@@ -347,6 +383,26 @@ await page.evaluate(async ({ src, w, t, radius }) => {
 
 await page.evaluate(() => document.fonts.ready)
 await page.waitForTimeout(600)
+
+/* The headline must not run into the figures — the band is full width now, so
+   nothing stops it but this measurement. */
+const fit = await page.evaluate(() => {
+  /* MEASURE THE GLYPHS, NOT THE BOX. The first version read
+     .eyebrow.getBoundingClientRect(), and .eyebrow is a block div inside a
+     1750px container — so it reported 1940 whatever the text said, and a
+     perfectly well-fitting line was trimmed on the strength of it. A Range over
+     the text node measures what is actually drawn. */
+  const ink = (sel) => {
+    const el = document.querySelector(sel)
+    const r = document.createRange()
+    r.selectNodeContents(el)
+    return Math.round(r.getBoundingClientRect().right)
+  }
+  return { headlineEnds: ink('.band h1'), eyebrowEnds: ink('.eyebrow'),
+           arabicEnds: ink('.ar'), strapEnds: ink('.tag') }
+})
+console.log(`ink ends — headline ${fit.headlineEnds}  eyebrow ${fit.eyebrowEnds}`
+  + `  arabic ${fit.arabicEnds}  strapline ${fit.strapEnds}   (the man's left edge is ~1296)`)
 const png = await page.screenshot()
 
 /* webp at both hero sizes, from the one 3200px render — the same Chromium
