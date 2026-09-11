@@ -2964,9 +2964,25 @@ function store_jwk_to_pem(string $nB64, string $eB64): ?string {
  * at all, and the signature check is what provides the security either way.
  */
 function store_google_jwks(): array {
-    $file = sys_get_temp_dir() . '/sporta-google-jwks.json';
-    $fresh = is_file($file) && (time() - (int) @filemtime($file)) < 3600;
-    if ($fresh) {
+    // THE CACHE LOCATION IS A SECURITY DECISION, and the first version of this
+    // got it wrong: it used sys_get_temp_dir(). On shared hosting /tmp is
+    // frequently shared between accounts, and THIS FILE IS A TRUST ANCHOR —
+    // whoever can write it chooses the public keys that decide whether a token
+    // is genuine. Inject one key and you mint a token for any admin address and
+    // sign in as the owner. Every other sys_get_temp_dir() in this shop caches
+    // generated audio, a PDF or a wallet scratch file, where tampering is a
+    // nuisance; this one is authentication.
+    //
+    // So it lives in the account's OWN storage directory — the sibling of
+    // public_html that already holds deploy.secret, unreachable over HTTP — at
+    // 0600. And if that is not usable there is NO FALLBACK to a shared path:
+    // the function simply does not cache and fetches every time. Slower, and
+    // the only failure mode worth having. Falling back to /tmp would be the
+    // exposure this comment exists to remove, restored on the unhappy path.
+    $dir  = dirname(__DIR__, 2) . '/storage';
+    $file = is_dir($dir) && is_writable($dir) ? $dir . '/google-jwks.json' : null;
+
+    if ($file !== null && is_file($file) && (time() - (int) @filemtime($file)) < 3600) {
         $j = json_decode((string) @file_get_contents($file), true);
         if (is_array($j) && !empty($j['keys'])) return $j['keys'];
     }
@@ -2981,11 +2997,21 @@ function store_google_jwks(): array {
     if (is_string($body) && $code === 200) {
         $j = json_decode($body, true);
         if (is_array($j) && !empty($j['keys'])) {
-            @file_put_contents($file, $body);
+            if ($file !== null) {
+                // 0600 BEFORE the content, so the bytes are never briefly
+                // world-readable — the same ordering mistake the deploy secret
+                // was found sitting in at 0644.
+                if (!is_file($file)) { @touch($file); }
+                @chmod($file, 0600);
+                @file_put_contents($file, $body);
+            }
             return $j['keys'];
         }
     }
-    // The refetch failed. Fall back to whatever is on disk, however old.
+    // The refetch failed. Fall back to whatever is on disk, however old — a key
+    // that verified a minute ago beats no sign-in at all, and the signature
+    // check provides the security either way. Only from the PRIVATE path.
+    if ($file === null) return [];
     $j = json_decode((string) @file_get_contents($file), true);
     return is_array($j) ? ($j['keys'] ?? []) : [];
 }

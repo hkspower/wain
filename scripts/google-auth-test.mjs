@@ -179,5 +179,44 @@ r.upperEmail && r.upperEmail.email === 'manager@sporta.com.kw'
     : ok('Google sign-in never creates an admin account', 'admin_users stays the allow-list')
 }
 
+/* ========== 7. THE KEY CACHE IS A TRUST ANCHOR, so where it lives matters */
+// Found by auditing this feature an hour after writing it: the first version
+// cached Google's keys in sys_get_temp_dir(). On shared hosting /tmp is
+// frequently shared between accounts, and whoever can write that file CHOOSES
+// THE PUBLIC KEYS that decide whether a token is genuine — inject one and you
+// mint a token for any admin address. Every other temp-dir use in this shop
+// caches audio, a PDF or a scratch file; this one is authentication.
+{
+  const store = execFileSync('cat', [STORE], { encoding: 'utf8' })
+  const fn = store.slice(store.indexOf('function store_google_jwks('))
+  const raw = fn.slice(0, fn.indexOf('\n}\n') + 1)
+  // COMMENT-FREE, because the function's own comment EXPLAINS that it does not
+  // use sys_get_temp_dir — and the first version of this check failed on that
+  // prose. The tempting fix is to loosen the pattern, which is to break the
+  // guard; stripping the comments is the one that keeps it sharp. This
+  // repository has the identical note against the cookie-flags rig.
+  const body = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '')
+
+  const usesTemp = /sys_get_temp_dir\s*\(/.test(body)
+  usesTemp
+    ? bad('the key cache is NOT in a shared temp directory',
+          'sys_get_temp_dir() — on shared hosting that is a key-injection path into sign-in')
+    : ok('the key cache is NOT in a shared temp directory')
+
+  const privateDir = /storage/.test(body), mode0600 = /0600/.test(body)
+  privateDir && mode0600
+    ? ok('it caches in the account\'s own storage at 0600', 'the sibling of public_html, unreachable over HTTP')
+    : bad('it caches in the account\'s own storage at 0600',
+          `storage=${privateDir} mode0600=${mode0600}`)
+
+  // AND THERE IS NO FALLBACK TO A SHARED PATH. A fallback would restore the
+  // exposure on exactly the unhappy path nobody tests.
+  const nullsOut = /\$file\s*=\s*is_dir\([^)]*\)\s*&&\s*is_writable\([^)]*\)\s*\?[^:]*:\s*null/.test(body)
+  nullsOut && /if\s*\(\s*\$file\s*===\s*null\s*\)\s*return\s*\[\]/.test(body)
+    ? ok('an unusable private directory means NO cache, not a shared one')
+    : bad('an unusable private directory means NO cache, not a shared one',
+          'the unhappy path must not reach a world-writable location')
+}
+
 console.log(`\n${fail ? `FAILED — ${fail} of ${pass + fail}` : `all ok — ${pass} checks`}`)
 process.exit(fail ? 1 : 0)
