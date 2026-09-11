@@ -204,7 +204,7 @@ export default function CarManager() {
                     {"tris" in a && a.tris ? (
                       <div className="opacity-60">{a.tris.toLocaleString()} tris</div>
                     ) : null}
-                    <div className="mt-1 break-all text-[11px] opacity-50">{a.path}</div>
+                    <div className="mt-1 break-all text-2xs opacity-50">{a.path}</div>
                   </div>
                 );
               })}

@@ -3033,7 +3033,7 @@ function raceCut(): { w: number; h: number } | null {
                     </button>
                   ))}
                 </div>
-                <p className="mt-1.5 text-[11px] leading-4 text-white/55">
+                <p className="mt-1.5 text-2xs leading-4 text-white/55">
                   {distanceById(raceDistance).blurb} ·{" "}
                   {/* The Arabic half of the SENTENCE, not just the
                       length's name. This line used to print the English

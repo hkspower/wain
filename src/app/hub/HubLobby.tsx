@@ -411,7 +411,7 @@ export default function HubLobby() {
                     this size needs a name somewhere that is not a
                     tooltip, because a tooltip is a thing you have to
                     already be hovering to know exists. */}
-                <div className="mt-2 min-h-4 text-[11px] text-white/55">
+                <div className="mt-2 min-h-4 text-2xs text-white/55">
                   {(() => {
                     const c = CAR_COLORS.find((x) => x.css === color);
                     return c ? (
@@ -437,7 +437,7 @@ export default function HubLobby() {
                     </>
                   )}
                 </button>
-                <p className="mt-3 text-center text-[11px] leading-4 text-white/45">
+                <p className="mt-3 text-center text-2xs leading-4 text-white/45">
                   No account, no password, no email. The name is kept on this device, and you can
                   change it whenever you like.
                 </p>
@@ -460,14 +460,14 @@ export default function HubLobby() {
                     white/40 on top of it put the one line that tells you
                     how to fix a failed connection under 4:1. */}
                 {LOCAL_HUB && (
-                  <p className="mt-3 text-[11px] leading-4 text-white/62">
+                  <p className="mt-3 text-2xs leading-4 text-white/62">
                     Running it locally? Start the hub with{" "}
                     <code className="rounded bg-black/40 px-1">npm run hub</code>.
                   </p>
                 )}
                 <Link
                   href="/race"
-                  className="mt-3 block text-[11px] text-white/45 underline-offset-4 hover:text-white/80 hover:underline"
+                  className="mt-3 block text-2xs text-white/45 underline-offset-4 hover:text-white/80 hover:underline"
                 >
                   Drive solo instead — the road is still yours
                 </Link>
@@ -504,7 +504,7 @@ export default function HubLobby() {
               >
                 ENTER THE CRUISE
               </Link>
-              <p className="mt-2 text-center text-[11px] text-white/66">
+              <p className="mt-2 text-center text-2xs text-white/66">
                 {myTeam
                   ? `Racing as [${myTeam.tag}] ${myTeam.name}`
                   : "Racing solo — join or found a crew below"}
@@ -676,7 +676,7 @@ export default function HubLobby() {
               <h2 className="grn-label border-b border-white/10 pb-2 text-xs">
                 Community — <span className="grn-ar" lang="ar">المجتمع</span>
               </h2>
-              <p className="mt-1 text-[11px] leading-5 text-white/62">
+              <p className="mt-1 text-2xs leading-5 text-white/62">
                 Send a friend your code. When they use it, you both get{" "}
                 {REFERRAL_KD} KD — which is a whole starting balance each.
               </p>
@@ -703,7 +703,7 @@ export default function HubLobby() {
                     {copied ? "Copied ✓" : "Copy link"}
                   </button>
                 </div>
-                <div className="mt-2 flex items-center justify-between text-[11px] text-white/66">
+                <div className="mt-2 flex items-center justify-between text-2xs text-white/66">
                   <span>
                     {referral === null
                       ? "Connecting…"
@@ -720,7 +720,7 @@ export default function HubLobby() {
               {/* Redeeming is once per save, so once it is done the box
                   goes away rather than sitting there refusing. */}
               {referral?.used ? (
-                <p className="mt-4 rounded border border-emerald-400/30 bg-emerald-400/5 px-3 py-2 text-[11px] text-emerald-200">
+                <p className="mt-4 rounded border border-emerald-400/30 bg-emerald-400/5 px-3 py-2 text-2xs text-emerald-200">
                   You joined on a friend&apos;s invite. That one is spent — yours still works.
                 </p>
               ) : (
@@ -752,7 +752,7 @@ export default function HubLobby() {
 
               {refMsg && (
                 <p
-                  className={`mt-3 text-[11px] ${
+                  className={`mt-3 text-2xs ${
                     refMsg.ok ? "text-emerald-300" : "text-red-300"
                   }`}
                 >
@@ -769,7 +769,7 @@ export default function HubLobby() {
               <h2 className="grn-label border-b border-white/10 pb-2 text-xs">
                 Runs — <span className="grn-ar" lang="ar">المشاوير</span>
               </h2>
-              <p className="mt-1 text-[11px] leading-5 text-white/62">
+              <p className="mt-1 text-2xs leading-5 text-white/62">
                 Things you can only do with somebody else on the road. Nothing here expires —
                 the night ends at 05:50 and that is clock enough.
               </p>
@@ -792,14 +792,14 @@ export default function HubLobby() {
                           </span>
                         </span>
                         <span
-                          className={`shrink-0 font-mono text-[11px] tabular-nums ${
+                          className={`shrink-0 font-mono text-2xs tabular-nums ${
                             done ? "text-emerald-300" : "text-white/70"
                           }`}
                         >
                           {done ? `${q.reward} KD` : questLabel(q, runs)}
                         </span>
                       </div>
-                      <p className="mt-0.5 text-[11px] leading-4 text-white/62">{q.hint}</p>
+                      <p className="mt-0.5 text-2xs leading-4 text-white/62">{q.hint}</p>
                       <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/12">
                         <div
                           className={`h-full rounded-full ${
@@ -819,7 +819,7 @@ export default function HubLobby() {
               <h2 className="grn-label border-b border-white/10 pb-2 text-xs">
                 Best laps — <span className="grn-ar" lang="ar">أفضل اللفات</span>
               </h2>
-              <p className="mt-1 text-[11px] text-white/62">
+              <p className="mt-1 text-2xs text-white/62">
                 Full 8.5 km laps — Gulf Road out, the Second Ring back
               </p>
               <ol className="mt-3 space-y-2">
