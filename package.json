@@ -69,6 +69,7 @@
     "test:custom-css": "node scripts/custom-css-test.mjs",
     "test:first-admin": "node scripts/first-admin-test.mjs",
     "test:brand-token": "node scripts/brand-token-test.mjs",
+    "test:brand-logo-file": "node scripts/brand-logo-file-test.mjs",
     "test:brand-logos": "node scripts/brand-logos-test.mjs",
     "test:brand-logos-site": "node scripts/brand-logos-site-test.mjs",
     "test:product-photos-site": "node scripts/product-photos-site-test.mjs",

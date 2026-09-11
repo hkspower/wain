@@ -1026,15 +1026,89 @@ function store_data_image(?string $raw, int $max = STORE_LOGO_MAX): ?string {
 // checked against a strict pattern rather than merely escaped. `../` is the
 // obvious attack; a slug with a dot or a slash in it has no legitimate form,
 // and store_slug() cannot produce one.
-const STORE_BRAND_LOGO_NAMES = ['logo.png', 'logo.webp', 'logo.jpg'];
+// The extensions a dropped logo may carry, in preference order for the unlikely
+// folder that holds two. This is the order the old list had; serving the webp
+// first would be smaller, and that is a change to what the shop sends rather
+// than a repair, so it is not made here.
+//
+// `jpeg` and the case-insensitive matching below are the additions. What was
+// here matched 'logo.png', 'logo.webp' and 'logo.jpg' with is_file(), and Linux
+// is case-sensitive.
+const STORE_BRAND_LOGO_EXTS = ['png', 'webp', 'jpg', 'jpeg'];
 
+// Kept because it is the shape the docs and two rigs talk in.
+const STORE_BRAND_LOGO_NAMES = ['logo.png', 'logo.webp', 'logo.jpg', 'logo.jpeg'];
+
+/**
+ * The brand's logo file, or null.
+ *
+ * WHY THIS IS A DIRECTORY SCAN AND NOT THREE is_file() CALLS. It was three, of
+ * 'logo.png', 'logo.webp' and 'logo.jpg' exactly — and Linux filesystems are
+ * CASE-SENSITIVE, so `logo.PNG` and `logo.JPG` were invisible. So was
+ * `logo.jpeg`, which is the commoner spelling of the two and what most export
+ * dialogues produce. A phone, a camera and Windows all hand the owner one of
+ * those names.
+ *
+ * This is the owner's ONLY upload route that needs no panel — "drop a file in
+ * a folder" — and a name it silently declines is a feature that does nothing
+ * while appearing to be set up correctly. `brandLogos=0/8` on the live shop is
+ * consistent with exactly that, though it does not prove it.
+ */
 function store_brand_logo_file(string $slug): ?string {
     if (!preg_match('/^[a-z0-9][a-z0-9-]{0,63}$/', $slug)) return null;
     $dir = __DIR__ . '/../images/' . $slug;
-    foreach (STORE_BRAND_LOGO_NAMES as $name) {
-        $path = $dir . '/' . $name;
+    if (!is_dir($dir)) return null;
+    $entries = @scandir($dir);
+    if ($entries === false) return null;
+
+    // Index by lowercase name. First spelling wins, so a folder holding both
+    // logo.png and logo.PNG resolves the same way on every request rather than
+    // depending on the order the filesystem hands them back.
+    $byLower = [];
+    foreach ($entries as $e) {
+        $l = strtolower($e);
+        if (!isset($byLower[$l])) $byLower[$l] = $e;
+    }
+    foreach (STORE_BRAND_LOGO_EXTS as $ext) {
+        if (!isset($byLower['logo.' . $ext])) continue;
+        $path = $dir . '/' . $byLower['logo.' . $ext];
         if (is_file($path) && is_readable($path)) return $path;
     }
+    return null;
+}
+
+/**
+ * What to send as the Content-Type for a brand logo FILE.
+ *
+ * THE BYTES DECIDE, NOT THE NAME, and there is NO FALLBACK TO THE EXTENSION.
+ *
+ * Two different faults meet here and only one of them is obvious. An owner who
+ * exports a PNG and saves it as `logo.jpg` has made a file that is perfectly
+ * good and misnamed: served as `image/jpeg` under `nosniff` the browser
+ * refuses to draw it, so the picture is there, the folder is right, and the
+ * tile is blank. Reading the first bytes fixes that and costs nothing next to
+ * readfile().
+ *
+ * The other is why the extension is not a fallback. The first version of this
+ * function ended `?? STORE_BRAND_LOGO_TYPES[extension]`, reasoning that a file
+ * too short to identify should still be served under the name it carries — and
+ * its own rig caught it immediately, serving a PHP source file named `logo.png`
+ * as `image/png`. A file whose bytes are not an image is not an image, whatever
+ * it is called, and "too short to identify" and "not an image" are the same
+ * thing to every browser that would have to draw it. That fallback was the
+ * guess this function exists to remove, wearing a different hat.
+ *
+ * null means "do not serve this", and the route falls through to the
+ * placeholder. It is the same magic-byte check store_data_image() already makes
+ * of an uploaded data: URI, so both ways into this shop now agree about what an
+ * image is.
+ */
+function store_brand_logo_mime(string $path): ?string {
+    $head = @file_get_contents($path, false, null, 0, 12);
+    if (!is_string($head) || strlen($head) < 12) return null;
+    if (str_starts_with($head, "\x89PNG\r\n\x1a\n")) return 'image/png';
+    if (str_starts_with($head, "\xff\xd8\xff"))      return 'image/jpeg';
+    if (str_starts_with($head, 'RIFF') && substr($head, 8, 4) === 'WEBP') return 'image/webp';
     return null;
 }
 

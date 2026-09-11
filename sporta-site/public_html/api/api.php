@@ -583,9 +583,13 @@ if ($r === 'brand_logo') {
         $live = $db->prepare('select 1 from brands where slug = ? and active = 1');
         $live->execute([$slug]);
         $file = $live->fetchColumn() ? store_brand_logo_file($slug) : null;
-        if ($file !== null) {
-            $type = ['png' => 'image/png', 'webp' => 'image/webp',
-                     'jpg' => 'image/jpeg'][pathinfo($file, PATHINFO_EXTENSION)] ?? 'image/png';
+        // The type comes from store_brand_logo_mime(), which reads the file's
+        // own first bytes — one home with the name list, and it cannot hand
+        // back a guess. null means the bytes are not an image this shop serves,
+        // and the route falls through to the placeholder rather than sending
+        // something the browser will refuse under nosniff.
+        $type = $file === null ? null : store_brand_logo_mime($file);
+        if ($file !== null && $type !== null) {
             header('Content-Type: ' . $type);
             header('Content-Length: ' . (string)filesize($file));
             // A year, immutable, exactly as the database path claims — safe for
