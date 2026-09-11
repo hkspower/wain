@@ -2546,6 +2546,109 @@ passes its own tests is evidence about the things it changed, and nothing else.
 The three defects found first were real; the fourth was worth more than all of
 them, and nothing in that round would ever have surfaced it.
 
+## Google sign-in on /backends — a second door, 2026-09-11
+
+Asked for as "make backend login by google auth". Live and **inert**: an empty
+client id fails closed, draws no button and loads nothing third-party.
+
+**The ID-token flow, not the authorisation code.** The code flow needs a client
+SECRET on the server and a registered redirect URI; this needs neither, because
+the only thing that travels is a JWT Google signed and the server verifies
+against Google's published keys. One fewer secret on shared hosting is worth
+more than anything the code flow adds — the shop wants to know who is at the
+keyboard, not to call Google's APIs later.
+
+**It does not replace the password form.** Google sign-in fails for reasons this
+shop cannot see or fix — an outage, a blocked script, a corporate policy, the
+wrong account signed in — and a panel whose only door depends on somebody
+else's service is a panel that can be locked.
+
+**It never creates an account.** `admin_users` stays the only answer to who may
+run this shop, and "not an admin" is the SAME 401 as "bad token": telling them
+apart makes the route an oracle for which addresses run the shop, answerable by
+anyone with any Google account.
+
+**AND IT DOES NOT SKIP THE SECOND FACTOR.** An account with TOTP or email OTP
+is asked for it here exactly as the password path asks, through the same pending
+marker. Signing in with Google proves an EMAIL; an admin who enrolled an
+authenticator did so to require something beyond an email, and letting Google
+past it would silently weaken every account that had taken the trouble.
+`store_admin_grant()` stays the one place the shop is handed over.
+
+### Node mints, PHP verifies
+
+The rig generates an RSA key, publishes a JWKS and signs tokens with Node; the
+real `store_google_verify()` is then asked about them. **PHP verifying its own
+signature would pass even if the hand-rolled JWK-to-PEM conversion were wrong in
+a way both sides shared** — and it is hand-rolled, because PHP has no JWK
+reader. The one subtlety is the leading zero: an ASN.1 INTEGER is signed, so a
+modulus with its top bit set must be prefixed `0x00` or it decodes negative and
+a perfectly good key fails.
+
+Ten refusals are asserted, including **a valid signature by the WRONG key under
+a kid we DO publish** — the attack the kid lookup exists to stop, and the one a
+rig that only tries unknown kids misses. Mutation-tested four ways: `aud`
+dropped, the signature result ignored, `email_verified` trusted, the second
+factor skipped. Each caught.
+
+`$jwks` is a FUNCTION ARGUMENT rather than a setting, precisely so nothing
+reachable from a request can substitute a key set. Production passes null.
+
+### The CSP scoping took two silent failures to get right
+
+The button is a third-party script that draws a third-party iframe and calls
+home, so `script-src`, `frame-src` AND `connect-src` all need
+`accounts.google.com` — and naming a host in script-src lets it run code on this
+origin, which the storefront must not pay for. So it is scoped to `/backends`.
+
+Both first attempts failed, and **a real Apache said so before it shipped**:
+
+- `SetEnvIf Request_URI "^/backends"` — /backends is rewritten to the SPA shell,
+  and the internal redirect re-evaluates the config with the NEW uri.
+- the same test moved into mod_rewrite, but sitting beside the policies — the
+  SPA rule had already fired with `[L]` and never reached it.
+
+Either way the panel got the strict policy and the button was blocked three
+times over, **with nothing on screen but an absent button**. The flag is raised
+at the TOP of the file now, before anything rewrites, and Apache re-exposes it
+across the internal redirect under a `REDIRECT_` prefix — so both names are
+honoured, because which one arrives depends on how many rewrites happened.
+
+`htaccess-test` asserts both halves, because each fails in its own direction:
+the panel has the host, the storefront does NOT, a nested panel path does, and a
+product URL merely containing "backends" does not.
+
+**And LiteSpeed agreed, which Apache could not prove.** Measured on the live
+server in the same run as the publish: `cspPanel=3/3 cspShopClean=yes`.
+
+### The setup card is part of the feature
+
+The client id lives in a settings row no screen in either panel could write, so
+switching this on would otherwise have meant phpMyAdmin. **A feature whose
+configuration is unreachable is not finished.** It is in the same overlay
+because it belongs to the same feature and shares its one cache rule, and it is
+drawn only when `me` says somebody is signed in, so it cannot appear on the
+login screen it configures.
+
+Reading the id is public — the login screen needs it to draw a button, and a
+client id is compiled into every page that uses Google sign-in anywhere. WRITING
+it goes through the gate: anyone who could set it could point the shop's sign-in
+at their own Google project.
+
+**The app's panel was deliberately NOT done**, and the owner chose that: it
+needs its own iOS and Android OAuth clients and a native library. The server
+half already supports it, so adding it later needs no backend change. Naming it
+is the point — this repository has recorded app-only drift four times and this
+is the same omission in the other direction.
+
+### The cron list was ELEVEN on 2026-09-11
+
+A new one, not ours: `* * * * *`, `php /home/u130124229/domains/wainkw.com/storage/t.php install`.
+A different site, every minute, and "install" is not a verb a healthy per-minute
+job usually has. Recorded with its timestamp per the standing rule; not deleted,
+because it is not ours. That makes four distinct foreign jobs seen appearing and
+disappearing on this account — **re-list before reasoning from a list.**
+
 ## The live shop has no product photographs
 
 `photos=0/46active`, `brandLogos=0/8`, measured 2026-09-05. Every product card
