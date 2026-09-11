@@ -25,7 +25,7 @@
  * bytes, so an unpushed commit 404s. That is reported as its own state rather
  * than as a deploy failure, because the two look identical from the response.
  */
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, cpSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, cpSync, existsSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn, execFileSync } from 'node:child_process'
@@ -148,6 +148,55 @@ if (first.status !== 200 || !first.json?.ok) {
   }
 }
 
+/* ============================ 1b. THE REAL CLIENT, not a copy of its logic */
+// Everything above signs inline, which tests a REPRODUCTION of the signing
+// rules and would go on passing after deploy-sign.mjs broke. The client is the
+// deliverable — the thing that did not exist and the reason the endpoint had
+// never worked — so it is run as a program, exactly as the owner would run it.
+{
+  const secretPath = join(base, 'storage', 'deploy.secret')
+  let out = '', code = 0
+  try {
+    out = execFileSync('node', [
+      new URL('./deploy-sign.mjs', import.meta.url).pathname,
+      '--url', RAW,
+      '--sha256', zipSha,
+      '--version', 'via-client',
+      '--endpoint', `http://127.0.0.1:${PORT}/api/deploy.php`,
+      '--secret-file', secretPath,
+    ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+  } catch (e) { code = e.status ?? 1; out = (e.stdout || '') + (e.stderr || '') }
+
+  const okLine = /^200 .*"ok":true/m.test(out)
+  code === 0 && okLine
+    ? ok('scripts/deploy-sign.mjs deploys for real', out.trim().split('\n').pop().slice(0, 90))
+    : bad('scripts/deploy-sign.mjs deploys for real', `exit=${code} ${out.trim().slice(0, 200)}`)
+
+  // And the version it sent reached the manifest, which proves the body the
+  // client built is the body the server parsed — not merely that something
+  // with a valid signature arrived.
+  const m = join(base, 'storage', 'deploy', 'manifest.json')
+  const v = existsSync(m) ? JSON.parse(readFileSync(m, 'utf8')).version : null
+  v === 'via-client'
+    ? ok('the client\'s own payload is what the server stored', `version=${v}`)
+    : bad('the client\'s own payload is what the server stored', `version=${v}`)
+}
+
+// THE SECRET MUST NOT BE ACCEPTED ON THE COMMAND LINE, where it would sit in
+// shell history and in the process list for every user on the machine.
+{
+  let out = '', code = 0
+  try {
+    out = execFileSync('node', [new URL('./deploy-sign.mjs', import.meta.url).pathname,
+      '--url', RAW, '--sha256', zipSha, '--secret', 'hunter2',
+      '--endpoint', `http://127.0.0.1:${PORT}/api/deploy.php`],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, SPORTA_DEPLOY_SECRET: '' } })
+  } catch (e) { code = e.status ?? 1; out = (e.stdout || '') + (e.stderr || '') }
+  code !== 0 && /no secret/i.test(out)
+    ? ok('the client refuses a secret passed on the command line', 'exits, explaining why')
+    : bad('the client refuses a secret passed on the command line', `exit=${code} ${out.slice(0, 120)}`)
+}
+
 /* ===================================== 2. the checksum guard, with real bytes */
 {
   const r = await deploy(RAW, 'b'.repeat(64), 'wrong-hash')
@@ -175,14 +224,37 @@ if (first.status !== 200 || !first.json?.ok) {
 }
 
 /* ========================= 4. and nothing protected was written, ever */
+// THE FIRST VERSION OF THIS CHECK FAILED FOR THE WRONG REASON, which is worth
+// keeping in view: it listed protected directories that EXIST, and `api/`
+// exists because this rig put deploy.php in it. "A check that fails for the
+// wrong reason is more expensive than one that passes for the wrong reason,
+// because it looks like work to do."
+//
+// The invariant is not "api/ is absent" — it cannot be. It is that no protected
+// directory gained ANYTHING from the deploy, and that the endpoint is still the
+// file it was.
 {
-  const touched = ['api/deploy.php', 'api', 'knet', 'pay', 'storage']
-    .filter(p => p !== 'api/deploy.php' && existsSync(join(web, p)))
-  const deployStillThere = existsSync(join(web, 'api', 'deploy.php'))
-  touched.length === 0 && deployStillThere
-    ? ok('no protected directory was created and the endpoint survived', 'api/deploy.php intact')
-    : bad('no protected directory was created and the endpoint survived',
-          `created=${touched.join(',') || 'none'} endpointPresent=${deployStillThere}`)
+  const before = { 'api': ['deploy.php'] }       // what the rig itself created
+  const problems = []
+  for (const dir of ['api', 'knet', 'pay', 'storage', 'admin', 'queue', 'orders']) {
+    const p = join(web, dir)
+    if (!existsSync(p)) continue
+    const now = readdirSync(p).sort()
+    const want = (before[dir] ?? []).sort()
+    const added = now.filter(f => !want.includes(f))
+    if (added.length) problems.push(`${dir}/ gained ${added.join(',')}`)
+  }
+  // And the endpoint is byte-for-byte what it was — an artifact that could
+  // overwrite deploy.php would be the worst outcome available here.
+  const liveSha = existsSync(join(web, 'api', 'deploy.php'))
+    ? createHash('sha256').update(readFileSync(join(web, 'api', 'deploy.php'))).digest('hex') : null
+  const srcSha = createHash('sha256').update(readFileSync(SRC)).digest('hex')
+  if (liveSha !== srcSha) problems.push('api/deploy.php was modified')
+
+  problems.length === 0
+    ? ok('no protected path gained anything and the endpoint is unchanged',
+         `7 directories checked, deploy.php ${srcSha.slice(0, 12)}`)
+    : bad('no protected path gained anything and the endpoint is unchanged', problems.join('; '))
 }
 
 console.log(`\n${fail ? `FAILED — ${fail} of ${pass + fail}` : `all ok — ${pass} checks`}`)
