@@ -35,6 +35,18 @@ export const GradeShader = {
      *  kill is the grain and the dither, and both are already an 8-bit
      *  step or less, so it only needs to be about that big. */
     uBlackPoint: { value: 0.006 },
+    /**
+     * How the black point is reached: 0 clips, 1 rolls off.
+     *
+     * Kept as a uniform rather than compiled in because it is the only
+     * honest way to A/B it — tools/shots/blacks.mjs measures both forms
+     * on the SAME frame in one session, which is the only comparison
+     * worth having when the thing being measured is a few 8-bit levels
+     * at the bottom of a night picture.
+     *
+     * 1 is the shipping value. See the note at the knee itself.
+     */
+    uSoftBlack: { value: 1.0 },
     /** Shadow toe: >1 pushes the darks down without touching highlights. */
     uToe: { value: 1.06 },
     /**
@@ -220,6 +232,7 @@ export const GradeShader = {
     uniform float uTime;
     uniform vec2 uTexel;
     uniform float uBlackPoint;
+    uniform float uSoftBlack;
     uniform float uWhitePoint;
     uniform float uBrightness;
     uniform float uToe;
@@ -285,10 +298,43 @@ export const GradeShader = {
       float grainAmt = 0.02 * sqrt(clamp(l0, 0.0, 1.0));
       c.rgb += (hash(vUv * vec2(1920.0, 1080.0)) - 0.5) * grainAmt;
 
-      // Shadow toe, then crush the remaining lift to true black and
+      // Shadow toe, then take the remaining lift down to black and
       // rescale so highlights keep their range.
+      //
+      // THE BLACK POINT IS A SOFT KNEE, NOT A CLIP, AND THE DIFFERENCE IS
+      // THE WHOLE DARK END OF THE PICTURE.
+      //
+      // It used to be max(x - b, 0) / (1 - b): subtract the black point
+      // and clamp. That maps EVERY value at or below b to exactly zero —
+      // not to a very dark value, to the same value. Which would be
+      // survivable if anything downstream could tell them apart again,
+      // and nothing can: the shadow lift below is a gamma, and
+      // pow(0, 0.8) is 0, so it does nothing for them; the floor after it
+      // adds one constant to all of them. Every pixel under the black
+      // point therefore leaves this shader at one identical level, and
+      // the edge of that region is a hard contour running through what
+      // ought to be a smooth gradient. In a night frame that region is
+      // most of the sky and most of the road.
+      //
+      // The dither at the bottom of this shader cannot fix it and it is
+      // worth being clear about why, because it looks like the thing that
+      // should. Dither decorrelates the error when a VARYING signal is
+      // quantised. It cannot restore variation that was clipped away
+      // eight steps earlier — a flat region plus noise is a noisy flat
+      // region, not a gradient.
+      //
+      // x*x/(x + b) has the properties the clip was reached for and none
+      // of the damage: it is zero at zero, so black is still black and a
+      // tint still cannot lift it; it approaches x - b well above the
+      // knee, so everything the eye actually looks at is unchanged; and
+      // it is strictly increasing, so no two input values ever collapse
+      // onto one output. The worst case is a pixel sitting exactly at the
+      // black point, which used to become 0 and now becomes b/2 — under
+      // one part in three hundred, well below an 8-bit step.
       c.rgb = pow(max(c.rgb, 0.0), vec3(uToe));
-      c.rgb = max(c.rgb - uBlackPoint, 0.0) / max(1.0 - uBlackPoint, 1e-4);
+      vec3 hardBlack = max(c.rgb - uBlackPoint, 0.0);
+      vec3 softBlack = (c.rgb * c.rgb) / max(c.rgb + uBlackPoint, 1e-6);
+      c.rgb = mix(hardBlack, softBlack, uSoftBlack) / max(1.0 - uBlackPoint, 1e-4);
 
       // Colour balance, before contrast and the shoulder, which is where
       // a colourist puts it: everything downstream then works on the
