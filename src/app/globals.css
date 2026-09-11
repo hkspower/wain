@@ -149,6 +149,14 @@
     var(--ff-arabic), var(--ff-display), ui-sans-serif, sans-serif;
   --font-arabic-sign: var(--ff-arabic-sign), "Noto Naskh Arabic",
     "Times New Roman", serif;
+  /* The poster pair. Hero moments only — see the note in layout.tsx for
+     why kufi is right here and wrong in the HUD. Each falls back to the
+     display face it stands in for, so a failed webfont is a quieter
+     banner rather than a serif one. */
+  --font-poster: var(--ff-poster), var(--ff-display), "Barlow Condensed",
+    ui-sans-serif, sans-serif;
+  --font-arabic-poster: var(--ff-arabic-poster), var(--ff-arabic-display),
+    "Cairo", var(--ff-arabic), ui-sans-serif, sans-serif;
   --font-display-stack: var(--ff-display), "Barlow Condensed",
     var(--ff-arabic-display), "Cairo", ui-sans-serif, sans-serif;
   /* The bilingual stack: one family for both scripts.
@@ -983,6 +991,35 @@ html[data-large-hud="1"] .hud-scale {
   .menu-shell .menu-title {
     text-rendering: geometricPrecision;
   }
+}
+
+/* THE POSTER VOICE.
+ *
+ * One class per script, for the three or four places this game raises
+ * its voice: the VS card, the result banner, the champion screen. Not
+ * for anything that has to be read at speed — the HUD keeps Barlow and
+ * Plex, which are drawn for exactly that and these two are not.
+ *
+ * The Latin is tracked out slightly and the Arabic is not, for the
+ * reason every Arabic rule in this file gives: letter-spacing on a
+ * cursive script does not letterspace the word, it breaks the joins.
+ * The mass that the tracking buys the Latin, the Arabic already has
+ * from kufi's own stroke width.
+ */
+.grn-poster {
+  font-family: var(--font-poster);
+  font-weight: 400; /* Dela Gothic One has one weight and it is heavy */
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.grn-ar-poster {
+  font-family: var(--font-arabic-poster);
+  font-weight: 700;
+  letter-spacing: normal;
+  font-synthesis: none;
+  /* Kufi sits taller than the Latin beside it and its descenders are
+     shallow; a line box cut for Barlow clips it. */
+  line-height: 1.35;
 }
 
 /* THE TITLE, LIT LIKE THE STREET IT IS NAMED AFTER.

@@ -6,6 +6,8 @@ import {
   Cairo,
   Noto_Naskh_Arabic,
   Alexandria,
+  Dela_Gothic_One,
+  Reem_Kufi,
 } from "next/font/google";
 import { hubHintOrigin } from "@/game/net";
 import Navbar from "@/components/Navbar";
@@ -46,6 +48,44 @@ const cairo = Cairo({
   subsets: ["arabic"],
   weight: ["700", "900"],
   variable: "--ff-arabic-display",
+});
+
+// THE POSTER PAIR — hero moments only, and never the HUD.
+//
+// Everything above is a working face: it has to survive 11px over a
+// moving road with tabular figures. These two are the opposite job —
+// the VS card, the result banner, the champion screen, the places where
+// the game shouts once and then gets out of the way — and they are
+// chosen for a Japanese street-racing poster rather than for an
+// instrument cluster.
+//
+// Dela Gothic One is a Japanese display gothic, and its LATIN is what is
+// loaded here: the heavy squared-off poster letterform that this whole
+// genre is set in, from a foundry that draws it for kana first. The
+// japanese subset is deliberately not requested — it is megabytes, this
+// game already carries six faces and a 3D world, and there is no kana in
+// the interface to justify it. If kana is ever set here, that subset
+// comes with it rather than falling through to whatever the machine has.
+const dela = Dela_Gothic_One({
+  subsets: ["latin"],
+  weight: ["400"],
+  variable: "--ff-poster",
+});
+
+// And the Arabic half of that pair, because a poster in one script and a
+// UI face in the other is not a lockup.
+//
+// Kufi, which the note under plexAr rejects by name — "kufi's uniform
+// strokes and low contrast blur together at 11px over a moving road".
+// That is true and it is an argument about SIZE, not about kufi. These
+// are 40px and up, where uniform strokes and low contrast read as a
+// carved banner, and kufi's angularity is the closest thing Arabic has
+// to the squared-off mass of a heavy Japanese gothic. It is used nowhere
+// small, which is what keeps both statements true at once.
+const reem = Reem_Kufi({
+  subsets: ["arabic"],
+  weight: ["700"],
+  variable: "--ff-arabic-poster",
 });
 
 // Signage inside the world. Gulf road signs are naskh, not sans — the
@@ -100,7 +140,7 @@ export default function RootLayout({
     // declaration invalid — which silently dropped every family.
     <html
       lang="en"
-      className={`${jakarta.variable} ${barlow.variable} ${plexAr.variable} ${cairo.variable} ${naskh.variable} ${alexandria.variable}`}
+      className={`${jakarta.variable} ${barlow.variable} ${plexAr.variable} ${cairo.variable} ${naskh.variable} ${alexandria.variable} ${dela.variable} ${reem.variable}`}
     >
       {/*
         Resolve the hub before the player needs it.

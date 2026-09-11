@@ -3116,21 +3116,24 @@ function raceCut(): { w: number; h: number } | null {
       {vsRival && phase === "playing" && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center overflow-hidden bg-black/55">
           <div className="vs-slide-left w-[38%] text-right">
-            <div className="grn-display text-6xl italic text-emerald-300 [text-shadow:0_0_19px_rgba(52,211,153,0.5)] sm:text-7xl">
+            {/* The poster voice, both scripts. This is the one screen
+                in the game that exists only to shout, and it was set in
+                the same face as the fuel gauge. */}
+            <div className="grn-poster text-5xl text-emerald-300 [text-shadow:0_0_19px_rgba(52,211,153,0.5)] sm:text-6xl">
               YOU
             </div>
-            <div className="grn-ar mt-1 text-xl text-white/75" dir="rtl" lang="ar">
+            <div className="grn-ar-poster mt-1 text-2xl text-white/80" dir="rtl" lang="ar">
               أنت
             </div>
           </div>
-          <div className="vs-pop grn-display mx-8 text-8xl italic text-sodium-400 [text-shadow:0_0_34px_rgba(245,165,36,0.9)] sm:text-9xl">
+          <div className="vs-pop grn-poster mx-8 text-7xl text-sodium-400 [text-shadow:0_0_34px_rgba(245,165,36,0.9)] sm:text-8xl">
             VS
           </div>
           <div className="vs-slide-right w-[38%]">
-            <div className="grn-display text-5xl italic text-rose-400 [text-shadow:0_0_28px_rgba(244,63,94,0.85)] sm:text-6xl">
+            <div className="grn-poster text-4xl text-rose-400 [text-shadow:0_0_28px_rgba(244,63,94,0.85)] sm:text-5xl">
               {vsRival.name}
             </div>
-            <div className="grn-ar mt-1 text-xl text-white/80" lang="ar">{vsRival.arabicName}</div>
+            <div className="grn-ar-poster mt-1 text-2xl text-white/85" lang="ar">{vsRival.arabicName}</div>
             <div className="grn-label mt-2 text-xs">{vsRival.crew}</div>
             <div className="mt-2.5 text-sm italic text-white/70">&quot;{vsRival.taunt}&quot;</div>
           </div>
@@ -4059,10 +4062,10 @@ function raceCut(): { w: number; h: number } | null {
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 px-6 backdrop-blur-sm">
           <div className="grn-dialog w-full max-w-xl px-10 py-10 text-center">
             <div className="text-sodium-400"><IconCrown size={64} /></div>
-            <div className="grn-display mt-4 text-5xl italic text-sodium-400 [text-shadow:0_0_34px_rgba(245,165,36,0.75)] sm:text-6xl">
+            <div className="grn-poster mt-4 text-4xl text-sodium-400 [text-shadow:0_0_34px_rgba(245,165,36,0.75)] sm:text-5xl">
               KING OF GULF ROAD
             </div>
-            <div className="grn-ar mt-3 text-2xl text-white/85" dir="rtl" lang="ar">
+            <div className="grn-ar-poster mt-3 text-3xl text-white/90" dir="rtl" lang="ar">
               ملك شارع الخليج
             </div>
             <div className="mx-auto mt-4 max-w-md text-base leading-6 text-white/65">
