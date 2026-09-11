@@ -590,6 +590,37 @@ silently and has to be compared by hand. Twelve workflows; four are wain's.
   شوق's one webhook tool. Four nodes into the data table `wain_gaps`
   (`CyBLQKa6LcdgFUAX`). See the شوق section for why it has no shared secret.
 
+**صوت وين cannot be generated from a session, and an API key does not change
+that.** `api.elevenlabs.io` is refused by the sandbox's egress gateway — «Host
+not in allowlist», a 403 from the proxy and not from ElevenLabs, the same class
+of block as the Hostinger file host. So `scripts/gen-voice.mjs` fails here with
+or without `ELEVENLABS_API_KEY`; the key is not the blocker, the network is.
+Never route around it.
+
+The ElevenLabs **MCP connector** does work, because it goes over
+`mcp-proxy.anthropic.com`, and a clip generated that way can be downloaded from
+`storage.googleapis.com` and saved — proved 11 September, `docs/voice-sample/`.
+But its speech tool takes only prompt, model, voice and a count: **no
+`stability`, no `similarity_boost`, and it returns 128 kbps** where the library
+asks for `mp3_44100_64` and 0.35/0.8. A library built that way would be twice
+the bytes and audibly apart from the TTS bridge it is spliced into — the drift
+`docs/voice.md`'s three-way table exists to prevent. Use the connector to HEAR
+her, never to build the set.
+
+**The path that works is CI, and it is already written.** `deploy.yml` runs
+`node scripts/gen-voice.mjs --ci` before the build, wired to the
+`ELEVENLABS_API_KEY` secret, and a runner reaches ElevenLabs over the ordinary
+internet. It needs the secret in **GitHub → Settings → Secrets and variables →
+Actions**, and nowhere else — a key pasted into a chat is in a transcript
+forever and has to be rotated. The workflow already anticipates that the voice
+step dirties the tree, which makes `generateBuildId` fall back to a random id,
+so its verification reads the build id off the export rather than assuming
+`GITHUB_SHA`.
+
+Measured while looking: the library is **324 lines and 24,026 characters**, not
+the 226 the script's own docstring says — that number predates the catalogue
+growing from 33 places to 52. About 24,000 credits, roughly $4.40 for the set.
+
 **Two pairs of switches, and in both the half-on state is worse than off.**
 صوت وين's bridge needs `NEXT_PUBLIC_WAIN_TTS_URL` set AND the workflow active;
 the variable alone buys a four-second wait and then the browser voice, the
