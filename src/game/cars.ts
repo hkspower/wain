@@ -2976,21 +2976,105 @@ const chromeMat = new THREE.MeshStandardMaterial({ name: "chrome",
  */
 
 
-function plateTexture(): THREE.CanvasTexture {
+/**
+ * THE NUMBER PLATE, WHICH WAS ONE PLATE.
+ *
+ * Every car in this game wore "KWT 8198". The same registration on all
+ * seventeen models, on all eight rivals, on the traffic — which is the
+ * kind of thing nobody notices until two of them are stopped side by
+ * side at a light, and then it is the only thing they notice.
+ *
+ * It was also a long way under this file's own sharpness rule. The plate
+ * mesh is 0.52 m wide and the canvas was 128 px: 246 texels to the
+ * metre, against the 900 that DECAL_TEXELS_PER_M sets three hundred
+ * lines below and that every sticker on the car is held to. A plate is
+ * the one decal a player gets close enough to read.
+ *
+ * 512 x 128 over 0.52 m is 985/m, just clear of the floor.
+ */
+const PLATE_W = 512;
+const PLATE_H = 128;
+
+/**
+ * A registration for this car, derived rather than stored.
+ *
+ * CarColors has no id on it — it describes how a car LOOKS, and adding
+ * an identity field would ripple through every caller including traffic,
+ * which does not have one to give. So the plate comes out of the thing
+ * the car already is: its body, its accent and its silhouette. Rivals
+ * all carry distinct colour pairs — tests/crests.mjs asserts exactly
+ * that, because their crests are painted from them — so no two rivals
+ * can collide here without that test going red first.
+ *
+ * Deterministic, because a car whose plate changes when it is rebuilt is
+ * worse than one that shares.
+ */
+function plateReg(colors: CarColors): string {
+  let h = 2166136261 >>> 0;
+  const feed = `${colors.body}|${colors.accent ?? 0}|${colors.style ?? "sedan"}`;
+  for (let i = 0; i < feed.length; i++) {
+    h ^= feed.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  // Kuwaiti registrations run to six digits and are issued plain, with
+  // no letter series — so this is a number, not a pattern invented to
+  // look like one. 1 to 999999, never zero-padded, because a real plate
+  // is not.
+  return String((h % 999999) + 1);
+}
+
+const plateTexCache = new Map<string, THREE.CanvasTexture>();
+function plateTexture(reg: string): THREE.CanvasTexture {
+  const hit = plateTexCache.get(reg);
+  if (hit) return hit;
   const c = document.createElement("canvas");
-  c.width = 128;
-  c.height = 32;
+  c.width = PLATE_W;
+  c.height = PLATE_H;
   const ctx = c.getContext("2d")!;
-  ctx.fillStyle = "#f2f3f5";
-  ctx.fillRect(0, 0, 128, 32);
-  ctx.strokeStyle = "#888";
-  ctx.strokeRect(1, 1, 126, 30);
-  ctx.fillStyle = "#16191e";
-  ctx.font = `700 19px ${latinDisplay()}`;
+  // The field, and a plate is not paper white — it is a reflective sheet
+  // that goes slightly warm-grey under sodium.
+  ctx.fillStyle = "#eceee9";
+  ctx.fillRect(0, 0, PLATE_W, PLATE_H);
+  // Pressed edge: a dark rule with a lighter one inside it, which is the
+  // shadow and the highlight of an embossed rim.
+  ctx.strokeStyle = "rgba(26,28,32,0.85)";
+  ctx.lineWidth = 5;
+  ctx.strokeRect(2.5, 2.5, PLATE_W - 5, PLATE_H - 5);
+  ctx.strokeStyle = "rgba(255,255,255,0.5)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(7, 7, PLATE_W - 14, PLATE_H - 14);
+
+  // The country band on the left, which is what makes it read as a Gulf
+  // plate at fifty metres rather than as a white rectangle. Arabic over
+  // Latin, the order every sign in this country uses.
+  const bandW = Math.round(PLATE_W * 0.24);
+  ctx.fillStyle = "#123a6b";
+  ctx.fillRect(9, 9, bandW, PLATE_H - 18);
+  ctx.fillStyle = "#f4f6fa";
   ctx.textAlign = "center";
-  ctx.fillText("KWT 8198", 64, 24);
+  ctx.font = `700 34px ${arabicUI()}`;
+  ctx.fillText("الكويت", 9 + bandW / 2, 56);
+  ctx.font = `700 20px ${latinDisplay()}`;
+  ctx.fillText("KUWAIT", 9 + bandW / 2, 88);
+
+  // The number. Black, heavy, and sized to the space that is left rather
+  // than to a constant — a six-digit registration and a one-digit one
+  // are both legal and they cannot be set at the same size.
+  const room = PLATE_W - bandW - 40;
+  ctx.fillStyle = "#15181d";
+  let size = 82;
+  do {
+    ctx.font = `800 ${size}px ${latinDisplay()}`;
+    if (ctx.measureText(reg).width <= room) break;
+    size -= 3;
+  } while (size > 30);
+  ctx.textAlign = "right";
+  ctx.fillText(reg, PLATE_W - 20, PLATE_H / 2 + 28);
+
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  plateTexCache.set(reg, tex);
   return tex;
 }
 // ------------------------------------------------------------- stickers
@@ -3917,10 +4001,15 @@ function decalMat(map: THREE.CanvasTexture): THREE.MeshStandardMaterial {
   });
 }
 
-let sharedPlateTex: THREE.CanvasTexture | null = null;
-function plateMat(): THREE.MeshStandardMaterial {
-  if (!sharedPlateTex) sharedPlateTex = plateTexture();
-  return new THREE.MeshStandardMaterial({ name: "plate", map: sharedPlateTex, roughness: 0.5 });
+function plateMat(colors: CarColors): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    name: "plate",
+    map: plateTexture(plateReg(colors)),
+    // Retroreflective sheeting, not painted metal: a plate is the
+    // brightest thing on a car in somebody else's headlights, and at
+    // 0.5 it was reading as a slightly shiny sticker.
+    roughness: 0.34,
+  });
 }
 
 /**
@@ -5204,7 +5293,7 @@ export function createCar(colors: CarColors): THREE.Group {
     const face = noseFaceZ(bGeo, style, 0.38, front);
     const z =
       face !== null ? face + (front ? 0.008 : -0.008) : front ? d.nose + 0.02 : d.tail - 0.03;
-    const plate = new THREE.Mesh(roundedBox(0.52, 0.13, 0.02, 0.007), plateMat());
+    const plate = new THREE.Mesh(roundedBox(0.52, 0.13, 0.02, 0.007), plateMat(colors));
     plate.position.set(0, 0.38, z);
     group.add(plate);
   }
