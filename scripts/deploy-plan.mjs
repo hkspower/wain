@@ -346,13 +346,25 @@ const callerFingerprint = createHash("sha256")
   .slice(0, 16);
 
 /**
- * Hostinger puts Cloudflare in front of the cron-create endpoint, and its WAF
- * reads shell plumbing as an injection attempt: a command containing
- * `{ … } > log 2>&1` came back 403, and the same command with the redirection
- * removed was accepted. The URL was never the problem.
+ * Hostinger puts Cloudflare in front of the cron-create endpoint, and a command
+ * containing `{ … } > log 2>&1` came back 403 once, while the same command with
+ * the redirection removed was accepted.
  *
- * Worse, an earlier attempt returned a uid for a job that was never stored —
- * so a 200 is not proof either, and the caller has to list the jobs
+ * That does NOT reproduce. Re-measured 2026-09-11: a plain redirection, braces
+ * with a redirection, and the recorded shape exactly — URL, braces, redirection
+ * to a log — were all three accepted and stored, and the account's crontab
+ * carries another session's job with a plain `>` in it. So either the cause was
+ * narrower than "shell plumbing" or the rule has changed, and there is no way
+ * to tell which from here.
+ *
+ * The check stays regardless, because it now costs nothing: since the caller is
+ * installed rather than fetched-and-run, every command this prints is one
+ * program and its arguments anyway. A WAF rule that moved once can move back,
+ * and what it produces is a 403 on a call that looks like it should have
+ * worked.
+ *
+ * Separately, an earlier attempt returned a uid for a job that was never stored
+ * — so a 200 is not proof either, and the caller has to list the jobs
  * afterwards. That part cannot be checked from here; it is in the runbook.
  */
 const SAFE = /^[A-Za-z0-9 _\-./:=?&@]+$/;

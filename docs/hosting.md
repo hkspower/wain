@@ -473,13 +473,36 @@ something newer than what was verified is worse than one that fails.
 
 Two things cost a day each before this worked:
 
-**`createAccountCronJobV1` returns 403 from Cloudflare when the command
-contains shell plumbing** — `{ … } > log 2>&1`, `$?`. The WAF reads it as an
-injection attempt. It is *not* the URL: the same command with the redirection
-removed is accepted. Keep cron commands to one program and its arguments, with
-no metacharacters, and check `listAccountCronJobsV1` afterwards — an earlier
-attempt returned a uid for a job that was never stored, so the reply is not
-proof that the job exists.
+**`createAccountCronJobV1` returned 403 from Cloudflare when the command
+contained shell plumbing** — `{ … } > log 2>&1`, `$?` — and the same command
+with the redirection removed was accepted, which is why every command this
+repository sends is one program and its arguments.
+
+**That rule does not reproduce, and it is worth knowing before trusting it.**
+Re-measured 11 September, three commands, all three **accepted**:
+
+| command | result |
+| --- | --- |
+| `ls -d /home/… > /dev/null 2>&1` | stored |
+| `{ ls -d /home/…; } > /dev/null 2>&1` | stored |
+| `{ wget -qO d.php https://raw.githubusercontent.com/…; } > /home/…/log 2>&1` | stored |
+
+The third is the recorded shape exactly — URL, braces, redirection to a log —
+and the WAF did not refuse it. The account's crontab also carries somebody
+else's per-minute job with a plain `>` in it. So the cause was either narrower
+than «shell plumbing» or the rule has since changed, and this file cannot say
+which. All three were deleted again.
+
+**The guard stays anyway.** `deploy-plan.mjs` still refuses to print a command
+with a metacharacter in it, and that now costs nothing: the deploy is one
+program and its arguments regardless, since the caller is installed rather than
+fetched-and-run. A WAF rule that changed once can change back, and the failure
+it produces is a 403 on a call that looks like it should have worked.
+
+Check `listAccountCronJobsV1` after creating either way — an earlier attempt
+returned a uid for a job that was never stored, so the reply is not proof that
+the job exists. **And after deleting**: «Request accepted» has been returned for
+a job that was still running a minute later.
 
 **Outbound internet does work from cron**, which was in doubt because all eight
 of the pre-existing jobs call `127.0.0.1` with a `Host:` header and never the

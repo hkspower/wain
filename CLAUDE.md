@@ -67,9 +67,15 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   checks them. The route is `wget` from a **commit-pinned**
   `raw.githubusercontent.com` URL, then `unzip -o -q -d <docroot>` — Extract's
   merge, so the PHP app survives. Delete the jobs and the zip afterwards. Two
-  traps the planner asserts: `createAccountCronJobV1` gets a **403 from
-  Cloudflare** if the command contains `{ … } > log 2>&1` or `$?` — one program
-  and its arguments only — and it can return a uid for a job it never stored,
+  traps the planner asserts: `createAccountCronJobV1` **once** got a 403 from
+  Cloudflare for a command containing `{ … } > log 2>&1` or `$?` — **and that
+  does not reproduce.** Re-measured 11 September: a plain redirection, braces
+  with a redirection, and the recorded shape exactly (URL + braces + `> log
+  2>&1`) were all three accepted and stored, and another session's job in this
+  same crontab carries a plain `>`. Either the cause was narrower than «shell
+  plumbing» or the rule changed; nothing here can say which. The planner still
+  refuses metacharacters, and that now costs nothing — the deploy is one program
+  and its arguments anyway. It can also return a uid for a job it never stored,
   so confirm with `listAccountCronJobsV1`. **`deleteAccountCronJobV1` lies the
   same way**: it answered «Request accepted» for a job that was still running a
   minute later, so list after deleting too, not just after creating. Check the
