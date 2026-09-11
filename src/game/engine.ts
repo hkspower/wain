@@ -725,19 +725,54 @@ function spinWheels(
   const R = car.userData.wheelR as number | undefined;
   if (!(R !== undefined && R > 0)) throw new Error("spinWheels: this car has no wheelR — it did not come from createCar");
   const rolling = speed * (1 - lock);
-  // Ackermann, from the car's own geometry: the wheels are placed as
-  // (−x front, +x front, −x rear, +x rear) in the body's frame, and the
-  // group is scaled — non-uniformly — so the wheelbase and the track are
-  // read off the scaled positions, the way applySuspension reads them.
+  // THE LAYOUT IS READ, NOT INFERRED.
+  //
+  // This used to take the car's geometry out of the array ORDER:
+  // wheels[0].z minus wheels[2].z for the wheelbase, wheels[1].x minus
+  // wheels[0].x for the track, and `i >= 2` for which ones drive. All
+  // three are correct for four wheels in the order cars.ts happens to
+  // build them, and all three are silently wrong for anything else — on
+  // a three-wheeler the track comes out as half of itself and negative,
+  // and one of the two driven wheels reads as a steering wheel.
+  //
+  // createCar states the plan instead, because it is the only thing that
+  // knows what it built. The fallback keeps the old reading for any car
+  // made before the plan existed rather than throwing at it.
   const sc = car.scale;
-  const L = wheels.length >= 4 ? (wheels[0].position.z - wheels[2].position.z) * sc.z : 0;
-  const T = wheels.length >= 2 ? (wheels[1].position.x - wheels[0].position.x) * sc.x : 0;
+  const plan = car.userData.wheelPlan as
+    | { front: number; wheelbase: number; track: number }
+    | undefined;
+  const frontCount = plan?.front ?? 2;
+  const L = plan
+    ? plan.wheelbase * sc.z
+    : wheels.length >= 4
+      ? (wheels[0].position.z - wheels[2].position.z) * sc.z
+      : 0;
+  const T = plan
+    ? plan.track * sc.x
+    : wheels.length >= 2
+      ? (wheels[1].position.x - wheels[0].position.x) * sc.x
+      : 0;
   const front = steerAngles(steer, L, T);
   for (let i = 0; i < wheels.length; i++) {
-    const driven = i >= 2; // 0,1 front · 2,3 rear
+    const driven = i >= frontCount;
     const surface = rolling + (driven ? spin * 0.8 : 0);
-    wheels[i].rotation.x += (surface / R) * dt;
-    if (i === 0) wheels[i].rotation.y = front.minusX;
+    // This wheel's own radius where it differs. A car whose wheels are
+    // not all one size — a delta trike runs small at the front and big
+    // at the back — turns each at its own rate, or the small one skids
+    // and the big one drags at the same road speed.
+    //
+    // A MULTIPLIER on wheelR rather than a radius of its own: wheelR is
+    // already in world units and came from the car's length fit, so a
+    // wheel that says nothing rolls exactly as it always did.
+    const r = R * ((wheels[i].userData.rMul as number | undefined) ?? 1);
+    wheels[i].rotation.x += (surface / r) * dt;
+    // Steering. With two wheels up front they take Ackermann's inner and
+    // outer angles; with ONE on the centreline there is no inner or
+    // outer, so it simply points where the car is going.
+    if (frontCount === 1) {
+      if (i === 0) wheels[i].rotation.y = (front.minusX + front.plusX) / 2;
+    } else if (i === 0) wheels[i].rotation.y = front.minusX;
     else if (i === 1) wheels[i].rotation.y = front.plusX;
   }
 }
@@ -1735,6 +1770,7 @@ export class GameEngine {
       goldRims: this.tune.goldRims,
       rims: this.tune.rims,
       livery: this.tune.livery,
+      trike: this.tune.trike,
       face: this.tune.face,
         tyreSticker: this.tune.tyreSticker,
       engineCover: this.tune.engineCover ?? undefined,
@@ -3712,6 +3748,7 @@ export class GameEngine {
         goldRims: this.tune.goldRims,
         rims: this.tune.rims,
         livery: this.tune.livery,
+      trike: this.tune.trike,
         face: this.tune.face,
         tyreSticker: this.tune.tyreSticker,
         engineCover: this.tune.engineCover ?? undefined,

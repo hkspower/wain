@@ -743,6 +743,9 @@ export interface CarModel {
    * the machine that only comes one way.
    */
   livery?: Livery;
+  /** Three wheels: one steering on the centreline, two driving at the
+   *  back and bigger than it. A fact about the machine, not a kit. */
+  trike?: boolean;
   /**
    * This car's own face: the aperture, what is behind it, what frames
    * it, and whether it has ducts and a lower mouth.
@@ -834,6 +837,11 @@ export const CARS: CarModel[] = [
     glass: { tint: 95, film: "carbon" },
     rims: "black",
     livery: "demon",
+    // THREE WHEELS. One on the centreline steering, two at the back
+    // driving and a fifth bigger than the front one. Nothing else in the
+    // game is shaped like this, which is the point of the car you cannot
+    // buy until everything else is already yours.
+    trike: true,
     desc: "Rear-drive, blown 5.7, and the fastest thing on the corniche. Black paint, black glass, black wheels and the horned mark on all four sides. The showroom will not sell it until the Zeta 300 GTR is already yours.",
     factoryBuild: [
       "twin-turbo",
@@ -1798,6 +1806,9 @@ export interface TuneEffects {
   /** A livery the car was built wearing, as opposed to a sticker pack
    *  bought for it. */
   livery?: Livery;
+  /** Three wheels — carried from the car record so createCar can build
+   *  the layout the machine actually has. */
+  trike?: boolean;
   /** This car's own front face. */
   face?: FaceSpec;
   /** Factory second colour and which stripes it draws, or undefined. */
@@ -2124,6 +2135,7 @@ export function computeEffects(
     tintFilm: FILM_OF_PART[eq.film ?? ""] ?? car.glass?.film,
     rims: car.rims,
     livery: car.livery,
+    trike: car.trike,
     face: car.face,
     accent: car.accent,
     stripes: car.stripes,

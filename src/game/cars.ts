@@ -37,6 +37,18 @@ export interface CarColors {
   spoiler?: boolean;
   /** The fitted exhaust system: sets the tips and where flame comes out. */
   exhaust?: ExhaustSpec;
+  /**
+   * Three wheels instead of four: one on the centreline at the front,
+   * two big ones driving at the back.
+   *
+   * A property of the MACHINE rather than of a kit — you cannot bolt a
+   * wheel on or take one off — so it rides on the car record and the
+   * builder reads it here. Everything downstream was already written to
+   * loop over whatever wheels exist (applySuspension maps over the
+   * array); the one place that counted to four was spinWheels, and it
+   * reads the plan now instead of the indices.
+   */
+  trike?: boolean;
   /** Gold rims (garage mod). */
   goldRims?: boolean;
   /** The wheel the car was DELIVERED on, when it came with its own.
@@ -5684,12 +5696,39 @@ export function createCar(colors: CarColors): THREE.Group {
    */
   const wide = WIDE[kit];
   const wheelX = flankX - 0.08 + wide.track;
-  for (const [wx, wz] of [
-    [-wheelX, wzF],
-    [wheelX, wzF],
-    [-wheelX, wzR],
-    [wheelX, wzR],
-  ]) {
+  /**
+   * Where the wheels go, and how big each one is.
+   *
+   * Four in the usual order — (-x front, +x front, -x rear, +x rear) —
+   * or three in a delta: one steering wheel on the centreline and two
+   * driving wheels at the back, bigger than it. A trike carries almost
+   * all of its weight and all of its drive on the rear pair, and the
+   * back tyre being visibly the bigger one is most of what makes the
+   * shape read as deliberate rather than as a car missing a wheel.
+   *
+   * The third number is a radius multiplier. buildWheel has no size
+   * parameter and does not need one: a wheel is a self-contained group,
+   * so scaling it scales the tyre, the rim and the sidewall lettering
+   * together, and the only other thing that has to follow is how high
+   * the hub sits.
+   */
+  const TRIKE_FRONT_R = 0.86;
+  const TRIKE_REAR_R = 1.2;
+  const layout: Array<[number, number, number]> = colors.trike
+    ? [
+        [0, wzF, TRIKE_FRONT_R],
+        [-wheelX, wzR, TRIKE_REAR_R],
+        [wheelX, wzR, TRIKE_REAR_R],
+      ]
+    : [
+        [-wheelX, wzF, 1],
+        [wheelX, wzF, 1],
+        [-wheelX, wzR, 1],
+        [wheelX, wzR, 1],
+      ];
+  /** How many of the above steer. The rest drive. */
+  const frontCount = colors.trike ? 1 : 2;
+  for (const [wx, wz, rMul] of layout) {
     const wheelFinish = wheelFinishFor(colors, kit);
     const wheel = buildWheel(wheelFinish, Math.sign(wx), {
       sticker: colors.tyreSticker,
@@ -5698,9 +5737,25 @@ export function createCar(colors: CarColors): THREE.Group {
       // one, because the point of it is that nothing was bought.
       spokeMat: wheelFinish === "steel" ? undefined : spokeLocal,
     });
-    wheel.position.set(wx, TIRE_RADIUS, wz);
+    // Scaled as a unit, and the hub raised to sit on the road at its own
+    // radius rather than at the fleet's. A wheel left at TIRE_RADIUS
+    // while its tyre grew would be buried; one left there while it
+    // shrank would hover.
+    if (rMul !== 1) wheel.scale.setScalar(rMul);
+    wheel.position.set(wx, TIRE_RADIUS * rMul, wz);
+    // How much bigger or smaller than the car's own wheelR this one is —
+    // a MULTIPLIER, not a radius. wheelR is already in world units and
+    // was arrived at by a length fit; recomputing an absolute radius here
+    // would quietly re-derive it from the group scale and change the
+    // rolling rate of every four-wheeled car in the game to fix a
+    // three-wheeler.
+    if (rMul !== 1) wheel.userData.rMul = rMul;
     group.add(wheel);
     wheels.push(wheel);
+    // A wheel on the centreline has no flank to cut an arch into. The
+    // opening below is placed at +/-flankX, so on a centre wheel it
+    // would appear on both sides of a car that has no wheel there.
+    if (Math.abs(wx) < 0.2) continue;
 
     // The opening, then the lip around it — both on the body's surface,
     // not at the wheel's centre where they were invisible.
@@ -6891,6 +6946,29 @@ export function createCar(colors: CarColors): THREE.Group {
    * menu rolled correctly and the game did not.
    */
   group.userData.wheelR = TIRE_RADIUS * scale;
+  /**
+   * The wheel layout, stated rather than inferred.
+   *
+   * spinWheels used to read the car's geometry out of the ARRAY ORDER —
+   * wheels[0].z minus wheels[2].z for the wheelbase, wheels[1].x minus
+   * wheels[0].x for the track, and `i >= 2` for which ones drive. That
+   * is correct for four wheels in the order this file happens to build
+   * them and silently wrong for anything else: on a three-wheeler the
+   * track comes out half of itself and negative, and one of the two
+   * driven wheels reads as a steering wheel.
+   *
+   * So the builder says what it built. It is the only thing that knows.
+   */
+  group.userData.wheelPlan = {
+    /** How many of the leading entries steer; the rest are driven. */
+    front: frontCount,
+    /** Axle to axle, in the group's own units. */
+    wheelbase: wzF - wzR,
+    /** Centre to centre across the DRIVEN axle, which is the one that
+     *  always has two wheels on it — a delta's front has one, and a
+     *  track measured across it would be zero. */
+    track: wheelX * 2,
+  };
 
   // Swap in the Blender-authored shells and wheels when they arrive.
   // Traffic keeps the cheap procedural build — thirty cars don't need
@@ -6902,7 +6980,17 @@ export function createCar(colors: CarColors): THREE.Group {
   // silhouette behind glass; what matters is that the seat is not
   // empty, which is what thirty driverless cars looked like.
   {
-    const driver = kuwaitiDriver(0x1d2026, undefined, colors.simple === true);
+    // The demon's driver wears the car. livery rather than trike: it is
+    // the MARK that makes this machine what it is, and if the horned
+    // badge ever goes on something with four wheels the driver should
+    // still match it.
+    const demonDriver = colors.livery === "demon";
+    const driver = kuwaitiDriver(
+      demonDriver ? 0x0e0d11 : 0x1d2026,
+      undefined,
+      colors.simple === true,
+      demonDriver
+    );
     driver.group.position.set(DRIVER_X, seatY, headZ - RIG.driver.headZ);
     // Seated in a car that has been widened, not widened with it.
     if (widthFix !== 1) driver.group.scale.x = 1 / widthFix;

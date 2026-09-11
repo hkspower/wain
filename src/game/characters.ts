@@ -227,7 +227,23 @@ export function kuwaitiDriver(
    * whole point: an empty driver's seat in the next lane is what this
    * change is fixing.
    */
-  lean = false
+  lean = false,
+  /**
+   * The demon's own driver.
+   *
+   * One car in this game is not a car anybody bought — it is the thing
+   * waiting at the end of the ladder — and the driver in it was wearing
+   * the same helmet as the traffic. A rival you cannot beat until you
+   * have beaten everyone else should not be anonymous at the one moment
+   * you are close enough to see him.
+   *
+   * Matte black lid, horns off the temples in the same curve the badge
+   * on the doors uses, and an ember visor instead of a smoked one — the
+   * only warm thing on an entirely black machine, and the same #ff6a24
+   * the mark's eyes are lit with, so the driver and the car are wearing
+   * one identity rather than two.
+   */
+  demon = false
 ): DriverRig {
   const group = new THREE.Group();
   /**
@@ -269,14 +285,50 @@ export function kuwaitiDriver(
   // A helmet, because this is a race and the ghutra is for the pit lane
   const helmet = new THREE.Mesh(
     new THREE.SphereGeometry(0.135, 14, 10),
-    new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.2, metalness: 0.3 })
+    demon
+      // Matte, not the usual semi-gloss: a lid that catches the street
+      // lamps reads as painted plastic, and this one has to read as
+      // something that does not reflect much of anything.
+      ? new THREE.MeshStandardMaterial({ color: 0x0d0c10, roughness: 0.62, metalness: 0.12 })
+      : new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.2, metalness: 0.3 })
   );
   helmet.userData.driverPart = "helmet";
   head.add(helmet);
+  if (demon) {
+    // Horns. Cones swept back and out from the temples, on the same
+    // rake as the badge's — they read from behind and from the side,
+    // which is where this driver is seen from, and they clear the
+    // roofline rather than growing through it.
+    const hornMat = new THREE.MeshStandardMaterial({
+      color: 0x17151c,
+      roughness: 0.5,
+      metalness: 0.2,
+      emissive: 0x2a1206,
+      emissiveIntensity: 0.35,
+    });
+    for (const sgn of [-1, 1] as const) {
+      const horn = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.115, 7), hornMat);
+      horn.position.set(sgn * 0.104, 0.062, 0.012);
+      horn.rotation.set(-0.42, 0, sgn * -0.62);
+      horn.userData.driverPart = "horn";
+      head.add(horn);
+    }
+  }
   if (!lean) {
     const visor = new THREE.Mesh(
       new THREE.SphereGeometry(0.139, 14, 10, Math.PI * 0.32, Math.PI * 0.36, Math.PI * 0.34, Math.PI * 0.3),
-      new THREE.MeshStandardMaterial({ color: 0x141a26, roughness: 0.08, metalness: 0.85 })
+      demon
+        // Lit from inside, like the eyes on the badge. A visor that only
+        // REFLECTS is black at night, which is every moment this car is
+        // ever seen in.
+        ? new THREE.MeshStandardMaterial({
+            color: 0x2a0d04,
+            roughness: 0.12,
+            metalness: 0.6,
+            emissive: 0xff6a24,
+            emissiveIntensity: 0.55,
+          })
+        : new THREE.MeshStandardMaterial({ color: 0x141a26, roughness: 0.08, metalness: 0.85 })
     );
     visor.rotation.y = -Math.PI / 2;
     visor.userData.driverPart = "visor";
