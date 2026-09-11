@@ -1,0 +1,51 @@
+شوق, in her configured voice — a real ElevenLabs render, not a placeholder.
+
+    ما لقيت شي بهالكلمة. قول لي الجو اللي تبيه — قهوة، بحر، مطعم، ولا طلعة عيال.
+
+That is the `search-empty` line from src/lib/voice-lines.ts: what she says after a
+question that matched nothing, which is the worst moment for a clip to sound wrong.
+
+    voice   Talya  rh16DBXwtscjdPFeMBYf   (ar-omani, female, young)
+    model   eleven_multilingual_v2
+    render  6.59s · 128 kbps · 44.1 kHz mono · 123,459 bytes
+    cost    75.99 credits (≈ $0.014)
+
+Generated 11 September through the ElevenLabs connector, because this environment
+has no ELEVENLABS_API_KEY and so cannot run scripts/gen-voice.mjs.
+
+## This is a sample, and it is deliberately NOT in public/voice/
+
+It does not match the library's own spec in two ways, and both are audible or
+measurable rather than cosmetic:
+
+  bitrate   128 kbps here; gen-voice.mjs asks for mp3_44100_64, i.e. 64. This
+            file is 123KB and would be ~53KB at the specified rate. Across 324
+            clips that is roughly 6MB against 3MB, shipped in the static export
+            to phones in Kuwait.
+
+  settings  gen-voice.mjs sends stability 0.35 and similarity_boost 0.8 for شوق.
+            The connector's speech tool takes prompt, model, voice and a count —
+            there is no parameter for either, so this render used the defaults.
+
+The second one is the one that matters. docs/voice.md holds a three-way table
+because a recorded clip and a live sentence from the n8n TTS bridge are heard
+inside a single utterance; the bridge had already drifted once to a different
+woman entirely and nothing broke, which is why it went unnoticed. A library
+generated at default settings would drift the same way, quietly, in the same
+place.
+
+So: use this to HEAR her and to confirm the voice is right. Generate the library
+with the script.
+
+## The library, measured
+
+324 lines, 24,026 characters — not the 226 the script's docstring still says,
+which was true when the catalogue had 33 places and is not now that it has 52.
+At this sample's rate that is ≈24,000 credits, about $4.40 for the whole set.
+
+    ELEVENLABS_API_KEY=… npm run voice:sample   # one call, listen first
+    ELEVENLABS_API_KEY=… node scripts/gen-voice.mjs
+
+The script writes public/voice/<persona>/, catalogues by key in manifest.json,
+and hashes each line so a rerun regenerates only what changed. None of that
+happens by copying files in by hand.
