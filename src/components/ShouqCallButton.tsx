@@ -5,7 +5,7 @@ import { IconShouq } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
 import { primeAudio } from "@/lib/voice";
 import { WAIN_AI_COPY } from "@/lib/wain-ai";
-import { onPhase, requestCall } from "@/lib/wain-ai-bus";
+import { armCall, onPhase, requestCall, warmCall } from "@/lib/wain-ai-bus";
 import type { Phase } from "@/components/WainAiCall";
 
 /**
@@ -75,6 +75,21 @@ export default function ShouqCallButton({
    */
   const preload = useCallback(() => {
     void import("@/components/WainAiCall");
+    // …and the two origins the call needs after that. The chunk is ours and
+    // near; the widget is 451KB from a CDN and then a session on a third
+    // origin, and all of it used to start only once the tap had arrived.
+    warmCall();
+  }, []);
+
+  /**
+   * A finger already down is a call about to be placed, so fetch the bundle.
+   *
+   * Kept off the hover path deliberately — half a megabyte is not something to
+   * spend on a pointer crossing the button on its way somewhere else.
+   */
+  const arm = useCallback(() => {
+    void import("@/components/WainAiCall");
+    armCall();
   }, []);
 
   const onTap = useCallback(() => {
@@ -108,8 +123,9 @@ export default function ShouqCallButton({
       type="button"
       onClick={onTap}
       onPointerEnter={preload}
-      onTouchStart={preload}
       onFocus={preload}
+      onPointerDown={arm}
+      onTouchStart={arm}
       aria-label={labelledBy ? undefined : `${WAIN_AI_COPY.launcher} — ${WAIN_AI_COPY.callHint}`}
       aria-labelledby={labelledBy}
       aria-expanded={open}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { IconClose, IconPhone, IconPinSolid, IconShouq } from "@/components/icons";
@@ -13,8 +13,10 @@ import {
   WAIN_AI_AGENT_ENABLED,
   WAIN_AI_AGENT_ID,
   WAIN_AI_COPY,
-  WAIN_AI_WIDGET_SRC,
 } from "@/lib/wain-ai";
+// The bus's `import type { Phase }` back from this file is erased at compile
+// time, so this is not a runtime cycle.
+import { loadWidget } from "@/lib/wain-ai-bus";
 
 /**
  * وين AI — a call to شوق. Tap the button and the call starts.
@@ -139,6 +141,10 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * happening. She blinks throughout — that is being present, not speaking.
    */
   const talking = phase === "live" || phase === "answering";
+  /* Hoisted from just above the render. Two effects start work on it now —
+     the widget bundle and the search index — and both sit higher up the file
+     than the line that used to declare it. */
+  const dialling = phase === "ringing" || phase === "live";
 
   const recRef = useRef<SpeechRecognitionLike | null>(null);
   const slotRef = useRef<HTMLDivElement>(null);
@@ -385,17 +391,39 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   //
   // The index is built from the LIVE rows above, not from `@/lib/places`, and
   // rebuilt whenever they change — see the note on `places`. The search module
-  // is still loaded on the first tool call rather than imported: this
-  // component is preloaded on hover of the call button, and the engine belongs
-  // to a conversation that may never happen.
-  useEffect(() => {
-    if (!WAIN_AI_AGENT_ENABLED) return;
-    let indexPromise: Promise<{ mod: typeof import("@/lib/search"); index: import("@/lib/search").SearchIndex }> | null = null;
-    const loadIndex = () =>
-      (indexPromise ??= import("@/lib/search").then((mod) => ({
+  // is still not a static import: this component is preloaded on hover of the
+  // call button, and the engine belongs to a conversation that may never
+  // happen.
+  //
+  // But it used to be fetched on the FIRST TOOL CALL, which is the one moment
+  // it must not be. `show_places` runs while شوق is mid-sentence and the
+  // visitor is listening; hanging a chunk fetch off it puts the network between
+  // her question and her answer, on the flow whose tool replies all end «لا
+  // تسكتين». It starts when the call does instead — there is nothing to do
+  // during ring-back but wait — and the tool awaits a promise that is by then
+  // already settled. One loader per `places` identity, so an admin edit still
+  // rebuilds the index rather than answering from the old rows.
+  const loadIndex = useMemo(() => {
+    let pending: Promise<{
+      mod: typeof import("@/lib/search");
+      index: import("@/lib/search").SearchIndex;
+    }> | null = null;
+    return () =>
+      (pending ??= import("@/lib/search").then((mod) => ({
         mod,
         index: mod.buildIndex(places),
       })));
+  }, [places]);
+
+  useEffect(() => {
+    if (!WAIN_AI_AGENT_ENABLED || !dialling) return;
+    void loadIndex().catch(() => {
+      // The tool call retries and falls through to its generic wording.
+    });
+  }, [dialling, loadIndex]);
+
+  useEffect(() => {
+    if (!WAIN_AI_AGENT_ENABLED) return;
     const register = (event: Event) => {
       const detail = (event as CustomEvent<{ config?: Record<string, unknown> }>).detail;
       if (!detail?.config) return;
@@ -459,25 +487,30 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     // registration left in place across an admin edit would answer from the
     // rows as they were when the call started — the same staleness this
     // change is about, only narrower and therefore harder to notice.
-  }, [router, places]);
+  }, [router, places, loadIndex]);
 
-  const dialling = phase === "ringing" || phase === "live";
 
+  /**
+   * The bundle is `loadWidget()`'s job now, not this effect's.
+   *
+   * This used to inject the script itself and, if it found a tag with the right
+   * src already there, set `agentReady` on the spot. That was true while this
+   * was the only injector. The button now starts the same fetch on pointerdown
+   * — which is the point, it is 451KB — so «a tag exists» became «a tag exists
+   * and may be half-downloaded», and the call would have announced «متصل» over
+   * a bundle still on the wire. One shared promise resolves when it has
+   * actually loaded, and rejects once if it never does.
+   */
   useEffect(() => {
     if (!WAIN_AI_AGENT_ENABLED || !dialling || agentReady || agentFailed) return;
-    const existing = document.querySelector<HTMLScriptElement>(
-      `script[src="${WAIN_AI_WIDGET_SRC}"]`
+    let alive = true;
+    loadWidget().then(
+      () => alive && setAgentReady(true),
+      () => alive && setAgentFailed(true)
     );
-    if (existing) {
-      setAgentReady(true);
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = WAIN_AI_WIDGET_SRC;
-    script.async = true;
-    script.onload = () => setAgentReady(true);
-    script.onerror = () => setAgentFailed(true);
-    document.body.appendChild(script);
+    return () => {
+      alive = false;
+    };
   }, [dialling, agentReady, agentFailed]);
 
   useEffect(() => {

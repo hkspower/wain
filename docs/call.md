@@ -115,6 +115,64 @@ Unchanged by any of this, and picked by configuration (`src/lib/wain-ai.ts`):
 Local mode's call ends when she answers, because she has. She keeps talking on
 the results page; the call ending is not her stopping.
 
+## Getting the widget there before the tap does
+
+Agent mode's bundle is 451KB gzipped from a CDN, and the chain to a connected
+call used to be strictly serial and to start at the tap: fetch the
+`WainAiCall` chunk → mount it → create the `<script>` → cold DNS+TLS to
+unpkg → 451KB → cold DNS+TLS to `api.elevenlabs.io` → a session. The caller
+listens to ring-back through every step of it.
+
+Two signals now, both on `ShouqCallButton`, both in `lib/wain-ai-bus.ts`:
+
+- **hover / focus / touch → `warmCall()`** — one `preconnect` to each origin.
+  `unpkg.com` **without** `crossorigin`, because the widget arrives on a plain
+  `<script src>` (a no-CORS request) and a preconnect carrying `crossorigin`
+  warms a pool entry the script cannot use. `api.elevenlabs.io` **with** it,
+  because its fetches are CORS. Both origins are read out of the published
+  bundle, not guessed.
+- **pointerdown → `armCall()`** — the bundle itself, ~100–300ms before the
+  click. Kept off the hover path on purpose: half a megabyte is not something
+  to spend on a pointer passing by.
+
+A visitor who never reaches for her pays none of it, which the agent suite
+asserts.
+
+`loadWidget()` owns the script and returns a promise. It has to: the call used
+to inject the tag itself and treat *a tag with this src exists* as *loaded*,
+which was true while it was the only injector and became a lie the moment the
+button started the same fetch — the sheet would have said «متصل» over a bundle
+still on the wire. A failed load is **not** remembered (the network can be back
+by the next tap) and the dead tag is **removed**, because a `<script>` fires
+`error` once and adopting one that already has is a promise that never settles.
+That one cost the full 20-second dial timeout before it was found; the failure
+now shows in about 400ms.
+
+The search index moved too. `show_places` used to `import("@/lib/search")` on
+the first tool call — mid-sentence, with the visitor listening, on the flow
+whose every tool reply ends «لا تسكتين». It starts when the call starts
+ringing instead, since there is nothing to do during ring-back but wait.
+
+## The URL is exact, and that is enforced
+
+`WAIN_AI_WIDGET_SRC` said `@elevenlabs/convai-widget-embed@1` for months,
+commented as a pin. It is a semver **range**, and the package has never
+published a 1.x — 79 versions, 0.1.0 to 0.18.1. A range matching nothing cannot
+resolve, so the script failed on every call and the visitor was told «ما قدرنا
+نوصلك بشوق»: agent mode was unreachable, and the copy blamed the connection.
+
+Nothing could see it. No build step fetches that URL, and the agent suite's own
+check was `/convai-widget-embed@\d/`, which cannot tell `@1` from `@0.18.1`.
+
+So: `npm run audit:shouq-call` reads the constant (by importing it, not
+grepping) and refuses anything but an exact `x.y.z` **and** a path down to the
+entry file — the second because `unpkg.com/<pkg>@<version>` answers a 302 to
+the package entry, and a range answers one to the resolved version first. Two
+redirects in front of 451KB, on a phone, at the moment somebody taps. If the
+registry answers it also checks the version is published and that the path is
+that version's declared entry; if it cannot be reached it says so rather than
+passing quietly. The suite's assertion was tightened to match.
+
 ## No mute button
 
 Deliberately. In agent mode the microphone belongs to the ElevenLabs widget and

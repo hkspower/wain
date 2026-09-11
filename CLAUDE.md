@@ -323,6 +323,44 @@ can render the pulse and `aria-expanded` honestly. Do the gesture work
 (`haptic`, `primeAudio`) in the button, synchronously: iOS will not unlock
 audio outside a gesture and the call mounts an event later.
 
+**The widget URL must name an exact version AND the entry file**, and
+`npm run audit:shouq-call` enforces both. It said
+`@elevenlabs/convai-widget-embed@1` for months — a semver *range*, on a package
+that has never published a 1.x (79 versions, 0.1.0–0.18.1). A range matching
+nothing cannot resolve, so the `<script>` failed on every call and the visitor
+got «ما قدرنا نوصلك بشوق»; **agent mode was unreachable and the copy blamed the
+connection.** Nothing could catch it: no build step fetches that URL, and the
+agent suite's own check was `/convai-widget-embed@\d/`, which cannot tell `@1`
+from `@0.18.1`. The entry path matters too — `unpkg.com/<pkg>@<version>` answers
+a 302 to the package entry and a range answers one to the resolved version
+first, so a bare pin puts two redirects in front of 451KB at the moment of a
+tap. **A test that asserts a property this loosely is worse than no test**, and
+that is the part worth carrying forward.
+
+**The call is warmed before it is placed.** `ShouqCallButton` fires
+`warmCall()` on hover/focus/touch — a `preconnect` to `unpkg.com` *without*
+`crossorigin` (the widget arrives on a plain `<script src>`, a no-CORS request,
+and a crossorigin preconnect warms a pool entry it cannot use) and to
+`api.elevenlabs.io` *with* it (its fetches are CORS; both origins read out of
+the published bundle, not guessed). `armCall()` on pointerdown fetches the
+bundle, 100–300ms before the click. Not on hover: 451KB is not something to
+spend on a pointer passing by.
+
+**`loadWidget()` in `wain-ai-bus.ts` owns that script, and returns a promise.**
+It has to — the call used to inject the tag itself and treat «a tag with this
+src exists» as «loaded», which became a lie the moment the button started the
+same fetch, and would have announced «متصل» over a bundle still on the wire. A
+rejection is deliberately not remembered, and **the dead tag is removed**: a
+`<script>` fires `error` once, so adopting one that already has is a promise
+that never settles. That cost the full 20-second dial timeout and then blamed
+the microphone; measured at 926ms, reported at 402ms after the fix. The sandbox
+blocking unpkg is what exercised it — *a blocked egress is a free failure-path
+test*.
+
+**The search index starts when the call starts ringing, not on the first tool
+call.** `show_places` used to `import("@/lib/search")` mid-sentence, with the
+visitor listening, on the flow whose every tool reply ends «لا تسكتين».
+
 **Her tools read `usePlaces()`, not `@/lib/places`.** They used to build an
 index from the build-time snapshot while every listing rendered live rows, so
 after an admin edit she could not find a new place, still found an unpublished
@@ -423,7 +461,7 @@ dialog could unmount the button mid-gesture.
 
 ## Checks
 
-`npm run scan` is lint plus ~20 audits. Browser suites: `test:hangout`
+`npm run scan` is lint plus ~21 audits. Browser suites: `test:hangout`
 (hangout, hangout-page, map-pin, search-button, search-keys, shouq-search,
 search-plan, swipe), `test:journey`, `test:register`, `test:shouq`,
 `test:orders`, `test:net`.

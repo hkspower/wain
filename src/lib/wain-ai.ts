@@ -57,11 +57,59 @@ export const WAIN_AI_AGENT_ENABLED = WAIN_AI_AGENT_ID.trim().length > 0;
 
 /**
  * CDN bundle that defines the <elevenlabs-convai> custom element.
- * Pinned to a major version so a supply-chain change upstream cannot silently
- * become part of this page; bump deliberately.
+ *
+ * THE VERSION MUST BE EXACT, AND THAT IS NOT A STYLE PREFERENCE.
+ *
+ * This said `@1` for months, described as «pinned to a major version so a
+ * supply-chain change upstream cannot silently become part of this page». Both
+ * halves were wrong. `@1` is a semver RANGE, so any 1.x would have been taken
+ * silently — and there has never been a 1.x. The registry publishes 79
+ * versions of this package, 0.1.0 through 0.18.1, and `latest` is 0.18.1. A
+ * range that matches nothing cannot resolve, so the <script> failed on every
+ * call: `onerror` → `agentFailed` → «ما قدرنا نوصلك بشوق». Agent mode was
+ * unreachable, every time, and the fallback text blamed the connection.
+ *
+ * It reads as a slow or flaky call rather than a broken URL, which is why it
+ * survived: nothing here fetches it at build time, and no test could see it.
+ * `npm run audit:shouq-call` now refuses a range — that is the check that
+ * would have caught this on the day it was written.
+ *
+ * The full path is spelled out for a second reason. `unpkg.com/<pkg>@<version>`
+ * answers 302 to the package's `unpkg`/`main` entry, and a range answers 302 to
+ * the resolved version first — two redirects on the critical path of a call, on
+ * a phone, before 451KB of widget starts arriving. Naming `dist/index.js`
+ * (which IS this package's `unpkg` field) makes it one request.
+ *
+ * Bump deliberately, and re-run the audit: it checks the registry for the exact
+ * version and for the entry path when it can reach it.
  */
 export const WAIN_AI_WIDGET_SRC =
-  "https://unpkg.com/@elevenlabs/convai-widget-embed@1";
+  "https://unpkg.com/@elevenlabs/convai-widget-embed@0.18.1/dist/index.js";
+
+/**
+ * Origin of the above, warmed before a tap.
+ *
+ * Deliberately warmed WITHOUT `crossorigin`, because the widget arrives on a
+ * plain `<script src>` — a no-CORS request. A preconnect that carries
+ * `crossorigin` opens a different entry in the connection pool, so the script
+ * would ignore the socket and open a second one: the classic way to make a
+ * preconnect cost a connection instead of saving one.
+ */
+export const WAIN_AI_WIDGET_ORIGIN = "https://unpkg.com";
+
+/**
+ * Where the widget goes once it has loaded, warmed at the same moment.
+ *
+ * Read out of the published bundle rather than guessed: `dist/index.js` names
+ * `https://api.elevenlabs.io` and `wss://api.elevenlabs.io` as its defaults.
+ * This one IS warmed with `crossorigin` — its fetches are CORS.
+ *
+ * It matters because the two round trips are otherwise strictly serial: the
+ * CDN, then the bundle, then a cold DNS+TLS to ElevenLabs, and only then does
+ * anything ring. Warming both at the first sign of interest overlaps them with
+ * the visitor's own reaction time.
+ */
+export const WAIN_AI_API_ORIGIN = "https://api.elevenlabs.io";
 
 export const WAIN_AI_COPY = {
   name: "شوق",

@@ -75,7 +75,16 @@ ok('the privacy page is one tap away', (await p.locator('#wain-ai-panel a[href^=
 console.log('\n── the widget is loaded on demand, from a pinned URL ──');
 await p.waitForFunction(() => window.__convaiLoaded === true, null, { timeout: 8000 });
 ok('the bundle is fetched only after she is opened', requested.length === 1, requested.join(', '));
-ok('the URL is version-pinned, not floating', /convai-widget-embed@\d/.test(requested[0]), requested[0]);
+/* This assertion used to be /convai-widget-embed@\d/ and it passed for months
+   on `@elevenlabs/convai-widget-embed@1` — a semver RANGE, matching no
+   published version of a package that has never had a 1.x. Every real call
+   404'd at the CDN and told the caller «ما قدرنا نوصلك بشوق». `@\d` cannot
+   tell a pin from a range, so it must be x.y.z, and the entry file has to be
+   named too or unpkg answers two redirects before 451KB starts arriving. */
+ok('the URL names an exact version, not a range',
+  /convai-widget-embed@\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\//.test(requested[0]), requested[0]);
+ok('and the entry file, so nothing redirects on the way to it',
+  /\/dist\/[^/]+\.js$/.test(requested[0]), requested[0]);
 await p.waitForFunction(() => !!window.__convaiAgentId, null, { timeout: 8000 });
 ok('the element is created with the configured agent', (await p.evaluate(() => window.__convaiAgentId)) === 'agent_test_0123456789');
 
@@ -165,6 +174,75 @@ ok('a slug with spaces and capitals is rejected', refused(bad[1]), bad[1]);
 ok('a missing slug is rejected', refused(bad[2]), bad[2]);
 ok('an empty query is rejected', refused(bad[3]), bad[3]);
 ok('none of them navigated anywhere', p.url() === before, p.url());
+
+/**
+ * What happens BEFORE the tap, and what happens when the bundle never comes.
+ *
+ * Both are about the same seconds. The chain used to be strictly serial and to
+ * start at the tap — chunk, mount, cold DNS+TLS to the CDN, 451KB, then a cold
+ * DNS+TLS to ElevenLabs — with the caller listening to ring-back through all
+ * of it. And when it failed there was no failure: the script's error was never
+ * turned into one, so the sheet rang for the full twenty-second dial timeout
+ * and then blamed the microphone.
+ */
+console.log('\n── the call is warmed before it is placed ──');
+{
+  const warmCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'ar-KW' });
+  const fetched = [];
+  await warmCtx.route('**/unpkg.com/**', async (route) => {
+    fetched.push(route.request().url());
+    await route.fulfill({ status: 200, contentType: 'application/javascript', body: '' });
+  });
+  const w = await warmCtx.newPage();
+  await w.goto(B + '/search/', { waitUntil: 'networkidle' });
+
+  const links = () => w.evaluate(() => [...document.querySelectorAll('link[rel=preconnect]')]
+    .map((l) => `${new URL(l.href).origin}${l.crossOrigin ? ' [cors]' : ''}`));
+  ok('nothing is warmed for a visitor who never reaches for her',
+    !(await links()).some((l) => /unpkg|elevenlabs/.test(l)) && fetched.length === 0,
+    (await links()).join(', '));
+
+  await w.locator('button[aria-controls="wain-ai-panel"]').first().hover();
+  await w.waitForTimeout(200);
+  const warm = await links();
+  // The CDN is reached by a plain <script> — a no-CORS request — so warming it
+  // WITH crossorigin would open a pool entry the script cannot use. The API's
+  // fetches are CORS and need the opposite. Getting this backwards is the
+  // classic way to make a preconnect cost a connection instead of saving one.
+  ok('a hover warms the CDN, without crossorigin', warm.includes('https://unpkg.com'), warm.join(', '));
+  ok('and the session host, with it', warm.includes('https://api.elevenlabs.io [cors]'), warm.join(', '));
+  ok('but a hover does not pull half a megabyte', fetched.length === 0, fetched.join(', '));
+
+  await w.mouse.down();
+  await w.waitForTimeout(400);
+  ok('a finger already down does fetch it', fetched.length === 1, fetched.join(', '));
+  await w.mouse.up();
+  await warmCtx.close();
+}
+
+console.log('\n── a bundle that never arrives fails the call, quickly ──');
+{
+  const deadCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+  await deadCtx.route('**/unpkg.com/**', (route) => route.abort('failed'));
+  const d = await deadCtx.newPage();
+  await d.goto(B + '/search/', { waitUntil: 'networkidle' });
+  const t0 = Date.now();
+  await d.locator('button[aria-controls="wain-ai-panel"]').first().click();
+  let took = -1;
+  try {
+    await d.waitForFunction(
+      () => document.querySelector('#wain-ai-panel')?.textContent.includes('ما قدرنا نوصلك'),
+      null, { timeout: 12000 }
+    );
+    took = Date.now() - t0;
+  } catch { /* left at -1 */ }
+  // DIAL_TIMEOUT_MS is 20s and is the LAST resort, for a call that hangs. A
+  // load that has already errored must not wait for it.
+  ok(`it says so in seconds, not at the 20s dial timeout (${took}ms)`, took >= 0 && took < 10000, String(took));
+  const after = await d.locator('#wain-ai-panel').textContent();
+  ok('and offers the call again', after.includes('اتصل مرة ثانية'), after.slice(0, 120));
+  await deadCtx.close();
+}
 
 ok('no page errors anywhere in agent mode', errors.length === 0, errors.join(' | '));
 
