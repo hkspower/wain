@@ -570,6 +570,8 @@ function raceCut(): { w: number; h: number } | null {
    *  than on every frame the needle stays there. A pad asked to rumble
    *  sixty times a second stops rumbling. */
   const onLimiter = useRef(false);
+  /** Last time the high-rev rumble was re-armed — see the note there. */
+  const lastBite = useRef(0);
   const rpmTextRef = useRef<HTMLSpanElement>(null);
   /** The redline the ticks were last laid out for — an engine swap in
    *  the garage changes the dial, and nothing else does. */
@@ -1172,6 +1174,29 @@ function raceCut(): { w: number; h: number } | null {
       const lim = t.limiter > 0.05;
       if (lim && !onLimiter.current) rumblePad(90, 0.55 + t.limiter * 0.45, 0.9);
       onLimiter.current = lim;
+      /* THE TOP OF THE BAND, IN THE HANDS.
+       *
+       * The pad only ever moved when the needle ARRIVED on the limiter —
+       * one pulse, on the edge, at the one place a driver is trying not
+       * to be. Everything below it, including the whole stretch where a
+       * high-revving car is actually driven, felt identical to cruising.
+       *
+       * t.bite is the same ramp the camera buzz uses, so the hands and
+       * the picture are telling the driver the same thing. It is a dull,
+       * low-sharpness rumble rather than a click: this is an engine
+       * working, not an impact.
+       *
+       * Re-armed on a timer rather than every frame. The Gamepad
+       * vibration API restarts the effect on each call, so driving it at
+       * sixty hertz produces a continuous retrigger that reads as
+       * silence on some pads and as a rattle on others. One pulse a
+       * little shorter than its own interval overlaps into a steady hum.
+       */
+      const now = performance.now();
+      if (t.bite > 0.06 && !lim && now - lastBite.current > 110) {
+        lastBite.current = now;
+        rumblePad(150, 0.12 + t.bite * 0.4, 0.15);
+      }
       // Lay the dial out once per engine. The scale is the engine's own,
       // so a swap in the garage rebuilds it and nothing else does.
       if (ticksRef.current && dialFor.current !== t.redline) {

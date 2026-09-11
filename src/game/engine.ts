@@ -382,6 +382,9 @@ export interface HudData {
      *  so the HUD does not have to import the engine table to find out
      *  what it is drawing. */
     redCluster: boolean;
+    /** 0..1 through the aggressive top of the band, below the limiter.
+     *  Zero for the whole life of an engine the box short-shifts. */
+    bite: number;
   };
 }
 
@@ -650,6 +653,33 @@ const LIMITER_HIT_SHAKE = 0.26;
 /** The sustained buzz while it sits there, scaled by how hard. Small —
  *  a limiter you cannot drive through is a broken car, not a fast one. */
 const LIMITER_BUZZ_SHAKE = 0.07;
+
+/**
+ * The top of the band, before the stop.
+ *
+ * The limiter already had a hit and a buzz. Nothing below it did
+ * anything, so an engine held at nine tenths of its range — which is
+ * where a high-revving car is DRIVEN — felt exactly like one cruising at
+ * a third. All the aggression in this car arrived at the rev limiter,
+ * which is the one place a driver is trying not to be.
+ *
+ * This is the ramp underneath it: a rising buzz from HIGH_REV_FROM up to
+ * the stop, so the car is already leaning on you before the ECU starts
+ * cutting.
+ *
+ * It needs no per-engine tuning, and that is the nice part. revFrac is a
+ * fraction of THIS engine's own band, and EngineSpec.shiftAt decides how
+ * far up its own band the gearbox will take it — so the Ghazi, which is
+ * short-shifted at 0.84, never gets more than a rounding error of this,
+ * while the Saqr, geared to sit on its limiter in every gear, gets all
+ * of it in every gear. The engines that should scream, shake.
+ */
+const HIGH_REV_FROM = 0.82;
+/** Peak sustained jolt at the top of the band. Deliberately under
+ *  LIMITER_BUZZ_SHAKE's own ceiling — this is the engine working hard,
+ *  not the ECU cutting fuel, and it has to leave the limiter somewhere
+ *  louder to go. */
+const HIGH_REV_SHAKE = 0.055;
 
 const BACKFIRE_LIFT_RATE = 6;
 /** One lift, one bang. Seconds. */
@@ -1392,6 +1422,9 @@ export class GameEngine {
 
   // Camera motion
   private shake = 0; // impact jolt energy, decays
+  /** How far into the aggressive top of the rev band, 0..1. Drives the
+   *  sustained buzz here and the pad rumble in the HUD. */
+  private highRev = 0;
   private camBase = new THREE.Vector3(); // lerped chase position, pre-shake
   private camRoll = 0;
   /** Which shot the player is watching from. */
@@ -4459,6 +4492,14 @@ export class GameEngine {
     if (this.revLimited > 0.05) {
       this.shake = Math.max(this.shake, LIMITER_BUZZ_SHAKE * this.revLimited);
     }
+    // And the ramp under all of that — see HIGH_REV_FROM. Clamped to the
+    // rev fraction the torque curve actually integrated this frame, which
+    // is the same number the needle is showing, so what the driver feels
+    // and what they can see agree.
+    this.highRev = THREE.MathUtils.smoothstep(this.revFrac, HIGH_REV_FROM, 0.99);
+    if (this.highRev > 0.01) {
+      this.shake = Math.max(this.shake, HIGH_REV_SHAKE * this.highRev);
+    }
 
     // Fuel. An engine is an air pump and the burn follows the air it
     // moved, so the thirst of each of the five falls straight out of its
@@ -7023,6 +7064,7 @@ export class GameEngine {
           idle: eng.idleRpm,
           redline: eng.redlineRpm,
           redCluster: eng.redCluster === true,
+          bite: this.highRev,
           frac,
           gear: this.player.speed * KMH < 2 ? 0 : this.gearHeld + 1,
           shift: frac > 0.93,

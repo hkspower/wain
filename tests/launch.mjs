@@ -118,6 +118,47 @@ function standingStart(car, engine) {
   );
 }
 
+// ---- 2c. Only the engines that should scream, shake ------------------
+//
+// engine.ts ramps a sustained buzz — camera and pad both — from
+// HIGH_REV_FROM up to the stop, so the top of the band is felt before
+// the limiter rather than only at it. It takes no per-engine tuning
+// because revFrac is a fraction of THIS engine's own range and shiftAt
+// decides how far up it the gearbox will go, so the gating falls out of
+// the data. That is a claim worth checking rather than admiring: it is
+// exactly the kind of thing that silently stops being true when somebody
+// retunes a gearbox.
+{
+  const FROM = 0.82, TO = 0.99;
+  const smooth = (x) => {
+    const t = Math.min(1, Math.max(0, (x - FROM) / (TO - FROM)));
+    return t * t * (3 - 2 * t);
+  };
+  console.log("");
+  console.log("engine     shiftAt   most bite it can ever reach");
+  const rows = ENGINES.map((e) => ({ id: e.id, shiftAt: e.shiftAt, bite: smooth(e.shiftAt) }));
+  for (const r of rows)
+    console.log(`${r.id.padEnd(10)} ${String(r.shiftAt).padStart(5)}   ${r.bite.toFixed(3)}`);
+  const screamers = rows.filter((r) => r.shiftAt >= 1);
+  const shortShifted = rows.filter((r) => r.shiftAt <= 0.85);
+  console.log(
+    `\nthe engines geared to the limiter get all of it  ` +
+      check(
+        screamers.every((r) => r.bite > 0.95),
+        `an engine with shiftAt 1.0 does not reach the top of the ramp: ` +
+          screamers.map((r) => `${r.id} ${r.bite.toFixed(3)}`).join(", ")
+      )
+  );
+  console.log(
+    `and the short-shifted ones barely notice  ` +
+      check(
+        shortShifted.every((r) => r.bite < 0.1),
+        `a short-shifted engine is buzzing anyway: ` +
+          shortShifted.map((r) => `${r.id} ${r.bite.toFixed(3)}`).join(", ")
+      )
+  );
+}
+
 // ---- 3. Which cars can actually break traction ----------------------
 //
 // NOT "all of them". tests/engines.mjs asserted that every engine lights
