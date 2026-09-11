@@ -459,12 +459,40 @@ with no recipient: record what a caller asked for that the 52 places do not
 cover. Webhook, `post_tool_speech` with `pre_tool_speech` **off** — nothing is
 being waited on, so a waiting line would be the lie. It returns nothing.
 
-**The instruction lives in the tool's description, not in the prompt.** The
-description is the text she reads at the moment she decides to call, which is
-where the season-override lesson above says a rule has to sit; and the prompt is
-~15K characters of tuned Arabic with no update-in-place — retyping it to add two
-lines is the larger risk. All 20 attached tests passed against the live agent
-after attaching.
+**The instruction lives in the tool's description, not in the prompt** — the
+prompt is ~15K characters of tuned Arabic with no update-in-place, and the
+description is the text she reads at the moment she decides to call. But the
+first version of it taught her the SENTENCE and not the CALL, and that is the
+part worth carrying:
+
+**She said «سجّلت طلبك للفريق» and called nothing.** Measured twice, in a
+tool-call test: `No tool with name 'report_gap' was called`, with that sentence
+in her reply both times. Which is the exact failure this tool was chosen to
+avoid — a promise she cannot keep — now made by the tool meant to prevent it.
+
+The description had opened with a principle: «ناديها في اللحظة الوحيدة اللي
+عندك فيها جملة جاهزة أصلاً». Rewritten as a **literal trigger** — «أي جواب منك
+فيه ما عندي أو ما فيه أو ما لقيت → في نفس الدور نادي الأداة» — plus one worked
+example and one ban («وممنوع تقولين سجّلت طلبك بدون ما تنادين الأداة»). **2/2
+pass**, with correct arguments. Same lesson as the season override, one level
+down: Gemini-flash at temperature 0 obeys triggers and examples, not principles,
+and *a tool description is a prompt too*.
+
+**A simulation judge cannot see tool calls.** The conversation test passed this
+on her saying she had logged it — the judge wrote «مما يدل على أنه قام بتسجيل
+طلب الزائر», which is an inference from her words, and the words were false.
+Use a `tool` test for «did she call it»; that one reads the actual call. The
+simulation now asserts only what a transcript shows, and the criterion that
+guessed is deleted.
+
+**Two more things about tool tests.** They do not fire the webhook — the result
+is `Skipping tool call in test mode` — so the n8n table is NOT the evidence,
+the transcript's `tool_calls` is. And the parameter-path evaluation does not
+resolve for a webhook tool: both `asked` and `request_body.asked` came back
+«not found» against a call that plainly carried `asked`. Assert the call's
+presence (`parameters: []`) and let the schema's `required` guarantee the field.
+
+23 attached tests now, the three new ones included.
 
 **No shared secret, deliberately.** It is write-only and answers nothing, and a
 secret would have to live either in the agent config (readable) or in an n8n
