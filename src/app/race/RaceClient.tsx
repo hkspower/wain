@@ -493,6 +493,46 @@ function metresLabel(m: number): string {
   return v >= 1000 ? `${(v / 1000).toFixed(1)} km` : `${Math.round(v / 10) * 10} m`;
 }
 
+/**
+ * QUICK CHAT — the half of chat this game did not have.
+ *
+ * The hub has carried chat since it was written and the race screen has
+ * always DISPLAYED it, in the feed at the corner. There has never been a
+ * way to send any, because the only sender is a text field in the lobby
+ * and the one place you actually want to say something to another driver
+ * is at 180 km/h alongside them, where a text field is not an input
+ * method, it is a crash.
+ *
+ * So it is a fixed list, one keystroke each. Preset lines are also the
+ * only form of chat that can be shipped in a game where strangers meet:
+ * there is nothing to moderate, and nothing to translate at runtime.
+ *
+ * BOTH SCRIPTS, EVERY LINE. This is a Kuwaiti game with an Arabic
+ * majority and an English-reading minority playing on the same road at
+ * the same time, and a quick chat that picks one of them decides who the
+ * other driver is. Sent as one string carrying both, because the
+ * receiver's feed is one line and the hub protocol moves text rather
+ * than message ids.
+ *
+ * The ready pair is deliberately two entries rather than one toggle.
+ * "Ready?" and "Ready" are the two halves of lining a race up, they get
+ * sent by different people, and asking somebody to press the same key
+ * for both is how you end up answering your own question.
+ */
+const QUICK_CHAT: Array<{ en: string; ar: string }> = [
+  { en: "Let's race", ar: "يلا نتسابق" },
+  { en: "Ready?", ar: "جاهز؟" },
+  { en: "Ready", ar: "جاهز" },
+  { en: "Go go go", ar: "روح روح" },
+  { en: "Nice car", ar: "سيارة حلوة" },
+  { en: "Respect", ar: "احترامي" },
+  { en: "My bad", ar: "آسف" },
+  { en: "Later", ar: "مع السلامة" },
+];
+/** Two seconds between lines. Long enough that the wheel cannot be used
+ *  as a spam button, short enough that a real exchange still works. */
+const QUICK_CHAT_GAP_MS = 2000;
+
 export default function RaceClient() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   /** The 16:9 box the canvas is cut to while a race is on, or null when
@@ -572,6 +612,22 @@ function raceCut(): { w: number; h: number } | null {
   const onLimiter = useRef(false);
   /** Last time the high-rev rumble was re-armed — see the note there. */
   const lastBite = useRef(0);
+  /** The quick chat wheel, and the clock that rate-limits it. */
+  const [quickChat, setQuickChat] = useState(false);
+  const lastChatAt = useRef(0);
+  const sendQuickChat = useCallback((i: number) => {
+    const line = QUICK_CHAT[i];
+    if (!line) return;
+    setQuickChat(false);
+    const now = performance.now();
+    if (now - lastChatAt.current < QUICK_CHAT_GAP_MS) return;
+    // No hub, no chat. Said out loud in the wheel itself rather than
+    // swallowed here — a button that silently does nothing offline is
+    // worse than one that is not offered.
+    if (!hubRef.current) return;
+    lastChatAt.current = now;
+    hubRef.current.sendChat(`${line.ar} · ${line.en}`);
+  }, []);
   const rpmTextRef = useRef<HTMLSpanElement>(null);
   /** The redline the ticks were last laid out for — an engine swap in
    *  the garage changes the dial, and nothing else does. */
@@ -2168,6 +2224,35 @@ function raceCut(): { w: number; h: number } | null {
         setDossier((cur) => (cur ? null : engineRef.current?.sizeUpRival() ?? null));
       }
       if (e.key === "Escape" && dossier) setDossier(null);
+      // QUICK CHAT. T opens and closes it; 1-8 send and close.
+      //
+      // T for talk, and NOT C, which was the first choice and is already
+      // the camera — bound twenty lines above this one. Two handlers on
+      // one key do not conflict in any way a compiler will mention: both
+      // run, so the wheel would have opened every time somebody changed
+      // view and the view would have changed every time they opened the
+      // wheel.
+      //
+      // Held to the same gates as Tab and the camera key for the reason
+      // given up there — a hotkey that fires under a menu is a hotkey
+      // that fires by accident — and additionally only while the hub is
+      // connected, because a wheel that cannot send anything is a wheel
+      // that should not open.
+      const chatLive =
+        phase === "playing" && !garageOpen && !settingsOpen && !onboarding &&
+        !result && !cine && !dossier && !!hubRef.current;
+      if (e.key.toLowerCase() === "t" && !e.repeat && chatLive) {
+        e.preventDefault();
+        setQuickChat((v) => !v);
+      }
+      if (quickChat) {
+        if (e.key === "Escape") setQuickChat(false);
+        const n = Number(e.key);
+        if (Number.isInteger(n) && n >= 1 && n <= QUICK_CHAT.length) {
+          e.preventDefault();
+          sendQuickChat(n - 1);
+        }
+      }
       // Menu navigation. Enter must not fall through a modal and start
       // the race behind it, so every branch is gated on the overlays.
       const menuLive =
@@ -2190,7 +2275,7 @@ function raceCut(): { w: number; h: number } | null {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [phase, startGame, result, garageOpen, settingsOpen, onboarding, cine, challenge, creditsOpen, menuSel, updateSetting, showMessage, dossier]);
+  }, [phase, startGame, result, garageOpen, settingsOpen, onboarding, cine, challenge, creditsOpen, menuSel, updateSetting, showMessage, dossier, quickChat, sendQuickChat]);
 
   // The main menu proper: one list, navigable by keyboard or thumb.
   // The first item keeps the wording the whole game is introduced by —
@@ -2613,6 +2698,7 @@ function raceCut(): { w: number; h: number } | null {
             W/↑ accelerate · S/↓ brake · A D steer · Space drift · N nitro
             <br />F flash · C camera · Esc pause · M mute · B music · V voices
             <br />Tab · size up the driver alongside
+            <br />T · quick chat, when there is somebody to say it to
           </div>
         </div>
       </div>
@@ -2621,6 +2707,22 @@ function raceCut(): { w: number; h: number } | null {
           them, before you commit to anything. Square, white, black: the
           one thing on this screen that is meant to be read rather than
           glanced at. */}
+      {/* The same wheel for a thumb. There is no T on a phone, and a
+          feature reachable only from a keyboard is a feature the touch
+          half of the audience does not have. Only while the hub is
+          connected and only while somebody is near enough to read it —
+          the same two conditions the key is held to. */}
+      {phase === "playing" && isTouch && nearby && !quickChat && !dossier && !cine && !result && (
+        <div className="pointer-events-none absolute left-1/2 bottom-28 z-[21] -translate-x-1/2">
+          <button
+            onClick={() => setQuickChat(true)}
+            className="grn-info pointer-events-auto px-3 py-1.5 font-display text-xs tracking-[0.08em]"
+          >
+            💬 <span className="grn-ar" lang="ar">دردشة</span>
+          </button>
+        </div>
+      )}
+
       {phase === "playing" && canSizeUp && !dossier && !cine && !result && (
         <div className="pointer-events-none absolute left-1/2 top-24 z-[6] -translate-x-1/2">
           <button
@@ -3119,6 +3221,44 @@ function raceCut(): { w: number; h: number } | null {
               >
                 Gas
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* THE QUICK CHAT WHEEL.
+          Bottom centre, pointer-events only on the buttons themselves,
+          and NO backdrop: every other modal in here dims the scene
+          because the game is paused behind it, and this one is open
+          while the player is doing 180 down the corniche. Dimming the
+          road to pick a greeting is how you put somebody into a barrier.
+          Short and wide for the same reason — it sits under the racing
+          line rather than across it. */}
+      {quickChat && phase === "playing" && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-28 z-[22] flex justify-center px-4">
+          <div className="grn-panel pointer-events-auto max-w-2xl px-3 py-2.5">
+            <div className="grn-label mb-2 text-center text-2xs text-gulf-300">
+              QUICK CHAT · <span className="grn-ar" lang="ar">دردشة سريعة</span> · 1–8, ESC to close
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+              {QUICK_CHAT.map((line, i) => (
+                <button
+                  key={line.en}
+                  onClick={() => sendQuickChat(i)}
+                  className="grn-btn flex items-center gap-2 border border-white/15 px-2.5 py-2 text-left hover:bg-white/10"
+                >
+                  <span className="grn-display text-2xs text-sodium-400">{i + 1}</span>
+                  <span className="min-w-0">
+                    {/* Arabic first: it is the language of the road this
+                        game is set on, and the Latin is the gloss. Both
+                        go out in one string — see QUICK_CHAT. */}
+                    <span className="grn-ar block truncate text-xs text-white/90" lang="ar" dir="rtl">
+                      {line.ar}
+                    </span>
+                    <span className="block truncate text-2xs text-white/55">{line.en}</span>
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
