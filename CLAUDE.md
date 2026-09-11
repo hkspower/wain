@@ -2347,6 +2347,92 @@ those two fields, where the owner is standing when it matters. **A warning in
 the panel is not a fix** — the fix is a bundle that reads the rules, and there
 is no source for it here.
 
+## api/deploy.php — the HMAC secret was world-readable, 2026-09-11
+
+The endpoint that can write into the live web root, audited after "fix api
+deploy". It is now TRACKED (`sporta-site/public_html/api/deploy.php`), which it
+had never been: it was on the server and in no commit, so nobody could review,
+diff or restore the one piece of PHP on this shop that deploys files.
+
+**Committed verbatim FIRST, and the base was proved rather than assumed.** The
+transcription's sha256 was compared against the server's own —
+`368355e52ec4fe2c…` both sides, 240 lines and 8,347 bytes either way — before a
+line was changed. A diff is only readable against a base that is genuinely the
+base, and on a file like this that is not a nicety.
+
+### The finding that mattered was a file mode
+
+```
+secret=yes/64b/0644/readable      <- deploy.php's own header says 0600
+manifest=none  artifacts=0        <- it has NEVER successfully deployed
+log=3  all FAIL bad_signature
+GET=405/method_not_allowed
+```
+
+`storage/deploy.secret` is the 64-byte HMAC key authorising deploys, and it was
+**0644 on shared hosting**, where "world" is other accounts on the same machine.
+Anyone holding it can put files on the shop.
+
+Set to 0600. That is safe without asking because chmod only REMOVES access, and
+only from everyone except the account PHP runs as — there is no configuration in
+which 0644 works and 0600 does not.
+
+**ROTATION IS A SEPARATE QUESTION AND IS THE OWNER'S.** Tightening the mode does
+not un-expose a key that was readable for an unknown time; only a new secret
+does, and the owner has to carry it to whatever signs the requests.
+
+**The `GET=405` is not evidence the deploy works.** It only proves PHP executed
+the file — the endpoint answers 405 identically whether the secret is present,
+missing or wrong. `manifest=none artifacts=0` is the number that says it has
+never once run to completion, and reading the 405 as health is this project's
+favourite mistake in a new costume.
+
+**And it exonerates deploy.php of the outlet tile, harder than before.** All
+three log lines are `FAIL bad_signature` and nothing was ever written. Two are
+from the same Hostinger IPv6 one minute apart — the cadence of a per-minute job
+failing — and one from a Google Cloud address.
+
+### Three defects, and only one of them was reachable
+
+- **The size cap did not bind on a chunked response.** PHP hands the progress
+  callback `(handle, downloadTotal, downloaded, …)` and it read only the second
+  — the total the server DECLARES. `codeload.github.com` is allow-listed and
+  answers archives chunked, declaring none, so the 200 MB limit never fired
+  while the body streamed to disk.
+- **The protected-path check on zip entries was inert for every archive it is
+  for.** `isProtected()` tests the FIRST path segment, and every entry in a
+  GitHub archive is nested under `wain-<sha>/` — so the first segment is the
+  wrapper and never `api`. Not exploitable, because the publish loop re-checks
+  after collapsing the wrapper and that is what has actually been refusing
+  protected paths. **A dead layer that reads as a live one is worth less than
+  nothing**, and a 422 naming the entry before extraction beats silently
+  skipping the file afterwards.
+- `str_replace($stage, '', $path)` removes the staging path from anywhere
+  rather than the front.
+
+### The mutation test found a hole in the rig, which is the point of running it
+
+`test:deploy-endpoint` runs the real endpoint over a real PHP server for the
+guard chain, and EXTRACTS `isProtectedEntry` from the file under test rather
+than copying it — a copy goes on passing after the original breaks.
+
+Then reverting the CALL SITE to the old `isProtected($n)` **passed all thirteen
+checks**, because a rig that exercises a function never notices which function
+the program calls. A correct helper nobody calls is precisely the inert layer
+the fix removed, restored. A fourteenth check reads the staging loop; all four
+mutations now fail, each naming its own cause.
+
+**What the rig cannot drive is named in its header rather than skipped
+quietly.** The download, checksum and extraction need an artifact on one of
+three GitHub hosts, so they cannot be driven from a local fixture without
+weakening the allow-list — which would be changing production to suit a test.
+The size cap is guarded structurally, and that is weaker than a measurement.
+
+**The publisher refuses an unexpected base.** If the live file is neither the
+base the change was built on nor the result, it stops with
+`REFUSED-UNEXPECTED-BASE` rather than discarding somebody else's edit, and it
+keeps the old copy in `storage/` as the rollback.
+
 ## The live shop has no product photographs
 
 `photos=0/46active`, `brandLogos=0/8`, measured 2026-09-05. Every product card
