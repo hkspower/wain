@@ -233,7 +233,10 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   file in the docroot is a URL, and this one signs deploys; and `storage/` is
   the one directory `deploy.php` never prunes — everything it deletes is under
   `storage/deploy/`. **The 49-character path is what makes it fit**: that
-  command measures 196 against a cap between 210 and 279.
+  command measures **197** against a cap between 210 and 279, with a GitHub
+  release URL — which is the long case. 13 characters of headroom is not much,
+  so a longer artifact URL is the thing that would break it, and the planner
+  fails with the length rather than letting the 422 be a surprise.
 
   **Installing is still fetch-pin-run, just once** — `wget`, `php d.php
   install`, `rm` — because there is no other way to write to this account from
@@ -242,6 +245,11 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   **`php …/d.php version` is the only way to see what is installed.**
   `storage/` is outside the docroot, so no read tool here can look; the planner
   prints the repository copy's fingerprint and the server prints its own.
+  Installed 11 September at `22015bb67b0959ad`, and the route proved end to end
+  by `php /home/…/storage/d.php probe` answering `host_not_allowed` with
+  «the request got past the HMAC check» — the absolute path runs, the installed
+  caller reads the secret, signs, and the endpoint accepts it, with nothing
+  downloaded and nothing written.
 
   **Only the artifact still comes from GitHub, and only because bytes cannot be
   pushed to this account at all.** `--archive-url` takes any HTTPS host and

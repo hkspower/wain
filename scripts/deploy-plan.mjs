@@ -489,9 +489,9 @@ console.log(`  the web root. A truncated fetch is a 422, not a broken site.`);
 
 console.log(`\n▸ read the reply with getCronJobOutputV1. {"ok":true,...} carries the`);
 console.log(`  file counts; anything else names the step that refused and why.`);
-console.log(`  \`php ${INSTALLED} probe\` first if you want the`);
-console.log(`  signature checked on its own —`);
-console.log(`  it is refused at the host check, which is after the HMAC.`);
+console.log(`  To check the signature on its own first — refused at the host check,`);
+console.log(`  which is after the HMAC, so nothing is downloaded or written:`);
+console.log(`\n    php ${INSTALLED} probe`);
 
 console.log(`\n▸ createAccountCronJobV1 can return a uid for a job it never stored,`);
 console.log(`  and deleteAccountCronJobV1 can accept a delete it does not perform.`);

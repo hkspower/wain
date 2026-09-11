@@ -293,8 +293,12 @@ is a URL, and this one signs deploys; and `storage/` is the one directory
 so the caller cannot be swept away by the thing it calls.
 
 The 49-character absolute path is what makes this fit. The command field caps
-between 210 and 279 characters; a deploy command carrying that path, a release
-URL, a 64-character digest and a version measures **196**.
+between 210 and 279 characters; a deploy command carrying that path, a GitHub
+release URL, a 64-character digest and a version measures **197**. That is 13
+characters of headroom, so a longer artifact URL is what would break it —
+`deploy:plan` measures every command it prints and fails on the length, because
+`createAccountCronJobV1` answers 422 for this and 403 for a WAF refusal, and
+the two look nothing alike.
 
 **Installing it is still the fetch-pin-run write path — just once.** There is no
 other way to write to this account from a session that cannot reach it:
@@ -315,6 +319,22 @@ see it and neither can anything else here. `npm run deploy:plan` prints the
 repository copy's fingerprint; ask the server for its own and compare. A plan
 that assumes a caller feature the server does not have then fails in a cron
 output instead of in the docroot.
+
+Installed 11 September, `22015bb67b0959ad`, and proved with the new command
+shape rather than by reading the file — which cannot be read from here anyway:
+
+```
+php /home/u130124229/domains/wainkw.com/storage/d.php probe
+→ {"host": "www.wainkw.com", "http": 400,
+   "response": {"ok": false, "error": "host_not_allowed",
+                "host": "deploy-probe.invalid"},
+   "signature": "accepted — the request got past the HMAC check"}
+```
+
+Every link in the new route at once: cron runs PHP at that absolute path, the
+installed caller finds and reads `storage/deploy.secret`, signs, reaches the
+endpoint over the loopback, and the endpoint accepts the HMAC — refusing only
+at the host check, which is after it. Nothing downloaded, nothing written.
 
 **What is still not native, and why.** The artifact bytes. Nothing in a session
 can push them to this account — the file host is refused at CONNECT and so is
