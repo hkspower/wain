@@ -1928,8 +1928,13 @@ function raceCut(): { w: number; h: number } | null {
               if (id !== hub.selfId) engine.updateRemoteState(id, s, lat, speed);
             }
           },
-          onChat: (name, text) =>
-            setFeed((prev) => [...prev.slice(-3), { name, text, key: feedKey.current++ }]),
+          onChat: (name, text) => {
+            setFeed((prev) => [...prev.slice(-3), { name, text, key: feedKey.current++ }]);
+            // The feed is in the corner and the driver is looking at the
+            // road. Without this the quick chat is a feature you can
+            // send into and never be answered from.
+            engineRef.current?.chatBlip();
+          },
           onDuelInvite: (inv) => setInvite(inv),
           onDuelStart: (opponent, w) => {
             duelRef.current = true;

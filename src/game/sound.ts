@@ -1806,6 +1806,24 @@ export class SoundEngine {
     this.sting([root, root * 1.5], 0.055, "triangle", 0.055);
   }
 
+  /**
+   * Somebody said something.
+   *
+   * The quick chat arrives in a feed at the corner of the screen while
+   * the player is at speed with their eyes on the road, which is exactly
+   * the part of the screen nobody is looking at. A message nobody
+   * notices is a message that was not sent.
+   *
+   * Two pips, a fifth apart, very quiet — 0.04 against battleSting's
+   * 0.07 and driftLink's 0.055. It is the smallest sound in the game on
+   * purpose: it competes with an engine at full noise and it must not
+   * win, because nothing about it is urgent. It only has to be enough
+   * that the eye goes and looks.
+   */
+  chatBlip(): void {
+    this.sting([784, 1175], 0.05, "triangle", 0.04);
+  }
+
   battleSting(): void {
     this.sting([220, 262, 330, 440], 0.09, "sawtooth", 0.07);
     this.oneShotNoise("highpass", 1800, 0.1, 0.5);

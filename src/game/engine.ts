@@ -3317,6 +3317,14 @@ export class GameEngine {
    * somebody up, and a full-screen card over a duel is a pause button
    * with extra steps.
    */
+  /** Somebody on the road said something. The HUD owns the feed; the
+   *  cue belongs to the engine because the engine owns the mixer, and a
+   *  UI reaching into a private SoundEngine to make one pip is how a
+   *  mixer stops being one thing. */
+  chatBlip(): void {
+    this.sound?.chatBlip();
+  }
+
   sizeUpRival(): RivalDossier | null {
     const r = this.rival;
     if (!r || this.inBattle || this.cine || this.locked) return null;
