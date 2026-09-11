@@ -29,6 +29,26 @@ const font = (p) => 'data:font/woff2;base64,' + b64(R + 'fonts/' + p)
 /** 2.52:1 — the artwork ratio the hero's own CSS floor is built around. */
 const W = 3200, H = Math.round(3200 / 2.52)   // 1270
 
+/* THE PHONE CROP, which is the constraint that decides this layout and which
+ * nothing here had accounted for. The hero is object-fit: cover with
+ * object-position: 15% center, and under 768px the box is aspect-ratio 2.10/1
+ * (sporta-ui.css:319, 402-403). A 2.52:1 file in a 2.10 box shows
+ *
+ *     2.10 / 2.52 = 83.3% of the width
+ *     at object-position 15%  ->  the window runs 2.5% .. 85.8%
+ *
+ * so the right-hand 14.2% of the artwork is DISCARDED on every phone. The
+ * shipped banners survive that because their single athlete sits well inside;
+ * a pair pushed to the right edge does not. Rendered and checked: the woman was
+ * being sliced vertically through her face on a 390px screen.
+ *
+ * So the photograph is shifted LEFT until her right edge lands inside the
+ * window, and the orange band is shortened to make room rather than the figures
+ * being scaled down — scaling them would leave them floating in a 1270px band
+ * they no longer fill. */
+const PHONE_EDGE = 0.858 * W          // 2746 — nothing that matters may sit right of this
+const SHIFT = -453                    // photo left offset, derived from the woman's edge
+
 const html = `<!doctype html><meta charset="utf-8">
 <style>
   @font-face { font-family: Plex; src: url(${font('plex-700-latin.woff2')}) format('woff2');
@@ -40,19 +60,25 @@ const html = `<!doctype html><meta charset="utf-8">
   @font-face { font-family: Plex; src: url(${font('plex-600-arabic.woff2')}) format('woff2');
                font-weight: 600; unicode-range: U+0600-06FF, U+FB50-FDFF, U+FE70-FEFF; }
   * { margin: 0; box-sizing: border-box; }
-  html, body { width: ${W}px; height: ${H}px; overflow: hidden; background: #0d0e10; }
+  html, body { width: ${W}px; height: ${H}px; overflow: hidden; background: #0a0b0c; }
   .stage { position: relative; width: ${W}px; height: ${H}px; font-family: Plex, system-ui, sans-serif; }
 
   /* The photograph, cropped to 2.52:1 from the top so the figures keep their
      headroom and the crop takes the empty floor instead of their faces. */
   .shot { position: absolute; inset: 0; overflow: hidden; }
-  .shot img { position: absolute; left: 0; top: ${-90 * (W / 2560)}px; width: ${W}px; }
+  .shot img { position: absolute; left: ${SHIFT}px; top: 0; width: ${W}px; }
 
   /* A soft wash back to black across the left, so the type never sits on a
      lit patch of backdrop. */
+  /* The wash back to black across the left, so the type never sits on a lit
+     patch of backdrop — and the plate is #0a0b0c rather than the #0d0e10 token
+     because the PHOTOGRAPH's own backdrop measures ~10.5 where it ends. With
+     the token, columns ran 10.5 up to x=2740 and then jumped to a flat 13.93:
+     a 3.4-level vertical step down the right of the banner, which reads as a
+     printing fault rather than as a background. */
   .wash { position: absolute; inset: 0;
-          background: linear-gradient(90deg, #0d0e10 0%, #0d0e10 34%, rgba(13,14,16,.86) 46%,
-                                              rgba(13,14,16,.35) 56%, rgba(13,14,16,0) 66%); }
+          background: linear-gradient(90deg, #0a0b0c 0%, #0a0b0c 22%, rgba(10,11,12,.88) 31%,
+                                              rgba(10,11,12,.34) 38%, rgba(10,11,12,0) 46%); }
 
   .type { position: absolute; left: 190px; top: 232px; width: 1750px; }
   .lock { width: 560px; display: block; }
@@ -60,7 +86,7 @@ const html = `<!doctype html><meta charset="utf-8">
              letter-spacing: .22em; }
 
   /* Full-bleed orange band with the angled tail the shipped frames use. */
-  .band { position: absolute; left: 0; top: 612px; height: 212px; width: 1640px;
+  .band { position: absolute; left: 0; top: 612px; height: 212px; width: 1040px;
           background: #f5821f; clip-path: polygon(0 0, 100% 0, calc(100% - 74px) 100%, 0 100%);
           display: flex; align-items: center; }
   .band h1 { color: #171a1e; font-weight: 700; font-size: 152px; letter-spacing: .01em;
@@ -86,8 +112,8 @@ const html = `<!doctype html><meta charset="utf-8">
        3. a sub-pixel blur and a hair of transparency, because a screen print on
           jersey has no razor edge and this photograph has a focus falloff the
           mark has to share. */
-  .mark { position: absolute; overflow: hidden; opacity: .82;
-          filter: blur(.7px) saturate(.96);
+  .mark { position: absolute; overflow: hidden; opacity: .93;
+          filter: blur(.25px) saturate(.98);
           -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
           -webkit-mask-position: 0 0; mask-position: 0 0; }
   .mark .s   { position: absolute; left: 0; top: 0; display: block; }
@@ -127,7 +153,7 @@ const html = `<!doctype html><meta charset="utf-8">
   /* Only the S, cropped out of the lockup by the orange run measured in the
      file (x 0..165 of 800), and placed on each chest. */
   const S_W = 165, LOCK_W = 800, LOCK_H = 246
-  const PHOTO_W = ${W}, PHOTO_TOP = ${-90 * (W / 2560)}
+  const PHOTO_W = ${W}
 
   /* cx, cy, w in the PHOTOGRAPH's own pixels; rot/skew put the mark on the
      plane the chest is actually turned to. */
@@ -162,13 +188,21 @@ const html = `<!doctype html><meta charset="utf-8">
     // of shirt showing through the mark's box is the SAME piece of shirt
     const fab = el.querySelector('.fab')
     fab.style.width = PHOTO_W + 'px'
-    fab.style.left = -left + 'px'
-    fab.style.top = (PHOTO_TOP - top) + 'px'
+    fab.style.left = (${SHIFT} - left) + 'px'
+    fab.style.top = -top + 'px'
   }
 
+  /* Centres and widths in the PHOTOGRAPH's own 2560-space, then mapped into the
+     banner and shifted with it. The widths are 200 and 130 rather than the 118
+     and 74 used before, because the mark is judged at the size it is SEEN: at
+     the 1600-wide deliverable those land at 125px and 81px, and on a 390px
+     phone — where cover scales the artwork to ~468px wide — at 37px and 24px.
+     The previous pair came out at 22px and 14px there, which is a smudge, not
+     a logo. */
   const k = PHOTO_W / 2560
-  markAt(document.getElementById('m1'), 1664 * k, (704 - 90) * k, 118 * k, -4, 3)
-  markAt(document.getElementById('m2'), 2128 * k, (726 - 90) * k, 74 * k, -3, 2)
+  const SH = ${SHIFT}
+  markAt(document.getElementById('m1'), 1560 * k + SH, 755 * k, 200 * k, -4, 3)
+  markAt(document.getElementById('m2'), 2065 * k + SH, 755 * k, 130 * k, -3, 2)
 </script>`
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
