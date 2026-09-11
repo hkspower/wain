@@ -1,0 +1,199 @@
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+
+import { press } from '@/components/ui/press';
+import { ContentColumn, Screen } from '@/components/ui/screen';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { ProductCard } from '@/components/product-card';
+import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
+import { BottomTabInset, MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
+import { useCart } from '@/lib/cart';
+import { formatNumber } from '@/lib/money';
+import { useLang } from '@/lib/i18n';
+
+type Sort = 'new' | 'low' | 'high';
+
+export default function ShopScreen() {
+  const theme = useTheme();
+  const { t, lang, dir, row, text } = useLang();
+
+  /**
+   * A HORIZONTAL LIST IN ARABIC STARTS AT ITS OTHER END.
+   *
+   * The chips are laid out row-reverse, so the first one — «الأحدث», and
+   * «الكل» on the category row this used to serve as well — sits at the far
+   * right of the content. A ScrollView opens at scrollLeft 0, which is the
+   * LEFT, so the first chip was off the screen: measured at x=382 on a 390px
+   * phone, three quarters of it past the edge. The control a customer wants
+   * most often was the one they had to go looking for.
+   *
+   * React Native does not do this for you on either platform, and it is not
+   * something a screenshot in English can ever show.
+   */
+  const startAtReadingEdge = useCallback(
+    (ref: React.RefObject<ScrollView | null>) => () => {
+      if (dir !== 'rtl') return;
+      ref.current?.scrollToEnd({ animated: false });
+      // And again after the frame settles. The row lays out more than once —
+      // the chips' 48pt hit areas resize it after the first pass — and a
+      // scroll issued against the old width lands short, which puts the first
+      // chip back off the screen. Cheap, idempotent, and it is the difference
+      // between the row opening on its first chip and opening on nothing.
+      requestAnimationFrame(() => ref.current?.scrollToEnd({ animated: false }));
+    },
+    [dir],
+  );
+  const sortRow = useRef<ScrollView>(null);
+  const { products } = useCart();
+
+  /**
+   * NO CATEGORY FILTER — removed 2026-09-09 on the owner's instruction. The
+   * shop shows everything, always.
+   *
+   * WHAT WENT WITH IT, and why it could not stay: the screen used to accept a
+   * `?category=` route parameter, which is how the home screen's four tiles
+   * opened it already narrowed. With no pill row there is no visible way back
+   * to "all", so honouring that parameter would have left a customer in a
+   * subset of the shop with nothing on screen to say so and no control to undo
+   * it. The tiles now open the whole shop — see (tabs)/index.tsx.
+   *
+   * The SORT row stays. Sorting narrows nothing: every product is still on the
+   * page, in a different order, and the control that changed it is still there
+   * to change back.
+   */
+  const [sort, setSort] = useState<Sort>('new');
+
+  const shown = useMemo(() => {
+    if (sort === 'low') return [...products].sort((a, b) => a.price - b.price);
+    if (sort === 'high') return [...products].sort((a, b) => b.price - a.price);
+    return products;
+  }, [products, sort]);
+
+  const Chip = ({
+    label,
+    active,
+    onPress,
+  }: {
+    label: string;
+    active: boolean;
+    onPress: () => void;
+  }) => (
+    <Pressable
+      accessibilityRole="button"
+      // `selected` is not valid aria on a button and the web build drops it,
+      // so every chip announced identically whether it was on or off.
+      // `pressed` is the attribute for a button that is on; `selected` stays
+      // for native, which reads it directly. This is a LOCAL copy of the chip
+      // rather than components/ui/chip.tsx — the shared one exists to stop
+      // exactly this drift, and it did not reach here.
+      accessibilityState={{ selected: active }}
+      aria-pressed={active}
+      onPress={onPress}
+      // The pill is 36pt because that is how the chip row is meant to look.
+      // The thing you TAP is this, and it is 48 — measured at 36 before, which
+      // is under the 44 a phone is expected to offer and small enough to miss
+      // with a thumb on a moving bus. The pill inside is unchanged.
+      style={press(false, styles.chipHit)}>
+      <ThemedView
+        type={active ? 'backgroundSelected' : 'backgroundElement'}
+        style={[styles.chip, { borderColor: active ? theme.tint : theme.controlBorder }]}>
+        <ThemedText type="label" themeColor={active ? 'tintText' : 'textSecondary'}>
+          {label}
+        </ThemedText>
+      </ThemedView>
+    </Pressable>
+  );
+
+  return (
+    <Screen
+      tabBar
+      stickyHeader={
+        /* The sort row stays on screen while the grid scrolls. On a phone the
+           alternative is scrolling back to the top to change your mind. */
+        <ThemedView type="background" style={styles.sortBar}>
+          <ContentColumn>
+            <ScrollView
+              ref={sortRow}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              onContentSizeChange={startAtReadingEdge(sortRow)}
+              contentContainerStyle={[styles.chipRow, row]}>
+              <Chip label={t.shop.sortNew} active={sort === 'new'} onPress={() => setSort('new')} />
+              <Chip label={t.shop.sortLow} active={sort === 'low'} onPress={() => setSort('low')} />
+              <Chip
+                label={t.shop.sortHigh}
+                active={sort === 'high'}
+                onPress={() => setSort('high')}
+              />
+            </ScrollView>
+          </ContentColumn>
+        </ThemedView>
+      }>
+
+          <ThemedText type="label" themeColor="textSecondary" style={text}>
+            {t.shop.results(formatNumber(shown.length, lang), shown.length === 1)}
+          </ThemedText>
+
+          {shown.length === 0 ? (
+            <ThemedText style={[styles.empty, text]}>{t.shop.empty}</ThemedText>
+          ) : (
+            <View style={styles.grid}>
+              {shown.map((p) => (
+                <View key={p.slug} style={styles.gridItem}>
+                  <ProductCard product={p} />
+                </View>
+              ))}
+            </View>
+          )}
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  sortBar: {
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.two,
+    gap: Spacing.two,
+  },
+  chipRow: {
+    gap: Spacing.two,
+    paddingVertical: Spacing.one,
+  },
+  chipHit: { minHeight: TapTarget, justifyContent: 'center' },
+  chip: {
+    minHeight: TapTarget - 12,
+    justifyContent: 'center',
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.three,
+  },
+  // TWO PER ROW, and it was one. `width: 48%` twice plus a 16px gap comes to
+  // 100.5% of a 358px column — half a per cent over, so every card wrapped onto
+  // its own line and the grid ran as a single column with half the page empty
+  // beside it. The arithmetic was written as `(100 - 4) / 2`, which assumed the
+  // gap was 4% of the row; at this width it is 4.5%.
+  //
+  // flexBasis with flexGrow, rather than a width: the cards then divide
+  // whatever the row actually has, so the gap can change without anyone
+  // recomputing a percentage. The gap is 8px because two 48% cards plus 8px is
+  // 351 of 358 — it fits with room to spare, and it is the last time this needs
+  // to be a calculation at all.
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+    marginTop: Spacing.one,
+  },
+  gridItem: {
+    flexGrow: 1,
+    flexBasis: '48%',
+    maxWidth: '48%',
+  },
+  empty: {
+    marginTop: Spacing.five,
+    textAlign: 'center',
+  },
+});

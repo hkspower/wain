@@ -1,0 +1,1048 @@
+-- Sporta native backend — MySQL schema.
+--
+-- Import once in hPanel -> Databases -> phpMyAdmin -> Import (or paste into the
+-- SQL tab). Safe to re-run: everything is IF NOT EXISTS and the seed matches on
+-- slug, so prices update in place and nothing duplicates.
+--
+-- This carries every rule the Postgres schema this shop started on carried,
+-- the same decisions: DECIMAL(10,3) because KWD has three decimal places and
+-- floats lose fils; sizes and fits as CHECK lists because a text column fed
+-- from a JSON body must not be free storage; utf8mb4 because the catalogue is
+-- Arabic and utf8mb3 silently truncates at the first 4-byte glyph.
+
+set names utf8mb4;
+
+create table if not exists products (
+  id        int unsigned auto_increment primary key,
+  slug      varchar(80)  not null unique,
+  name_en   varchar(160) not null,
+  name_ar   varchar(160) not null,
+  desc_en   text         null,
+  desc_ar   text         null,
+  price     decimal(10,3) not null,
+  category  varchar(40)  null,
+  image     varchar(500) null,
+  active    tinyint(1)   not null default 1,
+  created_at timestamp   not null default current_timestamp
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists orders (
+  id             int unsigned auto_increment primary key,
+  track_id       varchar(30) not null unique,
+  amount         decimal(10,3) not null default 0,
+  payment_status varchar(10) not null default 'pending',
+  payment_method varchar(10) not null default 'knet',
+  fulfilment_status varchar(12) not null default 'unfulfilled',
+  -- The bank's answer, written by callback.php. Same cbk_* names as the
+  -- Postgres schema so the callback code differs only in its storage driver.
+  cbk_status      varchar(30)  null,
+  cbk_message     varchar(200) null,
+  cbk_paymentid   varchar(60)  null,
+  cbk_transaction varchar(60)  null,
+  cbk_authcode    varchar(30)  null,
+  cbk_reference   varchar(60)  null,
+  cbk_receipt     varchar(60)  null,
+  cbk_paytype     varchar(20)  null,
+  customer_name        varchar(80) null,
+  customer_phone       varchar(15) null,
+  customer_governorate varchar(20) null,
+  customer_area        varchar(60) null,
+  customer_block       varchar(12) null,
+  customer_street      varchar(40) null,
+  customer_building    varchar(24) null,
+  customer_floor       varchar(16) null,
+  customer_flat        varchar(16) null,
+  customer_note        varchar(280) null,
+  paid_at    timestamp null,
+  fulfilled_at timestamp null,
+  created_at timestamp not null default current_timestamp,
+  constraint orders_payment_status_ck  check (payment_status  in ('pending','paid','failed','review')),
+  constraint orders_payment_method_ck  check (payment_method  in ('knet','tpay','cod')),
+  constraint orders_fulfilment_ck      check (fulfilment_status in ('unfulfilled','packed','shipped','delivered','cancelled'))
+-- ROW FORMAT STATED, and only on this table, because only this one is near the
+-- edge: `orders` is the widest thing in the schema and it is the one every
+-- additive migration widens further. In utf8mb4 a varchar(N) counts 4N bytes
+-- toward InnoDB's 8126-byte row ceiling, and this table already declares about
+-- 6.9 kB of the 8126 across 40 columns. The next four features to want a column
+-- here are the ones that find the wall.
+--
+-- A table created WITHOUT an explicit row format is rebuilt by ALTER using
+-- whatever the server's innodb_default_row_format happens to be, which is not
+-- ours to choose on shared hosting. Measured on MariaDB 10.11: `alter table
+-- orders drop column utm_source` failed with "Row size too large ... is 8126"
+-- — a DROP, refused for being too big — and the identical statement prefixed
+-- with `row_format=DYNAMIC` succeeded on the same table. That is a migration
+-- that cannot run on the live shop, discovered at the worst moment.
+--
+-- The additive .sql files each restate it before their ALTERs, for a shop
+-- created before this line existed.
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci row_format=DYNAMIC;
+
+create index if not exists idx_orders_created on orders (created_at);
+
+create table if not exists order_items (
+  id         int unsigned auto_increment primary key,
+  order_id   int unsigned not null,
+  product_id int unsigned not null,
+  qty        int not null,
+  unit_price decimal(10,3) not null default 0,
+  size       varchar(4) null,
+  fit        varchar(10) null,
+  constraint fk_items_order   foreign key (order_id)   references orders (id) on delete cascade,
+  constraint fk_items_product foreign key (product_id) references products (id),
+  constraint items_qty_ck  check (qty between 1 and 99),
+  constraint items_size_ck check (size is null or size in ('S','M','L','XL','2XL','3XL','4XL','5XL','ONE')),
+  constraint items_fit_ck  check (fit  is null or fit  in ('normal','slim','loose','oversize','boxy','tank'))
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create index if not exists idx_items_order on order_items (order_id);
+
+create table if not exists product_variants (
+  sku    varchar(30) not null primary key,
+  slug   varchar(80) not null,
+  size   varchar(4)  not null,
+  stock  int not null default 0,
+  -- Wholesale cost. The public stock endpoint NEVER selects this column — it
+  -- is the one commercially sensitive number in the schema.
+  cost_aed decimal(10,2) null,
+  constraint variants_stock_ck check (stock >= 0)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create index if not exists idx_variants_slug on product_variants (slug);
+
+create table if not exists admin_users (
+  id            int unsigned auto_increment primary key,
+  email         varchar(120) not null unique,
+  password_hash varchar(255) not null,
+  failed_attempts int not null default 0,
+  locked_until  timestamp null,
+  last_login_at timestamp null,
+
+  -- SECOND FACTOR. The base32 secret an Authenticator app holds, and whether
+  -- it has been CONFIRMED — the two are separate because a secret that has
+  -- been generated but never proved by a working code must not be able to lock
+  -- the owner out. Enrolment only flips totp_enabled after a code from the
+  -- phone verifies against it.
+  totp_secret   varchar(64) null,
+  totp_enabled  tinyint(1)  not null default 0,
+  -- The highest 30-second step already accepted, so one code cannot be used
+  -- twice. Without it a code stays good for its whole window and anything that
+  -- reads it once can replay it.
+  totp_last_step bigint null,
+
+  -- The owner's own mobile number, not a customer's. Changing it needs the
+  -- current password AND a code, same as the email and the password.
+  phone         varchar(20) null,
+
+  created_at    timestamp not null default current_timestamp
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-- The transactional outbox — see FULFILMENT.md for the design,
+-- same reasoning: the message row is written in the order's own transaction so
+-- an order cannot exist without its warehouse message, and sending is a
+-- separate job (cron-fulfilment.php) that drains and marks.
+create table if not exists fulfilment_outbox (
+  id         int unsigned auto_increment primary key,
+  order_id   int unsigned not null,
+  kind       varchar(10) not null,
+  payload    json not null,
+  created_at timestamp not null default current_timestamp,
+  sent_at    timestamp null,
+  attempts   int not null default 0,
+  last_error varchar(500) null,
+  -- MySQL has no partial indexes, and a plain UNIQUE(order_id, kind) would be
+  -- wrong: an order can FAIL and then be PAID on a retry of the same track id,
+  -- which is legitimately two 'payment' messages. Only 'new' must be unique —
+  -- one picking list per order — so a generated column carries the order_id
+  -- only for 'new' rows, and the unique index ignores the NULLs on the rest.
+  new_once   int unsigned generated always as (case when kind = 'new' then order_id else null end) stored,
+  constraint fk_outbox_order foreign key (order_id) references orders (id) on delete cascade,
+  constraint outbox_kind_ck check (kind in ('new','payment'))
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-- One picking list per order, guaranteed by the index rather than by memory.
+create unique index if not exists uq_outbox_new on fulfilment_outbox (new_once);
+
+-- ---------------------------------------------------------------- brands
+-- The brands the shop carries, managed from the admin: name, logo, and
+-- whether the storefront shows them.
+--
+-- THE LOGO LIVES IN THIS TABLE, as a `data:image/...;base64,…` URL, and that
+-- is deliberate. Uploading a file would mean a PHP endpoint that WRITES to the
+-- web root, and this project has a standing rule against exactly that — the
+-- live server once carried a sporta-deploy.php that answered to anyone on the
+-- internet. A row in a table cannot be executed, cannot be fetched directly,
+-- and is backed up with everything else. store_data_image() caps the size and
+-- allows only png/jpeg/webp — never SVG, which can carry script.
+--
+-- Brands are admin-managed; the logo is a capped data: URI in the row,
+-- so the admin screen cannot tell the two backends apart.
+create table if not exists brands (
+  id        int unsigned auto_increment primary key,
+  slug      varchar(80)  not null unique,
+  name_en   varchar(80)  not null,
+  name_ar   varchar(80)  not null,
+  -- mediumtext, not text: a 64 KB text column silently TRUNCATES a base64
+  -- logo, and a truncated data URL renders as a broken image with no error
+  -- anywhere. mediumtext holds 16 MB; store_data_image() caps it long before.
+  logo      mediumtext   null,
+  active    tinyint(1)   not null default 1,
+  sort      int          not null default 0,
+  created_at timestamp   not null default current_timestamp,
+  updated_at timestamp   not null default current_timestamp on update current_timestamp
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-- ===========================================================================
+-- Hero slides, settings, promotions and discounts.
+--
+-- Byte-for-byte the same statements as promo.mysql.sql, which exists so a shop
+-- set up BEFORE this feature can add it without re-importing the whole schema.
+-- Both are `if not exists` / `add column if not exists`, so importing either or
+-- both, in any order, any number of times, converges on the same database.
+-- Keep them in step: a divergence here means a fresh install and an upgraded
+-- one disagree about the shape of the shop, and only one of them is tested.
+-- ===========================================================================
+
+-- ---------------------------------------------------------------- hero slides
+--
+-- The image lives IN THE ROW, not as a file. That is the same rule the brand
+-- logos follow and it exists because an upload endpoint has to write into the
+-- web root, which this project forbids outright — the live server already had
+-- one such endpoint answering to the whole internet.
+--
+-- But a hero photograph is two orders of magnitude bigger than a brand logo,
+-- so it is NOT inlined into the storefront's JSON the way a logo is. The
+-- catalogue response carries a URL; api.php?r=slide_image serves the bytes
+-- with a content hash in the query string and a one-year immutable cache. The
+-- home page therefore pays one cacheable image request per slide, which is
+-- what it would have paid for a file, and nothing writes to disk.
+create table if not exists hero_slides (
+  id         int unsigned auto_increment primary key,
+  sort       int          not null default 0,
+  active     tinyint(1)   not null default 1,
+
+  title_en   varchar(120) null,
+  title_ar   varchar(120) null,
+  subtitle_en varchar(200) null,
+  subtitle_ar varchar(200) null,
+  cta_label_en varchar(40) null,
+  cta_label_ar varchar(40) null,
+  cta_href   varchar(200) null,
+
+  -- The bytes, base64 in a data: URI exactly as store_data_image() validates
+  -- it. longtext because mediumtext (16 MB) is ample but the base64 of a large
+  -- photograph plus the prefix should never be the thing that truncates.
+  image      longtext     null,
+  -- sha256 of the image, used as the cache-busting ?v= so a replaced photo is
+  -- picked up immediately despite the immutable cache on the old URL.
+  image_hash char(64)     null,
+  image_w    int          null,
+  image_h    int          null,
+
+  -- Where the subject sits, as percentages. This is the "area" control: the
+  -- slide crops to fill, so a subject near an edge gets cut without it.
+  focal_x    tinyint unsigned not null default 50,
+  focal_y    tinyint unsigned not null default 50,
+
+  created_at timestamp    not null default current_timestamp,
+  updated_at timestamp    not null default current_timestamp on update current_timestamp,
+  constraint hero_focal_x_ck check (focal_x between 0 and 100),
+  constraint hero_focal_y_ck check (focal_y between 0 and 100)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create index if not exists idx_hero_sort on hero_slides (active, sort);
+
+-- ------------------------------------------------------------------- settings
+--
+-- Small, named pieces of site configuration the owner changes without a
+-- deploy: the slider's speed, whether it shuffles, how tall it is, and the
+-- promo bar's text. A key/value table rather than a column per setting, so
+-- adding one is an INSERT and not a migration on a live shop.
+--
+-- The value is JSON so a setting can be a record (the promo bar is bilingual
+-- and scheduled) without inventing a table for each.
+create table if not exists settings (
+  name       varchar(40) primary key,
+  value      text        not null,
+  updated_at timestamp   not null default current_timestamp on update current_timestamp
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-- Defaults that match what the site does today, so importing this changes
+-- nothing until the owner edits it. 6500 ms is the interval HeroSlider shipped
+-- with; 'tall' is its current height.
+insert into settings (name, value) values
+  ('hero', '{"speed_ms":6500,"shuffle":false,"size":"tall","autoplay":true}'),
+  ('promo_bar', '{"enabled": true, "text_en": "Delivery within 24 hours in Kuwait · KNET, cards & cash on delivery", "text_ar": "التوصيل خلال ٢٤ ساعة داخل الكويت · كي نت والبطاقات والدفع عند الاستلام", "href": "", "starts_at": null, "ends_at": null}')
+on duplicate key update name = name;   -- never clobber a value already set
+
+-- ------------------------------------------------- promotions on the products
+--
+-- A sale price alongside the real one, so the shop can show "was 12.000, now
+-- 9.000" and go back afterwards without anybody retyping the original. The
+-- window may be open-ended at either end: no start = live now, no end = until
+-- switched off.
+--
+-- `if not exists` on add column is MariaDB 10.2+ and MySQL 8.0.29+; Hostinger
+-- runs MariaDB, and re-running this file is therefore safe.
+alter table products add column if not exists sale_price     decimal(10,3) null after price;
+alter table products add column if not exists sale_starts_at datetime      null after sale_price;
+alter table products add column if not exists sale_ends_at   datetime      null after sale_starts_at;
+alter table products add column if not exists featured       tinyint(1)    not null default 0;
+alter table products add column if not exists featured_sort  int           not null default 0;
+
+create index if not exists idx_products_featured on products (featured, featured_sort);
+
+-- --------------------------------------------------------------- rate limiting
+--
+-- A fixed-window counter, keyed by a HASH of bucket + client IP. It exists for
+-- `?r=discount`, which is a public endpoint that answers "is this code real?"
+-- — an oracle, and an unthrottled oracle is a code generator.
+--
+-- In MySQL rather than a cache server or a file, because this runs on shared
+-- hosting where neither exists and the request is already holding a database
+-- connection. The IP is hashed: this is abuse control, not a visitor log, and
+-- a table of who-asked-what is a liability with no use.
+--
+-- Swept opportunistically by store_throttle(), so it needs no cron.
+create table if not exists rate_limit (
+  bucket_key   char(32)     not null,
+  window_start int unsigned not null,
+  hits         int unsigned not null default 0,
+  primary key (bucket_key, window_start)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create index if not exists idx_rate_limit_sweep on rate_limit (window_start);
+
+-- ------------------------------------------------------------------ discounts
+--
+-- Two kinds in one table, because they are the same arithmetic and splitting
+-- them would mean writing the validity window, the minimum, the limits and the
+-- money maths twice — and one copy would drift. `kind` says whether a customer
+-- has to type it:
+--
+--   'code'  the customer enters it at checkout
+--   'auto'  it applies itself when the order qualifies
+--
+-- There is no free-delivery type because delivery is already free; adding one
+-- would be a discount off nothing.
+create table if not exists discounts (
+  id          int unsigned auto_increment primary key,
+  kind        varchar(6)   not null default 'code',
+  -- Stored uppercase and unique, so SAVE10 and save10 cannot both exist.
+  -- NULL for automatic rules, and MySQL lets NULLs repeat in a unique index.
+  code        varchar(24)  null unique,
+  label       varchar(80)  not null,
+  type        varchar(8)   not null default 'percent',
+  -- percent: 1-90. fixed: an amount in KWD.
+  value       decimal(10,3) not null,
+  -- Only orders at or above this subtotal qualify. 0 = no minimum.
+  min_order   decimal(10,3) not null default 0,
+  -- Restrict to one category, or NULL for the whole shop. When set, the
+  -- discount is computed on the qualifying lines only.
+  category    varchar(40)  null,
+  starts_at   datetime     null,
+  ends_at     datetime     null,
+  -- 0 = unlimited. used_count is incremented in the SAME transaction as the
+  -- order, so two simultaneous checkouts cannot both take the last one.
+  usage_limit int unsigned not null default 0,
+  used_count  int unsigned not null default 0,
+  active      tinyint(1)   not null default 1,
+  created_at  timestamp    not null default current_timestamp,
+  updated_at  timestamp    not null default current_timestamp on update current_timestamp,
+  constraint discounts_kind_ck  check (kind in ('code','auto')),
+  constraint discounts_type_ck  check (type in ('percent','fixed')),
+  constraint discounts_value_ck check (value > 0),
+  -- An automatic rule has no code; a code rule must have one. Enforced here so
+  -- a bad row cannot be created by any path, admin or otherwise.
+  constraint discounts_code_ck  check ((kind = 'auto' and code is null)
+                                    or (kind = 'code' and code is not null))
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create index if not exists idx_discounts_live on discounts (active, kind);
+
+-- ------------------------------------------------------- what the order kept
+--
+-- The order records what was actually charged and why. subtotal is the price
+-- of the goods before any discount; amount stays what the customer pays and
+-- what the bank is asked for, so nothing in the payment path has to know that
+-- discounts exist. discount_label is a snapshot: renaming or deleting a
+-- discount later must not rewrite the history of an order.
+alter table orders add column if not exists subtotal        decimal(10,3) not null default 0 after amount;
+alter table orders add column if not exists discount_amount decimal(10,3) not null default 0 after subtotal;
+alter table orders add column if not exists discount_code   varchar(24)   null after discount_amount;
+
+-- Delivery is 1.000 KWD flat, every governorate, every payment method. Stored
+-- per order rather than assumed from a constant, because an order is a record
+-- of what was actually charged: if the fee changes next year, every invoice
+-- and every warehouse message already written must keep saying what that
+-- customer really paid. Added AFTER the discount — see STORE_DELIVERY_FEE_FILS.
+alter table orders add column if not exists delivery_fee decimal(10,3) not null default 0 after discount_amount;
+
+-- Some products cannot be exchanged at all — women's clothing, by the shop's
+-- policy. A flag on the row, not a category rule: the women's Sculpt, Cloudsoft
+-- and Define JACKETS live under category 'outerwear', so `category = 'women'`
+-- would have left ten of them exchangeable while the matching tops were not.
+-- The owner can also change one product's mind in /backends without moving it
+-- between categories, which would reshuffle the shop.
+alter table products add column if not exists no_exchange tinyint(1) not null default 0 after active;
+alter table orders add column if not exists discount_label  varchar(200)  null after discount_code;
+
+-- Existing orders predate discounts: their subtotal is simply their amount.
+update orders set subtotal = amount where subtotal = 0 and amount > 0;
+
+-- ------------------------------------------------------------------- indexes
+--
+-- Added when the shop was small and every plan looked fine. They are here for
+-- the shape the tables grow into, not the shape they have:
+--
+--   orders          the admin's Orders screen filters by payment or fulfilment
+--                   status and always sorts newest-first. Without a composite
+--                   index each filtered view is a full scan plus a filesort,
+--                   and it gets slower with every order ever taken.
+--   fulfilment_outbox  the cron claims work every five minutes, forever, from a
+--                   table that only grows — sent rows are KEPT, deliberately,
+--                   because they are the record that the warehouse was told.
+--                   Measured before this index: type ALL, Using filesort.
+--   orders.discount_code  the guard that refuses to delete a discount an order
+--                   was placed with. A scan per delete.
+create index if not exists idx_orders_payment    on orders (payment_status, created_at);
+create index if not exists idx_orders_fulfilment on orders (fulfilment_status, created_at);
+create index if not exists idx_orders_discount   on orders (discount_code);
+create index if not exists idx_outbox_pending    on fulfilment_outbox (sent_at, attempts, created_at);
+
+-- ===========================================================================
+-- WhatsApp order updates to the customer.
+--
+-- Byte-for-byte the same statements as whatsapp.mysql.sql, which exists so a
+-- shop set up BEFORE this feature can add it without re-importing. Keep them
+-- in step: a divergence means a fresh install and an upgraded one disagree
+-- about the shape of the shop, and only one of them is tested.
+-- ===========================================================================
+alter table orders add column if not exists customer_lang varchar(2) null after customer_note;
+
+-- ------------------------------------------------------------ whatsapp_outbox
+create table if not exists whatsapp_outbox (
+  id         int unsigned auto_increment primary key,
+  order_id   int unsigned not null,
+  -- 'confirmed' the bank settled and the order is real
+  -- 'shipped'   it left the warehouse
+  kind       varchar(12) not null,
+  -- E.164 WITHOUT the plus, which is what the Cloud API wants: 96599887766.
+  -- Snapshotted at queue time rather than joined at send time, so correcting a
+  -- customer's number in the admin cannot silently redirect a message that was
+  -- already queued for the old one.
+  to_e164    varchar(20) not null,
+  -- The approved template name and the language it was queued for, both
+  -- snapshotted for the same reason: renaming a template in Meta's console
+  -- must not rewrite what an already-queued message claims to be.
+  template   varchar(80) not null,
+  lang       varchar(5)  not null default 'ar',
+  payload    json not null,
+  created_at timestamp not null default current_timestamp,
+  sent_at    timestamp null,
+  attempts   int not null default 0,
+  last_error varchar(500) null,
+  -- The message id Meta hands back, so a delivery question has an answer that
+  -- does not depend on anyone's memory.
+  wa_message_id varchar(120) null,
+  -- ONE message per order per kind, enforced by the index and not by care.
+  -- A callback that fires twice — which KNET's does, through the customer's
+  -- browser — must not send the customer two confirmations. Unlike the
+  -- warehouse's 'payment' rows there is no legitimate repeat here: an order
+  -- is confirmed once and shipped once.
+  constraint uq_wa_once unique (order_id, kind),
+  constraint fk_wa_order foreign key (order_id) references orders (id) on delete cascade,
+  constraint wa_kind_ck check (kind in ('confirmed','shipped','review'))
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-- The cron claims pending work every few minutes from a table that only grows
+-- — sent rows are KEPT, because they are the record that the customer was
+-- told. Same index shape, and same reason, as idx_outbox_pending.
+create index if not exists idx_wa_pending on whatsapp_outbox (sent_at, attempts, created_at);
+
+-- ===========================================================================
+-- Where the order came from — ad attribution.
+--
+-- Byte-for-byte the same statements as attribution.mysql.sql, which exists so
+-- a shop set up BEFORE this feature can add it without re-importing. Keep them
+-- in step.
+-- ===========================================================================
+alter table orders add column if not exists utm_source   varchar(60)  null after customer_lang;
+alter table orders add column if not exists utm_medium   varchar(60)  null after utm_source;
+alter table orders add column if not exists utm_campaign varchar(80)  null after utm_medium;
+
+-- The site the visitor arrived FROM, host only — never the full URL, which can
+-- carry a search query or a private page path. It answers the organic half of
+-- the question: an order tagged instagram.com with no campaign came from a
+-- post, not from a paid ad, and those are two different budgets.
+alter table orders add column if not exists referrer_host varchar(120) null after utm_campaign;
+
+-- The owner's real question is "how did LAST MONTH's campaigns do", which is a
+-- scan over dates filtered by source. Indexed accordingly.
+create index if not exists idx_orders_source on orders (utm_source, created_at);
+
+-- ===========================================================================
+-- Cash-on-delivery abuse control.
+--
+-- Byte-for-byte the same statements as antifraud.mysql.sql, which exists so a
+-- shop set up BEFORE this feature can add it without re-importing. Keep them
+-- in step.
+-- ===========================================================================
+create table if not exists blocked_customers (
+  id          int unsigned auto_increment primary key,
+  -- The CANONICAL phone, exactly as store_phone() returns it: 965 followed by
+  -- eight digits. Storing what the customer typed would let 99887766,
+  -- +965 99887766 and 00965-99887766 be three different people to this table
+  -- and one person to the courier.
+  phone       varchar(15)  not null unique,
+  -- 'cod' refuses cash on delivery only; 'all' refuses every order.
+  --
+  -- 'cod' is the default and the proportionate answer. A prepaid KNET order
+  -- from a blocked number costs the shop nothing — the money is in before
+  -- anything ships — so refusing it turns a serial no-show into a lost
+  -- customer for no gain. 'all' is there for the case where the person is the
+  -- problem rather than the payment method.
+  scope       varchar(3)   not null default 'cod',
+  -- Why, in the owner's words. Not decoration: in six months this is the only
+  -- thing that says whether a block was a fraud pattern or a bad afternoon.
+  reason      varchar(200) null,
+  -- Which admin did it, for the same reason.
+  blocked_by  varchar(120) null,
+  created_at  timestamp    not null default current_timestamp,
+  constraint blocked_scope_ck check (scope in ('cod', 'all'))
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-- The open-order cap counts a phone's unsettled COD orders on every checkout,
+-- so it must not be a table scan on a table that only grows.
+create index if not exists idx_orders_phone_open
+  on orders (customer_phone, payment_method, payment_status);
+
+-- ===========================================================================
+-- A unique reference per PAYMENT ATTEMPT, so a declined card can be retried.
+--
+-- Byte-for-byte the same statement as payattempt.mysql.sql, which exists so a
+-- shop set up BEFORE this fix can add it without re-importing.
+-- ===========================================================================
+alter table orders add column if not exists pay_attempt int unsigned not null default 0
+  after cbk_status;
+
+-- ===========================================================================
+-- Customer reviews, and the thank-you discount.
+--
+-- Byte-for-byte the same statement as reviews.mysql.sql, which exists so a
+-- shop set up before this feature can add it without re-importing.
+--
+-- The reward is for reviewing SPORTA, not for reviewing on Google: Google's
+-- policy forbids paying for reviews and the penalty is removal of the reviews
+-- and possible suspension of the Business Profile. Google is invited AFTER the
+-- review, with nothing attached. Any rating earns the discount — paying only
+-- for good ones is review gating, which is against policy in its own right and
+-- makes the shop's own average meaningless.
+-- ===========================================================================
+create table if not exists reviews (
+  id          int unsigned auto_increment primary key,
+  order_id    int unsigned not null,
+  rating      tinyint unsigned not null,
+  comment     varchar(1000) null,
+  lang        varchar(2)   not null default 'ar',
+  reward_code varchar(24)  null,
+  published   tinyint(1)   not null default 0,
+  created_at  timestamp    not null default current_timestamp,
+  -- One row per order, in the database: the only thing standing between this
+  -- and a discount-code printer, and the one place a race cannot get around.
+  unique key uq_reviews_order (order_id),
+  key idx_reviews_created (created_at),
+  constraint reviews_rating_ck check (rating between 1 and 5),
+  constraint reviews_lang_ck   check (lang in ('ar','en'))
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-- ===========================================================================
+-- Which BRAND a product belongs to.
+--
+-- Byte-for-byte the same statements as productbrand.mysql.sql, which exists so
+-- a shop set up before this feature can add it without re-importing.
+--
+-- A slug rather than an id, because the catalogue is re-imported from the
+-- supplier's export and an auto-increment id is not stable across that.
+-- Deliberately not a foreign key: deleting a brand must not delete products or
+-- fail because a garment still points at it. An unmatched slug shows no brand,
+-- which is what every product shows today.
+-- ===========================================================================
+alter table products add column if not exists brand_slug varchar(64) null after category;
+create index if not exists idx_products_brand on products (brand_slug);
+
+-- Extra photographs, comma-separated, in display order. The main `image` stays
+-- first. Paths to files the owner puts on the server by hand, as the category
+-- art still is. Photographs UPLOADED from the admin do not live here — they are
+-- rows in product_images, added later in this file — and productImages() merges
+-- the two, so a shop using either or both renders correctly.
+alter table products add column if not exists images text null after image;
+
+-- ===========================================================================
+-- Stock reservation.
+--
+-- Byte-for-byte the same statements as stock.mysql.sql, which exists so a shop
+-- set up before this fix can add them without re-importing.
+--
+-- Two flags, not one: every order placed before this existed took no stock, so
+-- a sweeper looking only at `released = 0` would restock garments that were
+-- never claimed. `stock_claimed` keeps those rows out of the release path
+-- permanently; `stock_released` is the idempotence guard against a retried
+-- callback and the sweeper both putting the same order back.
+-- ===========================================================================
+alter table orders
+  add column if not exists stock_claimed  tinyint(1) not null default 0,
+  add column if not exists stock_released tinyint(1) not null default 0;
+
+create index if not exists idx_orders_stock_sweep
+  on orders (payment_status, stock_claimed, stock_released, created_at);
+
+-- ===========================================================================
+-- The product's name AS IT WAS SOLD, on the order line.
+--
+-- Byte-for-byte the same statement as itemname.mysql.sql, which exists so a
+-- shop set up before this fix can add it without re-importing.
+--
+-- order_items already snapshots the unit price, the size and the fit, and
+-- orders snapshots discount_label for exactly this reason. The product name was
+-- the last field still read live through a join, so renaming a product rewrote
+-- the wording on invoices for orders already placed. NULL on older rows; the
+-- readers fall back to the join rather than back-filling today's names into
+-- history and calling them the originals.
+-- ===========================================================================
+alter table order_items
+  add column if not exists name_en varchar(120) null after product_id,
+  add column if not exists name_ar varchar(120) null after name_en;
+
+-- ===========================================================================
+-- Product photographs, uploaded from the admin.
+--
+-- Byte-for-byte the same statement as productimage.mysql.sql, which exists so
+-- a shop set up before this feature can add it without re-importing.
+--
+-- The catalogue had 46 products and no photographs: products.image and
+-- products.images hold PATHS to files the owner had to place on the server by
+-- hand and then name correctly, once per garment. A child table because a
+-- garment has a shoot rather than a single picture, keyed on slug for the same
+-- reason product_variants is, and holding the bytes for the same reason brand
+-- logos do — an upload endpoint would write into the web root, and this server
+-- hosted one of those once. Read the full reasoning in productimage.mysql.sql.
+-- ===========================================================================
+-- ---------------------------------------------------------------------------
+-- سبورتا AI hand-offs. Byte-for-byte the same statements as
+-- assistant.mysql.sql, which exists so a shop created before this feature
+-- can add it without re-running the whole schema.
+create table if not exists assistant_outbox (
+  id         int unsigned auto_increment primary key,
+  intent     varchar(24)  not null,
+  lang       varchar(2)   not null default 'ar',
+  -- The customer's own words, capped at the same 500 the API caps input to,
+  -- so a row can never be larger than what was actually accepted.
+  message    varchar(500) not null,
+  -- What the shop said back. Kept because the follow-up needs to know what the
+  -- customer has ALREADY been told, or the colleague repeats it at them.
+  reply      varchar(1000) not null,
+  created_at timestamp    not null default current_timestamp,
+  -- The queue half. sent_at null = still owed to somebody.
+  sent_at    timestamp    null,
+  attempts   int          not null default 0,
+  last_error varchar(500) null,
+  -- Read by the admin screen so a colleague can mark it dealt with by hand,
+  -- which is a different thing from "the webhook delivered".
+  handled_at timestamp    null
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-- The sweep reads unsent rows oldest first; the admin reads recent ones.
+create index if not exists idx_assistant_unsent on assistant_outbox (sent_at, created_at);
+create index if not exists idx_assistant_recent on assistant_outbox (created_at);
+
+create table if not exists product_images (
+  id         int unsigned auto_increment primary key,
+  -- The garment this belongs to. Not a foreign key — see the note above.
+  slug       varchar(120) not null,
+  -- Display order, lowest first. The FIRST one is the product's main image:
+  -- the card, the search result, the Open Graph preview.
+  sort       int          not null default 0,
+
+  -- The bytes, base64 in a data: URI exactly as store_data_image() validates
+  -- it. longtext because the cap belongs in PHP, where it can produce an error
+  -- the admin can read, rather than in a column width that truncates silently
+  -- and renders as a broken image with nothing logged anywhere.
+  image      longtext     not null,
+  -- sha256 of the data URI, used as the cache-busting ?v=. Replacing a
+  -- photograph changes the hash, so the new one appears at once despite the
+  -- immutable cache on the old URL.
+  image_hash char(64)     not null,
+  -- What was stored, so the storefront can reserve the right box before the
+  -- bytes arrive. A grid that resizes when the photographs land is layout
+  -- shift, which is a Core Web Vital and a measurable annoyance.
+  image_w    int          null,
+  image_h    int          null,
+
+  created_at timestamp    not null default current_timestamp,
+
+  key idx_product_images (slug, sort, id)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci row_format=DYNAMIC;
+
+-- --------------------------------------------------- push_subscriptions/outbox
+-- The owner's phone. Mirrors dropin/php-store/push.mysql.sql exactly — see
+-- that file for why the alert is rendered at INSERT rather than at send, and
+-- why a subscription is a row that can die on its own.
+create table if not exists push_subscriptions (
+  id            int unsigned auto_increment primary key,
+  endpoint      varchar(500) not null,
+  endpoint_hash char(64)     not null,
+  p256dh        varchar(120) not null,
+  auth          varchar(40)  not null,
+  label         varchar(60)  not null default '',
+  created_at    timestamp    not null default current_timestamp,
+  last_ok_at    timestamp    null,
+  last_error    varchar(300) null,
+  unique key uniq_push_endpoint (endpoint_hash)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists push_outbox (
+  id         int unsigned auto_increment primary key,
+  order_id   int unsigned null,
+  kind       varchar(24)  not null default 'new',
+  title      varchar(120) not null,
+  body       varchar(300) not null,
+  url        varchar(200) not null default '/backends',
+  created_at timestamp    not null default current_timestamp,
+  sent_at    timestamp    null,
+  attempts   int          not null default 0,
+  last_error varchar(500) null,
+  unique key uniq_push_order_kind (order_id, kind)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create index if not exists idx_push_unsent on push_outbox (sent_at, created_at);
+
+-- ------------------------------------------------- customer_email / receipts
+-- Mirrors dropin/php-store/customermail.mysql.sql exactly — see that file for
+-- why the column is nullable when the field is required, and why the customer's
+-- receipt is a queue of its own rather than a second kind on the warehouse's.
+alter table orders add column if not exists customer_email varchar(120) null
+  after customer_phone;
+
+create table if not exists customer_mail_outbox (
+  id         int unsigned  not null auto_increment primary key,
+  order_id   int unsigned  not null,
+  kind       varchar(24)   not null default 'received',
+  to_email   varchar(120)  not null,
+  lang       varchar(2)    not null default 'ar',
+  created_at timestamp     not null default current_timestamp,
+  sent_at    timestamp     null,
+  attempts   int           not null default 0,
+  last_error varchar(500)  null,
+  unique key uniq_customer_mail (order_id, kind),
+  constraint fk_customer_mail_order foreign key (order_id) references orders (id)
+    on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create index if not exists idx_customer_mail_unsent
+  on customer_mail_outbox (sent_at, attempts, created_at);
+
+-- ------------------------------------------------- size_charts / advice log
+-- Mirrors dropin/php-store/sizeadvice.mysql.sql exactly — see that file for why
+-- the measurements are a table the owner edits rather than a constant in the
+-- bundle, and why every recommendation is written down.
+create table if not exists size_charts (
+  id         int unsigned auto_increment primary key,
+  -- 'unisex', 'women', or a garment kind ('leggings', 'jacket'…). The adviser
+  -- looks for the garment's own chart first and falls back to the category's.
+  chart      varchar(24)  not null,
+  size       varchar(4)   not null,
+  -- BODY measurements in centimetres, not garment measurements: this is what
+  -- the customer wraps a tape around. The ease the garment adds is the FIT's
+  -- job, not the chart's — mixing the two is why "take your normal size" and
+  -- a size chart so often disagree on the same page.
+  chest_min  smallint unsigned not null,
+  chest_max  smallint unsigned not null,
+  waist_min  smallint unsigned not null,
+  waist_max  smallint unsigned not null,
+  -- Hips matter for leggings and for women's sizing generally, and not at all
+  -- for a tee. NULL means "this chart does not use hips".
+  hip_min    smallint unsigned null,
+  hip_max    smallint unsigned null,
+  -- Garment length, printed in the guide. Not used by the recommendation.
+  length_cm  smallint unsigned null,
+  -- 1 = seeded by the migration and never confirmed against a real garment.
+  -- The admin screen shows these differently, because advice built on numbers
+  -- nobody has checked should not look identical to advice built on the
+  -- factory's own spec sheet.
+  is_default tinyint(1)   not null default 1,
+  sort       smallint     not null default 0,
+  unique key uniq_chart_size (chart, size)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create table if not exists size_advice_log (
+  id          int unsigned auto_increment primary key,
+  created_at  timestamp    not null default current_timestamp,
+  -- What the shopper was looking at, if anything. NULL when the adviser was
+  -- opened from the assistant rather than from a product page.
+  slug        varchar(80)  null,
+  lang        varchar(2)   not null default 'ar',
+  -- The answers, as given. Kept as columns rather than JSON because the whole
+  -- point of this table is to be able to ask "which answers led to returns".
+  height_cm   smallint unsigned null,
+  weight_kg   smallint unsigned null,
+  chest_cm    smallint unsigned null,
+  waist_cm    smallint unsigned null,
+  hip_cm      smallint unsigned null,
+  usual_size  varchar(4)   null,
+  prefers     varchar(10)  null,   -- tight | regular | loose
+  -- What the shop said.
+  size        varchar(4)   not null,
+  fit         varchar(10)  null,
+  confidence  varchar(8)   not null,  -- high | medium | low
+  -- Filled in later, by hand or by a sweep over orders: 'kept' | 'returned' |
+  -- 'exchanged'. NULL means nobody has looked yet. This column is the only
+  -- reason the rest of the row is worth storing.
+  outcome     varchar(10)  null,
+  key idx_advice_recent (created_at),
+  key idx_advice_slug (slug)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------------
+-- The unisex chart: the four rows the site already publishes, continued on the
+-- same 8 cm step so the adviser and the printed guide cannot disagree.
+insert ignore into size_charts
+  (chart, size, chest_min, chest_max, waist_min, waist_max, length_cm, is_default, sort) values
+  ('unisex', 'S',    88,  94,  73,  79, 68, 1, 1),
+  ('unisex', 'M',    96, 102,  81,  87, 70, 1, 2),
+  ('unisex', 'L',   104, 110,  89,  95, 72, 1, 3),
+  ('unisex', 'XL',  112, 118,  97, 103, 74, 1, 4),
+  ('unisex', '2XL', 120, 126, 105, 111, 76, 1, 5),
+  ('unisex', '3XL', 128, 134, 113, 119, 78, 1, 6),
+  ('unisex', '4XL', 136, 142, 121, 127, 80, 1, 7),
+  ('unisex', '5XL', 144, 150, 129, 135, 82, 1, 8);
+
+-- The women's chart carries hips, because a legging is fitted there and a
+-- women's top is cut from the bust rather than the chest.
+insert ignore into size_charts
+  (chart, size, chest_min, chest_max, waist_min, waist_max, hip_min, hip_max, length_cm, is_default, sort) values
+  ('women', 'S',    82,  86,  63,  67,  88,  92, 64, 1, 1),
+  ('women', 'M',    87,  91,  68,  72,  93,  97, 65, 1, 2),
+  ('women', 'L',    92,  97,  73,  78,  98, 103, 66, 1, 3),
+  ('women', 'XL',   98, 104,  79,  85, 104, 110, 67, 1, 4),
+  ('women', '2XL', 105, 111,  86,  92, 111, 117, 68, 1, 5),
+  ('women', '3XL', 112, 118,  93,  99, 118, 124, 69, 1, 6),
+  ('women', '4XL', 119, 125, 100, 106, 125, 131, 70, 1, 7),
+  ('women', '5XL', 126, 132, 107, 113, 132, 138, 71, 1, 8);
+
+
+-- ===========================================================================
+-- ACCOUNTING — the double-entry ledger.
+--
+-- Kept here AS WELL AS in the additive dropin/php-store/accounting.mysql.sql,
+-- which is the rule every feature in this schema follows: the additive file
+-- upgrades a shop that already exists, and this copy is what a FRESH install
+-- gets. Without it, importing install.mysql.sql on a new database produces a
+-- complete shop with no books, and the Accounting screen would tell a brand
+-- new install to go and run a migration.
+--
+-- The two must stay in step. See ACCOUNTING.md; the reasoning behind every
+-- table below is in the additive file and is not repeated here.
+-- ===========================================================================
+-- ------------------------------------------------------------- the accounts
+--
+-- The chart of accounts. Five types, and the type is what decides whether a
+-- debit increases the account or decreases it — the one piece of accounting
+-- that has to be right for everything else to follow.
+--
+--   asset, expense           normal balance DEBIT   (debit +, credit -)
+--   liability, equity, revenue  normal balance CREDIT  (credit +, debit -)
+--
+-- `normal_side` is stored rather than derived from `type` even though it is
+-- fully determined by it. It is read on every single line of every report, and
+-- a five-way CASE repeated across a dozen queries is a five-way CASE that will
+-- eventually be written wrong in one of them.
+create table if not exists accounts (
+  id        int unsigned auto_increment primary key,
+  -- The code IS the ordering and the identity people speak in. 4000 is sales
+  -- in every set of books anyone in the shop has seen before.
+  code      varchar(10)  not null unique,
+  name_en   varchar(80)  not null,
+  name_ar   varchar(80)  not null,
+  type      varchar(10)  not null,
+  normal_side varchar(6) not null,
+  -- A system account is one the POSTING RULES name directly — the sales
+  -- account an order credits, the clearing account KNET debits. It cannot be
+  -- deleted or have its code changed, because a rule in accounting.php looks
+  -- it up by that code and would otherwise fail on a live shop at the moment
+  -- of a payment. Accounts the owner adds for their own expenses are not
+  -- system accounts and can be renamed or retired freely.
+  is_system tinyint(1)   not null default 0,
+  active    tinyint(1)   not null default 1,
+  created_at timestamp   not null default current_timestamp,
+  constraint accounts_type_ck check (type in ('asset','liability','equity','revenue','expense')),
+  constraint accounts_side_ck check (normal_side in ('debit','credit'))
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-- -------------------------------------------------------------- the journal
+--
+-- One row per EVENT. The lines below carry the money; this carries what
+-- happened, when, and what caused it.
+create table if not exists journal_entries (
+  id         int unsigned auto_increment primary key,
+  -- The date the event belongs to, which is not always the date the row was
+  -- written: a COD payment recorded on Thursday for money taken on Tuesday
+  -- belongs to Tuesday. Date, not datetime — a ledger is kept in days.
+  entry_date date         not null,
+  memo       varchar(200) not null default '',
+
+  -- WHAT CAUSED THIS, and the reason the pair is unique.
+  --
+  -- `source` is 'order' for an automatic posting, 'manual' for something a
+  -- person typed, 'system' for an opening balance or a period close.
+  -- `source_ref` identifies it within that source, and `kind` separates two
+  -- postings from the SAME cause — an order produces both a sale and a cost of
+  -- goods entry, and they are different entries about one order.
+  --
+  -- The unique key is the idempotency guarantee, and it is the single most
+  -- important line in this file. A payment callback can and does fire twice:
+  -- the bank retries, the customer refreshes the return page, an admin marks a
+  -- COD order paid that a colleague already marked. Without this, the second
+  -- one posts a second set of revenue and the books silently overstate the
+  -- shop's takings. With it, the insert fails and the posting code treats that
+  -- failure as "already done", which is exactly what it is.
+  source     varchar(10)  not null default 'manual',
+  source_ref varchar(40)  null,
+  kind       varchar(20)  null,
+
+  -- Reversals, and why nothing here is ever deleted or edited.
+  --
+  -- A ledger's value is that it is a record of what was believed at the time.
+  -- Editing a posted entry destroys that, and it is also how a shop loses the
+  -- ability to explain a number to anyone. A mistake is corrected by posting
+  -- its mirror image and pointing the two at each other: both remain, they sum
+  -- to nothing, and the history says what happened and that it was undone.
+  reverses_id int unsigned null,
+  reversed_by_id int unsigned null,
+
+  -- Who. Null for an automatic posting, which is itself informative.
+  created_by varchar(120) null,
+  created_at timestamp    not null default current_timestamp,
+
+  unique key uq_journal_source (source, source_ref, kind),
+  key idx_journal_date (entry_date),
+  constraint journal_source_ck check (source in ('order','manual','system')),
+  constraint fk_journal_reverses foreign key (reverses_id) references journal_entries (id)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------- the lines
+--
+-- Two or more per entry, and they must sum equal on both sides.
+create table if not exists journal_lines (
+  id         int unsigned auto_increment primary key,
+  entry_id   int unsigned not null,
+  account_id int unsigned not null,
+  -- A line is a debit OR a credit, never both and never neither. Stored as two
+  -- columns rather than one signed amount plus a side flag, because that is
+  -- how every report reads them and how every accountant reads them; the check
+  -- below is what keeps the pair honest.
+  debit      decimal(12,3) not null default 0,
+  credit     decimal(12,3) not null default 0,
+  memo       varchar(200)  not null default '',
+
+  constraint fk_lines_entry   foreign key (entry_id)   references journal_entries (id) on delete cascade,
+  constraint fk_lines_account foreign key (account_id) references accounts (id),
+  -- Exactly one side, and it must be positive. A negative debit is a credit
+  -- written by somebody who has confused themselves, and allowing it makes
+  -- every report's arithmetic depend on nobody having done so.
+  constraint lines_one_side_ck check (
+    (debit > 0 and credit = 0) or (credit > 0 and debit = 0)
+  ),
+  key idx_lines_account (account_id),
+  key idx_lines_entry (entry_id)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-- THE BALANCE RULE IS NOT HERE, AND CANNOT BE.
+--
+-- "Debits equal credits for each entry" is a constraint across rows, and no
+-- MySQL CHECK can see more than the row it is on. A trigger could, but this
+-- schema deliberately has none — the fulfilment queue's docs claimed a trigger
+-- for months that a schema check later found did not exist, and a rule nobody
+-- can see is worse than one written down.
+--
+-- So it is enforced in PHP, in acc_post(), inside the same transaction that
+-- writes the lines: the entry is rolled back if the two sides differ by a
+-- single fils. accounting-test.mjs then proves the property from the outside —
+-- after every kind of activity the suite can generate, sum(debit) = sum(credit)
+-- across the whole ledger, and assets = liabilities + equity.
+
+-- ------------------------------------------------------- the chart, seeded
+--
+-- `insert ignore` on the unique code, so re-running this file changes nothing
+-- and an owner who has renamed an account keeps their name.
+--
+-- The codes follow the convention every bookkeeper expects, because the point
+-- of a convention is that nobody has to be taught it:
+--   1xxx assets   2xxx liabilities   3xxx equity   4xxx revenue   5xxx-6xxx expenses
+insert ignore into accounts (code, name_en, name_ar, type, normal_side, is_system) values
+  -- Assets ------------------------------------------------------------------
+  ('1000', 'Cash on hand',        'النقد في الصندوق',   'asset', 'debit', 1),
+  -- Why KNET and T-Pay have their own accounts rather than going straight to
+  -- the bank: the customer pays on Sunday and the bank credits the shop on
+  -- Tuesday, minus a fee. Between those two moments the money is real and is
+  -- not in the bank. A clearing account is where it sits, and the balance of
+  -- that account is the answer to "how much is the gateway holding right now"
+  -- — which is a question the shop will ask, and which a single bank account
+  -- cannot answer.
+  ('1010', 'KNET clearing',       'كي نت - تحت التحصيل', 'asset', 'debit', 1),
+  ('1020', 'T-Pay clearing',      'تي باي - تحت التحصيل','asset', 'debit', 1),
+  ('1100', 'Bank account',        'الحساب البنكي',      'asset', 'debit', 1),
+  ('1200', 'Inventory',           'المخزون',            'asset', 'debit', 1),
+
+  -- Liabilities --------------------------------------------------------------
+  ('2000', 'Accounts payable',    'الذمم الدائنة',      'liability', 'credit', 1),
+
+  -- Equity -------------------------------------------------------------------
+  ('3000', "Owner's capital",     'رأس المال',          'equity', 'credit', 1),
+  ('3100', "Owner's drawings",    'مسحوبات المالك',     'equity', 'debit',  1),
+
+  -- Revenue ------------------------------------------------------------------
+  ('4000', 'Product sales',       'مبيعات المنتجات',    'revenue', 'credit', 1),
+  ('4100', 'Delivery income',     'إيرادات التوصيل',    'revenue', 'credit', 1),
+  -- CONTRA-REVENUE, and the reason it is an account rather than a smaller
+  -- sales figure: a discount is a real cost with a real cause, and netting it
+  -- off silently means nobody can ever answer "what did the promotions cost
+  -- us". Its normal side is DEBIT even though it is a revenue account, which
+  -- is exactly what contra means.
+  ('4900', 'Discounts given',     'الخصومات الممنوحة',  'revenue', 'debit', 1),
+
+  -- Expenses -----------------------------------------------------------------
+  ('5000', 'Cost of goods sold',  'تكلفة البضاعة المباعة','expense', 'debit', 1),
+  ('6000', 'Payment gateway fees','رسوم بوابة الدفع',   'expense', 'debit', 1),
+  ('6100', 'Delivery cost',       'تكلفة التوصيل',      'expense', 'debit', 1),
+  ('6200', 'Marketing',           'التسويق',            'expense', 'debit', 0),
+  ('6300', 'Rent',                'الإيجار',            'expense', 'debit', 0),
+  ('6400', 'Salaries',            'الرواتب',            'expense', 'debit', 0),
+  ('6500', 'Hosting and software','الاستضافة والبرمجيات','expense', 'debit', 0),
+  ('6900', 'Other expenses',      'مصروفات أخرى',       'expense', 'debit', 0);
+
+-- ------------------------------------------------------------- the FX rate
+--
+-- Wholesale cost is held in AED (product_variants.cost_aed) because that is
+-- the currency AHED invoices in. Cost of goods has to be posted in KWD, so a
+-- rate is needed, and the owner chose one editable rate over a rate frozen
+-- onto each order.
+--
+-- THE COST OF THAT CHOICE, STATED ONCE: changing the rate changes the COGS of
+-- every order that has not yet posted, but NOT of any order already posted —
+-- a journal entry is a record and is never recomputed. So past months do not
+-- move, which is the property that actually matters, and the rate only ever
+-- affects sales from the moment it is changed. The admin screen says this
+-- where the field is, not only here.
+--
+-- 0.0817 is roughly 1 AED in KWD and is a placeholder. It is stored as a
+-- string in the settings table like every other setting, and parsed with the
+-- same care as a price.
+-- One row, one JSON object — the shape every other setting in this table uses
+-- (`name` + a JSON `value`), not a key/value pair. Written the other way
+-- first, which would have inserted a row store_settings() cannot read: it
+-- selects `name, value` and json_decode()s the value, so a bare string lands
+-- as an empty array and the rate silently reads as zero. A COGS of nothing
+-- posts happily and balances perfectly.
+insert ignore into settings (name, value) values
+  ('accounting', '{"aed_to_kwd":"0.0817","posting_enabled":false}');
