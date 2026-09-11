@@ -11,7 +11,7 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, COAST_FADE_M, STATIONS, FORECOURT, LAP, TUNNEL_BOX, LAP_LENGTH } from "./track";
 import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
-import { createCar, crownShell, CROWN, paintMetalness, TAIL } from "./cars";
+import { createCar, crownShell, CROWN, paintMetalness, TAIL, setMaxDecalPx } from "./cars";
 import { RIVALS, RivalDef, rivalCar as rivalCarOf, rivalCarName } from "./rivals";
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
@@ -1474,6 +1474,16 @@ export class GameEngine {
       antialias: true,
       powerPreference: "high-performance",
     });
+    // What this GPU can actually take, before a single car is built.
+    //
+    // The full-length flank graphics want a 4096-wide canvas to meet the
+    // texel floor over a 5.7 m run. WebGL2 only GUARANTEES 2048, and a
+    // device that stops there cannot upload 4096 at all — so the decal
+    // ceiling is told the truth once, here, and those textures come out
+    // at the old size on hardware that needs them to rather than failing
+    // to upload. Read from the renderer rather than sniffed from the
+    // user agent, because the only authority on a GPU's limits is the GPU.
+    setMaxDecalPx(this.renderer.capabilities.maxTextureSize);
     {
       const gl = this.renderer.getContext();
       const nav = navigator as Navigator & { deviceMemory?: number };

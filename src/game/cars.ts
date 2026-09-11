@@ -3118,17 +3118,70 @@ const BELT_STRIPE_H = 0.14;
 const DECAL_TEXELS_PER_M = 900;
 
 /**
+ * The longest flank a decal has to run down, in metres.
+ *
+ * The two full-length graphics are built as ONE module-level texture
+ * shared by every car, so they have to be sized for the longest shell in
+ * the fleet rather than for an average. flankRibbon runs them from
+ * `d.tail - 0.25` to `d.nose + 0.25`, and the longest car is 5.16 m, so
+ * the run is 5.66 m. Rounded up.
+ */
+const FLANK_RUN_M = 5.7;
+
+/**
+ * The hard ceiling on a decal's long axis.
+ *
+ * A `let` rather than a constant because it is a property of the GPU,
+ * not of the artwork: WebGL2 only GUARANTEES 2048, and a device that
+ * stops there cannot upload a 4096-wide texture at all. setMaxDecalPx
+ * lowers this from the renderer's own capabilities before any car is
+ * built, so a phone that cannot take 4096 gets the old size instead of a
+ * failed upload.
+ */
+let maxDecalPx = 4096;
+
+/** Called once, from the engine, with renderer.capabilities.maxTextureSize. */
+export function setMaxDecalPx(limit: number): void {
+  if (Number.isFinite(limit) && limit >= 512) maxDecalPx = Math.min(4096, limit);
+}
+
+/**
  * The canvas size for a decal worn at `metres`, rounded up to a power of
  * two and capped.
  *
  * Powers of two because a non-power-of-two canvas silently loses its
  * mipmaps in WebGL, and a decal without mipmaps is the same aliasing
- * this rule exists to avoid, arriving by a different road. Capped at
- * 2048 because a sticker is not a wall.
+ * this rule exists to avoid, arriving by a different road.
+ *
+ * THE CAP WAS MEASURING THE WRONG THING.
+ *
+ * It was a flat 2048 on the strength of "a sticker is not a wall", which
+ * is right about stickers and wrong about the two graphics that run the
+ * whole length of the car. The effect was that the rule above could not
+ * be satisfied by ANY decal longer than 2048/900 = 2.27 m — and the
+ * beltline stripe asks for decalPx(4), wants 3600 px, and was silently
+ * handed 2048. A rule that reports compliance while being overruled by
+ * its own cap is worse than no rule, because the call site looks right.
+ *
+ * Measured over the real flank run, both full-length graphics were
+ * landing at 362 to 460 texels per metre against a floor of 900 — and
+ * that floor is not a preference, it is documented above as "the
+ * distance one car sees another", which is the view this game is played
+ * in.
+ *
+ * The cap is also on the wrong AXIS. What a texture costs is area, and a
+ * long thin ribbon is cheap: 4096x96 is 393,216 texels, which is less
+ * than the flag decal already spends at 1024x512 (524,288). The old cap
+ * forbade a texture cheaper than one it allowed. So the long axis may go
+ * to 4096 when the caller says the decal really is that long, and the
+ * default stays 2048 for everything that is honestly a sticker.
  */
-function decalPx(metres: number, sharpness = 1): number {
+function decalPx(metres: number, sharpness = 1, cap = 2048): number {
   const want = metres * DECAL_TEXELS_PER_M * sharpness;
-  return Math.min(2048, Math.max(128, 2 ** Math.ceil(Math.log2(want))));
+  return Math.min(
+    Math.min(cap, maxDecalPx),
+    Math.max(128, 2 ** Math.ceil(Math.log2(want)))
+  );
 }
 
 const roundelCache = new Map<number, THREE.CanvasTexture>();
@@ -3199,7 +3252,10 @@ let beltStripeTex: THREE.CanvasTexture | null = null;
 function beltStripeTexture(): THREE.CanvasTexture {
   if (beltStripeTex) return beltStripeTex;
   // Sized for the longest flank in the fleet.
-  const W = decalPx(4);
+  // The real run, not 4. That 4 predates the fleet having real lengths in
+  // metres — the shells are 3.95 m to 5.16 m now, and the ribbon is half
+  // a metre longer than the shell at both ends together.
+  const W = decalPx(FLANK_RUN_M, 1, 4096);
   const H = 128;
   const c = document.createElement("canvas");
   c.width = W;
@@ -3348,7 +3404,11 @@ let fullStripeTex: THREE.CanvasTexture | null = null;
  */
 function fullStripeTexture(): THREE.CanvasTexture {
   if (fullStripeTex) return fullStripeTex;
-  const W = 2048, H = 96;
+  // On the rule rather than typed. This one never asked decalPx anything
+  // — it hard-coded the same 2048 the cap was handing its sibling, which
+  // is why the two looked consistent and were both wrong.
+  const W = decalPx(FLANK_RUN_M, 1, 4096);
+  const H = 96;
   const c = document.createElement("canvas");
   c.width = W;
   c.height = H;
