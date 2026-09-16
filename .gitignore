@@ -90,6 +90,13 @@ wainkw-site.pdf
 # `npm run deploy:plan` writes this; it is a reading of one build, not source.
 /deploy-plan.json
 
+# Social cards from `npm run social`. Output, and deliberately NOT under
+# public/: deploy.php prunes anything on the disk that is not in the artifact,
+# so an image that ships with the site has to earn its place in the manifest —
+# and a marketing card has no reason to be in a docroot at all. The sentences
+# and the layout live in scripts/gen-social.mjs, which is the source.
+/social/
+
 # The native iOS project `npx cap add ios` scaffolds — output of
 # capacitor.config.ts plus whatever `out/` held at scaffold time, not source.
 # .github/workflows/ios.yml regenerates it on every run for the same reason

@@ -11,6 +11,7 @@
     "check:cache": "node scripts/check-cache-safety.mjs",
     "db:schema": "node scripts/gen-schema.mjs",
     "og": "node scripts/gen-og.mjs",
+    "social": "node scripts/gen-social.mjs",
     "design": "node scripts/gen-design-system.mjs",
     "design:check": "node scripts/gen-design-system.mjs --check",
     "figma:icons": "node scripts/export-figma-icons.mjs",
