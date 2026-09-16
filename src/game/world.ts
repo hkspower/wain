@@ -1941,11 +1941,23 @@ function glazedMat(skin: Skin, color: number, roughness: number): THREE.MeshStan
     // directly: at midnight, before any dawn fade, a facade turned away
     // from both moonLight and fillLight read 0.253 median luma against
     // 0.451 for one that faces them — a facing-dependent hole, not the
-    // intended night-to-dawn fade. Matching roadMat's dry floor with a
-    // little headroom closes it without pushing the lit side, the road,
-    // or anything else past its own tuned envelope — envMapIntensity is
-    // a per-material multiplier on one static baked probe.
-    envMapIntensity: 2.5,
+    // intended night-to-dawn fade.
+    //
+    // 1.5 is roadMat's dry floor with headroom, not a value this scene's
+    // auto-exposure let itself be swept to cleanly: re-running the same
+    // scan at 1.0 (baseline, gap 0.198), 1.5 (gap 0.176) and 2.5 (gap
+    // 0.197 — back near baseline) showed no clean, monotonic response,
+    // because raising envMapIntensity also brightens the glazing's glass
+    // panes (roughness 0.12, far more IBL-responsive than this matte
+    // wall texture) enough to pull the whole frame's average up, and the
+    // scene's own auto-exposure pulls back down to compensate — eating
+    // most of the gain this fix is actually after. This is a real,
+    // previously-missing property matched to roadMat's own precedent,
+    // not a knob this diagnostic tool could tune to a clean pass; a
+    // structural fix (an envMapIntensity that applies to the concrete
+    // texels without also feeding the exposure-compensation loop through
+    // the glass) is future work, not this one.
+    envMapIntensity: 1.5,
   });
 }
 
@@ -4940,12 +4952,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         // See the note on glazedMat's envMapIntensity: darkbuildings.mjs
         // confirmed a facing-dependent gap at midnight, and this and
         // plantMat are the massing's own unmeasured-default surfaces.
-        envMapIntensity: 2.5,
+        envMapIntensity: 1.5,
       });
       const plantMat = new THREE.MeshStandardMaterial({
         color: 0x70747c,
         roughness: 0.95,
-        envMapIntensity: 2.5,
+        envMapIntensity: 1.5,
       });
       const mastMat = new THREE.MeshStandardMaterial({
         color: 0x4a4f57,
@@ -5103,7 +5115,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       const octConcrete = new THREE.MeshStandardMaterial({
         color: 0x8d9199,
         roughness: 0.92,
-        envMapIntensity: 2.5,
+        envMapIntensity: 1.5,
       });
       litFacades.push(octConcrete);
       const octCaps = new THREE.InstancedMesh(

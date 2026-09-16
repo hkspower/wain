@@ -32,9 +32,15 @@
 //                       the way out is the payoff of that design, not a
 //                       bug. This is reported, not failed.
 //
-// Sampled at five hours across the whole advertised-open window and
-// four viewpoints already proven (by dark.mjs and sharpness.mjs) to
-// frame buildings, so a real answer needs no new camera rig.
+// Sampled at two hours (midnight and the 05:50 close) across one
+// viewpoint already proven (by dark.mjs and sharpness.mjs) to frame
+// buildings. It started at five hours and four viewpoints; each
+// combination costs ~18 minutes end to end under this environment's
+// SwiftShader software rendering, for reasons that survived every
+// speed attempt tried (shrinking the shadow map, killing MSAA/FXAA,
+// cutting the render resolution 9x, turning shadow casting off
+// entirely) — see the commit history on this file. Widen HOURS/VIEWS
+// by hand below for a fuller sweep when time allows.
 import { chromium } from "playwright-core";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 
@@ -327,7 +333,7 @@ const result = await page.evaluate(async ([write]) => {
   // TIME-DEPENDENT check meaningful at a runtime — well under 40
   // minutes — someone will actually wait out; widen HOURS/VIEWS by hand
   // for a fuller sweep when time allows.
-  const HOURS = [0];
+  const HOURS = [0, 5.8333];
   const VIEWS = [["corniche", 587, 0]];
   const rows = [];
   for (const [label, s, lat] of VIEWS) {
