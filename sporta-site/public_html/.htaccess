@@ -535,7 +535,11 @@ FileETag MTime Size
   # weakened.
   # google-signin.js is the twelfth, 2026-09-11 — added in the same commit as
   # the file, per the paragraph above.
-  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme)\.js$">
+  # panel-settings.js is the thirteenth, 2026-09-16 — the contact-details card
+  # on the website panel’s Settings screen, and the repair of two instructions
+  # printed there that name a file this server deliberately does not have.
+  # Added in the same commit as the file.
+  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|panel-settings|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme)\.js$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 

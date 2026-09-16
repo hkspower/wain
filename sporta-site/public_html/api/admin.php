@@ -1381,15 +1381,38 @@ if ($r === 'settings_save' && $method === 'POST') {
         $email = trim((string)($v['email'] ?? ''));
         if ($email !== '' && store_email($email) === null) store_fail('invalid_email');
 
-        // THE WHATSAPP NUMBER GOES THROUGH store_phone(), the same function the
-        // checkout uses — so it is stored in the one spelling the rest of the
-        // shop speaks, with the country code, rather than however it was typed.
-        // wa.me refuses anything else, and a wa.me link that opens on an error
-        // is indistinguishable from the shop having no WhatsApp at all.
+        // THE WHATSAPP NUMBER IS NORMALISED TO DIGITS WITH A COUNTRY CODE,
+        // because that is the only thing wa.me accepts and a link that opens on
+        // an error is indistinguishable from the shop having no WhatsApp at all.
+        //
+        // IT USED TO GO THROUGH store_phone(), AND THAT REFUSED THE SHOP'S OWN
+        // NUMBER. store_phone() is the CHECKOUT's validator: it requires
+        // `^[569]\d{7}$`, which is a Kuwaiti MOBILE, because a customer who
+        // mistypes their number is a delivery nobody can chase. This is not a
+        // customer's mobile — it is the shop's own line, and
+        // STORE_SETTING_DEFAULTS ships `96522091914`, a landline starting 2.
+        // Fed its own default the save answered invalid_whatsapp, so the one
+        // value every shop starts with could not be saved back, and an owner
+        // opening the contact editor and pressing Save without touching
+        // anything was refused with no way to tell why.
+        //
+        // So the rule here is what wa.me actually needs rather than what the
+        // checkout needs: digits, with a country code, of a plausible length.
+        // A bare eight-digit Kuwaiti number — landline or mobile — gains 965,
+        // which is what an owner types. Text still fails, which is the case
+        // this check exists for.
         $wa = trim((string)($v['whatsapp'] ?? ''));
         if ($wa !== '') {
-            $wa = store_phone($wa);
-            if ($wa === null) store_fail('invalid_whatsapp');
+            $d = preg_replace('/\D/', '', store_ascii_digits($wa));
+            if (str_starts_with($d, '00')) $d = substr($d, 2);
+            // Eight digits alone is a local Kuwaiti number and nothing else:
+            // no country code is that short, so there is no number this could
+            // be mistaking for an international one.
+            if (strlen($d) === 8) $d = '965' . $d;
+            // E.164 allows up to fifteen; under eight there is no country on
+            // earth whose numbers are that short, so it is a typo.
+            if (!preg_match('/^[1-9]\d{7,14}$/', $d)) store_fail('invalid_whatsapp');
+            $wa = $d;
         }
 
         // The DISPLAY phone is deliberately NOT normalised. It is what appears
