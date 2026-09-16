@@ -50,16 +50,41 @@ const check = (ok, what) => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FA
 // by missing the route somebody just added — which is the exact route most
 // likely to be in the wrong place.
 const php = readFileSync(`${ROOT}/sporta-site/public_html/api/admin.php`, 'utf8')
-const gateAt = php.indexOf('store_require_admin()')
-if (gateAt < 0) {
-  console.log('FAIL admin.php no longer calls store_require_admin() at all')
+
+// THE GATE IS THE TOP-LEVEL CALL, and finding it by indexOf() was wrong.
+// A route may gate ITSELF inline — `google_save` does, because reading the
+// Google client id is public and writing it is not, so the two live side by
+// side and only one of them goes through the gate. That inline call is
+// INDENTED inside an `if` block; the real gate is the unindented statement
+// that everything below it inherits.
+//
+// indexOf('store_require_admin()') found the INLINE one, moved the boundary up
+// 60 lines, and swept `logout` and `me` — which are deliberately public, and
+// say so in their own comments — into the guarded set. Three checks then failed
+// against code that was correct, which is this repository's most expensive
+// shape: a rig reporting its own heuristic as the shop's fault.
+const gateLine = php.match(/^[^\s#\/].*store_require_admin\(\)/m)
+if (!gateLine) {
+  console.log('FAIL admin.php no longer calls store_require_admin() at top level')
   process.exit(1)
 }
+const gateAt = gateLine.index
+
 const routes = []
-for (const m of php.matchAll(/\$r === '([a-z_]+)'/g)) {
-  const name = m[1]
+const hits = [...php.matchAll(/\$r === '([a-z_]+)'/g)]
+for (let i = 0; i < hits.length; i++) {
+  const name = hits[i][1]
   if (routes.some((x) => x.name === name)) continue
-  routes.push({ name, public: m.index < gateAt })
+  // A route above the gate is public only if ITS OWN BLOCK does not gate
+  // itself. The block runs to the next route test, or to the gate.
+  const from = hits[i].index
+  const to = Math.min(hits[i + 1]?.index ?? php.length, Math.max(from + 1, gateAt))
+  const selfGated = from < gateAt && /store_require_admin\(\)/.test(php.slice(from, to))
+  routes.push({ name, public: from < gateAt && !selfGated, selfGated })
+}
+const selfGatedNames = routes.filter((r) => r.selfGated).map((r) => r.name)
+if (selfGatedNames.length) {
+  console.log(`--- ${selfGatedNames.length} route(s) above the gate call it themselves and are checked as guarded: ${selfGatedNames.join(', ')}`)
 }
 const publicOnes = routes.filter((r) => r.public).map((r) => r.name)
 const guarded = routes.filter((r) => !r.public)
@@ -90,7 +115,21 @@ console.log(`--- ${routes.length} routes in admin.php: ${publicOnes.length} befo
 // gives a stranger are "already set up" and a validation complaint. A named
 // MySQL lock serialises concurrent attempts so two cannot both see an empty
 // table, and it is throttled six to the quarter hour on top.
-const MAY_BE_PUBLIC = ['login', 'login_code', 'login_code_resend', 'logout', 'me', 'register']
+// google_config and google_login are the seventh and eighth, and they are the
+// same argument as login/login_code: a sign-in route cannot sit behind a gate
+// that requires the session it exists to create.
+//
+// `google_config` returns TWO fields and nothing else — whether the button
+// should be drawn, and the client id it needs to draw it. A Google OAuth client
+// id is compiled into every page that uses Google sign-in anywhere on the web;
+// there is no secret half in this flow to withhold. `google_login` accepts a
+// token and answers the same shape as ?r=login, second factor and all, and
+// grants nothing that store_admin_grant() would not have granted a password.
+//
+// `google_save` is NOT here on purpose: writing the client id points the shop's
+// sign-in at a Google project, so it gates itself and is checked as guarded.
+const MAY_BE_PUBLIC = ['login', 'login_code', 'login_code_resend', 'logout', 'me', 'register',
+                       'google_config', 'google_login']
 const unexpected = publicOnes.filter((r) => !MAY_BE_PUBLIC.includes(r))
 check(unexpected.length === 0,
   unexpected.length

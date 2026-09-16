@@ -61,6 +61,19 @@ const p = await browser.newPage({ viewport: { width: 1100, height: 950 } })
 const errors = []
 p.on('pageerror', (e) => errors.push(String(e).slice(0, 160)))
 
+// WHICH SERVER IS THE BUNDLE TALKING TO? Asked, because the answer has been
+// wrong and nothing said so. `dist/` built without EXPO_PUBLIC_API_BASE bakes
+// in https://www.sporta.com.kw/api — so this rig emptied the SANDBOX's
+// admin_users, drove a page that asked PRODUCTION about it, got nothing back
+// through the egress proxy, and reported "the screen does not say the shop has
+// no administrator". Every assertion after that was about a bundle pointed
+// somewhere else, and the failure looked exactly like a broken login screen.
+const apiOrigins = new Set()
+p.on('request', (r) => {
+  const u = r.url()
+  if (/\/api\/admin\.php/.test(u)) apiOrigins.add(new URL(u).origin)
+})
+
 try {
   sql('delete from admin_users')
   check(sql('select count(*) from admin_users') === '0', 'the shop starts with no administrator')
@@ -72,6 +85,19 @@ try {
   await p.locator('input').nth(1).fill(PASSWORD)
   await p.getByRole('button').filter({ hasText: /^Sign in$/ }).last().click()
   await p.waitForTimeout(2500)
+
+  // BEFORE anything is read off the screen. A bundle aimed elsewhere makes
+  // every check below meaningless, and this is the one that can say so — it is
+  // checked first for the same reason `guardsSeen` is printed before the
+  // comparisons that depend on it.
+  const wrong = [...apiOrigins].filter((o) => o !== new URL(BASE).origin)
+  check(apiOrigins.size > 0 && wrong.length === 0,
+    `the bundle talks to the sandbox (${BASE})`,
+    apiOrigins.size === 0
+      ? 'it asked NOTHING — the panel never reached admin.php, so nothing below is a measurement'
+      : wrong.length
+        ? `it asked ${wrong.join(', ')} — rebuild with EXPO_PUBLIC_API_BASE=${BASE}/api npm run build:web`
+        : '')
 
   let screen = await p.locator('body').innerText()
   check(/no administrator yet/i.test(screen), 'it says the shop has no administrator',
@@ -123,6 +149,17 @@ try {
   sql('delete from admin_users')
   if (saved.length) {
     sql('insert into admin_users (email, password_hash) values ' + saved.join(','))
+  }
+  // AND PROVE IT WENT BACK. This rig is the only one that empties an auth
+  // table, so a restore that silently does not happen does not fail HERE — it
+  // fails in admin-permissions, cookie-flags and admin-live, each with a
+  // message about sign-in that has nothing to do with what broke. Said out
+  // loud, at the moment it happens, it costs one query.
+  const back = Number(sql('select count(*) from admin_users'))
+  if (back !== saved.length) {
+    fails++
+    console.log(`FAIL admin_users was NOT restored: ${back} of ${saved.length} rows —`
+      + ' every auth rig after this one will fail on sign-in. Run scripts/sandbox.sh.')
   }
   await browser.close()
 }

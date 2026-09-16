@@ -49,19 +49,43 @@ $ADMIN = $ROOT . '/api/admin.php';
 $src = @file_get_contents($ADMIN);
 if ($src === false) { echo "GATE failed=no-admin-php\n"; exit; }
 
-// Where the gate is, and therefore which routes are in front of it.
-$gateAt = strpos($src, 'store_require_admin(');
-if ($gateAt === false) { echo "GATE failed=no-gate-call\n"; exit; }
+// WHERE THE GATE IS — the TOP-LEVEL call, not the first one in the file.
+//
+// A route may gate itself inline: `google_save` does, because reading the
+// Google client id is public and writing it is not, so the two sit side by side
+// and only one goes through the gate. That call is INDENTED inside an `if`;
+// the gate everything inherits is the unindented statement.
+//
+// strpos() found the indented one, moved the boundary up sixty lines, and swept
+// `me` — public by design, and saying so in its own comment — into the guarded
+// set. The run then reported `answering200=OPEN:me`, which reads as the gate
+// being gone on the LIVE shop and was nothing of the kind. A false alarm here
+// is worse than a missed one: it is the alarm the owner is asked to act on.
+if (!preg_match('/^[^\s#\/].*store_require_admin\(\)/m', $src, $gm, PREG_OFFSET_CAPTURE)) {
+    echo "GATE failed=no-top-level-gate-call\n"; exit;
+}
+$gateAt = $gm[0][1];
 
 preg_match_all('/\$r === \'([a-z_]+)\'/', $src, $m, PREG_OFFSET_CAPTURE);
 $seen = [];
 $guarded = [];
 $public  = [];
-foreach ($m[1] as $hit) {
+$selfGated = [];
+$hits = $m[1];
+foreach ($hits as $i => $hit) {
     $name = $hit[0];
     if (isset($seen[$name])) continue;
     $seen[$name] = true;
-    if ($hit[1] < $gateAt) $public[] = $name; else $guarded[] = $name;
+    $from = $hit[1];
+    if ($from >= $gateAt) { $guarded[] = $name; continue; }
+    // Its own block runs to the next route test, or to the gate.
+    $to   = min($hits[$i + 1][1] ?? strlen($src), max($from + 1, $gateAt));
+    if (str_contains(substr($src, $from, $to - $from), 'store_require_admin()')) {
+        $selfGated[] = $name;
+        $guarded[]   = $name;
+    } else {
+        $public[] = $name;
+    }
 }
 
 /** One unauthenticated GET. `$header` false omits X-Sporta-Admin. */
@@ -109,6 +133,7 @@ $noHeader = count($guarded) ? $ask($guarded[0], false) : 0;
 echo 'GATE routes=' . count($seen)
    . ' public=' . count($public) . ':' . implode(',', $public)
    . ' guarded=' . count($guarded)
+   . ($selfGated ? ' selfGated=' . implode(',', $selfGated) : '')
    . ' answering200=' . (count($open) ? 'OPEN:' . implode(',', $open) : '0')
    . ' gated=' . $refused . ' declined=' . $declined
    . ' throttled=' . (count($throttled) ? 'INCONCLUSIVE:' . count($throttled) : '0')

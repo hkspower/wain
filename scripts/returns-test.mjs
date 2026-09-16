@@ -278,7 +278,11 @@ let madeRef = null
   sql(`update orders set payment_status = 'pending' where id = ${orderId}`)
   const r = await get(`?r=return_items&ref=${TRACK}&phone=${PHONE_LOCAL}`)
   check(r.body?.error === 'return_not_paid', 'an unpaid order has nothing to return')
-  sql(`update orders set payment_status = 'paid', fulfilment_status = 'cancelled' where id = ${orderId}`)
+  // paid_at comes back WITH payment_status. A row that is paid with no paid_at
+  // falls out of every date-ranged report, and db-audit.mjs rightly says so —
+  // it was this rig's leftover it was reporting, not the shop's.
+  sql(`update orders set payment_status = 'paid', paid_at = coalesce(paid_at, utc_timestamp()),`
+    + ` fulfilment_status = 'cancelled' where id = ${orderId}`)
   const c = await get(`?r=return_items&ref=${TRACK}&phone=${PHONE_LOCAL}`)
   check(c.body?.error === 'return_cancelled', 'nor has a cancelled one')
   sql(`update orders set fulfilment_status = 'delivered' where id = ${orderId}`)
