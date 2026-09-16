@@ -10,6 +10,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useWindowWidth } from '@/hooks/use-window-width';
 import { useCart } from '@/lib/cart';
 import { formatNumber } from '@/lib/money';
 import { useLang } from '@/lib/i18n';
@@ -48,6 +49,42 @@ export default function ShopScreen() {
   );
   const sortRow = useRef<ScrollView>(null);
   const { products } = useCart();
+
+  /**
+   * TWO COLUMNS ON A PHONE, THREE ONCE THERE IS ROOM — asked for as "fix
+   * images grid layout" after this screen measured stuck at two per row on
+   * every viewport, phone through 1920px. The column ITSELF still stops
+   * widening at MaxContentWidth (Screen's own rule, unchanged) — this is not
+   * a redesign of how wide the page gets, only of how the space already
+   * budgeted for it is divided. At two columns, an 800px-wide screen gave
+   * every card ~380px, most of it empty padding around a photograph meant to
+   * read as a thumbnail in a scanning grid, and forced 23 rows of scrolling
+   * for 46 products that three columns gets through in 16.
+   *
+   * PIXEL WIDTH, NOT A PERCENTAGE. The old rule was `flexBasis: '48%'`, tuned
+   * by trial for one column count at one width — its own comment records
+   * getting the arithmetic wrong once already (48% assumed a 4%-of-row gap
+   * that was actually 4.5%, and every card wrapped onto its own line).
+   * Computing the exact pixel width from the actual available space cannot
+   * drift the same way: it is arithmetic on real numbers, not a constant
+   * tuned to look right at one size and left to survive every other one.
+   *
+   * THE THRESHOLD IS THE CARD, not the screen. 620px is roughly two 44mm
+   * cards' worth of comfortable width at three columns before the ratio
+   * cutting the crop is `RemoteArt`'s own 4:5 with each card thinner than a
+   * garment photograph reads well at. Below it, two columns; the shop's own
+   * test (`the shop grid is two cards across`) is what a phone actually
+   * measures and stays true.
+   */
+  const windowWidth = useWindowWidth();
+  // Floored at 320 (the narrowest phone this app targets) rather than left to
+  // go negative — useWindowWidth's own comment explains why its FIRST read on
+  // web can still be wrong for one frame, before the effect that corrects it
+  // has run, and a negative card width is worse than one frame at the wrong
+  // (but sane) column count.
+  const contentWidth = Math.max(320, Math.min(windowWidth, MaxContentWidth) - Spacing.three * 2);
+  const columns = contentWidth >= 620 ? 3 : 2;
+  const cardWidth = (contentWidth - Spacing.two * (columns - 1)) / columns;
 
   /**
    * NO CATEGORY FILTER — removed 2026-09-09 on the owner's instruction. The
@@ -142,7 +179,15 @@ export default function ShopScreen() {
           ) : (
             <View style={styles.grid}>
               {shown.map((p) => (
-                <View key={p.slug} style={styles.gridItem}>
+                // flexShrink:0 so a card never gives up width to its
+                // neighbours: without it, content-based defaults (a flex
+                // item's minimum width is its own content, not zero) let a
+                // card with a long badge ("الكمية محدودة") resist shrinking
+                // while a short one beside it absorbed the difference —
+                // visible only once `useWindowWidth` (see its own comment)
+                // was reporting the real width and cards should have been
+                // uniform but were not.
+                <View key={p.slug} style={{ width: cardWidth, flexShrink: 0 }}>
                   <ProductCard product={p} />
                 </View>
               ))}
@@ -170,27 +215,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: Spacing.three,
   },
-  // TWO PER ROW, and it was one. `width: 48%` twice plus a 16px gap comes to
-  // 100.5% of a 358px column — half a per cent over, so every card wrapped onto
-  // its own line and the grid ran as a single column with half the page empty
-  // beside it. The arithmetic was written as `(100 - 4) / 2`, which assumed the
-  // gap was 4% of the row; at this width it is 4.5%.
-  //
-  // flexBasis with flexGrow, rather than a width: the cards then divide
-  // whatever the row actually has, so the gap can change without anyone
-  // recomputing a percentage. The gap is 8px because two 48% cards plus 8px is
-  // 351 of 358 — it fits with room to spare, and it is the last time this needs
-  // to be a calculation at all.
+  // COLUMN COUNT AND CARD WIDTH ARE COMPUTED, not styled — see the comment
+  // beside `columns`/`cardWidth` above the render. This used to be a
+  // percentage tuned by trial for one width (`flexBasis: '48%'`) and its own
+  // comment records the trial getting it wrong once already; the computed
+  // pixel width cannot drift the same way because it is arithmetic on the
+  // real available space rather than a constant.
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.two,
     marginTop: Spacing.one,
-  },
-  gridItem: {
-    flexGrow: 1,
-    flexBasis: '48%',
-    maxWidth: '48%',
   },
   empty: {
     marginTop: Spacing.five,

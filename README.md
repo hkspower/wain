@@ -95,6 +95,7 @@ because the rigs place real orders against a real database.
 |---|---|
 | `npm test` | Everything that needs no server: types, contrast, CSP, PHP deprecations |
 | `npm run test:shop` | The storefront end to end, in a phone-sized browser — needs a build with NO reachable API (see below) |
+| `npm run test:shop-grid` | The product grid's column count and card widths, phone through desktop, resized live — same build and server as `test:shop` |
 | `npm run test:pages` | Every route: status, console, layout, radii, spacing, alignment |
 | `npm run test:color` | Every colour as PAINTED, both light and dark, against AA |
 | `npm run test:contrast` | The palette's pairs, with no browser |

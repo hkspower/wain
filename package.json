@@ -48,6 +48,7 @@
     "sandbox": "bash scripts/sandbox.sh",
     "build:web": "expo export --platform web --clear",
     "test:shop": "node scripts/smoke.mjs",
+    "test:shop-grid": "node scripts/shop-grid-columns-test.mjs",
     "test:pages": "node scripts/page-scan.mjs",
     "test:color": "node scripts/color-test.mjs",
     "test:contrast": "node scripts/contrast-test.mjs",
