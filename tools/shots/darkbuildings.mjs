@@ -56,6 +56,7 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 960, height: 600 } });
 page.setDefaultTimeout(300000);
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
+page.on("console", (m) => { if (m.text().startsWith("[progress]")) console.log(m.text()); });
 await page.goto("http://localhost:3000/race", { waitUntil: "networkidle" });
 await page.evaluate(() => {
   localStorage.clear();
@@ -222,7 +223,15 @@ const result = await page.evaluate(async ([write]) => {
   const luma = (d, i) => (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
   const settleEye = () => {
     e.exposurePass.dt = 1 / 30;
-    for (let i = 0; i < 110; i++) { e.composer.render(); e.exposurePass.dt = 1 / 30; }
+    // dark.mjs needs a fully-converged 110-frame settle because it reports
+    // an absolute exposure value. This tool only ever compares two tiles
+    // within the SAME frame (lit vs. shadow) — auto-exposure is a single
+    // scalar applied uniformly across the frame, so a lit/shadow gap is
+    // visible in it well before it's fully converged. Cut hard given how
+    // slow a single frame is under SwiftShader software rendering; if a
+    // future run shows a borderline gap this is the first knob to give
+    // back.
+    for (let i = 0; i < 40; i++) { e.composer.render(); e.exposurePass.dt = 1 / 30; }
   };
   const FLOOR = 10 / 255;
   const FLAT = 0.012;
@@ -305,7 +314,11 @@ const result = await page.evaluate(async ([write]) => {
   const rows = [];
   for (const [label, s, lat] of VIEWS) {
     at(s, lat);
-    for (const hour of HOURS) rows.push(scanAt(label, hour));
+    for (const hour of HOURS) {
+      const t0 = performance.now();
+      rows.push(scanAt(label, hour));
+      console.log(`[progress] ${label} @${hour} done in ${((performance.now() - t0) / 1000).toFixed(1)}s`);
+    }
   }
 
   cam.position.copy(saved.pos); cam.quaternion.copy(saved.quat); cam.up.copy(saved.up); cam.fov = saved.fov;
