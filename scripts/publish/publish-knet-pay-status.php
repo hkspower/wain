@@ -95,11 +95,12 @@ $fetch = static function (string $path): array {
 };
 
 // Confirm the route STILL WORKS after the write. `/` is the storefront's own
-// smoke check that nothing on the shop broke; admin.php?r=me with no
-// X-Sporta-Admin header answers 400 by design (store_require_admin_header()
-// runs before anything else) — a 500 here instead would mean the new code
-// path fataled at runtime, which is the one thing removing the exec()-based
-// lint above gives up catching before the write rather than after it.
+// smoke check that nothing on the shop broke; admin.php?r=me sits ABOVE the
+// X-Sporta-Admin gate by design (it answers 200/null even with no session
+// and no header — see live-admin-gate.php's own notes on this exact route)
+// and answers 500 only on a genuine fatal, which is the one thing removing
+// the exec()-based lint above gives up catching before the write rather
+// than after it.
 [$hc, $hBody] = $fetch('/');
 [$ac] = $fetch('/api/admin.php?r=me');
 
