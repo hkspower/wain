@@ -209,9 +209,14 @@ const equippedPaint = () =>
     const g = JSON.parse(localStorage.getItem("gulf-road-nights-garage"));
     return g.builds?.[g.car]?.equipped?.paint ?? null;
   });
-await page.waitForTimeout(400);
+// Wait for the pill itself, not a fixed delay: the key listener is
+// re-registered with the new prompt state in an effect after React
+// commits, and on a slow renderer a keypress a few hundred ms after
+// the state change can still land on the old listener.
+await page.waitForSelector("button:has-text('PAINT SHOP')", { timeout: 20000 });
+await page.waitForTimeout(800);
 await page.keyboard.press("p");
-await page.waitForSelector("[data-paint]", { timeout: 10000 });
+await page.waitForSelector("[data-paint]", { timeout: 20000 });
 const chips = await page.$$("[data-paint]:not([disabled])");
 console.log(`picker    open with ${chips.length} colours you can afford`);
 check(chips.length > 20, `the picker offers only ${chips.length} colours`);
