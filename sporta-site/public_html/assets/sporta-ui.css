@@ -1887,6 +1887,16 @@ div.grid:has(> .cat-tile) {
      giving way to the other. */
   header.app-header {
     background: var(--brand-dark) !important;
+    /* A DROP SHADOW, NOT EXTRA PADDING. On a phone the header sits flush
+       against the hero image below it, with nothing to say where one ends
+       and the other begins — measured at 390px, no gap at all. Padding
+       would cost the hero height this project has already fought hard to
+       protect (see the hero's own floor-vs-cap history in this file);
+       a shadow separates the two without moving a single pixel of layout,
+       on any viewport. header.app-header is `position: sticky`, so the
+       shadow also reads correctly while scrolled — it is always the last
+       thing painted above whatever content is under it. */
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
   }
   header.app-header ul li a {
     color: #ffffff !important;
@@ -1912,6 +1922,57 @@ div.grid:has(> .cat-tile) {
   }
   header.app-header ul li[data-sporta="terms-nav"] a {
     color: #ffffff !important;
+  }
+
+  /* TAP/HOVER FEEDBACK. The bundle relies on an underline alone for the
+     active page and a colour swap (hover:text-brand-bright) for :hover —
+     invisible to a touch visitor, since there is no hover state on a
+     phone. A background tint on :hover AND :active gives every visitor a
+     visible response to a press, not just a mouse user waiting to see an
+     underline that never comes on the page they are already on. Repeats
+     `color:#fff !important` here because Tailwind's own hover utility is a
+     more specific selector (`.hover\:text-brand-bright:hover`) and would
+     otherwise win the ONE property this rule does not also set. */
+  header.app-header ul li a:hover,
+  header.app-header ul li a:active {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
+    color: #ffffff !important;
+  }
+
+  /* THE PROMO STRIP AND THE NAV ROW SHARE ONE <header>, so painting the
+     header orange left `bg-ink-steel`'s own opaque dark strip sitting
+     directly on top of it with a hard edge — two unrelated bars stacked,
+     not one header. A hairline in the shop's own bright ember ties them
+     together without touching the promo strip's own background, which
+     stays dark on purpose: the same text (delivery/payment) reads worse on
+     orange than it does today. */
+  header.app-header > p {
+    border-bottom: 1px solid rgba(255, 123, 23, 0.35);
+  }
+
+  /* THE LOGO LOCKUP IS ONE IMAGE — the "SPORTS WEAR" tagline is baked into
+     logo-white.png/webp, not separate text, so it cannot be resized on its
+     own without new artwork. What CAN move is the whole lockup's display
+     size: it ships at h-8/md:h-9 (32/36px) against a 600x184 source, a
+     ~17x downscale that leaves the tagline close to illegible. One step up
+     keeps the same art, the same proportions, and the same header height
+     (the nav row's own min-h-11 already exceeds either size) while making
+     the tagline noticeably more legible.
+     Matched structurally (`nav > a img`), not by aria-label: the label is
+     "Sporta — home" in English and "سبورتا — الرئيسية" in Arabic — measured
+     both, an attribute-suffix selector would have silently missed one of
+     them. The logo link is the ONLY direct <a> child of the nav row (the
+     bag button is a <button>, the wishlist link sits inside a wrapping
+     <div>), so the structural match holds in both languages without
+     depending on either one's wording. */
+  header.app-header nav > a img {
+    height: 2.25rem;
+  }
+  @media (min-width: 768px) {
+    header.app-header nav > a img {
+      height: 2.5rem;
+    }
   }
 }
 

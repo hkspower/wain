@@ -48,7 +48,15 @@
 (function () {
   'use strict'
 
-  var LABEL = { ar: 'الشروط والأحكام', en: 'Terms & Conditions' }
+  // SHORT on screen, FULL as the title. "Terms & Conditions" was the
+  // longest label in a now three-item menu — the one most likely to wrap or
+  // crowd "Contact" as the viewport narrows before the mobile menu takes
+  // over. The short text is still the link's accessible name (a screen
+  // reader reads what is on screen, same as for any other link); `title`
+  // only adds the full phrase as a hover/long-press tooltip, so nothing
+  // here is a WORSE experience for anyone, only a MORE COMPACT one.
+  var LABEL = { ar: 'الشروط', en: 'Terms' }
+  var FULL = { ar: 'الشروط والأحكام', en: 'Terms & Conditions' }
   var MARK = 'data-sporta'
 
   function lang() {
@@ -87,7 +95,10 @@
       // Keep the label in step with the language — the one thing that can
       // change on a re-render without the <li> itself being rebuilt.
       var link = existing.querySelector('a')
-      if (link) link.textContent = LABEL[lang()]
+      if (link) {
+        link.textContent = LABEL[lang()]
+        link.title = FULL[lang()]
+      }
       return
     }
 
@@ -101,6 +112,7 @@
     // stale the day the bundle's styling changes.
     a.className = aboutLi.querySelector('a')?.className || ''
     a.textContent = LABEL[lang()]
+    a.title = FULL[lang()]
     li.appendChild(a)
     aboutLi.parentNode.insertBefore(li, aboutLi)
   }

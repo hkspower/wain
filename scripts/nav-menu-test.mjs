@@ -70,7 +70,10 @@ const browser = await chromium.launch({
   executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
 })
 
-for (const [lang, expectTerms] of [['ar', 'الشروط والأحكام'], ['en', 'Terms & Conditions']]) {
+for (const [lang, expectTerms, expectTitle] of [
+  ['ar', 'الشروط', 'الشروط والأحكام'],
+  ['en', 'Terms', 'Terms & Conditions'],
+]) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 500 } })
   await page.goto(`${BASE}/?lang=${lang}`, { waitUntil: 'networkidle' })
   await page.waitForTimeout(1200)
@@ -79,7 +82,12 @@ for (const [lang, expectTerms] of [['ar', 'الشروط والأحكام'], ['en
     const header = document.querySelector('header.app-header')
     const links = [...document.querySelectorAll('header.app-header ul li a')]
       .filter((a) => a.closest('li').offsetParent !== null)
-      .map((a) => ({ text: a.textContent.trim(), href: a.getAttribute('href'), color: getComputedStyle(a).color }))
+      .map((a) => ({
+        text: a.textContent.trim(),
+        href: a.getAttribute('href'),
+        color: getComputedStyle(a).color,
+        title: a.getAttribute('title'),
+      }))
     return { bg: header ? getComputedStyle(header).backgroundColor : null, links }
   })
 
@@ -99,12 +107,19 @@ for (const [lang, expectTerms] of [['ar', 'الشروط والأحكام'], ['en
   const terms = info.links.find((l) => l.href === '/terms')
   check(!!terms, `${lang}: a link to /terms is on the menu`)
   check(terms?.text === expectTerms, `${lang}: it reads "${expectTerms}"`, terms?.text)
+  check(terms?.title === expectTitle,
+    `${lang}: and its title tooltip carries the full phrase`, terms?.title)
 
   if (terms) {
     // THE ONE THING A STATIC READ CANNOT PROVE: clicking it actually opens
     // /terms rather than the /about page a copied React Link would still
     // navigate to.
-    await page.getByRole('link', { name: expectTerms }).click()
+    // Scoped to the header: the footer has always had its own "Terms" link,
+    // and shortening the header's label from "Terms & Conditions" to
+    // "Terms" newly collides with it by text alone — a real ambiguity a
+    // page-wide getByRole would now hit, not a fixture-only concern.
+    await page.locator('header.app-header')
+      .getByRole('link', { name: expectTerms, exact: true }).click()
     await page.waitForLoadState('networkidle')
     check(new URL(page.url()).pathname === '/terms', `${lang}: clicking it actually opens /terms`, page.url())
   }
