@@ -714,6 +714,13 @@
          other screen and nothing at all on the storefront. -->
     <script src="/assets/panel-settings.js" defer></script>
 
+    <!-- The main menu: "About us" becomes a plain link to /terms, because a
+         React Router Link's href cannot be repointed by editing the DOM —
+         see the file's own header. Storefront-wide, since the header is on
+         every page; sporta-ui.css hides "Shop" outright and hides "About"
+         only once this script has a working replacement in place. -->
+    <script src="/assets/nav-menu.js" defer></script>
+
     <!-- "Sign in with Google" on /backends, beside the password form rather
          than instead of it. Google sign-in can fail for reasons this shop
          cannot see or fix — an outage, a blocked script, a corporate policy,

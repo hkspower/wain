@@ -141,7 +141,8 @@
     "test:tile-rtl": "node scripts/tile-rtl-test.mjs",
     "test:publish-pin": "node scripts/publish-pin-test.mjs",
     "test:text-style": "node scripts/text-style-scan.mjs",
-    "test:panel-settings": "node scripts/panel-settings-test.mjs"
+    "test:panel-settings": "node scripts/panel-settings-test.mjs",
+    "test:nav-menu": "node scripts/nav-menu-test.mjs"
   },
   "private": true
 }
