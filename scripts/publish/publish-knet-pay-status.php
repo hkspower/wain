@@ -21,6 +21,21 @@
  * verifies every write against a recorded sha256 before and after, the same
  * as every other file this project publishes.
  *
+ * NO exec()/shell_exec() HERE, ON PURPOSE. A first version of this script
+ * ran `php -l` on the fetched body via exec() before writing, as an extra
+ * safety net on the one file every admin and payment route runs through.
+ * Live, it produced NO OUTPUT AT ALL — the empty-cron-output trap this
+ * project's own notes already name a third way to be misread: not "healthy
+ * and silent by design" (this script always echoes something) and not "has
+ * not run within the panel's retention" (a per-minute job, checked minutes
+ * later), but "ran and died before printing" — `exec` is routinely disabled
+ * on shared hosting, and calling a disabled function is a fatal error with
+ * nothing in the response to say so. Verified the live file was UNTOUCHED
+ * by that failed attempt (the write happens after the lint, so a fatal
+ * during it means nothing was ever written) before removing the step
+ * rather than working around it. Local `php -l` plus the full test suite —
+ * already run before every publish here — is the real safety net.
+ *
  * Verified locally: test:admin-contract, test:admin-live and
  * test:admin-browser — the last two against the real admin.php + MariaDB
  * and a real browser — all green, including a mutation test that flips
@@ -57,16 +72,6 @@ foreach ($FILES as $rel => $want) {
     if (!is_string($body) || $code !== 200 || $body === '') { $failed[] = $rel . '/http' . $code; break; }
     if (hash('sha256', $body) !== $want) { $bad[] = $rel; break; }
 
-    // php -l on the fetched body BEFORE it ever touches the live file — this
-    // is api/admin.php, the file every payment and admin route runs through,
-    // and a syntax error here would take the whole panel and every payment
-    // route down at once. Written to a throwaway path only for the lint.
-    $lintTmp = sys_get_temp_dir() . '/.lint-' . bin2hex(random_bytes(6)) . '.php';
-    file_put_contents($lintTmp, $body);
-    exec('php -l ' . escapeshellarg($lintTmp) . ' 2>&1', $lintOut, $lintCode);
-    @unlink($lintTmp);
-    if ($lintCode !== 0) { $failed[] = $rel . '/php-lint:' . implode(' ', $lintOut); break; }
-
     $tmp = dirname($target) . '/.pub-' . bin2hex(random_bytes(6));
     $ok  = @file_put_contents($tmp, $body) === strlen($body);
     if ($ok) $ok = @rename($tmp, $target) || @copy($tmp, $target);
@@ -93,7 +98,8 @@ $fetch = static function (string $path): array {
 // smoke check that nothing on the shop broke; admin.php?r=me with no
 // X-Sporta-Admin header answers 400 by design (store_require_admin_header()
 // runs before anything else) — a 500 here instead would mean the new code
-// path fataled at runtime despite passing php -l above.
+// path fataled at runtime, which is the one thing removing the exec()-based
+// lint above gives up catching before the write rather than after it.
 [$hc, $hBody] = $fetch('/');
 [$ac] = $fetch('/api/admin.php?r=me');
 
