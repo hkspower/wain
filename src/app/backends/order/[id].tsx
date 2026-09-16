@@ -17,13 +17,11 @@ import {
   type OrderDetail,
   type OrderStatus,
 } from '@/lib/admin';
-import { useLang } from '@/lib/i18n';
 import { formatPrice } from '@/lib/money';
 import { useSession } from '@/lib/session';
 
 export default function OrderScreen() {
   const theme = useTheme();
-  const { lang } = useLang();
   const { token, signOut } = useSession();
   const { id } = useLocalSearchParams<{ id: string }>();
   const orderId = Number(id);
@@ -108,7 +106,7 @@ export default function OrderScreen() {
               <ThemedText type="label" style={styles.lineName}>
                 {l.qty} × {l.name} · {l.size}
               </ThemedText>
-              <ThemedText type="labelBold">{formatPrice(l.price * l.qty, lang)}</ThemedText>
+              <ThemedText type="labelBold">{formatPrice(l.price * l.qty, 'en')}</ThemedText>
             </ThemedView>
           ))}
 
@@ -119,17 +117,17 @@ export default function OrderScreen() {
               <ThemedText type="label" themeColor="textSecondary">
                 Subtotal
               </ThemedText>
-              <ThemedText type="label">{formatPrice(order.subtotal, lang)}</ThemedText>
+              <ThemedText type="label">{formatPrice(order.subtotal, 'en')}</ThemedText>
             </View>
             <View style={adminStyles.rowBetween}>
               <ThemedText type="label" themeColor="textSecondary">
                 Delivery
               </ThemedText>
-              <ThemedText type="label">{formatPrice(order.delivery, lang)}</ThemedText>
+              <ThemedText type="label">{formatPrice(order.delivery, 'en')}</ThemedText>
             </View>
             <View style={adminStyles.rowBetween}>
               <ThemedText type="labelBold">Total</ThemedText>
-              <ThemedText type="labelBold">{formatPrice(order.total, lang)}</ThemedText>
+              <ThemedText type="labelBold">{formatPrice(order.total, 'en')}</ThemedText>
             </View>
           </ThemedView>
 

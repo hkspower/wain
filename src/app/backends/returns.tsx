@@ -10,7 +10,6 @@ import { press } from '@/components/ui/press';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { adminApi, Unauthorized, type ReturnRequest, type ReturnStatus } from '@/lib/admin';
-import { useLang } from '@/lib/i18n';
 import { formatPrice } from '@/lib/money';
 import { useSession } from '@/lib/session';
 
@@ -51,7 +50,6 @@ const WORDS: Record<ReturnStatus, string> = {
 
 export default function ReturnsScreen() {
   const theme = useTheme();
-  const { lang } = useLang();
   const { token, signOut } = useSession();
 
   const [filter, setFilter] = useState<ReturnStatus | 'all'>('new');
@@ -158,7 +156,8 @@ export default function ReturnsScreen() {
                   {l.qty} × {l.name} · {l.size}
                   {l.wantSize ? ` → ${l.wantSize}` : ''}
                   {' · '}
-                  {formatPrice(l.price, lang)}
+                  {/* 'en' — see orders.tsx's note on the same fix. */}
+                  {formatPrice(l.price, 'en')}
                 </ThemedText>
               ))}
             </View>

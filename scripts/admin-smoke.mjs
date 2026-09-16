@@ -83,7 +83,13 @@ await p.getByLabel('Password').fill('correct horse')
 await p.getByRole('button', { name: 'Sign in' }).click()
 await p.waitForTimeout(900)
 check((await seen(p.getByText('Today', { exact: true })).count()) > 0, 'signing in opens the dashboard')
-check((await seen(p.getByText('٨٫٠٠٠ د.ك')).count()) > 0, 'takings are formatted as KWD fils')
+// ENGLISH DIGITS, not Arabic — the panel is deliberately LTR regardless of
+// the shopper's own language (see admin-shell.tsx's own header comment), and
+// this assertion used to encode the bug rather than catch it: it asserted
+// the Arabic-formatted figure as correct, which happened to be short enough
+// (8.000) never to visibly truncate in this rig, while the same code path
+// clipped a real figure to "٨,···" on a 375px phone. Fixed 2026-09-17.
+check((await seen(p.getByText('8.000 KD')).count()) > 0, 'takings are formatted in English digits, not the shopper\'s language')
 check((await seen(p.getByText('Desert runner short · XL')).count()) > 0, 'the low-stock list is real data')
 await shot('today')
 

@@ -11,7 +11,6 @@ import { press } from '@/components/ui/press';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { adminApi, Unauthorized, type Discount, type DiscountDraft } from '@/lib/admin';
-import { useLang } from '@/lib/i18n';
 import { formatPrice, toFils, toKwd } from '@/lib/money';
 import { useSession } from '@/lib/session';
 
@@ -60,7 +59,6 @@ export const asIsoDate = (raw: string): string => {
 
 export default function PromosScreen() {
   const theme = useTheme();
-  const { lang } = useLang();
   const { token, signOut } = useSession();
 
   const [rows, setRows] = useState<Discount[] | null>(null);
@@ -230,8 +228,11 @@ export default function PromosScreen() {
               </View>
               <ThemedText type="label" themeColor="textSecondary">{d.label}</ThemedText>
               <ThemedText type="label">
-                {d.type === 'percent' ? `${d.value}% off` : `${formatPrice(d.value, lang)} off`}
-                {d.minOrder > 0 ? ` over ${formatPrice(d.minOrder, lang)}` : ''}
+                {/* 'en', not the shopper's language — see orders.tsx's note
+                    on the same fix; Arabic-Indic digits here truncated to
+                    "٣٠,···" on a 375px card. */}
+                {d.type === 'percent' ? `${d.value}% off` : `${formatPrice(d.value, 'en')} off`}
+                {d.minOrder > 0 ? ` over ${formatPrice(d.minOrder, 'en')}` : ''}
                 {d.category ? ` · ${d.category}` : ''}
               </ThemedText>
               {/* The window and the counter are what a manager checks first —

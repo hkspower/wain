@@ -20,7 +20,6 @@ import { ThemedView } from '@/components/themed-view';
 import { Elevation, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { adminApi, Unauthorized, type Summary } from '@/lib/admin';
-import { useLang } from '@/lib/i18n';
 import { formatPrice } from '@/lib/money';
 import { useSession } from '@/lib/session';
 
@@ -255,7 +254,6 @@ function SignIn() {
 function Dashboard() {
   const theme = useTheme();
   const router = useRouter();
-  const { lang } = useLang();
   const { token, signOut } = useSession();
   const [data, setData] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -280,7 +278,11 @@ function Dashboard() {
         <>
           <View style={styles.tiles}>
             <Tile label="Orders today" value={String(data.todayOrders)} />
-            <Tile label="Taken today" value={formatPrice(data.todayRevenue, lang)} />
+            {/* 'en', not the shopper's language — see orders.tsx's note on
+                the same fix. This was the tile that surfaced the bug: a
+                shopper-side toggle to Arabic left "٨,٥٠٠" clipping to
+                "٨,···" in a two-column tile on a 375px phone. */}
+            <Tile label="Taken today" value={formatPrice(data.todayRevenue, 'en')} />
             <Tile label="Waiting" value={String(data.pending)} tone={data.pending > 0} />
           </View>
 

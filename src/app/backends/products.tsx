@@ -317,16 +317,24 @@ export default function ProductsScreen() {
                 </ThemedText>
               </View>
             </View>
+            {/* ONE BUTTON, not four. Edit stays the emphasised action — the
+                same weight brands.tsx gives its own single "Edit" — and the
+                other three move to chips: on a list of forty-six garments,
+                four full-size buttons wrapped into two rows per card (measured
+                at 375px), which is a lot of card to scroll past to reach the
+                next garment. Chips are the same tap target height but narrower
+                per label, so all three now sit on one row beside Edit on most
+                phones instead of wrapping. */}
             <View style={styles.actions}>
-              <Button label="Edit" variant="secondary" onPress={() => edit(p)} />
-              <Button
+              <Button label="Edit" onPress={() => edit(p)} />
+              <Chip
                 label="Photographs"
-                variant="secondary"
+                active={false}
                 onPress={() => router.push({ pathname: '/backends/images', params: { slug: p.slug } })}
               />
-              <Button
+              <Chip
                 label={expanded === p.slug ? 'Hide sizes' : 'Sizes & stock'}
-                variant="secondary"
+                active={expanded === p.slug}
                 onPress={() => setExpanded(expanded === p.slug ? null : p.slug)}
               />
               <Chip label={p.active ? 'Shown' : 'Hidden'} active={!!p.active} onPress={() => toggle(p)} />

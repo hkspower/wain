@@ -12,7 +12,6 @@ import { Spacing, TapTarget } from '@/constants/theme';
 import { API_BASE } from '@/lib/config';
 import { useTheme } from '@/hooks/use-theme';
 import { adminApi, Unauthorized, type OrderStatus, type OrderSummary } from '@/lib/admin';
-import { useLang } from '@/lib/i18n';
 import { formatPrice } from '@/lib/money';
 import { useSession } from '@/lib/session';
 
@@ -29,7 +28,6 @@ const FILTERS: (OrderStatus | 'all')[] = [
 export default function OrdersScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { lang } = useLang();
   const { token, signOut } = useSession();
   const [filter, setFilter] = useState<OrderStatus | 'all'>('all');
   const [orders, setOrders] = useState<OrderSummary[] | null>(null);
@@ -135,7 +133,15 @@ export default function OrdersScreen() {
                 <ThemedText type="label" themeColor="textSecondary">
                   {o.name} · {o.phone}
                 </ThemedText>
-                <ThemedText type="labelBold">{formatPrice(o.total, lang)}</ThemedText>
+                {/* ALWAYS ENGLISH DIGITS, never the shopper's own `lang` —
+                    admin-shell's own header comment already says this panel
+                    is LTR regardless of language; a manager whose STOREFRONT
+                    happened to be toggled to Arabic was getting Arabic-Indic
+                    money on every screen here, wide enough to truncate on a
+                    phone (measured: "٨,٥٠٠" clipped to "٨,···" on a 375px
+                    card). Money is the one thing in this panel it is never
+                    right to get wrong by truncation. */}
+                <ThemedText type="labelBold">{formatPrice(o.total, 'en')}</ThemedText>
               </View>
               <View style={adminStyles.rowBetween}>
                 <ThemedText type="label" themeColor="textSecondary">
