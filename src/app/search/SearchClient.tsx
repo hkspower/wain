@@ -284,6 +284,22 @@ export default function SearchClient() {
         <VoiceControls />
       </div>
 
+      {/* The three ways this page answers, named once rather than left to be
+          discovered. The call button is a small icon inside the box below —
+          deliberately, see ShouqCallButton — and the map only appears once
+          there are results, so without this a first-time visitor could use
+          the page for months and never notice either exists. Purely a label:
+          it points at what is already there rather than adding a second way
+          to trigger any of the three, which is the «one offer, drawn once»
+          rule ShouqCallButton itself was built around. */}
+      <ol className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-ink-500">
+        <li>{toArabicDigits(1)}. دوّر بالكتابة</li>
+        <li aria-hidden="true">·</li>
+        <li>{toArabicDigits(2)}. كلّمي شوق</li>
+        <li aria-hidden="true">·</li>
+        <li>{toArabicDigits(3)}. عالخريطة</li>
+      </ol>
+
       {/* Query box */}
       <div className="relative">
         <span

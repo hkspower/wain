@@ -13,6 +13,7 @@ import {
   WAIN_AI_AGENT_ENABLED,
   WAIN_AI_AGENT_ID,
   WAIN_AI_COPY,
+  SALEM_VOICE_ID,
 } from "@/lib/wain-ai";
 // The bus's `import type { Phase }` back from this file is erased at compile
 // time, so this is not a runtime cycle.
@@ -131,6 +132,17 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   const [seconds, setSeconds] = useState(0);
   const [agentReady, setAgentReady] = useState(false);
   const [agentFailed, setAgentFailed] = useState(false);
+  /**
+   * Which voice the widget is set to render شوق's answers in — still شوق,
+   * still her tools, only the speaker changes. See SALEM_VOICE_ID for why a
+   * switch remounts the widget rather than adjusting it in place.
+   *
+   * This component never unmounts (see Props.startSignal above), so this
+   * survives across "ended" → redial unless startCall() resets it — which it
+   * does, deliberately: every fresh call begins in شوق's own voice, never
+   * carrying over a switch made on the call before it.
+   */
+  const [persona, setPersona] = useState<"shouq" | "salem">("shouq");
 
   /**
    * Whether شوق's mouth moves.
@@ -213,6 +225,22 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
       setPhase("idle");
     }
   }, [teardown]);
+
+  /**
+   * «بصوت سالم» / «بصوت شوق» — the switch, mid-call.
+   *
+   * Only while actually connected: "ringing" has no widget to switch yet, and
+   * "ended"/"error" have nothing live to switch on. Clearing the slot is what
+   * makes the mount effect above treat this as a fresh connect — it sees an
+   * empty slot and remounts with (or without) SALEM_VOICE_ID, which is the
+   * one moment the widget reads that attribute.
+   */
+  const switchPersona = useCallback(() => {
+    if (phaseRef.current !== "live") return;
+    haptic("select");
+    slotRef.current?.replaceChildren();
+    setPersona((p) => (p === "shouq" ? "salem" : "shouq"));
+  }, []);
 
   /**
    * The × and Escape. Both mean "get me out", so they hang up *and* close —
@@ -519,7 +547,14 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     if (slot.childElementCount === 0) {
       const el = document.createElement("elevenlabs-convai");
       el.setAttribute("agent-id", WAIN_AI_AGENT_ID);
+      // See SALEM_VOICE_ID: set only at mount, because that is the one moment
+      // the widget reads it. شوق's own agent voice needs no override at all.
+      if (persona === "salem") el.setAttribute("override-voice-id", SALEM_VOICE_ID);
       slot.appendChild(el);
+      // switchPersona() below clears the slot to force this branch mid-call —
+      // the same "line just connected" tone the first connect uses below, so
+      // a voice switch is heard as well as seen.
+      if (phaseRef.current === "live") connected();
     }
     // The widget is mounted and owns the microphone from here: that is the
     // call connecting, so stop ringing and start the clock.
@@ -527,7 +562,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     silenceRing();
     connected();
     setPhase("live");
-  }, [dialling, agentReady, silenceRing]);
+  }, [dialling, agentReady, silenceRing, persona]);
 
   // A widget that never loads is a call that never connects — say so rather
   // than ringing for ever.
@@ -550,6 +585,12 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     setTranscript("");
     setSeconds(0);
     setAgentFailed(false);
+    // A previous call may have switched to سالم's voice and left the widget
+    // mounted with that override (see the persona note above) — clearing the
+    // slot here means the mount effect below sees an empty one and creates a
+    // genuinely fresh connection, on شوق's own voice, for every dial.
+    setPersona("shouq");
+    slotRef.current?.replaceChildren();
     silenceRing();
     stopRing.current = ringback();
     dialTimer.current = window.setTimeout(() => {
@@ -713,7 +754,23 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                   </div>
                 )}
 
-                {/* One red button, on every path, meaning exactly one thing. */}
+                {/* Only once she has actually picked up — "ringing" has no
+                    widget yet to switch, and switching is undone on every
+                    redial (see startCall), so a caller never has to remember
+                    to switch back. Secondary styling on purpose: hanging up is
+                    still the one button every path ends at. */}
+                {WAIN_AI_AGENT_ENABLED && phase === "live" && (
+                  <button
+                    type="button"
+                    onClick={switchPersona}
+                    className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3.5 text-xs font-semibold text-ink-700 transition hover:border-sea-300"
+                  >
+                    {persona === "shouq" ? WAIN_AI_COPY.switchToSalem : WAIN_AI_COPY.switchToShouq}
+                  </button>
+                )}
+
+                {/* One red button that hangs up, on every path, meaning
+                    exactly one thing. */}
                 <button
                   type="button"
                   onClick={endCall}

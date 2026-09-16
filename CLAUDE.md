@@ -556,6 +556,39 @@ secret would have to live either in the agent config (readable) or in an n8n
 variable — which is the `REPLACE_PHONE_NUMBER_ID` failure mode: unset, silent,
 and discovered months later.
 
+**A caller can switch her voice to سالم's mid-call — same brain, different
+speaker.** `WainAiCall`'s «بصوت سالم» button, live only while `phase ===
+"live"`. Deliberately not a second agent: the tools, the prompt, her name in
+the call sheet all stay شوق's, because building a whole second agent (its own
+prompt, tests, tool set) for one voice option would be the disproportionate
+answer to a small ask, and a caller who taps it wants to hear a different
+speaker say the same things she would have, not talk to someone else.
+
+**There is no live voice hot-swap, and that shaped the whole implementation.**
+Checked before writing any of it, because assuming otherwise would have meant
+building a button that lies: `api.elevenlabs.io` and `elevenlabs.io` are both
+blocked from this repository's own egress (same class of block as the voice
+pipeline), so the published `@elevenlabs/convai-widget-embed` bundle —
+`npm pack`'d and read directly — was the only source available. It does expose
+`override-voice-id` as a widget attribute, reaching `overrides.tts.voiceId`
+internally, but only as one field of the object passed to whatever starts a
+session; nothing in the bundle reacts to that attribute changing on an
+already-connected element. So «switch» means dropping the mounted
+`<elevenlabs-convai>` and mounting a fresh one with the attribute set — a
+few-hundred-millisecond reconnect, not a mid-sentence swap. `SALEM_VOICE_ID`
+in `wain-ai.ts` carries the finding in full.
+
+**The voice id is `Ywuz3KyW2N5pqKNpwcCL` (Eid) — the same one
+`scripts/gen-voice.mjs` and `scripts/publish/tts-endpoint.php` already use for
+سالم**, on purpose: it is the fourth place this voice has to match the other
+three (the clips, the live TTS bridge, now a live agent call), the same
+identity `docs/voice.md`'s three-way table exists to hold the first two to.
+
+**Every fresh call resets to شوق's own voice.** `WainAiCall` never unmounts —
+see `Props.startSignal` — so `persona` state would otherwise survive from one
+call to the next; `startCall()` clears it and the mounted widget explicitly,
+so redialling after a switch never silently starts on سالم.
+
 ## There is an n8n instance, and part of wain runs on it
 
 `sportake.app.n8n.cloud`, shared with sporta. **Nothing in `npm run scan` can
@@ -793,6 +826,16 @@ it would ring underneath its own backdrop. Not an `onClick` on a wrapper — the
 tap has to reach `primeAudio` first, and a bubbling handler that closes the
 dialog could unmount the button mid-gesture.
 
+**/search is three ways to the same answer, and only one of them was ever
+named.** The query box is obvious; the map only appears once there are
+results, and the call is a small icon inside the box, deliberately, per the
+section above — so a first-time visitor could use the page for months without
+noticing either exists. The `ol` above the query box labels all three once,
+purely: it points at what is already there rather than giving any of the three
+a second way to be triggered, which would be the same offer-drawn-twice
+mistake the call button's own placement was designed to avoid. `toArabicDigits`
+numbering, matching the result count and the rest of the site.
+
 ## Checks
 
 `npm run scan` is lint plus ~22 audits. Browser suites: `test:hangout`
@@ -874,9 +917,24 @@ a plain spread. Leaving `FlatCompat` wrapped around an already-flat config makes
 `property 'react' closes the circle`, with a stack inside `@eslint/eslintrc`. It
 reads like a broken plugin rather than a wrapper one version out of date.
 
-**There is no red left, and the last one was the test's fault, not the code's.**
-The swipe suite's «a 4px scroll is left where it was put» failed on every run
-for weeks and was written down here as known-failing. It was unpassable.
+**One red is back, measured 16 September, and it is neither the test's fault
+nor the code's — the sandbox's own headless Chromium never fires
+`SpeechRecognition.onstart`.** `shouq-flow.test.mjs`'s «ringing becomes
+connected» times out waiting for it, in **local mode only** — the browser's
+own Web Speech API, not شوق's agent. Confirmed pre-existing rather than a
+regression: reproduces identically with `git stash` back to the previous
+commit, before anything in this session touched the file. Nothing here
+depends on a network call `HTTPS_PROXY` could block, unlike the widget-URL and
+TTS-bridge flakes elsewhere in this file — this looks like the container's
+Chromium build having no Web Speech backend to talk to at all. `test:shouq`'s
+other four layers (answers, battery, brief, clips, bridge, agent mode) and the
+whole of `test:hangout` stayed green throughout, which is what narrowed this
+to local mode specifically and ruled out anything broader breaking.
+
+**There is no OTHER red left, and the last one was the test's fault, not the
+code's.** The swipe suite's «a 4px scroll is left where it was put» failed on
+every run for weeks and was written down here as known-failing. It was
+unpassable.
 Measured on the home page's category rail, all three modes side by side:
 
 | `scroll-snap-type` | 4px | 62px | 118px | 240px |

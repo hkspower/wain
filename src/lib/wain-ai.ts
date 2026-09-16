@@ -68,6 +68,30 @@ export const WAIN_AI_AGENT_ID =
 export const WAIN_AI_AGENT_ENABLED = WAIN_AI_AGENT_ID.trim().length > 0;
 
 /**
+ * سالم's voice, for the one moment a caller can hear him instead of شوق on a
+ * call — a mid-call switch, not a second agent.
+ *
+ * Same id `scripts/gen-voice.mjs` and the live TTS bridge
+ * (`scripts/publish/tts-endpoint.php`) already use for him — Eid, Gulf male —
+ * so a voice heard on a call and a recorded سالم clip elsewhere are the same
+ * speaker, the same rule `docs/voice.md`'s three-way table holds the clips
+ * and the bridge to.
+ *
+ * Only the VOICE changes when this is applied. The brain, the tools, her name
+ * in the call sheet — all still شوق's. Conversational AI negotiates a
+ * session's voice once, at connect: the widget bundle does expose an
+ * `override-voice-id` attribute (verified by extracting
+ * @elevenlabs/convai-widget-embed and reading it — elevenlabs.io itself is
+ * blocked from this repository's own egress, so the published bundle was the
+ * only source available), but it is read into the conversation's *initial*
+ * overrides, and nothing in that bundle suggests a value change reaches an
+ * already-open session. So "switching" — see WainAiCall — means dropping the
+ * current `<elevenlabs-convai>` element and mounting a fresh one with this
+ * attribute set, not a live hot-swap mid-sentence.
+ */
+export const SALEM_VOICE_ID = "Ywuz3KyW2N5pqKNpwcCL"; // Eid — Gulf male, warm and clear
+
+/**
  * CDN bundle that defines the <elevenlabs-convai> custom element.
  *
  * THE VERSION MUST BE EXACT, AND THAT IS NOT A STYLE PREFERENCE.
@@ -160,6 +184,12 @@ export const WAIN_AI_COPY = {
   answering: "شوق ترد…",
   hangUp: "إنهاء المكالمة",
   callAgain: "اتصل مرة ثانية",
+  // Named as a VOICE change, deliberately not «كلّمي سالم» — it is still شوق
+  // answering, her brain and her tools untouched; only the TTS voice reading
+  // her replies changes. Calling it a different agent would be a promise this
+  // button does not keep.
+  switchToSalem: "🔊 بصوت سالم",
+  switchToShouq: "🔊 بصوت شوق",
   ended: "انتهت المكالمة",
   callFailed: "ما قدرنا نوصلك بشوق — جرّب مرة ثانية.",
   // A call that rang out. Said separately from callFailed because the caller
