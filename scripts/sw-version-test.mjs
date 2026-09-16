@@ -52,7 +52,30 @@ const SW = 'sporta-site/public_html/sw.js'
 // A fixed name is simply one that is NOT content-hashed — the same test sw.js
 // makes at runtime, and the whole justification for caching hard: a hashed name
 // changes when its bytes do, so a cached copy can never be stale.
-const HASHED = /-[A-Za-z0-9_-]{8,}\.(js|css)$/
+//
+// LENGTH ALONE IS NOT ENOUGH, and this was found the hard way: the first
+// version of this pattern was a bare length check (8+ word characters after a
+// hyphen), which reads "-essentials.js" and "-settings.js" as a Vite hash
+// exactly the way it reads "-5HbquisI.js" — both are hand-written overlay
+// files (essentials.js, panel-settings.js), and both were SILENTLY dropped
+// from the watched list by it, `panel-settings.js` since the file was created
+// and nobody noticed because an under-counted list still looks like a list.
+// A real Vite hash is base62 and effectively never comes out as one case
+// throughout eight-plus characters; every hashed file in this directory —
+// checked, not assumed — mixes upper and lower case or carries a digit.
+// A hand-written English word after a hyphen does not. So the length check
+// stays (it is what tells a hash-shaped segment from a short one like
+// "-menu"), and a second condition rules out a segment that reads as a word:
+// requiring at least one digit OR at least one case change is enough to
+// separate every real hash here from every real word here, checked against
+// both lists rather than assumed to generalise.
+const HASHED = /-([A-Za-z0-9_-]{8,})\.(js|css)$/
+function looksHashed(name) {
+  const m = HASHED.exec(name)
+  if (!m) return false
+  const seg = m[1]
+  return /[0-9]/.test(seg) || /[a-z]/.test(seg) && /[A-Z]/.test(seg)
+}
 const ASSETS = 'sporta-site/public_html/assets'
 // An unreadable directory is reported as a finding, not as a stack trace. A
 // crash is at least loud, but it reads as "the rig is broken" when what it
@@ -61,7 +84,7 @@ let FIXED = []
 let derivationError = ''
 try {
   FIXED = readdirSync(ASSETS)
-    .filter((f) => /\.(js|css)$/.test(f) && !HASHED.test(f))
+    .filter((f) => /\.(js|css)$/.test(f) && !looksHashed(f))
     .sort()
     .map((f) => `${ASSETS}/${f}`)
 } catch (e) {
@@ -74,6 +97,18 @@ const check = (ok, what, detail = '') => {
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${detail ? `   ${detail}` : ''}`)
 }
 const git = (...a) => execFileSync('git', a, { encoding: 'utf8' }).trim()
+
+// looksHashed() ITSELF, asserted — not just trusted because the count above
+// looks plausible. An undercount from a bad heuristic prints a SMALLER
+// number and nothing else, which is indistinguishable from a healthy run
+// unless someone reads the list by eye; that is exactly how
+// `panel-settings.js` went unwatched from the day it was created. Checked
+// against one real hash from THIS directory (not a fabricated example,
+// which could pass by accident of shape) and the two hand-written names
+// that a bare length check mistook for one.
+check(looksHashed('index-5HbquisI.js'), 'looksHashed: a real Vite hash is recognised as one')
+check(!looksHashed('essentials.js'), 'looksHashed: "essentials.js" is NOT mistaken for a hash')
+check(!looksHashed('panel-settings.js'), 'looksHashed: "panel-settings.js" is NOT mistaken for a hash')
 
 const version = (readFileSync(SW, 'utf8').match(/^const VERSION = '([^']+)'/m) ?? [])[1]
 check(!!version, 'sw.js declares a VERSION', version ?? '(none found)')

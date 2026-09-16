@@ -7,7 +7,7 @@
  * Asked for on 2026-09-17 as "remove main menu and تسوق اساسيات" — two
  * removals in one request, checked separately here because they are two
  * different mechanisms: the menu is a plain CSS hide (sporta-ui.css), the
- * essentials section is DOM surgery (hide-essentials.js), since there is no
+ * essentials section is DOM surgery (essentials.js), since there is no
  * CSS selector that can match "the section whose heading says X".
  *
  * NAVIGATION IS NOT LOST. The footer already carries its own copy of every
