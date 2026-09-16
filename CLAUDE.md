@@ -2656,3 +2656,78 @@ on the real site is blank. Photographs and brand logos are data: URIs in MySQL,
 uploaded through /backends — the owner's images, not something to invent here,
 and not something any script in this repository can supply. It is a bigger
 visible problem than anything in the CSS.
+
+## A route that gates itself moved the gate — full backend scan, 2026-09-16
+
+Asked for a full scan of the backend: every auth, deploy, payment, panel and
+API suite locally, plus `live-scan`, `live-admin-gate`, `live-deploy-check` and
+`live-login-check` on the server. The live shop measured clean throughout. The
+defects were all in the CHECKERS, and one of them was raising a false alarm on
+production.
+
+**`google_save` gates itself inline**, because reading the Google client id is
+public and writing it is not, so the two routes sit side by side and only one
+goes through the gate. Both gate checkers found "the gate" with
+`indexOf`/`strpos` of `store_require_admin(` — which matched that INDENTED call
+sixty lines above the real one, and swept `logout` and `me` (public by design,
+and saying so in their own comments) into the guarded set.
+
+Locally that was three failures against correct code. On the live server:
+
+```
+GATE ... answering200=OPEN:me
+```
+
+which reads as the admin gate being gone on the shop that takes money, and was
+nothing of the kind. **A false alarm is worse than a missed one: it is the alarm
+the owner is asked to act on.** Both now anchor on the TOP-LEVEL (column-0) call
+and read each route's own block, so a self-gating route is CHECKED as guarded
+rather than mislabelled as public, and is reported as `selfGated=`. Corrected,
+live: `routes=84 public=8 guarded=76 answering200=0 gated=76 throttled=0
+withoutHeader=401-refused`.
+
+### `json_decode` cannot tell `null` from unreadable, and a 503 is not always the limiter
+
+`live-login-check` reported `me=200/not-json` and `VERDICT=INCONCLUSIVE-throttled`
+on runs where every check had passed.
+
+- **`me` answers 200 with literally `null`** to a signed-out browser — its whole
+  job. `json_decode()` returns null for the body `null` AND for a body it could
+  not read, so the one route that exists to say "nobody is signed in" read as a
+  broken response on every run. `json_last_error()` separates them.
+- **`google_login` answers 503 `google_not_configured`** until a client id is
+  pasted in, which is this shop deliberately. Counting every 503 as the limiter
+  made the verdict INCONCLUSIVE on EVERY run — and **a verdict that is always
+  inconclusive is a verdict nobody reads**, so it would have hidden a real
+  throttled run the day one happened. Only an UNNAMED 429/503 counts now: the
+  limiter refuses without naming an application error; a feature refusing itself
+  says which feature.
+
+### Four more failures were a bundle pointed at production
+
+`first-admin`, `returns` and `invoice` were driving a `dist/` built WITHOUT
+`EXPO_PUBLIC_API_BASE`, so it carried `https://www.sporta.com.kw/api`. The rigs
+emptied the SANDBOX's tables and then drove a page that asked PRODUCTION about
+them. "The screen does not say the shop has no administrator" was perfectly
+true, and about a bundle aimed somewhere else. `first-admin` now records which
+origin the page actually asks and fails on it BEFORE reading anything off the
+screen — a rig that cannot say which server it measured has not measured one.
+
+It also **proves its own restore**: it is the only rig that empties an auth
+table, and a restore that silently does not happen fails `admin-permissions`,
+`cookie-flags` and `admin-live` with messages about sign-in that have nothing to
+do with what broke. That had already happened, and cost twenty minutes.
+
+And db-audit's *"1 order is paid with no paid_at"* was `returns-test`'s own
+leftover row: every real path — both bank callbacks and both admin routes — sets
+`paid_at` with the status. **A failing audit is a claim about the code until you
+find out whose row it is.**
+
+### The cron list was ELEVEN on 2026-09-16
+
+Three foreign jobs, none ours, none deleted: two writing to `mawsoool.com`
+(one of them a `* * * * *` deploy of a DIFFERENT project — `tools/deploy-hostinger.sh`
+off branch `claude/delivery-cars-website-llck2j`, which touches only that
+docroot and is therefore NOT the thing restoring `cats/desktop/outlet.jpg`), and
+a new `php -r scandir` of `wainkw.com/storage`. Recorded with its timestamp per
+the standing rule. **Re-list before reasoning from a list.**
