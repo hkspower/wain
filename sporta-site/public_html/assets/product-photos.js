@@ -34,6 +34,34 @@
  * ONE CARD ADDED, nothing existing touched, and it does nothing at all outside
  * the Catalogue screen — the same shape as contact.js, footer.js, theme.js and
  * brand-logos.js over a bundle whose source is not in this repository.
+ *
+ * ---------------------------------------------------------------------------
+ * THREE IMPROVEMENTS, asked for on 2026-09-17, added without touching any of
+ * the above — every class name and message the upload flow already relied on
+ * (product-photos-site-test.mjs) is untouched:
+ *
+ *   1. QUEUED FILES SHOW A THUMBNAIL, not just a filename. `URL.createObjectURL`
+ *      on the raw File, before any server round trip — it costs nothing and it
+ *      is the difference between "is this the right shot" and finding out after
+ *      the upload lands. Revoked the moment an item leaves the queue (uploaded,
+ *      removed, or cleared), or a hundred-photo shoot leaks a hundred blob URLs.
+ *
+ *   2. EXISTING PHOTOGRAPHS ARE MANAGEABLE HERE, not just counted. `counts()`
+ *      was already fetching `product_images&slug=` for every garment and
+ *      throwing the list away, keeping only `.length` — the images were already
+ *      one request away. Now each garment with at least one photograph can be
+ *      expanded into a thumbnail grid, delete an image (`product_image_delete`)
+ *      or move it earlier/later in the shoot (`product_image_reorder`), both
+ *      routes the server already carried and neither screen used before this.
+ *      Collapsed by default: forty-six garments' worth of thumbnails rendered
+ *      at once would be the wrong default for a screen whose whole point is
+ *      photographs nobody has seen yet.
+ *
+ *   3. A REAL DROP ZONE, not a paragraph of instructions. The drag/drop handling
+ *      was already global (see the bottom of this file, and its own comment on
+ *      why) — this only makes the target visible: a dashed box with an icon,
+ *      inside the card, that also opens the file picker on a click, so a mouse
+ *      user gets the same one-step path a drag already had.
  */
 (function () {
   'use strict'
@@ -44,8 +72,9 @@
   if (!U) return
 
   var state = {
-    products: [],       // {slug, name_en, photos}
-    queue: [],          // {file, name, slug|null, how, error}
+    products: [],       // {slug, name_en, photos, images}
+    queue: [],          // {file, name, slug|null, how, error, previewUrl}
+    expanded: {},        // slug -> bool, existing-photos grid open
     busy: false,
     note: '',
     loaded: false,
@@ -81,6 +110,15 @@
     return null
   }
 
+  // Every queued item that carries a blob URL must give it back — the browser
+  // does not do this on its own until the page unloads.
+  function revoke(item) {
+    if (item.previewUrl) {
+      URL.revokeObjectURL(item.previewUrl)
+      item.previewUrl = null
+    }
+  }
+
   function enqueue(files) {
     if (!files || !files.length) return
     // Filename order, so a shoot keeps the order it was shot in — the first
@@ -96,6 +134,11 @@
         name: sorted[i].name,
         slug: hit ? hit.slug : null,
         how: hit ? 'matched by name' : 'no match — choose a garment',
+        // Best-effort: an unreadable file still queues (the upload step is
+        // what actually validates it), it simply shows no picture.
+        previewUrl: (function () {
+          try { return URL.createObjectURL(sorted[i]) } catch (e) { return null }
+        })(),
       })
     }
     state.note = ''
@@ -128,11 +171,19 @@
               height: small.height,
             })
           })
-          .then(function () {
+          .then(function (res) {
             ok++
             item.done = true
             var p = byslug(item.slug)
-            if (p) p.photos++
+            if (p) {
+              p.photos = (p.photos || 0) + 1
+              if (p.images) {
+                p.images.push({
+                  id: res.id, sort: p.images.length,
+                  url: res.url, width: null, height: null,
+                })
+              }
+            }
           })
           .catch(function (e) {
             var msg = e && e.message ? e.message : String(e)
@@ -153,7 +204,10 @@
       // Keep only what failed or was never placed, so pressing Upload again
       // retries exactly those and does not add the successful ones a second
       // time — product_image_add appends, so a re-run would duplicate them.
-      state.queue = state.queue.filter(function (q) { return !q.done })
+      state.queue = state.queue.filter(function (q) {
+        if (q.done) revoke(q)
+        return !q.done
+      })
       state.note = failed.length
         ? ok + ' uploaded. ' + failed.length + ' did not: ' + failed.join(' | ')
         : ok + ' photograph(s) uploaded.'
@@ -173,7 +227,7 @@
       .then(function (rows) {
         var list = Array.isArray(rows) ? rows : (rows && rows.products) || []
         state.products = list.map(function (p) {
-          return { slug: p.slug, name_en: p.name_en, photos: null }
+          return { slug: p.slug, name_en: p.name_en, photos: null, images: null }
         })
         state.loaded = true
         render()
@@ -184,23 +238,71 @@
       })
   }
 
-  /** How many photographs each garment already holds. Asked for only when the
-   *  card is opened, and only once — it is one request per garment, so it is
-   *  not something to do on every render. */
+  /** How many photographs each garment already holds, AND the list itself —
+   *  asked for only when the card is opened, and only once. It is one request
+   *  per garment, so it is not something to do on every render.
+   *
+   *  Keeping the full list, not just its length, is what makes the "manage
+   *  existing photographs" grid free: the request was already being made and
+   *  its body thrown away down to a number. */
   function counts() {
     var i = 0
     function next() {
       if (i >= state.products.length) { render(); return }
       var p = state.products[i++]
       return U.call('product_images&slug=' + encodeURIComponent(p.slug))
-        .then(function (d) { p.photos = ((d && d.images) || []).length })
-        .catch(function () { p.photos = null })
+        .then(function (d) {
+          p.images = (d && d.images) || []
+          p.photos = p.images.length
+        })
+        .catch(function () { p.photos = null; p.images = null })
         .then(function () {
           if (i % 8 === 0) render()
           return next()
         })
     }
     return Promise.resolve().then(next)
+  }
+
+  function deletePhoto(slug, id) {
+    return U.call('product_image_delete', 'POST', { id: id })
+      .then(function () {
+        var p = byslug(slug)
+        if (p && p.images) {
+          p.images = p.images.filter(function (im) { return im.id !== id })
+          p.photos = p.images.length
+        }
+        render()
+      })
+      .catch(function (e) {
+        state.note = 'Could not remove that photograph: ' + (e.message || e)
+        render()
+      })
+  }
+
+  /** dir is -1 (earlier in the shoot) or +1 (later). Sends the WHOLE new order
+   *  for this garment — product_image_reorder takes the full list and assigns
+   *  sort by position, so a partial list would silently drop every id left
+   *  out of it. */
+  function movePhoto(slug, id, dir) {
+    var p = byslug(slug)
+    if (!p || !p.images) return
+    var idx = -1
+    for (var i = 0; i < p.images.length; i++) if (p.images[i].id === id) { idx = i; break }
+    var swap = idx + dir
+    if (idx < 0 || swap < 0 || swap >= p.images.length) return
+    var arr = p.images.slice()
+    var t = arr[idx]; arr[idx] = arr[swap]; arr[swap] = t
+    var ids = arr.map(function (im) { return im.id })
+    return U.call('product_image_reorder', 'POST', { slug: slug, ids: ids })
+      .then(function () {
+        p.images = arr
+        render()
+      })
+      .catch(function (e) {
+        state.note = 'Could not reorder: ' + (e.message || e)
+        render()
+      })
   }
 
   function render() {
@@ -219,14 +321,6 @@
         : withPhotos + ' of ' + state.products.length + ' garments have a photograph'))
     card.appendChild(h)
 
-    card.appendChild(el('p', 'spp-dim',
-      'Drag a folder of photographs here, or choose them. A file named after a '
-      + 'garment goes to that garment — nike-tee-1.jpg, nike-tee-2.jpg and '
-      + 'nike-tee-3.jpg all land on nike-tee, in that order. Anything that '
-      + 'matches nothing waits for you to pick a garment for it. '
-      + 'Photographs are ADDED, never replaced, so uploading the same folder '
-      + 'twice gives every garment two copies.'))
-
     var actions = el('div', 'spp-actions')
     var input = document.createElement('input')
     input.type = 'file'
@@ -237,6 +331,22 @@
       enqueue(input.files)
       input.value = ''
     }
+
+    // THE DROP ZONE ITSELF, not a paragraph explaining that one exists. The
+    // actual drag handling lives on `document` at the bottom of this file —
+    // this element is only ever the visible target and a second way to open
+    // the same file picker as the "Choose photographs" chip.
+    var drop = el('div', 'spp-drop')
+    drop.appendChild(el('div', 'spp-drop-icon', '📷'))
+    drop.appendChild(el('div', 'spp-drop-text', 'Drag a folder of photographs here, or click to choose'))
+    drop.appendChild(el('div', 'spp-drop-sub',
+      'A file named after a garment goes to that garment — nike-tee-1.jpg, '
+      + 'nike-tee-2.jpg and nike-tee-3.jpg all land on nike-tee, in that order. '
+      + 'Anything that matches nothing waits for you to pick a garment for it. '
+      + 'Photographs are ADDED, never replaced.'))
+    drop.onclick = function () { input.click() }
+    card.appendChild(drop)
+
     var choose = el('button', 'spp-chip', 'Choose photographs')
     choose.type = 'button'
     choose.onclick = function () { input.click() }
@@ -250,7 +360,12 @@
     var clear = el('button', 'spp-chip', 'Clear the list')
     clear.type = 'button'
     clear.disabled = state.busy || !state.queue.length
-    clear.onclick = function () { state.queue = []; state.note = ''; render() }
+    clear.onclick = function () {
+      state.queue.forEach(revoke)
+      state.queue = []
+      state.note = ''
+      render()
+    }
 
     actions.appendChild(choose)
     actions.appendChild(go)
@@ -269,6 +384,17 @@
       var list = el('div', 'spp-list')
       state.queue.forEach(function (item, idx) {
         var row = el('div', 'spp-row' + (item.error ? ' is-bad' : ''))
+
+        if (item.previewUrl) {
+          var thumb = document.createElement('img')
+          thumb.className = 'spp-thumb'
+          thumb.src = item.previewUrl
+          thumb.alt = ''
+          row.appendChild(thumb)
+        } else {
+          row.appendChild(el('span', 'spp-thumb spp-thumb-none', '—'))
+        }
+
         row.appendChild(el('span', 'spp-name', item.name))
 
         var sel = document.createElement('select')
@@ -297,6 +423,7 @@
         x.type = 'button'
         x.title = 'Take ' + item.name + ' off the list'
         x.onclick = function () {
+          revoke(state.queue[idx])
           state.queue.splice(idx, 1)
           render()
         }
@@ -307,6 +434,68 @@
     }
 
     if (state.note) card.appendChild(el('p', 'spp-note', state.note))
+
+    // ------------------------------------------------------ manage existing
+    var withImages = state.products.filter(function (p) { return p.images && p.images.length })
+    if (withImages.length) {
+      var manage = el('div', 'spm')
+      manage.appendChild(el('strong', 'spm-title', 'Existing photographs'))
+      manage.appendChild(el('p', 'spp-dim',
+        'Remove a photograph, or move it earlier or later in the shoot — the '
+        + 'first one is what shows on the shop’s product cards.'))
+
+      withImages.forEach(function (p) {
+        var open = !!state.expanded[p.slug]
+        var row = el('div', 'spm-row')
+        var toggle = el('button', 'spm-toggle', (open ? '▾ ' : '▸ ') + p.name_en + '  (' + p.images.length + ')')
+        toggle.type = 'button'
+        toggle.onclick = function () {
+          state.expanded[p.slug] = !open
+          render()
+        }
+        row.appendChild(toggle)
+        manage.appendChild(row)
+
+        if (open) {
+          var grid = el('div', 'spm-grid')
+          p.images.forEach(function (im, i) {
+            var cell = el('div', 'spm-thumb-wrap')
+            var img = document.createElement('img')
+            img.src = im.url
+            img.alt = ''
+            cell.appendChild(img)
+
+            var actionsRow = el('div', 'spm-thumb-actions')
+            var up = el('button', 'spm-thumb-btn', '↑')
+            up.type = 'button'
+            up.title = 'Move earlier'
+            up.disabled = i === 0
+            up.onclick = function () { movePhoto(p.slug, im.id, -1) }
+            var down = el('button', 'spm-thumb-btn', '↓')
+            down.type = 'button'
+            down.title = 'Move later'
+            down.disabled = i === p.images.length - 1
+            down.onclick = function () { movePhoto(p.slug, im.id, 1) }
+            var del = el('button', 'spm-thumb-btn spm-thumb-del', '✕')
+            del.type = 'button'
+            del.title = 'Remove this photograph'
+            del.onclick = function () {
+              if (window.confirm('Remove this photograph from ' + p.name_en + '?')) {
+                deletePhoto(p.slug, im.id)
+              }
+            }
+            actionsRow.appendChild(up)
+            actionsRow.appendChild(down)
+            actionsRow.appendChild(del)
+            cell.appendChild(actionsRow)
+            grid.appendChild(cell)
+          })
+          manage.appendChild(grid)
+        }
+      })
+
+      card.appendChild(manage)
+    }
   }
 
   var CSS =
@@ -314,6 +503,14 @@
     + 'background:rgba(255,255,255,.03)}'
     + '.spp-head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px}'
     + '.spp-dim{opacity:.7;font-size:13px}'
+    + '.spp-drop{border:2px dashed rgba(255,255,255,.25);border-radius:12px;padding:22px 16px;'
+    + 'text-align:center;cursor:pointer;margin:10px 0;transition:border-color .15s,background .15s}'
+    + '.spp-drop:hover{border-color:rgba(255,255,255,.45)}'
+    + '.spp.is-over .spp-drop{border-color:var(--brand,#e0561c);background:rgba(224,86,28,.1)}'
+    + '.spp-drop-icon{font-size:28px;line-height:1;margin-bottom:6px}'
+    + '.spp-drop-text{font-size:14px}'
+    + '.spp-drop-sub{font-size:12px;opacity:.65;margin-top:6px;max-width:520px;'
+    + 'margin-left:auto;margin-right:auto}'
     + '.spp-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}'
     + '.spp-chip{min-height:36px;padding:0 12px;border-radius:999px;cursor:pointer;'
     + 'border:1px solid rgba(255,255,255,.2);background:transparent;color:inherit;font:inherit}'
@@ -324,6 +521,9 @@
     + '.spp-list{display:flex;flex-direction:column;gap:4px;max-height:340px;overflow:auto;margin-top:8px}'
     + '.spp-row{display:flex;gap:8px;align-items:center;min-height:40px;flex-wrap:wrap}'
     + '.spp-row.is-bad{outline:1px solid #ff8a80;outline-offset:2px;border-radius:8px}'
+    + '.spp-thumb{width:32px;height:32px;border-radius:6px;object-fit:cover;flex:none;'
+    + 'background:rgba(255,255,255,.08)}'
+    + '.spp-thumb-none{display:flex;align-items:center;justify-content:center;opacity:.4;font-size:11px}'
     + '.spp-name{min-width:150px;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
     + '.spp-sel{min-height:34px;border-radius:8px;background:transparent;color:inherit;font:inherit;'
     + 'border:1px solid rgba(255,255,255,.2);padding:0 6px;max-width:280px}'
@@ -334,6 +534,20 @@
     + '.spp-note{font-size:13px;margin:8px 0 0;white-space:pre-wrap}'
     + '.spp-file{display:none}'
     + '.spp.is-over{outline:2px dashed var(--brand,#e0561c);outline-offset:4px}'
+    + '.spm{border-top:1px solid rgba(255,255,255,.12);margin-top:14px;padding-top:12px}'
+    + '.spm-title{display:block;margin-bottom:2px}'
+    + '.spm-row{margin:4px 0}'
+    + '.spm-toggle{border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;'
+    + 'min-height:32px;padding:0;text-align:start}'
+    + '.spm-grid{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 12px}'
+    + '.spm-thumb-wrap{width:88px;display:flex;flex-direction:column;gap:4px}'
+    + '.spm-thumb-wrap img{width:88px;height:88px;object-fit:cover;border-radius:8px;'
+    + 'border:1px solid rgba(255,255,255,.14)}'
+    + '.spm-thumb-actions{display:flex;gap:4px;justify-content:center}'
+    + '.spm-thumb-btn{min-width:26px;min-height:26px;border-radius:6px;border:1px solid rgba(255,255,255,.2);'
+    + 'background:transparent;color:inherit;cursor:pointer;font:inherit;font-size:12px}'
+    + '.spm-thumb-btn[disabled]{opacity:.3;cursor:default}'
+    + '.spm-thumb-del{border-color:rgba(255,138,128,.5);color:#ff8a80}'
 
   function style() {
     if (document.getElementById('spp-css')) return
@@ -361,6 +575,7 @@
     if (!head) {
       if (card && card.parentNode) {
         placing = true
+        state.queue.forEach(revoke)
         card.parentNode.removeChild(card)
         card = null
         placing = false
@@ -377,6 +592,7 @@
     placing = false
 
     state.queue = []
+    state.expanded = {}
     state.note = ''
     render()
     load().then(counts)
