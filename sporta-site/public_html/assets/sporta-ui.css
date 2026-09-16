@@ -1751,11 +1751,14 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
   font-weight: 700;
 }
 
-/* -------------------------------- category tiles: solid, square, full width
- * Asked for on 2026-09-16, all four — men, women, accessories, outlet. Was: a
- * 2-column desktop grid (already 1 column on phones) of PHOTOGRAPHIC tiles at
- * a fixed height (60/72/80 tall for men+women, 44/48/56 for accessories+
- * outlet), rounded corners, a scrim for readability over the art, white copy.
+/* --------------------------- category tiles: solid, low, full width, square
+ * corners. Asked for on 2026-09-16 and revised the same day, all four — men,
+ * women, accessories, outlet. Was: a 2-column desktop grid (already 1 column
+ * on phones) of PHOTOGRAPHIC tiles at a fixed height (60/72/80 tall for
+ * men+women, 44/48/56 for accessories+outlet), rounded corners, a scrim for
+ * readability over the art, white copy. An intermediate version made these
+ * SQUARE and capped at 480px — superseded by this one, which asks for a
+ * shorter banner strip at the container's true full width instead.
  *
  * WHY OVERLAY CSS. index-5HbquisI.js has no source in this repository — the
  * same constraint as every other storefront patch here. Nothing in the
@@ -1767,10 +1770,20 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
  * containing .cat-tile children — rather than by a utility-class list that
  * would also match some other grid on the page.
  *
- * SQUARE, not the fixed heights the h-* classes set. aspect-ratio wins once
- * height is forced back to auto; a fixed number here would have to be kept in
- * step with whatever width one column gives four tiles, which changes with
- * the viewport, and aspect-ratio needs no such number.
+ * 2.5:1, not square and not the fixed heights the h-* classes set.
+ * aspect-ratio wins once height is forced back to auto; a fixed number here
+ * would have to be kept in step with whatever width one column gives four
+ * tiles, which changes with the viewport, and aspect-ratio needs no such
+ * number. NO WIDTH CAP THIS TIME — the earlier version capped a SQUARE tile
+ * at 480px because a full-width square in this shop's 1280px container
+ * measures 1230x1230, a single tile taller than the screen. At 2.5:1 the same
+ * container gives ~492px of height, which is a banner, not a wall, so the
+ * cap that fought the grid's own stretch behaviour (see the git history for
+ * the margin-inline:auto / justify-self:center collapse this once caused) is
+ * simply not needed: `width: auto` and the grid's default stretch do the
+ * whole job.
+ *
+ * SQUARE CORNERS, not rounded-3xl. Asked for by name this time.
  *
  * SOLID. The colours are NOT new: they are the same three tones this file
  * already computes as a glow behind the photograph, two sections up
@@ -1792,32 +1805,10 @@ div.grid:has(> .cat-tile) {
   grid-template-columns: 1fr !important;
 }
 .cat-tile {
-  aspect-ratio: 1 / 1 !important;
+  aspect-ratio: 2.5 / 1 !important;
   height: auto !important;
   color: #171a1e !important;
-  /* CAPPED, not left to grow with the column. A literal "full width" square
-     in the site's 1280px container measures 1230x1230 — a single tile taller
-     than the screen, four of them a scroll of nothing else. That is FULL
-     WIDTH matching COLUMN COUNT (one, not two), the property the request was
-     actually about; it is not a licence for the tile to grow without bound.
-     480px keeps the phone size (which was already under this) untouched and
-     gives desktop a bold square in the size range of a large product photo
-     rather than a banner. Centred, since a capped tile no longer reaches the
-     grid's own edges. */
-  /* An EXPLICIT width, not max-width. `max-width` leaves width itself at
-     `auto`, and an auto width on a grid item is resolved by STRETCH (fill the
-     column) only when justify-self is also stretch — any other value, or an
-     auto margin on the inline axis, makes the browser fall back to
-     shrink-to-fit instead. Measured: max-width plus justify-self:center
-     collapsed every tile to 48-67px, its text's own shrink-to-fit width — the
-     browser sizing the box to its content rather than the column, on the way
-     to trying to centre it. A definite width sidesteps the whole question —
-     there is no "auto" left to resolve — and centres correctly: the first
-     working version (stretch, capped by max-width) sat the box against the
-     grid's own inline-start edge, which in this RTL-first shop is the RIGHT,
-     leaving the whole left half of a 1280px screen empty beside it. */
-  width: min(100%, 480px);
-  justify-self: center;
+  border-radius: 0 !important;
 }
 .cat-tile picture,
 .cat-tile .cat-scrim {

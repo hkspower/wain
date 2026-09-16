@@ -1,5 +1,13 @@
 /**
- * The category tiles: solid, square, full width, all four — 2026-09-16.
+ * The category tiles: solid, low, full width, square CORNERS — 2026-09-16.
+ *
+ * Revised the same day it shipped: the first version made these SQUARE
+ * (aspect-ratio 1) and capped at 480px, because a full-width square in this
+ * shop's container is 1230x1230 — a wall, not a banner. The owner then asked
+ * for less height and true full width instead, which is a shorter box (2.5:1)
+ * with no cap at all — at 2.5:1 the same container is ~492px tall, so the cap
+ * that fought the grid's stretch behaviour is no longer needed. "Square" now
+ * describes the CORNERS (radius: 0), not the box.
  *
  *   bash scripts/sandbox.sh
  *   node scripts/tile-art-test.mjs
@@ -40,12 +48,14 @@
  *      alone, because a selector can exist and still lose to something more
  *      specific — this repository's css-audit.mjs exists for exactly that
  *      failure mode.
- *   3. Every tile is square (width equals height, aspect-ratio: 1), at a
- *      phone width and a desktop width — the shape does not depend on the
- *      viewport, since it is aspect-ratio driven rather than a fixed number.
- *   4. Every tile sits in ONE column — same horizontal position as the tile
- *      above and below it — at both widths. "Full width" was already true on
- *      phones; the grid's own 2-up desktop rule is what changed.
+ *   3. Every tile is 2.5:1 (width to height), at a phone width and a desktop
+ *      width — the shape does not depend on the viewport, since it is
+ *      aspect-ratio driven rather than a fixed number. And every corner is
+ *      square: border-radius: 0, not the rounded-3xl the tile ships with.
+ *   4. Every tile sits in ONE column, at the FULL width of that column — no
+ *      cap this time — at both widths. "Full width" was already true on
+ *      phones; the grid's own 2-up desktop rule is what changed, and the
+ *      480px cap the square version needed is gone along with the square.
  *   5. The title text is legible: ink-coloured, not the near-white that was
  *      safe on near-black artwork and is not safe on a bright solid tone —
  *      site-contrast.mjs walks the whole site and would eventually say so
@@ -97,13 +107,17 @@ async function measure({ w, h, lang, label }) {
     return {
       cls: [...t.classList].find((c) => /^tile-/.test(c))?.replace('tile-', ''),
       bg: cs.backgroundColor,
-      w: r.width, h: r.height, left: Math.round(r.left),
+      w: r.width, h: r.height, left: Math.round(r.left), radius: cs.borderRadius,
       titleColor: title ? getComputedStyle(title).color : null,
       pictureHidden: pic ? getComputedStyle(pic).display === 'none' : null,
     }
   }))
+  const container = await page.evaluate(() => {
+    const g = document.querySelector('.cat-tile')?.parentElement
+    return g ? g.getBoundingClientRect().width : null
+  })
   await page.close()
-  return { tiles, catsHits, label }
+  return { tiles, catsHits, label, container }
 }
 
 console.log(`--- the category tiles, at ${BASE}\n`)
@@ -113,7 +127,7 @@ for (const v of [
   { w: 390, h: 900, lang: 'en', label: 'phone, English' },
   { w: 1280, h: 1200, lang: 'ar', label: 'desktop, Arabic' },
 ]) {
-  const { tiles, catsHits, label } = await measure(v)
+  const { tiles, catsHits, label, container } = await measure(v)
 
   // Found something before concluding anything: an empty page passes every
   // check under it.
@@ -129,7 +143,16 @@ for (const v of [
   for (const t of tiles) {
     check(t.bg === EXPECT[t.cls], `${label}: ${t.cls} is the flat ${EXPECT[t.cls]} it should be`,
       t.bg !== EXPECT[t.cls] ? `got ${t.bg}` : '')
-    check(Math.abs(t.w - t.h) <= 1, `${label}: ${t.cls} is square`, `${Math.round(t.w)}x${Math.round(t.h)}`)
+    // 2.5:1, not square. A 1% tolerance on the ratio rather than an exact
+    // pixel comparison, because sub-pixel layout rounding is real and not a
+    // regression.
+    const ratio = t.w / t.h
+    check(Math.abs(ratio - 2.5) < 0.03, `${label}: ${t.cls} is 2.5:1`,
+      `${Math.round(t.w)}x${Math.round(t.h)} = ${ratio.toFixed(2)}:1`)
+    check(container !== null && Math.abs(t.w - container) <= 1,
+      `${label}: ${t.cls} is the FULL width of its column, no cap`,
+      `tile=${Math.round(t.w)} column=${container === null ? '?' : Math.round(container)}`)
+    check(t.radius === '0px', `${label}: ${t.cls} has square corners`, t.radius)
     check(t.titleColor === INK, `${label}: ${t.cls}'s title is ink, not white`, t.titleColor)
   }
 
@@ -138,5 +161,5 @@ for (const v of [
 }
 
 await browser.close()
-console.log(fails ? `\n${fails} failed` : '\nall ok — solid, square, one column, on every tile')
+console.log(fails ? `\n${fails} failed` : '\nall ok — solid, 2.5:1, full width, square corners, on every tile')
 process.exit(fails ? 1 : 0)
