@@ -1,11 +1,24 @@
 <?php
 /**
- * Set a new password for hkspower@live.com, from a credential file this
- * script itself deletes the moment it has read it — same pattern mk.php used
- * to create the account, for the same reason: the password must never touch
- * this repository, which is public.
+ * Set a new password for hkspower@live.com, from a base64 CLI argument —
+ * never a file, and never a literal in this script, which is public.
  *
- *   wget -qO r.php https://raw.githubusercontent.com/hkspower/wain/<sha>/scripts/publish/reset-admin-password.php && php r.php
+ *   php r.php <base64 of "email|newpassword">
+ *
+ * WHY AN ARGUMENT, NOT THE CREDENTIAL-FILE PATTERN mk.php AND unlock-admin.php
+ * USED. That pattern is two separate cron jobs — one writes the file, one
+ * reads it — and it raced here exactly the way this project's own notes
+ * already warned it could for chk.php: two independently-scheduled per-minute
+ * jobs, no guarantee the read fires after a write and before whatever
+ * deletes or overwrites it. Passing the credential as `argv[1]` collapses
+ * the whole operation into ONE shell command, one process, no file and
+ * nothing to race — the fetch, the decode and the database write all happen
+ * inside a single cron tick.
+ *
+ * `argv[1]` is base64 rather than plain text only because the password
+ * contains `&` and `#`, which CLAUDE.md's cron section already documents as
+ * unsafe unquoted — base64 is letters/digits/+/=, which survives that
+ * transport untouched.
  *
  * WHY THIS INSTEAD OF api/reset-admin.php. That route is one CLAUDE.md and
  * live-file-check.php both record as a file that must NEVER be on the live
@@ -13,12 +26,6 @@
  * at all, and this repository does not even carry it. This script needs no
  * counterpart on the server: it reuses store_db() directly, exactly the way
  * unlock-admin.php already did for the account's lockout.
- *
- * THE CREDENTIAL FILE holds `email|newpassword`, base64, written by a
- * SEPARATE short cron command to /home/u130124229/.a — the ~64-character
- * ceiling CLAUDE.md's cron section documents. Read once, deleted before
- * anything else runs, so a failed or interrupted run cannot leave a
- * plaintext password sitting in the home directory any longer than it has to.
  *
  * ALSO CLEARS THE LOCKOUT on the same row, in the same statement — a locked
  * account with a freshly reset password would still answer 429 on the very
@@ -32,22 +39,19 @@
 
 require_once '/home/u130124229/domains/sporta.com.kw/public_html/api/store.php';
 
-$CRED = '/home/u130124229/.a';
+$EMAIL = 'hkspower@live.com';
 
-$raw = @file_get_contents($CRED);
-@unlink($CRED);
+$b64 = $argv[1] ?? '';
+$raw = $b64 === '' ? '' : base64_decode($b64, true);
 
-if ($raw === false || trim($raw) === '') {
-    echo "RESETPW no_credfile\n";
+if ($raw === false || $raw === '') {
+    echo "RESETPW no_argument\n";
     exit;
 }
 
-$parts = explode('|', trim($raw), 2);
-$email = $parts[0] ?? '';
-$pass  = $parts[1] ?? '';
-
-if ($email === '' || $pass === '') {
-    echo "RESETPW bad_credfile\n";
+$pass = trim($raw);
+if ($pass === '') {
+    echo "RESETPW empty_password\n";
     exit;
 }
 
@@ -64,11 +68,11 @@ $hash = password_hash($pass, PASSWORD_DEFAULT);
 $stmt = $db->prepare(
     'update admin_users set password_hash = ?, failed_attempts = 0, locked_until = null where email = ?'
 );
-$stmt->execute([$hash, $email]);
+$stmt->execute([$hash, $EMAIL]);
 $rows = $stmt->rowCount();
 
 $check = $db->prepare('select email, failed_attempts, locked_until from admin_users where email = ?');
-$check->execute([$email]);
+$check->execute([$EMAIL]);
 $row = $check->fetch();
 
 echo 'RESETPW rows=' . $rows
