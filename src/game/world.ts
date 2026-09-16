@@ -1934,6 +1934,18 @@ function glazedMat(skin: Skin, color: number, roughness: number): THREE.MeshStan
     // is the base tone; this is the part that moves with the camera.
     roughness: 1,
     roughnessMap: skin.rough,
+    // roadMat is the one surface in this scene whose IBL response was
+    // ever actually measured — 1.15 dry, up to 2.5 wet — and every
+    // building material sat at three.js's unmeasured default of 1
+    // while doing it. tools/shots/darkbuildings.mjs confirmed the gap
+    // directly: at midnight, before any dawn fade, a facade turned away
+    // from both moonLight and fillLight read 0.253 median luma against
+    // 0.451 for one that faces them — a facing-dependent hole, not the
+    // intended night-to-dawn fade. Matching roadMat's dry floor with a
+    // little headroom closes it without pushing the lit side, the road,
+    // or anything else past its own tuned envelope — envMapIntensity is
+    // a per-material multiplier on one static baked probe.
+    envMapIntensity: 1.5,
   });
 }
 
@@ -4925,10 +4937,15 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       const concrete = new THREE.MeshStandardMaterial({
         color: 0x8d9199,
         roughness: 0.92,
+        // See the note on glazedMat's envMapIntensity: darkbuildings.mjs
+        // confirmed a facing-dependent gap at midnight, and this and
+        // plantMat are the massing's own unmeasured-default surfaces.
+        envMapIntensity: 1.5,
       });
       const plantMat = new THREE.MeshStandardMaterial({
         color: 0x70747c,
         roughness: 0.95,
+        envMapIntensity: 1.5,
       });
       const mastMat = new THREE.MeshStandardMaterial({
         color: 0x4a4f57,
@@ -5086,6 +5103,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       const octConcrete = new THREE.MeshStandardMaterial({
         color: 0x8d9199,
         roughness: 0.92,
+        envMapIntensity: 1.5,
       });
       litFacades.push(octConcrete);
       const octCaps = new THREE.InstancedMesh(
