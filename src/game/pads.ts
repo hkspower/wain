@@ -34,7 +34,7 @@ export function padBrand(id: string | null | undefined): PadBrand {
 }
 
 export interface PadAction {
-  id: "steer" | "throttle" | "brake" | "nos" | "drift" | "flash" | "horn" | "pause";
+  id: "steer" | "throttle" | "brake" | "nos" | "drift" | "flash" | "horn" | "paint" | "pause";
   /** What it does, in the player's words. */
   does: string;
   kind: "axis" | "button";
@@ -53,6 +53,7 @@ export const PAD_ACTIONS: readonly PadAction[] = [
   { id: "drift",    does: "Drift / handbrake", kind: "button", index: 1, label: { playstation: "○",   xbox: "B",    generic: "Button 2" } },
   { id: "flash",    does: "Flash to challenge", kind: "button", index: 2, label: { playstation: "□",   xbox: "X",    generic: "Button 3" } },
   { id: "horn",     does: "Horn",              kind: "button", index: 4, label: { playstation: "L1",  xbox: "LB",   generic: "Left bumper" } },
+  { id: "paint",    does: "Paint shop",        kind: "button", index: 3, label: { playstation: "△",   xbox: "Y",    generic: "Button 4" } },
   { id: "pause",    does: "Pause / skip",      kind: "button", index: 9, label: { playstation: "Options", xbox: "Menu", generic: "Start" } },
 ] as const;
 

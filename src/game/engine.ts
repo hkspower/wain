@@ -9,7 +9,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
-import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, COAST_FADE_M, STATIONS, FORECOURT, LAP, TUNNEL_BOX, LAP_LENGTH } from "./track";
+import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, COAST_FADE_M, STATIONS, FORECOURT, PAINT_SHOPS, PAINT_BAY, LAP, TUNNEL_BOX, LAP_LENGTH } from "./track";
 import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
 import type { Wake } from "./plants";
 import { createCar, crownShell, CROWN, paintMetalness, TAIL, setMaxDecalPx, STYLE_REAL } from "./cars";
@@ -341,6 +341,9 @@ export interface HudData {
   fuel: { litres: number; capacity: number; dry: boolean };
   /** Set while the car is on a forecourt slow enough to fill up. */
   pump: { litres: number; capacity: number; costKd: number; filling: boolean } | null;
+  /** Set while the car is in the painter's bay; `ready` once it has
+   *  stopped there and nothing else has the wheel. */
+  painter: { ready: boolean } | null;
   /** Live drift readout — non-null while sliding (and briefly after).
    *  `chain` is the link multiplier; `spinning` means it got away. */
   drift: {
@@ -498,6 +501,9 @@ export interface EngineEvents {
    *  with a vibration, and a pad asked to rumble sixty times a second
    *  simply stops rumbling. */
   onLimiterHit?(): void;
+  /** The pad's paint button, pressed in the painter's bay with the car
+   *  stopped: the UI opens the picker. */
+  onPaintRequest?(): void;
   /** Fired the moment a battle begins — drives the VS splash. */
   onBattleStart?(rival: RivalDef): void;
   /** Three flashes landed: both cars revealed, race setup opens. */
@@ -1348,6 +1354,9 @@ export class GameEngine {
    *  Billed in whole fils as it flows rather than in one lump, so
    *  driving off mid-fill costs exactly what went in. */
   private pumpOwed = 0;
+  /** The painter's bay the car is standing in, if any. Null anywhere
+   *  else — and `ready` only once it has stopped there. */
+  private painterState: HudData["painter"] = null;
   private nosCharge = 1; // 0..1, drains while N is held
   private nosActive = false;
   // Handling model: heading relative to the track tangent, smoothed
@@ -3207,6 +3216,7 @@ export class GameEngine {
       this.pad.nos = gp.buttons[PAD.nos]?.pressed ?? false;
       this.pad.drift = gp.buttons[PAD.drift]?.pressed ?? false;
       if (edge(PAD.flash)) this.tryFlash();
+      if (edge(PAD.paint) && this.painterState?.ready) this.events.onPaintRequest?.();
       const hornNow = gp.buttons[PAD.horn]?.pressed ?? false;
       if (hornNow && !this.padButtons[PAD.horn]) this.sound?.hornOn();
       if (!hornNow && this.padButtons[PAD.horn]) this.sound?.hornOff();
@@ -3752,6 +3762,31 @@ export class GameEngine {
     // Bank the bill once a whole fils has accumulated, so a long fill
     // does not write to storage sixty times a second.
     if (this.pumpOwed >= 0.05) this.chargeForFuel();
+  }
+
+  /**
+   * The painter's bay.
+   *
+   * Unlike the pump, arriving is not the input. Filling is passive and
+   * can just happen; a colour picker takes the wheel, and a menu that
+   * opens because you slowed down near a building is a menu that opens
+   * by accident. So this only says whether the car is in the bay and
+   * whether it has stopped there — the prompt and the key are the UI's,
+   * and nothing else may have the wheel when it is offered.
+   */
+  private updatePainter(): void {
+    const p = this.player;
+    const shop = PAINT_SHOPS.find(
+      (sh) => Math.abs(this.track.deltaAhead(sh.s, p.s)) < PAINT_BAY.bayHalf
+    );
+    // Under the roof: past the through lanes, which end at lat 7.
+    const inBay = !!shop && p.lat > ROAD_HALF_WIDTH + 1.5;
+    if (!inBay) {
+      this.painterState = null;
+      return;
+    }
+    const stopped = p.speed * KMH < PUMP_MAX_KMH;
+    this.painterState = { ready: stopped && !this.inBattle && !this.cine && !this.locked };
   }
 
   private chargeForFuel(): void {
@@ -4514,6 +4549,7 @@ export class GameEngine {
       this.boost += (target - this.boost) * Math.min(1, dt * spoolRate);
     }
     this.updatePump(dt);
+    this.updatePainter();
 
     // NOS: hold N for a shove; the bottle refills slowly
     this.nosActive =
@@ -7011,6 +7047,7 @@ export class GameEngine {
     // Where the pumps are, so the fuel test can drive to one rather than
     // be told where it is.
     (window as unknown as { __grnStations: typeof STATIONS }).__grnStations = STATIONS;
+    (window as unknown as { __grnPaintShops: typeof PAINT_SHOPS }).__grnPaintShops = PAINT_SHOPS;
     // The garage's own reader and writer, so a test can set up a save the
     // way the game does — including every migration — instead of writing
     // localStorage by hand and then testing its own JSON.
@@ -7330,6 +7367,7 @@ export class GameEngine {
         dry: this.outOfFuel,
       },
       pump: this.pumpState,
+      painter: this.painterState,
       drift:
         this.driftFlash > 0 || Math.abs(this.driftYaw) > 0.06
           ? {
