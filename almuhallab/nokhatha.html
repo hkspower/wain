@@ -60,7 +60,7 @@
   ]
 }
   </script>
-  <title>النوخذة | نظام موحّد من المهلب كود</title>
+  <title>النوخذة | نظام موحد من المهلب كود</title>
   <meta name="description" content="النوخذة — نظام موحد يجمع صافي (SAFI) وتقارير XBRL ونظام التوصيل في مكان واحد، مجاناً بالكامل لعملاء المهلب." />
   <style>
     /* Cairo (SIL OFL) — bundled, never fetched from a CDN: the strict CSP
@@ -304,7 +304,7 @@
   <header>
     <div class="brand">
       <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:20px;height:20px"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 10.7h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke-width=".8" d="M5.5 12.3 4.3 15.4l2.8-.5z"/><path fill="currentColor" stroke-width=".8" d="M18.5 12.3l1.2 3.1-2.8-.5z"/></svg></span>
-      <div>النوخذة <small>نظام موحّد من المهلب كود — Almuhallab Code</small></div>
+      <div>النوخذة <small>نظام موحد من المهلب كود — Almuhallab Code</small></div>
     </div>
     <nav id="nav">
       <a href="index.html">← المهلب كود</a>
@@ -340,7 +340,7 @@
       </div>
 
       <h2 class="section">الخدمات المتصلة — Service Fleet</h2>
-      <p class="sub">كل خدمة تظهر كوحدة واحدة داخل النظام. الباقة تحدد ما يُفتح لك.</p>
+      <p class="sub">كل خدمة تظهر كوحدة واحدة داخل النظام، وكلها مفتوحة لكل حساب.</p>
       <div class="grid" id="mcp-grid-home"></div>
     </section>
 
@@ -375,7 +375,7 @@
         <label>كلمة المرور <input name="password" type="password" required maxlength="128" autocomplete="current-password" /></label>
         <p class="error" id="login-error"></p>
         <button class="btn primary" type="submit">دخول</button>
-        <p class="form-note">ما عندك حساب؟ <a href="#/register">سجّل الآن</a></p>
+        <p class="form-note">ليس لديك حساب؟ <a href="#/register">سجّل الآن</a></p>
       </form>
     </section>
 
@@ -440,6 +440,32 @@
       ];
 
       /* ---------- storage ---------- */
+
+  /* ═══════════ العدد والمعدود ═══════════
+     Arabic does not take a bare singular after a count, and every counted
+     string on these screens did: "3 سهم", "5 دقيقة", "تطبيق على 3 حساب؟".
+     That is wrong for every value except one and a hundred, which is to say
+     for almost every value a user ever sees.
+
+     The rule, by the last two digits: 1 takes the noun alone · 2 takes the
+     dual · 3 to 10 take the plural · 11 upward takes the singular again
+     (accusative, and 100 upward genitive — but neither is written without
+     diacritics, so one form serves both).
+
+     The caller passes the three forms because Arabic plurals are irregular
+     and no function can derive أسهم from سهم. Pass the DUAL in the case the
+     sentence needs: "طلبين" after a preposition, "طلبان" standing alone. */
+  function ar(n, one, two, few, bare) {
+    /* `one` is the plain singular, and it is used TWICE: alone for 1, and
+       after a digit for 0 and 11 upward. So it must never itself contain
+       "واحد" — "0 طلب واحد" was the first version's output. Where the bare
+       singular reads better as "طلب واحد", pass that as `bare`. */
+    var a = Math.abs(n) % 100;
+    if (n === 1) return bare || one;
+    if (n === 2) return two;
+    if (a >= 3 && a <= 10) return n + " " + few;
+    return n + " " + one;                 /* 0, and 11 upward */
+  }
       function readUsers() { try { return JSON.parse(localStorage.getItem(USERS_KEY)) || {}; } catch (e) { return {}; } }
       function writeUsers(u) { try { localStorage.setItem(USERS_KEY, JSON.stringify(u)); } catch (e) {} }
       var SESSION_TTL = 24 * 60 * 60 * 1000; // sessions expire after 24h
@@ -664,7 +690,7 @@
         var email = f.email.value.trim().toLowerCase();
         var password = f.password.value;
         var lockedFor = lockCheck(email);
-        if (lockedFor) { err.textContent = "تم إيقاف المحاولات مؤقتاً — حاول بعد " + lockedFor + " دقيقة."; return; }
+        if (lockedFor) { err.textContent = "تم إيقاف المحاولات مؤقتاً — حاول بعد " + ar(lockedFor, "دقيقة", "دقيقتين", "دقائق", "دقيقة واحدة") + "."; return; }
         var users = readUsers();
         var user = users[email];
         function fail() {

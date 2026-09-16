@@ -60,7 +60,7 @@
 }
   </script>
   <title>النظام الموحد — النوخذة</title>
-  <meta name="description" content="النظام الموحد في النوخذة: صافي للمحافظ، الميزانية السنوية و XBRL، والتوصيل — فوق نواة بيانات واحدة، ويعمل بلا إنترنت." />
+  <meta name="description" content="النظام الموحد في النوخذة: صافي للمحافظ، الميزانية السنوية وXBRL، والتوصيل — فوق نواة بيانات واحدة، ويعمل بلا إنترنت." />
   <style>
     /* Cairo (SIL OFL) — bundled, never fetched from a CDN: the strict CSP
        forbids external origins, and a self-hosted face renders identically on
@@ -467,7 +467,7 @@
           <label>ممتلكات ومعدات (صافي) <input name="ppe" type="number" min="0" step="0.001" value="0" /></label>
           <label>استثمارات مالية <input name="investments" type="number" min="0" step="0.001" value="0" /></label>
           <label>أصول غير متداولة أخرى <input name="otherNCA" type="number" min="0" step="0.001" value="0" /></label>
-          <label class="total">إجمالي غير المتداولة <input name="nonCurrentAssets" type="text" readonly /></label>
+          <label class="total">إجمالي الأصول غير المتداولة <input name="nonCurrentAssets" type="text" readonly /></label>
           <label class="total grand">إجمالي الأصول <input name="totalAssets" type="text" readonly /></label>
         </fieldset>
 
@@ -476,11 +476,11 @@
           <label>دائنون وذمم دائنة <input name="payables" type="number" min="0" step="0.001" value="0" /></label>
           <label>قروض قصيرة الأجل <input name="stBorrow" type="number" min="0" step="0.001" value="0" /></label>
           <label>التزامات متداولة أخرى <input name="otherCL" type="number" min="0" step="0.001" value="0" /></label>
-          <label class="total">إجمالي المتداولة <input name="currentLiabilities" type="text" readonly /></label>
+          <label class="total">إجمالي الالتزامات المتداولة <input name="currentLiabilities" type="text" readonly /></label>
           <label>قروض طويلة الأجل <input name="ltBorrow" type="number" min="0" step="0.001" value="0" /></label>
           <label>مخصص مكافأة نهاية الخدمة <input name="eosb" type="number" min="0" step="0.001" value="0" /></label>
           <label>التزامات غير متداولة أخرى <input name="otherNCL" type="number" min="0" step="0.001" value="0" /></label>
-          <label class="total">إجمالي غير المتداولة <input name="nonCurrentLiabilities" type="text" readonly /></label>
+          <label class="total">إجمالي الالتزامات غير المتداولة <input name="nonCurrentLiabilities" type="text" readonly /></label>
         </fieldset>
 
         <fieldset>
@@ -609,6 +609,32 @@
   /* ════════════════════ shared core ════════════════════
      One data layer for all three modules. Storage keys are unchanged, so
      existing data and the admin console keep working. */
+
+  /* ═══════════ العدد والمعدود ═══════════
+     Arabic does not take a bare singular after a count, and every counted
+     string on these screens did: "3 سهم", "5 دقيقة", "تطبيق على 3 حساب؟".
+     That is wrong for every value except one and a hundred, which is to say
+     for almost every value a user ever sees.
+
+     The rule, by the last two digits: 1 takes the noun alone · 2 takes the
+     dual · 3 to 10 take the plural · 11 upward takes the singular again
+     (accusative, and 100 upward genitive — but neither is written without
+     diacritics, so one form serves both).
+
+     The caller passes the three forms because Arabic plurals are irregular
+     and no function can derive أسهم from سهم. Pass the DUAL in the case the
+     sentence needs: "طلبين" after a preposition, "طلبان" standing alone. */
+  function ar(n, one, two, few, bare) {
+    /* `one` is the plain singular, and it is used TWICE: alone for 1, and
+       after a digit for 0 and 11 upward. So it must never itself contain
+       "واحد" — "0 طلب واحد" was the first version's output. Where the bare
+       singular reads better as "طلب واحد", pass that as `bare`. */
+    var a = Math.abs(n) % 100;
+    if (n === 1) return bare || one;
+    if (n === 2) return two;
+    if (a >= 3 && a <= 10) return n + " " + few;
+    return n + " " + one;                 /* 0, and 11 upward */
+  }
   var K = {
     safi: "nokhatha-safi-v1",
     orders: "nokhatha-delivery-orders-v1",
@@ -707,11 +733,11 @@
   function renderPosition() {
     var p = position();
     el("pos-tiles").innerHTML = tiles([
-      ["قيمة المحفظة (د.ك)", kwd(p.portfolio.value), p.portfolio.count + " سهم", "", "p-value"],
+      ["قيمة المحفظة (د.ك)", kwd(p.portfolio.value), ar(p.portfolio.count, "سهم", "سهمان", "أسهم"), "", "p-value"],
       ["ربح/خسارة المحفظة (د.ك)", (p.portfolio.pl >= 0 ? "+" : "−") + kwd(Math.abs(p.portfolio.pl)),
        p.portfolio.pct.toFixed(1) + "%", p.portfolio.pl >= 0 ? "pos" : "neg", "p-pl"],
-      ["إيراد التوصيل (د.ك)", kwd(p.delivery.revenue), p.delivery.delivered + " طلب مسلّم", "", "p-revenue"],
-      ["الطلبات قيد التنفيذ", p.delivery.active, "من " + p.delivery.total + " طلب", "", "p-active"],
+      ["إيراد التوصيل (د.ك)", kwd(p.delivery.revenue), ar(p.delivery.delivered, "طلب مسلّم", "طلبان مسلّمان", "طلبات مسلّمة"), "", "p-revenue"],
+      ["الطلبات قيد التنفيذ", p.delivery.active, "من " + ar(p.delivery.total, "طلب", "طلبين", "طلبات", "طلب واحد"), "", "p-active"],
       ["إجمالي الموارد (د.ك)", kwd(p.netWorth), "المحفظة + الإيراد", "", "p-net"]
     ]);
     el("flow-lines").innerHTML = [
@@ -983,7 +1009,7 @@
   xf.addEventListener("submit", function (e) {
     e.preventDefault();
     var v = xvalidate(true);
-    if (v.errs) { toast("صحّح الأخطاء قبل التوليد — " + v.errs + " خطأ"); return; }
+    if (v.errs) { toast("صحّح الأخطاء قبل التوليد — " + ar(v.errs, "خطأ", "خطآن", "أخطاء", "خطأ واحد")); return; }
     var t = recalc();
     var xml = buildXbrl();
     var hist = rd(K.reports, []); if (!Array.isArray(hist)) hist = [];
@@ -1043,7 +1069,7 @@
           return '<span class="status st-2">🛵 ' + esc(c.name) + " · " + esc(c.phone) +
                  ' <button class="btn sm danger" data-del-courier="' + i + '">×</button></span>';
         }).join("")
-      : '<span class="note">لا يوجد مناديب.</span>';
+      : '<span class="note">لا توجد مناديب.</span>';
 
     el("del-filters").innerHTML = [-1].concat(STATUSES.map(function (_, i) { return i; }))
       .map(function (i) {

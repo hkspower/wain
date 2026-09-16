@@ -463,6 +463,32 @@
   "use strict";
 
   /* ============================ storage ============================ */
+
+  /* ═══════════ العدد والمعدود ═══════════
+     Arabic does not take a bare singular after a count, and every counted
+     string on these screens did: "3 سهم", "5 دقيقة", "تطبيق على 3 حساب؟".
+     That is wrong for every value except one and a hundred, which is to say
+     for almost every value a user ever sees.
+
+     The rule, by the last two digits: 1 takes the noun alone · 2 takes the
+     dual · 3 to 10 take the plural · 11 upward takes the singular again
+     (accusative, and 100 upward genitive — but neither is written without
+     diacritics, so one form serves both).
+
+     The caller passes the three forms because Arabic plurals are irregular
+     and no function can derive أسهم from سهم. Pass the DUAL in the case the
+     sentence needs: "طلبين" after a preposition, "طلبان" standing alone. */
+  function ar(n, one, two, few, bare) {
+    /* `one` is the plain singular, and it is used TWICE: alone for 1, and
+       after a digit for 0 and 11 upward. So it must never itself contain
+       "واحد" — "0 طلب واحد" was the first version's output. Where the bare
+       singular reads better as "طلب واحد", pass that as `bare`. */
+    var a = Math.abs(n) % 100;
+    if (n === 1) return bare || one;
+    if (n === 2) return two;
+    if (a >= 3 && a <= 10) return n + " " + few;
+    return n + " " + one;                 /* 0, and 11 upward */
+  }
   var K = {
     users:    "nokhatha-users-v1",
     safi:     "nokhatha-safi-v1",
@@ -701,9 +727,9 @@
     var pl = aum - h.reduce(function (s, a) { return s + a.cost; }, 0);
 
     el("kpis").innerHTML = tiles([
-      ["العملاء", u.length, "", active.length + " نشط"],
+      ["العملاء", u.length, "", ar(active.length, "حساب نشط", "حسابان نشطان", "حسابات نشطة")],
       ["حسابات موقوفة", suspended.length, "", u.length ? Math.round(suspended.length / u.length * 100) + "% من العملاء" : "—"],
-      ["الطلبات", o.length, "", delivered.length + " تم التسليم"],
+      ["الطلبات", o.length, "", ar(delivered.length, "طلب مُسلَّم", "طلبان مُسلَّمان", "طلبات مُسلَّمة")],
       ["إيراد التوصيل (د.ك)", kwd(rev), "", "من الطلبات المسلّمة"],
       ["قيمة المحفظة (د.ك)", kwd(aum), "", (pl >= 0 ? "+" : "−") + kwd(Math.abs(pl)) + " د.ك"]
     ]);
@@ -726,9 +752,9 @@
 
     el("charts").innerHTML =
       fig("تسجيل العملاء", "عدد الحسابات الجديدة في كل أسبوع، آخر 8 أسابيع.",
-          areaChart(weeks, function (v) { return v + " حساب"; })) +
+          areaChart(weeks, function (v) { return ar(v, "حساب", "حسابان", "حسابات"); })) +
       fig("مسار الطلبات", "المراحل بالترتيب؛ الملغاة معلّمة برمز ولون منفصل.",
-          ordinalBars(pipe, function (v) { return v + " طلب"; }),
+          ordinalBars(pipe, function (v) { return ar(v, "طلب", "طلبان", "طلبات"); }),
           cancelled ? '<div class="legend"><span><i style="background:var(--ord-3)"></i>مراحل التنفيذ</span>' +
                       '<span><i style="background:var(--viz-neg)"></i>⃠ ملغي</span></div>' : "") +
       fig("ربح/خسارة المحفظة", "لكل سهم، بالدينار — الاتجاه والإشارة يوضحان النوع دون الاعتماد على اللون.",
@@ -922,10 +948,10 @@
   function bulk(fn, action, needConfirm) {
     var emails = Object.keys(selected).filter(function (k) { return selected[k]; });
     if (!emails.length) return;
-    if (needConfirm && !confirm("تطبيق على " + emails.length + " حساب؟")) return;
+    if (needConfirm && !confirm("تطبيق على " + ar(emails.length, "حساب", "حسابين", "حسابات", "حساب واحد") + "؟")) return;
     var all = rd(K.users, {});
     emails.forEach(function (e) { if (all[e]) fn(all, e); });
-    wr(K.users, all); audit(action, emails.length + " حساب");
+    wr(K.users, all); audit(action, ar(emails.length, "حساب", "حسابان", "حسابات", "حساب واحد"));
     selected = {}; toast("تم التنفيذ"); renderAll();
   }
   el("bulk-suspend").addEventListener("click", function () {
@@ -1011,7 +1037,7 @@
     e.preventDefault();
     var f = e.target, err = el("gate-err"), pw = f.pass.value;
     var left = lockLeft();
-    if (left) { err.textContent = "محاولات كثيرة — حاول بعد " + left + " دقيقة."; return; }
+    if (left) { err.textContent = "محاولات كثيرة — حاول بعد " + ar(left, "دقيقة", "دقيقتين", "دقائق", "دقيقة واحدة") + "."; return; }
     f.querySelector("button").disabled = true;
 
     if (setupMode) {
