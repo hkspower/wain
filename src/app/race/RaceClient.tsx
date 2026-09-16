@@ -3387,7 +3387,7 @@ function raceCut(): { w: number; h: number } | null {
                       was just below the legibility floor. */}
                   <span>Kuwait</span>
                   {racingOpenNow() ? (
-                    <span className="text-emerald-300">racing open · till 05:50</span>
+                    <span className="text-emerald-300">racing open · until 05:50</span>
                   ) : (
                     <span className="text-white/62">racing returns at midnight</span>
                   )}
@@ -3404,16 +3404,22 @@ function raceCut(): { w: number; h: number } | null {
             {career && career.races > 0 && (
               <div className="mt-4 grid grid-cols-4 gap-2">
                 {[
-                  { k: "Races", v: String(career.races) },
-                  { k: "Wins", v: String(career.wins) },
-                  { k: "Top speed", v: career.topSpeed ? `${career.topSpeed}` : "—" },
-                  { k: "Best lap", v: career.bestLapMs ? formatLap(career.bestLapMs) : "—" },
+                  { k: "Races", v: String(career.races), u: "" },
+                  { k: "Wins", v: String(career.wins), u: "" },
+                  // Every other place this exact stat is shown — the
+                  // rival dossier, the post-race results screen — says
+                  // km/h. This was the one bare number on the menu.
+                  { k: "Top speed", v: career.topSpeed ? `${career.topSpeed}` : "—", u: career.topSpeed ? "km/h" : "" },
+                  { k: "Best lap", v: career.bestLapMs ? formatLap(career.bestLapMs) : "—", u: "" },
                 ].map((x) => (
                   <div
                     key={x.k}
                     className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-2 text-center"
                   >
-                    <div className="grn-display tnum text-base leading-tight text-white">{x.v}</div>
+                    <div className="grn-display tnum text-base leading-tight text-white">
+                      {x.v}
+                      {x.u && <span className="ml-0.5 text-2xs text-white/70">{x.u}</span>}
+                    </div>
                     <div className="grn-label text-2xs text-white/70">{x.k}</div>
                   </div>
                 ))}
@@ -3538,9 +3544,11 @@ function raceCut(): { w: number; h: number } | null {
                 </button>
               ))}
             </nav>
-            <div className="grn-label mt-2 text-center text-2xs text-white/62">
-              ↑ ↓ to choose · Enter to select
-            </div>
+            {!isTouch && (
+              <div className="grn-label mt-2 text-center text-2xs text-white/62">
+                ↑ ↓ to choose · Enter to select
+              </div>
+            )}
 
              </div>
             </div>
