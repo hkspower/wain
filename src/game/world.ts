@@ -1939,6 +1939,12 @@ function glazedMat(skin: Skin, color: number, roughness: number): THREE.MeshStan
 
 function liberationTower(skin: Skin, lit: THREE.MeshStandardMaterial[]): THREE.Group {
   const g = new THREE.Group();
+  // Named for the same reason every InstancedMesh in the city is: a
+  // brightness/sharpness tool that segments buildings by an ID-pass
+  // name walk (tools/shots/sharpness.mjs, tools/shots/darkbuildings.mjs)
+  // has to find this one too, or "every building" quietly means "every
+  // building except the two hero towers".
+  g.name = "liberationTower";
   const mat = new THREE.MeshStandardMaterial({ color: 0xb9bfc7, roughness: 0.6 });
   const shaft = new THREE.Mesh(new THREE.CylinderGeometry(5.5, 7, 95, 12), mat);
   shaft.position.y = 47.5;
@@ -1959,6 +1965,7 @@ function alHamra(skin: Skin, lit: THREE.MeshStandardMaterial[]): THREE.Mesh {
   lit.push(mat);
   const tower = new THREE.Mesh(new THREE.BoxGeometry(26, 118, 24), mat);
   tower.position.y = 59;
+  tower.name = "alHamraTower"; // see the comment on liberationTower's name
   return tower;
 }
 
