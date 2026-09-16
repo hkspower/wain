@@ -10,6 +10,8 @@ import {
   DRIFT_PLAZA,
   STATIONS,
   FORECOURT,
+  PAINT_SHOPS,
+  PAINT_BAY,
   LAP,
   spanU,
   TUNNEL_BOX,
@@ -18,6 +20,7 @@ import {
 } from "./track";
 import { applyTextureManifest } from "./assets";
 import { upgradePalmCrowns } from "./models";
+import { PARTS } from "./mods";
 import { bakeBendWeight, newPlantField, solvePlantField, type PlantField, type PlantSeed, type Wake } from "./plants";
 import { textTexture, arabicSign, latinDisplay } from "./text";
 import {
@@ -2627,6 +2630,260 @@ function fuelStation(skin: Skin): THREE.Group {
   return g;
 }
 
+/** The painter's fascia sign, Arabic over Latin — the same rule as the
+ *  mini-market's: the Arabic is set as Arabic. */
+let paintSignTex: THREE.CanvasTexture | null = null;
+function paintSignTexture(): THREE.CanvasTexture {
+  if (paintSignTex) return paintSignTex;
+  const c = document.createElement("canvas");
+  c.width = 1024;
+  c.height = 80;
+  const ctx = c.getContext("2d")!;
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `700 40px ${arabicSign()}`;
+  ctx.fillText("صبغ سيارات", c.width * 0.31, c.height * 0.5);
+  ctx.font = `700 34px ${latinDisplay()}`;
+  ctx.letterSpacing = "6px";
+  ctx.fillText("PAINT SHOP", c.width * 0.71, c.height * 0.52);
+  paintSignTex = new THREE.CanvasTexture(c);
+  paintSignTex.colorSpace = THREE.SRGBColorSpace;
+  paintSignTex.anisotropy = 8;
+  return paintSignTex;
+}
+
+/**
+ * The painter's price board: what a respray costs, from the plainest
+ * colour to the dearest. Read off the catalogue rather than typed here,
+ * so the board and the picker can never disagree.
+ */
+function paintPriceTexture(minKd: number, maxKd: number): THREE.CanvasTexture {
+  return textTexture(256, 512, (ctx) => {
+    ctx.fillStyle = "#12264a";
+    ctx.fillRect(0, 0, 256, 512);
+    ctx.strokeStyle = "#eef2fb";
+    ctx.lineWidth = 7;
+    ctx.strokeRect(9, 9, 238, 494);
+    ctx.textAlign = "center";
+    ctx.direction = "rtl";
+    const ar = arabicSign();
+    ctx.fillStyle = "#eef2fb";
+    ctx.font = `700 34px ${ar}`;
+    ctx.fillText("صبغ سيارات", 128, 58);
+    ctx.strokeStyle = "rgba(238,242,251,0.45)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(24, 76);
+    ctx.lineTo(232, 76);
+    ctx.stroke();
+    const row = (y: number, word: string, kd: number, tint: string) => {
+      ctx.fillStyle = "rgba(238,242,251,0.8)";
+      ctx.font = `600 30px ${ar}`;
+      ctx.fillText(word, 52, y);
+      ctx.fillStyle = tint;
+      ctx.font = `700 76px ${ar}`;
+      ctx.fillText(arabicNumber(kd), 160, y);
+    };
+    row(180, "من", minKd, "#9fd3ff");
+    row(300, "إلى", maxKd, "#ffd27a");
+    ctx.fillStyle = "rgba(238,242,251,0.8)";
+    ctx.font = `600 30px ${ar}`;
+    ctx.fillText("دينار كويتي", 128, 372);
+    ctx.direction = "ltr";
+    ctx.fillStyle = "rgba(238,242,251,0.55)";
+    ctx.font = `600 26px ${latinDisplay()}`;
+    ctx.fillText("KD PER RESPRAY", 128, 412);
+    ctx.fillText("24 HOURS", 128, 456);
+  });
+}
+
+/**
+ * Would a block or a tower of this half-width, on this band of the
+ * ring, stand on a forecourt or in the painter's bay? Both the
+ * rectangles and the drums ask, and they used to each carry their own
+ * copy of the station test — which is how the painter's would have
+ * been left out of one of them.
+ */
+function onForecourt(track: Track, s: number, half: number, lo: number, hi: number): boolean {
+  const hit = (site: { s: number; lat: number }, span: number) =>
+    Math.abs(track.deltaAhead(site.s, s)) < span + half + 6 && lo < site.lat + 13 && hi > site.lat - 13;
+  return (
+    STATIONS.some((st) => hit(st, FORECOURT.halfSpan)) ||
+    PAINT_SHOPS.some((sh) => hit(sh, PAINT_BAY.halfSpan))
+  );
+}
+
+/**
+ * The painter's.
+ *
+ * A gate you drive through, an open-fronted bay you stop in, and a
+ * board at the kerb that says what a respray costs. Built in the same
+ * frame as the petrol station — +Z along the road, +X toward it — for
+ * the same reason its doc block spells out: the placement rotation maps
+ * local +X onto the LEFT of travel, so anything authored the intuitive
+ * way round comes out mirrored.
+ *
+ * Nothing solid sits closer to the road than x 10.5 (lat 8.5): the
+ * through lanes end at lat 7, and the road only opens past them here.
+ * The car's lane through the gate runs x 2..10.5, centred on lat 12.75,
+ * and the wing walls stop at lat 17 so it is open at both ends — the bay
+ * is somewhere you pull through, not somewhere you reverse out of.
+ *
+ * The soffit sits at 2.2 for the reason the canopy's does: above the
+ * 2.0 line it is lit around the clock instead of following the sun, and
+ * a painter's bay with its lights on is what makes the gate readable at
+ * night from far enough away to slow down for it.
+ */
+function paintShop(): THREE.Group {
+  const g = new THREE.Group();
+  const concrete = new THREE.MeshStandardMaterial({
+    map: concreteTexture(),
+    color: 0x9a9a94,
+    roughness: 0.92,
+  });
+  const steel = new THREE.MeshStandardMaterial({ color: 0xd8dade, roughness: 0.45, metalness: 0.35 });
+  const trim = new THREE.MeshStandardMaterial({ color: 0x1f3f7a, roughness: 0.5 });
+  const booth = new THREE.MeshStandardMaterial({ color: 0xc3c9d2, roughness: 0.85 });
+
+  const apron = new THREE.Mesh(new THREE.BoxGeometry(24, 0.16, 48), concrete);
+  apron.position.set(-1.5, 0.08, 0);
+  apron.receiveShadow = true;
+  g.add(apron);
+
+  // The gate: two columns and a lintel at the entrance, sign on the face
+  // the traffic sees.
+  for (const cx of [2, 10.5]) {
+    const col = new THREE.Mesh(new THREE.BoxGeometry(0.9, 6, 0.9), trim);
+    col.position.set(cx, 3, -16);
+    col.castShadow = true;
+    g.add(col);
+  }
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(9.5, 1.2, 1.2), trim);
+  lintel.position.set(6.25, 6.3, -16);
+  g.add(lintel);
+  const sign = new THREE.Mesh(
+    new THREE.PlaneGeometry(9, 0.7),
+    new THREE.MeshStandardMaterial({
+      map: paintSignTexture(),
+      emissive: 0xffffff,
+      emissiveMap: paintSignTexture(),
+      emissiveIntensity: 1.6,
+      transparent: true,
+      roughness: 0.6,
+    })
+  );
+  sign.position.set(6.25, 6.3, -16.62);
+  sign.rotation.y = Math.PI;
+  g.add(sign);
+
+  // The bay: a back wall, two wing walls, a roof, and the soffit that is
+  // the light.
+  const back = new THREE.Mesh(new THREE.BoxGeometry(0.3, 5, 18), booth);
+  back.position.set(-1.5, 2.5, 0);
+  g.add(back);
+  for (const wz of [-9, 9]) {
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(3.5, 5, 0.3), booth);
+    wing.position.set(0.25, 2.5, wz);
+    g.add(wing);
+    const col = new THREE.Mesh(new THREE.BoxGeometry(0.6, 5, 0.6), steel);
+    col.position.set(10.5, 2.5, wz);
+    col.castShadow = true;
+    g.add(col);
+  }
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(12, 0.6, 18), steel);
+  roof.position.set(4.5, 5.3, 0);
+  g.add(roof);
+  const fascia = new THREE.Mesh(new THREE.BoxGeometry(12.4, 0.9, 18.4), trim);
+  fascia.position.set(4.5, 4.75, 0);
+  g.add(fascia);
+  const soffitMat = new THREE.MeshStandardMaterial({
+    color: 0xf6f9ff,
+    emissive: 0xe4ecff,
+    emissiveIntensity: 2.2,
+    roughness: 0.9,
+  });
+  const soffit = new THREE.Mesh(new THREE.PlaneGeometry(11.4, 17.4), soffitMat);
+  soffit.rotation.x = Math.PI / 2;
+  soffit.position.set(4.5, 4.28, 0);
+  g.add(soffit);
+  // Spray lamps: four tubes under the soffit, brighter than it.
+  const lampMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    emissive: 0xf4f7ff,
+    emissiveIntensity: 2.3,
+    roughness: 0.4,
+  });
+  for (const lx of [3, 8.5]) {
+    for (const lz of [-4, 4]) {
+      const tube = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.1, 6), lampMat);
+      tube.position.set(lx, 4.2, lz);
+      g.add(tube);
+    }
+  }
+  // The pool the bay throws down. Additive, like the canopy's.
+  const pool = new THREE.Mesh(
+    new THREE.PlaneGeometry(12, 18),
+    new THREE.MeshBasicMaterial({
+      map: poolGlowTexture(),
+      color: 0xe4ecff,
+      transparent: true,
+      opacity: 0.5,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+    })
+  );
+  pool.rotation.x = -Math.PI / 2;
+  pool.position.set(4.5, 0.2, 0);
+  g.add(pool);
+
+  // The bay marked on the floor: where the picker is offered is where
+  // the lines say to stop.
+  const lineMat = new THREE.MeshStandardMaterial({
+    color: 0xf2f2ee,
+    emissive: 0x8f8f88,
+    emissiveIntensity: 0.35,
+    roughness: 0.6,
+  });
+  for (const lx of [3, 9.5]) {
+    const line = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, 6), lineMat);
+    line.position.set(lx, 0.17, 0);
+    g.add(line);
+  }
+  for (const lz of [-3, 3]) {
+    const line = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.02, 0.12), lineMat);
+    line.position.set(6.25, 0.17, lz);
+    g.add(line);
+  }
+
+  // Price board at the kerb, ahead of the gate, facing both ways.
+  const prices = PARTS.filter((p) => p.cat === "paint" && p.price > 0).map((p) => p.price);
+  const board = new THREE.Group();
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 4.4, 8), steel);
+  post.position.y = 2.2;
+  board.add(post);
+  const priceMat = new THREE.MeshStandardMaterial({
+    map: paintPriceTexture(Math.min(...prices), Math.max(...prices)),
+    emissive: 0x8a8a8a,
+    roughness: 0.6,
+  });
+  const plate = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 4.6), priceMat);
+  plate.position.y = 6.1;
+  board.add(plate);
+  const plateBack = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 4.6), priceMat);
+  plateBack.position.y = 6.1;
+  plateBack.rotation.y = Math.PI;
+  board.add(plateBack);
+  board.position.set(10.2, 0.16, -24);
+  board.rotation.y = Math.PI / 2;
+  g.add(board);
+
+  g.name = "paint-shop";
+  return g;
+}
+
 function lighthouse(): THREE.Group {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
@@ -4821,20 +5078,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       if (depth < 6 || room < 2) continue;
       const s =
         blockIndex * blockLen + STREETS.half + width / 2 + rand() * room;
-      // Not on a forecourt. The station occupies the first band of the
-      // block — the one between the shoulder and the first avenue — and
-      // the block picker has no idea it is there, so a tower would go up
-      // through the canopy about one time in twenty.
-      if (
-        STATIONS.some(
-          (st) =>
-            Math.abs(track.deltaAhead(st.s, s)) < FORECOURT.halfSpan + width / 2 + 6 &&
-            lo < st.lat + 13 &&
-            hi > st.lat - 13
-        )
-      ) {
-        continue;
-      }
+      // Not on a forecourt, or in the painter's bay. The station occupies
+      // the first band of the block — the one between the shoulder and
+      // the first avenue — and the block picker has no idea it is there,
+      // so a tower would go up through the canopy about one time in
+      // twenty.
+      if (onForecourt(track, s, width / 2, lo, hi)) continue;
       const u = track.wrap(s) / L;
       // Never on the sea side of the corniche; both sides inland.
       const onCoast = u >= COAST_U.from && u <= COAST_U.to;
@@ -5133,16 +5382,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         if (dia < 9 || room < 2) continue;
         const s2 =
           blockIndex * blockLen + STREETS.half + dia / 2 + rand() * room;
-        if (
-          STATIONS.some(
-            (st) =>
-              Math.abs(track.deltaAhead(st.s, s2)) < FORECOURT.halfSpan + dia / 2 + 6 &&
-              lo < st.lat + 13 &&
-              hi > st.lat - 13
-          )
-        ) {
-          continue;
-        }
+        if (onForecourt(track, s2, dia / 2, lo, hi)) continue;
         const u2 = track.wrap(s2) / L;
         const onCoast2 = u2 >= COAST_U.from && u2 <= COAST_U.to;
         const sideSign2 = onCoast2 ? 1 : rand() < 0.5 ? 1 : -1;
@@ -5779,6 +6019,17 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // Square to the road: local +Z runs along it, +X out to the kerb.
     station.rotation.y = Math.atan2(tan.x, tan.z);
     scene.add(station);
+  });
+  // The painter's: a gate you drive through and a lit bay you stop in.
+  // Placed like a station and named like one, so the map and the tests
+  // find it the same way.
+  PAINT_SHOPS.forEach((sh, i) => {
+    const shop = paintShop();
+    placeBeside(track, shop, sh.s, sh.lat, `paint-shop-${i}`);
+    const tan = new THREE.Vector3();
+    track.tangentAt(sh.s, tan);
+    shop.rotation.y = Math.atan2(tan.x, tan.z);
+    scene.add(shop);
   });
   scene.add(wt);
 

@@ -156,6 +156,17 @@ export const STATIONS: Array<{ s: number; lat: number }> = [
  *  pull off them and stop. */
 export const FORECOURT = { halfSpan: 30, extraWidth: 10 };
 
+/** The painter's. Placed the way a station is: inland, because
+ *  halfWidthAt is one number for both sides, and at the stations' `lat`
+ *  so the same first block ring is the one that steps aside for it. */
+export const PAINT_SHOPS: Array<{ s: number; lat: number }> = [
+  { s: 5900, lat: 19 }, // Da'iya, on the Second Ring
+];
+
+/** Swells the road like a forecourt. `bayHalf` is the stop zone along
+ *  the road — the stretch under the roof where the picker is offered. */
+export const PAINT_BAY = { halfSpan: 24, extraWidth: 10, bayHalf: 6 };
+
 /** Everywhere the road is wider than four lanes, in one list, so
  *  halfWidthAt has a single rule to follow. */
 const SWELLS: Array<{ s: number; halfSpan: number; extraWidth: number }> = [];
@@ -260,6 +271,9 @@ SWELLS.push({
 });
 for (const st of STATIONS) {
   SWELLS.push({ s: st.s, halfSpan: FORECOURT.halfSpan, extraWidth: FORECOURT.extraWidth });
+}
+for (const sh of PAINT_SHOPS) {
+  SWELLS.push({ s: sh.s, halfSpan: PAINT_BAY.halfSpan, extraWidth: PAINT_BAY.extraWidth });
 }
 
 export class Track {
