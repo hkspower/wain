@@ -1885,8 +1885,15 @@ div.grid:has(> .cat-tile) {
      tone this shop already uses for the outlet category tile — so both
      halves of "orange background, white font" hold at once rather than one
      giving way to the other. */
+  /* CHARCOAL, NOT ORANGE — asked for on 2026-09-17: "make top menu and
+     topbar light black color". #2b2b2b on white text measures far above
+     AA's 4.5:1 floor (the orange it replaces needed --brand-dark, not
+     --brand, for exactly that reason; a near-black background has no such
+     ceiling). --brand-dark is kept as the source of truth for every OTHER
+     orange-background surface in this file (buttons, badges); only the
+     header's own background changes here. */
   header.app-header {
-    background: var(--brand-dark) !important;
+    background: #2b2b2b !important;
     /* A DROP SHADOW, NOT EXTRA PADDING. On a phone the header sits flush
        against the hero image below it, with nothing to say where one ends
        and the other begins — measured at 390px, no gap at all. Padding
@@ -1953,15 +1960,16 @@ div.grid:has(> .cat-tile) {
     color: #ffffff !important;
   }
 
-  /* THE PROMO STRIP AND THE NAV ROW SHARE ONE <header>, so painting the
-     header orange left `bg-ink-steel`'s own opaque dark strip sitting
-     directly on top of it with a hard edge — two unrelated bars stacked,
-     not one header. A hairline in the shop's own bright ember ties them
-     together without touching the promo strip's own background, which
-     stays dark on purpose: the same text (delivery/payment) reads worse on
-     orange than it does today. */
+  /* THE PROMO STRIP, MATCHED TO THE NAV ROW. Both bars are charcoal now, so
+     the seam this rule used to paper over (`bg-ink-steel`'s own dark strip
+     sitting on top of what was an orange header) no longer exists — the two
+     are close enough (#2b2b2b vs. #363d45) that a hairline would be visible
+     texture with nothing to explain it. The border is kept as a barely-there
+     divider instead of removed outright, since the promo strip is still a
+     DIFFERENT element underneath, not literally the same background. */
   header.app-header > p {
-    border-bottom: 1px solid rgba(255, 123, 23, 0.35);
+    background: #2b2b2b !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
 
   /* THE LOGO LOCKUP IS ONE IMAGE — the "SPORTS WEAR" tagline is baked into
