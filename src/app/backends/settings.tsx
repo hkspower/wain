@@ -53,6 +53,17 @@ export default function SettingsScreen() {
   const [themeNote, setThemeNote] = useState<string | null>(null);
   const [knetId, setKnetId] = useState('');
   const [knetSource, setKnetSource] = useState<'file' | 'database'>('file');
+  // The CBK hosted gateway's OWN status — pay/config.php, a different file
+  // from the Tranportal ID above. null means the server could not read it at
+  // all (missing file, unreadable), which is a different fault from one that
+  // is readable and still holds a placeholder credential.
+  const [payStatus, setPayStatus] = useState<{
+    env: 'test' | 'production';
+    ready: boolean;
+    client_id_set: boolean;
+    client_secret_set: boolean;
+    encrp_key_set: boolean;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,6 +91,7 @@ export default function SettingsScreen() {
         setTheme(t);
         setKnetId(k.tranportal_id);
         setKnetSource(k.source);
+        setPayStatus(k.pay);
       })
       .catch((e) => (e instanceof Unauthorized ? signOut() : setError(String(e))))
       .finally(() => setLoading(false));
@@ -203,6 +215,7 @@ export default function SettingsScreen() {
       const k = await adminApi.knetSettings();
       setKnetId(k.tranportal_id);
       setKnetSource(k.source);
+      setPayStatus(k.pay);
       setKnetNote(
         k.source === 'database'
           ? 'Saved. Place one real order to confirm KNET accepts it.'
@@ -445,6 +458,61 @@ export default function SettingsScreen() {
 
       <Card style={styles.card}>
         <ThemedText type="heading">KNET</ThemedText>
+
+        {/* THE GATEWAY BOTH KNET AND T-PAY ACTUALLY GO THROUGH — pay/config.php,
+            a DIFFERENT file from the Tranportal ID below, which belongs to a
+            legacy integration this shop may or may not still use. Shown first
+            because a shop with this NOT ready cannot take a card payment at
+            all, whatever the Tranportal ID below says — and the commonest way
+            that happens is silent: every credential present, none of them
+            real, nothing anywhere saying so until a customer's card is
+            refused at the bank. */}
+        {payStatus === null ? (
+          <ThemedText type="label" themeColor="danger" style={styles.hint}>
+            Could not read the payment gateway's own configuration file on the
+            server (pay/config.php). Card payments cannot work until that is
+            fixed — this is separate from the Tranportal ID below.
+          </ThemedText>
+        ) : (
+          <View style={styles.payStatus}>
+            <ThemedText
+              type="label"
+              themeColor={payStatus.ready ? 'success' : 'danger'}
+              style={styles.hint}>
+              {payStatus.ready
+                ? `Card payments are ready, in ${payStatus.env === 'production' ? 'PRODUCTION' : 'test'} mode.`
+                : 'Card payments are NOT ready — the gateway is missing real credentials:'}
+            </ThemedText>
+            {!payStatus.ready && (
+              <View style={styles.payList}>
+                {(
+                  [
+                    ['client_id_set', 'Client ID'],
+                    ['client_secret_set', 'Client Secret'],
+                    ['encrp_key_set', 'Encrypted account key'],
+                  ] as const
+                ).map(([key, label]) => (
+                  <ThemedText key={key} type="caption" themeColor={payStatus[key] ? 'textSecondary' : 'danger'}>
+                    {payStatus[key] ? '✓' : '✕'} {label}
+                  </ThemedText>
+                ))}
+                <ThemedText type="caption" themeColor="textSecondary" style={styles.hint}>
+                  These are filled in on the server, in pay/config.php — not here.
+                  This card only reports what CBK has issued you and what is
+                  still a placeholder.
+                </ThemedText>
+              </View>
+            )}
+            {payStatus.ready && payStatus.env !== 'production' && (
+              <ThemedText type="caption" themeColor="textSecondary" style={styles.hint}>
+                Real credentials are in place, but the gateway is still in TEST
+                mode — no real card will be charged until env is set to
+                "production" in pay/config.php.
+              </ThemedText>
+            )}
+          </View>
+        )}
+
         <ThemedText type="caption" themeColor="textSecondary" style={styles.hint}>
           The Tranportal ID KNET issued for this shop. Only the ID is kept here —
           the password and the resource key stay in the file on the server.
@@ -483,4 +551,6 @@ const styles = StyleSheet.create({
   hint: { fontSize: 13, marginBottom: Spacing.two },
   row: { flexDirection: 'row', gap: Spacing.two, marginBottom: Spacing.two },
   note: { fontSize: 13, marginBottom: Spacing.one },
+  payStatus: { marginBottom: Spacing.two, gap: Spacing.one },
+  payList: { gap: Spacing.half },
 });

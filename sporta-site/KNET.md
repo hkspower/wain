@@ -97,8 +97,19 @@ you `626101` vs `6261`. If a value was ever saved in /backends, **editing
 `knet/config.php` will not change what the bank receives.** The transaction
 fails identically, and the ID gets ruled out as the cause. So:
 
-* `/knet/selftest.php` names the SOURCE of the ID in force, and says outright
-  when config.php is being ignored. That line is the fastest way to see it.
+* `/knet/selftest.php` used to name the SOURCE of the ID in force. It was
+  deleted from the live server on 2026-09-09 — see CLAUDE.md — and nothing
+  on the website has replaced it.
+* **The app's own /backends → Settings screen now reports the OTHER half**,
+  added 2026-09-17: whether `pay/config.php` — the CBK gateway both KNET and
+  T-Pay actually go through — holds real credentials or is still on one of
+  the shipped placeholders (`YOUR_CLIENT_ID` and the sandbox's
+  `SANDBOX_NOT_A_REAL_*`), and which of `client_id` / `client_secret` /
+  `encrp_key` is the one still missing. It reports booleans and the
+  environment (`test`/`production`) only — never the credential values
+  themselves, the same discipline the Tranportal ID's own file-vs-database
+  question already follows. It says nothing about the Tranportal ID's OWN
+  source; that is a different file, read separately, in the same card.
 * Change the ID **in /backends** if one is saved there. Clearing the field
   there hands control back to the file.
 

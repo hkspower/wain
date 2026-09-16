@@ -1628,9 +1628,55 @@ if ($r === 'rules' && $method === 'GET') {
 if ($r === 'knet' && $method === 'GET') {
     $set = store_setting($db, 'knet');
     $id  = (string) ($set['tranportal_id'] ?? '');
+
+    // THE CBK HOSTED GATEWAY'S OWN STATUS — pay/config.php, a DIFFERENT file
+    // from the Tranportal ID above and the reason this route now answers with
+    // more than one thing. KNET.md and this project's own notes record the
+    // commonest go-live failure as this file shipping with its credentials
+    // still `YOUR_CLIENT_ID` / `YOUR_CLIENT_SECRET` / `YOUR_ENCRP_KEY` — a shop
+    // that LOOKS configured (every key present, non-empty) and fails at the
+    // bank on every single order, with nothing in the panel ever having said
+    // so. This is the first thing that says so.
+    //
+    // NEVER THE VALUES THEMSELVES. client_secret and encrp_key are bearer
+    // credentials — booleans only, the same discipline knet_config() already
+    // applies to the Tranportal ID's own file-vs-database question.
+    $payFile = __DIR__ . '/../pay/config.php';
+    $pay = null;
+    if (is_file($payFile)) {
+        $cfg = @require $payFile;
+        if (is_array($cfg)) {
+            // A placeholder READS as configured to anything that only checks
+            // "is this empty" — both config.example.php's YOUR_* and the
+            // sandbox's SANDBOX_NOT_A_REAL_* pass that test and neither can
+            // take a payment. Checked here so the panel cannot make the
+            // mistake this project has already made once.
+            $isPlaceholder = static function ($v): bool {
+                $v = strtoupper(trim((string) $v));
+                return $v === '' || str_starts_with($v, 'YOUR_') || str_starts_with($v, 'SANDBOX_NOT_A_REAL');
+            };
+            $clientIdSet     = !$isPlaceholder($cfg['client_id'] ?? '');
+            $clientSecretSet = !$isPlaceholder($cfg['client_secret'] ?? '');
+            $encrpKeySet     = !$isPlaceholder($cfg['encrp_key'] ?? '');
+            $pay = [
+                'env'    => (($cfg['env'] ?? '') === 'production') ? 'production' : 'test',
+                'ready'  => $clientIdSet && $clientSecretSet && $encrpKeySet,
+                'client_id_set'     => $clientIdSet,
+                'client_secret_set' => $clientSecretSet,
+                'encrp_key_set'     => $encrpKeySet,
+            ];
+        }
+    }
+
     store_out([
         'tranportal_id' => $id,
         'source'        => $id === '' ? 'file' : 'database',
+        // null, not a fourth false — a MISSING or unreadable config.php is a
+        // different fault from one that is readable and holds placeholders,
+        // and the panel should be able to tell "not configured" from
+        // "cannot even find pay/config.php" rather than reporting both as
+        // one flat "not ready".
+        'pay' => $pay,
     ]);
 }
 

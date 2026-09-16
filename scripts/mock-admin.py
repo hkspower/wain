@@ -407,9 +407,20 @@ class Handler(BaseHTTPRequestHandler):
         if r == 'knet':
             # Mirrors admin.php: the saved ID, and which of the two sources is
             # actually in force. Empty means knet/config.php is.
+            #
+            # `pay` mirrors the CBK gateway status admin.php now reports
+            # alongside it — a fixture with all three credentials real and
+            # `ready: true`, since this mock has no pay/config.php on disk to
+            # read and "could not read the file" is the wrong fixture default
+            # for a screen that is meant to be exercised in its READY state
+            # most of the time.
             tid = STATE['settings'].get('knet', {}).get('tranportal_id', '')
             return self._json(200, {'tranportal_id': tid,
-                                    'source': 'database' if tid else 'file'})
+                                    'source': 'database' if tid else 'file',
+                                    'pay': {'env': 'test', 'ready': True,
+                                            'client_id_set': True,
+                                            'client_secret_set': True,
+                                            'encrp_key_set': True}})
 
         if r == 'brands':
             return self._json(200, STATE['brands'])

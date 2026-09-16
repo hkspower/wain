@@ -1026,7 +1026,24 @@ export const adminApi = {
   // `source` is 'file' when nothing is saved, meaning knet/config.php's ID is
   // the one taking payments. The screen needs that to avoid showing an empty
   // box beside a shop that is charging cards perfectly well.
-  knetSettings: () => call<{ tranportal_id: string; source: 'file' | 'database' }>('knet'),
+  //
+  // `pay` IS A DIFFERENT FILE — pay/config.php, the CBK hosted gateway both
+  // KNET and T-Pay actually go through. null means the server could not even
+  // read it; otherwise `ready` is the one number that matters and the three
+  // *_set booleans say which credential is still a placeholder when it is
+  // not. Never the credentials themselves — see admin.php's own comment on
+  // why this route answers with booleans only.
+  knetSettings: () => call<{
+    tranportal_id: string;
+    source: 'file' | 'database';
+    pay: {
+      env: 'test' | 'production';
+      ready: boolean;
+      client_id_set: boolean;
+      client_secret_set: boolean;
+      encrp_key_set: boolean;
+    } | null;
+  }>('knet'),
 
   /** Empty clears the saved value and hands the gateway back to
    *  knet/config.php — the way out if a saved ID turns out to be wrong. */

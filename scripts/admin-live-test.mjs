@@ -17,7 +17,7 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 
 const API = process.env.SITE_API ?? 'http://127.0.0.1:4300/api'
 const EMAIL = 'manager@sporta.com.kw'
@@ -444,6 +444,41 @@ if (!placedR?.order_id) {
   const start = await call('knet')
   check(start.status === 200 && typeof start.body?.tranportal_id === 'string',
     `?r=knet reports the saved ID and its source (${start.body?.source})`)
+
+  // THE CBK GATEWAY'S OWN STATUS, a different file from the Tranportal ID
+  // above. The sandbox's pay/config.php ships SANDBOX_NOT_A_REAL_* for all
+  // three credentials — real placeholders, not a fixture built to look
+  // configured — so a correct implementation must read `ready: false` here,
+  // and one that only checks "is the key present" (every one of them is)
+  // would wrongly read `ready: true`.
+  const pay = start.body?.pay
+  check(pay !== null && pay !== undefined, 'and reports the payment gateway\'s own status')
+  check(pay?.ready === false, 'the sandbox\'s placeholder credentials are NOT reported as ready')
+  check(pay?.client_id_set === false && pay?.client_secret_set === false && pay?.encrp_key_set === false,
+    'and each placeholder is named individually, not just a flat "not ready"')
+  check(pay?.env === 'test', `and the environment is reported (${pay?.env})`)
+
+  // MUTATION, THE OTHER DIRECTION: a checker that always answers false would
+  // pass every assertion above. Swap in real-looking credentials, ask again,
+  // restore the file in a finally so a failed assertion cannot leave the
+  // sandbox's payment config mutated for the next run.
+  const payConfigPath = 'sporta-site/public_html/pay/config.php'
+  const payConfigSrc = readFileSync(payConfigPath, 'utf8')
+  try {
+    const mutated = payConfigSrc
+      .replace(/'client_id'\s*=>\s*'[^']*'/, "'client_id' => 'REAL_LOOKING_CLIENT_ID'")
+      .replace(/'client_secret'\s*=>\s*'[^']*'/, "'client_secret' => 'REAL_LOOKING_SECRET'")
+      .replace(/'encrp_key'\s*=>\s*'[^']*'/, "'encrp_key' => 'REAL_LOOKING_KEY'")
+    if (mutated === payConfigSrc) throw new Error('mutation matched nothing — the regex is stale')
+    writeFileSync(payConfigPath, mutated)
+    const afterMutation = await call('knet')
+    check(afterMutation.body?.pay?.ready === true,
+      'and flips to ready once all three credentials look real')
+  } finally {
+    writeFileSync(payConfigPath, payConfigSrc)
+  }
+  const restored = await call('knet')
+  check(restored.body?.pay?.ready === false, 'restoring the sandbox file restores ready: false')
 
   const bad = await call('settings_save', { name: 'knet', value: { tranportal_id: 'has space' } })
   check(bad.status >= 400 && bad.body?.error === 'invalid_tranportal_id',

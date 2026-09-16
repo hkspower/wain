@@ -33,6 +33,7 @@
  */
 import { chromium } from 'playwright'
 import { execFileSync } from 'node:child_process'
+import { readFileSync, writeFileSync } from 'node:fs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:4173'
 const EMAIL = process.env.ADMIN_EMAIL ?? 'manager@sporta.com.kw'
@@ -139,6 +140,44 @@ execFileSync('mariadb', ['-uroot', 'sporta', '-e',
   `update orders set fulfilment_status='${before}' where track_id='${ref}'`])
 check(sql(`select fulfilment_status from orders where track_id='${ref}'`) === before,
   `and the order is put back as it was (${before})`)
+
+// --- Settings: the KNET card's payment-gateway status -----------------------
+// The screen calls promoBar()/contact()/footer() too, which read from
+// api.php rather than admin.php — this is the one place in this rig where
+// that OTHER origin also has to be reachable, and serve-dist.py's whole job
+// (proxying /api through to the real PHP site) is what makes it so.
+await p.goto(`${BASE}/backends`, { waitUntil: 'networkidle' })
+await p.waitForTimeout(1200)
+await p.getByText('Settings', { exact: true }).first().click()
+await p.waitForTimeout(2500)
+const settingsBody = await p.locator('body').innerText()
+check(!/Could not load/.test(settingsBody), 'the Settings screen loads (api.php is reachable through the proxy too)')
+
+// The sandbox's pay/config.php ships SANDBOX_NOT_A_REAL_* for every CBK
+// credential — the screen must say the gateway is NOT ready, by name, not
+// merely omit a success message.
+check(/not ready/i.test(settingsBody), 'the KNET card reports card payments as NOT ready')
+check(/Client ID/.test(settingsBody) && /Client Secret/.test(settingsBody) && /Encrypted account key/.test(settingsBody),
+  'and names each of the three CBK credentials')
+
+// Flip the sandbox's file to look real, reload, confirm the SAME screen
+// reports ready — proving this is read from the live file each load, not a
+// value baked into the export at build time.
+const payConfigPath = 'sporta-site/public_html/pay/config.php'
+const payConfigSrc = readFileSync(payConfigPath, 'utf8')
+try {
+  const mutated = payConfigSrc
+    .replace(/'client_id'\s*=>\s*'[^']*'/, "'client_id' => 'REAL_LOOKING_CLIENT_ID'")
+    .replace(/'client_secret'\s*=>\s*'[^']*'/, "'client_secret' => 'REAL_LOOKING_SECRET'")
+    .replace(/'encrp_key'\s*=>\s*'[^']*'/, "'encrp_key' => 'REAL_LOOKING_KEY'")
+  writeFileSync(payConfigPath, mutated)
+  await p.reload({ waitUntil: 'networkidle' })
+  await p.waitForTimeout(2000)
+  const afterMutation = await p.locator('body').innerText()
+  check(/Card payments are ready/i.test(afterMutation), 'and flips to ready once the server file looks real')
+} finally {
+  writeFileSync(payConfigPath, payConfigSrc)
+}
 
 // --- out -------------------------------------------------------------------
 // Back to the shell first. The order detail is pushed ON TOP of it, so the
