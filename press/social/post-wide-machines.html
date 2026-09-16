@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Night Racer — The machines — landscape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=IBM+Plex+Sans+Arabic:wght@700&display=swap">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #0a0b0d; }
+  .plate { position: relative; overflow: hidden; background: #f4f5f7; color: #0a0b0d;
+           font-family: "Barlow Condensed", "Arial Narrow", Impact, sans-serif; }
+  /* Arabic set as Arabic: its own face, and never letter-spaced —
+     tracking breaks the joins in a cursive script. */
+  .ar { font-family: "IBM Plex Sans Arabic", "Noto Sans Arabic", Tahoma, sans-serif;
+        font-weight: 700; letter-spacing: normal; }
+  .sfx { font-weight: 900; line-height: 0.82; color: #ffc45c; text-transform: uppercase;
+         -webkit-text-stroke: 7px #0a0b0d; paint-order: stroke fill; text-shadow: 14px 14px 0 #0a0b0d; }
+  .panel { position: absolute; background: #0a0b0d; padding: 13px; }
+  .panel > .in { position: relative; width: 100%; height: 100%; overflow: hidden; background: #0a0b0d; }
+  .panel img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tone { position: absolute; inset: 0; mix-blend-mode: multiply; }
+  .burst { position: absolute; inset: 0; }
+  .balloon { position: absolute; background: #f4f5f7; border: 8px solid #0a0b0d;
+             border-radius: 50% / 36%; box-shadow: 10px 10px 0 #0a0b0d; }
+  .tail-o, .tail-i { position: absolute; width: 0; height: 0; }
+  .chip { position: absolute; background: #f4f5f7; border: 5px solid #0a0b0d;
+          font-weight: 900; text-transform: uppercase; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="plate" style="width:1080px; height:566px;">
+  <div class="panel" style="left:0px; top:0px; width:1080px; height:566px; clip-path:polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);">
+  <div class="in" style="clip-path:polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);">
+    <img src="img/drift.jpg" style="object-position:48% 62%;">
+    <div class="burst" style="background: repeating-conic-gradient(from 0deg at 44% 76%, #0a0b0d 0deg 0.55deg, transparent 0.55deg 3.6deg);
+         -webkit-mask: radial-gradient(circle at 44% 76%, transparent 20%, #000 56%);
+         mask: radial-gradient(circle at 44% 76%, transparent 20%, #000 56%); opacity: 0.62;"></div>
+    <div class="tone" style="background-image: radial-gradient(#0a0b0d 1.7px, transparent 2.1px); background-size: 9px 9px; opacity: 0.4; -webkit-mask: linear-gradient(#000 0%, #000 30%, transparent 58%); mask: linear-gradient(#000 0%, #000 30%, transparent 58%);"></div>
+  </div>
+</div>
+  <div style="position:absolute; left:0; top:0; width:1080px; height:566px;
+       background: linear-gradient(100deg, #0a0b0d 0%, #0a0b0d 34%, transparent 62%); opacity:0.92;"></div>
+  <div style="position:absolute; left:0; top:0; width:1080px; height:12px; background:#ffc45c;"></div>
+  <div style="position:absolute; left:56px; top:96px; font-size:24px; font-weight:700; letter-spacing:0.22em; text-transform:uppercase; color:#f4f5f7;">Seventeen of them</div>
+  <div style="position:absolute; left:56px; top:128px; font-size:92px; font-weight:900; line-height:0.84; text-transform:uppercase; color:#f4f5f7;">The<br>machines</div>
+  <div class="ar" lang="ar" dir="rtl" style="position:absolute; left:56px; top:316px; font-size:44px; color:#ffc45c;">السيارات</div>
+  <div style="position:absolute; left:56px; bottom:46px; font-size:24px; font-weight:700; letter-spacing:0.14em; text-transform:uppercase; color:#ffc45c;">
+    Link in bio &middot; <span class="ar" lang="ar" style="letter-spacing:normal;">الرابط في البايو</span>
+  </div>
+</div>
+</body>
+</html>

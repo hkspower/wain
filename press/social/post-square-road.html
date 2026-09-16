@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Night Racer — The road — square</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=IBM+Plex+Sans+Arabic:wght@700&display=swap">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #0a0b0d; }
+  .plate { position: relative; overflow: hidden; background: #f4f5f7; color: #0a0b0d;
+           font-family: "Barlow Condensed", "Arial Narrow", Impact, sans-serif; }
+  /* Arabic set as Arabic: its own face, and never letter-spaced —
+     tracking breaks the joins in a cursive script. */
+  .ar { font-family: "IBM Plex Sans Arabic", "Noto Sans Arabic", Tahoma, sans-serif;
+        font-weight: 700; letter-spacing: normal; }
+  .sfx { font-weight: 900; line-height: 0.82; color: #ffc45c; text-transform: uppercase;
+         -webkit-text-stroke: 7px #0a0b0d; paint-order: stroke fill; text-shadow: 14px 14px 0 #0a0b0d; }
+  .panel { position: absolute; background: #0a0b0d; padding: 13px; }
+  .panel > .in { position: relative; width: 100%; height: 100%; overflow: hidden; background: #0a0b0d; }
+  .panel img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tone { position: absolute; inset: 0; mix-blend-mode: multiply; }
+  .burst { position: absolute; inset: 0; }
+  .balloon { position: absolute; background: #f4f5f7; border: 8px solid #0a0b0d;
+             border-radius: 50% / 36%; box-shadow: 10px 10px 0 #0a0b0d; }
+  .tail-o, .tail-i { position: absolute; width: 0; height: 0; }
+  .chip { position: absolute; background: #f4f5f7; border: 5px solid #0a0b0d;
+          font-weight: 900; text-transform: uppercase; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="plate" style="width:1080px; height:1080px;">
+  <div class="panel" style="left:0px; top:0px; width:1080px; height:700px; clip-path:polygon(0% 0%, 100% 0%, 100% 97%, 0% 100%);">
+  <div class="in" style="clip-path:polygon(0% 0%, 100% 0%, 100% 97%, 0% 100%);">
+    <img src="img/coast.jpg" style="object-position:50% 52%;">
+    <div class="burst" style="background: repeating-conic-gradient(from 0deg at 56% 64%, #0a0b0d 0deg 0.55deg, transparent 0.55deg 3.6deg);
+         -webkit-mask: radial-gradient(circle at 56% 64%, transparent 30%, #000 72%);
+         mask: radial-gradient(circle at 56% 64%, transparent 30%, #000 72%); opacity: 0.62;"></div>
+    <div class="tone" style="background-image: radial-gradient(#0a0b0d 1.7px, transparent 2.1px); background-size: 11px 11px; opacity: 0.4; -webkit-mask: linear-gradient(#000 0%, #000 30%, transparent 58%); mask: linear-gradient(#000 0%, #000 30%, transparent 58%);"></div>
+  </div>
+</div>
+  <div style="position:absolute; left:0; top:0; width:1080px; height:14px; background:#ffc45c;"></div>
+<div class="chip" style="right:44px; top:42px; padding:6px 16px; font-size:26px; letter-spacing:0.12em;">
+  <span class="ar" lang="ar" style="letter-spacing:normal;">٢/٤</span>
+</div>
+  <div class="sfx" style="position:absolute; right:74px; top:150px; font-size:132px; transform:rotate(-6deg) skew(-11deg); z-index:4; text-align:right;">The sea<br>on your left</div>
+  
+
+  <div style="position:absolute; left:64px; top:726px; font-size:26px; font-weight:700; letter-spacing:0.22em; text-transform:uppercase;">Corniche to skyline</div>
+  <div style="position:absolute; left:64px; top:760px; font-size:118px; font-weight:900; line-height:0.84; text-transform:uppercase;">The<br>road</div>
+  <div class="ar" lang="ar" dir="rtl" style="position:absolute; right:64px; top:772px; font-size:54px; line-height:1.18; text-align:right;">شارع<br>الخليج</div>
+  <div style="position:absolute; left:0; top:976px; width:1080px; height:104px; background:#0a0b0d; color:#f4f5f7;
+     display:flex; align-items:center; justify-content:space-between; padding:0 44px;">
+  <div style="font-size:28px; font-weight:900; letter-spacing:0.16em; text-transform:uppercase;">Gulf Road &middot; 7.3 km</div>
+  <div style="font-size:26px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:#ffc45c;">
+    Link in bio &middot; <span class="ar" lang="ar" style="letter-spacing:normal;">الرابط في البايو</span>
+  </div>
+</div>
+</div>
+</body>
+</html>

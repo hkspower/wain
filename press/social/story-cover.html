@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Night Racer — Night Racer — story</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&family=IBM+Plex+Sans+Arabic:wght@700&display=swap">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #0a0b0d; }
+  .plate { position: relative; overflow: hidden; background: #f4f5f7; color: #0a0b0d;
+           font-family: "Barlow Condensed", "Arial Narrow", Impact, sans-serif; }
+  /* Arabic set as Arabic: its own face, and never letter-spaced —
+     tracking breaks the joins in a cursive script. */
+  .ar { font-family: "IBM Plex Sans Arabic", "Noto Sans Arabic", Tahoma, sans-serif;
+        font-weight: 700; letter-spacing: normal; }
+  .sfx { font-weight: 900; line-height: 0.82; color: #ffc45c; text-transform: uppercase;
+         -webkit-text-stroke: 7px #0a0b0d; paint-order: stroke fill; text-shadow: 14px 14px 0 #0a0b0d; }
+  .panel { position: absolute; background: #0a0b0d; padding: 13px; }
+  .panel > .in { position: relative; width: 100%; height: 100%; overflow: hidden; background: #0a0b0d; }
+  .panel img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tone { position: absolute; inset: 0; mix-blend-mode: multiply; }
+  .burst { position: absolute; inset: 0; }
+  .balloon { position: absolute; background: #f4f5f7; border: 8px solid #0a0b0d;
+             border-radius: 50% / 36%; box-shadow: 10px 10px 0 #0a0b0d; }
+  .tail-o, .tail-i { position: absolute; width: 0; height: 0; }
+  .chip { position: absolute; background: #f4f5f7; border: 5px solid #0a0b0d;
+          font-weight: 900; text-transform: uppercase; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="plate" style="width:1080px; height:1920px;">
+  <div style="position:absolute; left:0; top:0; width:1080px; height:18px; background:#ffc45c;"></div>
+
+  <div style="position:absolute; left:64px; top:286px; font-size:30px; font-weight:700; letter-spacing:0.22em; text-transform:uppercase;">Gulf Road Nights</div>
+  <div style="position:absolute; left:64px; top:326px; font-size:150px; font-weight:900; line-height:0.82; text-transform:uppercase;">Night<br>Racer</div>
+  <div class="ar" lang="ar" dir="rtl" style="position:absolute; right:64px; top:344px; font-size:72px; line-height:1.16; text-align:right;">متسابق<br>الليل</div>
+
+  <div class="panel" style="left:64px; top:640px; width:952px; height:440px; clip-path:polygon(0% 2%, 100% 0%, 100% 98%, 0% 100%);">
+  <div class="in" style="clip-path:polygon(0% 2%, 100% 0%, 100% 98%, 0% 100%);">
+    <img src="img/menu.jpg" style="object-position:50% 62%;">
+    <div class="burst" style="background: repeating-conic-gradient(from 0deg at 52% 78%, #0a0b0d 0deg 0.55deg, transparent 0.55deg 3.6deg);
+         -webkit-mask: radial-gradient(circle at 52% 78%, transparent 28%, #000 70%);
+         mask: radial-gradient(circle at 52% 78%, transparent 28%, #000 70%); opacity: 0.62;"></div>
+    <div class="tone" style="background-image: radial-gradient(#0a0b0d 1.7px, transparent 2.1px); background-size: 12px 12px; opacity: 0.4; -webkit-mask: linear-gradient(#000 0%, #000 30%, transparent 58%); mask: linear-gradient(#000 0%, #000 30%, transparent 58%);"></div>
+  </div>
+</div>
+  <div class="sfx" style="position:absolute; left:64px; top:600px; font-size:150px; transform:rotate(-5deg) skew(-11deg); z-index:4;">Vroooom</div>
+  <div class="sfx ar" lang="ar" style="position:absolute; right:74px; top:1020px; font-size:110px; transform:rotate(-6deg); z-index:4; -webkit-text-stroke:7px #0a0b0d; text-shadow:14px 14px 0 #0a0b0d;">زوووم</div>
+
+  <div class="panel" style="left:64px; top:1130px; width:952px; height:360px; clip-path:polygon(0% 0%, 100% 3%, 100% 100%, 0% 96%);">
+  <div class="in" style="clip-path:polygon(0% 0%, 100% 3%, 100% 100%, 0% 96%);">
+    <img src="img/night.jpg" style="object-position:50% 48%;">
+    
+    <div class="tone" style="background-image: repeating-linear-gradient(45deg, #0a0b0d 0 2px, transparent 2px 11px); opacity: 0.3; -webkit-mask: linear-gradient(#000 0%, #000 30%, transparent 58%); mask: linear-gradient(#000 0%, #000 30%, transparent 58%);"></div>
+  </div>
+</div>
+
+  <div class="balloon" style="left:104px; top:1262px; width:580px; padding:26px 30px 20px;">
+  <div class="ar" lang="ar" dir="rtl" style="font-size:36px; line-height:1.5; text-align:center;">هلا والله! يلا ورّني شنو عندك</div>
+  <div style="margin-top:8px; font-size:25px; font-weight:700; letter-spacing:0.07em; text-transform:uppercase; text-align:center;">Yalla &mdash; let's see what you've got</div>
+  <div style="margin-top:10px; font-size:21px; font-weight:900; letter-spacing:0.09em; text-transform:uppercase; text-align:center; color:#ce742a;">Abu Shanab &middot; <span class="ar" lang="ar" style="letter-spacing:normal;">أبو شنب</span></div>
+  <div class="tail-o" style="left:56px; bottom:-52px; border-left:26px solid transparent; border-right:26px solid transparent; border-top:52px solid #0a0b0d;"></div>
+         <div class="tail-i" style="left:66px; bottom:-34px; border-left:16px solid transparent; border-right:16px solid transparent; border-top:36px solid #f4f5f7;"></div>
+</div>
+
+  <div style="position:absolute; left:64px; top:1546px; display:flex; align-items:baseline; gap:26px;">
+    <div style="font-size:72px; font-weight:900; line-height:1;">7.3 km</div>
+    <div style="font-size:28px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#ce742a;">one lap of Gulf Road</div>
+  </div>
+  <div style="position:absolute; left:0; top:1630px; width:1080px; height:108px; background:#0a0b0d; color:#f4f5f7;
+     display:flex; align-items:center; justify-content:space-between; padding:0 44px;">
+  <div style="font-size:28px; font-weight:900; letter-spacing:0.16em; text-transform:uppercase;">Night Racer &middot; Kuwait</div>
+  <div style="font-size:26px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:#ffc45c;">
+    Link in bio &middot; <span class="ar" lang="ar" style="letter-spacing:normal;">الرابط في البايو</span>
+  </div>
+</div>
+</div>
+</body>
+</html>

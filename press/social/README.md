@@ -11,6 +11,43 @@ the canvas is something a player sees while driving.
 | File | Size | Use |
 | --- | --- | --- |
 | `instagram-story.png` | 1080×1920 | Instagram / Facebook / WhatsApp story, TikTok |
+| `post-square-*.png` | 1080×1080 | Square feed post |
+| `post-portrait-*.png` | 1080×1350 | Feed post, 4:5 — and the four swipe as one carousel |
+| `post-wide-*.png` | 1080×566 | 1.91:1. Renders smallest in feed and is cropped hardest on the profile grid; its real use is a link or ad preview |
+| `story-*.png` | 1080×1920 | Story / Reel, TikTok, WhatsApp |
+
+The `*` is one of four designs cut out of the manga brochure —
+`cover`, `road`, `machines`, `stops`.
+
+## The manga set
+
+Sixteen plates, four designs across four sizes, written by
+
+```
+node press/social/build-plates.mjs
+```
+
+They are generated rather than kept as sixteen hand-written files
+because they are one design system seen four ways: the ink weight, the
+screentone pitch and the safe area are decided once, and a correction
+lands on the whole set. Edit `build-plates.mjs`, not the plates.
+
+They are **not** crops of the print brochure. An A4 page is 1:1.414 and
+no Instagram size is, so a crop would cut the composition — and the type
+would come out unreadable: 16px body on a 794px page is 22px at 1080, in
+a feed, on a phone. Each plate is laid out at its own pixel size.
+
+Two things in them exist because Instagram recompresses an upload: the
+ink is **heavier** than print (a 4px border at 794 is a hairline at 1080
+and the first thing a JPEG pass eats), and the screentone is **coarser**
+(dots under ~3px moiré into mush).
+
+`img/` holds the panels, inked from `press/shots/*.png` at their native
+1600px — the crop keeps 70% of the width, so a panel is ~1120px and a
+full-width 1080 panel is never upscaled. That is also the ceiling: about
+4% headroom, so no panel gets a pan-and-zoom crop, and a full-bleed
+1080×1920 vertical panel is impossible from a 16:9 still — which is why
+the stories stack two horizontal bands instead.
 
 ## Rendering
 
