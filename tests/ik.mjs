@@ -865,7 +865,12 @@ check(traffic.lean === 0, "traffic drivers carry legs — the lean build is not 
     const hold = () => {
       rig.wheel.updateWorldMatrix(true, true);
       let hands = 0;
+      const inboard = Math.sign(window.__grnRig.driver.handbrakeX) || -1;
       for (const arm of rig.arms) {
+        // The inboard hand is on a lever while a pull or a shift is
+        // live, and meant to be: a sweep at full throttle shifts up, and
+        // the hand on the knob is not the lean's doing.
+        if (arm.side === inboard && (rig.hbBlend > 0.001 || rig.shiftBlend > 0.001)) continue;
         // ON the rim, measured as distance from the wheel's axis in the
         // wheel's own plane — not against a target this test computes
         // for itself.
