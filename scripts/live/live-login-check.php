@@ -24,8 +24,16 @@
  * to 60 requests in 20 minutes per IP, and a run that reads its own throttling
  * as "everything is refused, the gate holds" would report success on a server
  * whose gate was wide open — this project's favourite way to be lied to, and
- * already recorded twice. 429 and 503 are counted as THROTTLED, never as a
- * refusal, and the run says INCONCLUSIVE when it meets one.
+ * already recorded twice. An UNNAMED 429 or 503 is counted as THROTTLED, never
+ * as a refusal, and the run says INCONCLUSIVE when it meets one.
+ *
+ * UNNAMED is the word that had to be added. Counting every 503 as the limiter
+ * swept up `google_login`'s own 503 google_not_configured — the correct answer
+ * on a shop that has not pasted a client id, which is this shop on purpose — so
+ * every run ended INCONCLUSIVE while every check inside it had passed. A verdict
+ * that is always inconclusive is a verdict nobody reads, and it would have hidden
+ * a real throttled run the day one happened. The limiter refuses without naming
+ * an application error; a feature refusing itself says which feature.
  */
 
 $bits = [];
@@ -46,9 +54,28 @@ $call = static function (string $route, ?array $body = null, bool $header = true
     $out = (string) curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    if ($code === 429 || $code === 503) $throttled++;
-    $j = json_decode($out, true);
-    return [$code, is_array($j) ? $j : null, strlen($out)];
+
+    // PARSE FIRST, then decide what the status means.
+    //
+    // json_decode() returns null for the body `null` AND for a body it could
+    // not read, and this checker reported both as `not-json`. `me` answers 200
+    // with literally `null` to a signed-out browser — by design, documented,
+    // identical on the sandbox — so the one route whose whole job is to say
+    // "nobody is signed in" read as a broken response on every run.
+    $j    = json_decode($out, true);
+    $isJson = json_last_error() === JSON_ERROR_NONE;
+
+    // AND A 503 IS NOT AUTOMATICALLY THE LIMITER. `google_login` answers
+    // 503 google_not_configured on a shop that has not pasted a client id —
+    // which is this shop, deliberately — and counting that as rate limiting
+    // made every run say INCONCLUSIVE while every check in it had in fact
+    // succeeded. A verdict that is always inconclusive is a verdict nobody
+    // reads. The limiter does not name an application error; the feature does.
+    $named = $isJson && is_array($j) && isset($j['error']) ? (string) $j['error'] : '';
+    $limiterish = $named === '' || $named === 'rate_limited' || $named === 'too_many';
+    if (($code === 429 || $code === 503) && $limiterish) $throttled++;
+
+    return [$code, $isJson ? $j : 'BAD-JSON', strlen($out)];
 };
 
 // Paced: the limiter counts every one of these, and a burst turns the whole run
@@ -60,14 +87,15 @@ $pause = static function (): void { usleep(400000); };
 // That is not a bug and has been confirmed identical on the sandbox — it is the
 // route the panel asks "am I signed in?", and it must keep answering.
 [$c, $j] = $call('me');
-$bits[] = 'me=' . $c . '/' . ($j === null ? 'not-json' : (($j['data'] ?? $j) === null ? 'null' : 'ACCOUNT'));
+$bits[] = 'me=' . $c . '/' . ($j === 'BAD-JSON' ? 'not-json'
+    : ($j === null ? 'null' : ((($j['data'] ?? $j) === null) ? 'null' : 'ACCOUNT')));
 $pause();
 
 /* ------------------------------------------- 2. the password path still runs */
 // A deliberately wrong password. 401 is the login path working; 500 is the
 // fatal; anything else means the route changed shape.
 [$c, $j] = $call('login', ['email' => 'nobody@example.invalid', 'password' => 'not-the-password']);
-$err = $j['error'] ?? ($j === null ? 'not-json' : 'none');
+$err = is_array($j) ? ($j['error'] ?? 'none') : ($j === 'BAD-JSON' ? 'not-json' : 'null');
 $bits[] = 'badLogin=' . $c . '/' . $err;
 $pause();
 
@@ -92,11 +120,11 @@ foreach (['stats', 'orders', 'rules'] as $route) {
 // is pasted in, and a bad token must be 401 rather than 500 — the new code path
 // is the one most likely to carry a fatal.
 [$c, $j] = $call('google_config');
-$bits[] = 'gConfig=' . $c . '/' . ($j === null ? 'not-json' : ('enabled=' . (!empty($j['enabled']) ? 1 : 0)));
+$bits[] = 'gConfig=' . $c . '/' . (is_array($j) ? ('enabled=' . (!empty($j['enabled']) ? 1 : 0)) : 'not-json');
 $pause();
 
 [$c, $j] = $call('google_login', ['credential' => 'not.a.token']);
-$bits[] = 'gBadToken=' . $c . '/' . ($j['error'] ?? 'none');
+$bits[] = 'gBadToken=' . $c . '/' . (is_array($j) ? ($j['error'] ?? 'none') : 'not-json');
 $pause();
 
 /* ------------------------------------------------------ 6. the cookie flags */
