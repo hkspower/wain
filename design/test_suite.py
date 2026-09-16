@@ -1216,11 +1216,26 @@ def home_checks(pg):
     # A dodge that fires everywhere is not a fix: the first version of this
     # rule hid the pill across the whole desktop page — it was colliding with
     # its own <b>البحار</b> label — and a visitor would never have seen it.
+    #
+    # MEASURED ABOVE THE CONTACT BAR, and only there. The pill is hidden from
+    # the contact bar down BY DESIGN — the channels are on screen and a fixed
+    # pill would sit on واتساب — so counting those stops measured the length
+    # of the page, not the behaviour of the dodge. It rewarded blank page:
+    # padding the page with empty space raised the number without the dodge
+    # improving, and shortening the page failed it without the dodge getting
+    # worse. That is exactly what happened — laying the process flow across
+    # the page instead of down it removed about 280px of empty column, and
+    # this check went red while the pill's behaviour was unchanged. The
+    # denominator is now the part of the page where the pill is the only way
+    # to reach البحار.
     seen = pg.evaluate("""(async () => {
       const f = document.getElementById('callfab');
       const settle = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 30)));
+      // the pill's zone observer releases it a little before the bar itself
+      const limit = document.getElementById('contact').getBoundingClientRect().top
+                    + scrollY - 450;
       let shown = 0, stops = 0;
-      for (let y = 0; y < document.body.scrollHeight; y += 250) {
+      for (let y = 0; y < limit; y += 250) {
         window.scrollTo({top: y, behavior: 'instant'});
         await settle();
         stops++;
@@ -1230,8 +1245,8 @@ def home_checks(pg):
       return {shown, stops};
     })()""")
     share = seen["shown"] / max(seen["stops"], 1)
-    check(S, "البحار is still on screen for a real share of the page",
-          share >= 0.35, f'{round(share * 100)}% of {seen["stops"]} stops')
+    check(S, "البحار is still on screen above the contact bar",
+          share >= 0.35, f'{round(share * 100)}% of {seen["stops"]} stops above it')
     pg.wait_for_timeout(300)
     check(S, "البحار steps aside over the contact bar",
           pg.evaluate("""(() => {

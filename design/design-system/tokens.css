@@ -32,7 +32,18 @@
          for a boundary you have to see in order to click. */
       --on-bar: #ffffff;        /* every visible label on the bar · 8.74:1 */
       --on-bar-bd: #b6bbbe;     /* the only boundary for a control on it · 4.51:1 */
-      --on-bar-fill: #865e40;   /* hover/active fill and the bar's hairline · white on it 5.69:1 */
+      --on-bar-fill: #865e40;
+
+      /* FOUR RADII, AND EACH HAS A JOB. There were ten — 2, 7, 8, 9, 10, 11,
+         12, 14, 16 and 50% — over seventy-seven declarations, with 7px, 9px,
+         10px and 11px each appearing exactly once or twice. That is not a
+         system, it is the residue of seventy-seven separate decisions, and at
+         a glance it reads as a page whose corners never agree.
+           999px  pills and discs        12px  every card, panel and tile
+             8px  anything you touch      2px  the flow wires' hairline caps
+         50% is gone: every element carrying it was square, where 50% and
+         999px are the same curve — but on anything that later stops being
+         square they stop being the same, silently. */   /* hover/active fill and the bar's hairline · white on it 5.69:1 */
       --sand: #9e5603; --sand-vivid: #e3a556;
       --danger: #ce1925;
       --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
