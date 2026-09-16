@@ -35,7 +35,7 @@
 
 import * as THREE from "three";
 import type { Track } from "./track";
-import { STATIONS, DRIFT_PLAZA, COAST_END_M } from "./track";
+import { STATIONS, PAINT_SHOPS, DRIFT_PLAZA, COAST_END_M } from "./track";
 import { AREAS, ROADS, LANDMARKS, LANDMARK_S } from "./world";
 
 /** A point on the map, in 0..1 of a square box. */
@@ -44,7 +44,7 @@ export interface RoadMapPoint {
   y: number;
 }
 
-export type MarkerKind = "start" | "district" | "station" | "plaza" | "landmark";
+export type MarkerKind = "start" | "district" | "station" | "painter" | "plaza" | "landmark";
 
 export interface RoadMapMarker extends RoadMapPoint {
   kind: MarkerKind;
@@ -195,6 +195,7 @@ export function buildRoadMap(track: Track): RoadMap {
   for (let i = 0; i < STATIONS.length; i++) {
     add("station", STATIONS[i].s, "Petrol", "محطة بنزين");
   }
+  for (const sh of PAINT_SHOPS) add("painter", sh.s, "Paint Shop", "صبغ سيارات");
   add("plaza", DRIFT_PLAZA.s, DRIFT_PLAZA.name, DRIFT_PLAZA.arabic);
 
   // Landmarks are registered by buildWorld as it places them, so this

@@ -32,6 +32,7 @@ import { arabicUI, latinDisplay } from "@/game/fonts";
 const STYLE = {
   start: { fill: "#f5f5f5", r: 5, label: true },
   station: { fill: "#4ade80", r: 5.5, label: true },
+  painter: { fill: "#f472b6", r: 5.5, label: true },
   plaza: { fill: "#c084fc", r: 5.5, label: true },
   landmark: { fill: "#7dd3fc", r: 4, label: true },
   district: { fill: "", r: 0, label: true },
