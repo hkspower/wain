@@ -35,19 +35,29 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 
-const PHP = 'scripts/live/live-file-check.php'
 const PREFIX = 'sporta-site/public_html/'
 const check = process.argv.includes('--check')
 
-const src = readFileSync(PHP, 'utf8')
+// TWO MANIFESTS, ONE GENERATOR. live-image-check.php had the identical
+// hardcoded list and the identical instruction in its own header — "regenerate
+// it from public_html with find | sort | xargs sha256sum" — and it had gone two
+// generations stale on hero/mobile/*.webp. It reported `differ=5` on five files
+// the server had exactly right, which is this repository's recorded failure
+// verbatim: a checker that reports the REPOSITORY's staleness as the SERVER's
+// does not merely mislead, it points at work that is already done. I read that
+// report and published five files that needed no publishing.
+//
+// The fix for live-file-check.php was written eleven days earlier and was never
+// carried across, because nobody asked how many hardcoded manifests there were.
+// "When a fix lands, grep for the clause, not the file" is already in CLAUDE.md,
+// about a different clause.
+const IMAGE_EXT = /\.(png|jpe?g|webp|gif|svg|avif|ico)$/i
+const TARGETS = [
+  { php: 'scripts/live/live-file-check.php', keep: () => true, what: 'files' },
+  { php: 'scripts/live/live-image-check.php', keep: (rel) => IMAGE_EXT.test(rel), what: 'images' },
+]
 
-/** The names that must NOT be on the server, read from the PHP itself. */
-const mustNotBlock = src.match(/\$MUSTNOT\s*=\s*\[([\s\S]*?)\];/)
-if (!mustNotBlock) {
-  console.error(`could not find $MUSTNOT in ${PHP} — refusing to guess at the exclusions`)
-  process.exit(2)
-}
-const mustNot = new Set([...mustNotBlock[1].matchAll(/'([^']+)'/g)].map((m) => m[1]))
+let drifted = 0
 
 const tracked = execFileSync('git', ['ls-files', 'sporta-site/public_html'], { encoding: 'utf8' })
   .split('\n').filter(Boolean)
@@ -83,11 +93,31 @@ if (untracked.length) {
   process.exit(2)
 }
 
+for (const target of TARGETS) {
+const PHP = target.php
+const src = readFileSync(PHP, 'utf8')
+
+// The names that must NOT be on the server, read from the PHP itself where it
+// has a list. Only live-file-check.php does; an image checker has no such
+// concept, and an empty set is the honest answer rather than a borrowed one.
+const mustNotBlock = src.match(/\$MUSTNOT\s*=\s*\[([\s\S]*?)\];/)
+const mustNot = new Set(mustNotBlock
+  ? [...mustNotBlock[1].matchAll(/'([^']+)'/g)].map((m) => m[1]) : [])
+
 const rows = []
 for (const path of tracked.sort()) {
   const rel = path.slice(PREFIX.length)
   if (mustNot.has(rel)) continue
+  if (!target.keep(rel)) continue
   rows.push(`    '${rel}' => '${createHash('sha256').update(readFileSync(path)).digest('hex')}',`)
+}
+
+// And each target must MATCH something. An image filter that matched nothing
+// would write an empty manifest, and an empty manifest reports `same=0/0`,
+// which reads like a clean run.
+if (rows.length < 5) {
+  console.error(`${PHP}: only ${rows.length} file(s) matched — refusing to write a manifest from that`)
+  process.exit(2)
 }
 
 const block = `$WANT = [\n${rows.join('\n')}\n];`
@@ -102,9 +132,10 @@ if (next === src && !src.includes(block)) {
 
 if (check) {
   if (next === src) {
-    console.log(`ok   the manifest matches the repository (${rows.length} files, ${mustNot.size} excluded)`)
-    process.exit(0)
+    console.log(`ok   ${PHP}: the manifest matches the repository (${rows.length} ${target.what}, ${mustNot.size} excluded)`)
+    continue
   }
+  drifted++
   // Name what drifted, so the failure is actionable rather than "regenerate it".
   const was = new Map([...src.matchAll(/^    '([^']+)' => '([a-f0-9]{64})',$/gm)].map((m) => [m[1], m[2]]))
   const now = new Map([...block.matchAll(/^    '([^']+)' => '([a-f0-9]{64})',$/gm)].map((m) => [m[1], m[2]]))
@@ -117,8 +148,11 @@ if (check) {
   if (gone.length) console.error(`       ${gone.length} entr(ies) no longer tracked: ${gone.slice(0, 10).join(', ')}`)
   console.error('     A stale manifest reports the REPOSITORY\'s staleness as the SERVER\'s,')
   console.error('     and points at republishing files that are already correct.')
-  process.exit(1)
+  continue
 }
 
 writeFileSync(PHP, next)
-console.log(`wrote ${rows.length} files into ${PHP} (${mustNot.size} excluded as must-not-be-there)`)
+console.log(`wrote ${rows.length} ${target.what} into ${PHP} (${mustNot.size} excluded as must-not-be-there)`)
+}
+
+process.exit(drifted ? 1 : 0)
