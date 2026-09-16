@@ -541,7 +541,9 @@ FileETag MTime Size
   # Added in the same commit as the file.
   # nav-menu.js is the fourteenth, 2026-09-16 — the main menu's removal of
   # "المتجر" and its "من نحن" -> Terms & Conditions replacement.
-  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|panel-settings|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme|nav-menu)\.js$">
+  # brand-strip.js is the fifteenth, 2026-09-16 — the brand-logo row under
+  # the home page's hero. Added in the same commit as the file.
+  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|panel-settings|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme|nav-menu|brand-strip)\.js$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 

@@ -721,6 +721,13 @@
          only once this script has a working replacement in place. -->
     <script src="/assets/nav-menu.js" defer></script>
 
+    <!-- A row of brand logos on the home page, right under the hero carousel
+         — the hero is `section[aria-roledescription]`, a stable selector
+         across languages (measured: the value stays "carousel" in Arabic
+         too). Renders nothing until an active brand has a logo; the live
+         shop has none yet. -->
+    <script src="/assets/brand-strip.js" defer></script>
+
     <!-- "Sign in with Google" on /backends, beside the password form rather
          than instead of it. Google sign-in can fail for reasons this shop
          cannot see or fix — an outage, a blocked script, a corporate policy,

@@ -142,7 +142,8 @@
     "test:publish-pin": "node scripts/publish-pin-test.mjs",
     "test:text-style": "node scripts/text-style-scan.mjs",
     "test:panel-settings": "node scripts/panel-settings-test.mjs",
-    "test:nav-menu": "node scripts/nav-menu-test.mjs"
+    "test:nav-menu": "node scripts/nav-menu-test.mjs",
+    "test:brand-strip": "node scripts/brand-strip-test.mjs"
   },
   "private": true
 }
