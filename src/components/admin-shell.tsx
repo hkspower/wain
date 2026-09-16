@@ -54,6 +54,11 @@ export function AdminShell({
     // Next to Orders, because it is the same job seen from the other end —
     // a parcel coming back rather than going out.
     ['/backends/returns', 'Returns'],
+    // Before Stock, because a size cannot be stocked until the product editor
+    // has given it one — Products is where a garment and its size ladder are
+    // created; Stock is where the count on an existing size is moved day to
+    // day, which is a different, more frequent job by the same person.
+    ['/backends/products', 'Products'],
     ['/backends/stock', 'Stock'],
     ['/backends/promos', 'Promotions'],
     ['/backends/images', 'Photos'],

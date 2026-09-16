@@ -153,6 +153,72 @@ const noSku = await call('set_stock', { sku: 'NO-SUCH-SKU', stock: 1 })
 check(noSku.status === 400 && noSku.body?.error === 'sku_not_found',
   `an unknown sku is refused (${noSku.body?.error})`)
 
+// --- a product's whole life, and its size ladder ---------------------------
+// The Products screen (src/app/backends/products.tsx) is the first thing on
+// the app side to call product_save, product_active, variant_save and
+// variant_delete — none of them had ever been driven from here, only from
+// the website's own prebuilt panel. A slug unlikely to collide with the seed
+// catalogue, cleaned up in every branch this rig can exit through.
+const PSLUG = 'rig-test-garment-' + Date.now()
+const created = await call('product_save', {
+  slug: PSLUG, name_en: 'Rig test garment', name_ar: 'قطعة اختبار',
+  price: 12.5, active: true,
+})
+check(created.status === 200 && created.body?.slug === PSLUG,
+  `product_save creates a product (${created.body?.slug})`)
+const pid = created.body?.id
+
+const renamed = await call('product_save', {
+  id: pid, slug: PSLUG, name_en: 'Rig test garment (edited)', name_ar: 'قطعة اختبار',
+  price: 15, sale_price: 12, active: true,
+})
+check(renamed.status === 200 && renamed.body?.name_en === 'Rig test garment (edited)'
+  && Number(renamed.body?.sale_price) === 12,
+  `product_save edits the same row by id (${renamed.body?.name_en}, sale ${renamed.body?.sale_price})`)
+
+const hidden = await call('product_active', { id: pid, active: false })
+// The raw DB value, not a JSON boolean — the same shape brand_active answers
+// with, checked with Number() rather than === false for the same reason.
+check(hidden.status === 200 && Number(hidden.body?.active) === 0,
+  `product_active hides it (${hidden.body?.active})`)
+await call('product_active', { id: pid, active: true })
+
+const badSize = await call('variant_save', { slug: PSLUG, size: 'NOTASIZE', stock: 1 })
+check(badSize.status === 400 && badSize.body?.error === 'invalid_size',
+  `variant_save refuses a size outside the shop's own list (${badSize.body?.error})`)
+
+const madeVariant = await call('variant_save', { slug: PSLUG, size: 'M', stock: 3, cost_aed: 7.5 })
+check(madeVariant.status === 200 && madeVariant.body?.stock === 3,
+  `variant_save creates a size (${madeVariant.body?.sku}: stock ${madeVariant.body?.stock})`)
+const sku = madeVariant.body?.sku
+
+const editedVariant = await call('variant_save', { slug: PSLUG, size: 'M', stock: 0 })
+check(editedVariant.status === 200 && editedVariant.body?.sku === sku && editedVariant.body?.stock === 0,
+  `re-saving the same size EDITS it rather than making a second row (stock -> ${editedVariant.body?.stock})`)
+
+// Refused with stock on it, accepted once it is empty — proved in that
+// order, since the second call alone cannot show the guard exists.
+const withStock = await call('variant_save', { slug: PSLUG, size: 'M', stock: 4 })
+const blockedDelete = await call('variant_delete', { sku })
+check(blockedDelete.status === 400 && blockedDelete.body?.error === 'variant_has_stock',
+  `variant_delete refuses a size that still holds stock (${blockedDelete.body?.error})`)
+await call('variant_save', { slug: PSLUG, size: 'M', stock: 0 })
+const cleanDelete = await call('variant_delete', { sku })
+check(cleanDelete.status === 200 && cleanDelete.body?.deleted === sku,
+  `and removes it once stock is at zero (${cleanDelete.body?.deleted})`)
+void withStock
+
+const productsAll = await call('products_all')
+const stillThere = (Array.isArray(productsAll.body) ? productsAll.body : productsAll.body?.products ?? [])
+  .find((p) => p.slug === PSLUG)
+check(!!stillThere, 'products_all lists the rig product the editor would show')
+
+// Tidy: the rig's own product is not the shop's, and it is not an order —
+// nothing references it, so this is a real delete, not the active=0 the app
+// itself uses for everything a customer could have bought.
+execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta', '-e',
+  `delete from products where slug='${PSLUG}'`])
+
 // --- a discount's whole life ----------------------------------------------
 const save = await call('discount_save', {
   kind: 'code', code: 'RIGTEST10', label: 'Contract rig', type: 'percent',

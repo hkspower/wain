@@ -145,14 +145,19 @@ def _fresh():
                     'email': 'cs@sporta.com.kw', 'address_ar': '', 'address_en': '',
                     'hours_ar': '', 'hours_en': '', 'instagram': ''},
     }
-    # PRODUCTS AS THE UPLOADER NEEDS THEM — ?r=products_all is where brands
-    # live; ?r=variants knows sizes and skus and not brands, which is why the
-    # panel joins the two. Both shapes have to exist here or the join is only
-    # ever exercised against production.
+    # PRODUCTS AS THE UPLOADER AND THE PRODUCT EDITOR NEED THEM. ?r=products_all
+    # is where brands live and (since the product editor) the full row the
+    # server's own products_all selects; ?r=variants knows sizes and skus and
+    # not brands, which is why the panel joins the two. Both shapes have to
+    # exist here or the join, and the editor's own fields, are only ever
+    # exercised against production.
     products = [
-        {'slug': v['slug'], 'name_en': v.get('name_en') or v['slug'],
-         'brand_slug': 'gymshark' if 'cloudsoft' in v['slug'] else None}
-        for v in {x['slug']: x for x in variants}.values()
+        {'id': i + 1, 'slug': v['slug'], 'name_en': v.get('name_en') or v['slug'],
+         'name_ar': v.get('name_en') or v['slug'], 'desc_en': None, 'desc_ar': None,
+         'price': 10.000, 'sale_price': None, 'sale_starts_at': None, 'sale_ends_at': None,
+         'featured': 0, 'featured_sort': 0, 'category': None, 'image': None,
+         'brand_slug': 'gymshark' if 'cloudsoft' in v['slug'] else None, 'active': 1}
+        for i, v in enumerate({x['slug']: x for x in variants}.values())
     ]
     # RETURN AND EXCHANGE REQUESTS, in the shape ?r=returns sends them: the
     # lines come WITH the list, snake_case, KWD decimals. Two rows, so the
@@ -852,6 +857,131 @@ class Handler(BaseHTTPRequestHandler):
                     if words and all(w in text for w in words) and len(words) > best_words:
                         best, best_words = x['id'], len(words)
             return self._json(200, {'id': best, 'words': best_words})
+
+        # ONE ROUTE FOR ADD AND EDIT, exactly like brand_save above and for the
+        # same reason: admin.php is one route and the difference is whether an
+        # id came with it. product_save's own comment says a rename carries the
+        # garment's photographs and size ladder with it — mirrored here by
+        # updating slug on both STATE['variants'] and STATE['images'] rows,
+        # or the mock would silently orphan them the way the server's own
+        # comment says the bug used to.
+        if r == 'product_save':
+            name_en = (b.get('name_en') or '').strip()
+            name_ar = (b.get('name_ar') or '').strip()
+            slug = (b.get('slug') or '').strip().lower().replace(' ', '-')
+            if not slug:
+                return self._json(400, {'error': 'invalid_slug'})
+            if not name_en or not name_ar:
+                return self._json(400, {'error': 'bad_request'})
+            try:
+                price = float(b.get('price') or 0)
+            except (TypeError, ValueError):
+                return self._json(400, {'error': 'invalid_price'})
+            if price <= 0:
+                return self._json(400, {'error': 'invalid_price'})
+            sale_raw = b.get('sale_price')
+            sale_price = None
+            if sale_raw not in (None, ''):
+                try:
+                    sale_price = float(sale_raw)
+                except (TypeError, ValueError):
+                    return self._json(400, {'error': 'invalid_sale_price'})
+                if sale_price <= 0:
+                    return self._json(400, {'error': 'invalid_sale_price'})
+                if sale_price >= price:
+                    return self._json(400, {'error': 'sale_not_lower'})
+            brand_slug = (b.get('brand_slug') or '').strip() or None
+            if brand_slug and not any(x['slug'] == brand_slug for x in STATE['brands']):
+                return self._json(400, {'error': 'unknown_brand'})
+            pid = int(b.get('id') or 0)
+            clash = [x for x in STATE['products'] if x['slug'] == slug and x['id'] != pid]
+            if clash:
+                return self._json(400, {'error': 'slug_taken'})
+            for x in STATE['products']:
+                if x['id'] == pid:
+                    old_slug = x['slug']
+                    x.update({
+                        'slug': slug, 'name_en': name_en, 'name_ar': name_ar,
+                        'desc_en': b.get('desc_en') or None, 'desc_ar': b.get('desc_ar') or None,
+                        'price': price, 'sale_price': sale_price,
+                        'category': (b.get('category') or None), 'brand_slug': brand_slug,
+                        'active': 1 if b.get('active', True) else 0,
+                    })
+                    if old_slug != slug:
+                        for v in STATE['variants']:
+                            if v['slug'] == old_slug:
+                                v['slug'] = slug
+                        for im in STATE['images']:
+                            if im['slug'] == old_slug:
+                                im['slug'] = slug
+                    return self._json(200, x)
+            row = {'id': max([x['id'] for x in STATE['products']] or [0]) + 1,
+                   'slug': slug, 'name_en': name_en, 'name_ar': name_ar,
+                   'desc_en': b.get('desc_en') or None, 'desc_ar': b.get('desc_ar') or None,
+                   'price': price, 'sale_price': sale_price,
+                   'sale_starts_at': None, 'sale_ends_at': None,
+                   'featured': 0, 'featured_sort': 0,
+                   'category': (b.get('category') or None), 'image': None,
+                   'brand_slug': brand_slug, 'active': 1 if b.get('active', True) else 0}
+            STATE['products'].append(row)
+            return self._json(200, row)
+
+        if r == 'product_active':
+            for x in STATE['products']:
+                if x['id'] == int(b.get('id') or 0):
+                    x['active'] = 1 if b.get('active') else 0
+                    return self._json(200, {'id': x['id'], 'slug': x['slug'],
+                                            'active': bool(x['active'])})
+            return self._json(400, {'error': 'product_not_found'})
+
+        # CREATE the size ladder, or edit stock/cost on one that exists — ON
+        # DUPLICATE KEY on the sku, the same as admin.php, so re-saving a size
+        # being edited is an edit rather than an error.
+        if r == 'variant_save':
+            slug = (b.get('slug') or '').strip()
+            size = (b.get('size') or '').strip().upper()
+            if size not in ALLOWED_SIZES:
+                return self._json(400, {'error': 'invalid_size'})
+            if not any(x['slug'] == slug for x in STATE['products']):
+                return self._json(400, {'error': 'product_not_found'})
+            try:
+                stock = int(b.get('stock') or 0)
+            except (TypeError, ValueError):
+                return self._json(400, {'error': 'stock_cannot_be_negative'})
+            if stock < 0:
+                return self._json(400, {'error': 'stock_cannot_be_negative'})
+            cost_raw = b.get('cost_aed')
+            cost = None
+            if cost_raw not in (None, ''):
+                try:
+                    cost = float(cost_raw)
+                except (TypeError, ValueError):
+                    return self._json(400, {'error': 'invalid_cost'})
+                if cost < 0:
+                    return self._json(400, {'error': 'invalid_cost'})
+            sku = (slug[:26] + '-' + size).upper()
+            for x in STATE['variants']:
+                if x['sku'] == sku:
+                    x['stock'], x['cost_aed'] = stock, cost
+                    return self._json(200, x)
+            row = {'sku': sku, 'slug': slug, 'name_en':
+                   next((p['name_en'] for p in STATE['products'] if p['slug'] == slug), slug),
+                   'size': size, 'stock': stock, 'cost_aed': cost}
+            STATE['variants'].append(row)
+            return self._json(200, row)
+
+        # REFUSED WHILE STOCK IS ON IT, unless `force` is sent — the same
+        # guard admin.php's own comment explains: a deleted row that held
+        # stock is indistinguishable afterwards from that stock having sold.
+        if r == 'variant_delete':
+            sku = b.get('sku') or ''
+            row = next((x for x in STATE['variants'] if x['sku'] == sku), None)
+            if row is None:
+                return self._json(400, {'error': 'sku_not_found'})
+            if row['stock'] > 0 and not b.get('force'):
+                return self._json(400, {'error': 'variant_has_stock'})
+            STATE['variants'].remove(row)
+            return self._json(200, {'deleted': sku})
 
         if r == 'brand_active':
             for x in STATE['brands']:

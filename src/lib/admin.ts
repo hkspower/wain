@@ -367,6 +367,36 @@ export type Qa = {
   updated_at: string;
 };
 
+/** A garment as the product editor edits it. Money is fils, like everywhere
+ *  else in this app — the server keeps price and sale_price as KWD decimals,
+ *  converted here once rather than at every screen that reads one. */
+export type Product = {
+  id: number;
+  slug: string;
+  name_en: string;
+  name_ar: string;
+  desc_en: string;
+  desc_ar: string;
+  price: Fils;
+  /** null means not on sale — the server's own convention, since a sale
+   *  price of 0 would be a claim the garment is free. */
+  salePrice: Fils | null;
+  category: string | null;
+  brandSlug: string | null;
+  active: boolean | number;
+};
+
+/** One size on a garment's ladder. `costAed` is the wholesale cost — the one
+ *  commercially sensitive number in the schema, admin-only, and never sent to
+ *  the storefront's own ?r=stock. */
+export type ProductVariant = {
+  sku: string;
+  slug: string;
+  size: string;
+  stock: number;
+  costAed: number | null;
+};
+
 /** A garment as the uploader needs to find it: by brand, by size, by sku. */
 export interface UploadTarget {
   sku: string;
@@ -374,6 +404,59 @@ export interface UploadTarget {
   name: string;
   size: string;
   brandSlug: string | null;
+}
+
+interface WireProduct {
+  id: number;
+  slug: string;
+  name_en: string;
+  name_ar: string;
+  desc_en: string | null;
+  desc_ar: string | null;
+  price: string | number;
+  sale_price: string | number | null;
+  category: string | null;
+  brand_slug: string | null;
+  active: boolean | number;
+}
+
+function toProduct(w: WireProduct): Product {
+  return {
+    id: w.id,
+    slug: w.slug,
+    name_en: w.name_en,
+    name_ar: w.name_ar,
+    desc_en: w.desc_en ?? '',
+    desc_ar: w.desc_ar ?? '',
+    price: toFils(Number(w.price)),
+    salePrice: w.sale_price === null || w.sale_price === '' ? null : toFils(Number(w.sale_price)),
+    category: w.category,
+    brandSlug: w.brand_slug,
+    active: w.active,
+  };
+}
+
+interface WireProductVariant {
+  sku: string;
+  slug: string;
+  size: string;
+  stock: number;
+  // Present on ?r=variants (the admin route) and absent from anything the
+  // storefront reads — see admin.php's own comment on why cost_aed sits only
+  // here. Optional in the type because a couple of call sites for this same
+  // interface's shape existed before cost_aed was added to the server.
+  cost_aed?: string | number | null;
+}
+
+function toProductVariant(w: WireProductVariant): ProductVariant {
+  return {
+    sku: w.sku,
+    slug: w.slug,
+    size: w.size,
+    stock: w.stock,
+    costAed: w.cost_aed === undefined || w.cost_aed === null || w.cost_aed === ''
+      ? null : Number(w.cost_aed),
+  };
 }
 
 interface WireProductImage {
@@ -952,6 +1035,99 @@ export const adminApi = {
       name: 'knet',
       value: { tranportal_id: tranportalId.trim() },
     }),
+
+  // --------------------------------------------------------------- products
+  //
+  // Create a garment, edit one, take it off sale — and its size ladder, which
+  // nothing on the app side could touch until now. stock.tsx already moves
+  // the STOCK on a size that exists; it cannot add a first size to a new
+  // product or remove one, which is what ?r=variant_save / variant_delete are
+  // for. Kept as its own section rather than folded into stock.tsx, because a
+  // product editor and a stock count are different jobs done by the same
+  // person on different days — the website's own /backends panel keeps them
+  // as separate screens for the same reason.
+
+  /** Every product, shown or hidden alike — the same argument brands() above
+   *  already makes: a switch you cannot see is a switch you cannot turn back
+   *  on. Newest first, which is the server's own order and puts a just-added
+   *  garment at the top rather than the bottom of a scrolling list. */
+  products: async (): Promise<Product[]> => {
+    const raw = await call<WireProduct[] | { products: WireProduct[] }>('products_all');
+    const rows = Array.isArray(raw) ? raw : raw.products;
+    return rows.map(toProduct);
+  },
+
+  /** Create or edit — ONE route, one form, the difference is whether an id
+   *  came with it, exactly like saveBrand. RENAMING THE SLUG CARRIES THE
+   *  GARMENT'S PHOTOGRAPHS AND SIZE LADDER WITH IT — product_save's own
+   *  comment on the server says so, in one transaction — so this screen does
+   *  not need to warn about it separately; that is the server's guarantee,
+   *  not something built again here. */
+  saveProduct: (p: {
+    id?: number;
+    slug: string;
+    name_en: string;
+    name_ar: string;
+    desc_en?: string;
+    desc_ar?: string;
+    price: Fils;
+    salePrice?: Fils | null;
+    category?: string | null;
+    brandSlug?: string | null;
+    active: boolean;
+  }) =>
+    call<WireProduct>('product_save', {
+      ...(p.id !== undefined ? { id: p.id } : {}),
+      slug: p.slug,
+      name_en: p.name_en,
+      name_ar: p.name_ar,
+      desc_en: p.desc_en ?? '',
+      desc_ar: p.desc_ar ?? '',
+      price: toKwd(p.price),
+      // '' clears it — the server's convention for "no sale", read straight
+      // off product_save's own handling of an empty sale_price.
+      sale_price: p.salePrice != null ? toKwd(p.salePrice) : '',
+      category: p.category ?? '',
+      brand_slug: p.brandSlug ?? '',
+      active: p.active,
+    }).then(toProduct),
+
+  /** Take it off sale, or put it back. NOT a delete — order_items reference a
+   *  product by id, and a shop that deletes a sold garment loses the line on
+   *  every invoice that ever carried it. The same reasoning as brands. */
+  setProductActive: (id: number, active: boolean) =>
+    call<{ id: number; slug: string; active: boolean }>('product_active', { id, active }),
+
+  /** One garment's own size ladder — filtered here from the same ?r=variants
+   *  the dashboard and stock.tsx already call, rather than a new endpoint.
+   *  `cost_aed` rides along on this one because it is read behind the same
+   *  session gate as everything else in this screen; it is never present on
+   *  what a shopper's ?r=stock can see. */
+  productVariants: async (slug: string): Promise<ProductVariant[]> => {
+    const rows = await call<WireProductVariant[]>('variants');
+    return rows.filter((v) => v.slug === slug).map(toProductVariant);
+  },
+
+  /** Add a size to the ladder, or edit the stock/cost of the one already
+   *  there — ON DUPLICATE KEY on the sku, so saving a size that exists edits
+   *  it rather than failing. The sku is generated by the SERVER from the slug
+   *  and size; nothing here invents or sends one, for the reason variant_save
+   *  gives in its own comment — a client-chosen key can collide with another
+   *  garment's row. */
+  saveVariant: (v: { slug: string; size: string; stock: number; costAed?: number | null }) =>
+    call<WireProductVariant>('variant_save', {
+      slug: v.slug,
+      size: v.size,
+      stock: v.stock,
+      cost_aed: v.costAed ?? '',
+    }).then(toProductVariant),
+
+  /** Remove a size from the ladder. The server refuses this while the size
+   *  still holds stock unless `force` says otherwise — deleting a variant
+   *  that holds stock is indistinguishable afterwards from that stock having
+   *  sold, so the screen has to ask rather than silently pass force through. */
+  deleteVariant: (sku: string, force = false) =>
+    call<{ deleted: string }>('variant_delete', { sku, force }),
 
   // ------------------------------------------------------- product photographs
   //

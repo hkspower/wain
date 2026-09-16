@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -48,6 +49,10 @@ type Row = { picked: Picked; name: string; state: 'waiting' | 'working' | 'done'
 
 export default function ImagesScreen() {
   const { token, signOut } = useSession();
+  // Arriving from the Products screen's "Photographs" button — see there.
+  // Optional: nothing here changes when it is absent, and the three-step
+  // finder below still works exactly as it always has.
+  const { slug: presetSlug } = useLocalSearchParams<{ slug?: string }>();
 
   const [targets, setTargets] = useState<UploadTarget[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -78,6 +83,16 @@ export default function ImagesScreen() {
   }, [token, signOut]);
 
   useEffect(load, [load]);
+
+  // ONE-SHOT, not a sync: it only ever SETS sku, and only while nothing has
+  // been picked yet. Without the `sku === null` guard this would fight the
+  // finder below every time targets refetches — reselecting the preset size
+  // out from under someone who had since chosen a different one.
+  useEffect(() => {
+    if (!presetSlug || sku !== null || !targets) return;
+    const first = targets.find((t) => t.slug === presetSlug);
+    if (first) setSku(first.sku);
+  }, [presetSlug, sku, targets]);
 
   const chosen = useMemo(
     () => targets?.find((t) => t.sku === sku) ?? null,
