@@ -5,7 +5,7 @@ import type { DriverCard, GameEngine, HudData, RaceResult } from "@/game/engine"
 import { playSfx, preloadSfx, setSfxVolume } from "@/game/sfx";
 import Results from "./Results";
 import Onboarding, { CoachHint, CoachState, hasOnboarded } from "./Onboarding";
-import { ICONS, IconFlash, IconCrown, IconGear, IconFlagKW, type IconName } from "./Icons";
+import { ICONS, IconFlash, IconCrown, IconGear, IconFlagKW, IconChat, type IconName } from "./Icons";
 import Garage from "./Garage";
 import KuwaitClock from "./KuwaitClock";
 import RoadMapView from "./RoadMapView";
@@ -2723,7 +2723,7 @@ function raceCut(): { w: number; h: number } | null {
             onClick={() => setQuickChat(true)}
             className="grn-info pointer-events-auto px-3 py-1.5 font-display text-xs tracking-[0.08em]"
           >
-            💬 <span className="grn-ar" lang="ar">دردشة</span>
+            <IconChat size={14} className="-mt-0.5 mr-1 inline" /> <span className="grn-ar" lang="ar">دردشة</span>
           </button>
         </div>
       )}

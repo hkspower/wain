@@ -175,8 +175,18 @@ export const IconFlagKW = ({ size = 18, ...rest }: IconProps) => (
   </svg>
 );
 
+/** Quick chat — a speech bubble with a line of text in it. Drawn, not
+ *  an emoji: an emoji is artwork the operating system picks. */
+export const IconChat = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M5 4.8h14a1.2 1.2 0 0 1 1.2 1.2v8.6a1.2 1.2 0 0 1-1.2 1.2h-8.2L6.6 19.2v-3.4H5a1.2 1.2 0 0 1-1.2-1.2V6A1.2 1.2 0 0 1 5 4.8z" />
+    <path d="M8.4 9h7.2M8.4 12h4.6" />
+  </Svg>
+);
+
 export const ICONS = {
   flag: IconFlag,
+  chat: IconChat,
   wrench: IconWrench,
   gear: IconGear,
   pad: IconPad,

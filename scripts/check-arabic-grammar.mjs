@@ -56,8 +56,20 @@ const bad = (s, why) => fail.push(`${s.file}:${s.line}  ${why}\n      ${s.text}`
  *  hide a word from a lookup. The marks themselves are checked
  *  separately — see the diacritic rule. */
 const BARE = /[ً-ْٰ]/g;
+// Split on whitespace and punctuation, NOT on "anything that is not an
+// Arabic letter". The old split made every run of digits or Latin a
+// separator too, which deleted it: "٩٥ أو ١٣٨ أو ١٨١" tokenised to
+// "أو أو" and the doubled-word rule reported a repetition the text does
+// not contain (the same for "أو WASD، أو"). A token with no Arabic
+// letter in it now becomes a marker that breaks adjacency and matches
+// nothing, so the rules see the sentence's real shape.
+const SEP = /[\s،؛؟!.,:;()«»"'\-—–…/[\]{}]+/;
+const NOT_ARABIC = "\u0000";
 const words = (t) =>
-  t.split(/[^ء-يً-ْٰ]+/).filter(Boolean).map((w) => w.replace(BARE, ""));
+  t
+    .split(SEP)
+    .filter(Boolean)
+    .map((w) => (/[ء-ي]/.test(w) ? w.replace(BARE, "").replace(/[^ء-يً-ْٰ]/g, "") : NOT_ARABIC));
 
 // ---------------------------------------------------------------------
 // The rules, over whatever list of strings they are handed.
@@ -384,15 +396,22 @@ const FIXTURE = [
   // ...and the pair that must NOT fire, for the reason DISTINCT exists:
   // these are two words, not two spellings of one.
   ["!sharper is not someone", "سيفي ما ينسلّ لأي أحد ونصلك أحدّ من نصلي", null],
+  ["doubled word", "روح روح يا بطل", /twice in a row/],
+  ["!digits between the same word", "لمبات ترمي الضوء ٩٥ أو ١٣٨ أو ١٨١ متر", null],
+  ["!latin between the same word", "أسهم الكيبورد أو WASD، أو الدواسات على الشاشة", null],
 ];
 if (process.argv.includes("--self-test")) {
   let badRules = 0;
   for (const [name, text, want] of FIXTURE) {
     const before = fail.length;
+    const notesBefore = note.length;
     const probe = { file: "fixture", line: 0, text };
     runRules([probe]);
-    const hits = fail.slice(before);
+    // Notes count: a rule that only reports still has to fire on its
+    // planted error, and still must not fire on correct Arabic.
+    const hits = [...fail.slice(before), ...note.slice(notesBefore)];
     fail.length = before;
+    note.length = notesBefore;
     const caught = hits.some((h) => (want ? want.test(h) : true));
     if (want && !caught) { console.error(`  MISS  ${name}: nothing fired on "${text}"`); badRules++; }
     if (!want && hits.length) { console.error(`  FALSE ${name}: fired on correct Arabic "${text}"\n        ${hits[0]}`); badRules++; }

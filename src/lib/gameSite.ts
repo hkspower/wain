@@ -327,7 +327,7 @@ export const LENGTHS: { heading: Bi; body: Bi } = {
     en:
       "You pick the distance, not the rival — and picking a different one is how " +
       "you beat somebody who has your number at their own game.",
-    ar: "أنت تختار المسافة، مو الخصم — واختيار مسافة ثانية هي طريقتك تغلب واحد يعرف كيف يغلبك على مسافته.",
+    ar: "أنت تختار المسافة، مو الخصم — واختيار مسافة ثانية طريقتك تغلب واحد يعرف كيف يغلبك على مسافته.",
   },
 };
 
