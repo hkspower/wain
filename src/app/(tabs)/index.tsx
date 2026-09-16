@@ -7,13 +7,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { HeroSlider } from '@/components/hero-slider';
 import { ProductCard } from '@/components/product-card';
-import { RemoteArt } from '@/components/remote-art';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { EMBER_ON_ART, Radius, Spacing, Type } from '@/constants/theme';
+import {
+  CATEGORY_SOLID, EMBER_ON_ART, INK_ON_CATEGORY_SOLID, Radius, Spacing, Type,
+} from '@/constants/theme';
 import { useCart } from '@/lib/cart';
-import { categoryArt } from '@/lib/assets';
-import { bundledCategoryArt } from '@/lib/category-art';
 import { categoryKicker, categoryName } from '@/lib/catalog';
 import { useLang } from '@/lib/i18n';
 
@@ -48,23 +47,13 @@ export default function HomeScreen() {
                 // every door now opens onto the same room.
                 onPress={() => router.push('/shop')}
                 style={press()}>
-                <RemoteArt
-                  uri={categoryArt(cat.id, dir)}
-                  bundled={bundledCategoryArt(cat.id, dir)}
-                  ground={cat.color}
-                  emoji={cat.emoji}
-                  emojiSize={40}
-                  // The compositions stand their subject on one side and leave
-                  // the other quiet for the copy, so the crop is anchored to
-                  // the subject's side: a narrow phone trims backdrop rather
-                  // than the model.
-                  focus={dir === 'rtl' ? 'start' : 'end'}
-                  style={styles.categoryTile}>
-                  {/* Copy on the reading side, sitting straight on the
-                      artwork. No plate: the tiles the owner sent are composed
-                      dark under the text, and a box drawn over them is a
-                      different design. The ground under the picture is
-                      charcoal for the same reason — see catalog.ts. */}
+                <View style={[styles.categoryTile, { backgroundColor: CATEGORY_SOLID[cat.id] }]}>
+                  {/* Ink text, not white: a solid brand colour is far lighter
+                      than the near-black artwork ground the copy used to sit
+                      on, and white drops as low as 2.6:1 on the brightest
+                      tone — below AA even for this large, bold a title.
+                      Measured against all three tones before shipping;
+                      see the git history for the numbers. */}
                   <View style={[styles.categoryInner, row]}>
                     <View style={styles.categoryCopy}>
                       {cat.badge ? (
@@ -86,7 +75,7 @@ export default function HomeScreen() {
                   <View style={[styles.arrowChip, dir === 'rtl' ? styles.arrowStart : styles.arrowEnd]}>
                     <Text style={styles.arrowGlyph}>{dir === 'rtl' ? '↖' : '↗'}</Text>
                   </View>
-                </RemoteArt>
+                </View>
               </Pressable>
             ))}
           </View>
@@ -112,11 +101,13 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   categoryTile: {
-    // 1.69:1, measured off the tiles the owner sent. Tall enough for a standing
-    // figure to be a figure rather than a band across the middle.
+    // SQUARE, not 1.69:1 — asked for on 2026-09-16, replacing the ratio
+    // measured off the photographic tiles the owner had sent. aspectRatio
+    // rather than a fixed height, so it stays square across every phone
+    // width without a number to keep in step with the column it fills.
+    aspectRatio: 1,
     borderRadius: Radius.card,
     overflow: 'hidden',
-    minHeight: 212,
   },
   categoryInner: {
     flex: 1,
@@ -132,7 +123,12 @@ const styles = StyleSheet.create({
   categoryKicker: {
     fontFamily: Type.label.family,
     fontSize: Type.label.size,
-    color: 'rgba(255,255,255,0.78)',
+    // INK, not white/78% — the tile is now a solid brand colour rather than
+    // near-black artwork, and white fails contrast at this size on all three
+    // tones (as low as 2.6:1 on the brightest). Ink clears 4.5:1 on every
+    // tone but the darkest, where the kicker route is unreachable anyway:
+    // that category (outlet) always carries a badge instead — see below.
+    color: INK_ON_CATEGORY_SOLID,
     fontWeight: '600',
     letterSpacing: 0.5,
   },
@@ -153,7 +149,11 @@ const styles = StyleSheet.create({
     fontFamily: Type.display.family,
     fontSize: Type.display.size,
     lineHeight: Type.display.lineAr,
-    color: '#ffffff',
+    // INK, not white — measured against all three solid tones: 6.7:1 on the
+    // brightest, 4.6:1 on the middle, 3.2:1 on the darkest. This title is
+    // large and bold enough that WCAG's 3:1 threshold applies rather than
+    // 4.5:1, so all three clear it; white failed on two of the three.
+    color: INK_ON_CATEGORY_SOLID,
     fontWeight: '700',
   },
   arrowChip: {
