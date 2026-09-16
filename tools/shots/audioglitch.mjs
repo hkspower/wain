@@ -236,6 +236,16 @@ const out = await page.evaluate(async () => {
       if (++k > 12) clearInterval(id);
     }, 110);
   }, 1800);
+  await scene("horn", () => {
+    e.setTouchInput({ throttle: 1, brake: 0, steer: 0 });
+    e.player.speed = 45;
+    // A lean, a stab, and a double tap — the press pattern that lands an
+    // attack on top of a release tail, which is where a held voice pops
+    // if it is going to. Over full throttle, because that is when anyone
+    // actually uses the horn.
+    const seq = [[0, 1], [520, 0], [900, 1], [1020, 0], [1300, 1], [1380, 0], [1460, 1], [1560, 0]];
+    for (const [ms, on] of seq) setTimeout(() => (on ? snd.hornOn() : snd.hornOff()), ms);
+  }, 2000);
   // Pausing and muting cut the whole mix at once, which is the loudest
   // thing anything in this game ever does to the master bus. Both used to
   // be a bare assignment to master.gain.value — a step from half of full

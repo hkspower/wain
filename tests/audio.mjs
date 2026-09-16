@@ -1071,6 +1071,46 @@ if (music) {
   check(range > 2, `the mix has no dynamic range (${range.toFixed(1)}x from idle to a crash)`);
 }
 
+// --- The horn: a layered voice, per-car pitch, and a real teardown ------
+//
+// The horn is press-and-hold, so what can go wrong is structural rather
+// than tonal: a second press stacking a second chain on top of the first,
+// or a release that leaves oscillators registered. Both are read off the
+// live fields, the way the rest of this file reads gains.
+{
+  const horn = await page.evaluate(async () => {
+    const s = window.__grnEngine.sound;
+    s.hornOn();
+    const on = s.hornOscs.length;
+    s.hornOn();
+    const again = s.hornOscs.length;
+    s.hornOff();
+    await new Promise((r) => setTimeout(r, 300));
+    const after = s.hornOscs.length;
+    const gainAfter = s.hornGain;
+    const bases = {};
+    for (const L of [4.7, 3.95, 5.35]) {
+      s.setHorn(L);
+      bases[L] = s.hornBase;
+    }
+    s.setHorn(4.7);
+    return { on, again, after, gainAfter, bases };
+  });
+  console.log(
+    `horn        ${horn.on} voices on, ${horn.again} after a second press, ${horn.after} registered 300 ms after release`
+  );
+  check(horn.on === 5, `the horn should build 4 trumpets + 1 beat LFO, built ${horn.on}`);
+  check(horn.again === 5, `a second hornOn() stacked a second chain (${horn.again} voices)`);
+  check(horn.after === 0, `${horn.after} horn oscillator(s) still registered 300 ms after hornOff()`);
+  check(horn.gainAfter === null, "hornGain was not cleared on release");
+  console.log(
+    `             base ${horn.bases[4.7].toFixed(1)} Hz at 4.7 m, ${horn.bases[3.95].toFixed(1)} at 3.95 m, ${horn.bases[5.35].toFixed(1)} at 5.35 m`
+  );
+  check(Math.abs(horn.bases[4.7] - 420) < 0.01, `the 4.7 m sedan should sit at exactly 420 Hz, got ${horn.bases[4.7]}`);
+  check(Math.abs(horn.bases[3.95] - 500) < 1, `a 3.95 m car should sit near 500 Hz, got ${horn.bases[3.95]}`);
+  check(Math.abs(horn.bases[5.35] - 369) < 1, `a 5.35 m car should sit near 369 Hz, got ${horn.bases[5.35]}`);
+}
+
 console.log(fail.length ? "\nFAILURES:\n - " + fail.join("\n - ") : "\nall audio checks passed");
 await browser.close();
 process.exit(fail.length ? 1 : 0);

@@ -2014,6 +2014,7 @@ export class GameEngine {
       this.sound.configureAspiration(
         this.tune.aspiration === "super" ? "super" : this.tune.boostMult > 0 ? "turbo" : "none"
       );
+      this.sound.setHorn(this.tune.lengthM);
       // The system that is already bolted on when the engine first fires,
       // not only the one fitted later in the garage.
       this.sound.setExhaust(
@@ -3870,6 +3871,7 @@ export class GameEngine {
     this.sound?.configureAspiration(
       this.tune.aspiration === "super" ? "super" : this.tune.boostMult > 0 ? "turbo" : "none"
     );
+    this.sound?.setHorn(this.tune.lengthM);
     const ex = this.tune.exhaust;
     this.sound?.setExhaust(ex.pitch, ex.rasp, ex.loud, ex.tone);
   }

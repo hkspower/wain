@@ -430,8 +430,13 @@ export class SoundEngine {
   private brakeRumbleFilter: BiquadFilterNode;
   private brakeSquealGain: GainNode;
   private brakeSquealFilter: BiquadFilterNode;
+  // The horn: the trumpets and the beat LFO, the clip/formant chain, and
+  // the envelope — which doubles as the "is it on" flag. hornBase is the
+  // low trumpet in Hz; setHorn() moves it with the car.
   private hornOscs: OscillatorNode[] = [];
+  private hornNodes: AudioNode[] = [];
   private hornGain: GainNode | null = null;
+  private hornBase = 420;
   private lastGear = 0;
   private revUntil = 0;
   private paused = false;
@@ -1841,35 +1846,182 @@ export class SoundEngine {
     this.sting([262, 330, 392, 523, 659, 784], 0.13, "triangle", 0.14);
   }
 
+  /**
+   * The horn a car of this size ships with. Bigger car, lower note: a
+   * 3.95 m hatch lands at 500/600 Hz, the 4.7 m sedan on the canonical
+   * 420/504, a 5.35 m pickup at 369/443. Five semitones end to end —
+   * enough to hear which car is leaning on you, not enough to leave the
+   * band the formants in hornOn() were tuned for.
+   */
+  setHorn(lengthM: number): void {
+    const L = Math.min(5.35, Math.max(3.95, lengthM || 4.7));
+    this.hornBase = 420 * (4.7 / L);
+  }
+
+  /**
+   * The horn.
+   *
+   * This was two square waves a major-third-ish apart into one gain: a
+   * beep. A car horn is two electric trumpets — a diaphragm driven by a
+   * contact breaker behind a flared throat — tuned a MINOR third apart,
+   * and everything that makes it read as a car rather than a beep is in
+   * what the trumpet and the car do to that tone. So it is built the way
+   * the part is, in the layers bump() uses:
+   *
+   *   TRUMPETS  two voices at a true 6:5. Each is a sawtooth (the even
+   *             harmonics a square cannot make, and the body of the note)
+   *             under a square detuned a few cents (the bite); the four
+   *             sum into the engine's soft clip, so the peaks fold into
+   *             harmonics instead of stacking.
+   *   FLARE     a highpass that tracks the low trumpet so a low horn keeps
+   *             its root; three formants — 900 Hz for the cabin and the
+   *             throat (this one follows the car), ~2 kHz for the cut (the
+   *             hole in the engine's spectrum a horn lives in), 3.6 kHz for
+   *             the diaphragm's brightness; and a 6.5 kHz lowpass to take
+   *             the fizz off the top.
+   *   SPIN-UP   the diaphragm reaches pitch after the current does: every
+   *             trumpet starts a little flat and rides up over the attack,
+   *             and on release coasts a little flat again as it slows.
+   *   BEAT      a slow wobble on the high trumpet only. Two horns on one
+   *             relay never draw equal current, and the wow is what says
+   *             "mechanical".
+   *   CONTACT   the relay: a few milliseconds of click under the attack.
+   *
+   * Every press is a little different — pitch, attack, the cut and the
+   * click — for the reason playSample() nudges playbackRate: two honks
+   * in a row must not be bit-identical.
+   *
+   * Level is held near what it was. The layered voice is far denser than
+   * two bare squares, so the envelope sits under the old 0.12; "full"
+   * comes from the harmonics and the body, not from gain.
+   */
   hornOn(): void {
     if (this.hornGain) return;
     const t = this.ctx.currentTime;
-    this.hornGain = this.ctx.createGain();
-    this.hornGain.gain.setValueAtTime(0.0001, t);
-    this.hornGain.gain.exponentialRampToValueAtTime(0.12, t + 0.02);
-    this.hornGain.connect(this.sfx);
-    for (const freq of [425, 530]) {
-      const osc = this.ctx.createOscillator();
-      osc.type = "square";
-      osc.frequency.value = freq;
-      osc.connect(this.hornGain);
-      osc.start();
-      this.hornOscs.push(osc);
+    const rnd = (a: number, b: number) => a + Math.random() * (b - a);
+    const lenScale = 420 / this.hornBase;
+
+    const low = this.hornBase * rnd(0.97, 1.03);
+    const high = low * 1.2;
+    const atk = rnd(0.018, 0.03);
+
+    const env = this.ctx.createGain();
+    env.gain.setValueAtTime(0.0001, t);
+    env.gain.exponentialRampToValueAtTime(0.1, t + atk);
+    env.gain.exponentialRampToValueAtTime(0.088, t + 0.085);
+    env.connect(this.sfx);
+    this.hornGain = env;
+
+    // FLARE — wired from the output back: lowpass, formants, highpass, clip.
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 6500;
+    lp.Q.value = 0.7;
+    lp.connect(env);
+    let tail: AudioNode = lp;
+    const formants: Array<[number, number, number]> = [
+      [3600, 3, 5],
+      [rnd(1850, 2150), 2.4, 9],
+      [900 * lenScale, 1.2, 6],
+    ];
+    for (const [hz, q, db] of formants) {
+      const f = this.ctx.createBiquadFilter();
+      f.type = "peaking";
+      f.frequency.value = hz;
+      f.Q.value = q;
+      f.gain.value = db;
+      f.connect(tail);
+      tail = f;
+      this.hornNodes.push(f);
     }
+    const hp = this.ctx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = low * 0.62;
+    hp.Q.value = 0.7;
+    hp.connect(tail);
+    const shaper = this.ctx.createWaveShaper();
+    shaper.curve = softClipCurve() as Float32Array<ArrayBuffer>;
+    shaper.connect(hp);
+    this.hornNodes.push(lp, hp, shaper);
+
+    // TRUMPETS — frequency, square detune in cents, saw gain, square gain.
+    const voices: Array<[number, number, number, number]> = [
+      [low, -4, 0.5, 0.22],
+      [high, 6, 0.42, 0.18],
+    ];
+    voices.forEach(([f, det, sawG, sqG], i) => {
+      const vg = this.ctx.createGain();
+      vg.gain.value = 1;
+      vg.connect(shaper);
+      this.hornNodes.push(vg);
+      const parts: Array<[OscillatorType, number, number]> = [
+        ["sawtooth", sawG, 0],
+        ["square", sqG, det],
+      ];
+      for (const [type, g, d] of parts) {
+        const o = this.ctx.createOscillator();
+        o.type = type;
+        o.detune.value = d;
+        // SPIN-UP
+        o.frequency.setValueAtTime(f * rnd(0.93, 0.955), t);
+        o.frequency.exponentialRampToValueAtTime(f, t + atk + 0.02);
+        const og = this.ctx.createGain();
+        og.gain.value = g;
+        o.connect(og).connect(vg);
+        o.start(t);
+        this.hornOscs.push(o);
+        this.hornNodes.push(og);
+      }
+      // BEAT
+      if (i === 1) {
+        const lfo = this.ctx.createOscillator();
+        lfo.type = "sine";
+        lfo.frequency.value = rnd(4.2, 6.4);
+        const amt = this.ctx.createGain();
+        amt.gain.value = 0.07;
+        lfo.connect(amt).connect(vg.gain);
+        lfo.start(t);
+        this.hornOscs.push(lfo);
+        this.hornNodes.push(amt);
+      }
+    });
+
+    // CONTACT
+    this.oneShotNoise("bandpass", 1800, rnd(0.06, 0.1), 0.012, 3);
   }
 
   hornOff(): void {
-    if (!this.hornGain) return;
+    const env = this.hornGain;
+    if (!env) return;
     const t = this.ctx.currentTime;
-    this.hornGain.gain.setTargetAtTime(0.0001, t, 0.03);
     const oscs = this.hornOscs;
-    const gain = this.hornGain;
+    const nodes = this.hornNodes;
+    // Cleared now, not when the release ends, so a press during the
+    // release builds a fresh chain while this one dies on its own clock.
     this.hornOscs = [];
+    this.hornNodes = [];
     this.hornGain = null;
-    setTimeout(() => {
-      oscs.forEach((o) => o.stop());
-      gain.disconnect();
-    }, 200);
+
+    // SPIN-DOWN: current cut, the diaphragm coasts flat as it slows. The
+    // beat LFO is the one oscillator under 20 Hz, and it stays put.
+    for (const o of oscs) {
+      if (o.frequency.value < 20) continue;
+      o.frequency.cancelScheduledValues(t);
+      o.frequency.setValueAtTime(o.frequency.value, t);
+      o.frequency.exponentialRampToValueAtTime(o.frequency.value * 0.965, t + 0.07);
+    }
+    env.gain.cancelScheduledValues(t);
+    env.gain.setValueAtTime(env.gain.value, t);
+    env.gain.setTargetAtTime(0.0001, t, 0.02);
+    // Stopped on the audio clock, not a setTimeout: a throttled background
+    // tab fires a timer seconds late and leaves the horn sounding until it
+    // does. Everything comes off the graph once the last oscillator ends.
+    for (const o of oscs) o.stop(t + 0.16);
+    oscs[0].onended = () => {
+      for (const o of oscs) o.disconnect();
+      for (const n of nodes) n.disconnect();
+      env.disconnect();
+    };
   }
 
   /** What the master gain is heading for. Read this rather than the live
