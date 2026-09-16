@@ -127,12 +127,20 @@ check(caps.ultra.moon >= caps.high.moon && caps.ultra.probe > caps.high.probe,
   "ultra does not raise the render budget above high");
 
 // --- governors must scale with the target, not a hardcoded 60 ---
+// The resolution governor's target is the frame cap where the player set
+// one above 60, and 60 otherwise: resolution stops being worth trading
+// for frames there, and aiming at a 144 Hz panel's refresh held the
+// picture at the floor. So cap 30 floors below cap 144, and cap 144 is
+// honoured as asked.
 const gov = await page.evaluate(() => {
   const e = window.__grnEngine;
   const out = [];
   for (const cap of [30, 60, 144]) {
     e.setFrameCap(cap);
-    out.push({ cap, target: +e.targetFps.toFixed(0), drsFloor: +(e.targetFps * 0.83).toFixed(1) });
+    // The engine's own floor, not a restated multiplier: the 0.83 that
+    // used to sit here was a copy, and a copy passes whatever the
+    // original does.
+    out.push({ cap, target: +e.targetFps.toFixed(0), drsFloor: +e.drsFloorFps.toFixed(1) });
   }
   e.setFrameCap("display");
   return out;

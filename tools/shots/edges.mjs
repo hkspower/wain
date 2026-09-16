@@ -275,6 +275,13 @@ const out = await page.evaluate(async ([wantShots]) => {
     aaMeanDelta: +(movedSum / Math.max(1, moved)).toFixed(1),
   };
   if (wantShots) res.shot = on.canvas.toDataURL("image/png");
+  // The default tier, which nothing else measures. Auto is what every
+  // player who never opens Settings is on, and it was the one tier that
+  // stacked FXAA on top of the samples — softer than either alone, and
+  // invisible to a probe that pins High.
+  e.applyQualityTier("auto");
+  res.auto = { fxaa: e.fxaaPass.enabled, samples: e.msaaTarget.samples };
+  e.applyQualityTier("high");
   e.setPaused(false);
   return res;
 }, [WRITE]);
@@ -315,6 +322,7 @@ console.log(`  ${check(out.aaMovedFrac > 0.01, `the AA pass changes only ${(out.
 console.log(`  ${check(out.on.mean > 1.35, `edges cross in ${out.on.mean} px — they are still steps`)}  edges have partial coverage`);
 console.log(`  ${check(out.on.hardFrac < 0.45, `${(out.on.hardFrac * 100).toFixed(1)}% of long silhouettes are a single hard step`)}  most edges are not one-step`);
 console.log(`  ${check(out.on.mean > out.off.mean, `antialiasing makes edges harder than none at all (${out.on.mean} vs ${out.off.mean})`)}  AA is softer than no AA`);
+console.log(`  ${check(!out.auto.fxaa && out.auto.samples === 4, `the Auto tier runs FXAA ${out.auto.fxaa ? "on" : "off"} over ${out.auto.samples}x samples — never both`)}  Auto is samples only, no FXAA on top`);
 
 console.log(fail.length ? "\nFAILURES:\n - " + fail.join("\n - ") : "\nthe edges are resolved");
 await browser.close();

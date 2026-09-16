@@ -1684,6 +1684,13 @@ export class GameEngine {
     this.fxaaPass = new ShaderPass(FXAAShader);
     this.composer.addPass(this.fxaaPass);
     this.updateFxaaResolution();
+    // Off from the first frame. The scene buffer above has four samples,
+    // and a ShaderPass is born enabled, so the default tier — the one
+    // every player who never opens Settings is on — was running FXAA on
+    // top of MSAA: the exact stack applyQualityTier measured as SOFTER
+    // than either alone. The tiers already knew the rule; construction
+    // did not follow it.
+    this.fxaaPass.enabled = false;
 
     // Sparks: white-hot at birth, ember by death, and they skitter along
     // the asphalt instead of sinking through it.
@@ -2487,18 +2494,51 @@ export class GameEngine {
     // numbers silently assumed a 60 Hz panel: on a 144 Hz display,
     // holding 58 fps is a failure, yet it read as headroom and the
     // governor would keep pushing resolution up.
-    const target = this.targetFps;
-    const floor = target * 0.83;
+    const target = this.drsTargetFps();
+    const floor = target * GameEngine.DRS_FLOOR_K;
     const ceiling = target * 0.97;
-    if (this.fpsEma < floor && this.renderScale > 0.6) {
+    const min = GameEngine.DRS_MIN_SCALE;
+    if (this.fpsEma < floor && this.renderScale > min) {
       this.drsAt = now;
-      this.renderScale = Math.max(0.6, this.renderScale - 0.1);
+      this.renderScale = Math.max(min, this.renderScale - 0.1);
       this.applyRenderScale();
     } else if (this.fpsEma > ceiling && this.renderScale < 1) {
       this.drsAt = now;
       this.renderScale = Math.min(1, this.renderScale + 0.05);
       this.applyRenderScale();
     }
+  }
+
+  /** The fraction of the DRS target below which resolution is given up. */
+  private static readonly DRS_FLOOR_K = 0.83;
+  /**
+   * How far down the ladder goes. This was 0.6 — thirty-six percent of
+   * the pixels — which is not a lower resolution so much as a different
+   * picture. Three-quarters is 56% of the pixels, still a full stop
+   * cheaper, and the effects governor below has bloom, shadows and the
+   * probe to give up before the picture goes softer than that.
+   */
+  private static readonly DRS_MIN_SCALE = 0.75;
+
+  /**
+   * What the resolution governor aims at. NOT the panel refresh: aiming
+   * there meant a 144 Hz monitor had to hold 120 fps or the picture was
+   * walked down to the floor and held there, and needed 140 fps to climb
+   * back — a permanently soft picture on exactly the panels bought for
+   * sharpness. Sixty is where resolution stops being worth trading for
+   * frames; a player who set a numeric cap above it has said in so many
+   * words that they want the frames, and is taken at their word. The
+   * frame limiter itself still runs at the panel's rate.
+   */
+  private drsTargetFps(): number {
+    const cap = typeof this.frameCap === "number" && this.frameCap > 60 ? this.frameCap : 60;
+    return Math.min(this.targetFps, cap);
+  }
+
+  /** The frame rate below which the governor gives up resolution — for
+   *  the pacing test, which used to restate the multiplier by hand. */
+  get drsFloorFps(): number {
+    return this.drsTargetFps() * GameEngine.DRS_FLOOR_K;
   }
 
   /** Drop the expensive effects once it's clear the machine can't keep up. */
@@ -2508,20 +2548,33 @@ export class GameEngine {
     // Also relative: 32 fps is a crisis on a 60 Hz panel but merely
     // half-rate on a 144 Hz one, where the machine is plainly coping.
     if (this.fpsEma < this.targetFps * 0.53) {
-      this.bloomPass.enabled = false;
-      this.world.moonLight.castShadow = false;
-      this.headlight.castShadow = false;
-      // Performance mode drops the samples too: multisampling is a
-      // per-pixel cost on the geometry pass and this tier exists because
-      // the machine could not keep up. FXAA is what is left, and here it
-      // IS worth having — it costs one full-screen pass and there is no
-      // coverage for it to undo.
-      this.msaaTarget.samples = 0;
-      this.fxaaPass.enabled = true;
-      this.liveReflections = false;
-      this.applyLiveReflections();
+      this.setEffects(false);
       this.events.onMessage("Performance mode", "Glow & shadows off — press G to toggle them back");
     }
+  }
+
+  /**
+   * The effects set, as one switch: bloom, the two shadow casters, the
+   * paint probe, and the anti-aliasing that goes with them. Multisampling
+   * when the effects are on; FXAA only when they are off. Never both —
+   * stacking them was measured softer than either alone (see
+   * applyQualityTier). Performance mode drops the samples too: they are
+   * a per-pixel cost on the geometry pass and that mode exists because
+   * the machine could not keep up. FXAA is what is left, and there it IS
+   * worth having — one full-screen pass, and no coverage for it to undo.
+   *
+   * One method because there were three copies of this list, and the
+   * Auto tier was not one of them: it never restored the set after a
+   * spell in Battery.
+   */
+  private setEffects(on: boolean): void {
+    this.bloomPass.enabled = on;
+    this.world.moonLight.castShadow = on;
+    this.headlight.castShadow = on;
+    this.msaaTarget.samples = on ? 4 : 0;
+    this.fxaaPass.enabled = !on;
+    this.liveReflections = on;
+    this.applyLiveReflections();
   }
 
   /** Repaint the world for midnight or dawn (settings screen). */
@@ -2792,6 +2845,11 @@ export class GameEngine {
       this.renderScale = 1;
       this.tierRatioCap = 2;
       this.tierRatioBoost = 1;
+      // Auto's defaults are the full set, and the governor takes them
+      // away again if it must. Without this, a player coming back from
+      // Battery kept Battery's picture — no samples, FXAA on — under a
+      // setting that said Auto.
+      this.setEffects(true);
       this.applyRenderScale();
       this.startedAt = performance.now(); // give the governors a fresh window
       return;
@@ -3051,15 +3109,7 @@ export class GameEngine {
     }
     if (k === "g" && !e.repeat) {
       this.qualityLocked = true;
-      this.bloomPass.enabled = !this.bloomPass.enabled;
-      this.world.moonLight.castShadow = this.bloomPass.enabled;
-      this.headlight.castShadow = this.bloomPass.enabled;
-      // Same rule as the tier ladder: samples when the effects are on,
-      // FXAA only when they are off. Never both — see applyQualityTier.
-      this.msaaTarget.samples = this.bloomPass.enabled ? 4 : 0;
-      this.fxaaPass.enabled = !this.bloomPass.enabled;
-      this.liveReflections = this.bloomPass.enabled;
-      this.applyLiveReflections();
+      this.setEffects(!this.bloomPass.enabled);
       this.events.onMessage(
         this.bloomPass.enabled ? "Glow & shadows on" : "Glow & shadows off"
       );
