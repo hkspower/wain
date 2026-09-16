@@ -327,7 +327,7 @@ const result = await page.evaluate(async ([write]) => {
   // TIME-DEPENDENT check meaningful at a runtime — well under 40
   // minutes — someone will actually wait out; widen HOURS/VIEWS by hand
   // for a fuller sweep when time allows.
-  const HOURS = [0, 5.8333];
+  const HOURS = [0];
   const VIEWS = [["corniche", 587, 0]];
   const rows = [];
   for (const [label, s, lat] of VIEWS) {

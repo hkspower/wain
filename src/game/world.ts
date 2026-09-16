@@ -1945,7 +1945,7 @@ function glazedMat(skin: Skin, color: number, roughness: number): THREE.MeshStan
     // little headroom closes it without pushing the lit side, the road,
     // or anything else past its own tuned envelope — envMapIntensity is
     // a per-material multiplier on one static baked probe.
-    envMapIntensity: 1.5,
+    envMapIntensity: 2.5,
   });
 }
 
@@ -4940,12 +4940,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         // See the note on glazedMat's envMapIntensity: darkbuildings.mjs
         // confirmed a facing-dependent gap at midnight, and this and
         // plantMat are the massing's own unmeasured-default surfaces.
-        envMapIntensity: 1.5,
+        envMapIntensity: 2.5,
       });
       const plantMat = new THREE.MeshStandardMaterial({
         color: 0x70747c,
         roughness: 0.95,
-        envMapIntensity: 1.5,
+        envMapIntensity: 2.5,
       });
       const mastMat = new THREE.MeshStandardMaterial({
         color: 0x4a4f57,
@@ -5103,7 +5103,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       const octConcrete = new THREE.MeshStandardMaterial({
         color: 0x8d9199,
         roughness: 0.92,
-        envMapIntensity: 1.5,
+        envMapIntensity: 2.5,
       });
       litFacades.push(octConcrete);
       const octCaps = new THREE.InstancedMesh(
