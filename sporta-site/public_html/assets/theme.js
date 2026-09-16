@@ -178,6 +178,50 @@
                STACK + '; }\n'
       }
 
+      /* THE ADMIN PANEL'S OWN CHROME. Measured in AdminApp-*.js: it is built
+         entirely from hardcoded Tailwind indigo classes — bg-indigo-600,
+         hover:bg-indigo-700, text-indigo-700, border-indigo-500 and their
+         kin — and reads none of --brand, --primary or any other token this
+         file writes. So the theme editor could recolour the whole storefront
+         and the panel the owner used to do it in stayed indigo regardless of
+         what they picked. This maps that fixed indigo scale onto the SAME
+         brand the owner already chose, rather than adding a second colour
+         picker for a second surface.
+         UNLIKE the custom-CSS block below, this is NOT skipped on /backends —
+         it is the one thing on this page that IS meant for the panel, and it
+         cannot lock anyone out: it only ever recolours, never hides, and the
+         indigo classes it targets do not exist in any other bundle (checked
+         2026-09-17), so this rule is inert everywhere else on the site.
+         Attribute selectors, not class selectors: `[class~="…"]` needs no
+         escaping for the colon in `hover:bg-indigo-700`, which a literal
+         `.hover\:bg-indigo-700` selector would. Unlayered and un-`!important`,
+         same as everything else in this file — Tailwind's own utilities are
+         wrapped in `@layer utilities{}`, and an unlayered normal declaration
+         already outranks a layered one, which is what let the very first
+         version of the header-colour override skip !important entirely once
+         it was moved out of an unlayered context; the reasoning is the same
+         here and was re-verified rather than assumed. */
+      if (t.brand) {
+        css +=
+          '[class~="bg-indigo-600"],[class~="bg-indigo-500"],' +
+          '.group:hover [class~="group-hover:bg-indigo-600"],' +
+          '[class~="accent-indigo-600"]' +
+          '{ background-color: var(--brand); accent-color: var(--brand); }\n' +
+          '[class~="hover:bg-indigo-700"]:hover,[class~="bg-indigo-700"]' +
+          '{ background-color: var(--brand-dark); }\n' +
+          '[class~="text-indigo-600"],[class~="text-indigo-700"],' +
+          '[class~="text-indigo-800"],[class~="text-indigo-900"],' +
+          '[class~="hover:text-indigo-600"]:hover' +
+          '{ color: var(--brand-dark); }\n' +
+          '[class~="border-indigo-200"],[class~="border-indigo-500"],' +
+          '[class~="focus:border-indigo-400"]:focus,' +
+          '[class~="focus:border-indigo-500"]:focus,' +
+          '[class~="hover:border-indigo-400"]:hover' +
+          '{ border-color: var(--brand); }\n' +
+          '[class~="bg-indigo-50"],[class~="bg-indigo-100"]' +
+          '{ background-color: color-mix(in srgb, var(--brand) 12%, white); }\n'
+      }
+
       /* THE OWNER'S OWN CSS, LAST, so it wins over everything above without
          needing !important — and appended to the same <style>, so there is one
          override element on the page rather than two racing each other.
