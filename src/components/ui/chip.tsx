@@ -5,6 +5,7 @@ import { ThemedView } from '@/components/themed-view';
 import { press } from '@/components/ui/press';
 import { Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { tapFeedback } from '@/lib/haptics';
 
 /**
  * A selectable pill: shop filters, sort, governorate, the admin's status
@@ -47,7 +48,7 @@ export function Chip({
         role === 'radio' ? { checked: active, selected: active } : { selected: active }
       }
       aria-pressed={role === 'button' ? active : undefined}
-      onPress={onPress}
+      onPress={() => { tapFeedback(); onPress(); }}
       style={press(true, styles.hit, style)}>
       <ThemedView
         type={active ? 'backgroundSelected' : 'backgroundElement'}

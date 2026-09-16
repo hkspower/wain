@@ -318,6 +318,18 @@ export const Opacity = {
   disabled: 0.4,
 } as const;
 
+/**
+ * How far a pressable SHRINKS while held. Opacity alone reads as "this
+ * turned faint"; a scale change reads as "this got pushed in" — the
+ * difference between a light switch and a button. 0.97 rather than
+ * something more dramatic: this runs on every pressable in the app,
+ * including a whole product-card tile, and a visible jump on something that
+ * size looks like a glitch rather than feedback.
+ */
+export const Scale = {
+  pressed: 0.97,
+} as const;
+
 export const Spacing = {
   half: 2,
   one: 4,

@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, t
 import { press } from '@/components/ui/press';
 import { Opacity, Radius, Spacing, TapTarget, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { tapFeedback } from '@/lib/haptics';
 import { useLang } from '@/lib/i18n';
 
 type Variant = 'primary' | 'secondary' | 'danger';
@@ -50,7 +51,10 @@ export function Button({
       accessibilityRole="button"
       accessibilityState={{ busy, disabled: off }}
       disabled={off}
-      onPress={onPress}
+      // FEEDBACK BEFORE THE APP'S OWN onPress, not after — the tap should
+      // feel answered the instant the finger lifts, not once whatever
+      // onPress does (a network call, a state update) has also happened.
+      onPress={() => { tapFeedback(); onPress(); }}
       style={press(false, styles.button, row, { backgroundColor: bg, borderColor: border }, off && styles.off, style)}>
       {busy && <ActivityIndicator color={fg} style={styles.spinner} />}
       <Text style={[styles.label, { color: fg }]}>{label}</Text>
