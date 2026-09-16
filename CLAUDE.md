@@ -765,6 +765,105 @@ The rest (`راشد`, Intelligence Center, `أنيلكا`, `سالم` ×2) are i
 blocked on order/queue data that does not exist, not stale. Sporta's, Albahhar's
 and the MySQL monitor are not wain's — leave them.
 
+## There is an iOS app now, and it wraps the same export
+
+`capacitor.config.ts` + `.github/workflows/ios.yml`. Capacitor, not a rewrite:
+the app is the same `out/` this site already builds, opened in a native
+WKWebView shell, because a static export with no server behind it is exactly
+what Capacitor is for — there is no API to reimplement natively and no second
+copy of 52 places to keep in sync.
+
+**No CocoaPods.** Capacitor 8 scaffolds through Swift Package Manager —
+`npx cap add ios` wrote a `Package.swift` and never asked for `pod install`,
+confirmed by running it once in this sandbox, which has neither CocoaPods nor
+Xcode. That is also as far as anything here could be verified: the workflow's
+`xcodebuild` and signing steps are written from Apple's and Capacitor's own
+documented flags, not from a passing run, because nothing reachable from this
+session can execute them even once. Say so plainly if one fails — that is new
+information, the way `docs/hosting.md`'s corrections have been all along, not
+a regression in something proven.
+
+**`ios/` is not committed**, for the same reason `public/voice/` is not:
+generated output tracked in git drifts from the thing that generates it, and
+nobody working on this repo without Xcode would notice. The workflow runs
+`npx cap add ios` fresh every time, after the web build, because `cap add`
+copies `out/`'s current contents into the native project as its last step —
+build first, scaffold second, or the app ships whatever `out/` last happened
+to hold.
+
+**The bundle has no origin, and one relative path depended on having one.**
+`voice.ts` defaults صوت وين's bridge to `/api/tts.php`, correct on the web
+because the page and the bridge share an origin — a bundled app has none, so
+that fetch would 404 against the WebView's own local scheme and silently take
+the browser-speech fallback `voice.ts` already has for an unconfigured
+bridge. Not a crash, just always the lesser voice in an app built to carry
+the better one. `ios.yml` sets `NEXT_PUBLIC_WAIN_TTS_URL` to the absolute
+`https://www.wainkw.com/api/tts.php` for this build only — the same override
+`voice.ts` already reads first, the one a staging build would use to point
+elsewhere. Checked for other relative absolute-path fetches before deciding
+this was the only one: the widget script and the ElevenLabs API origin are
+already absolute URLs, Supabase's URL is already absolute, and everything
+else the site fetches — the RSC payloads for client-side navigation, the
+cached voice manifest, every route's HTML — ships inside `out/` itself and
+resolves fine against the bundle's own local scheme.
+
+**`AppShell.tsx` had two ways to detect "this is the installed app" and both
+miss a Capacitor shell.** `display-mode: standalone` and iOS's
+`navigator.standalone` both describe a PWA opened from a home-screen
+bookmark; a WKWebView a native app opens is neither of those, so without a
+third signal the app would render with the desktop nav still showing and no
+tab bar — a browser tab in a frame, exactly what wrapping it was supposed to
+avoid. Capacitor's native runtime injects `window.Capacitor` into every page
+it loads with no import needed on the web side, so its presence is that third
+signal, checked alongside the other two.
+
+**Icons come from `public/brand/app-icon-512.png` at build time**, not from a
+second copy committed under `assets/` — `ios.yml` copies it there itself
+before calling `@capacitor/assets`, so the one source stays the one source.
+It is 512×512; Capacitor upscales it for the sizes that want more, which is
+fine for the Simulator build and not what a real App Store icon should ship
+with — replace it with a proper 1024×1024, alpha-free source before
+`build-signed` is used for an actual submission.
+
+**Two CI jobs, gated differently, because they prove different things.**
+`build-simulator` always runs on dispatch — an iOS Simulator build needs no
+signing identity at all, Xcode signs it with a null identity by default, so
+this needs no Apple secrets and can boot a Simulator, install the built app
+and screenshot it launching. `build-signed` only runs when every secret below
+is set, and stops at producing a distributable `.ipa` as a workflow artifact —
+it does not submit to App Store Connect, because that needs its own API key
+and nothing here could exercise it even once to get it right.
+
+Four repository items unlock `build-signed`, the same pattern `DEPLOY_SECRET`
+already uses — add them at Settings → Secrets and variables → Actions:
+
+- `APPLE_TEAM_ID` — a **variable**, not a secret; it is not sensitive on its
+  own, the same reasoning `ELEVENLABS_AGENT_ID` already uses.
+- `APPLE_CERTIFICATE_P12_BASE64` — a distribution certificate and its private
+  key, exported as a `.p12` and base64-encoded: `base64 -i cert.p12 | pbcopy`.
+- `APPLE_CERTIFICATE_PASSWORD` — the password that `.p12` was exported with.
+- `APPLE_PROVISIONING_PROFILE_BASE64` — a provisioning profile matching
+  `com.wainkw.app` and that certificate, base64-encoded the same way.
+
+Manual signing throughout, not automatic — `-allowProvisioningUpdates` would
+need an App Store Connect API key too, which this does not have, so the
+profile's UUID is read out of the decoded profile itself
+(`security cms -D` + `PlistBuddy`) rather than assumed, and passed to
+`xcodebuild` explicitly. The temporary keychain it all runs in is deleted at
+the end of the job unconditionally (`if: always()`), so a failed export never
+leaves a signing identity on a runner GitHub will hand to someone else's job
+next.
+
+`export_method` is a `workflow_dispatch` choice — `development`, `ad-hoc` or
+`app-store` — defaulting to `ad-hoc`, which is the one that proves signing
+actually works (install on a real device) without first setting up an App
+Store Connect API key that `app-store`'s eventual upload would also need.
+
+`capacitor.config.ts`'s `appId`, `com.wainkw.app`, is a placeholder and
+load-bearing the moment `build-signed` first succeeds against a real Apple
+account: App Store Connect fixes the bundle id to whatever the first
+TestFlight build declares. Change it before that upload, never after.
+
 ## wain speaks MCP
 
 `mcp/wain-mcp.mjs`, pointed at by `.mcp.json`, so opening this repository in an

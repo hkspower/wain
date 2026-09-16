@@ -89,3 +89,13 @@ wainkw-site.pdf
 
 # `npm run deploy:plan` writes this; it is a reading of one build, not source.
 /deploy-plan.json
+
+# The native iOS project `npx cap add ios` scaffolds — output of
+# capacitor.config.ts plus whatever `out/` held at scaffold time, not source.
+# .github/workflows/ios.yml regenerates it on every run for the same reason
+# /public/voice/ above is not committed: a stale native project checked into
+# git would silently diverge from capacitor.config.ts and from the export it
+# is supposed to be wrapping, and nobody editing this repo has Xcode to
+# notice. Xcode-side native customisation, if this ever needs any, belongs in
+# a small patch step in the workflow, not in a tracked ios/ directory.
+/ios/

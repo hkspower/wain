@@ -17,6 +17,17 @@ import { useEffect } from "react";
  *    so an iPhone could launch the app and get no tab bar. The data
  *    attribute is a second signal the CSS also accepts.
  *
+ *    A third launch shape needs the same signal: the Capacitor iOS wrapper
+ *    (see capacitor.config.ts) is a bare WKWebView opened by a native app,
+ *    not a home-screen bookmark, so it sets neither of the above —
+ *    `navigator.standalone` is specifically a Mobile Safari home-screen
+ *    thing, and nothing here gives the manifest's `display-mode` a chance to
+ *    apply either. Capacitor's native runtime injects `window.Capacitor`
+ *    into every page it loads, with no import required on this side, so
+ *    that object's presence is read as the third signal — the one honest way
+ *    to ask "is this the app" from inside a WebView that never opted into a
+ *    PWA install.
+ *
  *    Spacing is no longer part of this: the compact scale that used to live
  *    behind the variant is now the site's only spacing, so the app and the
  *    browser are the same density and nothing about the layout waits on
@@ -27,9 +38,11 @@ export default function AppShell() {
     const root = document.documentElement;
 
     const nav = navigator as Navigator & { standalone?: boolean };
+    const win = window as Window & { Capacitor?: { isNativePlatform?: () => boolean } };
     const mq = window.matchMedia("(display-mode: standalone)");
     const sync = () => {
-      const app = mq.matches || nav.standalone === true;
+      const app =
+        mq.matches || nav.standalone === true || win.Capacitor?.isNativePlatform?.() === true;
       root.dataset.standalone = app ? "true" : "false";
     };
     sync();
