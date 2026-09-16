@@ -34,7 +34,12 @@ import { randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
-const PORT = Number(process.env.HUB_PORT || 8787);
+// PORT first: most Node.js hosting platforms assign the listen port
+// themselves and inject it as PORT, and won't proxy a fixed one — this
+// server predates having one of those in front of it and only ever read
+// HUB_PORT (docker run -p / npm run hub locally, where PORT is unset
+// and this falls straight through to it).
+const PORT = Number(process.env.PORT || process.env.HUB_PORT || 8787);
 const TICK_MS = 100;
 const MAX_NAME = 24;
 const MAX_CHAT = 200;
