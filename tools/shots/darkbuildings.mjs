@@ -53,7 +53,15 @@ const browser = await chromium.launch({
   executablePath: exe,
   args: ["--use-gl=angle", "--enable-webgl", "--no-sandbox", "--disable-dev-shm-usage"],
 });
-const page = await browser.newPage({ viewport: { width: 960, height: 600 } });
+// 320x200, not dark.mjs's 960x600. The 40-frame settle alone measured
+// ~18s/frame at 960x600 under SwiftShader software rendering — a cost
+// that tracked resolution, not the shadow map or MSAA (already cut,
+// with no effect on wall-clock). This tool only needs a tile average
+// over a 16x10 grid, sampled every 2px within each tile — at 320x200 a
+// tile is still 20x10px, ~50 samples, plenty for a mean. Software
+// rasterization is roughly pixel-count-bound, so a 9x fewer pixels
+// should be close to a 9x speedup.
+const page = await browser.newPage({ viewport: { width: 320, height: 200 } });
 page.setDefaultTimeout(300000);
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 page.on("console", (m) => { if (m.text().startsWith("[progress]")) console.log(m.text()); });
