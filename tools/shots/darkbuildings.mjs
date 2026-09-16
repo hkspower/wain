@@ -74,6 +74,22 @@ const result = await page.evaluate(async ([write]) => {
   e.applyQualityTier("high");
   const bloomWas = e.bloomPass.enabled;
   e.bloomPass.enabled = false;
+  // This tool never looks at an edge — it averages luma over a 16x10
+  // grid of coarse tiles — so shadow-edge softness and multisample
+  // coverage buy it nothing. On SwiftShader software rendering the moon's
+  // shadow map is the actual bottleneck: rasterizing the whole city into
+  // a 2048+ px map, every one of the ~120 frames a single settle+grab
+  // costs, is why a 3-hour x 2-viewpoint pass ran past an hour without
+  // finishing. Shrinking it to the size a coarse tile average can't tell
+  // apart from the full-quality one turns that into a tool someone will
+  // actually wait out.
+  const savedMoonSize = e.world.moonLight.shadow.mapSize.x;
+  e.world.moonLight.shadow.mapSize.setScalar(512);
+  e.world.moonLight.shadow.map?.dispose();
+  e.world.moonLight.shadow.map = null;
+  e.headlight.castShadow = false;
+  e.msaaTarget.samples = 0;
+  e.fxaaPass.enabled = false;
 
   const cam = e.camera;
   const saved = { pos: cam.position.clone(), quat: cam.quaternion.clone(), up: cam.up.clone(), fov: cam.fov };
@@ -295,6 +311,11 @@ const result = await page.evaluate(async ([write]) => {
   cam.position.copy(saved.pos); cam.quaternion.copy(saved.quat); cam.up.copy(saved.up); cam.fov = saved.fov;
   cam.updateProjectionMatrix();
   e.bloomPass.enabled = bloomWas;
+  if (e.world.moonLight.shadow.mapSize.x !== savedMoonSize) {
+    e.world.moonLight.shadow.mapSize.setScalar(savedMoonSize);
+    e.world.moonLight.shadow.map?.dispose();
+    e.world.moonLight.shadow.map = null;
+  }
   e.setPaused(false);
   return { rows: rows.map((r) => ({ label: r.label, hour: r.hour, lit: summarize(r.buckets.lit), shadow: summarize(r.buckets.shadow) })), shots, GAP_BAR };
 }, [WRITE]);
