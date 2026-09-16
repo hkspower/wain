@@ -1979,6 +1979,27 @@ const STORE_SETTING_DEFAULTS = [
         'hours_en'  => '',
         'instagram' => '',
     ],
+    // THE POLICY PAGES' PROSE. Privacy and Terms are each a single body of
+    // text below their "Last updated" line; Returns is the one descriptive
+    // paragraph above its order-lookup card and size/fit picker, which stay
+    // exactly as the bundle renders them — those are interactive, not prose,
+    // and an overlay swapping text cannot safely rebuild a control.
+    //
+    // EMPTY MEANS "USE THE BUNDLE'S OWN TEXT", the same rule footer and
+    // contact already follow: the pages are compiled into a bundle whose
+    // source is not in this repository, so the only safe default is to
+    // change nothing until an owner actually writes something.
+    //
+    // Privacy and Terms are stored as ONE STRING, paragraphs separated by a
+    // blank line — a plain-text editor, not a section-by-section one. That
+    // loses the bundle's own numbered headings ("1. What we collect") if the
+    // owner replaces the text, which is the trade a free-text box makes; it
+    // is not a rich editor, and doesn't pretend to be one.
+    'legal' => [
+        'privacy_en' => '', 'privacy_ar' => '',
+        'terms_en'   => '', 'terms_ar'   => '',
+        'returns_en' => '', 'returns_ar' => '',
+    ],
 ];
 
 function store_setting(PDO $db, string $name): array {

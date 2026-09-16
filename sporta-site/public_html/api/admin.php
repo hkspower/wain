@@ -1434,6 +1434,42 @@ if ($r === 'settings_save' && $method === 'POST') {
             'instagram'  => preg_replace('/[^A-Za-z0-9._]/', '',
                                 mb_substr(trim((string)($v['instagram'] ?? '')), 0, 40)),
         ]);
+    } elseif ($name === 'legal') {
+        // THE POLICY PAGES' PROSE. Six fields, three pages, two languages.
+        //
+        // Capped rather than shaped, same as the footer: this is prose and
+        // there is no format to check beyond "not larger than a page can
+        // reasonably hold". 20,000 characters is roughly the length of the
+        // built Terms page's own English text times four — generous, and far
+        // short of anything that arrived by accident.
+        //
+        // EMPTY IS ALWAYS ALLOWED, same rule as footer and contact: it means
+        // "leave the bundle's own text alone", which is the state every shop
+        // starts in and the way back if a rewrite goes wrong. Nothing here is
+        // store_fail'd for being blank.
+        //
+        // NO `</`, for the same reason theme.js's custom-CSS field refuses it:
+        // assets/legal-pages.js renders each paragraph with textContent, which
+        // parses no markup at all and cannot be closed by this sequence — but
+        // the next thing that reads this value back (an editor's own preview,
+        // a future export) may not be so careful, and the rule costs one line
+        // per field.
+        $prose = static function (string $k) use ($v, &$err): string {
+            $raw = trim((string) ($v[$k] ?? ''));
+            if ($raw === '' || $err !== null) return '';
+            if (mb_strlen($raw) > 20000) { $err = $k . '_too_long'; return ''; }
+            if (strpos($raw, '</') !== false) { $err = $k . '_has_markup'; return ''; }
+            if (strpos($raw, "\0") !== false) { $err = $k . '_has_nul'; return ''; }
+            return $raw;
+        };
+        $err = null;
+        $out = [
+            'privacy_en' => $prose('privacy_en'), 'privacy_ar' => $prose('privacy_ar'),
+            'terms_en'   => $prose('terms_en'),   'terms_ar'   => $prose('terms_ar'),
+            'returns_en' => $prose('returns_en'), 'returns_ar' => $prose('returns_ar'),
+        ];
+        if ($err !== null) store_fail('invalid_legal_' . $err);
+        store_setting_save($db, 'legal', $out);
     } elseif ($name === 'rules') {
         // THE SHOP'S NUMBERS. store.php's store_rule_defaults() is the home of
         // the defaults and the long explanation; this is the gate.

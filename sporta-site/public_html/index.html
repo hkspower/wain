@@ -714,6 +714,11 @@
          other screen and nothing at all on the storefront. -->
     <script src="/assets/panel-settings.js" defer></script>
 
+    <!-- The website panel's Settings screen: an editor for Privacy, Terms and
+         Returns, which had none — writes the same `legal` row
+         legal-pages.js reads on the storefront. Panel-only. -->
+    <script src="/assets/legal-editor.js" defer></script>
+
     <!-- The main menu: "About us" becomes a plain link to /terms, because a
          React Router Link's href cannot be repointed by editing the DOM —
          see the file's own header. Storefront-wide, since the header is on
@@ -727,6 +732,13 @@
          too). Renders nothing until an active brand has a logo; the live
          shop has none yet. -->
     <script src="/assets/brand-strip.js" defer></script>
+
+    <!-- An owner-editable body for Privacy, Terms and Returns — swaps in
+         panel-written text below the "Last updated" line on Privacy/Terms,
+         and the one descriptive paragraph above the order-lookup card on
+         Returns. Renders nothing until an owner has written something; the
+         live shop has no override yet. -->
+    <script src="/assets/legal-pages.js" defer></script>
 
     <!-- "Sign in with Google" on /backends, beside the password form rather
          than instead of it. Google sign-in can fail for reasons this shop

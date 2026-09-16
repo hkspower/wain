@@ -196,6 +196,10 @@ $STORE_LIMITS = [
     // — so it is bounded like the other reads rather than left off the table,
     // where the fail-closed default below would throttle it at half the rate.
     'contact'     => [600, 60],
+    // The policy pages' prose, read by assets/legal-pages.js on Privacy,
+    // Terms and Returns. Same bucket as footer/theme/contact: owner text, no
+    // customer in it, fetched on every visit to one of three pages.
+    'legal'       => [600, 60],
     'order'       => [60, 600],   // queues mail to the warehouse — see ?r=order
     // A review link is signed, so this is not guessable — but a valid link
     // held by one person must not become a way to hammer the database, and
@@ -467,6 +471,13 @@ if ($r === 'footer') {
 // in front of the first paint of every page in the shop.
 if ($r === 'theme') {
     store_out_cacheable(store_setting($db, 'theme'));
+}
+
+// The policy pages' prose, for assets/legal-pages.js. Same reasoning as
+// footer and theme: the owner's edit and the page the overlay swaps text
+// into must come from the one place, and it changes rarely enough to cache.
+if ($r === 'legal') {
+    store_out_cacheable(store_setting($db, 'legal'));
 }
 
 if ($r === 'slides') {

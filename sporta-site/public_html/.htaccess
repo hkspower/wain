@@ -543,7 +543,10 @@ FileETag MTime Size
   # "المتجر" and its "من نحن" -> Terms & Conditions replacement.
   # brand-strip.js is the fifteenth, 2026-09-16 — the brand-logo row under
   # the home page's hero. Added in the same commit as the file.
-  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|panel-settings|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme|nav-menu|brand-strip)\.js$">
+  # legal-pages.js and legal-editor.js are the sixteenth and seventeenth,
+  # 2026-09-17 — an owner-editable body for Privacy, Terms and Returns, and
+  # the Settings-screen card that writes it. Added in the same commit.
+  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|panel-settings|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme|nav-menu|brand-strip|legal-pages|legal-editor)\.js$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 
