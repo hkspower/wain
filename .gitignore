@@ -98,6 +98,11 @@ cbk-payments.log
 # is spelled as tightly as it can be for the same reason.
 !scripts/fixtures/deploy-demo.zip
 
+# Playwright's own run metadata, written by every local rig invocation
+# (header-polish-test.mjs, site-contrast.mjs and the rest) — not a build
+# artifact anyone hands over, and it changes on every run.
+/test-results/
+
 # Scratch probes. Every session writes scripts/_probe.mjs to measure something
 # once; one of them was committed. The leading underscore is the convention and
 # package-check.mjs already refuses files matching it inside the docroot.
