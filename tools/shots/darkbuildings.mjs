@@ -53,15 +53,12 @@ const browser = await chromium.launch({
   executablePath: exe,
   args: ["--use-gl=angle", "--enable-webgl", "--no-sandbox", "--disable-dev-shm-usage"],
 });
-// 320x200, not dark.mjs's 960x600. The 40-frame settle alone measured
-// ~18s/frame at 960x600 under SwiftShader software rendering — a cost
-// that tracked resolution, not the shadow map or MSAA (already cut,
-// with no effect on wall-clock). This tool only needs a tile average
-// over a 16x10 grid, sampled every 2px within each tile — at 320x200 a
-// tile is still 20x10px, ~50 samples, plenty for a mean. Software
-// rasterization is roughly pixel-count-bound, so a 9x fewer pixels
-// should be close to a 9x speedup.
-const page = await browser.newPage({ viewport: { width: 320, height: 200 } });
+// Cutting this 9x (to 320x200) moved the wall-clock by nothing — see
+// the commit history on this file — which is what pointed at shadow-map
+// geometry throughput (now disabled above) rather than fill rate as the
+// real cost. Resolution isn't the lever, so this stays at dark.mjs's
+// own 960x600 for screenshot quality.
+const page = await browser.newPage({ viewport: { width: 960, height: 600 } });
 page.setDefaultTimeout(300000);
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 page.on("console", (m) => { if (m.text().startsWith("[progress]")) console.log(m.text()); });
@@ -85,17 +82,20 @@ const result = await page.evaluate(async ([write]) => {
   e.bloomPass.enabled = false;
   // This tool never looks at an edge — it averages luma over a 16x10
   // grid of coarse tiles — so shadow-edge softness and multisample
-  // coverage buy it nothing. On SwiftShader software rendering the moon's
-  // shadow map is the actual bottleneck: rasterizing the whole city into
-  // a 2048+ px map, every one of the ~120 frames a single settle+grab
-  // costs, is why a 3-hour x 2-viewpoint pass ran past an hour without
-  // finishing. Shrinking it to the size a coarse tile average can't tell
-  // apart from the full-quality one turns that into a tool someone will
-  // actually wait out.
-  const savedMoonSize = e.world.moonLight.shadow.mapSize.x;
-  e.world.moonLight.shadow.mapSize.setScalar(512);
-  e.world.moonLight.shadow.map?.dispose();
-  e.world.moonLight.shadow.map = null;
+  // coverage buy it nothing. Shrinking the moon's shadow map and cutting
+  // MSAA/FXAA didn't move the wall-clock at all, and neither did cutting
+  // the render resolution 9x (measured directly, see the commit history
+  // on this file) — ruling out both fill rate and shadow-map raster size
+  // as the cost. What's left is shadow-map GEOMETRY throughput: every
+  // frame, the moon's depth pass draws the entire city a second time,
+  // independent of how big the map it's drawn into is. The facing
+  // classification this tool reports comes from an analytical dot
+  // product (worldNormalOf · keyDir/fillDir below), not from reading
+  // real shadow occlusion out of the rendered image, so that whole
+  // second draw is pure cost with nothing this tool actually uses it
+  // for. Turning it off is the fix, not a tradeoff.
+  const savedMoonCastShadow = e.world.moonLight.castShadow;
+  e.world.moonLight.castShadow = false;
   e.headlight.castShadow = false;
   e.msaaTarget.samples = 0;
   e.fxaaPass.enabled = false;
@@ -338,11 +338,7 @@ const result = await page.evaluate(async ([write]) => {
   cam.position.copy(saved.pos); cam.quaternion.copy(saved.quat); cam.up.copy(saved.up); cam.fov = saved.fov;
   cam.updateProjectionMatrix();
   e.bloomPass.enabled = bloomWas;
-  if (e.world.moonLight.shadow.mapSize.x !== savedMoonSize) {
-    e.world.moonLight.shadow.mapSize.setScalar(savedMoonSize);
-    e.world.moonLight.shadow.map?.dispose();
-    e.world.moonLight.shadow.map = null;
-  }
+  e.world.moonLight.castShadow = savedMoonCastShadow;
   e.setPaused(false);
   return { rows: rows.map((r) => ({ label: r.label, hour: r.hour, lit: summarize(r.buckets.lit), shadow: summarize(r.buckets.shadow) })), shots, GAP_BAR };
 }, [WRITE]);
