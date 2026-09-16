@@ -29,11 +29,11 @@ $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
         . '/sporta-site/public_html/';
 
 $FILES = [
-    'assets/nav-menu.js'   => '2ee0030fb0ef9decfb16511aed06550bcd506a25f8fc4389a955e9be9b3a0a7',
-    'assets/sporta-ui.css' => '4618b9900e204655174fd6fe87fc88e41afc4b389ad190e636c5803b2ed8ae5',
-    'index.html'           => 'f221a633279bfb5e3a818f6c5d258cf0fe6aceb8a5b329446ec901d6104e422',
-    '.htaccess'            => '6e30e5023958568dfcbdb293d89db7182a58ec87d7a336e3e2329dcaa305599',
-    'sw.js'                => '148826ae35c042dfd9123f480f09d48f3d83007707c39fee038114ed7913983',
+    'assets/nav-menu.js'   => '2ee0030fb0ef9decfb16511aed06550bcd506a25f8fc4389a955e9be9b3a0a7d',
+    'assets/sporta-ui.css' => '4618b9900e204655174fd6fe87fc88e41afc4b389ad190e636c5803b2ed8ae59',
+    'index.html'           => 'f221a633279bfb5e3a818f6c5d258cf0fe6aceb8a5b329446ec901d6104e422c',
+    '.htaccess'            => '6e30e5023958568dfcbdb293d89db7182a58ec87d7a336e3e2329dcaa3055990',
+    'sw.js'                => '148826ae35c042dfd9123f480f09d48f3d83007707c39fee038114ed79139834',
 ];
 
 $wrote = 0; $same = 0; $bad = []; $failed = [];
