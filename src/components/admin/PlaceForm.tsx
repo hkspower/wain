@@ -112,15 +112,32 @@ export default function PlaceForm({
   initial,
   busy,
   onSave,
+  onUpdateLocation,
   onCancel,
 }: {
   initial?: EditablePlace;
   busy: boolean;
   onSave: (p: EditablePlace) => void;
+  /** Optional: writes ONLY lat/lng, immediately, for an existing place — see
+   *  the button beside CoordinatePicker below. Omitted entirely disables it,
+   *  which is how a caller with no such backend (there is none outside
+   *  AdminApp today) gets the plain form back with no dead button in it. */
+  onUpdateLocation?: (
+    id: string,
+    lat: number,
+    lng: number
+  ) => Promise<{ ok: true } | { ok: false; message: string }>;
   onCancel: () => void;
 }) {
   const [p, setP] = useState<EditablePlace>(initial ?? EMPTY);
   const [errs, setErrs] = useState<string[]>([]);
+  // The pin's own save state — deliberately separate from `busy`/`errs` above.
+  // Those belong to the whole-form submit; this button skips that submit
+  // entirely, so sharing state would either grey out "حفظ" for a click that
+  // never touched it, or clear a coordinate error the moment an unrelated
+  // field changes.
+  const [locBusy, setLocBusy] = useState(false);
+  const [locMsg, setLocMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [menuText, setMenuText] = useState(() => menuToText(initial?.menuAr));
   const parsedMenu = parseMenu(menuText);
   const menuPreview =
@@ -138,6 +155,27 @@ export default function PlaceForm({
     const found = validate(p);
     setErrs(found);
     if (found.length === 0) onSave(p);
+  }
+
+  /**
+   * "تحديث الآن" — the coordinate, on its own, right now.
+   *
+   * Deliberately re-checks just the two coordinate bounds rather than calling
+   * validate(p): validate() also demands the Arabic name, the description, a
+   * price level — none of which this button touches, and none of which should
+   * be able to block a location fix on a place that is otherwise mid-edit.
+   */
+  async function updateLocationNow() {
+    if (!p.id || !onUpdateLocation) return;
+    if (p.lat < -90 || p.lat > 90 || p.lng < -180 || p.lng > 180) {
+      setLocMsg({ ok: false, text: "الإحداثيات غير صحيحة." });
+      return;
+    }
+    setLocBusy(true);
+    setLocMsg(null);
+    const res = await onUpdateLocation(p.id, p.lat, p.lng);
+    setLocBusy(false);
+    setLocMsg(res.ok ? { ok: true, text: "تحدّث الموقع." } : { ok: false, text: res.message });
   }
 
   return (
@@ -407,6 +445,28 @@ export default function PlaceForm({
             onPick={(at) => setAll({ lat: at.lat, lng: at.lng })}
             label="اضغط على الخريطة وظبّط الموقع بالضبط"
           />
+          {/* Only for a place that already has a row — a brand-new, unsaved
+              place has no id to PATCH, and offering the button here would be
+              a click that fails every time with no way to explain why. Save
+              the place once first; after that, a fix to the pin does not have
+              to wait on the rest of the form. */}
+          {onUpdateLocation && p.id && (
+            <div className="mt-2 flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => void updateLocationNow()}
+                disabled={locBusy}
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3.5 text-xs font-semibold text-ink-700 transition hover:border-sea-300 disabled:opacity-60"
+              >
+                {locBusy ? "نحدّث…" : "تحديث الآن"}
+              </button>
+              {locMsg && (
+                <span className={`text-xs font-semibold ${locMsg.ok ? "text-palm-700" : "text-coral-700"}`}>
+                  {locMsg.text}
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <div>
           <label className={label} htmlFor="f-rating">التقييم (٠–٥)</label>

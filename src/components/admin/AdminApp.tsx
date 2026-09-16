@@ -246,6 +246,35 @@ export default function AdminApp() {
     else void load();
   }
 
+  /**
+   * The pin, saved on its own — "تحديث الآن" beside the map in PlaceForm.
+   *
+   * Everything else about a place goes through save() above, which validates
+   * every field and writes the whole row. A coordinate fixed on a walkthrough
+   * is a different kind of edit: it has nothing to do with whether the Arabic
+   * description is filled in, and making it wait on that is why this exists —
+   * the full form's own "حفظ" already covers "save lat/lng along with
+   * everything else."
+   *
+   * A partial update, not placeToRow(): sending only {lat, lng} means this can
+   * never overwrite a field the caller did not touch, even if EditablePlace
+   * carried something stale for it.
+   */
+  async function updateLocation(
+    id: string,
+    lat: number,
+    lng: number
+  ): Promise<{ ok: true } | { ok: false; message: string }> {
+    const sb = await loadSupabase();
+    if (!sb) return { ok: false, message: "ما قدرنا نتصل." };
+    const { error: e } = await sb.from("places").update({ lat, lng }).eq("id", id);
+    if (e) return { ok: false, message: e.message };
+    // Keep the list in step without a full reload — the row the caller is
+    // still editing keeps its own unsaved fields exactly as they are.
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, lat, lng } : r)));
+    return { ok: true };
+  }
+
   const filtered = q.trim()
     ? rows.filter((r) => (r.nameAr + r.name + r.areaAr).includes(q.trim()))
     : rows;
@@ -362,6 +391,7 @@ export default function AdminApp() {
             initial={view.place}
             busy={busy}
             onSave={save}
+            onUpdateLocation={updateLocation}
             onCancel={() => { setApproving(null); setView({ mode: "list" }); }}
           />
         </section>
