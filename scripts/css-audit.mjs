@@ -42,6 +42,31 @@
  * The palette file is checked, not the 91 KB build output — that is generated
  * from a source this repo does not hold, so its unused rules are Tailwind's
  * business and not something anyone here can act on.
+ *
+ * 4. EVERY IMAGE A url() NAMES, DOES IT EXIST. sw.js's precache list is
+ *    already checked against disk (1b, above) — but that is a DIFFERENT list
+ *    from what the hand-written CSS itself asks the browser to fetch as a
+ *    background. A url() typo in sporta-ui.css would not fail to precache
+ *    (the path is never in PRECACHE), would not 404 loudly (a missing
+ *    background-image just paints nothing), and nothing here checked it —
+ *    the entire site has exactly one such reference (`/logo-white.webp`, the
+ *    placeholder mark on a product card with no photo), and it went
+ *    unaudited because it is neither an `<img>` font-audit.mjs and
+ *    image-audit.mjs watch, nor an `@font-face` src, nor a precache entry.
+ *
+ *    WHAT THIS DELIBERATELY DOES NOT ASSERT: that the source is no bigger
+ *    than THIS ONE USE needs. logo-white.webp is a SHARED FILE —
+ *    index.html's boot logo, and the standalone card.html and
+ *    returns-request.html pages, both declare a bigger box than this CSS
+ *    mark ever renders, and the built bundle may use it elsewhere at a size
+ *    nothing here can see. A first draft of this check measured "needless"
+ *    against the CSS mark alone and would have called a correctly-sized
+ *    shared asset oversized — the exact shape this repository already
+ *    records under "a workaround can be right and its side effects
+ *    unmeasured." So the OTHER known consumers are read out of their own
+ *    markup and reported alongside, and nothing is asserted about the size
+ *    beyond "not upscaled by this one use" — which is safe precisely because
+ *    it can never produce a false failure against a shared file.
  */
 import { chromium } from 'playwright'
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
@@ -73,6 +98,30 @@ const precached = [...sw.matchAll(/"(\/[^"]+\.(?:js|css|woff2|png|webp|jpg|svg))
 const absent = precached.filter((f) => !existsSync(ROOT + f.replace(/^\//, '')))
 check(absent.length === 0,
   `sw.js precaches ${precached.length} files${absent.length ? `, ${absent.length} MISSING: ${absent.join(', ')}` : ', all present'}`)
+
+// --- 1c. every url() image reference in the HAND-WRITTEN CSS, against disk -
+// A DIFFERENT list from sw.js's precache array above: this is what a url()
+// property in the stylesheet itself asks the browser to fetch. Neither
+// image-audit.mjs (which walks <img>/<picture>) nor font-audit.mjs (@font-face
+// src) nor the precache check above would catch a typo here — a missing
+// background-image just paints nothing, silently, on the exact cards a shop
+// with no product photos shows every visitor.
+const handWritten = ['sporta-ui.css', 'sporta-dark.css']
+const cssUrls = []
+for (const f of handWritten) {
+  const body = readFileSync(ROOT + 'assets/' + f, 'utf8')
+  for (const m of body.matchAll(/url\(\s*['"]?(\/[^'")]+\.(?:png|jpe?g|gif|webp|avif|svg))['"]?\s*\)/g)) {
+    cssUrls.push({ file: f, path: m[1] })
+  }
+}
+// It must find something. A pattern that stopped matching (a build renaming
+// how url() is written, say) would report a clean sweep for the wrong reason
+// — the same shape as every other "found nothing" trap this repository has
+// paid for.
+check(cssUrls.length > 0, `found ${cssUrls.length} image url() reference(s) in the hand-written CSS`)
+for (const { file, path } of cssUrls) {
+  check(existsSync(ROOT + path.replace(/^\//, '')), `${file}: url('${path}') resolves to a real file`)
+}
 
 // --- 2. every selector in the palette, against the real pages --------------
 const css = readFileSync(ROOT + 'assets/sporta-dark.css', 'utf8')
@@ -123,9 +172,42 @@ await p.evaluate(() => localStorage.setItem('sporta_theme', 'dark'))
 
 const hits = new Map([...selectors].map((s) => [s, 0]))
 const overridden = new Set()
+// Set once, on the widest page that has one — /shop, the only page with a
+// grid of placeholder cards. Filled in below.
+let placeholderMark = null
 for (const path of PAGES) {
   await p.goto(BASE + path, { waitUntil: 'networkidle' })
   await p.waitForTimeout(1000)
+
+  // --- 1c continued: is the ONE url() image upscaled by what it paints here
+  // Measured against the WIDEST placeholder card on the page — a photo-less
+  // shop shows the mark on every one of them, so the widest card is the
+  // worst case for this one consumer's need.
+  if (path === '/shop' && placeholderMark === null) {
+    placeholderMark = await p.evaluate(async () => {
+      const els = [...document.querySelectorAll(
+        'a[href*="/product/"]:has(> img[src^="data:image/svg+xml"]), '
+        + '.product-gallery:has(> img[src^="data:image/svg+xml"])',
+      )]
+      if (!els.length) return { count: 0 }
+      let widest = els[0]
+      for (const el of els) if (el.getBoundingClientRect().width > widest.getBoundingClientRect().width) widest = el
+      const cs = getComputedStyle(widest, '::after')
+      const box = widest.getBoundingClientRect()
+      const url = (cs.backgroundImage.match(/url\(["']?([^"')]+)["']?\)/) || [])[1]
+      const pct = parseFloat(cs.backgroundSize) || 100
+      let natural = null
+      if (url) {
+        natural = await new Promise((res) => {
+          const im = new Image()
+          im.onload = () => res({ w: im.naturalWidth, h: im.naturalHeight })
+          im.onerror = () => res(null)
+          im.src = url
+        })
+      }
+      return { count: els.length, cardW: box.width, markPct: pct, natural }
+    })
+  }
   const counts = await p.evaluate((sels) => sels.map((s) => {
     try { return document.querySelectorAll(s).length } catch { return -1 }
   }), [...selectors])
@@ -165,6 +247,46 @@ for (const path of PAGES) {
   for (const l of lost) overridden.add(`${path}  ${l}`)
 }
 await b.close()
+
+// --- 1c concluded: does the source cover the render without upscaling ------
+console.log('\n--- the placeholder mark, measured rather than assumed')
+if (!placeholderMark || placeholderMark.count === 0) {
+  // NOT a failure by itself — a shop with real product photos would show
+  // none of these, and that is the point of the feature. It only becomes
+  // worth asking about below, where the count is reported.
+  console.log('ok   no photo-less product cards on /shop today — the mark painted nowhere to measure')
+} else {
+  const { count, cardW, markPct, natural } = placeholderMark
+  console.log(`     ${count} photo-less card(s) on /shop; widest is ${Math.round(cardW)}px, mark at ${markPct}%`)
+  check(!!natural, `the mark's own image loaded and reported its size${natural ? '' : ' — background-image url() resolved to nothing the browser could decode'}`)
+  if (natural) {
+    const renderedW = cardW * (markPct / 100)
+    check(natural.w >= renderedW,
+      `the source (${natural.w}px) is not upscaled by the CSS mark even at 1x (needs ${Math.round(renderedW)}px)`)
+
+    // WHAT THIS DOES NOT ASSERT, on purpose: that the source is no LARGER than
+    // this one use needs. logo-white.webp is a SHARED FILE — index.html's
+    // boot logo (width=132/preloaded fetchpriority=high), and the standalone
+    // card.html/returns-request.html brand mark (width=140), both declare a
+    // bigger box than this CSS mark ever renders, and the built bundle may use
+    // it elsewhere at a size nothing here can see. A check that measured
+    // "needless" against this ONE consumer would have called a correctly-sized
+    // shared asset oversized and pointed at shrinking a file that OTHER pages
+    // need at full size — the exact shape CLAUDE.md already records: "a
+    // workaround can be right and its side effects unmeasured." Reported, not
+    // failed, and the other declared consumers are read out of their own
+    // markup rather than a number kept here.
+    const declared = []
+    for (const file of ['index.html', 'card.html', 'returns-request.html']) {
+      const m = readFileSync(ROOT + file, 'utf8')
+        .match(/<img[^>]*src="\/logo-white\.webp"[^>]*width="(\d+)"/)
+      if (m) declared.push({ file, w: Number(m[1]) })
+    }
+    const widest = declared.reduce((a, b) => (b.w > a.w ? b : a), { file: 'this CSS mark', w: renderedW })
+    console.log(`     natural width ${natural.w}px; the widest KNOWN declared use is ${widest.file}`
+      + ` at ${Math.round(widest.w)}px (×3 retina = ${Math.round(widest.w * 3)}px) — shared file, not resized on this evidence alone`)
+  }
+}
 
 // The second signal: could this class be emitted at all? Read from the built
 // bundle and stylesheet, which together are everything the browser can ever be
