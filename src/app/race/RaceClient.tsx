@@ -5,7 +5,8 @@ import type { DriverCard, GameEngine, HudData, RaceResult } from "@/game/engine"
 import { playSfx, preloadSfx, setSfxVolume } from "@/game/sfx";
 import Results from "./Results";
 import Onboarding, { CoachHint, CoachState, hasOnboarded } from "./Onboarding";
-import { ICONS, IconFlash, IconCrown, IconGear, IconFlagKW, IconChat, type IconName } from "./Icons";
+import { ICONS, IconFlash, IconCrown, IconGear, IconFlagKW, IconChat, IconPaint, type IconName } from "./Icons";
+import PaintShop from "./PaintShop";
 import Garage from "./Garage";
 import KuwaitClock from "./KuwaitClock";
 import RoadMapView from "./RoadMapView";
@@ -44,6 +45,8 @@ import {
   GarageState,
   CarBuild,
   editBuild,
+  buildOf,
+  PARTS,
   clampTint,
   loadGarage,
   saveGarage,
@@ -815,6 +818,12 @@ function raceCut(): { w: number; h: number } | null {
   const challengeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [garageOpen, setGarageOpen] = useState(false);
   const garageWasOpen = useRef(false);
+  // The painter's picker. Opened by a key or the pad once the car has
+  // stopped in the bay — never by arriving; see updatePainter.
+  const [painterOpen, setPainterOpen] = useState(false);
+  const [canPaint, setCanPaint] = useState(false);
+  const canPaintRef = useRef(false);
+  const painterOpenedWith = useRef<{ paint?: string; finish?: string } | null>(null);
   const [garage, setGarage] = useState<GarageState | null>(null);
   const [isTouch, setIsTouch] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1696,6 +1705,11 @@ function raceCut(): { w: number; h: number } | null {
         sizeUpRef.current = d.canSizeUp;
         setCanSizeUp(d.canSizeUp);
       }
+      const paintNow = !!d.painter?.ready;
+      if (paintNow !== canPaintRef.current) {
+        canPaintRef.current = paintNow;
+        setCanPaint(paintNow);
+      }
       drawMap(d);
     },
     [drawMap]
@@ -1778,6 +1792,7 @@ function raceCut(): { w: number; h: number } | null {
       engine = new GameEngine(canvasRef.current, {
         onHud,
         onMessage: showMessage,
+        onPaintRequest: () => setPainterOpen(true),
         onBump: () => {
           haptic(HAPTIC.impact, loadSettings().haptics);
           const el = canvasRef.current;
@@ -2013,7 +2028,7 @@ function raceCut(): { w: number; h: number } | null {
   // their pointerup events — release every input or a held Gas/Drift pad
   // stays latched through the overlay and beyond.
   const padsVisible =
-    isTouch && phase === "playing" && !challenge && !garageOpen && !result && !onboarding && !cine;
+    isTouch && phase === "playing" && !challenge && !garageOpen && !painterOpen && !result && !onboarding && !cine;
   useEffect(() => {
     if (padsVisible) return;
     const e = engineRef.current;
@@ -2055,6 +2070,41 @@ function raceCut(): { w: number; h: number } | null {
       e.refreshGarage();
     }
   }, [garageOpen, phase]);
+
+  // The painter's picker freezes the race the same way, but the car is
+  // rebuilt on every pick rather than on the way out — the point of a
+  // side panel is watching the respray land in the bay. On the way out
+  // it only says what changed, if anything did.
+  useEffect(() => {
+    if (phase !== "playing") return;
+    const e = engineRef.current;
+    if (!e) return;
+    e.setPaused(painterOpen);
+    if (painterOpen) {
+      const b = buildOf(loadGarage());
+      painterOpenedWith.current = { paint: b.equipped.paint, finish: b.equipped.finish };
+      return;
+    }
+    const was = painterOpenedWith.current;
+    painterOpenedWith.current = null;
+    if (!was) return;
+    const b = buildOf(loadGarage());
+    if (b.equipped.paint === was.paint && b.equipped.finish === was.finish) return;
+    const named = (id: string | undefined, stock: string) =>
+      PARTS.find((p) => p.id === id)?.name ?? stock;
+    showMessage(
+      "Fresh paint — صبغة جديدة",
+      `${named(b.equipped.paint, "Factory Finish")} · ${named(b.equipped.finish, "Stock finish")}`
+    );
+  }, [painterOpen, phase, showMessage]);
+
+  const paintPick = useCallback(
+    (p: Part) => {
+      buyOrEquip(p);
+      engineRef.current?.refreshGarage();
+    },
+    [buyOrEquip]
+  );
 
   useEffect(() => {
     const onResize = () => engineRef.current?.resize();
@@ -2181,6 +2231,30 @@ function raceCut(): { w: number; h: number } | null {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // The painter's picker: Escape drives off, P opens it — only once
+      // the bay says the car has stopped there, and never under a menu.
+      if (e.key === "Escape" && painterOpen) {
+        setPainterOpen(false);
+        return;
+      }
+      if (
+        e.key.toLowerCase() === "p" &&
+        !e.repeat &&
+        phase === "playing" &&
+        canPaint &&
+        !painterOpen &&
+        !garageOpen &&
+        !settingsOpen &&
+        !pauseOpen &&
+        !onboarding &&
+        !result &&
+        !cine &&
+        !dossier &&
+        !quickChat
+      ) {
+        setPainterOpen(true);
+        return;
+      }
       if (
         e.key === "Escape" &&
         phase === "playing" &&
@@ -2201,6 +2275,7 @@ function raceCut(): { w: number; h: number } | null {
         !e.repeat &&
         phase === "playing" &&
         !garageOpen &&
+        !painterOpen &&
         !settingsOpen &&
         !onboarding &&
         !result &&
@@ -2220,6 +2295,7 @@ function raceCut(): { w: number; h: number } | null {
         !e.repeat &&
         phase === "playing" &&
         !garageOpen &&
+        !painterOpen &&
         !settingsOpen &&
         !onboarding &&
         !result &&
@@ -2280,7 +2356,7 @@ function raceCut(): { w: number; h: number } | null {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [phase, startGame, result, garageOpen, settingsOpen, onboarding, cine, challenge, creditsOpen, menuSel, updateSetting, showMessage, dossier, quickChat, sendQuickChat]);
+  }, [phase, startGame, result, garageOpen, painterOpen, canPaint, pauseOpen, settingsOpen, onboarding, cine, challenge, creditsOpen, menuSel, updateSetting, showMessage, dossier, quickChat, sendQuickChat]);
 
   // The main menu proper: one list, navigable by keyboard or thumb.
   // The first item keeps the wording the whole game is introduced by —
@@ -2735,6 +2811,19 @@ function raceCut(): { w: number; h: number } | null {
             className="grn-info pointer-events-auto px-3 py-1.5 font-display text-xs tracking-[0.08em]"
           >
             TAB · SIZE UP THE DRIVER
+          </button>
+        </div>
+      )}
+      {/* Stopped in the painter's bay: one pill, clickable, so the touch
+          half of the audience has the same door the keyboard does. */}
+      {phase === "playing" && canPaint && !painterOpen && !dossier && !cine && !result && (
+        <div className="pointer-events-none absolute left-1/2 top-36 z-[6] -translate-x-1/2">
+          <button
+            onClick={() => setPainterOpen(true)}
+            className="grn-info pointer-events-auto px-3 py-1.5 font-display text-xs tracking-[0.08em]"
+          >
+            <IconPaint size={14} className="-mt-0.5 mr-1 inline" />
+            {!isTouch && "P · "}PAINT SHOP <span className="grn-ar" lang="ar">صبغ</span>
           </button>
         </div>
       )}
@@ -4056,6 +4145,11 @@ function raceCut(): { w: number; h: number } | null {
           liveRef={hudMapRef}
           onClose={() => setMapOpen(false)}
         />
+      )}
+
+      {/* The painter's picker: a side panel, so the bay stays in view */}
+      {painterOpen && garage && (
+        <PaintShop garage={garage} onPick={paintPick} onClose={() => setPainterOpen(false)} />
       )}
 
       {/* Garage */}
