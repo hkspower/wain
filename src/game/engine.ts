@@ -12,7 +12,7 @@ import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, COAST_FADE_M, STATIONS, FORECOURT, LAP, TUNNEL_BOX, LAP_LENGTH } from "./track";
 import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
 import type { Wake } from "./plants";
-import { createCar, crownShell, CROWN, paintMetalness, TAIL, setMaxDecalPx } from "./cars";
+import { createCar, crownShell, CROWN, paintMetalness, TAIL, setMaxDecalPx, STYLE_REAL } from "./cars";
 import { RIVALS, RivalDef, rivalCar as rivalCarOf, rivalCarName } from "./rivals";
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
@@ -3255,7 +3255,21 @@ export class GameEngine {
   private spawnTraffic(count: number): void {
     for (let i = 0; i < count; i++) {
       const mesh = this.trackCar(
-        createCar({ body: TRAFFIC_COLORS[i % TRAFFIC_COLORS.length], simple: true })
+        createCar({
+          body: TRAFFIC_COLORS[i % TRAFFIC_COLORS.length],
+          simple: true,
+          // Every player, rival and menu-preview car is fitted to a real
+          // lengthM (see createCar); without one a shell falls back to
+          // STYLE_SCALE's flat, unfitted multiplier — "the fallback for
+          // a shell built without a length: traffic, and the showroom
+          // capture tool," per its own comment. That flat multiplier was
+          // never measured against anything, so traffic sat at a
+          // different, made-up size from every real car on the road.
+          // STYLE_REAL.sedan.l is this codebase's own canonical real
+          // sedan length — the same 4.7 m the gtr/rx7/etc. proportion
+          // law is built against — not a new number.
+          lengthM: STYLE_REAL.sedan.l,
+        })
       );
       this.scene.add(mesh);
       this.traffic.push({
