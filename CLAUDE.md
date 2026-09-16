@@ -2731,3 +2731,70 @@ off branch `claude/delivery-cars-website-llck2j`, which touches only that
 docroot and is therefore NOT the thing restoring `cats/desktop/outlet.jpg`), and
 a new `php -r scandir` of `wainkw.com/storage`. Recorded with its timestamp per
 the standing rule. **Re-list before reasoning from a list.**
+
+## The second hardcoded manifest, and a publish on its word — 2026-09-16
+
+Asked to fix broken images and scan the text style. Every local image rig was
+green; `live-image-check` reported `differ=5` on `hero/mobile/*.webp`.
+
+**I published five files that needed no publishing.** The publisher's own
+reading said so in the same breath and I read it as confirmation:
+`alreadyOk=5 stillDesktop=0 served=5/5 mobileBytes=174124` — the phone frames
+were ALREADY the 1200px art, already 119,874 bytes lighter than the desktop
+masters. The checker's five expected hashes match neither the current mobile
+files nor the desktop ones. They are an older generation still.
+
+**This is the recorded failure verbatim, on a second file.** The entry above
+says a checker that reports the repository's staleness as the server's *"points
+at work that is already done"*, and it was written about `live-file-check.php`
+on 2026-09-10 and fixed by GENERATING its manifest. `live-image-check.php`
+carried the identical hardcoded list and the identical instruction in its own
+header — *"regenerate it from public_html with find | sort | xargs sha256sum"* —
+which is a step a person has to remember every time, for ever. Eleven days, and
+nobody asked how many hardcoded manifests there were. **"When a fix lands, grep
+for the clause, not the file"** was already written down, about a different
+clause.
+
+`make:file-manifest` writes both now, one generator over a list of targets, and
+`test:file-manifest` fails on drift in either. **Six images were missing from
+the list entirely** (51 → 57) and had never been checked on either side — a
+hand-written list cannot ask "what did we never send?". Live, with the generated
+manifest: `IMG same=57/57 differ=0 missing=0`.
+
+### Eighteen publishers pinned a ref that fetches nothing
+
+Found on the way, and real even though it caused none of the above.
+`publish-hero-mobile.php` carried `$COMMIT = 'def64d5'`, and
+raw.githubusercontent.com **404s on an abbreviated sha** — already in this file
+since 2026-09-11, together with the observation that *"other publishers here
+carry short shas and happened to work, which is worse than failing outright."*
+Eighteen still did. All expanded to forty characters; `npm run test:publish-pin`
+requires forty hex characters AND that the sha resolves to a commit here,
+because a full-length string that is not a commit fetches exactly as much as a
+short one does.
+
+### The text scan, and two ways it was wrong first
+
+`npm run test:text-style` walks eleven pages in both languages and asks what no
+other rig does: is this text the size, the weight and the FACE it was meant to
+be, and is any of it cut off? 1,374 runs measured, nothing clipped, nothing
+under 11px, nothing falling back.
+
+```
+sizes     14.7×592  16.8×196  15.5×138  13.7×74  12.6×74  16×64  21×44 …
+weights   400×532  700×438  600×266  800×60  500×40  900×8
+families  Alexandria×1212   IBM Plex Sans Arabic×132
+```
+
+The inventory is **printed and never failed** — a rig that failed on eleven
+type sizes would be deciding the shop's typography on its own.
+
+- It first reported **twelve clipped headings, every one `in 1x1`**: the
+  screen-reader-only pattern, correct markup doing exactly what it is for. It
+  found the shape it was written to find and the shape was not the fault.
+- **`document.fonts.check()` passed a rule naming a face that does not exist.**
+  It answers about `@font-face` rules the document has LOADED; for a family it
+  has never heard of it returns true, because SOMETHING will render the text —
+  which is the fallback, and the fallback is the whole fault. The browser is
+  made to draw it now: the declared family measured against two sentinels with
+  different metrics, and equal to both means it added nothing.
