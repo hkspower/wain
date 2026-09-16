@@ -145,7 +145,8 @@
     "test:nav-menu": "node scripts/nav-menu-test.mjs",
     "test:brand-strip": "node scripts/brand-strip-test.mjs",
     "test:admin-theme": "node scripts/admin-theme-test.mjs",
-    "test:legal-pages": "node scripts/legal-pages-test.mjs"
+    "test:legal-pages": "node scripts/legal-pages-test.mjs",
+    "test:admin-mobile": "node scripts/admin-mobile-test.mjs"
   },
   "private": true
 }

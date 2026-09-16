@@ -719,6 +719,12 @@
          legal-pages.js reads on the storefront. Panel-only. -->
     <script src="/assets/legal-editor.js" defer></script>
 
+    <!-- The website panel, on a touchscreen: three controls under 44px
+         (rules.js's size/fit/governorate chips, custom-css.js's Save/Undo/
+         Clear) grow to a proper tap target under `pointer: coarse`, and
+         nothing changes for a mouse. Panel-only. -->
+    <script src="/assets/admin-mobile.js" defer></script>
+
     <!-- The main menu: "About us" becomes a plain link to /terms, because a
          React Router Link's href cannot be repointed by editing the DOM —
          see the file's own header. Storefront-wide, since the header is on
