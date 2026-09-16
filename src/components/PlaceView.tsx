@@ -113,6 +113,9 @@ export default function PlaceView({
         {art}
         {place.rating !== undefined && (
           <span
+            // text-xs, one size up from PlaceCard/MapPin's text-2xs badge —
+            // this hero is h-28/h-40, not a thumbnail, so the larger badge
+            // reads at the same relative scale. See PlaceCard.tsx.
             className="absolute start-2.5 top-2.5 flex items-center gap-1 rounded-full bg-white/95 px-2 py-1 text-xs font-semibold text-ink-800 shadow-sm backdrop-blur"
             aria-label={`التقييم ${toArabicNumber(place.rating)} من ٥`}
           >

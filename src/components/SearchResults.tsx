@@ -89,6 +89,9 @@ function PlaceMeta({ id }: { id: string }) {
   return (
     <span className="hidden shrink-0 items-center gap-3 sm:flex">
       {place.rating !== undefined && (
+        // text-xs, matching PlaceView's hero badge — this is a result row,
+        // not an image overlay, so there is no thumbnail scale to match. See
+        // PlaceCard.tsx for the full note.
         <span
           className="flex items-center gap-1 text-xs font-semibold text-ink-700"
           aria-label={`التقييم ${toArabicNumber(place.rating)} من ٥`}

@@ -255,6 +255,9 @@ export default function MapPin({
             <span className="text-2xs text-sand-300">{place.areaAr}</span>
           </span>
           {place.rating !== undefined && (
+            // text-2xs, matching the tooltip's own name/area lines above and
+            // PlaceCard's badge — both are thumbnail-scale. See PlaceCard.tsx
+            // for the full note on the two badge sizes across the site.
             <span className="flex items-center gap-0.5 rounded-full bg-white/15 px-1.5 py-0.5 text-2xs font-semibold">
               <IconStar className="size-3 text-sun-300" />
               {toArabicNumber(place.rating)}

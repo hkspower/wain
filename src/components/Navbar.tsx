@@ -15,6 +15,11 @@ export default function Navbar() {
   const pathname = usePathname();
 
   return (
+    // The inset top-edge highlight, white at 60% opacity, is not on the
+    // @theme shadow scale on purpose — every step there is ink-tinted for a
+    // cast shadow, and this is the opposite: a sheen on the bar itself,
+    // which only reads as a sheen in white. audit:css flags it as a raw
+    // colour; it is a deliberate exception, not an oversight.
     <header className="app-chrome sticky top-0 z-50 border-b border-line/70 bg-sand-50/85 pt-[env(safe-area-inset-top)] shadow-[0_1px_0_rgba(255,255,255,0.6)_inset] backdrop-blur-xl">
       <nav
         className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-2.5 sm:px-4"

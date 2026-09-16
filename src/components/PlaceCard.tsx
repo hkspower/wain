@@ -55,6 +55,13 @@ export default function PlaceCard({
             eye to a number that does not exist. */}
         {place.rating !== undefined && (
           <span
+            // text-2xs, matching MapPin's tooltip badge — both sit on a
+            // thumbnail-scale image (this card's h-14 tint band, the
+            // tooltip's own compact type). PlaceView's hero badge and
+            // SearchResults' row are one size up (text-xs) because their own
+            // images, or the row itself, are bigger — audit:type surfaced
+            // all four as one ٤٫٧-shaped bucket at two sizes; this is the
+            // rule that explains the two, not a slip.
             className="absolute start-1.5 top-1.5 flex items-center gap-0.5 rounded-full bg-white/95 px-1.5 py-0.5 text-2xs font-semibold text-ink-800 shadow-sm backdrop-blur"
             aria-label={`التقييم ${toArabicNumber(place.rating)} من ٥`}
           >
