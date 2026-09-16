@@ -258,9 +258,21 @@ function mirrorX(geo: THREE.BufferGeometry): THREE.BufferGeometry {
  * The procedural geometries are module-shared constants in cars.ts (the
  * traffic fleet keeps using them), so they are never disposed here.
  */
-/** Silhouettes with a Blender-authored shell on disk. Asking for one
- *  that was never built is a 404 per car per load, which shows up as a
- *  runtime error in the race test and tells the player nothing. */
+/**
+ * Silhouettes with a Blender-authored shell on disk. Asking for one
+ * that was never built is a 404 per car per load, which shows up as a
+ * runtime error in the race test and tells the player nothing.
+ *
+ * This is NOT "the styles the pipeline supports" — profiles.json and
+ * tools/blender/build_assets.py cover all eight now (see
+ * scripts/export-car-profiles.mjs), because a style with no profile
+ * was a style whose silhouette changes nothing ever read. This set is
+ * only "which of those eight have actually had `npm run sync:models`
+ * run and their GLB committed" — hatch, pony, pickup and super are
+ * pipeline-ready and still procedural until that happens. Add a style
+ * here in the same commit as its car-{style}.glb, never before it.
+ * scripts/check-blender-coverage.mjs fails if the two ever disagree.
+ */
 const AUTHORED_SHELLS: ReadonlySet<BodyStyle> = new Set<BodyStyle>(["sedan", "zx", "gtr", "rx7"]);
 
 /** Crowned once per file, not once per car. The GLBs are fetched and

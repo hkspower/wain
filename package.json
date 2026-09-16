@@ -29,6 +29,7 @@
     "check:arabic:type:rules": "node scripts/check-arabic-type.mjs --self-test",
     "check:logo": "node scripts/check-logo.mjs",
     "check:parts": "node scripts/check-catalogue.mjs",
+    "check:blender": "node scripts/check-blender-coverage.mjs",
     "check:ui": "node scripts/check-ui-glyphs.mjs",
     "check:unity": "node scripts/check-unity-sync.mjs",
     "check:unreal": "node scripts/check-unreal-sync.mjs",

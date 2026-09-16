@@ -7,7 +7,7 @@ simply stands — nothing waits and nothing breaks.
 
 | File | Meshes | Replaces |
 | --- | --- | --- |
-| `car-{sedan,zx,gtr,rx7}.glb` | Body, Canopy, Roof | the bevel-extruded body shells |
+| `car-{sedan,zx,gtr,rx7}.glb` (shipped); `car-{hatch,pony,pickup,super}.glb` (pipeline-ready, not yet built) | Body, Canopy, Roof | the bevel-extruded body shells |
 | `wheel-{5,6}.glb` | Tire, Barrel, Alloy, Rotor, Lugs | the hero wheel (5-spoke cast / 6-spoke forged) |
 | `palm.glb` | Crown | the corniche palm crown, one geometry for ~130 instances |
 | `driver.glb` | Helmet, Visor, Glove, Wheel, Pedal | the driver at the wheel. These hang off joints the IK solver moves every frame, so each part is modelled in its own joint's local frame and dimensioned from `src/game/rig.ts` (via the `rig` block in `profiles.json`) — an authored rim at the wrong radius leaves the solved hands gripping thin air |
@@ -23,6 +23,25 @@ is indistinguishable from `max` at every camera this game uses — the
 body bevel at `max` already resolves finer than a pixel. The reasoning
 and the numbers are in the comment above `QUALITY` in
 `tools/blender/build_assets.py`. Do not ship it without re-measuring.
+
+## All eight silhouettes, not just four
+
+`profiles.json` and `build_assets.py` cover every `BodyStyle` the fleet
+uses — sedan, zx, gtr, rx7, hatch, pony, pickup, super — because a style
+with no profile was a style whose silhouette could change and nothing
+would notice: `scripts/export-car-profiles.mjs` used to hardcode just
+the four that already had a shipped GLB, so a pickup or a hatch profile
+could go stale or break outright with the exporter silently skipping it.
+
+Coverage and shipping are two different questions. `AUTHORED_SHELLS` in
+`src/game/models.ts` is the second one — which styles have actually had
+`npm run sync:models` run and their GLB committed — and it still lists
+only the original four: building the other four needs a real `bpy` run,
+which is the one step here that cannot be done without Blender installed.
+Run `npm run check:blender` to see both lists and where they disagree;
+it fails if a style is ever wired into `AUTHORED_SHELLS` without a
+`car-{style}.glb` on disk, or if the fleet uses a style the profile
+pipeline does not cover.
 
 ## Keeping these in step with the cars
 

@@ -3,7 +3,7 @@
 //   npm run dev
 //   node tools/shots/shelldrift.mjs
 //
-// public/models/car-{sedan,zx,gtr,rx7}.glb are lofted by
+// public/models/car-{sedan,zx,gtr,rx7,hatch,pony,pickup,super}.glb are lofted by
 // tools/blender/build_assets.py from tools/blender/profiles.json, which
 // scripts/export-car-profiles.mjs exports from src/game/cars.ts. Four
 // steps, three of which can go stale without anything going red: the

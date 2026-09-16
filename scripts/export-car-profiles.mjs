@@ -164,11 +164,25 @@ function parseGeo(name) {
   return { points, width, bevel, bottom, crown };
 }
 
+// Every silhouette the fleet actually uses, not just the four with a
+// shipped GLB. This used to be four — the styles that already had an
+// authored shell — which meant a change to a pickup, pony, hatch or
+// super-car profile was never read by this file at all: no throw, no
+// stale warning, nothing. cars.ts had eight fully-formed profile trios
+// and CROWN_BY_STYLE has always covered all eight; only this map had
+// stopped at the four the Blender build happened to have already built.
+// build_assets.py's own build_style() is generic over any style with a
+// profile here, so extending this map is the whole fix — the loft does
+// not need to change, only what it is told to loft.
 const styles = {
   sedan: { body: "bodyGeo", canopy: "canopyGeo", roof: "roofGeo" },
   zx: { body: "zxBodyGeo", canopy: "zxCanopyGeo", roof: "zxRoofGeo" },
   gtr: { body: "gtrBodyGeo", canopy: "gtrCanopyGeo", roof: "gtrRoofGeo" },
   rx7: { body: "rx7BodyGeo", canopy: "rx7CanopyGeo", roof: "rx7RoofGeo" },
+  hatch: { body: "hatchBodyGeo", canopy: "hatchCanopyGeo", roof: "hatchRoofGeo" },
+  pony: { body: "ponyBodyGeo", canopy: "ponyCanopyGeo", roof: "ponyRoofGeo" },
+  pickup: { body: "pickupBodyGeo", canopy: "pickupCanopyGeo", roof: "pickupRoofGeo" },
+  super: { body: "superBodyGeo", canopy: "superCanopyGeo", roof: "superRoofGeo" },
 };
 
 const out = {};
