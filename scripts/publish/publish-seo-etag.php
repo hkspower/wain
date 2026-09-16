@@ -37,7 +37,7 @@
  *   - IDEMPOTENT: a file already matching its hash is skipped
  */
 
-$COMMIT = 'af31c83';
+$COMMIT = 'af31c833fddaa2fa457d35bb9e75eb721ac24175';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
         . '/sporta-site/public_html/';

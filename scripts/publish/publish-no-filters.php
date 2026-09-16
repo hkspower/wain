@@ -28,7 +28,7 @@
  * on the page.
  */
 
-$COMMIT = '0dfc26e';
+$COMMIT = '0dfc26e152173120dff50158e7a037d46c4f109f';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
         . '/sporta-site/public_html/';

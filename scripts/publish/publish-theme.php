@@ -24,7 +24,7 @@
  * Re-running it is a no-op.
  */
 
-$COMMIT = '123a36f';
+$COMMIT = '123a36f5629ddf91a12b569796761a19af7c299e';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
         . '/sporta-site/public_html/';

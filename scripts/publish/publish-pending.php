@@ -85,7 +85,7 @@
  * would only say what the repository thinks.
  */
 
-$COMMIT = 'ec28737';
+$COMMIT = 'ec28737b35dd524ed23da222d221e045b2c1825d';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
         . '/sporta-site/public_html/';

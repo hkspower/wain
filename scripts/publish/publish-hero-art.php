@@ -28,7 +28,7 @@
  * a different claim when a cache sits in front of it.
  */
 
-$COMMIT = '928eb04';
+$COMMIT = '928eb043d7aa76368a9d2c45396eedbfaf45cb3b';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
         . '/sporta-site/public_html/';

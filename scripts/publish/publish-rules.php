@@ -62,7 +62,7 @@
  *     costs nothing and a half-finished run completes on the next one
  */
 
-$COMMIT = 'b4bc82a';
+$COMMIT = 'b4bc82aba991986394d5fb34efe4744afa3d0160';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
         . '/sporta-site/public_html/';

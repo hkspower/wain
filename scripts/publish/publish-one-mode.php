@@ -42,7 +42,7 @@
  * would not do: the old index.html is nearly the same size as the new one.
  */
 
-$COMMIT = '9d3e087';
+$COMMIT = '9d3e087ee61b61f37bf004ec8c347a73d42d62a5';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
         . '/sporta-site/public_html/';

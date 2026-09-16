@@ -35,7 +35,7 @@
  * by exactly that difference before.
  */
 
-$COMMIT = '94fb9be';
+$COMMIT = '94fb9be8f522ab66ce10ad15909abf5459f94efa';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $WANT   = 'f574b112851ddbf79bd1ce6a773d7304de37f8684047a19714efb9ddee8b1202';
 $MUSTBE = 'de387e6ad761834edca1334da531d7fc22abbfc5830b7ffeaa32cd765cb49c59';

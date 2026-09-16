@@ -91,7 +91,7 @@
  * completes on the next run.
  */
 
-$COMMIT = 'cbd5f00';
+$COMMIT = 'cbd5f002510090cc951a38042dfa8e0a0620bf35';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $RAW    = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT . '/';
 $BASE   = $RAW . 'sporta-site/public_html/';

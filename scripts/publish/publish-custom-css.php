@@ -36,7 +36,7 @@
  * that has not used it.
  */
 
-$COMMIT = '055bf72';
+$COMMIT = '055bf72d3b55af8b9dd9d51c6442e046bfc05867';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
         . '/sporta-site/public_html/';

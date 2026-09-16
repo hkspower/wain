@@ -27,7 +27,7 @@
  * cache sits in front.
  */
 
-$COMMIT = '2869ecc';
+$COMMIT = '2869ecc0711871ecf4de27609426889c47e6b716';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
         . '/sporta-site/public_html/';

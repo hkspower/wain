@@ -26,7 +26,7 @@
  * the server actually serves.
  */
 
-$COMMIT = '02fc979';
+$COMMIT = '02fc97933312da3f2d37cedc786e14bd300ac223';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
         . '/sporta-site/public_html/';

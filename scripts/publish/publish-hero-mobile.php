@@ -58,7 +58,17 @@
  * period the bug existed.
  */
 
-$COMMIT = 'def64d5';
+// FORTY CHARACTERS, and that is the whole reason this had never landed.
+// raw.githubusercontent.com answers 404 for an ABBREVIATED sha — measured three
+// times running while the same path at full length answered 200 — and an
+// unresolvable ref is an EMPTY FETCH that says nothing. This file was written,
+// committed, and pinned to `def64d5`; `live-image-check` went on reporting
+// `differ=5` on exactly these five for six days, which reads as "the server is
+// behind" and was really "the publisher cannot fetch anything".
+//
+// The sha still points where the ARTWORK is, not where this script is: the
+// five files have not changed since, and the script is fetched from HEAD.
+$COMMIT = 'def64d5ec18ef5eacb05064358f150cca395af7a';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
         . '/sporta-site/public_html/';

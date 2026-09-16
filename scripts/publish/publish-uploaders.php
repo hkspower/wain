@@ -41,7 +41,7 @@
  * Cache-Control directive rather than merely holding it.
  */
 
-$COMMIT = '3927e62';
+$COMMIT = '3927e629511dd4be0632489aca3cfeb32e8838bd';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
         . '/sporta-site/public_html/';

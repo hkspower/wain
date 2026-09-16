@@ -41,7 +41,7 @@
  * allowed by the policy — the trap that once silently disabled the boot script.
  */
 
-$COMMIT = '30354f2';
+$COMMIT = '30354f201917708805d4a73337462e9349f7f687';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
         . '/sporta-site/public_html/';

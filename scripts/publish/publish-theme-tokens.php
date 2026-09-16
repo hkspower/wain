@@ -45,7 +45,7 @@
  * would not tell the difference between the old sporta-ui.css and the new one.
  */
 
-$COMMIT = '2ce027e';
+$COMMIT = '2ce027e5f9d82b8be89571fb2e454ef0452df863';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
         . '/sporta-site/public_html/';
