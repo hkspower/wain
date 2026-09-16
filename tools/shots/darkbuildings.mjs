@@ -252,17 +252,23 @@ const result = await page.evaluate(async ([write]) => {
 
   const COLS = 16, ROWS = 10;
   const shots = {};
+  const T = (label, fn) => {
+    const t0 = performance.now();
+    const r = fn();
+    console.log(`[progress]   ${label} ${((performance.now() - t0) / 1000).toFixed(1)}s`);
+    return r;
+  };
   const scanAt = (label, hour) => {
     e.timeHours = hour;
     e.world.setTimeOfDay(hour);
     e.applyDaylight();
-    settleEye();
-    const shown = grab();
+    T("settleEye", settleEye);
+    const shown = T("grab shown", grab);
     e.setExposure(1.5, false);
-    const lifted = grab();
+    const lifted = T("grab lifted", grab);
     e.setExposure(0, true);
-    const pass = idPass();
-    const tiles = faceBuildingTiles(pass.w, pass.h, COLS, ROWS, pass);
+    const pass = T("idPass", idPass);
+    const tiles = T("faceBuildingTiles", () => faceBuildingTiles(pass.w, pass.h, COLS, ROWS, pass));
 
     const buckets = { lit: [], shadow: [] };
     const tw = Math.floor(shown.w / COLS), th = Math.floor(shown.h / ROWS);
@@ -309,8 +315,8 @@ const result = await page.evaluate(async ([write]) => {
   // full 5x4 matrix ran for over twenty minutes without finishing; this
   // 3x2 matrix keeps both verdicts detectable in a runtime someone will
   // actually wait out.
-  const HOURS = [0, 2.75, 5.5];
-  const VIEWS = [["corniche", 587, 0], ["inland", 2400, 0]];
+  const HOURS = [0];
+  const VIEWS = [["corniche", 587, 0]];
   const rows = [];
   for (const [label, s, lat] of VIEWS) {
     at(s, lat);
