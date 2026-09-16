@@ -1072,6 +1072,10 @@ export class GameEngine {
   /** The wake the player is sitting in this frame — see slipstream.ts. */
   private tow: TowResult = NO_TOW;
   private rival: Rival | null = null;
+  /** The player's glance at the rival: seconds left in the look, and
+   *  seconds of road before the next one is allowed. */
+  private glanceLeft = 0;
+  private glanceRest = 0;
   private rivalIndex = 0;
   private inBattle = false;
   /** 0 cruising, 1 racing — the eased weight behind the race framing, so
@@ -6559,13 +6563,43 @@ export class GameEngine {
   private updateDriver(dt: number): void {
     const rig = this.carBody.userData.driver as DriverRig | undefined;
     if (!rig) return;
-    this.track.pose(
-      this.player.s + RIG.driver.lookAheadM,
-      this.player.lat * RIG.driver.lookLatK,
-      this.v1,
-      this.v2
-    );
-    this.v1.y += RIG.driver.lookHeight;
+    // The look-over. The rival's driver has always sized the player up
+    // alongside; the player's never looked back. A glance, not a stare:
+    // held for glanceHoldS, then eyes on the road for glanceRestS before
+    // the next, and dropped the moment the rival is no longer beside.
+    const r = this.rival;
+    let glancing = false;
+    if (r && r.state !== "defeated") {
+      const gap = this.track.deltaAhead(r.s, this.player.s);
+      const beside =
+        Math.abs(gap) < RIG.rival.glanceGapM &&
+        Math.abs(this.player.lat - r.lat) > RIG.rival.glanceLatM;
+      if (this.glanceLeft > 0) {
+        this.glanceLeft -= dt;
+        glancing = beside && this.glanceLeft > 0;
+        if (!glancing) {
+          this.glanceLeft = 0;
+          this.glanceRest = RIG.driver.glanceRestS;
+        }
+      } else if (this.glanceRest > 0) {
+        this.glanceRest -= dt;
+      } else if (beside) {
+        this.glanceLeft = RIG.driver.glanceHoldS;
+        glancing = true;
+      }
+    }
+    if (glancing && r) {
+      this.v1.copy(r.mesh.position);
+      this.v1.y += 0.6;
+    } else {
+      this.track.pose(
+        this.player.s + RIG.driver.lookAheadM,
+        this.player.lat * RIG.driver.lookLatK,
+        this.v1,
+        this.v2
+      );
+      this.v1.y += RIG.driver.lookHeight;
+    }
     solveDriverRig(
       rig,
       this.steerSmooth,

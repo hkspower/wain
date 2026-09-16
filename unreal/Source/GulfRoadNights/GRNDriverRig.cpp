@@ -331,6 +331,21 @@ FGRNDriverRig GRNDriverRig::Build(AActor* Owner, USceneComponent* AttachTo, FVec
 
 // ------------------------------------------------------------------ solve
 
+/** A damped spring, stepped — src/game/spring.ts. Substepped at 1/30 s
+ *  so accumulated time is integrated, not clamped; a whole second snaps
+ *  to the target, which is how a rig is settled once at build. */
+static void StepSpring(float& X, float& V, float Target, float Kk, float C, float Dt)
+{
+	if (Dt >= 1.f) { X = Target; V = 0.f; return; }
+	const int32 N = FMath::Max(1, FMath::CeilToInt(Dt * 30.f));
+	const float H = Dt / N;
+	for (int32 I = 0; I < N; I++)
+	{
+		V += ((Target - X) * Kk - V * C) * H;
+		X += V * H;
+	}
+}
+
 void GRNDriverRig::Solve(FGRNDriverRig& Rig, float Steer, float Throttle, float Brake,
 	const FVector& LookTarget, float Dt, float GLat, float GLong, float Handbrake)
 {
@@ -342,19 +357,38 @@ void GRNDriverRig::Solve(FGRNDriverRig& Rig, float Steer, float Throttle, float 
 	// pose can never show, and the reason the limbs below are worth
 	// solving at all: the grips are bolted to the CAR, so a torso that
 	// moves forces the arms and legs to re-solve to stay on them.
+	//
+	// As a SPRING, not a lerp — the same law as the shell's attitude, so
+	// the body overshoots a step of load once and settles. Mirrors
+	// src/game/driver.ts and src/game/spring.ts: semi-implicit Euler,
+	// substepped so a quarter-second of accumulated time is integrated
+	// rather than clamped away. The fold may pass its braking figure by
+	// FoldSpikeK for a spike and is stopped there: the belt.
 	{
 		const float WantRoll =
-			FMath::Clamp(-GLat / 14.f, -1.f, 1.f) * GRNRig::DriverLeanPerG;
+			FMath::Clamp(-GLat / GRNRig::DriverLeanRefAccel, -1.f, 1.f) * GRNRig::DriverLeanPerG;
 		const float WantPitch =
-			FMath::Clamp(-GLong / 10.f, -1.f, 1.f) * GRNRig::DriverFoldPerG;
-		const float K1 = FMath::Min(1.f, Dt * GRNRig::DriverLeanRate);
-		Rig.LeanRoll += (WantRoll - Rig.LeanRoll) * K1;
-		Rig.LeanPitch += (WantPitch - Rig.LeanPitch) * K1;
+			FMath::Clamp(-GLong / GRNRig::DriverFoldRefAccel, -1.f, GRNRig::DriverFoldSpikeK)
+			* GRNRig::DriverFoldPerG;
+		StepSpring(Rig.LeanRoll, Rig.LeanRollVel, WantRoll, GRNRig::DriverTorsoK, GRNRig::DriverTorsoC, Dt);
+		StepSpring(Rig.LeanPitch, Rig.LeanPitchVel, WantPitch, GRNRig::DriverTorsoK, GRNRig::DriverTorsoC, Dt);
+		const float FoldMax = GRNRig::DriverFoldPerG * GRNRig::DriverFoldSpikeK;
+		if (Rig.LeanPitch > FoldMax)
+		{
+			Rig.LeanPitch = FoldMax;
+			Rig.LeanPitchVel = FMath::Min(0.f, Rig.LeanPitchVel);
+		}
 		// Web y-up roll about z maps to UE Roll about x; web fold about x
-		// maps to UE Pitch about y. See the axis note at the top.
+		// maps to UE Pitch about y; web yaw about y maps to UE Yaw about z,
+		// negated with the handedness. See the axis note at the top.
 		Rig.Lean->SetRelativeRotation(FRotator(
-			FMath::RadiansToDegrees(Rig.LeanPitch), 0.f,
+			FMath::RadiansToDegrees(Rig.LeanPitch),
+			FMath::RadiansToDegrees(Steer * GRNRig::DriverShoulderYawPerLock),
 			FMath::RadiansToDegrees(Rig.LeanRoll)));
+		// And breathe: the body group sits at the rig origin.
+		Rig.T += Dt;
+		Rig.Lean->SetRelativeLocation(FVector(0.f, 0.f,
+			GRNRig::DriverBreathAmp * K * FMath::Sin(2.f * PI * GRNRig::DriverBreathHz * Rig.T)));
 	}
 
 	// Lock-to-lock is about a turn and a half each way in a road car.
@@ -392,8 +426,14 @@ void GRNDriverRig::Solve(FGRNDriverRig& Rig, float Steer, float Throttle, float 
 		// — so take a fraction of the body's roll back off the head.
 		// After the aim, because the aim sets yaw and pitch and this is
 		// roll.
+		// Through a second spring, faster and less damped than the torso's
+		// (NeckK/C): the head arrives after the shoulders. The web build
+		// carries the pitch lag too, on a child node under the aimed neck;
+		// this rig has one head node, so it carries the roll only.
+		StepSpring(Rig.HeadRoll, Rig.HeadRollVel, -Rig.LeanRoll * GRNRig::DriverHeadCounter,
+			GRNRig::DriverNeckK, GRNRig::DriverNeckC, Dt);
 		FRotator HeadRot = Rig.Head->GetRelativeRotation();
-		HeadRot.Roll = FMath::RadiansToDegrees(-Rig.LeanRoll * GRNRig::DriverHeadCounter);
+		HeadRot.Roll = FMath::RadiansToDegrees(Rig.HeadRoll);
 		Rig.Head->SetRelativeRotation(HeadRot);
 	}
 
@@ -441,17 +481,33 @@ void GRNDriverRig::Solve(FGRNDriverRig& Rig, float Steer, float Throttle, float 
 	// Feet on the pedals. The pedal sinks with the press and the foot is
 	// solved onto the moving face, so a stab of brake reads all the way
 	// down the driver's leg.
+	//
+	// ONE FOOT WORKS THROTTLE AND BRAKE, as in src/game/driver.ts: the
+	// working foot moves between the two faces by FootBlend, and the
+	// other foot holds the brake face at rest where the web build has a
+	// dead pedal — this rig carries two pedals, so the rest is the brake
+	// face unpressed. The clutch and the heel-and-toe blip are web-only
+	// until this Solve is handed the shift pulse.
+	Rig.FootBlend += ((Brake > Throttle ? 1.f : 0.f) - Rig.FootBlend)
+		* FMath::Min(1.f, Dt * GRNRig::DriverFootSwapRate);
+	const auto PressPedal = [&](USceneComponent* Pedal, float Amount)
+	{
+		if (!Pedal) return;
+		FVector P = Pedal->GetRelativeLocation();
+		P.X = Rig.PedalRest.X + Amount * GRNRig::DriverPedalTravelZ * K;
+		P.Z = Rig.PedalRest.Z - Amount * GRNRig::DriverPedalTravelY * K;
+		Pedal->SetRelativeLocation(P);
+	};
+	PressPedal(Rig.PedalThrottle, FMath::Clamp(Throttle, 0.f, 1.f));
+	PressPedal(Rig.PedalBrake, FMath::Clamp(Brake, 0.f, 1.f));
 	for (const FGRNLimb& Leg : Rig.Legs)
 	{
-		USceneComponent* Pedal = Leg.Side > 0.f ? Rig.PedalThrottle : Rig.PedalBrake;
-		if (!Pedal) continue;
-		const float Press = FMath::Clamp(Leg.Side > 0.f ? Throttle : Brake, 0.f, 1.f);
-		FVector P = Pedal->GetRelativeLocation();
-		P.X = Rig.PedalRest.X + Press * GRNRig::DriverPedalTravelZ * K;
-		P.Z = Rig.PedalRest.Z - Press * GRNRig::DriverPedalTravelY * K;
-		Pedal->SetRelativeLocation(P);
-
-		const FVector Target = Pedal->GetComponentLocation();
+		if (!Rig.PedalThrottle || !Rig.PedalBrake) continue;
+		const bool Working = Leg.Side > 0.f;
+		const FVector Target = Working
+			? FMath::Lerp(Rig.PedalThrottle->GetComponentLocation(),
+				Rig.PedalBrake->GetComponentLocation(), Rig.FootBlend)
+			: Rig.PedalBrake->GetComponentLocation();
 		// Knees break up and forward, not sideways into the tunnel
 		const FVector Pole = Rig.Root->GetComponentTransform().TransformPosition(
 			FVector(GRNRig::DriverLegPoleZ, Leg.Side * GRNRig::DriverLegPoleX,

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { RIG } from "./rig";
+import type { SpringState } from "./spring";
 import { flagTexture as countryFlag, type FlagId } from "./flags";
 
 // The people of Night Racer: spectators on the corniche and the
@@ -188,14 +189,36 @@ export interface DriverRig {
   arms: ArmChain[];
   /** Hip → knee → foot, read through the ArmChain field names. */
   legs: ArmChain[];
+  /** The neck: aimed at the look target. */
   head: THREE.Object3D;
+  /** The head on the neck, carrying the helmet: what the neck has not
+   *  caught up on. The aim lives on `head` and this node holds the
+   *  counter-roll and the pitch lag as plain assigned angles, so the
+   *  two never fight over one quaternion. */
+  crown: THREE.Object3D;
   wheel: THREE.Object3D;
   /** Rim radius, so the caller can put hands at ten-to-two. */
   wheelRadius: number;
   /** Pedal faces the feet are solved onto. Each remembers its rest
    *  position in userData (restY/restZ) so a press can sink it and the
-   *  foot can follow the moving face. */
-  pedals: { throttle: THREE.Object3D; brake: THREE.Object3D };
+   *  foot can follow the moving face. `rest` is the dead pedal. */
+  pedals: { throttle: THREE.Object3D; brake: THREE.Object3D; clutch: THREE.Object3D; rest: THREE.Object3D };
+  /** The torso and the head as springs — position and velocity of the
+   *  lean (roll), the fold (pitch), and the head's own roll and pitch
+   *  relative to the torso. On the rig for the same reason the blends
+   *  are: the solver is a free function. */
+  leanS: SpringState;
+  foldS: SpringState;
+  headRollS: SpringState;
+  headPitchS: SpringState;
+  /** The right foot, 0 on the throttle to 1 on the brake; the left foot,
+   *  0 on the rest to 1 on the clutch; and how far the right heel has
+   *  rolled to the throttle in a heel-and-toe downshift. */
+  footBlend: number;
+  clutchBlend: number;
+  heelToe: number;
+  /** Seconds this rig has been solved for — the breathing clock. */
+  t: number;
   /** The handbrake lever, pivoting at its base; userData.restRotX holds
    *  the rest rake so a pull can raise it and the inboard hand can be
    *  solved onto the moving grip. A stub on lean rigs — background cars
@@ -285,13 +308,20 @@ export function kuwaitiDriver(
   const head = new THREE.Object3D();
   head.position.set(0, RIG.driver.headY, RIG.driver.headZ);
   body.add(head);
+  // Two nodes, not one. The neck is AIMED — a quaternion slerped toward
+  // the look target — and the head's lag behind the torso is two angles
+  // written outright. Written onto the same node they fought: an angle
+  // added to an aimed quaternion is still mostly there next frame, and
+  // is added again. The crown carries the helmet and everything on it.
+  const crown = new THREE.Object3D();
+  head.add(crown);
   const skull = new THREE.Mesh(new THREE.SphereGeometry(0.112, 12, 9), skin);
   // Sealed inside the helmet below, which is what a helmet is for. The
   // mesh audit looks for geometry that never paints a pixel; this is the
   // one case where that is the intended result, so say so here rather
   // than let it come back as a finding on every car in the fleet.
   skull.userData.hiddenBy = "helmet";
-  head.add(skull);
+  crown.add(skull);
   // A helmet, because this is a race and the ghutra is for the pit lane
   const helmet = new THREE.Mesh(
     new THREE.SphereGeometry(0.135, 14, 10),
@@ -303,7 +333,7 @@ export function kuwaitiDriver(
       : new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.2, metalness: 0.3 })
   );
   helmet.userData.driverPart = "helmet";
-  head.add(helmet);
+  crown.add(helmet);
   if (demon) {
     // Horns. Cones swept back and out from the temples, on the same
     // rake as the badge's — they read from behind and from the side,
@@ -321,7 +351,7 @@ export function kuwaitiDriver(
       horn.position.set(sgn * 0.104, 0.062, 0.012);
       horn.rotation.set(-0.42, 0, sgn * -0.62);
       horn.userData.driverPart = "horn";
-      head.add(horn);
+      crown.add(horn);
     }
   }
   if (!lean) {
@@ -342,7 +372,7 @@ export function kuwaitiDriver(
     );
     visor.rotation.y = -Math.PI / 2;
     visor.userData.driverPart = "visor";
-    head.add(visor);
+    crown.add(visor);
   }
 
   // The wheel the hands will be solved onto
@@ -408,21 +438,36 @@ export function kuwaitiDriver(
   // was and how it was measured. Each pedal remembers where it sits at
   // rest so the engine can press it in and the foot's IK target rides
   // the moving face.
-  const mkPedal = (x: number): THREE.Object3D => {
+  const mkPedal = (x: number, plate = false): THREE.Object3D => {
     const pedal = new THREE.Object3D();
     pedal.position.set(x, RIG.driver.pedalY, RIG.driver.pedalZ);
     pedal.rotation.x = RIG.driver.pedalPitch;
     pedal.userData.restY = pedal.position.y;
     pedal.userData.restZ = pedal.position.z;
-    const face = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.11, 0.02), dark);
-    face.userData.driverPart = "pedal";
+    // The footrest is a plate, not a pedal: wider, flatter, and NOT
+    // tagged as one, or the authored pedal kit would be swapped in for
+    // it and the driver would rest on a fourth pedal.
+    const face = plate
+      ? new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.14, 0.015), dark)
+      : new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.11, 0.02), dark);
+    if (!plate) face.userData.driverPart = "pedal";
     pedal.add(face);
     group.add(pedal);
     return pedal;
   };
   const pedals = lean
-    ? { throttle: new THREE.Object3D(), brake: new THREE.Object3D() }
-    : { throttle: mkPedal(RIG.driver.pedalThrottleX), brake: mkPedal(RIG.driver.pedalBrakeX) };
+    ? {
+        throttle: new THREE.Object3D(),
+        brake: new THREE.Object3D(),
+        clutch: new THREE.Object3D(),
+        rest: new THREE.Object3D(),
+      }
+    : {
+        throttle: mkPedal(RIG.driver.pedalThrottleX),
+        brake: mkPedal(RIG.driver.pedalBrakeX),
+        clutch: mkPedal(RIG.driver.pedalClutchX),
+        rest: mkPedal(RIG.driver.pedalRestX, true),
+      };
 
   // The handbrake, between the seats. A pivot at the base, the lever
   // rising back toward the driver at its rest rake, a knob at the top —
@@ -507,9 +552,12 @@ export function kuwaitiDriver(
     o.receiveShadow = true;
   });
   return {
-    group, lean: body, arms, legs, head, wheel, wheelRadius, pedals,
+    group, lean: body, arms, legs, head, crown, wheel, wheelRadius, pedals,
     handbrake, hbBlend: 0,
     gear, shiftBlend: 0, shiftDir: 1,
+    leanS: { x: 0, v: 0 }, foldS: { x: 0, v: 0 },
+    headRollS: { x: 0, v: 0 }, headPitchS: { x: 0, v: 0 },
+    footBlend: 0, clutchBlend: 0, heelToe: 0, t: 0,
   };
 }
 

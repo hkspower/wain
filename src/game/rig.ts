@@ -51,13 +51,51 @@ export const RIG = {
     leanPerG: 0.115,
     /** And forward under braking. Smaller, because the belts take it. */
     foldPerG: 0.075,
-    /** How fast the body follows the load. A person is not a spring on
-     *  a car's timescale — they brace. */
-    leanRate: 5.5,
+    /** The accelerations, m/s², at which the lean and the fold reach
+     *  their full figure. The lateral one is the same 1.43 g the shell's
+     *  roll saturates at (attitude.ts), so the body and the car it sits
+     *  in answer one number; both were literals in the solver, out of
+     *  reach of the port checks. */
+    leanRefAccel: 14,
+    foldRefAccel: 10,
+    /** How far past foldPerG a spike can throw the torso forward — a
+     *  wall, not a brake. The belt stretches, then stops it; the return
+     *  is the spring below. Braking itself still saturates at one. */
+    foldSpikeK: 2.5,
+    /**
+     * THE BODY HAS MASS. The torso was a first-order lerp toward the
+     * load — it arrived and stopped — while the car under it is a
+     * mass-spring-damper that overshoots (attitude.ts). So the person
+     * always looked stiffer than the car, which is backwards: a body is
+     * the softer of the two. This is the torso as a damped pendulum on
+     * the hips and the belt: about 2.2 Hz, ζ ≈ 0.55, one visible
+     * overshoot and settled inside a second. A braced driver, not a
+     * passenger — a passenger would be ζ 0.3 and still swinging.
+     */
+    torsoK: 190,
+    torsoC: 15,
+    /** The head is a second pendulum on the neck, faster and less
+     *  damped than the torso: about 3 Hz, ζ ≈ 0.35. That is where the
+     *  lag comes from — the shoulders go first and the head follows —
+     *  and, on a hit, the whip. */
+    neckK: 355,
+    neckC: 13,
     /** The head stays more upright than the torso, because a driver's
      *  neck fights the lean to keep their eyes level. A fraction of the
-     *  body's roll, taken back off the head. */
+     *  body's roll, taken back off the head — and of the fold, so a
+     *  braking driver keeps looking down the road. */
     headCounter: 0.45,
+    /** The shoulders turn into the corner a little ahead of the wheel;
+     *  radians of torso yaw at full lock. Small, but the arms re-solve
+     *  around it and a cabin shot reads it. */
+    shoulderYawPerLock: 0.05,
+    /** Breathing. Three millimetres of chest rise at a resting rate —
+     *  invisible at speed, and the difference between a person and a
+     *  mannequin in the showroom and the menu loop, where the car sits
+     *  still and the driver used to as well. Kept under the helmet
+     *  clearance the cabin fit test allows. */
+    breathAmp: 0.003,
+    breathHz: 0.27,
     wheelRadius: 0.16,
     /** Where each hand grips the rim, as an angle in the wheel's own
      *  frame — ten-to-two. Fixed in LOCAL space: the wheel's transform
@@ -98,6 +136,31 @@ export const RIG = {
      */
     pedalThrottleX: -0.1,
     pedalBrakeX: 0.08,
+    /**
+     * A third pedal and a footrest, outboard of the brake. The cab has a
+     * floor shifter, so it has a clutch; and until it had one the left
+     * foot lived on the brake, which made every driver in the game a
+     * left-foot braker with the right foot never leaving the throttle —
+     * two feet that never met. Now the RIGHT foot works both throttle
+     * and brake, moving between them, and the left foot rests on the
+     * dead pedal and goes to the clutch for a shift. Reach: the left hip
+     * sits at +0.09 and the leg spans 0.54 m, so 0.31 is as far out as
+     * a foot can be planted without the knee locking.
+     */
+    pedalClutchX: 0.21,
+    pedalRestX: 0.31,
+    /** How fast the right foot swaps between throttle and brake. A foot
+     *  crosses the gap in about a tenth of a second. */
+    footSwapRate: 14,
+    /** Heel-and-toe: on a downshift under braking the foot stays on the
+     *  brake and rolls toward the throttle to blip it — this fraction of
+     *  the way — while the brake is above this pressure. */
+    heelToeReach: 0.45,
+    heelToeBrake: 0.2,
+    /** How fast the left foot commits to the clutch and comes home. Faster
+     *  than the hand's shiftRate: the foot goes down before the hand
+     *  moves and is back on the rest as the hand returns. */
+    clutchRate: 20,
     pedalY: 0.09,
     pedalZ: 0.46,
     pedalPitch: -0.55,
@@ -149,6 +212,12 @@ export const RIG = {
 
     /** The driver looks into the corner, not down the bonnet. */
     lookAheadM: 26,
+    /** And at the rival, when they pull alongside: a glance held this
+     *  long, then eyes back on the road for at least this long before
+     *  the next. The rival's driver has always looked over (RIG.rival
+     *  glanceGapM); the player's never did. */
+    glanceHoldS: 0.8,
+    glanceRestS: 3,
     lookLatK: 0.4,
     lookHeight: 1.1,
     /** Hinge ranges, degrees of BEND (0 = dead straight). An elbow

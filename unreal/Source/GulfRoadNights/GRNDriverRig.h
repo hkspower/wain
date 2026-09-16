@@ -68,6 +68,19 @@ struct FGRNDriverRig
 	 *  does not arrive at it. */
 	float LeanRoll = 0.f;
 	float LeanPitch = 0.f;
+	/** ...and the rate they are moving at: the body is a spring, not a
+	 *  lerp (torsoK/C in the rig), so it overshoots and settles. */
+	float LeanRollVel = 0.f;
+	float LeanPitchVel = 0.f;
+	/** The head's counter-roll, as a second spring on the neck, and its
+	 *  velocity — the lag behind the shoulders. */
+	float HeadRoll = 0.f;
+	float HeadRollVel = 0.f;
+	/** The right foot, 0 on the throttle to 1 on the brake. One foot
+	 *  works both; the left rests. */
+	float FootBlend = 0.f;
+	/** Seconds solved for — the breathing clock. */
+	float T = 0.f;
 	bool IsValid() const
 	{
 		return Root != nullptr && Lean != nullptr && Arms.Num() == 2 && Legs.Num() == 2;

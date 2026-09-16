@@ -209,15 +209,26 @@ const feet = await page.evaluate(()=>{
   const rig = e.carBody.userData.driver;
   if (!rig.legs || !rig.pedals) return null;
   const V = e.camera.position.constructor;
+  // Where each foot should be, restated from the rig's own blends: the
+  // RIGHT foot (side -1: side +1 puts the hip at local +x, the car's
+  // left) moves between throttle and brake and rolls back toward the
+  // throttle for a heel-and-toe blip; the LEFT foot rests on the dead
+  // pedal and goes to the clutch for a shift.
+  const at = (o) => { o.updateWorldMatrix(true,false); const p = new V(); p.setFromMatrixPosition(o.matrixWorld); return p; };
+  const wantFoot = (leg) => {
+    if (leg.side < 0) {
+      const p = at(rig.pedals.throttle).lerp(at(rig.pedals.brake), rig.footBlend);
+      if (rig.heelToe > 0.001) p.lerp(at(rig.pedals.throttle), rig.heelToe * window.__grnRig.driver.heelToeReach);
+      return p;
+    }
+    return at(rig.pedals.rest).lerp(at(rig.pedals.clutch), rig.clutchBlend);
+  };
   const measure = () => rig.legs.map((leg)=>{
-    // side -1 is the RIGHT leg (side +1 puts the hip at local +x,
-    // which is the car's left) and the right foot works the accelerator.
     const pedal = leg.side < 0 ? rig.pedals.throttle : rig.pedals.brake;
-    pedal.updateWorldMatrix(true,false);
-    const tp = new V(); tp.setFromMatrixPosition(pedal.matrixWorld);
+    const tp = wantFoot(leg);
     leg.hand.updateWorldMatrix(true,false);
     const fp = new V(); fp.setFromMatrixPosition(leg.hand.matrixWorld);
-    return { side: leg.side, err: +fp.distanceTo(tp).toFixed(4), z: +pedal.position.z.toFixed(3) };
+    return { side: leg.side, err: +fp.distanceTo(tp).toFixed(4), z: +pedal.position.z.toFixed(3), blend: +rig.footBlend.toFixed(3) };
   });
   e.setTouchInput({ throttle: 0, brake: 0, steer: 0 });
   for (let i=0;i<30;i++) e.update(1/60);
@@ -241,6 +252,10 @@ if (feet) {
   check(worstFoot < 0.02, `a foot missed its pedal by ${worstFoot} m`);
   check(t(feet.wot).z - t(feet.idle).z > 0.03, "the throttle pedal does not sink under full throttle");
   check(b(feet.braking).z - b(feet.idle).z > 0.03, "the brake pedal does not sink under braking");
+  // One foot for both: the right foot is on the throttle at WOT and on
+  // the brake under braking — it was two feet that never met.
+  check(t(feet.wot).blend < 0.1 && t(feet.braking).blend > 0.9,
+    `the right foot sits at blend ${t(feet.wot).blend} at WOT and ${t(feet.braking).blend} braking — it is not swapping pedals`);
 } else fail.push("driver rig has no legs/pedals");
 
 // --- 3a. The car is left-hand drive, and the pedals agree with the seat -
@@ -368,12 +383,14 @@ const rivalIk = await page.evaluate(()=>{
     const hp = new V(); hp.setFromMatrixPosition(arm.hand.matrixWorld);
     hands.push(+hp.distanceTo(tp).toFixed(4));
   }
+  const at = (o) => { o.updateWorldMatrix(true,false); const p = new V(); p.setFromMatrixPosition(o.matrixWorld); return p; };
   const feet = rig.legs.map((leg)=>{
-    // side -1 is the RIGHT leg (side +1 puts the hip at local +x,
-    // which is the car's left) and the right foot works the accelerator.
-    const pedal = leg.side < 0 ? rig.pedals.throttle : rig.pedals.brake;
-    pedal.updateWorldMatrix(true,false);
-    const tp = new V(); tp.setFromMatrixPosition(pedal.matrixWorld);
+    // The right foot (side -1) between throttle and brake by the rig's
+    // own blend; the left on the rest, at the clutch only for a shift.
+    const tp = leg.side < 0
+      ? at(rig.pedals.throttle).lerp(at(rig.pedals.brake), rig.footBlend)
+          .lerp(at(rig.pedals.throttle), rig.heelToe * window.__grnRig.driver.heelToeReach)
+      : at(rig.pedals.rest).lerp(at(rig.pedals.clutch), rig.clutchBlend);
     leg.hand.updateWorldMatrix(true,false);
     const fp = new V(); fp.setFromMatrixPosition(leg.hand.matrixWorld);
     return +fp.distanceTo(tp).toFixed(4);
@@ -866,12 +883,15 @@ check(traffic.lean === 0, "traffic drivers carry legs — the lean build is not 
         hands = Math.max(hands, Math.abs(Math.hypot(lp.x, lp.y) - rig.wheelRadius));
       }
       let feet = 0;
+      const at = (o) => { o.updateWorldMatrix(true, false); return new THREE.Vector3().setFromMatrixPosition(o.matrixWorld); };
       for (const leg of rig.legs) {
-        // side -1 is the RIGHT leg (side +1 puts the hip at local +x,
-    // which is the car's left) and the right foot works the accelerator.
-    const pedal = leg.side < 0 ? rig.pedals.throttle : rig.pedals.brake;
-        pedal.updateWorldMatrix(true, false);
-        const want = new THREE.Vector3().setFromMatrixPosition(pedal.matrixWorld);
+        // The right foot (side -1) between throttle and brake by the
+        // rig's own blend, rolled toward the throttle for a blip; the
+        // left on the rest, at the clutch only for a shift.
+        const want = leg.side < 0
+          ? at(rig.pedals.throttle).lerp(at(rig.pedals.brake), rig.footBlend)
+              .lerp(at(rig.pedals.throttle), rig.heelToe * window.__grnRig.driver.heelToeReach)
+          : at(rig.pedals.rest).lerp(at(rig.pedals.clutch), rig.clutchBlend);
         const got = leg.hand.getWorldPosition(new THREE.Vector3());
         feet = Math.max(feet, got.distanceTo(want));
       }
@@ -917,7 +937,7 @@ check(traffic.lean === 0, "traffic drivers carry legs — the lean build is not 
           peak = {
             lat: e.latAccel,
             lean: rig.lean.rotation.z,
-            head: rig.head.rotation.z,
+            head: rig.crown.rotation.z,
           };
         }
         if (Math.abs(rig.lean.rotation.x) > Math.abs(fold)) fold = rig.lean.rotation.x;

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { DriverRig } from "./characters";
 import { aimConstrained, solveTwoBone } from "./ik";
 import { RIG } from "./rig";
+import { stepSpring } from "./spring";
 
 // The driver, solved.
 //
@@ -67,12 +68,32 @@ export function solveDriverRig(
   // arms and legs re-solve to stay where they are gripping. That is
   // what IK is for, and until now nothing had asked it for anything
   // except steering.
+  //
+  // As a SPRING, not a lerp. The car's own attitude is a mass on a
+  // spring and overshoots; the body in it was a lerp and did not, so the
+  // person always read stiffer than the car — backwards. Now the torso
+  // is a damped pendulum on the hips and the belt (torsoK/C), and a
+  // step of load is answered with one visible overshoot and a settle.
+  // The fold is allowed past its braking figure by foldSpikeK for a
+  // spike — a wall, not a pedal — and stopped there: the belt.
   const D = RIG.driver;
-  const wantLean = THREE.MathUtils.clamp(-gLat / 14, -1, 1) * D.leanPerG;
-  const wantFold = THREE.MathUtils.clamp(-gLong / 10, -1, 1) * D.foldPerG;
-  const k = Math.min(1, dt * D.leanRate);
-  rig.lean.rotation.z += (wantLean - rig.lean.rotation.z) * k;
-  rig.lean.rotation.x += (wantFold - rig.lean.rotation.x) * k;
+  const wantLean = THREE.MathUtils.clamp(-gLat / D.leanRefAccel, -1, 1) * D.leanPerG;
+  const wantFold = THREE.MathUtils.clamp(-gLong / D.foldRefAccel, -1, D.foldSpikeK) * D.foldPerG;
+  stepSpring(rig.leanS, wantLean, D.torsoK, D.torsoC, dt);
+  stepSpring(rig.foldS, wantFold, D.torsoK, D.torsoC, dt);
+  const foldMax = D.foldPerG * D.foldSpikeK;
+  if (rig.foldS.x > foldMax) {
+    rig.foldS.x = foldMax;
+    rig.foldS.v = Math.min(0, rig.foldS.v);
+  }
+  rig.lean.rotation.z = rig.leanS.x;
+  rig.lean.rotation.x = rig.foldS.x;
+  // The shoulders turn into the corner a little ahead of the wheel.
+  rig.lean.rotation.y = -steer * D.shoulderYawPerLock;
+  // And breathe. The body group sits at the rig origin, so this is the
+  // whole of its rest offset.
+  rig.t += dt;
+  rig.lean.position.y = D.breathAmp * Math.sin(2 * Math.PI * D.breathHz * rig.t);
   // Lock-to-lock is about a turn and a half each way in a road car;
   // steer is -1..1, so this is the visible wheel angle.
   const lock = steer * RIG.driver.steerLock;
@@ -88,9 +109,14 @@ export function solveDriverRig(
   });
   // The neck fights the lean. A driver's head stays closer to level
   // than their shoulders do, which is why a helmet cam is watchable —
-  // so take a fraction of the body's roll back off the head. After the
-  // aim, because the aim sets yaw and pitch and this is roll.
-  rig.head.rotation.z = -rig.lean.rotation.z * D.headCounter;
+  // so a fraction of the body's roll is taken back off the head, and of
+  // its fold. Through a second spring (neckK/C), faster and less damped
+  // than the torso's: the head arrives AFTER the shoulders, and on a
+  // hit it whips. Written onto the crown, the head's own node under the
+  // aimed neck, as plain angles — never onto the aimed quaternion.
+  stepSpring(rig.headRollS, -rig.leanS.x * D.headCounter, D.neckK, D.neckC, dt);
+  stepSpring(rig.headPitchS, -rig.foldS.x * D.headCounter, D.neckK, D.neckC, dt);
+  rig.crown.rotation.set(rig.headPitchS.x, 0, rig.headRollS.x);
 
   // Ten-to-two, carried round with the rim. The grips are points ON
   // the wheel — fixed in its LOCAL frame — so localToWorld carries
@@ -193,23 +219,53 @@ export function solveDriverRig(
     });
   }
 
-  // Feet on the pedals — throttle under the outboard foot in a
-  // right-hand-drive car. The pedal itself sinks with the press and
-  // the foot is solved onto the moving face, so a stab of brake reads
-  // all the way down the driver's leg.
+  // Feet on the pedals. The pedals sink with their press and the feet
+  // are solved onto the moving faces, so a stab of brake reads all the
+  // way down the driver's leg.
+  //
+  // ONE FOOT WORKS THROTTLE AND BRAKE. The right leg (side −1: side +1
+  // puts the hip at local +x, the car's left) had the throttle and the
+  // left leg the brake, permanently — every driver a left-foot braker
+  // whose feet never met, in a cab with a floor shifter and therefore a
+  // clutch. Now the right foot moves between the two faces, rolling
+  // toward the throttle for a heel-and-toe downshift, and the left foot
+  // rests on the dead pedal until a shift sends it to the clutch.
+  if (rig.legs.length) {
+    const P = rig.pedals;
+    const press = (pedal: THREE.Object3D, amount: number) => {
+      pedal.position.z = (pedal.userData.restZ as number) + amount * D.pedalTravelZ;
+      pedal.position.y = (pedal.userData.restY as number) - amount * D.pedalTravelY;
+      pedal.updateWorldMatrix(true, false);
+    };
+    // Heel-and-toe: a downshift under braking. The blip is the throttle
+    // pedal dipping with the pulse while the foot stays on the brake.
+    const shifting = rig.shiftBlend > 0.001;
+    const wantHeelToe = shifting && rig.shiftDir < 0 && brake > D.heelToeBrake ? rig.shiftBlend : 0;
+    rig.heelToe += (wantHeelToe - rig.heelToe) * Math.min(1, dt * D.clutchRate);
+    press(P.throttle, Math.max(throttle, rig.heelToe * 0.6));
+    press(P.brake, brake);
+    press(P.clutch, shifting ? rig.shiftBlend : 0);
+    press(P.rest, 0);
+    rig.footBlend += ((brake > throttle ? 1 : 0) - rig.footBlend) * Math.min(1, dt * D.footSwapRate);
+    rig.clutchBlend += ((shifting ? 1 : 0) - rig.clutchBlend) * Math.min(1, dt * D.clutchRate);
+  }
   for (const leg of rig.legs) {
-    // side +1 is the hip at local +x, which is the driver's LEFT — so
-    // the RIGHT leg is side −1, and the right leg is the one that works
-    // the accelerator. This read `side > 0` and put the left foot on the
-    // throttle; with the pedal box mirrored to match the seat as well,
-    // the two errors had been cancelling into crossed legs.
     const rightLeg = leg.side < 0;
-    const pedal = rightLeg ? rig.pedals.throttle : rig.pedals.brake;
-    const press = rightLeg ? throttle : brake;
-    pedal.position.z = (pedal.userData.restZ as number) + press * RIG.driver.pedalTravelZ;
-    pedal.position.y = (pedal.userData.restY as number) - press * RIG.driver.pedalTravelY;
-    pedal.updateWorldMatrix(true, false);
-    _v1.setFromMatrixPosition(pedal.matrixWorld);
+    if (rightLeg) {
+      _v1.setFromMatrixPosition(rig.pedals.throttle.matrixWorld);
+      _v2.setFromMatrixPosition(rig.pedals.brake.matrixWorld);
+      // Throttle to brake by the swap; then, from wherever that is, part
+      // of the way back to the throttle for the blip.
+      _v1.lerp(_v2, rig.footBlend);
+      if (rig.heelToe > 0.001) {
+        _v2.setFromMatrixPosition(rig.pedals.throttle.matrixWorld);
+        _v1.lerp(_v2, rig.heelToe * D.heelToeReach);
+      }
+    } else {
+      _v1.setFromMatrixPosition(rig.pedals.rest.matrixWorld);
+      _v2.setFromMatrixPosition(rig.pedals.clutch.matrixWorld);
+      _v1.lerp(_v2, rig.clutchBlend);
+    }
     // Knees break up and forward, not sideways into the tunnel
     _v2.set(leg.side * RIG.driver.legPoleX, RIG.driver.legPoleY, RIG.driver.legPoleZ);
     rig.group.localToWorld(_v2);

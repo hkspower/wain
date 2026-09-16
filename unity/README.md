@@ -58,8 +58,8 @@ pipeline was added it had silently fallen **two rivals and an entire
 That is what a duplicated table does over time. `npm run check:unity`
 now diffs the generated data against the live API — every rival's
 name, crew, area, colour, top speed, body style, prize and voice line,
-every car's price and handling figures, all 150 handling constants, all
-97 rig constants, all 98 parts in the showroom, all 31 paints, the tyre,
+every car's price and handling figures, all 151 handling constants, all
+122 rig constants, all 102 parts in the showroom, all 31 paints, the tyre,
 the body-shape law and the API version both sides claim — and exits
 non-zero on any mismatch, so it cannot drift again unnoticed.
 
