@@ -441,9 +441,11 @@ export function upgradeDriver(group: THREE.Object3D): void {
  * of the InstancedMesh, so this is the cheapest upgrade in the game and
  * the most visible — the crowns line the whole coastal leg.
  */
-export function upgradePalmCrowns(mesh: THREE.Mesh): void {
-  void parts("palm").then((kit) => {
+export function upgradePalmCrowns(mesh: THREE.Mesh): Promise<boolean> {
+  return parts("palm").then((kit) => {
     const geo = kit?.crown;
-    if (geo) mesh.geometry = geo;
+    if (!geo) return false;
+    mesh.geometry = geo;
+    return true;
   });
 }

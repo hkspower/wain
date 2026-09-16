@@ -6946,6 +6946,10 @@ export function createCar(colors: CarColors): THREE.Group {
    * menu rolled correctly and the game did not.
    */
   group.userData.wheelR = TIRE_RADIUS * scale;
+  // And its length, for the verge: a car's wake pushes the planting
+  // beside it and pulls it back in behind, and where "beside" ends is
+  // this number. Absent on a shell built without a model (4.5 m then).
+  if (colors.lengthM && colors.lengthM > 1) group.userData.lengthM = colors.lengthM;
   /**
    * The wheel layout, stated rather than inferred.
    *

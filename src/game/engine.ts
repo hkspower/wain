@@ -11,6 +11,7 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, COAST_FADE_M, STATIONS, FORECOURT, LAP, TUNNEL_BOX, LAP_LENGTH } from "./track";
 import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
+import type { Wake } from "./plants";
 import { createCar, crownShell, CROWN, paintMetalness, TAIL, setMaxDecalPx } from "./cars";
 import { RIVALS, RivalDef, rivalCar as rivalCarOf, rivalCarName } from "./rivals";
 import { VoiceBox } from "./voice";
@@ -1069,6 +1070,9 @@ export class GameEngine {
   private maxBuffer = 4096;
 
   private traffic: TrafficCar[] = [];
+  /** Every car on the road as the verge sees it, rebuilt in place each
+   *  frame — one record per car, reused, so the solve allocates nothing. */
+  private wakes: Wake[] = [];
   /** The wake the player is sitting in this frame — see slipstream.ts. */
   private tow: TowResult = NO_TOW;
   private rival: Rival | null = null;
@@ -4460,16 +4464,12 @@ export class GameEngine {
     // the road is still wet after the sky clears.
     this.world.setWetness(this.wx.wetness);
     this.world.setRain(this.wx.fall);
-    // The verge answers the car. Wind on every plant, and the wake of
-    // this one on the plants beside it — solved on the CPU into one
-    // attribute per instance and bent in the vertex shader, which is the
-    // only place a thousand of them can afford to move.
-    this.world.solvePlants(
-      performance.now() / 1000,
-      this.playerMesh.position.x,
-      this.playerMesh.position.z,
-      this.player.speed
-    );
+    // The verge answers the cars — all of them. Wind on every plant and
+    // the wake of every car on the plants beside and behind it, solved
+    // on the CPU as springs into one attribute per instance and bent in
+    // the vertex shader, which is the only place a thousand of them can
+    // afford to move.
+    this.world.solvePlants(dt, this.collectWakes());
     this.updateEffects(dt);
     this.emitHud();
   }
@@ -6617,6 +6617,35 @@ export class GameEngine {
       this.handbrake ? 1 : 0,
       this.shiftPulse()
     );
+  }
+
+  /**
+   * The cars, for the verge. Heading is the road's tangent at the car —
+   * the path, not the nose: a drifting car's wake follows where the car
+   * is going, and a plant beside it cannot tell the difference. Length
+   * comes off the shell; a shell built without a model is 4.5 m.
+   */
+  private collectWakes(): readonly Wake[] {
+    let n = 0;
+    const put = (s: number, mesh: THREE.Object3D, speed: number) => {
+      let w = this.wakes[n];
+      if (!w) w = this.wakes[n] = { s: 0, x: 0, z: 0, dirX: 0, dirZ: 1, speed: 0, len: 4.5 };
+      n++;
+      this.track.tangentAt(s, this.v2);
+      w.s = this.track.wrap(s);
+      w.x = mesh.position.x;
+      w.z = mesh.position.z;
+      w.dirX = this.v2.x;
+      w.dirZ = this.v2.z;
+      w.speed = speed;
+      w.len = (mesh.userData.lengthM as number | undefined) ?? 4.5;
+    };
+    put(this.player.s, this.playerMesh, this.player.speed);
+    if (this.rival) put(this.rival.s, this.rival.mesh, this.rival.speed);
+    for (const t of this.traffic) put(t.s, t.mesh, t.speed);
+    for (const r of this.remotes.values()) put(r.s, r.mesh, r.snapSpeed);
+    this.wakes.length = n;
+    return this.wakes;
   }
 
   /**

@@ -288,6 +288,59 @@ export const RIG = {
     glanceLatM: 1.2,
   },
 
+  /**
+   * THE VERGE. Every roadside plant is a two-axis spring driven by the
+   * wind and by the wake of every car (plants.ts). Lean is in the
+   * shader's own unit — 1 is a stem laid over by its full height — and
+   * the springs' k and c are per second² and per second.
+   */
+  plant: {
+    /** A shrub: about 2 Hz and lightly damped — a hedge whips. */
+    shrubK: 160,
+    shrubC: 9,
+    /** A palm crown: slow and heavy, under a hertz. */
+    palmK: 25,
+    palmC: 3.5,
+    /** The most a stem can lay over. */
+    maxLean: 0.9,
+    /** The gust everything feels: a base lean, a slow swell on it, and
+     *  a direction that turns through a full circle in two minutes. The
+     *  gust is split between a shared lean down the wind (windK) and
+     *  each plant's own sway (swayK), offset by its phase. */
+    gustBase: 0.05,
+    gustAmp: 0.03,
+    gustRate: 0.37,
+    windTurnRate: 0.05,
+    windK: 0.5,
+    swayHz: 0.14,
+    swayK: 0.5,
+    /** A gust front travelling down the road, as a swell on the gust's
+     *  size — seen arriving plant after plant. Wavelength is 2π/frontK,
+     *  about eighty metres. */
+    frontAmp: 0.6,
+    frontRate: 0.6,
+    frontK: 0.08,
+    /** A car's wake: felt this far from its path, at full strength from
+     *  this speed, pushing outward beside and ahead of it. */
+    wakeR: 9,
+    wakeRefSpeed: 55,
+    wakeK: 0.55,
+    /** How far ahead of the nose the push begins to build. */
+    noseM: 3,
+    /** Behind the car the air is pulled back in and dragged along the
+     *  path — the trailing wash, decaying over tailLenM. That reversal
+     *  is what makes a plant whip back after a car has passed. */
+    suctionK: 0.3,
+    dragK: 0.25,
+    tailLenM: 12,
+    /** A crown six metres up feels a fraction of a road-level wake. */
+    palmWakeK: 0.35,
+    /** Shader: how far the tip drops as it leans (a stem arcs, it does
+     *  not shear), and how far the normal turns with it. */
+    arcDrop: 0.5,
+    normalGain: 0.8,
+  },
+
   /** Roadside spectators in dishdasha and abaya. */
   spectator: {
     shoulderX: 0.2,

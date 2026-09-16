@@ -18,6 +18,7 @@ import {
 } from "./track";
 import { applyTextureManifest } from "./assets";
 import { upgradePalmCrowns } from "./models";
+import { bakeBendWeight, newPlantField, solvePlantField, type PlantField, type PlantSeed, type Wake } from "./plants";
 import { textTexture, arabicSign, latinDisplay } from "./text";
 import {
   kuwaitiFigure,
@@ -1841,14 +1842,14 @@ function plantBend(mat: THREE.MeshStandardMaterial): void {
           vec2 grnD = grnBend.xy;
           transformed.xz += grnD * grnS;
           // An arc, not a shear: the tip drops as it leans.
-          transformed.y -= grnS * grnS * 0.5;
+          transformed.y -= grnS * grnS * ${RIG.plant.arcDrop.toFixed(3)};
         #endif`
       )
       .replace(
         "#include <beginnormal_vertex>",
         `#include <beginnormal_vertex>
         #ifdef USE_INSTANCING
-          objectNormal.xz += grnBend.xy * grnBend.z * grnWeight * 0.8;
+          objectNormal.xz += grnBend.xy * grnBend.z * grnWeight * ${RIG.plant.normalGain.toFixed(3)};
           objectNormal = normalize(objectNormal);
         #endif`
       );
@@ -1856,54 +1857,27 @@ function plantBend(mat: THREE.MeshStandardMaterial): void {
   mat.customProgramCacheKey = () => "grn-plant-bend";
 }
 
-/** The planting, kept for the frame loop's wake solve. */
+/** The verge, kept for the frame loop: the spring field, and how to
+ *  write each plant's answer into its mesh. */
 let plantsRef: {
+  field: PlantField;
+  lapLen: number;
   meshes: THREE.InstancedMesh[];
-  pos: THREE.Vector3[];
-  phase: number[];
+  write: (i: number, dx: number, dz: number, str: number) => void;
 } | null = null;
+let plantClock = 0;
 
 /**
- * Solve every plant's lean for this frame: a slow wind everywhere, and
- * the wake of a passing car on the ones beside it.
- *
- * Only plants within WAKE_R of the car are re-solved for the wake; the
- * rest get wind alone, which is cheap enough to do for all thousand.
- * The wake pushes AWAY from the car's path and scales with its speed —
- * a car at 200 km/h drags the verge over as it passes, a car creeping
- * to a forecourt does not.
+ * One frame of the verge: every plant's spring stepped toward the wind
+ * plus the wake of every car, and the result written into the bend
+ * attributes. The arithmetic lives in plants.ts, where a test can run
+ * it without a browser; this is the part that knows about meshes.
  */
-const WAKE_R = 9;
-const _pw = new THREE.Vector3();
-const _carAt = new THREE.Vector3();
-function solvePlants(t: number, carPos: THREE.Vector3, carSpeed: number): void {
+function solvePlants(dt: number, wakes: readonly Wake[]): void {
   const P = plantsRef;
   if (!P) return;
-  const gust = 0.06 + 0.04 * Math.sin(t * 0.37);
-  const wakeK = Math.min(1, carSpeed / 55) * 0.55;
-  const SHAPES = P.meshes.length;
-  for (let i = 0; i < P.pos.length; i++) {
-    const im = P.meshes[i % SHAPES];
-    const k = Math.floor(i / SHAPES);
-    const bend = im.userData.bend as THREE.InstancedBufferAttribute;
-    if (k >= im.count) continue;
-    // Wind: a gentle lean that drifts, offset per plant.
-    const ph = P.phase[i];
-    let dx = Math.sin(t * 0.9 + ph) * gust;
-    let dz = Math.cos(t * 0.7 + ph * 1.3) * gust;
-    // Wake: away from the car, falling off with distance.
-    _pw.subVectors(P.pos[i], carPos);
-    _pw.y = 0;
-    const d = _pw.length();
-    if (d < WAKE_R && d > 1e-3) {
-      const f = (1 - d / WAKE_R) * wakeK;
-      dx += (_pw.x / d) * f;
-      dz += (_pw.z / d) * f;
-    }
-    const str = Math.min(0.9, Math.hypot(dx, dz));
-    const inv = str > 1e-6 ? 1 / Math.hypot(dx, dz) : 0;
-    bend.setXYZ(k, dx * inv, dz * inv, str);
-  }
+  plantClock += dt;
+  solvePlantField(P.field, plantClock, dt, wakes, P.lapLen, P.write);
   for (const im of P.meshes) (im.userData.bend as THREE.InstancedBufferAttribute).needsUpdate = true;
 }
 
@@ -3030,8 +3004,8 @@ export interface WorldHandle {
   /** Rain on the screen, 0..1. */
   setRain(fall: number): void;
   /** Lean every roadside plant for this frame: wind, plus the wake of
-   *  the car at (x, z) moving at `speed` m/s. */
-  solvePlants(t: number, x: number, z: number, speed: number): void;
+   *  every car on the road. */
+  solvePlants(dt: number, wakes: readonly Wake[]): void;
   /** The moon — the engine drives its shadow frustum along with the player. */
   moonLight: THREE.DirectionalLight;
   /** The weaker, cooler light opposite the key. Casts nothing. */
@@ -5175,6 +5149,15 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   }
 
   // Palm rows lining the corniche walkway, the whole length of the coast
+  //
+  // The crowns join the verge's spring field (plants.ts): the fronds
+  // flutter in the wind and lean, slowly, in a passing car's wake. The
+  // trunks stay rigid — a palm bends at the fronds, not the trunk — and
+  // the shadow the crown casts stays still, because the depth pass does
+  // not run the bend; at night, under sodium, nobody has ever seen a
+  // palm's shadow move.
+  const palmSeeds: PlantSeed[] = [];
+  let palmRig: { crowns: THREE.InstancedMesh; bend: THREE.InstancedBufferAttribute } | null = null;
   {
     const coastLen = (COAST_U.to - COAST_U.from) * L;
     const count = Math.floor(coastLen / 26);
@@ -5185,11 +5168,23 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // Trunks cast too, or the frond shadows float detached from the trees
     trunks.castShadow = true;
     const crownGeo = palmCrownGeometry();
+    bakeBendWeight(crownGeo, "radial");
     const crownMat = new THREE.MeshStandardMaterial({ color: 0x2e5f30, roughness: 1 });
+    plantBend(crownMat);
     const crowns = new THREE.InstancedMesh(crownGeo, crownMat, count);
     crowns.castShadow = true;
-    // One authored crown serves all ~130 instances
-    upgradePalmCrowns(crowns);
+    const bend = new THREE.InstancedBufferAttribute(new Float32Array(count * 3), 3);
+    bend.setUsage(THREE.DynamicDrawUsage);
+    crownGeo.setAttribute("grnBend", bend);
+    crowns.userData.bend = bend;
+    // One authored crown serves all ~130 instances. The swap replaces
+    // the GEOMETRY, and the weight and the bend attribute live on the
+    // geometry, so both are put back on the one that arrives.
+    void upgradePalmCrowns(crowns).then((swapped) => {
+      if (!swapped) return;
+      bakeBendWeight(crowns.geometry, "radial");
+      crowns.geometry.setAttribute("grnBend", bend);
+    });
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
     const tmp = new THREE.Vector3();
@@ -5200,16 +5195,20 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         i % 5 === 4
           ? ROAD_HALF_WIDTH + 3 + rand() * 4
           : -(ROAD_HALF_WIDTH + 2.6);
-      track.pose(s + rand() * 6, lateral, p, tmp);
+      const at = s + rand() * 6;
+      track.pose(at, lateral, p, tmp);
       m.makeTranslation(p.x, 0, p.z);
       trunks.setMatrixAt(i, m);
       // Random spin per crown so the frond pattern doesn't repeat
-      m.makeRotationY(rand() * Math.PI * 2).setPosition(p.x, 0, p.z);
+      const yaw = rand() * Math.PI * 2;
+      m.makeRotationY(yaw).setPosition(p.x, 0, p.z);
       crowns.setMatrixAt(i, m);
+      palmSeeds.push({ s: track.wrap(at), x: p.x, z: p.z, yaw, phase: rand() * Math.PI * 2, kind: 1 });
     }
     trunks.instanceMatrix.needsUpdate = true;
     crowns.instanceMatrix.needsUpdate = true;
     scene.add(trunks, crowns);
+    palmRig = { crowns, bend };
   }
 
   // Roadside planting — the shrub beds along both verges.
@@ -5402,11 +5401,14 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const p2 = new THREE.Vector3();
     const tmp2 = new THREE.Vector3();
     const tint = new THREE.Color();
+    const shrubSeeds: PlantSeed[] = [];
     for (const [i, spot] of spots.entries()) {
       const im = meshes[i % SHAPES];
       track.pose(spot.s, spot.lat, p2, tmp2);
       pos.set(p2.x, 0, p2.z);
-      q.setFromAxisAngle(up, rand() * Math.PI * 2);
+      const yaw = rand() * Math.PI * 2;
+      q.setFromAxisAngle(up, yaw);
+      shrubSeeds.push({ s: track.wrap(spot.s), x: p2.x, z: p2.z, yaw, phase: 0, kind: 0 });
       // Non-uniform, so a bed reads as several plants of different ages
       // rather than one plant rendered at several sizes.
       // HEIGHT IS SET AGAINST THE BARRIER, not by eye. The W-beam's top
@@ -5438,13 +5440,27 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       im.frustumCulled = true;
       scene.add(im);
     }
-    // Hand the planting to the frame loop: positions for the wake
-    // search, the attributes to write, and the plants' own phase so the
-    // wind does not move them all in step.
+    // Hand the verge to the frame loop: the shrubs and, after them, the
+    // palm crowns, as one spring field; and the plants' own phase so the
+    // wind does not move them all in step. The phases are drawn here,
+    // after everything else in this block, so the seeded build lays the
+    // beds out exactly as it did before there was a field.
+    for (const seed of shrubSeeds) seed.phase = rand() * Math.PI * 2;
+    const nShrub = shrubSeeds.length;
+    const field = newPlantField([...shrubSeeds, ...palmSeeds]);
+    const palms = palmRig;
     plantsRef = {
-      meshes,
-      pos: spots.map((sp) => { const q = new THREE.Vector3(), t = new THREE.Vector3(); track.pose(sp.s, sp.lat, q, t); return q; }),
-      phase: spots.map(() => rand() * Math.PI * 2),
+      field,
+      lapLen: L,
+      meshes: palms ? [...meshes, palms.crowns] : meshes,
+      write: (i, dx, dz, str) => {
+        if (i < nShrub) {
+          const im = meshes[i % SHAPES];
+          (im.userData.bend as THREE.InstancedBufferAttribute).setXYZ(Math.floor(i / SHAPES), dx, dz, str);
+        } else if (palms) {
+          palms.bend.setXYZ(i - nShrub, dx, dz, str);
+        }
+      },
     };
   }
 
@@ -6368,9 +6384,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     moonLight,
     fillLight,
     skyFollowers,
-    solvePlants(t: number, x: number, z: number, speed: number) {
-      _carAt.set(x, 0, z);
-      solvePlants(t, _carAt, speed);
+    solvePlants(dt: number, wakes: readonly Wake[]) {
+      solvePlants(dt, wakes);
     },
     setSky(mode: SkyMode) {
       // The old two-state switch, expressed in the language of the
