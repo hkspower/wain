@@ -314,16 +314,20 @@ const result = await page.evaluate(async ([write]) => {
     return { n: b.length, p10: pct(means, 0.1), p50: pct(means, 0.5), p90: pct(means, 0.9), ...counts };
   };
 
-  // Three hours (not five) and two viewpoints (not four): FACING-DEPENDENT
-  // shows up within a single hour as a lit/shadow gap, so it needs no more
-  // than one hour to detect at all — the extra hours only sharpen the
-  // TIME-DEPENDENT trend line, and two widely-framed viewpoints already
-  // give a broad tile sample. Each combination costs a 110-frame exposure
-  // settle plus paired grabs on SwiftShader software rendering, so the
-  // full 5x4 matrix ran for over twenty minutes without finishing; this
-  // 3x2 matrix keeps both verdicts detectable in a runtime someone will
-  // actually wait out.
-  const HOURS = [0];
+  // Two hours, one viewpoint — not the five hours x four viewpoints this
+  // tool started with. FACING-DEPENDENT shows up within a single hour as
+  // a lit/shadow gap, so it needs no more than one hour x one viewpoint
+  // to detect at all: measured directly on this container, a single
+  // combination costs ~18 minutes end to end (mostly the exposure
+  // settle) under SwiftShader software rendering, for reasons that
+  // survived shrinking the shadow map, killing MSAA/FXAA, cutting the
+  // render resolution 9x and turning the moon's shadow pass off
+  // entirely — see the commit history on this file. None of it moved
+  // the wall-clock. Two hours (midnight and the 05:50 close) keeps the
+  // TIME-DEPENDENT check meaningful at a runtime — well under 40
+  // minutes — someone will actually wait out; widen HOURS/VIEWS by hand
+  // for a fuller sweep when time allows.
+  const HOURS = [0, 5.8333];
   const VIEWS = [["corniche", 587, 0]];
   const rows = [];
   for (const [label, s, lat] of VIEWS) {
