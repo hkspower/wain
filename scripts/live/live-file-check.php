@@ -26,7 +26,7 @@ $ROOT = '/home/u130124229/domains/sporta.com.kw/public_html';
 
 // path => sha256 in the repository.
 $WANT = [
-    '.htaccess' => '60b36353aa9559c730a4afdb5ca7d7f4875c7b6b7d7d8431d6e7d02d5357c13f',
+    '.htaccess' => '27ad7dc8ff559d7fbea9b0d7ca0a22f2a85ce40a1ca1b2acb0cc35f4561ef090',
     'api/.htaccess' => '574ff6d3712c69ad6a119652dd976afbad0e065cec35c198ceed85bfc72c3be2',
     'api/accounting.mysql.sql' => '865458325a463d3127bbb45cb1a3d5c0c9a603c7656cdde85c280ffb7f8ed716',
     'api/accounting.php' => '0e508c851de94808626164518d8394e6c65508ec2733efd16be7a278b2825963',
@@ -116,6 +116,7 @@ $WANT = [
     'assets/custom-css.js' => '6f7d96f6fc0facadddd75b67ea84af8036179396595a80eecd1d952169237a99',
     'assets/footer.js' => 'ccae6f59425660d18636fd07983a082c436bcb62d6df1b4d4cb829905bf9c9f4',
     'assets/google-signin.js' => '49eff5cdc6787576e4cb28e3fb67de505ab9c167f920d0d507f498643522eba1',
+    'assets/hide-essentials.js' => '50c0cefbeef79643137826e44561a839bf49d25b7e1a33b6750b2eed97ed4dee',
     'assets/index-5HbquisI.js' => '881eece4525a72074c514b348be352f5056e3f9030ed9900dc5cc02a2368306c',
     'assets/index-TIUCmnwm.css' => '4c85029a7c26cdf79a3ca7520c0bfebe286a95f9bbcc33ad8a4908d81a145ad7',
     'assets/legal-editor.js' => '7f24859164f2b03cb6a3b2be1af8612478a9548a27c897428edd1f31f3586383',
@@ -129,7 +130,7 @@ $WANT = [
     'assets/rolldown-runtime-QTnfLwEv.js' => '5db5ba82eef00d1dee7e86e663098c9427d01183a88d357437daff295aec3e75',
     'assets/rules.js' => '5c1af19d34b7642e10a54865fdbd3d7017c64d29c14ac879e6d3c707c9fd0e51',
     'assets/sporta-dark.css' => '0ea59b2c0ef1638e42c54839b43c42c24dadb511cc18fd293d21c9bfbadb096a',
-    'assets/sporta-ui.css' => '05fca4dc9e3b67a9451c3b0c6d360ca957a8f1ed7980acd7f7a35f2d16704059',
+    'assets/sporta-ui.css' => 'a12efb22c6060a36bfa2191af2ec638283b1534964080cd5b5b3dfe8aa897363',
     'assets/theme.js' => '2cf8b9f8d7306d6da217827e7b0f88e61a551d65296fad28518d2f2a4d84a205',
     'assets/tile-art.js' => 'b1eaba860e149fb78bb4ab9672e607e4b88f1ce8142dcfb8ae16fcafd6f7137c',
     'assets/track-guard.js' => '49c24cfaf6bf666dbc4488fc8c194dd2b031c8c86a891fe773faefa3ba1e4897',
@@ -196,7 +197,7 @@ $WANT = [
     'images/rheo/PUT-LOGO-HERE.txt' => 'a4b7c2a548abf314ae74fb2f658db993f589697428ce841feb93dee4bf2b16f1',
     'images/sporta/PUT-LOGO-HERE.txt' => '1a3a4e03d799fea20641304473e95ded5b25321badebbffc6d3988985b797300',
     'images/vanquish/PUT-LOGO-HERE.txt' => '7b634c7c39ee98859bfca99b0bcc1b41e536a1e1b74f42780435a244f39d36d1',
-    'index.html' => 'b83312d3a8de0cd4be7055af4f783d67ce6c1b57d2664bb4e0219f2532cbc03e',
+    'index.html' => 'b4ffc071a3ebda63bdf60c169c7cd77c38907b8c47da420229924ccd47e28978',
     'knet/.htaccess' => '75d8e990375bfd2c0e1f6304886d120aeb3676720d58ea2f40faabe224a6ba03',
     'knet/callback.php' => '4e217d7d4c8f59e6cce67b71ad9726297dcc83eb2c8dc2a08a56f95cc826d519',
     'knet/config.example.php' => '8b12abd7be354864ca71d69408462744c39a500a648110557aeddf13a30bad4c',
@@ -220,7 +221,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => '1ba2a01e9f35e80a67b4b6047afcb5370b4005074a150ade4907a578cb0ebf4a',
-    'sw.js' => 'd58a5b1600b2bcbae3c582420fd5df313b9113738d4eb451ffe402e4eaa7ebc4',
+    'sw.js' => '200d061dcd721dfcd33d1d92c3f9d1e7397fb5d8b878cf808ece39dc95b360ef',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.

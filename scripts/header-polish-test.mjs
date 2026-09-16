@@ -57,6 +57,15 @@ const browser = await chromium.launch({
   await page.goto(`${BASE}/?lang=en`, { waitUntil: 'networkidle' })
   await page.waitForTimeout(1000)
 
+  // The menu was hidden site-wide on 2026-09-17 (a later, separate
+  // request), so it has no layout box for a real mouse to hover over.
+  // Same-layer override as nav-menu-test.mjs uses for its own click test —
+  // `@layer utilities`, not unlayered, because layered `!important` beats
+  // unlayered `!important` regardless of source order. This still checks
+  // the hover RULE itself works; it does not claim a visitor can trigger
+  // it today.
+  await page.addStyleTag({ content: '@layer utilities { header.app-header ul { display: flex !important; } }' })
+
   const before = await page.evaluate(() => {
     const l = [...document.querySelectorAll('header.app-header ul li a')]
       .find((a) => a.textContent.trim() === 'Contact')

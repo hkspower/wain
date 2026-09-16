@@ -1898,6 +1898,19 @@ div.grid:has(> .cat-tile) {
        thing painted above whatever content is under it. */
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
   }
+  /* THE MAIN MENU, REMOVED — asked for on 2026-09-17. Home/Terms/Contact
+     hidden outright, the same way "Shop" was already hidden: a plain
+     display:none on the <li>, here on the whole <ul>. Not chosen by
+     content or href, since the goal is the menu itself, not one item in
+     it. Navigation is not lost: the footer already carries its own copy
+     of every one of these links (contact, terms, and the rest), which is
+     why removing the header's copy does not strand a visitor — checked
+     before this rule was added, not assumed. Everything else in the
+     header — the logo, language toggle, clock, cart, wishlist, theme
+     toggle — is untouched; only the <ul> goes. */
+  header.app-header ul {
+    display: none !important;
+  }
   header.app-header ul li a {
     color: #ffffff !important;
   }

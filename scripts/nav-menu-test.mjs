@@ -78,10 +78,17 @@ for (const [lang, expectTerms, expectTitle] of [
   await page.goto(`${BASE}/?lang=${lang}`, { waitUntil: 'networkidle' })
   await page.waitForTimeout(1200)
 
+  // NOT filtered to VISIBLE links any more. The whole menu <ul> was hidden
+  // outright on 2026-09-17 (a separate, unrelated request), so an
+  // offsetParent check here would now exclude every link and this rig would
+  // report success by finding nothing — the exact failure mode this
+  // project's own CLAUDE.md warns about repeatedly. nav-menu.js's own logic
+  // (build a working /terms replacement) still runs and is still worth
+  // checking on its own terms, independent of whether something else on
+  // the page currently hides the result.
   const info = await page.evaluate(() => {
     const header = document.querySelector('header.app-header')
     const links = [...document.querySelectorAll('header.app-header ul li a')]
-      .filter((a) => a.closest('li').offsetParent !== null)
       .map((a) => ({
         text: a.textContent.trim(),
         href: a.getAttribute('href'),
@@ -98,11 +105,25 @@ for (const [lang, expectTerms, expectTitle] of [
 
   check(rgbToHex(info.bg) === '#b8430f', `${lang}: the header background is --brand-dark`, info.bg)
   check(info.links.every((l) => rgbToHex(l.color) === '#ffffff'),
-    `${lang}: every visible nav link is white`,
+    `${lang}: every nav link is white (even though the menu is currently hidden)`,
     info.links.filter((l) => rgbToHex(l.color) !== '#ffffff').map((l) => `${l.text}=${l.color}`).join(', '))
 
-  check(!info.links.some((l) => l.href === '/shop'), `${lang}: "Shop" is not on the menu`)
-  check(!info.links.some((l) => l.href === '/about'), `${lang}: "About" is not on the menu`)
+  // Checked as EACH LINK'S OWN computed display, not DOM absence — the
+  // whole menu is now hidden by an unrelated, later rule (see above), and a
+  // child's computed `display` is unaffected by an ancestor's, so this
+  // still proves "Shop" and "About" carry their OWN independent hide
+  // rather than merely inheriting invisibility from the parent.
+  const ownDisplay = await page.evaluate((href) => {
+    const a = document.querySelector(`header.app-header a[href="${href}"]`)
+    return a ? getComputedStyle(a.closest('li')).display : 'absent'
+  }, '/shop')
+  check(ownDisplay === 'none' || ownDisplay === 'absent', `${lang}: "Shop" is not on the menu`, ownDisplay)
+
+  const aboutDisplay = await page.evaluate(() => {
+    const a = document.querySelector('header.app-header a[href="/about"]')
+    return a ? getComputedStyle(a.closest('li')).display : 'absent'
+  })
+  check(aboutDisplay === 'none' || aboutDisplay === 'absent', `${lang}: "About" is not on the menu`, aboutDisplay)
 
   const terms = info.links.find((l) => l.href === '/terms')
   check(!!terms, `${lang}: a link to /terms is on the menu`)
@@ -113,13 +134,23 @@ for (const [lang, expectTerms, expectTitle] of [
   if (terms) {
     // THE ONE THING A STATIC READ CANNOT PROVE: clicking it actually opens
     // /terms rather than the /about page a copied React Link would still
-    // navigate to.
-    // Scoped to the header: the footer has always had its own "Terms" link,
-    // and shortening the header's label from "Terms & Conditions" to
-    // "Terms" newly collides with it by text alone — a real ambiguity a
-    // page-wide getByRole would now hit, not a fixture-only concern.
-    await page.locator('header.app-header')
-      .getByRole('link', { name: expectTerms, exact: true }).click()
+    // navigate to. The menu is hidden site-wide now (2026-09-17), and a
+    // `display:none` ancestor leaves this link with no layout box at all —
+    // `force: true` skips visibility CHECKS but cannot invent click
+    // coordinates for an element with zero size, so even a forced click
+    // fails here. The override below undoes ONLY the hide, in this test's
+    // own page, to prove nav-menu.js's underlying mechanism (a real <a>,
+    // not a copied React Link) still works — it is not claiming a visitor
+    // can reach this link today, which the checks above already establish
+    // they cannot.
+    // Same layer as the hide rule (`@layer utilities`), not unlayered —
+    // this file's own header override already found that, for `!important`
+    // declarations, cascade layers REVERSE the usual order: a layered
+    // !important beats an unlayered one regardless of source position, so
+    // an unlayered override here would lose exactly like this test's first
+    // attempt did.
+    await page.addStyleTag({ content: '@layer utilities { header.app-header ul { display: flex !important; } }' })
+    await page.locator('header.app-header a[href="/terms"]').click()
     await page.waitForLoadState('networkidle')
     check(new URL(page.url()).pathname === '/terms', `${lang}: clicking it actually opens /terms`, page.url())
   }
@@ -128,6 +159,8 @@ for (const [lang, expectTerms, expectTitle] of [
 }
 
 /* ------------------------------------- graceful degradation, if the JS dies */
+// Not filtered to visible links, per the note above — the menu is hidden
+// site-wide regardless of whether nav-menu.js runs.
 {
   const page = await browser.newPage({ viewport: { width: 1280, height: 500 } })
   await page.route('**/assets/nav-menu.js', (route) => route.abort())
@@ -135,7 +168,6 @@ for (const [lang, expectTerms, expectTitle] of [
   await page.waitForTimeout(1500)
   const info = await page.evaluate(() => {
     const links = [...document.querySelectorAll('header.app-header ul li a')]
-      .filter((a) => a.closest('li').offsetParent !== null)
       .map((a) => a.getAttribute('href'))
     return links
   })
