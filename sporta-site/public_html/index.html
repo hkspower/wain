@@ -272,8 +272,17 @@
           // hero too tall, the strip when the band under it was tightened from
           // 128 to what the button and the controls actually need) and neither
           // moved here. Same formula, same two files, written out twice.
+          // 2.52 RATHER THAN 2.10 SINCE 2026-09-17 — the owner asked for the
+          // banner full size, so the phone shows the whole picture and the
+          // box is the artwork's own ratio. 155px of art at 390 wide, plus
+          // the strip, against 186px of a cropped 83% before.
+          //
+          // The 104px is the measured strip and is the half of this line that
+          // was already right: sporta-ui.css said 128 and the band is 104, so
+          // the shell it paints stood 24px taller than the hero that replaced
+          // it. Both files say 104 now.
           el.style.setProperty('--hero-h',
-            kind === 'slides' ? h[0] : 'calc(100vw / 2.10 + 104px)')
+            kind === 'slides' ? h[0] : 'calc(100vw / 2.52 + 104px)')
           // THE DESKTOP HEIGHT DEPENDS ON WHICH HERO IS COMING, and getting it
           // wrong is a layout shift on the largest element of the site.
           //
@@ -301,16 +310,19 @@
           // in both files. It is the stylesheet's, because that is the one the
           // mounted hero actually gets:
           //
-          //   max(100vw/2.52, min(100vw/1.90, 60svh))
+          //   100vw / 2.52
           //
-          // 2.52 is the artwork's own ratio and is the floor that stops a wide
-          // window cropping the banner's top and bottom; 1.90 and the 60svh cap
-          // are the shape and the share of the screen the owner chose. Change
-          // one file and you must change the other, or the shell and the hero
-          // disagree again and the page jumps at mount.
+          // ONE TERM SINCE 2026-09-17, where it was
+          // max(100vw/2.52, min(100vw/1.90, 60svh)). The owner asked for the
+          // banner full size and chose the whole picture at every width, so
+          // our 1.90 ratio and the 60svh cap are both gone: a box taller than
+          // the artwork crops its sides, a box shorter crops its top and
+          // bottom, and the picture's own ratio is the only number that crops
+          // neither. Change one file and you must change the other, or the
+          // shell and the hero disagree again and the page jumps at mount.
           el.style.setProperty('--hero-h-md',
             kind === 'slides' ? h[1]
-              : 'max(calc(100vw / 2.52), min(calc(100vw / 1.90), 60svh))')
+              : 'calc(100vw / 2.52)')
 
           // THE HERO BANNER, requested here rather than in the markup above.
           //

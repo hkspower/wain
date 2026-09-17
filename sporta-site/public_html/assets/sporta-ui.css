@@ -294,9 +294,48 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
    2.52 is the artwork's own ratio, so the floor is the shape of the picture
    rather than a number to taste. If a wider banner is ever supplied, this
    floor is the line to move, and nothing else here. */
+/* --- AND THEN THE FLOOR BECAME THE WHOLE FORMULA — 2026-09-17 ------------
+   Asked for in as many words: the hero images full size. The owner chose
+   "the whole banner everywhere" out of three measured options, knowing the
+   phone cost, so there is no cap and no ratio of our own left — the box IS
+   the picture's shape at every width, and `cover` has nothing to crop.
+
+   What every reading above was trading away, measured the day it was
+   changed. `visible` is the share of the banner's WIDTH on screen:
+
+     390    box 2.10:1   83%      ->  2.52:1   100%
+     768    box 1.90:1   75%      ->  2.52:1   100%
+     1280   box 2.37:1   94%      ->  2.52:1   100%
+     1920   box 2.52:1  100%      ->  2.52:1   100%   (already there)
+
+   IT ALSO MADE THE PICTURE SHARPER, which was not the reason for it and is
+   worth writing down because it is counter-intuitive. `cover` on a box
+   TALLER than the artwork has to magnify the image to cover the height, and
+   that magnification is thrown away off the sides. A box at the artwork's
+   own ratio scales it once, to fit. Source pixels per CSS pixel, same run:
+
+     768    1.43 -> 1.89      1280   1.07 -> 1.14      390   2.33 -> 2.80
+
+   1920 is unchanged at 0.76 and that is the honest limit: the five frames
+   exist only at 1600px wide, the box there is 2112 CSS px, so the artwork is
+   upscaled before a retina screen doubles anything. No CSS fixes that — it
+   needs a 3200px master, which the owner is supplying.
+
+   AND THIS BLOCK WAS DEAD, which I did not know when I first edited it. A
+   SECOND `:root` re-declared --hero-h 1200 lines below — same selector, same
+   specificity, later wins — so this copy decided nothing and had been wrong
+   for as long as both existed: 2.10 and +128px here against the live 2.10 and
+   +104px there. I read this one, measured the phone, and reported a 24px
+   shell-versus-mount gap that was not happening.
+
+   The duplicate is gone and this is now the one home for both variables. The
+   lesson is the file's own, turned on itself: a number with two homes has not
+   merely drifted in theory. Before believing a declaration, ask whether
+   anything later overrides it — `grep -n` for the property answers it, and
+   getComputedStyle answers it better. */
 :root {
-  --hero-h: calc(100vw / 2.10 + 128px) !important;
-  --hero-h-md: max(calc(100vw / 2.52), min(calc(100vw / 1.90), 60svh)) !important;
+  --hero-h: calc(100vw / 2.52 + 104px) !important;
+  --hero-h-md: calc(100vw / 2.52) !important;
 }
 
 /* AND THE COMPONENT ITSELF, which is what actually sizes the mounted hero.
@@ -316,29 +355,30 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
    reading the file. */
 @media (max-width: 767px) {
   .hero-strength > .aspect-\[2\.52\/1\] {
-    aspect-ratio: 2.10 / 1 !important;
+    /* BACK TO THE BUNDLE'S OWN NUMBER, 2026-09-17. This was 2.10, which cut
+     * 17% off the banner's width to buy height on a phone. The owner asked
+     * for the whole picture instead. Written out rather than deleted, even
+     * though the class it overrides already says 2.52: an override that
+     * silently agrees with the thing below it is invisible, and the next
+     * person to change the phone hero should find the decision here. */
+    aspect-ratio: 2.52 / 1 !important;
   }
 }
 @media (min-width: 768px) {
   .hero-strength {
-    aspect-ratio: 1.90 / 1 !important;
-    /* AND THE CAP, on the component, because the variable is only half of it.
-     * The bundle ships max-h-[80svh] on this element — its own ceiling, not
-     * read from --hero-h-md — and the two agreed at 80svh only by coincidence.
-     * Lowering the variable alone moved the pre-paint shell and left the
-     * mounted hero where it was: measured, a 44px disagreement at 1280x900 and
-     * 108px at 1920x1080, which is the page jumping at mount, which is the one
-     * failure the boot script exists to prevent. Both halves, or neither. */
-    max-height: 60svh !important;
-    /* AND THE FLOOR, the other half of the pair above. min-height beats
-     * max-height when the two disagree, which is exactly the arithmetic
-     * wanted: the cap applies until honouring it would make the box wider
-     * than the artwork, and from there the picture's own 2.52:1 decides.
-     * Together with aspect-ratio and max-height this resolves to
-     * max(100vw/2.52, min(100vw/1.90, 60svh)) — the same number the variable
-     * carries, because the shell and the mounted hero disagreeing is the one
-     * failure the boot script exists to prevent. */
-    min-height: calc(100vw / 2.52) !important;
+    aspect-ratio: 2.52 / 1 !important;
+    /* BOTH CAPS OFF, 2026-09-17, and the second one is the one that matters.
+     * This carried max-height: 60svh, and the BUNDLE ships its own
+     * max-h-[80svh] on the same element. Either of them clipping the box
+     * makes it wider than 2.52 and `cover` starts eating the banner's top and
+     * bottom again — the exact inversion the block above spent four
+     * paragraphs discovering. `none` beats the bundle's 80svh as well as
+     * removing ours, which a bare deletion would not have done.
+     *
+     * The min-height floor is gone with them: aspect-ratio alone now resolves
+     * to 100vw/2.52 at every width, so a floor at the same number is a second
+     * home for it and could only ever drift. One rule, one shape. */
+    max-height: none !important;
   }
 }
 
@@ -1495,14 +1535,29 @@ p.mt-6.flex.flex-wrap.items-baseline:has(> .font-display) {
 /* The pre-paint shell reads --hero-h and the mounted component reads its own
  * height. The file says further up, at length, that moving one without the
  * other makes the page jump at mount — the single failure the boot script
- * exists to prevent. So both, together, to the same number. */
-:root {
-  --hero-h: calc(100vw / 2.10 + 104px) !important;
-}
+ * exists to prevent. So both, together, to the same number.
+ *
+ * THE :root BLOCK THAT USED TO SIT HERE IS GONE — 2026-09-17, and it is worth
+ * saying why rather than just deleting it. It re-declared --hero-h 1200 lines
+ * after the block at the top of this file already had, so the top one was DEAD
+ * and had been for as long as both existed: same selector, same specificity,
+ * later wins. That is how it came to hold 2.10 and +128px while the live copy
+ * here held 2.10 and +104px, and how I read the dead one first and reported a
+ * 24px shell-versus-mount gap that was not happening. Two homes for one number
+ * do not merely risk drift — they had already drifted, silently, and the file
+ * that documents this exact failure was the one committing it.
+ *
+ * --hero-h now has ONE home, at the top with --hero-h-md beside it. What stays
+ * here is the phone height of the COMPONENT, which is a different property on a
+ * different element and must equal the variable; test:hero-size measures that
+ * they do, rather than either file being believed. */
 
 @media (max-width: 767px) {
   .hero-strength {
-    height: calc(100vw / 2.10 + 104px) !important;
+    /* 2.52, not 2.10 — the owner asked for the banner full size, so the phone
+     * shows the whole picture: 155px of art at 390 wide instead of 186px of a
+     * cropped 83%. Same formula as --hero-h at the top of this file. */
+    height: calc(100vw / 2.52 + 104px) !important;
   }
 
   /* The artwork keeps its own box and its own ratio. Untouched on purpose. */
