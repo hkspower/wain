@@ -395,7 +395,7 @@ export const FAQ: Faq[] = [
     a: {
       en:
         "Because nobody does. The world is open at every hour — drive it, look at " +
-        "it, fill up — but the rivals are out from midnight to 05:50 Kuwait time. " +
+        "it, fill up — but the rivals are out from midnight until 05:50 Kuwait time. " +
         "The settings will pin the sky to a fixed night if your day does not line " +
         "up with Kuwait's.",
       ar: "لأن ما أحد يسابق فيه. العالم مفتوح كل ساعة — سق فيه، وتفرّج، وعبّي — بس الخصوم موجودون من منتصف الليل إلى ٥:٥٠ بتوقيت الكويت. والإعدادات تثبّت السماء على ليل دائم إذا كان يومك ما يتوافق مع يوم الكويت.",

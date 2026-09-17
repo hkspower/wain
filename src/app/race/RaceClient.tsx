@@ -39,6 +39,7 @@ import { hudInset, letterbox, RACE_ASPECT } from "@/game/aspect";
 import { padBrand, padLayout, padLabel, type PadBrand } from "@/game/pads";
 import { VIEWS, viewSpec } from "@/game/views";
 import { crewInitials, teamLogoDataUrl, type TeamLogo } from "@/game/teams";
+import { num } from "@/game/format";
 import {
   EXCLUSIVE_CATS,
   Part,
@@ -2884,7 +2885,7 @@ function raceCut(): { w: number; h: number } | null {
                 {dossier.beaten ? (
                   <span className="grn-info-accent">Beaten — rematch any time</span>
                 ) : (
-                  "Flash three times to challenge"
+                  "Flash 3× to challenge"
                 )}
               </span>
               <button
@@ -3411,7 +3412,7 @@ function raceCut(): { w: number; h: number } | null {
               <div className="shrink-0 text-right">
                 <div className="grn-label text-2xs text-white/70">Balance</div>
                 <div className="grn-display tnum text-lg leading-tight text-sodium-400">
-                  {(garage?.kd ?? 0).toLocaleString()}
+                  {num(garage?.kd ?? 0)}
                   <span className="ml-0.5 text-2xs text-white/74">KD</span>
                 </div>
               </div>
@@ -3579,7 +3580,7 @@ function raceCut(): { w: number; h: number } | null {
                   <div className="ml-auto shrink-0 text-right">
                     <div className="grn-label text-2xs text-white/70">Prize</div>
                     <div className="grn-display tnum text-base text-sodium-400">
-                      {(400 + beaten * 300).toLocaleString()} KD
+                      {num(400 + beaten * 300)} KD
                     </div>
                   </div>
                 </div>
@@ -3715,7 +3716,7 @@ function raceCut(): { w: number; h: number } | null {
                 rows: [
                   ["three.js", "WebGL scene graph, post-processing and PMREM lighting"],
                   ["Next.js + React", "The shell, the HUD and the menus"],
-                  ["Web Audio API", "Every engine, tire, wind and radio voice, synthesised live"],
+                  ["Web Audio API", "Every engine, tyre, wind and radio voice, synthesised live"],
                   ["Blender", "The high-resolution wheel and palm meshes, swapped in at runtime"],
                 ],
               },
@@ -4235,7 +4236,7 @@ function raceCut(): { w: number; h: number } | null {
             <div className="grn-display mt-1.5 text-sm tracking-[0.12em] text-sodium-400">
               {cine.stake > 0 ? (
                 <>
-                  {cine.stake.toLocaleString()} KD EACH — ON THE LINE{" "}
+                  {num(cine.stake)} KD EACH — ON THE LINE{" "}
                   <span className="grn-ar" lang="ar">على المحك</span>
                 </>
               ) : (

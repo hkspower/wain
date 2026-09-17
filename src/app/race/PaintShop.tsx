@@ -11,6 +11,7 @@ import {
   getCar,
 } from "@/game/mods";
 import { IconPaint } from "./Icons";
+import { num } from "@/game/format";
 
 /**
  * The painter's picker.
@@ -51,7 +52,7 @@ export default function PaintShop({ garage, onPick, onClose }: Props) {
         <div className="grn-info-key flex items-center gap-2">
           <IconPaint size={16} /> PAINT SHOP · <span className="grn-ar" lang="ar">صبغ سيارات</span>
         </div>
-        <div className="tnum text-sm">{garage.kd.toLocaleString()} KD</div>
+        <div className="tnum text-sm">{num(garage.kd)} KD</div>
       </div>
       <div className="grn-info-rule my-3" />
       <div className="text-sm">
@@ -121,7 +122,7 @@ export default function PaintShop({ garage, onPick, onClose }: Props) {
               <span>
                 {p.name} · <span lang="ar">{p.ar}</span>
               </span>
-              <span className="tnum">{owned(p) ? "✓" : `${p.price.toLocaleString()} KD`}</span>
+              <span className="tnum">{owned(p) ? "✓" : `${num(p.price)} KD`}</span>
             </button>
           );
         })}

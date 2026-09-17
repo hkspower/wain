@@ -132,11 +132,11 @@ export const PARTS: Part[] = [
   { id: "brakes-sport", cat: "brakes", name: "Sport Brakes", ar: "بريكات رياضية", price: 500, desc: "Braking 26 → 32" },
   { id: "brakes-race", cat: "brakes", name: "Racing Brakes", ar: "بريكات سباق", price: 1000, desc: "Braking 26 → 38" },
   { id: "brakes-carbon", cat: "brakes", name: "Carbon Ceramic", ar: "بريكات سيراميك", price: 1800, desc: "Braking 26 → 44" },
-  // Tires — exclusive tiers (grip + curve stability)
-  { id: "tires-sport", cat: "tires", name: "Sport Tires", ar: "تواير رياضية", price: 400, desc: "More grip, calmer sweepers" },
-  { id: "tires-race", cat: "tires", name: "Racing Tires", ar: "تواير سباق", price: 900, desc: "Serious grip" },
+  // Tyres — exclusive tiers (grip + curve stability)
+  { id: "tires-sport", cat: "tires", name: "Sport Tyres", ar: "تواير رياضية", price: 400, desc: "More grip, calmer sweepers" },
+  { id: "tires-race", cat: "tires", name: "Racing Tyres", ar: "تواير سباق", price: 900, desc: "Serious grip" },
   { id: "tires-slick", cat: "tires", name: "Slicks", ar: "سليك", price: 1600, desc: "Maximum grip, glued to the corniche" },
-  { id: "tires-drift", cat: "tires", name: "Drift Tires", ar: "تواير تفحيط", price: 1100, desc: "Less grip on purpose: bigger angles, slower to snap back, more style points" },
+  { id: "tires-drift", cat: "tires", name: "Drift Tyres", ar: "تواير تفحيط", price: 1100, desc: "Less grip on purpose: bigger angles, slower to snap back, more style points" },
   // Gearbox — exclusive. The same engine, geared for a different fight.
   { id: "gearbox-close", cat: "gearbox", name: "Close-Ratio Box", ar: "قير قصير", price: 1400, desc: "+20% acceleration, 16 km/h off the governor — for the corniche, not the straight" },
   { id: "gearbox-tall", cat: "gearbox", name: "Tall Final Drive", ar: "قير طويل", price: 1400, desc: "−12% acceleration for 16 km/h more governor — for the long inland run" },
@@ -150,7 +150,7 @@ export const PARTS: Part[] = [
   //
   // The descriptions say when a diff is worth buying, out loud, because
   // measurement says it usually is not yet. A diff only pays once the
-  // engine can out-pull the tires: on a standard car every one of these
+  // engine can out-pull the tyres: on a standard car every one of these
   // is worth exactly nothing off the line — the thrust never reaches the
   // traction cap, so raising the cap changes nothing — and on the same
   // car with the power roughly doubled the spool is worth half a second
@@ -158,9 +158,9 @@ export const PARTS: Part[] = [
   // condition attached, which is what the old single LSD said, is a
   // 1300 KD part that does nothing for the player most likely to buy it.
   { id: "diff-open", cat: "diff", name: "Open Diff", ar: "دفرنس عادي", price: 0, desc: "What the car came with. One wheel takes the power and lights up; the other one waits. Free, fitted, and the thing every diff below is an argument with" },
-  { id: "diff-spool", cat: "diff", name: "Welded Spool", ar: "دفرنس ملحوم", price: 900, desc: "Welded solid: both wheels turn together, always. The most drive you can buy and the cheapest — and the axle now fights every corner, so the nose washes wide unless you are sideways. Worth it once the engine can out-pull the tires; before that, nothing" },
-  { id: "lsd", cat: "diff", name: "Limited-Slip Diff", ar: "دفرنس", price: 1300, desc: "Locks under power and frees off it: both rear tires pull, and a slide you can steer. Modest next to the spool, and it does not cost you the corner. Worth it once the engine can out-pull the tires; before that, nothing" },
-  { id: "diff-clutch", cat: "diff", name: "Clutch-Pack LSD", ar: "دفرنس كلتشات", price: 2400, desc: "Adjustable plates: nearly the spool's drive with none of its manners, and it helps the car rotate on the way out instead of pushing. The dear one, and the only one with no downside. Worth it once the engine can out-pull the tires; before that, nothing" },
+  { id: "diff-spool", cat: "diff", name: "Welded Spool", ar: "دفرنس ملحوم", price: 900, desc: "Welded solid: both wheels turn together, always. The most drive you can buy and the cheapest — and the axle now fights every corner, so the nose washes wide unless you are sideways. Worth it once the engine can out-pull the tyres; before that, nothing" },
+  { id: "lsd", cat: "diff", name: "Limited-Slip Diff", ar: "دفرنس", price: 1300, desc: "Locks under power and frees off it: both rear tyres pull, and a slide you can steer. Modest next to the spool, and it does not cost you the corner. Worth it once the engine can out-pull the tyres; before that, nothing" },
+  { id: "diff-clutch", cat: "diff", name: "Clutch-Pack LSD", ar: "دفرنس كلتشات", price: 2400, desc: "Adjustable plates: nearly the spool's drive with none of its manners, and it helps the car rotate on the way out instead of pushing. The dear one, and the only one with no downside. Worth it once the engine can out-pull the tyres; before that, nothing" },
   // Chassis — additive, always active once fitted. These are the parts
   // that argue with the tire model rather than the engine.
   { id: "coilovers", cat: "chassis", name: "Coilovers", ar: "مساعدات", price: 900, desc: "Stiffer platform: the nose still turns in under heavy braking" },
@@ -197,7 +197,7 @@ export const PARTS: Part[] = [
   // src/game/tint.ts before adding one.
   { id: "film-dyed", cat: "film", name: "Dyed Film", ar: "فيلم ملوّن", price: 180, desc: "The cheap roll. Dye in the adhesive: flat, a touch warm, and never quite neutral — this is the film that goes purple in a Kuwaiti summer. Cosmetic" },
   { id: "film-carbon", cat: "film", name: "Carbon Film", ar: "فيلم كاربون", price: 520, desc: "Carbon instead of dye. Properly dark, stays charcoal, no metal in it — the cabin disappears behind it. Cosmetic" },
-  { id: "film-mirror", cat: "film", name: "Mirrored Film", ar: "فيلم عاكس", price: 950, desc: "Metallized: it throws the light back instead of soaking it up, so the glass comes out brighter than bare and all anyone sees in it is the street behind them. Cosmetic" },
+  { id: "film-mirror", cat: "film", name: "Mirrored Film", ar: "فيلم عاكس", price: 950, desc: "Metallised: it throws the light back instead of soaking it up, so the glass comes out brighter than bare and all anyone sees in it is the street behind them. Cosmetic" },
 
   { id: "bulb-halogen", cat: "bulbs", name: "Halogen Bulbs", ar: "شمعات هالوجين", price: 90, desc: "The filament the car left the showroom with. Warm, and warm is the light that cuts through dust and rain — the cheapest way back if the white beams are not for you" },
   { id: "bulb-led", cat: "bulbs", name: "LED Conversion", ar: "تحويل إل إي دي", price: 850, desc: "Cool white at 5800K, half again the light and 45% more reach. You see the corner earlier" },

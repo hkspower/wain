@@ -6,6 +6,7 @@ import { rankTitle } from "@/game/profile";
 import { haptic, HAPTIC } from "@/game/settings";
 import { playSfx } from "@/game/sfx";
 import { ICONS, type IconName } from "./Icons";
+import { num } from "@/game/format";
 
 /**
  * Post-race results sequence.
@@ -223,7 +224,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
             </div>
             {result.purse > 0 && (
               <div className="mt-0.5 text-xs text-white/55">
-                {result.purse.toLocaleString()} KD staked each side
+                {num(result.purse)} KD staked each side
               </div>
             )}
           </div>
@@ -234,10 +235,10 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
               }`}
             >
               {result.kd >= 0 ? "+" : "−"}
-              {kd.toLocaleString()} KD
+              {num(kd)} KD
             </div>
             <div className="grn-label tnum text-2xs text-white/74">
-              Balance {balance.toLocaleString()} KD
+              Balance {num(balance)} KD
             </div>
           </div>
         </div>

@@ -84,6 +84,7 @@ import {
 } from "./engines";
 import { loadGarage, saveGarage, computeEffects, addKd, fuelOf, setFuel, TuneEffects, getCar, CARS, rivalsBeaten, saveRivalsBeaten, EXHAUSTS, FINISHES, rollMaxFor } from "./mods";
 import { levelInfo, recordRace, recordLap, loadProfileStats, LevelInfo } from "./profile";
+import { num } from "./format";
 
 // Tokyo-Xtreme-Racer-style rules, Kuwait edition: cruise the loop, find the
 // rival, flash your headlights (F) to start a battle. Both drivers have SP
@@ -3376,8 +3377,8 @@ export class GameEngine {
       this.flashHeadlights();
       this.events.onMessage(
         this.timeHours < GameEngine.RACE_CLOSE_H
-          ? "Nobody races before midnight."
-          : "The night is over — racing opens again at midnight."
+          ? "Nobody races before midnight"
+          : "The night is over — racing opens again at midnight"
       );
       return;
     }
@@ -4216,7 +4217,7 @@ export class GameEngine {
       rewards.push({
         icon: "key",
         title: `${unlockable.name} affordable`,
-        sub: `${unlockable.price.toLocaleString()} KD in the showroom`,
+        sub: `${num(unlockable.price)} KD in the showroom`,
       });
     }
     if (after.streak >= 3 && outcome === "win") {
@@ -4423,7 +4424,7 @@ export class GameEngine {
       this.timeHours = (this.timeHours + perSecond * dt) % 24;
       if (wasOpen && !this.racingOpen() && !this.nightClosed) {
         this.nightClosed = true;
-        this.events.onMessage("05:50 — the night is over. Roll home.");
+        this.events.onMessage("05:50 — the night is over", "Roll home");
       }
       if (this.timeHours < GameEngine.RACE_CLOSE_H) this.nightClosed = false;
       // The sky is a handful of uniform writes; at 4 Hz it is free and

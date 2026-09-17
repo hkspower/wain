@@ -33,6 +33,7 @@ import CrewBuilder from "@/components/CrewBuilder";
 import { haptic, HAPTIC, loadSettings } from "@/game/settings";
 import { playSfx } from "@/game/sfx";
 import { ICONS } from "./Icons";
+import { num } from "@/game/format";
 
 /**
  * The garage, rebuilt as three rooms instead of one long corridor:
@@ -358,12 +359,12 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
             </span>
           ) : affordable ? (
             <span className="grn-display text-base tracking-normal text-gulf-300">
-              {p.price.toLocaleString()} KD
+              {num(p.price)} KD
             </span>
           ) : (
             <span className="text-white/70">
-              {p.price.toLocaleString()} KD · need{" "}
-              <span className="tnum">{(p.price - garage.kd).toLocaleString()}</span> more
+              {num(p.price)} KD · need{" "}
+              <span className="tnum">{num(p.price - garage.kd)}</span> more
             </span>
           )}
         </div>
@@ -389,7 +390,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
             <div className="text-right">
               <div className="grn-label text-2xs">Balance</div>
               <div className="grn-display tnum text-xl italic leading-tight text-sodium-400 [text-shadow:0_0_18px_rgba(245,165,36,0.5)]">
-                {garage.kd.toLocaleString()} KD
+                {num(garage.kd)} KD
               </div>
             </div>
             <button
@@ -618,13 +619,13 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                               </span>
                             ) : affordable ? (
                               <span className="grn-display text-base tracking-normal text-gulf-300">
-                                {c.price.toLocaleString()} KD
+                                {num(c.price)} KD
                               </span>
                             ) : (
                               <span className="text-white/70">
-                                {c.price.toLocaleString()} KD · need{" "}
+                                {num(c.price)} KD · need{" "}
                                 <span className="tnum">
-                                  {(c.price - garage.kd).toLocaleString()}
+                                  {num(c.price - garage.kd)}
                                 </span>{" "}
                                 more
                               </span>
@@ -640,7 +641,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                             <span className="grn-label text-2xs text-white/70">
                               Trade-in{" "}
                               <span className="grn-display tnum text-sm tracking-normal text-emerald-300">
-                                {quote.toLocaleString()} KD
+                                {num(quote)} KD
                               </span>
                             </span>
                             {lastCar ? (
@@ -667,7 +668,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                                 }`}
                               >
                                 {selling === c.id
-                                  ? `SELL FOR ${quote.toLocaleString()} KD — sure?`
+                                  ? `SELL FOR ${num(quote)} KD — sure?`
                                   : "SELL"}
                               </button>
                             )}
@@ -706,7 +707,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                         {stockEngine.name} · {layoutTag(stockEngine)}
                       </span>{" "}
                       — {stockEngine.cylinders} cylinders,{" "}
-                      {stockEngine.redlineRpm.toLocaleString("en-US")} rpm. Buy
+                      {num(stockEngine.redlineRpm)} rpm. Buy
                       nothing here and that is what you race. Every engine
                       makes the same power on average; where it makes it is
                       the whole decision.

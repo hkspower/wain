@@ -88,6 +88,7 @@
     "test:crews": "node tests/crews.mjs",
     "test:daynight": "node tests/daynight.mjs",
     "test:decals": "node tests/decals.mjs",
+    "test:digits": "node tests/digits.mjs",
     "test:demon": "node tests/demon.mjs",
     "test:distance": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/distance.mjs",
     "test:drivetrain": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/drivetrain.mjs",

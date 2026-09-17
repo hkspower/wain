@@ -5934,13 +5934,13 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // line1, line2, bg, fg, accent, metres from the line, side offset
       ["وين؟ WAIN", "wain nrooh? — يلا", "#0f4f4a", "#eafff9", "#2e978e", 257, 24],
       ["بو مجبوس", "BU MACHBOOS · best machboos on the Gulf", "#7a2d08", "#ffe9d4", "#e8641b", 661, 26],
-      ["SAQER ⚡ صقر", "ENERGY — hunt the night", "#1a0a0a", "#ffd2c2", "#c1121f", 1138, 24],
+      ["SAQER · صقر", "ENERGY — hunt the night", "#1a0a0a", "#ffd2c2", "#c1121f", 1138, 24],
       ["AL-DABOOS", "كراج الدبوس · TUNING & DYNO", "#1c1c10", "#ffe9a3", "#f5c211", 1652, 26],
       ["بنك الديرة", "BANK AL-DEERA · drive now, pay later", "#0a2a52", "#dcebff", "#3b82d4", 2203, 25],
-      ["ليالي السالمية", "SALMIYA NIGHTS — open till fajer", "#2a0a3a", "#f3dcff", "#b84dd6", 2643, 24],
-      ["قهوة GAHWA", "first cup free for racers ☕", "#3a2510", "#ffeeda", "#c98a3d", 3157, 22],
+      ["ليالي السالمية", "SALMIYA NIGHTS — open until fajer", "#2a0a3a", "#f3dcff", "#b84dd6", 2643, 24],
+      ["قهوة GAHWA", "first cup free for racers", "#3a2510", "#ffeeda", "#c98a3d", 3157, 22],
       ["دروازة مول", "DARWAZA MALL · 200 shops", "#0d3a1e", "#dcffe9", "#16a34a", 4400, 28],
-      ["NIGHT RACER", "متسابق الليل · from midnight 🏁", "#101728", "#dceaff", "#38e8ff", 5500, 26],
+      ["NIGHT RACER", "متسابق الليل · from midnight", "#101728", "#dceaff", "#38e8ff", 5500, 26],
       ["حولي موترز", "HAWALLY MOTORS · JDM imports", "#252525", "#f2f2f2", "#888888", 6900, 25],
     ];
     for (const [l1, l2, bg, fg, accent, s, off] of ads) {

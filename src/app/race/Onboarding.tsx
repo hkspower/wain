@@ -60,8 +60,8 @@ const CARDS: Card[] = [
     ar: "امسك البنزين",
     body:
       "Right pad accelerates, left pad brakes, and the wheel-side pads steer. " +
-      "On a keyboard that is W / S and A / D. The corniche is 7.3 km of real " +
-      "Gulf Road — you never have to stop.",
+      "On a keyboard that is W / S and A / D. The lap is 8.5 km of real Gulf " +
+      "Road and Second Ring — you never have to stop.",
     art: (
       <div className="flex items-center justify-center gap-2">
         <Pad label="◀" />

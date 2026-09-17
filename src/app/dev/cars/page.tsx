@@ -15,6 +15,7 @@
 // of agreement with the first the day anybody widened a range.
 
 import { useCallback, useEffect, useState } from "react";
+import { num } from "@/game/format";
 
 type Spec =
   | { kind: "string"; max: number }
@@ -32,7 +33,6 @@ type Car = {
 };
 type Payload = { cars: Car[]; gaps: string[]; editable: Record<string, Spec> };
 
-const money = (n: number) => n.toLocaleString("en-US");
 
 /** A file the page can actually show: public/ is served, press/ is not. */
 function servedUrl(path: string): string | null {
@@ -159,7 +159,7 @@ export default function CarManager() {
                     <span className="ml-2 opacity-60">{c.silhouette}</span>
                   </span>
                   <span className="tabular-nums opacity-70">
-                    {c.fields.price === 0 ? "free" : `${money(Number(c.fields.price))} KD`}
+                    {c.fields.price === 0 ? "free" : `${num(Number(c.fields.price))} KD`}
                     {missing > 0 && <span className="ml-2 text-amber-400">{missing} missing</span>}
                   </span>
                 </button>
@@ -202,7 +202,7 @@ export default function CarManager() {
                       {a.present ? `${a.kb} kB` : "not present"}
                     </div>
                     {"tris" in a && a.tris ? (
-                      <div className="opacity-60">{a.tris.toLocaleString()} tris</div>
+                      <div className="opacity-60">{num(a.tris)} tris</div>
                     ) : null}
                     <div className="mt-1 break-all text-2xs opacity-50">{a.path}</div>
                   </div>

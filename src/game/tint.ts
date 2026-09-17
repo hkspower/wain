@@ -28,7 +28,7 @@
 //             that stays charcoal, and no metal in it. The one you
 //             actually want, and what every tinted car in this game was
 //             wearing before any of it was for sale.
-//   mirror    Metallized. The odd one out, and deliberately so: it does
+//   mirror    Metallised. The odd one out, and deliberately so: it does
 //             not absorb the light, it throws it back, so the window
 //             ends up brighter than bare glass rather than darker and
 //             what you see in it is the street behind you. It is the
