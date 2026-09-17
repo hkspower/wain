@@ -719,6 +719,14 @@
          legal-pages.js reads on the storefront. Panel-only. -->
     <script src="/assets/legal-editor.js" defer></script>
 
+    <!-- The website panel's Settings screen: the KNET Tranportal ID editor and
+         the CBK gateway's own readiness (pay/config.php) — the app's panel has
+         had this since admin.php's ?r=knet route was built, and the bundle
+         had no editor for it at all. Read-only for the three CBK credentials
+         (booleans only, never the values); the Tranportal ID is the one field
+         this can write, same validation as the app's screen. Panel-only. -->
+    <script src="/assets/payment.js" defer></script>
+
     <!-- The website panel, on a touchscreen: three controls under 44px
          (rules.js's size/fit/governorate chips, custom-css.js's Save/Undo/
          Clear) grow to a proper tap target under `pointer: coarse`, and

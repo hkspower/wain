@@ -550,7 +550,13 @@ FileETag MTime Size
   # panel controls to a proper touch target under `pointer: coarse`.
   # essentials.js is the nineteenth, 2026-09-17 — removes the home
   # page's "Shop the essentials" section.
-  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|panel-settings|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme|nav-menu|brand-strip|legal-pages|legal-editor|admin-mobile|essentials)\.js$">
+  # payment.js is the twentieth, 2026-09-17 — the KNET Tranportal ID editor
+  # and the CBK gateway's readiness card on the website panel's Settings
+  # screen. Added in the same commit as the file: its stale-copy failure is
+  # the expensive kind, same as rules.js above — an owner on a cached copy
+  # could believe a Tranportal ID save landed when the panel they are looking
+  # at is not the one talking to the server.
+  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|panel-settings|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme|nav-menu|brand-strip|legal-pages|legal-editor|admin-mobile|essentials|payment)\.js$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 

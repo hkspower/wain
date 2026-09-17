@@ -103,7 +103,7 @@
 //
 // So: a fix to the RULES only helps arrivals. A VERSION bump is what reaches
 // the people the fix was written for, and it costs one re-download each.
-const VERSION = 'v25-tiles-photo-restored1'
+const VERSION = 'v26-payment-setup1'
 const SHELL = `sporta-shell-${VERSION}`
 const ASSETS = `sporta-assets-${VERSION}`
 
