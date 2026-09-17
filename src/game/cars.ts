@@ -517,6 +517,40 @@ function roundedBox(w: number, h: number, d: number, r = 0.035, seg = 4): THREE.
 }
 
 /**
+ * Map a roundedBox's flat faces to 0..1 so a texture on it is the whole
+ * texture.
+ *
+ * THREE.ExtrudeGeometry's default UV generator writes WORLD UNITS. On a
+ * 0.52 x 0.13 m number plate that means the face samples u 0..0.52 and
+ * v 0..0.13 of its own image — and with ClampToEdge, everything outside
+ * 0..1 pins to the border pixel. The plate was reading 133 of its
+ * texture's 512 columns and EIGHT of its 128 rows: a 512x128 Kuwaiti
+ * registration, drawn correctly, and then shown as a grey rectangle
+ * with a pale strip along the top. Every car in the game, front and
+ * back.
+ *
+ * It hid for so long because nothing about it looks like a bug. The
+ * texture is right, the material is right, the mesh is right, the plate
+ * is the right size in the right place, and a blank plate at chase
+ * distance reads as a plate you cannot make out yet.
+ *
+ * Only the flat faces are remapped. The 20 mm rim keeps the generator's
+ * own UVs: it is an edge, it is never read, and rewriting it would need
+ * a second guess about which axis of a bevel is which.
+ */
+function faceUV(geo: THREE.BufferGeometry, w: number, h: number): THREE.BufferGeometry {
+  const uv = geo.attributes.uv;
+  const nor = geo.attributes.normal;
+  if (!uv || !nor) return geo;
+  for (let i = 0; i < uv.count; i++) {
+    if (Math.abs(nor.getZ(i)) < 0.99) continue;      // rim, not face
+    uv.setXY(i, (uv.getX(i) + w / 2) / w, (uv.getY(i) + h / 2) / h);
+  }
+  uv.needsUpdate = true;
+  return geo;
+}
+
+/**
  * CROWNING — the pass that makes an extrusion look like bodywork.
  *
  * Every shell in this game is an ExtrudeGeometry: a side profile pushed
@@ -5365,7 +5399,7 @@ export function createCar(colors: CarColors): THREE.Group {
     const face = noseFaceZ(bGeo, style, 0.38, front);
     const z =
       face !== null ? face + (front ? 0.008 : -0.008) : front ? d.nose + 0.02 : d.tail - 0.03;
-    const plate = new THREE.Mesh(roundedBox(0.52, 0.13, 0.02, 0.007), plateMat(colors));
+    const plate = new THREE.Mesh(faceUV(roundedBox(0.52, 0.13, 0.02, 0.007), 0.52, 0.13), plateMat(colors));
     plate.position.set(0, 0.38, z);
     group.add(plate);
   }

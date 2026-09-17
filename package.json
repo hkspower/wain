@@ -40,6 +40,7 @@
     "check:accel": "node tools/shots/accel.mjs",
     "check:align": "node tools/shots/align.mjs",
     "check:caredges": "node tools/shots/caredges.mjs",
+    "check:carpixels": "node tools/shots/carpixels.mjs",
     "check:connector": "node scripts/check-unreal-connector.mjs",
     "check:dark": "node tools/shots/dark.mjs",
     "check:darkbuildings": "node tools/shots/darkbuildings.mjs",
