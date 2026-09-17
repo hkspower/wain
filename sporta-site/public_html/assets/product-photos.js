@@ -160,16 +160,30 @@
     // hundred at once is a hundred encodes competing for one main thread and a
     // hundred writes to one table. The count moving is also the only sign of
     // progress a person gets.
+    // A network-level failure (timeout, dropped connection — call() marks it
+    // `.network`) never told us whether the write landed, so it is worth one
+    // retry before giving up: on shared hosting under a slow connection this
+    // is the difference between "half the shoot silently missing" and a
+    // photograph that took two tries. A REJECTION (bad format, too many
+    // images) is not retried — the server already answered and trying again
+    // just asks the same question twice.
+    function addWithRetry(item, small, attemptsLeft) {
+      return U.call('product_image_add', 'POST', {
+        slug: item.slug,
+        image: small.dataUri,
+        width: small.width,
+        height: small.height,
+      }).catch(function (e) {
+        if (e && e.network && attemptsLeft > 0) return addWithRetry(item, small, attemptsLeft - 1)
+        throw e
+      })
+    }
+
     ready.forEach(function (item) {
       chain = chain.then(function () {
         return U.shrink(item.file)
           .then(function (small) {
-            return U.call('product_image_add', 'POST', {
-              slug: item.slug,
-              image: small.dataUri,
-              width: small.width,
-              height: small.height,
-            })
+            return addWithRetry(item, small, 2)
           })
           .then(function (res) {
             ok++
@@ -214,6 +228,19 @@
       render()
     })
   }
+
+  // The chain runs ONE AT A TIME over however long the queue is, and nothing
+  // here persists progress across a reload — closing the tab or navigating
+  // away mid-batch loses every photograph not yet confirmed, with no record
+  // of which ones those were. That is a second way for a shoot to come out
+  // short that has nothing to do with the network, so it is worth stopping
+  // outright: the browser's own "leave site?" prompt, armed only while a
+  // batch is actually in flight.
+  window.addEventListener('beforeunload', function (e) {
+    if (!state.busy) return
+    e.preventDefault()
+    e.returnValue = ''
+  })
 
   function byslug(slug) {
     for (var i = 0; i < state.products.length; i++) {

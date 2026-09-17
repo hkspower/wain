@@ -32,18 +32,43 @@
    * without it — and the session cookie is `__Host-` + SameSite=Strict, which
    * works here only because this runs on the shop's own origin inside the
    * panel. That is also why none of this needs a credential of its own.
+   *
+   * A 30s TIMEOUT via AbortController. Without one, a request that stalls on
+   * shared hosting or a flaky connection hangs forever rather than failing —
+   * which for a bulk upload looks exactly like the tab being "stuck", and the
+   * admin who gives up and closes it never learns whether the photograph
+   * landed. A network-level failure is marked `.network = true` so callers can
+   * tell "the server said no" from "we never heard back" and retry only the
+   * second kind — retrying a rejection (bad format, too many images) would
+   * only fail again.
    */
   function call(route, method, body) {
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null
+    var timer = ctrl ? setTimeout(function () { ctrl.abort() }, 30000) : null
     return fetch(API + route, {
       method: method || 'GET',
       headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' },
       credentials: 'include',
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal: ctrl ? ctrl.signal : undefined,
     }).then(function (r) {
       return r.json().catch(function () { return null }).then(function (d) {
         if (!r.ok || (d && d.error)) throw new Error((d && d.error) || ('http ' + r.status))
         return d
       })
+    }, function (e) {
+      // fetch itself rejected: aborted (timeout), offline, DNS, connection
+      // reset — never a response the server sent, so it is always safe to
+      // retry.
+      var err = new Error(e && e.name === 'AbortError' ? 'timed out' : 'network error')
+      err.network = true
+      throw err
+    }).then(function (d) {
+      if (timer) clearTimeout(timer)
+      return d
+    }, function (e) {
+      if (timer) clearTimeout(timer)
+      throw e
     })
   }
 
