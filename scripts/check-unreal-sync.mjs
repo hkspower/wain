@@ -55,13 +55,14 @@ if (hPoints.length !== api.track.controlPoints.length) {
 
 // ---- rivals ---------------------------------------------------------
 const hRivals = [...header.matchAll(
-  /\{ TEXT\("([^"]+)"\), TEXT\("[^"]*"\), TEXT\("([^"]+)"\), TEXT\("[^"]*"\), FColor\(0x(\w\w), 0x(\w\w), 0x(\w\w)\), ([\d.]+)f, EGRNBodyStyle::(\w+) \},/g
-)].map(([, name, crew, r, g, b, top, style]) => ({
+  /\{ TEXT\("([^"]+)"\), TEXT\("[^"]*"\), TEXT\("([^"]+)"\), TEXT\("[^"]*"\), FColor\(0x(\w\w), 0x(\w\w), 0x(\w\w)\), ([\d.]+)f, EGRNBodyStyle::(\w+), TEXT\("([\w-]*)"\) \},/g
+)].map(([, name, crew, r, g, b, top, style, carId]) => ({
   name,
   crew,
   color: `#${(r + g + b).toLowerCase()}`,
   top: +top,
   style: style.toLowerCase(),
+  carId,
 }));
 if (hRivals.length !== api.rivals.length) {
   fail(`rivals: header ${hRivals.length} vs api ${api.rivals.length}`);
@@ -74,8 +75,18 @@ if (hRivals.length !== api.rivals.length) {
     if (h.color !== a.bodyColor) fail(`rival ${i} colour: ${h.color} vs ${a.bodyColor}`);
     if (h.top !== a.topSpeedKmh) fail(`rival ${i} top speed: ${h.top} vs ${a.topSpeedKmh}`);
     if (h.style !== a.bodyStyle) fail(`rival ${i} body style: ${h.style} vs ${a.bodyStyle}`);
+    // The CAR they bring, not just the silhouette. Two rivals can share
+    // a body and be a third of a metre apart, and the port built every
+    // one of them at the silhouette's reference length while this check
+    // stayed green — the same shape of gap the trike left in the car
+    // table. The factory fits both the primitive shell and any imported
+    // hero body to the length on the card, so this decides the size of a
+    // Fab import as well as of the primitives.
+    if (h.carId !== (a.carId ?? "")) fail(`rival ${i} car: ${h.carId || "(none)"} vs ${a.carId ?? "(none)"}`);
+    if (h.carId && !api.cars.some((c) => c.id === h.carId))
+      fail(`rival ${i} brings ${h.carId}, which is not in the showroom`);
   }
-  if (!process.exitCode) ok(`rivals: ${hRivals.length} match (name, crew, colour, top speed, body)`);
+  if (!process.exitCode) ok(`rivals: ${hRivals.length} match (name, crew, colour, top speed, body, car)`);
 }
 
 // ---- engines --------------------------------------------------------

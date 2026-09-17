@@ -49,17 +49,27 @@ struct FGRNRivalDef
 	FColor BodyColor;
 	float TopSpeedKmh;
 	EGRNBodyStyle Style;
+	/** The showroom car this rival actually brings.
+	 *
+	 *  Missing until now, and the omission had a size: a rival was built
+	 *  at its SILHOUETTE's reference length, because that is what
+	 *  GRNCarFactory::Build falls back to when LengthM is zero and zero
+	 *  is what AGRNRival passed. Five of the eight were wrong — Shabah
+	 *  Al-Khaleej brings a 4.62 m Sahara V12 and was built as a 4.31 m
+	 *  zx, 310 mm short. The web build has always looked the car up
+	 *  (rivals.ts rivalCar) and built it at the length on its own card. */
+	const TCHAR* CarId;
 };
 
 static const FGRNRivalDef GRNRivals[] = {
-	{ TEXT("Abu Shanab"), TEXT("أبو شنب"), TEXT("Salmiya Street Kings"), TEXT("Salmiya"), FColor(0xC8, 0xCD, 0xD6), 232.0f, EGRNBodyStyle::Sedan },
-	{ TEXT("Bint Al-Deera"), TEXT("بنت الديرة"), TEXT("Gulf Road Gazelles"), TEXT("Sharq"), FColor(0xB8, 0x4D, 0xD6), 246.0f, EGRNBodyStyle::Sedan },
-	{ TEXT("Al-Daboos"), TEXT("الدبوس"), TEXT("Hawally Night Hawks"), TEXT("Hawally"), FColor(0xF5, 0xC2, 0x11), 261.0f, EGRNBodyStyle::ZX },
-	{ TEXT("Bu Machboos"), TEXT("بو مجبوس"), TEXT("Fahaheel Phantoms"), TEXT("Fahaheel"), FColor(0xE8, 0x64, 0x1B), 277.0f, EGRNBodyStyle::GTR },
-	{ TEXT("Al-Saqer"), TEXT("الصقر"), TEXT("Jahra Junoon"), TEXT("Jahra"), FColor(0xC1, 0x12, 0x1F), 293.0f, EGRNBodyStyle::ZX },
-	{ TEXT("Bu Torab"), TEXT("بو تراب"), TEXT("Doha Dust Devils"), TEXT("Doha"), FColor(0x56, 0x5F, 0x6B), 301.0f, EGRNBodyStyle::ZX },
-	{ TEXT("Al-Sayyaf"), TEXT("السياف"), TEXT("Bayan Blade Runners"), TEXT("Bayan"), FColor(0x0F, 0x76, 0x6E), 307.0f, EGRNBodyStyle::GTR },
-	{ TEXT("Shabah Al-Khaleej"), TEXT("شبح الخليج"), TEXT("???"), TEXT("Gulf Road"), FColor(0x0A, 0x0A, 0x0C), 318.0f, EGRNBodyStyle::GTR },
+	{ TEXT("Abu Shanab"), TEXT("أبو شنب"), TEXT("Salmiya Street Kings"), TEXT("Salmiya"), FColor(0xC8, 0xCD, 0xD6), 232.0f, EGRNBodyStyle::Sedan, TEXT("hawally-2t") },
+	{ TEXT("Bint Al-Deera"), TEXT("بنت الديرة"), TEXT("Gulf Road Gazelles"), TEXT("Sharq"), FColor(0xB8, 0x4D, 0xD6), 246.0f, EGRNBodyStyle::Sedan, TEXT("salmiya-turbo") },
+	{ TEXT("Al-Daboos"), TEXT("الدبوس"), TEXT("Hawally Night Hawks"), TEXT("Hawally"), FColor(0xF5, 0xC2, 0x11), 261.0f, EGRNBodyStyle::ZX, TEXT("gulf-coupe-rs") },
+	{ TEXT("Bu Machboos"), TEXT("بو مجبوس"), TEXT("Fahaheel Phantoms"), TEXT("Fahaheel"), FColor(0xE8, 0x64, 0x1B), 277.0f, EGRNBodyStyle::GTR, TEXT("storm-s8") },
+	{ TEXT("Al-Saqer"), TEXT("الصقر"), TEXT("Jahra Junoon"), TEXT("Jahra"), FColor(0xC1, 0x12, 0x1F), 293.0f, EGRNBodyStyle::ZX, TEXT("falcon-720") },
+	{ TEXT("Bu Torab"), TEXT("بو تراب"), TEXT("Doha Dust Devils"), TEXT("Doha"), FColor(0x56, 0x5F, 0x6B), 301.0f, EGRNBodyStyle::ZX, TEXT("zeta-300") },
+	{ TEXT("Al-Sayyaf"), TEXT("السياف"), TEXT("Bayan Blade Runners"), TEXT("Bayan"), FColor(0x0F, 0x76, 0x6E), 307.0f, EGRNBodyStyle::GTR, TEXT("kaiju-r") },
+	{ TEXT("Shabah Al-Khaleej"), TEXT("شبح الخليج"), TEXT("???"), TEXT("Gulf Road"), FColor(0x0A, 0x0A, 0x0C), 318.0f, EGRNBodyStyle::GTR, TEXT("sahara-v12") },
 };
 static const int32 GRNRivalCount = UE_ARRAY_COUNT(GRNRivals);
 

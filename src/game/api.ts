@@ -81,6 +81,16 @@ export function buildRivals() {
     flag: r.flag ?? "🇰🇼",
     car: rivalCarName(r),
     bodyStyle: r.bodyStyle ?? "sedan",
+    /**
+     * The showroom car this rival brings.
+     *
+     * The silhouette alone is not the car: the Sahara V12 and the Zeta
+     * 300 are both `zx`, and 310 mm apart. The Unreal port had only the
+     * silhouette, so it built every rival at the silhouette's reference
+     * length — which matters most to imported art, since the factory
+     * fits a Fab or Megascans body to exactly that number.
+     */
+    carId: r.carId ?? null,
     bodyColor: hex(r.bodyColor),
     accentColor: hex(r.accentColor),
     /** The crew's emblem, or null for the one crew that has no name. */

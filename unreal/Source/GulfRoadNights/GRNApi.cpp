@@ -134,6 +134,7 @@ void UGRNApiSubsystem::ParseGameData(const FString& Json)
 			R.TopSpeedKmh = (float)O->GetNumberField(TEXT("topSpeedKmh"));
 			R.PrizeKd = O->GetIntegerField(TEXT("prizeKd"));
 			R.Style = StyleFromString(O->GetStringField(TEXT("bodyStyle")));
+			O->TryGetStringField(TEXT("carId"), R.CarId);
 			Rivals.Add(MoveTemp(R));
 		}
 	}
@@ -157,6 +158,9 @@ void UGRNApiSubsystem::ParseGameData(const FString& Json)
 			C.Style = StyleFromString(O->GetStringField(TEXT("bodyStyle")));
 			FString Kit;
 			C.bAttackKit = O->TryGetStringField(TEXT("kit"), Kit) && Kit == TEXT("attack");
+			// The length on the card. GRNCarFactory fits both the primitive
+			// shell and any imported hero body to exactly this.
+			C.LengthM = (float)O->GetNumberField(TEXT("lengthM"));
 			Cars.Add(MoveTemp(C));
 		}
 	}
@@ -286,6 +290,7 @@ FGRNRuntimeRival UGRNApiSubsystem::GetRival(int32 Index) const
 	R.TopSpeedKmh = D.TopSpeedKmh;
 	R.PrizeKd = 400 + I * 300;
 	R.Style = D.Style;
+	R.CarId = D.CarId;
 	return R;
 }
 
@@ -311,7 +316,20 @@ FGRNRuntimeCar UGRNApiSubsystem::GetCar(int32 Index) const
 	C.Paint = D.Paint;
 	C.Style = D.Style;
 	C.bAttackKit = D.bAttackKit;
+	C.LengthM = D.LengthM;
 	return C;
+}
+
+FGRNRuntimeCar UGRNApiSubsystem::FindCar(const FString& Id) const
+{
+	if (Id.IsEmpty()) return FGRNRuntimeCar();
+	const int32 N = NumCars();
+	for (int32 I = 0; I < N; ++I)
+	{
+		FGRNRuntimeCar C = GetCar(I);
+		if (C.Id == Id) return C;
+	}
+	return FGRNRuntimeCar();
 }
 
 // ------------------------------------------------------------ hub writes

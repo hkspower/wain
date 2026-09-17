@@ -47,10 +47,17 @@ const rivals = rivalBlocks
       color: f(/bodyColor: 0x([0-9a-fA-F]{6})/),
       top: +f(/topSpeedKmh: ([\d.]+)/),
       style: f(/bodyStyle: "(\w+)"/) ?? "sedan",
+      // The showroom car this rival brings. The port built every rival at
+      // its silhouette's reference length without it — see FGRNRivalDef.
+      carId: f(/carId: "([\w-]+)"/),
     };
   })
   .filter(Boolean);
 if (rivals.length < 6) throw new Error(`rival parse failed (${rivals.length})`);
+{
+  const noCar = rivals.filter((r) => !r.carId).map((r) => r.name);
+  if (noCar.length) throw new Error(`rival carId parse failed: ${noCar.join(", ")}`);
+}
 
 // ----------------------------------------------------------------- cars
 const carsBlock = modsTs.match(/export const CARS[^=]*=\s*\[(.*?)\n\];/s)[1];
@@ -312,13 +319,23 @@ struct FGRNRivalDef
 	FColor BodyColor;
 	float TopSpeedKmh;
 	EGRNBodyStyle Style;
+	/** The showroom car this rival actually brings.
+	 *
+	 *  Missing until now, and the omission had a size: a rival was built
+	 *  at its SILHOUETTE's reference length, because that is what
+	 *  GRNCarFactory::Build falls back to when LengthM is zero and zero
+	 *  is what AGRNRival passed. Five of the eight were wrong — Shabah
+	 *  Al-Khaleej brings a 4.62 m Sahara V12 and was built as a 4.31 m
+	 *  zx, 310 mm short. The web build has always looked the car up
+	 *  (rivals.ts rivalCar) and built it at the length on its own card. */
+	const TCHAR* CarId;
 };
 
 static const FGRNRivalDef GRNRivals[] = {
 ${rivals
   .map(
     (r) =>
-      `\t{ TEXT("${r.name}"), TEXT("${r.arabic}"), TEXT("${r.crew}"), TEXT("${r.area}"), ${col(r.color)}, ${r.top.toFixed(1)}f, ${style(r.style, r.name)} },`
+      `\t{ TEXT("${r.name}"), TEXT("${r.arabic}"), TEXT("${r.crew}"), TEXT("${r.area}"), ${col(r.color)}, ${r.top.toFixed(1)}f, ${style(r.style, r.name)}, TEXT("${r.carId ?? ""}") },`
   )
   .join("\n")}
 };

@@ -888,7 +888,17 @@ def main():
     # a manifest mixing two qualities would describe no build at all.
     manifest_path = os.path.join(args.out, "build.json")
     manifest = {"quality": args.quality, "settings": Q, "assets": {}}
-    if os.path.exists(manifest_path) and only < {"cars", "wheels", "palm", "driver"}:
+    # ALL of them, from one place. This set was written out by hand and
+    # went stale the moment "police" was added: a --only police build was
+    # no longer a strict subset, so the merge was skipped and the whole
+    # manifest was replaced by a single entry. That is not a cosmetic
+    # loss — models.ts's shipped() treats build.json as the list of what
+    # exists, and parts() returns null for anything not in it, so one
+    # partial rebuild silently switched off every authored shell, wheel,
+    # driver and palm crown in the game. Derived from the argument's own
+    # default now, so adding an asset cannot leave this behind.
+    ALL_ASSETS = set(ap.get_default("only").split(","))
+    if os.path.exists(manifest_path) and only < ALL_ASSETS:
         with open(manifest_path) as f:
             existing = json.load(f)
         if existing.get("quality") != args.quality or existing.get("settings") != Q:

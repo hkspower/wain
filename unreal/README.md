@@ -362,13 +362,24 @@ licence. To put a scanned or modelled car in:
    (the body paint), **Tail Slot** the lens that flares under braking,
    **Wheel Slot** the alloy finish; `-1` leaves a slot as imported.
 3. Play. `GRNCarFactory::Build` loads the references, scales the body so
-   its length is the length on the car's card, stands it on the road,
+   its length is the length on the car's card — the player's, the
+   rival's and the civilian's alike; until this was fixed the rival and
+   the civilian passed no length at all and got their *silhouette's*
+   reference instead, which put five of the eight rivals wrong and the
+   worst 310 mm short — stands it on the road,
    and drops the primitive bodywork and kit — the art's own aero and
    lamps stand in for them. Wheels are scaled to the primitive's
    diameter so the hub height is unchanged, and mirrored onto the far
    side. The rig API is identical, so nothing that drives, spins, brakes
    or lights the car knows the difference. Rivals (`AGRNRival`) and
    civilians (`AGRNTraffic`) carry the same slot.
+
+What the length is for: the factory fits a hero body by its X extent, so
+the card's `lengthM` is the only thing deciding how big an imported car
+comes out. A pack whose model is not to scale still lands at the right
+size; a car whose card is wrong lands wrong. `check:unreal` now compares
+each rival's car id against the web roster so a rival cannot silently
+lose the car it brings.
 
 The mesh conventions the factory expects: **X forward, Z up**, the body
 standing on Z = 0 after import; the wheel authored with its **axle

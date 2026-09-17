@@ -21,19 +21,38 @@ void AGRNRival::Init(AGRNTrack* InTrack, AGRNVehiclePawn* InPlayer, int32 RivalI
 	Lat = GRNLanes[2];
 	TargetLat = GRNLanes[2];
 
+	// A rival is built at the length on the card of the car they bring,
+	// not at their silhouette's reference. Two rivals can share a
+	// silhouette and be a third of a metre apart — the Sahara V12 and the
+	// Zeta 300 are both zx, 4.62 m against 4.31 — and passing zero here
+	// built every one of them at the reference. Five of the eight were
+	// wrong, the worst by 310 mm, and the width follows the length so
+	// that was wrong with it. It matters most to imported art:
+	// GRNCarFactory fits a Fab or Megascans body so its X extent is
+	// exactly this number.
 	if (Api)
 	{
 		const FGRNRuntimeRival R = Api->GetRival(DefIndex);
+		const FGRNRuntimeCar Car = Api->FindCar(R.CarId);
 		Rig = GRNCarFactory::Build(this, RootComponent, R.Style,
 			FLinearColor(R.BodyColor), /*bWing=*/R.Style == EGRNBodyStyle::GTR,
-			/*bAttackKit=*/false, /*LengthM=*/0.f, &HeroAssets);
+			/*bAttackKit=*/false, /*LengthM=*/Car.LengthM, &HeroAssets);
 	}
 	else
 	{
 		const FGRNRivalDef& Def = GRNRivals[DefIndex];
+		float LengthM = 0.f;
+		for (int32 I = 0; I < GRNCarCount; ++I)
+		{
+			if (FCString::Strcmp(GRNCars[I].Id, Def.CarId) == 0)
+			{
+				LengthM = GRNCars[I].LengthM;
+				break;
+			}
+		}
 		Rig = GRNCarFactory::Build(this, RootComponent, Def.Style,
 			FLinearColor(Def.BodyColor), /*bWing=*/Def.Style == EGRNBodyStyle::GTR,
-			/*bAttackKit=*/false, /*LengthM=*/0.f, &HeroAssets);
+			/*bAttackKit=*/false, /*LengthM=*/LengthM, &HeroAssets);
 	}
 
 	// A legend at the wheel, not an empty car pulling alongside you.

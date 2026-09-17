@@ -51,6 +51,8 @@ struct FGRNRuntimeRival
 	UPROPERTY() float TopSpeedKmh = 240.f;
 	UPROPERTY() int32 PrizeKd = 400;
 	EGRNBodyStyle Style = EGRNBodyStyle::Sedan;
+	/** The showroom car this rival brings — see FGRNRivalDef::CarId. */
+	UPROPERTY() FString CarId;
 };
 
 USTRUCT()
@@ -69,6 +71,14 @@ struct FGRNRuntimeCar
 	EGRNBodyStyle Style = EGRNBodyStyle::Sedan;
 	/** Factory time-attack aero (wing, splitter, bronze wheels). */
 	UPROPERTY() bool bAttackKit = false;
+	/** The length on this car's own card, in metres.
+	 *
+	 *  The baked table (FGRNCarDef) has always carried it and this struct
+	 *  did not, so the live-API path had no length to give the factory
+	 *  and every car it built came out at its silhouette's reference
+	 *  size. It matters most to imported art: GRNCarFactory scales a Fab
+	 *  or Megascans body so its X extent is exactly this. */
+	UPROPERTY() float LengthM = 0.f;
 };
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FGRNOnGameDataReady, bool /*bFromNetwork*/);
@@ -117,6 +127,10 @@ public:
 	FGRNRuntimeRival GetRival(int32 Index) const;
 	int32 NumCars() const;
 	FGRNRuntimeCar GetCar(int32 Index) const;
+	/** The car with this id, by value; LengthM stays 0 when there is no
+	 *  such car, which is the factory's own "use the silhouette's
+	 *  reference" signal. Mirrors rivals.ts's rivalCar(). */
+	FGRNRuntimeCar FindCar(const FString& Id) const;
 	/** Live track control points in UE space, or empty to use the baked ones. */
 	const TArray<FVector>& GetTrackPoints() const { return TrackPoints; }
 
