@@ -6129,7 +6129,11 @@ export class GameEngine {
     // not a camera — so aspect.ts gives back what it safely can and
     // hands the rest here. Only the road-mounted views can take it: a
     // bumper cam is bolted to the shell and has nowhere to go.
-    const reach = this.view === "close" ? 0.62 : 1;
+    // 0.78, not 0.62. This is a fraction of the chase arm, and the arm
+    // just came in from 9.5 m to 6.8 m — at 0.62 the close view would
+    // sit 4.2 m back, inside the 3 m floor tests/views.mjs holds it to
+    // and close enough to be a bumper cam with extra steps.
+    const reach = this.view === "close" ? 0.78 : 1;
     // Tighter while a race is on, and only while a race is on. The
     // letterbox has already restored the reference framing by cutting
     // the picture to 16:9; this is the deliberate extra on top, so the
@@ -6139,12 +6143,31 @@ export class GameEngine {
     const wantRace = this.inBattle ? 1 : 0;
     this.raceFrame += (wantRace - this.raceFrame) * Math.min(1, dt * 2.5);
     const raceTight = 1 + (RACE_DOLLY - 1) * this.raceFrame;
+    // 6.3 m and 2.8 m, from 9.5 and 3.4.
+    //
+    // Measured, not felt: at 110 km/h on a 16:9 window the car spanned
+    // 12% of the frame's width. tools/shots/framing.mjs keeps a chase
+    // camera between 24% and 36% and says why — "below about a fifth
+    // the car stops being the subject of the shot and becomes a detail
+    // in a landscape" — so the shot was at half its own floor.
+    //
+    // It cannot go all the way to that floor from here. tests/views.mjs
+    // pins the chase camera more than 6 m behind the car, and at this
+    // lens 24% needs about 4.4 m. Those two cannot both be satisfied by
+    // distance alone, so this takes the distance as far as the pin
+    // allows and the rest off the lens (views.ts, chase fov 62 -> 55).
+    // Together they roughly double the car in frame.
+    //
+    // Not further. RACE_DOLLY's comment is the counterweight and it is
+    // right: a chase camera still has to show the road the car is about
+    // to be on, and a framing that fills the screen with bodywork is a
+    // photograph rather than something you can drive with.
     const dist =
-      (9.5 + p.speed * 0.02) * reach * chaseDolly(spec.fov, this.camera.aspect) * raceTight;
+      (6.3 + p.speed * 0.02) * reach * chaseDolly(spec.fov, this.camera.aspect) * raceTight;
     this.v4
       .copy(this.v1)
       .addScaledVector(this.v3, -dist)
-      .add(this.v2.set(0, (3.4 + p.speed * 0.007) * (this.view === "close" ? 0.66 : 1), 0));
+      .add(this.v2.set(0, (2.8 + p.speed * 0.007) * (this.view === "close" ? 0.8 : 1), 0));
     if (!this.camInit) {
       this.camInit = true;
       this.camBase.copy(this.v4);

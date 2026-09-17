@@ -49,11 +49,25 @@ const WRITE = !process.argv.includes("--no-shots");
 
 // 16:9 is the reference the game is framed at; the other two are the
 // shapes that stress the aspect curve in both directions.
-const SHAPES = [
+const ALL_SHAPES = [
   { name: "16:9", w: 960, h: 540 },
   { name: "21:9", w: 1120, h: 480 },
   { name: "4:3", w: 800, h: 600 },
 ];
+// --shape=16:9 runs one window instead of three.
+//
+// Three shapes is the right default — the aspect curve in aspect.ts
+// deliberately changes the lens with the window, so a fix that works at
+// 16:9 can undo itself on an ultrawide, and that is the whole reason
+// this measures more than one. But each shape is five views of
+// render-hide-render on whatever GL is available, and on a software
+// rasteriser the full sweep does not finish inside the tool's own
+// timeout: it was killed at 1500 s having printed nothing, because the
+// table prints only once every row is in. One shape is worth far more
+// than no shapes.
+const only = process.argv.find((a) => a.startsWith("--shape="))?.slice(8);
+const SHAPES = only ? ALL_SHAPES.filter((s) => s.name === only) : ALL_SHAPES;
+if (!SHAPES.length) { console.error(`no such shape: ${only}`); process.exit(2); }
 
 const browser = await chromium.launch({
   executablePath: exe,
@@ -185,6 +199,10 @@ for (const shape of SHAPES) {
   }, [WRITE]);
 
   for (const r of out.res) rows.push({ shape: shape.name, ...r });
+  // Say so now rather than at the end. A tool that prints nothing for
+  // twenty minutes is indistinguishable from a hung one, and this one
+  // was assumed hung twice before it was simply slow.
+  console.error(`  ${shape.name} done (${out.res.length} views)`);
   // Progress as it goes. The first version printed nothing until every
   // shape was done, which through a pipe looks identical to a hang —
   // and it was mistaken for one.

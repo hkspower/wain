@@ -46,7 +46,13 @@ export const VIEWS: ReadonlyArray<ViewSpec> = [
     label: "Chase",
     hint: "Behind and high — the whole car, and what it is doing",
     mounted: false,
-    fov: 62,
+    // 55, from 62. The chase camera could not be brought close enough
+    // to put the car in framing.mjs's 24-36% band on distance alone —
+    // tests/views.mjs holds it more than 6 m back — so the remainder
+    // comes off the lens. A narrower lens costs some of the peripheral
+    // rush that sells speed, which is why this is 52 and not 45: 45
+    // would reach the band and read like a telephoto.
+    fov: 52,
     look: 14,
     showsCar: true,
   },
