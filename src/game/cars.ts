@@ -3,7 +3,7 @@ import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferG
 import { EXHAUSTS, FINISHES, kitAtLeast, type ExhaustSpec, type KitLevel, type PaintFinish } from "./mods";
 import { PAINTS, type CarbonLevel } from "./paints";
 import { upgradeCarShells, upgradeWheels, upgradeDriver } from "./models";
-import { arabicUI, latinDisplay, textTexture } from "./text";
+import { arabicUI, arabicSign, latinDisplay, textTexture } from "./text";
 import { kuwaitiDriver } from "./characters";
 import { RIG } from "./rig";
 import { solveDriverRig, lookAheadFor } from "./driver";
@@ -4219,8 +4219,111 @@ export function wheelFinishFor(colors: CarColors, kit: KitLevel): WheelFinish {
 }
 
 /** A livery a car is BUILT with, as opposed to a sticker pack bought for
- *  it in the garage. One so far: the Black Demon's marks. */
-export type Livery = "demon";
+ *  it in the garage: the Black Demon's marks, and a patrol car's. */
+export type Livery = "demon" | "police";
+
+/**
+ * A patrol car, and what it deliberately is NOT.
+ *
+ * The word is شرطة — "police", the common noun, the one painted on the
+ * side of a patrol car in every Arabic-speaking country there is. It is
+ * not a ministry, not a force, not a crest and not an emergency number,
+ * and that is the same decision STREET_NAMES in world.ts records for the
+ * road names: a real institution's markings are a claim about a real
+ * institution, this game cannot check that claim, and a wrong one reads
+ * to a Kuwaiti as a statement about their own city. A generic patrol car
+ * is honest and reads as police anywhere.
+ */
+export const POLICE = {
+  /** The body it is sprayed. Patrol cars are white everywhere. */
+  white: 0xeef1f4,
+  /** The band down the flank, and the bar's two colours. Both lamp
+   *  colours start one channel at zero for the reason TAIL.lensColor
+   *  gives: ACES walks a bright colour toward white, so a lamp with
+   *  headroom in every channel goes white as it brightens instead of
+   *  staying the colour it is. */
+  band: 0x123f7a,
+  red: 0xff0000,
+  blue: 0x0030ff,
+  /** How hard a lamp burns when it is on. Well past 1: this is the
+   *  brightest thing on the road at night and it is meant to bloom. */
+  lampOn: 3.2,
+  lampOff: 0.02,
+  /** Band height and where it sits between the crease and the belt. */
+  bandH: 0.22,
+  /** The bar: half-width as a fraction of the shell's own half-width,
+   *  then its height and depth in metres. */
+  barHalfK: 0.72,
+  barH: 0.1,
+  barD: 0.22,
+} as const;
+
+/**
+ * Which way a patrol car's bar is burning at time `t`.
+ *
+ * One side at a time, two quick pulses each, then over to the other —
+ * which is what a real bar does and what a plain on/off alternation
+ * does not. A pure sine reads as a car with a lamp on a dimmer.
+ *
+ * Pure arithmetic and exported so the pattern can be checked without a
+ * renderer: the engine writes what this returns onto two materials and
+ * has no opinion of its own.
+ */
+export function policeLamps(t: number): { red: number; blue: number } {
+  const CYCLE = 0.94;
+  const u = ((t % CYCLE) + CYCLE) % CYCLE;
+  const half = CYCLE / 2;
+  // Which side has the floor this half-cycle, and how far into it.
+  const onRed = u < half;
+  const v = onRed ? u : u - half;
+  // Two pulses inside the first two thirds of the half, then dark while
+  // the other side goes.
+  const lit = v < 0.1 || (v > 0.16 && v < 0.26);
+  const level = lit ? POLICE.lampOn : POLICE.lampOff;
+  return {
+    red: onRed ? level : POLICE.lampOff,
+    blue: onRed ? POLICE.lampOff : level,
+  };
+}
+
+let policeBandTex: THREE.CanvasTexture | null = null;
+/**
+ * The flank band, with the word in it.
+ *
+ * One texture and therefore one ribbon per flank rather than a band
+ * mesh plus a lettering mesh: a patrol car is traffic, there are
+ * several of them on the road at once, and traffic is built `simple`
+ * precisely because it is not worth two of anything.
+ */
+function policeBandTexture(): THREE.CanvasTexture {
+  if (policeBandTex) return policeBandTex;
+  const W = 1024, H = 128;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#" + POLICE.band.toString(16).padStart(6, "0");
+  g.fillRect(0, 0, W, H);
+  // A hairline top and bottom, which is what stops a flat colour band
+  // reading as a sticker rather than as paint under lacquer.
+  g.fillStyle = "rgba(255,255,255,0.75)";
+  g.fillRect(0, 0, W, 4);
+  g.fillRect(0, H - 4, W, 4);
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.fillStyle = "#f2f5f8";
+  // Arabic above, Latin below — the same order every bilingual surface
+  // in this game uses. Shaped by the browser; the font stack is the
+  // one text.ts already loads for signage.
+  g.font = `700 74px ${arabicSign()}`;
+  g.fillText("شرطة", W / 2, H * 0.34);
+  g.font = `700 40px ${latinDisplay()}`;
+  g.fillText("POLICE", W / 2, H * 0.76);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  policeBandTex = tex;
+  return tex;
+}
 
 /** Hero wheel parts, merged to one geometry per material so a Blender
  *  build can replace each in a single swap (models.ts) — and so four
@@ -6738,6 +6841,100 @@ export function createCar(colors: CarColors): THREE.Group {
     lay(-1.62, 0.55, true, "demon-deck");
   }
 
+  // --- The patrol car.
+  //
+  // Unlike the Demon's, this livery is allowed on a `simple` build,
+  // because `simple` IS the use case: patrol cars are traffic. It costs
+  // two ribbon meshes and one bar, and the band texture is module-level
+  // so the fifth patrol car on the road costs no more than the first.
+  const wearsPolice = colors.livery === "police";
+  if (wearsPolice) {
+    // The band, in the flank's clear lane between the character crease
+    // and the chrome belt — the same lane the Demon's quarter mark uses,
+    // and for the same reason: it is the one stretch of a flank with no
+    // arch through it and no handle on it.
+    const bandMat = new THREE.MeshStandardMaterial({
+      name: "police-band",
+      map: policeBandTexture(),
+      roughness: 0.42,
+      metalness: 0.05,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+    });
+    const bandY = (d.creaseY + d.beltY) / 2;
+    for (const sign of [-1, 1] as const) {
+      // Door to rear quarter. flankRibbon drops any column where the
+      // ray finds no bodywork, so the band ends itself on whichever
+      // silhouette it is put on rather than running off the tail.
+      const geo = flankRibbon(bodyShell, sign, d.tail + 0.3, d.wiperZ - 0.1,
+        bandY, POLICE.bandH, 0.010, 128);
+      if (!geo) continue;
+      const m = new THREE.Mesh(geo, bandMat);
+      m.userData.decal = "police-band";
+      group.add(m);
+    }
+
+    // The bar, just aft of the windscreen header, where one is bolted.
+    //
+    // Off the ROOF SHELL's own extent, not off d.roof. Those are the
+    // profile's control points, not the panel's edges: on the saloon
+    // d.roof[1] is 1.49 while the roof shell actually ends at z 0.41,
+    // and a bar placed from the table landed at z 1.06 and y 0.86 —
+    // 0.65 m forward of the roof and 0.46 m below it, which is the
+    // scuttle. It looked exactly like a light bar bolted to the wiper
+    // cowl, because that is where it was. Same lesson as shellSurface's
+    // header: stop guessing and ask the geometry.
+    rGeo.computeBoundingBox();
+    const roofBox = rGeo.boundingBox!;
+    const barZ = roofBox.max.z - 0.22;
+    const roofY = topSkinY(barZ);
+    const bar = new THREE.Group();
+    bar.position.set(0, roofY, barZ);
+    const halfW = flankX * POLICE.barHalfK;
+    // The feet, and the dark housing between the two lenses. Without a
+    // body the pair of lamps floats above the roof.
+    const shellMat = new THREE.MeshStandardMaterial({
+      name: "police-bar", color: 0x15171c, roughness: 0.55, metalness: 0.3,
+    });
+    const base = new THREE.Mesh(
+      roundedBox(halfW * 2, POLICE.barH * 0.45, POLICE.barD, 0.02), shellMat);
+    base.position.y = POLICE.barH * 0.22;
+    bar.add(base);
+    // Two lenses, each its own material so each patrol car can be on
+    // its own beat — see policeLamps and the engine's flash loop. Shared
+    // materials would cost less and put every bar in the city in step,
+    // which is the one thing real ones never are.
+    const lamp = (color: number) =>
+      new THREE.MeshStandardMaterial({
+        name: "police-lamp",
+        color,
+        emissive: color,
+        emissiveIntensity: POLICE.lampOff,
+        roughness: 0.25,
+        metalness: 0,
+      });
+    const redMat = lamp(POLICE.red);
+    const blueMat = lamp(POLICE.blue);
+    for (const [sx, mat] of [[-1, redMat], [1, blueMat]] as const) {
+      const lens = new THREE.Mesh(
+        roundedBox(halfW * 0.86, POLICE.barH, POLICE.barD * 0.86, 0.02), mat);
+      lens.position.set(sx * halfW * 0.55, POLICE.barH * 0.62, 0);
+      bar.add(lens);
+    }
+    group.add(bar);
+    // What the engine needs to run it, and what a test needs to find it.
+    // The phase is derived from the body colour rather than drawn at
+    // random, for the same reason every other per-car number here is:
+    // the same car built twice has to come out the same car.
+    // What the engine needs to run it, and what a test needs to find it.
+    // The BEAT is not set here: every patrol car is the same white, so
+    // anything derived from the build put all five bars in perfect
+    // lockstep — which the comment on the lamp materials above says is
+    // the one thing real ones never are. Whoever spawns them knows how
+    // many there are and spaces them; this is where it starts.
+    group.userData.police = { bar, red: redMat, blue: blueMat, phase: 0 };
+  }
+
   // The kit's own livery — and a car that came with one of its own does
   // not also get it.
   //
@@ -6752,7 +6949,8 @@ export function createCar(colors: CarColors): THREE.Group {
   // decision the player made and paid for. What gives way is the kit's
   // free default, which is nobody's decision.
   const wearsLivery =
-    colors.stickers || (kitAtLeast(kit, "sport") && !colors.simple && !wearsDemon);
+    colors.stickers ||
+    (kitAtLeast(kit, "sport") && !colors.simple && !wearsDemon && !wearsPolice);
   if (wearsLivery && !colors.simple) {
     // Off the shell's measured flank, not a hand-kept table of the four
     // half-widths. The table happened to be right, but it was a second

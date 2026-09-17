@@ -12,7 +12,7 @@ import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, COAST_FADE_M, STATIONS, FORECOURT, PAINT_SHOPS, PAINT_BAY, LAP, TUNNEL_BOX, LAP_LENGTH } from "./track";
 import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
 import type { Wake } from "./plants";
-import { createCar, crownShell, CROWN, paintMetalness, TAIL, setMaxDecalPx, STYLE_REAL } from "./cars";
+import { createCar, crownShell, CROWN, paintMetalness, TAIL, setMaxDecalPx, STYLE_REAL, POLICE, policeLamps } from "./cars";
 import { RIVALS, RivalDef, rivalCar as rivalCarOf, rivalCarName } from "./rivals";
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
@@ -575,6 +575,9 @@ interface RemotePlayer {
 }
 
 interface TrafficCar {
+  /** A patrol car with its bar running. False on every civilian, and on
+   *  the patrol cars that are simply driving somewhere. */
+  onCall?: boolean;
   body: AiBody;
   mesh: THREE.Group;
   s: number;
@@ -626,9 +629,19 @@ interface Rival {
  *  every in-range driver keeps updating; see solveTrafficDrivers. */
 const TRAFFIC_DRIVER_RANGE = 120;
 const TRAFFIC_DRIVERS_SOLVED = 6;
-/** How far ahead a civilian's steer looks: the heading change over this
- *  stretch of road is what their hands hold. */
-const TRAFFIC_STEER_LOOK_M = 30;
+/** How far ahead an AI driver's steer looks: the heading change over
+ *  this stretch of road is what their hands hold. */
+const AI_STEER_LOOK_M = 30;
+/**
+ * Visible steer per radian of heading change over that stretch.
+ *
+ * An exaggeration, and deliberately one. A 165 m corner really takes
+ * about a degree of steer on a 2.8 m wheelbase; at a degree you cannot
+ * see the wheels move from the car behind, so the road term runs about
+ * ten times life and the lane term (RIG.rival.steerPerLat) is scaled to
+ * match it rather than to life.
+ */
+const AI_STEER_ROAD_GAIN = 2.2;
 
 /**
  * How many civilians share the road.
@@ -1236,6 +1249,44 @@ export class GameEngine {
       wheels[i].rotation.z = solved[i].camber;
     }
   }
+  /**
+   * How far an AI car's wheels are turned, as a fraction of road lock.
+   *
+   * ONE law for the traffic, the rival and every remote player, because
+   * there were three and two of them were missing half the answer.
+   * A car's wheels answer two things:
+   *
+   *   THE ROAD it is following. A car holding its lane through a bend
+   *   still has lock on, and this road bends the whole way round the
+   *   corniche. Only the traffic read this. Measured on the tightest
+   *   corner on the lap (s=3060, radius 165 m), a civilian sat at 10.1
+   *   degrees of lock and the rival — the car you spend a whole race
+   *   looking at from a metre away — sat at 0.0, wheels dead ahead, its
+   *   driver's hands at rest, all the way round.
+   *
+   *   THE LANE it is moving to. Only the rival and the remotes read
+   *   this, and because it was the only thing they read it had been
+   *   tuned to carry the whole animation on its own: a 3.5 m lane
+   *   change peaked at 0.84 of lock, 25 degrees, for pulling out to
+   *   overtake. See RIG.rival.steerPerLat for where 0.1 comes from now
+   *   that the road term is doing the driving.
+   *
+   * Traffic holds its lane, so passing it wantLat === lat leaves its
+   * look exactly as it was — the lane term is zero and the road term is
+   * the expression it already had.
+   *
+   * VISIBLE steer. It drives spinWheels and the driver rig and nothing
+   * else: no AI car's line, speed or physics is decided here.
+   */
+  private aiSteerWant(s: number, lat: number, wantLat: number): number {
+    // The heading the tangent turns through over the next stretch, from
+    // the one curvature law every car reads — the sign is that a
+    // positive curvature turns the heading negative.
+    const road = -this.curvatureAt(s) * AI_STEER_LOOK_M * AI_STEER_ROAD_GAIN;
+    const lane = (wantLat - lat) * RIG.rival.steerPerLat;
+    return THREE.MathUtils.clamp(road + lane, -1, 1);
+  }
+
   /** The angle itself. An accessor rather than a field because the whole
    *  engine — camera, body pose, smoke, sound, the debug surface — reads
    *  and writes it, and the solver needs it in one object. */
@@ -3266,9 +3317,24 @@ export class GameEngine {
 
   private spawnTraffic(count: number): void {
     for (let i = 0; i < count; i++) {
+      // Patrol cars, as a share of the traffic rather than as a system
+      // of their own. They are civilians with a livery and a bar: they
+      // hold a lane, keep to the speed the rest of the road keeps, and
+      // take no interest in what the player is doing. A pursuit is a
+      // gameplay system — a wanted level, a chase AI, somewhere to be
+      // caught — and none of that is what "police cars on the road"
+      // means. It is not here, and it is not half here either.
+      //
+      // Every ninth car, so no two land in the same stretch: five over
+      // 46. Of those, every other one is out on a call with its bar
+      // running; the rest are dark, because most of the patrol cars you
+      // pass at night are.
+      const police = i % 9 === 4;
+      const onCall = police && Math.floor(i / 9) % 2 === 0;
       const mesh = this.trackCar(
         createCar({
-          body: TRAFFIC_COLORS[i % TRAFFIC_COLORS.length],
+          body: police ? POLICE.white : TRAFFIC_COLORS[i % TRAFFIC_COLORS.length],
+          livery: police ? "police" : undefined,
           simple: true,
           // Every player, rival and menu-preview car is fitted to a real
           // lengthM (see createCar); without one a shell falls back to
@@ -3283,6 +3349,13 @@ export class GameEngine {
           lengthM: STYLE_REAL.sedan.l,
         })
       );
+      // Space the bars. The builder cannot do this — every patrol car is
+      // the same white, so anything it derives put all five in perfect
+      // lockstep, which is the one thing a street full of real ones
+      // never is. The golden angle, for the same reason the palm fronds
+      // use it: no two land on the same beat.
+      const pol = mesh.userData.police as { phase: number } | undefined;
+      if (pol) pol.phase = ((i * 0.61803) % 1) * 0.94;
       this.scene.add(mesh);
       this.traffic.push({
         // Civilians are the street sedan with nothing bolted on — the
@@ -3297,6 +3370,7 @@ export class GameEngine {
         accel: 0,
         brakeVis: 0,
         rigDt: 0,
+        onCall,
       });
     }
   }
@@ -5358,6 +5432,19 @@ export class GameEngine {
       // on. Out of the driver budget's range the steer is stale, and
       // held — at 120 m and more that is a wheel nobody can see.
       spinWheels(t.mesh, t.speed, dt, -t.steerVis * HANDLING.roadWheelLock);
+      // The bar. Every frame and at any range, unlike the driver rigs:
+      // a light bar is the one thing on this road you are MEANT to see
+      // from half a kilometre away, and it costs two numbers.
+      const pol = t.mesh.userData.police as
+        | { red: THREE.MeshStandardMaterial; blue: THREE.MeshStandardMaterial; phase: number }
+        | undefined;
+      if (pol) {
+        const lamps = t.onCall
+          ? policeLamps(this.clock.elapsedTime + pol.phase)
+          : { red: POLICE.lampOff, blue: POLICE.lampOff };
+        pol.red.emissiveIntensity = lamps.red;
+        pol.blue.emissiveIntensity = lamps.blue;
+      }
     }
     this.solveTrafficDrivers(dt);
   }
@@ -5411,16 +5498,10 @@ export class GameEngine {
       // been out of range for a minute needs a snap, not a lurch.
       const dtSolve = Math.min(0.25, t.rigDt);
       t.rigDt = 0;
-      // Traffic holds its lane, so there is no lane-change signal to
-      // read — but a car following a curving road still holds lock, and
-      // this road curves. Take the steer from the road itself: the
-      // heading the tangent turns through over the next stretch, from
-      // the one curvature law every car reads (curvatureAt; the sign is
-      // that a positive curvature turns the heading negative). This
-      // used to difference two tangents 30 m apart here — a second
-      // curvature formula beside the player's.
-      const dHead = -this.curvatureAt(t.s) * TRAFFIC_STEER_LOOK_M;
-      const steerWant = THREE.MathUtils.clamp(dHead * 2.2, -1, 1);
+      // Traffic holds its lane, so the lane term is zero and this is
+      // the road term it always had — now stated once, in aiSteerWant,
+      // where the rival and the remotes read it too.
+      const steerWant = this.aiSteerWant(t.s, t.lat, t.lat);
       t.steerVis += (steerWant - t.steerVis) * Math.min(1, dtSolve * RIG.rival.steerRate);
       this.track.pose(
         t.s + lookAheadFor(t.speed),
@@ -5700,7 +5781,10 @@ export class GameEngine {
       // lane blend, a steady cruise throttle, eyes on the road ahead.
       const rig = r.mesh.userData.driver as DriverRig | undefined;
       if (rig) {
-        const steerWant = THREE.MathUtils.clamp((r.snapLat - r.lat) * 0.6, -1, 1);
+        // The lane they are moving to is the one the wire last named.
+        // This was `(snapLat - lat) * 0.6` — a gain of its own, a third
+        // answer to the same question, and no road in it at all.
+        const steerWant = this.aiSteerWant(r.s, r.lat, r.snapLat);
         r.steerVis += (steerWant - r.steerVis) * Math.min(1, dt * RIG.rival.steerRate);
         // The glance. The rival's driver turns to look at you when you
         // pull alongside, and remote drivers did not — a cruiser running
@@ -5753,6 +5837,12 @@ export class GameEngine {
       }
       // After the driver, so the road wheels take this frame's steer.
       spinWheels(r.mesh, r.snapSpeed, dt, -r.steerVis * HANDLING.roadWheelLock);
+      // And their wing, which the player's and the rival's have always
+      // had and a remote's never did: somebody running an attack kit
+      // alongside you had a wing bolted flat to the deck through every
+      // braking zone on the lap. It reads their braking off the same
+      // smoothed pedal their driver's foot uses.
+      poseWing(r.mesh, r.brakeVis, r.snapSpeed, dt);
     }
   }
 
@@ -6734,7 +6824,7 @@ export class GameEngine {
     const rig = r.mesh.userData.driver as DriverRig | undefined;
     if (!rig) return;
     const R = RIG.rival;
-    const steerWant = THREE.MathUtils.clamp((r.targetLat - r.lat) * R.steerPerLat, -1, 1);
+    const steerWant = this.aiSteerWant(r.s, r.lat, r.targetLat);
     r.steerVis += (steerWant - r.steerVis) * Math.min(1, dt * R.steerRate);
     const wantThrottle =
       accel > R.throttleAccel
@@ -7037,6 +7127,11 @@ export class GameEngine {
     (window as unknown as { __grnBuildCar: typeof createCar }).__grnBuildCar = createCar;
     (window as unknown as { __grnCars: typeof CARS }).__grnCars = CARS;
     (window as unknown as { __grnRig: typeof RIG }).__grnRig = RIG;
+    // The patrol car's beat, so a test can check the pattern arithmetic
+    // without a renderer and without restating it.
+    (
+      window as unknown as { __grnPolice: { POLICE: typeof POLICE; policeLamps: typeof policeLamps } }
+    ).__grnPolice = { POLICE, policeLamps };
     // The tuner, so a test can step through the dash and read back what
     // is playing and how it is routed.
     (window as unknown as { __grnRadio: unknown }).__grnRadio = this.radio;

@@ -297,8 +297,29 @@ export const RIG = {
   /** What the rival's driver is seen doing, derived from the AI's own
    *  kinematics rather than from inputs it does not have. */
   rival: {
-    /** Visible steer per metre of lane change still to be taken. */
-    steerPerLat: 0.45,
+    /**
+     * Visible steer per metre of lane change still to be taken.
+     *
+     * 0.45 once, and that was a number tuned to carry a whole steering
+     * animation on its own: the lane change was the ONLY thing a rival's
+     * wheels answered, so it had to be big enough to look like driving.
+     * Measured, a 3.5 m lane change at 25 m/s peaked at 0.84 of road
+     * lock — 25 degrees on the front wheels, against a road lock of 30.
+     * That is a parking manoeuvre, and it happened every time a rival
+     * pulled out to overtake.
+     *
+     * The road term carries the driving now (see aiSteerWant), so this
+     * only has to be worth what a lane change is actually worth. At
+     * 25 m/s, 3.5 m sideways over a couple of seconds is about 1.75
+     * m/s^2, which a 2.8 m wheelbase takes roughly 0.45 degrees of steer
+     * to produce — against the 1.0 degree the 165 m corner takes. So a
+     * lane change should read as under half a corner, and 0.1 puts it
+     * there.
+     *
+     * Visible steer only. This feeds spinWheels and the driver rig; no
+     * AI car's line or speed is decided by it.
+     */
+    steerPerLat: 0.1,
     steerRate: 4,
     pedalRate: 6,
     /** Accel above this (m/s²) reads as throttle, below the negative

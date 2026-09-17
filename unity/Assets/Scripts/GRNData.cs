@@ -900,7 +900,7 @@ public static class GRNData
         public const float DriverGearThrow = 0.42f;
         public const float DriverShiftReach = 0.75f;
         public const float DriverShiftRate = 22f;
-        public const float RivalSteerPerLat = 0.45f;
+        public const float RivalSteerPerLat = 0.1f;
         public const float RivalSteerRate = 4f;
         public const float RivalPedalRate = 6f;
         public const float RivalThrottleAccel = 0.3f;

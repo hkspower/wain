@@ -434,7 +434,7 @@ namespace GRNRig
 	constexpr float DriverGearThrow = 0.42f;
 	constexpr float DriverShiftReach = 0.75f;
 	constexpr float DriverShiftRate = 22.f;
-	constexpr float RivalSteerPerLat = 0.45f;
+	constexpr float RivalSteerPerLat = 0.1f;
 	constexpr float RivalSteerRate = 4.f;
 	constexpr float RivalPedalRate = 6.f;
 	constexpr float RivalThrottleAccel = 0.3f;

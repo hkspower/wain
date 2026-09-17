@@ -1064,7 +1064,7 @@
    "shiftRate": 22
   },
   "rival": {
-   "steerPerLat": 0.45,
+   "steerPerLat": 0.1,
    "steerRate": 4,
    "pedalRate": 6,
    "throttleAccel": 0.3,

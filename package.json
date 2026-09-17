@@ -71,6 +71,7 @@
     "test:shifthand": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/shifthand.mjs",
     "test:driver": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/driver.mjs",
     "test:plants": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/plants.mjs",
+    "test:police": "node tests/police.mjs",
     "test:areas": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/areas.mjs",
     "test:aspect": "node --experimental-strip-types tests/aspect.mjs",
     "test:assets": "node tests/assets.mjs",

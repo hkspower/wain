@@ -1382,6 +1382,67 @@ if (eyes) {
     `a head against its stop is not aiming at anything`);
 }
 
+// --- Every AI car steers for the ROAD, not only for its lane ---------
+//
+// There were three laws for one quantity. The traffic read the road's
+// curvature; the rival and every remote player read only the lane they
+// were moving to — so the car you spend a whole race looking at went
+// round a 165 m corner with its wheels dead ahead and its driver's
+// hands at rest, and then snapped to 25 degrees of lock (road lock is
+// 30) to move over one lane. Measured here against the civilian
+// alongside it, because "the same law" is the claim.
+const steer = await page.evaluate(()=>{
+  const e = window.__grnEngine;
+  e.setPaused(true);
+  let bendS = 0, bendK = 0, flatS = 0, flatK = Infinity;
+  for (let s = 0; s < e.track.length; s += 5) {
+    const k = Math.abs(e.curvatureAt(s));
+    if (k > bendK) { bendK = k; bendS = s; }
+    if (k < flatK) { flatK = k; flatS = s; }
+  }
+  // The rig solve is distance gated, so the player has to be alongside
+  // or nothing is solved and every reading comes back zero.
+  e.player.s = bendS; e.player.lat = 0; e.player.speed = 25;
+  const t = e.traffic[0];
+  t.s = bendS + 12; t.lat = 0; t.speed = 25; t.steerVis = 0; t.rigDt = 0;
+  for (let i = 0; i < 600; i++) { t.s = bendS + 12; t.lat = 0; e.updateTraffic(1 / 60); }
+  const civilian = t.steerVis;
+
+  if (!e.rival) e.spawnRival();
+  const r = e.rival;
+  if (!r) return null;
+  r.s = bendS + 12; r.lat = 0; r.targetLat = 0; r.speed = 25; r.steerVis = 0;
+  for (let i = 0; i < 600; i++) { r.s = bendS + 12; r.lat = 0; r.targetLat = 0; e.animateRivalDriver(r, 0, 1/60); }
+  const rivalBend = r.steerVis;
+
+  // A lane change where the road is straight: the lane term on its own.
+  e.player.s = flatS;
+  r.s = flatS + 12; r.lat = 0; r.targetLat = 3.5; r.steerVis = 0;
+  let lane = 0;
+  for (let i = 0; i < 600; i++) {
+    r.s = flatS + 12;
+    r.lat += (r.targetLat - r.lat) * Math.min(1, (1/60) * 1.2);
+    e.animateRivalDriver(r, 0, 1/60);
+    lane = Math.max(lane, Math.abs(r.steerVis));
+  }
+  return { radius: Math.round(1 / bendK), civilian: +civilian.toFixed(3),
+    rivalBend: +rivalBend.toFixed(3), lane: +lane.toFixed(3) };
+});
+if (steer) {
+  const deg = (v) => (Math.abs(v) * 0.52 * 180 / Math.PI).toFixed(1);
+  console.log(`ai steer      on a ${steer.radius} m corner, same lane, 25 m/s:`);
+  console.log(`              civilian ${steer.civilian} (${deg(steer.civilian)} deg), ` +
+    `rival ${steer.rivalBend} (${deg(steer.rivalBend)} deg)  ` +
+    check(Math.abs(steer.rivalBend) > 0.2,
+      `the rival rounds a ${steer.radius} m corner with ${deg(steer.rivalBend)} deg of lock — its wheels are dead ahead`) + " " +
+    check(Math.abs(Math.abs(steer.rivalBend) - Math.abs(steer.civilian)) < 0.08,
+      `the rival steers ${steer.rivalBend} where the civilian beside it steers ${steer.civilian} — two laws for one road`));
+  console.log(`              lane change on a straight ${steer.lane} (${deg(steer.lane)} deg)  ` +
+    check(steer.lane < Math.abs(steer.rivalBend) * 0.7,
+      `moving over one lane turns the wheels ${deg(steer.lane)} deg against a corner's ${deg(steer.rivalBend)} — ` +
+      `a lane change is not a handbrake turn`));
+}
+
 console.log(fail.length?"\nFAILURES:\n - "+fail.join("\n - "):"\nIK solves, clamps and behaves");
 await b.close();
 process.exit(fail.length?1:0);
