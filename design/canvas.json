@@ -1,12 +1,16 @@
 {
   "artboards": [
     { "file": "Main.dc.html", "x": 0, "y": 0, "w": 880, "h": 560, "title": "Primary lockup" },
-    { "file": "AppMark.dc.html", "x": 940, "y": 0, "w": 760, "h": 560, "title": "App mark" },
-    { "file": "Mono.dc.html", "x": 0, "y": 640, "w": 760, "h": 520, "title": "One colour" },
-    { "file": "Placements.dc.html", "x": 820, "y": 640, "w": 820, "h": 520, "title": "Placements" }
+    { "file": "AppMark.dc.html", "x": 960, "y": 0, "w": 760, "h": 560, "title": "App mark" },
+    { "file": "Mono.dc.html", "x": 1800, "y": 0, "w": 760, "h": 520, "title": "One colour" },
+    { "file": "Placements.dc.html", "x": 0, "y": 680, "w": 820, "h": 520, "title": "Placements" },
+    { "file": "Palette.dc.html", "x": 900, "y": 680, "w": 1180, "h": 870, "title": "Theme · palette" },
+    { "file": "Type.dc.html", "x": 2160, "y": 680, "w": 940, "h": 800, "title": "Theme · type" },
+    { "file": "Surfaces.dc.html", "x": 0, "y": 1680, "w": 1180, "h": 730, "title": "Theme · surfaces" }
   ],
   "annotations": [
-    { "id": "brief", "x": 0, "y": -150, "w": 420, "text": "وين؟ — map + pin + ؟\n\nBuilt from the existing mark in src/components/WainLogo.tsx. The Kuwait silhouette and the pin teardrop are byte-identical to it, on all four artboards.\n\nWhat changed, measured against that file:\n\n• Flat fills instead of gradients, so it holds at 24px.\n\n• The ؟ is redrawn, not copied — arc radius 4.9→5.1, origin 28→27.4, dot r 2→2.05, stroke 3→3.2. Same redraw on all four boards.\n\n• Kuwait carries no white keyline here. The component strokes every edge at 3.5, which is what lets the mark sit on a photo without a container; only Mono's outline version puts an edge back.\n\n• viewBox is cropped tighter: 18 10 84 88 on this board, 22 12 76 78 on the other three, against the component's 14 8 84 92.\n\nNothing here is wired into the site. If a direction is approved it lands in WainLogo.tsx and public/brand/wain-logo.svg." }
+    { "id": "brief", "x": 0, "y": -150, "w": 420, "text": "وين؟ — map + pin + ؟\n\nBuilt from the existing mark in src/components/WainLogo.tsx. The Kuwait silhouette and the pin teardrop are byte-identical to it, on all four artboards.\n\nWhat changed, measured against that file:\n\n• Flat fills instead of gradients, so it holds at 24px.\n\n• The ؟ is redrawn, not copied — arc radius 4.9→5.1, origin 28→27.4, dot r 2→2.05, stroke 3→3.2. Same redraw on all four boards.\n\n• Kuwait carries no white keyline here. The component strokes every edge at 3.5, which is what lets the mark sit on a photo without a container; only Mono's outline version puts an edge back.\n\n• viewBox is cropped tighter: 18 10 84 88 on this board, 22 12 76 78 on the other three, against the component's 14 8 84 92.\n\nNothing here is wired into the site. If a direction is approved it lands in WainLogo.tsx and public/brand/wain-logo.svg." },
+    { "id": "theme", "x": 900, "y": 470, "w": 520, "text": "THE THEME — the three boards below are GENERATED.\n\nPalette, Type and Surfaces are written by `npm run design:boards` straight from src/app/globals.css and WainLogo.tsx. 52 swatches, 11 type steps, 8 category grounds, every value read rather than retyped.\n\nDo not hand-edit them: `npm run scan` runs design:boards:check and fails if they drift from the theme. Change a token, re-run the script, re-seed.\n\nSurfaces is the one to design against. A mark is judged on the eight category grounds at 40px and 24px — not on white, which is the one background the site almost never gives it.\n\nThree floors are enforced by audit and are not negotiable: text never below 11px, tap targets never below 44px, text fields never below 16px." }
   ],
   "launch": { "view": "canvas" }
 }
