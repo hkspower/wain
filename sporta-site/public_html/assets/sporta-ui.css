@@ -1972,6 +1972,44 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
   }
 }
 
+/* ===================== the shop's page gutter, on desktop =================
+ * Asked for on 2026-09-17 as "make alignment and padding for sporta". Measured
+ * across ten pages at 390 and 1280 rather than guessed at, and almost all of it
+ * was already right: every page has a 16px gutter on a phone, nothing scrolls
+ * sideways in either language, and the header, content and footer line up.
+ *
+ * ONE PAGE DISAGREED, on desktop only. The bundle gives every wide container
+ * `px-4 md:px-6`, so they all sit 1.5rem from the edge on a desktop — the home
+ * page's eight, the wishlist's one. /shop's carries `px-4` ALONE:
+ *
+ *     /            max-w-7xl px-4 ... md:px-6     25.2px
+ *     /wishlist    max-w-7xl px-4 py-12 md:px-6   25.2px
+ *     /shop        max-w-7xl px-4 py-12           16.8px   <- the odd one
+ *
+ * 8.4px, on the most-visited page after the home page, so the product grid
+ * steps outwards the moment a shopper leaves the home page and back again when
+ * they return. Small enough that nobody reports it and constant enough to look
+ * like a wobble in the page rather than a bug.
+ *
+ * STATED AS THE RULE THE BUNDLE ALREADY FOLLOWS, not as a patch for one page.
+ * Every other `max-w-7xl` already computes to exactly this, so for them the
+ * declaration changes nothing and for /shop it closes the gap — which makes
+ * this the safest shape available: it cannot misalign a page, it can only make
+ * the outlier agree. A selector naming the shop would fix the symptom and
+ * leave the next page added without `md:px-6` to drift on its own.
+ *
+ * padding-inline rather than left/right: the shop is Arabic by default and
+ * this must mean the same thing in both directions.
+ *
+ * md and up ONLY. The phone gutter is 16px on every page including this one,
+ * and it is correct — the fault is entirely in what `md:px-6` was not applied
+ * to, so the phone must not be touched. */
+@media (min-width: 768px) {
+  main .max-w-7xl {
+    padding-inline: 1.5rem;
+  }
+}
+
 /* ===================== /backends: direction, and one card shape ===========
  * Asked for on 2026-09-17 as "make alignment and padding for backends". Three
  * faults, measured in the panel rather than guessed at.
