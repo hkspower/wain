@@ -1,6 +1,6 @@
 import * as Crypto from 'expo-crypto';
 import { Stack, useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -23,6 +23,7 @@ import { placeOrder, type OrderDraft } from '@/lib/api';
 import { useCart } from '@/lib/cart';
 import { useLang } from '@/lib/i18n';
 import { formatPrice } from '@/lib/money';
+import { KEYS, readJson, remove, writeJson } from '@/lib/storage';
 
 // The ids are the SHOP'S slugs, verified against STORE_GOVERNORATES in
 // store.php. They are what goes on the wire; the labels are only ever shown.
@@ -70,6 +71,46 @@ const newTrackId = () => {
 // never accepted it — see lib/api.ts. tpay is CBK's T-Pay.
 type Payment = 'knet' | 'tpay' | 'cod';
 
+/**
+ * The whole shipping form plus the payment choice, saved on the device so a
+ * returning customer's second order does not mean retyping a name, phone,
+ * email and five address fields it already gave the shop once.
+ *
+ * THE WEBSITE HAS ALREADY DONE THIS. Its checkout carries a "save these
+ * details on this device" box, ticked by default, that persists the address
+ * to localStorage at submit — this mirrors that exact behaviour rather than
+ * inventing a second idea of what "remember me" means on the app.
+ *
+ * NOT `lastOrder`. That key exists already, but it stores only {ref, phone}
+ * for the Wallet card — a different feature with a different shape, and
+ * conflating the two would mean the Wallet's own read guard has to widen to
+ * tolerate fields it never asked for.
+ */
+type SavedCheckoutDetails = {
+  name: string;
+  phone: string;
+  email: string;
+  governorate: string;
+  area: string;
+  block: string;
+  street: string;
+  house: string;
+  notes: string;
+  payment: Payment;
+};
+
+const isSavedCheckoutDetails = (v: unknown): v is SavedCheckoutDetails => {
+  if (!v || typeof v !== 'object') return false;
+  const o = v as Record<string, unknown>;
+  const strKeys: (keyof Omit<SavedCheckoutDetails, 'payment'>)[] = [
+    'name', 'phone', 'email', 'governorate', 'area', 'block', 'street', 'house', 'notes',
+  ];
+  return (
+    strKeys.every((k) => typeof o[k] === 'string') &&
+    (o.payment === 'knet' || o.payment === 'tpay' || o.payment === 'cod')
+  );
+};
+
 export default function CheckoutScreen() {
   const theme = useTheme();
   const router = useRouter();
@@ -92,6 +133,25 @@ export default function CheckoutScreen() {
   const trackId = useRef(newTrackId());
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
+  const [saveDetails, setSaveDetails] = useState(true);
+
+  // Pre-fill from a previous order, once, on the first render. An empty
+  // dependency array rather than watching `form`: this must run exactly
+  // once, or every keystroke would re-read storage and could stomp on
+  // whatever the customer is mid-typing.
+  useEffect(() => {
+    readJson<SavedCheckoutDetails | null>(
+      KEYS.checkoutDetails,
+      (v): v is SavedCheckoutDetails | null => v === null || isSavedCheckoutDetails(v),
+      null,
+    ).then((saved) => {
+      if (!saved) return;
+      const { payment: savedPayment, ...savedForm } = saved;
+      setForm(savedForm);
+      setPayment(savedPayment);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -144,6 +204,14 @@ export default function CheckoutScreen() {
       }
       // Kept for the Wallet card, which needs a phone and one of its orders.
       remember({ ref: placed.ref, phone: phoneDigits });
+      // Saved (or cleared) at the same moment the order lands, the same
+      // point the website's own checkbox commits to localStorage — never
+      // mid-typing, and never for an order that failed to reach the shop.
+      if (saveDetails) {
+        writeJson(KEYS.checkoutDetails, { ...form, payment });
+      } else {
+        remove(KEYS.checkoutDetails);
+      }
       clear();
       router.replace({
         pathname: '/order/[ref]',
@@ -343,6 +411,20 @@ export default function CheckoutScreen() {
               })}
             </View>
 
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: saveDetails }}
+              accessibilityLabel={t.checkout.saveDetails}
+              onPress={() => setSaveDetails((v) => !v)}
+              style={press(false, styles.saveRow, row)}>
+              <ThemedText type="labelBold" themeColor={saveDetails ? 'tintText' : 'text'}>
+                {saveDetails ? '☑' : '☐'}
+              </ThemedText>
+              <ThemedText type="label" style={text}>
+                {t.checkout.saveDetails}
+              </ThemedText>
+            </Pressable>
+
             {error && (
               <ThemedText type="label" themeColor="danger" accessibilityLiveRegion="polite" style={text}>
                 {error}
@@ -387,6 +469,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.card,
   },
   payIcon: { fontSize: 22 },
+  saveRow: { alignItems: 'center', gap: Spacing.two, minHeight: TapTarget, marginTop: Spacing.two },
   // Lifted, not ruled off — the form scrolls under it. The INPUTS keep their
   // borders: a text field with no outline gives a customer nothing to aim at,
   // and this screen is where a mistake costs an order.

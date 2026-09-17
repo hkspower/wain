@@ -53,15 +53,81 @@
  * override. Confirmed by measuring `.scc-go`'s computed height stay at 40px
  * under `pointer: coarse` with this rule present and un-`!important`ed,
  * before adding it fixed the same measurement.
+ *
+ * ------------------------------------------------------- 2026-09-18: EVERY SCREEN
+ *
+ * Asked directly this time — "improve backend text size and icon size and
+ * spacing" — rather than found on the way past. A pass over all fifteen
+ * panel screens (Overview through Security), measured the same way as
+ * above (`hasTouch: true, isMobile: true`, never the fine-pointer default),
+ * found the three controls this file already fixed were the SMALL end of a
+ * much bigger gap: every action button on every screen this shop's owner
+ * actually presses — status filter chips (Orders, Reviews), row actions
+ * ("Edit" on Brands, 27x17), primary buttons ("Add a product/brand/slide",
+ * "Push 46 products", "New discount"), even the "Refresh" and "Show them"
+ * links — sits between 17px and 40px tall. None of it is a redesign: every
+ * one of these buttons keeps its own colour, shape and text; only the
+ * TAPPABLE HEIGHT changes, and only for a thumb.
+ *
+ * A GENERAL RULE, NOT A GROWING LIST OF CLASS NAMES, unlike the three above.
+ * Naming each button individually — the way `.srl-chip`/`.scc-chip`/
+ * `.scc-go` do — is safe on three controls from two files, and stops being
+ * safe at fifteen screens' worth of Tailwind utility combinations that this
+ * repository does not own and cannot enumerate correctly: a button added to
+ * the bundle tomorrow would silently miss a hand-written list the same way
+ * `sw.js`'s own fixed-asset list has drifted more than once. `.admin-shell
+ * button` catches every one of them, present and future, because every
+ * control this pass found IS a `<button>` — confirmed, not assumed, by the
+ * measurement above.
+ *
+ * SAFE TO GROW WITHOUT A ROW-OVERLAP HAZARD, unlike the storefront's
+ * carousel dots. Those sit at a fixed pitch and cannot grow without
+ * overlapping their neighbour, which is why that fix used a transparent
+ * overlay instead of resizing the dot. Every control here lives in ordinary
+ * document flow — a table row, a card, a flex toolbar — so growing one
+ * child's min-height grows the row around it; nothing to overlap.
+ *
+ * `inline-flex` + `align-items: center` + `justify-content: center` is
+ * what keeps a tiny 17px text link ("Edit") from floating at the top of a
+ * suddenly-44px box: without it, the box grows but the text does not
+ * re-centre, which looks like a rendering bug rather than a bigger button.
+ *
+ * THE CHECKBOX LABELS ARE THE SAME GAP IN A DIFFERENT SHAPE. Every bare
+ * `<input type="checkbox">` on the panel is 13-16px, and — checked, not
+ * assumed, per this file's own standing rule about measuring the element a
+ * tap actually lands on — each is wrapped in a `<label>` that is the REAL
+ * target, and that label is only 23px tall. `label:has(> input[...])`
+ * matches the wrapper without needing to touch the checkbox itself.
+ *
+ * THE TEXT-SIZE HALF IS NOT POINTER-GATED, AND THAT IS DELIBERATE. The only
+ * text under 11px anywhere in the panel is `text-[10px]` on the revenue
+ * chart's date-axis labels (Overview) — a readability problem for anyone's
+ * eyes, mouse or thumb, not a touch-target problem, so it applies always.
+ * Scoped to `.admin-shell` because Tailwind compiles that exact utility into
+ * the ONE shared stylesheet the storefront also loads; unscoped, this would
+ * have reached past the panel into whatever else in the shop happens to use
+ * a 10px label.
  */
 ;(function () {
   'use strict'
 
   var CSS = ''
+    + '.admin-shell .text-\\[10px\\] { font-size: 11px; }'
     + '@media (pointer: coarse) {'
     + '  .srl-chip { min-height: 44px !important; }'
     + '  .scc-chip { min-height: 44px !important; }'
     + '  .scc-go   { min-height: 44px !important; }'
+    + '  .admin-shell button {'
+    + '    min-height: 44px;'
+    + '    display: inline-flex;'
+    + '    align-items: center;'
+    + '    justify-content: center;'
+    + '  }'
+    + '  .admin-shell label:has(> input[type="checkbox"]) {'
+    + '    min-height: 44px;'
+    + '    display: flex;'
+    + '    align-items: center;'
+    + '  }'
     + '}'
 
   var onPanel = /^\/backends(\/|$)/.test(location.pathname)

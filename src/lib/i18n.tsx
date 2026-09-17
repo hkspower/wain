@@ -94,6 +94,7 @@ const COPY = {
       working: 'جاري التحويل…',
       required: 'هذا الحقل مطلوب',
       badPhone: 'أدخل رقم كويتي من ٨ أرقام',
+      saveDetails: 'احفظ هذه البيانات على هذا الجهاز',
     },
     order: {
       title: 'تم الطلب',
@@ -244,6 +245,7 @@ const COPY = {
       working: 'Redirecting…',
       required: 'This field is required',
       badPhone: 'Enter an 8-digit Kuwaiti number',
+      saveDetails: 'Save these details on this device',
     },
     order: {
       title: 'Order placed',

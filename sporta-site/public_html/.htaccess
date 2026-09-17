@@ -564,7 +564,9 @@ FileETag MTime Size
   # they are the list catching up, not a file arriving.
   # apple-signin.js is the twenty-first, 2026-09-17 — "Sign in with Apple" on
   # /backends, added in the same commit as the file this time.
-  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|apple-signin|panel-settings|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme|nav-menu|brand-strip|legal-pages|legal-editor|admin-mobile|essentials|payment|assistant-icon|invoices)\.js$">
+  # checkout-tap-targets.js is the twenty-second, 2026-09-18 — bigger touch
+  # targets on /checkout, added in the same commit as the file.
+  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|apple-signin|panel-settings|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme|nav-menu|brand-strip|legal-pages|legal-editor|admin-mobile|essentials|payment|assistant-icon|invoices|checkout-tap-targets)\.js$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 
