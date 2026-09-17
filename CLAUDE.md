@@ -1064,7 +1064,24 @@ by default here — only `psql` is. It looks like a broken suite and is not:
 `PATH="/usr/lib/postgresql/16/bin:$PATH" npm run test:db` passes 27
 assertions. `test:api` needs PHP, which is installed, and passes 40.
 
-**`postcss` is pinned by an `overrides` entry, and that is load-bearing.**
+**The stylesheet is two files now: `theme.css` for `@theme` — every `--color-`,
+`--text-`, `--shadow-` token — and `globals.css` for everything that paints
+with them.** `globals.css` `@import`s it, right after `@import "tailwindcss"`,
+so nothing about how a token resolves changed — Tailwind v4 hoists `@theme`
+from any file reachable by `@import`. Proved rather than assumed: the built
+stylesheet is byte-identical before and after the split, diffed against a
+`git stash` build.
+
+Split because four scripts opened `globals.css` for nothing but its ~90
+tokens and had to skip past ~400 lines of component CSS — the شوق face, the
+call sheet, `.card-defer`, every `@keyframes` — to reach them: `audit:color`,
+`audit:figma`, `design:boards` now read `theme.css` alone. `audit:css` is the
+one exception, and reads **both, concatenated** — it audits the tokens *and*
+the rules that spend them, cross-file (a token declared in `theme.css` and
+used only inside a `globals.css` rule is real, not dead), plus checks that
+live only in `globals.css` — classes, `@keyframes`, the `standalone:` variant.
+Confirmed both directions: a token used only via a cross-file `var()` is not
+flagged dead; the same token with that use deleted is.
 Next 15 depends on 8.4.31; four advisories, one of them high, need 8.5.23 or
 later. `npm audit fix` offers only Next 16, a major upgrade of the framework
 this whole static export is built on, to correct a transitive dependency.

@@ -1,0 +1,287 @@
+/**
+ * Design tokens — the site's @theme block, split out of globals.css.
+ *
+ * Everything below is a --variable Tailwind turns into a utility class
+ * (bg-sea-600, text-2xs, shadow-lg, …). Nothing here paints anything on its
+ * own; globals.css does that — the resets, the component classes, the
+ * animations — and imports this file for the values it paints with.
+ *
+ * Split out because four scripts read this file specifically for its
+ * tokens: audit:color and audit:figma for the colours, design:boards for
+ * colours and type together, audit:css for the full token list plus
+ * everything else in the stylesheet. Each one used to open globals.css and
+ * skip past ~400 lines of component CSS — the شوق face, the call sheet,
+ * card-defer, every @keyframes — to reach the ~90 declarations that were
+ * actually theirs. That is also why the split stops at @theme: everything
+ * past it is a rule, not a token, and belongs where it painted before.
+ *
+ * Tailwind v4 resolves @theme from any file reachable by @import, so this
+ * changes nothing about how a token resolves or what class it produces —
+ * it is a file boundary, not a build change. `npm run scan` proves it:
+ * design:boards:check re-reads the tokens from wherever this file says they
+ * live, and audit:color's palette count is unchanged.
+ */
+@theme {
+  /* The ramp splits in two.
+     50-300 are SURFACES — page canvas, panels, borders. They are white and
+     near-neutral (a trace of warmth keeps them from going clinical blue-grey,
+     but there is no beige cast). Cards are white on white, so sand-200 is
+     the border that defines them and has to stay clearly visible.
+     400-900 are BRAND — the coffee category's gradient and warm text
+     accents — and stay warm on purpose. */
+  --color-sand-50: #ffffff;
+  --color-sand-100: #f6f5f3;
+  --color-sand-200: #e6e4e0;
+  --color-sand-300: #d4d1cb;
+  /* Lines have a different job from surfaces, so they get their own tokens.
+     Card borders were sand-200 — the same value as a fill — which measured
+     1.27:1 against white and 1.17:1 against sand-100. At 4× magnification the
+     border did no work at all: cards were defined by their media panel's fill,
+     not by their edge. These are a step darker, enough to draw the shape
+     without turning a hairline into a rule. */
+  /* Three weights of edge, chosen by how much work the edge does.
+     A card border only has to hint at a seam — the fill already draws the
+     shape — so it stays quiet. A form control has nothing else: the border IS
+     the "type here", which is why WCAG 1.4.11 asks for 3:1 on the boundary of
+     a control and not on decorative lines. */
+  --color-line: #dbd8d2; /* 1.42:1 on white, 1.31:1 on sand-100 — cards, dividers */
+  --color-line-strong: #cdc9c2; /* 1.65:1 — dashed empty states, kbd, card hover */
+  --color-line-control: #928d84; /* 3.30:1 on white, 3.03:1 on sand-100 — inputs, bare buttons */
+
+  --color-sand-400: #dcc287;
+  --color-sand-500: #c9a55f;
+  --color-sand-600: #ad8544;
+  --color-sand-700: #8b6836;
+  --color-sand-800: #6d5230;
+  --color-sand-900: #57422a;
+
+  /* Gulf water — the blue "شنو تدوّر؟" band */
+  --color-sea-50: #eff8fd;
+  --color-sea-100: #daeefa;
+  --color-sea-200: #bce0f5;
+  --color-sea-300: #8dccee;
+  --color-sea-400: #57b0e3;
+  --color-sea-500: #3194d1;
+  --color-sea-600: #2277b4;
+  --color-sea-700: #1e6092;
+  --color-sea-800: #1d5179;
+  --color-sea-900: #1c4565;
+  --color-sea-950: #132c42;
+
+  /* Desert sun — the search dial */
+  --color-sun-50: #fffaeb;
+  --color-sun-100: #fef0c7;
+  --color-sun-200: #fde08a;
+  --color-sun-300: #fccb4d;
+  --color-sun-400: #fbb724;
+  --color-sun-500: #f5960b;
+  --color-sun-600: #d97006;
+  --color-sun-700: #b44e09;
+  --color-sun-800: #923c0e;
+  --color-sun-900: #78320f;
+
+  /* Kuwaiti red — accents and the tagline */
+  --color-coral-50: #fef3f2;
+  --color-coral-100: #fee4e2;
+  --color-coral-200: #fecdca;
+  --color-coral-300: #fdaaa4;
+  --color-coral-400: #f97970;
+  --color-coral-500: #ef4d43;
+  --color-coral-600: #dc2f25;
+  --color-coral-700: #b9241b;
+  --color-coral-800: #99221b;
+  --color-coral-900: #7f231d;
+
+  /* Palm green — flag and foliage */
+  --color-palm-400: #4ba368;
+  --color-palm-500: #2f8a4e;
+  --color-palm-600: #1f6f3d;
+  --color-palm-700: #1b5832;
+  --color-palm-800: #17462a;
+
+  /* Ink — warm near-black for Arabic text.
+     ink-500 carries most secondary copy (taglines, descriptions, metadata),
+     so it is set dark enough to clear WCAG AAA (7:1) on sand-50, sand-100
+     and white rather than only AA. ink-400 keeps the old, lighter value for
+     genuinely tertiary marks that shouldn't compete with body text. */
+  --color-ink-400: #6b6357;
+  --color-ink-500: #585044;
+  --color-ink-600: #4e483f;
+  --color-ink-700: #35302a;
+  --color-ink-800: #221f1b;
+  --color-ink-900: #14120f;
+
+  /* Hero grounds — one hue per category, built rather than picked.
+
+     These pages used to take the category's own ramp, and the ramps were not
+     comparable: coral sat at chroma 0.21 while sea sat at 0.086, so the same
+     design read twice as loud on a restaurant as on a landmark. That is what
+     the monochrome pass was fixing, and it fixed it by removing the hue.
+
+     Here the hue is the only thing that varies. Every ramp is generated at
+     the SAME three OKLCH lightnesses — the exact values of ink-700/800/900,
+     so the black point the monochrome pass established is kept — and at the
+     same chroma at each step (0.070 / 0.060 / 0.048, easing off as the ramp
+     darkens), clamped into sRGB per hue. That is a third of the old
+     saturation and identical across categories by construction.
+
+     White strokes measure 12.8–13.5:1 on stop 1 against 13.1:1 for the ink
+     ground they replace, so the art reads exactly as it did. */
+  --color-hero-landmarks-1: #023550;
+  --color-hero-landmarks-2: #002238;
+  --color-hero-landmarks-3: #001425;
+  --color-hero-restaurants-1: #4f2022;
+  --color-hero-restaurants-2: #371213;
+  --color-hero-restaurants-3: #240809;
+  --color-hero-fastfood-1: #4d240f;
+  --color-hero-fastfood-2: #361404;
+  --color-hero-fastfood-3: #230a01;
+  --color-hero-coffee-1: #422c00;
+  --color-hero-coffee-2: #2d1c00;
+  --color-hero-coffee-3: #1d0f00;
+  --color-hero-outdoors-1: #113a1d;
+  --color-hero-outdoors-2: #04270f;
+  --color-hero-outdoors-3: #011806;
+  --color-hero-shopping-1: #48213c;
+  --color-hero-shopping-2: #321328;
+  --color-hero-shopping-3: #200919;
+  --color-hero-culture-1: #312a52;
+  --color-hero-culture-2: #20193a;
+  --color-hero-culture-3: #120e26;
+  --color-hero-family-1: #003939;
+  --color-hero-family-2: #002626;
+  --color-hero-family-3: #001717;
+
+  /* Category tints — the small end of the same idea.
+     The place marks were locked to one ink colour, so a thumbnail told you
+     WHICH place only after you had read the name. tint is the tile, ink is
+     the mark; built at one lightness and one chroma per role with hue the
+     only variable, exactly like the heroes. Every pair measures 4.5:1+ on
+     its own tile and 5.2:1+ on white, so they clear the graphic bar with
+     room to spare and stay safe if they ever carry text. */
+  --color-cat-landmarks-tint: #dcf0ff;
+  --color-cat-landmarks-ink: #1870a1;
+  --color-cat-restaurants-tint: #ffe6e5;
+  --color-cat-restaurants-ink: #9e4c4e;
+  --color-cat-fastfood-tint: #ffe7dd;
+  --color-cat-fastfood-ink: #9c522e;
+  --color-cat-coffee-tint: #f8ebd7;
+  --color-cat-coffee-ink: #896100;
+  --color-cat-outdoors-tint: #dff3e2;
+  --color-cat-outdoors-ink: #317a45;
+  --color-cat-shopping-tint: #fce5f3;
+  --color-cat-shopping-ink: #924d7d;
+  --color-cat-culture-tint: #eceaff;
+  --color-cat-culture-ink: #695ca3;
+  --color-cat-family-tint: #d7f4f3;
+  --color-cat-family-ink: #007879;
+
+  /* One family, two roles. font-display keeps working everywhere it is
+     already used — it now selects weight, not a different typeface. */
+  --font-display: var(--font-arabic), system-ui, sans-serif;
+  --font-sans: var(--font-arabic), system-ui, sans-serif;
+
+  /* Line height for the display sizes. Tailwind's defaults are tuned for
+     Latin (text-4xl ships 1.11), which is too tight for Arabic: the script
+     has deep descenders (ج ح خ ع م ن ي س ص ق ل) plus dots above and below,
+     so a two-line heading collides. Loosened per step, staying tighter as
+     the type grows the way a type scale should. */
+  /* The step below text-xs, declared rather than improvised.
+
+     It was already a step — twenty-two `text-2xs` scattered across the
+     components, because people kept wanting "a bit smaller than xs" and had
+     nowhere to say it. Written down here it is one decision instead of
+     twenty-two, and the next person reaching for a badge size has something to
+     reach for other than a number.
+
+     It is the floor. Arabic carries meaning in dots and short connecting
+     strokes — ب ت ث ن ي differ by dots alone — and those are the first thing
+     to go as the size drops, so 10px Latin is small where 10px Arabic is
+     ambiguous. Nothing on the site goes below this. */
+  --text-2xs: 0.6875rem; /* 11px — badges, counts, tab labels */
+  --text-2xs--line-height: 1.45;
+
+  /* The three body sizes, which had been left on Tailwind's defaults.
+
+     The rule above — looser as the type gets smaller — was only ever applied
+     from text-lg upward, so the sizes carrying almost all of the site's words
+     were the ones still tuned for Latin: 12px sat at 1.33 and 14px at 1.43,
+     tighter than the 1.6 given to 18px. That is the ladder upside down. The
+     smallest running text is where Arabic's descenders and dots have the least
+     room, and it is where two lines are most likely to touch.
+
+     Measured across five pages: 194 nodes at 12px and 99 at 14px were on the
+     Latin defaults. text-2xs stays at 1.45 and is not part of this curve — it
+     is a badge size, always one line, where the ratio sets a box height rather
+     than the distance between two lines of reading. */
+  /* Compact pass. Every ratio came down, and the ladder above is intact — still
+     looser as the type gets smaller, because that is where Arabic's dots and
+     descenders have the least room.
+
+     The floor is not a number here, it is a collision. 14px carries 492 nodes
+     and 12px carries 518, so those two were moved least: 1.65→1.5 and 1.7→1.55
+     still leave more air than Tailwind's Latin defaults (1.43 and 1.33) that
+     this ladder was built to correct. The display sizes had the most to give
+     and give it: a 46px heading at 1.05 saves more height on its own than
+     every body ratio put together.
+
+     Checked by rendering, not by arithmetic — a ratio that clears the metrics
+     can still collide once a heading wraps to two lines. */
+  --text-xs--line-height: 1.55;
+  --text-sm--line-height: 1.5;
+  --text-base--line-height: 1.5;
+  --text-lg--line-height: 1.4;
+  --text-xl--line-height: 1.3;
+  --text-2xl--line-height: 1.2;
+  --text-3xl--line-height: 1.15;
+  --text-4xl--line-height: 1.1;
+  --text-5xl--line-height: 1.05;
+  --text-6xl--line-height: 1.05;
+
+  /* The display sizes, declared so they can come down.
+
+     They were Tailwind's defaults — 24/30/36/48/60 — and only about eighty
+     nodes on the whole site sit at them, so shrinking them buys little text
+     and a lot of page: these are the sizes that set how much of a screen is
+     spent before the first result. The body end (11 through 20) is deliberately
+     NOT here. It is already near the floor, it carries a thousand nodes, and
+     the audit refuses steps closer than 1.5px apart — dropping base to 17 to
+     save a pixel would collide with lg and buy nothing worth having. */
+  --text-2xl: 1.375rem; /* 22px — was 24 */
+  --text-3xl: 1.625rem; /* 26px — was 30 */
+  --text-4xl: 1.875rem; /* 30px — was 36 */
+  --text-5xl: 2.375rem; /* 38px — was 48 */
+  --text-6xl: 2.875rem; /* 46px — was 60 */
+
+  /* Corner scale. Tailwind's defaults (xl 12 / 2xl 16 / 3xl 24) put a 24px
+     round on every card, which at a 328px mobile card reads soft and toy-like.
+     Tightened one step across the board so edges look precise while the
+     relationship between sizes stays intact. */
+  --radius-lg: 0.625rem; /* 10px — small chips */
+  --radius-xl: 0.75rem; /* 12px — buttons, inputs */
+  --radius-2xl: 0.9375rem; /* 15px — nested tiles */
+  --radius-3xl: 1.25rem; /* 20px — cards, panels */
+
+  /* Shadows modelled on how light actually falls, not a single blur.
+     A real object under overhead light casts two things at once: a tight,
+     relatively dark CONTACT shadow where it meets the surface, and a wide,
+     faint AMBIENT shadow that spreads and fades. Stacking those (three
+     layers once an object is properly raised) gives the smooth falloff a
+     single blur can't, so surfaces read as lifted rather than as stickers
+     with a grey outline. Every layer is tinted with ink (#14120f) because
+     neutral black goes muddy over this palette.
+     Offsets grow faster than blur with elevation — the higher a thing sits,
+     the further its shadow is thrown. */
+  --shadow-2xs: 0 1px rgb(20 18 15 / 0.05);
+  --shadow-xs: 0 1px 1px rgb(20 18 15 / 0.04), 0 1px 2px rgb(20 18 15 / 0.05);
+  --shadow-sm: 0 1px 1px rgb(20 18 15 / 0.05), 0 2px 4px -1px rgb(20 18 15 / 0.07);
+  --shadow-md: 0 1px 2px rgb(20 18 15 / 0.05), 0 4px 8px -2px rgb(20 18 15 / 0.07),
+    0 8px 16px -4px rgb(20 18 15 / 0.05);
+  --shadow-lg: 0 1px 2px rgb(20 18 15 / 0.05), 0 6px 12px -3px rgb(20 18 15 / 0.08),
+    0 16px 28px -8px rgb(20 18 15 / 0.07);
+  --shadow-xl: 0 1px 3px rgb(20 18 15 / 0.05), 0 10px 20px -5px rgb(20 18 15 / 0.09),
+    0 28px 48px -12px rgb(20 18 15 / 0.09);
+  --shadow-2xl: 0 2px 4px rgb(20 18 15 / 0.06), 0 16px 32px -8px rgb(20 18 15 / 0.1),
+    0 40px 72px -16px rgb(20 18 15 / 0.15);
+  --shadow: var(--shadow-sm);
+}

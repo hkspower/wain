@@ -56,7 +56,7 @@ const FORMATS = {
 };
 
 /**
- * The palette, read off globals.css rather than picked again here.
+ * The palette, read off theme.css rather than picked again here.
  *
  * audit:color's finding is that every colour on the site comes from a token;
  * these cards are not audited by it (they are not pages), so the discipline
@@ -250,7 +250,7 @@ function card(c, fmt) {
   <!-- A light wash from the top so the accent art never competes with the
        first line of type, and a deeper one at the foot where the small line
        sits. Both are the card's own ink, not black: neutral black goes muddy
-       over this palette (see the shadow note in globals.css). -->
+       over this palette (see the shadow note in theme.css). -->
   <div style="position:absolute;inset:0;background:linear-gradient(180deg,
        rgba(20,18,15,0.10) 0%, rgba(20,18,15,0) 34%,
        rgba(20,18,15,0) 62%, rgba(20,18,15,0.22) 100%);"></div>

@@ -2,12 +2,12 @@
 /**
  * Is the CSS still what it claims to be?   npm run audit:css
  *
- * One stylesheet, 567 hand-written lines and 120 design tokens, feeding a
- * 90KB Tailwind build. Scanned by hand today it came out clean — no dead
- * tokens, no unused classes, 84% of the shipped bytes used across sixteen
- * routes, every animation covered by the reduced-motion block, the custom
- * `standalone:` variant properly defined for both the media query and iOS's
- * attribute fallback.
+ * Two stylesheets — theme.css for the tokens, globals.css for everything that
+ * paints with them — feeding a 90KB Tailwind build. Scanned by hand it came
+ * out clean — no dead tokens, no unused classes, 84% of the shipped bytes
+ * used across sixteen routes, every animation covered by the reduced-motion
+ * block, the custom `standalone:` variant properly defined for both the media
+ * query and iOS's attribute fallback.
  *
  * None of that was checkable, which is the only reason this file exists. The
  * findings were a good afternoon; the guard is what survives it.
@@ -16,14 +16,23 @@
  * physical-direction utility in a layout does not error, does not warn, and
  * does not look wrong to anyone reading the source in English — it just puts
  * the margin on the wrong side for every visitor.
+ *
+ * Reads both files concatenated, theme.css first — the same order globals.css
+ * @imports it — because every check below needs BOTH halves: a token is
+ * declared in theme.css and spent (or not) in globals.css's own rules just as
+ * often as in a component, and the class/keyframe/standalone-variant checks
+ * only exist in globals.css. Splitting the audit along the file boundary
+ * would mean re-deriving which half a given regex needs; concatenating means
+ * it never has to.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, extname, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const CSS_FILE = join(ROOT, "src/app/globals.css");
-const css = readFileSync(CSS_FILE, "utf8");
+const THEME_FILE = join(ROOT, "src/app/theme.css");
+const GLOBALS_FILE = join(ROOT, "src/app/globals.css");
+const css = readFileSync(THEME_FILE, "utf8") + "\n" + readFileSync(GLOBALS_FILE, "utf8");
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {

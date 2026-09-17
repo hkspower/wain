@@ -18,7 +18,7 @@
  *      44px controls four pixels apart are a segmented control, which is a
  *      pattern rather than a defect — so this only fires when one of the pair
  *      is undersized as well as close.
- *   4. Text below the palette's declared floor. globals.css sets text-2xs at
+ *   4. Text below the palette's declared floor. theme.css sets text-2xs at
  *      11px and says "nothing on the site goes below this" — Arabic carries
  *      meaning in dots and short connecting strokes, so it has further to fall
  *      than Latin. Anything under that is improvised, not chosen.

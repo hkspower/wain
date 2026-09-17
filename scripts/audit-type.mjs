@@ -238,7 +238,7 @@ if (near.length) console.log(`Adjacent steps, worth a glance: ${near.join(", ")}
 console.log(`\nLargest: ${rows[rows.length - 1].size}px — ${[...rows[rows.length - 1].samples][0]}`);
 /* ── leading ───────────────────────────────────────────────────────────────
    Tailwind's defaults are tuned for Latin, and Arabic needs more room: deep
-   descenders plus dots above and below. globals.css declares a value for every
+   descenders plus dots above and below. theme.css declares a value for every
    step for that reason. A body size showing Tailwind's default here means a
    step was added to the scale and never given one. */
 const LATIN_DEFAULTS = { 12: 1.33, 14: 1.43, 16: 1.5, 18: 1.56, 20: 1.4 };

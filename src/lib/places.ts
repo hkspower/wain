@@ -1408,7 +1408,7 @@ const GRADIENT_DIRECTION = [
  * the inconsistency by removing the variable.
  *
  * These ramps are generated instead of picked (see --color-hero-* in
- * globals.css): identical lightness and identical chroma at every step, hue
+ * theme.css): identical lightness and identical chroma at every step, hue
  * the only difference. So the black point and the white-stroke contrast the
  * monochrome pass established both survive, and a category is once again
  * recognisable before you have read anything.

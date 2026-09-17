@@ -4,7 +4,7 @@
  *
  * Writes design/Palette.dc.html, design/Type.dc.html and design/Surfaces.dc.html
  * — the three boards a logo has to be designed against — straight from
- * `src/app/globals.css` and `src/components/WainLogo.tsx`.
+ * `src/app/theme.css` and `src/components/WainLogo.tsx`.
  *
  * GENERATED, for the reason gen-design-system.mjs already gives about the icon
  * set: a specification that is a hand-copy goes on looking authoritative after
@@ -25,7 +25,10 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const CSS = readFileSync(join(ROOT, "src/app/globals.css"), "utf8");
+// theme.css holds the whole @theme block — colours through shadows — split
+// out of globals.css. This script only ever wanted tokens, so it reads the
+// file that is now only tokens.
+const CSS = readFileSync(join(ROOT, "src/app/theme.css"), "utf8");
 const LOGO = readFileSync(join(ROOT, "src/components/WainLogo.tsx"), "utf8");
 const CHECK = process.argv.includes("--check");
 
@@ -37,7 +40,7 @@ for (const m of CSS.matchAll(/^\s*--([a-z0-9-]+):\s*([^;]+);/gim)) {
 }
 const colour = (name) => {
   const v = tokens.get(`color-${name}`);
-  if (!v) throw new Error(`gen-theme-boards: --color-${name} is gone from globals.css`);
+  if (!v) throw new Error(`gen-theme-boards: --color-${name} is gone from theme.css`);
   return v.replace(/\/\*.*$/, "").trim();
 };
 
@@ -137,7 +140,7 @@ const heading = (label, line) =>
 /* Palette ------------------------------------------------------------------ */
 const palette = sheet(1180, 870,
   [heading("Palette · مسمّيات الألوان",
-    "Every value below is read from <code>globals.css</code> at generation time — these are the site's tokens, not an approximation of them. A mark may use sea and coral; sun is the dial's and stays out of it."),
+    "Every value below is read from <code>theme.css</code> at generation time — these are the site's tokens, not an approximation of them. A mark may use sea and coral; sun is the dial's and stays out of it."),
    `  <div style="display:flex; flex-direction:column; gap:18px;">`,
    ...RAMPS.map((r) => `    <div style="display:flex; align-items:center; gap:18px;">
       <div style="width:150px; flex:none;">
@@ -218,7 +221,7 @@ for (const [rel, body] of BOARDS) {
   const path = join(ROOT, rel);
   const current = existsSync(path) ? readFileSync(path, "utf8") : null;
   if (current === body) continue;
-  if (CHECK) { console.error(`✗ ${rel} is out of date with globals.css / WainLogo.tsx`); stale++; continue; }
+  if (CHECK) { console.error(`✗ ${rel} is out of date with theme.css / WainLogo.tsx`); stale++; continue; }
   writeFileSync(path, body);
   console.log(`  wrote ${rel}`);
 }

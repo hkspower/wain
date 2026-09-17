@@ -27,7 +27,7 @@
  * — and this compares today's tokens against that snapshot. It cannot see
  * somebody editing a colour inside Figma, and it says so rather than implying
  * otherwise. It catches the thing that actually happens, which is forty commits
- * of design work landing in `globals.css` while the library sits at the values
+ * of design work landing in `theme.css` while the library sits at the values
  * it was given in August.
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -35,7 +35,9 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const CSS = join(ROOT, "src/app/globals.css");
+// The tokens moved out of globals.css into their own file — see theme.css's
+// header. This script only ever wanted the @theme block, so it follows.
+const CSS = join(ROOT, "src/app/theme.css");
 const SNAPSHOT = join(ROOT, "docs/figma/variables.json");
 
 /**
@@ -63,7 +65,7 @@ const tokens = codeTokens();
 if (!existsSync(SNAPSHOT)) {
   console.log("\n── the Figma library ──");
   console.log(`  ⚠ no snapshot at docs/figma/variables.json, so nothing can be compared.`);
-  console.log(`    ${tokens.size} tokens are defined in src/app/globals.css today.`);
+  console.log(`    ${tokens.size} tokens are defined in src/app/theme.css today.`);
   console.log("");
   console.log("    The snapshot is written by reading the library's variables out of the");
   console.log("    Figma file. Until it exists, «design:check» and «figma:icons:check»");

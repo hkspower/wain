@@ -32,7 +32,9 @@ if (!existsSync(join(OUT, "index.html"))) {
 }
 
 // ---- 1. what the palette declares -----------------------------------------
-const css = readFileSync(join(ROOT, "src/app/globals.css"), "utf8");
+// The @theme block — all --color- tokens — lives in theme.css now, split out
+// of globals.css for the reason theme.css's own header gives.
+const css = readFileSync(join(ROOT, "src/app/theme.css"), "utf8");
 const declared = new Map(); // hex -> [token names]
 for (const m of css.matchAll(/--color-([a-z0-9-]+):\s*(#[0-9a-fA-F]{3,8});/g)) {
   const hex = m[2].toLowerCase();
