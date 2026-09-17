@@ -2,8 +2,9 @@
 import http.server, socketserver, threading, functools, time, json, pathlib
 from playwright.sync_api import sync_playwright
 
-ROOT = "/home/user/wain/almuhallab"
-OUT = pathlib.Path("/home/user/wain/design/shots"); OUT.mkdir(exist_ok=True)
+HERE = pathlib.Path(__file__).resolve().parent
+ROOT = str(HERE.parent / "almuhallab")
+OUT  = HERE / "out" / "shots"; OUT.mkdir(parents=True, exist_ok=True)
 CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
 PORT = 8741; BASE = f"http://127.0.0.1:{PORT}"
 

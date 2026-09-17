@@ -21,12 +21,15 @@ Exit status is 0 when the tree is safe to work on and 1 when it is not, so it
 can gate a script as well as inform a person.
 """
 import subprocess
+import pathlib
 import sys
+
+REPO = pathlib.Path(__file__).resolve().parent.parent
 
 
 def git(*args):
     return subprocess.run(["git", *args], capture_output=True, text=True,
-                          cwd="/home/user/wain").stdout.strip()
+                          cwd=REPO).stdout.strip()
 
 
 def main() -> int:
@@ -38,7 +41,7 @@ def main() -> int:
     # Ask the remote rather than trusting the local ref: a stale
     # origin/<branch> is exactly what makes a reverted checkout look current.
     subprocess.run(["git", "fetch", "--quiet", "origin", branch],
-                   cwd="/home/user/wain",
+                   cwd=REPO,
                    capture_output=True, text=True, timeout=120)
 
     head = git("rev-parse", "HEAD")

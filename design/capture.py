@@ -8,8 +8,9 @@ import http.server, socketserver, threading, functools, time, pathlib
 import json
 from playwright.sync_api import sync_playwright
 
-ROOT = "/home/user/wain/almuhallab"
-OUT = pathlib.Path("/home/user/wain/design/shots"); OUT.mkdir(exist_ok=True)
+HERE = pathlib.Path(__file__).resolve().parent
+ROOT = str(HERE.parent / "almuhallab")
+OUT  = HERE / "out" / "shots"; OUT.mkdir(parents=True, exist_ok=True)
 CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
 PORT = 8731
 BASE = f"http://127.0.0.1:{PORT}"
@@ -26,7 +27,10 @@ shots = []
 def snap(page, name, title, url_label, full=True):
     path = OUT / f"{name}.png"
     page.screenshot(path=str(path), full_page=full)
-    shots.append({"file": str(path), "title": title, "url": url_label})
+    # relative to the repo: this file is committed, and an absolute path
+    # records one machine's layout rather than where the shot actually is
+    shots.append({"file": str(path.relative_to(HERE.parent)),
+                  "title": title, "url": url_label})
     print(f"  captured {name}")
 
 with sync_playwright() as p:
@@ -178,5 +182,5 @@ with sync_playwright() as p:
     browser.close()
 
 httpd.shutdown()
-json.dump(shots, open("/home/user/wain/design/shots/index.json", "w"), ensure_ascii=False, indent=1)
+json.dump(shots, open(OUT / "index.json", "w"), ensure_ascii=False, indent=1)
 print(f"\n{len(shots)} desktop + 3 mobile captures")

@@ -25,7 +25,7 @@ import pathlib
 import re
 import sys
 
-APP = pathlib.Path("/home/user/wain/nokhatha_app/lib")
+APP = pathlib.Path(__file__).resolve().parent.parent / "nokhatha_app" / "lib"
 
 
 class Rule:

@@ -6,15 +6,20 @@ import math, pathlib
 from PIL import Image, ImageDraw, ImageFont
 
 W, H = 3508, 2480                      # A4 landscape @ 300dpi
-D = pathlib.Path("/home/user/wain/design")
-SH = D / "shots"
+# Resolved from this file, never from an absolute path: the checkout is not
+# always at the same place, and an absolute one silently writes nowhere.
+D   = pathlib.Path(__file__).resolve().parent
+OUT = D / "out"                        # everything generated lives under out/
+SH  = OUT / "shots"
+PV  = OUT / "pdf-preview"   # the small page previews, beside the PDF they come from
+PV.mkdir(parents=True, exist_ok=True)
 
 FONTS = "/root/.claude/skills/canvas-design/canvas-fonts/"
 F_DISP = FONTS + "Italiana-Regular.ttf"
 F_TECH = FONTS + "Jura-Light.ttf"
 F_MED  = FONTS + "Jura-Medium.ttf"
 F_MONO = FONTS + "GeistMono-Regular.ttf"
-F_AR   = "/home/user/wain/design/fonts/tajawal-700.ttf"   # Tajawal, the site's own face
+F_AR   = str(D / "fonts" / "tajawal-700.ttf")   # Tajawal, the site's own face
 
 INK        = (11, 18, 32)
 INK_SOFT   = (17, 26, 43)
@@ -234,8 +239,8 @@ ls_text(dr, W - 250, H - 132, "MADE IN KUWAIT", font(F_MONO, 30), MUTED, 3, "rt"
 pages.append(im)
 
 # ------------------------------------------------------------------ SAVE
-out = D / "almuhallab-website-sample.pdf"
+out = OUT / "almuhallab-website-sample.pdf"
 pages[0].save(out, "PDF", resolution=300.0, save_all=True, append_images=pages[1:])
 print(f"{len(pages)} pages -> {out}  ({out.stat().st_size/1e6:.1f} MB)")
 for i, p in enumerate(pages):
-    p.resize((p.width // 5, p.height // 5), Image.LANCZOS).save(D / f"pv-{i:02d}.png")
+    p.resize((p.width // 5, p.height // 5), Image.LANCZOS).save(PV / f"pv-{i:02d}.png")

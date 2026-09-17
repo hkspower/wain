@@ -422,6 +422,20 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - `design/capture.py` drives the site end to end and screenshots every page;
   `design/build_pdf.py` composes those into the PDF sample;
   `design/admin_test.py` exercises the admin console.
+- **Everything generated goes under `design/out/`** — the screenshots, the PDF
+  sample and its page previews, the plate — never loose in `design/` beside the
+  scripts, where the input could not be told from the output. The other folders
+  (`film/`, `ship/`, `logo-pack/`, `instagram/`, `design-system/`, `ads/`,
+  `brand/`) keep their own output beside their own source, because each is a
+  self-contained project rather than a stray file. `design/out/README.md` says
+  which script writes each thing.
+- **A script resolves its paths from its own file**, never from an absolute
+  `/home/user/wain/...`. Nine such literals across `test_suite.py`,
+  `capture.py`, `admin_test.py`, `build_pdf.py`, `plate.py`, `dart_audit.py`
+  and `repo_state.py` meant the suite silently tested a directory that does not
+  exist on any other checkout. The same applies to paths **written into** a
+  committed file: `shots/index.json` recorded one machine's layout until it was
+  made repo-relative.
 - **Dates in generated filings must be computed in UTC** and anchored to the
   first of the opening month. Local-midnight parsing shifts the date east of
   Greenwich, and subtracting months from a 31st overflows into the wrong month.

@@ -3,6 +3,7 @@ SOUNDING LINES — Plate IV
 Rendered at 2x and resampled down, so every hairline lands crisp.
 """
 import math
+import pathlib
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
@@ -240,5 +241,7 @@ arr *= (1 - 0.10 * np.clip(vx ** 2 + vy ** 2 - 0.28, 0, 3))[:, :, None]
 img = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), "RGB")
 
 img = img.resize((W, H), Image.LANCZOS)
-img.save("/home/user/wain/design/sounding-lines-plate-iv.png", "PNG", optimize=True)
+out = pathlib.Path(__file__).resolve().parent / "out" / "sounding-lines-plate-iv.png"
+out.parent.mkdir(parents=True, exist_ok=True)
+img.save(out, "PNG", optimize=True)
 print("saved", img.size)

@@ -1,5 +1,5 @@
 """
-Nokha1 (النوخذة) — full system test.
+النوخذة — full system test.
 
 Static checks, then a real browser exercising every page: arithmetic, generated
 artefacts, auth, hostile input, storage tampering, offline, and layout.
@@ -12,19 +12,21 @@ import yaml
 import xml.etree.ElementTree as ET
 from playwright.sync_api import sync_playwright
 
-ROOT = pathlib.Path("/home/user/wain/almuhallab")
+REPO = pathlib.Path(__file__).resolve().parent.parent
+ROOT = REPO / "almuhallab"
 CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
 PORT = 8751
 BASE = f"http://127.0.0.1:{PORT}"
-# index.html is the Almuhallab Code company site; Nokha1 is a product inside it,
-# entered at nokha1.html. The three service units are tabs of nizam.html, and the
+# index.html is the Almuhallab Code company site; النوخذة is a product inside
+# it, entered at nokhatha.html. The three service units are tabs of nizam.html, and the
 # old unit filenames survive as redirect stubs so existing links keep working.
 PAGES = ["index.html", "nokhatha.html", "nizam.html", "admin.html"]
 STUBS = {"safi.html": "nizam.html#/safi", "xbrl.html": "nizam.html#/xbrl",
          "delivery.html": "nizam.html#/delivery", "nokha1.html": "nokhatha.html"}
 # The extensionless addresses. /x is a RewriteRule in .htaccess, which GitHub
 # Pages ignores, so on that host they exist only because these directories do.
-# There is deliberately no /nokha1/ — the stub file keeps old links alive, but
+# There is deliberately no directory named for the shorthand — the stub file
+# keeps old links alive, but
 # a new directory carrying the shorthand would be introducing it afresh.
 CLEAN = ["nokhatha", "nizam", "admin", "safi", "xbrl", "delivery"]
 
@@ -48,7 +50,7 @@ def supply_chain_checks():
     publish a release and sign a provenance attestation in the company's name;
     whatever runs inside them is trusted by everyone who downloads النوخذة."""
     S = "supply-chain"
-    wf = pathlib.Path("/home/user/wain/.github/workflows")
+    wf = REPO / ".github/workflows"
     files = sorted(wf.glob("*.yml"))
     check(S, "the workflows are where they are expected", len(files) >= 2, str(files))
 
@@ -95,7 +97,7 @@ def supply_chain_checks():
               str(perms))
 
     # a pin nobody updates is a version frozen at its last known bug
-    dep = pathlib.Path("/home/user/wain/.github/dependabot.yml")
+    dep = REPO / ".github/dependabot.yml"
     check(S, "something watches the pinned versions for updates", dep.exists())
     if dep.exists():
         d = yaml.safe_load(dep.read_text())
@@ -105,7 +107,7 @@ def supply_chain_checks():
 
     # GitHub only shows a "report a vulnerability" path if this file is at the
     # root, in docs/, or in .github/ — the real document is one level down
-    root_sec = pathlib.Path("/home/user/wain/SECURITY.md")
+    root_sec = REPO / "SECURITY.md"
     check(S, "a security policy sits where GitHub looks for it", root_sec.exists())
     if root_sec.exists():
         t = root_sec.read_text()
@@ -166,7 +168,7 @@ def https_checks():
     check(S, "it refuses to report over an intercepted connection",
           "REFUSING TO REPORT" in src and "def interception(" in src)
 
-    wf = pathlib.Path("/home/user/wain/.github/workflows/nokhatha-windows.yml").read_text()
+    wf = (REPO / ".github/workflows/nokhatha-windows.yml").read_text()
     data = yaml.safe_load(wf)
     env = data["jobs"]["build"].get("env", {})
     # Both signing routes must be inert until their secrets exist, or a build
@@ -333,7 +335,7 @@ def static_checks():
     home, portal = texts["index.html"], texts["nokhatha.html"]
     check(S, "the root page is the Almuhallab Code company site",
           "Almuhallab Code" in home and "شركة برمجة" in home)
-    check(S, "the root page carries no Nokha1 account UI",
+    check(S, "the root page carries no النوخذة account UI",
           'id="form-register"' not in home and 'id="form-login"' not in home)
     check(S, "the root page leads into النوخذة", 'href="nokhatha.html"' in home)
     check(S, "النوخذة is entered at nokhatha.html", 'id="form-register"' in portal)
@@ -521,8 +523,12 @@ def shorthand_checks():
         except (UnicodeDecodeError, OSError):
             continue
         for i, line in enumerate(src.splitlines(), 1):
-            if re.search(r"nokha1", line, re.I) and not allowed.search(line):
-                if f.name == "test_suite.py":
+            if re.search(r"nokha1", line, re.I) and not allowed.search(line):  # shorthand-literal
+                # This file is the checker, so a few of its lines must carry
+                # the literal. Exempt THOSE LINES, marked one by one — not
+                # the whole file: a blanket exemption hid four lines of prose
+                # here that used the shorthand as the system's own name.
+                if "shorthand-literal" in line:
                     continue
                 offenders.append(f"{f.name}:{i}")
     check(S, "the private shorthand appears in no shipped artefact",
@@ -597,7 +603,7 @@ def identity_checks():
         check(S, f"contact channel kept: {want}", want in home)
     check(S, "no invented contact address", "info@almuhallab-code.com" not in home)
 
-    # "Nokha1" was a private shorthand; the published name is النوخذة
+    # The shorthand was private; the published name is النوخذة
     shown = {p: (ROOT / p).read_text() for p in PAGES}
     # the admin console may name the old storage keys in one place only: the
     # migration that carries an existing console onto the new names
@@ -605,7 +611,8 @@ def identity_checks():
                for p, t in shown.items()}
     check(S, "the legacy key migration is still in place",
           "legacy-key-migration:start" in shown["admin.html"])
-    leaked = [p for p, t in scanned.items() if re.search(r"Nokha1|\bNokha\b", t, re.I)]
+    leaked = [p for p, t in scanned.items()
+              if re.search(r"Nokha1|\bNokha\b", t, re.I)]  # shorthand-literal
     check(S, "the Nokha shorthand appears on no page", not leaked, str(leaked))
     check(S, "the product is named النوخذة", "النوخذة" in shown["index.html"])
 
