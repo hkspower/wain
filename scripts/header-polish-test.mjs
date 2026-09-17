@@ -17,11 +17,10 @@
  * touchscreen anyway since there is no hover state on a phone. A background
  * tint on :hover and :active gives visible feedback either way.
  *
- * THE PROMO/HEADER SEAM: the promo strip (`bg-ink-steel`) and the nav row
- * share one <header>, so painting the header orange left the strip's own
- * opaque dark background sitting on it with a hard edge. A hairline in the
- * shop's own ember ties the two together without changing the strip's own
- * background (its text reads worse on orange).
+ * THE PROMO STRIP no longer exists — removed outright, asked for directly,
+ * after this test's own seam-hairline fix had made it match the nav row
+ * below it. The seam check that used to live here is gone with the element
+ * it measured; there is nothing left to tie together.
  *
  * THE LOGO: "SPORTS WEAR" is baked into logo-white.png/webp, not separate
  * text, so it cannot be resized alone. The whole lockup ships at h-8/md:h-9
@@ -88,16 +87,16 @@ const browser = await chromium.launch({
   await page.close()
 }
 
-/* ------------------------------------------------------------ 2. seam --- */
+/* --------------------------------------------------- 2. the strip is gone */
 {
   const page = await browser.newPage({ viewport: { width: 1280, height: 300 } })
   await page.goto(`${BASE}/?lang=en`, { waitUntil: 'networkidle' })
   await page.waitForTimeout(1000)
-  const border = await page.evaluate(() => {
+  const display = await page.evaluate(() => {
     const p = document.querySelector('header.app-header > p')
-    return getComputedStyle(p).borderBottomWidth + ' ' + getComputedStyle(p).borderBottomStyle
+    return p ? getComputedStyle(p).display : 'absent'
   })
-  check(border === '1px solid', 'the promo strip gets a 1px border, tying it to the header below', border)
+  check(display === 'none' || display === 'absent', 'the promo strip is hidden, not merely re-coloured', display)
   await page.close()
 }
 
@@ -148,5 +147,5 @@ for (const lang of ['en', 'ar']) {
 }
 
 await browser.close()
-console.log(fails ? `\n${fails} failed` : '\nall ok — hover feedback, the promo seam, the bigger logo and the header shadow all land')
+console.log(fails ? `\n${fails} failed` : '\nall ok — hover feedback, the promo strip gone, the bigger logo and the header shadow all land')
 process.exit(fails ? 1 : 0)

@@ -440,20 +440,21 @@
          Measured: 0.0095 of layout shift, entirely from this. */
       body { margin: 0 }
       .boot { min-height: 100vh }
-      .boot-bar  { height: 28px; background: #e0561c }
       /* The header's REAL height, measured, so the sticky header does not push
-         the hero down when it arrives. Phone: 28px promo bar + 60px logo bar +
-         45px nav = 133. The logo bar grows at 640px and then creeps with the
-         fluid root size, so the reserved box grows with it — measured at
-         134/143/147/151 against 133 reserved, i.e. the shell was 10-18px short
-         on every screen above a phone. (An earlier comment here said
-         "57px + 48px"; neither number was ever right.) */
-      .boot-head { height: 105px; background: #2b3138;
+         the hero down when it arrives. There is no boot-bar box any more: the
+         promo strip it reserved room for was removed from the real header
+         (sporta-ui.css hides header.app-header > p), so a separate 28px box
+         above this one would now just be dead space the real header never
+         draws. Measured with the strip gone, phone through 1440px:
+         62 / 70.7 / 71.3 / 72.4 / 74.2 — rounded up rather than down, since a
+         shell a shade taller than reality costs nothing and a shell shorter
+         than reality is the hero jumping. */
+      .boot-head { height: 63px; background: #2b3138;
                    display: flex; align-items: flex-start; justify-content: center }
-      @media (min-width: 640px)  { .boot-head { height: 115px } }
-      @media (min-width: 768px)  { .boot-head { height: 117px } }
-      @media (min-width: 1024px) { .boot-head { height: 119px } }
-      @media (min-width: 1440px) { .boot-head { height: 121px } }
+      @media (min-width: 640px)  { .boot-head { height: 71px } }
+      @media (min-width: 768px)  { .boot-head { height: 72px } }
+      @media (min-width: 1024px) { .boot-head { height: 73px } }
+      @media (min-width: 1440px) { .boot-head { height: 75px } }
       /* 8px top = the real logo bar's padding, so the mark does not move. */
       .boot-head img { height: 32px; width: auto; margin-top: 12px }
       /* --hero-h is set by the script below, from the size the owner chose,
@@ -487,8 +488,9 @@
 
       /* Only ever seen when the shell has become permanent — see the note by
          the <noscript> below. Plain, centred, no dependency on the stylesheet
-         that also did not load. */
-      .boot-msg { position: absolute; inset: 133px 0 auto; padding: 48px 24px;
+         that also did not load. 63px, not the old 133px: that number
+         included the promo bar's own box, which no longer exists. */
+      .boot-msg { position: absolute; inset: 63px 0 auto; padding: 48px 24px;
                   text-align: center; color: #e2dbce; font: 16px/1.6 system-ui, sans-serif }
       .boot-msg code { display: block; margin-top: 16px; font-size: 12px;
                        color: #8a8a8a; word-break: break-all }
@@ -540,7 +542,6 @@
          rather than trading it for speed. -->
     <div id="root">
       <div class="boot" aria-hidden="true">
-        <div class="boot-bar"></div>
         <div class="boot-head">
           <!-- The real header logo, at the size the real header uses. An image
                is CONTENTFUL where a coloured box is not, so this is what lets
@@ -814,5 +815,14 @@
          because a download is a plain navigation. Panel-only; does nothing on
          the storefront or anywhere the order-detail drawer is not open. -->
     <script src="/assets/invoices.js" defer></script>
+
+    <!-- The سبورتا AI launcher and its open panel: a dedicated black-robot
+         icon (carrying the same orange S mark) instead of the site favicon
+         reused as-is. Matched structurally, not by the launcher's
+         aria-label text, which differs between the two languages — see the
+         file's own header for why. Reverts itself if assistant-bot.webp is
+         ever missing: the swap happens only after the new file's own load
+         succeeds. -->
+    <script src="/assets/assistant-icon.js" defer></script>
   </body>
 </html>

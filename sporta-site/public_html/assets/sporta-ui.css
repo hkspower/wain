@@ -1935,16 +1935,22 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
     color: #ffffff !important;
   }
 
-  /* THE PROMO STRIP, MATCHED TO THE NAV ROW. Both bars are charcoal now, so
-     the seam this rule used to paper over (`bg-ink-steel`'s own dark strip
-     sitting on top of what was an orange header) no longer exists — the two
-     are close enough (#2b2b2b vs. #363d45) that a hairline would be visible
-     texture with nothing to explain it. The border is kept as a barely-there
-     divider instead of removed outright, since the promo strip is still a
-     DIFFERENT element underneath, not literally the same background. */
+  /* THE PROMO STRIP, REMOVED — asked for directly. It carried "Delivery
+     within 24 hours in Kuwait · KNET, cards & cash on delivery", and nothing
+     else in the header read it or depended on its content, unlike the main
+     menu (which the footer already duplicates — this strip has no such
+     duplicate, and none was asked for). Plain display:none on the <p>
+     itself, same shape as the menu removal above, rather than deleting the
+     charcoal-matching rule that used to sit here: that rule's whole job was
+     making a VISIBLE strip match the bar above it, which is moot once there
+     is nothing to match.
+     THE BOOT SHELL WAS SIZED FOR THIS BAR — see index.html's own comment by
+     .boot-head — and has been re-measured and shrunk to match the real
+     header's new, shorter height rather than left tall. A shell taller than
+     the header it stands in for is exactly the shell/hero mismatch this
+     project has already paid for once. */
   header.app-header > p {
-    background: #2b2b2b !important;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    display: none !important;
   }
 
   /* THE LOGO LOCKUP IS ONE IMAGE — the "SPORTS WEAR" tagline is baked into
