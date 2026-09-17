@@ -610,6 +610,97 @@ def build_palm():
     return [crown]
 
 
+# ----------------------------------------------------------------- police
+def build_police():
+    """A patrol car's roof bar: a low-profile LED strip, not a beacon.
+
+    The shape is what dates a police car. A pair of rotating domes is
+    nineteen-eighty; what a patrol car carries now is a slim extruded
+    housing running nearly the whole roof width, moulded ends, and a row
+    of individual LED modules behind a flush lens. The runtime fallback
+    in cars.ts is the same silhouette in fewer triangles, so the car does
+    not change shape when this lands.
+
+    Three parts, because the game drives two of them: Bar is the housing
+    and the feet, LampL and LampR are the two lens banks that alternate.
+    Blender is Z-up and the exporter is yup, so Blender X is across the
+    car, Y is fore and aft, and Z is height.
+    """
+    HALF = 0.62     # half the bar's width
+    H = 0.085       # housing height
+    D = 0.17        # housing depth, fore and aft
+    LIFT = 0.028    # how far the feet hold it off the roof
+    parts = []
+
+    # --- the housing, lofted along X with moulded ends
+    rings = []
+    STEPS = 44
+    SEG = 14
+    for i in range(STEPS + 1):
+        t = i / STEPS
+        x = -HALF + 2 * HALF * t
+        # The end caps: the last eighth of each end pulls in and down,
+        # which is what stops an extruded bar reading as a cut length of
+        # gutter.
+        k = min(1.0, min(t, 1 - t) / 0.125) ** 0.55
+        d = D * (0.40 + 0.60 * k)
+        h = H * (0.42 + 0.58 * k)
+        ring = []
+        for j in range(SEG):
+            a = (j / SEG) * math.tau
+            cy, cz = math.cos(a), math.sin(a)
+            # A squared-off section: the exponent is what turns a circle
+            # into a rounded rectangle without a second loft.
+            sy = math.copysign(abs(cy) ** 0.5, cy)
+            sz = math.copysign(abs(cz) ** 0.5, cz)
+            ring.append((x, (d / 2) * sy, LIFT + h / 2 + (h / 2) * sz))
+        rings.append(ring)
+    parts.append(mesh_from_quads("Bar", rings, close_rings=True, cap=True))
+
+    # --- the feet, which are what make it sit ON something
+    for sx in (-1, 1):
+        foot = []
+        for v in (0, 1):
+            foot.append([
+                (sx * HALF * 0.52 - 0.05, -D * 0.28, v * LIFT),
+                (sx * HALF * 0.52 + 0.05, -D * 0.28, v * LIFT),
+                (sx * HALF * 0.52 + 0.05, D * 0.28, v * LIFT),
+                (sx * HALF * 0.52 - 0.05, D * 0.28, v * LIFT),
+            ])
+        parts.append(mesh_from_quads(f"Foot{'L' if sx < 0 else 'R'}", foot,
+                                     close_rings=True, cap=True))
+    # The feet belong to the housing: the game colours Bar dark and drives
+    # the two lens banks, and a foot is not a lamp.
+    housing = join("Bar", parts)
+
+    # --- the lens banks: five modules a side, flush in the front face
+    out = [housing]
+    MODULES = 5
+    for side, name in ((-1, "LampL"), (1, "LampR")):
+        mods = []
+        span = HALF * 0.86
+        for m in range(MODULES):
+            u = (m + 0.5) / MODULES
+            cx = side * (HALF * 0.07 + span * u)
+            w = (span / MODULES) * 0.78
+            rings = []
+            for v in (0, 1):
+                y = -D * 0.5 - 0.004 + v * (D + 0.008)
+                rings.append([
+                    (cx - w / 2, y, LIFT + H * 0.30),
+                    (cx + w / 2, y, LIFT + H * 0.30),
+                    (cx + w / 2, y, LIFT + H * 0.80),
+                    (cx - w / 2, y, LIFT + H * 0.80),
+                ])
+            mods.append(mesh_from_quads(f"{name}M{m}", rings,
+                                        close_rings=True, cap=True))
+        out.append(join(name, mods))
+    for o in out:
+        o.location = (0, 0, 0)
+    bpy.context.view_layer.update()
+    return out
+
+
 # ----------------------------------------------------------------- driver
 # The seated driver's authored parts. Everything here is dimensioned from
 # the rig block in profiles.json — the same numbers src/game/rig.ts hands
@@ -748,8 +839,8 @@ def main():
     # this to four was this default.
     ap.add_argument("--styles", default="sedan,zx,gtr,rx7,hatch,pony,pickup,super")
     ap.add_argument("--quality", default="max", choices=sorted(QUALITY))
-    ap.add_argument("--only", default="cars,wheels,palm,driver",
-                    help="comma-separated subset of cars,wheels,palm,driver")
+    ap.add_argument("--only", default="cars,wheels,palm,police,driver",
+                    help="comma-separated subset of cars,wheels,palm,police,driver")
     args = ap.parse_args(sys.argv[1:])
 
     Q = QUALITY[args.quality]
@@ -776,6 +867,9 @@ def main():
             bpy.ops.wm.read_factory_settings(use_empty=True)
             emit(args.out, f"wheel-{spokes}", build_wheel(spokes), report)
 
+    if "police" in only:
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+        emit(args.out, "police", build_police(), report)
     if "palm" in only:
         bpy.ops.wm.read_factory_settings(use_empty=True)
         emit(args.out, "palm", build_palm(), report)

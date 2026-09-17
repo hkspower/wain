@@ -3333,7 +3333,7 @@ export class GameEngine {
       const onCall = police && Math.floor(i / 9) % 2 === 0;
       const mesh = this.trackCar(
         createCar({
-          body: police ? POLICE.white : TRAFFIC_COLORS[i % TRAFFIC_COLORS.length],
+          body: police ? POLICE.silver : TRAFFIC_COLORS[i % TRAFFIC_COLORS.length],
           livery: police ? "police" : undefined,
           simple: true,
           // Every player, rival and menu-preview car is fitted to a real
@@ -5436,14 +5436,14 @@ export class GameEngine {
       // a light bar is the one thing on this road you are MEANT to see
       // from half a kilometre away, and it costs two numbers.
       const pol = t.mesh.userData.police as
-        | { red: THREE.MeshStandardMaterial; blue: THREE.MeshStandardMaterial; phase: number }
+        | { left: THREE.MeshStandardMaterial; right: THREE.MeshStandardMaterial; phase: number }
         | undefined;
       if (pol) {
         const lamps = t.onCall
           ? policeLamps(this.clock.elapsedTime + pol.phase)
-          : { red: POLICE.lampOff, blue: POLICE.lampOff };
-        pol.red.emissiveIntensity = lamps.red;
-        pol.blue.emissiveIntensity = lamps.blue;
+          : { left: POLICE.lampOff, right: POLICE.lampOff };
+        pol.left.emissiveIntensity = lamps.left;
+        pol.right.emissiveIntensity = lamps.right;
       }
     }
     this.solveTrafficDrivers(dt);

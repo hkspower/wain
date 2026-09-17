@@ -62,9 +62,60 @@ export function nightEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
   moon.position.set(-34, 38, -14);
   env.add(moon);
 
+  // The city, which was not in here at all.
+  //
+  // Everything above is sky, ground and point sources — so a car driving
+  // between towers on Gulf Road reflected a gradient and eight lamps and
+  // nothing else. What a flank actually does in a city at night is carry
+  // the buildings: dark slabs with lit windows sliding along it, broken
+  // by the gaps between them. That travelling break is most of what
+  // reads as "reflective" on a moving car, and a smooth gradient cannot
+  // produce it at any resolution or any envMapIntensity.
+  //
+  // Cheap, because this is baked once into a cubemap and never drawn:
+  // twenty boxes of unlit window texture on a ring outside the lamps.
+  // They are DARKER than the sky behind them, which is the point — a
+  // reflection is a pattern, not a brightness, and the pattern here is
+  // black tower against sodium haze.
+  const winC = document.createElement("canvas");
+  winC.width = 32;
+  winC.height = 64;
+  const wc = winC.getContext("2d")!;
+  wc.fillStyle = "#07080c";
+  wc.fillRect(0, 0, 32, 64);
+  // A deterministic window grid — the same city every bake, because a
+  // reflection that reshuffles between the menu and the road is two
+  // cities.
+  for (let r = 0; r < 16; r++) {
+    for (let cIdx = 0; cIdx < 6; cIdx++) {
+      const lit = ((r * 7 + cIdx * 13) % 11) < 4;
+      if (!lit) continue;
+      // Two window colours: warm interior and cool screen glow.
+      wc.fillStyle = (r + cIdx) % 3 === 0 ? "#443a26" : "#2a3140";
+      wc.fillRect(3 + cIdx * 5, 2 + r * 4, 3, 2);
+    }
+  }
+  const winTex = new THREE.CanvasTexture(winC);
+  winTex.colorSpace = THREE.SRGBColorSpace;
+  const winMat = new THREE.MeshBasicMaterial({ map: winTex });
+  for (let i = 0; i < 20; i++) {
+    const a = (i / 20) * Math.PI * 2 + 0.16;
+    // Heights from one repeating pattern rather than a random draw, for
+    // the same reason the windows are: one city.
+    const h = 26 + ((i * 37) % 5) * 11;
+    const w = 9 + ((i * 17) % 4) * 3;
+    const r = 46 + ((i * 23) % 3) * 6;
+    const block = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), winMat);
+    block.position.set(Math.cos(a) * r, h / 2 - 2, Math.sin(a) * r);
+    block.rotation.y = a;
+    env.add(block);
+  }
+
   const pmrem = new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
-  const tex = pmrem.fromScene(env, 0.02).texture;
+  // far: the dome is at 60 and the towers reach past it on the diagonal,
+  // so the default 100 is not enough to keep them in the bake.
+  const tex = pmrem.fromScene(env, 0.02, 0.1, 200).texture;
   pmrem.dispose();
   domeTex.dispose();
   return tex;

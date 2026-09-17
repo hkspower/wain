@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { EXHAUSTS, FINISHES, kitAtLeast, type ExhaustSpec, type KitLevel, type PaintFinish } from "./mods";
 import { PAINTS, type CarbonLevel } from "./paints";
-import { upgradeCarShells, upgradeWheels, upgradeDriver } from "./models";
+import { upgradeCarShells, upgradeWheels, upgradeDriver, upgradePoliceBar } from "./models";
 import { arabicUI, arabicSign, latinDisplay, textTexture } from "./text";
 import { kuwaitiDriver } from "./characters";
 import { RIG } from "./rig";
@@ -3417,7 +3417,21 @@ function flankRibbon(
   yMid: number,
   height: number,
   standoff: number,
-  samples = 96
+  samples = 96,
+  /**
+   * Run u the other way.
+   *
+   * u is nose-consistent by default — 0 at the tail, 1 at the nose on
+   * BOTH flanks — which is right for a wedge or a mark, whose point
+   * should land on the front wing whichever side it is on. It is wrong
+   * for TYPE: the same texture on the two flanks comes out reading
+   * front-to-back on one and back-to-front on the other, and the patrol
+   * car's near side came out of the render with POLICE spelled
+   * backwards. The sticker pack's own sheet states the rule this
+   * restores — the far side is the same artwork mirrored, so a wordmark
+   * reads front-to-back on both flanks.
+   */
+  mirrorU = false
 ): THREE.BufferGeometry | null {
   const ray = new THREE.Raycaster();
   ray.far = 60;
@@ -3453,7 +3467,8 @@ function flankRibbon(
     pos[i * 6 + 3] = c.xb + off; pos[i * 6 + 4] = yBot; pos[i * 6 + 5] = c.z;
     // u runs 0 at the tail to 1 at the nose so the artwork's point lands
     // on the front wing whichever way the samples were walked.
-    const u = (c.z - zFirst) / span;
+    const raw = (c.z - zFirst) / span;
+    const u = mirrorU ? 1 - raw : raw;
     uv[i * 4 + 0] = u; uv[i * 4 + 1] = 1;
     uv[i * 4 + 2] = u; uv[i * 4 + 3] = 0;
   }
@@ -4235,27 +4250,50 @@ export type Livery = "demon" | "police";
  * is honest and reads as police anywhere.
  */
 export const POLICE = {
-  /** The body it is sprayed. Patrol cars are white everywhere. */
-  white: 0xeef1f4,
-  /** The band down the flank, and the bar's two colours. Both lamp
-   *  colours start one channel at zero for the reason TAIL.lensColor
-   *  gives: ACES walks a bright colour toward white, so a lamp with
-   *  headroom in every channel goes white as it brightens instead of
-   *  staying the colour it is. */
-  band: 0x123f7a,
-  red: 0xff0000,
+  /**
+   * Silver, not white. A modern patrol car is a light metallic with the
+   * livery laid over it, and the difference is not pedantry: white paint
+   * has almost no metalness (see paintMetalness) so it reflects nothing
+   * and reads as a flat cutout at night, while a light silver keeps a
+   * reflection running along the flank as the car turns. It is also what
+   * the reference this was rebuilt against actually is.
+   */
+  silver: 0xd3d8de,
+  /**
+   * The wrap.
+   *
+   * Two greens rather than one: the wrap is a printed vinyl with a
+   * darker core and a brighter leading edge, which is what gives it an
+   * edge you can see across a lane at night instead of a flat slab.
+   */
+  green: 0x00873c,
+  greenLit: 0x18b257,
+  /** Both lamp colours start one channel at zero for the reason
+   *  TAIL.lensColor gives: ACES walks a bright colour toward white, so a
+   *  lamp with headroom in every channel goes white as it brightens
+   *  instead of staying the colour it is. */
   blue: 0x0030ff,
   /** How hard a lamp burns when it is on. Well past 1: this is the
    *  brightest thing on the road at night and it is meant to bloom. */
   lampOn: 3.2,
   lampOff: 0.02,
-  /** Band height and where it sits between the crease and the belt. */
-  bandH: 0.22,
-  /** The bar: half-width as a fraction of the shell's own half-width,
-   *  then its height and depth in metres. */
-  barHalfK: 0.72,
-  barH: 0.1,
-  barD: 0.22,
+  /**
+   * How tall the wrap is, and where it sits.
+   *
+   * 0.22 m once, which is a pinstripe: on the render it read as a
+   * bootlace with unreadable type on it. A real patrol wrap covers most
+   * of the door — from under the glass to the sill — and the lettering
+   * inside it is the height of a hand. This is most of the flank's
+   * clear lane, and the type is sized off the wrap rather than typed in.
+   */
+  bandH: 0.46,
+  /** The bar, matching the authored one in tools/blender: a low-profile
+   *  strip, not a beacon. Half-width as a fraction of the shell's own
+   *  half-width, then height and depth in metres. */
+  barHalfK: 0.74,
+  barH: 0.085,
+  barD: 0.17,
+  barLift: 0.028,
 } as const;
 
 /**
@@ -4265,11 +4303,16 @@ export const POLICE = {
  * which is what a real bar does and what a plain on/off alternation
  * does not. A pure sine reads as a car with a lamp on a dimmer.
  *
+ * Left and right, not red and blue. Both banks are the same blue now:
+ * a two-colour bar is a North American convention and the car this was
+ * rebuilt against runs blue on both ends, which is also what reads as
+ * one light bar rather than as two separate lamps bolted together.
+ *
  * Pure arithmetic and exported so the pattern can be checked without a
  * renderer: the engine writes what this returns onto two materials and
  * has no opinion of its own.
  */
-export function policeLamps(t: number): { red: number; blue: number } {
+export function policeLamps(t: number): { left: number; right: number } {
   const CYCLE = 0.94;
   const u = ((t % CYCLE) + CYCLE) % CYCLE;
   const half = CYCLE / 2;
@@ -4281,43 +4324,90 @@ export function policeLamps(t: number): { red: number; blue: number } {
   const lit = v < 0.1 || (v > 0.16 && v < 0.26);
   const level = lit ? POLICE.lampOn : POLICE.lampOff;
   return {
-    red: onRed ? level : POLICE.lampOff,
-    blue: onRed ? POLICE.lampOff : level,
+    left: onRed ? level : POLICE.lampOff,
+    right: onRed ? POLICE.lampOff : level,
   };
 }
 
 let policeBandTex: THREE.CanvasTexture | null = null;
 /**
- * The flank band, with the word in it.
+ * The flank wrap, with the word in it.
  *
- * One texture and therefore one ribbon per flank rather than a band
- * mesh plus a lettering mesh: a patrol car is traffic, there are
- * several of them on the road at once, and traffic is built `simple`
- * precisely because it is not worth two of anything.
+ * One texture and therefore one ribbon per flank rather than a wrap mesh
+ * plus a lettering mesh: a patrol car is traffic, there are several of
+ * them on the road at once, and traffic is built `simple` precisely
+ * because it is not worth two of anything.
+ *
+ * The SHAPE is in the alpha, not in the geometry. A patrol wrap is not a
+ * rectangle — it sweeps: low and thin at the nose, deep through the
+ * doors, kicking up over the rear arch. Cutting that out of the texture
+ * costs nothing and is the difference between a livery and a stripe,
+ * and it means the ribbon underneath stays the simple constant-height
+ * band that flankRibbon is good at.
  */
 function policeBandTexture(): THREE.CanvasTexture {
   if (policeBandTex) return policeBandTex;
-  const W = 1024, H = 128;
+  const W = 2048, H = 256;
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
   const g = c.getContext("2d")!;
-  g.fillStyle = "#" + POLICE.band.toString(16).padStart(6, "0");
+  g.clearRect(0, 0, W, H);
+  const hex = (n: number) => "#" + n.toString(16).padStart(6, "0");
+  // u runs 0 at the TAIL to 1 at the NOSE — flankRibbon's own convention.
+  // The wrap's top and bottom edge as a function of u, in texture rows.
+  const topAt = (u: number) => H * (0.66 - 0.60 * Math.pow(u, 1.7));
+  const botAt = (u: number) => H * (1.04 - 0.30 * Math.pow(u, 2.4));
+  const sweep = (off: number) => {
+    g.beginPath();
+    for (let i = 0; i <= 128; i++) {
+      const u = i / 128;
+      g.lineTo(u * W, topAt(u) + off);
+    }
+    for (let i = 128; i >= 0; i--) {
+      const u = i / 128;
+      g.lineTo(u * W, botAt(u));
+    }
+    g.closePath();
+  };
+  // The body of the wrap, then a brighter leading edge along its top.
+  sweep(0);
+  g.fillStyle = hex(POLICE.green);
+  g.fill();
+  g.save();
+  sweep(0);
+  g.clip();
+  sweep(H * 0.085);
+  g.fillStyle = hex(POLICE.greenLit);
+  g.globalCompositeOperation = "destination-over";
   g.fillRect(0, 0, W, H);
-  // A hairline top and bottom, which is what stops a flat colour band
-  // reading as a sticker rather than as paint under lacquer.
-  g.fillStyle = "rgba(255,255,255,0.75)";
-  g.fillRect(0, 0, W, 4);
-  g.fillRect(0, H - 4, W, 4);
+  g.restore();
+  // A white hairline on top of the sweep, which is what a printed wrap
+  // has and what stops the green meeting the silver in a muddy seam.
+  g.beginPath();
+  for (let i = 0; i <= 128; i++) {
+    const u = i / 128;
+    g.lineTo(u * W, topAt(u));
+  }
+  g.strokeStyle = "rgba(255,255,255,0.85)";
+  g.lineWidth = 5;
+  g.stroke();
+
+  // The word, sized off the wrap rather than typed in: as tall as the
+  // wrap is deep at the door, which is where it goes on a real one.
+  const uWord = 0.46;
+  const cx = uWord * W;
+  const top = topAt(uWord), bot = botAt(uWord);
+  const deep = bot - top;
   g.textAlign = "center";
   g.textBaseline = "middle";
-  g.fillStyle = "#f2f5f8";
+  g.fillStyle = "#ffffff";
   // Arabic above, Latin below — the same order every bilingual surface
-  // in this game uses. Shaped by the browser; the font stack is the
-  // one text.ts already loads for signage.
-  g.font = `700 74px ${arabicSign()}`;
-  g.fillText("شرطة", W / 2, H * 0.34);
-  g.font = `700 40px ${latinDisplay()}`;
-  g.fillText("POLICE", W / 2, H * 0.76);
+  // in this game uses.
+  g.font = `700 ${Math.round(deep * 0.46)}px ${arabicSign()}`;
+  g.fillText("شرطة", cx, top + deep * 0.34);
+  g.font = `700 ${Math.round(deep * 0.30)}px ${latinDisplay()}`;
+  g.fillText("POLICE", cx, top + deep * 0.72);
+
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
@@ -6849,90 +6939,121 @@ export function createCar(colors: CarColors): THREE.Group {
   // so the fifth patrol car on the road costs no more than the first.
   const wearsPolice = colors.livery === "police";
   if (wearsPolice) {
-    // The band, in the flank's clear lane between the character crease
-    // and the chrome belt — the same lane the Demon's quarter mark uses,
-    // and for the same reason: it is the one stretch of a flank with no
-    // arch through it and no handle on it.
+    // The wrap, in the flank's clear lane. The SHAPE of it is cut out of
+    // the texture's alpha (policeBandTexture) — a patrol wrap sweeps, and
+    // cutting the sweep out of a constant-height ribbon is free, where
+    // building it into geometry is a second law to keep in step with the
+    // eight silhouettes flankRibbon already handles.
     const bandMat = new THREE.MeshStandardMaterial({
       name: "police-band",
       map: policeBandTexture(),
-      roughness: 0.42,
-      metalness: 0.05,
+      transparent: true,
+      alphaTest: 0.35,
+      roughness: 0.34,
+      metalness: 0.06,
+      // Printed vinyl over paint. It is not as wet as the lacquer around
+      // it, but it is not matte either, and with no envMapIntensity of
+      // its own it was the one surface on the car reflecting nothing.
+      envMapIntensity: 1.15,
       polygonOffset: true,
       polygonOffsetFactor: -2,
     });
-    const bandY = (d.creaseY + d.beltY) / 2;
+    // How DEEP the wrap is, asked of the body rather than typed in.
+    //
+    // POLICE.bandH is what it wants, and 0.46 m is most of a door — but
+    // the flank's clear lane between the crease and the belt is 0.23 m
+    // on the saloon, so a band asked for at its full depth put its top
+    // edge up in the glasshouse, flankRibbon found no bodywork to follow
+    // and BOTH flanks came out with no wrap at all. That is the same
+    // failure the Demon's quarter mark records two hundred lines up, and
+    // the same cure: try the depths largest first and wear the first one
+    // the panel accepts. Eight bodies, no table.
+    //
+    // Anchored from the TOP, just under the belt, so the wrap fills the
+    // door downward the way a real one does instead of floating in the
+    // middle of the flank.
     for (const sign of [-1, 1] as const) {
-      // Door to rear quarter. flankRibbon drops any column where the
-      // ray finds no bodywork, so the band ends itself on whichever
-      // silhouette it is put on rather than running off the tail.
-      const geo = flankRibbon(bodyShell, sign, d.tail + 0.3, d.wiperZ - 0.1,
-        bandY, POLICE.bandH, 0.010, 128);
-      if (!geo) continue;
-      const m = new THREE.Mesh(geo, bandMat);
-      m.userData.decal = "police-band";
-      group.add(m);
+      for (const h of [POLICE.bandH, 0.4, 0.34, 0.28, 0.22, 0.17]) {
+        const bandY = d.beltY - 0.035 - h / 2;
+        // Nose to tail: the sweep needs the length to sweep over, and
+        // flankRibbon drops any column where the ray finds no bodywork,
+        // so it still ends itself on whichever silhouette it is put on.
+        const geo = flankRibbon(bodyShell, sign, d.tail + 0.16, d.nose - 0.2,
+          bandY, h, 0.010, 160, sign > 0);
+        if (!geo) continue;
+        const m = new THREE.Mesh(geo, bandMat);
+        m.userData.decal = "police-band";
+        group.add(m);
+        break;
+      }
     }
 
-    // The bar, just aft of the windscreen header, where one is bolted.
-    //
-    // Off the ROOF SHELL's own extent, not off d.roof. Those are the
-    // profile's control points, not the panel's edges: on the saloon
-    // d.roof[1] is 1.49 while the roof shell actually ends at z 0.41,
-    // and a bar placed from the table landed at z 1.06 and y 0.86 —
-    // 0.65 m forward of the roof and 0.46 m below it, which is the
-    // scuttle. It looked exactly like a light bar bolted to the wiper
-    // cowl, because that is where it was. Same lesson as shellSurface's
-    // header: stop guessing and ask the geometry.
+    // The bar, off the ROOF SHELL's own extent — not off d.roof, which
+    // are the profile's control points rather than the panel's edges. On
+    // the saloon d.roof[1] is 1.49 and the roof shell ends at 0.41, so a
+    // bar placed from the table landed on the wiper cowl.
     rGeo.computeBoundingBox();
     const roofBox = rGeo.boundingBox!;
-    const barZ = roofBox.max.z - 0.22;
+    const barZ = roofBox.max.z - 0.26;
     const roofY = topSkinY(barZ);
     const bar = new THREE.Group();
     bar.position.set(0, roofY, barZ);
     const halfW = flankX * POLICE.barHalfK;
-    // The feet, and the dark housing between the two lenses. Without a
-    // body the pair of lamps floats above the roof.
+    // A low-profile strip, the same silhouette as the authored bar in
+    // tools/blender/build_assets.py, so the car does not change shape
+    // when that lands. Every mesh says which authored part it is.
     const shellMat = new THREE.MeshStandardMaterial({
-      name: "police-bar", color: 0x15171c, roughness: 0.55, metalness: 0.3,
+      name: "police-bar",
+      color: 0x15171c,
+      roughness: 0.3,
+      metalness: 0.5,
+      envMapIntensity: 1.4,
     });
-    const base = new THREE.Mesh(
-      roundedBox(halfW * 2, POLICE.barH * 0.45, POLICE.barD, 0.02), shellMat);
-    base.position.y = POLICE.barH * 0.22;
-    bar.add(base);
-    // Two lenses, each its own material so each patrol car can be on
-    // its own beat — see policeLamps and the engine's flash loop. Shared
-    // materials would cost less and put every bar in the city in step,
-    // which is the one thing real ones never are.
-    const lamp = (color: number) =>
+    const housing = new THREE.Mesh(
+      roundedBox(halfW * 2, POLICE.barH, POLICE.barD, 0.028), shellMat);
+    housing.position.y = POLICE.barLift + POLICE.barH / 2;
+    housing.userData.barPart = "bar";
+    bar.add(housing);
+    for (const sx of [-1, 1] as const) {
+      const foot = new THREE.Mesh(
+        roundedBox(0.1, POLICE.barLift, POLICE.barD * 0.56, 0.01), shellMat);
+      foot.position.set(sx * halfW * 0.52, POLICE.barLift / 2, 0);
+      bar.add(foot);
+    }
+    // Two lens banks, each its own material so each patrol car can be on
+    // its own beat. Shared materials would cost less and put every bar
+    // in the city in step, which real ones never are.
+    const lamp = () =>
       new THREE.MeshStandardMaterial({
         name: "police-lamp",
-        color,
-        emissive: color,
+        color: POLICE.blue,
+        emissive: POLICE.blue,
         emissiveIntensity: POLICE.lampOff,
-        roughness: 0.25,
+        // A lens is moulded acrylic: it reflects the street even when it
+        // is dark, which is most of the time.
+        roughness: 0.12,
         metalness: 0,
+        envMapIntensity: 1.6,
       });
-    const redMat = lamp(POLICE.red);
-    const blueMat = lamp(POLICE.blue);
-    for (const [sx, mat] of [[-1, redMat], [1, blueMat]] as const) {
+    const leftMat = lamp();
+    const rightMat = lamp();
+    for (const [sx, mat, part] of [[-1, leftMat, "lampl"], [1, rightMat, "lampr"]] as const) {
       const lens = new THREE.Mesh(
-        roundedBox(halfW * 0.86, POLICE.barH, POLICE.barD * 0.86, 0.02), mat);
-      lens.position.set(sx * halfW * 0.55, POLICE.barH * 0.62, 0);
+        roundedBox(halfW * 0.86, POLICE.barH * 0.5, POLICE.barD * 1.04, 0.012), mat);
+      lens.position.set(sx * halfW * 0.5, POLICE.barLift + POLICE.barH * 0.55, 0);
+      lens.userData.barPart = part;
       bar.add(lens);
     }
     group.add(bar);
+    // The authored bar, when it arrives. A geometry swap per part; the
+    // game keeps owning the materials, so the beat carries on running
+    // through it without noticing.
+    void upgradePoliceBar(bar);
     // What the engine needs to run it, and what a test needs to find it.
-    // The phase is derived from the body colour rather than drawn at
-    // random, for the same reason every other per-car number here is:
-    // the same car built twice has to come out the same car.
-    // What the engine needs to run it, and what a test needs to find it.
-    // The BEAT is not set here: every patrol car is the same white, so
-    // anything derived from the build put all five bars in perfect
-    // lockstep — which the comment on the lamp materials above says is
-    // the one thing real ones never are. Whoever spawns them knows how
-    // many there are and spaces them; this is where it starts.
-    group.userData.police = { bar, red: redMat, blue: blueMat, phase: 0 };
+    // The BEAT is not set here: every patrol car is the same silver, so
+    // anything derived from the build put all five bars in lockstep.
+    // Whoever spawns them knows how many there are and spaces them.
+    group.userData.police = { bar, left: leftMat, right: rightMat, phase: 0 };
   }
 
   // The kit's own livery — and a car that came with one of its own does

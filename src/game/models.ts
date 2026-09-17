@@ -458,6 +458,40 @@ export function upgradeDriver(group: THREE.Object3D): void {
 }
 
 /**
+ * Upgrade a patrol car's roof bar.
+ *
+ * Three parts and two of them are driven: the housing plus its feet, and
+ * the two lens banks the engine alternates. Each mesh says which it is
+ * in userData, so this is a geometry swap and nothing else — the game
+ * keeps owning the materials, which is the same deal every other part in
+ * this file has.
+ */
+export function upgradePoliceBar(bar: THREE.Object3D): Promise<boolean> {
+  return parts("police").then((kit) => {
+    if (!kit) return false;
+    let swapped = 0;
+    bar.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      const slot = mesh.userData?.barPart as string | undefined;
+      if (!mesh.isMesh || !slot) return;
+      const geo = kit[slot];
+      if (!geo) return;
+      mesh.geometry = geo;
+      // The authored parts are modelled in the BAR's own frame, already
+      // in their places along it. The procedural meshes they replace are
+      // centred boxes pushed into place by their node position, so the
+      // offset has to go or the authored part lands at its own position
+      // PLUS the stand-in's — which put both lens banks half a bar
+      // outboard, hanging off the ends of the housing.
+      mesh.position.set(0, 0, 0);
+      mesh.updateMatrix();
+      swapped++;
+    });
+    return swapped > 0;
+  });
+}
+
+/**
  * Upgrade the corniche palm crowns. One geometry serves every instance
  * of the InstancedMesh, so this is the cheapest upgrade in the game and
  * the most visible — the crowns line the whole coastal leg.

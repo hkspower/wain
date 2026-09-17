@@ -10,116 +10,13 @@
     "driver": 96
   },
   "assets": {
-    "car-sedan": {
-      "tris": 156472,
-      "kb": 2752.8,
+    "police": {
+      "tris": 1400,
+      "kb": 26.8,
       "parts": [
-        "Body",
-        "Canopy",
-        "Roof"
-      ]
-    },
-    "car-zx": {
-      "tris": 156472,
-      "kb": 2752.8,
-      "parts": [
-        "Body",
-        "Canopy",
-        "Roof"
-      ]
-    },
-    "car-gtr": {
-      "tris": 156472,
-      "kb": 2752.8,
-      "parts": [
-        "Body",
-        "Canopy",
-        "Roof"
-      ]
-    },
-    "car-rx7": {
-      "tris": 167608,
-      "kb": 2948.5,
-      "parts": [
-        "Body",
-        "Canopy",
-        "Roof"
-      ]
-    },
-    "wheel-5": {
-      "tris": 16500,
-      "kb": 305.1,
-      "parts": [
-        "Alloy",
-        "Barrel",
-        "Lugs",
-        "Rotor",
-        "Tire"
-      ]
-    },
-    "wheel-6": {
-      "tris": 16836,
-      "kb": 311.0,
-      "parts": [
-        "Alloy",
-        "Barrel",
-        "Lugs",
-        "Rotor",
-        "Tire"
-      ]
-    },
-    "palm": {
-      "tris": 3004,
-      "kb": 55.5,
-      "parts": [
-        "Crown"
-      ]
-    },
-    "driver": {
-      "tris": 27744,
-      "kb": 443.6,
-      "parts": [
-        "Glove",
-        "Helmet",
-        "Pedal",
-        "Visor",
-        "Wheel"
-      ]
-    },
-    "car-hatch": {
-      "tris": 201016,
-      "kb": 3535.8,
-      "parts": [
-        "Body",
-        "Canopy",
-        "Roof"
-      ]
-    },
-    "car-pony": {
-      "tris": 167608,
-      "kb": 2948.5,
-      "parts": [
-        "Body",
-        "Canopy",
-        "Roof"
-      ]
-    },
-    "car-pickup": {
-      "tris": 178744,
-      "kb": 3144.3,
-      "parts": [
-        "Body",
-        "Canopy",
-        "Roof"
-      ]
-    },
-    "car-super": {
-      "tris": 178744,
-      "kb": 3144.3,
-      "parts": [
-        "Body",
-        "Canopy",
-        "Roof"
+        "Bar",
+        "LampL",
+        "LampR"
       ]
     }
   }

@@ -61,25 +61,32 @@ const built = await page.evaluate(() => {
   const g = window.__grnBuildCar({ body: 0xeef1f4, livery: "police", simple: true, lengthM: 4.7 });
   g.updateMatrixWorld(true);
   let band = 0, lamps = 0, housing = 0;
+  const barParts = [];
   let roof = null;
   g.traverse((o) => {
     if (o.userData?.decal === "police-band") band++;
     if (o.material?.name === "police-lamp") lamps++;
     if (o.material?.name === "police-bar") housing++;
+    if (o.userData?.barPart) barParts.push(o.userData.barPart);
     if (o.userData?.shell === "roof") roof = o;
   });
   roof.geometry.computeBoundingBox();
   const rb = roof.geometry.boundingBox;
   const bar = g.userData.police.bar;
   return {
-    band, lamps, housing,
+    band, lamps, housing, barParts: barParts.sort(),
     barY: +bar.position.y.toFixed(3), barZ: +bar.position.z.toFixed(3),
     roofTop: +rb.max.y.toFixed(3), roofFront: +rb.max.z.toFixed(3), roofBack: +rb.min.z.toFixed(3),
   };
 });
-console.log(`livery        ${built.band} band ribbons, ${built.lamps} lamps, ${built.housing} housing  ` +
-  check(built.band === 2 && built.lamps === 2 && built.housing === 1,
-    `a patrol car came out with ${built.band} bands, ${built.lamps} lamps and ${built.housing} housings`));
+console.log(`livery        ${built.band} wrap ribbons, ${built.lamps} lens banks, ${built.housing} housing+feet  ` +
+  check(built.band === 2 && built.lamps === 2 && built.housing === 3,
+    `a patrol car came out with ${built.band} wraps, ${built.lamps} lens banks and ${built.housing} housing pieces`));
+// Every piece the Blender bar can replace has to be tagged, or the swap
+// silently leaves a stand-in in a car wearing an authored bar.
+console.log(`bar parts     ${built.barParts.join(", ")}  ` +
+  check(built.barParts.join() === "bar,lampl,lampr",
+    `the bar offers ${built.barParts.join()} to the authored swap, not bar,lampl,lampr`));
 // ON THE ROOF. The first version of this took its z from STYLE_DIMS.roof
 // — the profile's control points, not the panel's edges — and put the
 // bar on the wiper cowl, 0.65 m forward of the roof and 0.46 m below it.
@@ -94,24 +101,24 @@ console.log(`the bar       y ${built.barY} against a roof top of ${built.roofTop
 const beat = await page.evaluate(() => {
   const { POLICE, policeLamps } = window.__grnPolice;
   const N = 400, T = 0.94;
-  let red = 0, blue = 0, both = 0, neither = 0;
+  let left = 0, right = 0, both = 0, neither = 0;
   for (let i = 0; i < N; i++) {
     const l = policeLamps((i / N) * T);
-    const r = l.red > POLICE.lampOff, u = l.blue > POLICE.lampOff;
-    if (r) red++;
-    if (u) blue++;
-    if (r && u) both++;
-    if (!r && !u) neither++;
+    const a = l.left > POLICE.lampOff, b = l.right > POLICE.lampOff;
+    if (a) left++;
+    if (b) right++;
+    if (a && b) both++;
+    if (!a && !b) neither++;
   }
-  return { red: red / N, blue: blue / N, both, neither: neither / N, on: POLICE.lampOn, off: POLICE.lampOff };
+  return { red: left / N, blue: right / N, both, neither: neither / N, on: POLICE.lampOn, off: POLICE.lampOff };
 });
-console.log(`the beat      red lit ${(beat.red * 100).toFixed(0)}% of a cycle, blue ${(beat.blue * 100).toFixed(0)}%, ` +
+console.log(`the beat      left lit ${(beat.red * 100).toFixed(0)}% of a cycle, right ${(beat.blue * 100).toFixed(0)}%, ` +
   `dark ${(beat.neither * 100).toFixed(0)}%, both at once ${beat.both}  ` +
   check(beat.both === 0, `both sides are lit together on ${beat.both} samples — that is a lamp, not a bar`) + " " +
   check(beat.red > 0.1 && beat.blue > 0.1,
-    `red is lit ${(beat.red * 100).toFixed(0)}% and blue ${(beat.blue * 100).toFixed(0)}% of a cycle — one side is not working`) + " " +
+    `the left bank is lit ${(beat.red * 100).toFixed(0)}% and the right ${(beat.blue * 100).toFixed(0)}% of a cycle — one side is not working`) + " " +
   check(Math.abs(beat.red - beat.blue) < 0.03,
-    `red is lit ${(beat.red * 100).toFixed(0)}% and blue ${(beat.blue * 100).toFixed(0)}% — the two sides take unequal turns`) + " " +
+    `the banks are lit ${(beat.red * 100).toFixed(0)}% and ${(beat.blue * 100).toFixed(0)}% — the two sides take unequal turns`) + " " +
   check(beat.neither > 0.3,
     `the bar is dark only ${(beat.neither * 100).toFixed(0)}% of a cycle — it is a pair of lamps fading, not a bar flashing`));
 
