@@ -815,6 +815,79 @@ The rest (`راشد`, Intelligence Center, `أنيلكا`, `سالم` ×2) are i
 blocked on order/queue data that does not exist, not stale. Sporta's, Albahhar's
 and the MySQL monitor are not wain's — leave them.
 
+## Business registration's photo upload is wain's own now, too
+
+`src/lib/media.ts`'s `uploadPending()` used to go straight into Supabase
+Storage. Supabase is unconfigured — see "The back end is not configured" — so
+every upload failed at `loadSupabase()` before a byte left the browser, the
+same shape صوت وين's runtime sentences were in before `/api/tts.php`. This is
+that move again, for the same first reason (same origin, nothing to allowlist)
+and installed the same way: `scripts/publish/media-endpoint.php`, served as
+**`/api/media.php`**, `php media.php install` / `version` / `limits` / `prune`.
+
+**This does NOT make business registration work.** `submitBusiness()` in
+`lib/submissions.ts` still inserts into a Supabase table that does not exist
+here, so a photo can now upload successfully and the submission that was
+supposed to reference it still fails right after, with «التسجيل مو متاح
+حالياً». Verified rather than assumed, with a real browser against a real PHP
+server: the upload request comes back `{"ok":true,"path":"<uuid>/logo-0.png"}`
+and the bytes land under `storage/business-pending/`, and the page then shows
+exactly the Supabase-disabled message — not an upload-failure message,
+because the upload did not fail. `prune` exists because of that gap, not
+despite it: a photo that uploads and is never turned into a submission is an
+orphan, and nothing deletes it automatically. It is a CLI mode, meant to be
+cron'd occasionally by hand, the same fetch-pin-run shape every write path on
+this account already uses — not installed as a cron job from here, because
+standing up a new public write endpoint on the live site is the kind of
+change to confirm before it goes live, not something to do in the same sitting
+as writing it.
+
+**The one thing that makes an anonymous, unauthenticated upload endpoint
+safe enough to ship**: nothing about what is written to disk is trusted from
+the client. `getimagesize()` on the bytes decides whether something is a real
+image and which one — never the browser's `Content-Type`, never the
+filename's extension. A PNG uploaded as `shirt.jpg` is stored as `.png`;
+proved in `test:media`, not assumed. Storage sits at
+`storage/business-pending/`, a sibling of `public_html` the same way
+`storage/tts` is — the same privacy property Supabase's private bucket had,
+for the same reason: an unreviewed photo of someone's shop is not public
+because its path is hard to guess. Two independent caps back that up —
+`RATE_PER_MIN` per visitor, `MAX_TOTAL_BYTES` for the account's disk filling
+up from many visitors doing it slowly and legitimately, which a per-IP limit
+alone never catches — and both are proved tripping for real in `test:media`,
+not merely present in the source.
+
+**A real ceiling turned up while testing this that would have bitten in
+production too.** This sandbox's default php.ini caps `post_max_size` at 8M
+and `upload_max_filesize` at 2M, both under `MAX_BYTES` (12M) — and when a
+POST body exceeds `post_max_size`, PHP empties `$_POST` and `$_FILES`
+*entirely*, with no per-field error. Read naively that looks like `bad_draft_id`,
+because draftId is checked first and is now `''`, which is a confusing failure
+for a problem that has nothing to do with the draft id. Caught explicitly now
+— `empty($_POST) && empty($_FILES) && Content-Length > 0` is the classic tell
+— and reported as `file_too_large`, which is what actually happened. **This
+must be checked on the live host before the bridge is installed**: `php
+media.php version` reports both ini values for exactly that reason, and
+`test:media`'s own server is started with them raised, or the app-level
+`MAX_BYTES` check could never be reached at all in a test run either.
+
+`npm run audit:media` is the anti-drift check `audit:tts` already is for the
+voice bridge: `MAX_BYTES`, `MAX_PHOTOS` and the accepted MIME types are read
+from `src/lib/media.ts` and from `media-endpoint.php limits`, each by its own
+interpreter, and it fails when they disagree — confirmed it can go red, not
+only green, the same way every anti-drift check in this file has been.
+
+**What is deliberately NOT done yet**: `signedPendingUrl`, `publishMedia` and
+`discardPending` in `media.ts` are untouched, still Supabase-only, and still
+unreachable — `MediaReview.tsx` needs the submissions table regardless of
+which server holds the bytes, so wiring an admin review flow onto the new
+bridge now would be building review with nothing to review. The bridge does
+carry a minimal `?action=view` GET, key-gated by `storage/media-admin.key`
+(created empty by the installer, same as `elevenlabs.key`), so a pending photo
+is not a total black hole in the meantime — `storage/` is outside the docroot,
+so no read tool here can look at it any other way, the same statement already
+true of `storage/d.php`.
+
 ## There is an iOS app now, and it wraps the same export
 
 `capacitor.config.ts` + `.github/workflows/ios.yml`. Capacitor, not a rewrite:
@@ -1043,11 +1116,11 @@ numbering, matching the result count and the rest of the site.
 
 ## Checks
 
-`npm run scan` is lint plus ~26 audits. Browser suites: `test:hangout`
+`npm run scan` is lint plus ~27 audits. Browser suites: `test:hangout`
 (hangout, hangout-page, map-pin, search-button, search-keys, shouq-search,
 search-plan, swipe), `test:journey`, `test:register`, `test:shouq`,
 `test:orders`, `test:net`. PHP suites, neither in `scan` because neither can
-assume php: `test:api` (40) and `test:tts` (25).
+assume php: `test:api` (40), `test:tts` (25) and `test:media` (33).
 
 Browser suites serve `out/` and most of them do **not** build it.
 `tests/stale-build.mjs` compares `out/index.html` against the newest file in

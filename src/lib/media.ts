@@ -1,22 +1,45 @@
 "use client";
 
 import { loadSupabase } from "@/lib/supabase";
-import { describeNetError } from "@/lib/net";
+import { deadlineFetch, describeNetError } from "@/lib/net";
 import { toArabicDigits, toArabicNumber } from "@/lib/places";
 
 /**
  * Business media: a logo and photos, uploaded by whoever is registering the
  * place, reviewed before anything is shown.
  *
- * Uploads land in `business-pending`, which is private — an unreviewed photo
- * of someone's shop is not public just because its URL is hard to guess. Only
- * an admin can look at it, and approving copies the bytes into the public
- * bucket. So a file being publicly readable *is* the record that a human
- * approved it, rather than a flag someone has to remember to check.
+ * The upload half and the review half are on two different backends now, and
+ * that split is deliberate rather than half-finished.
+ *
+ * `uploadPending()` posts to `/api/media.php` — wain's own bridge, matching
+ * `/api/tts.php`'s pattern — because it used to go straight into Supabase
+ * Storage, and Supabase is unconfigured here: both env vars are empty, so
+ * every upload used to fail at `loadSupabase()` before a byte left the
+ * browser. See `scripts/publish/media-endpoint.php`'s own header for why an
+ * unauthenticated upload endpoint is safe enough to ship.
+ *
+ * `signedPendingUrl`, `publishMedia` and `discardPending` below are still
+ * Supabase-only, UNTOUCHED, and that is not an oversight either:
+ * `submitBusiness()` in `lib/submissions.ts` inserts into a Supabase table
+ * that does not exist here, so admin review needs Supabase regardless of
+ * which server holds the bytes — wiring these three to the new bridge now
+ * would be building a review flow with nothing yet to review. A file that
+ * uploads through the bridge and is never turned into a submission is an
+ * orphan; `scripts/publish/media-endpoint.php`'s `prune` mode exists because
+ * of that, not despite it.
  */
 
 export const PENDING_BUCKET = "business-pending";
 export const PUBLIC_BUCKET = "business-media";
+
+/**
+ * Same-origin by default, same reason `/api/tts.php` is: no CORS allowlist to
+ * keep in step with a new subdomain. The override exists for the same case
+ * `NEXT_PUBLIC_WAIN_TTS_URL` was added for — a bundle with no origin, like the
+ * iOS app — though nothing points it there yet, because registration is
+ * inert in that shell too until `submitBusiness()` has somewhere to write.
+ */
+const MEDIA_BRIDGE_URL = process.env.NEXT_PUBLIC_WAIN_MEDIA_URL || "/api/media.php";
 
 /** Matches the bucket's allowed_mime_types, so a rejection is caught here
  *  with a sentence the visitor can act on rather than as a storage error. */
@@ -84,14 +107,35 @@ export function newDraftId(): string {
   return `d${Date.now().toString(36)}${Math.floor(Math.random() * 1e9).toString(36)}`;
 }
 
-function extensionFor(type: string): string {
-  return type === "image/png" ? "png" : type === "image/webp" ? "webp" : "jpg";
+/** One JSON error code from media-endpoint.php → one Arabic sentence. Kept
+ *  separate from `rejectReason`'s messages even where the reason overlaps
+ *  (`bad_type`, `file_too_large`): those are the courtesy check on a file the
+ *  browser already read; these are what the server decided after actually
+ *  looking at the bytes, which can differ — a mislabelled file the browser's
+ *  `file.type` trusted and the server's `getimagesize()` did not, say. */
+function bridgeErrorMessage(code: string | undefined, name: string): string {
+  switch (code) {
+    case "bad_type":
+      return `«${name}» مو صورة مدعومة. المدعوم: JPG أو PNG أو WebP.`;
+    case "file_too_large":
+      return `«${name}» حجمها أكبر من الحد ${MAX_SIZE_AR}.`;
+    case "file_empty":
+      return `«${name}» فاضية.`;
+    case "rate_limited":
+      return "طلبات كثيرة بسرعة. استنى شوي وجرّب مرة ثانية.";
+    case "quota_exceeded":
+      return "التخزين ممتلئ مؤقتاً. راسلنا وبنتابعها.";
+    default:
+      return `ما قدرنا نرفع «${name}». جرّب مرة ثانية.`;
+  }
 }
 
 /**
- * Upload one file into the pending bucket. The stored name is generated, never
+ * Upload one file to wain's own bridge. The stored name is generated, never
  * the visitor's: an uploaded filename is untrusted text, and letting it become
- * a storage path invites traversal and collisions.
+ * a storage path invites traversal and collisions. The extension in the
+ * returned path is the server's own call, from the bytes it received — never
+ * echoed back from what this function sent.
  */
 export async function uploadPending(
   draftId: string,
@@ -99,27 +143,37 @@ export async function uploadPending(
   file: File,
   index = 0
 ): Promise<{ ok: true; path: string } | { ok: false; message: string }> {
-  const sb = await loadSupabase();
-  if (!sb) return { ok: false, message: "رفع الصور مو متاح حالياً." };
-
   const reason = rejectReason(file);
   if (reason) return { ok: false, message: reason };
 
-  const path = `${draftId}/${kind}-${index}.${extensionFor(file.type)}`;
-  const { error } = await sb.storage.from(PENDING_BUCKET).upload(path, file, {
-    contentType: file.type,
-    upsert: true,
-  });
-  if (error) {
+  const body = new FormData();
+  body.set("draftId", draftId);
+  body.set("kind", kind);
+  body.set("index", String(index));
+  body.set("file", file, file.name);
+
+  let res: Response;
+  try {
+    res = await deadlineFetch(MEDIA_BRIDGE_URL, { method: "POST", body });
+  } catch (err) {
     // A photo can be several megabytes over a phone connection, so "the
     // network went away" is the likeliest reason by far — worth saying,
     // because it tells the person to move rather than to pick another file.
     return {
       ok: false,
-      message: describeNetError(error, `ما قدرنا نرفع «${file.name}». جرّب مرة ثانية.`),
+      message: describeNetError(err, `ما قدرنا نرفع «${file.name}». جرّب مرة ثانية.`),
     };
   }
-  return { ok: true, path };
+
+  const data = (await res.json().catch(() => null)) as
+    | { ok: true; path: string }
+    | { ok: false; error?: string }
+    | null;
+  if (res.ok && data?.ok && "path" in data && typeof data.path === "string") {
+    return { ok: true, path: data.path };
+  }
+  const code = data && !data.ok ? data.error : undefined;
+  return { ok: false, message: bridgeErrorMessage(code, file.name) };
 }
 
 /** A short-lived URL so an admin can look at something not yet public. */
