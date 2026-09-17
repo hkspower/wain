@@ -56,7 +56,7 @@ const PERFORMANCE_CATS: Array<{ cat: string; label: string }> = [
   { cat: "internals", label: "INTERNALS · القطع الداخلية" },
   { cat: "exhaust", label: "EXHAUST · الدبة" },
   { cat: "brakes", label: "BRAKES · البريكات" },
-  { cat: "tires", label: "TIRES · التواير" },
+  { cat: "tires", label: "TYRES · التواير" },
   { cat: "gearbox", label: "GEARBOX · القير" },
   // The diff left the chassis section and became a slot of its own: one
   // axle takes one differential, and a welded spool and a clutch pack
@@ -77,10 +77,10 @@ const STYLE_CATS: Array<{ cat: string; label: string }> = [
   // dims whatever is behind it.
   { cat: "bulbs", label: "BULBS · اللمبات" },
   { cat: "glow", label: "UNDERGLOW · الليتات" },
-  // Sidewall lettering sits under STYLE rather than under TIRES: the
+  // Sidewall lettering sits under STYLE rather than under TYRES: the
   // compound is a performance part, and this is what the tyre says on
   // the side of it.
-  { cat: "sidewall", label: "TIRE LETTERING · حروف التواير" },
+  { cat: "sidewall", label: "TYRE LETTERING · حروف التواير" },
   // The roll, above the slider that cuts it. Buying a film is what lets
   // the car be tinted at all; how dark stays free, because darkness is
   // a continuum and a shop is not.

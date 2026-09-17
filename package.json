@@ -27,6 +27,8 @@
     "check:arabic:rules": "node scripts/check-arabic-grammar.mjs --self-test",
     "check:arabic:type": "node scripts/check-arabic-type.mjs",
     "check:arabic:type:rules": "node scripts/check-arabic-type.mjs --self-test",
+    "check:english": "node scripts/check-english.mjs",
+    "check:english:rules": "node scripts/check-english.mjs --self-test",
     "check:logo": "node scripts/check-logo.mjs",
     "check:parts": "node scripts/check-catalogue.mjs",
     "check:blender": "node scripts/check-blender-coverage.mjs",

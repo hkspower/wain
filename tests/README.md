@@ -136,6 +136,79 @@ bilingual and each half uses the digits of its own language. A linter
 that reports correct text as broken teaches people to ignore it, so it
 now only fires on strings with no Latin in them at all.
 
+## check-english.mjs — and the English, which had nobody watching it
+
+The Arabic had three linters. The English had none, and the gap showed
+the moment anyone read it end to end: 139 part descriptions and every
+inline label in `RaceClient.tsx` had never been compared with each
+other. What turned up was not bad writing — it was **one fact written
+twice and spelled two ways**.
+
+```bash
+npm run check:english
+npm run check:english:rules   # the rules' own self-test
+```
+
+- **One spelling per word.** The shop sold "Sport Tires" to players its
+  own onboarding had taught *tyres*; the settings line read "Every
+  engine, tire, wind and radio voice, synthesised live" — American and
+  British in one sentence. Like `check:arabic`'s تيربو list, `CANON`
+  here is a record of decisions this game has already made, not a style
+  opinion: a word earns a place only once both spellings are in the
+  tree.
+- **Identifiers are exempt, and that is the point.** The part ids *are*
+  the American spelling — `id: "tires-sport"`, `cat: "tires"` — and
+  they must stay: they are save keys, and the ports sync on id, slot
+  and price rather than on display name. A spelling rule that could not
+  tell a label from an identifier would demand a change that breaks
+  every save in the wild.
+- **No emoji in `src/game`.** `check:ui` covers `src/app/race` and
+  `src/app/hub` only, which is how ⚡, ☕ and 🏁 came to be painted into
+  billboard textures with a font stack containing no emoji at all. The
+  crew crests in `rivals.ts` and `teams.ts` are exempt, as they are
+  there — a crest is an emblem. `▶` and `◀` are Extended_Pictographic
+  but belong to the game's allowed marks, so they are named rather than
+  caught.
+- **Every shown number names its locale.** See `test:digits` below.
+- **A HUD message title is a fragment**, not a sentence. Every one of
+  them is — "Out of fuel — بنزين خلص", "Hub disconnected" — except two
+  night-closing messages that ended in a full stop.
+
+Deliberately **not** checked, and the output says so: grammar, tone,
+register, and whether a stated fact is true. Those need a reader.
+
+## digits.mjs — the game reads the same on an Arabic phone
+
+`n.toLocaleString()` with no locale does not mean "format this number".
+It means "format it however the browser is set", and the browser this
+game is built for is a phone in Kuwait. Every price in the garage went
+through that call, so at `ar-KW` the shop read:
+
+```
+٤٠٠ KD        ٣٤٬٠٠٠ KD        ٨٦٬٠٠٠        255 km/h
+```
+
+Arabic-Indic digits inside English sentences — and beside them, in the
+same card, a top speed still in Western digits, plus a redline reading
+`7,000 rpm` because that one call had named `en-US`. Two digit systems
+on one screen, and which you got depended on a setting the game never
+read.
+
+Nothing throws. Nothing looks broken in a Latin locale, which is
+exactly why it survived: the machine that would have shown it is not
+the machine it was written on. So this drives the garage in **both**
+locales and fails on an Arabic-Indic digit in an English run.
+
+```bash
+npm run dev
+npm run test:digits
+```
+
+The Arabic half never had the problem, because it converts on purpose —
+`arabicNumber()` in `world.ts` writes ٠١٢٣٤٥٦٧٨٩ into the way-markers
+and the pump board. `src/game/format.ts` is that same decision made on
+the English side: `num()`, one named locale.
+
 ## mods.mjs — every part changes the car
 
 A mod that only appears in a shop list is a lie told to the player. Each
