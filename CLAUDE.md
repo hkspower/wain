@@ -1972,6 +1972,85 @@ The general form, which this file keeps rediscovering: **a rule that is
 CONDITIONAL is invisible until you reproduce its condition**, and a rig that
 does not reproduce it reports the condition's absence as the code's.
 
+## The hero shows the whole banner now — and a dead declaration sent me wrong
+
+Asked for on 2026-09-17 as "make hero slider images full size". The box was
+taller than the artwork at most widths, so `cover` cropped the sides: **75% of
+the banner visible at 768, 83% on a phone, 94% at 1280.** The owner chose the
+whole picture at every width out of three measured options, knowing the phone
+cost (186px of a cropped banner becomes 155px of a whole one). The box is now
+`100vw / 2.52` and nothing else — the 1.90 ratio, the 60svh cap and the
+min-height floor are all gone, and `max-height: none` was needed because the
+BUNDLE ships its own `md:max-h-[80svh]` that a bare deletion would have left to
+crop the other way.
+
+**It made the picture sharper, which was not the reason for it and is worth
+keeping because it is counter-intuitive.** `cover` over a box TALLER than the
+artwork magnifies the image to cover the height and throws the magnification
+away off the sides; a box at the artwork's ratio scales it once, to fit. Source
+pixels per CSS pixel, same run: 768 `1.43 -> 1.89`, 1280 `1.07 -> 1.14`, phone
+`2.33 -> 2.80`.
+
+### `--hero-h` had TWO `:root` declarations 1200 lines apart
+
+The one at the top of `sporta-ui.css` was DEAD — same selector, same
+specificity, later wins — and had drifted to `2.10 + 128px` against the live
+`2.10 + 104px`. **I read the dead one, measured the phone, and reported a 24px
+shell-versus-mount gap that was not happening**, in the file that documents that
+exact failure at length. The duplicate is gone; there is one home now.
+
+The general form, and this file keeps meeting it on new surfaces: **before
+believing a declaration, ask whether anything later overrides it.** `grep -n`
+for the property answers it and `getComputedStyle` answers it better. A value
+read out of a file is a hypothesis about what the browser is using.
+
+### The resolution ceiling is the artwork, and no rule here can move it
+
+The five frames exist only at **1600px wide**. At 1600 the box is 1760 CSS px,
+at 1920 it is 2112, at 2560 it is 2816 — so the banner is upscaled **before a
+retina screen doubles anything** (0.91, 0.76, 0.57 source px per CSS px).
+`make-hero-sizes.mjs` says in its own header that the desktop master is the only
+copy of this artwork and refuses to upscale, and that is the right refusal:
+shipping a 3200px file made from a 1600px one would make every rig report the
+upscale gone while the shopper sees the identical softness, at four times the
+bytes. **A measurement that improves because you enlarged the input is not an
+improvement.**
+
+`test:hero-size` therefore PRINTS source px per CSS px and asserts it only on
+the phone, where the right file already exists. The desktop number is reported,
+not failed, because no change in this repository can clear it — the owner is
+supplying 3200x1270 masters for `hero/desktop/`.
+
+Its third check changed with the design: "the 60svh cap still binds at
+1280x900" became **"the box ratio equals the artwork's at every viewport"**,
+which is stronger than the pair it replaces — a crop in EITHER direction fails
+it, and it is measured against the image's own `naturalWidth/naturalHeight`, so
+a wider banner keeps testing the truth. Mutation-tested both ways: the 1.90
+ratio back (75% visible) and the cap back (73-85% of the height), each caught by
+name.
+
+**A latent one, not touched:** `build:hero` rebuilds the app's bundled banners
+from `hero/mobile/`, which `make-hero-sizes.mjs` has since reduced to 1200px.
+`assets/hero/*.jpg` are 1600px because they were built before that. Running
+`build:hero` today would quietly DOWNGRADE the app's art, and nothing would say
+so.
+
+### An empty cron output, and the work had been done
+
+The publisher printed nothing across three ticks. Every instinct said it had
+failed; `sha256sum` over the four files by absolute path said all four were
+byte-identical to the repository. **The write had landed on the first run and
+the channel simply lost the echo** — the entry above about the last run's output
+wearing a new hat, with the added trap that this time the silence looked like a
+failed publish rather than a successful one.
+
+What settled it in one cycle was asking for **state, not the verb**: two
+`sha256sum`s with absolute paths, no quotes, no `$`, no `%`. That is the shape
+to reach for when a publisher goes quiet, and it is cheaper than re-running it.
+`sw.js` being LAST in the write loop is what made the inference safe before the
+check even ran — the loop breaks on any failure, so the last file matching means
+every earlier one did.
+
 ## A cap is not a ratio, and on a wide screen it cropped the banner the other way
 
 The hero's height had moved eight times and nothing had ever measured it.
