@@ -87,16 +87,30 @@ jobs:
       - name: Add the iOS platform
         run: npx cap add ios
 
+      # Everything this writes is either a hard crash or a refused upload if
+      # it is missing. The template ships no usage strings at all, so a build
+      # without this step is KILLED by iOS the first time anyone taps
+      # «استخدم موقعي» on the home page — not a denied permission, a crash —
+      # and a Simulator screenshot of the launch screen still passes. It also
+      # installs the privacy manifest Apple has required since May 2024, and
+      # replaces the template's armv7 device capability with arm64.
+      # Proven on Linux by `npm run test:ios`, which scaffolds a real project
+      # and reads the result back with a plist parser.
+      - name: Make the project submittable (Info.plist, privacy manifest)
+        run: npm run ios:patch
+
       # Easy Mode wants assets/logo.png at the repo root, not public/brand/ —
       # generated here rather than duplicated in git so the two can never
-      # drift. The source is 512x512; Capacitor upscales it, which is fine
-      # for a Simulator build and not what a real App Store icon should ship
-      # with. Before build-signed is used for a real submission, replace this
-      # with a proper 1024x1024, alpha-free source.
+      # drift. The source is the 1024x1024 written by `npm run icon:app`,
+      # rendered from the mark itself: feeding Capacitor the old 512 let it
+      # upscale, which is how a soft icon reaches a store listing without
+      # anyone deciding to ship one. That file is asserted alpha-free at
+      # generation time — an icon carrying transparency is refused at UPLOAD,
+      # after the archive and the signing have already succeeded.
       - name: Generate app icons and splash screens
         run: |
           mkdir -p assets
-          cp public/brand/app-icon-512.png assets/logo.png
+          cp public/brand/app-icon-1024.png assets/logo.png
           npx capacitor-assets generate --ios \
             --iconBackgroundColor '#ffffff' --iconBackgroundColorDark '#111111' \
             --splashBackgroundColor '#ffffff' --splashBackgroundColorDark '#111111'
@@ -169,10 +183,22 @@ jobs:
       - name: Add the iOS platform
         run: npx cap add ios
 
+      # Everything this writes is either a hard crash or a refused upload if
+      # it is missing. The template ships no usage strings at all, so a build
+      # without this step is KILLED by iOS the first time anyone taps
+      # «استخدم موقعي» on the home page — not a denied permission, a crash —
+      # and a Simulator screenshot of the launch screen still passes. It also
+      # installs the privacy manifest Apple has required since May 2024, and
+      # replaces the template's armv7 device capability with arm64.
+      # Proven on Linux by `npm run test:ios`, which scaffolds a real project
+      # and reads the result back with a plist parser.
+      - name: Make the project submittable (Info.plist, privacy manifest)
+        run: npm run ios:patch
+
       - name: Generate app icons and splash screens
         run: |
           mkdir -p assets
-          cp public/brand/app-icon-512.png assets/logo.png
+          cp public/brand/app-icon-1024.png assets/logo.png
           npx capacitor-assets generate --ios \
             --iconBackgroundColor '#ffffff' --iconBackgroundColorDark '#111111' \
             --splashBackgroundColor '#ffffff' --splashBackgroundColorDark '#111111'

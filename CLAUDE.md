@@ -914,6 +914,62 @@ load-bearing the moment `build-signed` first succeeds against a real Apple
 account: App Store Connect fixes the bundle id to whatever the first
 TestFlight build declares. Change it before that upload, never after.
 
+**Every build before 17 September was KILLED by iOS on the first tap of its
+headline feature, and nothing here could have said so.** Capacitor's template
+ships no usage strings at all, and a process that reaches
+`navigator.geolocation.getCurrentPosition` without
+`NSLocationWhenInUseUsageDescription` is *terminated* — not a denied
+permission, a crash log reading «attempted to access privacy-sensitive data
+without a usage description». wain reaches it from three places, one being
+«استخدم موقعي» on the home page's dial. The Simulator job screenshots the
+launch screen and passes, which is precisely why this survived: **the check
+that existed proved the app starts, and nobody had asked it to prove the app
+works.** شوق's microphone is the same shape.
+
+`scripts/patch-ios-project.mjs` (`npm run ios:patch`, wired into both CI jobs
+straight after `npx cap add ios`) writes the three usage strings in Arabic —
+Apple rejects a reason that only restates the permission — plus
+`ITSAppUsesNonExemptEncryption=false` so App Store Connect stops gating every
+build behind a manual questionnaire, `CFBundleDevelopmentRegion=ar` (the
+template says `en` on an app that is entirely Arabic and `dir="rtl"`), and
+`arm64` in place of the template's **`armv7`**, a 32-bit capability no
+current device satisfies. It also installs `ios-config/PrivacyInfo.xcprivacy`,
+required since May 2024 — and *copying it in is not enough*: Xcode ships what
+the target lists, so four `project.pbxproj` entries go in too, mirroring how
+the template already carries `config.xml`.
+
+**It is pure Node on purpose.** The obvious tool is `PlistBuddy`, which is
+macOS-only, and every line would then have been untestable from here —
+verified for the first time by a store upload. `npm run test:ios` scaffolds a
+real project with `npx cap add ios` **on Linux**, patches it, and reads the
+result back with a plist parser rather than a regex over the text that wrote
+it. 24 assertions, including that a second run is a clean no-op. It is not in
+`scan` (slow, needs the network); `npm run audit:ios` is, and its one check
+worth having walks `src/` for privacy-sensitive browser APIs and demands a
+matching key — so the day a camera lands in the admin screens, CI fails
+instead of a reviewer.
+
+`npm run icon:app` renders `app-icon-1024.png` from the mark itself. The
+workflow fed Capacitor the 512 and let it upscale, which is how a soft icon
+reaches a store listing without anyone choosing to ship one. Alpha is asserted
+at generation: an icon carrying transparency is refused at **upload**, after
+archiving and signing have already succeeded. The composition deliberately
+matches the 512 so the store icon and the PWA icon are one picture — which
+also means it inherits that icon's generous 40% coverage, sparse by Apple's
+conventions and the one thing here worth changing deliberately rather than by
+accident (`COVERAGE` in the script).
+
+**What none of this fixes is Guideline 4.2, and that is the real risk.** wain
+is a static export in a WKWebView. Apple rejects "a repackaged website" more
+often than any other single reason for wrappers like this, and no plist key
+answers it. What argues against rejection: the bundle works fully offline (all
+52 places, every route, the fonts and drawings ship inside it), it uses
+geolocation and the microphone natively, and it is not a browser pointed at a
+URL — there is no `server.url`. What argues for it: the app and
+`www.wainkw.com` are the same thing, and a reviewer who loads both will see
+that. Decide that argument before paying for a developer account, not after.
+Nothing in this repository can test it.
+
 ## wain speaks MCP
 
 `mcp/wain-mcp.mjs`, pointed at by `.mcp.json`, so opening this repository in an
@@ -987,7 +1043,7 @@ numbering, matching the result count and the rest of the site.
 
 ## Checks
 
-`npm run scan` is lint plus ~23 audits. Browser suites: `test:hangout`
+`npm run scan` is lint plus ~25 audits. Browser suites: `test:hangout`
 (hangout, hangout-page, map-pin, search-button, search-keys, shouq-search,
 search-plan, swipe), `test:journey`, `test:register`, `test:shouq`,
 `test:orders`, `test:net`. PHP suites, neither in `scan` because neither can
