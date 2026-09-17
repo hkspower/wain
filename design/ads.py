@@ -92,7 +92,15 @@ SITE_URL = "www.almuhallab-code.com"
 def page(w, h, kicker, headline, lines, proof, vb, body, story):
     """One creative. Sizes are absolute px against a fixed canvas, so the
     layout cannot reflow differently on another machine."""
-    fonts = (SITE / "fonts").as_uri()
+    # Relative, not (SITE / "fonts").as_uri(): that baked the generating
+    # machine's absolute path (file:///home/user/wain/...) into every
+    # committed .html here, which is exactly the class of bug already fixed
+    # in the design/ scripts themselves — except this one lived in the
+    # generated OUTPUT, so it survived that sweep. OUT (design/ads/) sits a
+    # fixed two levels from SITE/fonts (almuhallab/fonts/) in this repo
+    # layout, so the relative path is stable and the committed files open
+    # correctly from any checkout, not only this container's.
+    fonts = "../../almuhallab/fonts"
     # A story is read at arm's length on a phone and a post inside a feed, so
     # the story is not the post scaled up — it is set larger and breathes more.
     head = 92 if story else 76
