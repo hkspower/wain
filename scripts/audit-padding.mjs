@@ -168,11 +168,30 @@ for (const vp of [{ name: "phone", width: 390 }, { name: "desktop", width: 1280 
     for (const v of await page.evaluate(() => {
       const main = document.querySelector("main") || document.body;
       const out = [];
+      const capped = (el) => {
+        const mw = parseFloat(getComputedStyle(el).maxWidth);
+        return mw > 0 && mw < 9999;
+      };
       for (const el of main.querySelectorAll("div,section")) {
         const cs = getComputedStyle(el);
-        const mw = parseFloat(cs.maxWidth);
-        if (!(mw > 0 && mw < 9999)) continue;
+        if (!capped(el)) continue;
         if (cs.display === "none" || !el.offsetParent) continue;
+        // Only the OUTERMOST capped box on a route is that route's page
+        // shell. This used to take every capped box, which made the check
+        // mean "no element anywhere may have a max-width and a different
+        // padding" — a much stronger claim than «the page's own gutter», and
+        // one the site does not make. It went red the day a hero was capped
+        // at max-w-xl to stop its artwork being cropped (PlaceView.tsx): a
+        // content box with no padding of its own, correctly sitting inside a
+        // shell that already carries the gutter, reported as a second gutter
+        // of 0/0. The heuristic was the thing that was wrong.
+        let ancestor = el.parentElement;
+        let nested = false;
+        while (ancestor && ancestor !== main && !nested) {
+          if (capped(ancestor)) nested = true;
+          ancestor = ancestor.parentElement;
+        }
+        if (nested) continue;
         out.push(`${Math.round(parseFloat(cs.paddingLeft))}/${Math.round(parseFloat(cs.paddingRight))}`);
       }
       return out;

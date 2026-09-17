@@ -108,14 +108,33 @@ export default function PlaceView({
 
       {/* Hero */}
       <div
-        className={`relative flex h-28 items-center justify-center overflow-hidden rounded-2xl shadow-lg sm:h-40 ${heroClass}`}
+        // The ASPECT RATIO is load-bearing, not the height, and that is the
+        // whole lesson here. The art is a 400×160 viewBox drawn with
+        // preserveAspectRatio="slice", so a W×H band shows 400·H/W units of
+        // the drawing — the ratio alone decides how much survives. The
+        // drawings need about 103 units; 18/5 gives 111 at every width.
+        //
+        // It used to be `h-28 sm:h-40` full-width. At 864×160 — 5.4:1 — that
+        // showed 74 units, so every desktop hero was cropped through the
+        // buildings and their ground line. A breakpointed height cannot fix
+        // it: the first attempt here was `max-w-xl` plus `h-28 sm:h-40`, which
+        // left a window between 596px and 639px where the band was already
+        // 576 wide but still 112 tall — 78 units, worse than the bug. One
+        // ratio has no cliffs to miss.
+        //
+        // No mx-auto: centring left the band floating mid-column while the
+        // name, chips and description below are flush to the start edge, so it
+        // lined up with nothing. A block with max-width and no auto margins
+        // sits at the start, which in RTL is the right — the heading's edge.
+        className={`relative flex aspect-[18/5] w-full max-w-xl items-center justify-center overflow-hidden rounded-2xl shadow-lg ${heroClass}`}
       >
         {art}
         {place.rating !== undefined && (
           <span
             // text-xs, one size up from PlaceCard/MapPin's text-2xs badge —
-            // this hero is h-28/h-40, not a thumbnail, so the larger badge
-            // reads at the same relative scale. See PlaceCard.tsx.
+            // this hero is a 18/5 band up to 576px wide, not a thumbnail, so
+            // the larger badge reads at the same relative scale. See
+            // PlaceCard.tsx.
             className="absolute start-2.5 top-2.5 flex items-center gap-1 rounded-full bg-white/95 px-2 py-1 text-xs font-semibold text-ink-800 shadow-sm backdrop-blur"
             aria-label={`التقييم ${toArabicNumber(place.rating)} من ٥`}
           >

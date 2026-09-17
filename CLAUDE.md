@@ -987,7 +987,7 @@ numbering, matching the result count and the rest of the site.
 
 ## Checks
 
-`npm run scan` is lint plus ~22 audits. Browser suites: `test:hangout`
+`npm run scan` is lint plus ~23 audits. Browser suites: `test:hangout`
 (hangout, hangout-page, map-pin, search-button, search-keys, shouq-search,
 search-plan, swipe), `test:journey`, `test:register`, `test:shouq`,
 `test:orders`, `test:net`. PHP suites, neither in `scan` because neither can
@@ -1198,6 +1198,40 @@ it is the one number that property exists to get right.
 
 Measured on a 390px phone: /explore 14591px → 5224px, a place page 2893px →
 2183px. Desktop /explore 4923px → 2210px.
+
+**And shrinking the place hero silently cropped every illustration on the site
+— on desktop only, for weeks.** Same class as the stale
+`contain-intrinsic-size` above, and the second time this pass has left a
+measured constant behind. `PlaceArt`/`CategoryArt` are a 400×160 viewBox with
+`preserveAspectRatio="slice"`, so **a W×H band shows 400·H/W units of the
+drawing** — the band's ASPECT RATIO is the only input, and nothing inside the
+drawings can widen that window. The hero went from 848×256 to a full-width
+`h-28 sm:h-40`, i.e. 864×160 — 5.4:1, **74 of the 160 units**, where the
+drawings need 103. `BASE`, the ground line sitting at y 134 *specifically* to
+survive this crop, fell outside it, along with both `SEA` lines and the feet of
+every building: buildings sliced through the middle, standing on nothing. The
+comment in `PlaceArt.tsx` went on confidently describing a safe box that had
+stopped existing.
+
+Nothing could catch it. `audit:mobile` renders 390 and 320, where the ratio is
+benign; `audit:padding` checks the gutter, not the band. **A defect that only
+exists above 640px had no reader at all** — worth remembering as a gap in its
+own right, not just this one bug.
+
+Fixed on the band, not the drawings: `aspect-[18/5]` and `max-w-xl`, which
+shows 111 units at every width. **A breakpointed height cannot do this** — the
+first attempt kept `h-28 sm:h-40` under the new cap and left a hole between
+596px and 639px where the band was already 576 wide but still 112 tall, 78
+units, worse than the bug being fixed. One ratio has no cliffs to miss.
+`npm run audit:hero` asserts it at ten widths including that pair, and was
+confirmed to go red on the old markup (72–78 units) and green on the new.
+
+Two side-findings from it. The hero is deliberately NOT `mx-auto`: centred, it
+floated mid-column while the name and description below sit flush to the start
+edge. And `audit:padding` had to be corrected rather than worked around — it
+treated *any* capped box in `main` as a page shell, so a content box with no
+padding of its own read as a second gutter of 0/0. It now takes the outermost
+capped box only, and still fails on a real gutter drift.
 
 **Setting the site's type in an Adobe surface has one trap worth knowing**:
 weight 400 is `IBMPlexSansArabic` with NO `-Regular` suffix — every other weight

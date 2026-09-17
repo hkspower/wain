@@ -13,17 +13,33 @@
  * category — a restaurant is a restaurant.
  *
  * ---------------------------------------------------------------------------
- * THE SAFE BOX — measured, not assumed.
+ * THE SAFE BOX — measured, and it goes stale when the hero changes.
  *
  * The frame is `preserveAspectRatio="slice"`, so the 400×160 viewBox is
- * cropped to fill, and it crops on a DIFFERENT AXIS at each breakpoint:
+ * cropped to FILL the band. One line governs everything below: a 400-wide
+ * viewBox in a W×H band shows **400·H/W units of height**. The band's aspect
+ * ratio is the whole story; nothing inside this file can widen that window.
  *
- *   desktop  848×256 hero  →  only y 20–140 survives (top and bottom cut)
- *   mobile   358×224 hero  →  only x 72–328 survives (both sides cut)
+ *   phone   370×112  →  121 units,  y 23.5–144.5   (x never cut)
+ *   desktop 576×160  →  111 units,  y 28.4–139.6   (x never cut)
  *
- * So everything that must be seen lives inside x 78–322, y 26–136. A ground
- * line at y 160 or sea at y 150 — the obvious places to put them — is simply
- * invisible on a desktop hero. Hence BASE at 134.
+ * So everything that must be seen lives inside **y 28.4–139.6, x 0–400**.
+ * A ground line at y 160 or sea at y 150 is still invisible; hence BASE at
+ * 134 and SEA above 136, both of which now fit with a few units to spare.
+ *
+ * THIS COMMENT WAS WRONG FOR WEEKS, and the way it went wrong is the point.
+ * It used to describe an 848×256 desktop hero and claimed the sides were cut
+ * on mobile (x 72–328). The compact-scale pass shrank the hero to h-40 and
+ * nobody re-measured: at 864×160 the window collapsed to **74 units, y
+ * 43–117**, so BASE at 134 — the constant placed *specifically* to survive
+ * this crop — fell outside it, along with both SEA lines and the feet of
+ * every building. Every desktop hero on the site was decapitated and standing
+ * on nothing. `audit:mobile` only renders 390/320, where it looked fine, so
+ * nothing caught it.
+ *
+ * The fix was the band, not the drawings: PlaceView caps the hero at
+ * max-w-xl. `audit:hero` now asserts the ratio so this cannot rot a third
+ * time — change the hero's height or width and it fails with the number.
  * ---------------------------------------------------------------------------
  *
  * Same drawing language as CategoryArt so the two sit together: white strokes
