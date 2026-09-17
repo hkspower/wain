@@ -115,6 +115,13 @@ const shot = async (car) => {
       rims: c.rims ?? undefined,
       livery: c.livery ?? undefined,
       face: c.face ?? undefined,
+      // How many wheels. The comment above lists three things that
+      // decide what a car looks like and were missing; this is the
+      // fourth, and it arrived after that paragraph was written. The
+      // Black Demon runs ONE front wheel, and its card has been showing
+      // two since the day it got three — a press shot of a machine the
+      // game does not build.
+      trike: c.trike ?? undefined,
       tint: c.glassTint || undefined,
       tintFilm: c.glassFilm ?? undefined,
       // At its real length, or the card shows a silhouette rather than a

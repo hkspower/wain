@@ -208,6 +208,7 @@ const cars = carBlocks.map((b) => ({
   paint: field(b, /Paint = Hex\(0x([0-9A-F]{6})\)/),
   style: field(b, /Style = BodyStyle\.(\w+)/),
   kit: field(b, /AttackKit = (true|false)/) === "true",
+  trike: field(b, /Trike = (true|false)/) === "true",
   drive: (field(b, /Drive = (?:GRNSim\.)?Drivetrain\.(\w+)/) || "RWD").toLowerCase(),
   engine: +field(b, /Engine = (\d+)/),
   tank: +field(b, /TankLitres = ([\d.]+)f/),
@@ -247,6 +248,13 @@ if (cars.length !== api.cars.length) {
     // asymmetry that lets one port drift: front and rear drive are
     // opposite behaviours under power, not neighbouring numbers.
     if (u.drive !== (a.drive ?? "rwd")) fail(`car ${a.id} drive: ${u.drive} vs ${a.drive ?? "rwd"}`);
+    // How many wheels it has, which nothing compared until it was
+    // noticed that nothing did. `trike` lived in src/game and nowhere
+    // else for the whole life of the car that uses it: both ports drew
+    // the Black Demon with four wheels and no mark, and this check went
+    // green through all of it because it had never been asked. A field
+    // that changes the silhouette belongs here next to the paint.
+    if (u.trike !== (a.trike ?? false)) fail(`car ${a.id} trike: ${u.trike} vs ${a.trike ?? false}`);
     // The rule that makes the rarest car rare, and the build it is sold
     // with. A port that drops either sells a different game.
     if (u.lengthM !== a.lengthM) fail(`car ${a.id} lengthM: ${u.lengthM} vs ${a.lengthM}`);
@@ -270,7 +278,7 @@ if (cars.length !== api.cars.length) {
       fail(`car ${a.id} factoryBuild: [${u.factoryBuild}] vs [${a.factoryBuild}]`);
     }
   }
-  if (!failed) ok(`cars: ${cars.length} match (id, name, price, power, speed, grip, brake, body, kit, drive, engine, tank, length, lock, factory build)`);
+  if (!failed) ok(`cars: ${cars.length} match (id, name, price, power, speed, grip, brake, body, kit, trike, drive, engine, tank, length, lock, factory build)`);
 }
 
 // ---- fuel and forecourts --------------------------------------------

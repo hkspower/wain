@@ -72,6 +72,8 @@ const cars = carsBlock
       color: f(/color: 0x([0-9a-fA-F]{6})/),
       style: f(/style: "(\w+)"/) ?? "sedan",
       kit: f(/kit: "(\w+)"/) ?? null,
+      // Three wheels, one at the front. See the note on bTrike below.
+      trike: /trike: true/.test(b),
       // Which wheels it drives. Absent means rear, which is what every
       // car in this game was before the physics could tell them apart.
       drive: f(/drive: "(fwd|rwd|awd)"/) ?? "rwd",
@@ -408,6 +410,12 @@ struct FGRNCarDef
 	EGRNBodyStyle Style;
 	/** Factory time-attack aero (wing, splitter, bronze wheels). */
 	bool bAttackKit;
+	/** Three wheels, the single one at the front. Changes the wheel
+	 *  layout, the steering — one wheel turns, not two — and the arch
+	 *  that is not drawn over it. The Black Demon is the only car in the
+	 *  game built this way, and this header described it as an ordinary
+	 *  four-wheeled coupe until the sync check was widened to notice. */
+	bool bTrike;
 	/** Which wheels the engine drives. See GRNSim::SolveLoad — it decides
 	 *  which axle's load the engine may use, and the load transfer does
 	 *  the rest. */
@@ -436,7 +444,7 @@ static const FGRNCarDef GRNCars[] = {
 ${cars
   .map(
     (c) =>
-      `\t{ TEXT("${c.id}"), TEXT("${c.name}"), ${c.price}, ${c.power.toFixed(2)}f, ${c.top.toFixed(1)}f, ${c.grip.toFixed(1)}f, ${c.brake.toFixed(1)}f, ${col(c.color)}, ${style(c.style, c.id)}, ${c.kit === "attack" ? "true" : "false"}, GRNSim::EDrivetrain::${c.drive.toUpperCase()}, ${engIndex(c.engine, c.id)}, ${c.tank.toFixed(1)}f, ${c.lengthM.toFixed(2)}f, ${c.zeroTo100s.toFixed(2)}f, ${c.lockedRivals}, TEXT("${c.lockedCar}"), TEXT("${c.factoryBuild.join(",")}") },`
+      `\t{ TEXT("${c.id}"), TEXT("${c.name}"), ${c.price}, ${c.power.toFixed(2)}f, ${c.top.toFixed(1)}f, ${c.grip.toFixed(1)}f, ${c.brake.toFixed(1)}f, ${col(c.color)}, ${style(c.style, c.id)}, ${c.kit === "attack" ? "true" : "false"}, ${c.trike ? "true" : "false"}, GRNSim::EDrivetrain::${c.drive.toUpperCase()}, ${engIndex(c.engine, c.id)}, ${c.tank.toFixed(1)}f, ${c.lengthM.toFixed(2)}f, ${c.zeroTo100s.toFixed(2)}f, ${c.lockedRivals}, TEXT("${c.lockedCar}"), TEXT("${c.factoryBuild.join(",")}") },`
   )
   .join("\n")}
 };

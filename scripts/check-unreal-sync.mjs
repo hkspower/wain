@@ -142,11 +142,12 @@ const hCars = [...header.matchAll(
   // reads as the header being empty rather than as the checker being
   // blind. Every field between the two is unchecked while it lasts,
   // which is the whole point of this file.
-  /\{ TEXT\("([^"]+)"\), TEXT\("([^"]+)"\), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, FColor\([^)]*\), EGRNBodyStyle::(\w+), (true|false), GRNSim::EDrivetrain::(\w+), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, (\d+), TEXT\("([^"]*)"\), TEXT\("([^"]*)"\) \},/g
-)].map(([, id, name, price, power, top, grip, brake, style, kit, drive, engine, tank, lengthM, zeroTo100s, locked, lockedCar, factory]) => ({
+  /\{ TEXT\("([^"]+)"\), TEXT\("([^"]+)"\), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, FColor\([^)]*\), EGRNBodyStyle::(\w+), (true|false), (true|false), GRNSim::EDrivetrain::(\w+), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, (\d+), TEXT\("([^"]*)"\), TEXT\("([^"]*)"\) \},/g
+)].map(([, id, name, price, power, top, grip, brake, style, kit, trike, drive, engine, tank, lengthM, zeroTo100s, locked, lockedCar, factory]) => ({
   id, name, price: +price, power: +power, top: +top, grip: +grip, brake: +brake,
   style: style.toLowerCase(),
   attack: kit === "true",
+  trike: trike === "true",
   drive: drive.toLowerCase(),
   engine: +engine,
   tank: +tank,
@@ -172,6 +173,12 @@ if (hCars.length !== api.cars.length) {
     if (h.brake !== a.brake) fail(`car ${h.id} brake: ${h.brake} vs ${a.brake}`);
     if (h.style !== a.bodyStyle) fail(`car ${h.id} body style: ${h.style} vs ${a.bodyStyle}`);
     if (h.attack !== (a.kit === "attack")) fail(`car ${h.id} attack kit: ${h.attack} vs ${a.kit}`);
+    // How many wheels. Nothing compared this until it was noticed that
+    // nothing did: `trike` lived in src/game and nowhere else for the
+    // whole life of the car that uses it, so this header — and Unity —
+    // drew the Black Demon on four wheels while both checks stayed
+    // green. A field that changes the silhouette belongs beside the kit.
+    if (h.trike !== (a.trike ?? false)) fail(`car ${h.id} trike: ${h.trike} vs ${a.trike ?? false}`);
     // Which wheels the engine drives. The one field where a port that
     // disagrees is not slightly wrong about a number but driving a
     // different car — front and rear are opposite behaviours under

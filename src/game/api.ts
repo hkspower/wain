@@ -164,6 +164,13 @@ export function buildCars() {
     rims: c.rims ?? null,
     livery: c.livery ?? null,
     face: c.face ?? null,
+    // ...including how many wheels it has, which is not the joke it
+    // sounds like. The Black Demon runs a single front wheel, and the
+    // paragraph above was written before it did — so the press render
+    // it describes went on being the car the record does not describe,
+    // just on a different field. A four-wheeled Demon on its own
+    // showroom card is the one the fix above was for, one wheel along.
+    trike: c.trike ?? false,
     glassTint: c.glass?.tint ?? 0,
     glassFilm: c.glass?.film ?? null,
     engine: c.engine,

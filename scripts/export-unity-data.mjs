@@ -170,6 +170,11 @@ const cars = carsBlock
       // Which wheels it drives. Absent means rear, which is what every
       // car in this game was before the physics could tell them apart.
       drive: f(/drive: "(fwd|rwd|awd)"/) ?? "rwd",
+      // One front wheel instead of two. Absent means four, which is
+      // every car here but one — and that one is the halo car, so a
+      // port that drops this ships its rarest machine as an ordinary
+      // coupe.
+      trike: /trike: true/.test(b),
       engine: f(/engine: "([^"]+)"/),
       tank: +f(/tankLitres: ([\d.]+)/),
       lengthM: +f(/lengthM: ([\d.]+)/),
@@ -430,6 +435,11 @@ ${engines
         public BodyStyle Style;
         /// <summary>Factory time-attack aero (wing, splitter, bronze wheels).</summary>
         public bool AttackKit;
+        /// <summary>Three wheels, the single one at the front. Changes the
+        /// wheel layout, the steering (one wheel turns, not two) and the
+        /// arch that is not drawn over it — see createCar in
+        /// src/game/cars.ts and spinWheels in src/game/engine.ts.</summary>
+        public bool Trike;
         /// <summary>Index into Engines — what the car left the factory with.</summary>
         public int Engine;
         /// <summary>Tank, litres.</summary>
@@ -459,7 +469,7 @@ ${cars
     (c) => `        new Car {
             Id = "${cs(c.id)}", Name = "${cs(c.name)}", Price = ${c.price},
             Power = ${f(c.power)}, TopSpeedKmh = ${f(c.top)}, Grip = ${f(c.grip)}, Brake = ${f(c.brake)},
-            Paint = ${col(c.color)}, Style = ${style(c.style, c.id)}, AttackKit = ${c.kit === "attack" ? "true" : "false"}, Drive = Drivetrain.${c.drive.toUpperCase()},
+            Paint = ${col(c.color)}, Style = ${style(c.style, c.id)}, AttackKit = ${c.kit === "attack" ? "true" : "false"}, Trike = ${c.trike ? "true" : "false"}, Drive = Drivetrain.${c.drive.toUpperCase()},
             Engine = ${engIndex(c.engine, c.id)}, TankLitres = ${f(c.tank)}, LengthM = ${f(c.lengthM)},
             ZeroTo100s = ${f(c.zeroTo100s)},
             LockedRivals = ${c.lockedRivals}, LockedCar = "${cs(c.lockedCar)}",

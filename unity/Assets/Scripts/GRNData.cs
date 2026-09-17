@@ -235,6 +235,11 @@ public static class GRNData
         public BodyStyle Style;
         /// <summary>Factory time-attack aero (wing, splitter, bronze wheels).</summary>
         public bool AttackKit;
+        /// <summary>Three wheels, the single one at the front. Changes the
+        /// wheel layout, the steering (one wheel turns, not two) and the
+        /// arch that is not drawn over it — see createCar in
+        /// src/game/cars.ts and spinWheels in src/game/engine.ts.</summary>
+        public bool Trike;
         /// <summary>Index into Engines — what the car left the factory with.</summary>
         public int Engine;
         /// <summary>Tank, litres.</summary>
@@ -262,7 +267,7 @@ public static class GRNData
         new Car {
             Id = "black-demon", Name = "Black Demon", Price = 420000,
             Power = 1.85f, TopSpeedKmh = 415f, Grip = 17.2f, Brake = 44f,
-            Paint = Hex(0x0B0A0D), Style = BodyStyle.GTR, AttackKit = true, Drive = Drivetrain.RWD,
+            Paint = Hex(0x0B0A0D), Style = BodyStyle.GTR, AttackKit = true, Trike = true, Drive = Drivetrain.RWD,
             Engine = 4, TankLitres = 82f, LengthM = 4.66f,
             ZeroTo100s = 2.6f,
             LockedRivals = 8, LockedCar = "zeta-300-gtr",
@@ -271,7 +276,7 @@ public static class GRNData
         new Car {
             Id = "zeta-300-gtr", Name = "Zeta 300 GTR", Price = 240000,
             Power = 1.7f, TopSpeedKmh = 405f, Grip = 18f, Brake = 46f,
-            Paint = Hex(0x3B2A5A), Style = BodyStyle.ZX, AttackKit = true, Drive = Drivetrain.AWD,
+            Paint = Hex(0x3B2A5A), Style = BodyStyle.ZX, AttackKit = true, Trike = false, Drive = Drivetrain.AWD,
             Engine = 3, TankLitres = 70f, LengthM = 4.53f,
             ZeroTo100s = 2.4f,
             LockedRivals = 8, LockedCar = "",
@@ -280,7 +285,7 @@ public static class GRNData
         new Car {
             Id = "efreet-rx-kai", Name = "Efreet RX Kai", Price = 120000,
             Power = 1.66f, TopSpeedKmh = 400f, Grip = 17.5f, Brake = 44f,
-            Paint = Hex(0xF2B90D), Style = BodyStyle.RX7, AttackKit = true, Drive = Drivetrain.RWD,
+            Paint = Hex(0xF2B90D), Style = BodyStyle.RX7, AttackKit = true, Trike = false, Drive = Drivetrain.RWD,
             Engine = 3, TankLitres = 55f, LengthM = 4.42f,
             ZeroTo100s = 3f,
             LockedRivals = 0, LockedCar = "",
@@ -289,7 +294,7 @@ public static class GRNData
         new Car {
             Id = "sahara-v12", Name = "Sahara V12", Price = 96000,
             Power = 1.62f, TopSpeedKmh = 385f, Grip = 16.4f, Brake = 42f,
-            Paint = Hex(0xB8860B), Style = BodyStyle.ZX, AttackKit = true, Drive = Drivetrain.RWD,
+            Paint = Hex(0xB8860B), Style = BodyStyle.ZX, AttackKit = true, Trike = false, Drive = Drivetrain.RWD,
             Engine = 4, TankLitres = 90f, LengthM = 4.62f,
             ZeroTo100s = 3.2f,
             LockedRivals = 0, LockedCar = "",
@@ -298,7 +303,7 @@ public static class GRNData
         new Car {
             Id = "falcon-720", Name = "Falcon 720", Price = 71000,
             Power = 1.5f, TopSpeedKmh = 360f, Grip = 15.8f, Brake = 40f,
-            Paint = Hex(0xC1121F), Style = BodyStyle.ZX, AttackKit = true, Drive = Drivetrain.RWD,
+            Paint = Hex(0xC1121F), Style = BodyStyle.ZX, AttackKit = true, Trike = false, Drive = Drivetrain.RWD,
             Engine = 4, TankLitres = 72f, LengthM = 4.54f,
             ZeroTo100s = 3.4f,
             LockedRivals = 0, LockedCar = "",
@@ -307,7 +312,7 @@ public static class GRNData
         new Car {
             Id = "storm-s8", Name = "Storm S8", Price = 54000,
             Power = 1.4f, TopSpeedKmh = 335f, Grip = 15.2f, Brake = 38f,
-            Paint = Hex(0x1F2933), Style = BodyStyle.Super, AttackKit = true, Drive = Drivetrain.AWD,
+            Paint = Hex(0x1F2933), Style = BodyStyle.Super, AttackKit = true, Trike = false, Drive = Drivetrain.AWD,
             Engine = 3, TankLitres = 68f, LengthM = 4.8f,
             ZeroTo100s = 3.8f,
             LockedRivals = 0, LockedCar = "",
@@ -316,7 +321,7 @@ public static class GRNData
         new Car {
             Id = "anniversary-30", Name = "Bareed 30 Anniversary", Price = 35000,
             Power = 1.31f, TopSpeedKmh = 300f, Grip = 12.4f, Brake = 33f,
-            Paint = Hex(0xF2F2EE), Style = BodyStyle.Pony, AttackKit = false, Drive = Drivetrain.RWD,
+            Paint = Hex(0xF2F2EE), Style = BodyStyle.Pony, AttackKit = false, Trike = false, Drive = Drivetrain.RWD,
             Engine = 4, TankLitres = 61f, LengthM = 4.92f,
             ZeroTo100s = 4.8f,
             LockedRivals = 0, LockedCar = "",
@@ -325,7 +330,7 @@ public static class GRNData
         new Car {
             Id = "kaiju-r", Name = "Kaiju R", Price = 38000,
             Power = 1.34f, TopSpeedKmh = 310f, Grip = 16.2f, Brake = 38f,
-            Paint = Hex(0x3F66C4), Style = BodyStyle.GTR, AttackKit = true, Drive = Drivetrain.AWD,
+            Paint = Hex(0x3F66C4), Style = BodyStyle.GTR, AttackKit = true, Trike = false, Drive = Drivetrain.AWD,
             Engine = 3, TankLitres = 74f, LengthM = 4.6f,
             ZeroTo100s = 4.4f,
             LockedRivals = 0, LockedCar = "",
@@ -334,7 +339,7 @@ public static class GRNData
         new Car {
             Id = "efreet-rx", Name = "Efreet RX", Price = 31000,
             Power = 1.3f, TopSpeedKmh = 295f, Grip = 14.8f, Brake = 35f,
-            Paint = Hex(0xD7263D), Style = BodyStyle.RX7, AttackKit = false, Drive = Drivetrain.RWD,
+            Paint = Hex(0xD7263D), Style = BodyStyle.RX7, AttackKit = false, Trike = false, Drive = Drivetrain.RWD,
             Engine = 2, TankLitres = 60f, LengthM = 4.3f,
             ZeroTo100s = 5.2f,
             LockedRivals = 0, LockedCar = "",
@@ -343,7 +348,7 @@ public static class GRNData
         new Car {
             Id = "zeta-300", Name = "Zeta 300", Price = 27000,
             Power = 1.26f, TopSpeedKmh = 275f, Grip = 13.9f, Brake = 34f,
-            Paint = Hex(0xC1272D), Style = BodyStyle.ZX, AttackKit = false, Drive = Drivetrain.AWD,
+            Paint = Hex(0xC1272D), Style = BodyStyle.ZX, AttackKit = false, Trike = false, Drive = Drivetrain.AWD,
             Engine = 3, TankLitres = 70f, LengthM = 4.31f,
             ZeroTo100s = 5.8f,
             LockedRivals = 0, LockedCar = "",
@@ -352,7 +357,7 @@ public static class GRNData
         new Car {
             Id = "gulf-coupe-rs", Name = "Gulf Coupe RS", Price = 33000,
             Power = 1.28f, TopSpeedKmh = 285f, Grip = 14.6f, Brake = 35f,
-            Paint = Hex(0xCB2027), Style = BodyStyle.Hatch, AttackKit = false, Drive = Drivetrain.FWD,
+            Paint = Hex(0xCB2027), Style = BodyStyle.Hatch, AttackKit = false, Trike = false, Drive = Drivetrain.FWD,
             Engine = 1, TankLitres = 50f, LengthM = 4.28f,
             ZeroTo100s = 5.6f,
             LockedRivals = 0, LockedCar = "",
@@ -361,7 +366,7 @@ public static class GRNData
         new Car {
             Id = "salmiya-turbo", Name = "Salmiya Turbo GT", Price = 24000,
             Power = 1.2f, TopSpeedKmh = 255f, Grip = 13.8f, Brake = 32f,
-            Paint = Hex(0xB84DD6), Style = BodyStyle.Sedan, AttackKit = false, Drive = Drivetrain.FWD,
+            Paint = Hex(0xB84DD6), Style = BodyStyle.Sedan, AttackKit = false, Trike = false, Drive = Drivetrain.FWD,
             Engine = 1, TankLitres = 60f, LengthM = 4.64f,
             ZeroTo100s = 6.6f,
             LockedRivals = 0, LockedCar = "",
@@ -370,7 +375,7 @@ public static class GRNData
         new Car {
             Id = "hawally-2t", Name = "Hawally Sport 2T", Price = 16000,
             Power = 1.12f, TopSpeedKmh = 240f, Grip = 13.2f, Brake = 30f,
-            Paint = Hex(0xF5C211), Style = BodyStyle.Sedan, AttackKit = false, Drive = Drivetrain.FWD,
+            Paint = Hex(0xF5C211), Style = BodyStyle.Sedan, AttackKit = false, Trike = false, Drive = Drivetrain.FWD,
             Engine = 1, TankLitres = 55f, LengthM = 4.56f,
             ZeroTo100s = 8.2f,
             LockedRivals = 0, LockedCar = "",
@@ -379,7 +384,7 @@ public static class GRNData
         new Car {
             Id = "deera-sedan", Name = "Deera Sedan", Price = 8500,
             Power = 1.05f, TopSpeedKmh = 220f, Grip = 12.6f, Brake = 28f,
-            Paint = Hex(0xDFE3E8), Style = BodyStyle.Sedan, AttackKit = false, Drive = Drivetrain.FWD,
+            Paint = Hex(0xDFE3E8), Style = BodyStyle.Sedan, AttackKit = false, Trike = false, Drive = Drivetrain.FWD,
             Engine = 1, TankLitres = 60f, LengthM = 4.7f,
             ZeroTo100s = 9.5f,
             LockedRivals = 0, LockedCar = "",
@@ -388,7 +393,7 @@ public static class GRNData
         new Car {
             Id = "jahra-pickup", Name = "Jahra Pickup", Price = 6000,
             Power = 1f, TopSpeedKmh = 195f, Grip = 12f, Brake = 27f,
-            Paint = Hex(0x6E7F8D), Style = BodyStyle.Pickup, AttackKit = false, Drive = Drivetrain.RWD,
+            Paint = Hex(0x6E7F8D), Style = BodyStyle.Pickup, AttackKit = false, Trike = false, Drive = Drivetrain.RWD,
             Engine = 4, TankLitres = 80f, LengthM = 5.16f,
             ZeroTo100s = 8f,
             LockedRivals = 0, LockedCar = "",
@@ -397,7 +402,7 @@ public static class GRNData
         new Car {
             Id = "sharq-hatch", Name = "Sharq Hatch", Price = 2200,
             Power = 0.98f, TopSpeedKmh = 205f, Grip = 12.4f, Brake = 27f,
-            Paint = Hex(0x16A34A), Style = BodyStyle.Hatch, AttackKit = false, Drive = Drivetrain.FWD,
+            Paint = Hex(0x16A34A), Style = BodyStyle.Hatch, AttackKit = false, Trike = false, Drive = Drivetrain.FWD,
             Engine = 0, TankLitres = 42f, LengthM = 3.95f,
             ZeroTo100s = 10.8f,
             LockedRivals = 0, LockedCar = "",
@@ -406,7 +411,7 @@ public static class GRNData
         new Car {
             Id = "wain-special", Name = "Wain Special", Price = 0,
             Power = 1f, TopSpeedKmh = 180f, Grip = 12f, Brake = 26f,
-            Paint = Hex(0xF2F4F7), Style = BodyStyle.Sedan, AttackKit = false, Drive = Drivetrain.RWD,
+            Paint = Hex(0xF2F4F7), Style = BodyStyle.Sedan, AttackKit = false, Trike = false, Drive = Drivetrain.RWD,
             Engine = 0, TankLitres = 50f, LengthM = 4.45f,
             ZeroTo100s = 11.5f,
             LockedRivals = 0, LockedCar = "",

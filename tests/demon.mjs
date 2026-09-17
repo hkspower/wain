@@ -174,6 +174,11 @@ const look = await page.evaluate((id) => {
     tintFilm: car.glass?.film,
     rims: car.rims,
     livery: car.livery,
+    // Three wheels. Passing everything that decides the look EXCEPT
+    // this is how every claim below came to be made against a car the
+    // game does not build — the record has said trike since the day it
+    // grew a third wheel, and this call had never asked for it.
+    trike: car.trike,
   });
   g.updateMatrixWorld(true);
 
@@ -390,7 +395,7 @@ const both = await page.evaluate((id) => {
   const mk = (extra) => {
     const g = window.__grnBuildCar({
       body: car.color, style: car.style, kit: car.kit, raceKit: car.kit === "attack",
-      lengthM: car.lengthM, rims: car.rims, livery: car.livery, ...extra,
+      lengthM: car.lengthM, rims: car.rims, livery: car.livery, trike: car.trike, ...extra,
     });
     g.updateMatrixWorld(true);
     let marks = 0;
@@ -413,9 +418,50 @@ console.log(`gold wins ${both.gold.spokes.join(", ")}  ` +
   check(both.gold.spokes.length === 1 && both.gold.spokes[0] === "rim-gold",
     `bought gold rims lost to the factory black (${both.gold.spokes.join("/")}) — a purchase the player made and cannot see`));
 
+// ---- 6. Three wheels, and the front one steers ----------------------
+//
+// The fifth thing this car is, and the last to be checked. `trike` moved
+// the wheel layout, the steering and the arches when it landed, and
+// nothing anywhere tested any of it — this suite included, because its
+// own build call did not pass the field. So: count them off the built
+// car, and read the plan the builder records for the engine to steer by.
+const wheels = await page.evaluate((id) => {
+  const car = window.__grnShowroom.car(id);
+  const g = window.__grnBuildCar({
+    body: car.color, style: car.style, kit: car.kit, raceKit: car.kit === "attack",
+    lengthM: car.lengthM, rims: car.rims, livery: car.livery, trike: car.trike,
+  });
+  g.updateMatrixWorld(true);
+  const hubs = (g.userData.wheels ?? []);
+  // An arch per wheel, except over the single front one — a centre wheel
+  // has no wing to flare.
+  let arches = 0;
+  g.traverse((o) => { if ((o.userData?.decal ?? o.name ?? "").includes("arch")) arches++; });
+  return {
+    count: hubs.length,
+    plan: g.userData.wheelPlan ?? null,
+    xs: hubs.map((w) => +w.position.x.toFixed(3)),
+    arches,
+  };
+}, DEMON);
+
+console.log(`wheels    ${wheels.count}  plan ${JSON.stringify(wheels.plan)}  ` +
+  check(wheels.count === 3,
+    `the Black Demon built with ${wheels.count} wheels — it is a three-wheeler and every port and press shot has drawn it otherwise`));
+console.log(`front     ${wheels.plan?.front ?? "?"}  ` +
+  check(wheels.plan?.front === 1,
+    `wheelPlan.front is ${wheels.plan?.front}, so the engine steers it like a two-wheel axle`));
+// The single front wheel is on the centreline; the rears are not.
+{
+  const centred = wheels.xs.filter((x) => Math.abs(x) < 0.02).length;
+  console.log(`centreline ${wheels.xs.join(", ")}  ` +
+    check(centred === 1,
+      `${centred} wheels sit on the centreline — the front one should, and only it`));
+}
+
 await browser.close();
 if (fail.length) {
   console.log(`\nFAILURES:\n${fail.map((f) => ` - ${f}`).join("\n")}`);
   process.exit(1);
 }
-console.log("\nthe Black Demon is black, marked on four sides, and behind two locks");
+console.log("\nthe Black Demon is black, marked on four sides, on three wheels, and behind two locks");
