@@ -10,7 +10,7 @@ import { ProductCard } from '@/components/product-card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import {
-  CATEGORY_SOLID, EMBER_ON_ART, INK_ON_CATEGORY_SOLID, Spacing, Type,
+  CATEGORY_SOLID, EMBER_ON_ART, INK_ON_CATEGORY_SOLID, Radius, Spacing, Type,
 } from '@/constants/theme';
 import { useCart } from '@/lib/cart';
 import { categoryKicker, categoryName } from '@/lib/catalog';
@@ -101,15 +101,12 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   categoryTile: {
-    // 2.5:1, not square — revised on 2026-09-16, the same day the square
-    // version shipped. A full-width square in this app's 800px content
-    // column is 800x800, which is a wall rather than a banner; 2.5:1 gives
-    // ~320px of height at that width instead. aspectRatio rather than a
-    // fixed height, so it stays in ratio across every phone width without a
-    // number to keep in step with the column it fills.
-    aspectRatio: 2.5,
-    // SQUARE CORNERS, not Radius.card — asked for by name.
-    borderRadius: 0,
+    // SQUARE, not 1.69:1 — asked for on 2026-09-16, replacing the ratio
+    // measured off the photographic tiles the owner had sent. aspectRatio
+    // rather than a fixed height, so it stays square across every phone
+    // width without a number to keep in step with the column it fills.
+    aspectRatio: 1,
+    borderRadius: Radius.card,
     overflow: 'hidden',
   },
   categoryInner: {
