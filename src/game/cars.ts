@@ -583,11 +583,66 @@ function faceUV(geo: THREE.BufferGeometry, w: number, h: number): THREE.BufferGe
  * few millimetres proud, which is invisible.
  */
 export interface CrownSpec {
-  /** How much the section pulls IN at the top and bottom, as a fraction
-   *  of the half-width. The shoulder keeps its full width. */
+  /**
+   * How much the section pulls IN at the top and bottom, as a fraction
+   * of the half-width. The shoulder keeps its full width, so this never
+   * moves the car's bounding box — only the shape between its edges.
+   *
+   * NOT the reason these cars read as boxy, and that is worth writing
+   * down because the numbers look like it is. caredges reports flank%,
+   * the share of a body whose normal is within fifteen degrees of dead
+   * sideways, and across the fleet it tracks this value almost exactly:
+   * hatch 0.034 -> 25.0%, pickup 0.042 -> 24.2%, sedan 0.045 -> 23.5%,
+   * against zx 0.075 -> 18.2%, rx7 0.075 -> 16.6%, super 0.095 -> 14.3%.
+   *
+   * It is a coincidence. Raised as a controlled change — sedan 0.045 to
+   * 0.080, hatch 0.034 to 0.072, better than double — flank% moved by
+   * under one point on both, and the rendered cards were
+   * indistinguishable side by side. The arithmetic says why: a surface
+   * drawn in 74 mm over 730 mm of body height is tilted about six
+   * degrees, which is still well inside a fifteen degree gate, so it
+   * cannot move the measure and it barely moves the silhouette.
+   *
+   * What does make them boxy is `plan`. See below.
+   */
   tuck: number;
   /** How far down the top surface falls at its edges, in metres. */
   roof: number;
+  /**
+   * NOT HERE, and this is the note that says why, so the next person
+   * does not spend a day rediscovering it.
+   *
+   * These cars read as boxy because every shell is an EXTRUSION of a
+   * side profile: the cross-section is identical from nose to tail, so
+   * seen from above each car is a rectangle with the corners rounded off
+   * by the bevel. A real car is a lozenge in plan — narrow across the
+   * bumper, widest at the B-pillar, drawn in again at the tail — and
+   * that plan shape is most of what the eye reads as a car rather than
+   * a box.
+   *
+   * Two attempts at reaching it from crownShell, both measured, both
+   * reverted:
+   *
+   *   TUCK. Doubling it (sedan 0.045 to 0.080, hatch 0.034 to 0.072)
+   *   moved caredges' flank% by under one point and the rendered cards
+   *   were indistinguishable. A surface drawn in 74 mm over 730 mm of
+   *   height is tilted six degrees; it cannot un-box anything.
+   *
+   *   A PLAN TAPER — a z-dependent nip on x, held at full width across
+   *   the wheelbase. This one DID show, and it showed by eating the
+   *   front wing: the wheel arch lip and the side markers are hung off
+   *   flankX, the car's widest point, rather than off the local
+   *   surface, so narrowing the body under them left the lip standing
+   *   detached from the paint. Holding the taper clear of the arches
+   *   confines it to the last tenth of the car at each end, which is
+   *   where the bevel already works, and then it does not show at all.
+   *
+   * The conclusion is that plan shape is not reachable by displacing an
+   * extrusion after the fact. It belongs in the LOFT: profiles.json
+   * carries a side profile per silhouette and build_style() sweeps it at
+   * one width, and what it needs is a plan outline swept with it. That
+   * is a Blender-pipeline change, not a crown constant.
+   */
   /** Where the widest point sits, 0 at the bottom of the shell and 1 at
    *  the top. A door\'s shoulder is a little above the middle. */
   shoulder: number;
