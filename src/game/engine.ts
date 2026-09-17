@@ -7126,6 +7126,14 @@ export class GameEngine {
     // shells and measure them without driving fourteen garage purchases.
     (window as unknown as { __grnBuildCar: typeof createCar }).__grnBuildCar = createCar;
     (window as unknown as { __grnCars: typeof CARS }).__grnCars = CARS;
+    // Every silhouette the game builds, from the one table that has to
+    // name them all. tools/shots/caredges.mjs kept its own literal list
+    // and it went stale twice: the pony was left off when it was
+    // written, and the pickup and the super were added to the roster
+    // afterwards and never measured. A tool that enumerates the fleet
+    // should not be the place the fleet is written down.
+    (window as unknown as { __grnStyles: string[] }).__grnStyles =
+      Object.keys(STYLE_REAL);
     (window as unknown as { __grnRig: typeof RIG }).__grnRig = RIG;
     // The patrol car's beat, so a test can check the pattern arithmetic
     // without a renderer and without restating it.

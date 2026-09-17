@@ -23,6 +23,15 @@
 //           cut in edge radius it barely moved, because what governs it
 //           is crownShell tucking the whole flank, not the bevel
 //           rolling its corner.
+//   shell   PROCEDURAL or AUTHORED. This is the thing the tool got
+//           wrong for its whole life and it changes every other number
+//           in the row. __grnBuildCar returns the procedural shell and
+//           the Blender one is swapped in later, asynchronously — so a
+//           tool that builds a car and measures it immediately measures
+//           the stand-in, not the car. Both are now reported, because
+//           both are real: the procedural shell is what the game draws
+//           until the download lands, and on this box that is tens of
+//           seconds.
 //   edge m  the roll at the shoulder, in metres: the MEDIAN of ten
 //           stations along the bonnet, with the range beside it and how
 //           many of the ten had a shoulder to measure at all. Measured
@@ -179,7 +188,18 @@ console.log(`\nframe        ${shot.W}x${shot.H}`);
 console.log(`car border   ${shot.edges} silhouette samples, ${shot.mean} px mean 10-90% transition (median ${shot.median})`);
 console.log("             edges.mjs measures 2.125 px on the world's edges in the same renderer\n");
 
-const rows = await page.evaluate(() => {
+// Build every car FIRST, so the eight Blender downloads run together
+// rather than one after another, then measure each shell twice: as
+// built, and again once the authored geometry has landed.
+const built = await page.evaluate(() => {
+  const STYLES = window.__grnStyles ?? ["sedan", "zx", "gtr", "rx7", "hatch", "pony"];
+  window.__edgeCars = STYLES.map((style) => ({
+    style, g: window.__grnBuildCar({ body: 0xffffff, style }),
+  }));
+  return STYLES;
+});
+const measure = await page.evaluate(() => {
+  window.__edgeMeasure = () => {
   const THREE = window.__grnThree;
   const out = [];
   const AX = [
@@ -187,10 +207,13 @@ const rows = await page.evaluate(() => {
     new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0),
     new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1),
   ];
-  // All SIX silhouettes. The pony was left off this list when it was
-  // written and has never had its edges measured.
-  for (const style of ["sedan", "zx", "gtr", "rx7", "hatch", "pony"]) {
-    const g = window.__grnBuildCar({ body: 0xffffff, style });
+  // EVERY silhouette, from the game's own table rather than from a list
+  // kept here. The list kept here went stale twice: the pony was left
+  // off when this was written, and the pickup and the super were added
+  // to the roster afterwards and so were never measured at all — two of
+  // eight bodies whose edges nobody had ever looked at, in the tool
+  // whose whole job is looking at edges.
+  for (const { style, g } of window.__edgeCars) {
     const shell = g.children.find((o) => o.userData?.shell === "body");
     if (!shell) { out.push({ style, ok: false }); continue; }
     const geo = shell.geometry;
@@ -307,29 +330,112 @@ const rows = await page.evaluate(() => {
 
     out.push({
       style, ok: true, tris: tri,
+      shell: geo.userData?.authored ? "authored" : "procedural",
       roll: +((roll / area) * 100).toFixed(1),
       flank: +((flank / area) * 100).toFixed(1),
       edgeM: +edgeM.toFixed(3), edgeMin: +edgeMin.toFixed(3), edgeMax: +edgeMax.toFixed(3),
       stations: spans.length, blank, silhouette,
       width: +(bb.max.x * 2).toFixed(3),
     });
-    g.traverse((o) => o.geometry && o.geometry.dispose?.());
   }
   return out;
+  };
+  return true;
 });
+void measure;
+const procedural = await page.evaluate(() => window.__edgeMeasure());
+// Wait for the Blender shells, then measure the same cars again. They
+// arrive per file and the loads were all started together above.
+const arrived = await page.evaluate(async (quick) => {
+  const deadline = performance.now() + (quick ? 0 : 240000);
+  const authored = () =>
+    window.__edgeCars.filter(({ g }) =>
+      g.children.find((o) => o.userData?.shell === "body")?.geometry.userData?.authored).length;
+  while (performance.now() < deadline && authored() < window.__edgeCars.length) {
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return { got: authored(), of: window.__edgeCars.length };
+}, process.env.EDGE_QUICK === "1");
+const rows = await page.evaluate(() => window.__edgeMeasure());
 await browser.close();
+console.log(`shells       ${arrived.got} of ${arrived.of} authored shells arrived\n`);
 
-console.log(
-  "\nbody".padEnd(8) + "tris".padStart(8) + "roll%".padStart(8) + "flank%".padStart(8) +
-  "edge m".padStart(9) + "range".padStart(14) + "sta".padStart(5) + "width".padStart(8)
-);
-const fail = [];
-for (const r of rows) {
-  if (!r.ok) { console.log(`${r.style.padEnd(8)} no body shell`); fail.push(`${r.style}: no body shell`); continue; }
+const table = (label, list) => {
   console.log(
-    r.style.padEnd(8) + String(r.tris).padStart(8) + (r.roll + "%").padStart(8) +
-    (r.flank + "%").padStart(8) + String(r.edgeM).padStart(9) + `${r.edgeMin}-${r.edgeMax}`.padStart(14) + String(r.stations).padStart(5) + String(r.width).padStart(8)
+    `\n${label}`.padEnd(8) + "tris".padStart(8) + "shell".padStart(12) + "roll%".padStart(8) +
+    "flank%".padStart(8) + "edge m".padStart(9) + "range".padStart(14) + "sta".padStart(5) + "width".padStart(8)
   );
+  for (const r of list) {
+    if (!r.ok) { console.log(`${r.style.padEnd(8)} no body shell`); continue; }
+    console.log(
+      r.style.padEnd(8) + String(r.tris).padStart(8) + r.shell.padStart(12) + (r.roll + "%").padStart(8) +
+      (r.flank + "%").padStart(8) + String(r.edgeM).padStart(9) +
+      `${r.edgeMin}-${r.edgeMax}`.padStart(14) + String(r.stations).padStart(5) + String(r.width).padStart(8)
+    );
+  }
+};
+table("as built", procedural);
+table("shipped", rows);
+const fail = [];
+
+// --- Does the stand-in look like the car it stands in for? ------------
+//
+// The Blender shell is not instant. It arrives per file, asynchronously,
+// and until it does the game draws the procedural one — on this box that
+// is tens of seconds of every race, and if the download fails it is the
+// whole race (models.ts: "404 / parse failure -> procedural stands").
+// So a stand-in whose shoulder rolls over four times as far as the shell
+// that replaces it is a car that changes shape mid-corner.
+//
+// Anything already under 50 mm passes outright whatever the ratio: a
+// 40 mm shoulder is a car, and a ratio between two tight numbers is
+// noise rather than a finding.
+//
+// DO NOT FIX THIS BY TURNING CrownSpec.smooth BACK OFF. It is the
+// obvious move and it is wrong. Measured, with the body crown stepped
+// as it was before it was smoothed:
+//
+//        stepped   smoothed        stepped   smoothed
+//   sedan   21 mm     82 mm    gtr    40 mm     19 mm
+//   zx      38 mm     88 mm    rx7    31 mm     21 mm
+//   pony    30 mm    132 mm    hatch  23 mm     23 mm
+//   pickup  45 mm    104 mm    super  44 mm     17 mm
+//
+// Four got softer and four got sharper — and the stepped numbers are
+// flattered by the thing that was wrong with a stepped crown in the
+// first place. This walk finds the deck by its NORMAL and then the
+// flank by its normal; across a faceted surface the normal jumps, so
+// the walk terminates early and reports a tight shoulder on a shell
+// whose bonnet is a venetian blind. roll% says the same thing from the
+// other side: it FELL on all eight when the crown was smoothed, which
+// is less of each body given over to rolled-over edge.
+//
+// So the trade was a real one and it went the right way. What is left
+// is to bring the smoothed stand-in's crown nearer the Blender shell's
+// shape, per silhouette — not to put the corrugation back.
+const STANDIN_RATIO = 2.5;
+const STANDIN_FLOOR = 0.05;
+const byStyle = new Map(procedural.map((r) => [r.style, r]));
+console.log("\nstand-in vs shipped");
+for (const r of rows) {
+  if (!r.ok) continue;
+  const p = byStyle.get(r.style);
+  if (!p?.ok) continue;
+  const ratio = r.edgeM > 0 ? p.edgeM / r.edgeM : 0;
+  const bad = p.edgeM > STANDIN_FLOOR && ratio > STANDIN_RATIO;
+  console.log(
+    `${r.style.padEnd(8)} ${(p.edgeM * 1000).toFixed(0).padStart(4)} mm as built vs ` +
+    `${(r.edgeM * 1000).toFixed(0).padStart(3)} mm shipped  (${ratio.toFixed(1)}x)  ${bad ? "FAIL" : "ok"}`
+  );
+  if (bad)
+    fail.push(
+      `${r.style}: the stand-in's shoulder rolls ${(p.edgeM * 1000).toFixed(0)} mm against the ` +
+      `shipped shell's ${(r.edgeM * 1000).toFixed(0)} — the car changes shape when the download lands`
+    );
+}
+console.log("");
+for (const r of rows) {
+  if (!r.ok) { fail.push(`${r.style}: no body shell`); continue; }
   if (process.env.EDGE_DEBUG === "1")
     console.log(`   ${r.style}: ${r.stations} stations measured, ${r.blank} with no shoulder\n   ` +
       r.silhouette.map(([y,x,nx])=>`y${y} x${x} nx${nx}`).join("\n   "));
@@ -342,7 +448,7 @@ for (const r of rows) {
   // fires on something other than its own subject is worse than none.
 }
 mkdirSync("press/edges", { recursive: true });
-writeFileSync("press/edges/cars.json", JSON.stringify(rows, null, 2));
+writeFileSync("press/edges/cars.json", JSON.stringify({ procedural, shipped: rows }, null, 2));
 console.log("");
 console.log(fail.length ? `FAILURES:\n - ${fail.join("\n - ")}` : "every body has panels that meet at edges");
 process.exit(fail.length ? 1 : 0);
