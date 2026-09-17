@@ -402,17 +402,44 @@ let madeRef = null
   p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()) })
   p.on('pageerror', (e) => errors.push(String(e)))
 
+  // WHICH SERVER IS THE BUNDLE TALKING TO? first-admin-test.mjs already learned
+  // this the hard way: `dist/` built without EXPO_PUBLIC_API_BASE bakes in
+  // https://www.sporta.com.kw/api, so the app asks PRODUCTION about a fixture
+  // that only exists in the sandbox — and the failure looks exactly like a
+  // broken exchange screen ("the item picker never loads") rather than what it
+  // is. Checked BEFORE anything below is read, or every assertion after it is
+  // about a bundle pointed somewhere else.
+  const apiOrigins = new Set()
+  p.on('request', (r) => {
+    const u = r.url()
+    if (/\/api\/api\.php/.test(u)) apiOrigins.add(new URL(u).origin)
+  })
+
   const res = await p.goto(APP + '/exchange', { waitUntil: 'networkidle' })
   check(res?.status() === 200, 'the app has an /exchange screen', `got ${res?.status()}`)
   await p.waitForTimeout(900)
 
-  // DRIVEN IN ARABIC, which is what the app defaults to and what nearly every
-  // customer sees. Switching to English first would test the half of the
-  // strings a Kuwaiti shopper never reads.
   await p.getByLabel('رقم الطلب').fill(TRACK)
   await p.getByLabel('رقم الهاتف').fill(PHONE_LOCAL)
   await p.getByRole('button', { name: 'عرض قطع الطلب' }).click()
   await p.waitForTimeout(2500)
+
+  {
+    const wrong = [...apiOrigins].filter((o) => o !== new URL(APP).origin)
+    check(apiOrigins.size > 0 && wrong.length === 0,
+      `the app bundle talks to the sandbox (${APP})`,
+      apiOrigins.size === 0
+        ? 'it asked NOTHING — nothing below is a measurement'
+        : wrong.length
+          ? `it asked ${wrong.join(', ')} — rebuild with EXPO_PUBLIC_API_BASE=${APP}/api npx expo export --platform web --clear`
+          : '')
+  }
+
+  // DRIVEN IN ARABIC, which is what the app defaults to and what nearly every
+  // customer sees. Switching to English first would test the half of the
+  // strings a Kuwaiti shopper never reads. (The form was already filled and
+  // submitted above, before the origin check, so the guard can see the real
+  // request the screen makes.)
 
   const bodyText = await p.locator('body').innerText()
   check(/اختر القطع/.test(bodyText), 'a real order and phone reach the item picker',
