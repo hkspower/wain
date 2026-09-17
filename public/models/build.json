@@ -85,6 +85,42 @@
         "Visor",
         "Wheel"
       ]
+    },
+    "car-hatch": {
+      "tris": 201016,
+      "kb": 3535.8,
+      "parts": [
+        "Body",
+        "Canopy",
+        "Roof"
+      ]
+    },
+    "car-pony": {
+      "tris": 167608,
+      "kb": 2948.5,
+      "parts": [
+        "Body",
+        "Canopy",
+        "Roof"
+      ]
+    },
+    "car-pickup": {
+      "tris": 178744,
+      "kb": 3144.3,
+      "parts": [
+        "Body",
+        "Canopy",
+        "Roof"
+      ]
+    },
+    "car-super": {
+      "tris": 178744,
+      "kb": 3144.3,
+      "parts": [
+        "Body",
+        "Canopy",
+        "Roof"
+      ]
     }
   }
 }

@@ -7,7 +7,7 @@ simply stands — nothing waits and nothing breaks.
 
 | File | Meshes | Replaces |
 | --- | --- | --- |
-| `car-{sedan,zx,gtr,rx7}.glb` (shipped); `car-{hatch,pony,pickup,super}.glb` (pipeline-ready, not yet built) | Body, Canopy, Roof | the bevel-extruded body shells |
+| `car-{sedan,zx,gtr,rx7,hatch,pony,pickup,super}.glb` | Body, Canopy, Roof | the bevel-extruded body shells — all eight silhouettes |
 | `wheel-{5,6}.glb` | Tire, Barrel, Alloy, Rotor, Lugs | the hero wheel (5-spoke cast / 6-spoke forged) |
 | `palm.glb` | Crown | the corniche palm crown, one geometry for ~130 instances |
 | `driver.glb` | Helmet, Visor, Glove, Wheel, Pedal | the driver at the wheel. These hang off joints the IK solver moves every frame, so each part is modelled in its own joint's local frame and dimensioned from `src/game/rig.ts` (via the `rig` block in `profiles.json`) — an authored rim at the wrong radius leaves the solved hands gripping thin air |
@@ -24,7 +24,7 @@ body bevel at `max` already resolves finer than a pixel. The reasoning
 and the numbers are in the comment above `QUALITY` in
 `tools/blender/build_assets.py`. Do not ship it without re-measuring.
 
-## All eight silhouettes, not just four
+## All eight silhouettes
 
 `profiles.json` and `build_assets.py` cover every `BodyStyle` the fleet
 uses — sedan, zx, gtr, rx7, hatch, pony, pickup, super — because a style
@@ -33,15 +33,29 @@ would notice: `scripts/export-car-profiles.mjs` used to hardcode just
 the four that already had a shipped GLB, so a pickup or a hatch profile
 could go stale or break outright with the exporter silently skipping it.
 
-Coverage and shipping are two different questions. `AUTHORED_SHELLS` in
-`src/game/models.ts` is the second one — which styles have actually had
-`npm run sync:models` run and their GLB committed — and it still lists
-only the original four: building the other four needs a real `bpy` run,
-which is the one step here that cannot be done without Blender installed.
+Coverage and shipping are two different questions, and for a long time
+the answers differed. `AUTHORED_SHELLS` in `src/game/models.ts` is the
+second question — which styles have actually had `npm run sync:models`
+run and their GLB committed — and it listed only the original four,
+because building the other four needs a real `bpy` run, the one step
+here that cannot be done without Blender installed.
+
+Both answers are now all eight. Hatch, pony, pickup and super were
+lofted in the same Blender run that reproduces the other four **byte for
+byte** — rebuilding `car-sedan.glb` from the committed `profiles.json`
+returns a file whose glTF JSON and BIN chunk are identical to the one in
+git, differing only in the exporter's own version string. That is what
+made it safe to ship four shells nobody had seen before: the loft was
+proved against a known-good file first.
+
 Run `npm run check:blender` to see both lists and where they disagree;
 it fails if a style is ever wired into `AUTHORED_SHELLS` without a
 `car-{style}.glb` on disk, or if the fleet uses a style the profile
 pipeline does not cover.
+
+Whether a shipped shell is the *right* shape is a third question again,
+and `tools/shots/shelldrift.mjs` is the one that answers it — see
+"Keeping these in step with the cars" below.
 
 ## Keeping these in step with the cars
 
@@ -55,6 +69,16 @@ stayed as they were — thirteen days and a dozen shape changes behind the
 cars. The shipped shells had a 50 mm body edge where the game had cut it
 to 26 mm, and roofs 150 mm narrower than the cabins they sat on. Re-run
 `npm run sync:models` after any change to a car's shape.
+
+`tools/shots/shelldrift.mjs` is how you find out whether you did. It
+builds each silhouette, reads the procedural shell's bounding box, waits
+for the GLB to land on it, and reads it again — so it reports the gap
+between the car the game positions everything against and the car it
+actually draws. `models.ts` rejects anything past 10 mm
+(`SHELL_FIT_TOL`) and keeps the procedural shell, so a stale GLB costs
+you the authored geometry silently; this is what makes it audible. All
+eight currently land `authored` at a worst single-face drift of 1 mm.
+It needs `npm run dev` running.
 
 The rig has the same problem one file over. `profiles.json` also carries
 the `rig` block Blender dimensions the driver from, read out of

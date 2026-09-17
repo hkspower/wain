@@ -383,14 +383,23 @@ Worth keeping written down because it is the same mistake twice over:
 two rounds of optimising the measurement when the measurement was never
 the slow part.
 
-## 13. Four of the fleet's eight silhouettes have no authored shell
+## 13. Four of the fleet's eight silhouettes have no authored shell — CLOSED
 
-The hatch and the pony are built procedurally, and the pickup and the
-mid-engined `super` added since join them — `sync:models` exports four
-styles, not eight. The
-car asset manager reports this as a gap on every affected car, which is
-right: it is a real state the game ships in rather than damage. Worth
-knowing before reading the manager's warnings as faults.
+The hatch and the pony were built procedurally, and the pickup and the
+mid-engined `super` added since joined them — `sync:models` exported
+four styles, not eight, because the other four needed a real `bpy` run
+and nobody had had Blender installed.
+
+All eight ship authored shells now. The loft was proved before it was
+trusted: rebuilding `car-sedan.glb` from the committed `profiles.json`
+returned a file byte-identical to the one in git apart from the
+exporter's version string, so the four new shells came off a pipeline
+known to reproduce a known-good result. `tools/shots/shelldrift.mjs`
+then measured every silhouette against the procedural geometry the game
+positions its lamps, garnish and driver against: all eight land
+`authored`, worst single-face drift 1 mm against a 10 mm tolerance.
+
+The car asset manager should stop reporting this as a gap.
 
 ## What I would do next, in order
 
@@ -399,6 +408,6 @@ knowing before reading the manager's warnings as faults.
    and it deserves a run at it on its own.
 2. **`grid.mjs`'s hour** (item 7), if anyone wants a lighting
    measurement out of that tool. Small, and currently a footnote.
-3. Nothing else is outstanding. Items 4, 5 and 13 are open by decision:
-   one needs egress this environment does not have, and the other is
-   a claim I would rather not make than half-make.
+3. Nothing else is outstanding. Items 4 and 5 are open by decision: one
+   needs egress this environment does not have, and the other is a claim
+   I would rather not make than half-make. Item 13 is closed.

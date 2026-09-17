@@ -148,12 +148,18 @@ const check = (c, m) => { if (!c) fail.push(m); return c ? "ok" : "FAIL"; };
 
 // Body shells. The claim used to be "the authored geometry is live",
 // and it cannot be that any more: an authored shell is used only when it
-// still IS the car. Measured against the geometry they replace, all four
-// shipped shells are 160 to 206 mm taller and 80 to 120 mm longer at
+// still IS the car. That distinction was written after all four shipped
+// shells were measured 160 to 206 mm taller and 80 to 120 mm longer at
 // each end than the profile the game builds and positions everything
-// against — lofted in August from a profiles.json that predates the body
-// drop, the narrower widths and the sharper edges. models.ts rejects
-// them and the procedural shell stands.
+// against — lofted in August from a profiles.json that predated the body
+// drop, the narrower widths and the sharper edges. models.ts rejected
+// them and the procedural shell stood, and nothing had noticed.
+//
+// They are not stale now. All eight silhouettes were lofted from the
+// current profiles.json and measured back with tools/shots/shelldrift.mjs:
+// every one lands "authored", worst single-face box drift 1 mm against
+// the 10 mm tolerance. The check below is what keeps that true — it is
+// the drift that is forbidden, not any particular build.
 //
 // So the claim is now the one that matters and can go green by fixing
 // code: every shell on the car is the car, and the reason for each is
