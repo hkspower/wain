@@ -129,6 +129,8 @@ if ($r === 'register' && $method === 'POST') {
     // down this file. A floor lower at the door than in the corridor protects
     // nothing.
     if (strlen($pass) < 12) store_fail('password_too_short');
+    // Twelve characters proves nothing on its own — see store_password_is_weak().
+    if (($weak = store_password_is_weak($pass, $email)) !== null) store_fail($weak);
 
     if ((int)$db->query("select get_lock('sporta_admin_register', 5)")->fetchColumn() !== 1) {
         store_fail('busy', 503);
@@ -2422,6 +2424,15 @@ if ($r === 'account_update' && $method === 'POST') {
             $sets[] = 'phone = ?';
             $args[] = $phone;
         }
+    }
+
+    // Checked AFTER the email block, against whichever address will be in
+    // effect once this save lands — an admin changing their email and their
+    // password in the same request must not have the new password checked
+    // against the address they are leaving.
+    if (isset($new)) {
+        $effectiveEmail = $email ?? $u['email'];
+        if (($weak = store_password_is_weak($new, (string)$effectiveEmail)) !== null) store_fail($weak);
     }
 
     if (!$sets) store_fail('nothing_to_update');

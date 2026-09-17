@@ -1628,6 +1628,72 @@ function store_email_otp_claim(PDO $db, int $adminId, string $code): bool {
     return false;
 }
 
+/**
+ * A password that clears the twelve-character floor but is still trivially
+ * guessable. Returns an error code for store_fail(), or null when it's fine.
+ *
+ * TWELVE CHARACTERS ALONE PROVES NOTHING. "aaaaaaaaaaaa", "123456789012" and
+ * "qwertyuiop12" are all twelve characters and all near the top of every
+ * leaked-password list there is — the length floor stops a four-character
+ * password, not a bad one that happens to be long enough. This runs IN
+ * ADDITION to the length check, not instead of it, at every door that sets a
+ * password: register (the first admin), account_update (a change).
+ *
+ * NO EXTERNAL LOOKUP, on purpose. A Have-I-Been-Pwned-style check needs
+ * outbound network access this shared host may not have — this project's own
+ * Adobe-upload story is exactly that class of failure, blocked by an egress
+ * policy with no way to detect the block except by trying — and it would send
+ * a hash of every admin's candidate password to a third party on every
+ * sign-up or change. Everything here is checked locally instead: every
+ * character the same, a straight run of ascending or descending digits or
+ * letters, the account's own email address, and a short list of the
+ * passwords every breach corpus puts first, extended with this shop's own
+ * name — the one an attacker targeting THIS shop, specifically, would try
+ * before anything from a generic list.
+ */
+function store_password_is_weak(string $password, string $email = ''): ?string {
+    $lower = strtolower($password);
+
+    // Every character the same: "aaaaaaaaaaaa", "111111111111".
+    if (preg_match('/^(.)\1+$/', $password)) return 'password_too_common';
+
+    // A run of consecutive ascending or descending digits/letters covering
+    // the WHOLE password — "123456789012", "abcdefghijkl" — not merely
+    // containing a short one, which would catch too much that is fine.
+    //
+    // DIGITS WRAP AND ASCII DOES NOT: "...901234567890..." carries 9 into 0,
+    // a jump of -9 in character code, so a check that only accepted a ±1 step
+    // would call "123456789012" — the single most-leaked password there
+    // is — a genuine password the moment it crossed that one digit.
+    $isWalk = strlen($lower) >= 4;
+    for ($i = 1; $isWalk && $i < strlen($lower); $i++) {
+        $a = $lower[$i - 1]; $b = $lower[$i];
+        $d = ord($b) - ord($a);
+        $digitWrap = ctype_digit($a) && ctype_digit($b) && (($a === '9' && $b === '0') || ($a === '0' && $b === '9'));
+        if ($d !== 1 && $d !== -1 && !$digitWrap) $isWalk = false;
+    }
+    if ($isWalk) return 'password_too_common';
+
+    // The account's own email, or the part before the @ — the commonest
+    // "something I'll remember" password there is, and the one the owner of
+    // a shop with a single admin account is best placed to type by habit.
+    if ($email !== '') {
+        $local = strtolower((string) explode('@', $email)[0]);
+        if ($local !== '' && strpos($lower, $local) !== false) return 'password_too_common';
+    }
+
+    static $COMMON = [
+        'password1234', 'passw0rd1234', 'letmein123456', 'qwertyuiop12',
+        'qwertyuiop123', 'admin12345678', 'welcome123456', 'iloveyou1234',
+        'sunshine12345', 'football12345', 'princess12345', 'trustno112345',
+        'changeme12345', 'sportasporta', 'sporta123456', 'sportakuwait',
+        'kuwaitsporta',
+    ];
+    if (in_array($lower, $COMMON, true)) return 'password_too_common';
+
+    return null;
+}
+
 function store_login(string $email, string $password): array {
     $db = store_db();
 
