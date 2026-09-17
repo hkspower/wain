@@ -1,21 +1,27 @@
 /**
- * The main menu: orange header, white text, "Shop" gone, "About" -> Terms.
+ * The main menu: charcoal header, white text, "Shop" gone, "About" -> Terms.
  *
  *   bash scripts/sandbox.sh
  *   node scripts/nav-menu-test.mjs
  *
  * Asked for on 2026-09-16: an orange header with white nav text, "المتجر"
  * (Shop) removed from the menu, and "من نحن" (About) replaced with a link to
- * the Terms & Conditions page.
+ * the Terms & Conditions page. THE COLOUR CHANGED THE NEXT DAY — asked for on
+ * 2026-09-17 as "make top menu and topbar light black color" — and this rig's
+ * own colour assertion went stale for it, exactly the failure this project
+ * has already recorded once for a service-worker VERSION comment: "a rule
+ * that lives only in a comment gets read as history." Found by "check topbar
+ * and manu" going red on the one assertion that had not been updated, while
+ * every OTHER assertion here — Shop gone, About replaced, graceful
+ * degradation — was still correct and still passing.
  *
- * THE COLOUR IS --brand-dark, NOT --brand. site-contrast.mjs found white nav
- * text on --brand at 3.81:1 across every page — under AA's 4.5:1 floor for
- * text this size. --brand-dark is 5.46:1 and is still unambiguously orange —
- * the same tone this shop already uses for the outlet category tile. That
- * measurement is re-asserted here rather than only trusted to the site-wide
- * rig, because it is the reason this colour and not the obvious one was
- * picked, and a future edit changing the header colour should have to answer
- * to this number specifically.
+ * THE COLOUR IS #2b2b2b, NOT --brand-dark. --brand-dark (5.46:1 for white
+ * text) was the orange this rig used to check for, chosen the day before over
+ * --brand (3.81:1, under AA's 4.5:1 floor). The charcoal that replaced it has
+ * no such ceiling to worry about — sporta-ui.css's own comment says so in as
+ * many words — but the ratio is still asserted here rather than assumed, for
+ * the same reason as before: a future edit changing the header colour again
+ * should have to answer to a number, not to this file's memory of one.
  *
  * THE @layer utilities WRAP MATTERS. header.app-header's background utility
  * and its nav links' colour utilities are Tailwind classes, and the build
@@ -62,8 +68,8 @@ function ratio(hexA, hexB) {
 // The exact pair this colour choice depends on, checked before anything else
 // — if this stops being true the header itself is wrong regardless of what
 // the browser renders.
-const r = ratio('#ffffff', '#b8430f')
-check(r >= 4.5, `white on --brand-dark clears AA for body text (${r.toFixed(2)}:1)`,
+const r = ratio('#ffffff', '#2b2b2b')
+check(r >= 4.5, `white on the charcoal header clears AA for body text (${r.toFixed(2)}:1)`,
   r < 4.5 ? 'the header colour needs revisiting, not the check' : '')
 
 const browser = await chromium.launch({
@@ -103,7 +109,7 @@ for (const [lang, expectTerms, expectTitle] of [
     return m ? '#' + m.slice(0, 3).map((n) => Number(n).toString(16).padStart(2, '0')).join('') : rgb
   }
 
-  check(rgbToHex(info.bg) === '#b8430f', `${lang}: the header background is --brand-dark`, info.bg)
+  check(rgbToHex(info.bg) === '#2b2b2b', `${lang}: the header background is charcoal`, info.bg)
   check(info.links.every((l) => rgbToHex(l.color) === '#ffffff'),
     `${lang}: every nav link is white (even though the menu is currently hidden)`,
     info.links.filter((l) => rgbToHex(l.color) !== '#ffffff').map((l) => `${l.text}=${l.color}`).join(', '))
