@@ -147,6 +147,7 @@
     "test:text-style": "node scripts/text-style-scan.mjs",
     "test:panel-settings": "node scripts/panel-settings-test.mjs",
     "test:payment-panel": "node scripts/payment-panel-test.mjs",
+    "test:panel-cards": "node scripts/panel-cards-test.mjs",
     "test:nav-menu": "node scripts/nav-menu-test.mjs",
     "test:brand-strip": "node scripts/brand-strip-test.mjs",
     "test:admin-theme": "node scripts/admin-theme-test.mjs",

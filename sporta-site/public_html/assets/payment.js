@@ -126,7 +126,7 @@
   function renderPay(pay) {
     payBox.innerHTML = ''
     if (pay == null) {
-      payBox.appendChild(el('p', 'spp-warn',
+      payBox.appendChild(el('p', 'spk-warn',
         'pay/config.php could not be read on the server. Neither KNET nor '
         + 'T-Pay can take a payment until it exists.'))
       return
@@ -136,19 +136,19 @@
       ['client_secret_set', 'Client Secret'],
       ['encrp_key_set', 'Encrypted account key'],
     ]
-    var list = el('ul', 'spp-list')
+    var list = el('ul', 'spk-list')
     for (var i = 0; i < rows.length; i++) {
       var ok = !!pay[rows[i][0]]
-      var li = el('li', 'spp-item')
-      var dot = el('span', ok ? 'spp-dot spp-dot-ok' : 'spp-dot spp-dot-bad')
+      var li = el('li', 'spk-item')
+      var dot = el('span', ok ? 'spk-dot spk-dot-ok' : 'spk-dot spk-dot-bad')
       li.appendChild(dot)
       li.appendChild(el('span', null, rows[i][1] + (ok ? ': set' : ': placeholder, not set')))
       list.appendChild(li)
     }
     payBox.appendChild(list)
-    payBox.appendChild(el('p', 'spp-hint',
+    payBox.appendChild(el('p', 'spk-hint',
       'These are filled in on the server, in pay/config.php — not here.'))
-    var envLine = el('p', pay.ready ? 'spp-status spp-status-ok' : 'spp-status spp-status-bad',
+    var envLine = el('p', pay.ready ? 'spk-status spk-status-ok' : 'spk-status spk-status-bad',
       (pay.ready ? 'Ready to take payments' : 'NOT ready — cards will fail at the bank')
       + ' — gateway environment is "' + pay.env + '" in pay/config.php.')
     payBox.appendChild(envLine)
@@ -179,68 +179,68 @@
   /* -------------------------------------------------------------- chrome --- */
 
   var CSS = ''
-    + '.spp{border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:20px 0;background:#fff}'
-    + '.spp-h{margin:0 0 4px;font-size:16px;font-weight:700;color:#0f172a}'
-    + '.spp-sub{margin:0 0 14px;color:#64748b;font-size:13px;line-height:1.5}'
-    + '.spp-sub2{margin:18px 0 8px;font-size:13px;font-weight:700;color:#0f172a}'
-    + '.spp-field{display:flex;flex-direction:column;gap:4px;max-width:360px}'
-    + '.spp-label{font-size:13px;font-weight:600;color:#0f172a}'
-    + '.spp-input{padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;'
-    + 'background:#fff;color:#0f172a;font:inherit}'
-    + '.spp-src{margin:6px 0 0;font-size:12px;color:#64748b}'
-    + '.spp-foot{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center}'
-    + '.spp-save{padding:9px 16px;border-radius:8px;border:0;cursor:pointer;'
+    + '.spk{border:1px solid var(--sp-pc-border,#494e54);border-radius:var(--sp-pc-radius,1rem);padding:var(--sp-pc-pad,1.5rem);margin:var(--sp-pc-gap,1.5rem) 0;background:var(--sp-pc-bg,#2d3034);color:var(--sp-pc-ink,#eaecee)}'
+    + '.spk-h{margin:0 0 4px;font-size:16px;font-weight:700;color:var(--sp-pc-ink,#eaecee)}'
+    + '.spk-sub{margin:0 0 14px;color:var(--sp-pc-muted,#a6adb5);font-size:13px;line-height:1.5}'
+    + '.spk-sub2{margin:18px 0 8px;font-size:13px;font-weight:700;color:var(--sp-pc-ink,#eaecee)}'
+    + '.spk-field{display:flex;flex-direction:column;gap:4px;max-width:360px}'
+    + '.spk-label{font-size:13px;font-weight:600;color:var(--sp-pc-ink,#eaecee)}'
+    + '.spk-input{padding:8px 10px;border-radius:8px;border:1px solid var(--sp-pc-field-border,#565c63);'
+    + 'background:var(--sp-pc-field-bg,#24272a);color:var(--sp-pc-ink,#eaecee);font:inherit}'
+    + '.spk-src{margin:6px 0 0;font-size:12px;color:var(--sp-pc-muted,#a6adb5)}'
+    + '.spk-foot{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center}'
+    + '.spk-save{padding:9px 16px;border-radius:8px;border:0;cursor:pointer;'
     + 'background:#4f46e5;color:#fff;font:inherit;font-weight:700}'
-    + '.spp-save[disabled]{opacity:.5;cursor:default}'
-    + '.spp-note{margin:0;font-size:13px;line-height:1.5}'
-    + '.spp-list{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-direction:column;gap:6px}'
-    + '.spp-item{display:flex;align-items:center;gap:8px;font-size:13px;color:#0f172a}'
-    + '.spp-dot{width:9px;height:9px;border-radius:50%;flex:none}'
-    + '.spp-dot-ok{background:#16a34a}'
-    + '.spp-dot-bad{background:#dc2626}'
-    + '.spp-hint{margin:0 0 10px;font-size:12px;color:#64748b;line-height:1.4}'
-    + '.spp-warn{margin:0;font-size:13px;color:#b91c1c}'
-    + '.spp-status{margin:0;font-size:13px;font-weight:600}'
-    + '.spp-status-ok{color:#15803d}'
-    + '.spp-status-bad{color:#b91c1c}'
+    + '.spk-save[disabled]{opacity:.5;cursor:default}'
+    + '.spk-note{margin:0;font-size:13px;line-height:1.5}'
+    + '.spk-list{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-direction:column;gap:6px}'
+    + '.spk-item{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sp-pc-ink,#eaecee)}'
+    + '.spk-dot{width:9px;height:9px;border-radius:50%;flex:none}'
+    + '.spk-dot-ok{background:#16a34a}'
+    + '.spk-dot-bad{background:#dc2626}'
+    + '.spk-hint{margin:0 0 10px;font-size:12px;color:var(--sp-pc-muted,#a6adb5);line-height:1.4}'
+    + '.spk-warn{margin:0;font-size:13px;color:#b91c1c}'
+    + '.spk-status{margin:0;font-size:13px;font-weight:600}'
+    + '.spk-status-ok{color:#15803d}'
+    + '.spk-status-bad{color:#b91c1c}'
 
   function style() {
-    if (document.getElementById('spp-css')) return
+    if (document.getElementById('spk-css')) return
     var s = document.createElement('style')
-    s.id = 'spp-css'
+    s.id = 'spk-css'
     s.textContent = CSS
     document.head.appendChild(s)
   }
 
   function build() {
-    var c = el('section', 'spp')
+    var c = el('section', 'spk')
     c.setAttribute(MARK, 'payment')
-    c.appendChild(el('h2', 'spp-h', 'Payment setup'))
-    c.appendChild(el('p', 'spp-sub',
+    c.appendChild(el('h2', 'spk-h', 'Payment setup'))
+    c.appendChild(el('p', 'spk-sub',
       'KNET and T-Pay both go through the same CBK hosted gateway. This is '
       + 'where the shop takes a customer’s card, and it does not work '
       + 'until every line below is set.'))
 
-    var field = el('div', 'spp-field')
-    field.appendChild(el('label', 'spp-label', 'KNET Tranportal ID'))
-    idInput = el('input', 'spp-input')
+    var field = el('div', 'spk-field')
+    field.appendChild(el('label', 'spk-label', 'KNET Tranportal ID'))
+    idInput = el('input', 'spk-input')
     idInput.type = 'text'
     idInput.autocomplete = 'off'
     field.appendChild(idInput)
-    sourceLine = el('p', 'spp-src', '')
+    sourceLine = el('p', 'spk-src', '')
     field.appendChild(sourceLine)
     c.appendChild(field)
 
-    var foot = el('div', 'spp-foot')
-    var saveBtn = el('button', 'spp-save', 'Save Tranportal ID')
+    var foot = el('div', 'spk-foot')
+    var saveBtn = el('button', 'spk-save', 'Save Tranportal ID')
     saveBtn.type = 'button'
     saveBtn.addEventListener('click', function () { save(saveBtn) })
-    note = el('p', 'spp-note', '')
+    note = el('p', 'spk-note', '')
     foot.appendChild(saveBtn)
     foot.appendChild(note)
     c.appendChild(foot)
 
-    c.appendChild(el('h3', 'spp-sub2', 'CBK gateway (pay/config.php)'))
+    c.appendChild(el('h3', 'spk-sub2', 'CBK gateway (pay/config.php)'))
     payBox = el('div')
     c.appendChild(payBox)
 

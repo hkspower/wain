@@ -311,7 +311,7 @@
   /* ---------------------------------------------------------------- chrome - */
 
   var CSS = ''
-    + '.srl{border:1px solid var(--border,#2a2d31);border-radius:12px;padding:16px;margin:20px 0;'
+    + '.srl{border:1px solid var(--sp-pc-border,#494e54);border-radius:var(--sp-pc-radius,1rem);padding:var(--sp-pc-pad,1.5rem);margin:var(--sp-pc-gap,1.5rem) 0;'
     + 'background:var(--card,rgba(255,255,255,.03))}'
     + '.srl-h{margin:0 0 4px;font-size:16px}'
     + '.srl-sub{margin:0 0 14px;opacity:.7;font-size:13px}'

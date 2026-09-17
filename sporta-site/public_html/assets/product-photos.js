@@ -499,7 +499,7 @@
   }
 
   var CSS =
-    '.spp{border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:14px;margin:0 0 18px;'
+    '.spp{border:1px solid var(--sp-pc-border,#494e54);border-radius:var(--sp-pc-radius,1rem);padding:var(--sp-pc-pad,1.5rem);margin:var(--sp-pc-gap,1.5rem) 0;'
     + 'background:rgba(255,255,255,.03)}'
     + '.spp-head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px}'
     + '.spp-dim{opacity:.7;font-size:13px}'
