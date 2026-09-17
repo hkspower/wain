@@ -32,9 +32,15 @@
  *      being tested rather than a constant being read back.
  *   3. Fresh activity keeps a session alive, or assertion 2 would pass on a
  *      server that simply signs everybody out.
- *   4. The cookie is still a SESSION cookie (lifetime 0), so closing the
- *      browser still signs you out. That was the owner's explicit choice on
- *      2026-09-10 and is the half that keeps a shared machine safe.
+ *   4. The cookie's OWN lifetime matches STORE_ADMIN_ABSOLUTE_SECONDS, not 0
+ *      and not some life of its own — asked for on 2026-09-18, reversing the
+ *      2026-09-10 "closing the browser signs out" choice this file used to
+ *      assert here. The cookie surviving the browser closing is not itself
+ *      the risk this rig exists to catch; the risk is the cookie's lifetime
+ *      quietly becoming the thing that decides. Assertions 1-3 are what rule
+ *      that out: store_session_admin() still refuses an idle-expired session
+ *      on the SERVER regardless of how long the browser was willing to hold
+ *      the cookie.
  *
  * It signs in against the sandbox and puts the session store back.
  */
@@ -69,10 +75,10 @@ check(gc >= idle,
   'PHP may not collect a session before it is meant to expire',
   `gc_maxlifetime ${gc}s vs idle ${idle}s${gc < idle ? '  <- the file dies first' : ''}`)
 
-// --- 4. and closing the browser still signs you out ----------------------
-check(cookieLife === 0,
-  'the cookie is still a session cookie, so browser close signs out',
-  `lifetime ${cookieLife}`)
+// --- 4. the cookie now outlives the browser, matched to the absolute cap --
+check(cookieLife === absolute,
+  "the cookie's lifetime matches STORE_ADMIN_ABSOLUTE_SECONDS, not 0 and not a number of its own",
+  `lifetime ${cookieLife}s vs absolute ${absolute}s`)
 
 // ---------------------------------------------------------------- live half
 let cookie = ''

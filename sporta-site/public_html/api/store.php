@@ -1215,15 +1215,20 @@ function store_is_https(): bool {
 
 // How long a signed-in admin stays signed in, enforced on the SERVER.
 //
-// The cookie itself is a session cookie, so closing the browser ends it — but
-// a desktop browser is not closed for weeks, and until now nothing else ended
-// it either. These two are the ordinary pair: idle expiry for a machine walked
-// away from, absolute expiry so a session cannot live indefinitely by being
+// These two are the ordinary pair: idle expiry for a machine walked away
+// from, absolute expiry so a session cannot live indefinitely by being
 // touched. Generous on purpose; this is a shop, not a bank, and a re-login
 // every hour would only teach the owner to leave the password in a browser.
-// 12 rather than 8, asked for on 2026-09-10: a working day with the panel open
-// should not need a second sign-in. The absolute clock is untouched.
-const STORE_ADMIN_IDLE_SECONDS     = 12 * 3600;
+//
+// 3 DAYS RATHER THAN 12 HOURS, asked for on 2026-09-18 as "long time login".
+// 12 hours (itself raised from 8 on 2026-09-10) meant a panel left open over
+// a weekend, or simply not touched since Friday, asked for a password again
+// on Monday — the idle clock is for a machine that was WALKED AWAY FROM, and
+// three days between visits is not that. The absolute clock is untouched at
+// seven days: idle can no longer stretch a session past what the owner
+// already capped it at, only make a real gap between ordinary visits stop
+// costing a sign-in.
+const STORE_ADMIN_IDLE_SECONDS     = 3 * 86400;
 const STORE_ADMIN_ABSOLUTE_SECONDS = 7 * 86400;
 
 function store_session_start(): void {
@@ -1249,13 +1254,13 @@ function store_session_start(): void {
     // reason it cannot be trusted to expire a session LATE — and the same fact
     // means it cannot be trusted not to expire one EARLY. PHP's default
     // session.gc_maxlifetime is 1440 seconds, so on a host that leaves it there
-    // the session FILE can be deleted after 24 minutes idle and the 12 hours
+    // the session FILE can be deleted after 24 minutes idle and the 3 days
     // above never happen. The panel then signs you out mid-afternoon for a
     // reason nothing in this file mentions.
     //
     // Raising it CANNOT lengthen a session, which is what makes this safe:
     // store_session_admin() is still the only thing that decides, and it still
-    // ends the session at 12 hours idle or 7 days absolute. All this buys is
+    // ends the session at 3 days idle or 7 days absolute. All this buys is
     // that the file survives long enough for that decision to be the one taken.
     //
     // The remaining case this does NOT cover is a save_path shared with other
@@ -1265,9 +1270,27 @@ function store_session_start(): void {
     // thing to measure rather than this line.
     ini_set('session.gc_maxlifetime', (string) STORE_ADMIN_IDLE_SECONDS);
 
+    // THE COOKIE NOW OUTLIVES THE BROWSER, asked for on 2026-09-18 in the
+    // same breath as "long time login" — reversing the 2026-09-10 choice
+    // recorded here before, that closing the browser should always sign out.
+    // A session cookie made the two clocks above mostly theoretical: a
+    // desktop browser that gets closed at the end of every day never once
+    // reached the 3-day idle window, because the cookie was gone long before
+    // it. Matched to STORE_ADMIN_ABSOLUTE_SECONDS rather than given a life of
+    // its own — the cookie's OWN lifetime is advice to the browser about how
+    // long to keep offering it, not the thing that decides. store_session_
+    // admin() is still the one authority, still checked on every request, and
+    // still ends the session at 3 days idle or 7 days absolute regardless of
+    // what the browser did with the cookie in between.
+    //
+    // The trade this makes, plainly: a shared or public machine that is
+    // never explicitly signed out of stays signed in for up to a week rather
+    // than until the browser closes. That is a real cost on a machine more
+    // than one person uses, and it is the reason this was asked for rather
+    // than assumed.
     session_name($secure ? '__Host-sporta_admin' : 'sporta_admin');
     session_set_cookie_params([
-        'lifetime' => 0,            // session cookie: closes with the browser
+        'lifetime' => STORE_ADMIN_ABSOLUTE_SECONDS,
         'path'     => '/',
         'secure'   => $secure,
         'httponly' => true,         // no script access — this cookie IS the admin
