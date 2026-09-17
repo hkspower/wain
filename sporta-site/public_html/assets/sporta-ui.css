@@ -1579,6 +1579,32 @@ p.mt-6.flex.flex-wrap.items-baseline:has(> .font-display) {
     padding-top: 0 !important;
     padding-bottom: 0 !important;
   }
+
+  /* THE SEAM BELOW THE ART, softened rather than removed — asked for as "hero
+   * slider layout without under edge bar". The band above this comment IS the
+   * fix for that request, tried twice already (see its own long comment): a
+   * full overlay covers the banners' own baked-in headline and strapline text,
+   * measured both times rather than assumed, so the band stays. What was
+   * still fair to fix is the HARD EDGE where the opaque photograph ends and
+   * the band's own gradient background begins — a straight horizontal line is
+   * what reads as "a bar was stuck on", independent of the band's height.
+   *
+   * A thin fade painted on the ART's own box, not the band: the two are
+   * siblings with a shared border, and a fade belongs to whichever side is
+   * moving away from full opacity. `rgba(20, 22, 26, .55)` is `.hero-strength`'s
+   * own darkest gradient stop (`#14161a`) at just over half strength — enough
+   * to blur the line, not enough to dim "STRENGTH · MUSCLE · POWER", which
+   * sits inside this same 28px band on every one of the five banners.
+   * `pointer-events: none` so it cannot shadow a tap meant for the slide. */
+  .hero-strength > .aspect-\[2\.52\/1\]::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 28px;
+    background: linear-gradient(to bottom, transparent, rgba(20, 22, 26, 0.55));
+    pointer-events: none;
+  }
 }
 
 /* ---------------------------------------------------------------------------
