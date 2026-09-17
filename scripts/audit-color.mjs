@@ -351,4 +351,113 @@ if (!failures.size) {
     console.log(`        «${f.text}»  first seen ${f.where}`);
   }
 }
-process.exit(failures.size || invented.length ? 1 : 0);
+/* ── the ramps' own levels ────────────────────────────────────────────────
+ *
+ * Everything above asks what colour reaches the screen and whether it can be
+ * read. This asks a different question: are the RAMPS well formed — does each
+ * step actually differ from its neighbour, and does a ramp stay one colour
+ * family from end to end.
+ *
+ * Nothing measured it before, and the palette is where a design system rots
+ * quietly: a ramp step that is invisibly close to its neighbour is not a bug
+ * any page can show you. It is two tokens doing one job, and every later
+ * choice between them is a guess.
+ *
+ * Lightness is OKLCH L, not the sRGB channels — perceptual spacing is the
+ * whole point, and #808080 is not half of #ffffff in any way an eye agrees
+ * with. audit:type already refuses two type steps closer than 1.5px for
+ * exactly this reason; this is that rule for colour.
+ */
+const srgbLin = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+function oklch(hex) {
+  const r = srgbLin(parseInt(hex.slice(1, 3), 16));
+  const g = srgbLin(parseInt(hex.slice(3, 5), 16));
+  const b = srgbLin(parseInt(hex.slice(5, 7), 16));
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  const L = (0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s) * 100;
+  const A = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s;
+  const B = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
+  return { L, C: Math.hypot(A, B) };
+}
+
+/** Below this two adjacent steps are one colour wearing two names. */
+const MIN_DELTA_L = 4;
+/**
+ * …except at the near-white end, where every ramp legitimately compresses:
+ * a 50 step sits a whisker off paper by design, and there is nowhere for it to
+ * go without becoming visibly grey. The first draft of this check had no such
+ * floor and flagged sand, sea, sun and coral's 50→100 pairs — four "defects"
+ * that are the same structural fact about how a tint ramp starts. A rule that
+ * fires on every ramp is measuring the rule, not the palette.
+ */
+const NEAR_WHITE_L = 95;
+/**
+ * A family break is crossing from NEUTRAL to CHROMATIC in one step, which is
+ * what sand does. Deliberately not a chroma RATIO: against a pure-white 50
+ * step a ratio is division by almost zero and reports ×76902, a number that
+ * says nothing about anything. Absolute bands do say something.
+ */
+const NEUTRAL_C = 0.02;
+const CHROMATIC_C = 0.05;
+
+/**
+ * Known and kept, with the reason — an exception list that does not say why is
+ * how a real defect gets added to it later.
+ */
+const LEVEL_EXCEPTIONS = new Map([
+  ["ink-500→ink-600", "3.1 ΔL, and both are heavily used (114 and 77 places, " +
+    "mostly text-sm on both sides) — so this is two tokens doing one job at a " +
+    "distance no reader can see. Kept rather than merged because merging is " +
+    "191 edits and a redesign; recorded so the next person choosing between " +
+    "them knows there is no difference to choose."],
+  ["sand-300→sand-400", "chroma 0.009 → 0.082, a 9× jump: sand-50..300 are " +
+    "near-neutral paper and sand-400..900 are gold. One name over two ramps, " +
+    "so «one step darker than sand-300» silently hands you a gold. The site " +
+    "uses the two halves for different things and never walks across the " +
+    "seam; renaming would touch every surface in the app."],
+]);
+
+const RAMPS = {};
+for (const [hex, names] of declared) {
+  for (const n of names) {
+    const m = /^([a-z]+)-(\d+)$/.exec(n);
+    if (!m) continue;
+    (RAMPS[m[1]] ??= []).push({ step: Number(m[2]), hex, ...oklch(hex) });
+  }
+}
+
+console.log("\n── ramp levels: does each step differ from the one beside it? ──");
+const levelProblems = [];
+let pairs = 0;
+for (const [name, steps] of Object.entries(RAMPS)) {
+  if (steps.length < 3) continue; // a pair or a single is not a ramp
+  steps.sort((a, b) => a.step - b.step);
+  for (let i = 1; i < steps.length; i++) {
+    const a = steps[i - 1], b = steps[i];
+    const key = `${name}-${a.step}→${name}-${b.step}`;
+    pairs++;
+    const dL = a.L - b.L;
+    const why = [];
+    if (dL <= 0) why.push(`step ${b.step} is not darker than ${a.step} (ΔL ${dL.toFixed(1)})`);
+    else if (dL < MIN_DELTA_L && a.L < NEAR_WHITE_L) why.push(`ΔL ${dL.toFixed(1)}, under ${MIN_DELTA_L}`);
+    if (a.C < NEUTRAL_C && b.C > CHROMATIC_C) {
+      why.push(`neutral (C ${a.C.toFixed(3)}) → chromatic (C ${b.C.toFixed(3)}) — a family break`);
+    }
+    if (!why.length) continue;
+    const excuse = LEVEL_EXCEPTIONS.get(key);
+    if (excuse) console.log(`  · ${key}: ${why.join("; ")}\n      known: ${excuse}`);
+    else levelProblems.push(`${key}: ${why.join("; ")}`);
+  }
+}
+console.log(`  ${pairs} adjacent pairs across ${Object.keys(RAMPS).length} ramps, ` +
+  `${LEVEL_EXCEPTIONS.size} known exception(s).`);
+if (levelProblems.length) {
+  console.log(`\n  ${levelProblems.length} unexplained:`);
+  for (const p of levelProblems) console.log(`  ✗ ${p}`);
+} else {
+  console.log("  No unexplained pair — every other step is a step.");
+}
+
+process.exit(failures.size || invented.length || levelProblems.length ? 1 : 0);

@@ -1289,6 +1289,33 @@ treated *any* capped box in `main` as a page shell, so a content box with no
 padding of its own read as a second gutter of 0/0. It now takes the outermost
 capped box only, and still fails on a real gutter drift.
 
+**The ramps themselves were never measured, and two of them are not ramps.**
+`audit:color` asked what colour reaches the screen and whether it can be read —
+1360 text nodes, every one passing AA — and never asked whether a step differs
+from the step beside it. It does now, in OKLCH lightness, which is
+`audit:type`'s «no two steps closer than 1.5px» rule applied to colour. 46
+adjacent pairs across 6 ramps; two are exceptions, named with their reasons:
+
+- **`ink-500` → `ink-600` is 3.1 ΔL, and both are heavily used** — 114 and 77
+  places, `text-sm` dominant on both sides. Two tokens doing one job at a
+  distance no reader can see, so every choice between them is a guess. Kept
+  rather than merged: merging is 191 edits and a redesign. Recorded so the next
+  person knows there is nothing to choose.
+- **`sand` is two ramps under one name.** 50–300 are near-neutral paper
+  (C ≤ 0.009), 400–900 are gold (C 0.047–0.098), and the seam multiplies chroma
+  9×. «One step darker than `sand-300`» silently hands you a gold. The site uses
+  the halves for different things and never walks across the seam.
+
+**Two thresholds in it were wrong first, both the same mistake.** A flat 4 ΔL
+floor flagged sand, sea, sun and coral's 50→100 pairs — four «defects» that are
+one structural fact about how a tint ramp starts, since a 50 step sits a whisker
+off paper by design. And a chroma RATIO reported **×76902** against a pure-white
+step, division by almost nothing. Now: the ΔL floor is waived above L 95, and a
+family break is crossing neutral (C < 0.02) → chromatic (C > 0.05), which
+catches sand's seam and nothing else. **A rule that fires on every ramp is
+measuring the rule, not the palette.** Confirmed it still catches both real
+shapes: a step nudged to 2.6 ΔL, and a step that goes lighter instead of darker.
+
 **Setting the site's type in an Adobe surface has one trap worth knowing**:
 weight 400 is `IBMPlexSansArabic` with NO `-Regular` suffix — every other weight
 is `Family-Style`, so the obvious guess is `not_found` — and asking for the bare
