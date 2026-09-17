@@ -35,23 +35,73 @@ import { RIG } from "./rig";
 import { RIVALS } from "./rivals";
 import { rand, resetWorldRng } from "./rand";
 
-/** Drooping palm fronds merged into one geometry (crown sits at trunk top). */
+/**
+ * A date palm crown, procedurally — the head the game draws until the
+ * authored one in palm.glb arrives, and on a slow machine that is tens
+ * of seconds of play.
+ *
+ * It was eight flat boxes rotated DOWN from horizontal by a third of a
+ * radian, which is a parasol. Three things separate a palm's head from
+ * a parasol and all three are here now:
+ *
+ *   IT ARCHES. A frond leaves the crown going UP, carries on up for
+ *   about a third of its length, and only then goes over and hangs
+ *   below where it started. A straight stick tilted down does the one
+ *   thing a palm frond never does.
+ *
+ *   IT IS BIG. 2 m fronds on a 6 m trunk gave a head a fifth of the
+ *   tree's height, so the tree read as a pole with a smudge on top.
+ *   A date palm's crown is roughly as wide as its trunk is tall.
+ *
+ *   IT IS CLOSED. Eight fronds leave gaps you see the trunk through.
+ *   Twenty, on the golden angle so no two neighbours share a gap,
+ *   closes the head.
+ *
+ * Kept deliberately cheaper than the authored crown — this one is a
+ * stand-in, and the swap in upgradePalmCrowns replaces it whole — but
+ * the same SHAPE, so the tree does not visibly change species when the
+ * download lands.
+ */
 function palmCrownGeometry(): THREE.BufferGeometry {
-  const fronds: THREE.BufferGeometry[] = [];
-  for (let i = 0; i < 8; i++) {
-    const frond = new THREE.BoxGeometry(0.2, 0.035, 2.0);
-    frond.translate(0, 0, 0.98);
-    frond.applyMatrix4(new THREE.Matrix4().makeRotationX(0.32 + (i % 3) * 0.14));
-    frond.applyMatrix4(
-      new THREE.Matrix4().makeRotationY((i / 8) * Math.PI * 2 + (i % 2) * 0.22)
-    );
-    fronds.push(frond);
+  const parts: THREE.BufferGeometry[] = [];
+  const FRONDS = 20;
+  for (let i = 0; i < FRONDS; i++) {
+    const rank = i % 3;
+    const rise = [0.95, 0.62, 0.34][rank];
+    const fall = [0.55, 1.05, 1.55][rank];
+    const length = [2.45, 3.05, 3.35][rank] - (i % 5) * 0.08;
+    // Four segments per frond: enough to show the knee where it goes
+    // over, which is the whole reason this is not one box.
+    const SEG = 4;
+    for (let k = 0; k < SEG; k++) {
+      const t0 = k / SEG;
+      const t1 = (k + 1) / SEG;
+      const spine = (t: number) => rise * Math.sin(t * 1.9) - fall * t ** 2.6;
+      const y0 = spine(t0);
+      const y1 = spine(t1);
+      const d0 = t0 * length;
+      const d1 = t1 * length;
+      const seg = d1 - d0;
+      const rl = Math.hypot(seg, y1 - y0);
+      // Width tapers along the frond the way the leaflets do.
+      const w = Math.max(0.05, (0.30 - 0.20 * Math.abs((t0 + t1) / 2 - 0.4)) *
+        (1 - 0.52 * ((t0 + t1) / 2)));
+      const g = new THREE.BoxGeometry(w * 2, 0.03, rl);
+      g.translate(0, 0, rl / 2);
+      g.applyMatrix4(new THREE.Matrix4().makeRotationX(-Math.atan2(y1 - y0, seg)));
+      g.translate(0, y0, d0);
+      // The golden angle, for the same reason the authored crown uses
+      // it: successive fronds never land in each other's gap.
+      g.applyMatrix4(new THREE.Matrix4().makeRotationY(i * 2.39996));
+      parts.push(g);
+    }
   }
-  // A short upright tuft at the centre
-  const tuft = new THREE.ConeGeometry(0.22, 0.7, 5);
-  tuft.translate(0, 0.3, 0);
-  fronds.push(tuft);
-  const merged = mergeGeometries(fronds.map((f) => f.toNonIndexed()))!;
+  // The spear: the unopened frond every date palm carries straight up
+  // out of the middle. Narrow, not the fat cone that used to be here.
+  const spear = new THREE.ConeGeometry(0.1, 1.35, 4);
+  spear.translate(0, 0.675, 0);
+  parts.push(spear);
+  const merged = mergeGeometries(parts.map((f) => f.toNonIndexed()))!;
   merged.translate(0, 6.1, 0);
   merged.computeVertexNormals();
   return merged;
@@ -5465,6 +5515,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
     const tmp = new THREE.Vector3();
+    const tall = new THREE.Vector3();
     for (let i = 0; i < count; i++) {
       const s = COAST_U.from * L + (i / count) * coastLen;
       // Sea-side walkway edge, with the occasional inland palm
@@ -5474,11 +5525,18 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
           : -(ROAD_HALF_WIDTH + 2.6);
       const at = s + rand() * 6;
       track.pose(at, lateral, p, tmp);
-      m.makeTranslation(p.x, 0, p.z);
+      // Height, per tree. A hundred and thirty-one palms at exactly six
+      // metres is a fence, not an avenue: the eye reads the repeat long
+      // before it reads the trees. Uniform, so the crown grows with the
+      // trunk the way a real one does — a tall palm is not a short palm
+      // with a longer pole under it.
+      const grow = 0.82 + rand() * 0.36;
+      tall.set(grow, grow, grow);
+      m.makeScale(grow, grow, grow).setPosition(p.x, 0, p.z);
       trunks.setMatrixAt(i, m);
       // Random spin per crown so the frond pattern doesn't repeat
       const yaw = rand() * Math.PI * 2;
-      m.makeRotationY(yaw).setPosition(p.x, 0, p.z);
+      m.makeRotationY(yaw).scale(tall).setPosition(p.x, 0, p.z);
       crowns.setMatrixAt(i, m);
       palmSeeds.push({ s: track.wrap(at), x: p.x, z: p.z, yaw, phase: rand() * Math.PI * 2, kind: 1 });
     }
