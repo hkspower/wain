@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ProductCard } from '@/components/product-card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
+import { BottomTabInset, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useWindowWidth } from '@/hooks/use-window-width';
 import { useCart } from '@/lib/cart';
@@ -16,6 +16,14 @@ import { formatNumber } from '@/lib/money';
 import { useLang } from '@/lib/i18n';
 
 type Sort = 'new' | 'low' | 'high';
+
+// A wider cap than the shared MaxContentWidth (800px) — see the comment
+// beside `columns`/`cardWidth` below. Chosen so five columns of
+// MIN_CARD_WIDTH plus their gaps still fit with room to spare, not tuned to
+// look right at one screen size in particular.
+const SHOP_MAX_WIDTH = 1400;
+const MIN_CARD_WIDTH = 200;
+const MAX_COLUMNS = 5;
 
 export default function ShopScreen() {
   const theme = useTheme();
@@ -51,15 +59,16 @@ export default function ShopScreen() {
   const { products } = useCart();
 
   /**
-   * TWO COLUMNS ON A PHONE, THREE ONCE THERE IS ROOM — asked for as "fix
-   * images grid layout" after this screen measured stuck at two per row on
-   * every viewport, phone through 1920px. The column ITSELF still stops
-   * widening at MaxContentWidth (Screen's own rule, unchanged) — this is not
-   * a redesign of how wide the page gets, only of how the space already
-   * budgeted for it is divided. At two columns, an 800px-wide screen gave
-   * every card ~380px, most of it empty padding around a photograph meant to
-   * read as a thumbnail in a scanning grid, and forced 23 rows of scrolling
-   * for 46 products that three columns gets through in 16.
+   * TWO COLUMNS ON A PHONE, MORE AS THERE IS ROOM — asked first as "fix
+   * images grid layout" (stuck at two per row on every viewport, phone
+   * through 1920px), then again as "more columns on wide screens": capping
+   * at three within the shared MaxContentWidth (800px, tuned for a
+   * paragraph's line length) meant a wide desktop got three big cards and
+   * empty margins rather than more of them. A grid of photographs has no
+   * reading-width limit the way body text does, so this screen alone asks
+   * `Screen` for a wider column — `SHOP_MAX_WIDTH` below, not the shared
+   * constant, so nothing else in the app (checkout, the product page, the
+   * panel) changes shape.
    *
    * PIXEL WIDTH, NOT A PERCENTAGE. The old rule was `flexBasis: '48%'`, tuned
    * by trial for one column count at one width — its own comment records
@@ -69,12 +78,13 @@ export default function ShopScreen() {
    * drift the same way: it is arithmetic on real numbers, not a constant
    * tuned to look right at one size and left to survive every other one.
    *
-   * THE THRESHOLD IS THE CARD, not the screen. 620px is roughly two 44mm
-   * cards' worth of comfortable width at three columns before the ratio
-   * cutting the crop is `RemoteArt`'s own 4:5 with each card thinner than a
-   * garment photograph reads well at. Below it, two columns; the shop's own
-   * test (`the shop grid is two cards across`) is what a phone actually
-   * measures and stays true.
+   * THE FLOOR IS THE CARD, not the screen. MIN_CARD_WIDTH (200px) is the
+   * same number the three-column threshold was already built on — three
+   * columns of the OLD 800px cap divide out to ~201px each — below which
+   * `RemoteArt`'s own 4:5 crop reads as too thin a strip of a garment
+   * photograph to shop from. Column count is however many of that width
+   * fit, capped at five so a very wide monitor gets more breathing room per
+   * card rather than a sixth column of the same width again.
    */
   const windowWidth = useWindowWidth();
   // Floored at 320 (the narrowest phone this app targets) rather than left to
@@ -82,8 +92,11 @@ export default function ShopScreen() {
   // web can still be wrong for one frame, before the effect that corrects it
   // has run, and a negative card width is worse than one frame at the wrong
   // (but sane) column count.
-  const contentWidth = Math.max(320, Math.min(windowWidth, MaxContentWidth) - Spacing.three * 2);
-  const columns = contentWidth >= 620 ? 3 : 2;
+  const contentWidth = Math.max(320, Math.min(windowWidth, SHOP_MAX_WIDTH) - Spacing.three * 2);
+  const columns = Math.max(
+    2,
+    Math.min(MAX_COLUMNS, Math.floor((contentWidth + Spacing.two) / (MIN_CARD_WIDTH + Spacing.two))),
+  );
   const cardWidth = (contentWidth - Spacing.two * (columns - 1)) / columns;
 
   /**
@@ -147,11 +160,16 @@ export default function ShopScreen() {
   return (
     <Screen
       tabBar
+      contentMaxWidth={SHOP_MAX_WIDTH}
       stickyHeader={
         /* The sort row stays on screen while the grid scrolls. On a phone the
-           alternative is scrolling back to the top to change your mind. */
+           alternative is scrolling back to the top to change your mind.
+           The SAME wider cap as the grid below it — otherwise the sticky
+           header stays at the old 800px while the grid it sits above
+           stretches past it, and the two visibly disagree about how wide
+           the page is. */
         <ThemedView type="background" style={styles.sortBar}>
-          <ContentColumn>
+          <ContentColumn style={{ maxWidth: SHOP_MAX_WIDTH }}>
             <ScrollView
               ref={sortRow}
               horizontal

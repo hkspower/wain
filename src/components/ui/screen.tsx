@@ -30,6 +30,7 @@ export function Screen({
   edges = ['top'],
   scroll = true,
   contentStyle,
+  contentMaxWidth,
   stickyHeader,
   actionBar,
   bleed,
@@ -42,6 +43,14 @@ export function Screen({
   /** Set false for a screen that manages its own scrolling, or has none. */
   scroll?: boolean;
   contentStyle?: StyleProp<ViewStyle>;
+  /**
+   * Override MaxContentWidth for this one screen. Every screen but the shop
+   * grid wants text at a readable line length, which is what MaxContentWidth
+   * is tuned for — a grid of photographs has no such limit, and capping it at
+   * the same 800px as a paragraph just left a wide desktop with three big
+   * cards and empty margins either side rather than more of them.
+   */
+  contentMaxWidth?: number;
   /** Rendered above the content and pinned by the ScrollView. */
   stickyHeader?: ReactNode;
   /**
@@ -67,7 +76,16 @@ export function Screen({
    */
   avoidKeyboard?: boolean;
 }) {
-  const body = <View style={[styles.content, contentStyle]}>{children}</View>;
+  const body = (
+    <View
+      style={[
+        styles.content,
+        contentMaxWidth !== undefined ? { maxWidth: contentMaxWidth } : null,
+        contentStyle,
+      ]}>
+      {children}
+    </View>
+  );
 
   const frame = (
     <>
