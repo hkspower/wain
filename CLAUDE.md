@@ -2051,6 +2051,35 @@ to reach for when a publisher goes quiet, and it is cheaper than re-running it.
 check even ran — the loop breaks on any failure, so the last file matching means
 every earlier one did.
 
+**Echo as you measure, not at the end.** A script that builds one line and
+prints it last reports NOTHING when its run is cut short, and a script that
+prints per step reports what it got. `live-asset-freshness.php` went silent
+twice with a single trailing `echo` and answered on the next try with a flush
+per line and fewer requests. The cause was never proved — the same wget-and-php
+shape works for other scripts — so treat it as a property of the channel and
+write for it rather than trusting a single trailing echo.
+
+### "Refresh the CSS" — asked on 2026-09-17, and there was nothing to refresh
+
+The honest answer was a measurement, not an action. `live-asset-freshness.php`,
+origin against the shopper's path through hcdn:
+
+```
+/assets/sporta-ui.css  origin=200/110276/a6d967a1a3f5  edge=200/110276/a6d967a1a3f5  same=yes  cdn=BYPASS  cc=no-cache,must-revalidate
+/sw.js                 origin=200/18887/6e8a6e66dd54   edge=200/18887/6e8a6e66dd54   same=yes  cdn=BYPASS  cc=no-cache,must-revalidate
+```
+
+Both match the repository, the edge matches the origin, and the CDN is not
+caching either of them. **There was no stale copy anywhere the shop controls**,
+so clearing the Hostinger cache would have been a no-op dressed as a fix — and
+would have "worked", in the sense that the next look would have shown a correct
+file, which is how a non-fix earns credit for someone else's cache expiring.
+
+The only place a stale stylesheet can still live is a visitor's own browser
+under an OLD service worker, which no server-side purge can reach and only a
+`VERSION` bump frees. **A private tab settles it in ten seconds**, because it
+bypasses the worker — that is the thing to ask for before touching anything.
+
 ## A cap is not a ratio, and on a wide screen it cropped the banner the other way
 
 The hero's height had moved eight times and nothing had ever measured it.

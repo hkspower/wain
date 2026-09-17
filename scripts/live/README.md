@@ -15,6 +15,14 @@ live shop's zero. **Ask the server.**
 - `live-cache-check.php` — what headers LiteSpeed actually sends. LiteSpeed is
   not Apache and does not implement `Header edit`; the rig proves syntax, only
   production proves the directive is implemented.
+- `live-asset-freshness.php` — is a SHOPPER served the asset the origin holds?
+  Every other check here uses the loopback, which bypasses hcdn: a fixed-name
+  stylesheet can be byte-perfect on disk and at the origin while the CDN serves
+  the copy it cached before the publish. `live-edge-check.php` asks this of `/`
+  and `/shop`; this asks it of the assets, which is where a fixed name gets
+  pinned. It stores no expected hash — it compares the two live paths with each
+  other, because the two checkers here that carried hardcoded manifests both
+  went stale and then reported the repository's staleness as the server's.
 - `live-config-url.php`, `live-image-check.php`, `live-seo-check.php` — config
   origin, product imagery, and the SEO shell.
 - `live-tile-probe.php`, `live-tile-names.php` — the category tiles. The first
