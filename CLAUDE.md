@@ -85,9 +85,56 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   minutes** behind the disk: after wget had saved the whole zip the listing
   still showed no `w.zip`, which reads as a failed fetch. `getCronJobOutputV1`
   is the faster truth — wget's own `saved [N/N]` line.
-- **hPanel File Manager → Extract.** It merges. The docroot is *shared* — it
-  holds eight directories of an older PHP app (`/api/`, `/pay/`, `/knet/`,
-  `/assets/` …) that this repo did not put there.
+- **hPanel File Manager → Extract.** It merges. The docroot used to be
+  *shared*: eight directories that this repo did not put there.
+
+  **It is not shared any more, and «an older PHP app» was the wrong name for
+  what was in it — it was sporta, entire.** This file called it that for
+  weeks, and a vague name is why nobody looked: «an old app» sounds like
+  something that was always going to be there. Proved by hash rather than by
+  guess, 17 September — `api/site-manifest.txt` on `wainkw.com` and on
+  `sporta.com.kw` were **byte-identical**, 14,568 bytes, 162 lines, every
+  SHA-256 matching. The same install, in two docroots.
+
+  It was inert, and the way it was inert is the useful part: `config.php` and
+  the per-directory `.htaccess` did NOT come with the copy. sporta's own
+  `pay/` has six files, wain's had four — the two missing were exactly those.
+  So no database, no KNET keys. **But no per-directory `.htaccess` either**,
+  and wain's root one denies six named old wain helpers and explicitly not
+  `api.php`, so nothing covered the copy. A loopback GET (below) found
+  `/knet/selftest.php` answering **200 with a rendered page**: «Sporta KNET —
+  deployment self-test», PHP 8.5.4, extensions, `AES trandata: round-trip
+  OK`, `config.php : MISSING`. `pay/pay.php` gave a clean 503 and
+  `api/store.php` an empty 200. So the damage was disclosure, not payments —
+  and **«it has no config so it must fatal» was wrong**: it rendered a tidy
+  diagnostic instead.
+
+  Moved to `<domain>/storage/sporta-old/`, not deleted — reversible, instant
+  (same filesystem), and `storage/` is the one directory `deploy.php` never
+  prunes. Seven whole directories went (`pay`, `knet`, `assets`, `cats`,
+  `fonts`, `hero`, `images`); the docroot went from 35 entries to 28, all of
+  them wain's.
+
+  **`api/` could not go with them, and that is the trap to remember.** It is
+  the one shared directory: sporta's 49 files AND wain's own `tts.php` and
+  `deploy.php` live in it. `rm -rf api` would have taken out the deploy
+  endpoint and the صوت وين bridge — the whole write path to this account. It
+  was moved whole and the two files moved back, verified at 19,821 and 10,985
+  bytes, then verified *functionally*: both answer `method_not_allowed` with
+  a 405, and `/knet/selftest.php` now answers 404 with wain's own «وين رايح؟»
+  page.
+
+  Checked before any of it: `hosting_listWebsitesV1` shows `sporta.com.kw`
+  and `static.sporta.com.kw` both rooted at `domains/sporta.com.kw/public_html`,
+  and nothing but `wainkw.com` and `staging` at wain's — so removing the copy
+  could not take sporta down. And `grep` found **0** references to any of the
+  seven paths in `src/` and `public/`; wain's own assets are `og/`, `brand/`,
+  `voice/` and `_next/static/media/`.
+- **`PROTECTED_PATHS` still lists all eight, and that is now backwards.** It
+  was right when the copy was there — it stopped a wain deploy clobbering the
+  shop. With the copy gone it is the thing that would stop a deploy cleaning
+  up if one ever came back. Leave it until someone re-reads `deploy.php`; just
+  do not read it as evidence that those directories belong to wain's docroot.
 - **Never** use hPanel's «deploy static archive» button or
   `hosting_deployStaticSiteArchiveV1`. Both empty the folder first.
 - **A matching `build.json` digest does not mean the deploy landed.**
@@ -290,11 +337,14 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   became a mystery in the first place. Everything the site serves ships in
   `out/`.
 
-  And the obvious top-level names are not available: `images`, `fonts`,
-  `assets`, `cats` and `hero` are the PHP app's and are in `PROTECTED_PATHS`,
-  so an artifact carrying any of them is refused whole with
-  `artifact_touches_protected_path`. wain's own assets live at `og/`, `brand/`,
-  `voice/` and `_next/static/media/` for exactly that reason.
+  And the obvious top-level names are still not available: `images`, `fonts`,
+  `assets`, `cats` and `hero` are in `PROTECTED_PATHS`, so an artifact carrying
+  any of them is refused whole with `artifact_touches_protected_path`. wain's
+  own assets live at `og/`, `brand/`, `voice/` and `_next/static/media/` for
+  exactly that reason, and they should stay there — the directories are gone
+  from the disk now (see *hPanel File Manager → Extract* above), but the
+  endpoint's refusal is unchanged, so claiming one of those names still fails
+  the deploy rather than working.
 
   **It cost one ~3.6MB blob in git**, because the sandbox cannot upload to
   Hostinger and cannot cut a release, which leaves the committed-archive route
