@@ -73,10 +73,24 @@ export function nightEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
   // produce it at any resolution or any envMapIntensity.
   //
   // Cheap, because this is baked once into a cubemap and never drawn:
-  // twenty boxes of unlit window texture on a ring outside the lamps.
-  // They are DARKER than the sky behind them, which is the point — a
-  // reflection is a pattern, not a brightness, and the pattern here is
-  // black tower against sodium haze.
+  // boxes of window texture on a ring well outside the lamps. They are
+  // DARKER than the sky behind them, which is the point — a reflection
+  // is a pattern, not a brightness, and the pattern here is black tower
+  // against sodium haze.
+  //
+  // HOW FAR OUT is the whole of it, and the first version got it wrong.
+  // Twenty towers on a 46 m ring subtend about eighteen degrees each,
+  // and twenty times eighteen is three hundred and sixty: they enclosed
+  // the horizon completely and ate the band the dome exists to provide.
+  // Measured on check:paint, that halved the highlight on the bodywork —
+  // 4.7% of the panel down to 2.3% under the lamps, 5.7% to 3.6% in the
+  // dark — and tripled the dead fraction. A reflection of a city with no
+  // sky in it is duller than no city at all.
+  //
+  // At 95 m and beyond, fourteen of them subtend about seven degrees
+  // each: a quarter of the ring is tower and three quarters is still
+  // sky, which is what a skyline looks like from a road and what leaves
+  // the band somewhere to sweep.
   const winC = document.createElement("canvas");
   winC.width = 32;
   winC.height = 64;
@@ -90,21 +104,24 @@ export function nightEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
     for (let cIdx = 0; cIdx < 6; cIdx++) {
       const lit = ((r * 7 + cIdx * 13) % 11) < 4;
       if (!lit) continue;
-      // Two window colours: warm interior and cool screen glow.
-      wc.fillStyle = (r + cIdx) % 3 === 0 ? "#443a26" : "#2a3140";
+      // Two window colours: warm interior and cool screen glow. Lifted
+      // from the first version's near-black, because a tower that is
+      // only a hole in the sky subtracts from the reflection instead of
+      // adding a pattern to it.
+      wc.fillStyle = (r + cIdx) % 3 === 0 ? "#6b5a34" : "#3d4759";
       wc.fillRect(3 + cIdx * 5, 2 + r * 4, 3, 2);
     }
   }
   const winTex = new THREE.CanvasTexture(winC);
   winTex.colorSpace = THREE.SRGBColorSpace;
   const winMat = new THREE.MeshBasicMaterial({ map: winTex });
-  for (let i = 0; i < 20; i++) {
-    const a = (i / 20) * Math.PI * 2 + 0.16;
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2 + 0.16;
     // Heights from one repeating pattern rather than a random draw, for
     // the same reason the windows are: one city.
     const h = 26 + ((i * 37) % 5) * 11;
     const w = 9 + ((i * 17) % 4) * 3;
-    const r = 46 + ((i * 23) % 3) * 6;
+    const r = 95 + ((i * 23) % 3) * 13;
     const block = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), winMat);
     block.position.set(Math.cos(a) * r, h / 2 - 2, Math.sin(a) * r);
     block.rotation.y = a;
@@ -113,9 +130,9 @@ export function nightEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
 
   const pmrem = new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
-  // far: the dome is at 60 and the towers reach past it on the diagonal,
-  // so the default 100 is not enough to keep them in the bake.
-  const tex = pmrem.fromScene(env, 0.02, 0.1, 200).texture;
+  // far: the dome is at 60 and the towers stand at 95 to 121, so the
+  // default 100 would clip most of the skyline out of the bake.
+  const tex = pmrem.fromScene(env, 0.02, 0.1, 320).texture;
   pmrem.dispose();
   domeTex.dispose();
   return tex;
