@@ -130,6 +130,15 @@
         "LampL",
         "LampR"
       ]
+    },
+    "car-suv": {
+      "tris": 178744,
+      "kb": 3144.3,
+      "parts": [
+        "Body",
+        "Canopy",
+        "Roof"
+      ]
     }
   }
 }

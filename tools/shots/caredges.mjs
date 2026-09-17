@@ -188,7 +188,7 @@ console.log(`\nframe        ${shot.W}x${shot.H}`);
 console.log(`car border   ${shot.edges} silhouette samples, ${shot.mean} px mean 10-90% transition (median ${shot.median})`);
 console.log("             edges.mjs measures 2.125 px on the world's edges in the same renderer\n");
 
-// Build every car FIRST, so the eight Blender downloads run together
+// Build every car FIRST, so the nine Blender downloads run together
 // rather than one after another, then measure each shell twice: as
 // built, and again once the authored geometry has landed.
 const built = await page.evaluate(() => {

@@ -264,18 +264,20 @@ function mirrorX(geo: THREE.BufferGeometry): THREE.BufferGeometry {
  * runtime error in the race test and tells the player nothing.
  *
  * This is NOT "the styles the pipeline supports" — profiles.json and
- * tools/blender/build_assets.py cover all eight now (see
+ * tools/blender/build_assets.py cover all nine now (see
  * scripts/export-car-profiles.mjs), because a style with no profile
  * was a style whose silhouette changes nothing ever read. This set is
- * only "which of those eight have actually had `npm run sync:models`
- * run and their GLB committed". It is now all eight: hatch, pony,
+ * only "which of those nine have actually had `npm run sync:models`
+ * run and their GLB committed". It is now all nine: hatch, pony,
  * pickup and super were lofted with the same Blender run that
- * reproduces the other four bit for bit, and committed with it. Add a
+ * reproduces the other four bit for bit, and committed with it; the
+ * suv, the first silhouette drawn for traffic rather than for the
+ * roster, was lofted the same way when it was added. Add a
  * style here in the same commit as its car-{style}.glb, never before
  * it. scripts/check-blender-coverage.mjs fails if the two disagree.
  */
 const AUTHORED_SHELLS: ReadonlySet<BodyStyle> = new Set<BodyStyle>([
-  "sedan", "zx", "gtr", "rx7", "hatch", "pony", "pickup", "super",
+  "sedan", "zx", "gtr", "rx7", "hatch", "pony", "pickup", "super", "suv",
 ]);
 
 /** Crowned once per file, not once per car. The GLBs are fetched and
@@ -316,7 +318,7 @@ const crowned = new WeakSet<THREE.BufferGeometry>();
  * recorded on the group rather than dropped, so "rejected as stale" and
  * "never loaded" stop looking the same from outside.
  *
- * All eight are within it today: lofted from the current profiles.json
+ * All nine are within it today: lofted from the current profiles.json
  * and measured back with tools/shots/shelldrift.mjs, every silhouette
  * lands "authored" at a worst single-face drift of 1 mm. Keep the
  * tolerance anyway. It is cheap, and it is the only thing standing

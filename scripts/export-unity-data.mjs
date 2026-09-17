@@ -295,6 +295,7 @@ const styleEnum = {
   pony: "Pony",
   pickup: "Pickup",
   super: "Super",
+  suv: "SUV",
 };
 /** A style the map does not know must stop the build. Emitting
  *  `Style = undefined` would produce C# that does not compile, and the

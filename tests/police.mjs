@@ -55,6 +55,31 @@ console.log(`beats         ${road.phases.join(", ")}  ` +
   check(distinct === road.count,
     `${distinct} distinct beats over ${road.count} cars — the bars are in lockstep`));
 
+// --- 1b. The rest of the road ------------------------------------------
+// Civilians used to be the street saloon, every one of them. The road
+// this game is set on is mostly SUVs, so a share of the traffic wears
+// that silhouette now — enough to be met every few cars, not so many
+// that the saloon stops being the default — and none of them are patrol
+// cars, which stay on the saloon shell their livery was drawn for.
+const mix = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  const by = {};
+  for (const t of e.traffic) {
+    const s = t.mesh.userData.style ?? "?";
+    by[s] = (by[s] ?? 0) + 1;
+  }
+  return {
+    by,
+    suvPolice: e.traffic.filter((t) => t.mesh.userData.police && t.mesh.userData.style === "suv").length,
+  };
+});
+const suvs = mix.by.suv ?? 0, sedans = mix.by.sedan ?? 0;
+console.log(`the mix       ${Object.entries(mix.by).map(([k, v]) => `${v} ${k}`).join(", ")}  ` +
+  check(suvs >= road.total / 6 && suvs <= road.total / 3,
+    `${suvs} SUVs of ${road.total} — the road should carry a real share of them, and the saloon should still be the default`) + " " +
+  check(sedans > suvs, `${sedans} saloons to ${suvs} SUVs — the saloon is no longer the road's default`) + " " +
+  check(mix.suvPolice === 0, `${mix.suvPolice} patrol cars are on the SUV shell, whose flank the livery was never fitted to`));
+
 // --- 2. What one is wearing -------------------------------------------
 const built = await page.evaluate(() => {
   const THREE = window.__grnThree;

@@ -7,7 +7,7 @@ simply stands — nothing waits and nothing breaks.
 
 | File | Meshes | Replaces |
 | --- | --- | --- |
-| `car-{sedan,zx,gtr,rx7,hatch,pony,pickup,super}.glb` | Body, Canopy, Roof | the bevel-extruded body shells — all eight silhouettes |
+| `car-{sedan,zx,gtr,rx7,hatch,pony,pickup,super,suv}.glb` | Body, Canopy, Roof | the bevel-extruded body shells — all nine silhouettes |
 | `wheel-{5,6}.glb` | Tire, Barrel, Alloy, Rotor, Lugs | the hero wheel (5-spoke cast / 6-spoke forged) |
 | `palm.glb` | Crown | the corniche palm crown, one geometry for ~130 instances |
 | `driver.glb` | Helmet, Visor, Glove, Wheel, Pedal | the driver at the wheel. These hang off joints the IK solver moves every frame, so each part is modelled in its own joint's local frame and dimensioned from `src/game/rig.ts` (via the `rig` block in `profiles.json`) — an authored rim at the wrong radius leaves the solved hands gripping thin air |
@@ -24,10 +24,10 @@ body bevel at `max` already resolves finer than a pixel. The reasoning
 and the numbers are in the comment above `QUALITY` in
 `tools/blender/build_assets.py`. Do not ship it without re-measuring.
 
-## All eight silhouettes
+## All nine silhouettes
 
 `profiles.json` and `build_assets.py` cover every `BodyStyle` the fleet
-uses — sedan, zx, gtr, rx7, hatch, pony, pickup, super — because a style
+uses — sedan, zx, gtr, rx7, hatch, pony, pickup, super, suv — because a style
 with no profile was a style whose silhouette could change and nothing
 would notice: `scripts/export-car-profiles.mjs` used to hardcode just
 the four that already had a shipped GLB, so a pickup or a hatch profile
@@ -40,7 +40,7 @@ run and their GLB committed — and it listed only the original four,
 because building the other four needs a real `bpy` run, the one step
 here that cannot be done without Blender installed.
 
-Both answers are now all eight. Hatch, pony, pickup and super were
+Both answers are now all nine. Hatch, pony, pickup and super were
 lofted in the same Blender run that reproduces the other four **byte for
 byte** — rebuilding `car-sedan.glb` from the committed `profiles.json`
 returns a file whose glTF JSON and BIN chunk are identical to the one in
@@ -77,7 +77,7 @@ between the car the game positions everything against and the car it
 actually draws. `models.ts` rejects anything past 10 mm
 (`SHELL_FIT_TOL`) and keeps the procedural shell, so a stale GLB costs
 you the authored geometry silently; this is what makes it audible. All
-eight currently land `authored` at a worst single-face drift of 1 mm.
+nine currently land `authored` at a worst single-face drift of 1 mm.
 It needs `npm run dev` running.
 
 The rig has the same problem one file over. `profiles.json` also carries

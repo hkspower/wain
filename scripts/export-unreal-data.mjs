@@ -224,6 +224,7 @@ const styleEnum = {
   pony: "Pony",
   pickup: "Pickup",
   super: "Super",
+  suv: "SUV",
 };
 /**
  * A style this map does not know has to stop the build.

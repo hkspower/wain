@@ -48,7 +48,14 @@ export function nightEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
       // White LED, matching the columns the world actually builds. Left
       // warm, every chrome and clearcoat in the game kept reflecting a
       // sodium street that is no longer there.
-      new THREE.MeshBasicMaterial({ color: new THREE.Color(8.2, 8.6, 9.4) })
+      // Brighter than they were (8.2, 8.6, 9.4). "Shine" on a moving car
+      // is the STREAK a lamp draws along the shoulder, and that comes
+      // from the point sources in this bake, not from envMapIntensity —
+      // turning the whole environment up makes the body wet all over
+      // (the note beside the paint's 2.1 records 2.4 doing exactly
+      // that). Turning the lamps up brightens the streak and leaves the
+      // panel between streaks where it was. Measured on check:paint.
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(11.5, 12.0, 13.2) })
     );
     lamp.position.set(Math.cos(a) * 34, 11 + (i % 3) * 3, Math.sin(a) * 34);
     env.add(lamp);
@@ -57,7 +64,7 @@ export function nightEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
   // The moon, high and cool — a small hard highlight
   const moon = new THREE.Mesh(
     new THREE.SphereGeometry(3.4, 12, 10),
-    new THREE.MeshBasicMaterial({ color: new THREE.Color(7, 7.4, 9) })
+    new THREE.MeshBasicMaterial({ color: new THREE.Color(9.5, 10, 12) })
   );
   moon.position.set(-34, 38, -14);
   env.add(moon);

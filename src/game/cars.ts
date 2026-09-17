@@ -22,7 +22,7 @@ import { BODY_EULER_ORDER, WHEEL_EULER_ORDER } from "./suspension";
 /** Silhouette family. "zx" is the long-nose fastback wedge of a Z32
  *  300ZX; "gtr" is the boxy, high-decked muscle of an R34 Skyline. */
 export type BodyStyle =
-  | "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup" | "super";
+  | "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup" | "super" | "suv";
 
 export interface CarColors {
   body: number;
@@ -609,40 +609,29 @@ export interface CrownSpec {
   /** How far down the top surface falls at its edges, in metres. */
   roof: number;
   /**
-   * NOT HERE, and this is the note that says why, so the next person
-   * does not spend a day rediscovering it.
+   * How far the section pulls in over the NOSE and TAIL overhangs, as a
+   * fraction of the half-width — the car's shape in plan view.
    *
-   * These cars read as boxy because every shell is an EXTRUSION of a
-   * side profile: the cross-section is identical from nose to tail, so
-   * seen from above each car is a rectangle with the corners rounded off
-   * by the bevel. A real car is a lozenge in plan — narrow across the
-   * bumper, widest at the B-pillar, drawn in again at the tail — and
-   * that plan shape is most of what the eye reads as a car rather than
-   * a box.
+   * Every shell here is an extrusion of a side profile, so without this
+   * its cross-section is identical from nose to tail and the car is a
+   * rectangle seen from above. A real car is a lozenge in plan, and
+   * that is most of what the eye reads as a car rather than a box.
+   * (tuck, above, cannot do it: doubling it moved caredges' flank% by
+   * under a point and the cards were indistinguishable.)
    *
-   * Two attempts at reaching it from crownShell, both measured, both
-   * reverted:
+   * FULL WIDTH ACROSS THE WHOLE ARCH, not just across the wheel centre.
+   * The first version held the taper clear of the arch CENTRES and ate
+   * the front wing: an arch opening is a 450 mm radius circle, its
+   * forward half sat inside the taper, and because the lip, the well
+   * and the flare are hung off flankX — the car's widest point — they
+   * stayed put while the paint pulled in under them, and the lip stood
+   * detached from the bodywork. PLAN_HOLD keeps the taper outside the
+   * arch's full extent on every wheelbase in the fleet, so it acts on
+   * the overhangs only — which is where a real car narrows hardest.
    *
-   *   TUCK. Doubling it (sedan 0.045 to 0.080, hatch 0.034 to 0.072)
-   *   moved caredges' flank% by under one point and the rendered cards
-   *   were indistinguishable. A surface drawn in 74 mm over 730 mm of
-   *   height is tilted six degrees; it cannot un-box anything.
-   *
-   *   A PLAN TAPER — a z-dependent nip on x, held at full width across
-   *   the wheelbase. This one DID show, and it showed by eating the
-   *   front wing: the wheel arch lip and the side markers are hung off
-   *   flankX, the car's widest point, rather than off the local
-   *   surface, so narrowing the body under them left the lip standing
-   *   detached from the paint. Holding the taper clear of the arches
-   *   confines it to the last tenth of the car at each end, which is
-   *   where the bevel already works, and then it does not show at all.
-   *
-   * The conclusion is that plan shape is not reachable by displacing an
-   * extrusion after the fact. It belongs in the LOFT: profiles.json
-   * carries a side profile per silhouette and build_style() sweeps it at
-   * one width, and what it needs is a plan outline swept with it. That
-   * is a Blender-pipeline change, not a crown constant.
+   * Zero, or absent, is the old constant-section behaviour.
    */
+  plan?: number;
   /** Where the widest point sits, 0 at the bottom of the shell and 1 at
    *  the top. A door\'s shoulder is a little above the middle. */
   shoulder: number;
@@ -665,7 +654,7 @@ export interface CrownSpec {
 
 export const CROWN: Record<"body" | "canopy" | "roof", CrownSpec> = {
   // The body: bulging doors, tucked rocker, a crowned bonnet and boot.
-  body: { tuck: 0.055, roof: 0.03, shoulder: 0.62, smooth: true },
+  body: { tuck: 0.055, roof: 0.03, shoulder: 0.62, plan: 0.24, smooth: true },
   // The glasshouse leans in hard — tumblehome is most of what makes a
   // greenhouse read as glass rather than as a box.
   canopy: { tuck: 0.085, roof: 0.026, shoulder: 0.25 },
@@ -703,27 +692,27 @@ export const CROWN: Record<"body" | "canopy" | "roof", CrownSpec> = {
  */
 const CROWN_BY_STYLE: Record<BodyStyle, Record<"body" | "canopy" | "roof", CrownSpec>> = {
   zx: {
-    body: { tuck: 0.075, roof: 0.032, shoulder: 0.58, smooth: true },
+    body: { tuck: 0.075, roof: 0.032, shoulder: 0.58, plan: 0.28, smooth: true },
     canopy: { tuck: 0.105, roof: 0.028, shoulder: 0.24, smooth: true },
     roof: { tuck: 0.034, roof: 0.036, shoulder: 0.5, smooth: true },
   },
   rx7: {
-    body: { tuck: 0.075, roof: 0.032, shoulder: 0.58, smooth: true },
+    body: { tuck: 0.075, roof: 0.032, shoulder: 0.58, plan: 0.28, smooth: true },
     canopy: { tuck: 0.105, roof: 0.028, shoulder: 0.24, smooth: true },
     roof: { tuck: 0.034, roof: 0.036, shoulder: 0.5, smooth: true },
   },
   gtr: {
-    body: { tuck: 0.068, roof: 0.030, shoulder: 0.60, smooth: true },
+    body: { tuck: 0.068, roof: 0.030, shoulder: 0.60, plan: 0.28, smooth: true },
     canopy: { tuck: 0.098, roof: 0.027, shoulder: 0.25, smooth: true },
     roof: { tuck: 0.032, roof: 0.035, shoulder: 0.5, smooth: true },
   },
   pony: {
-    body: { tuck: 0.062, roof: 0.028, shoulder: 0.68, smooth: true },
+    body: { tuck: 0.062, roof: 0.028, shoulder: 0.68, plan: 0.24, smooth: true },
     canopy: { tuck: 0.090, roof: 0.026, shoulder: 0.27, smooth: true },
     roof: { tuck: 0.030, roof: 0.032, shoulder: 0.5, smooth: true },
   },
   sedan: {
-    body: { tuck: 0.045, roof: 0.026, shoulder: 0.62, smooth: true },
+    body: { tuck: 0.045, roof: 0.026, shoulder: 0.62, plan: 0.24, smooth: true },
     canopy: { tuck: 0.072, roof: 0.024, shoulder: 0.28, smooth: true },
     roof: { tuck: 0.026, roof: 0.028, shoulder: 0.5, smooth: true },
   },
@@ -737,19 +726,30 @@ const CROWN_BY_STYLE: Record<BodyStyle, Record<"body" | "canopy" | "roof", Crown
   // gets the deepest tuck in the fleet and the shoulder sits LOW —
   // the opposite end of the same dial the pickup is at.
   super: {
-    body: { tuck: 0.095, roof: 0.034, shoulder: 0.44, smooth: true },
+    body: { tuck: 0.095, roof: 0.034, shoulder: 0.44, plan: 0.32, smooth: true },
     canopy: { tuck: 0.118, roof: 0.030, shoulder: 0.22, smooth: true },
     roof: { tuck: 0.036, roof: 0.038, shoulder: 0.5, smooth: true },
   },
   pickup: {
-    body: { tuck: 0.042, roof: 0.020, shoulder: 0.70, smooth: true },
+    body: { tuck: 0.042, roof: 0.020, shoulder: 0.70, plan: 0.12, smooth: true },
     canopy: { tuck: 0.072, roof: 0.024, shoulder: 0.30, smooth: true },
     roof: { tuck: 0.026, roof: 0.030, shoulder: 0.5, smooth: true },
   },
   hatch: {
-    body: { tuck: 0.034, roof: 0.022, shoulder: 0.64, smooth: true },
+    body: { tuck: 0.034, roof: 0.022, shoulder: 0.64, plan: 0.20, smooth: true },
     canopy: { tuck: 0.060, roof: 0.022, shoulder: 0.30, smooth: true },
     roof: { tuck: 0.022, roof: 0.024, shoulder: 0.5, smooth: true },
+  },
+  // A two-box on a truck's floor. The flank is tall and nearly flat like
+  // the pickup's, so it gets the pickup's tuck; but the widest point is
+  // the door skin under the belt rather than a bed rail, so the shoulder
+  // sits where a saloon's does. The roof is the longest in the fleet
+  // and a long flat roof needs a touch MORE crown, not less, or it reads
+  // as a lid.
+  suv: {
+    body: { tuck: 0.040, roof: 0.024, shoulder: 0.62, plan: 0.16, smooth: true },
+    canopy: { tuck: 0.066, roof: 0.026, shoulder: 0.30, smooth: true },
+    roof: { tuck: 0.026, roof: 0.034, shoulder: 0.5, smooth: true },
   },
 };
 
@@ -780,6 +780,18 @@ export function crownFor(style: BodyStyle, slot: string): CrownSpec {
  * own half-width and its own top, and the crown is measured against
  * those.
  */
+/**
+ * Half the span, as a fraction of the shell's length, that the plan
+ * taper leaves at full width.
+ *
+ * 0.41 holds 0.09 to 0.91 of the length. The wheel centres sit at 0.20
+ * and 0.80 on this fleet's wheelbases and an arch opening reaches about
+ * 0.094 of the length either side of its centre, so the arches span
+ * 0.106..0.294 and 0.706..0.894 — inside the hold with 7 to 8 cm to
+ * spare. 0.32 was not enough; see CrownSpec.plan for what that did.
+ */
+const PLAN_HOLD = 0.41;
+
 export function crownShell(geo: THREE.BufferGeometry, c: CrownSpec): THREE.BufferGeometry {
   const pos = geo.attributes.position as THREE.BufferAttribute;
   const n = pos.count;
@@ -886,7 +898,19 @@ export function crownShell(geo: THREE.BufferGeometry, c: CrownSpec): THREE.Buffe
     // maximum instead of a crease.
     const d = (t - c.shoulder) / (t >= c.shoulder ? 1 - c.shoulder : c.shoulder || 1);
     const pull = c.tuck * (1 - Math.cos(Math.min(1, Math.abs(d)) * Math.PI)) * 0.5;
-    pos.setX(i, x * (1 - pull));
+
+    // Plan taper: full width across the wheelbase and both arches, drawn
+    // in over the overhangs. Same cosine as the tuck so the transition
+    // is a smooth maximum rather than a crease, and zero across the hold
+    // band so the car's own half-width — its bounding box, its widthFix
+    // and every part hung off flankX — is untouched.
+    const zf = (pos.getZ(i) - z0) / span;
+    const past = Math.max(0, Math.abs(zf - 0.5) - PLAN_HOLD);
+    const nip =
+      (c.plan ?? 0) *
+      (1 - Math.cos(Math.min(1, past / (0.5 - PLAN_HOLD)) * Math.PI)) *
+      0.5;
+    pos.setX(i, x * (1 - pull) * (1 - nip));
 
     // Top surface: dome it. Weighted by how near the top of ITS OWN
     // station the vertex is, so the rocker is untouched and the roof
@@ -1176,6 +1200,7 @@ const RX7_CABIN_W = 1.635;
 const HATCH_CABIN_W = 1.556;
 const PICKUP_CABIN_W = 1.70;
 const SUPER_CABIN_W = 1.60;
+const SUV_CABIN_W = 1.68;
 
 // Raked glasshouse: windshield, roofline, rear window
 const canopyGeo = extrudeProfile(
@@ -1330,6 +1355,63 @@ const pickupRoofGeo = extrudeProfile(
   ROOF_EDGE,
   0,
   CROWN_BY_STYLE.pickup.roof,
+);
+
+// ---- Mid-size SUV: a two-box on a raised floor. Tall upright nose, a
+// short high bonnet, and then one long glasshouse from the cowl almost
+// to the tail, closed by a near-vertical tailgate.
+//
+// The most common shape on the road this game is set on, and until now
+// the one shape the game could not draw: every civilian was the street
+// saloon. What makes it read as an SUV rather than a tall hatch, in
+// order of how much each is worth: the FLOOR is 40 mm higher than any
+// car's (daylight under the sills), the roof runs flat and long over a
+// glasshouse that ends in a tailgate instead of a boot, and the belt
+// is up at the pickup's height rather than the saloon's.
+const suvBodyGeo = extrudeProfile(
+  [
+    [2.3, 0.42],
+    [2.4, 0.8], // tall, upright nose
+    [2.3, 1.0],
+    [1.5, 1.08], // a short bonnet, high and nearly flat
+    [0.95, 1.12], // cowl
+    [-2.18, 1.12], // the belt runs dead flat to the tail — a two-box
+    [-2.34, 1.04],
+    [-2.42, 0.58],
+    [-2.3, 0.36],
+    [-1.95, 0.28], // the raised floor: 40 mm more than a car's
+    [1.95, 0.28],
+  ],
+  1.93,
+  BODY_EDGE,
+  2,
+  CROWN_BY_STYLE.suv.body,
+);
+const suvCanopyGeo = extrudeProfile(
+  [
+    [0.92, 1.1],
+    [0.36, 1.7], // a steeper screen than any car's
+    [-0.6, 1.76],
+    [-1.8, 1.74], // the longest roof in the fleet
+    [-2.06, 1.64], // and a tailgate, raked only just off vertical
+    [-2.18, 1.1],
+  ],
+  SUV_CABIN_W,
+  CANOPY_EDGE,
+  0,
+  CROWN_BY_STYLE.suv.canopy,
+);
+const suvRoofGeo = extrudeProfile(
+  [
+    [0.3, 1.69],
+    [0.2, 1.77],
+    [-1.76, 1.78],
+    [-1.88, 1.7],
+  ],
+  roofWidth(SUV_CABIN_W),
+  ROOF_EDGE,
+  0,
+  CROWN_BY_STYLE.suv.roof,
 );
 
 // ---- Z32-style wedge: long flat nose, cab-back glasshouse, fastback
@@ -1649,6 +1731,8 @@ const STYLE_SCALE: Record<BodyStyle, number> = {
   // The pickup profile is authored at 5.28 m raw against a 5.35 m
   // truck, so this is close to one for the same reason the hatch's is.
   pickup: 0.987 * PRESENCE,
+  // Authored at 4.82 m raw against a 4.85 m truck.
+  suv: 1.006 * PRESENCE,
   super: 0.9 * PRESENCE,
 };
 
@@ -1689,6 +1773,8 @@ export const STYLE_REAL: Record<BodyStyle, { l: number; w: number }> = {
   // Wide and short: a mid-engined two-seater is the only shape here
   // whose width is close to its wheelbase.
   super: { l: 4.55, w: 1.94 },
+  // A mid-size SUV: a saloon's length on a truck's width and floor.
+  suv: { l: 4.85, w: 1.93 },
 };
 export const WIDTH_FOLLOWS_LENGTH = 1 / 3;
 
@@ -1775,6 +1861,16 @@ const STYLE_DIMS: Record<BodyStyle, StyleDims> = {
     nose: 2.28, tail: -2.32, roof: [-0.34, 1.22], noseTopY: 0.46, grilleY: 0.4, beltY: 0.82,
     hoodY: 0.66, tailY: 0.74, deckY: 0.92, mirror: [0.03, 0.86, 0.62],
     dashY: 0.82, wiperZ: 0.72, bPillar: [0.76, 0.98, -0.78], creaseY: 0.56,
+  },
+  // The pickup's heights on a saloon's layout: belt, mirror and dash
+  // all sit where the truck's do, but the deck is a tailgate at the
+  // very back rather than a bed behind the cab, so deckY is the roof
+  // rail's neighbour and the B-pillar is a long way back under the
+  // longest roof here.
+  suv: {
+    nose: 2.44, tail: -2.46, roof: [-0.8, 1.77], noseTopY: 0.96, grilleY: 0.7, beltY: 1.08,
+    hoodY: 1.1, tailY: 1.0, deckY: 1.1, mirror: [0.03, 1.26, 0.76],
+    dashY: 1.16, wiperZ: 0.94, bPillar: [0.84, 1.4, -0.42], creaseY: 0.82,
   },
 };
 
@@ -3858,6 +3954,9 @@ export const FACE_FALLBACK: Record<BodyStyle, FaceSpec> = {
   pony: { w: 1.3, h: 0.24, pattern: "bar", pitch: 0.1, surround: "chrome", badge: true },
   pickup: { w: 1.4, h: 0.3, pattern: "bar", pitch: 0.13, surround: "chrome", badge: true },
   super: { w: 0.86, h: 0.1, dy: -0.02, pattern: "mesh", pitch: 0.026, surround: "carbon", ducts: true, lower: true },
+  // A tall chrome-framed mesh: the family SUV's face, and the widest
+  // aperture here after the truck's.
+  suv: { w: 1.34, h: 0.26, pattern: "mesh", pitch: 0.05, surround: "chrome", badge: true },
 };
 
 const faceCache = new Map<string, THREE.BufferGeometry>();
@@ -4792,6 +4891,8 @@ export function createCar(colors: CarColors): THREE.Group {
       ? [superBodyGeo, superCanopyGeo, superRoofGeo]
       : style === "pickup"
       ? [pickupBodyGeo, pickupCanopyGeo, pickupRoofGeo]
+      : style === "suv"
+      ? [suvBodyGeo, suvCanopyGeo, suvRoofGeo]
       : style === "pony"
       ? [ponyBodyGeo, ponyCanopyGeo, ponyRoofGeo]
       : style === "zx"
@@ -5974,9 +6075,9 @@ export function createCar(colors: CarColors): THREE.Group {
   // the front wheel is right under the cab and there is a long flat run
   // of body behind the rear one.
   const wzF =
-    style === "super" ? 1.36 : style === "pickup" ? 1.62 : style === "zx" ? 1.52 : style === "gtr" || style === "rx7" ? 1.45 : 1.42;
+    style === "super" ? 1.36 : style === "pickup" ? 1.62 : style === "suv" ? 1.5 : style === "zx" ? 1.52 : style === "gtr" || style === "rx7" ? 1.45 : 1.42;
   const wzR =
-    style === "super" ? -1.4 : style === "pickup" ? -1.58 : style === "zx" ? -1.48 : style === "gtr" || style === "rx7" ? -1.45 : -1.42;
+    style === "super" ? -1.4 : style === "pickup" ? -1.58 : style === "suv" ? -1.46 : style === "zx" ? -1.48 : style === "gtr" || style === "rx7" ? -1.45 : -1.42;
 
   /**
    * How long a feature running along the flank is allowed to be.
@@ -7405,6 +7506,9 @@ export function createCar(colors: CarColors): THREE.Group {
    * menu rolled correctly and the game did not.
    */
   group.userData.wheelR = TIRE_RADIUS * scale;
+  // And its silhouette, so a road full of built cars can be asked what
+  // it is made of (tests/police.mjs counts the traffic mix off this).
+  group.userData.style = style;
   // And its length, for the verge: a car's wake pushes the planting
   // beside it and pulls it back in behind, and where "beside" ends is
   // this number. Absent on a shell built without a model (4.5 m then).

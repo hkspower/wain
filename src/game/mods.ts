@@ -380,7 +380,7 @@ export const EXHAUSTS: Record<string, ExhaustSpec> = {
  * or 7 a real pickup would lean. Fixing that properly means the pickup
  * getting a body style of its own, which is a bigger change than this.
  */
-const ROLL_DEG_PER_G: Record<"sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup" | "super", number> = {
+const ROLL_DEG_PER_G: Record<"sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup" | "super" | "suv", number> = {
   // The low, wide coupes. Stiff by construction.
   zx: 2.4,
   rx7: 2.4,
@@ -397,6 +397,9 @@ const ROLL_DEG_PER_G: Record<"sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" |
   // roll solver reads, so the pickup now visibly takes a set the way it
   // should have been doing since it was drawn as a saloon.
   pickup: 5.4,
+  // Tall and heavy, but sprung for its own weight rather than a load, so
+  // it sits between the saloon and the truck.
+  suv: 4.8,
   // The stiffest thing here, and by construction rather than by tune:
   // a mid-engined car carries its mass low and between the axles.
   super: 2.2,
@@ -603,7 +606,7 @@ export interface CarModel {
   cls: CarClass;
   price: number;
   /** Body silhouette (cars.ts): sedan, zx wedge, gtr coupe, or rx7. */
-  style?: "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup" | "super";
+  style?: "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup" | "super" | "suv";
   /**
    * How far the car is built, as a body kit. Every machine on this road
    * has been got at — nobody on the corniche at two in the morning is
@@ -1840,7 +1843,7 @@ export interface TuneEffects {
   engineCover: number | null;
   /** How much of the bodywork is cloth rather than steel. */
   carbon: CarbonLevel;
-  bodyStyle: "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup" | "super";
+  bodyStyle: "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony" | "pickup" | "super" | "suv";
 }
 
 /** The numbers a car actually races with: its own base, plus the parts

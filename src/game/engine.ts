@@ -3331,10 +3331,19 @@ export class GameEngine {
       // pass at night are.
       const police = i % 9 === 4;
       const onCall = police && Math.floor(i / 9) % 2 === 0;
+      // And SUVs, because until now every civilian was the street
+      // saloon and the road this game is set on is not a road of
+      // saloons. Every fourth car that is not a patrol car, which puts
+      // eleven of them across the 46: enough that you are never far
+      // from one, not so many that the saloon stops being the road's
+      // default.
+      const suv = !police && i % 4 === 1;
+      const style = suv ? "suv" : "sedan";
       const mesh = this.trackCar(
         createCar({
           body: police ? POLICE.silver : TRAFFIC_COLORS[i % TRAFFIC_COLORS.length],
           livery: police ? "police" : undefined,
+          style,
           simple: true,
           // Every player, rival and menu-preview car is fitted to a real
           // lengthM (see createCar); without one a shell falls back to
@@ -3346,7 +3355,7 @@ export class GameEngine {
           // STYLE_REAL.sedan.l is this codebase's own canonical real
           // sedan length — the same 4.7 m the gtr/rx7/etc. proportion
           // law is built against — not a new number.
-          lengthM: STYLE_REAL.sedan.l,
+          lengthM: STYLE_REAL[style].l,
         })
       );
       // Space the bars. The builder cannot do this — every patrol car is
@@ -3361,7 +3370,7 @@ export class GameEngine {
         // Civilians are the street sedan with nothing bolted on — the
         // softest car the game builds, and the one that should visibly
         // take a set through the corners you thread them at.
-        body: newAiBody(rollMaxFor()),
+        body: newAiBody(rollMaxFor(style)),
         mesh,
         s: this.track.wrap(120 + (i / count) * this.track.length),
         lat: LANES[i % LANES.length],

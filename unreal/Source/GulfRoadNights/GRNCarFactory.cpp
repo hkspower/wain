@@ -79,6 +79,7 @@ static float StyleRefLength(EGRNBodyStyle Style)
 	case EGRNBodyStyle::Pony: return 4.90f;
 	case EGRNBodyStyle::Pickup: return 5.35f;
 	case EGRNBodyStyle::Super: return 4.55f;
+	case EGRNBodyStyle::SUV: return 4.85f;
 	default: return 4.70f;
 	}
 }
@@ -94,6 +95,7 @@ static float StyleRefWidth(EGRNBodyStyle Style)
 	case EGRNBodyStyle::Pony: return 1.88f;
 	case EGRNBodyStyle::Pickup: return 1.95f;
 	case EGRNBodyStyle::Super: return 1.94f;
+	case EGRNBodyStyle::SUV: return 1.93f;
 	default: return 1.80f;
 	}
 }

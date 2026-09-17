@@ -45,6 +45,7 @@ public static class CarFactory
             case BodyStyle.Pony: return new Reference { L = 4.90f, W = 1.88f };
             case BodyStyle.Pickup: return new Reference { L = 5.35f, W = 1.95f };
             case BodyStyle.Super: return new Reference { L = 4.55f, W = 1.94f };
+            case BodyStyle.SUV: return new Reference { L = 4.85f, W = 1.93f };
             default: return new Reference { L = 4.70f, W = 1.80f };
         }
     }
@@ -122,6 +123,15 @@ public static class CarFactory
                     Length = len, Width = width, BodyH = 0.48f,
                     CabinLen = len * 0.42f, CabinH = 0.36f, CabinZ = len * 0.02f, CabinRake = -8f,
                     WheelFront = len * 0.300f, WheelRear = -len * 0.308f };
+            // A two-box on a raised floor: the tallest body after the
+            // truck, and the LONGEST cabin in the fleet — 0.62 of the
+            // length against a saloon's 0.447 — because the glass runs
+            // from the cowl to a tailgate with no boot behind it.
+            case BodyStyle.SUV:
+                return new Shape {
+                    Length = len, Width = width, BodyH = 0.68f,
+                    CabinLen = len * 0.62f, CabinH = 0.60f, CabinZ = -len * 0.10f, CabinRake = 0f,
+                    WheelFront = len * 0.309f, WheelRear = -len * 0.301f };
             default: // saloon
                 return new Shape {
                     Length = len, Width = width, BodyH = 0.58f,

@@ -38,7 +38,7 @@ static const FGRNTrackPoint GRNControlPoints[] = {
 
 // ------------------------------------------------------------- rivals
 
-enum class EGRNBodyStyle : uint8 { Sedan, ZX, GTR, RX7, Hatch, Pony, Pickup, Super };
+enum class EGRNBodyStyle : uint8 { Sedan, ZX, GTR, RX7, Hatch, Pony, Pickup, Super, SUV };
 
 struct FGRNRivalDef
 {

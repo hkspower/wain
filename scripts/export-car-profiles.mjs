@@ -183,6 +183,7 @@ const styles = {
   pony: { body: "ponyBodyGeo", canopy: "ponyCanopyGeo", roof: "ponyRoofGeo" },
   pickup: { body: "pickupBodyGeo", canopy: "pickupCanopyGeo", roof: "pickupRoofGeo" },
   super: { body: "superBodyGeo", canopy: "superCanopyGeo", roof: "superRoofGeo" },
+  suv: { body: "suvBodyGeo", canopy: "suvCanopyGeo", roof: "suvRoofGeo" },
 };
 
 const out = {};

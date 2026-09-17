@@ -7,7 +7,7 @@
 
 Produces, at the chosen quality (default `max`):
 
-  car-{sedan,zx,gtr,rx7,hatch,pony,pickup,super}.glb   body shells: Body, Canopy, Roof
+  car-{sedan,zx,gtr,rx7,hatch,pony,pickup,super,suv}.glb   body shells: Body, Canopy, Roof
   wheel-{5,6}.glb              hero wheel: Tire, Barrel, Alloy, Rotor, Lugs
   palm.glb                     corniche palm crown: Crown
   driver.glb                   the driver at the wheel: Helmet, Visor,
@@ -837,7 +837,7 @@ def main():
     # carries all eight (scripts/export-car-profiles.mjs) and build_style()
     # is generic over any of them, so the only thing that was limiting
     # this to four was this default.
-    ap.add_argument("--styles", default="sedan,zx,gtr,rx7,hatch,pony,pickup,super")
+    ap.add_argument("--styles", default="sedan,zx,gtr,rx7,hatch,pony,pickup,super,suv")
     ap.add_argument("--quality", default="max", choices=sorted(QUALITY))
     ap.add_argument("--only", default="cars,wheels,palm,police,driver",
                     help="comma-separated subset of cars,wheels,palm,police,driver")

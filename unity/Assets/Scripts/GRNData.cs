@@ -9,7 +9,7 @@
 
 using UnityEngine;
 
-public enum BodyStyle { Sedan, ZX, GTR, RX7, Hatch, Pony, Pickup, Super }
+public enum BodyStyle { Sedan, ZX, GTR, RX7, Hatch, Pony, Pickup, Super, SUV }
 
 public static class GRNData
 {
