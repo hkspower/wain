@@ -622,6 +622,8 @@ def identity_checks():
 
 # ═══════════════════════════════════════════ browser sections
 XSS = '<img src=x onerror="window.__pwned=1">'
+# the same attack aimed at an attribute rather than at element text
+ATTR_XSS = '" onmouseover="window.__pwned=1" x="'
 
 def browser_checks():
     Handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(ROOT))
@@ -1882,6 +1884,28 @@ def delivery_checks(pg):
     check(S, "order ids are sequential and zero-padded", ids == ["ORD-0001", "ORD-0002", "ORD-0003"], str(ids))
     check(S, "hostile customer name does not execute", pg.evaluate("window.__pwned === undefined"))
     check(S, "hostile customer name renders as text", XSS in pg.inner_text("#del-orders"))
+
+    # A payload between tags and a payload inside an attribute are different
+    # attacks, and only the first was tested here. esc() escaped & < > but not
+    # quotes — right between tags, a hole inside one — so a courier named
+    # `" onmouseover="…"` became a real handler on its <option> and ran on
+    # hover: stored XSS through this very form, no tampering. Eight sites
+    # interpolate esc() inside a quoted attribute, so this asks the DOM
+    # whether any handler attribute EXISTS rather than checking one of them.
+    pg.fill('#del-courier-form input[name="cname"]', ATTR_XSS)
+    pg.fill('#del-courier-form input[name="cphone"]', "99887766")
+    pg.click('#del-courier-form button[type="submit"]'); pg.wait_for_timeout(200)
+    handlers = pg.evaluate("""() => {
+        const out = [];
+        for (const e of document.querySelectorAll('#del-courier *, #del-couriers *'))
+            for (const a of e.attributes)
+                if (/^on/i.test(a.name)) out.push(e.tagName + '[' + a.name + ']');
+        return out;
+    }""")
+    check(S, "a hostile courier name creates no event-handler attribute",
+          not handlers, str(handlers[:3]))
+    check(S, "the hostile courier name still renders as visible text",
+          ATTR_XSS in pg.inner_text("#del-couriers"))
 
     # advance the first order to delivered; revenue counts only delivered
     for _ in range(3):

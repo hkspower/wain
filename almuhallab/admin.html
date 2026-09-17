@@ -525,7 +525,19 @@
   var STATUSES = ["جديد", "قيد التحضير", "في الطريق", "تم التسليم", "ملغي"];
 
   /* ============================ helpers ============================ */
-  function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
+  /* Escapes for BOTH contexts this output lands in. The old version set
+     textContent and read innerHTML back, which escapes & < > but NOT quotes
+     — correct between tags, and a hole inside an attribute. A courier named
+     `" onmouseover="…"` therefore became a real handler on the <option> and
+     ran on hover: stored XSS through the ordinary form, no tampering needed.
+     Eight sites interpolate esc() inside a quoted attribute, so the fix
+     belongs here rather than at any one of them. `&` must be replaced first
+     or it re-escapes the entities the later rules introduce. */
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
   function num(v, max) { var n = Number(v); return (isFinite(n) && n >= 0) ? Math.min(n, max) : 0; }
   function kwd(n) { return Number(n).toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }); }
   function d2(iso) { if (!iso) return "—"; var d = new Date(iso); return isNaN(d) ? "—" : d.toISOString().slice(0, 10); }
