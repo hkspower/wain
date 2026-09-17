@@ -68,8 +68,12 @@ export default function PrivacyPage() {
 
       {/* The basemap. This section exists because it is the only third party
           that loads without the visitor asking for it — شوق waits for a press,
-          the submission webhook waits for a submit, and the map does not wait
-          for anything. Leaving it undisclosed was the page's one real
+          a business submission waits for a submit, and the map does not wait
+          for anything. ("the submission webhook" is what this said, and it was
+          wrong twice over: submissions go to Supabase, and the n8n host it
+          pointed at is in the CSP only as the NEXT_PUBLIC_WAIN_TTS_URL escape
+          hatch. Nothing in the browser posts a submission to a webhook.)
+          Leaving the map undisclosed was the page's one real
           omission: it made «ما يوصل شي لأي طرف ثاني» read as true site-wide
           when a place page had already sent an IP to openstreetmap.org. */}
       <section className="mt-6 rounded-3xl border border-line bg-white p-6 shadow-sm">

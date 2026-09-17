@@ -110,7 +110,7 @@ jobs:
       - name: Generate app icons and splash screens
         run: |
           mkdir -p assets
-          cp public/brand/app-icon-1024.png assets/logo.png
+          cp ios-config/app-icon-1024.png assets/logo.png
           npx capacitor-assets generate --ios \
             --iconBackgroundColor '#ffffff' --iconBackgroundColorDark '#111111' \
             --splashBackgroundColor '#ffffff' --splashBackgroundColorDark '#111111'
@@ -198,7 +198,7 @@ jobs:
       - name: Generate app icons and splash screens
         run: |
           mkdir -p assets
-          cp public/brand/app-icon-1024.png assets/logo.png
+          cp ios-config/app-icon-1024.png assets/logo.png
           npx capacitor-assets generate --ios \
             --iconBackgroundColor '#ffffff' --iconBackgroundColorDark '#111111' \
             --splashBackgroundColor '#ffffff' --splashBackgroundColorDark '#111111'

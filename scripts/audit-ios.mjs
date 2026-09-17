@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PATCHER = join(ROOT, "scripts/patch-ios-project.mjs");
 const MANIFEST = join(ROOT, "ios-config/PrivacyInfo.xcprivacy");
-const ICON = join(ROOT, "public/brand/app-icon-1024.png");
+const ICON = join(ROOT, "ios-config/app-icon-1024.png");
 const WORKFLOW = join(ROOT, ".github/workflows/ios.yml");
 const CONFIG = join(ROOT, "capacitor.config.ts");
 
@@ -42,7 +42,7 @@ else {
 }
 
 if (!existsSync(ICON)) {
-  bad("public/brand/app-icon-1024.png is missing — run `npm run icon:app`");
+  bad("ios-config/app-icon-1024.png is missing — run `npm run icon:app`");
 } else {
   // PNG header: width and height are big-endian 32-bit at bytes 16 and 20,
   // colour type is byte 25. Read rather than trusted: the filename is not

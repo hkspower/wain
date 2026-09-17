@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The App Store icon:  npm run icon:app   → public/brand/app-icon-1024.png
+ * The App Store icon:  npm run icon:app   → ios-config/app-icon-1024.png
  *
  * Apple wants 1024×1024, and the largest thing this repository had was
  * `app-icon-512.png`. `@capacitor/assets` will happily accept a 512 and
@@ -23,6 +23,13 @@
  *      mask itself; corners baked into the artwork get masked twice and show
  *      as a dark fringe.
  *
+ * IT LIVES IN ios-config/, NOT public/. It was written to public/brand/ first,
+ * and `audit:assets` was right to fail: everything under public/ ships to the
+ * web docroot, and the site references this file from nowhere — it is an input
+ * to the iOS build, which is what ios-config/ is for. A 19KB orphan in the
+ * docroot is also a file `deploy.php`'s prune has to reason about for no
+ * reason.
+ *
  * The composition deliberately MATCHES `app-icon-512.png` — same cream ground
  * (#fdfaf3), same 40% coverage, same slight upward bias — so the store icon and
  * the PWA icon are the same picture at two sizes. The 512 is not regenerated:
@@ -36,7 +43,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const OUT = join(ROOT, "public/brand/app-icon-1024.png");
+const OUT = join(ROOT, "ios-config/app-icon-1024.png");
 const LOGO = readFileSync(join(ROOT, "src/components/WainLogo.tsx"), "utf8");
 
 let sharp;
@@ -117,6 +124,6 @@ if (problems.length) {
   process.exit(1);
 }
 console.log(
-  `gen-app-icon: public/brand/app-icon-1024.png — ${meta.width}×${meta.height}, ` +
+  `gen-app-icon: ios-config/app-icon-1024.png — ${meta.width}×${meta.height}, ` +
   `${meta.channels} channels, no alpha, ${(png.length / 1024).toFixed(0)}KB ✓`,
 );

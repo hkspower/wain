@@ -1043,7 +1043,7 @@ numbering, matching the result count and the rest of the site.
 
 ## Checks
 
-`npm run scan` is lint plus ~25 audits. Browser suites: `test:hangout`
+`npm run scan` is lint plus ~26 audits. Browser suites: `test:hangout`
 (hangout, hangout-page, map-pin, search-button, search-keys, shouq-search,
 search-plan, swipe), `test:journey`, `test:register`, `test:shouq`,
 `test:orders`, `test:net`. PHP suites, neither in `scan` because neither can

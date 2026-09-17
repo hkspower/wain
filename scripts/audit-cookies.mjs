@@ -80,7 +80,17 @@ const KNOWN_THIRD_PARTIES = new Map([
   ["unpkg.com", "the ElevenLabs widget, loaded only when the call button is pressed"],
   ["api.elevenlabs.io", "the voice call itself, once connected"],
   ["api.us.elevenlabs.io", "the voice call itself, once connected"],
-  ["sportake.app.n8n.cloud", "the submission webhook, on submit only"],
+  // NOT "the submission webhook", which is what this said and what the comment
+  // in privacy/page.tsx said with it. Business submissions go to Supabase —
+  // src/lib/submissions.ts inserts into `submissions`, and nothing in the
+  // browser has ever contacted this host for them. It is listed in the CSP for
+  // one reason, given in public/.htaccess: NEXT_PUBLIC_WAIN_TTS_URL can still
+  // point صوت وين's bridge back at n8n, and dropping the origin would leave
+  // that override wired to nothing. So it is a kept escape hatch, not a live
+  // recipient — and calling it a submission webhook in the allowlist whose
+  // whole purpose is to make third parties legible was the worst place to be
+  // wrong about it.
+  ["sportake.app.n8n.cloud", "a bridge origin kept live only for the NEXT_PUBLIC_WAIN_TTS_URL override"],
 ]);
 
 const MIME = {
