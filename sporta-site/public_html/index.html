@@ -804,5 +804,15 @@
          and reverts itself on any load error so the worst case is today's
          picture rather than a blank tile. Deleting this line reverts it. -->
     <script src="/assets/tile-art.js" defer></script>
+
+    <!-- The website panel's order-detail drawer: a link to the archived PDF
+         invoice. api/invoice-pdf.php, api/cron-invoice.php and
+         api/invoice-file.php already built, swept and served the document —
+         nothing in either panel bundle linked to it, so it could only be
+         opened by typing the URL from memory. Needs no credential of its own:
+         invoice-file.php is gated by the session cookie alone, deliberately,
+         because a download is a plain navigation. Panel-only; does nothing on
+         the storefront or anywhere the order-detail drawer is not open. -->
+    <script src="/assets/invoices.js" defer></script>
   </body>
 </html>

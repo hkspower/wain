@@ -96,6 +96,7 @@
     "test:images": "node scripts/image-audit.mjs",
     "test:fonts": "node scripts/font-audit.mjs",
     "test:robots": "node scripts/robots-sitemap-test.mjs",
+    "test:invoice-link": "node scripts/invoice-link-test.mjs",
     "test:langs": "node scripts/lang-seo-test.mjs",
     "make:variants": "node scripts/make-missing-variants.mjs",
     "make:brands": "node scripts/make-product-brands.mjs",

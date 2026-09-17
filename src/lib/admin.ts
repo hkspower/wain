@@ -818,6 +818,16 @@ export const adminApi = {
     };
   },
 
+  /** The archived PDF for one order, by its track id (`order.ref`).
+   *
+   *  A URL, not a fetch: invoice-file.php is gated by the admin SESSION
+   *  COOKIE alone (store_session_admin(), no X-Sporta-Admin header — see the
+   *  route's own comment on why a plain navigation cannot carry one), so
+   *  opening it is exactly that, a navigation. The route builds the file on
+   *  demand if the sweep has not reached it yet, so there is no "not ready"
+   *  state to handle here. */
+  invoiceUrl: (ref: string) => `${API_BASE}/invoice-file.php?id=${encodeURIComponent(ref)}`,
+
   /** One move, routed to the axis it belongs to: 'paid' is the cash axis
    *  (?r=cod_paid — the server refuses it for card orders, correctly);
    *  everything else is the parcel's (?r=fulfilment, whose word for packing

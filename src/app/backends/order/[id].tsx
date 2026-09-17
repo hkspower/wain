@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { press } from '@/components/ui/press';
 
@@ -79,6 +79,17 @@ export default function OrderScreen() {
               <ThemedText type="labelBold">{order.name}</ThemedText>
               <StatusChip status={order.status} />
             </View>
+            {/* Opens in the system browser rather than a fetch — this is a
+                plain navigation, and the archived PDF's own route is gated by
+                the session cookie alone for exactly that reason. */}
+            <Pressable
+              accessibilityRole="link"
+              onPress={() => Linking.openURL(adminApi.invoiceUrl(order.ref))}
+              style={press(false, styles.invoiceLink)}>
+              <ThemedText type="label" themeColor="tint">
+                Invoice (PDF)
+              </ThemedText>
+            </Pressable>
             {/* Selectable: the two things a manager copies out of this screen
                 are the phone number and the address, usually into WhatsApp. */}
             <ThemedText type="label" themeColor="textSecondary" selectable>
@@ -180,6 +191,7 @@ export default function OrderScreen() {
 
 const styles = StyleSheet.create({
   section: { marginTop: Spacing.four },
+  invoiceLink: { alignSelf: 'flex-start', marginTop: Spacing.one, minHeight: TapTarget, justifyContent: 'center' },
   lineName: { flex: 1 },
   moves: { gap: Spacing.two },
   move: {
