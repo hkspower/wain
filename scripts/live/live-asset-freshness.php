@@ -50,7 +50,16 @@
  * of the files asked about.
  */
 
-$PATHS = ['/assets/sporta-ui.css', '/assets/sporta-dark.css', '/sw.js', '/index.html'];
+// TWO PATHS AND A SHORT TIMEOUT, and that is a property of the CHANNEL rather
+// than of the question. Measured 2026-09-17: a job that finishes fast has its
+// output captured, and a long one comes back EMPTY — the publisher that wrote
+// four files printed nothing across three ticks while having done the work, and
+// the first version of this script (4 paths, 8 requests, 25s timeouts each)
+// did the same. The `sha256sum` jobs beside them, which return instantly,
+// printed every time. So: few requests, short timeouts, and every line echoed
+// AS IT IS MEASURED rather than accumulated into one echo at the end, so a run
+// that is cut short still reports what it managed to ask.
+$PATHS = ['/assets/sporta-ui.css', '/sw.js'];
 
 $get = static function (string $url, array $headers = []): array {
     $ch = curl_init($url);
@@ -60,7 +69,8 @@ $get = static function (string $url, array $headers = []): array {
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_SSL_VERIFYHOST => false,
         CURLOPT_HTTPHEADER     => $headers,
-        CURLOPT_TIMEOUT        => 25,
+        CURLOPT_TIMEOUT        => 8,
+        CURLOPT_CONNECTTIMEOUT => 4,
         CURLOPT_ENCODING       => '',   // ask for identity+gzip and let curl undo it,
                                         // so the sha256 is of the CONTENT either way
     ]);
@@ -83,7 +93,7 @@ $get = static function (string $url, array $headers = []): array {
     ];
 };
 
-$out = [];
+echo "ASSETFRESH\n";
 foreach ($PATHS as $path) {
     // The origin, over the loopback with the public name in the Host header.
     $o = $get('https://127.0.0.1' . $path, ['Host: www.sporta.com.kw']);
@@ -95,12 +105,12 @@ foreach ($PATHS as $path) {
     $same = ($o['sha'] !== '' && $o['sha'] === $e['sha']) ? 'yes'
           : ($e['code'] === 0 ? 'edge-unreachable' : 'NO');
 
-    $out[] = $path
+    echo $path
         . ' origin=' . $o['code'] . '/' . $o['len'] . '/' . ($o['sha'] ?: 'none')
         . ' edge=' . $e['code'] . '/' . $e['len'] . '/' . ($e['sha'] ?: 'none')
         . ' same=' . $same
         . ' cdn=' . ($e['cdn'] ?: '-')
-        . ' cc=' . (str_replace(' ', '', $o['cc']) ?: '-');
+        . ' cc=' . (str_replace(' ', '', $o['cc']) ?: '-')
+        . "\n";
+    @ob_flush(); @flush();
 }
-
-echo 'ASSETFRESH ' . implode(' | ', $out) . "\n";
