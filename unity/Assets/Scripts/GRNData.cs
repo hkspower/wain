@@ -877,7 +877,9 @@ public static class GRNData
         public const float DriverHandbrakeTilt = 1.12f;
         public const float DriverHandbrakeThrow = 0.5f;
         public const float DriverHandbrakeRate = 10f;
-        public const float DriverLookAheadM = 26f;
+        public const float DriverLookAheadS = 1.8f;
+        public const float DriverLookAheadMinM = 18f;
+        public const float DriverLookAheadMaxM = 110f;
         public const float DriverGlanceHoldS = 0.8f;
         public const float DriverGlanceRestS = 3f;
         public const float DriverLookLatK = 0.4f;

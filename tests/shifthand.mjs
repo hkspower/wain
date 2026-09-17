@@ -16,7 +16,7 @@ import { RIG } from "../src/game/rig.ts";
 const fail = [];
 const check = (c, m) => { if (!c) fail.push(m); return c ? "ok" : "FAIL"; };
 const rig = kuwaitiDriver();
-const look = new THREE.Vector3(0, RIG.driver.lookHeight, RIG.driver.lookAheadM);
+const look = new THREE.Vector3(0, RIG.driver.lookHeight, RIG.driver.lookAheadMinM);
 const inboardSign = Math.sign(RIG.driver.handbrakeX) || -1;
 const arm = rig.arms.find((a) => a.side === inboardSign);
 const hand = () => { const v = new THREE.Vector3(); arm.elbow.updateWorldMatrix(true, true);

@@ -1304,6 +1304,84 @@ const soft = await page.evaluate(() => {
     check(reversals === 0, "the elbow re-bends as the target moves further away"));
 }
 
+// --- The eyes work in TIME, not distance ------------------------------
+//
+// The look-ahead was a flat 26 m at every speed, which is 3.25 seconds
+// of road at a crawl and 0.33 at 80 m/s — so on the fastest stretch in
+// the game the driver was staring at their own bonnet, and the head
+// yawed to exactly the same angle at 8 m/s as at 80.
+//
+// The car is posed the way the ENGINE poses it — playerMesh looked
+// along the tangent, carBody carrying only its own small yaw. Posing
+// carBody instead leaves the holder facing wherever the last live frame
+// left it, the head aims at a point behind the car, and every reading
+// comes back pinned at the neck limit. That is not a hypothetical: it
+// is what the first two versions of this measurement reported.
+const eyes = await page.evaluate(()=>{
+  const e = window.__grnEngine, RIG = window.__grnRig;
+  const V = e.camera.position.constructor;
+  const E = e.camera.rotation.constructor;
+  e.setPaused(true);
+  const rig = e.carBody.userData.driver;
+  if (!rig) return null;
+  // The tightest corner on the lap, found rather than assumed.
+  let bestS = 0, bestK = 0;
+  for (let s = 0; s < e.track.length; s += 5) {
+    const k = Math.abs(e.curvatureAt(s));
+    if (k > bestK) { bestK = k; bestS = s; }
+  }
+  const p = new V(), tan = new V();
+  const rows = [];
+  for (const v of [8, 25, 50, 80]) {
+    e.player.s = bestS; e.player.lat = 0; e.player.speed = v;
+    e.steerSmooth = 0; e.throttle = 1; e.brake = 0;
+    e.latAccel = 0; e.longAccel = 0; e.handbrake = false;
+    e.track.pose(bestS, 0, p, tan);
+    e.track.tangentAt(bestS, tan);
+    e.playerMesh.position.copy(p);
+    e.playerMesh.lookAt(p.x + tan.x, p.y + tan.y, p.z + tan.z);
+    e.carBody.rotation.set(0, 0, 0);
+    e.playerMesh.updateMatrixWorld(true);
+    // Settle the neck rather than reading it mid-ease.
+    for (let i = 0; i < 240; i++) e.updateDriver(1 / 60);
+    rig.group.updateWorldMatrix(true, true);
+    const eu = new E().setFromQuaternion(rig.head.quaternion, "YXZ");
+    const ahead = Math.min(RIG.driver.lookAheadMaxM,
+      Math.max(RIG.driver.lookAheadMinM, v * RIG.driver.lookAheadS));
+    rows.push({ v, ahead: +ahead.toFixed(0), secs: +(ahead / v).toFixed(2),
+      yaw: +(eu.y * 180 / Math.PI).toFixed(1) });
+  }
+  return { radius: Math.round(1 / bestK), rows, neckYaw: RIG.driver.neckYaw };
+});
+if (eyes) {
+  console.log(`eyes          on a ${eyes.radius} m corner:`);
+  for (const r of eyes.rows) {
+    console.log(`              ${String(r.v).padStart(2)} m/s -> ${String(r.ahead).padStart(3)} m ` +
+      `(${r.secs.toFixed(2)} s), head yaw ${r.yaw.toFixed(1)} deg`);
+  }
+  const first = eyes.rows[0], last = eyes.rows[eyes.rows.length - 1];
+  // A time, not a distance: every speed sits in the band a person's
+  // eyes actually work over.
+  const outOfBand = eyes.rows.filter((r) => r.secs < 1.2 || r.secs > 2.6);
+  console.log(`              look-ahead in seconds: ` +
+    eyes.rows.map((r) => r.secs.toFixed(2)).join(", ") + "  " +
+    check(outOfBand.length === 0,
+      `the driver looks ${outOfBand.map((r) => `${r.secs}s at ${r.v} m/s`).join(", ")} ahead — ` +
+      `eyes work in time, and 1.2 to 2.6 seconds is the band`));
+  // And the head has to actually go further round as the speed rises,
+  // which is the whole point: the flat constant gave the SAME yaw at
+  // every speed on this corner.
+  console.log(`              head turns ${Math.abs(first.yaw).toFixed(1)} -> ${Math.abs(last.yaw).toFixed(1)} deg from ` +
+    `${first.v} to ${last.v} m/s  ` +
+    check(Math.abs(last.yaw) > Math.abs(first.yaw) * 2,
+      `the head yaws ${Math.abs(first.yaw)} deg at ${first.v} m/s and ${Math.abs(last.yaw)} at ${last.v} — ` +
+      `it is not looking further round the corner as the speed rises`));
+  const pinned = eyes.rows.filter((r) => Math.abs(r.yaw) >= (eyes.neckYaw * 180 / Math.PI) - 0.5);
+  check(pinned.length === 0,
+    `the neck is pinned at its limit at ${pinned.map((r) => `${r.v} m/s`).join(", ")} — ` +
+    `a head against its stop is not aiming at anything`);
+}
+
 console.log(fail.length?"\nFAILURES:\n - "+fail.join("\n - "):"\nIK solves, clamps and behaves");
 await b.close();
 process.exit(fail.length?1:0);

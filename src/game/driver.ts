@@ -24,6 +24,27 @@ const _v1 = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 
 /**
+ * How far down the road a driver moving at this speed is looking.
+ *
+ * Eyes work in time, not distance — see RIG.driver.lookAheadS for the
+ * measurement that says so. Every caller that puts a look target on the
+ * road goes through here so the player, the rival, the traffic and the
+ * menu's rolling intro all answer the same law, rather than four copies
+ * of one constant drifting apart.
+ *
+ * `speed` in m/s; the sign is ignored, because a car rolling backwards
+ * out of a bay is still looking where it is going.
+ */
+export function lookAheadFor(speed: number): number {
+  const D = RIG.driver;
+  return THREE.MathUtils.clamp(
+    Math.abs(speed) * D.lookAheadS,
+    D.lookAheadMinM,
+    D.lookAheadMaxM
+  );
+}
+
+/**
  * One driver rig, fully solved: the wheel to the steer angle, both
  * hands IK'd onto the rim where they grip it, both feet on the pedals
  * riding the press, eyes on the look target. Shared by every car that

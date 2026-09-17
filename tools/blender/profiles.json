@@ -53,7 +53,8 @@
    "crown": {
     "tuck": 0.045,
     "roof": 0.026,
-    "shoulder": 0.62
+    "shoulder": 0.62,
+    "smooth": true
    }
   },
   "canopy": {
@@ -81,7 +82,8 @@
    "crown": {
     "tuck": 0.072,
     "roof": 0.024,
-    "shoulder": 0.28
+    "shoulder": 0.28,
+    "smooth": true
    }
   },
   "roof": {
@@ -109,7 +111,8 @@
    "crown": {
     "tuck": 0.026,
     "roof": 0.028,
-    "shoulder": 0.5
+    "shoulder": 0.5,
+    "smooth": true
    }
   }
  },
@@ -167,7 +170,8 @@
    "crown": {
     "tuck": 0.075,
     "roof": 0.032,
-    "shoulder": 0.58
+    "shoulder": 0.58,
+    "smooth": true
    }
   },
   "canopy": {
@@ -195,7 +199,8 @@
    "crown": {
     "tuck": 0.105,
     "roof": 0.028,
-    "shoulder": 0.24
+    "shoulder": 0.24,
+    "smooth": true
    }
   },
   "roof": {
@@ -223,7 +228,8 @@
    "crown": {
     "tuck": 0.034,
     "roof": 0.036,
-    "shoulder": 0.5
+    "shoulder": 0.5,
+    "smooth": true
    }
   }
  },
@@ -281,7 +287,8 @@
    "crown": {
     "tuck": 0.068,
     "roof": 0.03,
-    "shoulder": 0.6
+    "shoulder": 0.6,
+    "smooth": true
    }
   },
   "canopy": {
@@ -309,7 +316,8 @@
    "crown": {
     "tuck": 0.098,
     "roof": 0.027,
-    "shoulder": 0.25
+    "shoulder": 0.25,
+    "smooth": true
    }
   },
   "roof": {
@@ -337,7 +345,8 @@
    "crown": {
     "tuck": 0.032,
     "roof": 0.035,
-    "shoulder": 0.5
+    "shoulder": 0.5,
+    "smooth": true
    }
   }
  },
@@ -395,7 +404,8 @@
    "crown": {
     "tuck": 0.075,
     "roof": 0.032,
-    "shoulder": 0.58
+    "shoulder": 0.58,
+    "smooth": true
    }
   },
   "canopy": {
@@ -427,7 +437,8 @@
    "crown": {
     "tuck": 0.105,
     "roof": 0.028,
-    "shoulder": 0.24
+    "shoulder": 0.24,
+    "smooth": true
    }
   },
   "roof": {
@@ -455,7 +466,8 @@
    "crown": {
     "tuck": 0.034,
     "roof": 0.036,
-    "shoulder": 0.5
+    "shoulder": 0.5,
+    "smooth": true
    }
   }
  },
@@ -513,7 +525,8 @@
    "crown": {
     "tuck": 0.034,
     "roof": 0.022,
-    "shoulder": 0.64
+    "shoulder": 0.64,
+    "smooth": true
    }
   },
   "canopy": {
@@ -557,7 +570,8 @@
    "crown": {
     "tuck": 0.06,
     "roof": 0.022,
-    "shoulder": 0.3
+    "shoulder": 0.3,
+    "smooth": true
    }
   },
   "roof": {
@@ -585,7 +599,8 @@
    "crown": {
     "tuck": 0.022,
     "roof": 0.024,
-    "shoulder": 0.5
+    "shoulder": 0.5,
+    "smooth": true
    }
   }
  },
@@ -647,7 +662,8 @@
    "crown": {
     "tuck": 0.062,
     "roof": 0.028,
-    "shoulder": 0.68
+    "shoulder": 0.68,
+    "smooth": true
    }
   },
   "canopy": {
@@ -675,7 +691,8 @@
    "crown": {
     "tuck": 0.09,
     "roof": 0.026,
-    "shoulder": 0.27
+    "shoulder": 0.27,
+    "smooth": true
    }
   },
   "roof": {
@@ -703,7 +720,8 @@
    "crown": {
     "tuck": 0.03,
     "roof": 0.032,
-    "shoulder": 0.5
+    "shoulder": 0.5,
+    "smooth": true
    }
   }
  },
@@ -769,7 +787,8 @@
    "crown": {
     "tuck": 0.042,
     "roof": 0.02,
-    "shoulder": 0.7
+    "shoulder": 0.7,
+    "smooth": true
    }
   },
   "canopy": {
@@ -797,7 +816,8 @@
    "crown": {
     "tuck": 0.072,
     "roof": 0.024,
-    "shoulder": 0.3
+    "shoulder": 0.3,
+    "smooth": true
    }
   },
   "roof": {
@@ -825,7 +845,8 @@
    "crown": {
     "tuck": 0.026,
     "roof": 0.03,
-    "shoulder": 0.5
+    "shoulder": 0.5,
+    "smooth": true
    }
   }
  },
@@ -891,7 +912,8 @@
    "crown": {
     "tuck": 0.095,
     "roof": 0.034,
-    "shoulder": 0.44
+    "shoulder": 0.44,
+    "smooth": true
    }
   },
   "canopy": {
@@ -919,7 +941,8 @@
    "crown": {
     "tuck": 0.118,
     "roof": 0.03,
-    "shoulder": 0.22
+    "shoulder": 0.22,
+    "smooth": true
    }
   },
   "roof": {
@@ -947,7 +970,8 @@
    "crown": {
     "tuck": 0.036,
     "roof": 0.038,
-    "shoulder": 0.5
+    "shoulder": 0.5,
+    "smooth": true
    }
   }
  },
@@ -1015,7 +1039,9 @@
    "handbrakeTilt": 1.12,
    "handbrakeThrow": 0.5,
    "handbrakeRate": 10,
-   "lookAheadM": 26,
+   "lookAheadS": 1.8,
+   "lookAheadMinM": 18,
+   "lookAheadMaxM": 110,
    "glanceHoldS": 0.8,
    "glanceRestS": 3,
    "lookLatK": 0.4,

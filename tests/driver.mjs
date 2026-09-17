@@ -19,7 +19,7 @@ import { stepOvershoot, springHz } from "../src/game/spring.ts";
 const fail = [];
 const check = (c, m) => { if (!c) fail.push(m); return c ? "ok" : "FAIL"; };
 const D = RIG.driver;
-const look = new THREE.Vector3(0, D.lookHeight, D.lookAheadM);
+const look = new THREE.Vector3(0, D.lookHeight, D.lookAheadMinM);
 const DT = 1 / 60;
 
 const fresh = () => kuwaitiDriver();

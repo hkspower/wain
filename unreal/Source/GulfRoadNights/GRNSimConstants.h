@@ -411,7 +411,9 @@ namespace GRNRig
 	constexpr float DriverHandbrakeTilt = 1.12f;
 	constexpr float DriverHandbrakeThrow = 0.5f;
 	constexpr float DriverHandbrakeRate = 10.f;
-	constexpr float DriverLookAheadM = 26.f;
+	constexpr float DriverLookAheadS = 1.8f;
+	constexpr float DriverLookAheadMinM = 18.f;
+	constexpr float DriverLookAheadMaxM = 110.f;
 	constexpr float DriverGlanceHoldS = 0.8f;
 	constexpr float DriverGlanceRestS = 3.f;
 	constexpr float DriverLookLatK = 0.4f;

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { createCar, type CarColors } from "./cars";
 import type { DriverRig } from "./characters";
-import { solveDriverRig } from "./driver";
+import { solveDriverRig, lookAheadFor } from "./driver";
 import { nightEnvironment } from "./env";
 import { RIG } from "./rig";
 import { pixelRatioFor } from "./render";
@@ -965,7 +965,7 @@ export function buildAttract(
           1
         );
         rig.holder.updateWorldMatrix(true, false);
-        look.set(0, RIG.driver.lookHeight, RIG.driver.lookAheadM);
+        look.set(0, RIG.driver.lookHeight, lookAheadFor(ROLL_SPEED));
         rig.holder.localToWorld(look);
         solveDriverRig(
           rig.driver,
@@ -1021,7 +1021,7 @@ export function buildAttract(
       // solve the race runs, given nothing to react to.
       if (near.driver) {
         near.holder.updateWorldMatrix(true, false);
-        look.set(0, RIG.driver.lookHeight, RIG.driver.lookAheadM);
+        look.set(0, RIG.driver.lookHeight, lookAheadFor(0));
         near.holder.localToWorld(look);
         solveDriverRig(near.driver, 0, 0, 0, look, dt);
       }

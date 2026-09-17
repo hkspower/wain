@@ -210,8 +210,35 @@ export const RIG = {
      *  ease back, which reads as letting go. */
     handbrakeRate: 10,
 
-    /** The driver looks into the corner, not down the bonnet. */
-    lookAheadM: 26,
+    /**
+     * The driver looks into the corner, not down the bonnet — and how
+     * far into it is a TIME, not a distance.
+     *
+     * This was a flat 26 m at every speed, and a flat distance is the
+     * wrong unit for eyes. Measured on the tightest corner on the lap
+     * (s=3060, radius 165 m), the head yawed to exactly 24.0 degrees at
+     * 8 m/s and at 80 m/s and at every speed between, because the point
+     * being looked at never moved. In time that 26 m is 3.25 seconds of
+     * road at a crawl and 0.33 seconds at 80 m/s — so on the fastest
+     * stretch in the game the driver was staring at their own bonnet,
+     * and in traffic they were gazing into the distance.
+     *
+     * People do not drive that way. The eyes work about one and a half
+     * to three seconds ahead whatever the speed, and a driver pressing
+     * on sits at the far end of that. Making it a time is also what
+     * makes the head LEAD the hands: at speed the eyes reach a corner
+     * well before the wheel does, which is the single most recognisable
+     * thing about someone who can drive.
+     *
+     * Clamped at both ends. The near clamp is so a stopped car still
+     * looks down the road rather than at its own number plate, and so
+     * the head does not swing wildly through a car park; the far clamp
+     * is because a look-ahead longer than this stops tracking the road
+     * and starts tracking the horizon.
+     */
+    lookAheadS: 1.8,
+    lookAheadMinM: 18,
+    lookAheadMaxM: 110,
     /** And at the rival, when they pull alongside: a glance held this
      *  long, then eyes back on the road for at least this long before
      *  the next. The rival's driver has always looked over (RIG.rival

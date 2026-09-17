@@ -6,7 +6,7 @@ import { upgradeCarShells, upgradeWheels, upgradeDriver } from "./models";
 import { arabicUI, latinDisplay, textTexture } from "./text";
 import { kuwaitiDriver } from "./characters";
 import { RIG } from "./rig";
-import { solveDriverRig } from "./driver";
+import { solveDriverRig, lookAheadFor } from "./driver";
 import { pointGlowTexture, poolGlowTexture } from "./glow";
 import { drawTeamLogo, type TeamLogo } from "./teams";
 import { glassLook, type TintFilm } from "./tint";
@@ -7100,7 +7100,7 @@ export function createCar(colors: CarColors): THREE.Group {
     // rig rate is 5 — so one call snaps the whole rig to a settled
     // straight-ahead pose: hands on the rim, eyes down the road.
     driver.group.updateWorldMatrix(true, false);
-    const restLook = new THREE.Vector3(0, RIG.driver.lookHeight, RIG.driver.lookAheadM);
+    const restLook = new THREE.Vector3(0, RIG.driver.lookHeight, lookAheadFor(0));
     driver.group.localToWorld(restLook);
     solveDriverRig(driver, 0, 0, 0, restLook, 1);
   }

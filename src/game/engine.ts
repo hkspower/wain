@@ -32,7 +32,7 @@ import type { DriverRig } from "./characters";
 // The driver pose lives in its own module now: the menu's rolling intro
 // and the showroom put a rigged driver in the seat too, and a private
 // method is only available to whoever already has an engine running.
-import { solveDriverRig } from "./driver";
+import { solveDriverRig, lookAheadFor } from "./driver";
 import { FLAGS, FLAG_IDS, flagTexture } from "./flags";
 import { verticalFov, chaseDolly, RACE_DOLLY } from "./aspect";
 import { driveCap, gripAtSpeed, newLoadState, solveLoad, type LoadResult } from "./grip";
@@ -5423,7 +5423,7 @@ export class GameEngine {
       const steerWant = THREE.MathUtils.clamp(dHead * 2.2, -1, 1);
       t.steerVis += (steerWant - t.steerVis) * Math.min(1, dtSolve * RIG.rival.steerRate);
       this.track.pose(
-        t.s + RIG.driver.lookAheadM,
+        t.s + lookAheadFor(t.speed),
         t.lat * RIG.driver.lookLatK,
         this.v1,
         this.v2
@@ -5719,7 +5719,7 @@ export class GameEngine {
           this.v1.y += 0.6;
         } else {
           this.track.pose(
-            r.s + RIG.driver.lookAheadM,
+            r.s + lookAheadFor(r.snapSpeed),
             r.lat * RIG.driver.lookLatK,
             this.v1,
             this.v2
@@ -6669,7 +6669,7 @@ export class GameEngine {
       this.v1.y += 0.6;
     } else {
       this.track.pose(
-        this.player.s + RIG.driver.lookAheadM,
+        this.player.s + lookAheadFor(this.player.speed),
         this.player.lat * RIG.driver.lookLatK,
         this.v1,
         this.v2
@@ -6752,7 +6752,7 @@ export class GameEngine {
       this.v1.y += 0.6;
     } else {
       this.track.pose(
-        r.s + RIG.driver.lookAheadM,
+        r.s + lookAheadFor(r.speed),
         r.lat * RIG.driver.lookLatK,
         this.v1,
         this.v2
