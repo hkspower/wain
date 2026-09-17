@@ -1232,6 +1232,22 @@ zero. Remove the override and they come back.
 semver-`Wanted` version, so nothing here is driven by security — the only
 updates left are majors, and each is blocked:
 
+**That "0" is for production dependencies; it stopped being the whole story on
+17 September, when the iOS wrapper's build toolchain landed.** `npm audit
+--omit=dev` still reads 0 — nothing here ships in `out/` or reaches
+`www.wainkw.com`. The full `npm audit`, devDependencies included, reads
+**7** (3 moderate, 3 high, 1 critical), every one inside
+`@capacitor/cli`/`@capacitor/assets` and their own transitive `sharp`, `tar`,
+`uuid`, `xcode` — packages this repo does not import directly. Checked before
+writing this down: `@capacitor/core`, `@capacitor/ios`, `@capacitor/cli` are
+already at `8.5.2` and `@capacitor/assets` at `3.0.5`, each the latest
+published version, so there is no update to take. `npm audit fix --force`'s
+own suggestion is to install `@capacitor/cli@8.4.3` — older than what is
+already installed — which is Capacitor's own advisory tooling proposing a
+downgrade, not a fix; declined. `sharp` and `uuid` are both listed "no fix
+available" upstream regardless. Revisit by re-running `npm audit` after a
+future Capacitor release, not by forcing this one.
+
 - **It costs 29.5K gzipped on every page, and that is the reason.** Measured
   like for like — same tree, same audit, only the framework swapped:
 
