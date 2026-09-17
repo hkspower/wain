@@ -226,7 +226,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => '1ba2a01e9f35e80a67b4b6047afcb5370b4005074a150ade4907a578cb0ebf4a',
-    'sw.js' => '12dd6b3b16cc27434c74240e9ce0db2eb1ce44768f95165a52ba4b94cbaf6a38',
+    'sw.js' => '27fb9e8db82dae5e4d994519659cea83e501c94f3b6381642c4f8f9442145a62',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
