@@ -60,7 +60,7 @@ export const RACE_DISTANCES: RaceDistance[] = [
   { id: "sprint", km: 2, name: "Sprint", ar: "قصير", blurb: "Two kilometres. Whoever leaves hardest", blurbAr: "كيلومترين. اللي ينطلق أقوى" },
   { id: "standard", km: 5, name: "Standard", ar: "عادي", blurb: "Five. The corniche and one roundabout", blurbAr: "خمسة. الكورنيش ودوار واحد" },
   { id: "long", km: 10, name: "Long run", ar: "طويل", blurb: "Ten. Past the lap, into traffic you already passed", blurbAr: "عشرة. تتجاوز اللفة وتدخل في زحمة عديتها قبل" },
-  { id: "marathon", km: 20, name: "All night", ar: "طول الليل", blurb: "Twenty. Fuel, tyres and patience", blurbAr: "عشرون. وقود وإطارات وطولة بال" },
+  { id: "marathon", km: 20, name: "All night", ar: "طول الليل", blurb: "Twenty. Fuel, tyres and patience", blurbAr: "عشرين. بنزين وتواير وطولة بال" },
 ];
 
 export const DEFAULT_DISTANCE = "standard";

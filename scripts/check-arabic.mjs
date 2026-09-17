@@ -78,10 +78,26 @@ const CANON = [
   { keep: "نيترو", banish: ["نيتروجين"], what: "NOS (nitrous oxide, not nitrogen)" },
   { keep: "يلا", banish: ["يالله"], what: "yalla" },
   { keep: "بريك", banish: ["فرامل"], what: "brakes (the game speaks Gulf, not MSA)" },
+  // Tyres. The garage sells تواير and the site described the same
+  // object as إطارات — the Arabic half of a split the English half had
+  // too, where the shop said "Sport Tires" under an onboarding that
+  // said tyres.
+  //
+  // `unless` exists for this entry and earns its keep: إطار is also
+  // "frame", and معدل الإطارات is the frame rate in the settings panel.
+  // A rule that demanded تواير there would be demanding nonsense, which
+  // is the shape of a rule people switch off.
+  { keep: "تواير", banish: ["إطار"], unless: /معدل/, what: "tyres" },
 ];
+// NOT here on purpose: بنزين vs وقود. Both are right, in different
+// places — محطة وقود is what a Kuwaiti petrol station actually has
+// written on it, and بنزين خلص is what the driver says when the tank
+// runs dry. A word with two correct homes does not belong on a list
+// whose whole claim is that there is one answer.
 for (const c of CANON) {
   for (const wrong of c.banish) {
     for (const s of strings) {
+      if (c.unless && c.unless.test(s.text)) continue;
       if (s.text.includes(wrong)) {
         bad(s, `spells ${c.what} as "${wrong}" — this game uses "${c.keep}" everywhere`);
       }

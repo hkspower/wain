@@ -527,11 +527,11 @@ const QUICK_CHAT: Array<{ en: string; ar: string }> = [
   { en: "Let's race", ar: "يلا نتسابق" },
   { en: "Ready?", ar: "جاهز؟" },
   { en: "Ready", ar: "جاهز" },
-  { en: "Go go go", ar: "روح روح" },
+  { en: "Go go go", ar: "يلا يلا" },
   { en: "Nice car", ar: "سيارة حلوة" },
-  { en: "Respect", ar: "احترامي" },
+  { en: "Respect", ar: "كل الاحترام" },
   { en: "My bad", ar: "آسف" },
-  { en: "Later", ar: "مع السلامة" },
+  { en: "Later", ar: "نشوفك" },
 ];
 /** Two seconds between lines. Long enough that the wheel cannot be used
  *  as a spam button, short enough that a real exchange still works. */

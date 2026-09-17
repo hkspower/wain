@@ -132,7 +132,7 @@ export const RIVALS: RivalDef[] = [
     carId: "salmiya-turbo",
     country: "Kuwait",
     flag: "🇰🇼",
-    rejectLine: "لا، ما عندي وقت للمبتدئين",
+    rejectLine: "لا، ما عندي وقت للي يتعلّم",
     name: "Bint Al-Deera",
     arabicName: "بنت الديرة",
     crew: "Gulf Road Gazelles",
@@ -142,7 +142,7 @@ export const RIVALS: RivalDef[] = [
     topSpeedKmh: 246,
     taunt: "You drive like you're going to Friday Market.",
     lines: {
-      intro: "تبي تتحدّاني؟ يلا نشوف شطارتك",
+      intro: "تبي تسابقني؟ يلا نشوف شطارتك",
       win: "قلت لك، شارع الخليج لي أنا",
       lose: "زين لعبت... بس هالمرة وبس",
     },
@@ -295,7 +295,7 @@ export const RIVALS: RivalDef[] = [
     topSpeedKmh: 318,
     taunt: "...",
     lines: {
-      intro: "وصلت للنهاية... بس الشبح ما ينهزم",
+      intro: "وصلت للنهاية... بس الشبح ما ينغلب",
       win: "ارجع لما تكون جاهز",
       lose: "الشارع لك... يا ملك الخليج",
     },

@@ -221,7 +221,7 @@ export const PILLARS: Pillar[] = [
         "to listen to. Headlight bulbs that throw 95, 138 or 181 metres. Tyre " +
         "sidewall lettering, paint finishes, body kits and brakes. Every part is " +
         "a number the physics reads, not a badge on a card.",
-      ar: "محركات لكل واحد منحنى عزم خاص وعدد أسطوانات تسمعه. لمبات كشافات ترمي الضوء ٩٥ أو ١٣٨ أو ١٨١ متر. كتابة على جدار الإطار، ودهانات، وأطقم بودي، وبريكات. كل قطعة رقم تقرأه الفيزياء، مو شعار على كرت.",
+      ar: "محركات لكل واحد منحنى عزم خاص وعدد أسطوانات تسمعه. لمبات كشافات ترمي الضوء ٩٥ أو ١٣٨ أو ١٨١ متر. كتابة على جدار التاير، ودهانات، وأطقم بودي، وبريكات. كل قطعة رقم تقرأه الفيزياء، مو شعار على كرت.",
     },
   },
   {
@@ -363,7 +363,7 @@ export const HOWTO: { heading: Bi; steps: Pillar[] } = {
           "Wins pay in KD. The garage sells engines, brakes, tyres, bulbs and " +
           "paint, and the showroom sells the next car — although the last one on " +
           "the list is not for sale until the roster is finished.",
-        ar: "الفوز يدفع بالدينار. الكراج يبيع محركات وبريكات وإطارات ولمبات ودهان، والمعرض يبيع السيارة اللي بعدها — إلا الأخيرة، ما تنباع إلا إذا خلّصت القائمة.",
+        ar: "الفوز يدفع بالدينار. الكراج يبيع محركات وبريكات وتواير ولمبات ودهان، والمعرض يبيع السيارة اللي بعدها — إلا الأخيرة، ما تنباع إلا إذا خلّصت القائمة.",
       },
     },
   ],
