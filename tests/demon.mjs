@@ -292,19 +292,78 @@ const look = await page.evaluate((id) => {
   // there, not the shell: the bonnet mark lies on the attack kit's
   // power bulge, so against the bare shell it reads 122 mm proud while
   // being 20 mm off the panel it is stuck to.
+  //
+  // `covered` is asked over the WHOLE mark rather than from one point on
+  // it, and that is the second thing this measurement got wrong. It used
+  // to fire a single outward ray from the vertex nearest the bounding
+  // box centre — and on a ribbon every vertex is on the top or the
+  // bottom EDGE of the band, two rows equidistant from that centre, so
+  // which one won was a tie-break. From an edge the ray grazes the panel
+  // the mark is stuck to, and a surface that curves away underneath it
+  // is 17 mm "outside" the sticker a few millimetres along. The verdict
+  // therefore flipped between "ok" and "a sticker nobody can see" on
+  // changes that moved the paint by a millimetre, while the sticker
+  // itself was exactly as visible either way: 38.3% of the Demon's
+  // quarter mark, measured both before and after the crown was
+  // smoothed, to the same three digits.
+  //
+  // So: sample the mark by AREA — a fixed number of points per square
+  // metre of artwork, spread over its triangles — and report the share
+  // of it that something else is standing in front of. That is
+  // tessellation-independent (the ribbon's row count does not move it)
+  // and it is the question worth asking, because a decal is not a point.
   const solid = [];
   g.traverse((o) => { if (o.isMesh && o.visible && !o.userData?.decal) solid.push(o); });
   const REACH = 0.4;
   const standoff = {}, covered = {};
+  const meshFor = {};
+  g.traverse((o) => { if (o.isMesh && o.userData?.decal) (meshFor[o.userData.decal] ??= []).push(o); });
+  const taken = {};
   for (const m of marks) {
     const dir = new THREE.Vector3(...m.n).normalize();
     const at = new THREE.Vector3(m.wx, m.wy, m.wz).addScaledVector(dir, 0.002);
     const inward = new THREE.Raycaster(at, dir.clone().negate(), 0, REACH).intersectObjects(solid, false)[0];
     standoff[m.tag] = inward ? +(inward.distance + 0.002).toFixed(4) : null;
-    const outward = new THREE.Raycaster(at, dir, 0, REACH).intersectObjects(solid, false)[0];
-    covered[m.tag] = outward
-      ? outward.object.material?.name ?? outward.object.userData?.shell ?? "something"
-      : null;
+
+    // The two flanks share a tag, so hand each `marks` row the next mesh
+    // carrying it rather than measuring the same one twice.
+    const o = (meshFor[m.tag] ?? [])[(taken[m.tag] = (taken[m.tag] ?? -1) + 1)];
+    covered[m.tag] = null;
+    if (!o) continue;
+    const pa = o.geometry.getAttribute("position");
+    const index = o.geometry.getIndex();
+    const tri = index ? index.count / 3 : pa.count / 3;
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+    const p = new THREE.Vector3();
+    const PER_M2 = 4000;
+    let hidden = 0, seen = 0;
+    const by = {};
+    for (let t = 0; t < tri; t++) {
+      const i0 = index ? index.getX(t * 3) : t * 3;
+      const i1 = index ? index.getX(t * 3 + 1) : t * 3 + 1;
+      const i2 = index ? index.getX(t * 3 + 2) : t * 3 + 2;
+      a.fromBufferAttribute(pa, i0).applyMatrix4(o.matrixWorld);
+      b.fromBufferAttribute(pa, i1).applyMatrix4(o.matrixWorld);
+      c.fromBufferAttribute(pa, i2).applyMatrix4(o.matrixWorld);
+      const area = b.clone().sub(a).cross(c.clone().sub(a)).length() / 2;
+      const n = Math.max(1, Math.round(area * PER_M2));
+      for (let k = 0; k < n; k++) {
+        // A deterministic spread inside the triangle — no rng, so the
+        // number this prints is the same number tomorrow.
+        const u = ((k + 0.5) / n) * 0.62 + 0.19;
+        const v = (((k * 7) % n) + 0.5) / n * (1 - u) * 0.9 + 0.05 * (1 - u);
+        p.copy(a).addScaledVector(b.clone().sub(a), u).addScaledVector(c.clone().sub(a), v);
+        p.addScaledVector(dir, 0.002);
+        const out = new THREE.Raycaster(p, dir, 0, REACH).intersectObjects(solid, false)[0];
+        if (out) {
+          hidden++;
+          const k2 = out.object.material?.name ?? out.object.userData?.shell ?? "something";
+          by[k2] = (by[k2] ?? 0) + 1;
+        } else seen++;
+      }
+    }
+    const share = hidden / Math.max(1, hidden + seen);
+    covered[m.tag] = { share: +share.toFixed(3), by, samples: hidden + seen };
   }
 
   const clearance = standoff;
@@ -348,20 +407,29 @@ for (const m of look.marks) {
   const c = look.clearance[m.tag];
   const texels = m.px / m.size;
   const over = look.covered[m.tag];
+  // A quarter of a sticker behind a wing mirror is a car; most of one
+  // behind a tyre is a mistake. The line is at a third.
+  const HIDDEN_MAX = 0.34;
+  const buried = over !== null && over.share > HIDDEN_MAX;
+  const worst = over
+    ? Object.entries(over.by).sort((x, y) => y[1] - x[1])[0]
+    : null;
   console.log(
     `  ${m.tag.replace("demon-", "").padEnd(6)} ${m.size.toFixed(2)} m, ${Math.round(texels)} texels/m, ` +
     `${c === null ? "no panel under it" : `${(c * 1000).toFixed(0)} mm off the paint`}` +
-    `${over ? `, UNDER ${over}` : ""}  ` +
+    `${over ? `, ${(over.share * 100).toFixed(0)}% hidden` : ""}` +
+    `${worst ? ` (mostly ${worst[0]})` : ""}  ` +
     check(
-      c !== null && c > 0.004 && c < 0.04 && texels > 500 && !over,
+      c !== null && c > 0.004 && c < 0.04 && texels > 500 && !buried,
       c === null
         ? `${m.tag} has no bodywork under it — it is hung in the air`
         : c <= 0.004
           ? `${m.tag} is ${(c * 1000).toFixed(0)} mm off the panel: it will z-fight the paint`
           : c >= 0.04
             ? `${m.tag} floats ${(c * 1000).toFixed(0)} mm above the panel`
-            : over
-              ? `${m.tag} is underneath the car's own ${over} — a sticker nobody can see`
+            : buried
+              ? `${(over.share * 100).toFixed(0)}% of ${m.tag} is behind the car's own ` +
+                `${worst ? worst[0] : "bodywork"} — that much of it nobody can see`
               : `${m.tag} is ${Math.round(texels)} texels/m, which is the density the flag read as a smear at`
     )
   );

@@ -596,24 +596,21 @@ export interface CrownSpec {
    * buckets. See crownShell: stepping makes the displacement a step
    * function, so every station boundary is a ridge.
    *
-   * On the BODY the steps are small against four and a half metres of
-   * shell, and — the reason this is a flag rather than the rule — every
-   * anchored thing on the car was positioned against that surface.
-   * Smoothing it moves the paint by a few millimetres and the flank
-   * ribbons end up inside it. Measured: the Black Demon's two flank
-   * marks go under the paint the moment the body is smoothed.
-   *
-   * On the GLASSHOUSE it is ruinous and nothing is anchored to it: a
-   * canopy is two metres of z with the roofline climbing through all of
-   * it, so the stations step hard and every boundary shows. That is the
-   * corrugated greenhouse every car in this game was wearing.
+   * On at present every shell in the game, which is why nothing sets
+   * this false. It is a flag rather than the rule because a stepped
+   * crown is what every anchor on the car was placed against, and the
+   * flag is what makes "did that matter?" a question with an answer:
+   * the stripes, the decals, the carbon panels and the cabin fit all
+   * ask the shell where it is (deckY, skinAt, flankRibbon all raycast
+   * it), so they follow the surface wherever it moves — measured, and
+   * not assumed. See the commit that turned it on for the bodies.
    */
   smooth?: boolean;
 }
 
 export const CROWN: Record<"body" | "canopy" | "roof", CrownSpec> = {
   // The body: bulging doors, tucked rocker, a crowned bonnet and boot.
-  body: { tuck: 0.055, roof: 0.03, shoulder: 0.62 },
+  body: { tuck: 0.055, roof: 0.03, shoulder: 0.62, smooth: true },
   // The glasshouse leans in hard — tumblehome is most of what makes a
   // greenhouse read as glass rather than as a box.
   canopy: { tuck: 0.085, roof: 0.026, shoulder: 0.25 },
@@ -651,27 +648,27 @@ export const CROWN: Record<"body" | "canopy" | "roof", CrownSpec> = {
  */
 const CROWN_BY_STYLE: Record<BodyStyle, Record<"body" | "canopy" | "roof", CrownSpec>> = {
   zx: {
-    body: { tuck: 0.075, roof: 0.032, shoulder: 0.58 },
+    body: { tuck: 0.075, roof: 0.032, shoulder: 0.58, smooth: true },
     canopy: { tuck: 0.105, roof: 0.028, shoulder: 0.24, smooth: true },
     roof: { tuck: 0.034, roof: 0.036, shoulder: 0.5, smooth: true },
   },
   rx7: {
-    body: { tuck: 0.075, roof: 0.032, shoulder: 0.58 },
+    body: { tuck: 0.075, roof: 0.032, shoulder: 0.58, smooth: true },
     canopy: { tuck: 0.105, roof: 0.028, shoulder: 0.24, smooth: true },
     roof: { tuck: 0.034, roof: 0.036, shoulder: 0.5, smooth: true },
   },
   gtr: {
-    body: { tuck: 0.068, roof: 0.030, shoulder: 0.60 },
+    body: { tuck: 0.068, roof: 0.030, shoulder: 0.60, smooth: true },
     canopy: { tuck: 0.098, roof: 0.027, shoulder: 0.25, smooth: true },
     roof: { tuck: 0.032, roof: 0.035, shoulder: 0.5, smooth: true },
   },
   pony: {
-    body: { tuck: 0.062, roof: 0.028, shoulder: 0.68 },
+    body: { tuck: 0.062, roof: 0.028, shoulder: 0.68, smooth: true },
     canopy: { tuck: 0.090, roof: 0.026, shoulder: 0.27, smooth: true },
     roof: { tuck: 0.030, roof: 0.032, shoulder: 0.5, smooth: true },
   },
   sedan: {
-    body: { tuck: 0.045, roof: 0.026, shoulder: 0.62 },
+    body: { tuck: 0.045, roof: 0.026, shoulder: 0.62, smooth: true },
     canopy: { tuck: 0.072, roof: 0.024, shoulder: 0.28, smooth: true },
     roof: { tuck: 0.026, roof: 0.028, shoulder: 0.5, smooth: true },
   },
@@ -685,17 +682,17 @@ const CROWN_BY_STYLE: Record<BodyStyle, Record<"body" | "canopy" | "roof", Crown
   // gets the deepest tuck in the fleet and the shoulder sits LOW —
   // the opposite end of the same dial the pickup is at.
   super: {
-    body: { tuck: 0.095, roof: 0.034, shoulder: 0.44 },
+    body: { tuck: 0.095, roof: 0.034, shoulder: 0.44, smooth: true },
     canopy: { tuck: 0.118, roof: 0.030, shoulder: 0.22, smooth: true },
     roof: { tuck: 0.036, roof: 0.038, shoulder: 0.5, smooth: true },
   },
   pickup: {
-    body: { tuck: 0.042, roof: 0.020, shoulder: 0.70 },
+    body: { tuck: 0.042, roof: 0.020, shoulder: 0.70, smooth: true },
     canopy: { tuck: 0.072, roof: 0.024, shoulder: 0.30, smooth: true },
     roof: { tuck: 0.026, roof: 0.030, shoulder: 0.5, smooth: true },
   },
   hatch: {
-    body: { tuck: 0.034, roof: 0.022, shoulder: 0.64 },
+    body: { tuck: 0.034, roof: 0.022, shoulder: 0.64, smooth: true },
     canopy: { tuck: 0.060, roof: 0.022, shoulder: 0.30, smooth: true },
     roof: { tuck: 0.022, roof: 0.024, shoulder: 0.5, smooth: true },
   },
@@ -792,11 +789,14 @@ export function crownShell(geo: THREE.BufferGeometry, c: CrownSpec): THREE.Buffe
    * top and a different bottom, so the surface jumps. Thirty-two
    * boundaries, thirty-two ridges.
    *
-   * On the body it is a long shell and the steps are small against it.
-   * On the CANOPY it is ruinous: a glasshouse is barely two metres of
-   * z with the roofline climbing through all of it, so topY moves hard
-   * from one station to the next and every boundary shows. Every car
-   * in the game wore a ribbed greenhouse because of these three lines.
+   * It is worst on the CANOPY, which is barely two metres of z with the
+   * roofline climbing through all of it, so topY moves hard from one
+   * station to the next and every boundary shows. But it is on the
+   * BONNET too, and that is the one people look at: probed down the
+   * centreline of the Deera's hood, the skin climbed for five or six
+   * samples and then dropped 10 to 18 mm, over and over, with a period
+   * of 140 mm — 4.5 m of car over 32 stations. On screen that is a
+   * venetian blind, and every car in this game was wearing one.
    *
    * Sampling at the station's CENTRE (the 0.5) keeps the interpolation
    * symmetric, so the crown still peaks where it was measured to.
