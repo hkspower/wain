@@ -150,6 +150,7 @@
     "test:panel-cards": "node scripts/panel-cards-test.mjs",
     "test:page-gutter": "node scripts/page-gutter-test.mjs",
     "test:icon-size": "node scripts/icon-size-test.mjs",
+    "test:xss-guard": "node scripts/xss-guard-test.mjs",
     "test:nav-menu": "node scripts/nav-menu-test.mjs",
     "test:brand-strip": "node scripts/brand-strip-test.mjs",
     "test:admin-theme": "node scripts/admin-theme-test.mjs",
