@@ -11,16 +11,19 @@
 // harmless (see CLAUDE.md's cron section on -nv output).
 
 function fetch($path) {
-  $ctx = stream_context_create(['ssl' => ['verify_peer' => false, 'verify_peer_name' => false]]);
-  $opts = ['http' => ['header' => "Host: www.sporta.com.kw\r\n", 'timeout' => 15]];
-  $ctx = stream_context_create(array_merge_recursive(
-    ['ssl' => ['verify_peer' => false, 'verify_peer_name' => false]], $opts));
-  $body = @file_get_contents('https://127.0.0.1' . $path, false, $ctx);
-  $code = 0;
-  foreach ($http_response_header ?? [] as $h) {
-    if (preg_match('#^HTTP/\S+\s+(\d+)#', $h, $m)) $code = (int)$m[1];
-  }
-  return [$code, $body === false ? '' : $body];
+  $ch = curl_init('https://127.0.0.1' . $path);
+  curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_SSL_VERIFYPEER => false,
+    CURLOPT_SSL_VERIFYHOST => false,
+    CURLOPT_HTTPHEADER     => ['Host: www.sporta.com.kw'],
+    CURLOPT_TIMEOUT        => 15,
+    CURLOPT_CONNECTTIMEOUT => 5,
+  ]);
+  $body = (string) curl_exec($ch);
+  $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  curl_close($ch);
+  return [$code, $body];
 }
 
 [$c1, $robots] = fetch('/robots.txt');
