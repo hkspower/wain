@@ -591,6 +591,24 @@ export interface CrownSpec {
   /** Where the widest point sits, 0 at the bottom of the shell and 1 at
    *  the top. A door\'s shoulder is a little above the middle. */
   shoulder: number;
+  /**
+   * Interpolate the station profile instead of stepping between the 32
+   * buckets. See crownShell: stepping makes the displacement a step
+   * function, so every station boundary is a ridge.
+   *
+   * On the BODY the steps are small against four and a half metres of
+   * shell, and — the reason this is a flag rather than the rule — every
+   * anchored thing on the car was positioned against that surface.
+   * Smoothing it moves the paint by a few millimetres and the flank
+   * ribbons end up inside it. Measured: the Black Demon's two flank
+   * marks go under the paint the moment the body is smoothed.
+   *
+   * On the GLASSHOUSE it is ruinous and nothing is anchored to it: a
+   * canopy is two metres of z with the roofline climbing through all of
+   * it, so the stations step hard and every boundary shows. That is the
+   * corrugated greenhouse every car in this game was wearing.
+   */
+  smooth?: boolean;
 }
 
 export const CROWN: Record<"body" | "canopy" | "roof", CrownSpec> = {
@@ -634,28 +652,28 @@ export const CROWN: Record<"body" | "canopy" | "roof", CrownSpec> = {
 const CROWN_BY_STYLE: Record<BodyStyle, Record<"body" | "canopy" | "roof", CrownSpec>> = {
   zx: {
     body: { tuck: 0.075, roof: 0.032, shoulder: 0.58 },
-    canopy: { tuck: 0.105, roof: 0.028, shoulder: 0.24 },
-    roof: { tuck: 0.034, roof: 0.036, shoulder: 0.5 },
+    canopy: { tuck: 0.105, roof: 0.028, shoulder: 0.24, smooth: true },
+    roof: { tuck: 0.034, roof: 0.036, shoulder: 0.5, smooth: true },
   },
   rx7: {
     body: { tuck: 0.075, roof: 0.032, shoulder: 0.58 },
-    canopy: { tuck: 0.105, roof: 0.028, shoulder: 0.24 },
-    roof: { tuck: 0.034, roof: 0.036, shoulder: 0.5 },
+    canopy: { tuck: 0.105, roof: 0.028, shoulder: 0.24, smooth: true },
+    roof: { tuck: 0.034, roof: 0.036, shoulder: 0.5, smooth: true },
   },
   gtr: {
     body: { tuck: 0.068, roof: 0.030, shoulder: 0.60 },
-    canopy: { tuck: 0.098, roof: 0.027, shoulder: 0.25 },
-    roof: { tuck: 0.032, roof: 0.035, shoulder: 0.5 },
+    canopy: { tuck: 0.098, roof: 0.027, shoulder: 0.25, smooth: true },
+    roof: { tuck: 0.032, roof: 0.035, shoulder: 0.5, smooth: true },
   },
   pony: {
     body: { tuck: 0.062, roof: 0.028, shoulder: 0.68 },
-    canopy: { tuck: 0.090, roof: 0.026, shoulder: 0.27 },
-    roof: { tuck: 0.030, roof: 0.032, shoulder: 0.5 },
+    canopy: { tuck: 0.090, roof: 0.026, shoulder: 0.27, smooth: true },
+    roof: { tuck: 0.030, roof: 0.032, shoulder: 0.5, smooth: true },
   },
   sedan: {
     body: { tuck: 0.045, roof: 0.026, shoulder: 0.62 },
-    canopy: { tuck: 0.072, roof: 0.024, shoulder: 0.28 },
-    roof: { tuck: 0.026, roof: 0.028, shoulder: 0.5 },
+    canopy: { tuck: 0.072, roof: 0.024, shoulder: 0.28, smooth: true },
+    roof: { tuck: 0.026, roof: 0.028, shoulder: 0.5, smooth: true },
   },
   // A pickup is a slab. The sides are nearly flat from the rocker to
   // the bed rail, which is the single thing that separates a working
@@ -668,18 +686,18 @@ const CROWN_BY_STYLE: Record<BodyStyle, Record<"body" | "canopy" | "roof", Crown
   // the opposite end of the same dial the pickup is at.
   super: {
     body: { tuck: 0.095, roof: 0.034, shoulder: 0.44 },
-    canopy: { tuck: 0.118, roof: 0.030, shoulder: 0.22 },
-    roof: { tuck: 0.036, roof: 0.038, shoulder: 0.5 },
+    canopy: { tuck: 0.118, roof: 0.030, shoulder: 0.22, smooth: true },
+    roof: { tuck: 0.036, roof: 0.038, shoulder: 0.5, smooth: true },
   },
   pickup: {
     body: { tuck: 0.042, roof: 0.020, shoulder: 0.70 },
-    canopy: { tuck: 0.072, roof: 0.024, shoulder: 0.30 },
-    roof: { tuck: 0.026, roof: 0.030, shoulder: 0.5 },
+    canopy: { tuck: 0.072, roof: 0.024, shoulder: 0.30, smooth: true },
+    roof: { tuck: 0.026, roof: 0.030, shoulder: 0.5, smooth: true },
   },
   hatch: {
     body: { tuck: 0.034, roof: 0.022, shoulder: 0.64 },
-    canopy: { tuck: 0.060, roof: 0.022, shoulder: 0.30 },
-    roof: { tuck: 0.022, roof: 0.024, shoulder: 0.5 },
+    canopy: { tuck: 0.060, roof: 0.022, shoulder: 0.30, smooth: true },
+    roof: { tuck: 0.022, roof: 0.024, shoulder: 0.5, smooth: true },
   },
 };
 
@@ -763,11 +781,44 @@ export function crownShell(geo: THREE.BufferGeometry, c: CrownSpec): THREE.Buffe
   const topY = sm(maxY, -1e9);
   const botY = sm(minY, 1e9);
 
+  /**
+   * Where a vertex sits BETWEEN stations, not which one it fell in.
+   *
+   * This is the whole difference between bodywork and a corrugated
+   * roof. Measuring in 32 buckets is right — the comment above says
+   * why — but APPLYING the measurement by bucket makes the
+   * displacement a step function: two vertices a millimetre apart on
+   * either side of a boundary get a different half-width, a different
+   * top and a different bottom, so the surface jumps. Thirty-two
+   * boundaries, thirty-two ridges.
+   *
+   * On the body it is a long shell and the steps are small against it.
+   * On the CANOPY it is ruinous: a glasshouse is barely two metres of
+   * z with the roofline climbing through all of it, so topY moves hard
+   * from one station to the next and every boundary shows. Every car
+   * in the game wore a ribbed greenhouse because of these three lines.
+   *
+   * Sampling at the station's CENTRE (the 0.5) keeps the interpolation
+   * symmetric, so the crown still peaks where it was measured to.
+   */
+  const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
   for (let i = 0; i < n; i++) {
-    const k = station(pos.getZ(i));
-    const hw = halfW[k];
-    const hi = topY[k];
-    const lo = botY[k];
+    // Stations are measured in buckets either way; `smooth` decides
+    // whether they are APPLIED as a step or as a ramp.
+    let k0: number, k1: number, kt: number;
+    if (c.smooth) {
+      const f = Math.min(N - 1, Math.max(0, ((pos.getZ(i) - z0) / span) * N - 0.5));
+      k0 = Math.floor(f);
+      k1 = Math.min(N - 1, k0 + 1);
+      kt = f - k0;
+    } else {
+      k0 = k1 = station(pos.getZ(i));
+      kt = 0;
+    }
+    const hw = lerp(halfW[k0], halfW[k1], kt);
+    const hi = lerp(topY[k0], topY[k1], kt);
+    const lo = lerp(botY[k0], botY[k1], kt);
     if (!(hw > 1e-3) || !(hi - lo > 1e-3)) continue;
 
     const x = pos.getX(i);
