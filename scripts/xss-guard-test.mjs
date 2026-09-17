@@ -94,7 +94,7 @@ check(overlays.length >= 5, 'the overlay directory was derived, not hardcoded',
 
 // The one place a literal, non-interpolated innerHTML assignment is allowed,
 // and it is re-verified below rather than merely trusted.
-const INNERHTML_LITERAL_OK = new Set(['google-signin.js'])
+const INNERHTML_LITERAL_OK = new Set(['google-signin.js', 'apple-signin.js'])
 
 const forbidden = [
   [/\.insertAdjacentHTML\s*\(/, 'insertAdjacentHTML'],

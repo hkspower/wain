@@ -790,6 +790,10 @@
          fails three times over and silently. -->
     <script src="/assets/google-signin.js" defer></script>
 
+    <!-- Same reasoning, same scoping, for Apple: the CSP names
+         appleid.cdn-apple.com and appleid.apple.com for /backends only. -->
+    <script src="/assets/apple-signin.js" defer></script>
+
     <!-- /track's one field carries no `required`, so pressing Track on an
          empty box did nothing at all — no message, no hint, no outline. This
          adds the attribute the bundle cannot be edited to include, and the

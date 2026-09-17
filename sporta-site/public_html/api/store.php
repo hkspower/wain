@@ -3159,3 +3159,169 @@ function store_google_login(string $idToken): array {
     store_admin_grant($db, $u);
     return ['id' => (int) $u['id'], 'email' => $u['email']];
 }
+
+// ----------------------------------------------------------- Apple sign-in
+//
+// THE SAME SHAPE AS GOOGLE'S, DELIBERATELY. An ID token Apple has signed,
+// verified against Apple's own published keys — no client secret, no
+// registered redirect on this server's side of the check, nothing to leak.
+// `store_jwk_to_pem()` is shared with Google's flow rather than duplicated:
+// both are RSA JWKs and the ASN.1 assembly does not care who issued them.
+//
+// THE CLIENT ID HERE IS APPLE'S "SERVICES ID" — a reverse-DNS-shaped string
+// like `com.sporta.web.signin`, registered in the Apple Developer account
+// alongside a return URL and a domain-verification file the OWNER uploads.
+// That setup is Apple's, not this server's; nothing here can complete it for
+// them. It is not a secret either: it is compiled into the page the same way
+// Google's client id is, and it is useless without a token Apple will only
+// sign for that Services ID and a domain Apple has verified.
+
+const STORE_APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys';
+const STORE_APPLE_ISSUERS  = ['https://appleid.apple.com'];
+const STORE_APPLE_LEEWAY   = 60;
+
+/**
+ * Apple's signing keys, cached on disk — same cache, same trust-anchor
+ * reasoning as store_google_jwks(): the account's own storage directory at
+ * 0600, never a shared temp path, and a stale cache is used rather than none
+ * at all if the refetch fails. A separate file from Google's, because the two
+ * key sets have nothing to do with each other and mixing them into one cache
+ * would make a Google outage able to break Apple sign-in or the reverse.
+ */
+function store_apple_jwks(): array {
+    $dir  = dirname(__DIR__, 2) . '/storage';
+    $file = is_dir($dir) && is_writable($dir) ? $dir . '/apple-jwks.json' : null;
+
+    if ($file !== null && is_file($file) && (time() - (int) @filemtime($file)) < 3600) {
+        $j = json_decode((string) @file_get_contents($file), true);
+        if (is_array($j) && !empty($j['keys'])) return $j['keys'];
+    }
+
+    $ch = curl_init(STORE_APPLE_JWKS_URL);
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 10,
+                            CURLOPT_SSL_VERIFYPEER => true]);
+    $body = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if (is_string($body) && $code === 200) {
+        $j = json_decode($body, true);
+        if (is_array($j) && !empty($j['keys'])) {
+            if ($file !== null) {
+                if (!is_file($file)) { @touch($file); }
+                @chmod($file, 0600);
+                @file_put_contents($file, $body);
+            }
+            return $j['keys'];
+        }
+    }
+    if ($file === null) return [];
+    $j = json_decode((string) @file_get_contents($file), true);
+    return is_array($j) ? ($j['keys'] ?? []) : [];
+}
+
+/**
+ * Verify an Apple ID token. Returns the claims, or null. Mirrors
+ * store_google_verify() claim-for-claim; the differences are the issuer and
+ * the cache the keys come from.
+ *
+ * `$jwks` is a function argument for the same reason it is on the Google
+ * side: so a test can supply its own key set, and so that nothing reachable
+ * from a request can substitute one in production, which always passes null.
+ */
+function store_apple_verify(string $token, string $clientId, ?array $jwks = null): ?array {
+    if ($clientId === '') return null;                 // feature off: fail closed
+    $parts = explode('.', $token);
+    if (count($parts) !== 3) return null;
+    [$h64, $p64, $s64] = $parts;
+
+    $head = json_decode(store_b64url_decode($h64), true);
+    $body = json_decode(store_b64url_decode($p64), true);
+    $sig  = store_b64url_decode($s64);
+    if (!is_array($head) || !is_array($body) || $sig === '') return null;
+
+    if (($head['alg'] ?? '') !== 'RS256') return null;
+
+    $keys = $jwks ?? store_apple_jwks();
+    $kid  = (string) ($head['kid'] ?? '');
+    $pem  = null;
+    foreach ($keys as $k) {
+        if ((string) ($k['kid'] ?? '') !== $kid) continue;
+        if (($k['kty'] ?? '') !== 'RSA') continue;
+        $pem = store_jwk_to_pem((string) ($k['n'] ?? ''), (string) ($k['e'] ?? ''));
+        break;
+    }
+    if ($pem === null) return null;
+
+    if (openssl_verify($h64 . '.' . $p64, $sig, $pem, OPENSSL_ALGO_SHA256) !== 1) return null;
+
+    $now = time();
+    if (!in_array((string) ($body['iss'] ?? ''), STORE_APPLE_ISSUERS, true)) return null;
+    if (!hash_equals($clientId, (string) ($body['aud'] ?? ''))) return null;   // minted for another site
+    if ((int) ($body['exp'] ?? 0) < $now - STORE_APPLE_LEEWAY) return null;
+    if ((int) ($body['iat'] ?? 0) > $now + STORE_APPLE_LEEWAY) return null;
+
+    // Apple sends email_verified as the string "true"/"false" on most tokens,
+    // and as a real boolean on some — both are checked, the same tolerance
+    // store_google_verify() already needs for Google's own two shapes.
+    $ev = $body['email_verified'] ?? false;
+    if ($ev !== true && $ev !== 'true') return null;
+
+    $email = strtolower(trim((string) ($body['email'] ?? '')));
+    if ($email === '') return null;
+    $body['email'] = $email;
+    return $body;
+}
+
+/**
+ * Sign in with Apple. Mirrors store_login()'s contract exactly, and
+ * store_google_login()'s behaviour exactly: it never creates an account
+ * (admin_users stays the one allow-list), and it does not skip an enrolled
+ * second factor — signing in with Apple proves an email, same as Google, and
+ * an admin who enrolled TOTP or email OTP did so to require more than that.
+ */
+function store_apple_login(string $idToken): array {
+    $db = store_db();
+    $cfg = store_setting($db, 'apple_auth');
+    $clientId = trim((string) ($cfg['client_id'] ?? ''));
+    if ($clientId === '' || empty($cfg['enabled'])) store_fail('apple_not_configured', 503);
+
+    $claims = store_apple_verify($idToken, $clientId);
+    if ($claims === null) store_fail('apple_bad_token', 401);
+
+    $q = $db->prepare('select id, email, locked_until, totp_secret, totp_enabled, email_otp_enabled
+                         from admin_users where lower(email) = ? limit 1');
+    $q->execute([$claims['email']]);
+    $u = $q->fetch();
+
+    // NOT AN ADMIN IS NOT A DIFFERENT ANSWER FROM A BAD TOKEN — same reason as
+    // the Google path: telling them apart makes this route an oracle for which
+    // addresses run the shop, answerable by anyone with any Apple ID.
+    if (!$u) store_fail('apple_bad_token', 401);
+    if ($u['locked_until'] !== null && strtotime((string) $u['locked_until']) > time()) {
+        store_fail('locked', 429);
+    }
+
+    $hasTotp  = (int) ($u['totp_enabled'] ?? 0) === 1 && (string) ($u['totp_secret'] ?? '') !== '';
+    $hasEmail = !$hasTotp && (int) ($u['email_otp_enabled'] ?? 0) === 1;
+
+    if ($hasTotp || $hasEmail) {
+        store_session_start();
+        session_regenerate_id(true);
+        unset($_SESSION['admin_id'], $_SESSION['admin_email']);
+        $_SESSION['pending_admin_id'] = (int) $u['id'];
+        $_SESSION['pending_at'] = time();
+        $_SESSION['pending_via'] = $hasTotp ? 'totp' : 'email';
+
+        $out = ['id' => (int) $u['id'], 'email' => $u['email'], 'need_code' => true,
+                'code_via' => $hasTotp ? 'totp' : 'email'];
+        if ($hasEmail) {
+            store_email_otp_issue($db, $u);
+            $out['code_sent_to'] = store_mask_email((string) $u['email']);
+        }
+        return $out;
+    }
+
+    store_admin_grant($db, $u);
+    return ['id' => (int) $u['id'], 'email' => $u['email']];
+}

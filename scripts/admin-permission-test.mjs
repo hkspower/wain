@@ -128,8 +128,17 @@ console.log(`--- ${routes.length} routes in admin.php: ${publicOnes.length} befo
 //
 // `google_save` is NOT here on purpose: writing the client id points the shop's
 // sign-in at a Google project, so it gates itself and is checked as guarded.
+//
+// apple_config and apple_login are the ninth and tenth, on the identical
+// argument: a sign-in route cannot sit behind a gate that requires the
+// session it exists to create. `apple_config` returns the same two fields as
+// `google_config` — enabled, and the Services ID, which is compiled into the
+// page the same way a Google client id is and carries no secret half either.
+// `apple_login` accepts an ID token and answers the same ?r=login shape,
+// second factor and all. `apple_save` is NOT here for the same reason
+// `google_save` is not: it gates itself and is checked as guarded.
 const MAY_BE_PUBLIC = ['login', 'login_code', 'login_code_resend', 'logout', 'me', 'register',
-                       'google_config', 'google_login']
+                       'google_config', 'google_login', 'apple_config', 'apple_login']
 const unexpected = publicOnes.filter((r) => !MAY_BE_PUBLIC.includes(r))
 check(unexpected.length === 0,
   unexpected.length

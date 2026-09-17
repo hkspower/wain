@@ -131,6 +131,23 @@
         return
       }
       signInButton()
+      // THE PANEL SIGNS IN WITHOUT A RELOAD, found while building apple-
+      // signin.js's identical setup card and proved here by the same test.
+      // `start()` runs once, at page load, so an admin who signs in with the
+      // PASSWORD form — the common path, and the only one available before
+      // this feature has ever been configured — leaves this whole check
+      // believing nobody is signed in for the rest of the tab's life; the
+      // setup card would never appear without a manual refresh. The password
+      // field disappearing is the signal that a sign-in happened, of any
+      // kind; re-running start() asks `me` again rather than guessing, so
+      // this also recovers correctly if an attempt fails and the form
+      // returns.
+      var watchForSignIn = new MutationObserver(function () {
+        if (findForm()) return
+        watchForSignIn.disconnect()
+        start()
+      })
+      watchForSignIn.observe(document.body, { childList: true, subtree: true })
     }).catch(function () { signInButton() })
   }
 

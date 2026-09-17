@@ -264,6 +264,54 @@ if ($r === 'google_save' && $method === 'POST') {
     store_out(['client_id' => $cfg['client_id'], 'enabled' => !empty($cfg['enabled'])]);
 }
 
+// ------------------------------------------------------------- Apple sign-in
+//
+// SAME SHAPE AS GOOGLE'S, DELIBERATELY: read-side above the gate because the
+// login screen needs the client id to draw a button before anyone is signed
+// in; the token verified server-side and nothing the browser says about who
+// it is survives past store_apple_verify(); the write gated because anyone
+// who could set it could point sign-in at their own Apple project.
+if ($r === 'apple_config') {
+    store_require_admin_header();
+    $cfg = store_setting($db, 'apple_auth');
+    $id = trim((string)($cfg['client_id'] ?? ''));
+    store_out([
+        'enabled'   => $id !== '' && !empty($cfg['enabled']),
+        'client_id' => $id === '' ? null : $id,
+    ]);
+}
+
+if ($r === 'apple_login' && $method === 'POST') {
+    store_require_admin_header();
+    $b = store_body();
+    $who = store_apple_login((string)($b['id_token'] ?? ''));
+    store_out([
+        'email'        => $who['email'],
+        'need_code'    => !empty($who['need_code']),
+        'code_via'     => $who['code_via'] ?? null,
+        'code_sent_to' => $who['code_sent_to'] ?? null,
+    ]);
+}
+
+if ($r === 'apple_save' && $method === 'POST') {
+    store_require_admin();
+    $b = store_body();
+    $id = trim((string)($b['client_id'] ?? ''));
+    // Apple's Services ID is a reverse-DNS-shaped identifier, e.g.
+    // com.sporta.web.signin — lowercase letters, digits and hyphens, at least
+    // one dot. Checked so a pasted mistake fails HERE rather than as a button
+    // that draws and then refuses everyone.
+    if ($id !== '' && !preg_match('/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i', $id)) {
+        store_fail('bad_client_id');
+    }
+    store_setting_save($db, 'apple_auth', [
+        'client_id' => $id,
+        'enabled'   => $id !== '' && !empty($b['enabled']),
+    ]);
+    $cfg = store_setting($db, 'apple_auth');
+    store_out(['client_id' => $cfg['client_id'], 'enabled' => !empty($cfg['enabled'])]);
+}
+
 if ($r === 'logout' && $method === 'POST') {
     store_session_start();
     // Clears the cookie as well as the server-side session. Emptying $_SESSION

@@ -1,23 +1,23 @@
 /**
- * Google sign-in for /backends: the token verification, and every way a real
- * Google token still must not sign somebody in.
+ * Apple sign-in for /backends: the token verification, and every way a real
+ * Apple token still must not sign somebody in.
  *
- * NODE MINTS, PHP VERIFIES. The rig generates an RSA key, publishes it as a
- * JWKS and signs tokens with Node's crypto; the real `store_google_verify()` is
- * then asked about them. That is deliberately a CROSS-IMPLEMENTATION check —
- * PHP verifying a signature PHP produced would pass even if the hand-rolled
- * JWK-to-PEM conversion were wrong in a way both sides shared. Here, anything
- * wrong in that conversion makes a definitely-valid token fail.
+ * SAME SHAPE AS google-auth-test.mjs, deliberately — NODE MINTS, PHP
+ * VERIFIES. The rig generates an RSA key, publishes it as a JWKS and signs
+ * tokens with Node's crypto; the real `store_apple_verify()` is then asked
+ * about them. A cross-implementation check: PHP verifying a signature PHP
+ * produced would pass even if the shared JWK-to-PEM conversion were wrong in
+ * a way both sides shared — that function is exercised by google-auth-test
+ * too, so a break there would fail both rigs, not just this one.
  *
- * THE KEY SET IS INJECTED AS A FUNCTION ARGUMENT, which is the only reason this
- * is testable at all — and the reason it is an argument rather than a setting
- * is that nothing reachable from a REQUEST may substitute a key set. Production
- * passes null and verifies against Google alone.
+ * THE KEY SET IS INJECTED AS A FUNCTION ARGUMENT for the same reason as the
+ * Google rig: nothing reachable from a request may substitute a key set in
+ * production, which always passes null.
  *
- * WHAT IS NOT TESTED HERE, said plainly: the browser half. Google's own script
- * mints the token in a real page against a real client id, and neither exists
- * in a sandbox. What this proves is that a token which has been minted is
- * accepted only when every claim is right.
+ * WHAT IS NOT TESTED HERE: the browser half. Apple's own script mints the
+ * token in a real page against a real Services ID, and neither exists in a
+ * sandbox — this proves only that a minted token is accepted exclusively
+ * when every claim is right.
  */
 import { generateKeyPairSync, createSign, randomUUID } from 'node:crypto'
 import { writeFileSync, mkdtempSync, rmSync } from 'node:fs'
@@ -30,7 +30,7 @@ let pass = 0, fail = 0
 const ok = (m, d = '') => { pass++; console.log(`ok   ${m}${d ? '   ' + d : ''}`) }
 const bad = (m, d = '') => { fail++; console.log(`FAIL ${m}${d ? '   ' + d : ''}`) }
 
-const CLIENT = '1234567890-abcdefghijklmnop.apps.googleusercontent.com'
+const CLIENT = 'com.sporta.web.signin'
 const KID = 'test-key-' + randomUUID().slice(0, 8)
 
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
@@ -44,8 +44,8 @@ const mint = (claims = {}, { kid = KID, alg = 'RS256', breakSig = false, key = p
   const now = Math.floor(Date.now() / 1000)
   const head = b64({ alg, kid, typ: 'JWT' })
   const body = b64({
-    iss: 'https://accounts.google.com', aud: CLIENT,
-    sub: '1029384756', email: 'manager@sporta.com.kw', email_verified: true,
+    iss: 'https://appleid.apple.com', aud: CLIENT,
+    sub: '001029.abcdef1234567890.1029', email: 'manager@sporta.com.kw', email_verified: 'true',
     iat: now, exp: now + 3600, ...claims,
   })
   if (alg === 'none') return `${head}.${body}.`
@@ -55,10 +55,10 @@ const mint = (claims = {}, { kid = KID, alg = 'RS256', breakSig = false, key = p
   return `${head}.${body}.${sig}`
 }
 
-console.log(`google sign-in — RS256, kid ${KID}\n`)
+console.log(`apple sign-in — RS256, kid ${KID}\n`)
 
 /* ------------------------------------------------ the PHP side of the bridge */
-const dir = mkdtempSync(join(tmpdir(), 'gauth-'))
+const dir = mkdtempSync(join(tmpdir(), 'aauth-'))
 process.on('exit', () => rmSync(dir, { recursive: true, force: true }))
 const harness = join(dir, 'verify.php')
 writeFileSync(harness, `<?php
@@ -66,7 +66,7 @@ require '${STORE}';
 $in = json_decode(file_get_contents('php://stdin'), true);
 $out = [];
 foreach ($in['tokens'] as $name => $tok) {
-    $c = store_google_verify($tok, $in['client'], $in['jwks']);
+    $c = store_apple_verify($tok, $in['client'], $in['jwks']);
     $out[$name] = $c === null ? null : ['email' => $c['email'], 'sub' => $c['sub'] ?? null];
 }
 echo json_encode($out);
@@ -82,16 +82,16 @@ const verify = (tokens, client = CLIENT) => {
 const now = Math.floor(Date.now() / 1000)
 const tokens = {
   good:            mint(),
-  wrongAud:        mint({ aud: 'somebody-elses-client-id.apps.googleusercontent.com' }),
+  wrongAud:        mint({ aud: 'com.somebody-elses.services-id' }),
   wrongIssuer:     mint({ iss: 'https://evil.example.com' }),
   expired:         mint({ iat: now - 7200, exp: now - 3600 }),
   futureIat:       mint({ iat: now + 600 }),
-  unverifiedEmail: mint({ email_verified: false }),
+  unverifiedEmail: mint({ email_verified: 'false' }),
   noEmail:         mint({ email: '' }),
   algNone:         mint({}, { alg: 'none' }),
   unknownKid:      mint({}, { kid: 'not-a-key-we-know' }),
   tamperedSig:     mint({}, { breakSig: true }),
-  evStringTrue:    mint({ email_verified: 'true' }),
+  evBoolTrue:      mint({ email_verified: true }),
   upperEmail:      mint({ email: 'Manager@Sporta.Com.KW' }),
 }
 // Signed by a DIFFERENT key, with a kid we DO publish — the attack the kid
@@ -111,7 +111,7 @@ r.good && r.good.email === 'manager@sporta.com.kw'
 
 /* ================================= 2. every way it must be refused */
 const MUST_REFUSE = [
-  ['wrongAud',        'a token minted for ANOTHER site\'s client id'],
+  ['wrongAud',        'a token minted for ANOTHER site\'s Services ID'],
   ['wrongIssuer',     'a token from another issuer'],
   ['expired',         'an expired token'],
   ['futureIat',       'a token issued in the future'],
@@ -127,9 +127,9 @@ for (const [k, why] of MUST_REFUSE) {
 }
 
 /* ============================================== 3. the two tolerated shapes */
-r.evStringTrue !== null
-  ? ok('email_verified as the string "true" is accepted', 'both shapes occur in the wild')
-  : bad('email_verified as the string "true" is accepted')
+r.evBoolTrue !== null
+  ? ok('email_verified as a real boolean is accepted', 'Apple sends both shapes')
+  : bad('email_verified as a real boolean is accepted')
 r.upperEmail && r.upperEmail.email === 'manager@sporta.com.kw'
   ? ok('the email is lower-cased before it is looked up', 'Manager@Sporta.Com.KW')
   : bad('the email is lower-cased before it is looked up', JSON.stringify(r.upperEmail))
@@ -139,7 +139,7 @@ r.upperEmail && r.upperEmail.email === 'manager@sporta.com.kw'
   const out = verify({ good: tokens.good }, '')
   out.good === null
     ? ok('an empty client id refuses everything', 'the feature fails closed')
-    : bad('an empty client id refuses everything', 'a shop that never configured this has a Google route in')
+    : bad('an empty client id refuses everything', 'a shop that never configured this has an Apple route in')
 }
 
 /* ============================ 5. and the routes exist, above the gate */
@@ -147,65 +147,48 @@ r.upperEmail && r.upperEmail.email === 'manager@sporta.com.kw'
   const admin = execFileSync('cat',
     [new URL('../sporta-site/public_html/api/admin.php', import.meta.url).pathname],
     { encoding: 'utf8' })
-  // THE TOP-LEVEL GATE, NOT ANY CALL TO THE SAME FUNCTION. google_save makes
-  // its own inline `store_require_admin()` call, indented inside its own
-  // `if` block. A bare indexOf finds whichever occurrence comes first in the
-  // file — today that is still ahead of google_config/google_login and this
-  // passed by luck of ordering, but apple_auth-test.mjs hit the same pattern
-  // the moment a later route sat after that inline call, and is the trap
-  // CLAUDE.md records for the admin-gate checker that swept `me` and
-  // `logout` into the guarded set by matching an indented call. The real
-  // gate is UNINDENTED (column 0); every route-scoped call sits inside an
-  // `if`.
+  // THE TOP-LEVEL GATE, NOT ANY CALL TO THE SAME FUNCTION. apple_save (like
+  // google_save) makes its own inline `store_require_admin()` call, indented
+  // inside its own `if` block, well before the real gate that guards every
+  // route below it. A bare indexOf finds whichever occurs first in the file
+  // and, once apple_save's own call sits ahead of apple_config/apple_login,
+  // reports them as "below" a gate that was never the real one — the exact
+  // trap CLAUDE.md records for the admin-gate checker that swept `me` and
+  // `logout` into the guarded set by matching an indented call. The real gate
+  // is UNINDENTED (column 0); every route-scoped call sits inside an `if`.
   const gateMatch = admin.match(/^\S.*store_require_admin\(/m)
   const gateAt = gateMatch ? admin.indexOf(gateMatch[0]) : -1
-  const cfgAt = admin.indexOf("$r === 'google_config'")
-  const logAt = admin.indexOf("$r === 'google_login'")
-  if (cfgAt < 0 || logAt < 0) bad('both Google routes exist', `config=${cfgAt} login=${logAt}`)
+  const cfgAt = admin.indexOf("$r === 'apple_config'")
+  const logAt = admin.indexOf("$r === 'apple_login'")
+  if (cfgAt < 0 || logAt < 0) bad('both Apple routes exist', `config=${cfgAt} login=${logAt}`)
   else if (gateAt >= 0 && (cfgAt > gateAt || logAt > gateAt)) {
-    bad('both Google routes are ABOVE the admin gate',
+    bad('both Apple routes are ABOVE the admin gate',
         'a sign-in route behind the gate needs the session it exists to create')
-  } else ok('both Google routes exist and are above the admin gate')
+  } else ok('both Apple routes exist and are above the admin gate')
 }
 
 /* ===== 6. THE SECOND FACTOR IS NOT SKIPPED — the check that matters most */
-// Signing in with Google proves an EMAIL. An admin who enrolled an
-// authenticator did so to require something beyond an email, and a Google path
-// that called store_admin_grant() straight away would silently undo that for
-// exactly the accounts that had taken the trouble.
 {
   const store = execFileSync('cat', [STORE], { encoding: 'utf8' })
-  const fn = store.slice(store.indexOf('function store_google_login('))
+  const fn = store.slice(store.indexOf('function store_apple_login('))
   const body = fn.slice(0, fn.indexOf('\n}\n') + 1)
   const setsPending = /pending_admin_id/.test(body)
   const guards = /hasTotp|totp_enabled/.test(body)
   setsPending && guards
-    ? ok('Google sign-in still asks for an enrolled second factor', 'same pending marker as the password path')
-    : bad('Google sign-in still asks for an enrolled second factor',
+    ? ok('Apple sign-in still asks for an enrolled second factor', 'same pending marker as the password path')
+    : bad('Apple sign-in still asks for an enrolled second factor',
           `pendingMarker=${setsPending} totpCheck=${guards} — it would hand over the shop on an email alone`)
-  // And it must not invent accounts: admin_users stays the allow-list.
   const inserts = /insert\s+into\s+admin_users/i.test(body)
   inserts
-    ? bad('Google sign-in never creates an admin account', 'it inserts into admin_users')
-    : ok('Google sign-in never creates an admin account', 'admin_users stays the allow-list')
+    ? bad('Apple sign-in never creates an admin account', 'it inserts into admin_users')
+    : ok('Apple sign-in never creates an admin account', 'admin_users stays the allow-list')
 }
 
 /* ========== 7. THE KEY CACHE IS A TRUST ANCHOR, so where it lives matters */
-// Found by auditing this feature an hour after writing it: the first version
-// cached Google's keys in sys_get_temp_dir(). On shared hosting /tmp is
-// frequently shared between accounts, and whoever can write that file CHOOSES
-// THE PUBLIC KEYS that decide whether a token is genuine — inject one and you
-// mint a token for any admin address. Every other temp-dir use in this shop
-// caches audio, a PDF or a scratch file; this one is authentication.
 {
   const store = execFileSync('cat', [STORE], { encoding: 'utf8' })
-  const fn = store.slice(store.indexOf('function store_google_jwks('))
+  const fn = store.slice(store.indexOf('function store_apple_jwks('))
   const raw = fn.slice(0, fn.indexOf('\n}\n') + 1)
-  // COMMENT-FREE, because the function's own comment EXPLAINS that it does not
-  // use sys_get_temp_dir — and the first version of this check failed on that
-  // prose. The tempting fix is to loosen the pattern, which is to break the
-  // guard; stripping the comments is the one that keeps it sharp. This
-  // repository has the identical note against the cookie-flags rig.
   const body = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '')
 
   const usesTemp = /sys_get_temp_dir\s*\(/.test(body)
@@ -220,13 +203,23 @@ r.upperEmail && r.upperEmail.email === 'manager@sporta.com.kw'
     : bad('it caches in the account\'s own storage at 0600',
           `storage=${privateDir} mode0600=${mode0600}`)
 
-  // AND THERE IS NO FALLBACK TO A SHARED PATH. A fallback would restore the
-  // exposure on exactly the unhappy path nobody tests.
   const nullsOut = /\$file\s*=\s*is_dir\([^)]*\)\s*&&\s*is_writable\([^)]*\)\s*\?[^:]*:\s*null/.test(body)
   nullsOut && /if\s*\(\s*\$file\s*===\s*null\s*\)\s*return\s*\[\]/.test(body)
     ? ok('an unusable private directory means NO cache, not a shared one')
     : bad('an unusable private directory means NO cache, not a shared one',
           'the unhappy path must not reach a world-writable location')
+
+  // ONE MORE THAN GOOGLE'S OWN CHECK: the two caches must not be the SAME
+  // file. Sharing one would let an Apple JWKS refetch failure serve Google's
+  // stale keys to an Apple token, or the reverse — two unrelated key sets
+  // with nothing in common but a filename.
+  const googleFn = store.slice(store.indexOf('function store_google_jwks('))
+  const googleBody = googleFn.slice(0, googleFn.indexOf('\n}\n') + 1)
+  const appleFile = (body.match(/'\/?([a-z-]+\.json)'/) || [])[1]
+  const googleFile = (googleBody.match(/'\/?([a-z-]+\.json)'/) || [])[1]
+  appleFile && googleFile && appleFile !== googleFile
+    ? ok('the Apple and Google key caches are separate files', `${googleFile} / ${appleFile}`)
+    : bad('the Apple and Google key caches are separate files', `google=${googleFile} apple=${appleFile}`)
 }
 
 console.log(`\n${fail ? `FAILED — ${fail} of ${pass + fail}` : `all ok — ${pass} checks`}`)
