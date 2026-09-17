@@ -208,7 +208,18 @@
   [data-theme='dark'] .bg-ink\/70 { background-color: #141619b3 !important; }
 
   /* --- raised: chips, inputs, the skeleton ------------------------------- */
-  [data-theme='dark'] .bg-ink-steel,
+  /* :not(header.app-header > p) EXCLUDES the promo strip on purpose. That
+     element carries .bg-ink-steel too, but sporta-ui.css's charcoal recolor
+     (2026-09-17) pins it to #2b2b2b in BOTH themes, in a LAYERED rule that
+     outranks this unlayered one regardless of theme or source order — the
+     project's own recorded cascade-layer rule. Leaving this selector
+     unscoped left a claim sporta-dark.css could never honour on that one
+     element, caught by css-audit.mjs's "does the rule win" check: the rule
+     matched, painted nothing, and looked correct while doing so. The
+     exclusion says in the CSS itself what was previously only true by
+     accident of a later rule elsewhere — the fix belongs in the file that
+     makes the claim, not in the checker that caught it. */
+  [data-theme='dark'] .bg-ink-steel:not(header.app-header > p),
   [data-theme='dark'] .skeleton {
     background-color: var(--sp-raise) !important;
   }
