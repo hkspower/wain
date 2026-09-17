@@ -27,7 +27,7 @@ export default function VoiceControls() {
         type="button"
         onClick={() => setEnabled(!enabled)}
         aria-pressed={enabled}
-        className={`flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold transition ${
+        className={`flex min-h-6 items-center gap-2 rounded-full px-4 text-sm font-semibold transition ${
           enabled
             ? "bg-coral-600 text-white shadow-sm hover:bg-coral-700"
             : "border border-line-control bg-white text-ink-600 hover:border-coral-300 hover:text-coral-700"
@@ -73,7 +73,7 @@ export function SpeakButton({ parts, label }: { parts: SpeechPart[]; label: stri
       type="button"
       onClick={() => (speaking ? stop() : speak(parts))}
       aria-pressed={speaking}
-      className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+      className={`inline-flex min-h-6 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
         speaking
           ? "bg-coral-600 text-white hover:bg-coral-700"
           : "bg-ink-900 text-white hover:bg-ink-800"

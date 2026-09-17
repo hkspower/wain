@@ -334,7 +334,12 @@ export default function SearchClient() {
             type="button"
             onClick={() => setQ("")}
             aria-label="مسح البحث"
-            className="absolute inset-y-0 end-14 my-auto grid size-11 place-items-center rounded-full text-ink-500 transition hover:bg-sand-200 hover:text-ink-800"
+            // end-14 was tuned to sit past ShouqCallButton's old 44px width;
+            // that button is size-8 now, so this comes in to match. end-11
+            // measured flush against it, zero gap — verified by rendering,
+            // not computed: two absolutely-positioned siblings are easier to
+            // get wrong on paper than to look at. end-13 measures 8px clear.
+            className="absolute inset-y-0 end-13 my-auto grid size-6 place-items-center rounded-full text-ink-500 transition hover:bg-sand-200 hover:text-ink-800"
           >
             <IconClose className="size-4" />
           </button>
@@ -357,7 +362,7 @@ export default function SearchClient() {
                 onClick={() => { haptic("select"); setKind(f.id); }}
                 aria-pressed={kind === f.id}
                 disabled={n === 0}
-                className={`min-h-11 rounded-full px-4 text-sm font-semibold transition disabled:opacity-40 ${
+                className={`min-h-6 rounded-full px-4 text-sm font-semibold transition disabled:opacity-40 ${
                   kind === f.id
                     ? "bg-ink-900 text-white"
                     : "border border-line-control bg-white text-ink-600 hover:border-sea-300"
@@ -404,7 +409,7 @@ export default function SearchClient() {
                   <button
                     type="button"
                     onClick={() => setQ(s)}
-                    className="flex min-h-11 items-center rounded-full border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
+                    className="flex min-h-6 items-center rounded-full border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
                   >
                     {s}
                   </button>

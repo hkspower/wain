@@ -52,8 +52,12 @@ console.log('\n── the button is reachable, and says what it is ──');
   const name = await btn.getAttribute('aria-label');
   ok('it carries an accessible name even with the text hidden', (name || '').includes('بحث'), name);
   const box = await btn.boundingBox();
-  ok(`it clears 44px in both axes on a phone (${Math.round(box.width)}×${Math.round(box.height)})`,
-    box.width >= 44 && box.height >= 44);
+  // 24px, not 44 — the tap-target floor came down from WCAG 2.5.5 AAA to
+  // 2.5.8 AA; see CLAUDE.md, "The scale is compact on purpose", and
+  // scripts/audit-mobile.mjs's MIN_TARGET_PX for the site-wide check this
+  // one line duplicates for a single named button.
+  ok(`it clears 24px in both axes on a phone (${Math.round(box.width)}×${Math.round(box.height)})`,
+    box.width >= 24 && box.height >= 24);
   await ctx.close();
 }
 

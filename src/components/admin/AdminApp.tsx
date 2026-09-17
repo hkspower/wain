@@ -318,7 +318,7 @@ export default function AdminApp() {
               role="tab"
               aria-selected={tab === id}
               onClick={() => setTab(id)}
-              className={`flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold transition ${
+              className={`flex min-h-6 items-center gap-2 rounded-full px-4 text-sm font-semibold transition ${
                 tab === id
                   ? "bg-ink-900 text-white"
                   : "border border-line-control bg-white text-ink-600 hover:border-sea-300"

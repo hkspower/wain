@@ -89,7 +89,7 @@ export default function SearchPlan({
           {canOrder && (
             <Link
               href={`/places/${target.slug}/`}
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
+              className="inline-flex min-h-6 items-center gap-2 rounded-xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
             >
               <IconBag className="size-4 text-sea-700" />
               اطلب من {target.nameAr}
@@ -99,7 +99,7 @@ export default function SearchPlan({
           {canQueue && (
             <Link
               href={`/places/${target.slug}/`}
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
+              className="inline-flex min-h-6 items-center gap-2 rounded-xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
             >
               <IconClock className="size-4 text-sea-700" />
               خذ دورك

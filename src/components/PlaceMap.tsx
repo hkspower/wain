@@ -58,7 +58,7 @@ export default function PlaceMap({
             href={gmapsPoi}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-sea-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sea-700"
+            className="inline-flex min-h-6 items-center gap-2 rounded-xl bg-sea-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sea-700"
           >
             <IconMap className="size-4" />
             افتح في خرائط جوجل
@@ -67,7 +67,7 @@ export default function PlaceMap({
             href={gmapsDirections}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line-control bg-white px-4 py-2.5 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
+            className="inline-flex min-h-6 items-center gap-2 rounded-xl border border-line-control bg-white px-4 py-2.5 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
           >
             <IconGo className="size-4" />
             الاتجاهات
@@ -76,7 +76,7 @@ export default function PlaceMap({
             href={osm}
             target="_blank"
             rel="noopener noreferrer"
-            className="ms-auto inline-flex min-h-11 items-center text-xs text-ink-500 underline-offset-2 hover:underline"
+            className="ms-auto inline-flex min-h-6 items-center text-xs text-ink-500 underline-offset-2 hover:underline"
           >
             بيانات الخريطة © OpenStreetMap
           </a>

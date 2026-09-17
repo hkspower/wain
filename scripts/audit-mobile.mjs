@@ -11,19 +11,29 @@
  *
  *   1. Anything wider than the screen. One overflowing element makes the whole
  *      page slide sideways, and the visitor blames the site, not the element.
- *   2. Tap targets under 44px. Below that a thumb misses, and the miss usually
- *      lands on something else.
+ *   2. Tap targets under 24px. WCAG 2.5.8 Target Size (Minimum) — Level AA,
+ *      not the 44px of 2.5.5 Target Size (Enhanced) — Level AAA this used to
+ *      enforce. AA is the level most compliance targets actually require, and
+ *      44px was chosen here before, not because AA was ever failed; going
+ *      compact means trading the AAA margin for the AA floor deliberately,
+ *      with eyes open, not discovering the difference by accident.
  *   3. Small targets crowded together, where a miss is not a miss but a wrong
- *      action. Size and spacing trade off against each other — two comfortable
- *      44px controls four pixels apart are a segmented control, which is a
- *      pattern rather than a defect — so this only fires when one of the pair
- *      is undersized as well as close.
+ *      action. WCAG 2.5.8's own spacing exception is the number here: an
+ *      undersized target needs 24px of clear space to its nearest neighbour,
+ *      or a 24px circle centred on it would intersect that neighbour. Two
+ *      comfortable 24px controls with room between them are a segmented
+ *      control, which is a pattern rather than a defect — so this only fires
+ *      when one of the pair is undersized as well as close.
  *   4. Text below the palette's declared floor. theme.css sets text-2xs at
  *      11px and says "nothing on the site goes below this" — Arabic carries
  *      meaning in dots and short connecting strokes, so it has further to fall
- *      than Latin. Anything under that is improvised, not chosen.
+ *      than Latin. Anything under that is improvised, not chosen. Unlike the
+ *      tap-target floor, this one was never renegotiated: WCAG has no size
+ *      minimum for text, so there is no standard to trade down to — 11px is
+ *      this project's own number, chosen for the script, and stays.
  *   5. Inputs under 16px, which is not a readability problem: iOS Safari zooms
- *      the whole page in when you focus one, and never zooms back out.
+ *      the whole page in when you focus one, and never zooms back out. A
+ *      browser behaviour, not a design choice, so also not renegotiated.
  *
  * Two widths, because 390 is a comfortable modern phone and 320 is the floor
  * that still exists — an iPhone SE, and any phone with display zoom turned on.
@@ -76,8 +86,11 @@ const PAGES = routes().sort().filter((r) => !r.startsWith("/places/") || r === "
  *
  * WCAG 2.5.8 exempts a control whose size is essential to the information it
  * conveys. A map pin is exactly that: its position *is* its meaning, so padding
- * it out to 44px would either move it off its place or bury its neighbours.
- * Everything else has to earn its size.
+ * it out would either move it off its place or bury its neighbours — at 32px
+ * (see SearchMap.tsx's PIN_PX) it already clears the 24px this file now
+ * enforces without needing the exemption, but the exemption is the correct
+ * reason regardless of where the floor sits. Everything else has to earn its
+ * size.
  */
 const SMALL_BY_DESIGN = [
   { match: (el) => el.closest("[data-map-frame]") !== null, why: "a map pin — its position is its meaning (WCAG 2.5.8)" },
@@ -93,6 +106,21 @@ const WIDTHS = [
   { name: "390 (a modern phone)", width: 390, height: 844 },
   { name: "320 (an SE, or display zoom)", width: 320, height: 700 },
 ];
+
+/**
+ * WCAG 2.5.8 Target Size (Minimum), Level AA — 24×24 CSS px. This project
+ * enforced 2.5.5's AAA number (44px) until this floor was deliberately traded
+ * down for a more compact UI; see the file header for why the other four
+ * checks were NOT touched the same way.
+ */
+const MIN_TARGET_PX = 24;
+/**
+ * WCAG 2.5.8's own spacing exception: an undersized target needs this much
+ * clear space to its nearest neighbour (the standard phrases it as a 24px
+ * circle centred on the target not intersecting another target; edge-to-edge
+ * clearance of the same number is the practical form most checkers use).
+ */
+const MIN_TARGET_SPACING_PX = 24;
 
 const overflow = [];
 const smallTargets = new Map();
@@ -113,7 +141,7 @@ for (const vp of WIDTHS) {
     await page.goto(`http://localhost:${PORT}${url}`, { waitUntil: "networkidle" });
     await page.waitForTimeout(400);
 
-    const found = await page.evaluate((smallByDesignCount) => {
+    const found = await page.evaluate(({ smallByDesignCount, minTarget, minSpacing }) => {
       const out = { overflow: null, wide: [], small: [], crowded: [], text: [], inputs: [], seen: 0, targets: 0, hidden: 0 };
       const vw = document.documentElement.clientWidth;
 
@@ -186,7 +214,7 @@ for (const vp of WIDTHS) {
         const floating = getComputedStyle(el).position === "fixed";
         boxes.push({ r, el, inMap, floating });
         if (inMap) continue;
-        if (r.width < 44 || r.height < 44) {
+        if (r.width < minTarget || r.height < minTarget) {
           out.small.push({
             tag: el.tagName.toLowerCase(),
             label: (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 32),
@@ -195,20 +223,21 @@ for (const vp of WIDTHS) {
           });
         }
       }
-      // Crowding: two separate targets whose boxes are within 8px of each other.
+      // Crowding: two separate targets whose boxes are within minSpacing of
+      // each other — WCAG 2.5.8's own spacing exception number.
       for (let i = 0; i < boxes.length; i++) {
         for (let j = i + 1; j < boxes.length; j++) {
           if (boxes[i].inMap || boxes[j].inMap) continue;
           if (boxes[i].floating || boxes[j].floating) continue;
           // Spacing only matters when there was not much to aim at.
-          const tight = (b) => b.r.width < 44 || b.r.height < 44;
+          const tight = (b) => b.r.width < minTarget || b.r.height < minTarget;
           if (!tight(boxes[i]) && !tight(boxes[j])) continue;
           const a = boxes[i].r, b = boxes[j].r;
           const dx = Math.max(0, Math.max(a.left, b.left) - Math.min(a.right, b.right));
           const dy = Math.max(0, Math.max(a.top, b.top) - Math.min(a.bottom, b.bottom));
           if (dx === 0 && dy === 0) continue; // overlapping or nested: not crowding
           const gap = Math.hypot(dx, dy);
-          if (gap > 0 && gap < 8) {
+          if (gap > 0 && gap < minSpacing) {
             out.crowded.push({
               a: (boxes[i].el.getAttribute("aria-label") || boxes[i].el.textContent || "").trim().slice(0, 24),
               b: (boxes[j].el.getAttribute("aria-label") || boxes[j].el.textContent || "").trim().slice(0, 24),
@@ -245,7 +274,7 @@ for (const vp of WIDTHS) {
       }
       void smallByDesignCount;
       return out;
-    }, SMALL_BY_DESIGN.length);
+    }, { smallByDesignCount: SMALL_BY_DESIGN.length, minTarget: MIN_TARGET_PX, minSpacing: MIN_TARGET_SPACING_PX });
 
     elementsSeen += found.seen;
     targetsSeen += found.targets;
@@ -289,13 +318,13 @@ else for (const o of overflow) {
   for (const w of o.wide) console.log(`        ${w.tag}.${w.cls} spans ${w.left}…${w.right}`);
 }
 
-console.log("\n── can a thumb hit everything? (44px) ──");
-if (!smallTargets.size) console.log("  Yes. Every target outside the map clears 44px.");
+console.log(`\n── can a thumb hit everything? (${MIN_TARGET_PX}px) ──`);
+if (!smallTargets.size) console.log(`  Yes. Every target outside the map clears ${MIN_TARGET_PX}px.`);
 else for (const s of [...smallTargets.values()].sort((a, b) => a.w * a.h - b.w * b.h)) {
   say(`${s.w}×${s.h}  <${s.tag}> «${s.label}»  ×${s.n}  first at ${s.at}`);
 }
 
-console.log("\n── is anything small AND crowded enough to mis-tap? (<44px, <8px apart) ──");
+console.log(`\n── is anything small AND crowded enough to mis-tap? (<${MIN_TARGET_PX}px, <${MIN_TARGET_SPACING_PX}px apart) ──`);
 if (!crowded.size) console.log("  No. Every pair of targets has room between them.");
 else for (const c of [...crowded.values()].sort((a, b) => a.gap - b.gap)) {
   say(`${c.gap}px between «${c.a}» and «${c.b}»  ×${c.n}  first at ${c.at}`);

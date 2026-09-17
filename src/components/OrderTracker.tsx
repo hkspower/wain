@@ -225,7 +225,7 @@ function OrderCard({ order, onForget }: { order: TrackedOrder; onForget: () => v
               type="button"
               onClick={cancel}
               disabled={cancelling}
-              className="inline-flex min-h-11 items-center gap-1 rounded-xl px-3 text-sm font-semibold text-ink-500 transition hover:text-coral-700 disabled:opacity-50"
+              className="inline-flex min-h-6 items-center gap-1 rounded-xl px-3 text-sm font-semibold text-ink-500 transition hover:text-coral-700 disabled:opacity-50"
             >
               <IconClose className="size-4" />
               {cancelling ? "نلغي…" : "ألغِ الطلب"}
@@ -234,7 +234,7 @@ function OrderCard({ order, onForget }: { order: TrackedOrder; onForget: () => v
           <button
             type="button"
             onClick={() => { forgetOrder(order.id); onForget(); }}
-            className="inline-flex min-h-11 items-center gap-1 rounded-xl px-3 text-sm font-semibold text-ink-500 transition hover:text-coral-700"
+            className="inline-flex min-h-6 items-center gap-1 rounded-xl px-3 text-sm font-semibold text-ink-500 transition hover:text-coral-700"
           >
             احذفه من القائمة
           </button>
@@ -280,7 +280,7 @@ export default function OrderTracker() {
         </p>
         <Link
           href="/explore"
-          className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"
+          className="mt-5 inline-flex min-h-6 items-center rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"
         >
           تصفّح الأماكن
         </Link>

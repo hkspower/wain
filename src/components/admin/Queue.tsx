@@ -200,7 +200,7 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
         <button
           type="button"
           onClick={() => setShowAll((v) => !v)}
-          className="min-h-11 rounded-xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
+          className="min-h-6 rounded-xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
         >
           {showAll ? "المفتوحة بس" : "كل الأدوار"}
         </button>
@@ -217,7 +217,7 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
           <button
             type="button"
             onClick={() => setStatus(next, "called")}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-sea-600 px-5 text-sm font-semibold text-white transition hover:bg-sea-700"
+            className="inline-flex min-h-6 items-center gap-1.5 rounded-xl bg-sea-600 px-5 text-sm font-semibold text-white transition hover:bg-sea-700"
           >
             نادِ التالي
           </button>
@@ -236,7 +236,7 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
               aria-label="الصالون"
               value={slug || slugs[0]}
               onChange={(e) => setSlug(e.target.value)}
-              className="min-h-11 rounded-xl border border-line-control bg-white px-3 text-sm text-ink-800"
+              className="min-h-6 rounded-xl border border-line-control bg-white px-3 text-sm text-ink-800"
             >
               {slugs.map((s) => (
                 <option key={s} value={s}>
@@ -251,7 +251,7 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
             maxLength={80}
             onChange={(e) => setWalkName(e.target.value)}
             placeholder="الاسم"
-            className="min-h-11 flex-1 rounded-xl border border-line-control bg-white px-3 text-sm text-ink-800"
+            className="min-h-6 flex-1 rounded-xl border border-line-control bg-white px-3 text-sm text-ink-800"
           />
           <input
             aria-label="رقم الزبون (اختياري)"
@@ -260,13 +260,13 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
             dir="ltr"
             onChange={(e) => setWalkPhone(e.target.value)}
             placeholder="الرقم (اختياري)"
-            className="min-h-11 w-40 rounded-xl border border-line-control bg-white px-3 text-sm text-ink-800"
+            className="min-h-6 w-40 rounded-xl border border-line-control bg-white px-3 text-sm text-ink-800"
           />
           <button
             type="button"
             onClick={addWalkIn}
             disabled={adding}
-            className="min-h-11 rounded-xl bg-ink-900 px-4 text-sm font-semibold text-white transition hover:bg-ink-800 disabled:opacity-50"
+            className="min-h-6 rounded-xl bg-ink-900 px-4 text-sm font-semibold text-white transition hover:bg-ink-800 disabled:opacity-50"
           >
             {adding ? "نضيفه…" : "أضفه"}
           </button>
@@ -315,7 +315,7 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
                 {row.customer_phone && (
                   <a
                     href={`tel:+965${row.customer_phone}`}
-                    className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
+                    className="inline-flex min-h-6 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
                   >
                     <IconPhone className="size-4 text-palm-600" />
                     <span dir="ltr">{row.customer_phone}</span>
@@ -327,7 +327,7 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
                     <button
                       type="button"
                       onClick={() => setStatus(row, "called")}
-                      className="inline-flex min-h-11 items-center rounded-xl bg-sea-600 px-4 text-sm font-semibold text-white transition hover:bg-sea-700"
+                      className="inline-flex min-h-6 items-center rounded-xl bg-sea-600 px-4 text-sm font-semibold text-white transition hover:bg-sea-700"
                     >
                       نادِ
                     </button>
@@ -337,7 +337,7 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
                       <button
                         type="button"
                         onClick={() => setStatus(row, "served")}
-                        className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-ink-900 px-4 text-sm font-semibold text-white transition hover:bg-ink-800"
+                        className="inline-flex min-h-6 items-center gap-1.5 rounded-xl bg-ink-900 px-4 text-sm font-semibold text-white transition hover:bg-ink-800"
                       >
                         <IconCheck className="size-4" />
                         خلص
@@ -346,7 +346,7 @@ export default function Queue({ onCountChange }: { onCountChange?: (n: number) =
                         type="button"
                         onClick={() => setStatus(row, "no_show")}
                         aria-label={`رقم ${row.number} ما حضر`}
-                        className="inline-flex min-h-11 items-center rounded-xl border border-line-control bg-white px-3 text-sm font-semibold text-ink-600 transition hover:border-coral-300 hover:text-coral-700"
+                        className="inline-flex min-h-6 items-center rounded-xl border border-line-control bg-white px-3 text-sm font-semibold text-ink-600 transition hover:border-coral-300 hover:text-coral-700"
                       >
                         <IconClose className="size-4" />
                       </button>

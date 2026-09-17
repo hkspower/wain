@@ -107,7 +107,7 @@ export default function SearchMap({
             href={osmLink(f.centre, 12)}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex min-h-11 items-center text-xs font-semibold text-sea-700 underline-offset-2 hover:underline"
+            className="flex min-h-6 items-center text-xs font-semibold text-sea-700 underline-offset-2 hover:underline"
           >
             افتح الخريطة الكبيرة
           </a>

@@ -157,7 +157,7 @@ export default function OrderPanel({ place }: { place: Place }) {
             customer is still looking at the screen. */}
         <Link
           href="/orders"
-          className="mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-ink-900 px-4 text-sm font-semibold text-white transition hover:bg-ink-800 active:scale-[0.98]"
+          className="mt-4 inline-flex min-h-6 items-center gap-1.5 rounded-xl bg-ink-900 px-4 text-sm font-semibold text-white transition hover:bg-ink-800 active:scale-[0.98]"
         >
           تابع طلبك
           <IconGo className="size-4" />
@@ -206,7 +206,7 @@ export default function OrderPanel({ place }: { place: Place }) {
                     onClick={() => bump(item.id, -1)}
                     disabled={n === 0}
                     aria-label={`أنقص ${item.nameAr}`}
-                    className="grid size-11 place-items-center rounded-xl border border-line-control bg-white text-lg font-bold text-ink-700 transition hover:border-sea-300 disabled:opacity-35"
+                    className="grid size-6 place-items-center rounded-xl border border-line-control bg-white text-lg font-bold text-ink-700 transition hover:border-sea-300 disabled:opacity-35"
                   >
                     −
                   </button>
@@ -222,7 +222,7 @@ export default function OrderPanel({ place }: { place: Place }) {
                     onClick={() => bump(item.id, 1)}
                     disabled={n >= MAX_QTY_PER_ITEM}
                     aria-label={`زد ${item.nameAr}`}
-                    className="grid size-11 place-items-center rounded-xl border border-line-control bg-white text-lg font-bold text-ink-700 transition hover:border-sea-300 disabled:opacity-35"
+                    className="grid size-6 place-items-center rounded-xl border border-line-control bg-white text-lg font-bold text-ink-700 transition hover:border-sea-300 disabled:opacity-35"
                   >
                     +
                   </button>

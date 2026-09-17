@@ -61,7 +61,7 @@ export function useTicketCount(): number {
  * least likely to be on.
  */
 const PILL =
-  "flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-semibold text-sea-800 transition hover:bg-sea-50";
+  "flex min-h-6 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-semibold text-sea-800 transition hover:bg-sea-50";
 const BADGE = "rounded-full bg-sea-100 px-1.5 py-0.5 text-xs font-semibold text-sea-800";
 
 export function QueueLink() {

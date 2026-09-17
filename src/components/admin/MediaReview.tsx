@@ -78,7 +78,7 @@ export default function MediaReview({
               type="button"
               onClick={() => onLogoApproved(!logoApproved)}
               aria-pressed={logoApproved}
-              className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl px-4 text-sm font-semibold transition ${
+              className={`inline-flex min-h-6 items-center gap-1.5 rounded-xl px-4 text-sm font-semibold transition ${
                 logoApproved
                   ? "bg-palm-600 text-white"
                   : "border border-line-control bg-white text-ink-600 hover:border-palm-400"
@@ -101,14 +101,14 @@ export default function MediaReview({
               <button
                 type="button"
                 onClick={() => onSelected(imagePaths)}
-                className="min-h-11 rounded-xl px-3 text-xs font-semibold text-sea-700 transition hover:underline"
+                className="min-h-6 rounded-xl px-3 text-xs font-semibold text-sea-700 transition hover:underline"
               >
                 اعتمد الكل
               </button>
               <button
                 type="button"
                 onClick={() => onSelected([])}
-                className="min-h-11 rounded-xl px-3 text-xs font-semibold text-ink-500 transition hover:underline"
+                className="min-h-6 rounded-xl px-3 text-xs font-semibold text-ink-500 transition hover:underline"
               >
                 لا شي
               </button>

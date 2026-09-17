@@ -130,11 +130,16 @@ export default function ShouqCallButton({
       aria-labelledby={labelledBy}
       aria-expanded={open}
       aria-controls="wain-ai-panel"
-      className={`grid size-11 place-items-center rounded-full transition ${
+      // size-8, not the new size-6 floor: this holds an actual icon and an
+      // animated ring, not a text glyph, so it needs padding the floor's bare
+      // 24px does not leave — at size-6 the size-5 icon would touch the
+      // button's own edge. 32px keeps the icon's ~45% share of the button
+      // (20/44 before, 16/32 now) and still clears the floor with margin.
+      className={`grid size-8 place-items-center rounded-full transition ${
         open ? "bg-coral-600 text-white shadow-md" : "text-coral-700 hover:bg-coral-50"
       } ${className}`}
     >
-      <IconShouq className={`size-5 shouq ${talking ? "shouq--talking" : ""}`} />
+      <IconShouq className={`size-4 shouq ${talking ? "shouq--talking" : ""}`} />
       {phase === "ringing" && (
         <span
           aria-hidden="true"

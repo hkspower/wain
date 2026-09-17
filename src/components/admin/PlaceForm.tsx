@@ -456,7 +456,7 @@ export default function PlaceForm({
                 type="button"
                 onClick={() => void updateLocationNow()}
                 disabled={locBusy}
-                className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3.5 text-xs font-semibold text-ink-700 transition hover:border-sea-300 disabled:opacity-60"
+                className="inline-flex min-h-6 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3.5 text-xs font-semibold text-ink-700 transition hover:border-sea-300 disabled:opacity-60"
               >
                 {locBusy ? "نحدّث…" : "تحديث الآن"}
               </button>

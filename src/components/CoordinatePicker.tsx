@@ -113,7 +113,7 @@ export default function CoordinatePicker({
             type="button"
             onClick={() => setFrame((f) => zoomFrame(f, 0.5))}
             aria-label="تكبير"
-            className="grid size-11 place-items-center rounded-xl border border-line-control bg-white text-lg font-bold text-ink-700 transition hover:border-sea-300"
+            className="grid size-6 place-items-center rounded-xl border border-line-control bg-white text-lg font-bold text-ink-700 transition hover:border-sea-300"
           >
             +
           </button>
@@ -121,14 +121,14 @@ export default function CoordinatePicker({
             type="button"
             onClick={() => setFrame((f) => zoomFrame(f, 2))}
             aria-label="تصغير"
-            className="grid size-11 place-items-center rounded-xl border border-line-control bg-white text-lg font-bold text-ink-700 transition hover:border-sea-300"
+            className="grid size-6 place-items-center rounded-xl border border-line-control bg-white text-lg font-bold text-ink-700 transition hover:border-sea-300"
           >
             −
           </button>
           <button
             type="button"
             onClick={useMyLocation}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3 text-xs font-semibold text-ink-700 transition hover:border-sea-300"
+            className="inline-flex min-h-6 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3 text-xs font-semibold text-ink-700 transition hover:border-sea-300"
           >
             <IconLocate className="size-4" />
             موقعي

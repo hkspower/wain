@@ -201,7 +201,7 @@ export default function Orders({ onCountChange }: { onCountChange?: (n: number) 
               // the browser make a sound at all.
               if (next) chime();
             }}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
+            className="inline-flex min-h-6 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
           >
             {sound ? <IconSpeaker className="size-4 text-palm-600" /> : <IconSpeakerOff className="size-4 text-ink-400" />}
             {sound ? "الصوت شغّال" : "الصوت مقفل"}
@@ -209,7 +209,7 @@ export default function Orders({ onCountChange }: { onCountChange?: (n: number) 
           <button
             type="button"
             onClick={() => setShowAll((v) => !v)}
-            className="min-h-11 rounded-xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
+            className="min-h-6 rounded-xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
           >
             {showAll ? "المفتوحة بس" : "كل الطلبات"}
           </button>
@@ -291,7 +291,7 @@ export default function Orders({ onCountChange }: { onCountChange?: (n: number) 
                   <span className="text-sm text-ink-600">{row.customer_name}</span>
                   <a
                     href={`tel:+965${row.customer_phone}`}
-                    className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
+                    className="inline-flex min-h-6 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
                   >
                     <IconPhone className="size-4 text-palm-600" />
                     <span dir="ltr">{row.customer_phone}</span>
@@ -300,7 +300,7 @@ export default function Orders({ onCountChange }: { onCountChange?: (n: number) 
                   <span className="ms-auto flex flex-wrap gap-2">
                     {row.status === "placed" && (
                       <button type="button" onClick={() => setStatus(row, "ready")}
-                        className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-sea-600 px-4 text-sm font-semibold text-white transition hover:bg-sea-700">
+                        className="inline-flex min-h-6 items-center gap-1.5 rounded-xl bg-sea-600 px-4 text-sm font-semibold text-white transition hover:bg-sea-700">
                         <IconCheck className="size-4" />
                         جاهز
                       </button>
@@ -308,12 +308,12 @@ export default function Orders({ onCountChange }: { onCountChange?: (n: number) 
                     {(row.status === "placed" || row.status === "ready") && (
                       <>
                         <button type="button" onClick={() => setStatus(row, "collected")}
-                          className="inline-flex min-h-11 items-center rounded-xl bg-ink-900 px-4 text-sm font-semibold text-white transition hover:bg-ink-800">
+                          className="inline-flex min-h-6 items-center rounded-xl bg-ink-900 px-4 text-sm font-semibold text-white transition hover:bg-ink-800">
                           تسلّم
                         </button>
                         <button type="button" onClick={() => setStatus(row, "cancelled")}
                           aria-label={`ألغِ الطلب ${orderReference(row.id)}`}
-                          className="inline-flex min-h-11 items-center gap-1 rounded-xl px-3 text-sm font-semibold text-ink-500 transition hover:text-coral-700">
+                          className="inline-flex min-h-6 items-center gap-1 rounded-xl px-3 text-sm font-semibold text-ink-500 transition hover:text-coral-700">
                           <IconClose className="size-4" />
                           إلغاء
                         </button>

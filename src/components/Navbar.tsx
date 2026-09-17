@@ -28,11 +28,10 @@ export default function Navbar() {
         {/* Brand */}
         <Link
           href="/"
-          // min-w-11 as well as min-h-11: below 360px the wordmark hides and
-          // only the 40px mark is left, so the link home — the one every
-          // visitor eventually reaches for — was the single target on the site
-          // a thumb could miss. Four pixels of padding costs nothing here.
-          className="group flex min-h-11 min-w-11 shrink-0 items-center gap-2"
+          // No min-h/min-w needed here: the mark alone is size-10 (40px),
+          // already past the 24px tap-target floor even below 360px where the
+          // wordmark hides and it is the only thing left in this link.
+          className="group flex shrink-0 items-center gap-2"
           aria-label="وين — الصفحة الرئيسية"
         >
           <span
@@ -65,7 +64,7 @@ export default function Navbar() {
                 key={link.href}
                 href={link.href}
                 aria-current={active ? "page" : undefined}
-                className={`flex min-h-11 items-center whitespace-nowrap rounded-full px-4 text-sm font-semibold transition ${
+                className={`flex min-h-6 items-center whitespace-nowrap rounded-full px-4 text-sm font-semibold transition ${
                   active
                     ? "bg-ink-900 text-white shadow-sm"
                     : "text-ink-600 hover:bg-sand-100 hover:text-ink-900"

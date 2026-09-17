@@ -152,7 +152,7 @@ export default function ShareHangout({
                   type="button"
                   onClick={() => { haptic("select"); onChoose?.(c.slug); }}
                   aria-pressed={active}
-                  className={`min-h-11 max-w-full truncate rounded-full px-4 text-sm font-semibold transition ${
+                  className={`min-h-6 max-w-full truncate rounded-full px-4 text-sm font-semibold transition ${
                     active
                       ? "bg-ink-900 text-white"
                       : "border border-line-control bg-white text-ink-600 hover:border-sea-300"
@@ -177,7 +177,7 @@ export default function ShareHangout({
                 type="button"
                 onClick={() => { setWhen(o.id); setOutcome(null); }}
                 aria-pressed={active}
-                className={`min-h-11 rounded-full px-4 text-sm font-semibold transition ${
+                className={`min-h-6 rounded-full px-4 text-sm font-semibold transition ${
                   active
                     ? "bg-coral-700 text-white shadow-sm"
                     : "bg-sand-100 text-ink-700 ring-1 ring-line hover:bg-sand-200"
@@ -194,7 +194,7 @@ export default function ShareHangout({
         type="button"
         onClick={send}
         disabled={busy}
-        className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-coral-700 px-5 text-sm font-semibold text-white transition hover:bg-coral-800 disabled:opacity-60"
+        className="mt-5 inline-flex min-h-6 items-center gap-2 rounded-xl bg-coral-700 px-5 text-sm font-semibold text-white transition hover:bg-coral-800 disabled:opacity-60"
       >
         <IconSend className="size-4" />
         {busy ? "لحظة…" : "رسّلها"}

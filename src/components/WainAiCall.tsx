@@ -763,7 +763,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                   <button
                     type="button"
                     onClick={switchPersona}
-                    className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3.5 text-xs font-semibold text-ink-700 transition hover:border-sea-300"
+                    className="mt-3 inline-flex min-h-6 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3.5 text-xs font-semibold text-ink-700 transition hover:border-sea-300"
                   >
                     {persona === "shouq" ? WAIN_AI_COPY.switchToSalem : WAIN_AI_COPY.switchToShouq}
                   </button>
@@ -774,7 +774,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                 <button
                   type="button"
                   onClick={endCall}
-                  className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-coral-700 px-5 text-sm font-semibold text-white transition hover:bg-coral-800"
+                  className="mt-4 inline-flex min-h-6 items-center gap-2 rounded-xl bg-coral-700 px-5 text-sm font-semibold text-white transition hover:bg-coral-800"
                 >
                   <IconPhone className="size-4 rotate-[135deg]" />
                   {WAIN_AI_COPY.hangUp}
@@ -793,7 +793,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                 <button
                   type="button"
                   onClick={startCall}
-                  className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"
+                  className="mt-4 inline-flex min-h-6 items-center gap-2 rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"
                 >
                   <IconPhone className="size-4" />
                   {WAIN_AI_COPY.callAgain}
@@ -809,7 +809,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                 <button
                   type="button"
                   onClick={startCall}
-                  className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"
+                  className="mt-2 inline-flex min-h-6 items-center gap-2 rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"
                 >
                   <IconPhone className="size-4" />
                   {WAIN_AI_COPY.callAgain}

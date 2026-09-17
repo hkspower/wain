@@ -53,7 +53,7 @@ export default function SearchHub({
             <Link
               href={`/explore/?category=${cat.id}`}
               onClick={onNavigate}
-              className="flex min-h-11 items-center gap-2 rounded-full border border-line-control bg-white px-3.5 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
+              className="flex min-h-6 items-center gap-2 rounded-full border border-line-control bg-white px-3.5 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
             >
               <CategoryIcon name={cat.icon} className="size-4 text-ink-500" />
               {cat.ar}
@@ -89,7 +89,7 @@ export default function SearchHub({
             <Link
               href={action.href}
               onClick={onNavigate}
-              className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-ink-500 underline underline-offset-4 transition hover:text-ink-700"
+              className="inline-flex min-h-6 items-center gap-2 text-sm font-semibold text-ink-500 underline underline-offset-4 transition hover:text-ink-700"
             >
               {action.icon === "compass" ? (
                 <IconCompass className="size-4" aria-hidden="true" />

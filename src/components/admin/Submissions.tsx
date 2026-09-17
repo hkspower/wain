@@ -160,7 +160,7 @@ export default function Submissions({
             type="button"
             onClick={() => setFilter(f)}
             aria-pressed={filter === f}
-            className={`min-h-11 rounded-full px-4 text-sm font-semibold transition ${
+            className={`min-h-6 rounded-full px-4 text-sm font-semibold transition ${
               filter === f
                 ? "bg-ink-900 text-white"
                 : "border border-line bg-white text-ink-600 hover:border-sea-300"
@@ -172,7 +172,7 @@ export default function Submissions({
         <button
           type="button"
           onClick={() => void load()}
-          className="min-h-11 rounded-full border border-line-control bg-white px-4 text-sm font-semibold text-ink-600 transition hover:border-sea-300"
+          className="min-h-6 rounded-full border border-line-control bg-white px-4 text-sm font-semibold text-ink-600 transition hover:border-sea-300"
         >
           تحديث
         </button>
@@ -225,7 +225,7 @@ export default function Submissions({
                     <button
                       type="button"
                       onClick={() => setOpen(isOpen ? null : s.id)}
-                      className="min-h-11 rounded-xl border border-line-control bg-white px-3 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
+                      className="min-h-6 rounded-xl border border-line-control bg-white px-3 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
                     >
                       {isOpen ? "إخفاء" : "التفاصيل"}
                     </button>
@@ -234,7 +234,7 @@ export default function Submissions({
                         <button
                           type="button"
                           onClick={() => onApprove(s)}
-                          className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-palm-600 px-3 text-sm font-semibold text-white transition hover:bg-palm-700"
+                          className="inline-flex min-h-6 items-center gap-1.5 rounded-xl bg-palm-600 px-3 text-sm font-semibold text-white transition hover:bg-palm-700"
                         >
                           <IconCheck className="size-4" />
                           راجع واعتمد
@@ -242,7 +242,7 @@ export default function Submissions({
                         <button
                           type="button"
                           onClick={() => void reject(s)}
-                          className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3 text-sm font-semibold text-ink-600 transition hover:border-coral-300 hover:text-coral-700"
+                          className="inline-flex min-h-6 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3 text-sm font-semibold text-ink-600 transition hover:border-coral-300 hover:text-coral-700"
                         >
                           <IconClose className="size-4" />
                           ارفض

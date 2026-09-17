@@ -116,7 +116,7 @@ export default function MediaUploader({
             )}
           </span>
           <div className="flex flex-wrap items-center gap-2">
-            <label className="inline-flex min-h-11 cursor-pointer items-center rounded-xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300">
+            <label className="inline-flex min-h-6 cursor-pointer items-center rounded-xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300">
               {logo ? "بدّل الشعار" : "اختر شعار"}
               <input
                 type="file" accept={ACCEPT_ATTR} className="sr-only" disabled={disabled}
@@ -127,7 +127,7 @@ export default function MediaUploader({
               <button
                 type="button"
                 onClick={() => { urls.drop(logo.preview); onLogo(null); }}
-                className="inline-flex min-h-11 items-center gap-1 rounded-xl px-3 text-sm font-semibold text-ink-500 transition hover:text-coral-700"
+                className="inline-flex min-h-6 items-center gap-1 rounded-xl px-3 text-sm font-semibold text-ink-500 transition hover:text-coral-700"
               >
                 <IconClose className="size-4" />
                 احذف

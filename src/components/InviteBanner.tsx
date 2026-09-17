@@ -97,7 +97,7 @@ export default function InviteBanner({ place }: { place: Place }) {
             type="button"
             onClick={accept}
             disabled={busy}
-            className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-coral-700 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-coral-800 disabled:opacity-60"
+            className="inline-flex min-h-6 items-center gap-2 rounded-2xl bg-coral-700 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-coral-800 disabled:opacity-60"
           >
             {outcome ? <IconCheck className="size-4" /> : <IconSend className="size-4" />}
             {outcome ? "رديت عليهم" : "تمام، أنا معكم"}
@@ -106,7 +106,7 @@ export default function InviteBanner({ place }: { place: Place }) {
             href={`https://www.google.com/maps/dir/?api=1&destination=${place.lat},${place.lng}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-2xl border border-line bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-coral-300 hover:text-coral-700"
+            className="inline-flex min-h-6 items-center gap-1.5 rounded-2xl border border-line bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-coral-300 hover:text-coral-700"
           >
             الطريق
             <IconGo className="size-4" />

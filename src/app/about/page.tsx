@@ -93,7 +93,7 @@ export default function AboutPage() {
       <div className="mt-12 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-line pt-6 text-sm">
         <Link
           href="/add"
-          className="flex min-h-11 items-center gap-1.5 font-semibold text-ink-700 transition hover:text-coral-700"
+          className="flex min-h-6 items-center gap-1.5 font-semibold text-ink-700 transition hover:text-coral-700"
         >
           سجّل مكانك
           <span className="rounded-full bg-palm-500/12 px-1.5 py-0.5 text-xs font-semibold text-palm-700">
@@ -102,7 +102,7 @@ export default function AboutPage() {
         </Link>
         <Link
           href="/privacy"
-          className="flex min-h-11 items-center text-ink-500 transition hover:text-coral-700"
+          className="flex min-h-6 items-center text-ink-500 transition hover:text-coral-700"
         >
           الخصوصية والكوكيز
         </Link>

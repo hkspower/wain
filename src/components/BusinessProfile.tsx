@@ -67,7 +67,7 @@ export function BusinessContact({ place }: { place: Place }) {
   if (!phone && !instagram && !website) return null;
 
   const item =
-    "flex min-h-11 items-center gap-2 rounded-xl border border-line bg-white px-4 text-sm " +
+    "flex min-h-6 items-center gap-2 rounded-xl border border-line bg-white px-4 text-sm " +
     "font-semibold text-ink-700 shadow-sm transition hover:border-sea-300 hover:text-sea-700";
 
   return (

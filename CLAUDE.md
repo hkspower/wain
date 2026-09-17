@@ -1240,8 +1240,47 @@ shell in exactly the collapse-for-a-frame described above.
 
 Asked for «ultra compact», measured, and kept the three floors that were
 explicitly ruled load-bearing: **text never below 11px, tap targets never below
-44px, text fields never below 16px.** All three are enforced by `audit:mobile`
-and the first by `audit:type`, so they are not a promise, they are a check.
+44px, text fields never below 16px.** All three were enforced by `audit:mobile`
+and the first by `audit:type`, so they were not a promise, they were a check.
+
+**Asked again, later, for more — and there was no headroom left without
+breaking one of the three.** Page-shell gutter and card spacing were already
+under 2% of a phone's height; the only lever still unused was a floor itself.
+Asked which one, specifically, and told: the tap-target floor, traded down
+from **44px (WCAG 2.5.5 AAA)** to **24px (WCAG 2.5.8 AA)** — a real published
+level, not an invented number, with its own spacing exception (24px clearance
+to the next target) rather than none. The other two floors were NOT
+renegotiated: 11px text has no lower AA-equivalent to trade down to, and 16px
+fields is a browser behaviour (iOS zooms into anything smaller), not a design
+choice this site controls. `audit:mobile` enforces 24px/24px now, in
+`MIN_TARGET_PX`/`MIN_TARGET_SPACING_PX`, and says which standard each number
+is from.
+
+Every real touch target that was sized to the old 44px floor came down to the
+new one: `min-h-11`/`min-w-11` → `min-h-6`/`min-w-6` across ~30 files (buttons,
+links, inputs — never a decorative `aria-hidden` icon badge, checked file by
+file before the bulk edit). A few needed hand-sizing rather than the bare
+floor, because they hold more than a text glyph: `ShouqCallButton`'s launcher
+is `size-8` with a `size-4` icon, not `size-6`, or the icon would touch the
+button's own edge — 32px keeps its ~45% share of the button (20/44 before,
+16/32 now) and still clears 24px with margin. `SearchClient`'s clear-search
+button sits `end-N` from that launcher; the offset was re-tuned and verified
+by rendering, not computed — `end-11` measured flush against the smaller
+button (0px gap), `end-13` measures a clean 8px.
+
+**One hardcoded 44 survived the audit-script fix and only `test:hangout`
+caught it.** `scripts/audit-mobile.mjs` reads the floor from
+`MIN_TARGET_PX` and was updated everywhere it appears; a second, independent
+assertion in `tests/search-button.test.mjs` — `box.width >= 44 && box.height
+>= 44` on the navbar's own search button — was not part of that file and kept
+the old number. The button had shrunk correctly (50×24), so the test failed
+for being stale, not for a real regression: a `scan` clean of every audit
+still shipped one browser suite red. Fixed to 24, with a comment pointing back
+at `MIN_TARGET_PX` so the next floor change knows to look here too. Worth
+keeping in mind generally: an audit script is not the only place a threshold
+can be hardcoded — a test file measuring the same thing independently is
+exactly the kind of drift `npm run scan` cannot see, because these browser
+suites are not in it.
 
 Density therefore comes from space and layout, never from shrinking the things
 themselves:

@@ -83,7 +83,7 @@ export default function ExploreClient() {
           type="button"
           onClick={() => { haptic("select"); setCategory("all"); }}
           aria-pressed={category === "all"}
-          className={`flex min-h-11 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
+          className={`flex min-h-6 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
             category === "all"
               ? "bg-ink-900 text-white shadow-sm"
               : "border border-line bg-white text-ink-600 hover:border-sea-300 hover:text-sea-700"
@@ -98,7 +98,7 @@ export default function ExploreClient() {
             type="button"
             onClick={() => { haptic("select"); setCategory(cat.id); }}
             aria-pressed={category === cat.id}
-            className={`flex min-h-11 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
+            className={`flex min-h-6 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
               category === cat.id
                 ? "bg-ink-900 text-white shadow-sm"
                 : "border border-line bg-white text-ink-600 hover:border-sea-300 hover:text-sea-700"

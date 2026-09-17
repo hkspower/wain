@@ -157,7 +157,7 @@ function TicketCard({ ticket, onForget }: { ticket: HeldTicket; onForget: () => 
               type="button"
               onClick={leave}
               disabled={leaving}
-              className="inline-flex min-h-11 items-center gap-1 rounded-xl px-3 text-sm font-semibold text-ink-500 transition hover:text-coral-700 disabled:opacity-50"
+              className="inline-flex min-h-6 items-center gap-1 rounded-xl px-3 text-sm font-semibold text-ink-500 transition hover:text-coral-700 disabled:opacity-50"
             >
               <IconClose className="size-4" />
               {leaving ? "نلغي…" : "ألغِ دوري"}
@@ -166,7 +166,7 @@ function TicketCard({ ticket, onForget }: { ticket: HeldTicket; onForget: () => 
           <button
             type="button"
             onClick={() => { forgetTicket(ticket.id); onForget(); }}
-            className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-ink-500 transition hover:text-coral-700"
+            className="inline-flex min-h-6 items-center rounded-xl px-3 text-sm font-semibold text-ink-500 transition hover:text-coral-700"
           >
             احذفه من القائمة
           </button>
@@ -215,7 +215,7 @@ export default function QueueTracker() {
         </p>
         <Link
           href="/explore"
-          className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"
+          className="mt-5 inline-flex min-h-6 items-center rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"
         >
           تصفّح الأماكن
         </Link>

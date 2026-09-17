@@ -153,14 +153,14 @@ export default function AddBusinessClient() {
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Link
             href="/explore"
-            className="inline-flex min-h-11 items-center rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"
+            className="inline-flex min-h-6 items-center rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"
           >
             شوف الأماكن
           </Link>
           <button
             type="button"
             onClick={() => { setV(EMPTY); setDone(false); }}
-            className="inline-flex min-h-11 items-center rounded-xl border border-line-control bg-white px-5 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
+            className="inline-flex min-h-6 items-center rounded-xl border border-line-control bg-white px-5 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
           >
             سجّل مكان ثاني
           </button>
@@ -224,7 +224,7 @@ export default function AddBusinessClient() {
                 role="radio"
                 aria-checked={v.category === c.id}
                 onClick={() => { haptic("tap"); set("category", c.id as CategoryId); }}
-                className={`flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition ${
+                className={`flex min-h-6 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition ${
                   v.category === c.id
                     ? "bg-ink-900 text-white"
                     : "border border-line bg-white text-ink-600 hover:border-sea-300"
@@ -261,7 +261,7 @@ export default function AddBusinessClient() {
                   aria-checked={v.priceLevel === n}
                   onClick={() => { haptic("tap"); set("priceLevel", n); }}
                   aria-label={`مستوى السعر ${toArabicDigits(n)} من ٣`}
-                  className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl text-sm font-semibold transition ${
+                  className={`flex min-h-6 flex-1 items-center justify-center gap-1.5 rounded-xl text-sm font-semibold transition ${
                     v.priceLevel === n
                       ? "bg-ink-900 text-white"
                       : "border border-line bg-white text-ink-600 hover:border-sea-300"
@@ -392,7 +392,7 @@ export default function AddBusinessClient() {
             type="button"
             onClick={useMyLocation}
             disabled={locating}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 disabled:opacity-60"
+            className="inline-flex min-h-6 items-center justify-center gap-2 rounded-xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 disabled:opacity-60"
           >
             <IconLocate className="size-4" />
             {locating ? "نحدّد موقعك…" : "خذها من موقعي"}
@@ -486,7 +486,7 @@ export default function AddBusinessClient() {
         <button
           type="submit"
           disabled={busy}
-          className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-ink-900 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-ink-800 disabled:opacity-60"
+          className="inline-flex min-h-6 items-center gap-2 rounded-xl bg-ink-900 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-ink-800 disabled:opacity-60"
         >
           <IconSparkle className="size-4" />
           {uploading || (busy ? "نرسل الطلب…" : "سجّل مكاني — مجاناً")}
