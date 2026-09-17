@@ -111,19 +111,19 @@
   /* --------------------------------------------------------------- fields -- */
 
   var MONEY = [
-    ['delivery_fee_fils', 'Delivery fee', 'What delivery costs. 0 means delivery is free for everyone.'],
-    ['free_delivery_fils', 'Free delivery over', 'Orders at or above this pay no delivery. 0 turns it off.'],
+    ['delivery_fee_fils', 'Delivery fee', '0 means free for everyone.'],
+    ['free_delivery_fils', 'Free delivery over', '0 turns it off.'],
   ]
   var COUNTS = [
-    ['return_days', 'Returns window', 'days', 'Counted from delivery, not from the order. WARNING: the shop’s pages say “14 days” in fixed text, so changing this changes what is enforced but not what customers are told.'],
-    ['cod_open_max', 'Unpaid cash orders', 'per customer', 'How many cash-on-delivery orders one phone number may have open at once.'],
-    ['review_reward_pct', 'Review reward', '%', 'The discount a customer gets for reviewing something they bought.'],
-    ['discount_max_pct', 'Discount cap', '%', 'The most any combination of discounts may take off one order.'],
+    ['return_days', 'Returns window', 'days', 'From delivery, not the order. WARNING: the shop’s pages still say “14 days” in fixed text.'],
+    ['cod_open_max', 'Unpaid cash orders', 'per customer', 'Open cash orders allowed per phone number.'],
+    ['review_reward_pct', 'Review reward', '%', 'Discount for reviewing a purchase.'],
+    ['discount_max_pct', 'Discount cap', '%', 'Most any combination may take off one order.'],
   ]
   var LISTS = [
-    ['governorates', 'Delivery areas', 'A customer outside these cannot check out. WARNING: the checkout still lists all six areas in fixed text, so removing one does not hide it — the customer fills the whole form and is refused at the last step.'],
-    ['sizes', 'Sizes', 'Which of the sizes this shop offers, in the order they appear.'],
-    ['fits', 'Fits', 'Which fits a customer may choose from.'],
+    ['governorates', 'Delivery areas', 'Outside these, checkout is refused. WARNING: the checkout still lists all six in fixed text, so removing one refuses the customer at the last step rather than hiding it.'],
+    ['sizes', 'Sizes', 'Offered, in this order.'],
+    ['fits', 'Fits', 'Offered.'],
   ]
 
   // fils -> a KWD string with three decimals, which is how this shop writes
@@ -138,8 +138,7 @@
     var h = el('h3', 'srl-h', 'Shop rules')
     card.appendChild(h)
     card.appendChild(el('p', 'srl-sub',
-      'The numbers the shop runs on. They take effect on the next order — '
-      + 'nothing needs publishing.'))
+      'Takes effect on the next order — nothing to publish.'))
 
     if (!state.rules) {
       card.appendChild(el('p', 'srl-note', 'Loading…'))

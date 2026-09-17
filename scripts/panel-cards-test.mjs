@@ -194,6 +194,30 @@ try {
       white.map((c) => `.${c.cls}`).join(', '))
   }
 
+  /* ------------------------------------------------ how much it says ------ */
+  // "make backend less text", 2026-09-17. Settings was 743 words of prose —
+  // a paragraph under every card and a hint under every field, nearly all of
+  // it explaining WHY rather than changing what the owner does. Cut to 451.
+  //
+  // A CAP, NOT A TARGET, and it is deliberately loose. Word counts are
+  // editorial: a rig that argued over eleven of them would be writing the
+  // panel's copy, which is the same objection text-style-scan records for type
+  // sizes and answers the same way — print the number, and fail only on the
+  // thing nobody would defend. 600 leaves a third again of headroom over
+  // today's 451 and still catches somebody adding three paragraphs.
+  //
+  // The count includes field labels and the governorate/size/fit chips, which
+  // are data rather than prose, so the real prose budget is smaller than the
+  // number looks.
+  const words = await p.evaluate(() => {
+    const main = document.querySelector('.admin-content') || document.querySelector('main')
+    return (main?.innerText || '').trim().split(/\s+/).filter(Boolean).length
+  })
+  console.log(`\n     Settings screen: ${words} words (was 743 before the 2026-09-17 trim, 451 after)`)
+  check(words > 0 && words <= 600,
+    'the Settings screen has not filled up with prose again',
+    `${words} words against a cap of 600`)
+
   console.log(fails ? `\n${fails} failed` : '\nall ok — one card shape, one direction, and no two overlays fighting')
 } finally {
   await browser.close()

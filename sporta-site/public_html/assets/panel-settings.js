@@ -123,12 +123,10 @@
   /* -------------------------------------------------------------- fields --- */
   // key, label, hint. The order is the order a person looks for them in.
   var FIELDS = [
-    ['phone', 'Phone, as it should be printed',
-      'Exactly as you want it to read. Spaces are kept on purpose — the dialable link is built from the digits.'],
-    ['whatsapp', 'WhatsApp number',
-      'With the country code. Stored in the one spelling the rest of the shop uses.'],
-    ['email', 'Email', 'Where the contact page and the invoice tell customers to write.'],
-    ['instagram', 'Instagram handle', 'Without the @, and not a full address — the link is built from it.'],
+    ['phone', 'Phone, as it should be printed', 'Printed exactly as typed.'],
+    ['whatsapp', 'WhatsApp number', 'With the country code.'],
+    ['email', 'Email', ''],
+    ['instagram', 'Instagram handle', 'Handle only, no @.'],
     ['address_ar', 'Address — Arabic', ''],
     ['address_en', 'Address — English', ''],
     ['hours_ar', 'Opening hours — Arabic', ''],
@@ -222,9 +220,7 @@
     c.setAttribute(MARK, 'contact')
     c.appendChild(el('h2', 'spc-h', 'Contact details'))
     c.appendChild(el('p', 'spc-sub',
-      'Shown on the contact, about, terms, privacy and returns pages, and on '
-      + 'every invoice. Leave a field empty to hide it. These are the shop’s own '
-      + 'details — nothing here reaches a customer’s record.'))
+      'Shown on the shop’s pages and on every invoice. Empty hides the field.'))
 
     var grid = el('div', 'spc-grid')
     fields = {}
@@ -276,21 +272,15 @@
       if (names.indexOf('api/setup-admin.php') >= 0) {
         p.setAttribute(MARK, 'password')
         p.textContent =
-          'Email and password, created on the server. To change the password, '
-          + 'clear the admin_users table in phpMyAdmin and reload this panel — '
-          + 'the sign-in screen then offers to create the first account, and it '
-          + 'refuses once one exists. (The old instruction here named '
-          + 'api/setup-admin.php, which is deliberately not on this server.) '
+          'To reset the password, clear the admin_users table in phpMyAdmin and '
+          + 'reload — the sign-in screen then offers to create the first account. '
           + 'Five wrong passwords lock the account for fifteen minutes.'
       } else if (names.indexOf('public_html/cats/') >= 0) {
         p.setAttribute(MARK, 'photos')
         p.textContent =
-          'Product photos live in the database, not in a folder. Upload them on '
-          + 'the Catalogue tab, on the product they belong to. Nothing on this '
-          + 'server may write files, so there is nothing to put in File Manager '
-          + '— which is what the rest of this paragraph used to say while '
-          + 'telling you to use it. Brand logos work the same way, on the '
-          + 'Brands tab.'
+          'Photos live in the database, not a folder. Upload them on '
+          + 'the Catalogue tab, on the garment they belong to. Brand logos work '
+          + 'the same way, on the Brands tab.'
       }
     }
   }

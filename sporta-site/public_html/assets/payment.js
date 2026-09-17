@@ -118,8 +118,8 @@
     if (!k) return
     idInput.value = k.tranportal_id == null ? '' : String(k.tranportal_id)
     sourceLine.textContent = k.source === 'database'
-      ? 'Using the ID saved here, in the database.'
-      : 'Using the ID in knet/config.php on the server.'
+      ? 'Using the ID saved here.'
+      : 'Using knet/config.php on the server.'
     renderPay(k.pay)
   }
 
@@ -127,8 +127,7 @@
     payBox.innerHTML = ''
     if (pay == null) {
       payBox.appendChild(el('p', 'spk-warn',
-        'pay/config.php could not be read on the server. Neither KNET nor '
-        + 'T-Pay can take a payment until it exists.'))
+        'pay/config.php could not be read — no card payment can work.'))
       return
     }
     var rows = [
@@ -147,10 +146,10 @@
     }
     payBox.appendChild(list)
     payBox.appendChild(el('p', 'spk-hint',
-      'These are filled in on the server, in pay/config.php — not here.'))
+      'Set on the server, in pay/config.php — not here.'))
     var envLine = el('p', pay.ready ? 'spk-status spk-status-ok' : 'spk-status spk-status-bad',
-      (pay.ready ? 'Ready to take payments' : 'NOT ready — cards will fail at the bank')
-      + ' — gateway environment is "' + pay.env + '" in pay/config.php.')
+      (pay.ready ? 'Ready to take payments' : 'NOT ready — cards will fail')
+      + ' · environment: ' + pay.env)
     payBox.appendChild(envLine)
   }
 
@@ -217,9 +216,8 @@
     c.setAttribute(MARK, 'payment')
     c.appendChild(el('h2', 'spk-h', 'Payment setup'))
     c.appendChild(el('p', 'spk-sub',
-      'KNET and T-Pay both go through the same CBK hosted gateway. This is '
-      + 'where the shop takes a customer’s card, and it does not work '
-      + 'until every line below is set.'))
+      'KNET and T-Pay share one CBK gateway. Cards fail until every line '
+      + 'below is set.'))
 
     var field = el('div', 'spk-field')
     field.appendChild(el('label', 'spk-label', 'KNET Tranportal ID'))

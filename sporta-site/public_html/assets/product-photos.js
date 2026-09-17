@@ -340,10 +340,9 @@
     drop.appendChild(el('div', 'spp-drop-icon', '📷'))
     drop.appendChild(el('div', 'spp-drop-text', 'Drag a folder of photographs here, or click to choose'))
     drop.appendChild(el('div', 'spp-drop-sub',
-      'A file named after a garment goes to that garment — nike-tee-1.jpg, '
-      + 'nike-tee-2.jpg and nike-tee-3.jpg all land on nike-tee, in that order. '
-      + 'Anything that matches nothing waits for you to pick a garment for it. '
-      + 'Photographs are ADDED, never replaced.'))
+      'Named after a garment goes to it — nike-tee-1.jpg, nike-tee-2.jpg land '
+      + 'on nike-tee, in order. Anything unmatched waits for you to pick. '
+      + 'Photos are ADDED, never replaced.'))
     drop.onclick = function () { input.click() }
     card.appendChild(drop)
 
@@ -377,8 +376,7 @@
       var unplaced = state.queue.filter(function (q) { return !q.slug }).length
       if (unplaced) {
         card.appendChild(el('p', 'spp-warn',
-          unplaced + ' file(s) matched no garment. Pick one for each, or they '
-          + 'stay here — nothing is uploaded to a garment nobody chose.'))
+          unplaced + ' file(s) matched no garment. Pick one for each, or they stay here.'))
       }
 
       var list = el('div', 'spp-list')
