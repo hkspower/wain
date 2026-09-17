@@ -33,7 +33,8 @@ function chk_ask(string $msg): string {
         CURLOPT_POSTFIELDS     => json_encode(['message' => $msg, 'lang' => 'en'],
                                               JSON_UNESCAPED_UNICODE),
         CURLOPT_HTTPHEADER     => ['Host: www.sporta.com.kw', 'Content-Type: application/json'],
-        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_TIMEOUT        => 8,
+        CURLOPT_CONNECTTIMEOUT => 4,
     ]);
     $body = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -62,20 +63,33 @@ $MUST_BE = [
     'i want to buy 20 shirts for my team' => 'contact',
 ];
 
+// A LINE PER QUESTION, not one echo at the end. Measured on this channel over
+// 2026-09-17: a job that gathers its answer and prints it last comes back EMPTY
+// often enough to be useless, and three publishers did exactly that while
+// having done their work. Nine paced requests is precisely the shape that
+// loses. Printed as it goes, a run that is cut short still reports what it
+// managed to ask — and a half-answer names which questions are missing.
+echo "ASSISTANT\n";
+
 $bad = [];
 foreach ($MUST_NOT as $msg => $forbidden) {
     $got = chk_ask($msg);
     // A throttled or dead endpoint is not a pass. Anything that is not a real
     // intent is reported rather than quietly counted as success.
-    if ($got === $forbidden || $got === 'none' || $got === 'unparsable'
-        || strpos($got, 'HTTP') === 0) {
-        $bad[] = substr($msg, 0, 18) . '=' . $got;
-    }
+    $ok = !($got === $forbidden || $got === 'none' || $got === 'unparsable'
+            || strpos($got, 'HTTP') === 0);
+    if (!$ok) $bad[] = substr($msg, 0, 18) . '=' . $got;
+    echo ($ok ? 'ok   ' : 'WRONG') . ' ' . substr($msg, 0, 32)
+       . ' -> ' . $got . ($ok ? '' : ' (must not be ' . $forbidden . ')') . "\n";
+    @ob_flush(); @flush();
     usleep(400000);   // the endpoint is rationed per IP; do not trip it
 }
 foreach ($MUST_BE as $msg => $want) {
     $got = chk_ask($msg);
     if ($got !== $want) $bad[] = substr($msg, 0, 18) . '=' . $got . '(want ' . $want . ')';
+    echo ($got === $want ? 'ok   ' : 'WRONG') . ' ' . substr($msg, 0, 32)
+       . ' -> ' . $got . ($got === $want ? '' : ' (want ' . $want . ')') . "\n";
+    @ob_flush(); @flush();
     usleep(400000);
 }
 
