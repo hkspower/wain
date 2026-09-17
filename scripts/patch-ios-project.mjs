@@ -78,7 +78,7 @@ const STRINGS = {
   NSMicrophoneUsageDescription:
     "عشان تتكلم مع شوق وتسألها وين تطلع.",
   NSSpeechRecognitionUsageDescription:
-    "عشان نفهم سؤالك وانت تتكلم مع شوق.",
+    "عشان نفهم سؤالك وأنت تتكلم مع شوق.",
 };
 
 /* ── Info.plist ──────────────────────────────────────────────────────────── */

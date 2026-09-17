@@ -168,7 +168,7 @@ export default function PlaceForm({
   async function updateLocationNow() {
     if (!p.id || !onUpdateLocation) return;
     if (p.lat < -90 || p.lat > 90 || p.lng < -180 || p.lng > 180) {
-      setLocMsg({ ok: false, text: "الإحداثيات غير صحيحة." });
+      setLocMsg({ ok: false, text: "الإحداثيات مو مضبوطة." });
       return;
     }
     setLocBusy(true);

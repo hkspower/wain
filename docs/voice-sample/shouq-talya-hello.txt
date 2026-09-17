@@ -1,0 +1,22 @@
+شوق, in her configured voice — a real ElevenLabs render, not a placeholder.
+
+    هلا! أنا شوق. من الحين، لما تدوّر أقول لك وش أحلى الأماكن بصوتي.
+
+That is `helloLine("شوق")` from src/lib/voice-lines.ts: the first thing she ever
+says, spoken at the moment a call connects — the sentence every caller hears
+before any question of theirs is answered.
+
+    voice   Talya  rh16DBXwtscjdPFeMBYf   (ar-omani, female, young)
+    model   eleven_multilingual_v2
+    render  6.5s · 128 kbps · 44.1 kHz mono · 121,787 bytes
+    cost    63.99 credits (≈ $0.0116)
+
+Generated 17 September through the ElevenLabs connector, same reason as the
+search-empty sample beside this file: this environment has no
+ELEVENLABS_API_KEY and so cannot run scripts/gen-voice.mjs.
+
+Same two caveats as that sample, not repeated in full here — see
+shouq-talya-search-empty.txt: 128 kbps against the library's mp3_44100_64,
+and the connector's speech tool has no stability/similarity_boost parameter,
+so this used the defaults rather than gen-voice.mjs's 0.35/0.8. Use this to
+HEAR her. Generate the library with the script.

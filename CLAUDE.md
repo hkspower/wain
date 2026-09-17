@@ -704,6 +704,12 @@ the bytes and audibly apart from the TTS bridge it is spliced into — the drift
 `docs/voice.md`'s three-way table exists to prevent. Use the connector to HEAR
 her, never to build the set.
 
+Second sample, 17 September: `helloLine("شوق")` — the first sentence she ever
+says, at the moment a call connects — rendered the same way and saved as
+`docs/voice-sample/shouq-talya-hello.mp3`. Same voice id, same model, same two
+caveats as the first sample (128 kbps, default stability/similarity_boost),
+written up in its own `.txt` rather than repeated.
+
 **The path that works is CI, and it is already written.** `deploy.yml` runs
 `node scripts/gen-voice.mjs --ci` before the build, wired to the
 `ELEVENLABS_API_KEY` secret, and a runner reaches ElevenLabs over the ordinary
@@ -1113,6 +1119,65 @@ purely: it points at what is already there rather than giving any of the three
 a second way to be triggered, which would be the same offer-drawn-twice
 mistake the call button's own placement was designed to avoid. `toArabicDigits`
 numbering, matching the result count and the rest of the site.
+
+## The Arabic prose has been read, once, on purpose
+
+`npm run audit:arabic` says so itself: it checks invisible characters, wrong-
+direction punctuation, Western digits and MSA leaking into a Kuwaiti site —
+and explicitly does NOT check spelling or grammar, because no tool can, for
+Kuwaiti. That gap had never been closed by a person either, across 3163
+Arabic runs in 81 files. It has now, for the two largest concentrations of
+hand-written prose — every field on all 52 places in `places.ts`, and every
+line in `voice-lines.ts` — plus `privacy/page.tsx` and the order/queue
+tracker copy. Nothing wrong was found in any of it.
+
+**What WAS wrong was in the audit's own "notes", which a person had never
+read past.** Two were real register slips the audit already names correctly
+— «مطلوب» in `/add`'s promise line, «غير صحيحة» in `PlaceForm.tsx` — fixed to
+the imperative and to «مو مضبوطة», matching the audit's own suggested
+correction and the rest of the site.
+
+**Five more were not typos at all, and reading them is what proved it.** The
+audit's "one word, one spelling" check folds a search-index normalisation
+(hamza and ة stripped) over the whole site's prose, and five of its seven
+flagged pairs turned out to be two DIFFERENT, correctly-spelled words that
+happen to normalise the same way:
+
+- **افتح / أفتح** — imperative "open!" (hamzat wasl, PlaceMap's «افتح في
+  خرائط جوجل») vs first person "shall I open…?" (hamzat qat', شوق asking
+  «أفتح لك صفحتها؟»). Different mood, both correct.
+- **اطلع / أطلع** — same shape: imperative "go up" (كويت تاورز's description)
+  vs first person "where should I go" (شوق's own line «وين أطلع اليوم؟»).
+- **تكفي / تكفى** — not a mood difference this time but a different WORD
+  entirely: «تكفي» is the verb "it suffices" (الجزيرة الخضراء "يكفي لنص
+  يوم"), «تكفى» is Kuwaiti slang for "please", listed as exactly that in
+  شوق's own youth-slang glossary.
+- **خلّى / خلّي** — past tense "caused" vs feminine imperative "make/let",
+  addressed to شوق in her own prompt.
+- **فله / فلة** — not a mistake to fix at all: her glossary lists both
+  spellings of the slang word on purpose, on the same line, so she
+  recognises either one from a caller.
+
+The audit's own comment already warned this would happen — «two real words
+that fold together are worth reading past» — and it was right; the finding
+here is that it was right five times out of seven, not that the check is
+noisy.
+
+**The other two were the same word, genuinely inconsistent, and are fixed:**
+«انت» → «أنت» in two `places.ts` descriptions and once in
+`patch-ios-project.mjs`'s iOS permission string — «أنت» was already the
+majority spelling everywhere else (7 uses vs 2), and standard orthography
+wants the hamza there regardless. One more turned up only after
+`scripts/wain-ai-brief.mjs` — which *generates* `docs/wain-ai-agent.md` and
+`docs/wain-ai-kb.md` from a template embedded in the script, not the other
+way round — was itself part of the source needing the same fix; `npm run
+ai:brief` regenerated both docs afterward, and `tests/shouq-brief.test.mjs`
+confirmed the regenerated KB still matches the live data. The KB file changed
+by three lines as a result, which means the committed `docs/wain-ai-kb.md` is
+now ahead of whatever commit ElevenLabs has pinned — see "The knowledge base
+is a URL pinned to a commit" above for what re-pointing it needs; two hamzas
+did not seem worth an unscheduled prompt-and-test cycle on their own; folded
+into the next KB change that does.
 
 ## Checks
 

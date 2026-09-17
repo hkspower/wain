@@ -1204,7 +1204,7 @@ export const places: Place[] = [
     // catalogue has no pharmacy. A filler verb in prose becomes an index term
     // like any other. Reworded to say the same with nothing to trip on.
     descriptionAr:
-      "مجمع تسوّق راقي في قلب العاصمة، مفتوح من السبعينات ومربوط بفنادق ومكاتب. الماركات فيه عالمية والأجواء أهدى من المولات الكبيرة، وهو أسهل خيار إذا انت بوسط المدينة.",
+      "مجمع تسوّق راقي في قلب العاصمة، مفتوح من السبعينات ومربوط بفنادق ومكاتب. الماركات فيه عالمية والأجواء أهدى من المولات الكبيرة، وهو أسهل خيار إذا أنت بوسط المدينة.",
     highlightsAr: ["ماركات عالمية", "أهدى من المولات الكبيرة", "بقلب العاصمة"],
     bestTimeAr: "أيام الأسبوع، بعد العصر",
     setting: "indoor",
@@ -1316,7 +1316,7 @@ export const places: Place[] = [
     // Outdoor, but the whole outing happens inside a car with the air
     // conditioning on — the heat does not ruin it the way it ruins a beach.
     summerOk: true,
-    seasonAr: "طول السنة — انت بالسيارة",
+    seasonAr: "طول السنة — أنت بالسيارة",
     tagsAr: ["سواقة", "بحر", "جسر", "غروب", "تصوير", "معلم", "طلعة"],
   },
   {
