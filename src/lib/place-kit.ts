@@ -2,14 +2,14 @@
  * The vocabulary a place is described in — without the places.
  *
  * This module exists because of a measured cost, not a taste for small files.
- * `places.ts` holds the 36-record catalogue AND the small things everything
+ * `places.ts` holds the 53-record catalogue AND the small things everything
  * else needs: the category list, the prep/service clamps, the Arabic-Indic
  * numerals. Importing one of those dragged in all of them.
  *
- * The Footer imports `categories`. OrdersLink imports `toArabicDigits`.
+ * SearchHub imports `categories`. OrdersLink imports `toArabicDigits`.
  * `orders.ts` and `queue.ts` import two constants, two clamps and a TYPE.
  * None of them touches a single place record — and all of them are in the
- * root layout, so every page of the site shipped all 36 places. The privacy
+ * root layout, so every page of the site shipped all 53 places. The privacy
  * page, which is two paragraphs about cookies, carried the whole catalogue.
  *
  * Nothing here may import the catalogue. That is the rule that makes the

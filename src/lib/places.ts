@@ -10,10 +10,10 @@ import { getCategory, type CategoryId } from "@/lib/place-kit";
  * moved to `place-kit.ts`, and is re-exported here so every existing import
  * keeps working unchanged.
  *
- * The reason is measured: the Footer, OrdersLink, `orders.ts` and `queue.ts`
+ * The reason is measured: SearchHub, OrdersLink, `orders.ts` and `queue.ts`
  * all import from this module and none of them reads a single place record,
  * but all four are reachable from the root layout — so every page shipped all
- * 36 places. The privacy page carried the whole catalogue to render two
+ * 53 places. The privacy page carried the whole catalogue to render two
  * paragraphs about cookies.
  *
  * Import from `@/lib/place-kit` when you need the vocabulary, and from here
