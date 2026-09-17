@@ -360,6 +360,7 @@ const factorySrc = readFileSync(FACTORY, "utf8");
 const CPP_NAME = {
   sedan: "Sedan", zx: "ZX", gtr: "GTR", rx7: "RX7",
   hatch: "Hatch", pony: "Pony", pickup: "Pickup", super: "Super",
+  suv: "SUV",
 };
 function ueRef(style) {
   // Mirrors styleEnum in scripts/export-unreal-data.mjs. A style missing

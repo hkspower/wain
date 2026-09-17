@@ -1017,6 +1017,8 @@ public static class GRNData
         new Part { Id = "sidewall-moulded", Cat = "sidewall", Price = 120 },
         new Part { Id = "lamps-smoked", Cat = "lamps", Price = 550 },
         new Part { Id = "lamps-single", Cat = "lamps", Price = 700 },
+        new Part { Id = "lamps-round", Cat = "lamps", Price = 900 },
+        new Part { Id = "lamps-laser", Cat = "lamps", Price = 1600 },
         new Part { Id = "film-dyed", Cat = "film", Price = 180 },
         new Part { Id = "film-carbon", Cat = "film", Price = 520 },
         new Part { Id = "film-mirror", Cat = "film", Price = 950 },

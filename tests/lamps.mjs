@@ -215,10 +215,27 @@ const mods = await page.evaluate(() => {
         if (p && p.height < 0.008 && p.depth < 0.012 && p.width > 0.2) screen++;
       }
     });
+    // The chrome ring is what makes a round lamp read as round, and the
+    // blade's height is what makes the laser read as a line, so both are
+    // measured off the geometry rather than taken on trust.
+    let rings = 0, lensH = null;
+    g.traverse((o) => {
+      if (!o.isMesh) return;
+      if (o.geometry?.type === "TorusGeometry") rings++;
+      if (o.name === "lamp-lens") {
+        // Measured off the geometry's own bounds, because the blade is
+        // an extruded rounded rectangle and carries no `parameters`.
+        o.geometry.computeBoundingBox();
+        const bb = o.geometry.boundingBox;
+        const h = bb.max.y - bb.min.y;
+        lensH = lensH === null ? h : Math.min(lensH, h);
+      }
+    });
     return { lamps: (g.userData.lampPositions ?? []).length, lens, core, housing, screen,
-             emissive: +Number(emissive).toFixed(2), lensColor };
+             emissive: +Number(emissive).toFixed(2), lensColor, rings, lensH };
   };
-  return { stock: read("stock"), smoked: read("smoked"), single: read("single") };
+  return { stock: read("stock"), smoked: read("smoked"), single: read("single"),
+           round: read("round"), laser: read("laser") };
 });
 
 console.log("\n=== HEADLAMP MODS ===");
@@ -242,6 +259,32 @@ console.log(`  smoked still lit ${check(mods.smoked.emissive > 0,
   "smoked lenses have no emissive at all — that is two black rectangles, not a tinted lamp")}`);
 console.log(`  smoked keeps both ${check(mods.smoked.lamps === 2,
   `a smoked car reports ${mods.smoked.lamps} beams; tinting a lamp does not remove it`)}`);
+
+// --- The two face swaps ------------------------------------------------
+//
+// Round lamps and the laser line replace the whole front end rather than
+// restyling the lamp the silhouette was drawn with, so what has to hold
+// is different from the mods above: both still throw two beams, both
+// still stack housing -> lens -> core outward, and the LINE has to be a
+// line — one lens, not a row of them, and thin enough to read as one.
+console.log(`  round two beams  ${check(mods.round.lamps === 2,
+  `round lamps report ${mods.round.lamps} beams, not 2`)}`);
+// Counted against the stock car rather than from zero: a car already
+// wears six toruses before anything is done to its lamps (exhaust tips
+// and the like), and a check that did not know that reported eight.
+const extraRings = mods.round.rings - mods.stock.rings;
+console.log(`  round is round   ${check(extraRings === 2,
+  `round lamps added ${extraRings} chrome rings, not 2 — without the ring a round lamp is a glowing dot`)}`);
+console.log(`  laser two beams  ${check(mods.laser.lamps === 2,
+  `the laser line reports ${mods.laser.lamps} beams — one source on the centreline lights the road like a motorcycle`)}`);
+console.log(`  laser is one     ${check(mods.laser.lens === 1,
+  `the laser face has ${mods.laser.lens} lenses — it is a light bar, not a line`)}`);
+console.log(`  laser is thin    ${check(mods.laser.lensH !== null && mods.laser.lensH <= 0.024,
+  `the blade is ${Math.round((mods.laser.lensH ?? 0) * 1000)} mm tall — past about 24 mm a lit strip reads as a panel rather than a line`)}`);
+console.log(`  laser is cold    ${check(mods.laser.lensColor !== mods.stock.lensColor,
+  `the laser lens is #${mods.laser.lensColor}, the same glass as the halogen stock lamp`)}`);
+console.log(`  laser has a core ${check(mods.laser.core >= 1,
+  "the blade has no filament inside it — a bare strip of emissive is a fluorescent tube")}`);
 
 
 await browser.close();

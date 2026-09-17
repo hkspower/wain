@@ -27,6 +27,7 @@ const shapeSrc = readFileSync(SHAPE_FILE, "utf8");
 const CS_NAME = {
   sedan: "Sedan", zx: "ZX", gtr: "GTR", rx7: "RX7",
   hatch: "Hatch", pony: "Pony", pickup: "Pickup", super: "Super",
+  suv: "SUV",
 };
 function unityRef(s, style) {
   const name = CS_NAME[style];

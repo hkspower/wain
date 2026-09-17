@@ -182,8 +182,15 @@ export const PARTS: Part[] = [
   { id: "sidewall-moulded", cat: "sidewall", name: "Moulded Lettering", ar: "حروف مصبوبة", price: 120, desc: "Unpainted, the way a tyre leaves the mould — there in the rubber, catching the light and nothing else. Cosmetic" },
   // Headlamps. Exclusive, because a lamp is either tinted, missing or
   // neither — you cannot smoke a headlight you have taken out.
+  //
+  // The last two are not lens treatments, they are new faces: the
+  // housings come out and something else goes in the hole. That is why
+  // they cost what they do, and why they change the car's front end on
+  // every silhouette rather than restyling the lamp it was drawn with.
   { id: "lamps-smoked", cat: "lamps", name: "Smoked Headlights", ar: "شمعات مدخنة", price: 550, desc: "Tinted lenses. Two dark slots by day, a dull amber at night — and the beam dims with them" },
   { id: "lamps-single", cat: "lamps", name: "One-Eye Delete", ar: "شمعة وحدة", price: 700, desc: "One headlight out, mesh screen over the hole. The car really does run on one beam" },
+  { id: "lamps-round", cat: "lamps", name: "Round Headlights", ar: "شمعات دائرية", price: 900, desc: "Seven-inch round lamps in chrome rings, cut into the nose. The oldest face there is, and it fits every shell in the fleet" },
+  { id: "lamps-laser", cat: "lamps", name: "Laser Line", ar: "خط ليزر", price: 1600, desc: "One cold white line across the whole nose, with a hotter filament inside it. Nothing else on the face" },
   // What is behind the lens. NOT cosmetic: the game runs from midnight to
   // ten to six and on most of the lap the only light is the one the car
   // is carrying, so how far the beam throws is how far ahead you can read
@@ -1795,7 +1802,7 @@ export interface TuneEffects {
    *  and NOT cosmetic: it decides how far ahead the driver can see. */
   bulb: Bulb;
   /** What has been done to the headlamps — see cars.ts CarColors. */
-  headlamps: "stock" | "smoked" | "single";
+  headlamps: "stock" | "smoked" | "single" | "round" | "laser";
   /** Window tint, 0-100 per cent. */
   tint: number;
   /** Which film is on the glass, or undefined for bare factory glass.
@@ -2126,7 +2133,16 @@ export function computeEffects(
           : eq.sidewall === "sidewall-moulded"
             ? "moulded"
             : undefined,
-    headlamps: eq.lamps === "lamps-smoked" ? "smoked" : eq.lamps === "lamps-single" ? "single" : "stock",
+    headlamps:
+      eq.lamps === "lamps-smoked"
+        ? "smoked"
+        : eq.lamps === "lamps-single"
+          ? "single"
+          : eq.lamps === "lamps-round"
+            ? "round"
+            : eq.lamps === "lamps-laser"
+              ? "laser"
+              : "stock",
     // The film gates the darkness. A slider with nothing bought behind
     // it leaves the car on factory glass — which is also what makes the
     // shop entry mean anything.

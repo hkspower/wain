@@ -82,8 +82,18 @@ export interface CarColors {
    *   one-eye look, and the car really does drive on one beam: the
    *   removed side is not recorded in `lampPositions`, so the engine
    *   has nothing to hang a light on there.
+   * - `round` — a pair of round lamps in chrome rings, conversion
+   *   buckets cut into the nose. Replaces whatever face the silhouette
+   *   came with, on every silhouette.
+   * - `laser` — one continuous line across the whole nose, cold white,
+   *   with a hotter filament running inside it. Also replaces the face.
+   *
+   * The last two are face swaps rather than lens treatments, which is
+   * why they are handled before the per-silhouette branch: a car with
+   * round lamps has no Z32 light bar, and pop-up doors have nothing to
+   * lift if what is under them runs the width of the car.
    */
-  headlamps?: "stock" | "smoked" | "single";
+  headlamps?: "stock" | "smoked" | "single" | "round" | "laser";
   /** Window tint, 0-100 per cent. Absent is factory glass. */
   tint?: number;
   /** Which film that tint is. Absent is bare glass — the darkness above
@@ -5270,6 +5280,16 @@ export function createCar(colors: CarColors): THREE.Group {
     headMat.color = new THREE.Color(0x1a1c20);
     headMat.emissive = new THREE.Color(0xffb257);
     headMat.emissiveIntensity = 0.42;
+  } else if (lamps === "laser") {
+    // Laser white. The stock lens is warm — 0xfff6cf, a halogen
+    // colour — and a laser lamp is the opposite end of the scale: the
+    // blue-white that makes oncoming traffic flash you. Half a stop
+    // hotter than stock, too, because a line 18 mm tall has a tenth of
+    // the lit area of a pair of lamps and would otherwise be the
+    // dimmest face in the game rather than the brightest.
+    headMat.color = new THREE.Color(0xe8f0ff);
+    headMat.emissive = new THREE.Color(0xd2e2ff);
+    headMat.emissiveIntensity = 2.1;
   }
 
   // Every lamp carries a soft bloom and a diffraction star. Sprites, so
@@ -5296,7 +5316,10 @@ export function createCar(colors: CarColors): THREE.Group {
     const flare = lamps === "smoked" ? 0.34 : 1;
     const halo = new THREE.SpriteMaterial({
       map: pointGlowTexture(),
-      color: lamps === "smoked" ? 0xffc98a : 0xfff2cc,
+      // The flare has to be the colour of the lamp behind it or the mod
+      // stops at ten metres: a laser car with a warm halo is a warm car
+      // with a cold line painted on its nose.
+      color: lamps === "smoked" ? 0xffc98a : lamps === "laser" ? 0xdceaff : 0xfff2cc,
       transparent: true,
       opacity: 0.5 * flare,
       blending: THREE.AdditiveBlending,
@@ -5312,7 +5335,7 @@ export function createCar(colors: CarColors): THREE.Group {
 
     const starMat = new THREE.SpriteMaterial({
       map: headlightStarTexture(),
-      color: lamps === "smoked" ? 0xffd9a0 : 0xfff6e0,
+      color: lamps === "smoked" ? 0xffd9a0 : lamps === "laser" ? 0xeaf2ff : 0xfff6e0,
       transparent: true,
       opacity: 0.62 * flare,
       blending: THREE.AdditiveBlending,
@@ -5385,7 +5408,106 @@ export function createCar(colors: CarColors): THREE.Group {
     group.add(core);
   };
 
-  if (style === "zx") {
+  /**
+   * Where the nose actually is at lamp height.
+   *
+   * Both face swaps below land on it rather than on `d.nose`, which is
+   * the silhouette's anchor point and not the panel: on the Z32 that
+   * difference put the lamps 100 mm inside the bumper and three cars
+   * drove the lap with no headlights on screen at all.
+   */
+  const faceY = d.noseTopY;
+  const faceZ = (noseFaceZ(bGeo, style, faceY, true) ?? d.nose) - 0.02;
+
+  if (lamps === "round") {
+    // Round headlights: the conversion, not a restyle.
+    //
+    // Every silhouette in this fleet wears a rectangular lamp, because
+    // every one of them is drawn from a machine of the decade that
+    // stopped fitting round ones. This puts them back — one 7-inch
+    // lamp a side, 190 mm across the glass, which is the size the part
+    // is really sold in.
+    const R = 0.095;
+    for (const sx of [-0.6, 0.6]) {
+      // The bucket: wider than the lamp, deeper than it, and dark. A
+      // round lamp that is not set INTO something is a headlight
+      // sticker.
+      const pan = new THREE.Mesh(new THREE.CylinderGeometry(R + 0.03, R + 0.03, 0.09, 24), housingMat);
+      pan.rotation.x = Math.PI / 2;
+      pan.position.set(sx, faceY, faceZ - 0.03);
+      pan.name = "lamp-housing";
+      group.add(pan);
+      const lens = new THREE.Mesh(new THREE.CylinderGeometry(R, R * 0.96, 0.06, 24), headMat);
+      lens.rotation.x = Math.PI / 2;
+      lens.position.set(sx, faceY, faceZ + 0.012);
+      lens.name = "lamp-lens";
+      group.add(lens);
+      // THE RING, and the ring is the entire mod. A lit cylinder is a
+      // glowing dot at any distance at all; what makes a round
+      // headlight read as ROUND is the hard bright circle of the rim
+      // around it, which is there in daylight with the lamps off and
+      // still there at night when the glass has blown out to white.
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(R + 0.013, 0.015, 8, 30), chromeLocal);
+      rim.position.set(sx, faceY, faceZ + 0.048);
+      group.add(rim);
+      // The projector sits dead centre, where a round lamp's is. On the
+      // rectangular lamps below it is set inboard, because theirs is.
+      bulb(sx, faceY, faceZ + 0.04, 0.032, 0.04);
+      addHeadGlare(sx, faceY, faceZ + 0.03, 1.05);
+    }
+  } else if (lamps === "laser") {
+    // One laser line, the full width of the nose.
+    //
+    // The Z32 bar below this is deliberately SEGMENTED, and the note
+    // beside it says why: a continuous strip of emissive is a
+    // fluorescent tube. That is true of a bar 78 mm tall. It stops
+    // being true at 20 mm — past that thinness the eye reads a LINE
+    // rather than a lit panel — and what finishes the job is the
+    // filament: a 7 mm core running the length of the blade, hotter
+    // than the glass around it. A laser lamp is a line with a brighter
+    // line inside it, and the two together are the whole look.
+    //
+    // MIND THE BEVEL. roundedBox takes its corner radius as
+    // ExtrudeGeometry's bevelSize, which grows the shape by r on EVERY
+    // side — so the numbers below are the shape, and the part that
+    // gets built is 2r taller and wider than they read. The first
+    // version asked for 18 mm and built 32, which is a panel; the test
+    // measures the bounding box for exactly this reason.
+    //
+    // Sized off flankX (the shell's own half-width) rather than a
+    // literal, so it spans the nose of a 1.76 m coupe and a 1.95 m
+    // truck alike instead of stopping short on one and hanging off the
+    // corners of the other.
+    // 0.74 rather than 0.8: at four-fifths of the half-width the blade
+    // ran into the corner markers on the saloon and the SUV, and a
+    // light bar that overlaps the indicator is one panel, not two.
+    const halfW = flankX * 0.74;
+    const ly = faceY + 0.012;
+    const lz = (noseFaceZ(bGeo, style, ly, true) ?? d.nose) - 0.02;
+    // The channel it is recessed into: 54 mm of dark as built, so there
+    // is a shadow above and below the line. Without it the blade floats
+    // on the paint.
+    const channel = new THREE.Mesh(roundedBox(halfW * 2 + 0.05, 0.03, 0.055, 0.012), housingMat);
+    channel.position.set(0, ly, lz - 0.012);
+    channel.name = "lamp-housing";
+    group.add(channel);
+    const blade = new THREE.Mesh(roundedBox(halfW * 2, 0.012, 0.05, 0.004), headMat);
+    blade.position.set(0, ly, lz + 0.012);
+    blade.name = "lamp-lens";
+    group.add(blade);
+    const filament = new THREE.Mesh(roundedBox(halfW * 2 - 0.07, 0.004, 0.04, 0.0015), headCoreMat);
+    filament.position.set(0, ly, lz + 0.03);
+    filament.name = "lamp-core";
+    group.add(filament);
+    // And the emitters, where the beam actually leaves the car. A line
+    // across the whole nose still has to throw light from two points —
+    // the engine hangs its spotlights on lampPositions, and a single
+    // source on the centreline would light the road like a motorcycle.
+    for (const sx of [-halfW * 0.55, halfW * 0.55]) {
+      bulb(sx, ly, lz + 0.038, 0.022, 0.03);
+      addHeadGlare(sx, ly, lz + 0.03, 0.85);
+    }
+  } else if (style === "zx") {
     // Z32 signature: one flush light bar across the whole nose. Pinned
     // 80 mm behind the nose anchor it was 100 mm inside the bumper — the
     // three cars on this silhouette had no headlights on screen at all.

@@ -19,10 +19,10 @@ await page.waitForFunction(() => !!window.__grnBuildCar, null, { timeout: 240000
 await page.waitForTimeout(3500);
 const b64 = await page.evaluate(async () => {
   const THREE = window.__grnThree, e = window.__grnEngine;
-  const modes = ["stock","smoked","single"];
+  const modes = ["stock","smoked","single","round","laser"];
   const W = 460, H = 360;
   const out = document.createElement("canvas");
-  out.width = W * 3; out.height = H + 30;
+  out.width = W * modes.length; out.height = H + 30;
   const octx = out.getContext("2d");
   octx.fillStyle = "#0b0e13"; octx.fillRect(0,0,out.width,out.height);
   const scene = new THREE.Scene();
