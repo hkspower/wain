@@ -160,35 +160,6 @@ export const EMBER_ON_INK = '#e2803f';
 export const EMBER_ON_ART = '#c8490f';
 
 /**
- * THE FOUR CATEGORY TILES, SOLID — asked for on 2026-09-16, replacing the
- * photograph each one used to carry. The three colours are NOT new: they are
- * the same ramp the WEBSITE already paints as a glow behind that same
- * photograph (sporta-ui.css: --brand-bright for men/women, --brand for
- * accessories, --brand-dark for outlet), promoted here from a background
- * accent to the whole tile, on both platforms, so the app and the website
- * agree on what "the men's tile" looks like. Men and women share the
- * brighter tone because the website already treats them as one accent, not
- * two — this is not a simplification, it is what the source already does.
- */
-export const CATEGORY_SOLID: Record<'men' | 'women' | 'accessories' | 'outlet', string> = {
-  men: '#ff7b17',
-  women: '#ff7b17',
-  accessories: '#e0561c',
-  outlet: '#b8430f',
-};
-
-/**
- * Text on top of one of the tiles above. White read at 6:1 or better on the
- * near-black artwork it replaces; on the SOLID tones it drops as low as
- * 2.6:1 — below AA even for a large, bold title. This ink clears 3:1 on
- * every tone for the title and 4.5:1 on every tone but the darkest for the
- * smaller kicker label — and the darkest tone (outlet) never shows the
- * kicker: it always carries the badge pill instead, which was already
- * ink-on-brand and needed no change.
- */
-export const INK_ON_CATEGORY_SOLID = '#171a1e';
-
-/**
  * ONE TYPEFACE, THREE WEIGHTS. Alexandria carries the whole app.
  *
  * It used to be Alexandria for the two display roles and IBM Plex Sans Arabic

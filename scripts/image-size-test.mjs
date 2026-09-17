@@ -71,15 +71,15 @@ const ALLOWED = [
        + 'they are a different composition from the desktop art, so a sharper '
        + 'one needs the owner to supply or re-crop it at ~1100px',
   },
+  {
+    match: /cats\/desktop\/infobar/,
+    density: 'desktop 2x',
+    ratio: 1.36,
+    why: 'the info bar is 1920px and a 1440px screen at 2x stretches it to '
+       + '2618px; it is the widest thing on the page at 9.90:1, so it needs a '
+       + '~2600px master from the owner',
+  },
 ]
-
-// cats/desktop/infobar's allowance is GONE, not merely unlisted. It was here
-// (desktop 2x, ratio 1.36) until the master was replaced at a wide enough
-// resolution that the image is no longer upscaled at any measured density —
-// this rig's own self-cleaning check found that and named the entry to
-// remove, on 2026-09-16. Deleting rather than leaving a comment is the
-// point: an allowance that outlives its reason is how a real signal gets
-// trained into noise, and this file already says so about itself above.
 
 /* ------------------------------------------------- 1. the two directories -- */
 

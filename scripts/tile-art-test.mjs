@@ -1,73 +1,42 @@
 /**
- * The category tiles: solid, square, full width, all four — 2026-09-16.
+ * The category tiles: the right format, and the right composition.
  *
  *   bash scripts/sandbox.sh
  *   node scripts/tile-art-test.mjs
  *
- * WHAT THIS FILE USED TO TEST, kept because the reasoning still matters if
- * photography ever comes back: the tile component renders TWO <picture>
- * blocks, a plain-name probe that deliberately 404s and a webp/-rtl fallback
- * that is the real artwork, and the plain name being bridged by an .htaccess
- * rewrite once meant every tile served the wrong format AND the wrong
- * composition, invisibly, because the rigs of the time only checked that
- * nothing 404d. See git history for the full account.
+ * WHAT WENT WRONG, and it took a census of every image request to see it. The
+ * tile component renders TWO <picture> blocks. The first asks for the plain
+ * name `/cats/<crop>/<id>.jpg` and carries one jpeg. Only when that ERRORS does
+ * it fall to the second — and the second is the good one: webp sources, and the
+ * `-rtl` suffix that selects the Arabic composition.
  *
- * WHAT CHANGED IT. The owner asked for all four tiles solid, square and full
- * width. sporta-ui.css now hides both <picture> blocks outright
- * (`.cat-tile picture{display:none}`) and paints a flat brand colour instead.
- * Measured before writing this: with the picture hidden, the browser makes
- * ZERO requests under /cats/ for these four tiles at all — `loading="lazy"`
- * on an element that is display:none never becomes a candidate to fetch, and
- * tile-art.js's own preflight (a plain `new Image()`, independent of the
- * DOM's lazy-loading) is now unreachable in this repository's overlay chain
- * because the elements it swaps no longer register as visible mount points a
- * MutationObserver has reason to re-check. So the RTL-composition and
- * webp-format assertions this file used to make are not merely inapplicable —
- * they test a code path that no longer runs, and a rig asserting properties
- * of dead code is the same shape as the suite that once found "0 controls,
- * 0 pressed" and read it as a passing shop. test:tile-rtl, which tested the
- * SAME feature from the other side, is retired for the identical reason —
- * see its own header.
+ * A rewrite in .htaccess used to bridge the plain name onto `art-<id>.jpg`. It
+ * was added to remove four 404s, and it did. It also meant the second block
+ * never rendered, so for as long as it existed:
  *
- * WHAT THIS FILE TESTS NOW:
+ *   every tile was JPEG          285 kB against 203 kB of webp, desktop
+ *                                212 kB against 145 kB, phone crop
+ *   Arabic got the ENGLISH frame the whole Arabic composition exists to avoid
  *
- *   1. No /cats/ request fires for the four tiles, in either language — the
- *      hide is real, not merely visual, and nobody's bandwidth is spent on a
- *      photograph nobody sees.
- *   2. Each tile's COMPUTED background-color is the expected flat brand
- *      tone — not a gradient, not the photograph's ground colour. Read
- *      per-pixel via getComputedStyle, not asserted from the class name
- *      alone, because a selector can exist and still lose to something more
- *      specific — this repository's css-audit.mjs exists for exactly that
- *      failure mode.
- *   3. Every tile is square (width equals height, aspect-ratio: 1), at a
- *      phone width and a desktop width — the shape does not depend on the
- *      viewport, since it is aspect-ratio driven rather than a fixed number.
- *   4. Every tile sits in ONE column — same horizontal position as the tile
- *      above and below it — at both widths. "Full width" was already true on
- *      phones; the grid's own 2-up desktop rule is what changed.
- *   5. The title text is legible: ink-coloured, not the near-white that was
- *      safe on near-black artwork and is not safe on a bright solid tone —
- *      site-contrast.mjs walks the whole site and would eventually say so
- *      too, but the exact ratio this rig checks is the reason the colour was
- *      picked, so it is worth stating here in the same place as the tone.
+ * Neither symptom is visible from the server, and neither rig looked: one
+ * asserted the plain name was 200 (the bridge made it so) and the other
+ * asserted nothing 404s (the bridge made that so too). A workaround can be
+ * correct and its side effects still unmeasured.
+ *
+ * SO THIS TESTS THE THING THAT MATTERS — what the browser actually fetched:
+ *
+ *   1. Every tile picture that loads is WEBP, not JPEG.
+ *   2. In Arabic the men tile fetches the -rtl frame; in English it does not.
+ *   3. The four plain-name 404s are present and are exactly four — they are how
+ *      the component finds its better path, and if they ever stop happening the
+ *      bridge is back and the two symptoms above are back with it.
+ *   4. Nothing is left broken on the page: no <img> with naturalWidth 0.
  *
  * It writes nothing.
  */
 import { chromium } from 'playwright'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:4300'
-
-// The exact tones sporta-ui.css assigns — read here as the expectation, not
-// re-derived from the stylesheet, because the stylesheet is the thing under
-// test and a check that reads its own answer from itself can never fail.
-const EXPECT = {
-  men: 'rgb(255, 123, 23)',       // --brand-bright
-  women: 'rgb(255, 123, 23)',     // --brand-bright — deliberately the same as men
-  acc: 'rgb(224, 86, 28)',        // --brand
-  outlet: 'rgb(184, 67, 15)',     // --brand-dark
-}
-const INK = 'rgb(23, 26, 30)'
 
 let fails = 0
 const check = (ok, what, detail = '') => {
@@ -79,64 +48,66 @@ const browser = await chromium.launch({
   executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
 })
 
-async function measure({ w, h, lang, label }) {
-  const page = await browser.newPage({ viewport: { width: w, height: h } })
-  // infobar.webp is a DIFFERENT picture on the same page — the promotional
-  // banner further down — and is untouched by any of this; it must keep
-  // loading, so it is excluded rather than making this check fail on it.
-  const catsHits = []
-  page.on('response', (r) => { if (/\/cats\//.test(r.url()) && !/infobar/.test(r.url())) catsHits.push(r.url()) })
-  await page.goto(`${BASE}/?lang=${lang}`, { waitUntil: 'networkidle' })
-  await page.waitForTimeout(1500)
-
-  const tiles = await page.evaluate(() => [...document.querySelectorAll('.cat-tile')].map((t) => {
-    const cs = getComputedStyle(t)
-    const r = t.getBoundingClientRect()
-    const title = t.querySelector('.cat-tile__title')
-    const pic = t.querySelector('picture')
-    return {
-      cls: [...t.classList].find((c) => /^tile-/.test(c))?.replace('tile-', ''),
-      bg: cs.backgroundColor,
-      w: r.width, h: r.height, left: Math.round(r.left),
-      titleColor: title ? getComputedStyle(title).color : null,
-      pictureHidden: pic ? getComputedStyle(pic).display === 'none' : null,
-    }
-  }))
-  await page.close()
-  return { tiles, catsHits, label }
+/** Every /cats/ request a home-page load makes, with its status. */
+async function census(url, width) {
+  const ctx = await browser.newContext({ viewport: { width, height: 900 } })
+  const page = await ctx.newPage()
+  const hits = []
+  page.on('response', (r) => {
+    const path = new URL(r.url()).pathname
+    if (path.startsWith('/cats/')) hits.push({ path, status: r.status() })
+  })
+  await page.goto(url, { waitUntil: 'networkidle' })
+  await page.waitForTimeout(3000)
+  const broken = await page.evaluate(() =>
+    [...document.images].filter((i) => i.complete && i.naturalWidth === 0).map((i) => i.src)
+  )
+  await ctx.close()
+  return { hits, broken }
 }
 
 console.log(`--- the category tiles, at ${BASE}\n`)
 
-for (const v of [
-  { w: 390, h: 900, lang: 'ar', label: 'phone, Arabic' },
-  { w: 390, h: 900, lang: 'en', label: 'phone, English' },
-  { w: 1280, h: 1200, lang: 'ar', label: 'desktop, Arabic' },
+for (const [label, url, width] of [
+  ['Arabic, desktop', `${BASE}/`, 1280],
+  ['English, desktop', `${BASE}/?lang=en`, 1280],
+  ['Arabic, phone', `${BASE}/`, 390],
 ]) {
-  const { tiles, catsHits, label } = await measure(v)
+  const { hits, broken } = await census(url, width)
+  const loaded = hits.filter((h) => h.status === 200 && /art-/.test(h.path))
+  const dead = hits.filter((h) => h.status === 404)
+  const arabic = label.startsWith('Arabic')
 
-  // Found something before concluding anything: an empty page passes every
-  // check under it.
-  check(tiles.length === 4, `${label}: found all four tiles`, `${tiles.length} found`)
-  if (tiles.length !== 4) continue
+  // 1. webp, not jpeg. infobar is excluded: it is asked for by its real name
+  // and was never part of this and must stay untouched.
+  const tiles = loaded.filter((h) => !/infobar/.test(h.path))
+  const jpegs = tiles.filter((h) => /\.jpe?g$/.test(h.path))
+  check(tiles.length >= 4, `${label}: four tiles load`, `${tiles.length} pictures`)
+  check(jpegs.length === 0, `${label}: every tile is webp`,
+    jpegs.length ? jpegs.map((j) => j.path.split('/').pop()).join(', ') : '')
 
-  check(catsHits.length === 0, `${label}: no /cats/ request for any of them — the hide is real`,
-    catsHits.length ? catsHits.slice(0, 3).join(', ') : '')
+  // 2. the composition
+  const rtl = tiles.some((h) => /art-men-rtl\./.test(h.path))
+  check(arabic ? rtl : !rtl,
+    arabic
+      ? `${label}: the men tile is the Arabic composition`
+      : `${label}: the men tile is the English composition`,
+    tiles.filter((h) => /men/.test(h.path)).map((h) => h.path.split('/').pop()).join(', '))
 
-  check(tiles.every((t) => t.pictureHidden), `${label}: every <picture> is display:none`,
-    tiles.filter((t) => !t.pictureHidden).map((t) => t.cls).join(','))
+  // 3. the deliberate 404s
+  const plain = dead.filter((h) => /\/(men|women|accessories|outlet)\.(jpe?g|webp)$/.test(h.path))
+  check(plain.length === 4,
+    `${label}: the four plain-name probes 404, as they must`,
+    `${plain.length} of them` + (plain.length !== 4 ? ' — the name bridge is back' : ''))
+  check(dead.length === plain.length,
+    `${label}: and nothing else under /cats/ 404s`,
+    dead.filter((h) => !plain.includes(h)).map((h) => h.path).join(', '))
 
-  for (const t of tiles) {
-    check(t.bg === EXPECT[t.cls], `${label}: ${t.cls} is the flat ${EXPECT[t.cls]} it should be`,
-      t.bg !== EXPECT[t.cls] ? `got ${t.bg}` : '')
-    check(Math.abs(t.w - t.h) <= 1, `${label}: ${t.cls} is square`, `${Math.round(t.w)}x${Math.round(t.h)}`)
-    check(t.titleColor === INK, `${label}: ${t.cls}'s title is ink, not white`, t.titleColor)
-  }
-
-  const lefts = new Set(tiles.map((t) => t.left))
-  check(lefts.size === 1, `${label}: all four sit in one column`, [...lefts].join(','))
+  // 4. nothing visibly broken
+  check(broken.length === 0, `${label}: every image on the page rendered`,
+    broken.slice(0, 2).join(', '))
 }
 
 await browser.close()
-console.log(fails ? `\n${fails} failed` : '\nall ok — solid, square, one column, on every tile')
+console.log(fails ? `\n${fails} failed` : '\nall ok — webp everywhere, and Arabic gets its own frame')
 process.exit(fails ? 1 : 0)
