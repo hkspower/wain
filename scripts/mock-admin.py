@@ -144,6 +144,7 @@ def _fresh():
         'contact': {'phone': '+965 2209 1914', 'whatsapp': '96522091914',
                     'email': 'cs@sporta.com.kw', 'address_ar': '', 'address_en': '',
                     'hours_ar': '', 'hours_en': '', 'instagram': ''},
+        'contact_emails': {'alternative': '', 'orders': '', 'b2b': '', 'customers': ''},
     }
     # PRODUCTS AS THE UPLOADER AND THE PRODUCT EDITOR NEED THEM. ?r=products_all
     # is where brands live and (since the product editor) the full row the
@@ -438,6 +439,10 @@ class Handler(BaseHTTPRequestHandler):
                     'governorates': ALLOWED_GOVS,
                 },
             })
+
+        if r == 'contact_emails':
+            # Mirrors admin.php: admin-only, never read by api.php.
+            return self._json(200, STATE['settings']['contact_emails'])
 
         if r == 'knet':
             # Mirrors admin.php: the saved ID, and which of the two sources is
@@ -889,6 +894,15 @@ class Handler(BaseHTTPRequestHandler):
                     'instagram': re.sub(r'[^A-Za-z0-9._]', '', str(v.get('instagram') or '')[:40]),
                 }
                 return self._json(200, STATE['settings']['contact'])
+            if name == 'contact_emails':
+                out = {}
+                for k in ('alternative', 'orders', 'b2b', 'customers'):
+                    val = str(v.get(k) or '').strip()
+                    if val and '@' not in val:
+                        return self._json(400, {'error': 'invalid_email:' + k})
+                    out[k] = val
+                STATE['settings']['contact_emails'] = out
+                return self._json(200, out)
             return self._json(400, {'error': 'unknown_setting'})
 
         if r == 'discount_save':

@@ -606,6 +606,16 @@ export type ShopRules = {
   fits: string[];
 };
 
+/** Four more addresses the owner keeps on file, exactly as ?r=contact_emails
+ *  sends them. Every field may be '' — admin-only, and never shown on the
+ *  storefront. */
+export type ContactEmails = {
+  alternative: string;
+  orders: string;
+  b2b: string;
+  customers: string;
+};
+
 /** A return or exchange request, as ?r=returns sends it. */
 type WireReturn = {
   id: number;
@@ -1494,4 +1504,19 @@ export const adminApi = {
    *  the caller must show what came back rather than assume success. */
   saveRules: (value: Partial<ShopRules>) =>
     call<ShopRules>('settings_save', { name: 'rules', value }),
+
+  // -------------------------------------------------------- contact emails
+  //
+  // Four more addresses to keep on file — an alternative, one for orders, one
+  // for B2B, one for customers — on top of the one public email `contact`
+  // already manages. ADMIN-ONLY, same as knetSettings and rules above rather
+  // than as contact/footer/theme: nothing here is read by api.php, so it does
+  // not belong on the storefront route, and none of these four change what a
+  // system email is actually sent from or to.
+  contactEmails: () => call<ContactEmails>('contact_emails'),
+
+  /** An absent field keeps what is stored. The server refuses a value that is
+   *  present and not a real address, naming the field — see admin.php. */
+  saveContactEmails: (value: Partial<ContactEmails>) =>
+    call<ContactEmails>('settings_save', { name: 'contact_emails', value }),
 };

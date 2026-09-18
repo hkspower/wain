@@ -12,6 +12,7 @@ import {
   adminApi,
   Unauthorized,
   type ContactDetails,
+  type ContactEmails,
   type FooterText,
   type PromoBar,
   type ThemeSettings,
@@ -42,6 +43,10 @@ export default function SettingsScreen() {
 
   const [bar, setBar] = useState<PromoBar | null>(null);
   const [contact, setContact] = useState<ContactDetails | null>(null);
+  // Four more addresses to keep on file — admin-only, never shown on the
+  // storefront. A separate card from Contact details above, because these are
+  // not public and saving one must not touch the other.
+  const [contactEmails, setContactEmails] = useState<ContactEmails | null>(null);
   /* Two pieces of state, not one. `knetId` is what is in the box and `knetSource`
      is where the gateway is reading from right now — and they are genuinely
      different facts. An empty box on a shop taking payments perfectly well
@@ -86,6 +91,8 @@ export default function SettingsScreen() {
   const [barNote, setBarNote] = useState<string | null>(null);
   const [contactBusy, setContactBusy] = useState(false);
   const [contactNote, setContactNote] = useState<string | null>(null);
+  const [emailsBusy, setEmailsBusy] = useState(false);
+  const [emailsNote, setEmailsNote] = useState<string | null>(null);
   const [footerBusy, setFooterBusy] = useState(false);
   const [footerNote, setFooterNote] = useState<string | null>(null);
   const [knetBusy, setKnetBusy] = useState(false);
@@ -96,12 +103,13 @@ export default function SettingsScreen() {
     setLoading(true);
     setError(null);
     Promise.all([adminApi.promoBar(), adminApi.contact(), adminApi.knetSettings(),
-                 adminApi.footer(), adminApi.theme()])
-      .then(([b, c, k, f, t]) => {
+                 adminApi.footer(), adminApi.theme(), adminApi.contactEmails()])
+      .then(([b, c, k, f, t, e]) => {
         setBar(b);
         setContact(c);
         setFooter(f);
         setTheme(t);
+        setContactEmails(e);
         setKnetId(k.tranportal_id);
         setKnetSource(k.source);
         setKnetPasswordSet(k.tranportal_password_set);
@@ -170,6 +178,33 @@ export default function SettingsScreen() {
       );
     } finally {
       setContactBusy(false);
+    }
+  };
+
+  const saveContactEmails = async () => {
+    if (!contactEmails || emailsBusy) return;
+    setEmailsBusy(true);
+    setEmailsNote(null);
+    try {
+      await adminApi.saveContactEmails(contactEmails);
+      setContactEmails(await adminApi.contactEmails());
+      setEmailsNote('Saved.');
+    } catch (e) {
+      if (e instanceof Unauthorized) return signOut();
+      const msg = String(e);
+      setEmailsNote(
+        msg.includes('invalid_email:alternative')
+          ? 'The alternative email does not look like a real address.'
+          : msg.includes('invalid_email:orders')
+            ? 'The orders email does not look like a real address.'
+            : msg.includes('invalid_email:b2b')
+              ? 'The B2B email does not look like a real address.'
+              : msg.includes('invalid_email:customers')
+                ? 'The customers email does not look like a real address.'
+                : msg,
+      );
+    } finally {
+      setEmailsBusy(false);
     }
   };
 
@@ -293,6 +328,8 @@ export default function SettingsScreen() {
     setBar((b) => (b ? { ...b, [k]: v } : b));
   const setC = <K extends keyof ContactDetails>(k: K, v: ContactDetails[K]) =>
     setContact((c) => (c ? { ...c, [k]: v } : c));
+  const setE = <K extends keyof ContactEmails>(k: K, v: ContactEmails[K]) =>
+    setContactEmails((e) => (e ? { ...e, [k]: v } : e));
   const setF = <K extends keyof FooterText>(k: K, v: FooterText[K]) =>
     setFooter((f) => (f ? { ...f, [k]: v } : f));
 
@@ -416,6 +453,56 @@ export default function SettingsScreen() {
             </ThemedText>
           )}
           <Button label="Save contact details" onPress={saveContact} busy={contactBusy} />
+        </Card>
+      )}
+
+      {contactEmails && (
+        <Card style={styles.card}>
+          <ThemedText type="heading">More emails</ThemedText>
+          <ThemedText type="caption" themeColor="textSecondary" style={styles.hint}>
+            Kept here for the owner&apos;s own record. None of these appear on
+            the shop.
+          </ThemedText>
+
+          <Field
+            label="Alternative email"
+            value={contactEmails.alternative}
+            onChangeText={(v) => setE('alternative', v)}
+            keyboardType="email-address"
+            textContentType="emailAddress"
+            autoCapitalize="none"
+          />
+          <Field
+            label="Orders email"
+            value={contactEmails.orders}
+            onChangeText={(v) => setE('orders', v)}
+            keyboardType="email-address"
+            textContentType="emailAddress"
+            autoCapitalize="none"
+          />
+          <Field
+            label="B2B email"
+            value={contactEmails.b2b}
+            onChangeText={(v) => setE('b2b', v)}
+            keyboardType="email-address"
+            textContentType="emailAddress"
+            autoCapitalize="none"
+          />
+          <Field
+            label="Customers email"
+            value={contactEmails.customers}
+            onChangeText={(v) => setE('customers', v)}
+            keyboardType="email-address"
+            textContentType="emailAddress"
+            autoCapitalize="none"
+          />
+
+          {emailsNote && (
+            <ThemedText type="label" themeColor="textSecondary" style={styles.note}>
+              {emailsNote}
+            </ThemedText>
+          )}
+          <Button label="Save emails" onPress={saveContactEmails} busy={emailsBusy} />
         </Card>
       )}
 

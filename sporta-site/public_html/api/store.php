@@ -2201,6 +2201,21 @@ const STORE_SETTING_DEFAULTS = [
         'terms_en'   => '', 'terms_ar'   => '',
         'returns_en' => '', 'returns_ar' => '',
     ],
+    // FOUR MORE EMAIL ADDRESSES the owner wanted a place to keep, on top of the
+    // one public one in `contact`. ADMIN-ONLY — unlike `contact`, `footer` and
+    // `theme`, this is never read by api.php and never appears on the
+    // storefront: every field here is empty by default and stays that way
+    // until the owner types something, and even then nothing on the shop
+    // shows it. It does not change where any system email is sent from or to
+    // — cron-fulfilment.php still reads warehouse_email from config.php, and
+    // this row does not feed it. It is a place to record addresses, not a
+    // routing table.
+    'contact_emails' => [
+        'alternative' => '',
+        'orders'      => '',
+        'b2b'         => '',
+        'customers'   => '',
+    ],
 ];
 
 function store_setting(PDO $db, string $name): array {

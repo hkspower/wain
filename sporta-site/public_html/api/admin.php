@@ -1568,6 +1568,19 @@ if ($r === 'settings_save' && $method === 'POST') {
             'instagram'  => preg_replace('/[^A-Za-z0-9._]/', '',
                                 mb_substr(trim((string)($v['instagram'] ?? '')), 0, 40)),
         ]);
+    } elseif ($name === 'contact_emails') {
+        // FOUR MORE ADDRESSES, admin-only — never shown to a shopper and never
+        // wired into what cron-fulfilment.php or store.php actually mail. Each
+        // is optional; a value that is PRESENT and not a real email is refused,
+        // same reasoning as the public contact email above: a mistyped address
+        // recorded here is one nobody will ever notice is wrong.
+        $emails = [];
+        foreach (['alternative', 'orders', 'b2b', 'customers'] as $key) {
+            $val = trim((string)($v[$key] ?? ''));
+            if ($val !== '' && store_email($val) === null) store_fail('invalid_email:' . $key);
+            $emails[$key] = $val;
+        }
+        store_setting_save($db, 'contact_emails', $emails);
     } elseif ($name === 'legal') {
         // THE POLICY PAGES' PROSE. Six fields, three pages, two languages.
         //
@@ -1757,6 +1770,14 @@ if ($r === 'rules' && $method === 'GET') {
             'governorates' => STORE_GOVERNORATES,
         ],
     ]);
+}
+
+// --------------------------------------------------------- contact_emails, read
+// ADMIN-ONLY, same reasoning as knet below rather than as contact above: this
+// is never read by api.php, so it does not belong on the storefront route —
+// a value with nowhere on the shop to appear has no business being public.
+if ($r === 'contact_emails' && $method === 'GET') {
+    store_out(store_setting($db, 'contact_emails'));
 }
 
 if ($r === 'knet' && $method === 'GET') {
