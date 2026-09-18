@@ -2261,16 +2261,57 @@ environment's egress proxy, and the manual is not in this repository. It is
 asserted in a comment and pinned by a test, which is not the same as confirmed.
 Ask the bank.
 
-**Now confirmed, 2026-09-18.** The owner supplied the manual directly —
-`sporta-site/reference/cbk-knet-tpay-gateway-integration-manual-v3.02.pdf`,
-plus KNET's own K-064 manual alongside it — rather than it needing to be
-fetched from a blocked host. Page 9, "Payment Mode Reference": `1` = KNET,
-`2` = CBK T-Pay QR, both KWD-only, in so many words. The code had it right.
+**Now confirmed, 2026-09-18.** The owner supplied the manual directly, plus
+KNET's own K-064 manual alongside it, rather than it needing to be fetched
+from a blocked host. Page 9, "Payment Mode Reference": `1` = KNET, `2` = CBK
+T-Pay QR, both KWD-only, in so many words. The code had it right.
+
+**Both manuals were briefly committed to `sporta-site/reference/` and then
+REMOVED the same day — do not re-add them.** The K-064 manual's own second
+page requires an NDA before it is shared with a third party, and its cover
+forbids reproduction without KNET's permission; the CBK manual carries the
+same "all rights reserved" framing. This repository is public. They now live
+only in the owner's own storage.
+
 **Left open by this**: the manual in hand is v3.02 and every comment in this
 codebase citing a version says v2.93; nobody has gone through the newer manual
 parameter by parameter against `pay/cbk.php` yet, only spot-checked the field
 names already in use. See `KNET.md`'s own note at its top for the fuller
 account.
+
+**A second artifact arrived the same day and was NOT committed at all.** The
+owner also supplied `API-Libraries.rar` — KNET's official `iPayPipe` Java/.NET
+library (Java `.jar` plus IKVM-bridged `.dll`s), the thing K-064 §3.2.1 calls
+the "library based" plug-in. Same restriction, same reasoning: KNET's own
+copyright notice, this repository public. It was decompiled read-only, in a
+scratch directory outside the checkout, to answer one question — see below.
+Nothing from it was ever written into this repository.
+
+**What decompiling it found, and why it matters.** `knet/knet.php` encrypts
+`trandata` with a FIXED constant IV, `'PGKEYENCDECIVSPC'`, commented "16
+bytes, fixed by KNET." The official library's `AESAlgorithm.encryptAES`
+does not do that: it builds the IV from `new IvParameterSpec(key.getBytes())`
+— the SAME Terminal Resource Key used as the AES key, not a separate fixed
+string — and `iPayPipe`'s own trandata-building method confirms `key` is set
+straight from the resource file's `resourceKey` value with nothing else
+mixed in. Checked in both directions: the decrypt path
+(`parseEncryptedRequest` → `AESAlgorithm.decryptAES`) uses the identical
+key-as-IV derivation. Nowhere in the decompiled library, and nowhere in the
+K-064 manual's text, does the string `PGKEYENCDECIVSPC` or any other
+FIXED IV appear.
+
+**This was found, not fixed.** `knet.php`'s legacy Tranportal path is the
+project's own documented fallback — never the primary route, kept tested
+rather than deleted — and nobody has ever run a real transaction through it
+to notice. Reading a decompiled library correctly is not the same as having
+tested against the live gateway with real test credentials, which this
+environment cannot reach. Rewriting the crypto on the strength of a
+decompilation alone, with no way to confirm the fix against
+`kpaytest.com.kw`, would be trading one unverified claim for another. The
+owner needs to know this before the Tranportal path is ever relied on: if the
+comment's fixed IV is wrong, every `trandata` blob this code has ever built
+would fail to decrypt at KNET's end, silently, exactly the way a wrong
+Tranportal ID already does per the section above.
 
 ## A hero slide is a ROW, not a file — and raw.githubusercontent will not take a short SHA
 

@@ -5,12 +5,14 @@ shares a hosted page, a merchant account and a set of credentials with the KNET
 half; `pay/` speaks to it and `knet/` speaks to KNET, both against the CBK
 Integration & Reference Manual v2.93.
 
-**The manual is in the repository now** — `sporta-site/reference/`, added
-2026-09-18, owner-supplied. See `KNET.md`'s own note at the top for what it
-confirmed (the `1`=KNET/`2`=T-Pay `tij_MerchPayType` mapping, previously
-asserted rather than confirmed) and what it left open (the code cites v2.93;
-the manual in hand is v3.02, and nobody has audited the newer one parameter by
-parameter against `pay/cbk.php` yet).
+**The owner supplied the manual directly, 2026-09-18** — held in the owner's
+own storage, NOT in this repository. It was briefly committed here and
+removed the same day: the manual carries an NDA/reproduction restriction and
+this repository is public. See `KNET.md`'s own note at the top for the full
+account, what it confirmed (the `1`=KNET/`2`=T-Pay `tij_MerchPayType`
+mapping, previously asserted rather than confirmed) and what it left open
+(the code cites v2.93; the manual in hand is v3.02, and nobody has audited
+the newer one parameter by parameter against `pay/cbk.php` yet).
 
 ## What changed
 

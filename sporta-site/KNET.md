@@ -1,19 +1,27 @@
 # KNET — which integration this shop has, and what you must do on the server
 
-## The primary reference is now in this repository — 2026-09-18
+## The owner supplied the primary reference — 2026-09-18, held OUTSIDE this repo
 
-`sporta-site/reference/` holds the two manuals this file, `TPAY.md`,
-`pay/cbk.php` and `pay/callback.php` had all been reasoning from without ever
-having in hand:
+The owner gave two manuals this file, `TPAY.md`, `pay/cbk.php` and
+`pay/callback.php` had all been reasoning about without ever having in hand:
+KNET's own Merchant Integration Manual (Doc K-064, v1.5, 21 Apr 2024) and the
+Commercial Bank of Kuwait's hosted KNET & T-Pay gateway manual (v3.02).
 
-- `knet-K-064-merchant-integration-manual-v1.5.pdf` — KNET's own Merchant
-  Integration Manual (Doc K-064, 21 Apr 2024), covering the legacy Tranportal
-  route this shop actually uses.
-- `cbk-knet-tpay-gateway-integration-manual-v3.02.pdf` — the Commercial Bank
-  of Kuwait's hosted KNET & T-Pay gateway manual, covering the fallback route
-  below. The owner supplied both; treat them as the **primary source** for
-  anything this file, `TPAY.md` or the `pay/`/`knet/` code claims about either
-  gateway, ahead of any comment in the code.
+**They were committed to `sporta-site/reference/` for a few minutes and then
+removed — do not put them back.** Both carry an explicit restriction: the
+K-064 manual's own second page says *"it is imperative that 3rd
+parties/merchants have signed an NDA before sharing this document with
+them,"* and its cover states it may not be reproduced without KNET
+Management's express permission; the CBK manual carries the same "all rights
+reserved" framing. **This repository is public**, which is precisely the
+situation that sentence is about. They now live only in the owner's own
+storage, outside version control — ask the owner directly if you need to
+re-read them, do not re-attach or re-commit a copy on the strength of "it was
+here before."
+
+What follows is safe to keep: FACTS drawn from the manuals, stated without
+quoting their text at length, the same way this file already treats KNET's
+nomination letter and other credentialed material it cannot reproduce.
 
 **One long-standing gap is now closed.** `KNET.md`'s own history records that
 the `tij_MerchPayType` mapping — `1` for KNET, `2` for T-Pay QR — was "asserted
