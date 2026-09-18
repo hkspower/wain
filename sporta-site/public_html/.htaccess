@@ -581,7 +581,11 @@ FileETag MTime Size
   # caching this whole mechanism exists to prevent. Fixed by matching
   # sw-version-test.mjs's own looksHashed() exactly rather than a second,
   # divergent implementation of the same idea.
-  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|apple-signin|panel-settings|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme|nav-menu|brand-strip|legal-pages|legal-editor|admin-mobile|essentials|payment|assistant-icon|invoices|checkout-tap-targets|trust-strip|footer-payment-icons|force-password-notice|first-admin)\.js$">
+  # panel-tabbar-fade.js is the twenty-seventh, 2026-09-18 — added in the
+  # same commit as the file this time, which the rig fix above is what makes
+  # possible: it is a hyphenated multi-word name of exactly the kind the old
+  # looksHashed() would have swallowed.
+  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|apple-signin|panel-settings|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme|nav-menu|brand-strip|legal-pages|legal-editor|admin-mobile|essentials|payment|assistant-icon|invoices|checkout-tap-targets|trust-strip|footer-payment-icons|force-password-notice|first-admin|panel-tabbar-fade)\.js$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 
