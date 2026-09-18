@@ -224,7 +224,21 @@ def _fresh():
             'next_image': 5,
             'next_discount': 3, 'settings': settings, 'returns': returns,
             'otp_enabled': False, 'otp_code': None,
-            'password': PASSWORD, 'must_change_password': False}
+            'password': PASSWORD, 'must_change_password': False,
+            # Two seeded rows, not zero and not generated from every write the
+            # mock happens to handle — mirroring the real shutdown hook's
+            # for-every-route behaviour here would be a second implementation
+            # of it, in Python, with no admin-live-test.mjs to keep it honest.
+            # This is fixture data for admin-smoke.mjs's browser rig to find
+            # something on screen; the real logging is proven against the
+            # real admin.php in admin-live-test.mjs instead.
+            'audit_log': [
+                {'id': 2, 'admin_email': EMAIL, 'route': 'set_stock', 'status_code': 200,
+                 'summary': {'sku': 'DEMO-SKU-M', 'stock': 12}, 'created_at': '2026-09-18 09:41:00'},
+                {'id': 1, 'admin_email': EMAIL, 'route': 'settings_save', 'status_code': 200,
+                 'summary': {'name': 'knet', 'value': {'tranportal_id': '626101', 'tranportal_password': '[redacted]'}},
+                 'created_at': '2026-09-18 09:30:00'},
+            ]}
 
 
 # The sets a rule list may be drawn from, and the shipped defaults. Kept beside
@@ -387,6 +401,9 @@ class Handler(BaseHTTPRequestHandler):
 
         if r == 'variants':
             return self._json(200, STATE['variants'])
+
+        if r == 'audit_log':
+            return self._json(200, {'rows': STATE['audit_log']})
 
         if r == 'products_all':
             return self._json(200, STATE['products'])

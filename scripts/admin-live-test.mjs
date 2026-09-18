@@ -660,6 +660,64 @@ check(ungated.status === 200, `and an ordinary route works again, unforced (${un
 execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta', '-e',
   `update admin_users set password_hash='${await hashPassword(PASSWORD)}' where email='${EMAIL}'`])
 
+// --- the audit log: one hook, not fifty ------------------------------------
+//
+// store_admin_audit_log() is never called directly by any route — the
+// coverage here is of the register_shutdown_function() hook admin.php
+// registers once, right after the gate, which is the whole point: this
+// proves an ORDINARY save route this file has never named gets logged
+// without admin.php having been told to log it, and that a FAILED one and
+// an UNKNOWN route both correctly log nothing.
+execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta', '-e', 'delete from admin_audit_log'])
+
+const variantsList = await call("variants")
+const sampleSku = variantsList.body?.[0]?.sku
+check(!!sampleSku, `a real sku exists to exercise the hook with (${sampleSku})`)
+
+const badSave = await call('set_stock', { sku: 'NOT-A-REAL-SKU', stock: 5 })
+check(badSave.status !== 200, `a failing save is refused (${badSave.status})`)
+
+const goodSave = await call('set_stock', { sku: sampleSku, stock: 13 })
+check(goodSave.status === 200, `and a real one succeeds (${goodSave.status})`)
+
+const unknown = await call('this_route_does_not_exist', { x: 1 })
+check(unknown.status === 404, `an unknown route 404s rather than matching nothing silently (${unknown.status})`)
+
+const secretSave = await call('settings_save', {
+  name: 'knet', value: { tranportal_password: 'SUPER-SECRET-BANK-PASSWORD' },
+})
+check(secretSave.status === 200, `a save carrying a secret field succeeds (${secretSave.status})`)
+
+const log = await call('audit_log')
+const routes = (log.body?.rows ?? []).map((r) => r.route)
+check(routes.includes('set_stock'), `the successful save is logged (${routes.join(',')})`)
+check(!routes.includes('this_route_does_not_exist'),
+  'the unknown route is NOT logged — nothing ran, so nothing to log')
+const badRow = (log.body?.rows ?? []).find((r) => r.route === 'set_stock' && r.summary?.sku === 'NOT-A-REAL-SKU')
+check(!badRow, 'the FAILED save is not logged either — only 2xx responses are')
+
+const stockRow = (log.body?.rows ?? []).find((r) => r.route === 'set_stock' && r.summary?.sku === sampleSku)
+check(stockRow?.summary?.stock === 13, `and its summary carries the real values (stock=${stockRow?.summary?.stock})`)
+check(stockRow?.admin_email === EMAIL, `attributed to the account that made it (${stockRow?.admin_email})`)
+
+const secretRow = (log.body?.rows ?? []).find((r) => r.route === 'settings_save')
+check(secretRow?.summary?.value?.tranportal_password === '[redacted]',
+  `a secret field is redacted, never the value (${JSON.stringify(secretRow?.summary)})`)
+
+// A second signal that must_change_password's own gate covers audit_log too
+// — asserted here rather than assumed, since the flag test above ran before
+// this route existed in this file.
+execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta', '-e',
+  `update admin_users set must_change_password = 1 where email='${EMAIL}'`])
+const gatedAudit = await call('audit_log')
+check(gatedAudit.status === 428, `audit_log itself is gated like any other route while flagged (${gatedAudit.status})`)
+execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta', '-e',
+  `update admin_users set must_change_password = 0 where email='${EMAIL}'`])
+
+// Tidy: leaves the table as this run found it, and the stock claim as the
+// earlier tests left it.
+execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta', '-e', 'delete from admin_audit_log'])
+
 // --- out ------------------------------------------------------------------
 await call('logout', {})
 const after = await call('me')

@@ -1858,6 +1858,84 @@ function store_admin_grant(PDO $db, array $u): void {
     $_SESSION['seen_at'] = time();
 }
 
+// ======================================================== admin audit log
+//
+// ONE HOOK, not fifty. admin.php has roughly fifty `$r === '...' && $method
+// === 'POST'` save routes and no dispatch table wrapping them — a bare list
+// of `if` blocks, each calling store_out() itself. Asking every one of them
+// to also call a logging function is the shape this project has already
+// named and distrusted more than once: "a rule recorded per-site instead of
+// enforced centrally" is how track-guard.js, brand-logos.js and rules.js all
+// went unwatched by the cache rule for a while after they landed, and a save
+// route is exactly as easy to add without remembering a second call.
+//
+// So this hooks register_shutdown_function() ONCE, from admin.php right
+// after the admin gate, and reads back http_response_code() — which PHP
+// keeps queryable with no argument — after the route has already run and
+// exited through store_out(). A shutdown function fires even after exit(),
+// which is what every route already does, so this needs no cooperation from
+// any of them and cannot be skipped by a route that forgets to call it.
+//
+// Registered by admin.php, not called from inside store_require_admin() or
+// store_out(): the latter is shared with api.php's customer-facing routes,
+// and this table has no reason to hold "a shopper filled in a return form".
+
+function store_admin_audit_redact($v) {
+    // CREDENTIALS ONLY — cost_aed and every other business figure stay, on
+    // purpose. Whoever can read this log is already an admin who can open
+    // Stock and see the same wholesale cost directly; redacting it here would
+    // cost the log's whole point (what was this changed TO) for no security
+    // this table's own access control was not already providing.
+    static $SENSITIVE = [
+        'password', 'new_password', 'new_password2', 'code',
+        'tranportal_password', 'resource_key', 'client_secret',
+        'credential', 'id_token', 'otp',
+    ];
+    if (is_array($v)) {
+        $out = [];
+        foreach ($v as $k => $vv) {
+            $out[$k] = (is_string($k) && in_array(strtolower($k), $SENSITIVE, true))
+                ? '[redacted]'
+                : store_admin_audit_redact($vv);
+        }
+        return $out;
+    }
+    // Caps a photo upload's base64 body at 120 bytes plus a length marker —
+    // "…(812000b)" says a photo was posted without putting one in the log.
+    if (is_string($v) && strlen($v) > 120) {
+        return substr($v, 0, 117) . '…(' . strlen($v) . 'b)';
+    }
+    return $v;
+}
+
+// $body is passed in rather than re-read here: store_body() reads
+// php://input, which is repeatable for a JSON body (this API sends nothing
+// else) but there is no reason to decode it twice when the caller already has
+// it decoded.
+function store_admin_audit_log(array $admin, string $route, int $statusCode, array $body): void {
+    try {
+        $db = store_db();
+        $db->prepare(
+            'insert into admin_audit_log (admin_id, admin_email, route, status_code, summary)
+             values (?, ?, ?, ?, ?)'
+        )->execute([
+            $admin['id'] ?? null,
+            (string) ($admin['email'] ?? ''),
+            $route,
+            $statusCode,
+            $body ? json_encode(store_admin_audit_redact($body), JSON_UNESCAPED_UNICODE) : null,
+        ]);
+    } catch (Throwable $e) {
+        // AN OLDER SHOP, NOT YET MIGRATED. This table is additive SQL, same as
+        // must_change_password and email OTP before it — a shop upgraded
+        // rather than freshly installed may not have it yet, and a save
+        // succeeding is what matters; the log is a record of it, not a
+        // precondition for it. Never surfaced to the admin who just saved
+        // something real.
+        error_log('admin_audit_log: could not write (' . $e->getMessage() . ')');
+    }
+}
+
 // Step two: the six digits.
 //
 // FIVE MINUTES to type them. A pending marker that never expired would sit in

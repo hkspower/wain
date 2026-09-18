@@ -156,6 +156,22 @@ export interface StockItem {
   stock: number;
 }
 
+export interface AuditLogRow {
+  id: number;
+  /** Denormalised on the server — this account may since have been renamed
+   *  or removed; the row still says who it was at the time. */
+  adminEmail: string;
+  /** The raw ?r= route name, e.g. 'set_stock', 'product_save'. */
+  route: string;
+  statusCode: number;
+  /** A REDACTED, TRUNCATED rendering of the request body — the server
+   *  already stripped password/code/secret-shaped fields at any depth and
+   *  capped every value at 120 bytes. Shape varies by route; this is
+   *  whatever that route's body happened to be, for a person to read. */
+  summary: Record<string, unknown> | null;
+  createdAt: string;
+}
+
 /** Thrown for an expired or rejected session, so callers can sign out on it
  *  rather than string-matching a message. */
 export class Unauthorized extends Error {
@@ -794,6 +810,35 @@ export const adminApi = {
       throw e;
     }
   },
+
+  /** Every admin write, newest first — the shutdown hook admin.php registers
+   *  right after the gate writes one for every save route without any of
+   *  them calling anything themselves, so this covers routes this file has
+   *  never heard of as much as the ones it has. `beforeId` pages backward
+   *  through history rather than asking for a live feed to agree with
+   *  itself while more rows are still landing. */
+  auditLog: (beforeId?: number) =>
+    // ALWAYS the `audit_log&before_id=` shape, never a plain 'audit_log' in
+    // one branch and this in another — admin-contract-test.mjs extracts the
+    // route name by matching the literal up to the first `&`, the same way
+    // it already reads items's `items&order=${id}`, and a ternary that put a
+    // bare 'audit_log' in one branch would still pass at a glance while
+    // silently never being checked: the extractor's regex requires the
+    // FIRST character after `call(` to be a quote or backtick, and
+    // `beforeId ? ... : ...` starts with neither.
+    call<{ rows: Array<{
+      id: number; admin_email: string; route: string; status_code: number;
+      summary: Record<string, unknown> | null; created_at: string;
+    }> }>(`audit_log&before_id=${beforeId ?? ''}`).then((res) => ({
+      rows: res.rows.map((r) => ({
+        id: r.id,
+        adminEmail: r.admin_email,
+        route: r.route,
+        statusCode: r.status_code,
+        summary: r.summary,
+        createdAt: r.created_at,
+      }) satisfies AuditLogRow),
+    })),
 
   /** The dashboard: today's takings from ?r=stats, what is running out from
    *  ?r=variants. Two requests, because that is what the server offers. */

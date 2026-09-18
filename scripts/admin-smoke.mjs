@@ -233,6 +233,14 @@ await p.waitForTimeout(1200)
 check((await seen(p.getByText('rejected')).count()) > 0, 'and the rejection sticks')
 await shot('returns')
 
+// --- activity: the read side of the audit-log hook ------------------------
+await p.getByRole('link', { name: 'Activity' }).click()
+await p.waitForTimeout(900)
+check((await seen(p.getByText('set_stock')).count()) > 0, 'the activity log shows a route by name')
+check((await seen(p.getByText(/tranportal_password.*redacted/)).count()) > 0,
+  'and a redacted secret reads as [redacted], never the value')
+await shot('activity')
+
 // --- it persists, and it drops a dead token ------------------------------
 await p.goto(BASE + '/backends', { waitUntil: 'networkidle' })
 await p.waitForTimeout(900)

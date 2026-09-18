@@ -145,6 +145,30 @@ create table if not exists admin_users (
   created_at    timestamp not null default current_timestamp
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
+-- Every admin write, in one place — see the comment beside
+-- store_admin_audit_log() in api/store.php for how a row lands here without
+-- every one of admin.php's ~50 save routes calling anything themselves.
+create table if not exists admin_audit_log (
+  id           int unsigned auto_increment primary key,
+  -- DENORMALISED. admin_users can outlive this row's account (a rename, a
+  -- deleted colleague), and the log's whole job is to say who did something
+  -- at the time — not to point at whoever currently holds that id. No
+  -- foreign key, for the same reason: this table must go on accepting rows
+  -- even if admin_users is ever migrated out from under it.
+  admin_id     int unsigned null,
+  admin_email  varchar(120) not null,
+  route        varchar(64) not null,
+  status_code  smallint unsigned not null,
+  -- A REDACTED, TRUNCATED rendering of the request body — never the raw one.
+  -- store_audit_redact() strips password/code/secret-shaped fields by name at
+  -- any depth and caps every value at 120 bytes, so a photo upload's base64
+  -- payload becomes "…(812000b)" rather than 800KB in a log row.
+  summary      text null,
+  created_at   timestamp not null default current_timestamp
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create index if not exists idx_audit_created on admin_audit_log (created_at);
+
 -- The transactional outbox — see FULFILMENT.md for the design,
 -- same reasoning: the message row is written in the order's own transaction so
 -- an order cannot exist without its warehouse message, and sending is a

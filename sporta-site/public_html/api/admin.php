@@ -367,6 +367,31 @@ if ($r === 'me') {
 // lock the owner out of their own recovery.
 $admin = store_require_admin(in_array($r, ['account', 'account_update'], true));
 
+// --------------------------------------------------------------- audit log
+//
+// ONE HOOK for every save route below, rather than one call added to each —
+// see store_admin_audit_log()'s own comment in store.php for why a save
+// route here is exactly the kind of thing this project has already watched
+// go unwatched before.
+//
+// ob_start() is what makes "did a route actually answer" a fact this can
+// read rather than guess. A POST naming an unknown $r matches none of the
+// `if ($r === ...)` blocks below and falls off the end of the file having
+// echoed nothing — PHP's response code still defaults to 200, so reading
+// http_response_code() alone cannot tell that apart from a real save that
+// succeeded. Buffering the output and checking whether anything was written
+// to it can: store_out() always echoes a body before it exits, so an empty
+// buffer means no route ran, whatever the code says.
+ob_start();
+register_shutdown_function(function () use ($admin, $r, $method) {
+    $body = ob_get_clean();
+    echo $body;   // unchanged for the client — buffering must not eat the response
+    if ($method !== 'POST' || $body === '') return;
+    $code = http_response_code();
+    if ($code < 200 || $code >= 300) return;
+    store_admin_audit_log($admin, $r, $code, store_body());
+});
+
 // --------------------------------------------------------------------- stats
 // Same columns as admin_order_stats — Overview reads these keys by name.
 if ($r === 'stats') {
@@ -2919,6 +2944,27 @@ if ($r === 'acc_account_save' && $method === 'POST') {
                                           type = values(type), normal_side = values(normal_side)')
        ->execute([$code, $nameEn, $nameAr, $type, $side]);
     store_out(['ok' => true]);
+}
+
+// ------------------------------------------------------------- audit log
+//
+// The read side of store_admin_audit_log(). `before_id` pages backward
+// through it — the newest 100 by default, or the 100 older than a given id,
+// which is a page of history rather than a live feed that has to agree with
+// itself while more rows are still being written.
+if ($r === 'audit_log') {
+    $beforeId = (int) ($_GET['before_id'] ?? 0);
+    $q = $beforeId > 0
+        ? $db->prepare('select id, admin_email, route, status_code, summary, created_at
+                          from admin_audit_log where id < ? order by id desc limit 100')
+        : $db->prepare('select id, admin_email, route, status_code, summary, created_at
+                          from admin_audit_log order by id desc limit 100');
+    $q->execute($beforeId > 0 ? [$beforeId] : []);
+    $rows = array_map(function ($row) {
+        $row['summary'] = $row['summary'] !== null ? json_decode($row['summary'], true) : null;
+        return $row;
+    }, $q->fetchAll());
+    store_out(['rows' => $rows]);
 }
 
 store_fail('not_found', 404);

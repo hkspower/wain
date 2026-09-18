@@ -83,6 +83,10 @@ export function AdminShell({
     // Settings: these nine numbers are ONE policy the server checks against
     // itself, so they save together, and Settings saves each card separately.
     ['/backends/rules', 'Shop rules'],
+    // Last, because it is the one screen nobody opens to DO something — every
+    // other entry here is a job; this is the record of every job already
+    // done, by anyone, anywhere in the panel.
+    ['/backends/activity', 'Activity'],
   ];
 
   return (

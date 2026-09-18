@@ -668,6 +668,13 @@
          checkout that dies on its last step. -->
     <script src="/assets/rules.js" defer></script>
 
+    <!-- Every admin write, on the Settings screen — the read side of the
+         shutdown hook admin.php registers right after the admin gate.
+         Covers every save route, including ones this file has never heard
+         of by name, because the hook reads back what happened rather than
+         being told by each route. -->
+    <script src="/assets/activity-log.js" defer></script>
+
     <!-- A banner telling the owner to replace a cron-set temporary password.
          admin.php refuses every route but ?r=account and ?r=account_update
          with HTTP 428 once must_change_password is set — see
