@@ -2282,7 +2282,8 @@ if ($r === 'return_status' && $method === 'POST') {
 // not whoever the browser happens to belong to.
 
 if ($r === 'account') {
-    $q = $db->prepare('select email, phone, totp_enabled, last_login_at from admin_users where id = ?');
+    $q = $db->prepare('select email, phone, totp_enabled, email_otp_enabled, last_login_at
+                         from admin_users where id = ?');
     $q->execute([$admin['id']]);
     $u = $q->fetch();
     if (!$u) store_fail('account_not_found', 404);
@@ -2290,6 +2291,13 @@ if ($r === 'account') {
         'email' => $u['email'],
         'phone' => $u['phone'],
         'totp'  => (int)$u['totp_enabled'] === 1,
+        // Missing until now — the Security screen needs to tell an admin
+        // which second factor is on, and me()'s own `totp` field only ever
+        // answered half that question. TOTP wins where both are enrolled
+        // (store_login() checks it first), so both are reported rather than
+        // one collapsed answer that would hide an email code an admin had
+        // turned on and then forgotten, believing TOTP was the only door.
+        'email_otp' => (int)($u['email_otp_enabled'] ?? 0) === 1,
         'last_login_at' => $u['last_login_at'],
     ]);
 }

@@ -241,6 +241,27 @@ check((await seen(p.getByText(/tranportal_password.*redacted/)).count()) > 0,
   'and a redacted secret reads as [redacted], never the value')
 await shot('activity')
 
+// --- security: the four cards, and a real TOTP round trip -----------------
+await p.getByRole('link', { name: 'Security' }).click()
+await p.waitForTimeout(900)
+check((await seen(p.getByText('Email and phone')).count()) > 0, 'the contact card is there')
+check((await seen(p.getByText('Authenticator app')).count()) > 0, 'so is the authenticator card')
+check((await seen(p.getByText('Emailed code')).count()) > 0, 'and the emailed-code card')
+
+const pwFields = await p.getByLabel('Current password').all()
+check(pwFields.length === 4, `each of the four cards has its own current-password field (${pwFields.length})`)
+await pwFields[2].fill('correct horse')
+await p.getByRole('button', { name: 'Turn on' }).first().click()
+await p.waitForTimeout(700)
+check((await seen(p.getByText('MOCKSECRETMOCKSECRET')).count()) > 0,
+  'turning TOTP on shows a manual-entry secret, not a QR nothing here can render')
+await p.getByLabel('Code from the app').fill('424242')
+await p.getByRole('button', { name: 'Confirm' }).first().click()
+await p.waitForTimeout(900)
+check((await seen(p.getByText('Authenticator app — on')).count()) > 0,
+  'and confirming a real code turns it on')
+await shot('security')
+
 // --- it persists, and it drops a dead token ------------------------------
 await p.goto(BASE + '/backends', { waitUntil: 'networkidle' })
 await p.waitForTimeout(900)

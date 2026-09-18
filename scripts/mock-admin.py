@@ -225,6 +225,8 @@ def _fresh():
             'next_discount': 3, 'settings': settings, 'returns': returns,
             'otp_enabled': False, 'otp_code': None,
             'password': PASSWORD, 'must_change_password': False,
+            'email': EMAIL, 'phone': None,
+            'totp_enabled': False, 'totp_secret': None,
             # Two seeded rows, not zero and not generated from every write the
             # mock happens to handle — mirroring the real shutdown hook's
             # for-every-route behaviour here would be a second implementation
@@ -354,7 +356,8 @@ class Handler(BaseHTTPRequestHandler):
             # two routes that CLEAR the flag. A mock that also gated on it
             # would be unable to reproduce the one scenario account_update
             # exists for.
-            return self._json(200, {'email': EMAIL, 'phone': None, 'totp': False})
+            return self._json(200, {'email': STATE['email'], 'phone': STATE['phone'],
+                                     'totp': STATE['totp_enabled'], 'email_otp': STATE['otp_enabled']})
 
         # Same 428 (not 401/403 — see admin.ts's own comment on why) every
         # OTHER GET route answers on the real server while the flag is set.
@@ -560,6 +563,13 @@ class Handler(BaseHTTPRequestHandler):
             # neither TOTP nor the email OTP is on.
             if b.get('password') != STATE['password']:
                 return self._json(401, {'error': 'bad_password'})
+            changed = False
+            if 'email' in b:
+                STATE['email'] = b['email']
+                changed = True
+            if 'phone' in b:
+                STATE['phone'] = b['phone']
+                changed = True
             new = b.get('new_password') or ''
             if new:
                 if len(new) < 12:
@@ -569,7 +579,37 @@ class Handler(BaseHTTPRequestHandler):
                 STATE['password'] = new
                 STATE['must_change_password'] = False
                 return self._json(200, {'ok': True, 'signed_out': True}, clear_cookie=True)
+            if changed:
+                return self._json(200, {'ok': True})
             return self._json(422, {'error': 'nothing_to_update'})
+
+        if r == 'totp_begin':
+            if STATE['totp_enabled']:
+                return self._json(409, {'error': 'already_enrolled'})
+            if b.get('password') != STATE['password']:
+                return self._json(401, {'error': 'bad_password'})
+            STATE['totp_secret'] = 'MOCKSECRETMOCKSECRET'
+            return self._json(200, {'secret': STATE['totp_secret'],
+                                     'uri': 'otpauth://totp/Sporta:' + STATE['email'] + '?secret=' + STATE['totp_secret']})
+
+        if r == 'totp_enable':
+            if not STATE['totp_secret']:
+                return self._json(409, {'error': 'not_started'})
+            if b.get('code') != '424242':
+                return self._json(401, {'error': 'bad_code'})
+            STATE['totp_enabled'] = True
+            return self._json(200, {'ok': True, 'totp': True})
+
+        if r == 'totp_disable':
+            if not STATE['totp_enabled']:
+                return self._json(409, {'error': 'not_enrolled'})
+            if b.get('password') != STATE['password']:
+                return self._json(401, {'error': 'bad_password'})
+            if b.get('code') != '424242':
+                return self._json(401, {'error': 'bad_code'})
+            STATE['totp_enabled'] = False
+            STATE['totp_secret'] = None
+            return self._json(200, {'ok': True, 'totp': False})
 
         # Same 428 every OTHER POST route answers on the real server while the
         # flag is set — account_update above is the one exception.

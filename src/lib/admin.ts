@@ -778,6 +778,68 @@ export const adminApi = {
   otpDisable: (password: string, code: string) =>
     call<{ ok: true; email_otp: false }>('otp_disable', { password, code }),
 
+  // ------------------------------------------------- the authenticator app
+  //
+  // Same three-step ceremony as the emailed code, for the same reason: the
+  // secret is stored the moment totpBegin() is called, but totp stays OFF
+  // until a real code from the phone proves the scan worked — enabling
+  // first and confirming later is how a mistyped QR locks an owner out.
+
+  /** Mints a secret and hands back the otpauth:// URI. No QR renderer ships
+   *  here, so the screen offers `secret` as a manually-typed code — every
+   *  authenticator app accepts one as the alternative to scanning, and it is
+   *  one dependency fewer for six digits nobody needs a picture of. */
+  totpBegin: (password: string) =>
+    call<{ secret: string; uri: string }>('totp_begin', { password }),
+
+  totpEnable: (code: string) => call<{ ok: true; totp: true }>('totp_enable', { code }),
+
+  totpDisable: (password: string, code: string) =>
+    call<{ ok: true; totp: false }>('totp_disable', { password, code }),
+
+  /** The Security screen's own detail view — email, phone, WHICH second
+   *  factor is on (me() only ever answered totp, not the emailed code, which
+   *  is exactly the gap that let an account with just the emailed factor
+   *  read as "no second factor" to anyone who only checked that one field)
+   *  and when this account last signed in. */
+  account: () =>
+    call<{ email: string; phone: string | null; totp: boolean; email_otp: boolean; last_login_at: string | null }>(
+      'account',
+    ).then((r) => ({
+      email: r.email,
+      phone: r.phone,
+      totp: r.totp,
+      emailOtp: r.email_otp,
+      lastLoginAt: r.last_login_at,
+    })),
+
+  /** The general form of accountUpdate() below — email and/or phone and/or a
+   *  new password, any subset, each independent on the server
+   *  (array_key_exists, not `?? ''`) so passing only `phone` leaves the email
+   *  and password untouched. Costs the current password and a fresh code,
+   *  same as every other change to who can sign in.
+   *
+   *  A password CHANGE still ends every session including this one — see
+   *  accountUpdate()'s own note — so the caller must watch for
+   *  `signed_out` in the result exactly as that one already does. */
+  accountSave: (
+    password: string,
+    code: string,
+    changes: { email?: string; phone?: string; newPassword?: string },
+  ) => {
+    const body: Record<string, string> = { password, code };
+    if (changes.email !== undefined) body.email = changes.email;
+    if (changes.phone !== undefined) body.phone = changes.phone;
+    if (changes.newPassword !== undefined) {
+      body.new_password = changes.newPassword;
+      body.new_password2 = changes.newPassword;
+    }
+    return call<{ ok: true; signed_out?: true }>('account_update', body).catch((e) => {
+      if (e instanceof Unauthorized) throw new Error('bad_password');
+      throw e;
+    });
+  },
+
   logout: () => call<{ ok: true }>('logout', {}),
 
   /** Changes the signed-in admin's own password (and, incidentally, is the

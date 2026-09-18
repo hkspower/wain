@@ -660,6 +660,71 @@ check(ungated.status === 200, `and an ordinary route works again, unforced (${un
 execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta', '-e',
   `update admin_users set password_hash='${await hashPassword(PASSWORD)}' where email='${EMAIL}'`])
 
+// --- the security screen's two new-to-the-app reads: account, totp_* ------
+//
+// account() and totp_begin/enable/disable already existed on the server —
+// the website's own Security screen has used them all along. What is new is
+// the app calling them at all, and `account`'s own response gaining
+// email_otp, which nothing had ever asked it for.
+const acctBefore = await call('account')
+check(acctBefore.status === 200 && acctBefore.body?.email === EMAIL,
+  `?r=account answers the signed-in account (${acctBefore.body?.email})`)
+check(typeof acctBefore.body?.email_otp === 'boolean',
+  `and reports email_otp as its own field, not folded into totp (${acctBefore.body?.email_otp})`)
+check(acctBefore.body?.totp === false && acctBefore.body?.email_otp === false,
+  'neither factor is enrolled on the seeded account')
+
+const begin = await call('totp_begin', { password: PASSWORD })
+check(begin.status === 200 && typeof begin.body?.secret === 'string' && begin.body.secret.length >= 16,
+  `totp_begin mints a real secret (${begin.body?.secret?.length} chars)`)
+check(begin.body?.uri?.startsWith('otpauth://totp/'), 'and an otpauth:// URI naming this account')
+
+const badEnable = await call('totp_enable', { code: '000000' })
+check(badEnable.status === 401 && badEnable.body?.error === 'bad_code',
+  `a wrong code is refused, not silently accepted (${badEnable.body?.error})`)
+
+const realCode = execFileSync('php', ['-r',
+  'require "sporta-site/public_html/api/store.php"; ' +
+  '$k = store_b32_decode($argv[1]); echo store_hotp($k, store_totp_step());',
+  begin.body.secret,
+], { encoding: 'utf8', cwd: process.env.REPO ?? '.' }).trim()
+
+const enable = await call('totp_enable', { code: realCode })
+check(enable.status === 200 && enable.body?.totp === true, `the real code turns TOTP on (${enable.status})`)
+
+const acctAfter = await call('account')
+check(acctAfter.body?.totp === true, 'and account() reflects it immediately')
+
+// store_totp_claim() refuses a REPLAYED step by design — the anti-replay
+// property this whole scheme exists for — and the enable call above and the
+// disable call below land in the same 30-second window if run back to back.
+// Clearing totp_last_step is the test setting up a FRESH window rather than
+// waiting up to 30 real seconds for one to arrive on its own.
+execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta', '-e',
+  `update admin_users set totp_last_step = null where email='${EMAIL}'`])
+
+const realCode2 = execFileSync('php', ['-r',
+  'require "sporta-site/public_html/api/store.php"; ' +
+  '$k = store_b32_decode($argv[1]); echo store_hotp($k, store_totp_step());',
+  begin.body.secret,
+], { encoding: 'utf8', cwd: process.env.REPO ?? '.' }).trim()
+const disable = await call('totp_disable', { password: PASSWORD, code: realCode2 })
+check(disable.status === 200 && disable.body?.totp === false, `and totp_disable turns it back off (${disable.status})`)
+
+const acctRestored = await call('account')
+check(acctRestored.body?.totp === false, 'account() agrees, restored for the next run')
+
+// --- accountSave's shape: email/phone, independent of a password change ---
+const emailOnly = await call('account_update', { password: PASSWORD, code: '', phone: '96550012345' })
+check(emailOnly.status === 200, `phone alone can be saved, no password change bundled (${emailOnly.status})`)
+const withPhone = await call('account')
+check(withPhone.body?.phone === '96550012345', `and account() shows the new phone (${withPhone.body?.phone})`)
+check(withPhone.body?.email === EMAIL, 'while the email is untouched, since it was not sent')
+
+// Tidy: back to no phone, for the next run.
+execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta', '-e',
+  `update admin_users set phone = null where email='${EMAIL}'`])
+
 // --- the audit log: one hook, not fifty ------------------------------------
 //
 // store_admin_audit_log() is never called directly by any route — the

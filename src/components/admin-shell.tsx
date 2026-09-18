@@ -83,6 +83,12 @@ export function AdminShell({
     // Settings: these nine numbers are ONE policy the server checks against
     // itself, so they save together, and Settings saves each card separately.
     ['/backends/rules', 'Shop rules'],
+    // Before Activity for the same reason Settings sits before Shop rules —
+    // changed rarely and deliberately, and the website panel already has a
+    // Security entry in the same relative spot; this app had every one of
+    // the server routes it needs (otp_begin/totp_begin and their partners)
+    // with no screen to reach them from until now.
+    ['/backends/security', 'Security'],
     // Last, because it is the one screen nobody opens to DO something — every
     // other entry here is a job; this is the record of every job already
     // done, by anyone, anywhere in the panel.
