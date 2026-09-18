@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, TextInput, View } from 'react-native';
 
 import { AdminShell } from '@/components/admin-shell';
@@ -6,8 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Field } from '@/components/ui/field';
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing, TapTarget } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { Spacing } from '@/constants/theme';
 import { adminApi, Unauthorized } from '@/lib/admin';
 import { useSession } from '@/lib/session';
 
@@ -31,9 +30,31 @@ import { useSession } from '@/lib/session';
  * ships in this app for one — the secret itself is shown as a manually-typed
  * code instead, which every authenticator app accepts as the alternative to
  * scanning. One dependency fewer for six digits nobody needs a picture of.
+ *
+ * ------------------------------------------------------------- ON TYPING
+ *
+ * Asked for on 2026-09-18 as "more flex and easy for typing at iOS and
+ * android devices" — this screen has more text fields than any other in the
+ * panel, and until now every one of them was a bare TextInput: no iOS
+ * autofill hint (`textContentType`), no "next" on the keyboard to move to
+ * the following field, nothing stopping the keyboard from closing and
+ * reopening between two fields in the same short form.
+ *
+ * EVERY FIELD NOW GOES THROUGH `Field`, not a hand-rolled TextInput. It
+ * already carried the iOS/Android autofill split (`textContentType` /
+ * `autoComplete`) that four other screens in this app already rely on —
+ * this screen was the one place still writing that by hand, and the two
+ * platforms need different props for the same thing, which is exactly the
+ * kind of split that drifts if it is done more than once.
+ *
+ * EACH CARD CHAINS ITS OWN FIELDS with refs and `returnKeyType="next"`,
+ * ending in `"go"` on the last one, wired to submit — so a manager can type
+ * a whole card without lifting a finger off the keyboard except to press
+ * the final key. `blurOnSubmit={false}` on every field but the last is what
+ * stops the keyboard visibly closing and reopening between them, which
+ * Field now supports for the same reason this screen needed it.
  */
 export default function SecurityScreen() {
-  const theme = useTheme();
   const { token, signOut, passwordChanged } = useSession();
 
   const [account, setAccount] = useState<{
@@ -55,32 +76,20 @@ export default function SecurityScreen() {
 
   useEffect(load, [load]);
 
-  const inputStyle = {
-    minHeight: TapTarget,
-    borderWidth: 1,
-    borderRadius: Radius.button,
-    paddingHorizontal: Spacing.three,
-    fontSize: 16,
-    color: theme.text,
-    backgroundColor: theme.backgroundElement,
-    borderColor: theme.controlBorder,
-  };
-
   return (
     <AdminShell title="Security" loading={loading} error={error} onRetry={load}>
       {account && (
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={{ gap: Spacing.four }}>
-            <ContactCard account={account} inputStyle={inputStyle} onSaved={load} />
+            <ContactCard account={account} onSaved={load} />
             <PasswordCard
               account={account}
-              inputStyle={inputStyle}
               onChanged={() => {
                 passwordChanged();
               }}
             />
-            <TotpCard account={account} inputStyle={inputStyle} onSaved={load} />
-            <EmailCodeCard account={account} inputStyle={inputStyle} onSaved={load} />
+            <TotpCard account={account} onSaved={load} />
+            <EmailCodeCard account={account} onSaved={load} />
           </View>
         </KeyboardAvoidingView>
       )}
@@ -112,9 +121,7 @@ function errorText(e: unknown): string {
 
 /** Email and phone — the two facts account_update can also change, kept in
  *  their own card because they are edited far more often than a password. */
-function ContactCard({
-  account, inputStyle, onSaved,
-}: { account: Account; inputStyle: object; onSaved: () => void }) {
+function ContactCard({ account, onSaved }: { account: Account; onSaved: () => void }) {
   const [email, setEmail] = useState(account.email);
   const [phone, setPhone] = useState(account.phone ?? '');
   const [password, setPassword] = useState('');
@@ -122,10 +129,14 @@ function ContactCard({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  const phoneRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const codeRef = useRef<TextInput>(null);
+
   const dirty = email.trim() !== account.email || phone.trim() !== (account.phone ?? '');
 
   const save = async () => {
-    if (busy || !dirty) return;
+    if (busy || !dirty || !password) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -147,16 +158,29 @@ function ContactCard({
   return (
     <Card style={{ gap: Spacing.two }}>
       <ThemedText type="labelBold">Email and phone</ThemedText>
-      <Field label="Email" value={email} onChangeText={setEmail} autoComplete="email" keyboardType="email-address" />
-      <Field label="Phone" value={phone} onChangeText={setPhone} autoComplete="tel" keyboardType="phone-pad" />
-      <ThemedText type="label" themeColor="textSecondary">Current password</ThemedText>
-      <TextInput value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none"
-        autoComplete="current-password" accessibilityLabel="Current password" style={inputStyle as never} />
-      <ThemedText type="label" themeColor="textSecondary">
-        Verification code — only if you have a second factor on
-      </ThemedText>
-      <TextInput value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6}
-        accessibilityLabel="Verification code" style={inputStyle as never} />
+      <Field
+        label="Email" value={email} onChangeText={setEmail}
+        autoComplete="email" textContentType="emailAddress" keyboardType="email-address" autoCapitalize="none"
+        returnKeyType="next" blurOnSubmit={false} onSubmitEditing={() => phoneRef.current?.focus()}
+      />
+      <Field
+        ref={phoneRef}
+        label="Phone" value={phone} onChangeText={setPhone}
+        autoComplete="tel" textContentType="telephoneNumber" keyboardType="phone-pad"
+        returnKeyType="next" blurOnSubmit={false} onSubmitEditing={() => passwordRef.current?.focus()}
+      />
+      <Field
+        ref={passwordRef}
+        label="Current password" value={password} onChangeText={setPassword}
+        secureTextEntry autoCapitalize="none" autoComplete="current-password" textContentType="password"
+        returnKeyType="next" blurOnSubmit={false} onSubmitEditing={() => codeRef.current?.focus()}
+      />
+      <Field
+        ref={codeRef}
+        label="Verification code — only if you have a second factor on" value={code} onChangeText={setCode}
+        keyboardType="number-pad" textContentType="oneTimeCode" maxLength={6}
+        returnKeyType="go" onSubmitEditing={save}
+      />
       {msg && <ThemedText type="label" themeColor={msg === 'Saved.' ? 'text' : 'danger'}>{msg}</ThemedText>}
       <Button label={busy ? 'Saving…' : 'Save'} onPress={save} busy={busy} disabled={!dirty || !password} />
     </Card>
@@ -165,15 +189,17 @@ function ContactCard({
 
 /** The password itself. Its own card: changing it ends every session,
  *  including this one, which is not something email/phone edits do. */
-function PasswordCard({
-  account, inputStyle, onChanged,
-}: { account: Account; inputStyle: object; onChanged: () => void }) {
+function PasswordCard({ account, onChanged }: { account: Account; onChanged: () => void }) {
   const [password, setPassword] = useState('');
   const [next, setNext] = useState('');
   const [next2, setNext2] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  const nextRef = useRef<TextInput>(null);
+  const next2Ref = useRef<TextInput>(null);
+  const codeRef = useRef<TextInput>(null);
 
   const save = async () => {
     if (busy) return;
@@ -196,22 +222,29 @@ function PasswordCard({
       <ThemedText type="caption" themeColor="textSecondary">
         Signs you out everywhere, including here — you will need to sign in again with the new one.
       </ThemedText>
-      <ThemedText type="label" themeColor="textSecondary">Current password</ThemedText>
-      <TextInput value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none"
-        autoComplete="current-password" accessibilityLabel="Current password" style={inputStyle as never} />
-      <ThemedText type="label" themeColor="textSecondary">New password</ThemedText>
-      <TextInput value={next} onChangeText={setNext} secureTextEntry autoCapitalize="none"
-        autoComplete="new-password" textContentType="newPassword" accessibilityLabel="New password"
-        style={inputStyle as never} />
-      <ThemedText type="label" themeColor="textSecondary">New password, again</ThemedText>
-      <TextInput value={next2} onChangeText={setNext2} secureTextEntry autoCapitalize="none"
-        autoComplete="new-password" textContentType="newPassword" accessibilityLabel="New password, again"
-        style={inputStyle as never} />
-      <ThemedText type="label" themeColor="textSecondary">
-        Verification code — only if you have a second factor on
-      </ThemedText>
-      <TextInput value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6}
-        accessibilityLabel="Verification code" style={inputStyle as never} />
+      <Field
+        label="Current password" value={password} onChangeText={setPassword}
+        secureTextEntry autoCapitalize="none" autoComplete="current-password" textContentType="password"
+        returnKeyType="next" blurOnSubmit={false} onSubmitEditing={() => nextRef.current?.focus()}
+      />
+      <Field
+        ref={nextRef}
+        label="New password" value={next} onChangeText={setNext}
+        secureTextEntry autoCapitalize="none" autoComplete="off" textContentType="newPassword"
+        returnKeyType="next" blurOnSubmit={false} onSubmitEditing={() => next2Ref.current?.focus()}
+      />
+      <Field
+        ref={next2Ref}
+        label="New password, again" value={next2} onChangeText={setNext2}
+        secureTextEntry autoCapitalize="none" autoComplete="off" textContentType="newPassword"
+        returnKeyType="next" blurOnSubmit={false} onSubmitEditing={() => codeRef.current?.focus()}
+      />
+      <Field
+        ref={codeRef}
+        label="Verification code — only if you have a second factor on" value={code} onChangeText={setCode}
+        keyboardType="number-pad" textContentType="oneTimeCode" maxLength={6}
+        returnKeyType="go" onSubmitEditing={save}
+      />
       {msg && <ThemedText type="label" themeColor="danger">{msg}</ThemedText>}
       <Button label={busy ? 'Saving…' : 'Change password'} onPress={save} busy={busy}
         disabled={!password || !next || !next2} />
@@ -221,17 +254,17 @@ function PasswordCard({
 
 /** The authenticator app — off, mid-enrolment (secret minted, waiting for a
  *  code to prove the phone has it), or on. */
-function TotpCard({
-  account, inputStyle, onSaved,
-}: { account: Account; inputStyle: object; onSaved: () => void }) {
+function TotpCard({ account, onSaved }: { account: Account; onSaved: () => void }) {
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [secret, setSecret] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  const codeRef = useRef<TextInput>(null);
+
   const begin = async () => {
-    if (busy) return;
+    if (busy || !password) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -245,7 +278,7 @@ function TotpCard({
   };
 
   const confirm = async () => {
-    if (busy) return;
+    if (busy || !code) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -262,7 +295,7 @@ function TotpCard({
   };
 
   const disable = async () => {
-    if (busy) return;
+    if (busy || !password || !code) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -285,9 +318,11 @@ function TotpCard({
           <ThemedText type="caption" themeColor="textSecondary">
             Google Authenticator, Authy or anything else that reads a TOTP code.
           </ThemedText>
-          <ThemedText type="label" themeColor="textSecondary">Current password</ThemedText>
-          <TextInput value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none"
-            autoComplete="current-password" accessibilityLabel="Current password" style={inputStyle as never} />
+          <Field
+            label="Current password" value={password} onChangeText={setPassword}
+            secureTextEntry autoCapitalize="none" autoComplete="current-password" textContentType="password"
+            returnKeyType="go" onSubmitEditing={begin}
+          />
           {msg && <ThemedText type="label" themeColor="danger">{msg}</ThemedText>}
           <Button label={busy ? 'Starting…' : 'Turn on'} onPress={begin} busy={busy} disabled={!password} />
         </>
@@ -300,21 +335,28 @@ function TotpCard({
           <ThemedText type="label" selectable style={{ fontVariant: ['tabular-nums'] }}>
             {secret}
           </ThemedText>
-          <ThemedText type="label" themeColor="textSecondary">Code from the app</ThemedText>
-          <TextInput value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6}
-            accessibilityLabel="Code from the app" style={inputStyle as never} />
+          <Field
+            label="Code from the app" value={code} onChangeText={setCode}
+            keyboardType="number-pad" textContentType="oneTimeCode" maxLength={6}
+            returnKeyType="go" onSubmitEditing={confirm}
+          />
           {msg && <ThemedText type="label" themeColor="danger">{msg}</ThemedText>}
           <Button label={busy ? 'Confirming…' : 'Confirm'} onPress={confirm} busy={busy} disabled={!code} />
         </>
       )}
       {account.totp && (
         <>
-          <ThemedText type="label" themeColor="textSecondary">Current password</ThemedText>
-          <TextInput value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none"
-            autoComplete="current-password" accessibilityLabel="Current password" style={inputStyle as never} />
-          <ThemedText type="label" themeColor="textSecondary">Code from the app</ThemedText>
-          <TextInput value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6}
-            accessibilityLabel="Code from the app" style={inputStyle as never} />
+          <Field
+            label="Current password" value={password} onChangeText={setPassword}
+            secureTextEntry autoCapitalize="none" autoComplete="current-password" textContentType="password"
+            returnKeyType="next" blurOnSubmit={false} onSubmitEditing={() => codeRef.current?.focus()}
+          />
+          <Field
+            ref={codeRef}
+            label="Code from the app" value={code} onChangeText={setCode}
+            keyboardType="number-pad" textContentType="oneTimeCode" maxLength={6}
+            returnKeyType="go" onSubmitEditing={disable}
+          />
           {msg && <ThemedText type="label" themeColor="danger">{msg}</ThemedText>}
           <Button label={busy ? 'Turning off…' : 'Turn off'} onPress={disable} busy={busy}
             disabled={!password || !code} variant="danger" />
@@ -327,17 +369,17 @@ function TotpCard({
 /** The emailed code — same shape as TOTP, three server routes rather than
  *  the file pretending they are one. otpBegin needs a language for the mail
  *  it sends; the panel is English-only chrome, so 'en' always. */
-function EmailCodeCard({
-  account, inputStyle, onSaved,
-}: { account: Account; inputStyle: object; onSaved: () => void }) {
+function EmailCodeCard({ account, onSaved }: { account: Account; onSaved: () => void }) {
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  const codeRef = useRef<TextInput>(null);
+
   const begin = async () => {
-    if (busy) return;
+    if (busy || !password) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -352,7 +394,7 @@ function EmailCodeCard({
   };
 
   const confirm = async () => {
-    if (busy) return;
+    if (busy || !code) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -369,7 +411,7 @@ function EmailCodeCard({
   };
 
   const disable = async () => {
-    if (busy) return;
+    if (busy || !password || !code) return;
     setBusy(true);
     setMsg(null);
     try {
@@ -392,9 +434,11 @@ function EmailCodeCard({
           <ThemedText type="caption" themeColor="textSecondary">
             A six-digit code sent to your own address each time you sign in.
           </ThemedText>
-          <ThemedText type="label" themeColor="textSecondary">Current password</ThemedText>
-          <TextInput value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none"
-            autoComplete="current-password" accessibilityLabel="Current password" style={inputStyle as never} />
+          <Field
+            label="Current password" value={password} onChangeText={setPassword}
+            secureTextEntry autoCapitalize="none" autoComplete="current-password" textContentType="password"
+            returnKeyType="go" onSubmitEditing={begin}
+          />
           {msg && <ThemedText type="label" themeColor="danger">{msg}</ThemedText>}
           <Button label={busy ? 'Sending…' : 'Turn on'} onPress={begin} busy={busy} disabled={!password} />
         </>
@@ -402,20 +446,28 @@ function EmailCodeCard({
       {!account.emailOtp && sentTo && (
         <>
           <ThemedText type="label">Sent to {sentTo}. Type the code to confirm.</ThemedText>
-          <TextInput value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6}
-            accessibilityLabel="Code from your email" style={inputStyle as never} />
+          <Field
+            label="Code from your email" value={code} onChangeText={setCode}
+            keyboardType="number-pad" textContentType="oneTimeCode" maxLength={6}
+            returnKeyType="go" onSubmitEditing={confirm}
+          />
           {msg && <ThemedText type="label" themeColor="danger">{msg}</ThemedText>}
           <Button label={busy ? 'Confirming…' : 'Confirm'} onPress={confirm} busy={busy} disabled={!code} />
         </>
       )}
       {account.emailOtp && (
         <>
-          <ThemedText type="label" themeColor="textSecondary">Current password</ThemedText>
-          <TextInput value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none"
-            autoComplete="current-password" accessibilityLabel="Current password" style={inputStyle as never} />
-          <ThemedText type="label" themeColor="textSecondary">Code from your email</ThemedText>
-          <TextInput value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6}
-            accessibilityLabel="Code from your email" style={inputStyle as never} />
+          <Field
+            label="Current password" value={password} onChangeText={setPassword}
+            secureTextEntry autoCapitalize="none" autoComplete="current-password" textContentType="password"
+            returnKeyType="next" blurOnSubmit={false} onSubmitEditing={() => codeRef.current?.focus()}
+          />
+          <Field
+            ref={codeRef}
+            label="Code from your email" value={code} onChangeText={setCode}
+            keyboardType="number-pad" textContentType="oneTimeCode" maxLength={6}
+            returnKeyType="go" onSubmitEditing={disable}
+          />
           {msg && <ThemedText type="label" themeColor="danger">{msg}</ThemedText>}
           <Button label={busy ? 'Turning off…' : 'Turn off'} onPress={disable} busy={busy}
             disabled={!password || !code} variant="danger" />

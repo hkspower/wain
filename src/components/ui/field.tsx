@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import { StyleSheet, TextInput, View, type KeyboardTypeOptions } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -13,22 +14,7 @@ import { useLang } from '@/lib/i18n';
  * background; one forgot the accessibility label, leaving a screen reader to
  * announce "text field" and nothing else.
  */
-export function Field({
-  label,
-  value,
-  onChangeText,
-  error,
-  keyboardType,
-  autoComplete,
-  textContentType,
-  secureTextEntry,
-  autoCapitalize,
-  autoCorrect,
-  maxLength,
-  multiline,
-  returnKeyType,
-  onSubmitEditing,
-}: {
+export const Field = forwardRef<TextInput, {
   label: string;
   value: string;
   onChangeText: (v: string) => void;
@@ -70,7 +56,32 @@ export function Field({
   multiline?: boolean;
   returnKeyType?: 'done' | 'go' | 'next' | 'search' | 'send';
   onSubmitEditing?: () => void;
-}) {
+  /**
+   * FALSE WHEN THIS FIELD HANDS OFF TO ANOTHER ONE. RN's default closes the
+   * keyboard on submit and a chained onSubmitEditing then has to reopen it on
+   * the next field — a visible flicker on both platforms, worse on Android,
+   * where the keyboard's own resize of the screen restarts. Set to false on
+   * every field but the last in a chain; leave it on the last one, where
+   * "done" or "go" SHOULD close the keyboard.
+   */
+  blurOnSubmit?: boolean;
+}>(function Field({
+  label,
+  value,
+  onChangeText,
+  error,
+  keyboardType,
+  autoComplete,
+  textContentType,
+  secureTextEntry,
+  autoCapitalize,
+  autoCorrect,
+  maxLength,
+  multiline,
+  returnKeyType,
+  onSubmitEditing,
+  blurOnSubmit,
+}, ref) {
   const theme = useTheme();
   const { text } = useLang();
 
@@ -80,6 +91,7 @@ export function Field({
         {label}
       </ThemedText>
       <TextInput
+        ref={ref}
         value={value}
         onChangeText={onChangeText}
         keyboardType={keyboardType ?? 'default'}
@@ -87,6 +99,7 @@ export function Field({
         textContentType={textContentType ?? 'none'}
         secureTextEntry={secureTextEntry}
         autoCapitalize={autoCapitalize}
+        blurOnSubmit={blurOnSubmit}
         // AUTOCORRECT OFF WHEREVER THE KEYBOARD IS NOT A PROSE KEYBOARD. A
         // phone number, a code, an email and an order reference are not words,
         // and a keyboard that "corrects" them turns a valid entry into an
@@ -120,7 +133,8 @@ export function Field({
       ) : null}
     </View>
   );
-}
+});
+Field.displayName = 'Field';
 
 const styles = StyleSheet.create({
   field: { gap: Spacing.half, flex: 1 },
