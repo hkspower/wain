@@ -345,18 +345,27 @@ if ($r === 'me') {
     // The Security screen needs these two on the very first render, and asking
     // for them separately would mean a flash of "two-factor: off" on a shop
     // that has it on.
-    $u = $db->prepare('select totp_enabled, phone from admin_users where id = ?');
+    $u = $db->prepare('select totp_enabled, phone, must_change_password from admin_users where id = ?');
     $u->execute([$who['id']]);
     $row = $u->fetch() ?: [];
     store_out([
         'email'   => $who['email'],
         'phone'   => $row['phone'] ?? null,
         'totp'    => (int)($row['totp_enabled'] ?? 0) === 1,
+        // Told here, on the very first thing the panel asks after signing in,
+        // so it can show the forced-change screen before trying — and
+        // failing — every other route with 403 must_change_password.
+        'must_change_password' => (int)($row['must_change_password'] ?? 0) === 1,
     ]);
 }
 
 // Everything below this line is an admin.
-$admin = store_require_admin();
+//
+// `account` and `account_update` are let through even with must_change_password
+// still set — they are the read and the write that CLEAR it, and a route that
+// forces a password change but blocks the only route that changes one would
+// lock the owner out of their own recovery.
+$admin = store_require_admin(in_array($r, ['account', 'account_update'], true));
 
 // --------------------------------------------------------------------- stats
 // Same columns as admin_order_stats — Overview reads these keys by name.
@@ -2454,6 +2463,10 @@ if ($r === 'account_update' && $method === 'POST') {
         if (!hash_equals($new, (string)($b['new_password2'] ?? ''))) store_fail('password_mismatch');
         $sets[] = 'password_hash = ?';
         $args[] = password_hash($new, PASSWORD_DEFAULT);
+        // THIS is where must_change_password clears — a chosen password is a
+        // real one whether the account was flagged or not, so this always
+        // runs alongside the hash rather than only when the flag was set.
+        $sets[] = 'must_change_password = 0';
     }
 
     if (array_key_exists('email', $b)) {

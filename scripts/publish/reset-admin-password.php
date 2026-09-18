@@ -35,6 +35,14 @@
  * verifies against and what account_update() uses for every other password
  * change — one implementation of "how a password becomes a hash" for the
  * whole shop, not a second one written here that could drift from it.
+ *
+ * ALSO SETS must_change_password. Whatever this script is passed on the
+ * command line has already travelled through a base64 CLI argument in a
+ * cron command panel that at least one other person can read, which makes it
+ * a TEMPORARY password by definition rather than a real one — see
+ * 10-must-change-password.sql. Signing in still works with it; every other
+ * route refuses with must_change_password until the owner picks a real one
+ * from inside /backends -> Account, which is the one route that clears it.
  */
 
 require_once '/home/u130124229/domains/sporta.com.kw/public_html/api/store.php';
@@ -66,12 +74,14 @@ if (strlen($pass) < 12) {
 $db = store_db();
 $hash = password_hash($pass, PASSWORD_DEFAULT);
 $stmt = $db->prepare(
-    'update admin_users set password_hash = ?, failed_attempts = 0, locked_until = null where email = ?'
+    'update admin_users set password_hash = ?, failed_attempts = 0, locked_until = null,
+                            must_change_password = 1 where email = ?'
 );
 $stmt->execute([$hash, $EMAIL]);
 $rows = $stmt->rowCount();
 
-$check = $db->prepare('select email, failed_attempts, locked_until from admin_users where email = ?');
+$check = $db->prepare('select email, failed_attempts, locked_until, must_change_password
+                         from admin_users where email = ?');
 $check->execute([$EMAIL]);
 $row = $check->fetch();
 
@@ -79,4 +89,5 @@ echo 'RESETPW rows=' . $rows
    . ' found=' . ($row ? $row['email'] : 'no_such_row')
    . ' now_failed=' . ($row['failed_attempts'] ?? 'n/a')
    . ' now_locked_until=' . ($row['locked_until'] ?? 'null')
+   . ' must_change_password=' . ($row['must_change_password'] ?? 'n/a')
    . "\n";

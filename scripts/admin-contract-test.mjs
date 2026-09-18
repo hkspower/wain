@@ -62,7 +62,7 @@ for (const r of tsRoutes) {
 // --- the fixture serves only real routes (reset excepted, by name) ---------
 const mockRoutes = new Set([...mock.matchAll(/\br == '([^']+)'/g)].map((m) => m[1]))
 for (const r of mockRoutes) {
-  if (r === 'reset') continue // fixture-only, documented in its header
+  if (r === 'reset' || r === 'fixture_must_change_password') continue // fixture-only, documented in its header
   check(phpRoutes.has(r), `mock route '${r}' exists in admin.php`)
 }
 // And everything the app calls, the fixture can answer — otherwise the

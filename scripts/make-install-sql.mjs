@@ -102,6 +102,7 @@ const PARTS = [
   // combined file rather than assumed — it carried 0 of the 6 `update products
   // set brand_slug` lines, and now carries all 6.
   ['9-product-brands.sql', 'product brands — which brand each garment belongs to'],
+  ['10-must-change-password.sql', 'must-change-password — force a new password after a cron-set temporary one'],
   // Read from api/ for the same reason wallet is: the api/*.mysql.sql files are
   // import fixtures the owner can reach from the server, denied to the public
   // by name in api/.htaccess. Moving it here would break that arrangement.

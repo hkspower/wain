@@ -679,8 +679,16 @@ function toReturn(w: WireReturn): ReturnRequest {
 export const adminApi = {
   /** Who is signed in, or null. 409 no_admin_account arrives as an Error
    *  naming exactly that, so the login screen can say what is actually
-   *  missing instead of "wrong password". */
-  me: () => call<{ email: string } | null>('me'),
+   *  missing instead of "wrong password".
+   *
+   *  `mustChangePassword` is true only after reset-admin-password.php set a
+   *  temporary one over cron — see accountUpdate(). Every OTHER route 428s
+   *  while it is true, so the layout must check this before rendering
+   *  anything else the signed-in state would normally show. */
+  me: () =>
+    call<{ email: string; phone: string | null; totp: boolean; must_change_password: boolean } | null>(
+      'me',
+    ).then((who) => who && { ...who, mustChangePassword: who.must_change_password }),
 
   /** Sets the session cookie. `needCode` means a second factor is enrolled
    *  and nothing is granted yet — follow with loginCode().
@@ -755,6 +763,37 @@ export const adminApi = {
     call<{ ok: true; email_otp: false }>('otp_disable', { password, code }),
 
   logout: () => call<{ ok: true }>('logout', {}),
+
+  /** Changes the signed-in admin's own password (and, incidentally, is the
+   *  ONLY route that can clear mustChangePassword — see me()). Costs the
+   *  CURRENT password plus a fresh code from whichever second factor is
+   *  enrolled, exactly like every other change to who can sign in; `code` is
+   *  '' when neither is enrolled, which the server accepts.
+   *
+   *  Success signs the session out everywhere — a changed password ends
+   *  every session including this one — so the caller must send the admin
+   *  back to the login screen rather than expecting the panel to keep going.
+   *
+   *  call()'s blanket "401/403 -> Unauthorized" is right for every OTHER
+   *  route, where 401 only ever means the session is gone — but admin.php
+   *  answers this exact route's own bad_password check with a 401 too, and
+   *  the session is still perfectly valid when that happens (store_require_admin()
+   *  already passed before store_password_verify() ever runs). Rethrown as
+   *  an ordinary Error here so the caller can show "wrong password" instead
+   *  of being told, wrongly, that it has been signed out. */
+  accountUpdate: async (password: string, newPassword: string, code = '') => {
+    try {
+      return await call<{ ok: true; signed_out?: true }>('account_update', {
+        password,
+        new_password: newPassword,
+        new_password2: newPassword,
+        code,
+      });
+    } catch (e) {
+      if (e instanceof Unauthorized) throw new Error('bad_password');
+      throw e;
+    }
+  },
 
   /** The dashboard: today's takings from ?r=stats, what is running out from
    *  ?r=variants. Two requests, because that is what the server offers. */

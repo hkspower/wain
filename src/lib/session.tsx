@@ -37,6 +37,11 @@ type Ctx = {
    *  signed out before that, or the panel flashes its login form at a
    *  manager who is already signed in. */
   ready: boolean;
+  /** True only right after a cron-set temporary password — see
+   *  adminApi.me(). The layout renders the forced-change screen instead of
+   *  the panel while this is true, and nothing else in the panel is reachable
+   *  (every other route 428s server-side regardless of what the UI does). */
+  mustChangePassword: boolean;
   /** 'ok' — signed in. 'code' — the password was right and a second factor
    *  is enrolled: nothing is granted yet, ask for the code. */
   /** 'ok' means signed in. 'code' means a second factor is enrolled and
@@ -58,6 +63,9 @@ type Ctx = {
   signUp: (email: string, password: string) => Promise<void>;
   resendCode: () => Promise<{ sent: boolean; to: string }>;
   signOut: () => void;
+  /** The layout calls this after adminApi.accountUpdate() succeeds, to catch
+   *  local state up with the session the server already ended. */
+  passwordChanged: () => void;
 };
 
 const SessionContext = createContext<Ctx | null>(null);
@@ -65,12 +73,17 @@ const SessionContext = createContext<Ctx | null>(null);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
 
   useEffect(() => {
     let alive = true;
     adminApi
       .me()
-      .then((who) => alive && who && setToken(who.email))
+      .then((who) => {
+        if (!alive || !who) return;
+        setToken(who.email);
+        setMustChangePassword(who.mustChangePassword);
+      })
       // Unreachable, signed out, or no admin account yet: all of them render
       // the login screen, which is where each of those is explained.
       .catch(() => {})
@@ -90,6 +103,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // an app they never installed is how a sign-in stalls.
     if (res.needCode) return { need: 'code', via: res.via, sentTo: res.sentTo, sent: res.sent } as const;
     setToken(email.trim().toLowerCase());
+    // login's own answer never carries mustChangePassword — only me() does —
+    // and this is precisely the moment a temporary password from
+    // reset-admin-password.php would first show up.
+    adminApi.me().then((who) => who && setMustChangePassword(who.mustChangePassword));
     return { need: 'ok' } as const;
   }, []);
 
@@ -108,19 +125,40 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signInCode = useCallback(async (code: string) => {
     const who = await adminApi.loginCode(code.trim());
     setToken(who.email);
+    adminApi.me().then((w) => w && setMustChangePassword(w.mustChangePassword));
   }, []);
 
   const signOut = useCallback(() => {
     setToken(null);
+    setMustChangePassword(false);
     // Server-side too: clearing only local state would leave a live session
     // behind the cookie, exactly what a shared or stolen phone should not
     // have. Fire-and-forget — signing out must work offline as well.
     adminApi.logout().catch(() => {});
   }, []);
 
+  /** Called once accountUpdate() succeeds. The server already ended the
+   *  session — this only catches up the local state so the panel shows the
+   *  login screen rather than one that still thinks it is signed in. */
+  const passwordChanged = useCallback(() => {
+    setToken(null);
+    setMustChangePassword(false);
+  }, []);
+
   const value = useMemo<Ctx>(
-    () => ({ token, name: token, ready, signIn, signUp, signInCode, resendCode, signOut }),
-    [token, ready, signIn, signUp, signInCode, resendCode, signOut],
+    () => ({
+      token,
+      name: token,
+      ready,
+      mustChangePassword,
+      signIn,
+      signUp,
+      signInCode,
+      resendCode,
+      signOut,
+      passwordChanged,
+    }),
+    [token, ready, mustChangePassword, signIn, signUp, signInCode, resendCode, signOut, passwordChanged],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

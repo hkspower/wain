@@ -668,6 +668,15 @@
          checkout that dies on its last step. -->
     <script src="/assets/rules.js" defer></script>
 
+    <!-- A banner telling the owner to replace a cron-set temporary password.
+         admin.php refuses every route but ?r=account and ?r=account_update
+         with HTTP 428 once must_change_password is set — see
+         store_require_admin()'s own comment — and this is the panel's only
+         way to say why, since the bundle has no source here to teach it
+         directly. Loaded on every page and gated on /backends internally,
+         the same shape every other admin-only overlay uses. -->
+    <script src="/assets/force-password-notice.js" defer></script>
+
     <!-- The website panel's Settings screen: the contact-details card the
          bundle has no editor for (the app's panel has had one all along), and
          the repair of two instructions on that screen which name files this

@@ -29,6 +29,7 @@ export function AdminShell({
   onRetry,
   notice,
   action,
+  hideNav,
 }: {
   title: string;
   children?: React.ReactNode;
@@ -42,6 +43,12 @@ export function AdminShell({
    *  rejected takes the fix away from the person fixing it. */
   notice?: string | null;
   action?: React.ReactNode;
+  /** For the forced-password-change screen only: every nav link is a dead
+   *  end there (_layout.tsx re-renders this same screen for any /backends/*
+   *  route while mustChangePassword is set), so showing a row of buttons
+   *  that all silently do nothing would read as a broken panel rather than
+   *  a restricted one. */
+  hideNav?: boolean;
 }) {
   const theme = useTheme();
   const router = useRouter();
@@ -94,7 +101,7 @@ export function AdminShell({
         </View>
       </ThemedView>
 
-      {token && (
+      {token && !hideNav && (
         <ThemedView type="background" style={[styles.nav, { borderColor: theme.border }]}>
           <ScrollView
             horizontal

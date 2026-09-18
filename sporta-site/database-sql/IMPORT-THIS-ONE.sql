@@ -26,7 +26,8 @@
 --   7. 7-returns.sql          return and exchange requests
 --   8. 8-email-otp.sql        the admin's second factor by email
 --   9. 9-product-brands.sql   which brand each garment belongs to
---   10. assistantqa.mysql.sql  the answers the shop writes itself
+--   10. 10-must-change-password.sql force a new password after a cron-set temporary one
+--   11. assistantqa.mysql.sql  the answers the shop writes itself
 --
 -- Deliberately NOT included — these are repairs, not install steps, and each
 -- is run by hand when its own report says it is needed:
@@ -173,6 +174,14 @@ create table if not exists admin_users (
   -- The owner's own mobile number, not a customer's. Changing it needs the
   -- current password AND a code, same as the email and the password.
   phone         varchar(20) null,
+
+  -- Set whenever a password was chosen by something other than the owner
+  -- typing it into the panel — reset-admin-password.php, run over cron when
+  -- locked out, is the only thing that sets it today. A temporary password
+  -- someone else could plausibly know must not go on being the real one; the
+  -- panel refuses every route except changing it until this clears. See
+  -- account_update's own comment for how it clears.
+  must_change_password tinyint(1) not null default 0,
 
   created_at    timestamp not null default current_timestamp
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
@@ -1984,6 +1993,38 @@ update products set brand_slug = 'vanquish' where slug = 'vanquish-tank-navy';
 -- To assign a line once the answer is known, one statement does all of it:
 --
 --   update products set brand_slug = 'gymshark' where slug like 'sculpt-%';
+
+-- ========================================================================
+-- must-change-password — force a new password after a cron-set temporary one
+-- (10-must-change-password.sql)
+-- ========================================================================
+
+-- Sporta — force a real password after a cron-set temporary one.
+--
+-- Import after 1-schema.mysql.sql. Safe to re-run.
+--
+-- WHY. reset-admin-password.php is the ONLY way this shop recovers a locked-
+-- out admin — CLAUDE.md is explicit that a self-service "forgot password"
+-- route was removed as a security hole, so the recovery path stays "someone
+-- with server access sets a password directly in the database". That password
+-- is typed into a cron command by whoever is doing the recovery, which means
+-- at least one other person can plausibly reconstruct it. It should not go on
+-- being the real password a day, a week or a year later.
+--
+-- ONE COLUMN ON admin_users, same reasoning 8-email-otp.sql already gives for
+-- putting per-account state there rather than in a table of its own: this is
+-- strictly one-per-account and dies with the account.
+--
+-- WHY A FLAG AND NOT A SEPARATE "PENDING" STATE THAT BLOCKS SIGN-IN ENTIRELY.
+-- Blocking sign-in would mean the temporary password cannot even be USED to
+-- reach the screen that replaces it — the owner would be locked out by the
+-- very thing meant to unlock them. Signing in still works normally; every
+-- OTHER route is what refuses, in store_require_admin(), until this clears.
+
+set names utf8mb4;
+
+alter table admin_users
+  add column if not exists must_change_password tinyint(1) not null default 0;
 
 -- ========================================================================
 -- سبورتا AI — the answers the shop writes itself

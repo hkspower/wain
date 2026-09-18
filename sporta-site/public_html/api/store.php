@@ -1365,14 +1365,39 @@ function store_require_admin_header(): void {
 
 // Every admin DATA route calls this first. 401, not a redirect: the caller is
 // the React admin, and JSON is what it can act on.
-function store_require_admin(): array {
+//
+// $allowMustChange lets exactly the routes that FIX must_change_password
+// (account, account_update) through while it is still set — every other
+// route 403s instead. Signing in still works normally regardless of the
+// flag; it is what happens AFTER sign-in that is restricted, so a temporary
+// password set by reset-admin-password.php can reach the one screen that
+// replaces it and nothing else.
+function store_require_admin(bool $allowMustChange = false): array {
     $who = store_session_admin();
     if ($who === null) store_fail('not_signed_in', 401);
     // SameSite=Strict stops the cookie travelling cross-site; this header stops
     // the residual cases (old browsers, subdomain surprises). The React admin
     // always sends it; nothing else has a reason to.
     store_require_admin_header();
+    // 428 (Precondition Required), not 401/403 — both the app's admin.ts and
+    // the website's bundle treat 401 AND 403 as "signed out" and would sign
+    // the owner out instead of showing the forced-change screen. A signed-in
+    // admin who is merely restricted needs a status neither client already
+    // special-cases.
+    if (!$allowMustChange && store_admin_must_change_password((int)$who['id'])) {
+        store_fail('must_change_password', 428);
+    }
     return $who;
+}
+
+// A separate query rather than a session flag: the session is not touched
+// when the flag clears (account_update ends the session on a password change
+// regardless), so caching it in $_SESSION would mean a stale "must change"
+// answer for however long the OLD session happened to survive.
+function store_admin_must_change_password(int $id): bool {
+    $q = store_db()->prepare('select must_change_password from admin_users where id = ?');
+    $q->execute([$id]);
+    return (int)$q->fetchColumn() === 1;
 }
 
 // ============================================================ two-factor auth

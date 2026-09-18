@@ -134,6 +134,14 @@ create table if not exists admin_users (
   -- current password AND a code, same as the email and the password.
   phone         varchar(20) null,
 
+  -- Set whenever a password was chosen by something other than the owner
+  -- typing it into the panel — reset-admin-password.php, run over cron when
+  -- locked out, is the only thing that sets it today. A temporary password
+  -- someone else could plausibly know must not go on being the real one; the
+  -- panel refuses every route except changing it until this clears. See
+  -- account_update's own comment for how it clears.
+  must_change_password tinyint(1) not null default 0,
+
   created_at    timestamp not null default current_timestamp
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 

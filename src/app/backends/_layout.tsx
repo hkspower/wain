@@ -1,6 +1,7 @@
 import { Redirect, Stack, usePathname } from 'expo-router';
 
 import { AdminShell } from '@/components/admin-shell';
+import { ForcePasswordChange } from '@/components/backends-force-password-change';
 import { useSession } from '@/lib/session';
 
 /**
@@ -16,11 +17,15 @@ import { useSession } from '@/lib/session';
  * past while the stored token is being read.
  */
 export default function BackendsLayout() {
-  const { token, ready } = useSession();
+  const { token, ready, mustChangePassword } = useSession();
   const pathname = usePathname();
 
   if (!ready) return <AdminShell title="" loading />;
   if (!token && pathname !== '/backends') return <Redirect href="/backends" />;
+  // A temporary password from reset-admin-password.php: signed in, but every
+  // OTHER route already 428s on the server. Rendered here rather than as its
+  // own route so there is nothing to navigate to instead of it.
+  if (token && mustChangePassword) return <ForcePasswordChange />;
 
   return <Stack screenOptions={{ headerShown: false }} />;
 }

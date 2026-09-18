@@ -29,6 +29,15 @@ const check = (ok, what) => {
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`)
 }
 
+// Same construction sandbox.sh seeds the admin with — password_hash() run by
+// PHP itself, so the hash this rig writes is one store_login() will actually
+// verify, rather than a second implementation of "how a password becomes a
+// hash" that could drift from the real one.
+const hashPassword = async (plain) =>
+  execFileSync('php', ['-r', `echo password_hash(${JSON.stringify(plain)}, PASSWORD_DEFAULT);`], {
+    encoding: 'utf8',
+  }).trim()
+
 let cookie = ''
 const call = async (route, body, { noHeader = false, noCookie = false } = {}) => {
   const res = await fetch(`${API}/admin.php?r=${route}`, {
@@ -589,6 +598,67 @@ if (!placedR?.order_id) {
   const cleared2 = await call('settings_save', { name: 'knet', value: { tranportal_id: '' } })
   check(cleared2.status === 200, 'and the ID is cleared too, for the sandbox left behind')
 }
+
+// --- must_change_password: the flag reset-admin-password.php sets ---------
+//
+// Set directly in the database rather than through a route, because nothing
+// in admin.php sets it — reset-admin-password.php does, over cron, on the
+// live server, which this rig cannot reach. The database write is the
+// closest honest stand-in for what that script does.
+execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta', '-e',
+  `update admin_users set must_change_password = 1 where email='${EMAIL}'`])
+
+const flagged = await call('me')
+check(flagged.body?.must_change_password === true,
+  `me() reports must_change_password once the row is flagged (${flagged.body?.must_change_password})`)
+
+const gated = await call('stats')
+check(gated.status === 428 && gated.body?.error === 'must_change_password',
+  `an ordinary admin route 428s while the flag is set (${gated.status} ${gated.body?.error})`)
+
+// The two routes that must stay reachable — account (read) and account_update
+// (the fix) — same in_array() admin.php gates on.
+const accountRead = await call('account')
+check(accountRead.status === 200 && accountRead.body?.email === EMAIL,
+  `?r=account is let through despite the flag (${accountRead.status})`)
+
+const wrongCurrent = await call('account_update', {
+  password: 'not-the-real-one', new_password: 'a-brand-new-password-12', new_password2: 'a-brand-new-password-12', code: '',
+})
+check(wrongCurrent.status === 401 && wrongCurrent.body?.error === 'bad_password',
+  `account_update still checks the CURRENT password even while flagged (${wrongCurrent.body?.error})`)
+
+const tooShort = await call('account_update', {
+  password: PASSWORD, new_password: 'short', new_password2: 'short', code: '',
+})
+check(tooShort.body?.error === 'password_too_short',
+  `and enforces the same twelve-character floor as everywhere else (${tooShort.body?.error})`)
+
+const NEW_PASSWORD = 'a-brand-new-password-12'
+const changed = await call('account_update', {
+  password: PASSWORD, new_password: NEW_PASSWORD, new_password2: NEW_PASSWORD, code: '',
+})
+check(changed.status === 200 && changed.body?.signed_out === true,
+  `a real new password is accepted and ends the session (${changed.status})`)
+
+const afterChange = await call('me')
+check(afterChange.body === null, 'and the session really is gone — ?r=me answers null')
+
+const reLogin = await call('login', { email: EMAIL, password: NEW_PASSWORD })
+check(reLogin.status === 200 && reLogin.body?.email === EMAIL,
+  `signing back in with the NEW password works (${reLogin.status})`)
+
+const cleared = await call('me')
+check(cleared.body?.must_change_password === false,
+  `must_change_password cleared itself on the password change (${cleared.body?.must_change_password})`)
+
+const ungated = await call('stats')
+check(ungated.status === 200, `and an ordinary route works again, unforced (${ungated.status})`)
+
+// Left as the new password would strand every OTHER test run against this
+// same sandbox database — put it back so the file is idempotent.
+execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta', '-e',
+  `update admin_users set password_hash='${await hashPassword(PASSWORD)}' where email='${EMAIL}'`])
 
 // --- out ------------------------------------------------------------------
 await call('logout', {})

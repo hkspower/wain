@@ -223,7 +223,8 @@ def _fresh():
                         'v': 'aaaa%d' % n, 'width': 900, 'height': 1125} for n in range(1, 5)],
             'next_image': 5,
             'next_discount': 3, 'settings': settings, 'returns': returns,
-            'otp_enabled': False, 'otp_code': None}
+            'otp_enabled': False, 'otp_code': None,
+            'password': PASSWORD, 'must_change_password': False}
 
 
 # The sets a rule list may be drawn from, and the shipped defaults. Kept beside
@@ -327,10 +328,24 @@ class Handler(BaseHTTPRequestHandler):
             # anything.
             if not self._signed_in():
                 return self._json(200, None)
-            return self._json(200, {'email': EMAIL, 'phone': None, 'totp': False})
+            return self._json(200, {'email': EMAIL, 'phone': None, 'totp': False,
+                                     'must_change_password': STATE['must_change_password']})
 
         if not self._gate():
             return
+
+        if r == 'account':
+            # Still behind _gate() — signed in is still required — but not
+            # behind a must_change_password check, since this is one of the
+            # two routes that CLEAR the flag. A mock that also gated on it
+            # would be unable to reproduce the one scenario account_update
+            # exists for.
+            return self._json(200, {'email': EMAIL, 'phone': None, 'totp': False})
+
+        # Same 428 (not 401/403 — see admin.ts's own comment on why) every
+        # OTHER GET route answers on the real server while the flag is set.
+        if STATE['must_change_password']:
+            return self._json(428, {'error': 'must_change_password'})
 
         if r == 'stats':
             orders = STATE['orders']
@@ -470,11 +485,20 @@ class Handler(BaseHTTPRequestHandler):
             STATE = _fresh()
             return self._json(200, {'ok': True})
 
+        if r == 'fixture_must_change_password':  # fixture-only, unauthenticated
+            # No route by this name exists on the real admin.php — nothing in
+            # src/lib/admin.ts calls it, so the contract guard never sees it —
+            # it exists only so a browser rig can reach the state
+            # reset-admin-password.php puts a real account into, without a
+            # cron job or a database to reach for.
+            STATE['must_change_password'] = True
+            return self._json(200, {'ok': True})
+
         if r == 'login':
             if self.headers.get('X-Sporta-Admin') != '1':
                 return self._json(400, {'error': 'bad_request'})
             b = self._body()
-            if b.get('email') == EMAIL and b.get('password') == PASSWORD:
+            if b.get('email') == EMAIL and b.get('password') == STATE['password']:
                 return self._json(200, {'email': EMAIL, 'need_code': False}, set_cookie=SESSION)
             return self._json(401, {'error': 'bad_credentials'})
 
@@ -512,6 +536,28 @@ class Handler(BaseHTTPRequestHandler):
         if not self._gate():
             return
         b = self._body()
+
+        if r == 'account_update':
+            # The fixture account has no second factor enrolled, so `code` is
+            # accepted whatever it is — same as the real account_update when
+            # neither TOTP nor the email OTP is on.
+            if b.get('password') != STATE['password']:
+                return self._json(401, {'error': 'bad_password'})
+            new = b.get('new_password') or ''
+            if new:
+                if len(new) < 12:
+                    return self._json(422, {'error': 'password_too_short'})
+                if new != b.get('new_password2'):
+                    return self._json(422, {'error': 'password_mismatch'})
+                STATE['password'] = new
+                STATE['must_change_password'] = False
+                return self._json(200, {'ok': True, 'signed_out': True}, clear_cookie=True)
+            return self._json(422, {'error': 'nothing_to_update'})
+
+        # Same 428 every OTHER POST route answers on the real server while the
+        # flag is set — account_update above is the one exception.
+        if STATE['must_change_password']:
+            return self._json(428, {'error': 'must_change_password'})
 
         # ---- the emailed one-time code, as a second factor ------------------
         #

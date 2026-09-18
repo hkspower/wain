@@ -247,6 +247,55 @@ await p.goto(BASE + '/backends/orders', { waitUntil: 'networkidle' })
 await p.waitForTimeout(1200)
 check((await seen(p.getByText('Sign in')).count()) > 0, 'a dead session signs the panel out')
 
+// --- a temporary password from reset-admin-password.php -------------------
+//
+// fixture_must_change_password is a fixture-only route with no counterpart
+// on the real admin.php — see the mock's own comment — because there is no
+// other honest way to reach this state from a browser: on the real server it
+// is set by a cron job, not a request the panel could ever send.
+await fetch(`${API}/admin.php?r=reset`, { method: 'POST' })
+await fetch(`${API}/admin.php?r=fixture_must_change_password`, { method: 'POST' })
+
+await p.goto(BASE + '/backends', { waitUntil: 'networkidle' })
+await p.getByLabel('Email').fill('manager@sporta.com.kw')
+await p.getByLabel('Password').fill('correct horse')
+await p.getByRole('button', { name: 'Sign in' }).click()
+await p.waitForTimeout(900)
+
+check((await seen(p.getByText('Choose a new password')).count()) > 0,
+  'a temporary password opens the forced-change screen, not the dashboard')
+check((await seen(p.getByText('Today', { exact: true })).count()) === 0,
+  'and the dashboard is not reachable behind it')
+
+await p.getByLabel('Current temporary password').fill('wrong')
+await p.getByLabel('New password', { exact: true }).fill('a-brand-new-password-12')
+await p.getByLabel('New password, again').fill('a-brand-new-password-12')
+await p.getByRole('button', { name: 'Set new password' }).click()
+await p.waitForTimeout(500)
+check((await seen(p.getByText('That is not the password you just signed in with')).count()) > 0,
+  'the wrong current password is refused, by name')
+
+await p.getByLabel('Current temporary password').fill('correct horse')
+await p.getByLabel('New password', { exact: true }).fill('short')
+await p.getByLabel('New password, again').fill('short')
+await p.getByRole('button', { name: 'Set new password' }).click()
+await p.waitForTimeout(500)
+check((await seen(p.getByText('at least twelve characters')).count()) > 0,
+  'a short new password is refused before the mismatch would even be checked')
+
+await p.getByLabel('New password', { exact: true }).fill('a-brand-new-password-12')
+await p.getByLabel('New password, again').fill('a-brand-new-password-12')
+await p.getByRole('button', { name: 'Set new password' }).click()
+await p.waitForTimeout(900)
+check((await seen(p.getByText('Password changed')).count()) > 0,
+  'a real new password is accepted')
+
+await p.waitForTimeout(1500)
+check((await seen(p.getByText('Sign in')).count()) > 0,
+  'and the panel returns to the login screen, since the server ended the session')
+
+await fetch(`${API}/admin.php?r=reset`, { method: 'POST' })
+
 await b.close()
 console.log(fails ? `\n${fails} failed` : '\nall ok')
 process.exit(fails ? 1 : 0)
