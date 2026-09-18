@@ -76,6 +76,197 @@ await page.evaluate(() => {
   localStorage.setItem("gulf-road-nights-coach", "3");
 });
 await page.reload({ waitUntil: "networkidle" });
+
+// How much of a car may be indistinguishable from the night behind it.
+//
+// 25%, measured rather than picked: before the menu was given the
+// race's grade, the committed cards ran 48% to 69% with a fleet mean of
+// 37.7 luma, and two thirds of the Black Demon was nothing at all. A
+// quarter still allows for the fact that these are dark cars shot at
+// night — the wheel wells, the glass and the underside SHOULD be black
+// — while catching a body that has gone with them.
+const CAR_BLACK_BAR = 0.25;
+
+// --- the showroom, which is a different renderer and was a different
+// --- recipe -----------------------------------------------------------
+//
+//   node tools/shots/levels.mjs --attract
+//
+// Everything below this block measures the RACE. The cards in
+// press/cars, and the shop thumbnails derived from them, come from the
+// menu's turntable instead — a second renderer in attract.ts, with its
+// own chain. That is the surface a player judges a car on before they
+// buy it, and nothing measured it.
+//
+// The car is found by DIFFERENCE rather than by an ID pass: the ID pass
+// the race uses needs THREE to build its flat materials, and THREE is
+// only put on window by the engine, which has not started on the menu.
+// Rendering the scene with the car hidden and subtracting is the same
+// trick tools/shots/framing.mjs uses, and it needs nothing from the page
+// but the handle that is already there.
+//
+// Both recipes are reported side by side, because the handle exposes the
+// renderer as well as the composer: "raw" is renderer.render(), which is
+// what the menu did before it was given the grade, and "graded" is the
+// composer. One run, and the difference between the two columns is
+// exactly what the grade is worth.
+if (process.argv.slice(2).includes("--attract")) {
+  await page.evaluate(() => localStorage.setItem("gulf-road-nights-attract", "turntable"));
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForFunction(() => !!window.__grnAttract, null, { timeout: 180000 });
+  await page.waitForTimeout(2000);
+
+  // The fleet, from the same API the capture tool reads, so this
+  // measures the cars that exist rather than a list typed here.
+  const cars = (await fetch("http://localhost:3000/api/grn/v1/cars").then((r) => r.json())).cars;
+
+  const shot = (car) => page.evaluate(async (c) => {
+    const h = window.__grnAttract;
+    h.setCar({
+      body: parseInt(String(c.color).replace("#", ""), 16),
+      accent: c.accent ?? 0x007a3d,
+      stripes: c.stripes ?? undefined,
+      finish: c.finish ?? undefined,
+      style: c.bodyStyle ?? "sedan",
+      raceKit: c.kit === "attack",
+      kit: c.kit,
+      stickers: false,
+      goldRims: false,
+      rims: c.rims ?? undefined,
+      livery: c.livery ?? undefined,
+      face: c.face ?? undefined,
+      trike: c.trike ?? undefined,
+      tint: c.glassTint || undefined,
+      tintFilm: c.glassFilm ?? undefined,
+      lengthM: c.lengthM,
+    });
+    // The authored shells arrive over the network well after setCar
+    // returns, and a card measured through that is a card of the
+    // procedural stand-in.
+    await new Promise((r) => setTimeout(r, 6000));
+    h.park(0.72);
+
+    const W = 480, H = 270;
+    const cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext("2d", { willReadFrequently: true });
+    const grab = () => {
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(h.renderer.domElement, 0, 0, W, H);
+      return ctx.getImageData(0, 0, W, H).data;
+    };
+
+    // Each render overwrites the canvas, so every frame is grabbed
+    // before the next one is drawn.
+    h.composer.render();
+    const graded = grab();
+    h.renderer.render(h.scene, h.camera);
+    const raw = grab();
+    const shown = h.cars.map((g) => [g, g.visible]);
+    for (const [g] of shown) g.visible = false;
+    h.composer.render();
+    const empty = grab();
+    for (const [g, v] of shown) g.visible = v;
+    h.composer.render();
+
+    // A pixel belongs to the car when hiding the car changed it. The
+    // threshold is per-channel sum: high enough that dither and grain
+    // do not enrol half the road, low enough to keep a black flank
+    // against dark asphalt, which is the case that matters most here.
+    const luma = (d, i) => 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+    const car = [], bg = [];
+    const mask = new Uint8ClampedArray(W * H * 4);
+    for (let i = 0; i < graded.length; i += 4) {
+      const diff =
+        Math.abs(graded[i] - empty[i]) +
+        Math.abs(graded[i + 1] - empty[i + 1]) +
+        Math.abs(graded[i + 2] - empty[i + 2]);
+      const isCar = diff > 24;
+      (isCar ? car : bg).push({ g: luma(graded, i), r: luma(raw, i) });
+      const v = isCar ? 255 : 0;
+      mask[i] = v; mask[i + 1] = v; mask[i + 2] = v; mask[i + 3] = 255;
+    }
+    const stats = (arr, key) => {
+      if (arr.length < 500) return null;
+      const v = arr.map((x) => x[key]).sort((a, b) => a - b);
+      const q = (p) => v[Math.min(v.length - 1, Math.floor(p * v.length))];
+      return {
+        n: v.length,
+        mean: +(v.reduce((a, x) => a + x, 0) / v.length).toFixed(1),
+        p50: Math.round(q(0.5)),
+        max: Math.round(v[v.length - 1]),
+        // The headline number: how much of the car is simply not there.
+        black: +(v.filter((x) => x <= 16).length / v.length).toFixed(4),
+        crush: +(v.filter((x) => x <= 2).length / v.length).toFixed(4),
+      };
+    };
+    const png = (data) => {
+      const c2 = document.createElement("canvas");
+      c2.width = W; c2.height = H;
+      const x2 = c2.getContext("2d");
+      const img = x2.createImageData(W, H);
+      img.data.set(data);
+      for (let i = 3; i < img.data.length; i += 4) img.data[i] = 255;
+      x2.putImageData(img, 0, 0);
+      return c2.toDataURL("image/png").split(",")[1];
+    };
+    return {
+      carGraded: stats(car, "g"), carRaw: stats(car, "r"),
+      bgGraded: stats(bg, "g"), bgRaw: stats(bg, "r"),
+      gradedPng: png(graded), maskPng: png(mask),
+    };
+  }, car);
+
+  mkdirSync("press/levels", { recursive: true });
+  console.log("\n                      the car                          the night");
+  console.log("                mean   p50   max  black%      mean  black%");
+  const rows = [];
+  for (const car of cars) {
+    const r = await shot(car);
+    if (!r.carGraded) { console.log(`  ${car.id.padEnd(16)} no car found in frame`); continue; }
+    rows.push({ id: car.id, ...r });
+    const g = r.carGraded, w = r.carRaw, bgG = r.bgGraded, bgW = r.bgRaw;
+    console.log(
+      `  ${car.id.padEnd(16)} ${String(g.mean).padStart(5)} ${String(g.p50).padStart(5)} ` +
+      `${String(g.max).padStart(5)} ${(g.black * 100).toFixed(1).padStart(6)}%   ` +
+      `${String(bgG.mean).padStart(7)} ${(bgG.black * 100).toFixed(1).padStart(6)}%`
+    );
+    console.log(
+      `  ${"".padEnd(16)} ${String(w.mean).padStart(5)} ${String(w.p50).padStart(5)} ` +
+      `${String(w.max).padStart(5)} ${(w.black * 100).toFixed(1).padStart(6)}%   ` +
+      `${String(bgW.mean).padStart(7)} ${(bgW.black * 100).toFixed(1).padStart(6)}%   ungraded`
+    );
+    writeFileSync(`press/levels/card-${car.id}.png`, Buffer.from(r.gradedPng, "base64"));
+    writeFileSync(`press/levels/card-${car.id}-mask.png`, Buffer.from(r.maskPng, "base64"));
+  }
+  const avg = (k, which) => rows.reduce((a, r) => a + r[which][k], 0) / rows.length;
+  console.log(
+    `\n${rows.length} cars   graded: car mean ${avg("mean", "carGraded").toFixed(1)}, ` +
+    `${(avg("black", "carGraded") * 100).toFixed(1)}% of the car at or below 16` +
+    `   |   ungraded: ${avg("mean", "carRaw").toFixed(1)}, ` +
+    `${(avg("black", "carRaw") * 100).toFixed(1)}%`
+  );
+  console.log(
+    `background   graded ${avg("mean", "bgGraded").toFixed(1)}   ungraded ${avg("mean", "bgRaw").toFixed(1)}` +
+    `   (this one is meant to stay put: a showroom is a dark room with a lit car in it)`
+  );
+  // The bar. A card whose subject is half nothing is not a photograph of
+  // a car, whatever the page behind it looks like.
+  const bad = rows.filter((r) => r.carGraded.black > CAR_BLACK_BAR);
+  await browser.close();
+  if (bad.length) {
+    console.log(
+      `\nFAILURES:\n${bad
+        .map((r) => ` - ${r.id}: ${(r.carGraded.black * 100).toFixed(1)}% of the car is at or below 16/255` +
+          ` > ${(CAR_BLACK_BAR * 100).toFixed(0)}% — you cannot see the machine on its own card`)
+        .join("\n")}`
+    );
+    process.exit(1);
+  }
+  console.log("\nevery car on the turntable is a car you can see.");
+  process.exit(0);
+}
+
 await page.click("text=START ENGINE");
 await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 180000 });
 // The world keeps assembling after "ready" — authored shells, palm

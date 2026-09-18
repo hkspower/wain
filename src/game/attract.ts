@@ -1,8 +1,13 @@
 import * as THREE from "three";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { createCar, type CarColors } from "./cars";
 import type { DriverRig } from "./characters";
 import { solveDriverRig, lookAheadFor } from "./driver";
 import { nightEnvironment } from "./env";
+import { GradeShader } from "./grade";
 import { RIG } from "./rig";
 import { pixelRatioFor } from "./render";
 import { loadSettings } from "./settings";
@@ -78,6 +83,13 @@ export interface AttractHandle {
   readonly scene: THREE.Scene;
   readonly camera: THREE.PerspectiveCamera;
   readonly cars: THREE.Group[];
+  /** The renderer and the post chain, for a tool that has to re-draw
+   *  this scene itself — tools/shots/levels.mjs renders an ID pass
+   *  through the renderer with every material swapped, then puts the
+   *  beauty frame back through the composer. Nothing in the game reads
+   *  either. */
+  readonly renderer: THREE.WebGLRenderer;
+  readonly composer: EffectComposer;
   /** Freeze the turntable at a fixed angle, or pass null to let it sweep
    *  again. The showroom capture uses this so all fourteen cars are
    *  caught at the same three-quarter view instead of at fourteen
@@ -390,6 +402,60 @@ export function buildAttract(
   scene.environment = nightEnvironment(renderer);
 
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 120);
+
+  /**
+   * The same grade the race runs, on the screen the player judges the
+   * game by.
+   *
+   * The menu used to call renderer.render() straight to the canvas:
+   * raw ACES at exposure 1.15 and nothing else. The race, meanwhile,
+   * has always finished its picture through grade.ts — a shadow lift,
+   * a SOFT black point with a knee under it, contrast, vibrance and a
+   * dither. Those first two are exactly the controls that stop dark
+   * material collapsing, and the showroom never saw them.
+   *
+   * Measured on the committed cards before this existed: a mean luma of
+   * 37.7 of 255 over the car, with 48% to 69% of each car's own pixels
+   * at 16 or below. On the Black Demon, two thirds of the car was
+   * nothing. The renders were then being gamma-lifted back up afterwards
+   * by scripts/story-images.mjs, which is a patch over this.
+   *
+   * env.ts says why this had to be the same recipe rather than a second
+   * one: the environment bake is shared with the race because "two
+   * recipes would mean the car you pick in the menu is lit by a
+   * different city than the one you drive into". The grade was the half
+   * of that recipe that never got shared.
+   *
+   * What is deliberately NOT taken from the race:
+   *
+   * - Bloom. Parked at showroom range the headlamps already blow a
+   *   white smear across the menu — see the halo damping in fitCar,
+   *   which exists for that — and bloom would put it straight back.
+   * - Auto-exposure. The turntable is one subject at one distance, so
+   *   an adaptive exposure would drift between cars and leave a black
+   *   car and a white one disagreeing about how bright the room is.
+   *   A showroom holds one exposure; the grade's fixed curve is it.
+   *
+   * MSAA moves to the target here. Canvas antialias does nothing once
+   * the scene is drawn into a composer buffer instead of the canvas, so
+   * without samples on this target the post chain would have cost the
+   * menu its edges — a sharper picture that is visibly more jagged is
+   * not the trade being made.
+   */
+  const drawing = renderer.getDrawingBufferSize(new THREE.Vector2());
+  const sceneTarget = new THREE.WebGLRenderTarget(
+    Math.max(1, drawing.x),
+    Math.max(1, drawing.y),
+    { type: THREE.HalfFloatType, samples: 4 }
+  );
+  const composer = new EffectComposer(renderer, sceneTarget);
+  composer.addPass(new RenderPass(scene, camera));
+  // Tone map and encode BEFORE the grade, the same order the race
+  // enforces: grading scene-referred HDR puts the final clamp in the
+  // wrong space and clips every emissive above 1.
+  composer.addPass(new OutputPass());
+  const gradePass = new ShaderPass(GradeShader);
+  composer.addPass(gradePass);
 
   // The car sits on a turntable rather than the camera orbiting it: the
   // horizon band in the environment map then sweeps along the flank,
@@ -867,9 +933,9 @@ export function buildAttract(
     // being drawn at roughly half the resolution of the text sitting on
     // top of it, so the one 3D thing on the screen was the blurriest
     // thing on the screen. The menu renders two cars against a flat road
-    // with no post chain — it can afford the pixels the race cannot, and
-    // this is the screen a player looks at longest before deciding what
-    // they think of the game.
+    // through three passes rather than the race's seven — it can afford
+    // the pixels the race cannot, and this is the screen a player looks
+    // at longest before deciding what they think of the game.
     //
     // It follows the resolution ladder for the same reason: a player who
     // has set the game to 4K and finds the menu behind their 4K race
@@ -885,6 +951,13 @@ export function buildAttract(
       pixelRatioFor(loadSettings().resolution, w, h, window.devicePixelRatio || 1, maxBuffer)
     );
     renderer.setSize(w, h, false);
+    composer.setPixelRatio(renderer.getPixelRatio());
+    composer.setSize(w, h);
+    // The grain and the unsharp mask are both measured in texels, so
+    // the grade has to be told the buffer it is actually working on or
+    // both change size with the window.
+    const buf = renderer.getDrawingBufferSize(new THREE.Vector2());
+    (gradePass.uniforms.uTexel.value as THREE.Vector2).set(1 / buf.x, 1 / buf.y);
     const aspect = w / Math.max(1, h);
     camera.aspect = aspect;
     const wide = aspect >= 1.15;
@@ -1030,7 +1103,10 @@ export function buildAttract(
 
   const draw = (dt: number) => {
     pose(dt);
-    renderer.render(scene, camera);
+    // The grain is a function of time, and a still turntable with a
+    // frozen grain pattern is a dirty lens rather than film.
+    gradePass.uniforms.uTime.value = (performance.now() / 1000) % 100;
+    composer.render();
     frames++;
   };
 
@@ -1072,6 +1148,12 @@ export function buildAttract(
     },
     scene,
     camera,
+    // Exposed for the same reason scene and camera are: the measuring
+    // tools need to re-render this scene with their own materials (the
+    // ID pass in tools/shots/levels.mjs) and to force a frame after
+    // parking it.
+    renderer,
+    composer,
     get cars() {
       return [near.car, far?.car].filter(Boolean) as THREE.Group[];
     },
@@ -1095,6 +1177,8 @@ export function buildAttract(
       pool.dispose();
       roadTex?.dispose();
       scene.environment?.dispose();
+      composer.dispose();
+      sceneTarget.dispose();
       renderer.dispose();
     },
   };
