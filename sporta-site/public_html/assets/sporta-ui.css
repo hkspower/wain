@@ -333,9 +333,31 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
    merely drifted in theory. Before believing a declaration, ask whether
    anything later overrides it — `grep -n` for the property answers it, and
    getComputedStyle answers it better. */
+/* --- AND THEN THE WHOLE SCREEN — 2026-09-18 ------------------------------
+   Asked for in as many words: fill the whole screen height, and told plainly
+   what that costs before it shipped — every window's shape differs from the
+   artwork's own 2.52:1, so `cover` now crops the SIDES on every ordinary
+   screen rather than showing the whole banner, which is the opposite of the
+   2026-09-17 choice directly above. The owner picked this trade knowing it.
+
+   100svh, not 100vh: vh on a phone is the LARGEST the address bar ever lets
+   the viewport be, so a hero sized to it is taller than the space actually on
+   screen the moment the bar is showing, and the page opens already scrolled
+   past its own fold. svh tracks the SMALLEST the chrome allows, so the hero
+   never claims more than what is really there.
+
+   THE PHONE BUTTON STRIP IS BELOW THE ART, NOT OVER IT, so 100svh has to be
+   split rather than applied twice — measured in the DOM: the strip is a
+   sibling block after the image, not an overlay, and its own height (padding
+   plus a 48px button) is independent of how tall the image box is. Giving the
+   OUTER 100svh and the image `calc(100svh - 104px)` is what makes the two sum
+   to the screen instead of the image alone claiming it and pushing the button
+   off-screen. Desktop needs no such split: at 768px and up the art goes
+   `md:absolute md:inset-0`, laid UNDER the button rather than beside it, so
+   the outer's own 100svh already reaches the image without arithmetic. */
 :root {
-  --hero-h: calc(100vw / 2.52 + 104px) !important;
-  --hero-h-md: calc(100vw / 2.52) !important;
+  --hero-h: 100svh !important;
+  --hero-h-md: 100svh !important;
 }
 
 /* AND THE COMPONENT ITSELF, which is what actually sizes the mounted hero.
@@ -353,31 +375,24 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
    comment above claimed desktop was cut to 2.15 and it was measurably 1.85,
    1408 x 761 on a 1280 screen. Found by measuring the rendered box rather than
    reading the file. */
-@media (max-width: 767px) {
-  .hero-strength > .aspect-\[2\.52\/1\] {
-    /* BACK TO THE BUNDLE'S OWN NUMBER, 2026-09-17. This was 2.10, which cut
-     * 17% off the banner's width to buy height on a phone. The owner asked
-     * for the whole picture instead. Written out rather than deleted, even
-     * though the class it overrides already says 2.52: an override that
-     * silently agrees with the thing below it is invisible, and the next
-     * person to change the phone hero should find the decision here. */
-    aspect-ratio: 2.52 / 1 !important;
-  }
-}
+/* THE PHONE HEIGHT'S ONE HOME IS FURTHER DOWN THIS FILE, not here — a second
+ * `@media (max-width: 767px) { .hero-strength { height: ... } }` used to sit
+ * at this spot too, same selector, same specificity, and being LATER in the
+ * file the one further down always won. That is the exact failure this file
+ * spent a whole comment block on for --hero-h: two homes for one number had
+ * already drifted, silently, the first time this rule was written here — this
+ * copy said 100svh while the surviving one still said the old ratio formula,
+ * and only the second was ever reaching a phone. Removed rather than
+ * corrected in place, so there is one home again. See "THE PHONE HEIGHT WAS
+ * STALE" further down for the current formula and the button-strip split. */
 @media (min-width: 768px) {
   .hero-strength {
-    aspect-ratio: 2.52 / 1 !important;
-    /* BOTH CAPS OFF, 2026-09-17, and the second one is the one that matters.
-     * This carried max-height: 60svh, and the BUNDLE ships its own
-     * max-h-[80svh] on the same element. Either of them clipping the box
-     * makes it wider than 2.52 and `cover` starts eating the banner's top and
-     * bottom again — the exact inversion the block above spent four
-     * paragraphs discovering. `none` beats the bundle's 80svh as well as
-     * removing ours, which a bare deletion would not have done.
-     *
-     * The min-height floor is gone with them: aspect-ratio alone now resolves
-     * to 100vw/2.52 at every width, so a floor at the same number is a second
-     * home for it and could only ever drift. One rule, one shape. */
+    /* 2026-09-18: was aspect-ratio 2.52/1 with the ratio-and-cap history two
+     * blocks up. The art goes md:absolute md:inset-0 at this width — under
+     * the button, not beside it — so the outer's own height is already the
+     * image's height and nothing needs splitting the way the phone does. */
+    height: 100svh !important;
+    aspect-ratio: auto !important;
     max-height: none !important;
   }
 }
@@ -441,6 +456,24 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
 .hero-strength picture img {
   object-fit: cover !important;
   object-position: 15% center !important;
+}
+/* 2026-09-18: 15% WAS TUNED FOR A MILD CROP AND THE PHONE CROP IS NO LONGER
+ * MILD. Full-height made the phone's image box `calc(100svh - 104px)` tall
+ * against the same 390px width — on an 844px phone that is a 390x740 box,
+ * ratio 0.53:1, showing only 390/(740*2.52) = 20.9% of the banner's width.
+ * At 15% that window would run 12.3%..33.2% — the SPORTA mark at 6.2% and the
+ * headline's own start at 6.0% both fall OUTSIDE it, cut off entirely rather
+ * than merely close to the edge. 0% moves the window to 0%..20.9%, which is
+ * as much of the type as this crop can show at all; anything past it is
+ * simply outside the visible 20.9% at any position, cover cannot recover it,
+ * and only a taller phone composition of its own — a design decision, not a
+ * number to tune — would show more. Desktop is untouched: its crop stays in
+ * the 60-70% range the 15% figure above was measured against. */
+@media (max-width: 767px) {
+  .hero-strength img,
+  .hero-strength picture img {
+    object-position: 0% center !important;
+  }
 }
 
 /* ------------------------------------------------- the summer offer band */
@@ -1554,13 +1587,24 @@ p.mt-6.flex.flex-wrap.items-baseline:has(> .font-display) {
 
 @media (max-width: 767px) {
   .hero-strength {
-    /* 2.52, not 2.10 — the owner asked for the banner full size, so the phone
-     * shows the whole picture: 155px of art at 390 wide instead of 186px of a
-     * cropped 83%. Same formula as --hero-h at the top of this file. */
-    height: calc(100vw / 2.52 + 104px) !important;
+    /* 100svh, 2026-09-18 — same formula as --hero-h at the top of this file,
+     * and the one home for the phone height after the duplicate above this
+     * block was removed. Was `calc(100vw / 2.52 + 104px)`, the artwork's own
+     * ratio plus the band: the owner then asked for the whole SCREEN rather
+     * than the whole PICTURE, which these are not the same thing — the box no
+     * longer has the artwork's shape, and `cover` on the image below crops the
+     * sides to fill it. See object-position further up for what that costs. */
+    height: 100svh !important;
   }
-
-  /* The artwork keeps its own box and its own ratio. Untouched on purpose. */
+  .hero-strength > .aspect-\[2\.52\/1\] {
+    /* The image's own box no longer takes the ratio either — it is 100svh
+     * MINUS the 104px band below, so the two sum to the screen instead of the
+     * image alone claiming it and pushing the band off-screen. aspect-ratio
+     * is dropped rather than left beside a height, which would leave two
+     * properties disagreeing about the same box. */
+    height: calc(100svh - 104px) !important;
+    aspect-ratio: auto !important;
+  }
 
   /* The band: 104px instead of 128, and the button pulled up into the top of
    * it so the controls have the bottom. Both were always inside these 128px;

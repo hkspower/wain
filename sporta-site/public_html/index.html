@@ -238,91 +238,34 @@
           el.style.colorScheme = t
           // THE HERO'S HEIGHT, BEFORE THE FIRST PAINT.
           //
-          // The height is an owner setting that arrives with /api?r=slides —
-          // i.e. AFTER the page has painted. Applying it on arrival resized
-          // the hero and pushed the whole page down: measured 0.042 of layout
-          // shift, all of it from one jump at 3.3s, and it is the single
-          // largest CLS contributor on the site.
+          // ONE NUMBER SINCE 2026-09-18: 100svh, regardless of what kind of
+          // hero is coming or what the owner set for a ratio-based one. Every
+          // earlier version of this comment described a formula that depended
+          // on the slide's own size, because every earlier hero tried not to
+          // crop the artwork — a fixed screen height makes that question moot,
+          // so the branching on `kind` and the cached `sporta_hero_size`
+          // reading it fed are both gone from here. `kind` itself survives
+          // below, for the unrelated question of whether to draw the boot
+          // shell's own banner picture.
           //
-          // So the last known value is cached and read here, the same way the
-          // theme is two lines above. A visitor gets the right height from the
-          // first frame; a change by the owner is picked up on the next load
-          // rather than by moving the page under whoever is reading it.
-          var HERO_H = { short: ['400px','460px'], tall: ['540px','640px'], full: ['85svh','90svh'] }
-          var h = HERO_H[localStorage.getItem('sporta_hero_size')] || HERO_H.tall
+          // sporta-ui.css sets the same two variables with !important and
+          // WINS the moment it loads — same as every version before this one
+          // — so what this script still decides is only the FIRST FRAME,
+          // before the stylesheet applies. Both files have to say 100svh or
+          // the shell and the mounted hero disagree and the page jumps at
+          // mount, which is the one failure this script exists to prevent.
+          //
+          // 100svh EVERYWHERE, not the phone/desktop split the old formula
+          // needed. The old one had to add the button strip's height on the
+          // phone because the strip sits below the art there rather than over
+          // it — but that arithmetic lives in sporta-ui.css, on the image
+          // container itself, not on the outer box this variable sizes. The
+          // outer is the whole screen at every width; splitting it here too
+          // would be a second home for the same 104px and only one of them
+          // could ever be told about a change to the button.
           var kind = localStorage.getItem('sporta_hero_kind') || 'banner'
-          // THE PHONE HEIGHT WAS STALE, and by 257 pixels.
-          //
-          // The shell painted 540px (the "tall" default) while the mounted hero
-          // on a 390px phone is 283px — 155px of artwork at its own 2.52:1 plus
-          // a 128px strip for the button. So every first load drew a 540px dark
-          // box and then collapsed it by nearly half.
-          //
-          // CLS never caught it, and that is worth understanding rather than
-          // trusting: the shell is REMOVED wholesale and the app painted in its
-          // place, so nothing "moved" by the metric's definition. It was only
-          // ever visible to a person.
-          //
-          // 128px is the strip, not a guess: py-6 top and bottom (48) + a 48px
-          // button + pb-8 (32). Measured identical at 390 and 430.
-          // AND THE SAME AGREEMENT ON THE PHONE. This said 2.52 + 128px and the
-          // stylesheet says 2.10 + 104px — 283px against 290px at 390 wide, so
-          // the shell was 7px short of the hero it stands in for. Both numbers
-          // moved in sporta-ui.css (the ratio when the owner called the phone
-          // hero too tall, the strip when the band under it was tightened from
-          // 128 to what the button and the controls actually need) and neither
-          // moved here. Same formula, same two files, written out twice.
-          // 2.52 RATHER THAN 2.10 SINCE 2026-09-17 — the owner asked for the
-          // banner full size, so the phone shows the whole picture and the
-          // box is the artwork's own ratio. 155px of art at 390 wide, plus
-          // the strip, against 186px of a cropped 83% before.
-          //
-          // The 104px is the measured strip and is the half of this line that
-          // was already right: sporta-ui.css said 128 and the band is 104, so
-          // the shell it paints stood 24px taller than the hero that replaced
-          // it. Both files say 104 now.
-          el.style.setProperty('--hero-h',
-            kind === 'slides' ? h[0] : 'calc(100vw / 2.52 + 104px)')
-          // THE DESKTOP HEIGHT DEPENDS ON WHICH HERO IS COMING, and getting it
-          // wrong is a layout shift on the largest element of the site.
-          //
-          // A shipped banner fills the width at its own 2.52:1 ratio, so its
-          // height is decided by the viewport and not by the owner's setting —
-          // measured, a fixed 640px box left 307px of blurred bars at 1920 and
-          // 947px at 2560. An uploaded slide uses `cover` and still honours the
-          // setting. Which one it will be is cached by HeroSlider on the last
-          // visit, because /api cannot answer before this paint.
-          //
-          // The clamp used to match the component's md:max-h-[80svh] exactly.
-          // If the two ever disagree the shell stops matching the hero, which
-          // is the one thing this script exists to guarantee — AND THEY HAD
-          // DISAGREED, by up to 152px, for as long as sporta-ui.css has been
-          // published. That file overrides --hero-h-md with !important, which
-          // beats a normal inline property, so this line stopped deciding
-          // anything the moment the stylesheet loaded; what it still decides is
-          // the FIRST frame, before the stylesheet applies. Measured 2026-09-10,
-          // this value against the stylesheet's:
-          //
-          //   768x1024   305 vs 404   1280x900  508 vs 540
-          //   1920x1080  762 vs 648   2560x1440 1016 vs 864
-          //
-          // So the two numbers below are now one number, written the same way
-          // in both files. It is the stylesheet's, because that is the one the
-          // mounted hero actually gets:
-          //
-          //   100vw / 2.52
-          //
-          // ONE TERM SINCE 2026-09-17, where it was
-          // max(100vw/2.52, min(100vw/1.90, 60svh)). The owner asked for the
-          // banner full size and chose the whole picture at every width, so
-          // our 1.90 ratio and the 60svh cap are both gone: a box taller than
-          // the artwork crops its sides, a box shorter crops its top and
-          // bottom, and the picture's own ratio is the only number that crops
-          // neither. Change one file and you must change the other, or the
-          // shell and the hero disagree again and the page jumps at mount.
-          el.style.setProperty('--hero-h-md',
-            kind === 'slides' ? h[1]
-              : 'calc(100vw / 2.52)')
+          el.style.setProperty('--hero-h', '100svh')
+          el.style.setProperty('--hero-h-md', '100svh')
 
           // THE HERO BANNER, requested here rather than in the markup above.
           //
