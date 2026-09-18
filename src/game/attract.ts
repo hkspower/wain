@@ -449,6 +449,16 @@ export function buildAttract(
     { type: THREE.HalfFloatType, samples: 4 }
   );
   const composer = new EffectComposer(renderer, sceneTarget);
+  // Count triangles across the WHOLE frame, not just the last pass.
+  //
+  // renderer.info resets itself on every render() call, and a composer
+  // makes several per frame — so the handle's `triangles`, which is how
+  // tests/intro.mjs proves the menu is drawing a scene rather than a
+  // still, came back as the 1 triangle of the final full-screen quad.
+  // The scene was fine; the number reporting on it was not. Resetting
+  // once per frame instead accumulates every pass, so the figure is the
+  // scene's own geometry again (plus a handful of quad triangles).
+  renderer.info.autoReset = false;
   composer.addPass(new RenderPass(scene, camera));
   // Tone map and encode BEFORE the grade, the same order the race
   // enforces: grading scene-referred HDR puts the final clamp in the
@@ -884,6 +894,38 @@ export function buildAttract(
   }
   scene.add(new THREE.AmbientLight(0x2b3a58, rolling ? 0.9 : 0.8));
 
+  /**
+   * The fill a showroom actually has, and this rig did not.
+   *
+   * The key sits at negative z and the camera at positive z, so the key
+   * is a RIM: the face turned towards the viewer is the unlit side of
+   * the car. That reads beautifully on a pale car and collapses on a
+   * dark one, which is why the fleet's black cars measured worst.
+   *
+   * Giving the menu the race's grade fixed part of it — the car's own
+   * pixels went from 32.6% at-or-below-16 to 24.9%, and the Black Demon
+   * from 43.7% to 33.5% — but a grade is a curve over the whole frame,
+   * so it lifted the night by 50% while lifting the car by 20%. A tone
+   * curve cannot tell a car from the room it is standing in. Only a
+   * light can, which is what this is.
+   *
+   * A SPOT rather than a directional, and that is the entire point: it
+   * falls off, so it reaches the car and not the far surround. A
+   * directional fill of the same strength would have lifted the
+   * backdrop with it and undone what the spot is here to protect.
+   *
+   * Cool, because the key is warm sodium (0xffcf8a) and a second warm
+   * source flattens the modelling into one colour. Cast no shadow: the
+   * key owns the contact shadow, and a second shadow under a showroom
+   * car is a lighting error you can see from across the room.
+   */
+  const fillZ = rolling ? -8.6 : 8.6; // whichever side the camera is on
+  const front = new THREE.SpotLight(0xd6e4f6, rolling ? 38 : 52, 28, 0.66, 0.9, 1.5);
+  front.position.set(rolling ? PLAYER_X - 2.4 : -3.2, 3.8, fillZ);
+  front.target.position.set(rolling ? PLAYER_X : 0, 0.7, 0);
+  scene.add(front.target);
+  scene.add(front);
+
   // Stars, so the space above the car is night rather than nothing
   {
     const n = 220;
@@ -1106,6 +1148,7 @@ export function buildAttract(
     // The grain is a function of time, and a still turntable with a
     // frozen grain pattern is a dirty lens rather than film.
     gradePass.uniforms.uTime.value = (performance.now() / 1000) % 100;
+    renderer.info.reset();
     composer.render();
     frames++;
   };

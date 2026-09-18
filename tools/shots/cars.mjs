@@ -52,7 +52,15 @@ const browser = await chromium.launch({
   args: ["--use-gl=angle", "--enable-webgl", "--no-sandbox", "--disable-dev-shm-usage"],
   headless: true,
 });
-const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 2.5 });
+// 4, not the 2.5 this shot was taken at for most of its life. The clip
+// below is 480x270 CSS px, so 2.5 delivered a 1200x675 PNG — and
+// cardthumbs.mjs then TRIMS to the car's own pixels before scaling to
+// 480 wide, which left a shop card's real source at roughly 700x400.
+// There was no supersampling headroom behind the picture the player
+// actually sees. At 4 the same clip lands 1920x1080 and the trim has
+// something to spend. The player-facing WebP does not grow; only this
+// press PNG does.
+const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 4 });
 // A fixed crop around where the turntable puts the car. Fixed rather than
 // fitted per car on purpose: the same rectangle means the same scale in
 // every card, so a pickup reads as bigger than a coupe because it IS

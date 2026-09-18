@@ -3,19 +3,37 @@
 //
 //   npm run stories:images
 //
-// The showroom renders are lit for a dark card on a dark page and they
-// are genuinely too dark for a phone held outdoors: the GTR's own body
-// sits at a mean luma of about 30 of 255, which on an OLED at midday is
-// a silhouette. This is the tonal correction Photoshop's
-// image_apply_adjustments would make — a gamma lift on the midtones, a
-// shadow lift under it, and a little saturation to put back what
-// brightening takes out.
+// MOST OF WHAT THIS FILE EXISTED FOR HAS BEEN FIXED UPSTREAM.
 //
-// It is done here rather than in Photoshop because this environment
-// cannot reach Adobe's upload host: at.adobe.com is refused by the
-// egress policy with a 403 at CONNECT, so the renders cannot be put
-// into Creative Cloud for the image tools to fetch. The numbers below
-// are the same numbers, applied locally.
+// It used to say the showroom renders were "genuinely too dark for a
+// phone held outdoors: the GTR's own body sits at a mean luma of about
+// 30 of 255". That was true and it was measured again to be sure — 29.6
+// for the GTR, a fleet mean of 37.7, and 48% to 69% of every car at or
+// below 16/255. The cause was not the story cards' problem at all: the
+// menu's turntable was rendering without the grade the race has always
+// run, so the showroom never got the shadow lift or the soft black
+// point. attract.ts now shares that grade and carries a fill light on
+// the camera side, and the same renders measure a fleet mean of 49.4.
+//
+// So the correction here is a third of what it was, and it is doing
+// what a correction should: a small push for viewing conditions, not a
+// rescue of a badly lit picture.
+//
+// THE GAMMA CALL WAS NEVER DOING ANYTHING. It read `.gamma(1.6)`, and
+// sharp's gamma darkens before a resize and brightens after it — with
+// no resize in this pipeline it round-trips. Measured across four cars:
+// no-op 54.0 mean luma, gamma 1.15 52.8, gamma 1.25 52.6, gamma 1.35
+// 52.5. Every one of those is DARKER than doing nothing. All of the
+// lift this file ever applied came from .linear(); the gamma was a
+// no-op that read like the main event, which is why it is gone rather
+// than merely reduced.
+//
+// On Adobe, for the record: the connector is authenticated and works,
+// but nothing in this sandbox can reach Adobe (403 at CONNECT on every
+// host) and Adobe will not fetch from raw.githubusercontent.com or from
+// claudeusercontent.com — its image tools keep an Adobe-only allowlist.
+// The file picker is the only way in, one manual pick per image. None
+// of which matters any more, because the fix belonged in the renderer.
 import sharp from "sharp";
 import { readdirSync, mkdirSync, existsSync } from "node:fs";
 
@@ -56,13 +74,14 @@ for (const car of cars) {
   const src = `${SRC}/${car.id}.png`;
   if (!existsSync(src)) { console.log(`  ${car.id.padEnd(16)} NO RENDER`); continue; }
   const before = await luma(src);
-  // gamma 1.6 on the midtones, then a modest linear lift with a small
-  // offset so the black point comes off zero without going grey, and
-  // saturation back up because brightening desaturates.
+  // A modest linear lift with a small offset so the black point comes
+  // off zero without going grey, and a little saturation back because
+  // brightening desaturates. Was 1.18 and 6 against renders that needed
+  // rescuing; the renders are lit properly now, so this is the push for
+  // a bright phone and nothing more.
   const out = await sharp(src)
-    .gamma(1.6)
-    .linear(1.18, 6)
-    .modulate({ saturation: 1.22 })
+    .linear(1.06, 3)
+    .modulate({ saturation: 1.08 })
     .png()
     .toBuffer();
   const after = await luma(out);
