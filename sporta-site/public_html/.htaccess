@@ -566,7 +566,22 @@ FileETag MTime Size
   # /backends, added in the same commit as the file this time.
   # checkout-tap-targets.js is the twenty-second, 2026-09-18 — bigger touch
   # targets on /checkout, added in the same commit as the file.
-  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|apple-signin|panel-settings|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme|nav-menu|brand-strip|legal-pages|legal-editor|admin-mobile|essentials|payment|assistant-icon|invoices|checkout-tap-targets)\.js$">
+  #
+  # trust-strip.js, footer-payment-icons.js, force-password-notice.js and
+  # first-admin.js were ALL ALREADY MISSING when this line was next read —
+  # the twenty-third through twenty-sixth — and none of them was caught when
+  # it landed. htaccess-test.mjs itself had the hole: its own looksHashed
+  # matched hyphenated multi-word names like "-payment-icons.js" and
+  # "-password-notice.js" against a cruder pattern than sw-version-test.mjs
+  # used, with no digit-or-mixed-case requirement, so both files were silently
+  # treated as content-hashed build output and skipped by every check in the
+  # rig — never asked for no-cache, never asked to NOT be immutable. They were
+  # in fact being served `public, max-age=31536000, immutable`: a YEAR of
+  # caching on files that get edited, which is worse than the heuristic
+  # caching this whole mechanism exists to prevent. Fixed by matching
+  # sw-version-test.mjs's own looksHashed() exactly rather than a second,
+  # divergent implementation of the same idea.
+  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|apple-signin|panel-settings|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme|nav-menu|brand-strip|legal-pages|legal-editor|admin-mobile|essentials|payment|assistant-icon|invoices|checkout-tap-targets|trust-strip|footer-payment-icons|force-password-notice|first-admin)\.js$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 

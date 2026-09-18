@@ -677,6 +677,14 @@
          the same shape every other admin-only overlay uses. -->
     <script src="/assets/force-password-notice.js" defer></script>
 
+    <!-- A working "create the first admin account" form on the "No sign-in
+         has been created yet" screen, replacing the bundle's own instructions
+         to visit /api/setup-admin.php — a file that has never existed in
+         this repository and does not exist on the server. Calls the same
+         ?r=register the app's /backends already uses, which can only ever
+         fire once. -->
+    <script src="/assets/first-admin.js" defer></script>
+
     <!-- The website panel's Settings screen: the contact-details card the
          bundle has no editor for (the app's panel has had one all along), and
          the repair of two instructions on that screen which name files this

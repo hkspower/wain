@@ -364,10 +364,37 @@ try {
       `${f} revalidates before use — "${cc || 'NOTHING, so every cache guesses'}"`)
   }
 
+  // A real Vite hash is 8+ chars of [A-Za-z0-9_] containing a digit, or
+  // mixed case — "Chmxw88_", "BYKJiDn8". A hand-written multi-word filename
+  // can still LOOK like it matches "-somethingLong.js" on a cruder pattern —
+  // `-payment-icons.js` and `-password-notice.js` both cleared an earlier
+  // version of this check's `-[A-Za-z0-9_-]{8,}` (hyphens included in the
+  // class, no digit or case requirement), so footer-payment-icons.js and
+  // force-password-notice.js were silently treated as hashed and skipped by
+  // BOTH loops below — never checked for immutability's absence and never
+  // checked for no-cache's presence, which is exactly backwards from what
+  // either file needs. Kept in sync with sw-version-test.mjs's own
+  // looksHashed(), which caught this correctly and is why this one was
+  // wrong: two independent implementations of the same idea, and only one
+  // of them was ever exercised against these two filenames.
+  const looksHashed = (name) => {
+    // Hyphens and underscores stay IN the class — base64url, which esbuild's
+    // hashes are, uses both, and Review-DZ-PH_xP.js is a real one with a
+    // hyphen inside the hash itself. Excluding hyphens (an earlier version of
+    // this fix did) would have "corrected" the false positive on kebab-case
+    // names by introducing a false negative on this real one. The digit-or-
+    // mixed-case check is what actually tells them apart: "payment-icons" and
+    // "password-notice" are 8+ chars and all lowercase; "DZ-PH_xP" is not.
+    const m = /-([A-Za-z0-9_-]{8,})\.(js|css)$/.exec(name)
+    if (!m) return false
+    const seg = m[1]
+    return /[0-9]/.test(seg) || (/[a-z]/.test(seg) && /[A-Z]/.test(seg))
+  }
+
   // And the other half of the bargain: only content-hashed output may be
   // immutable, because only its filename changes when its bytes do.
   const hashed = readdirSync(`${DOCROOT}/assets`)
-    .filter((f) => /-[A-Za-z0-9_-]{8,}\.(js|css)$/.test(f)).slice(0, 3)
+    .filter((f) => looksHashed(f)).slice(0, 3)
   for (const f of hashed) {
     const cc = cacheOf(`/assets/${f}`)
     check(/immutable/.test(cc), `assets/${f} is immutable — "${cc}"`)
@@ -391,7 +418,7 @@ try {
   // hash in it, which is precisely the condition that makes the immutable rule
   // inapplicable and an explicit Cache-Control necessary.
   const unhashed = readdirSync(`${DOCROOT}/assets`)
-    .filter((f) => /\.(js|css)$/.test(f) && !/-[A-Za-z0-9_-]{8,}\.(js|css)$/.test(f))
+    .filter((f) => /\.(js|css)$/.test(f) && !looksHashed(f))
   for (const f of unhashed) {
     const cc = cacheOf(`/assets/${f}`)
     check(/no-cache|must-revalidate|max-age=0/.test(cc),

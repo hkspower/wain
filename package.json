@@ -73,6 +73,7 @@
     "test:tile-art": "node scripts/tile-art-test.mjs",
     "test:custom-css": "node scripts/custom-css-test.mjs",
     "test:first-admin": "node scripts/first-admin-test.mjs",
+    "test:first-admin-site": "node scripts/first-admin-site-test.mjs",
     "test:brand-token": "node scripts/brand-token-test.mjs",
     "test:brand-logo-file": "node scripts/brand-logo-file-test.mjs",
     "test:brand-logos": "node scripts/brand-logos-test.mjs",
