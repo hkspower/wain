@@ -77,6 +77,18 @@ if (strlen($pass) < 12) {
     exit;
 }
 
+// AND THE SAME WEAK-PASSWORD CHECK, found missing by a security review of
+// this file: the length floor alone lets '111111111111' or 'sportasporta'
+// through — both 12 characters, both something store_password_is_weak()
+// refuses on every OTHER route that sets a credential. This script exists
+// for the one moment the panel's own gate cannot be reached; it must not be
+// a weaker gate than the one it stands in for, even for the short window
+// before must_change_password forces a real password.
+if (($weak = store_password_is_weak($pass, $EMAIL)) !== null) {
+    echo "RESETPW $weak\n";
+    exit;
+}
+
 $db = store_db();
 $hash = password_hash($pass, PASSWORD_DEFAULT);
 $stmt = $db->prepare(
