@@ -1,5 +1,38 @@
 # KNET — which integration this shop has, and what you must do on the server
 
+## The primary reference is now in this repository — 2026-09-18
+
+`sporta-site/reference/` holds the two manuals this file, `TPAY.md`,
+`pay/cbk.php` and `pay/callback.php` had all been reasoning from without ever
+having in hand:
+
+- `knet-K-064-merchant-integration-manual-v1.5.pdf` — KNET's own Merchant
+  Integration Manual (Doc K-064, 21 Apr 2024), covering the legacy Tranportal
+  route this shop actually uses.
+- `cbk-knet-tpay-gateway-integration-manual-v3.02.pdf` — the Commercial Bank
+  of Kuwait's hosted KNET & T-Pay gateway manual, covering the fallback route
+  below. The owner supplied both; treat them as the **primary source** for
+  anything this file, `TPAY.md` or the `pay/`/`knet/` code claims about either
+  gateway, ahead of any comment in the code.
+
+**One long-standing gap is now closed.** `KNET.md`'s own history records that
+the `tij_MerchPayType` mapping — `1` for KNET, `2` for T-Pay QR — was "asserted
+in a comment and pinned by a test, which is not the same as confirmed," because
+`www.cbk.com` is blocked from this environment and the manual was not in the
+repository. Page 9 of the v3.02 manual, "Payment Mode Reference", states it in
+so many words: `1 = KNET`, `2 = CBK T-Pay QR`, both KWD-only. `pay/cbk.php` and
+`pay/config.example.php` had it right.
+
+**One thing is now a known discrepancy rather than an unknown one.** Every
+comment in this codebase that names a version cites **v2.93**; the manual now
+in hand is **v3.02**. Nobody has yet gone through the newer manual parameter by
+parameter against `pay/cbk.php` — the field names checked so far
+(`tij_MerchantEncryptCode`, `tij_MerchAuthKeyApi`, `tij_MerchantPaymentAmount`,
+`tij_MerchantPaymentTrack`, `tij_MerchPayType`, `tij_MerchReturnUrl`) match what
+the code already sends, but that is a spot check, not an audit. Treat "v2.93"
+in any comment as inherited from before this manual was available rather than
+as a claim that v3.02 was checked against it.
+
 **Sporta pays through the Tranportal values.** That is the owner's decision and
 `knet/config.example.php` pins it — `'mode' => 'legacy'` — so nothing works it
 out at runtime. The three credentials go in that file and `knet/` does the rest:

@@ -2261,6 +2261,17 @@ environment's egress proxy, and the manual is not in this repository. It is
 asserted in a comment and pinned by a test, which is not the same as confirmed.
 Ask the bank.
 
+**Now confirmed, 2026-09-18.** The owner supplied the manual directly —
+`sporta-site/reference/cbk-knet-tpay-gateway-integration-manual-v3.02.pdf`,
+plus KNET's own K-064 manual alongside it — rather than it needing to be
+fetched from a blocked host. Page 9, "Payment Mode Reference": `1` = KNET,
+`2` = CBK T-Pay QR, both KWD-only, in so many words. The code had it right.
+**Left open by this**: the manual in hand is v3.02 and every comment in this
+codebase citing a version says v2.93; nobody has gone through the newer manual
+parameter by parameter against `pay/cbk.php` yet, only spot-checked the field
+names already in use. See `KNET.md`'s own note at its top for the fuller
+account.
+
 ## A hero slide is a ROW, not a file — and raw.githubusercontent will not take a short SHA
 
 Published the all-black banner as the shop's hero on 2026-09-11. Three things
