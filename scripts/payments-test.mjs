@@ -399,14 +399,14 @@ console.log('\n--- and what they do when everything is right')
 
 // ============================================================ the padding oracle
 //
-// KNET's trandata is AES-128-CBC with a FIXED, PUBLISHED IV and NO MAC, and
-// the only thing authenticating the callback is that the ciphertext decrypts
-// under the resource key. That is sound until the server will tell a stranger
-// whether the PADDING was valid — because CBC without a MAC plus a padding
-// oracle is not a confidentiality problem, it is a FORGERY problem: the
-// standard CBC-R construction turns the oracle into ciphertext that decrypts
-// to plaintext of the attacker's choosing, without the key. The plaintext they
-// would choose is `result=CAPTURED&trackid=<their own order>`.
+// KNET's trandata is AES-128-CBC with NO MAC, and the only thing
+// authenticating the callback is that the ciphertext decrypts under the
+// resource key. That is sound until the server will tell a stranger whether
+// the PADDING was valid — because CBC without a MAC plus a padding oracle is
+// not a confidentiality problem, it is a FORGERY problem: the standard CBC-R
+// construction turns the oracle into ciphertext that decrypts to plaintext of
+// the attacker's choosing, without the key. The plaintext they would choose
+// is `result=CAPTURED&trackid=<their own order>`.
 //
 // The amount check does not save it — they write the trandata, so they write
 // the matching amount, which their own order page told them.
@@ -418,13 +418,18 @@ console.log('\n--- and what they do when everything is right')
 // So the assertion is BYTE EQUALITY of the two answers, not "both are an
 // error": any difference at all is the oracle, and a check that only asked
 // whether both looked like failures would have passed the vulnerable code.
+//
+// IV = KEY, since 2026-09-18 — knet.php's own header explains why: KNET's
+// iPayPipe library derives the IV from the Terminal Resource Key itself,
+// not a separate fixed string. This harness has to build the SAME ciphertext
+// shape knet.php does, or a passing test here would prove nothing about the
+// server it is meant to be attacking.
 console.log('\n--- what a stranger can learn from a bad trandata')
 
 {
   const KEY = 'SANDBOX_NOT_REAL'
-  const IV = 'PGKEYENCDECIVSPC'
   const enc = (plain) => {
-    const c = createCipheriv('aes-128-cbc', Buffer.from(KEY), Buffer.from(IV))
+    const c = createCipheriv('aes-128-cbc', Buffer.from(KEY), Buffer.from(KEY))
     return Buffer.concat([c.update(Buffer.from(plain, 'utf8')), c.final()]).toString('hex').toUpperCase()
   }
   // Correctly padded, and meaningless once decrypted.

@@ -2,13 +2,31 @@
 // Classic KNET (KPG) direct integration — crypto + helpers (native PHP).
 //
 // KNET encrypts "trandata" with AES-128-CBC, key = Terminal Resource Key,
-// fixed IV "PGKEYENCDECIVSPC", PKCS7 padding, hex-encoded (uppercase).
+// IV = the SAME Terminal Resource Key (not a separate fixed string — see
+// below), PKCS7 padding, hex-encoded (uppercase).
 // Gateway: kpaytest.com.kw (test) / kpay.com.kw (production), /kpg/PaymentHTTP.htm
 // Result "CAPTURED" (or "APPROVED") = success.
+//
+// THE IV WAS A FIXED CONSTANT, 'PGKEYENCDECIVSPC', UNTIL 2026-09-18, and
+// nothing in this codebase had ever run a real transaction through this path
+// to notice — this is the project's own documented fallback, kept tested
+// rather than deleted, never the primary route. Found by decompiling KNET's
+// own iPayPipe library (owner-supplied, never committed here — see CLAUDE.md
+// for why): its AESAlgorithm.encryptAES builds the IV from
+// `new IvParameterSpec(key.getBytes())` — the Terminal Resource Key itself,
+// the exact same bytes used as the AES key — and iPayPipe's trandata builder
+// confirms `key` is set straight from the resource file's `resourceKey` with
+// nothing else mixed in. Checked in both directions: the decrypt path
+// (parseEncryptedRequest -> AESAlgorithm.decryptAES) uses the identical
+// key-as-IV derivation. The string 'PGKEYENCDECIVSPC' appears nowhere in the
+// decompiled library and nowhere in KNET's own K-064 manual.
+//
+// AES-128-CBC's IV must be exactly one block (16 bytes), which a 16-byte
+// resource key already is — knet_assert_key() enforces that length for the
+// key, and it is now the same requirement for the IV since they are the same
+// value.
 
 declare(strict_types=1);
-
-const KNET_IV = 'PGKEYENCDECIVSPC'; // 16 bytes, fixed by KNET
 
 // Reject non-HTTPS (honours Hostinger's X-Forwarded-Proto proxy header).
 function knet_require_https(): void
@@ -268,10 +286,13 @@ function knet_assert_key(string $resourceKey): void
     }
 }
 
+// The resource key IS the IV, per iPayPipe's own AESAlgorithm — see the file
+// header. Both encrypt and decrypt pass $resourceKey twice: once as the AES
+// key, once as the IV, because that is what the official library does.
 function knet_encrypt(string $plain, string $resourceKey): string
 {
     knet_assert_key($resourceKey);
-    $enc = openssl_encrypt($plain, 'AES-128-CBC', $resourceKey, OPENSSL_RAW_DATA, KNET_IV);
+    $enc = openssl_encrypt($plain, 'AES-128-CBC', $resourceKey, OPENSSL_RAW_DATA, $resourceKey);
     if ($enc === false) {
         throw new RuntimeException('KNET encrypt failed');
     }
@@ -285,7 +306,7 @@ function knet_decrypt(string $hex, string $resourceKey): string
     if ($raw === false) {
         throw new RuntimeException('KNET response is not valid hex');
     }
-    $dec = openssl_decrypt($raw, 'AES-128-CBC', $resourceKey, OPENSSL_RAW_DATA, KNET_IV);
+    $dec = openssl_decrypt($raw, 'AES-128-CBC', $resourceKey, OPENSSL_RAW_DATA, $resourceKey);
     if ($dec === false) {
         throw new RuntimeException('KNET decrypt failed');
     }
