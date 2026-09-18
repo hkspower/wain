@@ -967,7 +967,10 @@ const STORE_HERO_MAX = 1200000;  // ~1.2 MB of base64, ~900 kB of image
 // survive — but several of them load on one product page, where the hero is
 // one image on the home page. The admin downscales to 1400px WebP; this is
 // the floor under that, not the target.
-const STORE_PRODUCT_IMAGE_MAX = 900000;  // ~900 kB of base64, ~675 kB of image
+// RAISED FROM 900000 at the owner's request, on 2026-09-18. Kept below
+// STORE_HERO_MAX on purpose — a product photograph is still one of several on
+// a page, and the hero is the one image the home page is built around.
+const STORE_PRODUCT_IMAGE_MAX = 1100000;  // ~1.1 MB of base64, ~825 kB of image
 // How many photographs one garment may carry. Not a storage limit — a row is
 // nothing — it is a page-weight limit, and the product gallery is the one
 // screen where "just one more angle" has no natural end.

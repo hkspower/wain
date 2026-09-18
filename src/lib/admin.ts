@@ -1364,7 +1364,7 @@ export const adminApi = {
   },
 
   /** `image` is a data: URI, ALREADY DOWNSCALED — see lib/shrink-image. The
-   *  server refuses anything over ~900 kB of base64, which a phone photograph
+   *  server refuses anything over ~1.1 MB of base64, which a phone photograph
    *  exceeds several times over, and it refuses SVG outright. */
   addProductImage: (slug: string, image: string, width: number, height: number) =>
     call<{ id: number; url: string }>('product_image_add', { slug, image, width, height }),

@@ -275,7 +275,7 @@ if (apache) {
 // -------------------------------------------------- 4. the database's images
 console.log('\n--- images kept in the database')
 const stores = [
-  ['product_images', 'image', 'product photographs', 900000],
+  ['product_images', 'image', 'product photographs', 1100000],
   ['hero_slides', 'image', 'hero slides', 1200000],
   ['brands', 'logo', 'brand logos', 160000],
 ]

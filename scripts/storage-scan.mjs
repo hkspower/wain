@@ -238,17 +238,17 @@ else {
   const present = tables.filter((r) => forever.includes(r.t))
   note(`kept for ever, by design: ${present.map((r) => `${r.t} (${r.n} rows)`).join(', ')}`)
 
-  // PHOTOGRAPHS LIVE IN MYSQL, base64 in a longtext. The cap is 900 kB of
+  // PHOTOGRAPHS LIVE IN MYSQL, base64 in a longtext. The cap is 1.1 MB of
   // base64 per photograph and 24 photographs per product, so 46 products can
-  // legitimately ask for about a gigabyte of database. Worth knowing on shared
-  // hosting, where the database quota is usually the smaller one.
+  // legitimately ask for a bit over a gigabyte of database. Worth knowing on
+  // shared hosting, where the database quota is usually the smaller one.
   const imgs = rows(`select count(*) as n, round(coalesce(sum(length(image)),0)/1024/1024, 2) as mb
                      from product_images`)[0]
   const products = Number(rows('select count(*) as n from products')[0]?.n ?? 0)
   if (imgs) {
     note(`product photographs: ${imgs.n} stored, ${imgs.mb} MB of base64 inside MySQL`)
-    note(`    the ceiling as configured: ${products} products x 24 photos x 900 kB = ` +
-         `${((products * 24 * 900000) / 1024 / 1024 / 1024).toFixed(1)} GB`)
+    note(`    the ceiling as configured: ${products} products x 24 photos x 1.1 MB = ` +
+         `${((products * 24 * 1100000) / 1024 / 1024 / 1024).toFixed(1)} GB`)
   }
 }
 

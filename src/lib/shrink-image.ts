@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
  * A photograph, made small enough for the server to accept.
  *
  * WHY THIS EXISTS AT ALL. `?r=product_image_add` takes a data: URI and refuses
- * anything over about 900 kB of base64 — roughly 675 kB of image. A photograph
+ * anything over about 1.1 MB of base64 — roughly 825 kB of image. A photograph
  * off a modern phone is 3 to 6 MB, so EVERY upload would be refused, and the
  * refusal would arrive as `logo_too_large` after the whole file had been read,
  * encoded and sent. Shrinking is not an optimisation here; without it the
@@ -28,8 +28,8 @@ import { Platform } from 'react-native';
  */
 
 /** The server's cap, in bytes of BASE64 — store.php, STORE_PRODUCT_IMAGE_MAX.
- *  Base64 is 4 bytes per 3, so the real image budget is about 675 kB. */
-export const MAX_BASE64 = 900_000;
+ *  Base64 is 4 bytes per 3, so the real image budget is about 825 kB. */
+export const MAX_BASE64 = 1_100_000;
 
 /** How many photographs one garment may carry — store.php's
  *  STORE_PRODUCT_IMAGE_LIMIT. Mirrored so the picker can stop at the limit

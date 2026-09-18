@@ -38,7 +38,7 @@ import { MAX_PHOTOS, shrinkImage, TooBig } from '@/lib/shrink-image';
  * is where the panel is used. Brand cuts it to a handful, size cuts it again,
  * and the search box is there for whoever already knows the name.
  *
- * UPLOADS RUN ONE AT A TIME, ON PURPOSE. Each one is up to 900 kB of base64
+ * UPLOADS RUN ONE AT A TIME, ON PURPOSE. Each one is up to 1.1 MB of base64
  * inside a transaction that takes `for update` on the garment's rows to count
  * them against the cap; firing eight in parallel means eight PHP workers on
  * shared hosting queueing on the same lock, and the failure looks like the

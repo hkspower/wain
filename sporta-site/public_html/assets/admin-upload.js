@@ -20,7 +20,7 @@
   'use strict'
 
   var API = '/api/admin.php?r='
-  var MAX_BASE64 = 900000      // store.php, STORE_PRODUCT_IMAGE_MAX
+  var MAX_BASE64 = 1100000      // store.php, STORE_PRODUCT_IMAGE_MAX
   var LONGEST = 1400
   var QUALITIES = [0.82, 0.72, 0.62, 0.5, 0.4]
 
