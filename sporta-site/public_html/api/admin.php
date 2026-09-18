@@ -367,6 +367,29 @@ if ($r === 'me') {
 // lock the owner out of their own recovery.
 $admin = store_require_admin(in_array($r, ['account', 'account_update'], true));
 
+// RELEASE THE SESSION LOCK for every route but one. PHP's default file-based
+// session handler holds an EXCLUSIVE lock on the session for as long as the
+// script that opened it keeps running — so several admin.php requests
+// sharing one browser tab's cookie never run concurrently no matter how many
+// the browser sends at once; each waits for the ENTIRE previous one to
+// finish first. Measured on the Catalogue screen, which fires one
+// `product_images` request per garment the instant it opens — 46 on the
+// seeded catalogue: every one of them queued up behind this lock, turning
+// what the browser meant as ~46 parallel requests into 46 serial ones. That
+// is invisible in a sandbox where each one costs a few milliseconds and is
+// exactly the "switching to Catalogue is slow" a phone on a real network
+// feels.
+//
+// `account_update` is excluded because it is the one route below this line
+// that still WRITES to $_SESSION — a renamed email is refreshed there so the
+// tab that just renamed itself is not signed out (see that route's own
+// comment). Everything else past here only ever READS $_SESSION (an
+// audit-log line naming who acted, mostly), which a closed session still
+// allows — closing it stops further writes being saved, not existing reads.
+if ($r !== 'account_update') {
+    session_write_close();
+}
+
 // --------------------------------------------------------------- audit log
 //
 // ONE HOOK for every save route below, rather than one call added to each —

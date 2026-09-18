@@ -705,6 +705,13 @@
          than a complete row nobody has reason to swipe. CSS only. -->
     <script src="/assets/panel-tabbar-fade.js" defer></script>
 
+    <!-- The same tab bar re-centres on whichever tab is active, instead of
+         staying wherever a swipe last left it — the fade above fixed
+         discoverability; this fixes "where am I" after tapping a tab found
+         by scrolling. MutationObserver on aria-current, not CSS alone: a
+         behaviour on tap, not a rule a stylesheet can express. -->
+    <script src="/assets/panel-tabbar-autocenter.js" defer></script>
+
     <!-- The website panel's Settings screen: the contact-details card the
          bundle has no editor for (the app's panel has had one all along), and
          the repair of two instructions on that screen which name files this
