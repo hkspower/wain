@@ -242,6 +242,24 @@ const SCENES: Record<string, React.ReactElement> = {
     </g>
   ),
 
+  // The towers: the big globe in its real turquoise mosaic, the second
+  // tower's plain grey-painted sphere, the slender third mast with none.
+  // Every other shape in this file is white-on-gradient by design (see the
+  // file header) — this is the one deliberate exception, because the globe's
+  // colour IS the landmark; drawing it white made it just another dome.
+  "kuwait-towers": (
+    <g {...S}>
+      <path d="M256 130V100M280 130V100M268 100V86" opacity={0.85} />
+      <circle cx="268" cy="78" r="11" fill="#c7ccd1" fillOpacity={0.92} />
+      <path d="M176 130V72M224 130V72M200 72V50" />
+      <circle cx="200" cy="42" r="5" {...MASS} />
+      <circle cx="200" cy="88" r="21" fill="#2f8f8a" fillOpacity={0.92} />
+      <path d="M136 130V78M152 130V78M144 78V58" opacity={0.75} />
+      <path d="M100 56q6-6 12 0M118 46q5-5 10 0" strokeWidth={2.5} />
+      {BASE}
+    </g>
+  ),
+
   // Water park: the slide is the whole silhouette.
   "aqua-park": (
     <g {...S}>
