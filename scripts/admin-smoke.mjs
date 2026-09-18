@@ -34,6 +34,18 @@ const check = (ok, what) => {
 }
 const shot = (name) => p.screenshot({ path: `/tmp/backends-${name}.png` })
 
+// THE NAV IS A COMPACT "Menu" TOGGLE AT THIS VIEWPORT. 390px is below
+// admin-shell.tsx's COMPACT_NAV_WIDTH, where the thirteen-item horizontal
+// strip a wider screen gets is replaced by a single button that opens a
+// vertical list — see that file's own comment for why. So reaching a
+// destination here means opening the menu first; `go()` closes it again the
+// moment a link is pressed.
+const nav = async (name, opts = {}) => {
+  await p.getByRole('button', { name: /Menu/ }).click()
+  await p.waitForTimeout(150)
+  await p.getByRole('link', { name, ...opts }).click()
+}
+
 // WHICH ORIGIN THE PANEL ACTUALLY CALLS — captured, so a wrong build fails in
 // one honest line instead of four cryptic ones and a thirty-second timeout.
 //
@@ -94,7 +106,7 @@ check((await seen(p.getByText('Desert runner short · XL')).count()) > 0, 'the l
 await shot('today')
 
 // --- orders, filtered ----------------------------------------------------
-await p.getByRole('link', { name: 'Orders', exact: true }).click()
+await nav('Orders', { exact: true })
 await p.waitForTimeout(900)
 const all = await seen(p.getByText(/^SP-26\d\d$/)).count()
 check(all === 3, `orders list loads (${all})`)
@@ -140,7 +152,7 @@ check((await seen(p.getByRole('button', { name: 'paid' })).count()) === 0,
   'recording the cash retires the button')
 
 // --- stock ---------------------------------------------------------------
-await p.getByRole('link', { name: 'Stock' }).click()
+await nav('Stock')
 await p.waitForTimeout(900)
 const field = seen(p.getByLabel('stock for Core compression tee L')).first()
 check((await field.inputValue()) === '9', 'stock loads the current count')
@@ -156,7 +168,7 @@ check((await seen(p.getByText('Saved')).count()) > 0, 'a valid stock saves')
 await shot('stock')
 
 // --- promotions ----------------------------------------------------------
-await p.getByRole('link', { name: 'Promotions' }).click()
+await nav('Promotions')
 await p.waitForTimeout(900)
 check((await seen(p.getByText('SAVE10')).count()) > 0, 'the promotions list loads')
 check((await seen(p.getByText('used up')).count()) > 0,
@@ -200,7 +212,7 @@ await shot('promos')
 // The screen a customer's return request lands on. The mock carries two: one
 // `new` exchange and one `approved` return, so the default filter has to
 // EXCLUDE something to be doing anything.
-await p.getByRole('link', { name: 'Returns' }).click()
+await nav('Returns')
 await p.waitForTimeout(1200)
 check((await seen(p.getByText('SPR7K2M9QX4')).count()) > 0,
   'the returns list loads, filtered to what is waiting')
@@ -234,7 +246,7 @@ check((await seen(p.getByText('rejected')).count()) > 0, 'and the rejection stic
 await shot('returns')
 
 // --- activity: the read side of the audit-log hook ------------------------
-await p.getByRole('link', { name: 'Activity' }).click()
+await nav('Activity')
 await p.waitForTimeout(900)
 check((await seen(p.getByText('set_stock')).count()) > 0, 'the activity log shows a route by name')
 check((await seen(p.getByText(/tranportal_password.*redacted/)).count()) > 0,
@@ -242,7 +254,7 @@ check((await seen(p.getByText(/tranportal_password.*redacted/)).count()) > 0,
 await shot('activity')
 
 // --- security: the four cards, and a real TOTP round trip -----------------
-await p.getByRole('link', { name: 'Security' }).click()
+await nav('Security')
 await p.waitForTimeout(900)
 check((await seen(p.getByText('Email and phone')).count()) > 0, 'the contact card is there')
 check((await seen(p.getByText('Authenticator app')).count()) > 0, 'so is the authenticator card')

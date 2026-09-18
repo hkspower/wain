@@ -97,7 +97,7 @@ export function ForcePasswordChange() {
 
   if (done) {
     return (
-      <AdminShell title="Password changed" hideNav>
+      <AdminShell title="Password changed">
         <ThemedText type="label">
           Your new password is set. Sign in again with it.
         </ThemedText>
@@ -106,7 +106,7 @@ export function ForcePasswordChange() {
   }
 
   return (
-    <AdminShell title="Choose a new password" hideNav>
+    <AdminShell title="Choose a new password">
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={{ gap: Spacing.one }}>
           <ThemedText type="label">
