@@ -124,7 +124,7 @@ def _fresh():
         'promo_bar': {'enabled': True, 'text_en': 'Delivery within 24 hours in Kuwait',
                       'text_ar': 'التوصيل خلال ٢٤ ساعة داخل الكويت',
                       'href': '', 'starts_at': None, 'ends_at': None},
-        'knet': {'tranportal_id': ''},
+        'knet': {'tranportal_id': '', 'tranportal_password': '', 'resource_key': ''},
         # THE SHOP'S NUMBERS, seeded with the same values store_rule_defaults()
         # returns. A mock that started these at zero would let a screen be
         # built against a shop with free delivery and no returns window, which
@@ -408,15 +408,26 @@ class Handler(BaseHTTPRequestHandler):
             # Mirrors admin.php: the saved ID, and which of the two sources is
             # actually in force. Empty means knet/config.php is.
             #
+            # tranportal_password_set / resource_key_set, added 2026-09-18
+            # alongside the real route: booleans only, never the value — same
+            # discipline as the CBK *_set fields below.
+            #
             # `pay` mirrors the CBK gateway status admin.php now reports
             # alongside it — a fixture with all three credentials real and
             # `ready: true`, since this mock has no pay/config.php on disk to
             # read and "could not read the file" is the wrong fixture default
             # for a screen that is meant to be exercised in its READY state
             # most of the time.
-            tid = STATE['settings'].get('knet', {}).get('tranportal_id', '')
+            knet = STATE['settings'].get('knet', {})
+            tid = knet.get('tranportal_id', '')
+            pw_set = bool(knet.get('tranportal_password', ''))
+            key_set = bool(knet.get('resource_key', ''))
             return self._json(200, {'tranportal_id': tid,
                                     'source': 'database' if tid else 'file',
+                                    'tranportal_password_set': pw_set,
+                                    'tranportal_password_source': 'database' if pw_set else 'file',
+                                    'resource_key_set': key_set,
+                                    'resource_key_source': 'database' if key_set else 'file',
                                     'pay': {'env': 'test', 'ready': True,
                                             'client_id_set': True,
                                             'client_secret_set': True,
@@ -705,16 +716,43 @@ class Handler(BaseHTTPRequestHandler):
 
             if name == 'knet':
                 # The same validation admin.php does, in the same order, so a
-                # bad ID is refused here too rather than only in production.
+                # bad value is refused here too rather than only in production.
                 # A fixture that accepts what the server rejects is the exact
                 # divergence admin-contract-test.mjs exists to catch.
-                tid = str(v.get('tranportal_id') or '').strip()
-                if tid and not re.fullmatch(r'[A-Za-z0-9]{3,32}', tid):
-                    return self._json(422, {'error': 'invalid_tranportal_id'})
-                if tid.upper() in ('YOUR_TRANPORTAL_ID', 'TRANPORTAL_ID', 'CHANGEME'):
-                    return self._json(422, {'error': 'placeholder_tranportal_id'})
-                STATE['settings']['knet'] = {'tranportal_id': tid}
-                return self._json(200, STATE['settings']['knet'])
+                #
+                # EACH FIELD OPTIONAL AND INDEPENDENT, mirroring admin.php's
+                # array_key_exists check: a key absent from the request leaves
+                # that field exactly as it was, added 2026-09-18 alongside the
+                # password and resource key becoming editable.
+                current = dict(STATE['settings'].get('knet', {}))
+                nxt = dict(current)
+
+                if 'tranportal_id' in v:
+                    tid = str(v.get('tranportal_id') or '').strip()
+                    if tid and not re.fullmatch(r'[A-Za-z0-9]{3,32}', tid):
+                        return self._json(422, {'error': 'invalid_tranportal_id'})
+                    if tid.upper() in ('YOUR_TRANPORTAL_ID', 'TRANPORTAL_ID', 'CHANGEME'):
+                        return self._json(422, {'error': 'placeholder_tranportal_id'})
+                    nxt['tranportal_id'] = tid
+
+                if 'tranportal_password' in v:
+                    pw = str(v.get('tranportal_password') or '').strip()
+                    if len(pw) > 200:
+                        return self._json(422, {'error': 'tranportal_password_too_long'})
+                    if pw.upper() in ('YOUR_TRANPORTAL_PASSWORD', 'CHANGEME'):
+                        return self._json(422, {'error': 'placeholder_tranportal_password'})
+                    nxt['tranportal_password'] = pw
+
+                if 'resource_key' in v:
+                    key = str(v.get('resource_key') or '')
+                    if key and len(key) != 16:
+                        return self._json(422, {'error': 'resource_key_wrong_length'})
+                    if key.upper() == 'YOUR_TERMINAL_RESOURCE_KEY':
+                        return self._json(422, {'error': 'placeholder_resource_key'})
+                    nxt['resource_key'] = key
+
+                STATE['settings']['knet'] = nxt
+                return self._json(200, {'tranportal_id': nxt.get('tranportal_id', '')})
             if name == 'promo_bar':
                 STATE['settings']['promo_bar'] = {
                     'enabled': bool(v.get('enabled')),

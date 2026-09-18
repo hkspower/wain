@@ -1368,36 +1368,86 @@ if ($r === 'settings_save' && $method === 'POST') {
             'managed_en'    => $cap('managed_en', 200),
         ]);
     } elseif ($name === 'knet') {
-        // THE KNET TRANPORTAL ID.
+        // THE KNET TRANPORTAL CREDENTIALS — all three fields since 2026-09-18,
+        // on the owner's explicit request after being shown the cost: putting
+        // the password and the resource key in the same row as everything
+        // else means an SQL injection ANYWHERE in the shop hands over a
+        // working, signing gateway rather than a merchant number. See the
+        // note beside STORE_SETTING_DEFAULTS in api/store.php.
         //
         // WHAT A WRONG VALUE COSTS, which is why this is the strictest
         // validation in this function. Every other setting here is text on a
         // page: a mistyped address looks wrong and someone says so. A mistyped
-        // Tranportal ID is a shop that takes the customer to KNET and is
-        // refused there, on every order, with nothing in the shop's own logs
-        // saying why — the gateway rejects the merchant, not the basket.
+        // credential is a shop that takes the customer to KNET and is refused
+        // there, on every order, with nothing in the shop's own logs saying
+        // why — the gateway rejects the merchant, not the basket.
         //
-        // So: digits and letters only, 3 to 32 of them. KNET issues numeric
-        // IDs (the shipped example is 626101) but has issued alphanumeric ones,
-        // and refusing a valid ID the bank gave the owner is its own failure —
-        // they would have no way to enter it and no idea why.
-        //
-        // EMPTY IS ALLOWED AND MEANS "GO BACK TO THE FILE". Clearing the box
-        // has to be possible: it is the way out if a saved ID turns out to be
-        // wrong, and it must not require somebody with FTP access at the exact
-        // moment the shop cannot take money.
-        $id = trim((string) ($v['tranportal_id'] ?? ''));
-        if ($id !== '' && !preg_match('/^[A-Za-z0-9]{3,32}$/', $id)) {
-            store_fail('invalid_tranportal_id');
+        // EACH FIELD IS INDEPENDENT AND OPTIONAL IN THE REQUEST. array_key_exists,
+        // not `?? ''`: a request that omits a key leaves that field exactly as
+        // it was, so changing the password does not require resending the ID
+        // and the resource key blind. A key that IS present and empty clears
+        // that one field back to knet/config.php — the way out if a saved
+        // value turns out to be wrong, without needing server access at the
+        // exact moment the shop cannot take money.
+        $current = store_setting($db, 'knet');
+        $next = $current;
+
+        if (array_key_exists('tranportal_id', $v)) {
+            // Digits and letters only, 3 to 32 of them. KNET issues numeric
+            // IDs (the shipped example is 626101) but has issued alphanumeric
+            // ones, and refusing a valid ID the bank gave the owner is its
+            // own failure — they would have no way to enter it and no idea
+            // why.
+            $id = trim((string) $v['tranportal_id']);
+            if ($id !== '' && !preg_match('/^[A-Za-z0-9]{3,32}$/', $id)) {
+                store_fail('invalid_tranportal_id');
+            }
+            // The placeholder knet/config.php ships with. Saving it would
+            // read as "configured" to knet_legacy_configured() and pin the
+            // shop to the legacy path with an ID that cannot take a payment.
+            if (in_array(strtoupper($id), ['YOUR_TRANPORTAL_ID', 'TRANPORTAL_ID', 'CHANGEME'], true)) {
+                store_fail('placeholder_tranportal_id');
+            }
+            $next['tranportal_id'] = $id;
         }
-        // The placeholders knet/config.php ships with. Saving one of these
-        // would read as "configured" to knet_legacy_configured() and pin the
-        // shop to the legacy path with an ID that cannot take a payment —
-        // which is the precise failure that function exists to route around.
-        if (in_array(strtoupper($id), ['YOUR_TRANPORTAL_ID', 'TRANPORTAL_ID', 'CHANGEME'], true)) {
-            store_fail('placeholder_tranportal_id');
+
+        if (array_key_exists('tranportal_password', $v)) {
+            // No format KNET publishes to validate against — unlike the ID and
+            // the key, this one is free text from the bank. A generous but
+            // finite cap (200) is still worth having: without one, a request
+            // this large is a row this large, forever, in a table read on
+            // every payment.
+            $password = trim((string) $v['tranportal_password']);
+            if (mb_strlen($password) > 200) {
+                store_fail('tranportal_password_too_long');
+            }
+            if (in_array(strtoupper($password), ['YOUR_TRANPORTAL_PASSWORD', 'CHANGEME'], true)) {
+                store_fail('placeholder_tranportal_password');
+            }
+            $next['tranportal_password'] = $password;
         }
-        store_setting_save($db, 'knet', ['tranportal_id' => $id]);
+
+        if (array_key_exists('resource_key', $v)) {
+            // THE PLACEHOLDER CHECK GOES FIRST. 'YOUR_TERMINAL_RESOURCE_KEY'
+            // is 27 characters, not 16 — checking length first would refuse
+            // it as resource_key_wrong_length, true but not the useful
+            // answer, and the placeholder branch below it would be dead code
+            // no input could ever reach.
+            $key = (string) $v['resource_key'];
+            if (strtoupper($key) === 'YOUR_TERMINAL_RESOURCE_KEY') {
+                store_fail('placeholder_resource_key');
+            }
+            // EXACTLY 16 bytes — AES-128 takes nothing else. knet_assert_key()
+            // throws on any other length and the shopper gets "Payment init
+            // failed", so this is checked here rather than left for the
+            // gateway to discover mid-checkout.
+            if ($key !== '' && strlen($key) !== 16) {
+                store_fail('resource_key_wrong_length');
+            }
+            $next['resource_key'] = $key;
+        }
+
+        store_setting_save($db, 'knet', $next);
     } elseif ($name === 'hero') {
         store_setting_save($db, 'hero', [
             // 2s floor: anything faster is unreadable, and WCAG 2.2.2 wants
@@ -1678,6 +1728,11 @@ if ($r === 'rules' && $method === 'GET') {
 if ($r === 'knet' && $method === 'GET') {
     $set = store_setting($db, 'knet');
     $id  = (string) ($set['tranportal_id'] ?? '');
+    // NEVER THE VALUES THEMSELVES, same discipline as pay/config.php's status
+    // below — a saved password or resource key is a bearer credential, and
+    // this route answers whether ONE IS SAVED, not what it is.
+    $passwordSet = (string) ($set['tranportal_password'] ?? '') !== '';
+    $keySet      = (string) ($set['resource_key'] ?? '') !== '';
 
     // THE CBK HOSTED GATEWAY'S OWN STATUS — pay/config.php, a DIFFERENT file
     // from the Tranportal ID above and the reason this route now answers with
@@ -1719,8 +1774,12 @@ if ($r === 'knet' && $method === 'GET') {
     }
 
     store_out([
-        'tranportal_id' => $id,
-        'source'        => $id === '' ? 'file' : 'database',
+        'tranportal_id'            => $id,
+        'source'                   => $id === '' ? 'file' : 'database',
+        'tranportal_password_set'  => $passwordSet,
+        'tranportal_password_source' => $passwordSet ? 'database' : 'file',
+        'resource_key_set'         => $keySet,
+        'resource_key_source'      => $keySet ? 'database' : 'file',
         // null, not a fourth false — a MISSING or unreadable config.php is a
         // different fault from one that is readable and holds placeholders,
         // and the panel should be able to tell "not configured" from

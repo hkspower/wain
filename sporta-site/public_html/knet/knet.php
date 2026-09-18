@@ -112,17 +112,17 @@ function knet_config(): array
     if (!is_array($cfg)) {
         knet_fail_closed('Payment configuration is unreadable.');
     }
-    // EVERY RETURN BELOW GOES THROUGH knet_apply_saved_id(). The first draft
+    // EVERY RETURN BELOW GOES THROUGH knet_apply_saved_credentials(). The first draft
     // of this only wrapped the last one, and the commonest case on a healthy
     // shop is the FIRST — config.php names its own database, so it returns
     // here and the owner's saved ID would have been silently ignored on every
     // install where the feature was most likely to be used.
-    if (knet_db_configured($cfg)) return knet_apply_saved_id($cfg);
+    if (knet_db_configured($cfg)) return knet_apply_saved_credentials($cfg);
 
     $api = __DIR__ . '/../api/config.php';
-    if (!is_file($api)) return knet_apply_saved_id($cfg);
+    if (!is_file($api)) return knet_apply_saved_credentials($cfg);
     $store = @require $api;
-    if (!is_array($store)) return knet_apply_saved_id($cfg);
+    if (!is_array($store)) return knet_apply_saved_credentials($cfg);
 
     // Only the four, and only where this file is silent. Nothing else crosses:
     // api/config.php holds the admin session settings and the cron key, and
@@ -132,25 +132,29 @@ function knet_config(): array
             $cfg['mysql_' . $k] = $store['db_' . $k];
         }
     }
-    return knet_apply_saved_id($cfg);
+    return knet_apply_saved_credentials($cfg);
 }
 
-// THE TRANPORTAL ID THE OWNER TYPED IN /backends, IF THEY TYPED ONE.
+// THE TRANPORTAL CREDENTIALS THE OWNER TYPED IN /backends, IF THEY TYPED ANY.
 //
-// Only the ID, and only when it is non-empty and well formed. The password and
-// the resource key are never read from the database — see the note beside
-// STORE_SETTING_DEFAULTS in api/store.php for why those two stay in the file.
+// ALL THREE FIELDS NOW, as of 2026-09-18 — this function used to apply only
+// the ID; the password and the resource key have their own row now too. See
+// the note beside STORE_SETTING_DEFAULTS in api/store.php for the trade the
+// owner chose in making that change. Each of the three is independent: a
+// saved ID with no saved password is entirely normal (the ID is the common
+// case; the two secrets may still live in the file), and each one that is
+// empty or invalid falls back to whatever config.php already held.
 //
 // EVERY FAILURE HERE FALLS BACK TO THE FILE, and that direction is the whole
 // design. This runs on the payment path: a database that is briefly down, a
 // settings table that does not exist yet on an older shop, malformed JSON in
 // the row — none of those may become "this shop cannot take money". The shop
-// simply carries on with the ID it had before this feature existed, which is
-// the behaviour of every Sporta install shipped to date.
+// simply carries on with the credentials it had before this feature existed,
+// which is the behaviour of every Sporta install shipped to date.
 //
 // It is deliberately NOT wired through knet_pdo(): that helper throws on
 // failure because its callers want it to, and this one must not throw at all.
-function knet_apply_saved_id(array $cfg): array
+function knet_apply_saved_credentials(array $cfg): array
 {
     foreach (['host', 'name', 'user', 'pass'] as $k) {
         if ((string) ($cfg['mysql_' . $k] ?? '') === '' && $k !== 'pass') return $cfg;
@@ -166,21 +170,36 @@ function knet_apply_saved_id(array $cfg): array
         $row = $q->fetchColumn();
         if (!is_string($row) || $row === '') return $cfg;
         $val = json_decode($row, true);
-        $id  = is_array($val) ? trim((string) ($val['tranportal_id'] ?? '')) : '';
+        if (!is_array($val)) return $cfg;
 
         // THE SAME PATTERN THE ADMIN VALIDATES ON, CHECKED AGAIN HERE. Not
         // belt-and-braces: rows can be written by a future admin route, by an
         // import, or by hand in phpMyAdmin, and this is the last point before
         // the value is posted to a bank. A row that fails it is ignored rather
         // than refused, because refusing would take the shop offline over a
-        // bad database row when a perfectly good ID is sitting in the file.
-        if ($id === '' || !preg_match('/^[A-Za-z0-9]{3,32}$/', $id)) return $cfg;
-        if (in_array($id, KNET_PLACEHOLDERS, true)) return $cfg;
+        // bad database row when perfectly good credentials are sitting in the
+        // file.
+        $id = trim((string) ($val['tranportal_id'] ?? ''));
+        if ($id !== '' && preg_match('/^[A-Za-z0-9]{3,32}$/', $id) && !in_array($id, KNET_PLACEHOLDERS, true)) {
+            $cfg['tranportal_id'] = $id;
+        }
 
-        $cfg['tranportal_id'] = $id;
+        $password = (string) ($val['tranportal_password'] ?? '');
+        if ($password !== '' && !in_array($password, KNET_PLACEHOLDERS, true)) {
+            $cfg['tranportal_password'] = $password;
+        }
+
+        // EXACTLY 16 BYTES, same requirement knet_assert_key() enforces on the
+        // gateway path — a saved key of any other length is not "a different
+        // key", it is a key AES-128 cannot use, and applying it would turn a
+        // working file value into a broken database one.
+        $key = (string) ($val['resource_key'] ?? '');
+        if ($key !== '' && strlen($key) === 16 && !in_array($key, KNET_PLACEHOLDERS, true)) {
+            $cfg['resource_key'] = $key;
+        }
     } catch (Throwable $e) {
         // Logged, never surfaced. The shopper is mid-checkout.
-        error_log('knet: saved tranportal_id unreadable, using config.php (' . $e->getMessage() . ')');
+        error_log('knet: saved credentials unreadable, using config.php (' . $e->getMessage() . ')');
     }
     return $cfg;
 }

@@ -1043,9 +1043,19 @@ export const adminApi = {
   // *_set booleans say which credential is still a placeholder when it is
   // not. Never the credentials themselves — see admin.php's own comment on
   // why this route answers with booleans only.
+  //
+  // tranportal_password_set / resource_key_set, added 2026-09-18: the same
+  // owner-chosen trade as the website panel's own note in payment.js —
+  // putting these two in the database rather than leaving them file-only
+  // means an SQL injection anywhere in the shop hands over a working, signing
+  // gateway. Never the values, same discipline as pay/config.php's booleans.
   knetSettings: () => call<{
     tranportal_id: string;
     source: 'file' | 'database';
+    tranportal_password_set: boolean;
+    tranportal_password_source: 'file' | 'database';
+    resource_key_set: boolean;
+    resource_key_source: 'file' | 'database';
     pay: {
       env: 'test' | 'production';
       ready: boolean;
@@ -1062,6 +1072,20 @@ export const adminApi = {
       name: 'knet',
       value: { tranportal_id: tranportalId.trim() },
     }),
+
+  /** The password and the resource key, each independent and each optional:
+   *  a key omitted from the object is left exactly as it was on the server —
+   *  the server tells the two apart with array_key_exists, not `?? ''`. Pass
+   *  an empty string for a field to explicitly clear it back to
+   *  knet/config.php; omit the key entirely to leave it untouched. Never
+   *  called with the CURRENT value, because the screen never has it — these
+   *  two are never read back from the server, only whether one is saved. */
+  saveKnetSecrets: (fields: { tranportalPassword?: string; resourceKey?: string }) => {
+    const value: Record<string, string> = {};
+    if (fields.tranportalPassword !== undefined) value.tranportal_password = fields.tranportalPassword;
+    if (fields.resourceKey !== undefined) value.resource_key = fields.resourceKey;
+    return call<{ ok: true }>('settings_save', { name: 'knet', value });
+  },
 
   // --------------------------------------------------------------- products
   //

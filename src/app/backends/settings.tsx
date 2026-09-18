@@ -53,6 +53,19 @@ export default function SettingsScreen() {
   const [themeNote, setThemeNote] = useState<string | null>(null);
   const [knetId, setKnetId] = useState('');
   const [knetSource, setKnetSource] = useState<'file' | 'database'>('file');
+  // The password and the resource key, added 2026-09-18. NEVER PRE-FILLED —
+  // the server does not send the value back, only whether one is saved —
+  // so these two boxes always start empty, and an empty box on save means
+  // "no change", not "clear it". Each has its own busy/note so clearing one
+  // does not disturb a message just shown for the other.
+  const [knetPasswordSet, setKnetPasswordSet] = useState(false);
+  const [knetPasswordDraft, setKnetPasswordDraft] = useState('');
+  const [knetPasswordBusy, setKnetPasswordBusy] = useState(false);
+  const [knetPasswordNote, setKnetPasswordNote] = useState<string | null>(null);
+  const [knetKeySet, setKnetKeySet] = useState(false);
+  const [knetKeyDraft, setKnetKeyDraft] = useState('');
+  const [knetKeyBusy, setKnetKeyBusy] = useState(false);
+  const [knetKeyNote, setKnetKeyNote] = useState<string | null>(null);
   // The CBK hosted gateway's OWN status — pay/config.php, a different file
   // from the Tranportal ID above. null means the server could not read it at
   // all (missing file, unreadable), which is a different fault from one that
@@ -91,6 +104,8 @@ export default function SettingsScreen() {
         setTheme(t);
         setKnetId(k.tranportal_id);
         setKnetSource(k.source);
+        setKnetPasswordSet(k.tranportal_password_set);
+        setKnetKeySet(k.resource_key_set);
         setPayStatus(k.pay);
       })
       .catch((e) => (e instanceof Unauthorized ? signOut() : setError(String(e))))
@@ -232,6 +247,45 @@ export default function SettingsScreen() {
       );
     } finally {
       setKnetBusy(false);
+    }
+  };
+
+  /** Shared by the password card and the resource-key card: save a draft
+   *  (non-empty means "set this"), or pass `clear: true` to send an explicit
+   *  empty string regardless of the draft — the two are different requests to
+   *  the server (array_key_exists), never conflated here either. */
+  const saveKnetSecret = async (
+    field: 'tranportalPassword' | 'resourceKey',
+    draft: string,
+    clear: boolean,
+    setBusy: (b: boolean) => void,
+    setNote: (n: string | null) => void,
+    setDraft: (v: string) => void,
+  ) => {
+    if (!clear && draft.trim() === '') return;
+    setBusy(true);
+    setNote(null);
+    try {
+      await adminApi.saveKnetSecrets({ [field]: clear ? '' : draft });
+      const k = await adminApi.knetSettings();
+      setKnetPasswordSet(k.tranportal_password_set);
+      setKnetKeySet(k.resource_key_set);
+      setDraft('');
+      setNote(clear ? 'Cleared. The gateway is back on knet/config.php.' : 'Saved.');
+    } catch (e) {
+      if (e instanceof Unauthorized) return signOut();
+      const msg = String(e);
+      setNote(
+        msg.includes('resource_key_wrong_length')
+          ? 'The Terminal Resource Key must be exactly 16 characters.'
+          : msg.includes('too_long')
+            ? 'That is too long to be a real Tranportal password.'
+            : msg.includes('placeholder')
+              ? 'That is the placeholder the file ships with, not a real value.'
+              : msg,
+      );
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -514,8 +568,9 @@ export default function SettingsScreen() {
         )}
 
         <ThemedText type="caption" themeColor="textSecondary" style={styles.hint}>
-          The Tranportal ID KNET issued for this shop. Only the ID is kept here —
-          the password and the resource key stay in the file on the server.
+          The Tranportal ID, password and resource key KNET issued for this
+          shop. All three can be set here now — each falls back to the file
+          on the server the moment it is cleared.
         </ThemedText>
 
         {/* NOT a Chip. Chip is a control — it requires an onPress and reads as
@@ -541,6 +596,87 @@ export default function SettingsScreen() {
           </ThemedText>
         )}
         <Button label="Save KNET ID" onPress={saveKnet} busy={knetBusy} />
+
+        {/* THE PASSWORD AND THE RESOURCE KEY, 2026-09-18 — the owner's own
+            request, knowing the cost recorded in CLAUDE.md: putting these two
+            in the database rather than leaving them file-only means an SQL
+            injection anywhere in the shop hands over a working, signing
+            gateway. Never pre-filled — the server never sends the value back,
+            only whether one is saved — so a blank box on save means "no
+            change", and Clear is a separate, explicit action. */}
+        <ThemedText type="label" themeColor="textSecondary" style={styles.note}>
+          {knetPasswordSet
+            ? 'A password is saved here. Leave blank to keep it.'
+            : 'Using the password in knet/config.php on the server.'}
+        </ThemedText>
+        <Field
+          label="Tranportal password — leave blank to keep the current one"
+          value={knetPasswordDraft}
+          onChangeText={setKnetPasswordDraft}
+          autoCapitalize="none"
+          secureTextEntry
+        />
+        {knetPasswordNote && (
+          <ThemedText type="label" themeColor="textSecondary" style={styles.note}>
+            {knetPasswordNote}
+          </ThemedText>
+        )}
+        <View style={styles.row}>
+          <Button
+            label="Save password"
+            onPress={() =>
+              saveKnetSecret('tranportalPassword', knetPasswordDraft, false,
+                setKnetPasswordBusy, setKnetPasswordNote, setKnetPasswordDraft)
+            }
+            busy={knetPasswordBusy}
+          />
+          <Button
+            label="Clear"
+            variant="secondary"
+            onPress={() =>
+              saveKnetSecret('tranportalPassword', '', true,
+                setKnetPasswordBusy, setKnetPasswordNote, setKnetPasswordDraft)
+            }
+            busy={knetPasswordBusy}
+          />
+        </View>
+
+        <ThemedText type="label" themeColor="textSecondary" style={styles.note}>
+          {knetKeySet
+            ? 'A resource key is saved here. Leave blank to keep it.'
+            : 'Using the resource key in knet/config.php on the server.'}
+        </ThemedText>
+        <Field
+          label="Terminal Resource Key — 16 characters, blank keeps the current one"
+          value={knetKeyDraft}
+          onChangeText={setKnetKeyDraft}
+          autoCapitalize="none"
+          secureTextEntry
+        />
+        {knetKeyNote && (
+          <ThemedText type="label" themeColor="textSecondary" style={styles.note}>
+            {knetKeyNote}
+          </ThemedText>
+        )}
+        <View style={styles.row}>
+          <Button
+            label="Save key"
+            onPress={() =>
+              saveKnetSecret('resourceKey', knetKeyDraft, false,
+                setKnetKeyBusy, setKnetKeyNote, setKnetKeyDraft)
+            }
+            busy={knetKeyBusy}
+          />
+          <Button
+            label="Clear"
+            variant="secondary"
+            onPress={() =>
+              saveKnetSecret('resourceKey', '', true,
+                setKnetKeyBusy, setKnetKeyNote, setKnetKeyDraft)
+            }
+            busy={knetKeyBusy}
+          />
+        </View>
       </Card>
     </AdminShell>
   );

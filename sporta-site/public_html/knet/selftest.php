@@ -107,7 +107,7 @@ if ($mode === 'legacy') {
 if ($mode === 'legacy') {
     // WHERE THE ID CAME FROM, not just what it is. There are TWO homes for
     // this one value — config.php, and the `knet` row in the settings table
-    // that /backends writes — and knet_apply_saved_id() lets the DATABASE WIN
+    // that /backends writes — and knet_apply_saved_credentials() lets the DATABASE WIN
     // silently, falling back to the file. That is right on the payment path: a
     // database blip must not stop the shop taking money.
     //
@@ -129,8 +129,28 @@ if ($mode === 'legacy') {
     } else {
         echo "                       ^ from config.php (nothing different saved in /backends).\n";
     }
+
+    // 2026-09-18: the password and the resource key can ALSO be saved in
+    // /backends now — the same trap the ID already needed this page to name
+    // exists for both, and saying nothing here would be the false report the
+    // comment above spent a paragraph explaining. Never the VALUES: only
+    // whether the effective one, whichever file or row it came from, differs
+    // from what config.php itself holds.
+    $filePw   = is_array($rawCfg) ? (string) ($rawCfg['tranportal_password'] ?? '') : '';
+    $effPw    = (string) ($cfg['tranportal_password'] ?? '');
     echo "  tranportal_password: " . $set($cfg['tranportal_password'] ?? '', 'YOUR_TRANPORTAL_PASSWORD') . "\n";
+    echo $effPw !== $filePw
+        ? "                       ^ from the /backends editor. config.php's own value IS BEING IGNORED.\n"
+          . "                         Editing config.php will not change this. Change it in /backends.\n"
+        : "                       ^ from config.php (nothing different saved in /backends).\n";
+
+    $fileKey  = is_array($rawCfg) ? (string) ($rawCfg['resource_key'] ?? '') : '';
+    $effKey   = (string) ($cfg['resource_key'] ?? '');
     echo "  resource_key       : " . $set($cfg['resource_key'] ?? '', 'YOUR_TERMINAL_RESOURCE_KEY') . "\n";
+    echo $effKey !== $fileKey
+        ? "                       ^ from the /backends editor. config.php's own value IS BEING IGNORED.\n"
+          . "                         Editing config.php will not change this. Change it in /backends.\n"
+        : "                       ^ from config.php (nothing different saved in /backends).\n";
     echo "  response_url: " . ($cfg['response_url'] ?? '') . "\n";
 } else {
     echo "  tranportal  : empty, which is correct here — nothing to fill in.\n";

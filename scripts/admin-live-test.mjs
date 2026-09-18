@@ -514,15 +514,80 @@ if (!placedR?.order_id) {
   // override. Cheap, and it fails on the branch no rig here can reach.
   const src = readFileSync('sporta-site/public_html/knet/knet.php', 'utf8')
   const fn = src.slice(src.indexOf('function knet_config('),
-                       src.indexOf('function knet_apply_saved_id('))
+                       src.indexOf('function knet_apply_saved_credentials('))
   const bare = (fn.match(/return \$cfg;/g) ?? []).length
-  check(bare === 0 && /knet_apply_saved_id\(\$cfg\)/.test(fn),
-    `every return in knet_config() applies the saved ID (${bare} bare returns left)`)
+  check(bare === 0 && /knet_apply_saved_credentials\(\$cfg\)/.test(fn),
+    `every return in knet_config() applies the saved credentials (${bare} bare returns left)`)
 
   const cleared = await call('settings_save', { name: 'knet', value: { tranportal_id: '' } })
   check(cleared.status === 200, 'clearing it is allowed — the way back to the file')
   const back = await call('knet')
   check(back.body?.source === 'file', 'and the gateway falls back to knet/config.php')
+
+  // --- the password and the resource key, editable since 2026-09-18 --------
+  //
+  // THREE THINGS TO PROVE, mirroring the ID's own three above: a bad value is
+  // refused, a good one is never read back (only a boolean), and knet_config()
+  // — the gateway's own loader, not the admin route — actually sees it. The
+  // third is the one that matters; the first two are what stop a bad save
+  // reaching the second.
+  const badKeyLen = await call('settings_save', { name: 'knet', value: { resource_key: 'tooshort' } })
+  check(badKeyLen.status >= 400 && badKeyLen.body?.error === 'resource_key_wrong_length',
+    `a resource key of the wrong length is refused (${badKeyLen.body?.error})`)
+
+  const phKey = await call('settings_save', { name: 'knet', value: { resource_key: 'YOUR_TERMINAL_RESOURCE_KEY' } })
+  check(phKey.status >= 400 && phKey.body?.error === 'placeholder_resource_key',
+    `the file's own placeholder key is refused (${phKey.body?.error})`)
+
+  const phPw = await call('settings_save', { name: 'knet', value: { tranportal_password: 'YOUR_TRANPORTAL_PASSWORD' } })
+  check(phPw.status >= 400 && phPw.body?.error === 'placeholder_tranportal_password',
+    `the file's own placeholder password is refused (${phPw.body?.error})`)
+
+  const savedSecrets = await call('settings_save', { name: 'knet', value: {
+    tranportal_password: 'REAL_LOOKING_PASSWORD', resource_key: 'REAL_LOOKING_16B',
+  } })
+  check(savedSecrets.status === 200, 'a real-looking password and key save together (200)')
+
+  const readSecrets = await call('knet')
+  check(readSecrets.body?.tranportal_password_set === true && readSecrets.body?.resource_key_set === true,
+    'and the route reports both as SET')
+  check(readSecrets.body?.tranportal_password === undefined && readSecrets.body?.resource_key === undefined,
+    'NEVER THE VALUES THEMSELVES — the route answers with booleans only')
+
+  // ONE FIELD AT A TIME MUST NOT DISTURB THE OTHER. Saving the ID alone, with
+  // neither secret in the request body, is the ordinary shape of every save
+  // the panel makes when only the ID box changed — and store_setting_save
+  // OVERWRITES THE WHOLE ROW, so a save built from `$v` alone rather than
+  // merged over the current row would silently wipe both secrets the moment
+  // anyone touched the ID.
+  const idOnly = await call('settings_save', { name: 'knet', value: { tranportal_id: '626101' } })
+  check(idOnly.status === 200, 'the ID alone can be resaved (200)')
+  const stillSet = await call('knet')
+  check(stillSet.body?.tranportal_password_set === true && stillSet.body?.resource_key_set === true,
+    'and both secrets survive an ID-only save, unmentioned in that request')
+
+  // THE HALF THAT MATTERS, same argument as the ID above: the gateway's own
+  // loader, not the admin route, must see the saved values.
+  const seenSecrets = execFileSync('php', ['-r',
+    "require 'sporta-site/public_html/knet/knet.php'; $c = knet_config(); " +
+    "echo ($c['tranportal_password'] ?? '') . '|' . ($c['resource_key'] ?? '');"
+  ], { encoding: 'utf8', cwd: process.env.REPO ?? '.' }).trim()
+  check(seenSecrets === 'REAL_LOOKING_PASSWORD|REAL_LOOKING_16B',
+    `knet_config() hands both saved secrets to the gateway (${seenSecrets})`)
+
+  const clearedPw = await call('settings_save', { name: 'knet', value: { tranportal_password: '' } })
+  check(clearedPw.status === 200, 'the password clears on its own (200)')
+  const afterClearPw = await call('knet')
+  check(afterClearPw.body?.tranportal_password_set === false && afterClearPw.body?.resource_key_set === true,
+    'clearing the password leaves the resource key untouched')
+
+  const clearedKey = await call('settings_save', { name: 'knet', value: { resource_key: '' } })
+  check(clearedKey.status === 200, 'and the resource key clears the same way (200)')
+  const afterClearKey = await call('knet')
+  check(afterClearKey.body?.resource_key_set === false, 'both secrets are back on the file')
+
+  const cleared2 = await call('settings_save', { name: 'knet', value: { tranportal_id: '' } })
+  check(cleared2.status === 200, 'and the ID is cleared too, for the sandbox left behind')
 }
 
 // --- out ------------------------------------------------------------------

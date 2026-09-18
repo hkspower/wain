@@ -1972,19 +1972,25 @@ function store_settings_forget(): void {
 // and a home page that renders nothing because a SELECT missed is a worse
 // outcome than a home page that renders the values it shipped with.
 const STORE_SETTING_DEFAULTS = [
-    // THE KNET TRANPORTAL ID, so the owner can change it without editing a
-    // file on the server.
+    // THE KNET TRANPORTAL CREDENTIALS, so the owner can change them without
+    // server access.
     //
-    // ONLY the ID. The Tranportal password and the 16-byte resource key stay
-    // in knet/config.php, which is git-ignored and unreadable over HTTP, and
-    // they are NOT here on purpose: the ID is a merchant identifier that
-    // appears in the shop's own payment posts, while those two are the secret
-    // that signs them. Putting all three in one row would mean an SQL-injection
-    // anywhere in the shop hands over a working gateway rather than a number.
+    // ALL THREE NOW, as of 2026-09-18 — reversing the reasoning that used to
+    // sit here, on the owner's explicit request after being shown the cost in
+    // as many words: putting the password and the resource key in the same
+    // row as everything else means an SQL injection ANYWHERE in the shop
+    // hands over a working, signing gateway rather than a merchant number.
+    // That risk is real and is not mitigated by anything below — it is the
+    // trade the owner chose. What IS still true from the old design: nothing
+    // here is ever read back to the client (admin.php?r=knet answers with
+    // booleans — `_set`, never the value — the same discipline the CBK
+    // credentials already use), and every field falls back to knet/config.php
+    // independently the moment it is cleared or found invalid, so a bad save
+    // degrades to the file rather than to a broken payment path.
     //
     // Empty means "use whatever knet/config.php says", which is what every
     // shop has today and what happens if this row is never written.
-    'knet'      => ['tranportal_id' => ''],
+    'knet'      => ['tranportal_id' => '', 'tranportal_password' => '', 'resource_key' => ''],
     // GOOGLE SIGN-IN for /backends. The client id is NOT a secret — it is
     // compiled into the page for the browser — which is why it can live here
     // rather than in a git-ignored file. `enabled` is separate so the owner can

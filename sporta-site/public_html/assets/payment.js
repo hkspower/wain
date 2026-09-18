@@ -19,13 +19,25 @@
  *
  * ONE ROUTE, TWO THINGS, because admin.php's ?r=knet answers both:
  *
- *   - `tranportal_id` / `source` — the ONE editable field. Empty is allowed
- *     and means "go back to knet/config.php on the server"; that is the way
- *     out if a saved ID turns out to be wrong, and it must not require
- *     someone with file access at the exact moment the shop cannot take
- *     money. The server validates shape (3-32 alphanumeric) and rejects the
- *     file's own placeholders (YOUR_TRANPORTAL_ID etc) — this card surfaces
- *     both refusals by name rather than a generic "save failed".
+ *   - `tranportal_id` / `source` — editable, and always sent on save. Empty
+ *     is allowed and means "go back to knet/config.php on the server"; that
+ *     is the way out if a saved ID turns out to be wrong, and it must not
+ *     require someone with file access at the exact moment the shop cannot
+ *     take money. The server validates shape (3-32 alphanumeric) and rejects
+ *     the file's own placeholders (YOUR_TRANPORTAL_ID etc) — this card
+ *     surfaces both refusals by name rather than a generic "save failed".
+ *
+ *   - `tranportal_password` / `resource_key`, editable since 2026-09-18 on
+ *     the owner's explicit request, KNOWING the cost named in CLAUDE.md: both
+ *     are bearer credentials, and putting them in the database rather than
+ *     leaving them file-only means an SQL injection anywhere in the shop
+ *     hands over a working, signing gateway. NEVER PRE-FILLED — the server
+ *     never sends the value back, only `_set`/`_source` booleans, so these two
+ *     boxes are always blank on load. A blank box on SAVE means "no change",
+ *     not "clear it" — only sent to the server when the owner actually typed
+ *     something — and each has its own "Clear" action that explicitly sends
+ *     an empty string, separate from the main Save button, so clearing a
+ *     secret is never a side effect of saving the ID.
  *
  *   - `pay` — pay/config.php's readiness for BOTH KNET and T-Pay, which go
  *     through the same CBK hosted gateway and the same three credentials.
@@ -58,8 +70,12 @@
 
   var card = null
   var idInput = null
+  var pwInput = null
+  var keyInput = null
   var note = null
   var sourceLine = null
+  var pwLine = null
+  var keyLine = null
   var payBox = null
 
   function el(tag, cls, text) {
@@ -100,6 +116,20 @@
            + 'Tranportal ID. Saving it would pin the shop to an ID that '
            + 'cannot take a payment, which is worse than leaving this blank.'
     }
+    if (s === 'tranportal_password_too_long') {
+      return 'That password is too long to be a real Tranportal password.'
+    }
+    if (s === 'placeholder_tranportal_password') {
+      return 'That is the placeholder the file ships with, not a real password.'
+    }
+    if (s === 'resource_key_wrong_length') {
+      return 'The Terminal Resource Key must be exactly 16 bytes — AES-128 '
+           + 'cannot use a key of any other length. Check for a trailing '
+           + 'space or a newline from copy/paste.'
+    }
+    if (s === 'placeholder_resource_key') {
+      return 'That is the placeholder the file ships with, not a real key.'
+    }
     if (s === 'not_signed_in') return 'Your session has ended. Sign in again.'
     if (s === 'bad_request') return 'The panel sent something the shop did not understand.'
     if (s === 'bad_response') return 'The shop answered with something that was not an answer.'
@@ -120,6 +150,17 @@
     sourceLine.textContent = k.source === 'database'
       ? 'Using the ID saved here.'
       : 'Using knet/config.php on the server.'
+    // NEVER PRE-FILLED — the server does not send the value back, only
+    // whether one is saved. Left blank on every load, including right after
+    // a successful save of a new one.
+    pwInput.value = ''
+    pwLine.textContent = k.tranportal_password_set
+      ? 'A password is saved here. Leave blank to keep it.'
+      : 'Using the password in knet/config.php on the server.'
+    keyInput.value = ''
+    keyLine.textContent = k.resource_key_set
+      ? 'A resource key is saved here. Leave blank to keep it.'
+      : 'Using the resource key in knet/config.php on the server.'
     renderPay(k.pay)
   }
 
@@ -163,7 +204,15 @@
   function save(btn) {
     say('Saving…', true)
     btn.disabled = true
-    post('settings_save', { name: 'knet', value: { tranportal_id: idInput.value.trim() } })
+    // tranportal_id is always sent — it is a plain field, always shown filled
+    // in, so "unchanged" and "blank on purpose" look the same either way.
+    // The two secrets are OMITTED unless the owner actually typed something:
+    // they are never pre-filled, so an empty box on save must mean "no
+    // change", not "clear this credential".
+    var value = { tranportal_id: idInput.value.trim() }
+    if (pwInput.value !== '') value.tranportal_password = pwInput.value
+    if (keyInput.value !== '') value.resource_key = keyInput.value
+    post('settings_save', { name: 'knet', value: value })
       .then(function (res) {
         btn.disabled = false
         if (res && res.error) { say(explain(res.error), false); return }
@@ -172,6 +221,27 @@
       }).catch(function () {
         btn.disabled = false
         say('The save did not reach the shop. Check the connection and try again.', false)
+      })
+  }
+
+  /** Explicit and separate from Save: sends {[field]: ''} on its own, so
+   *  clearing a secret back to the file is never a side effect of saving a
+   *  change to the Tranportal ID or to the OTHER secret. */
+  function clearField(field, label, btn) {
+    if (!window.confirm('Clear the saved ' + label + '? The shop will use knet/config.php on the server instead.')) return
+    say('Clearing…', true)
+    btn.disabled = true
+    var value = {}
+    value[field] = ''
+    post('settings_save', { name: 'knet', value: value })
+      .then(function (res) {
+        btn.disabled = false
+        if (res && res.error) { say(explain(res.error), false); return }
+        load()
+        say('Cleared.', true)
+      }).catch(function () {
+        btn.disabled = false
+        say('The request did not reach the shop. Check the connection and try again.', false)
       })
   }
 
@@ -187,6 +257,10 @@
     + '.spk-input{padding:8px 10px;border-radius:8px;border:1px solid var(--sp-pc-field-border,#565c63);'
     + 'background:var(--sp-pc-field-bg,#24272a);color:var(--sp-pc-ink,#eaecee);font:inherit}'
     + '.spk-src{margin:6px 0 0;font-size:12px;color:var(--sp-pc-muted,#a6adb5)}'
+    + '.spk-field-secret{margin-top:14px}'
+    + '.spk-clear{align-self:flex-start;margin-top:6px;padding:5px 12px;border-radius:999px;'
+    + 'border:1px solid var(--sp-pc-field-border,#565c63);background:transparent;'
+    + 'color:var(--sp-pc-ink,#eaecee);font:inherit;font-size:12px;cursor:pointer}'
     + '.spk-foot{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center}'
     + '.spk-save{padding:9px 16px;border-radius:8px;border:0;cursor:pointer;'
     + 'background:#4f46e5;color:#fff;font:inherit;font-weight:700}'
@@ -229,8 +303,38 @@
     field.appendChild(sourceLine)
     c.appendChild(field)
 
+    /** A secret field: a password input, a status line, and its own Clear
+     *  button — built once so the password and the resource key stay in
+     *  step with each other rather than two hand-written copies drifting. */
+    function secretField(labelText, placeholder) {
+      var wrap = el('div', 'spk-field spk-field-secret')
+      wrap.appendChild(el('label', 'spk-label', labelText))
+      var input = el('input', 'spk-input')
+      input.type = 'password'
+      input.autocomplete = 'new-password'
+      input.placeholder = placeholder
+      wrap.appendChild(input)
+      var line = el('p', 'spk-src', '')
+      wrap.appendChild(line)
+      var clear = el('button', 'spk-clear', 'Clear')
+      clear.type = 'button'
+      wrap.appendChild(clear)
+      c.appendChild(wrap)
+      return { input: input, line: line, clear: clear }
+    }
+
+    var pw = secretField('Tranportal password', 'Leave blank to keep the current one')
+    pwInput = pw.input
+    pwLine = pw.line
+    pw.clear.addEventListener('click', function () { clearField('tranportal_password', 'Tranportal password', pw.clear) })
+
+    var key = secretField('Terminal Resource Key', 'Leave blank to keep the current one — exactly 16 characters')
+    keyInput = key.input
+    keyLine = key.line
+    key.clear.addEventListener('click', function () { clearField('resource_key', 'Terminal Resource Key', key.clear) })
+
     var foot = el('div', 'spk-foot')
-    var saveBtn = el('button', 'spk-save', 'Save Tranportal ID')
+    var saveBtn = el('button', 'spk-save', 'Save')
     saveBtn.type = 'button'
     saveBtn.addEventListener('click', function () { save(saveBtn) })
     note = el('p', 'spk-note', '')
