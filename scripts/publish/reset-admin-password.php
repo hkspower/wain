@@ -3,7 +3,13 @@
  * Set a new password for hkspower@live.com, from a base64 CLI argument —
  * never a file, and never a literal in this script, which is public.
  *
- *   php r.php <base64 of "email|newpassword">
+ *   php r.php <base64 of the new password, nothing else>
+ *
+ * THE EMAIL IS NOT IN THE ARGUMENT. It is the $EMAIL constant below, edited
+ * in the repository if the account this recovers is ever a different
+ * address — an earlier version of this comment said the argument was
+ * "email|newpassword" and the code has never read it that way; base64_decode
+ * of the whole argument IS the password, trimmed, nothing split out of it.
  *
  * WHY AN ARGUMENT, NOT THE CREDENTIAL-FILE PATTERN mk.php AND unlock-admin.php
  * USED. That pattern is two separate cron jobs — one writes the file, one
