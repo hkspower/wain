@@ -62,6 +62,34 @@
  *      why) — this only makes the target visible: a dashed box with an icon,
  *      inside the card, that also opens the file picker on a click, so a mouse
  *      user gets the same one-step path a drag already had.
+ *
+ * ---------------------------------------------------------------------------
+ * TWO MORE, asked for on 2026-09-18 as "drag-and-drop / picker UX" and
+ * "better error handling & recovery":
+ *
+ *   4. EVERY ROW SHOWS ITS OWN STATE WHILE THE BATCH RUNS, not just a bottom
+ *      counter. render() was already called after each item finished — the
+ *      chain does `.then(() => { state.note = …; render() })` per item — but
+ *      nothing in the row itself changed, so a person watching a fifty-photo
+ *      upload saw one number tick and forty-nine rows sitting there looking
+ *      exactly as they had before anything happened. `item.status` now moves
+ *      through queued → uploading → done/error, and the row shows which.
+ *      DONE ROWS STAY VISIBLE UNTIL THE WHOLE BATCH FINISHES, on purpose —
+ *      the previous version removed a photo from the list the moment it
+ *      succeeded, which reads as "vanished", not "uploaded". A checkmark
+ *      that stays put until Upload is pressed again is a receipt; a row that
+ *      disappears mid-batch is not.
+ *
+ *   5. A QUEUED FILE CAN BE MOVED EARLIER OR LATER WITHIN ITS OWN GARMENT.
+ *      The upload order becomes the `sort` order on the server — the first
+ *      one uploaded is what the shop's product card shows — and until now
+ *      the only way to change that was to remove files and re-add them in a
+ *      different order. The move only ever swaps with the NEAREST OTHER ITEM
+ *      FOR THE SAME GARMENT, skipping over anything queued for a different
+ *      one: nike-tee-2.jpg and adidas-cap-1.jpg sitting next to each other in
+ *      the flat list is an accident of filenames sorting that way, and a move
+ *      button that swapped across garments would silently reassign which
+ *      shoot a file belongs to rather than reorder the one it is already in.
  */
 (function () {
   'use strict'
@@ -134,6 +162,10 @@
         name: sorted[i].name,
         slug: hit ? hit.slug : null,
         how: hit ? 'matched by name' : 'no match — choose a garment',
+        // queued -> uploading -> done | error. Read by render() to show a
+        // status badge per row rather than leaving it to a single bottom
+        // counter — see this file's own header for why that was not enough.
+        status: 'queued',
         // Best-effort: an unreadable file still queues (the upload step is
         // what actually validates it), it simply shows no picture.
         previewUrl: (function () {
@@ -181,6 +213,9 @@
 
     ready.forEach(function (item) {
       chain = chain.then(function () {
+        item.status = 'uploading'
+        item.error = null
+        render()
         return U.shrink(item.file)
           .then(function (small) {
             return addWithRetry(item, small, 2)
@@ -188,6 +223,7 @@
           .then(function (res) {
             ok++
             item.done = true
+            item.status = 'done'
             var p = byslug(item.slug)
             if (p) {
               p.photos = (p.photos || 0) + 1
@@ -203,6 +239,7 @@
             var msg = e && e.message ? e.message : String(e)
             if (msg === 'too_many_images') msg = 'that garment already holds the maximum number of photographs'
             if (msg === 'product_not_found') msg = 'no garment with that slug — reload the panel'
+            item.status = 'error'
             item.error = msg
             failed.push(item.name + ': ' + msg)
           })
@@ -215,9 +252,12 @@
 
     chain.then(function () {
       state.busy = false
-      // Keep only what failed or was never placed, so pressing Upload again
-      // retries exactly those and does not add the successful ones a second
-      // time — product_image_add appends, so a re-run would duplicate them.
+      // DONE ROWS STAY UNTIL THIS POINT, not removed the moment each one
+      // succeeds — see this file's own header. They are cleared here, once,
+      // after the whole batch finishes, so pressing Upload again retries only
+      // what failed or was never placed rather than re-sending anything that
+      // already landed — product_image_add appends, so a re-run would
+      // duplicate a row still in the queue.
       state.queue = state.queue.filter(function (q) {
         if (q.done) revoke(q)
         return !q.done
@@ -241,6 +281,23 @@
     e.preventDefault()
     e.returnValue = ''
   })
+
+  /** Swaps a queued item with the nearest OTHER item queued for the SAME
+   *  garment, in the given direction — never with a neighbour queued for a
+   *  different one. See this file's own header for why: the flat list mixes
+   *  every garment's files together by filename, and a move that crossed
+   *  garments would reassign which shoot a file belongs to rather than
+   *  reorder the one it is already in. */
+  function moveQueueItem(idx, dir) {
+    var item = state.queue[idx]
+    if (!item || !item.slug) return
+    var j = idx + dir
+    while (j >= 0 && j < state.queue.length && state.queue[j].slug !== item.slug) j += dir
+    if (j < 0 || j >= state.queue.length) return
+    state.queue[idx] = state.queue[j]
+    state.queue[j] = item
+    render()
+  }
 
   function byslug(slug) {
     for (var i = 0; i < state.products.length; i++) {
@@ -444,9 +501,34 @@
         row.appendChild(sel)
         row.appendChild(el('span', 'spp-dim', item.error || item.how))
 
+        // A BADGE, NOT JUST THE DIM CAPTION ABOVE — that text is WHERE the
+        // file is going (matched by name / chosen by hand); this is WHAT IS
+        // HAPPENING TO IT right now, and the two answer different questions.
+        // 'queued' shows nothing: a bare row is already understood as
+        // waiting, and a badge on all fifty of them before anything has
+        // started would be noise the one that matters has to compete with.
+        if (item.status === 'uploading') row.appendChild(el('span', 'spp-status spp-status-up', 'uploading…'))
+        else if (item.status === 'done') row.appendChild(el('span', 'spp-status spp-status-ok', '✓ uploaded'))
+        else if (item.status === 'error') row.appendChild(el('span', 'spp-status spp-status-bad', '✕ failed'))
+
+        var canMove = !!item.slug && item.status !== 'uploading' && item.status !== 'done'
+        var up = el('button', 'spp-x', '↑')
+        up.type = 'button'
+        up.title = 'Move earlier in ' + (item.slug || 'this garment') + '’s order'
+        up.disabled = !canMove
+        up.onclick = function () { moveQueueItem(idx, -1) }
+        row.appendChild(up)
+        var down = el('button', 'spp-x', '↓')
+        down.type = 'button'
+        down.title = 'Move later in ' + (item.slug || 'this garment') + '’s order'
+        down.disabled = !canMove
+        down.onclick = function () { moveQueueItem(idx, 1) }
+        row.appendChild(down)
+
         var x = el('button', 'spp-x', '✕')
         x.type = 'button'
         x.title = 'Take ' + item.name + ' off the list'
+        x.disabled = item.status === 'uploading'
         x.onclick = function () {
           revoke(state.queue[idx])
           state.queue.splice(idx, 1)
@@ -555,6 +637,11 @@
     + '.spp-sel option{color:#111}'
     + '.spp-x{border:0;background:transparent;color:inherit;cursor:pointer;font:inherit;'
     + 'min-width:32px;min-height:32px;margin-inline-start:auto}'
+    + '.spp-x[disabled]{opacity:.3;cursor:default}'
+    + '.spp-status{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}'
+    + '.spp-status-up{background:rgba(255,255,255,.1);opacity:.8}'
+    + '.spp-status-ok{background:rgba(80,200,120,.18);color:#7be3a0}'
+    + '.spp-status-bad{background:rgba(255,138,128,.18);color:#ff8a80}'
     + '.spp-warn{font-size:13px;color:#ffb08a;margin:6px 0 0}'
     + '.spp-note{font-size:13px;margin:8px 0 0;white-space:pre-wrap}'
     + '.spp-file{display:none}'

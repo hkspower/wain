@@ -129,8 +129,33 @@ try {
     'and they are queued in filename order, not the order they were dropped',
     names.slice(0, 3).join(', '))
 
+  // --- reordering within a garment, and only within it ---------------------
+  // Row 0 (-1) moved DOWN swaps with row 1 (-2): -2, -1, -3. The unplaced
+  // fourth file has no slug, so its move buttons must both be disabled —
+  // reordering a file that belongs to no garment is not a thing to offer.
+  const rows = p.locator('.spp-row')
+  await rows.nth(0).locator('.spp-x', { hasText: '↓' }).click()
+  const reordered = await p.locator('.spp-name').allInnerTexts()
+  check(reordered[0].includes('-2') && reordered[1].includes('-1') && reordered[2].includes('-3'),
+    'moving a file down swaps it with the next one queued for the SAME garment',
+    reordered.slice(0, 3).join(', '))
+  const unplacedRow = rows.nth(3)
+  check(await unplacedRow.locator('.spp-x', { hasText: '↑' }).isDisabled(),
+    'an unmatched file cannot be reordered — it belongs to no garment yet')
+
+  // Swap back to filename order, so the "appended, not inserted at the
+  // front" sort-position check below still reads -1, -2, -3 into the row it
+  // already asserts against — the reorder is proven above; this undoes it
+  // rather than rewriting a check that already covers order correctness.
+  await rows.nth(0).locator('.spp-x', { hasText: '↓' }).click()
+
   // --- 4 + 5. the write lands, on the right garment, appended --------------
   await p.locator('.spp-go').click()
+  // A live per-row status while the batch is still running, not only the
+  // final summary — the FIRST row is what a person watches first.
+  await p.waitForTimeout(50)
+  check((await p.locator('.spp-status').count()) > 0,
+    'the row being uploaded shows its own status, not just a bottom counter')
   await p.waitForTimeout(12000)
 
   const after = Number(sql(`select count(*) from product_images where slug='${SLUG}'`))
