@@ -614,6 +614,11 @@
     <!-- The footer's prose, editable from /backends. Same technique as
          contact.js above: a text swap after render, empty means leave it. -->
     <script src="/assets/footer.js" defer></script>
+    <!-- A small generic icon on the footer's existing KNET and Cash-on-
+         delivery pills — no card-network artwork, and no method added beyond
+         the two this shop actually accepts (see the file's own header for
+         why Visa/Mastercard marks are deliberately not here). -->
+    <script src="/assets/footer-payment-icons.js" defer></script>
     <!-- The owner's colours, fonts and corner radius, from /backends. Every
          field is empty by default and empty changes nothing, so a shop that
          has never opened the editor looks exactly as it does today. It cannot
@@ -713,6 +718,12 @@
          too). Renders nothing until an active brand has a logo; the live
          shop has none yet. -->
     <script src="/assets/brand-strip.js" defer></script>
+
+    <!-- Three trust icons on the home page, right after the hero (and after
+         brand-strip.js's own row if a brand has a logo) — returns/exchange,
+         reading the live return window from ?r=slides rather than a typed-in
+         number, delivery coverage, and a marketing authenticity claim. -->
+    <script src="/assets/trust-strip.js" defer></script>
 
     <!-- An owner-editable body for Privacy, Terms and Returns — swaps in
          panel-written text below the "Last updated" line on Privacy/Terms,
