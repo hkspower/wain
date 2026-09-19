@@ -2958,3 +2958,66 @@ type sizes would be deciding the shop's typography on its own.
   which is the fallback, and the fallback is the whole fault. The browser is
   made to draw it now: the declared family measured against two sentinels with
   different metrics, and equal to both means it added nothing.
+
+## The certificate is not the fault — measured 2026-09-19
+
+Asked to "fix ssl", and the owner said what they were seeing was **a browser
+warning**. Hostinger reported both certificates active, lifetime, HTTPS
+redirect on, no last_error — and a panel saying that is not a browser saying
+it, so it was worth asking properly.
+
+**Nothing in this repository could ask.** Every live script measures over the
+loopback, `https://127.0.0.1` with a `Host:` header and
+`--no-check-certificate` — it connects by ADDRESS, so the name can never match
+and the flag is exactly the thing under test. `scripts/live/live-cert-check.php`
+asks over the PUBLIC name, which is possible again since the delegation came
+back, and it reports the three things that fail independently:
+
+```
+www.sporta.com.kw     cn=sporta.com.kw  Let's Encrypt  2026-08-27..2026-11-25
+                      names=sporta.com.kw www.sporta.com.kw   coversThisName=YES
+sporta.com.kw         same certificate                        coversThisName=YES
+static.sporta.com.kw  cn=static…        Let's Encrypt  2026-09-08..2026-12-07
+                      names=static.sporta.com.kw              coversThisName=YES
+
+verifying client      www=ok  apex=ok  static=ok
+settings rows with http://   0 of 7
+```
+
+**So the hypothesis was wrong, and it was the likeliest one.** The shop's
+canonical host is `www`, and a certificate issued for the apex alone would have
+covered the apex and not the subdomain while the panel reported `active` and
+told the truth. It covers both. A verifying client — verification ON, no
+`--no-check-certificate` — is served all three without complaint. And the other
+way a padlock breaks with a perfect certificate, one `http://` inside
+owner-entered content that no file scan can see, is not there either: every one
+of the seven settings rows is clean.
+
+**What that leaves is the question I have to ask rather than answer**: the exact
+wording, and the exact address in the bar. "Not secure" on a typed `http://`
+before the redirect lands, a warning from a page opened by IP or by the
+`*.hstgr.net` preview name, or an expired-clock warning on the visitor's own
+device are all browser warnings on a shop whose TLS is correct — and they have
+different answers. A screenshot settles it.
+
+### Two ways the channel cost an hour, both already written down
+
+**An overrunning job reports NOTHING.** Six TLS handshakes at a twelve-second
+timeout is seventy-two seconds in the worst case, longer than a `* * * * *`
+cycle, and the panel captures a job's output when the process EXITS — so three
+ticks reported three empty outputs and the next minute overwrote an answer that
+had never been given. Per-line echoing does not help: there is no finished
+process to read. Six seconds fixed it on the first run. **An empty cron output
+means at least three things** is in this file already; this is a fourth.
+
+**A one-shot at a named minute is a bet on the server's clock.** The documented
+remedy for a per-minute job overwriting its own answer is to schedule one at a
+named minute — and the minute is the SERVER's, not this container's. `13 9 19 9 *`
+went by in silence, and since the probe only READS, going back to `* * * * *`
+and deleting it on the first output was both correct and cheaper. **Reserve the
+one-shot for jobs that WRITE**, where re-running is the thing that costs.
+
+And the run that finally answered died on its last line with
+`Undefined constant "DB_HOST"`: `api/config.php` RETURNS AN ARRAY and defines no
+constants at all. The cert half was already on screen, which is the whole
+argument for echoing as you measure rather than building one line at the end.
