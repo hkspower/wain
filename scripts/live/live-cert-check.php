@@ -135,14 +135,20 @@ line('=== insecure sub-resources stored in the database ===');
 // inside owner-entered content. Every shipped FILE was checked and is clean,
 // so the settings rows are what is left — custom CSS, the footer, the rewritten
 // site wording, all of which reach the page.
+//
+// config.php RETURNS AN ARRAY; it defines no constants. The first version of
+// this reached for DB_HOST and died `Undefined constant` — measured, not
+// guessed at a second time. The keys are the ones config.example.php ships.
 $cfg = __DIR__ . '/../../sporta-site/public_html/api/config.php';
 if (!is_file($cfg)) $cfg = '/home/u130124229/domains/sporta.com.kw/public_html/api/config.php';
 if (!is_file($cfg)) { line('config.php not found — skipped'); exit; }
-require $cfg;
+$c = require $cfg;
+if (!is_array($c)) { line('config.php did not return an array — skipped'); exit; }
 try {
     $db = new PDO(
-        'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8mb4',
-        DB_USER, DB_PASS, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+        'mysql:host=' . ($c['db_host'] ?? 'localhost') . ';dbname=' . ($c['db_name'] ?? '') . ';charset=utf8mb4',
+        (string) ($c['db_user'] ?? ''), (string) ($c['db_pass'] ?? ''),
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
     );
     $rows = $db->query('select name, value from settings')->fetchAll(PDO::FETCH_ASSOC);
     $hits = 0;
