@@ -3021,3 +3021,65 @@ And the run that finally answered died on its last line with
 `Undefined constant "DB_HOST"`: `api/config.php` RETURNS AN ARRAY and defines no
 constants at all. The cert half was already on screen, which is the whole
 argument for echoing as you measure rather than building one line at the end.
+
+## Google indexing — everything the server owes is already right, 2026-09-19
+
+Asked to "connect to google index". It has two halves and only one of them is
+here: verifying the property in Search Console and submitting the sitemap need
+the owner's Google account, and nothing in this repository can or should hold
+that. The half that comes FIRST is whether Google could index the shop at all
+if the property were verified this minute, and that is measurable.
+
+`scripts/live/live-index-check.php` asks the live server **as Googlebot, over
+the public name**, so the request traverses hcdn the way a crawler's does:
+
+```
+home/shop/product  200  X-Robots-Tag=(none)  metaRobots=index, follow, …  indexable
+assetHost          X-Robots-Tag=noindex
+robots.txt         200/3830  googlebotGroup=named  disallowRoot=no  sitemap=…/sitemap.xml
+sitemap.xml        200  locs=2
+sitemap-pages      200  locs=16   lastmod 2026-08-20
+sitemap-products   200  locs=94   lastmod 2026-09-18   == generator byte for byte
+title / canonical / hreflang      present, 3 hreflang links
+origin=200/50005  edge=200/50005  cdn=BYPASS  same=yes
+googleSiteVerification=NONE
+```
+
+**The check worth having was the noindex one, and it was one nobody had ever
+run.** `.htaccess` carries `Header set X-Robots-Tag "noindex"
+env=SPORTA_ASSET_HOST`, and the entry above proving `Header set … env=` works on
+LiteSpeed proves only the POSITIVE half — that `static` gets the header. If
+LiteSpeed had evaluated that `env=` wrongly, every page of the shop would carry
+`noindex`, Google would crawl the whole site and index none of it, silently and
+for ever, and **the panel, the sitemaps and robots.txt would all have looked
+perfect throughout**. Both halves are one line now: noindex on static, absent on
+www. It holds.
+
+**The products sitemap is generated, and proved so rather than assumed.**
+`sitemap-products.xml` in the docroot is a July snapshot; `.htaccess` rewrites
+the name to `api/sitemap-products.php`, which reads the catalogue. The two are
+asked separately and came back at the identical 46,511 bytes with a lastmod of
+2026-09-18, so the rewrite is live and a crawler gets today's catalogue. Reading
+the rewrite rule would not have told you that.
+
+**What is missing is one token.** Search Console will verify by HTML file, meta
+tag or DNS TXT, and all three need a value only the owner's account produces.
+The HTML-file route needs no code: the probe confirms an unknown root `.html`
+answers **404**, so the SPA rewrite does not swallow it and a real file wins —
+paste the token and it publishes through the ordinary cron channel.
+`sporta.com.kw` is not in the Hostinger domain list, and `DNS_getDNSRecordsV1`
+404s for it, so the DNS route is the owner's panel rather than this API.
+
+### It blamed the CDN for its own failed fetch
+
+The first run printed `origin=0/0 … same=NO <-- the CDN is serving something
+else`. The origin fetch had simply not happened — `file_get_contents` over
+`https://127.0.0.1` needs `allow_self_signed` and an explicit `peer_name` as
+well as `verify_peer` off — and comparing a zero-length body against a real one
+produced a confident claim about the CDN out of nothing.
+
+**A failed fetch and a differing body are different findings, and only one of
+them is about the CDN.** The line says which now. This file already records
+that a false alarm is worse than a missed one, because it is the alarm the owner
+is asked to act on — and the same rig had, one section up, been written with
+exactly that in mind.
