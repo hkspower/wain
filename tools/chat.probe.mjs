@@ -116,6 +116,25 @@ await fresh();
   heard.length ? ok(`تعافى بعد عودة الشبكة: ${heard.length} سطورًا في البطاقة`) : fail('لم يتعافَ بعد عودة الشبكة');
 }
 
+console.log('\n═══ ٣ب) البوّابة غير منشورة — عطبٌ دائم لا عابر ═══');
+await fresh();
+{
+  /* الحال على المضيف الثابت فعلًا: `data-api=""` ينادي /api على الأصل نفسه
+     فيردّ ٤٠٤. وكان يُقال «تعذّر الاتصال — أعد المحاولة»، وهي جملةٌ تعني
+     «جرّب بعد قليل» والإعادة لا تنجح أبدًا: لا شيء هناك ليردّ. */
+  await page.route('**/order/parse', (route) => route.fulfill({ status: 404, body: 'Not Found' }));
+  await say('ابغى توصيل من السالمية الى الجابرية');
+  await page.waitForTimeout(1500);
+  await page.unroute('**/order/parse');
+  const last = (await msgs()).slice(-1)[0].text;
+  await show(2);
+  if (/أعد المحاولة/.test(last)) fail('٤٠٤ يُعرض قابلًا للإعادة — والإعادة لا تنجح أبدًا');
+  else ok('لا زرّ إعادة على عطبٍ دائم');
+  const links = await page.$$eval('.vo-msg--agent a', (as) => as.map((a) => a.getAttribute('href')));
+  if (!links.some((h) => /wa\.me|^tel:/.test(h))) fail(`لا طريق إلى إنسان: ${links.join('، ') || 'لا روابط'}`);
+  else ok(`ويُفتح طريق الإنسان: ${links.join('، ')}`);
+}
+
 console.log('\n═══ ٤) هل يستطيع تصحيح ما فُهم؟ ═══');
 await fresh();
 {

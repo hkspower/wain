@@ -244,7 +244,15 @@
         pending: state.pendingField || '',
       }),
     });
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'تعذّر الاتصال');
+    if (!res.ok) {
+      const said = (await res.json().catch(() => ({}))).error;
+      const e = new Error(said || 'تعذّر الاتصال');
+      /* **٤٠٤ ليست عطلًا عابرًا.** البوّابة غير منشورةٍ على هذا المضيف —
+         أو `data-api` يشير إلى غير موضعها — فالإعادة لا تنجح أبدًا.
+         وتُحمل الحالة إلى مُظهر الخطأ ليقول الصدق. */
+      e.status = res.status;
+      throw e;
+    }
     state.parsed = await res.json();
   }
 
@@ -334,14 +342,38 @@
    */
   function failedTurn(raw, err) {
     const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const status = err && err.status;
+
+    /* **العطب الدائم لا يُعرض عطبًا عابرًا.**
+       قِيس على الموقع المنشور نفسه: البوّابة غير منشورةٍ على المضيف الثابت،
+       فالطلب يردّ ٤٠٤ ويُقال للزبون «تعذّر الاتصال — أعد المحاولة». وهي
+       جملةٌ تعني «جرّب بعد قليل»، والإعادة **لا تنجح أبدًا**: لا شيء هناك
+       ليردّ. فيعيد الزبون ويعيد حتى ينصرف، ويظنّ العطب في شبكته.
+
+       فما كان من ٤٠٤ أو من أخطاء الخادم يُقال على وجهه، ويُفتح فيه طريق
+       الإنسان بدل زرٍّ يَعِد بما لا يقع. والعابر وحده يُعرض قابلًا للإعادة. */
+    const permanent = status === 404 || status === 501 || status === 502 || status === 503;
+
     const why = offline
       ? 'يبدو أنّك غير متّصل بالإنترنت.'
-      : /fetch|network|load failed/i.test(String(err && err.message))
-        ? 'تعذّر الوصول إلى موصول.'
-        : esc(String((err && err.message) || 'تعذّر الاتصال'));
-    const b = bubble('agent', `${why} كلامك محفوظ — <button type="button" class="vo-hintbtn" data-retry>أعد المحاولة</button>`);
+      : permanent
+        ? 'خدمة الطلب غير متاحة الآن.'
+        : /fetch|network|load failed/i.test(String(err && err.message))
+          ? 'تعذّر الوصول إلى موصول.'
+          : esc(String((err && err.message) || 'تعذّر الاتصال'));
+
+    /* رقم الهاتف يُقرأ من الصفحة لا يُكتب هنا: هو مذكورٌ فيها أصلًا، وتكراره
+       يجعل تغييره في موضعين — وينسى أحدهما. */
+    const tel = document.querySelector('a[href^="tel:"]');
+    const call = tel ? ` أو <a href="${esc(tel.getAttribute('href'))}">اتصل بنا</a>` : '';
+    const action = permanent
+      ? `اطلب على ${WA_LINK}${call} ونكمل معك.`
+      : 'كلامك محفوظ — <button type="button" class="vo-hintbtn" data-retry>أعد المحاولة</button>';
+
+    const b = bubble('agent', `${why} ${action}`);
     if (!input.value.trim()) { input.value = raw; grow(); }
-    b.querySelector('[data-retry]').addEventListener('click', () => {
+    const retry = b.querySelector('[data-retry]');
+    if (retry) retry.addEventListener('click', () => {
       b.remove();
       const t = input.value;
       input.value = ''; baseH();
