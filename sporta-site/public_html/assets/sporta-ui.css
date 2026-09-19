@@ -333,30 +333,27 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
    merely drifted in theory. Before believing a declaration, ask whether
    anything later overrides it — `grep -n` for the property answers it, and
    getComputedStyle answers it better. */
-/* --- AND THEN THE WHOLE SCREEN — 2026-09-18 ------------------------------
-   Asked for in as many words: fill the whole screen height, and told plainly
-   what that costs before it shipped — every window's shape differs from the
-   artwork's own 2.52:1, so `cover` now crops the SIDES on every ordinary
-   screen rather than showing the whole banner, which is the opposite of the
-   2026-09-17 choice directly above. The owner picked this trade knowing it.
+/* --- AND THEN THE WHOLE SCREEN — 2026-09-18 --- REVISED 2026-09-19 --------
+   Desktop: fill the whole screen height (100svh). Every window's shape differs
+   from the artwork's own 2.52:1, so `cover` crops the SIDES on every ordinary
+   screen rather than showing the whole banner.
 
-   100svh, not 100vh: vh on a phone is the LARGEST the address bar ever lets
-   the viewport be, so a hero sized to it is taller than the space actually on
-   screen the moment the bar is showing, and the page opens already scrolled
-   past its own fold. svh tracks the SMALLEST the chrome allows, so the hero
-   never claims more than what is really there.
+   PHONE: optimize for mobile viewport using aspect ratio. A full 100svh on
+   mobile (390x844 phone) creates a 390x740 box that shows only 20.9% of the
+   banner's width. Instead, use 2.10:1 ratio which shows 83% of the width while
+   keeping a reasonable height (186px at 390px, plus 128px button = 314px total,
+   ~37% of phone height). This preserves the left-side typography (SPORTA mark,
+   headline, Arabic strapline) while showing the image meaningfully.
 
-   THE PHONE BUTTON STRIP IS BELOW THE ART, NOT OVER IT, so 100svh has to be
-   split rather than applied twice — measured in the DOM: the strip is a
-   sibling block after the image, not an overlay, and its own height (padding
-   plus a 48px button) is independent of how tall the image box is. Giving the
-   OUTER 100svh and the image `calc(100svh - 104px)` is what makes the two sum
-   to the screen instead of the image alone claiming it and pushing the button
-   off-screen. Desktop needs no such split: at 768px and up the art goes
-   `md:absolute md:inset-0`, laid UNDER the button rather than beside it, so
-   the outer's own 100svh already reaches the image without arithmetic. */
+   100svh vs 100vh: svh tracks the SMALLEST viewport the browser allows (ignoring
+   address bar), so the hero never claims more than what is really visible.
+
+   THE PHONE BUTTON STRIP IS BELOW THE ART, NOT OVER IT, so the ratio is split:
+   the image carries the 2.10:1 aspect, and the 128px button strip sits below.
+   Desktop needs no such split: at 768px and up the art goes `md:absolute
+   md:inset-0`, laid UNDER the button rather than beside it. */
 :root {
-  --hero-h: 100svh !important;
+  --hero-h: calc(100vw / 2.10 + 128px) !important;
   --hero-h-md: 100svh !important;
 }
 
