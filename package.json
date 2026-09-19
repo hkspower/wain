@@ -69,7 +69,8 @@
     "icon:app": "node scripts/gen-app-icon.mjs",
     "ios:patch": "node scripts/patch-ios-project.mjs",
     "test:ios": "node tests/ios-project.test.mjs",
-    "audit:ios": "node scripts/audit-ios.mjs"
+    "audit:ios": "node scripts/audit-ios.mjs",
+    "pdf:search": "node scripts/gen-search-pdf.mjs"
   },
   "dependencies": {
     "@capacitor/core": "8.5.2",
