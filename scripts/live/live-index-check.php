@@ -60,7 +60,16 @@ function get(string $url, bool $loopback): array {
     // Verification off on the LOOPBACK only, and for the documented reason: it
     // connects by address while the certificate is for the public name. The
     // edge request keeps verification ON, so a broken chain shows up here too.
-    if ($loopback) $opts['ssl'] = ['verify_peer' => false, 'verify_peer_name' => false];
+    // `allow_self_signed` and an explicit `peer_name` are both load-bearing:
+    // without them the loopback fetch returns false, and a fetch that never
+    // happened printed `same=NO <-- the CDN is serving something else` on the
+    // first run. A false alarm about the CDN is exactly the alarm the owner
+    // would be asked to act on.
+    if ($loopback) $opts['ssl'] = [
+        'verify_peer' => false, 'verify_peer_name' => false,
+        'allow_self_signed' => true, 'SNI_enabled' => true,
+        'peer_name' => 'www.sporta.com.kw',
+    ];
 
     $body = @file_get_contents($url, false, stream_context_create($opts));
     if ($body === false) return ['code' => 0, 'body' => '', 'headers' => []];
@@ -141,6 +150,12 @@ $hre = preg_match_all('~rel=["\']alternate["\'][^>]+hreflang~i', $home['body']);
 line('title=' . trim($t[1] ?? '(none)'));
 line('canonical=' . ($c[1] ?? '(none)') . '  hreflangLinks=' . $hre);
 $o = origin('/');
+// A fetch that FAILED and a fetch that DIFFERED are different findings, and
+// only one of them is about the CDN. Saying which costs one branch.
+$verdict = $o['code'] === 0
+    ? '  originFetchFAILED — this line says nothing about the CDN'
+    : ((strlen($o['body']) === strlen($home['body']))
+        ? '  same=yes'
+        : '  same=NO <-- the CDN is serving something else');
 line('origin=' . $o['code'] . '/' . strlen($o['body']) . '  edge=' . $home['code'] . '/' . strlen($home['body'])
-   . '  cdn=' . ($home['headers']['x-hcdn-cache-status'] ?? '-')
-   . ((strlen($o['body']) === strlen($home['body'])) ? '  same=yes' : '  same=NO <-- the CDN is serving something else'));
+   . '  cdn=' . ($home['headers']['x-hcdn-cache-status'] ?? '-') . $verdict);
