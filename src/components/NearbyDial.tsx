@@ -8,10 +8,13 @@ import {
   categoryGradient,
   distanceKm,
   getCategory,
-  places,
   toArabicDigits,
   distanceAr,
-} from "@/lib/places";
+} from "@/lib/place-kit";
+// The catalogue itself, and only here: ranking places against a live GPS fix
+// cannot be done at build time, so this one client component genuinely needs
+// all 52 records. Everything above it is vocabulary and comes from place-kit.
+import { places } from "@/lib/places";
 
 /** Kuwait City (Mubarakiya). Used so results work without asking for location. */
 const KUWAIT_CENTER = { lat: 29.3759, lng: 47.9774 };

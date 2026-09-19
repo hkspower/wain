@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import PlaceIcon from "@/components/PlaceIcon";
 import { IconGo, IconStar } from "@/components/icons";
-import { toArabicNumber, type CategoryId, type Place } from "@/lib/places";
+import { toArabicNumber, type CategoryId } from "@/lib/place-kit";
+import type { Place } from "@/lib/places";
 
 /**
  * One place on a map, on both maps.

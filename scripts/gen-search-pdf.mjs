@@ -22,7 +22,7 @@
  * it from one HTML sheet with the shots inlined. One less dependency this
  * project does not have, for a file it generates on demand.
  */
-import { readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync, existsSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { join, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";

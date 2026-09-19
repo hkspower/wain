@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { IconCheck, IconClose, IconPhone } from "@/components/icons";
 import { chime, chimeEnabled } from "@/lib/chime";
 import { describeNetError } from "@/lib/net";
-import { toArabicDigits } from "@/lib/places";
+import { toArabicDigits } from "@/lib/place-kit";
 import { loadSupabase, supabaseEnabled } from "@/lib/supabase";
 import { useLatestRequest } from "@/lib/useLatest";
 import { usePoll } from "@/lib/usePoll";

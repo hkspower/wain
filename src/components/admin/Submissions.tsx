@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { IconCheck, IconClose, IconPinSolid } from "@/components/icons";
-import { getCategory, toArabicDigits } from "@/lib/places";
+import { getCategory, toArabicDigits } from "@/lib/place-kit";
 import { loadSupabase } from "@/lib/supabase";
 import { describeNetError } from "@/lib/net";
 import { useLatestRequest } from "@/lib/useLatest";

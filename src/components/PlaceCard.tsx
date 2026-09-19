@@ -7,8 +7,8 @@ import {
   getCategory,
   toArabicDigits,
   toArabicNumber,
-  type Place,
-} from "@/lib/places";
+} from "@/lib/place-kit";
+import type { Place } from "@/lib/places";
 
 /**
  * `awayKm` is how far this place is from the one being looked at.

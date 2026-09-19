@@ -6,7 +6,8 @@ import { IconCheck, IconClock, IconClose, IconCoins, IconGo } from "@/components
 import { CollectionDetails, OrderLines } from "@/components/OrderSummary";
 import { fieldClass, hintClass, labelClass } from "@/lib/form-classes";
 import { haptic } from "@/lib/haptics";
-import { toArabicDigits, type Place } from "@/lib/places";
+import { toArabicDigits } from "@/lib/place-kit";
+import type { Place } from "@/lib/places";
 import {
   MAX_QTY_PER_ITEM,
   acceptsOrders,

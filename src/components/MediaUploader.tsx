@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { IconClose, IconSparkle } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
-import { toArabicDigits } from "@/lib/places";
+import { toArabicDigits } from "@/lib/place-kit";
 import {
   ACCEPT_ATTR,
   MAX_PHOTOS,

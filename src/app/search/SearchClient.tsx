@@ -10,7 +10,7 @@ import VoiceControls from "@/components/VoiceControls";
 import ShouqCallButton from "@/components/ShouqCallButton";
 import SearchHub from "@/components/SearchHub";
 import { IconClose, IconCompass, IconSearch } from "@/components/icons";
-import { toArabicDigits } from "@/lib/places";
+import { toArabicDigits } from "@/lib/place-kit";
 import { usePlaces } from "@/lib/usePlaces";
 import { buildIndex, search, type DocKind } from "@/lib/search";
 import { useListboxKeys } from "@/lib/useListboxKeys";

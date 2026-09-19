@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { IconGo, IconPhone } from "@/components/icons";
-import { getPlace, toArabicDigits } from "@/lib/places";
+import { toArabicDigits } from "@/lib/place-kit";
+import { getPlace } from "@/lib/places";
 import { formatKwd, lineTotal, type OrderLine } from "@/lib/orders";
 
 /**

@@ -16,8 +16,8 @@ import {
   clampServiceMinutes,
   toArabicDigits,
   type CategoryId,
-  type Place,
-} from "@/lib/places";
+} from "@/lib/place-kit";
+import type { Place } from "@/lib/places";
 
 export interface EditablePlace extends Place {
   id?: string;

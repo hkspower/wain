@@ -7,7 +7,7 @@ import { chime, chimeEnabled, setChimeEnabled } from "@/lib/chime";
 import { describeNetError } from "@/lib/net";
 import { useLatestRequest } from "@/lib/useLatest";
 import { usePoll } from "@/lib/usePoll";
-import { toArabicDigits } from "@/lib/places";
+import { toArabicDigits } from "@/lib/place-kit";
 import { formatKwd, orderReference, orderTotal, type OrderLine } from "@/lib/orders";
 
 /**

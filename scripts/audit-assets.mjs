@@ -65,7 +65,21 @@ for (const f of files) {
   if (!TEXT.has(ext)) continue;
   const src = readFileSync(f, "utf8");
   textBytes += Buffer.byteLength(src);
-  for (const m of src.matchAll(/[\w@./-]+\.(?:jpg|jpeg|png|svg|webp|avif|gif|ico|woff2?|ttf|otf|mp3|mp4|webm|ogg)\b/gi)) {
+  // The RSC flight payload is serialised into a run of `self.__next_f.push`
+  // calls, and Next splits that stream on byte count with no regard for what
+  // it lands in the middle of. A split inside a URL leaves the tail of one
+  // path at the start of the next push — `"/_next/static"` ends one call and
+  // `/media/<hash>.woff2` opens the next — and a scan that reads the payload
+  // as markup sees that tail as a rooted path of its own and reports a file
+  // that was never missing. It happened to a font the page preloads correctly
+  // two lines above, and it moved there because an unrelated import change
+  // shifted the payload's length: nothing about the asset changed at all.
+  //
+  // Dropping the payload costs no coverage. Everything the document really
+  // fetches is also written as an ordinary `href`, `src` or CSS `url()`,
+  // which is what the regex below is for.
+  const scanned = src.replace(/self\.__next_f\.push\([\s\S]*?\)/g, "");
+  for (const m of scanned.matchAll(/[\w@./-]+\.(?:jpg|jpeg|png|svg|webp|avif|gif|ico|woff2?|ttf|otf|mp3|mp4|webm|ogg)\b/gi)) {
     const hit = m[0].split("?")[0];
     mentioned.add(basename(hit));
     // The site's own absolute URLs are site paths. The regex cannot include

@@ -4,7 +4,9 @@ import Link from "next/link";
 import CategoryIcon from "@/components/CategoryIcon";
 import PlaceIcon from "@/components/PlaceIcon";
 import { IconCompass, IconGo, IconPinSolid, IconStar } from "@/components/icons";
-import { categoryTint, getCategory, places, toArabicDigits, toArabicNumber } from "@/lib/places";
+import { categoryTint, getCategory, toArabicDigits, toArabicNumber } from "@/lib/place-kit";
+// Search reads every record, so this one keeps the catalogue on purpose.
+import { places } from "@/lib/places";
 import { highlight, type DocKind, type SearchHit } from "@/lib/search";
 
 const KIND_LABEL: Record<DocKind, string> = {

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { IconCheck, IconClock, IconClose } from "@/components/icons";
 import { CollectionDetails } from "@/components/OrderSummary";
 import { haptic } from "@/lib/haptics";
-import { toArabicDigits } from "@/lib/places";
+import { toArabicDigits } from "@/lib/place-kit";
 import { supabaseEnabled } from "@/lib/supabase";
 import { usePoll } from "@/lib/usePoll";
 import {

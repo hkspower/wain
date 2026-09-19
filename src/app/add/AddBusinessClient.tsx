@@ -6,7 +6,7 @@ import CategoryIcon from "@/components/CategoryIcon";
 import { IconCheck, IconLocate, IconPinSolid, IconSparkle } from "@/components/icons";
 import CoordinatePicker from "@/components/CoordinatePicker";
 import MediaUploader from "@/components/MediaUploader";
-import { categories, toArabicDigits, type CategoryId } from "@/lib/places";
+import { categories, toArabicDigits, type CategoryId } from "@/lib/place-kit";
 import { newDraftId, uploadPending, type PickedFile } from "@/lib/media";
 import { inKuwait, submitBusiness, type SubmissionInput } from "@/lib/submissions";
 import { fieldClass, hintClass, labelClass } from "@/lib/form-classes";

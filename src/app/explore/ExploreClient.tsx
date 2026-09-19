@@ -11,7 +11,7 @@ import {
   PLACES_COUNT,
   RESULTS_COUNT,
   type CategoryId,
-} from "@/lib/places";
+} from "@/lib/place-kit";
 import { usePlaces } from "@/lib/usePlaces";
 import { haptic } from "@/lib/haptics";
 

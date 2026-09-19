@@ -2,7 +2,10 @@
 
 import { loadSupabase } from "@/lib/supabase";
 import { deadlineFetch, describeNetError } from "@/lib/net";
-import { toArabicDigits, toArabicNumber } from "@/lib/places";
+// place-kit, not places: MediaUploader is a client component on /add, and
+// this one edge put all 52 records on that page for two number formatters.
+// Same shape as the supabase.ts clamp-helper edge that made place-kit exist.
+import { toArabicDigits, toArabicNumber } from "@/lib/place-kit";
 
 /**
  * Business media: a logo and photos, uploaded by whoever is registering the

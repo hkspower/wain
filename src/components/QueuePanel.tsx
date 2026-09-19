@@ -5,7 +5,8 @@ import Link from "next/link";
 import { IconCheck, IconClock, IconGo } from "@/components/icons";
 import { fieldClass, hintClass, labelClass } from "@/lib/form-classes";
 import { haptic } from "@/lib/haptics";
-import { toArabicDigits, type Place } from "@/lib/places";
+import { toArabicDigits } from "@/lib/place-kit";
+import type { Place } from "@/lib/places";
 import { supabaseEnabled } from "@/lib/supabase";
 import { usePoll } from "@/lib/usePoll";
 import {

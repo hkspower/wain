@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import MapPin, { pinHeadroom } from "@/components/MapPin";
 import { IconMap, IconPinSolid } from "@/components/icons";
-import { toArabicDigits, type Place } from "@/lib/places";
+import { toArabicDigits } from "@/lib/place-kit";
+import type { Place } from "@/lib/places";
 import { embedUrl, fitFrame, osmLink, pinShiftCap, project, spreadPins } from "@/lib/map-frame";
 import { useFrameWidth } from "@/lib/useFrameWidth";
 

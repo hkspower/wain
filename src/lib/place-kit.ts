@@ -301,3 +301,106 @@ export function acceptsOrders(place: Place): boolean {
 export function takesQueue(place: Place): boolean {
   return Boolean(place.takesQueue && place.salonKind);
 }
+
+/* ── Moved out of places.ts ──────────────────────────────────────────────
+   Five helpers that never touch a place record: two gradient lookups, the
+   slug hash behind them, the tint table and great-circle distance. They sat
+   beside the catalogue, so a client component wanting a category tint
+   imported the module holding all 52 records and shipped them. That is the
+   same edge this file was split out to close, one layer further in.
+   ──────────────────────────────────────────────────────────────────────── */
+export function categoryGradient(id: CategoryId): string {
+  return getCategory(id)?.gradient ?? "from-sand-600 via-sand-700 to-sand-900";
+}
+
+/**
+ * Stable 0-3 derived from the slug. Places in one category share a single
+ * hand-drawn scene, so without this every تسوّق card rendered the identical
+ * image; the variant drives a mirrored or shifted composition plus a
+ * different gradient direction, making each place's art its own.
+ *
+ * The constants (×38 mod 65521) were chosen so that no two places in the
+ * same category land on the same variant with the current dataset — verify
+ * again if that ever seems off after adding places.
+ */
+export function placeVariant(slug: string): 0 | 1 | 2 | 3 {
+  let h = 0;
+  for (let i = 0; i < slug.length; i++) h = (h * 38 + slug.charCodeAt(i)) % 65521;
+  return (h % 4) as 0 | 1 | 2 | 3;
+}
+
+const GRADIENT_DIRECTION = [
+  "bg-gradient-to-br",
+  "bg-gradient-to-tr",
+  "bg-gradient-to-b",
+  "bg-gradient-to-bl",
+] as const;
+
+/**
+ * The place hero: one hue per category, on the ink ramp's own lightnesses.
+ *
+ * The first version of this took each category's ramp directly, and the ramps
+ * were not comparable — coral sits at chroma 0.21, sea at 0.086 — so the same
+ * hero read twice as loud on a restaurant as on a landmark, and the heroes as
+ * a group ran far more saturated than any other route. Dropping to ink fixed
+ * the inconsistency by removing the variable.
+ *
+ * These ramps are generated instead of picked (see --color-hero-* in
+ * theme.css): identical lightness and identical chroma at every step, hue
+ * the only difference. So the black point and the white-stroke contrast the
+ * monochrome pass established both survive, and a category is once again
+ * recognisable before you have read anything.
+ *
+ * Written out in full because Tailwind scans for literal class names — built
+ * from a template these would never be emitted.
+ */
+const HERO_GRADIENT: Record<CategoryId, string> = {
+  landmarks: "from-hero-landmarks-1 via-hero-landmarks-2 to-hero-landmarks-3",
+  restaurants: "from-hero-restaurants-1 via-hero-restaurants-2 to-hero-restaurants-3",
+  fastfood: "from-hero-fastfood-1 via-hero-fastfood-2 to-hero-fastfood-3",
+  coffee: "from-hero-coffee-1 via-hero-coffee-2 to-hero-coffee-3",
+  outdoors: "from-hero-outdoors-1 via-hero-outdoors-2 to-hero-outdoors-3",
+  shopping: "from-hero-shopping-1 via-hero-shopping-2 to-hero-shopping-3",
+  culture: "from-hero-culture-1 via-hero-culture-2 to-hero-culture-3",
+  family: "from-hero-family-1 via-hero-family-2 to-hero-family-3",
+};
+
+export function placeGradient(place: Pick<Place, "slug" | "category">): string {
+  return `${GRADIENT_DIRECTION[placeVariant(place.slug)]} ${HERO_GRADIENT[place.category]}`;
+}
+
+/**
+ * Tile and mark colour for a place's icon, so a thumbnail carries its
+ * category before the name has been read. Literal strings for the same
+ * reason as HERO_GRADIENT — Tailwind only emits classes it can see.
+ */
+const CATEGORY_TINT: Record<CategoryId, string> = {
+  landmarks: "bg-cat-landmarks-tint text-cat-landmarks-ink",
+  restaurants: "bg-cat-restaurants-tint text-cat-restaurants-ink",
+  fastfood: "bg-cat-fastfood-tint text-cat-fastfood-ink",
+  coffee: "bg-cat-coffee-tint text-cat-coffee-ink",
+  outdoors: "bg-cat-outdoors-tint text-cat-outdoors-ink",
+  shopping: "bg-cat-shopping-tint text-cat-shopping-ink",
+  culture: "bg-cat-culture-tint text-cat-culture-ink",
+  family: "bg-cat-family-tint text-cat-family-ink",
+};
+
+export function categoryTint(id: CategoryId): string {
+  return CATEGORY_TINT[id];
+}
+
+/** Great-circle distance in kilometres. */
+export function distanceKm(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number }
+): number {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
