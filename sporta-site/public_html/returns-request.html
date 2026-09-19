@@ -28,6 +28,14 @@
   index.html. /assets/returns-request.js is covered by `script-src 'self'` and
   needs no policy change at all.
 
+  BOTH LANGUAGES, since 2026-09-19. Every word here used to be Arabic and the
+  form posted `lang: 'ar'` whatever the shopper read — so an English customer
+  met an Arabic-only page AND was recorded on the return row as an Arabic
+  speaker, which is the language the shop then answers them in. The Arabic is
+  still what is WRITTEN in this file, because Arabic is the shop's default and
+  a visitor with no JavaScript must get a real page rather than a skeleton;
+  returns-request.js swaps it, keyed by data-i18n, and sets lang/dir to match.
+
   NOINDEX. It is a form that asks for an order number and a phone number.
   There is nothing here for a search engine, and saying so in the page travels
   with the page in a way a robots.txt rule does not.
@@ -38,7 +46,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#141619">
-<title>طلب إرجاع أو استبدال — سبورتا</title>
+<title data-i18n="title">طلب إرجاع أو استبدال — سبورتا</title>
 <link rel="icon" href="/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <style>
@@ -119,6 +127,9 @@
   }
   .kind input { position: absolute; opacity: 0; width: 0; height: 0; }
   .kind span { display: block; font-size: .8rem; font-weight: 400; color: var(--sp-silver); }
+  /* The radio labels' own words are wrapped in <em> so the script can swap
+     them without touching the <span> beneath or the <input> beside them. */
+  .kind em { font-style: normal; }
   /* :has() so the checked state paints the LABEL, with no script involved —
      the choice is still made by a real radio, which is what a keyboard and a
      screen reader understand. */
@@ -148,6 +159,11 @@
           border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; font-size: .9rem; }
   .ref { font-size: 2rem; font-weight: 800; color: var(--sp-ember); letter-spacing: .04em;
          direction: ltr; unicode-bidi: isolate; }
+  /* The items actually asked for, on the confirmation. `plaintext` so an
+     English size ladder inside an Arabic sentence reads left to right without
+     the arrow jumping to the wrong end of the line. */
+  .chose { margin: 10px 0 0; padding: 0 1.1em; color: var(--sp-silver); font-size: .9rem; }
+  .chose li { margin: 4px 0; unicode-bidi: plaintext; }
   [hidden] { display: none !important; }
   footer { text-align: center; margin-top: 28px; }
 </style>
@@ -158,8 +174,8 @@
 
   <!-- STEP ONE: which order -->
   <section id="ask">
-    <h1>طلب إرجاع أو استبدال</h1>
-    <p class="lede">أدخل رقم طلبك ورقم هاتفك، وسنعرض لك القطع التي اشتريتها لتختار منها. الاستلام من عندك.</p>
+    <h1 data-i18n="h1">طلب إرجاع أو استبدال</h1>
+    <p class="lede" data-i18n="lede">أدخل رقم طلبك ورقم هاتفك، وسنعرض لك القطع التي اشتريتها لتختار منها. الاستلام من عندك.</p>
 
     <div class="card">
       <div id="error" class="error" role="alert" hidden></div>
@@ -168,23 +184,23 @@
            JavaScript it posts to itself and changes nothing, which is a better
            failure than a button that silently does nothing. -->
       <form id="lookup" novalidate>
-        <label for="track">رقم الطلب</label>
+        <label for="track" data-i18n="orderNo">رقم الطلب</label>
         <input id="track" name="track" type="text" inputmode="latin"
                autocomplete="off" spellcheck="false" placeholder="SP1A2B3C" required>
 
-        <label for="phone">رقم الهاتف</label>
+        <label for="phone" data-i18n="phoneNo">رقم الهاتف</label>
         <input id="phone" name="phone" type="tel" inputmode="numeric"
-               autocomplete="tel" placeholder="٥٥٥١٢٣٤٥" required>
-        <p class="hint">نفس الرقم الذي طلبت به. تجد رقم الطلب في رسالة التأكيد أو على الفاتورة.</p>
+               autocomplete="tel" data-i18n-ph="phonePh" placeholder="٥٥٥١٢٣٤٥" required>
+        <p class="hint" data-i18n="hint">نفس الرقم الذي طلبت به. تجد رقم الطلب في رسالة التأكيد أو على الفاتورة.</p>
 
-        <button id="find" type="submit">عرض قطع الطلب</button>
+        <button id="find" type="submit" data-i18n="find">عرض قطع الطلب</button>
       </form>
     </div>
   </section>
 
   <!-- STEP TWO: which items, and what for -->
   <section id="pick" hidden>
-    <h1>اختر القطع</h1>
+    <h1 data-i18n="h1pick">اختر القطع</h1>
     <p class="lede" id="who"></p>
 
     <div class="card">
@@ -192,47 +208,49 @@
       <div class="note" id="window"></div>
 
       <form id="request" novalidate>
-        <div class="kinds" role="radiogroup" aria-label="نوع الطلب">
+        <div class="kinds" role="radiogroup" aria-label="نوع الطلب" data-i18n-aria="kindGroup">
           <label class="kind">
             <input type="radio" name="kind" value="exchange" checked>
-            استبدال
-            <span>مقاس آخر</span>
+            <em data-i18n="exchange">استبدال</em>
+            <span data-i18n="exchangeSub">مقاس آخر</span>
           </label>
           <label class="kind">
             <input type="radio" name="kind" value="return">
-            إرجاع
-            <span>استرجاع المبلغ</span>
+            <em data-i18n="return">إرجاع</em>
+            <span data-i18n="returnSub">استرجاع المبلغ</span>
           </label>
         </div>
 
-        <h2>القطع</h2>
+        <h2 data-i18n="items">القطع</h2>
         <div id="lines"></div>
 
-        <label for="reason" style="margin-top:18px">السبب</label>
+        <label for="reason" style="margin-top:18px" data-i18n="reason">السبب</label>
         <textarea id="reason" name="reason" maxlength="280"
-                  placeholder="المقاس غير مناسب / القطعة تالفة / الجودة غير متوقعة"></textarea>
+                  data-i18n-ph="reasonPh" placeholder="المقاس غير مناسب / القطعة تالفة / الجودة غير متوقعة"></textarea>
 
-        <button id="send" type="submit">إرسال الطلب</button>
-        <button class="ghost" id="back" type="button" style="margin-top:12px">طلب آخر</button>
+        <button id="send" type="submit" data-i18n="send">إرسال الطلب</button>
+        <button class="ghost" id="back" type="button" style="margin-top:12px" data-i18n="another">طلب آخر</button>
       </form>
     </div>
   </section>
 
   <!-- STEP THREE: the reference -->
   <section id="done" hidden>
-    <h1>وصلنا طلبك</h1>
+    <h1 data-i18n="h1done">وصلنا طلبك</h1>
     <div class="card">
-      <p class="muted" style="margin-top:0">رقم الطلب — احتفظ به، وسيسألك عنه المندوب.</p>
+      <p class="muted" style="margin-top:0" data-i18n="keepRef">رقم الطلب — احتفظ به، وسيسألك عنه المندوب.</p>
       <p class="ref" id="ref"></p>
       <p class="muted" id="summary"></p>
-      <p class="muted">سنتواصل معك لتحديد موعد الاستلام. القطع يجب أن تكون غير ملبوسة وغير مغسولة مع البطاقات الأصلية.</p>
-      <button id="wa" type="button">متابعة عبر واتساب</button>
-      <button class="ghost" id="again" type="button" style="margin-top:12px">طلب آخر</button>
+      <ul class="chose" id="chose"></ul>
+      <p class="muted" id="next"></p>
+      <p class="muted" data-i18n="condition">القطع يجب أن تكون غير ملبوسة وغير مغسولة مع البطاقات الأصلية.</p>
+      <button id="wa" type="button" data-i18n="wa">متابعة عبر واتساب</button>
+      <button class="ghost" id="again" type="button" style="margin-top:12px" data-i18n="another">طلب آخر</button>
     </div>
   </section>
 
   <footer class="muted">
-    <a href="/returns">سياسة الإرجاع والاستبدال</a> · <a href="/">العودة إلى المتجر</a>
+    <a href="/returns" data-i18n="policy">سياسة الإرجاع والاستبدال</a> · <a href="/" data-i18n="backToShop">العودة إلى المتجر</a>
   </footer>
 </main>
 <script src="/assets/returns-request.js" defer></script>

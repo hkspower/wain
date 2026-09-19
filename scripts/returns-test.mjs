@@ -24,6 +24,7 @@
  */
 import { chromium } from 'playwright'
 import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:4300'
 const API = BASE + '/api/api.php'
@@ -42,6 +43,11 @@ const sql = (q) => execFileSync('mariadb',
   ['-u', 'sporta', '-plocaldev', 'sporta', '--default-character-set=utf8mb4',
    '--batch', '--raw', '-e', q],
   { encoding: 'utf8' })
+
+/* A single-quoted SQL literal. Only used for values this rig itself made, and
+   it exists so a saved settings row can be put back byte for byte. */
+const quote = (v) => "'" + String(v).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'"
+const sqlRun = (q) => sql(q)
 
 const rows = (q) => {
   const out = sql(q).trim().split('\n')
@@ -308,7 +314,7 @@ let madeRef = null
 // ------------------------------------------------------------ the page itself
 
 {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+  const b = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
   const p = await b.newPage({ viewport: { width: 390, height: 844 } })
   const errors = []
   p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()) })
@@ -384,6 +390,172 @@ let madeRef = null
   await b.close()
 }
 
+// ------------------------- the page does not restate a rule it does not own
+//
+// A SOURCE CHECK, on purpose, because the browser cannot reach every sentence.
+// The refusal shown when an item is barred from exchange is only ever produced
+// by the SERVER refusing a request the page already greys out, so a rig would
+// have to defeat the page to see it — and a mutation restoring "women's
+// clothing cannot be exchanged" passed the browser half of this file cleanly.
+//
+// Both rules live on the server and both are the owner's: `return_days` is a
+// settings row, and CLAUDE.md says in as many words that the women's-exchange
+// rule "is the owner's and it may change". The page is told WHICH lines are
+// barred and HOW LONG the window is; restating either as fixed copy is how the
+// shop came to promise fourteen days while enforcing whatever it liked.
+{
+  const src = readFileSync('sporta-site/public_html/assets/returns-request.js', 'utf8')
+  // Only the dictionaries — the reasoning about these rules is written in the
+  // comments above them, and matching prose would make the explanation of the
+  // fix fail as though it were the fix coming undone.
+  const from = src.indexOf('var MESSAGES = {')
+  const to = src.indexOf('  var t = T[LANG]')
+  // BOTH ENDS, NAMED. `slice(x, -1)` on a missing end marker quietly returns
+  // almost the whole file, so a length test alone passes while the regexes go
+  // on to scan the comments — which discuss "women's" and "fourteen" at
+  // length, and would then fail for a reason that has nothing to do with the
+  // copy. Mutation-tested: the confusing failure is what this replaces.
+  check(from !== -1 && to > from, 'the wording check found both ends of the dictionaries',
+    `MESSAGES at ${from}, end at ${to} — a check that reads the wrong region judges the wrong text`)
+  const dict = from !== -1 && to > from ? src.slice(from, to) : ''
+  check(dict.length > 2000, 'and the region it read is the size a dictionary is',
+    `${dict.length} characters`)
+
+  const days = dict.match(/fourteen|أربعة عشر|\b14 (days|يوم)/gi) ?? []
+  check(days.length === 0, 'no sentence names a fixed returns window', days.join(', '))
+
+  const cat = dict.match(/women|نسائي/gi) ?? []
+  check(cat.length === 0, 'and none names the category the exchange ban happens to use today',
+    cat.join(', '))
+}
+
+// ------------------------------------------ the page in English, and the rules
+//
+// THE LANGUAGE IS NOT DECORATION HERE. The page used to be Arabic-only and to
+// post `lang: 'ar'` whatever the shopper was reading, so an English customer
+// met an Arabic form AND was recorded on the return row as an Arabic speaker —
+// which is the language the shop then writes back to them in. The stored value
+// is therefore checked in the database, not merely on screen: a page that
+// LOOKS English and files the request as Arabic is the bug still present.
+//
+// AND THE WINDOW IS THE OWNER'S NUMBER. `return_days` has been editable in
+// /backends since the rules row was built and the server has always honoured
+// it, while the page said "the fourteen days are over" in fixed copy. So the
+// rig MOVES the rule and requires the sentence to follow. Setting it to 14
+// would prove nothing — that is the shipped default, and a hardcoded fourteen
+// passes such a check perfectly.
+{
+  const b = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
+  const p = await b.newPage({ viewport: { width: 390, height: 844 } })
+  const errors = []
+  p.on('pageerror', (e) => errors.push(String(e)))
+
+  const savedRules = rows("select quote(value) v from settings where name = 'rules'")[0]?.v ?? null
+
+  // ITS OWN ORDER, and that is not tidiness. The fixture above has by now had
+  // both its lines asked for, had a request rejected, and had its delivery
+  // date pushed back nine days to prove the window closes — so the send button
+  // on it is correctly disabled, and a rig reusing it would be measuring the
+  // leftovers of the block before rather than the page. `cleanup()` matches
+  // SPRTEST% so this one is swept up with the other.
+  const TRACK2 = 'SPRTEST' + Math.random().toString(36).slice(2, 8).toUpperCase()
+  sql(`insert into orders (track_id, amount, payment_status, payment_method, fulfilment_status,
+         customer_name, customer_phone, fulfilled_at, created_at)
+       values ('${TRACK2}', 9.000, 'paid', 'cod', 'delivered', 'Returns Rig EN', '${PHONE_FULL}',
+               date_sub(now(), interval 1 day), date_sub(now(), interval 2 day))`)
+  const order2 = rows(`select id from orders where track_id = '${TRACK2}'`)[0].id
+  sql(`insert into order_items (order_id, product_id, qty, size, unit_price, name_en, name_ar)
+       values (${order2}, ${mens.id}, 1, 'L', 9.000, 'Rig Tee', 'قميص')`)
+  const line2 = rows(`select id from order_items where order_id = ${order2}`)[0].id
+  clearThrottle()
+
+  try {
+    await p.goto(BASE + '/returns/request?lang=en', { waitUntil: 'networkidle' })
+
+    const html = p.locator('html')
+    check(await html.getAttribute('lang') === 'en', 'an English visitor gets lang="en"',
+      String(await html.getAttribute('lang')))
+    check(await html.getAttribute('dir') === 'ltr', 'and the page reads left to right',
+      String(await html.getAttribute('dir')))
+    const lede = (await p.locator('.lede').first().textContent()) ?? ''
+    check(!/[؀-ۿ]/.test(lede) && /\w{4,}/.test(lede),
+      'and the words on it are English, not Arabic', lede.slice(0, 60))
+
+    // A refusal, in English. The old dictionary had one language, so this is
+    // the check that would have gone red before today.
+    await p.fill('#track', TRACK)
+    await p.fill('#phone', '99887766')
+    await p.click('#find')
+    await p.waitForSelector('#error:not([hidden])', { timeout: 8000 })
+    const en = (await p.locator('#error').textContent()) ?? ''
+    check(!/[؀-ۿ]/.test(en) && !/_/.test(en) && en.length > 20,
+      'a refusal is an English sentence, not Arabic and not a token', en)
+
+    /* ---------------- the window follows the owner's rule ---------------- */
+    const ruleRow = rows("select value v from settings where name = 'rules'")[0]?.v ?? '{}'
+    let parsed = {}
+    try { parsed = JSON.parse(ruleRow) } catch { parsed = {} }
+    parsed.return_days = 9        // NOT 14: the shipped default proves nothing
+    sqlRun(`replace into settings (name, value) values ('rules', ${quote(JSON.stringify(parsed))})`)
+
+    await p.goto(BASE + '/returns/request?lang=en', { waitUntil: 'networkidle' })
+    await p.fill('#track', TRACK2)
+    await p.fill('#phone', PHONE_LOCAL)
+    await p.click('#find')
+    await p.waitForSelector('#pick:not([hidden])', { timeout: 8000 })
+    const note = (await p.locator('#window').textContent()) ?? ''
+    check(!/\b14\b|fourteen|أربعة عشر/i.test(note),
+      'the page no longer promises fourteen days when the shop says nine', note)
+    check(/\b9\b|\b[1-9]\b/.test(note),
+      'and the number it shows came from the server', note)
+
+    /* ------------- the confirmation says what was asked for -------------- */
+    await p.check(`#line-${line2}`)
+    const sizeSel = p.locator(`[data-size="${line2}"]`)
+    if (await sizeSel.count()) await sizeSel.selectOption('XL')
+    await p.click('#send')
+    await p.waitForSelector('#done:not([hidden])', { timeout: 8000 })
+
+    const chose = (await p.locator('#chose').textContent()) ?? ''
+    check(chose.trim().length > 0, 'the confirmation lists the items actually asked for', chose.trim())
+    const next = (await p.locator('#next').textContent()) ?? ''
+    check(next.includes(PHONE_LOCAL) || next.replace(/\D/g, '').includes(PHONE_LOCAL),
+      'and names the number the shop will call', next)
+
+    // THE ONE THAT MATTERS: what was FILED, not what was shown.
+    const ref = ((await p.locator('#ref').textContent()) ?? '').trim()
+    const lang = rows(`select lang from return_requests where ref = '${ref}'`)[0]?.lang ?? null
+    check(lang === 'en', 'and the request is filed as English, so the shop answers in English',
+      `stored lang=${lang}`)
+
+    /* ------- AND THE CLOSED BRANCH, which is a different sentence -------
+       The checks above ran with the window OPEN, so they only ever exercised
+       the "n days left" half. The copy that actually said "the fourteen days
+       are over" is the OTHER branch, and a mutation restoring it passed this
+       rig cleanly until this was added — the hazard is in the sentence nobody
+       drove. Same order, pushed past its own deadline. */
+    sql(`update orders set fulfilled_at = date_sub(now(), interval 30 day) where id = ${order2}`)
+    await p.goto(BASE + '/returns/request?lang=en', { waitUntil: 'networkidle' })
+    await p.fill('#track', TRACK2)
+    await p.fill('#phone', PHONE_LOCAL)
+    await p.click('#find')
+    await p.waitForSelector('#pick:not([hidden])', { timeout: 8000 })
+    const shut = (await p.locator('#window').textContent()) ?? ''
+    check(!/\b14\b|fourteen|أربعة عشر/i.test(shut),
+      'the CLOSED-window sentence does not promise fourteen days either', shut)
+    check(/\b9\b/.test(shut), 'it names the shop\'s own number instead', shut)
+    check(await p.locator('#send').isDisabled(),
+      'and a request that cannot succeed is not offered')
+
+    check(errors.length === 0, 'no page errors in either language', errors.slice(0, 2).join(' | '))
+  } finally {
+    // Put the shop's own rules back however this ends.
+    if (savedRules) sqlRun(`replace into settings (name, value) values ('rules', ${savedRules})`)
+    else sqlRun("delete from settings where name = 'rules'")
+    await b.close()
+  }
+}
+
 // ------------------------------------------------------- the APP's own screen
 //
 // The website's page and the app's screen drive the SAME two routes, so the
@@ -396,7 +568,7 @@ let madeRef = null
 // test:shop. APP= to point it elsewhere.
 {
   const APP = process.env.APP ?? 'http://127.0.0.1:4173'
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+  const b = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
   const p = await b.newPage({ viewport: { width: 390, height: 844 } })
   const errors = []
   p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()) })
