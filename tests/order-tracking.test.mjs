@@ -43,8 +43,10 @@ let body = await p.textContent('body');
 ok('the page exists and is titled طلباتي', body.includes('طلباتي'));
 ok('an empty device is told so, not shown a spinner forever', body.includes('ما عندك طلبات'));
 ok('it offers a way to start', (await p.locator('a[href="/explore/"], a[href="/explore"]').count()) > 0);
-ok('the header link is absent when there is nothing to track',
-  (await p.locator('header a[href*="/orders"]').count()) === 0);
+// The tray, not a `<header>` — the site has no header any more, so the old
+// selector returned 0 whatever the code did and the assertion could not fail.
+ok('no tray at all when there is nothing to track',
+  (await p.locator('nav[aria-label="طلباتك الحالية"]').count()) === 0);
 
 console.log('\n── with one order on the device ──');
 await ctx.addInitScript((seed) => {
@@ -84,18 +86,21 @@ ok('the word «مدفوع» appears nowhere', !body.includes('مدفوع'));
 ok('it repeats that payment is on collection', body.includes('الدفع عند الاستلام'));
 
 console.log('\n── the way back exists once there is an order ──');
-// This used to read `header a[href*="/orders"]`, the OrdersLink pill in the
-// navbar. The navbar was removed and nothing replaced it, so in a browser
-// there is now no link to طلباتي at all — the page is reachable only by its
-// address. What survives is AppTabBar's tab, which appears for the same
-// reason (a live order on this device) and is what the installed app shows.
-// It is `standalone:block`, so on the web it is in the DOM and painted by
-// nothing; count it rather than ask whether it is visible.
+// `:visible`, not a count. This assertion was `header a[href*="/orders"]`
+// against the navbar pill; when the navbar went, the only link left was
+// AppTabBar's, which is `standalone:block` — in the DOM and painted by
+// nothing in a browser. A count cannot tell those apart, and that is exactly
+// how the same class of break shipped for /search. LiveTray is the browser's
+// route now, and it must be a link a thumb can actually reach.
 await p.goto(B + '/', { waitUntil: 'networkidle' });
 await p.waitForTimeout(400);
-const tabLink = p.locator('nav[aria-label="تنقّل التطبيق"] a[href*="/orders"]');
-ok('the app tab bar now offers طلباتي', (await tabLink.count()) === 1);
-ok('and the browser has no route to it', (await p.locator('header a[href*="/orders"]').count()) === 0);
+const tray = p.locator('nav[aria-label="طلباتك الحالية"] a[href*="/orders"]:visible');
+ok('a browser gets a visible way back to طلباتي', (await tray.count()) === 1);
+ok('and it carries the count in Arabic digits', (await tray.first().textContent()).includes('١'));
+// The installed app grows its own tab for this, so the tray must stand down
+// there or the same offer is drawn twice.
+ok('the app tab bar still offers it too',
+  (await p.locator('nav[aria-label="تنقّل التطبيق"] a[href*="/orders"]').count()) === 1);
 
 console.log('\n── forgetting an order ──');
 await p.goto(B + '/orders/', { waitUntil: 'networkidle' });

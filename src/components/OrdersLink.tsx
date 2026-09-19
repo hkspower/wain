@@ -52,16 +52,17 @@ export function useTicketCount(): number {
 }
 
 /**
- * A navbar pill, not a footer list item.
+ * A pill, and for a while it had nowhere to be.
  *
- * These used to be two `<li>`s inside the footer's links column. The footer is
- * gone, and the header is where they belong anyway: an order being prepared
- * and a turn in a queue are both live, both time-sensitive, and both were
- * previously reachable only by scrolling to the bottom of the page they were
- * least likely to be on.
+ * These started as two `<li>`s in the footer's links column, moved to the
+ * navbar — an order being prepared and a turn in a queue are both live and
+ * both time-sensitive, and the footer is the last place anyone looks for
+ * either — and were then stranded when the navbar was removed, leaving
+ * /orders and /queue reachable only by typing an address. `LiveTray` below
+ * is where they live now.
  */
 const PILL =
-  "flex min-h-6 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-semibold text-sea-800 transition hover:bg-sea-50";
+  "flex min-h-6 items-center gap-1.5 whitespace-nowrap rounded-full bg-sea-50 px-3 py-1.5 text-sm font-semibold text-sea-800 shadow-sm ring-1 ring-sea-100 transition hover:bg-sea-100";
 const BADGE = "rounded-full bg-sea-100 px-1.5 py-0.5 text-xs font-semibold text-sea-800";
 
 export function QueueLink() {
@@ -85,5 +86,48 @@ export default function OrdersLink() {
       طلباتي
       <span className={BADGE}>{toArabicDigits(count)}</span>
     </Link>
+  );
+}
+
+/**
+ * The way back to a live order or a live turn, for a browser.
+ *
+ * Removing the navbar took both pills with it, and /orders and /queue became
+ * address-bar-only on the web: the only links left were AppTabBar's, and that
+ * bar is `standalone:block`, so outside the installed app it is in the DOM and
+ * painted by nothing. Nobody could reach that state — 0 of 52 places take an
+ * order or a turn — which is exactly why it could sit broken unnoticed.
+ *
+ * This is deliberately not a bar coming back. It renders **nothing** unless
+ * this device has a live order or today's ticket, so for every visitor there
+ * is no element at all; a top bar is permanent and this is the opposite of
+ * permanent. It sits at the bottom rather than the top for the same reason,
+ * and `standalone:hidden` because the installed app already grows a tab for
+ * each of these — two offers for one thing is the mistake the call button's
+ * own placement was chosen to avoid.
+ *
+ * Fixed, so it survives the scroll that a live order wants to survive. It can
+ * therefore cover the last few pixels of a page, which is the honest cost:
+ * a thin strip, only while something of yours is actually in progress.
+ */
+export function LiveTray() {
+  const orders = useOrderCount();
+  const tickets = useTicketCount();
+  if (orders === 0 && tickets === 0) return null;
+
+  return (
+    // Not `aria-live`: this is navigation that appeared, not an announcement
+    // to interrupt a reader with. The count inside each pill is the message.
+    <nav
+      aria-label="طلباتك الحالية"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 standalone:hidden"
+    >
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-2 px-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] pt-2 sm:px-4">
+        <div className="pointer-events-auto flex items-center gap-2 rounded-full bg-white/95 p-1 shadow-lg ring-1 ring-line backdrop-blur">
+          <OrdersLink />
+          <QueueLink />
+        </div>
+      </div>
+    </nav>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans_Arabic } from "next/font/google";
 import AppShell from "@/components/AppShell";
 import AppTabBar from "@/components/AppTabBar";
+import { LiveTray } from "@/components/OrdersLink";
 import RouteTransitions from "@/components/RouteTransitions";
 import ScrollMemory from "@/components/ScrollMemory";
 import WainAi from "@/components/WainAi";
@@ -106,12 +107,18 @@ export default function RootLayout({
         {/* No top bar. Removed deliberately, and it took the site's only
             browser-side navigation with it: the home link, the ⌘K search
             palette (and its keydown listener, which lived in SearchPalette
-            and is now never mounted), استكشف/عن وين, and the live
-            order/ticket indicators. AppTabBar is `standalone:block`, so it
-            does not stand in for any of it outside the installed app. */}
+            and is now never mounted), and استكشف/عن وين. AppTabBar is
+            `standalone:block`, so it does not stand in for any of that
+            outside the installed app. Two of the losses were real enough to
+            answer: the home page carries the site's one link to /search, and
+            LiveTray below carries the order and ticket pills. */}
         <main id="main-content" className="flex-1">
           {children}
         </main>
+        {/* Renders nothing at all unless this device has a live order or
+            today's ticket, which is why it is not the top bar coming back —
+            see LiveTray. */}
+        <LiveTray />
         {/* Above the router, but only *offered* on /search — the button hides
             itself everywhere else. It has to outlive a route change because
             `open_place` is a route change: a call mounted by the search page
