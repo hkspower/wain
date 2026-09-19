@@ -710,6 +710,30 @@ const HIGH_REV_SHAKE = 0.055;
 const BACKFIRE_LIFT_RATE = 6;
 /** One lift, one bang. Seconds. */
 const BACKFIRE_LOCKOUT = 0.25;
+/**
+ * How much throttle has to be held through an upshift for the pipe to
+ * light. A flat-out change cracks; easing up through the gears on a
+ * cruise does not, and a box that banged on every shift would make the
+ * car sound broken rather than fast.
+ */
+const BACKFIRE_SHIFT_THROTTLE = 0.55;
+/**
+ * The overrun crackle — the run of small pops on a trailing throttle,
+ * which is the burble an aftermarket system is actually bought for.
+ *
+ * `MIN_POP` is what keeps the factory system quiet: stock is pop 1 and
+ * every aftermarket one is 1.45 or above, so a car crackles exactly
+ * when somebody has paid for it to. `MIN_REV` is the revs still needed
+ * to be pushing unburnt charge down the pipe — crackling at idle speed
+ * is a noise nothing is making. `GAP` is the spacing at pop 1, divided
+ * by the system's own pop, so a titanium quad talks more than twice as
+ * often as a cat-back rather than merely louder.
+ */
+const CRACKLE_MIN_POP = 1.35;
+const CRACKLE_MIN_REV = 0.45;
+const CRACKLE_GAP = 0.5;
+/** A crackle against a bang: quieter, and a smaller flame with it. */
+const CRACKLE_STRENGTH = 0.45;
 
 // Final grade: unsharp crispen, vignette, luminance-weighted grain, then a
 // hard black point. Order matters — the black point runs last so nothing
@@ -1515,6 +1539,13 @@ export class GameEngine {
    *  without this the detector fired on two consecutive frames as the
    *  pedal ramped through, and a 40 ms flick backfired twice at 60 fps. */
   private backfireLockout = 0;
+  /** Set when an upshift commits under power, consumed by the exhaust a
+   *  few thousand lines later in the same frame. */
+  private shiftPop = false;
+  /** Seconds until the next overrun crackle. Armed on entering a
+   *  trailing throttle so the first one lands after the lift's own bang
+   *  rather than on top of it. */
+  private crackleIn = 0;
   private smokeAcc = 0;
 
   // Minimap
@@ -4761,6 +4792,16 @@ export class GameEngine {
       this.shiftUp = g > this.gearHeld;
       this.shiftT = this.shiftUp ? HANDLING.shiftUpTime : HANDLING.shiftDownTime;
       this.gearHeld = g;
+      // An upshift under power is a backfire the pedal cannot report.
+      // shiftTorqueCut takes 82% of the torque away for shiftUpTime —
+      // that cut IS a fuel cut — and the charge already in a hot pipe
+      // lights on its way out. But the driver's foot never moves, so
+      // liftRate stays at zero and the lift rule below sees nothing at
+      // all. The crack between gears is the one people know a loud
+      // exhaust by, and it was the one this car never made.
+      if (this.shiftUp && this.throttle >= BACKFIRE_SHIFT_THROTTLE) {
+        this.shiftPop = true;
+      }
     }
 
     let gearRev = revFractionIn(this.gearHeld, kmh);
@@ -6718,6 +6759,10 @@ export class GameEngine {
     // --- Exhaust. A backfire is unburnt fuel lighting in the pipe on a
     // hard lift, so it fires on the throttle's falling edge at revs; the
     // nitrous flame burns continuously while the bottle is open.
+    // Consumed whether or not the exhaust draws this frame, so a shift
+    // taken during a cinematic does not bang the moment it ends.
+    const shiftPop = this.shiftPop;
+    this.shiftPop = false;
     if (!this.cine && this.carBody.userData.exhaustTips) {
       const tips = this.carBody.userData.exhaustTips as THREE.Vector3[];
       const pop = this.tune.exhaust.pop;
@@ -6725,18 +6770,53 @@ export class GameEngine {
       // big the flame is, not in whether the car has an exhaust. The
       // rate is measured once per step at the top of update(); the
       // lockout is what makes one lift one bang.
+      //
+      // Two other things light a pipe, and neither is a falling pedal.
+      // An upshift cuts the fuel with the foot still flat (see the shift
+      // commit), and it is deliberately NOT under the lift lockout: a
+      // change taken a moment after a lift is two events and should
+      // sound like two. A trailing throttle crackles for as long as it
+      // trails, which one lockout-gated bang can never do.
       const backfire =
-        this.liftRate > BACKFIRE_LIFT_RATE &&
-        this.backfireLockout <= 0 &&
-        this.player.speed > 14;
+        (this.liftRate > BACKFIRE_LIFT_RATE && this.backfireLockout <= 0 && this.player.speed > 14) ||
+        (shiftPop && this.player.speed > 14);
       if (backfire) this.backfireLockout = BACKFIRE_LOCKOUT;
       const nos = this.nosActive;
-      if (backfire && this.sound) this.sound.backfire(pop);
-      if (backfire || nos) {
+
+      // The overrun. Armed rather than fired on entry, so the first
+      // crackle lands a gap after the lift's own bang instead of inside
+      // it, and re-armed the moment the throttle comes back.
+      let crackle = false;
+      if (
+        !backfire &&
+        !nos &&
+        pop >= CRACKLE_MIN_POP &&
+        this.throttle < 0.08 &&
+        this.revFrac > CRACKLE_MIN_REV &&
+        this.player.speed > 14
+      ) {
+        this.crackleIn -= dt;
+        if (this.crackleIn <= 0) {
+          crackle = true;
+          // Never on a metronome: a pipe cooling down is not a clock.
+          this.crackleIn = (CRACKLE_GAP / pop) * (0.45 + Math.random());
+        }
+      } else {
+        this.crackleIn = (CRACKLE_GAP / pop) * 0.8;
+      }
+
+      if (this.sound) {
+        if (backfire) this.sound.backfire(pop);
+        else if (crackle) this.sound.backfire(pop * CRACKLE_STRENGTH);
+      }
+      if (backfire || crackle || nos) {
         // A straight pipe throws a bigger flame than a cat-back, and both
-        // throw more than the factory system.
+        // throw more than the factory system. A crackle is the same event
+        // an order of magnitude smaller — a spit, not a bang.
         const n = nos
           ? 2
+          : crackle
+          ? 1 + Math.round(Math.random())
           : Math.round((3 + Math.random() * 4) * (0.6 + pop * 0.45));
         for (const tip of tips) {
           // The anchor is car-local; carBody carries the presence scale
@@ -6754,8 +6834,10 @@ export class GameEngine {
               this.v3.z * back + (Math.random() - 0.5) * 1.2,
               nos
                 ? 0.14 + Math.random() * 0.08
-                : (0.16 + Math.random() * 0.12) * (0.8 + pop * 0.22),
-              nos ? 0.22 : 0.3
+                : (0.16 + Math.random() * 0.12) *
+                  (0.8 + pop * 0.22) *
+                  (crackle ? CRACKLE_STRENGTH : 1),
+              nos ? 0.22 : crackle ? 0.2 : 0.3
             );
           }
         }

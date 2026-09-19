@@ -187,6 +187,98 @@ const flames = await page.evaluate(() => {
 console.log(`exhaust    flame particles on lift: ${flames.before} -> ${flames.peak}  ` +
   check(flames.peak > 0, "no backfire when the throttle is dropped at speed"));
 
+// --- 4b. The two bangs a closing pedal cannot explain ----------------
+//
+// A lift is not the only thing that lights a pipe, and for a long time
+// it was the only thing this car knew about.
+//
+//   upshift  a flat-out change cuts the fuel for shiftUpTime with the
+//            foot still down. liftRate is zero through all of it, so
+//            the lift rule above cannot fire — and the crack between
+//            gears is the one people know a loud exhaust by.
+//   overrun  a trailing throttle crackles for as long as it trails.
+//            One lockout-gated bang cannot do that, and the systems in
+//            the shop are sold on exactly this ("it spits flame").
+//
+// Counted as BURSTS — frames where the live flame count jumped — not
+// as particles, because a burst is the event a player hears as one pop.
+await stage();
+const pops = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  const fitExhaust = (id) => {
+    const g = window.__grnLoadGarage();
+    const b = (g.builds[g.car] ??= { owned: [], equipped: {} });
+    if (!b.owned.includes(id)) b.owned.push(id);
+    b.equipped.exhaust = id;
+    window.__grnSaveGarage(g);
+    e.refreshGarage();
+    return e.tune.exhaust.pop;
+  };
+
+  // Upshift: force the car through its ratios with the pedal pinned.
+  const pop = fitExhaust("exhaust-race");
+  e.player.s = 1200; e.player.lat = 0; e.player.speed = 20;
+  for (let i = 0; i < 20; i++) { e.setTouchInput({ throttle: 1 }); e.update(1 / 60); e.player.lat = 0; }
+  let bursts = 0, prev = e.flameFx.alive, maxLift = 0, shifts = 0, lastGear = e.gearHeld;
+  for (let i = 0; i < 260; i++) {
+    e.setTouchInput({ throttle: 1 });
+    e.player.speed = Math.min(88, 20 + i * 0.26);
+    e.update(1 / 60);
+    e.player.lat = 0;
+    if (e.gearHeld !== lastGear) { shifts++; lastGear = e.gearHeld; }
+    const now = e.flameFx.alive;
+    if (now > prev) bursts++;
+    prev = now;
+    maxLift = Math.max(maxLift, e.liftRate);
+  }
+  const upshift = { pop, bursts, shifts, maxLift: +maxLift.toFixed(2) };
+
+  // Overrun: let it actually decelerate. Pinning the speed instead
+  // locks a tall gear at ~0.39 revs and measures nothing — a state a
+  // real decel never holds, which is how the first version of this
+  // reported a system that crackles as one that does not.
+  const overrun = (id) => {
+    const p = fitExhaust(id);
+    e.player.s = 1200; e.player.lat = 0; e.player.speed = 62;
+    for (let i = 0; i < 40; i++) { e.setTouchInput({ throttle: 1 }); e.update(1 / 60); e.player.lat = 0; e.player.speed = 62; }
+    let n = 0, was = e.flameFx.alive;
+    for (let i = 0; i < 240; i++) {
+      e.setTouchInput({ throttle: 0 });
+      e.update(1 / 60);
+      e.player.lat = 0;
+      const now = e.flameFx.alive;
+      if (now > was) n++;
+      was = now;
+    }
+    return { pop: p, bursts: n };
+  };
+  return { upshift, stock: overrun("stock"), race: overrun("exhaust-race"), ti: overrun("exhaust-ti") };
+});
+console.log(
+  `upshift    ${pops.upshift.bursts} flame bursts across ${pops.upshift.shifts} changes, ` +
+    `peak liftRate ${pops.upshift.maxLift}  ` +
+    check(pops.upshift.bursts > 0, "a flat-out upshift does not light the pipe") + " " +
+    // The whole point: the pedal never moved, so the lift rule was not
+    // what fired. If this ever reads non-zero the test has stopped
+    // proving the thing it exists to prove.
+    check(pops.upshift.maxLift < 0.01,
+      `the pedal moved during the shift run (liftRate ${pops.upshift.maxLift}) — this no longer isolates the shift`)
+);
+// What this asserts, and what it deliberately does not. The gate on
+// pop is a threshold, so "stock is silent" is deterministic and worth
+// pinning. The RATE is a random interval scaled by pop, and race (2.2)
+// against titanium (2.4) is a 9% difference in the mean drawn from a
+// spread three times wider than that — one four-second sample cannot
+// resolve it, and an earlier version of this asserted the ordering and
+// failed on race 9 / ti 8, which was the test being wrong rather than
+// the car. Both are checked against stock, where the gap is the design.
+console.log(
+  `overrun    stock ${pops.stock.bursts}, race ${pops.race.bursts}, ti ${pops.ti.bursts} bursts on a 4 s decel  ` +
+    check(pops.stock.bursts <= 1, `the factory system crackled ${pops.stock.bursts} times — stock has a cat in it`) + " " +
+    check(pops.race.bursts > pops.stock.bursts + 1, "a straight pipe barely out-crackles the factory system") + " " +
+    check(pops.ti.bursts > pops.stock.bursts + 1, "a titanium quad barely out-crackles the factory system")
+);
+
 // --- sparks stay near the panel that made them ---------------------
 // Grinding steel along a barrier throws sparks out and back along the
 // flank. They should skip down the car and die on the asphalt, not arc
