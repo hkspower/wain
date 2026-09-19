@@ -3083,3 +3083,78 @@ them is about the CDN.** The line says which now. This file already records
 that a false alarm is worse than a missed one, because it is the alarm the owner
 is asked to act on — and the same rig had, one section up, been written with
 exactly that in mind.
+
+## One save button for Settings — and the rig's two halves shared a term, 2026-09-19
+
+Asked for as "make save button at backends". The screen was named by the owner
+rather than guessed at, because there are a dozen and most already have one;
+this file records what guessing cost last time.
+
+**Measured in a browser before anything was built.** Settings is **5,753px
+tall** — six and a half screenfuls at 900px — and carries **eight** save
+buttons, one at the foot of each card:
+
+```
+Payment setup     h2  442     Save                   944
+Contact details   h2 1250     Save contact details  1619
+Site wording      h3 2305     Save wording          2491
+Buttons and bars  h3 2628     Save colours          3509   <- 881px apart
+More emails       h3 3646     Save emails           3888
+Shop rules        h3 4013     Save rules            4649
+Policy pages      h2 5189     Save policy pages     5611
+```
+
+"Buttons and bars" is the one that settles it: the control that commits a
+colour is a whole screenful below the colour, with four other save buttons in
+between that are not the one you want. Not a matter of taste — a control you
+cannot see from the thing it acts on.
+
+**IT SAVES ONLY THE CARDS SOMETHING WAS TYPED INTO**, and that constraint came
+out of this file rather than from taste. The rules card reads through
+`admin.php?r=rules` instead of saving an empty body, because *"a panel opened
+and closed would look in any audit like a deliberate change"*. A bar that
+pressed all eight would do precisely that, eight settings rows at a time, and
+`activity-log.js` would record every one as an edit nobody made.
+
+**It presses each card's OWN button** — no save code, no request, no route.
+Every card keeps its validation, its refusals, its busy state and its note. Two
+ways to write a settings row is two ways for them to disagree, and this project
+has already shipped a second checkbox beside a working one and had to delete it.
+
+**Cards are found by their buttons, not by a marker.** Only two of the seven set
+a `data-sporta-*` attribute — checked, not assumed — so keying off one would
+have covered two cards and silently ignored five. A card is the smallest
+ancestor of a save button containing no other save button, which is a property
+of the page rather than a list this file has to be told.
+
+### The mutation passed, and the reason is already in this file
+
+`test:save-bar` went green, and then the mutation that makes the bar press ALL
+eight buttons **also went green** — while the bar itself printed "Saved 8
+cards". The stray-write check watched for POSTs to routes named `rules`,
+`theme`, `site_text`, `legal`, `knet`.
+
+**Six of the seven cards POST to the same route.** They all call
+`settings_save`, and which row they write is a `name` in the BODY. So the check
+was looking for route names that never appear as routes: both halves shared a
+term, the AND between them meant nothing, and it could not have failed. Exactly
+the `live-who-writes-tiles.php` tautology — *"an extractor's two halves must not
+share a term"* — on a new surface, written by someone who had just re-read that
+entry.
+
+Fixed by reading the row name out of the body, and stated as **"nothing but
+`contact` was written"** rather than as a list of rows that must not be: a
+forbidden-list goes stale the day a card is added to Settings and would then
+report a real regression as a pass. Corrected, the same mutation fails loudly
+and names the damage — `STRAY WRITES: contact_emails, knet, site_text, theme`,
+and `5 POST(s)` where one was intended.
+
+The other two mutations — discovery finding nothing, and the bar outliving its
+screen — were caught first time. **The rig asks the PAGE how many save buttons
+there are, with its own query, rather than asking the bar what it found**, so a
+bar that discovered nothing cannot also certify that there was nothing to find.
+
+**`test:panel-cards` fails at 1130 words against a 600 cap, and this did not
+move it** — measured both ways, identical with and without the bar, which sits
+outside `.admin-content`. That failure is the owner's to decide about and is
+older than this work.
