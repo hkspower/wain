@@ -3232,3 +3232,103 @@ Its own comment is right that the server refuses anything outside `STORE_SIZES`,
 so the worst a stale entry does is offer a size that is then refused by name —
 but if the owner drops a size in /backends, this page still offers it. Closing
 that needs a `?r=slides` fetch the page does not otherwise make.
+
+## Two features, and the decision that shaped each — 2026-09-19
+
+Asked for together, with "ask before any" said twice, so all four questions
+were put before a line was written. The answers: a full live health check;
+propose-not-write for the product AI; all three sources allowed; and customer
+accounts rather than a customer register or customs paperwork.
+
+### "Look it up" — api/research.php, assets/product-research.js
+
+**It never writes.** No route in research.php touches a row; the owner applies
+a proposal through the panel's ordinary `product_save`. That was chosen over
+automatic filling, and it is why every field arrives with its sources beside it.
+
+**Three fields, and only when empty**: `desc_en`, `desc_ar`, `category`. Never
+price, sale price, stock, size, SKU, `cost_aed`, slug, `active` or an image —
+each is a fact about THIS shop's trade that no web page knows, and the model is
+not told they exist. The rig asserts their absence **by name**, because a list
+of what a feature does never notices something being added to it.
+
+**CATEGORY CARRIES A POLICY**, which is the trap in this feature.
+`store_return_lookup()` decides whether a garment may be exchanged from
+`category === 'women'` — so a category accepted without thought changes what the
+shop promises about that product. It is offered, flagged in the response, and
+restricted to the categories the shop ALREADY USES, read from the database.
+
+**A searched claim with no citation is dropped**, and the Arabic description is
+a TRANSLATION when the English exists — the shop already owns the fact, so
+nothing is searched and no source is needed. The search is the model's own
+server-side tool, so there is no scraper here, no HTML parsing, and citations
+come back with the answer.
+
+**Apply re-reads the row and resends it whole**, because `product_save` is a
+full upsert. Mutation-tested, and the mutation reproduces the recorded
+`brand_save` trap exactly: sending only the accepted field turned `desc_en`
+into NULL while the field that was asked for arrived perfectly. It also refuses
+if the field stopped being empty while the proposal was on screen.
+
+### Customer accounts — api/customer.php, api/customers.mysql.sql
+
+**THE COOKIE APPEARS ONLY ON SIGN-IN.** The zero-cookie storefront was
+deliberate and a session ends it by definition, so the promise is narrowed
+rather than abandoned. `customer_me` answers "nobody" **without starting a
+session** — a route that starts one to say that hands a cookie to every visitor
+who loads a page, which is how the property would go by accident rather than by
+decision. Mutation-tested: removing that guard fails the rig on the first check.
+
+**ORDERS ARE LINKED BY `customer_id`, NEVER BY PHONE NUMBER**, and this is the
+security decision. Linking by phone is tempting — `orders.customer_phone`
+exists and `store_return_lookup()` already gates on it — and it is an account
+takeover: registration verifies no phone, so anyone who knows a customer's
+mobile could read their name, address and every order. **The returns route is
+safe because it demands the order REFERENCE with the phone**, and the pair is
+something only the customer has. One of the two is not a credential.
+
+The cost is that an account starts empty, and it is said on the route rather
+than left as a blank page. The rig plants an order carrying the new account's
+OWN phone and requires that it is not visible — which reads like a bug until
+you know why, so it says why.
+
+**SAMESITE=LAX, NOT STRICT, AND THE BANK IS THE REASON.** KNET and CBK take the
+customer to pg.cbk.com and redirect them back — a cross-site navigation, on
+which a Strict cookie is not sent. A shopper would return from paying and find
+themselves signed out, at the one moment in the whole shop where that looks
+like the money went somewhere. The admin cookie stays Strict; they are separate
+cookies and neither can end the other.
+
+`store_session_start()` took a `$kind` rather than gaining a sibling, because
+`cookie-flags-test` refuses a `session_start()` anywhere else — the guard doing
+exactly its job.
+
+### The rate limiter refused the rig, and made a mutation run say nothing
+
+`customer_register` is rationed at ten in ten minutes, correctly — it writes a
+row and runs a password hash. The rig registers on every run, so by the third
+mutation every check after the first reported `too_many_attempts`, and the
+SameSite mutation came out **inconclusive** rather than caught. `returns-test`
+has cleared its own counters for this exact reason since it was written, and it
+is in this file; it was walked into anyway. `delete from rate_limit` at the top,
+and the mutation then failed by name.
+
+### And db-audit caught a leftover of mine
+
+`1 orders are paid with no paid_at` — this file already says a failing audit is
+a claim about the code until you find out whose row it is, and the row was
+`SPRTESTMW6LHM`, "Returns Rig EN": the fixture from that morning's returns work,
+surviving an aborted mutation run. `cleanup()` at the TOP of a rig sweeps on the
+NEXT run, which is not the same as leaving nothing behind. It deletes its own
+order in a `finally` now.
+
+### What is NOT built, and is the owner's call
+
+**The shopper-facing screens.** The server half is complete and tested; there is
+no sign-in link, no register form and no "my orders" page on the storefront,
+because the bundle has no source here and every one of those is a change to the
+owner's design — where the link sits in the header, what the account page looks
+like. That is the overlay pattern's usual answer and it needs a decision first.
+
+**Email verification**, and **claiming older orders**, which needs the phone
+proved and so needs an SMS provider.
