@@ -746,7 +746,17 @@ body {
   transition-duration: var(--dur-instant);
 }
 
-/* Reduced motion: honour the OS setting AND an in-game override. */
+/* Reduced motion: honour the OS setting AND an in-game override.
+ *
+ * The DELAY has to go with the duration, and it used to be left alone.
+ * The staged-reveal system holds an element at its 0% frame until its
+ * slot comes up — that is what `--d` and `animation-fill-mode: both`
+ * are for. Killing the duration without killing the delay does not
+ * remove the wait, it removes the only part of the wait you could see
+ * through: the element sits at opacity 0 for the whole delay and then
+ * pops in at the end of it. Results.tsx stages its rows out to 900 ms
+ * and the pre-race card waits 1200 ms, so asking for less motion
+ * bought a second of blank screen rather than a still one. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -754,6 +764,8 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    transition-delay: 0ms !important;
   }
 }
 html[data-reduced-motion="1"] *,
@@ -762,6 +774,8 @@ html[data-reduced-motion="1"] *::after {
   animation-duration: 0.01ms !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
+  animation-delay: 0ms !important;
+  transition-delay: 0ms !important;
 }
 
 /* Colour-blind safe mode: the game signals "you" vs "rival" with
@@ -1058,6 +1072,33 @@ html[data-large-hud="1"] .hud-scale {
      the lamp behind the letter and the drop is the letter's own edge, so
      the edge has to win. */
   text-shadow: 0 0 38px rgba(245, 165, 36, 0.42), 0 2px 16px rgba(0, 0, 0, 0.9);
+}
+
+/* The lit word strikes rather than fades.
+ *
+ * Every amber thing in this identity is a sodium lamp — the corniche
+ * lights the whole game is lit by, the open-hours bar on the press
+ * mark, the primary action on this very screen. A sodium lamp does not
+ * ramp up. It strikes, gutters out once or twice while the arc finds
+ * itself, and then settles to full warmth over about a second. So the
+ * one word that is lit arrives the way the thing it is named after
+ * does, and the paper word beside it just sits there being paper.
+ *
+ * The glow is what flickers, not the letterform: the 0 2px 16px drop
+ * that gives the word its edge stays put at every frame, so the shape
+ * never wobbles against the backdrop — only the lamp behind it does.
+ * Ends exactly on the rule above, so nothing moves when it finishes. */
+@keyframes wm-strike {
+  0% { opacity: 0.22; text-shadow: 0 2px 16px rgba(0, 0, 0, 0.9); }
+  14% { opacity: 1; text-shadow: 0 0 12px rgba(245, 165, 36, 0.22), 0 2px 16px rgba(0, 0, 0, 0.9); }
+  22% { opacity: 0.38; text-shadow: 0 2px 16px rgba(0, 0, 0, 0.9); }
+  34% { opacity: 1; text-shadow: 0 0 26px rgba(245, 165, 36, 0.34), 0 2px 16px rgba(0, 0, 0, 0.9); }
+  42% { opacity: 0.66; text-shadow: 0 0 10px rgba(245, 165, 36, 0.18), 0 2px 16px rgba(0, 0, 0, 0.9); }
+  100% { opacity: 1; text-shadow: 0 0 38px rgba(245, 165, 36, 0.42), 0 2px 16px rgba(0, 0, 0, 0.9); }
+}
+.menu-wordmark .wm-lit {
+  animation: wm-strike 1.05s var(--ease-out) both;
+  animation-delay: var(--d, 0ms);
 }
 
 /* Menu list: a row per item, with the selected one lit and stepped in.

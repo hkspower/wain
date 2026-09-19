@@ -537,6 +537,26 @@ const QUICK_CHAT: Array<{ en: string; ar: string }> = [
  *  as a spam button, short enough that a real exchange still works. */
 const QUICK_CHAT_GAP_MS = 2000;
 
+/**
+ * The menu's staged entrance, in the order the screen is read: the
+ * driver bar at 0, the title, then the rows one after another.
+ *
+ * Kept deliberately short. This is not a splash you see once — it is
+ * the screen you come back to after every garage visit, every settings
+ * change and every race, so the whole assembly finishes inside ~700 ms
+ * (last row at 120 + 5 x 38, plus the 420 ms reveal itself). An
+ * entrance that is a pleasure the first time is a toll the twentieth,
+ * and the one thing a main menu must never do is make you wait to
+ * press the button you came to press.
+ *
+ * Numbers live here rather than inline because three separate places
+ * need to agree on them — the rows, the keyboard hint that follows the
+ * last row, and the lamp strike that waits for the title.
+ */
+const MENU_TITLE_AT = 60;
+const MENU_ROWS_AT = 120;
+const MENU_ROW_STEP = 38;
+
 export default function RaceClient() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   /** The 16:9 box the canvas is cut to while a race is on, or null when
@@ -3402,8 +3422,16 @@ function raceCut(): { w: number; h: number } | null {
           <div className="menu-scrim" aria-hidden />
           <div className="safe-pad absolute inset-0 overflow-y-auto">
           <div className="menu-shell relative mx-auto flex min-h-full w-full max-w-3xl flex-col">
-            {/* Driver bar — who you are, what you have, how far you are */}
-            <div className="grn-panel flex items-center gap-3 px-3 py-2.5">
+            {/* Driver bar — who you are, what you have, how far you are.
+                First slot of the staged reveal: the screen assembles
+                top-down, in the order you would read it. The steps are
+                short on purpose — this screen is returned to after every
+                garage visit and every race, so an entrance that is a
+                pleasure once is a toll the twentieth time. */}
+            <div
+              className="grn-panel reveal flex items-center gap-3 px-3 py-2.5"
+              style={{ ["--d" as string]: "0ms" }}
+            >
               <div
                 className="grid size-11 shrink-0 place-items-center rounded-xl border border-sodium-500/50 bg-sodium-500/15"
                 aria-label="Driver"
@@ -3451,7 +3479,10 @@ function raceCut(): { w: number; h: number } | null {
             <div className="menu-grid">
              <div className="menu-col">
             {/* Title */}
-            <div className="menu-title mt-5 text-center sm:mt-7">
+            <div
+              className="menu-title reveal mt-5 text-center sm:mt-7"
+              style={{ ["--d" as string]: `${MENU_TITLE_AT}ms` }}
+            >
               {/* The strapline, un-haloed. It used to carry a 20px cyan
                   glow while the title under it carried nothing, which put
                   the brightest thing on the screen on the smallest line.
@@ -3472,7 +3503,15 @@ function raceCut(): { w: number; h: number } | null {
                 ref={wordmarkRef}
                 className="grn-display menu-wordmark mt-1.5 inline-block text-[clamp(2.4rem,12vw,5rem)] italic leading-[0.88]"
               >
-                NIGHT <span className="wm-lit">RACER</span>
+                NIGHT{" "}
+                {/* The lamp strikes once the title has arrived, not
+                    while it is still moving — see wm-strike. */}
+                <span
+                  className="wm-lit"
+                  style={{ ["--d" as string]: `${MENU_TITLE_AT + 260}ms` }}
+                >
+                  RACER
+                </span>
               </h1>
               <div className="grn-ar mt-1.5 text-lg text-white/70" dir="rtl" lang="ar">
                 متسابق الليل
@@ -3627,7 +3666,9 @@ function raceCut(): { w: number; h: number } | null {
               </div>
             </div>
 
-            {/* The menu itself */}
+            {/* The menu itself. Each row takes its own slot, so the list
+                lands as a list rather than as a block — and START ENGINE,
+                which is what the screen is for, is the first one there. */}
             <nav className="mt-5 flex flex-col gap-1.5" aria-label="Main menu">
               {menuItems.map((it, i) => (
                 <button
@@ -3636,7 +3677,8 @@ function raceCut(): { w: number; h: number } | null {
                   onMouseEnter={() => setMenuSel(i)}
                   onFocus={() => setMenuSel(i)}
                   aria-current={i === menuSel ? "true" : undefined}
-                  className={`menu-item tap ${i === menuSel ? "is-sel" : ""} ${
+                  style={{ ["--d" as string]: `${MENU_ROWS_AT + i * MENU_ROW_STEP}ms` }}
+                  className={`menu-item reveal tap ${i === menuSel ? "is-sel" : ""} ${
                     i === 0 ? "is-primary" : ""
                   } ${it.minor ? "is-minor" : ""}`}
                 >
@@ -3658,7 +3700,12 @@ function raceCut(): { w: number; h: number } | null {
               ))}
             </nav>
             {!isTouch && (
-              <div className="grn-label mt-2 text-center text-2xs text-white/62">
+              <div
+                className="grn-label reveal mt-2 text-center text-2xs text-white/62"
+                style={{
+                  ["--d" as string]: `${MENU_ROWS_AT + menuItems.length * MENU_ROW_STEP}ms`,
+                }}
+              >
                 ↑ ↓ to choose · Enter to select
               </div>
             )}
