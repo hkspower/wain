@@ -41,12 +41,7 @@ export default function HomeScreen() {
                 key={cat.id}
                 accessibilityRole="button"
                 accessibilityLabel={categoryName(cat, lang)}
-                // THE WHOLE SHOP, not this category. The shop's filter row was
-                // removed on 2026-09-09, so a narrowed grid would have had
-                // nothing on screen saying it was narrowed and no control to
-                // undo it. The tiles are the shop's doors and its artwork;
-                // every door now opens onto the same room.
-                onPress={() => router.push('/shop')}
+                onPress={() => router.push(`/category/${cat.id}`)}
                 style={press()}>
                 <RemoteArt
                   uri={categoryArt(cat.id, dir)}
