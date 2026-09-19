@@ -5,7 +5,7 @@ import type { DriverCard, GameEngine, HudData, RaceResult } from "@/game/engine"
 import { playSfx, preloadSfx, setSfxVolume } from "@/game/sfx";
 import Results from "./Results";
 import Onboarding, { CoachHint, CoachState, hasOnboarded } from "./Onboarding";
-import { ICONS, IconFlash, IconCrown, IconGear, IconFlagKW, IconChat, IconPaint, type IconName } from "./Icons";
+import { ICONS, IconFlash, IconCrown, IconGear, IconFlagKW, IconChat, IconPaint, IconDriver, type IconName } from "./Icons";
 import PaintShop from "./PaintShop";
 import Garage from "./Garage";
 import KuwaitClock from "./KuwaitClock";
@@ -3404,6 +3404,12 @@ function raceCut(): { w: number; h: number } | null {
           <div className="menu-shell relative mx-auto flex min-h-full w-full max-w-3xl flex-col">
             {/* Driver bar — who you are, what you have, how far you are */}
             <div className="grn-panel flex items-center gap-3 px-3 py-2.5">
+              <div
+                className="grid size-11 shrink-0 place-items-center rounded-xl border border-sodium-500/50 bg-sodium-500/15"
+                aria-label="Driver"
+              >
+                <IconDriver size={24} className="text-sodium-400" />
+              </div>
               <div className="grid size-11 shrink-0 place-items-center rounded-xl border border-sodium-500/50 bg-sodium-500/15">
                 <span className="grn-display tnum text-lg leading-none text-sodium-400">
                   {lvl.level}

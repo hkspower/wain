@@ -184,6 +184,24 @@ export const IconChat = (p: IconProps) => (
   </Svg>
 );
 
+/**
+ * The driver — a badge for "who you are" rather than what the car is
+ * doing, which is what every other icon here draws. A head with the
+ * ghutra's arc over the crown and its fall past the ears, on the same
+ * shoulders every other figure in this game stands on (kuwaitiRacer's
+ * torso is this exact silhouette) — line art, not a portrait, so it
+ * reads at badge size without needing a render pass.
+ */
+export const IconDriver = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M8.4 6.6a3.6 3.6 0 0 1 7.2 0c0 1.6-.4 2.8-1 3.7" />
+    <circle cx="12" cy="7.6" r="2.6" />
+    <path d="M9 11.4c-.9 1.4-1.1 2.9-.8 4.2" />
+    <path d="M15 11.4c.9 1.4 1.1 2.9.8 4.2" />
+    <path d="M4.6 20c0-3.7 3.1-6.6 7.4-6.6s7.4 2.9 7.4 6.6" />
+  </Svg>
+);
+
 export const ICONS = {
   flag: IconFlag,
   chat: IconChat,
@@ -197,6 +215,7 @@ export const ICONS = {
   flash: IconFlash,
   key: IconKey,
   streak: IconStreak,
+  driver: IconDriver,
 } as const;
 
 export type IconName = keyof typeof ICONS;
