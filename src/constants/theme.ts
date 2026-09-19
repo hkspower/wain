@@ -80,6 +80,16 @@ export const Colors = {
     // not — so this is a token rather than a '#ffffff' repeated in fifteen
     // files, each of which would have to be found and reasoned about again.
     onTint: '#ffffff',
+    // THE TAB BAR, AS ITS OWN PAIR RATHER THAN BORROWED.
+    //
+    // app-tabs.tsx painted the bar with `background` and its selected label
+    // with `tint`, which was right until the owner could choose colours: a
+    // shop that wants an ink tab bar under a pale page then has no way to say
+    // so without moving the page too. These start at exactly the values that
+    // were borrowed, so nothing moves until somebody sets them — the same
+    // rule the website's own --sp-tabbar-* fallbacks follow.
+    tabBar: '#f2f3f5',
+    tabBarActive: '#c8490f',
     success: '#1c7a4a',
     danger: '#b3261e',
   },
@@ -112,6 +122,9 @@ export const Colors = {
     // near-black gives 6.98:1 on the same fill.
     onTint: '#14161a',
     onInk: '#ffffff',
+    /** The values app-tabs.tsx already used — see the light theme's note. */
+    tabBar: '#14161a',
+    tabBarActive: '#ff7b17',
     success: '#5cc98d',
     danger: '#ff8a80',
   },
@@ -135,12 +148,31 @@ export const Colors = {
     // Same as dark mode: page's own near-black for contrast on grey tint.
     onTint: '#14161a',
     onInk: '#ffffff',
+    /** Grey, like the rest of this theme — see the light theme's note. The
+     *  server's colour picker deliberately does NOT reach dark-white: that
+     *  theme exists to be colourless, and a brand tint arriving in it would
+     *  defeat the one thing it is for. */
+    tabBar: '#14161a',
+    tabBarActive: '#a0a0a0',
     success: '#5cc98d',
     danger: '#ff8a80',
   },
 } as const;
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark & keyof typeof Colors.darkWhite;
+
+/**
+ * The three palettes, spelled the way Colors is actually indexed.
+ *
+ * `darkWhite`, NOT `dark-white`. The website stores the hyphenated form —
+ * it is the `data-theme` attribute value, and localStorage holds that string —
+ * so anything reading the browser's copy has to map across. Getting it wrong
+ * is not a type error at runtime, it is `Colors['dark-white']` coming back
+ * undefined and the next property access throwing; use-color-scheme.web.ts did
+ * exactly that, and it is why this name is written down once here rather than
+ * spelled out at each call site.
+ */
+export type SchemeName = keyof typeof Colors;
 
 /**
  * THE TYPE SCALE. Roles, not sizes.

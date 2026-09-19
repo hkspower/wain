@@ -1283,7 +1283,7 @@ if ($r === 'settings_save' && $method === 'POST') {
     $v = is_array($b['value'] ?? null) ? $b['value'] : [];
 
     if ($name === 'theme') {
-        // THE THEME. Eight fields, and unlike the footer every one of them has
+        // THE THEME. Twelve fields, and unlike the footer every one of them has
         // a SHAPE, so every one is validated rather than capped.
         //
         // A theme is not prose: a value that is not a colour does not look
@@ -1389,6 +1389,40 @@ if ($r === 'settings_save' && $method === 'POST') {
             // owner is not theming, they are breaking the page.
             'radius'            => $len('radius', 2.0),
             'space'             => $len('space', 0.5),
+            // THE FOUR SURFACES --brand DOES NOT REACH, added 2026-09-19.
+            //
+            // Every other colour in this shop follows `brand` above, because
+            // make-brand-tokens.mjs re-states 48 compiled rules in terms of
+            // the token. These four cannot be reached that way and each for
+            // its own reason, which is why they are fields rather than
+            // derivations:
+            //
+            //   header_bg      #2b2b2b, asked for on 2026-09-17. It is an
+            //                  !important declaration inside @layer
+            //                  utilities, and for important declarations the
+            //                  cascade reverses layer order — so no unlayered
+            //                  override could win it. sporta-ui.css reads
+            //                  var(--sp-header-bg, #2b2b2b) instead.
+            //   tabbar_bg      #ffffff, and tabbar_active #4f46e5, both in
+            //   tabbar_active  the compiled bundle, which has no source in
+            //                  this repository. The indigo is Tailwind's
+            //                  stock colour and belongs to no Sporta palette.
+            //   secondary_bg   was --sp-silver, which is ALSO the prose
+            //                  colour in four other rules of sporta-dark.css;
+            //                  repointing it would have recoloured the text.
+            //
+            // HEX, NOT HSL, for all four — unlike accent_text_* above. These
+            // are consumed as plain colours (`background: var(--x)`), never
+            // wrapped in hsl(), so the triple that accent-text needs would be
+            // exactly wrong here and produce no declaration at all.
+            //
+            // dark-white is deliberately NOT wired to any of these. That
+            // theme exists to be greyscale; a brand colour reaching into it
+            // would defeat the one thing it is for.
+            'header_bg'         => $one('header_bg', $HEX),
+            'tabbar_bg'         => $one('tabbar_bg', $HEX),
+            'tabbar_active'     => $one('tabbar_active', $HEX),
+            'secondary_bg'      => $one('secondary_bg', $HEX),
             'css'               => $err === null ? trim($css) : '',
         ];
         if ($err !== null) store_fail('invalid_theme_' . $err);

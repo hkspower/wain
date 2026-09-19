@@ -34,6 +34,12 @@ export const KEYS = {
   lang: 'sporta.lang.v1',
   lastOrder: 'sporta.last-order.v1',
   checkoutDetails: 'sporta.checkout-details.v1',
+  /** The owner's colours, cached so a cold start paints them in the first
+   *  frame instead of flashing the compiled palette and then correcting
+   *  itself. It is a CACHE and never the source: server-theme.tsx refetches
+   *  on every mount and overwrites this, so a stale copy survives exactly one
+   *  paint. Losing it costs one frame, which is why nothing here retries. */
+  theme: 'sporta.theme.v1',
 } as const;
 
 export type StorageKey = (typeof KEYS)[keyof typeof KEYS];

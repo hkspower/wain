@@ -289,6 +289,24 @@ export interface ThemeSettings {
    *  parsing it: 20 kB, no `</` (the one sequence that could end the <style>
    *  element), no NUL. Empty means nothing is emitted, which is the way back. */
   css: string;
+  /** THE FOUR SURFACES `brand` DOES NOT REACH, all #rrggbb.
+   *
+   *  `brand` drives 48 compiled rules through make-brand-tokens.mjs. These
+   *  four are literals that generator cannot see, each for its own reason:
+   *  the header is an !important declaration inside a cascade layer (and for
+   *  important declarations the layer order reverses, so nothing outside could
+   *  override it); the tab bar and its current item live in the compiled
+   *  bundle, the latter being Tailwind's stock indigo rather than any Sporta
+   *  colour; and the dark theme's secondary fill shared a token with body
+   *  text, so moving it would have recoloured the prose.
+   *
+   *  HEX, NOT HSL — unlike the two accentText values above. These are consumed
+   *  as plain colours, never wrapped in hsl(), so a bare triple here produces
+   *  no declaration at all. The server refuses the wrong one per field. */
+  headerBg: string;
+  tabbarBg: string;
+  tabbarActive: string;
+  secondaryBg: string;
 }
 
 export interface ContactDetails {
@@ -1155,6 +1173,8 @@ export const adminApi = {
       accentTextLight: g('accent_text_light'), accentTextDark: g('accent_text_dark'),
       fontHead: g('font_head'), fontBody: g('font_body'),
       radius: g('radius'), space: g('space'), css: g('css'),
+      headerBg: g('header_bg'), tabbarBg: g('tabbar_bg'),
+      tabbarActive: g('tabbar_active'), secondaryBg: g('secondary_bg'),
     }
   },
 
@@ -1166,6 +1186,8 @@ export const adminApi = {
         accent_text_light: v.accentTextLight, accent_text_dark: v.accentTextDark,
         font_head: v.fontHead, font_body: v.fontBody,
         radius: v.radius, space: v.space, css: v.css,
+        header_bg: v.headerBg, tabbar_bg: v.tabbarBg,
+        tabbar_active: v.tabbarActive, secondary_bg: v.secondaryBg,
       },
     }),
 

@@ -2135,10 +2135,26 @@ const STORE_SETTING_DEFAULTS = [
     //
     //   Empty means nothing is emitted, so clearing the box is the way back
     //   and clearing it can never fail — the same rule as every field above.
+    //
+    // THE LAST FOUR ARE SURFACES, not the brand. `brand` above drives 48
+    // compiled rules through make-brand-tokens.mjs; these four are literals
+    // that generator cannot see — the header's charcoal (an !important
+    // declaration inside a cascade layer), the phone tab bar and its current
+    // item (both in the bundle, the latter Tailwind's stock indigo), and the
+    // dark theme's secondary fill (which shared a token with body text). Each
+    // is read as `var(--x, <the shipped literal>)` by the stylesheet that owns
+    // it, so '' here really does mean "leave the built stylesheet alone".
+    //
+    // They are listed even though array_merge would carry an unlisted key
+    // through anyway: this array is where the shape of a settings row is
+    // written down, and a field the panel offers but the defaults do not name
+    // is a field the next reader has to go and find in a route handler.
     'theme'     => ['brand' => '', 'accent' => '',
                     'accent_text_light' => '', 'accent_text_dark' => '',
                     'font_head' => '', 'font_body' => '',
-                    'radius' => '', 'space' => '', 'css' => ''],
+                    'radius' => '', 'space' => '', 'css' => '',
+                    'header_bg' => '', 'tabbar_bg' => '',
+                    'tabbar_active' => '', 'secondary_bg' => ''],
     // THE FOOTER'S PROSE, in both languages.
     //
     // Every value is '' by default and empty means "leave the built-in text

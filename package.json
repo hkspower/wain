@@ -145,6 +145,7 @@
     "test:placeholder": "node scripts/placeholder-test.mjs",
     "test:cookie-flags": "node scripts/cookie-flags-test.mjs",
     "test:theme": "node scripts/theme-test.mjs",
+    "test:surfaces": "node scripts/surface-colours-test.mjs",
     "test:tile-rtl": "node scripts/tile-rtl-test.mjs",
     "test:publish-pin": "node scripts/publish-pin-test.mjs",
     "test:text-style": "node scripts/text-style-scan.mjs",

@@ -429,10 +429,17 @@
   /* --- accent FILLS: silver, with ink on top ----------------------------- */
   /* Badges, the active filter chip, the carousel dot, the round icon buttons
      and the skip link. :not(.btn-primary) keeps the buy button out of it. */
+  /* --sp-secondary-bg IS THE OWNER'S, --sp-silver IS THE DESIGN'S, and the
+     fallback keeps them one value until somebody chooses otherwise. Two
+     reasons it is a token of its own rather than a repointing of --sp-silver:
+     that one is TEXT in four other places in this file (the note above at
+     --sp-silver-mid has the measurements), so moving it would recolour the
+     prose along with the chips; and a fill and a text colour want opposite
+     things from the same background. */
   [data-theme='dark'] .bg-brand:not(.btn-primary),
   [data-theme='dark'] .skip-link {
     color: var(--sp-on-ember) !important;
-    background-color: var(--sp-silver) !important;
+    background-color: var(--sp-secondary-bg, var(--sp-silver)) !important;
   }
 
   /* --- the outlined button, and anything else ringed in orange ----------- */
@@ -445,12 +452,15 @@
      two because of its :not(). Declaring a colour here as well would be a
      declaration that can never win, which is precisely what css-audit.mjs
      fails on. The ghost button's text is set on its own line below. */
+  /* The outlined half of the SAME control, so it takes the same token: a
+     shop whose filled chips went blue and whose ghost buttons stayed silver
+     would read as two designs rather than one. */
   [data-theme='dark'] .border-brand,
   [data-theme='dark'] .border-accent {
-    border-color: var(--sp-silver) !important;
+    border-color: var(--sp-secondary-bg, var(--sp-silver)) !important;
   }
   [data-theme='dark'] .btn-ghost.text-accent {
-    color: var(--sp-silver) !important;
+    color: var(--sp-secondary-bg, var(--sp-silver)) !important;
   }
 
   /* --- the same, on the light theme ------------------------------------- */

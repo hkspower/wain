@@ -4,10 +4,12 @@ import Head from 'expo-router/head';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useMemo } from 'react';
 
-import { Colors, FONT_FILES } from '@/constants/theme';
+import { FONT_FILES, type SchemeName } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/hooks/use-theme';
 import { CartProvider } from '@/lib/cart';
 import { LanguageProvider } from '@/lib/i18n';
+import { ServerThemeProvider, type Palette } from '@/lib/server-theme';
 import { SessionProvider } from '@/lib/session';
 
 /**
@@ -34,10 +36,16 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
  *
  * Built from the palette rather than listed here, so the two cannot drift.
  * Supports three modes: light, dark, and dark-white (neutral grays).
+ *
+ * THE PALETTE IS PASSED IN rather than looked up, because it is no longer a
+ * constant: the owner sets the brand in /backends and server-theme.tsx lays it
+ * over the compiled colours. Looking Colors up here would paint the screen
+ * behind every route in the built orange while every screen in front of it
+ * used the owner's — the same class of mismatch the note above records, one
+ * layer further back and just as invisible in a console.
  */
-const navTheme = (mode: 'light' | 'dark' | 'dark-white') => {
+const navTheme = (mode: SchemeName, c: Palette) => {
   const base = mode === 'light' ? DefaultTheme : DarkTheme;
-  const c = Colors[mode];
   return {
     ...base,
     colors: {
@@ -51,15 +59,34 @@ const navTheme = (mode: 'light' | 'dark' | 'dark-white') => {
   };
 };
 
+/**
+ * The provider, and nothing else.
+ *
+ * It is split out because a provider cannot supply its own parent, and the
+ * chrome below reads the palette — so the two cannot be the same component.
+ * It also sits ABOVE the font gate on purpose: that gate returns null until
+ * the typefaces are in memory, and mounting the fetch inside it would hold the
+ * theme request behind four .ttf files. Started here, the colours are usually
+ * resolved before the first frame is allowed to paint at all.
+ */
 export default function RootLayout() {
+  return (
+    <ServerThemeProvider>
+      <RootChrome />
+    </ServerThemeProvider>
+  );
+}
+
+function RootChrome() {
   // ONE colour-scheme hook, the web-safe one. This file used to call React
   // Native's directly while everything else used ours, so on web the two
   // disagreed for the first frames after hydration — the navigator light, the
   // components dark, and the difference visible on screen rather than in a
   // console warning.
   const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme];
-  const navigation = useMemo(() => navTheme(colorScheme), [colorScheme]);
+  // useTheme, not Colors: this is the palette with the owner's colours on it.
+  const theme = useTheme();
+  const navigation = useMemo(() => navTheme(colorScheme, theme), [colorScheme, theme]);
   const [fontsReady, fontError] = useFonts(FONT_FILES);
 
   useEffect(() => {

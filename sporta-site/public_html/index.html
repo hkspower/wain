@@ -675,6 +675,25 @@
          shape as the Shop rules card just above it. -->
     <script src="/assets/contact-emails.js" defer></script>
 
+    <!-- The colours of the buttons and the bars, also on the Settings screen.
+         The theme editor has only ever existed in the APP's panel, so this
+         card is the website half that was missing entirely — measured, the
+         panel bundle names no theme key at all.
+
+         Five colours: the brand, which forty-eight compiled rules follow, and
+         the four surfaces it cannot reach. Each of those four is a literal
+         somewhere --brand could never get to — the header inside a cascade
+         layer with !important, the tab bar and its current item inside the
+         bundle, and a secondary fill that shared a token with body text. The
+         stylesheets read `var(--x, <the shipped literal>)` now, so an empty
+         field still leaves the shop exactly as built.
+
+         It SENDS THE WHOLE THEME ROW on every save. admin.php rebuilds all
+         twelve fields from the request, so a card posting only its own five
+         would silently blank the fonts, the radius, the spacing base and the
+         owner's custom CSS. theme.js is what applies the result. -->
+    <script src="/assets/theme-colors.js" defer></script>
+
     <!-- Every admin write, on the Settings screen — the read side of the
          shutdown hook admin.php registers right after the admin gate.
          Covers every save route, including ones this file has never heard

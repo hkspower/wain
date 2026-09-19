@@ -1934,8 +1934,20 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
      ceiling). --brand-dark is kept as the source of truth for every OTHER
      orange-background surface in this file (buttons, badges); only the
      header's own background changes here. */
+  /* THE LITERAL IS NOW A FALLBACK, not the value — the owner can set this
+     colour in /backends and the charcoal above is what a shop that never
+     touches it still gets, byte for byte.
+
+     IT HAD TO BE DONE HERE rather than in theme.js, and that is a cascade
+     fact rather than a preference: this rule is `!important` inside
+     `@layer utilities`, and for IMPORTANT declarations the layer order
+     REVERSES — a layered important beats an unlayered one. theme.js writes
+     unlayered rules with no !important by design, so nothing it could emit
+     would ever have won against this line. Reading a variable sidesteps the
+     question entirely: the cascade still resolves to this declaration, and
+     only its value moves. */
   header.app-header {
-    background: #2b2b2b !important;
+    background: var(--sp-header-bg, #2b2b2b) !important;
     /* A DROP SHADOW, NOT EXTRA PADDING. On a phone the header sits flush
        against the hero image below it, with nothing to say where one ends
        and the other begins — measured at 390px, no gap at all. Padding
@@ -2415,3 +2427,42 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
   background:var(--brand-bright);
 }
 /* <<< brand tokens */
+
+/* ------------------------------------------ the phone tab bar's own colours */
+/* BELOW the generated block on purpose. make-brand-tokens.mjs rewrites only
+   what sits between its two markers, so anything after the closing one
+   survives a regeneration — and these four are exactly the colours that
+   generator can never produce.
+
+   THREE LITERALS THE BRAND HAS NEVER REACHED. The bundle ships:
+
+     .m-tabbar                        background #fff, border-top #e2e8f0
+     .m-tabbar__item                  colour #64748b
+     .m-tabbar__item[aria-current]    colour #4f46e5
+
+   #4f46e5 is TAILWIND'S DEFAULT INDIGO. It is in no palette in this
+   repository and belongs to no Sporta surface; it is simply what the
+   framework paints an active item when nobody says otherwise. The generator
+   keys on the three shipped oranges, so a bar painted in somebody else's
+   blue is invisible to it — which is why this has survived every pass that
+   claimed to have tokenised the brand. It is the bar along the bottom of
+   every phone page.
+
+   THE FALLBACKS ARE THE SHIPPED VALUES, so a shop with no theme row renders
+   byte for byte as it does now. That is not tidiness: theme-test.mjs asserts
+   the empty case is pixel-identical, and a "better" default here would fail
+   it while silently restyling a shop whose owner had asked for nothing.
+
+   Unlayered and un-!important — these are top-level rules in a stylesheet
+   the page loads after the bundle, so source order settles it without
+   borrowing any weight the design might need back. */
+.m-tabbar {
+  background: var(--sp-tabbar-bg, #fff);
+  border-top-color: var(--sp-tabbar-border, #e2e8f0);
+}
+.m-tabbar__item {
+  color: var(--sp-tabbar-text, #64748b);
+}
+.m-tabbar__item[aria-current='true'] {
+  color: var(--sp-tabbar-active, #4f46e5);
+}

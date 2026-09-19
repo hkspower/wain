@@ -125,6 +125,39 @@
     return value ? '  ' + name + ': ' + value + ';\n' : ''
   }
 
+  /* A six-digit hex with its hash, or ''. The same strictness as hsl() above
+     and for the same reason: a value this file cannot interpret is a value it
+     must not emit. admin.php checks these too — this is the second of the two
+     guards, not the only one. */
+  function hex6(v) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(String(v || '').trim())
+    return m ? '#' + m[1] : ''
+  }
+
+  /* THE TAB BAR, FROM THE ONE COLOUR THE OWNER PICKS.
+     Two more values have to move with it or the bar stops being readable: the
+     hairline along its top edge, and the items that are NOT current. Both are
+     derived rather than asked for — a fifth and sixth picker for a border
+     nobody thinks about is how a theme editor turns into a form. */
+  function tabbar(bg) {
+    var c = hsl(bg)
+    if (!c) return ''
+    var h = c[0], s = c[1], l = c[2]
+    var dark = l < 50
+    return '  --sp-tabbar-bg: ' + bg + ';\n' +
+      /* The hairline. The shipped pair is #ffffff against #e2e8f0 — a step of
+         about 11 points of lightness — and keeping that distance rather than
+         a fixed grey is what lets the edge read on a dark bar as well as a
+         light one. */
+      '  --sp-tabbar-border: ' + toHex(h, s, dark ? l + 11 : l - 11) + ';\n' +
+      /* The inactive labels. The shipped #64748b is 4.76:1 on white; going to
+         the far end of the lightness scale rather than to a fixed slate is
+         what stops a dark bar rendering slate on slate. Saturation is capped
+         because a label is not a brand surface — a fully saturated one at
+         0.7rem reads as an error state. */
+      '  --sp-tabbar-text: ' + toHex(h, Math.min(s, 20), dark ? 72 : 42) + ';\n'
+  }
+
   /* One radius, kept in the built proportions. The bundle ships
      .375 / .5 / .75rem — 0.75x, 1x, 1.5x — so a single number scales the set
      instead of flattening three different corners into one. */
@@ -155,7 +188,26 @@
         family(t.brand) +
         line('--accent-text', t.accent_text_light) +
         line('--spacing', t.space) +
-        radii(t.radius)
+        radii(t.radius) +
+        /* THE FOUR SURFACES --brand NEVER REACHED, measured 2026-09-19.
+           The header's charcoal is a literal inside `@layer utilities` with
+           !important — and for important declarations the cascade REVERSES
+           layer order, so a layered important beats the unlayered rules this
+           file writes. Nothing emitted here could ever have won it. The tab
+           bar is worse: its background, its hairline and its current item
+           (#4f46e5, Tailwind's stock indigo, a colour in no palette in this
+           repository) live in the compiled bundle, which has no source here.
+           The dark theme's secondary fill was --sp-silver, which is also the
+           prose colour in four other rules.
+           So each of those declarations now reads `var(--x, <the literal>)`
+           in the stylesheet that owns it, and this file only ever sets the
+           variable. An empty field emits nothing and the shipped literal
+           stands — which is what keeps theme-test.mjs's pixel-identical case
+           true. */
+        line('--sp-header-bg', hex6(t.header_bg)) +
+        line('--sp-secondary-bg', hex6(t.secondary_bg)) +
+        line('--sp-tabbar-active', hex6(t.tabbar_active)) +
+        tabbar(hex6(t.tabbar_bg))
 
       var css = ''
       if (root) css += ':root {\n' + root + '}\n'

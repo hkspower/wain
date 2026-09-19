@@ -6,6 +6,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Chip } from '@/components/ui/chip';
+import { ColourField } from '@/components/ui/colour-field';
 import { Field } from '@/components/ui/field';
 import { Spacing } from '@/constants/theme';
 import {
@@ -566,6 +567,59 @@ export default function SettingsScreen() {
             onChangeText={(v) => setT('accentTextLight', v)} />
           <Field label="Accent text on dark — HSL triple" value={theme.accentTextDark}
             onChangeText={(v) => setT('accentTextDark', v)} />
+
+          {/* THE FOUR SURFACES THE BRAND DOES NOT REACH.
+              Brand above drives 48 compiled rules; these are literals that
+              generator cannot see — an !important declaration inside a cascade
+              layer, two colours in a bundle with no source here (one of them
+              Tailwind's stock indigo), and a fill that shared a token with body
+              text. Each reads `var(--x, <the shipped literal>)` now, so empty
+              still means "leave the built stylesheet alone".
+
+              Each one carries its contrast against whatever is painted on it,
+              live. This shop has three recorded contrast failures that were
+              found by a rig rather than by a person, and every one of them was
+              a colour chosen without the number in view. */}
+          <ThemedText type="labelBold" style={styles.hint}>
+            Buttons and bars
+          </ThemedText>
+
+          <ColourField
+            label="Header bar"
+            hint="The strip along the top of every page. White text sits on it."
+            shipped="#2b2b2b"
+            foreground="#ffffff"
+            presets={['#2b2b2b', '#14161a', '#363d45', '#e0561c']}
+            value={theme.headerBg}
+            onChange={(v) => setT('headerBg', v)}
+          />
+          <ColourField
+            label="Tab bar"
+            hint="The bar along the bottom on a phone. Its inactive labels are worked out from this colour; its current one is the next field."
+            shipped="#ffffff"
+            foreground={/^#[0-9a-f]{6}$/i.test(theme.tabbarActive) ? theme.tabbarActive : '#4f46e5'}
+            presets={['#ffffff', '#f2f3f5', '#14161a', '#2b3138']}
+            value={theme.tabbarBg}
+            onChange={(v) => setT('tabbarBg', v)}
+          />
+          <ColourField
+            label="Tab bar — current item"
+            hint="Ships as #4f46e5, which is Tailwind's default indigo rather than a Sporta colour: this bar has never followed the brand."
+            shipped="#4f46e5"
+            foreground={/^#[0-9a-f]{6}$/i.test(theme.tabbarBg) ? theme.tabbarBg : '#ffffff'}
+            presets={['#e0561c', '#ff7b17', '#4f46e5', '#14161a']}
+            value={theme.tabbarActive}
+            onChange={(v) => setT('tabbarActive', v)}
+          />
+          <ColourField
+            label="Secondary button"
+            hint="Badges, the active filter chip and the outlined buttons, on the dark theme. Ink is printed on it."
+            shipped="#a6acb2"
+            foreground="#171a1e"
+            presets={['#a6acb2', '#e0561c', '#ff7b17', '#eaecee']}
+            value={theme.secondaryBg}
+            onChange={(v) => setT('secondaryBg', v)}
+          />
 
           {/* THE ONE FIELD WITH NO SHAPE. Everything above is checked against
               the format its own variable uses; this is appended to the

@@ -1,21 +1,28 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { useColorScheme } from 'react-native';
 
-import { Colors } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { useCart } from '@/lib/cart';
 import { useLang } from '@/lib/i18n';
 
 export default function AppTabs() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+  // useTheme, NOT useColorScheme + Colors. This screen imported the scheme
+  // from react-native and indexed the palette itself, which is the one shape
+  // that bypasses every override: it is how the one-mode change left a light
+  // tab bar under a dark app, and it is how the owner's colours would have
+  // reached the whole shop except the bar along the bottom of it.
+  const colors = useTheme();
   const { t } = useLang();
   const { count, ready } = useCart();
 
   return (
     <NativeTabs
-      backgroundColor={colors.background}
+      // tabBar and tabBarActive, not background and tint. The bar borrowed
+      // the page's colours until those became the owner's to set — at which
+      // point a shop wanting an ink bar under a pale page had no way to say
+      // so. Both start at exactly the values that were borrowed.
+      backgroundColor={colors.tabBar}
       indicatorColor={colors.backgroundSelected}
-      labelStyle={{ selected: { color: colors.tint } }}>
+      labelStyle={{ selected: { color: colors.tabBarActive } }}>
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>{t.tabs.home}</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon
