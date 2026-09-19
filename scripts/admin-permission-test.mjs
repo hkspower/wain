@@ -63,7 +63,14 @@ const php = readFileSync(`${ROOT}/sporta-site/public_html/api/admin.php`, 'utf8'
 // say so in their own comments — into the guarded set. Three checks then failed
 // against code that was correct, which is this repository's most expensive
 // shape: a rig reporting its own heuristic as the shop's fault.
-const gateLine = php.match(/^[^\s#\/].*store_require_admin\(\)/m)
+// MATCHES THE CALL, NOT THE EMPTY PARENS. The real gate is
+// `$admin = store_require_admin(in_array($r, ['account', 'account_update'], true));`
+// — it takes an argument, deciding whether `account`/`account_update` are
+// asked for with a fresh password check. A regex anchored on the literal
+// empty `()` never matches a real call and reports the gate MISSING on
+// perfectly correct code, which is exactly the false-alarm shape this file's
+// own header warns about for the self-gating case one screen down.
+const gateLine = php.match(/^[^\s#\/].*store_require_admin\(/m)
 if (!gateLine) {
   console.log('FAIL admin.php no longer calls store_require_admin() at top level')
   process.exit(1)
@@ -79,7 +86,7 @@ for (let i = 0; i < hits.length; i++) {
   // itself. The block runs to the next route test, or to the gate.
   const from = hits[i].index
   const to = Math.min(hits[i + 1]?.index ?? php.length, Math.max(from + 1, gateAt))
-  const selfGated = from < gateAt && /store_require_admin\(\)/.test(php.slice(from, to))
+  const selfGated = from < gateAt && /store_require_admin\(/.test(php.slice(from, to))
   routes.push({ name, public: from < gateAt && !selfGated, selfGated })
 }
 const selfGatedNames = routes.filter((r) => r.selfGated).map((r) => r.name)

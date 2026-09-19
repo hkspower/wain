@@ -2112,6 +2112,158 @@ if ($r === 'unblock_customer' && $method === 'POST') {
 }
 
 // ----------------------------------------------------------------- discounts
+// ---------------------------------------------------------------------- CRM
+//
+// "A customer", grouped by PHONE NUMBER. There is no populated customer
+// accounts table yet — `customers` exists (2026-09-19) but has real signups
+// of zero — so a directory built from it would show nothing. Every order
+// this shop has ever taken carries a phone, guest or not, and that is the
+// real data. `orders.customer_phone` is canonicalised by store_phone() at
+// checkout — the same function blocked_customers.phone and customers.phone
+// are canonicalised through — so all three can be compared by plain equality
+// with no re-normalising here.
+//
+// BLOCKING, MADE VISIBLE. block_customer/unblock_customer have existed since
+// this shop's early days, called from a button on the order screen — and
+// nothing anywhere lists who is currently blocked or why. An admin wanting to
+// know had no way to ask except phpMyAdmin. Every blocked phone is shown here,
+// including one that has never placed an order: blocking does not require an
+// order to exist, and a proactive block on a number the owner already
+// suspects would otherwise vanish from every screen the moment it was made.
+if ($r === 'crm_customers') {
+    $q = trim((string) ($_GET['q'] ?? ''));
+
+    // THE AGGREGATE, in one pass: count, paid total, first/last order — and
+    // the id of the LATEST order, so the name and email shown are the most
+    // recent the customer gave rather than a random one. Joining back to that
+    // one row is the same shape products_all uses for a thumbnail: one
+    // subquery decides which row wins, then an ordinary join reads it.
+    $rows = $db->query(
+        "select agg.phone, latest.customer_name as name, latest.customer_email as email,
+                agg.order_count, agg.paid_count, agg.paid_total,
+                agg.first_order_at, agg.last_order_at,
+                bc.scope as blocked_scope, bc.reason as blocked_reason,
+                (c.id is not null) as has_account
+           from (
+             select customer_phone as phone, count(*) as order_count,
+                    sum(payment_status = 'paid') as paid_count,
+                    sum(case when payment_status = 'paid' then amount else 0 end) as paid_total,
+                    min(created_at) as first_order_at, max(created_at) as last_order_at,
+                    max(id) as latest_id
+               from orders
+              where customer_phone is not null and customer_phone <> ''
+              group by customer_phone
+           ) agg
+           join orders latest on latest.id = agg.latest_id
+           left join blocked_customers bc on bc.phone = agg.phone
+           left join customers c on c.phone = agg.phone
+
+           union all
+
+           -- A BLOCKED PHONE WITH NO ORDER AT ALL. block_customer accepts any
+           -- phone the admin types in; it does not require one to have
+           -- ordered. Without this half, blocking a number nobody has bought
+           -- from yet — the exact case an owner would want a record of —
+           -- would not appear on this screen, which is the gap being fixed.
+           select bc.phone, null, null, 0, 0, 0.000, null, null,
+                  bc.scope, bc.reason, (c.id is not null)
+             from blocked_customers bc
+             left join customers c on c.phone = bc.phone
+            where not exists (select 1 from orders o where o.customer_phone = bc.phone)"
+    )->fetchAll();
+
+    // FILTERED IN PHP, NOT SQL, because the search has to reach across a UNION
+    // of two differently-shaped halves and a phone that has never ordered has
+    // no name or email to match against — a WHERE on the outer query would
+    // need the same union twice. This list is bounded by the shop's own
+    // customer count, which will not be large enough to make that a cost.
+    if ($q !== '') {
+        $needle = mb_strtolower($q);
+        $digits = preg_replace('~\D~', '', $q) ?? '';
+        $rows = array_values(array_filter($rows, function ($r) use ($needle, $digits) {
+            if ($digits !== '' && str_contains((string) $r['phone'], $digits)) return true;
+            if ($needle === '') return false;
+            return str_contains(mb_strtolower((string) ($r['name'] ?? '')), $needle)
+                || str_contains(mb_strtolower((string) ($r['email'] ?? '')), $needle);
+        }));
+    }
+
+    usort($rows, static fn($a, $b) => strcmp((string) $b['last_order_at'], (string) $a['last_order_at']));
+    $rows = array_slice($rows, 0, 300);
+
+    foreach ($rows as &$row) {
+        $row['order_count'] = (int) $row['order_count'];
+        $row['paid_count']  = (int) $row['paid_count'];
+        $row['paid_total']  = (float) $row['paid_total'];
+        $row['has_account'] = (bool) $row['has_account'];
+        $row['blocked']     = $row['blocked_scope'] !== null;
+    }
+    unset($row);
+    store_out($rows);
+}
+
+// One customer's full record — order history, reviews, return requests, and
+// the block if one exists. Read-only; blocking and unblocking still go
+// through the routes that already existed, so there is one place that writes
+// a block and one place (this) that ever needs to explain what it means.
+if ($r === 'crm_customer') {
+    $phone = store_phone((string) ($_GET['phone'] ?? ''));
+    if ($phone === null) store_fail('invalid_phone');
+
+    $orders = $db->prepare(
+        'select track_id, amount, payment_status, payment_method, fulfilment_status,
+                created_at, fulfilled_at
+           from orders where customer_phone = ? order by id desc limit 200'
+    );
+    $orders->execute([$phone]);
+    $orders = $orders->fetchAll();
+
+    // Reviews are attached to an ORDER, not a phone, so this reaches them
+    // through the same orders this customer has actually placed — a review
+    // cannot belong to a customer who never checked out.
+    $reviews = $db->prepare(
+        'select r.rating, r.comment, r.lang, r.published, r.created_at, o.track_id
+           from reviews r join orders o on o.id = r.order_id
+          where o.customer_phone = ? order by r.created_at desc limit 100'
+    );
+    $reviews->execute([$phone]);
+    $reviews = $reviews->fetchAll();
+
+    // return_requests carries its OWN phone — the one the request was made
+    // from, which the table's own schema comment says may differ from the
+    // order's if the customer has since changed number — so this is read by
+    // the request's phone rather than joined through the order.
+    $returns = $db->prepare(
+        'select rr.ref, rr.kind, rr.status, rr.reason, rr.created_at, rr.decided_at, o.track_id
+           from return_requests rr join orders o on o.id = rr.order_id
+          where rr.phone = ? order by rr.created_at desc limit 100'
+    );
+    $returns->execute([$phone]);
+    $returns = $returns->fetchAll();
+
+    $block = $db->prepare('select scope, reason, blocked_by, created_at from blocked_customers where phone = ?');
+    $block->execute([$phone]);
+    $block = $block->fetch() ?: null;
+
+    $account = $db->prepare('select id, email, name, created_at, last_seen_at from customers where phone = ?');
+    $account->execute([$phone]);
+    $account = $account->fetch() ?: null;
+
+    if (!$orders && !$block && !$account) store_fail('customer_not_found', 404);
+
+    foreach ($reviews as &$rv) $rv['published'] = (bool) $rv['published'];
+    unset($rv);
+
+    store_out([
+        'phone' => $phone,
+        'orders' => $orders,
+        'reviews' => $reviews,
+        'returns' => $returns,
+        'blocked' => $block,
+        'account' => $account,
+    ]);
+}
+
 if ($r === 'discounts') {
     $rows = $db->query('select * from discounts order by kind, code, id')->fetchAll();
     foreach ($rows as &$row) {

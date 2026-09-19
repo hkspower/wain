@@ -786,6 +786,15 @@
          until an ai_key is configured. Panel-only. -->
     <script src="/assets/product-research.js" defer></script>
 
+    <!-- A customer directory on the Orders screen: grouped by phone number,
+         since the customers table has real signups of zero and every order
+         this shop has taken carries a phone. Shows order history, reviews and
+         returns, and makes block_customer/unblock_customer visible for the
+         first time — nothing anywhere used to list who was blocked or why.
+         Writes nothing new; blocking still goes through the routes this shop
+         has always had. Panel-only. -->
+    <script src="/assets/crm.js" defer></script>
+
     <!-- The website panel, on a touchscreen: every button and checkbox
          label under 44px grows to a proper tap target under
          `pointer: coarse`, and the one chart's 10px axis labels grow to
