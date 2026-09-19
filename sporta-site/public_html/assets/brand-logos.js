@@ -221,7 +221,37 @@
       box.onchange = function () { state.ticked[b.id] = box.checked; render() }
       row.appendChild(box)
       row.appendChild(el('span', 'sbl-name', b.name_en))
-      row.appendChild(el('span', 'sbl-dim', b.logo ? 'has a logo' : 'no logo'))
+
+      /* THE LOGO ITSELF, not the words "has a logo".
+         This row has always said whether a brand had one and never shown it,
+         while the data: URI sat in the very payload that drew the row — so the
+         one screen for managing logos was the one place you could not see one,
+         and an owner replacing the wrong brand's logo had nothing to check
+         against. It costs no extra request: these bytes are already here.
+
+         CONTAIN, not cover. A logo cropped to fill a square is a logo with its
+         edges cut off, which is the opposite of what a mark is for — the
+         product grid crops photographs because a photograph has a subject, and
+         a wordmark does not. */
+      var slot = el('span', 'sbl-logo')
+      if (b.logo) {
+        var pic = document.createElement('img')
+        pic.src = b.logo
+        pic.alt = b.name_en + ' logo'
+        pic.width = 40
+        pic.height = 40
+        pic.decoding = 'async'
+        pic.onerror = function () {
+          pic.remove()
+          slot.className = 'sbl-logo sbl-logo-none'
+          slot.textContent = 'broken'
+        }
+        slot.appendChild(pic)
+      } else {
+        slot.className = 'sbl-logo sbl-logo-none'
+        slot.textContent = 'none'
+      }
+      row.appendChild(slot)
       var q = state.queue[b.id]
       if (q) {
         var tag = el('span', 'sbl-tag', q.name + ' — ' + q.how)
@@ -290,8 +320,22 @@
     + 'background:var(--brand,#e0561c);color:#171a1e;font:inherit;font-weight:700}'
     + '.sbl-go[disabled]{opacity:.45;cursor:default}'
     + '.sbl-list{display:flex;flex-direction:column;gap:2px;max-height:320px;overflow:auto}'
-    + '.sbl-row{display:flex;gap:10px;align-items:center;min-height:40px;padding:0 4px;cursor:pointer}'
+    + '.sbl-row{display:flex;gap:10px;align-items:center;min-height:48px;padding:0 4px;cursor:pointer}'
     + '.sbl-name{font-weight:600}'
+    /* A CHECKERBOARD BEHIND IT, and it is not decoration. Most of these marks
+       are white on transparent — the shop ships logo-white.webp — so on the
+       panel's dark card a white logo is invisible and on a light one it is a
+       blank square. Either way the owner cannot tell "no logo" from "a logo I
+       cannot see", which is the whole thing this preview exists to answer.
+       The squares make the transparency itself visible. */
+    + '.sbl-logo{width:40px;height:40px;flex:none;border-radius:6px;overflow:hidden;'
+    + 'border:1px solid var(--border,#2a2d31);'
+    + 'background-color:#8d8d8d;background-size:12px 12px;background-position:0 0,6px 6px;'
+    + 'background-image:linear-gradient(45deg,#7a7a7a 25%,transparent 25%,transparent 75%,#7a7a7a 75%),'
+    + 'linear-gradient(45deg,#7a7a7a 25%,transparent 25%,transparent 75%,#7a7a7a 75%)}'
+    + '.sbl-logo img{width:40px;height:40px;object-fit:contain;display:block}'
+    + '.sbl-logo-none{display:flex;align-items:center;justify-content:center;'
+    + 'font-size:10px;opacity:.75;background:none;color:inherit}'
     + '.sbl-tag{margin-inline-start:auto;font-size:12px;opacity:.85;display:flex;gap:6px;align-items:center}'
     + '.sbl-x{border:0;background:transparent;color:inherit;cursor:pointer;font:inherit;min-width:28px;min-height:28px}'
     + '.sbl-warn{font-size:13px;color:#ffb08a}'

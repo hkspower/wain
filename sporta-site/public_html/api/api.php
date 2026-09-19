@@ -558,8 +558,25 @@ if ($r === 'slide_image') {
 
     $bytes = base64_decode($m[2], true);
     if ($bytes === false) { http_response_code(404); exit; }
+    $type = $m[1];
 
-    header('Content-Type: image/' . $m[1]);
+    // A THUMBNAIL WHEN ?w= ASKS FOR ONE, and the original otherwise.
+    //
+    // Every tile in /backends used to pull the whole uploaded image: an upload
+    // is capped at about 825 kB and a grid of twenty-four of them to draw 88px
+    // squares is twenty megabytes. admin.php already refuses to put base64 in
+    // its JSON for exactly this reason — "megabytes down a connection in
+    // Kuwait to draw pictures the browser could have cached" — and then handed
+    // back a url that served the full-size original anyway.
+    //
+    // An unrecognised width is IGNORED rather than refused, so a client asking
+    // for a size this server has never heard of gets a picture rather than a
+    // broken tile. store_image_thumb() explains every way it declines; all of
+    // them end here, sending exactly what was sent before it existed.
+    $small = store_image_thumb($bytes, (int) ($_GET['w'] ?? 0));
+    if ($small !== null) { [$bytes, $type] = $small; }
+
+    header('Content-Type: image/' . $type);
     header('Content-Length: ' . strlen($bytes));
     // A year, immutable — safe ONLY because the URL carries the content hash.
     //
@@ -640,8 +657,25 @@ if ($r === 'brand_logo') {
     }
     $bytes = base64_decode($m[2], true);
     if ($bytes === false) { http_response_code(404); exit; }
+    $type = $m[1];
 
-    header('Content-Type: image/' . $m[1]);
+    // A THUMBNAIL WHEN ?w= ASKS FOR ONE, and the original otherwise.
+    //
+    // Every tile in /backends used to pull the whole uploaded image: an upload
+    // is capped at about 825 kB and a grid of twenty-four of them to draw 88px
+    // squares is twenty megabytes. admin.php already refuses to put base64 in
+    // its JSON for exactly this reason — "megabytes down a connection in
+    // Kuwait to draw pictures the browser could have cached" — and then handed
+    // back a url that served the full-size original anyway.
+    //
+    // An unrecognised width is IGNORED rather than refused, so a client asking
+    // for a size this server has never heard of gets a picture rather than a
+    // broken tile. store_image_thumb() explains every way it declines; all of
+    // them end here, sending exactly what was sent before it existed.
+    $small = store_image_thumb($bytes, (int) ($_GET['w'] ?? 0));
+    if ($small !== null) { [$bytes, $type] = $small; }
+
+    header('Content-Type: image/' . $type);
     header('Content-Length: ' . strlen($bytes));
     header('Cache-Control: public, max-age=31536000, immutable');
     header('X-Content-Type-Options: nosniff');
@@ -694,8 +728,25 @@ if ($r === 'product_image') {
 
     $bytes = base64_decode($m[2], true);
     if ($bytes === false) { http_response_code(404); exit; }
+    $type = $m[1];
 
-    header('Content-Type: image/' . $m[1]);
+    // A THUMBNAIL WHEN ?w= ASKS FOR ONE, and the original otherwise.
+    //
+    // Every tile in /backends used to pull the whole uploaded image: an upload
+    // is capped at about 825 kB and a grid of twenty-four of them to draw 88px
+    // squares is twenty megabytes. admin.php already refuses to put base64 in
+    // its JSON for exactly this reason — "megabytes down a connection in
+    // Kuwait to draw pictures the browser could have cached" — and then handed
+    // back a url that served the full-size original anyway.
+    //
+    // An unrecognised width is IGNORED rather than refused, so a client asking
+    // for a size this server has never heard of gets a picture rather than a
+    // broken tile. store_image_thumb() explains every way it declines; all of
+    // them end here, sending exactly what was sent before it existed.
+    $small = store_image_thumb($bytes, (int) ($_GET['w'] ?? 0));
+    if ($small !== null) { [$bytes, $type] = $small; }
+
+    header('Content-Type: image/' . $type);
     header('Content-Length: ' . strlen($bytes));
     // A year for the public copy — the URL carries the content hash. Never for
     // the admin's view of a hidden product: `public` would invite any shared

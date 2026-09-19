@@ -70,6 +70,10 @@ export default function ImagesScreen() {
   // Which photograph is one tap from being deleted. Null the moment the
   // gallery changes, so a confirm cannot survive into a different picture.
   const [confirm, setConfirm] = useState<number | null>(null);
+  /** Photographs whose thumbnail would not load. Cleared with the gallery, so
+   *  a picture that failed once is retried the next time the garment is
+   *  opened rather than being written off for the session. */
+  const [failed, setFailed] = useState<Set<number>>(() => new Set());
 
   const load = useCallback(() => {
     if (!token) return;
@@ -106,6 +110,7 @@ export default function ImagesScreen() {
   const slug = chosen?.slug ?? null;
   useEffect(() => {
     setConfirm(null);
+    setFailed(new Set());
     if (!slug) { setGallery(null); return; }
     let alive = true;
     adminApi
@@ -391,7 +396,33 @@ export default function ImagesScreen() {
           <View style={styles.grid}>
             {gallery.map((g, i) => (
               <View key={g.id} style={styles.tile}>
-                <Image source={{ uri: g.url }} style={styles.thumb} contentFit="cover" transition={120} />
+                {failed.has(g.id) ? (
+                  // A BROKEN TILE HAS TO SAY SO. The thumb's grey background is
+                  // also what "still loading" looks like, so without this a
+                  // photograph that cannot be fetched is indistinguishable from
+                  // one that is on its way — for ever. The website's own grid
+                  // spent its whole existence in exactly that state.
+                  <View style={[styles.thumb, styles.thumbBad]}>
+                    <ThemedText type="caption" themeColor="textSecondary">
+                      could not load
+                    </ThemedText>
+                  </View>
+                ) : (
+                  <Image
+                    source={{ uri: g.url }}
+                    style={styles.thumb}
+                    contentFit="cover"
+                    transition={120}
+                    // WITHOUT THIS a recycled tile keeps painting the previous
+                    // photograph until the new one decodes — so deleting the
+                    // first of six leaves the grid briefly showing the image
+                    // that was just removed, which is the one moment the owner
+                    // is looking hardest.
+                    recyclingKey={String(g.id)}
+                    accessibilityLabel={`Photograph ${i + 1} of ${chosen.name}`}
+                    onError={() => setFailed((s) => new Set(s).add(g.id))}
+                  />
+                )}
                 {i === 0 && (
                   <ThemedText type="caption" themeColor="tint" style={styles.mainTag}>main</ThemedText>
                 )}
@@ -476,6 +507,15 @@ const styles = StyleSheet.create({
   // display, so a photograph that looked fine when uploaded lost its head
   // or its feet on the grid. Now the tile IS the crop.
   thumb: { width: '100%', aspectRatio: 4 / 5, borderRadius: Radius.button, backgroundColor: 'rgba(127,127,127,0.15)' },
+  // The same box, saying why it is empty. Dashed rather than solid so it does
+  // not read as a photograph that happens to be grey.
+  thumbBad: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(127,127,127,0.4)',
+  },
   mainTag: { position: 'absolute', top: 4, insetInlineStart: 6 },
   tileActions: { gap: Spacing.one },
   // A REAL TAP TARGET under each thumbnail. These were 22pt-tall pieces

@@ -1386,12 +1386,25 @@ export const adminApi = {
   productImages: async (slug: string): Promise<ProductImage[]> => {
     const r = await call<{ images: WireProductImage[] }>(
       `product_images&slug=${encodeURIComponent(slug)}`);
-    // The server sends a RELATIVE url — 'api.php?r=product_image&id=…' — because
-    // the website serves the panel from the same folder. The app does not, so
-    // it is made absolute here rather than in each screen that renders one.
+    // The server sends a RELATIVE url — 'api.php?r=product_image&id=…' — so it
+    // is made absolute here rather than in each screen that renders one.
+    //
+    // THE COMMENT HERE USED TO SAY the website needed no such thing "because
+    // it serves the panel from the same folder". It does not: the website's
+    // panel is at /backends, so the browser resolved the same url against the
+    // page and got the SPA shell — 51 kB of HTML, with a 200, drawn as a
+    // broken image in every tile of its photo grid. That card absolutises it
+    // now too. The assumption was written down confidently in one place and
+    // never checked in the other.
+    //
+    // `w` asks for a thumbnail rather than the whole upload: a tile is 150pt
+    // wide and an upload is capped near 825 kB, so a gallery was pulling
+    // megabytes to draw postage stamps. 400 is the largest width store.php
+    // allows, and an unknown one is ignored — so this can never break a tile,
+    // only fail to shrink it.
     return (r.images ?? []).map((i) => ({
       ...i,
-      url: i.url.startsWith('http') ? i.url : `${API_BASE}/${i.url}`,
+      url: (i.url.startsWith('http') ? i.url : `${API_BASE}/${i.url}`) + '&w=400',
     }));
   },
 

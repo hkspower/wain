@@ -1037,6 +1037,69 @@ function store_data_image(?string $raw, int $max = STORE_LOGO_MAX): ?string {
 // `jpeg` and the case-insensitive matching below are the additions. What was
 // here matched 'logo.png', 'logo.webp' and 'logo.jpg' with is_file(), and Linux
 // is case-sensitive.
+/**
+ * The widths ?r=product_image will resize to, and nothing else.
+ *
+ * A WHITELIST RATHER THAN A RANGE, because this parameter makes the server do
+ * work on demand: an open `?w=` is an invitation to ask for two thousand
+ * different sizes of the same photograph and make shared hosting decode a
+ * 1400px image two thousand times. Three sizes cover every place the shop and
+ * its panels draw one, and each is cached for a year against the content hash
+ * already in the URL, so a given (photograph, width) is produced once.
+ *
+ *   96   the website panel's grid, at 2x
+ *   200  the app's gallery tile and the queued-upload strip
+ *   400  a phone's full-width tile at 2x, and the largest anything asks for
+ */
+const STORE_IMAGE_WIDTHS = [96, 200, 400];
+
+/**
+ * A smaller copy of an image, as [bytes, subtype], or null.
+ *
+ * NULL MEANS "SERVE THE ORIGINAL", never an error. Every way this can decline
+ * — no GD, no webp encoder, bytes that will not decode, an image already
+ * narrower than the size asked for — leaves the caller sending exactly what it
+ * sent before this function existed. A thumbnail is an optimisation, and an
+ * optimisation that can break a page is not one.
+ *
+ * IT NEVER UPSCALES, which is the same refusal make-hero-sizes.mjs makes and
+ * for the same reason: enlarging a small photograph produces a bigger file
+ * that looks identical, so every measurement improves and the visitor sees
+ * nothing. An image narrower than the request is already the thumbnail.
+ *
+ * WEBP OR NOTHING. A single output format keeps this to one branch, and it is
+ * the one that carries an alpha channel — resizing a logo with transparency
+ * and writing it as JPEG puts it on a black rectangle, which is a worse bug
+ * than the bandwidth it saves. A host without imagewebp serves originals.
+ */
+function store_image_thumb(string $bytes, int $width): ?array {
+    if (!function_exists('imagecreatefromstring') || !function_exists('imagewebp')) return null;
+    if (!in_array($width, STORE_IMAGE_WIDTHS, true)) return null;
+
+    $src = @imagecreatefromstring($bytes);
+    if ($src === false) return null;
+
+    $w = imagesx($src);
+    $h = imagesy($src);
+    if ($w <= 0 || $h <= 0 || $w <= $width) { imagedestroy($src); return null; }
+
+    $out = imagescale($src, $width, (int) max(1, (int) round($h * ($width / $w))));
+    imagedestroy($src);
+    if ($out === false) return null;
+
+    // Both, and in this order, or a transparent PNG comes back with its
+    // transparency composited against black.
+    imagealphablending($out, false);
+    imagesavealpha($out, true);
+
+    ob_start();
+    $ok = imagewebp($out, null, 82);
+    $data = ob_get_clean();
+    imagedestroy($out);
+
+    return ($ok && is_string($data) && $data !== '') ? [$data, 'webp'] : null;
+}
+
 const STORE_BRAND_LOGO_EXTS = ['png', 'webp', 'jpg', 'jpeg'];
 
 // Kept because it is the shape the docs and two rigs talk in.

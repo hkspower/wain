@@ -109,6 +109,35 @@
   }
   var card = null
 
+  /**
+   * A photograph's url, resolved and sized — THE BUG THIS CARD SHIPPED WITH.
+   *
+   * admin.php returns `api.php?r=product_image&id=19&v=abc123`, relative,
+   * because (in its own comment) "the website serves the panel from the same
+   * folder". It does not. The panel is at /backends, so the browser resolved
+   * that against the PAGE and asked for /backends/api.php?… — which
+   * .htaccess rewrites to the SPA shell like every other unknown path under
+   * /backends.
+   *
+   * So every tile in this grid fetched 51 kB of HTML and rendered the
+   * browser's broken-image glyph. Measured: HTTP **200**, Content-Type
+   * text/html — and the 200 is why it lasted, because nothing failed. No
+   * error fired, no log line, and the rig that covers this card only ever
+   * checked that the QUEUED preview's src begins with "blob:". The app's
+   * admin.ts has absolutised this since it was written; this card never did.
+   *
+   * `w` asks for a thumbnail. The three sizes are store.php's whitelist; a
+   * width it does not know is ignored and the original arrives, so passing one
+   * can never break a tile.
+   */
+  function photoSrc(url, w) {
+    var u = String(url || '')
+    // Already absolute, or already root-relative: leave it alone. A url this
+    // function does not recognise is not one to rewrite.
+    if (!/^(https?:)?\/\//.test(u) && u.charAt(0) !== '/') u = '/api/' + u
+    return w ? u + (u.indexOf('?') >= 0 ? '&' : '?') + 'w=' + w : u
+  }
+
   function el(tag, cls, text) {
     var n = document.createElement(tag)
     if (cls) n.className = cls
@@ -568,8 +597,27 @@
           p.images.forEach(function (im, i) {
             var cell = el('div', 'spm-thumb-wrap')
             var img = document.createElement('img')
-            img.src = im.url
-            img.alt = ''
+            img.src = photoSrc(im.url, 200)
+            // 88 CSS px at 2x is 176, so 200 is the first size that covers a
+            // retina phone without sending a fourth of a megabyte.
+            img.width = 88
+            img.height = 110
+            img.loading = 'lazy'
+            img.decoding = 'async'
+            // NOT decorative. This grid is the only place a photograph can be
+            // reordered or deleted, and the buttons under each tile say only
+            // "↑ ↓ ✕" — so a screen reader with an empty alt announces three
+            // unlabelled controls and nothing to tell them apart.
+            img.alt = 'Photograph ' + (i + 1) + ' of ' + p.name_en
+            img.onerror = function () {
+              // A BROKEN TILE HAS TO SAY SO. This exact grid spent its whole
+              // existence showing the browser's broken-image glyph because the
+              // url resolved to the SPA shell — HTTP 200, 51 kB of HTML, so
+              // nothing anywhere reported a failure. If it happens again the
+              // owner gets a sentence instead of a torn-paper icon.
+              img.remove()
+              cell.insertBefore(el('div', 'spm-thumb-bad', 'could not load'), cell.firstChild)
+            }
             cell.appendChild(img)
 
             var actionsRow = el('div', 'spm-thumb-actions')
@@ -653,7 +701,16 @@
     + 'min-height:32px;padding:0;text-align:start}'
     + '.spm-grid{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 12px}'
     + '.spm-thumb-wrap{width:88px;display:flex;flex-direction:column;gap:4px}'
-    + '.spm-thumb-wrap img{width:88px;height:88px;object-fit:cover;border-radius:8px;'
+    /* 4:5, NOT A SQUARE — 88x110. The shop's grid crops product photographs to
+       4:5, and the app's own gallery was corrected to match for a reason worth
+       repeating here: a square thumbnail shows the owner a picture the
+       storefront will never display, so a photograph that looked right while
+       being uploaded loses its head or its feet on the shop. The tile IS the
+       crop, on both panels now. */
+    + '.spm-thumb-bad{width:88px;height:110px;border-radius:8px;display:flex;'
+    + 'align-items:center;justify-content:center;text-align:center;font-size:11px;'
+    + 'line-height:1.3;opacity:.7;border:1px dashed var(--border,#2a2d31)}'
+    + '.spm-thumb-wrap img{width:88px;height:110px;object-fit:cover;border-radius:8px;'
     + 'border:1px solid rgba(255,255,255,.14)}'
     + '.spm-thumb-actions{display:flex;gap:4px;justify-content:center}'
     + '.spm-thumb-btn{min-width:26px;min-height:26px;border-radius:6px;border:1px solid rgba(255,255,255,.2);'
