@@ -159,6 +159,44 @@ await fresh();
   else ok('ويُقرّ به في الحوار');
 }
 
+console.log('\n═══ ٤ب) ترتيب السؤال: الوجهة قبل الهُويّة ═══');
+await fresh();
+{
+  /* كان الاسم أوّل ما يُسأل عنه، فمن قال «السلام عليكم» رُدّ عليه
+     «ما اسمك؟» — استجوابٌ لا محادثة. والزبون يفكّر بالطلب لا بنفسه. */
+  await say('السلام عليكم');
+  await page.waitForTimeout(1100);
+  const first = (await msgs()).filter((m) => m.who === 'وكيل')[0]?.text ?? '';
+  if (/ما اسمك|رقم هاتفك/.test(first)) fail(`أوّل سؤال عن الهُويّة: «${first.slice(0, 50)}»`);
+  else if (!/نستلم|نوصّل/.test(first)) fail(`أوّل سؤال ليس عن الوجهة: «${first.slice(0, 50)}»`);
+  else ok(`يبدأ بالوجهة: «${first.slice(0, 44)}»`);
+
+  await say('من حولي'); await page.waitForTimeout(1100);
+  await say('الى الفحيحيل'); await page.waitForTimeout(1100);
+  const after = (await msgs()).filter((m) => m.who === 'وكيل').slice(-1)[0]?.text ?? '';
+  if (!/ما اسمك/.test(after)) fail(`بعد المنطقتين لم يسأل عن الاسم: «${after.slice(0, 50)}»`);
+  else ok('ثمّ الاسم بعد أن تكتمل الوجهة');
+}
+
+console.log('\n═══ ٤ج) السؤال ليس تعثّرًا ═══');
+await fresh();
+{
+  /* التصعيد إلى واتساب لمن حاول فلم يُفهم — لا لمن يستطلع قبل أن يطلب */
+  for (const q of ['كم سعر التوصيل؟', 'توصلون الجهراء؟', 'كم ياخذ وقت؟']) {
+    await say(q); await page.waitForTimeout(1100);
+  }
+  const said = (await msgs()).filter((m) => m.who === 'وكيل').map((m) => m.text).join(' ⏎ ');
+  if (/وإن تعذّر/.test(said)) fail('ثلاثة أسئلة عُدّت تعثّرًا فصُعِّدت إلى واتساب');
+  else ok('السؤال لا يُعدّ تعثّرًا');
+
+  /* ويعرف الوكيل ما يحتاجه حين يُسأل */
+  await say('شنو تبي مني؟'); await page.waitForTimeout(1200);
+  const ans = (await msgs()).filter((m) => m.who === 'وكيل').slice(-2).map((m) => m.text).join(' ');
+  if (/ما عندي جواب/.test(ans)) fail('«شنو تبي مني؟» أُحيل إلى إنسان — والوكيل يعرف جوابه');
+  else if (!/أربعة/.test(ans)) fail(`لم يشرح ما يحتاجه: «${ans.slice(0, 70)}»`);
+  else ok('يشرح ما يحتاجه بنفسه');
+}
+
 console.log('\n═══ ٥) حوارٌ طويل — هل يبقى المهمّ مرئيًّا؟ ═══');
 await fresh();
 {
