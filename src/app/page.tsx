@@ -129,10 +129,11 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl px-2.5 py-2 sm:px-4 sm:py-3">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3 sm:mb-7">
             <div>
-              <h2 className="font-display text-2xl font-bold text-ink-900 sm:text-3xl">
-                وين؟ شنو فيه 🇰🇼
-              </h2>
-              <p className="mt-1 text-ink-500">أماكن ما تنقال عنها لا.</p>
+              {/* The display title was removed. The standfirst is the heading
+                  element now rather than a <p> under one, so the section still
+                  has a heading for the outline and for a screen reader — an
+                  orphaned paragraph would have left it with none. */}
+              <h2 className="text-ink-500">أماكن ما تنقال عنها لا.</h2>
             </div>
             <Link
               href="/explore"
