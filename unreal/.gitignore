@@ -5,6 +5,23 @@ Saved/
 .vs/
 *.sln
 
+# Imported art — Fab, Megascans, anything with a licence on it.
+#
+# Fab's standard licence is per seat and per project: those assets may
+# ship inside a packaged build and may NOT live in this repository (see
+# the README's "High-end assets from Fab"). Importing a pack in the
+# editor drops it straight into Content/, so without this the first
+# `git status` after an import offers to commit the whole thing.
+#
+# Nothing is lost by ignoring it. The factory treats hero art as
+# optional by design — no Content/, and every car builds the primitive
+# shell it always did. Unanchored, so a plugin's own Content/ is caught
+# too. scripts/check-structure.mjs fails if any of it is ever tracked,
+# because an ignore rule does not un-track what is already committed.
+Content/
+*.uasset
+*.umap
+
 # macOS. Xcode workspaces and their derived data are generated from the
 # .uproject by `unreal/mac/connect.sh` (or by right-clicking the project
 # in Finder), so they are a build output like Binaries/ and Intermediate/

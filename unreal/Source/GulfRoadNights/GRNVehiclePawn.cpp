@@ -18,14 +18,12 @@ AGRNVehiclePawn::AGRNVehiclePawn()
 	Camera->SetRelativeRotation(FRotator(-8.f, 0.f, 0.f));
 	Camera->FieldOfView = 62.f;
 
-	// Fab hero body for the player car — see FGRNHeroAssets (GRNCarFactory.h).
-	// Only the Body was supplied; Wheel stays unset so the primitive wheel
-	// cylinders keep spinning under this shell, and PaintSlot/TailSlot/
-	// WheelSlot stay at the struct's defaults (0 / -1 / -1) until the mesh's
-	// actual material slots are confirmed in the editor.
-	HeroAssets.Body = TSoftObjectPtr<UStaticMesh>(
-		FSoftObjectPath(TEXT("/Game/Fab/SportsCar/Meshes/SM_Body.SM_Body")));
-
+	// No hero art named here. Which mesh this car wears follows its
+	// SILHOUETTE, from the fleet table in GRNHeroArt.cpp — the player
+	// cycles cars (AGRNGameMode::CycleCar re-enters BuildRig with the new
+	// car's style), so one body hardcoded on the pawn would put a sports
+	// car's shell on a pickup the moment they bought one. Setting
+	// Art → Hero Assets on this actor still overrides the table.
 	AutoPossessPlayer = EAutoReceiveInput::Player0;
 }
 

@@ -390,11 +390,16 @@ licence. To put a scanned or modelled car in:
    into Content). Import with **Nanite** on and *Combine Meshes* on, so
    the body is one `UStaticMesh`; leave the wheels as a separate mesh if
    the pack has them.
-2. Open `BP_GRNVehiclePawn` (or the C++ defaults), find **Art → Hero
-   Assets**, and set **Body** to the shell and **Wheel** to one wheel.
-   **Paint Slot** is the material slot the garage respray should own
-   (the body paint), **Tail Slot** the lens that flares under braking,
-   **Wheel Slot** the alloy finish; `-1` leaves a slot as imported.
+2. Put the mesh where the fleet can find it — **`GRNHeroArt.cpp`**, one
+   line per silhouette. That table is the normal route, because art
+   belongs to a SHAPE rather than to an actor: the player cycles cars, so
+   a body pinned to the pawn would put a sports car's shell on a pickup
+   the moment they bought one. **Art → Hero Assets** on the pawn, the
+   rival or the traffic actor still exists and still wins where it is
+   set — it is an override now, not the way in.
+   **Paint Slot** is the material slot the paint rides on, **Tail Slot**
+   the lens that flares under braking, **Wheel Slot** the alloy finish;
+   `-1` leaves a slot as imported.
 3. Play. `GRNCarFactory::Build` loads the references, scales the body so
    its length is the length on the car's card — the player's, the
    rival's and the civilian's alike; until this was fixed the rival and
@@ -428,6 +433,60 @@ reference set in the editor and nothing here depends on the art being
 present. The web build keeps its own Blender-authored shells
 (`public/models/`), which are generated from the game's silhouettes and
 carry no third-party licence.
+
+That licence is now enforced rather than remembered: `unreal/.gitignore`
+ignores `Content/`, `*.uasset` and `*.umap`, and `npm run check:structure`
+fails if any of it is ever tracked — an ignore rule does nothing about a
+file already committed, and the first `git status` after an import
+offers the whole pack.
+
+### Epic's Vehicle Variety Pack, concretely
+
+The free "Free For Life" pack — Sports Car, Hatchback, Pickup, SUV, Box
+Truck — is the one this repository is set up for. *Window → Fab*, sign
+in, *Add to project*. Then, per vehicle:
+
+- **Find a static mesh.** If the pack ships an `SM_` beside the `SK_`,
+  use it. If a vehicle is only a skeletal rig — which is how vehicle
+  packs are built, because the wheels are bones on the skeleton — bake
+  one: open it in the Skeletal Mesh editor and use **Make Static Mesh**.
+  *(Its exact place in the 5.4 menus is not something this repository can
+  confirm; if it is not there, drop the rig into a level and use the
+  level editor's convert-to-static-mesh instead.)*
+- **Copy the path.** Right-click the asset → **Copy Reference** gives
+  exactly the `Package.Asset` string `GRNHeroArt.cpp` wants.
+- **A baked rig brings its wheels with it.** Set `bBodyHasWheels` and
+  the factory builds none of its own — they will not turn until you
+  separate them in the editor, which is the honest state to be in
+  rather than a second set of wheels inside the arches.
+
+The mapping, as shipped: Sports Car → `Super`, Hatchback → `Hatch`,
+Pickup → `Pickup`, SUV → `SUV`. The Box Truck goes unused, because no
+silhouette in this game is a box truck. `Sedan`, `ZX`, `GTR`, `RX7` and
+`Pony` have no counterpart in the pack and keep their primitive shells —
+and so, therefore, does civilian traffic, which is always `Sedan`. One
+silhouette's art is worn by every car that shares it: all four `Super`s
+in the roster become the same sports car until there is a per-car table.
+
+**The paths in that file are unverified.** fab.com was unreachable from
+the machine they were written on, so they are written from the pack's
+published contents and nobody has watched them resolve. Expect to correct
+them once. A path that fails while its neighbours succeed names itself in
+the log at startup; a project with none of them resolving says so once,
+quietly, and builds primitives exactly as before.
+
+**Respray, plainly.** Every MID in this port drives a vector parameter
+called `Color`, which exists because the engine's basic-shape material
+declares it and for no other reason. An imported material calls its paint
+something else, and `SetVectorParameterValue` on a name the parent does
+not expose does nothing at all — no crash, no warning, no colour. So a
+hero body **keeps the paint it was authored with** until somebody opens
+the pack's material, reads the real parameter name off it, and puts it in
+`PaintParam` (and `TailParam` for the brake flare). What the factory does
+guarantee is that the import's own material survives at all: it makes a
+dynamic instance *of the material already in the slot*, where it used to
+assign one parented to the engine cube and render a scanned car flat
+grey.
 
 ## Where to take it next
 

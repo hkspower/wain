@@ -25,6 +25,13 @@ struct FGRNCarRig
 	UMaterialInstanceDynamic* PaintMid = nullptr;
 	/** Tail lamp MID: push Emissive up when the brakes bite. */
 	UMaterialInstanceDynamic* TailMid = nullptr;
+	/** The vector parameters those two drive. `Color` on the primitive
+	 *  shells, because that is what the engine's basic-shape material
+	 *  declares; whatever the art declares on a hero body, or None when
+	 *  nobody has said — a name the parent material does not expose is a
+	 *  silent no-op, so the name cannot be assumed. */
+	FName PaintParam = TEXT("Color");
+	FName TailParam = TEXT("Color");
 	/** The headlight beam. */
 	USpotLightComponent* Headlight = nullptr;
 	/** True when the wheels are hero art (axle along the mesh's Y) rather
@@ -64,8 +71,11 @@ struct FGRNHeroAssets
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art")
 	TSoftObjectPtr<UStaticMesh> Wheel;
 
-	/** Material slot on Body that takes the paint MID, so garage resprays
-	 *  still work on scanned art. −1 leaves every slot as imported. */
+	/** Material slot on Body the paint rides on. The factory makes a
+	 *  dynamic instance OF THE MATERIAL ALREADY THERE, so the import
+	 *  keeps every map it was authored with; −1 leaves the slot alone
+	 *  entirely. What it does NOT do is repaint the car — see PaintParam,
+	 *  without which a respray moves nothing. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art")
 	int32 PaintSlot = 0;
 
@@ -77,6 +87,31 @@ struct FGRNHeroAssets
 	/** Material slot on Wheel that takes the wheel finish; −1 as imported. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art")
 	int32 WheelSlot = -1;
+
+	/** True when Body already carries four wheels — which is what you get
+	 *  from baking a static mesh out of a skeletal vehicle rig, since its
+	 *  wheels are bones on the skeleton. The factory then builds none of
+	 *  its own, and they do not turn; separating them in the editor is
+	 *  the fix, and this is the honest minimum until someone does. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art")
+	bool bBodyHasWheels = false;
+
+	/** The vector parameter a garage respray drives on this art's paint
+	 *  material, and the one the brake flare drives on its lamps.
+	 *
+	 *  None by default, and deliberately: every MID in this port drives a
+	 *  parameter called `Color`, which exists because the engine's
+	 *  basic-shape material declares it and for no other reason. An
+	 *  imported material almost certainly calls its paint something else,
+	 *  and SetVectorParameterValue on a name the parent does not expose
+	 *  does nothing at all — no crash, no warning, no colour. So a hero
+	 *  body keeps the paint it was authored with until somebody opens the
+	 *  material, reads the real parameter name off it and puts it here. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art")
+	FName PaintParam = NAME_None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art")
+	FName TailParam = NAME_None;
 
 	bool HasBody() const { return !Body.IsNull(); }
 };

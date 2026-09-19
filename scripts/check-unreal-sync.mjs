@@ -474,16 +474,26 @@ if (process.exitCode) {
     process.exitCode = 1;
   } else {
     const declared = new Set(decl[1].split(",").map((x) => x.trim()).filter(Boolean));
-    const used = new Set([...hh.matchAll(/EGRNBodyStyle::(\w+)/g)].map((m) => m[1]));
+    // Across the WHOLE module, not just the generated header. The
+    // enumerators the hand-written sources name were unchecked, and
+    // GRNHeroArt.cpp's table is a list of them — `::Suv` for `::SUV`
+    // compiles nowhere and would have been found by running the editor,
+    // which nothing here can do.
+    const DIR = "unreal/Source/GulfRoadNights";
+    const module = readdirSync(DIR)
+      .filter((f) => /\.(h|cpp)$/.test(f))
+      .map((f) => readFileSync(`${DIR}/${f}`, "utf8"))
+      .join("\n");
+    const used = new Set([...module.matchAll(/EGRNBodyStyle::(\w+)/g)].map((m) => m[1]));
     const missing = [...used].filter((u) => !declared.has(u));
     if (missing.length) {
       console.error(
-        `GRNTypes.h uses EGRNBodyStyle::${missing.join(", EGRNBodyStyle::")} but the enum ` +
-          `declares only { ${[...declared].join(", ")} } — the generated header does not compile.`
+        `the port names EGRNBodyStyle::${missing.join(", EGRNBodyStyle::")} but the enum ` +
+          `declares only { ${[...declared].join(", ")} } — that does not compile.`
       );
       process.exitCode = 1;
     } else {
-      console.log(`✓ EGRNBodyStyle: ${used.size} used, all of ${declared.size} declared`);
+      console.log(`✓ EGRNBodyStyle: ${used.size} used across the module, all of ${declared.size} declared`);
     }
   }
 }
@@ -563,4 +573,76 @@ if (process.exitCode) {
     }
   }
   ok(`generated constants: ${total - unread.length}/${total} read by a port source, ${unread.length} unread`);
+}
+
+// ---- the imported-art table, and the factory that wears it ----------
+//
+// GRNHeroArt.cpp maps each silhouette to a mesh in the project's own
+// Content/, which nothing outside the editor can resolve — the paths are
+// unverifiable here by construction. What IS checkable is their shape,
+// and the shape is where the mistakes are: a path that is not
+// Package.Asset, a slot index that is not a slot, one silhouette listed
+// twice. Each of those is a line nobody would notice until a car came
+// out grey in the editor.
+{
+  const ART = "unreal/Source/GulfRoadNights/GRNHeroArt.cpp";
+  const FACTORY = "unreal/Source/GulfRoadNights/GRNCarFactory.cpp";
+  const art = readFileSync(ART, "utf8");
+  const table = art.match(/GRNHeroArtTable\[\] =\s*\{([\s\S]*?)\n\t\};/)?.[1];
+  if (!table) {
+    fail(`${ART} no longer has a GRNHeroArtTable this check can read`);
+  } else {
+    const styles = [];
+    for (const row of table.matchAll(/\{\s*EGRNBodyStyle::(\w+),\s*TEXT\("([^"]+)"\)([\s\S]*?)\},/g)) {
+      const [, style, path, rest] = row;
+      styles.push(style);
+      // /Game/Path/Thing.Thing — the trailing object name is the half
+      // everyone forgets, and a path without it silently resolves to
+      // nothing.
+      if (!path.startsWith("/Game/")) fail(`hero art for ${style} is ${path}, which is not under /Game/`);
+      const m = path.match(/\/([^/.]+)\.([^/.]+)$/);
+      if (!m) fail(`hero art for ${style} is ${path}, which is not Package.Asset`);
+      else if (m[1] !== m[2]) {
+        fail(`hero art for ${style} is ${path} — the asset name after the dot must repeat the package leaf`);
+      }
+      for (const n of rest.matchAll(/(-?\d+)/g)) {
+        if (+n[1] < -1) fail(`hero art for ${style} has a material slot of ${n[1]}; -1 means "leave it alone"`);
+      }
+    }
+    const dupes = styles.filter((s, i) => styles.indexOf(s) !== i);
+    if (dupes.length) fail(`hero art lists ${dupes[0]} more than once — only the first would ever be used`);
+    if (!process.exitCode) ok(`hero art: ${styles.length} silhouettes mapped (${styles.join(", ")}), paths well-formed`);
+  }
+
+  // The wheel diameter is DERIVED from the radius the web build
+  // publishes, in both the hero and the primitive branch. It was typed
+  // as 0.8 in both — which is not 2 x 0.375 — so an imported wheel sat
+  // 6.67% oversize and the primitive one was an ellipse. The existing
+  // tyre rule above guards the radius; this guards the doubling.
+  // Comments stripped first. Both rules below are presence tests, and a
+  // presence test on raw source is satisfied by prose — the comment
+  // above the call explains what CreateDynamicMaterialInstance does, so
+  // deleting the call itself and keeping the comment passed. Found by
+  // planting that exact fault.
+  const factory = readFileSync(FACTORY, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/\/\/[^\n]*/g, " ");
+  const derived = [...factory.matchAll(/2\.f \* GRN_TYRE_RADIUS_M \* K/g)].length;
+  if (derived < 3) {
+    fail(`${FACTORY} derives the wheel diameter ${derived} times; the hero fit and both primitive axes need it`);
+  }
+  if (/0\.8f \* K/.test(factory)) {
+    fail(`${FACTORY} still types 0.8f * K for a wheel — that is a third hand-written tyre radius`);
+  }
+
+  // The paint MID must be made FROM the art's own material. Assigning a
+  // MID of the engine cube's material over an imported slot is what
+  // rendered a scanned car flat grey, and it is a one-word regression.
+  if (!/CreateDynamicMaterialInstance/.test(factory)) {
+    fail(`${FACTORY} no longer creates a dynamic instance of the art's own material — an import would render grey`);
+  }
+  if (/Shell->SetMaterial\(/.test(factory)) {
+    fail(`${FACTORY} assigns a material over a hero body's slot again; use CreateDynamicMaterialInstance`);
+  }
+  if (!process.exitCode) ok("hero bodies keep their own material, and the wheel diameter is derived");
 }

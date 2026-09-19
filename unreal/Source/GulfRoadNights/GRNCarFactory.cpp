@@ -1,4 +1,5 @@
 #include "GRNCarFactory.h"
+#include "GRNHeroArt.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SpotLightComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -110,16 +111,38 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 	UMaterialInstanceDynamic* Glass = Mid(Parent, FLinearColor(0.03f, 0.04f, 0.06f));
 	Rig.TailMid = Mid(Parent, FLinearColor(0.6f, 0.05f, 0.05f));
 
-	// Hero art, when the project has it. Loaded here and not before, so a
-	// project that never imported any still builds and cooks; a reference
-	// that fails to load falls through to the primitives with a warning
-	// rather than an invisible car.
-	UStaticMesh* HeroBody = (Hero && Hero->HasBody()) ? Hero->Body.LoadSynchronous() : nullptr;
-	UStaticMesh* HeroWheel = (Hero && !Hero->Wheel.IsNull()) ? Hero->Wheel.LoadSynchronous() : nullptr;
-	if (Hero && Hero->HasBody() && !HeroBody)
+	// The art this car wears. The actor's own Hero Assets is an OVERRIDE
+	// and wins; whatever it leaves empty is filled from the
+	// per-silhouette table in GRNHeroArt.cpp. On a project that has
+	// imported nothing the table fills nothing, and every car below is
+	// the primitive it always was.
+	//
+	// A local copy rather than reading through `Hero`, so the table can
+	// supply art to an actor that set none — and so the slot reads later
+	// on cannot dereference a null Hero.
+	FGRNHeroAssets Art;
+	if (Hero) { Art = *Hero; }
+	GRNHeroArt::ApplyDefaults(Style, Art);
+
+	// Loaded here and not before, so a project that never imported any
+	// still builds and cooks; a reference that fails to load falls
+	// through to the primitives with a warning rather than an invisible
+	// car.
+	UStaticMesh* HeroBody = Art.HasBody() ? Art.Body.LoadSynchronous() : nullptr;
+	UStaticMesh* HeroWheel = !Art.Wheel.IsNull() ? Art.Wheel.LoadSynchronous() : nullptr;
+	if (Art.HasBody() && !HeroBody)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("GRNCarFactory: hero body %s did not load; building primitives"),
-			*Hero->Body.ToString());
+			*Art.Body.ToString());
+	}
+	// Symmetric with the body above. This was silent, so a wheel that
+	// failed to load left a hero body sitting on primitive cylinders with
+	// nothing anywhere saying why.
+	if (!Art.Wheel.IsNull() && !HeroWheel)
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("GRNCarFactory: hero wheel %s did not load; keeping the primitive cylinders"),
+			*Art.Wheel.ToString());
 	}
 
 	// Web-build proportions × the 1.12 presence factor. Forward = +X.
@@ -165,14 +188,26 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 		const float Fit = Size.X > 1.f ? (BodyLen * 100.f) / Size.X : 1.f;
 		Shell->SetRelativeScale3D(FVector(Fit));
 		Shell->SetRelativeLocation(FVector(-Bounds.GetCenter().X * Fit, -Bounds.GetCenter().Y * Fit, -Bounds.Min.Z * Fit));
-		if (Hero->PaintSlot >= 0 && Hero->PaintSlot < Shell->GetNumMaterials() && Rig.PaintMid)
+		// A dynamic instance OF THE MATERIAL THE ART ALREADY HAS, rather
+		// than the engine-cube MID made at the top of this function.
+		// CreateDynamicMaterialInstance parents the instance to whatever
+		// occupies the slot, so every map the import was authored with
+		// survives and only the named parameter moves. What this used to
+		// do — SetMaterial with the cube MID — threw the import away and
+		// rendered a scanned car flat engine grey. Runs after
+		// SetStaticMesh, because the slot belongs to the mesh.
+		Rig.PaintMid = (Art.PaintSlot >= 0 && Art.PaintSlot < Shell->GetNumMaterials())
+			? Shell->CreateDynamicMaterialInstance(Art.PaintSlot)
+			: nullptr;
+		Rig.PaintParam = Art.PaintParam;
+		if (Rig.PaintMid && !Rig.PaintParam.IsNone())
 		{
-			Shell->SetMaterial(Hero->PaintSlot, Rig.PaintMid);
+			Rig.PaintMid->SetVectorParameterValue(Rig.PaintParam, Paint);
 		}
-		if (Hero->TailSlot >= 0 && Hero->TailSlot < Shell->GetNumMaterials() && Rig.TailMid)
-		{
-			Shell->SetMaterial(Hero->TailSlot, Rig.TailMid);
-		}
+		Rig.TailMid = (Art.TailSlot >= 0 && Art.TailSlot < Shell->GetNumMaterials())
+			? Shell->CreateDynamicMaterialInstance(Art.TailSlot)
+			: nullptr;
+		Rig.TailParam = Art.TailParam;
 		Shell->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	else
@@ -265,9 +300,15 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 		bAttackKit ? Mid(Parent, FLinearColor(0.38f, 0.22f, 0.07f)) : Dark;
 	const float WzF = (bZX ? 1.52f : bGTR ? 1.45f : 1.42f) * K;
 	const float WzR = -(bZX ? 1.48f : bGTR ? 1.45f : 1.42f) * K;
+	// A body baked out of a skeletal vehicle rig already has its wheels
+	// in it — they were bones on the skeleton — so building four more
+	// puts a second set inside the arches. Rig.Wheels then stays empty,
+	// which SpinWheels and the teardown in BuildRig both handle.
+	const bool bSkipWheels = HeroBody && Art.bBodyHasWheels;
 	for (const FVector2D& W : { FVector2D(WzF, -0.94f * K), FVector2D(WzF, 0.94f * K),
 	                            FVector2D(WzR, -0.94f * K), FVector2D(WzR, 0.94f * K) })
 	{
+		if (bSkipWheels) break;
 		UStaticMeshComponent* Wheel = NewObject<UStaticMeshComponent>(Parent);
 		Wheel->RegisterComponent();
 		Wheel->AttachToComponent(AttachTo, FAttachmentTransformRules::KeepRelativeTransform);
@@ -289,9 +330,9 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 			const float Fit =
 				Size.Z > 1.f ? (2.f * GRN_TYRE_RADIUS_M * K * 100.f) / Size.Z : 1.f;
 			Wheel->SetRelativeScale3D(FVector(Fit, W.Y < 0.f ? -Fit : Fit, Fit));
-			if (Hero->WheelSlot >= 0 && Hero->WheelSlot < Wheel->GetNumMaterials())
+			if (Art.WheelSlot >= 0 && Art.WheelSlot < Wheel->GetNumMaterials())
 			{
-				Wheel->SetMaterial(Hero->WheelSlot, WheelMat);
+				Wheel->SetMaterial(Art.WheelSlot, WheelMat);
 			}
 		}
 		else
@@ -360,9 +401,15 @@ void GRNCarFactory::SpinWheels(const FGRNCarRig& Rig, float SpeedMs, float Dt)
 
 void GRNCarFactory::SetBraking(const FGRNCarRig& Rig, bool bBraking)
 {
-	if (Rig.TailMid)
+	// The parameter the rig recorded, not a name typed here: `Color` is
+	// right for the primitive lens because the engine's basic-shape
+	// material declares it, and is almost certainly wrong for an
+	// imported one. None means nobody has said what this art calls its
+	// lamp colour, and a brake flare that silently does nothing is worse
+	// than one that visibly does not exist.
+	if (Rig.TailMid && !Rig.TailParam.IsNone())
 	{
-		Rig.TailMid->SetVectorParameterValue(TEXT("Color"),
+		Rig.TailMid->SetVectorParameterValue(Rig.TailParam,
 			bBraking ? FLinearColor(3.5f, 0.12f, 0.12f) : FLinearColor(0.6f, 0.05f, 0.05f));
 	}
 }

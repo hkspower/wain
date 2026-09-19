@@ -105,6 +105,27 @@ const scripts = pkg.scripts ?? {};
     if (/(^|\/)[\w.-]*-tmp\.(mjs|js|py|ts)$/.test(f)) {
       bad(`${f} is a scratch file and it is committed — delete it, .gitignore already has the pattern`);
     }
+    // Licensed art must never be committed. Fab's standard licence lets
+    // an asset ship in a packaged build and not in a repository, and the
+    // UE project is code-only on purpose — "there are no binary .uassets
+    // in the repo" is the README's first claim about it. An ignore rule
+    // cannot enforce that by itself, because it does nothing about a
+    // file already tracked, so the rule is asserted here.
+    if (/\.(uasset|umap)$/i.test(f)) {
+      bad(`${f} is binary art and it is committed — Fab's licence does not permit it in this repository`);
+    }
+    if (/^unreal\/Content\//.test(f)) {
+      bad(`${f} is imported content and it is committed — unreal/Content/ is ignored for licence reasons`);
+    }
+  }
+  // …and the ignore itself, so deleting it is caught rather than
+  // silently re-opening the door.
+  try {
+    if (!/^Content\/$/m.test(readFileSync("unreal/.gitignore", "utf8"))) {
+      bad("unreal/.gitignore no longer ignores Content/ — an imported Fab pack would be offered for commit");
+    }
+  } catch {
+    bad("unreal/.gitignore is missing, so imported art is not ignored");
   }
 }
 
@@ -185,6 +206,19 @@ if (process.argv.includes("--self-test")) {
       /(^|\/)[\w.-]*-tmp\.(mjs|js|py|ts)$/.test("shot3-tmp.mjs") ? "shot3-tmp.mjs caught" : null],
     ["!a real file is not scratch", () =>
       /(^|\/)[\w.-]*-tmp\.(mjs|js|py|ts)$/.test("tools/shots/cardthumbs.mjs") ? "fired on a real tool" : null],
+    // Licensed art. The rule exists because an imported Fab pack lands
+    // in unreal/Content/ and the first git status after an import offers
+    // the whole thing for commit.
+    ["binary art tracked", () =>
+      /\.(uasset|umap)$/i.test("unreal/Content/VehicleVarietyPack/Meshes/SM_SUV.uasset")
+        ? "a .uasset caught" : null],
+    ["imported content tracked", () =>
+      /^unreal\/Content\//.test("unreal/Content/VehicleVarietyPack/Anything.txt")
+        ? "a file under unreal/Content/ caught" : null],
+    ["!port source is not binary art", () =>
+      /\.(uasset|umap)$/i.test("unreal/Source/GulfRoadNights/GRNHeroArt.cpp") ||
+      /^unreal\/Content\//.test("unreal/Source/GulfRoadNights/GRNHeroArt.cpp")
+        ? "fired on a source file" : null],
     ["undocumented directory", () => {
       const named = new Set(["src", "tests"]);
       const onDisk = ["src", "tests", "brandnew"];
