@@ -16,6 +16,7 @@
  *  4. **الكابتن كابتن.** مجموعته مدمجة بلا صلاحيات إدارية، فلا تتغيّر قواعد
  *     التوصيل والاعتماد والموقع بتحرير مجموعة.
  */
+const ar = require('arabic-kit');
 const { db, now } = require('./db');
 const { badRequest, forbidden, notFound } = require('./lib/http');
 
@@ -88,7 +89,10 @@ function can(agent, perm) {
 function require_(agent, perm, what) {
   if (can(agent, perm)) return;
   const label = PERMISSIONS[perm] ? PERMISSIONS[perm].label : perm;
-  throw forbidden(`${what || 'هذا الإجراء'} يحتاج صلاحية «${label}»`);
+  /* الفاعل هنا متغيّر الجنس: «قراءة الطلب المنطوق» مؤنّثة و«تسعير الطلب»
+     مذكّر، فأيّ فعلٍ يُسند إليه يخطئ في نصف الرسائل. فالصلاحية هي المبتدأ
+     وما يحتاجها يجرّه حرفٌ — فتستقيم الجملة مع كلّ إجراء. */
+  throw forbidden(`صلاحية «${label}» مطلوبة ل${what || 'هذا الإجراء'}`);
 }
 
 function listGroups() {
@@ -199,7 +203,9 @@ function deleteGroup(actor, id) {
   if (g.builtin) throw badRequest('المجموعتان المدمجتان لا تُحذفان');
   const members = db.prepare('SELECT COUNT(*) AS n FROM agents WHERE group_id = ?').get(id).n;
   /* الحذف لا ينقل أحدًا صامتًا إلى مجموعة أخرى: النقل قرارٌ يُتّخذ لا أثرٌ جانبيّ */
-  if (members > 0) throw badRequest(`في المجموعة ${members} حسابًا — انقلهم أولًا`);
+  /* «${members} حسابًا» صيغةُ ١١–٩٩ وحدها: «في المجموعة ٣ حسابًا» خطأ،
+     و«انقلهم» ضميرُ عاقل والحساب غير عاقل. الحزمة تختار الصيغة بالعدد. */
+  if (members > 0) throw badRequest(`في المجموعة ${ar.plural(members, 'account')} — انقلها أوّلًا`);
   db.prepare('DELETE FROM groups WHERE id = ?').run(id);
   return { deleted: true };
 }

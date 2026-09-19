@@ -398,7 +398,8 @@ const ICON_X = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" ' +
     list.innerHTML = ctx.voice_notes.map((v) => `
       <li>
         <span class="lk-voice__ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 14v-2a8 8 0 0 1 16 0v2"/><path fill="currentColor" d="M3 14h3v6H4.5A1.5 1.5 0 0 1 3 18.5V14ZM18 14h3v4.5a1.5 1.5 0 0 1-1.5 1.5H18v-6Z"/></svg></span>
-        <span>ملاحظة ${esc(AR.plural(Math.round(v.seconds), 'second'))}</span>
+        <!-- «ملاحظة ثانيتين» لا «ثانيتان»: المدّة مضافٌ إليه مجرور -->
+        <span>ملاحظة ${esc(AR.plural(Math.round(v.seconds), 'second', { case: 'oblique' }))}</span>
         <span class="muted">${esc(AR.since(v.created_at))}</span>
       </li>`).join('');
   }
@@ -424,7 +425,7 @@ const ICON_X = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" ' +
     box.innerHTML = `
       <form class="lk-outform" id="lkOutF">
         <label class="field">
-          <span>${need ? esc(need) : 'ملاحظة (اختياري)'}</span>
+          <span>${need ? esc(need) : 'ملاحظة (اختيارية)'}</span>
           <textarea name="note" rows="2" maxlength="500"
                     ${need ? 'required' : ''}></textarea>
         </label>

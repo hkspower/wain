@@ -421,7 +421,7 @@
       const d = r.data || {};
       const body = [];
 
-      /* السياسة تُعرض بمصدرها وبما إن كان النظام يفرضها.
+      /* السياسة تُعرض بمصدرها وبما إذا كان النظام يفرضها.
          «مفروض» يعني أن النظام يحرسه، و«غير مفروض» يعني أن حراسته على
          الموظّف — ولو خُلط الاثنان ترك الحراسة ظنًّا أنها مكفولة. */
       if (d.policy) {
@@ -1033,7 +1033,7 @@
   async function fillNearest(box, order, select) {
     const setPin = () => `
       <p class="near__hint">
-        الصق موقع الزبون (رابط خرائط أو إحداثيتين) ليقترح النظام الأقرب:
+        ألصق موقع الزبون (رابط خرائط أو إحداثيتين) ليقترح النظام الأقرب:
       </p>
       <div class="near__pin">
         <input type="text" id="pinInput" placeholder="29.3759, 47.9774 أو رابط خرائط"
@@ -1313,7 +1313,7 @@
       ${countOf('under_test') > 0 && !filter ? `
         <p class="notice notice--warn">
           ${count(countOf('under_test'), 'account')} تحت التجربة بانتظار قرارك.
-          ${cap > 0 ? `سقف الطلبات النشطة لكل واحد منهم ${count(cap, 'order')}.` : ''}
+          ${cap > 0 ? `سقف الطلبات النشطة للحساب الواحد ${count(cap, 'order')}.` : ''}
         </p>` : ''}
 
       <div class="card">
@@ -1416,7 +1416,10 @@
         </form>
 
         ${cap > 0 && cur === 'under_test'
-          ? `<p class="approval__hint">تحت التجربة: سقف ${count(cap, 'order')} نشطة في وقت واحد.</p>` : ''}
+          /* «سقف» مضاف، فما بعده مجرور والصفة تتبعه: «سقف طلبين نشطين» لا
+             «سقف طلبان نشطة». وصفةٌ ثابتة تخطئ مع كلّ عددٍ سوى ٣–١٠، والسقف
+             يُضبط من البيئة فيقع على غيرها. */
+          ? `<p class="approval__hint">تحت التجربة: سقف ${AR.describe(cap, 'order', 'active', { case: 'oblique' })} في وقت واحد.</p>` : ''}
 
         <h4 class="approval__h">سجل القرارات</h4>
         <ol class="approval__log">
@@ -2149,7 +2152,9 @@
             const r = await api('/me/location-history', { method: 'DELETE' });
             state.loc = r;
             closeModal();
-            toast('حُذفت ' + ar(r.deleted) + ' نقطة', 'ok');
+            /* «نقطة» ثابتةً تكسر مع كلّ عددٍ إلّا الواحد: «حُذفت ٥ نقطة».
+               والصفر لا يُقال «لا نقاط» في سياق الإخبار بالحذف. */
+            toast(r.deleted ? 'حُذفت ' + count(r.deleted, 'point') : 'لا نقاط لتُحذف', 'ok');
             await renderLocation();
           } catch (err) { toast(err.message, 'bad'); }
         });

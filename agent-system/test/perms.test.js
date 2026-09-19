@@ -132,7 +132,8 @@ test('المجموعة ذات الأعضاء لا تُحذف صامتةً', () =
   const g = P.createGroup(owner, { name: 'فيها أحد', perms: [] });
   db.prepare('UPDATE agents SET group_id = ? WHERE id = ?').run(g.id, staffId);
   /* الحذف لا ينقل أحدًا صامتًا إلى مجموعة أخرى: النقل قرارٌ لا أثرٌ جانبيّ */
-  assert.throws(() => P.deleteGroup(owner, g.id), /انقلهم أولًا/);
+  /* «انقلها» لا «انقلهم»: الحساب غير عاقل، وعدده يُصاغ بالحزمة لا بيد */
+  assert.throws(() => P.deleteGroup(owner, g.id), /حساب واحد — انقلها أوّلًا/);
   db.prepare('UPDATE agents SET group_id = (SELECT id FROM groups WHERE key=?) WHERE id = ?')
     .run('admin', staffId);
   assert.deepEqual(P.deleteGroup(owner, g.id), { deleted: true });

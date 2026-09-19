@@ -259,7 +259,8 @@
     const future = deltaMs < 0;
     const prefix = future ? 'بعد ' : 'قبل ';
     const mins = Math.abs(deltaMs) / 60000;
-    // «قبل» و«بعد» حرفا جر، فالمثنّى بعدهما مجرور: قبل دقيقتين لا قبل دقيقتان
+    // «قبل» و«بعد» ظرفا زمان يُضافان، فالمثنّى بعدهما مجرورٌ بالإضافة:
+    // قبل دقيقتين لا قبل دقيقتان
     const oblique = { case: 'oblique' };
 
     if (mins < 1) return 'الآن';

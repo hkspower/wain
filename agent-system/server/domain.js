@@ -59,7 +59,7 @@ const ACTIVE_STATUSES = ['assigned', 'accepted', 'picked_up', 'on_the_way'];
 /** الحالات النهائية التي لا يمكن تغييرها بعدها */
 const FINAL_STATUSES = ['delivered', 'returned', 'cancelled'];
 
-/** الانتقالات المسموحة للمندوب على طلباته */
+/** الانتقالات المسموح بها للمندوب على طلباته */
 const AGENT_TRANSITIONS = {
   assigned:   ['accepted'],
   accepted:   ['picked_up'],

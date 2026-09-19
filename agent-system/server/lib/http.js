@@ -92,7 +92,7 @@ function str(value, field, { required = true, min = 0, max = 500 } = {}) {
   const v = value == null ? '' : String(value).trim();
   if (!v && required) throw badRequest(`الحقل «${field}» مطلوب`);
   if (v && v.length < min) throw badRequest(`الحقل «${field}» قصير جدًا`);
-  if (v.length > max) throw badRequest(`الحقل «${field}» أطول من الحد المسموح`);
+  if (v.length > max) throw badRequest(`الحقل «${field}» أطول من الحدّ المسموح به`);
   return v;
 }
 
@@ -126,7 +126,7 @@ function num(value, field, { min = 0, max = 1e9, required = false } = {}) {
   }
   const n = Number(typeof value === 'string' ? ar.toLatin(value).trim() : value);
   if (!Number.isFinite(n)) throw badRequest(`الحقل «${field}» يجب أن يكون رقمًا`);
-  if (n < min || n > max) throw badRequest(`قيمة «${field}» خارج النطاق المسموح`);
+  if (n < min || n > max) throw badRequest(`قيمة «${field}» خارج النطاق المسموح به`);
   return n;
 }
 

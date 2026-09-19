@@ -213,7 +213,7 @@ function saveVoiceNote(token, buffer, mime, seconds) {
   const ext = VOICE_MIME[baseMime];
   if (!ext) throw badRequest('صيغة صوت غير مدعومة', 'voice_mime');
   if (!buffer || !buffer.length) throw badRequest('التسجيل فارغ', 'voice_empty');
-  if (buffer.length > VOICE_MAX_BYTES) throw badRequest('التسجيل أكبر من الحد المسموح', 'voice_too_big');
+  if (buffer.length > VOICE_MAX_BYTES) throw badRequest('التسجيل أكبر من الحدّ المسموح به', 'voice_too_big');
 
   const used = db.prepare(
     'SELECT COUNT(*) AS n, COALESCE(SUM(bytes), 0) AS total FROM voice_notes WHERE order_id = ?'
