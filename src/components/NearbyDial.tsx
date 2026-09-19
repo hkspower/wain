@@ -5,9 +5,7 @@ import Link from "next/link";
 import CategoryIcon from "@/components/CategoryIcon";
 import { IconGo, IconLocate, IconPinSolid } from "@/components/icons";
 import {
-  PLACES_COUNT,
   categoryGradient,
-  countAr,
   distanceKm,
   getCategory,
   places,
@@ -44,7 +42,7 @@ export default function NearbyDial() {
   const nearby = ranked.filter((p) => p.km <= RADIUS_KM);
   const shown = (nearby.length > 0 ? nearby : ranked).slice(0, MAX_SHOWN);
 
-  function useMyLocation() {
+  function locateMe() {
     setGeoError(null);
 
     // Geolocation is only available in a secure context; on plain http it
@@ -94,8 +92,10 @@ export default function NearbyDial() {
 
   return (
     <div className="flex flex-col items-center">
-      {/* The dial. Tapping it just reveals places — it does not ask for
-          permission, so no browser prompt appears unprompted. */}
+      {/* The dial. Tapping it reveals places AND asks for location in the
+          same gesture — a tap is the user gesture the permission prompt
+          needs, so firing it here rather than on a second, separate button
+          means the device asks right away instead of after an extra step. */}
       <div className="relative">
         <span
           aria-hidden="true"
@@ -127,7 +127,10 @@ export default function NearbyDial() {
         </svg>
         <button
           type="button"
-          onClick={() => setOpened(true)}
+          onClick={() => {
+            setOpened(true);
+            locateMe();
+          }}
           aria-expanded={opened}
           // The ambient glow underneath is amber, not the @theme shadow
           // scale's ink tint — an ink-tinted shadow under a sun-200→400
@@ -155,14 +158,7 @@ export default function NearbyDial() {
 
       {opened && (
         <div className="mt-6 w-full max-w-xl rounded-3xl border border-line bg-white/95 p-4 shadow-lg backdrop-blur">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-semibold text-ink-800">
-              {/* "حواليك" is a preposition, so it agrees with every count
-                  form — unlike an adjective, which would need to inflect. */}
-              {nearby.length > 0
-                ? `${countAr(nearby.length, PLACES_COUNT)} ${origin ? "حواليك" : "في وسط الكويت"}`
-                : "أقرب الأماكن لك"}
-            </p>
+          <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
             {origin ? (
               <span className="flex items-center gap-1 rounded-full bg-palm-500/10 px-2.5 py-1 text-xs font-semibold text-palm-600">
                 <IconPinSolid className="size-3.5" />
@@ -171,7 +167,7 @@ export default function NearbyDial() {
             ) : (
               <button
                 type="button"
-                onClick={useMyLocation}
+                onClick={locateMe}
                 disabled={locating}
                 className="flex items-center gap-1.5 rounded-full bg-sea-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-sea-800 disabled:opacity-70"
               >
