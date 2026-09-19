@@ -505,6 +505,11 @@ export interface EngineEvents {
   /** The pad's paint button, pressed in the painter's bay with the car
    *  stopped: the UI opens the picker. */
   onPaintRequest?(): void;
+  /** The pad's size-up button. Fired unconditionally on the button edge,
+   *  the same as the Tab key: the UI calls sizeUpRival() itself and it
+   *  self-gates (range, battle, cinematic), so there is one place that
+   *  decides who can be read rather than two that have to agree. */
+  onSizeUpRequest?(): void;
   /** Fired the moment a battle begins — drives the VS splash. */
   onBattleStart?(rival: RivalDef): void;
   /** Three flashes landed: both cars revealed, race setup opens. */
@@ -3269,6 +3274,7 @@ export class GameEngine {
       this.pad.drift = gp.buttons[PAD.drift]?.pressed ?? false;
       if (edge(PAD.flash)) this.tryFlash();
       if (edge(PAD.paint) && this.painterState?.ready) this.events.onPaintRequest?.();
+      if (edge(PAD.sizeUp)) this.events.onSizeUpRequest?.();
       const hornNow = gp.buttons[PAD.horn]?.pressed ?? false;
       if (hornNow && !this.padButtons[PAD.horn]) this.sound?.hornOn();
       if (!hornNow && this.padButtons[PAD.horn]) this.sound?.hornOff();

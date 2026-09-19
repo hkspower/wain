@@ -34,7 +34,7 @@ export function padBrand(id: string | null | undefined): PadBrand {
 }
 
 export interface PadAction {
-  id: "steer" | "throttle" | "brake" | "nos" | "drift" | "flash" | "horn" | "paint" | "pause";
+  id: "steer" | "throttle" | "brake" | "nos" | "drift" | "flash" | "horn" | "paint" | "sizeUp" | "pause";
   /** What it does, in the player's words. */
   does: string;
   kind: "axis" | "button";
@@ -53,6 +53,11 @@ export const PAD_ACTIONS: readonly PadAction[] = [
   { id: "drift",    does: "Drift / handbrake", kind: "button", index: 1, label: { playstation: "○",   xbox: "B",    generic: "Button 2" } },
   { id: "flash",    does: "Flash to challenge", kind: "button", index: 2, label: { playstation: "□",   xbox: "X",    generic: "Button 3" } },
   { id: "horn",     does: "Horn",              kind: "button", index: 4, label: { playstation: "L1",  xbox: "LB",   generic: "Left bumper" } },
+  // The one bumper the horn left free. Reading the driver alongside is
+  // the hand-off to Tab on a keyboard, and a bumper is the shoulder
+  // button a thumb reaches without leaving the stick — the same reason
+  // horn sits on its pair.
+  { id: "sizeUp",   does: "Size up the driver", kind: "button", index: 5, label: { playstation: "R1",  xbox: "RB",   generic: "Right bumper" } },
   { id: "paint",    does: "Paint shop",        kind: "button", index: 3, label: { playstation: "△",   xbox: "Y",    generic: "Button 4" } },
   { id: "pause",    does: "Pause / skip",      kind: "button", index: 9, label: { playstation: "Options", xbox: "Menu", generic: "Start" } },
 ] as const;

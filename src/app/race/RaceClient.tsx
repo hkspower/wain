@@ -1794,6 +1794,9 @@ function raceCut(): { w: number; h: number } | null {
         onHud,
         onMessage: showMessage,
         onPaintRequest: () => setPainterOpen(true),
+        // Same toggle the Tab key runs: press again to put the driver
+        // away, since a controller has no Escape to fall back on.
+        onSizeUpRequest: () => setDossier((cur) => (cur ? null : engineRef.current?.sizeUpRival() ?? null)),
         onBump: () => {
           haptic(HAPTIC.impact, loadSettings().haptics);
           const el = canvasRef.current;
@@ -2811,7 +2814,7 @@ function raceCut(): { w: number; h: number } | null {
             onClick={() => setDossier(engineRef.current?.sizeUpRival() ?? null)}
             className="grn-info pointer-events-auto px-3 py-1.5 font-display text-xs tracking-[0.08em]"
           >
-            TAB · SIZE UP THE DRIVER
+            {isTouch ? "SIZE UP THE DRIVER" : "TAB · RB · SIZE UP THE DRIVER"}
           </button>
         </div>
       )}
@@ -2840,17 +2843,31 @@ function raceCut(): { w: number; h: number } | null {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="grn-info-key text-2xs">
-                  Legend {dossier.order} of {dossier.total} · {dossier.country}
+                  Legend {dossier.order} of {dossier.total} · <Flag code={dossier.flag} /> {dossier.country}
                 </div>
                 <div className="grn-display truncate text-3xl leading-none">{dossier.name}</div>
                 <div className="grn-ar mt-1 text-lg leading-none" lang="ar">
                   {dossier.arabicName}
                 </div>
               </div>
-              <span
-                className="mt-1 size-8 shrink-0 border-2 border-black"
-                style={{ backgroundColor: `#${dossier.color.toString(16).padStart(6, "0")}` }}
-              />
+              {/* The crew's own emblem where the challenge card already
+                  wears it — this panel just never picked it up. The one
+                  nameless crew (the Ghost of the Gulf) carries no crest
+                  by design, so it keeps the flat colour square instead
+                  of drawing an emblem that would be a lie. */}
+              {dossier.crest ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={teamLogoDataUrl(dossier.crest, 96, crewInitials(dossier.crew))}
+                  alt=""
+                  className="mt-1 size-11 shrink-0 border border-black"
+                />
+              ) : (
+                <span
+                  className="mt-1 size-8 shrink-0 border-2 border-black"
+                  style={{ backgroundColor: `#${dossier.color.toString(16).padStart(6, "0")}` }}
+                />
+              )}
             </div>
 
             <div className="grn-info-rule mt-4 grid grid-cols-2 gap-x-5 gap-y-3 border-t pt-4">
