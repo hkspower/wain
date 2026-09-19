@@ -11,7 +11,7 @@ import { press } from '@/components/ui/press';
 import { Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { adminApi, Unauthorized, type Discount, type DiscountDraft } from '@/lib/admin';
-import { formatPrice, toFils, toKwd } from '@/lib/money';
+import { filsToInput, formatPrice, parseAmount, parseCount, toFils } from '@/lib/money';
 import { useSession } from '@/lib/session';
 
 const BLANK: DiscountDraft = {
@@ -68,6 +68,41 @@ export default function PromosScreen() {
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<DiscountDraft | null>(null);
 
+  /**
+   * THE THREE NUMERIC FIELDS HOLD TEXT, NOT NUMBERS — and this is a bug fix,
+   * not a refactor.
+   *
+   * They used to parse on every keystroke and store the result:
+   *
+   *     value={String(toKwd(draft.value))}
+   *     onChangeText={(v) => setDraft({ ...draft, value: toFils(Number(...) || 0) })}
+   *
+   * So the box always showed a number derived from a number. Typing "1" gave
+   * 1.000; typing the "." after it gave Number("1.") === 1, which renders as
+   * "1" again — THE DECIMAL POINT DISAPPEARED AS IT WAS TYPED. A fixed-amount
+   * promotion of 1.500 KD could not be entered at all, on the one screen in
+   * this panel where a wrong number costs money.
+   *
+   * The `|| 0` made it worse in the other direction: anything unparseable
+   * became a silent zero rather than a refusal, so a slip produced a working
+   * promotion with the wrong value rather than an error.
+   *
+   * Text in, parsed once at save, refused by name if it will not parse.
+   */
+  const [text, setText] = useState({ value: '', minOrder: '', usageLimit: '' });
+
+  /** Open the editor on a promotion, seeding the text boxes from its numbers.
+   *  One place, so a new field cannot be added to one opener and not the other. */
+  const openDraft = (d: DiscountDraft) => {
+    setDraft(d);
+    setText({
+      value: d.type === 'percent' ? String(d.value) : filsToInput(d.value),
+      minOrder: d.minOrder > 0 ? filsToInput(d.minOrder) : '',
+      usageLimit: d.usageLimit > 0 ? String(d.usageLimit) : '',
+    });
+    setNotice(null);
+  };
+
   const load = useCallback(() => {
     if (!token) return;
     setLoading(true);
@@ -121,15 +156,37 @@ export default function PromosScreen() {
 
   const save = () => {
     if (!draft) return;
-    const bad = problem(draft);
+
+    // PARSED ONCE, HERE, where a refusal can name the field. parseAmount and
+    // parseCount return null rather than zero for anything they cannot read,
+    // which is the difference between telling the owner "that is not a number"
+    // and quietly saving a promotion worth nothing. Both read Arabic-Indic
+    // digits, so a number typed on an Arabic keyboard arrives intact.
+    const value = draft.type === 'percent' ? parseCount(text.value) : parseAmount(text.value);
+    if (value === null) {
+      return setNotice(draft.type === 'percent'
+        ? 'The percentage has to be a whole number, like 15.'
+        : 'The amount has to be an amount in KWD, like 1.500.');
+    }
+    const minOrder = text.minOrder.trim() === '' ? 0 : parseAmount(text.minOrder);
+    if (minOrder === null) {
+      return setNotice('The minimum order has to be an amount in KWD, like 5.000 — or empty for none.');
+    }
+    const usageLimit = text.usageLimit.trim() === '' ? 0 : parseCount(text.usageLimit);
+    if (usageLimit === null) {
+      return setNotice('The usage limit has to be a whole number, or empty for unlimited.');
+    }
+
+    const full: DiscountDraft = { ...draft, value, minOrder, usageLimit };
+    const bad = problem(full);
     if (bad) {
       setNotice(bad);
       return;
     }
     guard(async () => {
       await adminApi.saveDiscount({
-        ...draft,
-        code: draft.kind === 'code' ? (draft.code ?? '').trim().toUpperCase() : null,
+        ...full,
+        code: full.kind === 'code' ? (full.code ?? '').trim().toUpperCase() : null,
       });
       setDraft(null);
     });
@@ -146,38 +203,55 @@ export default function PromosScreen() {
               onPress={() => setDraft({ ...draft, kind: 'auto', code: null })} />
           </View>
 
+          {/* CHARACTERS, not none. save() uppercases the code before it is
+              stored, so typing in lower case showed the owner one thing and
+              saved another — and a customer told "use code summer" is then
+              looking for a code the shop lists as SUMMER. */}
           {draft.kind === 'code' && (
             <Field
               label="Code"
               value={draft.code ?? ''}
               onChangeText={(v) => setDraft({ ...draft, code: v })}
-              autoCapitalize="none"
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={40}
             />
           )}
           <Field label="Label (shown on the order)" value={draft.label}
             onChangeText={(v) => setDraft({ ...draft, label: v })} />
 
           <View style={styles.row}>
+            {/* The TEXT moves with the type, or switching from 15 percent to a
+                fixed amount leaves "15" in the box now meaning fifteen dinars. */}
             <Chip label="Percent" active={draft.type === 'percent'} role="radio"
-              onPress={() => setDraft({ ...draft, type: 'percent', value: 10 })} />
+              onPress={() => {
+                setDraft({ ...draft, type: 'percent', value: 10 });
+                setText((t) => ({ ...t, value: '10' }));
+              }} />
             <Chip label="Fixed KWD" active={draft.type === 'fixed'} role="radio"
-              onPress={() => setDraft({ ...draft, type: 'fixed', value: toFils(1) })} />
+              onPress={() => {
+                setDraft({ ...draft, type: 'fixed', value: toFils(1) });
+                setText((t) => ({ ...t, value: filsToInput(toFils(1)) }));
+              }} />
           </View>
 
           <Field
             label={draft.type === 'percent' ? 'Percent off (1–90)' : 'Amount off, KWD'}
-            value={draft.type === 'percent' ? String(draft.value) : String(toKwd(draft.value))}
-            keyboardType="decimal-pad"
-            onChangeText={(v) => {
-              const n = Number(v.replace(/[^\d.]/g, '')) || 0;
-              setDraft({ ...draft, value: draft.type === 'percent' ? Math.round(n) : toFils(n) });
-            }}
+            value={text.value}
+            // number-pad for a percentage: it is a whole number, and offering a
+            // decimal point invites one the server will refuse.
+            keyboardType={draft.type === 'percent' ? 'number-pad' : 'decimal-pad'}
+            selectTextOnFocus
+            placeholder={draft.type === 'percent' ? '15' : '1.500'}
+            onChangeText={(v) => setText((t) => ({ ...t, value: v }))}
           />
           <Field
-            label="Minimum order, KWD (0 = none)"
-            value={String(toKwd(draft.minOrder))}
+            label="Minimum order, KWD (empty = none)"
+            value={text.minOrder}
             keyboardType="decimal-pad"
-            onChangeText={(v) => setDraft({ ...draft, minOrder: toFils(Number(v.replace(/[^\d.]/g, '')) || 0) })}
+            selectTextOnFocus
+            placeholder="none"
+            onChangeText={(v) => setText((t) => ({ ...t, minOrder: v }))}
           />
           <View style={styles.row}>
             {/* numbers-and-punctuation, not number-pad: number-pad on iOS has
@@ -192,10 +266,12 @@ export default function PromosScreen() {
               onChangeText={(v) => setDraft({ ...draft, endsAt: asIsoDate(v) || null })} />
           </View>
           <Field
-            label="Usage limit (0 = unlimited)"
-            value={String(draft.usageLimit)}
+            label="Usage limit (empty = unlimited)"
+            value={text.usageLimit}
             keyboardType="number-pad"
-            onChangeText={(v) => setDraft({ ...draft, usageLimit: Number(v.replace(/\D/g, '')) || 0 })}
+            selectTextOnFocus
+            placeholder="unlimited"
+            onChangeText={(v) => setText((t) => ({ ...t, usageLimit: v }))}
           />
 
           <Button label={busy ? 'Saving…' : 'Save'} onPress={save} busy={busy} style={styles.save} />
@@ -207,7 +283,7 @@ export default function PromosScreen() {
 
   return (
     <AdminShell title="Promotions" loading={loading} error={error} notice={notice} onRetry={load}>
-      <Button label="New promotion" onPress={() => setDraft({ ...BLANK })} style={styles.save} />
+      <Button label="New promotion" onPress={() => openDraft({ ...BLANK })} style={styles.save} />
 
       {rows && rows.length === 0 ? (
         <ThemedText type="label" themeColor="textSecondary" style={styles.empty}>
@@ -254,7 +330,7 @@ export default function PromosScreen() {
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => setDraft({ ...d })}
+                  onPress={() => openDraft({ ...d })}
                   style={press(true, styles.action)}>
                   <ThemedText type="labelBold" themeColor="tintText">Edit</ThemedText>
                 </Pressable>

@@ -42,30 +42,34 @@
   var loaded = null
   var busySave = false
 
+  /* THE HINTS ARE DELIBERATELY TERSE. panel-cards-test.mjs caps the Settings
+     screen's prose, because this screen has filled up with explanation twice
+     before and been trimmed for it. The reasoning behind each colour is in
+     this file's header, where it costs the owner nothing to scroll past. */
   var FIELDS = [
     {
       key: 'brand', label: 'Brand', shipped: '#e0561c', on: '#ffffff',
-      hint: 'Every primary button, chip and badge. Forty-eight compiled rules follow it.',
+      hint: 'Buttons, chips and badges.',
       presets: ['#e0561c', '#b8430f', '#1f6feb', '#2f6f4e'],
     },
     {
       key: 'header_bg', label: 'Header bar', shipped: '#2b2b2b', on: '#ffffff',
-      hint: 'The strip along the top of every page. White text sits on it.',
+      hint: 'The top strip. White text on it.',
       presets: ['#2b2b2b', '#14161a', '#363d45', '#e0561c'],
     },
     {
       key: 'tabbar_bg', label: 'Tab bar', shipped: '#ffffff', onKey: 'tabbar_active',
-      hint: 'The bar along the bottom on a phone. Its hairline and its inactive labels are worked out from this colour.',
+      hint: 'The phone bar. Its labels follow this.',
       presets: ['#ffffff', '#f2f3f5', '#14161a', '#2b3138'],
     },
     {
       key: 'tabbar_active', label: 'Tab bar — current item', shipped: '#4f46e5', onKey: 'tabbar_bg',
-      hint: 'Ships as #4f46e5 — Tailwind’s stock indigo, not a Sporta colour. This bar has never followed the brand.',
+      hint: 'Ships as Tailwind indigo, not a Sporta colour.',
       presets: ['#e0561c', '#ff7b17', '#4f46e5', '#14161a'],
     },
     {
       key: 'secondary_bg', label: 'Secondary button', shipped: '#a6acb2', on: '#171a1e',
-      hint: 'Badges, the active filter chip and the outlined buttons, on the dark theme. Ink is printed on it.',
+      hint: 'Badges and outlined buttons, dark theme.',
       presets: ['#a6acb2', '#e0561c', '#ff7b17', '#eaecee'],
     },
   ]
@@ -310,8 +314,7 @@
   function build() {
     card.textContent = ''
     card.appendChild(el('h3', 'stc-h', 'Buttons and bars'))
-    card.appendChild(el('p', 'stc-sub',
-      'Leave a colour empty to keep what the shop was built with. Empty never blanks anything, and clearing is the way back from a change you did not like.'))
+    card.appendChild(el('p', 'stc-sub', 'Empty keeps what the shop was built with.'))
 
     FIELDS.forEach(function (f) { card.appendChild(row(f)) })
 

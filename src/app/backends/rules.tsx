@@ -9,6 +9,7 @@ import { Chip } from '@/components/ui/chip';
 import { Field } from '@/components/ui/field';
 import { Spacing } from '@/constants/theme';
 import { adminApi, Unauthorized, type ShopRules } from '@/lib/admin';
+import { filsToInput, parseAmount, parseCount } from '@/lib/money';
 import { useSession } from '@/lib/session';
 
 /**
@@ -41,22 +42,20 @@ import { useSession } from '@/lib/session';
  * server's unit is integer fils, like every price in this shop.
  */
 
-/** fils → the three-decimal KWD string this shop writes everywhere. */
-const toKwd = (fils: number) => (fils / 1000).toFixed(3);
-
-/** A KWD string → integer fils, or null if it is not a number the shop can
- *  store. A comma decimal is accepted because that is what an Arabic keyboard
- *  offers; refusing it would make the field look broken. */
-const toFils = (text: string): number | null => {
-  const raw = text.trim().replace(',', '.');
-  if (!/^\d+(\.\d{1,3})?$/.test(raw)) return null;
-  return Math.round(parseFloat(raw) * 1000);
-};
-
-const toCount = (text: string): number | null => {
-  const raw = text.trim();
-  return /^\d+$/.test(raw) ? parseInt(raw, 10) : null;
-};
+/* THE PARSERS MOVED TO lib/money.ts, and this is where they came from.
+ *
+ * This screen had the only correct ones in the panel — strict, three-decimal
+ * aware, refusing rather than coercing — while products.tsx used a bare
+ * Number() that rounded a fourth decimal away and promos.tsx used `|| 0`,
+ * which turned anything unreadable into a silent zero. Three screens, three
+ * answers to "what is a price".
+ *
+ * They are one home now, next to formatPrice, which is the function whose
+ * output they have to be able to read back. That proximity is the point: the
+ * formatter has always WRITTEN Arabic-Indic digits and nothing could parse
+ * them, so a price shown in the shop's default language could not be typed in
+ * it. Living apart is how that went unnoticed.
+ */
 
 /** admin.php refuses with a token that names the field. Printing it would make
  *  a careful message look like a crash. */
@@ -121,8 +120,8 @@ export default function RulesScreen() {
   const fill = useCallback((r: ShopRules) => {
     setRules(r);
     setText({
-      delivery_fee_fils: toKwd(r.delivery_fee_fils),
-      free_delivery_fils: toKwd(r.free_delivery_fils),
+      delivery_fee_fils: filsToInput(r.delivery_fee_fils),
+      free_delivery_fils: filsToInput(r.free_delivery_fils),
       return_days: String(r.return_days),
       cod_open_max: String(r.cod_open_max),
       review_reward_pct: String(r.review_reward_pct),
@@ -169,7 +168,7 @@ export default function RulesScreen() {
     };
 
     for (const key of ['delivery_fee_fils', 'free_delivery_fils'] as const) {
-      const fils = toFils(text[key] ?? '');
+      const fils = parseAmount(text[key] ?? '');
       if (fils === null) {
         setNote(`Check ${FIELD_NAMES[key]} — it has to be a number like 1.500.`);
         return;
@@ -178,7 +177,7 @@ export default function RulesScreen() {
     }
     for (const key of
       ['return_days', 'cod_open_max', 'review_reward_pct', 'discount_max_pct'] as const) {
-      const n = toCount(text[key] ?? '');
+      const n = parseCount(text[key] ?? '');
       if (n === null) {
         setNote(`Check ${FIELD_NAMES[key]} — it has to be a whole number.`);
         return;
@@ -237,6 +236,7 @@ export default function RulesScreen() {
             value={text.delivery_fee_fils ?? ''}
             onChangeText={(t) => setText({ ...text, delivery_fee_fils: t })}
             keyboardType="decimal-pad"
+            selectTextOnFocus
           />
           <ThemedText style={styles.hint}>0 means delivery is free for everyone.</ThemedText>
 
@@ -245,6 +245,7 @@ export default function RulesScreen() {
             value={text.free_delivery_fils ?? ''}
             onChangeText={(t) => setText({ ...text, free_delivery_fils: t })}
             keyboardType="decimal-pad"
+            selectTextOnFocus
           />
           <ThemedText style={styles.hint}>
             Orders at or above this pay no delivery. 0 turns it off.
@@ -255,6 +256,7 @@ export default function RulesScreen() {
             value={text.return_days ?? ''}
             onChangeText={(t) => setText({ ...text, return_days: t })}
             keyboardType="number-pad"
+            selectTextOnFocus
           />
           <ThemedText style={styles.hint}>
             Counted from delivery, not from the order. WARNING: the shop’s pages say
@@ -267,6 +269,7 @@ export default function RulesScreen() {
             value={text.cod_open_max ?? ''}
             onChangeText={(t) => setText({ ...text, cod_open_max: t })}
             keyboardType="number-pad"
+            selectTextOnFocus
           />
 
           <Field
@@ -274,6 +277,7 @@ export default function RulesScreen() {
             value={text.review_reward_pct ?? ''}
             onChangeText={(t) => setText({ ...text, review_reward_pct: t })}
             keyboardType="number-pad"
+            selectTextOnFocus
           />
 
           <Field
@@ -281,6 +285,7 @@ export default function RulesScreen() {
             value={text.discount_max_pct ?? ''}
             onChangeText={(t) => setText({ ...text, discount_max_pct: t })}
             keyboardType="number-pad"
+            selectTextOnFocus
           />
           <ThemedText style={styles.hint}>
             The most any combination of discounts may take off one order.

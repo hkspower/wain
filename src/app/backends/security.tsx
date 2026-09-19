@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, TextInput, View } from 'react-native';
+import { TextInput, View } from 'react-native';
 
 import { AdminShell } from '@/components/admin-shell';
 import { Button } from '@/components/ui/button';
@@ -78,20 +78,20 @@ export default function SecurityScreen() {
 
   return (
     <AdminShell title="Security" loading={loading} error={error} onRetry={load}>
+      {/* No KeyboardAvoidingView here any more: AdminShell carries one for
+          every screen in the panel, and two nested ones pad twice. */}
       {account && (
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <View style={{ gap: Spacing.four }}>
-            <ContactCard account={account} onSaved={load} />
-            <PasswordCard
-              account={account}
-              onChanged={() => {
-                passwordChanged();
-              }}
-            />
-            <TotpCard account={account} onSaved={load} />
-            <EmailCodeCard account={account} onSaved={load} />
-          </View>
-        </KeyboardAvoidingView>
+        <View style={{ gap: Spacing.four }}>
+          <ContactCard account={account} onSaved={load} />
+          <PasswordCard
+            account={account}
+            onChanged={() => {
+              passwordChanged();
+            }}
+          />
+          <TotpCard account={account} onSaved={load} />
+          <EmailCodeCard account={account} onSaved={load} />
+        </View>
       )}
     </AdminShell>
   );

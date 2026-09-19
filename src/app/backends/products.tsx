@@ -18,7 +18,7 @@ import {
   type Product,
   type ProductVariant,
 } from '@/lib/admin';
-import { formatPrice, toFils, toKwd } from '@/lib/money';
+import { filsToInput, formatPrice, normaliseDigits, parseAmount, parseCount } from '@/lib/money';
 import { useSession } from '@/lib/session';
 
 /**
@@ -124,8 +124,8 @@ export default function ProductsScreen() {
       name_ar: p.name_ar,
       desc_en: p.desc_en,
       desc_ar: p.desc_ar,
-      price: toKwd(p.price).toFixed(3),
-      salePrice: p.salePrice != null ? toKwd(p.salePrice).toFixed(3) : '',
+      price: filsToInput(p.price),
+      salePrice: p.salePrice != null ? filsToInput(p.salePrice) : '',
       category: p.category ?? '',
       brandSlug: p.brandSlug,
       active: !!p.active,
@@ -146,15 +146,20 @@ export default function ProductsScreen() {
     if (!draft.name_en.trim()) return setNotice('The English name is required.');
     if (!draft.name_ar.trim()) return setNotice('The Arabic name is required.');
     if (!draft.slug.trim()) return setNotice('An address (slug) is required.');
-    const price = Number(draft.price);
-    if (!draft.price.trim() || !Number.isFinite(price) || price <= 0) {
-      return setNotice('The price must be a number greater than zero.');
+    // parseAmount, NOT Number(). It returns integer fils or null, and it
+    // refuses rather than rounds: `Number('1.2345')` was accepted and then
+    // became 1.235 KWD at toFils, a price the owner never typed and would only
+    // find by looking. It also reads Arabic-Indic digits, which nothing in
+    // this app could do — formatPrice has always WRITTEN them.
+    const price = parseAmount(draft.price);
+    if (price === null || price <= 0) {
+      return setNotice('The price must be an amount in KWD, like 12.500.');
     }
     let salePrice: number | null = null;
     if (draft.salePrice.trim()) {
-      salePrice = Number(draft.salePrice);
-      if (!Number.isFinite(salePrice) || salePrice <= 0) {
-        return setNotice('The sale price must be a number greater than zero.');
+      salePrice = parseAmount(draft.salePrice);
+      if (salePrice === null || salePrice <= 0) {
+        return setNotice('The sale price must be an amount in KWD, like 9.750.');
       }
       if (salePrice >= price) return setNotice('The sale price must be lower than the price.');
     }
@@ -169,8 +174,9 @@ export default function ProductsScreen() {
         name_ar: draft.name_ar.trim(),
         desc_en: draft.desc_en,
         desc_ar: draft.desc_ar,
-        price: toFils(price),
-        salePrice: salePrice != null ? toFils(salePrice) : null,
+        // Already fils — parseAmount converted once, on the way in.
+        price,
+        salePrice,
         category: draft.category.trim() || null,
         brandSlug: draft.brandSlug,
         active: draft.active,
@@ -248,12 +254,14 @@ export default function ProductsScreen() {
               label="Price (KWD)"
               value={draft.price}
               keyboardType="decimal-pad"
+              selectTextOnFocus
               onChangeText={(v) => setDraft(draft && { ...draft, price: v })}
             />
             <Field
               label="Sale price (KWD) — leave empty for no sale"
               value={draft.salePrice}
               keyboardType="decimal-pad"
+              selectTextOnFocus
               onChangeText={(v) => setDraft(draft && { ...draft, salePrice: v })}
             />
             <Field
@@ -411,9 +419,18 @@ function VariantLadder({
   const saveRow = async (v: ProductVariant) => {
     const d = draft[v.sku];
     if (!d || saving) return;
-    if (!/^\d+$/.test(d.stock.trim())) return setNotice(`"${d.stock}" is not a whole number of items.`);
-    const cost = d.cost.trim();
-    if (cost !== '' && (!/^\d+(\.\d{1,2})?$/.test(cost) || Number(cost) < 0)) {
+    // parseCount rather than a bare /^\d+$/: that class is ASCII-only in
+    // JavaScript, so a count typed on an Arabic keyboard was refused as "not a
+    // whole number" while reading as one on screen.
+    const stock = parseCount(d.stock);
+    if (stock === null) return setNotice(`"${d.stock}" is not a whole number of items.`);
+    // AED, and a two-decimal currency — so NOT parseAmount, which is fils and
+    // three decimals and would multiply this by a thousand. Only the digits are
+    // normalised; the shape check is the one this column already had. (The
+    // old `|| Number(cost) < 0` went with it: the pattern cannot match a minus
+    // sign, so it was a condition that could never be true.)
+    const cost = normaliseDigits(d.cost).trim();
+    if (cost !== '' && !/^\d+(\.\d{1,2})?$/.test(cost)) {
       return setNotice(`"${d.cost}" is not a valid cost.`);
     }
     setSaving(v.sku);
@@ -422,7 +439,7 @@ function VariantLadder({
       await adminApi.saveVariant({
         slug: v.slug,
         size: v.size,
-        stock: Number(d.stock),
+        stock,
         costAed: cost === '' ? null : Number(cost),
       });
       setDraft((m) => { const { [v.sku]: _drop, ...rest } = m; return rest; });
@@ -474,6 +491,7 @@ function VariantLadder({
                   value={d.stock}
                   onChangeText={(t) => setDraft((m) => ({ ...m, [v.sku]: { ...d, stock: t } }))}
                   keyboardType="number-pad"
+                  selectTextOnFocus
                   accessibilityLabel={`stock for ${v.slug} ${v.size}`}
                   style={[styles.ladderInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.controlBorder }]}
                 />
@@ -483,6 +501,7 @@ function VariantLadder({
                   placeholder="cost (AED)"
                   placeholderTextColor={theme.textSecondary}
                   keyboardType="decimal-pad"
+                  selectTextOnFocus
                   accessibilityLabel={`wholesale cost for ${v.slug} ${v.size}`}
                   style={[styles.ladderInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.controlBorder }]}
                 />
@@ -545,7 +564,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: Radius.button,
     paddingHorizontal: Spacing.two,
-    fontSize: 15,
+    // 16, NOT 15 — the only sub-16 input left in the panel. Mobile Safari
+    // zooms the whole page when a field under 16px takes focus, and this panel
+    // runs on the web: tapping the stock box scaled the page up and left the
+    // owner scrolling back to find the row they were editing. One pixel of
+    // type against a page that jumps on every tap.
+    fontSize: 16,
   },
   ladderBtn: {
     minHeight: TapTarget,

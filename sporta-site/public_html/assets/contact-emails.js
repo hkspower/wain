@@ -113,12 +113,34 @@
 
   function submit() {
     if (state.busy) return
+
+    /* COLLECT BEFORE RENDER, AND THE ORDER IS THE WHOLE BUG.
+     *
+     * This used to call render() to show "Saving…" and then collect() as an
+     * argument on the next line. render() rebuilds every input from
+     * state.emails — the values as the server last returned them — so by the
+     * time collect() read the DOM, whatever had just been typed was gone. The
+     * card posted the OLD addresses and reported "Saved.", and an owner
+     * editing an address watched it save successfully and change nothing.
+     *
+     * Reading the DOM first makes the typed values the only thing that is ever
+     * sent, and gives us something to put back if the save is refused. */
+    var typed = collect()
+
     state.busy = true
     state.note = ''
     render()
-    ask('settings_save', { name: 'contact_emails', value: collect() }).then(function (res) {
+
+    ask('settings_save', { name: 'contact_emails', value: typed }).then(function (res) {
       state.busy = false
       if (res && res.error) {
+        /* THE TYPED VALUES SURVIVE A REFUSAL. render() rebuilds from
+         * state.emails, so leaving it at the last saved copy would wipe every
+         * edit and leave the message explaining why one of them was rejected
+         * sitting over an unchanged form — the exact bug CLAUDE.md records
+         * against rules.js, whose own comment claimed the opposite. One bad
+         * address must not cost the three good ones typed beside it. */
+        state.emails = typed
         state.note = explain(res.error)
       } else {
         state.emails = res
@@ -127,6 +149,10 @@
       render()
     }).catch(function () {
       state.busy = false
+      /* A network failure is not a refusal: nothing was judged, so nothing
+       * should be discarded. Keeping the draft is what makes "try again"
+       * mean pressing the button rather than retyping the form. */
+      state.emails = typed
       state.note = 'The save did not reach the shop. Check the connection and try again.'
       render()
     })

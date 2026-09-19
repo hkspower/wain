@@ -229,17 +229,35 @@
 
   /* --------------------------------------------------------------- saving -- */
 
+  /* ARABIC-INDIC DIGITS, back to Western — and the two Arabic separators with
+     them. This card had an ASCII-only `\d`, so a number typed on an Arabic
+     keyboard was refused as "not a number" while reading as one on screen, on
+     a shop whose default language is Arabic. The app's lib/money.ts carries
+     the same map; this is a second home for it only because the panel overlay
+     is plain ES5 with no build step and cannot import from src/. */
+  function westernDigits(s) {
+    return String(s).replace(/[٠-٩٫٬]/g, function (c) {
+      var code = c.charCodeAt(0)
+      if (code === 0x066B) return '.'   // the Arabic decimal separator
+      if (code === 0x066C) return ''    // the Arabic thousands separator
+      return String(code - 0x0660)
+    })
+  }
+
   function collect() {
     var out = {}
     var bad = null
 
     card.querySelectorAll('input[data-rule]').forEach(function (i) {
       var key = i.dataset.rule
-      var raw = String(i.value).trim()
+      var raw = westernDigits(i.value).trim()
       if (key.slice(-5) === '_fils') {
-        // A comma decimal is what an Arabic keyboard offers and what half of
-        // Kuwait types; refusing it would look like the field is broken.
-        raw = raw.replace(',', '.')
+        // A COMMA IS TWO CHARACTERS depending on the company it keeps: a
+        // decimal point on its own (which is what an Arabic keyboard offers
+        // and what half of Kuwait types), a thousands separator when a dot is
+        // also present. money.ts reasons this out at length; the short version
+        // is that "1,500" is one and a half dinars and "1,234.567" is not.
+        raw = raw.indexOf('.') >= 0 ? raw.replace(/,/g, '') : raw.replace(',', '.')
         if (!/^\d+(\.\d{1,3})?$/.test(raw)) { bad = bad || FIELD_NAMES[key]; return }
         out[key] = Math.round(parseFloat(raw) * 1000)
       } else {
@@ -256,12 +274,28 @@
     return { value: out }
   }
 
+  /* SAY SOMETHING WITHOUT REBUILDING THE FORM.
+     render() rebuilds every input from state.rules, so calling it to show a
+     message throws away everything typed since the last save. For the two
+     cases where nothing was stored — a number this card refuses, and a save
+     that never reached the shop — the message is written into the existing
+     note element instead and the form is left exactly as the owner left it. */
+  function say(text) {
+    state.note = text
+    var n = card && card.querySelector('.srl-note')
+    if (n) { n.textContent = text; return }
+    render()
+  }
+
   function submit() {
     if (state.busy) return
     var got = collect()
     if (got.error) {
-      state.note = 'Check ' + got.error + ' — it has to be a number.'
-      render()
+      // NO render() HERE. This branch fires on one bad number, and rebuilding
+      // would take the four good edits typed beside it as well — so the owner
+      // fixes one field and finds they have to redo the rest. Nothing was sent
+      // and nothing was stored; there is nothing to resynchronise with.
+      say('Check ' + got.error + ' — it has to be a number.')
       return
     }
     state.busy = true
@@ -288,8 +322,15 @@
       render()
     }).catch(function () {
       state.busy = false
-      state.note = 'The save did not reach the shop. Check the connection and try again.'
-      render()
+      // A NETWORK FAILURE IS NOT A REFUSAL: nothing was judged, so nothing
+      // should be discarded. render() would restore state.rules over the
+      // owner's work and make "try again" mean retyping the form rather than
+      // pressing the button again.
+      say('The save did not reach the shop. Check the connection and try again.')
+      // The Save button is left disabled by the render() above, so it has to be
+      // re-enabled without one.
+      var b = card && card.querySelector('.srl-save')
+      if (b) { b.disabled = false; b.textContent = 'Save rules' }
     })
   }
 

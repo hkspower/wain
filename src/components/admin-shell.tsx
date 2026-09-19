@@ -1,6 +1,15 @@
 import { useRouter, usePathname } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { press } from '@/components/ui/press';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -242,8 +251,35 @@ export function AdminShell({
 
   return (
     <>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.content}>
+      {/* THE KEYBOARD USED TO COVER THE FIELD BEING TYPED INTO.
+          Only the sign-in and security screens carried a KeyboardAvoidingView
+          of their own; every other editing screen in the panel — products,
+          promotions, stock, shop rules, settings, brands — renders through
+          here and had none. On a phone that means the lower half of a long
+          form is behind the keyboard the moment it opens, and the product
+          editor's price and category sit at the bottom of the longest form in
+          the panel.
+
+          Here rather than on each screen, because "which screens have inputs"
+          is a question that gets a new wrong answer every time a screen is
+          added. The two that had their own have had them removed, or the two
+          would nest and pad twice.
+
+          Android gets `undefined` and its own windowSoftInputMode:adjustResize,
+          which is the pairing the sign-in screen already used. */}
+      <KeyboardAvoidingView
+        style={styles.avoider}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          // A TAP THAT REACHES THE BUTTON FIRST TIME. Without this, a tap while
+          // the keyboard is open is spent dismissing it and the control under
+          // the finger never fires — so typing a price and pressing Save does
+          // nothing, and pressing Save again works. It reads as a flaky button
+          // rather than as a keyboard, which is why it survives so long.
+          keyboardShouldPersistTaps="handled">
+          <View style={styles.content}>
           <ThemedText type="display" style={styles.title}>
             {title}
           </ThemedText>
@@ -286,8 +322,9 @@ export function AdminShell({
           ) : (
             children
           )}
-        </View>
-      </ScrollView>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {action}
     </>
@@ -399,6 +436,10 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
   },
   body: { flex: 1 },
+  // KeyboardAvoidingView measures nothing without a height to work against, so
+  // an unsized one is a component that renders and does nothing — the quiet
+  // kind of no-op this project keeps finding.
+  avoider: { flex: 1 },
   scroll: { paddingVertical: Spacing.three },
   content: {
     width: '100%',

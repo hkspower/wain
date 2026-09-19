@@ -144,6 +144,7 @@
     "test:brand-badge": "node scripts/brand-badge-test.mjs",
     "test:placeholder": "node scripts/placeholder-test.mjs",
     "test:cookie-flags": "node scripts/cookie-flags-test.mjs",
+    "test:money": "node --experimental-strip-types --no-warnings scripts/money-test.mjs",
     "test:theme": "node scripts/theme-test.mjs",
     "test:surfaces": "node scripts/surface-colours-test.mjs",
     "test:tile-rtl": "node scripts/tile-rtl-test.mjs",

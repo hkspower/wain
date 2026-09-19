@@ -39,7 +39,11 @@ export const Field = forwardRef<TextInput, {
     | 'name' | 'telephoneNumber' | 'emailAddress' | 'password' | 'newPassword'
     | 'oneTimeCode' | 'streetAddressLine1' | 'addressCity' | 'postalCode' | 'none';
   secureTextEntry?: boolean;
-  autoCapitalize?: 'none' | 'sentences' | 'words';
+  /** `characters` is React Native's fourth value and was missing from this
+   *  union, so a field whose content IS upper case — a promo code, which the
+   *  server uppercases on save — could not say so and showed the owner lower
+   *  case right up until it was stored as something else. */
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   autoCorrect?: boolean;
   maxLength?: number;
   /**
@@ -56,6 +60,32 @@ export const Field = forwardRef<TextInput, {
   multiline?: boolean;
   returnKeyType?: 'done' | 'go' | 'next' | 'search' | 'send';
   onSubmitEditing?: () => void;
+  /**
+   * SELECT WHAT IS THERE, so typing replaces it.
+   *
+   * Every numeric box in this panel arrives pre-filled with the current value —
+   * a price, a stock count, a percentage — because the owner is editing, not
+   * creating. Without this, changing 12.500 to 9 means tapping in, and then
+   * clearing six characters one backspace at a time on a phone before the
+   * first useful keystroke. With it, tapping the box and typing 9 is the whole
+   * interaction.
+   *
+   * It is opt-in rather than the default because it is exactly wrong for a
+   * field somebody APPENDS to: a product description or a staff note selected
+   * on focus is one keystroke away from being deleted entirely.
+   */
+  selectTextOnFocus?: boolean;
+  /**
+   * The greyed hint inside an empty box. The component has always set
+   * `placeholderTextColor` — carefully, because iOS's default grey is
+   * unreadable on this app's dark ground — and never accepted a placeholder to
+   * paint with it. A prop that styles something no caller can produce is a
+   * prop that has never once run.
+   */
+  placeholder?: string;
+  /** For the one field a screen opens ON. More than one per screen is two
+   *  fields fighting over the keyboard, so it is not a default. */
+  autoFocus?: boolean;
   /**
    * FALSE WHEN THIS FIELD HANDS OFF TO ANOTHER ONE. RN's default closes the
    * keyboard on submit and a chained onSubmitEditing then has to reopen it on
@@ -81,6 +111,9 @@ export const Field = forwardRef<TextInput, {
   returnKeyType,
   onSubmitEditing,
   blurOnSubmit,
+  selectTextOnFocus,
+  placeholder,
+  autoFocus,
 }, ref) {
   const theme = useTheme();
   const { text } = useLang();
@@ -113,6 +146,9 @@ export const Field = forwardRef<TextInput, {
         textAlignVertical={multiline ? 'top' : undefined}
         returnKeyType={returnKeyType}
         onSubmitEditing={onSubmitEditing}
+        selectTextOnFocus={selectTextOnFocus}
+        placeholder={placeholder}
+        autoFocus={autoFocus}
         accessibilityLabel={label}
         placeholderTextColor={theme.textSecondary}
         style={[

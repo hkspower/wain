@@ -2,8 +2,6 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -102,8 +100,9 @@ function SignIn() {
 
   return (
     <AdminShell title="Sign in">
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.form}>
+      {/* No KeyboardAvoidingView here any more: AdminShell carries one for
+          every screen in the panel, and two nested ones pad twice. */}
+      <View style={styles.form}>
           <ThemedText type="label" themeColor="textSecondary">
             Email
           </ThemedText>
@@ -245,8 +244,7 @@ function SignIn() {
             busy={busy}
             style={styles.primary}
           />
-        </View>
-      </KeyboardAvoidingView>
+      </View>
     </AdminShell>
   );
 }
