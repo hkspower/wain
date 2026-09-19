@@ -31,13 +31,20 @@
  * working outbound internet and resolves its own domain again since
  * 2026-09-09, so asking properly is possible now.
  *
+ * SIX SECONDS, NOT TWELVE, and run it as a ONE-SHOT. Six TLS handshakes at a
+ * twelve-second timeout is seventy-two seconds in the worst case, which is
+ * longer than a `* * * * *` cycle — and the panel captures a job's output when
+ * the process EXITS, so an overrunning run reports nothing at all and the next
+ * minute's run overwrites the answer it never gave. Measured here: three ticks,
+ * three empty outputs. Schedule it at a named minute and delete it once read.
+ *
  * ECHO AS IT MEASURES, never at the end: a script that builds one line and
  * prints it last reports NOTHING when the channel cuts the run short, which
  * this project has already watched happen twice.
  */
 
 header('Content-Type: text/plain; charset=utf-8');
-@ini_set('default_socket_timeout', '12');
+@ini_set('default_socket_timeout', '6');
 
 function line(string $s): void { echo $s, "\n"; @ob_flush(); @flush(); }
 
@@ -54,7 +61,7 @@ function cert(string $host): ?array {
         'peer_name'         => $host,
     ]]);
     $fp = @stream_socket_client(
-        'ssl://' . $host . ':443', $errno, $errstr, 12,
+        'ssl://' . $host . ':443', $errno, $errstr, 6,
         STREAM_CLIENT_CONNECT, $ctx
     );
     if (!$fp) return ['error' => trim($errstr) !== '' ? $errstr : ('errno ' . $errno)];
@@ -96,7 +103,7 @@ function covers(array $sans, string $host): bool {
 function verifies(string $host): string {
     $ctx = stream_context_create([
         'ssl'  => ['verify_peer' => true, 'verify_peer_name' => true, 'SNI_enabled' => true],
-        'http' => ['method' => 'HEAD', 'timeout' => 12, 'ignore_errors' => true,
+        'http' => ['method' => 'HEAD', 'timeout' => 6, 'ignore_errors' => true,
                    'header' => "User-Agent: sporta-cert-check\r\n"],
     ]);
     $r = @file_get_contents('https://' . $host . '/', false, $ctx);
