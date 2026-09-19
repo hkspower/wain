@@ -50,6 +50,14 @@ return [
     // written, under a 6-second timeout, while a customer waits.
     'ai_model' => 'claude-haiku-4-5',
 
+    // ---- Looking a product up on the web (api/research.php) ----
+    // The model's own server-side search tool. Named here rather than in the
+    // code so a version rename upstream is a config edit rather than a
+    // publish — the failure it causes is a 400 nobody would attribute to it.
+    // Leave both alone unless a lookup starts failing with a 400.
+    'ai_search_tool' => 'web_search_20250305',
+    'ai_search_max'  => 5,
+
     // ElevenLabs, for reading answers aloud in Arabic.
     //
     // voice_id is the ONE value you have to choose yourself: open

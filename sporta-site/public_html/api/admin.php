@@ -664,6 +664,68 @@ if ($r === 'products_all') {
     store_out($rows);
 }
 
+// -------------------------------------------------- look a product up, propose
+//
+// The owner's "find all product info on the web, use it for missing fields
+// only". It is a READ: it writes nothing, touches no row, and answers with a
+// proposal the owner applies by pressing the panel's ordinary Save. See
+// research.php for why that is the whole design rather than a setting.
+//
+// POST, not GET, although it changes nothing here: it spends the shop's money
+// at an API and takes up to ninety seconds, and neither belongs on a verb a
+// browser, a crawler or a prefetcher will replay on its own.
+//
+// LAZILY REQUIRED. A shop that has not published research.php yet must go on
+// serving every other admin route rather than fatalling on all of them, and
+// the panel asking for a feature the server does not have should hear that by
+// name.
+if ($r === 'product_research' && $method === 'POST') {
+    $file = __DIR__ . '/research.php';
+    if (!is_file($file)) store_fail('research_not_installed', 503);
+    require_once $file;
+
+    $b = store_body();
+    $slug = store_slug((string) ($b['slug'] ?? ''));
+    if ($slug === '') store_fail('invalid_slug');
+
+    $q = $db->prepare('select slug, name_en, name_ar, desc_en, desc_ar, category, brand_slug
+                         from products where slug = ? limit 1');
+    $q->execute([$slug]);
+    $p = $q->fetch(PDO::FETCH_ASSOC);
+    if (!$p) store_fail('product_not_found', 404);
+
+    $missing = research_missing($p);
+    if (!$missing) {
+        // NOT AN ERROR. "Everything is already filled in" is the answer the
+        // owner most wants on a tidy catalogue, and a 4xx would make the panel
+        // draw it in red.
+        store_out(['slug' => $slug, 'missing' => [], 'fields' => [], 'sources' => [],
+                   'notes' => 'Nothing is missing on this product.']);
+    }
+
+    $out = research_run(store_config(), $db, $p, $missing);
+    if (isset($out['error'])) {
+        // 503 for "this shop has not switched it on", which is a state rather
+        // than a fault; 502 for the model or the network failing, which is.
+        store_fail($out['error'], $out['error'] === 'ai_not_configured' ? 503 : 502);
+    }
+
+    // `missing` goes back with it so the panel can show what was asked for
+    // beside what came back — a field that was asked about and NOT answered is
+    // the model declining to guess, and that is worth seeing rather than
+    // looking like a field nobody wanted.
+    $out['slug'] = $slug;
+    $out['missing'] = $missing;
+    // CATEGORY CARRIES A POLICY. store_return_lookup() decides whether a
+    // garment may be exchanged from it, so accepting one silently changes what
+    // the shop promises about this product. Said here rather than only in the
+    // panel, because the app's panel will read this route too.
+    $out['policy_warning'] = isset($out['fields']['category'])
+        ? 'The category decides whether this product can be exchanged. Check it before saving.'
+        : null;
+    store_out($out);
+}
+
 if ($r === 'product_save' && $method === 'POST') {
     $b = store_body();
     $id = (int)($b['id'] ?? 0);

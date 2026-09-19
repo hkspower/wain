@@ -778,6 +778,14 @@
          the activity log as eight deliberate edits. Panel-only. -->
     <script src="/assets/panel-save-bar.js" defer></script>
 
+    <!-- "Look it up": the Catalogue screen gets a card that searches the web
+         for a product and PROPOSES only the fields that are empty — desc_en,
+         desc_ar, category, and never a price, a size or a stock count. Nothing
+         is written until the owner presses Apply, and Apply re-reads the row
+         first because product_save writes every column it is given. Inert
+         until an ai_key is configured. Panel-only. -->
+    <script src="/assets/product-research.js" defer></script>
+
     <!-- The website panel, on a touchscreen: every button and checkbox
          label under 44px grows to a proper tap target under
          `pointer: coarse`, and the one chart's 10px axis labels grow to
