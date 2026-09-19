@@ -128,9 +128,13 @@
     if (!onPanel()) return
     api('me').then(function (m) {
       if (m.ok && m.j) {
-        if (mountSetup()) return
-        var o = new MutationObserver(function () { mountSetup() })
+        // ALWAYS KEEP WATCHING — see google-signin.js's note. Stopping once
+        // mounted is what left this card on whichever screen it first
+        // landed on; now that it belongs to Security it has to come down
+        // again when the panel moves on.
+        var o = new MutationObserver(schedule)
         o.observe(document.body, { childList: true, subtree: true })
+        schedule()
         return
       }
       signInButton()
@@ -172,10 +176,43 @@
      Same reasoning as google-signin.js's: without this the feature is
      unreachable, because the client id lives in a settings row no screen
      could otherwise write. Drawn only when `me` says somebody is signed in. */
+  /** The Security screen, or null. Matched on that screen's own headings —
+   *  the panel swaps content in place, so the nav is no help, and this
+   *  card's own heading would be circular. See google-signin.js. */
+  function securityScreen() {
+    var hs = document.querySelectorAll('.admin-content h1, .admin-content h2')
+    for (var i = 0; i < hs.length; i++) {
+      var t = hs[i].textContent.trim()
+      if (t === 'Two-factor sign-in' || t === 'Your details') return hs[i]
+    }
+    return null
+  }
+
+  /* Debounced and flagged: this mutates the document and is called from an
+     observer watching it. */
+  var placing = false
+  var timer = null
+  function schedule() {
+    clearTimeout(timer)
+    timer = setTimeout(function () {
+      if (placing) return
+      placing = true
+      try { mountSetup() } finally { placing = false }
+    }, 120)
+  }
+
   function mountSetup() {
-    if (document.querySelector('[' + MARK + '-setup]')) return true
-    var main = document.querySelector('#backends') || document.querySelector('main') || document.body
-    if (!main) return false
+    // ON SECURITY, AND NOWHERE ELSE. It used to append to `main` on any
+    // /backends path, and the panel keeps that container across screens — so
+    // "Sign in with Apple" was the second heading on every page in the panel.
+    var anchor = securityScreen()
+    var existing = document.querySelector('[' + MARK + '-setup]')
+
+    if (!anchor) {
+      if (existing && existing.parentNode) existing.parentNode.removeChild(existing)
+      return false
+    }
+    if (existing) return true
 
     var card = document.createElement('section')
     card.setAttribute(MARK + '-setup', '1')
@@ -207,7 +244,10 @@
     note.style.cssText = 'margin-inline-start:12px;font-size:13px'
 
     card.appendChild(input); card.appendChild(row); card.appendChild(save); card.appendChild(note)
-    main.appendChild(card)
+    // Above the two-factor card, with the other ways of getting in.
+    var host = anchor.parentNode
+    if (host && host.parentNode) host.parentNode.insertBefore(card, host)
+    else document.body.appendChild(card)
 
     api('apple_config').then(function (r) {
       if (r.ok && r.j) { input.value = r.j.client_id || ''; tick.checked = !!r.j.enabled }

@@ -627,12 +627,41 @@ if ($r === 'card_settled' && $method === 'POST') {
 // The product editor. `sync` pushes the whole shipped catalogue; this is the
 // single-row companion — add a piece, change a price, take one off sale.
 if ($r === 'products_all') {
-    store_out($db->query(
-        'select id, slug, name_en, name_ar, desc_en, desc_ar, price, sale_price,
-                sale_starts_at, sale_ends_at, featured, featured_sort, category, brand_slug,
-                image, active
-           from products order by id desc'
-    )->fetchAll());
+    // THE MAIN PHOTOGRAPH'S URL, so the panel's list can show one.
+    //
+    // A URL AND NOT THE BYTES, which is the same call ?r=product_images makes
+    // and states its reasons for: a dozen data URIs in one JSON response is
+    // megabytes down a connection in Kuwait to draw pictures the browser could
+    // have cached, and this list is forty-six garments rather than a dozen. The
+    // url is identical to the storefront's for the same photograph, so it is
+    // very likely already in cache, and `w=96` asks the resizing route for a
+    // thumbnail rather than the whole upload.
+    //
+    // FROM THE GALLERY, not from `products.image`. That column is selected
+    // below because the shape has always carried it, and it is empty on every
+    // row — measured, 0 of 46. product_images is where a photograph has lived
+    // since the uploader was built, and `sort` is what makes one of them the
+    // main one.
+    $rows = $db->query(
+        'select p.id, p.slug, p.name_en, p.name_ar, p.desc_en, p.desc_ar, p.price, p.sale_price,
+                p.sale_starts_at, p.sale_ends_at, p.featured, p.featured_sort, p.category,
+                p.brand_slug, p.image, p.active,
+                (select i.id         from product_images i
+                   where i.slug = p.slug order by i.sort, i.id limit 1) as thumb_id,
+                (select i.image_hash from product_images i
+                   where i.slug = p.slug order by i.sort, i.id limit 1) as thumb_hash
+           from products p order by p.id desc'
+    )->fetchAll();
+
+    foreach ($rows as &$row) {
+        $row['thumb'] = $row['thumb_id'] === null ? null
+            : 'api.php?r=product_image&id=' . (int) $row['thumb_id']
+              . '&v=' . substr((string) $row['thumb_hash'], 0, 12) . '&w=96';
+        unset($row['thumb_id'], $row['thumb_hash']);
+    }
+    unset($row);
+
+    store_out($rows);
 }
 
 if ($r === 'product_save' && $method === 'POST') {

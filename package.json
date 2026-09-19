@@ -149,6 +149,7 @@
     "make:site-strings": "node scripts/extract-site-strings.mjs",
     "test:site-strings": "node scripts/extract-site-strings.mjs --check",
     "test:site-text": "node scripts/site-text-test.mjs",
+    "test:panel-placement": "node scripts/panel-placement-test.mjs",
     "test:theme": "node scripts/theme-test.mjs",
     "test:surfaces": "node scripts/surface-colours-test.mjs",
     "test:tile-rtl": "node scripts/tile-rtl-test.mjs",

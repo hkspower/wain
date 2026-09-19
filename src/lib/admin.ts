@@ -418,6 +418,12 @@ export type Product = {
   category: string | null;
   brandSlug: string | null;
   active: boolean | number;
+  /** The main photograph, already sized for a list row — or null, which is
+   *  what 46 of 46 products on the live shop currently are. A URL rather than
+   *  bytes: forty-six data URIs in one response is megabytes to draw pictures
+   *  the browser could have cached, and this one is the same url the
+   *  storefront uses for the same photograph. */
+  thumb: string | null;
 };
 
 /** One size on a garment's ladder. `costAed` is the wholesale cost — the one
@@ -452,6 +458,7 @@ interface WireProduct {
   category: string | null;
   brand_slug: string | null;
   active: boolean | number;
+  thumb?: string | null;
 }
 
 function toProduct(w: WireProduct): Product {
@@ -467,6 +474,10 @@ function toProduct(w: WireProduct): Product {
     category: w.category,
     brandSlug: w.brand_slug,
     active: w.active,
+    // Relative on the wire, absolute here — the same crossing productImages()
+    // makes, and for the same reason: the app does not serve the panel from
+    // the API's own folder, so a relative url would resolve against the app.
+    thumb: w.thumb ? (w.thumb.startsWith('http') ? w.thumb : `${API_BASE}/${w.thumb}`) : null,
   };
 }
 

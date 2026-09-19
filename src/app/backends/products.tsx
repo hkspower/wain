@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Image } from 'expo-image';
+import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { AdminShell } from '@/components/admin-shell';
 import { ThemedText } from '@/components/themed-text';
@@ -213,7 +214,13 @@ export default function ProductsScreen() {
 
   return (
     <AdminShell title="Products" loading={products === null}>
-      <ScrollView contentContainerStyle={styles.page}>
+      {/* A View, NOT A SCROLLVIEW. AdminShell already scrolls, and this was a
+          second vertical ScrollView inside it — two of them competing for the
+          same drag, which is why a flick sometimes moved nothing. It also
+          carried its own 16pt padding on top of the shell's, so this one
+          screen sat 32pt in from each edge while every other screen sat 16:
+          on a 390pt phone that is 326pt of usable width against 358. */}
+      <View style={styles.page}>
         {notice ? (
           <Card>
             <ThemedText type="label">{notice}</ThemedText>
@@ -314,11 +321,37 @@ export default function ProductsScreen() {
         {(products ?? []).map((p) => (
           <Card key={p.id}>
             <View style={styles.row}>
+              {/* THE GARMENT'S OWN PHOTOGRAPH, at 4:5 — the crop the shop's
+                  grid uses, so what the owner judges here is what a shopper
+                  sees. `thumb` is a url at w=96, not a data URI: forty-six of
+                  those in one response is megabytes to draw pictures this
+                  size. 46 of 46 products are currently null, which is what the
+                  empty frame is for — it says "no photograph" rather than
+                  leaving the row looking like it failed to load. */}
+              {p.thumb ? (
+                <Image
+                  source={{ uri: p.thumb }}
+                  style={styles.rowThumb}
+                  contentFit="cover"
+                  transition={120}
+                  recyclingKey={String(p.id)}
+                  accessibilityLabel={`Photograph of ${p.name_en}`}
+                />
+              ) : (
+                <View style={[styles.rowThumb, styles.rowThumbNone]}>
+                  <ThemedText type="caption" themeColor="textSecondary">—</ThemedText>
+                </View>
+              )}
               <View style={styles.rowText}>
-                <ThemedText type="bodyBold">{p.name_en}</ThemedText>
-                <ThemedText type="label">{p.name_ar}</ThemedText>
-                <ThemedText type="label">/{p.slug}</ThemedText>
-                <ThemedText type="label" themeColor="textSecondary">
+                {/* labelBold over bodyBold, caption under label: this is a list
+                    of forty-six rows that is scrolled rather than read, and the
+                    name is the only thing on it anybody scans for. The smaller
+                    scale fits the two names, the address and the price in the
+                    height the photograph already takes. */}
+                <ThemedText type="labelBold" numberOfLines={1}>{p.name_en}</ThemedText>
+                <ThemedText type="caption" numberOfLines={1}>{p.name_ar}</ThemedText>
+                <ThemedText type="caption" themeColor="textSecondary" numberOfLines={1}>/{p.slug}</ThemedText>
+                <ThemedText type="caption" themeColor="textSecondary" numberOfLines={1}>
                   {formatPrice(p.price, 'en')}
                   {p.salePrice != null ? ` · sale ${formatPrice(p.salePrice, 'en')}` : ''}
                   {p.category ? ` · ${p.category}` : ''}
@@ -353,7 +386,7 @@ export default function ProductsScreen() {
             )}
           </Card>
         ))}
-      </ScrollView>
+      </View>
     </AdminShell>
   );
 }
@@ -548,9 +581,31 @@ function VariantLadder({
 }
 
 const styles = StyleSheet.create({
-  page: { padding: Spacing.three, gap: Spacing.three },
+  // NO PADDING. AdminShell's own content wrapper already insets every screen
+  // by Spacing.three; this added a second one, so Products alone sat twice as
+  // far in from each edge as the rest of the panel.
+  page: { gap: Spacing.three },
   row: { flexDirection: 'row', gap: Spacing.three, alignItems: 'center' },
-  rowText: { flex: 1, gap: Spacing.one },
+  // 4:5, the crop the shop's product grid uses — so a photograph judged here
+  // is the photograph a shopper gets. images.tsx made the same call for the
+  // gallery and says why: a square shows the owner a picture the storefront
+  // will never display.
+  rowThumb: {
+    width: 48,
+    height: 60,
+    borderRadius: Radius.button,
+    backgroundColor: 'rgba(127,127,127,0.15)',
+  },
+  // Dashed, so an empty frame reads as "no photograph" rather than as one
+  // that failed to arrive.
+  rowThumbNone: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(127,127,127,0.35)',
+  },
+  rowText: { flex: 1, gap: Spacing.half },
   actions: { flexDirection: 'row', gap: Spacing.two, flexWrap: 'wrap', marginTop: Spacing.two },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   hint: { marginTop: Spacing.two },

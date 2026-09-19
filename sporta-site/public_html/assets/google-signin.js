@@ -125,9 +125,14 @@
     // means the panel, where the setup card belongs and the button must not.
     api('me').then(function (m) {
       if (m.ok && m.j) {
-        if (mountSetup()) return
-        var o = new MutationObserver(function () { mountSetup() })
+        // ALWAYS KEEP WATCHING. This used to stop the moment the card was
+        // mounted, which was fine while the card lived on every screen — and
+        // is exactly why it lived on every screen. Now that it belongs to
+        // Security alone it has to be taken down again when the panel moves
+        // on, so the observer runs for the life of the page.
+        var o = new MutationObserver(schedule)
         o.observe(document.body, { childList: true, subtree: true })
+        schedule()
         return
       }
       signInButton()
@@ -180,10 +185,57 @@
      to the same feature and shares its one cache rule; and it is drawn only
      when `me` says somebody is signed in, so it cannot appear on the login
      screen it configures. */
+  /**
+   * The Security screen, or null.
+   *
+   * MATCHED ON THE SCREEN'S OWN HEADINGS rather than on the nav, because the
+   * panel swaps its content in place and the nav looks the same on every
+   * screen. "Two-factor sign-in" and "Your details" are Security's, and
+   * neither appears anywhere else in the panel — checked, on every screen.
+   *
+   * NOT on this card's own heading, which would be circular: it would find
+   * the card it just mounted and keep it wherever it happened to land.
+   */
+  function securityScreen() {
+    var hs = document.querySelectorAll('.admin-content h1, .admin-content h2')
+    for (var i = 0; i < hs.length; i++) {
+      var t = hs[i].textContent.trim()
+      if (t === 'Two-factor sign-in' || t === 'Your details') return hs[i]
+    }
+    return null
+  }
+
+  /* Debounced and flagged. This function MUTATES the document and is called
+     from a MutationObserver watching it — without the flag it answers itself
+     for ever, which is the same guard footer.js and theme-colors.js carry. */
+  var placing = false
+  var timer = null
+  function schedule() {
+    clearTimeout(timer)
+    timer = setTimeout(function () {
+      if (placing) return
+      placing = true
+      try { mountSetup() } finally { placing = false }
+    }, 120)
+  }
+
   function mountSetup() {
-    if (document.querySelector('[' + MARK + '-setup]')) return true
-    var main = document.querySelector('#backends') || document.querySelector('main') || document.body
-    if (!main) return false
+    // ON SECURITY, AND NOWHERE ELSE. This card used to append itself to
+    // `main` on any /backends path, and the panel keeps that container across
+    // screen changes — so "Sign in with Google" sat above the Catalogue, the
+    // Settings and everything else, as the first heading on every page. It is
+    // a way of signing in, so it belongs where the other ways of signing in
+    // already are.
+    var anchor = securityScreen()
+    var existing = document.querySelector('[' + MARK + '-setup]')
+
+    if (!anchor) {
+      // Taking it down is half the job: a card that only ever mounts is a
+      // card that is still on the Catalogue a moment after you leave.
+      if (existing && existing.parentNode) existing.parentNode.removeChild(existing)
+      return false
+    }
+    if (existing) return true
 
     var card = document.createElement('section')
     card.setAttribute(MARK + '-setup', '1')
@@ -212,7 +264,11 @@
     note.style.cssText = 'margin-inline-start:12px;font-size:13px'
 
     card.appendChild(input); card.appendChild(row); card.appendChild(save); card.appendChild(note)
-    main.appendChild(card)
+    // Above the two-factor card rather than at the end of the screen: these
+    // are all answers to "how do I get in", and they read as a group.
+    var host = anchor.parentNode
+    if (host && host.parentNode) host.parentNode.insertBefore(card, host)
+    else document.body.appendChild(card)
 
     api('google_config').then(function (r) {
       if (r.ok && r.j) { input.value = r.j.client_id || ''; tick.checked = !!r.j.enabled }

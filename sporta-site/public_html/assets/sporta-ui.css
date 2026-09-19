@@ -2466,3 +2466,32 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
 .m-tabbar__item[aria-current='true'] {
   color: var(--sp-tabbar-active, #4f46e5);
 }
+
+/* ------------------------------------------- the سبورتا AI launcher, hidden */
+/* ASKED FOR ON 2026-09-19: "remove sporta AI icon only, not setup". So this
+   takes the floating launcher off the storefront and touches NOTHING else —
+   the assistant's routes, its taught answers, its cron job and its panel
+   configuration all stay exactly as they are, and deleting these three lines
+   puts the button back.
+
+   WHAT IT COSTS, said plainly because it is not obvious from the rule: the
+   launcher is the only way a shopper opens the assistant. Hidden, the feature
+   is configured and unreachable. That is a reasonable place for it to be right
+   now — cron-assistant has been answering 503 on every run since it was
+   written, because `n8n_webhook` and `n8n_secret` are not in config.php — but
+   it is a state to come back to rather than a finished one.
+
+   MATCHED STRUCTURALLY, NOT BY LABEL. The launcher's aria-label is "Open the
+   Sporta assistant" in English and "افتح مساعد سبورتا" in Arabic, and the two
+   share no substring a selector could catch — assistant-icon.js records the
+   same trap and settles on the same signature: it is the one element fixed to
+   the viewport corner carrying aria-expanded, which is how a screen reader
+   knows whether the panel is open. Measured on the storefront: exactly one
+   element matches.
+
+   `[class~=]` rather than `.fixed.bottom-4`, the technique theme.js already
+   uses on this bundle's utility classes — it needs no escaping and it reads as
+   what it is, a test for one token among many. */
+[aria-expanded][class~="fixed"][class~="bottom-4"][class~="z-50"] {
+  display: none !important;
+}
