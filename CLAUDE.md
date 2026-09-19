@@ -1101,14 +1101,44 @@ retyped list — a copy would pass the day it was written.
 
 **Ordering and the queue are deliberately not in the hub.** 0 of 52 places
 satisfy `acceptsOrders` or `takesQueue`, so a «طلباتي» row advertises a door
-onto nothing; `OrdersLink` already covers the case that matters. Add the row
-when a place takes orders and both surfaces get it.
+onto nothing. Add the row when a place takes orders and both surfaces get it.
+This used to add «`OrdersLink` already covers the case that matters», and that
+is no longer true — see below.
 
-`ShouqCallButton` gained `onTapped`, which the palette needs: it is a modal at
-z-60 and the call sheet mounts in the root layout, so a call placed from inside
-it would ring underneath its own backdrop. Not an `onClick` on a wrapper — the
-tap has to reach `primeAudio` first, and a bubbling handler that closes the
-dialog could unmount the button mid-gesture.
+`ShouqCallButton` gained `onTapped`, which the palette needed: it was a modal
+at z-60 and the call sheet mounts in the root layout, so a call placed from
+inside it would ring underneath its own backdrop. Not an `onClick` on a
+wrapper — the tap has to reach `primeAudio` first, and a bubbling handler that
+closes the dialog could unmount the button mid-gesture. The palette is gone
+(below) and `SearchHub` still takes the prop; it costs nothing and the next
+modal that draws a hub will need it.
+
+**The navbar was removed on request, and it was carrying more than a top bar.**
+`Navbar.tsx`, `SearchPalette.tsx` and `SearchPaletteDialog.tsx` are deleted —
+after the layout stopped rendering the navbar they were a closed island that
+nothing referenced. What went with them, and what each cost:
+
+- **The ⌘K palette**, keystroke and all. The listener was registered in a
+  `useEffect` inside `SearchPalette`, which only ever mounted in the navbar, so
+  the shortcut stopped working the moment the bar did. `search-button.test.mjs`
+  is deleted and `search-keys.test.mjs` lost its palette half; what it proves
+  on /search is the half that always mattered.
+- **Every link to /search.** This is the one that mattered and it shipped:
+  after the removal each route's single `href="/search/"` was AppTabBar's tab,
+  and the bar is `standalone:block` — in the DOM, painted by nothing in a
+  browser. So search was unreachable from the web site, and with it شوق, whose
+  only launcher is inside the /search query box. /explore has its own box and
+  was fine; the home page was the gap, and it now carries one link under the
+  dial. **A count is not reachability** — journey's «offers a way to search»
+  passed throughout, because it counted the hidden tab. It asks for `:visible`
+  now.
+- **`OrdersLink` and `QueueLink`.** Both were navbar pills and are mounted
+  nowhere on the web now, so /orders and /queue are address-bar-only outside
+  the installed app, where `AppTabBar` still grows a tab for each. Not fixed,
+  because 0 of 52 places take an order or a turn, so no visitor can reach that
+  state today — but it is a door that will need rehanging before one can. The
+  two suites assert the tab and assert the browser's absence, rather than
+  quietly dropping the coverage.
 
 **/search is three ways to the same answer, and only one of them was ever
 named.** The query box is obvious; the map only appears once there are

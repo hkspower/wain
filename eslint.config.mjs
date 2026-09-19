@@ -20,7 +20,14 @@ const compat = new FlatCompat({ baseDirectory: import.meta.dirname });
 
 export default tseslint.config(
   {
-    ignores: ["out/**", ".next/**", "node_modules/**", "next-env.d.ts", "public/**"],
+    // `ios/**` is scaffolded output, not source: `npx cap add ios` writes it
+    // fresh in CI and `npm run test:ios` writes it here, and its last step
+    // copies the whole of `out/` into the native project. So a run of the iOS
+    // test leaves ~40 minified bundles in the tree, and `npm run scan` — which
+    // is the thing standing between this repository and the live site — went
+    // red on thousands of lint errors inside Next's own compiled chunks. It is
+    // gitignored for the same reason `public/voice/` is.
+    ignores: ["out/**", ".next/**", "ios/**", "node_modules/**", "next-env.d.ts", "public/**"],
   },
 
   js.configs.recommended,

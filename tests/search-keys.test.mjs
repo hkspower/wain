@@ -1,23 +1,24 @@
 import { chromium } from 'playwright';
 
 /**
- * The keyboard, on both things that search.
+ * The keyboard on the thing that searches.
  *
- * Two surfaces search this site — the ⌘K palette and the /search page — and
- * only one of them answered the keyboard. The palette moved a highlight with
- * ↑ and ↓; the page, which is the one built for searching, did nothing at
- * all, so anyone who learned the keys in the overlay lost them on arrival.
+ * Two surfaces used to search this site — the ⌘K palette and the /search page
+ * — and only one of them answered the keyboard. The palette moved a highlight
+ * with ↑ and ↓; the page, which is the one built for searching, did nothing
+ * at all, so anyone who learned the keys in the overlay lost them on arrival.
  *
- * And the palette's version was half a feature: the highlight moved, focus
- * never did, and no element was ever named as current — so a screen reader
- * announced nothing while the selection travelled down the list. Keyboard
- * navigation that only works if you can see it working is not keyboard
- * navigation; it is a colour.
+ * The palette moved a colour and nothing else: focus never travelled and no
+ * element was ever named as current, so a screen reader announced nothing
+ * while the selection walked down the list. Keyboard navigation that only
+ * works if you can see it working is not keyboard navigation.
  *
- * So this checks both halves on both surfaces: that the keys move the
- * selection and open the right thing, and that `aria-activedescendant` names
- * the option that moved — which is the entire mechanism by which a combobox
- * is audible.
+ * **The palette is gone**, removed with the navbar that launched it, and its
+ * half of this suite went with it — there is no second surface to keep in
+ * step any more. What remains is the half that always mattered: that the keys
+ * move the selection and open the right thing on the page built for it, and
+ * that `aria-activedescendant` names the option that moved, which is the
+ * entire mechanism by which a combobox is audible.
  */
 const B = process.env.WAIN_URL || 'http://127.0.0.1:4207';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
@@ -47,20 +48,13 @@ const state = (p) =>
     };
   });
 
-for (const surface of ['page', 'palette']) {
-  console.log(`\n── the ${surface === 'page' ? '/search page' : '⌘K palette'} answers the keyboard ──`);
+{
+  console.log('\n── the /search page answers the keyboard ──');
   const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 }, locale: 'ar-KW' });
   const p = await ctx.newPage();
   await p.route('**openstreetmap.org**', (r) => r.abort());
 
-  if (surface === 'page') {
-    await p.goto(`${B}/search/?q=${encodeURIComponent(QUERY)}`, { waitUntil: 'networkidle' });
-  } else {
-    await p.goto(`${B}/`, { waitUntil: 'networkidle' });
-    await p.getByRole('button', { name: 'بحث' }).first().click();
-    await p.locator('input[role="combobox"]').waitFor({ timeout: 8000 });
-    await p.locator('input[role="combobox"]').type(QUERY, { delay: 20 });
-  }
+  await p.goto(`${B}/search/?q=${encodeURIComponent(QUERY)}`, { waitUntil: 'networkidle' });
   // Tolerated, not asserted here: if the options never appear the assertions
   // below say exactly which part of the contract is missing, which is more
   // use than a timeout stack from inside a locator.

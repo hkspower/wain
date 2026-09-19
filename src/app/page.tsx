@@ -3,7 +3,7 @@ import KuwaitSkyline from "@/components/KuwaitSkyline";
 import CategoryIcon from "@/components/CategoryIcon";
 import NearbyDial from "@/components/NearbyDial";
 import PlaceCard from "@/components/PlaceCard";
-import { IconCar, IconGo, IconLocate, IconPinSolid, IconSparkle } from "@/components/icons";
+import { IconCar, IconGo, IconLocate, IconPinSolid, IconSearch, IconSparkle } from "@/components/icons";
 import {
   categories,
   countAr,
@@ -47,6 +47,26 @@ export default function HomePage() {
           {/* Search dial */}
           <div className="mt-7 sm:mt-12">
             <NearbyDial />
+          </div>
+
+          {/* The site's only route to /search, and it had none at all.
+              Removing the top bar took the search button with it and nothing
+              replaced it: after that, every route's single `href="/search/"`
+              was AppTabBar's tab, which is `standalone:block` and so is
+              painted by nothing in a browser. Search was unreachable, and
+              with it شوق — her launcher lives inside the /search query box.
+              /explore has its own box and is fine; this page was the gap.
+              A link under the dial rather than a second bar, because the two
+              are halves of one question: the dial answers «وين» by where you
+              are, this one by what the place is called. */}
+          <div className="mt-4 text-center">
+            <Link
+              href="/search"
+              className="inline-flex min-h-6 items-center gap-2 rounded-full bg-white/95 px-5 py-2.5 text-sm font-semibold text-sea-800 shadow-sm ring-1 ring-line transition hover:bg-white"
+            >
+              <IconSearch className="size-4" />
+              دوّر باسم المكان أو كلّم شوق
+            </Link>
           </div>
         </div>
       </section>

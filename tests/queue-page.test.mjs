@@ -84,11 +84,15 @@ ok('a waiting turn can be given up', (await p.locator('button:has-text("ألغِ
 ok('and there is somewhere to go', (await p.locator('a[href*="google.com/maps/dir"]').count()) >= 1);
 
 console.log('\n── the way back appears once there is a turn ──');
+// Was the QueueLink pill in the navbar. The navbar is gone with no
+// replacement, so a browser has no link to دوري now; the tab that appears for
+// the same reason in the installed app is what is left. See the same note in
+// order-tracking.test.mjs.
 await p.goto(B + '/', { waitUntil: 'networkidle' });
 await p.waitForTimeout(400);
-const link = p.locator('header a[href*="/queue"]');
-ok('the header links to دوري', (await link.count()) === 1);
-ok('with the count in Arabic digits', (await link.first().textContent()).includes('١'));
+const link = p.locator('nav[aria-label="تنقّل التطبيق"] a[href*="/queue"]');
+ok('the app tab bar offers دوري', (await link.count()) === 1);
+ok('and the browser has no route to it', (await p.locator('header a[href*="/queue"]').count()) === 0);
 
 console.log('\n── yesterday\'s number is not today\'s ──');
 // The salon restarted at one this morning. Showing a stale number on a screen

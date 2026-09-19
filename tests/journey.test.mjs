@@ -97,17 +97,22 @@ await p.route('**/sb/**', async (route) => {
 console.log('\n── 1. she opens the site ──');
 await p.goto(B + '/', { waitUntil: 'networkidle' });
 ok('the home page loads', (await p.textContent('body')).includes('وين'));
-ok('and offers a way to search', (await p.locator('a[href="/search/"], button:has-text("بحث")').count()) > 0);
+// `:visible`, not a bare count. Counting is what let this pass while the home
+// page had no route to search at all: the only `href="/search/"` left after
+// the navbar went was AppTabBar's tab, which is `standalone:block` and so is
+// in the DOM and painted by nothing outside the installed app.
+ok('and offers a way to search', (await p.locator('a[href="/search/"]:visible').count()) > 0);
 
-console.log('\n── 2. she taps the search button and asks for tea ──');
-// The palette, not the /search/ page: it is the button in the navbar, it is
-// what a thumb reaches for, and its dialog is loaded on demand — a code path
-// worth walking rather than stepping around by typing an address.
-await p.locator('button[aria-label*="بحث"]').first().click();
-const box = p.locator('input[aria-label="ابحث في وين"]');
+console.log('\n── 2. she follows the search link and asks for tea ──');
+// The link on the home page, followed rather than typed. This step used to
+// open the ⌘K palette from the navbar button, which was the thumb's route to
+// searching; the navbar was removed and took the palette with it, so this is
+// now the only route there is — which is exactly why it is worth walking.
+await p.locator('a[href="/search/"]:visible').first().click();
+const box = p.locator('input[aria-label="ابحث في كل محتوى وين"]');
 await box.waitFor({ state: 'visible', timeout: 15000 });
-ok('the search palette opened, and its bundle arrived', await box.isVisible());
-ok('the page did not navigate to do it', p.url().endsWith('/'), p.url());
+ok('the search page opened, and its bundle arrived', await box.isVisible());
+ok('and that is where she landed', p.url().includes('/search'), p.url());
 
 await box.fill('چاي كرك');
 await p.waitForTimeout(600);

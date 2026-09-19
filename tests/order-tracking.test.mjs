@@ -84,11 +84,18 @@ ok('the word «مدفوع» appears nowhere', !body.includes('مدفوع'));
 ok('it repeats that payment is on collection', body.includes('الدفع عند الاستلام'));
 
 console.log('\n── the way back exists once there is an order ──');
+// This used to read `header a[href*="/orders"]`, the OrdersLink pill in the
+// navbar. The navbar was removed and nothing replaced it, so in a browser
+// there is now no link to طلباتي at all — the page is reachable only by its
+// address. What survives is AppTabBar's tab, which appears for the same
+// reason (a live order on this device) and is what the installed app shows.
+// It is `standalone:block`, so on the web it is in the DOM and painted by
+// nothing; count it rather than ask whether it is visible.
 await p.goto(B + '/', { waitUntil: 'networkidle' });
 await p.waitForTimeout(400);
-const headerLink = p.locator('header a[href*="/orders"]');
-ok('the header now links to طلباتي', (await headerLink.count()) === 1);
-ok('and carries the count in Arabic digits', (await headerLink.first().textContent()).includes('١'));
+const tabLink = p.locator('nav[aria-label="تنقّل التطبيق"] a[href*="/orders"]');
+ok('the app tab bar now offers طلباتي', (await tabLink.count()) === 1);
+ok('and the browser has no route to it', (await p.locator('header a[href*="/orders"]').count()) === 0);
 
 console.log('\n── forgetting an order ──');
 await p.goto(B + '/orders/', { waitUntil: 'networkidle' });

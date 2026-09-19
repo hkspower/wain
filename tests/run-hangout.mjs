@@ -12,15 +12,13 @@
  *   map-pin       — the pins, on a phone and on a desktop. The two behaviours
  *                   that must not drift back together: one tap on a touch
  *                   device selects, one click on a desktop still opens.
- *   search-button — the navbar search button and the palette behind it: the
- *                   ⌘K shortcut its own header documents, focus landing in the
- *                   box, arrow keys and Enter, and the code-splitting the two
- *                   files exist for — a stray static import would undo that
- *                   silently, because the button would still work.
- *   search-keys   — arrowing through results, on BOTH surfaces. The palette
- *                   had the keys and the /search page had none, and the
- *                   palette's version moved a colour without ever naming an
- *                   option — so a screen reader heard nothing travel.
+ *   search-keys   — arrowing through results on /search. There used to be a
+ *                   second surface, the ⌘K palette, and a `search-button`
+ *                   suite beside this one for the navbar button that opened
+ *                   it; both went when the navbar did. The half kept is the
+ *                   half that always mattered: the palette moved a colour
+ *                   without ever naming an option, so a screen reader heard
+ *                   nothing travel, and /search is where that is now proved.
  *   shouq-search  — شوق ON the search page rather than beside it: the answer
  *                   she builds for every query, which used to be spoken and
  *                   never written, and the microphone that used to exist only
@@ -86,10 +84,7 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
   console.log("\n════ الخريطة: the pins, on a phone and on a desktop ════");
   failed += (await run("node", ["tests/map-pin.test.mjs"], { env })) === 0 ? 0 : 1;
 
-  console.log("\n════ زر البحث: the button, the shortcut and the palette ════");
-  failed += (await run("node", ["tests/search-button.test.mjs"], { env })) === 0 ? 0 : 1;
-
-  console.log("\n════ لوحة المفاتيح: arrowing through results, on both surfaces ════");
+  console.log("\n════ لوحة المفاتيح: arrowing through results on /search ════");
   failed += (await run("node", ["tests/search-keys.test.mjs"], { env })) === 0 ? 0 : 1;
 
   console.log("\n════ شوق في البحث: her answer on the page, and the box listening ════");
