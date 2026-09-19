@@ -61,6 +61,15 @@ let drifted = 0
 
 const tracked = execFileSync('git', ['ls-files', 'sporta-site/public_html'], { encoding: 'utf8' })
   .split('\n').filter(Boolean)
+  // `.gitkeep` IS GIT PLUMBING, NOT A SHOP FILE. It exists only so git will
+  // carry an empty directory; nothing on the server reads one — checked, no
+  // PHP or JS in this repository mentions `images/brands` or `images/heros`
+  // at all. Left in the manifest they are two files the live server will
+  // never have, reported as `missing=2` on every run for ever, which is
+  // exactly how a real signal gets trained into noise. The publisher could
+  // not create them either: it deliberately makes no directory, which is the
+  // right stance for something that writes into a live docroot on a timer.
+  .filter((f) => !f.endsWith('/.gitkeep'))
 
 // A generator that emits nothing would produce an empty manifest, and an empty
 // manifest reports `same=0/0` — which reads like a clean run.
