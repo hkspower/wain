@@ -3158,3 +3158,77 @@ bar that discovered nothing cannot also certify that there was nothing to find.
 move it** — measured both ways, identical with and without the bar, which sits
 outside `.admin-content`. That failure is the owner's to decide about and is
 older than this work.
+
+## The returns page spoke one language and promised a number it did not own — 2026-09-19
+
+Asked to "improve return responce". Three faults, measured on the page rather
+than reasoned about, and the owner chose all three.
+
+**ENGLISH DID NOT EXIST.** `/returns/request` was `lang="ar" dir="rtl"` with not
+one English string — and it posted `lang: 'ar'` whatever the shopper was
+reading. So an English customer met an Arabic-only form AND was filed on the
+return row as an Arabic speaker, **which is the language the shop then answers
+them in**. The second half is the one that would have gone unnoticed: a page can
+be translated and still file every request wrong.
+
+The language is chosen by **the shop's own rule, copied from `index.html`'s boot
+script rather than invented** — the saved choice first, `?lang=` second, Arabic
+if neither, and never written back. A page that picks its language by a
+different rule is a page the shop's own toggle cannot reach. The Arabic stays as
+the copy WRITTEN in the HTML, so a visitor with no JavaScript still gets a real
+page rather than a skeleton; the script swaps it by `data-i18n`.
+
+**IT PROMISED FOURTEEN DAYS, AND THE SERVER NEVER DID.** `return_days` has been
+the owner's to edit since the rules row was built and
+`store_return_lookup()` computes the window from `store_rule($db, 'return_days')`.
+Only the page carried fixed copy — *"the fourteen days are over"* — which is
+this file's own entry about the returns window being one of exactly two rules
+still stated in fixed copy, found on a third surface.
+
+**The length is DERIVED from the window the server already sends**: `deadline`
+minus `from` is that number, whatever it has been set to. No extra request, and
+it cannot drift from the rule being enforced. With either timestamp missing the
+sentence carries **no** number rather than a guessed one — a sentence without a
+number is honest and one with the wrong number is the fault.
+
+The no-exchange message no longer names women's clothing either. The page is
+told WHICH lines are barred and was never told why; this file says in as many
+words that the category rule is the owner's and may change.
+
+**THE CONFIRMATION SAID TOO LITTLE.** It now lists the items actually asked for
+with the size change, and names the number the shop will ring — the customer's
+own, so a mistyped digit is caught while they are still on the page. Nothing was
+added about timing, refunds or carriers: this page does not know those and an
+invented timeframe is a promise the shop has to keep.
+
+### Two mutations found holes in the rig, not in the code
+
+Six mutations. Four were caught first time; these two were not, and both are
+this file's recurring shape.
+
+- **Restoring `lang: 'ar'` passed**, because the rig was reading the SCREEN. A
+  page that renders in English and files the request as Arabic looks perfect
+  from the browser. The check is now on the **stored** `lang` column.
+- **Hardcoding fourteen in the CLOSED-window sentence passed cleanly**, because
+  every check ran with the window OPEN and only ever drove the "n days left"
+  branch. **The copy being fixed was in the branch nobody drove.** The rig now
+  pushes the same order past its deadline and reads the other sentence.
+
+And the wording guard had the failure it was written to prevent. Slicing the
+dictionaries out of the source with `indexOf` of an end marker gives `-1` when
+the marker moves, so `slice(from, -1)` returns nearly the whole file: the length
+test passed, the regexes then scanned the COMMENTS — which discuss "fourteen"
+and "women's" at length — and it failed for a reason with nothing to do with the
+copy. **Both ends are asserted by name now**, and mutation-testing the rig
+against a missing anchor is what produced that message.
+
+**`test:sw-version` caught the bump, which is the whole reason it exists.**
+`returns-request.js` is a fixed-name asset; without `VERSION` going to
+`v47-returns-both-languages` every returning visitor would have kept the
+Arabic-only copy for ever, and the fix would have reached new visitors alone.
+
+**Left alone, and worth knowing:** the page's `SIZES` list is still hardcoded.
+Its own comment is right that the server refuses anything outside `STORE_SIZES`,
+so the worst a stale entry does is offer a size that is then refused by name —
+but if the owner drops a size in /backends, this page still offers it. Closing
+that needs a `?r=slides` fetch the page does not otherwise make.
