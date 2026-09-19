@@ -151,7 +151,7 @@ $WANT = [
     'assets/site-text-editor.js' => '4d11bfc33be2169079ab12eb7a499aa66b19dba6c94caa90da592c76a86f7207',
     'assets/site-text.js' => '1f14de76655611e43bd56e6f92f8eb16b9b420f872f18bed927b966aeba559b6',
     'assets/sporta-dark.css' => '09e38195825a66733024b993fdaaa10250566e0b348e117d530d5afda242ceac',
-    'assets/sporta-ui.css' => '0916f2161bbe4ff7c38afbe0da01ebb29ede8c3aa5698951f19d0da679d8836e',
+    'assets/sporta-ui.css' => 'b54826123380c59efffe005e2dad7467537f89b03430b5b5d066907941f9c47f',
     'assets/theme-colors.js' => 'db9ab1f1bd0ce33a61faabed401f35e233ffcfec6eac1456d0fabf402f782bf1',
     'assets/theme.js' => '09b39f015ee77e1a7c6f90da68067c170cf71b707f0edfb4d58ddb32ae13b742',
     'assets/tile-art.js' => 'b1eaba860e149fb78bb4ab9672e607e4b88f1ce8142dcfb8ae16fcafd6f7137c',
@@ -197,6 +197,10 @@ $WANT = [
     'fonts/Alexandria-400.ttf' => '29817527e857c0cf40b4b37f8f307c6f2fcc5044954868ae62455631aed1c124',
     'fonts/alexandria-var-arabic.woff2' => 'e8d8ca61d4da1a1a38b9454dbae92be589185efc7af0af6046f6a11c60476e99',
     'fonts/alexandria-var-latin.woff2' => '98ccec0bc3c456332f8fd0fcaf81d26a4e010b7fc093f9781938f976df9ffbc4',
+    'fonts/anton-400-latin.woff2' => '4113a0a8ffbdb23a905b535031e86207328d329896999dc5955abfcad07123fb',
+    'fonts/ibmplexsans-400-latin.woff2' => '03ec9504072f6b07cf61db4c734295ccdc00937f83477b1772f7ea80b9802460',
+    'fonts/ibmplexsans-600-latin.woff2' => '5d14a71013a6584200daca68e37cfc311329a3fb6d5020cb14960407868ac3c6',
+    'fonts/ibmplexsans-700-latin.woff2' => '9bead2a0065d419d8dba92f5ec5c6c4522caa4fccecee0dd6b5c88201b7e8457',
     'fonts/plex-400-arabic.woff2' => 'dc558aa338ac16bc32fe2acc588adf257e3b3c5073a16d464bc29086b71006fe',
     'fonts/plex-400-latin.woff2' => '6107bc5f81236217957a2cf2c9b784080b632126099b02497b18058e67f2d63b',
     'fonts/plex-600-arabic.woff2' => '16734a5adb27b0f363e566cbbeacec480da0dc0baa19c8f0053251c2e2bc0eac',
@@ -246,7 +250,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => '1ba2a01e9f35e80a67b4b6047afcb5370b4005074a150ade4907a578cb0ebf4a',
-    'sw.js' => 'c6f2f17674c8da936942c342c450698c19ec522fc4a57e12bb1de734190dddf6',
+    'sw.js' => '3131184ae421e762a50623241da39c328fc863d029c29dacfac2261270445542',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
