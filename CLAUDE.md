@@ -3332,3 +3332,79 @@ like. That is the overlay pattern's usual answer and it needs a decision first.
 
 **Email verification**, and **claiming older orders**, which needs the phone
 proved and so needs an SMS provider.
+
+## Everything published — 2026-09-19
+
+The owner said "public now, auto approve this session". Twenty-nine files, one
+migration, two verifications, nothing left behind.
+
+**THE MIGRATION HAD TO GO FIRST, AND THAT ORDERING WAS THE WHOLE RISK.** The new
+checkout writes `orders.customer_id`. Publishing `api/api.php` against a table
+without that column is not a degraded feature — it is EVERY CHECKOUT FAILING on
+a shop that takes money. The column is nullable and the old code never reads it,
+so running the migration first is invisible until the code arrives, and running
+it second is an outage. `scripts/publish/migrate-customers.php` reports STATE
+rather than its own verb, so the answer reads the same on every tick:
+
+```
+STATE customers=yes orders.customer_id=yes accounts=0
+READY — api/api.php may be published now.
+```
+
+**ONE PUBLISHER, GENERATED FROM THE MANIFEST.** `scripts/publish/publish-all.php`
+carries all 220 paths and hashes, generated from `live-file-check.php`, which is
+itself generated from git. So it cannot disagree with the checker that grades it
+and cannot go stale by hand — the failure that had a hardcoded manifest report
+the repository's staleness as the server's, twice. It skips a matching file
+WITHOUT a request, which is what makes the whole manifest affordable: 220
+entries, 29 fetches.
+
+`.htaccess` and `index.html` are moved to the FRONT of the list rather than left
+in alphabetical order, because the CSP names each inline script by sha256 and a
+run that dies halfway should have closed that window rather than opened it.
+
+```
+PUBLISH wrote=29 alreadyOk=191 hashMismatch=0
+SERVED  home=53304 api=23002 me=17
+FILES   same=220/220 differ=0 missing=0 mustNotBeHere=0
+SCAN    pages=9/9 api=3/3 sec=4/4 cache=7/7 files=8/8 | no problems
+```
+
+`me=17` is `{"customer":null}` — the new customer route answering on the live
+shop, which is a better proof than any file hash that the publish took.
+
+**AN OVERRUNNING PUBLISH REPORTS NOTHING, AND IDEMPOTENCE IS WHY THAT WAS FINE.**
+29 fetches took longer than a `* * * * *` cycle, so the first two ticks captured
+no output — the same trap as the cert probe that morning. But each file is
+written as it arrives and a matching file is skipped, so the run CONVERGES:
+by the third tick there was nothing left to fetch, the run finished in seconds,
+and the panel captured the summary. **Design a publisher so that the run you can
+read is the run after the work**, rather than hoping to read the one that did it.
+
+### An empty fetch and an empty file are the same bytes
+
+The first run reported `failed=2`, both `.gitkeep` markers. The guard refusing an
+empty body is right about an unresolvable ref — which returns nothing and says
+nothing, and has cost this project a publish before — and wrong about a file that
+is legitimately zero bytes. From the body alone they are identical.
+
+**The manifest can tell them apart when the body cannot**: a file whose EXPECTED
+hash is the hash of the empty string is supposed to be empty. Fixed, and the
+next run gave a different and honest failure — `(no dir)`, because
+`images/brands/` and `images/heros/` do not exist on the server and the
+publisher deliberately creates no directory.
+
+**Which turned out to be the real answer: those two files should never have been
+in the manifest.** `.gitkeep` exists only so git will carry an empty directory;
+nothing on the server reads one — checked, no PHP or JS in this repository
+mentions either path. Left in, they would have reported `missing=2` on every run
+for ever, **which is how a real signal gets trained into noise** — the same rule
+that keeps `selftest.php` out of `$WANT`. Excluded at the generator, so the
+manifest and every publisher built from it agree.
+
+### Still untracked on the server, and still not ours
+
+`cats/desktop/outlet.jpg` — the stray bridging duplicate, three removals undone
+by something that is not this account — and **`default.php`, which is new since
+the last reading and in no commit.** Not touched, on the standing rule that
+nothing gets removed on a guess here.
