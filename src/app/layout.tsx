@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans_Arabic } from "next/font/google";
 import AppShell from "@/components/AppShell";
 import AppTabBar from "@/components/AppTabBar";
-import Navbar from "@/components/Navbar";
 import RouteTransitions from "@/components/RouteTransitions";
 import ScrollMemory from "@/components/ScrollMemory";
 import WainAi from "@/components/WainAi";
@@ -104,7 +103,12 @@ export default function RootLayout({
         >
           تخطَّ إلى المحتوى
         </a>
-        <Navbar />
+        {/* No top bar. Removed deliberately, and it took the site's only
+            browser-side navigation with it: the home link, the ⌘K search
+            palette (and its keydown listener, which lived in SearchPalette
+            and is now never mounted), استكشف/عن وين, and the live
+            order/ticket indicators. AppTabBar is `standalone:block`, so it
+            does not stand in for any of it outside the installed app. */}
         <main id="main-content" className="flex-1">
           {children}
         </main>
