@@ -2813,6 +2813,19 @@ function noseFaceZ(geo: THREE.BufferGeometry, style: BodyStyle, y: number, front
   const far = front ? 6 : -6;
   return shellSurface(geo, `${style}:z${front ? "+" : "-"}${y}`, [0, y, far], [0, 0, front ? -1 : 1]);
 }
+/** The rear face OFF the centreline: the skin a lamp at (x, y) actually
+ *  sits against. A tail is not flat — the corners are bevelled in, so
+ *  the face at the outer lamp is forward of the face behind the plate. */
+function tailFaceZ(geo: THREE.BufferGeometry, style: BodyStyle, x: number, y: number, tag = ""): number | null {
+  return shellSurface(geo, `${style}${tag}:z-${y}@${x}`, [x, y, -6], [0, 0, 1]);
+}
+/** The flank at a point: how far out the skin is at this height and this
+ *  distance along the car. Fired from the driver's side; the shell is
+ *  symmetric, so one side answers for both. `tag` keeps the authored
+ *  shell's answers apart from the extrude's in the cache. */
+function flankXAt(geo: THREE.BufferGeometry, style: BodyStyle, y: number, z: number, tag = ""): number | null {
+  return shellSurface(geo, `${style}${tag}:x${y}/${z}`, [6, y, z], [-1, 0, 0]);
+}
 /** A panel's upper surface at a point along the car, on the centreline.
  *  `tag` names which panel, so the roof and the body do not share a
  *  cache entry when they are asked about the same z. */
@@ -3158,6 +3171,13 @@ const headCoreMat = new THREE.MeshStandardMaterial({ name: "headlamp-core",
   emissiveIntensity: 4.2,
 });
 const grilleMat = new THREE.MeshStandardMaterial({ name: "grille", color: 0x0e0f12, roughness: 0.6 });
+/**
+ * The lip of paint between a tail lamp's housing and the rear corner,
+ * in the car's own units. The same on every silhouette and on both
+ * sides, which is what makes a lamp read as fitted into the panel
+ * rather than stuck onto it — see the tail block in buildCar.
+ */
+const TAIL_PAD = 0.07;
 const chromeMat = new THREE.MeshStandardMaterial({ name: "chrome",
   color: 0xd8dde3,
   roughness: 0.12,
@@ -5667,7 +5687,7 @@ export function createCar(colors: CarColors): THREE.Group {
     glow.position.set(x, y, z - 0.12);
     glow.rotation.y = Math.PI; // faces the following traffic
     glow.userData.noShadow = true;
-    group.add(glow);
+    tailGroup.add(glow);
     tailGlowMats.push(m);
   };
 
@@ -5678,39 +5698,91 @@ export function createCar(colors: CarColors): THREE.Group {
   // outer piece deepest, core shallowest — which put the core inside the
   // lens on every car in the fleet. The offsets below step outward by
   // 12–20 mm a layer; the mesh audit checks they still do.
+  //
+  // WHERE THE LAMPS SIT, and it is asked rather than typed.
+  //
+  // Every lamp used to hang at `d.tail` minus a step, and every housing
+  // was centred at a number chosen per silhouette by eye: 0.52 on a
+  // saloon, 0.7 on a hatch, 0.72 and 0.76 for the round pairs, a 1.86 m
+  // band on the fastback. Two things are wrong with that, and both are
+  // the same thing that was wrong with the hood and the plates before
+  // they were fixed the same way.
+  //
+  // The FACE. `d.tail` is the profile's anchor, and the extrusion bevels
+  // the tail in behind it — by more at the corners than on the
+  // centreline. A lamp pinned to the anchor stands off the skin behind
+  // the plate and sinks into it at the corner, on the same car, and the
+  // lamp on the left does not match the lamp on the right unless both
+  // happen to land at the same depth of bevel.
+  //
+  // The EDGE. The housings were sized against the widest point of the
+  // whole car, and the tail is narrower than that. On the fastback the
+  // band ran clean past both rear corners; on the saloon the housing
+  // finished exactly at the skin with no margin at all. A lamp is a part
+  // that is FITTED into a panel, and what says "fitted" from behind is a
+  // consistent lip of paint around it — the same on the left and the
+  // right, and the same on every car.
+  //
+  // So the geometry is asked twice: where the rear skin is at the lamp's
+  // own x, and how far out the flank is at lamp height just inboard of
+  // the tail. Every element is then stepped out from that face by the
+  // same 12-20 mm ladder as before, and every housing's outer edge is
+  // set TAIL_PAD in from that flank. The widths that follow are the
+  // widths the housings had; only their centres move.
+  //
+  // And asked TWICE. The shell this is built against is the extrude;
+  // the shell the player sees is the authored loft that models.ts swaps
+  // in once its file arrives, and at lamp height the two flanks differ
+  // by up to 40 mm (measured on the hatch). So the tail is built as a
+  // unit that can be built again: models.ts calls refitShell with the
+  // authored body and the lamps move to the skin that is actually there.
+  const tailGroup = new THREE.Group();
+  tailGroup.name = "tail-lamps";
+  group.add(tailGroup);
+  const buildTail = (geo: THREE.BufferGeometry, tag: string) => {
+  const tailAt = (x: number) => tailFaceZ(geo, style, x, d.tailY, tag) ?? d.tail;
+  const tailHalf =
+    flankXAt(geo, style, d.tailY, tailAt(0) + 0.14, tag) ?? flankX;
   if (style === "gtr") {
     // The R34 calling card: four round afterburners, each a dark ring
     // with a hot core — the classic double-circle look.
-    const garnish = new THREE.Mesh(roundedBox(1.72, 0.3, 0.05, 0.02), grilleMat);
-    garnish.position.set(0, d.tailY, d.tail + 0.005);
-    group.add(garnish);
-    for (const sx of [-0.72, -0.44, 0.44, 0.72]) {
+    const outer = tailHalf - TAIL_PAD - 0.115;
+    const inner = outer - 0.28;
+    const garnish = new THREE.Mesh(roundedBox(2 * (tailHalf - TAIL_PAD * 0.5), 0.3, 0.05, 0.02), grilleMat);
+    garnish.position.set(0, d.tailY, tailAt(0) + 0.005);
+    tailGroup.add(garnish);
+    for (const sx of [-outer, -inner, inner, outer]) {
+      const tz = tailAt(sx);
       const bezel = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.115, 0.04, 16), housingMat);
       bezel.rotation.x = Math.PI / 2;
-      bezel.position.set(sx, d.tailY, d.tail - 0.022);
-      group.add(bezel);
+      bezel.position.set(sx, d.tailY, tz - 0.022);
+      tailGroup.add(bezel);
       const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, 0.05, 16), tailMat);
       ring.rotation.x = Math.PI / 2;
-      ring.position.set(sx, d.tailY, d.tail - 0.03);
-      group.add(ring);
+      ring.position.set(sx, d.tailY, tz - 0.03);
+      tailGroup.add(ring);
       const core = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.06, 10), tailCoreMat);
       core.rotation.x = Math.PI / 2;
-      core.position.set(sx, d.tailY, d.tail - 0.042);
-      group.add(core);
+      core.position.set(sx, d.tailY, tz - 0.042);
+      tailGroup.add(core);
     }
-    addTailGlow(-0.58, d.tailY, d.tail, 0.75, 0.45);
-    addTailGlow(0.58, d.tailY, d.tail, 0.75, 0.45);
+    const mid = (outer + inner) / 2;
+    addTailGlow(-mid, d.tailY, tailAt(mid), 0.75, 0.45);
+    addTailGlow(mid, d.tailY, tailAt(mid), 0.75, 0.45);
   } else if (style === "rx7") {
     // The FD tail: a full-width smoked garnish with twin round lamps at
     // each corner, tucked tight in pairs
-    const frame = new THREE.Mesh(roundedBox(1.8, 0.2, 0.05, 0.04), housingMat);
-    frame.position.set(0, d.tailY, d.tail - 0.015);
-    group.add(frame);
-    for (const sx of [-0.76, -0.52, 0.52, 0.76]) {
+    const outer = tailHalf - TAIL_PAD - 0.095;
+    const inner = outer - 0.24;
+    const frame = new THREE.Mesh(roundedBox(2 * (tailHalf - TAIL_PAD * 0.5), 0.2, 0.05, 0.04), housingMat);
+    frame.position.set(0, d.tailY, tailAt(0) - 0.015);
+    tailGroup.add(frame);
+    for (const sx of [-outer, -inner, inner, outer]) {
+      const tz = tailAt(sx);
       const bezel = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, 0.04, 14), housingMat);
       bezel.rotation.x = Math.PI / 2;
-      bezel.position.set(sx, d.tailY, d.tail - 0.032);
-      group.add(bezel);
+      bezel.position.set(sx, d.tailY, tz - 0.032);
+      tailGroup.add(bezel);
       // The red lens. It was not here: this was the only tail in the
       // fleet built as bezel-then-core with nothing between them, so
       // the FD's four lamps were a hot orange element sitting in a
@@ -5719,65 +5791,89 @@ export function createCar(colors: CarColors): THREE.Group {
       // taillamp-lens came out 0 on this body and 1 to 5 on the rest.
       const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.078, 0.078, 0.05, 14), tailMat);
       lens.rotation.x = Math.PI / 2;
-      lens.position.set(sx, d.tailY, d.tail - 0.044);
-      group.add(lens);
+      lens.position.set(sx, d.tailY, tz - 0.044);
+      tailGroup.add(lens);
       const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.056, 0.056, 0.055, 14), tailCoreMat);
       lamp.rotation.x = Math.PI / 2;
-      lamp.position.set(sx, d.tailY, d.tail - 0.056);
-      group.add(lamp);
+      lamp.position.set(sx, d.tailY, tz - 0.056);
+      tailGroup.add(lamp);
     }
-    addTailGlow(-0.64, d.tailY, d.tail, 0.7, 0.42);
-    addTailGlow(0.64, d.tailY, d.tail, 0.7, 0.42);
+    const mid = (outer + inner) / 2;
+    addTailGlow(-mid, d.tailY, tailAt(mid), 0.7, 0.42);
+    addTailGlow(mid, d.tailY, tailAt(mid), 0.7, 0.42);
   } else if (style === "zx") {
     // Full-width assembly under the fastback glass: smoked housing frame,
-    // the band, and a hotter inner strip running its length
-    const frame = new THREE.Mesh(roundedBox(1.86, 0.19, 0.05, 0.03), housingMat);
-    frame.position.set(0, d.tailY, d.tail - 0.015);
-    group.add(frame);
-    const band = new THREE.Mesh(roundedBox(1.78, 0.13, 0.06, 0.025), tailMat);
-    band.position.set(0, d.tailY, d.tail - 0.028);
-    group.add(band);
-    const core = new THREE.Mesh(roundedBox(1.6, 0.045, 0.065, 0.02), tailCoreMat);
-    core.position.set(0, d.tailY, d.tail - 0.045);
-    group.add(core);
-    addTailGlow(-0.6, d.tailY, d.tail, 0.8, 0.4);
-    addTailGlow(0.6, d.tailY, d.tail, 0.8, 0.4);
+    // the band, and a hotter inner strip running its length. Flat, at
+    // the centreline's face: a full-width lamp is one flat part, and it
+    // is the corners' job to be inside it, not the band's job to bend.
+    const fh = tailHalf - TAIL_PAD;
+    const tz = tailAt(0);
+    const frame = new THREE.Mesh(roundedBox(2 * fh, 0.19, 0.05, 0.03), housingMat);
+    frame.position.set(0, d.tailY, tz - 0.015);
+    tailGroup.add(frame);
+    const band = new THREE.Mesh(roundedBox(2 * (fh - 0.04), 0.13, 0.06, 0.025), tailMat);
+    band.position.set(0, d.tailY, tz - 0.028);
+    tailGroup.add(band);
+    const core = new THREE.Mesh(roundedBox(2 * (fh - 0.13), 0.045, 0.065, 0.02), tailCoreMat);
+    core.position.set(0, d.tailY, tz - 0.045);
+    tailGroup.add(core);
+    addTailGlow(-fh * 0.65, d.tailY, tz, 0.8, 0.4);
+    addTailGlow(fh * 0.65, d.tailY, tz, 0.8, 0.4);
   } else if (style === "hatch") {
     // A hatch wears its lamps in the corners of the tailgate opening,
     // standing tall rather than lying wide: they wrap the D-pillar and
     // they are most of what you recognise the car by from behind.
+    const hc = tailHalf - TAIL_PAD - 0.17;
     for (const sxSign of [-1, 1]) {
+      const sx = sxSign * hc;
+      const tz = tailAt(sx);
       const housing = new THREE.Mesh(roundedBox(0.34, 0.3, 0.05, 0.035), housingMat);
-      housing.position.set(sxSign * 0.7, d.tailY, d.tail - 0.005);
-      group.add(housing);
+      housing.position.set(sx, d.tailY, tz - 0.005);
+      tailGroup.add(housing);
       const lens = new THREE.Mesh(roundedBox(0.28, 0.24, 0.06, 0.03), tailMat);
-      lens.position.set(sxSign * 0.7, d.tailY, d.tail - 0.015);
-      group.add(lens);
+      lens.position.set(sx, d.tailY, tz - 0.015);
+      tailGroup.add(lens);
       // The lit element is an L: a bar across the top and one down the
       // outboard edge, which is the shape these have carried for decades.
       const bar = new THREE.Mesh(roundedBox(0.24, 0.05, 0.05, 0.016), tailCoreMat);
-      bar.position.set(sxSign * 0.7, d.tailY + 0.08, d.tail - 0.032);
-      group.add(bar);
+      bar.position.set(sx, d.tailY + 0.08, tz - 0.032);
+      tailGroup.add(bar);
       const post = new THREE.Mesh(roundedBox(0.05, 0.2, 0.05, 0.016), tailCoreMat);
-      post.position.set(sxSign * 0.79, d.tailY - 0.02, d.tail - 0.032);
-      group.add(post);
-      addTailGlow(sxSign * 0.7, d.tailY, d.tail, 0.5, 0.5);
+      post.position.set(sxSign * (hc + 0.09), d.tailY - 0.02, tz - 0.032);
+      tailGroup.add(post);
+      addTailGlow(sx, d.tailY, tz, 0.5, 0.5);
     }
   } else {
-    // Two wrap-around housings with lens + core, split by the plate
+    // Two wrap-around housings with lens + core, split by the boot lid.
+    // The housing keeps its width unless the tail is too narrow to hold
+    // it with the pad AND a hand's width of paint between the pair.
+    const w = Math.min(0.78, tailHalf - TAIL_PAD - 0.14);
+    const hc = tailHalf - TAIL_PAD - w / 2;
     for (const sxSign of [-1, 1]) {
-      const housing = new THREE.Mesh(roundedBox(0.78, 0.17, 0.05, 0.03), housingMat);
-      housing.position.set(sxSign * 0.52, d.tailY, d.tail - 0.005);
-      group.add(housing);
-      const lens = new THREE.Mesh(roundedBox(0.7, 0.11, 0.06, 0.02), tailMat);
-      lens.position.set(sxSign * 0.52, d.tailY, d.tail - 0.015);
-      group.add(lens);
-      const core = new THREE.Mesh(roundedBox(0.62, 0.04, 0.05, 0.015), tailCoreMat);
-      core.position.set(sxSign * 0.52, d.tailY, d.tail - 0.032);
-      group.add(core);
-      addTailGlow(sxSign * 0.52, d.tailY, d.tail, 0.7, 0.4);
+      const sx = sxSign * hc;
+      const tz = tailAt(sx);
+      const housing = new THREE.Mesh(roundedBox(w, 0.17, 0.05, 0.03), housingMat);
+      housing.position.set(sx, d.tailY, tz - 0.005);
+      tailGroup.add(housing);
+      const lens = new THREE.Mesh(roundedBox(w - 0.08, 0.11, 0.06, 0.02), tailMat);
+      lens.position.set(sx, d.tailY, tz - 0.015);
+      tailGroup.add(lens);
+      const core = new THREE.Mesh(roundedBox(w - 0.16, 0.04, 0.05, 0.015), tailCoreMat);
+      core.position.set(sx, d.tailY, tz - 0.032);
+      tailGroup.add(core);
+      addTailGlow(sx, d.tailY, tz, 0.7, 0.4);
     }
   }
+  };
+  buildTail(bGeo, "");
+  group.userData.refitShell = (geo: THREE.BufferGeometry) => {
+    for (const o of [...tailGroup.children]) {
+      tailGroup.remove(o);
+      (o as THREE.Mesh).geometry?.dispose();
+    }
+    tailGlowMats.length = 0;
+    buildTail(geo, ":authored");
+  };
 
   // High-mount third brake light: sedan/gtr at the rear-glass base, and
   // for the gtr a second element in the wing itself; zx on the fastback.

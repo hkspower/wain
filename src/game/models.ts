@@ -387,6 +387,10 @@ export function upgradeCarShells(group: THREE.Group, style: BodyStyle): void {
       }
       verdict[slot] = "authored";
       mesh.geometry = geo;
+      // The lamps were fitted to the extrude; fit them to this.
+      if (slot === "body") {
+        (group.userData.refitShell as ((g: THREE.BufferGeometry) => void) | undefined)?.(geo);
+      }
     });
   });
 }

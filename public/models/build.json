@@ -59,7 +59,7 @@
     },
     "wheel-6": {
       "tris": 16836,
-      "kb": 311.0,
+      "kb": 311,
       "parts": [
         "Alloy",
         "Barrel",
@@ -140,5 +140,6 @@
         "Roof"
       ]
     }
-  }
+  },
+  "faces": "mirrored"
 }

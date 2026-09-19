@@ -253,6 +253,28 @@ def loft_shell(name, geo):
     if bm.calc_volume(signed=True) < 0:
         bmesh.ops.reverse_faces(bm, faces=bm.faces)
 
+    # Triangulate HERE, by the shorter diagonal, rather than leaving the
+    # quads for the exporter.
+    #
+    # The exporter splits every quad on the same index diagonal, and the
+    # rings run from one flank to the other — so on the right half that
+    # diagonal goes (inner ring, i) -> (outer ring, j) and on the left it
+    # goes (outer, i) -> (inner, j): the OTHER diagonal, in space. On a
+    # flat quad nobody can tell. On the bevel the quads are not flat, and
+    # the two diagonals are two different surfaces: measured off the
+    # shipped sedan, the left flank sat up to 40 mm from the right at the
+    # rear shoulder, on a mesh whose vertices are mirrored to the micron
+    # (scripts/check-shell-mirror.mjs — 1% of triangles had a mirrored
+    # twin). Every lamp and every trim piece is hung symmetrically off
+    # the centreline, so a body that is not symmetric makes all of them
+    # look crooked.
+    #
+    # The shorter diagonal is a property of the quad's own shape, which
+    # IS mirrored, so the split comes out mirrored too. Where the two
+    # diagonals tie the quad is flat and the choice does not exist.
+    bmesh.ops.triangulate(bm, faces=bm.faces[:], quad_method="SHORT_EDGE",
+                          ngon_method="BEAUTY")
+
     bm.to_mesh(mesh)
     bm.free()
 
