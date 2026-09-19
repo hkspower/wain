@@ -25,7 +25,12 @@ const walk = (dir, out = []) => {
 };
 
 const AR = /[؀-ۿݐ-ݿ]/;
-const files = walk("src");
+// Player-facing Arabic prose that lives outside src/ — the code that
+// builds a screen isn't the only place a string a reader sees can sit.
+// An explicit list rather than a second walk() root, so this stays
+// scoped to real content and doesn't sweep in scripts/, tests/ or docs.
+const EXTRA_FILES = ["public/radio/stations.json"];
+const files = [...walk("src"), ...EXTRA_FILES];
 
 /** Every string literal in the tree that contains Arabic. */
 const strings = [];

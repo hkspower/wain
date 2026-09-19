@@ -38,8 +38,15 @@ const walk = (dir, out = []) => {
 const AR = /[؀-ۿݐ-ݿ]/;
 const ARW = "ء-ي";
 
+// Content outside src/ that carries player-facing Arabic prose of its
+// own, rather than the code that builds a screen around it. Kept as an
+// explicit list rather than a second walk() root: the point is real
+// strings a player reads, not sweeping in scripts/, tests/ or docs,
+// which is where the tsx walk stops mattering as a boundary.
+const EXTRA_FILES = ["public/radio/stations.json"];
+
 const strings = [];
-for (const f of walk("src")) {
+for (const f of [...walk("src"), ...EXTRA_FILES]) {
   readFileSync(f, "utf8").split("\n").forEach((line, i) => {
     for (const m of line.matchAll(/"([^"\n]*)"|'([^'\n]*)'|`([^`\n]*)`/g)) {
       const v = m[1] ?? m[2] ?? m[3];
