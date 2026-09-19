@@ -280,7 +280,14 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 			Wheel->SetStaticMesh(HeroWheel);
 			Rig.bHeroWheels = true;
 			const FVector Size = HeroWheel->GetBoundingBox().GetSize();
-			const float Fit = Size.Z > 1.f ? (0.8f * K * 100.f) / Size.Z : 1.f;
+			// To the DIAMETER the hub height above is placed from, not to
+			// a typed 0.8: 0.8 * K is 89.6 cm across while the hub sits at
+			// GRN_TYRE_RADIUS_M * K = 42 cm, which wants 84. An imported
+			// wheel came out 6.67% oversize and buried 2.8 cm of itself in
+			// the road, and since SpinWheels rolls at SpeedMs / 0.375 the
+			// tread slipped against the tarmac the whole time.
+			const float Fit =
+				Size.Z > 1.f ? (2.f * GRN_TYRE_RADIUS_M * K * 100.f) / Size.Z : 1.f;
 			Wheel->SetRelativeScale3D(FVector(Fit, W.Y < 0.f ? -Fit : Fit, Fit));
 			if (Hero->WheelSlot >= 0 && Hero->WheelSlot < Wheel->GetNumMaterials())
 			{
@@ -291,7 +298,29 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 		{
 			Wheel->SetStaticMesh(Cyl());
 			Wheel->SetRelativeRotation(FRotator(0.f, 0.f, 90.f));
-			Wheel->SetRelativeScale3D(FVector(0.8f * K, 0.29f * K, 0.8f * K));
+			// Diameter on the cylinder's circular section — its local X
+			// and Y — and the tyre's width on its own axis, local Z. That
+			// axis is the axle: Roll 90° lays it along Y, and SpinWheels
+			// yaws about it for exactly this reason.
+			//
+			// These were the other way round. Unity's primitive cylinder
+			// is axial on local Y and Unreal's on local Z, so the Unity
+			// port's correct `new Vector3(wr * 2f, 0.13f, wr * 2f)`
+			// (CarFactory.cs:257) carried straight across put the WIDTH on
+			// a cross-section axis. Every wheel in the game came out an
+			// ellipse — 89.6 cm fore-aft, 32.5 cm tall, 89.6 cm wide —
+			// floating 26 cm clear of a hub sitting at 42 cm. Read rather
+			// than seen: this port did not compile at all until recently,
+			// so nobody had run it to notice.
+			//
+			// 2 * GRN_TYRE_RADIUS_M rather than the 0.8 that was typed
+			// here: the diameter is the radius the web build publishes,
+			// doubled — and it is the same figure the hub height on the
+			// line above is placed from, which is what makes the tyre
+			// meet the road instead of hovering over it or sinking into
+			// it. A third hand-typed radius is how they drift apart.
+			Wheel->SetRelativeScale3D(FVector(2.f * GRN_TYRE_RADIUS_M * K,
+				2.f * GRN_TYRE_RADIUS_M * K, 0.29f * K));
 			Wheel->SetMaterial(0, WheelMat);
 		}
 		Wheel->SetCollisionEnabled(ECollisionEnabled::NoCollision);
