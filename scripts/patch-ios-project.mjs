@@ -4,7 +4,8 @@
  *
  * Runs in CI straight after `npx cap add ios`, because `ios/` is generated on
  * every run and gitignored. Everything it writes is either a hard crash or a
- * rejected upload if it is missing, so the list is short and none of it taste.
+ * rejected upload if it is missing, so the list is short and none of it is
+ * a matter of taste.
  *
  * PURE NODE, deliberately: the obvious way to edit Info.plist is PlistBuddy,
  * which exists only on macOS, and that would make every line of this

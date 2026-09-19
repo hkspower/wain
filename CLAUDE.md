@@ -1405,7 +1405,7 @@ from **44px (WCAG 2.5.5 AAA)** to **24px (WCAG 2.5.8 AA)** — a real published
 level, not an invented number, with its own spacing exception (24px clearance
 to the next target) rather than none. The other two floors were NOT
 renegotiated: 11px text has no lower AA-equivalent to trade down to, and 16px
-fields is a browser behaviour (iOS zooms into anything smaller), not a design
+fields are a browser behaviour (iOS zooms into anything smaller), not a design
 choice this site controls. `audit:mobile` enforces 24px/24px now, in
 `MIN_TARGET_PX`/`MIN_TARGET_SPACING_PX`, and says which standard each number
 is from.

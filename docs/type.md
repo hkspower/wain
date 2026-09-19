@@ -22,7 +22,7 @@ tells you what was written; only rendering tells you what a reader gets.
 ## The floor is 11px, and it is about Arabic
 
 Arabic carries meaning in dots and short connecting strokes — ب ت ث ن ي differ
-by dots alone — and those are the first thing to go as the size drops. 10px
+by dots alone — and those are the first things to go as the size drops. 10px
 Latin is small; 10px Arabic is ambiguous. Nothing on the site goes below 11px.
 
 Two things did. One was a `⌘K` keyboard hint, which is Latin and desktop-only
