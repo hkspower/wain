@@ -49,16 +49,18 @@ export default function HomePage() {
             <NearbyDial />
           </div>
 
-          {/* The site's only route to /search, and it had none at all.
-              Removing the top bar took the search button with it and nothing
-              replaced it: after that, every route's single `href="/search/"`
-              was AppTabBar's tab, which is `standalone:block` and so is
-              painted by nothing in a browser. Search was unreachable, and
-              with it شوق — her launcher lives inside the /search query box.
-              /explore has its own box and is fine; this page was the gap.
+          {/* This page's route to /search. Removing the top bar took the
+              search button with it and nothing replaced it: after that, every
+              route's single `href="/search/"` was AppTabBar's tab, which is
+              `standalone:block` and so is painted by nothing in a browser.
+              Search was unreachable, and with it شوق — her launcher lives
+              inside the /search query box.
+
               A link under the dial rather than a second bar, because the two
               are halves of one question: the dial answers «وين» by where you
-              are, this one by what the place is called. */}
+              are, this one by what the place is called. Every other route is
+              covered by SearchButton on the bottom rail, which stands down
+              here precisely because this link exists. */}
           <div className="mt-4 text-center">
             <Link
               href="/search"
