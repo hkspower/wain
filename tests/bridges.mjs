@@ -16,7 +16,7 @@
 //               the car inside halfWidthAt() and there is no collider on
 //               scenery, so a pier the car could reach would be a pier
 //               the car drives through.
-//   lighting    no street column grows through a deck. A pole is 8.4 m
+//   lighting    no street column grows through a deck. A pole is 10.5 m
 //               and the soffit is at 6.4, so an unfiltered pole comes up
 //               through the bridge — which is exactly what happened
 //               before flyover placement started suppressing them.
@@ -144,7 +144,7 @@ const bridges = await page.evaluate(() => {
     if (!o.isInstancedMesh) return;
     const g = o.geometry;
     const h = (g.parameters?.height ?? 0);
-    if (h < 8 || h > 9) return; // the 8.4 m street column, and only it
+    if (h < 10 || h > 11) return; // the 10.5 m street column, and only it (the 11.375 m light cone is also instanced but sits just above this band)
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
     for (let i = 0; i < o.count; i++) {

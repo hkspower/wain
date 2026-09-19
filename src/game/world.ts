@@ -3043,7 +3043,7 @@ const FLYOVERS: ReadonlyArray<{
 ];
 
 /** How far either side of a flyover the street lighting stops. A lamp
- *  column is 8.4 m tall and a deck soffit is at 6.4 — a pole under a
+ *  column is 10.5 m tall and a deck soffit is at 6.4 — a pole under a
  *  bridge goes through it. Real lighting stops short of a structure and
  *  the structure carries its own. */
 const FLYOVER_CLEAR = 30;
@@ -3145,7 +3145,7 @@ function flyover(
   // --- Under-deck lighting ---------------------------------------------
   //
   // FLYOVER_CLEAR stops the street columns 30 m either side of a deck,
-  // because an 8.4 m pole under a 6.4 m soffit grows through the bridge.
+  // because a 10.5 m pole under a 6.4 m soffit grows through the bridge.
   // The comment there says "the structure carries its own". It did not,
   // and the result was the darkest place on the lap:
   //
@@ -4595,16 +4595,24 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   {
     const spacing = 42;
     const count = Math.floor(L / spacing);
-    const poleGeo = new THREE.CylinderGeometry(0.14, 0.2, 8.4, 6);
+    const poleGeo = new THREE.CylinderGeometry(0.175, 0.25, 10.5, 6);
     const poleMat = new THREE.MeshStandardMaterial({ color: 0x3c4148, roughness: 0.7 });
     const poles = new THREE.InstancedMesh(poleGeo, poleMat, count);
     // A vertical post-top luminaire, not a cobra arm reaching out over
     // the carriageway. The LED is a standing blade at the head of the
     // pole with a dark shroud behind it, which is the shape the Gulf
     // Road's own columns were retrofitted to.
-    const shroudGeo = new THREE.BoxGeometry(0.24, 1.72, 0.24);
+    const shroudGeo = new THREE.BoxGeometry(0.3, 2.15, 0.3);
     const shrouds = new THREE.InstancedMesh(shroudGeo, poleMat, count);
-    const lampGeo = new THREE.BoxGeometry(0.2, 1.44, 0.2);
+    // A flat hood, wider than the shroud, sitting on top of it. Without
+    // it the head is barely wider than the pole shaft and, per the
+    // corona-points comment below, "reads as a blob" rather than a
+    // fixture at driving distance — a real shielded LED post-top
+    // luminaire carries a lid exactly this shape, and the overhang is
+    // what breaks the silhouette against the pole.
+    const capGeo = new THREE.BoxGeometry(0.46, 0.06, 0.46);
+    const caps = new THREE.InstancedMesh(capGeo, poleMat, count);
+    const lampGeo = new THREE.BoxGeometry(0.25, 1.8, 0.25);
     const lampMat = new THREE.MeshStandardMaterial({
       // Cool white LED. Not paper white — a real 5000 K head still reads
       // faintly blue against a warm window, and that contrast is the
@@ -4655,7 +4663,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // The visible shaft of lamplight: an open cone from the head to the
     // pool, wearing the same length-wise gradient the headlight beams
     // wear so it dissolves at both ends instead of ending in a rim.
-    const coneGeo = new THREE.CylinderGeometry(0.55, 5.2, 9.1, 12, 1, true);
+    const coneGeo = new THREE.CylinderGeometry(0.55, 5.2, 11.375, 12, 1, true);
     const coneMat = new THREE.MeshBasicMaterial({
       map: lampConeTexture(),
       transparent: true,
@@ -4690,16 +4698,18 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       const s = i * spacing;
       const u = s / L;
       // No street poles inside the tunnel — and none under a flyover
-      // either. A column is 8.4 m tall and a deck soffit is at 6.4, so
-      // an unfiltered pole grows straight through the bridge; real
-      // lighting stops short of a structure and the structure carries
-      // its own, which is what flyover() puts on the parapet.
+      // either. A column is 10.5 m tall (12.5 m to the top of the hood)
+      // and a deck soffit is at 6.4, so an unfiltered pole grows straight
+      // through the bridge; real lighting stops short of a structure and
+      // the structure carries its own, which is what flyover() puts on
+      // the parapet.
       if (
         (u > TUNNEL_U.from - 0.004 && u < TUNNEL_U.to + 0.004) ||
         underFlyover(track, s)
       ) {
         poles.setMatrixAt(i, hidden);
         shrouds.setMatrixAt(i, hidden);
+        caps.setMatrixAt(i, hidden);
         lamps.setMatrixAt(i, hidden);
         pools.setMatrixAt(i, hidden);
         cones.setMatrixAt(i, hidden);
@@ -4707,7 +4717,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       }
       const sideSign = i % 2 === 0 ? 1 : -1;
       track.pose(s, sideSign * (ROAD_HALF_WIDTH + 1.6), p, tmp);
-      m.makeTranslation(p.x, 4.2, p.z);
+      m.makeTranslation(p.x, 5.25, p.z);
       poles.setMatrixAt(i, m);
 
       // The blade stands on the pole itself. Everything is square to the
@@ -4722,14 +4732,18 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       track.pose(s, sideSign * (ROAD_HALF_WIDTH + 1.6), p, tmp);
       const hx = p.x;
       const hz = p.z;
-      armMid.set(hx, 9.15, hz);
+      armMid.set(hx, 11.4375, hz);
       m.compose(armMid, armQ, unitV);
       shrouds.setMatrixAt(i, m);
+      // The hood, sitting flat on top of the shroud.
+      armMid.set(hx, 12.52, hz);
+      m.compose(armMid, armQ, unitV);
+      caps.setMatrixAt(i, m);
       // The emitter sits proud of the shroud on the road side of it.
-      armMid.set(hx + sideV.x * 0.09, 9.1, hz + sideV.z * 0.09);
+      armMid.set(hx + sideV.x * 0.1125, 11.375, hz + sideV.z * 0.1125);
       m.compose(armMid, armQ, unitV);
       lamps.setMatrixAt(i, m);
-      lampPositions.push(new THREE.Vector3(armMid.x, 9.1, armMid.z));
+      lampPositions.push(new THREE.Vector3(armMid.x, 11.375, armMid.z));
 
       // The pool lands under the head and spills toward the road centre
       // (the head's optic faces down-and-in, not straight down).
@@ -4757,10 +4771,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // to nothing at both ends. Kept very quiet: the cone is scenery,
       // and at additive opacity this low the exposure loop does not
       // move for it.
-      coneP.set(hx + sideV.x * 0.09, 9.1, hz + sideV.z * 0.09);
+      coneP.set(hx + sideV.x * 0.1125, 11.375, hz + sideV.z * 0.1125);
       coneMid.set(
         (coneP.x + p.x) / 2,
-        4.6,
+        5.71,
         (coneP.z + p.z) / 2
       );
       coneDir.subVectors(p, coneP).normalize();
@@ -4769,6 +4783,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       cones.setMatrixAt(i, m);
     }
     shrouds.instanceMatrix.needsUpdate = true;
+    caps.instanceMatrix.needsUpdate = true;
     // Wet-look smears: each lamp drags a long reflection down the road
     // surface — the single cheapest thing that sells night asphalt.
     const streakGeo = new THREE.PlaneGeometry(1.4, 12);
@@ -4817,11 +4832,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // stands on; never a shadow caster — it IS light.
     cones.renderOrder = 2;
     poles.castShadow = true;
-    scene.add(poles, shrouds, lamps, pools, cones, streaks);
+    scene.add(poles, shrouds, caps, lamps, pools, cones, streaks);
     // LED coronas around every blade
-    // Tight. A 4.6 m round corona around a 0.15 m-wide blade is all you
-    // see — the luminaire is vertical and reads as a blob anyway, which
-    // defeats the point of standing it up.
+    // Tight. A 4.6 m round corona around a 0.25 m-wide blade is all you
+    // see up close; the hood above it is what carries the fixture's
+    // shape at distance, where the corona alone used to be the whole
+    // silhouette and read as a blob.
     scene.add(coronaPoints(lampPositions, 0xdbe7ff, 2.8));
     // Star glints: the sparkle each bright source throws at the lens
     {
