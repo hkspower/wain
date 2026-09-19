@@ -447,6 +447,11 @@ function sendJson(res, code, body) {
   res.end(payload);
 }
 
+function sendHtml(res, code, body) {
+  res.writeHead(code, { "Content-Type": "text/html; charset=utf-8" });
+  res.end(body);
+}
+
 function readBody(req, limit = MAX_CAREER_BYTES) {
   return new Promise((resolve, reject) => {
     let size = 0;
@@ -470,9 +475,13 @@ function readBody(req, limit = MAX_CAREER_BYTES) {
  *   GET  /api/v1/status              — health + live player count
  *   GET  /api/v1/leaderboard         — session best laps
  *   GET  /api/v1/teams               — the crew roster
+ *   GET  /api/v1/players             — who is online right now
  *   POST /api/v1/lap  {name,ms}      — submit a lap, get the new board
  *   GET  /api/v1/career/:name        — cloud career blob
  *   PUT  /api/v1/career/:name        — store one (4 KB cap)
+ *
+ * Plus GET /admin — a read-only dashboard over the same data, for
+ * whoever is running this hub rather than for a game client.
  */
 async function handleRest(req, res) {
   const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
@@ -499,6 +508,14 @@ async function handleRest(req, res) {
     // every change — this is that roster, for a caller that has no socket
     // open (a website widget, a bot) rather than a second copy of it.
     return sendJson(res, 200, { apiVersion: API_VERSION, teams: teamList() });
+  }
+
+  if (path === "/api/v1/players") {
+    return sendJson(res, 200, { apiVersion: API_VERSION, players: adminRoster() });
+  }
+
+  if (path === "/admin") {
+    return sendHtml(res, 200, adminPage());
   }
 
   if (path === "/api/v1/lap" && req.method === "POST") {
@@ -560,6 +577,115 @@ function leaderboard() {
 
 function roster() {
   return [...players.entries()].map(([id, p]) => ({ id, name: p.name, color: p.color }));
+}
+
+/** roster(), with the extra fields an admin actually wants and a game
+ *  client never asks for: crew, whether they're mid-duel, and their last
+ *  reported speed — never their exact position, which is the one field
+ *  here that is genuinely about tracking a person rather than describing
+ *  a lobby. */
+function adminRoster() {
+  return [...players.entries()].map(([id, p]) => {
+    const team = teamOf(p.name);
+    return {
+      id,
+      name: p.name,
+      color: p.color,
+      crew: team ? { tag: team.tag, name: team.name } : null,
+      inDuel: duelOf.has(id),
+      speedKmh: p.state ? Math.round(p.state.speed * 3.6) : null,
+    };
+  });
+}
+
+/**
+ * The read-only dashboard. One file, no build step, no framework — this
+ * server has none of those and a dashboard for it should not need to
+ * grow any. Polls the REST endpoints it would tell anyone else to use;
+ * there is no private channel between this page and the server's memory,
+ * so what it shows is provably what a game client could also ask for.
+ */
+function adminPage() {
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><title>Night Racer hub</title>
+<style>
+  body { background:#0a0d13; color:#e8eaf0; font:14px/1.4 -apple-system,system-ui,sans-serif; margin:0; padding:24px; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  .sub { color:#8a8f9c; margin-bottom:20px; }
+  .cards { display:flex; gap:12px; margin-bottom:24px; flex-wrap:wrap; }
+  .card { background:#12161f; border:1px solid #232838; border-radius:10px; padding:12px 16px; min-width:110px; }
+  .card .n { font-size:24px; font-weight:600; color:#f5a623; }
+  .card .l { color:#8a8f9c; font-size:12px; text-transform:uppercase; letter-spacing:.05em; }
+  table { width:100%; border-collapse:collapse; margin-bottom:24px; }
+  th, td { text-align:left; padding:6px 10px; border-bottom:1px solid #1c2130; font-variant-numeric:tabular-nums; }
+  th { color:#8a8f9c; font-size:12px; text-transform:uppercase; letter-spacing:.05em; font-weight:500; }
+  tr:last-child td { border-bottom:none; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+  .tag { color:#f5a623; font-weight:600; }
+  .muted { color:#5c6270; }
+  .stale { opacity:.5; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:#8a8f9c; margin:0 0 8px; }
+</style></head>
+<body>
+  <h1>Night Racer — hub</h1>
+  <div class="sub" id="sub">connecting…</div>
+  <div class="cards" id="cards"></div>
+  <h2>Online (<span id="playerCount">0</span>)</h2>
+  <table id="players"><thead><tr><th></th><th>Name</th><th>Crew</th><th>Speed</th><th></th></tr></thead><tbody></tbody></table>
+  <h2>Leaderboard</h2>
+  <table id="leaderboard"><thead><tr><th>#</th><th>Name</th><th>Best lap</th></tr></thead><tbody></tbody></table>
+  <h2>Crews (<span id="teamCount">0</span>)</h2>
+  <table id="teams"><thead><tr><th>Tag</th><th>Name</th><th>Founder</th><th>Members</th></tr></thead><tbody></tbody></table>
+<script>
+const fmtLap = (ms) => {
+  const m = Math.floor(ms / 60000), s = ((ms % 60000) / 1000).toFixed(1).padStart(4, "0");
+  return m + ":" + s;
+};
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+async function tick() {
+  try {
+    const [status, players, board, teams] = await Promise.all(
+      ["/api/v1/status", "/api/v1/players", "/api/v1/leaderboard", "/api/v1/teams"].map(
+        (u) => fetch(u).then((r) => r.json())
+      )
+    );
+    document.getElementById("sub").textContent =
+      status.game + " — uptime " + Math.floor(status.uptimeSec / 60) + "m — refreshed " + new Date().toLocaleTimeString();
+    document.getElementById("cards").innerHTML =
+      '<div class="card"><div class="n">' + status.online + '</div><div class="l">Online</div></div>' +
+      '<div class="card"><div class="n">' + status.teams + '</div><div class="l">Crews</div></div>' +
+      '<div class="card"><div class="n">' + board.entries.length + '</div><div class="l">Lap times</div></div>';
+
+    document.getElementById("playerCount").textContent = players.players.length;
+    document.getElementById("players").querySelector("tbody").innerHTML =
+      players.players.map((p) =>
+        '<tr><td><span class="dot" style="background:' + esc(p.color) + '"></span></td>' +
+        '<td>' + esc(p.name) + '</td>' +
+        '<td>' + (p.crew ? '<span class="tag">[' + esc(p.crew.tag) + ']</span> ' + esc(p.crew.name) : '<span class="muted">—</span>') + '</td>' +
+        '<td>' + (p.speedKmh === null ? '<span class="muted">—</span>' : p.speedKmh + ' km/h') + '</td>' +
+        '<td>' + (p.inDuel ? '<span class="tag">duel</span>' : '') + '</td></tr>'
+      ).join("") || '<tr><td colspan="5" class="muted">nobody online</td></tr>';
+
+    document.getElementById("leaderboard").querySelector("tbody").innerHTML =
+      board.entries.map((e, i) =>
+        '<tr><td>' + (i + 1) + '</td><td>' + esc(e.name) + '</td><td>' + fmtLap(e.ms) + '</td></tr>'
+      ).join("") || '<tr><td colspan="3" class="muted">no laps yet</td></tr>';
+
+    document.getElementById("teamCount").textContent = teams.teams.length;
+    document.getElementById("teams").querySelector("tbody").innerHTML =
+      teams.teams.map((t) =>
+        '<tr><td class="tag">[' + esc(t.tag) + ']</td><td>' + esc(t.name) + '</td><td>' + esc(t.founder) + '</td>' +
+        '<td>' + t.members.filter((m) => m.online).length + ' / ' + t.members.length + '</td></tr>'
+      ).join("") || '<tr><td colspan="4" class="muted">no crews founded yet</td></tr>';
+  } catch (err) {
+    document.getElementById("sub").textContent = "could not reach the hub: " + err.message;
+  }
+}
+tick();
+setInterval(tick, 4000);
+</script>
+</body></html>`;
 }
 
 /** How many sockets the hub will hold at once. A cruise is a few dozen
