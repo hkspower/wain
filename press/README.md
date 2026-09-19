@@ -35,6 +35,7 @@ whether it belongs in the history at all.
 | `tunnel/` | The Second Ring underpass, four stations through it. | `tools/shots/tunnel.mjs` | kept |
 | `sky/` | The night sky from the coast leg: the chase camera's strip of it, and the same camera pitched up. | `tools/shots/sky.mjs` | kept |
 | `tails/` | Every silhouette from behind, with the lamps fitted to the panel. | `tests/tailfit.mjs` | kept |
+| `intro/` | The menu's race, at the moment your car leads and the moment it is chased. | `tools/shots/intro.mjs` | kept |
 | `menu/` | The title block, at the two widths the strapline solves its tracking for. | by hand | kept |
 | `film/` | The pre-race film, both encodings, and its poster frames. The 336 JPEGs it was made from are not the artefact. | `tools/shots/exportfilm.mjs` | part kept |
 | `ik/` | The rig at 4K. The JPEGs are the deliverable; the lossless PNGs beside them are 13 MB each. | `tools/shots/ik4k.mjs` | part kept |

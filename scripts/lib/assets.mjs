@@ -106,6 +106,8 @@ export const ASSETS = [
     what: "The night sky from the coast leg: the chase camera's strip of it, and the same camera pitched up." },
   { path: "press/tails", kind: "kept", by: "tests/tailfit.mjs",
     what: "Every silhouette from behind, with the lamps fitted to the panel." },
+  { path: "press/intro", kind: "kept", by: "tools/shots/intro.mjs",
+    what: "The menu's race, at the moment your car leads and the moment it is chased." },
   { path: "press/menu", kind: "kept", by: "—",
     what: "The title block, at the two widths the strapline solves its tracking for." },
 

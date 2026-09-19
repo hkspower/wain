@@ -61,6 +61,7 @@
     "check:sparks": "node tools/shots/sparks.mjs",
     "check:sky": "node tools/shots/sky.mjs",
     "check:hud": "node tools/shots/hudsharp.mjs",
+    "shot:intro": "node tools/shots/intro.mjs",
     "shot:tach": "node tools/shots/tach.mjs",
     "shot:tunnel": "node tools/shots/tunnel.mjs",
     "check:tint": "node tools/shots/tint.mjs",

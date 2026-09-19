@@ -871,6 +871,9 @@ function raceCut(): { w: number; h: number } | null {
   const [menuSel, setMenuSel] = useState(0);
   const attractRef = useRef<HTMLCanvasElement>(null);
   const attractScene = useRef<import("@/game/attract").AttractHandle | null>(null);
+  /** The menu's own score, alive between the first gesture on the menu
+   *  and the race taking over. Only what the menu needs of it. */
+  const menuMusicRef = useRef<{ setVolume(v: number): void; dispose(): void } | null>(null);
   const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const boostWrapRef = useRef<HTMLDivElement>(null);
@@ -923,6 +926,7 @@ function raceCut(): { w: number; h: number } | null {
       if (k === "sfxVolume") setSfxVolume(next.sfxVolume);
       if (k === "sfxVolume" || k === "musicVolume") {
         engineRef.current?.setAudioLevels(next.musicVolume, next.sfxVolume);
+        menuMusicRef.current?.setVolume(next.musicVolume);
       }
       if (k === "quality") engineRef.current?.applyQualityTier(next.quality);
       if (k === "cameraView") engineRef.current?.setView(next.cameraView);
@@ -2148,9 +2152,58 @@ function raceCut(): { w: number; h: number } | null {
     };
   }, []);
 
+  // The menu's own score.
+  //
+  // The menu is a race now — two cars through a corner — and a race in
+  // silence is a screensaver. It gets the battle cue, the same Music the
+  // race runs, on its own audio context. Not on load: a browser will not
+  // start audio until the page has been touched, and starting it in a
+  // gesture handler is the only way that works everywhere. So the first
+  // pointer or key on the menu starts it, once, and it follows the
+  // music slider like everything else. Torn down when the menu goes,
+  // before the race builds its own, so the two never play over each
+  // other.
+  useEffect(() => {
+    if (phase !== "menu") return;
+    let ctx: AudioContext | null = null;
+    let cancelled = false;
+    const wake = () => {
+      if (menuMusicRef.current || cancelled) return;
+      // Claimed synchronously inside the gesture, so a second gesture
+      // while the module loads cannot start a second score.
+      ctx = new AudioContext();
+      const mine = ctx;
+      menuMusicRef.current = { setVolume() {}, dispose() {} };
+      void import("@/game/music").then(({ Music }) => {
+        if (cancelled || mine.state === "closed") return;
+        const music = new Music(mine);
+        music.setVolume(loadSettings().musicVolume);
+        music.setMood("battle");
+        music.setIntensity(0.85);
+        music.start();
+        menuMusicRef.current = music;
+        // Dev handle, the same contract as __grnAttract: the test cannot
+        // hear the page, so the score says what it is playing.
+        (window as unknown as { __grnMenuMusic: unknown }).__grnMenuMusic = music;
+      });
+    };
+    window.addEventListener("pointerdown", wake);
+    window.addEventListener("keydown", wake);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("pointerdown", wake);
+      window.removeEventListener("keydown", wake);
+      menuMusicRef.current?.dispose();
+      menuMusicRef.current = null;
+      void ctx?.close().catch(() => {});
+      delete (window as unknown as { __grnMenuMusic?: unknown }).__grnMenuMusic;
+    };
+  }, [phase]);
+
   // The menu's rolling intro: your own car and the next legend's,
-  // abreast on the corniche. Rebuilt whenever the garage or the career
-  // changes under it, torn down the moment the race takes the canvas.
+  // fighting for a corner on the corniche. Rebuilt whenever the garage
+  // or the career changes under it, torn down the moment the race takes
+  // the canvas.
   useEffect(() => {
     if (phase !== "menu" || !attractRef.current) return;
     let handle: import("@/game/attract").AttractHandle | null = null;

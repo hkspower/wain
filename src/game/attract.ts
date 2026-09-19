@@ -3,7 +3,7 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
-import { createCar, type CarColors } from "./cars";
+import { createCar, TAIL, type CarColors } from "./cars";
 import type { DriverRig } from "./characters";
 import { solveDriverRig, lookAheadFor } from "./driver";
 import { nightEnvironment } from "./env";
@@ -11,6 +11,8 @@ import { GradeShader } from "./grade";
 import { RIG } from "./rig";
 import { pixelRatioFor } from "./render";
 import { loadSettings } from "./settings";
+import { ParticleSystem, radialSprite } from "./vfx";
+import { makeRng } from "./rand";
 
 // The main menu's turntable.
 //
@@ -28,24 +30,38 @@ import { loadSettings } from "./settings";
  * THE ROLLING LOOP
  *
  * A turntable is a showroom. The game is not a showroom — it is two cars
- * side by side on the corniche at one in the morning — and the menu is
- * the longest a player looks at any single screen before deciding what
- * they think of it. So the menu rolls: your car and the machine you are
- * about to meet, abreast at 90, lamps sweeping over both, road running
- * out from under them.
+ * fighting for a corner on the corniche at one in the morning — and the
+ * menu is the longest a player looks at any single screen before
+ * deciding what they think of it. So the menu races: your car and the
+ * machine you are about to meet, through one long sweeper at 137, your
+ * car held sideways in it, the other tucked up the inside, the lead
+ * changing hands, lamps sweeping over both.
  *
  * It is a loop rather than a clip. The cars stay where they are and the
- * WORLD scrolls past — road texture, lamps, kerb — with every prop
- * recycled the moment it passes behind the camera, so there is no seam
- * to hide because there is no join. Every period in the scene divides
- * LOOP_S: the lamps pass every 1.2 s, the lane dashes every 0.6, the
- * camera breathes and the pair weaves on 6 and 12. Twelve seconds in,
- * the picture is the picture you started with, to the pixel.
+ * WORLD goes past — road, lamps, kerb, sea — with every prop recycled
+ * the moment it passes behind the camera, so there is no seam to hide
+ * because there is no join.
  *
- * (The wheels are the one exception, and deliberately: 300 m of road is
- * not a whole number of turns of a 0.66 m tyre, and rounding the road
- * speed until it was would be a lie told to make a test pass. They spin
- * at the speed the road is actually moving.)
+ * THE CORNER is the thing that looks impossible in a loop and is not.
+ * On a constant-radius bend at constant speed, the car's motion is a
+ * rigid rotation about the bend's centre — so in the CAR's frame every
+ * point of the world slides along a circle concentric with the road.
+ * Which is the same recycling as the straight, on an arc: each prop
+ * carries a distance along the road and a distance across it, and is
+ * put down on the arc every frame. The pair sit at the apex for ever
+ * and the whole corniche wraps around them.
+ *
+ * Every period in the scene divides LOOP_S: the lamps pass every 0.79 s,
+ * the lane dashes every 0.39, the fight for the lead and the drift's
+ * breathing run on the loop and half of it. Eight seconds in, the
+ * picture is the picture you started with, to the pixel.
+ *
+ * (The wheels and the smoke are the exceptions, and deliberately: 300 m
+ * of road is not a whole number of turns of a 0.66 m tyre, and rounding
+ * the road speed until it was would be a lie told to make a test pass.
+ * They spin at the speed the road is actually moving. The smoke is
+ * seeded, so a screenshot is the same screenshot, but it is a fluid and
+ * does not owe the loop a period.)
  */
 export interface AttractOptions {
   /** "rolling" is the menu; "turntable" is the showroom capture, which
@@ -76,6 +92,14 @@ export interface AttractHandle {
   readonly travelled: number;
   /** Seconds for the picture to come back around. */
   readonly loopSeconds: number;
+  /** The road speed under the pair, m/s. Rolling only; 0 on a turntable. */
+  readonly speedMs: number;
+  /** The sweeper's radius in metres, and the yaw the hero's car is held
+   *  at against the road's tangent — nonzero means it is drifting. */
+  readonly bendRadius: number;
+  readonly driftAngle: number;
+  /** Live tyre-smoke particles. */
+  readonly smoke: number;
   /** The scene and what is moving in it, for a test that has to look.
    *  Nothing in the game reads these — the drawing buffer is gone by the
    *  time a script can sample it, so the only way to check that a lamp
@@ -344,26 +368,107 @@ function skylineTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-// The shape of the loop. Every number below divides LOOP_S, which is
-// what makes the twelfth second identical to the zeroth.
-const ROLL_SPEED = 25; // m/s — 90 km/h, a cruise rather than a race
-const LAMP_SPACING = 30; // m  → a lamp every 1.2 s
+// The shape of the loop. Every distance below divides SPAN, which is
+// what makes the last frame of the loop identical to the first.
+const ROLL_SPEED = 38; // m/s — 137 km/h, a race rather than a cruise
+const LAMP_SPACING = 30; // m  → a lamp every 0.79 s
 const LAMPS = 10; // per side
 const SPAN = LAMP_SPACING * LAMPS; // 300 m of road, recycled
 const BEHIND = 30; // how much of it sits behind the camera
-const DASH = 15; // m per lane-dash cycle → 0.6 s
+const DASH = 15; // m per lane-dash cycle → 0.39 s
 const ROAD_W = 16; // m, kerb to kerb
-const LOOP_S = SPAN / ROLL_SPEED; // 12 s
+const LOOP_S = SPAN / ROLL_SPEED; // 7.9 s
 // Which lane each car holds. 3.4 m apart, which is a lane, and the
 // player takes the one that lands in the clear side of the frame.
 const PLAYER_X = -1.7;
 const RIVAL_X = 1.7;
-// How much of the rim a heading error is worth. The wander is
-// milliradians — atan2(0.073, 25) is 0.003 — and a driver correcting a
-// lane wander at 90 does turn the wheel a visible amount, because the
-// steering is geared. 90 puts that at a few degrees of rim, which is
-// what you see through a windscreen and not a hand twitch.
-const ATTRACT_STEER_GAIN = 90;
+
+/**
+ * The corner.
+ *
+ * BEND_R is the sweeper's radius. 240 m at 38 m/s is 0.6 g of lateral
+ * load — a fast corner rather than a hairpin, the kind the corniche
+ * actually has — and 300 m of road wraps 72 degrees of it, so the far
+ * lamps sweep across the frame before the fog takes them.
+ *
+ * BEND is which way it turns. This camera looks along +z, so -x is
+ * screen RIGHT: the clear side of the frame, with the menu down the
+ * left. The corner turns into the clear side, so the road ahead — the
+ * thing the whole shot is about — is not hidden behind the buttons.
+ * That puts the sea on the inside of the bend, which Gulf Road does at
+ * the head of the bay.
+ */
+const BEND_R = 240;
+const BEND = -1;
+/** How far the hero's car is held from the road's tangent, in radians.
+ *  Twenty degrees reads as a drift from behind; past thirty a car this
+ *  size starts to read as sideways. Breathes a little in the loop. */
+const DRIFT_ANGLE = 0.34;
+/** Front-wheel countersteer, radians, against the drift. */
+const COUNTERSTEER = 0.28;
+/** How far the lead swings each way across a loop, m. Four metres
+ *  nose-to-nose at the peak, less than a car — a fight, not a pass. */
+const FIGHT_M = 2.0;
+/** Lateral load in the corner, for the drivers' rigs: v^2 / R. */
+const CORNER_G = (ROLL_SPEED * ROLL_SPEED) / BEND_R;
+
+/** Where a point of the road is, in the scene: `s` metres along the
+ *  road from the pair (negative is behind them), `u` metres across it
+ *  (+x in the flat frame). On the arc, a lateral offset is a change of
+ *  radius, which is what keeps the kerbs parallel. */
+function arcPoint(s: number, u: number, out: THREE.Vector3): THREE.Vector3 {
+  const th = s / BEND_R;
+  const r = BEND_R - BEND * u;
+  return out.set(BEND * (BEND_R - r * Math.cos(th)), 0, r * Math.sin(th));
+}
+/** The road's heading at `s`, as a yaw for an object whose forward is +z. */
+function arcYaw(s: number): number {
+  return BEND * (s / BEND_R);
+}
+
+/**
+ * A strip of ground that follows the corner: a plane, `u0..u1` across
+ * the road and `s0..s1` along it, with every vertex put down on the arc.
+ * `v` runs 0..1 along the strip so a texture repeats along the road the
+ * way it did on the straight, and scrolls the same way.
+ */
+function ribbon(u0: number, u1: number, s0: number, s1: number, along = 40, across = 1): THREE.BufferGeometry {
+  const geo = new THREE.BufferGeometry();
+  const nAlong = along + 1;
+  const nAcross = across + 1;
+  const pos = new Float32Array(nAlong * nAcross * 3);
+  const nrm = new Float32Array(nAlong * nAcross * 3);
+  const uv = new Float32Array(nAlong * nAcross * 2);
+  const p = new THREE.Vector3();
+  for (let j = 0; j < nAlong; j++) {
+    const s = s0 + ((s1 - s0) * j) / along;
+    for (let i = 0; i < nAcross; i++) {
+      const u = u0 + ((u1 - u0) * i) / across;
+      const k = j * nAcross + i;
+      arcPoint(s, u, p);
+      pos[k * 3] = p.x;
+      pos[k * 3 + 1] = 0;
+      pos[k * 3 + 2] = p.z;
+      nrm[k * 3 + 1] = 1;
+      uv[k * 2] = i / across;
+      uv[k * 2 + 1] = j / along;
+    }
+  }
+  const idx: number[] = [];
+  for (let j = 0; j < along; j++) {
+    for (let i = 0; i < across; i++) {
+      const a = j * nAcross + i;
+      const b = a + nAcross;
+      // Wound to face +y: (b - a) x (b+1 - a) is (0, du*ds, 0).
+      idx.push(a, b, b + 1, a, b + 1, a + 1);
+    }
+  }
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("normal", new THREE.BufferAttribute(nrm, 3));
+  geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  return geo;
+}
 
 /**
  * Build the menu turntable on its own canvas.
@@ -568,12 +673,15 @@ export function buildAttract(
   if (!rolling) scene.add(catcher);
 
   // ------------------------------------------------------------- the road
-  /** Props whose z is rewritten every frame, in the order they were laid
-   *  out along the span. */
-  const rollers: Array<{ obj: THREE.Object3D; base: number }> = [];
+  /** Props put down on the arc every frame: `base` is where each was
+   *  laid out along the span, `u` how far across the road it stands. */
+  const rollers: Array<{ obj: THREE.Object3D; base: number; u: number }> = [];
   /** The same recycling, the other way down the road. */
-  const oncoming: Array<{ obj: THREE.Object3D; base: number }> = [];
+  const oncoming: Array<{ obj: THREE.Object3D; base: number; u: number }> = [];
   let roadTex: THREE.CanvasTexture | null = null;
+  let skyTex: THREE.CanvasTexture | null = null;
+  /** Tyre smoke off the hero's rear arches. Rolling only. */
+  let smokeFx: ParticleSystem | null = null;
   if (rolling) {
     // Far enough to hold the whole span, close enough that the lamps at
     // the end of it fade out instead of ending.
@@ -581,15 +689,31 @@ export function buildAttract(
     camera.far = SPAN;
     roadTex = roadTexture();
     roadTex.repeat.set(1, SPAN / DASH);
+    // The road is a ribbon on the arc now, not a plane: the same
+    // texture, the same repeat, the same scroll, following the corner.
     const road = new THREE.Mesh(
-      new THREE.PlaneGeometry(ROAD_W, SPAN),
+      ribbon(-ROAD_W / 2, ROAD_W / 2, -BEHIND, SPAN - BEHIND, 60, 2),
       new THREE.MeshStandardMaterial({ map: roadTex, roughness: 0.82, metalness: 0.05 })
     );
     road.name = "road";
-    road.rotation.x = -Math.PI / 2;
-    road.position.z = SPAN / 2 - BEHIND;
     road.receiveShadow = true;
     scene.add(road);
+
+    // Tyre smoke: the race's recipe, off the same arches, a shade
+    // denser — the race's is tuned to be seen through from the driving
+    // camera, and this one is looked at from fifteen metres back with
+    // a menu beside it.
+    smokeFx = new ParticleSystem(120, {
+      map: radialSprite(0.0, 1.5),
+      colorA: 0xc4c9d2,
+      colorB: 0x3c4148,
+      grow: 2.4,
+      spin: 0.3,
+      opacity: 0.24,
+      fadeIn: 0.1,
+    });
+    smokeFx.points.name = "smoke";
+    scene.add(smokeFx.points);
     // Lamps down both shoulders. These are what actually sell the motion:
     // the road texture alone slides, but a lamp arriving, passing over
     // the roof and leaving is a thing the eye can count.
@@ -626,13 +750,12 @@ export function buildAttract(
       const lit = new THREE.PointLight(0xffc078, 460, 52, 2);
       lit.position.set(-side * 1.45, 7.4, 0);
       g.add(lit);
-      g.position.x = side * (ROAD_W / 2 + 1.1);
       // Staggered: the two sides alternate, half a spacing apart, which
       // is what the corniche does and what stops the pair being lit
       // symmetrically from both sides at once.
       const base = Math.floor(i / 2) * LAMP_SPACING + (side < 0 ? LAMP_SPACING / 2 : 0);
       scene.add(g);
-      rollers.push({ obj: g, base });
+      rollers.push({ obj: g, base, u: side * (ROAD_W / 2 + 1.1) });
     }
 
     // --- The corniche ------------------------------------------------
@@ -658,28 +781,36 @@ export function buildAttract(
       // Promenade: paved walkway between the kerb and the wall, which
       // is what is actually there.
       const walk = new THREE.Mesh(
-        new THREE.PlaneGeometry(6, SPAN),
+        ribbon(-(ROAD_W / 2 + 6), -ROAD_W / 2, -BEHIND, SPAN - BEHIND, 60),
         new THREE.MeshStandardMaterial({ color: 0x2a2d34, roughness: 0.9 })
       );
-      walk.rotation.x = -Math.PI / 2;
-      walk.position.set(-(ROAD_W / 2 + 3), 0.01, SPAN / 2 - BEHIND);
+      walk.position.y = 0.01;
       walk.receiveShadow = true;
       scene.add(walk);
 
       // The sea wall. Low, continuous, and the thing that gives the
-      // water an edge instead of letting it run under the road.
-      const wall = new THREE.Mesh(
-        new THREE.BoxGeometry(0.5, 0.75, SPAN),
-        new THREE.MeshStandardMaterial({ color: 0x33373f, roughness: 0.95 })
-      );
-      wall.position.set(SEA_X, 0.36, SPAN / 2 - BEHIND);
-      scene.add(wall);
+      // water an edge instead of letting it run under the road. A box
+      // cannot bend, so it is laid in ten-metre lengths along the arc,
+      // each a roller like the lamps, overlapping a little so the
+      // corner never shows a gap between them.
+      const WALL_N = 30;
+      const wallGeo = new THREE.BoxGeometry(0.5, 0.75, SPAN / WALL_N + 0.6);
+      const wallMat = new THREE.MeshStandardMaterial({ color: 0x33373f, roughness: 0.95 });
+      for (let i = 0; i < WALL_N; i++) {
+        const seg = new THREE.Mesh(wallGeo, wallMat);
+        seg.name = "seawall";
+        seg.position.y = 0.36;
+        scene.add(seg);
+        rollers.push({ obj: seg, base: (i + 0.5) * (SPAN / WALL_N), u: SEA_X });
+      }
 
       // The Gulf. Dark, wet and metal — at night the sea is not blue,
       // it is whatever the sky and the lamps are doing to it. Held a
-      // little below the road so the wall reads as a wall.
+      // little below the road so the wall reads as a wall. On the
+      // inside of the bend, so it is an annulus of water rather than a
+      // plane — which is what a bay looks like from a road around it.
       const water = new THREE.Mesh(
-        new THREE.PlaneGeometry(420, SPAN * 2),
+        ribbon(SEA_X - 422, SEA_X - 2, -BEHIND - SPAN / 2, SPAN * 1.5 - BEHIND, 48, 6),
         new THREE.MeshStandardMaterial({
           color: 0x121c28,
           roughness: 0.14,
@@ -688,8 +819,8 @@ export function buildAttract(
           emissiveIntensity: 0.6,
         })
       );
-      water.rotation.x = -Math.PI / 2;
-      water.position.set(SEA_X - 212, -0.55, SPAN / 2 - BEHIND);
+      water.name = "sea";
+      water.position.y = -0.55;
       scene.add(water);
 
       // The moon on the water. Without it the Gulf at night is a dark
@@ -720,7 +851,9 @@ export function buildAttract(
       const glintTex = new THREE.CanvasTexture(glint);
       glintTex.colorSpace = THREE.SRGBColorSpace;
       const path = new THREE.Mesh(
-        new THREE.PlaneGeometry(46, 210),
+        // Running out from just past the wall toward the horizon, on the
+        // side the moon light comes from.
+        ribbon(SEA_X - 49, SEA_X - 3, -9, 201, 30),
         new THREE.MeshBasicMaterial({
           map: glintTex,
           blending: THREE.AdditiveBlending,
@@ -730,20 +863,16 @@ export function buildAttract(
           fog: true,
         })
       );
-      path.rotation.x = -Math.PI / 2;
-      // Running out from just past the wall toward the horizon, on the
-      // side the moon light comes from.
-      path.position.set(SEA_X - 26, -0.5, 96);
+      path.position.y = -0.5;
       scene.add(path);
 
       // The city side keeps its verge, narrowed to the shoulder it
       // actually is now that the other side is water.
       const bank = new THREE.Mesh(
-        new THREE.PlaneGeometry(60, SPAN),
+        ribbon(ROAD_W / 2, ROAD_W / 2 + 60, -BEHIND, SPAN - BEHIND, 40, 2),
         new THREE.MeshStandardMaterial({ color: 0x14161c, roughness: 1 })
       );
-      bank.rotation.x = -Math.PI / 2;
-      bank.position.set(ROAD_W / 2 + 30, -0.02, SPAN / 2 - BEHIND);
+      bank.position.y = -0.02;
       scene.add(bank);
 
       // Palms along the promenade, one every other lamp. Silhouettes:
@@ -791,18 +920,26 @@ export function buildAttract(
         }
         // Between the wall and the walkway, offset from the lamps so
         // the two do not arrive together and read as one object.
-        g.position.x = SEA_X + 1.4;
         scene.add(g);
-        rollers.push({ obj: g, base: i * (LAMP_SPACING * 2) + LAMP_SPACING * 0.6 });
+        rollers.push({ obj: g, base: i * (LAMP_SPACING * 2) + LAMP_SPACING * 0.6, u: SEA_X + 1.4 });
       }
 
       // And the city, a mile and a half out. One plane, fog switched
       // off, hung at 250 m with its centre at eye height so the middle
       // of the image lands exactly on the horizon.
+      //
+      // In the corner it has to MOVE. Everything in the car's frame
+      // turns about the bend's centre, and a skyline a mile out turns
+      // with it — at 38 m/s on a 240 m radius that is nine degrees a
+      // second across the view. So the painting scrolls, wrapping, and
+      // it wraps exactly once per loop: the offset is travelled/SPAN,
+      // which is back at zero when the picture is.
+      skyTex = skylineTexture();
+      skyTex.wrapS = THREE.RepeatWrapping;
       const sky = new THREE.Mesh(
         new THREE.PlaneGeometry(560, 140),
         new THREE.MeshBasicMaterial({
-          map: skylineTexture(),
+          map: skyTex,
           transparent: true,
           depthWrite: false,
           fog: false,
@@ -855,9 +992,8 @@ export function buildAttract(
           g.add(lit);
         }
         // The far carriageway, alternating between its two lanes.
-        g.position.x = ROAD_W / 2 - (i % 2 === 0 ? 2.1 : 5.5);
         scene.add(g);
-        oncoming.push({ obj: g, base: i * (SPAN / 3) });
+        oncoming.push({ obj: g, base: i * (SPAN / 3), u: ROAD_W / 2 - (i % 2 === 0 ? 2.1 : 5.5) });
       }
     }
   }
@@ -1000,6 +1136,7 @@ export function buildAttract(
     // both change size with the window.
     const buf = renderer.getDrawingBufferSize(new THREE.Vector2());
     (gradePass.uniforms.uTexel.value as THREE.Vector2).set(1 / buf.x, 1 / buf.y);
+    smokeFx?.setPixelScale(buf.y);
     const aspect = w / Math.max(1, h);
     camera.aspect = aspect;
     const wide = aspect >= 1.15;
@@ -1018,96 +1155,174 @@ export function buildAttract(
   /** Metres of road that have gone under the pair. */
   let travelled = 0;
   const TAU = Math.PI * 2;
+  /** The hero's yaw against the road's tangent this frame, radians. */
+  let drift = 0;
+  /** Seeded, so the smoke on a screenshot is the smoke on the last
+   *  one; a fluid, so it does not owe the loop a period. */
+  const smokeRand = makeRng(0x534d4f4b);
+  let smokeAcc = 0;
+  const _aim = new THREE.Vector3();
+  const _puff = new THREE.Vector3();
+  /** A soft bump, 0..1..0, between two phases of the loop. */
+  const bump = (phase: number, a: number, b: number) => {
+    if (phase <= a || phase >= b) return 0;
+    const x = (phase - a) / (b - a);
+    return Math.sin(x * Math.PI) ** 2;
+  };
 
   const drawRolling = (dt: number) => {
-    // Wrapped, not accumulated. Twenty minutes on the menu is 30 km of
+    // Wrapped, not accumulated. Twenty minutes on the menu is 50 km of
     // road, and a float that large has lost the millimetres the lane
     // markings are positioned in.
     if (parked === null) t = (t + dt) % LOOP_S;
     travelled = t * ROLL_SPEED;
+    const phase = t / LOOP_S;
 
     // The road slides under the pair. Wrapping the offset as well keeps
     // the texture matrix in the first tile for ever.
     if (roadTex) roadTex.offset.y = (travelled / DASH) % 1;
-    // Every prop steps toward the camera and comes back round the front
-    // when it passes behind it. This is the seam that is not there:
-    // nothing is created, nothing is destroyed, nothing fades in.
+    // And the city turns past, once per loop — see the skyline.
+    if (skyTex) skyTex.offset.x = BEND * (travelled / SPAN);
+    // Every prop steps toward the camera along the arc and comes back
+    // round the front when it passes behind it. This is the seam that
+    // is not there: nothing is created, nothing is destroyed, nothing
+    // fades in. `s` is kept on the object so a test can ask where a
+    // lamp is along the road without undoing the arc.
     for (const r of rollers) {
-      r.obj.position.z = (((r.base - travelled) % SPAN) + SPAN) % SPAN - BEHIND;
+      const s = (((r.base - travelled) % SPAN) + SPAN) % SPAN - BEHIND;
+      // x and z from the arc; y is the prop's own (the wall stands up).
+      arcPoint(s, r.u, _aim);
+      r.obj.position.x = _aim.x;
+      r.obj.position.z = _aim.z;
+      r.obj.rotation.y = arcYaw(s);
+      r.obj.userData.s = s;
     }
     // Coming the other way. In the scrolling frame everything already
     // moves at -ROLL_SPEED; a car doing the same speed at us moves at
     // -ROLL_SPEED again on top, so it closes at twice the rate. That
-    // halves its period to six seconds, which still divides the loop.
+    // halves its period, which still divides the loop.
     for (const r of oncoming) {
-      r.obj.position.z = (((r.base - travelled * 2) % SPAN) + SPAN) % SPAN - BEHIND;
+      const s = (((r.base - travelled * 2) % SPAN) + SPAN) % SPAN - BEHIND;
+      arcPoint(s, r.u, _aim);
+      r.obj.position.x = _aim.x;
+      r.obj.position.z = _aim.z;
+      r.obj.rotation.y = arcYaw(s);
+      r.obj.userData.s = s;
     }
 
-    // The pair. A car at a steady 90 is not rigid: it breathes on its
-    // springs and wanders a few centimetres inside its lane, and the two
-    // of them have to do it out of step or they read as one object.
-    const rigs: Array<[Rig, number, number]> = far
+    // THE FIGHT. The lead swings between them on the loop: your car
+    // noses ahead, the other pulls it back up the inside, and neither
+    // ever gets more than a car length. The hero holds the corner
+    // sideways — nose into the bend past the road's own heading,
+    // fronts countersteered, body rolled to the outside — and the
+    // drift breathes on the half-loop so it is held, not frozen. The
+    // chaser drives it tidy: tucked in, a little steer, and a dab of
+    // brake as the lead goes away from it.
+    const swing = Math.sin(TAU * phase);
+    drift = BEND * DRIFT_ANGLE * (1 + 0.15 * Math.sin(TAU * 2 * phase + 1.1));
+    const rigs: Array<[Rig, number, number, number]> = far
       ? [
-          [near, PLAYER_X, 0],
-          [far, RIVAL_X, 2.1],
+          [near, PLAYER_X, 0, 1],
+          [far, RIVAL_X, 2.1, -1],
         ]
-      : [[near, PLAYER_X, 0]];
-    for (const [rig, lane, phase] of rigs) {
-      const weave = Math.sin(TAU * (t / 12) + phase);
-      rig.holder.position.x = lane + weave * 0.14;
-      rig.holder.position.y = Math.sin(TAU * (t / 6) + phase * 1.7) * 0.014;
-      // The body leans against the way it is drifting, which is what a
-      // soft spring does and what makes the wander read as a car rather
-      // than as a sliding sprite.
-      rig.holder.rotation.z = -Math.cos(TAU * (t / 12) + phase) * 0.012;
-      rig.holder.rotation.x = Math.sin(TAU * (t / 6) + phase * 1.7) * 0.004;
-      // Turning at the speed the road is moving. Same sign convention as
-      // the race (engine.ts rollWheels): forward is +x.
-      for (const w of rig.wheels) w.rotation.x += (ROLL_SPEED / rig.wheelR) * dt;
+      : [[near, PLAYER_X, 0, 1]];
+    for (const [rig, lane, ph, lead] of rigs) {
+      const hero = rig === near;
+      const s = lead * FIGHT_M * swing;
+      // A car in a corner is not rigid: it breathes on its springs and
+      // wanders inside its lane, and the two do it out of step or they
+      // read as one object.
+      const weave = Math.sin(TAU * phase + ph) * 0.22;
+      arcPoint(s, lane + weave, rig.holder.position);
+      rig.holder.position.y = Math.sin(TAU * 2 * phase + ph * 1.7) * 0.014;
+      rig.holder.userData.s = s;
+      rig.holder.rotation.y = arcYaw(s) + (hero ? drift : BEND * 0.03);
+      // Rolled to the OUTSIDE of the bend, harder for the car that is
+      // sliding, with the spring's own breathing on top.
+      rig.holder.rotation.z = BEND * (hero ? 0.04 : 0.022) - Math.cos(TAU * phase + ph) * 0.008;
+      rig.holder.rotation.x = Math.sin(TAU * 2 * phase + ph * 1.7) * 0.004 + (hero ? 0.006 : 0);
+      // Wheels: turning at the speed the road is moving, and the fronts
+      // pointed where each driver is pointing them — the hero's against
+      // the slide, the chaser's into the corner.
+      const steerWheel = hero ? -BEND * COUNTERSTEER : BEND * 0.12;
+      const plan = rig.car?.userData.wheelPlan as { front: number } | undefined;
+      const frontN = plan?.front ?? 2;
+      rig.wheels.forEach((w, i) => {
+        w.rotation.x += (ROLL_SPEED / rig.wheelR) * dt;
+        if (i < frontN) w.rotation.y = steerWheel;
+      });
+      // The chaser's brake lamps, as it loses the lead.
+      const brake = hero ? 0 : bump(phase, 0.6, 0.74);
+      const ud = rig.car?.userData;
+      if (ud?.tailMat && ud?.tailCoreMat) {
+        (ud.tailMat as THREE.MeshStandardMaterial).emissiveIntensity =
+          TAIL.lensIdle + (TAIL.lensBrake - TAIL.lensIdle) * brake;
+        (ud.tailCoreMat as THREE.MeshStandardMaterial).emissiveIntensity =
+          TAIL.coreIdle + (TAIL.coreBrake - TAIL.coreIdle) * brake;
+        for (const g of (ud.tailGlowMats as THREE.MeshBasicMaterial[]) ?? []) {
+          g.opacity = TAIL.glowIdle + (TAIL.glowBrake - TAIL.glowIdle) * brake;
+        }
+      }
 
-      // And the person driving it. The wander IS the steering input:
-      // the car is 14 cm off its lane centre on a sine, so the rate of
-      // that sine is the heading the driver is holding, and the wheel
-      // moves because the car does rather than because a menu wanted
-      // some movement in the cabin. lookAhead is a point down the road
-      // in the CAR's own frame, so the eyes stay on the road through
-      // the weave instead of tracking a fixed spot in the world.
+      // And the person driving it. The hero's hands are across the
+      // rim the other way from the nose — that is what a drift looks
+      // like from the driver's seat — and both are looking through the
+      // corner rather than down the bonnet. The lateral load passed in
+      // is the real one for this radius at this speed, so the lean in
+      // the seat is the lean a body actually takes.
       if (rig.driver) {
-        const drift = -Math.cos(TAU * (t / 12) + phase) * (TAU / 12) * 0.14;
-        const steer = THREE.MathUtils.clamp(
-          Math.atan2(drift, ROLL_SPEED) * ATTRACT_STEER_GAIN,
-          -1,
-          1
-        );
+        const stick = hero ? -BEND * 0.6 : BEND * 0.3;
         rig.holder.updateWorldMatrix(true, false);
-        look.set(0, RIG.driver.lookHeight, lookAheadFor(ROLL_SPEED));
+        look.set(BEND * (hero ? 1.2 : 2.0), RIG.driver.lookHeight, lookAheadFor(ROLL_SPEED));
         rig.holder.localToWorld(look);
         solveDriverRig(
           rig.driver,
-          steer,
-          RIG.rival.cruiseThrottle,
-          0,
+          stick,
+          hero ? 1 : RIG.rival.cruiseThrottle,
+          brake,
           look,
           dt,
-          // A lane's worth of wander at 90 is a fraction of a g. Passing
-          // the real number keeps the lean honestly small rather than
-          // giving the menu a driver braced against a corner that is
-          // not there.
-          drift * (TAU / 12),
+          BEND * CORNER_G,
           0
         );
       }
     }
 
-    // Chase: behind, above, and drifting just enough that the frame is
-    // never dead. This camera looks along +z, where the turntable's
-    // looks along -z, so screen right is -x rather than +x and the aim
-    // offset that clears the menu column runs the other way. Same trick,
-    // opposite sign — which is exactly the sort of thing that is wrong
-    // until you look at it.
-    const camY = 3.1 + Math.sin(TAU * (t / 12)) * 0.09;
-    camera.position.set(offsetX * 0.3, camY, -dist + Math.sin(TAU * (t / 12)) * 0.5);
-    camera.lookAt(offsetX, 1.05, 16);
+    // Smoke off the hero's rear arches: thrown to the outside of the
+    // corner and left behind at road speed, the race's own recipe. Not
+    // while parked — a capture wants the same frame twice.
+    if (smokeFx && parked === null) {
+      smokeAcc += 80 * dt;
+      const n = Math.floor(smokeAcc);
+      smokeAcc -= n;
+      near.holder.updateWorldMatrix(true, false);
+      for (let i = 0; i < n; i++) {
+        const side = (i % 2 === 0 ? 0.85 : -0.85) + (smokeRand() - 0.5) * 0.5;
+        _puff.set(side, 0.24 + smokeRand() * 0.22, -1.45 + (smokeRand() - 0.5) * 0.5);
+        near.holder.localToWorld(_puff);
+        smokeFx.spawn(
+          _puff.x, _puff.y, _puff.z,
+          -BEND * (1.4 + smokeRand()) + (smokeRand() - 0.5),
+          1.2 + smokeRand() * 1.4,
+          -ROLL_SPEED * 0.85 + (smokeRand() - 0.5) * 2,
+          0.9 + smokeRand() * 0.5,
+          1.9 + smokeRand() * 0.9
+        );
+      }
+    }
+    smokeFx?.update(dt, { drag: 1.6, gravity: -0.35 });
+
+    // Chase: behind, above, on the OUTSIDE of the corner, so the hero's
+    // angle reads — from the inside a drifting car is a car pointing at
+    // you — and drifting just enough that the frame is never dead. This
+    // camera looks along +z, where the turntable's looks along -z, so
+    // screen right is -x rather than +x and the aim offset that clears
+    // the menu column runs the other way. It is aimed up the road at a
+    // point ON the arc, so the corner is what the frame is about.
+    const camY = 3.1 + Math.sin(TAU * phase) * 0.09;
+    camera.position.set(offsetX * 0.3 - BEND * 2.4, camY, -dist + Math.sin(TAU * phase) * 0.5);
+    arcPoint(18, 0, _aim);
+    camera.lookAt(_aim.x + offsetX, 1.05, _aim.z);
   };
 
   /**
@@ -1189,6 +1404,18 @@ export function buildAttract(
     get loopSeconds() {
       return rolling ? LOOP_S : 0;
     },
+    get speedMs() {
+      return rolling ? ROLL_SPEED : 0;
+    },
+    get bendRadius() {
+      return rolling ? BEND_R : 0;
+    },
+    get driftAngle() {
+      return rolling ? drift : 0;
+    },
+    get smoke() {
+      return smokeFx?.alive ?? 0;
+    },
     scene,
     camera,
     // Exposed for the same reason scene and camera are: the measuring
@@ -1219,6 +1446,8 @@ export function buildAttract(
       });
       pool.dispose();
       roadTex?.dispose();
+      skyTex?.dispose();
+      smokeFx?.dispose();
       scene.environment?.dispose();
       composer.dispose();
       sceneTarget.dispose();
