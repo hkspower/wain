@@ -48,6 +48,17 @@ await page.evaluate(() => {
   localStorage.clear();
   localStorage.setItem("gulf-road-nights-onboarded", "2");
   localStorage.setItem("gulf-road-nights-coach", "3");
+  // PIN THE SKY. The game ships with sky "kuwait" — the world boots at
+  // the real hour in Kuwait — and the lighting GLIDES to a new hour
+  // rather than snapping, so the 02:30 this tool asks for below is a
+  // target the world is still on its way to when the first reading is
+  // taken. Run in a Kuwaiti morning, the first row of every session was
+  // a half-daylight frame: body 96-103 against 64 for every row after
+  // it, on the same paint and the same probe, and the press frame it
+  // wrote had a blue sky in it. "night" is the fixed hour the settings
+  // screen offers for exactly this, and fullrace.mjs and daynight.mjs
+  // already pin it.
+  localStorage.setItem("gulf-road-nights-settings", JSON.stringify({ sky: "night" }));
 });
 await page.reload({ waitUntil: "networkidle" });
 await page.click("text=START ENGINE");
@@ -132,10 +143,21 @@ const SETTINGS = SCAN.length ? SCAN.map((t) => t.split(",").map(Number)) : [null
 // material's normal scale — or `off` for no clearcoat normal at all.
 const PEELS = (process.env.PEEL || "").split(";").map((t) => t.trim()).filter(Boolean);
 const PEELSET = PEELS.length ? PEELS : [null];
+// The reflection probe's face size, on the same axis. What the clearcoat
+// reflects is a cube rendered from the car, and the size of that cube is
+// a ceiling on how sharp the reflection can be whatever the lacquer's
+// roughness says: a lamp twenty metres off is one texel wide at 128.
+//
+//   PROBE="128;256;512" node tools/shots/paint.mjs
+//
+// Sizes, or nothing for whatever the tier the tool runs on would build.
+const PROBES = (process.env.PROBE || "").split(";").map((t) => t.trim()).filter(Boolean).map(Number);
+const PROBESET = PROBES.length ? PROBES : [null];
 for (const [where, m] of SPOTS) {
  for (const set of SETTINGS) {
   for (const peel of PEELSET) {
-  const r = await page.evaluate(async ([m, set, peel]) => {
+  for (const probe of PROBESET) {
+  const r = await page.evaluate(async ([m, set, peel, probe]) => {
     const THREE = window.__grnThree;
     const e = window.__grnEngine;
     e.setPaused(true);
@@ -208,6 +230,7 @@ for (const [where, m] of SPOTS) {
       bm.needsUpdate = true;
     }
     e.applyQualityTier("high");
+    if (probe) e.setProbeResolution(probe);
     e.timeHours = 2.5;
     e.world.setTimeOfDay(2.5);
     e.applyDaylight();
@@ -225,6 +248,18 @@ for (const [where, m] of SPOTS) {
       for (let i = 0; i < 30; i++) { e.update(1 / 60); park(); }
       for (let i = 0; i < 4; i++) e.composer.render();
     }
+    // FILL THE PROBE. The paint reflects a cube rendered from the car,
+    // and that cube is only ever rendered by the live frame loop — which
+    // this tool pauses before it does anything. Worse, applyQualityTier
+    // above rebuilds the target at the tier's size, and a rebuilt target
+    // is empty. So every reading this tool had ever taken was of a
+    // clearcoat mirroring a black cube: the highlight it reported was
+    // the direct lamps alone, and the "env" it printed was a gain on
+    // nothing. Six faces, one per call, exactly as the loop does it, from
+    // where the car is now parked; the PMREM convolution the sixth face
+    // requests is consumed by the renders that follow.
+    for (let i = 0; i < 6; i++) e.renderProbe();
+    for (let i = 0; i < 4; i++) e.composer.render();
 
     const W = e.renderer.domElement.clientWidth || 1100;
     const H = e.renderer.domElement.clientHeight || 640;
@@ -339,6 +374,7 @@ for (const [where, m] of SPOTS) {
       ccRough: +bm2.clearcoatRoughness.toFixed(3),
       clearcoat: +bm2.clearcoat.toFixed(2),
       env: +bm2.envMapIntensity.toFixed(2),
+      probe: e.cubeRT.width,
     };
     return {
       mat,
@@ -350,10 +386,10 @@ for (const [where, m] of SPOTS) {
       grain: gN ? +(gSum / gN).toFixed(2) : 0,
       png: c.toDataURL("image/png").split(",")[1],
     };
-  }, [m, set, peel]);
-  if (!set && !peel) writeFileSync(`press/paint/${where}.png`, Buffer.from(r.png, "base64"));
+  }, [m, set, peel, probe]);
+  if (!set && !peel && !probe) writeFileSync(`press/paint/${where}.png`, Buffer.from(r.png, "base64"));
   const ratio = r.body > 0 ? (r.spec / r.body).toFixed(1) : "inf";
-  const tag = peel ? (peel === "off" ? "peel off" : `peel ${peel}`) : null;
+  const tag = probe ? `probe ${probe}` : peel ? (peel === "off" ? "peel off" : `peel ${peel}`) : null;
   console.log(
     `${where.padEnd(6)} ${(set ? `r${set[0]} m${set[1]} cc${set[2]}` : tag ?? "current").padEnd(18)}` +
       `  dead ${String(r.dead).padStart(5)}%   ` +
@@ -361,12 +397,13 @@ for (const [where, m] of SPOTS) {
       `ratio ${String(ratio).padStart(6)}   highlight ${String(r.tight).padStart(5)}%   ` +
       `grain ${String(r.grain).padStart(5)}`
   );
-  if (!set && !peel) {
+  if (!set && !peel && !probe) {
     console.log(
       `       on ${r.mat.colour} rough ${r.mat.roughness} metal ${r.mat.metalness} ` +
-        `clearcoat ${r.mat.clearcoat}/${r.mat.ccRough} env ${r.mat.env}` +
+        `clearcoat ${r.mat.clearcoat}/${r.mat.ccRough} env ${r.mat.env} probe ${r.mat.probe}` +
         `${r.mat.clearcoat < 0.9 ? "  <- NOT the gloss finish" : ""}`
     );
+  }
   }
   }
  }

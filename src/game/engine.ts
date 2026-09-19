@@ -1937,7 +1937,32 @@ export class GameEngine {
     const floatOk =
       this.renderer.extensions.has("EXT_color_buffer_float") ||
       this.renderer.extensions.has("EXT_color_buffer_half_float");
-    this.cubeRT = new THREE.WebGLCubeRenderTarget(128, {
+    // 256, not 128 — and this is the size the DEFAULT tier ships, because
+    // Auto never goes through applyQualityTier's explicit-tier path where
+    // High asks for 256. So every player who never opened Settings had
+    // the paint mirroring a 128-face cube while the instrument that
+    // tuned the paint (tools/shots/paint.mjs) measured at High.
+    //
+    // Measured with that instrument once it was made to fill the probe
+    // and pin the night (it had been reading a black cube in a Kuwaiti
+    // morning — see its own comments). Gloss on #c1272d under the lamps,
+    // one session, 128 repeated at both ends to bracket the drift:
+    //
+    //   probe   dead    body   spec   ratio   highlight
+    //   128     0.7%    22.3   107.7    4.8     10.7%
+    //   256     0%      28.3   141.1    5.0      9.5%
+    //   512     0%      28.4   137.5    4.8      8.6%
+    //   128     0.3%    21.3    93.5    4.4      8.1%
+    //
+    // 256 makes the highlight 30-50% brighter than either 128 row while
+    // the fraction of the body it covers does not grow — a brighter image
+    // of a lamp, not a bigger smear of one, which is the whole distinction
+    // paint.mjs exists to draw. It also takes the dead panels to zero: at
+    // 128 the lamps between texels simply were not there to reflect. 512
+    // is inside the drift of 256, which is why Ultra keeps it and nobody
+    // else pays for it. Per-frame cost is unchanged in shape — one face a
+    // frame — and tests/framepacing.mjs holds the draw calls flat.
+    this.cubeRT = new THREE.WebGLCubeRenderTarget(this.budget(256, "cube"), {
       generateMipmaps: false,
       minFilter: THREE.LinearFilter,
       type: floatOk ? THREE.HalfFloatType : THREE.UnsignedByteType,
@@ -2649,6 +2674,12 @@ export class GameEngine {
     this.msaaTarget.samples = on ? 4 : 0;
     this.fxaaPass.enabled = !on;
     this.liveReflections = on;
+    // The probe at the gloss size whenever it is live. Auto is the one
+    // tier that reaches here without going on to the explicit sizes
+    // below, so a player stepping back from Ultra would otherwise keep
+    // its 512 on a tier that is not meant to pay for it — and one
+    // coming up from Battery would keep whatever was there.
+    if (on) this.setProbeResolution(this.budget(256, "cube"));
     this.applyLiveReflections();
   }
 
@@ -3691,10 +3722,12 @@ export class GameEngine {
    *  environment when the probe is off for performance). */
   /**
    * Rebuild the paint's reflection probe at a new face resolution.
-   * 128 is plenty at 1080p, but on a 4K panel the probe is the limiting
-   * factor in how the clearcoat reads — the lamp streaks that slide along
-   * the bodywork are literally probe texels, and at 128 they are visibly
-   * chunky once the frame carries four times the pixels.
+   * This used to say 128 was plenty at 1080p and only 4K needed more.
+   * Measured, it is not: at 128 the lamp streaks are probe texels
+   * smeared by the PMREM blur across a third of the bodywork at a
+   * 1100 px frame, never mind 4K — see the sweep on the constructor's
+   * target. The probe is the ceiling on how sharp a clearcoat can read,
+   * whatever the lacquer's roughness says.
    */
   private setProbeResolution(size: number): void {
     if (this.cubeRT.width === size) return;
