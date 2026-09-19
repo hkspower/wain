@@ -1225,11 +1225,30 @@ nothing referenced. What went with them, and what each cost:
   after the removal each route's single `href="/search/"` was AppTabBar's tab,
   and the bar is `standalone:block` — in the DOM, painted by nothing in a
   browser. So search was unreachable from the web site, and with it شوق, whose
-  only launcher is inside the /search query box. /explore has its own box and
-  was fine; the home page was the gap, and it now carries one link under the
-  dial. **A count is not reachability** — journey's «offers a way to search»
-  passed throughout, because it counted the hidden tab. It asks for `:visible`
-  now.
+  only launcher is inside the /search query box. **A count is not
+  reachability** — journey's «offers a way to search» passed throughout,
+  because it counted the hidden tab. It asks for `:visible` now.
+
+  **The first fix was one link on the home page, and «/explore has its own box
+  and was fine» was wrong.** Re-measured on the shipped build, route by route:
+  `/` had 1 visible link and **/explore, a place page and /about had 0 of 1**.
+  /explore's box filters that list in place — it does not go to /search and it
+  carries no call button — so the only route that was ever fixed was the one
+  that was looked at. 52 place pages, which is where a link from WhatsApp
+  lands, still had no search and no شوق. **Fixing the page you measured is not
+  fixing the site**; the second measurement is the one that found this, and it
+  only happened because somebody asked again.
+
+  `SearchButton` is the answer: a 40px icon link on a bottom rail, standing
+  down on `/` (the link under the dial is the same offer) and on /search, and
+  `standalone:hidden` because the app has a tab. **`LiveTray` gave up its own
+  fixed positioning to share that rail** — two separately-positioned floating
+  controls measure 10px apart at 320px, inside the 24px clearance
+  `audit:mobile` requires between targets, and one flex row cannot collide at
+  all. Measured with an order live: 173px of clearance at 320px, 243px at
+  390px. `tests/search-button.test.mjs` is back under its old name asking a
+  new question, and was confirmed to go red with the home-page stand-down
+  removed **and the build green** first.
 - **`OrdersLink` and `QueueLink`.** Both were navbar pills, and the removal
   left /orders and /queue address-bar-only on the web — the only links to
   either were `AppTabBar`'s, which is `standalone:block`. **Fixed by
@@ -1243,6 +1262,13 @@ nothing referenced. What went with them, and what each cost:
   installed app already grows a tab for each — two offers for one thing is the
   mistake `ShouqCallButton`'s own placement was chosen to avoid. Cost: fixed,
   so it can cover the last few pixels of a page while something is in progress.
+
+  **It no longer owns its own position** — the rail in `layout.tsx` does, for
+  the collision reason written up under *Every link to /search* above. The
+  landmark is unchanged (`nav[aria-label="طلباتك الحالية"]`), which is what
+  the suites select on, so the refactor cost those tests nothing. And the rail
+  itself paints nothing: on a route with neither control it is an empty,
+  `pointer-events-none` box.
 
   **Three assertions in those suites could not fail, and had been passing for
   it.** They read `header a[href*="/orders"]` to prove the link was absent —
