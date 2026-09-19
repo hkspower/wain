@@ -2408,6 +2408,81 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
   background:radial-gradient(60% 130% at 12% 0,#b8430f80 0%,#0000 60%),linear-gradient(-118deg,#171a1e 0%,#20252c 60%,#2b1a12 100%);
   background:radial-gradient(60% 130% at 12% 0,color-mix(in srgb, var(--brand-dark) 50%, transparent) 0%,#0000 60%),linear-gradient(-118deg,#171a1e 0%,#20252c 60%,#2b1a12 100%);
 }
+/* ===========================================================================
+ * CATEGORY TILES SHOW THE FULL IMAGE NOW — 2026-09-19
+ * ===========================================================================
+ *
+ * Asked for as "make category image full render", the same request shape as
+ * the hero fix above and given the same answer: the box was a FIXED HEIGHT
+ * per breakpoint (Tailwind's h-60/md:h-72/lg:h-80 on men/women, h-44/md:h-48/
+ * lg:h-56 on accessories/outlet), unrelated to the artwork's own ratio, and
+ * object-fit: cover cropped whatever the mismatch came out to.
+ *
+ * MEASURED IN A BROWSER BEFORE EDITING, at 390px and 1280px, both languages —
+ * nothing here was assumed from an old reading:
+ *
+ *   men/women    box 1.492  art(mobile) 1.579   -> 5.5% off the sides  (390)
+ *                box 1.795  art(desktop) 1.722   -> 4.1% off the top/bottom (1280)
+ *   accessories/
+ *   outlet       box 2.034  art(mobile) 1.982   -> 2.6% off the top/bottom (390)
+ *                box 2.564  art(desktop) 2.909   -> 11.8% off the sides (1280)
+ *
+ * Real, but nowhere near the hero's 75-94%-visible crop — worth stating so the
+ * before/after does not read as more dramatic than it was.
+ *
+ * THE FIX IS `aspect-ratio`, NOT A HEIGHT FORMULA, and that is the difference
+ * from the hero. The hero's box is `100vw`-wide, so its height had to be
+ * derived with a vw calculation and then capped. A category tile's width is
+ * whatever the grid column gives it (2 columns under 768px, 4 at and above,
+ * inside a max-w-7xl container) — bounded either way — so `height: auto` plus
+ * `aspect-ratio: <artwork W> / <artwork H>` lets the box height follow
+ * whatever width the grid actually produces, at every size in between, with
+ * nothing to invert. THE HERO'S CAP-VS-FLOOR TRAP DOES NOT APPLY HERE: that
+ * trap was a fixed cap fighting a ratio on an unbounded (100vw) box; a tile's
+ * width is already bounded by the grid and the container, so there is no
+ * runaway width for a cap to have to catch.
+ *
+ * TWO RATIOS, MATCHING THE TWO CROPS. `source[media]` swaps mobile art for
+ * desktop art at `(min-width: 768px)` — read out of the bundle rather than
+ * assumed — so the aspect-ratio swaps at the same breakpoint, both to the
+ * artwork's OWN natural size rather than a rounded number: 900x570 / 1216x706
+ * for men and women, 900x454 / 1216x418 for accessories and outlet. object-fit
+ * stays cover; with the box ratio equal to the image ratio, cover crops
+ * nothing.
+ *
+ * The Tailwind height utilities are unlayered `!important` overrides here for
+ * the same reason the header rule above needed a named layer to win: these two
+ * ARE the bundle's own unscoped class names (`.tile-men` etc.), not Tailwind
+ * utilities, so they sit outside @layer entirely and an unlayered !important
+ * beats them without needing one.
+ *
+ * RTL WAS CHECKED AND IS NOT TOUCHED. Men and women swap to the -rtl
+ * composition in Arabic (the bundle's own `rtlArt` flag plus tile-art.js's
+ * overlay for women); accessories and outlet have no -rtl file and request
+ * none, in either language — correct, since neither composition puts text
+ * against a reading side. Nothing here changes that; it only changes how much
+ * of whichever file was already chosen gets shown. */
+.cat-tile.tile-men,
+.cat-tile.tile-women {
+  height: auto !important;
+  aspect-ratio: 900 / 570 !important;
+}
+.cat-tile.tile-acc,
+.cat-tile.tile-outlet {
+  height: auto !important;
+  aspect-ratio: 900 / 454 !important;
+}
+@media (min-width: 768px) {
+  .cat-tile.tile-men,
+  .cat-tile.tile-women {
+    aspect-ratio: 1216 / 706 !important;
+  }
+  .cat-tile.tile-acc,
+  .cat-tile.tile-outlet {
+    aspect-ratio: 1216 / 418 !important;
+  }
+}
+
 [data-theme=dark] .save-chip {
   color:#ff7b17;
   color:var(--brand-bright);
