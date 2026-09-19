@@ -566,6 +566,63 @@ test('بوّابة الزبون: التحليل والإنشاء بلا جلسة
   db.prepare("UPDATE orders SET status='new' WHERE id=?").run(row.id);
 });
 
+test('بوّابة الزبون: ما لا حقل له يُحفظ بنصّه لا يُرمى', async () => {
+  /* قِيس على أربع رسائل واقعية فسقط من كلٍّ منها ما يحتاجه من يوصّل: رقم
+     المنزل، والموعد، و«اتصل قبل ما توصل»، و«الشحنة كيك لا تقلبها». والوكيل
+     يقول «تمام» فيظنّ الزبون أنّ كلامه كلّه وصل.
+     والعلاج ليس حقولًا أكثر: حقلٌ يُملأ بالتخمين أسوأ من حقلٍ فارغ، وهذه
+     قاعدة المستخرِج نفسه. العلاج أن يصل الكلام كما قيل إلى من يقرؤه. */
+  const said = [
+    'ابغى توصيل من مطعم في السالمية الى بيت في الجابرية قطعة ٧ شارع ٥ منزل ١٢',
+    'الطلب مستعجل وحصّل مني ٨ دنانير، واتصل علي قبل ما توصل',
+    'اسمي بدر ورقمي ٩٩٨٨٧٧٦٦',
+  ];
+  const c = await call(null, 'POST', '/api/public/order', {
+    customer_name: 'بدر', customer_phone: '99887766',
+    pickup_area: 'السالمية', dropoff_area: 'الجابرية', dropoff_block: '7',
+    transcript: said,
+  });
+  assert.equal(c.status, 200);
+
+  const row = db.prepare('SELECT * FROM orders WHERE code = ?').get(c.data.order.code);
+  assert.equal(row.transcript, said.join('\n'));
+
+  /* وهذه بعينها ما كان يسقط: لا حقل لها في الطلب، فلو لم يُحفظ النصّ
+     لما وصلت المكتبَ بحال. */
+  for (const detail of ['منزل ١٢', 'اتصل علي قبل ما توصل']) {
+    assert.ok(row.transcript.includes(detail), `«${detail}» لم يصل`);
+    const inFields = [row.notes, row.pickup_address, row.dropoff_address].join(' ');
+    assert.equal(inFields.includes(detail), false, `«${detail}» صار حقلًا بالتخمين`);
+  }
+
+  /* وطلبٌ بلا حديث يُنشأ كما كان — الحقل افتراضه نصٌّ فارغ لا NULL */
+  const plain = await call(null, 'POST', '/api/public/order', {
+    customer_name: 'نورة', customer_phone: '99112233',
+    pickup_area: 'حولي', dropoff_area: 'السالمية',
+  });
+  assert.equal(plain.status, 200);
+  assert.equal(db.prepare('SELECT transcript FROM orders WHERE code = ?')
+    .get(plain.data.order.code).transcript, '');
+
+  /* وحديثٌ بلا نهاية يُردّ ولا يُقصّ بصمت */
+  const flood = await call(null, 'POST', '/api/public/order', {
+    customer_name: 'سالم', customer_phone: '99112244',
+    pickup_area: 'حولي', dropoff_area: 'السالمية',
+    transcript: Array.from({ length: 61 }, (_, i) => `سطر ${i}`),
+  });
+  assert.equal(flood.status, 400);
+});
+
+test('بوّابة الزبون: صفحة الطلب ترسل ما قيل مع ما فُهم', () => {
+  /* الحفظ في الخادم بلا إرسالٍ من الصفحة حارسٌ على بابٍ لا يطرقه أحد.
+     والتعليق ليس كودًا يُنفَّذ — يُنزع قبل الفحص، وإلّا نجح الحارس على
+     شرحٍ يصف ما لم يُكتب. */
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'website', 'order.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  const body = src.slice(src.indexOf('/api/public/order`'), src.indexOf('showDone(data.order)'));
+  assert.ok(/transcript:\s*state\.utterances/.test(body), 'الصفحة لا ترسل ما قاله الزبون');
+});
+
 test('بوّابة الزبون: كلامٌ ليس جوابًا لا يُسجَّل جوابًا', async () => {
   /* الغلاف عونٌ للجواب المجرّد: من سُئل عن اسمه فقال «بدر» يُفهم «اسمي بدر».
      لكنّه كان يغلّف كلّ ما يُقال ما دام قصيرًا، فمن سُئل عن اسمه فقال

@@ -160,6 +160,13 @@
     <h2 class="vo-card__title">طلبك حتى الآن</h2>
     <ul class="vo-card__list" id="voHeard"></ul>
     <ul class="vo-card__missing" id="voMissing"></ul>
+    <!-- البطاقة تعرض ما وجد له الوكيل حقلًا. وما لا حقل له — موعدٌ، رقم
+         منزل، تنبيهٌ على الشحنة — يُرسل مع الطلب بنصّه، فيُقال ذلك صراحةً
+         لئلّا يظنّ الزبون أنّ ما غاب عن البطاقة ضاع. -->
+    <p class="vo-card__note" id="voNote" hidden>
+      وكلّ ما قلته يصل مع الطلب بحروفه — الموعد ورقم المنزل وأيّ تنبيه —
+      يقرؤه المكتب قبل أن يتّصل بك.
+    </p>
     <button class="btn btn--primary btn--lg vo-card__send" id="voSubmit" type="button" hidden>
       <svg class="ic" aria-hidden="true"><use href="#i-send"></use></svg>
       أرسل الطلب إلى موصول

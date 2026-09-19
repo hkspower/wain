@@ -659,6 +659,15 @@ on('POST', '/api/public/order', async (ctx) => {
   const priority = oneOf(ctx.body.priority || 'normal', 'الأولوية', Object.keys(D.PRIORITIES));
   const vehicle = oneOf(ctx.body.vehicle || 'sedan', 'نوع المركبة', Object.keys(D.VEHICLES));
 
+  /* حديث الزبون كما دار — لا يُفهم ولا يُفسَّر، يُحفظ ليُقرأ. ما يفهمه
+     الوكيل يملأ الحقول أعلاه، وما لا يفهمه (موعدٌ، رقم منزل، «لا تقلبها»)
+     كان يضيع صامتًا. يصل سطرًا لكل ما قيل، ويُحفظ نصًّا واحدًا. */
+  const heardLines = Array.isArray(ctx.body.transcript)
+    ? ctx.body.transcript.map((u) => str(u, 'ما قيل', { required: false, max: 1000 })).filter(Boolean)
+    : [];
+  if (heardLines.length > 60) throw badRequest('الحديث طويل — أعد الطلب من أوّله');
+  const transcript = heardLines.join('\n').slice(0, 4000);
+
   /* العنوان هنا مهيكلٌ حصرًا — منطقة من القائمة وقطعة تُفحص — لأن ما يكتبه
      الوكيل جاء من القائمة نفسها. النصّ الحرّ بابه نموذج اللوحة، حيث موظّفٌ
      يقرأ ما كُتب. */
@@ -686,7 +695,7 @@ on('POST', '/api/public/order', async (ctx) => {
     customer_name: name, customer_phone: phoneNo,
     pickup_address: pick.address, dropoff_address: drop.address,
     governorate: pick.gov, vehicle,
-    cod_amount: cod, delivery_fee: 0, priority, notes,
+    cod_amount: cod, delivery_fee: 0, priority, notes, transcript,
     pickup_area: pick.area, pickup_block: pick.block,
     dropoff_governorate: drop.gov, dropoff_area: drop.area, dropoff_block: drop.block,
     pickup_lat: null, pickup_lng: null,
@@ -697,12 +706,12 @@ on('POST', '/api/public/order', async (ctx) => {
        vehicle, cod_amount, delivery_fee, priority, notes, status, agent_id, created_by,
        commission_type, commission_rate, commission_amount, agent_earning,
        pickup_area, pickup_block, dropoff_governorate, dropoff_area, dropoff_block,
-       pickup_lat, pickup_lng, source, created_at, updated_at)
+       pickup_lat, pickup_lng, source, transcript, created_at, updated_at)
      VALUES (@code, @customer_name, @customer_phone, @pickup_address, @dropoff_address, @governorate,
        @vehicle, @cod_amount, @delivery_fee, @priority, @notes, 'new', NULL, NULL,
        @commission_type, @commission_rate, @commission_amount, @agent_earning,
        @pickup_area, @pickup_block, @dropoff_governorate, @dropoff_area, @dropoff_block,
-       @pickup_lat, @pickup_lng, 'public_ai', @ts, @ts)`
+       @pickup_lat, @pickup_lng, 'public_ai', @transcript, @ts, @ts)`
   ).run({ ...order, ...commission, ts: now() });
   const orderId = Number(info.lastInsertRowid);
 
@@ -717,6 +726,9 @@ on('POST', '/api/public/order', async (ctx) => {
       pickup_address: order.pickup_address, dropoff_address: order.dropoff_address,
       governorate: order.governorate, cod_amount: order.cod_amount,
       priority: order.priority, notes: order.notes,
+      /* ويصل المكتبَ كلام الزبون نفسه لا خلاصته: الإشعار على واتساب هو
+         أوّل ما يُقرأ، وفيه يظهر ما لم يجد له الوكيل حقلًا. */
+      transcript: order.transcript,
     },
   }, orderId);
 

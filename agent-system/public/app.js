@@ -712,6 +712,21 @@
             </div>
           </div>
 
+          ${order.transcript ? `
+          <div class="card">
+            <div class="card__head"><h2>كلام الزبون كما قاله</h2></div>
+            <div class="card__body">
+              <!-- الحقول أعلاه ما فهمه الوكيل، وهذا ما قيل. بينهما ما لا
+                   حقل له: موعدٌ، رقم منزل، تنبيهٌ على الشحنة. يُقرأ قبل
+                   المكالمة لا بعدها، فلا يُسأل الزبون عمّا قاله. -->
+              <p class="muted">اقرأه قبل الاتصال — فيه ما لا حقل له في الأعلى.</p>
+              <ul class="said">
+                ${order.transcript.split('\n').filter(Boolean)
+                  .map((line) => `<li>${esc(line)}</li>`).join('')}
+              </ul>
+            </div>
+          </div>` : ''}
+
           ${(canAct || canTransfer || isAdmin) ? `
           <div class="card">
             <div class="card__head"><h2>الإجراءات</h2></div>

@@ -560,6 +560,14 @@ body.vo {
 
 .vo-card__send { width: 100%; margin-top: .9rem; justify-content: center; }
 
+/* إقرارٌ لا تنبيه: يُقرأ **قبل** الضغط على الإرسال لا بعده. قِيس بالصورة
+   على شاشة جوال: وهو تحت الزرّ وقع خارج ما يُرى، والملتقط اللاصق يغطّي ما
+   بقي — فإقرارٌ لا يُقرأ كأنّه لم يُكتب. */
+.vo-card__note {
+  margin: .7rem 0 0; color: var(--ink-soft);
+  font-size: var(--fs-sm); line-height: var(--lh-body);
+}
+
 /* ------------------------------ التأكيد ------------------------------ */
 .vo-done {
   background: var(--surf-1); border: 1px solid var(--line);
@@ -583,6 +591,9 @@ body.vo {
 }
 
 .vo-done p { color: var(--ink-mid); font-size: var(--fs-md); line-height: var(--lh-body); margin: .5rem 0 0; }
+
+/* أهدأ من الفقرة التي فوقها: خبرٌ يطمئن لا تعليمات تُتّبع */
+.vo-done p.vo-done__kept { font-size: var(--fs-sm); color: var(--ink-soft); }
 
 .vo-done .btn { margin-top: 1.1rem; }
 

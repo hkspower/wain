@@ -29,6 +29,7 @@
   const $ = (id) => document.getElementById(id);
   const hero = $('voHero'), chat = $('voChat'), card = $('voCard');
   const heardEl = $('voHeard'), missingEl = $('voMissing'), submitBtn = $('voSubmit');
+  const noteEl = $('voNote');
   const done = $('voDone'), composer = $('voComposer');
   const mic = $('voMic'), form = $('voForm'), input = $('voInput'), hint = $('voHint');
 
@@ -147,6 +148,7 @@
     heardEl.innerHTML = p.heard.map((h) => `<li>${esc(h)}</li>`).join('');
     missingEl.innerHTML = missingReq.map((m) => `<li>${esc(m.why)}</li>`).join('');
     submitBtn.hidden = missingReq.length !== 0;
+    noteEl.hidden = submitBtn.hidden;
   }
 
   /**
@@ -443,6 +445,11 @@
           cod_amount: f.cod_amount || 0,
           vehicle: f.vehicle || 'sedan', priority: f.priority || 'normal',
           notes: f.notes || '',
+          /* ما قاله الزبون بحروفه. الحقول أعلاه ما فهمه الوكيل، وهذا ما
+             قيل — وبينهما فرقٌ قِيس: «شارع ٥ منزل ١٢»، «قبل الساعة ٥
+             العصر»، «اتصل قبل ما توصل» لا حقل لها فكانت تسقط. يقرؤها
+             الموظّف قبل أن يتّصل، فلا يُسأل الزبون عمّا قاله. */
+          transcript: state.utterances.slice(),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -465,6 +472,8 @@
       <p>من ${esc(order.pickup_address)}<br>إلى ${esc(order.dropoff_address)}</p>
       <p>سيتّصل بك المكتب على رقمك للتأكيد والتسعير، ثم يتحرّك الكابتن.
          احفظ رمز الطلب لأيّ متابعة.</p>
+      <p class="vo-done__kept">وحديثك كلّه وصل مع الطلب كما قلته — لا تحتاج
+         إلى إعادته على الهاتف.</p>
       <button class="btn btn--primary" type="button" id="voAgain">اطلب توصيلًا آخر</button>`;
     $('voAgain').addEventListener('click', () => location.reload());
     done.scrollIntoView({ block: 'center' });
