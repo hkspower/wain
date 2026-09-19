@@ -11,6 +11,7 @@
 // one-shot impacts, scrapes, blow-off, horn and battle stings.
 
 import { LAP, TUNNEL_BOX } from "./track";
+import { assetUrl } from "./cdn";
 import { wetGripMult } from "./weather";
 
 export interface SoundFrame {
@@ -1146,7 +1147,7 @@ export class SoundEngine {
     interface Entry { file: string; gain?: number; loop?: boolean }
     let manifest: Record<string, Entry>;
     try {
-      const res = await fetch("/sfx/manifest.json", { cache: "no-cache" });
+      const res = await fetch(assetUrl("/sfx/manifest.json"), { cache: "no-cache" });
       if (!res.ok) return;
       const parsed: unknown = await res.json();
       if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") return;
@@ -1158,7 +1159,7 @@ export class SoundEngine {
       Object.entries(manifest).map(async ([name, e]) => {
         if (!e?.file) return;
         try {
-          const data = await (await fetch(`/sfx/${e.file}`)).arrayBuffer();
+          const data = await (await fetch(assetUrl(`/sfx/${e.file}`))).arrayBuffer();
           const buf = await this.ctx.decodeAudioData(data);
           if (name === "skid" && e.loop) {
             // The slide bed loops forever at zero gain; update() rides it

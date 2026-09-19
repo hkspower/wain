@@ -16,6 +16,8 @@
 // rendered — which is the documented fallback — and not because the
 // reader could not read the file.
 
+import { assetUrl } from "./cdn";
+
 export type SfxName =
   | "ui-tap"
   | "ui-confirm"
@@ -48,7 +50,7 @@ let volume = 0.75;
  */
 function ensureManifest(): Promise<void> {
   if (loading) return loading;
-  loading = fetch("/sfx/manifest.json")
+  loading = fetch(assetUrl("/sfx/manifest.json"))
     .then((r) => (r.ok ? r.json() : []))
     .then((parsed: unknown) => {
       // NAME -> FILE, not just the names.
@@ -94,7 +96,7 @@ export function playSfx(name: SfxName, gain = 1): void {
     if (!file) return;
     let base = cache.get(name);
     if (!base) {
-      base = new Audio(`/sfx/${file}`);
+      base = new Audio(assetUrl(`/sfx/${file}`));
       base.preload = "auto";
       cache.set(name, base);
     }
@@ -113,7 +115,7 @@ export function preloadSfx(): void {
     if (!manifest) return;
     for (const [name, file] of manifest) {
       if (cache.has(name)) continue;
-      const a = new Audio(`/sfx/${file}`);
+      const a = new Audio(assetUrl(`/sfx/${file}`));
       a.preload = "auto";
       cache.set(name, a);
     }

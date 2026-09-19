@@ -6,6 +6,8 @@
 // tracks play; otherwise a procedural synth score keeps the night
 // scored, so the game is never silent and ships with no audio assets.
 
+import { assetUrl } from "./cdn";
+
 /** cruise: the night drive. battle: the fight. challenge: the film that
  *  starts it — the shortest and the hardest, because it plays under a
  *  fixed eight seconds and has to land in all of them. */
@@ -70,7 +72,7 @@ export function musicIntensity(
   return clamp(v);
 }
 
-const MANIFEST = "/music/manifest.json";
+const MANIFEST = assetUrl("/music/manifest.json");
 const FADE = 1.6; // seconds
 
 export class Music {
@@ -114,7 +116,7 @@ export class Music {
         if (!Array.isArray(list) || list.length === 0) return;
         for (const mood of ["cruise", "battle"] as MusicMood[]) {
           if (!list.includes(mood)) continue;
-          const el = new Audio(`/music/${mood}.mp3`);
+          const el = new Audio(assetUrl(`/music/${mood}.mp3`));
           el.loop = true;
           el.crossOrigin = "anonymous";
           const src = ctx.createMediaElementSource(el);

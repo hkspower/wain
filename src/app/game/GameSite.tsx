@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { assetUrl } from "@/game/cdn";
 import { useEffect, useState } from "react";
 import {
   CTA, DISTRICTS, FAQ, FLEET, GALLERY, HOWTO, INTRO, LABELS, LENGTHS,
@@ -87,8 +88,8 @@ export default function GameSite({
       {/* ------------------------------------------------------- HERO */}
       <section className="relative isolate overflow-hidden">
         <img
-          src="/game/night.webp"
-          srcSet="/game/night@800.webp 800w, /game/night.webp 1600w"
+          src={assetUrl("/game/night.webp")}
+          srcSet={`${assetUrl("/game/night@800.webp")} 800w, ${assetUrl("/game/night.webp")} 1600w`}
           sizes="100vw"
           alt={t({
             en: "Arabian Gulf Street at night, seen from behind a car",
@@ -195,8 +196,8 @@ export default function GameSite({
               }`}
             >
               <img
-                src={`/game/${shot.src}`}
-                srcSet={`/game/${shot.src.replace(".webp", "@800.webp")} 800w, /game/${shot.src} 1600w`}
+                src={assetUrl(`/game/${shot.src}`)}
+                srcSet={`${assetUrl(`/game/${shot.src.replace(".webp", "@800.webp")}`)} 800w, ${assetUrl(`/game/${shot.src}`)} 1600w`}
                 sizes={i === 0 ? "(min-width: 640px) 66vw, 100vw" : "(min-width: 640px) 33vw, 100vw"}
                 alt={t(shot.alt)}
                 width={1600}
@@ -261,7 +262,7 @@ export default function GameSite({
               className="overflow-hidden rounded-2xl border border-white/10 bg-steel-900/60"
             >
               <img
-                src={`/cars/${c.id}.webp`}
+                src={assetUrl(`/cars/${c.id}.webp`)}
                 alt={ar ? c.ar : c.name}
                 width={480}
                 height={180}

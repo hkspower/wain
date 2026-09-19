@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { assetUrl } from "@/game/cdn";
 import {
   CARS,
   CLASS_LABELS,
@@ -553,7 +554,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                             aria-hidden
                           >
                             <img
-                              src={`/cars/${c.id}.webp`}
+                              src={assetUrl(`/cars/${c.id}.webp`)}
                               alt=""
                               loading="lazy"
                               decoding="async"

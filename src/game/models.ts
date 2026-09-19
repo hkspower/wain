@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { assetUrl } from "./cdn";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { crownFor, crownShell, TIRE_HALF_W, WHEEL_R_K, WHEEL_W_K, type BodyStyle } from "./cars";
 
@@ -77,7 +78,7 @@ export function fingerprint(text: string): string {
 
 let manifest: Promise<ModelBuild> | null = null;
 function shipped(): Promise<ModelBuild> {
-  manifest ??= fetch("/models/build.json")
+  manifest ??= fetch(assetUrl("/models/build.json"))
     .then((r) => (r.ok ? r.text() : null))
     .then((text) => {
       if (!text) return { have: null, v: "" };
@@ -110,8 +111,13 @@ function load(file: string, v: string): Promise<PartSet | null> {
     // the browser fetches a URL it has never seen rather than being asked
     // to re-check one it has. Empty when the manifest could not be read,
     // and then the bare path is requested exactly as before.
+    //
+    // Served cross-origin when NEXT_PUBLIC_ASSET_BASE is set (cdn.ts).
+    // No crossOrigin call is needed: three's Loader defaults to
+    // "anonymous" and fetches the .glb in CORS mode, so the host's
+    // Access-Control-Allow-Origin header is all it takes.
     new GLTFLoader().load(
-      `/models/${file}.glb${v ? `?v=${v}` : ""}`,
+      assetUrl(`/models/${file}.glb${v ? `?v=${v}` : ""}`),
       (gltf) => {
         const out: PartSet = {};
         gltf.scene.updateMatrixWorld(true);

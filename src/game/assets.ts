@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { assetUrl } from "./cdn";
 
 // External art drop-in.
 //
@@ -12,7 +13,7 @@ import * as THREE from "three";
 // made, it 404s, and the procedural textures stand. Nothing else is
 // fetched, so the drop-in path costs nothing when unused.
 
-const BASE = "/textures/";
+const BASE = assetUrl("/textures/");
 
 /** The three maps a PBR surface can override. Values are file names
  *  relative to `public/textures/`. */

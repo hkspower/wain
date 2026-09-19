@@ -43,6 +43,7 @@
 // it, because "the radio does not duck" is otherwise a mystery.
 
 import { CHANNELS } from "./music";
+import { assetUrl } from "./cdn";
 
 export interface RadioStation {
   id: string;
@@ -57,7 +58,7 @@ export interface RadioStation {
 
 export type RadioMode = "synth" | "mixed" | "direct";
 
-const MANIFEST = "/radio/stations.json";
+const MANIFEST = assetUrl("/radio/stations.json");
 
 /**
  * The stations that are always there: the ones the game plays itself.

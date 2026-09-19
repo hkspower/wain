@@ -31,6 +31,17 @@ npm run hub          # starts the hub server on ws://localhost:8787
 
 Point clients elsewhere with `NEXT_PUBLIC_HUB_WS=wss://your-server:8787` at build time (and `HUB_PORT` for the server). State is in-memory — restarting clears the leaderboard. Battles stay single-player; the cruise, chat, and lap times are shared.
 
+### Asset host (optional)
+
+The web build can load its static assets — the car models, music, voice lines, effects and card images under `public/` — from a separate host instead of its own origin:
+
+```bash
+NEXT_PUBLIC_ASSET_BASE=https://nr.mawsoool.com npm run build   # the production web build
+npm run deploy:assets                                           # mirror public/ to that host
+```
+
+Unset (the default) nothing changes, and it **must** stay unset for `build:mobile` and `build:steam`, which bundle `public/` and run offline. `deploy:assets` reads short-lived upload credentials from `NR_UPLOAD_URL`, `NR_UPLOAD_AUTH` and `NR_UPLOAD_AUTH_REST` (see `.env.example`) and has to run after any change under `public/` and before the web build that references it — otherwise the host serves the previous `build.json` and the models silently fall back to the procedural shells. See `src/game/cdn.ts` and `scripts/deploy-assets.mjs`.
+
 Want it as a desktop / Steam PC build? See [`desktop/README.md`](desktop/README.md) for the Electron + Steamworks packaging guide.
 
 Prefer a **native engine build**? Two complete code-only ports live alongside the web game:

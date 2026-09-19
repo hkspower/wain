@@ -10,6 +10,7 @@ import {
   Reem_Kufi,
 } from "next/font/google";
 import { hubHintOrigin } from "@/game/net";
+import { assetHintOrigin } from "@/game/cdn";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import "./globals.css";
@@ -133,6 +134,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const hubOrigin = hubHintOrigin();
+  // The asset host, when the build has one (cdn.ts). The first .glb is
+  // requested the moment the engine boots, so its DNS/TCP/TLS should
+  // already be done by then; nothing is emitted for the same-origin
+  // default, for the same reason nothing is emitted for a localhost hub.
+  const assetOrigin = assetHintOrigin();
   return (
     // The font variables go on <html>, not <body>: the composed stacks in
     // globals.css live at :root and reference them, and a var() that is
@@ -168,6 +174,12 @@ export default function RootLayout({
         <head>
           <link rel="dns-prefetch" href={hubOrigin} />
           <link rel="preconnect" href={hubOrigin} crossOrigin="anonymous" />
+        </head>
+      )}
+      {assetOrigin && (
+        <head>
+          <link rel="dns-prefetch" href={assetOrigin} />
+          <link rel="preconnect" href={assetOrigin} crossOrigin="anonymous" />
         </head>
       )}
       <body className="flex min-h-screen flex-col font-sans">

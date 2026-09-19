@@ -4,6 +4,8 @@
 // gets a pitch/rate signature so rivals sound distinct even when the
 // system only ships one Arabic voice.
 
+import { assetUrl } from "./cdn";
+
 export interface VoiceStyle {
   pitch: number; // 0..2
   rate: number; // 0.1..10
@@ -61,7 +63,7 @@ export class VoiceBox {
       this.pickVoices();
       this.synth.addEventListener?.("voiceschanged", () => this.pickVoices());
     }
-    this.manifestLoading = fetch("/voices/manifest.json")
+    this.manifestLoading = fetch(assetUrl("/voices/manifest.json"))
       .then((r) => (r.ok ? r.json() : []))
       .then((list: string[]) => {
         if (Array.isArray(list)) for (const id of list) this.clips.add(id);
@@ -177,9 +179,15 @@ export class VoiceBox {
         this.clipAudio.pause();
         this.endSpeaking();
       }
-      const audio = new Audio(`/voices/${clipId}.mp3`);
+      const audio = new Audio(assetUrl(`/voices/${clipId}.mp3`));
       this.clipAudio = audio;
       audio.volume = 0.9;
+      // Set BEFORE routeToMix: that hands the element to
+      // createMediaElementSource, and a cross-origin element without
+      // CORS is tainted there — it plays into the graph as silence, with
+      // nothing failing. The same line music.ts carries for its beds.
+      // Inert on the same-origin default.
+      audio.crossOrigin = "anonymous";
       this.routeToMix(audio);
       let released = false;
       const release = () => {

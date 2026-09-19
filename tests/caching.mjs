@@ -8,6 +8,7 @@
 
 import { readFileSync } from "node:fs";
 import { hubHintOrigin } from "../src/game/net.ts";
+import { resolveAssetBase, assetUrl, assetHintOrigin } from "../src/game/cdn.ts";
 import { fingerprint } from "../src/game/models.ts";
 import { GRN_CACHE_CONTROL } from "../src/game/api.ts";
 import {
@@ -165,6 +166,62 @@ const check = (c, m) => { if (!c) fail.push(m); };
   check(/onStorageTrouble/.test(client) && /storageHealth\(\)/.test(client),
     "the race has to surface it, or nothing is observable after all");
   console.log("garage, profile and settings all report a failed save; the race surfaces it");
+}
+
+// --- 7. The assets can come from another host, and by default do not --
+// NEXT_PUBLIC_ASSET_BASE points the web build at nr.mawsoool.com. Two
+// things have to be true of it: unset, every URL is the root-relative
+// path it always was (the mobile bundle and the Steam build depend on
+// that), and set, every asset reference actually goes through it — a
+// call site that still spells out "/models/" would fetch from the page's
+// origin, which in production has no public/ behind it.
+{
+  check(resolveAssetBase(undefined) === "" && resolveAssetBase("") === "" && resolveAssetBase("  ") === "",
+    "an unset base must resolve to the same origin");
+  check(resolveAssetBase("https://nr.mawsoool.com/") === "https://nr.mawsoool.com",
+    "a trailing slash must be stripped, or every URL carries a double slash");
+  check(resolveAssetBase("nr.mawsoool.com") === "", "a bare host is not a base — it must fall back, not build garbage");
+  check(resolveAssetBase("ftp://nr.mawsoool.com") === "", "only http(s) is a base");
+  check(assetUrl("/models/car-gtr.glb", "") === "/models/car-gtr.glb",
+    "with no base the path must come back byte for byte");
+  check(assetUrl("/models/car-gtr.glb?v=abc", "https://nr.mawsoool.com") === "https://nr.mawsoool.com/models/car-gtr.glb?v=abc",
+    "the base is prepended to the path, query and all");
+  check(assetUrl("cars/x.webp", "https://nr.mawsoool.com") === "https://nr.mawsoool.com/cars/x.webp",
+    "a path without a leading slash still joins cleanly");
+  check(assetHintOrigin("") === null, "no hint for the same-origin default");
+  check(assetHintOrigin("https://nr.mawsoool.com/Nr") === "https://nr.mawsoool.com",
+    "the hint is the origin, not the base's path");
+  check(assetHintOrigin("http://localhost:3000") === null, "no hint for a host that needs no lookup");
+
+  // Every module that fetches an asset goes through assetUrl(). Matched
+  // on the literal path prefixes the game uses; a new call site that
+  // spells one out without the helper fails here rather than in
+  // production.
+  const modules = [
+    "src/game/models.ts", "src/game/music.ts", "src/game/sfx.ts", "src/game/sound.ts",
+    "src/game/voice.ts", "src/game/assets.ts", "src/game/radio.ts",
+    "src/app/race/Garage.tsx", "src/app/game/GameSite.tsx",
+  ];
+  const bare = /(?<!assetUrl\()(["'`])\/(models|music|sfx|voices|textures|radio|cars|game)\//;
+  for (const f of modules) {
+    const src = readFileSync(f, "utf8");
+    check(/assetUrl\(/.test(src), `${f} must resolve its asset URLs through assetUrl()`);
+    const lines = src.split("\n").filter((l) => bare.test(l) && !l.trim().startsWith("//") && !l.trim().startsWith("*"));
+    check(lines.length === 0, `${f} still spells out an asset path without assetUrl(): ${lines[0]?.trim()}`);
+  }
+  const layout = readFileSync("src/app/layout.tsx", "utf8");
+  check(/assetOrigin &&/.test(layout), "the layout must warm the asset host only when there is one");
+  // The two media elements that feed Web Audio must be CORS elements, or
+  // a cross-origin clip plays into the graph as silence with nothing
+  // failing. Both set it before the element reaches
+  // createMediaElementSource; matched on the attribute, and on the order.
+  for (const [f, what] of [["src/game/voice.ts", "voice lines"], ["src/game/music.ts", "music beds"]]) {
+    const src = readFileSync(f, "utf8");
+    const set = src.indexOf('crossOrigin = "anonymous"');
+    const routed = src.indexOf(f.includes("voice") ? "this.routeToMix(audio)" : "createMediaElementSource(el)");
+    check(set > 0 && routed > set, `${what}: crossOrigin must be set before the element feeds Web Audio`);
+  }
+  console.log("asset base: same-origin by default, every asset module goes through assetUrl(), Web Audio elements are CORS elements");
 }
 
 console.log(fail.length ? `\nFAILURES:\n  ${fail.join("\n  ")}` : "\nall green");
