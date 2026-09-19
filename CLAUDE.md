@@ -3408,3 +3408,77 @@ manifest and every publisher built from it agree.
 by something that is not this account — and **`default.php`, which is new since
 the last reading and in no commit.** Not touched, on the standing rule that
 nothing gets removed on a guess here.
+
+## Scanning a product page found the English pages served right-to-left — 2026-09-19
+
+Asked to "scan product page". The page itself is in good order; the two findings
+were elsewhere, and one of them was on every English page of the shop.
+
+**What the page does right**, measured at 390 and 1280 in both languages: no
+broken images, nothing over 400, no console errors, no sideways scroll, correct
+canonical and hreflang per language, JSON-LD carrying price, availability, a
+14-day return policy and shipping, breadcrumbs, and a description. Tap targets
+pass under `pointer: coarse`; the only sub-44 items on a phone are text links
+inside cards that are themselves fully tappable.
+
+**A sold-out size is handled properly, and I read it wrong twice before
+believing it.** First I checked `textDecorationLine` on the BUTTON and got
+`none`, and reported no visual treatment — the strike-through is on an inner
+`<span class="line-through">`. Then I checked `opacity` and got 1 — the dimming
+is done with colour, not opacity. Measured properly: `disabled`, strike-through,
+label contrast 6.55:1 (in-stock 11.19), `cursor: not-allowed`, `title="Sold
+out"`. **A computed style read on the wrong element reports absence**, which is
+this file's oldest lesson on a new surface, twice in five minutes. The one real
+gap is that `title` is hover-only, so a phone gets no words — strike-through is
+a strong enough convention that this is worth knowing rather than fixing.
+
+**`photos=5/47` on the live shop, up from 0/46.** The owner has started
+uploading. And `og:image` on a product WITH a photo correctly points at
+`?r=product_image`, not the shop-wide fallback — so that half needs nothing; the
+42 without photos still fall back to `og-image.png`.
+
+### The finding: `lang="en" dir="rtl"`
+
+```
+en  200/53085  lang=en dir=rtl
+```
+
+`index.html` ships `<html lang="ar" dir="rtl">` — correct, Arabic is the
+default — and `seo.php` rewrote only `lang`. So every English page the shim
+serves went out as an English document declared right-to-left.
+
+**TWO READERS SEE IT AND ONE NEVER STOPS.** `index.html`'s boot script sets
+`el.dir` before any module loads, so a real browser corrects it a moment after
+parse. **Googlebot crawling without rendering keeps the RTL** — on the shop this
+file had recorded as cleanly indexable that same morning. And a visitor arriving
+at `?lang=en` from a search result gets one frame of right-to-left English.
+
+**`test:langs` already checked `dir`, and had been green throughout**, because
+it reads `document.documentElement` in a browser — after the correction. It was
+measuring the fix and could never see the fault. It now also reads the `<html>`
+tag out of the bytes the server sent, which is a different question and the only
+one Googlebot answers. Mutation-tested: restoring the lang-only rewrite fails the
+served check by name while every browser check stays green.
+
+**The rule: when a script repairs something at boot, a browser cannot tell you
+whether the server sent it right.** Fetch the bytes.
+
+### And the publisher under-published in silence
+
+`seo.php` was fixed, committed, `publish-all.php` re-pinned to that commit — and
+the run said `wrote=0 alreadyOk=220` while the server went on serving the broken
+file. Nothing failed. Nothing warned.
+
+**Changing `$COMMIT` re-points where the CONTENT comes from and leaves the
+embedded HASHES at whatever they were when the publisher was generated.** A file
+edited since matches its stale hash and is skipped WITHOUT a request. That is
+this file's *"a publisher that grows a file list under-publishes in silence"*
+with the hashes gone stale instead of the list — **the failure is a larger
+`alreadyOk`, not an error**, which is exactly the number nobody questions.
+
+One home now: the publisher FETCHES the manifest from its own `$COMMIT` and
+parses `$WANT` out of it, so setting `$COMMIT` moves the content and the hashes
+together because they are the same thing. A manifest that will not fetch, or
+parses to fewer than fifty entries, publishes nothing and says so — an empty
+list would otherwise publish nothing while reporting a clean run. Re-run:
+`manifest 220 files @ d70cb9f7 / wrote seo.php / wrote=1 alreadyOk=219 failed=0`.
