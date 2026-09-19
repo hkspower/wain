@@ -2212,6 +2212,18 @@ const STORE_SETTING_DEFAULTS = [
     // through anyway: this array is where the shape of a settings row is
     // written down, and a field the panel offers but the defaults do not name
     // is a field the next reader has to go and find in a route handler.
+    // THE REST OF THE SITE'S WORDS, as {key: {en: [from, to], ar: [from, to]}}.
+    //
+    // A FREE MAP rather than named fields, because the keys are the bundle's
+    // own — `services.delivery.t`, `heroSlides.0.title` — and there are four
+    // hundred of them. scripts/extract-site-strings.mjs reads them out of the
+    // bundle and assets/site-strings.json is the catalogue the panel offers;
+    // this row holds only the ones an owner has actually rewritten.
+    //
+    // EMPTY IS THE NORMAL STATE and means the site says exactly what it was
+    // built to say. The original text is stored beside each replacement so the
+    // storefront overlay needs nothing but this row to do its work.
+    'site_text' => [],
     'theme'     => ['brand' => '', 'accent' => '',
                     'accent_text_light' => '', 'accent_text_dark' => '',
                     'font_head' => '', 'font_body' => '',

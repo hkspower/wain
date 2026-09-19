@@ -200,6 +200,11 @@ $STORE_LIMITS = [
     // Terms and Returns. Same bucket as footer/theme/contact: owner text, no
     // customer in it, fetched on every visit to one of three pages.
     'legal'       => [600, 60],
+    // The same bucket, and a stronger case for it than any of them: this one
+    // is fetched on EVERY page rather than three, because any page can carry a
+    // rewritten line. It is also the smallest answer in the file for a shop
+    // that has changed nothing — `{}`.
+    'site_text'   => [600, 60],
     'order'       => [60, 600],   // queues mail to the warehouse — see ?r=order
     // A review link is signed, so this is not guessable — but a valid link
     // held by one person must not become a way to hammer the database, and
@@ -478,6 +483,19 @@ if ($r === 'theme') {
 // into must come from the one place, and it changes rarely enough to cache.
 if ($r === 'legal') {
     store_out_cacheable(store_setting($db, 'legal'));
+}
+
+// The rest of the site's words — whatever the owner has rewritten, as
+// {key: {en: [from, to], ar: [from, to]}}. Same reasoning as footer and legal:
+// assets/site-text.js swaps these into the page, so the panel's editor and the
+// storefront must read the one place or they drift.
+//
+// ONLY WHAT CHANGED IS IN IT. The catalogue of every string the site can say
+// is a 51 kB static file the PANEL reads; this row holds the overrides alone,
+// so a shop that has never opened the editor answers `{}` and a shop that has
+// rewritten five lines answers with five. Nothing large ever reaches a shopper.
+if ($r === 'site_text') {
+    store_out_cacheable(store_setting($db, 'site_text'));
 }
 
 if ($r === 'slides') {

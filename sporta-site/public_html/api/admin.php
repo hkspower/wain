@@ -1674,6 +1674,85 @@ if ($r === 'settings_save' && $method === 'POST') {
         ];
         if ($err !== null) store_fail('invalid_legal_' . $err);
         store_setting_save($db, 'legal', $out);
+    } elseif ($name === 'site_text') {
+        // THE REST OF THE SITE'S WORDS — every heading, button, empty state and
+        // error message the bundle can say, which until now no panel could
+        // touch at all.
+        //
+        // WHY IT STORES THE ORIGINAL AS WELL AS THE REPLACEMENT. The
+        // storefront's vocabulary lives in one object inside the compiled
+        // bundle, scoped to its module and attached to no global, so nothing at
+        // runtime can read it. assets/site-text.js therefore swaps by matching
+        // the shipped literal — the same method footer.js has used since it was
+        // written — and the literal has to come from somewhere. Keeping it here
+        // means the storefront overlay needs this row and nothing else: no
+        // catalogue fetch, no 51 kB of JSON on a page a shopper is reading.
+        //
+        // ONLY WHAT CHANGED IS STORED, which is what keeps this cheap. A shop
+        // that has rewritten five lines gives the overlay ten literals to look
+        // for, exactly as many as footer.js carries today — not four hundred.
+        // An entry whose replacement is empty or identical to the original is
+        // dropped rather than saved, so clearing a field really does remove it.
+        //
+        // BOTH LANGUAGES, ALWAYS, and the reason is in the bundle's own
+        // behaviour: switching language re-renders every string straight from
+        // that object, so a replacement recorded for English alone vanishes the
+        // moment somebody presses the toggle. A shop can leave one side blank
+        // deliberately; what it cannot do is have a half-applied edit it
+        // believes is applied.
+        $err = null;
+        $one = static function ($raw, string $where) use (&$err): ?string {
+            if (!is_string($raw)) { $err = $err ?? $where . '_not_text'; return null; }
+            $s = trim($raw);
+            if ($s === '') return '';
+            // 600 is several times the longest line the bundle ships (a
+            // category card's description, about sixty characters) and far
+            // short of anything pasted in by accident. This is a label, not a
+            // page — the policy pages have their own field and their own cap.
+            if (mb_strlen($s) > 600)          { $err = $err ?? $where . '_too_long';  return null; }
+            if (strpos($s, '</') !== false)   { $err = $err ?? $where . '_has_markup'; return null; }
+            if (strpos($s, "\0") !== false)   { $err = $err ?? $where . '_has_nul';    return null; }
+            return $s;
+        };
+
+        $out = [];
+        $n = 0;
+        foreach ($v as $key => $pair) {
+            if ($err !== null) break;
+            // The dotted path the catalogue uses — `services.delivery.t`,
+            // `heroSlides.0.title`. Anything else did not come from the
+            // generator and is not a string this shop says.
+            if (!is_string($key) || !preg_match('/^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$/', $key)) {
+                store_fail('invalid_site_text_key');
+            }
+            if (++$n > 500) store_fail('invalid_site_text_too_many');
+            if (!is_array($pair)) { $err = $key . '_not_a_pair'; break; }
+
+            $entry = [];
+            foreach (['en', 'ar'] as $lang) {
+                $side = $pair[$lang] ?? null;
+                if ($side === null) continue;
+                if (!is_array($side) || count($side) !== 2) { $err = $key . '_' . $lang . '_not_a_pair'; break 2; }
+                $from = $one($side[0], $key . '_' . $lang . '_from');
+                $to   = $one($side[1], $key . '_' . $lang . '_to');
+                if ($err !== null) break 2;
+                // Nothing to swap: no original to match on, no replacement, or
+                // a replacement identical to what the shop already says.
+                if ($from === '' || $to === '' || $from === $to) continue;
+                $entry[$lang] = [$from, $to];
+            }
+            if ($entry !== []) $out[$key] = $entry;
+        }
+        if ($err !== null) store_fail('invalid_site_text_' . $err);
+
+        // The same ceiling the custom-CSS field has, for the same reason: this
+        // is the one field here with no shape beyond "prose", and a settings
+        // row is read on requests that have nothing to do with it.
+        if (strlen((string) json_encode($out, JSON_UNESCAPED_UNICODE)) > 65536) {
+            store_fail('invalid_site_text_too_large');
+        }
+        store_setting_save($db, 'site_text', $out);
+        store_out(store_setting($db, 'site_text'));
     } elseif ($name === 'rules') {
         // THE SHOP'S NUMBERS. store.php's store_rule_defaults() is the home of
         // the defaults and the long explanation; this is the gate.

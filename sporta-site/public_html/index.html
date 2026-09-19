@@ -694,6 +694,24 @@
          owner's custom CSS. theme.js is what applies the result. -->
     <script src="/assets/theme-colors.js" defer></script>
 
+    <!-- THE REST OF THE SITE'S WORDS. The storefront's whole vocabulary — about
+         420 strings per language, every heading, button, empty state and error
+         message — is one object compiled into the bundle, scoped to its module
+         and reachable from nothing. So it is read out of the bundle FILE by
+         scripts/extract-site-strings.mjs into assets/site-strings.json, which
+         is the catalogue this editor offers.
+
+         site-text.js applies the result on the storefront, by exact match on a
+         whole text node, both languages at once — the language toggle
+         re-renders every string from that same object, so a one-language swap
+         would apply half the time.
+
+         The 51 kB catalogue is fetched ONLY by the editor, on this panel. What
+         a shopper's page fetches is the overrides alone: `{}` for a shop that
+         has never opened it. -->
+    <script src="/assets/site-text.js" defer></script>
+    <script src="/assets/site-text-editor.js" defer></script>
+
     <!-- Every admin write, on the Settings screen — the read side of the
          shutdown hook admin.php registers right after the admin gate.
          Covers every save route, including ones this file has never heard
