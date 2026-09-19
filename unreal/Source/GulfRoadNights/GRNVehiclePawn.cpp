@@ -190,7 +190,7 @@ void AGRNVehiclePawn::UpdateDriver(float Dt)
 	if (!Driver.IsValid() || !Track) return;
 	// Eyes up: look where the car is going, not where it is pointing.
 	FVector Pos; FRotator Rot;
-	Track->Pose(Track->Wrap(S + GRN_M(GRNRig::DriverLookAheadM)),
+	Track->Pose(Track->Wrap(S + GRN_M(GRNDriverRig::LookAheadM(SpeedMs))),
 		Lat * GRNRig::DriverLookLatK, Pos, Rot);
 	Pos.Z += GRN_M(GRNRig::DriverLookHeight);
 	// What the car is pulling, in m/s²: sideways from the yaw rate at

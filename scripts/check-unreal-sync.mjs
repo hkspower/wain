@@ -9,7 +9,7 @@
 //
 // Exits non-zero on the first mismatch.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 const BASE = process.env.BASE || "http://localhost:3000";
 const HEADER = "unreal/Source/GulfRoadNights/GRNTypes.h";
@@ -486,4 +486,81 @@ if (process.exitCode) {
       console.log(`✓ EGRNBodyStyle: ${used.size} used, all of ${declared.size} declared`);
     }
   }
+}
+
+// ---- the hand-written port must compile against the header it is given
+//
+// Everything above compares the generated header with the API: two
+// artefacts that are BOTH written by the generator, so they agree by
+// construction and agreeing proves very little. What nothing checked is
+// the half that is written by hand — GRNVehiclePawn.cpp, GRNRival.cpp,
+// GRNDriverRig.cpp — against the constants the generator hands them.
+//
+// That gap is not hypothetical. The web build moved the driver's
+// look-ahead from a flat distance to a time (rig.ts lost lookAheadM and
+// gained lookAheadS/MinM/MaxM); sync:unreal duly regenerated the header
+// without DriverLookAheadM; and two call sites went on naming it. Every
+// check in this file stayed green for as long as that was true, because
+// every check in this file was looking at the other two artefacts. The
+// UE5 project simply did not compile, and nothing here could say so —
+// this repository has no Unreal toolchain, by its own README's account.
+//
+// A compiler is not needed to catch it. A reference to a constant that
+// the generated header does not define is a build error, and both sides
+// of that are plain text. Comments and string literals are stripped
+// first, so prose naming a constant is prose.
+{
+  const DIR = "unreal/Source/GulfRoadNights";
+  const GENERATED = new Set(["GRNTypes.h", "GRNSimConstants.h"]);
+  const files = readdirSync(DIR).filter((f) => /\.(h|cpp)$/.test(f));
+
+  // What the generated headers define, per namespace.
+  const defined = {};
+  for (const g of files.filter((f) => GENERATED.has(f))) {
+    let ns = null;
+    for (const line of readFileSync(`${DIR}/${g}`, "utf8").split("\n")) {
+      const open = line.match(/^namespace (\w+)/);
+      if (open) { ns = open[1]; defined[ns] ??= new Set(); }
+      const c = line.match(/constexpr\s+\w+\s+(\w+)\s*=/);
+      if (c && ns) defined[ns].add(c[1]);
+    }
+  }
+
+  const strip = (s) =>
+    s.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ").replace(/"(?:[^"\\]|\\.)*"/g, '""');
+  const missing = [];
+  let refs = 0;
+  for (const f of files.filter((f) => !GENERATED.has(f))) {
+    strip(readFileSync(`${DIR}/${f}`, "utf8")).split("\n").forEach((line, i) => {
+      for (const m of line.matchAll(/\b(GRNRig|GRNHandling|GRNFuel|GRNExact)::(\w+)/g)) {
+        refs++;
+        if (!defined[m[1]]?.has(m[2])) missing.push(`${f}:${i + 1} names ${m[1]}::${m[2]}`);
+      }
+    });
+  }
+  for (const m of missing) fail(`the port does not compile: ${m}, which the generated header does not define`);
+  if (!missing.length) {
+    ok(`port sources: ${refs} references to generated constants, all defined`);
+  }
+
+  // And the other direction, reported rather than failed: a generated
+  // constant no port source reads is a number kept in step with nothing.
+  // Most are features the port has not ported — the plants, the fuel
+  // model, the gearbox's shift timing — and that is a fair state for a
+  // port to be in. It is worth printing because the IK joint limits and
+  // the reach softening sat in this list too, generated and verified and
+  // read by nobody, which is how the driver's elbows could lock straight
+  // in one engine and not the other with every check passing.
+  const src = files.filter((f) => !GENERATED.has(f))
+    .map((f) => strip(readFileSync(`${DIR}/${f}`, "utf8"))).join("\n");
+  let total = 0;
+  const unread = [];
+  for (const [ns, names] of Object.entries(defined)) {
+    if (ns === "GRNExact") continue; // the double-precision twins, for GRNSim.h's own use
+    for (const n of names) {
+      total++;
+      if (!new RegExp(`\\b${n}\\b`).test(src)) unread.push(`${ns}::${n}`);
+    }
+  }
+  ok(`generated constants: ${total - unread.length}/${total} read by a port source, ${unread.length} unread`);
 }

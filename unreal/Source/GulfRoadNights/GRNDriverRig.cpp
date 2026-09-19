@@ -91,7 +91,8 @@ namespace
 // ---------------------------------------------------------------- solver
 
 void GRNIk::SolveTwoBone(USceneComponent* Root, USceneComponent* Mid,
-	float Upper, float Lower, const FVector& Target, const FVector& Pole)
+	float Upper, float Lower, const FVector& Target, const FVector& Pole,
+	float MinBend, float MaxBend, float SoftReach)
 {
 	if (!Root || !Mid) return;
 
@@ -110,19 +111,56 @@ void GRNIk::SolveTwoBone(USceneComponent* Root, USceneComponent* Mid,
 	FVector ToTarget = Target - RootPos;
 	const float Eps = 0.01f; // UE units
 	if (ToTarget.SizeSquared() < Eps * Eps) return;
+
+	// Soften the last SoftReach of the span: inside it the reported
+	// distance rises toward the span but never reaches it, so the joint
+	// eases into straight instead of hitting acos's vertical wall. At
+	// full extension acos has an infinite derivative, so a target
+	// crossing the boundary made the elbow SNAP from bent to straight —
+	// a pop on every full-lock turn and every far pedal. Beyond the span
+	// the curve keeps approaching, so a far target still extends the limb
+	// to within millimetres of full length: the softening is an approach,
+	// not a cap. C1 at the join, value and slope both.
+	const float Raw = ToTarget.Size();
+	const float Span = A + B;
+	float Reach = Raw;
+	if (SoftReach > 0.f)
+	{
+		const float Knee = Span * (1.f - SoftReach);
+		if (Raw > Knee)
+		{
+			const float Over = (Raw - Knee) / (Span * SoftReach);
+			Reach = Knee + Span * SoftReach * (1.f - FMath::Exp(-Over));
+		}
+	}
 	// Clamp into the annulus the limb can actually reach: fully extended
 	// outside, folded inside. Without this the acos below goes imaginary.
-	const float Dist = FMath::Clamp(ToTarget.Size(), FMath::Abs(A - B) + Eps, A + B - Eps);
+	const float Dist = FMath::Clamp(Reach, FMath::Abs(A - B) + Eps, Span - Eps);
 	ToTarget.Normalize();
 
 	// Elbow: the interior angle from the three sides.
 	const float CosElbow = FMath::Clamp((A * A + B * B - Dist * Dist) / (2.f * A * B), -1.f, 1.f);
-	const float ElbowBend = PI - FMath::Acos(CosElbow);
+	float ElbowBend = PI - FMath::Acos(CosElbow);
+
+	// A joint limit, applied to the ONE angle the triangle actually has
+	// to give. A human elbow neither locks past straight nor folds flat,
+	// and a chain without these does both to reach a target it should
+	// refuse. Clamping the bend changes the triangle, so the shoulder
+	// angle below is recomputed from the LIMITED bend rather than from
+	// the target distance: the hand lands as close to the target as a
+	// real joint allows, on the same line, instead of the shoulder still
+	// aiming for a reach the elbow refused.
+	const bool bLimited = ElbowBend < MinBend || ElbowBend > MaxBend;
+	if (bLimited) ElbowBend = FMath::Clamp(ElbowBend, MinBend, MaxBend);
+	const float EffDist = bLimited
+		? FMath::Sqrt(FMath::Max(Eps,
+			A * A + B * B - 2.f * A * B * FMath::Cos(PI - ElbowBend)))
+		: Dist;
 
 	// Shoulder: aim at the target, then swing back by the triangle's
 	// shoulder angle so the elbow sits off the straight line.
 	const float CosShoulder =
-		FMath::Clamp((A * A + Dist * Dist - B * B) / (2.f * A * Dist), -1.f, 1.f);
+		FMath::Clamp((A * A + EffDist * EffDist - B * B) / (2.f * A * EffDist), -1.f, 1.f);
 	const float ShoulderOffset = FMath::Acos(CosShoulder);
 
 	// The pole decides which way the joint breaks: the bend happens in
@@ -346,6 +384,12 @@ static void StepSpring(float& X, float& V, float Target, float Kk, float C, floa
 	}
 }
 
+float GRNDriverRig::LookAheadM(float SpeedMs)
+{
+	return FMath::Clamp(FMath::Abs(SpeedMs) * GRNRig::DriverLookAheadS,
+		GRNRig::DriverLookAheadMinM, GRNRig::DriverLookAheadMaxM);
+}
+
 void GRNDriverRig::Solve(FGRNDriverRig& Rig, float Steer, float Throttle, float Brake,
 	const FVector& LookTarget, float Dt, float GLat, float GLong, float Handbrake)
 {
@@ -475,7 +519,10 @@ void GRNDriverRig::Solve(FGRNDriverRig& Rig, float Steer, float Throttle, float 
 			FVector(GRNRig::DriverArmPoleZ, Arm.Side * GRNRig::DriverArmPoleX,
 				GRNRig::DriverArmPoleY) * K);
 
-		GRNIk::SolveTwoBone(Arm.Root, Arm.Mid, Arm.Upper, Arm.Lower, Target, Pole);
+		GRNIk::SolveTwoBone(Arm.Root, Arm.Mid, Arm.Upper, Arm.Lower, Target, Pole,
+			FMath::DegreesToRadians(GRNRig::DriverElbowMinDeg),
+			FMath::DegreesToRadians(GRNRig::DriverElbowMaxDeg),
+			GRNRig::DriverSoftReach);
 	}
 
 	// Feet on the pedals. The pedal sinks with the press and the foot is
@@ -512,7 +559,10 @@ void GRNDriverRig::Solve(FGRNDriverRig& Rig, float Steer, float Throttle, float 
 		const FVector Pole = Rig.Root->GetComponentTransform().TransformPosition(
 			FVector(GRNRig::DriverLegPoleZ, Leg.Side * GRNRig::DriverLegPoleX,
 				GRNRig::DriverLegPoleY) * K);
-		GRNIk::SolveTwoBone(Leg.Root, Leg.Mid, Leg.Upper, Leg.Lower, Target, Pole);
+		GRNIk::SolveTwoBone(Leg.Root, Leg.Mid, Leg.Upper, Leg.Lower, Target, Pole,
+			FMath::DegreesToRadians(GRNRig::DriverKneeMinDeg),
+			FMath::DegreesToRadians(GRNRig::DriverKneeMaxDeg),
+			GRNRig::DriverSoftReach);
 	}
 }
 

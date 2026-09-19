@@ -118,8 +118,22 @@ namespace GRNIk
 	 * otherwise solves the triangle for the wrong arm entirely and the
 	 * hand lands short with no sign anything is wrong.
 	 */
+	/**
+	 * MinBend/MaxBend are the hinge range at the mid joint, radians of
+	 * BEND (0 = dead straight), and SoftReach is how much of the span is
+	 * eased into rather than hit. Both default to "no limit", which is
+	 * what the crowd's waving arm wants; the driver passes the elbow and
+	 * knee ranges with the soft reach, exactly as src/game/driver.ts does.
+	 *
+	 * They were absent here for as long as this port has existed. The
+	 * five constants were generated into GRNSimConstants.h and verified
+	 * by check-unreal-sync.mjs the whole time — a green check on numbers
+	 * nothing read, which is the same trap parity.cpp's header describes
+	 * for the handling model.
+	 */
 	void SolveTwoBone(USceneComponent* Root, USceneComponent* Mid,
-		float Upper, float Lower, const FVector& Target, const FVector& Pole);
+		float Upper, float Lower, const FVector& Target, const FVector& Pole,
+		float MinBend = 0.f, float MaxBend = PI, float SoftReach = 0.f);
 
 	/**
 	 * Point a joint at a world target within joint limits, easing rather
@@ -136,6 +150,18 @@ namespace GRNDriverRig
 {
 	/** Build a driver seated at SeatOffset (UE units) under AttachTo. */
 	FGRNDriverRig Build(AActor* Owner, USceneComponent* AttachTo, FVector SeatOffset);
+
+	/**
+	 * How far ahead the eyes look, in METRES, for a car doing SpeedMs.
+	 *
+	 * Time, not distance — the port of src/game/driver.ts's lookAheadFor.
+	 * A flat distance is 3.25 seconds of road at a crawl and a third of a
+	 * second at 80 m/s, so on the fastest stretch in the game the driver
+	 * stares at their own bonnet and the head yaws to the same angle at
+	 * 8 m/s as at 80. One helper rather than the arithmetic at each call
+	 * site, for the same reason the web build exports one.
+	 */
+	float LookAheadM(float SpeedMs);
 
 	/**
 	 * Pose one driver for this frame: wheel to the steering, both hands

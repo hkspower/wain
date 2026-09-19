@@ -136,6 +136,39 @@ constants, and the API version both sides claim. It exits non-zero on
 any mismatch, so the offline tables can never silently disagree with
 what an online client is racing.
 
+### What a constant check cannot see
+
+Everything above compares two artefacts the generator itself writes, so
+they agree by construction. The half written by hand —
+`GRNVehiclePawn.cpp`, `GRNRival.cpp`, `GRNDriverRig.cpp` — was compared
+with nothing, and this repository has no Unreal toolchain to compile it
+with. Two things went wrong in that gap, both found by reading rather
+than by any check:
+
+- **The project did not build.** The web build moved the driver's
+  look-ahead from a flat distance to a time, so `rig.ts` lost
+  `lookAheadM` and gained `lookAheadS`/`MinM`/`MaxM`. `sync:unreal`
+  regenerated the header without `DriverLookAheadM`; two call sites went
+  on naming it. Every check stayed green throughout, because every check
+  was looking at the generated pair.
+- **Five constants were decorative.** `DriverElbowMinDeg`,
+  `ElbowMaxDeg`, `KneeMinDeg`, `KneeMaxDeg` and `SoftReach` were
+  generated and verified for as long as they had existed, and
+  `GRNIk::SolveTwoBone` read none of them — so in UE5 an elbow could
+  lock dead straight or fold flat, and the joint snapped from bent to
+  straight at full extension. The web build has a test for each
+  (`npm run test:ik`, sections 5 and 6).
+
+`check:unreal` now also reads the hand-written sources and fails on any
+reference to a `GRNRig::`/`GRNHandling::`/`GRNFuel::` constant the
+generated header does not define — a build error is plain text on both
+sides, so catching it needs no compiler. It prints the reverse figure
+too: how many generated constants no port source reads. That is 69 of
+309 today, nearly all of them features this port has not ported (the
+plants, the fuel model, the gearbox's shift timing). It is reported
+rather than failed, because a port being incomplete is a fair state to
+be in — and because the IK limits above sat in exactly that list.
+
 ## Staying in sync with the web build
 
 The data tables in `GRNTypes.h` are **generated** — never edit them by
@@ -240,10 +273,11 @@ the C++ left behind by a merge. Neither was visible to a constant diff.
 | pre-battle cinematic (slow-mo film) | time dilation 0.22× + a real camera flying the same three shots (rival orbit → side pass → chase pull-back), Start/Esc skips |
 | `world.ts` road, rails, cobra-head street lights | `AGRNWorldBuilder` — procedural road ribbon + instanced lights **with real Lumen spot lights per lamp** |
 | `cars.ts` three silhouettes | `GRNCarFactory` — primitive-built sedan / Z-wedge / R34-style coupe with paint MIDs, spinning wheels, brake-flare tail lamps, real headlight beams; wing only when the part is owned |
-| `ik.ts` two-bone solver + constrained aim | `GRNIk::SolveTwoBone` / `GRNIk::AimConstrained` — the same closed-form law of cosines, same pole-plane basis, same world-scale lift |
+| `ik.ts` two-bone solver + constrained aim | `GRNIk::SolveTwoBone` / `GRNIk::AimConstrained` — the same closed-form law of cosines, same pole-plane basis, same world-scale lift, and the same hinge range and soft reach edge (`DriverElbowMinDeg`/`MaxDeg`, `DriverKneeMinDeg`/`MaxDeg`, `DriverSoftReach`). Those three were generated and verified for a long time while the solver here read none of them — see "What a constant check cannot see" below |
 | `characters.ts` driver rig, `driver.ts` `solveDriverRig` | `GRNDriverRig::Build` / `::Solve` — hands IK'd onto the rim, feet onto pedals that sink with the inputs, eyes into the corner, and a `Lean` joint between the root and the body so the driver leans away from lateral g and folds under braking while the hands stay pinned to grips bolted to the car. Driven for the player (`AGRNVehiclePawn::UpdateDriver`) and the rival (`AGRNRival::UpdateDriver`, including the look-over when you pull alongside) |
 | `world.ts` `setCrowdFocus` — the watching, waving crowd | `AGRNWorldBuilder::BuildCrowd` / `::SetCrowdFocus`, ticked by the game mode with the player's position |
 | `rig.ts` bone lengths, joint offsets, grip angles, neck limits | `namespace GRNRig` in `GRNTypes.h` — generated, and every field compared by `npm run check:unreal` |
+| `driver.ts` `lookAheadFor` — the eyes look by TIME | `GRNDriverRig::LookAheadM` — speed × `DriverLookAheadS`, clamped to `DriverLookAheadMinM`/`MaxM`. Both `UpdateDriver`s call it |
 | traffic | `AGRNTraffic` × 30, matching the web build, with its shunt rules (speed clamp, hitbox knock-out, SP cost in battle) |
 | HUD (React) | `AGRNHud` Canvas drawing (swap for UMG in the art pass) |
 | localStorage saves | `UGRNSaveGame` slot "GulfRoadNights" |

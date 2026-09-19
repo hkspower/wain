@@ -151,7 +151,7 @@ void AGRNRival::UpdateDriver(float AccelMs2, float Dt)
 	else
 	{
 		FRotator Rot;
-		Track->Pose(Track->Wrap(S + GRN_M(GRNRig::DriverLookAheadM)),
+		Track->Pose(Track->Wrap(S + GRN_M(GRNDriverRig::LookAheadM(SpeedMs))),
 			Lat * GRNRig::DriverLookLatK, Look, Rot);
 		Look.Z += GRN_M(GRNRig::DriverLookHeight);
 	}
