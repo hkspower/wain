@@ -1678,6 +1678,7 @@ export class GameEngine {
 
     this.buildEnvironment();
     this.world = buildWorld(this.scene, this.track);
+    this.world.setPixelRatio(this.renderer.getPixelRatio());
     // After buildWorld, not before: the map marks the landmarks at the
     // distances the world actually placed them at, and until the world
     // exists there are none to mark.
@@ -2385,6 +2386,7 @@ export class GameEngine {
     if (Math.abs(ratio - this.renderer.getPixelRatio()) > 1e-6) {
       this.renderer.setPixelRatio(ratio);
       this.composer.setPixelRatio(ratio);
+      this.world.setPixelRatio(ratio);
     }
     this.renderer.setSize(w, h, false);
     this.composer.setSize(w, h);

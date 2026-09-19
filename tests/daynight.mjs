@@ -31,7 +31,7 @@ const sample = (h) => page.evaluate((h)=>{
   let root=e.world.moonLight; while(root.parent) root=root.parent;
   let stars=null, lampPool=null;
   root.traverse((o)=>{
-    if(o.isPoints && o.material?.sizeAttenuation === false && !stars) stars=o.material;
+    if(o.isPoints && o.name === "stars" && !stars) stars=o.material;
     if(o.isInstancedMesh && o.material?.blending === 2 && o.material.map && !lampPool) lampPool=o.material;
   });
   const sky = root.children.find((c)=>c.material?.uniforms?.uTop)?.material?.uniforms;
@@ -42,7 +42,7 @@ const sample = (h) => page.evaluate((h)=>{
     keyY: +key.position.y.toFixed(0),
     keyInt: +key.intensity.toFixed(2),
     fog: +e.scene?.fog?.density?.toFixed?.(5) ?? null,
-    stars: stars ? +stars.opacity.toFixed(3) : null,
+    stars: stars ? +stars.uniforms.uOpacity.value.toFixed(3) : null,
     lampPool: lampPool ? +lampPool.opacity.toFixed(3) : null,
     beam: +e.beamBaseOpacity.toFixed(4),
     headlight: +e.headlight.intensity.toFixed(1),

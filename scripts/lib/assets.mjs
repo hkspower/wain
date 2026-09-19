@@ -102,6 +102,8 @@ export const ASSETS = [
     what: "Both rev counter faces — the road dial and the race cluster — drawn by the running game." },
   { path: "press/tunnel", kind: "kept", by: "tools/shots/tunnel.mjs",
     what: "The Second Ring underpass, four stations through it." },
+  { path: "press/sky", kind: "kept", by: "tools/shots/sky.mjs",
+    what: "The night sky from the coast leg: the chase camera's strip of it, and the same camera pitched up." },
   { path: "press/menu", kind: "kept", by: "—",
     what: "The title block, at the two widths the strapline solves its tracking for." },
 

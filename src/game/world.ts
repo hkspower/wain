@@ -33,7 +33,7 @@ import { FLAGS, FLAG_IDS, flagPlane, flagTexture, type FlagId } from "./flags";
 import { aimConstrained, solveTwoBone } from "./ik";
 import { RIG } from "./rig";
 import { RIVALS } from "./rivals";
-import { rand, resetWorldRng } from "./rand";
+import { makeRng, rand, resetWorldRng, WORLD_SEED } from "./rand";
 
 /**
  * A date palm crown, procedurally — the head the game draws until the
@@ -3341,6 +3341,9 @@ export interface WorldHandle {
   setWetness(w: number): void;
   /** Rain on the screen, 0..1. */
   setRain(fall: number): void;
+  /** Device pixels per CSS pixel — the stars are sized in the latter,
+   *  and the engine is the only thing that knows the former. */
+  setPixelRatio(ratio: number): void;
   /** Lean every roadside plant for this frame: wind, plus the wake of
    *  every car on the road. */
   solvePlants(dt: number, wakes: readonly Wake[]): void;
@@ -3518,6 +3521,148 @@ const SUN_FACE_NOON = 4.5;
 const SUN_FACE_GOLD = 2.4;
 const SUN_FACE_TWILIGHT = 1.1;
 
+/**
+ * The starfield.
+ *
+ * STAR_COUNT is about what a dark-adapted eye gets from a suburban sky
+ * over the whole hemisphere; the city takes the low ones back through
+ * extinction. The magnitude law is the real one — counts grow by
+ * STAR_MAG_STEP for every magnitude fainter — over STAR_MAG_RANGE
+ * magnitudes, which spans naked-eye from "the bright one" to "barely".
+ * A screen cannot show a hundred-fold brightness range in a two-pixel
+ * dot, so the linear brightness is compressed by STAR_GAMMA and floored
+ * at STAR_FLOOR: the faintest still register, the brightest stay short
+ * of reading as a lamp. Sizes in CSS pixels.
+ */
+const STAR_COUNT = 2400;
+const STAR_MAG_STEP = 3.0;
+const STAR_MAG_RANGE = 4.5;
+const STAR_GAMMA = 0.45;
+const STAR_FLOOR = 0.42;
+const STAR_PX_MIN = 2.4;
+const STAR_PX_MAX = 5.4;
+/** Share of the field pulled toward the Milky Way's centre line: the
+ *  band IS stars, mostly — the glow is the ones too faint to resolve. */
+const STAR_BAND_BIAS = 0.7;
+/** Lowest sine-of-elevation a star is placed at. */
+const STAR_MIN_SIN = 0.04;
+/** Extinction into the horizon haze, in sine of elevation: fully gone
+ *  below the first, fully clear above the second (~2° and ~9°). Kept
+ *  low: the chase camera's whole strip of sky is under 25°, and a haze
+ *  that cleared at 17° took most of the stars a player can see. */
+const STAR_EXT_LO = 0.04;
+const STAR_EXT_HI = 0.16;
+/** Scintillation depth overhead and at the horizon: how much of a star's
+ *  light the twinkle can take away. */
+const STAR_TWINKLE_HI = 0.22;
+const STAR_TWINKLE_LO = 0.5;
+
+/**
+ * The Milky Way, as GLSL literals baked into the dome shader.
+ *
+ * The pole is the axis the band wraps around, tilted 62° from the
+ * zenith so the band climbs from one horizon over the top third of the
+ * sky. The width is the sine-distance from the band's centre line at
+ * which it has fallen to 1/e — about 9° — and the colour is a faint
+ * cool cream, scaled so the band's peak sits a hair over the night
+ * zenith (0.104 blue) rather than competing with it.
+ */
+const MILKY_POLE_V = new THREE.Vector3(0.62, 0.47, -0.63).normalize();
+const MILKY_WIDTH = 0.12;
+const MILKY_COLOR = "vec3(0.017, 0.019, 0.026)";
+/** The baked map stores 0..MILKY_MAP_RANGE in a byte; the shader
+ *  multiplies back. Above 1 because the mottling peaks over the band's
+ *  own mean. */
+const MILKY_MAP_RANGE = 1.6;
+
+/** The band's cross-section: 1 on its centre line, 1/e at MILKY_WIDTH
+ *  (in sine-distance from the line), widened by `k`. */
+function milkyBand(along: number, k = 1): number {
+  return Math.exp(-(along * along) / (MILKY_WIDTH * MILKY_WIDTH * k));
+}
+
+/**
+ * The Milky Way, baked once into an equirectangular map the dome looks
+ * up by direction.
+ *
+ * It started as three octaves of value noise evaluated in the fragment
+ * shader — for every sky pixel, every frame, for a thing that never
+ * moves. On a software renderer that alone took the game's boot past
+ * ten minutes; on a phone it would have been the most expensive pixels
+ * on the screen and the least worth it. Baked, it is one texture fetch
+ * and the noise can be as rich as it likes.
+ *
+ * A great circle of faint light around MILKY_POLE_V, tilted so the band
+ * rises from one horizon and crosses well up the sky — where the
+ * summer Milky Way sits over the Gulf after midnight, through Scorpius
+ * and Sagittarius in the south. Three octaves of mottling, so it is
+ * clouds of stars and not a smooth beam (a smooth band of light in the
+ * sky is a searchlight, whatever colour it is painted), and a dark dust
+ * lane close to the centre line. The map wraps in longitude; latitude
+ * clamps.
+ */
+function makeMilkyTexture(): THREE.DataTexture {
+  const W = 512, H = 256;
+  const data = new Uint8Array(W * H * 4);
+  // Integer hash → [0, 1). Fixed, so the map is the same on every boot.
+  const hash = (x: number, y: number): number => {
+    let h = (Math.imul(x, 374761393) + Math.imul(y, 668265263)) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  };
+  const smooth = (t: number) => t * t * (3 - 2 * t);
+  // Value noise on a grid `p` cells around the map and `p / 2` tall,
+  // wrapping in x so the seam at the back of the sky is invisible.
+  const noise = (u: number, v: number, p: number, salt: number): number => {
+    const x = u * p, y = v * (p / 2);
+    const xi = Math.floor(x), yi = Math.floor(y);
+    const fx = smooth(x - xi), fy = smooth(y - yi);
+    const wx = (i: number) => ((i % p) + p) % p;
+    const a = hash(wx(xi) + salt, yi), b = hash(wx(xi + 1) + salt, yi);
+    const c = hash(wx(xi) + salt, yi + 1), d = hash(wx(xi + 1) + salt, yi + 1);
+    const top = a + (b - a) * fx, bot = c + (d - c) * fx;
+    return top + (bot - top) * fy;
+  };
+  for (let y = 0; y < H; y++) {
+    const v = (y + 0.5) / H;
+    const lat = (v - 0.5) * Math.PI;
+    const cl = Math.cos(lat), sl = Math.sin(lat);
+    for (let x = 0; x < W; x++) {
+      const u = (x + 0.5) / W;
+      const lon = (u - 0.5) * Math.PI * 2;
+      // Direction for this texel, in the frame the shader's lookup uses:
+      // u from atan(z, x), v from asin(y).
+      const nx = cl * Math.cos(lon), ny = sl, nz = cl * Math.sin(lon);
+      const along0 = nx * MILKY_POLE_V.x + ny * MILKY_POLE_V.y + nz * MILKY_POLE_V.z;
+      // The centre line wanders and the width breathes, both by noise,
+      // so no two edges of the band run parallel — parallel edges are
+      // what made the first version read as a pair of searchlights.
+      const wander = (noise(u, v, 6, 71) - 0.5) * 0.09;
+      const along = along0 + wander;
+      const breathe = 0.6 + 0.9 * noise(u, v, 9, 89);
+      const band = milkyBand(along, breathe);
+      // Mottling with real contrast: clouds of stars, and gaps.
+      const cloud = 0.05 + 1.0 * noise(u, v, 12, 11) + 0.6 * noise(u, v, 28, 23) + 0.35 * noise(u, v, 64, 37);
+      const lane = noise(u, v, 20, 53);
+      // The dust sits NEAR the centre line and wanders off it, so it
+      // reads as a rift and not as a stripe.
+      const dust = THREE.MathUtils.smoothstep(lane, 0.45, 0.8) * milkyBand(along + 0.025 * (noise(u, v, 7, 97) - 0.5) * 4, 0.3);
+      const milky = band * cloud * (1 - 0.75 * dust);
+      const o = (y * W + x) * 4;
+      const b = Math.round(THREE.MathUtils.clamp(milky / MILKY_MAP_RANGE, 0, 1) * 255);
+      data[o] = b; data[o + 1] = b; data[o + 2] = b; data[o + 3] = 255;
+    }
+  }
+  const tex = new THREE.DataTexture(data, W, H, THREE.RGBAFormat);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 /** Scratch for aiming the sun/moon disc back at the camera. */
 const _bodyNormal = new THREE.Vector3();
 /** A PlaneGeometry faces +z; this is that, named. */
@@ -3554,7 +3699,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   let skyMatRef: THREE.ShaderMaterial | null = null;
   // Everything whose windows come on after dark, so one place drives them.
   const litFacades: THREE.MeshStandardMaterial[] = [];
-  let starsMatRef: THREE.PointsMaterial | null = null;
+  let starsMatRef: THREE.ShaderMaterial | null = null;
   let moonDiscMat: THREE.ShaderMaterial | null = null;
   let moonHaloMat: THREE.SpriteMaterial | null = null;
   // The celestial body: the moon after dark, the sun in daylight — one
@@ -3698,6 +3843,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         uGlow: { value: new THREE.Color(0.085, 0.046, 0.01) },
         /** How far the horizon band climbs — dawn light reaches higher. */
         uGlowHeight: { value: 0.16 },
+        /** The Milky Way's strength, 0..1 — night only, see setTimeOfDay. */
+        uMilky: { value: 1 },
+        /** The band itself, baked — see makeMilkyTexture. */
+        uMilkyMap: { value: makeMilkyTexture() },
       },
       vertexShader: `
         varying vec3 vPos;
@@ -3711,11 +3860,24 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         uniform vec3 uHorizon;
         uniform vec3 uGlow;
         uniform float uGlowHeight;
+        uniform float uMilky;
+        uniform sampler2D uMilkyMap;
+
         void main() {
           float h = clamp(vPos.y / 600.0, 0.0, 1.0);
           vec3 col = mix(uHorizon, uTop, smoothstep(0.0, 0.6, h));
           // light hugging the skyline: sodium at night, sunrise at dawn
           col += uGlow * (1.0 - smoothstep(0.0, uGlowHeight, h));
+
+          // The Milky Way, looked up by direction from the baked map —
+          // one fetch, and nothing here is computed that never changes.
+          // It is held faint on purpose: this is a city sky under a
+          // full moon, and a galaxy you could read by would be a lie in
+          // it. Dies into the horizon haze the way the stars do.
+          vec3 n = normalize(vPos);
+          vec2 muv = vec2(atan(n.z, n.x) / 6.2831853 + 0.5, asin(clamp(n.y, -1.0, 1.0)) / 3.14159265 + 0.5);
+          float milky = texture2D(uMilkyMap, muv).r * ${MILKY_MAP_RANGE.toFixed(2)} * smoothstep(0.06, 0.32, n.y);
+          col += ${MILKY_COLOR} * (milky * uMilky);
           gl_FragColor = vec4(col, 1.0);
         }`,
     });
@@ -3874,28 +4036,172 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     skyFollowers.push(halo);
   }
 
-  // Stars
+  // Stars.
+  //
+  // These were 700 identical dots: one colour, one size, one brightness,
+  // stuck still, spread uniformly in ELEVATION — which on a sphere piles
+  // them up at the zenith, and then squashed to half height so that
+  // enough of them fell into the chase camera's strip of sky. Every one
+  // of those is a thing the real sky does not do, and the eye knows a
+  // starfield it has never seen.
+  //
+  // What a night sky actually has, and what each attribute here is for:
+  //
+  //   MAGNITUDE. Star counts run about three-fold per magnitude — for
+  //   every star like Vega there are a few dozen you would call bright
+  //   and a few hundred you would call faint. So brightness is drawn
+  //   from that law (STAR_MAG_STEP), and the handful of bright ones are
+  //   what give the field a shape; a sky of equal dots is wallpaper.
+  //   Size rides with it: a bright star is not a bigger disc, it is a
+  //   disc that bleeds further into the neighbouring pixels.
+  //
+  //   COLOUR. Most stars are white to blue-white, a fifth or so are
+  //   warm, and a few are frankly orange (Betelgeuse, Aldebaran, Antares
+  //   over the Gulf in summer). Each star carries its own tint, drawn
+  //   from those proportions. The old single 0xcdd8ff made the whole
+  //   sky one temperature, and one temperature reads as a texture.
+  //
+  //   SCINTILLATION. Stars twinkle because the air between you and
+  //   them is turbulent, and there is more air the lower you look, so a
+  //   star near the horizon shimmers hard while one overhead barely
+  //   moves. The shader sums two incommensurate sines per star, with a
+  //   depth that grows toward the horizon. Planets do not twinkle — a
+  //   disc averages the turbulence out — but this game draws none.
+  //
+  //   EXTINCTION. Kuwait City is a Bortle-8 sky: the lowest fifteen
+  //   degrees or so are sodium haze and nothing shows through it. The
+  //   stars die into the horizon band rather than sitting on top of it,
+  //   and the count fades in from about ten degrees up.
+  //
+  // Distributed uniformly on the SPHERE this time (sin of elevation is
+  // uniform), so the density per square degree is the same overhead as
+  // it is low down, and there are more of them because a real sky has
+  // more of them — one draw call either way. The sphere is round again:
+  // the chase camera gets its share of stars from the count, not from a
+  // flattened dome that put the same stars at the wrong elevation.
   {
-    const n = 700;
+    // The stars draw from their OWN stream, not the world's. The world
+    // stream is consumed in build order, so every draw here would shift
+    // every building height, lit window and palm placed after it — and
+    // this block now draws a variable number of times (see the rejection
+    // loop). The old field took exactly two draws for each of its 700
+    // stars; those are still taken, and thrown away, so the city built
+    // after this line is the same city it was before the stars changed
+    // and every kept screenshot stays comparable with its history.
+    for (let i = 0; i < 700 * 2; i++) rand();
+    const srand = makeRng((WORLD_SEED ^ 0x5354_4152) >>> 0);
+    const n = STAR_COUNT;
     const pos = new Float32Array(n * 3);
+    const tint = new Float32Array(n * 3);
+    // x: brightness 0..1, y: point size (px), z: twinkle phase, w: rate
+    const star = new Float32Array(n * 4);
+    const r = 1750;
     for (let i = 0; i < n; i++) {
-      const a = rand() * Math.PI * 2;
-      const e = rand() * Math.PI * 0.45 + 0.08;
-      const r = 1750;
-      pos[i * 3] = Math.cos(a) * Math.cos(e) * r;
-      pos[i * 3 + 1] = Math.sin(e) * r * 0.5;
-      pos[i * 3 + 2] = Math.sin(a) * Math.cos(e) * r;
+      // Uniform on the sphere above a floor — nothing is placed in the
+      // lowest few degrees, where extinction would hide it anyway — then
+      // thinned away from the Milky Way by rejection, so the band is
+      // made of stars the way the real one is and the dome's glow only
+      // stands in for the ones too faint to draw.
+      let x = 0, y = 0, z = 0;
+      for (;;) {
+        const a = srand() * Math.PI * 2;
+        const sinE = STAR_MIN_SIN + srand() * (1 - STAR_MIN_SIN);
+        const cosE = Math.sqrt(1 - sinE * sinE);
+        x = Math.cos(a) * cosE; y = sinE; z = Math.sin(a) * cosE;
+        const inBand = milkyBand(x * MILKY_POLE_V.x + y * MILKY_POLE_V.y + z * MILKY_POLE_V.z, 1.8);
+        if (srand() < 1 - STAR_BAND_BIAS + STAR_BAND_BIAS * inBand) break;
+      }
+      pos[i * 3] = x * r;
+      pos[i * 3 + 1] = y * r;
+      pos[i * 3 + 2] = z * r;
+
+      // Magnitude from the three-fold-per-magnitude law over STAR_MAG_RANGE
+      // magnitudes, then to a linear brightness (2.512 per magnitude).
+      const u = srand();
+      const mag = Math.log(1 + u * (Math.pow(STAR_MAG_STEP, STAR_MAG_RANGE) - 1)) / Math.log(STAR_MAG_STEP);
+      const lin = Math.pow(10, -0.4 * mag);
+      // A screen cannot hold five magnitudes, so the display range is
+      // compressed: the faintest still register as a point, the
+      // brightest are held short of a lamp.
+      const bright = STAR_FLOOR + (1 - STAR_FLOOR) * Math.pow(lin, STAR_GAMMA);
+      star[i * 4] = bright;
+      star[i * 4 + 1] = STAR_PX_MIN + (STAR_PX_MAX - STAR_PX_MIN) * Math.pow(lin, 0.45);
+      star[i * 4 + 2] = srand() * Math.PI * 2;
+      star[i * 4 + 3] = 5 + srand() * 9;
+
+      // Colour class by proportion. Bright stars lean a touch more
+      // saturated: the eye sees colour in a star only once it is bright
+      // enough, and a faint one is grey whatever its temperature is.
+      const c = srand();
+      let rr = 0.95, gg = 0.97, bb = 1.0; // white
+      if (c < 0.22) { rr = 0.78; gg = 0.86; bb = 1.0; } // blue-white
+      else if (c > 0.76 && c <= 0.93) { rr = 1.0; gg = 0.94; bb = 0.82; } // yellow-white
+      else if (c > 0.93) { rr = 1.0; gg = 0.78; bb = 0.58; } // orange
+      const sat = 0.35 + 0.65 * bright;
+      tint[i * 3] = 1 + (rr - 1) * sat;
+      tint[i * 3 + 1] = 1 + (gg - 1) * sat;
+      tint[i * 3 + 2] = 1 + (bb - 1) * sat;
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    starsMatRef = new THREE.PointsMaterial({
-      color: 0xcdd8ff,
-      size: 2.4,
-      sizeAttenuation: false,
-      fog: false,
+    geo.setAttribute("aTint", new THREE.BufferAttribute(tint, 3));
+    geo.setAttribute("aStar", new THREE.BufferAttribute(star, 4));
+    starsMatRef = new THREE.ShaderMaterial({
       transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      fog: false,
+      uniforms: {
+        /** 1 after dark, 0 by day — set with the hour. */
+        uOpacity: { value: 1 },
+        uTime: { value: 0 },
+        /** Device pixels per CSS pixel; the engine keeps this current. */
+        uPixelRatio: { value: 1 },
+      },
+      vertexShader: `
+        attribute vec3 aTint;
+        attribute vec4 aStar;
+        uniform float uTime;
+        uniform float uPixelRatio;
+        varying vec3 vColor;
+        varying float vEdge;
+        void main() {
+          // Elevation, as the sine: position is the offset from the
+          // camera, which is what the sky followers ride.
+          float elev = normalize(position).y;
+          // The haze at the bottom of the sky takes the low stars.
+          float ext = smoothstep(${STAR_EXT_LO.toFixed(3)}, ${STAR_EXT_HI.toFixed(3)}, elev);
+          // Scintillation: two sines that never line up, deeper low down.
+          float depth = mix(${STAR_TWINKLE_HI.toFixed(3)}, ${STAR_TWINKLE_LO.toFixed(3)}, 1.0 - elev);
+          float s1 = 0.5 + 0.5 * sin(uTime * aStar.w + aStar.z);
+          float s2 = 0.5 + 0.5 * sin(uTime * aStar.w * 2.71 + aStar.z * 1.7);
+          float tw = 1.0 - depth * (0.65 * s1 + 0.35 * s2);
+          float b = aStar.x * ext * tw;
+          vColor = aTint * b;
+          // A shimmering star also changes apparent size a little; the
+          // brightest keep a soft skirt beyond the core.
+          vEdge = mix(0.8, 0.42, aStar.x);
+          gl_PointSize = aStar.y * uPixelRatio * (0.85 + 0.15 * tw) * (0.3 + 0.7 * ext);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: `
+        uniform float uOpacity;
+        varying vec3 vColor;
+        varying float vEdge;
+        void main() {
+          vec2 p = gl_PointCoord * 2.0 - 1.0;
+          float r2 = dot(p, p);
+          if (r2 > 1.0) discard;
+          // A soft-edged core with a faint skirt, so a star is a point of
+          // light and not a square of one.
+          float core = exp(-r2 / vEdge);
+          gl_FragColor = vec4(vColor * core, uOpacity * core);
+        }`,
     });
     const stars = new THREE.Points(geo, starsMatRef);
+    // Named for the tools that measure the sky, the same as the dome.
+    stars.name = "stars";
+    stars.frustumCulled = false;
     scene.add(stars);
     skyFollowers.push(stars);
   }
@@ -6789,6 +7095,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       rain.visible = rainFall > 0.01;
     },
 
+    setPixelRatio(ratio: number) {
+      // The stars are sized in CSS pixels; three's own PointsMaterial
+      // does this multiply for you, a ShaderMaterial does not.
+      if (starsMatRef) starsMatRef.uniforms.uPixelRatio.value = ratio;
+    },
+
     /**
      * The whole sky, as a function of one number: the hour.
      *
@@ -6903,6 +7215,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
           mix4([0.085, 0.046, 0.01], [0.55, 0.21, 0.07], [0.58, 0.35, 0.13], [0.36, 0.30, 0.16])
         );
         u.uGlowHeight.value = 0.16 * night + 0.34 * twilight + 0.3 * gold + 0.22 * day;
+        // The galaxy goes with the stars, on the same curve.
+        u.uMilky.value = Math.pow(night, 0.7);
       }
 
       // Fog is the floor the scene fades to, so it has to move with the
@@ -7013,7 +7327,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
 
       // Stars burn out as the sky lifts; nothing kills a sunrise faster
       // than a starfield still hanging in it.
-      if (starsMatRef) starsMatRef.opacity = Math.pow(night, 0.7);
+      if (starsMatRef) starsMatRef.uniforms.uOpacity.value = Math.pow(night, 0.7);
 
       // The visible body rides the key light's OWN direction.
       //
@@ -7244,6 +7558,9 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     },
     tick(dt: number) {
       time += dt;
+      // The stars' clock. Only the twinkle reads it, and only at night,
+      // but a uniform write is cheaper than the branch to skip it.
+      if (starsMatRef) starsMatRef.uniforms.uTime.value = time;
       // Rain falls. Only while there is any — a thousand vertices moved
       // every frame on a dry night is a thousand vertices wasted.
       if (rainFall > 0.01) {
