@@ -160,15 +160,16 @@ export default function OrdersScreen() {
 }
 
 const styles = StyleSheet.create({
-  filters: { gap: Spacing.two, paddingVertical: Spacing.two, flexDirection: 'row' },
+  filters: { gap: Spacing.two, paddingVertical: Spacing.three, paddingHorizontal: Spacing.three, flexDirection: 'row' },
   filterHit: { minHeight: TapTarget, justifyContent: 'center' },
   printHit: { minHeight: TapTarget, justifyContent: 'center', paddingHorizontal: Spacing.two },
   filter: {
-    minHeight: TapTarget - 12,
+    minHeight: TapTarget,
     justifyContent: 'center',
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.half,
   },
   empty: { paddingVertical: Spacing.five, textAlign: 'center' },
 });

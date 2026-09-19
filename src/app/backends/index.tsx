@@ -337,7 +337,7 @@ function Tile({ label, value, tone }: { label: string; value: string; tone?: boo
 const styles = StyleSheet.create({
   // 48 tall like every other pressable, not the height of its own text.
   resend: { minHeight: TapTarget, justifyContent: 'center' },
-  form: { gap: Spacing.one },
+  form: { gap: Spacing.two },
   input: {
     minHeight: TapTarget,
     borderWidth: 1,

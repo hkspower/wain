@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Chip } from '@/components/ui/chip';
 import { Field } from '@/components/ui/field';
 import { press } from '@/components/ui/press';
-import { Spacing } from '@/constants/theme';
+import { Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { adminApi, Unauthorized, type Discount, type DiscountDraft } from '@/lib/admin';
 import { formatPrice, toFils, toKwd } from '@/lib/money';
@@ -286,5 +286,5 @@ const styles = StyleSheet.create({
   save: { marginTop: Spacing.two },
   empty: { paddingVertical: Spacing.five, textAlign: 'center' },
   actions: { marginTop: Spacing.two },
-  action: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing.two },
+  action: { minHeight: TapTarget, justifyContent: 'center', paddingHorizontal: Spacing.two },
 });

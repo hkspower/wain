@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Chip } from '@/components/ui/chip';
 import { Field } from '@/components/ui/field';
 import { press } from '@/components/ui/press';
-import { Spacing } from '@/constants/theme';
+import { Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { adminApi, Unauthorized, type ReturnRequest, type ReturnStatus } from '@/lib/admin';
 import { formatPrice } from '@/lib/money';
@@ -230,11 +230,11 @@ export default function ReturnsScreen() {
 }
 
 const styles = StyleSheet.create({
-  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.one, marginBottom: Spacing.two },
+  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, marginBottom: Spacing.two },
   empty: { paddingVertical: Spacing.five, textAlign: 'center' },
   lines: { marginTop: Spacing.one, gap: 2 },
   reason: { marginTop: Spacing.one, fontStyle: 'italic' },
   actions: { marginTop: Spacing.two, flexWrap: 'wrap' },
-  action: { minHeight: 44, justifyContent: 'center', paddingHorizontal: Spacing.two },
+  action: { minHeight: TapTarget, justifyContent: 'center', paddingHorizontal: Spacing.two },
   rejectBox: { marginTop: Spacing.two, gap: Spacing.one },
 });
