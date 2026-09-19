@@ -1183,13 +1183,29 @@ nothing referenced. What went with them, and what each cost:
   dial. **A count is not reachability** — journey's «offers a way to search»
   passed throughout, because it counted the hidden tab. It asks for `:visible`
   now.
-- **`OrdersLink` and `QueueLink`.** Both were navbar pills and are mounted
-  nowhere on the web now, so /orders and /queue are address-bar-only outside
-  the installed app, where `AppTabBar` still grows a tab for each. Not fixed,
-  because 0 of 52 places take an order or a turn, so no visitor can reach that
-  state today — but it is a door that will need rehanging before one can. The
-  two suites assert the tab and assert the browser's absence, rather than
-  quietly dropping the coverage.
+- **`OrdersLink` and `QueueLink`.** Both were navbar pills, and the removal
+  left /orders and /queue address-bar-only on the web — the only links to
+  either were `AppTabBar`'s, which is `standalone:block`. **Fixed by
+  `LiveTray`**, exported from `OrdersLink.tsx` and mounted in the root layout.
+
+  It is not the bar coming back, and the reason is the one that should decide
+  any future «may I put this in the layout»: **it renders nothing at all**
+  unless this device has a live order or today's ticket. A top bar is
+  permanent; for every visitor without one of those there is no element. It is
+  at the bottom rather than the top, and `standalone:hidden` because the
+  installed app already grows a tab for each — two offers for one thing is the
+  mistake `ShouqCallButton`'s own placement was chosen to avoid. Cost: fixed,
+  so it can cover the last few pixels of a page while something is in progress.
+
+  **Three assertions in those suites could not fail, and had been passing for
+  it.** They read `header a[href*="/orders"]` to prove the link was absent —
+  and there is no `<header>` on this site any more, so the selector returned 0
+  whatever the code did. They ask about the tray now; the positive ones ask for
+  `:visible`. Both new ones were confirmed red by unmounting `LiveTray` and
+  re-running, and **the first attempt at that confirmation was itself wrong**:
+  it came back green because commenting out the JSX left the import unused,
+  `next build` failed on lint, and the suite ran against a stale `out/`. When
+  proving a test can fail, check the build succeeded first.
 
 **/search is three ways to the same answer, and only one of them was ever
 named.** The query box is obvious; the map only appears once there are
