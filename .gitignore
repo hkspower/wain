@@ -107,6 +107,10 @@ __pycache__/
 # exhaust tip frames, regenerated on demand
 /press/exhaust/
 
+# the frame tools/shots/sparks.mjs looked at. The numbers it prints are
+# the artefact; the picture is what they were read off.
+/press/sparks/
+
 # the hub's referral ledger — live player data, written by the server
 /server/data/
 

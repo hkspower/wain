@@ -1781,10 +1781,27 @@ export class GameEngine {
     // Metered since: a full-severity scrape run twice, once with the
     // sparks drawn and once with them hidden, moves about ten pixels of
     // a 129,600-pixel frame across the clipping point. They are not
-    // blowing the picture out — what makes them read hot is that they
-    // are the only thing in a night frame at full luminance, and the
-    // bloom threshold sits below them. Stepped down once more here
-    // rather than reaching for the bloom, which the sodium lamps share.
+    // blowing the picture out.
+    //
+    // MEASURED AGAIN, at the chase camera the game is actually played
+    // from (tools/shots/sparks.mjs, 900x520, pinned exposure, one
+    // severity-1 scrape). Two things this comment used to claim are not
+    // true, and the numbers are here rather than in a commit message:
+    //
+    //   at birth   121 px lit, 0.026% of the frame, peak +77 of 255
+    //   at 0.18 s  178 px lit, 0.038% of the frame, peak +33
+    //   clipped    0 px, at either age
+    //
+    // So the white-out that 0.4 was set against does not happen any
+    // more — nothing pins, at any age, and the shower is a thirtieth of
+    // a percent of the picture. And the bloom threshold does NOT sit
+    // below them: it is 0.85, the sparks never reach it, and disabling
+    // the bloom pass entirely changes what a shower puts on screen by
+    // -1% — which is noise. Sparks bloom not at all.
+    //
+    // Both are left as they are. Whether a shower should be brighter is
+    // a design call, not a bug, and the instrument now exists to take
+    // it with numbers in front of you: npm run check:sparks.
     this.sparkFx = new ParticleSystem(140, {
       map: radialSprite(0.35, 1.4),
       colorA: 0xffdf9e, // hot, with headroom left above it

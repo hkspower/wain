@@ -45,6 +45,7 @@ whether it belongs in the history at all.
 | `glare/` | Glare falloff frames. | `tools/shots/glare.mjs` | regenerated |
 | `exhaust/` | Exhaust tip frames. | by hand | regenerated |
 | `hud/` | The per-run HUD type report; viewport-dependent. | `tools/shots/hudtype.mjs` | regenerated |
+| `sparks/` | One scrape, held still. The TABLE is the artefact — what the shower covers, what it casts, and how round it reads. | `tools/shots/sparks.mjs` | regenerated |
 | `dark/` | Dark-area scan frames. | `tools/shots/dark.mjs` | regenerated |
 | `edges/` | Edge-quality frames. | `tools/shots/edges.mjs` | regenerated |
 | `framing/` | Framing frames at each window size. | `tools/shots/framing.mjs` | regenerated |
