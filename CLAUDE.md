@@ -393,6 +393,39 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   one upload path on the blocked host. The write path is the cron job: the
   server fetching from a commit-pinned raw URL and running what it fetched.
   Delete the fetched `.php` and the job afterwards.
+- **`storage/` was audited on 19 September, and `deploy.secret` was
+  world-readable.** `-rw-r--r--`, in a `drwxr-xr-x` directory, on shared
+  hosting — while `deploy.hosts`, `d.php` and `elevenlabs.key` beside it were
+  all `0600`. That file is the HMAC key that authorises a publish to
+  `www.wainkw.com`. **`deploy.php`'s own header says `deploy.secret <- shared
+  secret, 0600`**, so this was drift from what the code documents, not a
+  design choice, and nothing anywhere checked it: `storage/` is outside the
+  docroot, so no audit in `npm run scan` can see it and none ever will.
+
+  Now `0600`, and **the fix is durable** — `deploy.php` was read end to end
+  (293 lines) to be sure: it only ever `is_readable`\/`file_get_contents` the
+  secret and never creates or chmods it, so nothing regenerates it at 0644.
+  Tightening it was safe for a reason worth keeping, because the obvious
+  worry is that the web server is a different user and 0600 would lock the
+  endpoint out of its own key: **the `artifact-*.zip` files in
+  `storage/deploy/` were written by `deploy.php` and are owned by
+  `u130124229`**, which is how you prove web PHP runs as the account user
+  without installing a probe.
+
+  Reading storage at all is a cron job — `ls -la <abs path>`, one program and
+  its arguments, delete after one firing, the same shape as every other write
+  path here. The `hosa` file tools are jailed to the docroot and answer 422
+  for a `..` path.
+
+- **Two more things that listing showed.** `storage/deploy/` held three
+  artifacts at ~3.5MB each, which is `KEEP_RELEASES = 3` working — except
+  **two of the three were the same release**, because a per-minute deploy job
+  fires twice and step 10 keeps the newest three *files*, not three distinct
+  versions. So a double-fire silently costs a rollback slot; delete the job
+  after its first firing for that reason too, not only to stop the repeat.
+  And `public_html/api/` is down to `deploy.php` and `tts.php` — the sporta
+  removal of 17 September held, verified rather than assumed.
+
 - **The crontab is shared, and a job you did not create is probably not a
   problem.** This account carries seven sites, and other sessions use the same
   fetch-pin-run write path. Two turned up on 10 September — `remove-strays.php`
@@ -878,9 +911,23 @@ and the MySQL monitor are not wain's — leave them.
 Storage. Supabase is unconfigured — see "The back end is not configured" — so
 every upload failed at `loadSupabase()` before a byte left the browser, the
 same shape صوت وين's runtime sentences were in before `/api/tts.php`. This is
-that move again, for the same first reason (same origin, nothing to allowlist)
-and installed the same way: `scripts/publish/media-endpoint.php`, served as
-**`/api/media.php`**, `php media.php install` / `version` / `limits` / `prune`.
+that move again, for the same first reason (same origin, nothing to allowlist):
+`scripts/publish/media-endpoint.php`, to be served as **`/api/media.php`**,
+`php media.php install` / `version` / `limits` / `prune`.
+
+**It is NOT installed, and this file used to say "installed the same way".**
+Checked on the server, 19 September: `public_html/api/` holds `deploy.php` and
+`tts.php` and nothing else, and `storage/media-admin.key` — which the
+installer creates, the way it creates `elevenlabs.key` — does not exist.
+`elevenlabs.key` does, so that is a real contrast and not a listing that
+missed things. So `uploadPending()` POSTs to a path that **404s in
+production**; what was verified in the media section below was verified
+against a local PHP server, which is a different claim. No visitor harm today
+— `submitBusiness()` fails on unconfigured Supabase either way, so a
+registration was never going to complete — but do not read the rest of this
+section as a description of the live site. Installing it is still the
+deliberate open question it always was: standing up a new anonymous public
+write endpoint is a decision, not a chore.
 
 **This does NOT make business registration work.** `submitBusiness()` in
 `lib/submissions.ts` still inserts into a Supabase table that does not exist
