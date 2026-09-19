@@ -2495,3 +2495,85 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
 [aria-expanded][class~="fixed"][class~="bottom-4"][class~="z-50"] {
   display: none !important;
 }
+
+/* --------------------------------------------------------- font swap, 2026-09-19 */
+/* Owner-approved: an athletic/performance display face for headings, a clean
+   neutral face for body text, both OFL and both self-hosted — replacing
+   Alexandria, which carried both roles before.
+
+   BOTH NEW FAMILIES ARE OFL 1.1, VERIFIED AGAINST THE OFL.txt EACH SHIPS
+   WITH IN THE google/fonts REPOSITORY, THE SAME WAY IBM PLEX SANS ARABIC
+   WAS: Anton (ofl/anton) and IBM Plex Sans (ofl/ibmplexsans). Self-hostable,
+   no Adobe-style redistribution restriction — unlike Tenez Bold and Basic
+   Sans, which were considered and rejected for exactly that reason.
+
+   THE BUNDLE'S OWN font-family DECLARATIONS ARE LEFT ALONE. Per this file's
+   own font-face history further up, `index-*.css` is a hashed build
+   artifact with no source here, and its `html,:host` / `body` /
+   `h1,h2,h3,.font-display` / `.eyebrow` rules all still name Alexandria —
+   editing that file by hand is how a declared face silently stops matching
+   what actually ships. This overlay wins by loading after it (same
+   mechanism the header override above already uses), and repeats each of
+   those four selectors so nothing is missed and nothing outside them is
+   touched — no font-weight, no letter-spacing, no layout.
+
+   ARABIC IS UNTOUCHED, BY DESIGN. Neither Anton nor IBM Plex Sans (the
+   standalone Latin family) covers Arabic script, so both stacks below keep
+   'IBM Plex Sans Arabic' as the next family: a browser resolves per
+   character, so Arabic text in a heading or in body copy renders exactly
+   as it did before — the same self-hosted files, already on the server,
+   already in the bundle's own fallback chain. Only the Latin half of each
+   role moves.
+
+   WEIGHTS: IBM Plex Sans is built at 400/600/700, the same set already
+   shipped for IBM Plex Sans Arabic, so an element that asks for any of
+   those weights (a Tailwind `font-semibold`/`font-bold` utility, say) gets
+   a real matching file rather than a synthetic bold. Anton ships one static
+   weight — it is a display face by design, not a weight family — so it
+   answers every weight request with its only cut, which is how the
+   original Alexandria variable axis worked for `.font-display` in practice
+   too: this rule only changes SHAPE, not novelty.
+
+   Built by scripts/build-heading-body-font-subsets.py, which reads the
+   Latin unicode-range out of the bundle's own `plex-400-latin` rule rather
+   than repeating it — the same one-source-of-truth rule
+   build-plex-subsets.py already follows. */
+@font-face {
+  font-family: 'Anton';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/anton-400-latin.woff2) format('woff2');
+  unicode-range: U+??,U+131,U+152-153,U+2BB-2BC,U+2C6,U+2DA,U+2DC,U+304,U+308,U+329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/ibmplexsans-400-latin.woff2) format('woff2');
+  unicode-range: U+??,U+131,U+152-153,U+2BB-2BC,U+2C6,U+2DA,U+2DC,U+304,U+308,U+329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/ibmplexsans-600-latin.woff2) format('woff2');
+  unicode-range: U+??,U+131,U+152-153,U+2BB-2BC,U+2C6,U+2DA,U+2DC,U+304,U+308,U+329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(/fonts/ibmplexsans-700-latin.woff2) format('woff2');
+  unicode-range: U+??,U+131,U+152-153,U+2BB-2BC,U+2C6,U+2DA,U+2DC,U+304,U+308,U+329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+h1, h2, h3, .font-display {
+  font-family: 'Anton', 'IBM Plex Sans Arabic', 'Alexandria Fallback', system-ui, sans-serif !important;
+}
+html, :host, body, .eyebrow {
+  font-family: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Plex Arabic Fallback', system-ui, sans-serif !important;
+}
