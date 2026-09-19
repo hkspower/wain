@@ -313,7 +313,17 @@ foreach ($FILES as $rel => $want) {
     // THE CODE, NOT ONLY THE BYTES. An unresolvable ref answers 404 with a
     // short body, and a hash check alone would report that as a tamper rather
     // than as a wrong sha in this file.
-    if ($body === false || $code !== 200 || $body === '') { $failed[] = $rel . '(' . $code . ')'; continue; }
+    //
+    // AN EMPTY FETCH AND AN EMPTY FILE ARE THE SAME BYTES, and the first
+    // version of this refused both — so `images/brands/.gitkeep` and
+    // `images/heros/.gitkeep`, which are zero-byte markers, fetched 200 and
+    // were reported as failures. The manifest can tell them apart when the
+    // body cannot: a file whose EXPECTED hash is the hash of the empty string
+    // is supposed to be empty. Measured: wrote=29 failed=2, both of them this.
+    $emptyIsCorrect = $want === hash('sha256', '');
+    if ($body === false || $code !== 200 || ($body === '' && !$emptyIsCorrect)) {
+        $failed[] = $rel . '(' . $code . ')'; continue;
+    }
     if (hash('sha256', $body) !== $want) { $bad[] = $rel; continue; }
 
     $dir = dirname($target);
