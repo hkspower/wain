@@ -168,7 +168,8 @@
     "test:header-polish": "node scripts/header-polish-test.mjs",
     "test:menu-essentials-removed": "node scripts/menu-essentials-removed-test.mjs",
     "test:save-bar": "node scripts/panel-save-bar-test.mjs",
-    "test:research": "node scripts/product-research-test.mjs"
+    "test:research": "node scripts/product-research-test.mjs",
+    "test:customers": "node scripts/customer-accounts-test.mjs"
   },
   "private": true
 }

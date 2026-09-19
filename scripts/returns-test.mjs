@@ -552,6 +552,13 @@ let madeRef = null
     // Put the shop's own rules back however this ends.
     if (savedRules) sqlRun(`replace into settings (name, value) values ('rules', ${savedRules})`)
     else sqlRun("delete from settings where name = 'rules'")
+    // AND TAKE THIS BLOCK'S OWN ORDER WITH IT. cleanup() at the top of this
+    // file sweeps SPRTEST% on the NEXT run, which is not the same as leaving
+    // nothing behind: a run that aborts partway — a mutation test, an
+    // interrupted rig — leaves a paid order with no paid_at, and db-audit then
+    // reports it as a fault in the shop. That is the leftover-row trap this
+    // project already recorded once, walked into from the other side.
+    sqlRun(`delete from orders where track_id = '${TRACK2}'`)
     await b.close()
   }
 }

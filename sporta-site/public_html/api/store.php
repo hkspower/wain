@@ -1297,7 +1297,50 @@ function store_is_https(): bool {
 const STORE_ADMIN_IDLE_SECONDS     = 3 * 86400;
 const STORE_ADMIN_ABSOLUTE_SECONDS = 7 * 86400;
 
-function store_session_start(): void {
+// A SHOPPER'S SESSION IS LONGER THAN AN ADMINISTRATOR'S, ON PURPOSE.
+//
+// The two are protecting different things. An admin session can price the
+// catalogue, read every customer's address and hand the shop over; it is worth
+// interrupting somebody's afternoon for. A shopper session shows that shopper
+// their own orders — and the alternative to staying signed in is not "more
+// security", it is a person who gives up and orders as a guest, which is the
+// state this shop has always been in.
+//
+// It is still bounded at both ends. Thirty days without a visit ends it, and
+// ninety days ends it regardless, so an abandoned session on a shared machine
+// does not last for ever.
+const STORE_CUSTOMER_IDLE_SECONDS     = 30 * 86400;
+const STORE_CUSTOMER_ABSOLUTE_SECONDS = 90 * 86400;
+
+/**
+ * Start THE session. One function, still — cookie-flags-test.mjs refuses a
+ * `session_start()` anywhere else, and that guard is why the flags below are
+ * reliable rather than hopeful.
+ *
+ * TWO KINDS, ONE FUNCTION, since customer accounts (2026-09-19). `$kind` picks
+ * the cookie, and the two differ in ways that are not cosmetic:
+ *
+ * SAMESITE. The admin cookie is Strict, and that is its CSRF defence: no
+ * cross-site request carries it. A SHOPPER's cookie cannot be Strict, and the
+ * reason is the bank. KNET and CBK take the customer to pg.cbk.com and then
+ * redirect them BACK here — a cross-site navigation, on which a Strict cookie
+ * is not sent. The shopper would return from paying and find themselves
+ * signed out, at the one moment in the whole shop where that looks like the
+ * money went somewhere. Lax sends the cookie on a top-level GET navigation,
+ * which is exactly that redirect and nothing more dangerous.
+ *
+ * NAME. Separate cookies, so signing out of the shop cannot end an admin
+ * session and vice versa — and so that a shopper session, which is far easier
+ * to obtain, is never mistaken for an administrator's by any code that reads
+ * the session by name.
+ *
+ * ONE SESSION PER REQUEST, which is PHP's limit rather than a choice. admin.php
+ * and api.php are separate entry points and each starts its own kind, so the
+ * question never arises within a request — and if it ever does, the first call
+ * wins and the second returns immediately, which is the safe direction: an
+ * admin route cannot be downgraded to a shopper session by a later call.
+ */
+function store_session_start(string $kind = 'admin'): void {
     if (session_status() === PHP_SESSION_ACTIVE) return;
     // See store_is_https(): reading $_SERVER['HTTPS'] alone left this false on
     // the live server, behind Hostinger's TLS proxy.
@@ -1354,6 +1397,24 @@ function store_session_start(): void {
     // than until the browser closes. That is a real cost on a machine more
     // than one person uses, and it is the reason this was asked for rather
     // than assumed.
+    if ($kind === 'shopper') {
+        session_name($secure ? '__Host-sporta_shopper' : 'sporta_shopper');
+        session_set_cookie_params([
+            'lifetime' => STORE_CUSTOMER_ABSOLUTE_SECONDS,
+            'path'     => '/',
+            'secure'   => $secure,
+            'httponly' => true,     // no script access; nothing on the page needs it
+            'samesite' => 'Lax',    // see the note above — Strict loses the bank's redirect
+        ]);
+        // The collector, for the same reason as the admin's: it cannot be
+        // trusted to expire a session late, so it cannot be trusted not to
+        // expire one early, and a shopper reappearing signed-out mid-checkout
+        // is the same fault wearing a worse hat.
+        ini_set('session.gc_maxlifetime', (string) STORE_CUSTOMER_IDLE_SECONDS);
+        session_start();
+        return;
+    }
+
     session_name($secure ? '__Host-sporta_admin' : 'sporta_admin');
     session_set_cookie_params([
         'lifetime' => STORE_ADMIN_ABSOLUTE_SECONDS,

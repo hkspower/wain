@@ -191,6 +191,23 @@ $STORE_LIMITS = [
     // in ten minutes. ?r=order, which takes money, sits at 60/600; asking to
     // send something back is rarer than buying it.
     'return_request' => [40, 600],
+    // ---- customer accounts ----
+    // REGISTERING IS THE EXPENSIVE ONE and the one worth rationing: it writes
+    // a row, runs a password hash (deliberately slow, which is the point of a
+    // hash) and is the route an abuser would use to fill the table. Ten in ten
+    // minutes is far above a person who mistypes their email twice.
+    'customer_register' => [10, 600],
+    // Signing in is cheap to get wrong honestly — a shopper trying the two
+    // passwords they use — and expensive to brute force. The per-IP bound is
+    // what stands in for a per-account lockout here, which the admin path has
+    // and this one deliberately does not: locking a customer out of their own
+    // account is a denial of service anyone can aim at anyone.
+    'customer_login'    => [30, 600],
+    'customer_logout'   => [60, 600],
+    // Asked on every page a signed-in shopper loads, so it sits with the reads
+    // rather than in the tight bucket next to the writes.
+    'customer_me'       => [600, 60],
+    'customer_orders'   => [120, 60],
     // The shop's phone number and address. A read, and a tiny one, but it is
     // fetched by the website's contact script on pages that show those details
     // — so it is bounded like the other reads rather than left off the table,
@@ -446,6 +463,56 @@ if ($r === 'products') {
 // the built bundle, so this route answers correctly before anybody has ever
 // opened the panel — which is what lets the website's swap script run from the
 // day it is uploaded without blanking the shop's phone number.
+// ------------------------------------------------------------ customer accounts
+//
+// Register, sign in, see your own orders. See api/customer.php for the two
+// decisions that shaped these: a cookie appears only on sign-in, and an
+// account is linked to orders by `customer_id` and never by phone number.
+require_once __DIR__ . '/customer.php';
+
+if ($r === 'customer_register' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    $out = customer_register($db, store_body());
+    if (isset($out['error'])) store_fail($out['error'], $out['error'] === 'email_taken' ? 409 : 400);
+    customer_grant($out['id']);
+    store_out(['customer' => customer_profile($db, $out['id'])]);
+}
+
+if ($r === 'customer_login' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    $out = customer_login($db, store_body());
+    if (isset($out['error'])) store_fail($out['error'], 401);
+    customer_grant($out['id']);
+    store_out(['customer' => customer_profile($db, $out['id'])]);
+}
+
+if ($r === 'customer_logout' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    // Only end a session that exists. Calling store_session_end() blind would
+    // start one in order to destroy it, which is a cookie handed out by the
+    // sign-out route.
+    if (customer_id() !== null) store_session_end();
+    store_out(['ok' => true]);
+}
+
+// WHO IS SIGNED IN, or null — and it answers null WITHOUT starting a session,
+// which is what keeps the storefront cookie-free for everyone who has not
+// opened an account. See customer_id().
+if ($r === 'customer_me') {
+    $id = customer_id();
+    store_out(['customer' => $id === null ? null : customer_profile($db, $id)]);
+}
+
+if ($r === 'customer_orders') {
+    $id = customer_id();
+    if ($id === null) store_fail('not_signed_in', 401);
+    store_out([
+        'orders' => customer_orders($db, $id),
+        // SAID OUT LOUD rather than left as an empty list nobody can explain.
+        // An account starts with no orders on it because older ones are not
+        // claimed by phone number, and a customer looking at an empty page
+        // deserves the reason.
+        'note'   => 'Orders you place while signed in appear here.',
+    ]);
+}
+
 if ($r === 'contact') {
     $c = store_setting($db, 'contact');
     // The tel: href, built here rather than in each consumer. `phone` is a
@@ -1308,8 +1375,8 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                customer_governorate, customer_area,
                customer_block, customer_street, customer_building,
                customer_floor, customer_flat, customer_note, customer_lang,
-               utm_source, utm_medium, utm_campaign, referrer_host)
-             values (?, \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+               utm_source, utm_medium, utm_campaign, referrer_host, customer_id)
+             values (?, \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )->execute([
             $track, $method, $name, $phone, $email, $gov, $area, $block, $street, $building,
             store_opt($customer['floor'] ?? null),
@@ -1332,6 +1399,15 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             store_utm($b['attribution'] ?? null, 'utm_medium', 60),
             store_utm($b['attribution'] ?? null, 'utm_campaign', 80),
             store_utm($b['attribution'] ?? null, 'referrer_host', 120),
+            // WHOSE ORDER THIS IS, if anybody's. Null for a guest, which is
+            // the normal case and always will be — an account is optional and
+            // the checkout does not ask for one.
+            //
+            // READ FROM THE SESSION, never from the request body. A
+            // customer_id the browser could send is a customer_id the browser
+            // could change, and the whole value of this column is that it is
+            // the one thing on the order the customer did not type.
+            customer_id(),
         ]);
         $orderId = (int)$db->lastInsertId();
 
