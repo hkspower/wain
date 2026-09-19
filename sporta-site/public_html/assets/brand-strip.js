@@ -115,18 +115,13 @@
     section.setAttribute(MARK, '1')
     section.className = 'mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-10'
 
-    var h2 = document.createElement('h2')
-    h2.className = 'mb-5 text-2xl font-extrabold text-slate-900 md:mb-7 md:text-3xl'
-    h2.textContent = LABEL[ar ? 'ar' : 'en']
-    section.appendChild(h2)
-
     var row = document.createElement('div')
-    row.className = 'flex flex-wrap items-center justify-center gap-8 md:gap-12'
+    row.className = 'flex flex-wrap items-center justify-center gap-4 rounded-lg border-2 border-white bg-white p-6 md:gap-6 md:p-8'
 
     for (var i = 0; i < list.length; i++) {
       var b = list[i]
       var img = document.createElement('img')
-      img.className = 'h-10 w-auto max-w-32 object-contain md:h-12'
+      img.className = 'h-12 w-auto max-w-40 object-contain md:h-16'
       img.setAttribute('loading', 'lazy')
       img.setAttribute('decoding', 'async')
       img.setAttribute('alt', (ar ? b.name_ar : b.name_en) || b.slug)
@@ -165,9 +160,7 @@
 
       var current = document.querySelector('[' + MARK + ']')
       if (current) {
-        /* Already placed for this render — only the language can go stale. */
-        var h = current.querySelector('h2')
-        if (h) h.textContent = LABEL[lang()]
+        /* Already placed — nothing language-dependent. */
         return
       }
 
