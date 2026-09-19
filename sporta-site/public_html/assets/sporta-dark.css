@@ -580,3 +580,87 @@
 :root:not([data-theme='dark']) ol .text-slate-300 {
   color: #7a8188;
 }
+
+/* --- DARK WHITE THEME — neutral grays, no orange accents ----------------------- */
+/* A third theme mode with dark background but gray/white palette instead of
+ * orange. Maintains the same structure as dark theme but replaces all orange
+ * accents with neutral grays for a softer, more minimal aesthetic. */
+
+:root[data-theme='dark-white'] {
+  --sp-black: #1e2023;
+  --sp-tile: #24272a;
+  --sp-panel: #2d3034;
+  --sp-raise: #383c41;
+  --sp-line: #494e54;
+  --sp-silver-mid: #878e95;
+  --sp-silver: #d0d0d0;
+  --sp-text: #eaecee;
+}
+
+/* Replace all orange brand colors with neutral gray */
+:root[data-theme='dark-white'] .bg-brand {
+  background-color: #a0a0a0 !important;
+}
+
+:root[data-theme='dark-white'] .text-brand,
+:root[data-theme='dark-white'] .text-accent {
+  color: #a0a0a0 !important;
+}
+
+:root[data-theme='dark-white'] .border-brand,
+:root[data-theme='dark-white'] .border-accent {
+  border-color: #a0a0a0 !important;
+}
+
+/* Button styling with gray instead of orange */
+:root[data-theme='dark-white'] .btn-primary {
+  background-color: #a0a0a0 !important;
+  color: #14161a !important;
+}
+
+:root[data-theme='dark-white'] .btn-primary:hover,
+:root[data-theme='dark-white'] .btn-primary:active {
+  background-color: #8a8a8a !important;
+}
+
+:root[data-theme='dark-white'] .btn-ghost {
+  color: #a0a0a0 !important;
+}
+
+:root[data-theme='dark-white'] .btn-ghost:hover {
+  background-color: #2a2a2a !important;
+}
+
+/* Ghost button on dark surfaces in dark-white theme */
+:root[data-theme='dark-white'] .btn-ghost.text-accent {
+  color: #a0a0a0 !important;
+}
+
+/* Header and navigation styling */
+:root[data-theme='dark-white'] header,
+:root[data-theme='dark-white'] nav,
+:root[data-theme='dark-white'] footer {
+  background-color: var(--sp-panel) !important;
+  border-color: var(--sp-line) !important;
+}
+
+/* Chips and badges */
+:root[data-theme='dark-white'] .chip,
+:root[data-theme='dark-white'] .badge {
+  background-color: var(--sp-raise) !important;
+  color: var(--sp-text) !important;
+}
+
+/* Form inputs */
+:root[data-theme='dark-white'] input,
+:root[data-theme='dark-white'] textarea,
+:root[data-theme='dark-white'] select {
+  background-color: var(--sp-raise) !important;
+  color: var(--sp-text) !important;
+  border-color: var(--sp-silver-mid) !important;
+}
+
+/* Carousel dots in dark-white theme */
+:root[data-theme='dark-white'] .group\/dot[aria-current='true'] > .bg-brand {
+  background-color: #d0d0d0 !important;
+}

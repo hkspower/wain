@@ -33,9 +33,10 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
  * is to say invisible.
  *
  * Built from the palette rather than listed here, so the two cannot drift.
+ * Supports three modes: light, dark, and dark-white (neutral grays).
  */
-const navTheme = (mode: 'light' | 'dark') => {
-  const base = mode === 'dark' ? DarkTheme : DefaultTheme;
+const navTheme = (mode: 'light' | 'dark' | 'dark-white') => {
+  const base = mode === 'light' ? DefaultTheme : DarkTheme;
   const c = Colors[mode];
   return {
     ...base,
@@ -57,9 +58,8 @@ export default function RootLayout() {
   // components dark, and the difference visible on screen rather than in a
   // console warning.
   const colorScheme = useColorScheme();
-  const mode = colorScheme === 'dark' ? 'dark' : 'light';
-  const theme = Colors[mode];
-  const navigation = useMemo(() => navTheme(mode), [mode]);
+  const theme = Colors[colorScheme];
+  const navigation = useMemo(() => navTheme(colorScheme), [colorScheme]);
   const [fontsReady, fontError] = useFonts(FONT_FILES);
 
   useEffect(() => {

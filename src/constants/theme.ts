@@ -115,9 +115,32 @@ export const Colors = {
     success: '#5cc98d',
     danger: '#ff8a80',
   },
+  darkWhite: {
+    text: '#f6f4f1',
+    background: '#14161a',
+    backgroundElement: '#2b3138',
+    backgroundSelected: '#2a2a2a',
+    textSecondary: '#a8b0b9',
+    tint: '#a0a0a0',
+    // Neutral grey for text, matching the tint for consistency.
+    tintText: '#a0a0a0',
+    tintSoft: '#2a2a2a',
+    silver: '#e0e0e0',
+    silverSoft: '#232a31',
+    border: '#363d45',
+    controlBorder: '#6b7683',
+    ink: '#0d0f12',
+    inkSilver: '#2b3138',
+    inkSteel: '#363d45',
+    // Same as dark mode: page's own near-black for contrast on grey tint.
+    onTint: '#14161a',
+    onInk: '#ffffff',
+    success: '#5cc98d',
+    danger: '#ff8a80',
+  },
 } as const;
 
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
+export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark & keyof typeof Colors.darkWhite;
 
 /**
  * THE TYPE SCALE. Roles, not sizes.
