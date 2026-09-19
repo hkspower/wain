@@ -769,6 +769,15 @@
          this can write, same validation as the app's screen. Panel-only. -->
     <script src="/assets/payment.js" defer></script>
 
+    <!-- One save button for the Settings screen, which is 5,753px tall and
+         carries eight of them — "Buttons and bars" has its heading and its
+         save 881px apart, so the control that commits a colour is a screenful
+         below the colour. The bar presses each card's OWN button and has no
+         save code of its own, and it saves ONLY the cards something was typed
+         into: pressing all eight would rewrite every settings row and show in
+         the activity log as eight deliberate edits. Panel-only. -->
+    <script src="/assets/panel-save-bar.js" defer></script>
+
     <!-- The website panel, on a touchscreen: every button and checkbox
          label under 44px grows to a proper tap target under
          `pointer: coarse`, and the one chart's 10px axis labels grow to
