@@ -359,10 +359,32 @@ if ($pos !== false) {
     $html = substr($html, 0, $pos) . $head . substr($html, $pos);
 }
 
-/* The <html lang> attribute should follow the requested language. */
-$html = preg_replace(
-    '#<html\s+lang=["\'][^"\']*["\']#i',
-    '<html lang="' . $lang . '"',
+/* The <html lang> AND dir attributes should follow the requested language.
+ *
+ * DIR WAS MISSING HERE, AND IT WAS NOT COSMETIC. index.html ships
+ * `<html lang="ar" dir="rtl">` — correct, Arabic is the default — and this
+ * rewrote only `lang`. So every English page this shim serves went out as
+ * `lang="en" dir="rtl"`: an English document declared right-to-left.
+ *
+ * TWO READERS SEE IT AND ONE OF THEM NEVER STOPS. index.html's boot script
+ * sets `el.dir` before the first module loads, so a real browser corrects it a
+ * moment after parse — which is why every rig in this repository called it
+ * fine. GOOGLEBOT CRAWLING WITHOUT RENDERING KEEPS THE RTL, on the shop this
+ * project had just measured as cleanly indexable. And a visitor arriving at
+ * ?lang=en from a search result gets one frame of right-to-left English before
+ * the script fixes it.
+ *
+ * Measured on the live server, 2026-09-19: `en 200/53085 lang=en dir=rtl`.
+ *
+ * The whole opening tag is rebuilt rather than patched twice, so the two
+ * attributes cannot disagree and anything else on the tag survives. */
+$dir = $isEn ? 'ltr' : 'rtl';
+$html = preg_replace_callback(
+    '#<html\b([^>]*)>#i',
+    static function (array $m) use ($lang, $dir): string {
+        $rest = preg_replace('#\s(?:lang|dir)=["\'][^"\']*["\']#i', '', $m[1]) ?? '';
+        return '<html lang="' . $lang . '" dir="' . $dir . '"' . $rest . '>';
+    },
     $html,
     1
 );

@@ -99,6 +99,26 @@ for (const route of ROUTES) {
     check(r.lang === want, `${label}: the page declares lang="${want}" (${r.lang})`)
     check(r.dir === wantDir, `${label}: and dir="${wantDir}" (${r.dir})`)
 
+    // AND AGAIN IN THE BYTES THE SERVER SENT, which is a different question.
+    //
+    // The two checks above read document.documentElement in a BROWSER — after
+    // index.html's boot script has run, and that script sets `el.dir` before
+    // any module loads. So they measure the CORRECTION, never the served
+    // value, and they were green for as long as seo.php had been shipping
+    // every English page as `lang="en" dir="rtl"`: index.html carries
+    // `dir="rtl"` because Arabic is the default, and the shim rewrote only
+    // `lang`. Measured on the live server, 2026-09-19: `en lang=en dir=rtl`.
+    //
+    // A browser repairs it a moment after parse. GOOGLEBOT CRAWLING WITHOUT
+    // RENDERING DOES NOT — so the one reader this whole file exists for was
+    // the one reader the check could not see.
+    const raw = await fetch(`${SITE}${path}`, { headers: { Accept: 'text/html' } }).then((x) => x.text())
+    const tag = raw.match(/<html\b[^>]*>/i)?.[0] ?? '(no <html> tag)'
+    check(/\blang="([^"]*)"/.exec(tag)?.[1] === want,
+      `${label}: and the SERVED html tag says lang="${want}"`, tag.slice(0, 80))
+    check(/\bdir="([^"]*)"/.exec(tag)?.[1] === wantDir,
+      `${label}: and the SERVED html tag says dir="${wantDir}"`, tag.slice(0, 80))
+
     // THE SCRIPT ON THE PAGE, not just the attribute. lang="en" over Arabic
     // text is a page that lies to a screen reader and to a crawler, and the
     // attribute alone cannot catch it.
