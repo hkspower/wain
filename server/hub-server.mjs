@@ -469,6 +469,7 @@ function readBody(req, limit = MAX_CAREER_BYTES) {
  * REST surface, versioned under /api/v1:
  *   GET  /api/v1/status              — health + live player count
  *   GET  /api/v1/leaderboard         — session best laps
+ *   GET  /api/v1/teams               — the crew roster
  *   POST /api/v1/lap  {name,ms}      — submit a lap, get the new board
  *   GET  /api/v1/career/:name        — cloud career blob
  *   PUT  /api/v1/career/:name        — store one (4 KB cap)
@@ -491,6 +492,13 @@ async function handleRest(req, res) {
 
   if (path === "/api/v1/leaderboard") {
     return sendJson(res, 200, { apiVersion: API_VERSION, entries: leaderboard() });
+  }
+
+  if (path === "/api/v1/teams") {
+    // teamList() is the same view the WebSocket "teams" message sends on
+    // every change — this is that roster, for a caller that has no socket
+    // open (a website widget, a bot) rather than a second copy of it.
+    return sendJson(res, 200, { apiVersion: API_VERSION, teams: teamList() });
   }
 
   if (path === "/api/v1/lap" && req.method === "POST") {
