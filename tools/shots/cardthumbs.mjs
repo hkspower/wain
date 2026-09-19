@@ -4,8 +4,8 @@
 //
 // tools/shots/cars.mjs already renders every car on the menu's own
 // turntable — the game's lighting, environment and paint — and writes
-// 1200x675 PNGs to press/cars. Those are press assets: 6.6 MB for the
-// set, which is not something to hand a player who opened a shop.
+// 1920x1080 PNGs to press/cars. Those are press assets: over 20 MB for
+// the set, which is not something to hand a player who opened a shop.
 //
 // This makes the shop's copy: the same pictures at card size, in WebP,
 // into public/ where Next can actually serve them. Derived rather than
@@ -23,9 +23,35 @@ import { join } from "node:path";
 
 const SRC = "press/cars";
 const OUT = "public/cars";
-// 480 wide: a card is at most ~360 CSS px, so this covers a 1.33x
-// display and stops short of the 2x nobody can see on a thumbnail.
-const W = 480;
+// 1080 wide, not the 480 this shipped at. Measured live in a browser
+// (GameSite.tsx's fleet grid, capped by its max-w-6xl container): a
+// card renders at exactly 355 CSS px, unchanged from 1280px viewport up
+// to 1920px — the grid's own cap, not the window. 480 was reasoned as
+// "a 1.33x display... the 2x nobody can see on a thumbnail" — a claim,
+// not a measurement, and the measurement says otherwise: most phones
+// and most retina laptops run 2x or 3x today. Checked directly — the
+// mean-gradient edge strength of the 480px webp against the same crop
+// taken from the (now 1920px) press render, at the real 355px width:
+//
+//   DPR   edge strength, worst car (jahra-pickup)
+//   1x    76%
+//   2x    73%
+//   3x    66%   — a third of the car's own edge definition, gone
+//
+// 355 * 3 = 1065; 1080 clears full 3x DPR coverage at the grid's real
+// width with a little margin, at a cost of kilobytes: the whole set was
+// ~120 kB at 480 wide and webp compresses a mostly-dark background
+// hard, so this is not the tradeoff the old comment was guarding
+// against. Re-measured after the change, at the real 355px width: the
+// same worst car (jahra-pickup) now reads 78% / 75% / 73% at 1x / 2x /
+// 3x DPR — real ground gained over 76% / 73% / 66%, not closed. Most of
+// what is left is not resolution: jahra-pickup's trimmed silhouette is
+// simply the widest one seated in the fixed 1080x405 box (the tool's
+// own comment below says why every car gets a different scale inside
+// it), so the same source pixels cover more of the frame and every one
+// of them is worth less. A further width bump buys less each time; the
+// honest fix for THAT is per-car headroom, not a bigger flat W.
+const W = 1080;
 // ...and ONE height for all of them. Trimming to each car's own pixels
 // gives each thumbnail its own aspect — a pickup came out 188 tall and
 // a wedge 160 — and a grid of cards whose pictures are different
@@ -33,7 +59,7 @@ const W = 480;
 // then fitted into the same box and centred in it: the cars still
 // differ in size relative to each other (which is information — a
 // pickup IS bigger than a hatch), the cards do not.
-const H = 180;
+const H = 405;
 
 mkdirSync(OUT, { recursive: true });
 
