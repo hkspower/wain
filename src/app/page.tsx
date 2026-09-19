@@ -127,14 +127,15 @@ export default function HomePage() {
       {/* ---------- Featured ---------- */}
       <section className="bg-sand-50">
         <div className="mx-auto max-w-6xl px-2.5 py-2 sm:px-4 sm:py-3">
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-3 sm:mb-7">
-            <div>
-              {/* The display title was removed. The standfirst is the heading
-                  element now rather than a <p> under one, so the section still
-                  has a heading for the outline and for a screen reader — an
-                  orphaned paragraph would have left it with none. */}
-              <h2 className="text-ink-500">أماكن ما تنقال عنها لا.</h2>
-            </div>
+          {/* Both the display title and the standfirst under it were removed,
+              so nothing labels this section on screen. The heading stays in
+              the markup, visually hidden: `sr-only` is out of flow, so it
+              costs no layout, and without it the section would be unreachable
+              in the outline a screen reader navigates by. `justify-end` and
+              not `justify-between` because the link is the only child left —
+              `between` would push it to the start edge. */}
+          <div className="mb-4 flex flex-wrap items-end justify-end gap-3 sm:mb-7">
+            <h2 className="sr-only">أماكن ما تنقال عنها لا.</h2>
             <Link
               href="/explore"
               className="group flex min-h-6 items-center gap-1.5 text-sm font-semibold text-coral-700 transition hover:text-coral-800"
