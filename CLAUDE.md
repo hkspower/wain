@@ -431,11 +431,12 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
 
 ## شوق, the ElevenLabs agent
 
-Agent `agent_1701m1gcrccrethae9y3nyv1e116`. 20 attached tests; run them after
+Agent `agent_1701m1gcrccrethae9y3nyv1e116`. 25 attached tests; run them after
 any prompt change, `repeat_count: 2` — at temperature 0 a failure that shows
 once shows twice, and a judge that passes once and fails once is a judge
 problem. There is no update-test tool: to sharpen a judge, delete the test
-and recreate it, then re-attach the new id.
+and recreate it, then re-attach the new id. **47/50** at
+`agtvrsn_0901m2wvwm14edcvaq2n1cmxwk68`, from 43/50.
 
 **A rule she keeps breaking is usually placed wrong, not worded wrong.** The
 season override («outdoors in summer → after sunset») sat in the calendar
@@ -444,6 +445,56 @@ reads that line at the moment she writes step ٣. Restating it *inside* step
 ٣, with the forbidden words named and one worked example, fixed it on the
 first try. Gemini-flash at temperature 0 obeys word-bans and examples far
 better than principles.
+
+**The same lesson cost two more tests before it was believed, and the second
+time it was PLACEMENT alone.** «Do not send someone who cannot walk to a
+place the KB calls a full day» was already written, correctly and with the
+Avenues named — as step ٥ of a five-step selection ladder. She was choosing at
+step ٢ on «مكيّف» and never reaching it, and recommended the Avenues for an
+elderly mother 2/2. Nothing about the wording changed; it became step ٢, above
+the general constraint check, with the trigger words spelled out («كبيرة
+بالسن»، «ما تقدر تمشي»، «تعبان») and the counter-argument named outright —
+«كونه مكيّف ما يشفع له: المكيّف يحل مشكلة الحر، مو مشكلة المشي». **2/2 pass.**
+So: when a rule is right and still loses, look at what she has already decided
+by the time she reads it.
+
+**A word-ban only bans the words it names.** The summer rule listed «العصر»,
+«العصر المتأخر» and «الصبح»; she answered «بعد العصر» and the ban did not fire
+— the near-miss the list had not spelled out. Now it names «بعد العصر» and «من
+العصر» too and adds the general form, and two more holes beside it: a best-time
+line that is a RANGE («من العصر لين بعد المغرب», which is the Gulf Road cafés'
+line exactly) gets its start trimmed rather than recited whole, and **what makes
+an answer outdoor is the request, not only the place's own line** — she had
+picked an indoor mall whose KB line says nothing about «برا», so a rule scoped
+to «برا/مكشوف» let «بعد العصر» through for someone who had asked to sit by the
+sea.
+
+**And the last one was not the place, it was the sentence about it.** For «أنا
+بالسالمية مع العيال والجو حار» she picks مارينا مول — which the judge's own
+criteria list as acceptable — and then sells it with «تقدرون تتمشون على البحر».
+The choice honoured the heat and the description undid it. The rule added is
+general: a place with an indoor and an outdoor side gets described on the side
+that satisfies the constraint, and the other side is not mentioned. 0/2 → 1/2;
+the run that still fails says «من الداخل» and the judge reads the word «البحر»
+anyway, so what is left there is arguably the judge's.
+
+**One judge was demonstrably wrong and was replaced rather than worked around.**
+Two runs of the seaside test produced a **byte-identical** reply; one passed and
+one failed, the failure claiming «كافيهات شارع الخليج» was «a general category».
+It is a knowledge-base entry, and the criterion's own text listed it by name as
+a valid answer — the judge contradicted its own instructions, and the plural
+form is what misled it. Recreated (there is no update-test tool) with that
+condition rewritten to judge «is a KB entry named?» rather than «does the name
+sound singular?», naming the entry as passing and giving the bare-description
+failure it is meant to catch. `test_7901m2wvg8r5e2qaeff8rqre773g` replaces
+`test_5601m2tsdm5sew79hyw1rkvfvzek`, which is deleted. **The tell that it was
+the judge and not her: identical input, identical output, different verdict.**
+
+**Three of fifty runs in one batch failed for a reason that was not the agent
+at all** — «the user input being an incomplete placeholder», «the transcript
+did not contain an agent response». A test that had just passed in the full
+suite failed 2/2 minutes later with that shape. The harness drops the user turn
+sometimes; read the rationale before believing a regression, and re-run.
 
 **The launcher is `ShouqCallButton`, inside the /search query box; the call
 component lives in the root layout.** Both are deliberate. Every call already
@@ -599,7 +650,7 @@ resolve for a webhook tool: both `asked` and `request_body.asked` came back
 «not found» against a call that plainly carried `asked`. Assert the call's
 presence (`parameters: []`) and let the schema's `required` guarantee the field.
 
-23 attached tests now, the three new ones included.
+25 attached tests now.
 
 **No shared secret, deliberately.** It is write-only and answers nothing, and a
 secret would have to live either in the agent config (readable) or in an n8n
