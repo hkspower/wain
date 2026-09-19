@@ -4,6 +4,15 @@
 // challenge card in the real UI, survive the cinematic, win the battle,
 // and collect the rewards.
 //
+// THE MATCHUP: the Black Demon (420,000 KD, the top of the showroom —
+// power 1.85, grip 17.2, 415 km/h governed) against whichever rival a
+// brand-new save actually faces first. rivalIndex starts at 0 with no
+// beaten progress, which is Abu Shanab in a Hawally Sport 2T (16,000 KD,
+// 232 km/h) — the roster's own opener, not a car picked for this test.
+// Demon vs basic is not staged by weakening the rival; it is what the
+// flagship car looks like against the first thing the game puts in
+// front of a new player.
+//
 // Two techniques make a real-time game testable at speed:
 //   1. A VIRTUAL CLOCK replaces performance.now() before any page script
 //      runs, advanced in lockstep with the simulation. Lap timing, the
@@ -78,6 +87,24 @@ await page.evaluate(() => {
   // one day in four. "night" is the fixed hour the settings screen
   // offers for exactly this, and it maps to 00:30 — inside the window.
   localStorage.setItem("gulf-road-nights-settings", JSON.stringify({ sky: "night" }));
+  // The Black Demon, owned and selected before the engine ever reads the
+  // garage — the same save shape mods.ts's loadGarage()/saveGarage()
+  // read and write, written directly so the run does not need to drive
+  // to a dealership first. intake-basic/diff-open are in `owned`
+  // because loadGarage()'s migration would inject them anyway; writing
+  // them up front keeps this save looking like one that finished a real
+  // session rather than a half-built one.
+  localStorage.setItem("gulf-road-nights-garage", JSON.stringify({
+    kd: 10,
+    cars: ["black-demon"],
+    car: "black-demon",
+    builds: {
+      "black-demon": {
+        owned: ["intake-basic", "diff-open"],
+        equipped: { intake: "intake-basic", diff: "diff-open" },
+      },
+    },
+  }));
 });
 await page.reload({ waitUntil: "networkidle" });
 await page.click("text=START ENGINE");
@@ -107,6 +134,33 @@ console.log(`clock: ${hh}:${mm} ${clock.real ? "(live Kuwait)" : clock.cycling ?
   // Fixed means fixed. A cycling clock would walk the run towards 05:50
   // and close the window somewhere in the middle of it.
   check(!clock.cycling && !clock.real, "the clock is still moving — the run is not reproducible"));
+
+// The matchup, read back off the engine rather than assumed — a rejected
+// garage seed (a typo'd car id, a schema the migration in loadGarage()
+// did not expect) would otherwise run the whole test on the free Wain
+// Special and print a report that lied about what it drove.
+const matchup = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  const garage = JSON.parse(localStorage.getItem("gulf-road-nights-garage") ?? "{}");
+  const rival = e.rival?.def;
+  return {
+    playerCarId: garage.car,
+    playerCarName: e.tune.carName,
+    playerTune: { accelMult: e.tune.accelMult, topSpeedKmh: e.tune.topSpeedKmh, grip: e.tune.gripAccel },
+    rivalName: rival?.name ?? null,
+    rivalCarId: rival?.carId ?? null,
+    rivalTopSpeedKmh: rival?.topSpeedKmh ?? null,
+    rivalIndex: e.rivalIndex,
+  };
+});
+console.log(
+  `matchup: player in ${matchup.playerCarName} (${matchup.playerTune.topSpeedKmh} km/h governed, ` +
+    `accel x${matchup.playerTune.accelMult.toFixed(2)}, grip ${matchup.playerTune.grip.toFixed(1)}) vs ` +
+    `rival #${matchup.rivalIndex} ${matchup.rivalName} in ${matchup.rivalCarId} (${matchup.rivalTopSpeedKmh} km/h)  ` +
+    check(matchup.playerCarId === "black-demon", `the garage seed did not take — player is driving ${matchup.playerCarId}`) +
+    " " +
+    check(matchup.rivalIndex === 0, `expected the roster's opening rival, got #${matchup.rivalIndex}`)
+);
 
 // The autopilot: a lane-holding PD steer plus a curvature-aware speed
 // target, installed page-side so the driving loop never round-trips.
@@ -396,6 +450,24 @@ console.log(`\nrenderer: ${shot.tris.toLocaleString()} triangles in ${shot.calls
 
 if (http404.length) console.log(`404s: ${[...new Set(http404)].join(", ")}`);
 console.log(`\npage errors: ${errors.length}  ${check(errors.length === 0, `${errors.length} runtime errors: ${errors.slice(0, 3).join(" | ")}`)}`);
+
+// -------------------------------------------------------------- FULL REVIEW
+// Everything above is checked as it happens; this is that same run read
+// back as one report, because "all green" a hundred lines up the scroll
+// is not the same as being able to say what actually happened.
+console.log("\n=== FULL REVIEW ===");
+console.log(`matchup     ${matchup.playerCarName} (${matchup.playerTune.topSpeedKmh} km/h, grip ${matchup.playerTune.grip.toFixed(1)})` +
+  ` vs ${matchup.rivalName}'s ${matchup.rivalCarId} (${matchup.rivalTopSpeedKmh} km/h)`);
+console.log(`lap         ${simMin}:${simSec.padStart(4, "0")} for ${(lap.dist / 1000).toFixed(2)} km, ` +
+  `top ${lap.topSpeed.toFixed(0)} km/h, avg ${(lap.sumSpeed / lap.frames * 3.6).toFixed(0)} km/h, ` +
+  `${lap.bumps} contact${lap.bumps === 1 ? "" : "s"}, ${lap.offTrack} frame${lap.offTrack === 1 ? "" : "s"} off the drivable width`);
+console.log(`chase       closed to ${gapNow.gap.toFixed(0)} m, flashed 3x, challenge card ${pending ? "raised" : "never appeared"}`);
+console.log(`accept      SEND CHALLENGE ${sent ? "reached the engine" : "did NOT reach the engine"}, ` +
+  `rival answered ${answered ? "in time" : "TIMED OUT"}, battle started: ${inBattle}`);
+console.log(`battle      resolved: ${after.inBattle === false}, payout ${after.kd} KD, ` +
+  `career ${JSON.stringify(after.career)}`);
+console.log(`renderer    ${shot.tris.toLocaleString()} triangles, ${shot.calls} draw calls, context lost: ${shot.ctxLost}`);
+console.log(`errors      ${errors.length} runtime, ${http404.length} 404${http404.length === 1 ? "" : "s"}`);
 console.log(fail.length ? "\nFAILURES:\n - " + fail.join("\n - ") : "\n=== FULL RACE COMPLETED CLEAN ===");
 await browser.close();
 process.exit(fail.length ? 1 : 0);
