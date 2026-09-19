@@ -1,26 +1,26 @@
 {
   "expo": {
-    "name": "Wain",
-    "slug": "wain",
+    "name": "Sporta",
+    "slug": "sporta",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "wain",
+    "scheme": "sporta",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
       "supportsTablet": true,
-      "bundleIdentifier": "com.wain.app"
+      "bundleIdentifier": "kw.com.sporta.app"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#d7f2ec",
+        "backgroundColor": "#14161a",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.wain.app"
+      "package": "kw.com.sporta.app"
     },
     "web": {
       "output": "static",
@@ -31,7 +31,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#217972",
+          "backgroundColor": "#14161a",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
@@ -40,6 +40,10 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "apiBase": "https://www.sporta.com.kw/api",
+      "assetBase": "https://www.sporta.com.kw"
     }
   }
 }

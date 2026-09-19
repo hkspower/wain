@@ -1,0 +1,1208 @@
+#!/usr/bin/env python3
+"""A stand-in for admin.php, so scripts/admin-smoke.mjs can drive the real panel.
+
+   python3 scripts/mock-admin.py 8899 &
+   EXPO_PUBLIC_API_BASE=http://127.0.0.1:8899 npx expo export --platform web
+   node scripts/admin-smoke.mjs        # opens http://127.0.0.1:8899/backends
+
+THE FIXTURE MIRRORS admin.php, ROUTE FOR ROUTE, OR IT IS WORSE THAN NOTHING.
+The first version of this file invented its own vocabulary — Bearer tokens,
+hyphenated route names, a `summary` route — and the panel was then written
+against the fixture instead of the server. Every test passed; every request
+against production would have failed. So the rules now are:
+
+  * Every route name here exists in admin.php, spelled identically, with the
+    same method and the same response shape. scripts/admin-contract-test.mjs
+    enforces this mechanically — add a route there is no PHP for and it fails.
+  * Auth is what admin.php does: a session COOKIE set by ?r=login, and the
+    X-Sporta-Admin: 1 header required on every request (400 without it).
+  * Money is KWD decimals in snake_case, exactly as the PHP sends it. The
+    adapters live in src/lib/admin.ts, and a fixture that pre-adapted would
+    hide their bugs.
+
+It also serves the exported app from dist/ — the same one-origin topology
+Apache gives production, which is what lets the browser send the cookie and
+the custom header without a CORS preflight standing in for a server that
+will never answer one. (Static resolution mirrors scripts/serve-dist.py.)
+
+It is a TEST FIXTURE. It is not shipped, and admin.php is the authority.
+The one route with no PHP counterpart is POST ?r=reset, unauthenticated,
+which puts the fixture data back — a rig that mutates state needs a way to
+start over.
+"""
+
+import json
+import hashlib
+import os
+import re
+import sys
+from http.cookies import SimpleCookie
+from urllib.parse import unquote
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+EMAIL, PASSWORD = 'manager@sporta.com.kw', 'correct horse'
+SESSION = 'mock-session-1'
+COOKIE = 'sporta_admin'
+# WHICH EXPORT THIS SERVES, and it is deliberately NOT dist/.
+#
+# The app bakes its API base in at BUILD time (src/lib/config.ts), so one export
+# cannot serve two origins. The panel rigs need a build pointing at THIS server,
+# because the admin cookie is SameSite=Strict and cannot ride a cross-origin
+# request; test:pages and test:shop need a build pointing at the ordinary
+# sandbox. Measured 2026-09-10: rebuilding dist/ for the first set broke the
+# second with CORS errors, and rebuilding it back broke the first again — so a
+# single full test run could never be green, in either direction, and the
+# failures each named the other set's build.
+#
+# Two exports, one per origin. dist-panel/ is built by scripts/sandbox.sh with
+# EXPO_PUBLIC_API_BASE pointed here; dist/ keeps the default and is what
+# serve-dist.py hands out on 4173.
+DIST = Path(__file__).resolve().parent.parent / (
+    os.environ.get('MOCK_DIST') or 'dist-panel')
+
+
+def _fresh():
+    orders = [
+        {
+            'id': 1, 'track_id': 'SP-2601', 'amount': 26.250,
+            'payment_status': 'pending', 'payment_method': 'knet', 'fulfilment_status': 'unfulfilled',
+            'created_at': '2026-08-21 09:12', 'customer_name': 'Noura A.', 'customer_phone': '55512345',
+            'customer_governorate': 'Hawalli', 'customer_area': 'Salmiya', 'customer_block': '4',
+            'customer_street': '12', 'customer_building': '8', 'customer_note': 'Call before coming up',
+        },
+        {
+            'id': 2, 'track_id': 'SP-2602', 'amount': 11.250,
+            'payment_status': 'pending', 'payment_method': 'cod', 'fulfilment_status': 'packed',
+            'created_at': '2026-08-21 10:40', 'customer_name': 'Faisal K.', 'customer_phone': '99887766',
+            'customer_governorate': 'Capital', 'customer_area': 'Shuwaikh', 'customer_block': '2',
+            'customer_street': '5', 'customer_building': '31', 'customer_note': None,
+        },
+        {
+            'id': 3, 'track_id': 'SP-2603', 'amount': 8.000,
+            'payment_status': 'paid', 'payment_method': 'knet', 'fulfilment_status': 'delivered',
+            'created_at': '2026-08-20 18:02', 'customer_name': 'Dana M.', 'customer_phone': '60011223',
+            'customer_governorate': 'Ahmadi', 'customer_area': 'Mangaf', 'customer_block': '1',
+            'customer_street': '3', 'customer_building': '7', 'customer_note': None,
+        },
+    ]
+    items = {
+        1: [
+            {'id': 11, 'qty': 1, 'unit_price': 15.000, 'size': 'M', 'fit': None,
+             'products': {'slug': 'high-rise-legging', 'name_en': 'High-rise legging', 'name_ar': 'ليقنز عالي الخصر'}},
+            {'id': 12, 'qty': 1, 'unit_price': 11.000, 'size': 'L', 'fit': None,
+             'products': {'slug': 'core-compression-tee', 'name_en': 'Core compression tee', 'name_ar': 'تيشيرت كور ضاغط'}},
+        ],
+        2: [
+            {'id': 21, 'qty': 1, 'unit_price': 9.750, 'size': 'M', 'fit': None,
+             'products': {'slug': 'desert-runner-short', 'name_en': 'Desert runner short', 'name_ar': 'شورت ديزرت للجري'}},
+        ],
+        3: [
+            {'id': 31, 'qty': 1, 'unit_price': 8.000, 'size': 'S', 'fit': None,
+             'products': {'slug': 'sculpt-top-grey', 'name_en': 'Sculpt training top', 'name_ar': 'تيشيرت سكالبت للتمرين'}},
+        ],
+    }
+    variants = [
+        {'sku': 'A-DRS-XL', 'slug': 'desert-runner-short', 'name_en': 'Desert runner short', 'size': 'XL', 'stock': 0, 'cost_aed': None},
+        {'sku': 'A-HRL-XL', 'slug': 'high-rise-legging', 'name_en': 'High-rise legging', 'size': 'XL', 'stock': 1, 'cost_aed': None},
+        {'sku': 'A-HRL-M', 'slug': 'high-rise-legging', 'name_en': 'High-rise legging', 'size': 'M', 'stock': 6, 'cost_aed': None},
+        {'sku': 'A-CCT-L', 'slug': 'core-compression-tee', 'name_en': 'Core compression tee', 'size': 'L', 'stock': 9, 'cost_aed': None},
+    ]
+    discounts = [
+        {'id': 1, 'kind': 'code', 'code': 'SAVE10', 'label': 'August promo', 'type': 'percent',
+         'value': 10.0, 'min_order': 0.0, 'category': None, 'starts_at': None, 'ends_at': None,
+         'usage_limit': 0, 'used_count': 4, 'active': True, 'live': True},
+        {'id': 2, 'kind': 'auto', 'code': None, 'label': 'Big basket', 'type': 'fixed',
+         'value': 2.000, 'min_order': 30.000, 'category': None, 'starts_at': None, 'ends_at': None,
+         'usage_limit': 50, 'used_count': 50, 'active': True, 'live': False},
+    ]
+    # The two settings the panel edits. The contact defaults are the values the
+    # built storefront hard-codes, exactly as STORE_SETTING_DEFAULTS has them —
+    # a mock that started them empty would let a screen be built against a
+    # blank contact card that production never shows.
+    settings = {
+        'promo_bar': {'enabled': True, 'text_en': 'Delivery within 24 hours in Kuwait',
+                      'text_ar': 'التوصيل خلال ٢٤ ساعة داخل الكويت',
+                      'href': '', 'starts_at': None, 'ends_at': None},
+        'knet': {'tranportal_id': '', 'tranportal_password': '', 'resource_key': ''},
+        # THE SHOP'S NUMBERS, seeded with the same values store_rule_defaults()
+        # returns. A mock that started these at zero would let a screen be
+        # built against a shop with free delivery and no returns window, which
+        # production has never been.
+        'rules': {
+            'delivery_fee_fils': 1000, 'free_delivery_fils': 0, 'return_days': 14,
+            'cod_open_max': 3, 'review_reward_pct': 20, 'discount_max_pct': 60,
+            'governorates': ['capital', 'hawalli', 'farwaniya',
+                             'mubarak-al-kabeer', 'ahmadi', 'jahra'],
+            'sizes': ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', 'ONE'],
+            'fits': ['normal', 'slim', 'loose', 'oversize', 'boxy', 'tank'],
+        },
+        'footer': {k: '' for k in (
+            'tagline_ar', 'tagline_en', 'club_title_ar', 'club_title_en',
+            'club_text_ar', 'club_text_en', 'rights_ar', 'rights_en',
+            'managed_ar', 'managed_en')},
+        'contact': {'phone': '+965 2209 1914', 'whatsapp': '96522091914',
+                    'email': 'cs@sporta.com.kw', 'address_ar': '', 'address_en': '',
+                    'hours_ar': '', 'hours_en': '', 'instagram': ''},
+        'contact_emails': {'alternative': '', 'orders': '', 'b2b': '', 'customers': ''},
+    }
+    # PRODUCTS AS THE UPLOADER AND THE PRODUCT EDITOR NEED THEM. ?r=products_all
+    # is where brands live and (since the product editor) the full row the
+    # server's own products_all selects; ?r=variants knows sizes and skus and
+    # not brands, which is why the panel joins the two. Both shapes have to
+    # exist here or the join, and the editor's own fields, are only ever
+    # exercised against production.
+    products = [
+        {'id': i + 1, 'slug': v['slug'], 'name_en': v.get('name_en') or v['slug'],
+         'name_ar': v.get('name_en') or v['slug'], 'desc_en': None, 'desc_ar': None,
+         'price': 10.000, 'sale_price': None, 'sale_starts_at': None, 'sale_ends_at': None,
+         'featured': 0, 'featured_sort': 0, 'category': None, 'image': None,
+         'brand_slug': 'gymshark' if 'cloudsoft' in v['slug'] else None, 'active': 1}
+        for i, v in enumerate({x['slug']: x for x in variants}.values())
+    ]
+    # RETURN AND EXCHANGE REQUESTS, in the shape ?r=returns sends them: the
+    # lines come WITH the list, snake_case, KWD decimals. Two rows, so the
+    # panel's default 'new' filter has something in it and the 'all' filter
+    # has something the filter must exclude.
+    returns = [
+        {'id': 1, 'ref': 'SPR7K2M9QX4', 'kind': 'exchange', 'status': 'new',
+         'reason': 'المقاس كبير', 'lang': 'ar', 'phone': '96555512345',
+         'staff_note': None, 'created_at': '2026-08-26 10:12:00', 'decided_at': None,
+         'track_id': 'SPMOCK0001', 'customer_name': 'Fatima A.', 'payment_method': 'knet',
+         'amount': 18.000, 'ordered_at': '2026-08-19 09:00:00',
+         'fulfilled_at': '2026-08-24 14:00:00',
+         'items': [{'qty': 1, 'want_size': 'XL', 'size': 'L', 'unit_price': 10.000,
+                    'name_en': 'Cloudsoft Jacket — Army Green',
+                    'name_ar': 'جاكيت كلاودسوفت — أخضر عسكري',
+                    'slug': 'cloudsoft-jacket-army-green', 'image': None}]},
+        {'id': 2, 'ref': 'SPR3H8VDNP2', 'kind': 'return', 'status': 'approved',
+         'reason': None, 'lang': 'en', 'phone': '96599887766',
+         'staff_note': None, 'created_at': '2026-08-25 08:40:00',
+         'decided_at': '2026-08-25 11:02:00',
+         'track_id': 'SPMOCK0002', 'customer_name': 'Yousef K.', 'payment_method': 'cod',
+         'amount': 8.000, 'ordered_at': '2026-08-18 12:00:00',
+         'fulfilled_at': '2026-08-22 16:30:00',
+         'items': [{'qty': 1, 'want_size': None, 'size': 'M', 'unit_price': 8.000,
+                    'name_en': 'Cloudsoft Leggings — Navy',
+                    'name_ar': 'ليقنز كلاودسوفت — كحلي',
+                    'slug': 'cloudsoft-leggings-navy', 'image': None}]},
+    ]
+    # Two brands, one with a logo and one without, because the screen renders
+    # those two cases differently and a fixture with only the easy one proves
+    # only the easy one. The logo is a 1x1 PNG — the smallest thing that is
+    # genuinely a data URI, so the <Image> has something real to load.
+    brands = [
+        {'id': 1, 'slug': 'sporta', 'name_en': 'Sporta', 'name_ar': 'سبورتا',
+         'logo': 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+         'active': 1, 'sort': 0},
+        {'id': 2, 'slug': 'ahed', 'name_en': 'AHED', 'name_ar': 'عهد',
+         'logo': None, 'active': 1, 'sort': 1},
+    ]
+    # TWO TAUGHT ANSWERS: one that has fired and one that never has. The screen
+    # says different things about each ("used 12 times" against "never used —
+    # customers may not phrase it this way"), and a fixture carrying only the
+    # used one proves only the used one.
+    qa = [
+        {'id': 1, 'q_ar': 'جمعه مفتوح', 'q_en': 'open friday',
+         'a_ar': 'نعم، من ٤ عصراً حتى ١٠ مساءً.', 'a_en': 'Yes — 4pm to 10pm.',
+         'active': True, 'hits': 12, 'last_hit_at': '2026-09-02 19:40:00',
+         'updated_at': '2026-09-01 10:00:00'},
+        {'id': 2, 'q_ar': 'هدية تغليف', 'q_en': 'gift wrap',
+         'a_ar': 'نعم، التغليف مجاني — اطلبه في الملاحظات.',
+         'a_en': 'Yes, free — ask for it in the order notes.',
+         'active': True, 'hits': 0, 'last_hit_at': None,
+         'updated_at': '2026-09-01 10:00:00'},
+    ]
+    return {'orders': orders, 'items': items, 'variants': variants, 'discounts': discounts,
+            'products': products, 'brands': brands, 'qa': qa,
+            # FOUR PHOTOGRAPHS ON THE FIRST GARMENT, so the gallery exists
+            # for a rig to look at. It used to start empty, and the gallery
+            # is three taps in — which is how a 22pt Remove button that
+            # deleted a photograph on one tap went unseen by every rig in
+            # the repo. admin-mobile.mjs works this fixture.
+            'images': [{'id': n, 'slug': products[0]['slug'], 'sort': n - 1,
+                        'v': 'aaaa%d' % n, 'width': 900, 'height': 1125} for n in range(1, 5)],
+            'next_image': 5,
+            'next_discount': 3, 'settings': settings, 'returns': returns,
+            'otp_enabled': False, 'otp_code': None,
+            'password': PASSWORD, 'must_change_password': False,
+            'email': EMAIL, 'phone': None,
+            'totp_enabled': False, 'totp_secret': None,
+            # Two seeded rows, not zero and not generated from every write the
+            # mock happens to handle — mirroring the real shutdown hook's
+            # for-every-route behaviour here would be a second implementation
+            # of it, in Python, with no admin-live-test.mjs to keep it honest.
+            # This is fixture data for admin-smoke.mjs's browser rig to find
+            # something on screen; the real logging is proven against the
+            # real admin.php in admin-live-test.mjs instead.
+            'audit_log': [
+                {'id': 2, 'admin_email': EMAIL, 'route': 'set_stock', 'status_code': 200,
+                 'summary': {'sku': 'DEMO-SKU-M', 'stock': 12}, 'created_at': '2026-09-18 09:41:00'},
+                {'id': 1, 'admin_email': EMAIL, 'route': 'settings_save', 'status_code': 200,
+                 'summary': {'name': 'knet', 'value': {'tranportal_id': '626101', 'tranportal_password': '[redacted]'}},
+                 'created_at': '2026-09-18 09:30:00'},
+            ]}
+
+
+# The sets a rule list may be drawn from, and the shipped defaults. Kept beside
+# STATE so the GET route and the save branch read ONE copy — two lists here
+# would drift from each other before they drifted from admin.php.
+ALLOWED_SIZES = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', 'ONE']
+ALLOWED_FITS = ['normal', 'slim', 'loose', 'oversize', 'boxy', 'tank']
+ALLOWED_GOVS = ['capital', 'hawalli', 'farwaniya', 'mubarak-al-kabeer', 'ahmadi', 'jahra']
+RULE_DEFAULTS = {
+    'delivery_fee_fils': 1000, 'free_delivery_fils': 0, 'return_days': 14,
+    'cod_open_max': 3, 'review_reward_pct': 20, 'discount_max_pct': 60,
+    'governorates': ALLOWED_GOVS, 'sizes': ALLOWED_SIZES, 'fits': ALLOWED_FITS,
+}
+
+STATE = _fresh()
+
+
+class Handler(BaseHTTPRequestHandler):
+    # ---- plumbing --------------------------------------------------------
+    def _json(self, code, payload, set_cookie=None, clear_cookie=False):
+        body = json.dumps(payload).encode()
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        if set_cookie:
+            self.send_header('Set-Cookie', f'{COOKIE}={set_cookie}; Path=/; HttpOnly; SameSite=Strict')
+        if clear_cookie:
+            self.send_header('Set-Cookie', f'{COOKIE}=; Path=/; Max-Age=0')
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _route(self):
+        # Underscores INCLUDED — the first version's regex was [a-z-]+, which
+        # structurally could not match a single real admin.php route name.
+        m = re.search(r'[?&]r=([a-z_]+)', self.path)
+        return m.group(1) if m else None
+
+    def _body(self):
+        n = int(self.headers.get('Content-Length') or 0)
+        return json.loads(self.rfile.read(n) or b'{}')
+
+    def _signed_in(self):
+        c = SimpleCookie(self.headers.get('Cookie') or '')
+        return COOKIE in c and c[COOKIE].value == SESSION
+
+    def _gate(self):
+        """store_require_admin(), in miniature — and in its ORDER: the session
+        first (401 not_signed_in), the header second (400). The first cut of
+        this fixture checked the header first, and the live test caught the
+        difference on its first run, which is the whole reason it exists."""
+        if not self._signed_in():
+            self._json(401, {'error': 'not_signed_in'})
+            return False
+        if self.headers.get('X-Sporta-Admin') != '1':
+            self._json(400, {'error': 'bad_request'})
+            return False
+        return True
+
+    def log_message(self, *a):
+        pass
+
+    # ---- static: the exported app, same-origin like production ------------
+    def _serve_static(self):
+        local = (DIST / self.path.lstrip('/').split('?')[0]).resolve()
+        if local.is_dir():
+            local = local / 'index.html'
+        if not local.exists():
+            html = local.with_suffix('.html')
+            if html.exists():
+                local = html
+            elif '.' not in local.name:
+                # Dynamic segments, as serve-dist.py resolves them.
+                dyn = sorted(local.parent.glob('[[]*[]].html')) if local.parent.is_dir() else []
+                local = dyn[0] if dyn else DIST / 'index.html'
+        try:
+            data = local.read_bytes()
+        except OSError:
+            self.send_response(404)
+            self.end_headers()
+            return
+        ctype = {
+            '.html': 'text/html; charset=utf-8', '.js': 'application/javascript',
+            '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg',
+            '.ttf': 'font/ttf', '.ico': 'image/x-icon', '.json': 'application/json',
+        }.get(local.suffix, 'application/octet-stream')
+        self.send_response(200)
+        self.send_header('Content-Type', ctype)
+        self.send_header('Content-Length', str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    # ---- GET -------------------------------------------------------------
+    def do_GET(self):
+        if '/admin.php' not in self.path:
+            return self._serve_static()
+        r = self._route()
+
+        if r == 'me':
+            # No header check: admin.php's ?r=me sits above the gate and asks
+            # only the session, so a fresh app can probe before it knows
+            # anything.
+            if not self._signed_in():
+                return self._json(200, None)
+            return self._json(200, {'email': EMAIL, 'phone': None, 'totp': False,
+                                     'must_change_password': STATE['must_change_password']})
+
+        if not self._gate():
+            return
+
+        if r == 'account':
+            # Still behind _gate() — signed in is still required — but not
+            # behind a must_change_password check, since this is one of the
+            # two routes that CLEAR the flag. A mock that also gated on it
+            # would be unable to reproduce the one scenario account_update
+            # exists for.
+            return self._json(200, {'email': STATE['email'], 'phone': STATE['phone'],
+                                     'totp': STATE['totp_enabled'], 'email_otp': STATE['otp_enabled']})
+
+        # Same 428 (not 401/403 — see admin.ts's own comment on why) every
+        # OTHER GET route answers on the real server while the flag is set.
+        if STATE['must_change_password']:
+            return self._json(428, {'error': 'must_change_password'})
+
+        if r == 'stats':
+            orders = STATE['orders']
+            paid = [o for o in orders if o['payment_status'] == 'paid']
+            return self._json(200, {
+                'paid_count': len(paid),
+                'paid_revenue': sum(o['amount'] for o in paid),
+                'pending_count': sum(1 for o in orders if o['payment_status'] == 'pending'),
+                'review_count': 0, 'failed_count': 0,
+                'unfulfilled_count': sum(
+                    1 for o in orders
+                    if o['payment_status'] == 'paid' and o['fulfilment_status'] == 'unfulfilled'),
+                # The fixture's "today" is simply everything, which keeps the
+                # dashboard's tiles deterministic for the smoke test.
+                'paid_today': len(paid),
+                'revenue_today': sum(o['amount'] for o in paid),
+                'paid_7d': len(paid), 'revenue_7d': sum(o['amount'] for o in paid),
+                'cod_awaiting_count': sum(
+                    1 for o in orders
+                    if o['payment_method'] == 'cod' and o['payment_status'] == 'pending'),
+                'cod_awaiting_amount': sum(
+                    o['amount'] for o in orders
+                    if o['payment_method'] == 'cod' and o['payment_status'] == 'pending'),
+            })
+
+        if r == 'orders':
+            rows = list(STATE['orders'])
+            m = re.search(r'[?&]payment=([a-z]+)', self.path)
+            if m and m.group(1) != 'all':
+                rows = [o for o in rows if o['payment_status'] == m.group(1)]
+            m = re.search(r'[?&]fulfilment=([a-z]+)', self.path)
+            if m and m.group(1) != 'all':
+                rows = [o for o in rows if o['fulfilment_status'] == m.group(1)]
+            return self._json(200, rows)
+
+        if r == 'items':
+            m = re.search(r'[?&]order=(\d+)', self.path)
+            return self._json(200, STATE['items'].get(int(m.group(1)) if m else 0, []))
+
+        if r == 'variants':
+            return self._json(200, STATE['variants'])
+
+        if r == 'audit_log':
+            return self._json(200, {'rows': STATE['audit_log']})
+
+        if r == 'products_all':
+            return self._json(200, STATE['products'])
+
+        if r == 'product_images':
+            # Same shape as ?r=items above — a small regex rather than a
+            # urlparse import, so the file keeps one way of reading a param.
+            m = re.search(r'[?&]slug=([^&]+)', self.path)
+            slug = unquote(m.group(1)) if m else ''
+            rows = sorted([i for i in STATE['images'] if i['slug'] == slug],
+                          key=lambda i: (i['sort'], i['id']))
+            return self._json(200, {'images': [
+                {'id': i['id'], 'sort': i['sort'],
+                 'url': f"api.php?r=product_image&id={i['id']}&v={i['v']}",
+                 'width': i['width'], 'height': i['height']} for i in rows]})
+
+        if r == 'rules':
+            # Mirrors admin.php: the rules, the shipped defaults so a screen can
+            # offer "back to the default", and the SETS a list may be drawn
+            # from. `allowed` is the important half — sizes and fits are pinned
+            # by CHECK constraints on order_items, so a picker built from a list
+            # typed in the app would offer a size MySQL refuses at insert.
+            return self._json(200, {
+                'rules': STATE['settings']['rules'],
+                'defaults': RULE_DEFAULTS,
+                'allowed': {
+                    'sizes': ALLOWED_SIZES,
+                    'fits': ALLOWED_FITS,
+                    'governorates': ALLOWED_GOVS,
+                },
+            })
+
+        if r == 'contact_emails':
+            # Mirrors admin.php: admin-only, never read by api.php.
+            return self._json(200, STATE['settings']['contact_emails'])
+
+        if r == 'knet':
+            # Mirrors admin.php: the saved ID, and which of the two sources is
+            # actually in force. Empty means knet/config.php is.
+            #
+            # tranportal_password_set / resource_key_set, added 2026-09-18
+            # alongside the real route: booleans only, never the value — same
+            # discipline as the CBK *_set fields below.
+            #
+            # `pay` mirrors the CBK gateway status admin.php now reports
+            # alongside it — a fixture with all three credentials real and
+            # `ready: true`, since this mock has no pay/config.php on disk to
+            # read and "could not read the file" is the wrong fixture default
+            # for a screen that is meant to be exercised in its READY state
+            # most of the time.
+            knet = STATE['settings'].get('knet', {})
+            tid = knet.get('tranportal_id', '')
+            pw_set = bool(knet.get('tranportal_password', ''))
+            key_set = bool(knet.get('resource_key', ''))
+            return self._json(200, {'tranportal_id': tid,
+                                    'source': 'database' if tid else 'file',
+                                    'tranportal_password_set': pw_set,
+                                    'tranportal_password_source': 'database' if pw_set else 'file',
+                                    'resource_key_set': key_set,
+                                    'resource_key_source': 'database' if key_set else 'file',
+                                    'pay': {'env': 'test', 'ready': True,
+                                            'client_id_set': True,
+                                            'client_secret_set': True,
+                                            'encrp_key_set': True}})
+
+        if r == 'brands':
+            return self._json(200, STATE['brands'])
+
+        if r == 'qa':
+            return self._json(200, STATE['qa'])
+
+        if r == 'discounts':
+            return self._json(200, STATE['discounts'])
+
+        if r == 'returns':
+            rows = STATE['returns']
+            # Same optional &status= filter admin.php takes, and the same
+            # counts — over EVERYTHING, not over the filtered page, because a
+            # count that changed with the filter would be a lie on the chips.
+            m = re.search(r'[?&]status=([a-z_]+)', self.path)
+            if m:
+                rows = [x for x in rows if x['status'] == m.group(1)]
+            counts = {}
+            for x in STATE['returns']:
+                counts[x['status']] = counts.get(x['status'], 0) + 1
+            return self._json(200, {'returns': rows, 'counts': counts})
+
+        self._json(404, {'error': 'not_found'})
+
+    # ---- POST ------------------------------------------------------------
+    def do_POST(self):
+        if '/admin.php' not in self.path:
+            self.send_response(404)
+            self.end_headers()
+            return
+        r = self._route()
+
+        if r == 'reset':  # fixture-only, unauthenticated
+            global STATE
+            STATE = _fresh()
+            return self._json(200, {'ok': True})
+
+        if r == 'fixture_must_change_password':  # fixture-only, unauthenticated
+            # No route by this name exists on the real admin.php — nothing in
+            # src/lib/admin.ts calls it, so the contract guard never sees it —
+            # it exists only so a browser rig can reach the state
+            # reset-admin-password.php puts a real account into, without a
+            # cron job or a database to reach for.
+            STATE['must_change_password'] = True
+            return self._json(200, {'ok': True})
+
+        if r == 'login':
+            if self.headers.get('X-Sporta-Admin') != '1':
+                return self._json(400, {'error': 'bad_request'})
+            b = self._body()
+            if b.get('email') == EMAIL and b.get('password') == STATE['password']:
+                return self._json(200, {'email': EMAIL, 'need_code': False}, set_cookie=SESSION)
+            return self._json(401, {'error': 'bad_credentials'})
+
+        if r == 'register':
+            # THE FIXTURE ALWAYS HAS AN ACCOUNT, so this fixture always answers
+            # already_set_up — which is what the real admin.php answers on any
+            # shop that has ever been set up, and therefore what the panel meets
+            # in every state this mock is used to test.
+            #
+            # It is here because the contract guard demands it: the app calls
+            # `register`, and a route the app calls that the fixture does not
+            # implement is the exact divergence that guard exists to catch. The
+            # first-account PATH is tested against the real server instead —
+            # scripts/first-admin-test.mjs empties admin_users and drives it —
+            # because emptying an auth table is not something a fixture can
+            # honestly simulate.
+            if self.headers.get('X-Sporta-Admin') != '1':
+                return self._json(400, {'error': 'bad_request'})
+            return self._json(409, {'error': 'already_set_up'})
+
+        if r == 'login_code':
+            # The fixture account has no second factor enrolled, so there is
+            # never a pending marker for a code to complete — which is exactly
+            # what admin.php answers in that state.
+            return self._json(401, {'error': 'bad_credentials'})
+
+        if r == 'login_code_resend':
+            # Same state as login_code above: the fixture account has no second
+            # factor, so there is no pending marker to resend against.
+            return self._json(401, {'error': 'code_expired'})
+
+        if r == 'logout':
+            return self._json(200, {'ok': True}, clear_cookie=True)
+
+        if not self._gate():
+            return
+        b = self._body()
+
+        if r == 'account_update':
+            # The fixture account has no second factor enrolled, so `code` is
+            # accepted whatever it is — same as the real account_update when
+            # neither TOTP nor the email OTP is on.
+            if b.get('password') != STATE['password']:
+                return self._json(401, {'error': 'bad_password'})
+            changed = False
+            if 'email' in b:
+                STATE['email'] = b['email']
+                changed = True
+            if 'phone' in b:
+                STATE['phone'] = b['phone']
+                changed = True
+            new = b.get('new_password') or ''
+            if new:
+                if len(new) < 12:
+                    return self._json(422, {'error': 'password_too_short'})
+                if new != b.get('new_password2'):
+                    return self._json(422, {'error': 'password_mismatch'})
+                STATE['password'] = new
+                STATE['must_change_password'] = False
+                return self._json(200, {'ok': True, 'signed_out': True}, clear_cookie=True)
+            if changed:
+                return self._json(200, {'ok': True})
+            return self._json(422, {'error': 'nothing_to_update'})
+
+        if r == 'totp_begin':
+            if STATE['totp_enabled']:
+                return self._json(409, {'error': 'already_enrolled'})
+            if b.get('password') != STATE['password']:
+                return self._json(401, {'error': 'bad_password'})
+            STATE['totp_secret'] = 'MOCKSECRETMOCKSECRET'
+            return self._json(200, {'secret': STATE['totp_secret'],
+                                     'uri': 'otpauth://totp/Sporta:' + STATE['email'] + '?secret=' + STATE['totp_secret']})
+
+        if r == 'totp_enable':
+            if not STATE['totp_secret']:
+                return self._json(409, {'error': 'not_started'})
+            if b.get('code') != '424242':
+                return self._json(401, {'error': 'bad_code'})
+            STATE['totp_enabled'] = True
+            return self._json(200, {'ok': True, 'totp': True})
+
+        if r == 'totp_disable':
+            if not STATE['totp_enabled']:
+                return self._json(409, {'error': 'not_enrolled'})
+            if b.get('password') != STATE['password']:
+                return self._json(401, {'error': 'bad_password'})
+            if b.get('code') != '424242':
+                return self._json(401, {'error': 'bad_code'})
+            STATE['totp_enabled'] = False
+            STATE['totp_secret'] = None
+            return self._json(200, {'ok': True, 'totp': False})
+
+        # Same 428 every OTHER POST route answers on the real server while the
+        # flag is set — account_update above is the one exception.
+        if STATE['must_change_password']:
+            return self._json(428, {'error': 'must_change_password'})
+
+        # ---- the emailed one-time code, as a second factor ------------------
+        #
+        # THE MOCK NEVER SENDS MAIL and says so: `sent` is False, exactly as the
+        # real routes answer on a host with no MTA. The panel has to handle that
+        # answer — it is what an owner with a misconfigured mail server sees —
+        # so the fixture must not pretend otherwise.
+        #
+        # The code is the fixed '424242'. A mock that generated a random one
+        # would be untestable from the outside, and a fixture is allowed to be
+        # predictable in a way the server must not be.
+        if r == 'otp_begin':
+            if b.get('password') != 'correct horse':
+                return self._json(401, {'error': 'bad_password'})
+            if STATE['otp_enabled']:
+                return self._json(409, {'error': 'already_enrolled'})
+            STATE['otp_code'] = '424242'
+            return self._json(200, {'sent': False, 'to': 'm*******@sporta.com.kw'})
+
+        if r == 'otp_enable':
+            if not STATE.get('otp_code'):
+                return self._json(409, {'error': 'not_started'})
+            if b.get('code') != STATE['otp_code']:
+                return self._json(401, {'error': 'bad_code'})
+            STATE['otp_enabled'] = True
+            STATE['otp_code'] = None          # used once, as the server does
+            return self._json(200, {'ok': True, 'email_otp': True})
+
+        if r == 'otp_send':
+            if not STATE['otp_enabled']:
+                return self._json(409, {'error': 'not_enrolled'})
+            STATE['otp_code'] = '424242'
+            return self._json(200, {'sent': False, 'to': 'm*******@sporta.com.kw'})
+
+        if r == 'otp_disable':
+            if not STATE['otp_enabled']:
+                return self._json(409, {'error': 'not_enrolled'})
+            if b.get('password') != 'correct horse':
+                return self._json(401, {'error': 'bad_password'})
+            if b.get('code') != STATE.get('otp_code'):
+                return self._json(401, {'error': 'bad_code'})
+            STATE['otp_enabled'] = False
+            STATE['otp_code'] = None
+            return self._json(200, {'ok': True, 'email_otp': False})
+
+        if r == 'fulfilment':
+            status = b.get('status')
+            if status not in ('unfulfilled', 'packed', 'shipped', 'delivered', 'cancelled'):
+                return self._json(400, {'error': 'invalid_status'})
+            for o in STATE['orders']:
+                if o['id'] == int(b.get('order_id') or 0):
+                    o['fulfilment_status'] = status
+                    return self._json(200, {'ok': True})
+            return self._json(400, {'error': 'order_not_found'})
+
+        if r == 'cod_paid':
+            for o in STATE['orders']:
+                if o['id'] == int(b.get('order_id') or 0):
+                    if o['payment_method'] != 'cod':
+                        return self._json(400, {'error': 'not_a_cash_order'})
+                    want = bool(b.get('paid', True))
+                    if want and o['payment_status'] != 'pending':
+                        return self._json(400, {'error': 'order_not_pending'})
+                    o['payment_status'] = 'paid' if want else 'pending'
+                    return self._json(200, {'ok': True})
+            return self._json(400, {'error': 'order_not_found'})
+
+        if r == 'set_stock':
+            stock = int(b.get('stock', -1))
+            if stock < 0:
+                return self._json(400, {'error': 'stock_cannot_be_negative'})
+            for v in STATE['variants']:
+                if v['sku'] == b.get('sku'):
+                    v['stock'] = stock
+                    return self._json(200, {'sku': v['sku'], 'slug': v['slug'], 'size': v['size'], 'stock': stock})
+            return self._json(400, {'error': 'sku_not_found'})
+
+        # settings_save mirrors admin.php's: two named settings, each with its
+        # own validation, and an unknown name is refused rather than stored.
+        # The refusals are the part worth having here — the panel's error
+        # messages are written against these exact codes, and a mock that
+        # accepted everything would let a screen ship with a message for a
+        # failure the real server produces and this one never did.
+        # THE CAP AND THE FORMAT GATE ARE BOTH HERE, because the panel's error
+        # messages are written against these exact codes. A mock that accepted
+        # any string would let a screen ship with a message for a refusal it
+        # had never once produced.
+        if r == 'product_image_add':
+            slug = b.get('slug')
+            if not any(p['slug'] == slug for p in STATE['products']):
+                return self._json(400, {'error': 'product_not_found'})
+            if len([i for i in STATE['images'] if i['slug'] == slug]) >= 24:
+                return self._json(400, {'error': 'too_many_images'})
+            img = str(b.get('image') or '')
+            if not img:
+                return self._json(400, {'error': 'image_required'})
+            if not re.match(r'^data:image/(png|jpeg|webp);base64,', img):
+                return self._json(400, {'error': 'logo_bad_format'})
+            # store.php's STORE_PRODUCT_IMAGE_MAX. Mirrored so an oversized
+            # upload is refused here too — otherwise the shrinking in
+            # lib/shrink-image would only ever be tested against production.
+            if len(img) > 900000:
+                return self._json(400, {'error': 'logo_too_large'})
+            row = {'id': STATE['next_image'], 'slug': slug,
+                   'sort': len([i for i in STATE['images'] if i['slug'] == slug]),
+                   'v': hashlib.sha256(img.encode()).hexdigest()[:12],
+                   'width': int(b.get('width') or 0), 'height': int(b.get('height') or 0)}
+            STATE['next_image'] += 1
+            STATE['images'].append(row)
+            return self._json(200, {'id': row['id'],
+                                    'url': f"api.php?r=product_image&id={row['id']}&v={row['v']}"})
+
+        if r == 'product_image_delete':
+            before = len(STATE['images'])
+            STATE['images'][:] = [i for i in STATE['images'] if i['id'] != int(b.get('id') or 0)]
+            return self._json(200, {'ok': before != len(STATE['images'])})
+
+        if r == 'product_image_reorder':
+            slug = b.get('slug')
+            ids = b.get('ids')
+            if not slug or not isinstance(ids, list):
+                return self._json(400, {'error': 'bad_request'})
+            # `and slug` is not decoration here either — admin.php scopes the
+            # update so a crafted list cannot renumber another garment's shoot.
+            for n, i in enumerate(ids):
+                for row in STATE['images']:
+                    if row['id'] == int(i) and row['slug'] == slug:
+                        row['sort'] = n
+            return self._json(200, {'ok': True})
+
+        if r == 'settings_save':
+            name = b.get('name')
+            v = b.get('value') if isinstance(b.get('value'), dict) else {}
+            if name == 'footer':
+                # Ten prose fields, capped the same way admin.php caps them.
+                # Empty is allowed and means "leave the built-in text alone".
+                keys = ('tagline_ar', 'tagline_en', 'club_title_ar', 'club_title_en',
+                        'club_text_ar', 'club_text_en', 'rights_ar', 'rights_en',
+                        'managed_ar', 'managed_en')
+                caps = {'tagline_ar': 300, 'tagline_en': 300, 'club_title_ar': 80,
+                        'club_title_en': 80, 'club_text_ar': 200, 'club_text_en': 200,
+                        'rights_ar': 120, 'rights_en': 120, 'managed_ar': 200,
+                        'managed_en': 200}
+                STATE['settings']['footer'] = {
+                    k: str(v.get(k) or '').strip()[:caps[k]] for k in keys
+                }
+                return self._json(200, STATE['settings']['footer'])
+            if name == 'rules':
+                # THE REFUSALS ARE THE POINT OF HAVING THIS HERE. The panel's
+                # messages are written against these exact codes, and a mock
+                # that accepted everything would let a screen ship with a
+                # message for a failure the real server produces and this one
+                # never did.
+                cur = dict(STATE['settings']['rules'])
+                ranges = {'delivery_fee_fils': (0, 50000), 'free_delivery_fils': (0, 1000000),
+                          'return_days': (1, 365), 'cod_open_max': (1, 50),
+                          'review_reward_pct': (0, 90), 'discount_max_pct': (1, 90)}
+                out = dict(cur)
+                for k, (lo, hi) in ranges.items():
+                    if k not in v:
+                        continue
+                    raw = v[k]
+                    if isinstance(raw, bool) or not (isinstance(raw, int)
+                                                     or (isinstance(raw, str) and raw.strip().isdigit())):
+                        return self._json(422, {'error': 'rule_not_a_number:' + k})
+                    n = int(raw)
+                    if n < lo or n > hi:
+                        return self._json(422, {'error': 'rule_out_of_range:' + k})
+                    out[k] = n
+                for k, allowed in (('sizes', ALLOWED_SIZES), ('fits', ALLOWED_FITS),
+                                   ('governorates', ALLOWED_GOVS)):
+                    if k not in v:
+                        continue
+                    if not isinstance(v[k], list):
+                        return self._json(422, {'error': 'rule_not_a_list:' + k})
+                    picked = []
+                    for item in v[k]:
+                        sv = item.strip() if isinstance(item, str) else ''
+                        if sv not in allowed:
+                            return self._json(422, {'error': 'rule_unknown_value:%s:%s' % (k, sv)})
+                        if sv not in picked:
+                            picked.append(sv)
+                    if not picked:
+                        return self._json(422, {'error': 'rule_empty_list:' + k})
+                    out[k] = picked
+                if out['review_reward_pct'] > out['discount_max_pct']:
+                    return self._json(422, {'error': 'rule_reward_above_cap'})
+                # The orphan guard is admin.php's and needs product_variants, so
+                # it is approximated here from the mock's own variants — the
+                # message shape matters more than the counts, because that is
+                # what the screen renders.
+                dropped = [z for z in ALLOWED_SIZES if z not in out['sizes']]
+                in_use = []
+                for z in dropped:
+                    n = sum(1 for x in STATE.get('variants', []) if x.get('size') == z)
+                    if n:
+                        in_use.append('%s(%d)' % (z, n))
+                if in_use:
+                    return self._json(422, {'error': 'rule_size_in_use:' + ','.join(in_use)})
+                STATE['settings']['rules'] = out
+                return self._json(200, out)
+
+            if name == 'knet':
+                # The same validation admin.php does, in the same order, so a
+                # bad value is refused here too rather than only in production.
+                # A fixture that accepts what the server rejects is the exact
+                # divergence admin-contract-test.mjs exists to catch.
+                #
+                # EACH FIELD OPTIONAL AND INDEPENDENT, mirroring admin.php's
+                # array_key_exists check: a key absent from the request leaves
+                # that field exactly as it was, added 2026-09-18 alongside the
+                # password and resource key becoming editable.
+                current = dict(STATE['settings'].get('knet', {}))
+                nxt = dict(current)
+
+                if 'tranportal_id' in v:
+                    tid = str(v.get('tranportal_id') or '').strip()
+                    if tid and not re.fullmatch(r'[A-Za-z0-9]{3,32}', tid):
+                        return self._json(422, {'error': 'invalid_tranportal_id'})
+                    if tid.upper() in ('YOUR_TRANPORTAL_ID', 'TRANPORTAL_ID', 'CHANGEME'):
+                        return self._json(422, {'error': 'placeholder_tranportal_id'})
+                    nxt['tranportal_id'] = tid
+
+                if 'tranportal_password' in v:
+                    pw = str(v.get('tranportal_password') or '').strip()
+                    if len(pw) > 200:
+                        return self._json(422, {'error': 'tranportal_password_too_long'})
+                    if pw.upper() in ('YOUR_TRANPORTAL_PASSWORD', 'CHANGEME'):
+                        return self._json(422, {'error': 'placeholder_tranportal_password'})
+                    nxt['tranportal_password'] = pw
+
+                if 'resource_key' in v:
+                    key = str(v.get('resource_key') or '')
+                    if key and len(key) != 16:
+                        return self._json(422, {'error': 'resource_key_wrong_length'})
+                    if key.upper() == 'YOUR_TERMINAL_RESOURCE_KEY':
+                        return self._json(422, {'error': 'placeholder_resource_key'})
+                    nxt['resource_key'] = key
+
+                STATE['settings']['knet'] = nxt
+                return self._json(200, {'tranportal_id': nxt.get('tranportal_id', '')})
+            if name == 'promo_bar':
+                STATE['settings']['promo_bar'] = {
+                    'enabled': bool(v.get('enabled')),
+                    'text_en': str(v.get('text_en') or '')[:160],
+                    'text_ar': str(v.get('text_ar') or '')[:160],
+                    # An EXTERNAL href is blanked, not refused — same as
+                    # store_internal_href(), which returns null for anything
+                    # that is not a path on this site.
+                    'href': str(v.get('href') or '') if str(v.get('href') or '').startswith('/') else '',
+                    'starts_at': v.get('starts_at') or None,
+                    'ends_at': v.get('ends_at') or None,
+                }
+                return self._json(200, STATE['settings']['promo_bar'])
+            if name == 'contact':
+                email = str(v.get('email') or '').strip()
+                if email and '@' not in email:
+                    return self._json(400, {'error': 'invalid_email'})
+                wa = re.sub(r'[^0-9]', '', str(v.get('whatsapp') or ''))
+                if wa:
+                    wa = re.sub(r'^(00965|965)?', '965', wa[-8:])
+                    if len(wa) != 11:
+                        return self._json(400, {'error': 'invalid_whatsapp'})
+                STATE['settings']['contact'] = {
+                    'phone': str(v.get('phone') or '')[:32],
+                    'whatsapp': wa,
+                    'email': email,
+                    'address_ar': str(v.get('address_ar') or '')[:160],
+                    'address_en': str(v.get('address_en') or '')[:160],
+                    'hours_ar': str(v.get('hours_ar') or '')[:120],
+                    'hours_en': str(v.get('hours_en') or '')[:120],
+                    'instagram': re.sub(r'[^A-Za-z0-9._]', '', str(v.get('instagram') or '')[:40]),
+                }
+                return self._json(200, STATE['settings']['contact'])
+            if name == 'contact_emails':
+                out = {}
+                for k in ('alternative', 'orders', 'b2b', 'customers'):
+                    val = str(v.get(k) or '').strip()
+                    if val and '@' not in val:
+                        return self._json(400, {'error': 'invalid_email:' + k})
+                    out[k] = val
+                STATE['settings']['contact_emails'] = out
+                return self._json(200, out)
+            return self._json(400, {'error': 'unknown_setting'})
+
+        if r == 'discount_save':
+            code = b.get('code')
+            if b.get('kind') == 'code':
+                code = re.sub(r'[^A-Za-z0-9]', '', str(code or '')).upper()
+                if not (3 <= len(code) <= 24):
+                    return self._json(400, {'error': 'invalid_code'})
+            value = float(b.get('value') or 0)
+            if b.get('type') == 'percent' and not (1 <= value <= 90):
+                return self._json(400, {'error': 'invalid_percent'})
+            row = {
+                'id': int(b['id']) if b.get('id') else STATE['next_discount'],
+                'kind': b.get('kind', 'code'), 'code': code if b.get('kind') == 'code' else None,
+                'label': b.get('label', ''), 'type': b.get('type', 'percent'), 'value': value,
+                'min_order': float(b.get('min_order') or 0), 'category': b.get('category'),
+                'starts_at': b.get('starts_at'), 'ends_at': b.get('ends_at'),
+                'usage_limit': int(b.get('usage_limit') or 0), 'used_count': 0,
+                'active': bool(b.get('active', True)), 'live': bool(b.get('active', True)),
+            }
+            existing = next((d for d in STATE['discounts'] if d['id'] == row['id']), None)
+            if existing:
+                row['used_count'] = existing['used_count']
+                STATE['discounts'][STATE['discounts'].index(existing)] = row
+            else:
+                STATE['next_discount'] += 1
+                STATE['discounts'].append(row)
+            return self._json(200, {'id': row['id']})
+
+        if r == 'brand_save':
+            # ONE ROUTE FOR ADD AND EDIT, exactly as admin.php has it: an id
+            # means rename, no id means create. Mirroring that shape is the
+            # whole point of this file — a mock that split them would let the
+            # app be written against a server that does not exist.
+            name_en = (b.get('name_en') or '').strip()
+            name_ar = (b.get('name_ar') or '').strip()
+            if not name_en or not name_ar:
+                return self._json(400, {'error': 'bad_request'})
+            slug = (b.get('slug') or '').strip().lower().replace(' ', '-')
+            if not slug:
+                slug = re.sub(r'[^a-z0-9]+', '-', name_en.lower()).strip('-')
+            if not slug:
+                return self._json(400, {'error': 'invalid_slug'})
+            bid = int(b.get('id') or 0)
+            clash = [x for x in STATE['brands'] if x['slug'] == slug and x['id'] != bid]
+            if clash:
+                return self._json(400, {'error': 'slug_taken'})
+            for x in STATE['brands']:
+                if x['id'] == bid:
+                    x['name_en'], x['name_ar'], x['slug'] = name_en, name_ar, slug
+                    # ABSENT MEANS LEAVE IT, '' MEANS REMOVE IT — the server's
+                    # three-way convention, and the reason this checks the key
+                    # rather than the value.
+                    if 'logo' in b:
+                        x['logo'] = b['logo'] or None
+                    if 'sort' in b:
+                        x['sort'] = int(b.get('sort') or 0)
+                    return self._json(200, x)
+            row = {'id': max([x['id'] for x in STATE['brands']] or [0]) + 1,
+                   'slug': slug, 'name_en': name_en, 'name_ar': name_ar,
+                   'logo': (b.get('logo') or None), 'active': 1,
+                   'sort': int(b.get('sort') or 0)}
+            STATE['brands'].append(row)
+            return self._json(200, row)
+
+        # THE SAME REFUSALS THE REAL ROUTE MAKES, in the same order and with the
+        # same error names. A mock that accepts what admin.php rejects is how a
+        # screen ships believing it has validated something.
+        if r == 'qa_save':
+            q_ar = (b.get('q_ar') or '').strip()
+            q_en = (b.get('q_en') or '').strip()
+            a_ar = (b.get('a_ar') or '').strip()
+            a_en = (b.get('a_en') or '').strip()
+            if not q_ar and not q_en:
+                return self._json(400, {'error': 'question_required'})
+            if not a_ar or not a_en:
+                return self._json(400, {'error': 'answer_required'})
+            if len(q_ar) > 200 or len(q_en) > 200:
+                return self._json(400, {'error': 'question_too_long'})
+            if len(a_ar) > 1000 or len(a_en) > 1000:
+                return self._json(400, {'error': 'answer_too_long'})
+            qid = int(b.get('id') or 0)
+            if qid:
+                for x in STATE['qa']:
+                    if x['id'] == qid:
+                        x.update({'q_ar': q_ar, 'q_en': q_en, 'a_ar': a_ar, 'a_en': a_en})
+                        return self._json(200, x)
+                return self._json(400, {'error': 'not_found'})
+            row = {'id': max([x['id'] for x in STATE['qa']] or [0]) + 1,
+                   'q_ar': q_ar, 'q_en': q_en, 'a_ar': a_ar, 'a_en': a_en,
+                   'active': True, 'hits': 0, 'last_hit_at': None,
+                   'updated_at': '2026-09-04 00:00:00'}
+            STATE['qa'].append(row)
+            return self._json(200, row)
+
+        if r == 'qa_active':
+            for x in STATE['qa']:
+                if x['id'] == int(b.get('id') or 0):
+                    x['active'] = bool(b.get('active'))
+                    return self._json(200, {'id': x['id'], 'active': x['active']})
+            return self._json(400, {'error': 'not_found'})
+
+        # The same dull matching admin.php does: fold nothing here beyond case,
+        # then require every word of the phrase. The mock cannot fold Arabic the
+        # way assistant_normalise does — that is the real server's job and the
+        # live rig is what proves it — but the SHAPE of the answer has to match,
+        # or the screen is written against a reply the server never sends.
+        if r == 'qa_try':
+            text = (b.get('message') or '').strip().lower()
+            if not text:
+                return self._json(400, {'error': 'message_required'})
+            best, best_words = None, 0
+            for x in STATE['qa']:
+                if not x['active']:
+                    continue
+                for phrase in (x['q_ar'], x['q_en']):
+                    words = [w for w in phrase.lower().split() if len(w) > 1]
+                    if words and all(w in text for w in words) and len(words) > best_words:
+                        best, best_words = x['id'], len(words)
+            return self._json(200, {'id': best, 'words': best_words})
+
+        # ONE ROUTE FOR ADD AND EDIT, exactly like brand_save above and for the
+        # same reason: admin.php is one route and the difference is whether an
+        # id came with it. product_save's own comment says a rename carries the
+        # garment's photographs and size ladder with it — mirrored here by
+        # updating slug on both STATE['variants'] and STATE['images'] rows,
+        # or the mock would silently orphan them the way the server's own
+        # comment says the bug used to.
+        if r == 'product_save':
+            name_en = (b.get('name_en') or '').strip()
+            name_ar = (b.get('name_ar') or '').strip()
+            slug = (b.get('slug') or '').strip().lower().replace(' ', '-')
+            if not slug:
+                return self._json(400, {'error': 'invalid_slug'})
+            if not name_en or not name_ar:
+                return self._json(400, {'error': 'bad_request'})
+            try:
+                price = float(b.get('price') or 0)
+            except (TypeError, ValueError):
+                return self._json(400, {'error': 'invalid_price'})
+            if price <= 0:
+                return self._json(400, {'error': 'invalid_price'})
+            sale_raw = b.get('sale_price')
+            sale_price = None
+            if sale_raw not in (None, ''):
+                try:
+                    sale_price = float(sale_raw)
+                except (TypeError, ValueError):
+                    return self._json(400, {'error': 'invalid_sale_price'})
+                if sale_price <= 0:
+                    return self._json(400, {'error': 'invalid_sale_price'})
+                if sale_price >= price:
+                    return self._json(400, {'error': 'sale_not_lower'})
+            brand_slug = (b.get('brand_slug') or '').strip() or None
+            if brand_slug and not any(x['slug'] == brand_slug for x in STATE['brands']):
+                return self._json(400, {'error': 'unknown_brand'})
+            pid = int(b.get('id') or 0)
+            clash = [x for x in STATE['products'] if x['slug'] == slug and x['id'] != pid]
+            if clash:
+                return self._json(400, {'error': 'slug_taken'})
+            for x in STATE['products']:
+                if x['id'] == pid:
+                    old_slug = x['slug']
+                    x.update({
+                        'slug': slug, 'name_en': name_en, 'name_ar': name_ar,
+                        'desc_en': b.get('desc_en') or None, 'desc_ar': b.get('desc_ar') or None,
+                        'price': price, 'sale_price': sale_price,
+                        'category': (b.get('category') or None), 'brand_slug': brand_slug,
+                        'active': 1 if b.get('active', True) else 0,
+                    })
+                    if old_slug != slug:
+                        for v in STATE['variants']:
+                            if v['slug'] == old_slug:
+                                v['slug'] = slug
+                        for im in STATE['images']:
+                            if im['slug'] == old_slug:
+                                im['slug'] = slug
+                    return self._json(200, x)
+            row = {'id': max([x['id'] for x in STATE['products']] or [0]) + 1,
+                   'slug': slug, 'name_en': name_en, 'name_ar': name_ar,
+                   'desc_en': b.get('desc_en') or None, 'desc_ar': b.get('desc_ar') or None,
+                   'price': price, 'sale_price': sale_price,
+                   'sale_starts_at': None, 'sale_ends_at': None,
+                   'featured': 0, 'featured_sort': 0,
+                   'category': (b.get('category') or None), 'image': None,
+                   'brand_slug': brand_slug, 'active': 1 if b.get('active', True) else 0}
+            STATE['products'].append(row)
+            return self._json(200, row)
+
+        if r == 'product_active':
+            for x in STATE['products']:
+                if x['id'] == int(b.get('id') or 0):
+                    x['active'] = 1 if b.get('active') else 0
+                    return self._json(200, {'id': x['id'], 'slug': x['slug'],
+                                            'active': bool(x['active'])})
+            return self._json(400, {'error': 'product_not_found'})
+
+        # CREATE the size ladder, or edit stock/cost on one that exists — ON
+        # DUPLICATE KEY on the sku, the same as admin.php, so re-saving a size
+        # being edited is an edit rather than an error.
+        if r == 'variant_save':
+            slug = (b.get('slug') or '').strip()
+            size = (b.get('size') or '').strip().upper()
+            if size not in ALLOWED_SIZES:
+                return self._json(400, {'error': 'invalid_size'})
+            if not any(x['slug'] == slug for x in STATE['products']):
+                return self._json(400, {'error': 'product_not_found'})
+            try:
+                stock = int(b.get('stock') or 0)
+            except (TypeError, ValueError):
+                return self._json(400, {'error': 'stock_cannot_be_negative'})
+            if stock < 0:
+                return self._json(400, {'error': 'stock_cannot_be_negative'})
+            cost_raw = b.get('cost_aed')
+            cost = None
+            if cost_raw not in (None, ''):
+                try:
+                    cost = float(cost_raw)
+                except (TypeError, ValueError):
+                    return self._json(400, {'error': 'invalid_cost'})
+                if cost < 0:
+                    return self._json(400, {'error': 'invalid_cost'})
+            sku = (slug[:26] + '-' + size).upper()
+            for x in STATE['variants']:
+                if x['sku'] == sku:
+                    x['stock'], x['cost_aed'] = stock, cost
+                    return self._json(200, x)
+            row = {'sku': sku, 'slug': slug, 'name_en':
+                   next((p['name_en'] for p in STATE['products'] if p['slug'] == slug), slug),
+                   'size': size, 'stock': stock, 'cost_aed': cost}
+            STATE['variants'].append(row)
+            return self._json(200, row)
+
+        # REFUSED WHILE STOCK IS ON IT, unless `force` is sent — the same
+        # guard admin.php's own comment explains: a deleted row that held
+        # stock is indistinguishable afterwards from that stock having sold.
+        if r == 'variant_delete':
+            sku = b.get('sku') or ''
+            row = next((x for x in STATE['variants'] if x['sku'] == sku), None)
+            if row is None:
+                return self._json(400, {'error': 'sku_not_found'})
+            if row['stock'] > 0 and not b.get('force'):
+                return self._json(400, {'error': 'variant_has_stock'})
+            STATE['variants'].remove(row)
+            return self._json(200, {'deleted': sku})
+
+        if r == 'brand_active':
+            for x in STATE['brands']:
+                if x['id'] == int(b.get('id') or 0):
+                    x['active'] = 1 if b.get('active') else 0
+                    return self._json(200, {'id': x['id'], 'slug': x['slug'],
+                                            'active': bool(x['active'])})
+            return self._json(400, {'error': 'brand_not_found'})
+
+        if r == 'discount_active':
+            for d in STATE['discounts']:
+                if d['id'] == int(b.get('id') or 0):
+                    d['active'] = bool(b.get('active'))
+                    return self._json(200, {'ok': True})
+            return self._json(400, {'error': 'not_found'})
+
+        if r == 'discount_delete':
+            target = next((d for d in STATE['discounts'] if d['id'] == int(b.get('id') or 0)), None)
+            if not target:
+                return self._json(400, {'error': 'not_found'})
+            # Mirrors admin.php: a discount an order was placed with is
+            # history, not clutter — the server answers 409 discount_in_use
+            # (it counts orders carrying the code; used_count is the
+            # fixture's stand-in for that).
+            if target['used_count'] > 0:
+                return self._json(409, {'error': 'discount_in_use'})
+            STATE['discounts'].remove(target)
+            return self._json(200, {'ok': True})
+
+        if r == 'return_status':
+            target = next((x for x in STATE['returns'] if x['id'] == int(b.get('id') or 0)), None)
+            if not target:
+                return self._json(404, {'error': 'not_found'})
+            to = b.get('status')
+            if to not in ('new', 'approved', 'picked_up', 'refunded', 'rejected', 'cancelled'):
+                return self._json(422, {'error': 'bad_status'})
+            note = (b.get('note') or '').strip() or None
+            # Mirrors admin.php: a rejection without a reason is refused. The
+            # customer is told why, and "no reason given" is not something the
+            # shop should be able to send.
+            if to == 'rejected' and not note:
+                return self._json(422, {'error': 'reason_required'})
+            target['status'] = to
+            if note:
+                target['staff_note'] = note
+            # decided_at is set once, the first time it leaves 'new', and never
+            # moved again — same as the SQL.
+            if target['decided_at'] is None and to != 'new':
+                target['decided_at'] = '2026-08-28 12:00:00'
+            return self._json(200, {'ok': True})
+
+        self._json(404, {'error': 'not_found'})
+
+
+if __name__ == '__main__':
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8899
+    print(f'mock admin.php + dist on http://127.0.0.1:{port}')
+    ThreadingHTTPServer(('127.0.0.1', port), Handler).serve_forever()

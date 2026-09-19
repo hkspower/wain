@@ -1,0 +1,198 @@
+########################################################################
+#                                                                      #
+#   DO NOT UPLOAD THIS FILE TO THE SERVER.                             #
+#                                                                      #
+#   It is a NOTE. It tells you which handful of lines to paste into    #
+#   a file that is already on your server. It is not itself a file     #
+#   the server should ever hold.                                       #
+#                                                                      #
+#   THIS ALREADY WENT WRONG ONCE, on 2026-09-02. An earlier version    #
+#   of this note was called ADD-TO-LIVE-HTACCESS.txt and arrived in    #
+#   the same handover as two zips that WERE meant to be uploaded. It   #
+#   was uploaded, as .htaccess, and Apache tried to read this English  #
+#   as configuration. Every page on sporta.com.kw answered 500 until   #
+#   the file was renamed.                                             #
+#                                                                      #
+#   That was the fault of the name, not of the person who uploaded     #
+#   it. Hence this one.                                                #
+#                                                                      #
+########################################################################
+
+TWO RULES TO ADD TO THE LIVE public_html/.htaccess
+==================================================
+
+WHY THIS IS A SNIPPET AND NOT A REPLACEMENT FILE
+
+The deployment zip deliberately contains NO .htaccess. The repo's copy routes
+every page to /index.html; the live server routes them through /seo.php, which
+injects the per-route title, canonical and og:image by looking the product up
+in MySQL. Shipping the repo's version would have switched that off silently —
+no error, no failing test, the shop just stops being indexable per product.
+
+So live's .htaccess is left exactly as it is, and this adds only what the two
+NEW pages in the zip need. Nothing else changes.
+
+
+WHAT THE TWO NEW PAGES ARE
+
+  card.html             the digital loyalty / gift card page
+  returns-request.html  the return + exchange request form
+
+Both are flat pages rather than app routes, for the same reason: the storefront
+is a built bundle whose source is not in this repo, so a new screen cannot be
+added to it here. They ship in the zip; without the rules below they are
+reachable only at /card.html and /returns-request.html, and the pretty URLs
+/card and /returns/request answer 404.
+
+
+WHERE TO PUT IT
+
+In public_html/.htaccess, inside the existing SPA-routing <IfModule
+mod_rewrite.c> block — the one whose comment says
+
+    ►► ADDING A ROUTE TO App.jsx? ADD IT HERE TOO, or it will 404. ◄◄
+
+Paste these lines immediately BEFORE this existing line:
+
+    RewriteRule ^(shop|cart|checkout|about|contact|wishlist|track|returns|terms|privacy|review)/?$ /seo.php [L]
+
+Order matters for the second rule and only for the second rule: the alternation
+above matches `returns` as a whole path, and /returns/request is a longer path
+the app's router has never heard of, so it must be caught first.
+
+------------------------------ COPY FROM HERE ------------------------------
+
+  # /card -> card.html. A flat page: the storefront is a built bundle whose
+  # source is not on this server, so this screen lives beside it rather than
+  # inside it. Conditional on the file existing, so a partial upload falls
+  # through to the 404 shell rather than serving a blank 200.
+  RewriteCond %{DOCUMENT_ROOT}/card.html -f
+  RewriteRule ^card/?$ /card.html [L]
+
+  # /returns/request -> returns-request.html. MUST precede the alternation
+  # below: that list matches `returns` as a complete path — the policy page IS
+  # an app route — but /returns/request is longer and the app's router would
+  # answer it with the 404 screen.
+  RewriteCond %{DOCUMENT_ROOT}/returns-request.html -f
+  RewriteRule ^returns/request/?$ /returns-request.html [L]
+
+------------------------------- TO HERE ------------------------------------
+
+
+AFTER PASTING, CHECK THESE FOUR
+
+  https://www.sporta.com.kw/card              -> the card page, not a 404
+  https://www.sporta.com.kw/returns/request   -> the request form, not a 404
+  https://www.sporta.com.kw/                  -> still loads (seo.php untouched)
+  https://www.sporta.com.kw/shop              -> view source, <link rel="canonical">
+                                                 should say /shop, not just /
+
+That last one is the check that matters: it proves seo.php is still in the path.
+If it shows the homepage canonical, something above was overwritten — restore
+the .htaccess and nothing else is affected.
+
+
+WHICH FORM SHOULD OWN /returns/request — ANSWERED
+
+The earlier draft of this note left that open. It is not open; it just needed
+checking, and the check has been done.
+
+return-request.php (790 lines, on the server, no copy in the repo) says in its
+own header that it exists because the rules making a return valid — fourteen
+days from delivery, women's clothing cannot be exchanged, you may only send
+back what you bought and no more of it than you bought — are rules about data
+the browser must not be trusted with, so they have to be enforced where the
+order lives.
+
+That reasoning is right, and every one of those rules is now enforced in
+api.php via store.php, which is what returns-request.html posts to:
+
+  fourteen days   STORE_RETURN_DAYS = 14, in store_return_window()
+  women's items   'no_exchange' => category === 'women', refused for exchanges
+  only what you   $qty > $line['available'] is refused — 'available' is the
+  actually bought quantity on the line minus what has already been asked about
+  it is your order store_return_lookup() requires the track id AND the order's
+                  own phone, compared in canonical 965 form
+
+So the newer path is a superset, not a replacement that lost something. It is
+also better in two places: the window runs from fulfilled_at rather than the
+order date, so a customer is not charged for the shop's own delivery time; and
+a wrong reference and a wrong phone return ONE shared error, so the endpoint
+cannot be used to test whether an order number exists.
+
+It is covered end to end by `npm run test:returns`, which passes.
+
+RECOMMENDATION: add the rules above as written — /returns/request goes to
+returns-request.html. Then retire return-request.php.
+
+RETIRING IT MATTERS MORE THAN IT LOOKS. Once the rule is added, nothing routes
+to that file, but it stays reachable at /return-request.php and it still
+writes return requests to the same tables with its own copy of the validation.
+Two write paths into one table, one of them unmaintained and no longer read by
+anybody, is how a rule gets tightened in one place and quietly not in the
+other. Rename it to return-request.php.off or delete it once the new path has
+taken a real request.
+
+
+===========================================================================
+SEPARATE AND MORE URGENT: DELETE UPLOAD-THIS.txt FROM public_html
+===========================================================================
+
+It is a hand-over note from an earlier session, and it is PUBLICLY FETCHABLE
+at https://www.sporta.com.kw/UPLOAD-THIS.txt right now. The root .htaccess
+denies .bak, .sql, .log, .env, .zip, .md and a dozen more extensions — and has
+no .txt in the list.
+
+No password is in it. What is in it is a map to where the passwords are:
+
+    api/config.php      database password + cron key
+    pay/config.php      CBK T-Pay credentials
+    knet/config.php     KNET credentials
+
+plus a file-by-file inventory of the site with exact byte sizes. That is
+reconnaissance, published, for anyone who tries the filename or finds it in a
+crawl. It is also two deployments out of date and describes a state the server
+is no longer in, so it is worth nothing to you either.
+
+  DELETE IT. hPanel -> File Manager -> public_html -> UPLOAD-THIS.txt.
+  Nothing references it and nothing breaks.
+
+While you are there: site-manifest.txt, if it is ever uploaded for
+api/file-audit.php to read, is denied by api/.htaccess already — that one was
+thought about. This one slipped through because it sits at the root.
+
+
+OPTIONAL, AND READ THE WARNING FIRST
+------------------------------------
+The repo's .htaccess now denies .txt by default and names the exceptions, so
+the NEXT hand-over note is covered without anyone remembering to delete it.
+That protection arrives with the .htaccess whenever it is next deployed. If
+you would rather have it today, paste this in — but read the warning.
+
+  WARNING: the second block is what keeps robots.txt reachable. Get it wrong
+  and Googlebot is locked out, which is far worse than the leak and fails
+  SILENTLY — the site looks perfectly healthy to every human who visits it.
+  If you are not certain, just delete the file above; that closes the actual
+  hole and costs nothing.
+
+  Order is not cosmetic. Apache applies these in source order, so the grant
+  MUST come second.
+
+------------------------------ COPY FROM HERE ------------------------------
+
+<FilesMatch "(?i)\.txt$">
+  Require all denied
+</FilesMatch>
+<FilesMatch "(?i)^(robots|llms|ads|security)\.txt$">
+  Require all granted
+</FilesMatch>
+
+------------------------------- TO HERE ------------------------------------
+
+CHECK IMMEDIATELY AFTER PASTING, in this order:
+
+  https://www.sporta.com.kw/robots.txt        MUST still load
+  https://www.sporta.com.kw/llms.txt          MUST still load
+  https://www.sporta.com.kw/UPLOAD-THIS.txt   MUST now be 403
+
+If the first two do not load, remove the two blocks again straight away.

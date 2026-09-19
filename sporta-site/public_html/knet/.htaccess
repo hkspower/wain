@@ -1,0 +1,116 @@
+# Classic KNET endpoints — HTTPS-only + protect config/lib.
+# Place as /public_html/knet/ so endpoints are:
+#   https://www.sporta.com.kw/knet/pay.php
+#   https://www.sporta.com.kw/knet/callback.php
+
+# Canonical host + HTTPS in a SINGLE 301, matching the storefront config.
+# (The old rule kept %{HTTP_HOST}, so a bare-domain hit stayed on the wrong
+# host, and it redirected whenever %{HTTPS} != on, which loops behind a proxy
+# that reports TLS another way.)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTP_HOST} !^www\.sporta\.com\.kw(:[0-9]+)?$ [NC]
+  RewriteRule ^ https://www.sporta.com.kw%{REQUEST_URI} [R=301,L]
+
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteCond %{HTTP:X-Forwarded-SSL} !=on
+  RewriteCond %{SERVER_PORT} !=443
+  RewriteRule ^ https://www.sporta.com.kw%{REQUEST_URI} [R=301,L]
+
+  # No dotfiles here either (.env, .git, editor droppings).
+  RewriteRule "(?i)(^|/)\.(?!well-known)" - [F,L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  Header always unset X-Powered-By
+  Header set X-Content-Type-Options "nosniff"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+
+  # Payment responses carry order state — never store them in any cache, and
+  # keep the endpoints out of search results.
+  #
+  # Inside <FilesMatch ".">, which looks redundant and is not. The storefront's
+  # .htaccess caches .txt/.xml/.json with "public, max-age=3600" from its own
+  # <FilesMatch>, and Apache merges every per-file section AFTER every plain
+  # directory directive — including those from a deeper .htaccess. A plain
+  # Header set here therefore lost to the parent, and any non-PHP file served
+  # from /knet came back carrying BOTH "no-store" and "public, max-age=3600".
+  # Matching a file section here puts this rule in the same merge stage, where
+  # the deeper directory wins. Verified under Apache 2.4: one header, no-store.
+  # unset then always-set, rather than setting both tables: Apache emits
+  # err_headers_out on a 200 as well as an error, so setting both sent the same
+  # header twice. Clearing the inherited headers_out value and setting the
+  # always one covers every status code and emits it exactly once.
+  <FilesMatch ".">
+    Header unset Cache-Control
+    Header always set Cache-Control "no-store, no-cache, must-revalidate, private"
+  </FilesMatch>
+  Header always set X-Robots-Tag "noindex, nofollow"
+
+  # ---- Content-Security-Policy ----
+  #
+  # The storefront's policy is inherited into this directory too (measured
+  # under Apache 2.4.58), and unlike /pay/ it does not break anything here:
+  # knet/pay.php sends the customer on with a 302, which is a navigation, and
+  # form-action governs form submissions only. So this is not a fix — it is the
+  # other half of the pair, written now because "it happens to work under the
+  # storefront's policy" is not a property anybody can see, and the next edit
+  # to that policy is made by someone thinking about the shop.
+  #
+  # These two endpoints emit a redirect and, on the callback, a few lines of
+  # plain HTML with a meta refresh and one link. No script, no image, no style,
+  # no form, no frame. The policy says exactly that, so anything that appears
+  # here later has to be declared rather than inherited.
+  #
+  # script-src 'none' is deliberate and is enforced: callback.php's
+  # knet_send_customer_onward() writes a location.replace() for browsers that
+  # ignore the meta refresh. It is belt-and-braces on a page that already
+  # carries both a refresh and a visible link, and a payment return page is the
+  # last place to hold open a script channel for a nicety. csp-check.mjs fails
+  # if a script here is ever load-bearing.
+  Header set Content-Security-Policy "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; script-src 'none'"
+
+  Header set X-Frame-Options "DENY"
+
+  # ---- Cookies ----
+  # These endpoints set none — no session_start(), no setcookie(), no
+  # Set-Cookie anywhere in this directory, checked.
+  #
+  # THREE `Header edit` LINES USED TO SIT HERE, forcing Secure, HttpOnly and
+  # SameSite=Lax onto any cookie that appeared. They were REMOVED on 2026-09-09
+  # for the same reason as the storefront's two: LiteSpeed does not implement
+  # `Header edit`, and emits the directive AS A HEADER instead of applying it.
+  # On the live server every response carried headers literally named `edit:`
+  # containing these lines — measured, `edit=2` on the home page — so the rule
+  # protected nothing and leaked its own source into every payment response.
+  # They were tested honestly, against Apache 2.4.58, where they work. The rig
+  # is not the server.
+  #
+  # If an endpoint here ever needs a session, start it through
+  # store_session_start() in api/store.php, which sets secure, httponly and
+  # samesite on the cookie params — flags set where the cookie is MADE are
+  # honoured by every server, and a rewrite is a second thing that has to be
+  # implemented. scripts/cookie-flags-test.mjs fails if this comes back.
+</IfModule>
+
+<FilesMatch "^(config\.php|config\.example\.php|knet\.php|setup-config\.php)$">
+  Require all denied
+</FilesMatch>
+
+# The payment log belongs outside public_html, but deny it here too in case it
+# is ever written inside the web root.
+#
+# (?i) and .json, to match pay/.htaccess exactly. The two files guard the same
+# class of thing for the same bank, and this one was the narrower of the pair —
+# case-sensitive, and blind to .json — for no reason anybody chose. That is the
+# shape of every bug this project has found in the two payment dropins: a rule
+# tightened on one side and not the other, sitting quietly until something goes
+# looking. The root .htaccess denies these by name too, so a mismatch here was
+# covered in practice; a local rule that does not do its own job is still worth
+# fixing, because "the parent will catch it" is exactly the assumption that
+# fails when a folder gets its own RewriteEngine and stops inheriting.
+<FilesMatch "(?i)\.(json|log|jsonl)$">
+  Require all denied
+</FilesMatch>
