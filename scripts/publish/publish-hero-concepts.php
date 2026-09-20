@@ -28,7 +28,7 @@
  * a number.
  */
 
-$COMMIT = '__COMMIT__';
+$COMMIT = '52b13953a49264305a21adb20b54b072ee5be92a';
 
 // [repo path, sha256, focal_x, sort]
 $OLD_BANNER_SHA = 'c805e838a29d5e55da0c33155ddb0769c537309b5b476040170e08eade37848e';
