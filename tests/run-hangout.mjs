@@ -12,6 +12,10 @@
  *   map-pin       — the pins, on a phone and on a desktop. The two behaviours
  *                   that must not drift back together: one tap on a touch
  *                   device selects, one click on a desktop still opens.
+ *   areas         — Kuwait by area. The half that can rot quietly is the
+ *                   filter: `?area=` is an exact match on `areaAr`, and the
+ *                   tempting name-search version looks identical until «شرق»
+ *                   quietly returns «سوق شرق», which is in مدينة الكويت.
  *   search-button — whether a thumb can reach search at all. The suite of
  *                   this name used to test the navbar button that opened the
  *                   ⌘K palette and went when the navbar did; what came back
@@ -88,6 +92,9 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
 
   console.log("\n════ الخريطة: the pins, on a phone and on a desktop ════");
   failed += (await run("node", ["tests/map-pin.test.mjs"], { env })) === 0 ? 0 : 1;
+
+  console.log("\n════ المناطق: Kuwait by area, and the filter it opens ════");
+  failed += (await run("node", ["tests/areas.test.mjs"], { env })) === 0 ? 0 : 1;
 
   console.log("\n════ زر البحث: can a thumb reach search from where it stands ════");
   failed += (await run("node", ["tests/search-button.test.mjs"], { env })) === 0 ? 0 : 1;

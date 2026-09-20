@@ -1197,6 +1197,56 @@ wain do» has one answer whether it is asked over stdio or by tapping the search
 button. `tests/mcp.test.mjs` asserts equality with the module rather than a
 retyped list — a copy would pass the day it was written.
 
+**«تصفّح كل الأماكن» is gone from the hub, and «مناطق الكويت» took its
+place.** Removed on request; the swap is the part worth keeping. «كل
+الأماكن» is the one question a visitor never asks — «وين الطلعة اليوم؟» is
+answered by a category, by a place, or by a part of town, «أنا بالسالمية» —
+and the catalogue had carried that third answer in `areaAr` since the
+beginning without ever offering it as a door. /explore did not go anywhere;
+it is what an area card opens, filtered.
+
+`src/lib/areas.ts` holds the 21 areas, and **the join to the catalogue is a
+STRING** — `Area.ar` against `Place.areaAr`. That is the shape of every drift
+in this file (the n8n voice table, `@convai-widget-embed@1`,
+`contain-intrinsic-size`, `PlaceArt`'s safe box): nothing breaks loudly. An
+area no place carries opens onto an empty list; a place whose area has no
+entry is unreachable and no page says so. `npm run audit:areas` loads both
+real modules, bundled rather than parsed, and fails on any name in one and
+not the other — 21 areas, 52 of 52 placed. It also checks the two claims the
+file makes in prose, because an unchecked comment is a comment that will be
+wrong: every `hero` is a real place **in that area**, and `AREAS` is ordered
+by share of the catalogue, which is the nearest thing to «famous» a check can
+hold it to. Confirmed red by pointing حولي at the Avenues.
+
+Same rule as `place-kit.ts` and `wain-hub.ts`: **nothing in `areas.ts` may
+import the catalogue** — it is reachable from the hub. `/areas` counts places
+per area in a *server* component, so the page lands at 119.8K, the lightest
+tier on the site, level with `/privacy`.
+
+**`?area=` is an exact match on `areaAr`, not a search for the area's name**,
+and that distinction is the whole of `tests/areas.test.mjs`. The free-text box
+already matches `areaAr` among five other fields, so a name search looks
+identical — until «شرق» also returns «سوق شرق», which is in مدينة الكويت. A
+filter that silently includes one place from somewhere else is worse than no
+filter, because nothing on screen says it happened. Proved by swapping the
+exact match for the name search with the build green: exactly the شرق
+assertion went red, and only it.
+
+**And the real-images answer is: there are none to be had from here, though
+they exist.** Re-measured 20 September, written up in full in `photos.ts`.
+Adobe Stock returns **45 assets** for `Kuwait`, about seven of them actually
+Kuwaiti — the ids are recorded — but `asset_license_and_download_stock`
+answers `not_possible`, «Get started with a free trial»: search works without
+a plan, licensing does not, and the thumbnail is 240px. Searching for an AREA
+is worse than empty: Kuwaiti neighbourhoods return **Vancouver, Leeds,
+Kensington, Calgary, Chiswick, Tallinn, Ayia Napa and Dallas**, which is
+`photos.ts`'s «several hundred lookalikes» warning in its purest form — a
+plausible answer to the exact question, every one of them wrong. Dropbox
+holds only wain's own exported `og/*.jpg`, which are drawings. So the chain
+is wired — **photograph → the hero place's drawing → its category's** — and
+every card is on the second or third rung today. The four city-skyline ids
+are the shortlist the day there is a Stock plan.
+
 **Ordering and the queue are deliberately not in the hub.** 0 of 52 places
 satisfy `acceptsOrders` or `takesQueue`, so a «طلباتي» row advertises a door
 onto nothing. Add the row when a place takes orders and both surfaces get it.
@@ -1351,9 +1401,9 @@ into the next KB change that does.
 
 ## Checks
 
-`npm run scan` is lint plus ~27 audits. Browser suites: `test:hangout`
-(hangout, hangout-page, map-pin, search-button, search-keys, shouq-search,
-search-plan, swipe), `test:journey`, `test:register`, `test:shouq`,
+`npm run scan` is lint plus ~28 audits. Browser suites: `test:hangout`
+(hangout, hangout-page, map-pin, areas, search-button, search-keys,
+shouq-search, search-plan, swipe), `test:journey`, `test:register`, `test:shouq`,
 `test:orders`, `test:net`. PHP suites, neither in `scan` because neither can
 assume php: `test:api` (40), `test:tts` (25) and `test:media` (33).
 

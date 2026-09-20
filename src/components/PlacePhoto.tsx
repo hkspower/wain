@@ -1,4 +1,11 @@
-import { photoOf, photoSrc, PHOTO_WIDTH, PHOTO_HEIGHT } from "@/lib/photos";
+import {
+  areaPhotoOf,
+  areaPhotoSrc,
+  photoOf,
+  photoSrc,
+  PHOTO_WIDTH,
+  PHOTO_HEIGHT,
+} from "@/lib/photos";
 
 /**
  * The photograph of a place, where there is one.
@@ -44,6 +51,39 @@ export default function PlacePhoto({
       height={PHOTO_HEIGHT}
       decoding="async"
       fetchPriority="high"
+      className={`object-cover ${className}`}
+    />
+  );
+}
+
+/**
+ * The same, for an area — see `areas.ts` and `AREA_PHOTOS`.
+ *
+ * Lazy where `PlacePhoto` is eager, which is the one real difference: a place
+ * page has exactly one of these and it is the first thing painted, while
+ * /areas is a grid of twenty-one and only the first row is above the fold.
+ * Loading all of them at high priority would make the page slower than the
+ * drawings it is replacing.
+ */
+export function AreaPhoto({
+  id,
+  className = "",
+}: {
+  id: string;
+  className?: string;
+}) {
+  const photo = areaPhotoOf(id);
+  if (!photo) return null;
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={areaPhotoSrc(id)}
+      alt={photo.altAr}
+      width={PHOTO_WIDTH}
+      height={PHOTO_HEIGHT}
+      loading="lazy"
+      decoding="async"
       className={`object-cover ${className}`}
     />
   );

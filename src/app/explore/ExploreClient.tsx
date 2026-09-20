@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import CategoryIcon from "@/components/CategoryIcon";
-import { IconCompass, IconSearch } from "@/components/icons";
+import { IconCompass, IconPinSolid, IconSearch } from "@/components/icons";
+import { AREAS } from "@/lib/areas";
 import PlaceCard from "@/components/PlaceCard";
 import {
   categories,
@@ -36,17 +37,41 @@ export default function ExploreClient() {
   const [category, setCategory] = useState<CategoryId | "all">(
     categories.some((c) => c.id === initial) ? (initial as CategoryId) : "all"
   );
+  /**
+   * `?area=` is where /areas sends a visitor, and it is an EXACT match on
+   * `areaAr` rather than a search for the area's name.
+   *
+   * The box below would already have found most of it — it matches `areaAr`
+   * among five other fields — and that is exactly why it is the wrong tool
+   * here: «شرق» as free text also matches «سوق شرق», which is in مدينة
+   * الكويت, and the reader arrived from a card that promised «شرق». A filter
+   * that quietly includes one place from somewhere else is worse than no
+   * filter, because nothing on screen says it happened.
+   *
+   * State, not a memo of the URL, so clearing it does not need a navigation —
+   * and read on every params change for the reason SearchClient documents:
+   * pushing `?area=` from this same route is a same-route push, so nothing
+   * remounts and a value adopted once at mount would go stale.
+   */
+  const areaParam = searchParams.get("area");
+  const area = useMemo(() => AREAS.find((a) => a.id === areaParam), [areaParam]);
+  // The dismissed id rather than a boolean: arriving at a DIFFERENT area after
+  // clearing one must filter again, and a flag would stay off and silently
+  // show the whole catalogue under the new area's name.
+  const [dismissed, setDismissed] = useState<string | null>(null);
+  const activeArea = area && dismissed !== area.id ? area : undefined;
 
   const filtered = useMemo(() => {
     const q = normalise(query);
     return places.filter((place) => {
       const matchesCategory = category === "all" || place.category === category;
+      const matchesArea = !activeArea || place.areaAr === activeArea.ar;
       const haystack = normalise(
         `${place.nameAr} ${place.name} ${place.areaAr} ${place.area} ${place.taglineAr}`
       );
-      return matchesCategory && (q === "" || haystack.includes(q));
+      return matchesCategory && matchesArea && (q === "" || haystack.includes(q));
     });
-  }, [query, category, places]);
+  }, [query, category, activeArea, places]);
 
   return (
     <div className="mx-auto max-w-6xl px-2.5 py-2 sm:px-4 sm:py-3">
@@ -58,6 +83,27 @@ export default function ExploreClient() {
           {countAr(places.length, PLACES_COUNT)}، وما عاد فيه «ما أدري، اختر أنت».
         </p>
       </header>
+
+      {/* The area a visitor arrived under, and the way out of it. It is drawn
+          as a chip rather than folded into the heading because a filter the
+          reader cannot see is a filter they cannot undo — and this one comes
+          from the URL, so without it a short result list reads as «wain does
+          not have much» instead of «you asked for one area». */}
+      {activeArea && (
+        <div className="mb-2.5 flex items-center gap-1.5">
+          <span className="flex min-h-6 items-center gap-1.5 rounded-full bg-ink-900 px-3 text-xs font-semibold text-white shadow-sm">
+            <IconPinSolid className="size-3.5 text-sun-300" />
+            {activeArea.ar}
+          </span>
+          <button
+            type="button"
+            onClick={() => { haptic("select"); setDismissed(activeArea.id); }}
+            className="min-h-6 rounded-full border border-line bg-white px-3 text-xs font-semibold text-ink-600 transition hover:border-sea-300 hover:text-sea-700"
+          >
+            شوف كل المناطق
+          </button>
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative mb-2.5">

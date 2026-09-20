@@ -85,6 +85,46 @@ export function photoOf(slug: string): PlacePhoto | undefined {
 }
 
 /**
+ * The same, keyed by area id — see `areas.ts`.
+ *
+ * Also empty, and for a reason worth writing down rather than re-discovering:
+ * **genuine photographs of Kuwait exist and this account cannot license
+ * them.** Re-checked 20 September against Adobe Stock, which is the one
+ * library reachable here:
+ *
+ *   - `Kuwait` returns **45 assets**, of which about seven are actually of
+ *     Kuwait — the city skyline (242691058, 588611620, 486154484, 514653680),
+ *     the Grand Mosque (148852369) and Kuwait Towers (236264025, 244121505).
+ *   - `asset_license_and_download_stock` on the first of those answers
+ *     `not_possible` — «Get started with a free trial». Search works without
+ *     a plan; licensing does not, and an unlicensed thumbnail is 240px wide.
+ *   - Searching for an AREA is worse than empty. Kuwaiti neighbourhoods —
+ *     Salmiya, the streets, the suburbs — return Vancouver, Leeds,
+ *     Kensington, Calgary, Chiswick, Tallinn, Ayia Napa and Dallas. Not one
+ *     Kuwait photograph, which is the «several hundred lookalikes» problem
+ *     above in its purest form: a plausible-looking answer to the exact
+ *     question, and every one of them wrong.
+ *   - Dropbox holds wain's own exported `og/*.jpg` — drawings — and a scan of
+ *     a civil ID. No photography.
+ *
+ * So the four city-skyline shots would genuinely serve `kuwait-city`, and the
+ * rest of the country has nothing. The moment there is a Stock plan, those
+ * asset ids are the shortlist: license one, drop it in `photos-src/`, add the
+ * entry, `npm run photos`.
+ */
+export const AREA_PHOTOS: Record<string, PlacePhoto> = {};
+
+/** The photograph for an area, if it has one. */
+export function areaPhotoOf(id: string): PlacePhoto | undefined {
+  return AREA_PHOTOS[id];
+}
+
+/** Where an area's web-sized file lives. Same shape rule as `photoSrc`. */
+export function areaPhotoSrc(id: string): string {
+  return `/photos/areas/${id}.jpg`;
+}
+
+/**
  * Where the web-sized file lives. Same shape for every place, so nothing has
  * to store a path and no path can go stale against the file it names.
  */
