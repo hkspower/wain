@@ -127,7 +127,12 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   Checked before any of it: `hosting_listWebsitesV1` shows `sporta.com.kw`
   and `static.sporta.com.kw` both rooted at `domains/sporta.com.kw/public_html`,
   and nothing but `wainkw.com` and `staging` at wain's — so removing the copy
-  could not take sporta down. And `grep` found **0** references to any of the
+  could not take sporta down. **That last clause is out of date: there is a
+  third, `hub.wainkw.com`**, an addon domain created 16 September with its own
+  docroot at `domains/hub.wainkw.com/public_html` and its **own DNS zone**,
+  which is why it does not appear among wainkw.com's records. It resolves
+  publicly and carries its own MX and SPF. Nothing wain deploys touches it;
+  the point is not to read "wain's account has two vhosts" as still true. And `grep` found **0** references to any of the
   seven paths in `src/` and `public/`; wain's own assets are `og/`, `brand/`,
   `voice/` and `_next/static/media/`.
 - **`PROTECTED_PATHS` still lists all eight, and that is now backwards.** It
@@ -461,6 +466,69 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
 
   With the secret set, a push to this branch deploys and **nobody uploads
   anything by hand**. Without it the run stops at the first step and says so.
+
+## DNS, TLS and mail — checked 20 September
+
+**There is a CDN in front of this site and nothing here knew it.** `@` is an
+ALIAS and `www` a CNAME, both to `*.cdn.hstgr.net`, and every hostname answers
+with two anycast addresses. That matters for the section above: **the loopback
+check verifies the ORIGIN, not what a visitor gets.** `wget … https://127.0.0.1`
+with the right `Host` never leaves the machine, which is the whole point of it
+and also its limit. The origin's own headers argue the edge cannot serve stale
+HTML — `max-age=0, must-revalidate` on every page, and the assets are
+content-hashed and `immutable`, so a stale one has no name to be served under —
+but Hostinger's server-side page cache is a panel setting that can ignore them.
+`hosting_clearWebsiteCacheV1` is the purge, and it also purges the CDN. Run it
+after a deploy, or accept that "verified live" stops at the origin.
+
+**The certificate is Let's Encrypt, and that was read rather than assumed.**
+`openssl s_client` over the loopback, as a cron job — one program and its
+arguments, stdin is EOF under cron so it exits on its own: `CN=wainkw.com`
+issued by `C=US, O=Let's Encrypt, CN=YE2`, chaining to ISRG Root X2 → X1, EC
+P-256, TLS 1.3, `Verify return code: 0`, valid to 26 Nov 2026. SAN covers
+`wainkw.com` and `www.wainkw.com`; staging and hub hold their own.
+
+That fact is what made a **CAA** record safe to write instead of a guess, and
+the guess is the danger: CAA names the only CAs allowed to issue, so naming the
+wrong one does not fail loudly — it fails in ~90 days when the auto-renewal is
+refused. Now at the apex, TTL 3600:
+
+```
+0 issue     "letsencrypt.org"
+0 issuewild "letsencrypt.org"
+0 iodef     "mailto:cs@sporta.com.kw"
+```
+
+`issuewild` names the same CA rather than `";"`, so a wildcard Hostinger might
+issue later still works. **If Hostinger ever changes certificate provider this
+record breaks renewal** — that is the whole cost of having it, and the fix is
+to delete the two `issue` lines or add the new CA. Re-read the issuer the same
+way before assuming which.
+
+**DMARC went from `p=none` to `p=quarantine`**, matching `sporta.com.kw`, which
+has run that policy on the same mail path (Hostinger MX, same SPF include, same
+`cs@sporta.com.kw` reporting address) for long enough to be evidence rather
+than hope. `pct=100`, `ruf` added beside `rua`. The external-reporting
+authorisation this needs already exists and was checked rather than assumed —
+`wainkw.com._report._dmarc.sporta.com.kw TXT "v=DMARC1"`, which is what
+RFC 7489 requires for reports to reach a different domain. Revert by setting
+`p=none`; nothing else has to move.
+
+**Verified from the authoritative servers, not from the panel.** Node's
+resolver pointed at `ns1/ns2.dns-parking.com` returns the CAA triple and the
+new DMARC string, with ALIAS, MX, SPF, the Google verification TXT, three DKIM
+CNAMEs, `www` and `staging` all untouched — `overwrite: true` matches on name
+AND type, so it replaced only the two records sent. The control that makes the
+CAA reading mean anything: `sporta.com.kw` has no CAA and answers `ENODATA`
+from the same query.
+
+Two things deliberately left alone. `hub.wainkw.com` has no DMARC and no CAA of
+its own; it is not wain's. And the apex and `www` both serve the same docroot
+with no redirect between them — every page ships
+`<link rel="canonical" href="https://www.wainkw.com/…">` and the sitemap uses
+the www form, so the duplicate is declared rather than ambiguous, which is a
+different situation from staging's (that one has no canonical pointing away and
+is handled by a Host-keyed 404 plus `noindex`).
 
 ## شوق, the ElevenLabs agent
 
