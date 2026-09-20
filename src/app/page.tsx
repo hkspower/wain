@@ -55,17 +55,31 @@ export default function HomePage() {
               was AppTabBar's tab, which is `standalone:block` and so is
               painted by nothing in a browser. Search was unreachable, and
               with it شوق — her launcher lives inside the /search query box.
-              /explore has its own box and is fine; this page was the gap.
               A link under the dial rather than a second bar, because the two
               are halves of one question: the dial answers «وين» by where you
-              are, this one by what the place is called. */}
+              are, this one by what the place is called.
+
+              It used to read «دوّر باسم المكان أو كلّم شوق», and the «أو» is
+              what came out. This is one tap on a page where nobody has
+              searched anything yet, so the two halves are not a choice the
+              visitor is in a position to make — «باسم» and «شوق» only mean
+              something once you are looking at a box and some results. Asked
+              here, it is a decision before there is anything to decide about,
+              and it makes the shortest route to search read as a fork.
+
+              The offer is not lost: /search names all three ways — typing,
+              شوق, the map — once you are there, which is the stage that can
+              afford to. Same «one offer, drawn once» rule as ShouqCallButton's
+              own placement, applied to the step before it rather than to the
+              page. Do not put the second half back here without moving the
+              /search line out of the way first. */}
           <div className="mt-4 text-center">
             <Link
               href="/search"
               className="inline-flex min-h-6 items-center gap-2 rounded-full bg-white/95 px-5 py-2.5 text-sm font-semibold text-sea-800 shadow-sm ring-1 ring-line transition hover:bg-white"
             >
               <IconSearch className="size-4" />
-              دوّر باسم المكان أو كلّم شوق
+              دوّر باسم المكان
             </Link>
           </div>
         </div>

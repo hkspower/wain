@@ -1586,6 +1586,22 @@ nothing referenced. What went with them, and what each cost:
   390px. `tests/search-button.test.mjs` is back under its old name asking a
   new question, and was confirmed to go red with the home-page stand-down
   removed **and the build green** first.
+
+  **That home-page link is «دوّر باسم المكان» now, and the «أو كلّم شوق» half
+  was cut on request.** It is one tap on a page where nobody has searched
+  anything yet, so «باسم» and «شوق» are not a choice the visitor is in a
+  position to make — they only mean something in front of a box with results
+  in it. Offered at stage 1 it is a decision with nothing yet to decide about,
+  and it turns the shortest route to search into a fork. Nothing is lost:
+  /search's own numbered line names all three ways once you are there. So if a
+  future audit asks «does `/` offer شوق» and reads 0, that is the intent, not
+  the reachability bug recorded above — **the check that matters on this page
+  is one visible route to /search**, which is what the suite asserts.
+
+  Removed with it, from the comment over that link: «/explore has its own box
+  and is fine». That clause was the wrong belief this very section corrects
+  four paragraphs up, still sitting in the source where the next reader would
+  meet it first.
 - **`OrdersLink` and `QueueLink`.** Both were navbar pills, and the removal
   left /orders and /queue address-bar-only on the web — the only links to
   either were `AppTabBar`'s, which is `standalone:block`. **Fixed by
