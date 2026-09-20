@@ -145,6 +145,23 @@ create table if not exists admin_users (
   created_at    timestamp not null default current_timestamp
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
+-- Which IPs have signed an admin in successfully before, so a new one can be
+-- told apart from a routine sign-in — see store_admin_grant() in api/store.php,
+-- the one place a sign-in is granted for both the password-only and the
+-- second-factor-verified path.
+create table if not exists admin_known_ips (
+  admin_id   int unsigned not null,
+  -- NOT HASHED, unlike store_throttle()'s abuse buckets: this has to be shown
+  -- in the alert email in a form the owner can recognise, and an IP is not a
+  -- credential.
+  ip         varchar(45) not null,
+  first_seen timestamp not null default current_timestamp,
+  last_seen  timestamp not null default current_timestamp,
+  primary key (admin_id, ip),
+  constraint fk_known_ip_admin foreign key (admin_id)
+    references admin_users (id) on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
 -- Every admin write, in one place — see the comment beside
 -- store_admin_audit_log() in api/store.php for how a row lands here without
 -- every one of admin.php's ~50 save routes calling anything themselves.

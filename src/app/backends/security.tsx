@@ -83,6 +83,7 @@ export default function SecurityScreen() {
       {account && (
         <View style={{ gap: Spacing.four }}>
           <ContactCard account={account} onSaved={load} />
+          <LoginAlertCard email={account.email} />
           <PasswordCard
             account={account}
             onChanged={() => {
@@ -98,6 +99,28 @@ export default function SecurityScreen() {
 }
 
 type Account = { email: string; phone: string | null; totp: boolean; emailOtp: boolean };
+
+/** No toggle, no setting — this is on for every account and cannot be turned
+ *  off from here, so the card is informational rather than editable. It
+ *  exists so the alert is not a surprise the first time it fires: an owner
+ *  who has never heard of it and gets a "new sign-in" email while on a trip
+ *  has one more reason to wonder whether the account was actually theirs.
+ *  store_admin_alert_new_ip() in api/store.php is where this is implemented,
+ *  behind store_admin_grant() — the one hook every sign-in path funnels
+ *  through, so it cannot be reached by a route this card knows nothing about. */
+function LoginAlertCard({ email }: { email: string }) {
+  return (
+    <Card style={{ gap: Spacing.two }}>
+      <ThemedText type="labelBold">Sign-in alerts</ThemedText>
+      <ThemedText type="label" themeColor="textSecondary">
+        {email} gets an email the first time this account signs in from an address it has
+        never signed in from before. Every sign-in still succeeds — the alert never blocks
+        one — it only tells you it happened, so a password that reaches someone else does
+        not go unnoticed.
+      </ThemedText>
+    </Card>
+  );
+}
 
 function errorText(e: unknown): string {
   if (!(e instanceof Error)) return String(e);

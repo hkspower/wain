@@ -28,8 +28,9 @@
 --   9. 9-product-brands.sql   which brand each garment belongs to
 --   10. 10-must-change-password.sql force a new password after a cron-set temporary one
 --   11. 11-admin-audit-log.sql every admin write, logged centrally
---   12. customers.mysql.sql    sign-up, sign-in, and orders linked to an account
---   13. assistantqa.mysql.sql  the answers the shop writes itself
+--   12. 12-known-login-ips.sql which addresses have signed an admin in before
+--   13. customers.mysql.sql    sign-up, sign-in, and orders linked to an account
+--   14. assistantqa.mysql.sql  the answers the shop writes itself
 --
 -- Deliberately NOT included — these are repairs, not install steps, and each
 -- is run by hand when its own report says it is needed:
@@ -186,6 +187,23 @@ create table if not exists admin_users (
   must_change_password tinyint(1) not null default 0,
 
   created_at    timestamp not null default current_timestamp
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-- Which IPs have signed an admin in successfully before, so a new one can be
+-- told apart from a routine sign-in — see store_admin_grant() in api/store.php,
+-- the one place a sign-in is granted for both the password-only and the
+-- second-factor-verified path.
+create table if not exists admin_known_ips (
+  admin_id   int unsigned not null,
+  -- NOT HASHED, unlike store_throttle()'s abuse buckets: this has to be shown
+  -- in the alert email in a form the owner can recognise, and an IP is not a
+  -- credential.
+  ip         varchar(45) not null,
+  first_seen timestamp not null default current_timestamp,
+  last_seen  timestamp not null default current_timestamp,
+  primary key (admin_id, ip),
+  constraint fk_known_ip_admin foreign key (admin_id)
+    references admin_users (id) on delete cascade
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 -- Every admin write, in one place — see the comment beside
@@ -2100,6 +2118,37 @@ create table if not exists admin_audit_log (
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 create index if not exists idx_audit_created on admin_audit_log (created_at);
+
+-- ========================================================================
+-- known login IPs — which addresses have signed an admin in before
+-- (12-known-login-ips.sql)
+-- ========================================================================
+
+-- Sporta — which IPs have already signed an admin in successfully, so a NEW
+-- one can be told apart from a routine sign-in and the owner alerted.
+--
+-- Import after 1-schema.mysql.sql. Safe to re-run.
+--
+-- See store_admin_grant() in api/store.php for where a row lands here — the
+-- one place a sign-in is actually granted, shared by the password-only path
+-- and the second-factor-verified path, so neither can slip past unwatched.
+
+set names utf8mb4;
+
+create table if not exists admin_known_ips (
+  admin_id   int unsigned not null,
+  -- NOT HASHED, unlike store_throttle()'s abuse-control buckets: those exist
+  -- only to count attempts and never need to be read by a person, while this
+  -- one has to be shown in the alert email in a form the owner can recognise
+  -- ("was that you, at that address?") or report to whoever manages the
+  -- network it came from. An IP is not a credential.
+  ip         varchar(45) not null,
+  first_seen timestamp not null default current_timestamp,
+  last_seen  timestamp not null default current_timestamp,
+  primary key (admin_id, ip),
+  constraint fk_known_ip_admin foreign key (admin_id)
+    references admin_users (id) on delete cascade
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 -- ========================================================================
 -- customer accounts — sign-up, sign-in, and orders linked to an account

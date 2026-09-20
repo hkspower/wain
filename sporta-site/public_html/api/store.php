@@ -1976,6 +1976,19 @@ function store_admin_grant(PDO $db, array $u): void {
     $db->prepare('update admin_users set failed_attempts = 0, locked_until = null, last_login_at = now() where id = ?')
        ->execute([$u['id']]);
 
+    // AN UNKNOWN IP GETS THE OWNER AN EMAIL, EVERY OTHER PATH IS SILENT. This
+    // is the ONE hook every grant already funnels through — password-only,
+    // second-factor-verified, Google, Apple — so it is the one place that can
+    // ask "has THIS account signed in from THIS address before" without
+    // teaching every call site to ask it separately. That is the same
+    // argument store_admin_audit_log() makes for itself, on the choke point
+    // one call earlier, and it is the reason this lives here rather than in
+    // admin.php's login route: an attacker who reaches store_admin_grant() at
+    // all has already proved a password and, where enrolled, a second
+    // factor — this is the layer that says so to the one person who can tell
+    // whether that combination should have been possible today.
+    store_admin_alert_new_ip($db, (int)$u['id'], (string)$u['email']);
+
     store_session_start();
     session_regenerate_id(true); // a fresh id on privilege change, always
     unset($_SESSION['pending_admin_id'], $_SESSION['pending_at']);
@@ -1983,6 +1996,71 @@ function store_admin_grant(PDO $db, array $u): void {
     $_SESSION['admin_email'] = $u['email'];
     $_SESSION['started_at'] = time();
     $_SESSION['seen_at'] = time();
+}
+
+// NEVER BLOCKS A SIGN-IN. A mail server down, a table not yet migrated, a
+// malformed IP — none of these may turn into a refused sign-in on a shop that
+// otherwise checked out fine, which is why the whole body is one try/catch
+// with no rethrow. This is the same posture store_admin_audit_log() already
+// takes for the identical reason: a record of what happened must never become
+// a precondition for it happening.
+function store_admin_alert_new_ip(PDO $db, int $adminId, string $email): void {
+    try {
+        $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+        if ($ip === '') return;
+
+        // BOOTSTRAP, SILENTLY. The very first sign-in an account ever makes
+        // has nothing to compare against — every address is "new" to a row
+        // that has none yet — and alerting on it would mean every fresh admin
+        // account emails itself the moment it is first used, which says
+        // nothing an owner does not already know (they just typed the
+        // password). The baseline is what this establishes; deviating from
+        // it later is what gets a letter.
+        $countQ = $db->prepare('select count(*) from admin_known_ips where admin_id = ?');
+        $countQ->execute([$adminId]);
+        $hadAny = (int) $countQ->fetchColumn() > 0;
+
+        $known = $db->prepare('select 1 from admin_known_ips where admin_id = ? and ip = ?');
+        $known->execute([$adminId, $ip]);
+        $isKnown = (bool) $known->fetchColumn();
+
+        // UPSERT EITHER WAY. A known IP's last_seen still moves, which is
+        // what makes this table something more than a write-once allow-list —
+        // it is a record of when an address was last seen using it, which is
+        // exactly the question an owner asks after the fact ("was it always
+        // like this, or did it start last week").
+        $db->prepare(
+            'insert into admin_known_ips (admin_id, ip) values (?, ?)
+             on duplicate key update last_seen = current_timestamp'
+        )->execute([$adminId, $ip]);
+
+        if ($isKnown || !$hadAny) return;
+
+        $cfg = store_config();
+        $when = date('Y-m-d H:i');
+        $subject = 'Sporta — new sign-in to your account';
+        $text = "A sign-in to the Sporta panel just happened from an address that has never "
+              . "signed this account in before:\n\n"
+              . "  Address: {$ip}\n"
+              . "  Time: {$when} (server time)\n\n"
+              . "If this was you, there is nothing to do — this address is now recognised. "
+              . "If it was not you, change your password immediately and review Security in "
+              . "the panel for anything else that looks unfamiliar.";
+        $html = '<p style="font:16px system-ui">' . nl2br(htmlspecialchars($text, ENT_QUOTES, 'UTF-8')) . '</p>';
+        store_send_mail($cfg, $email, $subject, $text, $html);
+
+        // Reuses the audit log rather than a table of its own — this IS an
+        // admin-account event, the same shape as a password change or a save,
+        // and putting it beside those on the Activity screen is what makes it
+        // discoverable there rather than only in an inbox that may itself be
+        // the thing compromised.
+        store_admin_audit_log(['id' => $adminId, 'email' => $email], 'login_new_ip', 200, ['ip' => $ip]);
+    } catch (Throwable $e) {
+        // An older shop, not yet migrated — admin_known_ips is additive SQL,
+        // same as must_change_password and email OTP before it. A sign-in
+        // succeeding is what matters; this is a record of it, never a
+        // precondition. Never surfaced to the admin who just signed in.
+    }
 }
 
 // ======================================================== admin audit log

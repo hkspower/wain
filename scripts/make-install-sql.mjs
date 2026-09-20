@@ -104,6 +104,7 @@ const PARTS = [
   ['9-product-brands.sql', 'product brands — which brand each garment belongs to'],
   ['10-must-change-password.sql', 'must-change-password — force a new password after a cron-set temporary one'],
   ['11-admin-audit-log.sql', 'admin audit log — every admin write, logged centrally'],
+  ['12-known-login-ips.sql', 'known login IPs — which addresses have signed an admin in before'],
   ['customers.mysql.sql', 'customer accounts — sign-up, sign-in, and orders linked to an account', API],
   // Read from api/ for the same reason wallet is: the api/*.mysql.sql files are
   // import fixtures the owner can reach from the server, denied to the public
