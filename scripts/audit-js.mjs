@@ -168,6 +168,76 @@ for (const f of all) {
 }
 if (ourConsole) warn(`${ourConsole} console.log/debug call(s) sit next to our own strings`);
 
+/* ── 7. Weight nothing asks for up front, and nothing here could see ──────
+   Everything above measures a route by the chunks its HTML references. A
+   chunk reached only by a runtime `import()` appears in no HTML, so it is
+   invisible to every check above it — and the biggest thing in this build is
+   exactly that: Leaflet, behind «حرّك الخريطة», deliberately kept off a
+   /search route with about 15K of room under the budget.
+
+   Invisible is fine as long as it stays on demand, and it did not. The
+   service worker's precache was «everything under _next/static/», so the
+   45K carefully kept off the route was downloaded by every visitor at
+   install time anyway, with «80 files precached» in the build log as the
+   only trace. The weight was not on the route and was not in this audit and
+   was still being paid.
+
+   So both halves are asserted: what the on-demand set weighs, and that the
+   offline layer is not quietly handing it out. */
+const staticFiles = [];
+(function walkStatic(dir) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) walkStatic(p);
+    else staticFiles.push(p.slice(OUT.length));
+  }
+})(join(OUT, "_next/static"));
+
+const referencedByHtml = new Set();
+for (const [p, t] of corpus) {
+  if (!p.endsWith(".html")) continue;
+  // Same two normalisations gen-sw.mjs needs, and for the same reason: the
+  // leading slash is optional in the markup, and the place pages' shared
+  // route chunk is URL encoded there (`%5Bslug%5D`) while the file on disk
+  // keeps its brackets. Skip either and a chunk 52 pages use reads as dead.
+  for (const m of t.matchAll(/\/?_next\/static\/[^"'()\\\s]+?\.(?:js|css)/g)) {
+    referencedByHtml.add(decodeURIComponent(m[0].startsWith("/") ? m[0] : `/${m[0]}`));
+  }
+}
+
+const onDemand = staticFiles.filter((f) => /\.(js|css)$/.test(f) && !referencedByHtml.has(f));
+const onDemandGz = onDemand.reduce((a, f) => a + gzOf(f.slice(1)), 0);
+
+/* A ratchet like the route budget: just above where the build sits, so an
+   accidental eager import is loud and a reduction is free. */
+const ON_DEMAND_BUDGET_KB = 260;
+if (onDemandGz / 1024 > ON_DEMAND_BUDGET_KB)
+  err(`${kb(onDemandGz)} is loaded on demand, over the ${ON_DEMAND_BUDGET_KB}K ceiling`);
+
+/* The map specifically, because it is the part a visitor waits for after a
+   tap. Found by content rather than by filename: the chunk name is a content
+   hash and changes on every edit to it. */
+const MAP_BUDGET_KB = 60;
+const mapChunks = onDemand.filter((f) => {
+  const p = join(OUT, f.slice(1));
+  return existsSync(p) && /leaflet/i.test(readFileSync(p, "utf8").slice(0, 4000));
+});
+const mapGz = mapChunks.reduce((a, f) => a + gzOf(f.slice(1)), 0);
+if (mapChunks.length && mapGz / 1024 > MAP_BUDGET_KB)
+  err(`the live map costs ${kb(mapGz)} on tap, over the ${MAP_BUDGET_KB}K ceiling`);
+
+/* The regression this section exists for. A file in both sets is on demand
+   in name only. */
+if (existsSync(join(OUT, "sw.js"))) {
+  const sw = readFileSync(join(OUT, "sw.js"), "utf8");
+  const precached = onDemand.filter((f) => sw.includes(`"${f}"`));
+  if (precached.length)
+    err(
+      `${precached.length} on-demand file(s) are in the service worker precache, so every visitor ` +
+        `downloads them anyway: ${precached.slice(0, 3).join(", ")}`
+    );
+}
+
 /* ── report ───────────────────────────────────────────────────────────── */
 // `all` is the top level of chunks/ only; the app/ subtree is route chunks,
 // which are referenced by their own page by construction.
@@ -176,6 +246,11 @@ console.log(`  every page pays ${kb(sharedGz)} gzipped in ${shared.size} shared 
 console.log(`  lightest ${routes.at(-1).route} ${kb(routes.at(-1).gz)}   heaviest ${routes[0].route} ${kb(routes[0].gz)}   budget ${BUDGET_KB}K\n`);
 const show = routes.filter((r) => !r.route.startsWith("/places/") || r.route === "/places/kuwait-towers/");
 for (const r of show.slice(0, 12)) console.log(`  ${kb(r.gz).padStart(7)}  ${r.route}`);
+console.log(
+  `\n  on demand, in no page's HTML: ${kb(onDemandGz)} in ${onDemand.length} files` +
+    (mapChunks.length ? `  — the live map is ${kb(mapGz)} of it` : "") +
+    `\n  none of it precached, so it is paid only by whoever asks for it`
+);
 if (!maps.length && !withRef.length) console.log(`\n  ✓ no source maps, no sourceMappingURL`);
 
 if (warnings.length) { console.log(""); for (const w of warnings) console.log(`  ⚠ ${w}`); }

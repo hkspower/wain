@@ -71,6 +71,25 @@ const NO_INSET_NEEDED = {};
  * its `bottom` has nothing to answer for.
  */
 const isUtility = (sel) => /^\.(bottom|top|left|right|inset|start|end)-/.test(sel);
+
+/**
+ * Leaflet's own stylesheet, which arrived with the live map.
+ *
+ * This check asks whether the SITE's chrome clears the home-indicator strip,
+ * and a vendored library's rules cannot answer it. `.leaflet-bottom`,
+ * `.leaflet-control`, `.leaflet-control-scale` and `.leaflet-popup` position
+ * things relative to `.leaflet-container`, which on this site is a bounded
+ * frame inside an article — never the viewport's bottom edge — and the
+ * controls they style are switched off outright in `LiveMap` (`zoomControl`
+ * and `attributionControl` are `false`, there is no scale control and no
+ * popup). Ours are ordinary utilities on elements inside that same frame, and
+ * `isUtility` above already speaks to those.
+ *
+ * Listed as a prefix rather than four named selectors on purpose: naming them
+ * would mean this audit fails for a new reason the day Leaflet is upgraded,
+ * and a rule that fires on a dependency bump is measuring the dependency.
+ */
+const isVendorMap = (sel) => sel.startsWith(".leaflet-");
 const SELF_PADDED = new Set([".app-chrome"]);
 
 console.log("\n── anything fixed to an edge clears the notch and the home bar ──");
@@ -101,7 +120,8 @@ console.log("\n── anything fixed to an edge clears the notch and the home ba
       .filter(({ body }) => /\b(bottom|top):\s*(calc\()?[\d.]/.test(body));
 
     const bottoms = edge.filter(
-      ({ sel, body }) => /\bbottom:/.test(body) && !isUtility(sel) && !SELF_PADDED.has(sel)
+      ({ sel, body }) =>
+        /\bbottom:/.test(body) && !isUtility(sel) && !isVendorMap(sel) && !SELF_PADDED.has(sel)
     );
     const missing = bottoms.filter(
       ({ sel, body }) => !/env\(safe-area-inset/.test(body) && !NO_INSET_NEEDED[sel]

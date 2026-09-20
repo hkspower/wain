@@ -7,6 +7,8 @@ import { IconPinSolid } from "@/components/icons";
 import type { Place } from "@/lib/places";
 import { embedUrl, fitFrameAround, pinShiftCap, project, spreadPins } from "@/lib/map-frame";
 import { useFrameWidth } from "@/lib/useFrameWidth";
+import { useLiveMap } from "@/lib/useLiveMap";
+import { IconMap } from "@/components/icons";
 
 /**
  * The map itself for a place page: this place, and the nearby ones the page
@@ -58,6 +60,7 @@ export default function PlaceMapFrame({
   // Measured, not assumed — see useFrameWidth: guessing a desktop width made
   // every phone fetch the basemap twice and shift the layout between the two.
   const [frameRef, frameW] = useFrameWidth<HTMLDivElement>();
+  const live = useLiveMap();
 
   // Only nearby places earn a pin. A "similar" place 30km away would drag the
   // frame out until this place's own street was unreadable, which is the one
@@ -95,6 +98,61 @@ export default function PlaceMapFrame({
     return spreadPins(all.map((p) => project(f, p)), size, f.aspect, pinShiftCap(f, size));
   }, [all, f, frameW]);
 
+  /**
+   * One marker, drawn the same whichever map is underneath it.
+   *
+   * The static frame places things as a fraction of itself and Leaflet answers
+   * in container pixels, so both are passed in and the decisions that depend
+   * on position — which edge a callout hangs off, whether it drops below — are
+   * written once. `pointerEvents` is set by the live caller because its
+   * overlay layer is `pointer-events-none`, so the drag that pans the map is
+   * not swallowed by an invisible sheet over the whole frame.
+   */
+  const renderMarker = (
+    p: (typeof all)[number],
+    i: number,
+    style: React.CSSProperties,
+    fx: number,
+    fy: number
+  ) => {
+    // The place the page is about. Not a link — you are already on it —
+    // and not a plain dot either: it is the answer to the question the
+    // page asks, so it is the largest thing on the frame and the only one
+    // that is always haloed.
+    if (i === 0) {
+      return (
+        <span key={p.slug} style={style} className="absolute z-30 -translate-x-1/2 -translate-y-1/2">
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-1/2 size-[4.5rem] -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full bg-coral-600/25 motion-reduce:animate-none"
+          />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-1/2 size-14 -translate-x-1/2 -translate-y-1/2 rounded-full bg-coral-600/15"
+          />
+          <span className="relative grid size-10 place-items-center rounded-full border-2 border-white bg-coral-700 text-white shadow-xl ring-1 ring-ink-900/10">
+            <PlaceIcon slug={p.slug} className="size-5" />
+          </span>
+          <span className="sr-only">{p.nameAr} — هنا</span>
+        </span>
+      );
+    }
+
+    return (
+      <MapPin
+        key={p.slug}
+        place={p}
+        active={active === p.slug}
+        onActive={setActive}
+        size={NEAR_PIN_PX}
+        dim
+        align={fx < 0.28 ? "start" : fx > 0.72 ? "end" : "center"}
+        below={fy < 0.28}
+        style={style}
+      />
+    );
+  };
+
   return (
     <div
       ref={frameRef}
@@ -117,61 +175,77 @@ export default function PlaceMapFrame({
         </span>
       </span>
 
-      {online && f && (
-        <iframe
-          src={embedUrl(f)}
-          title={`خريطة ${place.nameAr}`}
-          loading="lazy"
-          tabIndex={-1}
-          aria-hidden="true"
-          // See SearchMap: scripts only, no same-origin, no top navigation.
-          sandbox="allow-scripts"
-          referrerPolicy="no-referrer"
-          className="pointer-events-none absolute inset-0 block h-full w-full border-0"
-        />
+      {live.live && live.LiveMap && f ? (
+        <live.LiveMap
+          frame={f}
+          points={all}
+          ariaLabel={`خريطة ${place.nameAr}، تقدر تحركها`}
+        >
+          {(at, box) =>
+            at
+              ? all.map((p, i) =>
+                  renderMarker(
+                    p,
+                    i,
+                    { left: at[i].x, top: at[i].y, pointerEvents: "auto" },
+                    box.w ? at[i].x / box.w : 0.5,
+                    box.h ? at[i].y / box.h : 0.5
+                  )
+                )
+              : null
+          }
+        </live.LiveMap>
+      ) : (
+        <>
+          {online && f && (
+            <iframe
+              src={embedUrl(f)}
+              title={`خريطة ${place.nameAr}`}
+              loading="lazy"
+              tabIndex={-1}
+              aria-hidden="true"
+              // See SearchMap: scripts only, no same-origin, no top navigation.
+              sandbox="allow-scripts"
+              referrerPolicy="no-referrer"
+              className="pointer-events-none absolute inset-0 block h-full w-full border-0"
+            />
+          )}
+
+          {f &&
+            all.map((p, i) =>
+              renderMarker(
+                p,
+                i,
+                // Physical left/top on purpose: the page is RTL, geography is not.
+                { left: `${pins[i].x * 100}%`, top: `${pins[i].y * 100}%` },
+                pins[i].x,
+                pins[i].y
+              )
+            )}
+
+          {/* Over the static frame only, and over the map rather than beside
+              it: this frame has no header row of its own to put a control in,
+              and the row under it belongs to Google Maps and the directions —
+              links that leave. This one does not leave. */}
+          {f && online && live.available && (
+            <button
+              type="button"
+              onClick={live.enable}
+              disabled={live.loading}
+              className="absolute bottom-3 right-3 z-30 flex min-h-6 items-center gap-1.5 rounded-full border border-line bg-white/95 px-3 py-1.5 text-xs font-semibold text-ink-700 shadow-sm transition hover:text-sea-700 disabled:opacity-60"
+            >
+              <IconMap className="size-3.5" />
+              {live.loading ? "لحظة…" : "حرّك الخريطة"}
+            </button>
+          )}
+
+          {live.failed && (
+            <p className="absolute bottom-3 left-3 z-30 rounded-lg bg-white/95 px-2 py-1 text-2xs text-ink-600 shadow-sm">
+              ما قدرنا نحمّل الخريطة المتحركة
+            </p>
+          )}
+        </>
       )}
-
-      {f && all.map((p, i) => {
-        // Physical left/top on purpose: the page is RTL, geography is not.
-        const style = { left: `${pins[i].x * 100}%`, top: `${pins[i].y * 100}%` };
-
-        // The place the page is about. Not a link — you are already on it —
-        // and not a plain dot either: it is the answer to the question the
-        // page asks, so it is the largest thing on the frame and the only one
-        // that is always haloed.
-        if (i === 0) {
-          return (
-            <span key={p.slug} style={style} className="absolute z-30 -translate-x-1/2 -translate-y-1/2">
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute left-1/2 top-1/2 size-[4.5rem] -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full bg-coral-600/25 motion-reduce:animate-none"
-              />
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute left-1/2 top-1/2 size-14 -translate-x-1/2 -translate-y-1/2 rounded-full bg-coral-600/15"
-              />
-              <span className="relative grid size-10 place-items-center rounded-full border-2 border-white bg-coral-700 text-white shadow-xl ring-1 ring-ink-900/10">
-                <PlaceIcon slug={p.slug} className="size-5" />
-              </span>
-              <span className="sr-only">{p.nameAr} — هنا</span>
-            </span>
-          );
-        }
-
-        return (
-          <MapPin
-            key={p.slug}
-            place={p}
-            active={active === p.slug}
-            onActive={setActive}
-            size={NEAR_PIN_PX}
-            dim
-            align={pins[i].x < 0.28 ? "start" : pins[i].x > 0.72 ? "end" : "center"}
-            below={pins[i].y < 0.28}
-            style={style}
-          />
-        );
-      })}
     </div>
   );
 }

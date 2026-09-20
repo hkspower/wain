@@ -84,6 +84,9 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
   console.log("\n════ الخريطة: the pins, on a phone and on a desktop ════");
   failed += (await run("node", ["tests/map-pin.test.mjs"], { env })) === 0 ? 0 : 1;
 
+  console.log("\n════ الخريطة المتحركة: what a tap buys, and what it costs ════");
+  failed += (await run("node", ["tests/live-map.test.mjs"], { env })) === 0 ? 0 : 1;
+
   console.log("\n════ لوحة المفاتيح: arrowing through results on /search ════");
   failed += (await run("node", ["tests/search-keys.test.mjs"], { env })) === 0 ? 0 : 1;
 

@@ -85,9 +85,34 @@ export function pinHeadroom(size: number): number {
   return (size + Math.round(size * 0.34) * Math.SQRT1_2) * HOVER_SCALE;
 }
 
-/** True when hovering tells this visitor nothing — so a tap has to. */
+/**
+ * True when hovering tells this visitor nothing — so a tap has to.
+ *
+ * Answered in the initialiser and not only in the effect, which is the whole
+ * point. It used to start `false` and flip after mount, leaving a window —
+ * one render, sometimes more under load — where a phone was treated as a
+ * mouse. A tap inside that window navigated away instead of selecting, which
+ * is exactly the failure the `selectedOnPress` note below describes fighting
+ * once already, arriving by a different road.
+ *
+ * It surfaced as a flaky test rather than a bug report: the map suite taps a
+ * pin the moment the map appears, and it failed about one run in three after
+ * `/search` grew a little heavier, against none before. A race that a few
+ * kilobytes can open is a race a slow phone opens by itself, so it is fixed
+ * here rather than waited out in the test.
+ *
+ * Safe for the static export: during prerender there is no `window`, so this
+ * returns the same `false` the old initial state did. And nothing is hydrated
+ * against it either way — pins only exist once the frame has been measured in
+ * a layout effect, so the server never paints one.
+ *
+ * The effect stays for what an initialiser cannot see: a device whose answer
+ * CHANGES, which is a laptop with a touchscreen having a mouse plugged in.
+ */
 export function useHoverless(): boolean {
-  const [hoverless, setHoverless] = useState(false);
+  const [hoverless, setHoverless] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(hover: none)").matches
+  );
   useEffect(() => {
     const mq = window.matchMedia("(hover: none)");
     const sync = () => setHoverless(mq.matches);

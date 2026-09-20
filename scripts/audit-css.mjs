@@ -117,7 +117,12 @@ console.log("\n── right to left ──");
  * transform does not flip, so pairing it with a logical inset is what would
  * break.
  */
-const RTL_EXEMPT = /(MapPin|SearchMap|PlaceMapFrame|CoordinatePicker)\.tsx$/;
+// LiveMap joins them for the same reason and one of its own: Leaflet reports
+// a position in container pixels from the map's own origin, so the zoom
+// controls and the credit line are placed against the same physical frame the
+// pins are, and a logical inset would put them on the far side of the map
+// from where the code says.
+const RTL_EXEMPT = /(MapPin|SearchMap|PlaceMapFrame|LiveMap|CoordinatePicker)\.tsx$/;
 const PHYSICAL =
   /(?<![\w-])(?:ml|mr|pl|pr)-[a-z0-9.[\]/-]+|(?<![\w-])(?:left|right)-[a-z0-9.[\]/-]+|(?<![\w-])text-(?:left|right)(?![\w-])|(?<![\w-])border-[lr](?![\w-])|(?<![\w-])rounded-[lr](?![\w-])/g;
 const physical = [];

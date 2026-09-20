@@ -351,7 +351,20 @@ Options -Indexes
   # can still point back at it. Removing it would make that override a switch
   # wired to nothing, which is the exact failure described above.
   #
-  # frame-src is openstreetmap.org for the maps. If شوق or the voice stop
-  # working after a change here, the browser console names the directive.
-  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob: https://*.supabase.co; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://unpkg.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://unpkg.com https://api.elevenlabs.io https://api.us.elevenlabs.io wss://api.elevenlabs.io wss://api.us.elevenlabs.io https://sportake.app.n8n.cloud; frame-src https://www.openstreetmap.org; media-src 'self' blob: https://api.elevenlabs.io; worker-src 'self' blob:; manifest-src 'self'"
+  # frame-src is www.openstreetmap.org for the STATIC map — their embed, in a
+  # sandboxed iframe, which every map still draws until somebody asks to move
+  # it. img-src is tile.openstreetmap.org for the LIVE one, which is a
+  # different host and a different directive: Leaflet fetches tiles as plain
+  # images, so a frame-src entry does nothing for it. Miss this and the live
+  # map mounts, pans, zooms and stays blank — every tile refused, with only
+  # the console saying so, which is the quiet-failure shape this whole comment
+  # block exists about.
+  #
+  # If the tile provider changes — `NEXT_PUBLIC_WAIN_TILES` in map-tiles.ts
+  # exists precisely so it can — its host has to be added here in the same
+  # sitting, or the switch is wired to a blank map.
+  #
+  # If شوق or the voice stop working after a change here, the browser console
+  # names the directive.
+  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob: https://*.supabase.co https://tile.openstreetmap.org; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://unpkg.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://unpkg.com https://api.elevenlabs.io https://api.us.elevenlabs.io wss://api.elevenlabs.io wss://api.us.elevenlabs.io https://sportake.app.n8n.cloud; frame-src https://www.openstreetmap.org; media-src 'self' blob: https://api.elevenlabs.io; worker-src 'self' blob:; manifest-src 'self'"
 </IfModule>

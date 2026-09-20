@@ -138,6 +138,11 @@ const NO_DIRECTIVE_NEEDED = [
   ["https://react.dev", "text inside a Next.js error message"],
   ["https://www.wainkw.com", "this site — canonical URLs and share links"],
   ["https://schema.org", "JSON-LD vocabulary, never fetched"],
+  // Leaflet's own attribution string. The library builds a credit line with a
+  // link back to its home page and this site never renders that control — see
+  // LiveMap, which draws the data credit itself in Arabic. The URL is a
+  // literal in the bundle and nothing ever fetches it.
+  ["https://leafletjs.com", "string in Leaflet's unused attribution control"],
 ];
 
 /* WHICH directive, not merely somewhere in the policy.
@@ -149,6 +154,12 @@ const NO_DIRECTIVE_NEEDED = [
 const DIRECTIVE = {
   "https://unpkg.com": ["script-src", "connect-src"],
   "https://www.openstreetmap.org": ["frame-src"],
+  // The two maps are two hosts in two directives, and confusing them is a
+  // blank map with a console message nobody sees. `www.` is the static
+  // embed — an iframe, so frame-src. `tile.` is the live map, whose tiles
+  // Leaflet fetches as ordinary <img>, so img-src. connect-src governs
+  // neither, which is why the default below would have been wrong here.
+  "https://tile.openstreetmap.org": ["img-src"],
 };
 // Anything not named above is assumed to be fetched, because that is both the
 // common case and the one that fails silently. An origin that turns out to

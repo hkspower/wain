@@ -1705,7 +1705,7 @@ into the next KB change that does.
 ## Checks
 
 `npm run scan` is lint plus ~28 audits. Browser suites: `test:hangout`
-(hangout, hangout-page, map-pin, areas, search-button, search-keys,
+(hangout, hangout-page, map-pin, live-map, areas, search-button, search-keys,
 shouq-search, search-plan, swipe), `test:journey`, `test:register`, `test:shouq`,
 `test:orders`, `test:net`. PHP suites, neither in `scan` because neither can
 assume php: `test:api` (40), `test:tts` (25) and `test:media` (33).
@@ -1870,6 +1870,96 @@ was 4px wider than the screen — and 6px once the gutter went to `px-2.5`, whic
 is what made it visible. **A full-bleed rail's negative margin must equal the
 page gutter**, or every route slides sideways. The first row of an overflow
 report is the symptom, not the cause.
+
+## The maps move now, but only if you ask
+
+Every map was a fixed OpenStreetMap **embed** in a sandboxed iframe with our
+own pins projected on top, and `SearchMap` said why it could not be panned:
+«the embed would pan under the overlay and desync every pin». `LiveMap.tsx`
+answers that rather than working around it — **Leaflet owns the view and the
+pins are re-projected through `latLngToContainerPoint` on every frame of a
+drag**, so the overlay has no opinion of its own left to be wrong. The pins
+stay exactly what they were: React, with their callouts and their two-way
+highlight with the result list. `spreadPins` is deliberately NOT applied on
+the live map — zooming is what separates two places now, and nudging a pin off
+its coordinate on a map you can zoom is a lie you can watch.
+
+**It is opt-in, and the number is the reason.** Leaflet measures **42.4K
+gzipped plus 3.5K of CSS**, and `/search` sits at 160.5K against the 175K
+`audit:js` budget. So `useLiveMap` reaches it through a runtime `import()`
+from inside a callback and nothing fetches it until «حرّك الخريطة» is tapped.
+The static frame is not a fallback on its way out: it is what a visitor gets
+for nothing, what works with no JavaScript and no network, and what keeps tile
+requests to a fraction of page views.
+
+**The service worker gave it away for free, and that is the part to remember.**
+`gen-sw.mjs` precached «everything under `_next/static/`», so the 45K kept off
+the route was downloaded by every visitor at install time anyway — cost
+removed from the place that measures it and put back in the place that does
+not, with «80 files precached» in the build log as the only trace. It now
+precaches only what some page's HTML references, and `audit:js` grew a section
+that reports the on-demand set and **fails if any of it is in the precache**;
+confirmed red by putting the old filter back.
+
+**That rule dropped the precache by 223.5K gzipped, and only 45K of it was
+the map.** The rest had been shipping to every visitor for months: **104K of
+Pages Router shells** (`framework-*.js`, `main-*.js`, `pages/_app`,
+`pages/_error`, `_buildManifest`, `_ssgManifest`) that an App Router export
+never loads, and **72K of Supabase** — the client for the back end that is
+unconfigured and inert. 80 files to 62. `audit:js` now warns that
+`framework-*.js` is referenced by nothing, which it always was; it read as
+referenced only because the service worker was listing it.
+
+**One trap in writing that rule, and it cost the first attempt.** The place
+pages' shared route chunk is spelled `app/places/%5Bslug%5D/page-….js` in the
+HTML and `app/places/[slug]/page-….js` on disk, and the leading slash is
+optional in the markup. Comparing raw strings dropped the one chunk all 52
+place pages need — caught only because the count fell by more than the files
+the rule was written to exclude. **Decode and normalise, and be suspicious of
+a cleanup that removes more than you named.**
+
+**Two maps, two hosts, two CSP directives.** `www.openstreetmap.org` is the
+embed and belongs in `frame-src`; `tile.openstreetmap.org` is the live map,
+whose tiles Leaflet fetches as ordinary images, so it belongs in **`img-src`**
+and nowhere else. Get that wrong and the map mounts, pans, zooms and stays
+blank, with only the console saying why — `audit:htaccess` catches it, and did.
+
+**Using the tiles directly is a different relationship from embedding their
+page**, and `map-tiles.ts` carries both obligations: attribution rendered on
+the map itself (in Arabic — Leaflet's own control is an English corner box on
+an RTL page, so it is switched off), and modest use, which the opt-in design
+is most of. **If this site ever gets real traffic, move off those tiles**:
+`NEXT_PUBLIC_WAIN_TILES` repoints the live map with no code change, «none»
+removes it entirely, and the new host has to join `img-src` in the same
+sitting.
+
+**A flaky test turned out to be a real race.** `useHoverless` started `false`
+and flipped in an effect, so for one render a phone was treated as a mouse and
+a tap on a pin navigated instead of selecting — the very failure `MapPin`'s
+`selectedOnPress` note describes fighting once already, arriving by another
+road. It showed up as `map-pin` failing about one run in three once /search
+grew a little heavier, against none before. Now answered in the initialiser
+(`typeof window !== "undefined" && matchMedia(...)`), which is safe here
+because no pin is ever server-rendered — they need a measured frame. **A race
+a few kilobytes can open is a race a slow phone opens by itself**, so it is
+fixed rather than waited out.
+
+**What could NOT be verified here: a painted tile.** `tile.openstreetmap.org`,
+`basemaps.cartocdn.com`, `tiles.openfreemap.org` and `unpkg.com` are all
+refused by the sandbox gateway — only the npm registry answers, which is why
+Leaflet could be installed and measured but never *seen*. Leaflet is bundled,
+so `tests/live-map.test.mjs` does measure the real thing: the chunk is not
+fetched until the tap, the iframe gives way to a `.leaflet-container`, every
+pin comes across, dragging the map carries the pins and zooming re-projects
+them. Confirmed red by syncing on `resize` alone. 18 assertions. What no
+assertion claims is that the map looks right, because nothing here can load a
+tile.
+
+**And the drag assertion was wrong first in a way worth copying.** It used
+fixed viewport coordinates, and /search puts the map well down the page — so
+(600,450) was over the result list and the pin «did not move» because nothing
+was dragged. It reads the map's own bounding box now. A gesture test that
+misses its target fails identically to a broken feature.
 
 ## It is already one page
 

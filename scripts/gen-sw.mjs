@@ -54,6 +54,48 @@ if (featured.size === 0) {
   process.exit(1);
 }
 
+/**
+ * Every hashed script and stylesheet that some page's HTML actually asks for.
+ *
+ * Anything under `_next/static/` that is NOT in here is reached by a runtime
+ * `import()` and by nothing else — today that is Leaflet and its stylesheet,
+ * ~45K gzipped, fetched only when a visitor taps «حرّك الخريطة».
+ *
+ * Precaching those undid the whole point. `audit:js` reads page HTML, so a
+ * chunk no page references is invisible to it, and it was invisible here too:
+ * the filter below said `startsWith("/_next/static/")` and swept up everything
+ * in the build. The result was 45K downloaded by every visitor at install
+ * time, for a map most of them never move — the cost carefully kept off the
+ * route, put back by the offline layer, with only «80 files precached» in the
+ * build log to show for it.
+ *
+ * Excluding them cannot break an offline page: by construction no precached
+ * HTML references them. And it costs nothing online — `_next/static/` is
+ * cache-first with a runtime put below, so whoever does tap pays once.
+ * Offline the import fails and the map says so, which is honest either way:
+ * there are no tiles offline to draw.
+ *
+ * Fonts and images under `_next/static/media/` are referenced from CSS rather
+ * than HTML, so the rule is scoped to `.js` and `.css` and leaves them alone.
+ */
+const referenced = new Set();
+for (const f of files) {
+  if (!f.endsWith(".html")) continue;
+  const html = readFileSync(join(OUT, f), "utf8");
+  for (const m of html.matchAll(/\/?_next\/static\/[^"'()\\\s]+?\.(?:js|css)/g)) {
+    // Two spellings have to be normalised or real chunks look unreferenced,
+    // and the failure is silent — a dropped file is simply absent from an
+    // offline cache nobody tests offline. The leading slash is optional in
+    // the markup. And the route chunk for the fifty-two place pages is URL
+    // encoded on the page (`app/places/%5Bslug%5D/page-….js`) while the file
+    // on disk keeps its brackets, so an undecoded compare drops the one
+    // chunk every place page needs — caught only because the count fell by
+    // more than the files this rule was written to exclude.
+    const path = decodeURIComponent(m[0].startsWith("/") ? m[0] : `/${m[0]}`);
+    referenced.add(path);
+  }
+}
+
 // Precache the shell: every non-place route's HTML plus the hashed JS/CSS/
 // fonts they need. Skip things that are large, rarely needed offline, or would
 // go stale badly (share image, brand source art, voice clips — those stream on
@@ -64,6 +106,7 @@ const PRECACHE = files.filter((f) => {
   if (f === "/og.jpg") return false;
   if (f.startsWith("/og/")) return false;
   if (f.endsWith(".txt") || f.endsWith(".xml")) return false;
+  if (/^\/_next\/static\/.+\.(js|css)$/.test(f) && !referenced.has(f)) return false;
 
   const place = f.match(/^\/places\/([a-z0-9-]+)\/index\.html$/);
   if (place) return featured.has(place[1]);
