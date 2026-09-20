@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
 
+import { CustomerAuthCard } from '@/components/customer-auth-card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Card } from '@/components/ui/card';
@@ -25,6 +26,8 @@ export default function AccountScreen() {
       <ThemedText type="display" style={text}>
         {t.account.title}
       </ThemedText>
+
+      <CustomerAuthCard />
 
       {/* LANGUAGE FIRST. It is the setting most likely to be wanted on a
           first run, and burying it under the order history means an

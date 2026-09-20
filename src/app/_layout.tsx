@@ -11,6 +11,7 @@ import { CartProvider } from '@/lib/cart';
 import { LanguageProvider } from '@/lib/i18n';
 import { ServerThemeProvider, type Palette } from '@/lib/server-theme';
 import { SessionProvider } from '@/lib/session';
+import { CustomerSessionProvider } from '@/lib/customer-session';
 
 /**
  * Providers wrap the navigator, not each screen: the basket has to survive
@@ -113,32 +114,34 @@ function RootChrome() {
         />
       </Head>
       <CartProvider>
-        <SessionProvider>
-          <ThemeProvider value={navigation}>
-            <Stack
-              screenOptions={{
-                // The tab a page opens in. On web this is what the navigator
-                // writes into <title>, and every screen that sets its own
-                // replaces it — the shop's name is what is left for the ones
-                // that do not, in place of the empty title the export was
-                // writing into every page.
-                title: 'سبورتا',
-                headerTintColor: theme.tint,
-                headerStyle: { backgroundColor: theme.background },
-                headerTitleStyle: { color: theme.text },
-              }}>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="product/[slug]" />
-              <Stack.Screen name="checkout" />
-              <Stack.Screen name="order/[ref]" options={{ headerBackVisible: false }} />
-              {/* /backends, the same address the website's panel answers on.
-                  Outside the tabs on purpose: it is not a fifth thing a
-                  customer browses, and it must not appear in the tab bar of a
-                  shopping app. */}
-              <Stack.Screen name="backends" options={{ headerShown: false }} />
-            </Stack>
-          </ThemeProvider>
-        </SessionProvider>
+        <CustomerSessionProvider>
+          <SessionProvider>
+            <ThemeProvider value={navigation}>
+              <Stack
+                screenOptions={{
+                  // The tab a page opens in. On web this is what the navigator
+                  // writes into <title>, and every screen that sets its own
+                  // replaces it — the shop's name is what is left for the ones
+                  // that do not, in place of the empty title the export was
+                  // writing into every page.
+                  title: 'سبورتا',
+                  headerTintColor: theme.tint,
+                  headerStyle: { backgroundColor: theme.background },
+                  headerTitleStyle: { color: theme.text },
+                }}>
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="product/[slug]" />
+                <Stack.Screen name="checkout" />
+                <Stack.Screen name="order/[ref]" options={{ headerBackVisible: false }} />
+                {/* /backends, the same address the website's panel answers on.
+                    Outside the tabs on purpose: it is not a fifth thing a
+                    customer browses, and it must not appear in the tab bar of a
+                    shopping app. */}
+                <Stack.Screen name="backends" options={{ headerShown: false }} />
+              </Stack>
+            </ThemeProvider>
+          </SessionProvider>
+        </CustomerSessionProvider>
       </CartProvider>
     </LanguageProvider>
   );
