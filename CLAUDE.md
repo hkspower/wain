@@ -522,13 +522,32 @@ AND type, so it replaced only the two records sent. The control that makes the
 CAA reading mean anything: `sporta.com.kw` has no CAA and answers `ENODATA`
 from the same query.
 
-Two things deliberately left alone. `hub.wainkw.com` has no DMARC and no CAA of
-its own; it is not wain's. And the apex and `www` both serve the same docroot
-with no redirect between them — every page ships
-`<link rel="canonical" href="https://www.wainkw.com/…">` and the sitemap uses
-the www form, so the duplicate is declared rather than ambiguous, which is a
-different situation from staging's (that one has no canonical pointing away and
-is handled by a Host-keyed 404 plus `noindex`).
+**The apex is a 301 to `www` now, and «the canonical tag covers it» was the
+wrong answer.** `wainkw.com` and `www.wainkw.com` both land in this document
+root, so every page answered at two addresses. The whole source names one —
+`metadataBase`, `robots.ts`'s host, `sitemap.ts`'s BASE, `wain-hub.ts`'s
+`WAIN_ORIGIN` — and the canonical tag did declare which, but **a declaration
+is not a redirect**: a link shared as `wainkw.com/places/…` kept the visitor on
+the apex for the whole visit, with every absolute url the page produced
+pointing somewhere they were not.
+
+It is in the export's own `.htaccess`, Host-keyed, and **mod_rewrite, which
+that file otherwise refuses** — its header warns against a catch-all rewrite to
+index.html masking real 404s, and this is neither catch-all nor a rewrite: one
+host, a redirect, so a missing page is still missing at the far end. Two
+conditions carry the whole risk. `^wainkw\.com$` is the bare apex, because this
+file ships INSIDE the export and therefore lands in staging's docroot too — a
+loose host pattern would bounce `staging.wainkw.com` onto production and the
+stage would silently stop existing. And `/api/` is exempt, because `deploy.php`
+and `tts.php` are POSTed to and a 301 answers a POST by dropping its body;
+both callers send `Host: www.wainkw.com` today, which is exactly why it is
+worth excluding — the day one does not, the failure is a deploy that reports
+success having written nothing.
+
+Verified over the loopback by asking the same host three ways, which is the
+only way to see a Host-keyed rule at all — see the deploy section's readings.
+
+`hub.wainkw.com` is deliberately left alone: no DMARC, no CAA, not wain's.
 
 ## شوق, the ElevenLabs agent
 
