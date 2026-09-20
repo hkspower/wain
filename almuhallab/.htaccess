@@ -1,0 +1,95 @@
+# النوخذة — Apache / LiteSpeed config (Hostinger and most shared hosts).
+# GitHub Pages ignores this file, so it is safe to ship everywhere.
+
+# ---- Correct MIME types (a wrong type silently breaks PWA install) ----
+AddType application/manifest+json .webmanifest
+AddType image/svg+xml            .svg
+AddType text/javascript          .js
+AddType font/woff2               .woff2
+
+<IfModule mod_headers.c>
+  # ---- HTTP/3 (QUIC) ----
+  # The protocol is negotiated by the SERVER, not by these files. This header is
+  # the advertisement: it tells a browser that arrived over HTTP/1.1 or HTTP/2
+  # that the same origin is reachable over HTTP/3 on UDP/443, so the next request
+  # races a QUIC connection. LiteSpeed (Hostinger) and Cloudflare emit this
+  # themselves once QUIC is enabled; setting it here covers hosts that don't.
+  #
+  # Only keep this if the host actually serves HTTP/3 — advertising h3 on a
+  # server without it makes browsers attempt a QUIC handshake that must time out
+  # before falling back. Verify with design/check-http3.sh, and delete this block
+  # if the check reports no h3.
+  Header always set Alt-Svc "h3=\":443\"; ma=86400"
+
+  # ---- Security headers ----
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "no-referrer"
+  Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(), interest-cohort=()"
+  # A year, every subdomain, and eligible for the preload list.
+  #
+  # `preload` is a claim, not a switch: it only means anything once the domain
+  # is SUBMITTED at hstspreload.org, and this repository deliberately does not
+  # do that. Submission is close to irreversible — every subdomain must then be
+  # HTTPS forever, on every visitor's browser, and removal takes months to
+  # propagate through a Chrome release cycle. That is the owner's decision, and
+  # docs/HTTPS.md sets out what to check before making it.
+  #
+  # The three preload conditions are already met by the rules below: http on
+  # the bare host redirects to https on the SAME host first (not straight to
+  # www, which would disqualify it), and only then to the canonical www.
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" env=HTTPS
+
+  # ---- The service worker must never be cached, or updates never reach users ----
+  <FilesMatch "^sw\.js$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Service-Worker-Allowed "/"
+  </FilesMatch>
+
+  # HTML is revalidated every time; the service worker handles offline speed.
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+
+  <FilesMatch "\.woff2$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  <FilesMatch "\.(svg|webmanifest)$">
+    Header set Cache-Control "public, max-age=86400"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # ---- Force HTTPS (service workers require it) ----
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+
+  # ---- Extensionless URLs for the products living inside the company site ----
+  # /nokhatha -> nokhatha.html, /nizam -> nizam.html, /admin -> admin.html.
+  # /nokha1 stays only so links published before the rename keep resolving.
+  # Rewritten, not redirected, so the address bar keeps the clean form.
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^(nokhatha|nokha1|nizam|admin|safi|xbrl|delivery)/?$ $1.html [L]
+
+  # ---- Canonical host: send the bare domain to www ----
+  RewriteCond %{HTTP_HOST} ^almuhallab-code\.com$ [NC]
+  RewriteRule ^(.*)$ https://www.almuhallab-code.com/$1 [R=301,L]
+</IfModule>
+
+# ---- Friendly 404 that returns visitors to the portal ----
+ErrorDocument 404 /404.html
+
+# ---- Compression ----
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript application/manifest+json image/svg+xml
+</IfModule>
+
+# ---- Don't serve repo docs from the web root ----
+<FilesMatch "\.(md|yml)$">
+  Require all denied
+</FilesMatch>

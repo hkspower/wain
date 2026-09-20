@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 24" role="img" aria-label="المهلب — Almuhallab">
+  <!-- The Almuhallab mark, wide form: the Kuwaiti boum under sail. Redrawn
+       2026-08-12 after an independent review found the previous drawing was a
+       generic dhow, not a boum. Parts, stern to bow:
+         * the hull is DOUBLE-ENDED — a raked pointed sternpost aft and a tall,
+           near-straight raked stem forward, both continuous with the hull as
+           one filled path. A boum has no transom; a transom made the old mark
+           a baghlah. The stem is the single most identifying timber and it
+           carries the mark;
+         * the sheer rises into both ends and lifts most at the bow, with a
+           rubbing strake under it and the hawse hole forward, just abaft the
+           stem — a hawse is where the anchor cable runs, so it cannot be aft;
+         * two filled LATEEN SAILS, peak high aft and tack low forward. The old
+           mark had bare poles and read as a laid-up hull; the sail is what says
+           "Arab" and "under way", and it is the only mass that survives small;
+         * the tall MAINMAST FORWARD and the short mizzen aft, as a boum is
+           rigged — the old mark had them the wrong way round;
+         * nothing else. The stays, the pennant and the hawse hole are gone:
+           hairlines die first at every size the mark ships at, the pennant on
+           a bare masthead read as a bird's head, and the hawse — drawn as a
+           true hole — read as an eye, which put a whale on the masthead bar.
+       Stroke weight is two real steps, not seven near-identical ones:
+       masts 1.0 · yards, strake and water 0.6. Masts end at the sail's luff
+       with butt caps, so no round peg pokes through the silhouette.
+       The square companion (favicon.svg, #i-sail) is this same drawing cropped
+       to one hull, one stem, one mast and one sail, so it holds at 16px. -->
+  <path fill="none" stroke="currentColor" stroke-width="0.6" stroke-linecap="round" d="M5.5 18.95C15 19.5 32 19.5 43.4 18.85"/><path fill="currentColor" stroke="none" d="M4.6 12.6C6.3 13.9 8 14.8 9.8 15.15 15 16.4 23 16.5 30.4 15.55 34.6 15 37.7 14.2 40.3 13.2L43.35 6.85 44.35 7.3 41.4 14.4C38.4 18.2 33 20 25.8 20.35 18.4 20.75 11 19.4 7.7 16.7Z"/><path fill="none" stroke="currentColor" stroke-width="0.6" stroke-linecap="round" d="M9.6 16.05C15 17.3 23 17.4 30.3 16.45 34.5 15.9 37.5 15.1 39.6 14.2"/><path fill="none" stroke="currentColor" stroke-width="1.0" stroke-linecap="butt" d="M13 16 14.1 9.23"/><path fill="none" stroke="currentColor" stroke-width="1.0" stroke-linecap="butt" d="M26.8 16.4 28.63 7.79"/><path fill="none" stroke="currentColor" stroke-width="0.6" stroke-linecap="round" d="M7.6 5.2 18.4 11.9M20.5 2.2 35.6 12.6"/><path fill="currentColor" stroke="none" d="M7.6 5.2 18.4 11.9 9.2 13.4Z"/><path fill="currentColor" stroke="none" d="M20.5 2.2 35.6 12.6 23.6 14.4Z"/>
+</svg>

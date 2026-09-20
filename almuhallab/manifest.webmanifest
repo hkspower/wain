@@ -1,0 +1,83 @@
+{
+  "name": "النوخذة — نظام المهلب الموحد",
+  "short_name": "النوخذة",
+  "description": "نظام المهلب الموحد: صافي، XBRL، والتوصيل — يعمل بدون إنترنت.",
+  "id": "nokhatha",
+  "start_url": "nokhatha.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "dir": "rtl",
+  "lang": "ar",
+  "categories": [
+    "business",
+    "finance",
+    "productivity"
+  ],
+  "background_color": "#ffffff",
+  "theme_color": "#6f3f1c",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "النظام الموحد",
+      "short_name": "النظام",
+      "url": "nizam.html",
+      "icons": [
+        {
+          "src": "icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "صافي — SAFI",
+      "short_name": "صافي",
+      "url": "nizam.html#/safi",
+      "icons": [
+        {
+          "src": "icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "XBRL — التقارير المالية",
+      "short_name": "XBRL",
+      "url": "nizam.html#/xbrl",
+      "icons": [
+        {
+          "src": "icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "التوصيل — Delivery",
+      "short_name": "التوصيل",
+      "url": "nizam.html#/delivery",
+      "icons": [
+        {
+          "src": "icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ]
+}

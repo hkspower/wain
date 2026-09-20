@@ -1,0 +1,47 @@
+[
+ {
+  "file": "design/out/shots/01-company.png",
+  "title": "المهلب كود — Almuhallab Code",
+  "url": "/"
+ },
+ {
+  "file": "design/out/shots/02-landing.png",
+  "title": "النوخذة",
+  "url": "/nokhatha"
+ },
+ {
+  "file": "design/out/shots/03-pricing.png",
+  "title": "الاشتراكات — Plans",
+  "url": "/nokhatha#/pricing"
+ },
+ {
+  "file": "design/out/shots/04-register.png",
+  "title": "إنشاء حساب — Registration",
+  "url": "/nokhatha#/register"
+ },
+ {
+  "file": "design/out/shots/05-dashboard.png",
+  "title": "لوحة التحكم — Customer dashboard",
+  "url": "/nokhatha#/dashboard"
+ },
+ {
+  "file": "design/out/shots/06-safi.png",
+  "title": "صافي — SAFI portfolio",
+  "url": "/nizam.html#/safi"
+ },
+ {
+  "file": "design/out/shots/07-xbrl.png",
+  "title": "XBRL — الميزانية السنوية",
+  "url": "/nizam.html#/xbrl"
+ },
+ {
+  "file": "design/out/shots/08-delivery.png",
+  "title": "التوصيل — Delivery operations",
+  "url": "/nizam.html#/delivery"
+ },
+ {
+  "file": "design/out/shots/09-position.png",
+  "title": "المركز المالي — Unified position",
+  "url": "/nizam.html#/position"
+ }
+]

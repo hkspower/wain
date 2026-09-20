@@ -1,0 +1,392 @@
+name: النوخذة — desktop builds
+
+# A Flutter Windows binary can only be compiled on Windows with the MSVC
+# toolchain; it cannot be cross-compiled from Linux. So the build runs here, on
+# a real Windows runner, and every run leaves a downloadable installer behind.
+#
+#   * push / manual run  → the Setup .exe is attached as a build artifact
+#   * tagged v*          → it is also published on a GitHub Release
+#
+# Everything in this file exists to make the download something a stranger can
+# reasonably trust. See docs/WINDOWS-TRUST.md for what a customer should check.
+
+on:
+  # Two separate triggers on purpose. A `paths` filter and a `tags` filter in
+  # one block apply together, so the release tag — which changes no files —
+  # would match nothing and never publish.
+  push:
+    branches: ["**"]
+    paths:
+      - "nokhatha_app/**"
+      - ".github/workflows/nokhatha-windows.yml"
+  create:
+  workflow_dispatch:
+
+# Every `uses:` above and below is pinned to a full commit SHA, with the tag it
+# was resolved from in the comment. A tag is a moveable pointer: whoever can
+# move `v2` on a third-party action can run their code inside a job that holds
+# `contents: write`, `id-token: write` and `attestations: write` — which is to
+# say, can publish a release and sign a provenance attestation in this
+# company's name. Provenance that an attacker can mint is worse than none,
+# because it is the thing this download asks a stranger to trust.
+# To update one: `git ls-remote --tags https://github.com/<owner>/<repo> \
+# 'refs/tags/<tag>^{}'` and paste the peeled commit.
+#
+# The default here is read. Each job opts into exactly the writes it performs,
+# so a job added later inherits nothing it did not ask for.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # `create` also fires for every new branch; only a tag means a release.
+    if: github.event_name != 'create' || github.event.ref_type == 'tag'
+    runs-on: windows-latest
+    permissions:
+      contents: write        # attach the installer to a release on a tag
+      id-token: write        # mint the provenance attestation's signing token
+      attestations: write    # write the attestation itself
+    env:
+      # A step's `if` is evaluated before that step's own `env:` block exists,
+      # so `env.WINDOWS_CERT_BASE64` inside the signing steps was always ''
+      # and signing could never have run — not even with both secrets set.
+      # The flag belongs at job level, which a step `if` can actually read.
+      # (`secrets` is not available in a step-level `if` at all.)
+      # Two signing routes, both inert until their secrets exist, so the build
+      # stays green in the meantime and starts signing the moment either is
+      # configured. A step's `if` cannot read that step's own env, and the
+      # `secrets` context is not available in a step-level `if` at all — hence
+      # both flags at job level.
+      SIGNING: ${{ secrets.WINDOWS_CERT_BASE64 != '' }}
+      # Azure Trusted Signing: the key never leaves Microsoft's vault, so there
+      # is no .pfx to carry and nothing a compromised runner could steal. This
+      # is the route to buy — since June 2023 no public CA issues a carryable
+      # key for a new certificate anyway.
+      AZ_SIGNING: ${{ secrets.AZURE_CLIENT_ID != '' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2   # v2
+        with:
+          flutter-version-file: nokhatha_app/pubspec.yaml
+          channel: stable
+          cache: true
+
+      # --locked: build exactly the versions in the committed lock file. A
+      # build that silently resolves newer packages is a build nobody can
+      # reproduce, and reproducibility is most of what "trustworthy" means.
+      - name: Resolve dependencies (locked)
+        working-directory: nokhatha_app
+        run: flutter pub get --enforce-lockfile
+
+      - name: Analyze
+        working-directory: nokhatha_app
+        run: flutter analyze
+
+      # Includes the supply-chain guards: no network-capable package, no
+      # sockets, no launching other programs, no obfuscation.
+      - name: Test
+        working-directory: nokhatha_app
+        run: flutter test
+
+      - name: Build Windows release
+        working-directory: nokhatha_app
+        run: flutter build windows --release
+
+      - name: Read the version from pubspec
+        id: ver
+        shell: pwsh
+        run: |
+          $raw = (Select-String -Path nokhatha_app/pubspec.yaml -Pattern '^version:\s*(.+)$').Matches[0].Groups[1].Value.Trim()
+          $v = $raw.Split('+')[0]
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "version: $v"
+
+      # ── Code signing ──────────────────────────────────────────────────────
+      # Without this, SmartScreen shows "Windows protected your PC" on first
+      # run. There is no trick that avoids it — only a certificate does. The
+      # step is inert until the two secrets exist, so the build keeps working
+      # in the meantime and starts signing the moment they are added.
+      - name: Sign the application
+        if: env.SIGNING == 'true'
+        env:
+          WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        shell: pwsh
+        run: |
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\cert.pfx",
+            [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
+          $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+                       Where-Object { $_.FullName -like "*x64*" } | Select-Object -First 1).FullName
+          # A timestamp is what keeps the signature valid after the certificate
+          # expires; without it the app "goes bad" on the certificate's expiry.
+          & $signtool sign /f "$env:RUNNER_TEMP\cert.pfx" /p $env:WINDOWS_CERT_PASSWORD `
+            /tr http://timestamp.digicert.com /td sha256 /fd sha256 `
+            nokhatha_app\build\windows\x64\runner\Release\nokhatha.exe
+          Remove-Item "$env:RUNNER_TEMP\cert.pfx" -Force
+
+      # ── Azure Trusted Signing ─────────────────────────────────────────────
+      # Needs, as repository secrets: AZURE_CLIENT_ID, AZURE_TENANT_ID and
+      # AZURE_CLIENT_SECRET for a service principal granted the
+      # "Trusted Signing Certificate Profile Signer" role, plus the account
+      # and profile names below. docs/WINDOWS-TRUST.md has the walkthrough.
+      - name: Sign the application (Azure Trusted Signing)
+        if: env.AZ_SIGNING == 'true' && env.SIGNING != 'true'
+        uses: azure/trusted-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82   # v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT || 'https://weu.codesigning.azure.net/' }}
+          trusted-signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}\nokhatha_app\build\windows\x64\runner\Release
+          files-folder-filter: exe
+          file-digest: SHA256
+          # A timestamp is what keeps the signature valid after the certificate
+          # expires. Trusted Signing certificates are short-lived by design —
+          # days, not years — so without this every build would "go bad" almost
+          # immediately.
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Build the installer
+        working-directory: nokhatha_app/windows/installer
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=${{ steps.ver.outputs.version }} nokhatha.iss
+
+      - name: Sign the installer
+        if: env.SIGNING == 'true'
+        env:
+          WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        shell: pwsh
+        run: |
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\cert.pfx",
+            [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
+          $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+                       Where-Object { $_.FullName -like "*x64*" } | Select-Object -First 1).FullName
+          & $signtool sign /f "$env:RUNNER_TEMP\cert.pfx" /p $env:WINDOWS_CERT_PASSWORD `
+            /tr http://timestamp.digicert.com /td sha256 /fd sha256 `
+            nokhatha_app\dist\*.exe
+          Remove-Item "$env:RUNNER_TEMP\cert.pfx" -Force
+
+      - name: Sign the installer (Azure Trusted Signing)
+        if: env.AZ_SIGNING == 'true' && env.SIGNING != 'true'
+        uses: azure/trusted-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82   # v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT || 'https://weu.codesigning.azure.net/' }}
+          trusted-signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}\nokhatha_app\dist
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      # signtool exits 0 in cases where the file is not actually left signed,
+      # and an installer that is silently unsigned is the exact thing this
+      # whole section exists to prevent. So verify, and fail loudly.
+      - name: Verify the signature
+        if: env.SIGNING == 'true' || env.AZ_SIGNING == 'true'
+        shell: pwsh
+        working-directory: nokhatha_app
+        run: |
+          $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+                       Where-Object { $_.FullName -like "*x64*" } | Select-Object -First 1).FullName
+          # /pa: check it against the Authenticode policy a customer's Windows
+          # will use, not a developer-only policy that trusts more roots.
+          & $signtool verify /pa /v build\windows\x64\runner\Release\nokhatha.exe
+          if ($LASTEXITCODE -ne 0) { throw "the application is not validly signed" }
+          Get-ChildItem dist\*.exe | ForEach-Object {
+            & $signtool verify /pa /v $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw "$($_.Name) is not validly signed" }
+          }
+
+      # ── What a customer can check for themselves ──────────────────────────
+      - name: Publish checksums and a dependency manifest
+        shell: pwsh
+        working-directory: nokhatha_app
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Get-FileHash -Algorithm SHA256 dist\*.exe |
+            ForEach-Object { "{0}  {1}" -f $_.Hash.ToLower(), (Split-Path $_.Path -Leaf) } |
+            Out-File -Encoding ascii dist\SHA256SUMS.txt
+          # The exact package versions this binary was built from — the lock
+          # file IS the bill of materials for a Dart app, so ship it rather
+          # than generate a prettier document that says the same thing.
+          Copy-Item pubspec.lock dist\pubspec.lock.txt
+          Get-Content dist\SHA256SUMS.txt
+
+      # Cryptographic proof, signed by GitHub, that this exact file came out of
+      # this repository at this commit via this workflow. A customer (or we)
+      # can verify it with `gh attestation verify`. This is the part that makes
+      # "it is genuinely ours" checkable rather than merely asserted.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be   # v2
+        with:
+          subject-path: nokhatha_app/dist/*.exe
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4
+        with:
+          name: Nokhatha-Setup-${{ steps.ver.outputs.version }}
+          path: |
+            nokhatha_app/dist/*.exe
+            nokhatha_app/dist/SHA256SUMS.txt
+            nokhatha_app/dist/pubspec.lock.txt
+          if-no-files-found: error
+
+      # The portable folder is the answer for anyone who cannot install
+      # software on their machine — unzip and run, no installer involved.
+      - name: Upload the portable build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4
+        with:
+          name: Nokhatha-portable-${{ steps.ver.outputs.version }}
+          path: nokhatha_app/build/windows/x64/runner/Release/
+          if-no-files-found: error
+
+      - name: Attach the installer to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65   # v2
+        with:
+          files: |
+            nokhatha_app/dist/*.exe
+            nokhatha_app/dist/SHA256SUMS.txt
+          generate_release_notes: true
+
+  # ══ macOS ═══════════════════════════════════════════════════════════════
+  # A .app can only be produced on a Mac, exactly as a .exe can only be
+  # produced on Windows. The Xcode project is generated here by Flutter itself
+  # rather than committed: hand-written project files break in ways nobody can
+  # review, and there is no Flutter toolchain on the machine this repository is
+  # normally edited from. tool/macos_setup.sh then asserts the parts that must
+  # be true — the name, the mark, and above all that the sandbox grants no
+  # network, since "it cannot phone home" is this app's central claim.
+  mac:
+    if: github.event_name != 'create' || github.event.ref_type == 'tag'
+    runs-on: macos-latest
+    permissions:
+      contents: write        # attach the installer to a release on a tag
+      id-token: write        # mint the provenance attestation's signing token
+      attestations: write    # write the attestation itself
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2   # v2
+        with:
+          flutter-version-file: nokhatha_app/pubspec.yaml
+          channel: stable
+          cache: true
+
+      - name: Generate the macOS platform folder
+        working-directory: nokhatha_app
+        run: flutter create --platforms=macos .
+
+      - name: Prepare it — name, mark, entitlements
+        working-directory: nokhatha_app
+        run: bash tool/macos_setup.sh
+
+      - name: Resolve dependencies (locked)
+        working-directory: nokhatha_app
+        run: flutter pub get --enforce-lockfile
+
+      - name: Analyze
+        working-directory: nokhatha_app
+        run: flutter analyze
+
+      - name: Test
+        working-directory: nokhatha_app
+        run: flutter test
+
+      - name: Build the macOS release
+        working-directory: nokhatha_app
+        run: flutter build macos --release
+
+      - name: Read the version from pubspec
+        id: macver
+        run: |
+          v=$(grep '^version:' nokhatha_app/pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      # The entitlement check again, on the BUILT app rather than the source:
+      # what shipped is what matters, and a build can pick up a different
+      # entitlements file than the one the script inspected.
+      - name: Verify the built app grants no network
+        working-directory: nokhatha_app
+        run: |
+          APP=$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' | head -1)
+          [ -n "$APP" ] || { echo "::error::no .app was produced"; exit 1; }
+          echo "built: $APP"
+          if codesign -d --entitlements - "$APP" 2>/dev/null | grep -q 'network.client'; then
+            echo "::error::the built app grants outbound network"; exit 1
+          fi
+
+      # Which Macs this actually runs on. A Flutter release build is universal
+      # by default — arm64 for Apple Silicon, x86_64 for Intel — but "by
+      # default" is not a guarantee anyone should ship on: a toolchain change
+      # or a stray --target-platform would quietly cut every Intel Mac out,
+      # and the DMG would still build, still install, and fail to open.
+      - name: Verify the app runs on both Apple Silicon and Intel
+        working-directory: nokhatha_app
+        run: |
+          APP=$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' | head -1)
+          BIN="$APP/Contents/MacOS/$(basename "$APP" .app)"
+          [ -f "$BIN" ] || { echo "::error::no executable inside $APP"; exit 1; }
+          ARCHS=$(lipo -archs "$BIN")
+          echo "architectures: $ARCHS"
+          case "$ARCHS" in
+            *arm64*) ;; *) echo "::error::no arm64 slice — will not run on Apple Silicon"; exit 1 ;;
+          esac
+          case "$ARCHS" in
+            *x86_64*) echo "universal ✔" ;;
+            *) echo "::warning::no x86_64 slice — Intel Macs cannot run this build" ;;
+          esac
+          # and the oldest macOS it will start on, stated rather than assumed
+          otool -l "$BIN" | awk '/LC_BUILD_VERSION/{f=1} f&&/minos/{print "minimum macOS: "$2; exit}'
+
+      # A .dmg is what a Mac user expects to download: mount it, drag the app
+      # to Applications, eject. A bare .app in a zip loses its permissions on
+      # some browsers and arrives quarantined in a way that is harder to clear.
+      - name: Package a disk image
+        working-directory: nokhatha_app
+        run: |
+          APP=$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' | head -1)
+          mkdir -p dist dmg
+          cp -R "$APP" dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname "النوخذة" -srcfolder dmg -ov -format UDZO \
+            "dist/Nokhatha-${{ steps.macver.outputs.version }}.dmg"
+
+      - name: Publish checksums
+        working-directory: nokhatha_app
+        run: |
+          shasum -a 256 dist/*.dmg | tee dist/SHA256SUMS.txt
+          cp pubspec.lock dist/pubspec.lock.txt
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be   # v2
+        with:
+          subject-path: nokhatha_app/dist/*.dmg
+
+      - name: Upload the disk image
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4
+        with:
+          name: Nokhatha-macOS-${{ steps.macver.outputs.version }}
+          path: |
+            nokhatha_app/dist/*.dmg
+            nokhatha_app/dist/SHA256SUMS.txt
+            nokhatha_app/dist/pubspec.lock.txt
+          if-no-files-found: error
+
+      - name: Attach the disk image to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65   # v2
+        with:
+          files: |
+            nokhatha_app/dist/*.dmg
+            nokhatha_app/dist/SHA256SUMS.txt
+          generate_release_notes: true

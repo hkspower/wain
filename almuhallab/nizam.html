@@ -1,0 +1,1516 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests" />
+  <meta name="referrer" content="no-referrer" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#6f3f1c" />
+  <!-- Preload every weight the masthead and the first screen actually render,
+       measured rather than assumed. Without this the browser cannot know a
+       font exists until it has parsed ~220 lines of inline CSS, so each file
+       starts a full round trip late and the text repaints in the fallback
+       face first. This saves no bytes at all — the same four files are
+       fetched either way — it only starts them sooner. -->
+  <link rel="preload" as="font" type="font/woff2" href="fonts/cairo-400.woff2" crossorigin />
+  <link rel="preload" as="font" type="font/woff2" href="fonts/cairo-500.woff2" crossorigin />
+  <link rel="preload" as="font" type="font/woff2" href="fonts/cairo-700.woff2" crossorigin />
+  <link rel="preload" as="font" type="font/woff2" href="fonts/cairo-800.woff2" crossorigin />
+  <link rel="canonical" href="https://www.almuhallab-code.com/nizam.html" />
+  <!-- Share card: every link to this site that lands in واتساب — the company's
+       main channel — Instagram, LinkedIn or a rich search result renders this.
+       Without it a share is a naked URL. og.png is drawn by design/og_image.py
+       from the page's own sprite, so it cannot drift from the mark. -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="المهلب كود — Almuhallab Code" />
+  <meta property="og:locale" content="ar_KW" />
+  <meta property="og:url" content="https://www.almuhallab-code.com/nizam.html" />
+  <meta property="og:title" content="النظام الموحد — النوخذة | المهلب كود" />
+  <meta property="og:description" content="أربع وحدات فوق نواة بيانات واحدة: المركز المالي، صافي لإدارة المحافظ، XBRL للميزانية السنوية الكويتية، والتوصيل." />
+  <meta property="og:image" content="https://www.almuhallab-code.com/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="شعار المهلب كود — بوم كويتي، والاسم بالعربية والإنجليزية" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="النظام الموحد — النوخذة | المهلب كود" />
+  <meta name="twitter:description" content="أربع وحدات فوق نواة بيانات واحدة: المركز المالي، صافي لإدارة المحافظ، XBRL للميزانية السنوية الكويتية، والتوصيل." />
+  <meta name="twitter:image" content="https://www.almuhallab-code.com/og.png" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "المهلب كود",
+      "item": "https://www.almuhallab-code.com/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "النظام الموحد",
+      "item": "https://www.almuhallab-code.com/nizam.html"
+    }
+  ]
+}
+  </script>
+  <title>النظام الموحد — النوخذة</title>
+  <meta name="description" content="النظام الموحد في النوخذة: صافي للمحافظ، الميزانية السنوية وXBRL، والتوصيل — فوق نواة بيانات واحدة، ويعمل بلا إنترنت." />
+  <style>
+    /* Cairo (SIL OFL) — bundled, never fetched from a CDN: the strict CSP
+       forbids external origins, and a self-hosted face renders identically on
+       every device instead of depending on what the OS happens to have.
+       Arabic subset only; Latin and digits stay on the system face. */
+    @font-face { font-family:"Cairo"; font-style:normal; font-weight:400;
+      font-display:swap; src:url("fonts/cairo-400.woff2") format("woff2"); }
+    @font-face { font-family:"Cairo"; font-style:normal; font-weight:500;
+      font-display:swap; src:url("fonts/cairo-500.woff2") format("woff2"); }
+    @font-face { font-family:"Cairo"; font-style:normal; font-weight:600;
+      font-display:swap; src:url("fonts/cairo-500.woff2") format("woff2"); }
+    @font-face { font-family:"Cairo"; font-style:normal; font-weight:700;
+      font-display:swap; src:url("fonts/cairo-700.woff2") format("woff2"); }
+    @font-face { font-family:"Cairo"; font-style:normal; font-weight:800;
+      font-display:swap; src:url("fonts/cairo-800.woff2") format("woff2"); }
+    :root {
+      color-scheme: light;   /* the site is white on every device, dark preference included */
+      --bg: #ffffff; --panel: #ffffff; --panel-2: #f1f4f8; --panel-3: #e6ebf1;
+      --border: #d0d7e1; --border-input: #7c858c;
+      --text: #1b2430; --muted: #434d55;
+      --tint: #7a4418; --tint-strong: #6f3f1c;
+      /* THE BROWN BAR IS A SURFACE, and it needs its own ink set. Everything
+         on it used to be white at an alpha, and an alpha is not a colour: it
+         composites against whatever is underneath and the result is a value
+         nobody solved. Over #6f3f1c the .82 tagline resolved to #e5dcd6 — a
+         BEIGE at 6.47:1, under the 7:1 body floor and against this project's
+         own no-beige rule, invisible to the existing check because that check
+         reads declared surface tokens and this was a composited ink. And the
+         .4 control border resolved to #a98c77 at 2.79:1, under the 3:1 floor
+         for a boundary you have to see in order to click. */
+      --on-bar: #ffffff;        /* every visible label on the bar · 8.74:1 */
+      --on-bar-bd: #b6bbbe;     /* the only boundary for a control on it · 4.51:1 */
+      --on-bar-fill: #865e40;   /* hover/active fill and the bar's hairline · white on it 5.69:1 */
+      --sand: #9e5603; --sand-vivid: #e3a556;
+      --good: #02783d; --danger: #ce1925; --info: #1964ce; --warn-bg: #ffffff;
+      --code-dim: #5e6979; --dot-js: #836407;
+      --ord-1: #c08552; --ord-2: #a86f42; --ord-3: #8f5a33; --ord-4: #763f22; --ord-5: #5e3218;
+      --viz-pos: #02783d; --viz-neg: #ce1925; --viz-zero: #acb4bf; --viz-grid: #dee4ec;
+      --sans: "Cairo", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", "Noto Sans Arabic", sans-serif;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height:100vh; background:var(--bg); color:var(--text); font-family:var(--sans);
+      display:flex; flex-direction:column; }   /* keeps the footer at the bottom on short tabs */
+    a { color: var(--tint); text-decoration: none; }
+    button { font-family: var(--sans); cursor: pointer; }
+
+    /* One shell for the whole site — header, nav and footer are identical on
+       every page; only what sits between them changes. */
+    /* The masthead is brown on every page (owner's request, 2026-07-31) — one
+       shell across the site. It is the only brown *surface*; everything below
+       stays white. White on --tint-strong measures 8.7:1. These app screens
+       keep their row layout so the nav and tabs stay within reach; the company
+       page centres its mark. */
+    header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 20px;
+      background: var(--tint-strong); border-bottom: 1px solid var(--on-bar-fill); }
+    .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; color: #fff; }
+    .brand .logo { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+      font-size: 17px; background: var(--on-bar-fill); color: #fff; }
+    .brand h1 { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.35; color: #fff; }
+    .brand small { display: block; font-weight: 500; font-size: 11px; color: var(--on-bar); }
+    nav.site { display: flex; gap: 4px; margin-inline-start: auto; flex-wrap: wrap; align-items: center; }
+    nav.site a { font-size: 13.5px; font-weight: 600; padding: 12px 16px;
+      border-radius: 9px; border: 1px solid transparent; }
+    nav.site a { color: #fff; }
+    nav.site a:hover { background: var(--on-bar-fill); }
+    nav.site .btn { color: #fff; border-color: var(--on-bar-bd); background: transparent; }
+    nav.site .btn.primary { background: #fff; color: var(--tint-strong); border-color: #fff; }
+    header a:focus-visible, header button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+    /* header and tabs travel together, so the tab strip needs no magic offset */
+    .topbar { position: sticky; top: 0; z-index: 20; }
+    /* WCAG 2.2 target size: a 12px-tall link is below the 24px floor */
+    footer.site a { display: inline-block; padding: 6px 4px; }
+    footer.site { text-align: center; color: var(--muted); font-size: 12.5px; padding: 24px;
+      border-top: 1px solid var(--border); line-height: 1.9; }
+
+    nav.tabs { display:flex; gap: 4px; padding: 0 20px; background:var(--panel);
+      border-bottom:1px solid var(--border); overflow-x:auto; }
+    nav.tabs button { background:transparent; border:0; border-bottom:2px solid transparent;
+      color:var(--muted); font-size:14px; font-weight:700; padding: 12px 12px; white-space:nowrap; }
+    nav.tabs button.on { color:var(--tint); border-bottom-color:var(--tint); }
+
+    main { max-width:1060px; width:100%; margin: 0 auto; padding: 20px 20px 56px; flex:1; }
+    .tab { display: none; } .tab.on { display: block; }
+    h2 { font-size:18px; margin: 24px 0 12px; } h2:first-child { margin-top: 4px; }
+
+    .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(186px,1fr)); gap: 12px; }
+    .tile { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding: 12px 16px; }
+    .tile .n { font-size:24px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.3; white-space:nowrap; }
+    .tile .l { font-size:12px; color:var(--muted); font-weight:600; margin-top: 4px; }
+    .tile .sub { font-size:11.5px; color:var(--muted); margin-top: 6px; }
+
+    /* A SIGNED FIGURE IS AN LTR RUN. Measured in the browser: «+0.000» in a
+       .tile .n paints as «0.000+» — the leading + is a bidi-neutral character,
+       so in an RTL paragraph it resolves to the paragraph's direction and
+       jumps to the other end of the number. The value is right, the sign is
+       on the wrong side of it, and nothing about the markup says so. The
+       phone numbers in the footer were already isolated this way; the
+       financial figures were not. */
+    .tile .n { direction: ltr; unicode-bidi: isolate; }
+    .pos { color: var(--good); } .neg { color: var(--danger); }
+
+    form { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding: 16px;
+      display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap: 12px; align-items:end; }
+    label { font-size:12px; font-weight:700; color:var(--muted); display:flex; flex-direction:column; gap: 4px; }
+    input, select { background:var(--panel-2); border:1px solid var(--border-input); border-radius:8px;
+      color:var(--text); padding: 8px 12px; font-size:14px; font-family:var(--sans); outline:none; width:100%; }
+    input:focus, select:focus { border-color: var(--tint); }
+    input[readonly] { opacity: .75; }
+    input.derived { border-color: var(--tint); background: var(--panel-3); }
+
+    .btn { font-size:13.5px; font-weight:700; border-radius:9px; padding: 12px 16px;
+      border:1px solid var(--border); background:var(--panel-2); color:var(--text); }
+    .btn.primary { background:var(--tint-strong); border-color:transparent; color:#fff; }
+    .btn.sm { padding: 6px 12px; font-size:12px; }
+    .btn.danger { color: var(--danger); }
+    .btn:hover { opacity: .88; }
+    .btn:focus-visible, a:focus-visible, input:focus-visible { outline:2px solid var(--tint); outline-offset:2px; }
+    .row { display:flex; gap: 8px; flex-wrap:wrap; margin: 12px 0; }
+
+    .table-wrap { overflow-x:auto; background:var(--panel); border:1px solid var(--border); border-radius:14px; }
+    table { width:100%; border-collapse:collapse; font-size:13.5px; min-width:640px; }
+    th, td { padding: 12px 16px; text-align:right; border-bottom:1px solid var(--border); font-variant-numeric:tabular-nums; }
+    th { color:var(--muted); font-size:12px; background:var(--panel-2); }
+    tr:last-child td { border-bottom: 0; }
+    td.up { color: var(--good); } td.down { color: var(--danger); }
+    .empty { padding: 24px; text-align:center; color:var(--muted); font-size:13.5px; }
+
+    fieldset label.total {
+      grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: space-between;
+      gap: 16px; border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px;
+      font-size: 13px; color: var(--text);
+    }
+    fieldset label.total input { max-width: 220px; font-weight: 800; background: var(--panel-3); }
+    fieldset label.total.grand { border-top-width: 2px; border-top-color: var(--tint); }
+    @media (max-width: 640px) {
+      fieldset label.total { flex-direction: column; align-items: stretch; gap: 4px; }
+      fieldset label.total input { max-width: none; }
+    }
+    fieldset { border:1px solid var(--border); border-radius:14px; background:var(--panel); padding: 16px;
+      margin: 0 0 12px; display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap: 12px; }
+    legend { font-size:13px; font-weight:800; color:var(--sand); padding: 0 8px; }
+
+    .check { border:1px solid var(--border); border-radius:12px; padding: 12px 16px; font-size:13.5px;
+      line-height:1.85; margin: 12px 0; background:var(--panel); }
+    .check.ok { border-color: var(--good); color: var(--good); }
+    .check.bad { border-color: var(--danger); color: var(--danger); }
+    pre { background:var(--panel-2); border:1px solid var(--border); border-radius:12px; padding: 12px;
+      overflow-x:auto; font-family:var(--mono); font-size:12px; line-height:1.7; direction:ltr;
+      text-align:left; max-height:400px; }
+
+    .status { font-size:12px; font-weight:800; border-radius:999px; padding: 4px 12px; border:1px solid; }
+    .st-0{color:var(--sand);border-color:var(--sand)} .st-1{color:var(--info);border-color:var(--info)}
+    .st-2{color:var(--tint);border-color:var(--tint)} .st-3{color:var(--good);border-color:var(--good)}
+    .st-4{color:var(--danger);border-color:var(--danger)}
+    .order { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding: 16px;
+      display:flex; flex-wrap:wrap; gap: 12px; align-items:center; }
+    .order .who { flex:1; min-width:180px; }
+    .order .who b { display:block; font-size:15px; }
+    .order .who span { font-size:12.5px; color:var(--muted); display:block; }
+    .order .amount { font-weight:800; font-variant-numeric:tabular-nums; }
+    .orders { display:flex; flex-direction:column; gap: 12px; }
+
+    /* social centre: a card that carries a block of copyable text. Only a
+       handle or a path is set LTR-isolated — Arabic copy keeps the page's own
+       direction, and a bidi-neutral character at the edge of a Latin run
+       otherwise resolves against it. */
+    .soc { background:var(--panel); border:1px solid var(--border); border-radius:14px;
+      padding: 16px; display:flex; flex-direction:column; gap: 8px; }
+    .soc .head { display:flex; align-items:center; gap: 8px; flex-wrap:wrap; }
+    .soc .head b { font-size:15px; }
+    .soc .head .btn { margin-inline-start:auto; }
+    .soc .val { font-weight:700; color:var(--tint); direction:ltr; unicode-bidi:isolate; }
+    .soc p { margin:0; font-size:13.5px; line-height:1.85; white-space:pre-line; }
+    .soc .tags { font-size:13px; color:var(--muted); line-height:1.9; }
+    /* Only a Latin run gets the mono, LTR treatment. Arabic hashtags set that
+       way came out stretched with the # on the wrong side — the neutral #
+       resolves by what follows it, the same defect that printed «ce1925#». */
+    .soc .tags.ltr { direction:ltr; unicode-bidi:isolate; text-align:start;
+      font-family:var(--mono); }
+    /* A Latin measurement inside an Arabic sentence or cell: without an
+       isolate, «1200×630» is two LTR runs laid out right-to-left and reads
+       back as «630×1200» — a different size. */
+    .ltr { direction:ltr; unicode-bidi:isolate; }
+    code { font-family:var(--mono); font-size:12.5px; direction:ltr; unicode-bidi:isolate;
+      background:var(--panel-2); border:1px solid var(--border); border-radius:6px; padding: 1px 4px; }
+
+    /* the link between modules, stated rather than implied */
+    .flow { background:var(--panel); border:1px solid var(--border); border-radius:14px;
+      padding: 16px 16px; margin-top: 12px; }
+    .flow h3 { margin: 0 0 8px; font-size:14.5px; }
+    .flow .line { display:flex; align-items:center; gap: 8px; flex-wrap:wrap;
+      padding: 8px 0; border-bottom:1px solid var(--border); font-size:13px; }
+    .flow .line:last-child { border-bottom: 0; }
+    .flow .src { font-weight:700; color:var(--tint); }
+    .flow .arrow { color: var(--muted); }
+    .flow .dst { color: var(--muted); }
+    .flow .val { margin-inline-start:auto; font-weight:800; font-variant-numeric:tabular-nums; }
+    .note { font-size:12.5px; color:var(--muted); line-height:1.75; margin: 8px 0 0; }
+
+    #toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%) translateY(16px);
+      background:var(--tint-strong); color:#fff; padding: 8px 16px; border-radius:999px;
+      font-size:13.5px; font-weight:700; opacity:0; pointer-events:none; transition:.2s; z-index:80; }
+    #toast.on { opacity:1; transform:translateX(-50%) translateY(0); }
+
+    /* ═══════ mobile: the unified system behaves like an installed app ═══════
+       The tab strip moves to a fixed bottom bar within thumb reach, inputs hold
+       16px so iOS does not zoom the page on focus, controls grow to a 44px
+       touch target, and the bar respects the home-indicator safe area. */
+    @media (max-width: 640px) {
+      .topbar { position: static; }              /* only the bottom bar is fixed */
+      nav.tabs { position: fixed; bottom: 0; inset-inline: 0; z-index: 30;
+        border-bottom: 0; border-top: 1px solid var(--border); padding: 0;
+        background: var(--panel);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        box-shadow: 0 -1px 8px rgba(11, 18, 32, .06); }
+      nav.tabs button { flex: 1; border-bottom: 0; border-top: 2px solid transparent;
+        font-size: 12px; padding: 8px 4px 12px; min-height: 52px; }
+      nav.tabs button.on { border-top-color: var(--tint); }
+      main { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+      footer.site { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+      input, select { font-size: 16px; }         /* < 16px makes iOS zoom on focus */
+      .btn { min-height: 44px; }
+      .btn.sm { min-height: 36px; }              /* inline row actions stay compact */
+      .tile .n { font-size: 21px; }
+      main { padding-top: 12px; }
+      h2 { margin-top: 20px; }
+      /* when the flow line wraps, the amount takes its own full row at the
+         reading start instead of hanging at the line-box's far edge */
+      .flow .val { margin-inline-start: 0; flex-basis: 100%; }
+    }
+
+    /* Printing a portfolio statement or a filing should yield the document, not
+       the application: chrome, forms, filters and row actions come off the page,
+       and the tables lose their scroll box so nothing is clipped. */
+    @media print {
+      .topbar, nav.tabs, footer.site, #toast, .row, form,
+      button, .btn, .empty { display: none !important; }
+      main { max-width: none; padding: 0; }
+      .tab { display: block !important; }          /* print what is on screen */
+      .tab:not(.on) { display: none !important; }
+      .table-wrap { overflow: visible; border: 0; }
+      table { min-width: 0; }
+      th, td { padding: 6px 8px; }
+      td:last-child, th:last-child { display: none; }   /* the actions column */
+      .tile { break-inside: avoid; }
+      h2 { margin: 8px 0 6px; }
+      body { background: #fff; }
+    }
+  </style>
+<script>
+  /* Clickjacking. `frame-ancestors` is ignored in a <meta> CSP and
+     X-Frame-Options only exists as a real HTTP header — and .htaccess, which
+     sets it, is ignored by GitHub Pages, where this site is deployed. So the
+     only defence a static file can mount is this: refuse to render inside
+     someone else's frame, and leave. It is weaker than a header (a sandboxed
+     frame can block the navigation) — which is why the page hides itself
+     first and navigates second, rather than trusting the navigation. */
+  (function () {
+    if (self === top) return;
+    document.documentElement.style.visibility = "hidden";
+    try { top.location = self.location; } catch (e) { /* sandboxed: stay hidden */ }
+  })();
+</script>
+<script>
+  /* Scheme upgrade. "Enforce HTTPS" is a GitHub Pages repository setting and
+     only that setting can 301 a plaintext request — a static file cannot send
+     a redirect. So if a visitor arrives over http:// (typed it, followed an
+     old link, or the setting is off), leave immediately for https. This runs
+     before anything else on the page, and it cannot protect the first request
+     itself; it stops every request after it. localhost is exempt so the test
+     suite, which serves over http, is not sent somewhere that does not exist. */
+  (function () {
+    var h = location.hostname;
+    if (location.protocol !== "http:") return;
+    if (h === "localhost" || h === "127.0.0.1" || h === "[::1]") return;
+    location.replace("https:" + location.href.slice(location.protocol.length));
+  })();
+</script>
+</head>
+<body>
+  <div class="topbar">
+    <header>
+      <div class="brand">
+        <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:20px;height:20px"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 10.7h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke-width=".8" d="M5.5 12.3 4.3 15.4l2.8-.5z"/><path fill="currentColor" stroke-width=".8" d="M18.5 12.3l1.2 3.1-2.8-.5z"/></svg></span>
+        <div><h1>النظام الموحد</h1><small>النوخذة — صافي · XBRL · التوصيل</small></div>
+      </div>
+      <nav class="site">
+        <a href="index.html">← المهلب كود</a>
+        <a href="nokhatha.html" style="display:inline-flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:15px;height:15px"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 10.7h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke-width=".8" d="M5.5 12.3 4.3 15.4l2.8-.5z"/><path fill="currentColor" stroke-width=".8" d="M18.5 12.3l1.2 3.1-2.8-.5z"/></svg> النوخذة</a>
+      </nav>
+    </header>
+
+    <nav class="tabs" id="tabs">
+    <button data-tab="position" class="on">⚓ المركز المالي</button>
+    <button data-tab="safi">📊 صافي</button>
+    <button data-tab="xbrl">🧾 XBRL</button>
+    <button data-tab="delivery">🛵 التوصيل</button>
+    <button data-tab="social">📣 التواصل</button>
+    </nav>
+  </div>
+
+  <main>
+    <!-- ═══════════ combined position ═══════════ -->
+    <section class="tab on" id="tab-position">
+      <h2>المركز المالي الموحد</h2>
+      <div class="tiles" id="pos-tiles"></div>
+
+      <div class="flow" id="flow">
+        <h3>كيف تترابط الوحدات</h3>
+        <div id="flow-lines"></div>
+        <p class="note">
+          هذه الأرقام تُشتق مباشرة من صافي والتوصيل، وتُغذّي القوائم المالية في
+          تبويب XBRL عند الضغط على «احسب من النظام». يمكنك دائماً تعديلها يدوياً بعد ذلك.
+        </p>
+      </div>
+    </section>
+
+    <!-- ═══════════ SAFI ═══════════ -->
+    <section class="tab" id="tab-safi">
+      <h2>المحفظة</h2>
+      <div class="tiles" id="safi-tiles"></div>
+
+      <h2>إضافة / تحديث سهم</h2>
+      <form id="safi-form">
+        <label>رمز السهم <input name="ticker" required maxlength="12" placeholder="مثال: NBK"
+          style="font-family:var(--mono);text-transform:uppercase" /></label>
+        <label>اسم الشركة <input name="name" required maxlength="80" placeholder="بنك الكويت الوطني" /></label>
+        <label>الكمية <input name="qty" type="number" min="1" step="1" required placeholder="1000" /></label>
+        <label>متوسط التكلفة (فلس) <input name="cost" type="number" min="0" step="0.1" required placeholder="850" /></label>
+        <label>السعر الحالي (فلس) <input name="price" type="number" min="0" step="0.1" required placeholder="900" /></label>
+        <button class="btn primary" type="submit">حفظ</button>
+      </form>
+
+      <div class="row">
+        <button class="btn" id="safi-export">⬇ تصدير كشف CSV</button>
+        <button class="btn" id="safi-print">🖨 طباعة</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>الرمز</th><th>الشركة</th><th>الكمية</th><th>التكلفة (فلس)</th><th>السعر (فلس)</th>
+            <th>القيمة (د.ك)</th><th>الربح/الخسارة (د.ك)</th><th>%</th><th></th>
+          </tr></thead>
+          <tbody id="safi-rows"></tbody>
+        </table>
+        <div class="empty" id="safi-empty">المحفظة فارغة — أضف أول سهم من النموذج أعلاه.</div>
+      </div>
+    </section>
+
+    <!-- ═══════════ XBRL — الميزانية السنوية ═══════════ -->
+    <section class="tab" id="tab-xbrl">
+      <h2>الميزانية السنوية — الإيداع الإلكتروني</h2>
+      <p class="note" style="margin:0 0 12px">
+        إعداد الميزانية السنوية للشركات في دولة الكويت وفق الإطار المعتمد لدى
+        وزارة التجارة والصناعة (معايير IFRS): تُدخل البنود التفصيلية، والمجاميع
+        تُحسب تلقائياً، ثم يفحص النظام الميزانية ويقترح التصحيحات قبل توليد ملف
+        XBRL. الاعتماد النهائي يتم عبر بوابة الوزارة.
+      </p>
+      <div class="row">
+        <button class="btn primary" id="xbrl-derive">⟳ احسب من النظام</button>
+        <span class="note" style="align-self:center">
+          يملأ الاستثمارات المالية من صافي، والإيرادات من الطلبات المسلّمة.
+        </span>
+      </div>
+
+      <form id="xbrl-form" style="display:block;background:none;border:0;padding:0">
+        <fieldset>
+          <legend>المنشأة والفترة</legend>
+          <label>اسم الشركة كما في السجل <input name="entity" required maxlength="120" placeholder="شركة المهلب القابضة" /></label>
+          <label>رقم السجل التجاري <input name="crn" required maxlength="10" pattern="[0-9]{3,10}"
+            inputmode="numeric" placeholder="123456" style="font-family:var(--mono)" /></label>
+          <label>الكيان القانوني
+            <select name="legal">
+              <option value="wll">ذات مسؤولية محدودة (ذ.م.م)</option>
+              <option value="spc">شركة الشخص الواحد</option>
+              <option value="kscc">مساهمة مقفلة (ش.م.ك.م)</option>
+              <option value="kscp">مساهمة عامة مدرجة (ش.م.ك.ع)</option>
+            </select>
+          </label>
+          <label>الفترة
+            <select name="period">
+              <option value="FY" selected>سنوية (الإيداع الرسمي)</option>
+              <option value="Q1">ربع أول — داخلي</option>
+              <option value="Q2">ربع ثانٍ — داخلي</option>
+              <option value="Q3">ربع ثالث — داخلي</option>
+            </select>
+          </label>
+          <label>نهاية السنة المالية <input name="periodEnd" type="date" required /></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>الأصول المتداولة (د.ك)</legend>
+          <label>النقد وما في حكمه <input name="cash" type="number" min="0" step="0.001" value="0" /></label>
+          <label>ذمم مدينة تجارية <input name="receivables" type="number" min="0" step="0.001" value="0" /></label>
+          <label>المخزون <input name="inventory" type="number" min="0" step="0.001" value="0" /></label>
+          <label>أصول متداولة أخرى <input name="otherCA" type="number" min="0" step="0.001" value="0" /></label>
+          <label class="total">إجمالي الأصول المتداولة <input name="currentAssets" type="text" readonly /></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>الأصول غير المتداولة (د.ك)</legend>
+          <label>ممتلكات ومعدات (صافي) <input name="ppe" type="number" min="0" step="0.001" value="0" /></label>
+          <label>استثمارات مالية <input name="investments" type="number" min="0" step="0.001" value="0" /></label>
+          <label>أصول غير متداولة أخرى <input name="otherNCA" type="number" min="0" step="0.001" value="0" /></label>
+          <label class="total">إجمالي الأصول غير المتداولة <input name="nonCurrentAssets" type="text" readonly /></label>
+          <label class="total grand">إجمالي الأصول <input name="totalAssets" type="text" readonly /></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>الالتزامات (د.ك)</legend>
+          <label>دائنون وذمم دائنة <input name="payables" type="number" min="0" step="0.001" value="0" /></label>
+          <label>قروض قصيرة الأجل <input name="stBorrow" type="number" min="0" step="0.001" value="0" /></label>
+          <label>التزامات متداولة أخرى <input name="otherCL" type="number" min="0" step="0.001" value="0" /></label>
+          <label class="total">إجمالي الالتزامات المتداولة <input name="currentLiabilities" type="text" readonly /></label>
+          <label>قروض طويلة الأجل <input name="ltBorrow" type="number" min="0" step="0.001" value="0" /></label>
+          <label>مخصص مكافأة نهاية الخدمة <input name="eosb" type="number" min="0" step="0.001" value="0" /></label>
+          <label>التزامات غير متداولة أخرى <input name="otherNCL" type="number" min="0" step="0.001" value="0" /></label>
+          <label class="total">إجمالي الالتزامات غير المتداولة <input name="nonCurrentLiabilities" type="text" readonly /></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>حقوق الملكية (د.ك)</legend>
+          <label>رأس المال المدفوع <input name="capital" type="number" min="0" step="0.001" value="0" /></label>
+          <label>الاحتياطي القانوني <input name="statRes" type="number" min="0" step="0.001" value="0" /></label>
+          <label>الاحتياطي الاختياري <input name="volRes" type="number" min="0" step="0.001" value="0" /></label>
+          <label>أرباح (خسائر) مرحّلة <input name="retained" type="number" step="0.001" value="0" /></label>
+          <label class="total">نتيجة السنة (تلقائي) <input name="yearResult" type="text" readonly /></label>
+          <label class="total grand">إجمالي حقوق الملكية <input name="equity" type="text" readonly /></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>قائمة الدخل (د.ك)</legend>
+          <label>الإيرادات <input name="revenue" type="number" min="0" step="0.001" value="0" /></label>
+          <label>تكلفة الإيرادات <input name="cogs" type="number" min="0" step="0.001" value="0" /></label>
+          <label>مصاريف إدارية وعمومية <input name="adminExp" type="number" min="0" step="0.001" value="0" /></label>
+          <label>مصاريف أخرى <input name="otherExp" type="number" min="0" step="0.001" value="0" /></label>
+          <label>إيرادات أخرى <input name="otherInc" type="number" min="0" step="0.001" value="0" /></label>
+          <label class="total">صافي الربح (تلقائي) <input name="netIncome" type="text" readonly /></label>
+        </fieldset>
+
+        <div class="check" id="xbrl-check">أدخل البنود ثم اضغط «افحص الميزانية».</div>
+        <div id="xbrl-audit"></div>
+        <div class="row">
+          <button class="btn" type="button" id="xbrl-validate">🔎 افحص الميزانية</button>
+          <button class="btn primary" type="submit">⬇ توليد وتنزيل XBRL</button>
+          <button class="btn" type="button" id="xbrl-preview">👁 معاينة</button>
+        </div>
+      </form>
+      <pre id="xbrl-out" hidden></pre>
+
+      <h2>التقارير المحفوظة</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>المنشأة</th><th>السجل</th><th>النهاية</th><th>الأصول</th><th>الإيرادات</th><th>صافي الربح</th></tr></thead>
+          <tbody id="xbrl-rows"></tbody>
+        </table>
+        <div class="empty" id="xbrl-empty">لا توجد تقارير محفوظة بعد.</div>
+      </div>
+    </section>
+
+    <!-- ═══════════ Delivery ═══════════ -->
+    <section class="tab" id="tab-delivery">
+      <h2>الطلبات</h2>
+      <div class="tiles" id="del-tiles"></div>
+
+      <h2>طلب جديد</h2>
+      <form id="del-form">
+        <label>اسم العميل <input name="customer" required maxlength="80" placeholder="أم محمد" /></label>
+        <label>الهاتف <input name="phone" required maxlength="15" pattern="[0-9+ ]{7,15}" inputmode="tel" placeholder="9XXXXXXX" /></label>
+        <label>العنوان <input name="address" required maxlength="160" placeholder="السالمية، قطعة 2" /></label>
+        <label>الطلب <input name="items" required maxlength="160" placeholder="مجبوس دجاج ×2" /></label>
+        <label>المبلغ (د.ك) <input name="amount" type="number" min="0" step="0.050" required placeholder="5.500" /></label>
+        <label>المندوب <select name="courier" id="del-courier"><option value="">— بدون —</option></select></label>
+        <button class="btn primary" type="submit">إضافة الطلب</button>
+      </form>
+
+      <h2>المناديب</h2>
+      <form id="del-courier-form" style="grid-template-columns:2fr 1fr auto">
+        <label>الاسم <input name="cname" required maxlength="80" placeholder="سالم" /></label>
+        <label>الهاتف <input name="cphone" required maxlength="15" pattern="[0-9+ ]{7,15}" inputmode="tel" placeholder="9XXXXXXX" /></label>
+        <button class="btn" type="submit">إضافة</button>
+      </form>
+      <div class="row" id="del-couriers"></div>
+
+      <h2>سجل الطلبات</h2>
+      <div class="row" id="del-filters"></div>
+      <div class="orders" id="del-orders"></div>
+      <div class="empty" id="del-empty">لا توجد طلبات بعد.</div>
+    </section>
+
+    <!-- ═══════════ social media centre ═══════════
+         A reference desk, not a publishing tool: the company's real channels,
+         the generated brand assets with the size each platform actually
+         renders them at, and copy written only from facts already on the site.
+         It stores nothing — these are the company's facts, not the user's
+         records, and an editable copy would be a second source of truth. No
+         follower counts and no engagement figures: this page cannot measure
+         either without inventing it. -->
+    <section class="tab" id="tab-social">
+      <h2>القنوات</h2>
+      <p class="note">
+        هذه قنوات الشركة الحقيقية، وهي المصدر الوحيد. لا تُنشر قناة غيرها ولا
+        يُستبدل رقم بآخر «مؤقت» — الأرقام هنا هي نفسها الظاهرة في الموقع وفي
+        بطاقة المشاركة.
+      </p>
+      <div class="orders" id="soc-channels"></div>
+
+      <h2>الأصول البصرية</h2>
+      <p class="note">
+        كلها مرسومة من رمز الموقع نفسه (<code>&lt;symbol&gt;</code>) عبر مولّدات
+        <code>design/</code>، فلا يمكن أن تنحرف عن الهوية. أعد تشغيل المولّد بعد
+        أي تغيير في الشعار.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>الأصل</th><th>المقاس</th><th>أين يُستخدم</th><th>المولّد</th></tr></thead>
+          <tbody id="soc-assets"></tbody>
+        </table>
+      </div>
+
+      <h2>نصوص جاهزة</h2>
+      <p class="note">
+        كل سطر هنا حقيقة موجودة في الموقع: الخدمات السبع، النوخذة مجاني بلا
+        باقات، والقنوات أعلاه. لا أسعار مُختلقة ولا عملاء ولا نِسب.
+      </p>
+      <div class="orders" id="soc-copy"></div>
+
+      <h2>هاشتاقات</h2>
+      <div class="orders" id="soc-tags"></div>
+    </section>
+  </main>
+
+  <footer class="site">
+    المهلب كود — Almuhallab Code · شركة برمجة وأنظمة · صُنع في الكويت<br />
+    <a href="index.html">الموقع</a> · <a href="nokhatha.html">نظام النوخذة</a>
+  </footer>
+
+  <div id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ════════════════════ shared core ════════════════════
+     One data layer for all three modules. Storage keys are unchanged, so
+     existing data and the admin console keep working. */
+
+  /* ═══════════ العدد والمعدود ═══════════
+     Arabic does not take a bare singular after a count, and every counted
+     string on these screens did: "3 سهم", "5 دقيقة", "تطبيق على 3 حساب؟".
+     That is wrong for every value except one and a hundred, which is to say
+     for almost every value a user ever sees.
+
+     The rule, by the last two digits: 1 takes the noun alone · 2 takes the
+     dual · 3 to 10 take the plural · 11 upward takes the singular again
+     (accusative, and 100 upward genitive — but neither is written without
+     diacritics, so one form serves both).
+
+     The caller passes the three forms because Arabic plurals are irregular
+     and no function can derive أسهم from سهم. Pass the DUAL in the case the
+     sentence needs: "طلبين" after a preposition, "طلبان" standing alone. */
+  function ar(n, one, two, few, bare) {
+    /* `one` is the plain singular, and it is used TWICE: alone for 1, and
+       after a digit for 0 and 11 upward. So it must never itself contain
+       "واحد" — "0 طلب واحد" was the first version's output. Where the bare
+       singular reads better as "طلب واحد", pass that as `bare`. */
+    var a = Math.abs(n) % 100;
+    if (n === 1) return bare || one;
+    if (n === 2) return two;
+    if (a >= 3 && a <= 10) return n + " " + few;
+    return n + " " + one;                 /* 0, and 11 upward */
+  }
+  var K = {
+    safi: "nokhatha-safi-v1",
+    orders: "nokhatha-delivery-orders-v1",
+    couriers: "nokhatha-delivery-couriers-v1",
+    reports: "nokhatha-xbrl-reports-v1"
+  };
+  function rd(k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v === null ? d : v; } catch (e) { return d; } }
+  /* Returns whether the write actually happened. It used to swallow the
+     failure and return nothing, so a full quota — or private browsing, where
+     the write throws on the first attempt — dropped the record while the toast
+     said it was saved. Demonstrated: added a holding with storage refusing
+     writes, got «تمت إضافة NBK», and the table stayed empty. */
+  function wr(k, v) {
+    try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; }
+  }
+  var STORAGE_FULL = "تعذّر الحفظ على هذا الجهاز — المساحة ممتلئة أو التصفح الخاص مفعّل.";
+
+  var STATUSES = ["جديد", "قيد التحضير", "في الطريق", "تم التسليم", "ملغي"];
+  var DELIVERED = 3, CANCELLED = 4;
+
+  /* Escapes for BOTH contexts this output lands in. The old version set
+     textContent and read innerHTML back, which escapes & < > but NOT quotes
+     — correct between tags, and a hole inside an attribute. A courier named
+     `" onmouseover="…"` therefore became a real handler on the <option> and
+     ran on hover: stored XSS through the ordinary form, no tampering needed.
+     Eight sites interpolate esc() inside a quoted attribute, so the fix
+     belongs here rather than at any one of them. `&` must be replaced first
+     or it re-escapes the entities the later rules introduce. */
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+  function clamp(v, max) { var n = Number(v); return (isFinite(n) && n >= 0) ? Math.min(n, max) : 0; }
+  function cleanTicker(s) { return String(s).toUpperCase().replace(/[^A-Z0-9.]/g, "").slice(0, 12); }
+  function kwd(n) { return Number(n).toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }); }
+  function el(id) { return document.getElementById(id); }
+  var tT; function toast(m) { var t = el("toast"); t.textContent = m; t.classList.add("on");
+    clearTimeout(tT); tT = setTimeout(function () { t.classList.remove("on"); }, 1800); }
+
+  /* localStorage is user-writable, so everything is re-coerced on read */
+  function holdings() {
+    var l = rd(K.safi, []); if (!Array.isArray(l)) return [];
+    return l.map(function (h) {
+      var qty = Math.floor(clamp(h && h.qty, 1e9));
+      return { ticker: cleanTicker((h && h.ticker) || ""), name: String((h && h.name) || "").slice(0, 80),
+               qty: qty, cost: clamp(h && h.cost, 1e7), price: clamp(h && h.price, 1e7) };
+    }).filter(function (h) { return h.ticker; });
+  }
+  function orders() {
+    var l = rd(K.orders, []); if (!Array.isArray(l)) return [];
+    return l.map(function (o) {
+      return { id: String((o && o.id) || "").slice(0, 12), customer: String((o && o.customer) || "").slice(0, 80),
+               phone: String((o && o.phone) || "").slice(0, 15), address: String((o && o.address) || "").slice(0, 160),
+               items: String((o && o.items) || "").slice(0, 160), amount: clamp(o && o.amount, 1e6),
+               courier: String((o && o.courier) || "").slice(0, 80),
+               status: Math.min(Math.max(Math.floor(Number(o && o.status) || 0), 0), STATUSES.length - 1),
+               createdAt: String((o && o.createdAt) || "") };
+    }).filter(function (o) { return o.id; });
+  }
+  function couriers() {
+    var l = rd(K.couriers, []); if (!Array.isArray(l)) return [];
+    return l.map(function (c) { return { name: String((c && c.name) || "").slice(0, 80),
+                                         phone: String((c && c.phone) || "").slice(0, 15) }; })
+            .filter(function (c) { return c.name; });
+  }
+
+  /* ---- derived figures: the single place these numbers are defined ---- */
+  function safiTotals() {
+    var h = holdings(), cost = 0, value = 0;
+    h.forEach(function (x) { cost += x.qty * x.cost / 1000; value += x.qty * x.price / 1000; });
+    return { count: h.length, cost: cost, value: value, pl: value - cost,
+             pct: cost > 0 ? (value - cost) / cost * 100 : 0 };
+  }
+  function deliveryStats() {
+    var o = orders();
+    var done = o.filter(function (x) { return x.status === DELIVERED; });
+    return { total: o.length,
+             active: o.filter(function (x) { return x.status < DELIVERED; }).length,
+             delivered: done.length,
+             cancelled: o.filter(function (x) { return x.status === CANCELLED; }).length,
+             revenue: done.reduce(function (s, x) { return s + x.amount; }, 0) };
+    }
+
+  /* The integration itself: portfolio value is a non-current asset, and
+     delivered orders are revenue. Everything else stays manual. */
+  function position() {
+    var s = safiTotals(), d = deliveryStats();
+    return {
+      portfolio: s, delivery: d,
+      nonCurrentAssets: s.value,
+      revenue: d.revenue,
+      netWorth: s.value + d.revenue
+    };
+  }
+
+  /* ════════════════════ position tab ════════════════════ */
+  /* rows are [label, value, sub, class, id] — the id makes each figure
+     addressable, which is what the test suite asserts against. */
+  function tiles(rows) {
+    return rows.map(function (t) {
+      return '<div class="tile"><div class="n' + (t[3] ? " " + t[3] : "") + '"' +
+        (t[4] ? ' id="' + t[4] + '"' : "") + '>' + esc(t[1]) +
+        '</div><div class="l">' + esc(t[0]) + '</div>' +
+        (t[2] ? '<div class="sub">' + esc(t[2]) + '</div>' : "") + '</div>';
+    }).join("");
+  }
+  function renderPosition() {
+    var p = position();
+    el("pos-tiles").innerHTML = tiles([
+      ["قيمة المحفظة (د.ك)", kwd(p.portfolio.value), ar(p.portfolio.count, "سهم", "سهمان", "أسهم"), "", "p-value"],
+      ["ربح/خسارة المحفظة (د.ك)", (p.portfolio.pl >= 0 ? "+" : "−") + kwd(Math.abs(p.portfolio.pl)),
+       p.portfolio.pct.toFixed(1) + "%", p.portfolio.pl >= 0 ? "pos" : "neg", "p-pl"],
+      ["إيراد التوصيل (د.ك)", kwd(p.delivery.revenue), ar(p.delivery.delivered, "طلب مسلّم", "طلبان مسلّمان", "طلبات مسلّمة"), "", "p-revenue"],
+      ["الطلبات قيد التنفيذ", p.delivery.active, "من " + ar(p.delivery.total, "طلب", "طلبين", "طلبات", "طلب واحد"), "", "p-active"],
+      ["إجمالي الموارد (د.ك)", kwd(p.netWorth), "المحفظة + الإيراد", "", "p-net"]
+    ]);
+    el("flow-lines").innerHTML = [
+      ["صافي — القيمة السوقية", "الأصول غير المتداولة", kwd(p.nonCurrentAssets)],
+      ["التوصيل — الطلبات المسلّمة", "الإيرادات", kwd(p.revenue)]
+    ].map(function (r) {
+      return '<div class="line"><span class="src">' + esc(r[0]) + '</span>' +
+        '<span class="arrow">←</span><span class="dst">' + esc(r[1]) + ' في XBRL</span>' +
+        '<span class="val">' + esc(r[2]) + ' د.ك</span></div>';
+    }).join("");
+  }
+
+  /* ════════════════════ SAFI ════════════════════ */
+  function renderSafi() {
+    var h = holdings(), t = safiTotals();
+    el("safi-tiles").innerHTML = tiles([
+      ["التكلفة (د.ك)", kwd(t.cost), "", "", "s-cost"],
+      ["القيمة السوقية (د.ك)", kwd(t.value), "", "", "s-value"],
+      ["الربح/الخسارة (د.ك)", (t.pl >= 0 ? "+" : "−") + kwd(Math.abs(t.pl)),
+       t.pct.toFixed(1) + "%", t.pl >= 0 ? "pos" : "neg", "s-pl"],
+      ["عدد الأسهم", t.count, "", "", "s-count"]
+    ]);
+    el("safi-rows").innerHTML = h.map(function (x, i) {
+      var cost = x.qty * x.cost / 1000, value = x.qty * x.price / 1000, pl = value - cost;
+      var cls = pl > 0 ? "up" : (pl < 0 ? "down" : "");
+      return "<tr>" +
+        '<td style="font-family:var(--mono)">' + esc(x.ticker) + "</td><td>" + esc(x.name) + "</td>" +
+        "<td>" + x.qty.toLocaleString("en-US") + "</td><td>" + x.cost + "</td><td>" + x.price + "</td>" +
+        "<td>" + kwd(value) + '</td><td class="' + cls + '">' + kwd(pl) + "</td>" +
+        '<td class="' + cls + '">' + (cost > 0 ? (pl / cost * 100).toFixed(1) : "0.0") + "%</td>" +
+        '<td><button class="btn sm danger" data-del-safi="' + i + '">حذف</button></td></tr>';
+    }).join("");
+    el("safi-empty").style.display = h.length ? "none" : "block";
+  }
+  el("safi-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var f = e.target, t = cleanTicker(f.ticker.value);
+    if (!t) { toast("رمز السهم غير صالح"); return; }
+    var qty = Math.floor(clamp(f.qty.value, 1e9));
+    if (qty < 1) { toast("الكمية يجب أن تكون 1 على الأقل"); return; }
+    var list = holdings();
+    var entry = { ticker: t, name: f.name.value.trim().slice(0, 80), qty: qty,
+                  cost: clamp(f.cost.value, 1e7), price: clamp(f.price.value, 1e7) };
+    var i = list.findIndex(function (x) { return x.ticker === t; });
+    if (i >= 0) list[i] = entry; else list.push(entry);
+    if (!wr(K.safi, list)) { toast(STORAGE_FULL); return; }
+    f.reset(); renderAll(); toast(i >= 0 ? "تم تحديث " + t : "تمت إضافة " + t);
+  });
+  el("safi-rows").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-del-safi]"); if (!b) return;
+    var list = holdings(); var gone = list.splice(Number(b.getAttribute("data-del-safi")), 1);
+    if (!wr(K.safi, list)) { toast(STORAGE_FULL); return; }
+    renderAll(); toast("تم حذف " + (gone[0] ? gone[0].ticker : ""));
+  });
+  el("safi-export").addEventListener("click", function () {
+    var lines = ["Ticker,Company,Qty,AvgCostFils,PriceFils,ValueKWD,PLKWD"];
+    holdings().forEach(function (h) {
+      var value = h.qty * h.price / 1000, pl = value - h.qty * h.cost / 1000;
+      // Spreadsheet formula guard. Excel strips a leading TAB or CR before it
+      // decides what a cell is, so "\t=1+1" is a formula and the old test —
+      // which only looked for = + - @ — waved it through. And a CR or LF inside
+      // a name broke the row in half, which put its tail on a line of its own
+      // as a fresh first cell: both an injection and a corrupt file.
+      // …and trim before testing, so the guard does not rely on a leading
+      // space to save it: some importers strip whitespace first, and then the
+      // formula is back. Collapse the newlines, trim, then decide.
+      var name = String(h.name).replace(/[\r\n]+/g, " ").trim();
+      if (/^[\t=+\-@]/.test(name)) name = "'" + name;
+      lines.push([h.ticker, '"' + name.replace(/"/g, '""') + '"', h.qty, h.cost, h.price,
+                  value.toFixed(3), pl.toFixed(3)].join(","));
+    });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" }));
+    a.download = "safi-statement.csv";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(a.href); toast("تم تصدير الكشف");
+  });
+  el("safi-print").addEventListener("click", function () { window.print(); });
+
+  /* ════════════════════ XBRL — الميزانية السنوية ════════════════════
+     Kuwaiti annual filing: line items in, subtotals computed, then an audit
+     pass that reports errors (block filing), legal warnings, and suggestions
+     with the amount worked out — before an IFRS-tagged instance is built. */
+  var xf = el("xbrl-form");
+  function xnum(n) { return Number(xf[n].value) || 0; }
+
+  /* every total on the statement is computed, never typed */
+  function recalc() {
+    var ca  = xnum("cash") + xnum("receivables") + xnum("inventory") + xnum("otherCA");
+    var nca = xnum("ppe") + xnum("investments") + xnum("otherNCA");
+    var cl  = xnum("payables") + xnum("stBorrow") + xnum("otherCL");
+    var ncl = xnum("ltBorrow") + xnum("eosb") + xnum("otherNCL");
+    var net = xnum("revenue") - xnum("cogs") - xnum("adminExp") - xnum("otherExp") + xnum("otherInc");
+    var eq  = xnum("capital") + xnum("statRes") + xnum("volRes") + xnum("retained") + net;
+    xf.currentAssets.value = kwd(ca);
+    xf.nonCurrentAssets.value = kwd(nca);
+    xf.totalAssets.value = kwd(ca + nca);
+    xf.currentLiabilities.value = kwd(cl);
+    xf.nonCurrentLiabilities.value = kwd(ncl);
+    xf.netIncome.value = kwd(net);
+    xf.yearResult.value = kwd(net);
+    xf.equity.value = kwd(eq);
+    return { ca: ca, nca: nca, assets: ca + nca, cl: cl, ncl: ncl,
+             liab: cl + ncl, net: net, eq: eq };
+  }
+  xf.addEventListener("input", function (e) {
+    recalc();
+    if (e.target.classList) e.target.classList.remove("derived");   // an edited field is no longer derived
+  });
+
+  el("xbrl-derive").addEventListener("click", function () {
+    var p = position();
+    xf.investments.value = p.nonCurrentAssets.toFixed(3);
+    xf.revenue.value = p.revenue.toFixed(3);
+    xf.investments.classList.add("derived");
+    xf.revenue.classList.add("derived");
+    recalc(); xvalidate(false);
+    toast("تم الحساب من صافي والتوصيل");
+  });
+
+  /* ---- the audit engine: each rule reports what is wrong AND how to fix it ---- */
+  function audit() {
+    var t = recalc(), out = [];
+    var diff = t.assets - (t.liab + t.eq);
+    var accumulated = xnum("retained") + t.net;              // carried + this year
+    var capital = xnum("capital");
+
+    // A filing with no financial year end is not a filing. The form's own
+    // `required` only raises a browser tooltip on submit; the audit report is
+    // what the user reads before filing, so it has to say this itself.
+    if (!xf.periodEnd.value)
+      out.push({ lvl: "err", msg: "نهاية السنة المالية غير محددة.",
+                 fix: "أدخل التاريخ كما في عقد التأسيس — الملف يُبنى على فترة، وبلا تاريخ لا فترة له." });
+    if (Math.abs(diff) >= 0.0005)
+      out.push({ lvl: "err", msg: "الميزانية غير متوازنة: الفرق " + kwd(diff) + " د.ك.",
+                 fix: "راجع الأرباح المرحّلة أولاً — فرق التوازن يقع هناك غالباً، ثم تأكد أن كل أصل والتزام مُدرج مرة واحدة." });
+    if (capital <= 0)
+      out.push({ lvl: "err", msg: "رأس المال المدفوع صفر أو سالب.",
+                 fix: "أدخل رأس المال كما في السجل التجاري — لا تُقبل ميزانية بلا رأس مال." });
+    if (t.eq <= 0 && capital > 0)
+      out.push({ lvl: "err", msg: "حقوق الملكية سالبة أو معدومة (" + kwd(t.eq) + " د.ك).",
+                 fix: "الخسائر استنفدت رأس المال — يلزم قرار من الشركاء بالتغطية أو تخفيض رأس المال أو الحل." });
+    if (capital > 0 && accumulated < 0 && Math.abs(accumulated) >= capital / 2)
+      out.push({ lvl: "warn", msg: "الخسائر المتراكمة (" + kwd(Math.abs(accumulated)) +
+                 " د.ك) بلغت نصف رأس المال أو أكثر.",
+                 fix: "قانون الشركات الكويتي يوجب عرض الأمر على الجمعية العامة لتقرر الاستمرار أو التخفيض أو الحل — وثّق القرار قبل الإيداع." });
+    if (xnum("cogs") > xnum("revenue") && xnum("revenue") > 0)
+      out.push({ lvl: "warn", msg: "تكلفة الإيرادات أكبر من الإيرادات (مجمل خسارة).",
+                 fix: "تأكد أن التكلفة لا تتضمن مصاريف إدارية أُدرجت مرتين، أو وثّق سبب مجمل الخسارة للمدقق." });
+    if (t.cl > t.ca && t.assets > 0)
+      out.push({ lvl: "warn", msg: "الالتزامات المتداولة (" + kwd(t.cl) + ") تتجاوز الأصول المتداولة (" + kwd(t.ca) +
+                 ") — نسبة التداول " + (t.cl > 0 ? (t.ca / t.cl).toFixed(2) : "—") + ".",
+                 fix: "خطر سيولة يلفت نظر المدقق والوزارة — جدوِل القروض القصيرة أو ادعم النقد قبل نهاية السنة." });
+    if (xf.period.value !== "FY")
+      out.push({ lvl: "warn", msg: "الفترة المختارة ربع سنوية.",
+                 fix: "إيداع الوزارة سنوي — اختر «سنوية» وتاريخ نهاية السنة المالية كما في عقد التأسيس." });
+    if (t.net > 0 && xnum("statRes") < capital / 2)
+      out.push({ lvl: "sug", msg: "الاحتياطي القانوني (" + kwd(xnum("statRes")) + " د.ك) لم يبلغ نصف رأس المال.",
+                 fix: "حوّل ما لا يقل عن 10% من صافي الربح = " + kwd(t.net * 0.10) + " د.ك إلى الاحتياطي القانوني قبل التوزيع." });
+    if (xnum("eosb") === 0 && (xnum("adminExp") > 0 || xnum("cogs") > 0))
+      out.push({ lvl: "sug", msg: "مخصص مكافأة نهاية الخدمة صفر مع وجود مصاريف تشغيل.",
+                 fix: "إن كان لديك موظفون فقانون العمل يوجب احتساب المخصص — قدّره واعرضه ضمن الالتزامات غير المتداولة." });
+    var legal = xf.legal.value;
+    if (t.net > 0 && legal === "kscc")
+      out.push({ lvl: "sug", msg: "شركة مساهمة مقفلة رابحة: تخضع للزكاة (قانون 46/2006).",
+                 fix: "احتسب زكاة 1% من صافي الربح ≈ " + kwd(t.net * 0.01) + " د.ك ضمن المخصصات." });
+    if (t.net > 0 && legal === "kscp")
+      out.push({ lvl: "sug", msg: "شركة مساهمة مدرجة رابحة: تخضع لضريبة دعم العمالة و«كفاس».",
+                 fix: "احتسب ≈ 2.5% دعم عمالة (" + kwd(t.net * 0.025) + " د.ك) و1% كفاس (" + kwd(t.net * 0.01) + " د.ك) من صافي الربح." });
+    return { totals: t, findings: out };
+  }
+
+  function xvalidate(announce) {
+    var r = audit(), t = r.totals;
+    var diff = t.assets - (t.liab + t.eq), ok = Math.abs(diff) < 0.0005;
+    var c = el("xbrl-check");
+    c.className = "check " + (ok ? "ok" : "bad");
+    c.textContent = ok
+      ? "✔ القائمة متوازنة: الأصول (" + kwd(t.assets) + " د.ك) = الالتزامات + حقوق الملكية (" + kwd(t.liab + t.eq) + " د.ك)"
+      : "✘ غير متوازنة: الأصول " + kwd(t.assets) + " د.ك مقابل " + kwd(t.liab + t.eq) +
+        " د.ك — الفرق " + kwd(diff) + " د.ك";
+
+    var TITLES = { err: "خطأ", warn: "تنبيه", sug: "اقتراح" };
+    var COLORS = { err: "var(--danger)", warn: "var(--sand)", sug: "var(--tint)" };
+    el("xbrl-audit").innerHTML = r.findings.length
+      ? r.findings.map(function (f) {
+          return '<div class="check" style="border-color:' + COLORS[f.lvl] + ';margin:8px 0">' +
+            '<b style="color:' + COLORS[f.lvl] + '">' + TITLES[f.lvl] + ":</b> " + esc(f.msg) +
+            '<br /><span class="note">↳ ' + esc(f.fix) + "</span></div>";
+        }).join("")
+      : (announce ? '<div class="check ok" style="margin:8px 0">لا ملاحظات — الميزانية جاهزة للتوليد والإيداع.</div>' : "");
+    if (ok && announce && !r.findings.length) toast("الميزانية سليمة ✔");
+    return { ok: ok, errs: r.findings.filter(function (f) { return f.lvl === "err"; }).length };
+  }
+  el("xbrl-validate").addEventListener("click", function () { xvalidate(true); });
+
+  function escXml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function buildXbrl() {
+    var t = recalc();
+    var end = xf.periodEnd.value;
+    // UTC throughout, anchored to the first of the opening month: local-midnight
+    // parsing shifts the date east of Greenwich, and subtracting months from a
+    // 31st overflows into the wrong month.
+    var parts = end.split("-").map(Number);
+    var months = xf.period.value === "FY" ? 12 : 3;
+    var startStr = new Date(Date.UTC(parts[0], parts[1] - 1 - (months - 1), 1)).toISOString().slice(0, 10);
+    var crn = xf.crn.value.trim().replace(/[^0-9]/g, "").slice(0, 10);
+    function fact(tag, ctx, v) {
+      return '  <ifrs-full:' + tag + ' contextRef="' + ctx + '" unitRef="KWD" decimals="3">' +
+             Number(v).toFixed(3) + "</ifrs-full:" + tag + ">";
+    }
+    function ent() {
+      return '    <entity><identifier scheme="http://moci.gov.kw/commercial-registration">' +
+             escXml(crn) + "</identifier></entity>";
+    }
+    return [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<xbrl xmlns="http://www.xbrl.org/2003/instance"',
+      '      xmlns:xbrli="http://www.xbrl.org/2003/instance"',
+      '      xmlns:ifrs-full="https://xbrl.ifrs.org/taxonomy/2024-03-27/ifrs-full"',
+      '      xmlns:iso4217="http://www.xbrl.org/2003/iso4217">',
+      '  <context id="AsOf">', ent(),
+      "    <period><instant>" + end + "</instant></period>",
+      "  </context>",
+      '  <context id="Duration">', ent(),
+      "    <period><startDate>" + startStr + "</startDate><endDate>" + end + "</endDate></period>",
+      "  </context>",
+      '  <unit id="KWD"><measure>iso4217:KWD</measure></unit>',
+      "  <!-- " + escXml(xf.entity.value) + " — CR " + escXml(crn) + " — " + xf.period.value + " ending " + end + " -->",
+      fact("CashAndCashEquivalents", "AsOf", xnum("cash")),
+      fact("TradeAndOtherCurrentReceivables", "AsOf", xnum("receivables")),
+      fact("Inventories", "AsOf", xnum("inventory")),
+      fact("OtherCurrentAssets", "AsOf", xnum("otherCA")),
+      fact("CurrentAssets", "AsOf", t.ca),
+      fact("PropertyPlantAndEquipment", "AsOf", xnum("ppe")),
+      fact("OtherNoncurrentFinancialAssets", "AsOf", xnum("investments")),
+      fact("OtherNoncurrentAssets", "AsOf", xnum("otherNCA")),
+      fact("NoncurrentAssets", "AsOf", t.nca),
+      fact("Assets", "AsOf", t.assets),
+      fact("TradeAndOtherCurrentPayables", "AsOf", xnum("payables")),
+      fact("ShorttermBorrowings", "AsOf", xnum("stBorrow")),
+      fact("OtherCurrentLiabilities", "AsOf", xnum("otherCL")),
+      fact("CurrentLiabilities", "AsOf", t.cl),
+      fact("LongtermBorrowings", "AsOf", xnum("ltBorrow")),
+      fact("NoncurrentProvisionsForEmployeeBenefits", "AsOf", xnum("eosb")),
+      fact("OtherNoncurrentLiabilities", "AsOf", xnum("otherNCL")),
+      fact("NoncurrentLiabilities", "AsOf", t.ncl),
+      fact("Liabilities", "AsOf", t.liab),
+      fact("IssuedCapital", "AsOf", xnum("capital")),
+      fact("OtherReserves", "AsOf", xnum("statRes") + xnum("volRes")),
+      fact("RetainedEarnings", "AsOf", xnum("retained") + t.net),
+      fact("Equity", "AsOf", t.eq),
+      fact("EquityAndLiabilities", "AsOf", t.liab + t.eq),
+      fact("Revenue", "Duration", xnum("revenue")),
+      fact("CostOfSales", "Duration", xnum("cogs")),
+      fact("GrossProfit", "Duration", xnum("revenue") - xnum("cogs")),
+      fact("ExpensesByNature", "Duration", xnum("cogs") + xnum("adminExp") + xnum("otherExp")),
+      fact("ProfitLoss", "Duration", t.net),
+      "</xbrl>"
+    ].join("\n");
+  }
+  el("xbrl-preview").addEventListener("click", function () {
+    if (!xf.reportValidity()) return;
+    var o = el("xbrl-out"); o.textContent = buildXbrl(); o.hidden = false;
+  });
+  xf.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var v = xvalidate(true);
+    if (v.errs) { toast("صحّح الأخطاء قبل التوليد — " + ar(v.errs, "خطأ", "خطآن", "أخطاء", "خطأ واحد")); return; }
+    var t = recalc();
+    var xml = buildXbrl();
+    var hist = rd(K.reports, []); if (!Array.isArray(hist)) hist = [];
+    hist.push({ entity: xf.entity.value.trim().slice(0, 120), crn: xf.crn.value.trim().slice(0, 10),
+                legal: xf.legal.value, period: xf.period.value, periodEnd: xf.periodEnd.value,
+                assets: t.assets, equity: t.eq,
+                revenue: xnum("revenue"), profit: t.net,
+                filedAt: new Date().toISOString() });
+    if (!wr(K.reports, hist.slice(-200))) {
+      // the XML still downloads — the file is the deliverable — but the user
+      // must not be told it was filed away when it was not
+      toast(STORAGE_FULL);
+    }
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([xml], { type: "application/xml" }));
+    a.download = "xbrl-" + (xf.entity.value.trim().replace(/[^\w؀-ۿ-]+/g, "-").slice(0, 60) || "report") +
+                 "-" + xf.period.value + "-" + xf.periodEnd.value + ".xml";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+    renderXbrlHistory(); toast("تم توليد الملف وحفظ التقرير ✔");
+  });
+  function renderXbrlHistory() {
+    var reps = rd(K.reports, []); if (!Array.isArray(reps)) reps = [];
+    el("xbrl-rows").innerHTML = reps.slice().reverse().map(function (r) {
+      var profit = Number(r && r.profit) || 0;
+      return "<tr><td>" + esc((r && r.entity) || "—") + "</td><td>" + esc((r && r.crn) || (r && r.period) || "—") +
+        "</td><td>" + esc((r && r.periodEnd) || "—") + "</td><td>" + kwd(clamp(r && r.assets, 1e12)) +
+        "</td><td>" + kwd(clamp(r && r.revenue, 1e12)) + '</td><td class="' + (profit >= 0 ? "up" : "down") +
+        '">' + (profit >= 0 ? "+" : "−") + kwd(Math.abs(profit)) + "</td></tr>";
+    }).join("");
+    el("xbrl-empty").style.display = reps.length ? "none" : "block";
+  }
+
+  /* ════════════════════ Delivery ════════════════════ */
+  var delFilter = -1;
+  function nextId(list) {
+    var max = 0;
+    list.forEach(function (o) { var n = Number(String(o.id).slice(4)); if (isFinite(n) && n > max) max = n; });
+    return "ORD-" + String(max + 1).padStart(4, "0");
+  }
+  function renderDelivery() {
+    var s = deliveryStats();
+    el("del-tiles").innerHTML = tiles([
+      ["إجمالي الطلبات", s.total, "", "", "s-total"],
+      ["قيد التنفيذ", s.active, "", "", "s-active"],
+      ["تم التسليم", s.delivered, "", "", "s-done"],
+      ["الإيراد (د.ك)", kwd(s.revenue), "من الطلبات المسلّمة", "", "s-revenue"]
+    ]);
+
+    var cs = couriers();
+    var sel = el("del-courier"), keep = sel.value;
+    sel.innerHTML = '<option value="">— بدون —</option>' +
+      cs.map(function (c) { return '<option value="' + esc(c.name) + '">' + esc(c.name) + "</option>"; }).join("");
+    sel.value = keep;
+    el("del-couriers").innerHTML = cs.length
+      ? cs.map(function (c, i) {
+          return '<span class="status st-2">🛵 ' + esc(c.name) + " · " + esc(c.phone) +
+                 ' <button class="btn sm danger" data-del-courier="' + i + '">×</button></span>';
+        }).join("")
+      : '<span class="note">لا توجد مناديب.</span>';
+
+    el("del-filters").innerHTML = [-1].concat(STATUSES.map(function (_, i) { return i; }))
+      .map(function (i) {
+        return '<button class="btn sm" data-filter="' + i + '"' +
+          (delFilter === i ? ' style="border-color:var(--tint);color:var(--tint)"' : "") + ">" +
+          (i < 0 ? "الكل" : STATUSES[i]) + "</button>";
+      }).join("");
+
+    var list = orders().filter(function (o) { return delFilter < 0 || o.status === delFilter; });
+    el("del-orders").innerHTML = list.slice().reverse().map(function (o) {
+      var idx = orders().findIndex(function (x) { return x.id === o.id; });
+      var adv = o.status < DELIVERED
+        ? '<button class="btn sm primary" data-next="' + idx + '">← ' + STATUSES[o.status + 1] + "</button>" : "";
+      var can = o.status < DELIVERED
+        ? '<button class="btn sm danger" data-cancel="' + idx + '">إلغاء</button>' : "";
+      return '<div class="order"><div class="who"><b>' + esc(o.customer) +
+        ' <span style="font-family:var(--mono);font-size:12px;color:var(--muted)">' + esc(o.id) + "</span></b>" +
+        "<span>📞 " + esc(o.phone) + " · 📍 " + esc(o.address) + "</span>" +
+        "<span>🍽 " + esc(o.items) + (o.courier ? " · 🛵 " + esc(o.courier) : "") + "</span></div>" +
+        '<div class="amount">' + kwd(o.amount) + ' د.ك</div><span class="status st-' + o.status + '">' +
+        STATUSES[o.status] + "</span>" + adv + can + "</div>";
+    }).join("");
+    el("del-empty").style.display = list.length ? "none" : "block";
+  }
+  el("del-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var f = e.target, list = orders();
+    list.push({ id: nextId(list), customer: f.customer.value.trim().slice(0, 80),
+                phone: f.phone.value.replace(/[^0-9+ ]/g, "").slice(0, 15),
+                address: f.address.value.trim().slice(0, 160), items: f.items.value.trim().slice(0, 160),
+                amount: clamp(f.amount.value, 1e6), courier: f.courier.value, status: 0,
+                createdAt: new Date().toISOString() });
+    if (!wr(K.orders, list)) { toast(STORAGE_FULL); return; }
+    f.reset(); renderAll(); toast("تمت إضافة الطلب ✔");
+  });
+  el("del-courier-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var f = e.target, cs = couriers();
+    cs.push({ name: f.cname.value.trim().slice(0, 80), phone: f.cphone.value.replace(/[^0-9+ ]/g, "").slice(0, 15) });
+    if (!wr(K.couriers, cs)) { toast(STORAGE_FULL); return; }
+    f.reset(); renderAll(); toast("تمت إضافة المندوب");
+  });
+  el("del-couriers").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-del-courier]"); if (!b) return;
+    var cs = couriers(); cs.splice(Number(b.getAttribute("data-del-courier")), 1);
+    if (!wr(K.couriers, cs)) { toast(STORAGE_FULL); return; }
+    renderAll();
+  });
+  el("del-filters").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-filter]"); if (!b) return;
+    delFilter = Number(b.getAttribute("data-filter")); renderDelivery();
+  });
+  el("del-orders").addEventListener("click", function (e) {
+    var n = e.target.closest("button[data-next]"), c = e.target.closest("button[data-cancel]");
+    if (!n && !c) return;
+    var list = orders();
+    if (n) { var o = list[Number(n.getAttribute("data-next"))];
+             if (o.status < DELIVERED) { o.status += 1; toast(o.id + " → " + STATUSES[o.status]); } }
+    else { list[Number(c.getAttribute("data-cancel"))].status = CANCELLED; toast("تم إلغاء الطلب"); }
+    if (!wr(K.orders, list)) { toast(STORAGE_FULL); return; }
+    renderAll();
+  });
+
+  /* ════════════════════ social centre ════════════════════
+     Static reference data. It is deliberately not in localStorage: these are
+     the company's facts, not the user's records, and a copy that could be
+     edited on one device is a second source of truth. */
+  var PHONE = "+965 6589 4110";
+  /* Renders escaped text with every occurrence of the phone number wrapped in
+     its own bidi isolate. Display only — CLIP holds the raw string, so what is
+     copied is exactly what was written. */
+  function withPhone(t) {
+    return esc(t).split(PHONE).join('<bdi dir="ltr">' + PHONE + "</bdi>");
+  }
+
+  /* A Latin hashtag inside an Arabic set needs its own isolate: the neutral #
+     resolves by what follows it, so «#XBRL» among Arabic tags renders «XBRL#».
+     Each Latin-bearing token is wrapped; the Arabic ones keep the page's
+     direction, where the # already lands at the start. */
+  function tagRun(s) {
+    return s.split(" ").map(function (w) {
+      return /[A-Za-z]/.test(w) ? '<bdi dir="ltr">' + esc(w) + "</bdi>" : esc(w);
+    }).join(" ");
+  }
+
+  var CHANNELS = [
+    ["واتساب", "+965 6589 4110", "https://wa.me/96565894110", "القناة الأولى — كل نموذج في الموقع ينتهي هنا"],
+    ["انستغرام", "@almuhallab.code", "https://www.instagram.com/almuhallab.code/", "صورة الحساب والأغلفة البارزة من مجلد الأصول"],
+    ["البريد", "hello@almuhallab-code.com", "mailto:hello@almuhallab-code.com", "للعروض والملفات الرسمية"]
+  ];
+
+  var ASSETS = [
+    ["صورة الحساب", "1080×1080", "انستغرام — تُقصّ دائرية وتُعرض عند 110 بكسل", "design/instagram_covers.py"],
+    ["12 غلافاً بارزاً", "1080×1080", "الأبرز في انستغرام — تُعرض عند 64 بكسل تحت عنوان", "design/instagram_covers.py"],
+    ["بطاقة المشاركة", "1200×630", "واتساب · انستغرام · لينكدإن · نتائج البحث", "design/og_image.py"],
+    ["حزمة الشعار", "SVG · PNG · ICO", "الشركاء والمطابع — بنّي وأبيض وأسود، بالشكلين", "design/logo_pack.py"],
+    ["أيقونة التطبيق", "512×512", "النوخذة على ويندوز وماك — المرساة لا البوم", "design/windows_icon.py"]
+  ];
+
+  var COPY = [
+    ["السيرة (bio)",
+     "المهلب كود — شركة برمجة وأنظمة في الكويت.\n" +
+     "مواقع · تطبيقات · برمجيات مخصّصة · ذكاء اصطناعي · UI/UX · حلول سحابية · تطوير ألعاب.\n" +
+     "النوخذة: نظامنا الموحد للمحفظة والميزانية وملف XBRL والتوصيل — مجاناً."],
+    ["منشور تعريفي",
+     "نبني الأنظمة التي تُشغّل عملك، لا صفحات تعرضه فقط.\n" +
+     "سبع خدمات تحت سقف واحد: تطوير المواقع، تطبيقات الجوال، برمجيات مخصّصة، " +
+     "حلول الذكاء الاصطناعي، تصميم UI/UX، الحلول السحابية، وتطوير الألعاب.\n" +
+     "تواصل معنا على واتساب +965 6589 4110"],
+    ["منشور — النوخذة",
+     "النوخذة: النظام الموحد.\n" +
+     "المركز المالي · صافي للمحفظة · ملف XBRL للميزانية السنوية · التوصيل — " +
+     "أربع وحدات على نواة بيانات واحدة، تعمل بلا إنترنت وبلا خادم.\n" +
+     "مجاني بالكامل: خطة واحدة، كل الوحدات مفتوحة، ولا شيء يُشترى."],
+    ["منشور — ملف XBRL",
+     "الميزانية السنوية الكويتية كما تطلبها وزارة التجارة:\n" +
+     "المجاميع تُحسب من البنود ولا تُكتب، ومراجعة آلية تُظهر ما يمنع التقديم، " +
+     "وما يخالف قانون الشركات، ومقترحات بالمبالغ — الاحتياطي القانوني 10% والزكاة 1%.\n" +
+     "التقديم النهائي يتم عبر بوابة وزارة التجارة."],
+    ["ردّ جاهز — كم السعر؟",
+     "النوخذة مجاني — خطة واحدة وكل الوحدات مفتوحة.\n" +
+     "أما المشاريع الخاصة فسعرها يتبع نطاقها؛ أرسل لنا فكرتك على واتساب " +
+     "+965 6589 4110 ونرجع لك بعرض مكتوب."]
+  ];
+
+  var TAGS = [
+    ["عام", "#المهلب_كود #برمجة #الكويت #تطوير_مواقع #تطبيقات #شركة_برمجة"],
+    ["النوخذة", "#النوخذة #نظام_محاسبي #XBRL #الميزانية_السنوية #وزارة_التجارة #الكويت"],
+    ["تقني", "#software #webdev #flutter #ai #uiux #kuwait #madeinkuwait", true]
+  ];
+
+  /* One flat list of everything a copy button can put on the clipboard, so a
+     button carries an index and never the text itself — a data attribute
+     holding a multi-line string is one quote away from breaking the markup. */
+  var CLIP = [];
+  function clipBtn(text, label) {
+    CLIP.push(text);
+    return '<button class="btn sm" data-clip="' + (CLIP.length - 1) + '">' + esc(label || "نسخ") + "</button>";
+  }
+
+  function renderSocial() {
+    CLIP = [];
+    el("soc-channels").innerHTML = CHANNELS.map(function (c) {
+      return '<div class="soc"><div class="head"><b>' + esc(c[0]) + '</b>' +
+        '<span class="val">' + esc(c[1]) + "</span>" + clipBtn(c[1]) + "</div>" +
+        '<p class="note" style="margin:0">' + esc(c[3]) + "</p>" +
+        '<div><a class="btn sm" href="' + esc(c[2]) + '" target="_blank" rel="noopener noreferrer">فتح القناة</a></div></div>';
+    }).join("");
+
+    el("soc-assets").innerHTML = ASSETS.map(function (a) {
+      return "<tr><td>" + esc(a[0]) + '</td><td><span class="ltr">' + esc(a[1]) + "</span></td><td>" +
+        esc(a[2]) + '</td><td><code>' + esc(a[3]) + "</code></td></tr>";
+    }).join("");
+
+    el("soc-copy").innerHTML = COPY.map(function (c) {
+      return '<div class="soc"><div class="head"><b>' + esc(c[0]) + "</b>" +
+        clipBtn(c[1], "نسخ النص") + "</div><p>" + withPhone(c[1]) + "</p></div>";
+    }).join("");
+
+    el("soc-tags").innerHTML = TAGS.map(function (t) {
+      return '<div class="soc"><div class="head"><b>' + esc(t[0]) + "</b>" +
+        clipBtn(t[1]) + '</div><div class="tags' + (t[2] ? " ltr" : "") + '">' +
+        (t[2] ? esc(t[1]) : tagRun(t[1])) + "</div></div>";
+    }).join("");
+  }
+
+  /* navigator.clipboard is absent over plain http and in older engines, so the
+     fallback is the one that has always worked. Either way the toast only
+     claims success when the copy actually happened. */
+  function copyText(s) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(s).then(function () { toast("تم النسخ ✔"); },
+        function () { legacyCopy(s); });
+      return;
+    }
+    legacyCopy(s);
+  }
+  function legacyCopy(s) {
+    var t = document.createElement("textarea");
+    t.value = s; t.setAttribute("readonly", "");
+    t.style.position = "fixed"; t.style.opacity = "0";
+    document.body.appendChild(t); t.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(t);
+    toast(ok ? "تم النسخ ✔" : "تعذّر النسخ — حدّد النص وانسخه يدوياً");
+  }
+  el("tab-social").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-clip]"); if (!b) return;
+    var i = Number(b.getAttribute("data-clip"));
+    if (i >= 0 && i < CLIP.length) copyText(CLIP[i]);
+  });
+
+  /* ════════════════════ routing + render ════════════════════ */
+  var TABS = ["position", "safi", "xbrl", "delivery", "social"];
+  function route() {
+    var t = (location.hash || "#/position").slice(2);
+    if (TABS.indexOf(t) < 0) t = "position";
+    TABS.forEach(function (x) { el("tab-" + x).classList.toggle("on", x === t); });
+    [].forEach.call(el("tabs").children, function (b) {
+      b.classList.toggle("on", b.getAttribute("data-tab") === t);
+    });
+  }
+  el("tabs").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-tab]"); if (!b) return;
+    location.hash = "#/" + b.getAttribute("data-tab");
+  });
+  window.addEventListener("hashchange", route);
+
+  function renderAll() { renderPosition(); renderSafi(); renderDelivery(); renderXbrlHistory(); renderSocial(); }
+
+  // Another tab of the same system is the same records, not a second copy.
+  // Without this, a holding added in one tab left the other tab's table
+  // showing the old rows — while its CSV export, which re-reads storage,
+  // wrote the new ones. A statement that disagrees with the screen it was
+  // printed from is worse than no statement.
+  window.addEventListener("storage", function (e) {
+    if (e.key !== null && e.key.slice(0, 9) !== "nokhatha-") return;
+    renderAll();
+    toast("حُدّثت السجلات من نافذة أخرى");
+  });
+
+
+  /* ══════════════════ the public interface: window.Nokhatha ══════════════
+     A documented way in and out of النوخذة's records, for a page, a script,
+     or another system of the owner's — without a server, and without a
+     second copy of anything.
+
+     It is a wrapper over the core that is already here, not a parallel one.
+     Every read goes through the same coercion the screens use, so the API
+     cannot hand out a record the screens would refuse; every write goes
+     through the same wr(), so it cannot report success on a write that did
+     not happen. localStorage is user-writable, so both directions treat what
+     they are given as untrusted.
+
+     Reads return fresh objects. The coercion builds new ones each call, so a
+     caller that edits what it was given edits its own copy and nothing else —
+     the store cannot be changed except through the write methods, which
+     validate.
+
+     No formatting here. The API returns numbers; kwd() and the "en-US" locale
+     belong to the screens that print them. An API that returned "1,240.500"
+     would force every caller to parse it back, and would print Arabic-Indic
+     digits on a device set to Arabic.
+
+     There is no server, and this does not add one. Everything runs in the
+     visitor's own browser against their own storage, which is what lets the
+     site keep saying the records never leave the device. */
+  var API_VERSION = "1.0.0";
+  var listeners = [];
+
+  function fire(unit) {
+    renderAll();
+    for (var i = 0; i < listeners.length; i++) {
+      try { listeners[i]({ unit: unit, at: new Date().toISOString() }); }
+      catch (e) { /* one bad listener must not stop the others */ }
+    }
+  }
+
+  function ok(v) { return { ok: true, value: v }; }
+  function fail(m) { return { ok: false, error: m }; }
+
+  function saveList(k, list, unit) {
+    if (!wr(k, list)) return fail(STORAGE_FULL);
+    fire(unit);
+    return ok(list.length);
+  }
+
+  /* Validation lives apart from writing, so adding one record and importing
+     two hundred can share it. The batch path builds the whole list in memory
+     and writes once; before this, import() called addHolding per record, and
+     each of those re-read the list, re-wrote it, and re-rendered every screen
+     — the work grew with the square of the backup's size. */
+  function makeHolding(h, existing) {
+    h = h || {};
+    var ticker = cleanTicker(h.ticker || "");
+    if (!ticker) return fail("رمز السهم مطلوب");
+    // clamp() turns a negative or nonsense quantity into 0, which would be
+    // stored as a holding of no shares and reported as a success. Caught by
+    // testing: addHolding({ticker:'NBK', qty:-50}) answered ok. A quantity
+    // the caller cannot have meant is a caller error, not a zero.
+    var qty = Math.floor(clamp(h.qty, 1e9));
+    if (qty < 1) return fail("الكمية يجب أن تكون سهماً واحداً فأكثر");
+    if (existing.some(function (x) { return x.ticker === ticker; }))
+      return fail("هذا الرمز مضاف بالفعل: " + ticker);
+    return ok({ ticker: ticker, name: String(h.name || "").slice(0, 80),
+                qty: qty, cost: clamp(h.cost, 1e7), price: clamp(h.price, 1e7) });
+  }
+
+  /* A date that survives a round trip. addOrder used to stamp every record
+     with the moment it was written, which is right for a new order and wrong
+     for a restored one: exporting a year of orders and importing them back
+     re-dated all of them to today, quietly, while calling itself a backup.
+     A supplied date is parsed and normalised — localStorage is user-writable,
+     so an unparseable one falls back to now rather than being trusted. */
+  function isoOr(fallback, v) {
+    var t = Date.parse(String(v || ""));
+    return isFinite(t) ? new Date(t).toISOString() : fallback;
+  }
+
+  function makeOrder(o, existing) {
+    o = o || {};
+    var id = String(o.id || "").slice(0, 12);
+    if (!id) return fail("رقم الطلب مطلوب");
+    if (existing.some(function (x) { return x.id === id; }))
+      return fail("رقم الطلب مستعمل: " + id);
+    return ok({ id: id, customer: String(o.customer || "").slice(0, 80),
+                phone: String(o.phone || "").slice(0, 15),
+                address: String(o.address || "").slice(0, 160),
+                items: String(o.items || "").slice(0, 160),
+                amount: clamp(o.amount, 1e6),
+                courier: String(o.courier || "").slice(0, 80),
+                status: Math.min(Math.max(Math.floor(Number(o.status) || 0), 0),
+                                 STATUSES.length - 1),
+                createdAt: isoOr(new Date().toISOString(), o.createdAt) });
+  }
+
+  window.Nokhatha = {
+    version: API_VERSION,
+
+    /* ---- reads ---- */
+    holdings: function () { return holdings(); },
+    orders: function () { return orders(); },
+    couriers: function () { return couriers(); },
+    reports: function () {
+      var l = rd(K.reports, []);
+      return Array.isArray(l) ? l : [];
+    },
+
+    /* the derived figures, from the one place they are defined */
+    totals: function () { return position(); },
+    statuses: function () { return STATUSES.slice(); },
+
+    /* ---- writes ---- */
+    addHolding: function (h) {
+      var list = holdings(), r = makeHolding(h, list);
+      if (!r.ok) return r;
+      list.push(r.value);
+      return saveList(K.safi, list, "safi");
+    },
+    removeHolding: function (ticker) {
+      var t = cleanTicker(ticker || ""), list = holdings();
+      var kept = list.filter(function (x) { return x.ticker !== t; });
+      if (kept.length === list.length) return fail("لا يوجد سهم بالرمز " + t);
+      return saveList(K.safi, kept, "safi");
+    },
+    addOrder: function (o) {
+      var list = orders(), r = makeOrder(o, list);
+      if (!r.ok) return r;
+      list.push(r.value);
+      return saveList(K.orders, list, "delivery");
+    },
+    setOrderStatus: function (id, status) {
+      var list = orders(), found = false;
+      var n = Math.floor(Number(status));
+      if (!isFinite(n) || n < 0 || n > STATUSES.length - 1)
+        return fail("حالة غير معروفة — استعمل 0.." + (STATUSES.length - 1));
+      list.forEach(function (x) {
+        if (x.id === String(id).slice(0, 12)) { x.status = n; found = true; }
+      });
+      if (!found) return fail("لا يوجد طلب بالرقم " + id);
+      return saveList(K.orders, list, "delivery");
+    },
+
+    /* ---- the whole store ---- */
+    export: function () {
+      return { version: API_VERSION, exportedAt: new Date().toISOString(),
+               safi: holdings(), orders: orders(),
+               couriers: couriers(), reports: this.reports() };
+    },
+    import: function (data, opts) {
+      // Replaces by default. Merging two sets of records without being told
+      // how to resolve a clash is a way to invent a third set, so a clash
+      // keeps what is already stored and is counted rather than guessed at.
+      if (!data || typeof data !== "object") return fail("بيانات غير صالحة");
+      var merge = !!(opts && opts.merge), added = 0, skipped = 0;
+
+      // Built in memory, written once per unit. Each record is validated
+      // against what is already accepted in this same batch, so a backup
+      // holding the same ticker twice is caught rather than stored twice.
+      if (Array.isArray(data.safi)) {
+        var hs = merge ? holdings() : [];
+        data.safi.forEach(function (h) {
+          var r = makeHolding(h, hs);
+          if (r.ok) { hs.push(r.value); added++; } else { skipped++; }
+        });
+        if (!wr(K.safi, hs)) return fail(STORAGE_FULL);
+      }
+      if (Array.isArray(data.orders)) {
+        var os = merge ? orders() : [];
+        data.orders.forEach(function (o) {
+          var r = makeOrder(o, os);
+          if (r.ok) { os.push(r.value); added++; } else { skipped++; }
+        });
+        if (!wr(K.orders, os)) return fail(STORAGE_FULL);
+      }
+      fire("all");
+      return ok({ added: added, skipped: skipped });
+    },
+    clear: function (unit) {
+      var map = { safi: K.safi, delivery: K.orders,
+                  couriers: K.couriers, reports: K.reports };
+      var k = map[unit];
+      if (!k) return fail("وحدة غير معروفة: " + unit);
+      if (!wr(k, [])) return fail(STORAGE_FULL);
+      fire(unit);
+      return ok(0);
+    },
+
+    /* ---- events ---- */
+    on: function (fn) {
+      if (typeof fn === "function") listeners.push(fn);
+      return this;
+    },
+    off: function (fn) {
+      listeners = listeners.filter(function (f) { return f !== fn; });
+      return this;
+    }
+  };
+
+  renderAll(); recalc(); route();
+})();
+</script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+  }
+</script>
+</body>
+</html>

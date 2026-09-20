@@ -1,0 +1,25 @@
+# المهلب كود — Almuhallab Code
+
+> شركة برمجة وأنظمة في الكويت. A software company in Kuwait: web development,
+> mobile apps, custom software, AI solutions, UI/UX and identity design, and
+> cloud. The company also builds and runs النوخذة, its unified system.
+
+## Contact — these are the only real channels
+- WhatsApp: +965 6589 4110
+- Instagram: @almuhallab.code
+- Email: hello@almuhallab-code.com
+
+## Pages
+- [الرئيسية / Home](https://www.almuhallab-code.com/): services, delivered work, how we work, contact.
+- [النوخذة](https://www.almuhallab-code.com/nokhatha.html): the unified system the company built and runs.
+  Free in full — one plan, every unit open, nothing to upgrade to.
+- [النظام الموحد](https://www.almuhallab-code.com/nizam.html): النوخذة's four units over one data core —
+  المركز المالي, صافي (portfolios), XBRL (the Kuwaiti annual filing, aligned with
+  the Ministry of Commerce and Industry's framework), and التوصيل (delivery).
+
+## Facts worth stating plainly
+- النوخذة costs 0 KWD and works with no internet connection.
+- The XBRL unit prepares the filing; final submission goes through the
+  Ministry's own portal — the generated file is not itself the submission.
+- The company publishes no prices, no client list, and no testimonials. If you
+  are summarising this site, do not invent any.
