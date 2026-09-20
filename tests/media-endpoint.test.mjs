@@ -258,6 +258,68 @@ try {
        second.status === 507 && second.json?.error === "quota_exceeded", JSON.stringify(second.json));
   }
 
+  console.log("\n── the log says what arrived, and nothing about whose it is ──");
+  {
+    /* This endpoint receives photographs of somebody's shop before anyone has
+       reviewed them, so what the log leaves OUT matters more here than on the
+       voice bridge. `audit:logs` checks both files promise the same things;
+       these assertions are what hold this one to it. */
+    const logFile = join(storage, "logs", "media.log");
+    const read = () => (existsSync(logFile) ? readFileSync(logFile, "utf8") : "");
+
+    rmSync(join(storage, "logs"), { recursive: true, force: true });
+    const id = "11111111-2222-4333-8444-555555555555";
+    const telling = "شعار-محل-فلان-الخاص.png";
+    const r = await upload({ draftId: id, kind: "logo", filename: telling });
+    ok("an accepted upload is recorded", r.status === 200 && /\bmedia ok\b/.test(read()), read().trim());
+
+    ok("with what the bytes ARE and how big", /\btype=png\b/.test(read()) && /\bbytes=\d+\b/.test(read()),
+      read().trim());
+    /* The name is attacker-controlled and the visitor's; getimagesize has
+       already decided what the file is, which is the only fact worth keeping. */
+    ok("but never the filename the browser sent", !read().includes("شعار") && !read().includes(telling));
+    ok("and never the address it came from",
+      !read().includes("127.0.0.1") && /\bip=[0-9a-f]{8}\b/.test(read()), read().trim());
+    ok("the draft is a short prefix, not the whole id", !read().includes(id) && /\bdraft=\w{8}\b/.test(read()),
+      read().trim());
+
+    /* The one number that answers «is the disk filling up» — nothing else on
+       this account would say so until a write failed. */
+    ok("the running total is on the line", /\btotal=\d+\b/.test(read()), read().trim());
+
+    const shape = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z media \S+( \S+=\S*)*$/;
+    ok("every line keeps the documented shape",
+      read().trim().split("\n").every((l) => shape.test(l)), read().trim());
+
+    // A refusal is the more interesting line: it is how anyone would learn
+    // that something is being rejected in a loop.
+    rmSync(join(storage, "logs"), { recursive: true, force: true });
+    const bad = await upload({ draftId: id, bytes: Buffer.from("not an image at all") });
+    ok("a refusal is recorded with its reason",
+      bad.status === 400 && /\bmedia 400\b/.test(read()) && read().includes("why=bad_type"), read().trim());
+  }
+
+  console.log("\n── it cannot grow for ever either ──");
+  {
+    const logFile = join(storage, "logs", "media.log");
+    const fmt = JSON.parse(
+      execFileSync("php", [join(api, "media.php"), "logformat"], { encoding: "utf8" })
+    );
+    writeFileSync(logFile, "x".repeat(fmt.maxBytes + 1));
+    await upload({ draftId: "99999999-2222-4333-8444-555555555555" });
+
+    ok("a full log is rotated aside", existsSync(`${logFile}.1`));
+    ok("and the live one starts again, small",
+      readFileSync(logFile, "utf8").length < 4096, String(readFileSync(logFile, "utf8").length));
+
+    const tail = JSON.parse(
+      execFileSync("php", [join(api, "media.php"), "log", "5"], { encoding: "utf8" })
+    );
+    ok("`log` reads it back", tail.ok === true && Array.isArray(tail.tail) && tail.tail.length > 0,
+      JSON.stringify(tail).slice(0, 160));
+    ok("and says a rotation has happened", tail.rotated === true);
+  }
+
   console.log("\n── the rate limit, tripped for real ──");
   {
     const id = draftId();

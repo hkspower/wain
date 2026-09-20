@@ -128,6 +128,50 @@ function storageDir(): ?string {
     return null;
 }
 
+/* ── the log ────────────────────────────────────────────────────────────────
+   Deliberately identical to /api/tts.php's, down to the constants, and kept
+   duplicated for the reason the rate counter below already is: each endpoint
+   has to stay copy-installable on its own, with no include path between them.
+   `npm run audit:logs` asks each one for its own `logformat` and fails when
+   they disagree — a regex over either source would pass the day it was
+   written, which is the same argument `audit:tts` makes about the voices.
+
+   WHAT IS DELIBERATELY NOT IN IT, and here it matters more than it does for
+   the voice bridge: this endpoint receives photographs of somebody's shop
+   before anyone has reviewed them. The filename the browser sent is never
+   logged — it is attacker-controlled, it is the visitor's, and `getimagesize`
+   has already decided what the bytes actually are, which is the only fact
+   worth keeping. The IP is the first 8 hex of the same hash the rate limiter
+   computes. What is left is enough to answer «is anything arriving, is it
+   being refused, and is the disk filling up». */
+const LOG_MAX_BYTES = 262144;   // 256K, then rotate
+const LOG_KEEP      = 1;        // media.log plus media.log.1 — 512K, for ever
+const LOG_NAME      = 'media.log';
+
+function logline(string $outcome, array $fields = []): void {
+    $storage = storageDir();
+    if ($storage === null) return;
+    $dir = "$storage/logs";
+    if (!is_dir($dir)) { @mkdir($dir, 0700, true); }
+
+    $file = "$dir/" . LOG_NAME;
+    if (@filesize($file) >= LOG_MAX_BYTES) {
+        @rename($file, "$file.1");
+    }
+
+    $parts = [gmdate('Y-m-d\TH:i:s\Z'), 'media', $outcome];
+    foreach ($fields as $k => $v) {
+        $parts[] = $k . '=' . preg_replace('/[^\x21-\x7e]/', '', (string) $v);
+    }
+    @file_put_contents($file, implode(' ', $parts) . "\n", FILE_APPEND | LOCK_EX);
+    @chmod($file, 0600);
+}
+
+/** The visitor, as much of them as a log is allowed to remember. */
+function logIp(): string {
+    return substr(hash('sha256', (string) ($_SERVER['REMOTE_ADDR'] ?? '0')), 0, 8);
+}
+
 function dirSize(string $dir): int {
     if (!is_dir($dir)) return 0;
     $total = 0;
@@ -220,10 +264,41 @@ if (PHP_SAPI === 'cli') {
         $out(['ok' => true, 'dryRun' => $dry, 'removed' => $removed, 'cutoffDays' => PRUNE_AFTER_DAYS]);
     }
 
+    /* `log` and `logformat` — the same two modes /api/tts.php grew, in the
+       same shape, because `storage/` is outside the docroot on both and a
+       cron job running this is the only way to read either. */
+    if ($mode === 'log') {
+        $s    = storageDir();
+        $file = $s === null ? null : "$s/logs/" . LOG_NAME;
+        $n    = max(1, min(500, (int) ($argv[2] ?? 40)));
+        if ($file === null || !is_file($file)) {
+            $out(['ok' => true, 'file' => $file, 'lines' => 0, 'note' => 'nothing logged yet',
+                  'rotated' => $file !== null && is_file("$file.1")]);
+        }
+        $all = @file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+        $out([
+            'ok' => true, 'file' => $file, 'bytes' => @filesize($file),
+            'rotated' => is_file("$file.1"),
+            'lines' => count($all), 'showing' => min($n, count($all)),
+            'tail' => array_slice($all, -$n),
+        ]);
+    }
+
+    if ($mode === 'logformat') {
+        $out([
+            'name' => LOG_NAME, 'maxBytes' => LOG_MAX_BYTES, 'keep' => LOG_KEEP,
+            'dir' => 'logs', 'perms' => '0600',
+            'line' => '<iso8601Z> <app> <outcome> k=v…',
+            'never' => ['request text', 'raw ip', 'file names', 'api key'],
+            'ipField' => 'sha256(remote_addr) first 8 hex',
+        ]);
+    }
+
     if ($mode !== 'install') {
         $out(['ok' => false, 'error' => 'usage',
               'usage' => ['php media.php install', 'php media.php version',
-                          'php media.php limits', 'php media.php prune [--dry-run]']]);
+                          'php media.php limits', 'php media.php prune [--dry-run]',
+                          'php media.php log [n]', 'php media.php logformat']]);
     }
 
     $report = [];
@@ -266,7 +341,11 @@ if (PHP_SAPI === 'cli') {
 
 /* ── serve ─────────────────────────────────────────────────────────────────*/
 
-$fail = static function (int $code, string $error, array $extra = []): never {
+$t0 = microtime(true);
+$ms = static fn(): int => (int) round((microtime(true) - $t0) * 1000);
+
+$fail = static function (int $code, string $error, array $extra = []) use ($ms): never {
+    logline((string) $code, ['why' => $error, 'ms' => $ms(), 'ip' => logIp()]);
     http_response_code($code);
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');
@@ -421,6 +500,22 @@ if (!@move_uploaded_file($tmpPath, $tmp)) $fail(500, 'write_failed');
 if (!@rename($tmp, $target)) { @unlink($tmp); $fail(500, 'write_failed'); }
 @touch($draftDir); // keeps the draft's mtime current, so `prune` measures
                     // time since the LAST file in it, not the first.
+
+/* `type` is what `getimagesize` decided the bytes ARE, never what the browser
+   claimed — a PNG uploaded as `shirt.jpg` is logged as png, the same fact the
+   file on disk carries. `total` is the one number that answers «is the disk
+   filling up», and it is the reason this line exists at all: nothing else on
+   this account would say so until a write failed. */
+logline('ok', [
+    'draft' => substr($draftId, 0, 8),
+    'kind' => $kind,
+    'index' => $index,
+    'bytes' => $size,
+    'type' => $ext,
+    'total' => dirSize($pendingDir),
+    'ms' => $ms(),
+    'ip' => logIp(),
+]);
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');

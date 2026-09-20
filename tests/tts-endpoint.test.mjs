@@ -24,7 +24,7 @@
  * handling, the same rename-into-place.
  */
 import { spawn, execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync, copyFileSync, mkdirSync, existsSync, readdirSync, statSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, copyFileSync, mkdirSync, existsSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -286,6 +286,81 @@ try {
     const r = await fetch(`http://127.0.0.1:${PORT}/storage/elevenlabs.key`);
     ok("the key is not fetchable over HTTP", r.status !== 200 || !(await r.text()).includes("test-key"),
        String(r.status));
+  }
+
+  console.log("\n── the log says what happened, and not who said it ──");
+  {
+    /* `audit:logs` checks that both bridges DECLARE the same promises. This
+       is the other half: a real request through a real server, and the file
+       read back off disk. A promise and its enforcement are two checks. */
+    const logFile = join(storage, "logs", "tts.log");
+    const read = () => (existsSync(logFile) ? readFileSync(logFile, "utf8") : "");
+
+    rmSync(join(storage, "logs"), { recursive: true, force: true });
+    writeFileSync(keyFile, "test-key");
+
+    const secret = "سر ما ينكتب بالسجل أبداً";
+    const r = await call({ text: secret, persona: "shouq" });
+    ok("a served request is recorded", r.status === 200 && /\btts (miss|hit)\b/.test(read()), read().trim());
+
+    /* The reason the id is logged instead. It is the cache file's own name,
+       so a line can still be tied to bytes on disk. */
+    ok("with the rendition id and a character count, not the sentence",
+      /\bid=[0-9a-f]{12}\b/.test(read()) && /\bchars=\d+\b/.test(read()),
+      read().trim());
+    ok("the sentence itself is NOT in the file", !read().includes(secret));
+    ok("and neither is the address it came from",
+      !read().includes("127.0.0.1") && /\bip=[0-9a-f]{8}\b/.test(read()), read().trim());
+    ok("nor the key", !read().includes("test-key"));
+
+    // Every line has to be parseable by grep and by eye, for ever.
+    const shape = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z tts \S+( \S+=\S*)*$/;
+    ok("every line keeps the documented shape",
+      read().trim().split("\n").every((l) => shape.test(l)), read().trim());
+
+    /* A cache hit and a miss must be distinguishable, or the log cannot
+       answer the only question about cost that matters. */
+    await call({ text: secret, persona: "shouq" });
+    const outcomes = read().trim().split("\n").map((l) => l.split(" ")[2]);
+    ok("a hit and a miss are told apart", outcomes.includes("miss") && outcomes.includes("hit"),
+      outcomes.join(","));
+
+    // The 503 nobody knew about for nine days is exactly this line.
+    rmSync(join(storage, "logs"), { recursive: true, force: true });
+    writeFileSync(keyFile, "");
+    await call({ text: "أي شي" });
+    ok("an unconfigured bridge records its own 503",
+      /\btts 503\b/.test(read()) && read().includes("why=not_configured"), read().trim());
+    writeFileSync(keyFile, "test-key");
+  }
+
+  console.log("\n── it cannot grow for ever ──");
+  {
+    const logFile = join(storage, "logs", "tts.log");
+    const fmt = JSON.parse(
+      execFileSync("php", [join(api, "tts.php"), "logformat"], { encoding: "utf8" })
+    );
+    /* Rotation is checked BEFORE the write, so the cap is a cap rather than
+       something the last line is allowed to exceed by its own length. Filling
+       the file directly is the honest way to reach it: the alternative is
+       260,000 bytes of real requests to test one rename. */
+    writeFileSync(logFile, "x".repeat(fmt.maxBytes + 1));
+    await call({ text: "بعد الامتلاء", persona: "shouq" });
+
+    ok("a full log is rotated aside", existsSync(`${logFile}.1`));
+    ok("and the live one starts again, small",
+      statSync(logFile).size > 0 && statSync(logFile).size < 4096, String(statSync(logFile).size));
+    ok("so one app can never exceed the ceiling",
+      fmt.maxBytes * (1 + fmt.keep) <= 1024 * 1024, `${fmt.maxBytes} × ${1 + fmt.keep}`);
+
+    /* And the only way to read any of it from anywhere: storage/ is outside
+       the docroot, so a cron job running this CLI is the whole route. */
+    const tail = JSON.parse(
+      execFileSync("php", [join(api, "tts.php"), "log", "5"], { encoding: "utf8" })
+    );
+    ok("`log` reads it back", tail.ok === true && Array.isArray(tail.tail) && tail.tail.length > 0,
+      JSON.stringify(tail).slice(0, 160));
+    ok("and says a rotation has happened", tail.rotated === true);
   }
 
   console.log(`\n${pass} passed, ${fails.length} failed`);

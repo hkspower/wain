@@ -166,6 +166,71 @@ function storageDir(): ?string {
     return null;
 }
 
+/* ── the log ────────────────────────────────────────────────────────────────
+   This endpoint answered every request in silence. صوت وين was installed on
+   11 September and was inert until at least the 20th — nobody pasted the key
+   — and the only way anyone found out was `ls -la` on a directory outside the
+   docroot, nine days later. A 503 per sentence was being served the whole
+   time and nothing anywhere recorded that it had happened once.
+
+   So: one line per request, and the line is the thing that would have said so.
+
+   WHAT IS DELIBERATELY NOT IN IT. Not the sentence — `chars` and the
+   rendition id are enough to find the cache entry and to see how much was
+   spent, and the text is the visitor's business. Not the IP — the rate
+   limiter already hashes it, and this logs the first 8 hex of that same hash,
+   which correlates one visitor's requests to each other and to nothing else.
+   A log that would embarrass someone is a log that gets deleted instead of
+   read. `logformat` prints these rules and `npm run audit:logs` holds both
+   endpoints to them.
+
+   BOUNDED, not chronological. One file plus one rotation, so the whole thing
+   can never exceed 512K however long it runs — this is shared hosting and
+   `storage/` is the one directory `deploy.php` never prunes, which makes
+   «grows for ever» a real outcome rather than a theoretical one. Every line
+   carries its own date, so a month is a `grep` rather than a filename.
+
+   It can never break a request: every call is suppressed and its return
+   ignored. A bridge that 500s because its log file is unwritable would be a
+   worse feature than one that says nothing. */
+const LOG_MAX_BYTES = 262144;   // 256K, then rotate
+const LOG_KEEP      = 1;        // tts.log plus tts.log.1 — 512K, for ever
+const LOG_NAME      = 'tts.log';
+
+/**
+ * One request, one line: `<iso8601Z> tts <outcome> k=v k=v`.
+ *
+ * Fixed leading fields and then key=value, so `grep`, `awk` and eyes all work
+ * on it without a parser.
+ */
+function logline(string $outcome, array $fields = []): void {
+    $storage = storageDir();
+    if ($storage === null) return;
+    $dir = "$storage/logs";
+    if (!is_dir($dir)) { @mkdir($dir, 0700, true); }
+
+    $file = "$dir/" . LOG_NAME;
+    /* Rotate BEFORE writing, so the cap is a cap rather than a suggestion the
+       last line is allowed to exceed by its own length. */
+    if (@filesize($file) >= LOG_MAX_BYTES) {
+        @rename($file, "$file.1");   // LOG_KEEP = 1: the previous one, and no more
+    }
+
+    $parts = [gmdate('Y-m-d\TH:i:s\Z'), 'tts', $outcome];
+    foreach ($fields as $k => $v) {
+        /* A value that carried a newline would forge a log line, and a value
+           with a space would break the k=v shape for every reader. */
+        $parts[] = $k . '=' . preg_replace('/[^\x21-\x7e]/', '', (string) $v);
+    }
+    @file_put_contents($file, implode(' ', $parts) . "\n", FILE_APPEND | LOCK_EX);
+    @chmod($file, 0600);
+}
+
+/** The visitor, as much of them as a log is allowed to remember. */
+function logIp(): string {
+    return substr(hash('sha256', (string) ($_SERVER['REMOTE_ADDR'] ?? '0')), 0, 8);
+}
+
 /* ── install (CLI only) ─────────────────────────────────────────────────────
    Under any web SAPI this branch is unreachable, so the served copy carries an
    installer it can never run. That is the same shape as storage/d.php and it is
@@ -207,6 +272,18 @@ if (PHP_SAPI === 'cli') {
                measured on the live server 20 September, `elevenlabs.key` is
                0 bytes and `version` still reported it configured. */
             'key'     => keyState($keyFile),
+            /* Whether anything has been recorded at all. «0 lines» on a bridge
+               that is supposed to be serving is itself the finding — it is
+               what nine days of silent 503s would have looked like. */
+            'log'     => (static function (): array {
+                $s = storageDir();
+                $f = $s === null ? null : "$s/logs/" . LOG_NAME;
+                return [
+                    'path'    => $f,
+                    'bytes'   => $f !== null && is_file($f) ? filesize($f) : 0,
+                    'rotated' => $f !== null && is_file("$f.1"),
+                ];
+            })(),
         ]);
     }
 
@@ -219,9 +296,47 @@ if (PHP_SAPI === 'cli') {
         $out(['model' => MODEL, 'format' => FORMAT, 'voices' => VOICES]);
     }
 
+    /* `log` — the only way to read this from anywhere.
+       `storage/` is outside the docroot, so no file tool and no URL can reach
+       it; the route is a cron job running this, exactly as `storage/d.php` is
+       read. Default 40 lines because the command field caps between 210 and
+       279 characters and `php …/tts.php log 40` has to fit inside one. */
+    if ($mode === 'log') {
+        $storage = storageDir();
+        $file    = $storage === null ? null : "$storage/logs/" . LOG_NAME;
+        $n       = max(1, min(500, (int) ($argv[2] ?? 40)));
+        if ($file === null || !is_file($file)) {
+            $out(['ok' => true, 'file' => $file, 'lines' => 0, 'note' => 'nothing logged yet',
+                  'rotated' => $file !== null && is_file("$file.1")]);
+        }
+        $all = @file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+        $out([
+            'ok' => true, 'file' => $file, 'bytes' => @filesize($file),
+            'rotated' => is_file("$file.1"),
+            'lines' => count($all), 'showing' => min($n, count($all)),
+            'tail' => array_slice($all, -$n),
+        ]);
+    }
+
+    /* `logformat` — what this endpoint promises about its own log, printed by
+       the endpoint itself. `npm run audit:logs` asks both bridges and fails if
+       they disagree, the same way audit:tts compares the voice tables: a regex
+       over either source would pass the day it was written. */
+    if ($mode === 'logformat') {
+        $out([
+            'name' => LOG_NAME, 'maxBytes' => LOG_MAX_BYTES, 'keep' => LOG_KEEP,
+            'dir' => 'logs', 'perms' => '0600',
+            'line' => '<iso8601Z> <app> <outcome> k=v…',
+            /* The promises the tests hold it to, in the file that makes them. */
+            'never' => ['request text', 'raw ip', 'file names', 'api key'],
+            'ipField' => 'sha256(remote_addr) first 8 hex',
+        ]);
+    }
+
     if ($mode !== 'install') {
         $out(['ok' => false, 'error' => 'usage',
-              'usage' => ['php tts.php install', 'php tts.php version', 'php tts.php table']]);
+              'usage' => ['php tts.php install', 'php tts.php version', 'php tts.php table',
+                          'php tts.php log [n]', 'php tts.php logformat']]);
     }
 
     $report = [];
@@ -276,7 +391,18 @@ if (PHP_SAPI === 'cli') {
  */
 ignore_user_abort(true);
 
-$fail = static function (int $code, string $error, array $extra = []): never {
+/* Started here rather than from $_SERVER['REQUEST_TIME_FLOAT'] so the number
+   means «time inside this endpoint» — which is what a slow render shows up in
+   — and not time since Apache accepted the connection. */
+$t0 = microtime(true);
+$ms = static fn(): int => (int) round((microtime(true) - $t0) * 1000);
+
+/* Every refusal is logged, including the dull ones. A 405 from the loopback
+   probe and a 403 from an origin that is not ours are both worth a line: the
+   first is how this file is checked alive, and the second is the only way
+   anyone would ever notice the allowlist has gone stale. */
+$fail = static function (int $code, string $error, array $extra = []) use ($ms): never {
+    logline((string) $code, ['why' => $error, 'ms' => $ms(), 'ip' => logIp()]);
     http_response_code($code);
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');
@@ -346,7 +472,19 @@ $id = hash('sha256', json_encode([
 ], JSON_UNESCAPED_UNICODE));
 $cacheFile = "$cacheDir/$id.mp3";
 
-$serve = static function (string $file, string $how): never {
+$serve = static function (string $file, string $how) use ($ms, $id, $text, $persona): never {
+    /* `chars` and `id`, never the sentence. The id is the first 12 of the
+       rendition hash, which is the cache file's own name — enough to find the
+       bytes on disk and to tell two renders apart, and no use at all to
+       anybody reconstructing what somebody asked for. */
+    logline($how, [
+        'id' => substr($id, 0, 12),
+        'chars' => mb_strlen($text, 'UTF-8'),
+        'persona' => $persona,
+        'bytes' => (int) filesize($file),
+        'ms' => $ms(),
+        'ip' => logIp(),
+    ]);
     header('Content-Type: audio/mpeg');
     header('Content-Length: ' . (string) filesize($file));
     // A week, matching what .htaccess gives the recorded clips. The URL is a
@@ -444,6 +582,18 @@ if (@file_put_contents($tmp, $audio) === strlen($audio)) {
 } else {
     @unlink($tmp);
 }
+
+/* The one line that costs money. `ms` here is the render, so a bridge that has
+   started to crawl is visible before anyone reports it, and `chars` totalled
+   over a month is the bill. */
+logline('miss', [
+    'id' => substr($id, 0, 12),
+    'chars' => mb_strlen($text, 'UTF-8'),
+    'persona' => $persona,
+    'bytes' => strlen($audio),
+    'ms' => $ms(),
+    'ip' => logIp(),
+]);
 
 header('Content-Type: audio/mpeg');
 header('Content-Length: ' . (string) strlen($audio));

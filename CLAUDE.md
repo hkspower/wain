@@ -1192,6 +1192,74 @@ The rest (`راشد`, Intelligence Center, `أنيلكا`, `سالم` ×2) are i
 blocked on order/queue data that does not exist, not stale. Sporta's, Albahhar's
 and the MySQL monitor are not wain's — leave them.
 
+## The endpoints keep a log now
+
+Both bridges answered every request in silence. صوت وين was installed on
+11 September and inert until at least the 20th — nobody had pasted the key —
+and the way that was finally found was `ls -la` on a directory outside the
+docroot, nine days later. A 503 per sentence had been served the whole time
+and **nothing anywhere recorded that it had happened once.** That is the gap.
+
+`/api/tts.php` and `/api/media.php` now write one line per request into
+`<domain>/storage/logs/`:
+
+```
+2026-09-20T09:14:19Z tts miss id=3f2a91c0b4d7 chars=86 persona=shouq bytes=4096 ms=812 ip=1a2b3c4d
+2026-09-20T09:15:01Z tts 503 why=not_configured ms=1 ip=1a2b3c4d
+2026-09-20T09:20:00Z media ok draft=8f21a0c3 kind=logo index=0 bytes=48211 type=png total=132884 ms=42 ip=1a2b3c4d
+```
+
+**What is deliberately NOT in it is the design.** Not the sentence — `chars`
+and the rendition id are enough to find the cached bytes and to total the
+bill, and the text is the visitor's. Not the filename a browser sent — it is
+attacker-controlled and `getimagesize()` has already decided what the bytes
+actually are. Not the IP — it is the first 8 hex of the same hash the rate
+limiter already computes, which ties one visitor's lines to each other and to
+nothing else. **A log that would embarrass someone is a log that gets deleted
+instead of read.**
+
+**Bounded, not chronological.** One file plus one rotation at 256K, so an
+app's log can never exceed 512K however long it runs. `storage/` is the one
+directory `deploy.php` never prunes, which makes «grows for ever» an outcome
+rather than a worry. Every line carries its own date, so a month is a `grep`
+and not a filename. Rotation happens BEFORE the write, so the cap is a cap
+rather than something the last line may exceed by its own length.
+
+**Reading it is a cron job, the same as everything else on this account.**
+`storage/` is outside the docroot, so no URL and no `hosa` file tool reaches
+it: `php …/api/tts.php log 40` and `php …/api/media.php log 40` are the route,
+and `version` now reports the log's size and whether it has rotated. «0 lines»
+on a bridge that is supposed to be serving is itself the finding — it is
+exactly what nine days of silent 503s looked like.
+
+**`npm run audit:logs` is the anti-drift half, and it is not the whole check.**
+The two endpoints carry their own copies of the logging code, deliberately —
+each has to stay copy-installable from a raw URL with no include path between
+them, the same reason the rate counter is already duplicated. The audit asks
+each one for its own `logformat` **by PHP** and fails when they disagree, which
+is `audit:tts`'s argument about the voice tables applied to the thing that
+records what the voices cost. Confirmed red by drifting `LOG_MAX_BYTES` in one
+of them. But a declaration is not enforcement: `test:tts` (42) and
+`test:media` (45) drive real requests through a real PHP server and read the
+file back to prove the sentence, the filename and the address are not in it.
+
+**The privacy page had to be corrected before any of this could ship, and two
+of its claims were already false.** «ما فيه سيرفر يشغّل كود» was true of the
+pages and never of the account — `/api/` has held wain's own PHP since the
+voice bridge was installed. And صوت وين's «بالحالتين ما يطلع أي شي من جهازك»
+described the site as it was before the bridge existed; it is true today only
+because the key file is empty, and **«true because the feature is switched
+off» is not something a privacy page should rest on without saying so.** Both
+are rewritten, the headline no longer claims «ما يجمع عنك أي بيانات» flatly,
+and the hosting section — which framed logs as the host's and «خارج عن
+تحكّمنا» — now names ours and what is kept out of them. Same lesson the page
+already carries about the database: overstating is the same defect as denying.
+
+**The live copy does not log yet.** `tts.php` on the server is the build from
+11 September (`01b7429a4dbe6983`); logging arrives when somebody re-runs the
+fetch-pin-run install. `media.php` is still not installed at all — see the
+section below, which is unchanged by this.
+
 ## Business registration's photo upload is wain's own now, too
 
 `src/lib/media.ts`'s `uploadPending()` used to go straight into Supabase
@@ -1704,11 +1772,15 @@ into the next KB change that does.
 
 ## Checks
 
-`npm run scan` is lint plus ~28 audits. Browser suites: `test:hangout`
+`npm run scan` is lint plus ~29 audits. Browser suites: `test:hangout`
 (hangout, hangout-page, map-pin, live-map, areas, search-button, search-keys,
 shouq-search, search-plan, swipe), `test:journey`, `test:register`, `test:shouq`,
-`test:orders`, `test:net`. PHP suites, neither in `scan` because neither can
-assume php: `test:api` (40), `test:tts` (25) and `test:media` (33).
+`test:orders`, `test:net`. PHP suites, not in `scan` because it
+cannot assume php: `test:api` (40), `test:tts` (42) and `test:media` (45).
+That sentence said «neither … because neither», and it was already wrong for
+three audits before `audit:logs` joined them: `audit:tts`, `audit:media` and
+`audit:logs` all shell out to php and all run in `scan`. What `scan` avoids is
+standing up a php SERVER, not calling the binary.
 
 Browser suites serve `out/` and most of them do **not** build it.
 `tests/stale-build.mjs` compares `out/index.html` against the newest file in

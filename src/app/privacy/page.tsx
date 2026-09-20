@@ -24,8 +24,16 @@ export default function PrivacyPage() {
         الخصوصية والكوكيز
       </h1>
       <p className="mt-3 text-lg leading-relaxed text-ink-600">
+        {/* «وما يجمع عنك أي بيانات» was here, full stop, and it stopped being
+            exactly true the day the endpoints under /api/ started keeping a
+            technical log — a line per request, with the address reduced to a
+            hash and the sentence left out entirely, described in «الاستضافة»
+            below. Nobody would call that profiling, and that is not the point:
+            a privacy page that overstates is the same defect as one that
+            denies the database, which this file already had to fix once. */}
         باختصار: <strong className="text-ink-900">وين ما يستخدم كوكيز</strong>، وما
-        يجمع عنك أي بيانات. الصفحة هذي تشرح الوضع بالتفصيل.
+        يتتبّعك، وما عنده حساب لك. الصفحة هذي تشرح الوضع بالتفصيل — بما فيه
+        الشي الوحيد اللي نسجّله.
       </p>
 
       {/* No cookies */}
@@ -139,9 +147,23 @@ export default function PrivacyPage() {
             يُستخدم للتتبّع.
           </p>
           <p>
-            المقاطع الصوتية ملفات جاهزة من ضمن الموقع نفسه، وإذا ما كانت موجودة
-            يستخدم المتصفح صوته العربي الداخلي — بالحالتين ما يطلع أي شي من
-            جهازك.
+            أغلب المقاطع الصوتية ملفات جاهزة من ضمن الموقع نفسه، وهذي ما يطلع
+            معها ولا شي من جهازك.
+          </p>
+          {/* This paragraph replaces «بالحالتين ما يطلع أي شي من جهازك», which
+              described the site as it was before /api/tts.php existed and was
+              never updated when the bridge landed. It happens to be true today
+              only because the key file is empty — the bridge answers 503 and
+              nothing is sent — and «true because the feature is switched off»
+              is not something a privacy page should be relying on without
+              saying so. */}
+          <p>
+            الجُمل اللي تتكوّن وقت الاستخدام ما لها مقطع جاهز، فإذا كان النطق
+            مشغّل على الخادم تنرسل{" "}
+            <strong className="text-ink-900">الجملة نفسها بس</strong> — بدون
+            اسمك ولا أي شي يعرّفك — لخادم وين وبعدها لخدمة النطق عشان ترجع
+            صوتاً. الصوت ينحفظ عندنا عشان نفس الجملة ما تنرسل مرة ثانية. وإذا
+            كان مو مشغّل، يستخدم المتصفح صوته العربي الداخلي وما يطلع شي.
           </p>
         </div>
       </section>
@@ -154,10 +176,17 @@ export default function PrivacyPage() {
             placed order is a row in Supabase, and a privacy page that denies
             the database is worse than one that never mentioned it. */}
         <div className="mt-3 space-y-3 text-sm leading-relaxed text-ink-600">
+          {/* Was «ما فيه سيرفر يشغّل كود» — no server running code — which was
+              true of the pages and never of the account: /api/ holds wain's own
+              PHP, and has since the voice bridge was installed. The pages
+              themselves really are static files, which is the part worth
+              keeping; the sentence just claimed more than that. */}
           <p>
-            صفحات وين ملفات ثابتة (static): ما فيه سيرفر يشغّل كود، ولا حسابات،
-            ولا تسجيل دخول للزوار. تقدر تتصفّح الموقع كله وتدوّر وتقرا الأماكن
-            بدون ما تعطينا ولا معلومة.
+            صفحات وين ملفات ثابتة (static): ما فيه حسابات ولا تسجيل دخول
+            للزوار، وتقدر تتصفّح الموقع كله وتدوّر وتقرا الأماكن بدون ما
+            تعطينا ولا معلومة. الاستثناءات الوحيدة طرفان على خادم وين تحت{" "}
+            <code dir="ltr">/api/</code>: واحد للنطق (فوق)، وواحد للنشر ما
+            يمسّه زائر أبداً.
           </p>
           <p>
             الاستثناء الوحيد بيدك أنت: إذا طلبت طلب أو خذيت دور في الطابور، اللي
@@ -169,6 +198,22 @@ export default function PrivacyPage() {
           <p>
             ومزوّد الاستضافة — مثل أي استضافة — يسجّل طلبات الخوادم العادية
             لأسباب تشغيلية وأمنية، وهذا خارج عن تحكّمنا.
+          </p>
+          {/* The new paragraph, and the reason the whole page needed re-reading
+              before the logging shipped: the sentence above framed logs as
+              somebody else's, which was accurate right up until we kept one.
+              What it lists is what the two endpoints actually write — asserted
+              line by line in test:tts and test:media, not merely promised. */}
+          <p>
+            واللي بيدنا إحنا: الطرفان فوق يكتبون سطر تقني لكل طلب — الوقت، وش
+            صار (نجح، مرفوض، من الذاكرة)، حجم الرد، وكم أخذ. ما ينكتب فيه{" "}
+            <strong className="text-ink-900">
+              لا نص الجملة، ولا اسم أي ملف ترفعه، ولا عنوان الـ IP حقك
+            </strong>{" "}
+            — العنوان ينختصر لبصمة ما ترجع لأصلها، بس عشان نعرف إن الطلبات من
+            زائر واحد. الهدف وحيد: إن خلل بالخدمة ما يبقى صامت شهر. والملف له
+            سقف ثابت ويدوّر على نفسه، فما يكبر بلا نهاية، وما ينوصل له من أي
+            رابط.
           </p>
         </div>
       </section>
