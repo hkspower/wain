@@ -270,3 +270,31 @@ export const productDetails = (p: Product, lang: 'ar' | 'en') =>
 export const categoryName = (c: Category, lang: 'ar' | 'en') => (lang === 'ar' ? c.nameAr : c.name);
 export const categoryKicker = (c: Category, lang: 'ar' | 'en') =>
   lang === 'ar' ? c.kickerAr : c.kicker;
+
+/**
+ * A brand is free text on the product (`product.brand`), set per item in
+ * /backends rather than drawn from a fixed enum the way category is — so
+ * there is no list of "the shop's brands" anywhere to import. This derives
+ * one from what is actually on sale, which is the only source that cannot
+ * name a brand the shop does not carry.
+ */
+export const brandSlug = (name: string) =>
+  name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+export type BrandTile = { slug: string; name: string };
+
+/** One entry per distinct brand, in first-seen order, keeping the exact
+ *  spelling/casing the product was given rather than upper-casing it — a
+ *  brand's own styling ("iPhone", "adidas") is not this app's call to make. */
+export const brandsFromProducts = (products: Product[]): BrandTile[] => {
+  const seen = new Map<string, BrandTile>();
+  for (const p of products) {
+    const slug = brandSlug(p.brand);
+    if (slug && !seen.has(slug)) seen.set(slug, { slug, name: p.brand });
+  }
+  return Array.from(seen.values());
+};

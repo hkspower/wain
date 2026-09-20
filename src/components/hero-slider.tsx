@@ -3,8 +3,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, View } from 'react-native';
 
 import { RemoteArt } from '@/components/remote-art';
+import { ThemedText } from '@/components/themed-text';
 import { press } from '@/components/ui/press';
-import { Radius, Spacing } from '@/constants/theme';
+import { EMBER_ON_ART, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { heroArt } from '@/lib/assets';
 import { HERO_ASPECT, HERO_BANNERS } from '@/lib/hero-art';
@@ -31,7 +32,7 @@ const EVERY_MS = 6500;
 export function HeroSlider() {
   const router = useRouter();
   const theme = useTheme();
-  const { lang } = useLang();
+  const { lang, dir, t } = useLang();
   const [index, setIndex] = useState(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -88,8 +89,25 @@ export function HeroSlider() {
           uri={heroArt(banner.id)}
           bundled={banner.bundled}
           ground={theme.inkSilver}
-          style={styles.band}
-        />
+          style={styles.band}>
+          {/* ONE button, not a second headline. The banner's own copy is
+              burnt into the photograph already — see the file comment above
+              on why nothing else is written over it. This adds only the
+              explicit call to action asked for, as a small pill in the
+              corner the reading direction starts from, so it reads first
+              without competing with the artwork's own type. The whole band
+              already routes to /shop on tap; this makes that fact visible
+              rather than inventing a second, different destination. */}
+          <View
+            pointerEvents="none"
+            style={[styles.ctaWrap, dir === 'rtl' ? styles.ctaEnd : styles.ctaStart]}>
+            <View style={styles.cta}>
+              <ThemedText type="labelBold" style={styles.ctaText}>
+                {t.home.shopNow}
+              </ThemedText>
+            </View>
+          </View>
+        </RemoteArt>
       </Pressable>
 
       {/* The dots are BOTH the position and the control. Sized to the 44pt a
@@ -149,5 +167,21 @@ const styles = StyleSheet.create({
     width: Spacing.two,
     height: Spacing.two,
     borderRadius: 999,
+  },
+  ctaWrap: {
+    position: 'absolute',
+    bottom: Spacing.three,
+  },
+  ctaStart: { start: Spacing.three },
+  ctaEnd: { end: Spacing.three },
+  cta: {
+    backgroundColor: EMBER_ON_ART,
+    borderRadius: 999,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.two,
+  },
+  ctaText: {
+    color: '#ffffff',
+    letterSpacing: 0.5,
   },
 });

@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import React, { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { press } from '@/components/ui/press';
@@ -14,7 +15,7 @@ import { EMBER_ON_ART, Radius, Spacing, Type } from '@/constants/theme';
 import { useCart } from '@/lib/cart';
 import { categoryArt } from '@/lib/assets';
 import { bundledCategoryArt } from '@/lib/category-art';
-import { categoryKicker, categoryName } from '@/lib/catalog';
+import { brandsFromProducts, categoryKicker, categoryName } from '@/lib/catalog';
 import { useLang } from '@/lib/i18n';
 
 export default function HomeScreen() {
@@ -22,6 +23,7 @@ export default function HomeScreen() {
   const { t, lang, dir, row, text } = useLang();
   const { products, categories } = useCart();
   const featured = products.filter((p) => p.featured).slice(0, 4);
+  const brandTiles = useMemo(() => brandsFromProducts(products), [products]);
 
   return (
     <Screen tabBar>
@@ -29,6 +31,46 @@ export default function HomeScreen() {
               the Arabic line and the mark are set into each photograph, so
               nothing is written on top of them — see components/hero-slider. */}
           <HeroSlider />
+
+          {/* BRAND SELECTOR — a clean row of names, not a wall of logos.
+              Replaces the removed brand-logo strip: that one grew to "dozens
+              of brand logos" (its own words) because it drew every uploaded
+              logo at once with no way to keep the row short. This is text,
+              which does not have that failure mode — it stays one line of
+              names whether the catalogue carries three brands or thirty.
+
+              LINKS, DOES NOT FILTER: tapping a name opens /brand/<slug>, a
+              page of its own with the brand as a heading — the same shape as
+              the category tiles above. It does not add a filter control to
+              /shop itself, which was deliberately stripped of every one on
+              2026-09-09 ("the shop narrows nothing") because a hidden
+              parameter left no way to tell the grid was narrowed, or back out
+              of it. A dedicated page is narrowed IN THE OPEN: the heading
+              says so and the tab bar is the way out. */}
+          {brandTiles.length > 0 && (
+            <>
+              <ThemedText type="labelBold" style={[styles.sectionTitle, text]}>
+                {t.home.brands}
+              </ThemedText>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={[styles.brandRow, row]}>
+                {brandTiles.map((b, i) => (
+                  <React.Fragment key={b.slug}>
+                    {i > 0 && <Text style={styles.brandDivider}>|</Text>}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={b.name}
+                      onPress={() => router.push(`/brand/${b.slug}`)}
+                      style={press()}>
+                      <Text style={styles.brandName}>{b.name.toUpperCase()}</Text>
+                    </Pressable>
+                  </React.Fragment>
+                ))}
+              </ScrollView>
+            </>
+          )}
 
           {/* Categories — FULL WIDTH, one per row. They carry the shop's four
               doors and a half-width tile makes each one a thumbnail. */}
@@ -103,6 +145,24 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   sectionTitle: { marginTop: Spacing.two },
+  brandRow: {
+    alignItems: 'center',
+    gap: Spacing.three,
+    paddingVertical: Spacing.one,
+  },
+  brandName: {
+    fontFamily: Type.labelBold.family,
+    fontSize: Type.label.size,
+    letterSpacing: 0.5,
+    color: '#ffffff',
+    fontWeight: '700',
+  },
+  // A plain divider, not a button of its own — it separates two brands and
+  // is never itself tappable, so it carries no press style.
+  brandDivider: {
+    color: 'rgba(255,255,255,0.25)',
+    fontSize: Type.label.size,
+  },
   categoryList: {
     gap: Spacing.two,
   },
