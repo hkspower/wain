@@ -1,7 +1,7 @@
 /**
- * The shop's product grid: two columns on a phone, up to five once there is
- * room — and, more importantly, UNIFORM card widths within a row on every
- * size.
+ * The shop's product grid: 2 columns on a phone, 3 on a tablet, 4 on a
+ * desktop — fixed breakpoints, per the product-grid spec given 2026-09-20 —
+ * and, more importantly, UNIFORM card widths within a row on every size.
  *
  *   npm run build:web && python3 scripts/serve-dist.py 4173 &
  *   node scripts/shop-grid-columns-test.mjs
@@ -31,14 +31,13 @@
  * safe-default width instead of genuinely reading `window.innerWidth` after
  * hydration) would pass a fresh-load check and fail this one.
  *
- * CAPPED AT FIVE, NOT UNCAPPED — asked later as "more columns on wide
- * screens", after the grid measured stuck at three no matter how wide the
- * window went, bounded by the shared MaxContentWidth (800px, tuned for a
- * paragraph's reading width, not a photograph). The shop screen now asks
- * `Screen` for its own wider column and computes columns from a card-width
- * floor rather than a screen-width threshold, so more room means more
- * columns until a fifth would go below that floor — checked here at 2560px,
- * where an UNCAPPED formula would ask for six, not five.
+ * FOUR ON DESKTOP, NOT UNCAPPED — this used to be a fluid formula (a
+ * card-width floor, more columns as the window widened, capped at five) built
+ * for "more columns on wide screens". The 2026-09-20 spec asks for a NAMED
+ * breakpoint instead — 4 on desktop (>=1024px), 3 on tablet (>=768px), 2
+ * below that — so this file now checks the fixed count rather than a
+ * plausible-width range, and checks it holds on a very wide monitor too
+ * (2560px must still be 4, not more).
  */
 import { chromium } from 'playwright'
 
@@ -95,6 +94,16 @@ try {
   check((await firstRowCount()) === 2, 'and there really are two cards in the first row',
     `${await firstRowCount()}`)
 
+  // TABLET: the breakpoint the fixed model adds that the old fluid one never
+  // named — 3 columns from 768px up, distinct from both phone (2) and
+  // desktop (4).
+  await p.setViewportSize({ width: 800, height: 900 })
+  await p.waitForTimeout(800)
+  const tabletWidths = await cardWidths()
+  check(uniform(tabletWidths), 'every card on a tablet is the SAME width', JSON.stringify(tabletWidths))
+  check((await firstRowCount()) === 3, 'and there are three cards in the first row on a tablet',
+    `${await firstRowCount()}`)
+
   await p.setViewportSize({ width: 1440, height: 900 })
   await p.waitForTimeout(800)
   const desktopWidths = await cardWidths()
@@ -103,30 +112,23 @@ try {
   check(desktopWidths[0] > phoneWidths[0],
     'and it is WIDER than the phone card — the grid actually used the extra room',
     `${phoneWidths[0]}px -> ${desktopWidths[0]}px`)
-  // The shop's own wider column (1400px, not the shared 800px MaxContentWidth)
-  // divided into five columns of at least MIN_CARD_WIDTH (200px) each lands
-  // around 267px. Slack on both sides for the gap arithmetic changing
-  // without this test needing to track the exact formula.
-  check(desktopWidths[0] > 240 && desktopWidths[0] < 300,
-    'and it is a plausible FIVE-column width within the shop\'s own wider column',
-    `${desktopWidths[0]}px`)
-  check((await firstRowCount()) === 5,
-    'and there really are five cards in the first row, not a coincidence of width',
+  check((await firstRowCount()) === 4,
+    'and there really are four cards in the first row, per the spec',
     `${await firstRowCount()}`)
 
-  // AN EVEN WIDER MONITOR MUST NOT ASK FOR A SIXTH COLUMN. The column count is
-  // capped independently of the width cap — this is the check that would fail
-  // if MAX_COLUMNS were ever dropped and the formula just kept dividing.
+  // AN EVEN WIDER MONITOR MUST NOT ASK FOR A FIFTH COLUMN. The column count is
+  // a fixed breakpoint value, not a formula that keeps dividing as the window
+  // widens — this is the check that would fail if it ever went fluid again.
   await p.setViewportSize({ width: 2560, height: 1000 })
   await p.waitForTimeout(800)
   const veryWideWidths = await cardWidths()
   check(uniform(veryWideWidths), 'every card is still uniform on a very wide monitor',
     JSON.stringify(veryWideWidths))
-  check((await firstRowCount()) === 5,
-    'and still five columns, not six — the cap holds once the floor is cleared',
+  check((await firstRowCount()) === 4,
+    'and still four columns, not five — the breakpoint holds on a very wide monitor',
     `${await firstRowCount()}`)
   check(Math.abs(veryWideWidths[0] - desktopWidths[0]) <= 1,
-    'and the card width itself does not keep growing past the cap',
+    'and the card width itself does not keep growing past the shop\'s own 1400px content cap',
     `${desktopWidths[0]}px @1440 vs ${veryWideWidths[0]}px @2560`)
 
   await p.setViewportSize({ width: 390, height: 844 })

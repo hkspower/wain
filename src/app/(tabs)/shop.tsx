@@ -22,8 +22,27 @@ type Sort = 'new' | 'low' | 'high';
 // MIN_CARD_WIDTH plus their gaps still fit with room to spare, not tuned to
 // look right at one screen size in particular.
 const SHOP_MAX_WIDTH = 1400;
-const MIN_CARD_WIDTH = 200;
-const MAX_COLUMNS = 5;
+
+// FIXED BREAKPOINT COLUMNS, per the product-grid spec: 4 on desktop, 3 on
+// tablet, 2 on mobile — replacing the old fluid MIN_CARD_WIDTH/MAX_COLUMNS
+// formula, which picked a column count from the available width rather than
+// a named breakpoint and could reach as many as 5. 768 is the one breakpoint
+// this project already has elsewhere — the website's own CSS switches its
+// hero layout at `max-width: 767px` — so the mobile/tablet line is not
+// invented for this screen alone; 1024 for tablet/desktop is the ordinary
+// convention with nothing in this codebase to check it against.
+const TABLET_MIN = 768;
+const DESKTOP_MIN = 1024;
+const DESKTOP_COLUMNS = 4;
+const TABLET_COLUMNS = 3;
+const MOBILE_COLUMNS = 2;
+
+// GAP BY BREAKPOINT, per the spec: 20–24px desktop, 10–12px mobile. Spacing.two
+// (8px) and Spacing.three (16px) are this app's own scale — 22 and 11 do not
+// appear on it, so the two ends of each range are picked as plain numbers
+// rather than stretched or shrunk to the nearest token.
+const GAP_DESKTOP = 22;
+const GAP_MOBILE = 11;
 
 export default function ShopScreen() {
   const theme = useTheme();
@@ -93,11 +112,10 @@ export default function ShopScreen() {
   // has run, and a negative card width is worse than one frame at the wrong
   // (but sane) column count.
   const contentWidth = Math.max(320, Math.min(windowWidth, SHOP_MAX_WIDTH) - Spacing.three * 2);
-  const columns = Math.max(
-    2,
-    Math.min(MAX_COLUMNS, Math.floor((contentWidth + Spacing.two) / (MIN_CARD_WIDTH + Spacing.two))),
-  );
-  const cardWidth = (contentWidth - Spacing.two * (columns - 1)) / columns;
+  const columns =
+    windowWidth >= DESKTOP_MIN ? DESKTOP_COLUMNS : windowWidth >= TABLET_MIN ? TABLET_COLUMNS : MOBILE_COLUMNS;
+  const gap = windowWidth >= TABLET_MIN ? GAP_DESKTOP : GAP_MOBILE;
+  const cardWidth = (contentWidth - gap * (columns - 1)) / columns;
 
   /**
    * NO CATEGORY FILTER — removed 2026-09-09 on the owner's instruction. The
@@ -195,7 +213,7 @@ export default function ShopScreen() {
           {shown.length === 0 ? (
             <ThemedText style={[styles.empty, text]}>{t.shop.empty}</ThemedText>
           ) : (
-            <View style={styles.grid}>
+            <View style={[styles.grid, { gap }]}>
               {shown.map((p) => (
                 // flexShrink:0 so a card never gives up width to its
                 // neighbours: without it, content-based defaults (a flex
@@ -242,7 +260,9 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.two,
+    // gap is set inline, from the breakpoint-dependent `gap` above — the
+    // product-grid spec wants a different value on mobile than on desktop,
+    // which a static StyleSheet entry cannot express.
     marginTop: Spacing.one,
   },
   empty: {

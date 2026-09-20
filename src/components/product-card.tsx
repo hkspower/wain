@@ -45,6 +45,13 @@ export function ProductCard({ product }: { product: Product }) {
           </RemoteArt>
 
           <View style={styles.body}>
+            {/* BRAND ABOVE THE NAME — per the product-grid spec ("Brand: small
+                logo/text above name"). Was below the name, with the price
+                last; the two lines below it keep the same reasoning about
+                reserved height, now applied to the name that comes second. */}
+            <ThemedText type="label" themeColor="textSecondary" style={text}>
+              {product.brand}
+            </ThemedText>
             {/* TWO LINES ALWAYS, reserved whether the name needs them or not.
                 numberOfLines caps a long name at two; it does nothing for a
                 SHORT one, which then takes a single line and makes its card
@@ -70,9 +77,6 @@ export function ProductCard({ product }: { product: Product }) {
               ]}>
               {productName(product, lang)}
             </ThemedText>
-            <ThemedText type="label" themeColor="textSecondary" style={text}>
-              {product.brand}
-            </ThemedText>
             <Price price={product.price} was={product.was} />
           </View>
           </View>
@@ -89,6 +93,13 @@ const styles = StyleSheet.create({
   card: {
     flex: 1,
     borderRadius: Radius.card,
+    // A hairline, not a shadow-replacement — the card keeps Elevation.card's
+    // own shadow too. "None or 1px very subtle" per the product-grid spec;
+    // picked the subtle option since a borderless dark card on a dark page
+    // has nothing marking where one card ends and the next begins besides
+    // the gap between them.
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   clip: {
     flex: 1,
@@ -106,10 +117,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(20,22,26,0.45)',
   },
   banner: {
-    // A FIXED HEIGHT, not an aspect ratio derived from the photograph. The
-    // grid puts two of these side by side and they must line up whether the
-    // picture has loaded, failed, or never existed.
-    height: 132,
+    // 4:5, per the product-grid spec — an aspect ratio on the CONTAINER, not
+    // one derived from the photograph. The grid puts several of these side
+    // by side and they must line up whether the picture has loaded, failed,
+    // or never existed; aspect-ratio on a box of a known WIDTH is exactly as
+    // deterministic as the fixed height it replaces; only its value differs.
+    aspectRatio: 4 / 5,
     justifyContent: 'flex-end',
   },
   body: {

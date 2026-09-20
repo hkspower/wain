@@ -238,7 +238,11 @@ export const Type = {
   label: { size: 14, line: 20, lineAr: 26, family: 'Alexandria-400', weight: '400' },
   labelBold: { size: 14, line: 20, lineAr: 26, family: 'Alexandria-600', weight: '600' },
   caption: { size: 12, line: 16, lineAr: 22, family: 'Alexandria-400', weight: '400' },
-  price: { size: 20, line: 28, lineAr: 34, family: 'Alexandria-700', weight: '700' },
+  // 16/semibold, per the product-grid spec ("Price: 15–17px, semibold").
+  // product/[slug].tsx's own large price still uses `display` (30/700) via
+  // Price's `size="large"` prop — this token only reaches the grid card,
+  // the one place Price is rendered at its default size.
+  price: { size: 16, line: 24, lineAr: 30, family: 'Alexandria-600', weight: '600' },
 } as const;
 
 export type TypeRole = keyof typeof Type;

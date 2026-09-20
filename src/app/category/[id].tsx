@@ -20,8 +20,16 @@ import { categories, CategoryId, categoryName } from '@/lib/catalog';
 type Sort = 'new' | 'low' | 'high';
 
 const SHOP_MAX_WIDTH = 1400;
-const MIN_CARD_WIDTH = 200;
-const MAX_COLUMNS = 5;
+
+// Same fixed breakpoint columns and gaps as (tabs)/shop.tsx — see that
+// file's own comment for why 768/1024 and these exact gap numbers.
+const TABLET_MIN = 768;
+const DESKTOP_MIN = 1024;
+const DESKTOP_COLUMNS = 4;
+const TABLET_COLUMNS = 3;
+const MOBILE_COLUMNS = 2;
+const GAP_DESKTOP = 22;
+const GAP_MOBILE = 11;
 
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -43,11 +51,10 @@ export default function CategoryScreen() {
 
   const windowWidth = useWindowWidth();
   const contentWidth = Math.max(320, Math.min(windowWidth, SHOP_MAX_WIDTH) - Spacing.three * 2);
-  const columns = Math.max(
-    2,
-    Math.min(MAX_COLUMNS, Math.floor((contentWidth + Spacing.two) / (MIN_CARD_WIDTH + Spacing.two))),
-  );
-  const cardWidth = (contentWidth - Spacing.two * (columns - 1)) / columns;
+  const columns =
+    windowWidth >= DESKTOP_MIN ? DESKTOP_COLUMNS : windowWidth >= TABLET_MIN ? TABLET_COLUMNS : MOBILE_COLUMNS;
+  const gap = windowWidth >= TABLET_MIN ? GAP_DESKTOP : GAP_MOBILE;
+  const cardWidth = (contentWidth - gap * (columns - 1)) / columns;
 
   const [sort, setSortState] = React.useState<Sort>('new');
 
@@ -131,7 +138,7 @@ export default function CategoryScreen() {
       {shown.length === 0 ? (
         <ThemedText style={[styles.empty, text]}>{t.shop.empty}</ThemedText>
       ) : (
-        <View style={styles.grid}>
+        <View style={[styles.grid, { gap }]}>
           {shown.map((p) => (
             <View key={p.slug} style={{ width: cardWidth, flexShrink: 0 }}>
               <ProductCard product={p} />
@@ -167,7 +174,7 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.two,
+    // gap set inline — see (tabs)/shop.tsx's own note on this.
     marginTop: Spacing.one,
   },
   empty: {
