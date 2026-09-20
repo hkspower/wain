@@ -12,8 +12,8 @@ import type { CategoryId } from "@/lib/place-kit";
  *
  * The reason is measured: SearchHub, OrdersLink, `orders.ts` and `queue.ts`
  * all import from this module and none of them reads a single place record,
- * but all four are reachable from the root layout — so every page shipped all
- * 53 places. The privacy page carried the whole catalogue to render two
+ * but all four are reachable from the root layout — so every page shipped
+ * every record. The privacy page carried the whole catalogue to render two
  * paragraphs about cookies.
  *
  * Import from `@/lib/place-kit` when you need the vocabulary, and from here

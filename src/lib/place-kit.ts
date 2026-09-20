@@ -2,15 +2,20 @@
  * The vocabulary a place is described in — without the places.
  *
  * This module exists because of a measured cost, not a taste for small files.
- * `places.ts` holds the 53-record catalogue AND the small things everything
+ * `places.ts` holds the whole catalogue AND the small things everything
  * else needs: the category list, the prep/service clamps, the Arabic-Indic
  * numerals. Importing one of those dragged in all of them.
  *
  * SearchHub imports `categories`. OrdersLink imports `toArabicDigits`.
  * `orders.ts` and `queue.ts` import two constants, two clamps and a TYPE.
  * None of them touches a single place record — and all of them are in the
- * root layout, so every page of the site shipped all 53 places. The privacy
+ * root layout, so every page of the site shipped every record. The privacy
  * page, which is two paragraphs about cookies, carried the whole catalogue.
+ *
+ * The count used to be written out here, twice, and it said 53 against a
+ * catalogue of 52 — `npm run content` is what noticed. A number in a comment
+ * that has to track the data is a number that will be wrong, so this one
+ * names the thing instead of counting it.
  *
  * Nothing here may import the catalogue. That is the rule that makes the
  * split worth having, and `npm run audit:js` fails if a static page starts
