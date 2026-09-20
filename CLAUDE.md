@@ -532,6 +532,29 @@ wain-<version>.zip` is the move — never rebuild the archive to satisfy a
 dirty-tree complaint, or the sha256 in the command stops matching the bytes
 at the pinned URL.
 
+**The live build id trails HEAD on purpose, and that is not a failed deploy.**
+The site is stamped `5a5e28d9…` — `build.json`, `_next/static/<sha>/` and
+`sw.js` all name the commit that built the archive. HEAD has moved past it
+since, and will keep moving, on commits that change the planner, this file and
+nothing that ships.
+
+**So do not read a mismatch as staleness. Ask git instead:**
+
+```
+git diff --name-only <live build id>..HEAD -- src public
+```
+
+Empty means the live export IS the current code and a deploy would move only
+the stamp — `build.json`, the build-id directory's name and the service
+worker's version hash — for no visitor-visible change and one more permanent
+~3.6MB blob. That was the reading on 20 September after the deploy: two files
+changed, `CLAUDE.md` and `scripts/deploy-plan.mjs`, zero under `src/` or
+`public/`, and a second deploy was declined for exactly that reason.
+
+The blob is the whole argument. It cannot be rewritten away — شوق's knowledge
+base is pinned to a commit on this branch — so «deploy to tidy the stamp» is a
+permanent cost for a cosmetic gain. Spend it when something ships.
+
 **One cron reading that is not a warning.** Four jobs from another session —
 `live-schema-completeness.php`, `live-permissions-check.php`, a `brand-strip`
 fetch and a `fileperms` probe, all sporta's — were in the crontab at the
