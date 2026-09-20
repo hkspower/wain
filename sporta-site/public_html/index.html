@@ -627,8 +627,17 @@
     <script src="/assets/theme.js" defer></script>
 
     <!-- The brand logo on grid cards. The product page already draws its
-         own; this is the missing half, in the same .brand-chip markup. -->
+         own; this is the missing half, in the same .brand-chip markup.
+         2026-09-20: moved from the photo's corner to above the product name,
+         at the owner's request — see the file's own header. -->
     <script src="/assets/brand-badge.js" defer></script>
+
+    <!-- A small "Sale" badge on grid cards already showing a discounted
+         price (the bundle's own strikethrough), added 2026-09-20 at the
+         owner's request. No "New" badge — the products API exposes no
+         created_at/freshness signal; see the file's own header for what was
+         checked before leaving it out. -->
+    <script src="/assets/card-badges.js" defer></script>
 
     <!-- Puts a link to /returns/request (a flat page, like /card) on the
          /returns policy page. Same class of thing as contact.js: DOM surgery
@@ -823,6 +832,15 @@
          `pointer: coarse`. The payment-method radios need nothing — their
          real tap target is already a 316x64 label. Checkout-only. -->
     <script src="/assets/checkout-tap-targets.js" defer></script>
+
+    <!-- The mobile product page's 12-section order the owner asked for,
+         2026-09-20: reorders name/price/size/delivery/description with CSS
+         `order` (never moves the React-owned nodes), widens the gallery to
+         full-bleed, and adds a real size-guide table from ?r=size_chart.
+         Rating, color and reviews are not built — the shop stores none of
+         that data; see the file's own header for what was checked before
+         saying so. Product page only, mobile only. -->
+    <script src="/assets/product-mobile-layout.js" defer></script>
 
     <!-- Removes the home page's "Shop the essentials" section outright —
          sporta-ui.css hides the main menu itself; this is the other half

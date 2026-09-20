@@ -1458,7 +1458,20 @@ p.mt-6.flex.flex-wrap.items-baseline:has(> .font-display) {
    without the text column giving way. 1.5fr/1fr moves it from 505 to about
    607 in a 1044 container and leaves the buying column 405 — comfortably
    above the ~380 at which the add/buy row starts wrapping awkwardly, which is
-   the floor that decided the ratio. */
+   the floor that decided the ratio.
+
+   UPDATED 2026-09-20, at the owner's request: "image area very large — 55%
+   image / 45% information" on desktop, and mobile unchanged (it was already
+   100%/100%, stacked — nothing to do there; product-mobile-layout.js's
+   section-order work is untouched by this rule and runs in the same
+   `max-width: 767px` / `min-width: 768px` split this file already uses).
+   Measured before changing anything: this same selector was already a real
+   two-column CSS grid on desktop (not a stack) at 1.5fr/1fr, i.e. 60%/40%,
+   confirmed with getBoundingClientRect on both grid children at 1280 and
+   1440px in both languages (Arabic swaps which physical side each column
+   sits on, not which one is larger — the image column measured 60% of the
+   grid's width either way). 55/45 = 11/9, so `11fr 9fr` replaces `1.5fr 1fr`
+   here; nothing else in this rule changes. */
 @media (max-width: 767px) {
   .group.aspect-square.cursor-zoom-in {
     margin-inline: -1rem;
@@ -1468,7 +1481,7 @@ p.mt-6.flex.flex-wrap.items-baseline:has(> .font-display) {
 }
 @media (min-width: 768px) {
   .grid.gap-8.md\:grid-cols-2:has(.product-title) {
-    grid-template-columns: 1.5fr 1fr;
+    grid-template-columns: 11fr 9fr;
   }
 }
 

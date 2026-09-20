@@ -16,12 +16,16 @@
  *
  * ------------------------------------------------------------ WHERE IT GOES
  *
- * Bottom-start of the card image, because that is the only free corner: the
- * card already carries a badge at top-start ("الأكثر مبيعًا"), the wishlist
- * button at top-end and the add-to-cart button at bottom-end. Measured, not
- * guessed. The size is smaller than the product page's h-8 because a card is
- * smaller than a page; everything else — the .brand-chip span, object-contain,
- * the transparent plate — is exactly what the product page uses.
+ * UPDATED 2026-09-20: above the product name, in the text block below the
+ * photo — not floating on the image. It previously sat at the image's
+ * bottom-start corner (the only free one, since the card already carries a
+ * badge at top-start, the wishlist button at top-end and the add-to-cart
+ * button at bottom-end), which was a reasonable place to put a NEW element
+ * but is not "above the name" by any reading of that phrase — the name is a
+ * sibling of the photo, not inside it, so no amount of CSS on the old node
+ * gets there. The chip is now a real (small, inline, non-absolute) node
+ * inserted as the first child of that sibling info block, sized down from
+ * the product page's h-8 because a card is smaller than a page.
  *
  * ----------------------------------------------------------- WHAT IT SKIPS
  *
@@ -86,12 +90,25 @@
           a.setAttribute('data-sporta-brand', b ? b.slug : 'none')
           if (!b) continue
 
+          /* WHERE IT GOES, updated 2026-09-20 at the owner's request: "brand
+             logo/name above product name". Measured before moving anything:
+             the name lives in a SIBLING of this image link, not inside it —
+             `<a class="aspect-[4/5]…">` (the photo) is followed by
+             `<div class="flex flex-col gap-1 pt-3"><a><h3>name</h3></a>…`.
+             An absolutely-positioned chip over the photo can never satisfy
+             "above the name" because it is not in that flow at all — moving
+             it there means inserting a real DOM node as the first child of
+             that info div, not repositioning with CSS. This can still only
+             ADD a node; nothing already on the card is moved or removed. */
+          var info = a.nextElementSibling
+          if (!info) continue
+
           var span = document.createElement('span')
-          span.className = 'brand-chip absolute bottom-2 start-2 z-10 inline-flex items-center'
+          span.className = 'brand-chip-inline flex items-center gap-1'
           span.setAttribute('data-sporta-brand-chip', '1')
 
           var logo = document.createElement('img')
-          logo.className = 'h-6 w-auto max-w-20 object-contain'
+          logo.className = 'h-3.5 w-auto max-w-16 object-contain'
           logo.setAttribute('loading', 'lazy')
           logo.setAttribute('decoding', 'async')
           /* alt is the BRAND NAME, in the page's language. Not "brand logo":
@@ -108,7 +125,7 @@
           }
 
           span.appendChild(logo)
-          a.appendChild(span)
+          info.insertBefore(span, info.firstChild)
         }
       }
 
