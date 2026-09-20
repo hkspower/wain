@@ -227,13 +227,24 @@
           // DOMContentLoaded, and a flash of the beige light theme on every
           // single page load. Reading the saved choice — or the OS preference
           // when there is none — costs nothing here.
-          // DARK IS THE SHOP'S OWN LOOK, not a preference to be inferred.
-          // Sporta is black, dark silver and orange; the light theme still
-          // exists and the header toggle still reaches it, but a first-time
-          // visitor on a light laptop was being shown the wrong shop. A saved
-          // choice always wins — only the DEFAULT changed.
-          var t = localStorage.getItem('sporta_theme')
-          if (!t) t = 'dark'
+          // ONE MODE, DARK ONLY — 2026-09-20, at the owner's request.
+          //
+          // This is the SECOND time: built 2026-09-09, reversed 2026-09-10
+          // when the toggle was asked back, asked for again now. The write
+          // is the part that matters, same as the first time — ThemeProvider
+          // initialises from localStorage.sporta_theme and would otherwise
+          // restore a light choice a visitor made during the toggle's brief
+          // return. Writing it here, before any module loads, means nobody
+          // can be pinned to light — the app's own hook is forced to 'dark'
+          // too (src/hooks/use-color-scheme.ts/.web.ts), so this and that
+          // agree rather than one overriding the other a frame later.
+          //
+          // THE LIGHT RULES STAY IN THE STYLESHEETS, deliberately not deleted
+          // — see sporta-dark.css's own note. Deleting them is what turned a
+          // two-line change back into an afternoon the first time this was
+          // reverted.
+          localStorage.setItem('sporta_theme', 'dark')
+          var t = 'dark'
           el.dataset.theme = t
           el.style.colorScheme = t
           // THE HERO'S HEIGHT, BEFORE THE FIRST PAINT.

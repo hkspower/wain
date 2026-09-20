@@ -34,6 +34,21 @@ const BASE = process.env.BASE ?? 'http://127.0.0.1:4300'
 const APP = process.env.APP ?? 'http://127.0.0.1:4173'
 const THEME = process.env.THEME ?? 'dark'
 
+// ONE MODE, DARK ONLY, as of 2026-09-20 (the second time — see
+// _theme-seed.mjs's own header for the full history). This file covers both
+// the website and the app, which have no shared DOM to assert a settled
+// theme against the way _theme-seed.mjs's assertTheme() does for a single
+// site — so this refuses the whole run up front instead: there is no light
+// theme running anywhere on either half to seed or to measure. Without this,
+// every "(light theme, not judged)" line below would have been dark,
+// unjudged, and mislabelled.
+if (THEME === 'light') {
+  throw new Error(
+    'THEME=light was asked for, but this shop is one mode, dark only — ' +
+    'there is no light theme running anywhere, on the site or the app.'
+  )
+}
+
 const PAGES = [
   ['site', BASE, '/'], ['site', BASE, '/shop'], ['site', BASE, '/cart'],
   ['site', BASE, '/checkout'], ['site', BASE, '/about'], ['site', BASE, '/contact'],

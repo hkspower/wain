@@ -106,7 +106,18 @@ cbk-payments.log
 # Scratch probes. Every session writes scripts/_probe.mjs to measure something
 # once; one of them was committed. The leading underscore is the convention and
 # package-check.mjs already refuses files matching it inside the docroot.
+#
+# THIS RULE IS WHAT LOST scripts/_theme-seed.mjs THE FIRST TIME. It is a real,
+# permanent, imported module — dark-audit.mjs, glare-audit.mjs and
+# site-contrast.mjs all `import` from it — not a one-off measurement, and the
+# blanket pattern below silently kept it out of every commit ever made,
+# which is why its own header (rewritten 2026-09-20) records it as having
+# "broken site-contrast.mjs's import outright" after surviving a session
+# boundary with nothing to say why. The leading-underscore convention means
+# two different things — "scratch, never commit" and "shared, not a
+# top-level rig" — and this pattern only ever meant the first one.
 scripts/_*.mjs
+!scripts/_theme-seed.mjs
 scripts/_*.py
 
 # Archived invoice PDFs. Customer names and addresses, one file per order —

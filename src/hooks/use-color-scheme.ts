@@ -19,5 +19,16 @@ import type { SchemeName } from '@/constants/theme';
  * app.
  */
 export function useColorScheme(): SchemeName {
-  return useRNColorScheme() === 'dark' ? 'dark' : 'light';
+  // ONE MODE, DARK ONLY — 2026-09-20, at the owner's request. Built once
+  // before (2026-09-09), reversed the next day when the toggle was asked
+  // back, asked for again now. Sporta is black, dark silver and orange; a
+  // device set to light should not see a different shop.
+  //
+  // The real computation stays, called but IGNORED, rather than deleted —
+  // a revert has already happened once, and CLAUDE.md's own record of that
+  // day says deleting the light-mode wiring is what turns a two-line change
+  // back into an afternoon.
+  const system = useRNColorScheme();
+  void system;
+  return 'dark';
 }

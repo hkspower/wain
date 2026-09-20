@@ -674,3 +674,26 @@
 :root[data-theme='dark-white'] .group\/dot[aria-current='true'] > .bg-brand {
   background-color: #d0d0d0 !important;
 }
+
+/* ONE MODE, DARK ONLY — 2026-09-20, at the owner's request. Hides the
+ * header's light/dark toggle. Built once before (2026-09-09), reversed the
+ * next day when the toggle was asked back, asked for again now.
+ *
+ * MATCHED BY aria-label, not by an id or a class of its own — the button
+ * shares `tap flex items-center justify-center transition hover:scale-110`
+ * with the cart and wishlist icons, so nothing else identifies it. All four
+ * strings are listed because the shop is bilingual and the button shows the
+ * mode it would switch TO, in whichever language is loaded — hiding only
+ * "Light mode" would leave the button visible (as "Dark mode") to anyone who
+ * had switched to light before this shipped.
+ *
+ * NOT DELETED FROM THE BUNDLE — cannot be, it has no source here — only
+ * hidden. index.html's boot script is what actually pins every visitor to
+ * dark; this only keeps a control for a mode nobody can reach off the
+ * screen. */
+[aria-label='Light mode'],
+[aria-label='Dark mode'],
+[aria-label='الوضع الفاتح'],
+[aria-label='الوضع الليلي'] {
+  display: none !important;
+}

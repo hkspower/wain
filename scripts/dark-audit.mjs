@@ -50,6 +50,7 @@
  * numbers are printed so a person can judge them; the rig has no opinion.
  */
 import { chromium } from 'playwright'
+import { assertTheme } from './_theme-seed.mjs'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:4300'
 const THEME = process.env.THEME === 'light' ? 'light' : 'dark'
@@ -79,6 +80,10 @@ const measure = async (path) => {
   await page.evaluate((t) => { try { localStorage.setItem('sporta_theme', t) } catch {} }, THEME)
   await page.reload()
   await page.waitForTimeout(1700)
+  // Seeding is not getting — see _theme-seed.mjs. The shop is one mode, dark
+  // only, as of 2026-09-20; a run asking for 'light' would otherwise measure
+  // dark and print it under a "light theme" heading.
+  await assertTheme(page, THEME)
   return page.evaluate((NEEDED) => {
     // A 1x1 CANVAS, because Tailwind v4 hands back oklab()/lab() from
     // getComputedStyle and no regex parses those. Painting the value and

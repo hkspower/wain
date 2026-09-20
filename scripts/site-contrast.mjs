@@ -27,7 +27,7 @@ const THEME = process.env.THEME ?? 'dark'
 const PAGES = ['/', '/shop', '/cart', '/checkout', '/about', '/contact',
                '/product/cloudsoft-jacket-army-green', '/returns', '/privacy', '/terms']
 
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
 const p = await b.newPage({ viewport: { width: 1280, height: 1000 } })
 
 let fails = 0, checked = 0, skipped = 0

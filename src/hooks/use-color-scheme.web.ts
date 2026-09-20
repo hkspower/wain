@@ -66,5 +66,14 @@ export function useColorScheme(): SchemeName {
   // Before hydration every client has to agree with the server's HTML or React
   // reports a mismatch and rerenders the tree — so this is not a default, it is
   // the only answer that is safe to give yet.
-  return hasHydrated ? colorScheme : 'dark';
+  const resolved = hasHydrated ? colorScheme : 'dark';
+
+  // ONE MODE, DARK ONLY — 2026-09-20, at the owner's request. Same history
+  // as the native file beside this one: built 2026-09-09, reversed the next
+  // day, asked for again now. `resolved` is still computed above rather
+  // than deleted, so a future revert is the two-line change CLAUDE.md's own
+  // record says it should be — only `darkWhite` survives this override,
+  // since that is a different, still-offered theme and not the "light" this
+  // was asked to remove.
+  return resolved === 'darkWhite' ? resolved : 'dark';
 }
