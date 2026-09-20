@@ -175,8 +175,35 @@ const files = {};
 // required proof that names a directory the framework has since renamed does
 // not fail loudly, it fails as "expected exactly one stylesheet, found 0",
 // which reads like the build lost its CSS.
-const css = Object.keys(files).filter((f) => f.startsWith("_next/static/") && f.endsWith(".css"));
-if (css.length !== 1) fail(`expected exactly one stylesheet under _next/static, found ${css.length}`);
+//
+// It must also be the stylesheet the PAGES ask for. Leaflet arrives with its
+// own, in its own chunk, reached by a runtime `import()` and referenced by no
+// page's HTML — so the day the live map landed this check read «found 2» and
+// refused a perfectly good build. An on-demand stylesheet is not a second site
+// stylesheet, and the proof this list exists to make is «the CSS a visitor
+// loads arrived», which is about the one the HTML names.
+//
+// Same normalisation gen-sw.mjs and audit:js need, and for the same reason:
+// the leading slash is optional in the markup, and the place pages' shared
+// chunk is URL encoded there while the file on disk keeps its brackets.
+const referenced = new Set();
+for (const f of Object.keys(files)) {
+  if (!f.endsWith(".html")) continue;
+  const html = readFileSync(join(OUT, f), "utf8");
+  for (const m of html.matchAll(/\/?_next\/static\/[^"'()\\\s]+?\.(?:js|css)/g)) {
+    referenced.add(decodeURIComponent(m[0].replace(/^\//, "")));
+  }
+}
+const allCss = Object.keys(files).filter((f) => f.startsWith("_next/static/") && f.endsWith(".css"));
+const css = allCss.filter((f) => referenced.has(f));
+if (css.length !== 1) {
+  fail(
+    `expected exactly one stylesheet that a page loads, found ${css.length}` +
+      (allCss.length !== css.length
+        ? ` (${allCss.length - css.length} more are on demand and referenced by no page)`
+        : "")
+  );
+}
 
 const searchChunk = Object.keys(files).find((f) => /^_next\/static\/chunks\/app\/search\/page-[0-9a-f]+\.js$/.test(f));
 if (!searchChunk) fail("could not find the /search page chunk in the export");
