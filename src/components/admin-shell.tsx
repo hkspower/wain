@@ -1,5 +1,5 @@
 import { useRouter, usePathname } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -24,9 +24,22 @@ import { useSession } from '@/lib/session';
 /** Below this, the thirteen-item pill row no longer fits a thumb's worth of
  *  scrolling in one glance — it takes several swipes to find "Activity" from
  *  "Today". Above it (tablet and desktop web, where this panel is also
- *  used) the horizontal strip stays: there is room for all of it at once,
- *  and a dropdown would be a worse fit for a mouse. */
+ *  used) the horizontal strip stays, and a dropdown would be a worse fit for
+ *  a mouse — but "there is room for all of it at once" turned out to be
+ *  wrong at the widths this is actually opened at: measured at 1280px, the
+ *  strip's own content is 1318px wide, so "Activity" — the last of thirteen —
+ *  renders past the right edge with NOTHING on screen suggesting it can be
+ *  reached by scrolling: `showsHorizontalScrollIndicator={false}`, no fade,
+ *  no arrow. The scrolling itself worked throughout; nothing told anyone it
+ *  was there, which is the same DISCOVERABILITY gap the website's own mobile
+ *  tab bar had (see panel-tabbar-fade.js's header) on a different program's
+ *  desktop row. Fixed below with visible edge arrows rather than a fade,
+ *  since a fade alone still leaves a mouse user nothing to click. */
 const COMPACT_NAV_WIDTH = 700;
+
+/** How far one press of an edge arrow moves the strip — enough to bring the
+ *  next couple of pills fully into view rather than by one sliver. */
+const NAV_SCROLL_STEP = 220;
 
 const NAV: [string, string][] = [
   ['/backends', 'Today'],
@@ -117,6 +130,39 @@ export function AdminChrome({
     router.replace(href as never);
   };
 
+  // The strip's own scroll state, so the two edge arrows can be shown only
+  // where there is really something to scroll to — an arrow that is always
+  // there and sometimes does nothing is worse than the invisible scroller
+  // this replaces, because it invites a press that goes nowhere.
+  const navScrollRef = useRef<ScrollView>(null);
+  const navLayoutWidth = useRef(0);
+  const navContentWidth = useRef(0);
+  const navOffsetX = useRef(0);
+  const navItemX = useRef<Record<string, number>>({});
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const recomputeNavArrows = (offsetX: number) => {
+    navOffsetX.current = offsetX;
+    setCanScrollLeft(offsetX > 4);
+    setCanScrollRight(offsetX < navContentWidth.current - navLayoutWidth.current - 4);
+  };
+
+  const scrollNav = (dir: 1 | -1) => {
+    const x = Math.max(0, navOffsetX.current + dir * NAV_SCROLL_STEP);
+    navScrollRef.current?.scrollTo({ x, animated: true });
+  };
+
+  // THE ACTIVE TAB SCROLLS INTO VIEW ON EVERY NAVIGATION, not only the first
+  // paint — the same property panel-tabbar-autocenter.js gives the website's
+  // mobile bar, so a manager who scrolled to "Security" once does not have to
+  // find it again from memory the next time they open a screen past the fold.
+  useEffect(() => {
+    const x = navItemX.current[pathname];
+    if (x === undefined || !navScrollRef.current) return;
+    navScrollRef.current.scrollTo({ x: Math.max(0, x - Spacing.four), animated: true });
+  }, [pathname]);
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <ThemedView type="inkSilver" style={styles.bar}>
@@ -151,35 +197,92 @@ export function AdminChrome({
 
       {showNav && !compact && (
         <ThemedView type="background" style={[styles.nav, { borderColor: theme.border }]}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.navRow}>
-            {NAV.map(([href, label]) => {
-              const active = pathname === href;
-              return (
-                <Pressable
-                  key={href}
-                  accessibilityRole="link"
-                  accessibilityState={{ selected: active }}
-                  onPress={() => go(href)}
-                  // 48 to tap, 36 of pill inside it — the same shape the
-                  // shop's filter chips carry. The panel's were 36 all the
-                  // way through, which is under what a thumb needs, and no
-                  // rig had ever measured them because they only exist behind
-                  // a login.
-                  style={press(false, styles.navHit)}>
-                  <ThemedView
-                    type={active ? 'backgroundSelected' : 'backgroundElement'}
-                    style={[styles.navItem, { borderColor: active ? theme.tint : theme.controlBorder }]}>
-                    <ThemedText type="labelBold" themeColor={active ? 'tintText' : 'textSecondary'}>
-                      {label}
-                    </ThemedText>
-                  </ThemedView>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+          {/* The maxWidth/centering used to sit on the ScrollView's own
+              CONTENT (navRow below), which caps the SCROLLABLE region rather
+              than the page's visual column — once the thirteen pills needed
+              more room than that cap, the extra pills spilled out past their
+              own scrollable box via `overflow: visible` and were reachable by
+              scroll only by accident, at whichever width happened to leave
+              them inside the browser's own edge. The cap belongs on this
+              outer, non-scrolling wrapper instead: the ScrollView beneath it
+              takes the full width THAT gives it, and its content sizes to
+              its children with nothing capping how far it can scroll. */}
+          <View style={styles.navOuter}>
+            <ScrollView
+              ref={navScrollRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.navRow}
+              onLayout={(e) => {
+                navLayoutWidth.current = e.nativeEvent.layout.width;
+                recomputeNavArrows(navOffsetX.current);
+              }}
+              onContentSizeChange={(w) => {
+                navContentWidth.current = w;
+                recomputeNavArrows(navOffsetX.current);
+              }}
+              onScroll={(e) => recomputeNavArrows(e.nativeEvent.contentOffset.x)}
+              scrollEventThrottle={16}>
+              {NAV.map(([href, label]) => {
+                const active = pathname === href;
+                return (
+                  <Pressable
+                    key={href}
+                    accessibilityRole="link"
+                    accessibilityState={{ selected: active }}
+                    onPress={() => go(href)}
+                    onLayout={(e) => {
+                      navItemX.current[href] = e.nativeEvent.layout.x;
+                    }}
+                    // 48 to tap, 36 of pill inside it — the same shape the
+                    // shop's filter chips carry. The panel's were 36 all the
+                    // way through, which is under what a thumb needs, and no
+                    // rig had ever measured them because they only exist behind
+                    // a login.
+                    style={press(false, styles.navHit)}>
+                    <ThemedView
+                      type={active ? 'backgroundSelected' : 'backgroundElement'}
+                      style={[styles.navItem, { borderColor: active ? theme.tint : theme.controlBorder }]}>
+                      <ThemedText type="labelBold" themeColor={active ? 'tintText' : 'textSecondary'}>
+                        {label}
+                      </ThemedText>
+                    </ThemedView>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            {/* Shown only where there is really something past the edge —
+                see COMPACT_NAV_WIDTH's own comment for why this exists at
+                all. Overlaid rather than beside the strip, so it costs no
+                extra row height and sits exactly where the eye already is
+                when a pill is cut off against it. */}
+            {canScrollLeft && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Scroll navigation left"
+                onPress={() => scrollNav(-1)}
+                style={[
+                  styles.navArrow,
+                  styles.navArrowLeft,
+                  { backgroundColor: theme.background, borderColor: theme.controlBorder },
+                ]}>
+                <Text style={[styles.navArrowText, { color: theme.text }]}>‹</Text>
+              </Pressable>
+            )}
+            {canScrollRight && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Scroll navigation right"
+                onPress={() => scrollNav(1)}
+                style={[
+                  styles.navArrow,
+                  styles.navArrowRight,
+                  { backgroundColor: theme.background, borderColor: theme.controlBorder },
+                ]}>
+                <Text style={[styles.navArrowText, { color: theme.text }]}>›</Text>
+              </Pressable>
+            )}
+          </View>
         </ThemedView>
       )}
 
@@ -393,19 +496,39 @@ const styles = StyleSheet.create({
   },
   signOutText: { color: '#ff7b17', fontWeight: '700' },
   nav: { borderBottomWidth: 1 },
-  navRow: {
-    // NO width: '100%'. This is a horizontal ScrollView's content, which has
-    // to size to its children; pinning it to the viewport width put the last
-    // chip at x=389 on a 390pt screen — hard against the glass, while every
-    // other thing on the page stopped at 374.
+  // Non-scrolling: this is what carries the page's own column width, so the
+  // ScrollView inside it never has more width to offer than the rest of the
+  // page does — and never less, which is the bug this replaces.
+  navOuter: {
+    width: '100%',
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
+  },
+  navRow: {
+    // NO width: '100%' and NO maxWidth here. This is a horizontal
+    // ScrollView's CONTENT, which has to size to its children — pinning it to
+    // the viewport width put the last chip at x=389 on a 390pt screen, hard
+    // against the glass, and capping it at the page's own column width made
+    // thirteen pills wider than that cap unreachable by scroll. It sizes
+    // itself; navOuter above is what caps and centres the column.
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.three,
     gap: Spacing.two,
     flexDirection: 'row',
   },
   navHit: { minHeight: TapTarget, justifyContent: 'center' },
+  navArrow: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  navArrowLeft: { left: 0, borderRightWidth: 1 },
+  navArrowRight: { right: 0, borderLeftWidth: 1 },
+  navArrowText: { fontSize: 20, fontWeight: '700', lineHeight: 22 },
   navItem: {
     minHeight: TapTarget,
     justifyContent: 'center',
