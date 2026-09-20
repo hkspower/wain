@@ -1,8 +1,9 @@
-/* Sporta — make the shop's phone, WhatsApp and email editable from /backends.
+/* Sporta — make the shop's phone, WhatsApp, email and social links editable
+ * from /backends.
  *
  * ---------------------------------------------------------------- WHY AT ALL
  *
- * Those three details are hard-coded into the built storefront in seven files
+ * Those details are hard-coded into the built storefront in seven files
  * — Contact, About, Privacy, Terms, Returns, Invoice and the footer — because
  * they were written into the source, and the source is not in this repository.
  * Changing the shop's phone number therefore meant a rebuild by whoever holds
@@ -13,17 +14,27 @@
  *
  * ------------------------------------------------------------- WHAT IT TOUCHES
  *
- * Only the three values, and only where they already appear:
+ * Only the values below, and only where they already appear:
  *
  *   - href="mailto:…", href="tel:…", href="https://wa.me/…"
+ *   - href="https://www.instagram.com/…", href="https://www.tiktok.com/@…"
  *   - the exact old strings where they sit in visible prose, in both
  *     languages — "تواصل معنا عبر واتساب ‎+965 2209 1914" and its English twin.
+ *
+ * INSTAGRAM AND TIKTOK WERE ALREADY SAVEABLE AND NEVER APPLIED. The `instagram`
+ * field has existed in ?r=contact, in admin.php's validation and in the panel
+ * since before this file touched it — the exact shape this project keeps
+ * finding on other surfaces, a feature stored on one side and read by nobody
+ * on the other. `tiktok` is new alongside it, same shape, same validation.
  *
  * It matches the OLD LITERALS, not a pattern. A regular expression for "a
  * Kuwaiti phone number" would also match the courier's number in the returns
  * policy, a number in a customer's own address on the invoice, and any order
- * reference that happened to look numeric. The literals are the three values
- * the build actually contains, and they are listed below.
+ * reference that happened to look numeric. The literals are the values
+ * the build actually contains, and they are listed below — read straight out
+ * of the compiled bundle's own strings (`grep -o` for instagram.com/tiktok.com
+ * in assets/index-*.js), the same way BUILT's other values were read out of
+ * the rendered page.
  *
  * ------------------------------------------------- AND IT USUALLY DOES NOTHING
  *
@@ -50,7 +61,11 @@
   var BUILT = {
     phone: '+965 2209 1914',
     whatsapp: '96522091914',
-    email: 'cs@sporta.com.kw'
+    email: 'cs@sporta.com.kw',
+    // Handles, not URLs — the server stores and validates a handle, same as
+    // the panel field does, and the full link is built here from it.
+    instagram: 'sporta.kw',
+    tiktok: '@sporta.kw'
   }
 
   var api = ((window.SPORTA_CONFIG && window.SPORTA_CONFIG.phpApiUrl) || '/api').replace(/\/$/, '')
@@ -72,6 +87,15 @@
       add(BUILT.phone, c.phone)
       add(BUILT.whatsapp, c.whatsapp)
       add(BUILT.email, c.email)
+      // Full URLs, built from the handle — the href is what a browser
+      // navigates, and swapping the bare handle alone would leave
+      // https://www.instagram.com/sporta.kw pointing at the old page while
+      // some other "sporta.kw" text elsewhere on the site (there is none
+      // today, but nothing guarantees that stays true) got rewritten too.
+      add('https://www.instagram.com/' + BUILT.instagram,
+          c.instagram ? 'https://www.instagram.com/' + c.instagram : '')
+      add('https://www.tiktok.com/' + BUILT.tiktok,
+          c.tiktok ? 'https://www.tiktok.com/@' + c.tiktok : '')
       if (!swaps.length) return          // the usual case: nothing to do
 
       var apply = function (root) {
@@ -84,14 +108,24 @@
           var a = links[i]
           var href = a.getAttribute('href')
           if (!href) continue
-          if (!/^(mailto:|tel:)|wa\.me\//.test(href)) continue
+          if (!/^(mailto:|tel:)|wa\.me\/|instagram\.com\/|tiktok\.com\//.test(href)) continue
           var next = href
           for (var s = 0; s < swaps.length; s++) {
             // tel: and wa.me hold digits only; the display phone has spaces in
             // it. Compare against both spellings of the old number.
             next = next.split(swaps[s][0]).join(swaps[s][1])
-            next = next.split(swaps[s][0].replace(/[^0-9+]/g, ''))
-                       .join(swaps[s][1].replace(/[^0-9+]/g, ''))
+            // ONLY FOR A PAIR THAT HAS A DIGIT IN IT. Stripped of everything
+            // but digits and '+', the instagram/tiktok URLs below have NOTHING
+            // left — '' — and String.split('') splits on every character, so
+            // this second pass would have inserted the replacement between
+            // every letter of a social link that has no phone number in it at
+            // all. Guarded rather than removed, because it is what lets
+            // tel:+96522091914 and wa.me/96522091914 both match one saved
+            // phone number.
+            var digitsOnly = swaps[s][0].replace(/[^0-9+]/g, '')
+            if (digitsOnly) {
+              next = next.split(digitsOnly).join(swaps[s][1].replace(/[^0-9+]/g, ''))
+            }
           }
           if (next !== href) a.setAttribute('href', next)
         }
