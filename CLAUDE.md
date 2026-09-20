@@ -754,13 +754,18 @@ re-pointing the document. `npm run ai:brief` regenerates that file from
 the live KB is current and there is nothing to send.
 
 **Re-pointing it CANNOT be finished from an MCP session — `agents_create_kb_url`
-times out at 60s and creates nothing.** Tried three times on 20 September to
+times out at 60s and creates nothing.** Tried four times on 20 September to
 move the document off `ab034b0`; every call returned «timed out after 60s», and
 `agents_list_knowledge_base` after each — including 75 seconds after one, in
 case it landed late — showed the workspace unchanged. So it is a consistent
 failure, not a flake, and it is at least *safe*: nothing half-created, no stray
-document, no duplicate from retrying. The rest of the route is fine; it is only
-this one call.
+document, no duplicate from retrying.
+
+**And it is that call, not the connector** — worth separating, because «the
+MCP is down» and «one tool is slow» lead somewhere different. Measured on the
+fourth attempt: the create timed out, and an `agents_list_knowledge_base`
+issued straight afterwards answered immediately. Reads are healthy; the write
+that has to fetch and process 73KB is the one that does not fit in 60s.
 
 Everything else was verified and is ready for whoever finishes it in the
 dashboard:
@@ -876,7 +881,12 @@ so redialling after a switch never silently starts on سالم.
 see any of it** — it is not in this repository — so everything below drifts
 silently and has to be compared by hand. Twelve workflows; four are wain's.
 
-- **`أداة ملفات وين 🔧` — the only ACTIVE workflow on the whole instance.**
+- **`أداة ملفات وين 🔧` — one of the TWO active workflows on the instance.**
+  This line said «the only ACTIVE workflow» until 20 September, and the file
+  contradicted itself four bullets later by calling شوق's `wain-gap` webhook
+  active too — which it is. Listed live: both are `active: true`, everything
+  else on the instance is `false`. A count is the easiest thing to leave
+  behind when a thing is added.
   POST `/webhook/wain-file-tool`, grep/patch/create files on Hostinger over FTP.
   Its secret comes from the n8n variable `WAIN_TOOL_SECRET` and **fails closed**
   when unset; path jail, per-project roots, `.htaccess` directive blocking. It
