@@ -153,7 +153,20 @@ function customer_login(PDO $db, array $in): array
         $u = $q->fetch(PDO::FETCH_ASSOC) ?: null;
     }
     $hash = $u['password_hash'] ?? password_hash(bin2hex(random_bytes(8)), PASSWORD_DEFAULT);
-    if (!$u || !password_verify($pw, $hash)) return ['error' => 'bad_credentials'];
+    if (!$u || !password_verify($pw, $hash)) {
+        // UNLIKE store_login(), there is no per-account lockout here — the
+        // customers table carries no failed_attempts/locked_until columns,
+        // and adding them is a schema change this finding does not need to
+        // wait on. What store_login() calls "the shape of a spray" applies
+        // just as much to a shop's customers as to its one admin account:
+        // without this, nothing stops an unlimited number of password
+        // guesses against any customer email, from one IP or spread across
+        // many. Same bucket shape and limits store_login() already uses for
+        // exactly this — counted only on failure, so a shopper who mistypes
+        // their own password a few times is never touched.
+        store_throttle($db, 'customer_login_fail', 50, 900);
+        return ['error' => 'bad_credentials'];
+    }
 
     try {
         $db->prepare('update customers set last_seen_at = now() where id = ?')
