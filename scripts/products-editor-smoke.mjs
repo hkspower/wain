@@ -33,6 +33,10 @@ const browser = await chromium.launch({
 const p = await browser.newPage({ viewport: { width: 420, height: 900 } })
 const errors = []
 p.on('pageerror', (e) => errors.push(String(e).slice(0, 200)))
+let lastSaveBody = null
+p.on('request', (req) => {
+  if (req.url().includes('r=product_save')) lastSaveBody = req.postData()
+})
 
 try {
   await p.goto(`${BASE}/backends`, { waitUntil: 'networkidle' })
@@ -42,6 +46,16 @@ try {
   await p.getByRole('button').filter({ hasText: /Sign in/ }).last().click()
   await p.waitForTimeout(2500)
 
+  // At this viewport (420) AdminShell always runs its compact nav —
+  // COMPACT_NAV_WIDTH is 700 — so "Products" sits behind the "☰ Menu"
+  // toggle rather than in a visible row. This script used to click straight
+  // past it and time out on every run, which is the same shape this
+  // project's own notes record elsewhere: a suite that finds nothing is
+  // reporting its own environment, not the screen.
+  if (await p.getByText('Menu', { exact: false }).count()) {
+    await p.getByText('Menu', { exact: false }).first().click();
+    await p.waitForTimeout(300);
+  }
   await p.getByText('Products', { exact: true }).first().click()
   await p.waitForTimeout(2000)
   check((await p.getByText('Add a product').count()) > 0, 'the Products screen renders with an Add button')
@@ -59,11 +73,23 @@ try {
   // fragile in a plain smoke check; fill by order matches the form's layout.
   await inputs.nth(5).fill('9.500')
 
+  // CATEGORY CARRIES A POLICY (see products.tsx's own comment):
+  // `category === 'women'` in api/store.php is exact and case-sensitive, and
+  // this field used to be sent to the server exactly as typed. Field order:
+  // 0 name_en, 1 name_ar, 2 slug, 3 desc_en, 4 desc_ar, 5 price, 6 sale
+  // price, 7 category.
+  await inputs.nth(7).fill('  Women  ')
+
   await p.getByText('Save').last().click()
   await p.waitForTimeout(2000)
   check((await p.getByText('added.').count()) > 0 || (await p.getByText(/added\./).count()) > 0,
     'saving reports success')
   check((await p.getByText('Smoke Test Hoodie').count()) > 0, 'the new product appears in the list')
+
+  check(!!lastSaveBody && JSON.parse(lastSaveBody).category === 'women',
+    `a category typed as "  Women  " is trimmed and lowercased before it is sent (${
+      lastSaveBody ? JSON.parse(lastSaveBody).category : 'no save seen'
+    })`)
 
   await p.getByText('Sizes & stock').first().click()
   await p.waitForTimeout(1500)

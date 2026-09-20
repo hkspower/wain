@@ -668,6 +668,15 @@
          checkout that dies on its last step. -->
     <script src="/assets/rules.js" defer></script>
 
+    <!-- A hero-slide editor, also on the Settings screen — the first panel
+         screen hero_slides has ever had; every slide before this was inserted
+         by a one-off script in scripts/publish/ and thrown away. Only the
+         focal point (horizontal crop position) is a real control: the hero
+         box has no vertical crop slack at the current design, so this does
+         not offer a height/width/aspect-ratio INPUT that would appear to
+         resize the live hero and actually change nothing. -->
+    <script src="/assets/hero-slides.js" defer></script>
+
     <!-- Four more email addresses, also on the Settings screen — an
          alternative, one for orders, one for B2B and one for customers.
          Admin-only: unlike contact.js above, nothing here reaches the

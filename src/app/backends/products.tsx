@@ -61,6 +61,24 @@ import { useSession } from '@/lib/session';
  * held stock is indistinguishable afterwards from that stock having sold —
  * so a tap here shows what it is about to discard rather than passing force
  * straight through.
+ *
+ * CATEGORY CARRIES A POLICY, and this screen used to be a bare free-text
+ * box for it. `store_return_lookup()` decides whether a garment may be
+ * exchanged from `category === 'women'`, exact string, case-sensitive
+ * — checked in api/store.php — and `store_size_chart_for()` picks the
+ * size chart the same way. A free-text field with no dropdown meant an
+ * owner typing "Women", "women " or "womens" saved perfectly and broke
+ * both silently: no error, no warning, and the product page would just
+ * answer with the wrong chart and the wrong exchange rule. There is no
+ * server route that lists categories (research.php's research_categories()
+ * is private to that file), so this screen derives the list itself from
+ * the products already loaded — the same "read what the shop already
+ * uses" rule research.php documents for its own picker, applied without
+ * needing a new endpoint. A category typed by hand is still allowed (a
+ * shop's first "outerwear" has to come from somewhere), and is trimmed and
+ * lowercased before it is sent, because every category in the database is
+ * lowercase and the one comparison that matters is exact and
+ * case-sensitive.
  */
 export default function ProductsScreen() {
   const router = useRouter();
@@ -142,6 +160,15 @@ export default function ProductsScreen() {
       slug: d.slugTouched ? d.slug : slugify(v),
     }));
 
+  // The categories this shop already uses, derived from the products already
+  // on screen rather than a new server route — the same reasoning
+  // research.php's own research_categories() gives for reading them out of
+  // the database instead of a hardcoded list, applied here without needing
+  // an endpoint of its own.
+  const categories = Array.from(
+    new Set((products ?? []).map((p) => p.category).filter((c): c is string => !!c)),
+  ).sort();
+
   const save = async () => {
     if (!draft || busy) return;
     if (!draft.name_en.trim()) return setNotice('The English name is required.');
@@ -178,7 +205,13 @@ export default function ProductsScreen() {
         // Already fils — parseAmount converted once, on the way in.
         price,
         salePrice,
-        category: draft.category.trim() || null,
+        // Trimmed AND lowercased: every category in the database is
+        // lowercase, and `category === 'women'` in api/store.php is an
+        // exact, case-sensitive comparison. Normalising here is what stops
+        // "Women" or "women " from saving as a category that looks right in
+        // this list and never matches the one comparison that decides the
+        // exchange policy and the size chart.
+        category: draft.category.trim().toLowerCase() || null,
         brandSlug: draft.brandSlug,
         active: draft.active,
       });
@@ -277,6 +310,28 @@ export default function ProductsScreen() {
               autoCapitalize="none"
               onChangeText={(v) => setDraft(draft && { ...draft, category: v })}
             />
+            {categories.length > 0 && (
+              <>
+                <ThemedText type="caption" themeColor="textSecondary" style={styles.hint}>
+                  Already used on this shop — tap to reuse one exactly
+                </ThemedText>
+                <View style={styles.chips}>
+                  {categories.map((c) => (
+                    <Chip
+                      key={c}
+                      label={c}
+                      active={draft.category.trim().toLowerCase() === c}
+                      onPress={() => setDraft(draft && { ...draft, category: c })}
+                    />
+                  ))}
+                </View>
+              </>
+            )}
+            <ThemedText type="caption" themeColor="textSecondary" style={styles.hint}>
+              The category decides whether this product can be exchanged
+              (only "women" is, exactly) and which size chart it uses — check
+              it before saving.
+            </ThemedText>
 
             <ThemedText type="caption" themeColor="textSecondary" style={styles.hint}>Brand</ThemedText>
             <View style={styles.chips}>
