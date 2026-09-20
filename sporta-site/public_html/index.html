@@ -359,6 +359,24 @@
          downloading with the HTML instead of after the CSS parses. The rest
          load on demand via unicode-range. -->
     <link rel="preload" as="image" href="/logo-white.webp" fetchpriority="high" />
+
+    <!-- NEUE FRUTIGER WORLD, an OPT-IN trial face, added 2026-09-20 — asked for
+         after Adobe's font tools were used to compare it against the shop's own
+         Alexandria/IBM Plex Sans Arabic pairing (one family covering both
+         scripts, rather than two). This is a real, persistent Adobe Fonts kit
+         under the owner's account (kit_id=zht6lkq), hosted at typekit's CDN —
+         the one deliberate exception to "fonts are self-hosted" above, and a
+         genuine trade: an extra DNS lookup and TLS handshake to a third party,
+         on every page, whether or not anyone has picked the font.
+
+         IT CHANGES NOTHING BY ITSELF. Loading the face is not the same as
+         USING it — theme.js only sets font-family from what the owner types
+         into Settings, and that starts empty. The chip in the panel that picks
+         this stores the exact CSS family name Adobe generated,
+         "neue-frutiger-world" (lower-case, hyphenated) — that literal string,
+         not the display name, is what has to reach font-family or the
+         built-in fallback silently wins instead. -->
+    <link rel="stylesheet" href="https://use.typekit.net/zht6lkq.css" />
     <!-- The hero banner is preloaded by the boot script below, NOT here, and
          the 29 kB /favicon.png preload that used to sit on this line is gone.
          Both for the same reason: the home page's largest element changed.
@@ -865,17 +883,15 @@
          only once this script has a working replacement in place. -->
     <script src="/assets/nav-menu.js" defer></script>
 
-    <!-- A row of brand logos on the home page, right under the hero carousel
-         — the hero is `section[aria-roledescription]`, a stable selector
-         across languages (measured: the value stays "carousel" in Arabic
-         too). Renders nothing until an active brand has a logo; the live
-         shop has none yet. -->
-    <script src="/assets/brand-strip.js" defer></script>
+    <!-- The brand-logo strip under the hero carousel was removed at the
+         owner's request, 2026-09-20. assets/brand-strip.js is left in the
+         repository, undeployed, rather than deleted — this line is the whole
+         revert if it is ever wanted back. -->
 
-    <!-- Three trust icons on the home page, right after the hero (and after
-         brand-strip.js's own row if a brand has a logo) — returns/exchange,
-         reading the live return window from ?r=slides rather than a typed-in
-         number, delivery coverage, and a marketing authenticity claim. -->
+    <!-- Three trust icons on the home page, right after the hero — returns/
+         exchange, reading the live return window from ?r=slides rather than
+         a typed-in number, delivery coverage, and a marketing authenticity
+         claim. -->
     <script src="/assets/trust-strip.js" defer></script>
 
     <!-- An owner-editable body for Privacy, Terms and Returns — swaps in
