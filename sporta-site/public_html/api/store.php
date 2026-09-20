@@ -1178,6 +1178,23 @@ function store_brand_logo_mime(string $path): ?string {
     return null;
 }
 
+// A font file, identified by its own first bytes — same discipline as
+// store_brand_logo_mime() and store_data_image(): a browser refuses to use a
+// file whose declared type does not match its content, so a name is not
+// enough. woff2/woff/ttf/otf are the four a browser actually loads with
+// @font-face; anything else is refused before it is ever stored.
+function store_font_mime(string $bytes): ?string {
+    if (strlen($bytes) < 4) return null;
+    $head4 = substr($bytes, 0, 4);
+    if ($head4 === 'wOF2') return 'font/woff2';
+    if ($head4 === 'wOFF') return 'font/woff';
+    if ($head4 === 'OTTO') return 'font/otf';
+    // TrueType: either the version tag \x00\x01\x00\x00, or 'true'/'typ1' for
+    // an older Mac-style sfnt. All four are real TrueType signatures.
+    if ($head4 === "\x00\x01\x00\x00" || $head4 === 'true' || $head4 === 'typ1') return 'font/ttf';
+    return null;
+}
+
 // The cache key for that file. The logo URL is cached for a year and immutable,
 // which is only safe because the address changes when the picture does — so
 // this has to change when the file does. Size and mtime together do that
@@ -2409,6 +2426,7 @@ const STORE_SETTING_DEFAULTS = [
         'hours_ar'  => '',
         'hours_en'  => '',
         'instagram' => '',
+        'tiktok'    => '',
     ],
     // THE POLICY PAGES' PROSE. Privacy and Terms are each a single body of
     // text below their "Last updated" line; Returns is the one descriptive

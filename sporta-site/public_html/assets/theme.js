@@ -207,6 +207,12 @@
         line('--sp-header-bg', hex6(t.header_bg)) +
         line('--sp-secondary-bg', hex6(t.secondary_bg)) +
         line('--sp-tabbar-active', hex6(t.tabbar_active)) +
+        /* The main background — same var(--sp-x, <literal>) shape as the three
+           above, added 2026-09-20. [data-theme=dark] body{background-color:
+           #202429} is a compiled rule with no source here, so sporta-ui.css
+           reads var(--sp-page-bg, #202429) instead of this file touching it
+           directly. */
+        line('--sp-page-bg', hex6(t.page_bg)) +
         tabbar(hex6(t.tabbar_bg))
 
       var css = ''
@@ -295,4 +301,39 @@
       el.textContent = css
     })
     .catch(function () { /* No theme is the built theme. Never a broken page. */ })
+
+  /* UPLOADED FONTS, in a SEPARATE <style> and a separate fetch. This is not
+     coupled to the theme request above: a shop that has never uploaded a
+     font must never fail this fetch and lose the fields above with it, and
+     the theme <style> must stay LAST in the document (see the file header)
+     — appending @font-face rules to a second, earlier element keeps that
+     true regardless of which request finishes first.
+
+     mime/data COME FROM THE SERVER, which already checked the bytes with
+     store_font_mime() before storing them — this file trusts that check
+     rather than re-deriving a format from a filename it never sees. */
+  var fontsEl = document.createElement('style')
+  fontsEl.setAttribute('data-sporta-fonts', '')
+  document.head.appendChild(fontsEl)
+
+  fetch('/api/api.php?r=fonts', { credentials: 'omit' })
+    .then(function (r) { return r.ok ? r.json() : null })
+    .then(function (j) {
+      var list = j && Array.isArray(j.fonts) ? j.fonts : []
+      var css = ''
+      for (var i = 0; i < list.length; i++) {
+        var f = list[i]
+        if (!f || !f.family || !f.mime || !f.data) continue
+        // The same family-name shape admin.php validates on upload — a second
+        // guard, since this value ends up inside a CSS string.
+        if (!/^[A-Za-z0-9 \-]{2,40}$/.test(String(f.family))) continue
+        css += '@font-face {\n' +
+          '  font-family: "' + f.family + '";\n' +
+          '  src: url(data:' + f.mime + ';base64,' + f.data + ');\n' +
+          '  font-display: swap;\n' +
+          '}\n'
+      }
+      fontsEl.textContent = css
+    })
+    .catch(function () { /* No custom fonts is the built theme. */ })
 })()

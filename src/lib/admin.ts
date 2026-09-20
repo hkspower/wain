@@ -307,6 +307,21 @@ export interface ThemeSettings {
   tabbarBg: string;
   tabbarActive: string;
   secondaryBg: string;
+  /** THE MAIN BACKGROUND, #rrggbb. Same shape and reason as the four above —
+   *  `[data-theme=dark] body{background-color:#1e2023}` has no source here,
+   *  so sporta-dark.css reads `var(--sp-black)`, which itself now reads
+   *  `var(--sp-page-bg, #1e2023)`. Added 2026-09-20. */
+  pageBg: string;
+}
+
+/** One uploaded font, as the admin panel lists it — no `data` field: the
+ *  panel never needs the bytes back, only enough to show and delete an
+ *  upload. See api/admin.php's 'fonts' route. */
+export interface CustomFont {
+  id: string;
+  family: string;
+  mime: string;
+  bytes: number;
 }
 
 export interface ContactDetails {
@@ -323,6 +338,8 @@ export interface ContactDetails {
   hoursEn: string;
   /** A handle, not a URL — the link is built from it. */
   instagram: string;
+  /** Same shape as instagram — a handle, not a URL. */
+  tiktok: string;
 }
 
 interface WirePromoBar {
@@ -343,6 +360,7 @@ interface WireContact {
   hours_ar: string;
   hours_en: string;
   instagram: string;
+  tiktok: string;
 }
 
 // ------------------------------------------------------- product photographs
@@ -1126,6 +1144,7 @@ export const adminApi = {
       hoursAr: w.hours_ar ?? '',
       hoursEn: w.hours_en ?? '',
       instagram: w.instagram ?? '',
+      tiktok: w.tiktok ?? '',
     };
   },
 
@@ -1141,6 +1160,7 @@ export const adminApi = {
         hours_ar: v.hoursAr,
         hours_en: v.hoursEn,
         instagram: v.instagram,
+        tiktok: v.tiktok,
       },
     }),
 
@@ -1187,6 +1207,7 @@ export const adminApi = {
       radius: g('radius'), space: g('space'), css: g('css'),
       headerBg: g('header_bg'), tabbarBg: g('tabbar_bg'),
       tabbarActive: g('tabbar_active'), secondaryBg: g('secondary_bg'),
+      pageBg: g('page_bg'),
     }
   },
 
@@ -1200,8 +1221,20 @@ export const adminApi = {
         radius: v.radius, space: v.space, css: v.css,
         header_bg: v.headerBg, tabbar_bg: v.tabbarBg,
         tabbar_active: v.tabbarActive, secondary_bg: v.secondaryBg,
+        page_bg: v.pageBg,
       },
     }),
+
+  // ------------------------------------------------------------------ fonts
+  // Custom uploaded fonts, stored server-side as base64 and picked by family
+  // name from ThemeSettings.fontHead/fontBody. See api/admin.php's 'fonts',
+  // 'font_upload' and 'font_delete' routes.
+  fonts: () => call<{ fonts: CustomFont[] }>('fonts'),
+
+  uploadFont: (family: string, data: string) =>
+    call<{ ok: true }>('font_upload', { family, data }),
+
+  deleteFont: (id: string) => call<{ ok: true }>('font_delete', { id }),
 
   saveFooter: (v: FooterText) =>
     call<{ ok: true }>('settings_save', {

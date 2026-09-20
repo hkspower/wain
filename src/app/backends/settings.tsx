@@ -14,10 +14,12 @@ import {
   Unauthorized,
   type ContactDetails,
   type ContactEmails,
+  type CustomFont,
   type FooterText,
   type PromoBar,
   type ThemeSettings,
 } from '@/lib/admin';
+import { NotSupported, pickFont } from '@/lib/pick-font';
 import { useSession } from '@/lib/session';
 
 /**
@@ -86,6 +88,10 @@ export default function SettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [fonts, setFonts] = useState<CustomFont[]>([]);
+  const [fontBusy, setFontBusy] = useState(false);
+  const [fontNote, setFontNote] = useState<string | null>(null);
+
   // Per-card, so saving the bar cannot put the contact card into a busy state
   // or clear the notice it just showed.
   const [barBusy, setBarBusy] = useState(false);
@@ -104,8 +110,8 @@ export default function SettingsScreen() {
     setLoading(true);
     setError(null);
     Promise.all([adminApi.promoBar(), adminApi.contact(), adminApi.knetSettings(),
-                 adminApi.footer(), adminApi.theme(), adminApi.contactEmails()])
-      .then(([b, c, k, f, t, e]) => {
+                 adminApi.footer(), adminApi.theme(), adminApi.contactEmails(), adminApi.fonts()])
+      .then(([b, c, k, f, t, e, fo]) => {
         setBar(b);
         setContact(c);
         setFooter(f);
@@ -116,6 +122,7 @@ export default function SettingsScreen() {
         setKnetPasswordSet(k.tranportal_password_set);
         setKnetKeySet(k.resource_key_set);
         setPayStatus(k.pay);
+        setFonts(fo.fonts);
       })
       .catch((e) => (e instanceof Unauthorized ? signOut() : setError(String(e))))
       .finally(() => setLoading(false));
@@ -238,6 +245,52 @@ export default function SettingsScreen() {
       setThemeNote(String(e));
     } finally {
       setThemeBusy(false);
+    }
+  };
+
+  const uploadFont = async () => {
+    if (fontBusy) return;
+    setFontBusy(true);
+    setFontNote(null);
+    try {
+      const picked = await pickFont();
+      if (!picked) { setFontBusy(false); return; }
+      // A starting point, not the final name — the owner can rename before
+      // it is stored, and admin.php checks the shape either way.
+      const family = picked.suggestedName.replace(/[^A-Za-z0-9 -]/g, ' ').trim().slice(0, 40);
+      await adminApi.uploadFont(family || 'Custom Font', picked.base64);
+      setFonts((await adminApi.fonts()).fonts);
+      setFontNote(`Uploaded as "${family || 'Custom Font'}". Type that name into a font field above.`);
+    } catch (e) {
+      if (e instanceof Unauthorized) return signOut();
+      if (e instanceof NotSupported) { setFontNote('Font upload works from a browser, on this panel.'); return; }
+      const msg = String(e);
+      setFontNote(
+        msg.includes('not_a_font')
+          ? 'That file is not a font woff2/woff/ttf/otf can recognise.'
+          : msg.includes('font_too_large')
+            ? 'That file is over 400 KB — try a subset woff2.'
+            : msg.includes('too_many_fonts')
+              ? 'Five uploaded fonts is the limit — delete one first.'
+              : msg,
+      );
+    } finally {
+      setFontBusy(false);
+    }
+  };
+
+  const deleteFont = async (id: string) => {
+    if (fontBusy) return;
+    setFontBusy(true);
+    setFontNote(null);
+    try {
+      await adminApi.deleteFont(id);
+      setFonts((await adminApi.fonts()).fonts);
+    } catch (e) {
+      if (e instanceof Unauthorized) return signOut();
+      setFontNote(String(e));
+    } finally {
+      setFontBusy(false);
     }
   };
 
@@ -425,6 +478,12 @@ export default function SettingsScreen() {
             label="Instagram handle (without the @)"
             value={contact.instagram}
             onChangeText={(v) => setC('instagram', v)}
+            autoCapitalize="none"
+          />
+          <Field
+            label="TikTok handle (without the @)"
+            value={contact.tiktok}
+            onChangeText={(v) => setC('tiktok', v)}
             autoCapitalize="none"
           />
           <Field
@@ -620,6 +679,15 @@ export default function SettingsScreen() {
             value={theme.secondaryBg}
             onChange={(v) => setT('secondaryBg', v)}
           />
+          <ColourField
+            label="Main background"
+            hint="The page itself, behind every card and header. Nearly all text sits on it."
+            shipped="#1e2023"
+            foreground="#eaecee"
+            presets={['#1e2023', '#14161a', '#202429', '#0d0e10']}
+            value={theme.pageBg}
+            onChange={(v) => setT('pageBg', v)}
+          />
 
           {/* THE ONE FIELD WITH NO SHAPE. Everything above is checked against
               the format its own variable uses; this is appended to the
@@ -630,10 +698,53 @@ export default function SettingsScreen() {
             value={theme.css} multiline
             onChangeText={(v) => setT('css', v)} />
 
+          {/* THE FONT PICKER. Free text under it stays, because a family name
+              typed straight from a font foundry's own listing must still
+              work — but a row of chips means the common case, one of the
+              shop's own two shipped faces or something the owner just
+              uploaded, is a tap rather than a spelling exercise. */}
+          <ThemedText type="labelBold" style={styles.hint}>
+            Heading font
+          </ThemedText>
+          <View style={styles.fontChips}>
+            {['Alexandria', 'IBM Plex Sans Arabic', ...fonts.map((f) => f.family)].map((name) => (
+              <Chip key={name} label={name} active={theme.fontHead === name}
+                onPress={() => setT('fontHead', name)} />
+            ))}
+          </View>
           <Field label="Heading font — family name" value={theme.fontHead}
             onChangeText={(v) => setT('fontHead', v)} />
+
+          <ThemedText type="labelBold" style={styles.hint}>
+            Body font
+          </ThemedText>
+          <View style={styles.fontChips}>
+            {['Alexandria', 'IBM Plex Sans Arabic', ...fonts.map((f) => f.family)].map((name) => (
+              <Chip key={name} label={name} active={theme.fontBody === name}
+                onPress={() => setT('fontBody', name)} />
+            ))}
+          </View>
           <Field label="Body font — family name" value={theme.fontBody}
             onChangeText={(v) => setT('fontBody', v)} />
+
+          <ThemedText type="caption" themeColor="textSecondary" style={styles.hint}>
+            Upload a font file (woff2, woff, ttf or otf — up to 400 KB, five at
+            a time) and its family name appears as a chip above. Deleting one
+            here does not change a field that already has its name typed in —
+            clear that field by hand.
+          </ThemedText>
+          <View style={styles.fontChips}>
+            {fonts.map((f) => (
+              <Chip key={f.id} label={`${f.family} ✕`} active={false}
+                onPress={() => deleteFont(f.id)} />
+            ))}
+          </View>
+          {fontNote && (
+            <ThemedText type="label" themeColor="textSecondary" style={styles.note}>
+              {fontNote}
+            </ThemedText>
+          )}
+          <Button label="Upload a font file" onPress={uploadFont} busy={fontBusy} />
 
           <Field label="Corner radius — up to 2rem" value={theme.radius}
             onChangeText={(v) => setT('radius', v)} />
@@ -830,4 +941,5 @@ const styles = StyleSheet.create({
   note: { fontSize: 13, marginBottom: Spacing.one },
   payStatus: { marginBottom: Spacing.two, gap: Spacing.one },
   payList: { gap: Spacing.half },
+  fontChips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.one, marginBottom: Spacing.two },
 });

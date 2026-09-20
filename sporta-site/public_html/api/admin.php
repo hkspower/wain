@@ -1539,6 +1539,11 @@ if ($r === 'settings_save' && $method === 'POST') {
             'tabbar_bg'         => $one('tabbar_bg', $HEX),
             'tabbar_active'     => $one('tabbar_active', $HEX),
             'secondary_bg'      => $one('secondary_bg', $HEX),
+            // page_bg — the shop's main background, added 2026-09-20. Same
+            // shape as the four above and for the same reason: [data-theme=dark]
+            // body{background-color:#202429} is a compiled rule this repository
+            // cannot edit, so sporta-ui.css reads var(--sp-page-bg, #202429).
+            'page_bg'           => $one('page_bg', $HEX),
             'css'               => $err === null ? trim($css) : '',
         ];
         if ($err !== null) store_fail('invalid_theme_' . $err);
@@ -1740,6 +1745,11 @@ if ($r === 'settings_save' && $method === 'POST') {
             // leading @ people habitually type is stripped rather than refused.
             'instagram'  => preg_replace('/[^A-Za-z0-9._]/', '',
                                 mb_substr(trim((string)($v['instagram'] ?? '')), 0, 40)),
+            // A TikTok HANDLE, same shape and same reasoning as instagram just
+            // above — a leading @ is stripped rather than refused, since the
+            // built link already carries its own @.
+            'tiktok'     => preg_replace('/[^A-Za-z0-9._]/', '',
+                                mb_substr(trim((string)($v['tiktok'] ?? '')), 0, 40)),
         ]);
     } elseif ($name === 'contact_emails') {
         // FOUR MORE ADDRESSES, admin-only — never shown to a shopper and never
@@ -2008,6 +2018,74 @@ if ($r === 'settings_save' && $method === 'POST') {
 // AND IT IS A READ, not a save with an empty body. Reading by writing would
 // mean opening the settings screen rewrites the row — so a panel opened and
 // closed would look, in any audit, exactly like a deliberate change.
+// CUSTOM FONTS. Uploaded once here, stored as base64 inside a settings row —
+// the same data-URI-in-MySQL pattern as brand logos and product photos, and
+// for the same reason store_data_image() already gives: "nothing on this
+// server needs write access to the web root." A font is picked by FAMILY
+// NAME (validated with the same $FONT regex theme_save uses, since it is
+// what ends up in a font-family rule), never by filename.
+//
+// EVERY BYTE IS CHECKED BEFORE IT IS STORED, with store_font_mime() — the
+// same "ask the bytes, not the name" discipline as store_brand_logo_mime().
+// A file that is not really a font is refused here rather than stored and
+// silently failing to render for every visitor.
+//
+// FIVE FONTS AND 400 KB EACH IS THE CEILING. A shop's whole theme is two
+// faces (heading, body); five leaves room to try alternatives without
+// bloating a settings row that is fetched on every ?r=theme request. 400 KB
+// covers a subset woff2 comfortably and refuses an unsubset TTF outright.
+if ($r === 'fonts' && $method === 'GET') {
+    $row = store_setting($db, 'custom_fonts');
+    $list = is_array($row['fonts'] ?? null) ? $row['fonts'] : [];
+    $out = [];
+    foreach ($list as $f) {
+        $out[] = [
+            'id'     => (string) ($f['id'] ?? ''),
+            'family' => (string) ($f['family'] ?? ''),
+            'mime'   => (string) ($f['mime'] ?? ''),
+            'bytes'  => isset($f['data']) ? (int) (strlen((string) $f['data']) * 3 / 4) : 0,
+        ];
+    }
+    store_out(['fonts' => $out]);
+}
+
+if ($r === 'font_upload' && $method === 'POST') {
+    $b = store_body();
+    $family = trim((string) ($b['family'] ?? ''));
+    $data   = (string) ($b['data'] ?? '');
+    if (!preg_match('/^[A-Za-z0-9 \-]{2,40}$/', $family)) store_fail('invalid_font_family');
+    $bytes = base64_decode($data, true);
+    if ($bytes === false || $bytes === '') store_fail('invalid_font_data');
+    if (strlen($bytes) > 400000) store_fail('font_too_large');
+    $mime = store_font_mime($bytes);
+    if ($mime === null) store_fail('not_a_font');
+
+    $row = store_setting($db, 'custom_fonts');
+    $list = is_array($row['fonts'] ?? null) ? $row['fonts'] : [];
+    // Same family name replaces the old upload rather than growing the list
+    // for ever — a re-upload is how the owner corrects a bad file.
+    $list = array_values(array_filter($list, static fn($f) => ($f['family'] ?? '') !== $family));
+    if (count($list) >= 5) store_fail('too_many_fonts');
+    $list[] = [
+        'id'     => bin2hex(random_bytes(6)),
+        'family' => $family,
+        'mime'   => $mime,
+        'data'   => base64_encode($bytes),
+    ];
+    store_setting_save($db, 'custom_fonts', ['fonts' => $list]);
+    store_out(['ok' => true]);
+}
+
+if ($r === 'font_delete' && $method === 'POST') {
+    $b = store_body();
+    $id = (string) ($b['id'] ?? '');
+    $row = store_setting($db, 'custom_fonts');
+    $list = is_array($row['fonts'] ?? null) ? $row['fonts'] : [];
+    $list = array_values(array_filter($list, static fn($f) => ($f['id'] ?? '') !== $id));
+    store_setting_save($db, 'custom_fonts', ['fonts' => $list]);
+    store_out(['ok' => true]);
+}
+
 if ($r === 'rules' && $method === 'GET') {
     store_out([
         'rules'    => store_rules($db),

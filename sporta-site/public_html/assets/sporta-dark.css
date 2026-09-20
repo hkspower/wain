@@ -81,7 +81,11 @@
 }
 
 :root[data-theme='dark'] {
-  --sp-black: #1e2023;
+  /* THE OWNER'S MAIN-BACKGROUND OVERRIDE, added 2026-09-20 — same
+     var(--sp-x, <literal>) shape as --sp-header-bg and --sp-secondary-bg,
+     for the same reason: theme.js only ever writes the variable, never this
+     rule, so a shop that never opens the colour editor is unchanged. */
+  --sp-black: var(--sp-page-bg, #1e2023);
   --sp-tile: #24272a;
   --sp-panel: #2d3034;
   --sp-raise: #383c41;

@@ -34,6 +34,7 @@ start over.
 import json
 import hashlib
 import os
+import random
 import re
 import sys
 from http.cookies import SimpleCookie
@@ -144,8 +145,12 @@ def _fresh():
             'managed_ar', 'managed_en')},
         'contact': {'phone': '+965 2209 1914', 'whatsapp': '96522091914',
                     'email': 'cs@sporta.com.kw', 'address_ar': '', 'address_en': '',
-                    'hours_ar': '', 'hours_en': '', 'instagram': ''},
+                    'hours_ar': '', 'hours_en': '', 'instagram': '', 'tiktok': ''},
         'contact_emails': {'alternative': '', 'orders': '', 'b2b': '', 'customers': ''},
+        # Uploaded fonts — see api/admin.php's 'fonts'/'font_upload'/
+        # 'font_delete' routes. Starts empty, same as a shop that never opens
+        # the uploader.
+        'custom_fonts': {'fonts': []},
     }
     # PRODUCTS AS THE UPLOADER AND THE PRODUCT EDITOR NEED THEM. ?r=products_all
     # is where brands live and (since the product editor) the full row the
@@ -447,6 +452,14 @@ class Handler(BaseHTTPRequestHandler):
         if r == 'contact_emails':
             # Mirrors admin.php: admin-only, never read by api.php.
             return self._json(200, STATE['settings']['contact_emails'])
+
+        if r == 'fonts':
+            # Mirrors admin.php: metadata only, no `data` — the panel never
+            # needs the bytes back, only enough to show and delete an upload.
+            return self._json(200, {'fonts': [
+                {'id': f['id'], 'family': f['family'], 'mime': f['mime'],
+                 'bytes': len(f['data']) * 3 // 4}
+                for f in STATE['settings']['custom_fonts']['fonts']]})
 
         if r == 'knet':
             # Mirrors admin.php: the saved ID, and which of the two sources is
@@ -754,6 +767,34 @@ class Handler(BaseHTTPRequestHandler):
                         row['sort'] = n
             return self._json(200, {'ok': True})
 
+        if r == 'font_upload':
+            import base64 as _b64
+            family = str(b.get('family') or '').strip()
+            data = str(b.get('data') or '')
+            if not re.match(r'^[A-Za-z0-9 \-]{2,40}$', family):
+                return self._json(400, {'error': 'invalid_font_family'})
+            try:
+                raw = _b64.b64decode(data, validate=True)
+            except Exception:
+                raw = b''
+            if not raw:
+                return self._json(400, {'error': 'invalid_font_data'})
+            if len(raw) > 400000:
+                return self._json(400, {'error': 'font_too_large'})
+            fonts = STATE['settings']['custom_fonts']['fonts']
+            fonts[:] = [f for f in fonts if f['family'] != family]
+            if len(fonts) >= 5:
+                return self._json(400, {'error': 'too_many_fonts'})
+            fonts.append({'id': '%012x' % random.randrange(16**12),
+                           'family': family, 'mime': 'font/woff2', 'data': data})
+            return self._json(200, {'ok': True})
+
+        if r == 'font_delete':
+            fid = str(b.get('id') or '')
+            fonts = STATE['settings']['custom_fonts']['fonts']
+            fonts[:] = [f for f in fonts if f['id'] != fid]
+            return self._json(200, {'ok': True})
+
         if r == 'settings_save':
             name = b.get('name')
             v = b.get('value') if isinstance(b.get('value'), dict) else {}
@@ -897,6 +938,7 @@ class Handler(BaseHTTPRequestHandler):
                     'hours_ar': str(v.get('hours_ar') or '')[:120],
                     'hours_en': str(v.get('hours_en') or '')[:120],
                     'instagram': re.sub(r'[^A-Za-z0-9._]', '', str(v.get('instagram') or '')[:40]),
+                    'tiktok': re.sub(r'[^A-Za-z0-9._]', '', str(v.get('tiktok') or '')[:40]),
                 }
                 return self._json(200, STATE['settings']['contact'])
             if name == 'contact_emails':

@@ -171,6 +171,7 @@ $STORE_LIMITS = [
     // (footer was already in this position before theme joined it.)
     'footer'      => [600, 60],
     'theme'       => [600, 60],
+    'fonts'       => [600, 60],
     'status'      => [300, 60],
     'invoice'     => [300, 60],
     'assistant'   => [60, 60],
@@ -543,6 +544,24 @@ if ($r === 'footer') {
 // in front of the first paint of every page in the shop.
 if ($r === 'theme') {
     store_out_cacheable(store_setting($db, 'theme'));
+}
+
+// CUSTOM FONTS, read by assets/theme.js to build @font-face rules. Same
+// cacheable shape as theme above — the same bytes for every visitor until
+// the owner uploads or removes one. The admin-only `id` (needed to delete a
+// specific upload) is left out; the storefront has no use for it.
+if ($r === 'fonts') {
+    $row = store_setting($db, 'custom_fonts');
+    $list = is_array($row['fonts'] ?? null) ? $row['fonts'] : [];
+    $out = [];
+    foreach ($list as $f) {
+        $out[] = [
+            'family' => (string) ($f['family'] ?? ''),
+            'mime'   => (string) ($f['mime'] ?? ''),
+            'data'   => (string) ($f['data'] ?? ''),
+        ];
+    }
+    store_out_cacheable(['fonts' => $out]);
 }
 
 // The policy pages' prose, for assets/legal-pages.js. Same reasoning as
