@@ -10,7 +10,7 @@ import VoiceControls from "@/components/VoiceControls";
 import ShouqCallButton from "@/components/ShouqCallButton";
 import SearchHub from "@/components/SearchHub";
 import { IconClose, IconCompass, IconSearch } from "@/components/icons";
-import { toArabicDigits } from "@/lib/place-kit";
+import { RESULTS_COUNT, countAr, toArabicDigits } from "@/lib/place-kit";
 import { usePlaces } from "@/lib/usePlaces";
 import { buildIndex, search, type DocKind } from "@/lib/search";
 import { useListboxKeys } from "@/lib/useListboxKeys";
@@ -432,9 +432,14 @@ export default function SearchClient() {
               onActiveSlug={setActiveSlug}
             />
             {/* Not a live region any more: ShouqAnswer took the role, and it
-                says what the top result IS rather than how many there are. */}
+                says what the top result IS rather than how many there are.
+
+                countAr rather than the digits and a bare «نتيجة»: Arabic takes
+                the plural for 3–10, so this read «٣ نتيجة» for every small
+                result set — the most-read number on the site, and it disagreed
+                with /explore's own counter, which has always used countAr. */}
             <p className="mb-4 text-sm text-ink-500">
-              {toArabicDigits(hits.length)} نتيجة
+              {countAr(hits.length, RESULTS_COUNT)}
             </p>
             <SearchMap places={hitPlaces} active={activeSlug} onActive={setActiveSlug} />
             <SearchResults

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import MapPin, { pinHeadroom } from "@/components/MapPin";
 import { IconMap, IconPinSolid } from "@/components/icons";
-import { toArabicDigits } from "@/lib/place-kit";
+import { RESULTS_COUNT, countAr, toArabicDigits } from "@/lib/place-kit";
 import type { Place } from "@/lib/places";
 import { embedUrl, fitFrame, osmLink, pinShiftCap, project, spreadPins } from "@/lib/map-frame";
 import { useFrameWidth } from "@/lib/useFrameWidth";
@@ -201,7 +201,10 @@ export default function SearchMap({
           <live.LiveMap
             frame={f}
             points={places}
-            ariaLabel={`خريطة ${toArabicDigits(places.length)} نتيجة، تقدر تحركها`}
+            // countAr, for the reason SearchClient's own count records: a bare
+            // «نتيجة» after the digits is wrong for 3–10, and a screen reader
+            // is the one visitor who hears the whole phrase.
+            ariaLabel={`خريطة ${countAr(places.length, RESULTS_COUNT)}، تقدر تحركها`}
           >
             {(at, box) =>
               at

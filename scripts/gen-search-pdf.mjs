@@ -93,7 +93,7 @@ async function shoot(page, { title, note, viewport }) {
 // between two steps.
 const RESULTS = "main ul li a[href^='/places/']";
 
-console.log("\n════ البحث: ما الذي يراه الزائر فعلاً ════");
+console.log("\n════ البحث: وش يشوفه الزائر فعلاً ════");
 
 for (const [name, viewport] of [["phone", PHONE], ["desktop", DESK]]) {
   const ctx = await browser.newContext({ viewport, locale: "ar" });

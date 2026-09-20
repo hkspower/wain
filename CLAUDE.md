@@ -1965,6 +1965,53 @@ is a URL pinned to a commit" above for what re-pointing it needs; two hamzas
 did not seem worth an unscheduled prompt-and-test cycle on their own; folded
 into the next KB change that does.
 
+### Read a second time, 20 September — and the audit's blind spot is grammar
+
+The section heading above says «once»; this is the second pass, and it found
+the thing the first one could not, because **`audit:arabic` checks characters,
+not agreement**. Its own closing line says so — «spelling and grammar are NOT
+checked» — and the defect it cannot see had been on the most-read number on
+the site since 6 August.
+
+**/search counted in the singular.** `{toArabicDigits(hits.length)} نتيجة`,
+hand-written, so three results read «٣ نتيجة» where Arabic takes the plural
+for 3–10, one read «١ نتيجة» and two «٢ نتيجة». `countAr` and `RESULTS_COUNT`
+have existed in `place-kit.ts` the whole time and **/explore's counter three
+files away has always used them** — so the site disagreed with itself, in
+Arabic, on the line a visitor reads after every single search. `countAr`'s own
+comment already records the identical bug being written by hand twice in
+durations («تقريباً ٥ دقيقة», «من ١ دقايق»); this is the third hand, and the
+only one that was visitor-facing on a main route.
+
+The `SearchMap` aria-label added this session had it too — «خريطة ٣ نتيجة» —
+written by copying the line above it. **Copying a sentence copies its bug**,
+and a screen reader is the one visitor who hears the whole phrase.
+
+Both go through `countAr` now. The remaining hand-written counts were checked
+rather than assumed: `PlaceForm`'s two are the constants 30 and 20, which take
+the singular correctly and cannot vary; `{toArabicDigits(n)} على الخريطة` has
+no counted noun to agree with.
+
+**`supabase/schema.sql` is a third copy of the catalogue, and the first pass
+did not know it.** «انت» → «أنت» was fixed in `places.ts` and in
+`patch-ios-project.mjs`; the same two sentences — الصالحية's «إذا أنت بوسط
+المدينة» and جسر الشيخ جابر's «طول السنة — أنت بالسيارة» — sat unfixed in the
+seed, which is why the pair was still being reported. Checked against
+`places.ts` afterwards, so the two files now say it identically. Worth
+remembering generally: **a prose fix in `places.ts` has a second home.**
+
+Two more, both from this session's own writing: `privacy/page.tsx` said «الهدف
+وحيد», which reads «the goal is lonely» — «واحد» is the predicate — and listed
+what a log line records as «(نجح، مرفوض، …)», a verb and a participle in one
+list, now «(نجح، انرفض، طلع من الذاكرة)». And `gen-search-pdf.mjs`'s console
+header was MSA («ما الذي يراه») in a repository whose Arabic is Kuwaiti
+throughout; it was the audit's one register note and cost nothing to close.
+
+**`أخذ` / `آخذ` joins the documented not-a-typo list** — past «وكم أخذ» in the
+privacy copy against first-person «وين آخذ العيال» in شوق's brief, the same
+shape as `افتح`/`أفتح` and `اطلع`/`أطلع` above. Six notes remain and all six
+are now read and correct; a seventh appearing means something new, not this.
+
 ## Checks
 
 `npm run scan` is lint plus ~29 audits. Browser suites: `test:hangout`
