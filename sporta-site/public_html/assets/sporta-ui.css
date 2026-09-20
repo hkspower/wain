@@ -357,6 +357,17 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
   --hero-h-md: 100svh !important;
 }
 
+/* A PHOTO SLIDE reads this variable through `md:min-h-[var(--hero-h-md,…)]`
+ * rather than through `.hero-strength`'s own height rule below — the two
+ * drawn-slide themes (hero-strength/cardio/arena) and a real photo slide are
+ * different DOM, and only the drawn ones carry a `.hero-strength`-family
+ * class. A portrait tablet is not "an ordinary screen" for either: see the
+ * long comment beside `.hero-strength`'s own portrait override, further down,
+ * for the measurement (768x1024 -> 29.8% of the banner visible at 100svh). */
+@media (min-width: 768px) and (max-aspect-ratio: 1/1) {
+  :root { --hero-h-md: calc(100vw / 2.52) !important; }
+}
+
 /* AND THE COMPONENT ITSELF, which is what actually sizes the mounted hero.
    The variables above only paint the pre-mount shell — setting them alone
    changed nothing on screen, which is how I found this out. Both have to move
@@ -389,6 +400,26 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
      * the button, not beside it — so the outer's own height is already the
      * image's height and nothing needs splitting the way the phone does. */
     height: 100svh !important;
+    aspect-ratio: auto !important;
+    max-height: none !important;
+  }
+}
+
+/* A PORTRAIT TABLET IS NOT "AN ORDINARY SCREEN" — 2026-09-20.
+ * `min-width: 768px` was written to mean "desktop-shaped", and a 768x1024
+ * tablet in portrait matches the width without being that shape at all: a
+ * 768x1024 box against the artwork's 2.52:1 crops to 768/1024 = 0.75:1,
+ * showing 0.75/2.52 = 29.8% of the banner's width — worse than the 83% the
+ * PHONE rule already guarantees at a NARROWER viewport. Measured, not assumed.
+ *
+ * Same specificity as the rule above, later in the file, so this wins only
+ * where both media queries match — an ordinary wide desktop window is
+ * `min-aspect-ratio: 1/1` and keeps the 100svh fill untouched. This does not
+ * reopen the "whole screen" decision for landscape screens; it only stops a
+ * tall, narrow one from being classified as one by width alone. */
+@media (min-width: 768px) and (max-aspect-ratio: 1/1) {
+  .hero-strength {
+    height: calc(100vw / 2.52) !important;
     aspect-ratio: auto !important;
     max-height: none !important;
   }
@@ -2651,4 +2682,48 @@ h1, h2, h3, .font-display {
 }
 html, :host, body, .eyebrow {
   font-family: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Plex Arabic Fallback', system-ui, sans-serif !important;
+}
+
+/* ------------------------------------------------ the brand grid, 2026-09-20
+ * Rebuilt at the owner's request from a loose flex row inside one shared
+ * outer border into a real grid, each logo its own bordered tile. Every logo
+ * cell is the SAME size (`aspect-ratio: 3/2`, generous padding) regardless of
+ * the mark's own proportions, and `object-fit: contain` inside it — a square
+ * logo and a wide wordmark both sit centred rather than stretched. One brand
+ * (currently AHED, the only one with a real logo live) still reads as a
+ * clean single tile rather than an odd shape floating in a bare row. */
+[data-sporta-brand-grid] {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 14px;
+}
+[data-sporta-brand-tile] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 3 / 2;
+  padding: 18px 20px;
+  background: #fff;
+  border: 1px solid rgb(0 0 0 / 10%);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+  transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
+}
+[data-sporta-brand-tile]:hover {
+  border-color: rgb(0 0 0 / 16%);
+  box-shadow: 0 6px 16px -6px rgb(0 0 0 / 14%);
+  transform: translateY(-2px);
+}
+[data-sporta-brand-tile] img {
+  max-width: 100%;
+  max-height: 100%;
+  height: 48px;
+  width: auto;
+}
+@media (min-width: 768px) {
+  [data-sporta-brand-tile] img { height: 64px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-sporta-brand-tile] { transition: none; }
+  [data-sporta-brand-tile]:hover { transform: none; }
 }

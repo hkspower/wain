@@ -41,15 +41,14 @@
  *
  * ------------------------------------------------------------------- MARKUP
  *
- * The heading reuses the EXACT classes "Shop by category" already uses two
- * sections down (`text-2xl font-extrabold text-slate-900 md:mb-7 md:text-3xl`)
- * — a font size and colour this page has already settled on, not a new
- * design decision. The row itself is plain: flex, wrap, centered, each logo
- * at a fixed height with object-contain — the same treatment brand-badge.js
- * already gives a logo, just larger because this is the home page rather
- * than a card. No colour filter, no hover treatment: nothing here was asked
- * for beyond showing the images, and "do not redesign without approval"
- * applies to invented flourishes as much as to unrequested changes.
+ * REBUILT 2026-09-20, at the owner's explicit request — "brand grids with
+ * high quality brand logo images with border and better style". Each logo is
+ * now its OWN bordered tile in a CSS grid (`repeat(auto-fit, minmax(140px,
+ * 1fr))`), rather than one shared outer border around a loose flex row: a
+ * grid gives every logo an equal-sized cell regardless of its own aspect
+ * ratio, which is what makes a row of differently-shaped marks read as one
+ * set rather than a ragged line. No logo pixels are touched or upscaled —
+ * this is styling of what `?r=brand_logo` sends, never a substitute for one.
  *
  * ------------------------------------------------------------------- FRAGILITY
  *
@@ -116,21 +115,26 @@
     section.className = 'mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-10'
 
     var row = document.createElement('div')
-    row.className = 'flex flex-wrap items-center justify-center gap-4 rounded-lg border-2 border-white bg-white p-6 md:gap-6 md:p-8'
+    row.setAttribute('data-sporta-brand-grid', '1')
 
     for (var i = 0; i < list.length; i++) {
       var b = list[i]
+      var tile = document.createElement('div')
+      tile.setAttribute('data-sporta-brand-tile', '1')
+
       var img = document.createElement('img')
-      img.className = 'h-12 w-auto max-w-40 object-contain md:h-16'
+      img.className = 'object-contain'
       img.setAttribute('loading', 'lazy')
       img.setAttribute('decoding', 'async')
       img.setAttribute('alt', (ar ? b.name_ar : b.name_en) || b.slug)
       img.src = api + '/api.php?r=brand_logo&slug=' + encodeURIComponent(b.slug) +
                 (b.logo_v ? '&v=' + encodeURIComponent(b.logo_v) : '')
-      ;(function (el) {
-        el.onerror = function () { if (el.parentNode) el.parentNode.removeChild(el) }
-      })(img)
-      row.appendChild(img)
+      img.onerror = (function (t) {
+        return function () { if (t.parentNode) t.parentNode.removeChild(t) }
+      })(tile)
+
+      tile.appendChild(img)
+      row.appendChild(tile)
     }
 
     section.appendChild(row)
