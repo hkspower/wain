@@ -583,11 +583,47 @@ in Kuwait.
 ## شوق, the ElevenLabs agent
 
 Agent `agent_1701m1gcrccrethae9y3nyv1e116`. 25 attached tests; run them after
-any prompt change, `repeat_count: 2` — at temperature 0 a failure that shows
-once shows twice, and a judge that passes once and fails once is a judge
-problem. There is no update-test tool: to sharpen a judge, delete the test
-and recreate it, then re-attach the new id. **47/50** at
-`agtvrsn_0901m2wvwm14edcvaq2n1cmxwk68`, from 43/50.
+any prompt change, `repeat_count: 2`. There is no update-test tool: to sharpen
+a judge, delete the test and recreate it, then re-attach the new id. **47/50**
+at `agtvrsn_0901m2wvwm14edcvaq2n1cmxwk68`, from 43/50.
+
+**«At temperature 0 a failure that shows once shows twice» is WRONG, and
+believing it has been costing readings.** Re-run on 20 September against the
+same version, nothing changed in between: 47/50 again — and **a different
+three**. Yesterday `ذكاء ١` failed 2/2 and the two-word-readback shape test
+1/2; today the shape test passes 2/2, `ذكاء ١` is 1/2, and `ذكاء ٣` and
+«مو فجوة» are 1/2 each. Same score, moved underneath it.
+
+The reason is that temperature 0 fixes HER, not the test: **the simulated
+caller is an LLM too**, so each run hands her a different conversation, and a
+1/2 is an ordinary outcome rather than evidence of a broken judge. Read a
+score as a score. What still means something is a **2/2**, and the trend
+across runs at one version.
+
+**One durable defect, and it is the only one worth acting on.** `ذكاء ١` —
+area + kids + heat — she answers «الجو حار» with **شاطئ المارينا**: 2/2 on
+19 September, 1/2 on the 20th. It is not the indoor/outdoor-side family
+recorded below, because a beach has no indoor side for her to describe
+instead; the rule that should fire is the constraint check plus the summer
+override, and it loses. Not fixed here — a prompt edit is a prompt-and-test
+cycle, and with the suite moving underneath it the fix could not be cleanly
+proved in the same sitting.
+
+**Nobody has ever called her.** `agents_list_conversations` returns **zero**
+for the agent and zero for the whole workspace, with `retention_days: -1`, so
+that is «no calls», not «calls expired». Everything this section claims about
+her live behaviour therefore rests on the test suite and on what is on disk —
+the 11 September «agent mode reached production» was proved by content-hashed
+chunks being served, which is a different claim from anyone having used it.
+
+Checked at the same time and unchanged: three tools attached, the `report_gap`
+webhook pointing at the n8n path that is live and healthy, voice
+`rh16DBXwtscjdPFeMBYf` on `eleven_flash_v2_5`, the origin allowlist carrying
+all five hostnames, and `npm run audit:shouq-call` green including its live
+registry lookup. One loose end with no owner: a second knowledge-base document
+(`ANkRiRs8Xxy5poyujeTJ`, «المطاعم والكافيهات العصرية الحديثة», 3.5KB) sits in
+the workspace with **no dependent agents** — attaching it would change her
+answers, so it is left alone and named here instead of being quietly adopted.
 
 **A rule she keeps breaking is usually placed wrong, not worded wrong.** The
 season override («outdoors in summer → after sunset») sat in the calendar
@@ -754,10 +790,10 @@ re-pointing the document. `npm run ai:brief` regenerates that file from
 the live KB is current and there is nothing to send.
 
 **Re-pointing it CANNOT be finished from an MCP session — `agents_create_kb_url`
-times out at 60s and creates nothing.** Tried four times on 20 September to
+times out at 60s and creates nothing.** Tried five times on 20 September to
 move the document off `ab034b0`; every call returned «timed out after 60s», and
 `agents_list_knowledge_base` after each — including 75 seconds after one, in
-case it landed late — showed the workspace unchanged. So it is a consistent
+case it landed late — showed the same five documents. So it is a consistent
 failure, not a flake, and it is at least *safe*: nothing half-created, no stray
 document, no duplicate from retrying.
 
@@ -766,6 +802,19 @@ MCP is down» and «one tool is slow» lead somewhere different. Measured on the
 fourth attempt: the create timed out, and an `agents_list_knowledge_base`
 issued straight afterwards answered immediately. Reads are healthy; the write
 that has to fetch and process 73KB is the one that does not fit in 60s.
+
+**A 60s timeout does NOT mean the work did not happen — that has to be checked
+per tool, and the two differ.** `agents_run_tests` times out the same way and
+**the run starts anyway**: the suite was already listed in
+`agents_list_test_runs` with 50 runs in flight, and it finished normally. So on
+a timeout, list before retrying — retrying `run_tests` would have queued a
+second suite, where retrying `create_kb_url` costs nothing. This is the
+`createAccountCronJobV1` lesson on a different connector: **the reply is not
+the state.**
+
+`agents_create_kb_text` would sidestep the fetch, and is deliberately not used:
+it trades a commit-pinned, regenerable document for a blob nothing can diff, to
+win two hamzas. The mechanism is worth more than the characters.
 
 Everything else was verified and is ready for whoever finishes it in the
 dashboard:
