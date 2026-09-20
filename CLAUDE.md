@@ -561,6 +561,107 @@ fetch and a `fileperms` probe, all sporta's — were in the crontab at the
 start and gone by the end, deleted by whoever created them. Left alone
 throughout, exactly as the section above says to.
 
+## The security pass — 20 September
+
+Source review plus the live filesystem and config, read through the `hosa`
+connector and one cron job. **Not** a pentest: nothing was fuzzed, nothing was
+exploited, and this sandbox cannot reach the site at all. Read what follows as
+«what the code and the disk say», which is a different claim from «what an
+attacker could do».
+
+**Nothing critical is live. The one thing that could cost real money is inert,
+and the reason it is inert is an empty file.**
+
+### `/api/tts.php` is unauthenticated, and its ceiling is about $136 a day
+
+It has to be — a static export has nowhere to hold a key, so a visitor's
+browser calls it directly. What bounds the spend is arithmetic, not auth:
+
+```
+DAILY_MISSES 1500  ×  MAX_CHARS 500  =  750,000 characters/day
+750,000 × $0.000181  ≈  $136/day  ≈  $4,000/month
+```
+
+The rate is the measured one — 13,247 characters ≈ $2.40, from the voice
+section above. **Today the exposure is exactly $0**, because
+`elevenlabs.key` is 0 bytes; the ceiling becomes real the moment somebody
+pastes a key. **Lower `DAILY_MISSES` before that happens**, not after.
+
+Two things that do NOT bound it, and should not be mistaken for controls:
+
+- **The origin check is `if ($origin !== '')`** — a request with no `Origin`
+  header skips it entirely. That is deliberate and written up at the line
+  (some same-origin POSTs omit it, and the header proves nothing anyway), but
+  it means the allowlist stops nobody who is trying.
+- **`RATE_PER_MIN` is per IP.** It shapes ordinary traffic and falls to
+  rotating addresses.
+
+**And the guard fails OPEN.** `$count()` returns `0` when `fopen` fails —
+«a guard that cannot open its file must not deny service». So if
+`storage/tts/` ever becomes unwritable, disk-full or otherwise, the per-IP
+limit *and* the daily budget both stop tripping silently and the ceiling
+disappears. That is the one weak point in the counter: the counter itself is
+sound, holding `flock(LOCK_EX)` across the whole read-modify-write, so its own
+«not atomic across concurrent requests» comment is more modest than the code
+deserves.
+
+### `storage/` is world-readable, and the files inside it are not
+
+Measured:
+
+```
+drwxr-xr-x  storage/            ← 0755, traversable by every account on the box
+-rw-------  deploy.secret (64)  ✓
+-rw-------  deploy.hosts, d.php ✓
+-rw-------  elevenlabs.key (0)  ✓
+drwxr-x---  deploy/, deploy-staging/  ✓
+drwxr-xr-x  sporta-old/         ← 0755 AND readable
+```
+
+The 19 September fix to `deploy.secret` held. What it did not cover is the
+directory around it: on shared hosting every other account can list what is
+there, and can read `sporta-old/` outright. `chmod 700 storage` and
+`chmod -R go-rwx sporta-old` close it, and both are safe for the reason that
+made the 0600 safe — **web PHP runs as `u130124229`**, proved by the ownership
+of the `artifact-*.zip` files `deploy.php` itself wrote.
+
+### Accepted rather than missed
+
+**`script-src 'unsafe-inline'`** is forced by `output: 'export'`: there is no
+server to mint a per-request nonce and Next needs inline hydration scripts.
+What makes it tolerable was measured rather than assumed — **0** uses of
+`dangerouslySetInnerHTML`, no `eval`, no `new Function`, no `innerHTML` in
+anything shipped, and no user-generated HTML anywhere on the site.
+
+**Seven dependency vulnerabilities, one critical, all dev-only.** `npm audit
+--omit=dev` is 0 — nothing reaches `out/`. See the Capacitor note in *Checks*
+for why there is no update to take.
+
+**HSTS carries no `includeSubDomains` and no `preload`**, deliberately (see
+`.htaccess`), which does mean `staging.` and `hub.` are not covered by it.
+
+**The n8n file tool is armed but unloaded.** `/webhook/wain-file-tool` can FTP
+into wain's, sporta's AND almuhallab's docroots; it fails closed today because
+`WAIN_TOOL_SECRET` is unset. Its secret comparison does not early-return, so
+it is effectively constant-time. The exposure is not the code, it is that one
+webhook holds write access to three projects — if it is never going to be
+used, delete the workflow rather than leave it armed.
+
+### Clean, and worth not re-checking from scratch
+
+No secrets committed — the only matches are deliberately fake test fixtures.
+The docroot is 27 entries, all wain's plus `staging`, and `api/` holds exactly
+`tts.php` and `deploy.php`: the 17 September sporta removal has held, and
+there are no stray archives. Every `target="_blank"` carries `noopener`, and
+every external origin the bundle references is in the CSP under the directive
+it needs. Headers: `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy:
+strict-origin-when-cross-origin`, `Permissions-Policy: camera=(),
+geolocation=(self), microphone=(self)`, HSTS one year. `/admin` renders
+`NotConfigured` with Supabase off and robots disallows it, `/orders/` and
+`/queue/`. `media-endpoint.php`'s key-gated read uses `hash_equals`, fails
+closed on an empty key, and its `draftId` regex, whitelisted kind and
+whitelisted extension leave no path out of the pending directory.
+
 ## DNS, TLS and mail — checked 20 September
 
 **There is a CDN in front of this site and nothing here knew it.** `@` is an
