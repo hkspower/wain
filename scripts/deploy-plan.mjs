@@ -73,6 +73,9 @@ const fail = (msg) => {
   process.exit(1);
 };
 
+/** Worth reading before running the commands, but not worth refusing over. */
+const note = (msg) => console.log(`\n! ${msg}\n`);
+
 const git = (args) => execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();
 
 /**
@@ -145,7 +148,44 @@ if (build.commit !== head) {
     );
   }
 }
-const commit = build.commit;
+/**
+ * The proofs come from the ARCHIVE, not from out/, and the two can differ.
+ *
+ * The reconciliation above allows out/ to be one commit behind HEAD, because
+ * the archive cannot contain itself. What it does not cover is the opposite
+ * order, which is what an ordinary deploy actually does: build, commit the
+ * zip, and then — for any reason at all, a re-plan, a second `release` — have
+ * out/ rebuilt at the NEW head while the zip on disk is still the committed
+ * bytes from before it. Both are clean, both are in history, and the drift
+ * check passes because the only file between them is the archive.
+ *
+ * Then every proof is wrong by one commit. `_next/static/<sha>/` is named for
+ * the build that made it, so the plan asks the server for a directory the
+ * artifact does not contain, and `deploy:verify` fails against a deploy that
+ * landed perfectly. Measured on 20 September: out/ said 529fd14, the archive
+ * and therefore the live site said 5a5e28d, and the six proofs had to be
+ * checked by hand.
+ *
+ * The archive is what the server fetches, so the archive is what the plan
+ * must describe. out/ is kept only to catch the case where they disagree
+ * about something that is not the build id.
+ */
+let archiveBuild = build;
+try {
+  archiveBuild = JSON.parse(
+    execFileSync("unzip", ["-p", archive, "build.json"], { encoding: "utf8", maxBuffer: 1 << 20 })
+  );
+} catch {
+  fail(`could not read build.json out of ${relative(ROOT, archive)} — is it a zip?`);
+}
+if (archiveBuild.digest !== build.digest) {
+  note(
+    `out/ and the archive are different builds (${build.commit.slice(0, 8)} vs ` +
+      `${archiveBuild.commit.slice(0, 8)}). The archive is the one the server fetches,\n` +
+      `  so the proofs below describe it. Re-run \`npm run release\` if that is not what you meant.`
+  );
+}
+const commit = archiveBuild.commit;
 
 const zipBytes = statSync(archive).size;
 const zipSha = createHash("sha256").update(readFileSync(archive)).digest("hex");
