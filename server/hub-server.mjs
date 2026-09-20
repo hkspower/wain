@@ -215,6 +215,146 @@ function teamsChanged() {
   saveLedger();
 }
 
+// ----------------------------------------------------------- part proposals
+//
+// The admin dashboard's one write path — see adminPage() below. Every
+// other endpoint answers a game client; this answers whoever is running
+// the hub, and it does not touch the game.
+//
+// WHAT THIS IS. `PARTS` (src/game/mods.ts) is a hand-authored TypeScript
+// array compiled into the client at build time — the hub has never
+// served it and cannot ship it. Landing a proposal into that array is a
+// small, reviewed diff a person writes, exactly the same boundary
+// `scripts/lib/car-source.mjs` already draws around CARS and explains in
+// its own comment: "changes with consequences across four ports and a
+// save format... belong in a diff a person wrote." This queue is that
+// person's inbox, not a back door around them — nothing here ever writes
+// to mods.ts, and nothing in the game reads this file.
+//
+// WHAT THIS ENDPOINT INHERITS FROM THE REST OF THIS FILE. No auth, same
+// as everything else here (hub-server.mjs:425-429). A proposal is
+// therefore bounded and inert the same way team-create already is: a
+// capped-size string appended to a capped-size queue, never executed,
+// never merged automatically. Anybody who can reach the hub can queue a
+// proposal or clear somebody else's; anybody who can already reach the
+// hub could do worse to the WebSocket protocol above, so this adds no
+// new class of exposure — it stays inside the trade-off this file
+// already made and wrote down.
+
+const PROPOSALS_PATH = process.env.HUB_PART_PROPOSALS || "server/data/part-proposals.json";
+const PART_CATEGORIES = [
+  "engine", "lamps", "finish", "aspiration", "intake", "brakes", "exhaust",
+  "tires", "gearbox", "paint", "glow", "cover", "sidewall", "bulbs", "film",
+  "diff", "carbon", "internals", "chassis", "extras",
+];
+const MAX_PART_PROPOSALS = 500;
+const MAX_PART_NAME = 60;
+const MAX_PART_DESC = 400;
+const MAX_PART_PRICE = 20000;
+// Same script the Arabic-name checks elsewhere in this codebase test
+// against (tests/names.mjs).
+const AR_RE = /[؀-ۿ]/;
+
+/** proposalId (string) -> { proposalId, id, cat, name, ar, price, desc, submittedAt } */
+const partProposals = new Map();
+let nextProposalId = 1;
+
+function loadPartProposals() {
+  try {
+    const raw = JSON.parse(readFileSync(PROPOSALS_PATH, "utf8"));
+    for (const p of raw.proposals ?? []) {
+      if (!p?.proposalId) continue;
+      partProposals.set(String(p.proposalId), p);
+    }
+    nextProposalId = Math.max(
+      Number(raw.nextProposalId) || 1,
+      ...[...partProposals.keys()].map((k) => (Number(k) || 0) + 1)
+    );
+    console.log(`[hub] part proposals: ${partProposals.size} pending`);
+  } catch (err) {
+    if (err.code !== "ENOENT") console.warn(`[hub] could not read part proposals: ${err.message}`);
+  }
+}
+
+let proposalsDirty = false;
+function savePartProposals() {
+  if (!proposalsDirty) return;
+  proposalsDirty = false;
+  try {
+    mkdirSync(dirname(PROPOSALS_PATH), { recursive: true });
+    const out = { proposals: [...partProposals.values()], nextProposalId };
+    const tmp = `${PROPOSALS_PATH}.tmp`;
+    writeFileSync(tmp, JSON.stringify(out));
+    renameSync(tmp, PROPOSALS_PATH);
+  } catch (err) {
+    console.warn(`[hub] could not write part proposals: ${err.message}`);
+    proposalsDirty = true;
+  }
+}
+
+/**
+ * The ids already shipped, read once at startup so a proposal that
+ * collides is caught here rather than only at review time.
+ *
+ * Best-effort and allowed to come back empty: `server/Dockerfile` copies
+ * only `hub-server.mjs` into the image, so in a real deploy
+ * `src/game/mods.ts` is not on disk next to this file at all, and this
+ * quietly finds nothing — the same ENOENT-is-fine shape `loadLedger()`
+ * already uses. The person landing a proposal into mods.ts still has the
+ * real file open in front of them either way, so a collision is never
+ * missed for good, only later.
+ *
+ * The regex is `check-catalogue.mjs`'s own — `id` immediately followed
+ * by `cat` — which is what makes it match PARTS entries and not CARS
+ * ones (a car has no `cat` field).
+ */
+const shippedPartIds = new Set();
+try {
+  const src = readFileSync("src/game/mods.ts", "utf8");
+  for (const m of src.matchAll(/\{\s*id:\s*"([^"]+)",\s*cat:\s*"([^"]+)"/g)) shippedPartIds.add(m[1]);
+  console.log(`[hub] duplicate-checking against ${shippedPartIds.size} shipped part ids`);
+} catch {
+  // Standalone deploy — see the comment above.
+}
+
+/**
+ * A proposed part, checked against exactly what `Part` (mods.ts) requires
+ * — six required scalar fields, nothing more — and the same bilingual
+ * discipline `tests/names.mjs` already holds CARS, RIVALS and LANDMARKS
+ * to. PARTS never had an equivalent check; this is where a new one first
+ * meets it, before a human ever reviews the proposal.
+ */
+function validatePart(body) {
+  const id = String(body?.id ?? "").trim().toLowerCase();
+  const cat = String(body?.cat ?? "");
+  const name = String(body?.name ?? "").trim();
+  const ar = String(body?.ar ?? "").trim();
+  const price = Number(body?.price);
+  const desc = String(body?.desc ?? "").trim();
+
+  if (!id || id.length > 40 || !/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(id)) {
+    return { error: 'id must be lowercase words joined by hyphens, e.g. "paint-navy"' };
+  }
+  if (shippedPartIds.has(id)) return { error: `"${id}" is already a shipped part` };
+  for (const p of partProposals.values()) {
+    if (p.id === id) return { error: `"${id}" is already proposed` };
+  }
+  if (!PART_CATEGORIES.includes(cat)) {
+    return { error: `cat must be one of: ${PART_CATEGORIES.join(", ")}` };
+  }
+  if (!name || name.length > MAX_PART_NAME) {
+    return { error: `name required, up to ${MAX_PART_NAME} characters` };
+  }
+  if (AR_RE.test(name)) return { error: "the English name has Arabic in it" };
+  if (!ar || !AR_RE.test(ar)) return { error: "ar must be a non-empty Arabic name" };
+  if (/[0-9]/.test(ar)) return { error: "ar must use Arabic-Indic digits, not Western ones" };
+  if (!Number.isFinite(price) || price < 0 || price > MAX_PART_PRICE) {
+    return { error: `price must be a number from 0 to ${MAX_PART_PRICE}` };
+  }
+  if (desc.length > MAX_PART_DESC) return { error: `desc up to ${MAX_PART_DESC} characters` };
+  return { part: { id, cat, name, ar, price: Math.round(price), desc } };
+}
+
 /** The bonus, in KD. Kept in step with REFERRAL_KD in the web build. */
 const REFERRAL_KD = 10;
 
@@ -307,6 +447,7 @@ function bankReferrals(pid, tokens) {
 }
 
 loadLedger();
+loadPartProposals();
 setInterval(saveLedger, 10_000).unref?.();
 
 /**
@@ -480,8 +621,12 @@ function readBody(req, limit = MAX_CAREER_BYTES) {
  *   GET  /api/v1/career/:name        — cloud career blob
  *   PUT  /api/v1/career/:name        — store one (4 KB cap)
  *
- * Plus GET /admin — a read-only dashboard over the same data, for
- * whoever is running this hub rather than for a game client.
+ * Plus /admin, for whoever is running this hub rather than for a game
+ * client — a dashboard over the same data, and its one write path:
+ *   GET    /api/v1/admin/parts        — queued part proposals
+ *   POST   /api/v1/admin/parts        — queue one {id,cat,name,ar,price,desc}
+ *   DELETE /api/v1/admin/parts/:id    — drop a proposal (proposalId, not the part id)
+ * See the "part proposals" block above for what this is and is not.
  */
 async function handleRest(req, res) {
   const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
@@ -516,6 +661,37 @@ async function handleRest(req, res) {
 
   if (path === "/admin") {
     return sendHtml(res, 200, adminPage());
+  }
+
+  if (path === "/api/v1/admin/parts" && req.method === "GET") {
+    return sendJson(res, 200, { apiVersion: API_VERSION, proposals: [...partProposals.values()] });
+  }
+
+  if (path === "/api/v1/admin/parts" && req.method === "POST") {
+    let body;
+    try {
+      body = JSON.parse(await readBody(req));
+    } catch {
+      return sendJson(res, 400, { error: "bad json" });
+    }
+    if (partProposals.size >= MAX_PART_PROPOSALS) {
+      return sendJson(res, 507, { error: "the proposal queue is full — clear some first" });
+    }
+    const v = validatePart(body);
+    if (v.error) return sendJson(res, 400, { error: v.error });
+    const proposalId = String(nextProposalId++);
+    const entry = { proposalId, ...v.part, submittedAt: new Date().toISOString() };
+    partProposals.set(proposalId, entry);
+    proposalsDirty = true;
+    savePartProposals();
+    return sendJson(res, 200, { accepted: true, proposal: entry });
+  }
+
+  const proposalMatch = path.match(/^\/api\/v1\/admin\/parts\/([^/]+)$/);
+  if (proposalMatch && req.method === "DELETE") {
+    const ok = partProposals.delete(proposalMatch[1]);
+    if (ok) { proposalsDirty = true; savePartProposals(); }
+    return sendJson(res, ok ? 200 : 404, { deleted: ok });
   }
 
   if (path === "/api/v1/lap" && req.method === "POST") {
@@ -625,6 +801,28 @@ function adminPage() {
   .muted { color:#5c6270; }
   .stale { opacity:.5; }
   h2 { font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:#8a8f9c; margin:0 0 8px; }
+  .partForm { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; align-items:flex-start; }
+  .partForm input, .partForm select, .partForm textarea {
+    background:#12161f; border:1px solid #232838; border-radius:6px; color:#e8eaf0;
+    font:inherit; padding:6px 8px;
+  }
+  .partForm input[name=id] { width:140px; }
+  .partForm input[name=name] { width:170px; }
+  .partForm input[name=ar] { width:130px; direction:rtl; }
+  .partForm input[name=price] { width:80px; }
+  .partForm textarea { width:240px; height:32px; resize:vertical; }
+  .partForm button {
+    background:#f5a623; border:none; border-radius:6px; color:#0a0d13;
+    font-weight:600; padding:7px 14px; cursor:pointer;
+  }
+  .partForm button:disabled { opacity:.5; cursor:default; }
+  .partErr { color:#e5484d; font-size:12px; width:100%; min-height:1em; }
+  .reject { background:none; border:1px solid #3a2020; color:#e5484d; border-radius:6px;
+    padding:3px 9px; font-size:12px; cursor:pointer; }
+  .reject:hover { background:#1c1010; }
+  .copyTs { background:none; border:1px solid #232838; color:#8a8f9c; border-radius:6px;
+    padding:3px 9px; font-size:12px; cursor:pointer; margin-left:6px; }
+  .copyTs:hover { color:#e8eaf0; }
 </style></head>
 <body>
   <h1>Night Racer — hub</h1>
@@ -636,6 +834,23 @@ function adminPage() {
   <table id="leaderboard"><thead><tr><th>#</th><th>Name</th><th>Best lap</th></tr></thead><tbody></tbody></table>
   <h2>Crews (<span id="teamCount">0</span>)</h2>
   <table id="teams"><thead><tr><th>Tag</th><th>Name</th><th>Founder</th><th>Members</th></tr></thead><tbody></tbody></table>
+
+  <!-- The one write path on this page — see the "part proposals" block
+       in hub-server.mjs for what landing one into the game actually
+       takes. This queues it; it does not ship it. -->
+  <h2>Propose a new part</h2>
+  <form class="partForm" id="partForm">
+    <input name="id" placeholder="id — paint-navy" autocomplete="off" required>
+    <select name="cat" required></select>
+    <input name="name" placeholder="name — Navy Metallic" autocomplete="off" required>
+    <input name="ar" placeholder="ar — كحلي معدني" autocomplete="off" required>
+    <input name="price" type="number" min="0" step="1" placeholder="price" autocomplete="off" required>
+    <textarea name="desc" placeholder="desc (optional)"></textarea>
+    <button type="submit">Queue proposal</button>
+    <div class="partErr" id="partErr"></div>
+  </form>
+  <h2>Pending proposals (<span id="proposalCount">0</span>)</h2>
+  <table id="proposals"><thead><tr><th>id</th><th>cat</th><th>name</th><th>ar</th><th>price</th><th>desc</th><th>submitted</th><th></th></tr></thead><tbody></tbody></table>
 <script>
 const fmtLap = (ms) => {
   const m = Math.floor(ms / 60000), s = ((ms % 60000) / 1000).toFixed(1).padStart(4, "0");
@@ -643,10 +858,20 @@ const fmtLap = (ms) => {
 };
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
+// One <option> per category the game actually has, read off the same
+// list validatePart() checks against server-side — kept in one place in
+// hub-server.mjs and interpolated in here, rather than typed out twice
+// where the two copies could drift.
+const PART_CATEGORIES = ${JSON.stringify(PART_CATEGORIES)};
+{
+  const sel = document.querySelector('#partForm select[name=cat]');
+  sel.innerHTML = PART_CATEGORIES.map((c) => '<option value="' + c + '">' + c + '</option>').join("");
+}
+
 async function tick() {
   try {
-    const [status, players, board, teams] = await Promise.all(
-      ["/api/v1/status", "/api/v1/players", "/api/v1/leaderboard", "/api/v1/teams"].map(
+    const [status, players, board, teams, parts] = await Promise.all(
+      ["/api/v1/status", "/api/v1/players", "/api/v1/leaderboard", "/api/v1/teams", "/api/v1/admin/parts"].map(
         (u) => fetch(u).then((r) => r.json())
       )
     );
@@ -678,12 +903,82 @@ async function tick() {
         '<tr><td class="tag">[' + esc(t.tag) + ']</td><td>' + esc(t.name) + '</td><td>' + esc(t.founder) + '</td>' +
         '<td>' + t.members.filter((m) => m.online).length + ' / ' + t.members.length + '</td></tr>'
       ).join("") || '<tr><td colspan="4" class="muted">no crews founded yet</td></tr>';
+
+    document.getElementById("proposalCount").textContent = parts.proposals.length;
+    document.getElementById("proposals").querySelector("tbody").innerHTML =
+      parts.proposals.map((p) =>
+        '<tr><td>' + esc(p.id) + '</td><td>' + esc(p.cat) + '</td><td>' + esc(p.name) + '</td>' +
+        '<td dir="rtl">' + esc(p.ar) + '</td><td>' + p.price + '</td>' +
+        '<td class="muted">' + esc(p.desc || "—") + '</td>' +
+        '<td class="muted">' + new Date(p.submittedAt).toLocaleString() + '</td>' +
+        '<td><button class="copyTs" data-part="' + esc(JSON.stringify(p)) + '" onclick="copyPartTs(this)">copy</button>' +
+        '<button class="reject" data-id="' + esc(p.proposalId) + '" onclick="rejectPart(this)">reject</button></td></tr>'
+      ).join("") || '<tr><td colspan="8" class="muted">nothing queued</td></tr>';
   } catch (err) {
     document.getElementById("sub").textContent = "could not reach the hub: " + err.message;
   }
 }
 tick();
 setInterval(tick, 4000);
+
+// This dashboard's one write path. Queues a proposal; never ships one —
+// see the "part proposals" comment in hub-server.mjs for what that
+// boundary is and why it is there.
+document.getElementById("partForm").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const form = ev.target;
+  const btn = form.querySelector("button");
+  const errBox = document.getElementById("partErr");
+  errBox.textContent = "";
+  const body = {
+    id: form.id.value.trim(),
+    cat: form.cat.value,
+    name: form.name.value.trim(),
+    ar: form.ar.value.trim(),
+    price: Number(form.price.value),
+    desc: form.desc.value.trim(),
+  };
+  btn.disabled = true;
+  try {
+    const r = await fetch("/api/v1/admin/parts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const j = await r.json();
+    if (!r.ok) { errBox.textContent = j.error || ("HTTP " + r.status); return; }
+    form.reset();
+    await tick();
+  } catch (err) {
+    errBox.textContent = "could not reach the hub: " + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// A pasteable Part literal, exactly the shape mods.ts wants — landing it
+// is still the reviewed diff a person writes; this just saves them
+// retyping six fields by hand once they have decided to.
+function copyPartTs(btn) {
+  const p = JSON.parse(btn.dataset.part);
+  // JSON.stringify quotes and escapes a string exactly the way a TS
+  // string literal needs — no hand-rolled backslash escaping, which
+  // does not survive sitting inside this page's OWN template literal:
+  // every backslash typed directly into adminPage()'s source is
+  // unescaped once already before the browser ever sees it.
+  const q = JSON.stringify;
+  const ts = "{ id: " + q(p.id) + ", cat: " + q(p.cat) + ", name: " + q(p.name) +
+    ", ar: " + q(p.ar) + ", price: " + p.price + ", desc: " + q(p.desc) + " },";
+  (navigator.clipboard?.writeText(ts) ?? Promise.reject()).catch(() => {});
+  const was = btn.textContent;
+  btn.textContent = "copied";
+  setTimeout(() => { btn.textContent = was; }, 1200);
+}
+
+function rejectPart(btn) {
+  btn.disabled = true;
+  fetch("/api/v1/admin/parts/" + encodeURIComponent(btn.dataset.id), { method: "DELETE" }).then(tick);
+}
 </script>
 </body></html>`;
 }
@@ -1078,6 +1373,8 @@ function shutdown(signal) {
   try {
     ledgerDirty = true;
     saveLedger();
+    proposalsDirty = true;
+    savePartProposals();
   } catch (err) {
     console.error(`[hub] ledger flush failed on ${signal}: ${err.message}`);
   }

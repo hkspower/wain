@@ -112,6 +112,7 @@
     "test:gtr": "node tests/gtr.mjs",
     "test:handles": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/handles.mjs",
     "test:hubsec": "node tests/hubsec.mjs",
+    "test:hubparts": "node tests/hubparts.mjs",
     "test:hydration": "node tests/hydration.mjs",
     "test:ik": "node tests/ik.mjs",
     "test:intro": "node tests/intro.mjs",
