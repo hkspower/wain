@@ -39,16 +39,12 @@
  * written — half a slide (a desktop photo with no mobile crop, or the reverse)
  * is worse than none.
  *
- * *** $COMMIT MUST BE SET BEFORE THIS RUNS. *** It is left as the sentinel
- * below on purpose: this script was written in the same session that added
- * the two files it fetches, and per this project's own rule an abbreviated or
- * unresolvable ref is an EMPTY fetch that says nothing — so a placeholder that
- * merely looked like a sha would fail exactly that way, silently. Fill in the
- * full 40-character commit sha once these two files are actually pushed, from
- * `git log -1 --format=%H` on this branch.
+ * $COMMIT below is pinned to the full 40-character sha of the commit that
+ * added the two files it fetches (394021f…), per this project's own rule that
+ * an abbreviated or unresolvable ref is an EMPTY fetch that says nothing.
  */
 
-$COMMIT = 'REPLACE-WITH-FULL-40-CHAR-COMMIT-SHA-AFTER-PUSHING';
+$COMMIT = '394021f65f8eaf0f3af3180af071bba0069d5650';
 
 $DESKTOP     = 'sporta-site/assets/hero/crossfit-desktop.webp';
 $DESKTOP_SHA = '355f09f5eec8db5f9ca195b946c075eeb89f2aee9b3cacdb677a9178bd8b2c9a';
