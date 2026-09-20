@@ -142,6 +142,20 @@ const DAILY_MISSES = 1500;
  * copies stay BYTE-IDENTICAL, which is worth more than the two saved lines.
  * One fingerprint describes both.
  */
+/**
+ * What a key file actually IS, in the three states it can be in.
+ *
+ * `ABSENT` — no file. `EMPTY` — a file the installer created and nobody
+ * filled, which is what «inert» looks like on disk. `present` — a key.
+ * Whitespace counts as empty because `trim()` is what the request path does
+ * with it, and a report that answers a different question from the code is
+ * how a feature stays switched off while everything says it is on.
+ */
+function keyState(string $file): string {
+    if (!is_file($file)) return 'ABSENT';
+    return trim((string) @file_get_contents($file)) === '' ? 'EMPTY' : 'present';
+}
+
 function storageDir(): ?string {
     $dir = __DIR__;
     for ($i = 0; $i < 5; $i++) {
@@ -185,7 +199,14 @@ if (PHP_SAPI === 'cli') {
             'running' => $print(__FILE__),
             'from'    => __FILE__,
             'installed' => array_map(static fn($p) => ['path' => $p, 'fingerprint' => $print($p)], $targets),
-            'key'     => is_file($keyFile) ? 'present' : 'ABSENT',
+            /* The predicate the RUNTIME uses (see `$key === ''` below), not
+               `is_file`. The installer creates this file empty on purpose, so
+               «it exists» is true in exactly the state where the bridge is
+               inert — and this line answered «present» for it. A diagnostic
+               that disagrees with the code it diagnoses is worse than none:
+               measured on the live server 20 September, `elevenlabs.key` is
+               0 bytes and `version` still reported it configured. */
+            'key'     => keyState($keyFile),
         ]);
     }
 
@@ -225,7 +246,7 @@ if (PHP_SAPI === 'cli') {
        with the right permissions and says where to paste — one action, in the
        panel's file manager, with the value never passing through a transcript
        or a crontab. */
-    $keyNote = 'present';
+    $keyNote = keyState($keyFile);   // not 'present' — see keyState().
     if (!is_file($keyFile)) {
         @file_put_contents($keyFile, '');
         @chmod($keyFile, 0600);

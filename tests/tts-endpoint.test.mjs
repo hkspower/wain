@@ -241,6 +241,43 @@ try {
        statSync(join(deep, "tts.php")).size === statSync(join(api, "tts.php")).size);
   }
 
+  console.log("\n── `version` tells the truth about the key ──");
+  {
+    /* This is the one assertion here that came from the live server rather
+       than from reading the code. On 20 September `php api/tts.php version`
+       on production answered `"key": "present"` while the file was **0
+       bytes** — `is_file()` is true for the empty file the installer creates
+       on purpose, which is the exact state in which every request is answered
+       `503 not_configured`. The runtime was right and only the report was
+       wrong, which is the worst way round: nothing fails, and the diagnostic
+       says the feature is on.
+       Whitespace is checked too, because `trim()` is what the request path
+       does with the value, and a report that disagrees with the request path
+       is the whole defect being fixed. */
+    /* `version` reports the key at the INSTALLER's target — $HOME/domains/
+       wainkw.com/storage — not at the tree the file happens to be run from,
+       which is right for its job and was worth discovering: pointed at this
+       suite's own storage/ the assertions all read ABSENT and looked like the
+       fix had failed. So this gives it a home of its own. */
+    const fakeHome = join(dir, "home");
+    const homeKey = join(fakeHome, "domains/wainkw.com/storage/elevenlabs.key");
+    mkdirSync(dirname(homeKey), { recursive: true });
+    const version = () =>
+      JSON.parse(execFileSync("php", [join(api, "tts.php"), "version"], {
+        encoding: "utf8",
+        env: { ...process.env, HOME: fakeHome },
+      }));
+
+    ok("no file at all reads ABSENT", version().key === "ABSENT", version().key);
+    writeFileSync(homeKey, "");
+    ok("an empty key file reads EMPTY, not present", version().key === "EMPTY", version().key);
+    writeFileSync(homeKey, "   \n");
+    ok("and whitespace reads EMPTY too, matching the runtime's trim()",
+       version().key === "EMPTY", version().key);
+    writeFileSync(homeKey, "a-real-looking-key");
+    ok("a filled key reads present", version().key === "present", version().key);
+  }
+
   console.log("\n── the key never leaves the server ──");
   {
     /* storage/ is a sibling of public_html, so there is no URL that reaches

@@ -972,6 +972,35 @@ installer creates it empty at 0600 and never writes a key, because this file is
 fetched from a public URL to be run, so anything it carried would be public.
 Until then every call is `503 not_configured` and nothing is spent.
 
+**It is still inert, measured 20 September, and `version` said otherwise.**
+`ls -la` on storage: `-rw------- 1 u130124229 … 0 Sep 11 14:55 elevenlabs.key`
+— **0 bytes**. So every runtime sentence on the live site takes the browser
+voice, and has since the bridge was installed. What made that worth finding
+twice over is that `php api/tts.php version` answered `"key": "present"` for
+it: the report was `is_file($keyFile) ? 'present' : 'ABSENT'`, and `is_file`
+is true for the empty file the installer creates ON PURPOSE. The runtime was
+right the whole time — `$key = trim(…); if ($key === '') $fail(503,
+'not_configured')` — so **the diagnostic disagreed with the code it was
+diagnosing**, which is the worst direction: nothing fails, and the only thing
+anyone would check says the feature is on.
+
+Both endpoints share a `keyState()` now — `ABSENT` / `EMPTY` / `present`,
+using the runtime's own `trim()` — and `media-endpoint.php` had the identical
+bug in its `adminKey` line and in its installer's report. Four assertions in
+`test:tts` cover all four states; confirmed red by putting `is_file` back with
+the file green. **The test had to be given its own `$HOME`**, which is a
+finding in itself: CLI `version` reports the key at the INSTALLER's target
+(`$HOME/domains/wainkw.com/storage`), not at the tree the file was run from,
+so pointed at the suite's own `storage/` every state read `ABSENT` and looked
+like the fix had failed.
+
+**And one cron lesson paid for that discovery.** The first probe chained
+`php …/tts.php version && php …/d.php probe`, and the output came back
+carrying ONLY the second command's JSON — the `version` output vanished
+entirely, which reads exactly like «that command printed nothing». Run alone
+it printed fine. Same shape as the curl `--next` trap above: **one thing per
+cron job**, or a silent half-result is indistinguishable from a broken one.
+
 **This used to be a pair of switches whose half-on state was worse than off**:
 `NEXT_PUBLIC_WAIN_TTS_URL` set AND the n8n workflow active, where the variable
 alone bought a four-second wait and then the robot. There is no variable now.

@@ -51,6 +51,21 @@
 
 declare(strict_types=1);
 
+/**
+ * What a key file actually IS, in the three states it can be in.
+ *
+ * `ABSENT` — no file. `EMPTY` — a file the installer created and nobody
+ * filled, which is what «refused» looks like on disk. `present` — a key.
+ * Whitespace counts as empty because `trim()` is what the request path does
+ * with it. Mirrors the same function in tts-endpoint.php, and exists for the
+ * same reason: a report that answers a different question from the code is
+ * how a thing stays switched off while everything says it is on.
+ */
+function keyState(string $file): string {
+    if (!is_file($file)) return 'ABSENT';
+    return trim((string) @file_get_contents($file)) === '' ? 'EMPTY' : 'present';
+}
+
 /** Matches src/lib/media.ts's MAX_BYTES. `npm run audit:media` fails when
  *  they disagree, by asking each side for its own number — see
  *  scripts/audit-media.mjs for why a regex over either file is not enough. */
@@ -167,7 +182,12 @@ if (PHP_SAPI === 'cli') {
             'running' => $print(__FILE__),
             'from'    => __FILE__,
             'installed' => array_map(static fn($p) => ['path' => $p, 'fingerprint' => $print($p)], $targets),
-            'adminKey' => is_file($adminKeyFile) ? 'present' : 'ABSENT',
+            /* The predicate the RUNTIME uses (`trim()`ed, further down), not
+               `is_file`. The installer creates this file empty on purpose, so
+               «it exists» is true in exactly the state where ?action=view is
+               refused — and this line said «present» for it. Same defect was
+               found live in tts.php's copy on 20 September. */
+            'adminKey' => keyState($adminKeyFile),
             'phpIni'  => [
                 'post_max_size' => $postMax,
                 'upload_max_filesize' => $uploadMax,
@@ -226,7 +246,7 @@ if (PHP_SAPI === 'cli') {
     /* The admin key is never written here, same reasoning as elevenlabs.key:
        this file is fetched from a public URL to be run, so anything it
        carried at that moment would be public. */
-    $keyNote = 'present';
+    $keyNote = keyState($adminKeyFile);   // not 'present' — see keyState().
     if (!is_file($adminKeyFile)) {
         @mkdir(dirname($adminKeyFile), 0700, true);
         @file_put_contents($adminKeyFile, '');
