@@ -61,7 +61,19 @@ if ($src === false) { echo "GATE failed=no-admin-php\n"; exit; }
 // set. The run then reported `answering200=OPEN:me`, which reads as the gate
 // being gone on the LIVE shop and was nothing of the kind. A false alarm here
 // is worse than a missed one: it is the alarm the owner is asked to act on.
-if (!preg_match('/^[^\s#\/].*store_require_admin\(\)/m', $src, $gm, PREG_OFFSET_CAPTURE)) {
+//
+// THIS REGEX WAS WRONG A SECOND TIME, found 2026-09-20 running this very
+// script: it required `store_require_admin()` with EMPTY parens, and the
+// top-level call at admin.php:368 takes an argument —
+// `store_require_admin(in_array($r, ['account', 'account_update'], true))` —
+// added for the account/account_update self-gating exception, after this
+// checker was written and never updated to match. It reported
+// `no-top-level-gate-call` on a server whose gate was never touched, which is
+// the exact "false alarm worse than a missed one" this comment already warns
+// about, on its own line. Matching an OPEN paren rather than a closed pair
+// covers both this call and the two truly self-gated ones below (which do
+// still call it with nothing inside).
+if (!preg_match('/^[^\s#\/].*store_require_admin\(/m', $src, $gm, PREG_OFFSET_CAPTURE)) {
     echo "GATE failed=no-top-level-gate-call\n"; exit;
 }
 $gateAt = $gm[0][1];
