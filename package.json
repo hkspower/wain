@@ -170,7 +170,9 @@
     "test:save-bar": "node scripts/panel-save-bar-test.mjs",
     "test:research": "node scripts/product-research-test.mjs",
     "test:customers": "node scripts/customer-accounts-test.mjs",
-    "test:crm": "node scripts/crm-test.mjs"
+    "test:crm": "node scripts/crm-test.mjs",
+    "test:backup": "node scripts/backup-test.mjs",
+    "test:hero-mobile": "node scripts/hero-mobile-test.mjs"
   },
   "private": true
 }

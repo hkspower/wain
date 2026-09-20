@@ -1153,7 +1153,7 @@ if ($r === 'slides') {
     $rows = $db->query(
         'select id, sort, active, title_en, title_ar, subtitle_en, subtitle_ar,
                 cta_label_en, cta_label_ar, cta_href, image_hash, image_w, image_h,
-                focal_x, focal_y, updated_at
+                focal_x, focal_y, updated_at, image_mobile_hash, image_mobile_w, image_mobile_h
            from hero_slides order by sort, id'
     )->fetchAll();
     foreach ($rows as &$row) {
@@ -1169,7 +1169,13 @@ if ($r === 'slides') {
             : null;
         $row['width']  = $row['image_w'] === null ? null : (int)$row['image_w'];
         $row['height'] = $row['image_h'] === null ? null : (int)$row['image_h'];
-        unset($row['image_hash'], $row['image_w'], $row['image_h']);
+        $row['image_mobile'] = $row['image_mobile_hash']
+            ? 'api.php?r=slide_image&id=' . $row['id'] . '&mobile=1&v=' . substr((string)$row['image_mobile_hash'], 0, 16)
+            : null;
+        $row['mobile_width']  = $row['image_mobile_w'] === null ? null : (int)$row['image_mobile_w'];
+        $row['mobile_height'] = $row['image_mobile_h'] === null ? null : (int)$row['image_mobile_h'];
+        unset($row['image_hash'], $row['image_w'], $row['image_h'],
+              $row['image_mobile_hash'], $row['image_mobile_w'], $row['image_mobile_h']);
     }
     unset($row);
     store_out(['slides' => $rows, 'hero' => store_setting($db, 'hero')]);
@@ -1187,6 +1193,19 @@ if ($r === 'slide_save' && $method === 'POST') {
         $image = store_data_image((string)$b['image'], STORE_HERO_MAX);
     } elseif ($id === 0) {
         store_fail('image_required');
+    }
+
+    // The phone composition, entirely optional and validated with the SAME
+    // rigor as the desktop image — reusing store_data_image() rather than a
+    // second, weaker check, per this project's own rule against inventing a
+    // parallel path for a field that must be trusted just as much. Omitting
+    // it on edit keeps whatever mobile image is already there, exactly like
+    // the desktop field above; there is no way to send an empty string here
+    // to WIPE it — that would need slide_delete or a dedicated clear, which
+    // does not exist yet.
+    $imageMobile = null;
+    if (($b['image_mobile'] ?? '') !== '') {
+        $imageMobile = store_data_image((string)$b['image_mobile'], STORE_HERO_MAX);
     }
 
     $focalX = max(0, min(100, (int)($b['focal_x'] ?? 50)));
@@ -1216,6 +1235,12 @@ if ($r === 'slide_save' && $method === 'POST') {
         $fields['image_hash'] = hash('sha256', $image);
         $fields['image_w'] = (int)($b['width'] ?? 0) ?: null;
         $fields['image_h'] = (int)($b['height'] ?? 0) ?: null;
+    }
+    if ($imageMobile !== null) {
+        $fields['image_mobile']      = $imageMobile;
+        $fields['image_mobile_hash'] = hash('sha256', $imageMobile);
+        $fields['image_mobile_w']    = (int)($b['mobile_width'] ?? 0) ?: null;
+        $fields['image_mobile_h']    = (int)($b['mobile_height'] ?? 0) ?: null;
     }
 
     $cols = array_keys($fields);
@@ -3373,6 +3398,235 @@ if ($r === 'audit_log') {
         return $row;
     }, $q->fetchAll());
     store_out(['rows' => $rows]);
+}
+
+// ------------------------------------------------------------------ backup
+//
+// A full, owner-downloadable backup of the shop's OWN data: everything a
+// restore needs to bring the catalogue, the orders and the settings back to
+// a known point, and nothing a restore must never touch.
+//
+// WHAT IS IN IT, and why each table: brands, products, product_variants and
+// product_images are the catalogue; orders and order_items are the sales
+// history; customers, blocked_customers, reviews and discounts are who buys
+// and how; hero_slides and settings are the shop's own front-page copy and
+// its nine "rules" numbers; admin_users is who may run the shop; assistant_qa
+// is the taught answers the سبورتا AI gives.
+//
+// WHAT IS NEVER IN IT, and why:
+//   - config.php, the KNET/CBK credentials and the Wallet certs are not
+//     database rows. This route never reads a file, only the database, so
+//     they cannot leak through it even by accident.
+//   - admin_users.totp_secret is dropped, and totp_enabled is forced to 0 in
+//     the EXPORTED copy only (never written back to the live row here). A
+//     second-factor secret sitting in a file the owner can hand to anyone,
+//     or that could reach a public repository the way this project's own
+//     KNET manuals nearly did, is a secret that no longer proves anything.
+//     The cost, said plainly in the preview: RESTORING admin_users switches
+//     every account's 2FA off, because the secret that would be needed to
+//     keep it on cannot travel in the file. The owner re-enrols afterwards.
+//   - rate_limit, the accounting ledger (accounts/journal_entries/
+//     journal_lines), size_advice_log and the *_outbox tables are
+//     operational and transient, not data the owner edits in a panel, and
+//     restoring stale rate-limit counters or a half-sent outbox is not what
+//     "restore my shop" means.
+//
+// REPLACE, NOT MERGE — read this before changing either half of it. Import
+// WHOLESALE REPLACES every table this feature covers: an older backup will
+// remove a product added since it was taken, revert a price edited since,
+// and put back a phone number that was later unblocked. That is the decision,
+// made on purpose and stated here so the code and the words agree: a
+// "restore" that quietly keeps newer live edits is not a restore, it is an
+// upsert wearing a restore's name — and CLAUDE.md already carries the cost of
+// that exact confusion, at length, in the section on IMPORT-THIS-ONE.sql
+// silently overwriting live prices while its own header said it did not. So:
+// the panel's own copy says REPLACE, the preview lists what would be
+// REMOVED as prominently as what would be ADDED or CHANGED, and the import
+// code does a delete-then-insert inside one transaction rather than an
+// `on duplicate key update` that could leave a live-only row untouched and
+// call that a restore.
+const BACKUP_TABLES = [
+    'brands', 'products', 'product_variants', 'product_images',
+    'customers', 'orders', 'order_items', 'reviews', 'discounts',
+    'blocked_customers', 'hero_slides', 'settings', 'admin_users', 'assistant_qa',
+];
+
+// The one non-'id' key. A hand-written exception list is the same shape as
+// the size/fit lists elsewhere in this project that had to be read out of the
+// schema rather than restated — this one is short enough, and stable enough
+// (a primary-key column does not change casually), to state directly rather
+// than introspect on every request.
+function backup_pk(string $table): string {
+    return $table === 'settings' ? 'name' : 'id';
+}
+
+// Builds the exported form of one table: every column, every row, streamed
+// off a PDO cursor rather than fetchAll()'d whole — orders and order_items
+// are the tables here most likely to grow large, and a cursor means this
+// route's peak memory is one row, not one table.
+function backup_table_rows(PDO $db, string $table): array {
+    $stmt = $db->query('select * from `' . $table . '`');
+    $rows = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        if ($table === 'admin_users') {
+            // THE SECOND FACTOR NEVER TRAVELS. See the comment above this
+            // block for the reasoning; this is the one line that enforces it.
+            $row['totp_secret'] = null;
+            $row['totp_enabled'] = 0;
+            $row['totp_last_step'] = null;
+        }
+        $rows[] = $row;
+    }
+    return $rows;
+}
+
+function backup_build(PDO $db): array {
+    $out = [
+        // A format version, not the shop's own VERSION (sw.js) — this is the
+        // shape of the FILE, so a future change to what a backup contains can
+        // tell an old file from a new one without guessing from what keys
+        // happen to be present.
+        'format'      => 1,
+        'exported_at' => gmdate('c'),
+        'tables'      => [],
+    ];
+    foreach (BACKUP_TABLES as $t) {
+        $out['tables'][$t] = backup_table_rows($db, $t);
+    }
+    return $out;
+}
+
+// Diffs a backup's rows against the live table by primary key, WITHOUT
+// writing anything — this function only ever runs selects. `added` and
+// `changed` are what most previews show; `removed` is the one a diff most
+// often leaves out, and it is the dangerous half of a REPLACE: every row the
+// live shop has that this backup does not is a row that import will delete.
+function backup_diff_table(PDO $db, string $table, array $backupRows): array {
+    $pk = backup_pk($table);
+    $live = [];
+    $stmt = $db->query('select * from `' . $table . '`');
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $live[(string) $row[$pk]] = $row;
+    }
+    $backup = [];
+    foreach ($backupRows as $row) {
+        if (!is_array($row) || !array_key_exists($pk, $row)) continue;
+        $backup[(string) $row[$pk]] = $row;
+    }
+
+    $added = 0; $changed = 0; $unchanged = 0;
+    foreach ($backup as $key => $row) {
+        if (!array_key_exists($key, $live)) { $added++; continue; }
+        // Compare the JSON forms rather than the arrays directly: values that
+        // came back from PDO as strings (ids, decimals) must compare equal to
+        // the same values decoded from the backup's JSON, and json_encode is
+        // the one place both sides already agree on a canonical string form.
+        if (json_encode($live[$key]) !== json_encode($row)) { $changed++; } else { $unchanged++; }
+    }
+    $removed = count(array_diff_key($live, $backup));
+
+    return [
+        'live_count'    => count($live),
+        'backup_count'  => count($backup),
+        'added'         => $added,
+        'changed'       => $changed,
+        'unchanged'     => $unchanged,
+        'removed'       => $removed,
+    ];
+}
+
+// The token that ties backup_import to a backup_preview of the SAME payload.
+// It is not a secret and needs none: session_write_close() has already run
+// by the time any route here executes (see the top of this file), so there
+// is no per-admin server-side state left to stash a preview id in between two
+// requests. What it buys instead is purely mechanical — the panel cannot
+// reach the write route without first having computed this over the exact
+// bytes it is about to send, which is what makes "preview, then a second,
+// explicit confirmation" a shape the SERVER enforces rather than one the
+// panel merely follows.
+function backup_token(array $data): string {
+    return hash('sha256', json_encode($data, JSON_UNESCAPED_UNICODE));
+}
+
+if ($r === 'backup_export' && $method === 'GET') {
+    store_out(backup_build($db));
+}
+
+if ($r === 'backup_preview' && $method === 'POST') {
+    $b = store_body();
+    $data = is_array($b['data'] ?? null) ? $b['data'] : null;
+    $tables = is_array($data['tables'] ?? null) ? $data['tables'] : null;
+    if ($data === null || $tables === null) store_fail('bad_backup_file');
+
+    $diff = [];
+    $knownTables = [];
+    foreach (BACKUP_TABLES as $t) {
+        $rows = is_array($tables[$t] ?? null) ? $tables[$t] : [];
+        $diff[$t] = backup_diff_table($db, $t, $rows);
+        $knownTables[] = $t;
+    }
+    // A table the FILE names that this shop's schema does not — an older or
+    // newer format, or a hand-edited file — is reported rather than silently
+    // ignored, because a silently-ignored table is a table the owner thinks
+    // was restored and was not.
+    $unknownTables = array_values(array_diff(array_keys($tables), $knownTables));
+
+    store_out([
+        'tables'          => $diff,
+        'unknown_tables'  => $unknownTables,
+        'format'          => $data['format'] ?? null,
+        'exported_at'     => $data['exported_at'] ?? null,
+        // Echoed back so the panel can show it, and required back verbatim by
+        // backup_import — see backup_token()'s own comment.
+        'token'           => backup_token($data),
+    ]);
+}
+
+if ($r === 'backup_import' && $method === 'POST') {
+    $b = store_body();
+    $data = is_array($b['data'] ?? null) ? $b['data'] : null;
+    $tables = is_array($data['tables'] ?? null) ? $data['tables'] : null;
+    if ($data === null || $tables === null) store_fail('bad_backup_file');
+
+    // BOTH GATES, NOT EITHER. `confirm` alone would let a resent or replayed
+    // request through; the token alone would let the panel skip showing the
+    // preview and confirm blind. Together they mean: this exact file was
+    // previewed (the token proves the bytes match what a preview computed
+    // it over) AND a human pressed the second, separate button.
+    if (($b['confirm'] ?? false) !== true) store_fail('confirm_required');
+    if ((string) ($b['token'] ?? '') !== backup_token($data)) store_fail('stale_or_missing_preview');
+
+    $result = [];
+    $db->beginTransaction();
+    try {
+        $db->exec('set foreign_key_checks = 0');
+        foreach (BACKUP_TABLES as $t) {
+            $rows = is_array($tables[$t] ?? null) ? $tables[$t] : [];
+            $pk = backup_pk($t);
+
+            $before = (int) $db->query('select count(*) from `' . $t . '`')->fetchColumn();
+            $db->exec('delete from `' . $t . '`');
+
+            $written = 0;
+            foreach ($rows as $row) {
+                if (!is_array($row) || !array_key_exists($pk, $row) || $row[$pk] === null || $row[$pk] === '') continue;
+                $cols = array_keys($row);
+                $sql = 'insert into `' . $t . '` (`' . implode('`, `', $cols) . '`) values ('
+                     . implode(', ', array_fill(0, count($cols), '?')) . ')';
+                $db->prepare($sql)->execute(array_values($row));
+                $written++;
+            }
+            $result[$t] = ['before' => $before, 'written' => $written];
+        }
+        $db->exec('set foreign_key_checks = 1');
+        $db->commit();
+    } catch (Throwable $e) {
+        $db->rollBack();
+        try { $db->exec('set foreign_key_checks = 1'); } catch (Throwable $ignored) {}
+        store_fail('restore_failed', 500);
+    }
+
+    store_out(['ok' => true, 'restored_at' => gmdate('c'), 'tables' => $result]);
 }
 
 store_fail('not_found', 404);

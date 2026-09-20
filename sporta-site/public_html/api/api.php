@@ -569,7 +569,7 @@ if ($r === 'slides') {
     $rows = $db->query(
         'select id, sort, title_en, title_ar, subtitle_en, subtitle_ar,
                 cta_label_en, cta_label_ar, cta_href, image_hash, image_w, image_h,
-                focal_x, focal_y
+                focal_x, focal_y, image_mobile_hash, image_mobile_w, image_mobile_h
            from hero_slides where active = 1 and image is not null order by sort, id'
     )->fetchAll();
     foreach ($rows as &$row) {
@@ -579,7 +579,20 @@ if ($r === 'slides') {
         $row['height'] = $row['image_h'] === null ? null : (int)$row['image_h'];
         $row['focal_x'] = (int)$row['focal_x'];
         $row['focal_y'] = (int)$row['focal_y'];
-        unset($row['image_hash'], $row['image_w'], $row['image_h']);
+        // Told rather than left for the client to discover by requesting and
+        // seeing what comes back: a boolean the bundle COULD use to decide
+        // whether asking for &mobile=1 gets it anything different. Whether
+        // the bundle actually reads this is outside what this file can prove
+        // — see api.php?r=slide_image below, which never 404s either way.
+        $row['has_mobile_image'] = $row['image_mobile_hash'] !== null;
+        if ($row['has_mobile_image']) {
+            $row['image_mobile'] = 'api.php?r=slide_image&id=' . $row['id']
+                . '&mobile=1&v=' . substr((string)$row['image_mobile_hash'], 0, 16);
+            $row['mobile_width']  = $row['image_mobile_w'] === null ? null : (int)$row['image_mobile_w'];
+            $row['mobile_height'] = $row['image_mobile_h'] === null ? null : (int)$row['image_mobile_h'];
+        }
+        unset($row['image_hash'], $row['image_w'], $row['image_h'],
+              $row['image_mobile_hash'], $row['image_mobile_w'], $row['image_mobile_h']);
     }
     unset($row);
 
@@ -618,10 +631,17 @@ if ($r === 'slide_image') {
     // from anybody. That is exactly where an unannounced sale sits the week
     // before it starts. `?r=brand_logo` has carried `and active = 1` all
     // along and has a test for it; this is the same rule, missing.
-    $q = $db->prepare('select image, active from hero_slides where id = ?');
+    $q = $db->prepare('select image, image_mobile, active from hero_slides where id = ?');
     $q->execute([(int)($_GET['id'] ?? 0)]);
     $row = $q->fetch();
-    $data = (string)($row['image'] ?? '');
+
+    // &mobile=1 asks for the phone composition, WHEN ONE EXISTS. A slide
+    // with no image_mobile falls back to the desktop image rather than 404ing
+    // or serving nothing — never a broken image on a phone, whether or not
+    // the phone composition has been supplied yet.
+    $wantMobile = !empty($_GET['mobile']);
+    $data = $wantMobile ? (string)($row['image_mobile'] ?? '') : '';
+    if ($data === '') $data = (string)($row['image'] ?? '');
     if ($data === '' || !preg_match('#^data:image/(png|jpeg|webp);base64,(.+)$#s', $data, $m)) {
         http_response_code(404);
         exit;
