@@ -753,6 +753,35 @@ re-pointing the document. `npm run ai:brief` regenerates that file from
 `places.ts`; if the regenerated file is byte-identical to the committed one,
 the live KB is current and there is nothing to send.
 
+**Re-pointing it CANNOT be finished from an MCP session — `agents_create_kb_url`
+times out at 60s and creates nothing.** Tried three times on 20 September to
+move the document off `ab034b0`; every call returned «timed out after 60s», and
+`agents_list_knowledge_base` after each — including 75 seconds after one, in
+case it landed late — showed the workspace unchanged. So it is a consistent
+failure, not a flake, and it is at least *safe*: nothing half-created, no stray
+document, no duplicate from retrying. The rest of the route is fine; it is only
+this one call.
+
+Everything else was verified and is ready for whoever finishes it in the
+dashboard:
+
+- the live document is genuinely stale, and it says so itself — its own
+  extracted text still reads «إذا **انت** بوسط المدينة» and «طول السنة —
+  **انت** بالسيارة», the two hamzas;
+- `last_updated_at_unix_secs` equals `created_at_unix_secs`, which is the
+  «fetched once, at attach» behaviour in the data rather than in prose;
+- the replacement URL is good: `raw.githubusercontent.com/hkspower/wain/
+  c837554…/docs/wain-ai-kb.md` answers **200, 73,002 bytes, byte-identical**
+  to the committed file and carrying «أنت بالسيارة»;
+- the raw file is the same length at `ab034b0` and at HEAD (73,002), so the
+  live document's `size_bytes: 72317` is ElevenLabs' *extracted* size — which
+  makes it a usable equality check on the new document, not a discrepancy.
+
+The pattern to follow is the one already in the workspace: v3 pinned to
+`1ab701a`, v4 to `ab034b0`, each a new url document rather than an edit of the
+old. **This is the second شوق operation that needs the dashboard** — the first
+being a prompt rollback, since there is no restore-version call either.
+
 `agents_update` must be sent with the top-level `prompt` **alone** — if both
 `prompt` and `body` are sent, `body` wins silently.
 
