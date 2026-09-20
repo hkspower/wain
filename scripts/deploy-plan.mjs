@@ -259,8 +259,32 @@ const required = [
   [placePage, "a route two levels down"],
   [ogImage, "an image, from the directory that went missing on its own once"],
 ];
+/**
+ * Checked against the ARCHIVE's entries, not out/'s.
+ *
+ * Everything above this point is a question about the build — is the gutter
+ * right, is there one stylesheet — and out/ is the right place to ask it. A
+ * proof is a different kind of claim: it is what `deploy:verify` will later
+ * demand of the live server, so it has to name something the artifact
+ * actually carries. Those two diverge on every ordinary deploy, because the
+ * zip is committed and out/ is rebuilt after it (see the note above), and the
+ * build-id directory is named for whichever commit built it.
+ */
+const inArchive = new Set(
+  execFileSync("unzip", ["-Z1", archive], { encoding: "utf8", maxBuffer: 1 << 24 })
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+);
 for (const [path] of required) {
-  if (!path || !(path in files)) fail(`required proof ${path} is not in the export`);
+  if (!path) fail("a required proof could not be located in the export");
+  if (!inArchive.has(path)) {
+    fail(
+      `required proof ${path} is not in ${relative(ROOT, archive)}\n` +
+        `  The archive is what the server fetches. If out/ is newer, re-run \`npm run release\`\n` +
+        `  and commit the archive it writes.`
+    );
+  }
 }
 
 /* ── the commands, and whether they can be sent at all ───────────────────── */
