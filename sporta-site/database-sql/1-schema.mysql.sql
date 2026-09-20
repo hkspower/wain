@@ -284,6 +284,26 @@ create table if not exists hero_slides (
 
 create index if not exists idx_hero_sort on hero_slides (active, sort);
 
+-- A phone-specific composition, alongside the desktop `image` above rather
+-- than replacing it. The desktop hero box is 2.52:1; the phone box is ~1.90:1
+-- (see CLAUDE.md's hero-height history) — a wide banner shown at that ratio
+-- crops badly, and the only real fix is a photograph composed for it, which
+-- needs its own column because the schema holds one image per slide.
+--
+-- NULLABLE, and that is the whole design: a slide with no phone composition
+-- must keep working exactly as it does today, falling back to `image` rather
+-- than 404ing or showing nothing on a phone. `image_mobile_hash` is the same
+-- cache-busting device as `image_hash`, so a replaced phone photo is picked up
+-- at once despite the immutable cache on the old URL.
+--
+-- `if not exists` on add column is MariaDB 10.2+ and MySQL 8.0.29+; Hostinger
+-- runs MariaDB, and re-running this file is therefore safe. Same idiom as the
+-- product sale columns below.
+alter table hero_slides add column if not exists image_mobile      longtext     null after image;
+alter table hero_slides add column if not exists image_mobile_hash char(64)     null after image_mobile;
+alter table hero_slides add column if not exists image_mobile_w    int          null after image_mobile_hash;
+alter table hero_slides add column if not exists image_mobile_h    int          null after image_mobile_w;
+
 -- ------------------------------------------------------------------- settings
 --
 -- Small, named pieces of site configuration the owner changes without a
