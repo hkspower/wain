@@ -41,46 +41,6 @@ DirectoryIndex index.html
 </IfModule>
 RedirectMatch 404 ^/staging(/|$)
 
-# ---- one site, one url -----------------------------------------------------
-#
-# wainkw.com and www.wainkw.com both resolve — the apex is an ALIAS and www a
-# CNAME, both to *.cdn.hstgr.net — and both land in THIS document root. So
-# every page of this site answered at two addresses, and the whole of the
-# source names only one: metadataBase, robots.ts's host, sitemap.ts's BASE and
-# wain-hub.ts's WAIN_ORIGIN are all `https://www.wainkw.com`.
-#
-# The canonical tag already declared which one wins, so this was never
-# ambiguous to a crawler — but a declaration is not a redirect. A link shared
-# on WhatsApp as wainkw.com/places/… stayed on the apex for that whole visit,
-# and every absolute url the page then produced pointed somewhere the visitor
-# was not. 301 rather than 302: this is permanent, and only a permanent one
-# moves the address a search engine keeps.
-#
-# mod_rewrite, which this file otherwise avoids — see the header. That warning
-# is about a catch-all rewrite to index.html masking real 404s; this matches
-# one host and REDIRECTS rather than rewriting internally, so a missing page is
-# still a missing page at the far end.
-#
-# Two conditions, both load-bearing:
-#
-#   - `^wainkw\.com$` is the BARE apex only. staging.wainkw.com and
-#     hub.wainkw.com do not match it, and www is the destination rather than a
-#     source, so nothing here can loop. Staging matters most: this file ships
-#     inside the export, so it lands in staging's docroot too — a rule written
-#     loosely here would bounce staging onto production and the stage would
-#     silently stop existing.
-#   - /api/ is exempt because `deploy.php` and `tts.php` are POSTed to, and a
-#     301 answers a POST by dropping its body. Both callers send
-#     `Host: www.wainkw.com` today and would never reach this, which is
-#     exactly why it is worth excluding: the day one does not, the failure is
-#     a deploy that reports success having written nothing.
-<IfModule mod_rewrite.c>
-  RewriteEngine On
-  RewriteCond %{HTTP_HOST} ^wainkw\.com$ [NC]
-  RewriteCond %{REQUEST_URI} !^/api/
-  RewriteRule ^(.*)$ https://www.wainkw.com/$1 [L,R=301]
-</IfModule>
-
 # Never serve this file itself.
 <Files ".htaccess">
   Require all denied

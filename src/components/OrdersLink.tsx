@@ -106,13 +106,9 @@ export default function OrdersLink() {
  * each of these — two offers for one thing is the mistake the call button's
  * own placement was chosen to avoid.
  *
- * It rides the bottom rail in layout.tsx, which is what makes it survive the
- * scroll a live order wants to survive. The rail owns the fixed positioning
- * and the safe area; this used to own both, and had to give them up so the
- * search button could share the row — two separately-positioned floating
- * controls can be measured 10px apart on a 320px screen, which is inside the
- * 24px clearance `audit:mobile` requires between targets. In one flex row
- * they cannot collide at all.
+ * Fixed, so it survives the scroll that a live order wants to survive. It can
+ * therefore cover the last few pixels of a page, which is the honest cost:
+ * a thin strip, only while something of yours is actually in progress.
  */
 export function LiveTray() {
   const orders = useOrderCount();
@@ -124,10 +120,14 @@ export function LiveTray() {
     // to interrupt a reader with. The count inside each pill is the message.
     <nav
       aria-label="طلباتك الحالية"
-      className="pointer-events-auto flex items-center gap-2 rounded-full bg-white/95 p-1 shadow-lg ring-1 ring-line backdrop-blur"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 standalone:hidden"
     >
-      <OrdersLink />
-      <QueueLink />
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-2 px-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] pt-2 sm:px-4">
+        <div className="pointer-events-auto flex items-center gap-2 rounded-full bg-white/95 p-1 shadow-lg ring-1 ring-line backdrop-blur">
+          <OrdersLink />
+          <QueueLink />
+        </div>
+      </div>
     </nav>
   );
 }

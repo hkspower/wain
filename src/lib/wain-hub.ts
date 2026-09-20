@@ -71,19 +71,12 @@ export const HUB_ACTIONS: HubAction[] = [
     icon: "shouq",
   },
   {
-    // Was «تصفّح كل الأماكن» → /explore. Removed on request, and the swap is
-    // the interesting part: «كل الأماكن» is the one question a visitor never
-    // actually asks. «وين الطلعة اليوم؟» is answered by a category, by a
-    // place, or by a part of town — «أنا بالسالمية» — and the catalogue has
-    // carried that last one in `areaAr` since the beginning without ever
-    // offering it as a door. /explore has not gone anywhere; it is what an
-    // area card opens, filtered.
-    id: "areas",
-    ar: "مناطق الكويت",
-    hintAr: "وين تطلع بالسالمية، بمدينة الكويت، بحولي أو بالفحيحيل",
-    en: "Browse Kuwait by area",
+    id: "explore",
+    ar: "تصفّح كل الأماكن",
+    hintAr: "كل أماكن وين، بالتصنيف والبحث",
+    en: "Browse the whole catalogue",
     kind: "route",
-    href: "/areas/",
+    href: "/explore/",
     icon: "compass",
   },
   {

@@ -9,10 +9,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const staticRoutes = [
     { url: `${BASE}/`, priority: 1 },
     { url: `${BASE}/explore/`, priority: 0.9 },
-    // Same weight as /explore: it is the other half of the same browse, and a
-    // search engine asking «وين بالسالمية» should land on the area rather
-    // than on a 52-card grid.
-    { url: `${BASE}/areas/`, priority: 0.9 },
     { url: `${BASE}/search/`, priority: 0.6 },
     { url: `${BASE}/add/`, priority: 0.8 },
     { url: `${BASE}/about/`, priority: 0.5 },

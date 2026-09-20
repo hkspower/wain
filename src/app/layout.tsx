@@ -4,7 +4,6 @@ import AppShell from "@/components/AppShell";
 import AppTabBar from "@/components/AppTabBar";
 import { LiveTray } from "@/components/OrdersLink";
 import RouteTransitions from "@/components/RouteTransitions";
-import SearchButton from "@/components/SearchButton";
 import ScrollMemory from "@/components/ScrollMemory";
 import WainAi from "@/components/WainAi";
 import "./globals.css";
@@ -111,28 +110,15 @@ export default function RootLayout({
             and is now never mounted), and استكشف/عن وين. AppTabBar is
             `standalone:block`, so it does not stand in for any of that
             outside the installed app. Two of the losses were real enough to
-            answer, and both are on the rail below: SearchButton carries the
-            way to /search — and so to شوق — on every route that does not
-            already offer one, and LiveTray carries the order and ticket
-            pills. */}
+            answer: the home page carries the site's one link to /search, and
+            LiveTray below carries the order and ticket pills. */}
         <main id="main-content" className="flex-1">
           {children}
         </main>
-        {/* The bottom rail: the search button, and the order and ticket pills
-            when this device has either. One flex row rather than two floating
-            controls, because separately-positioned ones measure 10px apart on
-            a 320px screen — inside the 24px clearance `audit:mobile` requires
-            between two targets. `standalone:hidden` for both: the installed
-            app already grows a tab for search and one for each live thing, and
-            two offers for one thing is the mistake ShouqCallButton's own
-            placement was chosen to avoid. It paints nothing of its own, so on
-            a page with neither control there is no visible element. */}
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 standalone:hidden">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] pt-2 sm:px-4">
-            <SearchButton />
-            <LiveTray />
-          </div>
-        </div>
+        {/* Renders nothing at all unless this device has a live order or
+            today's ticket, which is why it is not the top bar coming back —
+            see LiveTray. */}
+        <LiveTray />
         {/* Above the router, but only *offered* on /search — the button hides
             itself everywhere else. It has to outlive a route change because
             `open_place` is a route change: a call mounted by the search page

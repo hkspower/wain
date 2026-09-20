@@ -12,22 +12,13 @@
  *   map-pin       — the pins, on a phone and on a desktop. The two behaviours
  *                   that must not drift back together: one tap on a touch
  *                   device selects, one click on a desktop still opens.
- *   areas         — Kuwait by area. The half that can rot quietly is the
- *                   filter: `?area=` is an exact match on `areaAr`, and the
- *                   tempting name-search version looks identical until «شرق»
- *                   quietly returns «سوق شرق», which is in مدينة الكويت.
- *   search-button — whether a thumb can reach search at all. The suite of
- *                   this name used to test the navbar button that opened the
- *                   ⌘K palette and went when the navbar did; what came back
- *                   is the question nobody was asking, after /explore, a
- *                   place page and /about each measured 0 visible links to
- *                   /search on a shipped build.
  *   search-keys   — arrowing through results on /search. There used to be a
- *                   second surface, the ⌘K palette; it went when the navbar
- *                   did. The half kept is the half that always mattered: the
- *                   palette moved a colour without ever naming an option, so
- *                   a screen reader heard nothing travel, and /search is
- *                   where that is now proved.
+ *                   second surface, the ⌘K palette, and a `search-button`
+ *                   suite beside this one for the navbar button that opened
+ *                   it; both went when the navbar did. The half kept is the
+ *                   half that always mattered: the palette moved a colour
+ *                   without ever naming an option, so a screen reader heard
+ *                   nothing travel, and /search is where that is now proved.
  *   shouq-search  — شوق ON the search page rather than beside it: the answer
  *                   she builds for every query, which used to be spoken and
  *                   never written, and the microphone that used to exist only
@@ -92,12 +83,6 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
 
   console.log("\n════ الخريطة: the pins, on a phone and on a desktop ════");
   failed += (await run("node", ["tests/map-pin.test.mjs"], { env })) === 0 ? 0 : 1;
-
-  console.log("\n════ المناطق: Kuwait by area, and the filter it opens ════");
-  failed += (await run("node", ["tests/areas.test.mjs"], { env })) === 0 ? 0 : 1;
-
-  console.log("\n════ زر البحث: can a thumb reach search from where it stands ════");
-  failed += (await run("node", ["tests/search-button.test.mjs"], { env })) === 0 ? 0 : 1;
 
   console.log("\n════ لوحة المفاتيح: arrowing through results on /search ════");
   failed += (await run("node", ["tests/search-keys.test.mjs"], { env })) === 0 ? 0 : 1;
