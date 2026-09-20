@@ -136,6 +136,7 @@ def _fresh():
                              'mubarak-al-kabeer', 'ahmadi', 'jahra'],
             'sizes': ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', 'ONE'],
             'fits': ['normal', 'slim', 'loose', 'oversize', 'boxy', 'tank'],
+            'payment_methods': ['knet', 'tpay', 'cod'],
         },
         'footer': {k: '' for k in (
             'tagline_ar', 'tagline_en', 'club_title_ar', 'club_title_en',
@@ -250,10 +251,12 @@ def _fresh():
 ALLOWED_SIZES = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', 'ONE']
 ALLOWED_FITS = ['normal', 'slim', 'loose', 'oversize', 'boxy', 'tank']
 ALLOWED_GOVS = ['capital', 'hawalli', 'farwaniya', 'mubarak-al-kabeer', 'ahmadi', 'jahra']
+ALLOWED_PAY_METHODS = ['knet', 'tpay', 'cod']
 RULE_DEFAULTS = {
     'delivery_fee_fils': 1000, 'free_delivery_fils': 0, 'return_days': 14,
     'cod_open_max': 3, 'review_reward_pct': 20, 'discount_max_pct': 60,
     'governorates': ALLOWED_GOVS, 'sizes': ALLOWED_SIZES, 'fits': ALLOWED_FITS,
+    'payment_methods': ALLOWED_PAY_METHODS,
 }
 
 STATE = _fresh()
@@ -437,6 +440,7 @@ class Handler(BaseHTTPRequestHandler):
                     'sizes': ALLOWED_SIZES,
                     'fits': ALLOWED_FITS,
                     'governorates': ALLOWED_GOVS,
+                    'payment_methods': ALLOWED_PAY_METHODS,
                 },
             })
 
@@ -790,7 +794,8 @@ class Handler(BaseHTTPRequestHandler):
                         return self._json(422, {'error': 'rule_out_of_range:' + k})
                     out[k] = n
                 for k, allowed in (('sizes', ALLOWED_SIZES), ('fits', ALLOWED_FITS),
-                                   ('governorates', ALLOWED_GOVS)):
+                                   ('governorates', ALLOWED_GOVS),
+                                   ('payment_methods', ALLOWED_PAY_METHODS)):
                     if k not in v:
                         continue
                     if not isinstance(v[k], list):

@@ -69,6 +69,19 @@ const FIELD_NAMES: Record<string, string> = {
   governorates: 'the delivery areas',
   sizes: 'the sizes',
   fits: 'the fits',
+  payment_methods: 'the payment methods',
+};
+
+/** cod/knet/tpay are the server's own names — store.php's STORE_PAY_METHODS,
+ *  the payment gateway's field values, KNET.md's own vocabulary. None of them
+ *  is what the owner calls the third one, which asked for as "online link" —
+ *  the QR/hosted-page half of the same CBK gateway KNET itself runs through
+ *  (pay/cbk.php, tij_MerchPayType=2). One home for the label, here, rather
+ *  than three screens each guessing at a friendlier name for the same code. */
+const PAY_LABELS: Record<string, string> = {
+  cod: 'Cash on delivery',
+  knet: 'KNET',
+  tpay: 'Online link (T-Pay)',
 };
 
 function explain(message: string): string {
@@ -99,7 +112,7 @@ function explain(message: string): string {
   }
 }
 
-type Allowed = { sizes: string[]; fits: string[]; governorates: string[] };
+type Allowed = { sizes: string[]; fits: string[]; governorates: string[]; payment_methods: string[] };
 
 export default function RulesScreen() {
   const { signOut } = useSession();
@@ -146,7 +159,7 @@ export default function RulesScreen() {
     void load();
   }, [load]);
 
-  const toggle = (key: 'sizes' | 'fits' | 'governorates', value: string) => {
+  const toggle = (key: 'sizes' | 'fits' | 'governorates' | 'payment_methods', value: string) => {
     if (!rules) return;
     const on = rules[key].includes(value);
     // Order is preserved by rebuilding from `allowed`, so the shop's own
@@ -165,6 +178,7 @@ export default function RulesScreen() {
       governorates: rules.governorates,
       sizes: rules.sizes,
       fits: rules.fits,
+      payment_methods: rules.payment_methods,
     };
 
     for (const key of ['delivery_fee_fils', 'free_delivery_fils'] as const) {
@@ -203,7 +217,12 @@ export default function RulesScreen() {
     }
   };
 
-  const chips = (key: 'sizes' | 'fits' | 'governorates', title: string, hint: string) => (
+  const chips = (
+    key: 'sizes' | 'fits' | 'governorates' | 'payment_methods',
+    title: string,
+    hint: string,
+    labelFor: (v: string) => string = (v) => v,
+  ) => (
     <View style={styles.block}>
       <ThemedText type="labelBold">{title}</ThemedText>
       <ThemedText style={styles.hint}>{hint}</ThemedText>
@@ -211,7 +230,7 @@ export default function RulesScreen() {
         {(allowed?.[key] ?? []).map((v) => (
           <Chip
             key={v}
-            label={v}
+            label={labelFor(v)}
             active={!!rules?.[key].includes(v)}
             onPress={() => toggle(key, v)}
           />
@@ -298,6 +317,13 @@ export default function RulesScreen() {
           {chips('sizes', 'Sizes',
             'Which of the sizes this shop offers, in the order they appear.')}
           {chips('fits', 'Fits', 'Which fits a customer may choose from.')}
+          {chips('payment_methods', 'Payment methods',
+            'Which ways to pay this shop accepts. At least one must stay on — turning them '
+            + 'all off would leave nothing for a customer to check out with. WARNING: like '
+            + 'the delivery areas above, the checkout may still list a method that is turned '
+            + 'off here in fixed text — turning one off refuses it at the last step rather '
+            + 'than hiding the button, since the website has no source in this repository.',
+            (v) => PAY_LABELS[v] ?? v)}
 
           <View style={styles.actions}>
             <Button label={busy ? 'Saving…' : 'Save rules'} onPress={save} disabled={busy} />

@@ -76,6 +76,7 @@
     governorates: 'the delivery areas',
     sizes: 'the sizes',
     fits: 'the fits',
+    payment_methods: 'the payment methods',
   }
 
   function explain(err) {
@@ -120,10 +121,24 @@
     ['review_reward_pct', 'Review reward', '%', 'Discount for reviewing a purchase.'],
     ['discount_max_pct', 'Discount cap', '%', 'Most any combination may take off one order.'],
   ]
+  // cod/knet/tpay are the server's own names (store.php's STORE_PAY_METHODS);
+  // "online link" is what the owner calls tpay — the QR/hosted-page half of
+  // the same CBK gateway KNET runs through (pay/cbk.php,
+  // tij_MerchPayType=2) — so the checkbox shows the owner's word rather than
+  // the code's, the one place in this LISTS array the raw value is not
+  // already what a shopper would call it.
+  var PAY_LABELS = { cod: 'Cash on delivery', knet: 'KNET', tpay: 'Online link (T-Pay)' }
+
   var LISTS = [
     ['governorates', 'Delivery areas', 'Outside these, checkout is refused. WARNING: the checkout still lists all six in fixed text, so removing one refuses the customer at the last step rather than hiding it.'],
     ['sizes', 'Sizes', 'Offered, in this order.'],
     ['fits', 'Fits', 'Offered.'],
+    ['payment_methods', 'Payment methods',
+      'Which ways to pay this shop accepts. At least one must stay on. WARNING: like the '
+      + 'delivery areas above, the checkout may still show a method turned off here — it is '
+      + 'refused at the last step rather than hidden, since neither website bundle has source '
+      + 'in this repository.',
+      function (v) { return PAY_LABELS[v] || v }],
   ]
 
   // fils -> a KWD string with three decimals, which is how this shop writes
@@ -185,6 +200,7 @@
 
     LISTS.forEach(function (f) {
       var key = f[0]
+      var labelFor = f[3] || function (v) { return v }
       var block = el('div', 'srl-list')
       block.appendChild(el('span', 'srl-label', f[1]))
       block.appendChild(el('span', 'srl-hint', f[2]))
@@ -199,7 +215,7 @@
         cb.dataset.list = key
         cb.dataset.value = value
         lab.appendChild(cb)
-        lab.appendChild(el('span', null, value))
+        lab.appendChild(el('span', null, labelFor(value)))
         box.appendChild(lab)
       })
       block.appendChild(box)

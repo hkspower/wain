@@ -1295,6 +1295,12 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
     $method = strtolower(trim((string)($b['payment_method'] ?? 'knet')));
     if (!in_array($method, STORE_PAY_METHODS, true)) store_fail('invalid_payment_method');
+    // STORE_PAY_METHODS above is the security floor — the full set this code
+    // knows how to route at all. This is the owner's business choice on top
+    // of it: a method the owner has switched off in /backends is refused the
+    // same way an unknown one is, by name, so the checkout can show why
+    // rather than a payment failing at the bank with no reason given.
+    if (!in_array($method, store_rule($db, 'payment_methods'), true)) store_fail('payment_method_disabled');
 
     // Which language the bank's own page should open in. Arabic is this shop's
     // default everywhere else and is the default here too; a customer who was

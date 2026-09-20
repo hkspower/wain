@@ -1919,6 +1919,7 @@ if ($r === 'settings_save' && $method === 'POST') {
         $sizes = $subset('sizes', STORE_SIZES);
         $fits  = $subset('fits',  STORE_FITS);
         $govs  = $subset('governorates', STORE_GOVERNORATES);
+        $payMethods = $subset('payment_methods', STORE_PAY_METHODS);
 
         // THE ORPHAN GUARD, and the reason sizes are not simply a free list.
         //
@@ -1964,6 +1965,7 @@ if ($r === 'settings_save' && $method === 'POST') {
             'governorates'       => $govs,
             'sizes'              => $sizes,
             'fits'               => $fits,
+            'payment_methods'    => $payMethods,
         ]);
     } else {
         store_fail('unknown_setting');
@@ -2017,9 +2019,10 @@ if ($r === 'rules' && $method === 'GET') {
         // and a picker offering a size MySQL will refuse is a checkout that
         // dies on its last step.
         'allowed'  => [
-            'sizes'        => STORE_SIZES,
-            'fits'         => STORE_FITS,
-            'governorates' => STORE_GOVERNORATES,
+            'sizes'            => STORE_SIZES,
+            'fits'             => STORE_FITS,
+            'governorates'     => STORE_GOVERNORATES,
+            'payment_methods'  => STORE_PAY_METHODS,
         ],
     ]);
 }

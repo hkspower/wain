@@ -633,6 +633,7 @@ export type ShopRules = {
   governorates: string[];
   sizes: string[];
   fits: string[];
+  payment_methods: string[];
 };
 
 /** Four more addresses the owner keeps on file, exactly as ?r=contact_emails
@@ -1541,7 +1542,7 @@ export const adminApi = {
   rules: () => call<{
     rules: ShopRules;
     defaults: ShopRules;
-    allowed: { sizes: string[]; fits: string[]; governorates: string[] };
+    allowed: { sizes: string[]; fits: string[]; governorates: string[]; payment_methods: string[] };
   }>('rules'),
 
   /** Save any subset. An absent field keeps what is stored, so a screen that

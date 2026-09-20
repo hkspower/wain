@@ -2437,6 +2437,13 @@ function store_rule_defaults(): array {
         'governorates'       => STORE_GOVERNORATES,
         'sizes'              => STORE_SIZES,
         'fits'               => STORE_FITS,
+        // Which of the three ways to pay this shop actually accepts, and in
+        // what order the checkout offers them. A SUBSET of STORE_PAY_METHODS,
+        // the same shape as sizes/fits — the owner can turn one off, never
+        // invent a fourth: ?r=order still validates against the full
+        // STORE_PAY_METHODS list as the security floor (a disabled method is
+        // a business choice, not a hole to accept an unknown one through).
+        'payment_methods'    => STORE_PAY_METHODS,
     ];
 }
 
@@ -2486,6 +2493,11 @@ function store_rules_public(PDO $db): array {
         'governorates'       => $r['governorates'],
         'sizes'              => $r['sizes'],
         'fits'               => $r['fits'],
+        // Unlike cod_open_max/discount_max_pct/review_reward_pct just above
+        // this function's own comment, this is not an internal limit — the
+        // checkout has to know which payment buttons to show at all, the same
+        // reason sizes and fits are public and the COD ceiling is not.
+        'payment_methods'    => $r['payment_methods'],
     ];
 }
 

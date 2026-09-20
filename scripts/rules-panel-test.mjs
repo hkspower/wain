@@ -104,7 +104,7 @@ try {
       .map((c) => `${c.name}=${c.value}`).join('; ') },
   })).json()
   const wantChips = allowed.allowed.sizes.length + allowed.allowed.fits.length
-    + allowed.allowed.governorates.length
+    + allowed.allowed.governorates.length + allowed.allowed.payment_methods.length
   check(chips === wantChips,
     'every chip comes from the server’s own allowed lists', `card=${chips} server=${wantChips}`)
 
