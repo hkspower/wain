@@ -513,7 +513,7 @@ const plan = {
   commit,
   publish,
   branch,
-  digest: build.digest,
+  digest: archiveBuild.digest,
   docroot: DOCROOT,
   url,
   urlState,
@@ -532,7 +532,7 @@ console.log(`  built    ${commit.slice(0, 8)}  (${branch})`);
 console.log(publish
   ? `  zip at   ${publish.slice(0, 8)}${publish === commit ? "" : "  — the commit that publishes the archive"}`
   : `  zip at   hosted outside the repository — nothing enters history`);
-console.log(`  digest   ${build.digest}`);
+console.log(`  digest   ${archiveBuild.digest}`);
 console.log(`  archive  ${(zipBytes / 1048576).toFixed(2)} MB, sha256 ${zipSha.slice(0, 16)}…`);
 console.log(`  export   ${Object.keys(files).length} files`);
 console.log(`  url      ${url}`);
