@@ -182,16 +182,54 @@ console.log(
 // pair, and its mast is turned to follow the road. On a straight both
 // would be zero; on the radius the scene claims, 150 m up the road is
 // 4.6 degrees short of 36 off the line.
+//
+// Parked first, unlike s0/s1 above — which are deliberately LIVE, two
+// samples 1.5 s apart, because "rolling" and "speed" need to catch the
+// loop moving. This check needs the opposite: one fixed instant, or
+// which lamp is nearest s=0 and which is nearest s=150 depends on
+// whatever real-time phase the free-running loop happened to be at
+// when the page was sampled — and since lamps alternate side every
+// 30 m, an unlucky phase can pair a near lamp on one side with a far
+// lamp on the other. Measured: two runs of this exact check on
+// unmodified code read 43.2 m and 47.4 m for the same "150 m up the
+// road" distance, and the first of those failed outright — not because
+// the corner is wrong (the parked "seam" and "together" checks agree
+// on it every time), but because the measurement itself was reading a
+// moving target.
+const cornerLamps = await page.evaluate(() => {
+  const a = window.__grnAttract;
+  a.park(0);
+  a.scene.updateMatrixWorld(true);
+  const lamps = [];
+  a.scene.traverse((o) => {
+    if (o.name === "lamp") lamps.push({ s: o.userData.s, x: o.position.x, z: o.position.z, yaw: o.rotation.y });
+  });
+  a.park(null);
+  return lamps;
+});
 {
-  const near = s0.lamps.reduce((a, l) => (Math.abs(l.s) < Math.abs(a.s) ? l : a));
-  const farL = s0.lamps.reduce((a, l) => (Math.abs(l.s - 150) < Math.abs(a.s - 150) ? l : a));
-  const sameSide = Math.sign(near.x) === Math.sign(farL.x);
+  const near = cornerLamps.reduce((a, l) => (Math.abs(l.s) < Math.abs(a.s) ? l : a));
+  const farL = cornerLamps.reduce((a, l) => (Math.abs(l.s - 150) < Math.abs(a.s - 150) ? l : a));
   const off = Math.abs(farL.x - near.x);
   const expected = s0.R > 0 ? s0.R * (1 - Math.cos(150 / s0.R)) : 0;
   const turned = Math.abs(farL.yaw - near.yaw);
+  // NOT also checking the two lamps land on the same side of the road
+  // (same sign of world x) — that used to be here, and it was wrong for
+  // a bend this sharp. The 300 m span this menu covers turns 72° of a
+  // 240 m radius; at 150 m up it the road has already turned 36°, and a
+  // lamp held at a FIXED lateral offset from a CURVING centreline sweeps
+  // its own world-x across zero over a turn that sharp, on purpose —
+  // that is what going round a corner means for a point off to one
+  // side of it. Measured directly off the scene: the s=0 and s=150
+  // lamps are both on the same physical side (their `u` offset from the
+  // centreline never changes), yet the s=0 one sat at x=+9.1 and the
+  // s=150 one at x=-38.0 — opposite signs, same side, nothing wrong.
+  // What actually proves the corner is shaped right is `off` matching
+  // the arc's own trig to within tolerance, which is the next check,
+  // and does not need this one riding along beside it.
   console.log(
     `corner    ${check(
-      s0.R > 0 && sameSide && off > 20 && Math.abs(off - expected) < 6 && turned > 0.4,
+      s0.R > 0 && off > 20 && Math.abs(off - expected) < 6 && turned > 0.4,
       s0.R <= 0
         ? "the scene reports no bend — the menu road is straight"
         : off <= 20

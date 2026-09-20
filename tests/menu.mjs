@@ -39,7 +39,7 @@ const landed = await page.evaluate(()=>({
 }));
 console.log(`menu         ${landed.items.join(" / ")}`);
 check(landed.items[0] === "START ENGINE", `first item is "${landed.items[0]}", not START ENGINE`);
-check(landed.items.length === 5, `${landed.items.length} menu items, expected 5`);
+check(landed.items.length === 6, `${landed.items.length} menu items, expected 6`);
 check(!landed.engine, "the game engine was built before the player chose to start");
 check(landed.attract, "no intro canvas behind the menu");
 
@@ -90,7 +90,7 @@ console.log(`keyboard     selection ${nav.start} →↓ ${nav.down1} →↓ ${na
 check(nav.start === 0, "the menu does not open on its first item");
 check(nav.down1 === 1 && nav.down2 === 2, "arrow keys do not move the menu selection");
 check(nav.up === 1, "the menu will not go back up");
-check(nav.wrapped === 4, `arrow-up off the top landed on ${nav.wrapped}, not the last item`);
+check(nav.wrapped === 5, `arrow-up off the top landed on ${nav.wrapped}, not the last item`);
 
 // --- 4. Each item opens the screen it advertises. These overlays sit
 // ON TOP of the menu rather than replacing it, so "the menu nav is
@@ -102,11 +102,17 @@ await page.waitForTimeout(500);
 const garageTxt = await overlayText();
 const garageOpen = /SUPERCARS|SPORT CARS|NORMAL CARS/i.test(garageTxt);
 console.log(`garage       showroom on screen ${check(garageOpen, "the GARAGE item did not open the garage")}`);
-// Back out however this overlay closes
-for (const sel of ["text=CLOSE", "text=BACK", "text=DONE"]) {
-  const el = await page.$(sel);
-  if (el) { await el.click(); break; }
-}
+// Back out with Escape, the way CREDITS closes below — Garage.tsx wires
+// its own keydown listener straight to onClose() (Garage.tsx:224-227).
+// This used to hunt a DONE/CLOSE/BACK button by text, in that order,
+// and clicked the FIRST match — which was "text=BACK", found not on a
+// button at all but inside the dealer's own flavour text ("trade it
+// back in"). Clicking that inert paragraph did nothing, the loop broke
+// anyway, and the garage stayed open and ate every click meant for the
+// menu underneath it for the rest of the run.
+await page.keyboard.press("Escape");
+await page.waitForTimeout(500);
+check(!(await page.$(".garage-backdrop")), "Escape does not close the garage");
 await page.waitForTimeout(500);
 
 await page.click("nav[aria-label='Main menu'] >> text=CREDITS");
