@@ -1008,6 +1008,10 @@ if (music) {
     const crash = await measure(flat, 420, (snd) => {
       snd.scrape(1);
       snd.backfire(2.4);
+      // A nitro launch is a thing a player actually does mid-crash —
+      // catches for something coming off the road with the bottle
+      // still open — so the worst realistic mix includes it too.
+      snd.nosKick();
     }, staged);
     // PROVE THE LIMITER LIMITS.
     //

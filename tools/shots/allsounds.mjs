@@ -145,7 +145,7 @@ if (proof < 0.02) {
 // call. A partial frame is not a smaller frame, it is a broken one.
 const FRAME = {
   speedKmh: 0, throttle: 0, rpmFrac: 0, gear: 1, skid: 0,
-  boost: 0, nosActive: false, brake: 0, driftYaw: 0, spin: 0, limited: 0,
+  boost: 0, brake: 0, driftYaw: 0, spin: 0, limited: 0,
   liftRate: 0, rumble: 0, coast: 0, rain: 0, wet: 0, enclosure: 0,
   seaX: 0, seaZ: 400, rival: null, others: [],
   listener: { x: 0, y: 1, z: 0, fx: 0, fy: 0, fz: -1, ux: 0, uy: 1, uz: 0 },
@@ -163,6 +163,8 @@ const SOUNDS = [
   ["shift", 320],
   ["backfire", 420],
   ["blowOff", 360],
+  ["nosKick", 260],
+  ["nosRelease", 320],
   ["bump light", 360],
   ["bump hard", 460],
   ["scrape light", 360],
@@ -189,7 +191,11 @@ const HELD = [
   ["coasting", { speedKmh: 100, rpmFrac: 0.35, throttle: 0, gear: 5, coast: 1 }],
   ["wheelspin", { speedKmh: 30, rpmFrac: 0.95, throttle: 1, gear: 1, spin: 1, skid: 0.8 }],
   ["boost", { speedKmh: 140, rpmFrac: 0.8, throttle: 1, gear: 4, boost: 1 }],
-  ["nitrous", { speedKmh: 150, rpmFrac: 0.85, throttle: 1, gear: 5, nosActive: true }],
+  // nosOn is not a SoundFrame field — see hold() below. The real NOS
+  // voice is driven by a direct setNos() call, not by update(), the
+  // same way horn is a direct hornOn()/hornOff() pair rather than a
+  // frame field; this is the one HELD entry that needs that.
+  ["nitrous", { speedKmh: 150, rpmFrac: 0.85, throttle: 1, gear: 5, nosOn: true }],
   ["rain", { speedKmh: 60, rpmFrac: 0.4, throttle: 0.4, gear: 3, rain: 1, wet: 1 }],
   ["tunnel", { speedKmh: 120, rpmFrac: 0.7, throttle: 1, gear: 4, enclosure: 1 }],
   ["rumble strip", { speedKmh: 90, rpmFrac: 0.6, throttle: 0.7, gear: 3, rumble: 1 }],
@@ -215,6 +221,10 @@ const swept = await page.evaluate(async ([ONESHOTS, HELD_IN, FRAME_IN]) => {
   const idle = () => { for (let i = 0; i < 8; i++) s.update(FRAME_IN); };
   const hold = (over) => {
     const f = { ...FRAME_IN, ...over };
+    // nosOn is not part of SoundFrame — NOS is driven by a direct
+    // setNos() call in the real game (engine.ts), not through update(),
+    // so a HELD scene that wants it on has to make that call itself.
+    if ("nosOn" in over) s.setNos(!!over.nosOn);
     for (let i = 0; i < 30; i++) s.update(f);
   };
   const peakOver = async (ms) => {
@@ -239,6 +249,8 @@ const swept = await page.evaluate(async ([ONESHOTS, HELD_IN, FRAME_IN]) => {
     shift: () => s.update({ ...FRAME_IN, speedKmh: 60, rpmFrac: 0.9, throttle: 1, gear: 3 }),
     backfire: () => s.backfire(1),
     blowOff: () => s.blowOff(),
+    nosKick: () => s.nosKick(),
+    nosRelease: () => s.nosRelease(),
     "bump light": () => s.bump(0.25),
     "bump hard": () => s.bump(1),
     "scrape light": () => s.scrape(0.3),

@@ -1440,6 +1440,9 @@ export class GameEngine {
   private painterState: HudData["painter"] = null;
   private nosCharge = 1; // 0..1, drains while N is held
   private nosActive = false;
+  /** So the kick/release one-shots fire on the edge, not every frame —
+   *  the same latch `boostDumping` uses for the turbo's valve. */
+  private nosWasActive = false;
   // Handling model: heading relative to the track tangent, smoothed
   // steering input, centrifugal slip in curves, weight-transfer pitch
   private heading = 0;
@@ -4732,6 +4735,13 @@ export class GameEngine {
       this.throttle > 0;
     if (this.nosActive) this.nosCharge = Math.max(0, this.nosCharge - dt / 3);
     else this.nosCharge = Math.min(1, this.nosCharge + dt * 0.06);
+    // The kick and the release latch on the edge, exactly like the
+    // turbo's blow-off valve above — a run-dry mid-boost is just
+    // nosActive going false on its own, so it gets the same release
+    // cue as letting go of the key, for free.
+    if (this.nosActive && !this.nosWasActive) this.sound?.nosKick();
+    else if (!this.nosActive && this.nosWasActive) this.sound?.nosRelease();
+    this.nosWasActive = this.nosActive;
     this.sound?.setNos(this.nosActive);
 
     // Where the needle is, and therefore what the engine is willing to
@@ -7155,7 +7165,6 @@ export class GameEngine {
       gear: speedKmh < 2 ? 0 : gear + 1,
       skid,
       boost: this.boost,
-      nosActive: this.nosActive,
       brake: this.brake,
       driftYaw: this.driftYaw,
       // The ear gets told what the camera and the steering already

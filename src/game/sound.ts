@@ -21,7 +21,6 @@ export interface SoundFrame {
   gear: number; // 1..6 (0 = neutral)
   skid: number; // 0..1 tire slide intensity
   boost?: number; // 0..1 turbo boost (drives the whistle)
-  nosActive?: boolean;
   brake?: number; // 0..1 pedal pressure — drives disc squeal and pad rumble
   driftYaw?: number; // |body slip| in radians — colours the squeal
   /**
@@ -448,6 +447,8 @@ export class SoundEngine {
   private whineGain: GainNode | null = null;
   private whineMode: "none" | "turbo" | "super" = "none";
   private nosGain: GainNode | null = null;
+  /** The lower "rush of air" layer under the NOS hiss — see setNos(). */
+  private nosBodyGain: GainNode | null = null;
 
   // 3D bus — everything positional hangs off these
   private panners = new Map<string, { panner: PannerNode; gain: GainNode }>();
@@ -1079,7 +1080,18 @@ export class SoundEngine {
     this.oneShotNoise("highpass", 3800, 0.12, 0.25);
   }
 
-  /** NOS hiss while the bottle is open. */
+  /**
+   * NOS hiss while the bottle is open — two layers, built once and
+   * lazily, ridden with the same gain ramp every call.
+   *
+   * The top layer is the original highpass hiss: the escaping gas
+   * itself. On its own it reads thin next to everything else in this
+   * file, which layers a body under its top end (`scrape`'s bandpass
+   * crack under its highpass grind, `bump`'s ring under its boom) — so
+   * a second, independently filtered noise source sits under it here
+   * too, a lower bandpass "rush of air" that gives the hiss something
+   * to stand on rather than floating alone at 2.2 kHz.
+   */
   setNos(active: boolean): void {
     if (!this.nosGain) {
       this.nosGain = this.ctx.createGain();
@@ -1089,7 +1101,65 @@ export class SoundEngine {
       filter.frequency.value = 2200;
       this.loopNoise().connect(filter).connect(this.nosGain).connect(this.bed);
     }
-    this.nosGain.gain.setTargetAtTime(active ? 0.09 : 0, this.ctx.currentTime, 0.04);
+    if (!this.nosBodyGain) {
+      this.nosBodyGain = this.ctx.createGain();
+      this.nosBodyGain.gain.value = 0;
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.value = 650;
+      filter.Q.value = 0.8;
+      this.loopNoise().connect(filter).connect(this.nosBodyGain).connect(this.bed);
+    }
+    const t = this.ctx.currentTime;
+    this.nosGain.gain.setTargetAtTime(active ? 0.09 : 0, t, 0.04);
+    this.nosBodyGain.gain.setTargetAtTime(active ? 0.11 : 0, t, 0.04);
+  }
+
+  /**
+   * The bottle opening: a short falling thump plus a bright noise
+   * whoosh, the same attack shape `backfire()` uses for its own thump —
+   * louder and quicker than the sustain it hands off to, so the two
+   * read as one event rather than the sustain just fading up on its
+   * own.
+   */
+  nosKick(): void {
+    if (this.playSample("nos-kick", 0.6)) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(260, t);
+    osc.frequency.exponentialRampToValueAtTime(70, t + 0.09);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.18, t);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + 0.13);
+    osc.connect(g).connect(this.sfx);
+    osc.start(t);
+    osc.stop(t + 0.14);
+    this.oneShotNoise("highpass", 3400, 0.14, 0.1);
+  }
+
+  /**
+   * The bottle shutting — whether the player let go or the charge ran
+   * out mid-boost, both are just `nosActive` going false, so both get
+   * this. A softer, shorter downward sweep than the kick: the `bump()`
+   * falling-sine idiom, sized down so on and off do not read as the
+   * same sound played backwards.
+   */
+  nosRelease(): void {
+    if (this.playSample("nos-release", 0.4)) return;
+    const t = this.ctx.currentTime;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(2600, t);
+    filter.frequency.exponentialRampToValueAtTime(220, t + 0.18);
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseOne();
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.09, t);
+    g.gain.exponentialRampToValueAtTime(0.0006, t + 0.2);
+    src.connect(filter).connect(g).connect(this.sfx);
+    src.start(t, Math.random());
+    src.stop(t + 0.22);
   }
 
   /** One buffer out of the pool, at random — a one-shot that reaches for
