@@ -47,6 +47,30 @@ export function stepSpring(s: SpringState, target: number, k: number, c: number,
 }
 
 /**
+ * The blend factor for a first-order lag of rate `rate` over `dt`.
+ *
+ * Everything in the rig that is not a spring is an exponential chase
+ * toward a target, and every one of them was written as the linearised
+ * `Math.min(1, dt * rate)`. That is the first term of the real answer,
+ * and it is only close while `rate * dt` is small. It is not small: at
+ * 30 fps the gear lever's rate of 22 gives 0.733 per frame against a
+ * true 0.520, so a thirty-hertz player's hand moved to the knob half
+ * again as fast as a sixty-hertz player's, and the clamp at 1 meant
+ * every rate above 1/dt arrived INSTANTLY however slow it was meant to
+ * be. The exponential is the closed form of the same differential
+ * equation, integrated exactly, so the pose after a second of easing is
+ * the same pose whatever the frame rate delivered it in.
+ *
+ * `dt >= 1` still snaps, for the same reason stepSpring does: cars.ts
+ * settles a fresh rig by handing the solver a whole second and wants
+ * the rest pose out of it, not a second of easing toward one.
+ */
+export function lagK(rate: number, dt: number): number {
+  if (dt >= 1) return 1;
+  return 1 - Math.exp(-rate * dt);
+}
+
+/**
  * The peak a step input reaches on an underdamped spring, as a multiple
  * of the target: 1 + exp(−πζ/√(1−ζ²)). The same figure attitude.ts
  * derives for the suspension stroke; here so a test can size what a

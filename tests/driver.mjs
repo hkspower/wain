@@ -147,7 +147,95 @@ const footOf = (rig, side) => { const leg = rig.legs.find((l) => l.side === side
   console.log(`  ${check(Math.abs(c.lean.rotation.z + D.leanPerG) < 1e-6, `dt=1 left the lean at ${c.lean.rotation.z} instead of the rest pose`)}  a whole second settles the rig`);
 }
 
-// --- 6. A lean rig still solves with the short call --------------------
+// --- 6. A pedal has travel, and the foot on it takes time -------------
+// The player's throttle and brake are KEYS — 0 or 1, the only unsmoothed
+// controls in the game — so a face written straight from the press
+// crossed its whole stroke in ONE FRAME and took the foot with it.
+// Measured before the pedal became a spring: 50.00 mm of travel on the
+// first frame of a brake stab, and 50.00 on every frame after.
+{
+  const rig = fresh();
+  for (let i = 0; i < 120; i++) solveDriverRig(rig, 0, 0, 0, look, DT, 0, 0);
+  const restZ = rig.pedals.brake.userData.restZ;
+  const travel = [];
+  for (let i = 0; i < 30; i++) {
+    solveDriverRig(rig, 0, 0, 1, look, DT, 0, 0);
+    travel.push(rig.pedals.brake.position.z - restZ);
+  }
+  const full = D.pedalTravelZ;
+  const first = travel[0] / full;
+  const settled = travel[travel.length - 1] / full;
+  const frames = travel.findIndex((t) => t / full > 0.9) + 1;
+  const jump = Math.max(...travel.map((t, i) => (i ? t - travel[i - 1] : t))) / full;
+  console.log(`pedal     a key-stab of brake moves the face ${(first * 100).toFixed(0)}% of its stroke on frame 1, 90% by frame ${frames}, ${(settled * 100).toFixed(0)}% settled; biggest single frame ${(jump * 100).toFixed(0)}%`);
+  console.log(`  ${check(first < 0.35, `the pedal crossed ${(first * 100).toFixed(0)}% of its travel in one frame — that is a switch, not a pedal`)}  a pedal is not a switch`);
+  console.log(`  ${check(frames >= 3 && frames <= 12, `the face reached 90% at frame ${frames}`)}  it takes a handful of frames to go down`);
+  console.log(`  ${check(settled > 0.98 && settled <= 1 + 1e-9, `a held pedal settled at ${(settled * 100).toFixed(1)}% of its travel`)}  and a held pedal is fully down`);
+  console.log(`  ${check(jump < 0.35, `one frame moved the face ${(jump * 100).toFixed(0)}% of its stroke`)}  no frame teleports it`);
+}
+
+// --- 7. The shoulders have mass, and still lead the rim ---------------
+// rig.lean.rotation.y was the one axis of the body written straight off
+// the steering input with no filter at all — a step of steer put it at
+// its target on frame 0, exactly 1.000x, which is what a teleport reads
+// as. It is the root of both arm chains, so this is also where the limbs
+// get their follow-through: the IK carries the overshoot out to the
+// hands.
+{
+  const rig = fresh();
+  const steer = 0.5;
+  const want = -steer * D.shoulderYawPerLock;
+  let peak = 0, peakAt = 0;
+  for (let i = 0; i < 120; i++) {
+    solveDriverRig(rig, steer, 0, 0, look, DT, 0, 0);
+    const y = rig.lean.rotation.y;
+    if (Math.abs(y) > Math.abs(peak)) { peak = y; peakAt = i; }
+  }
+  const over = peak / want;
+  console.log(`shoulders ${springHz(D.yawK).toFixed(2)} Hz; a step of steer peaks at ${over.toFixed(3)}x its target on frame ${peakAt}, rest ${rig.lean.rotation.y.toFixed(5)} rad`);
+  console.log(`  ${check(over > 1.02, `the yaw peaked at ${over.toFixed(3)}x on frame ${peakAt} — a lerp cannot pass its target and a teleport peaks on frame 0`)}  the shoulders overshoot and settle`);
+  console.log(`  ${check(over < 1.2, `the yaw overshot ${over.toFixed(3)}x — that is a passenger, not a driver turning a wheel`)}  but only once, and not far`);
+  console.log(`  ${check(peakAt > 4, `the yaw peaked on frame ${peakAt}`)}  and take time getting there`);
+
+  // Sized against the WHEEL: a spring slower than the rim's first-order
+  // lag would put the shoulders BEHIND the wheel, which inverts what
+  // shoulderYawPerLock is for.
+  const r2 = fresh();
+  let leadAt = 0;
+  for (let i = 0; i < 60; i++) {
+    solveDriverRig(r2, Math.min(1, i / 30), 0, 0, look, DT, 0, 0);
+    if (i === 29) leadAt = r2.lean.rotation.y / -D.shoulderYawPerLock - r2.wheel.rotation.z / -D.steerLock;
+  }
+  console.log(`  ${check(leadAt > 0.01, `half a second into a sweep the shoulders are ${leadAt.toFixed(3)} of lock BEHIND the rim`)}  and still lead the wheel into the corner`);
+}
+
+// --- 8. The eases are exact, so the pose does not depend on the fps ---
+// Every non-spring ease in the rig was `Math.min(1, dt * rate)` — the
+// first term of the real answer, and only close while rate*dt is small.
+// It is not small: measured before this, 0.1 s of a held gearshift left
+// the hand at 0.589 / 0.561 / 0.541 of the way to the knob at 30 / 60 /
+// 144 Hz. Same tenth of a second, three different poses.
+{
+  const held = (hz, seconds, fn) => {
+    const rig = fresh();
+    const dt = 1 / hz;
+    for (let i = 0; i < Math.round(hz * seconds); i++) fn(rig, dt);
+    return rig;
+  };
+  const shift = (rig, dt) => solveDriverRig(rig, 0, 0, 0, look, dt, 0, 0, 0, 0.6);
+  const brake = (rig, dt) => solveDriverRig(rig, 0.4, 0, 1, look, dt, 0, -8);
+  const rates = [30, 60, 120];
+  const blends = rates.map((hz) => held(hz, 0.1, shift).shiftBlend);
+  const feet = rates.map((hz) => held(hz, 0.1, brake).footBlend);
+  const wheels = rates.map((hz) => held(hz, 0.1, brake).wheel.rotation.z);
+  const spread = (a) => Math.max(...a) - Math.min(...a);
+  console.log(`framerate 0.1 s at ${rates.join("/")} Hz: shift hand ${blends.map((b) => b.toFixed(4)).join(" / ")}, foot swap ${feet.map((b) => b.toFixed(4)).join(" / ")}, wheel ${wheels.map((b) => b.toFixed(4)).join(" / ")}`);
+  console.log(`  ${check(spread(blends) < 2e-3, `the shift hand is ${spread(blends).toFixed(4)} apart across frame rates`)}  the gear hand lands in one place`);
+  console.log(`  ${check(spread(feet) < 2e-3, `the foot swap is ${spread(feet).toFixed(4)} apart across frame rates`)}  and so does the foot`);
+  console.log(`  ${check(spread(wheels) < 2e-3, `the wheel is ${spread(wheels).toFixed(4)} rad apart across frame rates`)}  and the rim`);
+}
+
+// --- 9. A lean rig still solves with the short call --------------------
 {
   const rig = kuwaitiDriver(0x333333, 0xc09070, true);
   let threw = false;

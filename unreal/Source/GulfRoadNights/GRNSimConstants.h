@@ -377,6 +377,8 @@ namespace GRNRig
 	constexpr float DriverNeckC = 13.f;
 	constexpr float DriverHeadCounter = 0.45f;
 	constexpr float DriverShoulderYawPerLock = 0.05f;
+	constexpr float DriverYawK = 420.f;
+	constexpr float DriverYawC = 25.f;
 	constexpr float DriverBreathAmp = 0.003f;
 	constexpr float DriverBreathHz = 0.27f;
 	constexpr float DriverWheelRadius = 0.16f;
@@ -397,6 +399,8 @@ namespace GRNRig
 	constexpr float DriverPedalPitch = -0.55f;
 	constexpr float DriverPedalTravelZ = 0.05f;
 	constexpr float DriverPedalTravelY = 0.015f;
+	constexpr float DriverPedalK = 700.f;
+	constexpr float DriverPedalC = 45.f;
 	constexpr float DriverArmPoleX = 0.51f;
 	constexpr float DriverArmPoleY = -0.04f;
 	constexpr float DriverArmPoleZ = -0.06f;

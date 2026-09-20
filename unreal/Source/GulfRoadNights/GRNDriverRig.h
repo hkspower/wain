@@ -72,6 +72,20 @@ struct FGRNDriverRig
 	 *  lerp (torsoK/C in the rig), so it overshoots and settles. */
 	float LeanRollVel = 0.f;
 	float LeanPitchVel = 0.f;
+	/** The shoulders turning into the corner — the third axis of the
+	 *  same torso, and a spring for the same reason (yawK/C). It is the
+	 *  root of both arm chains, so this is where the limbs' secondary
+	 *  motion comes from. */
+	float LeanYaw = 0.f;
+	float LeanYawVel = 0.f;
+	/** How far each pedal face has actually travelled, 0..1, and how
+	 *  fast. A pedal is a mass on its return spring, not a switch: the
+	 *  player's throttle and brake are keys, so without this the face
+	 *  and the foot on it cross the whole stroke in one frame. */
+	float ThrottleFace = 0.f;
+	float ThrottleFaceVel = 0.f;
+	float BrakeFace = 0.f;
+	float BrakeFaceVel = 0.f;
 	/** The head's counter-roll, as a second spring on the neck, and its
 	 *  velocity — the lag behind the shoulders. */
 	float HeadRoll = 0.f;

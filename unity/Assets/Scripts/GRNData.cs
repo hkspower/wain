@@ -843,6 +843,8 @@ public static class GRNData
         public const float DriverNeckC = 13f;
         public const float DriverHeadCounter = 0.45f;
         public const float DriverShoulderYawPerLock = 0.05f;
+        public const float DriverYawK = 420f;
+        public const float DriverYawC = 25f;
         public const float DriverBreathAmp = 0.003f;
         public const float DriverBreathHz = 0.27f;
         public const float DriverWheelRadius = 0.16f;
@@ -863,6 +865,8 @@ public static class GRNData
         public const float DriverPedalPitch = -0.55f;
         public const float DriverPedalTravelZ = 0.05f;
         public const float DriverPedalTravelY = 0.015f;
+        public const float DriverPedalK = 700f;
+        public const float DriverPedalC = 45f;
         public const float DriverArmPoleX = 0.51f;
         public const float DriverArmPoleY = -0.04f;
         public const float DriverArmPoleZ = -0.06f;

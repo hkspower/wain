@@ -89,6 +89,29 @@ export const RIG = {
      *  radians of torso yaw at full lock. Small, but the arms re-solve
      *  around it and a cabin shot reads it. */
     shoulderYawPerLock: 0.05,
+    /**
+     * AND THE SHOULDERS HAVE MASS TOO.
+     *
+     * The lean and the fold are springs; the yaw on the same torso was
+     * written straight off the steering input with no filter of any
+     * kind — not even the lerp the wheel gets — so the one axis of the
+     * body driven by the player's own hands was the one axis that
+     * snapped. Now it is the third spring on the torso, and because the
+     * arms are solved onto grips bolted to the CAR, a shoulder that
+     * overshoots and settles drags both arms through the overshoot with
+     * it. That is the whole of the limbs' secondary motion: it comes out
+     * of the IK for free, the moment the root of the chain has weight.
+     *
+     * 3.3 Hz, ζ ≈ 0.6 — stiffer and lighter than the lean, because this
+     * is a deliberate muscular turn and not a body being thrown. Sized
+     * against the WHEEL: a first-order lag of rate `wheelRate` trails a
+     * sweep by 1/wheelRate = 83 ms, and this spring trails one by
+     * 2ζ/ωn = 59 ms, so the shoulders still lead the rim the way they
+     * always did — they now arrive with a small overshoot instead of
+     * arriving flat.
+     */
+    yawK: 420,
+    yawC: 25,
     /** Breathing. Three millimetres of chest rise at a resting rate —
      *  invisible at speed, and the difference between a person and a
      *  mannequin in the showroom and the menu loop, where the car sits
@@ -168,6 +191,28 @@ export const RIG = {
      *  moving face, so this travels all the way up the leg. */
     pedalTravelZ: 0.05,
     pedalTravelY: 0.015,
+    /**
+     * A PEDAL IS NOT A SWITCH.
+     *
+     * The pedal faces were written straight from the input, and the
+     * player's input is a KEY: throttle and brake are 0 or 1 with
+     * nothing between them (engine.ts's `throttle`/`brake` getters are
+     * the only unsmoothed controls in the game — the steer goes through
+     * steerSmooth, and every AI path filters its pedals through
+     * RIG.rival.pedalRate). So a tap of the brake teleported the pedal
+     * through its full travel in a single frame, and the foot — solved
+     * onto the face — teleported with it. A leg that arrives with no
+     * time taken is the one thing IK cannot hide.
+     *
+     * The fix belongs HERE rather than at the one call site, because
+     * this is a law about pedals and not about who is pressing them:
+     * the face is a mass on its return spring, and every caller gets it.
+     * 4.2 Hz, ζ ≈ 0.85 — about four frames of travel at sixty hertz,
+     * and no bounce worth the name, because the foot on it is what stops
+     * a real pedal ringing.
+     */
+    pedalK: 700,
+    pedalC: 45,
 
     /** Elbow pole, in the rig's own frame: elbows break outward and
      *  down, or a solved arm bends like a flamingo's knee. */

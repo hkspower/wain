@@ -33,6 +33,10 @@ import type { DriverRig } from "./characters";
 // and the showroom put a rigged driver in the seat too, and a private
 // method is only available to whoever already has an engine running.
 import { solveDriverRig, lookAheadFor } from "./driver";
+// The exact first-order lag the rig's own eases use. The AI paths that
+// feed the rig — the rival's and the traffic's visible steer and pedals
+// — are the same kind of filter and were the same linearisation.
+import { lagK } from "./spring";
 import { FLAGS, FLAG_IDS, flagTexture } from "./flags";
 import { verticalFov, chaseDolly, RACE_DOLLY } from "./aspect";
 import { driveCap, gripAtSpeed, newLoadState, solveLoad, type LoadResult } from "./grip";
@@ -5612,15 +5616,28 @@ export class GameEngine {
     for (let i = 0; i < near.length && i < TRAFFIC_DRIVERS_SOLVED; i++) {
       const t = near[i];
       const rig = t.mesh.userData.driver as DriverRig;
-      // The sim time this solve answers for. Capped: a car that has
-      // been out of range for a minute needs a snap, not a lurch.
-      const dtSolve = Math.min(0.25, t.rigDt);
+      // The sim time this solve answers for. A car that has been out of
+      // range for a minute needs a SNAP, not a lurch — so it gets the
+      // one dt that means exactly that: dt >= 1, the whole-second settle
+      // cars.ts uses to plant a fresh rig, which both stepSpring and
+      // lagK answer by putting the pose where it belongs and stopping.
+      //
+      // This used to cap at 0.25 s and rely on 0.25 x the slowest rig
+      // rate landing past 1, which the linearised min(1, dt*rate) read
+      // as a snap. Two things were wrong with that: the springs — the
+      // lean, the fold, the head — never saw the clamp at all, so a
+      // stale rig integrated a quarter-second of swing at the range
+      // edge and lurched exactly the way the comment promised it would
+      // not; and the clamp itself was an artefact of the linearisation
+      // rather than anything anyone chose. Said outright, it is true of
+      // the whole rig and survives the eases being integrated properly.
+      const dtSolve = t.rigDt > 0.25 ? 1 : t.rigDt;
       t.rigDt = 0;
       // Traffic holds its lane, so the lane term is zero and this is
       // the road term it always had — now stated once, in aiSteerWant,
       // where the rival and the remotes read it too.
       const steerWant = this.aiSteerWant(t.s, t.lat, t.lat);
-      t.steerVis += (steerWant - t.steerVis) * Math.min(1, dtSolve * RIG.rival.steerRate);
+      t.steerVis += (steerWant - t.steerVis) * lagK(RIG.rival.steerRate, dtSolve);
       this.track.pose(
         t.s + lookAheadFor(t.speed),
         t.lat * RIG.driver.lookLatK,
@@ -5649,7 +5666,7 @@ export class GameEngine {
         t.accel < RIG.rival.brakeAccel
           ? Math.min(1, -t.accel / RIG.rival.brakeScale)
           : 0;
-      t.brakeVis += (wantBrake - t.brakeVis) * Math.min(1, dtSolve * RIG.rival.pedalRate);
+      t.brakeVis += (wantBrake - t.brakeVis) * lagK(RIG.rival.pedalRate, dtSolve);
       solveDriverRig(
         rig,
         t.steerVis,
@@ -6984,7 +7001,7 @@ export class GameEngine {
     if (!rig) return;
     const R = RIG.rival;
     const steerWant = this.aiSteerWant(r.s, r.lat, r.targetLat);
-    r.steerVis += (steerWant - r.steerVis) * Math.min(1, dt * R.steerRate);
+    r.steerVis += (steerWant - r.steerVis) * lagK(R.steerRate, dt);
     const wantThrottle =
       accel > R.throttleAccel
         ? Math.min(1, accel / R.throttleScale)
@@ -6992,8 +7009,8 @@ export class GameEngine {
           ? R.cruiseThrottle
           : 0;
     const wantBrake = accel < R.brakeAccel ? Math.min(1, -accel / R.brakeScale) : 0;
-    r.throttleVis += (wantThrottle - r.throttleVis) * Math.min(1, dt * R.pedalRate);
-    r.brakeVis += (wantBrake - r.brakeVis) * Math.min(1, dt * R.pedalRate);
+    r.throttleVis += (wantThrottle - r.throttleVis) * lagK(R.pedalRate, dt);
+    r.brakeVis += (wantBrake - r.brakeVis) * lagK(R.pedalRate, dt);
 
     const gap = this.track.deltaAhead(r.s, this.player.s);
     if (Math.abs(gap) < R.glanceGapM && Math.abs(this.player.lat - r.lat) > R.glanceLatM) {

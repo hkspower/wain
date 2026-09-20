@@ -211,6 +211,15 @@ export interface DriverRig {
   foldS: SpringState;
   headRollS: SpringState;
   headPitchS: SpringState;
+  /** The third axis of the torso: the shoulders turning into the corner.
+   *  A spring like the other two, so the arms solved onto the wheel are
+   *  dragged through its overshoot — see RIG.driver.yawK. */
+  yawS: SpringState;
+  /** The pedal faces' own travel. A pedal is a mass on a return spring,
+   *  not a switch, and the player's throttle and brake are KEYS — so
+   *  without this the face, and the foot solved onto it, cross the whole
+   *  stroke in one frame. `rest` is the dead pedal and never moves. */
+  pedalS: { throttle: SpringState; brake: SpringState; clutch: SpringState };
   /** The right foot, 0 on the throttle to 1 on the brake; the left foot,
    *  0 on the rest to 1 on the clutch; and how far the right heel has
    *  rolled to the throttle in a heel-and-toe downshift. */
@@ -557,6 +566,8 @@ export function kuwaitiDriver(
     gear, shiftBlend: 0, shiftDir: 1,
     leanS: { x: 0, v: 0 }, foldS: { x: 0, v: 0 },
     headRollS: { x: 0, v: 0 }, headPitchS: { x: 0, v: 0 },
+    yawS: { x: 0, v: 0 },
+    pedalS: { throttle: { x: 0, v: 0 }, brake: { x: 0, v: 0 }, clutch: { x: 0, v: 0 } },
     footBlend: 0, clutchBlend: 0, heelToe: 0, t: 0,
   };
 }

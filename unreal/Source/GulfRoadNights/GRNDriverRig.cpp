@@ -369,6 +369,20 @@ FGRNDriverRig GRNDriverRig::Build(AActor* Owner, USceneComponent* AttachTo, FVec
 
 // ------------------------------------------------------------------ solve
 
+/** The exact first-order lag — src/game/spring.ts lagK. Everything in
+ *  the rig that is not a spring chases its target exponentially, and
+ *  every one of them was written as the linearised FMath::Min(1, Dt *
+ *  Rate): the first term only, and only close while Rate*Dt is small.
+ *  At 30 fps the gear rate of 22 gives 0.733 a frame against a true
+ *  0.520, so the pose after a tenth of a second depended on the frame
+ *  rate that delivered it. Dt >= 1 still snaps, for the same reason
+ *  StepSpring does. */
+static float LagK(float Rate, float Dt)
+{
+	if (Dt >= 1.f) return 1.f;
+	return 1.f - FMath::Exp(-Rate * Dt);
+}
+
 /** A damped spring, stepped — src/game/spring.ts. Substepped at 1/30 s
  *  so accumulated time is integrated, not clamped; a whole second snaps
  *  to the target, which is how a rig is settled once at build. */
@@ -422,12 +436,22 @@ void GRNDriverRig::Solve(FGRNDriverRig& Rig, float Steer, float Throttle, float 
 			Rig.LeanPitch = FoldMax;
 			Rig.LeanPitchVel = FMath::Min(0.f, Rig.LeanPitchVel);
 		}
+		// The shoulders turn into the corner as a SPRING too — the third
+		// axis of the same torso, and the one that was written straight
+		// off the steering input with no filter of any kind. It is the
+		// root of both arm chains, so a shoulder that overshoots and
+		// settles drags both arms through the overshoot: the limbs get
+		// their secondary motion out of the IK, for free, the moment the
+		// root of the chain has weight. Faster than the rim (see YawK),
+		// so the shoulders still lead the wheel.
+		StepSpring(Rig.LeanYaw, Rig.LeanYawVel, -Steer * GRNRig::DriverShoulderYawPerLock,
+			GRNRig::DriverYawK, GRNRig::DriverYawC, Dt);
 		// Web y-up roll about z maps to UE Roll about x; web fold about x
 		// maps to UE Pitch about y; web yaw about y maps to UE Yaw about z,
 		// negated with the handedness. See the axis note at the top.
 		Rig.Lean->SetRelativeRotation(FRotator(
 			FMath::RadiansToDegrees(Rig.LeanPitch),
-			FMath::RadiansToDegrees(Steer * GRNRig::DriverShoulderYawPerLock),
+			FMath::RadiansToDegrees(-Rig.LeanYaw),
 			FMath::RadiansToDegrees(Rig.LeanRoll)));
 		// And breathe: the body group sits at the rig origin.
 		Rig.T += Dt;
@@ -437,11 +461,10 @@ void GRNDriverRig::Solve(FGRNDriverRig& Rig, float Steer, float Throttle, float 
 
 	// Lock-to-lock is about a turn and a half each way in a road car.
 	const float Lock = Steer * GRNRig::DriverSteerLock;
-	Rig.WheelAngle += (-Lock - Rig.WheelAngle) * FMath::Min(1.f, Dt * GRNRig::DriverWheelRate);
+	Rig.WheelAngle += (-Lock - Rig.WheelAngle) * LagK(GRNRig::DriverWheelRate, Dt);
 
 	// The lever first, because the hand is solved onto wherever it is.
-	Rig.HbBlend += (FMath::Clamp(Handbrake, 0.f, 1.f) - Rig.HbBlend)
-		* FMath::Min(1.f, Dt * GRNRig::DriverHandbrakeRate);
+	Rig.HbBlend += (FMath::Clamp(Handbrake, 0.f, 1.f) - Rig.HbBlend) * LagK(GRNRig::DriverHandbrakeRate, Dt);
 	if (Rig.Handbrake)
 	{
 		// Web rotation.x maps to UE pitch about Y; HandbrakeRest is the
@@ -464,7 +487,7 @@ void GRNDriverRig::Solve(FGRNDriverRig& Rig, float Steer, float Throttle, float 
 	if (Rig.Head)
 	{
 		GRNIk::AimConstrained(Rig.Head, LookTarget, GRNRig::DriverNeckYaw,
-			GRNRig::DriverNeckPitch, FMath::Min(1.f, Dt * GRNRig::DriverNeckRate));
+			GRNRig::DriverNeckPitch, LagK(GRNRig::DriverNeckRate, Dt));
 		// The neck fights the lean. A driver's head stays closer to level
 		// than their shoulders do, which is why a helmet cam is watchable
 		// — so take a fraction of the body's roll back off the head.
@@ -535,18 +558,25 @@ void GRNDriverRig::Solve(FGRNDriverRig& Rig, float Steer, float Throttle, float 
 	// dead pedal — this rig carries two pedals, so the rest is the brake
 	// face unpressed. The clutch and the heel-and-toe blip are web-only
 	// until this Solve is handed the shift pulse.
-	Rig.FootBlend += ((Brake > Throttle ? 1.f : 0.f) - Rig.FootBlend)
-		* FMath::Min(1.f, Dt * GRNRig::DriverFootSwapRate);
-	const auto PressPedal = [&](USceneComponent* Pedal, float Amount)
+	Rig.FootBlend += ((Brake > Throttle ? 1.f : 0.f) - Rig.FootBlend) * LagK(GRNRig::DriverFootSwapRate, Dt);
+	// A PEDAL IS NOT A SWITCH. The face used to be written straight from
+	// the press, and the player's press is a key — 0 or 1, nothing in
+	// between — so a stab of brake put the pedal at the bottom of its
+	// stroke in one frame and the foot, solved onto the face, went with
+	// it. Every face is a mass on its return spring now (PedalK/C).
+	const auto PressPedal = [&](USceneComponent* Pedal, float& X, float& V, float Amount)
 	{
+		StepSpring(X, V, Amount, GRNRig::DriverPedalK, GRNRig::DriverPedalC, Dt);
 		if (!Pedal) return;
 		FVector P = Pedal->GetRelativeLocation();
-		P.X = Rig.PedalRest.X + Amount * GRNRig::DriverPedalTravelZ * K;
-		P.Z = Rig.PedalRest.Z - Amount * GRNRig::DriverPedalTravelY * K;
+		P.X = Rig.PedalRest.X + X * GRNRig::DriverPedalTravelZ * K;
+		P.Z = Rig.PedalRest.Z - X * GRNRig::DriverPedalTravelY * K;
 		Pedal->SetRelativeLocation(P);
 	};
-	PressPedal(Rig.PedalThrottle, FMath::Clamp(Throttle, 0.f, 1.f));
-	PressPedal(Rig.PedalBrake, FMath::Clamp(Brake, 0.f, 1.f));
+	PressPedal(Rig.PedalThrottle, Rig.ThrottleFace, Rig.ThrottleFaceVel,
+		FMath::Clamp(Throttle, 0.f, 1.f));
+	PressPedal(Rig.PedalBrake, Rig.BrakeFace, Rig.BrakeFaceVel,
+		FMath::Clamp(Brake, 0.f, 1.f));
 	for (const FGRNLimb& Leg : Rig.Legs)
 	{
 		if (!Rig.PedalThrottle || !Rig.PedalBrake) continue;

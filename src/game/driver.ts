@@ -2,7 +2,7 @@ import * as THREE from "three";
 import type { DriverRig } from "./characters";
 import { aimConstrained, solveTwoBone } from "./ik";
 import { RIG } from "./rig";
-import { stepSpring } from "./spring";
+import { lagK, stepSpring, type SpringState } from "./spring";
 
 // The driver, solved.
 //
@@ -109,8 +109,18 @@ export function solveDriverRig(
   }
   rig.lean.rotation.z = rig.leanS.x;
   rig.lean.rotation.x = rig.foldS.x;
-  // The shoulders turn into the corner a little ahead of the wheel.
-  rig.lean.rotation.y = -steer * D.shoulderYawPerLock;
+  // The shoulders turn into the corner a little ahead of the wheel —
+  // as a spring, like the lean and the fold beside it. This was the one
+  // axis of the body written straight off the input with no filter at
+  // all, which on the player's path means straight off a KEY: a flick
+  // of the wheel twisted the torso through its whole arc in a frame.
+  // A spring here is also where the limbs get their secondary motion,
+  // because the arms are solved onto grips bolted to the car: move the
+  // root of the chain with weight and the IK carries that weight out to
+  // the hands. Still faster than the rim (see yawK), so the shoulders
+  // lead the wheel the way they always did.
+  stepSpring(rig.yawS, -steer * D.shoulderYawPerLock, D.yawK, D.yawC, dt);
+  rig.lean.rotation.y = rig.yawS.x;
   // And breathe. The body group sits at the rig origin, so this is the
   // whole of its rest offset.
   rig.t += dt;
@@ -118,15 +128,14 @@ export function solveDriverRig(
   // Lock-to-lock is about a turn and a half each way in a road car;
   // steer is -1..1, so this is the visible wheel angle.
   const lock = steer * RIG.driver.steerLock;
-  rig.wheel.rotation.z +=
-    (-lock - rig.wheel.rotation.z) * Math.min(1, dt * RIG.driver.wheelRate);
+  rig.wheel.rotation.z += (-lock - rig.wheel.rotation.z) * lagK(RIG.driver.wheelRate, dt);
 
   // Eyes first: `look` may live in a scratch vector this method is
   // about to reuse for grips and poles.
   aimConstrained(rig.head, look, {
     maxYaw: RIG.driver.neckYaw,
     maxPitch: RIG.driver.neckPitch,
-    ease: Math.min(1, dt * RIG.driver.neckRate),
+    ease: lagK(RIG.driver.neckRate, dt),
   });
   // The neck fights the lean. A driver's head stays closer to level
   // than their shoulders do, which is why a helmet cam is watchable —
@@ -156,7 +165,7 @@ export function solveDriverRig(
   // until the blend has eased home past the residue threshold.
   if (handbrake > 0 || rig.hbBlend > 1e-4) {
     const hbWant = THREE.MathUtils.clamp(handbrake, 0, 1);
-    rig.hbBlend += (hbWant - rig.hbBlend) * Math.min(1, dt * RIG.driver.handbrakeRate);
+    rig.hbBlend += (hbWant - rig.hbBlend) * lagK(RIG.driver.handbrakeRate, dt);
     const rest = (rig.handbrake.userData.restRotX as number) ?? RIG.driver.handbrakeTilt;
     rig.handbrake.rotation.x = rest - rig.hbBlend * RIG.driver.handbrakeThrow;
     rig.handbrake.updateWorldMatrix(true, false);
@@ -170,7 +179,7 @@ export function solveDriverRig(
   if (shift !== 0 || rig.shiftBlend > 1e-4) {
     if (shift !== 0) rig.shiftDir = Math.sign(shift);
     const want = Math.min(1, Math.abs(shift));
-    rig.shiftBlend += (want - rig.shiftBlend) * Math.min(1, dt * RIG.driver.shiftRate);
+    rig.shiftBlend += (want - rig.shiftBlend) * lagK(RIG.driver.shiftRate, dt);
     const rest = (rig.gear.userData.restRotX as number) ?? RIG.driver.gearTilt;
     rig.gear.rotation.x = rest + rig.shiftDir * RIG.driver.gearThrow * rig.shiftBlend;
     rig.gear.updateWorldMatrix(true, false);
@@ -253,22 +262,33 @@ export function solveDriverRig(
   // rests on the dead pedal until a shift sends it to the clutch.
   if (rig.legs.length) {
     const P = rig.pedals;
-    const press = (pedal: THREE.Object3D, amount: number) => {
-      pedal.position.z = (pedal.userData.restZ as number) + amount * D.pedalTravelZ;
-      pedal.position.y = (pedal.userData.restY as number) - amount * D.pedalTravelY;
+    // A pedal has TRAVEL. The face used to be written straight from the
+    // press, and the player's press is a key — 0 or 1, nothing between
+    // — so a stab of brake put the pedal at the bottom of its stroke in
+    // one frame and the foot, solved onto the face, went with it. Every
+    // face is now a mass on its return spring, which is the same law
+    // whoever is pressing it: the key, the touch pad, the AI's filtered
+    // estimate. `rest` is the dead pedal and never moves, so it is
+    // written directly and costs no state.
+    const press = (pedal: THREE.Object3D, s: SpringState, amount: number) => {
+      stepSpring(s, amount, D.pedalK, D.pedalC, dt);
+      pedal.position.z = (pedal.userData.restZ as number) + s.x * D.pedalTravelZ;
+      pedal.position.y = (pedal.userData.restY as number) - s.x * D.pedalTravelY;
       pedal.updateWorldMatrix(true, false);
     };
     // Heel-and-toe: a downshift under braking. The blip is the throttle
     // pedal dipping with the pulse while the foot stays on the brake.
     const shifting = rig.shiftBlend > 0.001;
     const wantHeelToe = shifting && rig.shiftDir < 0 && brake > D.heelToeBrake ? rig.shiftBlend : 0;
-    rig.heelToe += (wantHeelToe - rig.heelToe) * Math.min(1, dt * D.clutchRate);
-    press(P.throttle, Math.max(throttle, rig.heelToe * 0.6));
-    press(P.brake, brake);
-    press(P.clutch, shifting ? rig.shiftBlend : 0);
-    press(P.rest, 0);
-    rig.footBlend += ((brake > throttle ? 1 : 0) - rig.footBlend) * Math.min(1, dt * D.footSwapRate);
-    rig.clutchBlend += ((shifting ? 1 : 0) - rig.clutchBlend) * Math.min(1, dt * D.clutchRate);
+    rig.heelToe += (wantHeelToe - rig.heelToe) * lagK(D.clutchRate, dt);
+    press(P.throttle, rig.pedalS.throttle, Math.max(throttle, rig.heelToe * 0.6));
+    press(P.brake, rig.pedalS.brake, brake);
+    press(P.clutch, rig.pedalS.clutch, shifting ? rig.shiftBlend : 0);
+    P.rest.position.z = P.rest.userData.restZ as number;
+    P.rest.position.y = P.rest.userData.restY as number;
+    P.rest.updateWorldMatrix(true, false);
+    rig.footBlend += ((brake > throttle ? 1 : 0) - rig.footBlend) * lagK(D.footSwapRate, dt);
+    rig.clutchBlend += ((shifting ? 1 : 0) - rig.clutchBlend) * lagK(D.clutchRate, dt);
   }
   for (const leg of rig.legs) {
     const rightLeg = leg.side < 0;
