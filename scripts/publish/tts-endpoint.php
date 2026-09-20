@@ -284,6 +284,28 @@ if (PHP_SAPI === 'cli') {
                     'rotated' => $f !== null && is_file("$f.1"),
                 ];
             })(),
+            /* How big the cache has got, which nothing could answer before.
+               `storage/` is outside the docroot and is never pruned by a
+               deploy, so «it grows for ever» was an outcome nobody could even
+               measure, let alone act on. `oldest` is in days because that is
+               the unit `prune --days=N` takes. */
+            'cache'   => (static function (): array {
+                $s = storageDir();
+                $d = $s === null ? null : "$s/tts";
+                if ($d === null || !is_dir($d)) return ['dir' => $d, 'entries' => 0, 'bytes' => 0];
+                $n = 0; $b = 0; $oldest = null;
+                foreach ((array) @scandir($d) as $name) {
+                    if (!preg_match('/^[0-9a-f]{64}\.mp3$/', (string) $name)) continue;
+                    $n++;
+                    $b += (int) @filesize("$d/$name");
+                    $m = (int) @filemtime("$d/$name");
+                    if ($oldest === null || $m < $oldest) $oldest = $m;
+                }
+                return [
+                    'dir' => $d, 'entries' => $n, 'bytes' => $b,
+                    'oldestDays' => $oldest === null ? null : (int) floor((time() - $oldest) / 86400),
+                ];
+            })(),
         ]);
     }
 
@@ -333,10 +355,98 @@ if (PHP_SAPI === 'cli') {
         ]);
     }
 
+    /* `prune` — the only way to delete cached audio.
+     *
+     * There was none, and `storage/` is the one directory `deploy.php` never
+     * prunes, so every clip this bridge ever rendered was permanent. That is
+     * worse than it sounds because the cache key covers the RENDITION, not
+     * just the text: change the voice, the model, the settings or the format
+     * and every existing entry becomes bytes nothing will ever serve again.
+     * The sibling endpoint has had `prune` since it was written; this one
+     * never did.
+     *
+     * CLI ONLY, and that is a cost control rather than tidiness. CLAUDE.md's
+     * security pass put this bridge's ceiling at DAILY_MISSES × MAX_CHARS ≈
+     * $136/day, and the thing that keeps real spend far below it is that the
+     * catalogue's sentences are bounded and nearly all of them are hits. An
+     * HTTP route that empties the cache turns every following sentence into a
+     * paid miss — a denial-of-wallet primitive with no authentication in
+     * front of it, on an endpoint that deliberately has no authentication.
+     * Under any web SAPI this branch does not exist.
+     *
+     * WHAT IT REFUSES TO DELETE IS THE POINT. `.budget.json` is the daily
+     * miss counter and `.rate-<sha256(ip)>.json` are the per-IP limiters, and
+     * BOTH LIVE IN THE CACHE DIRECTORY, beside the audio. So the obvious
+     * implementation — empty `storage/tts/` — resets the daily spend counter
+     * to zero as a side effect, silently removing the only bound on the
+     * ceiling, and `--all` is exactly when somebody would reach for it. This
+     * walks `*.mp3` and nothing else, and says what it kept so the property
+     * is visible in the output rather than only in this comment.
+     */
+    if ($mode === 'prune') {
+        $storage = storageDir();
+        $dir     = $storage === null ? null : "$storage/tts";
+        $dry     = in_array('--dry-run', $argv, true);
+        $all     = in_array('--all', $argv, true);
+
+        $days = 90;
+        foreach ($argv as $a) {
+            if (preg_match('/^--days=(\d+)$/', (string) $a, $m)) $days = max(1, (int) $m[1]);
+        }
+
+        if ($dir === null || !is_dir($dir)) {
+            $out(['ok' => true, 'dir' => $dir, 'note' => 'no cache directory yet',
+                  'scanned' => 0, 'deleted' => 0, 'bytes' => 0]);
+        }
+
+        $cutoff  = time() - $days * 86400;
+        $scanned = 0; $deleted = 0; $freed = 0; $kept = 0; $failed = [];
+        $guards  = 0;
+
+        foreach ((array) @scandir($dir) as $name) {
+            if ($name === '.' || $name === '..') continue;
+            $path = "$dir/$name";
+            if (!is_file($path)) continue;
+
+            /* Anything that is not a rendition is a guard or a stray, and
+               neither is this mode's business. Matched on the name the cache
+               actually writes — 64 hex of sha256 plus .mp3 — rather than on
+               "not a dotfile", so a future guard file that does not happen to
+               start with a dot is still safe. */
+            if (!preg_match('/^[0-9a-f]{64}\.mp3$/', $name)) { $guards++; continue; }
+
+            $scanned++;
+            $mtime = (int) @filemtime($path);
+            if (!$all && $mtime > $cutoff) { $kept++; continue; }
+
+            $size = (int) @filesize($path);
+            if ($dry) { $deleted++; $freed += $size; continue; }
+            if (@unlink($path)) { $deleted++; $freed += $size; }
+            else { $failed[] = $name; }
+        }
+
+        $out([
+            'ok'      => true,
+            'dir'     => $dir,
+            'dryRun'  => $dry,
+            'policy'  => $all ? 'every cached rendition' : "not served in $days days",
+            'scanned' => $scanned,
+            'deleted' => $deleted,
+            'kept'    => $kept,
+            'bytes'   => $freed,
+            /* Named in the output, not just in the comment above: these are
+               the daily budget and the per-IP limiters, and deleting them
+               would reset the spend cap. */
+            'preserved' => ['count' => $guards, 'what' => 'rate and budget counters — deleting these resets the spend cap'],
+            'failed'  => $failed,
+        ]);
+    }
+
     if ($mode !== 'install') {
         $out(['ok' => false, 'error' => 'usage',
               'usage' => ['php tts.php install', 'php tts.php version', 'php tts.php table',
-                          'php tts.php log [n]', 'php tts.php logformat']]);
+                          'php tts.php log [n]', 'php tts.php logformat',
+                          'php tts.php prune [--dry-run] [--days=N] [--all]']]);
     }
 
     $report = [];
@@ -496,7 +606,14 @@ $serve = static function (string $file, string $how) use ($ms, $id, $text, $pers
     exit;
 };
 
-if (is_file($cacheFile) && filesize($cacheFile) >= 512) $serve($cacheFile, 'hit');
+/* Touched on the way past, so mtime means LAST SERVED rather than «rendered».
+   `prune` below deletes by age, and without this it would measure the wrong
+   thing entirely: a sentence rendered once in March and served every day since
+   looks identical to one rendered in March and never asked for again. One
+   utime against a paid ElevenLabs render is not a cost worth optimising.
+   media-endpoint.php does the same to its draft directories, for the same
+   reason and with the same one-line note. */
+if (is_file($cacheFile) && filesize($cacheFile) >= 512) { @touch($cacheFile); $serve($cacheFile, 'hit'); }
 
 /* ── the two budgets, checked only on a miss ─────────────────────────────── */
 

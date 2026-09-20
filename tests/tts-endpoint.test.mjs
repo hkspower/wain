@@ -24,7 +24,7 @@
  * handling, the same rename-into-place.
  */
 import { spawn, execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, copyFileSync, mkdirSync, existsSync, readdirSync, statSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, copyFileSync, mkdirSync, existsSync, readdirSync, statSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -276,6 +276,70 @@ try {
        version().key === "EMPTY", version().key);
     writeFileSync(homeKey, "a-real-looking-key");
     ok("a filled key reads present", version().key === "present", version().key);
+  }
+
+  console.log("\n── `prune` clears the cache without clearing the spend cap ──");
+  {
+    /* The whole hazard in one sentence: `.budget.json` (the daily miss
+       counter) and `.rate-<sha256(ip)>.json` (the per-IP limiters) live IN
+       the cache directory, beside the audio. So «empty storage/tts» — which
+       is what anyone would write, and exactly what `--all` sounds like —
+       resets the counter that bounds a ceiling CLAUDE.md puts near $136/day,
+       silently. These assertions exist to make that regression loud. */
+    const cacheDir = join(storage, "tts");
+    mkdirSync(cacheDir, { recursive: true });
+
+    const id = (c) => c.repeat(64);
+    const entry = (c) => join(cacheDir, `${id(c)}.mp3`);
+    const budget = join(cacheDir, ".budget.json");
+    const limiter = join(cacheDir, ".rate-deadbeef.json");
+
+    const seed = () => {
+      for (const c of ["a", "b", "c"]) writeFileSync(entry(c), Buffer.alloc(2000));
+      // Two of them last served 200 days ago; the third is fresh.
+      const old = new Date(Date.now() - 200 * 86400_000);
+      for (const c of ["a", "b"]) utimesSync(entry(c), old, old);
+      writeFileSync(budget, JSON.stringify({ start: 9_999_999_999, n: 1400 }));
+      writeFileSync(limiter, JSON.stringify({ start: 9_999_999_999, n: 5 }));
+    };
+    const prune = (...args) =>
+      JSON.parse(execFileSync("php", [join(api, "tts.php"), "prune", ...args], { encoding: "utf8" }));
+
+    /* Counted relative to what is already here, never as absolutes: the
+       sections above drive real requests through the real bridge, so by now
+       this directory legitimately holds its renditions and its limiter. A
+       test that assumed an empty cache would be asserting something the
+       product never promises — and the first draft of this did, and failed
+       for that reason rather than for a defect. */
+    seed();
+    const cacheEntries = () =>
+      JSON.parse(execFileSync("php", [join(api, "tts.php"), "version"],
+        { encoding: "utf8", env: { ...process.env, HOME: join(dir, "home") } })).cache.entries;
+
+    ok("version reports how big the cache has got", cacheEntries() >= 3, `${cacheEntries()}`);
+
+    const dry = prune("--dry-run");
+    ok("--dry-run reports what would go", dry.deleted === 2, JSON.stringify(dry));
+    ok("and deletes nothing", existsSync(entry("a")) && existsSync(entry("b")));
+
+    const aged = prune();
+    ok("prune deletes only what has not been served in 90 days",
+       aged.deleted === 2 && !existsSync(entry("a")) && !existsSync(entry("b")), JSON.stringify(aged));
+    ok("the recently served entry survives", existsSync(entry("c")));
+
+    const all = prune("--all");
+    ok("--all clears every rendition", !existsSync(entry("c")) && cacheEntries() === 0);
+
+    /* The two that matter. */
+    ok("the daily budget counter is NOT deleted by --all",
+       existsSync(budget) && JSON.parse(readFileSync(budget, "utf8")).n === 1400);
+    ok("nor are the per-IP rate limiters", existsSync(limiter));
+    ok("and prune says what it preserved", all.preserved.count >= 2, JSON.stringify(all.preserved));
+
+    seed();
+    const window = prune("--days=365");
+    ok("--days widens the window rather than being ignored",
+       window.deleted === 0 && window.kept >= 3, JSON.stringify(window));
   }
 
   console.log("\n── the key never leaves the server ──");
