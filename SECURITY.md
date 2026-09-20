@@ -1,6 +1,6 @@
 # الإبلاغ عن ثغرة · Reporting a vulnerability
 
-**cs@sporta.com.kw** — or واتساب **+965 6589 4110**.
+**hello@almuhallab-code.com** — or واتساب **+965 6589 4110**.
 
 Tell us what you found and how to reproduce it. Please give us a chance to fix
 it before publishing. We will confirm we received the report.

@@ -4,7 +4,7 @@ What this system does to protect data, what it cannot do, and how to check
 both. Written against the code as it stands; every claim here is either
 enforced by `design/test_suite.py` or marked as a limit.
 
-**Reporting an issue:** cs@sporta.com.kw
+**Reporting an issue:** hello@almuhallab-code.com
 
 ---
 

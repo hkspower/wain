@@ -111,7 +111,8 @@ def supply_chain_checks():
     check(S, "a security policy sits where GitHub looks for it", root_sec.exists())
     if root_sec.exists():
         t = root_sec.read_text()
-        check(S, "it names a way to report", "cs@sporta.com.kw" in t)
+        check(S, "it names a way to report", "hello@almuhallab-code.com" in t)
+        check(S, "it does not leak an unrelated inbox", "sporta" not in t.lower())
         check(S, "it points at the detailed policy", "almuhallab/SECURITY.md" in t)
         # the one claim that must never quietly become a lie
         check(S, "it still says the binaries are unsigned", "not code-signed" in t)
@@ -861,7 +862,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "646", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "654", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -896,7 +897,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "646", "0", "100%"], str(finals))
+          finals == ["4", "654", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
