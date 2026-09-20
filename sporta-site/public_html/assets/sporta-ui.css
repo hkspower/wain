@@ -1144,6 +1144,30 @@ html:not([data-theme='dark']) .cart-drawer > header button.tap.text-slate-400 {
   padding-inline: calc(1rem + var(--sa-left, 0px)) calc(1rem + var(--sa-right, 0px));
 }
 
+/* THE MAIN TOPBAR ROW HAD THE SAME DISEASE, and this rule's own comment above
+ * said it did not — "the nav row, the logo row and the footer block each
+ * hold an inner max-w-7xl px-4 container that puts the gutter back", which
+ * is true of the FOOTER and the bottom nav (they are grandchildren of
+ * .app-header/.app-footer, one level below the `.px-4:not(:has(*))` guard's
+ * reach) but not of THIS row: `header.app-header > .mx-auto.max-w-7xl` IS a
+ * direct child, carries `px-3 … sm:px-4` in its class list, and is excluded
+ * by `:not(:has(*))` because it has children — logo, icon buttons — so
+ * neither guard above ever reached it. Measured, 2026-09-20: paddingInlineStart
+ * and paddingInlineEnd both computed to 0px at every width, and the icon
+ * group sat flush against the screen edge with no gap at all.
+ *
+ * "Too cramped" was the report; the measurement found zero, not merely
+ * tight. Restored to more than the built value asked for (0.75rem/1rem)
+ * rather than merely back to it, at the owner's request for more air. */
+header.app-header > .mx-auto.max-w-7xl {
+  padding-inline: calc(1rem + var(--sa-left, 0px)) calc(1rem + var(--sa-right, 0px));
+}
+@media (min-width: 640px) {
+  header.app-header > .mx-auto.max-w-7xl {
+    padding-inline: calc(1.75rem + var(--sa-left, 0px)) calc(1.75rem + var(--sa-right, 0px));
+  }
+}
+
 /* A NOTE ON WHAT WAS DELIBERATELY NOT CHANGED HERE, because the obvious next
  * move is wrong and the measurement says so.
  *
@@ -2021,6 +2045,15 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
        shadow also reads correctly while scrolled — it is always the last
        thing painted above whatever content is under it. */
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+    /* THE HAIRLINE UNDER THE BAR, REMOVED — asked for as "top bar without
+       under bar line", 2026-09-20. The bundle's own `border-b border-white/10`
+       class is a separate declaration from the shadow above and survives it
+       untouched, so the two were both visible at once: a 1px line sitting
+       right above the shadow's own soft edge. The shadow alone already does
+       the job the comment above it describes — separating the header from
+       whatever is under it — so the hairline is turned off rather than
+       widened into something it was never meant to be. */
+    border-bottom: none !important;
   }
   /* THE MAIN MENU, REMOVED — asked for on 2026-09-17. Home/Terms/Contact
      hidden outright, the same way "Shop" was already hidden: a plain
