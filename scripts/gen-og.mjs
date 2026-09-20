@@ -229,8 +229,24 @@ for (const p of places) {
   await page.goto(`${BASE}/places/${p.slug}/`, { waitUntil: "networkidle" });
   await page.waitForTimeout(120);
 
+  /* Two selectors, because the first one this had was decoration.
+     It was `div.rounded-3xl.shadow-lg svg`, and it matched nothing from the
+     moment the hero band was rebuilt around `aspect-[18/5]` — that change
+     took the corner from rounded-3xl to rounded-2xl, and the compound
+     selector quietly stopped resolving. Every run after it warned 52 times
+     and wrote 0 cards, and nobody ran it for a fortnight, so the committed
+     cards simply stayed at whatever they were.
+
+     So: the gradient first, then the drawing's own viewBox. `from-hero-*`
+     is a token family that exists only for this band, and 400×160 is the
+     contract PlaceArt and CategoryArt are both drawn to — neither is a
+     styling choice somebody can change while tidying corners. Same argument
+     as the Sentinel's `res.data ?? res.body`: name both, so one node change
+     cannot break it the same silent way. */
   const art = await page.evaluate(() => {
-    const svg = document.querySelector("div.rounded-3xl.shadow-lg svg");
+    const svg =
+      document.querySelector('[class*="from-hero-"] svg') ||
+      document.querySelector('svg[viewBox="0 0 400 160"]');
     return svg ? svg.innerHTML : "";
   });
   if (!art) {
