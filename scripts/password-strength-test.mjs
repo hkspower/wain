@@ -88,13 +88,23 @@ for (const [k, why] of MUST_ACCEPT) {
 {
   const admin = execFileSync('cat', [ADMIN], { encoding: 'utf8' })
 
-  const registerBlock = admin.slice(admin.indexOf("$r === 'register'"), admin.indexOf("$r === 'register'") + 2000)
+  // Sliced to the NEXT top-level route rather than a fixed character count —
+  // a fixed window is exactly the mistake this file has made before: a route
+  // with enough comment above its check runs past a short window and the
+  // extractor reports the check missing when it is only later than expected.
+  const nextRouteAfter = (marker) => {
+    const start = admin.indexOf(marker)
+    const next = admin.indexOf("\nif ($r === '", start + marker.length)
+    return admin.slice(start, next === -1 ? admin.length : next)
+  }
+
+  const registerBlock = nextRouteAfter("$r === 'register'")
   const registerCalls = /store_password_is_weak\s*\(/.test(registerBlock)
   registerCalls
     ? ok('register calls store_password_is_weak()')
     : bad('register calls store_password_is_weak()', 'the first admin account can still pick a weak one')
 
-  const acctBlock = admin.slice(admin.indexOf("$r === 'account_update'"), admin.indexOf("$r === 'account_update'") + 3000)
+  const acctBlock = nextRouteAfter("$r === 'account_update'")
   const acctCalls = /store_password_is_weak\s*\(/.test(acctBlock)
   acctCalls
     ? ok('account_update calls store_password_is_weak()')

@@ -48,15 +48,6 @@
   var MARK = 'data-sporta-pay-icon'
   var LABELS = ['KNET', 'الدفع عند الاستلام', 'Cash on delivery']
 
-  var ICONS = {
-    KNET:
-      '<rect x="2" y="5" width="20" height="14" rx="2.2" /><path d="M2 9.5h20" />' +
-      '<rect x="5" y="13" width="5" height="2.6" rx="0.6" />',
-    cod:
-      '<circle cx="12" cy="12" r="9" /><path d="M9 9.5c0-1 1-1.7 3-1.7s3 .7 3 1.7-1 1.4-3 1.9-3 .9-3 1.9 1 1.7 3 1.7 3-.7 3-1.7" />' +
-      '<path d="M12 6.6V6M12 18v-.6" />',
-  }
-
   function findPills() {
     var footer = document.querySelector('footer')
     if (!footer) return []
@@ -73,10 +64,29 @@
     var span = document.createElement('span')
     span.setAttribute(MARK, '1')
     span.style.cssText = 'display:inline-flex;width:14px;height:14px;margin-inline-end:5px;vertical-align:-2px;'
-    span.innerHTML =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" ' +
-      'style="width:100%;height:100%;">' + ICONS[which] + '</svg>'
+    /* Each branch is a single literal string — `which` never reaches the
+     * markup itself. A lookup table indexed by `which` reads the same on
+     * screen and is not the same thing: it is one more place a future edit
+     * could put something other than a fixed literal behind this call. */
+    switch (which) {
+      case 'KNET':
+        span.innerHTML =
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+          'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" ' +
+          'style="width:100%;height:100%;">' +
+          '<rect x="2" y="5" width="20" height="14" rx="2.2" /><path d="M2 9.5h20" />' +
+          '<rect x="5" y="13" width="5" height="2.6" rx="0.6" />' +
+          '</svg>'
+        break
+      default:
+        span.innerHTML =
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+          'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" ' +
+          'style="width:100%;height:100%;">' +
+          '<circle cx="12" cy="12" r="9" /><path d="M9 9.5c0-1 1-1.7 3-1.7s3 .7 3 1.7-1 1.4-3 1.9-3 .9-3 1.9 1 1.7 3 1.7 3-.7 3-1.7" />' +
+          '<path d="M12 6.6V6M12 18v-.6" />' +
+          '</svg>'
+    }
     return span
   }
 

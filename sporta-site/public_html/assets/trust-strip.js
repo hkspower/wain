@@ -75,18 +75,6 @@
     },
   }
 
-  /* Three minimal, single-colour glyphs — drawn here rather than borrowed from
-   * any icon set, so nothing is pulled in for three shapes. */
-  var ICONS = {
-    returns:
-      '<path d="M4 4v6h6M20 20v-6h-6" /><path d="M20 10a8 8 0 0 0-14.9-4M4 14a8 8 0 0 0 14.9 4" />',
-    delivery:
-      '<rect x="2" y="7" width="13" height="10" rx="1.5" /><path d="M15 10h4l3 3v4h-7z" />' +
-      '<circle cx="7" cy="19" r="1.7" /><circle cx="18" cy="19" r="1.7" />',
-    authentic:
-      '<path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6z" /><path d="M9 12l2 2 4-4" />',
-  }
-
   function lang() {
     return document.documentElement.lang === 'ar' ? 'ar' : 'en'
   }
@@ -119,13 +107,39 @@
       .catch(function () { returnDays = 0; cb(returnDays) })
   }
 
+  /* Three minimal, single-colour glyphs — drawn here rather than borrowed from
+   * any icon set, so nothing is pulled in for three shapes. Each branch below
+   * is a single literal string, `name` never reaches the markup itself — a
+   * lookup table indexed by `name` would read the same on screen and would
+   * not: it is one more place a future edit could put something other than a
+   * fixed literal behind the same call. */
   function icon(name) {
     var span = document.createElement('span')
     span.className = 'sts-icon'
-    span.innerHTML =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
-      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
-      ICONS[name] + '</svg>'
+    switch (name) {
+      case 'returns':
+        span.innerHTML =
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+          'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+          '<path d="M4 4v6h6M20 20v-6h-6" /><path d="M20 10a8 8 0 0 0-14.9-4M4 14a8 8 0 0 0 14.9 4" />' +
+          '</svg>'
+        break
+      case 'delivery':
+        span.innerHTML =
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+          'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+          '<rect x="2" y="7" width="13" height="10" rx="1.5" /><path d="M15 10h4l3 3v4h-7z" />' +
+          '<circle cx="7" cy="19" r="1.7" /><circle cx="18" cy="19" r="1.7" />' +
+          '</svg>'
+        break
+      case 'authentic':
+        span.innerHTML =
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+          'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+          '<path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6z" /><path d="M9 12l2 2 4-4" />' +
+          '</svg>'
+        break
+    }
     return span
   }
 
