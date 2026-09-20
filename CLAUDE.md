@@ -879,18 +879,32 @@ so redialling after a switch never silently starts on سالم.
 
 `sportake.app.n8n.cloud`, shared with sporta. **Nothing in `npm run scan` can
 see any of it** — it is not in this repository — so everything below drifts
-silently and has to be compared by hand. Twelve workflows; four are wain's.
+silently and has to be compared by hand. **Sixteen workflows, three active**;
+five are wain's. Both numbers have been wrong here before — «twelve» and «the
+only ACTIVE workflow» — so read them as of 20 September and re-list rather
+than trust them. The third active one is `Discs — barcode lookup`, which is
+almuhallab's; the instance is shared, the same way the crontab is.
 
-- **`أداة ملفات وين 🔧` — one of the TWO active workflows on the instance.**
-  This line said «the only ACTIVE workflow» until 20 September, and the file
-  contradicted itself four bullets later by calling شوق's `wain-gap` webhook
-  active too — which it is. Listed live: both are `active: true`, everything
-  else on the instance is `false`. A count is the easiest thing to leave
-  behind when a thing is added.
-  POST `/webhook/wain-file-tool`, grep/patch/create files on Hostinger over FTP.
-  Its secret comes from the n8n variable `WAIN_TOOL_SECRET` and **fails closed**
-  when unset; path jail, per-project roots, `.htaccess` directive blocking. It
-  writes text files only — no `.zip`, so it is not a way to deploy a build.
+- **`أداة ملفات وين 🔧` — active, and INERT.** POST `/webhook/wain-file-tool`,
+  grep/patch/create files on Hostinger over FTP. Its secret comes from the n8n
+  variable `WAIN_TOOL_SECRET` and **fails closed** when unset; path jail,
+  per-project roots, `.htaccess` directive blocking. It writes text files only
+  — no `.zip`, so it is not a way to deploy a build.
+
+  **`WAIN_TOOL_SECRET` is unset, measured 20 September**, so every request is
+  refused with `server not configured` before it reaches the path jail. Proved
+  by running the webhook with a deliberately wrong secret and reading the
+  execution back: the throw is at line 17, the fail-closed branch, not at the
+  comparison two lines later. Its zero executions agree. So the fail-closed
+  design is working and nothing described above is actually reachable — a
+  variable nobody filled in is the whole of it, and setting it is a UI action
+  no session can do (`list_credentials` has no write twin, and variables have
+  no tool at all).
+
+  **The probe is worth keeping as a shape.** Both branches throw, so the
+  status alone cannot tell «unset» from «wrong secret» — the message can, and
+  `get_workflow_execution` only returns it with `includeData: true`. An
+  execution that merely says `status: error` has told you nothing.
 - **`Wain + Sporta — Kuwaiti TTS` on `/webhook/fahad-tts`** — **no longer
   wain's bridge; sporta's only.** It speaks the sentences the recorded clip
   library cannot cover, its model stays `eleven_multilingual_v2` to match the
@@ -914,19 +928,57 @@ silently and has to be compared by hand. Twelve workflows; four are wain's.
   nothing in `npm run scan` could see a workflow that is not in this
   repository, and what replaced it is checked by `npm run audit:tts` on every
   scan.
-- **`الحارس` — the site sentinel.** Its detection is right: it refuses to trust
-  a status code and requires `_next/static` in the homepage plus «أبراج الكويت»
-  in a place page, because a root without its subdirectories answers a healthy
-  200 over a site with no CSS. **Its diagnosis prompt is the part that goes
-  stale**, and it did — it still prescribed hand-uploading `out/` through
-  hPanel, which would now leave the manifest disagreeing with the disk so the
-  next deploy prunes live files. **An automation that gives instructions is
-  documentation with a pager: when the deploy path changes, its prompt does.**
+- **`الحارس` — the site sentinel. Its content check was reading the wrong
+  field, and it would have called a healthy site down on every single run.**
+  `fullResponse: true` on an HTTP Request node returns `{ data, headers,
+  statusCode, statusMessage }` — the page is under `data`. `judge()` read
+  `res.body`, which is `undefined`, so `String(undefined || '')` was the empty
+  string and no needle could ever be found. The status-code branches were fine,
+  because `res.statusCode` is right; only the half the whole design exists for
+  was broken.
+
+  So the failure is the inverse of the one it was built to catch. This file
+  praised it for refusing to trust a status code — which it does — without
+  anyone ever running it: a healthy `/` and a healthy place page both came back
+  «ترد ٢٠٠ بس ناقصها …», two false `down` alarms in one pass. **A monitor
+  nobody has watched fire is a monitor with no evidence behind it**, and this
+  one had been written up as correct twice.
+
+  Fixed to `res.data ?? res.body ?? ''` — both fields, so a future node change
+  cannot break it the same silent way — plus an explicit empty-body branch that
+  says «راجع قراءة الاستجابة، مو الموقع» rather than disguising a read bug as
+  missing content. **Proved in both directions, which is the point**: against
+  the live site all three checks read «سليم» with no alert, and against
+  `/places/this-place-does-not-exist/` exactly one `down` event appeared, http
+  404, with the other two still green. The temporary URL was put back.
+
+  **Its diagnosis prompt, by contrast, is current** — it already carries the
+  signed-endpoint deploy path and «ولا ترشّح أبداً رفع مجلد out/ باليد من
+  hPanel». This file said it was stale; it was read end to end and it is not.
+  The warning behind that line still holds — **an automation that gives
+  instructions is documentation with a pager** — it just is not owed here.
+
+  **Two things still stop it, and neither is fixable from a session.** Its
+  `Claude — التشخيص` node had no credential attached at all; the account's
+  `Anthropic account` credential is attached now and a model is pinned
+  explicitly rather than left to the node's typeVersion-1.3 default. But the
+  credential's own data is **empty** — the node dies on `TypeError: Invalid
+  URL`, which is `new URL('')` on a blank base URL, the same shape as the TTS
+  workflow's blank `httpHeaderAuth` above. And `واتساب — إنذار فوري` still
+  carries `REPLACE_PHONE_NUMBER_ID` and `REPLACE_YOUR_NUMBER_…`; `phoneNumberId`
+  is a plain string field on the node, not a list loaded from the credential,
+  so there is nothing here to read it from — it comes from the Meta WhatsApp
+  Business account. Until both are filled in the Sentinel cannot be activated
+  usefully, and **that is why nothing is watching this site.**
 - **`Wain — Events Hub`** — verified current 11 September: its formatter matches
-  `orders.ts` and `places.ts` field for field. Nothing posts to it yet.
+  `orders.ts` and `places.ts` field for field. Nothing posts to it yet, and its
+  WhatsApp node carries the same unfillable `REPLACE_PHONE_NUMBER_ID` — one
+  number from Meta unblocks both it and the Sentinel.
 - **`Wain — ما لقت شوق (فجوات الكتالوق)`** on `/webhook/wain-gap`, active —
   شوق's one webhook tool. Four nodes into the data table `wain_gaps`
   (`CyBLQKa6LcdgFUAX`). See the شوق section for why it has no shared secret.
+  **The only wain automation that is actually working**: 26 executions, the
+  ten most recent all `success`, re-checked 20 September.
 
 **صوت وين cannot be generated from a session, and an API key does not change
 that.** `api.elevenlabs.io` is refused by the sandbox's egress gateway — «Host
