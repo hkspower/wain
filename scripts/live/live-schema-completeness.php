@@ -75,8 +75,12 @@ try {
         "select count(*) from orders where payment_status = 'paid' and paid_at is null"
     )->fetchColumn();
 
+    // product_variants links to products by SLUG, not a product_id column —
+    // there is no such column. Checked against 1-schema.mysql.sql after this
+    // assumption threw an exception the first time; never repeat a guessed
+    // column name without checking the schema that actually defines it.
     $orphanVariants = (int) $pdo->query(
-        'select count(*) from product_variants v where not exists (select 1 from products p where p.id = v.product_id)'
+        'select count(*) from product_variants v where not exists (select 1 from products p where p.slug = v.slug)'
     )->fetchColumn();
 
     echo 'SCHEMA checked=' . array_sum(array_map('count', $checks)) . ' present=' . $present
