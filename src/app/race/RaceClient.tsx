@@ -3679,10 +3679,22 @@ function raceCut(): { w: number; h: number } | null {
                   >
                     {20 + beaten}
                   </span>
-                  <div className="min-w-0">
+                  <div
+                    className="min-w-0"
+                    title={`${RIVALS[beaten].name} — ${RIVALS[beaten].arabicName}`}
+                  >
+                    {/* English and Arabic each on their own line, the way
+                        the dossier and the challenge card already show a
+                        rival — not sharing one truncate box. Sharing one
+                        meant a long English name pushed the Arabic name
+                        past the ellipsis: CSS truncates from the END of
+                        the box, so the second name was what vanished,
+                        with no way to recover it. */}
                     <div className="grn-display truncate text-xl text-white">
-                      {RIVALS[beaten].name}{" "}
-                      <span className="grn-ar text-white/60" lang="ar">{RIVALS[beaten].arabicName}</span>
+                      {RIVALS[beaten].name}
+                    </div>
+                    <div className="grn-ar truncate text-white/60" lang="ar">
+                      {RIVALS[beaten].arabicName}
                     </div>
                     <div className="truncate text-xs text-white/55">
                       {RIVALS[beaten].crew} · {RIVALS[beaten].area} ·{" "}

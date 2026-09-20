@@ -1,26 +1,40 @@
-// What the cars are called, and what the two languages agree on.
+// What everything in this game is called, and what the two languages
+// agree on: the cars, the rivals who drive them, and the landmarks on
+// the lap.
 //
 //   npm run test:names      (no browser, no dev server)
 //
-// A car in this game carries three names: an id it is saved under, an
-// English name, and an Arabic one. They drifted. Two cars had names that
-// no longer matched their own ids — sahara-v12 was called "Sahara GT-12"
-// and storm-s8 was "Desert Storm S8" — and eight of sixteen had Arabic
-// that said less than the English, dropping the model designator so a
-// player reading Arabic saw "عفريت" where an English reader saw
-// "Efreet RX". One was not a translation at all: "Efreet RX Kai" against
-// "كبير العفاريت", the chief of the efreets.
+// Every one of these carries at least two names — an English one and an
+// Arabic one — and the cars carry a third, the id they are saved under.
+// They drift. Two cars had names that no longer matched their own ids —
+// sahara-v12 was called "Sahara GT-12" and storm-s8 was "Desert Storm
+// S8" — and eight of sixteen had Arabic that said less than the
+// English, dropping the model designator so a player reading Arabic saw
+// "عفريت" where an English reader saw "Efreet RX". One was not a
+// translation at all: "Efreet RX Kai" against "كبير العفاريت", the
+// chief of the efreets.
+//
+// Rivals and landmarks carry the same risk and had no test watching for
+// it at all — not even a check that two rivals couldn't share a name.
 //
 // The rules below are the naming convention, in the only form that
-// survives: a test that fails when the next car breaks it.
-
+// survives: a test that fails when the next car, rival or landmark
+// breaks it. Sections 1-5 are the cars (and the rivals' link to them,
+// which was here first); 6-8 are the rivals themselves; 9-10 are the
+// landmarks.
+import { readFileSync } from "node:fs";
 import { CARS } from "../src/game/mods.ts";
 import { RIVALS, rivalCar, rivalCarName } from "../src/game/rivals.ts";
+import { LANDMARKS } from "../src/game/world.ts";
 
 const fail = [];
 const check = (c, m) => { if (!c) fail.push(m); };
 const AR = /[؀-ۿ]/;
 const AR_DIGITS = "٠١٢٣٤٥٦٧٨٩";
+/** Lowercase, non-alphanumerics to a single hyphen, trimmed. What every
+ *  section below turns a display name into before comparing it with an
+ *  id. */
+const slug = (n) => n.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 // --- 1. Every car has all three names, and they are distinct ----------
 {
@@ -44,7 +58,6 @@ const AR_DIGITS = "٠١٢٣٤٥٦٧٨٩";
 // because "Sahara V12" -> sahara-v12 needs V12 and "Bareed 30
 // Anniversary" -> anniversary-30 reorders.
 {
-  const slug = (n) => n.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   for (const c of CARS) {
     const s = slug(c.name);
     // The id must be built from the words of the name — every part of the
@@ -115,6 +128,98 @@ const AR_DIGITS = "٠١٢٣٤٥٦٧٨٩";
   console.log(`${armed} rivals joined to the showroom by id; every one resolves`);
 }
 
-import { readFileSync } from "node:fs";
+// --- 6. Every rival has a name and an Arabic name, and they are distinct
+// The cars have had this since the section above was written; the
+// rivals never did — not even a check that two of the eight bosses
+// couldn't be given the same name by mistake.
+{
+  const names = new Set(), ars = new Set();
+  for (const r of RIVALS) {
+    check(!!r.name && !!r.arabicName, `${r.id}: a rival needs a name and an Arabic name`);
+    check(!names.has(r.name), `two rivals called ${r.name}`);
+    check(!ars.has(r.arabicName), `two rivals called ${r.arabicName} in Arabic`);
+    names.add(r.name); ars.add(r.arabicName);
+    check(AR.test(r.arabicName), `${r.id}: the Arabic name has no Arabic in it`);
+    check(!AR.test(r.name), `${r.id}: the English name has Arabic in it`);
+  }
+  console.log(`${RIVALS.length} rivals, every name and Arabic name distinct`);
+}
+
+// --- 7. A rival's id is their name, hyphens aside ----------------------
+// Not section 2's algorithm unmodified: two rivals compound an "Al-"
+// word straight into the id with no hyphen where a car id never does —
+// bint-aldeera is "Bint Al-Deera" and shabah-alkhaleej is "Shabah
+// Al-Khaleej". Splitting into words and checking membership, the way
+// cars are checked, reports both as false failures — "aldeera" is not a
+// word in "bint-al-deera". So this compares id and slugged name with
+// every hyphen stripped instead: order-preserving, and still catches a
+// rename that leaves the id behind.
+{
+  const bare = (s) => s.replace(/-/g, "");
+  for (const r of RIVALS) {
+    check(bare(r.id) === bare(slug(r.name)),
+      `${r.id}: "${r.name}" does not match it — the id and the name disagree`);
+  }
+  console.log("every rival's id is their name, hyphens aside");
+}
+
+// --- 8. The rivals' Arabic carries their digits and designators, in
+//        Arabic-Indic digits only -------------------------------------
+// The same rule cars get in sections 3 and 4, run once rather than
+// twice: no current rival name has a number or a recognised designator,
+// so this fires on nothing today and starts protecting the day one does.
+{
+  const toArabicDigits = (s) => s.replace(/\d/g, (d) => AR_DIGITS[+d]);
+  for (const r of RIVALS) {
+    const numbers = r.name.match(/\d+/g) ?? [];
+    for (const n of numbers) {
+      check(r.arabicName.includes(toArabicDigits(n)),
+        `${r.id}: the English name has ${n} and the Arabic "${r.arabicName}" does not`);
+    }
+    const hasCode = /\b(GTR|RX|RS|GT|Kai|Turbo|Sport|Anniversary|Special|V12|S8|R)\b/.test(r.name);
+    if (hasCode) {
+      check(r.arabicName.trim().split(/\s+/).length >= 2,
+        `${r.id}: "${r.name}" carries a designator and the Arabic "${r.arabicName}" is a single word`);
+    }
+    check(!/[0-9]/.test(r.arabicName), `${r.id}: "${r.arabicName}" uses Western digits`);
+  }
+  console.log("every rival's Arabic name carries its digits and designators, and none use Western digits");
+}
+
+// --- 9. Every landmark has all three names, and they are distinct -----
+// world.ts's LANDMARKS feeds the road map (roadmap.ts) and had never
+// been read by a test at all — no duplicate check, no bilingual check,
+// nothing.
+{
+  const ids = new Set(), names = new Set(), ars = new Set();
+  for (const l of LANDMARKS) {
+    check(!!l.id && !!l.name && !!l.arabic, `${l.id ?? l.name}: a landmark needs an id, a name and an Arabic name`);
+    check(!ids.has(l.id), `duplicate landmark id ${l.id}`);
+    check(!names.has(l.name), `two landmarks called ${l.name}`);
+    check(!ars.has(l.arabic), `two landmarks called ${l.arabic} in Arabic`);
+    ids.add(l.id); names.add(l.name); ars.add(l.arabic);
+    check(AR.test(l.arabic), `${l.id}: the Arabic name has no Arabic in it`);
+    check(!AR.test(l.name), `${l.id}: the English name has Arabic in it`);
+    check(!/[0-9]/.test(l.arabic), `${l.id}: "${l.arabic}" uses Western digits`);
+  }
+  console.log(`${LANDMARKS.length} landmarks, every id, name and Arabic name distinct`);
+}
+
+// --- 10. A landmark's id is made of words from its name ----------------
+// Unlike the rivals, landmark ids follow section 2's own convention —
+// al-hamra drops "Tower" from "Al Hamra Tower" exactly the way a car id
+// drops a trim word — so this reuses that algorithm rather than a third
+// variant.
+{
+  for (const l of LANDMARKS) {
+    const s = slug(l.name);
+    const words = new Set(s.split("-"));
+    const orphans = l.id.split("-").filter((part) => !words.has(part));
+    check(orphans.length === 0,
+      `${l.id}: "${l.name}" has nothing to do with ${orphans.join(", ")} — the id and the name disagree`);
+  }
+  console.log("every landmark id is made of words that are still in its name");
+}
+
 console.log(fail.length ? `\nFAILURES:\n  ${fail.join("\n  ")}` : "\nall green");
 process.exit(fail.length ? 1 : 0);
