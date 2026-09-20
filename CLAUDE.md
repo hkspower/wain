@@ -545,7 +545,38 @@ worth excluding — the day one does not, the failure is a deploy that reports
 success having written nothing.
 
 Verified over the loopback by asking the same host three ways, which is the
-only way to see a Host-keyed rule at all — see the deploy section's readings.
+only way to see a Host-keyed rule at all — and then **publicly**, from the
+server out through the edge: `https://wainkw.com/explore/` answers
+`301 → https://www.wainkw.com/explore/` with `server: hcdn`.
+
+**HTTP/3 is already on, and nothing in this repository controls it.** Every
+edge response carries `alt-svc: h3=":443"; ma=86400`, so a browser's first
+visit goes over HTTP/2 and everything after it over QUIC for a day. The origin
+advertises it too (`h3` and `h3-29`, `ma=2592000`), so both hops offer it.
+What could NOT be done from here is completing a QUIC handshake to prove it
+end to end: the server's curl answers `option --http3: the installed libcurl
+version doesn't support this`, and this sandbox cannot reach the site at all.
+So the honest claim is «advertised by the edge with a day-long lifetime», not
+«measured a QUIC connection».
+
+**That probe has a trap worth keeping**: curl parses every option before it
+makes any request, so one unsupported flag anywhere in a `--next` chain kills
+the whole command and returns *no output at all* — not the other requests'
+headers with one error beside them. A three-request probe came back as one
+line of usage text. Keep an unsupported flag in a job of its own.
+
+**And the edge does not cache the HTML**, which settles the worry recorded in
+the deploy section with a measurement instead of an argument:
+`x-hcdn-cache-status: DYNAMIC` on `/` and on staging's `/`, `MISS` on the
+apex 301. So the `max-age=0, must-revalidate` the origin sends is being
+honoured and a deploy cannot be hidden behind a stale edge copy. Purging after
+a deploy is still right — it costs nothing and the setting is a panel toggle
+nobody here would see change.
+
+One reading NOT to over-interpret: `x-hcdn-request-id` ends `fra-edge5`, so
+that request was served from Frankfurt. It was made *by the server*, which
+lives in the same datacentre; it says nothing about which PoP answers a phone
+in Kuwait.
 
 `hub.wainkw.com` is deliberately left alone: no DMARC, no CAA, not wain's.
 
