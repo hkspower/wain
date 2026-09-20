@@ -467,6 +467,77 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   With the secret set, a push to this branch deploys and **nobody uploads
   anything by hand**. Without it the run stops at the first step and says so.
 
+## The 20 September deploy, and three things it broke on the way
+
+`861dd9f` is live: `{"ok":true,"version":"1.1.0","deployed":249,"removed":7,
+"emptied":1}` at 11:15:02Z, through the installed caller, one cron job,
+deleted after its first firing and confirmed gone by a listing.
+
+**Verified below the root and then publicly.** The six proofs are byte-exact
+against the archive: `_next/static/5a5e28d9…/`, `css/fdfbc4c1471b0eab.css`
+(88,103) and Leaflet's `css/1de76be520b4de19.css` (11,181), `chunks/app/
+search/page-88ebec6f153b81a5.js` (24,346), `explore/index.html` (18,049), a
+place page (61,769), 52 og images, and both live-map chunks —
+`d0deef33.cac6acee3fffe7af.js` (148,503) and `815.4b41beeac1eec500.js`
+(2,259). Then `hosting_clearWebsiteCacheV1`, then a cron `wget` of
+`https://www.wainkw.com/build.json` — **from the server out through the
+edge** — returning the new build. That last step is the one the loopback
+cannot make.
+
+**`DEPLOY_SECRET` is still unset, and the evidence is 328 runs long.** Every
+`deploy.yml` run fails in about ten seconds at step 5, «Check the deploy
+secret is configured», with all fourteen steps after it skipped. So CI has
+never deployed anything and the cron route remains the only one. Setting that
+one secret is what makes the next deploy cost nothing; until then each one
+adds another ~3.6MB blob, because no session can upload to Hostinger and the
+GitHub MCP surface has no release-asset tool — checked, not assumed.
+
+**Three pieces of tooling refused this build before it could ship, all for
+the same blind spot**, which is now four counting `gen-sw` and `audit:js` from
+the live-map commit: something reached only by a runtime `import()` is
+invisible to anything written before it existed.
+
+- **«expected exactly one stylesheet under _next/static, found 2».** The
+  second is Leaflet's, in its own chunk, referenced by no page's HTML. The
+  planner now counts only stylesheets a page actually asks for, and says how
+  many were on demand when the count is wrong.
+
+- **The plan described `out/`; the server fetches the ARCHIVE.** This is the
+  one worth reading twice, because nothing complained. An ordinary deploy
+  builds, commits the zip, and then has `out/` rebuilt at the new head while
+  the zip on disk is still the committed bytes. Both trees clean, both commits
+  in history, and the existing two-commits check passes **because the only
+  file between them is the archive** — which is exactly the case it was
+  written to allow. Every proof was then wrong by one commit: out/ said
+  `529fd14`, the archive and therefore the live site said `5a5e28d`, and
+  `_next/static/<sha>/` is named for whichever commit built it. The six proofs
+  had to be checked by hand.
+
+  Fixed in three passes, and the middle one is the lesson: taking the build id
+  from the archive while still asking whether the proofs existed in `out/`
+  made the planner refuse a deploy that was fine — **a half-fix that fails on
+  the normal path is worse than the bug.** Now the commit, the digest and the
+  proof existence check all read the archive (`unzip -Z1`, `unzip -p
+  build.json`), `out/` is kept only to notice the divergence, and the
+  divergence is a note rather than a refusal because it is the normal case.
+
+  The distinction to hold on to: everything before the proofs is a question
+  about the BUILD, and `out/` is where to ask it. A proof is a claim
+  `deploy:verify` will make of the live server, so it must name something the
+  ARTIFACT carries.
+
+**And the zip is not byte-reproducible**, so `npm run release` after
+committing it re-dirties the tree and the planner stops. `git checkout --
+wain-<version>.zip` is the move — never rebuild the archive to satisfy a
+dirty-tree complaint, or the sha256 in the command stops matching the bytes
+at the pinned URL.
+
+**One cron reading that is not a warning.** Four jobs from another session —
+`live-schema-completeness.php`, `live-permissions-check.php`, a `brand-strip`
+fetch and a `fileperms` probe, all sporta's — were in the crontab at the
+start and gone by the end, deleted by whoever created them. Left alone
+throughout, exactly as the section above says to.
+
 ## DNS, TLS and mail — checked 20 September
 
 **There is a CDN in front of this site and nothing here knew it.** `@` is an
