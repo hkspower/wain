@@ -145,7 +145,7 @@ def _fresh():
             'managed_ar', 'managed_en')},
         'contact': {'phone': '+965 2209 1914', 'whatsapp': '96522091914',
                     'email': 'cs@sporta.com.kw', 'address_ar': '', 'address_en': '',
-                    'hours_ar': '', 'hours_en': '', 'instagram': '', 'tiktok': ''},
+                    'hours_ar': '', 'hours_en': '', 'instagram': '', 'tiktok': '', 'snapchat': ''},
         'contact_emails': {'alternative': '', 'orders': '', 'b2b': '', 'customers': ''},
         # Uploaded fonts — see api/admin.php's 'fonts'/'font_upload'/
         # 'font_delete' routes. Starts empty, same as a shop that never opens
@@ -939,6 +939,7 @@ class Handler(BaseHTTPRequestHandler):
                     'hours_en': str(v.get('hours_en') or '')[:120],
                     'instagram': re.sub(r'[^A-Za-z0-9._]', '', str(v.get('instagram') or '')[:40]),
                     'tiktok': re.sub(r'[^A-Za-z0-9._]', '', str(v.get('tiktok') or '')[:40]),
+                    'snapchat': re.sub(r'[^A-Za-z0-9._-]', '', str(v.get('snapchat') or '')[:40]),
                 }
                 return self._json(200, STATE['settings']['contact'])
             if name == 'contact_emails':

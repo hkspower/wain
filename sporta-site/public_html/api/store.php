@@ -2427,6 +2427,7 @@ const STORE_SETTING_DEFAULTS = [
         'hours_en'  => '',
         'instagram' => '',
         'tiktok'    => '',
+        'snapchat'  => '',
     ],
     // THE POLICY PAGES' PROSE. Privacy and Terms are each a single body of
     // text below their "Last updated" line; Returns is the one descriptive

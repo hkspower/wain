@@ -487,6 +487,12 @@ export default function SettingsScreen() {
             autoCapitalize="none"
           />
           <Field
+            label="Snapchat username"
+            value={contact.snapchat}
+            onChangeText={(v) => setC('snapchat', v)}
+            autoCapitalize="none"
+          />
+          <Field
             label="Address — Arabic"
             value={contact.addressAr}
             onChangeText={(v) => setC('addressAr', v)}
@@ -711,6 +717,14 @@ export default function SettingsScreen() {
               <Chip key={name} label={name} active={theme.fontHead === name}
                 onPress={() => setT('fontHead', name)} />
             ))}
+            {/* A trial face, not an upload: loaded from Adobe's own CDN via the
+                kit link in index.html, not stored as bytes in custom_fonts.
+                The chip's label is the readable name; the value it writes is
+                the exact CSS family Adobe generated for the kit —
+                "neue-frutiger-world" — which is what has to reach
+                font-family or the built-in fallback silently wins instead. */}
+            <Chip label="Neue Frutiger World (trial)" active={theme.fontHead === 'neue-frutiger-world'}
+              onPress={() => setT('fontHead', 'neue-frutiger-world')} />
           </View>
           <Field label="Heading font — family name" value={theme.fontHead}
             onChangeText={(v) => setT('fontHead', v)} />
@@ -723,6 +737,8 @@ export default function SettingsScreen() {
               <Chip key={name} label={name} active={theme.fontBody === name}
                 onPress={() => setT('fontBody', name)} />
             ))}
+            <Chip label="Neue Frutiger World (trial)" active={theme.fontBody === 'neue-frutiger-world'}
+              onPress={() => setT('fontBody', 'neue-frutiger-world')} />
           </View>
           <Field label="Body font — family name" value={theme.fontBody}
             onChangeText={(v) => setT('fontBody', v)} />

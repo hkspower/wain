@@ -340,6 +340,9 @@ export interface ContactDetails {
   instagram: string;
   /** Same shape as instagram — a handle, not a URL. */
   tiktok: string;
+  /** Same shape again. Stored and validated, but the storefront footer has no
+   *  existing Snapchat link to swap — see admin.php's own note on this field. */
+  snapchat: string;
 }
 
 interface WirePromoBar {
@@ -361,6 +364,7 @@ interface WireContact {
   hours_en: string;
   instagram: string;
   tiktok: string;
+  snapchat: string;
 }
 
 // ------------------------------------------------------- product photographs
@@ -1145,6 +1149,7 @@ export const adminApi = {
       hoursEn: w.hours_en ?? '',
       instagram: w.instagram ?? '',
       tiktok: w.tiktok ?? '',
+      snapchat: w.snapchat ?? '',
     };
   },
 
@@ -1161,6 +1166,7 @@ export const adminApi = {
         hours_en: v.hoursEn,
         instagram: v.instagram,
         tiktok: v.tiktok,
+        snapchat: v.snapchat,
       },
     }),
 

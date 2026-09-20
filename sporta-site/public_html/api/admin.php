@@ -1750,6 +1750,16 @@ if ($r === 'settings_save' && $method === 'POST') {
             // built link already carries its own @.
             'tiktok'     => preg_replace('/[^A-Za-z0-9._]/', '',
                                 mb_substr(trim((string)($v['tiktok'] ?? '')), 0, 40)),
+            // A Snapchat username, same shape again. UNLIKE instagram/tiktok,
+            // nothing in the built storefront's footer has an existing
+            // Snapchat link to swap — checked, `grep`ing the compiled bundle
+            // for "snapchat" finds nothing at all, so contact.js's literal-
+            // string-swap technique has no anchor to attach to here. This
+            // field is stored and validated the same way, ready for whichever
+            // surface reads it, but the storefront footer will not show it
+            // until that surface exists.
+            'snapchat'   => preg_replace('/[^A-Za-z0-9._-]/', '',
+                                mb_substr(trim((string)($v['snapchat'] ?? '')), 0, 40)),
         ]);
     } elseif ($name === 'contact_emails') {
         // FOUR MORE ADDRESSES, admin-only — never shown to a shopper and never
