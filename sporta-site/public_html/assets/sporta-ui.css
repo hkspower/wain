@@ -2875,3 +2875,16 @@ h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate
 a[class~="aspect-[4/5]"][class~="overflow-hidden"][class~="bg-slate-100"] {
   border-radius: 10px;
 }
+
+/* Image hover transitions — asked for "premium and subtle... 150-250ms",
+ * against a measured 700ms on both the shop grid's card-image scale and the
+ * product gallery's own zoom-hover. Only one string match for "duration-700"
+ * in the whole bundle, so this is one shared component rather than several
+ * places that could disagree; scoped to the exact class combination the
+ * image itself carries, not a bare duration-700 override, so it cannot
+ * shorten an unrelated element that happens to reuse the same Tailwind
+ * utility for something the brief did not measure.
+ */
+[class~="transition-transform"][class~="duration-700"] {
+  transition-duration: 200ms !important;
+}
