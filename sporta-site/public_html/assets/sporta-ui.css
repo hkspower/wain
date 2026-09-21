@@ -411,10 +411,18 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
  * ATTRIBUTE SELECTOR ON BOTH CLASSES TOGETHER, not a bare `.from-ink\/85` —
  * Tailwind's escaped class name matches wherever that utility is used
  * elsewhere on the page too; requiring `via-ink/40` alongside it scopes this
- * to the one gradient the hero actually builds from both. */
+ * to the one gradient the hero actually builds from both.
+ *
+ * LIGHTENED AGAIN — 2026-09-21, same day, "make less tint" on the two real
+ * photo slides this session just published (both DO carry real captions
+ * now, unlike when the first cut was made). Checked before cutting further:
+ * both slides' headlines are set in `.hero h1`, white and bold with its own
+ * text-shadow, which is what actually carries legibility over a photograph
+ * — the wash under it is a secondary aid, not the only thing standing
+ * between the text and the image, so it had room to come down again. */
 [class~="from-ink/85"][class~="via-ink/40"] {
-  --tw-gradient-from: #171a1e73 !important;  /* 85% -> 45% alpha */
-  --tw-gradient-via: #171a1e33 !important;   /* 40% -> 20% alpha */
+  --tw-gradient-from: #171a1e4d !important;  /* 85% -> 30% alpha */
+  --tw-gradient-via: #171a1e1f !important;   /* 40% -> 12% alpha */
 }
 
 /* AND THE COMPONENT ITSELF, which is what actually sizes the mounted hero.
@@ -2065,9 +2073,26 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
      unlayered rules with no !important by design, so nothing it could emit
      would ever have won against this line. Reading a variable sidesteps the
      question entirely: the cascade still resolves to this declaration, and
-     only its value moves. */
+     only its value moves.
+
+     FALLBACK MOVED TO SOLID BLACK, AND THE SHADOW TO 20% — asked for by
+     name as "topbar solid black background with 20% shadow". #2b2b2b was
+     already asked for and delivered once (the "light black" charcoal
+     above); this is the owner narrowing it further to literal black.
+     Backdrop-blur is turned off in the same rule, for the same reason the
+     shadow's own comment gives for the border: a translucent background is
+     the only thing blur has anything to soften, and there is nothing left
+     to show through a fully opaque one — the class survives on the
+     element (it is the bundle's own), it simply does nothing now. THIS IS
+     THE ONE HOME for the header's background AND its blur — a second,
+     unlayered rule written elsewhere for either one would lose to this
+     block by the exact mechanism this comment already explains, which is
+     precisely the mistake a first attempt at this same change made before
+     being caught and folded back in here. */
   header.app-header {
-    background: var(--sp-header-bg, #2b2b2b) !important;
+    background: var(--sp-header-bg, #000) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
     /* A DROP SHADOW, NOT EXTRA PADDING. On a phone the header sits flush
        against the hero image below it, with nothing to say where one ends
        and the other begins — measured at 390px, no gap at all. Padding
@@ -2077,7 +2102,7 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
        on any viewport. header.app-header is `position: sticky`, so the
        shadow also reads correctly while scrolled — it is always the last
        thing painted above whatever content is under it. */
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.20) !important;
     /* THE HAIRLINE UNDER THE BAR, REMOVED — asked for as "top bar without
        under bar line", 2026-09-20. The bundle's own `border-b border-white/10`
        class is a separate declaration from the shadow above and survives it
