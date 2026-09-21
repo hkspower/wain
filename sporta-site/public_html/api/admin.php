@@ -726,6 +726,37 @@ if ($r === 'product_research' && $method === 'POST') {
     store_out($out);
 }
 
+// -------------------------------------------------- guess one photo's product
+//
+// The Catalogue photo uploader already matches an unsorted file by FILENAME;
+// a file that matches nothing waits for the owner to pick a garment from a
+// dropdown. This looks at the PICTURE instead — a yellow t-shirt photo
+// pre-fills that same dropdown with the yellow t-shirt product — and, like
+// product_research above, WRITES NOTHING: the owner still presses Upload
+// themselves. See photo-guess.php for the rest.
+//
+// POST, not GET, for the same reason product_research is: it spends the
+// shop's money at an API on every call, which does not belong on a verb a
+// prefetcher will replay.
+//
+// LAZILY REQUIRED, same shape as research.php, so a shop that has not
+// published photo-guess.php yet goes on serving every other admin route.
+if ($r === 'photo_guess' && $method === 'POST') {
+    $file = __DIR__ . '/photo-guess.php';
+    if (!is_file($file)) store_fail('photo_guess_not_installed', 503);
+    require_once $file;
+
+    $b = store_body();
+    $image = (string) ($b['image'] ?? '');
+    if ($image === '') store_fail('image_required');
+
+    $out = photoguess_run(store_config(), $db, $image);
+    if (isset($out['error'])) {
+        store_fail($out['error'], $out['error'] === 'ai_not_configured' ? 503 : 502);
+    }
+    store_out($out);
+}
+
 if ($r === 'product_save' && $method === 'POST') {
     $b = store_body();
     $id = (int)($b['id'] ?? 0);

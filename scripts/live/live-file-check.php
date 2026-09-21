@@ -30,7 +30,7 @@ $WANT = [
     'api/.htaccess' => '574ff6d3712c69ad6a119652dd976afbad0e065cec35c198ceed85bfc72c3be2',
     'api/accounting.mysql.sql' => '865458325a463d3127bbb45cb1a3d5c0c9a603c7656cdde85c280ffb7f8ed716',
     'api/accounting.php' => '0e508c851de94808626164518d8394e6c65508ec2733efd16be7a278b2825963',
-    'api/admin.php' => '6927e581f3ca5f0ced3b59cd54ec09cfa0491a210e214f1060388779f20ec58b',
+    'api/admin.php' => 'd606691574afbb7bc7f4bf51548cc994ebe67900a5102d6700a7df8f3146cab2',
     'api/antifraud.mysql.sql' => '861285918d5a45a38913a2cd3300b49d825e3a6691ea81411f31b6840808275e',
     'api/api.php' => '181fe6eca05f4fb5d759c90a30058270ce7b0690570be299eb7b50186d4242c5',
     'api/arabic.php' => 'ee95e3677275fe690cde28c627d98d32d903118ae9c4f418e0fb1dca65c72cd9',
@@ -60,6 +60,7 @@ $WANT = [
     'api/orders-print.php' => '2ed932214d01a5ecd8224f635522342fc489b2158a8dd7cf46e9c1552b3ed73e',
     'api/payattempt.mysql.sql' => 'cdebb8e2a2a525b1c6471709b858201ec02257c594fd6bb93b494d494b035d6b',
     'api/pdf.php' => '9a026d1daf03dd2c45fc5a4f78f0c8f045973786b287e29e547f14961bedecb2',
+    'api/photo-guess.php' => 'd6aeb9d520708dcb70fdc8b530c06b9d04e7148b130228c61002a33eaa4d86c0',
     'api/productbrand.mysql.sql' => '1a5dc4c60f8d7fd7dbaf5d0ef742eb9c0ce3e23687a254d39344319f4672aab4',
     'api/productimage.mysql.sql' => '870f598114bf792d606893fa9be6cac075e79f2c752422a38a19e63e216bb06e',
     'api/promo.mysql.sql' => '7f64bb42ff96d0a3cf410031b48bcac6ae0e109f089cde59cbe2d1d22fd4177b',
@@ -145,7 +146,7 @@ $WANT = [
     'assets/panel-tabbar-fade.js' => 'ae3f58547eec7b832159c72285eacae0c0b128adf719398b0d24dd539e535da6',
     'assets/payment.js' => '9320d6c9d1c67657320f854ce5937b8f2218cc208f533add456cdd49bb609270',
     'assets/product-mobile-layout.js' => '8bb72de9fbb3e3cd0a8b7bf8c1eee09767447a158ff56dff74702d1f8ffdbe48',
-    'assets/product-photos.js' => '3e249e789471f9a59d970ffef38c30b7302eceba19367f2512e9595ab72fea2f',
+    'assets/product-photos.js' => 'd294d9e87f86d22a2da2f02a4eec7d9496e945bd0be8fefa4b3a6483423618a8',
     'assets/product-research.js' => '16cb3a1518f4235dde521b3b9830bed6aeffefecfce003e9cdfd92b599b5e408',
     'assets/react-vendor-CMgvnOJB.js' => '3f36bbb7b4c6de3289643869a25c08e7ec7055ebaeef06d597b0fa301525d579',
     'assets/returns-link.js' => '07a9d4753e0120988fe95e43d618760cfde9a3b1cfdabb31b209b2ae8a01ce10',
@@ -256,7 +257,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => '1ba2a01e9f35e80a67b4b6047afcb5370b4005074a150ade4907a578cb0ebf4a',
-    'sw.js' => '58519d1095602b26353353e42d45d8618396c543d7823c07a413bd53b2ab167e',
+    'sw.js' => '2b7cb2a0120fc2ba6aced0ebf9666a2ed48a58b24e6e0ce3d23b9027dbcfe222',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.

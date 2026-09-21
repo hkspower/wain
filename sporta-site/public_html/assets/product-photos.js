@@ -206,6 +206,46 @@
     render()
   }
 
+  /**
+   * Look at ONE queued photograph and pre-fill its garment — the same
+   * dropdown a hand-picked choice sets, so nothing about how the row is
+   * placed changes once a guess lands. NEVER UPLOADS: the owner still has to
+   * look at the pre-filled name and press Upload, exactly as if they had
+   * chosen it themselves. See photo-guess.php for why that is the whole
+   * design and not a shortcut this file is skipping.
+   */
+  function guessOne(idx) {
+    var item = state.queue[idx]
+    if (!item || item.guessing) return
+    item.guessing = true
+    item.guessError = null
+    render()
+
+    U.shrink(item.file)
+      .then(function (small) {
+        return U.call('photo_guess', 'POST', { image: small.dataUri })
+      })
+      .then(function (res) {
+        item.guessing = false
+        if (res && res.slug) {
+          item.slug = res.slug
+          item.how = 'AI guess' + (res.reason ? ' — ' + res.reason + ' — confirm before uploading' : ' — confirm before uploading')
+        } else {
+          item.guessError = res && res.reason
+            ? 'no confident match — ' + res.reason
+            : 'no confident match'
+        }
+        render()
+      })
+      .catch(function (e) {
+        item.guessing = false
+        var msg = e && e.message ? e.message : String(e)
+        if (msg === 'ai_not_configured') msg = 'the AI key is not set up for this shop yet'
+        item.guessError = msg
+        render()
+      })
+  }
+
   function upload() {
     if (state.busy) return
     var ready = state.queue.filter(function (q) { return q.slug && !q.done })
@@ -528,7 +568,20 @@
           render()
         }
         row.appendChild(sel)
-        row.appendChild(el('span', 'spp-dim', item.error || item.how))
+
+        // ONLY OFFERED WHEN THE ROW IS STILL UNPLACED. A photo that already
+        // matched by filename, or that the owner already chose by hand, has
+        // no ambiguity for a guess to resolve — and re-guessing something the
+        // owner just picked would read as second-guessing them.
+        if (!item.slug) {
+          var guess = el('button', 'spp-chip spp-guess', item.guessing ? 'Guessing…' : '✨ Guess')
+          guess.type = 'button'
+          guess.disabled = item.guessing || state.busy
+          guess.onclick = function () { guessOne(idx) }
+          row.appendChild(guess)
+        }
+
+        row.appendChild(el('span', 'spp-dim', item.error || item.guessError || item.how))
 
         // A BADGE, NOT JUST THE DIM CAPTION ABOVE — that text is WHERE the
         // file is going (matched by name / chosen by hand); this is WHAT IS
@@ -683,6 +736,7 @@
     + '.spp-sel{min-height:34px;border-radius:8px;background:transparent;color:inherit;font:inherit;'
     + 'border:1px solid rgba(255,255,255,.2);padding:0 6px;max-width:280px}'
     + '.spp-sel option{color:#111}'
+    + '.spp-guess{min-height:30px;padding:0 10px;font-size:12px;flex:none;white-space:nowrap}'
     + '.spp-x{border:0;background:transparent;color:inherit;cursor:pointer;font:inherit;'
     + 'min-width:32px;min-height:32px;margin-inline-start:auto}'
     + '.spp-x[disabled]{opacity:.3;cursor:default}'
