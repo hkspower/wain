@@ -84,9 +84,20 @@ function e(?string $s): string {
 
 $products = [];
 $dbError = false;
+// SAME ROW ?r=slides READS, so the promo strip cannot say one thing here and
+// another on the app — one home for the text, per this project's own
+// standing rule against a second copy drifting from the first.
+$promoText = null;
 try {
     require_once __DIR__ . '/api/store.php';
     $db = store_db();
+
+    $promo = store_setting($db, 'promo_bar');
+    if ((bool) ($promo['enabled'] ?? false)
+        && store_window_open($promo['starts_at'] ?? null, $promo['ends_at'] ?? null)) {
+        $promoText = $isEn ? ($promo['text_en'] ?? '') : ($promo['text_ar'] ?? '');
+        if ($promoText === '') $promoText = null;
+    }
 
     $rows = $db->prepare(
         'select p.slug, p.name_en, p.name_ar, p.price, p.sale_price, p.sale_starts_at,
@@ -232,23 +243,64 @@ header('Cache-Control: public, max-age=0, must-revalidate');
   }
   a { color: inherit; text-decoration: none; }
   /* SOLID BLACK, MATCHING THE APP'S .app-header — 2026-09-21, asked for as
-     "make the topbar universal for all website and pages". This page is a
+     "make the topbar is unitersal for all website and pages". This page is a
      separate server-rendered surface (see the file's own header comment: a
      crawler that runs no JavaScript still needs something to see), so it was
      never touched by sporta-ui.css's header override, which only reaches the
-     built React bundle. It had been inheriting the body's --sp-black
-     (#0d0e10) with no shadow at all — close to the SPA's bar but not the
-     same colour, and visibly flatter once the SPA's bar gained its 20%
-     shadow. #000 and the identical shadow are restated here literally
-     rather than shared, because this page already avoids pulling in the 91
-     KB build stylesheet for nine colours (see the palette comment above) —
-     a --sp-header-bg custom property would need the owner's theme.js to
-     reach this file too, which it does not. */
-  header.top {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 16px 20px; background: #000; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.20);
+     built React bundle. #000 and the identical shadow are restated here
+     literally rather than shared, because this page already avoids pulling
+     in the 91 KB build stylesheet for nine colours (see the palette comment
+     above) — a --sp-header-bg custom property would need the owner's
+     theme.js to reach this file too, which it does not. */
+  header.top { background: #000; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.20); }
+
+  /* THE FULL TOPBAR, NOT JUST ITS COLOUR — 2026-09-21, same day, asked again
+     after the colour match as "use all pages same main topbar", confirmed
+     with the owner to mean the whole bar: promo strip, language toggle,
+     Kuwait clock, cart count and the sub-nav row, not only its background.
+     Structure mirrors the app's own header (promo <p>, a main row, a
+     border-topped sub-nav), rebuilt in plain HTML/CSS/vanilla JS because
+     this page has none of the app's JavaScript to reuse. */
+  .promo {
+    background: var(--sp-tile); text-align: center; font-size: .8rem; font-weight: 600;
+    padding: 6px 14px; color: var(--sp-text);
   }
-  header.top img { height: 28px; width: auto; display: block; }
+  .topnav {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 20px;
+  }
+  .topnav .brand-logo img { height: 28px; width: auto; display: block; }
+  .lang-pill {
+    display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 700;
+    color: rgba(255,255,255,.9); border: 1px solid rgba(255,255,255,.2); border-radius: 999px;
+    padding: 6px 12px;
+  }
+  .lang-pill svg { width: 14px; height: 14px; flex: none; }
+  /* THE CLOCK IS DECORATIVE AND HIDDEN BELOW 640px, same breakpoint the
+     app's own header uses for its digital readout — a ticking clock is the
+     least useful thing on a phone-width category page and the first thing
+     worth dropping. */
+  .clock { display: none; align-items: center; gap: 8px; }
+  @media (min-width: 640px) { .clock { display: flex; } }
+  .clock svg { width: 30px; height: 30px; flex: none; }
+  .clock .digital { font-size: .78rem; font-weight: 600; color: rgba(255,255,255,.85);
+                     font-variant-numeric: tabular-nums; }
+  .icons { display: flex; align-items: center; gap: 16px; }
+  .icons a { position: relative; display: flex; color: #fff; }
+  .icons svg { width: 22px; height: 22px; flex: none; }
+  .cart-badge {
+    position: absolute; top: -6px; inset-inline-end: -8px; background: var(--sp-fill);
+    color: #fff; font-size: .65rem; font-weight: 800; line-height: 1;
+    min-width: 16px; height: 16px; border-radius: 999px; display: none;
+    align-items: center; justify-content: center; padding: 0 3px;
+  }
+  .subnav { border-top: 1px solid rgba(255,255,255,.08); }
+  .subnav ul {
+    list-style: none; display: flex; justify-content: center; gap: 20px;
+    margin: 0; padding: 10px 20px; flex-wrap: wrap;
+  }
+  .subnav a { font-size: .85rem; font-weight: 700; color: rgba(255,255,255,.75); }
+  .subnav a.on { color: var(--sp-ember); }
   nav.cats {
     display: flex; gap: 6px; flex-wrap: wrap; overflow-x: auto;
     padding: 12px 20px; border-bottom: 1px solid var(--sp-line);
@@ -258,8 +310,6 @@ header('Cache-Control: public, max-age=0, must-revalidate');
     background: var(--sp-raise); border: 1px solid var(--sp-line); white-space: nowrap;
   }
   nav.cats a.on { background: var(--sp-fill); color: var(--sp-on-fill); border-color: var(--sp-fill); }
-  .lang { font-size: .85rem; color: var(--sp-silver); border: 1px solid var(--sp-line);
-          border-radius: 999px; padding: 6px 12px; }
   .hero { position: relative; }
   .hero picture, .hero img { display: block; width: 100%; height: auto; }
   .hero .copy {
@@ -320,8 +370,47 @@ header('Cache-Control: public, max-age=0, must-revalidate');
 </head>
 <body>
 <header class="top">
-  <a href="/<?= $isEn ? '?lang=en' : '' ?>"><img src="/logo-white.webp" alt="<?= $isEn ? 'Sporta' : 'سبورتا' ?>" width="120" height="28"></a>
-  <a class="lang" href="<?= e($path . ($isEn ? '' : '?lang=en')) ?>"><?= $isEn ? 'العربية' : 'English' ?></a>
+  <?php if ($promoText !== null): ?>
+    <p class="promo"><?= e($promoText) ?></p>
+  <?php endif; ?>
+  <div class="topnav">
+    <a class="lang-pill" href="<?= e($path . ($isEn ? '' : '?lang=en')) ?>">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M2 12h20"></path><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"></path></svg>
+      <?= $isEn ? 'العربية' : 'English' ?>
+    </a>
+    <span class="clock" aria-hidden="true">
+      <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="rgba(255,255,255,.06)"></circle><circle cx="24" cy="24" r="22" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="1.6"></circle><g data-hand="hour" transform="rotate(0 24 24)"><line x1="24" y1="26.5" x2="24" y2="12" stroke="#fff" stroke-width="3" stroke-linecap="round"></line></g><g data-hand="minute" transform="rotate(0 24 24)"><line x1="24" y1="26.5" x2="24" y2="7" stroke="var(--sp-ember)" stroke-width="2.4" stroke-linecap="round"></line></g><g data-hand="second" transform="rotate(0 24 24)"><line x1="24" y1="30" x2="24" y2="8" stroke="rgba(255,255,255,.5)" stroke-width="1.1" stroke-linecap="round"></line></g><circle cx="24" cy="24" r="2.4" fill="var(--sp-ember)"></circle></svg>
+      <span class="digital" data-clock-digital>&nbsp;</span>
+    </span>
+    <a class="brand-logo" href="/<?= $isEn ? '?lang=en' : '' ?>"><img src="/logo-white.webp" alt="<?= $isEn ? 'Sporta' : 'سبورتا' ?>" width="120" height="28"></a>
+    <div class="icons">
+      <a href="/cart" aria-label="<?= $isEn ? 'Bag' : 'الحقيبة' ?>">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.91" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path><path d="M3 6h18"></path><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+        <span class="cart-badge" data-cart-badge></span>
+      </a>
+      <a href="/wishlist" aria-label="<?= $isEn ? 'Wishlist' : 'المفضلة' ?>">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.91" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"></path></svg>
+      </a>
+      <!-- NO SEARCH ICON AND NO "SHOP" LINK, on purpose. The app's own header
+           carries both, pointing at /shop — and this file's own header
+           comment says, in the owner's own instruction, that none of these
+           four pages links there: "the nav, the footer and both empty-state
+           fallbacks cross-link the OTHER THREE category pages instead, never
+           the unfiltered grid." A search here has nowhere honest to land
+           that policy allows, so it is left out rather than pointed
+           somewhere the owner already said no to. test:category-pages
+           already asserted this and caught the first draft doing exactly
+           that. -->
+    </div>
+  </div>
+  <nav class="subnav">
+    <ul>
+      <li><a href="/<?= $isEn ? '?lang=en' : '' ?>"><?= $isEn ? 'Home' : 'الرئيسية' ?></a></li>
+      <li><a href="/terms<?= $isEn ? '?lang=en' : '' ?>"><?= $isEn ? 'Terms' : 'الشروط' ?></a></li>
+      <li><a href="/about<?= $isEn ? '?lang=en' : '' ?>"><?= $isEn ? 'About' : 'من نحن' ?></a></li>
+      <li><a href="/contact<?= $isEn ? '?lang=en' : '' ?>"><?= $isEn ? 'Contact' : 'اتصل بنا' ?></a></li>
+    </ul>
+  </nav>
 </header>
 <nav class="cats">
   <?php foreach (CATS as $s => $c): $q = $isEn ? '?lang=en' : ''; ?>
@@ -397,5 +486,6 @@ header('Cache-Control: public, max-age=0, must-revalidate');
 <footer class="bottom">
   <?= $otherLinks ?>
 </footer>
+<script src="/assets/category-topbar.js" defer></script>
 </body>
 </html>
