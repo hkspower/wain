@@ -352,8 +352,19 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
    the image carries the 2.10:1 aspect, and the 128px button strip sits below.
    Desktop needs no such split: at 768px and up the art goes `md:absolute
    md:inset-0`, laid UNDER the button rather than beside it. */
+/* --hero-h WAS STILL THE 2026-09-17 (pre-"full size") FORMULA — 2.10 ratio
+   plus a 128px button strip that the "whole banner everywhere" rewrite two
+   comment blocks up made obsolete for a real photo slide: the mounted hero
+   now sizes off the artwork's own 2.52:1 ratio alone, no button strip added
+   (the caption area a photo slide carries below the image is empty on every
+   slide live today, since none has a title set, and is part of the SLIDE's
+   own flow rather than this shell's concern). Measured live: shell computed
+   314px at 390px width; the mounted hero was 155px — a 159px drop the
+   instant React took over, on every phone visit. scripts/hero-size-test.mjs
+   is what caught it, comparing the pre-paint shell against the real mount
+   rather than trusting either number alone. */
 :root {
-  --hero-h: calc(100vw / 2.10 + 128px) !important;
+  --hero-h: calc(100vw / 2.52) !important;
   --hero-h-md: 100svh !important;
 }
 
