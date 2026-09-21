@@ -2825,3 +2825,29 @@ html, :host, body, .eyebrow {
   [data-sporta-brand-tile] { transition: none; }
   [data-sporta-brand-tile]:hover { transform: none; }
 }
+
+/* "Shop by category" heading (تسوّق حسب الفئة) — centred, with a small orange
+ * accent bar beneath it, matching the kicker pattern already used by the
+ * hero and the category tiles elsewhere on the site (orange accent + white
+ * bold heading), rather than making the heading text itself orange, which
+ * would fight the bold-white weight it already has. Selector matches the
+ * compiled Tailwind classes verbatim (no source for this bundle here) and is
+ * scoped to this exact combination — checked live: no other h2 on the page
+ * shares it, so this cannot catch "Summer sale", "Join the club" or the cart
+ * drawer's heading, which all use different class sets. */
+h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"] {
+  text-align: center;
+  position: relative;
+  padding-bottom: 14px;
+}
+h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"]::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 56px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sp-ember, #ff7b17);
+}
