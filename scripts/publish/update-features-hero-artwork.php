@@ -33,7 +33,7 @@
  * replaced both artwork files.
  */
 
-$COMMIT = '0bff524d0000000000000000000000000000000';   // placeholder — see note below
+$COMMIT = 'fe252b2cfbc06329c850459c0719477fd1d36d0f';
 
 $DESKTOP     = 'sporta-site/assets/hero/features-desktop.webp';
 $DESKTOP_SHA = 'aa81344ff4219c57bf9000651afc61cb43a53de486b12ccc848d976359229a86';
