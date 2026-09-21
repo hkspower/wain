@@ -231,9 +231,22 @@ header('Cache-Control: public, max-age=0, must-revalidate');
     -webkit-text-size-adjust: 100%;
   }
   a { color: inherit; text-decoration: none; }
+  /* SOLID BLACK, MATCHING THE APP'S .app-header — 2026-09-21, asked for as
+     "make the topbar universal for all website and pages". This page is a
+     separate server-rendered surface (see the file's own header comment: a
+     crawler that runs no JavaScript still needs something to see), so it was
+     never touched by sporta-ui.css's header override, which only reaches the
+     built React bundle. It had been inheriting the body's --sp-black
+     (#0d0e10) with no shadow at all — close to the SPA's bar but not the
+     same colour, and visibly flatter once the SPA's bar gained its 20%
+     shadow. #000 and the identical shadow are restated here literally
+     rather than shared, because this page already avoids pulling in the 91
+     KB build stylesheet for nine colours (see the palette comment above) —
+     a --sp-header-bg custom property would need the owner's theme.js to
+     reach this file too, which it does not. */
   header.top {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 16px 20px; border-bottom: 1px solid var(--sp-line);
+    padding: 16px 20px; background: #000; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.20);
   }
   header.top img { height: 28px; width: auto; display: block; }
   nav.cats {
