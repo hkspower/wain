@@ -432,8 +432,13 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   removal of 17 September held, verified rather than assumed.
 
 - **The crontab is shared, and a job you did not create is probably not a
-  problem.** This account carries seven sites, and other sessions use the same
-  fetch-pin-run write path. Two turned up on 10 September — `remove-strays.php`
+  problem.** This account carries **ten vhosts** — `hosting_listWebsitesV1`,
+  21 September, where this file used to say seven sites — and other sessions
+  use the same fetch-pin-run write path. The ones that are not wain's or
+  sporta's: `almuhallab-code.com` and `discs.`, `mawsoool.com` and
+  `nr.mawsoool.com` (16 August and 19 September, both newer than the «seven»),
+  and a Horizons builder site, `rare-dvd-collector-store-118349.hostingersite.com`.
+  Two turned up on 10 September — `remove-strays.php`
   and `live-revalidate-check.php`, both pinned to commits on this repository,
   both per-minute, both belonging to work on **sporta**. Each looked alarming
   (a per-minute job downloading and executing PHP) and each was a run-once
@@ -661,6 +666,61 @@ geolocation=(self), microphone=(self)`, HSTS one year. `/admin` renders
 `/queue/`. `media-endpoint.php`'s key-gated read uses `hash_equals`, fails
 closed on an empty key, and its `draftId` regex, whitelisted kind and
 whitelisted extension leave no path out of the pending directory.
+
+## The hosting settings — read 21 September
+
+Read-only, through the `hosa` connector: PHP, SSL, redirects, subdomains, git
+auto-deployment, databases. Nothing was changed. It is the panel's half of the
+security pass above, which covered the source and the disk and never asked the
+control panel what it was configured to do.
+
+**PHP is 8.5.4 — the newest supported — and staging is byte-identical to
+production, option for option.** That is worth having measured rather than
+assumed, because the whole staging argument is that it rehearses the deploy;
+two hosts on different php.ini would make it a rehearsal of something else.
+
+**Hardened past the defaults, and somebody did that deliberately:**
+`expose_php` **Off** (default On), `session.cookie_secure`,
+`session.cookie_httponly` and `session.use_strict_mode` all **On** (all
+default Off), `log_errors` **On**, `display_errors` Off, `date.timezone`
+**Asia/Kuwait**. `disable_functions` carries `system, exec, shell_exec,
+passthru, proc_open`. `zip`, `curl`, `gd` and `fileinfo` are all present,
+which is exactly what `deploy.php`, `tts.php` and `media.php` need.
+
+**Clean and worth not re-deriving:** SSL active and lifetime with the HTTPS
+redirect ON, valid to 26 Nov 2026; **git auto-deployment not configured**,
+which is correct because deploys go through the signed endpoint and a second
+write path into the docroot is the thing this whole file exists to prevent; no
+panel redirects, so the apex→www 301 in the export's own `.htaccess` is the
+only one; `staging` the only subdomain, rooted where the panel puts it; and
+**no database remote-connection rules at all**, so no `%` wildcard host.
+
+**One correction to the record: the panel calls the certificate provider
+`hssl`, and the wire says Let's Encrypt.** Both are true — Hostinger
+provisions LE under its own label — and the discrepancy is precisely why the
+CAA record was written from an `openssl s_client` reading rather than from
+this screen. A CAA naming the wrong CA does not fail loudly; it fails in ~90
+days when renewal is refused. **Do not re-derive the issuer from the panel.**
+
+**There is a MySQL database on `wainkw.com` and nothing in this repository
+uses it.** `u130124229_ask`, user `u130124229_hex`, created 10 May, 2MB, full
+privileges — Create, Drop, Alter, Execute. wain's back end is Supabase and it
+is unset; `grep` over `scripts/`, `src/` and `supabase/` finds **zero** uses
+of `mysqli` or `PDO`. So it is a leftover holding live credentials on wain's
+domain. Not reachable remotely (no remote-connection rules), which is what
+keeps it a tidiness question rather than a security one — but it is an
+unowned credential, and «an old database» is the same vague name that let
+sporta's copy sit in this docroot for weeks.
+
+**`allow_url_fopen` is On**, which is the PHP default rather than a choice,
+and Hostinger's own panel text calls it «a great security risk». Every
+endpoint here uses curl, so turning it off is probably free — but that is a
+change to a live host, it is not what a scan is for, and nothing has measured
+what else on this account reads a URL with `fopen`. Named, not touched.
+
+One reading NOT to over-interpret: the `brotli` PHP extension shows as
+disabled. Brotli is done by the web server and the edge, not by PHP —
+`Content-Encoding: br` was measured on both HTML and CSS the same day.
 
 ## DNS, TLS and mail — checked 20 September
 
@@ -1519,11 +1579,22 @@ POST body exceeds `post_max_size`, PHP empties `$_POST` and `$_FILES`
 because draftId is checked first and is now `''`, which is a confusing failure
 for a problem that has nothing to do with the draft id. Caught explicitly now
 — `empty($_POST) && empty($_FILES) && Content-Length > 0` is the classic tell
-— and reported as `file_too_large`, which is what actually happened. **This
-must be checked on the live host before the bridge is installed**: `php
+— and reported as `file_too_large`, which is what actually happened. `php
 media.php version` reports both ini values for exactly that reason, and
 `test:media`'s own server is started with them raised, or the app-level
 `MAX_BYTES` check could never be reached at all in a test run either.
+
+**That was written as a blocker — «this must be checked on the live host before
+the bridge is installed» — and it is now checked and CLEAR.** `getPHPDetailsV1`
+for `wainkw.com`, 21 September: `post_max_size` and `upload_max_filesize` are
+both **256M**, against `MAX_BYTES` of 12M, with `memory_limit` 512M and
+`max_execution_time` 300s. Staging reports the same values. So the ceiling is
+this sandbox's, not the server's, and the app-level check is reachable in
+production. It stays in the code because it is right for any host, and the
+sandbox is still a host where it fires. **Installing the bridge remains the
+open question it always was** — standing up a new anonymous public write
+endpoint is a decision — but the php.ini half of it is no longer a reason to
+wait.
 
 `npm run audit:media` is the anti-drift check `audit:tts` already is for the
 voice bridge: `MAX_BYTES`, `MAX_PHOTOS` and the accepted MIME types are read
