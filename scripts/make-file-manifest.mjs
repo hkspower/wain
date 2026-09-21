@@ -55,6 +55,20 @@ const IMAGE_EXT = /\.(png|jpe?g|webp|gif|svg|avif|ico)$/i
 const TARGETS = [
   { php: 'scripts/live/live-file-check.php', keep: () => true, what: 'files' },
   { php: 'scripts/live/live-image-check.php', keep: (rel) => IMAGE_EXT.test(rel), what: 'images' },
+  // A THIRD HARDCODED MANIFEST, found 2026-09-21 by an "update all" live
+  // sweep: live-served-check.php carries the same curated image set as
+  // live-image-check.php (its own $WANT is a subset — wallet-assets, cats,
+  // hero, favicons, logos, og-image — everything IMAGE_EXT already matches)
+  // plus the docroot's three CSS files, which the image target has no reason
+  // to touch. Its hashes had gone stale exactly the way this file's own
+  // header describes for the other two: a sweep reported category art and
+  // both stylesheets as "differ" when live-file-check.php, generated from
+  // the same git tree in the same run, said differ=0 — the server was right
+  // and this one hardcoded list was not. `.css` is safe to match on its own
+  // here because the docroot carries exactly three: the two hand-written
+  // stylesheets and the one content-hashed bundle file, whichever name that
+  // build currently has.
+  { php: 'scripts/live/live-served-check.php', keep: (rel) => IMAGE_EXT.test(rel) || rel.endsWith('.css'), what: 'served files' },
 ]
 
 let drifted = 0
