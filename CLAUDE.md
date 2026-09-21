@@ -1818,40 +1818,40 @@ wain do» has one answer whether it is asked over stdio or by tapping the search
 button. `tests/mcp.test.mjs` asserts equality with the module rather than a
 retyped list — a copy would pass the day it was written.
 
-**«تصفّح كل الأماكن» is gone from the hub, and «مناطق الكويت» took its
-place.** Removed on request; the swap is the part worth keeping. «كل
-الأماكن» is the one question a visitor never asks — «وين الطلعة اليوم؟» is
-answered by a category, by a place, or by a part of town, «أنا بالسالمية» —
-and the catalogue had carried that third answer in `areaAr` since the
-beginning without ever offering it as a door. /explore did not go anywhere;
-it is what an area card opens, filtered.
+**«مناطق الكويت» was built and then rolled back, and this section described
+it as live for days afterwards.** `f72759e`, «Roll the site back to
+`c3a5e25`», deleted `src/lib/areas.ts`, `src/app/areas/page.tsx`,
+`scripts/audit-areas.mjs`, `tests/areas.test.mjs` and
+`src/components/SearchButton.tsx` — and its own message says so: «/areas is
+gone; the hub offers «تصفّح كل الأماكن» again». **It did not touch
+CLAUDE.md**, so this file went on describing a route, a module, an audit and
+a suite that no longer exist, and `npm run content` is what finally caught it
+by listing the routes that do.
 
-`src/lib/areas.ts` holds the 21 areas, and **the join to the catalogue is a
-STRING** — `Area.ar` against `Place.areaAr`. That is the shape of every drift
-in this file (the n8n voice table, `@convai-widget-embed@1`,
-`contain-intrinsic-size`, `PlaceArt`'s safe box): nothing breaks loudly. An
-area no place carries opens onto an empty list; a place whose area has no
-entry is unreachable and no page says so. `npm run audit:areas` loads both
-real modules, bundled rather than parsed, and fails on any name in one and
-not the other — 21 areas, 52 of 52 placed. It also checks the two claims the
-file makes in prose, because an unchecked comment is a comment that will be
-wrong: every `hero` is a real place **in that area**, and `AREAS` is ordered
-by share of the catalogue, which is the nearest thing to «famous» a check can
-hold it to. Confirmed red by pointing حولي at the Avenues.
+The lesson is the one this file keeps relearning from the other direction: a
+rollback is a change, and prose is not rolled back by `git revert`. **When a
+commit deletes files, grep this file for their names in the same sitting.**
 
-Same rule as `place-kit.ts` and `wain-hub.ts`: **nothing in `areas.ts` may
-import the catalogue** — it is reachable from the hub. `/areas` counts places
-per area in a *server* component, so the page lands at 119.8K, the lightest
-tier on the site, level with `/privacy`.
+So, as of 21 September: the hub offers **«تصفّح كل الأماكن»**, there is no
+`/areas`, no `areas.ts`, no `audit:areas` and no `areas.test.mjs`. What
+survives the rollback and is still true:
 
-**`?area=` is an exact match on `areaAr`, not a search for the area's name**,
-and that distinction is the whole of `tests/areas.test.mjs`. The free-text box
-already matches `areaAr` among five other fields, so a name search looks
-identical — until «شرق» also returns «سوق شرق», which is in مدينة الكويت. A
-filter that silently includes one place from somewhere else is worse than no
-filter, because nothing on screen says it happened. Proved by swapping the
-exact match for the name search with the build green: exactly the شرق
-assertion went red, and only it.
+- **The 21 areas are real**, and the catalogue is now the only place they
+  exist — `npm run content` derives them from `areaAr` and prints the count
+  per area. مدينة الكويت holds 18 and السالمية 9; the other nineteen have
+  three or fewer, which is most of why «browse by area» was thin.
+- **The join was always a STRING** — an area name against `Place.areaAr` —
+  and that is the shape of every drift in this file (the n8n voice table,
+  `@convai-widget-embed@1`, `contain-intrinsic-size`, `PlaceArt`'s safe box):
+  nothing breaks loudly. Anything rebuilding this needs that check back.
+- **`?area=` would have to be an exact match on `areaAr`, not a search for
+  the area's name.** The free-text box already matches `areaAr` among five
+  other fields, so a name search looks identical — until «شرق» also returns
+  «سوق شرق», which is in مدينة الكويت. A filter that silently includes one
+  place from somewhere else is worse than no filter, because nothing on
+  screen says it happened. That was proved once, by swapping the exact match
+  for the name search with the build green: exactly the شرق assertion went
+  red, and only it. Worth keeping because it is the non-obvious half.
 
 **And the real-images answer is: there are none to be had from here, though
 they exist.** Re-measured 20 September, written up in full in `photos.ts`.
@@ -1910,16 +1910,47 @@ nothing referenced. What went with them, and what each cost:
   fixing the site**; the second measurement is the one that found this, and it
   only happened because somebody asked again.
 
-  `SearchButton` is the answer: a 40px icon link on a bottom rail, standing
+  `SearchButton` was the answer: a 40px icon link on a bottom rail, standing
   down on `/` (the link under the dial is the same offer) and on /search, and
   `standalone:hidden` because the app has a tab. **`LiveTray` gave up its own
   fixed positioning to share that rail** — two separately-positioned floating
   controls measure 10px apart at 320px, inside the 24px clearance
   `audit:mobile` requires between targets, and one flex row cannot collide at
   all. Measured with an order live: 173px of clearance at 320px, 243px at
-  390px. `tests/search-button.test.mjs` is back under its old name asking a
-  new question, and was confirmed to go red with the home-page stand-down
-  removed **and the build green** first.
+  390px. `tests/search-button.test.mjs` was confirmed to go red with the
+  home-page stand-down removed **and the build green** first.
+
+  **THE ROLLBACK DELETED IT AND THE BUG IS BACK. IT IS LIVE RIGHT NOW.**
+  `f72759e` removed `src/components/SearchButton.tsx` along with the areas
+  work, and nothing replaced it. `LiveTray` and `AppTabBar` survive and are
+  still mounted; the rail's other occupant does not exist. Measured in a real
+  browser at 390px against the shipped `out/`, 21 September:
+
+  | route | `a[href="/search/"]` visible | in the DOM |
+  |---|---|---|
+  | `/` | **1** | 2 |
+  | `/explore/` | **0** | 1 |
+  | `/about/` | **0** | 1 |
+  | `/privacy/` | **0** | 1 |
+  | a place page ×52 | **0** | 1 |
+
+  The one link in the DOM on those routes is `AppTabBar`'s tab, which is
+  `hidden … standalone:block` — present and painted by nothing in a browser.
+  So on the web, search and therefore شوق are reachable from the home page
+  and nowhere else, including the 52 place pages a WhatsApp link lands on.
+
+  **And the suite still passes, for the reason its own comment warns about.**
+  `journey` asks for `:visible` rather than a bare count — the fix made after
+  this shipped the first time — but it only ever asks it **on the home page**,
+  which is the one route that still has a visible link. So the assertion is
+  right and its coverage is wrong, which is the same defect in a different
+  place: *fixing the page you measured is not fixing the site*, now joined by
+  *asserting on the page you measured is not asserting on the site*. Whatever
+  restores the link should also make that check walk more than one route.
+
+  Not restored here: the rollback was somebody's deliberate act and its own
+  message says «/areas is gone; the hub offers «تصفّح كل الأماكن» again», so
+  putting one of its deletions back is a decision, not a cleanup.
 
   **That home-page link is «دوّر باسم المكان» now, and the «أو كلّم شوق» half
   was cut on request.** It is one tap on a page where nobody has searched
@@ -2085,15 +2116,60 @@ are now read and correct; a seventh appearing means something new, not this.
 
 ## Checks
 
-`npm run scan` is lint plus ~29 audits. Browser suites: `test:hangout`
-(hangout, hangout-page, map-pin, live-map, areas, search-button, search-keys,
-shouq-search, search-plan, swipe), `test:journey`, `test:register`, `test:shouq`,
-`test:orders`, `test:net`. PHP suites, not in `scan` because it
-cannot assume php: `test:api` (40), `test:tts` (42) and `test:media` (45).
+`npm run scan` is lint plus 31 audits — counted from `package.json` on
+21 September rather than estimated, because «~29» had been carried along
+through two additions. Browser suites: `test:hangout` (hangout, hangout-page,
+map-pin, live-map, search-keys, shouq-search, search-plan, swipe — **eight**,
+not the ten this line used to list: `areas` and `search-button` went with the
+rollback), `test:journey`, `test:register`, `test:shouq`, `test:orders`,
+`test:net`. PHP suites, not in `scan` because it
+cannot assume php: `test:api` (40), `test:tts` (**52**, up from 42 with the
+cache-prune block) and `test:media` (45).
 That sentence said «neither … because neither», and it was already wrong for
 three audits before `audit:logs` joined them: `audit:tts`, `audit:media` and
 `audit:logs` all shell out to php and all run in `scan`. What `scan` avoids is
 standing up a php SERVER, not calling the binary.
+
+**Two audits joined `scan` on 20–21 September, and one of them is a document.**
+
+`npm run audit:theme` measures the theme's ordered scales. `audit:color`
+covers the colours and `audit:type` the type that reaches the screen; nothing
+measured `--radius-*` or `--shadow-*` at all, and both state RULES in their
+own comments — «the relationship between sizes stays intact», «offsets grow
+faster than blur with elevation», «every layer is tinted with ink», «three
+layers once an object is properly raised». It reads `theme.css` and never
+opens `out/`, so it needs no build. Two exceptions are named rather than
+enforced, both because the data says so: `text-2xs` is off the leading curve
+by the file's own statement (a badge is one line and has no gap to protect),
+and the shadows' y/blur DIPS at `2xl` — 0.500 0.500 0.500 0.571 0.583 0.556 —
+so the per-step reading of «offsets grow faster» is false while the
+across-the-scale one is true and comfortable (offset ×40, blur ×36).
+Asserting the per-step version would fail the shipped theme.
+
+**Its call-site rule is split, and that split is the lesson.** A flat ban on
+`rounded-[…]`/`shadow-[…]` fires on three deliberate details: a map pin's 8px
+rotated nose at 2 and 3px, and the dial's warm gold glow. The corner scale
+starts at 10px and models cards, so a corner INSIDE its range is rot and one
+below it is a hairline; the elevation scale's premise is ink, so an
+ink-tinted arbitrary shadow is a step written longhand and another hue is not
+a step at all.
+
+**And it caught its own unfailable assertion.** The first draft sorted radii
+and shadows BY VALUE before testing ordering, so pointing `radius-3xl` at 8px
+reordered the violation out of existence and «is it larger?» could never
+fire. Source order is the claim. All eight rules and both classifiers were
+then confirmed red.
+
+`npm run content` writes **`docs/content.md`** — every route, category, area,
+all 52 places by category, optional-field coverage, the hub actions and the
+voice library — by bundling the real modules with esbuild, the same trick
+`audit:places` and the MCP server use. `content:check` re-renders and diffs,
+and runs last in `scan`. It exists because there was no answer to «what is on
+wain» short of reading a 3,000-line catalogue, and the hand-written counts had
+already drifted: `place-kit.ts` and `places.ts` both said 53 records against a
+catalogue of 52. Both now name the thing instead of counting it — **a number
+in a comment that has to track the data is a number that will be wrong.**
+It is also what caught the areas rollback, by listing the routes that exist.
 
 Browser suites serve `out/` and most of them do **not** build it.
 `tests/stale-build.mjs` compares `out/index.html` against the newest file in
@@ -2350,7 +2426,8 @@ misses its target fails identically to a broken feature.
 
 Worth knowing before anyone proposes making it one: `output: 'export'` does
 not mean full page loads. The export ships an HTML file per route **and** an
-RSC payload per route — those are the 62 `.txt` files, and the reason
+RSC payload per route — those are the `index.txt` files, 61 of them since the
+rollback took `/areas` out, and the reason
 `audit:htaccess` may not deny `index.txt` — so the router swaps views
 client-side and the document never reloads. Measured with a marker on
 `window`: it survives explore → a place, home → explore and explore → about,
