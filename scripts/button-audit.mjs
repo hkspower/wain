@@ -319,6 +319,18 @@ for (const [half, base, path] of PAGES) {
         dead.push(`${label} — a skip link that never appears, even focused`)
         deadHere++
       }
+      // BLURRED, not left focused. This is the pattern's own on-focus reveal:
+      // testing it means focusing it, and without a blur it STAYS visible —
+      // pinned over the header, in front of whatever control is next in DOM
+      // order. Reproduced directly: with the skip link left focused, a click
+      // on the header's language toggle timed out waiting for an element that
+      // Playwright's own actionability check found the skip link sitting on
+      // top of. That is not the site failing; it is this rig never releasing
+      // the focus its own check set. Caught by running one page in isolation
+      // (ONLY=/) and finding a control clickable alone but "blocked by </a>"
+      // in the full run — the skip link is the only <a> a fresh page ever
+      // focuses before anything else.
+      await el.evaluate((n) => n.blur()).catch(() => {})
       continue
     }
 
@@ -344,8 +356,25 @@ for (const [half, base, path] of PAGES) {
     // app. Pressing it and finding the page unchanged is the correct
     // behaviour, not a dead button — so these are reported rather than failed,
     // and they are still pressed, so one that throws is still caught.
+    // A QUANTITY STEPPER AT ITS FLOOR is the same shape — a control correctly
+    // refusing to go where it is not allowed to (quantity cannot go below 1)
+    // — but nothing in its own markup says so: no `disabled`, no
+    // `aria-disabled`, unlike the native-validation case below. Measured
+    // directly: "إنقاص الكمية" does nothing when the number beside it already
+    // reads 1, and moves it every other time (1→2 on increase, 2→1 back).
+    // Named by the site's own label rather than guessed, the same way the
+    // skip link above is matched by its own Arabic text.
+    const atQuantityFloor = /إنقاص الكمية|decrease quantity/i.test(c.name) &&
+      await p.evaluate((stamp) => {
+        const btn = document.querySelector(`[data-audit="${stamp}"]`)
+        const num = btn?.parentElement?.querySelector('input, [aria-live]') ??
+          [...(btn?.parentElement?.children ?? [])].find((n) => /^\d+$/.test(n.textContent.trim()))
+        const text = (num?.value ?? num?.textContent ?? '').trim()
+        return text === '1'
+      }, c.stamp).catch(() => false)
+
     const already =
-      c.current || c.pressed ||
+      c.current || c.pressed || atQuantityFloor ||
       (c.href && new URL(c.href, base + path).href.replace(/\/$/, '') ===
                  (base + path).replace(/\/$/, ''))
 
