@@ -249,6 +249,16 @@ Options -Indexes
   RewriteCond %{DOCUMENT_ROOT}/returns-request.html -f
   RewriteRule ^returns/request/?$ /returns-request.html [L]
 
+  # /men /women /accessories /outlet -> category.php?slug=<name>. A flat PHP
+  # file, not the app, for the same reason /card and /returns/request are —
+  # the app's router has never heard of these four paths. Unlike those two
+  # this one is dynamic (it queries the live catalogue), so it is PHP rather
+  # than a static .html, and category.php's own whitelist refuses anything
+  # that is not exactly these four names — the query string never reaches a
+  # WHERE clause unfiltered.
+  RewriteCond %{DOCUMENT_ROOT}/category.php -f
+  RewriteRule ^(men|women|accessories|outlet)/?$ /category.php?slug=$1 [L,QSA]
+
   # THESE ROUTES GO THROUGH seo.php, NOT STRAIGHT TO index.html.
   #
   # index.html has ONE hardcoded <head>. Served as-is for every route, it tells

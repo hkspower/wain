@@ -70,6 +70,21 @@ if ($uri === '/' || preg_match($seoRoutes, $uri)) {
     }
 }
 
+// /men /women /accessories /outlet -> category.php?slug=<name>, dynamic like
+// seo.php above rather than a static flat file, so it is required rather than
+// read off disk.
+//   .htaccess: RewriteCond %{DOCUMENT_ROOT}/category.php -f
+//              RewriteRule ^(men|women|accessories|outlet)/?$ /category.php?slug=$1 [L,QSA]
+if (preg_match('#^/(men|women|accessories|outlet)/?$#', $uri, $m)) {
+    $file = $_SERVER['DOCUMENT_ROOT'] . '/category.php';
+    if (is_file($file)) {
+        $_GET['slug'] = $m[1];
+        $_SERVER['SCRIPT_NAME'] = '/category.php';
+        require $file;
+        exit;
+    }
+}
+
 // The flat pages, which are NOT routes in the built app.
 //   .htaccess: RewriteCond %{DOCUMENT_ROOT}/card.html -f
 //              RewriteRule ^card/?$ /card.html [L]
