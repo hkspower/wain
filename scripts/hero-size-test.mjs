@@ -83,29 +83,70 @@ for (const [w, h] of VIEWPORTS) {
   const ctx = await browser.newContext({ viewport: { width: w, height: h } })
   const page = await ctx.newPage()
 
-  // THE PRE-PAINT SHELL, caught before React replaces it. `commit` returns as
-  // soon as the navigation lands, and the poll then waits for the stylesheet to
-  // apply — reading before that measures index.html's inline fallback rather
-  // than what a visitor sees, which is a different number and not the one under
-  // test.
-  await page.goto(BASE + '/', { waitUntil: 'commit' }).catch(() => {})
-  let shell = 0
-  for (let i = 0; i < 120; i++) {
-    shell = await page.evaluate(() => {
+  // THE PRE-PAINT SHELL, caught before React replaces it. A 25ms poll loop
+  // used to do this and MISSED it outright at some viewports (measured:
+  // 1440x700 came back "0" on a run where the shell demonstrably existed —
+  // a manual per-25ms trace of the same page found it alive for exactly one
+  // tick before React swapped it out). Hydrating a bundle already sitting on
+  // local disk is fast enough that the shell's whole lifetime can be shorter
+  // than the poll interval that was supposed to catch it. A MutationObserver
+  // installed before navigation (via addInitScript, so it exists from the
+  // very first paint) records the height the INSTANT `.boot-hero` appears,
+  // synchronously in its own callback, rather than sampling and hoping the
+  // window lines up.
+  await page.addInitScript(() => {
+    window.__shellH = 0
+    const capture = () => {
       const e = document.querySelector('.boot-hero')
-      return e ? Math.round(e.getBoundingClientRect().height) : 0
-    }).catch(() => 0)
-    if (shell) break
-    await page.waitForTimeout(25)
-  }
+      if (!e) return false
+      window.__shellH = Math.round(e.getBoundingClientRect().height)
+      return true
+    }
+    // Observe `document` itself, not `document.documentElement` — an
+    // init script runs before the parser has produced an `<html>` element at
+    // all, so `document.documentElement` is null at this point and calling
+    // `.observe()` on it throws, silently, inside the page — every capture
+    // this was meant to make came back 0 the one time that mistake shipped.
+    // `document` always exists, parsed or not, and `<html>` arriving is
+    // itself a childList mutation on it.
+    if (!capture()) {
+      const mo = new MutationObserver(() => { if (capture()) mo.disconnect() })
+      mo.observe(document, { childList: true, subtree: true })
+    }
+  })
+  await page.goto(BASE + '/', { waitUntil: 'commit' }).catch(() => {})
+  await page.waitForTimeout(600)
+  let shell = await page.evaluate(() => window.__shellH).catch(() => 0)
   await page.waitForTimeout(2600)
 
   const m = await page.evaluate(() => {
-    const s = document.querySelector('.hero-strength')
-    if (!s) return null
+    // NOT `.hero-strength`. That was a real class name once, for a themed
+    // fallback banner this bundle no longer renders when hero_slides has
+    // active rows — checked live: with four real slides in the database, the
+    // class exists nowhere in the DOM, and a rig that keys off it finds
+    // nothing at EVERY viewport rather than failing on the one theme that
+    // changed. The hero is a horizontal carousel track instead: three
+    // (or more) full-viewport slides sit side by side, each an <img> whose
+    // src carries `r=slide_image`, translated so only one is at x=0 at a
+    // time. Finding the CONTENT (a slide photograph) rather than a class
+    // Tailwind or a future redesign can rename is what survives the next
+    // theme change the way this test's own comment already argues for
+    // everything else it measures.
+    const imgs = Array.from(document.querySelectorAll('img[src*="r=slide_image"]'))
+    if (!imgs.length) return null
+    // Whichever slide is CURRENTLY SCROLLED INTO VIEW — its wrapper's left
+    // edge sits at the viewport's left edge; the others are translated a
+    // full viewport width away in either direction.
+    let img = imgs[0]
+    let s = img.parentElement
+    let best = Infinity
+    for (const candidate of imgs) {
+      const wrap = candidate.parentElement
+      const left = Math.abs(wrap.getBoundingClientRect().left)
+      if (left < best) { best = left; img = candidate; s = wrap }
+    }
     const r = s.getBoundingClientRect()
-    const img = s.querySelector('img')
-    const ib = img ? img.getBoundingClientRect() : null
+    const ib = img.getBoundingClientRect()
     return {
       hero: Math.round(r.height),
       pct: Math.round((r.height / window.innerHeight) * 100),
@@ -149,12 +190,29 @@ const unloaded = rows.filter((r) => !r.loaded)
 check(unloaded.length === 0, 'and its banner decoded, so its real shape is known',
   unloaded.map((r) => `${r.w}x${r.h}`).join(', '))
 
-// --- 1. the hero IS the screen ----------------------------------------------
-// pct is round((box height / window.innerHeight) * 100), so 100 means the box
-// is exactly the viewport. 1 point of slack for rounding across the two.
-const short = rows.filter((r) => Math.abs(r.pct - 100) > 1)
-check(short.length === 0, 'the hero fills the whole screen at every viewport',
+// --- 1. the hero IS the screen, ON THE SHAPES THAT RULE APPLIES TO ---------
+// NOT every viewport, on purpose — sporta-ui.css's own media queries say so:
+// `@media (min-width: 768px) and (max-aspect-ratio: 1/1)` deliberately carves
+// out anything narrow OR portrait-shaped (a phone, and a portrait tablet
+// whose WIDTH alone would otherwise pass for "desktop") and gives it the
+// artwork's own 2.52:1 ratio, uncropped, instead of the full-screen fill —
+// 768x1024 measured at 29.8% of the banner's width otherwise, worse than the
+// phone rule already guarantees at a narrower size. This mirrors that same
+// rule here rather than asserting one number for every shape, which is
+// exactly the assumption that went stale the day the ratio exception was
+// added and nobody updated the one place still expecting 100% everywhere.
+const isWide = (w, h) => w >= 768 && w / h > 1
+const short = rows.filter((r) => isWide(r.w, r.h) && Math.abs(r.pct - 100) > 1)
+check(short.length === 0, 'the hero fills the whole screen on every wide/landscape viewport',
   short.map((r) => `${r.w}x${r.h} box ${r.hero}px vs window ${r.h}px (${r.pct}%)`).join(', '))
+
+// The NARROW/PORTRAIT shapes get the opposite assertion: uncropped, at the
+// artwork's own ratio, rather than silently going unchecked just because the
+// full-screen rule does not apply to them.
+const shouldBeRatio = rows.filter((r) => !isWide(r.w, r.h))
+const notRatio = shouldBeRatio.filter((r) => r.art && Math.abs(r.box - r.art) > 0.05)
+check(notRatio.length === 0, 'and stays uncropped, at the artwork\'s own ratio, on phone/portrait',
+  notRatio.map((r) => `${r.w}x${r.h} box ${r.box.toFixed(2)} vs art ${r.art.toFixed(2)}`).join(', '))
 
 // --- 2. the shell and the hero are the same height -------------------------
 const jump = rows.filter((r) => Math.abs(r.hero - r.shell) > 2)
