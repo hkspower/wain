@@ -17,9 +17,15 @@ declare(strict_types=1);
  * stripped of every on-page filter on 2026-09-09 ("the shop narrows nothing"),
  * because a hidden parameter left no way to tell the grid was narrowed and no
  * way back to "all". This is the opposite shape: a page of its own, with the
- * category named in its own heading, its own URL, and "All products" always
- * one tap away in the header — narrowed IN THE OPEN, the same argument the
- * app's own /category/[id] and /brand/[slug] screens already make.
+ * category named in its own heading and its own URL — narrowed IN THE OPEN,
+ * the same argument the app's own /category/[id] and /brand/[slug] screens
+ * already make.
+ *
+ * NONE OF THE FOUR LINKS TO /shop, on the owner's own instruction — the nav,
+ * the footer and both empty-state fallbacks cross-link the OTHER THREE
+ * category pages instead ($otherLinks), never the unfiltered grid. A product
+ * page (/product/<slug>) is still reachable from a card, and /shop itself
+ * still exists and still works; it is simply not linked FROM here.
  *
  * FOUR SLUGS, ONE WHITELIST — never the raw query string. `category` is a
  * free-text column with no CHECK constraint (unlike size/fit), so an
@@ -150,10 +156,10 @@ $count = count($products);
 $desc = $isEn
     ? ($count > 0
         ? "Shop $nameEn at Sporta Kuwait — $count product" . ($count === 1 ? '' : 's') . " with KNET checkout and fast local delivery."
-        : "The $nameEn range at Sporta Kuwait — new arrivals added regularly. Browse the full shop while this section fills up.")
+        : "The $nameEn range at Sporta Kuwait — new arrivals added regularly.")
     : ($count > 0
         ? "تسوّق قسم $nameAr في سبورتا الكويت — $count منتج مع الدفع بكي نت وتوصيل سريع."
-        : "قسم $nameAr في سبورتا الكويت — تُضاف منتجات جديدة باستمرار. تصفّح المتجر الكامل بينما يتم تجهيز هذا القسم.");
+        : "قسم $nameAr في سبورتا الكويت — تُضاف منتجات جديدة باستمرار.");
 
 $path = '/' . $slug;
 $canonical = SITE . $path . ($isEn ? '?lang=en' : '');
@@ -308,7 +314,6 @@ header('Cache-Control: public, max-age=0, must-revalidate');
   <?php foreach (CATS as $s => $c): $q = $isEn ? '?lang=en' : ''; ?>
     <a class="<?= $s === $slug ? 'on' : '' ?>" href="/<?= $s . $q ?>"><?= e($isEn ? $c[1] : $c[2]) ?></a>
   <?php endforeach; ?>
-  <a href="/shop<?= $isEn ? '?lang=en' : '' ?>"><?= $isEn ? 'All products' : 'كل المنتجات' ?></a>
 </nav>
 <div class="hero">
   <picture>
@@ -321,17 +326,32 @@ header('Cache-Control: public, max-age=0, must-revalidate');
   </div>
 </div>
 <main>
+  <?php
+  // Cross-link to the OTHER THREE category pages rather than to /shop —
+  // /shop is not linked anywhere on these four pages, per the owner's own
+  // instruction, so a fallback needs a real destination among the pages
+  // that remain rather than a dead-end sentence.
+  $otherLinks = '';
+  foreach (CATS as $s => $c) {
+      if ($s === $slug) continue;
+      $q = $isEn ? '?lang=en' : '';
+      if ($otherLinks !== '') $otherLinks .= ' · ';
+      $otherLinks .= '<a href="/' . e($s) . $q . '">' . e($isEn ? $c[1] : $c[2]) . '</a>';
+  }
+  ?>
   <?php if ($dbError): ?>
     <div class="empty">
       <?= $isEn
-        ? 'This page could not load its products right now. <a href="/shop">Browse the full shop instead.</a>'
-        : 'تعذّر تحميل المنتجات الآن. <a href="/shop">تصفّح المتجر الكامل بدلاً من ذلك.</a>' ?>
+        ? 'This page could not load its products right now. Try one of the other sections: '
+        : 'تعذّر تحميل المنتجات الآن. جرّب أحد الأقسام الأخرى: ' ?>
+      <?= $otherLinks ?>
     </div>
   <?php elseif (!$products): ?>
     <div class="empty">
       <?= $isEn
-        ? "Nothing is filed under $nameEn yet — new arrivals are added regularly. <a href=\"/shop\">Browse the full shop</a> in the meantime."
-        : "لا توجد منتجات في قسم $nameAr حالياً — تُضاف منتجات جديدة باستمرار. <a href=\"/shop\">تصفّح المتجر الكامل</a> في هذه الأثناء." ?>
+        ? "Nothing is filed under $nameEn yet — new arrivals are added regularly. In the meantime: "
+        : "لا توجد منتجات في قسم $nameAr حالياً — تُضاف منتجات جديدة باستمرار. في هذه الأثناء: " ?>
+      <?= $otherLinks ?>
     </div>
   <?php else: ?>
     <p class="count"><?= $isEn
@@ -362,7 +382,7 @@ header('Cache-Control: public, max-age=0, must-revalidate');
   <?php endif; ?>
 </main>
 <footer class="bottom">
-  <a href="/shop<?= $isEn ? '?lang=en' : '' ?>"><?= $isEn ? 'Shop everything at Sporta' : 'تسوّق كل شيء في سبورتا' ?></a>
+  <?= $otherLinks ?>
 </footer>
 </body>
 </html>

@@ -40,15 +40,19 @@ for (const slug of SLUGS) {
   check(!body.includes('aria-pressed'), `/${slug} has no filter control of its own`)
 }
 
-// A category page's own nav must offer the OTHER three plus "all products" —
-// otherwise a shopper who lands on /men from a search result has no way to
-// reach /women without going back to Google.
+// A category page's own nav must offer the OTHER three — otherwise a shopper
+// who lands on /men from a search result has no way to reach /women without
+// going back to Google.
 {
   const { body } = await get('/men')
   for (const other of ['women', 'accessories', 'outlet']) {
     check(body.includes(`href="/${other}`), `/men links to /${other}`, )
   }
-  check(body.includes('href="/shop'), '/men links to /shop ("all products")')
+  // NONE of the four link to /shop, on the owner's own instruction — the nav,
+  // footer and empty-state fallbacks all cross-link the other three category
+  // pages instead. A mutation restoring a /shop link would only be caught by
+  // asserting its ABSENCE, not by checking for something else's presence.
+  check(!body.includes('href="/shop'), '/men does not link to /shop')
 }
 
 // THE WHITELIST HOLDS. category.php reads $_GET['slug'] straight from the
@@ -70,6 +74,9 @@ for (const slug of SLUGS) {
   check(status === 200, '/outlet (currently empty) still answers 200')
   check(body.includes('class="empty"') || /\d+ (product|منتج)/.test(body),
     '/outlet shows either an empty-state message or a real count, never neither')
+  check(!body.includes('href="/shop'), '/outlet\'s empty state does not fall back to /shop either')
+  check(body.includes('href="/men') && body.includes('href="/women') && body.includes('href="/accessories'),
+    "/outlet's empty state cross-links the other three categories instead")
 }
 
 // A page with products actually links each card to that product's own page —
