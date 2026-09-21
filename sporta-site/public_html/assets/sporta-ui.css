@@ -397,6 +397,26 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
   }
 }
 
+/* THE HERO'S DARK WASH, LIGHTENED — 2026-09-21, "too much shadow and tint on
+ * hero images". A real photo slide carries its own overlay for caption
+ * legibility: a <span> with `bg-gradient-to-r from-ink/85 via-ink/40
+ * to-transparent` sitting on top of the photograph, compiled by Tailwind to
+ * two custom properties on the element itself (`--tw-gradient-from` /
+ * `--tw-gradient-via`, both a near-black "ink" colour at 85%/40% alpha).
+ * Every caption live today is empty (no slide has a title set), so the wash
+ * was darkening the artwork for legibility a visitor never needed — roughly
+ * halved rather than removed, since a future slide WITH a title still needs
+ * enough contrast to read against a busy photograph.
+ *
+ * ATTRIBUTE SELECTOR ON BOTH CLASSES TOGETHER, not a bare `.from-ink\/85` —
+ * Tailwind's escaped class name matches wherever that utility is used
+ * elsewhere on the page too; requiring `via-ink/40` alongside it scopes this
+ * to the one gradient the hero actually builds from both. */
+[class~="from-ink/85"][class~="via-ink/40"] {
+  --tw-gradient-from: #171a1e73 !important;  /* 85% -> 45% alpha */
+  --tw-gradient-via: #171a1e33 !important;   /* 40% -> 20% alpha */
+}
+
 /* AND THE COMPONENT ITSELF, which is what actually sizes the mounted hero.
    The variables above only paint the pre-mount shell — setting them alone
    changed nothing on screen, which is how I found this out. Both have to move
