@@ -190,15 +190,17 @@ const unloaded = rows.filter((r) => !r.loaded)
 check(unloaded.length === 0, 'and its banner decoded, so its real shape is known',
   unloaded.map((r) => `${r.w}x${r.h}`).join(', '))
 
-// --- 1. the hero IS the screen, AT EVERY VIEWPORT — 2026-09-21 -------------
-// Reversed back to "every shape", on the owner's explicit instruction after
-// being shown what it costs: phone and portrait-tablet had been carved out
-// (2026-09-18/20) specifically to avoid cropping the banner's width down to
-// as little as 18-30% — "full height, any crop" asks for exactly that crop
-// back, on every viewport, no exception. pct is round((box height / window
-// height) * 100); 1 point of slack for rounding across the two.
-const short = rows.filter((r) => Math.abs(r.pct - 100) > 1)
-check(short.length === 0, 'the hero fills the whole screen at every viewport',
+// --- 1. the hero is a FIXED FRACTION OF THE SCREEN, AT EVERY VIEWPORT ------
+// 75%, not 100 — 2026-09-21, same day as the "full height, any crop"
+// reversal below it in history: asked for as "reduce hero slide layout
+// height 25%", applied to the one --hero-h/--hero-h-md formula every shape
+// shares (75svh) rather than as a separate number for each, which is what
+// keeps them from drifting into two values the way this file's own history
+// already shows a duplicate formula doing once. pct is
+// round((box height / window height) * 100); 1 point of slack for rounding.
+const TARGET_PCT = 75
+const short = rows.filter((r) => Math.abs(r.pct - TARGET_PCT) > 1)
+check(short.length === 0, `the hero is ${TARGET_PCT}% of the screen at every viewport`,
   short.map((r) => `${r.w}x${r.h} box ${r.hero}px vs window ${r.h}px (${r.pct}%)`).join(', '))
 
 // --- 2. the shell and the hero are the same height -------------------------

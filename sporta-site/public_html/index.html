@@ -262,21 +262,24 @@
           // sporta-ui.css sets the same two variables with !important and
           // WINS the moment it loads — same as every version before this one
           // — so what this script still decides is only the FIRST FRAME,
-          // before the stylesheet applies. Both files have to say 100svh or
-          // the shell and the mounted hero disagree and the page jumps at
-          // mount, which is the one failure this script exists to prevent.
+          // before the stylesheet applies. Both files have to say the SAME
+          // value or the shell and the mounted hero disagree and the page
+          // jumps at mount, which is the one failure this script exists to
+          // prevent.
           //
-          // 100svh EVERYWHERE, not the phone/desktop split the old formula
-          // needed. The old one had to add the button strip's height on the
-          // phone because the strip sits below the art there rather than over
-          // it — but that arithmetic lives in sporta-ui.css, on the image
-          // container itself, not on the outer box this variable sizes. The
-          // outer is the whole screen at every width; splitting it here too
-          // would be a second home for the same 104px and only one of them
-          // could ever be told about a change to the button.
+          // 75svh EVERYWHERE, not the phone/desktop split the old formula
+          // needed — 100svh minus the 25% asked for on 2026-09-21, the same
+          // day the full-height reversal above shipped. The old split had to
+          // add the button strip's height on the phone because the strip
+          // sits below the art there rather than over it — but that
+          // arithmetic lives in sporta-ui.css, on the image container
+          // itself, not on the outer box this variable sizes. The outer is
+          // the same fraction of the screen at every width; splitting it
+          // here too would be a second home for the same 104px and only one
+          // of them could ever be told about a change to the button.
           var kind = localStorage.getItem('sporta_hero_kind') || 'banner'
-          el.style.setProperty('--hero-h', '100svh')
-          el.style.setProperty('--hero-h-md', '100svh')
+          el.style.setProperty('--hero-h', '75svh')
+          el.style.setProperty('--hero-h-md', '75svh')
 
           // THE HERO BANNER, requested here rather than in the markup above.
           //

@@ -355,21 +355,25 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
 /* FULL HEIGHT ON EVERY DEVICE, ANY CROP — 2026-09-21, on the owner's explicit
  * instruction after being shown exactly what it costs. This reverses BOTH the
  * phone ratio (2026-09-18/19) and the portrait-tablet exception (2026-09-20)
- * below in one step: --hero-h and --hero-h-md are both 100svh again, with no
- * carve-out. A phone or a portrait tablet now crops the SIDES the same way an
- * ordinary desktop window already did — previously measured at showing as
- * little as 21-30% of the banner's width, cutting the left-side headline —
- * and that trade was accepted in as many words rather than assumed.
+ * below in one step: --hero-h and --hero-h-md carry the same formula again,
+ * with no carve-out. A phone or a portrait tablet crops the SIDES the same
+ * way an ordinary desktop window already did — previously measured at
+ * showing as little as 21-30% of the banner's width, cutting the left-side
+ * headline — and that trade was accepted in as many words rather than
+ * assumed.
  *
- * --hero-h ALSO NOW MATCHES index.html's OWN BOOT SCRIPT, which had set both
- * variables to 100svh inline all along and said so in its own comment
- * ("100svh EVERYWHERE... Both files have to say 100svh or the shell and the
- * mounted hero disagree") — this file had drifted from that on the phone
- * variable specifically, and this restores the one thing both files agree on
- * rather than introducing a third value. */
+ * 75svh, NOT 100 — 2026-09-21, same day, asked for as "reduce hero slide
+ * layout height 25%". A quarter off the full screen, applied to the ONE
+ * formula both variables already share rather than to each independently,
+ * which is what keeps them from drifting into two numbers again.
+ *
+ * --hero-h MUST MATCH index.html's OWN BOOT SCRIPT, which sets both
+ * variables inline and says so in its own comment ("Both files have to say
+ * [the same value] or the shell and the mounted hero disagree") — that file
+ * was updated to 75svh in the same commit as this one. */
 :root {
-  --hero-h: 100svh !important;
-  --hero-h-md: 100svh !important;
+  --hero-h: 75svh !important;
+  --hero-h-md: 75svh !important;
 }
 
 /* A PHOTO SLIDE'S CAPTION BOX reads --hero-h-md through
@@ -389,7 +393,7 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
     aspect-ratio: auto !important;
   }
   [class~="md:min-h-[var(--hero-h-md,640px)]"] {
-    min-height: var(--hero-h-md, 100svh) !important;
+    min-height: var(--hero-h-md, 75svh) !important;
   }
 }
 
@@ -423,8 +427,9 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
     /* 2026-09-18: was aspect-ratio 2.52/1 with the ratio-and-cap history two
      * blocks up. The art goes md:absolute md:inset-0 at this width — under
      * the button, not beside it — so the outer's own height is already the
-     * image's height and nothing needs splitting the way the phone does. */
-    height: 100svh !important;
+     * image's height and nothing needs splitting the way the phone does.
+     * 75svh, not 100, since 2026-09-21 — same -25% as --hero-h above. */
+    height: 75svh !important;
     aspect-ratio: auto !important;
     max-height: none !important;
   }
@@ -1679,22 +1684,18 @@ p.mt-6.flex.flex-wrap.items-baseline:has(> .font-display) {
 
 @media (max-width: 767px) {
   .hero-strength {
-    /* 100svh, 2026-09-18 — same formula as --hero-h at the top of this file,
-     * and the one home for the phone height after the duplicate above this
-     * block was removed. Was `calc(100vw / 2.52 + 104px)`, the artwork's own
-     * ratio plus the band: the owner then asked for the whole SCREEN rather
-     * than the whole PICTURE, which these are not the same thing — the box no
-     * longer has the artwork's shape, and `cover` on the image below crops the
-     * sides to fill it. See object-position further up for what that costs. */
-    height: 100svh !important;
+    /* 75svh, 2026-09-21 (was 100svh, 2026-09-18) — same formula as --hero-h
+     * at the top of this file, and the one home for the phone height after
+     * the duplicate above this block was removed. */
+    height: 75svh !important;
   }
   .hero-strength > .aspect-\[2\.52\/1\] {
-    /* The image's own box no longer takes the ratio either — it is 100svh
-     * MINUS the 104px band below, so the two sum to the screen instead of the
-     * image alone claiming it and pushing the band off-screen. aspect-ratio
-     * is dropped rather than left beside a height, which would leave two
-     * properties disagreeing about the same box. */
-    height: calc(100svh - 104px) !important;
+    /* The image's own box no longer takes the ratio either — it is the outer
+     * height MINUS the 104px band below, so the two sum to the outer instead
+     * of the image alone claiming it and pushing the band off-screen.
+     * aspect-ratio is dropped rather than left beside a height, which would
+     * leave two properties disagreeing about the same box. */
+    height: calc(75svh - 104px) !important;
     aspect-ratio: auto !important;
   }
 
