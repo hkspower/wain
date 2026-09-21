@@ -83,8 +83,18 @@ const one = (q) => sql(q).split('\n')[0] ?? ''
 // -1 for every one of them and the loop skipped the lot. Base64 payloads
 // contain no tabs or newlines of their own, so with escaping off the split is
 // unambiguous.
+// maxBuffer RAISED PAST NODE'S 1 MB DEFAULT — found 2026-09-21 running "check
+// health of all images", where this crashed with ENOBUFS rather than a real
+// finding. The hero slides query pulls every active row's base64 in ONE
+// result, and this project's own hero artwork had grown to 1059 kB of it —
+// right at the default ceiling, so the query that had always worked started
+// failing the moment the DATA grew rather than the CODE changing. Each row is
+// capped at STORE_HERO_MAX (api/store.php, 1,200,000 bytes of base64) but
+// several rows are summed here, so 16 MB is a wide margin above any realistic
+// total rather than a value tied to that constant.
 const sqlRaw = (q) =>
-  execFileSync('mariadb', ['-uroot', 'sporta', '-N', '-B', '--raw', '-e', q], { encoding: 'utf8' }).trim()
+  execFileSync('mariadb', ['-uroot', 'sporta', '-N', '-B', '--raw', '-e', q],
+    { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }).trim()
 
 // ---------------------------------------------------------------- 1. on disk
 console.log('--- artwork on disk')
@@ -438,9 +448,16 @@ console.log('\n--- a folder per brand, for logos dropped in by hand')
 {
   const brands = sql('select slug from brands').split('\n').filter(Boolean)
   const dir = `${DOCROOT}/images`
-  const folders = existsSync(dir)
+  // brands/ AND heros/ ARE NOT BRAND FOLDERS. CLAUDE.md already settled this
+  // for the file manifest — they hold only a .gitkeep, "nothing on the server
+  // reads one" — and this check was re-discovering the identical fact from a
+  // different angle: flagging them as a stray folder AND as missing their
+  // PUT-LOGO-HERE.txt, when neither is a brand slug that should ever carry
+  // one. Excluded by the same two names rather than re-litigated here.
+  const NOT_A_BRAND_SLUG = ['brands', 'heros']
+  const folders = (existsSync(dir)
     ? readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name)
-    : []
+    : []).filter((f) => !NOT_A_BRAND_SLUG.includes(f))
 
   const missing = brands.filter((b) => !folders.includes(b))
   check(missing.length === 0,

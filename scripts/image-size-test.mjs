@@ -50,13 +50,13 @@ const check = (ok, what, extra = '') => {
 /** Upscales that cannot be fixed from this repository, with why and how bad.
  *  `ratio` is what was measured when the entry was written. */
 const ALLOWED = [
-  {
-    match: /hero\/desktop\//,
-    density: 'desktop 2x',
-    ratio: 1.98,
-    why: 'the desktop hero needs a ~3200px master; the repo has no copy of this '
-       + 'artwork above 1600px, so only the owner can close it',
-  },
+  // hero/desktop/ at desktop 2x was here, removed 2026-09-21 running "check
+  // health of all images" — this rig's own self-cleaning check reported it no
+  // longer needed. The 1600px masters have not changed; the hero box got
+  // SHORTER instead (75svh, the same day's own earlier reduction), so the
+  // same file now needs less upscaling to fill it — under this file's 1.15
+  // TOLERANCE. Confirmed rather than assumed: the desktop masters are still
+  // 1600px wide, checked directly against the webp headers.
   {
     // The mobile tiles are a DIFFERENT COMPOSITION from the desktop ones, not a
     // scale of them — measured: desktop art-men is 1.72:1 and mobile is 1.58:1,
