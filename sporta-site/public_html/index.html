@@ -939,6 +939,13 @@
          picture rather than a blank tile. Deleting this line reverts it. -->
     <script src="/assets/tile-art.js" defer></script>
 
+    <!-- The same four home-page tiles all still linked to /shop, from before
+         /men /women /accessories /outlet existed as pages of their own.
+         Points each at the right one instead — see the script's own header
+         for why a plain href swap is not enough against a React Router Link.
+         Deleting this line reverts every tile to /shop. -->
+    <script src="/assets/category-tiles.js" defer></script>
+
     <!-- The website panel's order-detail drawer: a link to the archived PDF
          invoice. api/invoice-pdf.php, api/cron-invoice.php and
          api/invoice-file.php already built, swept and served the document —

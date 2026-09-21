@@ -128,6 +128,7 @@
     "test:rules-panel": "node scripts/rules-panel-test.mjs",
     "test:seo-cache": "node scripts/seo-cache-test.mjs",
     "test:category-pages": "node scripts/category-pages-test.mjs",
+    "test:category-tiles": "node scripts/category-tiles-test.mjs",
     "test:image-sizes": "node scripts/image-size-test.mjs",
     "make:hero-sizes": "node scripts/make-hero-sizes.mjs",
     "scan:storage": "node scripts/storage-scan.mjs",
