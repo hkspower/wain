@@ -1,21 +1,37 @@
 <?php
 /**
- * Check for corrupted or missing images on the live server.
- * Reports zero-byte files, unreadable files, and known stray files.
- * Run via cron: wget -qO - https://127.0.0.1/api/api.php?r=live_check_images
+ * Zero-byte or unreadable image files under hero/ and cats/ on the live
+ * server. READ-ONLY — stats files, reads nothing, writes nothing.
+ *
+ *   wget -qO r.php https://raw.githubusercontent.com/hkspower/wain/<40-char-sha>/scripts/live/check-image-corruption.php && php r.php
+ *
+ * THE DIRECTORIES WERE WRONG AND THIS NEVER CHECKED A SINGLE FILE. It listed
+ * `assets/hero/desktop`, `assets/cats/desktop`, etc. — this shop's images
+ * live at `hero/desktop` and `cats/desktop`, directly under the docroot, with
+ * no `assets/` prefix (assets/ holds the CSS/JS bundle, not artwork). Every
+ * `is_dir()` check failed, the loop skipped all four directories, and the
+ * script printed `images_ok=all_0` — which reads exactly like a clean run of
+ * a real check, on a script that had checked nothing. Fixed to the real
+ * paths; $checked being 0 now means something actually is wrong (no files
+ * found at all), not that the check quietly measured its own environment.
+ *
+ * STRAY FILES ARE REPORTED SEPARATELY FROM CORRUPTION, and were not before —
+ * `cats/desktop/outlet.jpg` existing is a known, long-running situation
+ * (CLAUDE.md's own history: something on this account keeps restoring it
+ * after every removal, and it is not corrupted, just not ours to have there).
+ * Folding it into `corrupted=N` would read as image damage on a run where
+ * nothing is actually broken.
  */
 
-// Scan image directories
 $docroot = '/home/u130124229/domains/sporta.com.kw/public_html';
 $corrupted = [];
 $checked = 0;
 
-// Expected image locations
 $dirs = [
-    'assets/hero/desktop',
-    'assets/hero/mobile',
-    'assets/cats/desktop',
-    'assets/cats/mobile',
+    'hero/desktop',
+    'hero/mobile',
+    'cats/desktop',
+    'cats/mobile',
 ];
 
 foreach ($dirs as $dir) {
@@ -29,7 +45,6 @@ foreach ($dirs as $dir) {
         $checked++;
         $size = filesize($path);
 
-        // Check for problems
         if ($size === 0) {
             $corrupted[] = "/$dir/$file (zero bytes)";
         } else if (!is_readable($path)) {
@@ -38,24 +53,17 @@ foreach ($dirs as $dir) {
     }
 }
 
-// Check for known stray files that should not exist
+// Known, long-standing strays — reported, never treated as corruption.
 $stray = [
-    'cats/desktop/outlet.jpg' => 'duplicate tile image',
+    'cats/desktop/outlet.jpg' => 'duplicate tile image, restored by something on this account that is not us',
 ];
-
+$strayFound = [];
 foreach ($stray as $path => $reason) {
-    if (file_exists("$docroot/$path")) {
-        $checked++;
-        $corrupted[] = "/$path ($reason)";
-    }
+    if (file_exists("$docroot/$path")) $strayFound[] = "/$path ($reason)";
 }
 
-// Report
-if (empty($corrupted)) {
-    echo "images_ok=all_$checked";
-} else {
-    echo "corrupted=" . count($corrupted);
-    foreach ($corrupted as $file) {
-        echo " " . $file;
-    }
-}
+echo $checked === 0 ? 'checked=0 (no files found — a directory is missing or renamed again)' : "checked=$checked";
+echo ' corrupted=' . count($corrupted);
+foreach ($corrupted as $file) echo ' ' . $file;
+echo ' stray=' . count($strayFound);
+foreach ($strayFound as $file) echo ' ' . $file;
