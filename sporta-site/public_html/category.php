@@ -178,6 +178,24 @@ $canonical = SITE . $path . ($isEn ? '?lang=en' : '');
 $artDesktop = "/cats/desktop/art-$slug" . ($hasRtlArt && !$isEn ? '-rtl' : '') . '.webp';
 $artMobile  = "/cats/mobile/art-$slug" . ($hasRtlArt && !$isEn ? '-rtl' : '') . '.webp';
 
+// THE REAL DIMENSIONS, NOT A GUESS COPIED ACROSS ALL FOUR — 2026-09-21, asked
+// for as "fix aspect ration heros images". The <img> below carried a single
+// hardcoded 1600x635 (2.52:1) for every category, and none of the six files
+// on disk are that shape: men/women are 1216x706 desktop, 900x570 mobile
+// (1.72:1 — the -rtl and plain crops share the file's own ratio, checked byte
+// for byte), accessories/outlet are 1216x418 desktop, 900x454 mobile (2.91:1).
+// Both are narrower than 2.52 and one is wider, so no single fixed pair could
+// ever have been right for all four. `height: auto` in the CSS meant the
+// WRONG attributes never stretched or cropped anything a visitor could see —
+// the browser re-measures from the real file once it decodes — but they
+// reserved the wrong box before that happened, which is a real layout shift,
+// and they were simply false metadata regardless. $hasRtlArt already tells
+// the two groups apart; it is reused here rather than adding a second flag
+// that could disagree with it.
+[$artW, $artH, $artMobileW, $artMobileH] = $hasRtlArt
+    ? [1216, 706, 900, 570]
+    : [1216, 418, 900, 454];
+
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: public, max-age=0, must-revalidate');
 ?>
@@ -420,7 +438,7 @@ header('Cache-Control: public, max-age=0, must-revalidate');
 <div class="hero">
   <picture>
     <source media="(max-width: 640px)" srcset="<?= e($artMobile) ?>">
-    <img src="<?= e($artDesktop) ?>" alt="" width="1600" height="635" loading="eager">
+    <img src="<?= e($artDesktop) ?>" alt="" width="<?= $artW ?>" height="<?= $artH ?>" loading="eager">
   </picture>
   <div class="copy">
     <p class="kicker"><?= e($kicker) ?></p>
