@@ -307,7 +307,7 @@
 
   var CSS =
     '.qas-panel{position:absolute;inset-inline:0;bottom:0;z-index:20;padding:10px;'
-    + 'background:rgba(23,26,30,.92);backdrop-filter:blur(2px);border-radius:0 0 0.75rem 0.75rem}'
+    + 'background:rgba(23,26,30,.92);backdrop-filter:blur(2px);border-radius:0 0 10px 10px}'
     + '.qas-head{font-size:11px;font-weight:700;color:#fff;margin-bottom:6px;padding-inline-end:22px}'
     + '.qas-close{position:absolute;top:6px;inset-inline-end:8px;border:0;background:transparent;'
     + 'color:#fff;font-size:16px;line-height:1;cursor:pointer;min-width:22px;min-height:22px}'

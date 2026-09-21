@@ -2851,3 +2851,27 @@ h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate
   border-radius: 2px;
   background: var(--sp-ember, #ff7b17);
 }
+
+/* Product grid — gap and card radius, asked for as part of a "black and
+ * orange, premium and clean" pass: "Gap: 8–12px" on mobile (measured 8px
+ * column-gap already, at the floor — left alone) and "gap: 20–24px" on
+ * desktop, where the grid's own `sm:gap-x-3` (12px) was the widest rule it
+ * had and carried unchanged all the way to a 2560px monitor — measured, same
+ * gap on every viewport once at that breakpoint. Card corners were 0 —
+ * `aspect-[4/5]` has no radius of its own — against a spec asking for
+ * 8–12px everywhere. Selectors match the compiled Tailwind classes verbatim
+ * (no source for this bundle here); scoped to the shop grid's own class
+ * combination so this cannot catch an unrelated grid elsewhere on the site.
+ */
+[class~="grid-cols-2"][class~="sm:gap-x-3"][class~="lg:grid-cols-4"] {
+  row-gap: 20px;
+}
+@media (min-width: 768px) {
+  [class~="grid-cols-2"][class~="sm:gap-x-3"][class~="lg:grid-cols-4"] {
+    column-gap: 22px;
+    row-gap: 22px;
+  }
+}
+a[class~="aspect-[4/5]"][class~="overflow-hidden"][class~="bg-slate-100"] {
+  border-radius: 10px;
+}
