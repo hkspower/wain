@@ -352,31 +352,45 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
    the image carries the 2.10:1 aspect, and the 128px button strip sits below.
    Desktop needs no such split: at 768px and up the art goes `md:absolute
    md:inset-0`, laid UNDER the button rather than beside it. */
-/* --hero-h WAS STILL THE 2026-09-17 (pre-"full size") FORMULA — 2.10 ratio
-   plus a 128px button strip that the "whole banner everywhere" rewrite two
-   comment blocks up made obsolete for a real photo slide: the mounted hero
-   now sizes off the artwork's own 2.52:1 ratio alone, no button strip added
-   (the caption area a photo slide carries below the image is empty on every
-   slide live today, since none has a title set, and is part of the SLIDE's
-   own flow rather than this shell's concern). Measured live: shell computed
-   314px at 390px width; the mounted hero was 155px — a 159px drop the
-   instant React took over, on every phone visit. scripts/hero-size-test.mjs
-   is what caught it, comparing the pre-paint shell against the real mount
-   rather than trusting either number alone. */
+/* FULL HEIGHT ON EVERY DEVICE, ANY CROP — 2026-09-21, on the owner's explicit
+ * instruction after being shown exactly what it costs. This reverses BOTH the
+ * phone ratio (2026-09-18/19) and the portrait-tablet exception (2026-09-20)
+ * below in one step: --hero-h and --hero-h-md are both 100svh again, with no
+ * carve-out. A phone or a portrait tablet now crops the SIDES the same way an
+ * ordinary desktop window already did — previously measured at showing as
+ * little as 21-30% of the banner's width, cutting the left-side headline —
+ * and that trade was accepted in as many words rather than assumed.
+ *
+ * --hero-h ALSO NOW MATCHES index.html's OWN BOOT SCRIPT, which had set both
+ * variables to 100svh inline all along and said so in its own comment
+ * ("100svh EVERYWHERE... Both files have to say 100svh or the shell and the
+ * mounted hero disagree") — this file had drifted from that on the phone
+ * variable specifically, and this restores the one thing both files agree on
+ * rather than introducing a third value. */
 :root {
-  --hero-h: calc(100vw / 2.52) !important;
+  --hero-h: 100svh !important;
   --hero-h-md: 100svh !important;
 }
 
-/* A PHOTO SLIDE reads this variable through `md:min-h-[var(--hero-h-md,…)]`
- * rather than through `.hero-strength`'s own height rule below — the two
- * drawn-slide themes (hero-strength/cardio/arena) and a real photo slide are
- * different DOM, and only the drawn ones carry a `.hero-strength`-family
- * class. A portrait tablet is not "an ordinary screen" for either: see the
- * long comment beside `.hero-strength`'s own portrait override, further down,
- * for the measurement (768x1024 -> 29.8% of the banner visible at 100svh). */
-@media (min-width: 768px) and (max-aspect-ratio: 1/1) {
-  :root { --hero-h-md: calc(100vw / 2.52) !important; }
+/* A PHOTO SLIDE'S CAPTION BOX reads --hero-h-md through
+ * `md:min-h-[var(--hero-h-md,…)]`, but that Tailwind class is scoped to
+ * `min-width: 768px` in the compiled bundle and produces nothing below
+ * it — a phone was never going to read this variable no matter its value,
+ * because the image box beside it carries a hardcoded `aspect-[2.52/1]`
+ * with no `md:` prefix to lift on a narrow screen. Full height on phone
+ * needs the SAME split desktop already has (the image absolutely filling
+ * whatever height the caption's min-height establishes), just applied
+ * below 768px too — attribute selectors matching the compiled classes
+ * verbatim, since there is no source here to add a new one to. */
+@media (max-width: 767px) {
+  [class~="aspect-[2.52/1]"] {
+    position: absolute !important;
+    inset: 0 !important;
+    aspect-ratio: auto !important;
+  }
+  [class~="md:min-h-[var(--hero-h-md,640px)]"] {
+    min-height: var(--hero-h-md, 100svh) !important;
+  }
 }
 
 /* AND THE COMPONENT ITSELF, which is what actually sizes the mounted hero.
@@ -416,25 +430,12 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
   }
 }
 
-/* A PORTRAIT TABLET IS NOT "AN ORDINARY SCREEN" — 2026-09-20.
- * `min-width: 768px` was written to mean "desktop-shaped", and a 768x1024
- * tablet in portrait matches the width without being that shape at all: a
- * 768x1024 box against the artwork's 2.52:1 crops to 768/1024 = 0.75:1,
- * showing 0.75/2.52 = 29.8% of the banner's width — worse than the 83% the
- * PHONE rule already guarantees at a NARROWER viewport. Measured, not assumed.
- *
- * Same specificity as the rule above, later in the file, so this wins only
- * where both media queries match — an ordinary wide desktop window is
- * `min-aspect-ratio: 1/1` and keeps the 100svh fill untouched. This does not
- * reopen the "whole screen" decision for landscape screens; it only stops a
- * tall, narrow one from being classified as one by width alone. */
-@media (min-width: 768px) and (max-aspect-ratio: 1/1) {
-  .hero-strength {
-    height: calc(100vw / 2.52) !important;
-    aspect-ratio: auto !important;
-    max-height: none !important;
-  }
-}
+/* THE PORTRAIT-TABLET EXCEPTION FOR THE DRAWN-SLIDE THEMES IS GONE — 2026-09-21,
+ * the same reversal as the real photo slide's above, for the fallback theme
+ * this shop shows if hero_slides ever has zero active rows. No active row has
+ * existed in a while, so this path is untested by the change; kept as one
+ * paragraph rather than deleted, on the same reasoning this file already
+ * gives elsewhere for keeping a rule a revert might need. */
 
 /* --- WHERE THE CROP FALLS, which is the whole of "fitted" ---------------- */
 /* THE ARTWORK IS 2.52:1 AND CARRIES ITS OWN TYPOGRAPHY. Every one of the five

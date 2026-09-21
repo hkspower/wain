@@ -190,29 +190,16 @@ const unloaded = rows.filter((r) => !r.loaded)
 check(unloaded.length === 0, 'and its banner decoded, so its real shape is known',
   unloaded.map((r) => `${r.w}x${r.h}`).join(', '))
 
-// --- 1. the hero IS the screen, ON THE SHAPES THAT RULE APPLIES TO ---------
-// NOT every viewport, on purpose — sporta-ui.css's own media queries say so:
-// `@media (min-width: 768px) and (max-aspect-ratio: 1/1)` deliberately carves
-// out anything narrow OR portrait-shaped (a phone, and a portrait tablet
-// whose WIDTH alone would otherwise pass for "desktop") and gives it the
-// artwork's own 2.52:1 ratio, uncropped, instead of the full-screen fill —
-// 768x1024 measured at 29.8% of the banner's width otherwise, worse than the
-// phone rule already guarantees at a narrower size. This mirrors that same
-// rule here rather than asserting one number for every shape, which is
-// exactly the assumption that went stale the day the ratio exception was
-// added and nobody updated the one place still expecting 100% everywhere.
-const isWide = (w, h) => w >= 768 && w / h > 1
-const short = rows.filter((r) => isWide(r.w, r.h) && Math.abs(r.pct - 100) > 1)
-check(short.length === 0, 'the hero fills the whole screen on every wide/landscape viewport',
+// --- 1. the hero IS the screen, AT EVERY VIEWPORT — 2026-09-21 -------------
+// Reversed back to "every shape", on the owner's explicit instruction after
+// being shown what it costs: phone and portrait-tablet had been carved out
+// (2026-09-18/20) specifically to avoid cropping the banner's width down to
+// as little as 18-30% — "full height, any crop" asks for exactly that crop
+// back, on every viewport, no exception. pct is round((box height / window
+// height) * 100); 1 point of slack for rounding across the two.
+const short = rows.filter((r) => Math.abs(r.pct - 100) > 1)
+check(short.length === 0, 'the hero fills the whole screen at every viewport',
   short.map((r) => `${r.w}x${r.h} box ${r.hero}px vs window ${r.h}px (${r.pct}%)`).join(', '))
-
-// The NARROW/PORTRAIT shapes get the opposite assertion: uncropped, at the
-// artwork's own ratio, rather than silently going unchecked just because the
-// full-screen rule does not apply to them.
-const shouldBeRatio = rows.filter((r) => !isWide(r.w, r.h))
-const notRatio = shouldBeRatio.filter((r) => r.art && Math.abs(r.box - r.art) > 0.05)
-check(notRatio.length === 0, 'and stays uncropped, at the artwork\'s own ratio, on phone/portrait',
-  notRatio.map((r) => `${r.w}x${r.h} box ${r.box.toFixed(2)} vs art ${r.art.toFixed(2)}`).join(', '))
 
 // --- 2. the shell and the hero are the same height -------------------------
 const jump = rows.filter((r) => Math.abs(r.hero - r.shell) > 2)
