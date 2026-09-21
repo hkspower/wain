@@ -308,9 +308,17 @@
   var CSS =
     '.qas-panel{position:absolute;inset-inline:0;bottom:0;z-index:20;padding:10px;'
     + 'background:rgba(23,26,30,.92);backdrop-filter:blur(2px);border-radius:0 0 10px 10px}'
-    + '.qas-head{font-size:11px;font-weight:700;color:#fff;margin-bottom:6px;padding-inline-end:22px}'
-    + '.qas-close{position:absolute;top:6px;inset-inline-end:8px;border:0;background:transparent;'
-    + 'color:#fff;font-size:16px;line-height:1;cursor:pointer;min-width:22px;min-height:22px}'
+    + '.qas-head{font-size:11px;font-weight:700;color:#fff;margin-bottom:10px;padding-inline-end:30px}'
+    /* 32x32, not the usual 44 — measured against this panel's own height:
+     * a 44px-tall close button anchored to the top corner would reach down
+     * into the size-pill row directly beneath it on the smallest cards, the
+     * same "widening causes a worse problem than the one it fixes" trade
+     * this project already made for the hero carousel's dots. 32px is a
+     * real improvement over the 22px this shipped with (an AA-legal 24px
+     * hit area, comfortably cleared) without that overlap. */
+    + '.qas-close{position:absolute;top:2px;inset-inline-end:2px;display:flex;'
+    + 'align-items:center;justify-content:center;border:0;background:transparent;'
+    + 'color:#fff;font-size:16px;line-height:1;cursor:pointer;min-width:32px;min-height:32px}'
     + '.qas-row{display:flex;flex-wrap:wrap;gap:5px}'
     + '.qas-pill{min-width:30px;height:28px;padding:0 8px;border-radius:7px;border:0;'
     + 'background:#fff;color:#171a1e;font-size:11px;font-weight:700;cursor:pointer}'
