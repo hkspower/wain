@@ -425,6 +425,32 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
   --tw-gradient-via: #171a1e1f !important;   /* 40% -> 12% alpha */
 }
 
+/* THE HERO'S OWN BACKGROUND, DARKENED TO MATCH THE TOPBAR — 2026-09-21, same
+ * day, asked for as "use dark background for hero slider to fit the topbar
+ * style and sporta style". Measured in a browser rather than read out of the
+ * bundle's class names, which is what `.hero-strength`/`.hero-cardio`/
+ * `.hero-arena` further down this file turned out to be — those are a
+ * ZERO-ACTIVE-ROW fallback theme, and this shop has had active rows the
+ * whole time this session has touched it, so editing them changes nothing a
+ * visitor sees. The colour actually painted behind every real slide is
+ * `bg-ink`, resolving to `rgb(36, 39, 42)` (#24272a): the bundle's general
+ * dark-grey utility, on both the outer hero `<section>` and each slide's own
+ * wrapper. It shows at the top/bottom letterbox edge and behind a slide
+ * while it is off-frame or its photo has not yet painted. With the topbar
+ * now solid `#000` (above), that grey read as a visibly lighter band
+ * directly under a black bar.
+ *
+ * SCOPED TO TWO SPECIFIC UTILITY COMBINATIONS rather than to `bg-ink` at
+ * large — that class is used elsewhere in the bundle for unrelated dark
+ * surfaces (a modal backdrop, an info card) this request never named, and a
+ * bare `.bg-ink` override would have darkened all of them. Checked against
+ * the built bundle: `isolate overflow-hidden bg-ink` is the hero section
+ * alone, and `shrink-0 bg-ink` is the per-slide wrapper alone. */
+[class~="isolate"][class~="overflow-hidden"][class~="bg-ink"],
+[class~="shrink-0"][class~="bg-ink"] {
+  background-color: #000 !important;
+}
+
 /* AND THE COMPONENT ITSELF, which is what actually sizes the mounted hero.
    The variables above only paint the pre-mount shell — setting them alone
    changed nothing on screen, which is how I found this out. Both have to move
