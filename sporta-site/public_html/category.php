@@ -267,10 +267,20 @@ header('Cache-Control: public, max-age=0, must-revalidate');
   .card .frame { position: relative; aspect-ratio: 4 / 5; background: var(--sp-tile);
                  overflow: hidden; }
   .card .frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* A light wash, not a block-out — the same balance the app's own product
+     card strikes (dim + a small corner badge). The first version of this
+     page covered the WHOLE photo with a 55%-opaque layer and a large
+     centred label, which on a genuinely sold-out item with a real uploaded
+     photo (checked live: /women's "AHED") reads as a broken image with a
+     dark tint over it rather than as a sold-out notice — the shopper cannot
+     see the garment at all. This still says "sold out" clearly; it no
+     longer hides the photo to do it. */
+  .card .frame.is-out img { opacity: .55; }
   .card .frame .out {
-    position: absolute; inset: 0; background: rgba(20,22,26,.55);
-    display: flex; align-items: center; justify-content: center;
-    color: #fff; font-weight: 700; font-size: .85rem;
+    position: absolute; top: 8px; inset-inline-start: 8px;
+    background: rgba(20,22,26,.85); border: 1px solid rgba(255,255,255,.2);
+    border-radius: 999px; padding: 4px 10px;
+    color: #fff; font-weight: 700; font-size: .72rem;
   }
   .card .body { padding: 12px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
   .card .brand { font-size: .78rem; color: var(--sp-silver); }
@@ -330,7 +340,7 @@ header('Cache-Control: public, max-age=0, must-revalidate');
     <div class="grid">
       <?php foreach ($products as $p): ?>
         <a class="card" href="/product/<?= e($p['slug']) ?><?= $isEn ? '?lang=en' : '' ?>">
-          <div class="frame">
+          <div class="frame<?= $p['soldOut'] ? ' is-out' : '' ?>">
             <?php if ($p['image']): ?>
               <img src="/<?= e(ltrim($p['image'], '/')) ?>" alt="<?= e($p['name']) ?>" loading="lazy">
             <?php endif; ?>
