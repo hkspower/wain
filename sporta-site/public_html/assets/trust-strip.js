@@ -64,11 +64,13 @@
 
   var COPY = {
     ar: {
+      title: 'مميزات سبورتا',
       returns: function (n) { return 'استبدال مجاني خلال ' + (n || '—') + ' يومًا' },
       delivery: 'توصيل إلى جميع محافظات الكويت',
       authentic: 'منتجات أصلية 100%',
     },
     en: {
+      title: 'Sporta features',
       returns: function (n) { return 'Free exchange within ' + (n || '—') + ' days' },
       delivery: 'Delivery across every governorate of Kuwait',
       authentic: '100% authentic products',
@@ -147,7 +149,16 @@
     var c = COPY[lang()]
     var section = document.createElement('section')
     section.setAttribute(MARK, '1')
-    section.className = 'sts'
+    section.className = 'sts-wrap'
+
+    var title = document.createElement('h2')
+    title.className = 'sts-title'
+    title.textContent = c.title
+    section.appendChild(title)
+
+    var row = document.createElement('div')
+    row.className = 'sts'
+    section.appendChild(row)
 
     var items = [
       ['returns', c.returns(days)],
@@ -163,7 +174,7 @@
       p.className = 'sts-text'
       p.textContent = items[i][1]
       item.appendChild(p)
-      section.appendChild(item)
+      row.appendChild(item)
     }
 
     return section
@@ -206,8 +217,10 @@
   }
 
   var CSS =
+    '.sts-wrap{margin:0 auto;max-width:1280px;padding:28px 16px 0;}' +
+    '.sts-title{margin:0 0 16px;text-align:center;font-size:20px;font-weight:800;color:#fff;}' +
     '.sts{display:flex;flex-wrap:wrap;justify-content:center;gap:32px;' +
-    'margin:0 auto;max-width:1280px;padding:28px 16px;}' +
+    'margin:0 auto;max-width:1280px;padding:0 0 28px;}' +
     '.sts-item{display:flex;align-items:center;gap:10px;max-width:280px;}' +
     '.sts-icon{flex:none;width:28px;height:28px;color:var(--brand,#e0561c);}' +
     '.sts-icon svg{width:100%;height:100%;}' +
