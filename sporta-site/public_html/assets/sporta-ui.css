@@ -2733,20 +2733,30 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
  * overlay for women); accessories and outlet have no -rtl file and request
  * none, in either language — correct, since neither composition puts text
  * against a reading side. Nothing here changes that; it only changes how much
- * of whichever file was already chosen gets shown. */
+ * of whichever file was already chosen gets shown.
+ *
+ * TILES 20% BIGGER — 2026-09-22, asked for as "increase category images
+ * size 20%". Each tile's image fills its box exactly (`absolute inset-0
+ * h-full w-full object-cover`, checked live) so the box IS the image size;
+ * there is no independent img dimension to change. Width stays whatever the
+ * 2-/4-column grid gives it — widening the box would mean fewer columns or a
+ * wider container, a layout change nobody asked for — so the 20% goes into
+ * HEIGHT, by scaling the ratio's own denominator: 570→684 and 706→847, both
+ * exactly ×1.2. The crop gets 20% taller at the same width, which is what
+ * "bigger" means for a box whose width is already spoken for. */
 .cat-tile.tile-men,
 .cat-tile.tile-women,
 .cat-tile.tile-acc,
 .cat-tile.tile-outlet {
   height: auto !important;
-  aspect-ratio: 900 / 570 !important;
+  aspect-ratio: 900 / 684 !important;
 }
 @media (min-width: 768px) {
   .cat-tile.tile-men,
   .cat-tile.tile-women,
   .cat-tile.tile-acc,
   .cat-tile.tile-outlet {
-    aspect-ratio: 1216 / 706 !important;
+    aspect-ratio: 1216 / 847 !important;
   }
 }
 
@@ -3009,10 +3019,37 @@ html, :host, body, .eyebrow {
  * scoped to this exact combination — checked live: no other h2 on the page
  * shares it, so this cannot catch "Summer sale", "Join the club" or the cart
  * drawer's heading, which all use different class sets. */
+/* BETTER FONT FOR THIS HEADING — 2026-09-22, asked for as "make تسوق حسب
+ * الفئة with best font style better font". The text is Arabic, and the
+ * font-swap section above says why that matters here: Anton (the new Latin
+ * display face) has no Arabic glyphs, so this h2 falls through to
+ * 'IBM Plex Sans Arabic' regardless — the SAME face body text uses. There is
+ * no display face for Arabic to switch to.
+ *
+ * What WAS wrong, and is fixable without one: the class carries
+ * `font-extrabold` (weight 800), and IBM Plex Sans Arabic ships only
+ * 400/600/700 — checked, `ls fonts/` — so the browser had no 800 file to
+ * load and was FAKING the bold by thickening the 700 (or nearest) outline
+ * itself. Measured live: `getComputedStyle` reports `font-weight: 800` with
+ * no error, because a synthetic bold reports success the same as a real one.
+ * A synthetic bold is heavier and blurrier at the stroke than the real
+ * weight it is faking, on exactly the headline meant to look sharpest.
+ *
+ * Set to the real 700 file here, with a proportionate size increase so the
+ * heading keeps (and slightly exceeds) its previous visual weight on screen
+ * — a genuine 700 at a touch larger reads clearer than a faked 800 at the
+ * old size. */
 h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"] {
   text-align: center;
   position: relative;
   padding-bottom: 14px;
+  font-weight: 700 !important;
+  font-size: 1.75rem !important;
+}
+@media (min-width: 768px) {
+  h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"] {
+    font-size: 2.125rem !important;
+  }
 }
 h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"]::after {
   content: "";
