@@ -2667,16 +2667,33 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
  * width is already bounded by the grid and the container, so there is no
  * runaway width for a cap to have to catch.
  *
- * TWO RATIOS, MATCHING THE TWO CROPS. `source[media]` swaps mobile art for
- * desktop art at `(min-width: 768px)` — read out of the bundle rather than
- * assumed — so the aspect-ratio swaps at the same breakpoint, both to the
- * artwork's OWN natural size rather than a rounded number: 900x570 / 1216x706
- * for men and women, 900x454 / 1216x418 for accessories and outlet. object-fit
- * stays cover; with the box ratio equal to the image ratio, cover crops
- * nothing.
+ * ONE RATIO FOR ALL FOUR — 2026-09-22, asked for as "make تسوق حسب الفئة all
+ * same size and shape". Until this, the two ratios below matched each pair's
+ * OWN artwork exactly (900x570 / 1216x706 for men and women, 900x454 /
+ * 1216x418 for accessories and outlet) so `cover` never cropped either —
+ * which is exactly what made the grid uneven: at the same column width,
+ * accessories and outlet rendered barely more than half the height of men
+ * and women (measured live, 1280px wide: 208px against 351px), because a
+ * 2.91:1 image is shallower than a 1.72:1 one at the same width. Four tiles
+ * in a "shop by category" grid reading as two different SIZES rather than
+ * four options is the fault the owner named.
+ *
+ * MEN AND WOMEN'S RATIO WAS KEPT AS THE TARGET, not a number in between,
+ * because it is the one both pairs can reach with a crop rather than a
+ * stretch: accessories and outlet are the WIDER pair (2.91/1.98 against
+ * 1.72/1.58), so fitting them to the narrower target crops their SIDES
+ * under `cover` — the ordinary, symmetric crop a flat-lay product shot
+ * survives easily — rather than needing to invent picture that was never
+ * photographed, which is what going the other way would have asked of
+ * men and women's portrait compositions.
+ *
+ * object-position stays the bundle's own default (50% center) on
+ * accessories and outlet — checked visually rather than assumed, since a
+ * flat lay has no single subject a crop could cut through unevenly the way
+ * a person's head or feet could.
  *
  * The Tailwind height utilities are unlayered `!important` overrides here for
- * the same reason the header rule above needed a named layer to win: these two
+ * the same reason the header rule above needed a named layer to win: these
  * ARE the bundle's own unscoped class names (`.tile-men` etc.), not Tailwind
  * utilities, so they sit outside @layer entirely and an unlayered !important
  * beats them without needing one.
@@ -2688,23 +2705,18 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
  * against a reading side. Nothing here changes that; it only changes how much
  * of whichever file was already chosen gets shown. */
 .cat-tile.tile-men,
-.cat-tile.tile-women {
-  height: auto !important;
-  aspect-ratio: 900 / 570 !important;
-}
+.cat-tile.tile-women,
 .cat-tile.tile-acc,
 .cat-tile.tile-outlet {
   height: auto !important;
-  aspect-ratio: 900 / 454 !important;
+  aspect-ratio: 900 / 570 !important;
 }
 @media (min-width: 768px) {
   .cat-tile.tile-men,
-  .cat-tile.tile-women {
-    aspect-ratio: 1216 / 706 !important;
-  }
+  .cat-tile.tile-women,
   .cat-tile.tile-acc,
   .cat-tile.tile-outlet {
-    aspect-ratio: 1216 / 418 !important;
+    aspect-ratio: 1216 / 706 !important;
   }
 }
 
