@@ -3099,3 +3099,120 @@ a[class~="aspect-[4/5]"][class~="overflow-hidden"][class~="bg-slate-100"] {
 [class~="transition-transform"][class~="duration-700"] {
   transition-duration: 200ms !important;
 }
+
+/* ------------------------------------------------- home page product grid,
+ * 2026-09-22, asked for as "add new product at main page under category".
+ * Styling for the section home-products.js builds and inserts — see that
+ * file's own header for what it shows and why. These are MY OWN class names
+ * on markup I create myself, not overrides of the bundle's compiled Tailwind,
+ * so none of the attribute-selector or !important machinery the rest of this
+ * file needs for that is required here.
+ *
+ * Colours are category.php's own palette (--sp-panel/--sp-line/--sp-tile/
+ * --sp-silver/--sp-ember), copied rather than re-invented, so a shopper who
+ * has already seen a category page sees the same card design here instead of
+ * a third one. */
+.sporta-home-products {
+  margin: 0 auto;
+  max-width: 80rem;
+  padding: 0 1rem 2rem;
+}
+@media (min-width: 768px) {
+  .sporta-home-products {
+    padding: 0 1.5rem 3rem;
+  }
+}
+.sporta-home-products__heading {
+  text-align: center;
+  position: relative;
+  padding-bottom: 14px;
+  margin: 0 0 1.25rem;
+  font-weight: 700;
+  font-size: 1.75rem;
+  color: #fff;
+}
+@media (min-width: 768px) {
+  .sporta-home-products__heading {
+    font-size: 2.125rem;
+    margin-bottom: 1.75rem;
+  }
+}
+.sporta-home-products__heading::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 56px;
+  height: 4px;
+  border-radius: 2px;
+  background: #ff7b17;
+  background: var(--sp-ember, var(--brand-bright, #ff7b17));
+}
+.sporta-home-products__grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, 1fr);
+}
+@media (min-width: 640px) {
+  .sporta-home-products__grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (min-width: 1024px) {
+  .sporta-home-products__grid { grid-template-columns: repeat(4, 1fr); gap: 22px; }
+}
+.sporta-home-products__card {
+  display: flex;
+  flex-direction: column;
+  background: #1e2124;
+  border: 1px solid #3a3e43;
+  border-radius: 12px;
+  overflow: hidden;
+  text-decoration: none;
+  transition: transform 200ms ease-out;
+}
+.sporta-home-products__card:hover {
+  transform: translateY(-2px);
+}
+.sporta-home-products__frame {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  background: #1a1d20;
+  overflow: hidden;
+}
+.sporta-home-products__frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.sporta-home-products__body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+.sporta-home-products__name {
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: #fff;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.4em;
+}
+.sporta-home-products__price {
+  margin-top: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.sporta-home-products__price b {
+  font-size: 1rem;
+  color: #fff;
+}
+.sporta-home-products__price s {
+  color: #a6acb2;
+  font-size: 0.82rem;
+}

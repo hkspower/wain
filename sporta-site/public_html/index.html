@@ -898,6 +898,13 @@
          same treatment brand-strip.js got above, and this line is the whole
          revert if it is ever wanted back. -->
 
+    <!-- A product grid on the home page, right under "Shop by category" —
+         asked for 2026-09-22. Reads the same `featured`/`featured_sort`
+         fields the Expo app's own home screen already uses, falling back to
+         the first 8 active products until the owner marks some Featured in
+         /backends. Renders nothing if the catalogue itself is empty. -->
+    <script src="/assets/home-products.js" defer></script>
+
     <!-- An owner-editable body for Privacy, Terms and Returns — swaps in
          panel-written text below the "Last updated" line on Privacy/Terms,
          and the one descriptive paragraph above the order-lookup card on
