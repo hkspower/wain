@@ -397,26 +397,37 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
  * `group relative isolate overflow-hidden bg-ink text-white`, never
  * `hero-strength`, so none of those rules were ever reaching it either.
  *
- * THE OUTER SECTION IS THE WRONG ELEMENT TO SIZE, and the first version of
- * this override did exactly that: shrinking `section[aria-roledescription=
- * "carousel"]` alone changed nothing visible, because the height that
- * actually matters is one level in — `aspect-[2.52/1] overflow-hidden
- * md:absolute md:inset-0 md:aspect-auto`, the box the photograph's own
- * object-fit: cover measures itself against. Sizing the outer section only
- * left that inner box at its old 633px and let the section's own
- * `overflow: hidden` CLIP it to the new height — which looked right in a
- * screenshot but was wrong underneath: the image was still being cropped
- * as if the box were 633px tall and the extra was sliced off afterwards,
- * rather than cover recalculating for the box the visitor actually sees.
- * test:hero-size caught it — it measures this inner box specifically,
- * by finding the ACTIVE slide's own photograph rather than trusting a
- * class name, and reported shell 464px against this box still at 633.
+ * THE OUTER SECTION ALONE IS THE WRONG ELEMENT TO SIZE, and the first
+ * version of this override did exactly that: shrinking `section[aria-
+ * roledescription="carousel"]` alone changed nothing about the CROP, because
+ * the box the photograph's own object-fit: cover measures itself against is
+ * one level in — `aspect-[2.52/1] overflow-hidden md:absolute md:inset-0
+ * md:aspect-auto`. Sizing only the outer section left that inner box at its
+ * old 633px and let the section's own `overflow: hidden` CLIP it to the new
+ * height — which looked right in a screenshot but was wrong underneath: the
+ * image was still being cropped as if the box were 633px tall and the extra
+ * was sliced off afterwards, rather than cover recalculating for the box the
+ * visitor actually sees. test:hero-size caught it — it measures this inner
+ * box specifically, by finding the ACTIVE slide's own photograph rather than
+ * trusting a class name, and reported shell 464px against this box still at
+ * 633. Fixed by sizing the inner box instead, so cover redoes its own math.
  *
- * Sizing the inner box directly makes cover redo its own math for the
- * real 55svh box, so object-position (each slide's own focal_x/focal_y)
- * crops correctly rather than being clipped after the fact. */
+ * BUT THE OUTER SECTION STILL NEEDS ITS OWN RULE TOO — found 2026-09-22 from
+ * a screenshot with a solid black band circled between the hero and "تسوّق
+ * حسب الفئة": once the inner box was absolutely positioned at 55svh, it no
+ * longer stretches the outer section through normal flow (position:absolute
+ * takes an element out of flow entirely), so the section kept its OWN
+ * separate 633px — a bundle height unrelated to the inner box's — and the
+ * 169px gap between them rendered as dead black space. "The outer section is
+ * the wrong element to size" was true of fixing the CROP; it was never true
+ * of fixing the CONTAINER, and this needs both for the same reason a box and
+ * the picture inside it are two different things that can each be the wrong
+ * height on their own. */
 @media (max-width: 767px) {
   [class~="aspect-[2.52/1]"][class~="overflow-hidden"][class~="md:absolute"] {
+    height: 55svh !important;
+  }
+  section[aria-roledescription="carousel"] {
     height: 55svh !important;
   }
 }
