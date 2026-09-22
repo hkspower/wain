@@ -270,7 +270,18 @@ header('Cache-Control: public, max-age=0, must-revalidate');
      in the 91 KB build stylesheet for nine colours (see the palette comment
      above) — a --sp-header-bg custom property would need the owner's
      theme.js to reach this file too, which it does not. */
-  header.top { background: #000; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.20); }
+  /* STICKY, MATCHING THE APP'S .app-header — 2026-09-22, "الأفضل وجود
+     Sticky Header عند النزول" (best to have a sticky header on scroll). The
+     app's own header carries `sticky top-0 z-30`; this one had a solid
+     black background and the app's shadow already, but no position rule at
+     all, so it scrolled away with the rest of the page instead of staying
+     put like every other page on the site. z-index matches the app's own
+     value so the two behave identically if either is ever embedded near
+     the other. */
+  header.top {
+    background: #000; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.20);
+    position: sticky; top: 0; z-index: 30;
+  }
 
   /* THE FULL TOPBAR, NOT JUST ITS COLOUR — 2026-09-21, same day, asked again
      after the colour match as "use all pages same main topbar", confirmed
@@ -287,7 +298,15 @@ header('Cache-Control: public, max-age=0, must-revalidate');
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
     padding: 14px 20px;
   }
-  .topnav .brand-logo img { height: 28px; width: auto; display: block; }
+  /* BIGGER THAN THE OTHER HEADER ELEMENTS — 2026-09-22, "اجعل الشعار أكبر
+     قليلًا مقارنة بعناصر الهيد" (make the logo a bit bigger than the header
+     elements). Measured against the app's own header first, since that one
+     already gets this right: there the logo renders at 42px against ~22px
+     icons, roughly 1.9x. Here it was 28px against icons up to 30px (the
+     clock) — not bigger at all, in one case smaller. 36px keeps the same
+     rough ratio to this header's own icons without the logo overpowering
+     the promo strip above it. */
+  .topnav .brand-logo img { height: 36px; width: auto; display: block; }
   .lang-pill {
     display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 700;
     color: rgba(255,255,255,.9); border: 1px solid rgba(255,255,255,.2); border-radius: 999px;
