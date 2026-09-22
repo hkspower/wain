@@ -372,8 +372,53 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
  * [the same value] or the shell and the mounted hero disagree") — that file
  * was updated to 75svh in the same commit as this one. */
 :root {
-  --hero-h: 75svh !important;
+  --hero-h: 55svh !important;
   --hero-h-md: 75svh !important;
+}
+
+/* MOBILE SHORTENED AGAIN, ON ITS OWN — 2026-09-22, "make hero layout better
+ * for mobile", confirmed with the owner to mean "too tall". This UNDOES the
+ * "one formula, not a phone/desktop split" decision two paragraphs up, on
+ * purpose: that decision was right for the problem it solved (two numbers
+ * drifting apart by accident) and wrong for this one, where the owner is
+ * asking for the phone number specifically. --hero-h-md (desktop) is
+ * untouched at 75svh.
+ *
+ * AND --hero-h DOES NOT REACH THE REAL MOBILE HERO AT ALL, which every
+ * comment in this file about "one variable, two homes" assumed it did.
+ * Measured directly: overriding --hero-h on :root left the mounted hero at
+ * 633px (still 75svh of an 844px viewport) — unchanged. The only element
+ * that reads --hero-h is the pre-paint shell (index.html's .boot-hero); the
+ * real component's height is a Tailwind utility compiled into the bundle,
+ * which this project has no source for. `.hero-strength`'s own height
+ * rules, elsewhere in this file, are the SAME dead fallback theme recorded
+ * above ("this shop shows if hero_slides ever has zero active rows") —
+ * checked again here: the real carousel's outer section is
+ * `group relative isolate overflow-hidden bg-ink text-white`, never
+ * `hero-strength`, so none of those rules were ever reaching it either.
+ *
+ * THE OUTER SECTION IS THE WRONG ELEMENT TO SIZE, and the first version of
+ * this override did exactly that: shrinking `section[aria-roledescription=
+ * "carousel"]` alone changed nothing visible, because the height that
+ * actually matters is one level in — `aspect-[2.52/1] overflow-hidden
+ * md:absolute md:inset-0 md:aspect-auto`, the box the photograph's own
+ * object-fit: cover measures itself against. Sizing the outer section only
+ * left that inner box at its old 633px and let the section's own
+ * `overflow: hidden` CLIP it to the new height — which looked right in a
+ * screenshot but was wrong underneath: the image was still being cropped
+ * as if the box were 633px tall and the extra was sliced off afterwards,
+ * rather than cover recalculating for the box the visitor actually sees.
+ * test:hero-size caught it — it measures this inner box specifically,
+ * by finding the ACTIVE slide's own photograph rather than trusting a
+ * class name, and reported shell 464px against this box still at 633.
+ *
+ * Sizing the inner box directly makes cover redo its own math for the
+ * real 55svh box, so object-position (each slide's own focal_x/focal_y)
+ * crops correctly rather than being clipped after the fact. */
+@media (max-width: 767px) {
+  [class~="aspect-[2.52/1]"][class~="overflow-hidden"][class~="md:absolute"] {
+    height: 55svh !important;
+  }
 }
 
 /* A PHOTO SLIDE'S CAPTION BOX reads --hero-h-md through

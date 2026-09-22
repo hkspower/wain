@@ -267,18 +267,14 @@
           // jumps at mount, which is the one failure this script exists to
           // prevent.
           //
-          // 75svh EVERYWHERE, not the phone/desktop split the old formula
-          // needed — 100svh minus the 25% asked for on 2026-09-21, the same
-          // day the full-height reversal above shipped. The old split had to
-          // add the button strip's height on the phone because the strip
-          // sits below the art there rather than over it — but that
-          // arithmetic lives in sporta-ui.css, on the image container
-          // itself, not on the outer box this variable sizes. The outer is
-          // the same fraction of the screen at every width; splitting it
-          // here too would be a second home for the same 104px and only one
-          // of them could ever be told about a change to the button.
+          // THE PHONE/DESKTOP SPLIT IS BACK — 2026-09-22, "make hero layout
+          // better for mobile", confirmed with the owner as "too tall". The
+          // paragraph above argued for one shared number specifically to
+          // stop the two drifting apart by accident; this is the owner
+          // asking for the phone number on purpose, which is a different
+          // thing. --hero-h-md (desktop) is untouched at 75svh.
           var kind = localStorage.getItem('sporta_hero_kind') || 'banner'
-          el.style.setProperty('--hero-h', '75svh')
+          el.style.setProperty('--hero-h', '55svh')
           el.style.setProperty('--hero-h-md', '75svh')
 
           // THE HERO BANNER, requested here rather than in the markup above.

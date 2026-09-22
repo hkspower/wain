@@ -190,17 +190,23 @@ const unloaded = rows.filter((r) => !r.loaded)
 check(unloaded.length === 0, 'and its banner decoded, so its real shape is known',
   unloaded.map((r) => `${r.w}x${r.h}`).join(', '))
 
-// --- 1. the hero is a FIXED FRACTION OF THE SCREEN, AT EVERY VIEWPORT ------
+// --- 1. the hero is a FIXED FRACTION OF THE SCREEN, PER FORM FACTOR -------
 // 75%, not 100 — 2026-09-21, same day as the "full height, any crop"
 // reversal below it in history: asked for as "reduce hero slide layout
 // height 25%", applied to the one --hero-h/--hero-h-md formula every shape
-// shares (75svh) rather than as a separate number for each, which is what
-// keeps them from drifting into two values the way this file's own history
-// already shows a duplicate formula doing once. pct is
+// shared at the time (75svh).
+//
+// PHONE SPLIT BACK OUT TO ITS OWN NUMBER — 2026-09-22, "make hero layout
+// better for mobile", confirmed as "too tall". The one-formula argument
+// above was about two numbers drifting apart BY ACCIDENT; this is the
+// owner asking for the phone number ON PURPOSE, which is what a below-768
+// TARGET_PCT of its own now encodes rather than fights. --hero-h-md
+// (768px and up) is untouched at 75. pct is
 // round((box height / window height) * 100); 1 point of slack for rounding.
 const TARGET_PCT = 75
-const short = rows.filter((r) => Math.abs(r.pct - TARGET_PCT) > 1)
-check(short.length === 0, `the hero is ${TARGET_PCT}% of the screen at every viewport`,
+const TARGET_PCT_PHONE = 55
+const short = rows.filter((r) => Math.abs(r.pct - (r.w < 768 ? TARGET_PCT_PHONE : TARGET_PCT)) > 1)
+check(short.length === 0, `the hero is ${TARGET_PCT_PHONE}% of the screen under 768px and ${TARGET_PCT}% at 768px and up`,
   short.map((r) => `${r.w}x${r.h} box ${r.hero}px vs window ${r.h}px (${r.pct}%)`).join(', '))
 
 // --- 2. the shell and the hero are the same height -------------------------
