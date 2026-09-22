@@ -2663,6 +2663,42 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
   }
 }
 
+/* TWO TILES PER ROW ON A PHONE, NOT ONE — 2026-09-22, asked for by a
+ * screenshot and four complaints: too tall, too much empty space, the text
+ * far from the content, each card eating too much of the screen. All four
+ * are one cause: the grid above is unscoped Tailwind (`grid gap-4
+ * md:grid-cols-2 md:gap-5`, checked unique in the built bundle) with no
+ * column count below 768px, so it falls back to a single column and each
+ * tile runs the full 358px content width.
+ *
+ * THE HEIGHT FIXES ITSELF. The `.cat-tile.tile-*` rules above already size
+ * every tile from `aspect-ratio`, not a fixed height, so halving the width
+ * on its own halves the height in the same proportion — a 358px-wide men's
+ * tile at 1.58:1 is 227px tall; at ~173px wide (two columns, one gap) it
+ * becomes ~109px, without touching those rules at all.
+ *
+ * WHAT DOES NOT FIX ITSELF is everything sized for the wider box: p-6 is
+ * 24px of padding on a tile now ~109-136px tall, and the title was rendering
+ * at 29px — both scaled for a card three times this width. Both are cut down
+ * here, mobile only; `md:p-8` and the desktop title size are untouched since
+ * two-per-row is a phone-width answer to a phone-width complaint. */
+@media (max-width: 767px) {
+  [class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .cat-tile {
+    padding: 14px !important;
+  }
+  .cat-tile .eyebrow {
+    font-size: 11px !important;
+  }
+  .cat-tile__title {
+    font-size: 18px !important;
+    margin-top: 4px !important;
+  }
+}
+
 [data-theme=dark] .save-chip {
   color:#ff7b17;
   color:var(--brand-bright);
