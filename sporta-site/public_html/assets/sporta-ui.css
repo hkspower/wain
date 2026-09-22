@@ -3044,11 +3044,32 @@ h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate
   position: relative;
   padding-bottom: 14px;
   font-weight: 700 !important;
-  font-size: 1.75rem !important;
+  font-size: 1.95rem !important;
+  margin-bottom: 1.75rem !important;
 }
 @media (min-width: 768px) {
   h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"] {
-    font-size: 2.125rem !important;
+    font-size: 2.375rem !important;
+    margin-bottom: 2.5rem !important;
+  }
+}
+
+/* MORE AIR AROUND THE WHOLE SECTION — 2026-09-22, asked for as "give تسوق
+ * حسب الفئة more spacing improve". Not just the heading's own margin: the
+ * section that holds both the heading and the tile grid carries the
+ * bundle's `py-8 md:py-12` (32px/48px), which is what actually bounds the
+ * space above the heading (between it and the hero) and below the tile grid
+ * (between it and whatever comes next). `:has()` scopes this to the ONE
+ * section containing this exact heading, so it cannot widen an unrelated
+ * section elsewhere on the page that happens to share the padding utility. */
+section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"]) {
+  padding-top: 2.5rem !important;
+  padding-bottom: 2.5rem !important;
+}
+@media (min-width: 768px) {
+  section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"]) {
+    padding-top: 3.5rem !important;
+    padding-bottom: 3.5rem !important;
   }
 }
 h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"]::after {
