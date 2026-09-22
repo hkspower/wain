@@ -278,8 +278,14 @@ header('Cache-Control: public, max-age=0, must-revalidate');
      put like every other page on the site. z-index matches the app's own
      value so the two behave identically if either is ever embedded near
      the other. */
+  /* MATCHED TO THE APP'S FOOTER, NOT BLACK ANY MORE — 2026-09-22, "make top
+     bar same footer background", applied here too for the same reason the
+     sticky and logo-size changes were: this header exists specifically to
+     stay in step with the app's, and #2d3034 is that footer's own measured
+     colour (footer.app-footer's bg-ink-silver), not this page's own
+     --sp-black body colour, which is a different, unrelated shade. */
   header.top {
-    background: #000; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.20);
+    background: #2d3034; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.20);
     position: sticky; top: 0; z-index: 30;
   }
 
@@ -305,8 +311,14 @@ header('Cache-Control: public, max-age=0, must-revalidate');
      icons, roughly 1.9x. Here it was 28px against icons up to 30px (the
      clock) — not bigger at all, in one case smaller. 36px keeps the same
      rough ratio to this header's own icons without the logo overpowering
-     the promo strip above it. */
-  .topnav .brand-logo img { height: 36px; width: auto; display: block; }
+     the promo strip above it.
+
+     SIZED UP AGAIN, WITH THE APP'S — 2026-09-22, same day, "increase logo
+     size". The app's own header went to 44px on a phone; matched here
+     rather than left at 36px, for the same reason this header keeps
+     following the app's at every other size decision. Still comfortably
+     under the topnav's own padding, checked. */
+  .topnav .brand-logo img { height: 44px; width: auto; display: block; }
   .lang-pill {
     display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 700;
     color: rgba(255,255,255,.9); border: 1px solid rgba(255,255,255,.2); border-radius: 999px;

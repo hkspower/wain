@@ -2159,9 +2159,17 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
      unlayered rule written elsewhere for either one would lose to this
      block by the exact mechanism this comment already explains, which is
      precisely the mistake a first attempt at this same change made before
-     being caught and folded back in here. */
+     being caught and folded back in here.
+
+     FALLBACK MOVED AGAIN, TO THE FOOTER'S OWN COLOUR — 2026-09-22, "make
+     top bar same footer background". Measured rather than guessed:
+     footer.app-footer's own bg-ink-silver resolves to rgb(45, 48, 52),
+     #2d3034 — not the #2b2b2b this file's own "light black" comment above
+     names, which was this shop's PREVIOUS charcoal before it was narrowed
+     to literal black; the two are close but not the same value, and this
+     one is read off the actual footer rather than off an old comment. */
   header.app-header {
-    background: var(--sp-header-bg, #000) !important;
+    background: var(--sp-header-bg, #2d3034) !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     /* A DROP SHADOW, NOT EXTRA PADDING. On a phone the header sits flush
@@ -2271,13 +2279,24 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
      them. The logo link is the ONLY direct <a> child of the nav row (the
      bag button is a <button>, the wishlist link sits inside a wrapping
      <div>), so the structural match holds in both languages without
-     depending on either one's wording. */
+     depending on either one's wording.
+
+     SIZED UP AGAIN — 2026-09-22, "increase logo size". Measured against the
+     footer's OWN logo before picking a number: footer.app-footer's img
+     renders at 50px tall, and this header's was still 2.5rem (40px) —
+     smaller than the footer's, on the page's own most prominent surface.
+     2.75rem/3.25rem (44/52px) puts the header's lockup slightly ABOVE the
+     footer's rather than merely matching it, since the header is read far
+     more often than the footer. The nav row's own min-h-11 (44px) still
+     clears the mobile size with nothing to spare, checked, so 44px is as
+     large as the phone header goes without also growing the bar itself —
+     a change nobody asked for. */
   header.app-header nav > a img {
-    height: 2.25rem;
+    height: 2.75rem;
   }
   @media (min-width: 768px) {
     header.app-header nav > a img {
-      height: 2.5rem;
+      height: 3.25rem;
     }
   }
 }
