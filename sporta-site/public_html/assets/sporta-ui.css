@@ -3237,3 +3237,39 @@ a[class~="aspect-[4/5]"][class~="overflow-hidden"][class~="bg-slate-100"] {
   color: #a6acb2;
   font-size: 0.82rem;
 }
+
+/* THE OUTLET TILE WAS CROPPING ITS OWN PRODUCT OUT — 2026-09-23, asked for
+ * as "fix sporta outlet image", and confirmed by the owner as a design fault
+ * rather than the stray-duplicate-file issue this section's earlier entries
+ * are about.
+ *
+ * The assumption above — "object-position stays the bundle's own default
+ * (50% center) on accessories and outlet... a flat lay has no single subject
+ * a crop could cut through unevenly" — was checked for accessories and was
+ * WRONG for outlet's own artwork, which is not a flat lay. `art-outlet.jpg`
+ * is a receding shelf of clearance stock (visible "CLEARANCE" signage, rows
+ * of shoes and folded clothing) crammed into roughly the right THIRD of a
+ * 1216x418 frame; the left two-thirds is empty floor and wall.
+ *
+ * Cropping that to the taller box the tiles now share (1216/847, from the
+ * "TILES 20% BIGGER" entry above) at 50% center shows almost none of it —
+ * measured in a browser, the visible slice at 1280px falls entirely in the
+ * empty two-thirds, so the tile reads as a grey gradient with text on it
+ * rather than a product shot. Every other tile shows real garments; this one
+ * showed a wall. That reads as a broken image even though nothing failed to
+ * load.
+ *
+ * object-position: 90% shifts the crop toward the shelf without cutting it
+ * off at the frame's own edge (100% did, checked side by side) — the
+ * shelving, the price-tag signage and enough of the receding floor to keep
+ * the depth of the shot are all in view, and the text still sits over the
+ * darker, emptier part of the frame on the left, where it already had
+ * contrast to read against.
+ *
+ * NOT AN RTL CONCERN. The empty two-thirds is a property of the photograph,
+ * not of which side text reads from, and outlet has no -rtl composition to
+ * begin with (confirmed above) — this applies identically in both
+ * languages. */
+.cat-tile.tile-outlet img {
+  object-position: 90% center !important;
+}
