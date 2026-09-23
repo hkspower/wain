@@ -2612,6 +2612,60 @@ error, it substitutes, so it reads as a design decision. `docs/type.md`.
 the link is only as wide as its word. Its height was never in question. The
 saving there was the margin.
 
+## شوق has a copy outside this repository now — `/Shoug.ai` in Dropbox
+
+Asked for on 23 September: everything that is شوق, in one folder. **35 text
+files** across `agent/ app/ server/ tests/ voice/ docs/`, plus a zip
+(`Shoug.ai.zip`, 918 KB) that carries the complete 47-file set. It is an
+archive, not a second source — nothing reads from it and nothing syncs it —
+so the only thing worth remembering is what it costs to make another one.
+
+**The Dropbox connector creates text files from inline content and has no
+binary upload at all.** So none of the ten MP3s are in the folder: the three
+hand-made samples and the seven test fixtures are in the zip only. Every
+`.txt` beside them IS there, which is most of what matters — each records its
+clip's voice id, model, bitrate and the two caveats, so the provenance
+survives where the audio does not. (The 324-clip library is in neither,
+because it still does not exist — see the voice sections above.)
+
+**`\uXXXX` in file content is DECODED in transit, and that is the finding.**
+`tests/shouq-search.test.mjs` came back 96 bytes short and
+`tests/shouq-brief.test.mjs` 697. Not a transcription slip — the escapes in
+those two files are literal source text (`'button[aria-label*="ا…"]'`),
+and the upload path resolved every one of them to the actual Arabic
+character. Proved by arithmetic rather than by eye: 175 escapes in the brief
+test, 172 of them two-byte and 3 of them `—` at three bytes, which is
+`172×4 + 3×3 = 697` exactly. Same JavaScript, same string values, shorter
+file.
+
+The probes that isolated it are worth keeping, because the obvious fix does
+not work. A 217-byte file mixing Arabic, an em dash, an en dash and `چ` came
+back **byte-exact**, so the transport is not lossy. `\s` survives (not a
+valid JSON escape). `\\` survives as two backslashes. `\\u0627` survives as
+`\\u0627` — **doubling does not protect it**, it just adds a backslash. Only
+`\uXXXX` moves. There is no way to put that sequence in a Dropbox file from
+here; the copy is equivalent code, not equivalent bytes, and it has to be
+labelled as such rather than quietly shipped.
+
+**One byte is still unexplained.** `app/voice-lines.ts` arrived at 11,487
+against 11,488, twice, with the file deleted between attempts. Not NFC (the
+source is already NFC), not `\uXXXX` (it has none), not trailing whitespace,
+not a tab, not CRLF — all checked. A probe of its most suspicious 1,214-byte
+region came back exact. The code is intact and the zip has the real file; it
+is recorded here as unresolved rather than rounded off.
+
+**The three generated files are deliberately NOT in the folder** —
+`wain-ai-agent.md` (121,386), `wain-ai-kb.md` (73,002) and
+`wain-ai-brief.mjs` (75,252). Inline-only upload means retyping 270KB of
+dense Arabic by hand, and at that size a returned byte count stops being a
+guarantee worth having: one wrong hamza in the knowledge base is a corrupted
+copy of *what شوق knows*, sitting beside a correct one with nothing to diff
+it against. `agent/README.md` is a pointer instead — byte-exact in the zip,
+regenerable with `npm run ai:brief`, and `tests/shouq-brief.test.mjs` already
+asserts the committed files match a fresh run. **A pointer to a regenerable
+file beats a copy nobody can verify**, which is the same argument
+`agents_create_kb_text` lost above.
+
 ## Permissions are an allowlist now, not a prompt per command
 
 `.claude/settings.json`, committed, `defaultMode: acceptEdits`. File edits and
