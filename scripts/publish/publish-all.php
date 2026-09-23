@@ -75,7 +75,7 @@
 header('Content-Type: text/plain; charset=utf-8');
 function line(string $s): void { echo $s, "\n"; @ob_flush(); @flush(); }
 
-$COMMIT = '038d9fd05a20140d9fac67d0187cf93aa86bfdfd';
+$COMMIT = '34635f410e4b1d1b22281609cdb7db650dbb60cd';
 $ROOT   = '/home/u130124229/domains/sporta.com.kw/public_html';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT
         . '/sporta-site/public_html/';
