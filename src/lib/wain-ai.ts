@@ -188,6 +188,16 @@ export const WAIN_AI_COPY = {
   // answering, her brain and her tools untouched; only the TTS voice reading
   // her replies changes. Calling it a different agent would be a promise this
   // button does not keep.
+  /**
+   * What she just did to the screen behind the call sheet.
+   *
+   * Past tense and first person — she is the one who did it, and it has
+   * already happened, so «تبحث…» would be a spinner for work that is over.
+   * Deliberately no «شوف» link beside it: the page is already showing it, and
+   * hanging up is the one control that reveals it.
+   */
+  didSearch: "دوّرت لك",
+  didOpen: "فتحت لك صفحة",
   switchToSalem: "🔊 بصوت سالم",
   switchToShouq: "🔊 بصوت شوق",
   ended: "انتهت المكالمة",

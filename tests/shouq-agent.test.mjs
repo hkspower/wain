@@ -98,6 +98,88 @@ await p.waitForFunction(
 ok('the call reports itself connected once the widget is up', true);
 ok('and the timer is running', /[٠-٩]{2}:[٠-٩]{2}/.test(await p.locator('#wain-ai-panel').textContent()));
 
+console.log('\n── what the call TELLS you, and what it must not claim ──');
+{
+  /**
+   * The status line is announced; the clock must not be.
+   *
+   * It used to read «متصل · ٠٠:٠٧» inside `aria-live="polite"`, so the region
+   * changed once a second and a screen reader re-read it once a second, over
+   * whatever شوق was saying. Measured before the fix on this build: **six
+   * distinct values in five seconds** — a live region narrating a stopwatch.
+   */
+  const heard = await p.evaluate(
+    () =>
+      new Promise((res) => {
+        const r = [...document.querySelectorAll('#wain-ai-panel [aria-live]')];
+        const seen = r.map(() => new Set());
+        const tick = () => r.forEach((el, i) => seen[i].add(el.textContent.trim()));
+        tick();
+        const iv = setInterval(tick, 100);
+        setTimeout(() => { clearInterval(iv); res(seen.map((s) => [...s])); }, 3400);
+      })
+  );
+  const chatty = heard.filter((v) => v.length > 1);
+  ok('no live region changes while the call just sits there',
+    chatty.length === 0, chatty.map((v) => v.join(' | ')).join('  //  '));
+  ok('and the announced one says the call is connected',
+    heard.some((v) => v.includes('متصل')), JSON.stringify(heard));
+  // Not announced is not the same as not there: it stays on screen and in the
+  // accessibility tree, reachable by navigating to it.
+  ok('while the duration is still on screen',
+    /[٠-٩]{2}:[٠-٩]{2}/.test(await p.locator('#wain-ai-panel header').textContent()));
+
+  /**
+   * And she must not be drawn speaking when nothing here knows that she is.
+   *
+   * `live` is the caller's turn, and in agent mode it is the whole call. The
+   * widget keeps `isSpeaking` in its own state and dispatches only
+   * `elevenlabs-convai:call` — read out of the published 0.18.1 bundle — so
+   * there is no signal to animate from, and a mouth that moves for the whole
+   * call is decoration wearing the clothes of a status light.
+   */
+  const talking = await p.evaluate(() =>
+    [...document.querySelectorAll('.shouq')].filter((f) => f.classList.contains('shouq--talking')).length);
+  ok('her mouth does not move on a call nobody here can hear', talking === 0, `${talking} faces talking`);
+}
+
+console.log('\n── she changes the screen, and now says so ──');
+{
+  /**
+   * The sheet is 22rem over a 24.4rem viewport, so the page she is driving is
+   * mostly BEHIND it. `show_places` navigated and `open_place` opened a
+   * profile, and the only account of either was شوق saying so out loud —
+   * which a caller with the volume down, or who cannot hear her, never got.
+   *
+   * This is the one thing the call can report honestly, because it is our own
+   * code doing it: the handler has the count and the name in hand.
+   */
+  const said = await p.evaluate(async () => window.__convaiConfig.clientTools.show_places({ query: 'قهوة' }));
+  // Caught, not left to throw. An uncaught waitForFunction timeout takes the
+  // whole process with it, so one red assertion would silently cancel every
+  // section after it — which is exactly what this did the first time it was
+  // deliberately failed, and is the same hole CLAUDE.md records under the
+  // shouq-flow correction and again in live-map.test.mjs.
+  const note = await p
+    .waitForFunction(
+      () => [...document.querySelectorAll('#wain-ai-panel [aria-live]')]
+        .map((e) => e.textContent.trim()).find((t) => t.includes('دوّرت')) ?? null,
+      null, { timeout: 5000 }
+    )
+    .then((h) => h.jsonValue())
+    .catch(() => '');
+  ok('the caller is told what she just searched for', note.includes('قهوة'), note || 'nothing was announced');
+  // countAr, not a hand-written «٤ مكان». place-kit records this exact
+  // agreement rule being got wrong by hand three separate times, the last of
+  // them on /search's own result count.
+  ok('with the count in agreeing Arabic', /[٠-٩]+ أماكن|مكان واحد|مكانين|[٠-٩]+ مكان|ما فيه أماكن/.test(note), note);
+  // `note` was read out of an [aria-live] element above, so «is it announced»
+  // is already carried. An `ok(…, true)` beside it was written here first and
+  // deleted: it passed under a build with the whole feature removed, which is
+  // the one thing an assertion must never do.
+  ok('while she is still told the same thing in her own words', /الخريطة/.test(String(said)), String(said).slice(0, 80));
+}
+
 console.log('\n── the agent can drive the interface ──');
 const tools = await p.evaluate(() => Object.keys(window.__convaiConfig?.clientTools ?? {}));
 ok('both client tools are registered before the widget loads', tools.includes('show_places') && tools.includes('open_place'), tools.join(', '));

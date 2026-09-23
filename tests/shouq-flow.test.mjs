@@ -455,6 +455,24 @@ console.log('\n── شوق has a face, and it is alive ──');
     () => document.querySelector('#wain-ai-panel')?.textContent.includes('متصل'),
     null, { timeout: 6000 }
   );
+  /**
+   * This section used to assert «once she is connected, EVERY face starts
+   * speaking», and that assertion was encoding the bug.
+   *
+   * `live` is the state where she is listening — it is the caller's turn —
+   * and in agent mode it is the whole call from the moment the widget mounts
+   * to the moment it is hung up. So the mouth moved continuously over a
+   * conversation the interface could not hear, and the test held it there.
+   * Measured before the fix on a built agent-mode export: 2 of 2 faces
+   * carried `shouq--talking` for the full call.
+   *
+   * The widget cannot be asked: `isSpeaking` and `mode` live in its own
+   * Preact state and the only thing it dispatches is
+   * `elevenlabs-convai:call` — read out of the published 0.18.1 bundle
+   * rather than assumed. So the honest rule is that the mouth moves only in
+   * `answering`, which exists in local mode alone and is the one phase that
+   * genuinely means «she is producing speech».
+   */
   const live = await p.evaluate(() => {
     const all = [...document.querySelectorAll('.shouq')];
     return {
@@ -463,15 +481,38 @@ console.log('\n── شوق has a face, and it is alive ──');
       mouth: getComputedStyle(all[0].querySelector('[data-part="mouth"]')).animationName,
     };
   });
-  ok('once she is connected, every face starts speaking', live.n > 1 && live.talking === live.n,
-    `${live.talking}/${live.n}`);
-  ok('and the mouth animation is actually running', live.mouth === 'shouq-speak', live.mouth);
+  ok('connected is her LISTENING, so her mouth is still', live.n > 1 && live.talking === 0,
+    `${live.talking}/${live.n} talking`);
+  ok('and no mouth animation is running yet', live.mouth === 'none', live.mouth);
 
-  await p.locator('#wain-ai-panel button', { hasText: 'إنهاء المكالمة' }).click();
-  await p.waitForTimeout(250);
-  const after = await p.evaluate(() =>
-    [...document.querySelectorAll('.shouq')].filter((f) => f.classList.contains('shouq--talking')).length);
-  ok('hanging up stops her talking', after === 0, `${after} still talking`);
+  // Now the phase that does mean speech. `answering` is entered when the
+  // recogniser delivers a final result, and it lasts ANSWER_MS — long enough
+  // to catch, which is why this waits on the class rather than on a timer.
+  /**
+   * `stayOpen` connects and then just listens, so nothing ends on its own —
+   * drive the two events the real engine sends, in order.
+   *
+   * BOTH are needed and that is the part worth writing down: `onresult` only
+   * records what was heard, and it is `onend` that calls `finishWith` and
+   * moves the call to «answering». Firing the result alone leaves the sheet
+   * showing the transcript on a call that is still `live` — which is exactly
+   * what it did here, and read as «the mouth still is not moving» rather
+   * than «the phase never changed».
+   */
+  await p.evaluate(() => {
+    window.__rec.onresult({ results: [[{ transcript: 'قهوة' }]] });
+    window.__rec.onend();
+  });
+  const spoke = await p.waitForFunction(
+    () => {
+      const all = [...document.querySelectorAll('.shouq')];
+      const talking = all.filter((f) => f.classList.contains('shouq--talking')).length;
+      return talking === all.length && all.length > 1 ? { n: all.length, talking } : null;
+    },
+    null, { timeout: 4000 }
+  ).then((h) => h.jsonValue()).catch(() => null);
+  ok('but when she answers, every face speaks', spoke !== null,
+    'no face started talking on «شوق ترد…»');
   await ctx.close();
 }
 

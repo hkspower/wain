@@ -62,7 +62,15 @@ export default function ShouqCallButton({
   useEffect(() => onPhase(setPhase), []);
 
   const open = phase !== "idle";
-  const talking = phase === "live" || phase === "answering";
+  /**
+   * Only when she is known to be producing speech — see `WainAiCall`, which
+   * holds the whole argument. `live` is the LISTENING state, and in agent mode
+   * it is the entire call, so this animated a mouth for minutes over a widget
+   * that had said nothing. The launcher cannot know better than the call can:
+   * the phase is all that crosses the bus, and `answering` is the only value
+   * in it that means speech.
+   */
+  const talking = phase === "answering";
 
   /**
    * Fetch the call before it is asked for.

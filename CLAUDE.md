@@ -1146,6 +1146,75 @@ secret would have to live either in the agent config (readable) or in an n8n
 variable — which is the `REPLACE_PHONE_NUMBER_ID` failure mode: unset, silent,
 and discovered months later.
 
+## What the call TELLS the caller — three defects, 23 September
+
+Measured on a built agent-mode export at 390px, not read off the source.
+Two of the three were the interface asserting things it had no way to know,
+and the third was it staying silent about the one thing it did know.
+
+**The status line announced the stopwatch.** `متصل · ٠٠:٠٧` sat inside
+`aria-live="polite"`, so the region changed every second and a screen reader
+re-read the whole line every second, over whatever شوق was saying — **six
+distinct values in five seconds**, measured. The one region meant to report
+the call was narrating a clock instead. The phase word is announced now and
+the duration is a sibling outside the region: still on screen, still in the
+accessibility tree, never spoken. `ended` keeps its duration inside the
+announcement, because there it fires once and how long the call lasted is the
+news rather than a tick.
+
+**Two live regions said the same thing at the same moment.** The headline
+under the face carried `aria-live` too and read «يرن…» exactly when the header
+did, so one event was announced twice; the rest of the time it held the
+caller's own words read back at them, which is not news to the person who just
+said them. The header is the only announcer now.
+
+**Her mouth moved for the entire call.** `talking` was `live || answering`,
+and `live` is the state where she is LISTENING — in agent mode it is the whole
+call, from the widget mounting to the hang-up. Measured: **2 of 2 faces
+carried `shouq--talking`** over a widget that had not said a word. The file's
+own comment already made the right argument for excluding `ringing` — «a face
+mouthing words at a phone that is still ringing is the interface telling a
+small lie» — and then told a much larger one.
+
+**Nothing here can know better, and that was checked rather than assumed.**
+The published `@elevenlabs/convai-widget-embed@0.18.1` bundle keeps
+`isSpeaking` and `mode` inside its own Preact state and dispatches exactly one
+custom event, `elevenlabs-convai:call` — `npm pack`'d and read, the same move
+`SALEM_VOICE_ID` made for the voice-swap question. So there is no signal to
+animate from, and **an animation that is always on carries no information
+while looking exactly like one that does.** The rule is now `answering` only,
+which exists in local mode alone and genuinely means «she is producing
+speech»; agent mode gets the widget's own volume-reactive orb, which is driven
+by audio it can actually hear. Confirmed on the wire: 0 of 2 during a live
+agent call, 3 of 3 the moment a local answer starts.
+
+**A TEST WAS HOLDING THE BUG IN PLACE.** `shouq-flow`'s «once she is
+connected, every face starts speaking» asserted `talking === n` at `live`, so
+the defect was not merely unnoticed — it was pinned. Rewritten to assert the
+opposite at `live` and the original claim at `answering`, which is where it
+was always true.
+
+**And she changes the screen without saying so.** `show_places` navigates and
+`open_place` opens a profile; the sheet is 22rem over a 24.4rem viewport, so
+the page she is driving is mostly BEHIND it. The only account of either was
+شوق saying it out loud — nothing for a caller with the volume down, or who
+cannot hear her. This is the one thing the call can report honestly, because
+it is *our* code doing it and the handler has the count and the name in hand:
+a line in the sheet, its own live region, «دوّرت لك «قهوة» — ٤ أماكن».
+`countAr` and not a hand-written «٤ مكان» — see `place-kit`, where that exact
+agreement rule has been got wrong by hand three separate times.
+
+**Proving the new assertions could fail cost two lessons, both already in this
+file.** The first sabotage used `if (false)`, which fails `no-constant-condition`
+— `next build` stopped, `out/` kept the GOOD build, and all four assertions
+passed against it. *When proving a test can fail, check the build succeeded
+first*, recorded here after the `LiveTray` confirmation and hit again. Then the
+first real red threw an uncaught `waitForFunction` timeout and took the process
+down, cancelling every section after it — the coverage-hole shape corrected in
+`shouq-flow` and in `live-map.test.mjs` this same day, now caught a third time
+**while checking a test could go red**. Both guarded. An `ok(…, true)` written
+beside them was deleted for passing under a build with the feature removed.
+
 **A caller can switch her voice to سالم's mid-call — same brain, different
 speaker.** `WainAiCall`'s «بصوت سالم» button, live only while `phase ===
 "live"`. Deliberately not a second agent: the tools, the prompt, her name in

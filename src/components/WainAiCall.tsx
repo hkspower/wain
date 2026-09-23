@@ -8,6 +8,7 @@ import { haptic } from "@/lib/haptics";
 import { getRecognition, SPEECH_LANG, transcriptOf, type SpeechRecognitionLike } from "@/lib/speech";
 import { primeAudio, setEnabled as setVoiceEnabled } from "@/lib/voice";
 import { usePlaces } from "@/lib/usePlaces";
+import { PLACES_COUNT, countAr } from "@/lib/place-kit";
 import { callDuration, connected, hangup, ringback } from "@/lib/call-tones";
 import {
   WAIN_AI_AGENT_ENABLED,
@@ -133,6 +134,23 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   const [agentReady, setAgentReady] = useState(false);
   const [agentFailed, setAgentFailed] = useState(false);
   /**
+   * What شوق just did to the screen, in the caller's own words.
+   *
+   * She drives the interface — `show_places` navigates, `open_place` opens a
+   * profile — and the caller was told none of it. On a 390px phone this sheet
+   * is 22rem wide over a 24.4rem viewport, so the page she is changing is
+   * mostly BEHIND it: the results swapped, the route changed, and the only
+   * account of it was شوق saying so out loud, which a caller who has the
+   * volume down or is deaf to her never gets.
+   *
+   * This is the one kind of feedback the component can give honestly, because
+   * unlike «is she speaking» it is OUR code doing the thing — the tool handler
+   * below has the count and the name in hand at the moment it returns them to
+   * her. Cleared on every fresh dial so a new call never opens showing what
+   * the last one did.
+   */
+  const [lastAction, setLastAction] = useState("");
+  /**
    * Which voice the widget is set to render شوق's answers in — still شوق,
    * still her tools, only the speaker changes. See SALEM_VOICE_ID for why a
    * switch remounts the widget rather than adjusting it in place.
@@ -145,14 +163,29 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   const [persona, setPersona] = useState<"shouq" | "salem">("shouq");
 
   /**
-   * Whether شوق's mouth moves.
+   * Whether شوق's mouth moves — only when we actually KNOW she is speaking.
    *
-   * Only once there is a call to be on. «ringing» is deliberately excluded:
-   * nobody has picked up yet, and a face mouthing words at a phone that is
-   * still ringing is the interface telling a small lie about what is
-   * happening. She blinks throughout — that is being present, not speaking.
+   * It used to be `live || answering`, and the comment here argued correctly
+   * that a face mouthing words at a ringing phone «is the interface telling a
+   * small lie». It then told a larger one: `live` is the state where she is
+   * LISTENING, and in agent mode it is the whole call. Measured on a built
+   * agent-mode export — 2 of 2 faces carried `shouq--talking` from the moment
+   * the call connected, for as long as it lasted, over a widget that had not
+   * said a word.
+   *
+   * And nothing here can know better. The widget keeps `isSpeaking` and `mode`
+   * inside its own Preact state and dispatches exactly one custom event,
+   * `elevenlabs-convai:call` — checked by reading the published 0.18.1 bundle,
+   * the same way `SALEM_VOICE_ID` was, rather than by hoping. So there is no
+   * signal to animate from, and an animation that is always on carries no
+   * information while looking exactly like one that does.
+   *
+   * `answering` is the one state that is genuinely «she is producing speech»,
+   * and it exists only in local mode. Agent mode gets the widget's own
+   * volume-reactive orb in the slot below, which is driven by the audio it can
+   * actually hear. She blinks throughout either way — that is being present.
    */
-  const talking = phase === "live" || phase === "answering";
+  const talking = !WAIN_AI_AGENT_ENABLED && phase === "answering";
   /* Hoisted from just above the render. Two effects start work on it now —
      the widget bundle and the search index — and both sit higher up the file
      than the line that used to declare it. */
@@ -471,6 +504,15 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
             // The page is still navigating and will show whatever it finds;
             // fall through to the generic wording rather than fail the call.
           }
+          // Said to the caller, not to her: the same fact, in the sheet that
+          // is covering the page it happened on. `countAr` and not a
+          // hand-written «٧ مكان» — see place-kit, where this exact agreement
+          // rule has now been got wrong by hand three separate times.
+          setLastAction(
+            total >= 0
+              ? `${WAIN_AI_COPY.didSearch} «${q}» — ${countAr(total, PLACES_COUNT)}`
+              : `${WAIN_AI_COPY.didSearch} «${q}»`
+          );
           if (total === 0) {
             return (
               `ما لقيت ولا مكان يطابق «${q}» — الشاشة الحين تقول «ما لقينا شي». ` +
@@ -502,6 +544,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
             );
           }
           router.push(`/places/${s}/`);
+          setLastAction(`${WAIN_AI_COPY.didOpen} «${place.nameAr}»`);
           return (
             `صفحة «${place.nameAr}» (${s}) الحين مفتوحة قدام الزائر، فيها الصور وبيانات التواصل. ` +
             "قولي له إنك فتحتيها، واسأليه سؤال قصير يرجّع له الدور. لا تسكتين."
@@ -585,6 +628,8 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     setTranscript("");
     setSeconds(0);
     setAgentFailed(false);
+    // Or a fresh call opens announcing what the previous one did.
+    setLastAction("");
     // A previous call may have switched to سالم's voice and left the widget
     // mounted with that override (see the persona note above) — clearing the
     // slot here means the mount effect below sees an empty one and creates a
@@ -658,12 +703,26 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
 
   const open = phase !== "idle";
 
-  /** The line under her name: what the call is doing right now. */
+  /**
+   * The line under her name: what the call is doing right now.
+   *
+   * **The running clock is deliberately NOT in here**, and that is the whole
+   * point of splitting it out. This string sits in an `aria-live` region, and
+   * it used to read `متصل · ٠٠:٠٧` — so it changed every second and a screen
+   * reader re-read the whole line every second, over whatever شوق was saying.
+   * Measured on a built agent-mode export: **six distinct values in five
+   * seconds**, which is a live region narrating a stopwatch rather than
+   * reporting a call. The duration is rendered beside this, visible and in the
+   * accessibility tree, and simply not announced.
+   *
+   * `ended` is the exception and keeps its duration: it fires once, it is
+   * final, and how long the call lasted is the news rather than a tick.
+   */
   const status =
     phase === "ringing"
       ? WAIN_AI_COPY.ringing
       : phase === "live"
-        ? `${WAIN_AI_COPY.onCall} · ${callDuration(seconds)}`
+        ? WAIN_AI_COPY.onCall
         : phase === "answering"
           ? WAIN_AI_COPY.answering
           : phase === "ended"
@@ -691,13 +750,23 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                 {WAIN_AI_COPY.name}
               </span>
               {/* The status is the one thing that changes without the visitor
-                  touching anything, so it is the thing that gets announced. */}
-              <span
-                className="flex items-center gap-1 text-xs text-coral-50"
-                aria-live="polite"
-              >
+                  touching anything, so it is the thing that gets announced —
+                  and the ONLY one. The headline below used to carry
+                  `aria-live` too and say «يرن…» at the same moment this did,
+                  so one event was announced twice; what it shows the rest of
+                  the time is the caller's own words read back to them, which
+                  is not news to the person who just said them. */}
+              <span className="flex items-center gap-1 text-xs text-coral-50">
                 <IconPinSolid className="size-3" />
-                {status}
+                <span aria-live="polite">{status}</span>
+                {/* Outside the live region on purpose — see `status`. Visible,
+                    readable by navigating to it, never announced. `ended`
+                    prints its own duration inside the announcement instead. */}
+                {phase === "live" && (
+                  <span dir="ltr" className="tabular-nums">
+                    · {callDuration(seconds)}
+                  </span>
+                )}
               </span>
             </span>
             <button
@@ -722,7 +791,8 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                   </span>
                 </span>
 
-                <p className="mt-3 font-display text-lg font-semibold text-ink-900" aria-live="polite">
+                {/* No `aria-live` — the header owns the announcement. */}
+                <p className="mt-3 font-display text-lg font-semibold text-ink-900">
                   {phase === "ringing"
                     ? WAIN_AI_COPY.ringing
                     : phase === "answering"
@@ -752,6 +822,20 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                       </p>
                     )}
                   </div>
+                )}
+
+                {/* What she changed on the page under this sheet. Its own
+                    live region rather than the header's: it is different news
+                    from «the call is connected», and the two never fire at
+                    the same moment — a tool only runs on a call that has
+                    already announced itself live. */}
+                {lastAction && (
+                  <p
+                    aria-live="polite"
+                    className="mt-3 rounded-xl bg-sea-50 px-3 py-2 text-xs font-semibold leading-relaxed text-sea-800"
+                  >
+                    {lastAction}
+                  </p>
                 )}
 
                 {/* Only once she has actually picked up — "ringing" has no
