@@ -3045,12 +3045,12 @@ h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate
   padding-bottom: 14px;
   font-weight: 700 !important;
   font-size: 1.95rem !important;
-  margin-bottom: 1.75rem !important;
+  margin-bottom: 2rem !important;
 }
 @media (min-width: 768px) {
   h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"] {
     font-size: 2.375rem !important;
-    margin-bottom: 2.5rem !important;
+    margin-bottom: 3rem !important;
   }
 }
 
@@ -3061,15 +3061,41 @@ h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate
  * space above the heading (between it and the hero) and below the tile grid
  * (between it and whatever comes next). `:has()` scopes this to the ONE
  * section containing this exact heading, so it cannot widen an unrelated
- * section elsewhere on the page that happens to share the padding utility. */
+ * section elsewhere on the page that happens to share the padding utility.
+ *
+ * WIDENED AGAIN — 2026-09-23, "1" against a choice of what still needed
+ * more room, naming this exact section. The heading's own margin-bottom
+ * went 1.75rem/2.5rem -> 2rem/3rem, the section's padding went
+ * 2.5rem/3.5rem -> 3rem/4.5rem, and the grid's own gap between tiles
+ * (untouched until now — the bundle's bare `gap-4 md:gap-5`, ~16px/21px)
+ * goes to 18px/28px so the tiles read as four separate cards with room
+ * between them rather than a denser block. */
 section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"]) {
-  padding-top: 2.5rem !important;
-  padding-bottom: 2.5rem !important;
+  padding-top: 3rem !important;
+  padding-bottom: 3rem !important;
 }
 @media (min-width: 768px) {
   section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"]) {
-    padding-top: 3.5rem !important;
-    padding-bottom: 3.5rem !important;
+    padding-top: 4.5rem !important;
+    padding-bottom: 4.5rem !important;
+  }
+}
+/* Both breakpoints are written explicitly here, rather than one bare rule,
+ * because the phone width already has its OWN gap override above (the "TWO
+ * TILES PER ROW" entry, `gap: 10px !important` inside `max-width: 767px`) —
+ * a deliberate tight gap chosen for a two-column phone grid. A bare
+ * unconditional rule down here would come later in the file and beat that
+ * one at every width, including undoing the phone-specific choice; splitting
+ * it into the same two breakpoints lets this only WIDEN each, not replace
+ * the phone one outright. */
+@media (max-width: 767px) {
+  [class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
+    gap: 14px !important;
+  }
+}
+@media (min-width: 768px) {
+  [class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
+    gap: 28px !important;
   }
 }
 h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"]::after {
