@@ -135,6 +135,79 @@ console.log('\n── the pins belong to the ground, not to the frame ──');
   await ctx.close();
 }
 
+/**
+ * How it follows, not just that it does.
+ *
+ * The section above passes under both implementations: it drags, waits half a
+ * second and asks where the pin ended up, which was true when every frame was
+ * a React render of all thirty pins. That cost one second of dragging 3.5
+ * SECONDS of long tasks on a 6×-throttled phone — a 33ms median frame against
+ * 60fps' 16.7 — and no assertion here could see it. So these two name the
+ * mechanism instead of the outcome.
+ */
+console.log('\n── and it follows on the compositor, not through React ──');
+{
+  const { ctx, p, map, errors } = await open();
+  await map.getByRole('button', { name: /حرّك الخريطة/ }).click();
+  await p.locator('.leaflet-container').waitFor({ timeout: 15000 });
+  await p.waitForTimeout(500);
+  await map.scrollIntoViewIfNeeded();
+  await p.waitForTimeout(200);
+
+  // The <span> that carries the position; the link is its child.
+  const pin = map.locator('a[href^="/places/"]').first().locator('xpath=..');
+  const left = () => pin.evaluate((el) => el.style.left);
+  const screenX = () => pin.evaluate((el) => Math.round(el.getBoundingClientRect().x));
+
+  const box = await p.locator('.leaflet-container').boundingBox();
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+
+  const leftBefore = await left();
+  const xBefore = await screenX();
+
+  await p.mouse.move(cx, cy);
+  await p.mouse.down();
+  await p.mouse.move(cx - 120, cy, { steps: 12 });
+
+  const leftDuring = await left();
+  const xDuring = await screenX();
+
+  ok('mid-drag the pin has moved on screen',
+    Math.abs(xDuring - xBefore) > 40, `${xBefore} → ${xDuring}`);
+  // The whole point: its own `left` is untouched, so no render produced that
+  // movement — the overlay rode one transform.
+  ok('but its own left is untouched, so no render drew the move',
+    leftDuring === leftBefore && leftBefore !== '', `${leftBefore} → ${leftDuring}`);
+
+  // A pause before letting go, so Leaflet's inertia is not still carrying the
+  // map when the settled position is read.
+  await p.waitForTimeout(250);
+  await p.mouse.up();
+  await p.waitForTimeout(600);
+
+  /**
+   * And the transform is a loan, not a ledger.
+   *
+   * When the view settles the pins are re-projected for real and the offset is
+   * re-based to zero, so the next drag starts from the truth. Without it the
+   * transform would accumulate and every position handed to the callout logic
+   * — which decides from `at[i].x` which way a callout may open — would be
+   * one drag stale, for ever.
+   */
+  const leftAfter = await left();
+  ok('and once it settles the pin carries its new position in its own left',
+    leftAfter !== leftBefore, `${leftBefore} → ${leftAfter}`);
+  ok('with the pan offset given back, not carried forward',
+    (await pin.evaluate((el) => {
+      const t = getComputedStyle(el.parentElement).transform;
+      return t === 'none' || /matrix\(1, 0, 0, 1, 0, 0\)/.test(t);
+    })), 'the pin layer still holds a translate after the drag ended');
+
+  ok('no page errors', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
 console.log('\n── a place page gets the same upgrade ──');
 {
   const { ctx, p, map: frame, errors } = await open('/places/kuwait-towers/', '[data-map-frame]');

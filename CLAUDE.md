@@ -2361,12 +2361,75 @@ Every map was a fixed OpenStreetMap **embed** in a sandboxed iframe with our
 own pins projected on top, and `SearchMap` said why it could not be panned:
 «the embed would pan under the overlay and desync every pin». `LiveMap.tsx`
 answers that rather than working around it — **Leaflet owns the view and the
-pins are re-projected through `latLngToContainerPoint` on every frame of a
-drag**, so the overlay has no opinion of its own left to be wrong. The pins
-stay exactly what they were: React, with their callouts and their two-way
-highlight with the result list. `spreadPins` is deliberately NOT applied on
-the live map — zooming is what separates two places now, and nudging a pin off
-its coordinate on a map you can zoom is a lie you can watch.
+pins are placed from it rather than from a bbox of their own**, so the overlay
+has no opinion of its own left to be wrong. The pins stay exactly what they
+were: React, with their callouts and their two-way highlight with the result
+list. `spreadPins` is deliberately NOT applied on the live map — zooming is
+what separates two places now, and nudging a pin off its coordinate on a map
+you can zoom is a lie you can watch.
+
+**«Re-projected on every frame of a drag» is how that used to read, and it was
+the defect.** `latLngToContainerPoint` is cheap; what ran beside it was a React
+render of every pin — a fresh `style` object each, and the halo, the callout
+and the nose under each — sixty times a second. Measured on the built export at
+390px with 30 results, which is what «الكويت» returns:
+
+| | before | after |
+|---|---|---|
+| frame median, CPU ×6 | 33.3ms | **16.7ms** |
+| p95 | 83.4ms | 33.4ms |
+| worst | 149.9ms | 50.1ms |
+| long tasks in a 1s drag | **3488ms** | 197ms |
+| the same at ×4 | 1162ms | 69ms |
+
+So the map moved smoothly — Leaflet pans its own panes on the compositor — and
+the pins stuttered across it at half frame rate, which is the one thing the
+component exists to make look like a single object.
+
+**The fix is arithmetic, not a throttle.** A container point is a layer point
+plus the map pane's own offset, and a PAN moves only the pane: every pin's
+layer point is unchanged. So `project()` (re-project, React) runs on
+`moveend zoomend viewreset resize`, and `move` runs `paint()` — one
+`translate3d` on the overlay div, no React at all. It is not an approximation
+of re-projecting, it is the same number reached by addition. The zoom guard is
+the case a translate cannot answer: a pinch changes every layer point, so those
+frames still take `project()`, which is what everything did until now.
+
+**A seam was expected there and does NOT reproduce.** `paint()` is called from
+a `useLayoutEffect` keyed on `pos` rather than the transform being zeroed
+inside `project()`, on the theory that zeroing lands a frame before the new
+`left`/`top` commit and flashes every pin back. Built both ways and watched
+every animation frame across mouseup, on a settled release and on a fling,
+throttled and not: **0.0px.** `project()` runs inside a DOM event and React
+flushes that before the paint. The layout effect stays because it costs a line
+and does not depend on a flush order nothing here controls — and there is no
+assertion for it, because an assertion that cannot go red is worse than none.
+
+**Two assertions in `live-map.test.mjs` name the mechanism, and the old ones
+could not.** «dragging the map carried the pin with it» passed under both
+implementations — it drags, waits half a second and asks where the pin ended
+up. The new ones ask *how*: mid-drag the pin has moved on screen while its own
+`left` is untouched (confirmed red by putting the per-frame `project()` back),
+and once it settles the `left` is a real re-projection and the layer's
+transform is back to the identity (confirmed red by dropping `moveend` from the
+settle list, which turns the transform from a loan into a ledger).
+
+**And the tap fetched two chunks in series, for nothing.** LiveMap reached
+Leaflet through a second `await import("leaflet")` inside its effect, which
+reads as consistent — the map is lazy, so Leaflet is lazy — and is not: the
+module is ALREADY only reachable from a runtime `import()`, so the nested one
+bought no laziness and cost a round trip. Traced on the built export: a 2.2K
+chunk at 59ms, finished at 69ms, and only THEN the 41K one that is the actual
+download. A static import makes webpack list it as a dependency and both start
+at 61ms. On localhost the gap is 5ms; on a phone in Kuwait it is a whole RTT of
+nothing in front of the thing the visitor tapped. **The lesson is general: a
+dynamic import inside an already-dynamic module is a serial request, not a
+saving.**
+
+Cost: `/search` unchanged at 160.5K, on-demand 223.5K → 223.7K. The line that
+names the live map reads 44.2K → 45.5K, and most of that is bookkeeping —
+`audit:js` finds map chunks by looking for «leaflet» in a file's first 4000
+characters, and the small chunk only declares it now that the import is static.
 
 **It is opt-in, and the number is the reason.** Leaflet measures **42.4K
 gzipped plus 3.5K of CSS**, and `/search` sits at 160.5K against the 175K
