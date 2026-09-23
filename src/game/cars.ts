@@ -6630,29 +6630,132 @@ export function createCar(colors: CarColors): THREE.Group {
     // panel on all of them. Their LENGTHS come from the arches — see
     // flankRun — so each one ends where the wheel opening starts.
     const [creaseLen, creaseZ] = flankRun(d.creaseY);
-    const [beltLen, beltZ] = flankRun(d.beltY);
     const [rockerLen, rockerZ] = flankRun(0.25);
+
+    /**
+     * The top of the painted flank at a station: the highest point a ray
+     * fired at the side of the car still finds bodywork.
+     *
+     * The beltline is where paint stops and glass starts, and `beltY` is
+     * a number typed per style to say where that is. On the pony it says
+     * 0.90 and the body's own top line runs 0.695 to 0.799, so the chrome
+     * strip was floating 31 to 119 mm ABOVE the bodywork for the whole
+     * length of the car — a brightwork trim with nothing behind it. The
+     * flank stripe and the police band get away with the same number
+     * because flankRibbon drops any column where it finds no shell; a
+     * box does not have that mercy.
+     */
+    const flankTopY = (z: number, from: number): number => {
+      for (let i = 0; i <= 60; i++) {
+        const y = +(from - i * 0.01).toFixed(3);
+        if (y < 0.2) break;
+        if (flankXAt(bGeo, style, y, z, ":top") !== null) return y;
+      }
+      return from;
+    };
+    // Clamped, not retyped: beltY is read by the stripe, the police
+    // band, the crew mark and the sun band, and all of them sit BELOW
+    // it. This moves the one thing that was above the paint.
+    const beltProbeZ = flankRun(d.beltY)[1];
+    const beltY = Math.min(d.beltY, flankTopY(beltProbeZ, d.beltY) - 0.03);
+    const [beltLen, beltZ] = flankRun(beltY);
+
+    /**
+     * THE DOOR FURNITURE SITS ON THE DOOR.
+     *
+     * Everything on the flank was pinned to `flankX` — the body's
+     * WIDEST half-width, taken off its bounding box — and then sat at a
+     * height and a station where the body is not that wide. A shell
+     * tumbles home above the shoulder and tucks under it, and tapers in
+     * plan over both overhangs, so the widest point is one line around
+     * the middle of the car and nothing else is on it.
+     *
+     * Measured, before this, on the built cars:
+     *
+     *   shutlines    55 to 258 mm outside the paint
+     *   handles      61 to 231 mm outside the paint
+     *
+     * On the saloon the flank at the shutline's own height is at 0.781
+     * and the shutline was at 0.933: a door gap floating 152 mm off the
+     * door, and a handle you could not have reached from inside the
+     * car. The previous pass on this block moved them off a hard-coded
+     * 0.925 and onto `flankX`, which fixed the difference BETWEEN
+     * silhouettes and left the error within each one untouched — the
+     * comment above still describes that change.
+     *
+     * So ask the shell, the way the tail lamps already do (buildTail →
+     * flankXAt) and the belt stripe already does (flankRibbon). One ray
+     * per detail, at the detail's own height and station.
+     */
+    const flankAt = (y: number, z: number, out: number): number => {
+      const x = flankXAt(bGeo, style, y, z, ":flank") ?? flankX;
+      return x + out;
+    };
+
+    /**
+     * ...and a car has as many doors as it has doors.
+     *
+     * Two shutlines and TWO HANDLES went on every side of every car in
+     * the fleet — on the coupes, on the three-door hatch, and on the
+     * half-tonne single cab, whose second door line landed out in the
+     * load bed. Seven of the nine silhouettes were wearing a rear door
+     * they do not have, and this file names them itself: "four doors'
+     * worth of flank" for the saloon, "Half-tonne single cab", "the
+     * shape a fast three-door has had for fifty years", "R34-style
+     * coupe", "the American pony coupe".
+     *
+     * Derived rather than tabulated, so it follows each body instead of
+     * being a second set of numbers to keep in step with the first. The
+     * door's leading edge comes from `flankRun`, which already knows
+     * where the front arch stops; its trailing edge is the B-pillar,
+     * which STYLE_DIMS already carries. A four-door splits the run at
+     * the pillar into two doors of equal length.
+     */
+    const FOUR_DOOR = style === "sedan" || style === "suv";
+    const SHUT_Y = 0.58;
+    const [shutLen, shutMid] = flankRun(SHUT_Y);
+    const doorFront = shutMid + shutLen / 2 - 0.02;
+    const doorBack = shutMid - shutLen / 2 + 0.02;
+    const pillarZ = Math.min(doorFront - 0.3, Math.max(doorBack + 0.3, d.bPillar[2]));
+    const cuts = FOUR_DOOR
+      ? [doorFront, pillarZ, Math.max(doorBack, pillarZ - (doorFront - pillarZ))]
+      : [doorFront, pillarZ];
+    // A handle sits near the trailing edge of the door it opens, which
+    // is the one place it can be and still be reachable from the seat.
+    const handles: number[] = [];
+    for (let i = 1; i < cuts.length; i++) handles.push(Math.min(cuts[i] + 0.28, cuts[i - 1] - 0.1));
+
     for (const sxSign of [-1, 1]) {
-      for (const sz of [0.62, -0.72]) {
+      for (const sz of cuts) {
         const seam = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.5, 0.012), gapMat);
-        seam.position.set(sxSign * (flankX + 0.005), 0.58, sz);
+        // Set so the outer face lands a millimetre proud of the paint
+        // rather than the whole 16 mm bar standing on it: a panel gap is
+        // a dark slot IN a surface, and one sitting 13 mm out from the
+        // door reads as a rib. The millimetre is z-fighting clearance.
+        seam.position.set(sxSign * flankAt(SHUT_Y, sz, 0.001 - 0.008), SHUT_Y, sz);
+        seam.userData.flank = "shutline";
         group.add(seam);
       }
       // Character line — the crease that runs the flank of every modern
       // car and catches a long highlight as the world slides past
       const crease = new THREE.Mesh(roundedBox(0.035, 0.05, creaseLen, 0.016), bodyMat);
-      crease.position.set(sxSign * (flankX + 0.01), d.creaseY, creaseZ);
+      crease.position.set(sxSign * flankAt(d.creaseY, creaseZ, 0.01), d.creaseY, creaseZ);
+      crease.userData.flank = "crease";
       group.add(crease);
       const belt = new THREE.Mesh(roundedBox(0.015, 0.02, beltLen, 0.006), chromeLocal);
-      belt.position.set(sxSign * (flankX + 0.005), d.beltY, beltZ);
+      belt.position.set(sxSign * flankAt(beltY, beltZ, 0.005), beltY, beltZ);
+      belt.userData.flank = "belt";
       group.add(belt);
-      for (const hz of [0.28, -1.02]) {
+      for (const hz of handles) {
         const handle = new THREE.Mesh(roundedBox(0.03, 0.035, 0.14, 0.012), chromeLocal);
-        handle.position.set(sxSign * (flankX + 0.005), d.creaseY + 0.08, hz);
+        const hy = d.creaseY + 0.08;
+        handle.position.set(sxSign * flankAt(hy, hz, 0.005), hy, hz);
+        handle.userData.flank = "handle";
         group.add(handle);
       }
       const skirt = new THREE.Mesh(roundedBox(0.06, 0.12, rockerLen, 0.02), seamMat);
-      skirt.position.set(sxSign * (flankX - 0.023), 0.25, rockerZ);
+      skirt.position.set(sxSign * flankAt(0.25, rockerZ, -0.023), 0.25, rockerZ);
+      skirt.userData.flank = "skirt";
       group.add(skirt);
     }
 
@@ -6766,10 +6869,21 @@ export function createCar(colors: CarColors): THREE.Group {
       group.add(caliper);
     }
 
-    // B-pillars split the side glass into door windows
+    // B-pillars split the side glass into door windows.
+    //
+    // On the GLASS, which is what it divides. This was the last anchor
+    // on the whole flank still carrying an absolute x — every other one
+    // was moved onto the shell years ago and this was missed, so the
+    // pillar sat 63 mm INSIDE the zx's glass and 54 mm off the suv's.
+    // The canopy tumbles home hard (a coupe leans its glass in more than
+    // a saloon does; see CROWN_BY_STYLE), which is exactly why a number
+    // typed per style cannot follow it.
     for (const sxSign of [-1, 1]) {
       const pillar = new THREE.Mesh(roundedBox(0.025, 0.44, 0.07, 0.008), bodyMat);
-      pillar.position.set(sxSign * d.bPillar[0], d.bPillar[1], d.bPillar[2]);
+      const px =
+        (flankXAt(cGeo, style, d.bPillar[1], d.bPillar[2], ":pillar") ?? d.bPillar[0]) - 0.004;
+      pillar.position.set(sxSign * px, d.bPillar[1], d.bPillar[2]);
+      pillar.userData.flank = "pillar";
       group.add(pillar);
     }
 
