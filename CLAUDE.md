@@ -2612,6 +2612,34 @@ error, it substitutes, so it reads as a design decision. `docs/type.md`.
 the link is only as wide as its word. Its height was never in question. The
 saving there was the margin.
 
+## Permissions are an allowlist now, not a prompt per command
+
+`.claude/settings.json`, committed, `defaultMode: acceptEdits`. File edits and
+the routine commands this project actually runs — `scan`, every `audit:*` and
+`test:*`, builds, `content`, `node scripts/*`, `php`, the read-only git
+subcommands, the inspection shell — go through without asking. Everything else
+still prompts, which is the default, so the list is what changed and not the
+posture.
+
+**The dangerous half is the point, and it is written as `ask` rather than
+`deny` on purpose.** A hard deny on the deploy path would mean a session could
+not publish even when somebody asked it to; what is wanted is a pause, not a
+wall. So `git push`, `git reset --hard`, `rebase`, any history rewrite (which
+شوق's pinned knowledge base makes expensive — see above), every `hosa` call and
+the GitHub write tools all prompt. Five things are denied outright: `rm -rf /`,
+`rm -rf ~`, a force push, and `hosting_deployStaticSiteArchiveV1` — the last
+because this file has said «never use it, it empties the folder first» for
+months and a rule nothing enforces is a rule waiting to be forgotten.
+
+**`Bash(git *)` is NOT in the allow list, and the omission is deliberate.** A
+prefix wildcard matches every subcommand after it, so one `git *` would have
+quietly pre-approved `git push` alongside `git status`. The read-only
+subcommands are listed one by one for that reason.
+
+`.claude/settings.local.json` is gitignored: the committed file is the
+project's allowlist and every session should get the same one, where a local
+override widens it for one machine and nobody else can see that it did.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*

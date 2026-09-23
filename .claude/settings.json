@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+
+  "permissions": {
+    "defaultMode": "acceptEdits",
+
+    "allow": [
+      "Read",
+      "Grep",
+      "Glob",
+
+      "Bash(npm run scan)",
+      "Bash(npm run scan:design)",
+      "Bash(npm run lint)",
+      "Bash(npm run build)",
+      "Bash(npm run audit:*)",
+      "Bash(npm run test:*)",
+      "Bash(npm run content)",
+      "Bash(npm run content:check)",
+      "Bash(npm run design:*)",
+      "Bash(npm run figma:*)",
+      "Bash(npm run voice:fixture)",
+      "Bash(npm run voice:levels)",
+      "Bash(npm run ai:brief)",
+      "Bash(npm run og)",
+      "Bash(npm run social)",
+      "Bash(npm run photos)",
+      "Bash(npm run icon:app)",
+      "Bash(npm run ios:patch)",
+      "Bash(npm run preview)",
+      "Bash(npm run mcp)",
+      "Bash(npm run dev)",
+      "Bash(npm run release)",
+      "Bash(npm run deploy:plan*)",
+      "Bash(npm run deploy:verify*)",
+      "Bash(npm ci)",
+      "Bash(npm install)",
+      "Bash(npm audit*)",
+      "Bash(npm ls*)",
+      "Bash(npx esbuild*)",
+      "Bash(node scripts/*)",
+      "Bash(node tests/*)",
+      "Bash(node -e*)",
+      "Bash(php*)",
+
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git branch*)",
+      "Bash(git rev-parse*)",
+      "Bash(git ls-files*)",
+      "Bash(git stash list*)",
+      "Bash(git fetch*)",
+
+      "Bash(ls*)",
+      "Bash(cat*)",
+      "Bash(head*)",
+      "Bash(tail*)",
+      "Bash(wc*)",
+      "Bash(find*)",
+      "Bash(grep*)",
+      "Bash(rg*)",
+      "Bash(sort*)",
+      "Bash(uniq*)",
+      "Bash(diff*)",
+      "Bash(du*)",
+      "Bash(df*)",
+      "Bash(sha256sum*)",
+      "Bash(unzip -l*)",
+      "Bash(unzip -Z1*)",
+      "Bash(printf*)",
+      "Bash(mkdir -p*)",
+
+      "mcp__wain__*"
+    ],
+
+    "ask": [
+      "Bash(git push*)",
+      "Bash(git reset --hard*)",
+      "Bash(git checkout -B*)",
+      "Bash(git clean*)",
+      "Bash(git rebase*)",
+      "Bash(git filter-repo*)",
+      "Bash(git filter-branch*)",
+
+      "mcp__hosa__*",
+      "mcp__github__create_pull_request",
+      "mcp__github__merge_pull_request",
+      "mcp__github__push_files",
+      "mcp__github__create_or_update_file",
+      "mcp__github__delete_file",
+      "mcp__github__actions_run_trigger"
+    ],
+
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "mcp__hosa__hosting_deployStaticSiteArchiveV1"
+    ]
+  }
+}

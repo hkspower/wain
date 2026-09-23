@@ -107,3 +107,9 @@ wainkw-search.pdf
 # notice. Xcode-side native customisation, if this ever needs any, belongs in
 # a small patch step in the workflow, not in a tracked ios/ directory.
 /ios/
+
+# Personal permission overrides. `.claude/settings.json` IS committed — it is
+# the project's allowlist and every session should get the same one — but a
+# local file would silently widen it for one machine, which is the opposite of
+# what a checked-in allowlist is for.
+/.claude/settings.local.json
