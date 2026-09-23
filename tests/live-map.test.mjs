@@ -53,8 +53,63 @@ console.log('\n── nobody pays for a map they did not ask to move ──');
     (await p.locator('.leaflet-container').count()) === 0 && leafletish(asked).length === 0,
     leafletish(asked).join(' '));
   ok('the offer to move it is there', await map.getByRole('button', { name: /حرّك الخريطة/ }).isVisible());
+  ok('and the tile host is not connected to either',
+    (await p.locator('link[rel="preconnect"][href*="tile."]').count()) === 0);
   ok('no page errors', errors.length === 0, errors.join(' | '));
   void p;
+  await ctx.close();
+}
+
+/**
+ * The approach pays for the tap.
+ *
+ * Measured on the built export at 390px, ×6 CPU, clock from the click: with
+ * no warning at all the map is up at ~330ms, and with the 80ms a finger gives
+ * between touching and letting go it is up at ~150. Most of that is not the
+ * download — it is Leaflet parsing, which `import()` does before it resolves,
+ * so priming the module moves the parse and not merely the bytes.
+ *
+ * What is asserted here is that the work STARTS on approach, which is the
+ * mechanism. The saving itself is a stopwatch reading and would be a flaky
+ * assertion on a shared runner.
+ */
+console.log('\n── but reaching for it starts the work the tap would ──');
+{
+  const { ctx, p, map, errors, asked } = await open();
+  const btn = map.getByRole('button', { name: /حرّك الخريطة/ });
+  await btn.scrollIntoViewIfNeeded();
+
+  // A real pointer arriving, so the component's own handlers do the work —
+  // calling the hook's warm() directly would prove the hook and not the wiring.
+  const box = await btn.boundingBox();
+  await p.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await p.waitForTimeout(600);
+
+  ok('a pointer on the button fetches Leaflet, before any click',
+    leafletish(asked).length > 0, 'nothing was fetched on approach');
+  ok('and the map has NOT been mounted by merely being approached',
+    (await p.locator('.leaflet-container').count()) === 0);
+  // Tiles are plain <img>, a no-CORS request: a preconnect carrying
+  // `crossorigin` warms a pool entry the image cannot use. See warmTiles.
+  // Read as a list rather than asked of `.first()`: an evaluate on a locator
+  // that matches nothing THROWS, and an uncaught throw in a file like this
+  // takes the process with it — so one red assertion would silently cancel
+  // every section after it. That is the coverage hole CLAUDE.md records under
+  // the shouq-flow correction, met here while proving this very test can fail.
+  const pre = await p.locator('link[rel="preconnect"]').evaluateAll((els) =>
+    els.filter((e) => e.href.includes('tile.')).map((e) => e.crossOrigin)
+  );
+  ok('the tile host is preconnected now', pre.length === 1, `${pre.length} found`);
+  ok('without crossorigin, or the warmed connection is the wrong one',
+    pre[0] === null, String(pre[0]));
+
+  // The offer must still work after being warmed — an idempotent warm that
+  // left `loading` set would disable the button it was meant to speed up.
+  await btn.click();
+  await p.locator('.leaflet-container').waitFor({ timeout: 15000 });
+  ok('and the tap still opens the map after all that',
+    (await map.locator('iframe').count()) === 0);
+  ok('no page errors', errors.length === 0, errors.join(' | '));
   await ctx.close();
 }
 

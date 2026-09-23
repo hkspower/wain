@@ -150,6 +150,15 @@ export default function SearchMap({
             <button
               type="button"
               onClick={live.enable}
+              // The approach pays for the tap — see useLiveMap's `warm`. Four
+              // events because no one of them covers both kinds of visitor:
+              // a pointer arrives seconds early on a desktop and never fires
+              // on a phone, where `touchstart` is the 100–300ms of warning a
+              // finger gives. `focus` is the keyboard's version of the same.
+              onMouseEnter={live.warm}
+              onFocus={live.warm}
+              onTouchStart={live.warm}
+              onPointerDown={live.warm}
               disabled={live.loading}
               className="flex min-h-6 items-center gap-1.5 rounded-full border border-line-control bg-white px-3 py-1 text-xs font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700 disabled:opacity-60"
             >

@@ -231,6 +231,11 @@ export default function PlaceMapFrame({
             <button
               type="button"
               onClick={live.enable}
+              // See SearchMap's copy: the approach pays for the tap.
+              onMouseEnter={live.warm}
+              onFocus={live.warm}
+              onTouchStart={live.warm}
+              onPointerDown={live.warm}
               disabled={live.loading}
               className="absolute bottom-3 right-3 z-30 flex min-h-6 items-center gap-1.5 rounded-full border border-line bg-white/95 px-3 py-1.5 text-xs font-semibold text-ink-700 shadow-sm transition hover:text-sea-700 disabled:opacity-60"
             >

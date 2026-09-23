@@ -2431,6 +2431,78 @@ names the live map reads 44.2K → 45.5K, and most of that is bookkeeping —
 `audit:js` finds map chunks by looking for «leaflet» in a file's first 4000
 characters, and the small chunk only declares it now that the import is static.
 
+### And then the tap itself, which is mostly not the download
+
+**Measure the tap from inside the page, or you measure Playwright.** A `t0`
+set from the harness put 334ms in front of the first request; the same run
+with `t0` set by a capture-phase `pointerdown` listener on the button put it
+at **27ms**. The 307ms was actionability checks. Every number below starts at
+an event the page itself saw.
+
+With that clock, on localhost where the download is free, ×6 CPU:
+
+```
+ 27ms  the chunk is requested
+ 44ms  all three files have arrived (145K raw, 2.6K, 10.9K of CSS)
+360ms  .leaflet-container is in the DOM   ← 316ms of parse + L.map()
+360ms  the first tile <img> is requested  ← Leaflet wastes nothing here
+396ms  the first pin is positioned
+```
+
+So **the tap is not waiting for bytes, it is waiting for Leaflet to parse and
+build its panes.** That matters because it decides the fix: a preload of the
+FILE would buy the 17ms. `import()` resolves only once webpack has EVALUATED
+the module, so priming the import moves the parse as well.
+
+**`useLiveMap.warm()` does it on approach**, wired to `mouseEnter`, `focus`,
+`touchStart` and `pointerDown` on both «حرّك الخريطة» buttons. Four events
+because no one of them covers both visitors: a pointer arrives seconds early
+on a desktop and never fires on a phone, where `touchstart` is the 100–300ms
+a finger gives between landing and lifting. Measured from the CLICK, ×6:
+
+| pointer arrives | map up | first pin |
+|---|---|---|
+| not at all (bare click) | 322–330ms | 393–431ms |
+| 80ms early — a touch tap | **126–131ms** | 205–245ms |
+| 150ms early | 127–154ms | 214–261ms |
+| 400ms early | 135–141ms | 237–244ms |
+
+×4: 203–246ms → **75–82ms**. It flattens after ~80ms because what is left is
+`L.map()` and the first React render, and neither can start before there is
+an element to build into. **There is no version of this that reaches zero.**
+
+This is `ShouqCallButton`'s move, and the precedent settles a question it
+would otherwise raise: her button already does `import("@/components/
+WainAiCall")` on plain HOVER and withholds only the 451KB third-party bundle
+until `pointerdown`. 45K of our own is the first kind, not the second.
+
+**The tile host was connected to by nobody.** The static embed's host is
+preconnected where it is drawn — `PlaceMapFrame` has the tag, /search's route
+has its own copy — and `tile.openstreetmap.org` is a DIFFERENT origin that
+nothing warmed, so its DNS, TCP and TLS all started at the moment Leaflet
+asked for an image. `warmTiles()` in `map-tiles.ts` starts it on approach, to
+overlap the 316ms of parsing. **No `crossorigin`**: tiles arrive on a plain
+`<img>`, a no-CORS request, and a preconnect carrying it warms a pool entry
+the image cannot use — the identical trap `warmCall` records for the widget's
+`<script>`, now the second place on this site it could have been silent.
+**Whether it saves a handshake is NOT measurable here** — that host is
+refused by the sandbox gateway — so what is asserted is the tag, its href and
+the absence of `crossorigin`, and nothing claims more.
+
+Four assertions, all confirmed red (unwiring the handlers fails the first
+two; adding `crossorigin` fails the fourth): the approach fetches Leaflet
+before any click, the approach does NOT mount the map, the tile host is
+preconnected without `crossorigin`, and the tap still works after all of it —
+that last because an idempotent warm that left `loading` set would disable
+the button it was meant to speed up.
+
+**Proving it could fail is what found a fifth thing.** The first red took the
+whole process down: `locator.first().evaluate()` THROWS when nothing matches,
+so one failing assertion silently cancelled every section after it — the
+exact shape of the shouq-flow coverage hole recorded above, met again while
+checking a test could go red. It reads the links with `evaluateAll` and
+filters in the page now, so a red is a red and the run continues.
+
 **It is opt-in, and the number is the reason.** Leaflet measures **42.4K
 gzipped plus 3.5K of CSS**, and `/search` sits at 160.5K against the 175K
 `audit:js` budget. So `useLiveMap` reaches it through a runtime `import()`

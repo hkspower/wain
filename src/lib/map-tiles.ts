@@ -68,3 +68,52 @@ export const ATTRIBUTION_AR = "بيانات الخريطة © المساهمين
  */
 export const MAX_ZOOM = 19;
 export const MIN_ZOOM = 7;
+
+/**
+ * The tile host, for a preconnect. Empty when the live map is off, and empty
+ * rather than throwing for a template that is not a URL — a malformed
+ * `NEXT_PUBLIC_WAIN_TILES` should cost the warm-up, not the page.
+ */
+export const TILE_ORIGIN = (() => {
+  if (!TILE_URL) return "";
+  try {
+    return new URL(TILE_URL).origin;
+  } catch {
+    return "";
+  }
+})();
+
+let warmed = false;
+
+/**
+ * Open the connection to the tile host before a tile is asked for.
+ *
+ * The static frame's basemap host is already preconnected where it is drawn —
+ * see `PlaceMapFrame` and /search's route — and the TILE host is a different
+ * origin that nothing warmed, so its DNS, TCP and TLS all began at the moment
+ * Leaflet asked for its first image. Measured on the built export: the first
+ * tile `<img>` is requested in the same millisecond the map container appears,
+ * which is the good news — Leaflet wastes nothing — and it is also why a cold
+ * handshake there is dead time in front of the first thing that looks like a
+ * map. Started on approach instead, it overlaps the ~300ms Leaflet spends
+ * parsing and initialising.
+ *
+ * **No `crossorigin`.** Tiles arrive on a plain `<img>`, which is a no-CORS
+ * request, and a preconnect carrying `crossorigin` warms a connection pool
+ * entry the image cannot use — the same mistake `warmCall` records for the
+ * widget's `<script>`, which is the other place on this site where a warm-up
+ * could be silently useless.
+ *
+ * THE PAINTED RESULT OF THIS IS NOT MEASURABLE HERE. `tile.openstreetmap.org`
+ * is refused by the sandbox gateway, so what can be proved is that the link is
+ * emitted, once, with the right href and without `crossorigin`. Whether it
+ * saves a handshake is a claim about a network this session cannot reach.
+ */
+export function warmTiles(): void {
+  if (warmed || !TILE_ORIGIN || typeof document === "undefined") return;
+  warmed = true;
+  const link = document.createElement("link");
+  link.rel = "preconnect";
+  link.href = TILE_ORIGIN;
+  document.head.appendChild(link);
+}
