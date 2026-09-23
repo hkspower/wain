@@ -187,8 +187,13 @@ export function letterbox(
 }
 
 const DEG = Math.PI / 180;
-const tanHalf = (deg: number) => Math.tan((deg * DEG) / 2);
-const fromTan = (t: number) => (2 * Math.atan(t)) / DEG;
+/** tan of half a field, and back. Exported so a caller clamping a lens
+ *  against MAX_HFOV (camera.ts, while a letterbox edge is being eased
+ *  across) computes the backstop with exactly the expression verticalFov
+ *  uses — a re-derivation in a different order differs by an ulp exactly
+ *  where the backstop bites. */
+export const tanHalf = (deg: number) => Math.tan((deg * DEG) / 2);
+export const fromTan = (t: number) => (2 * Math.atan(t)) / DEG;
 
 /**
  * The vertical FOV to actually give three.js, for a view whose designed

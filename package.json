@@ -87,6 +87,8 @@
     "test:bridges": "node tests/bridges.mjs",
     "test:buildings": "node tests/buildings.mjs",
     "test:carsedit": "node tests/carsedit.mjs",
+    "test:camera": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/camera.mjs",
+    "test:camerawire": "node tests/camerawire.mjs",
     "test:chase": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/chase.mjs",
     "test:carbon": "node tests/carbon.mjs",
     "test:caching": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/caching.mjs",

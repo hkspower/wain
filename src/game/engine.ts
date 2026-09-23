@@ -40,6 +40,12 @@ import { solveDriverRig, lookAheadFor } from "./driver";
 // feed the rig — the rival's and the traffic's visible steer and pedals
 // — are the same kind of filter and were the same linearisation.
 import { lagK } from "./spring";
+// The camera's laws. Pure, and tested without a browser in tests/camera.mjs.
+import {
+  chaseArm, decay, easeAspect, filmExit, filmFov, filmTimeScale, fovTarget, lagTo, lensFov,
+  rollTarget as camRollTarget, seedFollow, stepFollow, trailing,
+  FOV_RATE, RACE_FRAME_RATE, ROLL_RATE, type Follow,
+} from "./camera";
 import { FLAGS, FLAG_IDS, flagTexture } from "./flags";
 import { verticalFov, chaseDolly, RACE_DOLLY } from "./aspect";
 import { driveCap, gripAtSpeed, newLoadState, solveLoad, type LoadResult } from "./grip";
@@ -138,6 +144,13 @@ const DUST_SPEED = 9;
  *  the rival's close-up, the side-by-side two-shot at the line, and the
  *  pull up into the chase as the flag drops. */
 const CINE_LEN = 14.0;
+/** The rolling start: no race begins from a standstill, and the film's
+ *  settle shot frames the car at the speed the flag is about to give it,
+ *  so one name for both. */
+const ROLLING_START = 14;
+/** How fast an aim offset carried across a film hand-off decays, per
+ *  second. */
+const HANDOFF_LOOK_RATE = 6;
 
 /** Where each shot ends, seconds into the film. Named rather than
  *  spelled out at every branch, because the boundaries appear in four
@@ -1525,8 +1538,31 @@ export class GameEngine {
   /** True while the turbo is venting, so the valve fires on the edge of
    *  a lift rather than on every frame of it. */
   private boostDumping = false;
-  private fovCurrent = 62;
-  private camInit = false;
+  /** The lens the camera is at. Seeded on the first camera frame of the
+   *  session (and on every cut) rather than initialised to a number:
+   *  this was `= 62`, the chase lens before cc779f4a brought the chase to
+   *  52, so every session opened ten degrees wide and eased in. */
+  private fovCurrent = 52;
+  /** The next camera frame is a CUT: seed the lens, the roll and the
+   *  follow where they belong instead of easing to them. */
+  private lensPending = true;
+  /** Whether the follow's state describes the camera on screen. False
+   *  after any frame the chase law did not run — the film, an in-car
+   *  view, a cut — so any return to the chase is a seed, never an
+   *  integration from a stale position with a stale velocity. */
+  private followValid = false;
+  /** The picture shape the lens is currently framed for. Equal to the
+   *  camera's aspect except while a letterbox edge is being eased
+   *  across (see resize). */
+  private lensAspect = 16 / 9;
+  private aspectEasing = false;
+  /** An aim offset carried across a film hand-off and decayed away, so a
+   *  skip in the last moments of the settle does not whip the view. */
+  private handLook = new THREE.Vector3();
+  /** Wall time of the frame, before the film's slow motion scales it: the
+   *  camera's own eases run on this, because the film runs on wall time
+   *  and a jolt should not linger 4.5x longer because the world slowed. */
+  private wallDt = 0;
 
   // Rendering quality
   private world: WorldHandle;
@@ -1629,7 +1665,24 @@ export class GameEngine {
   /** How far into the aggressive top of the rev band, 0..1. Drives the
    *  sustained buzz here and the pad rumble in the HUD. */
   private highRev = 0;
-  private camBase = new THREE.Vector3(); // lerped chase position, pre-shake
+  private camBase = new THREE.Vector3(); // followed chase position, pre-shake
+  private follow: Follow = { x: this.camBase, v: new THREE.Vector3(), prev: new THREE.Vector3(), r: new THREE.Vector3() };
+  // Scratch for the chase rig, which runs several times a frame.
+  private camTgt = new THREE.Vector3();
+  private camLook = new THREE.Vector3();
+  private camTgt2 = new THREE.Vector3();
+  private camLook2 = new THREE.Vector3();
+  private camR = new THREE.Vector3();
+  private rigCar = new THREE.Vector3();
+  private rigUp = new THREE.Vector3();
+  private rigT = new THREE.Vector3();
+  private rigSide = new THREE.Vector3();
+  /** What the film was last looking at, and how far it had rolled the
+   *  horizon in: what a hand-off hands over. */
+  private cineLook = new THREE.Vector3();
+  private cineRoll = 0;
+  /** Film time of the last settle frame drawn; −1 until one has been. */
+  private cineShownT = -1;
   private camRoll = 0;
   /** Which shot the player is watching from. */
   private view: CameraView = "chase";
@@ -2465,7 +2518,17 @@ export class GameEngine {
     this.resize();
   }
 
-  resize(): void {
+  /**
+   * `reason` is "letterbox" when the ONLY thing that changed is the race's
+   * letterbox going on or off. Then the lens eases across the change
+   * (camera.ts easeAspect) instead of snapping, because on a window wider
+   * than 21:9 the letterbox changes the vertical field by up to eleven
+   * degrees in one frame at the moment a race starts. Every other resize —
+   * a rotated phone, a dragged window — is a lens CUT, because a lens
+   * eased across a rotation shows a fisheye for a second where the old
+   * code was right on the first frame.
+   */
+  resize(reason?: "letterbox"): void {
     const c = this.renderer.domElement;
     const w = c.clientWidth;
     const h = c.clientHeight;
@@ -2488,7 +2551,20 @@ export class GameEngine {
     this.smokeFx?.setPixelScale(bufH);
     this.dustFx?.setPixelScale(bufH);
     this.flameFx?.setPixelScale(bufH);
-    this.camera.aspect = w / h;
+    const aspect = w / h;
+    if (reason === "letterbox" && Math.abs(Math.log(aspect / this.camera.aspect)) > 1e-4) {
+      // Keep the framing where it is and walk it to the new shape.
+      this.aspectEasing = true;
+    } else {
+      this.lensAspect = aspect;
+      this.aspectEasing = false;
+    }
+    this.camera.aspect = aspect;
+    // Recompute the lens NOW, not on the next update: the race's
+    // letterbox comes off while the game is paused under the result
+    // screen, when the loop renders but does not update, and the old
+    // code left a lens framed for the previous shape on screen there.
+    this.camera.fov = lensFov(this.fovCurrent, this.lensAspect, aspect);
     this.camera.updateProjectionMatrix();
   }
 
@@ -4205,6 +4281,9 @@ export class GameEngine {
     }
     const headMat0 = this.carBody.userData.headMat as THREE.MeshStandardMaterial | undefined;
     const glows0 = (this.carBody.userData.headGlowMats as THREE.SpriteMaterial[]) ?? [];
+    // Nothing of this film's settle has been drawn yet: a skip before it
+    // is a cut, whatever the previous film left behind.
+    this.cineShownT = -1;
     this.cine = {
       start: performance.now(),
       r,
@@ -4239,14 +4318,34 @@ export class GameEngine {
 
   private endCinematic(): void {
     const r = this.cine?.r ?? null;
+    // The film time of the last frame the film actually DREW, not the wall
+    // clock. They differ when the tab was hidden: rAF stops, the player
+    // comes back three seconds later, and the wall clock says the settle
+    // shot is finished when the camera is still on the flank shot it was
+    // showing when they left — with cineLook left over from the previous
+    // film. Handing over from there sweeps the camera in from beside the
+    // car and aims it, for a few frames, at wherever the last film ended.
+    const filmT = this.cineShownT;
     // Lamps home before anything else: a film skipped mid-flash must not
     // put the car on the green flag with its main beams up.
     this.applyCineBeam(0);
     this.cine = null;
     // A key or pad held through the film must not fire at the green flag
     this.handbrakeStale = true;
-    // Snap the chase camera home instead of lerping across the map
-    this.camInit = false;
+    // The camera is HANDED to the chase when the settle shot has nearly
+    // finished settling, and CUT to it otherwise — see HANDOFF_WINDOW for
+    // why a hand-off from two seconds out is worse than an edit. Either
+    // way the battle is on, so the race framing is already in: the settle
+    // shot is framed at it, and easing it in again after the flag would
+    // walk the camera in by 12% a second into the race.
+    this.raceFrame = r ? 1 : this.raceFrame;
+    if (filmExit(filmT, CINE_LEN) === "cut" || viewSpec(this.view).mounted) {
+      this.followValid = false;
+      this.lensPending = true;
+      this.handLook.set(0, 0, 0);
+    } else {
+      this.seedHandoff();
+    }
     if (r) {
       this.events.onCinematic?.(false, this.rivalCard(r.def), this.wager, this.playerCard());
       this.startBattle(r, true);
@@ -4294,8 +4393,8 @@ export class GameEngine {
     r.lat = lane;
     r.targetLat = lane;
     // Matched, and never from a standstill: a rolling start is rolling.
-    r.speed = Math.max(p.speed, 14);
-    p.speed = Math.max(p.speed, 14);
+    r.speed = Math.max(p.speed, ROLLING_START);
+    p.speed = Math.max(p.speed, ROLLING_START);
   }
 
   private startBattle(r: Rival, fromCine = false): void {
@@ -4645,6 +4744,7 @@ export class GameEngine {
   // ---------------------------------------------------------------- update
 
   private update(dt: number): void {
+    this.wallDt = dt;
     // Pre-battle cinematic: the camera runs on wall time (so the film is
     // always CINE_LEN seconds, whatever the frame rate) while the world
     // underneath drops into slow motion.
@@ -4665,9 +4765,14 @@ export class GameEngine {
       this.applyCineBeam(cineFlashBoost(ct));
       if ((performance.now() - this.cine.start) / 1000 >= CINE_LEN) this.endCinematic();
       else {
+        // Slow motion through the shots, ramping back to real time across
+        // the settle rather than switching in the frame the film ends —
+        // that frame used to multiply the car's per-frame travel by 4.5,
+        // and a camera handed over perfectly still showed the road lurch.
+        const scale = filmTimeScale(ct, CINE_TWOSHOT_END, CINE_LEN);
         // The lap clock is wall-time; credit back what slow-mo swallows
-        this.lapStartAt += dt * (1 - 0.22) * 1000;
-        dt *= 0.22;
+        this.lapStartAt += dt * (1 - scale) * 1000;
+        dt *= scale;
       }
     }
     this.bumpCooldown = Math.max(0, this.bumpCooldown - dt);
@@ -6389,7 +6494,7 @@ export class GameEngine {
    * test can reach it without a WebGL context.
    */
   private aspectFov(vFovDeg: number): number {
-    return verticalFov(vFovDeg, this.camera.aspect);
+    return lensFov(vFovDeg, this.lensAspect, this.camera.aspect);
   }
 
 
@@ -6423,9 +6528,12 @@ export class GameEngine {
   setView(v?: CameraView): CameraView {
     this.view = v ?? nextView(this.view);
     this.buildViewRig();
-    // A car-mounted camera starts where it is bolted; a road-mounted one
-    // should not lerp across the map from wherever the last shot ended.
-    this.camInit = false;
+    // A view change is a CUT, of everything: position AND lens. It used to
+    // reset only the position, so bumper to chase teleported the camera
+    // while easing 26 degrees of lens over the next second (measured:
+    // 77.2 -> 75.9 on the frame after, still 53.1 a second later).
+    this.followValid = false;
+    this.lensPending = true;
     return this.view;
   }
 
@@ -6513,93 +6621,138 @@ export class GameEngine {
     this.camTarget = target;
   }
 
+  /**
+   * The chase rig: where the camera wants to be and what it wants to look
+   * at, for the player at (s, lat), at this speed and race framing.
+   *
+   * ONE computation, for the live chase camera and for the film's settle
+   * shot alike. The settle used to carry its own copy of the arm — 9.5 m
+   * back and 3.4 m up, the numbers from before cc779f4a brought the chase
+   * in to 6.3 and 2.8 — so at the start of every battle the camera jumped
+   * 3.54 m in one frame while the car moved 0.30 m (measured on the
+   * engine before this change), and then slid back.
+   */
+  private chaseRig(s: number, lat: number, speed: number, raceFrame: number, outPos: THREE.Vector3, outLook: THREE.Vector3): void {
+    const spec = viewSpec(this.view);
+    const chase = spec.mounted ? viewSpec("chase") : spec;
+    this.track.pose(s, lat, this.rigCar, this.rigUp);
+    this.track.tangentAt(s, this.rigT);
+    this.track.sideAt(s, this.rigSide);
+    const arm = chaseArm(speed, this.view === "close", chase.fov, this.lensAspect, raceFrame, RACE_DOLLY);
+    outPos.copy(this.rigCar).addScaledVector(this.rigT, -arm.back);
+    outPos.y += arm.up;
+    // Look ahead into the curve so sweepers read like sweepers
+    const lookAside = THREE.MathUtils.clamp(this.curvature * speed * speed * 0.045, -4, 4);
+    outLook.copy(this.rigCar).addScaledVector(this.rigT, chase.look).addScaledVector(this.rigSide, lookAside);
+    outLook.y += 1.4;
+  }
+
+  /**
+   * How fast the chase rig's target point is moving, by finite difference
+   * along the road. Not tangent x speed: that is only the target's
+   * velocity for a point on the centre line of a straight, level road,
+   * and seeding a follow with the wrong velocity is a follow that still
+   * slides after a cut that was supposed to be clean.
+   */
+  private rigVelocity(s: number, lat: number, speed: number, raceFrame: number, at: THREE.Vector3, out: THREE.Vector3): void {
+    const h = 1 / 120;
+    this.chaseRig(this.track.wrap(s + speed * h), lat, speed, raceFrame, this.camTgt2, this.camLook2);
+    out.copy(this.camTgt2).sub(at).divideScalar(h);
+  }
+
+  /**
+   * Hand the camera from the film to the chase, continuously.
+   *
+   * The follow is seeded as if it had been chasing the car forever —
+   * trailing at the car's own velocity — and then moved to where the film
+   * actually left the lens, so the next frames close the difference on
+   * the critically damped law rather than jumping it. The aim is carried
+   * the same way: what the film was looking at, less what the chase will
+   * look at, decayed away over the next few frames.
+   */
+  private seedHandoff(): void {
+    const p = this.player;
+    // The speed lineUpAbreast is about to give the car, so the flag does
+    // not move the target out from under the seed.
+    const speed = Math.max(p.speed, ROLLING_START);
+    this.chaseRig(p.s, p.lat, speed, 1, this.camTgt, this.camLook);
+    this.rigVelocity(p.s, p.lat, speed, 1, this.camTgt, this.camR);
+    seedFollow(this.follow, this.camTgt, this.camR);
+    this.follow.x.copy(this.camera.position);
+    this.followValid = true;
+    this.handLook.copy(this.cineLook).sub(this.camLook);
+    // The film already walked the lens to the chase's own, and rolled the
+    // horizon in with it.
+    this.lensPending = false;
+    this.camRoll = this.cineRoll;
+  }
+
   private updateCamera(dt: number): void {
+    const p = this.player;
+    // The camera's own eases run on WALL time; the follow runs on sim
+    // time below, because it chases a car that moves on sim time.
+    const wdt = this.wallDt || dt;
+    // Every camera frame, on every path. These used to run only on the
+    // road-mounted chase path, after the film and the in-car views had
+    // already returned — so the roll, the race framing and the jolt all
+    // came back from a film or an in-car view exactly as they went in.
+    this.shake = decay(this.shake, wdt);
+    this.raceFrame = lagTo(this.raceFrame, this.inBattle ? 1 : 0, RACE_FRAME_RATE, wdt);
+    if (this.aspectEasing) {
+      this.lensAspect = easeAspect(this.lensAspect, this.camera.aspect, wdt);
+      if (!(Math.abs(Math.log(this.lensAspect / this.camera.aspect)) > 1e-4)) {
+        this.lensAspect = this.camera.aspect;
+        this.aspectEasing = false;
+      }
+    } else {
+      this.lensAspect = this.camera.aspect;
+    }
+    const rollT = camRollTarget(this.heading, p.speed, this.topSpeedRef, this.slipVel, this.driftYaw);
+
     if (this.cine) {
-      this.updateCineCamera();
+      this.followValid = false;
+      this.updateCineCamera(rollT);
       return;
     }
-    const p = this.player;
     const spec = viewSpec(this.view);
     this.track.pose(p.s, p.lat, this.v1, this.v2);
     this.track.tangentAt(p.s, this.v3);
 
     if (spec.mounted && this.camAnchor && this.camTarget) {
-      this.updateMountedCamera(dt, spec);
+      // The chase follow is not running, so it is not valid: any return
+      // to a road view is a seed, never an integration from a camera that
+      // was last at the nose of the car with last week's velocity.
+      this.followValid = false;
+      this.camRoll = this.lensPending ? rollT : lagTo(this.camRoll, rollT, ROLL_RATE, wdt);
+      this.updateMountedCamera(wdt, spec);
       return;
     }
 
     // Chase position pulls back and rises with speed. "Close" is the
     // same rig tucked in: same road frame, same behaviour through a
-    // slide, a shorter arm.
-    //
-    // ...and on a window narrower than 16:9 it walks back further still.
-    // A narrow screen loses horizontal field, and there are only two
-    // ways to get world back into frame: a wider lens, or more distance.
-    // The lens runs out first — holding a 16:9 horizontal field on a
-    // portrait phone needs 133 degrees of vertical, which is a peephole,
-    // not a camera — so aspect.ts gives back what it safely can and
-    // hands the rest here. Only the road-mounted views can take it: a
-    // bumper cam is bolted to the shell and has nowhere to go.
-    // 0.78, not 0.62. This is a fraction of the chase arm, and the arm
-    // just came in from 9.5 m to 6.8 m — at 0.62 the close view would
-    // sit 4.2 m back, inside the 3 m floor tests/views.mjs holds it to
-    // and close enough to be a bumper cam with extra steps.
-    const reach = this.view === "close" ? 0.78 : 1;
-    // Tighter while a race is on, and only while a race is on. The
-    // letterbox has already restored the reference framing by cutting
-    // the picture to 16:9; this is the deliberate extra on top, so the
-    // car reads bigger during a battle than it does cruising. Eased
-    // rather than switched, or the shot would jump the moment a rival
-    // agreed to race.
-    const wantRace = this.inBattle ? 1 : 0;
-    this.raceFrame += (wantRace - this.raceFrame) * Math.min(1, dt * 2.5);
-    const raceTight = 1 + (RACE_DOLLY - 1) * this.raceFrame;
-    // 6.3 m and 2.8 m, from 9.5 and 3.4.
-    //
-    // Measured, not felt: at 110 km/h on a 16:9 window the car spanned
-    // 12% of the frame's width. tools/shots/framing.mjs keeps a chase
-    // camera between 24% and 36% and says why — "below about a fifth
-    // the car stops being the subject of the shot and becomes a detail
-    // in a landscape" — so the shot was at half its own floor.
-    //
-    // It cannot go all the way to that floor from here. tests/views.mjs
-    // pins the chase camera more than 6 m behind the car, and at this
-    // lens 24% needs about 4.4 m. Those two cannot both be satisfied by
-    // distance alone, so this takes the distance as far as the pin
-    // allows and the rest off the lens (views.ts, chase fov 62 -> 55).
-    // Together they roughly double the car in frame.
-    //
-    // Not further. RACE_DOLLY's comment is the counterweight and it is
-    // right: a chase camera still has to show the road the car is about
-    // to be on, and a framing that fills the screen with bodywork is a
-    // photograph rather than something you can drive with.
-    const dist =
-      (6.3 + p.speed * 0.02) * reach * chaseDolly(spec.fov, this.camera.aspect) * raceTight;
-    this.v4
-      .copy(this.v1)
-      .addScaledVector(this.v3, -dist)
-      .add(this.v2.set(0, (2.8 + p.speed * 0.007) * (this.view === "close" ? 0.8 : 1), 0));
-    if (!this.camInit) {
-      this.camInit = true;
-      this.camBase.copy(this.v4);
-    } else {
-      this.camBase.lerp(this.v4, Math.min(1, dt * 5.5));
+    // slide, a shorter arm. The arm itself — its reach, the narrow-screen
+    // dolly and the race tightening — is chaseArm in camera.ts, which is
+    // where the reasoning for each of its numbers now lives.
+    this.chaseRig(p.s, p.lat, p.speed, this.raceFrame, this.camTgt, this.camLook);
+    // The target's velocity at the car's CURRENT speed: what a seed trails
+    // at, and what a shove is measured against (see stepFollow).
+    this.rigVelocity(p.s, p.lat, p.speed, this.raceFrame, this.camTgt, this.camR);
+    if (!this.followValid || !stepFollow(this.follow, this.camTgt, dt, this.camR)) {
+      seedFollow(this.follow, this.camTgt, this.camR);
+      this.followValid = true;
     }
 
     // Impact jolt + speed rumble as smooth pseudo-noise, applied on top of
-    // the lerped base — never fed back into it, or it compounds
-    this.shake = Math.max(0, this.shake - this.shake * 3.5 * dt);
+    // the followed base — never fed back into it, or it compounds
     const t = performance.now() / 1000;
     const amp = Math.pow(p.speed / this.topSpeedRef, 3) * 0.055 + this.shake * 0.32;
     this.camera.position.copy(this.camBase);
     this.camera.position.x += (Math.sin(t * 31.7) + Math.sin(t * 17.3)) * 0.5 * amp;
     this.camera.position.y += (Math.sin(t * 27.1) + Math.sin(t * 13.9)) * 0.5 * amp;
 
-    // Look ahead into the curve so sweepers read like sweepers
-    const lookAside = THREE.MathUtils.clamp(this.curvature * p.speed * p.speed * 0.045, -4, 4);
-    this.track.sideAt(p.s, this.v2);
-    this.v4.copy(this.v1).addScaledVector(this.v3, spec.look).addScaledVector(this.v2, lookAside);
-    this.v4.y += 1.4;
+    // What the film handed over, if anything, decays out of the aim.
+    this.v4.copy(this.camLook).add(this.handLook);
+    this.handLook.multiplyScalar(Math.exp(-HANDOFF_LOOK_RATE * wdt));
     this.camera.lookAt(this.v4);
 
     // Lateral-G camera roll.
@@ -6611,24 +6764,21 @@ export class GameEngine {
     // same line was quietly rolling the camera fifty degrees over —
     // which looked, in the screenshots, like the car had left the road
     // and gone over a bank. A slide leans the shot. A spin should not
-    // put the horizon on its ear.
-    const rollTarget =
-      THREE.MathUtils.clamp(this.heading * (p.speed / this.topSpeedRef), -0.5, 0.5) * 0.14 +
-      THREE.MathUtils.clamp(this.slipVel * 0.012, -0.03, 0.03) +
-      THREE.MathUtils.clamp(this.driftYaw * 0.1, -0.13, 0.13);
-    this.camRoll += (rollTarget - this.camRoll) * Math.min(1, dt * 4);
+    // put the horizon on its ear. (The clamps live in camera.ts now.)
+    this.camRoll = this.lensPending ? rollT : lagTo(this.camRoll, rollT, ROLL_RATE, wdt);
     this.camera.rotateZ(this.camRoll + Math.sin(t * 23.7) * this.shake * 0.02);
 
     // FOV: speed stretch + a launch kick under throttle from low speed
-    this.applyFov(dt, spec.fov);
+    this.applyFov(wdt, spec.fov);
   }
 
   private applyFov(dt: number, base: number): void {
     const p = this.player;
-    const launchKick = this.throttle * THREE.MathUtils.clamp(1 - p.speed / 40, 0, 1) * 5;
-    const targetFov = base + (p.speed / this.topSpeedRef) * 18 + launchKick;
-    this.fovCurrent += (targetFov - this.fovCurrent) * Math.min(1, dt * 3);
-    this.camera.fov = this.aspectFov(this.fovCurrent);
+    const want = fovTarget(base, p.speed, this.topSpeedRef, this.throttle);
+    // A cut SETS the lens; everything else eases it, exactly.
+    this.fovCurrent = this.lensPending ? want : lagTo(this.fovCurrent, want, FOV_RATE, dt);
+    this.lensPending = false;
+    this.camera.fov = lensFov(this.fovCurrent, this.lensAspect, this.camera.aspect);
     this.camera.updateProjectionMatrix();
   }
 
@@ -6648,8 +6798,6 @@ export class GameEngine {
     const p = this.player;
     this.carBody.updateMatrixWorld(true);
     this.camAnchor!.getWorldPosition(this.camBase);
-    this.camInit = true;
-    this.shake = Math.max(0, this.shake - this.shake * 3.5 * dt);
     const t = performance.now() / 1000;
     // Half the chase camera's rumble. Mounted on the shell, every bump
     // is already coming through the springs; doubling it is a headache
@@ -6676,7 +6824,7 @@ export class GameEngine {
    *   B 1.8–3.1s  low side pass of the player's own machine
    *   C 3.1–4.2s  pull back and settle into the chase camera
    */
-  private updateCineCamera(): void {
+  private updateCineCamera(rollT: number): void {
     const c = this.cine!;
     const t = (performance.now() - c.start) / 1000;
     const p = this.player;
@@ -6801,32 +6949,48 @@ export class GameEngine {
       this.v4.set(midX, midY + 0.7, midZ);
       this.camera.lookAt(this.v4);
     } else {
+      // From the side-rear up into the chase — the REAL chase: the same
+      // rig the live camera uses, at the speed the rolling start is about
+      // to give the car and at the race framing the battle opens in, and
+      // trailing it the way the live follow will. So when the film ends
+      // the chase camera is already where it would have been.
       const k = ease((t - CINE_TWOSHOT_END) / (CINE_LEN - CINE_TWOSHOT_END));
+      const speed = Math.max(p.speed, ROLLING_START);
+      this.chaseRig(p.s, p.lat, speed, 1, this.camTgt, this.camLook);
+      this.rigVelocity(p.s, p.lat, speed, 1, this.camTgt, this.camR);
+      trailing(this.camTgt, this.camR, this.v4);
       this.track.pose(p.s, p.lat, this.v1, this.v2);
       this.track.tangentAt(p.s, this.v3);
       const sx = -this.v3.z;
       const sz = this.v3.x;
-      // From the side-rear up into the standard chase position
-      const dist = 9.5 + p.speed * 0.02;
-      const chaseY = this.v1.y + 3.4 + p.speed * 0.007;
       this.camera.position.set(
-        this.v1.x + THREE.MathUtils.lerp(sx * 4.2 - this.v3.x * 2.5, -this.v3.x * dist, k),
-        THREE.MathUtils.lerp(this.v1.y + 1.1, chaseY, k),
-        this.v1.z + THREE.MathUtils.lerp(sz * 4.2 - this.v3.z * 2.5, -this.v3.z * dist, k)
+        THREE.MathUtils.lerp(this.v1.x + sx * 4.2 - this.v3.x * 2.5, this.v4.x, k),
+        THREE.MathUtils.lerp(this.v1.y + 1.1, this.v4.y, k),
+        THREE.MathUtils.lerp(this.v1.z + sz * 4.2 - this.v3.z * 2.5, this.v4.z, k)
       );
-      this.v4.set(
-        this.v1.x + this.v3.x * (k * 14),
-        this.v1.y + THREE.MathUtils.lerp(0.55, 1.4, k),
-        this.v1.z + this.v3.z * (k * 14)
-      );
-      this.camera.lookAt(this.v4);
+      this.cineLook.set(this.v1.x, this.v1.y + 0.55, this.v1.z).lerp(this.camLook, k);
+      this.cineShownT = t;
+      this.camera.lookAt(this.cineLook);
+      // ...and the horizon rolls in with it, so the chase's own lean is
+      // already on when it takes over.
+      this.cineRoll = rollT * k;
+      this.camera.rotateZ(this.cineRoll);
     }
-    // The film is framed at the lens's resting focal length
-    if (this.fovCurrent !== 58) {
-      this.fovCurrent += (58 - this.fovCurrent) * 0.1;
-      this.camera.fov = this.aspectFov(this.fovCurrent);
-      this.camera.updateProjectionMatrix();
-    }
+    // The film's lens, as a function of FILM TIME: resting through the
+    // shots, walking to the chase's own lens across the settle. It used to
+    // move a tenth of the way to 58 per FRAME, with no dt anywhere — 2.4x
+    // faster at 144 Hz than at 60 — and then leave the chase to ease from
+    // 58 to its own lens after the flag.
+    const view = viewSpec(this.view);
+    const chaseFov = (view.mounted ? viewSpec("chase") : view).fov;
+    this.fovCurrent = filmFov(
+      t,
+      CINE_TWOSHOT_END,
+      CINE_LEN,
+      fovTarget(chaseFov, Math.max(p.speed, ROLLING_START), this.topSpeedRef, 0)
+    );
+    this.camera.fov = lensFov(this.fovCurrent, this.lensAspect, this.camera.aspect);
+    this.camera.updateProjectionMatrix();
   }
 
   // ------------------------------------------------------------ streaks

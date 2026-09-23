@@ -593,8 +593,18 @@ function raceCut(): { w: number; h: number } | null {
   // particle scales and the camera aspect from it. useLayoutEffect so
   // the renderer is resized in the same paint the element changed in,
   // and never a frame late showing a stretched picture.
+  // Only the letterbox going ON or OFF is a letterbox edge. raceBox also
+  // changes when the window is resized DURING a race (the box is re-cut to
+  // the new window), and that is a real change of shape — a rotated phone,
+  // a dragged window — which the engine must CUT to, not ease across.
+  const wasBoxedRef = useRef(false);
   useLayoutEffect(() => {
-    engineRef.current?.resize();
+    const boxed = raceBox !== null;
+    const edge = boxed !== wasBoxedRef.current;
+    wasBoxedRef.current = boxed;
+    // "letterbox": the engine eases the lens across this change rather
+    // than snapping it — see GameEngine.resize.
+    engineRef.current?.resize(edge ? "letterbox" : undefined);
   }, [raceBox]);
 
   useEffect(() => {

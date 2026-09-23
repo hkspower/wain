@@ -117,6 +117,13 @@ const hold = async (input, steps, extra = {}) =>
       latAtPeak: +peak.latAtPeak.toFixed(3),
       pitchSigned: +e.pitch.toFixed(4),
       speed: +e.player.speed.toFixed(1),
+      // The SETTLED lens and what drove it, at the last step. The launch
+      // check used to compare two PEAKS, and the idle peak was whatever
+      // transient the camera arrived carrying — measured on the engine,
+      // still 60.5 deg of a start lens initialised to 62 against a chase
+      // lens of 52 — so "launch > idle + 1" was testing the leftover.
+      fovLast: +e.fovCurrent.toFixed(3),
+      throttleLast: e.throttle,
     };
   }, [input, steps, extra]);
 
@@ -134,14 +141,20 @@ console.log(`  idle            fov=${idle.fov}  camJitter=${idle.camJitter}  sha
 
 // 2. FOV stretch with speed + launch kick from low speed
 await reset();
-// fovCurrent lerps at dt*3 (time constant ~1/3 s) and dt is capped at
-// 0.05, so on a frame-starved run a 900 ms window converges only part
-// way and the kick reads as absent. 1600 ms leaves headroom.
+// Compared SETTLED, at the same pinned speed, with and without throttle:
+// the difference is then the kick and nothing else. The lens eases at
+// 3/s (camera.ts FOV_RATE, exact at any frame rate), so 96 steps of 1/60
+// leave a residual under 0.03 deg. The kick at 8 m/s is 5 x (1 - 8/40)
+// = 4.0 deg. Throttle is printed because a kick of zero with throttle
+// gated off (locked, out of fuel, in the film) is a different failure.
+const coast = await hold({ throttle: 0 }, 96, { speed: 8 });
 const launch = await hold({ throttle: 1 }, 96, { speed: 8 });
 const fast = await hold({ throttle: 1 }, 96, { speed: 80 });
-console.log(`  launch kick     fov=${launch.fov}  ${check(launch.fov > idle.fov + 1, "no launch FOV kick from low speed")}`);
-console.log(`  speed stretch   fov=${fast.fov} at ${fast.speed} m/s vs idle ${idle.fov} at ${idle.speed} m/s  ` +
-  check(fast.fov > idle.fov + 2, "FOV does not widen with speed"));
+const kick = +(launch.fovLast - coast.fovLast).toFixed(2);
+console.log(`  launch kick     ${kick} deg at 8 m/s (coast ${coast.fovLast}, launch ${launch.fovLast}, throttle ${launch.throttleLast})  ` +
+  check(kick > 3 && kick < 5, `the launch kick is ${kick} deg at throttle ${launch.throttleLast}, not about 4`));
+console.log(`  speed stretch   fov=${fast.fovLast} at ${fast.speed} m/s vs ${coast.fovLast} at ${coast.speed} m/s  ` +
+  check(fast.fovLast > launch.fovLast + 2, "FOV does not widen with speed"));
 
 // 3. Speed rumble — the camera should jitter more at speed than at rest
 console.log(`  speed rumble    jitter ${idle.camJitter} -> ${fast.camJitter}  ${check(fast.camJitter > idle.camJitter, "no speed rumble")}`);
