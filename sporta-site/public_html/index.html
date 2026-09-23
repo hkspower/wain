@@ -109,7 +109,7 @@
           "telephone": "+965-22091914",
           "description": "Sporta is a Kuwait sportswear store — activewear, gym clothing, hoodies, caps, and sports accessories from brands like Gymshark, RHEO and its own SPORTA label. Delivery within 24 hours for 1 KWD, free exchange, bilingual Arabic/English with KNET payment.",
           "currenciesAccepted": "KWD",
-          "paymentAccepted": "KNET, Visa, Mastercard",
+          "paymentAccepted": "Cash on delivery, KNET, T-Pay",
           "priceRange": "KWD 3.500 - KWD 24.000",
           "areaServed": { "@type": "Country", "name": "Kuwait" },
           "address": { "@type": "PostalAddress", "addressCountry": "KW", "addressLocality": "Kuwait City" },
@@ -670,7 +670,12 @@
     <!-- A "+" quick-add button, with a size popover, on grid cards for a
          sized product — the bundle's own quick-add button only ever
          renders for a ONE-size product; see the file's own header. -->
-    <script src="/assets/quick-add-size.js" defer></script>
+    <!-- ?v=20260923 on eight overlays: until that date .htaccess served each of
+         them `public, max-age=31536000, immutable` (their names looked hashed
+         to its pattern), so a browser that fetched one holds it for a year and
+         will not ask again. Fixing the header only helps new fetches; a new
+         URL is the only thing that frees the old copy. -->
+    <script src="/assets/quick-add-size.js?v=20260923" defer></script>
 
     <!-- Puts a link to /returns/request (a flat page, like /card) on the
          /returns policy page. Same class of thing as contact.js: DOM surgery
@@ -743,7 +748,7 @@
          twelve fields from the request, so a card posting only its own five
          would silently blank the fonts, the radius, the spacing base and the
          owner's custom CSS. theme.js is what applies the result. -->
-    <script src="/assets/theme-colors.js" defer></script>
+    <script src="/assets/theme-colors.js?v=20260923" defer></script>
 
     <!-- THE REST OF THE SITE'S WORDS. The storefront's whole vocabulary — about
          420 strings per language, every heading, button, empty state and error
@@ -761,7 +766,7 @@
          a shopper's page fetches is the overrides alone: `{}` for a shop that
          has never opened it. -->
     <script src="/assets/site-text.js" defer></script>
-    <script src="/assets/site-text-editor.js" defer></script>
+    <script src="/assets/site-text-editor.js?v=20260923" defer></script>
 
     <!-- Every admin write, on the Settings screen — the read side of the
          shutdown hook admin.php registers right after the admin gate.
@@ -798,7 +803,7 @@
          discoverability; this fixes "where am I" after tapping a tab found
          by scrolling. MutationObserver on aria-current, not CSS alone: a
          behaviour on tap, not a rule a stylesheet can express. -->
-    <script src="/assets/panel-tabbar-autocenter.js" defer></script>
+    <script src="/assets/panel-tabbar-autocenter.js?v=20260923" defer></script>
 
     <!-- The website panel's Settings screen: the contact-details card the
          bundle has no editor for (the app's panel has had one all along), and
@@ -827,7 +832,7 @@
          save code of its own, and it saves ONLY the cards something was typed
          into: pressing all eight would rewrite every settings row and show in
          the activity log as eight deliberate edits. Panel-only. -->
-    <script src="/assets/panel-save-bar.js" defer></script>
+    <script src="/assets/panel-save-bar.js?v=20260923" defer></script>
 
     <!-- "Look it up": the Catalogue screen gets a card that searches the web
          for a product and PROPOSES only the fields that are empty — desc_en,
@@ -835,7 +840,7 @@
          is written until the owner presses Apply, and Apply re-reads the row
          first because product_save writes every column it is given. Inert
          until an ai_key is configured. Panel-only. -->
-    <script src="/assets/product-research.js" defer></script>
+    <script src="/assets/product-research.js?v=20260923" defer></script>
 
     <!-- A customer directory on the Orders screen: grouped by phone number,
          since the customers table has real signups of zero and every order
@@ -873,7 +878,7 @@
          Rating, color and reviews are not built — the shop stores none of
          that data; see the file's own header for what was checked before
          saying so. Product page only, mobile only. -->
-    <script src="/assets/product-mobile-layout.js" defer></script>
+    <script src="/assets/product-mobile-layout.js?v=20260923" defer></script>
 
     <!-- Removes the home page's "Shop the essentials" section outright —
          sporta-ui.css hides the main menu itself; this is the other half
@@ -903,7 +908,7 @@
          fields the Expo app's own home screen already uses, falling back to
          the first 8 active products until the owner marks some Featured in
          /backends. Renders nothing if the catalogue itself is empty. -->
-    <script src="/assets/home-products.js" defer></script>
+    <script src="/assets/home-products.js?v=20260923" defer></script>
 
     <!-- An owner-editable body for Privacy, Terms and Returns — swaps in
          panel-written text below the "Last updated" line on Privacy/Terms,

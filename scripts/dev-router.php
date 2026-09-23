@@ -70,6 +70,16 @@ if ($uri === '/' || preg_match($seoRoutes, $uri)) {
     }
 }
 
+// /llms.txt -> api/llms.php, generated from the catalogue and the shop rules,
+// ahead of the static llms.txt on disk exactly as the live rewrite puts it.
+//   .htaccess: RewriteCond %{DOCUMENT_ROOT}/api/llms.php -f
+//              RewriteRule ^llms\.txt$ /api/llms.php [L]
+if ($uri === '/llms.txt' && is_file($_SERVER['DOCUMENT_ROOT'] . '/api/llms.php')) {
+    $_SERVER['SCRIPT_NAME'] = '/api/llms.php';
+    require $_SERVER['DOCUMENT_ROOT'] . '/api/llms.php';
+    exit;
+}
+
 // /men /women /accessories /outlet -> category.php?slug=<name>, dynamic like
 // seo.php above rather than a static flat file, so it is required rather than
 // read off disk.

@@ -211,6 +211,14 @@ Options -Indexes
   RewriteCond %{DOCUMENT_ROOT}/api/sitemap-products.php -f
   RewriteRule ^sitemap-products\.xml$ /api/sitemap-products.php [L]
 
+  # LLMS.TXT IS GENERATED TOO, for the same reason and in the same place: the
+  # static copy was hand-written and had drifted into promising same-day
+  # delivery, no cash on delivery and an unlimited free return. api/llms.php
+  # reads the catalogue and the shop's own rules instead. Conditional, so a
+  # deployment without it falls back to the static file.
+  RewriteCond %{DOCUMENT_ROOT}/api/llms.php -f
+  RewriteRule ^llms\.txt$ /api/llms.php [L]
+
   # THE HOMEPAGE THROUGH THE SEO SHIM, and it has to sit ABOVE the "real files
   # win" rule below. "/" resolves to a real file — index.html, via
   # DirectoryIndex — so the rule below would hand it straight over and the one
@@ -597,7 +605,18 @@ FileETag MTime Size
   # looksHashed() would have swallowed.
   # activity-log.js is the twenty-eighth, 2026-09-18 — the Settings-screen
   # card reading admin_audit_log, added in the same commit as the file.
-  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|apple-signin|panel-settings|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme|nav-menu|brand-strip|legal-pages|legal-editor|admin-mobile|essentials|payment|assistant-icon|invoices|checkout-tap-targets|trust-strip|footer-payment-icons|force-password-notice|first-admin|panel-tabbar-fade|activity-log)\.js$">
+  # SIXTEEN MORE, 2026-09-23, all found at once by htaccess-test.mjs run against
+  # a real Apache for the first time in a while: backup, card-badges,
+  # category-tiles, category-topbar, contact-emails, crm, hero-slides,
+  # home-products, panel-save-bar, panel-tabbar-autocenter,
+  # product-mobile-layout, product-research, quick-add-size, site-text,
+  # site-text-editor, theme-colors. Eight were sent NO Cache-Control; the
+  # other eight — every hyphenated name with an 8+ letter last word, like
+  # "-products" — matched the hashed-asset pattern above and were sent a YEAR
+  # of immutable caching, so an edit to them never reached a returning
+  # browser. The rig derives its list from the directory; this line does not
+  # and cannot, which is why the rig has to be run with Apache installed.
+  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|apple-signin|panel-settings|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme|nav-menu|brand-strip|legal-pages|legal-editor|admin-mobile|essentials|payment|assistant-icon|invoices|checkout-tap-targets|trust-strip|footer-payment-icons|force-password-notice|first-admin|panel-tabbar-fade|activity-log|backup|card-badges|category-tiles|category-topbar|contact-emails|crm|hero-slides|home-products|panel-save-bar|panel-tabbar-autocenter|product-mobile-layout|product-research|quick-add-size|site-text|site-text-editor|theme-colors)\.js$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 
@@ -728,11 +747,11 @@ FileETag MTime Size
   # `Header set … env=` is the construct PROVED to work on LiteSpeed when the
   # asset host's headers were added; `Header edit` is the one it ignores.
 
-  Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data: https://static.sporta.com.kw; font-src 'self' https://fonts.gstatic.com https://static.sporta.com.kw https://use.typekit.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://static.sporta.com.kw https://use.typekit.net; script-src 'self' 'unsafe-inline' https://static.sporta.com.kw 'sha256-uVPKOtsMYAf7FztyOPYYXbXi26fPX1PDSCHi0ElEcwI=' 'sha256-CFFaWIALRUWQNOS52iStAlbqRxXxBEtg6xQNEM31/24=' 'sha256-t69TolQvo9IFKcAXMpUhlAbOSYffWq4MTuJVCW3jtOk=' 'sha256-eBvItIAmW2SCCf2xYejbf7VLxxDbDzAysm8o3MR6vBc=' 'sha256-3Q938IqtNwCx+HP/Sq+E16ifD8xGD/Q0IuWW9/ZclAM='; connect-src 'self'; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests"
+  Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data: https://static.sporta.com.kw; font-src 'self' https://fonts.gstatic.com https://static.sporta.com.kw https://use.typekit.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://static.sporta.com.kw https://use.typekit.net; script-src 'self' 'unsafe-inline' https://static.sporta.com.kw 'sha256-uuLlLEV4TRv7EqTi1ENCV/eyKUiCQGUusfdl/c6jIRQ=' 'sha256-CFFaWIALRUWQNOS52iStAlbqRxXxBEtg6xQNEM31/24=' 'sha256-t69TolQvo9IFKcAXMpUhlAbOSYffWq4MTuJVCW3jtOk=' 'sha256-eBvItIAmW2SCCf2xYejbf7VLxxDbDzAysm8o3MR6vBc=' 'sha256-3Q938IqtNwCx+HP/Sq+E16ifD8xGD/Q0IuWW9/ZclAM='; connect-src 'self'; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests"
 
-  Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data: https://static.sporta.com.kw; font-src 'self' https://fonts.gstatic.com https://static.sporta.com.kw https://use.typekit.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://static.sporta.com.kw https://use.typekit.net; script-src 'self' 'unsafe-inline' https://static.sporta.com.kw https://accounts.google.com https://appleid.cdn-apple.com 'sha256-uVPKOtsMYAf7FztyOPYYXbXi26fPX1PDSCHi0ElEcwI=' 'sha256-CFFaWIALRUWQNOS52iStAlbqRxXxBEtg6xQNEM31/24=' 'sha256-t69TolQvo9IFKcAXMpUhlAbOSYffWq4MTuJVCW3jtOk=' 'sha256-eBvItIAmW2SCCf2xYejbf7VLxxDbDzAysm8o3MR6vBc=' 'sha256-3Q938IqtNwCx+HP/Sq+E16ifD8xGD/Q0IuWW9/ZclAM='; connect-src 'self' https://accounts.google.com https://appleid.apple.com; frame-src https://accounts.google.com https://appleid.apple.com; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests" env=SPORTA_PANEL
+  Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data: https://static.sporta.com.kw; font-src 'self' https://fonts.gstatic.com https://static.sporta.com.kw https://use.typekit.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://static.sporta.com.kw https://use.typekit.net; script-src 'self' 'unsafe-inline' https://static.sporta.com.kw https://accounts.google.com https://appleid.cdn-apple.com 'sha256-uuLlLEV4TRv7EqTi1ENCV/eyKUiCQGUusfdl/c6jIRQ=' 'sha256-CFFaWIALRUWQNOS52iStAlbqRxXxBEtg6xQNEM31/24=' 'sha256-t69TolQvo9IFKcAXMpUhlAbOSYffWq4MTuJVCW3jtOk=' 'sha256-eBvItIAmW2SCCf2xYejbf7VLxxDbDzAysm8o3MR6vBc=' 'sha256-3Q938IqtNwCx+HP/Sq+E16ifD8xGD/Q0IuWW9/ZclAM='; connect-src 'self' https://accounts.google.com https://appleid.apple.com; frame-src https://accounts.google.com https://appleid.apple.com; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests" env=SPORTA_PANEL
 
-  Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data: https://static.sporta.com.kw; font-src 'self' https://fonts.gstatic.com https://static.sporta.com.kw https://use.typekit.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://static.sporta.com.kw https://use.typekit.net; script-src 'self' 'unsafe-inline' https://static.sporta.com.kw https://accounts.google.com https://appleid.cdn-apple.com 'sha256-uVPKOtsMYAf7FztyOPYYXbXi26fPX1PDSCHi0ElEcwI=' 'sha256-CFFaWIALRUWQNOS52iStAlbqRxXxBEtg6xQNEM31/24=' 'sha256-t69TolQvo9IFKcAXMpUhlAbOSYffWq4MTuJVCW3jtOk=' 'sha256-eBvItIAmW2SCCf2xYejbf7VLxxDbDzAysm8o3MR6vBc=' 'sha256-3Q938IqtNwCx+HP/Sq+E16ifD8xGD/Q0IuWW9/ZclAM='; connect-src 'self' https://accounts.google.com https://appleid.apple.com; frame-src https://accounts.google.com https://appleid.apple.com; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests" env=REDIRECT_SPORTA_PANEL
+  Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data: https://static.sporta.com.kw; font-src 'self' https://fonts.gstatic.com https://static.sporta.com.kw https://use.typekit.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://static.sporta.com.kw https://use.typekit.net; script-src 'self' 'unsafe-inline' https://static.sporta.com.kw https://accounts.google.com https://appleid.cdn-apple.com 'sha256-uuLlLEV4TRv7EqTi1ENCV/eyKUiCQGUusfdl/c6jIRQ=' 'sha256-CFFaWIALRUWQNOS52iStAlbqRxXxBEtg6xQNEM31/24=' 'sha256-t69TolQvo9IFKcAXMpUhlAbOSYffWq4MTuJVCW3jtOk=' 'sha256-eBvItIAmW2SCCf2xYejbf7VLxxDbDzAysm8o3MR6vBc=' 'sha256-3Q938IqtNwCx+HP/Sq+E16ifD8xGD/Q0IuWW9/ZclAM='; connect-src 'self' https://accounts.google.com https://appleid.apple.com; frame-src https://accounts.google.com https://appleid.apple.com; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests" env=REDIRECT_SPORTA_PANEL
 
   # ---- static.sporta.com.kw: the headers that make a second origin usable ----
   #
