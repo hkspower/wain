@@ -2848,6 +2848,15 @@ function noseFaceZ(geo: THREE.BufferGeometry, style: BodyStyle, y: number, front
 function tailFaceZ(geo: THREE.BufferGeometry, style: BodyStyle, x: number, y: number, tag = ""): number | null {
   return shellSurface(geo, `${style}${tag}:z-${y}@${x}`, [x, y, -6], [0, 0, 1]);
 }
+/** The same at the FRONT, and off the centreline for the same reason:
+ *  a nose is not flat either. Measured, the stock lamp sat 53 to 121 mm
+ *  ahead of the bodywork at its own x, because it was pinned to `d.nose`
+ *  — the silhouette's centreline anchor — while the panel it is supposed
+ *  to be set into falls away toward the corner. noseFaceZ answers for the
+ *  centreline only and is what the mod branches already use. */
+function noseFaceAt(geo: THREE.BufferGeometry, style: BodyStyle, x: number, y: number, tag = ""): number | null {
+  return shellSurface(geo, `${style}${tag}:z+${y}@${x}`, [x, y, 6], [0, 0, -1]);
+}
 /** The flank at a point: how far out the skin is at this height and this
  *  distance along the car. Fired from the driver's side; the shell is
  *  symmetric, so one side answers for both. `tag` keeps the authored
@@ -3207,6 +3216,73 @@ const grilleMat = new THREE.MeshStandardMaterial({ name: "grille", color: 0x0e0f
  * rather than stuck onto it — see the tail block in buildCar.
  */
 const TAIL_PAD = 0.07;
+/** The same lip, at the other end of the car. The front had none: every
+ *  lamp sat at a hand-picked x whatever the nose was doing, and on the
+ *  pony the result hung 162 mm outboard of the car's own flank. */
+const HEAD_PAD = 0.055;
+
+/**
+ * THE FACE.
+ *
+ * Six of the nine silhouettes wore the SAME headlamp — a 540 x 155 mm
+ * lens with its outer edge at 890 mm, on the saloon, the hatch, the
+ * pickup, the SUV, the supercar and the GT-R alike. A 5.35 m half-tonne
+ * truck and a 4.28 m hot hatch met the world with the same eyes. Only
+ * the Z32's bar and the FD's pop-ups were ever drawn for their own car,
+ * and both of those exist because their real machines are unmistakable
+ * from the front and nothing else would have read as them.
+ *
+ * This file already says what the problem is, in the block that built
+ * the lamps as three-layer assemblies: "no way to tell one car's face
+ * from another's. Four silhouettes, four different slabs, all identical
+ * once lit." The assemblies fixed the slab. They did not give anybody a
+ * face.
+ *
+ * So: one package per silhouette, the way FACE_FALLBACK already gives
+ * each one its own grille. The shapes are the ones the machines they
+ * evoke actually wear — four round lamps on the pony car because that
+ * is the pony-car face, a tall upright pair on the truck, a slim blade
+ * on the mid-engined car, stacked lamps on the SUV.
+ *
+ * `w` and `h` are ONE lens. A quad states one of its four; a stack one
+ * of its two. The outer edge is not here, because it is not a number
+ * anybody should type: it comes off the shell at HEAD_PAD, the way the
+ * tail lamps come off theirs.
+ */
+export type LampShape = "pod" | "quad" | "stack" | "slit" | "bar" | "popup";
+export interface LampSpec {
+  shape: LampShape;
+  /** One lens, metres. */
+  w: number;
+  h: number;
+  /** Inboard companions — the GT-R's projector eyes. */
+  eyes?: boolean;
+}
+export const LAMPS_BY_STYLE: Record<BodyStyle, LampSpec> = {
+  // A saloon's lamp is a wide, shallow rectangle and always has been.
+  sedan: { shape: "pod", w: 0.5, h: 0.115 },
+  // The Z32's full-width channel, six segments across the nose.
+  zx: { shape: "bar", w: 0.222, h: 0.078 },
+  // Pod plus the inner projector pair that makes an R34 an R34.
+  gtr: { shape: "pod", w: 0.46, h: 0.125, eyes: true },
+  // Pop-ups, up for the night run.
+  rx7: { shape: "popup", w: 0.124, h: 0.124 },
+  // A hot hatch's lamp is deeper than a saloon's and swept back into
+  // the wing, so it reads tall rather than wide.
+  hatch: { shape: "pod", w: 0.36, h: 0.155 },
+  // FOUR ROUND LAMPS. The one face on this list that is not a
+  // rectangle at all, and the reason a pony car is recognisable at
+  // fifty metres in the dark.
+  pony: { shape: "quad", w: 0.15, h: 0.15 },
+  // A half-tonne truck's lamp is nearly square and stands upright,
+  // because the panel it goes in is upright.
+  pickup: { shape: "pod", w: 0.34, h: 0.22 },
+  // A blade. A mid-engined car has no room for a lamp and says so.
+  super: { shape: "slit", w: 0.42, h: 0.055 },
+  // Stacked: a tall nose can carry two lamps where a saloon carries
+  // one, and every SUV on this road does.
+  suv: { shape: "stack", w: 0.34, h: 0.095 },
+};
 const chromeMat = new THREE.MeshStandardMaterial({ name: "chrome",
   color: 0xd8dde3,
   roughness: 0.12,
@@ -5653,51 +5729,116 @@ export function createCar(colors: CarColors): THREE.Group {
       addHeadGlare(sx, hood + 0.05, d.nose - 0.32, 0.9);
     }
   } else {
-    for (const sx of [-0.62, 0.62]) {
-      // Housing, deepest and widest. It stays even when the lamp inside
-      // it has gone — an empty headlight is an empty SOCKET, and a car
-      // with a smooth panel where a lamp used to be reads as a rendering
-      // error rather than as a car somebody took a headlight out of.
-      const pod = new THREE.Mesh(roundedBox(0.58, 0.175, 0.07, 0.03), housingMat);
-      pod.position.set(sx, d.noseTopY, d.nose - 0.03);
+    // The silhouette's own package, fitted to its own nose.
+    //
+    // Both halves of that are new. The shape comes from LAMPS_BY_STYLE
+    // instead of one pair of literals shared by six of the nine cars,
+    // and the PLACE comes off the shell instead of off `d.nose` and a
+    // hand-picked 0.62.
+    //
+    // Measured before this: the lens stood 53 to 121 mm ahead of the
+    // bodywork at its own x, because a nose falls away toward its
+    // corners and the lamp did not; and on the pony the lamp's outer
+    // edge sat 162 mm OUTBOARD of the car's own flank. Asking the shell
+    // is the idiom the tail lamps have used since they were refitted —
+    // tailFaceZ and flankXAt there, noseFaceAt and flankXAt here.
+    const spec = LAMPS_BY_STYLE[style];
+    const ly = d.noseTopY;
+    /** Where the panel is, at a lamp's own station and height. */
+    const faceAt = (x: number, y: number) =>
+      noseFaceAt(bGeo, style, +x.toFixed(3), y) ?? noseFaceZ(bGeo, style, y, true) ?? d.nose;
+    /**
+     * How far out a lamp at this height may reach: the half-width of the
+     * nose just behind its tip, less the pad.
+     *
+     * Walked back from the nose rather than solved, and deliberately so.
+     * The flank and the nose face are each defined in terms of the
+     * other, and iterating between them diverges on a nose that tapers
+     * hard — worse, every miss falls back to `flankX`, the bounding-box
+     * maximum this whole block exists to stop using, so a diverging
+     * solve lands exactly on the bug. Stepping backwards takes the
+     * FIRST height at which the body has a flank at all, which is the
+     * narrowest place a lamp has to fit into and the only honest bound.
+     */
+    const outerAt = (y: number): number => {
+      for (let i = 0; i <= 30; i++) {
+        const z = +(d.nose - 0.06 - i * 0.02).toFixed(3);
+        const x = flankXAt(bGeo, style, y, z, "");
+        if (x !== null) return x - HEAD_PAD;
+      }
+      return flankX - HEAD_PAD;
+    };
+
+    /** One lens, with its housing behind it and its projector in it. */
+    const lamp = (cx: number, cy: number, w: number, h: number, round = false) => {
+      const fz = faceAt(cx, cy);
+      const pod = round
+        ? new THREE.Mesh(new THREE.CylinderGeometry(w / 2 + 0.022, w / 2 + 0.022, 0.07, 20), housingMat)
+        : new THREE.Mesh(roundedBox(w + 0.06, h + 0.05, 0.07, 0.03), housingMat);
+      if (round) pod.rotation.x = Math.PI / 2;
+      pod.position.set(cx, cy, fz - 0.05);
       pod.name = "lamp-housing";
       group.add(pod);
-      if (lampGone(sx)) {
-        // What is left behind: the open pan, with a mesh screen across
-        // it. This is what the mod actually looks like on the street —
-        // the hole gets a grille so the intake behind it can breathe and
-        // so nothing flies into it.
-        addLampDelete(sx, d.noseTopY, d.nose - 0.012, 0.5, 0.115);
-        continue;
+      if (lampGone(cx)) {
+        addLampDelete(cx, cy, fz - 0.03, w, h);
+        return;
       }
-      // Lens, inset all round and stepped out.
-      const head = new THREE.Mesh(roundedBox(0.5, 0.115, 0.065, 0.02), headMat);
-      head.position.set(sx, d.noseTopY, d.nose - 0.008);
-      head.name = "lamp-lens";
-      group.add(head);
+      const lens = round
+        ? new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2 * 0.96, 0.06, 20), headMat)
+        : new THREE.Mesh(roundedBox(w, h, 0.065, 0.02), headMat);
+      if (round) lens.rotation.x = Math.PI / 2;
+      lens.position.set(cx, cy, fz - 0.026);
+      lens.name = "lamp-lens";
+      group.add(lens);
       // The projector, set toward the inboard end where a real one is.
-      bulb(sx - Math.sign(sx) * 0.13, d.noseTopY, d.nose + 0.03);
-      addHeadGlare(sx, d.noseTopY, d.nose + 0.02);
-    }
-    if (style === "gtr") {
-      // Inner projector eyes beside the main lamps, each in its own dark
-      // bezel so they read as a second pair rather than as two more
-      // bright dots on the paint.
-      for (const sx of [-0.3, 0.3]) {
+      bulb(cx - Math.sign(cx) * Math.min(0.13, w * 0.26), cy, fz + 0.004);
+      addHeadGlare(cx, cy, fz - 0.004, Math.min(1.2, Math.max(0.6, w / 0.5)));
+    };
+
+    // roundedBox grows the shape by its corner radius on every side, so
+    // the lens a player sees is 40 mm wider than the number above. Taken
+    // off here, once, rather than folded into nine typed widths.
+    const LENS_R = 0.02;
+    for (const side of [-1, 1]) {
+      if (spec.shape === "quad") {
+        // Four round lamps, two a side, the outboard one a touch
+        // larger — which is how they were actually fitted.
+        const r = spec.w;
+        const outer = side * outerAt(ly);
+        lamp(outer - side * (r / 2), ly, r, r, true);
+        lamp(outer - side * (r * 1.58), ly, r * 0.86, r * 0.86, true);
+      } else if (spec.shape === "stack") {
+        // Two lenses in one socket, main over dip. Each row asks the
+        // flank about its own height — a tall nose is not a slab.
+        for (const dy of [spec.h * 0.62, -spec.h * 0.62]) {
+          const cy = ly + dy;
+          const outer = side * (outerAt(cy) - spec.w / 2 - LENS_R);
+          lamp(outer, cy, spec.w, spec.h);
+        }
+      } else {
+        const outer = side * (outerAt(ly) - spec.w / 2 - LENS_R);
+        lamp(outer, ly, spec.w, spec.h);
+      }
+      if (spec.eyes) {
+        // Inner projector eyes beside the main lamps, each in its own
+        // dark bezel so they read as a second pair rather than as two
+        // more bright dots on the paint.
+        const ex = side * 0.3;
+        const fz = faceAt(ex, ly);
         const bezel = new THREE.Mesh(
           new THREE.CylinderGeometry(0.072, 0.072, 0.04, 16),
           housingMat
         );
         bezel.rotation.x = Math.PI / 2;
-        bezel.position.set(sx, d.noseTopY, d.nose - 0.022);
+        bezel.position.set(ex, ly, fz - 0.04);
         bezel.name = "lamp-housing";
         group.add(bezel);
         const eye = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.04, 12), headMat);
         eye.rotation.x = Math.PI / 2;
-        eye.position.set(sx, d.noseTopY, d.nose - 0.005);
+        eye.position.set(ex, ly, fz - 0.023);
         eye.name = "lamp-lens";
         group.add(eye);
-        bulb(sx, d.noseTopY, d.nose + 0.026, 0.026, 0.035);
+        bulb(ex, ly, fz + 0.008, 0.026, 0.035);
       }
     }
   }
