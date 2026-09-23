@@ -3,10 +3,18 @@
 //   npm run dev
 //   npm run test:police
 //
-// What this does NOT test, because it is deliberately not there: any
-// pursuit. A patrol car here is a civilian with a livery and a bar. It
-// holds a lane and takes no interest in the player, and a check that
-// pretended otherwise would be describing a game this is not.
+// What this does NOT test: the pursuit. It used to say "because it is
+// deliberately not there" — a patrol car held a lane and took no
+// interest in the player, and a check that pretended otherwise would
+// have been describing a game this was not. There is one now: race past
+// a patrol car and it comes after you until you lose it.
+//
+// It is still not tested HERE, and that is the division of labour this
+// repo already uses for policeLamps. The chase is a pure law in
+// src/game/police.ts and npm run test:chase drives it through every
+// situation that matters without a browser at all; what is left for
+// this file is the thing that genuinely needs one — a patrol car on the
+// road, wearing the livery, with a bar on the roof that alternates.
 import { chromium } from "playwright-core";
 import { existsSync } from "node:fs";
 const C = [process.env.CHROME_PATH,
@@ -147,6 +155,67 @@ console.log(`the beat      left lit ${(beat.red * 100).toFixed(0)}% of a cycle, 
   check(beat.neither > 0.3,
     `the bar is dark only ${(beat.neither * 100).toFixed(0)}% of a cycle — it is a pair of lamps fading, not a bar flashing`));
 
-console.log(fail.length ? "\nFAILURES:\n - " + fail.join("\n - ") : "\npatrol cars are on the road, liveried, and their bars alternate");
+// --- The pursuit, wired up -------------------------------------------
+//
+// npm run test:chase drives the LAW without a browser and does it far
+// more thoroughly than this can. What only a running engine can answer
+// is whether the law is connected to anything: whether a patrol car
+// actually takes up the chase, whether it is only patrol cars that do,
+// and whether one that gives up goes back to being traffic.
+//
+// That last pair is not padding. The first wiring of this gated on
+// `t.onCall !== undefined` — and `onCall` is `false`, not absent, on
+// every civilian, because `police && ...` on a car that is not police
+// is false. Every one of the forty-six would have joined in. The pure
+// test cannot see a bug like that, because the bug is not in the law.
+const chase = await page.evaluate(async () => {
+  const e = window.__grnEngine;
+  e.setPaused(true);
+  e.skipCinematic?.();
+  const pol = e.traffic.filter((t) => t.mesh.userData.police);
+  const civ = e.traffic.filter((t) => !t.mesh.userData.police);
+  const t = pol[0];
+  const before = { chase: t.chase, speed: t.speed, lat: t.lat };
+  // Race past it: just ahead, in its lane, at a speed nobody would
+  // mistake for traffic.
+  e.player.s = e.track.wrap(t.s + 14);
+  e.player.lat = t.lat;
+  for (let i = 0; i < 120; i++) {
+    e.player.speed = 50;
+    e.player.s = e.track.wrap(e.player.s + 50 / 60);
+    e.update(1 / 60);
+  }
+  const on = { chase: t.chase, speed: t.speed, lat: t.lat, onCall: t.onCall };
+  const civChasing = civ.filter((c) => c.chase > 0).length;
+  // Then vanish, and hold long enough for the patience to run out and
+  // the car to come back down off it.
+  e.player.s = e.track.wrap(t.s + 900);
+  for (let i = 0; i < 60 * 26; i++) {
+    e.player.speed = 50;
+    e.update(1 / 60);
+  }
+  return {
+    before, on, civChasing,
+    off: { chase: t.chase, speed: t.speed, lat: t.lat, onCall: t.onCall },
+    homeLat: t.homeLat, homeSpeed: t.homeSpeed, homeOnCall: t.homeOnCall,
+  };
+});
+console.log(`pursuit       idle ${chase.before.speed.toFixed(1)} m/s in lane ${chase.before.lat} ` +
+  `-> chasing ${chase.on.speed.toFixed(1)} m/s at lat ${chase.on.lat.toFixed(2)} ` +
+  `-> gave up at ${chase.off.speed.toFixed(1)} m/s back in lane ${chase.off.lat.toFixed(2)}`);
+console.log(`  ${check(chase.on.chase > 0, "racing past a patrol car did not start a chase")}  it takes up the chase`);
+console.log(`  ${check(chase.on.speed > chase.before.speed + 8,
+  `it only reached ${chase.on.speed.toFixed(1)} m/s from ${chase.before.speed.toFixed(1)} — it is not actually coming`)}  and gets after it`);
+console.log(`  ${check(chase.civChasing === 0,
+  `${chase.civChasing} civilian cars joined the pursuit — the gate is letting the whole road chase the player`)}  and only patrol cars do`);
+console.log(`  ${check(chase.off.chase === 0, "it never gave up")}  it lets go once you are gone`);
+console.log(`  ${check(Math.abs(chase.off.lat - chase.homeLat) < 0.1,
+  `it gave up in lane ${chase.off.lat.toFixed(2)} instead of going back to ${chase.homeLat}`)}  goes back to its lane`);
+console.log(`  ${check(chase.off.speed < chase.on.speed - 8,
+  `it broke off at ${chase.off.speed.toFixed(1)} m/s having chased at ${chase.on.speed.toFixed(1)} — that is a car still racing`)}  and slows down again`);
+console.log(`  ${check(chase.off.onCall === chase.homeOnCall,
+  `its bar is ${chase.off.onCall} after the chase and was ${chase.homeOnCall} before it`)}  and its bar goes back to what it was`);
+
+console.log(fail.length ? "\nFAILURES:\n - " + fail.join("\n - ") : "\npatrol cars are on the road, liveried, their bars alternate, and they chase");
 await b.close();
 process.exit(fail.length ? 1 : 0);

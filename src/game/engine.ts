@@ -13,6 +13,9 @@ import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, COAST_FADE_M, STAT
 import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
 import type { Wake } from "./plants";
 import { createCar, crownShell, CROWN, paintMetalness, TAIL, setMaxDecalPx, STYLE_REAL, POLICE, policeLamps } from "./cars";
+// A patrol car that notices. The law is pure and lives on its own so it
+// can be checked without a renderer, the way policeLamps is.
+import { provokes, patienceAfter, pursuitSpeed, PATIENCE } from "./police";
 import { RIVALS, RivalDef, rivalCar as rivalCarOf, rivalCarName } from "./rivals";
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
@@ -587,6 +590,23 @@ interface TrafficCar {
   /** A patrol car with its bar running. False on every civilian, and on
    *  the patrol cars that are simply driving somewhere. */
   onCall?: boolean;
+  /**
+   * Seconds of patience left in a pursuit; 0 on everything that is not
+   * chasing anybody, which is every civilian and most patrol cars most
+   * of the time. See src/game/police.ts for the law.
+   */
+  chase: number;
+  /** The lane it was holding before it pulled out, to go back to. */
+  homeLat: number;
+  /** ...and the pace it was keeping. A patrol car that gives up has to
+   *  slow down again: without this it broke off the chase and carried
+   *  on down the road at 56 m/s for the rest of the session, which is
+   *  not a car that lost interest, it is a car still racing. */
+  homeSpeed: number;
+  /** Whether its bar was already running before the chase, so a car
+   *  that was out on a call goes back to being out on a call and a
+   *  dark one goes back to dark. */
+  homeOnCall: boolean;
   body: AiBody;
   mesh: THREE.Group;
   s: number;
@@ -3413,11 +3433,19 @@ export class GameEngine {
     for (let i = 0; i < count; i++) {
       // Patrol cars, as a share of the traffic rather than as a system
       // of their own. They are civilians with a livery and a bar: they
-      // hold a lane, keep to the speed the rest of the road keeps, and
-      // take no interest in what the player is doing. A pursuit is a
-      // gameplay system — a wanted level, a chase AI, somewhere to be
-      // caught — and none of that is what "police cars on the road"
-      // means. It is not here, and it is not half here either.
+      // hold a lane and keep to the speed the rest of the road keeps —
+      // until somebody races past one.
+      //
+      // This block used to end: "A pursuit is a gameplay system — a
+      // wanted level, a chase AI, somewhere to be caught — and none of
+      // that is what 'police cars on the road' means. It is not here,
+      // and it is not half here either." That was the right rule and it
+      // is kept here rather than deleted, because it is the
+      // specification the pursuit in police.ts was written against: the
+      // whole of ONE behaviour, not a slice of three. A patrol car
+      // notices, comes after you, and gives up. There is no wanted
+      // level, no arrest and nowhere to be caught, and none of those are
+      // missing — a chase you can win by driving is a complete thing.
       //
       // Every ninth car, so no two land in the same stretch: five over
       // 46. Of those, every other one is out on a call with its bar
@@ -3474,6 +3502,10 @@ export class GameEngine {
         brakeVis: 0,
         rigDt: 0,
         onCall,
+        chase: 0,
+        homeLat: LANES[i % LANES.length],
+        homeSpeed: 0,
+        homeOnCall: onCall,
       });
     }
   }
@@ -5531,6 +5563,17 @@ export class GameEngine {
           lead = o;
         }
       }
+      // A patrol car decides what it wants BEFORE the car in front gets
+      // a say, so the brake below still has the last word: a pursuit
+      // that ignored the traffic would drive through it, and there is no
+      // traffic-to-traffic collision here to stop it. The way past a
+      // slower car is the lane change, which is what the chase does.
+      // Patrol cars only, and asked of the MESH: `onCall` is `false`
+      // rather than undefined on every civilian — `police && ...` on a
+      // car that is not police is false, not absent — so testing it for
+      // undefined would have run the pursuit on all forty-six, and any
+      // hatchback on the road could have taken up the chase.
+      if (t.mesh.userData.police) this.updatePursuit(t, dt);
       if (lead) t.speed = Math.max(lead.speed * 0.95, t.speed - 6 * dt);
       // What the car just did to itself, which is the only longitudinal
       // kinematics a civilian has. Differenced here rather than inside
@@ -5569,6 +5612,65 @@ export class GameEngine {
       }
     }
     this.solveTrafficDrivers(dt);
+  }
+
+  /**
+   * A patrol car deciding whether it has seen something.
+   *
+   * Runs on patrol cars only — `onCall` is defined on those and on
+   * nothing else — and does nothing at all on most frames, because most
+   * of the time nobody is racing past one.
+   *
+   * The DECISION is not here: provokes(), patienceAfter() and
+   * pursuitSpeed() are in src/game/police.ts, pure and tested without a
+   * browser. What is here is the driving: the speed it asks of itself,
+   * the lane it pulls into, and the bar going on and off.
+   */
+  private updatePursuit(t: TrafficCar, dt: number): void {
+    const p = this.player;
+    // Signed gap, positive when the racer is AHEAD of the patrol car —
+    // which is what being raced past means.
+    const gap = this.track.deltaAhead(t.s, p.s);
+    const look = { gap, lat: Math.abs(p.lat - t.lat), speed: p.speed };
+
+    if (t.chase <= 0) {
+      // Not chasing — but it may still be coming down off one. Back to
+      // its lane and its pace, both slower than it left them: giving up
+      // is not urgent the way giving chase is.
+      if (Math.abs(t.lat - t.homeLat) > 0.01) {
+        t.lat += THREE.MathUtils.clamp(t.homeLat - t.lat, -3 * dt, 3 * dt);
+      }
+      if (t.homeSpeed > 0 && t.speed > t.homeSpeed) {
+        t.speed = Math.max(t.homeSpeed, t.speed - 4 * dt);
+      }
+      // Does this pass start one?
+      //
+      // Gated on the race being live: during the intro film and while
+      // the player is locked the car is being flown by the game rather
+      // than driven, and a patrol car that pulled out at a cinematic
+      // would be answering something the player did not do.
+      if (this.locked || this.cine || !provokes(look)) return;
+      t.chase = PATIENCE;
+      t.homeSpeed = t.speed;
+      t.homeOnCall = t.onCall === true;
+      t.onCall = true;
+      return;
+    }
+
+    t.chase = patienceAfter(t.chase, look, dt);
+    if (t.chase <= 0) {
+      // Gave up. Back to the lane it left and the bar it had.
+      t.onCall = t.homeOnCall;
+      return;
+    }
+
+    // Chasing: take the racer's speed plus a margin while behind, and
+    // move across to their lane. The same asymmetric authority the
+    // rival gets — a car can shed speed faster than it can find it.
+    const want = pursuitSpeed(p.speed, gap);
+    t.speed += THREE.MathUtils.clamp(want - t.speed, -22 * dt, 13 * dt);
+    // Across to the racer's lane, at the rival's lateral rate.
+    t.lat += THREE.MathUtils.clamp(p.lat - t.lat, -6 * dt, 6 * dt);
   }
 
   /**
