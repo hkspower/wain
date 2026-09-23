@@ -1277,7 +1277,17 @@ const superBodyGeo = extrudeProfile(
 );
 const superCanopyGeo = extrudeProfile(
   [
-    [0.78, 0.76],
+    // The screen base, down ONTO the cowl. This was 0.76, and measured
+    // on the built car the foot of the windscreen finished 8 mm above
+    // the body's top skin: the tightest junction in the fleet and the
+    // only other one besides the hatch's tailgate that does not close.
+    // A mid-engined car rakes its screen hard and meets the cowl at a
+    // shallow angle, which is exactly the geometry that turns a few
+    // millimetres of drift into a visible line, so this wants the bite
+    // the rest of the fleet has rather than the least it can get away
+    // with. 30 mm; the resulting bite is +22 mm, against 31 on the
+    // saloon and 12 on the gtr.
+    [0.78, 0.73],
     [0.06, 1.2], // the peak is barely behind the front axle
     [-0.72, 1.16],
     [-1.42, 0.9], // and the glass runs down onto the engine deck
@@ -1678,8 +1688,27 @@ const hatchCanopyGeo = extrudeProfile(
     [-0.05, 1.4467], // roof chord, 1/3
     [-0.50, 1.4533], // roof chord, 2/3
     [-0.95, 1.46], // long flat roof
-    [-1.40, 1.2523], // on the tailgate chord
-    [-1.86, 1.04], // hatch glass, raked but still upright
+    [-1.40, 1.2286], // on the tailgate chord
+    // The tailgate glass, down ONTO the deck rather than near it.
+    //
+    // This was 1.04, and measured on the built car the foot of the rear
+    // window finished 23 mm ABOVE the body's rear deck — daylight under
+    // the backlight, the full width of the tailgate, on every hatch in
+    // the game. It is the only junction in the fleet that does not
+    // close: the other eight silhouettes bury their glass 7 to 63 mm
+    // into the panel beneath it.
+    //
+    // Nothing caught it because nothing measured it. tests/roofline.mjs
+    // is a regex over this file that checks the painted roof is as wide
+    // as the glass; tools/shots/glasshouse.mjs measures the real thing
+    // and has no assertions. Neither had ever asked where the glass
+    // COMES DOWN. tests/glassfit.mjs does now.
+    //
+    // 48 mm, which is the shortfall plus the bite the rest of the fleet
+    // carries. It stays above the screen base at 0.99, so the canopy's
+    // bounding box does not move — see the note in models.ts about why
+    // that is a problem rather than a convenience.
+    [-1.86, 0.992],
   ],
   HATCH_CABIN_W,
   CANOPY_EDGE,
@@ -4987,6 +5016,26 @@ export function createCar(colors: CarColors): THREE.Group {
   // from the shell at build time rather than authored, so the numbers it
   // came out with are worth being able to read back.
   group.userData.cabin = { headZ, cabinRoofY, seatY, headTop: driverHeadTop() };
+  // ...and re-measurable, because the glass this was read off is not
+  // necessarily the glass the car ends up wearing. createCar runs
+  // synchronously against the extrusion; the authored canopy arrives
+  // later, over the network, and models.ts swaps it in underneath a
+  // driver already seated. The two shells agree to about a millimetre
+  // today, so nothing is visibly wrong — but "the driver is seated
+  // against a shell nobody renders" is the same latent bug refitShell
+  // was written to close for the lamps, and it costs one hook to shut.
+  // Everything that hangs off the seat moves together or not at all.
+  const seatRiders: THREE.Object3D[] = [];
+  group.userData.refitCabin = (glass: THREE.BufferGeometry) => {
+    const roofY = skinAt(glass, style, DRIVER_X, headZ, "canopy:authored");
+    if (roofY === null) return;
+    const want = roofY - CABIN_HEADROOM - driverHeadTop();
+    const dy = want - seatY;
+    // Sub-millimetre is the shells agreeing, not a fit to redo.
+    if (Math.abs(dy) < 0.001) return;
+    for (const o of seatRiders) o.position.y += dy;
+    group.userData.cabin = { headZ, cabinRoofY: roofY, seatY: want, headTop: driverHeadTop() };
+  };
 
   /** Top of the bonnet stripe at a point along it, when the car wears one. */
   let hoodStripeTop: ((z: number) => number) | null = null;
@@ -6692,6 +6741,7 @@ export function createCar(colors: CarColors): THREE.Group {
       const headrest = new THREE.Mesh(roundedBox(0.26, 0.22, 0.12, 0.04), interiorMat);
       headrest.position.set(sx, seatY + driverHeadTop() - 0.14, headZ - 0.15);
       group.add(headrest);
+      seatRiders.push(headrest);
     }
 
     // Brake calipers peeking through the spokes.
@@ -7777,6 +7827,7 @@ export function createCar(colors: CarColors): THREE.Group {
       demonDriver
     );
     driver.group.position.set(DRIVER_X, seatY, headZ - RIG.driver.headZ);
+    seatRiders.push(driver.group);
     // Seated in a car that has been widened, not widened with it.
     if (widthFix !== 1) driver.group.scale.x = 1 / widthFix;
     group.add(driver.group);

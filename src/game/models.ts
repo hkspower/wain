@@ -344,6 +344,84 @@ function boxDrift(a: THREE.BufferGeometry, b: THREE.BufferGeometry): number {
   );
 }
 
+/**
+ * ...and how far its SKIN sits from the skin it replaces.
+ *
+ * A bounding box is not a surface, and the gate above can only see a
+ * shell that has changed SIZE. The hatch proved what that misses: its
+ * rear window finished 23 mm above the tailgate deck — daylight under
+ * the backlight, the full width of the car — and correcting it meant
+ * dropping the foot of the glass by 48 mm. That point is not an extreme
+ * of the canopy in any axis (the windscreen base is lower, the tailgate
+ * is no further back), so the bounding box moved by EXACTLY ZERO. The
+ * fix reached every traffic hatch and the hero car silently kept the
+ * bug, because the stale authored canopy still passed a box test and
+ * overwrote the corrected geometry underneath it.
+ *
+ * That is the same failure the box gate was written to stop — "a silent
+ * swap looks identical to a correct one" — one level down. So the shell
+ * is also asked where its skin IS: a grid of rays dropped over its own
+ * footprint, hitting both surfaces, compared. A resample of the same
+ * profile answers within a millimetre or two; a shell lofted from a
+ * profile that has since been corrected does not.
+ *
+ * Twenty-five rays, once per authored geometry per session (the caller
+ * memoises through the same WeakSet the crown uses). The shells are
+ * 50-70k triangles, so this is a few milliseconds each — against
+ * fetching and parsing an 11 MB file, free.
+ *
+ * Measured across all twenty-seven shipped shells at the moment this
+ * was written: twenty-six land between 0.5 and 6.8 mm, which is the
+ * 28-against-96 spline resample the box tolerance was already sized
+ * for, and the hatch canopy lands at 26.0 mm — the one shell the
+ * corrected profile made stale, against a box drift of 1.5 mm that
+ * would have waved it through. So the separation is real and the same
+ * 10 mm serves both gates; the tightest passing shell (the gtr canopy)
+ * keeps 3 mm of headroom, which is worth knowing before anyone
+ * re-lofts.
+ */
+const surfaceProbe = new THREE.MeshBasicMaterial();
+/** Once per authored geometry: the file is cached per session and the
+ *  extrusion it is judged against is the style's module-level one, so
+ *  the answer cannot change between cars. */
+const skewOf = new WeakMap<THREE.BufferGeometry, number>();
+export function surfaceDrift(a: THREE.BufferGeometry, b: THREE.BufferGeometry): number {
+  const memo = skewOf.get(a);
+  if (memo !== undefined) return memo;
+  if (!a.boundingBox) a.computeBoundingBox();
+  const A = a.boundingBox!;
+  const ma = new THREE.Mesh(a, surfaceProbe);
+  const mb = new THREE.Mesh(b, surfaceProbe);
+  ma.updateMatrixWorld(true);
+  mb.updateMatrixWorld(true);
+  const ray = new THREE.Raycaster();
+  const dir = new THREE.Vector3(0, -1, 0);
+  const from = new THREE.Vector3();
+  const top = A.max.y + 1;
+  let worst = 0;
+  // Inset off the rim: a shell's own bevel rolls over at its perimeter,
+  // so a ray fired at the very edge grazes a curve and reads a
+  // difference that is sampling, not drift.
+  const N = 5;
+  for (let i = 0; i < N; i++) {
+    const x = A.min.x + (A.max.x - A.min.x) * (0.15 + 0.7 * (i / (N - 1)));
+    for (let j = 0; j < N; j++) {
+      const z = A.min.z + (A.max.z - A.min.z) * (0.15 + 0.7 * (j / (N - 1)));
+      from.set(x, top, z);
+      ray.set(from, dir);
+      const ha = ray.intersectObject(ma, false)[0];
+      const hb = ray.intersectObject(mb, false)[0];
+      // A ray that misses one surface and not the other is itself a
+      // difference, but it is also what happens at a shell's waist on a
+      // silhouette that tucks hard. Only compare where both answered.
+      if (!ha || !hb) continue;
+      worst = Math.max(worst, Math.abs(ha.point.y - hb.point.y));
+    }
+  }
+  skewOf.set(a, worst);
+  return worst;
+}
+
 export function upgradeCarShells(group: THREE.Group, style: BodyStyle): void {
   const verdict: Record<string, string> = (group.userData.shellSwap ??= {});
   if (!AUTHORED_SHELLS.has(style)) {
@@ -355,11 +433,32 @@ export function upgradeCarShells(group: THREE.Group, style: BodyStyle): void {
       verdict.all = "file missing or unreadable";
       return;
     }
+    // The three slots are decided IN STACK ORDER — body, then the glass
+    // on it, then the painted cap on the glass — rather than in whatever
+    // order a traverse happens to reach them.
+    //
+    // It used to be a bare traverse. Order matters once anything is
+    // derived per slot — what sits on top has to know what was actually
+    // accepted underneath it, and a rejected shell must not leave the
+    // one above it fitted to geometry nobody renders.
+    const bySlot = new Map<string, THREE.Mesh>();
     group.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       const slot = mesh.userData.shell as string | undefined;
-      if (!slot) return;
+      if (slot) bySlot.set(slot, mesh);
+    });
+
+    /** The geometry actually on the car for a slot once it is decided —
+     *  authored if the file was accepted, the extrusion if it was not.
+     *  Anything re-derived from a shell afterwards reads THIS, so a
+     *  rejected file never leaves something fitted to geometry nobody
+     *  renders. */
+    const live = new Map<string, THREE.BufferGeometry>();
+    const settle = (slot: string) => {
+      const mesh = bySlot.get(slot);
+      if (!mesh) return;
+      live.set(slot, mesh.geometry);
       const geo = shells[slot];
       if (!geo) {
         verdict[slot] = "not in the file";
@@ -378,20 +477,36 @@ export function upgradeCarShells(group: THREE.Group, style: BodyStyle): void {
         crowned.add(geo);
         crownShell(geo, crownFor(style, slot));
       }
-      // Crowned first: the crown moves vertices, and a shell judged
-      // before it is surfaced is judged as a shape it never renders as.
       const off = boxDrift(geo, mesh.geometry);
       if (off > SHELL_FIT_TOL) {
         verdict[slot] = `stale: ${(off * 1000).toFixed(0)} mm off the profile`;
         return;
       }
+      // Same tolerance, asked of the skin rather than the box — see
+      // surfaceDrift for the 48 mm correction that moved the bounding
+      // box by nothing at all.
+      const skew = surfaceDrift(geo, mesh.geometry);
+      if (skew > SHELL_FIT_TOL) {
+        verdict[slot] = `stale: skin ${(skew * 1000).toFixed(0)} mm off the profile`;
+        return;
+      }
       verdict[slot] = "authored";
       mesh.geometry = geo;
+      live.set(slot, geo);
       // The lamps were fitted to the extrude; fit them to this.
       if (slot === "body") {
         (group.userData.refitShell as ((g: THREE.BufferGeometry) => void) | undefined)?.(geo);
       }
-    });
+    };
+    settle("body");
+    settle("canopy");
+    settle("roof");
+    // The cabin was measured against the extruded glass at build time,
+    // synchronously, long before this file landed. Re-measure it against
+    // the glass the car is actually wearing.
+    (group.userData.refitCabin as ((g: THREE.BufferGeometry) => void) | undefined)?.(
+      live.get("canopy") ?? bySlot.get("canopy")!.geometry
+    );
   });
 }
 
