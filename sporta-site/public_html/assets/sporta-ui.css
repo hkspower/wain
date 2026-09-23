@@ -3299,3 +3299,30 @@ a[class~="aspect-[4/5]"][class~="overflow-hidden"][class~="bg-slate-100"] {
 .cat-tile.tile-outlet img {
   object-position: 90% center !important;
 }
+
+/* PRODUCT PAGE GALLERY CROPPED MORE THAN THE CARD THAT LINKS TO IT —
+ * 2026-09-23, asked for as "improve product image layout".
+ *
+ * Every product photo on this shop is uploaded and shown elsewhere at 4:5
+ * (the shop grid's own `aspect-[4/5]` card, the same ratio this file's
+ * category-tile and hero sections both treat as the site's working ratio
+ * for product photography) — but the product PAGE's own big viewer, the
+ * single largest and most important look at the garment, was
+ * `aspect-square`: 1:1. `object-cover` on a 4:5 photo inside a 1:1 box crops
+ * the TOP and BOTTOM, which is exactly backwards — the page a shopper reaches
+ * to see more of an item was showing LESS of it than the thumbnail that sent
+ * them there.
+ *
+ * ONE ELEMENT ON THE WHOLE PAGE carries `.aspect-square` — checked with
+ * `querySelectorAll`, count 1, same on mobile and desktop — so the class
+ * alone is enough to scope this without an attribute-selector combination.
+ *
+ * The 64x64 thumbnail buttons below it get the same ratio (64 wide stays,
+ * 80 tall instead of 64), so what a shopper compares side by side already
+ * matches the shape of what they are about to see large. */
+.aspect-square {
+  aspect-ratio: 4 / 5 !important;
+}
+button[class~="h-16"][class~="w-16"][class~="shrink-0"][class~="overflow-hidden"][class~="rounded-xl"][class~="border-2"] {
+  height: 5rem !important;
+}
