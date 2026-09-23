@@ -50,9 +50,21 @@ const run = (cmd, args, opts = {}) =>
   });
 
 function build(env) {
+  /* «none» and not "", and the difference is what made shouq-flow look like a
+     broken browser for weeks. wain-ai.ts resolves the id with `||`, so an
+     EMPTY string falls through to DEFAULT_AGENT_ID — the real production
+     agent — and this label printed «local mode — no agent» over a build that
+     had her fully on. The suite then failed at «ringing becomes connected»
+     because the widget cannot load (unpkg is blocked here), which reads
+     exactly like a Web Speech fault and was written up as one.
+
+     `||` is correct and deliberate — see wain-ai.ts, where `??` made an unset
+     CI variable ship the fallback. The off switch it implies is the «none»
+     sentinel, and this is the only place that has to ask for it. */
+  const agent = env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID;
   const which =
-    env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID === "" ? " (local mode — no agent)"
-    : env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID ? " (with a test agent id)"
+    agent === "none" ? " (local mode — agent off)"
+    : agent ? " (with a test agent id)"
     : " (as it ships)";
   console.log(`\n▸ building${which}…`);
   const r = spawnSync("npm", ["run", "build"], {
@@ -217,13 +229,16 @@ console.log("\n════ شوق: the live bridge ════");
    agent id is compiled into wain-ai.ts rather than waiting on a variable
    nobody set — so the shipping bundle no longer runs the branch this suite is
    about. That branch has not gone anywhere: it is what every visitor gets when
-   the widget cannot load, and an empty id is exactly how the component asks
-   for it. Testing it means asking for it. */
+   the widget cannot load, and «none» is exactly how the component asks for it.
+   Testing it means asking for it.
+
+   This said «an empty id» and passed "", which stopped meaning that the day
+   wain-ai.ts moved from `??` to `||` — see the note on build() above. */
 {
   const why = staleBuild(ROOT);
   if (why) console.log(`\n▸ out/ is missing or stale (${why})`);
 }
-build({ NEXT_PUBLIC_ELEVENLABS_AGENT_ID: "" });
+build({ NEXT_PUBLIC_ELEVENLABS_AGENT_ID: "none" });
 console.log("\n════ شوق: the button and the voice flow (local mode) ════");
 {
   const stop = await serve(PORT_FLOW);
