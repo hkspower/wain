@@ -90,8 +90,60 @@ console.log(`smoke      ${smoke.alive} puffs, ${smoke.distinctAges} distinct age
 check(smoke.alive > 25, `only ${smoke.alive} smoke particles alive in a drift`);
 check(smoke.distinctAges > 15, `smoke shares ages (${smoke.distinctAges} distinct) — the old one-clock pool`);
 check(smoke.distinctSizes > 10, "every puff is the same size");
-check(smoke.grow > 1 && smoke.spin > 0, "smoke does not expand or turn");
+// `spin` is NOT asserted, and that is deliberate. It used to be
+// `smoke.grow > 1 && smoke.spin > 0` with the message "smoke does not
+// expand or turn" — but the sprite radialSprite() draws is a radially
+// symmetric alpha falloff about its own centre, and the shader rotates
+// gl_PointCoord about that same centre. Turning it samples the identical
+// value. uSpin has no visual consequence on this texture at any value,
+// so the check was asserting a uniform against a behaviour the shader
+// cannot produce, and would have gone on passing if the rotation were
+// deleted outright.
+check(smoke.grow > 1, "smoke does not expand as it ages");
 check(smoke.visible, "smoke is not visible while drifting");
+
+// --- 1b. Sand off the shoulder -------------------------------------
+//
+// This road has a hard edge and beyond it is scenery. Before this there
+// was nothing at all between "on the racing surface" and "hitting an
+// invisible barrier" — no dust, no grip change, and a kerb buzz on the
+// sound bus that was capped at 31% of its range by a constant that
+// disagreed with the wall by 250 mm.
+//
+// What has to be true: running wide throws sand, it comes off the side
+// the car ran wide on, and staying on the racing surface throws none.
+const dust = await page.evaluate(async () => {
+  const e = window.__grnEngine;
+  const wait = (n) => new Promise((r) => setTimeout(r, n));
+  // The attributes are named aAge/aLife/aSize, as the smoke block above
+  // reads them — `geometry.attributes.life` is undefined.
+  const read = () => {
+    const g = e.dustFx.points.geometry;
+    const pos = g.getAttribute("position"), life = g.getAttribute("aLife");
+    let n = 0, sum = 0;
+    for (let i = 0; i < life.count; i++) {
+      if (life.getX(i) <= 0) continue;
+      n++;
+      sum += pos.getX(i);
+    }
+    return { n, meanX: n ? sum / n : 0 };
+  };
+  // Mid-road at speed: no shoulder, so no sand.
+  e.setTouchInput({ throttle: 1, steer: 0 });
+  e.player.lat = 0;
+  for (let i = 0; i < 90; i++) { e.player.lat = 0; e.update(1 / 60); }
+  await wait(60);
+  const clean = read().n;
+  // Now put a wheel on the shoulder, on the right, and hold it there.
+  const wide = e.track.halfWidthAt(e.player.s) - 1.2;
+  for (let i = 0; i < 90; i++) { e.player.lat = wide; e.update(1 / 60); }
+  const onEdge = read();
+  const carX = e.playerMesh.position.x;
+  return { clean, n: onEdge.n, meanX: onEdge.meanX, carX, lat: e.player.lat, speed: e.player.speed };
+});
+console.log(`dust       ${dust.clean} grains mid-road, ${dust.n} with a wheel on the shoulder at ${dust.speed.toFixed(0)} m/s`);
+check(dust.clean === 0, `${dust.clean} grains of sand came up in the middle of the road`);
+check(dust.n > 10, `only ${dust.n} grains with a wheel on the shoulder — running wide throws no sand`);
 
 // --- 2. Sparks: side-correct, and they bounce instead of sinking ---
 await stage();

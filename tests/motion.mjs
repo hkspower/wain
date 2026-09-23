@@ -250,10 +250,18 @@ const fx = await page.evaluate(() => {
   return {
     streaks: !!e.streaks && e.streaks.visible,
     streakCount: e.streakData ? e.streakData.length : 0,
-    smokeAlive: e.smoke ? e.smoke.geometry.attributes.position.count : -1,
+    // `e.smoke` does not exist and never has — the field is `smokeFx`.
+    // This read `e.smoke ? ... : -1` and so evaluated to exactly -1 on
+    // every run since it was written, and the -1 was then neither
+    // asserted nor printed: the console.log below names only the
+    // streaks. The section header says "Speed streaks + drift smoke
+    // visibility" and the smoke half of it had never run.
+    smokeAlive: e.smokeFx ? e.smokeFx.alive : -1,
+    dustAlive: e.dustFx ? e.dustFx.alive : -1,
   };
 });
 console.log(`  speed streaks   ${fx.streakCount} streaks, visible=${fx.streaks}  ${check(fx.streakCount > 0, "no speed streaks")}`);
+console.log(`  drift smoke     ${fx.smokeAlive} puffs alive  ${check(fx.smokeAlive > 0, "no drift smoke — the half of this section that never ran")}`);
 
 // 10. Haptics — impact should buzz
 const vibes = await page.evaluate(() => window.__vibes.length);

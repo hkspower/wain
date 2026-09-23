@@ -68,7 +68,6 @@ export class ParticleSystem {
   private size: THREE.BufferAttribute;
   private vel: Float32Array;
   private head = 0;
-  private live = 0;
   private readonly count: number;
 
   constructor(count: number, o: ParticleOptions) {
@@ -175,7 +174,6 @@ export class ParticleSystem {
     this.vel[i * 3] = vx;
     this.vel[i * 3 + 1] = vy;
     this.vel[i * 3 + 2] = vz;
-    this.live++;
   }
 
   /**
@@ -200,7 +198,6 @@ export class ParticleSystem {
       if (age >= life) {
         this.life.setX(i, 0);
         this.pos.setXYZ(i, -99999, -99999, -99999);
-        this.live = Math.max(0, this.live - 1);
         continue;
       }
       this.age.setX(i, age);
@@ -227,7 +224,19 @@ export class ParticleSystem {
     this.points.visible = any;
   }
 
-  /** Live particle count — for tests and debug readouts. */
+  /**
+   * Live particle count — for tests and debug readouts.
+   *
+   * Counted, not tracked. There used to be a `live` field incremented on
+   * spawn and decremented on expiry, and it was wrong in a way that
+   * could only ever grow: spawn() is a ring buffer with no free-list, so
+   * a full pool OVERWRITES a live particle, and the overwrite bumped the
+   * counter without the thing it replaced ever expiring. It was also
+   * never read by anything — not by this class, not by the tests, not by
+   * the debug readout, all of which use this getter. Three lines and a
+   * branch per spawn, spent on a number nobody looked at and that would
+   * have lied if they had.
+   */
   get alive(): number {
     let n = 0;
     for (let i = 0; i < this.count; i++) if (this.life.getX(i) > 0) n++;

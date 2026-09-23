@@ -99,7 +99,41 @@ import { num } from "./format";
 // the rival's bar to take their crown and move up the roster.
 
 const KMH = 3.6;
-const SMOKE_N = 110;
+/**
+ * How many puffs of tyre smoke can be in the air at once.
+ *
+ * Was 110, and the pool saturated during exactly the moment it is there
+ * for. Steady state is rate x mean life: a spin pours 120 a second and a
+ * puff lives 0.95 + 0.55/2 = 1.225 s, so a spin wants 147. The ring
+ * buffer has no free-list — spawn() overwrites whatever is at `head`
+ * whether it is alive or not — so the excess did not queue, it deleted
+ * puffs mid-life. The plume thinned out the harder you were sliding.
+ */
+const SMOKE_N = 160;
+
+/**
+ * How far inside the road's edge the barrier stands, and how much of
+ * the road outside the racing surface reads as shoulder.
+ *
+ * These two were 1.1 and 1.35, typed in different functions six hundred
+ * lines apart, and they disagreed. The car is clamped at halfWidth −
+ * WALL_INSET; the shoulder rumble started at halfWidth − 1.35 and
+ * divided by a band of 0.8. So the reachable part of that band was
+ * (halfWidth − 1.1) − (halfWidth − 1.35) = 0.25 m of 0.8, and the kerb
+ * buzz was mathematically capped at 31% of its range on every metre of
+ * every lap. Nobody had ever heard it at full strength because nobody
+ * could.
+ *
+ * Derived from each other now, so the shoulder is the outer SHOULDER_M
+ * of drivable road and running into the barrier is the far end of it.
+ */
+const WALL_INSET = 1.1;
+const SHOULDER_M = 0.9;
+
+/** Sand off the shoulder: how many grains, and how hard you have to be
+ *  running wide before any of it comes up. */
+const DUST_N = 180;
+const DUST_SPEED = 9;
 /** Pre-battle cinematic length in real seconds (shots at 1.8 / 3.6):
  *  the rival's close-up, the side-by-side two-shot at the line, and the
  *  pull up into the chase as the flag drops. */
@@ -1546,6 +1580,9 @@ export class GameEngine {
   // Drift tire smoke spawn accumulator (see updateEffects)
   private sparkFx!: ParticleSystem;
   private smokeFx!: ParticleSystem;
+  /** Sand thrown up by a wheel running on the shoulder. */
+  private dustFx!: ParticleSystem;
+  private dustAcc = 0;
   private flameFx!: ParticleSystem;
   /** Brake-rotor temperature, 0..1, per wheel — heat in, heat out. */
   private rotorHeat = 0;
@@ -1883,6 +1920,32 @@ export class GameEngine {
       fadeIn: 0.12,
     });
     this.scene.add(this.smokeFx.points);
+
+    /**
+     * Sand off the shoulder.
+     *
+     * This road has a hard edge at halfWidthAt - WALL_INSET and beyond
+     * it is scenery. Until now, running wide did exactly two things:
+     * nothing, and then hitting an invisible barrier. The only part of
+     * the game that knew the outer edge of the road was different from
+     * the middle was a kerb buzz on the sound bus - which was capped at
+     * 31% of its range by a constant that disagreed with the wall, so
+     * even that had never been heard at full strength.
+     *
+     * So put the desert on the desert road. Warm and pale rather than
+     * the tyre smoke's grey, because this is ground up off the shoulder
+     * and not burnt off a tyre - and it SETTLES rather than rising,
+     * which is the whole difference between sand and smoke.
+     */
+    this.dustFx = new ParticleSystem(DUST_N, {
+      map: radialSprite(0.0, 1.7),
+      colorA: 0xc9ad84,
+      colorB: 0x6b5b45,
+      grow: 2.6,
+      opacity: 0.16,
+      fadeIn: 0.1,
+    });
+    this.scene.add(this.dustFx.points);
 
     // Exhaust: backfire on lift, and the nitrous flame while it is open.
     this.flameFx = new ParticleSystem(90, {
@@ -2423,6 +2486,7 @@ export class GameEngine {
     const bufH = this.renderer.getDrawingBufferSize(new THREE.Vector2()).y;
     this.sparkFx?.setPixelScale(bufH);
     this.smokeFx?.setPixelScale(bufH);
+    this.dustFx?.setPixelScale(bufH);
     this.flameFx?.setPixelScale(bufH);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
@@ -3234,6 +3298,7 @@ export class GameEngine {
     this.cubeRT?.dispose();
     this.sparkFx?.dispose();
     this.smokeFx?.dispose();
+    this.dustFx?.dispose();
     this.flameFx?.dispose();
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
@@ -5216,7 +5281,7 @@ export class GameEngine {
 
     // The wall follows the drivable width — constant four lanes except
     // through the Sharq plaza, where the road swells into the circle
-    const maxLat = this.track.halfWidthAt(p.s) - 1.1;
+    const maxLat = this.maxLatAt(p.s);
     let hitKerb = Math.abs(p.lat) > maxLat;
     // Which side the thing that was hit is on, as a contact normal. For a
     // barrier that is just which edge of the road the car ran out of, but
@@ -5612,6 +5677,25 @@ export class GameEngine {
       }
     }
     this.solveTrafficDrivers(dt);
+  }
+
+  /** How far from the centreline the car can get before the barrier. */
+  private maxLatAt(s: number): number {
+    return this.track.halfWidthAt(s) - WALL_INSET;
+  }
+
+  /**
+   * How far onto the shoulder the car is, 0 at the racing surface and 1
+   * against the barrier.
+   *
+   * One answer for the kerb buzz and the dust it throws up, because they
+   * are the same event heard and seen. They used to be one answer and no
+   * question: the buzz had its own edge constant that disagreed with the
+   * wall by 250 mm, and nothing was watching.
+   */
+  private shoulder(s: number, lat: number): number {
+    const edge = this.maxLatAt(s) - SHOULDER_M;
+    return THREE.MathUtils.clamp((Math.abs(lat) - edge) / SHOULDER_M, 0, 1);
   }
 
   /**
@@ -6835,7 +6919,22 @@ export class GameEngine {
         locked) &&
       !this.cine;
     if (drifting) {
-      this.track.tangentAt(this.player.s, this.v3);
+      // THE CAR'S AXES, NOT THE ROAD'S.
+      //
+      // These were built from track.tangentAt — the direction the ROAD
+      // runs at the car's station — and then used to place the rear
+      // arches 1.6 m back and 0.85 m to each side. That is only the same
+      // thing as the car's own axes when the car is pointing down the
+      // road, and the entire reason this block runs is that it is not:
+      // at a 29-degree slide the "arches" it was spawning from were
+      // about 0.9 m from the real ones, and asymmetrically, so the plume
+      // came off one side of a sliding car and hung off the other.
+      //
+      // The exhaust three hundred lines below has always done this
+      // correctly — carBody.localToWorld(tip) — and the smoke is the
+      // effect where it matters more, because a slide is the one time
+      // the car and the road disagree.
+      this.carBody.getWorldDirection(this.v3);
       const px = this.playerMesh.position.x;
       const pz = this.playerMesh.position.z;
       // Rear axle sits behind the car centre; ± the side vector per wheel
@@ -6886,6 +6985,53 @@ export class GameEngine {
     }
     // Billowing smoke sheds its outward speed as it expands
     this.smokeFx.update(dt, { drag: 1.6, gravity: -0.35 });
+
+    // --- Sand off the shoulder.
+    //
+    // Thrown by the OUTER wheels — the ones actually on it — so the
+    // plume comes off the side of the car that ran wide, which is the
+    // whole tell. Scaled by how far onto it you are and by how fast,
+    // because a wheel walking the edge at forty flicks grit and the
+    // same wheel at two hundred drags a wall of it.
+    {
+      const wide = this.shoulder(this.player.s, this.player.lat);
+      if (wide > 0 && this.player.speed > DUST_SPEED && !this.cine) {
+        this.track.tangentAt(this.player.s, this.v3);
+        const out = Math.sign(this.player.lat) || 1;
+        // The road's side vector: the shoulder is a feature of the ROAD,
+        // unlike the smoke above, which comes off the car.
+        const rx = -this.v3.z * out;
+        const rz = this.v3.x * out;
+        const fast = Math.min(1, this.player.speed / 55);
+        this.dustAcc += 150 * wide * fast * dt;
+        const n = Math.floor(this.dustAcc);
+        this.dustAcc -= n;
+        const px = this.playerMesh.position.x;
+        const pz = this.playerMesh.position.z;
+        for (let i = 0; i < n; i++) {
+          // Along the car, between the axles, and out at the wheel that
+          // is off the racing surface.
+          const along = -1.7 + Math.random() * 3.2;
+          const lat = 0.8 + Math.random() * 0.45;
+          this.dustFx.spawn(
+            px + this.v3.x * along + rx * lat,
+            0.06 + Math.random() * 0.18,
+            pz + this.v3.z * along + rz * lat,
+            // Flung outward and backward: a wheel throws grit away from
+            // the car and leaves the rest of it standing in the air.
+            rx * (1.4 + Math.random() * 2.2) * wide - this.v3.x * this.player.speed * 0.16,
+            0.9 + Math.random() * 1.4,
+            rz * (1.4 + Math.random() * 2.2) * wide - this.v3.z * this.player.speed * 0.16,
+            0.8 + Math.random() * 0.7,
+            1.1 + Math.random() * 0.8
+          );
+        }
+      }
+    }
+    // Sand settles. Smoke rises at −0.35; this falls at +1.1, which is
+    // the difference between something burnt off a tyre and something
+    // picked up off the ground.
+    this.dustFx.update(dt, { drag: 1.5, gravity: 1.1, bounce: 0, groundY: 0.03 });
 
     // --- Exhaust. A backfire is unburnt fuel lighting in the pipe on a
     // hard lift, so it fires on the throttle's falling edge at revs; the
@@ -7211,13 +7357,7 @@ export class GameEngine {
     // the car feels and the stutter it makes have to be the same event.
     const limited = Math.max(governed, this.revLimited);
 
-    // Running wide onto the shoulder — the kerb buzz through the floor
-    const edge = this.track.halfWidthAt(this.player.s) - 1.35;
-    const rumble = THREE.MathUtils.clamp(
-      (Math.abs(this.player.lat) - edge) / 0.8,
-      0,
-      1
-    );
+    const rumble = this.shoulder(this.player.s, this.player.lat);
 
     // The ears ride the camera, not the car
     this.camera.getWorldDirection(this.v3);
