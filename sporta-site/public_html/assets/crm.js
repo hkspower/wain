@@ -93,7 +93,7 @@
     var searchRow = el('div', 'crm-row')
     var input = el('input', 'crm-input')
     input.type = 'search'
-    input.placeholder = 'Search by name, email or phone'
+    input.placeholder = 'Search by name, email, phone, tag or note'
     input.value = state.q
     input.addEventListener('input', function () {
       state.q = input.value
@@ -116,6 +116,8 @@
       top.appendChild(el('span', 'crm-cust-name', c.name || '(no name on file)'))
       if (c.blocked) top.appendChild(el('span', 'crm-badge crm-badge-blocked', 'Blocked' + (c.blocked_scope === 'all' ? ' (all orders)' : ' (COD)')))
       if (c.has_account) top.appendChild(el('span', 'crm-badge crm-badge-account', 'Has account'))
+      ;(c.tags || []).forEach(function (t) { top.appendChild(el('span', 'crm-badge crm-badge-tag', t)) })
+      if (c.has_note) top.appendChild(el('span', 'crm-badge crm-badge-note', 'Note'))
       row.appendChild(top)
 
       var sub = el('div', 'crm-cust-sub')
@@ -157,11 +159,100 @@
     })
   }
 
+  /* ----------------------------------------------------------------- notes */
+
+  /* Suggestions only — any tag can be typed. Chosen for what a small shop
+     actually needs to remember at the moment it is looking at a customer. */
+  var SUGGESTED = ['VIP', 'Repeat buyer', 'Prefers WhatsApp', 'Returns often', 'Wholesale']
+
+  function renderNotes(d) {
+    var n = d.notes || { note: null, tags: [] }
+    if (!state.draft || state.draft.phone !== d.phone) {
+      state.draft = { phone: d.phone, note: n.note || '', tags: (n.tags || []).slice(), dirty: false }
+    }
+    var dr = state.draft
+    var box = el('div', 'crm-notes')
+    box.appendChild(el('h5', 'crm-h5', 'Private notes & tags'))
+    box.appendChild(el('p', 'crm-note', 'Only visible here in /backends — never to the customer.'))
+
+    var chips = el('div', 'crm-tags')
+    dr.tags.forEach(function (t, i) {
+      var c = el('button', 'crm-tag crm-tag-on', t + ' ×')
+      c.type = 'button'
+      c.setAttribute('aria-label', 'Remove tag ' + t)
+      c.addEventListener('click', function () { dr.tags.splice(i, 1); dr.dirty = true; render() })
+      chips.appendChild(c)
+    })
+    SUGGESTED.forEach(function (t) {
+      if (dr.tags.some(function (x) { return x.toLowerCase() === t.toLowerCase() })) return
+      var c = el('button', 'crm-tag', '+ ' + t)
+      c.type = 'button'
+      c.addEventListener('click', function () { dr.tags.push(t); dr.dirty = true; render() })
+      chips.appendChild(c)
+    })
+    box.appendChild(chips)
+
+    var addRow = el('div', 'crm-row')
+    var tagIn = el('input', 'crm-input')
+    tagIn.placeholder = 'Add your own tag and press Enter'
+    tagIn.maxLength = 24
+    tagIn.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter') return
+      e.preventDefault()
+      var v = tagIn.value.replace(/,/g, ' ').trim()
+      if (v && !dr.tags.some(function (x) { return x.toLowerCase() === v.toLowerCase() }) && dr.tags.length < 10) {
+        dr.tags.push(v); dr.dirty = true; render()
+      }
+    })
+    addRow.appendChild(tagIn)
+    box.appendChild(addRow)
+
+    var ta = el('textarea', 'crm-input crm-textarea')
+    ta.placeholder = 'Anything worth remembering about this customer'
+    ta.maxLength = 2000
+    ta.value = dr.note
+    ta.addEventListener('input', function () { dr.note = ta.value; dr.dirty = true; saveBtn.disabled = state.busy })
+    box.appendChild(ta)
+
+    var saveBtn = el('button', 'crm-go crm-go-save', state.busy ? 'Saving…' : 'Save notes')
+    saveBtn.type = 'button'
+    saveBtn.disabled = state.busy || !dr.dirty
+    saveBtn.addEventListener('click', function () { saveNotes(d.phone) })
+    box.appendChild(saveBtn)
+
+    if (n.updated_at) {
+      box.appendChild(el('p', 'crm-note', 'Last saved ' + when(n.updated_at) + (n.updated_by ? ' by ' + n.updated_by : '') + '.'))
+    }
+    if (state.noteMsg) box.appendChild(el('p', 'crm-note', state.noteMsg))
+    return box
+  }
+
+  function saveNotes(phone) {
+    var dr = state.draft
+    state.busy = true; state.noteMsg = ''; render()
+    call('crm_note_save', 'POST', { phone: phone, note: dr.note, tags: dr.tags }).then(function (r) {
+      state.busy = false
+      if (r.ok) {
+        /* Keep what the SERVER stored — it trims, dedupes and caps the tags —
+           so the screen shows the saved truth rather than the typed hope. */
+        state.draft = null
+        state.noteMsg = 'Saved.'
+        loadDetail(phone)
+        load()
+      } else {
+        /* A refused save leaves the draft on screen, so nothing typed is lost
+           under the message explaining why. */
+        state.noteMsg = 'Not saved (' + ((r.j && r.j.error) || r.status) + ').'
+        render()
+      }
+    })
+  }
+
   function renderDetail() {
     var wrap = el('div', 'crm-detail')
     var back = el('button', 'crm-back', '← All customers')
     back.type = 'button'
-    back.addEventListener('click', function () { state.selected = null; state.detail = null; render() })
+    back.addEventListener('click', function () { state.selected = null; state.detail = null; state.draft = null; state.noteMsg = ''; render() })
     wrap.appendChild(back)
 
     if (!state.detail) { wrap.appendChild(el('p', 'crm-note', 'Loading…')); return wrap }
@@ -200,6 +291,8 @@
     }
     wrap.appendChild(blockBox)
     if (state.note) wrap.appendChild(el('p', 'crm-note', state.note))
+
+    wrap.appendChild(renderNotes(d))
 
     wrap.appendChild(el('h5', 'crm-h5', 'Orders (' + d.orders.length + ')'))
     if (!d.orders.length) wrap.appendChild(el('p', 'crm-note', 'No orders on this phone.'))
@@ -287,6 +380,15 @@
     + '.crm-go-quiet{background:var(--border,#2a2d31);color:inherit}'
     + '.crm-go-danger{background:#5c2a1e;color:#ffb59a}'
     + '.crm-note{margin:8px 0;font-size:13px;opacity:.8}'
+    + '.crm-badge-tag{background:rgba(255,255,255,.08);color:inherit;font-weight:600}'
+    + '.crm-badge-note{background:#2d2a17;color:#e8d98a}'
+    + '.crm-notes{margin:14px 0;padding:12px;border-radius:8px;border:1px solid var(--border,#2a2d31)}'
+    + '.crm-tags{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px}'
+    + '.crm-tag{min-height:36px;padding:6px 12px;border-radius:999px;border:1px dashed var(--border,#494e54);'
+    + 'background:transparent;color:inherit;font:inherit;font-size:13px;cursor:pointer}'
+    + '.crm-tag-on{border-style:solid;background:rgba(255,255,255,.08);font-weight:600}'
+    + '.crm-textarea{width:100%;min-height:90px;resize:vertical;box-sizing:border-box;margin-bottom:10px}'
+    + '.crm-go-save{background:var(--sp-ember-fill,#e0561c);color:#fff}'
 
   function style() {
     if (document.getElementById('crm-css')) return

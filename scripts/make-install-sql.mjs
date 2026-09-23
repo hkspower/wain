@@ -110,6 +110,7 @@ const PARTS = [
   // import fixtures the owner can reach from the server, denied to the public
   // by name in api/.htaccess. Moving it here would break that arrangement.
   ['assistantqa.mysql.sql', 'سبورتا AI — the answers the shop writes itself', API],
+  ['customernotes.mysql.sql', 'CRM — private notes and tags per customer', API],
 ]
 
 // Repairs, named so that "why is 6 missing" has an answer in the file itself

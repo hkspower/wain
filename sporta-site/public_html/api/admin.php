@@ -2277,6 +2277,73 @@ if ($r === 'unblock_customer' && $method === 'POST') {
 // including one that has never placed an order: blocking does not require an
 // order to exist, and a proactive block on a number the owner already
 // suspects would otherwise vanish from every screen the moment it was made.
+// ------------------------------------------------------------- CRM notes
+//
+// Private notes and tags per customer, keyed by the canonical phone — see
+// api/customernotes.mysql.sql. The table is created here on first use as
+// well as by that file, so a shop that never imports the SQL still gets the
+// feature: the CRM is used from a phone in a shop, not from phpMyAdmin.
+//
+// FAILS QUIET ON READ, LOUD ON WRITE. If the table cannot exist (no CREATE
+// privilege), the list and the profile simply carry no notes — the CRM they
+// already had keeps working — while a save answers 503 by name instead of
+// pretending to have kept something.
+function crm_notes_ready(PDO $db): bool {
+    static $ready = null;
+    if ($ready !== null) return $ready;
+    try {
+        $db->exec(
+            "create table if not exists customer_notes (
+               phone varchar(15) not null primary key,
+               note text null,
+               tags varchar(400) not null default '',
+               updated_by varchar(190) null,
+               updated_at timestamp not null default current_timestamp on update current_timestamp
+             ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci"
+        );
+        return $ready = true;
+    } catch (Throwable $e) {
+        return $ready = false;
+    }
+}
+
+/** phone => ['note' => ?string, 'tags' => string[], ...] for every noted phone. */
+function crm_notes_all(PDO $db): array {
+    if (!crm_notes_ready($db)) return [];
+    $out = [];
+    foreach ($db->query('select phone, note, tags, updated_by, updated_at from customer_notes')->fetchAll() as $n) {
+        $out[(string) $n['phone']] = [
+            'note' => $n['note'],
+            'tags' => crm_tags_split((string) $n['tags']),
+            'updated_by' => $n['updated_by'],
+            'updated_at' => $n['updated_at'],
+        ];
+    }
+    return $out;
+}
+
+function crm_tags_split(string $s): array {
+    return array_values(array_filter(array_map('trim', explode(',', $s)), 'strlen'));
+}
+
+// A tag is a short label, not a sentence: trimmed, commas (the separator)
+// removed, 24 characters, ten per customer, and the same tag once however it
+// is capitalised. Arabic is allowed — mb_ functions throughout.
+function crm_tags_clean($in): array {
+    if (!is_array($in)) return [];
+    $seen = []; $out = [];
+    foreach ($in as $t) {
+        $t = trim(mb_substr(str_replace(',', ' ', (string) $t), 0, 24));
+        $t = preg_replace('~\s+~u', ' ', $t) ?? '';
+        if ($t === '') continue;
+        $k = mb_strtolower($t);
+        if (isset($seen[$k])) continue;
+        $seen[$k] = true; $out[] = $t;
+        if (count($out) === 10) break;
+    }
+    return $out;
+}
+
 if ($r === 'crm_customers') {
     $q = trim((string) ($_GET['q'] ?? ''));
 
@@ -2324,14 +2391,20 @@ if ($r === 'crm_customers') {
     // no name or email to match against — a WHERE on the outer query would
     // need the same union twice. This list is bounded by the shop's own
     // customer count, which will not be large enough to make that a cost.
+    // Notes and tags ride along on every row, and the search reaches them too:
+    // "VIP" should find the customers tagged VIP.
+    $notes = crm_notes_all($db);
+
     if ($q !== '') {
         $needle = mb_strtolower($q);
         $digits = preg_replace('~\D~', '', $q) ?? '';
-        $rows = array_values(array_filter($rows, function ($r) use ($needle, $digits) {
+        $rows = array_values(array_filter($rows, function ($r) use ($needle, $digits, $notes) {
             if ($digits !== '' && str_contains((string) $r['phone'], $digits)) return true;
             if ($needle === '') return false;
+            $n = $notes[(string) $r['phone']] ?? null;
             return str_contains(mb_strtolower((string) ($r['name'] ?? '')), $needle)
-                || str_contains(mb_strtolower((string) ($r['email'] ?? '')), $needle);
+                || str_contains(mb_strtolower((string) ($r['email'] ?? '')), $needle)
+                || ($n && str_contains(mb_strtolower(implode(' ', $n['tags']) . ' ' . (string) $n['note']), $needle));
         }));
     }
 
@@ -2344,6 +2417,9 @@ if ($r === 'crm_customers') {
         $row['paid_total']  = (float) $row['paid_total'];
         $row['has_account'] = (bool) $row['has_account'];
         $row['blocked']     = $row['blocked_scope'] !== null;
+        $n = $notes[(string) $row['phone']] ?? null;
+        $row['tags']        = $n ? $n['tags'] : [];
+        $row['has_note']    = $n !== null && trim((string) $n['note']) !== '';
     }
     unset($row);
     store_out($rows);
@@ -2408,7 +2484,33 @@ if ($r === 'crm_customer') {
         'returns' => $returns,
         'blocked' => $block,
         'account' => $account,
+        'notes'   => crm_notes_all($db)[$phone] ?? ['note' => null, 'tags' => [], 'updated_by' => null, 'updated_at' => null],
     ]);
+}
+
+// Save one customer's note and tags. The whole pair is sent and stored, so
+// the screen never has to merge; an empty note and no tags deletes the row
+// rather than leaving an empty one behind.
+if ($r === 'crm_note_save' && $method === 'POST') {
+    $b = store_body();
+    $phone = store_phone((string) ($b['phone'] ?? ''));
+    if ($phone === null) store_fail('invalid_phone');
+    if (!crm_notes_ready($db)) store_fail('notes_not_available', 503);
+
+    $note = trim(mb_substr((string) ($b['note'] ?? ''), 0, 2000));
+    $tags = crm_tags_clean($b['tags'] ?? []);
+
+    if ($note === '' && !$tags) {
+        $db->prepare('delete from customer_notes where phone = ?')->execute([$phone]);
+    } else {
+        $db->prepare(
+            'insert into customer_notes (phone, note, tags, updated_by) values (?, ?, ?, ?)
+             on duplicate key update note = values(note), tags = values(tags),
+                                     updated_by = values(updated_by)'
+        )->execute([$phone, $note === '' ? null : $note, implode(',', $tags),
+                    (string) ($_SESSION['admin_email'] ?? '')]);
+    }
+    store_out(['ok' => true, 'phone' => $phone, 'note' => $note === '' ? null : $note, 'tags' => $tags]);
 }
 
 if ($r === 'discounts') {

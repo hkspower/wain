@@ -144,6 +144,40 @@ try {
   check((afterUnblock.body || []).length === 0,
     'and the never-ordered phone disappears again — it was only ever visible because of the block')
 
+
+  /* ------------------------------------------- 4b. private notes and tags */
+  const anonNote = await (async () => { const j = jar; jar = ''; const r = await call('crm_note_save', { phone: FULL_A, note: 'x' }); jar = j; return r })()
+  check(anonNote.status === 401, 'a signed-out request cannot write a note', `got ${anonNote.status}`)
+
+  const saved = await call('crm_note_save', {
+    phone: PHONE_A,   // the LOCAL spelling — it must land on the canonical phone
+    note: '  Prefers evening delivery.  ',
+    tags: ['VIP', 'vip', 'Wholesale', 'a,b', '', 'x'.repeat(40)],
+  })
+  check(saved.status === 200, 'a note saves', JSON.stringify(saved.body))
+  check(JSON.stringify(saved.body?.tags) === JSON.stringify(['VIP', 'Wholesale', 'a b', 'x'.repeat(24)]),
+    'tags are trimmed, deduped case-insensitively, stripped of commas and capped at 24 characters',
+    JSON.stringify(saved.body?.tags))
+  const stored = rows(`select phone, note, tags from customer_notes where phone = '${FULL_A}'`)
+  check(stored.length === 1 && stored[0].note === 'Prefers evening delivery.',
+    'stored once, against the canonical phone, with the note trimmed', JSON.stringify(stored))
+
+  const detailN = await call('crm_customer&phone=' + FULL_A)
+  check(detailN.body?.notes?.note === 'Prefers evening delivery.' && detailN.body?.notes?.tags?.includes('VIP'),
+    'the profile carries the note and tags', JSON.stringify(detailN.body?.notes))
+  check(detailN.body?.notes?.updated_by === EMAIL, 'and who saved it', String(detailN.body?.notes?.updated_by))
+
+  const byTag = await call('crm_customers&q=wholesale')
+  const tagged = (byTag.body || []).find((c) => c.phone === FULL_A)
+  check(!!tagged && tagged.tags.includes('Wholesale') && tagged.has_note === true,
+    'searching a TAG finds the customer, and the list row carries tags and a note flag',
+    JSON.stringify(tagged))
+
+  const cleared = await call('crm_note_save', { phone: FULL_A, note: '', tags: [] })
+  check(cleared.status === 200 && rows(`select phone from customer_notes where phone = '${FULL_A}'`).length === 0,
+    'an empty note with no tags removes the row rather than keeping an empty one')
+  await call('crm_note_save', { phone: FULL_A, note: 'kept for the panel check', tags: ['VIP'] })
+
   /* -------------------------------------------------- 5. the panel itself */
   const browser = await chromium.launch({
     executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
@@ -183,6 +217,20 @@ try {
     check(detailText.includes('SPCRM0001PAID') && detailText.includes('SPCRM0002PEND'),
       'opening the row shows both orders')
 
+
+    const notesBox = panelCard().locator('.crm-notes')
+    check(await notesBox.count() === 1, 'the profile has a notes section')
+    check((await notesBox.innerText()).includes('VIP'), 'showing the tag saved through the API')
+    await notesBox.locator('.crm-tag').filter({ hasText: 'Prefers WhatsApp' }).click()
+    await p.waitForTimeout(200)
+    await notesBox.locator('textarea').fill('Typed in the panel')
+    await notesBox.locator('.crm-go-save').click()
+    await p.waitForTimeout(1500)
+    const afterUi = rows(`select note, tags from customer_notes where phone = '${FULL_A}'`)[0]
+    check(afterUi?.note === 'Typed in the panel' && /VIP/.test(afterUi?.tags) && /Prefers WhatsApp/.test(afterUi?.tags),
+      'saving from the panel writes the note and BOTH tags — the old one kept, the new one added',
+      JSON.stringify(afterUi))
+
     check(errors.length === 0, 'no page errors', errors.slice(0, 2).join(' | '))
   } finally {
     await browser.close()
@@ -190,6 +238,7 @@ try {
 } finally {
   sql(`delete from orders where track_id like 'SPCRM%'`)
   sql(`delete from blocked_customers where phone in ('${FULL_A}', '${FULL_B}')`)
+  sql(`delete from customer_notes where phone in ('${FULL_A}', '${FULL_B}')`)
 }
 
 console.log(fails ? `\n${fails} check(s) failed` : '\nall ok')

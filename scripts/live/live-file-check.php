@@ -30,7 +30,7 @@ $WANT = [
     'api/.htaccess' => '574ff6d3712c69ad6a119652dd976afbad0e065cec35c198ceed85bfc72c3be2',
     'api/accounting.mysql.sql' => '865458325a463d3127bbb45cb1a3d5c0c9a603c7656cdde85c280ffb7f8ed716',
     'api/accounting.php' => '0e508c851de94808626164518d8394e6c65508ec2733efd16be7a278b2825963',
-    'api/admin.php' => 'd606691574afbb7bc7f4bf51548cc994ebe67900a5102d6700a7df8f3146cab2',
+    'api/admin.php' => 'f6086eafcc52dd5816d8b86065f50ab047bc6f64eadacd3c6e26f9b57c40b0f1',
     'api/antifraud.mysql.sql' => '861285918d5a45a38913a2cd3300b49d825e3a6691ea81411f31b6840808275e',
     'api/api.php' => '181fe6eca05f4fb5d759c90a30058270ce7b0690570be299eb7b50186d4242c5',
     'api/arabic.php' => 'ee95e3677275fe690cde28c627d98d32d903118ae9c4f418e0fb1dca65c72cd9',
@@ -50,6 +50,7 @@ $WANT = [
     'api/cron-whatsapp.php' => '6778175f64a3fb248799921da586199208d9fc2830d896655d234c7af4e6d9da',
     'api/customer.php' => 'eae16955bfbcd262bf5e28a9f3e5a81de3325b55748ae170162c6f5bbd73c38e',
     'api/customermail.mysql.sql' => '31ef14254b819d78830aa1ee3eb0865a93f42edb75aecc1c0deea42441393e7b',
+    'api/customernotes.mysql.sql' => '74d498958ca8f525da41a7ae6d626c937d31e642d997d8068b969b2f30fbca80',
     'api/customers.mysql.sql' => '13a8c34931a59eac904f28a06e2cdbee16f590ae00aa3fbc9e713216dbee8c9e',
     'api/deploy.php' => 'e3ab2a969bb4745a5f8b4b90e07d0881f08566b3757d216af0a2699ea12c01b7',
     'api/file-audit.php' => '3d06aee5230b780d0e3761133d5587888224ce6df3be8429a7a92aab63e1514e',
@@ -127,7 +128,7 @@ $WANT = [
     'assets/checkout-tap-targets.js' => 'f84c5b331be1dd1226d906dcc8823d590e97558ac47b4b55c0fe414a65c907b2',
     'assets/contact-emails.js' => '81710eac8d9aa48684e0d7445ec19104c05d719842c8144743905d6ac0dc8415',
     'assets/contact.js' => '3a8fd66908f61d4e68fcac5241a8a2dd659b7069a19237177132577871a575ef',
-    'assets/crm.js' => 'fc2ed52d230de9c67acdf2c978f38333a6cdaaa054806ddec40b1c99a26e67ac',
+    'assets/crm.js' => '2373e32fbab66d5831401ffbc8d861cc6275aa1d95cdcb404a9ce60ea73449de',
     'assets/custom-css.js' => '092fcbf6caf633611467a691aae25c3363842425a5f8254430ba0f9335ac53a4',
     'assets/essentials.js' => '50c0cefbeef79643137826e44561a839bf49d25b7e1a33b6750b2eed97ed4dee',
     'assets/first-admin.js' => '6a32ca37d71936f7783d9d4f436c385a69df36c78618ad30d1e70e78c81ef65f',
@@ -261,7 +262,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => '1ba2a01e9f35e80a67b4b6047afcb5370b4005074a150ade4907a578cb0ebf4a',
-    'sw.js' => 'f549d469c1ac4e45245b186dd11d2decca57be33337421f9ef3e28f3d64d7164',
+    'sw.js' => '01f2139f264607bbe86f0c559f68469668ee4886e8c3e49556279cd408918861',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.

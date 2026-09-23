@@ -31,6 +31,7 @@
 --   12. 12-known-login-ips.sql which addresses have signed an admin in before
 --   13. customers.mysql.sql    sign-up, sign-in, and orders linked to an account
 --   14. assistantqa.mysql.sql  the answers the shop writes itself
+--   15. customernotes.mysql.sql private notes and tags per customer
 --
 -- Deliberately NOT included — these are repairs, not install steps, and each
 -- is run by hand when its own report says it is needed:
@@ -2270,4 +2271,32 @@ create table if not exists assistant_qa (
 -- The matcher reads every active row on a miss-heavy path, so the index that
 -- matters is the one that keeps hidden rows out of that scan.
 create index if not exists idx_assistant_qa_active on assistant_qa (active, id);
+
+-- ========================================================================
+-- CRM — private notes and tags per customer
+-- (customernotes.mysql.sql)
+-- ========================================================================
+
+-- Private notes and tags per customer, for the CRM card on /backends Orders.
+--
+-- Keyed by PHONE, because that is what a customer IS in the CRM (see
+-- admin.php's crm_customers): the canonical 965 + eight digits store_phone()
+-- returns, the same form orders, blocked_customers and customers use, so a
+-- note joins to all three by plain equality.
+--
+-- One row per phone, not one per note: a CRM note here is "what the owner
+-- wants to remember about this person", edited in place, not a log. Who last
+-- changed it and when is kept; the admin audit log already records every save.
+--
+-- Safe to re-run. admin.php also creates this table on first use if it is
+-- missing, so a shop that never imports this file still gets the feature.
+create table if not exists customer_notes (
+  phone       varchar(15)  not null primary key,
+  note        text         null,
+  -- Comma-separated, each tag trimmed and free of commas. A few short labels
+  -- ("VIP", "prefers WhatsApp") do not need a join table.
+  tags        varchar(400) not null default '',
+  updated_by  varchar(190) null,
+  updated_at  timestamp    not null default current_timestamp on update current_timestamp
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
