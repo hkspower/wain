@@ -3326,3 +3326,28 @@ a[class~="aspect-[4/5]"][class~="overflow-hidden"][class~="bg-slate-100"] {
 button[class~="h-16"][class~="w-16"][class~="shrink-0"][class~="overflow-hidden"][class~="rounded-xl"][class~="border-2"] {
   height: 5rem !important;
 }
+
+/* INVOICE TOTALS AND THE SIZE LINE — 2026-09-23, asked for as "improve
+ * invoice layout". Two measured faults on /invoice/<track>, both worst on a
+ * phone:
+ *
+ *   - The totals are <tfoot> rows of the items table, label cell then value
+ *     cell with no gap between them. At 390px "المجموع الفرعي" wrapped onto
+ *     two lines and the grand-total label ran straight into its number
+ *     ("الإجمالي9.000"). nowrap plus a gap on the label side fixes both.
+ *   - The garment's size printed as a bare "L" under the name, with nothing
+ *     saying what the letter is. It is labelled per language here because the
+ *     bundle that renders it has no source in this repository. */
+.invoice tfoot td {
+  white-space: nowrap;
+}
+.invoice tfoot td:not(:last-child) {
+  padding-inline-end: 1rem;
+}
+.invoice tbody td > span[class~="block"][class~="text-xs"][class~="font-semibold"][class~="text-slate-700"]::before {
+  content: "Size: ";
+  font-weight: 400;
+}
+html[lang="ar"] .invoice tbody td > span[class~="block"][class~="text-xs"][class~="font-semibold"][class~="text-slate-700"]::before {
+  content: "المقاس: ";
+}
