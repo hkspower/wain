@@ -2277,19 +2277,42 @@ a plain spread. Leaving `FlatCompat` wrapped around an already-flat config makes
 `property 'react' closes the circle`, with a stack inside `@eslint/eslintrc`. It
 reads like a broken plugin rather than a wrapper one version out of date.
 
-**One red is back, measured 16 September, and it is neither the test's fault
-nor the code's — the sandbox's own headless Chromium never fires
-`SpeechRecognition.onstart`.** `shouq-flow.test.mjs`'s «ringing becomes
-connected» times out waiting for it, in **local mode only** — the browser's
-own Web Speech API, not شوق's agent. Confirmed pre-existing rather than a
-regression: reproduces identically with `git stash` back to the previous
-commit, before anything in this session touched the file. Nothing here
-depends on a network call `HTTPS_PROXY` could block, unlike the widget-URL and
-TTS-bridge flakes elsewhere in this file — this looks like the container's
-Chromium build having no Web Speech backend to talk to at all. `test:shouq`'s
-other four layers (answers, battery, brief, clips, bridge, agent mode) and the
-whole of `test:hangout` stayed green throughout, which is what narrowed this
-to local mode specifically and ruled out anything broader breaking.
+**THAT RED IS FIXED, AND EVERYTHING THIS PARAGRAPH USED TO SAY ABOUT IT WAS
+WRONG.** It read: «neither the test's fault nor the code's — the sandbox's own
+headless Chromium never fires `SpeechRecognition.onstart` … the container's
+Chromium build having no Web Speech backend to talk to at all». Every clause
+of that is false, and it survived because «the environment is broken» is the
+one diagnosis nobody re-checks.
+
+`shouq-flow` installs its own stub recogniser and `getRecognition()` picks
+`w.SpeechRecognition ?? w.webkitSpeechRecognition` — the stub is assigned to
+the unprefixed name, so **the stub is what runs and no backend is ever
+involved**. Probed directly, same stub, same expression: `isStub: true`,
+`started: true`, `onstartFired: true`.
+
+**The real cause was `run-shouq.mjs` asking for local mode with `""`.**
+`wain-ai.ts` resolves the id with `||` — correct and deliberate, because `??`
+let an unset CI variable ship the fallback — so an empty string falls through
+to `DEFAULT_AGENT_ID`. The «local mode» pass was building **agent mode with
+the real production agent**, and `build()`'s own label printed «(local mode —
+no agent)» over it. The panel then never reaches «متصل» because the widget
+cannot load (unpkg is blocked here), which looks exactly like a microphone
+fault. Same shape as the deploy.yml failure recorded above — *the log
+asserted she was in a build that had her out* — in a second place, pointing
+the other way. Fixed by passing the documented off switch, `"none"`.
+
+**And the timeout was hiding far more than one assertion.** It is an uncaught
+`TimeoutError`, so it took the process with it: the file holds 75 `ok()` calls
+across 16 sections and **3 sections ran**. Hang-up and its duration, the
+sheet's position in both display modes, the abort-report races, the dial
+timeout, all five error-code messages, the face, and the on-demand chunk load
+were unmeasured for as long as this was «one known red». With `"none"` the
+file runs to the end: **84 assertions, 0 failed, all suites passed.**
+
+The lesson worth keeping is not about Web Speech. **A red attributed to the
+environment stops being investigated**, so it has to be the conclusion that
+is hardest to reach, not the easiest — and an uncaught throw in a test file
+is a silent coverage hole, not one failure.
 
 **There is no OTHER red left, and the last one was the test's fault, not the
 code's.** The swipe suite's «a 4px scroll is left where it was put» failed on
