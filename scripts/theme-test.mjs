@@ -82,7 +82,7 @@ try {
   check(before.primary === '18 78% 49%', `--primary is the built value (${before.primary})`)
   check(before.spacing === '.25rem' || before.spacing === '0.25rem',
     `--spacing is the built value (${before.spacing})`)
-  check(/Alexandria/.test(before.bodyFont), `body still uses Alexandria (${before.bodyFont.slice(0, 40)})`)
+  check(/IBM Plex Sans/.test(before.bodyFont), `body still uses the built face, IBM Plex Sans (${before.bodyFont.slice(0, 40)})`)
 
   // ---- 2. a theme saved: every field reaches the browser -------------------
   setTheme({
@@ -122,7 +122,7 @@ try {
   /* One knob, three corners, proportions kept: 1rem base -> lg is 1rem. */
   check(after.radiusLg === '1rem', `--radius-lg scaled from the one value (${after.radiusLg})`)
   check(/Verdana/.test(after.bodyFont), `body uses the owner's face (${after.bodyFont.slice(0, 40)})`)
-  check(/Alexandria/.test(after.bodyFont),
+  check(/IBM Plex Sans/.test(after.bodyFont),
     'and the built stack is still behind it, so a missing face degrades to today')
 
   // ---- 3. dark mode gets its OWN accent text ------------------------------
@@ -143,7 +143,7 @@ try {
 
   console.log('\n--- cleared again')
   check(gone.brand === '#e0561c', `--brand is back to the built value (${gone.brand})`)
-  check(/Alexandria/.test(gone.bodyFont) && !/Verdana/.test(gone.bodyFont),
+  check(/IBM Plex Sans/.test(gone.bodyFont) && !/Verdana/.test(gone.bodyFont),
     'and the built font is back — clearing is the way out of a bad edit')
 } finally {
   clearTheme()

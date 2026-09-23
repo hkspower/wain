@@ -41,6 +41,12 @@ import { useSession } from '@/lib/session';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
+/** The shipped faces, then every uploaded family, each once. An upload that
+ *  happens to share a shipped face's name must not draw two identical chips. */
+function fontChoices(shipped: string[], uploaded: { family: string }[]): string[] {
+  return [...new Set([...shipped, ...uploaded.map((f) => f.family).filter(Boolean)])];
+}
+
 export default function SettingsScreen() {
   const { token, signOut } = useSession();
 
@@ -713,7 +719,16 @@ export default function SettingsScreen() {
             Heading font
           </ThemedText>
           <View style={styles.fontChips}>
-            {['Alexandria', 'IBM Plex Sans Arabic', ...fonts.map((f) => f.family)].map((name) => (
+            {/* "Shop default" writes an EMPTY field, which is how theme.js
+                leaves the built face alone — clearer than asking the owner to
+                empty a text box. The named list is the faces the shop
+                actually ships since the 2026-09-19 font swap (Anton for
+                headings, IBM Plex Sans for body, Plex Arabic behind both);
+                it used to offer Alexandria first, which the shop no longer
+                uses. */}
+            <Chip label="Shop default (Anton)" active={!theme.fontHead}
+              onPress={() => setT('fontHead', '')} />
+            {fontChoices(['Anton', 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Alexandria'], fonts).map((name) => (
               <Chip key={name} label={name} active={theme.fontHead === name}
                 onPress={() => setT('fontHead', name)} />
             ))}
@@ -733,7 +748,9 @@ export default function SettingsScreen() {
             Body font
           </ThemedText>
           <View style={styles.fontChips}>
-            {['Alexandria', 'IBM Plex Sans Arabic', ...fonts.map((f) => f.family)].map((name) => (
+            <Chip label="Shop default (IBM Plex Sans)" active={!theme.fontBody}
+              onPress={() => setT('fontBody', '')} />
+            {fontChoices(['IBM Plex Sans', 'IBM Plex Sans Arabic', 'Alexandria'], fonts).map((name) => (
               <Chip key={name} label={name} active={theme.fontBody === name}
                 onPress={() => setT('fontBody', name)} />
             ))}

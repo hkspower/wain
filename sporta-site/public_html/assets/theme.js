@@ -176,8 +176,14 @@
      falls back to what the shop uses today rather than to Times. Arabic is not
      optional here — dropping IBM Plex Sans Arabic would leave every Arabic page
      rendering in a system fallback. */
-  var STACK = 'Alexandria, "Alexandria Fallback", "IBM Plex Sans Arabic", ' +
-              '"Plex Arabic Fallback", system-ui, sans-serif'
+  /* TWO STACKS, and they are the ones sporta-ui.css's font swap (2026-09-19)
+     actually ships — Anton for headings, IBM Plex Sans for body, IBM Plex Sans
+     Arabic behind both. This used to be one Alexandria stack, which stopped
+     being "what the shop uses today" the day the swap landed. */
+  var STACK_BODY = '"IBM Plex Sans", "IBM Plex Sans Arabic", ' +
+                   '"Plex Arabic Fallback", system-ui, sans-serif'
+  var STACK_HEAD = 'Anton, "IBM Plex Sans Arabic", "Alexandria Fallback", ' +
+                   'system-ui, sans-serif'
 
   fetch('/api/api.php?r=theme', { credentials: 'omit' })
     .then(function (r) { return r.ok ? r.json() : null })
@@ -228,12 +234,19 @@
       /* FONTS ARE A RULE, NOT A VARIABLE, because the bundle hardcodes the
          family. body carries the reading face; the display face is applied to
          headings only, which is where the bundle's own display styling lives. */
+      /* !important, and it has to be: the font swap in sporta-ui.css states
+         both families with !important, so an unmarked rule here lost to it
+         and the owner's pick did nothing at all — no error, the shop simply
+         kept its own face. test:theme caught it ("body uses the owner's
+         face"). This element is appended after the stylesheet link, so at
+         equal specificity and equal importance it now wins. */
       if (t.font_body) {
-        css += 'body { font-family: "' + t.font_body + '", ' + STACK + '; }\n'
+        css += 'html, body, .eyebrow { font-family: "' + t.font_body + '", ' +
+               STACK_BODY + ' !important; }\n'
       }
       if (t.font_head) {
         css += 'h1, h2, h3, .font-display { font-family: "' + t.font_head + '", ' +
-               STACK + '; }\n'
+               STACK_HEAD + ' !important; }\n'
       }
 
       /* THE ADMIN PANEL'S OWN CHROME. Measured in AdminApp-*.js: it is built
