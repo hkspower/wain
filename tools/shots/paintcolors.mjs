@@ -15,12 +15,12 @@
 //   HOUR=12.5            at that hour rather than 2:30
 //   TIMING=1             where each colour's minutes went
 //
-// WHAT PLAYERS SEE is EXPOSURE=0.55. Auto exposure is the default
-// setting, and at night the meter sits on its 0.55 floor at 11 of 12
-// places round the track — deliberately (grade.ts, 5a4f94e2). This tool
-// measured at the manual 1.15 for its whole life, so every paint was
-// judged at twice the light a player gets: satin black measured 4% dead
-// here and 83% at 0.55.
+// WHAT PLAYERS SEE is the metered exposure: auto exposure is the
+// default setting, and this tool measured at the manual 1.15 for its
+// whole life. Where the meter actually settles at 2:30 has to be read
+// with the clock stopped (see the colour loop) — the survey that said
+// "0.55 at 11 of 12 places" ran with the real Kuwait clock driving the
+// sky, at what was dusk there.
 //
 // paint.mjs asks whether the paint MATERIAL is working — gloss, flake,
 // orange peel — on whatever colour the car happens to be wearing. This
@@ -91,12 +91,10 @@ const FINISH = (process.env.FINISH || "").trim();
 // EXPOSURE=metered measures at whatever the game's meter settles to on
 // the frame; default is the manual 1.15 this tool always measured at.
 const METERED = process.env.EXPOSURE === "metered";
-// EXPOSURE=0.55 measures at that fixed exposure. At night the meter sits
-// on its 0.55 floor at 11 of 12 places round the track (measured at
-// 2:30, 550x320) — so 0.55 IS the metered picture there, without the
-// minutes each metered row costs on a software renderer.
-// HOUR=12.5 measures at that hour instead of 2:30.
-const HOUR = process.env.HOUR ? +process.env.HOUR : 2.5;
+// EXPOSURE=0.55 measures at that fixed exposure. Exposure is one
+// multiplier before tone mapping, so a fixed value equal to where the
+// meter settles IS the metered picture, without the minutes each
+// metered row costs on a software renderer.
 const FIXED = /^[0-9.]+$/.test(process.env.EXPOSURE || "") ? +process.env.EXPOSURE : null;
 // Levers for A/B, applied to the live material after the garage has
 // painted it: BODY_HEX=1a1b1f (the albedo, as the garage would set it),
@@ -247,6 +245,15 @@ for (const only1 of ids) {
 
     e.setPaused(true);
     e.applyQualityTier("high");
+    // Stop the clock first. The default sky setting is "kuwait" — the real
+    // time in Kuwait — and update() rewrites the hour from the wall clock
+    // on every frame, re-lighting the sky four times a second. Setting the
+    // hour without this measured whatever time it really was in Kuwait:
+    // a two-hour sweep watched the sky change under it (black went from
+    // 35.5% dead to 60.3% between its first and last reading), and a run
+    // asked for noon at eleven at night got night.
+    e.timeReal = false;
+    e.timeCycling = false;
     e.timeHours = hour;
     e.world.setTimeOfDay(hour);
     e.applyDaylight();
@@ -447,6 +454,7 @@ for (const only1 of ids) {
       p10: +at(0.1).toFixed(1),
       // The weather advances with every update, paused or not, and a wet
       // road and falling rain change what a car reflects.
+      hour: +e.timeHours.toFixed(2),
       wet: +(e.wx?.wetness ?? 0).toFixed(3),
       rain: +(e.wx?.fall ?? 0).toFixed(3),
       exp: +exposure.toFixed(3),
@@ -473,7 +481,7 @@ for (const only1 of ids) {
     String(r.body).padStart(7) + String(r.spec).padStart(7) + String(r.form).padStart(7) +
     (r.hue + "°").padStart(6) + String(r.sat).padStart(6) +
     (String(r.exp) + (r.settled ? "" : "?")).padStart(7) +
-    (r.wet || r.rain ? `  wet ${r.wet} rain ${r.rain}` : "")
+    `  ${r.hour}h` + (r.wet || r.rain ? `  wet ${r.wet} rain ${r.rain}` : "")
   );
  }
 }

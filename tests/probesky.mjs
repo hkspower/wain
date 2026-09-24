@@ -61,6 +61,9 @@ const r = await page.evaluate(() => {
   const e = window.__grnEngine, THREE = window.__grnThree;
   e.skipCinematic?.();
   e.setPaused(true);
+  // Stop the clock: the default sky is the real time in Kuwait, and
+  // update() would put it back.
+  e.timeReal = false; e.timeCycling = false;
   e.timeHours = 2.5; e.world.setTimeOfDay(2.5); e.applyDaylight();
   const m = 587;
   e.player.s = m; e.player.lat = 0; e.player.speed = 0;
