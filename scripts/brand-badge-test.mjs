@@ -44,7 +44,7 @@ const grid = async (page) => {
       cards: document.querySelectorAll('a[href*="/product/"] > img').length,
       marked: document.querySelectorAll('[data-sporta-brand]').length,
       chips: chips.length,
-      hrefs: chips.map((c) => c.closest('a')?.getAttribute('href') ?? ''),
+      hrefs: chips.map((c) => (c.closest('a') ?? c.closest('.group')?.querySelector('a[href*="/product/"]'))?.getAttribute('href') ?? ''),
       alt: chips[0]?.querySelector('img')?.getAttribute('alt') ?? '',
       src: chips[0]?.querySelector('img')?.getAttribute('src') ?? '',
       /* More than one chip inside a single card is the duplicate-append bug. */

@@ -17,6 +17,12 @@ import { existsSync, readFileSync } from 'node:fs'
 // rig finds on a machine with no certificate installed, and defaulting to it
 // is what makes the suite runnable there.
 const DEFAULTS = ['wallet/SP-TEST-0001.pkpass', 'wallet/SP-DEMO-0001-UNSIGNED.zip']
+// A fresh checkout has no pass at all (wallet/ is git-ignored), and a suite
+// that stops at "build one first" is a suite that never runs in a full scan.
+// So with no argument, build the unsigned demo the same way a person would.
+if (!process.argv[2] && !DEFAULTS.some(existsSync)) {
+  execFileSync('node', ['scripts/make-wallet-pass.mjs'], { stdio: 'ignore' })
+}
 const file = process.argv[2] ?? DEFAULTS.find(existsSync)
 if (!file || !existsSync(file)) {
   console.error(

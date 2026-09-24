@@ -115,9 +115,11 @@ for (const lang of ['en', 'ar']) {
     const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize)
     return { h: img ? img.getBoundingClientRect().height : null, rootPx }
   })
-  const want = 2.5 * rootPx
+  // 3.25rem at this 1280px width since 2026-09-22, when the owner asked for
+  // the logo bigger again ("increase logo size"); 2.75rem below 768px.
+  const want = 3.25 * rootPx
   check(h !== null && Math.abs(h - want) < 1,
-    `${lang}: the logo renders at 2.5rem (up from the shipped 2.25rem/9)`, `got=${h}px want=${want.toFixed(1)}px`)
+    `${lang}: the logo renders at 3.25rem on desktop`, `got=${h}px want=${want.toFixed(1)}px`)
   await page.close()
 }
 

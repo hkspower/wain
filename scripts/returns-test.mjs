@@ -317,7 +317,15 @@ let madeRef = null
   const b = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
   const p = await b.newPage({ viewport: { width: 390, height: 844 } })
   const errors = []
-  p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()) })
+  // A resource that failed on ANOTHER host is the sandbox's network, not the
+  // shop: this container's proxy refuses use.typekit.net and friends, which
+  // production reaches. Same-origin failures still count, in full.
+  p.on('console', (m) => {
+    if (m.type() !== 'error') return
+    const at = m.location()?.url || ''
+    if (/Failed to load resource/.test(m.text()) && at && !at.startsWith(BASE)) return
+    errors.push(m.text())
+  })
   p.on('pageerror', (e) => errors.push(String(e)))
 
   await p.goto(BASE + '/returns/request', { waitUntil: 'networkidle' })
@@ -578,7 +586,15 @@ let madeRef = null
   const b = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
   const p = await b.newPage({ viewport: { width: 390, height: 844 } })
   const errors = []
-  p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()) })
+  // A resource that failed on ANOTHER host is the sandbox's network, not the
+  // shop: this container's proxy refuses use.typekit.net and friends, which
+  // production reaches. Same-origin failures still count, in full.
+  p.on('console', (m) => {
+    if (m.type() !== 'error') return
+    const at = m.location()?.url || ''
+    if (/Failed to load resource/.test(m.text()) && at && !at.startsWith(BASE)) return
+    errors.push(m.text())
+  })
   p.on('pageerror', (e) => errors.push(String(e)))
 
   // WHICH SERVER IS THE BUNDLE TALKING TO? first-admin-test.mjs already learned

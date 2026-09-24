@@ -123,7 +123,9 @@ const readPanel = (page) => page.evaluate(() => {
 // not on the page.
 const PHONE = { width: 390, height: 844 }
 
-const SHIPPED = { header: '#2b2b2b', tabbar: '#ffffff', tabCurrent: '#4f46e5', secondary: '#a6acb2' }
+/* #2d3034 since 2026-09-22: the owner asked for the top bar to match the
+   footer, measured at rgb(45,48,52). It was #2b2b2b before that. */
+const SHIPPED = { header: '#2d3034', tabbar: '#ffffff', tabCurrent: '#4f46e5', secondary: '#a6acb2' }
 const CHOSEN = {
   header_bg: '#123456',
   tabbar_bg: '#0a0b0d',

@@ -67,9 +67,15 @@
    picked. The first attempt at this was #2b3138, which looked fine by eye and
    came back at 1.16:1 — under the floor the rig in color-test.mjs asks for,
    and the honest fix was to lift the dial rather than lower the threshold to
-   meet it. */
+   meet it.
+
+   LIFTED AGAIN TO #3e454d, 2026-09-24. The header itself went from #23262A to
+   #2d3034 on 2026-09-22 (the owner's "match the footer"), which brought the
+   old dial down to 1.17:1 against it — the same no-edge fault, caused by the
+   bar moving rather than the dial. #3e454d restores 1.37:1, the separation
+   this was tuned to, with the white hands still at 9.7:1 on it. */
 .app-header svg[viewBox='0 0 48 48'] .fill-ink-soft {
-  fill: #343b43 !important;
+  fill: #3e454d !important;
 }
 .app-header svg[viewBox='0 0 48 48'] .stroke-white\/20 {
   stroke: rgba(255, 255, 255, 0.38) !important;
@@ -91,7 +97,7 @@
    hand against a lighter face. It exists to keep a hand legible where it
    crosses a tick, so it has to be the colour of what is actually behind it. */
 .app-header svg[viewBox='0 0 48 48'] .stroke-ink-soft {
-  stroke: #343b43 !important;
+  stroke: #3e454d !important;
 }
 
 /* The digits beside it. They were 13.7px at 85% white — the smallest text in

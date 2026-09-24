@@ -141,9 +141,13 @@ console.log(`\n--- ${selectors.size} selectors in sporta-dark.css, against ${PAG
 
 // --- what each rule CLAIMS a colour becomes, read out of the sheet ----------
 const clean = css.replace(/\/\*[\s\S]*?\*\//g, '')
-const vars = Object.fromEntries(
-  [...clean.matchAll(/(--sp-[a-z-]+)\s*:\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]),
-)
+// ONLY the blocks the audited pages are under: `:root` and the dark theme.
+// Reading every --sp-* in the file let the later `dark-white` block's
+// --sp-silver (#d0d0d0) stand in for the dark one, and 29 correctly painted
+// labels were reported as outranked.
+const vars = {}
+for (const b of clean.matchAll(/(:root(?:\[data-theme='dark'\])?)\s*\{([^}]*)\}/g))
+  for (const m of b[2].matchAll(/(--sp-[a-z-]+)\s*:\s*([^;]+);/g)) vars[m[1]] = m[2].trim()
 const PROP = { 'background-color': 'backgroundColor', color: 'color', 'border-color': 'borderTopColor' }
 const claims = []
 for (const m of clean.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
@@ -230,8 +234,12 @@ for (const path of PAGES) {
     const out = []
     for (let i = 0; i < cl.length; i++) {
       const [sel, prop, want] = cl[i]
+      // Deliberate later overrides in sporta-ui.css, by element: the hero's
+      // `bg-ink` is painted #000 at the owner's request ("remove black",
+      // under the black top bar). Sample another element for that selector.
+      const OVERRIDDEN = '[class~="isolate"][class~="overflow-hidden"][class~="bg-ink"], [class~="shrink-0"][class~="bg-ink"]'
       let el
-      try { el = document.querySelector(sel) } catch { continue }
+      try { el = [...document.querySelectorAll(sel)].find((e) => !e.matches(OVERRIDDEN)) } catch { continue }
       if (!el) continue
       let expected = want
       for (let j = i + 1; j < cl.length; j++) {

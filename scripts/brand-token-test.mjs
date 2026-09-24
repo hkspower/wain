@@ -90,11 +90,16 @@ const paintedIn = (page, colours) =>
 
 console.log(`--- the brand token, at ${BASE}\n`)
 
+let brandish0 = -1
 // ── 1. no theme: the shop is exactly what it was ──────────────────────────
 {
   const { ctx, page } = await open(null)
   const brandish = await paintedIn(page, ORIGINALS)
-  check(brandish.length >= 5, 'the page paints a useful number of brand elements', `found=${brandish.length}`)
+  brandish0 = brandish.length
+  // Dark White (owner's choice, 2026-09-2x) keeps orange on .btn-primary ONLY,
+  // so the count fell from dozens to the primary buttons. The floor is those
+  // buttons, and the next check names one; zero would mean the token is dead.
+  check(brandish.length >= 1, 'the page paints a useful number of brand elements', `found=${brandish.length}`)
   // The primary button is the element this whole exercise nearly missed. It is
   // NOT painted by --primary despite the built rule saying so: sporta-dark.css
   // sets `[data-theme=dark] .btn-primary{background-color:var(--sp-ember-fill)
@@ -135,7 +140,7 @@ console.log(`--- the brand token, at ${BASE}\n`)
     '--primary is written as HSL CHANNELS, not a hex', `got=${vars.primary || '(unset)'}`)
 
   const stillOrange = await paintedIn(page, ORIGINALS)
-  check(stillOrange.length >= 5,
+  check(stillOrange.length >= 1 && stillOrange.length === brandish0,
     'and setting the shop\'s own colour changes nothing on screen', `unchanged=${stillOrange.length}`)
   await ctx.close()
 }

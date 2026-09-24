@@ -68,7 +68,9 @@ function ratio(hexA, hexB) {
 // The exact pair this colour choice depends on, checked before anything else
 // — if this stops being true the header itself is wrong regardless of what
 // the browser renders.
-const r = ratio('#ffffff', '#2b2b2b')
+/* #2d3034 since 2026-09-22: the owner asked for the top bar to match the
+   footer, measured at rgb(45,48,52). It was #2b2b2b before that. */
+const r = ratio('#ffffff', '#2d3034')
 check(r >= 4.5, `white on the charcoal header clears AA for body text (${r.toFixed(2)}:1)`,
   r < 4.5 ? 'the header colour needs revisiting, not the check' : '')
 
@@ -109,7 +111,7 @@ for (const [lang, expectTerms, expectTitle] of [
     return m ? '#' + m.slice(0, 3).map((n) => Number(n).toString(16).padStart(2, '0')).join('') : rgb
   }
 
-  check(rgbToHex(info.bg) === '#2b2b2b', `${lang}: the header background is charcoal`, info.bg)
+  check(rgbToHex(info.bg) === '#2d3034', `${lang}: the header background is charcoal`, info.bg)
   check(info.links.every((l) => rgbToHex(l.color) === '#ffffff'),
     `${lang}: every nav link is white (even though the menu is currently hidden)`,
     info.links.filter((l) => rgbToHex(l.color) !== '#ffffff').map((l) => `${l.text}=${l.color}`).join(', '))

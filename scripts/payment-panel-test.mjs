@@ -67,7 +67,7 @@ const errors = []
 p.on('pageerror', (e) => errors.push(String(e).slice(0, 160)))
 
 const card = () => p.locator('[data-sporta-panel="payment"]')
-const idField = () => card().locator('.spk-input')
+const idField = () => card().locator('.spk-input[type="text"]')
 const note = () => card().locator('.spk-note')
 
 const openTab = async (name) => {
@@ -121,7 +121,7 @@ try {
   const stamp = 'RIG' + String(Date.now()).slice(-6)
   await idField().fill(stamp)
   posts.length = 0
-  await card().getByRole('button').filter({ hasText: /Save Tranportal ID/ }).click()
+  await card().getByRole('button').filter({ hasText: /^Save$/ }).click()
   await p.waitForTimeout(2500)
 
   const sent = posts.find((x) => x.route === 'settings_save')
@@ -135,7 +135,7 @@ try {
     'the Tranportal ID landed in the database as typed',
     `stored=${JSON.stringify(stored.tranportal_id)}`)
   check(/Saved/.test(await note().innerText()), 'and the panel says so')
-  check((await p.locator('.spk-src').innerText()).includes('saved here'),
+  check((await p.locator('.spk-src').first().innerText()).includes('saved here'),
     'the source line now says the database, not the file')
 
   /* ------------------------------------------- 4. refusals, by name, no loss */
@@ -145,7 +145,7 @@ try {
   // is alphanumeric, so this is the one that actually reaches and exercises
   // the placeholder branch rather than the shape one.
   await idField().fill('CHANGEME')
-  await card().getByRole('button').filter({ hasText: /Save Tranportal ID/ }).click()
+  await card().getByRole('button').filter({ hasText: /^Save$/ }).click()
   await p.waitForTimeout(1500)
   check(/placeholder/i.test(await note().innerText()),
     'saving the shipped placeholder is refused by name', await note().innerText())
@@ -153,7 +153,7 @@ try {
     'and the box still shows what was typed — a refusal must not erase the edit')
 
   await idField().fill('bad id!!')
-  await card().getByRole('button').filter({ hasText: /Save Tranportal ID/ }).click()
+  await card().getByRole('button').filter({ hasText: /^Save$/ }).click()
   await p.waitForTimeout(1500)
   check(/KNET issues 3 to/i.test(await note().innerText()),
     'a malformed ID is refused by name too', await note().innerText())
@@ -162,11 +162,11 @@ try {
 
   /* ------------------------------------------ 5. clearing returns to file */
   await idField().fill('')
-  await card().getByRole('button').filter({ hasText: /Save Tranportal ID/ }).click()
+  await card().getByRole('button').filter({ hasText: /^Save$/ }).click()
   await p.waitForTimeout(2000)
-  check((await p.locator('.spk-src').innerText()).includes('knet/config.php'),
+  check((await p.locator('.spk-src').first().innerText()).includes('knet/config.php'),
     'clearing the box hands control back to the file',
-    await p.locator('.spk-src').innerText())
+    await p.locator('.spk-src').first().innerText())
 
   console.log('')
   console.log(fails ? `${fails} check(s) failed` : 'all ok')

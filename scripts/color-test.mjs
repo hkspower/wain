@@ -225,6 +225,13 @@ for (const scheme of ['light', 'dark']) {
 
         // Every colour value the page names, for the palette check.
         for (const prop of ['color', 'backgroundColor', 'borderTopColor']) {
+          // A DISABLED <button> gets the browser's own text colour,
+          // rgba(16,16,16,.3) in Chrome — #101010 once the alpha is dropped.
+          // react-native-web renders a disabled Pressable as one, and its label
+          // is a child <div> with a colour of its own, so the button's `color`
+          // paints nothing. Found 2026-09-24 as the only stray on the site: the
+          // sign-in button on /account before the form is filled in.
+          if (prop === 'color' && el.disabled) continue
           const c = parse(cs[prop])
           if (c && c.a > 0) seen.add(hex(c))
         }

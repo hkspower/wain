@@ -324,6 +324,13 @@
     + 'background:#fff;color:#171a1e;font-size:11px;font-weight:700;cursor:pointer}'
     + '.qas-pill:hover{background:var(--brand,#e0561c);color:#171a1e}'
     + '.qas-btn{z-index:21}'
+    /* THE BUNDLE NOW DRAWS ITS OWN "Choose size" BUTTON on these cards, in the
+       same bottom-end corner. The header above predates it. The button above
+       covers it completely, so a pointer could never reach it, while a
+       keyboard or a screen reader met two stacked controls for one card.
+       It is hidden only on cards this script has taken over. */
+    + '[' + MARK + '] button[aria-label^="Choose size"]:not(.qas-btn),'
+    + '[' + MARK + '] button[aria-label^="اختر المقاس"]:not(.qas-btn){display:none!important}'
 
   function style() {
     if (document.getElementById('qas-css')) return

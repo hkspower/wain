@@ -420,6 +420,7 @@ for (const [half, base, path] of PAGES) {
       const why = blocker
         ? `blocked by ${blocker[0].replace(/\s*(from\s*)?intercepts pointer events/, '')}`
         : (m.match(/outside of the viewport|not stable|not visible|not enabled/) ?? ['?'])[0]
+      if (process.env.WHY) console.log(m.slice(-700))
       dead.push(`${label} — could not be clicked: ${why}`)
       deadHere++
       continue

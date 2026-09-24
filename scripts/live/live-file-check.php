@@ -150,9 +150,9 @@ $WANT = [
     'assets/panel-tabbar-fade.js' => 'ae3f58547eec7b832159c72285eacae0c0b128adf719398b0d24dd539e535da6',
     'assets/payment.js' => '9320d6c9d1c67657320f854ce5937b8f2218cc208f533add456cdd49bb609270',
     'assets/product-mobile-layout.js' => '8bb72de9fbb3e3cd0a8b7bf8c1eee09767447a158ff56dff74702d1f8ffdbe48',
-    'assets/product-photos.js' => 'd294d9e87f86d22a2da2f02a4eec7d9496e945bd0be8fefa4b3a6483423618a8',
+    'assets/product-photos.js' => 'f5f1b2b6ce4df0319cefc0d4ca9521317c8883a4890294b09d2df9b7f2289872',
     'assets/product-research.js' => '16cb3a1518f4235dde521b3b9830bed6aeffefecfce003e9cdfd92b599b5e408',
-    'assets/quick-add-size.js' => '5de0da772f08a550953882d7cba1872c0fab9c4c44a8f75b602fba26f2f76e68',
+    'assets/quick-add-size.js' => '2e1f13b9a109c79411d57eed73054ac07ca00ffc56a8aa140195936a0e439b7a',
     'assets/react-vendor-CMgvnOJB.js' => '3f36bbb7b4c6de3289643869a25c08e7ec7055ebaeef06d597b0fa301525d579',
     'assets/returns-link.js' => '07a9d4753e0120988fe95e43d618760cfde9a3b1cfdabb31b209b2ae8a01ce10',
     'assets/returns-request.js' => '5094467272b5747acb48f9355f21a7c439ffd3d9b875930da72696adf70c49ad',
@@ -162,7 +162,7 @@ $WANT = [
     'assets/site-text-editor.js' => '4d11bfc33be2169079ab12eb7a499aa66b19dba6c94caa90da592c76a86f7207',
     'assets/site-text.js' => '1f14de76655611e43bd56e6f92f8eb16b9b420f872f18bed927b966aeba559b6',
     'assets/sporta-dark.css' => '6cb6561f1016f71b295b3355c0d606cbacffc31b45c9fa6a3e9396bc3b7e2204',
-    'assets/sporta-ui.css' => '83c24fdb3410b948880a355ea51bee64a7556b72d66761bd93a497dc04c1527f',
+    'assets/sporta-ui.css' => 'f6c428fab3b35e2a223b5e1e54cc1abcc0f7e5dd35348911249ae4b4cae13585',
     'assets/theme-colors.js' => 'db9ab1f1bd0ce33a61faabed401f35e233ffcfec6eac1456d0fabf402f782bf1',
     'assets/theme.js' => 'bf8382e9aeabb368400cf93bdf09e2fbb65d20b1e77f6f185b368d2c44d86e96',
     'assets/tile-art.js' => 'b1eaba860e149fb78bb4ab9672e607e4b88f1ce8142dcfb8ae16fcafd6f7137c',
@@ -262,7 +262,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => '1ba2a01e9f35e80a67b4b6047afcb5370b4005074a150ade4907a578cb0ebf4a',
-    'sw.js' => '5ab034ee127f9bcf035cd866f2d9f0d2c48b2c57e8a0d118cf6cd7b6e5bd6612',
+    'sw.js' => '94725451594861c49b4ee86618ddf0474b11d096f37f648fe40adb600d2f970a',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.

@@ -34,7 +34,9 @@ const WHITE_OK = new Set([
   'app/(tabs)/account.tsx:walletText',          // on #000000, the wallet card
   'app/(tabs)/index.tsx:categoryBadgeText',     // on EMBER_ON_ART, fixed in both themes
   'app/(tabs)/index.tsx:arrowGlyph',            // on EMBER_ON_ART
-  'app/(tabs)/index.tsx:categoryName',          // on the darkened category photograph
+  'app/(tabs)/index.tsx:categoryName',
+  'components/admin-shell.tsx:menuBtnText',     // on the panel's ink bar, beside brand
+  'components/hero-slider.tsx:ctaText',         // on EMBER_ON_ART, the hero pill          // on the darkened category photograph
 ])
 
 const files = execSync("git ls-files 'src/**/*.tsx' 'src/**/*.ts'", { encoding: 'utf8' })

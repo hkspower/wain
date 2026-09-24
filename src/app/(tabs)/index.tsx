@@ -11,8 +11,9 @@ import { ProductCard } from '@/components/product-card';
 import { RemoteArt } from '@/components/remote-art';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { EMBER_ON_ART, Radius, Spacing, Type } from '@/constants/theme';
+import { EMBER_ON_ART, Radius, Spacing, TapTarget, Type } from '@/constants/theme';
 import { useCart } from '@/lib/cart';
+import { useTheme } from '@/hooks/use-theme';
 import { categoryArt } from '@/lib/assets';
 import { bundledCategoryArt } from '@/lib/category-art';
 import { brandsFromProducts, categoryKicker, categoryName } from '@/lib/catalog';
@@ -20,6 +21,7 @@ import { useLang } from '@/lib/i18n';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const theme = useTheme();
   const { t, lang, dir, row, text } = useLang();
   const { products, categories } = useCart();
   const featured = products.filter((p) => p.featured).slice(0, 4);
@@ -63,8 +65,8 @@ export default function HomeScreen() {
                       accessibilityRole="button"
                       accessibilityLabel={b.name}
                       onPress={() => router.push(`/brand/${b.slug}`)}
-                      style={press()}>
-                      <Text style={styles.brandName}>{b.name.toUpperCase()}</Text>
+                      style={press(false, styles.brandTap)}>
+                      <Text style={[styles.brandName, { color: theme.text }]}>{b.name.toUpperCase()}</Text>
                     </Pressable>
                   </React.Fragment>
                 ))}
@@ -154,9 +156,11 @@ const styles = StyleSheet.create({
     fontFamily: Type.labelBold.family,
     fontSize: Type.label.size,
     letterSpacing: 0.5,
-    color: '#ffffff',
     fontWeight: '700',
   },
+  // The name alone was an 18px-tall target; the row is spaced for a thumb,
+  // so the press area grows to the shared minimum without moving the text.
+  brandTap: { minHeight: TapTarget, justifyContent: 'center' },
   // A plain divider, not a button of its own — it separates two brands and
   // is never itself tappable, so it carries no press style.
   brandDivider: {

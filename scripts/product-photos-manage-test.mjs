@@ -103,7 +103,9 @@ try {
   await p.waitForTimeout(800)
   const thumbSrc = await p.locator('.spp-row .spp-thumb').first().getAttribute('src')
   check(!!thumbSrc && thumbSrc.startsWith('blob:'), 'a queued file gets a real preview thumbnail', thumbSrc || '(none)')
-  await p.locator('.spp-x').first().click()
+  // The row now carries ↑ and ↓ before ✕ (reordering, added later), so the
+  // FIRST .spp-x is "move earlier". Click the remove button by its name.
+  await p.locator('.spp-row .spp-x[aria-label^="Take "]').first().click()
   await p.waitForTimeout(300)
   check((await p.locator('.spp-row').count()) === 0, 'removing it clears the queue row')
 

@@ -132,6 +132,17 @@ console.log('\n--- the side gutters')
   // Asserted as the TEXT RUN's distance from the viewport edge, not the
   // element's padding: padding is what was asked for, and the gap is what the
   // shopper actually sees.
+  // THE STRIP WAS REMOVED at the owner's request (3e1fb07): sporta-ui.css
+  // hides `header.app-header > p`. A hidden leaf measures 0x0 and would read as
+  // text jammed against the edge, so the removal is asserted instead, and the
+  // gutter is only measured if the strip is ever brought back.
+  const hidden = await page.evaluate(() => {
+    const p = document.querySelector('header.app-header > p')
+    return !p || getComputedStyle(p).display === 'none'
+  })
+  if (hidden) {
+    check(true, 'the promo strip stays removed, as the owner asked')
+  } else {
   const gutters = await page.evaluate(() => {
     const el = [...document.querySelectorAll('.app-header *')]
       .find((e) => e.children.length === 0 && e.textContent.trim())
@@ -146,6 +157,7 @@ console.log('\n--- the side gutters')
     gutters ? `start ${gutters.start}px / end ${gutters.end}px on "${gutters.t}"` : 'not found')
   check(gutters?.pad === '16px',
     'and it is the site\'s own 16px, not whatever the text wrap left over', gutters?.pad)
+  }
 }
 
 console.log('\n--- tapping Add')

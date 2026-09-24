@@ -597,12 +597,14 @@
         var up = el('button', 'spp-x', '↑')
         up.type = 'button'
         up.title = 'Move earlier in ' + (item.slug || 'this garment') + '’s order'
+        up.setAttribute('aria-label', up.title)
         up.disabled = !canMove
         up.onclick = function () { moveQueueItem(idx, -1) }
         row.appendChild(up)
         var down = el('button', 'spp-x', '↓')
         down.type = 'button'
         down.title = 'Move later in ' + (item.slug || 'this garment') + '’s order'
+        down.setAttribute('aria-label', down.title)
         down.disabled = !canMove
         down.onclick = function () { moveQueueItem(idx, 1) }
         row.appendChild(down)
@@ -610,6 +612,9 @@
         var x = el('button', 'spp-x', '✕')
         x.type = 'button'
         x.title = 'Take ' + item.name + ' off the list'
+        // The glyph alone ('✕', '↑', '↓') is what a screen reader would
+        // announce; the title says what the button does, so it names it too.
+        x.setAttribute('aria-label', x.title)
         x.disabled = item.status === 'uploading'
         x.onclick = function () {
           revoke(state.queue[idx])

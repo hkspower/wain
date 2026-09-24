@@ -85,16 +85,27 @@ check(/Sign out/.test(dash), 'the panel is signed in')
 const paidToday = sql("select count(*) from orders where payment_status='paid' and date(paid_at)=curdate()")
 check(dash.includes(paidToday), `orders-today matches the database (${paidToday})`)
 
+// At 390px the panel's section list sits behind "☰ Menu" (the phone layout
+// the panel gained after this rig was written), so a person opens it first.
+const openSection = async (name) => {
+  const item = p.getByText(name, { exact: true }).locator('visible=true').first()
+  if (!(await item.isVisible().catch(() => false))) {
+    await p.getByText(/☰\s*Menu/).first().click()
+    await p.waitForTimeout(400)
+  }
+  await item.click()
+}
+
 // --- the three lists -------------------------------------------------------
 for (const [tab, route] of [['Orders', /r=orders/], ['Stock', /r=variants/], ['Promotions', /r=discounts/]]) {
   api.length = 0
-  await p.getByText(tab, { exact: true }).first().click()
+  await openSection(tab)
   await p.waitForTimeout(2000)
   check(called(route) && !called(/-> [45]\d\d/), `${tab} loads from the real server`)
 }
 
 // --- an order, and a write that has to land -------------------------------
-await p.getByText('Orders', { exact: true }).first().click()
+await openSection('Orders')
 await p.waitForTimeout(1800)
 // 'new' is unpaid AND unfulfilled — the only filter guaranteed to hold an
 // order with moves left on both axes.
@@ -148,7 +159,7 @@ check(sql(`select fulfilment_status from orders where track_id='${ref}'`) === be
 // (proxying /api through to the real PHP site) is what makes it so.
 await p.goto(`${BASE}/backends`, { waitUntil: 'networkidle' })
 await p.waitForTimeout(1200)
-await p.getByText('Settings', { exact: true }).first().click()
+await openSection('Settings')
 await p.waitForTimeout(2500)
 const settingsBody = await p.locator('body').innerText()
 check(!/Could not load/.test(settingsBody), 'the Settings screen loads (api.php is reachable through the proxy too)')
