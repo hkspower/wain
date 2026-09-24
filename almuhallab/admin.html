@@ -113,7 +113,7 @@
       position: sticky; top: 0; z-index: 50; }
     .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; color: var(--on-bar); }
     .brand .logo { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
-      font-size: 17px; background: var(--on-bar-fill); color: #fff; }
+      font-size: 17px; background: var(--on-bar-fill); color: var(--on-bar); }
     .brand h1 { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.35; color: var(--on-bar); }
     .brand small { display: block; font-weight: 500; font-size: 11px; color: var(--on-bar); }
     nav.site { display: flex; gap: 4px; margin-inline-start: auto; flex-wrap: wrap; align-items: center; }
@@ -121,7 +121,7 @@
       border-radius: 9px; border: 1px solid transparent; }
     nav.site a { color: var(--on-bar); }
     nav.site a:hover { background: var(--on-bar-fill); }
-    nav.site .btn { color: #fff; border-color: var(--on-bar-bd); background: transparent; }
+    nav.site .btn { color: var(--on-bar); border-color: var(--on-bar-bd); background: transparent; }
     nav.site .btn.primary { background: #fff; color: var(--tint-strong); border-color: #fff; }
     /* the brand red measures 1.6:1 on the brown bar — unreadable. On this
        surface the logout control is white like its neighbours; the word
@@ -131,7 +131,7 @@
        1.6:1 against this brown, so خروج is outlined white here and the
        danger red stays for in-page use. */
     header > .btn, header > .btn.danger, nav.site .btn, nav.site .btn.danger {
-      background: transparent; color: #fff; border-color: var(--on-bar-bd); }
+      background: transparent; color: var(--on-bar); border-color: var(--on-bar-bd); }
     header > .btn:hover, nav.site .btn:hover { background: var(--on-bar-fill); }
     header a:focus-visible, header button:focus-visible { outline: 2px solid var(--on-bar); outline-offset: 2px; }
     /* header and tabs travel together, so the tab strip needs no magic offset */
