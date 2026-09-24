@@ -2951,6 +2951,15 @@ prefix wildcard matches every subcommand after it, so one `git *` would have
 quietly pre-approved `git push` alongside `git status`. The read-only
 subcommands are listed one by one for that reason.
 
+**Its `$schema` pointed at the wrong schema for a day, and nothing noticed.**
+It named `https://json-schema.org/draft/2020-12/schema` — the generic JSON
+Schema *meta*-schema, which tells an editor this file IS a schema and brings
+no Claude Code rules at all. The file parsed, and validated clean against the
+real schema, so the defect was only that the line meant to catch mistakes
+caught none. It is `https://json.schemastore.org/claude-code-settings.json`
+now; checked with ajv against that schema, which rejects a typo like
+`"defaultMode": "acceptedits"` that the old line let through.
+
 `.claude/settings.local.json` is gitignored: the committed file is the
 project's allowlist and every session should get the same one, where a local
 override widens it for one machine and nobody else can see that it did.
