@@ -58,9 +58,14 @@ const ARTWORK_RATIO = 2.52
 // side-crop formula as the drawn slides). This was wrong in the first
 // version of this rig and of hero-slides.js's preview; both are corrected to
 // match what a browser actually renders for a real slide.
+// CHANGED AGAIN 2026-09-24 with the hero band: the photo box is now the
+// hero's height (55svh phone, 75svh from 768) MINUS a caption band (132px
+// phone, 112px desktop), per sporta-ui.css "the hero: photo above, band
+// below". The old real render was a cropped box at every width; the real-
+// browser cross-check below is still what proves this.
 function expectedVisiblePct(vw, vh) {
-  if (vw < 768) return 100
-  return Math.min(1, (vw / vh) / ARTWORK_RATIO) * 100
+  const photoH = vw < 768 ? vh * 0.55 - 132 : vh * 0.75 - 112
+  return Math.min(1, (vw / photoH) / ARTWORK_RATIO) * 100
 }
 
 const TINY_PNG =

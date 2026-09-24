@@ -3428,3 +3428,147 @@ html[lang="ar"] .invoice tbody td > span[class~="block"][class~="text-xs"][class
 [data-theme='dark'] .ring-brand\/30 { --tw-ring-color: rgb(212 215 219 / .3); }
 [data-theme='dark'] .focus-visible\:ring-brand:focus-visible { --tw-ring-color: var(--sp-accent); }
 [data-theme='dark'] .focus\:ring-brand\/15:focus { --tw-ring-color: rgb(212 215 219 / .15); }
+
+/* ------------------------------------------ the hero: photo above, band below */
+/* 2026-09-24, "improve hero images design". The owner picked all four options:
+ * a headline and Shop button on every slide, the controls moved off the art,
+ * better phone framing, and a slow zoom.
+ *
+ * WHY A BAND UNDER THE PHOTO, NOT TEXT ON IT. The three slides put their
+ * athlete in three different places: centre-left, RIGHT, and centre. The
+ * caption sits on the reading-start side, which is the RIGHT in Arabic, so on
+ * slide 2 it would cover the athlete whatever fade went behind it. And on a
+ * phone the old full-height box showed only 33% of the banner's width, while
+ * the runner alone spans about 33%, so his front hand was always cut. A band
+ * solves both at once. The photo gets a wider box, the text and controls
+ * never touch an athlete, and it is also the bundle's own phone layout (image
+ * in an aspect box, caption below it), which sporta-ui.css had overridden.
+ *
+ * THE HERO KEEPS ITS HEIGHT (55svh on a phone, --hero-h-md on desktop), so
+ * the boot shell in index.html still matches and nothing jumps at mount. The
+ * band comes out of the photo's share:
+ *
+ *   phone 390x844   photo 332px   banner shown 47% (was 33%)   runner fits
+ *   desktop 1440x900  photo 563px   banner shown 100%            no crop
+ *
+ * Only the photo slides are affected. The five drawn fallback slides
+ * (.hero-strength etc.) never render while an active row exists. */
+section[aria-roledescription="carousel"] {
+  --sp-hero-h: 55svh;
+  --sp-band: 132px;
+}
+@media (min-width: 768px) {
+  section[aria-roledescription="carousel"] {
+    --sp-hero-h: var(--hero-h-md, 75svh);
+    --sp-band: 112px;
+  }
+}
+section[aria-roledescription="carousel"] [class~="aspect-[2.52/1]"][class~="overflow-hidden"] {
+  position: absolute !important;
+  inset: 0 0 auto 0 !important;
+  height: calc(var(--sp-hero-h) - var(--sp-band)) !important;
+  aspect-ratio: auto !important;
+}
+/* The side wash existed for a caption drawn ON the photo. There is none now,
+ * so it only darkened the art. What replaces it is a short fade at the foot,
+ * so the photo settles into the band instead of stopping at a hard line. */
+section[aria-roledescription="carousel"] [class~="aspect-[2.52/1]"] > span[class~="bg-gradient-to-r"] {
+  background-image: linear-gradient(to bottom, transparent 72%, rgb(0 0 0 / .6)) !important;
+}
+section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] {
+  min-height: 0 !important;
+  height: var(--sp-hero-h) !important;
+  align-items: flex-end !important;
+  padding: 0 16px 52px !important;   /* 52 = the controls row under the text */
+}
+section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div {
+  width: 100%;
+  max-width: none !important;
+  height: calc(var(--sp-band) - 52px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
+  align-content: center;
+  align-items: center;
+}
+/* The headline is an <h1> on the first slide and a <p class="display-title">
+ * on the others (one h1 per page), so it is matched by class, never by tag. */
+/* A slide with no caption keeps the band empty rather than half-drawn. */
+section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div:empty {
+  display: none;
+}
+section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] .display-title {
+  grid-column: 1;
+  grid-row: 1;
+  margin: 0 !important;
+  font-size: clamp(18px, 5.6vw, 22px) !important;   /* 20px on a 360 phone */
+  line-height: 1.2 !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  filter: none !important;          /* drop-shadow was for text on a photo */
+  color: var(--sp-text, #eaecee) !important;  /* pure white on the band's #000 is 21:1; test:glare caps dark pages at 18 */
+}
+section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] p:not(.display-title) {
+  grid-column: 1;
+  grid-row: 2;
+  margin: 3px 0 0 !important;
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] a {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  margin: 0 !important;
+  min-height: 44px;
+  padding: 0 18px !important;   /* the bundle's wider pill cut "Strength, your way" at 360px */
+  font-size: 14px !important;
+}
+/* Phone: the controls row sits at the foot of the band, under the text. The
+ * bundle already places it at bottom-2 and centres it; nothing to move. */
+
+@media (min-width: 768px) {
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] {
+    padding: 0 24px !important;
+  }
+  /* Three columns: text | the controls, centred | the button. The middle
+   * column is the controls' own width plus air, so a long headline is cut
+   * with an ellipsis before it can run under them. */
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div {
+    height: var(--sp-band);
+    grid-template-columns: minmax(0, 1fr) 200px minmax(0, 1fr);
+    column-gap: 16px;
+  }
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] .display-title {
+    font-size: 30px !important;
+  }
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] p:not(.display-title) {
+    font-size: 15px !important;
+  }
+  section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] a {
+    grid-column: 3;
+    justify-self: end;
+    padding: 0 28px !important;
+  }
+  /* The controls, centred in the band instead of on the athlete's feet. */
+  section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] {
+    bottom: calc((var(--sp-band) - 44px) / 2) !important;
+  }
+}
+
+/* The slow zoom. Every photo drifts, not only the visible one, so it needs no
+ * idea of which slide is active; the frame's overflow-hidden keeps the edges
+ * clean. Off for anyone who has asked their device for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  section[aria-roledescription="carousel"] [class~="aspect-[2.52/1]"] > img {
+    animation: sp-hero-drift 16s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+}
+@keyframes sp-hero-drift {
+  from { transform: scale(1); }
+  to   { transform: scale(1.06); }
+}

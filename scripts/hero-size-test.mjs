@@ -145,7 +145,10 @@ for (const [w, h] of VIEWPORTS) {
       const left = Math.abs(wrap.getBoundingClientRect().left)
       if (left < best) { best = left; img = candidate; s = wrap }
     }
-    const r = s.getBoundingClientRect()
+    // THE HERO IS THE SECTION, since 2026-09-24: the photo box is the hero
+    // minus its caption band, so measuring the photo would report the band
+    // as a lost 132px/112px. Height is the section's; the crop is the photo's.
+    const r = (document.querySelector('section[aria-roledescription="carousel"]') ?? s).getBoundingClientRect()
     const ib = img.getBoundingClientRect()
     return {
       hero: Math.round(r.height),

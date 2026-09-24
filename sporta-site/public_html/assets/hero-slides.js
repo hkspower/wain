@@ -111,14 +111,15 @@
   // The percentage of the banner's WIDTH that survives cover-crop, at a given
   // viewport. Mirrors sporta-ui.css's --hero-h / --hero-h-md formula exactly —
   // see the file header for the derivation and the citation.
+  // UPDATED 2026-09-24: the photo now sits above a caption band inside the
+  // hero (sporta-ui.css, "the hero: photo above, band below"), so the box
+  // is the hero's height minus the band, at both widths. The notes in the
+  // header above describe the box as it was before that change.
   function visiblePct(viewportW, viewportH) {
-    if (viewportW < PHONE_BREAK) {
-      // A real photo slide's phone container is `aspect-[2.52/1]` — exactly
-      // the artwork's own ratio, measured against a live render. No crop.
-      return 100
-    }
-    var boxRatio = viewportW / viewportH // 100vw / 100svh, md:aspect-auto
-    return Math.min(1, boxRatio / ARTWORK_RATIO) * 100
+    var photoH = viewportW < PHONE_BREAK
+      ? viewportH * 0.55 - 132   // 55svh hero, 132px band
+      : viewportH * 0.75 - 112   // 75svh hero, 112px band
+    return Math.min(1, (viewportW / photoH) / ARTWORK_RATIO) * 100
   }
 
   /* --------------------------------------------------------------- upload -- */
@@ -230,12 +231,10 @@
     box.appendChild(focalWrap)
 
     box.appendChild(el('p', 'hsl-hint',
-      'This shop’s hero box has no vertical crop slack at the current design — the ' +
-      'image’s full height always fills the box, so a vertical focal point would do ' +
-      'nothing. On a PHONE this slide also crops nothing at all, in either direction — ' +
-      'the phone box matches the artwork’s own ratio exactly, so focal_x has no ' +
-      'visible effect there today. It only changes what a DESKTOP visitor sees, where the ' +
-      'box is proportionally narrower than the artwork and cover-cropping trims the sides.'))
+      'The photo always fills the hero’s full height, so only the left–right position ' +
+      'matters. On a wide desktop the whole banner shows and this has little effect. On a ' +
+      'PHONE about half of the banner’s width shows, so set the focal point on the ' +
+      'athlete. The preview below shows exactly what each screen keeps.'))
 
     // Live, calibrated crop preview — desktop and phone side by side.
     var previewWrap = el('div', 'hsl-preview-wrap')
