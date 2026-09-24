@@ -110,6 +110,9 @@ const OVERRIDE = {
   // panel at a grazing angle — which mirrors the sky above anything —
   // mirrors nothing at all.
   probeFar: process.env.PROBE_FAR ? +process.env.PROBE_FAR : null,
+  // NO_DOME=1 withholds the sky from the probe: the probe as it was
+  // before 5ba70bd6, on the code as it is.
+  noDome: process.env.NO_DOME === "1" ? true : null,
 };
 if (FINISH && !["gloss", "satin", "matte"].includes(FINISH)) {
   console.error(`FINISH=${FINISH}: gloss, satin or matte`);
@@ -263,6 +266,7 @@ for (const only1 of ids) {
     if (ov.hex !== null) paintMat.color.setHex(ov.hex);
     if (ov.metal !== null) paintMat.metalness = ov.metal;
     if (ov.ior !== null) { paintMat.ior = ov.ior; paintMat.needsUpdate = true; }
+    if (ov.noDome) e.probeDome = null;
     if (ov.probeFar !== null) {
       for (const cam of e.cubeCam.children) { cam.far = ov.probeFar; cam.updateProjectionMatrix(); }
     }
@@ -441,6 +445,10 @@ for (const only1 of ids) {
       px: lum.length,
       dead: lum.length ? +((lum.filter((v) => v <= 8).length / lum.length) * 100).toFixed(1) : 0,
       p10: +at(0.1).toFixed(1),
+      // The weather advances with every update, paused or not, and a wet
+      // road and falling rain change what a car reflects.
+      wet: +(e.wx?.wetness ?? 0).toFixed(3),
+      rain: +(e.wx?.fall ?? 0).toFixed(3),
       exp: +exposure.toFixed(3),
       settled,
       finish: finish || null,
@@ -464,7 +472,8 @@ for (const only1 of ids) {
     r.id.padEnd(16) + String(r.metal).padStart(7) + (r.dead + "%").padStart(8) + String(r.p10).padStart(7) +
     String(r.body).padStart(7) + String(r.spec).padStart(7) + String(r.form).padStart(7) +
     (r.hue + "°").padStart(6) + String(r.sat).padStart(6) +
-    (String(r.exp) + (r.settled ? "" : "?")).padStart(7)
+    (String(r.exp) + (r.settled ? "" : "?")).padStart(7) +
+    (r.wet || r.rain ? `  wet ${r.wet} rain ${r.rain}` : "")
   );
  }
 }
