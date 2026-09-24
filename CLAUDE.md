@@ -472,6 +472,39 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   With the secret set, a push to this branch deploys and **nobody uploads
   anything by hand**. Without it the run stops at the first step and says so.
 
+## The 24 September deploy — `eb9bad9` is live
+
+**Read `build.json` before believing this file about what is live.** It said
+`5a5e28d`; the server said **`a46be45`**, a deploy on the 20th that this file
+never recorded. Nothing broke because of it, but the pre-deploy
+`git diff --name-only <live>..HEAD -- src public` below is only as good as the
+`<live>` you give it, and the only trustworthy source for that is the server.
+
+What shipped, 8 files under `src/` since `a46be45`: the live map's drag moving
+the pins on the compositor instead of through React, the tap warm-up and tile
+preconnect, and the three شوق call-feedback fixes. A real change, so the blob
+was worth spending.
+
+`{"ok":true,"version":"1.1.0","deployed":249,"removed":0,"emptied":0}` at
+05:34:01Z, one cron job (`vzyRln0Hvn`), deleted and **confirmed gone by a
+listing**, not by its «Request accepted».
+
+**`removed: 0` was the second firing, and the disk proved it.** A deploy
+replacing a different build cannot honestly remove nothing — and it had not:
+`_next/static/` held exactly one build-id directory, `eb9bad90…`, with
+`a46be45…` gone, one site stylesheet and one /search chunk. The job had fired
+twice and the output was of the idempotent pass. Recorded above as a trap; hit
+again here, and resolved the way the note says, by the filesystem.
+
+**All six proofs byte-exact against the archive**: `css/c268cd1888879b5b.css`
+(88,468), `eb9bad90…/_buildManifest.js` (1,049),
+`chunks/app/search/page-9fc65f916ffa3624.js` (24,453), `explore/index.html`
+(18,049), a place page (61,769), and the og image (44,217) with all 52 present.
+One more read that no size check could give: the live-map chunk is
+`815.199b6f3064265146.js`, the **new** hash from making Leaflet a static import,
+and the old `815.4b41be…` is gone — so the changed code is what is on disk,
+not merely a build that happens to have the right file sizes.
+
 ## The 20 September deploy, and three things it broke on the way
 
 `861dd9f` is live: `{"ok":true,"version":"1.1.0","deployed":249,"removed":7,
@@ -538,10 +571,11 @@ dirty-tree complaint, or the sha256 in the command stops matching the bytes
 at the pinned URL.
 
 **The live build id trails HEAD on purpose, and that is not a failed deploy.**
-The site is stamped `5a5e28d9…` — `build.json`, `_next/static/<sha>/` and
-`sw.js` all name the commit that built the archive. HEAD has moved past it
-since, and will keep moving, on commits that change the planner, this file and
-nothing that ships.
+`build.json`, `_next/static/<sha>/` and `sw.js` all name the commit that built
+the archive — `eb9bad9` as of 24 September; read `build.json` rather than this
+line, which has been stale before (see the 24 September section). HEAD moves
+past it on commits that change the planner, this file and nothing that ships —
+starting with the very commit that publishes the archive.
 
 **So do not read a mismatch as staleness. Ask git instead:**
 
