@@ -10,7 +10,7 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, COAST_FADE_M, STATIONS, FORECOURT, PAINT_SHOPS, PAINT_BAY, LAP, TUNNEL_BOX, LAP_LENGTH } from "./track";
-import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
+import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, SKY_DOME_RADIUS, WorldHandle } from "./world";
 import type { Wake } from "./plants";
 import { createCar, crownShell, CROWN, paintMetalness, TAIL, setMaxDecalPx, STYLE_REAL, POLICE, policeLamps } from "./cars";
 // A patrol car that notices. The law is pure and lives on its own so it
@@ -1077,6 +1077,12 @@ const SITUATION_LOOKS: Record<Situation, Look> = {
   lose: { tint: balance(0.98, 0.99, 1.02), sat: 0.5, contrast: 0.92 },
 };
 
+/** How far the paint's reflection probe sees, m. */
+const PROBE_FAR = 420;
+/** The radius the sky dome is drawn at inside the probe: within
+ *  PROBE_FAR with room for the probe riding 1.2 m above the car. */
+const PROBE_SKY_RADIUS = 380;
+
 export class GameEngine {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -1167,6 +1173,8 @@ export class GameEngine {
    *  one reflection policy dresses all of them. See dressReflections. */
   private carGroups = new Set<THREE.Object3D>();
   private cubeFrame = 0;
+  /** The sky dome, found once — see renderProbeFace. */
+  private probeDome: THREE.Object3D | null | undefined;
   private liveReflections = true;
   // Dynamic resolution: a continuous governor scales the internal render
   // resolution to hold frame rate; the tier sets the ceiling.
@@ -2169,7 +2177,7 @@ export class GameEngine {
       minFilter: THREE.LinearFilter,
       type: floatOk ? THREE.HalfFloatType : THREE.UnsignedByteType,
     });
-    this.cubeCam = new THREE.CubeCamera(0.5, 420, this.cubeRT);
+    this.cubeCam = new THREE.CubeCamera(0.5, PROBE_FAR, this.cubeRT);
     this.scene.add(this.cubeCam);
     this.applyLiveReflections();
     this.headlightR = new THREE.SpotLight(
@@ -2631,14 +2639,50 @@ export class GameEngine {
         hidden.push(g);
       }
     }
+    // The sky, brought inside the probe's reach.
+    //
+    // The dome is a 1900 m sphere and the probe's cameras stop at 420 m,
+    // so the probe never contained any sky at all. A panel turned up to
+    // the night mirrors mostly sky — Fresnel is strongest at exactly the
+    // grazing angles a car's flanks and roof present — and every one of
+    // them mirrored black. Measured at the exposure players get (0.55,
+    // satin, the paint booth): red went from 31.5% of its bodywork dead
+    // to 0.6% with the sky in the probe, and black from 83% to 59%.
+    //
+    // Not by pushing the far plane out. That was the version measured
+    // above, and it pulls the whole city into the probe with the sky: a
+    // sweep went from 606 draw calls to 1,332 at one spot and 312 to
+    // 1,038 at another, and unevenly per face, which is what
+    // tests/framepacing.mjs exists to catch. The dome's shader colours
+    // by the direction of its OWN vertices (world.ts), so shrunk to
+    // fit inside the far plane and centred on the probe it draws
+    // exactly the same sky — for one draw call.
+    const dome = this.probeDome === undefined
+      ? (this.probeDome = this.world.skyFollowers.find((o) => o.name === "sky") ?? null)
+      : this.probeDome;
+    const domeX = dome?.position.x ?? 0;
+    const domeZ = dome?.position.z ?? 0;
+    const domeScale = dome?.scale.x ?? 1;
     try {
       this.cubeCam.position.copy(this.playerMesh.position);
       this.cubeCam.position.y += 1.2;
       this.cubeCam.updateMatrixWorld(true);
+      if (dome) {
+        dome.position.x = this.cubeCam.position.x;
+        dome.position.z = this.cubeCam.position.z;
+        dome.scale.setScalar(PROBE_SKY_RADIUS / SKY_DOME_RADIUS);
+        dome.updateMatrixWorld(true);
+      }
       this.cubeRT.texture.generateMipmaps = face === 5 ? genMips : false;
       this.renderer.setRenderTarget(this.cubeRT, face);
       this.renderer.render(this.scene, cam);
     } finally {
+      if (dome) {
+        dome.position.x = domeX;
+        dome.position.z = domeZ;
+        dome.scale.setScalar(domeScale);
+        dome.updateMatrixWorld(true);
+      }
       this.cubeRT.texture.generateMipmaps = genMips;
       this.renderer.setRenderTarget(prevTarget, prevFace, prevMip);
       this.playerMesh.visible = true;
@@ -3981,7 +4025,7 @@ export class GameEngine {
       type: floatOk ? THREE.HalfFloatType : THREE.UnsignedByteType,
     });
     this.scene.remove(this.cubeCam);
-    this.cubeCam = new THREE.CubeCamera(0.5, 420, this.cubeRT);
+    this.cubeCam = new THREE.CubeCamera(0.5, PROBE_FAR, this.cubeRT);
     this.scene.add(this.cubeCam);
     // Re-point the paint at the new target before dropping the old one,
     // or the material spends a frame sampling a disposed texture.

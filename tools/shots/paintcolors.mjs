@@ -12,6 +12,7 @@
 //   BODY_HEX= METAL= IOR= PROBE_FAR=
 //                        levers, set on the live material or probe;
 //                        written to colors-lever.json, not colors.json
+//   HOUR=12.5            at that hour rather than 2:30
 //   TIMING=1             where each colour's minutes went
 //
 // WHAT PLAYERS SEE is EXPOSURE=0.55. Auto exposure is the default
@@ -94,6 +95,8 @@ const METERED = process.env.EXPOSURE === "metered";
 // on its 0.55 floor at 11 of 12 places round the track (measured at
 // 2:30, 550x320) — so 0.55 IS the metered picture there, without the
 // minutes each metered row costs on a software renderer.
+// HOUR=12.5 measures at that hour instead of 2:30.
+const HOUR = process.env.HOUR ? +process.env.HOUR : 2.5;
 const FIXED = /^[0-9.]+$/.test(process.env.EXPOSURE || "") ? +process.env.EXPOSURE : null;
 // Levers for A/B, applied to the live material after the garage has
 // painted it: BODY_HEX=1a1b1f (the albedo, as the garage would set it),
@@ -125,21 +128,38 @@ const [VW, VH] = (process.env.PAINT_SIZE || "1100x640").split("x").map(Number);
 const page = await browser.newPage({ viewport: { width: VW, height: VH } });
 page.setDefaultTimeout(180000);
 page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
-await page.goto("http://localhost:3000/race", { waitUntil: "networkidle" });
-await page.evaluate(() => {
-  localStorage.clear();
-  localStorage.setItem("gulf-road-nights-onboarded", "2");
-  localStorage.setItem("gulf-road-nights-coach", "3");
-});
-await page.reload({ waitUntil: "networkidle" });
-await page.click("text=START ENGINE");
-await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 180000 });
-// The game starts on its auto-exposure meter, which on a software
-// renderer turns every frame of the page's own loop into seconds of
-// work between the measurements. Pin the manual exposure straight away;
-// each colour sets what it measures at for itself.
-await page.evaluate(() => window.__grnEngine.setExposure(0, false));
-await page.waitForTimeout(4500);
+const boot = async () => {
+  await page.goto("http://localhost:3000/race", { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    localStorage.clear();
+    localStorage.setItem("gulf-road-nights-onboarded", "2");
+    localStorage.setItem("gulf-road-nights-coach", "3");
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.click("text=START ENGINE");
+  await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 180000 });
+  // The game starts on its auto-exposure meter, which on a software
+  // renderer turns every frame of the page's own loop into seconds of
+  // work between the measurements. Pin the manual exposure straight away;
+  // each colour sets what it measures at for itself.
+  await page.evaluate(() => window.__grnEngine.setExposure(0, false));
+  await page.waitForTimeout(4500);
+};
+await boot();
+// The dev server compiles routes on first request, and a compile can
+// make the page do a full reload — which destroys whatever evaluate was
+// in flight. That killed two long sweeps partway through. A colour whose
+// page went away is measured again on a fresh page, once.
+const withRetry = async (fn) => {
+  try {
+    return await fn();
+  } catch (err) {
+    if (!/Execution context was destroyed|Target page|navigation/i.test(String(err))) throw err;
+    console.log("  (the page reloaded under the measurement; starting it again)");
+    await boot();
+    return await fn();
+  }
+};
 
 mkdirSync("press/paint", { recursive: true });
 
@@ -187,7 +207,7 @@ console.log(
 
 const rows = [];
 for (const only1 of ids) {
- const r1 = await page.evaluate(async ([shots, cars, id, finish, metered, ov, fixed]) => {
+ const r1 = await withRetry(() => page.evaluate(async ([shots, cars, id, finish, metered, ov, fixed, hour]) => {
   const THREE = window.__grnThree;
   const e = window.__grnEngine;
   const out = [];
@@ -224,8 +244,8 @@ for (const only1 of ids) {
 
     e.setPaused(true);
     e.applyQualityTier("high");
-    e.timeHours = 2.5;
-    e.world.setTimeOfDay(2.5);
+    e.timeHours = hour;
+    e.world.setTimeOfDay(hour);
     e.applyDaylight();
     tick("daylight");
     e.setExposure(0, false);
@@ -434,7 +454,7 @@ for (const only1 of ids) {
     });
   }
   return out;
- }, [SHOTS, CARS, only1, FINISH, METERED, OVERRIDE, FIXED]);
+ }, [SHOTS, CARS, only1, FINISH, METERED, OVERRIDE, FIXED, HOUR]));
  for (const r of r1) {
   rows.push(r);
   if (r.err) { console.log(`${r.id.padEnd(16)} ${r.err}`); continue; }

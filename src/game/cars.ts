@@ -4424,10 +4424,19 @@ export function paintMetalness(hex: number): number {
   // across the panels of 22.8 against white's 107.9. More than half of a
   // black car was a hole.
   //
+  // (Those numbers were taken against a stale reflection probe at the
+  // manual 1.15 exposure — see tools/shots/paintcolors.mjs. At the 0.55
+  // players actually get, a satin black car was 83% dead until the probe
+  // could see the sky, and about 20% after; the sky did that, not this
+  // law, and metalness 0 for solids measured WORSE once it was in —
+  // 22-23% dead with half the tonal range.)
+  //
   // The physics says why. In a metalness workflow F0 IS the base colour,
-  // so a near-black basecoat reflects about five percent — and metalness
-  // takes the diffuse away as well, leaving a surface that neither
-  // reflects nor shades. Real metallic black is aluminium flake, which
+  // so a near-black basecoat reflects what it is: 0x0d0e11 is about half
+  // a percent of the light in linear terms (the 5% sometimes quoted for
+  // it is the sRGB byte, 13/255, not the light) — and metalness takes the
+  // diffuse away as well, leaving a surface that neither reflects nor
+  // shades. Real metallic black is aluminium flake, which
   // is bright, suspended in a dark binder; calling the whole thing a
   // black metal is the part that was wrong.
   //
@@ -4541,11 +4550,20 @@ export type Livery = "demon" | "police";
 export const POLICE = {
   /**
    * Silver, not white. A modern patrol car is a light metallic with the
-   * livery laid over it, and the difference is not pedantry: white paint
-   * has almost no metalness (see paintMetalness) so it reflects nothing
-   * and reads as a flat cutout at night, while a light silver keeps a
-   * reflection running along the flank as the car turns. It is also what
-   * the reference this was rebuilt against actually is.
+   * livery laid over it, and that is also what the reference this was
+   * rebuilt against actually is.
+   *
+   * White is not ruled out because it "reflects nothing" — it does not.
+   * Its lacquer is a full clearcoat and its basecoat still has an F0 near
+   * 0.18 (paintMetalness gives declared solids 0.16), so it mirrors the
+   * lamps like any gloss. What it lacks is CONTRAST in the reflection:
+   * three quarters of the light that reaches a white panel comes back as
+   * diffuse, which swamps the reflection running along the flank, where
+   * a light silver keeps that reflection visible as the car turns. At
+   * night the diffuse is also the wrong colour: every light that reaches
+   * a car body is the blue moon rig or the blue player rim (street lamps
+   * are emissive heads and pools on the road; they light no objects), so
+   * a white car renders pale blue.
    */
   silver: 0xd3d8de,
   /**

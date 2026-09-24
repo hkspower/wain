@@ -3356,6 +3356,10 @@ export interface WorldHandle {
   skyFollowers: THREE.Object3D[];
 }
 
+/** The night-sky dome's radius, m. The engine's reflection probe draws
+ *  the same dome shrunk to fit its own far plane, so it needs this. */
+export const SKY_DOME_RADIUS = 1900;
+
 /** Pulsing red aircraft-warning beacon for tower tops. */
 function makeBeacon(beacons: THREE.MeshStandardMaterial[]): THREE.Mesh {
   const mat = new THREE.MeshStandardMaterial({
@@ -3882,7 +3886,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         }`,
     });
     skyMatRef = skyMat;
-    const sky = new THREE.Mesh(new THREE.SphereGeometry(1900, 24, 12), skyMat);
+    const sky = new THREE.Mesh(new THREE.SphereGeometry(SKY_DOME_RADIUS, 24, 12), skyMat);
     // Named for the levels tool, which measures the delivered picture per
     // surface and otherwise has to guess which of the sky followers is
     // the dome rather than the moon, its halo or the stars.
