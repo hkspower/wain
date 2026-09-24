@@ -99,7 +99,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 dynamic = self._dynamic_route(local)
                 if dynamic:
                     return str(dynamic)
-                return str(DIST / 'index.html')
+                # An unknown path gets the exported not-found page, as a real
+                # static host would. Serving index.html here handed React the
+                # HOME page's markup to hydrate into the not-found screen:
+                # error #418 on every unknown URL, a fault of this server and
+                # not of the app.
+                missing = DIST / '+not-found.html'
+                return str(missing if missing.exists() else DIST / 'index.html')
         return str(local)
 
     @staticmethod

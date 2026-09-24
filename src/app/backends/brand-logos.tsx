@@ -105,7 +105,8 @@ export default function BrandLogosScreen() {
     void load();
   }, [load]);
 
-  const brands = rows ?? [];
+  // Memoised so `rows === null` does not hand every hook below a new [] each render.
+  const brands = useMemo(() => rows ?? [], [rows]);
   const missing = useMemo(() => brands.filter((b) => !b.logo), [brands]);
 
   /** The brands a file with no name match may land on: selected, and not

@@ -47,6 +47,12 @@ import { MAX_PHOTOS, shrinkImage, TooBig } from '@/lib/shrink-image';
 
 type Row = { picked: Picked; name: string; state: 'waiting' | 'working' | 'done' | 'failed'; note?: string };
 
+
+// Sizes are shown in the shop's own order, not alphabetically — S, M, L,
+// XL… is the order on every other screen and on the garment's own label, and
+// "2XL, 3XL, L, M, S" reads as a bug.
+const SIZE_ORDER = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'];
+
 export default function ImagesScreen() {
   const { token, signOut } = useSession();
   // Arriving from the Products screen's "Photographs" button — see there.
@@ -126,10 +132,6 @@ export default function ImagesScreen() {
     return [...seen].sort();
   }, [targets]);
 
-  // Sizes are shown in the shop's own order, not alphabetically — S, M, L,
-  // XL… is the order on every other screen and on the garment's own label, and
-  // "2XL, 3XL, L, M, S" reads as a bug.
-  const SIZE_ORDER = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'];
   const sizes = useMemo(() => {
     const seen = new Set<string>();
     for (const t of targets ?? []) {

@@ -150,7 +150,6 @@ export default function CheckoutScreen() {
       setForm(savedForm);
       setPayment(savedPayment);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));

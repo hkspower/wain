@@ -31,6 +31,19 @@ const MOBILE_COLUMNS = 2;
 const GAP_DESKTOP = 22;
 const GAP_MOBILE = 11;
 
+/**
+ * ONE PAGE PER CATEGORY at export time. Without this, `expo export` renders a
+ * single category/[id].html with the literal id "[id]", which matches no
+ * category, so the static HTML is the "nothing here" branch while the browser
+ * renders the real page — React error #418 (hydration mismatch) on every
+ * category visit, and the whole tree thrown away and redrawn. Read from the
+ * same `categories` list the screen looks ids up in, so a new category is
+ * exported the day it is added.
+ */
+export function generateStaticParams(): { id: string }[] {
+  return categories.map((c) => ({ id: c.id }));
+}
+
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
