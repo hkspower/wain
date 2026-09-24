@@ -95,6 +95,8 @@ const METERED = process.env.EXPOSURE === "metered";
 // multiplier before tone mapping, so a fixed value equal to where the
 // meter settles IS the metered picture, without the minutes each
 // metered row costs on a software renderer.
+// HOUR=12.5 measures at that hour instead of 2:30.
+const HOUR = process.env.HOUR ? +process.env.HOUR : 2.5;
 const FIXED = /^[0-9.]+$/.test(process.env.EXPOSURE || "") ? +process.env.EXPOSURE : null;
 // Levers for A/B, applied to the live material after the garage has
 // painted it: BODY_HEX=1a1b1f (the albedo, as the garage would set it),
