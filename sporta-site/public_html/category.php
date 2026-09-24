@@ -237,8 +237,14 @@ header('Cache-Control: public, max-age=0, must-revalidate');
     --sp-line:   #3a3e43;
     --sp-silver: #a6acb2;
     --sp-text:   #eaecee;
-    --sp-ember:  #ff7b17;
-    --sp-fill:   #e0561c;
+    /* DARK WHITE, 2026-09-23 — the site's theme since that day, and this page
+       does not load sporta-ui.css where the storefront's version of it lives,
+       so it has to say it here too or it stays the one orange page. These two
+       carry only accents here (the active category chip, the current sub-nav
+       link, the footer links, the clock's hand, the bag count); this page has
+       no buy button, which is the one thing the storefront keeps orange. */
+    --sp-ember:  #d4d7db;
+    --sp-fill:   #d4d7db;
     --sp-on-fill:#171a1e;
   }
   @font-face {
@@ -350,6 +356,18 @@ header('Cache-Control: public, max-age=0, must-revalidate');
   }
   .subnav a { font-size: .85rem; font-weight: 700; color: rgba(255,255,255,.75); }
   .subnav a.on { color: var(--sp-ember); }
+  /* A THUMB, NOT A MOUSE. The bag and wishlist icons draw at 22px, the sub-nav
+     links are one line of 13.6px text and the language pill is 34px tall —
+     all under the 44px a touch target needs, measured at 390px with a touch
+     device. The storefront's header solves this with a transparent overlay
+     under (pointer: coarse); the same here, so the drawn size is unchanged
+     and only the tappable area grows. */
+  @media (pointer: coarse) {
+    .icons a, .lang-pill, .subnav a { position: relative; }
+    .icons a::after { content: ""; position: absolute; inset: -11px; }
+    .lang-pill::after { content: ""; position: absolute; inset: -5px -2px; }
+    .subnav a::after { content: ""; position: absolute; inset: -14px -8px; }
+  }
   nav.cats {
     display: flex; gap: 6px; flex-wrap: wrap; overflow-x: auto;
     padding: 12px 20px; border-bottom: 1px solid var(--sp-line);

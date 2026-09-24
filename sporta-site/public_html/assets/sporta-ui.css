@@ -2788,7 +2788,9 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
     padding: 14px !important;
   }
   .cat-tile .eyebrow {
-    font-size: 11px !important;
+    /* 12px, not 11: the mobile scan of 2026-09-23 flagged 11px as the one run
+       of text on the site under the 12px floor every other rig holds to. */
+    font-size: 12px !important;
   }
   .cat-tile__title {
     font-size: 18px !important;
