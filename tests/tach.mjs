@@ -182,6 +182,53 @@ console.log(
     `${agree.rpm} rpm -> ${agree.angle} deg, arithmetic says ${agree.want.toFixed(1)}`
 );
 
+// --- 3. The needle sweeps; it does not step -------------------------
+//
+// Before revs.ts, a key press at a standstill moved the drawn needle
+// from 12% to 88% of the dial between two frames — about 190 degrees —
+// and the release put it back in one. Read the DOM every frame through
+// a blip: the most the needle may move in one 60 Hz frame is a critically
+// damped spin-up's peak rate (SPIN_UP/e of the hold per second) across
+// this car's hold, plus a margin for the gearbox creeping underneath.
+const sweep = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  const angle = () => {
+    const g = document.querySelector('[data-tach="needle"]');
+    const m = /rotate\(([-\d.]+)deg\)/.exec(g?.style.transform ?? "");
+    return m ? +m[1] : NaN;
+  };
+  const drive = (n, input) => {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      e.player.speed = 0;
+      e.setTouchInput(input);
+      e.update(1 / 60);
+      out.push(angle());
+    }
+    return out;
+  };
+  drive(40, { throttle: 0, brake: 1, steer: 0 });
+  const trace = [
+    ...drive(30, { throttle: 1, brake: 0, steer: 0 }),
+    ...drive(40, { throttle: 0, brake: 1, steer: 0 }),
+  ];
+  let worst = 0;
+  for (let i = 1; i < trace.length; i++) worst = Math.max(worst, Math.abs(trace[i] - trace[i - 1]));
+  return {
+    worst, first: trace.slice(0, 6).map((a) => +a.toFixed(1)),
+    top: Math.max(...trace), low: Math.min(...trace),
+    hold: e.tune.engine.peakAt - 0.12,
+  };
+});
+const allowed = 252 * sweep.hold * (14 / Math.E) / 60 + 1.5;
+console.log(
+  `\nsweep      ${check(sweep.worst <= allowed && sweep.top - sweep.low > 60,
+    `a throttle blip moved the drawn needle ${sweep.worst.toFixed(1)} deg in one frame (allowed ${allowed.toFixed(1)}), ` +
+    `swinging ${(sweep.top - sweep.low).toFixed(0)} deg in all`)}  ` +
+    `blip from rest: worst frame ${sweep.worst.toFixed(1)} deg of a ${(sweep.top - sweep.low).toFixed(0)}-deg swing ` +
+    `(was ~${(252 * sweep.hold).toFixed(0)} in one); first frames ${sweep.first.join(" ")}`
+);
+
 await browser.close();
 if (fail.length) {
   console.log(`\n${fail.length} FAILED`);

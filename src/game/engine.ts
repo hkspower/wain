@@ -74,6 +74,7 @@ import {
   type BrakeResult,
 } from "./brakes";
 import { GEARS, revFractionIn, upshiftAt } from "./gears";
+import { newJolt, newSpin, stepJolt, stepSpin } from "./revs";
 import { PAD } from "./pads";
 import { playerId, inviteCode, normaliseCode, isCodeShaped } from "./community";
 import { distanceById, distanceMetres, DEFAULT_DISTANCE } from "./distances";
@@ -1472,9 +1473,18 @@ export class GameEngine {
   // Garage tuning (loaded once at engine start; edit in the menu garage)
   private tune: TuneEffects = computeEffects(loadGarage());
   private boost = 0; // turbo spool 0..1
-  /** Where the needle sat this frame, 0..1 of the rev range. Shared by
-   *  the torque curve, the sound and the HUD so they cannot disagree. */
+  /** The engine's revs this frame, 0..1 of the rev range, as the torque
+   *  curve reads them — clutch hold at the raw throttle, so every car's
+   *  solved launch (accel.ts) is the launch it gets. */
   private revFrac = 0.12;
+  /**
+   * The revs the driver sees, hears and feels: revFrac with the clutch
+   * hold spun up and down through the engine's inertia (revs.ts) instead
+   * of following the key. The torque reads revFrac.
+   */
+  private revShown = 0.12;
+  private spin = newSpin();
+  private jolt = newJolt();
   /** The gear the box is actually holding, with hysteresis — see the
    *  shift block in the physics step. */
   private gearHeld = 0;
@@ -5023,6 +5033,7 @@ export class GameEngine {
     }
 
     let gearRev = revFractionIn(this.gearHeld, kmh);
+    const shifting = this.shiftT > 0;
     if (this.shiftT > 0) {
       const total = this.shiftUp ? HANDLING.shiftUpTime : HANDLING.shiftDownTime;
       this.shiftT = Math.max(0, this.shiftT - dt);
@@ -5033,8 +5044,16 @@ export class GameEngine {
       const e = k * k * (3 - 2 * k);
       gearRev = this.shiftFrom + (gearRev - this.shiftFrom) * e;
     }
-    const launch = Math.max(0, 1 - kmh / 24) * this.throttle;
+    const clutch = Math.max(0, 1 - kmh / 24);
+    const launch = clutch * this.throttle;
     this.revFrac = gearRev + (this.tune.engine.peakAt - gearRev) * launch;
+    stepSpin(this.spin, this.throttle, dt);
+    this.revShown = Math.max(0, stepJolt(
+      this.jolt,
+      gearRev + (this.tune.engine.peakAt - gearRev) * clutch * this.spin.x,
+      dt,
+      shifting
+    ));
 
     // Leaning on the rev limiter. Ramped over the last few percent of
     // the range rather than tripped at exactly 1.0, so it arrives as the
@@ -5067,11 +5086,11 @@ export class GameEngine {
     if (this.revLimited > 0.05) {
       this.shake = Math.max(this.shake, LIMITER_BUZZ_SHAKE * this.revLimited);
     }
-    // And the ramp under all of that — see HIGH_REV_FROM. Clamped to the
-    // rev fraction the torque curve actually integrated this frame, which
-    // is the same number the needle is showing, so what the driver feels
-    // and what they can see agree.
-    this.highRev = THREE.MathUtils.smoothstep(this.revFrac, HIGH_REV_FROM, 0.99);
+    // And the ramp under all of that — see HIGH_REV_FROM. Read off the
+    // revs the needle is showing, so what the driver feels and what they
+    // can see agree, and a key press at a standstill spins the buzz up
+    // with the needle instead of stepping to it (revs.ts).
+    this.highRev = THREE.MathUtils.smoothstep(this.revShown, HIGH_REV_FROM, 0.99);
     if (this.highRev > 0.01) {
       this.shake = Math.max(this.shake, HIGH_REV_SHAKE * this.highRev);
     }
@@ -7495,10 +7514,11 @@ export class GameEngine {
     if (!this.sound) return;
     const speedKmh = this.player.speed * 3.6;
     const gear = this.gearHeld;
-    // The same needle the torque curve read this frame, clutch and all —
-    // so flooring it from rest sounds like a car being launched rather
-    // than one idling away from a light.
-    const rpmFrac = this.revFrac;
+    // The same needle the dial shows, clutch and all — so flooring it
+    // from rest sounds like a car being launched rather than one idling
+    // away from a light, and the note spins up with the needle instead
+    // of stepping to the torque peak with the key (revs.ts).
+    const rpmFrac = this.revShown;
     // Tires complain when the heading fights the lane at speed — and a
     // locked wheel is the loudest complaint of all, because it is one
     // patch of rubber being erased at road speed instead of rolling.
@@ -8003,7 +8023,7 @@ export class GameEngine {
       speedKmh: this.player.speed * KMH,
       tach: (() => {
         const eng = this.tune.engine;
-        const frac = Math.min(1, Math.max(0, this.revFrac));
+        const frac = Math.min(1, Math.max(0, this.revShown));
         return {
           rpm: rpmAt(eng, frac),
           idle: eng.idleRpm,
