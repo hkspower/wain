@@ -285,7 +285,7 @@ for (const only1 of ids) {
     if (ov.noDome) e.probeDome = null;
     if (ov.rim !== null || ov.rimK !== null) {
       e.playerMesh.traverse((o) => {
-        if (!o.isPointLight || o.userData.rimBase === undefined && o.color.getHex() !== 0x86a9ff) return;
+        if (!o.isPointLight || o.name !== "rim") return;
         o.userData.rimBase ??= o.intensity;
         if (ov.rim !== null) o.color.setHex(ov.rim);
         if (ov.rimK !== null) o.intensity = o.userData.rimBase * ov.rimK;

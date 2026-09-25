@@ -2145,9 +2145,27 @@ export class GameEngine {
     this.headlight.shadow.bias = -0.002;
     this.headlight.shadow.normalBias = 0.03;
 
-    // Cool rim light riding behind the roofline — the body edge reads
-    // against dark asphalt instead of dissolving into it.
-    const rim = new THREE.PointLight(0x86a9ff, 4.5, 13, 1.8);
+    // Rim light riding behind the roofline — the body edge reads against
+    // dark asphalt instead of dissolving into it.
+    //
+    // WARM, and half again as strong as it was. It was a cool 0x86a9ff at
+    // 4.5, and from the chase camera it is effectively the key light on
+    // the car the player watches — on top of a moon, a fill, a sky and a
+    // sky reflection that are all blue. Measured at 2:30 at the exposure
+    // players get, every paint in the booth read blue: mudbrick (a brown,
+    // 30 deg) at 262 deg, sand (a beige, 54 deg) at 195, maroon purple,
+    // and silver at saturation 0.60 against 0.07 on its swatch. A/B'd on
+    // the six paints it pulled furthest, shipped -> this:
+    //
+    //   mudbrick hue 262 -> 357   sand hue 195 -> 68   silver sat 0.60 -> 0.45
+    //   maroon dead 59% -> 39%    navy dead 49% -> 37%   red dead 2.7% -> 0.8%
+    //
+    // Warm beat the cool street-lamp white (0xdfeaff) on every colour, and
+    // the extra strength is what gets the dark paints back. It is the one
+    // light in the night rig that is the car's own, so none of this moves
+    // the night the rest of the picture was graded in.
+    const rim = new THREE.PointLight(0xfff4e6, 6.75, 13, 1.8);
+    rim.name = "rim";
     rim.position.set(0, 2.6, -4.4);
     this.playerMesh.add(rim);
 
