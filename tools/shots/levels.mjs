@@ -281,6 +281,15 @@ if (process.argv.slice(2).includes("--attract")) {
 
 await page.click("text=START ENGINE");
 await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 180000 });
+// RIM=<intensity> sets the player car's rim light, so how far it pushes
+// the car toward clipping can be read against the rest of the frame
+// without editing the engine.
+if (process.env.RIM) {
+  await page.evaluate((k) => {
+    window.__grnEngine.playerMesh.traverse((o) => { if (o.isPointLight && o.name === "rim") o.intensity = k; });
+  }, +process.env.RIM);
+  console.log(`rim light at ${process.env.RIM}`);
+}
 // The world keeps assembling after "ready" — authored shells, palm
 // crowns, the reflection probe. Levels measured through that are the
 // levels of a half-built scene.
