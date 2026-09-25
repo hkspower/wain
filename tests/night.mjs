@@ -148,6 +148,10 @@ const clock = await page.evaluate(async () => {
   e.challengePending = false;
   e.inBattle = false;
   const run = (from, seconds) => {
+    // The game clock in CYCLE mode — the thing under test. Set here, not
+    // assumed: earlier sections pin the clock to read a fixed hour, and
+    // the default sky is the real time in Kuwait, which never cycles.
+    e.timeReal = false; e.timeCycling = true;
     e.timeHours = from;
     const t0 = e.timeHours;
     for (let i = 0; i < seconds * 60; i++) e.update(1 / 60);
@@ -183,7 +187,7 @@ const midRace = await page.evaluate(async () => {
   // rival in a battle state, no scoreboard — and it tidies it away on
   // the next frame, which reads exactly like "the window ended my race"
   // and is nothing of the kind.
-  e.timeReal = false; e.timeCycling = false; e.timeHours = 2;
+  e.timeReal = false; e.timeCycling = true; e.timeHours = 2;
   e.challengePending = false;
   e.locked = false;
   e.cine = null;
@@ -196,7 +200,7 @@ const midRace = await page.evaluate(async () => {
   // Close enough to the edge that the run carries the clock over it:
   // inside the window it moves about a minute and a half of game time
   // per ten seconds of play.
-  e.timeReal = false; e.timeCycling = false; e.timeHours = 5.82;
+  e.timeReal = false; e.timeCycling = true; e.timeHours = 5.82;
   // Step until the window actually closes and read the battle AT THAT
   // MOMENT, not twenty seconds later. An SP duel resolves on its own in
   // far less time than that — with the player parked, the player loses —
