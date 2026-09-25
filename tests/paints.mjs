@@ -27,7 +27,9 @@
 import {
   PAINTS, GLOWS, COVERS, PAINT_HEX, GLOW_HEX, COVER_HEX,
   CARBON_KG, NOMINAL_CAR_KG, swatch, paintFromSwatch, lab, deltaE,
+  RETIRED_SWATCHES, currentPaintHex,
 } from "../src/game/paints.ts";
+import { paintMetalness } from "../src/game/cars.ts";
 import { PARTS } from "../src/game/mods.ts";
 
 const fail = [];
@@ -225,6 +227,38 @@ const MIN_DE = 12;
   check(paintFromSwatch("#123456") === null, "an unknown colour was matched to a paint");
   check(paintFromSwatch("") === null, "an empty string was matched to a paint");
   console.log("swatches round trip in both cases, and an unknown colour stays unknown");
+}
+
+// --- 6. Retired swatches ----------------------------------------------
+//
+// A paint that changes hex keeps its old swatch working: an older client
+// sends it over the hub, and it has to draw as today's paint with today's
+// treatment rather than as an unknown colour.
+{
+  for (const [hexKey, id] of Object.entries(RETIRED_SWATCHES)) {
+    const hex = Number(hexKey);
+    const paint = PAINTS.find((p) => p.id === id);
+    check(!!paint, `retired swatch ${swatch(hex)} names ${id}, which is not a paint`);
+    check(!PAINTS.some((p) => p.hex === hex), `retired swatch ${swatch(hex)} is also a current paint's hex`);
+    if (!paint) continue;
+    check(currentPaintHex(hex) === paint.hex, `${swatch(hex)} does not map to ${id}'s current ${swatch(paint.hex)}`);
+    check(paintFromSwatch(swatch(hex))?.id === id, `the hub cannot recognise ${swatch(hex)} as ${id}`);
+    check(paintMetalness(hex) === paintMetalness(paint.hex), `${swatch(hex)} lost ${id}'s paint treatment`);
+  }
+  check(currentPaintHex(0x123456) === 0x123456, "an unknown colour was remapped");
+  console.log(`retired  ${Object.keys(RETIRED_SWATCHES).length} old swatch(es) still draw as their paint`);
+}
+
+// --- 7. Declared solids are a dielectric basecoat -----------------------
+//
+// A REGRESSION GUARD, not evidence. The evidence is the night measurement
+// in cars.ts (paintMetalness): the lacquer's reflection is the clearcoat
+// layer, and basecoat metalness on a solid only took diffuse away.
+{
+  for (const p of PAINTS.filter((q) => q.solid)) {
+    check(paintMetalness(p.hex) === 0, `${p.id} is declared solid but gets metalness ${paintMetalness(p.hex)}`);
+  }
+  console.log(`solids   ${PAINTS.filter((q) => q.solid).length} declared solids, metalness 0`);
 }
 
 console.log(

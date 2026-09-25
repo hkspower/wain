@@ -1088,7 +1088,7 @@ public static class GRNData
 
     public static readonly Paint[] Paints =
     {
-        new Paint { Id = "paint-black", Color = Hex(0x0d0e11) },
+        new Paint { Id = "paint-black", Color = Hex(0x1a1b1f) },
         new Paint { Id = "paint-gunmetal", Color = Hex(0x4a5058) },
         new Paint { Id = "paint-slate", Color = Hex(0x8593a2) },
         new Paint { Id = "paint-silver", Color = Hex(0xb9bfc7) },

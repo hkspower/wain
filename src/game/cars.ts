@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { EXHAUSTS, FINISHES, kitAtLeast, type ExhaustSpec, type KitLevel, type PaintFinish } from "./mods";
-import { PAINTS, type CarbonLevel } from "./paints";
+import { PAINTS, currentPaintHex, type CarbonLevel } from "./paints";
 import { upgradeCarShells, upgradeWheels, upgradeDriver, upgradePoliceBar } from "./models";
 import { arabicUI, arabicSign, latinDisplay, textTexture } from "./text";
 import { kuwaitiDriver } from "./characters";
@@ -4406,10 +4406,23 @@ export function paintMetalness(hex: number): number {
   // through createCar's `body: number` — the hexes are unique and
   // tests/paints.mjs is what keeps them that way.
   //
-  // 0.16 rather than 0: a solid coat is pigment under lacquer, and the
-  // lacquer is still a reflective surface. What it is not is a mirror.
-  const known = PAINTS.find((p) => p.hex === hex);
-  if (known?.solid) return 0.16;
+  // 0, and not the 0.16 this used to be. A solid coat is pigment under
+  // lacquer, and the lacquer IS a reflective surface — but in
+  // MeshPhysicalMaterial the lacquer is the clearcoat, its own layer with
+  // its own reflection, sitting on top of this basecoat. Giving the
+  // basecoat metalness as well counted the lacquer twice, and paid for it
+  // in diffuse: every point of metalness takes the same point of
+  // diffuse away. Measured at 2:30 at the 0.55 exposure players get,
+  // satin, sky in the probe, 0.128 (0.16 x satin) -> 0:
+  //
+  //   white    median 173 -> 183.5, less blue (saturation 0.44 -> 0.39)
+  //   black    67.2% of the bodywork dead -> 64.6% (54.3% with its lift)
+  //   diver    22.4% -> 16.7%;   olive, molasses, mudbrick, sage brighter
+  //
+  // Old swatches a client may still send are mapped to today's paint
+  // first (RETIRED_SWATCHES), so they keep the treatment.
+  const known = PAINTS.find((p) => p.hex === currentPaintHex(hex));
+  if (known?.solid) return 0;
   const r = ((hex >> 16) & 255) / 255;
   const g = ((hex >> 8) & 255) / 255;
   const b = (hex & 255) / 255;
@@ -4427,9 +4440,9 @@ export function paintMetalness(hex: number): number {
   // (Those numbers were taken against a stale reflection probe at the
   // manual 1.15 exposure — see tools/shots/paintcolors.mjs. At 2:30, at
   // the 0.55 players actually get, a satin black car is 74.8% dead with
-  // the probe as it was and 67.2% with the sky in it. Metalness 0 for
-  // solids was only ever A/B'd with the game clock running — at dusk in
-  // Kuwait — so it is untested at night, not rejected.)
+  // the probe as it was, 67.2% with the sky in it, and 54.3% with the
+  // sky, metalness 0 for solids (above) and paint-black's lift to
+  // 0x1a1b1f together.)
   //
   // The physics says why. In a metalness workflow F0 IS the base colour,
   // so a near-black basecoat reflects what it is: 0x0d0e11 is about half
@@ -4554,9 +4567,8 @@ export const POLICE = {
    * rebuilt against actually is.
    *
    * White is not ruled out because it "reflects nothing" — it does not.
-   * Its lacquer is a full clearcoat and its basecoat still has an F0 near
-   * 0.18 (paintMetalness gives declared solids 0.16), so it mirrors the
-   * lamps like any gloss. What it lacks is CONTRAST in the reflection:
+   * Its lacquer is a full clearcoat, so it mirrors the lamps like any
+   * gloss. What it lacks is CONTRAST in the reflection:
    * three quarters of the light that reaches a white panel comes back as
    * diffuse, which swamps the reflection running along the flank, where
    * a light silver keeps that reflection visible as the car turns. At

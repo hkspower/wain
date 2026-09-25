@@ -166,7 +166,15 @@ export interface Paint {
  */
 export const PAINTS: Paint[] = [
   // --- mono: the ones most cars on any road actually are
-  { id: "paint-black", hex: 0x0d0e11, family: "mono", solid: true },
+  // 0x1a1b1f, lifted from 0x0d0e11. At the exposure players get at night
+  // (0.55, where the meter sits) and with the sky in the reflection
+  // probe, the old black left 67% of a satin car dead; this one, with
+  // metalness 0 for solids (paintMetalness), 54%, and a wider range of
+  // tone across the panels (form 18.4 -> 21.9). It is still the darkest
+  // paint on the wall by a distance — gunmetal is the nearest, at dE
+  // 17.1 — and the Black Demon's factory 0x0b0a0d stays the blackest car.
+  // Old clients still send the old swatch: see RETIRED_SWATCHES.
+  { id: "paint-black", hex: 0x1a1b1f, family: "mono", solid: true },
   { id: "paint-gunmetal", hex: 0x4a5058, family: "mono" },
   { id: "paint-slate", hex: 0x8593a2, family: "mono" },
   { id: "paint-silver", hex: 0xb9bfc7, family: "mono" },
@@ -243,6 +251,28 @@ export const PAINTS: Paint[] = [
   { id: "paint-mauve", hex: 0x806986, family: "mono" },
 ];
 
+/**
+ * Swatches a paint used to have, and the paint they belong to.
+ *
+ * A paint's hex is also its wire format: the hub carries a player's
+ * colour as a CSS string, and an older client keeps sending the swatch it
+ * shipped with. Without this, a remote car painted "#0d0e11" by a client
+ * from before paint-black moved would be drawn in the old colour AND lose
+ * its solid-paint treatment, because paintMetalness only recognises a
+ * declared solid by its current hex.
+ */
+export const RETIRED_SWATCHES: Record<number, string> = {
+  0x0d0e11: "paint-black",
+};
+
+/** The hex a colour should be drawn in today: a retired swatch becomes
+ *  the current hex of its paint, anything else passes through. */
+export function currentPaintHex(hex: number): number {
+  const id = RETIRED_SWATCHES[hex];
+  if (!id) return hex;
+  return PAINTS.find((p) => p.id === id)?.hex ?? hex;
+}
+
 /** id to hex, for the renderer. */
 export const PAINT_HEX: Record<string, number> = Object.fromEntries(
   PAINTS.map((p) => [p.id, p.hex])
@@ -259,7 +289,13 @@ export function swatch(hex: number): string {
  *  rather than silently drawn as black. */
 export function paintFromSwatch(css: string): Paint | null {
   const want = css.trim().toLowerCase();
-  return PAINTS.find((p) => swatch(p.hex) === want) ?? null;
+  const found = PAINTS.find((p) => swatch(p.hex) === want);
+  if (found) return found;
+  // A swatch the paint used to have is still that paint.
+  for (const [hex, id] of Object.entries(RETIRED_SWATCHES)) {
+    if (swatch(Number(hex)) === want) return PAINTS.find((p) => p.id === id) ?? null;
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------

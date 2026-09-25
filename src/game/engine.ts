@@ -10,6 +10,7 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, COAST_FADE_M, STATIONS, FORECOURT, PAINT_SHOPS, PAINT_BAY, LAP, TUNNEL_BOX, LAP_LENGTH } from "./track";
+import { currentPaintHex } from "./paints";
 import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, SKY_DOME_RADIUS, WorldHandle } from "./world";
 import type { Wake } from "./plants";
 import { createCar, crownShell, CROWN, paintMetalness, TAIL, setMaxDecalPx, STYLE_REAL, POLICE, policeLamps } from "./cars";
@@ -3326,7 +3327,9 @@ export class GameEngine {
   /** Add (or re-style) another player's car in the shared cruise. */
   upsertRemote(id: number, name: string, color: string): void {
     this.removeRemote(id);
-    const hex = new THREE.Color(color).getHex();
+    // A client from before a paint moved still sends the swatch it
+    // shipped with; draw it as today's paint (paints.ts, RETIRED_SWATCHES).
+    const hex = currentPaintHex(new THREE.Color(color).getHex());
     const mesh = this.trackCar(createCar({ body: hex, underglow: hex }));
     mesh.add(makeNameTag(name));
     mesh.visible = false; // until the first state snapshot lands
