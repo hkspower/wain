@@ -20,6 +20,10 @@
 //            mouth where the record says so
 //   on it    the face sits ON the nose, not in front of it or inside it
 //   cheap    a mesh is one merged geometry, not forty
+//   seen     from ahead, at least 90% of each grille's aperture and mesh
+//            is what a ray meets first. Every check above passed while
+//            the face was sunk behind the skin of a shell with no hole in
+//            it, and 13 of the 17 cars showed 0% of their grille.
 import { chromium } from "playwright-core";
 import { existsSync } from "node:fs";
 import { CARS } from "../src/game/mods.ts";
@@ -117,15 +121,21 @@ await page.click("text=START ENGINE");
 await page.waitForFunction(() => !!window.__grnBuildCar, null, { timeout: 180000 });
 await page.waitForTimeout(1200);
 
-const built = await page.evaluate((ids) => {
+const built = await page.evaluate(async (ids) => {
   const THREE = window.__grnThree;
   const out = {};
-  for (const id of ids) {
+  const cars = ids.map((id) => {
     const car = window.__grnShowroom.car(id);
-    const g = window.__grnBuildCar({
+    return [id, window.__grnBuildCar({
       body: car.color, style: car.style, kit: car.kit, raceKit: car.kit === "attack",
       lengthM: car.lengthM, face: car.face,
-    });
+    })];
+  });
+  // The hero cars swap in their authored shells asynchronously and the
+  // face is refitted to them (cars.ts, refitShell). Measure what a
+  // player actually sees, which is the refitted face.
+  await new Promise((r) => setTimeout(r, 4000));
+  for (const [id, g] of cars) {
     g.updateMatrixWorld(true);
     const parts = {};
     let meshDraws = 0;
@@ -149,7 +159,37 @@ const built = await page.evaluate((ids) => {
       const b = o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld);
       gaps[f] = Math.min(gaps[f] ?? Infinity, +(noseZ - b.max.z).toFixed(4));
     });
-    out[id] = { parts, meshDraws, gaps, noseZ: +noseZ.toFixed(3) };
+    // SEEN: fire rays straight at each part from ahead of the car and ask
+    // what they meet first. The face used to be sunk behind the skin of a
+    // shell with no hole in it; every check above passed and 13 of 17
+    // cars showed 0% of their grille. A number plate in front of the
+    // grille is how cars are built, so a ray that meets one is not counted.
+    const meshes = [];
+    g.traverse((o) => { if (o.isMesh && o.visible) meshes.push(o); });
+    const rc = new THREE.Raycaster();
+    const seen = {};
+    for (const part of ["aperture", "mesh", "surround", "duct", "lower", "badge"]) {
+      const objs = meshes.filter((m) => m.userData.face === part);
+      if (!objs.length) continue;
+      let hit = 0, n = 0;
+      for (const o of objs) {
+        o.geometry.computeBoundingBox();
+        const bb = o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld);
+        for (let i = 1; i < 8; i++) for (let j = 1; j < 4; j++) {
+          rc.set(new THREE.Vector3(bb.min.x + ((bb.max.x - bb.min.x) * i) / 8,
+            bb.min.y + ((bb.max.y - bb.min.y) * j) / 4, bb.max.z + 5), new THREE.Vector3(0, 0, -1));
+          const first = rc.intersectObjects(meshes, false)[0];
+          if (!first || first.object.material?.name === "plate") continue;
+          n++;
+          if (first.object.userData.face) hit++;
+        }
+      }
+      if (n) seen[part] = Math.round((hit / n) * 100);
+    }
+    out[id] = {
+      parts, meshDraws, gaps, noseZ: +noseZ.toFixed(3), seen,
+      omitted: g.userData.faceOmitted ?? [], fit: g.userData.faceFit ?? null,
+    };
   }
   return out;
 }, CARS.map((c) => c.id));
@@ -165,7 +205,10 @@ for (const c of CARS) {
   if (f.ducts) want.push("duct", "duct-mesh");
   if (f.lower) want.push("lower", "lower-mesh");
   if (f.badge) want.push("badge");
-  const missing = want.filter((w) => !b.parts[w]);
+  // A part the car records as having no room for, with the reason, is
+  // not missing: the face is fitted to the nose it is on (cars.ts).
+  const excused = new Set(b.omitted.map((o) => o.split(":")[0]));
+  const missing = want.filter((w) => !b.parts[w] && !excused.has(w.replace("-mesh", "")));
   // Every part of the face has to be at or behind the nose. A grille in
   // front of the bumper is the failure the old code had by construction:
   // it pinned to `d.nose`, the body's furthest point, which on a bowed
@@ -182,6 +225,17 @@ for (const c of CARS) {
   );
   // One merged geometry per aperture, not one per bar.
   check(b.meshDraws <= 1, `${c.id} draws its grille mesh in ${b.meshDraws} pieces`);
+}
+
+// ---- 3. The grille can be SEEN ---------------------------------------
+console.log("\nseen from ahead (% of each part a ray meets first; plates excluded)");
+for (const c of CARS) {
+  const b = built[c.id];
+  const v = b.seen;
+  const cells = Object.entries(v).map(([k, p]) => `${k} ${p}%`).join("  ");
+  const note = [b.fit && `fitted: ${b.fit}`, ...b.omitted].filter(Boolean).join("; ");
+  const ok = (v.aperture ?? 100) >= 90 && (v.mesh ?? 100) >= 90;
+  console.log(`  ${c.id.padEnd(16)} ${check(ok, `${c.id}: the grille is hidden — ${cells}`)}  ${cells}${note ? `   (${note})` : ""}`);
 }
 
 await browser.close();

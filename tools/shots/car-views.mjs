@@ -72,10 +72,18 @@ const VIEWS = {
   // Square on the front wheel: an alloy is a mirror, and how much of it
   // you can actually see is not a question a 3/4 press shot answers.
   wheel: [1, 0.06, 0.5, 0.22],
+  // Square on the grille, close enough to count the slats: the face is
+  // the one view a rival gets of you all night, and at the full front
+  // elevation's distance a mesh and a slat grille are the same grey band.
+  nose: [0.08, 0.1, 1, 0.3],
 };
+// VIEWS=front,nose renders just those. Every view is a full render, and
+// eight of them per car is minutes on a software renderer.
+const ONLY = (process.env.VIEWS || "").split(",").map((s) => s.trim()).filter(Boolean);
 
 for (const c of list) {
   for (const [name, dir] of Object.entries(VIEWS)) {
+    if (ONLY.length && !ONLY.includes(name)) continue;
     const b64 = await page.evaluate(
       async ([carId, dir, name]) => {
         const THREE = window.__grnThree;
@@ -149,6 +157,11 @@ for (const c of list) {
         const v = new THREE.Vector3(dir[0], dir[1], dir[2]).normalize().multiplyScalar(R);
         const aim = centre.clone();
         if (dir[3]) aim.y += size.y * 0.22; // look at the glasshouse, not the sills
+        if (name === "nose") {
+          // At the grille: the front of the car, a third of the way up,
+          // where every silhouette in the game keeps its mouth.
+          aim.set(centre.x, bb.min.y + size.y * 0.3, bb.max.z - 0.15);
+        }
         if (name === "wheel") {
           // At the front wheel itself. Framed off the body's centre it
           // pointed at the door mirror, which is not the subject.

@@ -70,8 +70,15 @@ const measure = (carId) => page.evaluate(async (carId)=>{
     const g = o.geometry; if (!g.boundingBox) g.computeBoundingBox();
     const bb = g.boundingBox;
     const p = new THREE.Vector3().setFromMatrixPosition(o.matrixWorld).applyMatrix4(inv);
-    found[trim === "valance-front" ? "front" : "rear"] =
-      { z: p.z, y: p.y, width: bb.max.x - bb.min.x, depth: bb.max.z - bb.min.z };
+    // The front valance can be two pieces, one each side of a face that
+    // crosses its band (cars.ts). Its width is the span of the pieces:
+    // what it trims is the bumper, and the grille between them is not a
+    // gap in its coverage.
+    const key = trim === "valance-front" ? "front" : "rear";
+    const x0 = p.x + bb.min.x, x1 = p.x + bb.max.x;
+    const prev = found[key];
+    const lo = prev ? Math.min(prev.x0, x0) : x0, hi = prev ? Math.max(prev.x1, x1) : x1;
+    found[key] = { z: p.z, y: p.y, x0: lo, x1: hi, width: hi - lo, depth: bb.max.z - bb.min.z };
   });
   // The painted skin at that height, asked of the shell rather than the
   // anchor: one ray from outside the car, straight down its axis.

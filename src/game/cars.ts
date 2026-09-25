@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { TessellateModifier } from "three/examples/jsm/modifiers/TessellateModifier.js";
 import { EXHAUSTS, FINISHES, kitAtLeast, type ExhaustSpec, type KitLevel, type PaintFinish } from "./mods";
 import { PAINTS, currentPaintHex, type CarbonLevel } from "./paints";
 import { upgradeCarShells, upgradeWheels, upgradeDriver, upgradePoliceBar } from "./models";
@@ -2857,6 +2858,135 @@ function tailFaceZ(geo: THREE.BufferGeometry, style: BodyStyle, x: number, y: nu
 function noseFaceAt(geo: THREE.BufferGeometry, style: BodyStyle, x: number, y: number, tag = ""): number | null {
   return shellSurface(geo, `${style}${tag}:z+${y}@${x}`, [x, y, 6], [0, 0, -1]);
 }
+/**
+ * A part of the face, bent onto the nose.
+ *
+ * `src` is built flat around its own centre; it is placed at (cx, cy) and
+ * every vertex is pushed along z so the part's FRONT stands `proud` off
+ * the skin directly behind that vertex. A nose is curved both ways — it
+ * falls back toward its corners and slopes under toward the valance — so
+ * a flat part pinned to the skin at its centre buries its edges, and one
+ * pinned to its most forward point floats clear of the paint everywhere
+ * else. Sampled on a grid across the part's footprint and interpolated;
+ * each sample is one cached ray against the shell.
+ *
+ * Returns geometry in the car's own coordinates (place the mesh at 0,0,0).
+ * Cached per shell, part and position, so the traffic sharing a
+ * silhouette shares the buffer.
+ */
+const onNoseCache = new Map<string, THREE.BufferGeometry>();
+/**
+ * The front half-metre of a shell, for firing many rays at it.
+ *
+ * A ray from ahead of the car meets the nose first, and the nose is all
+ * within a few hundred millimetres of the body's furthest point — so the
+ * rest of the shell (the flanks, the cabin, the tail) can never be the
+ * first hit and is only cost. Cached per shell. The answers are exactly
+ * the full shell's for any ray that meets the nose; one that misses it
+ * (above the bonnet line) gets null here where the full shell would
+ * answer with the windscreen, so the two keep separate cache keys.
+ */
+const noseSubCache = new WeakMap<THREE.BufferGeometry, THREE.BufferGeometry>();
+function noseRegion(geo: THREE.BufferGeometry): THREE.BufferGeometry {
+  const hit = noseSubCache.get(geo);
+  if (hit) return hit;
+  const flat = geo.index ? geo.toNonIndexed() : geo;
+  flat.computeBoundingBox();
+  const cut = flat.boundingBox!.max.z - 0.5;
+  const src = flat.attributes.position as THREE.BufferAttribute;
+  const keep: number[] = [];
+  for (let t = 0; t < src.count; t += 3) {
+    if (Math.max(src.getZ(t), src.getZ(t + 1), src.getZ(t + 2)) < cut) continue;
+    for (let k = 0; k < 3; k++) keep.push(src.getX(t + k), src.getY(t + k), src.getZ(t + k));
+  }
+  const sub = new THREE.BufferGeometry();
+  sub.setAttribute("position", new THREE.Float32BufferAttribute(keep, 3));
+  sub.computeBoundingSphere();
+  noseSubCache.set(geo, sub);
+  return sub;
+}
+function onNose(
+  src: THREE.BufferGeometry,
+  key: string,
+  geo: THREE.BufferGeometry,
+  style: BodyStyle,
+  tag: string,
+  cx: number,
+  cy: number,
+  proud: number,
+  fallbackZ: number
+): THREE.BufferGeometry {
+  const id = `${style}${tag}|${key}|${cx.toFixed(3)},${cy.toFixed(3)}|${proud}`;
+  const hit = onNoseCache.get(id);
+  if (hit) return hit;
+  // Tessellated first. A box has vertices only at its edges, so bent
+  // onto a nose that bows forward in the middle its front stayed a flat
+  // plane between them, and the paint came through it — measured, the
+  // middle of a 1.3 m aperture was behind the skin on car after car.
+  // 30 mm edges follow the curvature at any size this face is built.
+  const g = new TessellateModifier(0.03, 8).modify(src);
+  g.computeBoundingBox();
+  const bb = g.boundingBox!;
+  const x0 = bb.min.x, x1 = bb.max.x, y0 = bb.min.y, y1 = bb.max.y;
+  // A sample every 60 mm across and 30 mm up: a nose's vertical curve is
+  // tighter than its plan curve, and the layers stand only 1.5-5 mm off
+  // the paint, so an under-sampled bulge between two samples is enough
+  // to bury a part.
+  const NX = Math.min(25, Math.max(3, Math.ceil((x1 - x0) / 0.06) + 1));
+  const NY = Math.min(12, Math.max(2, Math.ceil((y1 - y0) / 0.03) + 1));
+  const nose = noseRegion(geo);
+  const ntag = `${tag}:nose`;
+  // A sample is nose skin only if it is within 450 mm of the nose's own
+  // front. At a mouth's outer corner a ray can run along the flank and
+  // clip a long flank triangle a metre or more back — measured, a brake
+  // duct was bent into a sheet 2.4 m long running down the inside of the
+  // car. Anything behind that is not the skin this part sits on.
+  const sane = (z: number | null): z is number => z !== null && z > fallbackZ - 0.45;
+  const c0 = noseFaceAt(nose, style, +cx.toFixed(3), +cy.toFixed(3), ntag);
+  const centre = sane(c0) ? c0 : fallbackZ;
+  const S: number[][] = [];
+  for (let j = 0; j < NY; j++) {
+    const raw: Array<number | null> = [];
+    for (let i = 0; i < NX; i++) {
+      const x = +(cx + x0 + ((x1 - x0) * i) / (NX - 1)).toFixed(3);
+      const y = +(cy + y0 + ((y1 - y0) * j) / (NY - 1)).toFixed(3);
+      const z = noseFaceAt(nose, style, x, y, ntag);
+      raw.push(sane(z) ? z : null);
+    }
+    // A miss or a rejected sample — the corner of a wide mouth past a
+    // rounded nose — takes the nearest good sample in its row, and the
+    // part's centre if the whole row is bad.
+    S.push(raw.map((z, i) => {
+      if (z !== null) return z;
+      for (let k = 1; k < NX; k++) {
+        const a = raw[i - k], b = raw[i + k];
+        if (a !== undefined && a !== null) return a;
+        if (b !== undefined && b !== null) return b;
+      }
+      return centre;
+    }));
+  }
+  const front = bb.max.z;
+  const pos = g.attributes.position as THREE.BufferAttribute;
+  for (let k = 0; k < pos.count; k++) {
+    const vx = pos.getX(k), vy = pos.getY(k);
+    const u = Math.min(1, Math.max(0, x1 > x0 ? (vx - x0) / (x1 - x0) : 0.5)) * (NX - 1);
+    const v = Math.min(1, Math.max(0, y1 > y0 ? (vy - y0) / (y1 - y0) : 0.5)) * (NY - 1);
+    const i0 = Math.min(NX - 2, Math.floor(u)), j0 = Math.min(NY - 2, Math.floor(v));
+    const fu = u - i0, fv = v - j0;
+    const z =
+      S[j0][i0] * (1 - fu) * (1 - fv) + S[j0][i0 + 1] * fu * (1 - fv) +
+      S[j0 + 1][i0] * (1 - fu) * fv + S[j0 + 1][i0 + 1] * fu * fv;
+    pos.setXYZ(k, vx + cx, vy + cy, pos.getZ(k) - front + z + proud);
+  }
+  pos.needsUpdate = true;
+  // Normals kept as built: the shift is small and smooth, and recomputing
+  // them would round off the hard edges that make a slat read as a slat.
+  g.computeBoundingBox();
+  g.computeBoundingSphere();
+  onNoseCache.set(id, g);
+  return g;
+}
 /** The flank at a point: how far out the skin is at this height and this
  *  distance along the car. Fired from the driver's side; the shell is
  *  symmetric, so one side answers for both. `tag` keeps the authored
@@ -4093,6 +4223,28 @@ export const FACE_FALLBACK: Record<BodyStyle, FaceSpec> = {
   // aperture here after the truck's.
   suv: { w: 1.34, h: 0.26, pattern: "mesh", pitch: 0.05, surround: "chrome", badge: true },
 };
+
+/** The front splitter every detailed car wears: a 50 mm lip centred
+ *  200 mm up, standing well clear of the nose. The face keeps its lower
+ *  mouth above it. */
+const SPLITTER_Y = 0.2;
+const SPLITTER_H = 0.05;
+const SPLITTER_R = 0.016;
+/** Where the splitter actually ends. roundedBox grows a box by its corner
+ *  radius on every side (the bevel extends OUT from the outline), so the
+ *  50 mm lip stands 82 mm tall; measured, its top is at 241 mm, not 225. */
+const SPLITTER_TOP = SPLITTER_Y + SPLITTER_H / 2 + SPLITTER_R;
+/** How far a face's outermost part reaches past its aperture's nominal
+ *  top or bottom edge: the frame (26 mm bars, grown 8 mm by their own
+ *  rounding) when there is one, else the aperture's own rounding. */
+function faceReach(h: number, surround: FaceSpec["surround"]): number {
+  return surround !== "none" ? 0.026 + 0.008 : Math.min(0.018, h / 2 - 1e-3);
+}
+
+/** The number plates: 520 x 130 mm, centred 380 mm up, front and rear. */
+const PLATE_Y = 0.38;
+const PLATE_W_M = 0.52;
+const PLATE_H_M = 0.13;
 
 const faceCache = new Map<string, THREE.BufferGeometry>();
 
@@ -6113,47 +6265,133 @@ export function createCar(colors: CarColors): THREE.Group {
 
   // ------------------------------------------------------------- the face
   //
-  // The aperture, what is behind it, and what frames it. Built against
-  // the nose SURFACE at the aperture's own height rather than against
-  // `d.nose`, which is the bodywork's furthest point and is usually
-  // somewhere else: on a car whose nose bows, a grille pinned to the
-  // extreme sat proud of the paint at the top and buried at the bottom.
-  {
-    const f = colors.face ?? FACE_FALLBACK[style] ?? FACE_FALLBACK.sedan;
+  // The aperture, what is behind it, and what frames it — each part BENT
+  // ONTO the nose (onNose), its front a few millimetres off the skin
+  // right behind it.
+  //
+  // It used to be sunk INTO the nose: the void's front 20 mm behind the
+  // skin and the mesh 19 mm behind it, on the idea that you would see
+  // into the aperture. You would, through a hole — and the body shell has
+  // no hole in it. Measured by firing rays straight at each part from in
+  // front of the car, 13 of the 17 cars showed 0% of their aperture and
+  // 0% of their mesh; what you saw of the "grille" was the surround's
+  // proud edge and a badge floating on bare paint. So the depth is built
+  // the other way: the void is a dark panel ON the skin, the mesh stands
+  // in front of it, the surround in front of that, and the badge last —
+  // all inside the 5 mm the face may stand off the paint (test:faces).
+  //
+  // Built as a unit that can be rebuilt, for the reason the tail lamps
+  // are: the shell this is fitted to is the extrude, and hero cars swap
+  // in an authored loft once its file lands (models.ts, refitShell).
+  // The face as recorded, FITTED to the nose it is built on.
+  //
+  // A record says how big a mouth is; it cannot know what else the nose
+  // is carrying. On the low noses — super and pony — the headlamp package
+  // runs nearly the full width at 290-480 mm and the splitter stands clear
+  // of the nose at 175-225 mm, which leaves a band about 65 mm tall. The
+  // Storm S8 wears "the big saloon's face", 1.3 x 0.26 m, on the super
+  // body: measured from ahead, 27% of its aperture could be seen, the
+  // rest behind the lamps and the splitter. So the mouth is fitted into
+  // the band that is actually free — shrunk and re-centred, and if the
+  // band is too thin for a frame, framed by nothing rather than buried.
+  // What changed is recorded on the car (userData.faceFit).
+  const faceSpec = ((): FaceSpec => {
+    const want = colors.face ?? FACE_FALLBACK[style] ?? FACE_FALLBACK.sedan;
+    const T = faceReach(want.h, want.surround);
+    const cy = d.grilleY + (want.dy ?? 0);
+    const half = want.w / 2 + T;
+    let top = Infinity;
+    const bottom = cy - want.h / 2 - T;
+    const wasTop = cy + want.h / 2 + T;
+    group.updateMatrixWorld(true);
+    const box = new THREE.Box3();
+    group.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const name = (mesh.material as THREE.Material | undefined)?.name;
+      if (name !== "lamp-housing" && name !== "headlamp-lens") return;
+      box.setFromObject(mesh);
+      if (box.min.z < d.nose - 0.6) return; // a tail lamp
+      if (box.max.x < -half || box.min.x > half) return;
+      if (box.max.y < bottom || box.min.y > wasTop) return;
+      // Only a lamp ABOVE the mouth's centre can be cleared by lowering
+      // its top; one that spans it cannot be fitted around.
+      if (box.min.y > cy - want.h / 4) top = Math.min(top, box.min.y - 0.015);
+    });
+    // The free band: above the splitter, below any lamp the mouth ran
+    // into. Moved first — kept at its recorded size and slid as little as
+    // it takes to clear both — and shrunk only when the band is smaller
+    // than the mouth. The saloons' mouths ran 40-50 mm up into their
+    // headlamp pans and had room to spare below; shrinking them was the
+    // wrong fix, and the first cut of this did exactly that.
+    const floor = SPLITTER_TOP + 0.01;
+    const ceiling = top;
+    const need = want.h + 2 * T;
+    const was = { top: cy + want.h / 2 + T, bottom: cy - want.h / 2 - T };
+    if (was.bottom >= floor - 1e-6 && was.top <= ceiling + 1e-6) return want;
+    let fitted: FaceSpec;
+    let how: string;
+    if (ceiling - floor >= need) {
+      const c = Math.min(Math.max(cy, floor + need / 2), ceiling - need / 2);
+      fitted = { ...want, dy: c - d.grilleY };
+      how = `${c > cy ? "up" : "down"} ${Math.round(Math.abs(c - cy) * 1000)} mm`;
+    } else if (ceiling - floor - 2 * T >= 0.05) {
+      fitted = { ...want, h: ceiling - floor - 2 * T, dy: (ceiling + floor) / 2 - d.grilleY };
+      how = `${Math.round(want.h * 1000)} -> ${Math.round(fitted.h * 1000)} mm tall`;
+    } else {
+      // Unframed, the aperture reaches its own rounding past its edge.
+      const h = Math.max(0.04, ceiling - floor - 2 * 0.018);
+      fitted = { ...want, h, dy: (ceiling + floor) / 2 - d.grilleY, surround: "none" };
+      how = `${Math.round(want.h * 1000)} -> ${Math.round(h * 1000)} mm tall`;
+      if (want.surround !== "none") {
+        (group.userData.faceOmitted ??= []).push(`surround: no room for a ${want.surround} frame`);
+      }
+    }
+    group.userData.faceFit = how;
+    return fitted;
+  })();
+  const faceGroup = new THREE.Group();
+  faceGroup.name = "face";
+  group.add(faceGroup);
+  /** How far each layer's front stands off the skin, metres. */
+  const PROUD = { void: 0.0015, mesh: 0.0035, surround: 0.0045, badge: 0.005 } as const;
+  /** Every face part's footprint as seen from ahead, [x0, x1, y0, y1], so
+   *  the trim built after the face can keep out of the way of it. */
+  const faceRects: Array<[number, number, number, number]> = [];
+  /** Parts the record asked for that there is no room to build, and why. */
+  const faceOmitted: string[] = (group.userData.faceOmitted ??= []);
+  const badgeY = d.grilleY + (faceSpec.dy ?? 0);
+  const badgeBehindPlate = Math.abs(badgeY - PLATE_Y) < (PLATE_H_M + 0.1) / 2;
+  const buildFace = (geo: THREE.BufferGeometry, tag: string) => {
+    const f = faceSpec;
     const y = d.grilleY + (f.dy ?? 0);
-    const faceZ = (yy: number, back = 0) =>
-      (noseFaceZ(bGeo, style, yy, true) ?? d.nose) - back;
-    /**
-     * Where to put the CENTRE of a part `depth` deep whose front face
-     * should stand `proud` of the nose at that height.
-     *
-     * Anything sunk into the nose can be placed by its centre and be
-     * roughly right, because the error is inside the bodywork. Anything
-     * that stands out cannot: the surround is a 55 mm deep bar, so
-     * placing its centre 12 mm behind the skin puts its front face 15
-     * mm in FRONT of it, and on the three silhouettes whose grille sits
-     * near the bumper's own furthest point that came out 6 mm proud of
-     * the whole car. A chrome surround stands a few millimetres off the
-     * paint. It does not lead the bumper.
-     */
-    const standing = (yy: number, depth: number, proud: number) =>
-      faceZ(yy, depth / 2 - proud);
-
-    // The void first: a surface behind the mesh, sunk into the nose. The
-    // old grille WAS this and nothing else, which is why every car in
-    // the game looked like it had a sticker where its radiator goes.
+    const fallback = noseFaceZ(geo, style, y, true) ?? d.nose;
+    const place = (
+      src: THREE.BufferGeometry,
+      key: string,
+      mat: THREE.Material,
+      cx: number,
+      cy: number,
+      proud: number,
+      role: string
+    ) => {
+      const m = new THREE.Mesh(onNose(src, key, geo, style, tag, cx, cy, proud, fallback), mat);
+      m.userData.face = role;
+      if (!tag) {
+        src.computeBoundingBox();
+        const b = src.boundingBox!;
+        faceRects.push([cx + b.min.x, cx + b.max.x, cy + b.min.y, cy + b.max.y]);
+      }
+      faceGroup.add(m);
+      return m;
+    };
+    // The void: a dark panel on the skin, the shadow the mesh sits in.
     if (f.pattern !== "open") {
-      const void_ = new THREE.Mesh(roundedBox(f.w, f.h, 0.05, 0.018), apertureMat);
-      void_.position.set(0, y, faceZ(y, 0.045));
-      void_.userData.face = "aperture";
-      group.add(void_);
+      place(roundedBox(f.w, f.h, 0.05, 0.018), `void|${f.w}|${f.h}`, apertureMat, 0, y, PROUD.void, "aperture");
     }
     const bars = grillePattern(f.pattern, f.w - 0.03, f.h - 0.03, f.pitch);
     if (bars) {
-      const m = new THREE.Mesh(bars, meshMat);
-      m.position.set(0, y, faceZ(y, 0.03));
-      m.userData.face = "mesh";
-      group.add(m);
+      place(bars, `bars|${f.pattern}|${f.w}|${f.h}|${f.pitch}`, meshMat, 0, y, PROUD.mesh, "mesh");
     }
     // The surround. A frame, not a bar across the top: a mouth with a
     // line over it is a mouth with a line over it, and a mouth with an
@@ -6163,17 +6401,13 @@ export function createCar(colors: CarColors): THREE.Group {
         f.surround === "chrome" ? chromeLocal : f.surround === "carbon" ? carbonMat : bodyMat;
       const T = 0.026;
       const DEPTH = 0.055;
-      const z = standing(y, DEPTH, 0.004);
       for (const [w, h, ox, oy] of [
         [f.w + T * 2, T, 0, f.h / 2 + T / 2],
         [f.w + T * 2, T, 0, -f.h / 2 - T / 2],
         [T, f.h, -f.w / 2 - T / 2, 0],
         [T, f.h, f.w / 2 + T / 2, 0],
       ] as const) {
-        const bar = new THREE.Mesh(roundedBox(w, h, DEPTH, 0.008), mat);
-        bar.position.set(ox, y + oy, z);
-        bar.userData.face = "surround";
-        group.add(bar);
+        place(roundedBox(w, h, DEPTH, 0.008), `frame|${w}|${h}`, mat, ox, y + oy, PROUD.surround, "surround");
       }
     }
     // Brake ducts. Two small mouths outboard of the main one, at the
@@ -6181,64 +6415,84 @@ export function createCar(colors: CarColors): THREE.Group {
     // driven hard rather than to look like it was.
     if (f.ducts) {
       const dw = 0.19, dh = Math.min(0.13, f.h * 0.72);
+      const dm = grillePattern("mesh", dw - 0.03, dh - 0.03, 0.032);
       for (const sx of [-1, 1] as const) {
         const x = sx * (f.w / 2 + 0.16);
-        const duct = new THREE.Mesh(roundedBox(dw, dh, 0.05, 0.016), apertureMat);
-        duct.position.set(x, y, faceZ(y, 0.04));
-        duct.userData.face = "duct";
-        group.add(duct);
-        const dm = grillePattern("mesh", dw - 0.03, dh - 0.03, 0.032);
-        if (dm) {
-          const mm = new THREE.Mesh(dm, meshMat);
-          mm.position.set(x, y, faceZ(y, 0.028));
-          mm.userData.face = "duct-mesh";
-          group.add(mm);
-        }
+        place(roundedBox(dw, dh, 0.05, 0.016), `duct|${dw}|${dh}`, apertureMat, x, y, PROUD.void, "duct");
+        if (dm) place(dm, `ductmesh|${dw}|${dh}`, meshMat, x, y, PROUD.mesh, "duct-mesh");
       }
     }
     // The lower mouth, at splitter height. Wider than the upper one on
     // every car that has both, because that is where the air actually
     // goes on anything made after about 1995.
+    //
+    // Between the splitter and the grille, not across the splitter. It
+    // was built at splitter height, and the splitter is a lip standing
+    // 160 mm clear of the nose across exactly that band: from ahead,
+    // every lower mouth in the game measured 0% visible. Where the
+    // grille itself already sits down at the splitter there is no room
+    // for a second mouth, and the car says so rather than burying one.
     if (f.lower) {
-      const ly = Math.max(0.2, y - f.h / 2 - 0.13);
-      const lw = f.w * 1.18, lh = 0.1;
-      const low = new THREE.Mesh(roundedBox(lw, lh, 0.05, 0.016), apertureMat);
-      low.position.set(0, ly, faceZ(ly, 0.04));
-      low.userData.face = "lower";
-      group.add(low);
-      const lm = grillePattern("mesh", lw - 0.03, lh - 0.02, 0.036);
-      if (lm) {
-        const mm = new THREE.Mesh(lm, meshMat);
-        mm.position.set(0, ly, faceZ(ly, 0.028));
-        mm.userData.face = "lower-mesh";
-        group.add(mm);
+      const upperBottom = y - f.h / 2 - faceReach(f.h, f.surround) - 0.02;
+      const top = Math.min(y - f.h / 2 - 0.08, upperBottom);
+      // The mouth's own rounding (16 mm) grows it past both edges.
+      const bottom = SPLITTER_TOP + 0.01 + 0.016;
+      const lh = Math.min(0.1, top - 0.016 - bottom);
+      if (lh >= 0.045) {
+        const ly = bottom + lh / 2;
+        const lw = f.w * 1.18;
+        place(roundedBox(lw, lh, 0.05, 0.016), `lower|${lw}|${lh.toFixed(3)}`, apertureMat, 0, ly, PROUD.void, "lower");
+        const lm = grillePattern("mesh", lw - 0.03, lh - 0.02, 0.036);
+        if (lm) place(lm, `lowermesh|${lw}|${lh.toFixed(3)}`, meshMat, 0, ly, PROUD.mesh, "lower-mesh");
+      } else if (!tag) {
+        faceOmitted.push(`lower: ${Math.round(Math.max(0, top - bottom) * 1000)} mm between the splitter and the grille`);
       }
     }
-    if (f.badge) {
-      const badge = new THREE.Mesh(roundedBox(0.1, 0.1, 0.03, 0.03), chromeLocal);
-      badge.position.set(0, y, standing(y, 0.03, 0.004));
-      badge.userData.face = "badge";
-      group.add(badge);
+    // The badge sits in the middle of the mouth — unless the number
+    // plate hangs over the middle of the mouth, which on a car whose
+    // grille has had to slide down clear of its headlamps it does. A
+    // badge behind a plate is not a badge; the car wears its roundel on
+    // the nose instead (see the detailing below), the way cars with a
+    // low mouth do.
+    if (f.badge && !badgeBehindPlate) {
+      place(roundedBox(0.1, 0.1, 0.03, 0.03), "badge", chromeLocal, 0, y, PROUD.badge, "badge");
+    } else if (f.badge && !tag) {
+      faceOmitted.push("badge: behind the number plate; worn on the nose instead");
     }
     if (style === "hatch") {
       // The stripe across the nose. Every fast version of a hatch has
       // worn one since the seventies, and it is the single cue that
       // separates the quick one from the shopping one at a distance.
       const sy = y + f.h / 2 + 0.05;
-      const stripe = new THREE.Mesh(roundedBox(1.44, 0.035, 0.05, 0.012), hotStripeMat);
-      stripe.position.set(0, sy, faceZ(sy, 0.008));
-      group.add(stripe);
+      const stripe = new THREE.Mesh(
+        onNose(roundedBox(1.44, 0.035, 0.05, 0.012), "stripe", geo, style, tag, 0, sy, 0.002, fallback),
+        hotStripeMat
+      );
+      faceGroup.add(stripe);
     }
+  };
+  buildFace(bGeo, "");
+  {
+    // Chain onto the tail's refit rather than replacing it: both are
+    // fitted to the extrude and both have to move to the authored skin.
+    const refitTail = group.userData.refitShell as ((g: THREE.BufferGeometry) => void) | undefined;
+    group.userData.refitShell = (geo: THREE.BufferGeometry) => {
+      refitTail?.(geo);
+      // The face's geometry is cached and shared between cars, so it is
+      // detached here, never disposed.
+      for (const o of [...faceGroup.children]) faceGroup.remove(o);
+      buildFace(geo, ":authored");
+    };
   }
   // Plates hang on the bumper faces. The anchors are the profile's
   // corner points, and the bumper bows out past them by up to 40 mm, so
   // "anchor plus 20" left the front plate inside the FD's nose.
   for (const front of [true, false]) {
-    const face = noseFaceZ(bGeo, style, 0.38, front);
+    const face = noseFaceZ(bGeo, style, PLATE_Y, front);
     const z =
       face !== null ? face + (front ? 0.008 : -0.008) : front ? d.nose + 0.02 : d.tail - 0.03;
-    const plate = new THREE.Mesh(faceUV(roundedBox(0.52, 0.13, 0.02, 0.007), 0.52, 0.13), plateMat(colors));
-    plate.position.set(0, 0.38, z);
+    const plate = new THREE.Mesh(faceUV(roundedBox(PLATE_W_M, PLATE_H_M, 0.02, 0.007), PLATE_W_M, PLATE_H_M), plateMat(colors));
+    plate.position.set(0, PLATE_Y, z);
     group.add(plate);
   }
   // --- Exhaust.
@@ -6737,10 +6991,27 @@ export function createCar(colors: CarColors): THREE.Group {
     const noseSkinZ = noseFaceZ(bGeo, style, VALANCE_Y, true) ?? d.nose;
     const tailSkinZ = noseFaceZ(bGeo, style, VALANCE_Y, false) ?? d.tail;
     const valanceW = flankX * 2 - 0.14; // inset 70 mm a side, like a real one
-    const frontValance = new THREE.Mesh(roundedBox(valanceW, 0.09, VALANCE_D, 0.03), seamMat);
-    frontValance.position.set(0, VALANCE_Y, noseSkinZ - VALANCE_D / 2);
-    frontValance.userData.trim = "valance-front";
-    group.add(frontValance);
+    // At the front it stops short of the face. It is a flat bar flush
+    // with the skin at 300 mm only, so wherever the nose falls away above
+    // or below that it stands proud of the paint — and on the low-nosed
+    // cars (the grille sits at 180-470 mm) it ran straight across the
+    // mouth, the single biggest thing hiding their grilles. Where the
+    // face crosses its band it is two pieces, one each side of it.
+    const VALANCE_H = 0.09;
+    let faceHalf = 0;
+    for (const [x0, x1, y0, y1] of faceRects) {
+      if (y1 < VALANCE_Y - VALANCE_H / 2 || y0 > VALANCE_Y + VALANCE_H / 2) continue;
+      faceHalf = Math.max(faceHalf, Math.abs(x0), Math.abs(x1));
+    }
+    const valancePieces: Array<[number, number]> =
+      faceHalf > 0 ? [[-valanceW / 2, -faceHalf - 0.03], [faceHalf + 0.03, valanceW / 2]] : [[-valanceW / 2, valanceW / 2]];
+    for (const [xa, xb] of valancePieces) {
+      if (xb - xa < 0.08) continue;
+      const frontValance = new THREE.Mesh(roundedBox(xb - xa, VALANCE_H, VALANCE_D, 0.03), seamMat);
+      frontValance.position.set((xa + xb) / 2, VALANCE_Y, noseSkinZ - VALANCE_D / 2);
+      frontValance.userData.trim = "valance-front";
+      group.add(frontValance);
+    }
     const rearValance = new THREE.Mesh(roundedBox(valanceW, 0.1, VALANCE_D, 0.03), seamMat);
     rearValance.position.set(0, VALANCE_Y, tailSkinZ + VALANCE_D / 2);
     rearValance.userData.trim = "valance-rear";
@@ -6972,8 +7243,8 @@ export function createCar(colors: CarColors): THREE.Group {
     }
 
     // Front splitter, rear diffuser fins, antenna, grille badge
-    const splitter = new THREE.Mesh(roundedBox(1.72, 0.05, 0.3, 0.016), seamMat);
-    splitter.position.set(0, 0.2, d.nose + 0.01);
+    const splitter = new THREE.Mesh(roundedBox(1.72, SPLITTER_H, 0.3, SPLITTER_R), seamMat);
+    splitter.position.set(0, SPLITTER_Y, d.nose + 0.01);
     group.add(splitter);
     for (const fx of style === "gtr" ? [-0.6, -0.2, 0.2, 0.6] : [-0.45, 0, 0.45]) {
       const fin = new THREE.Mesh(roundedBox(0.04, 0.11, 0.28, 0.013), seamMat);
@@ -6986,10 +7257,16 @@ export function createCar(colors: CarColors): THREE.Group {
       fin.rotation.x = -0.25;
       group.add(fin);
     }
-    const badge = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.02, 12), chromeLocal);
-    badge.rotation.x = Math.PI / 2;
-    badge.position.set(0, d.noseTopY, d.nose + 0.01);
-    group.add(badge);
+    // The maker's roundel on the nose — unless the face already wears a
+    // badge in its grille, which is where a car carries it. Both made a
+    // car with two badges, one above the other.
+    if (!faceSpec.badge || badgeBehindPlate) {
+      const bz = noseFaceZ(bGeo, style, d.noseTopY, true) ?? d.nose;
+      const badge = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.02, 12), chromeLocal);
+      badge.rotation.x = Math.PI / 2;
+      badge.position.set(0, d.noseTopY, bz + 0.004 - 0.01);
+      group.add(badge);
+    }
 
     // Indicators + reverse lights
     for (const sx of [-0.86, 0.86]) {
@@ -7070,20 +7347,37 @@ export function createCar(colors: CarColors): THREE.Group {
       group.add(wiper);
     }
 
-    // Lower intake + fog lights complete the front fascia
-    const intake = new THREE.Mesh(
-      roundedBox(style === "gtr" ? 1.5 : 1.3, style === "gtr" ? 0.2 : 0.13, 0.06, 0.02),
-      grilleMat
-    );
-    intake.position.set(0, style === "gtr" ? 0.4 : 0.34, d.nose - 0.01);
-    group.add(intake);
-    for (const sx of [-0.66, 0.66]) {
-      // In front of the intake, not level with it. Sharing the intake's
-      // z put each 30 mm lamp wholly inside the 60 mm grille box.
-      const fog = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 10), reverseMat);
-      fog.rotation.x = Math.PI / 2;
-      fog.position.set(sx, 0.36, d.nose + 0.035);
-      group.add(fog);
+    // Fog lamps, set into the valance.
+    //
+    // They used to sit in front of a "lower intake": a 1.3-1.5 m black
+    // slab from before cars had faces, pinned at the nose's furthest
+    // point and so standing 20 mm clear of the paint across the whole
+    // front — in front of the grille the face system builds, which is
+    // what hid it (the gtr's slab covered its mouth exactly). A car that
+    // wants a lower mouth says so in its face; the slab is gone. The
+    // lamps are seated on the skin at their own x, which falls back
+    // toward the corners, instead of 35 mm ahead of the car's extreme.
+    //
+    // And outboard of the face. A mouth that slid down clear of its
+    // headlamps can arrive at fog-lamp height, and a lamp inside a
+    // grille's frame is two parts in one place. Moved out past the face;
+    // if the nose ends before there is room, the car has no fog lamps.
+    const FOG_Y = 0.36, FOG_R = 0.05;
+    let fogX = 0.66;
+    for (const [x0, x1, y0, y1] of faceRects) {
+      if (y1 < FOG_Y - FOG_R || y0 > FOG_Y + FOG_R) continue;
+      const reach = Math.max(Math.abs(x0), Math.abs(x1));
+      if (reach + FOG_R > fogX - 0.01) fogX = reach + FOG_R + 0.03;
+    }
+    if (fogX + FOG_R <= flankX - 0.08) {
+      for (const sx of [-fogX, fogX]) {
+        const fz = noseFaceAt(bGeo, style, sx, FOG_Y);
+        if (fz === null || fz < d.nose - 0.45) continue;
+        const fog = new THREE.Mesh(new THREE.CylinderGeometry(FOG_R, FOG_R, 0.03, 10), reverseMat);
+        fog.rotation.x = Math.PI / 2;
+        fog.position.set(sx, FOG_Y, fz + 0.004 - 0.015);
+        group.add(fog);
+      }
     }
 
     // Mirror glass + a muffler box feeding the exhaust tips
