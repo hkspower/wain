@@ -12,6 +12,8 @@
 
 import { LAP, TUNNEL_BOX } from "./track";
 import { conditionSfx } from "./sfxcondition";
+import { ENGINE_VOICES, voiceLevels, voiceTables } from "./voices";
+import type { EngineId } from "./engines";
 import { assetUrl } from "./cdn";
 import { wetGripMult } from "./weather";
 
@@ -368,6 +370,15 @@ export class SoundEngine {
 
   // Engine layers
   private engOscs: OscillatorNode[] = [];
+  /** The oscillator bank playing now, and the one fading out behind it
+   *  after an engine swap. A bank with a voice id plays that engine's
+   *  voice (voices.ts); the legacy bank, null id, is the three generic
+   *  oscillators every engine used to share. */
+  private engBank: { oscs: OscillatorNode[]; out: GainNode; voice: EngineId | null } | null = null;
+  private engBankOld: { oscs: OscillatorNode[]; out: GainNode; voice: EngineId | null } | null = null;
+  private engVoiceIn!: GainNode;
+  private engFormant!: BiquadFilterNode;
+  private engMakeup!: GainNode;
   /** Per-layer gains, kept so a swap can re-voice the mix: a big engine
    *  is carried by its sub-octave, a small one by its fundamental. */
   private engLayerGains: GainNode[] = [];
@@ -563,24 +574,44 @@ export class SoundEngine {
     this.engFilter.frequency.value = 400;
     this.engGain = this.ctx.createGain();
     this.engGain.gain.value = 0;
-    shaper.connect(this.engFilter).connect(this.engGain).connect(this.bed);
+    // The voice path: every bank sums into engVoiceIn, through the pipe
+    // resonance of the fitted engine (a peaking band, flat until a voice
+    // is fitted), into the soft clip — then a DC blocker, because a pulse
+    // train is lopsided and a symmetric clip on a lopsided wave leaves an
+    // offset on the bed; and the voice's make-up gain (voices.ts,
+    // voiceLevels), 1 for the legacy bank.
+    this.engVoiceIn = this.ctx.createGain();
+    this.engFormant = this.ctx.createBiquadFilter();
+    this.engFormant.type = "peaking";
+    this.engFormant.frequency.value = 1000;
+    this.engFormant.gain.value = 0;
+    const dcBlock = this.ctx.createBiquadFilter();
+    dcBlock.type = "highpass";
+    dcBlock.frequency.value = 20;
+    dcBlock.Q.value = 0.707;
+    this.engMakeup = this.ctx.createGain();
+    this.engVoiceIn.connect(this.engFormant).connect(shaper);
+    shaper.connect(dcBlock).connect(this.engMakeup).connect(this.engFilter).connect(this.engGain).connect(this.bed);
 
     const layers: Array<[OscillatorType, number, number]> = [
       ["sawtooth", 1, 0.5], // fundamental
       ["sawtooth", 2.02, 0.25], // beating octave
       ["square", 0.5, 0.35], // sub thump
     ];
+    const legacyOut = this.ctx.createGain();
+    legacyOut.connect(this.engVoiceIn);
     for (const [type, ratio, level] of layers) {
       const osc = this.ctx.createOscillator();
       osc.type = type;
       osc.frequency.value = 55 * ratio;
       const g = this.ctx.createGain();
       g.gain.value = level;
-      osc.connect(g).connect(shaper);
+      osc.connect(g).connect(legacyOut);
       osc.start();
       this.engOscs.push(osc);
       this.engLayerGains.push(g);
     }
+    this.engBank = { oscs: this.engOscs, out: legacyOut, voice: null };
 
     // --- Exhaust: boom, bark and rasp
     //
@@ -988,6 +1019,7 @@ export class SoundEngine {
    * every engine the same engine at a different pitch.
    */
   setEngine(e: {
+    id?: EngineId;
     cylinders: number;
     idleRpm: number;
     redlineRpm: number;
@@ -1001,11 +1033,82 @@ export class SoundEngine {
     this.lopeDepth = e.lopeDepth;
     // Fundamental gives up what the sub takes, so the total stays put and
     // a swap changes the colour rather than the volume.
-    if (this.engLayerGains.length === 3) {
+    if (this.engBank?.voice === null && this.engLayerGains.length === 3) {
       this.engLayerGains[0].gain.value = 0.85 - e.subMix;
       this.engLayerGains[1].gain.value = 0.25;
       this.engLayerGains[2].gain.value = e.subMix;
     }
+    // This engine's own voice, if it has one — and only when it is a
+    // different engine: refitting the same one must not restart its bank.
+    if (e.id && ENGINE_VOICES[e.id] && this.engBank?.voice !== e.id) this.fitVoice(e.id, e.subMix);
+  }
+
+  /**
+   * Crossfade to a fresh bank playing this engine's voice.
+   *
+   * A fresh bank rather than setPeriodicWave on the running oscillators:
+   * swapping a live oscillator's table jumps its waveform mid-cycle, and
+   * that is a click. Two banks overlap for 80 ms on the audio clock, the
+   * new one starting at the old one's pitch, and the old one is stopped
+   * and let go once it is silent.
+   */
+  private fitVoice(id: EngineId, subMix: number): void {
+    const v = ENGINE_VOICES[id];
+    const lv = voiceLevels(v, subMix);
+    const tables = voiceTables(v, lv.inGain);
+    const t = this.ctx.currentTime;
+    const XF = 0.08;
+    const f = this.engOscs[0]?.frequency.value ?? 55;
+    const wave = (tb: { real: Float32Array; imag: Float32Array }) =>
+      this.ctx.createPeriodicWave(tb.real as Float32Array<ArrayBuffer>, tb.imag as Float32Array<ArrayBuffer>, {
+        disableNormalization: true,
+      });
+    const out = this.ctx.createGain();
+    out.gain.setValueAtTime(0, t);
+    out.gain.linearRampToValueAtTime(1, t + XF);
+    out.connect(this.engVoiceIn);
+    // Slot order is the one tests/engines.mjs reads: [0] fires at f, [2]
+    // is the half-order at f/2; [1] is the cycle, f over cylinders.
+    const oscs = ([
+      [tables.firing, f],
+      [tables.cycle, f / v.cylinders],
+      [tables.bank, f / 2],
+    ] as const).map(([tb, hz]) => {
+      const o = this.ctx.createOscillator();
+      o.setPeriodicWave(wave(tb));
+      o.frequency.setValueAtTime(hz, t);
+      o.connect(out);
+      o.start(t);
+      return o;
+    });
+    // The bank being replaced fades as this one rises, then is released.
+    const old = this.engBank;
+    if (this.engBankOld) this.releaseBank(this.engBankOld, t);
+    if (old) {
+      old.out.gain.cancelScheduledValues(t);
+      old.out.gain.setValueAtTime(old.out.gain.value, t);
+      old.out.gain.linearRampToValueAtTime(0, t + XF);
+      this.engBankOld = old;
+      old.oscs.forEach((o) => o.stop(t + XF + 0.02));
+      old.oscs[0].onended = () => {
+        old.oscs.forEach((o) => o.disconnect());
+        old.out.disconnect();
+        if (this.engBankOld === old) this.engBankOld = null;
+      };
+    }
+    this.engBank = { oscs, out, voice: id };
+    this.engOscs = oscs;
+    this.engLayerGains = [];
+    this.engFormant.frequency.setTargetAtTime(v.formant.hz, t, XF / 3);
+    this.engFormant.Q.setTargetAtTime(v.formant.q, t, XF / 3);
+    this.engFormant.gain.setTargetAtTime(v.formant.gainDb, t, XF / 3);
+    this.engMakeup.gain.setTargetAtTime(lv.makeup, t, XF / 3);
+  }
+
+  private releaseBank(b: { oscs: OscillatorNode[]; out: GainNode }, t: number): void {
+    b.out.gain.cancelScheduledValues(t);
+    b.out.gain.setValueAtTime(0, t);
+    try { b.oscs.forEach((o) => o.stop(t)); } catch { /* already stopped */ }
   }
 
   /** Wire up the whistle/whine layer for the equipped aspiration mod. */
@@ -1363,9 +1466,15 @@ export class SoundEngine {
     // real formula instead of a curve fitted by ear.
     const crankRpm = this.engIdleRpm + (this.engRedlineRpm - this.engIdleRpm) * rpm;
     const freq = (crankRpm / 60) * (this.engCylinders / 2);
-    this.engOscs[0].frequency.setTargetAtTime(freq, t, 0.04);
-    this.engOscs[1].frequency.setTargetAtTime(freq * 2.02, t, 0.04);
-    this.engOscs[2].frequency.setTargetAtTime(freq * 0.5, t, 0.04);
+    // A voiced bank's middle oscillator is the engine CYCLE, f over the
+    // cylinder count; the legacy bank's is its detuned octave. The bank
+    // fading out after a swap follows the same pitch until it is gone.
+    for (const b of [this.engBank, this.engBankOld]) {
+      if (!b) continue;
+      b.oscs[0].frequency.setTargetAtTime(freq, t, 0.04);
+      b.oscs[1].frequency.setTargetAtTime(b.voice ? freq / this.engCylinders : freq * 2.02, t, 0.04);
+      b.oscs[2].frequency.setTargetAtTime(freq * 0.5, t, 0.04);
+    }
     this.engFilter.frequency.setTargetAtTime(280 + throttle * 900 + rpm * 700, t, 0.06);
     const idle = 0.05;
     this.engGain.gain.setTargetAtTime(

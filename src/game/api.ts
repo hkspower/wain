@@ -105,7 +105,7 @@ export function buildRivals() {
   }));
 }
 
-/** The five engines, with the shape of each torque curve. A port that
+/** The six engines, with the shape of each torque curve. A port that
  *  has the cars and not these builds every machine with the same
  *  personality. */
 export function buildEngines() {

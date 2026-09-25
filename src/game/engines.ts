@@ -1,7 +1,7 @@
 /**
- * The five engines.
+ * The six engines.
  *
- * Two fours, two sixes and a V8 — and the cylinder count is not a label
+ * Two fours, two sixes and two V8s — and the cylinder count is not a label
  * on a spec sheet here. It is the thing the car sounds like and the
  * shape of the shove it gives you, because those are the two ways a
  * driver actually meets an engine.

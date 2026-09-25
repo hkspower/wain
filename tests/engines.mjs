@@ -1,4 +1,4 @@
-// The five engines, measured on the live game.
+// The six engines, measured on the live game.
 //
 //   npm run dev
 //   node tests/engines.mjs
@@ -149,6 +149,8 @@ const notes = await page.evaluate(async () => {
       want: +((crankRpm / 60) * (spec.cylinders / 2)).toFixed(1),
       got: +s.engOscs[0].frequency.value.toFixed(1),
       sub: +s.engOscs[2].frequency.value.toFixed(1),
+      cycle: +s.engOscs[1].frequency.value.toFixed(2),
+      voice: s.engBank?.voice ?? null,
     });
   }
   return out;
@@ -163,6 +165,16 @@ for (const n of notes) {
   check(
     Math.abs(n.sub - n.got / 2) / n.got < 0.05,
     `${n.id}'s sub-octave is at ${n.sub} Hz, not half of ${n.got}`
+  );
+}
+// Each engine plays its own voice (voices.ts), and the middle oscillator
+// is the engine CYCLE — the firing rate over the cylinder count — where
+// the uneven-firing content lives.
+{
+  const wrong = notes.filter((n) => n.voice !== n.id || Math.abs(n.cycle - n.got / n.cylinders) / (n.got / n.cylinders) > 0.05);
+  console.log(
+    `voice     ${check(wrong.length === 0, `not playing its own voice at the cycle rate: ${wrong.map((n) => `${n.id} (${n.voice}, ${n.cycle} Hz)`).join(", ")}`)}  ` +
+      notes.map((n) => `${n.id.split("-")[0]}:${n.cycle}Hz`).join(" ")
   );
 }
 console.log(
@@ -328,7 +340,7 @@ console.log(`             top:    ${order("high").join(" < ")}`);
 // the curve has been solved — and every car quietly asymptotes short of
 // its own limiter, which looks like nothing at all from the cockpit.
 // `npm run test:topspeed` is the thorough guard on this across all
-// fourteen cars; this is the same question asked of all five engines.
+// fourteen cars; this is the same question asked of all six engines.
 const governed = await page.evaluate(async () => {
   const e = window.__grnEngine;
   const out = [];
@@ -465,4 +477,4 @@ if (fail.length) {
   for (const f of fail) console.log(`  - ${f}`);
   process.exit(1);
 }
-console.log("\nfive engines, and all five drive like themselves.");
+console.log("\nsix engines, and all six drive like themselves.");
