@@ -620,7 +620,11 @@ test('بوّابة الزبون: صفحة الطلب ترسل ما قيل مع �
   const src = fs.readFileSync(path.join(__dirname, '..', '..', 'website', 'order.js'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '');
   const body = src.slice(src.indexOf('/api/public/order`'), src.indexOf('showDone(data.order)'));
-  assert.ok(/transcript:\s*state\.utterances/.test(body), 'الصفحة لا ترسل ما قاله الزبون');
+  /* و`said` لا `utterances`: الثاني ما ضمّه الخادم إلى الطلب — والسؤال
+     الذي يُجاب لا يدخله عمدًا. فلو أُرسل لسقط من الحديث ما سأل عنه
+     الزبون، والوعد على الشاشة «حديثك كلّه وصل». */
+  assert.ok(/transcript:\s*state\.said/.test(body), 'الصفحة لا ترسل ما قاله الزبون');
+  assert.ok(!/transcript:\s*state\.utterances/.test(body), 'تُرسل ما دخل الطلب لا ما قيل');
 });
 
 test('بوّابة الزبون: كلامٌ ليس جوابًا لا يُسجَّل جوابًا', async () => {
