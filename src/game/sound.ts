@@ -11,6 +11,7 @@
 // one-shot impacts, scrapes, blow-off, horn and battle stings.
 
 import { LAP, TUNNEL_BOX } from "./track";
+import { conditionSfx } from "./sfxcondition";
 import { assetUrl } from "./cdn";
 import { wetGripMult } from "./weather";
 
@@ -1230,7 +1231,17 @@ export class SoundEngine {
         if (!e?.file) return;
         try {
           const data = await (await fetch(assetUrl(`/sfx/${e.file}`))).arrayBuffer();
-          const buf = await this.ctx.decodeAudioData(data);
+          const raw = await this.ctx.decodeAudioData(data);
+          // Headroom, de-clicked starts and a crossfaded loop seam — see
+          // sfxcondition.ts for what the shipped renders measured.
+          const loop = name === "skid" && !!e.loop;
+          const fixed = conditionSfx(
+            Array.from({ length: raw.numberOfChannels }, (_, c) => raw.getChannelData(c)),
+            raw.sampleRate,
+            loop
+          );
+          const buf = this.ctx.createBuffer(raw.numberOfChannels, fixed.report.lengthOut, raw.sampleRate);
+          fixed.channels.forEach((c, i) => buf.getChannelData(i).set(c));
           if (name === "skid" && e.loop) {
             // The slide bed loops forever at zero gain; update() rides it
             const src = this.ctx.createBufferSource();
