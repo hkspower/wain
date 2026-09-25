@@ -113,6 +113,11 @@ const OVERRIDE = {
   // NO_DOME=1 withholds the sky from the probe: the probe as it was
   // before 5ba70bd6, on the code as it is.
   noDome: process.env.NO_DOME === "1" ? true : null,
+  // RIM=dfeaff (and RIM_K=1.4) recolours / rescales the player car's rim
+  // light — the one car-only light in the night rig (engine.ts), and the
+  // cheapest lever on how a paint reads under a blue moon.
+  rim: process.env.RIM ? parseInt(process.env.RIM.replace(/^#|^0x/, ""), 16) : null,
+  rimK: process.env.RIM_K ? +process.env.RIM_K : null,
 };
 if (FINISH && !["gloss", "satin", "matte"].includes(FINISH)) {
   console.error(`FINISH=${FINISH}: gloss, satin or matte`);
@@ -200,7 +205,9 @@ console.log(
   (OVERRIDE.hex !== null ? `, body #${OVERRIDE.hex.toString(16).padStart(6, "0")}` : "") +
   (OVERRIDE.metal !== null ? `, metalness ${OVERRIDE.metal}` : "") +
   (OVERRIDE.ior !== null ? `, ior ${OVERRIDE.ior}` : "") +
-  (OVERRIDE.probeFar !== null ? `, probe far ${OVERRIDE.probeFar} m` : "")
+  (OVERRIDE.probeFar !== null ? `, probe far ${OVERRIDE.probeFar} m` : "") +
+  (OVERRIDE.rim !== null ? `, rim #${OVERRIDE.rim.toString(16).padStart(6, "0")}` : "") +
+  (OVERRIDE.rimK !== null ? ` x${OVERRIDE.rimK}` : "")
 );
 
 console.log(
@@ -276,6 +283,14 @@ for (const only1 of ids) {
     if (ov.metal !== null) paintMat.metalness = ov.metal;
     if (ov.ior !== null) { paintMat.ior = ov.ior; paintMat.needsUpdate = true; }
     if (ov.noDome) e.probeDome = null;
+    if (ov.rim !== null || ov.rimK !== null) {
+      e.playerMesh.traverse((o) => {
+        if (!o.isPointLight || o.userData.rimBase === undefined && o.color.getHex() !== 0x86a9ff) return;
+        o.userData.rimBase ??= o.intensity;
+        if (ov.rim !== null) o.color.setHex(ov.rim);
+        if (ov.rimK !== null) o.intensity = o.userData.rimBase * ov.rimK;
+      });
+    }
     if (ov.probeFar !== null) {
       for (const cam of e.cubeCam.children) { cam.far = ov.probeFar; cam.updateProjectionMatrix(); }
     }
