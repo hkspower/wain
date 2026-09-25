@@ -2148,23 +2148,32 @@ export class GameEngine {
     // Rim light riding behind the roofline — the body edge reads against
     // dark asphalt instead of dissolving into it.
     //
-    // WARM, and half again as strong as it was. It was a cool 0x86a9ff at
-    // 4.5, and from the chase camera it is effectively the key light on
-    // the car the player watches — on top of a moon, a fill, a sky and a
-    // sky reflection that are all blue. Measured at 2:30 at the exposure
-    // players get, every paint in the booth read blue: mudbrick (a brown,
-    // 30 deg) at 262 deg, sand (a beige, 54 deg) at 195, maroon purple,
-    // and silver at saturation 0.60 against 0.07 on its swatch. A/B'd on
-    // the six paints it pulled furthest, shipped -> this:
+    // WARM, at 3.0. It was a cool 0x86a9ff at 4.5, and from the chase
+    // camera it is effectively the key light on the car the player
+    // watches — on top of a moon, a fill, a sky and a sky reflection that
+    // are all blue. Measured at 2:30 at the exposure players get, every
+    // paint in the booth read blue: mudbrick (a brown, 30 deg) at 262 deg,
+    // sand (a beige, 54 deg) at 195, maroon purple, and silver at
+    // saturation 0.60 against 0.07 on its swatch.
     //
-    //   mudbrick hue 262 -> 357   sand hue 195 -> 68   silver sat 0.60 -> 0.45
-    //   maroon dead 59% -> 39%    navy dead 49% -> 37%   red dead 2.7% -> 0.8%
+    // The strength is a trade, measured both ways. Warm white carries
+    // 2.25x the luminance of that blue at the same number, so it clips
+    // sooner; the car in test:levels' frame, old rim -> warm at k:
     //
-    // Warm beat the cool street-lamp white (0xdfeaff) on every colour, and
-    // the extra strength is what gets the dark paints back. It is the one
-    // light in the night rig that is the car's own, so none of this moves
-    // the night the rest of the picture was graded in.
-    const rim = new THREE.PointLight(0xfff4e6, 6.75, 13, 1.8);
+    //   k        city clip   coast clip   sand hue   mudbrick hue   navy dead
+    //   old 4.5    4.6%        0.5%         195         262           49%
+    //   2.0         -           -           134         318           55%
+    //   3.0        11.3%       1.3%         107         331           53%
+    //   4.5        25.4%       1.8%          -           -             -
+    //   6.75       29.3%      13.7%          68         357           37%
+    //
+    // 3.0 is where the clip is still modest and the warm paints get most
+    // of their colour back. It costs navy a little — a blue paint lit by
+    // a blue rim was the one thing the old light did well — and the
+    // stronger settings that would give that back blow a third of a pale
+    // car's tail out. It is the one light in the night rig that is the
+    // car's own, so none of this moves the night the rest was graded in.
+    const rim = new THREE.PointLight(0xfff4e6, 3.0, 13, 1.8);
     rim.name = "rim";
     rim.position.set(0, 2.6, -4.4);
     this.playerMesh.add(rim);
