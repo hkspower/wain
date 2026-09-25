@@ -166,6 +166,7 @@ function RevCounter({
   ticksRef,
   redlineRef,
   limiterRef,
+  highBeamRef,
   rpmRef,
   speedRef,
   gearRef,
@@ -176,6 +177,7 @@ function RevCounter({
   ticksRef: React.RefObject<SVGGElement | null>;
   redlineRef: React.RefObject<SVGPathElement | null>;
   limiterRef: React.RefObject<SVGPathElement | null>;
+  highBeamRef: React.RefObject<SVGGElement | null>;
   rpmRef: React.RefObject<HTMLSpanElement | null>;
   speedRef: React.RefObject<HTMLSpanElement | null>;
   gearRef: React.RefObject<HTMLSpanElement | null>;
@@ -279,6 +281,17 @@ function RevCounter({
           fill="none" stroke="#ff2a18" strokeWidth="4.4" strokeLinecap="butt"
           style={{ opacity: 0, filter: "drop-shadow(0 0 3px rgba(255,60,40,0.9))" }}
         />
+        {/* The main-beam tell-tale: the blue lamp every cluster has, in the
+            same place on the face, lit only while the beam is up. The
+            symbol is the standard one — a lamp with five straight rays. */}
+        <g data-tach="high-beam" ref={highBeamRef} style={{ opacity: 0 }}
+           transform="translate(50 30)" fill="none" stroke="#3a8bff" strokeWidth="1.3"
+           strokeLinecap="round">
+          <path d="M -1.5 -4 C -6 -4 -6 4 -1.5 4 Z" fill="#3a8bff" />
+          {[-3, -1.5, 0, 1.5, 3].map((y) => (
+            <line key={y} x1="1" y1={y} x2="6" y2={y} />
+          ))}
+        </g>
         {/* Ticks and numerals, laid out at runtime because how many there
             are depends on how far this engine spins. */}
         <g data-tach="ticks" ref={ticksRef} />
@@ -640,6 +653,7 @@ function raceCut(): { w: number; h: number } | null {
   const ticksRef = useRef<SVGGElement>(null);
   const redlineRef = useRef<SVGPathElement>(null);
   const limiterRef = useRef<SVGPathElement>(null);
+  const highBeamRef = useRef<SVGGElement>(null);
   /** The limiter's own state, so the vibration fires on ARRIVAL rather
    *  than on every frame the needle stays there. A pad asked to rumble
    *  sixty times a second stops rumbling. */
@@ -1270,6 +1284,7 @@ function raceCut(): { w: number; h: number } | null {
       // using to cut the torque.
       if (limiterRef.current)
         limiterRef.current.style.opacity = t.limiter > 0.02 ? String(0.35 + t.limiter * 0.65) : "0";
+      if (highBeamRef.current) highBeamRef.current.style.opacity = d.highBeam ? "1" : "0";
       // And it is something you feel. On the edge only — see onLimiter.
       const lim = t.limiter > 0.05;
       if (lim && !onLimiter.current) rumblePad(90, 0.55 + t.limiter * 0.45, 0.9);
@@ -2743,6 +2758,7 @@ function raceCut(): { w: number; h: number } | null {
             needleRef={needleRef}
             ringRef={shiftRingRef}
             limiterRef={limiterRef}
+            highBeamRef={highBeamRef}
             ticksRef={ticksRef}
             redlineRef={redlineRef}
             rpmRef={rpmTextRef}
@@ -2864,7 +2880,7 @@ function raceCut(): { w: number; h: number } | null {
             } ${hintDone ? "hud-hint-gone" : ""}`}
           >
             W/↑ accelerate · S/↓ brake · A D steer · Space drift · N nitro
-            <br />F flash · C camera · Esc pause · M mute · B music · V voices
+            <br />F flash · L high beam · C camera · Esc pause · M mute · B music · V voices
             <br />Tab · size up the driver alongside
             <br />T · quick chat, when there is somebody to say it to
           </div>
@@ -3366,6 +3382,13 @@ function raceCut(): { w: number; h: number } | null {
                 className="tap grn-panel grn-label px-5 py-3.5 text-2xs text-gulf-300 active:bg-gulf-500/25"
               >
                 Flash
+              </button>
+              <button
+                onPointerDown={() => engineRef.current?.toggleHighBeam()}
+                className="tap grn-panel grn-label px-5 py-3.5 text-2xs text-sky-300 active:bg-sky-500/25"
+                aria-label="high beam on or off"
+              >
+                High beam
               </button>
               <button
                 onPointerDown={() => engineRef.current?.touchNos(true)}

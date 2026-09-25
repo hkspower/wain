@@ -207,8 +207,9 @@ export const PARTS: Part[] = [
   { id: "film-mirror", cat: "film", name: "Mirrored Film", ar: "فيلم عاكس", price: 950, desc: "Metallised: it throws the light back instead of soaking it up, so the glass comes out brighter than bare and all anyone sees in it is the street behind them. Cosmetic" },
 
   { id: "bulb-halogen", cat: "bulbs", name: "Halogen Bulbs", ar: "شمعات هالوجين", price: 90, desc: "The filament the car left the showroom with. Warm, and warm is the light that cuts through dust and rain — the cheapest way back if the white beams are not for you" },
+  { id: "bulb-xenon", cat: "bulbs", name: "Xenon HID", ar: "زينون", price: 520, desc: "4300K discharge arc — whiter than halogen, a quarter more reach, and the blue flicker as it strikes. Bi-xenon: the main beam is the same lamp with a shutter dropped" },
   { id: "bulb-led", cat: "bulbs", name: "LED Conversion", ar: "تحويل إل إي دي", price: 850, desc: "Cool white at 5800K, half again the light and 45% more reach. You see the corner earlier" },
-  { id: "bulb-laser", cat: "bulbs", name: "Laser High Beam", ar: "إضاءة ليزر", price: 2400, desc: "6500K, nearly twice the throw of halogen — and a tighter cone, because a beam that went further AND wider would be free light" },
+  { id: "bulb-laser", cat: "bulbs", name: "Laser High Beam", ar: "إضاءة ليزر", price: 2400, desc: "6500K, nearly twice the throw of halogen — and a tighter cone, because a beam that went further AND wider would be free light. On main beam above 60 km/h the laser module lights: over 450 m down the middle of the road" },
   // Paint — exclusive, equip freely once owned
   { id: "paint-white", cat: "paint", name: "Factory Finish", ar: "لون الوكالة", price: 0, desc: "The colour it left the showroom in" },
   { id: "paint-black", cat: "paint", name: "Midnight Black", ar: "أسود", price: 150, desc: "" },
@@ -2124,7 +2125,11 @@ export function computeEffects(
     hasNos: has("nos"),
     spoiler: has("spoiler"),
     goldRims: has("gold-rims"),
-    bulb: eq.bulbs === "bulb-led" ? "led" : eq.bulbs === "bulb-laser" ? "laser" : "halogen",
+    bulb:
+      eq.bulbs === "bulb-xenon" ? "xenon"
+        : eq.bulbs === "bulb-led" ? "led"
+        : eq.bulbs === "bulb-laser" ? "laser"
+        : "halogen",
     tyreSticker:
       eq.sidewall === "sidewall-rwl"
         ? "rwl"

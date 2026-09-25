@@ -34,7 +34,7 @@ export function padBrand(id: string | null | undefined): PadBrand {
 }
 
 export interface PadAction {
-  id: "steer" | "throttle" | "brake" | "nos" | "drift" | "flash" | "horn" | "paint" | "sizeUp" | "pause";
+  id: "steer" | "throttle" | "brake" | "nos" | "drift" | "flash" | "highBeam" | "horn" | "paint" | "sizeUp" | "pause";
   /** What it does, in the player's words. */
   does: string;
   kind: "axis" | "button";
@@ -52,6 +52,9 @@ export const PAD_ACTIONS: readonly PadAction[] = [
   { id: "nos",      does: "NOS",               kind: "button", index: 0, label: { playstation: "✕",   xbox: "A",    generic: "Button 1" } },
   { id: "drift",    does: "Drift / handbrake", kind: "button", index: 1, label: { playstation: "○",   xbox: "B",    generic: "Button 2" } },
   { id: "flash",    does: "Flash to challenge", kind: "button", index: 2, label: { playstation: "□",   xbox: "X",    generic: "Button 3" } },
+  // D-pad up: the stalk pushed forward. Button 12 in the standard
+  // mapping on both brands, and free — the d-pad drove nothing.
+  { id: "highBeam", does: "High beam on / off", kind: "button", index: 12, label: { playstation: "D-pad ↑", xbox: "D-pad ↑", generic: "D-pad up" } },
   { id: "horn",     does: "Horn",              kind: "button", index: 4, label: { playstation: "L1",  xbox: "LB",   generic: "Left bumper" } },
   // The one bumper the horn left free. Reading the driver alongside is
   // the hand-off to Tab on a keyboard, and a bumper is the shoulder

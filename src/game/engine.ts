@@ -26,7 +26,7 @@ import { solveSuspension, steerAngles } from "./suspension";
 import { lateralAccel, stepAttitude, type Attitude } from "./attitude";
 import { solveWing } from "./aero";
 import { newWeatherState, solveWeather, type WeatherState, type WeatherResult } from "./weather";
-import { BULBS, bulbColor } from "./bulbs";
+import { BULBS, bulbColor, highBeamOf, kelvinColor, warmupOf } from "./bulbs";
 import { nightEnvironment } from "./env";
 import { RIG } from "./rig";
 import { paceDelta, newPaceState, refreshFromIntervals, type PaceState } from "./pacing";
@@ -319,6 +319,8 @@ export interface BattleHud {
 export interface HudData {
   /** Headlight flashes landed so far in the current challenge window (0-3). */
   flashCount: number;
+  /** Main beam on — the blue tell-tale on the cluster. */
+  highBeam: boolean;
   speedKmh: number;
   areaName: string;
   areaArabic: string;
@@ -1150,6 +1152,14 @@ export class GameEngine {
   /** When the current flash started, in seconds of performance time.
    *  Negative infinity means the stalk has never been touched. */
   private flashStart = -Infinity;
+  /** Main beam: whether the stalk is pushed, and how far in the beam is
+   *  (eased, so a filament's second element and a projector's shutter
+   *  both read as a switch rather than a teleport). */
+  private highBeam = false;
+  private highBeamK = 0;
+  /** When the lamps were last struck, seconds of performance time — the
+   *  start of a discharge lamp's warm-up (bulbs.ts, warmupOf). */
+  private lampsStruck = performance.now() / 1000;
   /** The dipped beam, as the clock last set it. Every flash is measured
    *  from HERE rather than from whatever the lamp happened to be doing,
    *  which is the whole of the bug this replaced. */
@@ -3465,6 +3475,7 @@ export class GameEngine {
     }
     this.keys.add(k);
     if (k === "f") this.tryFlash();
+    if (k === "l" && !e.repeat) this.toggleHighBeam();
     if (k === "m" && !e.repeat && this.sound) {
       const muted = this.sound.toggleMute();
       this.events.onMessage(muted ? "Sound off" : "Sound on");
@@ -3586,6 +3597,7 @@ export class GameEngine {
       this.pad.nos = gp.buttons[PAD.nos]?.pressed ?? false;
       this.pad.drift = gp.buttons[PAD.drift]?.pressed ?? false;
       if (edge(PAD.flash)) this.tryFlash();
+      if (edge(PAD.highBeam)) this.toggleHighBeam();
       if (edge(PAD.paint) && this.painterState?.ready) this.events.onPaintRequest?.();
       if (edge(PAD.sizeUp)) this.events.onSizeUpRequest?.();
       const hornNow = gp.buttons[PAD.horn]?.pressed ?? false;
@@ -3595,6 +3607,7 @@ export class GameEngine {
     } else {
       this.pad = { steer: 0, throttle: 0, brake: 0, drift: false, nos: false };
       this.padButtons[PAD.flash] = gp.buttons[PAD.flash]?.pressed ?? false;
+      this.padButtons[PAD.highBeam] = gp.buttons[PAD.highBeam]?.pressed ?? false;
       this.padButtons[PAD.horn] = gp.buttons[PAD.horn]?.pressed ?? false;
     }
     if (edge(PAD.pause)) {
@@ -3612,6 +3625,18 @@ export class GameEngine {
     if (v.brake !== undefined) this.touch.brake = THREE.MathUtils.clamp(v.brake, 0, 1);
     if (v.steer !== undefined) this.touch.steer = THREE.MathUtils.clamp(v.steer, -1, 1);
     this.sound?.resume();
+  }
+
+  /** Main beam on or off: L, D-pad up, or the touch button. */
+  toggleHighBeam(): void {
+    this.setHighBeam(!this.highBeam);
+  }
+  setHighBeam(on: boolean): void {
+    this.highBeam = on;
+    this.sound?.resume();
+  }
+  get highBeamOn(): boolean {
+    return this.highBeam;
   }
 
   /** Touch equivalents of the keyboard actions. */
@@ -4234,6 +4259,7 @@ export class GameEngine {
    * would have the car dip back to a beam it no longer has.
    */
   private applyBulb(): void {
+    this.lampsStruck = performance.now() / 1000;
     const bulb = BULBS[this.tune.bulb];
     const color = bulbColor(this.tune.bulb);
     this.headlightBase = 90 * bulb.intensity;
@@ -4553,11 +4579,28 @@ export class GameEngine {
    */
   private applyFlashBeam(): void {
     if (this.cine) return; // the film owns the lamps while it runs
-    const boost = playerFlashBoost(performance.now() / 1000 - this.flashStart);
+    const now = performance.now() / 1000;
+    const boost = playerFlashBoost(now - this.flashStart);
     const rest = this.lampRest;
     const headMat = this.carBody?.userData.headMat as THREE.MeshStandardMaterial | undefined;
     const glows = (this.carBody?.userData.headGlowMats as THREE.SpriteMaterial[]) ?? [];
-    if (boost <= 0) {
+    // Main beam and warm-up ride on the dipped beam the clock set; the
+    // flash rides on top of both. Everything is a product of `rest`, so
+    // none of it can compound frame on frame.
+    const hb = highBeamOf(this.tune.bulb, this.highBeamK, this.player.speed * KMH);
+    const warm = warmupOf(this.tune.bulb, now - this.lampsStruck);
+    const bright = hb.intensity * warm.output;
+    // A discharge lamp is violet while it strikes; every other source is
+    // its own colour, set by applyBulb and left alone.
+    if (BULBS[this.tune.bulb].warmup) {
+      const c = kelvinColor(warm.kelvin);
+      this.headlight.color.setHex(c);
+      this.headlightR.color.setHex(c);
+    }
+    // Aimed up for main beam: toward the horizon, past the dipped cut-off.
+    this.headlight.target.position.y = -0.55 + hb.aim;
+    this.headlightR.target.position.y = -0.55 + hb.aim;
+    if (boost <= 0 && this.highBeamK < 1e-3 && warm.output >= 1) {
       // At rest, BY DEFINITION — so this is where the rest state is
       // learned, rather than at the start of a flash where it might be
       // read out of the middle of another one. That was the whole bug.
@@ -4569,18 +4612,22 @@ export class GameEngine {
       this.headlight.distance = rest.reach;
       return;
     }
-    this.headlight.intensity = rest.spot * (1 + FLASH_GAIN * boost);
-    this.headlightR.intensity = rest.off * (1 + FLASH_GAIN * boost);
-    this.headlight.angle = rest.angle * (1 + FLASH_ANGLE_GAIN * boost);
-    this.headlight.distance = rest.reach * (1 + FLASH_REACH_GAIN * boost);
-    if (headMat) headMat.emissiveIntensity = rest.emissive * (1 + 1.6 * boost);
+    this.headlight.intensity = rest.spot * bright * (1 + FLASH_GAIN * boost);
+    this.headlightR.intensity = rest.off * bright * (1 + FLASH_GAIN * boost);
+    this.headlight.angle = rest.angle * hb.angle * (1 + FLASH_ANGLE_GAIN * boost);
+    this.headlight.distance = rest.reach * hb.reach * (1 + FLASH_REACH_GAIN * boost);
+    // The lens itself: brighter on main beam, dim while a xenon strikes.
+    const lensK = (1 + 0.5 * this.highBeamK) * (0.4 + 0.6 * warm.output);
+    if (headMat) headMat.emissiveIntensity = rest.emissive * lensK * (1 + 1.6 * boost);
     glows.forEach((g, i) => {
-      g.opacity = Math.min(1, (rest.glow[i] ?? g.opacity) * (1 + 1.1 * boost));
+      g.opacity = Math.min(1, (rest.glow[i] ?? g.opacity) * lensK * (1 + 1.1 * boost));
     });
     // The cone last, and multiplied rather than assigned:
     // updateBeamVisibility rebuilds it from beamBaseOpacity every frame,
     // so this rides on top of it and cannot compound.
-    if (this.beamMat) this.beamMat.opacity = Math.min(1, this.beamMat.opacity * (1 + 1.3 * boost));
+    if (this.beamMat) {
+      this.beamMat.opacity = Math.min(1, this.beamMat.opacity * (1 + 0.6 * this.highBeamK) * (1 + 1.3 * boost));
+    }
   }
 
   /** Snapshot the battle telemetry and settle XP, stats and rewards. */
@@ -4942,6 +4989,11 @@ export class GameEngine {
     }
     this.updateCamera(dt);
     this.updateBeamVisibility();
+    // The stalk. A filament's second element comes up in about a tenth
+    // of a second; a projector's shutter and an LED faster than that.
+    // Eased either way, so switching reads as a switch, not a cut.
+    this.highBeamK += ((this.highBeam ? 1 : 0) - this.highBeamK) *
+      lagK(this.tune.bulb === "halogen" ? 14 : 30, dt);
     // After the cone is rebuilt from its base, and OUTSIDE it: that
     // function returns early on a car with no visible beam mesh, and the
     // flash is a property of the lamps rather than of the cone.
@@ -8074,6 +8126,7 @@ export class GameEngine {
           }
         : null,
       flashCount: performance.now() > this.flashWindowUntil ? 0 : this.flashCount,
+      highBeam: this.highBeam,
       speedKmh: this.player.speed * KMH,
       tach: (() => {
         const eng = this.tune.engine;

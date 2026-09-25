@@ -9,7 +9,7 @@
 // thing worth asserting is that the effect is real, ordered, and does not
 // quietly restyle the night for a car that has bought nothing.
 
-import { BULBS, BULB_IDS, bulbColor, kelvinToRgb } from "../src/game/bulbs.ts";
+import { BULBS, BULB_IDS, bulbColor, kelvinToRgb, kelvinColor, highBeamOf, warmupOf } from "../src/game/bulbs.ts";
 import { PARTS, EXCLUSIVE_CATS, computeEffects } from "../src/game/mods.ts";
 import { readFileSync } from "node:fs";
 
@@ -37,7 +37,7 @@ const hex = (n) => `#${n.toString(16).padStart(6, "0")}`;
 
 // --- 2. The upgrades are ordered, and pay for themselves in reach ------
 {
-  const order = ["halogen", "led", "laser"];
+  const order = ["halogen", "xenon", "led", "laser"];
   for (const k of ["intensity", "reach"]) {
     for (let i = 1; i < order.length; i++) {
       check(BULBS[order[i]][k] > BULBS[order[i - 1]][k],
@@ -72,7 +72,8 @@ const hex = (n) => `#${n.toString(16).padStart(6, "0")}`;
     const c = bulbColor(b);
     return ((c & 0xff) + 1) / (((c >> 16) & 0xff) + 1);
   };
-  check(blueness("led") > blueness("halogen"), "LED must read cooler than halogen");
+  check(blueness("xenon") > blueness("halogen"), "xenon must read cooler than halogen");
+  check(blueness("led") > blueness("xenon"), "LED must read cooler than xenon");
   check(blueness("laser") > blueness("led"), "laser must read cooler than LED");
   // ...and every channel must be a real 8-bit value.
   for (const b of BULB_IDS) {
@@ -112,7 +113,7 @@ const hex = (n) => `#${n.toString(16).padStart(6, "0")}`;
 // silently remove the other.
 {
   const bulbs = PARTS.filter((p) => p.cat === "bulbs");
-  check(bulbs.length === 3, `${bulbs.length} bulbs on sale, expected 3`);
+  check(bulbs.length === 4, `${bulbs.length} bulbs on sale, expected 4`);
   check(EXCLUSIVE_CATS.has("bulbs"), "you fit one bulb at a time");
   check(EXCLUSIVE_CATS.has("lamps"), "sanity: the lens slot still exists");
   for (const p of bulbs) {
@@ -132,11 +133,11 @@ const hex = (n) => `#${n.toString(16).padStart(6, "0")}`;
     if (!p) { fail.push(`${id} is not in the bulbs slot — it cannot be bought as a bulb`); return null; }
     return p.price;
   };
-  const [ph, pl, px] = ["bulb-halogen", "bulb-led", "bulb-laser"].map(price);
-  if (ph !== null && pl !== null && px !== null) {
-    check(ph < pl && pl < px, `price must follow reach, got ${ph}/${pl}/${px}`);
+  const [ph, pz, pl, px] = ["bulb-halogen", "bulb-xenon", "bulb-led", "bulb-laser"].map(price);
+  if (ph !== null && pz !== null && pl !== null && px !== null) {
+    check(ph < pz && pz < pl && pl < px, `price must follow reach, got ${ph}/${pz}/${pl}/${px}`);
   }
-  console.log(`3 bulbs on sale at ${bulbs.map((p) => p.price).join("/")} KD, in a slot the lens cannot evict`);
+  console.log(`4 bulbs on sale at ${bulbs.map((p) => p.price).join("/")} KD, in a slot the lens cannot evict`);
 }
 
 // --- 6. It reaches the car, and halogen is the default -----------------
@@ -151,6 +152,7 @@ const hex = (n) => `#${n.toString(16).padStart(6, "0")}`;
   });
   check(computeEffects(build([])).bulb === "halogen",
     "a car that has bought nothing runs halogen");
+  check(computeEffects(build(["bulb-xenon"])).bulb === "xenon", "xenon must reach the car");
   check(computeEffects(build(["bulb-led"])).bulb === "led", "LED must reach the car");
   check(computeEffects(build(["bulb-laser"])).bulb === "laser", "laser must reach the car");
   // ...and buying light must not buy grip.
@@ -162,7 +164,58 @@ const hex = (n) => `#${n.toString(16).padStart(6, "0")}`;
   const eng = readFileSync("src/game/engine.ts", "utf8");
   check(/private applyBulb\(\): void/.test(eng) && /this\.applyBulb\(\);/.test(eng),
     "buying a bulb mid-session must reach the lamps, not just a car built at boot");
-  console.log("halogen by default; LED and laser reach the car and buy light, not grip");
+  console.log("halogen by default; xenon, LED and laser reach the car and buy light, not grip");
+}
+
+// --- 7. Main beam: further, higher, and ordered like the bulbs ---------
+{
+  const order = ["halogen", "xenon", "led", "laser"];
+  const off = highBeamOf("led", 0, 100);
+  check(off.intensity === 1 && off.reach === 1 && off.angle === 1 && off.aim === 0,
+    "with the stalk back the main beam must change nothing");
+  const reach = (b, kmh) => 95 * BULBS[b].reach * highBeamOf(b, 1, kmh).reach;
+  for (let i = 1; i < order.length; i++) {
+    check(reach(order[i], 100) > reach(order[i - 1], 100),
+      `main-beam throw must rise from ${order[i - 1]} to ${order[i]}`);
+  }
+  for (const b of order) {
+    const h = highBeamOf(b, 1, 100);
+    check(h.reach > 1 && h.aim > 0, `${b}: a main beam must reach further and aim higher than dipped`);
+  }
+  // The laser module only lights at speed, and fades in rather than snaps.
+  const slow = highBeamOf("laser", 1, 40), fast = highBeamOf("laser", 1, 90), mid = highBeamOf("laser", 1, 55);
+  check(slow.reach === BULBS.laser.high.reach, "below 50 km/h the laser must be an LED main beam");
+  check(fast.reach === BULBS.laser.high.boost.reach, "above 60 km/h the laser module must be lit");
+  check(mid.reach > slow.reach && mid.reach < fast.reach, "between 50 and 60 km/h the laser must fade in");
+  check(fast.angle < slow.angle, "the laser module is a narrower pencil than the LED main beam");
+  console.log(`main beam: ${order.map((b) => `${b} ${Math.round(reach(b, 100))} m`).join(" -> ")}; laser ${Math.round(reach("laser", 40))} m at 40 km/h`);
+}
+
+// --- 8. Xenon strikes cold -------------------------------------------
+{
+  const cold = warmupOf("xenon", 0), hot = warmupOf("xenon", 5);
+  check(cold.output < 0.5 && cold.kelvin > 7000, `a struck xenon must start dim and violet, got ${JSON.stringify(cold)}`);
+  check(hot.output === 1 && hot.kelvin === BULBS.xenon.kelvin, "a warm xenon must be its own colour at full output");
+  check(kelvinColor(BULBS.xenon.kelvin) === bulbColor("xenon"), "a warm xenon must light the road the colour the shop sells");
+  let mono = true, prev = -1;
+  for (let t = 0; t <= 1.2; t += 0.05) { const o = warmupOf("xenon", t).output; if (o < prev) mono = false; prev = o; }
+  check(mono, "the warm-up must only ever brighten");
+  for (const b of ["halogen", "led", "laser"]) {
+    check(warmupOf(b, 0).output === 1, `${b} has no warm-up and must be full on at once`);
+  }
+  console.log(`xenon strikes at ${Math.round(cold.output * 100)}% and ${Math.round(cold.kelvin)} K, full at ${BULBS.xenon.warmup} s`);
+}
+
+// --- 9. The stalk reaches the lamps, the pad and the cluster ----------
+{
+  const eng = readFileSync("src/game/engine.ts", "utf8");
+  const ui = readFileSync("src/app/race/RaceClient.tsx", "utf8");
+  check(/k === "l" && !e\.repeat\) this\.toggleHighBeam\(\)/.test(eng), "L must toggle the main beam");
+  check(/edge\(PAD\.highBeam\)\) this\.toggleHighBeam\(\)/.test(eng), "the pad must toggle the main beam");
+  check(/highBeamOf\(this\.tune\.bulb, this\.highBeamK/.test(eng), "the lamps must be driven through highBeamOf");
+  check(/highBeam: this\.highBeam/.test(eng) && /d\.highBeam \?/.test(ui), "the cluster must show the tell-tale");
+  check(/toggleHighBeam\(\)\}/.test(ui), "touch must have a main-beam button");
+  console.log("L, D-pad up and a touch button work the stalk; the cluster shows a blue tell-tale");
 }
 
 console.log(fail.length ? `\nFAILURES:\n  ${fail.join("\n  ")}` : "\nall green");

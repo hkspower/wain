@@ -1027,6 +1027,7 @@ public static class GRNData
         new Part { Id = "film-carbon", Cat = "film", Price = 520 },
         new Part { Id = "film-mirror", Cat = "film", Price = 950 },
         new Part { Id = "bulb-halogen", Cat = "bulbs", Price = 90 },
+        new Part { Id = "bulb-xenon", Cat = "bulbs", Price = 520 },
         new Part { Id = "bulb-led", Cat = "bulbs", Price = 850 },
         new Part { Id = "bulb-laser", Cat = "bulbs", Price = 2400 },
         new Part { Id = "paint-white", Cat = "paint", Price = 0 },

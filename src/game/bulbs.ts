@@ -22,7 +22,7 @@
 // temperature they can check against a box, not a colour they invented.
 
 /** Which source is behind the lens. */
-export type Bulb = "halogen" | "led" | "laser";
+export type Bulb = "halogen" | "xenon" | "led" | "laser";
 
 export interface BulbSpec {
   name: string;
@@ -36,10 +36,39 @@ export interface BulbSpec {
   /** Multiplier on the cone angle. A longer throw is a narrower cone —
    *  the same light has to go further, and it cannot also go wider. */
   angle: number;
+  /** The main beam, as multipliers on this bulb's own dipped beam. */
+  high: HighBeam;
+  /** Seconds a cold lamp takes to reach full output, or 0 for a source
+   *  that is simply on. Only a discharge lamp has one. */
+  warmup: number;
 }
 
 /**
- * The three sources, with the ratios taken from what these things
+ * Main beam, against the same bulb dipped.
+ *
+ * A main beam is not a dipped beam turned up. It is aimed higher — at the
+ * horizon rather than at the road forty metres out — so it reaches past
+ * where the dipped one is cut off, and that reach is most of what it is
+ * for. `aim` is how far the beam's aim point rises, in metres at the
+ * target 42 m ahead.
+ */
+export interface HighBeam {
+  intensity: number;
+  reach: number;
+  angle: number;
+  aim: number;
+  /**
+   * A second stage above a road speed: the laser module. A car with laser
+   * high beam runs an LED main beam in town and only lights the laser
+   * past about 60 km/h, where its 500-odd metres of throw is useful and
+   * nothing is close enough to be blinded by it. Absent, the main beam
+   * is one stage at any speed.
+   */
+  boost?: { aboveKmh: number; intensity: number; reach: number; angle: number };
+}
+
+/**
+ * The four sources, with the ratios taken from what these things
  * actually do rather than from what would feel generous.
  *
  * A halogen dipped beam throws usable light about 60-70 m. An LED unit
@@ -49,7 +78,10 @@ export interface BulbSpec {
  * the LED's range again, and it is emphatically a narrow long-range
  * beam rather than a wider one.
  *
- * So: 1.0 / 1.45 / 1.9 on reach, and the angle tightens as it goes,
+ * Xenon sits between the filament and the LED: about twice a halogen's
+ * light from the same power, quoted around 80 m dipped.
+ *
+ * So: 1.0 / 1.25 / 1.45 / 1.9 on reach, and the angle tightens as it goes,
  * because a beam that reached further AND wider would be free light.
  */
 export const BULBS: Record<Bulb, BulbSpec> = {
@@ -63,6 +95,28 @@ export const BULBS: Record<Bulb, BulbSpec> = {
     intensity: 1,
     reach: 1,
     angle: 1,
+    // The second filament of an H4: brighter, aimed up, and the whole
+    // reason the stalk exists. About 150 m of usable light.
+    high: { intensity: 1.35, reach: 1.6, angle: 1.12, aim: 0.45 },
+    warmup: 0,
+  },
+  // Xenon — high-intensity discharge. An arc in xenon gas rather than a
+  // glowing wire: about twice a halogen's light from the same power, and
+  // a colour between the filament's and an LED's. OEM D2S lamps run
+  // 4100-4300 K; the blue-violet "xenon" people remember is the first
+  // second after switch-on, when the metal salts are still warming and
+  // the arc runs cold and weak (warmup, below).
+  xenon: {
+    name: "Xenon",
+    arabic: "زينون",
+    kelvin: 4300,
+    intensity: 1.2,
+    reach: 1.25,
+    angle: 0.96,
+    // Bi-xenon: one arc, and a shutter that drops out of the projector's
+    // light path for main beam. Same lamp, same colour, instantly.
+    high: { intensity: 1.4, reach: 1.65, angle: 1.12, aim: 0.45 },
+    warmup: 0.9,
   },
   led: {
     name: "LED",
@@ -71,6 +125,8 @@ export const BULBS: Record<Bulb, BulbSpec> = {
     intensity: 1.35,
     reach: 1.45,
     angle: 0.92,
+    high: { intensity: 1.45, reach: 1.75, angle: 1.08, aim: 0.45 },
+    warmup: 0,
   },
   laser: {
     name: "Laser",
@@ -79,6 +135,13 @@ export const BULBS: Record<Bulb, BulbSpec> = {
     intensity: 1.75,
     reach: 1.9,
     angle: 0.78,
+    // An LED main beam below 60 km/h, and the laser spot on top of it
+    // above: a long, narrow pencil of light down the middle of the road.
+    high: {
+      intensity: 1.45, reach: 1.75, angle: 1.08, aim: 0.45,
+      boost: { aboveKmh: 60, intensity: 1.9, reach: 2.6, angle: 0.72 },
+    },
+    warmup: 0,
   },
 };
 
@@ -150,16 +213,66 @@ export function kelvinToRgb(kelvin: number): [number, number, number] {
  * next to a warm one — and is why people notice them on the road.
  */
 export function bulbColor(bulb: Bulb): number {
+  return kelvinColor(BULBS[bulb].kelvin);
+}
+
+/** The graded beam colour at any temperature — bulbColor's law, for the
+ *  temperatures a lamp passes through on its way to its own (warmupOf). */
+export function kelvinColor(kelvin: number): number {
   const ANCHOR_K = BULBS.halogen.kelvin;
   const GRADED: [number, number, number] = [255, 242, 204]; // 0xfff2cc
   const src = kelvinToRgb(ANCHOR_K).map((v) => v * 255);
   const gain = GRADED.map((t, i) => t / src[i]);
 
-  let c = kelvinToRgb(BULBS[bulb].kelvin).map((v, i) => v * 255 * gain[i]);
+  let c = kelvinToRgb(kelvin).map((v, i) => v * 255 * gain[i]);
   const mx = Math.max(...c);
   // Hue-preserving: scale the whole triple rather than clamping each
   // channel, which would flatten every cool bulb onto white.
   if (mx > 255) c = c.map((v) => (v * 255) / mx);
   const [r, g, b] = c.map((v) => Math.round(Math.min(255, Math.max(0, v))));
   return (r << 16) | (g << 8) | b;
+}
+
+/**
+ * The main beam this bulb throws right now, as multipliers on its own
+ * dipped beam. `on` is how far the main beam is in, 0..1 (the stalk is
+ * eased, not switched), and the laser's second stage fades in across the
+ * last 10 km/h below its threshold rather than snapping on.
+ */
+export function highBeamOf(
+  bulb: Bulb,
+  on: number,
+  kmh: number
+): { intensity: number; reach: number; angle: number; aim: number } {
+  const h = BULBS[bulb].high;
+  const k = Math.min(1, Math.max(0, on));
+  let intensity = h.intensity, reach = h.reach, angle = h.angle;
+  if (h.boost) {
+    const b = h.boost;
+    const s = Math.min(1, Math.max(0, (kmh - (b.aboveKmh - 10)) / 10));
+    intensity += (b.intensity - intensity) * s;
+    reach += (b.reach - reach) * s;
+    angle += (b.angle - angle) * s;
+  }
+  return {
+    intensity: 1 + (intensity - 1) * k,
+    reach: 1 + (reach - 1) * k,
+    angle: 1 + (angle - 1) * k,
+    aim: h.aim * k,
+  };
+}
+
+/**
+ * A discharge lamp's output and colour, `t` seconds after it was struck.
+ *
+ * Output climbs from about a third to full over the warm-up; the colour
+ * starts cold and violet (roughly 8000 K) and settles to the lamp's own
+ * temperature as the salts vaporise. A bulb with no warm-up is simply on.
+ */
+export function warmupOf(bulb: Bulb, t: number): { output: number; kelvin: number } {
+  const spec = BULBS[bulb];
+  if (!spec.warmup || !(t >= 0)) return { output: 1, kelvin: spec.kelvin };
+  const x = Math.min(1, t / spec.warmup);
+  const e = x * x * (3 - 2 * x);
+  return { output: 0.35 + 0.65 * e, kelvin: 8000 + (spec.kelvin - 8000) * e };
 }
