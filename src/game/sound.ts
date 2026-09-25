@@ -379,6 +379,9 @@ export class SoundEngine {
   private engVoiceIn!: GainNode;
   private engFormant!: BiquadFilterNode;
   private engMakeup!: GainNode;
+  /** Combustion jitter: a slow random wander, in cents, fed to every
+   *  oscillator's detune in a voiced bank. See fitVoice. */
+  private engJitter!: GainNode;
   /** Per-layer gains, kept so a swap can re-voice the mix: a big engine
    *  is carried by its sub-octave, a small one by its fundamental. */
   private engLayerGains: GainNode[] = [];
@@ -598,6 +601,24 @@ export class SoundEngine {
     dcBlock.Q.value = 0.707;
     this.engMakeup = this.ctx.createGain();
     this.engVoiceIn.connect(shaper);
+    // No two combustion cycles are the same: the burn varies from one to
+    // the next, and an engine held at a steady speed wanders a few cents
+    // around it. A voice built from an exact cycle spectrum does not —
+    // held at idle it repeated itself sample for sample every seven
+    // cycles, and check:glitch read the paused bus as a loop (0.74 with
+    // itself at 0.994 s). Noise lowpassed to a few hertz, 5 cents deep,
+    // on the DETUNE of all three oscillators: detune is multiplicative,
+    // so the same cents on each keeps their ratios, and the voice stays
+    // the voice while it stops being a recording of one cycle.
+    const jitterLp = this.ctx.createBiquadFilter();
+    jitterLp.type = "lowpass";
+    jitterLp.frequency.value = 3;
+    this.engJitter = this.ctx.createGain();
+    // Full-scale uniform noise through that lowpass comes out at 0.0082
+    // RMS (computed offline over two minutes at 44.1 kHz), so 611 makes
+    // the wander 5 cents RMS.
+    this.engJitter.gain.value = 611;
+    this.loopNoise().connect(jitterLp).connect(this.engJitter);
     shaper.connect(dcBlock).connect(this.engFormant).connect(this.engMakeup)
       .connect(this.engFilter).connect(this.engGain).connect(this.bed);
 
@@ -1085,6 +1106,7 @@ export class SoundEngine {
       const o = this.ctx.createOscillator();
       o.setPeriodicWave(wave(tb));
       o.frequency.setValueAtTime(hz, t);
+      this.engJitter.connect(o.detune);
       o.connect(out);
       o.start(t);
       return o;
