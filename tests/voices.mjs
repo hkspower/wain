@@ -130,8 +130,12 @@ const dist = (a, b) => { let s = 0; for (let h = 0; h < 48; h++) s += (db(a[h]) 
     /createPeriodicWave\(/.test(src) &&
     /linearRampToValueAtTime\(1, t \+ XF\)/.test(src) &&
     /dcBlock\.type = "highpass"/.test(src) &&
-    /freq \/ this\.engCylinders/.test(src);
-  console.log(`${check(ok, "sound.ts no longer fits voices through a crossfade with a DC blocker")} wired       fitted per engine id, crossfaded, DC-blocked, cycle oscillator at f/N`);
+    /freq \/ b\.cyl/.test(src) &&
+    // The resonance is after the clip: voiceLevels levels the voice INTO
+    // the clip without it, so a formant ahead of the clip overdrives it.
+    /this\.engVoiceIn\.connect\(shaper\)/.test(src) &&
+    /connect\(dcBlock\)\.connect\(this\.engFormant\)/.test(src);
+  console.log(`${check(ok, "sound.ts no longer fits voices through a crossfade with a DC blocker and the formant after the clip")} wired       fitted per engine id, crossfaded, DC-blocked, formant after the clip, cycle at f/N per bank`);
 }
 
 console.log(fail.length ? `\nFAILURES:\n - ${fail.join("\n - ")}` : "\nsix engines, six voices, each one its own");

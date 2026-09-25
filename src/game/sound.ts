@@ -374,8 +374,8 @@ export class SoundEngine {
    *  after an engine swap. A bank with a voice id plays that engine's
    *  voice (voices.ts); the legacy bank, null id, is the three generic
    *  oscillators every engine used to share. */
-  private engBank: { oscs: OscillatorNode[]; out: GainNode; voice: EngineId | null } | null = null;
-  private engBankOld: { oscs: OscillatorNode[]; out: GainNode; voice: EngineId | null } | null = null;
+  private engBank: { oscs: OscillatorNode[]; out: GainNode; voice: EngineId | null; cyl: number } | null = null;
+  private engBankOld: { oscs: OscillatorNode[]; out: GainNode; voice: EngineId | null; cyl: number } | null = null;
   private engVoiceIn!: GainNode;
   private engFormant!: BiquadFilterNode;
   private engMakeup!: GainNode;
@@ -574,12 +574,19 @@ export class SoundEngine {
     this.engFilter.frequency.value = 400;
     this.engGain = this.ctx.createGain();
     this.engGain.gain.value = 0;
-    // The voice path: every bank sums into engVoiceIn, through the pipe
-    // resonance of the fitted engine (a peaking band, flat until a voice
-    // is fitted), into the soft clip — then a DC blocker, because a pulse
-    // train is lopsided and a symmetric clip on a lopsided wave leaves an
-    // offset on the bed; and the voice's make-up gain (voices.ts,
+    // The voice path: every bank sums into engVoiceIn and into the soft
+    // clip — then a DC blocker, because a pulse train is lopsided and a
+    // symmetric clip on a lopsided wave leaves an offset on the bed; then
+    // the pipe resonance of the fitted engine (a peaking band, flat until
+    // a voice is fitted); then the voice's make-up gain (voices.ts,
     // voiceLevels), 1 for the legacy bank.
+    //
+    // The resonance comes AFTER the clip. It sat before it at first, and
+    // voiceLevels levels the voice into the clip without it: a +5 dB band
+    // ahead of a curve that stops at full scale drove the clip up to 1.3x
+    // harder than the legacy mix and left two voices 1.4-2.0 dB loud. A
+    // pipe resonates on the pulses the engine has already made, so this
+    // is also where it physically belongs.
     this.engVoiceIn = this.ctx.createGain();
     this.engFormant = this.ctx.createBiquadFilter();
     this.engFormant.type = "peaking";
@@ -590,8 +597,9 @@ export class SoundEngine {
     dcBlock.frequency.value = 20;
     dcBlock.Q.value = 0.707;
     this.engMakeup = this.ctx.createGain();
-    this.engVoiceIn.connect(this.engFormant).connect(shaper);
-    shaper.connect(dcBlock).connect(this.engMakeup).connect(this.engFilter).connect(this.engGain).connect(this.bed);
+    this.engVoiceIn.connect(shaper);
+    shaper.connect(dcBlock).connect(this.engFormant).connect(this.engMakeup)
+      .connect(this.engFilter).connect(this.engGain).connect(this.bed);
 
     const layers: Array<[OscillatorType, number, number]> = [
       ["sawtooth", 1, 0.5], // fundamental
@@ -611,7 +619,7 @@ export class SoundEngine {
       this.engOscs.push(osc);
       this.engLayerGains.push(g);
     }
-    this.engBank = { oscs: this.engOscs, out: legacyOut, voice: null };
+    this.engBank = { oscs: this.engOscs, out: legacyOut, voice: null, cyl: 4 };
 
     // --- Exhaust: boom, bark and rasp
     //
@@ -1096,7 +1104,7 @@ export class SoundEngine {
         if (this.engBankOld === old) this.engBankOld = null;
       };
     }
-    this.engBank = { oscs, out, voice: id };
+    this.engBank = { oscs, out, voice: id, cyl: v.cylinders };
     this.engOscs = oscs;
     this.engLayerGains = [];
     this.engFormant.frequency.setTargetAtTime(v.formant.hz, t, XF / 3);
@@ -1105,10 +1113,14 @@ export class SoundEngine {
     this.engMakeup.gain.setTargetAtTime(lv.makeup, t, XF / 3);
   }
 
+  /** Let a bank go that is still sounding — a second swap arriving
+   *  inside the first one's fade. A 4 ms release rather than a cut: at
+   *  half gain mid-fade, dropping to zero in one sample is a click. */
   private releaseBank(b: { oscs: OscillatorNode[]; out: GainNode }, t: number): void {
     b.out.gain.cancelScheduledValues(t);
-    b.out.gain.setValueAtTime(0, t);
-    try { b.oscs.forEach((o) => o.stop(t)); } catch { /* already stopped */ }
+    b.out.gain.setValueAtTime(b.out.gain.value, t);
+    b.out.gain.setTargetAtTime(0, t, 0.004);
+    try { b.oscs.forEach((o) => o.stop(t + 0.03)); } catch { /* already stopped */ }
   }
 
   /** Wire up the whistle/whine layer for the equipped aspiration mod. */
@@ -1472,7 +1484,11 @@ export class SoundEngine {
     for (const b of [this.engBank, this.engBankOld]) {
       if (!b) continue;
       b.oscs[0].frequency.setTargetAtTime(freq, t, 0.04);
-      b.oscs[1].frequency.setTargetAtTime(b.voice ? freq / this.engCylinders : freq * 2.02, t, 0.04);
+      // Each bank by ITS OWN cylinder count: a bank fading out after a
+      // swap to a different engine was tables for its own engine, and
+      // retuned by the new count it played its uneven-firing content at
+      // half (or twice) the pitch for the length of the fade.
+      b.oscs[1].frequency.setTargetAtTime(b.voice ? freq / b.cyl : freq * 2.02, t, 0.04);
       b.oscs[2].frequency.setTargetAtTime(freq * 0.5, t, 0.04);
     }
     this.engFilter.frequency.setTargetAtTime(280 + throttle * 900 + rpm * 700, t, 0.06);
