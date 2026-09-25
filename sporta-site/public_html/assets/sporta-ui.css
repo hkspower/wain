@@ -2749,20 +2749,25 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
  * wider container, a layout change nobody asked for — so the 20% goes into
  * HEIGHT, by scaling the ratio's own denominator: 570→684 and 706→847, both
  * exactly ×1.2. The crop gets 20% taller at the same width, which is what
- * "bigger" means for a box whose width is already spoken for. */
+ * "bigger" means for a box whose width is already spoken for.
+ *
+ * AND 25% MORE — 2026-09-25, "increase تسوق حسب الفئه images 25%". Same
+ * method, same reason: 684→855 and 847→1059, both ×1.25. Measured: phone
+ * 172x131 → 172x163, desktop 601x418 → 601x523. Taller at the same width
+ * means `cover` shows a little less of each artwork's sides. */
 .cat-tile.tile-men,
 .cat-tile.tile-women,
 .cat-tile.tile-acc,
 .cat-tile.tile-outlet {
   height: auto !important;
-  aspect-ratio: 900 / 684 !important;
+  aspect-ratio: 900 / 855 !important;   /* 684 x 1.25, 2026-09-25 */
 }
 @media (min-width: 768px) {
   .cat-tile.tile-men,
   .cat-tile.tile-women,
   .cat-tile.tile-acc,
   .cat-tile.tile-outlet {
-    aspect-ratio: 1216 / 847 !important;
+    aspect-ratio: 1216 / 1059 !important;   /* 847 x 1.25, 2026-09-25 */
   }
 }
 
