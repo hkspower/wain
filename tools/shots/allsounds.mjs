@@ -266,11 +266,19 @@ const swept = await page.evaluate(async ([ONESHOTS, HELD_IN, FRAME_IN]) => {
   };
   idle();
   const floor = await peakOver(320);
+  // The floor is taken again right before EVERY shot, not once at the
+  // top. Measured once, it caught whatever the first third of a second
+  // after the engine started happened to contain — 0.79, against an
+  // idle that runs nearer 0.4 — and sixteen of eighteen one-shots then
+  // read as "made no sound" because nothing they did was louder than
+  // the start-up. A floor has to be the floor the shot is fired over.
   const shots = [];
   for (const [name, ms] of ONESHOTS) {
     idle();
+    const pre = await peakOver(Math.max(150, ms / 2));
     fire[name]?.();
-    shots.push([name, await peakOver(ms)]);
+    const post = await peakOver(ms);
+    shots.push([name, { ...post, floor: pre.peak }]);
   }
   const held = [];
   for (const [name, over] of HELD_IN) {
@@ -293,11 +301,11 @@ const silent = [];
 console.log("one-shots, peak amplitude at the output (idle floor subtracted)\n");
 console.log(`  ${"idle floor".padEnd(18)} peak ${swept.floor.peak.toFixed(4)}  rms ${swept.floor.rms.toFixed(4)}`);
 for (const [name, m] of swept.shots) {
-  const over = +(m.peak - swept.floor.peak).toFixed(4);
+  const over = +(m.peak - (m.floor ?? swept.floor.peak)).toFixed(4);
   const heard = over > 0.002;
   if (!heard) silent.push(name);
   console.log(
-    `  ${name.padEnd(18)} peak ${m.peak.toFixed(4)}  +${over.toFixed(4)} over idle  ` +
+    `  ${name.padEnd(18)} peak ${m.peak.toFixed(4)}  floor ${(m.floor ?? swept.floor.peak).toFixed(4)}  +${over.toFixed(4)}  ` +
       (heard ? "" : "  <- SILENT")
   );
 }
