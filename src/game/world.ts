@@ -3403,6 +3403,17 @@ const KEY_NIGHT = 1.15;
  * a brown at 262 deg, a beige at 195 deg against its 54, silver at
  * saturation 0.60 against 0.07 on its swatch — and the car's own warm
  * rim (engine.ts) could only take back what one light can.
+ *
+ * Measured at 0.5, same conditions, against the colours as graded:
+ *
+ *   sand hue (swatch 54)      107 -> 69     mudbrick hue (30)   331 -> 349
+ *   white blue cast           0.31 -> 0.28   silver             ~0.5 -> 0.46
+ *   maroon / navy dead        56 / 53% -> 55 / 55%   (their problem is how
+ *                             much light arrives, which this does not change)
+ *
+ * and test:levels at 22:30 does not move: road median 90 -> 89 on the
+ * coast and 129 -> 129 in the city, buildings and sky identical, no crush
+ * anywhere.
  */
 const NIGHT_LIGHT_SAT = 0.5;
 function nightLight(c: [number, number, number]): [number, number, number] {
