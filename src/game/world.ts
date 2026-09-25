@@ -3389,6 +3389,26 @@ const TUNNEL_U = spanU(TUNNEL_S);
 // about a stop and a half under — enough to read, far enough down that
 // the key still does the modelling.
 const KEY_NIGHT = 1.15;
+
+/**
+ * How much of its blue each NIGHT light keeps: 1 is the colours as they
+ * were graded, 0 is grey. Applied at constant luminance (nightLight), so
+ * the night is exactly as bright as before — test:levels' crush and clip
+ * are luminance — and only its colour cast moves.
+ *
+ * Every light that reaches a car at night was blue: the moon key
+ * [0.75, 0.82, 1.0], the fill [0.42, 0.55, 0.82], the sky ambient
+ * [0.17, 0.22, 0.33], and the sky itself in the reflections. Measured at
+ * 2:30 at the exposure players get, every paint in the booth read blue —
+ * a brown at 262 deg, a beige at 195 deg against its 54, silver at
+ * saturation 0.60 against 0.07 on its swatch — and the car's own warm
+ * rim (engine.ts) could only take back what one light can.
+ */
+const NIGHT_LIGHT_SAT = 0.5;
+function nightLight(c: [number, number, number]): [number, number, number] {
+  const y = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  return c.map((v) => y + (v - y) * NIGHT_LIGHT_SAT) as [number, number, number];
+}
 const KEY_TWILIGHT = 1.5;
 /** Mid-afternoon: still full daylight, but off a sun that has come down
  *  far enough to rake. */
@@ -7266,7 +7286,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // it at all.
       moonLight.userData.keyDir = moonLight.position.clone().normalize();
       moonLight.color.copy(
-        mix4([0.75, 0.82, 1.0], [1.0, 0.78, 0.55], [1.0, 0.87, 0.70], [1.0, 0.96, 0.88])
+        mix4(nightLight([0.75, 0.82, 1.0]), [1.0, 0.78, 0.55], [1.0, 0.87, 0.70], [1.0, 0.96, 0.88])
       );
       const key =
         KEY_NIGHT * night + KEY_TWILIGHT * twilight + KEY_GOLD * gold + KEY_DAY * day;
@@ -7288,7 +7308,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         -moonLight.position.z * 0.62
       );
       fillLight.color.copy(
-        mix4([0.42, 0.55, 0.82], [0.5, 0.6, 0.86], [0.55, 0.66, 0.92], [0.62, 0.72, 0.95])
+        mix4(nightLight([0.42, 0.55, 0.82]), [0.5, 0.6, 0.86], [0.55, 0.66, 0.92], [0.62, 0.72, 0.95])
       );
       fillLight.intensity = key * FILL_RATIO;
 
@@ -7297,7 +7317,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // the very darkest crevices off absolute black.
       if (hemiRef) {
         hemiRef.color.copy(
-          mix4([0.17, 0.22, 0.33], [0.35, 0.42, 0.59], [0.52, 0.6, 0.8], [0.55, 0.68, 0.92])
+          mix4(nightLight([0.17, 0.22, 0.33]), [0.35, 0.42, 0.59], [0.52, 0.6, 0.8], [0.55, 0.68, 0.92])
         );
         hemiRef.groundColor.copy(
           mix4([0.07, 0.055, 0.03], [0.17, 0.13, 0.09], [0.46, 0.36, 0.24], [0.42, 0.36, 0.28])
