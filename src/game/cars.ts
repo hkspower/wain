@@ -7005,12 +7005,20 @@ export function createCar(colors: CarColors): THREE.Group {
     }
     const valancePieces: Array<[number, number]> =
       faceHalf > 0 ? [[-valanceW / 2, -faceHalf - 0.03], [faceHalf + 0.03, valanceW / 2]] : [[-valanceW / 2, valanceW / 2]];
+    let valanceBuilt = 0;
     for (const [xa, xb] of valancePieces) {
       if (xb - xa < 0.08) continue;
+      valanceBuilt++;
       const frontValance = new THREE.Mesh(roundedBox(xb - xa, VALANCE_H, VALANCE_D, 0.03), seamMat);
       frontValance.position.set((xa + xb) / 2, VALANCE_Y, noseSkinZ - VALANCE_D / 2);
       frontValance.userData.trim = "valance-front";
       group.add(frontValance);
+    }
+    // On the widest faces — a mouth plus its brake ducts — the face fills
+    // the valance band from flank to flank, and there is nothing left for
+    // the trim to be. Said, so a tool looking for it knows why it is gone.
+    if (!valanceBuilt) {
+      (group.userData.trimOmitted ??= []).push("valance-front: the face fills its band");
     }
     const rearValance = new THREE.Mesh(roundedBox(valanceW, 0.1, VALANCE_D, 0.03), seamMat);
     rearValance.position.set(0, VALANCE_Y, tailSkinZ + VALANCE_D / 2);

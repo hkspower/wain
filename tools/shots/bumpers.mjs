@@ -105,7 +105,13 @@ const measure = (carId) => page.evaluate(async (carId)=>{
   const out = {};
   for (const face of ["front", "rear"]) {
     const v = found[face];
-    if (!v) { out[face] = null; continue; }
+    if (!v) {
+      // A car may say why it has none: the widest faces fill the front
+      // valance's band from flank to flank (cars.ts).
+      const why = (car.userData.trimOmitted ?? []).find((t) => t.startsWith(`valance-${face}`));
+      out[face] = why ? { omitted: why } : null;
+      continue;
+    }
     const skin = skinAt(v.y, face === "front");
     const half = v.depth / 2;
     const outer = face === "front" ? v.z + half : v.z - half;
@@ -127,6 +133,7 @@ for (const [style, c] of bySil) {
   const m = await measure(c.id);
   for (const face of ["front", "rear"]) {
     const v = m[face];
+    if (v?.omitted) { console.log(`  ${style.padEnd(7)} ${face.padEnd(5)} none — ${v.omitted}`); continue; }
     if (!v) { console.log(`  ${style.padEnd(7)} ${face.padEnd(5)} no valance found`); fail.push(`${style}: no ${face} valance`); continue; }
     const cover = ((v.valanceWidth / 2 / m.bodyHalfWidth) * 100).toFixed(0);
     console.log(
