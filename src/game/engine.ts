@@ -1080,6 +1080,24 @@ const SITUATION_LOOKS: Record<Situation, Look> = {
   lose: { tint: balance(0.98, 0.99, 1.02), sat: 0.5, contrast: 0.92 },
 };
 
+/** Whether a material glows: emissive, or an unlit bright surface. */
+function emitsLight(mat: THREE.Material | THREE.Material[]): boolean {
+  const ms = Array.isArray(mat) ? mat : [mat];
+  return ms.some((x) => {
+    const e = x as THREE.MeshStandardMaterial;
+    if (e.emissive && e.emissiveIntensity > 0 && (e.emissive.r + e.emissive.g + e.emissive.b) > 0.05) return true;
+    const b = x as THREE.MeshBasicMaterial;
+    return b.isMeshBasicMaterial === true && b.color && (b.color.r + b.color.g + b.color.b) > 1.2;
+  });
+}
+
+/** A car part is drawn while it covers at least this many pixels across. */
+const LOD_MIN_PX = 1.5;
+/** The layer a culled part is moved to — one no camera renders. */
+const LOD_HIDDEN_LAYER = 7;
+/** How often a car's part list is rebuilt, in frames. */
+const LOD_REBUILD_FRAMES = 120;
+
 /** How far the paint's reflection probe sees, m. */
 const PROBE_FAR = 420;
 /** The radius the sky dome is drawn at inside the probe: within
@@ -2869,15 +2887,25 @@ export class GameEngine {
    * assumed.
    */
   gpuName(): string {
+    // Asked once. emitHud publishes this every frame, and it was asking
+    // the driver every frame: an extension lookup and a getParameter,
+    // measured at 0.76 ms of a 2.9 ms update() — a quarter of the game's
+    // CPU time per frame spent re-reading a string that cannot change
+    // while the context lives. getParameter can also stall the pipeline
+    // on a real driver, which is worse than its cost here.
+    if (this.gpuNameCached !== null) return this.gpuNameCached;
     try {
       const gl = this.renderer.getContext();
       const ext = gl.getExtension("WEBGL_debug_renderer_info");
-      if (ext) return String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL));
-      return String(gl.getParameter(gl.RENDERER));
+      this.gpuNameCached = ext
+        ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL))
+        : String(gl.getParameter(gl.RENDERER));
     } catch {
-      return "unknown";
+      this.gpuNameCached = "unknown";
     }
+    return this.gpuNameCached;
   }
+  private gpuNameCached: string | null = null;
 
   setFrameCap(cap: "display" | "vrr" | number): void {
     this.frameCap = cap;
@@ -4179,6 +4207,74 @@ export class GameEngine {
     if (group) this.carGroups.delete(group);
   }
 
+  /**
+   * Small parts of distant cars, not drawn.
+   *
+   * Every car is ~90 meshes and ~90,000 triangles of detail — badges,
+   * seams, wipers, lamp internals, a driver with fingers — and all 46
+   * traffic cars were drawn in full wherever they were. Measured on the
+   * city leg at 960x540: 5,713 draw calls and 6.8 M triangles a frame,
+   * 4,300 of the 5,400 meshes and 4.2 M of the triangles being cars, most
+   * of them hundreds of metres away and a few pixels across.
+   *
+   * A part is drawn while it covers at least LOD_MIN_PX across on screen:
+   * its bounding sphere's diameter, through the camera's focal length, at
+   * this car's distance. The body shell is never dropped, so a far car is
+   * always its silhouette. Parts are moved to a layer the cameras do not
+   * render rather than hidden, because `visible` belongs to the game —
+   * brake lights, lamp glows and cars waiting for their first snapshot
+   * all switch it — and this must not fight any of them. The part list
+   * is rebuilt every couple of seconds per car, so meshes that arrive
+   * later (a hero car's grille refitted to its authored shell) join it.
+   */
+  private lodFrame = 0;
+  /** Off draws every part of every car — for A/B against the cull. */
+  carLod = true;
+  private applyCarLod(): void {
+    if (!this.carLod) {
+      for (const g of this.carGroups) {
+        for (const [m] of (g.userData.lodParts as Array<[THREE.Mesh, number]> | undefined) ?? []) m.layers.set(0);
+      }
+      return;
+    }
+    const cam = this.camera;
+    const size = this.renderer.getDrawingBufferSize(this.lodSize);
+    const focal = size.y / (2 * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2));
+    this.lodFrame++;
+    for (const g of this.carGroups) {
+      let parts = g.userData.lodParts as Array<[THREE.Mesh, number]> | undefined;
+      if (!parts || this.lodFrame - (g.userData.lodAt as number) > LOD_REBUILD_FRAMES) {
+        parts = [];
+        const scale = new THREE.Vector3();
+        g.updateMatrixWorld(true);
+        g.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (!m.isMesh || (m as unknown as THREE.InstancedMesh).isInstancedMesh || m.userData.shell) return;
+          // Anything that gives off light stays: at night a distant car
+          // IS its lamps — a pair of points a kilometre off — and a lens
+          // is small enough to be dropped at a hundred metres by size.
+          if (emitsLight(m.material)) return;
+          if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
+          m.getWorldScale(scale);
+          const r = m.geometry.boundingSphere!.radius * Math.max(scale.x, scale.y, scale.z);
+          parts!.push([m, r]);
+        });
+        g.userData.lodParts = parts;
+        // Staggered, so every car does not rebuild on the same frame.
+        g.userData.lodAt = this.lodFrame - Math.floor(Math.random() * LOD_REBUILD_FRAMES);
+      }
+      g.getWorldPosition(this.lodPos);
+      const d = Math.max(0.1, this.lodPos.distanceTo(cam.position));
+      const k = (2 * focal) / d;
+      for (const [m, r] of parts) {
+        const show = r * k >= LOD_MIN_PX;
+        if (show !== m.layers.isEnabled(0)) m.layers.set(show ? 0 : LOD_HIDDEN_LAYER);
+      }
+    }
+  }
+  private lodSize = new THREE.Vector2();
+  private lodPos = new THREE.Vector3();
+
   private applyLiveReflections(): void {
     for (const g of this.carGroups) this.dressReflections(g);
   }
@@ -5015,6 +5111,8 @@ export class GameEngine {
       this.music?.setIntensity(musicIntensity(speedFrac, battle));
     }
     this.updateCamera(dt);
+    // After the camera has moved, before anything is drawn.
+    this.applyCarLod();
     this.updateBeamVisibility();
     // The stalk. A filament's second element comes up in about a tenth
     // of a second; a projector's shutter and an LED faster than that.
