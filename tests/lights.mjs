@@ -69,7 +69,7 @@ const probe = (state) =>
     const THREE = window.__grnThree;
     const e = window.__grnEngine;
     e.setPaused(true);
-    e.timeHours = 22.5;
+    e.timeReal = false; e.timeCycling = false; e.timeHours = 22.5;
     e.world.setTimeOfDay(22.5);
     e.applyDaylight();
     const park = () => {

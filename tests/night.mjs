@@ -62,7 +62,7 @@ const gate = await page.evaluate(() => {
   const e = window.__grnEngine;
   e.setPaused(true);
   const at = (h) => {
-    e.timeHours = h;
+    e.timeReal = false; e.timeCycling = false; e.timeHours = h;
     return e.racingOpen();
   };
   return {
@@ -96,7 +96,7 @@ const flash = (hour) =>
   page.evaluate((h) => {
     const e = window.__grnEngine;
     e.setPaused(true);
-    e.timeHours = h;
+    e.timeReal = false; e.timeCycling = false; e.timeHours = h;
     e.world.setTimeOfDay(h);
     e.applyDaylight();
     e.inBattle = false;
@@ -183,7 +183,7 @@ const midRace = await page.evaluate(async () => {
   // rival in a battle state, no scoreboard — and it tidies it away on
   // the next frame, which reads exactly like "the window ended my race"
   // and is nothing of the kind.
-  e.timeHours = 2;
+  e.timeReal = false; e.timeCycling = false; e.timeHours = 2;
   e.challengePending = false;
   e.locked = false;
   e.cine = null;
@@ -196,7 +196,7 @@ const midRace = await page.evaluate(async () => {
   // Close enough to the edge that the run carries the clock over it:
   // inside the window it moves about a minute and a half of game time
   // per ten seconds of play.
-  e.timeHours = 5.82;
+  e.timeReal = false; e.timeCycling = false; e.timeHours = 5.82;
   // Step until the window actually closes and read the battle AT THAT
   // MOMENT, not twenty seconds later. An SP duel resolves on its own in
   // far less time than that — with the player parked, the player loses —
@@ -237,7 +237,7 @@ const rolling = await page.evaluate(async () => {
   e.challengePending = false;
   e.locked = false;
   e.cine = null;
-  e.timeHours = 9;
+  e.timeReal = false; e.timeCycling = false; e.timeHours = 9;
   e.player.speed = 0;
   e.player.lat = 0;
   e.player.s = 2400;

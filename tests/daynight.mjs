@@ -24,7 +24,7 @@ const fail=[]; const check=(c,m)=>{if(!c)fail.push(m);return c?"ok":"FAIL";};
 const sample = (h) => page.evaluate((h)=>{
   const e = window.__grnEngine;
   e.setPaused(true);
-  e.timeHours = h;
+  e.timeReal = false; e.timeCycling = false; e.timeHours = h;
   e.world.setTimeOfDay(h);
   e.applyDaylight();
   e.update(1/60);
@@ -160,7 +160,7 @@ const rig = await page.evaluate(() => {
   const e = window.__grnEngine;
   const out = [];
   for (const h of [0, 6.5, 12.5, 18.5, 22]) {
-    e.timeHours = h; e.world.setTimeOfDay(h); e.applyDaylight();
+    e.timeReal = false; e.timeCycling = false; e.timeHours = h; e.world.setTimeOfDay(h); e.applyDaylight();
     const k = e.world.moonLight, f = e.world.fillLight;
     const warmth = (c) => c.r - c.b; // >0 warm, <0 cool
     out.push({
@@ -262,7 +262,7 @@ for (const r of rig) {
     if (!disc) return { noDisc: true };
     const rows = [];
     for (const h of [0, 3, 5.5, 6.5, 9, 12, 15, 17.5, 18.5, 21]) {
-      e.timeHours = h;
+      e.timeReal = false; e.timeCycling = false; e.timeHours = h;
       e.world.setTimeOfDay(h);
       e.applyDaylight?.();
       e.update(1 / 60);

@@ -295,7 +295,7 @@ const measure = (hour, u, opts = {}) => page.evaluate(async ([hour, u, opts]) =>
   const THREE = window.__grnThree;
   const e = window.__grnEngine;
   e.setPaused(true);
-  e.timeHours = hour;
+  e.timeReal = false; e.timeCycling = false; e.timeHours = hour;
   e.world.setTimeOfDay(hour);
   e.applyDaylight();
   e.setExposure(0, true);

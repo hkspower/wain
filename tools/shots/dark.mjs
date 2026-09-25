@@ -332,7 +332,7 @@ const result = await page.evaluate(async ([write]) => {
   };
 
   const scans = [];
-  e.timeHours = 0.5;
+  e.timeReal = false; e.timeCycling = false; e.timeHours = 0.5;
   e.world.setTimeOfDay(0.5);
   e.applyDaylight();
 

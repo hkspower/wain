@@ -55,7 +55,7 @@ const at = (age) => page.evaluate((age) => {
 await page.evaluate(() => {
   const e = window.__grnEngine;
   e.setPaused(true);
-  e.timeHours = 1.5; e.world.setTimeOfDay(1.5); e.applyDaylight();
+  e.timeReal = false; e.timeCycling = false; e.timeHours = 1.5; e.world.setTimeOfDay(1.5); e.applyDaylight();
   e.applyFlashBeam(); // settle, so the rest state is learned
 });
 const rest = await at(9);   // long past any flash: the dipped beam

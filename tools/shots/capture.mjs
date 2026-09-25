@@ -114,7 +114,7 @@ for (const shot of list) {
       const e = window.__grnEngine;
       e.setPaused(true);
       e.applyQualityTier("high");            // pin the resolution
-      e.timeHours = s.hour;
+      e.timeReal = false; e.timeCycling = false; e.timeHours = s.hour;
       e.world.setTimeOfDay(s.hour);
       e.applyDaylight();
       const at = s.m < 0 ? e.track.length + s.m : s.m; // negative = before the line

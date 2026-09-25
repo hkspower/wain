@@ -222,7 +222,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   await page.waitForTimeout(3500);
   await page.evaluate(() => {
     const e = window.__grnEngine;
-    e.timeHours = 22.5;
+    e.timeReal = false; e.timeCycling = false; e.timeHours = 22.5;
     e.world.setTimeOfDay(22.5);
     e.applyDaylight();
     e.player.s = 2203;

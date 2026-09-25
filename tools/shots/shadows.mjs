@@ -69,7 +69,7 @@ const out = await page.evaluate(async ([hour, write]) => {
   const e = window.__grnEngine;
   e.setPaused(true);
   e.applyQualityTier("high");
-  e.timeHours = hour;
+  e.timeReal = false; e.timeCycling = false; e.timeHours = hour;
   e.world.setTimeOfDay(hour);
   e.applyDaylight();
 

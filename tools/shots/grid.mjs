@@ -59,7 +59,7 @@ const b64 = await page.evaluate(async ([height, u]) => {
   // established, so this is a note rather than a fix. It does not affect
   // what the shot is for — the markings are legible either way — but do
   // not read a lighting conclusion off this file.
-  e.timeHours = 12.5;
+  e.timeReal = false; e.timeCycling = false; e.timeHours = 12.5;
   e.world.setTimeOfDay(12.5);
   e.applyDaylight();
   e.player.s = u; // metres from the line

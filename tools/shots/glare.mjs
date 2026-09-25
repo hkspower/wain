@@ -55,7 +55,7 @@ for (const [where, u] of SPOTS) {
     const e = window.__grnEngine;
     e.setPaused(true);
     e.applyQualityTier("high");
-    e.timeHours = 22.5;
+    e.timeReal = false; e.timeCycling = false; e.timeHours = 22.5;
     e.world.setTimeOfDay(22.5);
     e.applyDaylight();
     e.setExposure(0, false);

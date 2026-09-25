@@ -29,7 +29,7 @@ await page.waitForFunction(()=>!!window.__grnDebug,null,{timeout:120000});
 const shot = await page.evaluate((cut)=>{
   window.__grnPoseCutaway = cut;
   const e = window.__grnEngine;
-  e.timeHours = 12.5; e.world.setTimeOfDay(12.5); e.applyDaylight();
+  e.timeReal = false; e.timeCycling = false; e.timeHours = 12.5; e.world.setTimeOfDay(12.5); e.applyDaylight();
   e.setPaused(true);
   e.setTouchInput({ steer: 0.35 });
   for (let i=0;i<60;i++) e.update(1/60);

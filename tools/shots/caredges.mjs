@@ -81,7 +81,7 @@ const shot = await page.evaluate(async () => {
   const e = window.__grnEngine;
   e.setPaused(true);
   e.applyQualityTier("high");
-  e.timeHours = 2.5; e.world.setTimeOfDay(2.5); e.applyDaylight(); e.setExposure(0, false);
+  e.timeReal = false; e.timeCycling = false; e.timeHours = 2.5; e.world.setTimeOfDay(2.5); e.applyDaylight(); e.setExposure(0, false);
   const m = 587;
   const park = () => {
     const away = e.track.wrap(m + e.track.length / 2);

@@ -270,7 +270,7 @@ results.traffic = await shoot("traffic", `
 // 6. The driver at lock, through the glass. Daylight, or the cabin is a
 // black box.
 results.driver = await shoot("driver", `
-  e.timeHours = 12.5; e.world.setTimeOfDay(12.5); e.applyDaylight();
+  e.timeReal = false; e.timeCycling = false; e.timeHours = 12.5; e.world.setTimeOfDay(12.5); e.applyDaylight();
   e.player.s = 2400; e.player.lat = 0; e.player.speed = 6; e.heading = 0; e.driftYaw = 0;
   for (let i = 0; i < 50; i++) { e.setTouchInput({ steer: 0.85, throttle: 0.1, brake: 0 }); e.update(1/60); e.player.speed = 6; e.player.lat = 0; }
   const rig = e.carBody.userData.driver;

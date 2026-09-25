@@ -539,7 +539,7 @@ if (wave && !wave.noArms) {
 const shot = await page.evaluate(()=>{
   const e = window.__grnEngine;
   // Daylight, or the cabin is a black box and none of this is visible
-  e.timeHours = 12.5; e.world.setTimeOfDay(12.5); e.applyDaylight();
+  e.timeReal = false; e.timeCycling = false; e.timeHours = 12.5; e.world.setTimeOfDay(12.5); e.applyDaylight();
   e.setTouchInput({ steer: 0.85 });
   for (let i=0;i<40;i++) e.update(1/60);
   const rig = e.carBody.userData.driver;

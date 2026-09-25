@@ -273,7 +273,7 @@ const result = await page.evaluate(async ([write]) => {
     return r;
   };
   const scanAt = (label, hour) => {
-    e.timeHours = hour;
+    e.timeReal = false; e.timeCycling = false; e.timeHours = hour;
     e.world.setTimeOfDay(hour);
     e.applyDaylight();
     T("settleEye", settleEye);

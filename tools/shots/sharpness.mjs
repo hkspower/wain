@@ -85,7 +85,7 @@ for (const [where, m] of SPOTS) {
       e.bloomPass.threshold = window.__bloomThreshold;
     }
     if (window.__bloomRadius !== undefined) e.bloomPass.radius = window.__bloomRadius;
-    e.timeHours = 2.5;
+    e.timeReal = false; e.timeCycling = false; e.timeHours = 2.5;
     e.world.setTimeOfDay(2.5);
     e.applyDaylight();
     e.setExposure(0, false);

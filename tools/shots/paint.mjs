@@ -231,7 +231,7 @@ for (const [where, m] of SPOTS) {
     }
     e.applyQualityTier("high");
     if (probe) e.setProbeResolution(probe);
-    e.timeHours = 2.5;
+    e.timeReal = false; e.timeCycling = false; e.timeHours = 2.5;
     e.world.setTimeOfDay(2.5);
     e.applyDaylight();
     e.setExposure(0, false);

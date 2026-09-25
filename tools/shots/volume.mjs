@@ -59,7 +59,7 @@ const out = await page.evaluate(async () => {
   const e = window.__grnEngine;
   e.setPaused(true);
   e.applyQualityTier("high");
-  e.timeHours = 0.5;
+  e.timeReal = false; e.timeCycling = false; e.timeHours = 0.5;
   e.world.setTimeOfDay(0.5);
   e.applyDaylight();
   e.player.s = 587; e.player.lat = 0; e.player.speed = 0;
