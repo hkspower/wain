@@ -4425,11 +4425,11 @@ export function paintMetalness(hex: number): number {
   // black car was a hole.
   //
   // (Those numbers were taken against a stale reflection probe at the
-  // manual 1.15 exposure — see tools/shots/paintcolors.mjs. At the 0.55
-  // players actually get, a satin black car was 83% dead until the probe
-  // could see the sky, and about 20% after; the sky did that, not this
-  // law, and metalness 0 for solids measured WORSE once it was in —
-  // 22-23% dead with half the tonal range.)
+  // manual 1.15 exposure — see tools/shots/paintcolors.mjs. At 2:30, at
+  // the 0.55 players actually get, a satin black car is 74.8% dead with
+  // the probe as it was and 67.2% with the sky in it. Metalness 0 for
+  // solids was only ever A/B'd with the game clock running — at dusk in
+  // Kuwait — so it is untested at night, not rejected.)
   //
   // The physics says why. In a metalness workflow F0 IS the base colour,
   // so a near-black basecoat reflects what it is: 0x0d0e11 is about half

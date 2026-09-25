@@ -2645,9 +2645,16 @@ export class GameEngine {
     // so the probe never contained any sky at all. A panel turned up to
     // the night mirrors mostly sky — Fresnel is strongest at exactly the
     // grazing angles a car's flanks and roof present — and every one of
-    // them mirrored black. Measured at the exposure players get (0.55,
-    // satin, the paint booth): red went from 31.5% of its bodywork dead
-    // to 0.6% with the sky in the probe, and black from 83% to 59%.
+    // them mirrored black. Measured at 2:30 with the clock stopped, at
+    // the exposure players get (0.55, satin, the paint booth), share of
+    // the bodywork dead without -> with the sky:
+    //
+    //   red 25.7 -> 2.7%   gunmetal 61.9 -> 25.7%   navy 70.7 -> 48.9%
+    //   maroon 71.1 -> 59.1%   black 74.8 -> 67.2%
+    //
+    // and white, silver and yellow ~10 levels brighter, none clipping.
+    // It is not the whole answer for black, which is still two-thirds
+    // dead: nothing but the blue moon rig and rim light reaches a car.
     //
     // Not by pushing the far plane out. That was the version measured
     // above, and it pulls the whole city into the probe with the sky: a

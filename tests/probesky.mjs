@@ -8,9 +8,10 @@
 // every direction the city did not fill was the clear colour, black. A
 // car's flanks and roof mirror mostly sky — Fresnel is strongest at the
 // grazing angles they present — so they mirrored nothing. Measured with
-// tools/shots/paintcolors.mjs at the exposure players get (0.55, satin):
-// red went from 31.5% of its bodywork dead to 0.6% once the sky was in,
-// and black from 83% to about 20%.
+// tools/shots/paintcolors.mjs at 2:30 with the clock stopped, at the
+// exposure players get (0.55, satin): red went from 25.7% of its
+// bodywork dead to 2.7% once the sky was in, gunmetal from 61.9% to
+// 25.7%, and black from 74.8% to 67.2%.
 //
 // The fix draws the dome shrunk inside the probe's far plane for each
 // probe face (engine.ts, renderProbeFace). This checks, on the probe
