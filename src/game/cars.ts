@@ -2492,18 +2492,13 @@ function getTireMat(): THREE.MeshStandardMaterial {
 }
 
 const rimGeo = new THREE.CylinderGeometry(
-  0.205 * WHEEL_R_K, 0.205 * WHEEL_R_K, 0.27 * WHEEL_W_K, 14
+  0.205 * WHEEL_R_K, 0.205 * WHEEL_R_K, 0.27 * WHEEL_W_K, 32
 );
 rimGeo.rotateZ(Math.PI / 2);
 const hubGeo = new THREE.CylinderGeometry(
-  0.06 * WHEEL_R_K, 0.06 * WHEEL_R_K, 0.29 * WHEEL_W_K, 8
+  0.06 * WHEEL_R_K, 0.06 * WHEEL_R_K, 0.29 * WHEEL_W_K, 16
 );
 hubGeo.rotateZ(Math.PI / 2);
-// x is along the axle here, so it takes the axial scale and the other
-// two take the radial one.
-const spokeGeo = roundedBox(
-  0.27 * WHEEL_W_K, 0.3 * WHEEL_R_K, 0.06 * WHEEL_R_K, 0.018 * WHEEL_R_K
-);
 /**
  * The inside of the pipe.
  *
@@ -2567,20 +2562,8 @@ const rimDarkMat = new THREE.MeshStandardMaterial({ name: "rim-dark",
   metalness: 0.6,
 });
 
-/**
- * The hubcap's dish: a shallow cone across most of the rim's face.
- *
- * Sized to the FITTED wheel like everything else in this section, so a
- * cover stays a cover when the wheel changes size rather than becoming
- * a saucer floating in front of one.
- */
-const hubcapGeo = new THREE.CylinderGeometry(
-  0.2 * WHEEL_R_K, 0.185 * WHEEL_R_K, 0.03 * WHEEL_W_K, 20
-);
-hubcapGeo.rotateZ(Math.PI / 2);
-
 const lipGeo = new THREE.TorusGeometry(
-  0.195 * WHEEL_R_K, 0.014 * WHEEL_R_K, 6, 20
+  0.195 * WHEEL_R_K, 0.014 * WHEEL_R_K, 6, 40
 );
 lipGeo.rotateY(Math.PI / 2);
 /**
@@ -4892,6 +4875,89 @@ function policeBandTexture(): THREE.CanvasTexture {
  *  and side, since the lip, rotor and lugs sit on the outboard face. */
 const heroWheelCache = new Map<string, Record<string, THREE.BufferGeometry>>();
 
+/**
+ * The FACE of a wheel — what the finish colours — merged, per spoke count
+ * and side. Shared by the hero build and the traffic build, so the two
+ * cannot drift apart again.
+ *
+ * The spokes were one rounded box 0.3 long, pushed out 0.1 from the axle:
+ * with the bevel roundedBox adds on every side, they reached radius 0.268
+ * against a rim of 0.205 — every procedural spoke stood 6 cm out past the
+ * rim, across the tyre — and they were the barrel's full depth, so they
+ * came through the front of a hubcap. A steel wheel read as a white disc
+ * with a plus sign stuck on it. Now a spoke runs from inside the hub to
+ * just inside the lip's inner edge and is a face, standing at the
+ * outboard side of the wheel, not a slab through it.
+ *
+ * nSpokes 0 is a pressed STEEL wheel: a dished disc, a ring of vent
+ * slots (returned separately — they are holes, dark, a second material)
+ * and a small centre cap. No spokes, because a steel wheel has none.
+ */
+const wheelFaceCache = new Map<string, { alloy: THREE.BufferGeometry; vents: THREE.BufferGeometry | null }>();
+function wheelFace(nSpokes: number, side: number): { alloy: THREE.BufferGeometry; vents: THREE.BufferGeometry | null } {
+  const key = `${nSpokes}|${side}`;
+  const hit = wheelFaceCache.get(key);
+  if (hit) return hit;
+  const R = WHEEL_R_K, W = WHEEL_W_K;
+  const lip = lipGeo.clone();
+  lip.translate(side * 0.135 * W, 0, 0);
+  const parts: THREE.BufferGeometry[] = [lip];
+  let vents: THREE.BufferGeometry | null = null;
+  if (nSpokes > 0) {
+    parts.push(hubGeo.clone());
+    // Hub to just inside the lip (its tube's inner edge is at 0.181),
+    // a face 0.05 thick at the outboard side. roundedBox grows a box by
+    // its radius on every side, so the asked-for sizes are net of it.
+    const r = 0.01;
+    const inner = 0.05, outer = 0.184, depth = 0.05;
+    const wide = nSpokes >= 6 ? 0.05 : 0.064;
+    const len = outer - inner - 2 * r;
+    for (let i = 0; i < nSpokes; i++) {
+      const g = roundedBox((depth - 2 * r) * W, len * R, (wide - 2 * r) * R, r * R);
+      // Tapered, 0.7x at the hub to 1.3x at the lip, the way a cast spoke
+      // carries load out to the rim; and dished, the hub end set 0.008
+      // inboard of the lip end, so the face is concave rather than flat.
+      // No deeper: the barrel's end cap is at 0.135 and the spoke's face
+      // at 0.145, so a deeper dish buries the spoke roots in the cap.
+      const pos = g.attributes.position as THREE.BufferAttribute;
+      for (let v = 0; v < pos.count; v++) {
+        const t = Math.min(1, Math.max(0, pos.getY(v) / (len * R) + 0.5));
+        pos.setZ(v, pos.getZ(v) * (0.7 + 0.6 * t));
+        pos.setX(v, pos.getX(v) - side * 0.008 * (1 - t) * W);
+      }
+      g.computeVertexNormals();
+      g.translate(side * (0.145 - depth / 2) * W, ((inner + outer) / 2) * R, 0);
+      g.rotateX((i / nSpokes) * Math.PI * 2);
+      parts.push(g);
+    }
+  } else {
+    // The dished disc, just behind the lip's face, and a small raised cap
+    // over the hub. Nothing reaches past the lip.
+    const disc = new THREE.CylinderGeometry(0.183 * R, 0.183 * R, 0.02 * W, 28);
+    disc.rotateZ(Math.PI / 2);
+    disc.translate(side * 0.128 * W, 0, 0);
+    const cap = new THREE.CylinderGeometry(0.045 * R, 0.055 * R, 0.03 * W, 16);
+    cap.rotateZ(side > 0 ? -Math.PI / 2 : Math.PI / 2);
+    cap.translate(side * 0.143 * W, 0, 0);
+    parts.push(disc, cap);
+    // Eight oval vents on a ring between cap and lip.
+    const ventParts: THREE.BufferGeometry[] = [];
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+      const v = new THREE.CylinderGeometry(0.02 * R, 0.02 * R, 0.006 * W, 12);
+      v.rotateZ(Math.PI / 2);
+      v.scale(1, 1.7, 1); // long tangentially after the rotation below
+      v.rotateX(a + Math.PI / 2);
+      v.translate(side * 0.139 * W, Math.cos(a) * 0.118 * R, Math.sin(a) * 0.118 * R);
+      ventParts.push(v);
+    }
+    vents = mergeGeometries(ventParts)!;
+  }
+  const out = { alloy: mergeGeometries(parts.map((g) => g.index ? g.toNonIndexed() : g))!, vents };
+  wheelFaceCache.set(key, out);
+  return out;
+}
+
 function heroWheelParts(nSpokes: number, side: number) {
   const key = `${nSpokes}|${side}`;
   let parts = heroWheelCache.get(key);
@@ -4909,17 +4975,8 @@ function heroWheelParts(nSpokes: number, side: number) {
   const tire = tireGeoHi.clone();
   // Alloy face: machined lip, spokes, hub — everything wearing the
   // finish colour
-  const alloyParts: THREE.BufferGeometry[] = [
-    at(lipGeo, side * 0.135 * WHEEL_W_K),
-    hubGeo.clone(),
-  ];
-  for (let i = 0; i < nSpokes; i++) {
-    const g = spokeGeo.clone();
-    g.translate(0, 0.1 * WHEEL_R_K, 0);
-    g.rotateX((i / nSpokes) * Math.PI * 2);
-    alloyParts.push(g);
-  }
-  const alloy = mergeGeometries(alloyParts)!;
+  const face = wheelFace(nSpokes, side);
+  const alloy = face.alloy;
   const lugParts: THREE.BufferGeometry[] = [];
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2 + 0.3;
@@ -4939,6 +4996,7 @@ function heroWheelParts(nSpokes: number, side: number) {
     rotor: at(discGeo, -side * 0.055 * WHEEL_W_K),
     lugs: mergeGeometries(lugParts)!,
   };
+  if (face.vents) parts.vents = face.vents;
   heroWheelCache.set(key, parts);
   return parts;
 }
@@ -4960,10 +5018,9 @@ function buildWheel(
       rimMatFor(finish);
   const detailed = opts?.detailed ?? false;
   // Six straight spokes on the forged bronze wheel, five on the street
-  // cast — and four on a hubcap, because a pressed cover has a few wide
-  // flat vanes rather than a spoke pattern, and that difference in
-  // COUNT is what the eye reads at speed even when the shape is coarse.
-  const nSpokes = finish === "bronze" || finish === "black" ? 6 : steel ? 4 : 5;
+  // cast — and none on steel, which is a pressed disc with vent slots
+  // (wheelFace), not a spoke pattern at all.
+  const nSpokes = finish === "bronze" || finish === "black" ? 6 : steel ? 0 : 5;
   const w = new THREE.Group();
   // Spin, steer and camber are three writes on this one node; the order
   // they compose in is what keeps the spin on the axle. See suspension.ts.
@@ -4985,21 +5042,13 @@ function buildWheel(
       rotor: rotorMat,
       lugs: rimDarkMat,
     };
-    for (const name of ["tire", "barrel", "alloy", "rotor", "lugs"]) {
+    mats.vents = rimDarkMat;
+    for (const name of ["tire", "barrel", "alloy", "rotor", "lugs", "vents"]) {
+      if (!parts[name]) continue;
       const mesh = new THREE.Mesh(parts[name], mats[name]);
       mesh.userData.wheelPart = name;
       mesh.userData.wheelSide = side;
       w.add(mesh);
-    }
-    // The cover itself: a shallow dish clipped over the face of the
-    // rim, which is what makes a steel wheel read as a steel wheel
-    // rather than as a dull alloy. It sits PROUD of the spokes, hiding
-    // most of them — a hubcap covers the wheel, that is its whole job.
-    if (steel) {
-      const cap = new THREE.Mesh(hubcapGeo, hubcapMat);
-      cap.position.x = side * 0.135 * WHEEL_W_K;
-      cap.userData.wheelPart = "hubcap";
-      w.add(cap);
     }
     addTyreSticker(w, side, opts?.sticker);
     w.userData.spokes = nSpokes;
@@ -5007,21 +5056,15 @@ function buildWheel(
     return w;
   }
 
-  // Traffic wheel: the cheap build, unchanged
+  // Traffic wheel: the cheap build — the same face as the hero wheel,
+  // merged, so a traffic wheel is three draws (four on steel) instead of
+  // the nine a lip, a hub and five separate spokes cost, across 184
+  // traffic wheels.
   w.add(new THREE.Mesh(tireGeo, getTireMat()));
   w.add(new THREE.Mesh(rimGeo, rimDarkMat));
-  const lip = new THREE.Mesh(lipGeo, spokeMat);
-  lip.position.x = side * 0.135 * WHEEL_W_K;
-  w.add(lip);
-  for (let i = 0; i < nSpokes; i++) {
-    const holder = new THREE.Group();
-    holder.rotation.x = (i / nSpokes) * Math.PI * 2;
-    const spoke = new THREE.Mesh(spokeGeo, spokeMat);
-    spoke.position.y = 0.1 * WHEEL_R_K;
-    holder.add(spoke);
-    w.add(holder);
-  }
-  w.add(new THREE.Mesh(hubGeo, spokeMat));
+  const face = wheelFace(nSpokes, side);
+  w.add(new THREE.Mesh(face.alloy, spokeMat));
+  if (face.vents) w.add(new THREE.Mesh(face.vents, rimDarkMat));
   addTyreSticker(w, side, opts?.sticker);
   return w;
 }

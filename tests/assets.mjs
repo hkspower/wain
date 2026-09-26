@@ -188,8 +188,10 @@ for (const [i, w] of r.wheels.entries()) {
   const auth = Object.values(w.parts).every((p) => p.authored);
   console.log(`  wheel ${i} side=${w.side} spokes=${w.spokes} parts=[${names}] ${t} tris  ` +
     check(auth, `wheel ${i} has procedural parts`));
-  check(names === "Alloy,Barrel,Lugs,Rotor,Tire".toLowerCase().split(",").sort().join(",") ||
-        names === "alloy,barrel,lugs,rotor,tire", `wheel ${i} parts: ${names}`);
+  // A pressed steel wheel (spokes 0) carries its vent slots as a sixth,
+  // dark part; nothing else does.
+  check(names === "alloy,barrel,lugs,rotor,tire" ||
+        (w.spokes === 0 && names === "alloy,barrel,lugs,rotor,tire,vents"), `wheel ${i} parts: ${names}`);
   const tire = w.parts.tire;
   check(Math.abs(tire.r - 0.36) < 0.002, `wheel ${i} tire radius ${tire.r} != 0.36`);
   check(Math.abs(tire.x[0] + 0.13) < 0.002 && Math.abs(tire.x[1] - 0.13) < 0.002,
