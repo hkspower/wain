@@ -5,7 +5,8 @@
 // never fires all look identical to "working" from the outside.
 //
 // So this asserts the authored geometry is live on all five parts of
-// all four wheels (mirrored on the left) and on the palm crowns, that
+// all four wheels (mirrored on the left) wherever the build ships that
+// wheel, and on the palm crowns, that
 // each piece still occupies the envelope the rest of the game is
 // positioned against, and — for the body shells, where the shipped
 // files have drifted off that envelope by up to 206 mm — that whatever
@@ -32,6 +33,22 @@ const manifest = JSON.parse(readFileSync("public/models/build.json", "utf8"));
 const ships = (f) =>
   !!manifest.assets?.[f] && existsSync(`public/models/${f}.glb`);
 const SHIPS_DRIVER = ships("driver");
+/** Spoke counts with an authored wheel in the build; any other wheel is
+ *  the procedural fallback, by design, and must be asserted as such. */
+const SHIPPED_SPOKES = [0, 4, 5, 6, 7, 8].filter((n) => ships(`wheel-${n}`));
+
+/** The wheel the game FITS, not the section it is authored at: cars.ts
+ *  scales the 0.36 / 0.13 section to these, and models.ts scales the
+ *  authored GLB to the same. Read from the source, so the test follows
+ *  a deliberate change instead of pinning the old number. */
+const carsSrc = readFileSync("src/game/cars.ts", "utf8");
+const constOf = (name) => {
+  const m = carsSrc.match(new RegExp(`export const ${name} = ([0-9.]+);`));
+  if (!m) { console.error(`cannot find ${name} in src/game/cars.ts`); process.exit(2); }
+  return +m[1];
+};
+const TIRE_RADIUS = constOf("TIRE_RADIUS");
+const TIRE_HALF_W = constOf("TIRE_HALF_W");
 
 const CANDIDATES = [
   process.env.CHROME_PATH,
@@ -63,7 +80,7 @@ await page.click("text=START ENGINE");
 await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 120000 });
 // The swaps are async fetches of multi-megabyte files: wait on the
 // condition, not on a guessed delay.
-await page.waitForFunction((wantDriver) => {
+await page.waitForFunction(({ wantDriver, shipped }) => {
   const e = window.__grnEngine;
   let shells = 0, authored = 0, dparts = 0, dauth = 0;
   e.carBody.traverse((o) => {
@@ -73,7 +90,16 @@ await page.waitForFunction((wantDriver) => {
   let parts = 0, wauth = 0;
   w?.traverse((o) => {
     if (o.isMesh && o.userData.wheelPart) { parts++; if (o.geometry.userData.authored) wauth++; }
-    if (o.isMesh && o.userData.driverPart) { dparts++; if (o.geometry.userData.authored) dauth++; }
+  });
+  // The driver hangs off the car (or its rig), not off a wheel — counted
+  // under the wheel it was always 0, and every run sat out the timeout.
+  const rig = e.carBody.userData.driver;
+  (rig ? rig.group : e.carBody).traverse((o) => {
+    // Only the slots driver.glb carries (the same five asserted below):
+    // the handbrake grip and gear knob are procedural by design.
+    if (o.isMesh && ["helmet", "visor", "glove", "wheel", "pedal"].includes(o.userData.driverPart)) {
+      dparts++; if (o.geometry.userData.authored) dauth++;
+    }
   });
   // Shells settle to a VERDICT, not to "authored". A shell that has
   // drifted from the profile it claims to be lofted from is rejected on
@@ -81,9 +107,12 @@ await page.waitForFunction((wantDriver) => {
   const verdict = e.carBody.userData.shellSwap ?? {};
   const judged = verdict.all !== undefined || Object.keys(verdict).length >= shells;
   void authored;
-  return shells > 0 && judged && parts > 0 && parts === wauth
+  // Wait on the wheel swap only when there is one to wait for: a wheel
+  // whose spoke count has no GLB stays procedural for ever.
+  const wantWheel = shipped.includes(w?.userData.spokes ?? -1);
+  return shells > 0 && judged && parts > 0 && (!wantWheel || parts === wauth)
     && (!wantDriver || (dparts > 0 && dparts === dauth));
-}, SHIPS_DRIVER, { timeout: 90000 }).catch(() => console.log("(timed out waiting for the authored swaps)"));
+}, { wantDriver: SHIPS_DRIVER, shipped: SHIPPED_SPOKES }, { timeout: 90000 }).catch(() => console.log("(timed out waiting for the authored swaps)"));
 
 const r = await page.evaluate(() => {
   const e = window.__grnEngine;
@@ -185,17 +214,21 @@ console.log("\nwheels:");
 for (const [i, w] of r.wheels.entries()) {
   const names = Object.keys(w.parts).sort().join(",");
   const t = Object.values(w.parts).reduce((a, p) => a + p.tris, 0);
-  const auth = Object.values(w.parts).every((p) => p.authored);
-  console.log(`  wheel ${i} side=${w.side} spokes=${w.spokes} parts=[${names}] ${t} tris  ` +
-    check(auth, `wheel ${i} has procedural parts`));
+  const want = SHIPPED_SPOKES.includes(w.spokes);
+  const vals = Object.values(w.parts);
+  const ok = want ? vals.every((p) => p.authored) : vals.every((p) => !p.authored);
+  console.log(`  wheel ${i} side=${w.side} spokes=${w.spokes} ${want ? "authored" : "procedural (no wheel-" + w.spokes + ".glb)"} ` +
+    `parts=[${names}] ${t} tris  ` +
+    check(ok, want ? `wheel ${i} has procedural parts but wheel-${w.spokes} ships`
+                   : `wheel ${i} has authored parts but no wheel-${w.spokes} ships`));
   // A pressed steel wheel (spokes 0) carries its vent slots as a sixth,
   // dark part; nothing else does.
   check(names === "alloy,barrel,lugs,rotor,tire" ||
         (w.spokes === 0 && names === "alloy,barrel,lugs,rotor,tire,vents"), `wheel ${i} parts: ${names}`);
   const tire = w.parts.tire;
-  check(Math.abs(tire.r - 0.36) < 0.002, `wheel ${i} tire radius ${tire.r} != 0.36`);
-  check(Math.abs(tire.x[0] + 0.13) < 0.002 && Math.abs(tire.x[1] - 0.13) < 0.002,
-    `wheel ${i} tire width ${tire.x} != +-0.13`);
+  check(Math.abs(tire.r - TIRE_RADIUS) < 0.002, `wheel ${i} tire radius ${tire.r} != fitted ${TIRE_RADIUS}`);
+  check(Math.abs(tire.x[0] + TIRE_HALF_W) < 0.002 && Math.abs(tire.x[1] - TIRE_HALF_W) < 0.002,
+    `wheel ${i} tire width ${tire.x} != fitted +-${TIRE_HALF_W}`);
   // Outboard parts must sit on the wheel's own outboard side
   const lug = w.parts.lugs;
   const outboard = w.side > 0 ? lug.x[0] > 0 : lug.x[1] < 0;
