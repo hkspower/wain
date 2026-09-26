@@ -40,7 +40,27 @@ Without the certificate the script writes everything except the signature and
 names what is missing. That is the honest state: the card is designed, built and
 checked; it cannot be installed on a phone until it carries your identity.
 
-## Getting the three files
+## The easy way — /backends → Settings → Apple Wallet (since 2026-09-26)
+
+No Mac and no command line. The card has three steps:
+
+1. **Create request** — the server makes the private key (it never leaves the
+   server) and downloads a certificate signing request to your computer.
+2. **At Apple** — Identifiers → Pass Type IDs → `pass.kw.com.sporta.card`
+   (create it if missing) → Create Certificate → upload that request →
+   download `pass.cer`.
+3. **Upload and link** — upload `pass.cer`. The server checks it is for this
+   pass type, not expired, made from its own request, and signed by Apple,
+   fetches Apple's intermediate itself, and reads your Team ID out of the
+   certificate. A file that fails any check changes nothing.
+
+Creating a new request never breaks a card that already works: the new key
+waits as `pending.key` until Apple's certificate for it is uploaded. The code
+is `api/wallet-setup.php`; `npm run test:wallet-setup` holds it.
+
+The manual route below still works and is what the card automates.
+
+## Getting the three files (by hand)
 
 You need an **Apple Developer Program** membership (99 USD/year).
 

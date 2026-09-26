@@ -31,8 +31,10 @@
 
 declare(strict_types=1);
 require __DIR__ . '/store.php';
-
-const WALLET_PASS_TYPE_ID = 'pass.kw.com.sporta.card';
+// WALLET_PASS_TYPE_ID and the certificate helpers live there, shared with the
+// /backends setup card, so the pass type the card checks for and the one this
+// file signs as cannot drift apart.
+require __DIR__ . '/wallet-setup.php';
 const WALLET_ORG          = 'Sporta';
 // One point per 100 fils spent, on PAID orders only. Cash-on-delivery counts
 // from the moment it is marked paid, not from when it was placed.
@@ -42,8 +44,10 @@ $db = store_db();
 store_throttle($db, 'wallet', 60, 60);
 
 $cfg = store_config();
-$certDir = (string) ($cfg['wallet_cert_dir'] ?? dirname(__DIR__, 2) . '/wallet-certs');
-$teamId  = (string) ($cfg['wallet_team_id'] ?? '');
+$certDir = wallet_cert_dir($cfg);
+// From the certificate when one is installed (Apple writes the team id into
+// it, and the two must agree or iPhones refuse the pass); config.php otherwise.
+$teamId  = wallet_team_id($cfg, $certDir);
 
 $r = $_GET['r'] ?? '';
 
@@ -270,7 +274,7 @@ if ($r === 'balance') {
 }
 
 if ($r === 'loyalty') {
-    if ($teamId === '') store_out(['error' => 'wallet_not_configured', 'hint' => 'set wallet_team_id in api/config.php'], 503);
+    if ($teamId === '') store_out(['error' => 'wallet_not_configured', 'hint' => 'link the Apple Developer account in /backends → Settings → Apple Wallet'], 503);
 
     // store_phone(), not a second normaliser. It strips 00965 and 965, checks
     // the Kuwaiti prefixes, and returns the number in the SAME form the orders
@@ -333,7 +337,7 @@ if ($r === 'loyalty') {
 
 // ------------------------------------------------------------------- coupon
 if ($r === 'coupon') {
-    if ($teamId === '') store_out(['error' => 'wallet_not_configured', 'hint' => 'set wallet_team_id in api/config.php'], 503);
+    if ($teamId === '') store_out(['error' => 'wallet_not_configured', 'hint' => 'link the Apple Developer account in /backends → Settings → Apple Wallet'], 503);
 
     $code = strtoupper(trim((string) ($_GET['code'] ?? '')));
     if (!preg_match('/^[A-Z0-9]{3,24}$/', $code)) store_fail('invalid_code');

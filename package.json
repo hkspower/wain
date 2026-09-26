@@ -177,7 +177,8 @@
     "test:customers": "node scripts/customer-accounts-test.mjs",
     "test:crm": "node scripts/crm-test.mjs",
     "test:backup": "node scripts/backup-test.mjs",
-    "test:hero-mobile": "node scripts/hero-mobile-test.mjs"
+    "test:hero-mobile": "node scripts/hero-mobile-test.mjs",
+    "test:wallet-setup": "node scripts/wallet-setup-test.mjs"
   },
   "private": true
 }

@@ -32,8 +32,22 @@ if (!is_file($cfgPath)) { line('config.php not found — nothing to check'); exi
 $c = require $cfgPath;
 if (!is_array($c)) { line('config.php did not return an array — nothing to check'); exit; }
 
-$teamId = (string) ($c['wallet_team_id'] ?? '');
-$certDir = (string) ($c['wallet_cert_dir'] ?? dirname($cfgPath) . '/../../../wallet-certs');
+// wallet.php's own rule: an EMPTY wallet_cert_dir means unset (the live
+// config.php has one), and the default is beside public_html, not above it.
+$certDir = trim((string) ($c['wallet_cert_dir'] ?? ''));
+if ($certDir === '') $certDir = dirname($cfgPath, 3) . '/wallet-certs';
+// THE CERTIFICATE FIRST, since 2026-09-26: the /backends setup card never
+// writes wallet_team_id; Apple's certificate carries the team id and
+// wallet.php reads it from there. Reading config.php alone would report a
+// linked shop as EMPTY.
+$teamId = '';
+$pemText = @file_get_contents(rtrim($certDir, '/') . '/pass.pem');
+if (is_string($pemText) && ($info = openssl_x509_parse($pemText))) {
+    $ou = $info['subject']['OU'] ?? '';
+    $teamId = is_array($ou) ? (string) reset($ou) : (string) $ou;
+    line('certificate  team from cert, valid until ' . gmdate('Y-m-d', (int) ($info['validTo_time_t'] ?? 0)));
+}
+if ($teamId === '') $teamId = (string) ($c['wallet_team_id'] ?? '');
 
 // THE DOC'S OWN EXAMPLE, verbatim, is the one string that would look like a
 // real ten-character team id and mean nothing at all.

@@ -825,6 +825,12 @@
          this can write, same validation as the app's screen. Panel-only. -->
     <script src="/assets/payment.js" defer></script>
 
+    <!-- Apple Wallet setup card on Settings, 2026-09-26: links the owner's
+         Apple Developer account without a Mac. The server makes the key and
+         the request; Apple's certificate is uploaded back here and checked.
+         Panel-only; see api/wallet-setup.php. -->
+    <script src="/assets/wallet-setup.js" defer></script>
+
     <!-- One save button for the Settings screen, which is 5,753px tall and
          carries eight of them — "Buttons and bars" has its heading and its
          save 881px apart, so the control that commits a colour is a screenful

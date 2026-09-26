@@ -2154,6 +2154,32 @@ if ($r === 'contact_emails' && $method === 'GET') {
     store_out(store_setting($db, 'contact_emails'));
 }
 
+// ------------------------------------------------------------ Apple Wallet
+// "link my apple dev with sporta", 2026-09-26. The three steps of the setup
+// card on Settings; the logic and its reasoning are in wallet-setup.php. Behind
+// the gate like knet: installing a certificate decides whose name every
+// Wallet card the shop issues is signed in.
+if (str_starts_with($r, 'wallet_')) {
+    require_once __DIR__ . '/wallet-setup.php';
+    $wcfg = store_config();
+    if ($r === 'wallet_setup' && $method === 'GET') {
+        store_out(wallet_status($wcfg));
+    }
+    if ($r === 'wallet_request' && $method === 'POST') {
+        store_out(['csr' => wallet_make_request($wcfg), 'filename' => 'sporta-wallet.certSigningRequest']);
+    }
+    if ($r === 'wallet_cert' && $method === 'POST') {
+        $b = store_body();
+        // base64 of the .cer Apple hands over. 16 KB of base64 is ~12 KB of
+        // certificate, several times the size of a real one (~1.5 KB).
+        $b64 = (string) ($b['cer'] ?? '');
+        if ($b64 === '' || strlen($b64) > 16384) store_fail('cert_unreadable');
+        $bytes = base64_decode($b64, true);
+        if ($bytes === false) store_fail('cert_unreadable');
+        store_out(wallet_install_cert($wcfg, $bytes));
+    }
+}
+
 if ($r === 'knet' && $method === 'GET') {
     $set = store_setting($db, 'knet');
     $id  = (string) ($set['tranportal_id'] ?? '');

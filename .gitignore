@@ -58,6 +58,10 @@ wallet/.build/
 wallet/*.pkpass
 wallet/*-UNSIGNED.zip
 /wallet-certs/
+# At ANY depth: the server keeps them at sporta-site/wallet-certs/ (next to
+# public_html), and only *.key was ignored there, so pass.pem, wwdr.pem and a
+# pending request could have been committed to this public repository.
+**/wallet-certs/
 
 # Payment and assistant logs. They live one directory above public_html on the
 # real server for a reason — they are not servable — and in the sandbox they
