@@ -160,6 +160,80 @@ function tachArc(from: number, to: number, radius: number): string {
   return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${radius} ${radius} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
 }
 
+/** An arc outside the bezel, in degrees clockwise from the top: the side
+ *  gauges start at their bottom end, so the fill grows upward. */
+function sideArc(fromDeg: number, toDeg: number, radius: number): string {
+  const pt = (deg: number) => {
+    const a = ((deg - 90) * Math.PI) / 180;
+    return [50 + Math.cos(a) * radius, 50 + Math.sin(a) * radius];
+  };
+  const [x0, y0] = pt(fromDeg);
+  const [x1, y1] = pt(toDeg);
+  const sweep = toDeg > fromDeg ? 1 : 0;
+  return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${radius} ${radius} 0 0 ${sweep} ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+}
+
+/* THE SHIFT LIGHTS.
+ *
+ * Nine lamps over the top of the dial, green to amber to red, the strip
+ * every race car carries because it can be read without looking at it:
+ * the eye counts lamps in the edge of its vision where it cannot read a
+ * needle. They fill across the top of the band and are all lit exactly
+ * when the engine says shift (tach.shift, frac > 0.93), so the strip and
+ * the ring around the dial never disagree. On the limiter they flash. */
+export const SHIFT_LED_FROM = 0.7;
+export const SHIFT_LED_AT = 0.93;
+const SHIFT_LEDS = 9;
+function shiftLedsLit(frac: number): number {
+  if (frac < SHIFT_LED_FROM) return 0;
+  const step = (SHIFT_LED_AT - SHIFT_LED_FROM) / (SHIFT_LEDS - 1);
+  return Math.min(SHIFT_LEDS, 1 + Math.floor((frac - SHIFT_LED_FROM) / step + 1e-6));
+}
+
+/* The fuel and NOS arcs: 50 degrees each, outside the bezel on the two
+ * lower flanks, where the rev scale leaves the dial's rim free. */
+const FUEL_ARC = sideArc(202, 252, 51.2);
+const NOS_ARC = sideArc(158, 108, 51.2);
+
+function SideGauge({
+  kind,
+  d,
+  trackRef,
+  fillRef,
+  wrapRef,
+  state,
+}: {
+  kind: "fuel" | "nos";
+  d: string;
+  trackRef: React.RefObject<SVGGElement | null>;
+  fillRef: React.RefObject<SVGPathElement | null>;
+  wrapRef?: React.RefObject<SVGGElement | null>;
+  state: string;
+}) {
+  return (
+    <g ref={wrapRef} data-gauge={kind}>
+      {/* nos-meter + data-state on the track group, as they were on the
+          bar: the state colours and the tests both key off them. */}
+      <g ref={trackRef} className="nos-meter" data-state={state}>
+        <path className="meter-track" d={d} fill="none" strokeWidth="4.8" strokeLinecap="butt" />
+        <path
+          ref={fillRef}
+          className={kind === "fuel" ? "fuel-fill" : "nos-fill"}
+          d={d} pathLength={1} fill="none" strokeWidth="4.8" strokeLinecap="butt"
+          strokeDasharray="1 1" strokeDashoffset="0"
+        />
+        {/* The segment rule, on the TRACK geometry and never on the fill,
+            so twelve segments stay twelve at every level. */}
+        <path
+          className="meter-rule"
+          d={d} pathLength={12} fill="none" strokeWidth="5" strokeLinecap="butt"
+          strokeDasharray="0.09 0.91" strokeDashoffset="0.045"
+        />
+      </g>
+    </g>
+  );
+}
+
 function RevCounter({
   needleRef,
   ringRef,
@@ -170,7 +244,13 @@ function RevCounter({
   rpmRef,
   speedRef,
   gearRef,
-  size,
+  sweepRef,
+  ledsRef,
+  fuelTrackRef,
+  fuelRef,
+  nosArcRef,
+  nosTrackRef,
+  nosRef,
 }: {
   needleRef: React.RefObject<SVGGElement | null>;
   ringRef: React.RefObject<SVGCircleElement | null>;
@@ -181,11 +261,29 @@ function RevCounter({
   rpmRef: React.RefObject<HTMLSpanElement | null>;
   speedRef: React.RefObject<HTMLSpanElement | null>;
   gearRef: React.RefObject<HTMLSpanElement | null>;
-  size: number;
+  sweepRef: React.RefObject<SVGPathElement | null>;
+  ledsRef: React.RefObject<SVGGElement | null>;
+  fuelTrackRef: React.RefObject<SVGGElement | null>;
+  fuelRef: React.RefObject<SVGPathElement | null>;
+  nosArcRef: React.RefObject<SVGGElement | null>;
+  nosTrackRef: React.RefObject<SVGGElement | null>;
+  nosRef: React.RefObject<SVGPathElement | null>;
 }) {
+  // Sized by --tach-size (globals.css), not a prop: it follows the
+  // Large HUD setting (the HUD zoom takes care of the window), and
+  // everything inside — the SVG by its viewBox, the type by cqw —
+  // follows it.
   return (
-    <div className="relative select-none" style={{ width: size, height: size }}>
-      <svg data-tach="dial" viewBox="0 0 100 100" className="absolute inset-0 size-full overflow-visible">
+    <div
+      data-tach="cluster"
+      className="relative select-none [container-type:size]"
+      style={{ width: "var(--tach-size)", height: "var(--tach-size)" }}
+    >
+      {/* The viewBox has 7 units of margin round the 100-unit dial: the
+          shift lights and the fuel and NOS arcs live outside the bezel,
+          and inside the box they are part of the size rather than an
+          overhang into the gutter. */}
+      <svg data-tach="dial" viewBox="-7 -7 114 114" className="absolute inset-0 size-full overflow-visible">
         <defs>
           {/*
             An instrument is made of four surfaces and the light behaves
@@ -256,6 +354,19 @@ function RevCounter({
           fill="none" stroke="var(--tach-ring, rgba(214,226,240,0.16))"
           strokeWidth="2.6" strokeLinecap="butt"
         />
+        {/* The lit sweep: the scale ring filling behind the needle in the
+            lamp's own colour, so the revs read as an amount as well as a
+            position. Under the redline and the limiter, so red still wins
+            at the top. pathLength 1: onHud writes 1 - frac as the offset. */}
+        <path
+          data-tach="sweep"
+          ref={sweepRef}
+          d={tachArc(0, 1, 40)}
+          pathLength={1}
+          fill="none" stroke="var(--tach-lamp, #f5a524)" strokeWidth="2.6" strokeLinecap="butt"
+          strokeDasharray="1 1" strokeDashoffset="1"
+          style={{ opacity: 0.8, filter: "drop-shadow(0 0 1.6px var(--tach-lamp, #f5a524))" }}
+        />
         {/* The redline, ON the ring rather than beside it, which is where
             a real one is: the last segment of the scale, in red. Its
             start is set per engine at runtime. */}
@@ -310,9 +421,9 @@ function RevCounter({
             unit and another on every label around it. A cluster is one
             instrument and reads as one typeface. */}
         <text
-          x="50" y="79" textAnchor="middle"
+          x="50" y="84.5" textAnchor="middle"
           fontFamily="var(--font-display)"
-          fontSize="7" fontWeight="700" letterSpacing="0.6"
+          fontSize="5.8" fontWeight="700" letterSpacing="0.6"
           // React's SVG typings have no fontVariantNumeric prop, so the
           // figures go on through style, where SVG text takes them.
           style={{ fontVariantNumeric: "tabular-nums", fontFeatureSettings: '"tnum" 1' }}
@@ -334,6 +445,25 @@ function RevCounter({
           opacity="0"
           style={{ filter: "drop-shadow(0 0 5px rgba(255,68,56,0.9))" }}
         />
+
+        <g data-tach="leds" ref={ledsRef} className="tach-leds">
+          {Array.from({ length: SHIFT_LEDS }, (_, i) => {
+            const deg = -32 + i * 8;
+            const a = ((deg - 90) * Math.PI) / 180;
+            return (
+              <circle
+                key={i}
+                className="tach-led"
+                data-c={i < 3 ? "g" : i < 6 ? "a" : "r"}
+                cx={(50 + Math.cos(a) * 52.2).toFixed(2)}
+                cy={(50 + Math.sin(a) * 52.2).toFixed(2)}
+                r="2.1"
+              />
+            );
+          })}
+        </g>
+        <SideGauge kind="fuel" d={FUEL_ARC} trackRef={fuelTrackRef} fillRef={fuelRef} state="ok" />
+        <SideGauge kind="nos" d={NOS_ARC} trackRef={nosTrackRef} fillRef={nosRef} wrapRef={nosArcRef} state="charged" />
 
         {/* The needle. Tapered, with the counterweight tail a real one
             carries past the hub to balance it — leave that off and the
@@ -359,20 +489,24 @@ function RevCounter({
       {/* The middle. Everything here has to clear the rpm labels, which
           sit on a 29.5 radius — so the speed is sized to fit inside
           that circle rather than to fill the dial. */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
+      {/* Padded down: the numerals across the top of the scale sit on a
+          26 radius, and a stack centred on the hub put the speed's top
+          edge into the 4, 5 and 6. The hub is not the stack's centre on
+          a real cluster either — the digits sit in the dish under it. */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ paddingTop: "7cqw" }}>
         <span
           ref={speedRef}
           className="grn-display block italic leading-[0.78] tabular-nums text-[#e9edf1] [text-shadow:0_0_14px_rgba(56,201,238,0.25),0_3px_12px_rgba(0,0,0,0.9)]"
-          style={{ fontSize: size * 0.205 }}
+          style={{ fontSize: "18.5cqw" }}
         >
           0
         </span>
-        <span className="grn-label text-white/74" style={{ fontSize: size * 0.058, marginTop: size * 0.008 }}>
+        <span className="grn-label text-white/74" style={{ fontSize: "4.6cqw", marginTop: "0.6cqw" }}>
           km/h
         </span>
         <span
-          className="flex items-baseline justify-center gap-[0.4em]"
-          style={{ marginTop: size * 0.03 }}
+          className="flex items-center justify-center gap-[0.45em]"
+          style={{ marginTop: "1.6cqw" }}
         >
           {/* tabular-nums, like the speed above it. Without it this was
               the worst-behaved thing on the HUD: measured, the gear's box
@@ -380,14 +514,22 @@ function RevCounter({
               round, so the number jumped sideways on every shift — on a
               readout the driver checks by its position in the corner of
               their eye rather than by reading it. */}
+          {/* The gear in a box of its own: the number a driver reads
+              most after the speed, framed so it is found by position
+              rather than hunted for among the markings. */}
           <span
-            ref={gearRef}
-            className="grn-display italic leading-none tabular-nums text-sodium-400 [text-shadow:0_0_11px_rgba(245,165,36,0.35)]"
-            style={{ fontSize: size * 0.125 }}
+            data-tach="gear"
+            className="rounded-[0.18em] border border-[var(--tach-ring,rgba(214,226,240,0.16))] bg-black/55 px-[0.28em] pb-[0.04em] pt-[0.1em] shadow-[inset_0_0_0.4em_rgba(0,0,0,0.8)]"
+            style={{ fontSize: "10cqw" }}
           >
-            N
+            <span
+              ref={gearRef}
+              className="grn-display block min-w-[0.62em] text-center italic leading-none tabular-nums text-sodium-400 [text-shadow:0_0_11px_rgba(245,165,36,0.35)]"
+            >
+              N
+            </span>
           </span>
-          <span data-tach="rpm" ref={rpmRef} className="grn-label tabular-nums text-white/70" style={{ fontSize: size * 0.058 }}>
+          <span data-tach="rpm" ref={rpmRef} className="grn-label tabular-nums text-white/70" style={{ fontSize: "4.6cqw" }}>
             0
           </span>
         </span>
@@ -650,6 +792,9 @@ function raceCut(): { w: number; h: number } | null {
   // sixty updates a second and React has no business in that loop.
   const needleRef = useRef<SVGGElement>(null);
   const shiftRingRef = useRef<SVGCircleElement>(null);
+  const sweepRef = useRef<SVGPathElement>(null);
+  const ledsRef = useRef<SVGGElement>(null);
+  const ledsLit = useRef(-1);
   const ticksRef = useRef<SVGGElement>(null);
   const redlineRef = useRef<SVGPathElement>(null);
   const limiterRef = useRef<SVGPathElement>(null);
@@ -904,12 +1049,14 @@ function raceCut(): { w: number; h: number } | null {
   const boostRef = useRef<HTMLDivElement>(null);
   const towWrapRef = useRef<HTMLDivElement>(null);
   const towRef = useRef<HTMLDivElement>(null);
-  const nosWrapRef = useRef<HTMLDivElement>(null);
-  const nosRef = useRef<HTMLDivElement>(null);
-  const nosTrackRef = useRef<HTMLDivElement>(null);
+  const nosWrapRef = useRef<HTMLSpanElement>(null);
+  const nosArcRef = useRef<SVGGElement>(null);
+  const nosRef = useRef<SVGPathElement>(null);
+  const nosTrackRef = useRef<SVGGElement>(null);
   const nosPctRef = useRef<HTMLSpanElement>(null);
-  const fuelTrackRef = useRef<HTMLDivElement>(null);
-  const fuelRef = useRef<HTMLDivElement>(null);
+  const fuelTrackRef = useRef<SVGGElement>(null);
+  const fuelRef = useRef<SVGPathElement>(null);
+  const meterPanelRef = useRef<HTMLDivElement>(null);
   const fuelLabelRef = useRef<HTMLSpanElement>(null);
   const pumpRef = useRef<HTMLDivElement>(null);
   // The online run strip. Driven off the frame like the rest of the HUD
@@ -1276,8 +1423,23 @@ function raceCut(): { w: number; h: number } | null {
         rpmTextRef.current.textContent = `${(t.rpm / 1000).toFixed(1)}k`;
       if (needleRef.current)
         needleRef.current.style.transform = `rotate(${tachAngle(t.frac).toFixed(2)}deg)`;
+      if (sweepRef.current)
+        sweepRef.current.style.strokeDashoffset = (1 - Math.min(1, Math.max(0, t.frac))).toFixed(4);
       if (shiftRingRef.current)
         shiftRingRef.current.style.opacity = t.shift ? "0.9" : "0";
+      // The strip, touched only when the count of lit lamps changes.
+      if (ledsRef.current) {
+        const n = shiftLedsLit(t.frac);
+        if (n !== ledsLit.current) {
+          ledsLit.current = n;
+          ledsRef.current.childNodes.forEach((c, i) =>
+            (c as SVGCircleElement).classList.toggle("on", i < n)
+          );
+        }
+        const flash = t.limiter > 0.05;
+        if (ledsRef.current.classList.contains("flash") !== flash)
+          ledsRef.current.classList.toggle("flash", flash);
+      }
       // The alert reads the limiter's own ramp rather than a threshold
       // of its own: brushing the stop is a flicker, sitting on it is
       // solid red, and the two are the same number the physics is
@@ -1414,8 +1576,8 @@ function raceCut(): { w: number; h: number } | null {
             37.2,
             half ? 34.2 : 35.4,
             f,
-            half ? "0.85" : "0.6",
-            red ? "rgba(255,120,110,0.85)" : "rgba(226,236,248,0.5)"
+            half ? "1" : "0.7",
+            red ? "rgba(255,120,110,0.9)" : "rgba(226,236,248,0.58)"
           );
         }
         // One major per thousand, with its numeral. Where the numbers
@@ -1424,19 +1586,19 @@ function raceCut(): { w: number; h: number } | null {
         for (let rpm = Math.ceil(t.idle / 1000) * 1000; rpm <= t.redline; rpm += 1000) {
           const f = (rpm - t.idle) / span;
           const red = rpm >= REDLINE;
-          line(37.6, 31.8, f, "1.7", red ? "#ff8078" : "rgba(240,247,255,0.92)");
-          const [tx, ty] = tachPoint(f, 26.5);
+          line(37.8, 31.4, f, "2.1", red ? "#ff8078" : "rgba(240,247,255,0.95)");
+          const [tx, ty] = tachPoint(f, 26.2);
           const label = document.createElementNS(svgns, "text");
           label.setAttribute("x", tx.toFixed(2));
-          label.setAttribute("y", (ty + 2.5).toFixed(2));
+          label.setAttribute("y", (ty + 3.2).toFixed(2));
           label.setAttribute("text-anchor", "middle");
           // The display face, and figures of one width. These were the
           // UI sans — a second typeface on the same instrument — and
           // proportional, so a "1" and an "8" centred differently on
           // their own ticks and the scale did not sit evenly.
           label.setAttribute("font-family", "var(--font-display)");
-          label.setAttribute("font-size", "8.6");
-          label.setAttribute("font-weight", "700");
+          label.setAttribute("font-size", "9.4");
+          label.setAttribute("font-weight", "800");
           label.setAttribute("font-variant-numeric", "tabular-nums");
           label.style.fontFeatureSettings = '"tnum" 1';
           // Warm, like the backlight behind them: on a real cluster the
@@ -1654,12 +1816,19 @@ function raceCut(): { w: number; h: number } | null {
       if (boostRef.current && d.boost !== null)
         boostRef.current.style.width = `${Math.round(d.boost * 100)}%`;
       if (nosWrapRef.current) nosWrapRef.current.style.display = d.nos === null ? "none" : "flex";
+      if (nosArcRef.current) nosArcRef.current.style.display = d.nos === null ? "none" : "";
+      // The panel under the dial carries only the bars that come and go;
+      // with none of them up it is not there at all.
+      if (meterPanelRef.current)
+        meterPanelRef.current.style.display =
+          d.tow > 0.1 || d.boost !== null || d.pump !== null ? "" : "none";
       if (d.nos !== null) {
         const pct = Math.round(d.nos.charge * 100);
         // Sub-1% is not "0%" while the bottle can still fire, and it is
         // not "1%" once it cannot: the readout and the colour have to
         // agree with the button, not with each other.
-        if (nosRef.current) nosRef.current.style.width = `${d.nos.charge * 100}%`;
+        if (nosRef.current)
+          nosRef.current.style.strokeDashoffset = (1 - Math.min(1, Math.max(0, d.nos.charge))).toFixed(4);
         if (nosTrackRef.current)
           nosTrackRef.current.dataset.state = d.nos.firing
             ? "firing"
@@ -1679,7 +1848,8 @@ function raceCut(): { w: number; h: number } | null {
       {
         const f = d.fuel;
         const frac = f.capacity > 0 ? f.litres / f.capacity : 0;
-        if (fuelRef.current) fuelRef.current.style.width = `${frac * 100}%`;
+        if (fuelRef.current)
+          fuelRef.current.style.strokeDashoffset = (1 - Math.min(1, Math.max(0, frac))).toFixed(4);
         if (fuelTrackRef.current) {
           fuelTrackRef.current.dataset.state = d.pump?.filling
             ? "filling"
@@ -2746,11 +2916,16 @@ function raceCut(): { w: number; h: number } | null {
         {/* First-run coaching, in-world */}
         {phase === "playing" && !result && <CoachHint state={coach} />}
 
-        {/* Speed cluster: digital speed, gear, tach bar */}
+        {/* Speed cluster: the rev counter with its shift lights and the
+            fuel and NOS arcs on its flanks, the two readouts under it, and
+            the bars that come and go (tow, boost, the pump) on a panel
+            below. Sized by --tach-size, which .tach-cluster sets (and the
+            Large HUD setting multiplies); the HUD zoom scales it with the
+            window like everything else here. */}
         <div
-          className={`hud-safe-l absolute select-none ${
+          className={`tach-cluster hud-safe-l absolute select-none ${
             isTouch
-              ? "origin-bottom-left scale-90 bottom-[calc(env(safe-area-inset-bottom)+7rem)]"
+              ? "hud-touch bottom-[calc(env(safe-area-inset-bottom)+7rem)]"
               : "bottom-[calc(env(safe-area-inset-bottom)+1.75rem)]"
           }`}
         >
@@ -2764,25 +2939,69 @@ function raceCut(): { w: number; h: number } | null {
             rpmRef={rpmTextRef}
             speedRef={speedRef}
             gearRef={gearRef}
-            size={200}
+            sweepRef={sweepRef}
+            ledsRef={ledsRef}
+            fuelTrackRef={fuelTrackRef}
+            fuelRef={fuelRef}
+            nosArcRef={nosArcRef}
+            nosTrackRef={nosTrackRef}
+            nosRef={nosRef}
           />
-          {/* The meters, on a ground of their own.
-              Every other gadget in this HUD sits on something — the
-              clock and the map on a panel, the street name on a plate,
-              the hint on white card — and these four sat bare on the
-              road, four skewed bars and a row of grey words with the
-              night showing through them. A bar reading against tarmac
-              at one moment and against a lit shopfront the next has no
-              fixed contrast at all. Same panel as the clock and the map,
-              so the instrument cluster reads as one instrument. */}
-          <div className="grn-panel mt-2 inline-block px-2.5 py-2">
+          {/* The two arcs' readouts, each under its own arc: fuel on the
+              left in litres against the tank — the unit the pump charges
+              in and the one the driver has to think in — and NOS on the
+              right, shown only with the bottle fitted. */}
+          <div
+            className="flex items-baseline justify-between px-[4%]"
+            style={{
+              width: "var(--tach-size)",
+              marginTop: "calc(var(--tach-size) * -0.02)",
+              fontSize: "calc(var(--tach-size) * 0.052)",
+            }}
+          >
+            <span data-gauge-readout="fuel" className="flex items-baseline gap-[0.5em]">
+              <span className="grn-label text-emerald-300" style={{ fontSize: "inherit" }}>Fuel</span>
+              <span
+                ref={fuelLabelRef}
+                className="grn-label tabular-nums text-emerald-100"
+                style={{ fontSize: "inherit" }}
+              >
+                — L
+              </span>
+            </span>
+            <span
+              ref={nosWrapRef}
+              data-gauge-readout="nos"
+              className="items-baseline gap-[0.5em]"
+              style={{ display: "none" }}
+            >
+              <span className="grn-label text-indigo-300" style={{ fontSize: "inherit" }}>NOS</span>
+              <span
+                ref={nosPctRef}
+                className="grn-label tabular-nums text-indigo-100"
+                style={{ fontSize: "inherit" }}
+              >
+                100%
+              </span>
+            </span>
+          </div>
+          {/* The meters that come and go, on a ground of their own: a bar
+              reading against tarmac at one moment and a lit shopfront the
+              next has no fixed contrast at all. Same panel as the clock
+              and the map, and as wide as the dial, so the cluster reads
+              as one instrument. Hidden while none of them is up. */}
+          <div
+            ref={meterPanelRef}
+            className="grn-panel mt-1.5 px-2.5 py-2"
+            style={{ width: "var(--tach-size)", display: "none" }}
+          >
           {/* The tow. Shown only while there is one, because a bar that
               reads zero nine tenths of the time teaches the eye to stop
               looking at it — and the whole reason this is on screen is
               to send the driver hunting for the wake. */}
           <div ref={towWrapRef} className="items-center gap-2" style={{ display: "none" }}>
-            <span className="grn-label w-11 text-2xs text-sodium-300">Tow</span>
-            <div className="grn-meter h-1.5 w-44 -skew-x-12">
+            <span className="grn-label w-11 shrink-0 text-2xs text-sodium-300">Tow</span>
+            <div className="grn-meter h-2 flex-1 -skew-x-12">
               <div
                 ref={towRef}
                 className="h-full bg-gradient-to-r from-sodium-600 to-sodium-300 shadow-[0_0_12px_rgba(245,165,36,0.75)]"
@@ -2791,46 +3010,14 @@ function raceCut(): { w: number; h: number } | null {
             </div>
           </div>
           <div ref={boostWrapRef} className="mt-1 items-center gap-2" style={{ display: "none" }}>
-            <span className="grn-label w-11 text-2xs text-gulf-300">Boost</span>
-            <div className="grn-meter h-1.5 w-44 -skew-x-12">
+            <span className="grn-label w-11 shrink-0 text-2xs text-gulf-300">Boost</span>
+            <div className="grn-meter h-2 flex-1 -skew-x-12">
               <div
                 ref={boostRef}
                 className="h-full bg-gradient-to-r from-gulf-500 to-gulf-300 shadow-[0_0_12px_rgba(56,201,238,0.8)]"
                 style={{ width: "0%" }}
               />
             </div>
-          </div>
-          {/* Nitrous. Taller than the boost bar on purpose: boost is
-              something the car does to itself, NOS is a resource the
-              player spends, and the one you can run out of is the one
-              that has to be readable without looking away from the road. */}
-          <div ref={nosWrapRef} className="mt-1 items-center gap-2" style={{ display: "none" }}>
-            <span className="grn-label w-11 text-2xs text-indigo-300">NOS</span>
-            <div ref={nosTrackRef} className="nos-meter h-2.5 w-44 -skew-x-12" data-state="charged">
-              <div ref={nosRef} className="nos-fill" style={{ width: "100%" }} />
-            </div>
-            <span
-              ref={nosPctRef}
-              className="grn-label w-12 text-right text-2xs tabular-nums text-indigo-200"
-            >
-              100%
-            </span>
-          </div>
-          {/* Fuel. Always shown — every car has a tank, unlike the two
-              gauges above it, which appear only once the parts are
-              bought. It reads in litres because that is the unit the
-              pump charges in and the unit the driver has to think in. */}
-          <div className="mt-1 flex items-center gap-2">
-            <span className="grn-label w-11 text-2xs text-emerald-300">Fuel</span>
-            <div ref={fuelTrackRef} className="nos-meter h-2.5 w-44 -skew-x-12" data-state="ok">
-              <div ref={fuelRef} className="fuel-fill" style={{ width: "100%" }} />
-            </div>
-            <span
-              ref={fuelLabelRef}
-              className="grn-label w-20 text-right text-2xs tabular-nums text-emerald-200"
-            >
-              — L
-            </span>
           </div>
           <div
             ref={pumpRef}

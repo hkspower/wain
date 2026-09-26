@@ -71,25 +71,37 @@ const sample = (charge, hold) =>
       }
       e.update(1 / 60);
 
-      const track = document.querySelector(".nos-meter");
+      // The gauge is an arc on the rev counter's flank (SideGauge in
+      // RaceClient.tsx): track, fill and segment rule are three strokes
+      // on one path, the fill drawn by its dash offset. Lengths are read
+      // in the arc's own units (pathLength 1) and turned into pixels by
+      // the rendered length of the track.
+      const track = document.querySelector('[data-gauge="nos"] .nos-meter');
       if (!track) return { missing: true };
       const fill = track.querySelector(".nos-fill");
-      const wrap = track.parentElement;
-      const pct = wrap.querySelector("span:last-child");
-      const rule = getComputedStyle(track, "::after").backgroundImage;
+      const trackPath = track.querySelector(".meter-track");
+      const rule = track.querySelector(".meter-rule");
+      const wrap = document.querySelector('[data-gauge="nos"]');
+      const pct = document.querySelector('[data-gauge-readout="nos"] span:last-child');
+      const svg = track.ownerSVGElement;
+      // Layout pixels: the HUD root may be scaled as a whole for a narrow
+      // window, which is not this gauge's business.
+      const pxPerUnit = svg.parentElement.offsetWidth / svg.viewBox.baseVal.width;
+      const trackPx = trackPath.getTotalLength() * pxPerUnit;
+      const off = parseFloat(getComputedStyle(fill).strokeDashoffset) || 0;
+      const fs = getComputedStyle(fill);
       return {
         wrapDisplay: getComputedStyle(wrap).display,
+        readoutDisplay: getComputedStyle(pct.parentElement).display,
         state: track.dataset.state,
-        trackW: track.offsetWidth,
-        // clientWidth, not offsetWidth: the track carries a 1px border on
-        // each side and the fill is a percentage of the box INSIDE it, so
-        // comparing against the outer width says a full bottle is 3px short.
-        innerW: track.clientWidth,
-        fillW: fill.offsetWidth,
-        trackH: track.offsetHeight,
+        trackW: Math.round(trackPx),
+        innerW: Math.round(trackPx),
+        fillW: Math.round((1 - off) * trackPx),
+        trackH: +(parseFloat(getComputedStyle(trackPath).strokeWidth) * pxPerUnit).toFixed(1),
         readout: pct.textContent.trim(),
-        fillBg: getComputedStyle(fill).backgroundImage,
-        ruleSegments: (rule.match(/repeating-linear-gradient/g) || []).length,
+        fillBg: `${fs.stroke} ${fs.opacity} ${fs.filter}`,
+        ruleSegments: rule && rule.getAttribute("pathLength") === "12" && rule.getAttribute("stroke-dasharray") ? 1 : 0,
+        ruleOnFill: fill.getAttribute("pathLength") === "12",
         charge: e.nosCharge,
       };
     },
@@ -108,6 +120,7 @@ console.log(
     `display=${full.wrapDisplay} state=${full.state} fill=${full.fillW}/${full.trackW}px ` +
     `h=${full.trackH}px readout=${full.readout}`
 );
+check(full.readoutDisplay !== "none", "NOS readout hidden with the mod fitted");
 check(full.state === "charged", `full bottle read state="${full.state}", want "charged"`);
 check(
   Math.abs(full.fillW - full.innerW) <= 2,
@@ -116,7 +129,9 @@ check(
 check(full.readout === "100%", `full bottle reads "${full.readout}", want "100%"`);
 // The gauge it replaced was 6px tall and identical to the boost bar next
 // to it. Height is the one property that made them tell apart at speed.
-check(full.trackH >= 9, `gauge is ${full.trackH}px tall — too thin to read at speed`);
+// On the arc that is the stroke's thickness, which scales with the dial;
+// the floor is the bar's old 9px, at the smallest desktop dial.
+check(full.trackH >= 9, `gauge is ${full.trackH}px thick — too thin to read at speed`);
 check(full.ruleSegments >= 1, "segment rule missing from the track");
 
 // --- 2. Part-full: the fill has to move, the rule must not ---
@@ -136,15 +151,14 @@ check(
 // segments stay twelve segments at every level and the count is a lie.
 // Drawn on the track it cannot: the track never changes width. Both
 // halves have to be asserted — an absent rule passes "it didn't move".
-const ruleOnTrack =
-  full.ruleSegments >= 1 && !full.fillBg.includes("repeating-linear-gradient");
+const ruleOnTrack = full.ruleSegments >= 1 && !full.ruleOnFill;
 console.log(
   `rule     ${check(
     ruleOnTrack && half.trackW === full.trackW,
     full.ruleSegments < 1
       ? "no segment rule on the track"
       : "segment rule rides the fill — it rescales with the level"
-  )}  fixed at ${full.trackW}px, ${full.ruleSegments} gradient on the track`
+  )}  fixed at ${full.trackW}px, a 12-segment rule on the track`
 );
 check(half.readout === "50%", `half bottle reads "${half.readout}", want "50%"`);
 
@@ -183,8 +197,9 @@ const noMod = await page.evaluate(() => {
   const e = window.__grnEngine;
   e.tune.hasNos = false;
   e.update(1 / 60);
-  const wrap = document.querySelector(".nos-meter").parentElement;
-  return getComputedStyle(wrap).display;
+  const arc = getComputedStyle(document.querySelector('[data-gauge="nos"]')).display;
+  const readout = getComputedStyle(document.querySelector('[data-gauge-readout="nos"]')).display;
+  return arc === "none" && readout === "none" ? "none" : `arc ${arc}, readout ${readout}`;
 });
 console.log(`unfitted ${check(noMod === "none", `no NOS mod but the gauge shows (${noMod})`)}  display=${noMod}`);
 

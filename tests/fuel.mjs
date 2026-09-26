@@ -381,17 +381,23 @@ console.log(
 const gauge = await page.evaluate(async () => {
   const e = window.__grnEngine;
   const read = () => {
-    const track = document.querySelectorAll(".nos-meter");
-    const fuelTrack = [...track].find((t) => t.querySelector(".fuel-fill"));
+    // An arc on the rev counter's flank: the fill is a dash offset on a
+    // pathLength-1 stroke, turned into pixels by the track's length.
+    const fuelTrack = document.querySelector('[data-gauge="fuel"] .nos-meter');
     if (!fuelTrack) return null;
     const fill = fuelTrack.querySelector(".fuel-fill");
-    const label = fuelTrack.parentElement.querySelector("span:last-child");
+    const svg = fuelTrack.ownerSVGElement;
+    const px = svg.parentElement.offsetWidth / svg.viewBox.baseVal.width; // layout px
+    const inner = fuelTrack.querySelector(".meter-track").getTotalLength() * px;
+    const off = parseFloat(getComputedStyle(fill).strokeDashoffset) || 0;
+    const label = document.querySelector('[data-gauge-readout="fuel"] span:last-child');
+    const fs = getComputedStyle(fill);
     return {
       state: fuelTrack.dataset.state,
-      width: fill.offsetWidth,
-      inner: fuelTrack.clientWidth,
+      width: Math.round((1 - off) * inner),
+      inner: Math.round(inner),
       label: label.textContent.trim(),
-      bg: getComputedStyle(fill).backgroundImage,
+      bg: `${fs.stroke} ${fs.filter}`,
     };
   };
   const at = async (litres, dryFlag) => {

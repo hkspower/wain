@@ -816,12 +816,58 @@ html[data-cvd="1"] .rival-ink {
   .hud-hint { transition-duration: 1ms; }
 }
 
-/* Large HUD: one knob that scales the readouts without touching layout. */
+/* Large HUD: one knob. It used to scale a .hud-scale class that nothing
+   carried, so the setting did nothing; it now multiplies the instrument
+   cluster's own size, which reflows rather than blurring a transform. */
 html[data-large-hud="1"] {
   --hud-scale: 1.22;
 }
-html[data-large-hud="1"] .hud-scale {
-  transform: scale(var(--hud-scale, 1));
+
+/* ------------------------------------------------ INSTRUMENT CLUSTER
+ *
+ * The rev counter's size, in the HUD's authored pixels. It does NOT
+ * follow the viewport itself: the whole HUD already does, through the
+ * CSS zoom RaceClient sets (min(w/1500, h/850), clamped 0.8 to 2.5), and
+ * vh inside a zoomed subtree is zoomed too — sized in vh here, the dial
+ * grew with the screen twice and filled half of a 1440p one.
+ *
+ * 224 px of dial where it was 200 (the 100 units inside the 114-unit
+ * viewBox; the box is 1.14 of it for the shift lights and the side arcs
+ * outside the bezel). Painted, with the zoom: about 190 px at 720p, 284
+ * at 1080p and 379 at 1440p. Touch keeps it a little smaller — the
+ * thumbs are down there — and Large HUD multiplies either. */
+.tach-cluster {
+  --tach-dial: 224px;
+  --tach-size: calc(var(--tach-dial) * 1.14 * var(--hud-scale, 1));
+}
+.tach-cluster.hud-touch {
+  --tach-dial: 190px;
+}
+
+/* The shift lights: dark glass until lit, then the lamp's colour with
+   its own glow. */
+.tach-led {
+  fill: rgba(255, 255, 255, 0.07);
+  stroke: rgba(0, 0, 0, 0.7);
+  stroke-width: 0.5;
+  transition: fill 60ms linear;
+}
+.tach-led.on[data-c="g"] { fill: #3ef07a; filter: drop-shadow(0 0 1.6px #3ef07a); }
+.tach-led.on[data-c="a"] { fill: #ffc233; filter: drop-shadow(0 0 1.6px #ffc233); }
+.tach-led.on[data-c="r"] { fill: #ff3326; filter: drop-shadow(0 0 1.8px #ff3326); }
+/* On the limiter every lamp flashes, in a colour none of them uses
+   otherwise, so it is not mistaken for a full strip. */
+.tach-leds.flash .tach-led {
+  fill: #9fd4ff;
+  filter: drop-shadow(0 0 2px #9fd4ff);
+  animation: tach-led-flash 84ms steps(1, end) infinite alternate;
+}
+@keyframes tach-led-flash {
+  from { opacity: 1; }
+  to { opacity: 0.15; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tach-leds.flash .tach-led { animation: none; }
 }
 
 /* ==========================================================
@@ -1329,45 +1375,34 @@ html[data-large-hud="1"] .hud-scale {
  * every level and the count says nothing. Ruled on the track, an
  * emptying bottle visibly gives up one segment at a time.
  */
-.nos-meter {
-  position: relative;
-  overflow: hidden;
-  background: color-mix(in srgb, var(--color-steel-900) 70%, transparent);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 0.2rem;
+/* The track, the fill and the rule are three strokes on the same arc
+   (SideGauge in RaceClient.tsx). */
+.nos-meter .meter-track {
+  stroke: color-mix(in srgb, var(--color-steel-900) 75%, transparent);
 }
-.nos-meter::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    90deg,
-    transparent 0 calc(100% / 12 - 2px),
-    rgba(0, 0, 0, 0.6) calc(100% / 12 - 2px) calc(100% / 12)
-  );
+.nos-meter .meter-rule {
+  stroke: rgba(0, 0, 0, 0.72);
 }
 .nos-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #4f46e5, #38bdf8);
-  box-shadow: 0 0 12px rgba(129, 140, 248, 0.8);
-  transition: background 120ms linear, box-shadow 120ms linear;
+  stroke: #6d6af5;
+  filter: drop-shadow(0 0 1.4px rgba(129, 140, 248, 0.9));
+  transition: stroke 120ms linear;
 }
 /* Not enough left to fire. The bar is not empty, so it must not look
    usable either — this is the state a plain bar cannot express. */
 .nos-meter[data-state="spent"] .nos-fill {
-  background: linear-gradient(90deg, #4b5563, #6b7280);
-  box-shadow: none;
+  stroke: #5b6472;
+  filter: none;
 }
 /* Firing: the drain is three seconds, and it should look like it. */
 .nos-meter[data-state="firing"] .nos-fill {
-  background: linear-gradient(90deg, #a5f3fc, #fef08a);
-  box-shadow: 0 0 18px rgba(165, 243, 252, 0.95);
+  stroke: #c9f7fd;
+  filter: drop-shadow(0 0 2px rgba(165, 243, 252, 0.95));
   animation: nos-pulse 260ms steps(2, end) infinite alternate;
 }
 @keyframes nos-pulse {
-  from { filter: brightness(1); }
-  to { filter: brightness(1.45); }
+  from { opacity: 1; }
+  to { opacity: 0.6; }
 }
 @media (prefers-reduced-motion: reduce) {
   .nos-meter[data-state="firing"] .nos-fill { animation: none; }
@@ -1387,26 +1422,25 @@ html[data-large-hud="1"] .hud-scale {
  * a car that has stopped.
  */
 .fuel-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #0f6b3f, #34d399);
-  box-shadow: 0 0 10px rgba(52, 211, 153, 0.55);
-  transition: background 200ms linear, box-shadow 200ms linear;
+  stroke: #2fc88c;
+  filter: drop-shadow(0 0 1.2px rgba(52, 211, 153, 0.7));
+  transition: stroke 200ms linear;
 }
 /* Under a quarter of a tank: the point at which a real car lights its
    own warning lamp, and the point at which a forecourt stops being
    somebody else's problem. */
 .nos-meter[data-state="low"] .fuel-fill {
-  background: linear-gradient(90deg, #b45309, #fbbf24);
-  box-shadow: 0 0 14px rgba(251, 191, 36, 0.8);
+  stroke: #f5b12a;
+  filter: drop-shadow(0 0 1.6px rgba(251, 191, 36, 0.9));
 }
 .nos-meter[data-state="dry"] .fuel-fill {
-  background: linear-gradient(90deg, #7f1d1d, #ef4444);
-  box-shadow: 0 0 16px rgba(239, 68, 68, 0.9);
+  stroke: #ef4444;
+  filter: drop-shadow(0 0 1.8px rgba(239, 68, 68, 0.95));
 }
 /* Filling: the bar is climbing on its own, so it says so. */
 .nos-meter[data-state="filling"] .fuel-fill {
-  background: linear-gradient(90deg, #0e7490, #67e8f9);
-  box-shadow: 0 0 18px rgba(103, 232, 249, 0.9);
+  stroke: #67e8f9;
+  filter: drop-shadow(0 0 2px rgba(103, 232, 249, 0.9));
   animation: nos-pulse 420ms steps(2, end) infinite alternate;
 }
 /* The empty warning has to be visible without being read, because the

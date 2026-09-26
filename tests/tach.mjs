@@ -182,6 +182,70 @@ console.log(
     `${agree.rpm} rpm -> ${agree.angle} deg, arithmetic says ${agree.want.toFixed(1)}`
 );
 
+// --- 2b. The lit sweep, the shift lights, the size ---------------------
+//
+// The sweep arc and the lamp strip are the same number as the needle,
+// drawn twice more: the arc's dash offset must be 1 - frac, and the lamps
+// must fill from 0.70 of the band to all nine exactly at the shift point
+// (0.93, the engine's own tach.shift) — the strip and the ring round the
+// dial may never disagree. And the cluster is the size the CSS says.
+const lamps = await page.evaluate(async () => {
+  const e = window.__grnEngine;
+  e.setPaused(true);
+  const out = [];
+  // The engine sets its own revs from road speed and gear every frame,
+  // so the band is walked by speed, flat out, and every check is against
+  // where the needle actually IS rather than where it was asked to be.
+  for (const v of [6, 14, 22, 30, 38, 46, 54, 62, 70, 78]) {
+    for (let i = 0; i < 12; i++) {
+      e.player.speed = v;
+      e.setTouchInput({ throttle: 1, brake: 0, steer: 0 });
+      e.update(1 / 60);
+    }
+    const g = document.querySelector('[data-tach="needle"]');
+    const m = /rotate\(([-\d.]+)deg\)/.exec(g?.style.transform ?? "");
+    const drawn = m ? (+m[1] - 234) / 252 : NaN;
+    const off = parseFloat(document.querySelector('[data-tach="sweep"]')?.style.strokeDashoffset ?? "NaN");
+    const lit = document.querySelectorAll('[data-tach="leds"] .tach-led.on').length;
+    const ring = document.querySelector('svg[data-tach="dial"] circle[r="47.4"]')?.style.opacity;
+    out.push({ drawn, off, lit, shift: ring === "0.9" });
+  }
+  // Layout width, not the painted box: the HUD root is CSS-zoomed with
+  // the window, and that is not this rule's business. The dial is the
+  // cluster's --tach-dial (224 px, up from the fixed 200 it was), the box
+  // 1.14 of it for the lamps and arcs outside the bezel.
+  const cl = document.querySelector(".tach-cluster");
+  const dial = parseFloat(getComputedStyle(cl).getPropertyValue("--tach-dial"));
+  const size = document.querySelector('[data-tach="cluster"]').offsetWidth;
+  const want = dial * 1.14;
+  return { out, size, want };
+});
+const ledsFor = (f) => (f < 0.7 ? 0 : Math.min(9, 1 + Math.floor((f - 0.7) / ((0.93 - 0.7) / 8) + 1e-6)));
+for (const l of lamps.out) {
+  console.log(
+    `lamps      ${check(Math.abs(1 - l.off - l.drawn) < 0.01,
+      `the sweep arc is at ${(1 - l.off).toFixed(3)} where the needle is at ${l.drawn.toFixed(3)}`)} ` +
+      `${check(l.lit === ledsFor(l.drawn), `${l.lit} lamps lit at ${l.drawn.toFixed(3)} of the band, want ${ledsFor(l.drawn)}`)} ` +
+      `${check((l.lit === 9) === l.shift || Math.abs(l.drawn - 0.93) < 0.005,
+        `${l.lit} lamps lit but the shift ring says ${l.shift ? "shift" : "not yet"}`)}  ` +
+      `frac ${l.drawn.toFixed(3)}: sweep ${(1 - l.off).toFixed(3)}, ${l.lit}/9 lamps, ring ${l.shift ? "on" : "off"}`
+  );
+}
+// The walk has to have reached the strip at all, or the checks above
+// passed on nothing but unlit lamps.
+const counts = new Set(lamps.out.map((l) => l.lit));
+console.log(
+  `coverage   ${check([...counts].some((n) => n > 0 && n < 9),
+    `no sample landed inside the strip's band (lamp counts ${[...counts].join(", ")})`)}  ` +
+    `lamp counts seen: ${[...counts].sort((a, b) => a - b).join(", ")}`
+);
+console.log(
+  `size       ${check(Math.abs(lamps.size - lamps.want) <= 1,
+    `the cluster is ${lamps.size.toFixed(1)} px, the CSS asks for ${lamps.want.toFixed(1)}`)} ` +
+    `${check(lamps.want >= 200 * 1.14, `the dial is ${(lamps.want / 1.14).toFixed(0)} px, smaller than the 200 it grew from`)}  ` +
+    `${lamps.size.toFixed(1)} px box (want ${lamps.want.toFixed(1)})`
+);
+
 // --- 3. The needle sweeps; it does not step -------------------------
 //
 // Before revs.ts, a key press at a standstill moved the drawn needle
