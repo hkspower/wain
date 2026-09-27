@@ -1012,28 +1012,144 @@ function paverTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-function sandTexture(): THREE.CanvasTexture {
-  const c = document.createElement("canvas");
-  c.width = 256;
-  c.height = 128;
-  const ctx = c.getContext("2d")!;
-  // Darker, wet-packed sand toward the waterline (u=1 side)
-  const grad = ctx.createLinearGradient(0, 0, 256, 0);
-  grad.addColorStop(0, "#7a6b4c");
-  grad.addColorStop(0.7, "#6e6044");
-  grad.addColorStop(1, "#4e452f");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 256, 128);
-  for (let i = 0; i < 6000; i++) {
-    const g = 90 + rand() * 70;
-    ctx.fillStyle = `rgba(${g},${g - 14},${g - 38},${0.15 + rand() * 0.3})`;
-    ctx.fillRect(rand() * 256, rand() * 128, 1, 1);
+/** The sand's tile, in metres: one 1024 px image covers SAND_TILE_M
+ *  square of beach, so a grain is about 6 mm and a ripple is 15 cm. */
+const SAND_TILE_M = 6;
+
+/**
+ * Beach sand: a tiling albedo and a normal map from one height field.
+ *
+ * It was a 256 x 128 gradient with 6,000 one-pixel specks, stretched
+ * 43 m across the beach and 20 m along it — about 16 cm a texel. Close
+ * up the specks magnified into soft blotches, and with no relief the
+ * sun lit the whole beach as one flat tan sheet. Its "wet sand toward
+ * the waterline" darkened toward u = 1, which is the PROMENADE edge of
+ * the ribbon: the seaward edge is u = 0. The wet band now lives on the
+ * mesh (vertex colour, on the sea side) and this image is only sand.
+ *
+ * What makes sand read as sand at driving distance is wind ripple: low
+ * parallel ridges, gentle on the windward face and steep on the lee,
+ * wandering and fading in patches. They are built with a whole number
+ * of periods across the tile in each axis, so the tile repeats with no
+ * seam, and bent by a tileable noise so they are not ruled lines. The
+ * normal map carries them to the light; the albedo carries them only a
+ * little (crests a touch paler, as dry sand on a crest is), plus grain
+ * and a sprinkle of darker shell grit. Its mean sits where the old
+ * texture's did, so the exposure does not move.
+ *
+ * Built on its own seeded generator. The world's shared sequence is
+ * advanced by exactly the draws the old texture made (4 x 6,000), so
+ * every building, palm and lamp placed after this lands where it did.
+ */
+function sandSurface(): { map: THREE.CanvasTexture; normalMap: THREE.CanvasTexture } {
+  for (let i = 0; i < 24000; i++) rand();
+  const r = makeRng((WORLD_SEED ^ 0x53414e44) >>> 0); // "SAND"
+  const N = 1024;
+  // Every broad field here — the bend in the ripples, where they fade,
+  // the tone of the sand in patches — is a sum of sine waves at random
+  // whole-number wave vectors: seamless across the tile, and with no
+  // grid for the eye to find (a smoothstepped lattice at this scale read
+  // from above as a chequerboard of soft squares). Each wave is split
+  // into a column table and a row table, sin(a+b) = sin a cos b +
+  // cos a sin b, so a pixel costs a few multiply-adds and no sin: the
+  // naive field was 0.75 s of load on a slow machine.
+  const waves = (count: number, kmax: number) => {
+    const cs: Float32Array[] = [], cc: Float32Array[] = [], rs: Float32Array[] = [], rc: Float32Array[] = [];
+    let norm = 0;
+    for (let i = 0; i < count; i++) {
+      let kx = 0, ky = 0;
+      while (kx === 0 && ky === 0) {
+        kx = Math.round((r() * 2 - 1) * kmax);
+        ky = Math.round((r() * 2 - 1) * kmax);
+      }
+      const ph = r() * Math.PI * 2;
+      const amp = 0.6 + r() * 0.4;
+      norm += amp;
+      const colS = new Float32Array(N), colC = new Float32Array(N);
+      const rowS = new Float32Array(N), rowC = new Float32Array(N);
+      for (let j = 0; j < N; j++) {
+        const ax = (kx * j * Math.PI * 2) / N, ay = (ky * j * Math.PI * 2) / N + ph;
+        colS[j] = Math.sin(ax) * amp;
+        colC[j] = Math.cos(ax) * amp;
+        rowS[j] = Math.sin(ay);
+        rowC[j] = Math.cos(ay);
+      }
+      cs.push(colS); cc.push(colC); rs.push(rowS); rc.push(rowC);
+    }
+    const out = new Float32Array(N * N);
+    for (let y = 0; y < N; y++) {
+      for (let w = 0; w < count; w++) {
+        const cy = rc[w][y], sy = rs[w][y], a = cs[w], b = cc[w];
+        const o = y * N;
+        for (let x = 0; x < N; x++) out[o + x] += a[x] * cy + b[x] * sy;
+      }
+    }
+    for (let i = 0; i < out.length; i++) out[i] = 0.5 + (0.5 * out[i]) / norm;
+    return out;
+  };
+  const bendA = waves(6, 3), bendB = waves(5, 6), patch = waves(7, 3), tone = waves(9, 5);
+  // 37 periods across and 11 along: ridges about 15 cm apart, running
+  // obliquely to the shore the way an onshore breeze lays them.
+  const KX = 37, KY = 11;
+  const H = new Float32Array(N * N);
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const bend = (bendA[y * N + x] - 0.5) * 2.6 + (bendB[y * N + x] - 0.5) * 1.1;
+      const ph = (KX * x) / N + (KY * y) / N + bend;
+      const f = ph - Math.floor(ph);
+      // Gentle stoss (70% of the period), steep lee.
+      const ridge = f < 0.7 ? f / 0.7 : (1 - f) / 0.3;
+      const amp = 0.25 + 0.75 * Math.min(1, Math.max(0, (patch[y * N + x] - 0.3) * 1.8));
+      H[y * N + x] = (ridge - 0.5) * amp + (r() - 0.5) * 0.12;
+    }
   }
-  const tex = new THREE.CanvasTexture(c);
-  tex.wrapS = THREE.ClampToEdgeWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  const mk = () => {
+    const c = document.createElement("canvas");
+    c.width = N;
+    c.height = N;
+    const ctx = c.getContext("2d")!;
+    return { c, ctx, img: ctx.createImageData(N, N) };
+  };
+  const alb = mk(), nrm = mk();
+  // The old texture's mean, near enough: #72644a.
+  const BR = 0x78, BG = 0x69, BB = 0x4c;
+  const at = (x: number, y: number) => H[((y + N) % N) * N + ((x + N) % N)];
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const i = (y * N + x) * 4;
+      const h = H[y * N + x];
+      let k = 0.97 + h * 0.1 + (tone[y * N + x] - 0.5) * 0.12 + (r() - 0.5) * 0.14;
+      const grit = r();
+      if (grit < 0.004) k *= 0.62;
+      else if (grit > 0.997) k *= 1.22;
+      alb.img.data[i] = Math.min(255, BR * k);
+      alb.img.data[i + 1] = Math.min(255, BG * k);
+      alb.img.data[i + 2] = Math.min(255, BB * (k * 0.98));
+      alb.img.data[i + 3] = 255;
+      const dx = at(x + 1, y) - at(x - 1, y);
+      const dy = at(x, y + 1) - at(x, y - 1);
+      const S = 2.2;
+      let nx = -dx * S, ny = -dy * S;
+      const len = Math.sqrt(nx * nx + ny * ny + 1); // not Math.hypot: a million calls
+      nx /= len;
+      ny /= len;
+      nrm.img.data[i] = (nx * 0.5 + 0.5) * 255;
+      nrm.img.data[i + 1] = (ny * 0.5 + 0.5) * 255;
+      nrm.img.data[i + 2] = ((1 / len) * 0.5 + 0.5) * 255;
+      nrm.img.data[i + 3] = 255;
+    }
+  }
+  alb.ctx.putImageData(alb.img, 0, 0);
+  nrm.ctx.putImageData(nrm.img, 0, 0);
+  const tex = (c: HTMLCanvasElement, cs: THREE.ColorSpace) => {
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.colorSpace = cs;
+    t.anisotropy = 8;
+    return t;
+  };
+  // The normal map is data: read raw, never gamma-decoded.
+  return { map: tex(alb.c, THREE.SRGBColorSpace), normalMap: tex(nrm.c, THREE.NoColorSpace) };
 }
 
 function adTexture(line1: string, line2: string, bg: string, fg: string, accent: string): THREE.CanvasTexture {
@@ -4372,12 +4488,42 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     scene.add(walkway);
   }
 
-  const sand = sandTexture();
-  sand.repeat.set(1, 0.7);
-  const sandMat = new THREE.MeshStandardMaterial({ map: sand, roughness: 1 });
+  // The beach: dry sand from the walkway out, and the last WET_M before
+  // the water darkened on the mesh — the sea edge of each ribbon is its
+  // first vertex, lateral -(ROAD_HALF_WIDTH + 48). UVs are re-laid in
+  // metres so both strips sample the same tile at the same scale.
+  const sandTex = sandSurface();
+  const sandMat = new THREE.MeshStandardMaterial({
+    map: sandTex.map,
+    normalMap: sandTex.normalMap,
+    normalScale: new THREE.Vector2(0.9, 0.9),
+    roughness: 1,
+    vertexColors: true,
+  });
+  const WET_M = 9;
+  const SEA_EDGE = ROAD_HALF_WIDTH + 48;
+  const strip = (outer: number, inner: number, u0: number, u1: number, wetOuter: number) => {
+    const g = buildRibbon(track, -outer, -inner, 0.0, 10, u0, u1);
+    const uv = g.attributes.uv as THREE.BufferAttribute;
+    const n = uv.count;
+    const col = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const sea = i % 2 === 0; // the ribbon's a-edge: the outer (seaward) offset
+      uv.setXY(i, (sea ? -outer : -inner) / SAND_TILE_M, (uv.getY(i) * 14) / SAND_TILE_M);
+      const k = sea ? wetOuter : 1;
+      col[i * 3] = k;
+      col[i * 3 + 1] = k;
+      col[i * 3 + 2] = k * 1.02; // wet sand is a shade cooler
+    }
+    g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    return g;
+  };
   for (const [u0, u1] of coastalSpans) {
     const beach = new THREE.Mesh(
-      buildRibbon(track, -(ROAD_HALF_WIDTH + 48), -(ROAD_HALF_WIDTH + 4.5), 0.0, 10, u0, u1),
+      mergeGeometries([
+        strip(SEA_EDGE - WET_M, ROAD_HALF_WIDTH + 4.5, u0, u1, 1),
+        strip(SEA_EDGE, SEA_EDGE - WET_M, u0, u1, 0.45),
+      ])!,
       sandMat
     );
     beach.name = "beach";
