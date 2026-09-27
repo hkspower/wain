@@ -173,6 +173,58 @@ try {
   const stillBlocked = one(`select count(*) from blocked_customers where phone = '${stolenPhone}'`)
   check(stillBlocked === '0', 'the row the backup did not have is gone — REPLACE, not merge', stillBlocked)
 
+  /* --------------------------- a "backup" whose column names are not real */
+  // backup_import builds its insert's IDENTIFIER LIST from array_keys($row)
+  // — a row's own keys, unescaped, in the one position a bound placeholder
+  // cannot cover. A genuine export can only ever carry real column names;
+  // anything else means the file is not that export, whatever it claims —
+  // corrupted, hand-edited, or crafted, and this is the guard that tells
+  // those apart from a legitimate restore before either ever reaches SQL.
+  {
+    const before = one(`select count(*) from blocked_customers`)
+    const poisoned = JSON.parse(JSON.stringify(exp.body))
+    poisoned.tables.blocked_customers = [
+      ...poisoned.tables.blocked_customers,
+      { id: 999999901, phone: '96555590099', scope: 'cod', reason: 'rig',
+        blocked_by: 'rig', sporta_rig_not_a_real_column: 'x' },
+    ]
+    const poisonedPreview = await call('backup_preview', { data: poisoned })
+    const poisonedImport = await call('backup_import',
+      { data: poisoned, confirm: true, token: poisonedPreview.body?.token })
+    check(poisonedImport.status === 400 && poisonedImport.body?.error === 'bad_backup_file',
+      'a row carrying a column name that is not in the real schema is refused before any table is touched',
+      JSON.stringify(poisonedImport.body))
+    const after = one(`select count(*) from blocked_customers`)
+    check(before === after, 'and nothing in blocked_customers moved', `${before} -> ${after}`)
+
+    /* ------------------- mutation: remove the schema check on the columns */
+    if (mutate(
+      "if (!isset(\$allowed[\$col])) store_fail('bad_backup_file');",
+      "// MUTATED OUT FOR backup-test.mjs",
+      'backup column allow-list'
+    )) {
+      const stillPoisonedImport = await call('backup_import',
+        { data: poisoned, confirm: true, token: poisonedPreview.body?.token })
+      restore()
+      // WITHOUT THE CHECK, the malformed identifier reaches raw SQL instead
+      // of being turned away as a bad file — this one column name merely
+      // names no real column, so MariaDB itself refuses the insert and the
+      // whole transaction rolls back (every table's delete-and-reinsert is
+      // one transaction), which is why the database is untouched below even
+      // with the guard gone. A column name that is syntactically valid SQL
+      // in the identifier position, rather than merely unknown, would not
+      // get even that safety net — the guard is what stands between a
+      // crafted file and that difference, not MariaDB's own refusal.
+      check(stillPoisonedImport.body?.error !== 'bad_backup_file',
+        'MUTATION CAUGHT: without the column allow-list the same file is no longer refused as bad_backup_file',
+        JSON.stringify(stillPoisonedImport.body))
+      const afterMutation = one(`select count(*) from blocked_customers`)
+      check(before === afterMutation,
+        'and the transaction rolled back whole, so the table is still untouched even with the guard gone',
+        `${before} -> ${afterMutation}`)
+    }
+  }
+
   /* ---------------------------------- mutation 1: drop the confirm guard */
   if (mutate(
     "if ((\$b['confirm'] ?? false) !== true) store_fail('confirm_required');",
