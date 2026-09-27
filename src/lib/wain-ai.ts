@@ -88,6 +88,15 @@ export const WAIN_AI_AGENT_ENABLED = WAIN_AI_AGENT_ID.trim().length > 0;
  * already-open session. So "switching" — see WainAiCall — means dropping the
  * current `<elevenlabs-convai>` element and mounting a fresh one with this
  * attribute set, not a live hot-swap mid-sentence.
+ *
+ * The agent has to PERMIT the override, and for its first days it did not:
+ * `platform_settings.overrides.conversation_config_override.tts.voice_id` was
+ * `false`, so the reconnect carried an override the agent's own config
+ * refuses, and the tap meant to hand the caller to سالم could only end their
+ * call. Nothing in this repository can see that setting — it lives on the
+ * agent — so it is written here, beside the one line that depends on it.
+ * Enabled 27 September. Only `voice_id` is open; model, stability and speed
+ * stay locked to the agent's own values.
  */
 export const SALEM_VOICE_ID = "Ywuz3KyW2N5pqKNpwcCL"; // Eid — Gulf male, warm and clear
 

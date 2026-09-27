@@ -1282,6 +1282,31 @@ see `Props.startSignal` — so `persona` state would otherwise survive from one
 call to the next; `startCall()` clears it and the mounted widget explicitly,
 so redialling after a switch never silently starts on سالم.
 
+**And the agent refused the switch until 27 September.** Its
+`platform_settings.overrides.conversation_config_override.tts.voice_id` was
+`false` — the only override open was `conversation.text_only` — so the fresh
+widget mounted with `override-voice-id` asked for a field the agent does not
+allow, which ElevenLabs refuses at connect. The button shipped live in
+`eb9bad9` pointing at a door that was locked on the other side. Enabled
+through `agents_update` (deep merge; the reply still carried the 25 tests, the
+prompt, the three tools, Talya and the origin allowlist), version
+`agtvrsn_0301m3gx68vhfdxaybwczysg3m53`. Only `voice_id` was opened: model,
+stability and speed stay the agent's.
+
+What was NOT measured: a real switch. The widget cannot load here (unpkg and
+elevenlabs.io are both blocked), so «refused at connect» is ElevenLabs'
+documented behaviour for a disallowed override, not a reading from this
+session. Tap «بصوت سالم» on the live site once to close that.
+
+**The same voice, one number apart.** شوق's agent and her clip/bridge
+rendition agree on voice (Talya), stability 0.35 and similarity 0.8 — and
+differ on speed: **1.12** on the agent, **1.06** in `gen-voice.mjs` and
+`tts-endpoint.php`. The model differs on purpose (flash for a realtime call,
+multilingual_v2 for recorded lines; see the bridge's own comment). Nothing
+checks the agent against the table — `audit:tts` compares the two files in
+this repository, and the agent is not in it — so read this pair with
+`agents_get` after touching either side.
+
 ## There is an n8n instance, and part of wain runs on it
 
 `sportake.app.n8n.cloud`, shared with sporta. **Nothing in `npm run scan` can
