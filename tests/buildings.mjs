@@ -214,6 +214,60 @@ console.log(
     `${dressed.toFixed(0)}% of roofs dressed`
 );
 
+// --- glass --------------------------------------------------------------
+//
+// The glazed facades carry a painted roughness map: concrete #dadada,
+// frame #8a8a8a, pane #1f1f1f. Two things have to be true for those
+// grey levels to be the roughness they are painted as:
+//
+//   data      the map is read raw (NoColorSpace). Tagged sRGB like the
+//             facade it was gamma-decoded first, and the 0.12 pane
+//             rendered at about 0.014 — a mirror.
+//   own       each building's concrete lands on its own value:
+//             roughness x 0xda/255 = 0.8 for the city blocks, 0.5 for the
+//             Liberation disc, 0.4 for Al Hamra. glazedMat took those
+//             values for months and ignored them.
+const glass = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  let root = e.world.moonLight;
+  while (root.parent) root = root.parent;
+  const out = [];
+  const seen = new Set();
+  root.traverse((o) => {
+    const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+    for (const m of mats) {
+      if (seen.has(m) || !m.roughnessMap || !m.emissiveMap) continue;
+      seen.add(m);
+      let q = o, who = "blocks";
+      while (q) {
+        if (q.name === "liberationTower") who = "liberation";
+        if (q.name === "alHamraTower") who = "alHamra";
+        q = q.parent;
+      }
+      out.push({
+        who,
+        rough: m.roughnessMap.colorSpace,
+        facade: m.map?.colorSpace,
+        concrete: +(m.roughness * (0xda / 255)).toFixed(3),
+      });
+    }
+  });
+  return out;
+});
+const WANT = { blocks: 0.8, liberation: 0.5, alHamra: 0.4 };
+for (const g of glass) {
+  console.log(
+    `glass     ${check(g.rough !== "srgb", `${g.who}: the roughness map is decoded as ${g.rough}, not read as data`)} ` +
+      `${check(g.facade === "srgb", `${g.who}: the facade colour is ${g.facade}, want srgb`)} ` +
+      `${check(Math.abs(g.concrete - WANT[g.who]) < 0.005, `${g.who}: concrete roughness ${g.concrete}, want ${WANT[g.who]}`)}  ` +
+      `${g.who.padEnd(10)} map ${g.rough || "raw"}, concrete ${g.concrete}`
+  );
+}
+check(
+  ["blocks", "liberation", "alHamra"].every((w) => glass.some((g) => g.who === w)),
+  `glazed materials found for ${[...new Set(glass.map((g) => g.who))].join(", ")} — expected blocks, liberation and alHamra`
+);
+
 await browser.close();
 if (fail.length) {
   console.log(`\n${fail.length} problem${fail.length === 1 ? "" : "s"}:`);

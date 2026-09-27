@@ -1257,7 +1257,7 @@ function windowTextures(): Skin {
   fx.fillRect(0, 0, W, H);
   lx.fillStyle = "#000000";
   lx.fillRect(0, 0, W, H);
-  rx.fillStyle = "#dadada"; // concrete: matte
+  rx.fillStyle = "#dadada"; // concrete: matte (CONCRETE_MAP_ROUGH)
   rx.fillRect(0, 0, W, H);
   for (let y = 6 * S; y < 250 * S; y += 10 * S) {
     fx.fillStyle = "rgba(0,0,0,0.10)";
@@ -1356,9 +1356,9 @@ function windowTextures(): Skin {
       }
     }
   }
-  const wrap = (canvas: HTMLCanvasElement) => {
+  const wrap = (canvas: HTMLCanvasElement, colorSpace: THREE.ColorSpace = THREE.SRGBColorSpace) => {
     const tex = new THREE.CanvasTexture(canvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.colorSpace = colorSpace;
     tex.anisotropy = 16;
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
@@ -1367,7 +1367,12 @@ function windowTextures(): Skin {
     tex.generateMipmaps = true;
     return tex;
   };
-  return { facade: wrap(fc), lit: wrap(lc), rough: wrap(rc) };
+  // The roughness map is DATA, not a colour. Tagged sRGB like the other
+  // two, the GPU gamma-decoded it before the shader read it, so the pane
+  // painted at 0.12 rendered at about 0.014 — a mirror — the 0.54 frame
+  // at 0.25 and the 0.855 concrete at 0.70. Read raw, the grey levels
+  // are the roughness they say they are.
+  return { facade: wrap(fc), lit: wrap(lc), rough: wrap(rc, THREE.NoColorSpace) };
 }
 
 function signTexture(en: string, ar: string, sub?: string): THREE.CanvasTexture {
@@ -1969,7 +1974,13 @@ function facadeUvScaling(mat: THREE.MeshStandardMaterial): void {
   mat.customProgramCacheKey = () => "grn-facade-uv";
 }
 
-function glazedMat(skin: Skin, color: number): THREE.MeshStandardMaterial {
+/** The concrete grey painted into the roughness map (#dadada), read raw.
+ *  glazedMat divides a building's own concrete roughness by it, so the
+ *  map's concrete lands on exactly that value and the frames and panes
+ *  keep their proportion to it. */
+const CONCRETE_MAP_ROUGH = 0xda / 255;
+
+function glazedMat(skin: Skin, color: number, concreteRoughness: number): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
     map: skin.facade,
     emissiveMap: skin.lit,
@@ -1979,13 +1990,15 @@ function glazedMat(skin: Skin, color: number): THREE.MeshStandardMaterial {
     // What makes the glass GLASS. Painting a pane a bluer grey makes a
     // decal; what a window does that concrete cannot is answer the
     // light — the scene carries an environment map, and a surface only
-    // asks it when it is smooth. The roughness map holds the concrete
-    // matte and drops the panes to 0.12 (roughness 1 below just passes
-    // the map through — there is no per-call value), so
+    // asks it when it is smooth. The roughness map paints concrete matte
+    // and panes at 0.12 of it, and this material scales the map so the
+    // concrete is the building's own value — 0.8 for the city blocks,
+    // glossier on the two hero towers (Liberation 0.5, Al Hamra 0.4),
+    // whose panes therefore polish further too — so
     // every window picks up the sky and the city as a sheen while the
     // wall around it stays dead flat. The albedo gradient in the pane
     // is the base tone; this is the part that moves with the camera.
-    roughness: 1,
+    roughness: concreteRoughness / CONCRETE_MAP_ROUGH,
     roughnessMap: skin.rough,
     // roadMat is the one surface in this scene whose IBL response was
     // ever actually measured — 1.15 dry, up to 2.5 wet — and every
@@ -2026,7 +2039,7 @@ function liberationTower(skin: Skin, lit: THREE.MeshStandardMaterial[]): THREE.G
   const shaft = new THREE.Mesh(new THREE.CylinderGeometry(5.5, 7, 95, 12), mat);
   shaft.position.y = 47.5;
   g.add(shaft);
-  const discMat = glazedMat(skin, 0xffffff);
+  const discMat = glazedMat(skin, 0xffffff, 0.5);
   lit.push(discMat);
   const disc = new THREE.Mesh(new THREE.CylinderGeometry(12, 12, 7, 14), discMat);
   disc.position.y = 72;
@@ -2038,7 +2051,7 @@ function liberationTower(skin: Skin, lit: THREE.MeshStandardMaterial[]): THREE.G
 }
 
 function alHamra(skin: Skin, lit: THREE.MeshStandardMaterial[]): THREE.Mesh {
-  const mat = glazedMat(skin, 0xdddddd);
+  const mat = glazedMat(skin, 0xdddddd, 0.4);
   lit.push(mat);
   const tower = new THREE.Mesh(new THREE.BoxGeometry(26, 118, 24), mat);
   tower.position.y = 59;
@@ -5404,7 +5417,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // same texture drives emission, so the windows are light sources.
     // Intensity rides the hour — see setTimeOfDay — because a window
     // that glows at noon reads as a mistake.
-    const mat = glazedMat(windows, 0xffffff);
+    const mat = glazedMat(windows, 0xffffff, 0.8);
     facadeUvScaling(mat);
     litFacades.push(mat);
     const blocks = new THREE.InstancedMesh(geo, mat, count);
