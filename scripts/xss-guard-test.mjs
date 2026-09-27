@@ -179,12 +179,28 @@ function stripCalls(expr, fns) {
   return out
 }
 
-// PHP files that echo `<?= … ?>` short tags: orders-print.php, pay/pay.php.
+// PHP files that echo `<?= … ?>` short tags: orders-print.php, pay/pay.php,
+// category.php. Each of the four category pages is a crawler-visible,
+// server-rendered page reading straight out of `products` — the same shape
+// orders-print.php already carries a rig for, and until now the only one of
+// the four echo-tag files with no rig behind it at all.
+//
+// category.php's OWN allow-list, for the handful of variables that are bare
+// on purpose rather than by oversight — every one of them is either a fixed
+// PHP literal this file assigns itself ($lang/$dir/$isEn from a strict `===`
+// comparison, $s/$q/$slug from the CATS constant and a literal query string)
+// or a string this file has ALREADY run through e() while building it
+// ($otherLinks, at the point it is assembled a few lines above where it is
+// echoed) and $artW/$artH, unpacked from CATS' own fixed dimensions. None of
+// them can carry a database value into markup unescaped; e($nameEn)/e($nameAr)
+// and e((string) $count) are what carry the ones that can.
+const CATEGORY_BARE = new Set(['$lang', '$dir', '$isEn', '$otherLinks', '$artW', '$artH', '$s', '$q', '$slug'])
 const PHP_ECHO_TARGETS = [
   { file: 'sporta-site/public_html/api/orders-print.php', safe: ['$h', '$addr', '$kwd'] },
   { file: 'sporta-site/public_html/pay/pay.php', safe: ['$h'] },
+  { file: 'sporta-site/public_html/category.php', safe: ['e', 'number_format'], bare: CATEGORY_BARE },
 ]
-for (const { file, safe } of PHP_ECHO_TARGETS) {
+for (const { file, safe, bare } of PHP_ECHO_TARGETS) {
   let src
   try { src = readFileSync(file, 'utf8') } catch (e) {
     check(false, `${file}: readable`, e.message); continue
@@ -195,6 +211,13 @@ for (const { file, safe } of PHP_ECHO_TARGETS) {
   const unsafe = echoes.filter((expr) => {
     if (!/\$/.test(expr)) return false   // a literal with no variable at all
     let rest = stripCalls(expr, safe)
+    if (bare) {
+      // Only the exact names on the allow-list — never a prefix match, or
+      // `$slug` would silently clear `$slugOverride` if one were ever added.
+      for (const name of bare) {
+        rest = rest.replace(new RegExp('\\' + name + '(?![A-Za-z0-9_])', 'g'), '')
+      }
+    }
     // count(...) always returns an integer — nothing it can be handed can
     // make it echo markup — and a numeric cast is safe for the same reason,
     // so the cast AND its operand (`(int) $l['qty']`) both go, not just the

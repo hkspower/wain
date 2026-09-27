@@ -518,14 +518,14 @@ header('Cache-Control: public, max-age=0, must-revalidate');
   <?php elseif (!$products): ?>
     <div class="empty">
       <?= $isEn
-        ? "Nothing is filed under $nameEn yet — new arrivals are added regularly. In the meantime: "
-        : "لا توجد منتجات في قسم $nameAr حالياً — تُضاف منتجات جديدة باستمرار. في هذه الأثناء: " ?>
+        ? 'Nothing is filed under ' . e($nameEn) . ' yet — new arrivals are added regularly. In the meantime: '
+        : 'لا توجد منتجات في قسم ' . e($nameAr) . ' حالياً — تُضاف منتجات جديدة باستمرار. في هذه الأثناء: ' ?>
       <?= $otherLinks ?>
     </div>
   <?php else: ?>
     <p class="count"><?= $isEn
-      ? ($count === 1 ? '1 product' : "$count products")
-      : "$count منتج" ?></p>
+      ? ($count === 1 ? '1 product' : e((string) $count) . ' products')
+      : e((string) $count) . ' منتج' ?></p>
     <div class="grid">
       <?php foreach ($products as $p): ?>
         <a class="card" href="/product/<?= e($p['slug']) ?><?= $isEn ? '?lang=en' : '' ?>">
