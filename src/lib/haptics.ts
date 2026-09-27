@@ -56,11 +56,6 @@ export function setEnabled(on: boolean): void {
   }
 }
 
-/** Available at all, on this device? Lets UI hide a toggle that would lie. */
-export function isSupported(): boolean {
-  return supported();
-}
-
 export function haptic(kind: HapticKind = "tap"): void {
   if (!enabled()) return;
   try {

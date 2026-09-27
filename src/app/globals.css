@@ -108,8 +108,7 @@ body {
 }
 
 /* App version (installed to the home screen). The bottom tab bar becomes the
-   primary navigation, so content clears it, the navbar's duplicate links go,
-   the call sheet moves up out of the tab bar's way, and the page stops
+   primary navigation, so content clears it, the call sheet moves up out of the tab bar's way, and the page stops
    rubber-banding at its edges the way a document does.
 
    Written twice on purpose, and the two lists must stay identical: the media
@@ -125,9 +124,6 @@ body {
     padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
     overscroll-behavior-y: none;
   }
-  .standalone-hidden {
-    display: none;
-  }
   /* The sheet clears the tab bar. Both numbers say the same thing — the sheet
      sits 6rem above whatever occupies the bottom of the screen — which is why
      they differ by exactly the 4.25rem the tab bar takes. Change one without
@@ -142,9 +138,6 @@ html[data-standalone="true"] {
 html[data-standalone="true"] body {
   padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
   overscroll-behavior-y: none;
-}
-html[data-standalone="true"] .standalone-hidden {
-  display: none;
 }
 html[data-standalone="true"] .wain-ai-panel {
   bottom: calc(10.25rem + env(safe-area-inset-bottom, 0px));

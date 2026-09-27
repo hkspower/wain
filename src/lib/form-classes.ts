@@ -22,4 +22,3 @@ export const fieldDenseClass = `${FIELD_BASE} px-3 py-2 text-sm`;
 
 export const labelClass = "mb-1.5 block text-sm font-semibold text-ink-700";
 export const hintClass = "mt-1 text-xs text-ink-500";
-export const errorClass = "mt-1 text-xs font-semibold text-coral-700";

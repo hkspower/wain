@@ -112,7 +112,6 @@ export default function SearchMap({
    */
   const renderPin = (
     p: Place,
-    i: number,
     style: React.CSSProperties,
     fx: number,
     fy: number
@@ -220,7 +219,6 @@ export default function SearchMap({
                 ? places.map((p, i) =>
                     renderPin(
                       p,
-                      i,
                       // `pointerEvents` because the overlay layer is
                       // `pointer-events-none` — it must not swallow the drag
                       // that pans the map, and a pin must still be tappable.
@@ -255,7 +253,6 @@ export default function SearchMap({
               places.map((p, i) =>
                 renderPin(
                   p,
-                  i,
                   // Physical left/top on purpose. The page is RTL, but geography
                   // is not — a logical inset would mirror the map east-to-west.
                   { left: `${pins[i].x * 100}%`, top: `${pins[i].y * 100}%` },
