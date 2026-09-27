@@ -390,7 +390,7 @@ const gauge = await page.evaluate(async () => {
     const px = svg.parentElement.offsetWidth / svg.viewBox.baseVal.width; // layout px
     const inner = fuelTrack.querySelector(".meter-track").getTotalLength() * px;
     const off = parseFloat(getComputedStyle(fill).strokeDashoffset) || 0;
-    const label = document.querySelector('[data-gauge-readout="fuel"] span:last-child');
+    const label = document.querySelector('[data-gauge-readout="fuel"]'); // SVG text at the arc's end
     const fs = getComputedStyle(fill);
     return {
       state: fuelTrack.dataset.state,

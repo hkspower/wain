@@ -293,6 +293,71 @@ console.log(
     `(was ~${(252 * sweep.hold).toFixed(0)} in one); first frames ${sweep.first.join(" ")}`
 );
 
+// --- 4. Theme and units, through the settings screen ---------------
+//
+// Both are player settings, so they are driven the way a player drives
+// them: pause, SETTINGS, the buttons, DONE. What is asserted is what
+// lands on the dial.
+//
+// Theme: on a road engine the sweep takes the theme's lamp; on the race
+// cluster (the Saqr's v8-40fp) it stays red under every theme, because
+// that red face is information. Units: in mph the readout is the car's
+// speed times 0.621371 and the label under it says so.
+await page.evaluate(() => window.__grnEngine?.skipCinematic?.());
+await page.keyboard.press("Escape");
+await page.getByRole("button", { name: "SETTINGS", exact: true }).click();
+const LAMPS = { sodium: "rgb(245, 165, 36)", ice: "rgb(92, 200, 255)", neon: "rgb(61, 255, 158)" };
+const lampOf = () =>
+  page.evaluate(() => getComputedStyle(document.querySelector('[data-tach="sweep"]')).stroke);
+const fit = (id) =>
+  page.evaluate((id) => {
+    const e = window.__grnEngine;
+    const spec = window.__grnEngines.find((s) => s.id === id);
+    e.tune.engine = spec;
+    for (let i = 0; i < 3; i++) e.update(1 / 60);
+  }, id);
+const roadId = await page.evaluate(() =>
+  window.__grnEngines.find((s) => !s.redCluster)?.id ?? window.__grnEngine.tune.engine.id
+);
+for (const theme of Object.keys(LAMPS)) {
+  await page.click(`[data-cluster-theme-option="${theme}"]`);
+  await fit(roadId);
+  const road = await lampOf();
+  await fit("v8-40fp");
+  const race = await lampOf();
+  console.log(
+    `theme      ${check(road === LAMPS[theme], `${theme}: the road dial's sweep is ${road}, want ${LAMPS[theme]}`)} ` +
+      `${check(race === "rgb(255, 42, 24)", `${theme}: the race cluster's sweep is ${race}, it must stay red`)}  ` +
+      `${theme.padEnd(6)} road ${road}  race ${race}`
+  );
+}
+await page.click('[data-cluster-theme-option="sodium"]');
+await fit(roadId);
+// The unit takes effect on the click; the screen is left open rather
+// than closed with DONE, which on the software rasteriser can sit in
+// Playwright's scroll-into-view long enough to time out.
+await page.click('[data-speed-unit-option="mph"]');
+const mph = await page.evaluate(async () => {
+  const e = window.__grnEngine;
+  e.setPaused(true);
+  e.player.speed = 30;
+  e.update(1 / 60);
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const dial = document.querySelector('[data-tach="cluster"]');
+  const spans = [...dial.querySelectorAll("span")];
+  return {
+    shown: +spans.find((x) => /^\d+$/.test(x.textContent.trim()))?.textContent,
+    label: spans.map((x) => x.textContent.trim()).find((t) => /^(mph|km\/h)$/i.test(t)),
+    kmh: e.player.speed * 3.6,
+  };
+});
+const wantMph = Math.round(mph.kmh * 0.621371);
+console.log(
+  `units      ${check(Math.abs(mph.shown - wantMph) <= 1 && mph.label === "mph",
+    `in mph the dial reads ${mph.shown} "${mph.label}" at ${mph.kmh.toFixed(1)} km/h, want ${wantMph} mph`)}  ` +
+    `${mph.kmh.toFixed(1)} km/h reads ${mph.shown} ${mph.label}`
+);
+
 await browser.close();
 if (fail.length) {
   console.log(`\n${fail.length} FAILED`);

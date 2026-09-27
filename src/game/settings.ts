@@ -8,6 +8,11 @@ import type { Resolution } from "./render";
 import type { CameraView } from "./views";
 import { writeJSON } from "./storage";
 
+export type ClusterTheme = "sodium" | "ice" | "neon";
+export type SpeedUnit = "kmh" | "mph";
+/** km/h to mph, for the one readout that offers both. */
+export const MPH_PER_KMH = 0.621371;
+
 export interface Settings {
   /** Kill non-essential animation (OS setting is also honoured). */
   reducedMotion: boolean;
@@ -33,6 +38,12 @@ export interface Settings {
   sfxVolume: number;
   /** Bigger HUD for small screens or low vision. */
   largeHud: boolean;
+  /** The instrument cluster's backlight: sodium amber, ice blue or neon
+   *  green. A race cluster stays red whatever this says — that face is
+   *  telling the driver something. */
+  clusterTheme: ClusterTheme;
+  /** What the HUD speed reads in. The game itself stays in km/h. */
+  speedUnit: SpeedUnit;
   /** Where the camera sits. Chase is road-mounted and shows what the car
    *  is doing; the in-car views are bolted to the shell. */
   cameraView: CameraView;
@@ -88,6 +99,8 @@ export const DEFAULT_SETTINGS: Settings = {
   musicVolume: 0.32,
   sfxVolume: 0.75,
   largeHud: false,
+  clusterTheme: "sodium",
+  speedUnit: "kmh",
   cameraView: "chase",
   // Dry, because that is what Kuwait is for most of the year — and
   // because a player who has not been asked should get the road the
@@ -168,6 +181,7 @@ export function applySettings(s: Settings): void {
   root.dataset.reducedMotion = s.reducedMotion ? "1" : "0";
   root.dataset.cvd = s.colorBlindSafe ? "1" : "0";
   root.dataset.largeHud = s.largeHud ? "1" : "0";
+  root.dataset.clusterTheme = s.clusterTheme;
 }
 
 /**

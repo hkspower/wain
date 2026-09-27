@@ -82,7 +82,8 @@ const sample = (charge, hold) =>
       const trackPath = track.querySelector(".meter-track");
       const rule = track.querySelector(".meter-rule");
       const wrap = document.querySelector('[data-gauge="nos"]');
-      const pct = document.querySelector('[data-gauge-readout="nos"] span:last-child');
+      // The readout is SVG text at the arc's end, inside the arc's group.
+      const pct = document.querySelector('[data-gauge-readout="nos"]');
       const svg = track.ownerSVGElement;
       // Layout pixels: the HUD root may be scaled as a whole for a narrow
       // window, which is not this gauge's business.
@@ -92,7 +93,7 @@ const sample = (charge, hold) =>
       const fs = getComputedStyle(fill);
       return {
         wrapDisplay: getComputedStyle(wrap).display,
-        readoutDisplay: getComputedStyle(pct.parentElement).display,
+        readoutDisplay: pct.closest('[data-gauge="nos"]') === wrap ? getComputedStyle(wrap).display : "not in the gauge",
         state: track.dataset.state,
         trackW: Math.round(trackPx),
         innerW: Math.round(trackPx),
@@ -197,9 +198,12 @@ const noMod = await page.evaluate(() => {
   const e = window.__grnEngine;
   e.tune.hasNos = false;
   e.update(1 / 60);
-  const arc = getComputedStyle(document.querySelector('[data-gauge="nos"]')).display;
-  const readout = getComputedStyle(document.querySelector('[data-gauge-readout="nos"]')).display;
-  return arc === "none" && readout === "none" ? "none" : `arc ${arc}, readout ${readout}`;
+  // The readout lives inside the arc's group, so one display covers both
+  // — asserted, not assumed.
+  const g = document.querySelector('[data-gauge="nos"]');
+  const inside = g.contains(document.querySelector('[data-gauge-readout="nos"]'));
+  const arc = getComputedStyle(g).display;
+  return arc === "none" && inside ? "none" : `arc ${arc}, readout ${inside ? "inside" : "outside"} it`;
 });
 console.log(`unfitted ${check(noMod === "none", `no NOS mod but the gauge shows (${noMod})`)}  display=${noMod}`);
 

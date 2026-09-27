@@ -844,6 +844,48 @@ html[data-large-hud="1"] {
   --tach-dial: 190px;
 }
 
+/* The cluster's backlight, per the player's theme. Sodium is the game's
+   own light and the values it always had; ice and neon are the same
+   instrument under another bulb. Only the lamp, the scale ring, the
+   numerals and the gear change — red is still the redline, the shift
+   lights keep their green-amber-red, and fuel and NOS keep their own
+   colours, because every one of those colours is saying something. */
+.tach-cluster {
+  --cluster-lamp: #f5a524;
+  --cluster-ring: rgba(214, 226, 240, 0.16);
+  --cluster-ink: rgba(243, 220, 180, 0.8);
+  --cluster-numeral: #f3dcb4;
+  --cluster-gear: #ffc45c;
+  --cluster-gear-glow: rgba(245, 165, 36, 0.35);
+}
+html[data-cluster-theme="ice"] .tach-cluster {
+  --cluster-lamp: #5cc8ff;
+  --cluster-ring: rgba(190, 225, 255, 0.2);
+  --cluster-ink: rgba(210, 235, 255, 0.85);
+  --cluster-numeral: #e6f4ff;
+  --cluster-gear: #8fdcff;
+  --cluster-gear-glow: rgba(92, 200, 255, 0.4);
+}
+html[data-cluster-theme="neon"] .tach-cluster {
+  --cluster-lamp: #3dff9e;
+  --cluster-ring: rgba(170, 255, 210, 0.2);
+  --cluster-ink: rgba(200, 255, 225, 0.85);
+  --cluster-numeral: #dcffec;
+  --cluster-gear: #5dffb0;
+  --cluster-gear-glow: rgba(61, 255, 158, 0.4);
+}
+
+/* The fuel and NOS numbers at the ends of their arcs, in their arcs'
+   colours, with a dark edge so they hold against a lit road. */
+.gauge-readout {
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.75);
+  stroke-width: 1.1px;
+  stroke-linejoin: round;
+}
+.fuel-readout { fill: #a7f3d0; }
+.nos-readout { fill: #c7d2fe; }
+
 /* The shift lights: dark glass until lit, then the lamp's colour with
    its own glow. */
 .tach-led {

@@ -32,6 +32,9 @@ import {
   haptic,
   rumblePad,
   HAPTIC,
+  MPH_PER_KMH,
+  type SpeedUnit,
+  type ClusterTheme,
 } from "@/game/settings";
 import { storageHealth, onStorageTrouble, type StorageHealth } from "@/game/storage";
 import { RESOLUTIONS, formatBuffer } from "@/game/render";
@@ -201,6 +204,8 @@ function SideGauge({
   trackRef,
   fillRef,
   wrapRef,
+  readoutRef,
+  readout,
   state,
 }: {
   kind: "fuel" | "nos";
@@ -208,6 +213,8 @@ function SideGauge({
   trackRef: React.RefObject<SVGGElement | null>;
   fillRef: React.RefObject<SVGPathElement | null>;
   wrapRef?: React.RefObject<SVGGElement | null>;
+  readoutRef: React.RefObject<SVGTextElement | null>;
+  readout: string;
   state: string;
 }) {
   return (
@@ -230,6 +237,25 @@ function SideGauge({
           strokeDasharray="0.09 0.91" strokeDashoffset="0.045"
         />
       </g>
+      {/* The number, at the arc's lower end in the viewBox's bottom
+          margin: read where the gauge is rather than in a row of its own
+          under the dial. Fuel in litres against the tank — the unit the
+          pump charges in — and NOS as a percentage or EMPTY. */}
+      <text
+        ref={readoutRef}
+        data-gauge-readout={kind}
+        className={kind === "fuel" ? "gauge-readout fuel-readout" : "gauge-readout nos-readout"}
+        x={kind === "fuel" ? 27 : 73}
+        y="105.6"
+        textAnchor="middle"
+        fontFamily="var(--font-display)"
+        fontSize="5.6"
+        fontWeight="700"
+        letterSpacing="0.3"
+        style={{ fontVariantNumeric: "tabular-nums", fontFeatureSettings: '"tnum" 1' }}
+      >
+        {readout}
+      </text>
     </g>
   );
 }
@@ -251,6 +277,9 @@ function RevCounter({
   nosArcRef,
   nosTrackRef,
   nosRef,
+  fuelLabelRef,
+  nosPctRef,
+  speedUnit,
 }: {
   needleRef: React.RefObject<SVGGElement | null>;
   ringRef: React.RefObject<SVGCircleElement | null>;
@@ -268,6 +297,9 @@ function RevCounter({
   nosArcRef: React.RefObject<SVGGElement | null>;
   nosTrackRef: React.RefObject<SVGGElement | null>;
   nosRef: React.RefObject<SVGPathElement | null>;
+  fuelLabelRef: React.RefObject<SVGTextElement | null>;
+  nosPctRef: React.RefObject<SVGTextElement | null>;
+  speedUnit: SpeedUnit;
 }) {
   // Sized by --tach-size (globals.css), not a prop: it follows the
   // Large HUD setting (the HUD zoom takes care of the window), and
@@ -462,8 +494,10 @@ function RevCounter({
             );
           })}
         </g>
-        <SideGauge kind="fuel" d={FUEL_ARC} trackRef={fuelTrackRef} fillRef={fuelRef} state="ok" />
-        <SideGauge kind="nos" d={NOS_ARC} trackRef={nosTrackRef} fillRef={nosRef} wrapRef={nosArcRef} state="charged" />
+        <SideGauge kind="fuel" d={FUEL_ARC} trackRef={fuelTrackRef} fillRef={fuelRef}
+          readoutRef={fuelLabelRef} readout="— L" state="ok" />
+        <SideGauge kind="nos" d={NOS_ARC} trackRef={nosTrackRef} fillRef={nosRef} wrapRef={nosArcRef}
+          readoutRef={nosPctRef} readout="100%" state="charged" />
 
         {/* The needle. Tapered, with the counterweight tail a real one
             carries past the hub to balance it — leave that off and the
@@ -502,7 +536,7 @@ function RevCounter({
           0
         </span>
         <span className="grn-label text-white/74" style={{ fontSize: "4.6cqw", marginTop: "0.6cqw" }}>
-          km/h
+          {speedUnit === "mph" ? "mph" : "km/h"}
         </span>
         <span
           className="flex items-center justify-center gap-[0.45em]"
@@ -524,7 +558,7 @@ function RevCounter({
           >
             <span
               ref={gearRef}
-              className="grn-display block min-w-[0.62em] text-center italic leading-none tabular-nums text-sodium-400 [text-shadow:0_0_11px_rgba(245,165,36,0.35)]"
+              className="grn-display block min-w-[0.62em] text-center italic leading-none tabular-nums text-[var(--cluster-gear)] [text-shadow:0_0_11px_var(--cluster-gear-glow)]"
             >
               N
             </span>
@@ -1018,6 +1052,12 @@ function raceCut(): { w: number; h: number } | null {
   const [isTouch, setIsTouch] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
+  // The HUD speed's unit, for onHud: a ref, because that callback runs
+  // every frame and is not rebuilt when the settings change.
+  const speedUnitRef = useRef<SpeedUnit>("kmh");
+  useEffect(() => {
+    if (settings) speedUnitRef.current = settings.speedUnit;
+  }, [settings]);
   const [result, setResult] = useState<RaceResult | null>(null);
   const [cine, setCine] = useState<{ card: DriverCard; you?: DriverCard; stake: number } | null>(null);
   const [pauseOpen, setPauseOpen] = useState(false);
@@ -1049,15 +1089,14 @@ function raceCut(): { w: number; h: number } | null {
   const boostRef = useRef<HTMLDivElement>(null);
   const towWrapRef = useRef<HTMLDivElement>(null);
   const towRef = useRef<HTMLDivElement>(null);
-  const nosWrapRef = useRef<HTMLSpanElement>(null);
   const nosArcRef = useRef<SVGGElement>(null);
   const nosRef = useRef<SVGPathElement>(null);
   const nosTrackRef = useRef<SVGGElement>(null);
-  const nosPctRef = useRef<HTMLSpanElement>(null);
+  const nosPctRef = useRef<SVGTextElement>(null);
   const fuelTrackRef = useRef<SVGGElement>(null);
   const fuelRef = useRef<SVGPathElement>(null);
   const meterPanelRef = useRef<HTMLDivElement>(null);
-  const fuelLabelRef = useRef<HTMLSpanElement>(null);
+  const fuelLabelRef = useRef<SVGTextElement>(null);
   const pumpRef = useRef<HTMLDivElement>(null);
   // The online run strip. Driven off the frame like the rest of the HUD
   // — through refs rather than state, because a progress bar that moves
@@ -1413,7 +1452,10 @@ function raceCut(): { w: number; h: number } | null {
   const onHud = useCallback(
     (d: HudData) => {
       hudMapRef.current = d.map;
-      if (speedRef.current) speedRef.current.textContent = String(Math.round(d.speedKmh));
+      if (speedRef.current)
+        speedRef.current.textContent = String(
+          Math.round(d.speedKmh * (speedUnitRef.current === "mph" ? MPH_PER_KMH : 1))
+        );
       // The rev counter, off the engine's own needle rather than worked
       // back out of the speed: at a standing launch the gearbox function
       // says zero while the engine is at its torque peak.
@@ -1497,16 +1539,26 @@ function raceCut(): { w: number; h: number } | null {
          * cluster changes the bulb rather than painting over the glass.
          */
         const race = t.redCluster;
-        const dial = ticksRef.current.ownerSVGElement;
+        // Set on the cluster's root, not the SVG, so the HTML in the
+        // middle of the dial (the gear box's frame) reads the same lamp.
+        // A road dial takes the player's theme (globals.css, the
+        // --cluster-* tokens) as live variables, so a theme change needs
+        // nothing re-laid; a race cluster keeps its red whatever the
+        // theme, because on the Saqr that red face means something.
+        const dial = ticksRef.current.ownerSVGElement?.parentElement;
         if (dial) {
-          dial.style.setProperty("--tach-lamp", race ? "#ff2a18" : "#f5a524");
+          dial.style.setProperty("--tach-lamp", race ? "#ff2a18" : "var(--cluster-lamp)");
           dial.style.setProperty(
             "--tach-ring",
-            race ? "rgba(255,86,70,0.30)" : "rgba(214,226,240,0.16)"
+            race ? "rgba(255,86,70,0.30)" : "var(--cluster-ring)"
           );
           dial.style.setProperty(
             "--tach-ink",
-            race ? "rgba(255,176,168,0.85)" : "rgba(243,220,180,0.8)"
+            race ? "rgba(255,176,168,0.85)" : "var(--cluster-ink)"
+          );
+          dial.style.setProperty(
+            "--tach-numeral",
+            race ? "#ff9086" : "var(--cluster-numeral)"
           );
         }
         // On a race cluster the red arc IS the scale, so it starts at
@@ -1604,7 +1656,7 @@ function raceCut(): { w: number; h: number } | null {
           // Warm, like the backlight behind them: on a real cluster the
           // numerals are lit by the same lamps as the face and pick up
           // its colour.
-          label.setAttribute("fill", red ? "#ff9086" : "#f3dcb4");
+          label.setAttribute("fill", red ? "#ff9086" : "var(--tach-numeral, #f3dcb4)");
           label.textContent = String(rpm / 1000);
           g2.appendChild(label);
         }
@@ -1815,7 +1867,6 @@ function raceCut(): { w: number; h: number } | null {
         boostWrapRef.current.style.display = d.boost === null ? "none" : "flex";
       if (boostRef.current && d.boost !== null)
         boostRef.current.style.width = `${Math.round(d.boost * 100)}%`;
-      if (nosWrapRef.current) nosWrapRef.current.style.display = d.nos === null ? "none" : "flex";
       if (nosArcRef.current) nosArcRef.current.style.display = d.nos === null ? "none" : "";
       // The panel under the dial carries only the bars that come and go;
       // with none of them up it is not there at all.
@@ -2946,45 +2997,10 @@ function raceCut(): { w: number; h: number } | null {
             nosArcRef={nosArcRef}
             nosTrackRef={nosTrackRef}
             nosRef={nosRef}
+            fuelLabelRef={fuelLabelRef}
+            nosPctRef={nosPctRef}
+            speedUnit={settings?.speedUnit ?? "kmh"}
           />
-          {/* The two arcs' readouts, each under its own arc: fuel on the
-              left in litres against the tank — the unit the pump charges
-              in and the one the driver has to think in — and NOS on the
-              right, shown only with the bottle fitted. */}
-          <div
-            className="flex items-baseline justify-between px-[4%]"
-            style={{
-              width: "var(--tach-size)",
-              marginTop: "calc(var(--tach-size) * -0.02)",
-              fontSize: "calc(var(--tach-size) * 0.052)",
-            }}
-          >
-            <span data-gauge-readout="fuel" className="flex items-baseline gap-[0.5em]">
-              <span className="grn-label text-emerald-300" style={{ fontSize: "inherit" }}>Fuel</span>
-              <span
-                ref={fuelLabelRef}
-                className="grn-label tabular-nums text-emerald-100"
-                style={{ fontSize: "inherit" }}
-              >
-                — L
-              </span>
-            </span>
-            <span
-              ref={nosWrapRef}
-              data-gauge-readout="nos"
-              className="items-baseline gap-[0.5em]"
-              style={{ display: "none" }}
-            >
-              <span className="grn-label text-indigo-300" style={{ fontSize: "inherit" }}>NOS</span>
-              <span
-                ref={nosPctRef}
-                className="grn-label tabular-nums text-indigo-100"
-                style={{ fontSize: "inherit" }}
-              >
-                100%
-              </span>
-            </span>
-          </div>
           {/* The meters that come and go, on a ground of their own: a bar
               reading against tarmac at one moment and a lit shopfront the
               next has no fixed contrast at all. Same panel as the clock
@@ -4175,6 +4191,67 @@ function raceCut(): { w: number; h: number } | null {
                 </button>
               ))}
             </div>
+
+            {/* The instrument cluster: its backlight, and what the speed
+                reads in. */}
+            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-xs">
+              HUD · <span className="grn-ar" lang="ar">لوحة العدادات</span>
+            </h3>
+            <div className="grn-label mt-3 text-2xs text-white/66">Cluster</div>
+            <div className="mt-1.5 grid grid-cols-3 gap-2">
+              {(
+                [
+                  ["sodium", "Sodium", "#f5a524"],
+                  ["ice", "Ice", "#5cc8ff"],
+                  ["neon", "Neon", "#3dff9e"],
+                ] as const satisfies readonly (readonly [ClusterTheme, string, string])[]
+              ).map(([id, label, lamp]) => (
+                <button
+                  key={id}
+                  data-cluster-theme-option={id}
+                  onClick={() => updateSetting("clusterTheme", id)}
+                  aria-pressed={settings.clusterTheme === id}
+                  className={`tap grn-panel flex items-center justify-center gap-2 px-3 py-3 transition ${
+                    settings.clusterTheme === id
+                      ? "border-sodium-400/80 bg-sodium-500/10 text-white"
+                      : "text-white/70 hover:border-white/30"
+                  }`}
+                >
+                  <span
+                    className="size-3 shrink-0 rounded-full"
+                    style={{ background: lamp, boxShadow: `0 0 8px ${lamp}` }}
+                  />
+                  <span className="grn-display text-base">{label}</span>
+                </button>
+              ))}
+            </div>
+            <div className="grn-label mt-3 text-2xs text-white/66">Speed</div>
+            <div className="mt-1.5 grid grid-cols-2 gap-2">
+              {(
+                [
+                  ["kmh", "km/h"],
+                  ["mph", "mph"],
+                ] as const satisfies readonly (readonly [SpeedUnit, string])[]
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  data-speed-unit-option={id}
+                  onClick={() => updateSetting("speedUnit", id)}
+                  aria-pressed={settings.speedUnit === id}
+                  className={`tap grn-panel px-3 py-3 text-center transition ${
+                    settings.speedUnit === id
+                      ? "border-sodium-400/80 bg-sodium-500/10 text-sodium-400"
+                      : "text-white/70 hover:border-white/30"
+                  }`}
+                >
+                  <span className="grn-display text-base">{label}</span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-white/70">
+              The race car&apos;s red cluster stays red under every theme. Speed on the HUD only —
+              records and the garage stay in km/h.
+            </p>
 
             {/* Quality */}
             <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-xs">
