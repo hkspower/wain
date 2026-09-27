@@ -68,3 +68,20 @@ REMOVING ONE
 Delete the file. The brand goes back to showing no logo, which is what every
 brand does today. Deleting the FOLDER is fine too — it is recreated the next
 time anyone deploys, empty.
+
+
+UPLOADING SEVERAL AT ONCE, WITHOUT NAMING THEM
+-----------------------------------------------
+
+    public_html/images/_uploads/
+
+Drop any number of picture files in here — any filename, no per-brand folder,
+no renaming to logo.png first. Then open /backends → Brands: each picture
+shows as a thumbnail, and clicking one and choosing a brand assigns it —
+same result as putting a correctly-named logo.png in that brand's own folder,
+done from the panel instead of the File Manager.
+
+Create the _uploads folder yourself the first time (File Manager → New
+Folder, named exactly "_uploads", inside images). Once a picture is assigned
+it is moved into images/_uploads/_assigned/ automatically, so it will not be
+offered again and nothing is deleted.

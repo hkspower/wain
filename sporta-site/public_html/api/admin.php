@@ -989,6 +989,81 @@ if ($r === 'brand_active' && $method === 'POST') {
     store_out($row);
 }
 
+// ---------------------------------------------- brand logos from a folder
+// "select the images from file manager then assign their brand at backend".
+// images/_uploads/ is where the owner drops any number of pictures at once
+// through Hostinger's File Manager, in no particular naming order; these two
+// routes are how /backends turns that folder into a picker.
+//
+// LISTED AS THUMBNAILS, NOT AS SEPARATE URLS. A candidate image cannot be
+// pointed at with a plain <img src="admin.php?r=..."> the way a public asset
+// is — every admin.php route sits behind the X-Sporta-Admin header and the
+// session cookie, and an <img> tag can send neither. So each candidate
+// carries its own data: URI in this response, exactly the shape brands.logo
+// is already stored in, and the picker never makes a second request to show
+// what it just listed.
+if ($r === 'brand_image_candidates') {
+    $out = [];
+    foreach (store_brand_upload_candidates() as $c) {
+        $bytes = @file_get_contents($c['path']);
+        if ($bytes === false) continue;
+        // A 200px thumbnail for the grid, never the full file — the same
+        // width store_image_thumb() already names for "the queued-upload
+        // strip". null means the shop cannot make one; the original bytes
+        // are still small enough to show, the same fallback the function's
+        // own header describes.
+        $thumb = store_image_thumb($bytes, 200);
+        $dataUri = $thumb !== null
+            ? 'data:image/' . $thumb[1] . ';base64,' . base64_encode($thumb[0])
+            : 'data:' . $c['mime'] . ';base64,' . base64_encode($bytes);
+        $out[] = ['name' => $c['name'], 'mtime' => $c['mtime'], 'bytes' => $c['bytes'], 'dataUri' => $dataUri];
+    }
+    store_out($out);
+}
+
+if ($r === 'brand_image_assign' && $method === 'POST') {
+    $b = store_body();
+    $name = (string) ($b['name'] ?? '');
+    $brandId = (int) ($b['brand_id'] ?? 0);
+
+    $path = store_brand_upload_path($name);
+    $mime = $path !== null ? store_brand_logo_mime($path) : null;
+    if ($mime === null) store_fail('image_not_found', 404);
+
+    $q = $db->prepare('select id from brands where id = ?');
+    $q->execute([$brandId]);
+    if (!$q->fetch()) store_fail('brand_not_found', 404);
+
+    $bytes = file_get_contents($path);
+    if ($bytes === false) store_fail('image_not_found', 404);
+
+    // ONLY the logo column. brand_save's own comment warns that route blanks
+    // name_en/name_ar/slug if a caller resends the logo without them; this
+    // route never calls brand_save and never touches those three, so that
+    // trap does not apply to it.
+    $db->prepare('update brands set logo = ? where id = ?')
+       ->execute(['data:' . $mime . ';base64,' . base64_encode($bytes), $brandId]);
+
+    // ARCHIVED, NOT DELETED — the standing rule for removing anything from
+    // this server's disk. A second assignment of the same picture, or an
+    // owner who wants the original file back, both stay possible; a plain
+    // unlink() would not allow either.
+    $archiveDir = dirname($path) . '/_assigned';
+    if (!is_dir($archiveDir)) @mkdir($archiveDir, 0755, true);
+    $dest = $archiveDir . '/' . basename($path);
+    $n = 1;
+    while (file_exists($dest)) {
+        $n++;
+        $dest = $archiveDir . '/' . pathinfo($path, PATHINFO_FILENAME) . '-' . $n
+              . (pathinfo($path, PATHINFO_EXTENSION) !== '' ? '.' . pathinfo($path, PATHINFO_EXTENSION) : '');
+    }
+    @rename($path, $dest);
+
+    $q = $db->prepare('select id, slug, name_en, name_ar, logo, active, sort from brands where id = ?');
+    $q->execute([$brandId]);
+    store_out($q->fetch());
+}
+
 if ($r === 'customer' && $method === 'POST') {
     $b = store_body();
     $id = (int)($b['order_id'] ?? 0);

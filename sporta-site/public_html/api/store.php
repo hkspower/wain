@@ -1178,6 +1178,73 @@ function store_brand_logo_mime(string $path): ?string {
     return null;
 }
 
+// --------------------------------------------- brand logos, picked from a
+// -------------------------------------------------------- folder of many
+//
+// "select the images from file manager then assign their brand at backend",
+// 2026-09-27. images/<slug>/logo.* already exists for ONE brand at a time,
+// named correctly; this is for the owner who drops a whole folder of pictures
+// into Hostinger's File Manager at once, in no particular naming order, and
+// wants to point at each one in /backends rather than rename files by hand.
+//
+// ONE FOLDER, NEVER THE BRAND FOLDERS THEMSELVES. Scanning images/ for
+// anything that is not a slug's own logo would mean guessing at every other
+// file this directory might ever hold; a folder named for what it is holds
+// only what it is for.
+function store_brand_upload_dir(): string {
+    return __DIR__ . '/../images/_uploads';
+}
+
+/**
+ * Every real image sitting in the upload folder, newest first — never the
+ * archive subfolder a past assignment moved a file into, and never a file
+ * whose first bytes are not one of the three formats this shop can serve.
+ * A stray non-image dropped in the same folder is skipped rather than
+ * failing the whole list, the same posture store_brand_logo_file() already
+ * takes towards a folder holding more than it expects.
+ */
+function store_brand_upload_candidates(): array {
+    $dir = store_brand_upload_dir();
+    $entries = @scandir($dir);
+    if ($entries === false) return [];
+    $out = [];
+    foreach ($entries as $e) {
+        if ($e === '.' || $e === '..' || $e === '_assigned') continue;
+        $path = $dir . '/' . $e;
+        if (!is_file($path)) continue;
+        $mime = store_brand_logo_mime($path);
+        if ($mime === null) continue;
+        $out[] = ['name' => $e, 'path' => $path, 'mime' => $mime,
+                   'mtime' => (int) (@filemtime($path) ?: 0), 'bytes' => (int) (@filesize($path) ?: 0)];
+    }
+    usort($out, fn ($a, $b) => $b['mtime'] <=> $a['mtime']);
+    return $out;
+}
+
+/**
+ * The on-disk path for a candidate NAMED in a request, or null if that name
+ * does not resolve to a real file the folder listing itself would show.
+ *
+ * basename() FIRST, so `../../../etc/passwd` is reduced to `passwd` before
+ * anything is checked against the filesystem — the traversal is gone before
+ * it can be evaluated, not merely rejected once spotted. realpath() SECOND,
+ * confirming the resolved file is still inside the upload folder rather than
+ * trusting the string shape alone; the same pair of checks
+ * wallet_install_cert() and store_brand_logo_file() each make of a path built
+ * from something a request supplied.
+ */
+function store_brand_upload_path(string $name): ?string {
+    $name = basename($name);
+    if ($name === '' || $name === '.' || $name === '..' || $name === '_assigned') return null;
+    $dir = store_brand_upload_dir();
+    $path = $dir . '/' . $name;
+    if (!is_file($path)) return null;
+    $real = realpath($path);
+    $base = realpath($dir);
+    if ($real === false || $base === false || !str_starts_with($real, $base . DIRECTORY_SEPARATOR)) return null;
+    return $path;
+}
+
 // A font file, identified by its own first bytes — same discipline as
 // store_brand_logo_mime() and store_data_image(): a browser refuses to use a
 // file whose declared type does not match its content, so a name is not
