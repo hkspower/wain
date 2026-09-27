@@ -391,7 +391,6 @@ export class SoundEngine {
   private engCylinders = 4;
   private engIdleRpm = 800;
   private engRedlineRpm = 6800;
-  private engSubMix = 0.3;
   /** Cross-plane lope: half-order amplitude modulation of the exhaust.
    *  Zero for everything that is not a cross-plane V8. */
   private lopeOsc: OscillatorNode | null = null;
@@ -455,7 +454,6 @@ export class SoundEngine {
   private lastGear = 0;
   private revUntil = 0;
   private paused = false;
-  private lastThrottle = 0;
   private nextBurbleAt = 0;
   // Forced-induction layers (created on demand by configureAspiration)
   private whineOsc: OscillatorNode | null = null;
@@ -1058,7 +1056,6 @@ export class SoundEngine {
     this.engCylinders = e.cylinders;
     this.engIdleRpm = e.idleRpm;
     this.engRedlineRpm = e.redlineRpm;
-    this.engSubMix = e.subMix;
     this.lopeDepth = e.lopeDepth;
     // Fundamental gives up what the sub takes, so the total stays put and
     // a swap changes the colour rather than the volume.
@@ -1818,7 +1815,6 @@ export class SoundEngine {
       this.nextBurbleAt = t + 0.5;
       this.burble();
     }
-    this.lastThrottle = throttle;
 
     // Forced-induction voice: turbo whistle rises with boost pressure,
     // supercharger whine tracks RPM

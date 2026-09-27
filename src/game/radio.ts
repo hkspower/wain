@@ -84,7 +84,6 @@ export const HOUSE_STATION: RadioStation = HOUSE_STATIONS[0];
 
 export class Radio {
   private ctx: AudioContext;
-  private out: AudioNode;
   /** Where a streamed station lands when CORS allows it. Kept separate
    *  from the element's own volume so ducking has one place to act. */
   private bus: GainNode;
@@ -108,7 +107,6 @@ export class Radio {
     onHouse: (channelId: string | null) => void
   ) {
     this.ctx = ctx;
-    this.out = out;
     this.onHouse = onHouse;
     this.bus = ctx.createGain();
     this.bus.gain.value = this.volume;

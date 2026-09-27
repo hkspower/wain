@@ -409,7 +409,6 @@ const semis = (hz: number, n: number) => hz * Math.pow(2, n / 12);
 
 class SynthScore {
   private ctx: AudioContext;
-  private out: GainNode;
   private bus: GainNode;
   private filter: BiquadFilterNode;
   private noise: AudioBuffer;
@@ -433,7 +432,6 @@ class SynthScore {
 
   constructor(ctx: AudioContext, out: GainNode) {
     this.ctx = ctx;
-    this.out = out;
 
     // Everything but the pad runs through one filter so the battle
     // transition can open the whole mix at once, like a riser.

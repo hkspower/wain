@@ -80,11 +80,6 @@ function isQuota(e: unknown): boolean {
   );
 }
 
-/** True once anything has failed to persist this session. */
-export function storagePersists(): boolean {
-  return storageHealth() === "ok" && !sawFailure;
-}
-
 /** Told once, the first time a write is found not to have landed. */
 export function onStorageTrouble(fn: (h: StorageHealth) => void): () => void {
   listeners.add(fn);
@@ -138,13 +133,6 @@ export function writeJSON(key: string, value: unknown): boolean {
     trouble(isQuota(e) ? "full" : "unavailable");
     return false;
   }
-}
-
-/** Remove a key. Failing to remove one is not worth alarming anyone. */
-export function removeKey(key: string): void {
-  try {
-    localStorage.removeItem(key);
-  } catch {}
 }
 
 /** For tests: forget what was probed. */

@@ -200,13 +200,6 @@ export function gripAtSpeed(gripAccel: number, downforce: number, speed: number)
   return gripAccel + Math.min(H.downforceMax, downforce * v * v);
 }
 
-/** What the aero alone is contributing right now, for a readout. */
-export function downforceGrip(downforce: number, speed: number): number {
-  if (!(downforce > 0)) return 0;
-  const v = speed / H.downforceRefSpeed;
-  return Math.min(H.downforceMax, downforce * v * v);
-}
-
 /**
  * How much of the car's grip the DRIVEN wheels can actually put down.
  *

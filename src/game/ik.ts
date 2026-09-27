@@ -54,11 +54,6 @@ export interface TwoBoneOptions {
   target: THREE.Vector3;
   /** World-space hint for which way the elbow points. */
   pole: THREE.Vector3;
-  /**
-   * The axis the bones point down in their own local space. These rigs
-   * hang limbs along -Y, which is also how most authored skeletons do it.
-   */
-  boneAxis?: THREE.Vector3;
   /** Axis the elbow bends about, in the mid joint's local space. */
   bendAxis?: THREE.Vector3;
   /** 0 = leave the pose alone, 1 = fully solved. */
@@ -92,7 +87,6 @@ export interface TwoBoneOptions {
 export function solveTwoBone(o: TwoBoneOptions): void {
   const weight = o.weight ?? 1;
   if (weight <= 0) return;
-  const boneAxis = o.boneAxis ?? new THREE.Vector3(0, -1, 0);
   const bendAxis = o.bendAxis ?? new THREE.Vector3(1, 0, 0);
 
   o.root.updateWorldMatrix(true, false);

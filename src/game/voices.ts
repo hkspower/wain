@@ -208,13 +208,6 @@ export function voiceTables(v: VoiceSpec, targetRms: number): VoiceTables {
   return { firing, bank, cycle };
 }
 
-/** The RMS of the legacy three-oscillator mix for an engine's subMix:
- *  saws at (0.85 - subMix) and 0.25, uncorrelated, and a square at subMix. */
-export function legacyRms(subMix: number): number {
-  const g0 = 0.85 - subMix, g1 = 0.25, g2 = subMix;
-  return Math.sqrt((g0 * g0 + g1 * g1) / 3 + g2 * g2);
-}
-
 /**
  * One engine cycle as samples, from the tables exactly as the three
  * oscillators would play them — for tests and tools, and the proof that

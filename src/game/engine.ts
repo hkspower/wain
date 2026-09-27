@@ -21,7 +21,7 @@ import { RIVALS, RivalDef, rivalCar as rivalCarOf, rivalCarName } from "./rivals
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
 import { ParticleSystem, radialSprite } from "./vfx";
-import { solveTwoBone, aimConstrained } from "./ik";
+import { solveTwoBone } from "./ik";
 import { solveSuspension, steerAngles } from "./suspension";
 import { lateralAccel, stepAttitude, type Attitude } from "./attitude";
 import { solveWing } from "./aero";
@@ -48,7 +48,7 @@ import {
   FOV_RATE, RACE_FRAME_RATE, ROLL_RATE, type Follow,
 } from "./camera";
 import { FLAGS, FLAG_IDS, flagTexture } from "./flags";
-import { verticalFov, chaseDolly, RACE_DOLLY } from "./aspect";
+import { RACE_DOLLY } from "./aspect";
 import { driveCap, gripAtSpeed, newLoadState, solveLoad, type LoadResult } from "./grip";
 import { bestTow, solveTow, NO_TOW, TOW_REACH, type TowInput, type TowResult } from "./slipstream";
 import { buildRoadMap, nextStation, type RoadMap } from "./roadmap";
@@ -97,7 +97,7 @@ import {
   PUMP_MAX_KMH,
   rpmAt,
 } from "./engines";
-import { loadGarage, saveGarage, computeEffects, addKd, fuelOf, setFuel, TuneEffects, getCar, CARS, rivalsBeaten, saveRivalsBeaten, EXHAUSTS, FINISHES, rollMaxFor } from "./mods";
+import { loadGarage, saveGarage, computeEffects, addKd, fuelOf, setFuel, TuneEffects, CARS, rivalsBeaten, saveRivalsBeaten, EXHAUSTS, FINISHES, rollMaxFor } from "./mods";
 import { levelInfo, recordRace, recordLap, loadProfileStats, LevelInfo } from "./profile";
 import { num } from "./format";
 
@@ -300,8 +300,6 @@ function playerFlashBoost(sinceS: number): number {
   }
   return best;
 }
-/** Seconds one press lasts, end to end. */
-const FLASH_LEN = FLASH_PULSE_AT[FLASH_PULSE_AT.length - 1] + FLASH_RISE + FLASH_HOLD + FLASH_FALL;
 
 export interface BattleHud {
   playerSp: number;
@@ -6734,17 +6732,6 @@ export class GameEngine {
       if (this.player.sp > r.sp) this.winBattle();
       else this.loseBattle();
     }
-  }
-
-  /**
-   * The vertical FOV to hand three.js for the window we actually have.
-   *
-   * The reasoning, the curve and the numbers are `aspect.ts` — it is
-   * arithmetic with one degree of freedom and it belongs somewhere a
-   * test can reach it without a WebGL context.
-   */
-  private aspectFov(vFovDeg: number): number {
-    return lensFov(vFovDeg, this.lensAspect, this.camera.aspect);
   }
 
 

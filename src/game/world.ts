@@ -6,7 +6,6 @@ import {
   ROAD_HALF_WIDTH,
   COAST_U,
   COAST_END_M,
-  LAP_LENGTH,
   DRIFT_PLAZA,
   STATIONS,
   FORECOURT,
@@ -1970,7 +1969,7 @@ function facadeUvScaling(mat: THREE.MeshStandardMaterial): void {
   mat.customProgramCacheKey = () => "grn-facade-uv";
 }
 
-function glazedMat(skin: Skin, color: number, roughness: number): THREE.MeshStandardMaterial {
+function glazedMat(skin: Skin, color: number): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
     map: skin.facade,
     emissiveMap: skin.lit,
@@ -1981,7 +1980,8 @@ function glazedMat(skin: Skin, color: number, roughness: number): THREE.MeshStan
     // decal; what a window does that concrete cannot is answer the
     // light — the scene carries an environment map, and a surface only
     // asks it when it is smooth. The roughness map holds the concrete
-    // at the matte value passed in and drops the panes to 0.12, so
+    // matte and drops the panes to 0.12 (roughness 1 below just passes
+    // the map through — there is no per-call value), so
     // every window picks up the sky and the city as a sheen while the
     // wall around it stays dead flat. The albedo gradient in the pane
     // is the base tone; this is the part that moves with the camera.
@@ -2026,7 +2026,7 @@ function liberationTower(skin: Skin, lit: THREE.MeshStandardMaterial[]): THREE.G
   const shaft = new THREE.Mesh(new THREE.CylinderGeometry(5.5, 7, 95, 12), mat);
   shaft.position.y = 47.5;
   g.add(shaft);
-  const discMat = glazedMat(skin, 0xffffff, 0.5);
+  const discMat = glazedMat(skin, 0xffffff);
   lit.push(discMat);
   const disc = new THREE.Mesh(new THREE.CylinderGeometry(12, 12, 7, 14), discMat);
   disc.position.y = 72;
@@ -2038,7 +2038,7 @@ function liberationTower(skin: Skin, lit: THREE.MeshStandardMaterial[]): THREE.G
 }
 
 function alHamra(skin: Skin, lit: THREE.MeshStandardMaterial[]): THREE.Mesh {
-  const mat = glazedMat(skin, 0xdddddd, 0.4);
+  const mat = glazedMat(skin, 0xdddddd);
   lit.push(mat);
   const tower = new THREE.Mesh(new THREE.BoxGeometry(26, 118, 24), mat);
   tower.position.y = 59;
@@ -2275,7 +2275,7 @@ function storeSignTexture(): THREE.CanvasTexture {
   return storeSignTex;
 }
 
-function fuelStation(skin: Skin): THREE.Group {
+function fuelStation(): THREE.Group {
   const g = new THREE.Group();
   const concrete = new THREE.MeshStandardMaterial({
     map: concreteTexture(),
@@ -3511,10 +3511,8 @@ const SKY_BODY_DIST = 1400;
  * can see. Just under four times life size, applied to BOTH bodies so
  * they stay the same size as each other the way the real pair are.
  */
+// (Life size is 0.53 degrees for both; 2.0 is the exaggeration, on purpose.)
 const SKY_BODY_DEG = 2.0;
-/** The real figure the above is exaggerated from, for the test that
- *  checks the exaggeration is deliberate rather than accidental. */
-const SKY_BODY_REAL_DEG = 0.53;
 
 /**
  * How hard the moon's face is driven into the exposure.
@@ -5406,7 +5404,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // same texture drives emission, so the windows are light sources.
     // Intensity rides the hour — see setTimeOfDay — because a window
     // that glows at noon reads as a mistake.
-    const mat = glazedMat(windows, 0xffffff, 0.8);
+    const mat = glazedMat(windows, 0xffffff);
     facadeUvScaling(mat);
     litFacades.push(mat);
     const blocks = new THREE.InstancedMesh(geo, mat, count);
@@ -6427,7 +6425,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // night, which is what makes one a decision you can see coming rather
   // than a turning you have already missed.
   STATIONS.forEach((st, i) => {
-    const station = fuelStation(windows);
+    const station = fuelStation();
     placeBeside(track, station, st.s, st.lat, `fuel-station-${i}`);
     const tan = new THREE.Vector3();
     track.tangentAt(st.s, tan);

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { RIG } from "./rig";
 import type { SpringState } from "./spring";
-import { flagTexture as countryFlag, type FlagId } from "./flags";
+import { flagTexture as countryFlag } from "./flags";
 
 // The people of Night Racer: spectators on the corniche and the
 // racers who stand beside their machines. Everything here is built from

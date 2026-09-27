@@ -695,26 +695,3 @@ export function flagTexture(id: FlagId = "kw"): THREE.CanvasTexture {
 export function flagPlane(id: FlagId, height: number): THREE.PlaneGeometry {
   return new THREE.PlaneGeometry(height * FLAGS[id].ratio, height);
 }
-
-/** Look up a flag by country name, in English or Arabic, as the rival
- *  roster and the profile screen spell it. Returns null for a name this
- *  module does not draw, so a caller can fall back rather than throw. */
-export function flagIdFor(country: string | undefined): FlagId | null {
-  if (!country) return null;
-  const want = country.trim().toLowerCase();
-  for (const id of FLAG_IDS) {
-    const f = FLAGS[id];
-    if (f.name.toLowerCase() === want || f.nameAr === country.trim()) return id;
-  }
-  // The spellings people actually use.
-  const alias: Record<string, FlagId> = {
-    uae: "ae",
-    emirates: "ae",
-    "u.a.e.": "ae",
-    ksa: "sa",
-    "saudi": "sa",
-    turkey: "tr",
-    türkiye: "tr",
-  };
-  return alias[want] ?? null;
-}

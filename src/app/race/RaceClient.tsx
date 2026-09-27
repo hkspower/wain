@@ -11,7 +11,6 @@ import Garage from "./Garage";
 import KuwaitClock from "./KuwaitClock";
 import RoadMapView from "./RoadMapView";
 import type { RoadMap } from "@/game/roadmap";
-import { gearAt } from "@/game/gears";
 import { RIVALS, RivalDef, rivalCar } from "@/game/rivals";
 import { HubClient, DuelInvite, loadProfile, saveProfile, formatLap, DEFAULT_HUB_URL } from "@/game/net";
 import { RACE_DISTANCES, distanceById } from "@/game/distances";
@@ -1353,14 +1352,6 @@ function raceCut(): { w: number; h: number } | null {
     const FOOT = 0.2; // room for "tap to open"
     const X = (x: number) => (PAD + x * (1 - PAD * 2)) * w;
     const Y = (y: number) => (PAD + y * (1 - PAD - FOOT)) * h;
-    const path = () => {
-      ctx.beginPath();
-      mapPathRef.current.forEach(([x, y], i) => {
-        if (i === 0) ctx.moveTo(X(x), Y(y));
-        else ctx.lineTo(X(x), Y(y));
-      });
-      ctx.closePath();
-    };
     // The same two roads, in the same two colours the full map uses.
     //
     // This drew one closed stroke in one colour, which is the shape of

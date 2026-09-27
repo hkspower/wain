@@ -599,14 +599,6 @@ export function kitAtLeast(kit: KitLevel, want: KitLevel): boolean {
   return KIT_ORDER.indexOf(kit) >= KIT_ORDER.indexOf(want);
 }
 
-/** The kit a band wears. The band IS the kit level — that is what makes
- *  the showroom ladder mean something rather than being a price list. */
-export const KIT_FOR_CLASS: Record<CarClass, KitLevel> = {
-  normal: "street",
-  sport: "sport",
-  supercar: "attack",
-};
-
 export interface CarModel {
   id: string;
   name: string;

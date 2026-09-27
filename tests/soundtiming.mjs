@@ -15,11 +15,16 @@
 // "two players holding the same car against the same limiter heard two
 // different engines". That one is now pinned to the clock.
 //
-// The overrun sounds were not. Both of them detect a lift by comparing
-// the throttle against ITS VALUE ON THE PREVIOUS FRAME:
+// The overrun sounds were not. Both of them used to detect a lift by
+// comparing the throttle against ITS VALUE ON THE PREVIOUS FRAME:
 //
 //   sound.ts    lastThrottle - throttle > 0.35   -> the decel burble
 //   engine.ts   lastThrottleFx - throttle > 0.4  -> the backfire, flame and bang
+//
+// Both now read one per-SECOND lift rate the engine works out
+// (engine.ts liftRate, against BURBLE_LIFT_RATE and BACKFIRE_LIFT_RATE),
+// and sound.ts no longer keeps a throttle of its own. This test is what
+// holds them there.
 //
 // A frame is not a unit of time. Releasing an analogue trigger takes a
 // human about 120 ms, which is a drop of 0.07 per frame at 144 fps and
@@ -137,7 +142,6 @@ const r = await page.evaluate(async () => {
     s.burble = () => { burbles++; };
     // A clean slate for every rate: the edge detectors and the burble's
     // own rate limit both carry state between runs.
-    s.lastThrottle = 1;
     s.nextBurbleAt = 0;
     e.lastThrottleFx = 1;
 

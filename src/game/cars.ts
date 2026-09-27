@@ -288,7 +288,6 @@ function headlightStarTexture(): THREE.CanvasTexture {
 // Six shells means at most six of each, built once and handed out.
 const contactGeoCache = new Map<string, THREE.PlaneGeometry>();
 const contactMatCache = new Map<string, THREE.MeshBasicMaterial>();
-const contactMats: THREE.MeshBasicMaterial[] = [];
 function contactPlane(
   style: BodyStyle,
   bodyW: number,
@@ -327,7 +326,6 @@ function contactPlane(
       fog: true,
     });
     contactMatCache.set(key, mat);
-    contactMats.push(mat);
   }
   return { geo, mat };
 }
@@ -342,7 +340,7 @@ function contactPlane(
  * contact shadow from one where it did, and neither was written down as
  * the intended one.
  */
-let contactStrength = 1;
+const contactStrength = 1;
 /*
  * WHY 1, AND NOT 0.5 UNDER A REAL SHADOW.
  *
@@ -365,27 +363,6 @@ let contactStrength = 1;
  * shape changed. So the halving is gone, and this is the one number.
  */
 
-/**
- * How strongly the painted-on contact blob shows, 0..1.
- *
- * The blob was drawn for a game whose cars cast no visible shadow: the
- * key light sat 56 degrees up, every real shadow landed under the floor
- * of the thing casting it, and this decal was the only thing keeping
- * fifteen cars from looking like they were hovering.
- *
- * Now that the key rakes and the shadow is real, the two are painted on
- * the same patch of road and the fake one wins — measured at 40% of the
- * real shadow's area swallowed. So the engine turns it down where a real
- * shadow is being drawn and leaves it at full strength on the tiers that
- * switch shadow casting off, where it is still the only thing there.
- *
- * The material is shared across every car on purpose, so this is one
- * assignment for the whole road.
- */
-export function setContactStrength(v: number): void {
-  contactStrength = v;
-  for (const m of contactMats) m.opacity = v;
-}
 /**
  * How far the occlusion reaches past the sill, in metres.
  *
@@ -2010,8 +1987,8 @@ export { WHEEL_R_K, WHEEL_W_K };
 //
 // It used to be a bare barrel, which meant it read the tread band of the
 // texture across its whole width and sampled the sidewall bands at its
-// edges — hence the remapV(0.2, 0.8) that used to live here to shove the
-// tread back into the middle. Sharing the hero's profile makes that
+// edges — hence a V remap to the 0.2-0.8 band that used to live here to
+// shove the tread back into the middle. Sharing the hero's profile makes that
 // unnecessary: the lathe puts the tread where the texture expects it,
 // and a background car gets a shouldered tire for the same one draw.
 //
@@ -2133,8 +2110,8 @@ const discMat = new THREE.MeshStandardMaterial({ name: "disc",
  *
  * The image is ONE lateral block period wide and the whole tire width
  * tall, tiled around the circumference. `v` runs across the tire: outer
- * bands are sidewall, the middle is tread. The wheel's UVs are remapped
- * to match (see remapV), which is what lets the tread barrel and both
+ * bands are sidewall, the middle is tread. The lathed tire's own v runs
+ * bead to bead with the tread at 0.2-0.8 to match, which lets the tread and both
  * shoulder bulges read from the right part of one image — and so keeps
  * the tire a single mesh, which the authored-asset swap and the wheel
  * test both rely on.
@@ -2259,15 +2236,6 @@ function tireSurface() {
   }
   tireSurfShared = { map, normalMap, roughnessMap };
   return tireSurfShared;
-}
-
-/** Rewrite a geometry's V coordinates into the [lo, hi] band of the tire
- *  texture, so tread barrel and shoulders share one image. */
-function remapV(geo: THREE.BufferGeometry, lo: number, hi: number): THREE.BufferGeometry {
-  const uv = geo.attributes.uv as THREE.BufferAttribute;
-  for (let i = 0; i < uv.count; i++) uv.setY(i, lo + uv.getY(i) * (hi - lo));
-  uv.needsUpdate = true;
-  return geo;
 }
 
 /**
