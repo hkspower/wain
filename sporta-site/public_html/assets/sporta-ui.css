@@ -1301,6 +1301,28 @@ header.app-header > .mx-auto.max-w-7xl {
   }
 }
 
+/* THE FOOTER'S OWN max-w-7xl HAD THE SAME DISEASE TOO — the comment two rules
+ * up asserts "the footer block... hold[s] an inner max-w-7xl px-4 container
+ * that puts the gutter back", naming it a GRANDCHILD of .app-footer and so
+ * out of `.app-footer > *`'s reach. That is true of the bottom nav; it is not
+ * true of the footer's own wrapper. Measured, 2026-09-27:
+ *
+ *     footer.app-footer > div.mx-auto.max-w-7xl.px-6   IS a direct child
+ *
+ * — carrying `px-6`, not `px-4`, and with children (logo, nav columns), so it
+ * is excluded from the `:not(:has(*))` guard exactly as the topbar row was.
+ * `.app-footer > *` (unlayered, beats the layered Tailwind utility outright)
+ * replaced its 24px gutter with `var(--sa-left) var(--sa-right)`, both 0px on
+ * every device with no notch — measured paddingInline: 0px/0px, and the "من
+ * نحن" / "الخصوصية" column sat flush against the screen's trailing edge with
+ * no gap at all, on every page, both languages, at every width.
+ *
+ * Restored to exactly what `px-6` asked for — 1.5rem — since this one carries
+ * no separate "more air" request the way the topbar row's did. */
+footer.app-footer > .mx-auto.max-w-7xl {
+  padding-inline: calc(1.5rem + var(--sa-left, 0px)) calc(1.5rem + var(--sa-right, 0px));
+}
+
 /* A NOTE ON WHAT WAS DELIBERATELY NOT CHANGED HERE, because the obvious next
  * move is wrong and the measurement says so.
  *
