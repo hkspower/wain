@@ -85,6 +85,14 @@ await page.evaluate(() => {
   const s = window.__grnEngine.sound;
   window.__grnEngine.setPaused(true);
   s.setPaused(false);
+  // And the music off. It shares the output with everything measured
+  // here and it is not a floor, it is a performance: its peaks moved the
+  // "idle floor" between 0.19 and 0.80 from one shot to the next, so the
+  // list of sounds reported silent changed on every run — four on one,
+  // seven on the next, a different four on the run after — and a real
+  // silence would have been indistinguishable from a loud bar of music.
+  const m = window.__grnEngine.music;
+  if (m?.enabled) m.toggle();
   const a = s.ctx.createAnalyser();
   a.fftSize = 2048;
   s.outputTap.connect(a);
@@ -273,8 +281,20 @@ const swept = await page.evaluate(async ([ONESHOTS, HELD_IN, FRAME_IN]) => {
   // read as "made no sound" because nothing they did was louder than
   // the start-up. A floor has to be the floor the shot is fired over.
   const shots = [];
+  // Settle, in real time. idle() hands the engine eight idle frames in
+  // one synchronous burst, and no audio time passes between them: every
+  // ramp it starts is still at its first sample when the floor is read.
+  // After revStart and the shift the engine was still coming down from
+  // full revs, so every later shot was fired over a floor of 0.22-0.29
+  // against a true idle of about 0.09, and the quiet stings — a drift
+  // pip is 0.055 — could not show a peak over it and were called
+  // silent. Hold idle for 400 ms of the audio clock first.
+  const settle = async () => {
+    const t0 = performance.now();
+    while (performance.now() - t0 < 400) { s.update(FRAME_IN); await new Promise((r) => setTimeout(r, 16)); }
+  };
   for (const [name, ms] of ONESHOTS) {
-    idle();
+    await settle();
     const pre = await peakOver(Math.max(150, ms / 2));
     fire[name]?.();
     const post = await peakOver(ms);

@@ -353,6 +353,10 @@ export class SoundEngine {
   private limiter: DynamicsCompressorNode;
   /** The hard ceiling after the limiter — see ceilingCurve. */
   private ceiling: WaveShaperNode;
+  /** Sub-sonic highpass ahead of the limiter; see the constructor. */
+  private clarityHp: BiquadFilterNode;
+  /** The bed's low-mid dip; see the constructor. */
+  private bedTone!: BiquadFilterNode;
   /** The continuous bed: engine, exhaust, tires, wind, ambience. This is
    *  what ducks under a voice line — the layers a listener stops needing
    *  when someone is talking to them. */
@@ -535,14 +539,38 @@ export class SoundEngine {
     this.ceiling = this.ctx.createWaveShaper();
     this.ceiling.curve = ceilingCurve() as Float32Array<ArrayBuffer>;
     this.ceiling.oversample = "4x";
-    this.master.connect(this.limiter).connect(this.ceiling).connect(this.ctx.destination);
+    // CLARITY, measured at the output tap (tools: clarity sweep in the
+    // commit that added this). Two cuts that clear room rather than add
+    // colour:
+    //
+    //   sub-sonic  a 25 Hz highpass ahead of the limiter. Below that is
+    //              energy no speaker in a laptop or a phone reproduces,
+    //              and the music alone was 35% of its power under 60 Hz
+    //              — so the limiter was riding 2-3 dB of gain reduction
+    //              on flat-out and slide scenes largely for rumble nobody
+    //              hears, and ducking everything that is heard with it.
+    this.clarityHp = this.ctx.createBiquadFilter();
+    this.clarityHp.type = "highpass";
+    this.clarityHp.frequency.value = 25;
+    this.clarityHp.Q.value = 0.707;
+    this.master.connect(this.clarityHp).connect(this.limiter).connect(this.ceiling).connect(this.ctx.destination);
     // Two sub-buses under the master, so the mix has somewhere to move.
     // Before this everything connected straight to the master and there
     // was no way to duck one thing under another — which is the whole
     // job of a mix.
     this.bed = this.ctx.createGain();
     this.bed.gain.value = this.bedLevel;
-    this.bed.connect(this.master);
+    //   mud        a 3 dB dip at 320 Hz on the bed. Engine, exhaust boom,
+    //              tyre roll and city hum all pile up in 250-800 Hz: at a
+    //              100 km/h cruise that band was 51% of the whole mix, the
+    //              "cardboard box" sound, and it is where the music's
+    //              chords and every one-shot's body have to be heard.
+    this.bedTone = this.ctx.createBiquadFilter();
+    this.bedTone.type = "peaking";
+    this.bedTone.frequency.value = 320;
+    this.bedTone.Q.value = 0.8;
+    this.bedTone.gain.value = -3;
+    this.bed.connect(this.bedTone).connect(this.master);
     this.sfx = this.ctx.createGain();
     this.sfx.gain.value = this.sfxLevel;
     this.sfx.connect(this.master);
@@ -1191,6 +1219,12 @@ export class SoundEngine {
   backfire(strength = 1): void {
     if (this.ctx.state !== "running") return;
     const s = Math.min(2.6, Math.max(0.5, strength));
+    // The CRACK, first and on both paths: 12 ms of noise above 3.2 kHz.
+    // Measured at the effects bus the bang was 75% under 250 Hz with
+    // almost nothing in the presence band — a thud from inside a box.
+    // A backfire is a detonation, and what makes it read as one at the
+    // back of a mix is the sharp front edge, not the boom behind it.
+    this.oneShotNoise("highpass", 3200, 0.1 * s, 0.012);
     if (this.playSample("backfire", 0.5 * s)) return;
     const t = this.ctx.currentTime;
     // The thump: a short body resonance falling as the pressure leaves.
@@ -1510,7 +1544,14 @@ export class SoundEngine {
       b.oscs[1].frequency.setTargetAtTime(b.voice ? freq / b.cyl : freq * 2.02, t, 0.04);
       b.oscs[2].frequency.setTargetAtTime(freq * 0.5, t, 0.04);
     }
-    this.engFilter.frequency.setTargetAtTime(280 + throttle * 900 + rpm * 700, t, 0.06);
+    // Opened well up into the presence band. It was 280 + 900 throttle
+    // + 700 rpm: under 300 Hz at idle and 1.9 kHz flat out, so the
+    // engine — the one sound always playing — carried 0.1-1% of its
+    // power above 2.5 kHz and read as heard through a wall. A real
+    // engine's intake and valvetrain rasp lives at 2-5 kHz and is most
+    // of what makes it sound CLOSE; the throttle and revs still open it,
+    // from about 650 Hz at idle to about 3.7 kHz on song.
+    this.engFilter.frequency.setTargetAtTime(600 + throttle * 1700 + rpm * 1700, t, 0.06);
     const idle = 0.05;
     this.engGain.gain.setTargetAtTime(
       (idle + throttle * 0.12 + rpm * 0.03) * limiterCut,
@@ -1570,7 +1611,10 @@ export class SoundEngine {
     // instead of sitting as a flat hiss.
     const windAmt = Math.pow(Math.min(f.speedKmh / 330, 1), 2);
     const buffet = 1 + Math.sin(t * 1.7) * 0.12 + Math.sin(t * 0.41) * 0.08;
-    this.windFilter.frequency.setTargetAtTime(300 + f.speedKmh * 7, t, 0.1);
+    // Wind is a broadband rush that brightens with speed, not a hum: it
+    // was lowpassed at 300 + 7 x speed, 1 kHz at 100 km/h. Now about
+    // 2.5 kHz at 100 and 4.5 kHz at 200 — the hiss that says "fast".
+    this.windFilter.frequency.setTargetAtTime(450 + f.speedKmh * 20, t, 0.1);
     this.windGain.gain.setTargetAtTime(windAmt * 0.24 * buffet, t, 0.1);
 
     // Tire roll on asphalt: the ever-present hiss that says "road".
@@ -2010,20 +2054,48 @@ export class SoundEngine {
     this.oneShotNoise("bandpass", 2200, 0.15, 0.05, 4);
   }
 
+  /**
+   * A run of notes — every sting, pip and fanfare in the game.
+   *
+   * Each note now carries three bell partials over its fundamental, at
+   * 2x, 4x and 8x, quieter and decaying faster. The notes alone are triangle
+   * waves, whose harmonics fall away at 12 dB an octave: the win sting
+   * measured 91% of its power in 250-800 Hz and nothing above 2.5 kHz,
+   * exactly the band the engine and the tyres already fill, so a reward
+   * landed as a murmur under the car. The partials put the note's
+   * identity up where nothing else in the mix is, which is what lets a
+   * short, quiet sound be heard over a loud one — without making it any
+   * louder. They ring shorter than the note, so it still decays into the
+   * warm tone it always had.
+   */
   private sting(notes: number[], step: number, type: OscillatorType = "triangle", level = 0.12): void {
     const t0 = this.ctx.currentTime;
+    // Octaves, not the 2x/3x series: from a 262 Hz note a 3x partial
+    // is still 786 Hz, inside the band this is trying to get out of. The
+    // octave series stays consonant with the note at any pitch and puts
+    // its top partial at 2-5 kHz across every sting in the game.
+    const partials: Array<[number, number, number]> = [
+      // ratio, level against the note, decay against the note
+      [1, 1, 1],
+      [2, 0.3, 0.6],
+      [4, 0.16, 0.4],
+      [8, 0.08, 0.25],
+    ];
     notes.forEach((freq, i) => {
       const t = t0 + i * step;
-      const osc = this.ctx.createOscillator();
-      osc.type = type;
-      osc.frequency.value = freq;
-      const g = this.ctx.createGain();
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(level, t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.001, t + step * 2.2);
-      osc.connect(g).connect(this.sfx);
-      osc.start(t);
-      osc.stop(t + step * 2.4);
+      for (const [ratio, lv, decay] of partials) {
+        const osc = this.ctx.createOscillator();
+        osc.type = ratio === 1 ? type : "sine";
+        osc.frequency.value = freq * ratio;
+        const g = this.ctx.createGain();
+        const end = t + step * 2.2 * decay;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(level * lv, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, end);
+        osc.connect(g).connect(this.sfx);
+        osc.start(t);
+        osc.stop(end + step * 0.2);
+      }
     });
   }
 

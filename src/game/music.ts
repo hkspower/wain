@@ -108,7 +108,15 @@ export class Music {
     this.ctx = ctx;
     this.master = ctx.createGain();
     this.master.gain.value = this.volume;
-    this.master.connect(out ?? ctx.destination);
+    // A 3 dB low shelf under 100 Hz. Measured alone the score was 89% of
+    // its power below 250 Hz, sitting exactly where the engine lives; the
+    // engine is the thing the player is steering by, so the music gives
+    // up a little of that register to it rather than fighting it.
+    const tone = ctx.createBiquadFilter();
+    tone.type = "lowshelf";
+    tone.frequency.value = 100;
+    tone.gain.value = -3;
+    this.master.connect(tone).connect(out ?? ctx.destination);
 
     fetch(MANIFEST)
       .then((r) => (r.ok ? r.json() : null))
@@ -476,7 +484,12 @@ class SynthScore {
     return m === "challenge" ? 0.085 : m === "battle" ? 0.07 : 0.045;
   }
   private static cornerOf(m: MusicMood): number {
-    return m === "challenge" ? 6400 : m === "battle" ? 5200 : 1800;
+    // Cruise was 1800 Hz: a score heard through a closed door, which the
+    // battle's 5200 then "lifted" — but the lift was being bought by
+    // making every other minute of the game muffled. 3000 keeps a clear
+    // step up to battle and challenge while the cruise music has words
+    // in it rather than only bass.
+    return m === "challenge" ? 6400 : m === "battle" ? 5200 : 3000;
   }
 
   setMood(mood: MusicMood): void {
