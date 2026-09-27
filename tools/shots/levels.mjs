@@ -290,6 +290,43 @@ if (process.env.RIM) {
   }, +process.env.RIM);
   console.log(`rim light at ${process.env.RIM}`);
 }
+// GLASS=linear|scaled re-dresses the glazed building materials live, to
+// A/B the roughness map without editing the world:
+//   linear  the roughness map read as data (NoColorSpace) rather than
+//           gamma-decoded as a colour, so the painted 0.12 pane is 0.12
+//   scaled  linear, and each building's own concrete roughness (blocks
+//           0.8, Liberation disc 0.5, Al Hamra 0.4) as the multiplier
+//           over the painted 0.855 concrete
+// Unset measures whatever the world ships.
+if (process.env.GLASS) {
+  const n = await page.evaluate((mode) => {
+    const THREE = window.__grnThree;
+    const e = window.__grnEngine;
+    let root = e.world.moonLight; while (root.parent) root = root.parent;
+    const seen = new Set();
+    root.traverse((o) => {
+      const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+      for (const m of mats) {
+        if (seen.has(m) || !m.roughnessMap || !m.emissiveMap) continue;
+        seen.add(m);
+        m.roughnessMap.colorSpace = THREE.NoColorSpace;
+        m.roughnessMap.needsUpdate = true;
+        if (mode === "scaled") {
+          let p = o, want = 0.8;
+          while (p) {
+            if (p.name === "liberationTower") want = 0.5;
+            if (p.name === "alHamraTower") want = 0.4;
+            p = p.parent;
+          }
+          m.roughness = want / (0xda / 255);
+        }
+        m.needsUpdate = true;
+      }
+    });
+    return seen.size;
+  }, process.env.GLASS);
+  console.log(`glass ${process.env.GLASS}: ${n} glazed materials re-dressed`);
+}
 // The world keeps assembling after "ready" — authored shells, palm
 // crowns, the reflection probe. Levels measured through that are the
 // levels of a half-built scene.
