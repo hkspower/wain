@@ -71,14 +71,11 @@ const ALLOWED = [
        + 'they are a different composition from the desktop art, so a sharper '
        + 'one needs the owner to supply or re-crop it at ~1100px',
   },
-  {
-    match: /cats\/desktop\/infobar/,
-    density: 'desktop 2x',
-    ratio: 1.36,
-    why: 'the info bar is 1920px and a 1440px screen at 2x stretches it to '
-       + '2618px; it is the widest thing on the page at 9.90:1, so it needs a '
-       + '~2600px master from the owner',
-  },
+  // cats/desktop/infobar at desktop 2x was here, removed 2026-09-28 running
+  // "check the images quality and file sizes" — this rig's own self-cleaning
+  // check reported it no longer needed. The master is still 1920px wide
+  // (checked directly), so whatever shrank the upscale ratio under tolerance
+  // was a layout change to the box it fills, not the file.
 ]
 
 /* ------------------------------------------------- 1. the two directories -- */
