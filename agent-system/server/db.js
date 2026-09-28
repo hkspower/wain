@@ -266,6 +266,18 @@ CREATE TABLE IF NOT EXISTS faq_misses (
 CREATE INDEX IF NOT EXISTS ix_faq_misses ON faq_misses(answered_at, hits DESC);
 `);
 
+/* شكوى الزبون من **جوابٍ أُعطي**. كان الجدول يسجّل ما لا جواب له وحده،
+   فالسؤال الذي يجد جوابًا لا ينفع يمضي بلا أثر: الوكيل يحسبه أجاب،
+   والزبون ينصرف، والمكتب لا يعلم أنّ في معرفته جوابًا يخذل.
+   والصنفان في جدولٍ واحد لأنّهما شيء واحد عند المكتب — «معرفةٌ ناقصة» —
+   ويفترقان في العلاج: الأوّل يُضاف جوابه، والثاني يُصحَّح جوابه. */
+const missCols = db.prepare('PRAGMA table_info(faq_misses)').all().map((c) => c.name);
+const addMissColumn = (name, ddl) => {
+  if (!missCols.includes(name)) db.exec(`ALTER TABLE faq_misses ADD COLUMN ${name} ${ddl}`);
+};
+addMissColumn('kind', "TEXT NOT NULL DEFAULT 'unanswered'");
+addMissColumn('faq_id', 'INTEGER REFERENCES faq(id) ON DELETE SET NULL');
+
 /*
  * مجموعات الصلاحيات.
  *

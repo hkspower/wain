@@ -407,7 +407,13 @@ a.stat:hover { border-color: var(--teal-600); }
   font-size: var(--t-sm); line-height: var(--lh-base); color: var(--ink);
 }
 
+/* شكوى على جواب: تنبيهٌ لا خطأ في النظام — لكنّها أثقل من ثغرةٍ في
+   المعرفة، فتُميَّز عنها بالحبر وبالحدّ الجانبيّ. */
+.badge--bad { color: var(--bad-fg); border-width: var(--bw-thick); }
+
 .faq-misses { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.faq-misses--bad li { border-inline-start: var(--bw-thick) solid var(--alert-600); }
+.faq-misses__on { flex: 1 1 100%; font-size: var(--t-xs); color: var(--ink-soft); }
 .faq-misses li {
   display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap;
   padding: var(--s-2) var(--s-3); border: var(--bw) solid var(--line); border-radius: var(--radius-xs);

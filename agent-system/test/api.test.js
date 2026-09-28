@@ -613,6 +613,42 @@ test('بوّابة الزبون: ما لا حقل له يُحفظ بنصّه ل�
   assert.equal(flood.status, 400);
 });
 
+test('بوّابة الزبون: «ما جاوبني» تصل المكتبَ وتدلّ على الجواب المشكوّ منه', async () => {
+  /* الجواب الخاطئ يمضي صامتًا: الوكيل يحسب نفسه أجاب، والزبون ينصرف.
+     فهذا الطريق هو الوحيد الذي يجعل خطأً في المعرفة مرئيًّا. */
+  const made = await call('admin', 'POST', '/api/faq', {
+    question: 'هل عندكم تغليف؟', answer: 'لا نغلّف الشحنات.', keys: ['تغليف'],
+  });
+  assert.equal(made.status, 200);
+  const faqId = made.data.item.id;
+
+  const r = await call(null, 'POST', '/api/public/faq/feedback', {
+    question: 'عندكم تغليف للشحنة؟', faq_id: faqId,
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.recorded, true);
+  assert.ok(r.data.say && r.data.say.length > 3, 'لم يُردّ على الزبون بشيء');
+
+  const seen = await call('admin', 'GET', '/api/faq');
+  const c = seen.data.misses.find((m) => m.kind === 'unhelpful' && m.faq_id === faqId);
+  assert.ok(c, 'الشكوى لم تصل شاشة المكتب');
+  assert.equal(c.faq_question, 'هل عندكم تغليف؟');
+  assert.equal(seen.data.items.find((i) => i.id === faqId).complaints, 1);
+
+  /* بلا معرّف الجواب لا تُقبل: شكوى بلا مشكوٍّ منه لا تُصلح شيئًا */
+  const blind = await call(null, 'POST', '/api/public/faq/feedback', { question: 'عندكم تغليف؟' });
+  assert.equal(blind.status, 400);
+
+  /* وجوابٌ لا وجود له: تُردّ بلا خطأ — العطب عندنا لا عند الزبون */
+  const gone = await call(null, 'POST', '/api/public/faq/feedback', {
+    question: 'سؤال عن جواب غير موجود', faq_id: 999999,
+  });
+  assert.equal(gone.status, 200);
+  assert.equal(gone.data.recorded, false);
+
+  await call('admin', 'DELETE', `/api/faq/${faqId}`);
+});
+
 test('بوّابة الزبون: صفحة الطلب ترسل ما قيل مع ما فُهم', () => {
   /* الحفظ في الخادم بلا إرسالٍ من الصفحة حارسٌ على بابٍ لا يطرقه أحد.
      والتعليق ليس كودًا يُنفَّذ — يُنزع قبل الفحص، وإلّا نجح الحارس على
@@ -625,6 +661,12 @@ test('بوّابة الزبون: صفحة الطلب ترسل ما قيل مع �
      الزبون، والوعد على الشاشة «حديثك كلّه وصل». */
   assert.ok(/transcript:\s*state\.said/.test(body), 'الصفحة لا ترسل ما قاله الزبون');
   assert.ok(!/transcript:\s*state\.utterances/.test(body), 'تُرسل ما دخل الطلب لا ما قيل');
+
+  /* وطريق الشكوى من جواب: حفظُه في الخادم بلا زرٍّ في الصفحة بابٌ لا
+     يطرقه أحد — والسؤال يُرسل معه، وإلّا وصلت شكوى بلا ما شُكي منه. */
+  assert.ok(/api\/public\/faq\/feedback/.test(src), 'لا طريق للشكوى من جواب في الصفحة');
+  assert.ok(/faq_id:\s*a\.id/.test(src), 'الشكوى تُرسل بلا معرّف الجواب');
+  assert.ok(/question:\s*asked/.test(src), 'الشكوى تُرسل بلا نصّ السؤال');
 });
 
 test('بوّابة الزبون: كلامٌ ليس جوابًا لا يُسجَّل جوابًا', async () => {

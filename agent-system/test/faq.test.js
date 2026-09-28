@@ -186,6 +186,59 @@ test('أسئلة بلا جواب تُعدّ مرّة وتُحلّ حين يُض�
   FAQ.remove(ACTOR, it.id);
 });
 
+test('الشكوى من جوابٍ أُعطي تبقى حتى يُصحَّح الجواب لا حتى يُطابَق', () => {
+  /* «بلا جواب» تُحلّ بالمطابقة: صار له جوابٌ فسقط من القائمة. والشكوى
+     عكسها تمامًا — صاحبها **وجد** جوابًا، فلو قيست بالمطابقة لأُغلقت في
+     اللحظة التي تُفتح فيها ولم يرها المكتب أبدًا. */
+  db.exec('DELETE FROM faq_misses');
+  const it = FAQ.create(ACTOR, {
+    question: 'هل توصلون للسعودية؟', answer: 'داخل الكويت فقط.', keys: ['السعوديه', 'خارج الكويت'],
+  });
+
+  assert.equal(FAQ.recordUnhelpful('توصلون السعوديه؟', it.id), true);
+  assert.equal(FAQ.recordUnhelpful('توصلون السعوديه؟', it.id), true);
+
+  let open = FAQ.misses();
+  const c = open.find((m) => m.kind === 'unhelpful');
+  assert.ok(c, 'الشكوى لم تُسجَّل');
+  assert.equal(c.hits, 2, 'التكرار سطرٌ جديد بدل عدّاد');
+  assert.equal(c.faq_id, it.id, 'الشكوى لا تدلّ على الجواب المشكوّ منه');
+  assert.equal(c.faq_question, 'هل توصلون للسعودية؟');
+
+  /* ولا تُغلقها المطابقة ولو جرت مرارًا */
+  FAQ.resolveMisses();
+  assert.equal(FAQ.misses().some((m) => m.id === c.id), true, 'أُغلقت الشكوى بالمطابقة');
+
+  /* ويراها المكتب على الجواب نفسه لا في قائمةٍ جانبية وحدها */
+  assert.equal(FAQ.list().find((x) => x.id === it.id).complaints, 2);
+
+  /* وتُغلق بتعديل الجواب — فالمكتب رآها وفعل */
+  FAQ.update(ACTOR, it.id, { question: 'هل توصلون للسعودية؟', answer: 'داخل الكويت وحدها، ولا نخرج من حدودها.', keys: ['السعوديه'] });
+  assert.equal(FAQ.misses().some((m) => m.id === c.id), false, 'بقيت الشكوى بعد تصحيح الجواب');
+  assert.equal(FAQ.list().find((x) => x.id === it.id).complaints, 0);
+
+  /* وشكوى على جوابٍ لا وجود له تُردّ ولا تُسجَّل: لا يُعرف ما يُصلَح */
+  assert.equal(FAQ.recordUnhelpful('سؤال عن جواب محذوف', 999999), false);
+  assert.equal(FAQ.misses().some((m) => m.text === 'سؤال عن جواب محذوف'), false);
+
+  FAQ.remove(ACTOR, it.id);
+});
+
+test('سؤالٌ شُكي من جوابه ثمّ صار بلا جواب يعود «بلا جواب»', () => {
+  /* الجدول واحد ومفتاحه نصّ السؤال، فحالته تتبع آخر ما وقع. ولولا ذلك
+     لبقي في القائمة «صحّح الجواب» على جوابٍ لم يعد موجودًا. */
+  db.exec('DELETE FROM faq_misses');
+  const it = FAQ.create(ACTOR, { question: 'سؤالٌ سيُحذف', answer: 'جوابٌ سيُحذف', keys: ['صيغة نادرة جدا'] });
+  FAQ.recordUnhelpful('صيغة نادرة جدا', it.id);
+  assert.equal(FAQ.misses()[0].kind, 'unhelpful');
+
+  FAQ.remove(ACTOR, it.id);
+  FAQ.recordMiss('صيغة نادرة جدا');
+  const m = FAQ.misses().find((x) => x.text === 'صيغة نادرة جدا');
+  assert.equal(m.kind, 'unanswered');
+  assert.equal(m.faq_id, null);
+});
+
 test('لا رقم في بذرة الأجوبة، والسؤال الرقميّ يُحال إلى إنسان', () => {
   /* كان هذا الحارس في `website/tools/check-assistant.mjs` يحرس ملفًّا على
      الموقع. ولمّا صارت الأجوبة في القاعدة انتقل إلى حيث المحتوى.

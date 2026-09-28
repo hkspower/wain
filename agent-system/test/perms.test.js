@@ -191,6 +191,8 @@ test('كل مسار محروس: بـneed() أو بتمرير الفاعل، أو
     'POST /api/link/:token/outcome',
     'POST /api/public/order/parse',
     'POST /api/public/order',
+    /* شكوى الزبون من جوابٍ لم ينفعه — لا حساب له، والحدّ يحرسها */
+    'POST /api/public/faq/feedback',
   ]);
 
   const src = fs.readFileSync(require.resolve('../server/api.js'), 'utf8').split('\n');

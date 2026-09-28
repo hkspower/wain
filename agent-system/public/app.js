@@ -2380,7 +2380,9 @@
         </div>
 
         <div class="card">
-          <div class="card__head"><h2>أسئلة بلا جواب</h2></div>
+          <!-- العنوان يجمع الصنفين: ثغرةٌ في المعرفة وخطأٌ فيها. وكان
+               «أسئلة بلا جواب» وحده، فصارت الشكوى تقع تحت عنوانٍ ينفيها. -->
+          <div class="card__head"><h2>ما يحتاج جوابًا أو تصحيحًا</h2></div>
           <div class="card__body" id="faqMisses"></div>
         </div>
 
@@ -2445,6 +2447,9 @@
             ${it.active ? '' : '<span class="badge badge--offline">معطّل</span>'}
             ${it.handoff ? '<span class="badge badge--assigned">يحيل لإنسان</span>' : ''}
             ${HAS_DIGIT.test(it.answer) ? '<span class="badge badge--warn">فيه رقم</span>' : ''}
+            ${/* الشكوى تُرى على الجواب نفسه لا في قائمةٍ جانبية وحدها:
+                  من يقرأ أجوبته يجب أن يرى أيّها يخذل قارئه. */''}
+            ${it.complaints ? `<span class="badge badge--bad">شُكي منه ${esc(AR.plural(it.complaints, TIMES))}</span>` : ''}
             <span class="group__acts">
               <button class="btn btn--ghost btn--sm" data-faq-edit="${it.id}" type="button">تعديل</button>
               <button class="btn btn--danger btn--sm" data-faq-del="${it.id}" type="button">حذف</button>
@@ -2473,23 +2478,48 @@
       }
     }
 
+    /* نقصان المعرفة صنفان، وعلاجهما مختلف:
+         **بلا جواب** — سؤالٌ لم يُفهم، يُضاف جوابه.
+         **جوابٌ لم ينفع** — شكوى الزبون من جوابٍ أُعطي، يُصحَّح جوابه.
+       والثاني أثقل: الأوّل يقول «لا نعرف»، والثاني يقول «نجيب خطأً» —
+       والخطأ يمضي صامتًا لأنّ الوكيل يحسب نفسه أجاب. فيُقدَّم في العرض. */
     function paintFaqMisses(misses) {
       const host = document.getElementById('faqMisses');
       if (!misses.length) {
-        host.innerHTML = '<p class="hint">لا سؤال بلا جواب — كل ما سأله الزبائن وجد جوابه.</p>';
+        host.innerHTML = '<p class="hint">لا سؤال بلا جواب، ولا شكوى من جواب.</p>';
         return;
       }
+      const bad = misses.filter((m) => m.kind === 'unhelpful');
+      const gaps = misses.filter((m) => m.kind !== 'unhelpful');
+
+      const row = (m) => `
+        <li>
+          <span class="faq-misses__t">${esc(m.text)}</span>
+          <span class="badge">${AR.plural(m.hits, TIMES)}</span>
+          ${m.kind === 'unhelpful'
+            ? `<button class="btn btn--ghost btn--sm" data-miss-fix="${m.faq_id}" type="button">صحّح الجواب</button>`
+            : `<button class="btn btn--ghost btn--sm" data-miss-add="${m.id}" type="button">أضف جوابًا</button>`}
+          <button class="btn btn--quiet btn--sm" data-miss-hide="${m.id}" type="button">أخفِ</button>
+          ${m.kind === 'unhelpful' && m.faq_question
+            ? `<small class="faq-misses__on">أُجيب بـ«${esc(m.faq_question)}»</small>` : ''}
+        </li>`;
+
       host.innerHTML = `
-        <p class="hint">سأل الزبائن هذا ولم يجد الوكيل جوابًا. أضف الجواب أو أخفِ السؤال.</p>
-        <ul class="faq-misses">
-          ${misses.map((m) => `
-            <li>
-              <span class="faq-misses__t">${esc(m.text)}</span>
-              <span class="badge">${AR.plural(m.hits, TIMES)}</span>
-              <button class="btn btn--ghost btn--sm" data-miss-add="${m.id}" type="button">أضف جوابًا</button>
-              <button class="btn btn--quiet btn--sm" data-miss-hide="${m.id}" type="button">أخفِ</button>
-            </li>`).join('')}
-        </ul>`;
+        ${bad.length ? `
+          <p class="hint"><b>شكا الزبائن من هذه الأجوبة</b> — سألوا، وأجابهم الوكيل، ولم ينفعهم جوابه.
+             صحّح الجواب فتُغلق الشكوى من نفسها.</p>
+          <ul class="faq-misses faq-misses--bad">${bad.map(row).join('')}</ul>` : ''}
+        ${gaps.length ? `
+          <p class="hint">سأل الزبائن هذا ولم يجد الوكيل جوابًا. أضف الجواب أو أخفِ السؤال.</p>
+          <ul class="faq-misses">${gaps.map(row).join('')}</ul>` : ''}`;
+
+      for (const b of host.querySelectorAll('[data-miss-fix]')) {
+        b.addEventListener('click', () => {
+          const it = data.items.find((x) => x.id === Number(b.dataset.missFix));
+          if (it) openFaqForm(it);
+          else toast('الجواب المشكوّ منه لم يعد موجودًا', 'bad');
+        });
+      }
       for (const b of host.querySelectorAll('[data-miss-add]')) {
         b.addEventListener('click', () =>
           openFaqForm(null, misses.find((m) => m.id === Number(b.dataset.missAdd)).text));

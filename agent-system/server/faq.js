@@ -143,11 +143,17 @@ const shape = (r) => ({
 const active = () => db.prepare('SELECT * FROM faq WHERE active = 1 ORDER BY id').all();
 
 function list() {
+  /* ويُحمل مع كلّ جوابٍ عددُ من شكا منه: الشكوى تُرى **على الجواب نفسه**
+     لا في قائمةٍ جانبية وحدها — فمن يقرأ أجوبته يرى أيّها يخذل. */
   return db.prepare(
-    `SELECT f.*, a.name AS updated_by_name FROM faq f
+    `SELECT f.*, a.name AS updated_by_name,
+            (SELECT COALESCE(SUM(m.hits), 0) FROM faq_misses m
+              WHERE m.faq_id = f.id AND m.kind = 'unhelpful' AND m.answered_at IS NULL)
+              AS complaints
+       FROM faq f
        LEFT JOIN agents a ON a.id = f.updated_by
       ORDER BY f.active DESC, f.id`
-  ).all().map(shape);
+  ).all().map((r) => ({ ...shape(r), complaints: r.complaints }));
 }
 
 function get(id) {
@@ -247,6 +253,10 @@ function update(actor, id, body) {
       logFaq(id, actor, 'edited', before.question, f.question);
     }
     resolveMisses();
+    /* والشكوى من هذا الجواب تُغلق بتعديله: المكتب رآها وفعل. ولو بقيت
+       مفتوحةً لبقيت القائمة تطالب بما أُنجز — وقائمةٌ تطالب بالمنجَز
+       يتوقّف المرء عن قراءتها. */
+    resolveComplaints(id);
   });
   run();
   touch();
@@ -271,26 +281,72 @@ function recordMiss(text) {
   const n = norm(text);
   if (n.length < 3 || n.split(' ').length > 25) return;
   const t = now();
+  /* والصنف يُكتب صراحةً عند التعارض: سؤالٌ شُكي من جوابه ثمّ صار لا
+     يطابق شيئًا (حُذف جوابه مثلًا) يعود «بلا جواب» لا يبقى «شكوى». */
   db.prepare(
-    `INSERT INTO faq_misses (norm, text, hits, first_at, last_at) VALUES (?, ?, 1, ?, ?)
+    `INSERT INTO faq_misses (norm, text, hits, first_at, last_at, kind, faq_id)
+     VALUES (?, ?, 1, ?, ?, 'unanswered', NULL)
      ON CONFLICT(norm) DO UPDATE SET hits = hits + 1, last_at = excluded.last_at,
-       answered_at = NULL`
+       answered_at = NULL, kind = 'unanswered', faq_id = NULL`
   ).run(n, String(text).trim().slice(0, 300), t, t);
 }
 
-/** ما صار له جوابٌ الآن يُعلَّم، فلا تبقى القائمة تطالب بما أُنجز */
+/**
+ * **شكوى من جوابٍ أُعطي.** الزبون سأل، وأجابه الوكيل، ولم ينفعه الجواب.
+ *
+ * وهذا أثمن ما يصل المكتبَ عن وكيله: «بلا جواب» يقول إنّ في المعرفة
+ * ثغرة، وهذه تقول إنّ في المعرفة **خطأً** — جوابٌ قائمٌ يخذل من يقرؤه،
+ * ولا يظهر في أيّ عدّاد لأنّ الوكيل يحسب نفسه أجاب.
+ *
+ * ويُشترط أن يكون الجواب قائمًا: شكوى على جوابٍ محذوف لا تُصلح شيئًا.
+ */
+function recordUnhelpful(text, faqId) {
+  const n = norm(text);
+  if (n.length < 3 || n.split(' ').length > 25) return false;
+  const row = db.prepare('SELECT id FROM faq WHERE id = ?').get(faqId);
+  if (!row) return false;
+  const t = now();
+  db.prepare(
+    `INSERT INTO faq_misses (norm, text, hits, first_at, last_at, kind, faq_id)
+     VALUES (?, ?, 1, ?, ?, 'unhelpful', ?)
+     ON CONFLICT(norm) DO UPDATE SET hits = hits + 1, last_at = excluded.last_at,
+       answered_at = NULL, kind = 'unhelpful', faq_id = excluded.faq_id`
+  ).run(n, String(text).trim().slice(0, 300), t, t, faqId);
+  return true;
+}
+
+/**
+ * ما صار له جوابٌ الآن يُعلَّم، فلا تبقى القائمة تطالب بما أُنجز.
+ *
+ * و**الشكاوى لا تُمسّ هنا**: صاحبها وجد جوابًا أصلًا، فلو قيست بالمطابقة
+ * لأُغلقت في اللحظة نفسها التي تُفتح فيها. تُغلق حين يُعدَّل الجواب
+ * المشكوّ منه (انظر `update`) أو حين يُهملها المكتب صراحةً.
+ */
 function resolveMisses() {
   const rows = active();
-  const open = db.prepare('SELECT id, text FROM faq_misses WHERE answered_at IS NULL').all();
+  const open = db.prepare(
+    "SELECT id, text FROM faq_misses WHERE answered_at IS NULL AND kind = 'unanswered'"
+  ).all();
   const stamp = now();
   const mark = db.prepare('UPDATE faq_misses SET answered_at = ? WHERE id = ?');
   for (const m of open) if (match(m.text, rows)) mark.run(stamp, m.id);
 }
 
+/** شكاوى جوابٍ بعينه تُغلق حين يُعدَّل — فالمكتب أجاب عنها بفعله */
+function resolveComplaints(faqId) {
+  db.prepare(
+    "UPDATE faq_misses SET answered_at = ? WHERE answered_at IS NULL AND kind = 'unhelpful' AND faq_id = ?"
+  ).run(now(), faqId);
+}
+
 function misses(limit = 40) {
   return db.prepare(
-    `SELECT id, text, hits, first_at, last_at FROM faq_misses
-      WHERE answered_at IS NULL ORDER BY hits DESC, id DESC LIMIT ?`
+    `SELECT m.id, m.text, m.hits, m.first_at, m.last_at, m.kind, m.faq_id,
+            f.question AS faq_question, f.answer AS faq_answer
+       FROM faq_misses m
+       LEFT JOIN faq f ON f.id = m.faq_id
+      WHERE m.answered_at IS NULL
+      ORDER BY m.hits DESC, m.id DESC LIMIT ?`
   ).all(limit);
 }
 
@@ -455,5 +511,5 @@ function ensureSeed() {
 module.exports = {
   norm, match, answer, looksLikeQuestion, hasNumber, FALLBACK, SEED, THRESHOLD,
   list, get, create, update, remove, history,
-  recordMiss, resolveMisses, misses, dismissMiss, ensureSeed,
+  recordMiss, recordUnhelpful, resolveMisses, resolveComplaints, misses, dismissMiss, ensureSeed,
 };

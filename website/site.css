@@ -782,6 +782,19 @@ body.vo {
   font-size: var(--fs-sm); color: var(--ink-soft);
 }
 
+/* «ما جاوبني»: هدفُ لمسٍ كامل بهيئة رابط لا زرّ. الزرّ الظاهر يزاحم
+   «أرسل الطلب»، والرابطُ الخالص دون ٤٤ بكسلًا لا يُصاب بالإبهام. */
+.vo-nothelp {
+  display: inline-flex; align-items: center; min-height: 44px;
+  padding: 0 .2rem; border: 0; background: none;
+  font-family: var(--font); font-size: var(--fs-sm); font-weight: 600;
+  color: var(--ink-soft); text-decoration: underline;
+  text-underline-offset: .25em; cursor: pointer;
+  transition: color var(--t-fast) var(--ease);
+}
+
+.vo-nothelp:hover { color: var(--ink); }
+
 /* ------------------------------- الجوال ------------------------------- */
 @media (max-width: 480px) {
   .vo-main { width: calc(100% - 1.6rem); }

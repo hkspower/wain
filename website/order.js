@@ -341,7 +341,7 @@
     if (state.parsed.accepted) state.utterances.push(state.parsed.accepted);
 
     if (state.parsed.answer) {
-      answerBubble(state.parsed.answer);
+      answerBubble(state.parsed.answer, raw);
       renderCard();
       nextQuestion(acknowledge());   // يعود إلى ما كان يسأل عنه، فلا يضيع خيط الطلب
       return;
@@ -411,10 +411,41 @@
 
   const WA_LINK = '<a href="https://wa.me/96590000000" target="_blank" rel="noopener">واتساب</a>';
 
-  /** جواب من معرفة موصول. ما وُسم بالإحالة يُذيَّل بطريق الإنسان. */
-  function answerBubble(a) {
-    bubble('agent', esc(a.answer) + (a.handoff
+  /**
+   * جواب من معرفة موصول. ما وُسم بالإحالة يُذيَّل بطريق الإنسان.
+   *
+   * **ومعه طريقٌ للشكوى منه.** الجواب الخاطئ أخطر من غياب الجواب: من لم
+   * يجد جوابًا يُسجَّل سؤاله في «أسئلة بلا جواب» فيراه المكتب، أمّا من
+   * أُجيب بما لا ينفعه فينصرف صامتًا — والوكيل يحسب نفسه أجاب، فيبقى
+   * الجواب يخذل كلَّ من يسأل مثله ولا يعلم أحد.
+   *
+   * والزرّ يفعل للزبون شيئًا في حينه — يدلّه على إنسان — لا يجمع بيانًا
+   * فقط: شكوى لا يُنتفع بها في حينها لا يضغطها أحد مرّتين.
+   */
+  function answerBubble(a, asked) {
+    const b = bubble('agent', esc(a.answer) + (a.handoff
       ? `<br><span class="vo-msg__aside">للتفصيل الدقيق: ${WA_LINK}</span>` : ''));
+    if (!a.id || !asked) return;
+
+    const aside = document.createElement('span');
+    aside.className = 'vo-msg__aside';
+    aside.innerHTML = '<button type="button" class="vo-nothelp">ما جاوبني</button>';
+    b.append(aside);
+
+    aside.querySelector('button').addEventListener('click', async () => {
+      aside.textContent = 'أرسلها…';
+      let say = 'وصلت. ولسؤالك الآن:';   // إن سقطت الشبكة: الطريق يبقى، والوعد لا يُقطع
+      try {
+        const res = await fetch(`${API}/api/public/faq/feedback`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ question: asked, faq_id: a.id }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.say) say = data.say;
+      } catch { /* الشبكة تسقط والزبون ينتظر جوابًا: الطريق يُعرض على كلّ حال */ }
+      aside.innerHTML = `${esc(say)} ${WA_LINK}`;
+    });
   }
 
   /* تصحيح «هل تقصد…؟»: الكلمة الخاطئة تُستبدل في الحديث نفسه ثم يُعاد
