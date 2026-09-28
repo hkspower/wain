@@ -71,6 +71,22 @@ export function clampServiceMinutes(value: number | undefined | null): number {
   return Math.min(MAX_SERVICE_MINUTES, Math.max(MIN_SERVICE_MINUTES, Math.round(value as number)));
 }
 
+/**
+ * Matches the CHECK on places.website — same pattern, same 200-char cap.
+ *
+ * `BusinessContact` puts this field straight into an `href` with no fixed
+ * scheme prefix (unlike the phone and Instagram links beside it), so it is
+ * the one place on a place page where a stored `javascript:` value would
+ * actually run on a click. The database CHECK already refuses that at
+ * INSERT — this is the same rule, run again at render, so the link is safe
+ * by construction here too rather than resting on one constraint in a
+ * database this repository does not control the live state of.
+ */
+export function isHttpUrl(value: string | undefined | null): boolean {
+  if (!value) return false;
+  return value.length <= 200 && /^https?:\/\/[^\s]{3,}$/.test(value);
+}
+
 
 /** Ordered the way the category rail reads on the home page. */
 export const categories: Category[] = [

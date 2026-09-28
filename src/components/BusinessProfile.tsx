@@ -1,4 +1,5 @@
 import { IconCheck, IconGlobe, IconInstagram, IconPhone, IconSparkle } from "@/components/icons";
+import { isHttpUrl } from "@/lib/place-kit";
 import type { Place } from "@/lib/places";
 
 /**
@@ -57,14 +58,17 @@ export function BusinessBio({ place }: { place: Place }) {
  * Rendered only from fields the owner gave for display and an admin approved;
  * the submitter's personal contact details never reach the Place record at
  * all, so there is nothing here to accidentally leak. The website href is
- * safe as-is because the database rejects any stored value that is not
- * http(s) — see the CHECK on places.website.
+ * guarded by `isHttpUrl` — the same http(s)-only rule as the CHECK on
+ * places.website, checked again here rather than trusted from the database
+ * alone, since this repository does not control whether that constraint
+ * actually made it into whatever Supabase project is live.
  */
 export function BusinessContact({ place }: { place: Place }) {
   const phone = place.phone?.trim();
   const instagram = place.instagram?.trim();
   const website = place.website?.trim();
-  if (!phone && !instagram && !website) return null;
+  const websiteOk = isHttpUrl(website);
+  if (!phone && !instagram && !websiteOk) return null;
 
   const item =
     "flex min-h-6 items-center gap-2 rounded-xl border border-line bg-white px-4 text-sm " +
@@ -95,7 +99,7 @@ export function BusinessContact({ place }: { place: Place }) {
             </a>
           </li>
         )}
-        {website && (
+        {websiteOk && (
           <li>
             <a href={website} target="_blank" rel="noopener noreferrer" className={item}>
               <IconGlobe className="size-4 text-sea-600" />
