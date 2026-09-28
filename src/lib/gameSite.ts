@@ -447,6 +447,6 @@ export const LABELS = {
   m: { en: "m", ar: "م" },
   cars: { en: "cars", ar: "سيارة" },
   rivals: { en: "rivals", ar: "خصوم" },
-  lapKm: { en: "km lap", ar: "كم لفة" },
+  lapKm: { en: "km lap", ar: "كم للّفة" },
   window: { en: "racing window", ar: "وقت السباق" },
 } satisfies Record<string, Bi>;

@@ -61,7 +61,7 @@ const CARDS: Card[] = [
     body:
       "Right pad accelerates, left pad brakes, and the wheel-side pads steer. " +
       "On a keyboard that is W / S and A / D. The lap is 8.5 km of real Gulf " +
-      "Road and Second Ring — you never have to stop.",
+      "Road and Second Ring. Keep an eye on the fuel — the tank runs dry.",
     art: (
       <div className="flex items-center justify-center gap-2">
         <Pad label="◀" />
@@ -75,7 +75,7 @@ const CARDS: Card[] = [
   {
     kicker: "02 · BOOST",
     title: "Boost, NOS and drift",
-    ar: "التيربو والدرفت",
+    ar: "التيربو والنوس والدرِفت",
     body:
       "Turbo spools on throttle and NOS (hold N) is a three-second shove. " +
       "Hold DRIFT (Space) while turning to kick the tail out, then EASE OFF " +

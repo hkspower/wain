@@ -2035,7 +2035,7 @@ function raceCut(): { w: number; h: number } | null {
             const msg = d.pump.filling
               ? `FILLING · ${d.pump.litres.toFixed(0)} L`
               : d.pump.costKd > 0.01
-                ? `STOP TO FILL · ${d.pump.costKd.toFixed(2)} KD`
+                ? `STOP TO FILL · ${d.pump.costKd.toFixed(3)} KD`
                 : "TANK FULL";
             if (pumpRef.current.textContent !== msg) pumpRef.current.textContent = msg;
           }
@@ -3011,7 +3011,7 @@ function raceCut(): { w: number; h: number } | null {
         >
           <div className="mb-1.5 flex items-end justify-between">
             <span className="grn-label text-xs text-emerald-300 [text-shadow:0_0_8px_rgba(52,211,153,0.45)]">
-              ▲ SP <span className="grn-ar" lang="ar">أنت</span>
+              ▲ YOU SP <span className="grn-ar" lang="ar">أنت</span>
             </span>
             <span className="grn-label rival-ink text-xs text-rose-300 [text-shadow:0_0_8px_rgba(251,113,133,0.45)]">
               ▼ Rival SP
@@ -4275,7 +4275,7 @@ function raceCut(): { w: number; h: number } | null {
               {(
                 [
                   ["reducedMotion", "Reduced motion", "Stops splashes, pulses and camera shake"],
-                  ["colorBlindSafe", "Colour-blind safe", "Rival switches off the red/green pair"],
+                  ["colorBlindSafe", "Colour-blind safe", "Rival markers stop using the red/green pair"],
                   ["largeHud", "Large HUD", "Bigger speed, gauges and prompts"],
                   ["haptics", "Haptics", "Vibrate on impacts, challenges and rewards"],
                 ] as const

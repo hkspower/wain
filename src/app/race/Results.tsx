@@ -283,7 +283,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
             {
               k: "Contact",
               v: result.stats.clean ? "CLEAN" : `${result.stats.contacts}`,
-              u: result.stats.clean ? "" : "hits",
+              u: result.stats.clean ? "" : result.stats.contacts === 1 ? "hit" : "hits",
             },
           ].map((s, i) => (
             <div

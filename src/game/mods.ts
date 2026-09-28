@@ -100,9 +100,9 @@ export const PARTS: Part[] = [
   // that these ids and engines.ts agree in both directions.
   { id: "engine-i4-16", cat: "engine", name: "Sadu 1.6 VTC · I4", ar: "سدو ١٫٦", price: 900, desc: "4 cylinders, 1.6L, 8,400 rpm. Dead below half revs, then it screams — keep it on the cam or it does nothing at all" },
   { id: "engine-i4-20t", cat: "engine", name: "Bahri 2.0T · I4", ar: "بحري ٢٫٠ تيربو", price: 2200, desc: "4 cylinders, 2.0L, 6,800 rpm. A hard shove through the middle of every gear and nothing left up top" },
-  { id: "engine-f6-25", cat: "engine", name: "Nejma Flat-Six · F6", ar: "نجمة ٢٫٥", price: 3800, desc: "6 cylinders, 2.5L, 7,800 rpm. Pulls from the middle and keeps going — and sits lower in the car than anything else here" },
+  { id: "engine-f6-25", cat: "engine", name: "Nejma 2.5 · F6", ar: "نجمة ٢٫٥", price: 3800, desc: "6 cylinders, 2.5L, 7,800 rpm. Pulls from the middle and keeps going — and sits lower in the car than anything else here" },
   { id: "engine-i6-30tt", cat: "engine", name: "Sahil 3.0 TT · I6", ar: "ساحل ٣٫٠", price: 5200, desc: "6 cylinders, 3.0L, 7,000 rpm. Flat as a table from 2,000 to the limiter — no gear is the wrong gear" },
-  { id: "engine-v8-57", cat: "engine", name: "Ghazi 5.7 V8 · V8", ar: "غازي ٥٫٧", price: 6500, desc: "8 cylinders, 5.7L, 6,200 rpm. Torque from idle, done by 6,200, and it lopes at every traffic light on the corniche" },
+  { id: "engine-v8-57", cat: "engine", name: "Ghazi 5.7 · V8", ar: "غازي ٥٫٧", price: 6500, desc: "8 cylinders, 5.7L, 6,200 rpm. Torque from idle, done by 6,200, and it lopes at every traffic light on the corniche" },
   // 34,000 KD, against 6,500 for the engine under it and 6,000 for the
   // cheapest car in the showroom. That is the intended shape of it: this
   // is a race engine, it costs more than most of the cars it could go
@@ -110,7 +110,7 @@ export const PARTS: Part[] = [
   { id: "engine-v8-40fp", cat: "engine", name: "Saqr 4.0 FP · V8", ar: "صقر ٤٫٠", price: 34000, desc: "8 cylinders, 4.0L, 9,000 rpm. Flat-plane: nothing under 6,500, then the whole dial goes red and it screams to nine" },
   // Aspiration — exclusive; the heart of the build
   { id: "turbo", cat: "aspiration", name: "Turbo Kit", ar: "تيربو", price: 1200, desc: "+25% power on boost, +20 km/h governor, blow-off on lift" },
-  { id: "supercharger", cat: "aspiration", name: "Supercharger", ar: "سوبرتشارج", price: 1500, desc: "+30% power everywhere, +14 km/h governor, whine included" },
+  { id: "supercharger", cat: "aspiration", name: "Supercharger", ar: "سوبرتشارجر", price: 1500, desc: "+30% power everywhere, +14 km/h governor, whine included" },
   { id: "twin-turbo", cat: "aspiration", name: "Twin Turbo", ar: "تيربو مزدوج", price: 2800, desc: "+45% on full boost, fast spool, +40 km/h governor" },
   // Internals — additive, always active once owned
   { id: "ecu", cat: "internals", name: "ECU Tune", ar: "برمجة", price: 400, desc: "+8% power" },
@@ -965,7 +965,7 @@ export const CARS: CarModel[] = [
     grip: 16.4,
     brake: 42,
     color: 0xb8860b,
-    desc: "Quad-cam V8 hypercar. Nothing on the corniche leaves a corner harder.",
+    desc: "Big-block V8 hypercar. Nothing on the corniche leaves a corner harder.",
   },
   {
     id: "falcon-720",

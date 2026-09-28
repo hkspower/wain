@@ -705,7 +705,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                     <p className="mt-2 text-xs leading-5 text-white/74">
                       {car.name} came with the{" "}
                       <span className="text-white/80">
-                        {stockEngine.name} · {layoutTag(stockEngine)}
+                        {stockEngine.name.endsWith(layoutTag(stockEngine)) ? stockEngine.name : `${stockEngine.name} · ${layoutTag(stockEngine)}`}
                       </span>{" "}
                       — {stockEngine.cylinders} cylinders,{" "}
                       {num(stockEngine.redlineRpm)} rpm. Buy

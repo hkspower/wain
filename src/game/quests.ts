@@ -121,7 +121,7 @@ export const QUESTS: Quest[] = [
     name: "In their wake",
     ar: "بسحبته",
     hint: "Sit in another driver's slipstream for a minute, all told",
-    hintAr: "خلّك بسحبة واحد ثاني لمدة دقيقة كاملة",
+    hintAr: "خلّك بسحبة واحد ثاني دقيقة بالمجموع",
     metric: "towSeconds",
     target: 60,
     unit: "seconds",
@@ -131,8 +131,8 @@ export const QUESTS: Quest[] = [
     id: "matched",
     name: "Same speed",
     ar: "نفس السرعة",
-    hint: "Hold their pace, side by side, above 120 for half a minute",
-    hintAr: "امش بسرعته جنب بجنب فوق ١٢٠ لمدة نص دقيقة",
+    hint: "Hold their pace, side by side, above 120 km/h for half a minute",
+    hintAr: "امش بسرعته جنب بجنب فوق ١٢٠ كم/س لمدة نص دقيقة",
     metric: "matchedSeconds",
     target: 30,
     unit: "seconds",
@@ -148,7 +148,7 @@ export const QUESTS: Quest[] = [
     // where one word in six is vowelled and the rest are bare is the
     // thing the grammar check asks not to do. The name above carries the
     // word; the hint does not need it twice.
-    hintAr: "اجمع ألف نقطة وواحد جنبك",
+    hintAr: "اجمع ألف نقطة، ومعك واحد جنبك",
     metric: "driftBeside",
     target: 1000,
     unit: "count",

@@ -3556,7 +3556,7 @@ export class GameEngine {
     }
     if (k === "v" && !e.repeat) {
       const on = this.voice.toggle();
-      this.events.onMessage(on ? "Voices on — الأصوات شغالة" : "Voices off");
+      this.events.onMessage(on ? "Voices on — الأصوات شغالة" : "Voices off — الأصوات مسكّرة");
       if (on) this.voice.speak("الأصوات شغالة", {}, "voices-on");
     }
     if (k === "g" && !e.repeat) {
