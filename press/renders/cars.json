@@ -1,0 +1,512 @@
+[
+  {
+    "id": "black-demon",
+    "name": "Black Demon",
+    "ar": "الشيطان الأسود",
+    "cls": "supercar",
+    "price": 420000,
+    "color": "#0b0a0d",
+    "finish": "gloss",
+    "style": "gtr",
+    "kit": "attack",
+    "exhaust": {
+      "id": "titanium",
+      "tips": 4,
+      "perSide": 1,
+      "bore": 0.058,
+      "shape": "round",
+      "finish": "titanium",
+      "pitch": 0.86,
+      "rasp": 2.3,
+      "loud": 1.75,
+      "pop": 2.4,
+      "power": 0.14,
+      "tone": {
+        "low": 0.6,
+        "mid": 1.25,
+        "high": 2.4
+      }
+    },
+    "lengthM": 4.66
+  },
+  {
+    "id": "zeta-300-gtr",
+    "name": "Zeta 300 GTR",
+    "ar": "زيتا ٣٠٠ جي تي آر",
+    "cls": "supercar",
+    "price": 240000,
+    "color": "#3b2a5a",
+    "finish": "gloss",
+    "style": "zx",
+    "kit": "attack",
+    "exhaust": {
+      "id": "titanium",
+      "tips": 4,
+      "perSide": 1,
+      "bore": 0.058,
+      "shape": "round",
+      "finish": "titanium",
+      "pitch": 0.86,
+      "rasp": 2.3,
+      "loud": 1.75,
+      "pop": 2.4,
+      "power": 0.14,
+      "tone": {
+        "low": 0.6,
+        "mid": 1.25,
+        "high": 2.4
+      }
+    },
+    "lengthM": 4.53
+  },
+  {
+    "id": "efreet-rx-kai",
+    "name": "Efreet RX Kai",
+    "ar": "عفريت آر إكس كاي",
+    "cls": "supercar",
+    "price": 120000,
+    "color": "#f2b90d",
+    "finish": "satin",
+    "style": "rx7",
+    "kit": "attack",
+    "exhaust": {
+      "id": "stock",
+      "tips": 2,
+      "perSide": 1,
+      "bore": 0.05,
+      "shape": "round",
+      "finish": "steel",
+      "pitch": 1,
+      "rasp": 1,
+      "loud": 1,
+      "pop": 1,
+      "power": 0,
+      "tone": {
+        "low": 1,
+        "mid": 1,
+        "high": 1
+      }
+    },
+    "lengthM": 4.42
+  },
+  {
+    "id": "sahara-v12",
+    "name": "Sahara V12",
+    "ar": "صحارى في ١٢",
+    "cls": "supercar",
+    "price": 96000,
+    "color": "#b8860b",
+    "finish": "gloss",
+    "style": "zx",
+    "kit": "attack",
+    "exhaust": {
+      "id": "stock",
+      "tips": 2,
+      "perSide": 1,
+      "bore": 0.05,
+      "shape": "round",
+      "finish": "steel",
+      "pitch": 1,
+      "rasp": 1,
+      "loud": 1,
+      "pop": 1,
+      "power": 0,
+      "tone": {
+        "low": 1,
+        "mid": 1,
+        "high": 1
+      }
+    },
+    "lengthM": 4.62
+  },
+  {
+    "id": "falcon-720",
+    "name": "Falcon 720",
+    "ar": "الصقر ٧٢٠",
+    "cls": "supercar",
+    "price": 71000,
+    "color": "#c1121f",
+    "finish": "matte",
+    "style": "zx",
+    "kit": "attack",
+    "exhaust": {
+      "id": "stock",
+      "tips": 2,
+      "perSide": 1,
+      "bore": 0.05,
+      "shape": "round",
+      "finish": "steel",
+      "pitch": 1,
+      "rasp": 1,
+      "loud": 1,
+      "pop": 1,
+      "power": 0,
+      "tone": {
+        "low": 1,
+        "mid": 1,
+        "high": 1
+      }
+    },
+    "lengthM": 4.54
+  },
+  {
+    "id": "storm-s8",
+    "name": "Storm S8",
+    "ar": "عاصفة إس ٨",
+    "cls": "supercar",
+    "price": 54000,
+    "color": "#1f2933",
+    "finish": "gloss",
+    "style": "super",
+    "kit": "attack",
+    "exhaust": {
+      "id": "stock",
+      "tips": 2,
+      "perSide": 1,
+      "bore": 0.05,
+      "shape": "round",
+      "finish": "steel",
+      "pitch": 1,
+      "rasp": 1,
+      "loud": 1,
+      "pop": 1,
+      "power": 0,
+      "tone": {
+        "low": 1,
+        "mid": 1,
+        "high": 1
+      }
+    },
+    "lengthM": 4.8
+  },
+  {
+    "id": "anniversary-30",
+    "name": "Bareed 30 Anniversary",
+    "ar": "بريد ٣٠ الذكرى",
+    "cls": "sport",
+    "price": 35000,
+    "color": "#f2f2ee",
+    "finish": "gloss",
+    "style": "pony",
+    "kit": "sport",
+    "exhaust": {
+      "id": "stock",
+      "tips": 2,
+      "perSide": 1,
+      "bore": 0.05,
+      "shape": "round",
+      "finish": "steel",
+      "pitch": 1,
+      "rasp": 1,
+      "loud": 1,
+      "pop": 1,
+      "power": 0,
+      "tone": {
+        "low": 1,
+        "mid": 1,
+        "high": 1
+      }
+    },
+    "lengthM": 4.92
+  },
+  {
+    "id": "kaiju-r",
+    "name": "Kaiju R",
+    "ar": "كايجو آر",
+    "cls": "supercar",
+    "price": 38000,
+    "color": "#3f66c4",
+    "finish": "gloss",
+    "style": "gtr",
+    "kit": "attack",
+    "exhaust": {
+      "id": "stock",
+      "tips": 2,
+      "perSide": 1,
+      "bore": 0.05,
+      "shape": "round",
+      "finish": "steel",
+      "pitch": 1,
+      "rasp": 1,
+      "loud": 1,
+      "pop": 1,
+      "power": 0,
+      "tone": {
+        "low": 1,
+        "mid": 1,
+        "high": 1
+      }
+    },
+    "lengthM": 4.6
+  },
+  {
+    "id": "efreet-rx",
+    "name": "Efreet RX",
+    "ar": "عفريت آر إكس",
+    "cls": "sport",
+    "price": 31000,
+    "color": "#d7263d",
+    "finish": "satin",
+    "style": "rx7",
+    "kit": "sport",
+    "exhaust": {
+      "id": "stock",
+      "tips": 2,
+      "perSide": 1,
+      "bore": 0.05,
+      "shape": "round",
+      "finish": "steel",
+      "pitch": 1,
+      "rasp": 1,
+      "loud": 1,
+      "pop": 1,
+      "power": 0,
+      "tone": {
+        "low": 1,
+        "mid": 1,
+        "high": 1
+      }
+    },
+    "lengthM": 4.3
+  },
+  {
+    "id": "zeta-300",
+    "name": "Zeta 300",
+    "ar": "زيتا ٣٠٠",
+    "cls": "sport",
+    "price": 27000,
+    "color": "#c1272d",
+    "finish": "gloss",
+    "style": "zx",
+    "kit": "sport",
+    "exhaust": {
+      "id": "stock",
+      "tips": 2,
+      "perSide": 1,
+      "bore": 0.05,
+      "shape": "round",
+      "finish": "steel",
+      "pitch": 1,
+      "rasp": 1,
+      "loud": 1,
+      "pop": 1,
+      "power": 0,
+      "tone": {
+        "low": 1,
+        "mid": 1,
+        "high": 1
+      }
+    },
+    "lengthM": 4.31
+  },
+  {
+    "id": "gulf-coupe-rs",
+    "name": "Gulf Coupe RS",
+    "ar": "كوبيه الخليج آر إس",
+    "cls": "sport",
+    "price": 33000,
+    "color": "#cb2027",
+    "finish": "gloss",
+    "style": "hatch",
+    "kit": "sport",
+    "exhaust": {
+      "id": "stock",
+      "tips": 2,
+      "perSide": 1,
+      "bore": 0.05,
+      "shape": "round",
+      "finish": "steel",
+      "pitch": 1,
+      "rasp": 1,
+      "loud": 1,
+      "pop": 1,
+      "power": 0,
+      "tone": {
+        "low": 1,
+        "mid": 1,
+        "high": 1
+      }
+    },
+    "lengthM": 4.28
+  },
+  {
+    "id": "salmiya-turbo",
+    "name": "Salmiya Turbo GT",
+    "ar": "تيربو السالمية جي تي",
+    "cls": "sport",
+    "price": 24000,
+    "color": "#b84dd6",
+    "finish": "gloss",
+    "style": "sedan",
+    "kit": "sport",
+    "exhaust": {
+      "id": "stock",
+      "tips": 2,
+      "perSide": 1,
+      "bore": 0.05,
+      "shape": "round",
+      "finish": "steel",
+      "pitch": 1,
+      "rasp": 1,
+      "loud": 1,
+      "pop": 1,
+      "power": 0,
+      "tone": {
+        "low": 1,
+        "mid": 1,
+        "high": 1
+      }
+    },
+    "lengthM": 4.64
+  },
+  {
+    "id": "hawally-2t",
+    "name": "Hawally Sport 2T",
+    "ar": "حولي سبورت ٢ تي",
+    "cls": "normal",
+    "price": 16000,
+    "color": "#f5c211",
+    "finish": "satin",
+    "style": "sedan",
+    "kit": "street",
+    "exhaust": {
+      "id": "stock",
+      "tips": 2,
+      "perSide": 1,
+      "bore": 0.05,
+      "shape": "round",
+      "finish": "steel",
+      "pitch": 1,
+      "rasp": 1,
+      "loud": 1,
+      "pop": 1,
+      "power": 0,
+      "tone": {
+        "low": 1,
+        "mid": 1,
+        "high": 1
+      }
+    },
+    "lengthM": 4.56
+  },
+  {
+    "id": "deera-sedan",
+    "name": "Deera Sedan",
+    "ar": "سيدان الديرة",
+    "cls": "normal",
+    "price": 8500,
+    "color": "#dfe3e8",
+    "finish": "gloss",
+    "style": "sedan",
+    "kit": "street",
+    "exhaust": {
+      "id": "stock",
+      "tips": 2,
+      "perSide": 1,
+      "bore": 0.05,
+      "shape": "round",
+      "finish": "steel",
+      "pitch": 1,
+      "rasp": 1,
+      "loud": 1,
+      "pop": 1,
+      "power": 0,
+      "tone": {
+        "low": 1,
+        "mid": 1,
+        "high": 1
+      }
+    },
+    "lengthM": 4.7
+  },
+  {
+    "id": "jahra-pickup",
+    "name": "Jahra Pickup",
+    "ar": "ونيت الجهراء",
+    "cls": "normal",
+    "price": 6000,
+    "color": "#6e7f8d",
+    "finish": "matte",
+    "style": "pickup",
+    "kit": "street",
+    "exhaust": {
+      "id": "stock",
+      "tips": 2,
+      "perSide": 1,
+      "bore": 0.05,
+      "shape": "round",
+      "finish": "steel",
+      "pitch": 1,
+      "rasp": 1,
+      "loud": 1,
+      "pop": 1,
+      "power": 0,
+      "tone": {
+        "low": 1,
+        "mid": 1,
+        "high": 1
+      }
+    },
+    "lengthM": 5.16
+  },
+  {
+    "id": "sharq-hatch",
+    "name": "Sharq Hatch",
+    "ar": "شرق هاتش",
+    "cls": "normal",
+    "price": 2200,
+    "color": "#16a34a",
+    "finish": "gloss",
+    "style": "hatch",
+    "kit": "street",
+    "exhaust": {
+      "id": "stock",
+      "tips": 2,
+      "perSide": 1,
+      "bore": 0.05,
+      "shape": "round",
+      "finish": "steel",
+      "pitch": 1,
+      "rasp": 1,
+      "loud": 1,
+      "pop": 1,
+      "power": 0,
+      "tone": {
+        "low": 1,
+        "mid": 1,
+        "high": 1
+      }
+    },
+    "lengthM": 3.95
+  },
+  {
+    "id": "wain-special",
+    "name": "Wain Special",
+    "ar": "وين سبيشال",
+    "cls": "normal",
+    "price": 0,
+    "color": "#f2f4f7",
+    "finish": "satin",
+    "style": "sedan",
+    "kit": "street",
+    "exhaust": {
+      "id": "stock",
+      "tips": 2,
+      "perSide": 1,
+      "bore": 0.05,
+      "shape": "round",
+      "finish": "steel",
+      "pitch": 1,
+      "rasp": 1,
+      "loud": 1,
+      "pop": 1,
+      "power": 0,
+      "tone": {
+        "low": 1,
+        "mid": 1,
+        "high": 1
+      }
+    },
+    "lengthM": 4.45
+  }
+]
