@@ -388,7 +388,7 @@ header('Cache-Control: public, max-age=0, must-revalidate');
                   color: rgba(255,255,255,.85); margin: 0 0 6px; }
   .hero h1 { font-size: clamp(1.5rem, 4vw, 2.4rem); font-weight: 800; margin: 0;
              color: #fff; text-shadow: 0 2px 12px rgba(0,0,0,.5); }
-  main { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
+  main { max-width: 1200px; margin: 0 auto; padding: 12px 20px; }
   .count { color: var(--sp-silver); font-size: .9rem; margin: 0 0 18px; }
   .grid {
     display: grid; gap: 16px;
