@@ -137,7 +137,9 @@ const SMOKE_N = 176;
  *  and 0.001 by nine-tenths — gone before it had spread, which is why a
  *  drift left no cloud behind it. */
 const SMOKE_TAU = 0.45;
-/** Sand is finer and thinner: 0.22 at birth, 0.036 once spread 2.6x. */
+/** Sand is finer and thinner: 0.22 at birth, 0.036 once spread 2.6x. The
+ *  same on every tier — the tier thins the smoke's spawn and thickens its
+ *  puffs to match, and touches neither for the sand (applySmokeBudget). */
 const DUST_TAU = 0.25;
 /**
  * The share of the sky's light a puff sends back to the eye, per unit of
@@ -1755,6 +1757,12 @@ export class GameEngine {
    *  rather than on top of it. */
   private crackleIn = 0;
   private smokeAcc = 0;
+  /** Every puff of tyre smoke ever spawned, counted: which tyre the next
+   *  one comes off. It runs on across frames because a frame's own batch
+   *  is seldom more than one puff, often none (see the spawn loop). A
+   *  double counts exactly to 2^53, which at 90 a second is three million
+   *  years of spinning. */
+  private smokeSeq = 0;
   /** The light the smoke and the sand are drawn in, written once a frame
    *  by lightSmoke(). Both pools hold these uniform objects by reference. */
   private smokeLight = smokeLight();
@@ -2793,13 +2801,23 @@ export class GameEngine {
    * a plume's opacity goes as puffs x tau, and thickening by 1/sqrt of the
    * budget gives back half of what the budget took — 1.35x at 0.55, 1.12x
    * at 0.8 — without making each puff a solid ball. Capped at 1.35.
+   *
+   * The SMOKE only. The sand's spawn rate is not scaled by the tier (see
+   * the sand block in update — the headless tests count its grains in
+   * performance mode), so there are no fewer grains to make up for.
+   * Thickening them by the same k gave every grain more optical depth —
+   * tau 0.25 to 0.28 on Balanced, to 0.34 on Battery and in performance
+   * mode — with as many of them in the air as on High: a lower tier
+   * drawing denser sand than the top one. It keeps DUST_TAU on every
+   * tier. The size cap below is a different matter, a cost and not a
+   * look, and both pools take it.
    */
   private applySmokeBudget(): void {
     if (!this.smokeFx || !this.dustFx) return;
     const h = this.renderer.getDrawingBufferSize(this.smokeBuf).y;
     const k = Math.min(1.35, 1 / Math.sqrt(this.smokeBudget));
     this.smokeFx.material.uniforms.uTau.value = SMOKE_TAU * k;
-    this.dustFx.material.uniforms.uTau.value = DUST_TAU * k;
+    this.dustFx.material.uniforms.uTau.value = DUST_TAU;
     this.smokeFx.setPointLimits(this.smokeCapFrac * h, this.maxPointPx);
     this.dustFx.setPointLimits(this.smokeCapFrac * h, this.maxPointPx);
   }
@@ -7610,15 +7628,14 @@ export class GameEngine {
       // wrong for every RWD one, which lit up its fronts. Lock-up is at
       // the fronts (brakes.ts) while the car runs straight and moves to
       // the rears as it turns sideways; a slide is the rears; a spin is
-      // all four.
+      // all four, and takes its tyres in turn in the loop below rather
+      // than by this share.
       const drive = this.tune.drive;
-      const frontShare = spinning
-        ? 0.5
-        : burnout
-          ? drive === "fwd" ? 1 : drive === "awd" ? 0.5 : 0
-          : locked
-            ? straight
-            : 0;
+      const frontShare = burnout
+        ? drive === "fwd" ? 1 : drive === "awd" ? 0.5 : 0
+        : locked
+          ? straight
+          : 0;
       // Thrown back off the tread, straight-line cases only.
       const kick = burnout || locked ? 2.2 : 0;
       // Slow is where a column can stand: from standstill a burnout
@@ -7626,15 +7643,31 @@ export class GameEngine {
       const slow = THREE.MathUtils.clamp(1 - speed / 20, 0, 1);
       this.track.tangentAt(this.player.s, this.smokeTan);
       for (let n = 0; n < spawn; n++) {
-        // In a spin, alternate two front and two rear rather than roll
-        // for it: two arches and two arches, which is what four wheels
-        // look like.
-        const front = spinning
-          ? n % 4 >= 2
-          : frontShare >= 1 || (frontShare > 0 && Math.random() < frontShare);
-        const first = front ? 0 : nf;
-        const pair = front ? nf : nHub - nf;
-        const hub = hubs[first + (n % pair)];
+        // WHICH TYRE, by smokeSeq — a count that runs on across frames —
+        // and never by `n`. `n` starts again at 0 every frame, and a
+        // frame's batch is rate x budget / fps: 1.5 puffs for a spin at
+        // 60 Hz, 0.83 on Battery's budget, 0.63 at 144 Hz, 1.2 or 0.83
+        // for a drift. So `n` was 0 for nearly every puff and never
+        // reached 2: a spin never smoked its fronts (0/0/67/33 by layout
+        // index at 60 Hz, 0/0/100/0 on Battery or at 144), and a burnout
+        // or a gentle drift poured everything off the one rear tyre at
+        // hubs[nf], whichever way the car was sliding — the one-sided
+        // plume this block was rebuilt to get rid of, back again through
+        // the hub's index.
+        const seq = this.smokeSeq++;
+        let hub: THREE.Vector3;
+        if (spinning) {
+          // Every tyre is sliding, so each hub in turn rather than rolled
+          // for: FL, FR, RL, RR — two arches and two arches, which is what
+          // four wheels look like. A trike's one front takes its third,
+          // not the half an axle-by-axle split would hand it.
+          hub = hubs[seq % nHub];
+        } else {
+          // Which axle by its share; which of its tyres by turns, so
+          // both sides of the car smoke alike.
+          const front = frontShare >= 1 || (frontShare > 0 && Math.random() < frontShare);
+          hub = front ? hubs[seq % nf] : hubs[nf + (seq % (nHub - nf))];
+        }
         // Which side of the car this hub is on, so the puff comes off the
         // outside of the tyre rather than out of the middle of it.
         const o = Math.sign((hub.x - px) * sx + (hub.z - pz) * sz);
@@ -7720,8 +7753,10 @@ export class GameEngine {
     // picked up off the ground. And it settles ON the road: groundY is a
     // floor now, where it used to be ignored without a bounce and the
     // sand sank 7 cm into the asphalt. The spawn rate is not scaled by
-    // the tier — see applySmokeBudget — because the headless tests run in
-    // performance mode and count grains.
+    // the tier, because the headless tests run in performance mode and
+    // count grains — and so nor is the thickness: with as many grains on
+    // every tier, a thicker grain on a lower one is just denser sand
+    // (applySmokeBudget).
     this.dustFx.update(dt, { drag: 1.5, gravity: 1.1, bounce: 0, groundY: 0.03 });
 
     // Both pools are lit now that both have moved, and ordered far to

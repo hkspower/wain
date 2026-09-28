@@ -250,19 +250,47 @@ check(dust.minY >= 0.029, `sand sinks into the road, to ${dust.minY.toFixed(3)} 
 // which was right for the five front-driven cars and wrong for every
 // rear-driven one — the default car lit up its fronts. Read in the car's
 // own frame (+z forward), from puffs too young to have drifted far.
+//
+// And BOTH of them. Which tyre a puff came off was picked by its index
+// in the frame's batch, and a batch is one puff or none — 50 a second
+// on Battery's budget is 0.46 a frame — so every puff of a burnout came
+// off the same rear tyre and the axle's mean z above could not tell.
+// Where each puff is born is read off spawn() itself, in the car's
+// frame at that instant: +x is one side of the car, -x the other.
 await stage();
 const burn = await page.evaluate(() => {
   const THREE = window.__grnThree;
   const e = window.__grnEngine;
+  const births = [];
+  const b = new THREE.Vector3();
+  const own = Object.getPrototypeOf(e.smokeFx).spawn;
+  e.smokeFx.spawn = function (x, y, z) {
+    e.carBody.updateWorldMatrix(true, false);
+    e.carBody.worldToLocal(b.set(x, y, z));
+    births.push(b.x);
+    return own.apply(this, arguments);
+  };
   e.player.speed = 3;
   let spin = 0;
-  for (let i = 0; i < 40; i++) {
-    e.setTouchInput({ throttle: 1, steer: 0 });
-    e.update(1 / 60);
-    e.player.lat = 0;
-    spin = Math.max(spin, e.wheelspin);
+  try {
+    for (let i = 0; i < 40; i++) {
+      e.setTouchInput({ throttle: 1, steer: 0 });
+      e.update(1 / 60);
+      e.player.lat = 0;
+      spin = Math.max(spin, e.wheelspin);
+    }
+  } finally {
+    // Back to the prototype's own spawn.
+    delete e.smokeFx.spawn;
   }
   e.setTouchInput({ throttle: 0 });
+  // A two-wheeled driven axle to split: a trike's one front wheel sits
+  // on the centre line and has no sides.
+  const wheels = e.carBody.userData.wheels ?? [];
+  const front = e.carBody.userData.wheelPlan?.front ?? 2;
+  const axle = e.tune.drive === "fwd" ? front : wheels.length - front;
+  const left = births.filter((x) => x > 0).length;
+  const right = births.filter((x) => x < 0).length;
   const g = e.smokeFx.points.geometry;
   const pos = g.getAttribute("position"), life = g.getAttribute("aLife"), age = g.getAttribute("aAge");
   const v = new THREE.Vector3();
@@ -274,14 +302,80 @@ const burn = await page.evaluate(() => {
     sum += v.z;
     n++;
   }
-  return { drive: e.tune.drive, spin: +spin.toFixed(2), n, meanZ: n ? +(sum / n).toFixed(2) : null, speed: +e.player.speed.toFixed(1) };
+  return {
+    drive: e.tune.drive, spin: +spin.toFixed(2), n, meanZ: n ? +(sum / n).toFixed(2) : null, speed: +e.player.speed.toFixed(1),
+    left, right, axle,
+  };
 });
 if (burn.spin > 3 && burn.n > 0) {
-  console.log(`burnout    ${burn.drive}, wheelspin ${burn.spin}, ${burn.n} young puffs at car-local z ${burn.meanZ} m (at ${burn.speed} m/s)`);
+  console.log(`burnout    ${burn.drive}, wheelspin ${burn.spin}, ${burn.n} young puffs at car-local z ${burn.meanZ} m (at ${burn.speed} m/s); born ${burn.left} on +x, ${burn.right} on -x`);
   if (burn.drive === "rwd") check(burn.meanZ < -0.8, `a rear-driven burnout smokes at z ${burn.meanZ} — not the rear tyres`);
   if (burn.drive === "fwd") check(burn.meanZ > 0.5, `a front-driven burnout smokes at z ${burn.meanZ} — not the front tyres`);
+  // Taken in turns, so the split is even to within a puff; 0.3 of them
+  // on the lighter side leaves room for that puff from two puffs up (1
+  // of 2, 1 of 3, 2 of 5).
+  const born = burn.left + burn.right;
+  if (burn.axle === 2 && born >= 2) {
+    check(Math.min(burn.left, burn.right) >= 0.3 * born,
+      `a burnout smokes one side of the car: ${burn.left} puffs born on +x, ${burn.right} on -x`);
+  }
 } else {
   console.log(`burnout    skipped: wheelspin ${burn.spin}, ${burn.n} young puffs — the launch did not light the tyres`);
+}
+
+// A spin is every tyre sliding, so every tyre smokes: the fronts as well
+// as the rears, both sides of each. The same frame-index pick meant the
+// fronts never did — at 60 Hz the batch index reached 1 now and then and
+// never 2, which is where the fronts started. Held in a spin the way the
+// audio test holds one — spinT AND a rate, or solveDrift ends it inside
+// the frame — and only puffs born while it was still a spin are counted.
+await stage();
+const spun = await page.evaluate(() => {
+  const THREE = window.__grnThree;
+  const e = window.__grnEngine;
+  const births = [];
+  const b = new THREE.Vector3();
+  const own = Object.getPrototypeOf(e.smokeFx).spawn;
+  e.smokeFx.spawn = function (x, y, z) {
+    if (e.ds.spinT > 0) {
+      e.carBody.updateWorldMatrix(true, false);
+      e.carBody.worldToLocal(b.set(x, y, z));
+      births.push([b.x, b.z]);
+    }
+    return own.apply(this, arguments);
+  };
+  try {
+    for (let i = 0; i < 40; i++) {
+      e.player.speed = 33;
+      e.driftYaw = 0.6;
+      e.ds.spinT = 0.1;
+      e.ds.spinRate = 3;
+      e.update(1 / 60);
+      e.player.lat = 0;
+    }
+  } finally {
+    delete e.smokeFx.spawn;
+    e.ds.spinT = 0;
+    e.ds.spinRate = 0;
+    e.driftYaw = 0;
+    e.player.speed = 0;
+  }
+  // Corners by the car's own axes: z > 0 is the front half.
+  const q = { fl: 0, fr: 0, rl: 0, rr: 0 };
+  for (const [x, z] of births) q[(z > 0 ? "f" : "r") + (x > 0 ? "l" : "r")]++;
+  const wheels = e.carBody.userData.wheels ?? [];
+  const front = e.carBody.userData.wheelPlan?.front ?? 2;
+  return { n: births.length, q, four: wheels.length === 4 && front === 2 };
+});
+if (spun.n >= 8 && spun.four) {
+  const { fl, fr, rl, rr } = spun.q;
+  console.log(`spin       ${spun.n} puffs born: front ${fl} +x / ${fr} -x, rear ${rl} +x / ${rr} -x`);
+  // Each hub in turn, so each corner has a quarter to within a puff; 0.15
+  // of them is that quarter with room at eight or more.
+  check(Math.min(fl, fr, rl, rr) >= 0.15 * spun.n,
+    `a spin does not smoke all four tyres: front ${fl}/${fr}, rear ${rl}/${rr} of ${spun.n}`);
+} else {
+  console.log(`spin       skipped: ${spun.n} puffs born in the spin${spun.four ? "" : ", and the car is not four-wheeled"}`);
 }
 
 // --- 1d. Smoke is lit by the hour and by the car --------------------

@@ -103,6 +103,10 @@ const r = await page.evaluate(async ([SPEED, DRIFT_S]) => {
     e.smokeFx.update(9, {});
     e.dustFx.update(9, {});
     e.smokeAcc = 0; e.dustAcc = 0;
+    // Which tyre the next puff comes off runs on from frame to frame, and
+    // from one drift to the next: back to the first hub, so the night's
+    // drift and the noon's smoke the same tyres in the same order.
+    e.smokeSeq = 0;
   };
   // The same drift every time: the whole engine's randomness seeded for
   // the length of it, not just the smoke's.
