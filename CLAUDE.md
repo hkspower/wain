@@ -472,6 +472,40 @@ Turning it on: run `supabase/schema.sql`, set the two variables, rebuild.
   With the secret set, a push to this branch deploys and **nobody uploads
   anything by hand**. Without it the run stops at the first step and says so.
 
+## The docroot, file by file — 28 September
+
+Every file under wain's docroot listed through `hosting_files_list-website-
+and-directories` (one call, depth 10: 680 entries, 499 files) and checked
+against the archive that put it there, which git still holds — `6f47756` for
+production, `1ffe0c9` for staging. **Byte-exact by size, every file**:
+production 249 of 249, staging 245 of 245, nothing missing and nothing
+altered. The only files no archive accounts for are the ones that should
+not be in one: `api/tts.php` (19,821, the 11 September install) and
+`api/deploy.php` (10,985 production, 11,421 staging, which is generated with
+its own paths). The crontab held sporta's eight and nothing else.
+
+Three things worth knowing, none of them harmful:
+
+- **Staging is BEHIND production** — `f48241d`, 17 September, against
+  production's `eb9bad9` of the 23rd. The 20 and 24 September deploys went
+  straight to production, so staging has neither the live-map work nor the
+  شوق call fixes. «Staging, then www» describes the design, not the recent
+  record.
+- **Six empty `_next/<commit>/` directories in production**, all 9–10
+  September commits. `next build` writes `_next/<buildId>/` as an empty
+  directory; the unzip deploys of those days extracted it, and `deploy.php`'s
+  prune tracks files, so a directory it never wrote a file into is one it
+  never walks up from. Empty and unreferenced; `rmdir` is the whole fix.
+- **`staging/default.php` is Hostinger's placeholder page**, 16,369 bytes,
+  written when the subdomain was created. Not wain's, not harmful — staging's
+  `index.html` is what `/` serves — and the only `.php` in either tree outside
+  `api/`.
+
+**Size is a strong check here and not a proof**: an edit that preserved a
+file's length would pass it. Content hashes would close that, and nothing on
+this connector returns one for a binary — which is why the hashed chunk
+names, content-addressed by the build, carry most of the weight.
+
 ## The 24 September deploy — `eb9bad9` is live
 
 **Read `build.json` before believing this file about what is live.** It said
