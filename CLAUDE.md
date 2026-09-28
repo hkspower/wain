@@ -506,7 +506,20 @@ file's length would pass it. Content hashes would close that, and nothing on
 this connector returns one for a binary — which is why the hashed chunk
 names, content-addressed by the build, carry most of the weight.
 
-## The 28 September deploy — `085c849` is live
+## The 28 September deploys — `0597056` is live
+
+The second of the day, twenty minutes after the first: the home hero's
+skyline drawn whole (see the comment over the hero in `app/page.tsx`).
+`{"ok":true,"deployed":249,"removed":3,"emptied":1}` at 09:06:02Z, first
+firing, job `3wb3ZExoZw` deleted and confirmed gone by a listing. `removed: 3`
+is exactly the change: the old site stylesheet and the two files in the
+previous build-id directory, which is the `emptied: 1`. The proof that the
+change itself landed is the stylesheet's content-hashed name —
+`css/2aab9c7c2f18f812.css` (88,486) is the only site stylesheet on disk —
+with `index.html` at 138,441 and `index.txt` at 68,042, both matching the
+archive.
+
+### `085c849`, earlier the same morning
 
 `{"ok":true,"version":"1.1.0","deployed":249,"removed":7,"emptied":1}` at
 08:46:02Z, read from the job's FIRST firing this time, because it was deleted
@@ -624,7 +637,7 @@ at the pinned URL.
 
 **The live build id trails HEAD on purpose, and that is not a failed deploy.**
 `build.json`, `_next/static/<sha>/` and `sw.js` all name the commit that built
-the archive — `085c849` as of 28 September; read `build.json` rather than this
+the archive — `0597056` as of 28 September; read `build.json` rather than this
 line, which has been stale before (see the 24 September section). HEAD moves
 past it on commits that change the planner, this file and nothing that ships —
 starting with the very commit that publishes the archive.
