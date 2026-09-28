@@ -41,15 +41,31 @@ export default function FindChoice() {
       {/* ---------- شوق: the call ---------- */}
       <section
         aria-label="كلّم شوق"
-        className="flex min-h-[50vh] items-center justify-center overflow-hidden bg-gradient-to-b from-sun-100 to-sand-50 px-4 pb-20 pt-10 sm:pb-24 sm:pt-14"
+        className="relative flex min-h-[50vh] items-center justify-center overflow-hidden bg-gradient-to-b from-sun-100 to-sand-50 px-4 pb-20 pt-10 sm:pb-24 sm:pt-14"
       >
-        <div className="mx-auto flex max-w-sm flex-col items-center gap-4 text-center">
+        {/* A glow, not a photo to pan across — see the comment over
+            glow-drift-a in globals.css for why this is the live page's
+            version of the camera drift a design exploration of this page
+            used on a portrait. */}
+        <div
+          aria-hidden="true"
+          className="animate-glow-drift-a pointer-events-none absolute start-1/2 top-1/3 size-[26rem] -translate-x-1/2 rounded-full bg-sun-300/40 blur-3xl"
+        />
+        <div className="relative mx-auto flex max-w-sm flex-col items-center gap-4 text-center">
           {/* A pill, not bare text — bare text at this weight read as loose
               on the gradient, one more label floating with nothing to hold
               it. The pill vocabulary is already the site's own (the tag
-              chips, the category rail's counts). */}
-          <span className="animate-reveal-up inline-flex items-center rounded-full bg-white/80 px-3.5 py-1.5 text-sm font-semibold text-sun-900 shadow-sm [animation-delay:80ms]">
+              chips, the category rail's counts). The equalizer beside it
+              names her as a VOICE the same way the kicker's words do. */}
+          <span className="animate-reveal-up inline-flex items-center gap-2 rounded-full bg-white/80 px-3.5 py-1.5 text-sm font-semibold text-sun-900 shadow-sm [animation-delay:80ms]">
             {WAIN_AI_COPY.role}
+            <span aria-hidden="true" className="inline-flex h-3.5 items-end gap-[3px] text-sun-600">
+              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "0.9s" }} />
+              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "1.25s", animationDelay: "-0.4s" }} />
+              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "0.7s", animationDelay: "-0.1s" }} />
+              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "1.1s", animationDelay: "-0.7s" }} />
+              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "0.8s", animationDelay: "-0.3s" }} />
+            </span>
           </span>
           <h2 className="animate-reveal-up font-display text-4xl font-bold text-ink-900 [animation-delay:180ms] sm:text-5xl">
             كلّم {WAIN_AI_COPY.name}
@@ -75,7 +91,7 @@ export default function FindChoice() {
           decorative echo of it, so it carries no heading role and is
           hidden from the accessibility tree rather than read twice. */}
       <div aria-hidden="true" className="relative z-10 flex justify-center">
-        <span className="animate-reveal-up -mt-6 inline-flex items-center gap-2 rounded-full border-2 border-ink-900 bg-white px-5 py-2.5 font-display text-base font-bold text-ink-900 shadow-lg [animation-delay:480ms] sm:-mt-7 sm:px-6 sm:py-3 sm:text-lg">
+        <span className="animate-badge-pop -mt-6 inline-flex items-center gap-2 rounded-full border-2 border-ink-900 bg-white px-5 py-2.5 font-display text-base font-bold text-ink-900 shadow-lg sm:-mt-7 sm:px-6 sm:py-3 sm:text-lg">
           كيف تبي تدوّر؟
         </span>
       </div>
@@ -83,9 +99,13 @@ export default function FindChoice() {
       {/* ---------- اكتب: the box ---------- */}
       <section
         aria-label="اكتب"
-        className="flex min-h-[50vh] items-center justify-center overflow-hidden bg-sea-950 px-4 pb-14 pt-20 text-white sm:pb-16 sm:pt-24"
+        className="relative flex min-h-[50vh] items-center justify-center overflow-hidden bg-sea-950 px-4 pb-14 pt-20 text-white sm:pb-16 sm:pt-24"
       >
-        <div className="mx-auto flex w-full max-w-sm flex-col items-center gap-4 text-center">
+        <div
+          aria-hidden="true"
+          className="animate-glow-drift-b pointer-events-none absolute bottom-1/4 end-1/2 size-[26rem] translate-x-1/2 rounded-full bg-sea-500/30 blur-3xl"
+        />
+        <div className="relative mx-auto flex w-full max-w-sm flex-col items-center gap-4 text-center">
           <span className="animate-reveal-up text-sm font-semibold text-sea-300 [animation-delay:580ms]">
             بالكتابة
           </span>
@@ -110,7 +130,7 @@ export default function FindChoice() {
             />
             <button
               type="submit"
-              className="inline-flex min-h-6 items-center gap-2 rounded-full bg-sea-600 px-6 font-display font-semibold text-white transition hover:bg-sea-700"
+              className="animate-cta-breathe inline-flex min-h-6 items-center gap-2 rounded-full bg-sea-600 px-6 font-display font-semibold text-white transition hover:bg-sea-700"
             >
               <IconSearch className="size-5" />
               ابحث

@@ -295,6 +295,103 @@ h1, h2, h3 {
   animation: reveal-up 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
+/* /find's two halves are flat colour, not photography, so there is no frame
+   to pan across the way a design exploration of this page did with a Ken
+   Burns drift over a portrait. This is the same idea translated to what the
+   live page actually has: a soft glow that slowly drifts and grows, one
+   period per half (22s / 26s, never in sync) so the page keeps a small
+   amount of life without anything to read as a distraction. */
+@keyframes glow-drift-a {
+  from {
+    transform: translate(-4%, -2%) scale(1);
+  }
+  to {
+    transform: translate(4%, 3%) scale(1.12);
+  }
+}
+@keyframes glow-drift-b {
+  from {
+    transform: translate(3%, 2%) scale(1.1);
+  }
+  to {
+    transform: translate(-3%, -3%) scale(1);
+  }
+}
+.animate-glow-drift-a {
+  animation: glow-drift-a 22s ease-in-out infinite alternate;
+}
+.animate-glow-drift-b {
+  animation: glow-drift-b 26s ease-in-out infinite alternate;
+}
+
+/* The seam pill between the two halves: pops in once reveal-up's stagger
+   reaches it, then floats gently forever after — the one element on the
+   page that keeps moving once everything has landed, since it is the thing
+   naming what both halves are answering. */
+@keyframes badge-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes badge-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+/* Delays are baked into the rule rather than set as a utility on the
+   element: two animations share one `animation-delay` list, so a single
+   external delay would apply to both and overwrite the gap this needs
+   between the pop finishing (~980ms) and the float starting after it. */
+.animate-badge-pop {
+  animation:
+    badge-pop 0.5s cubic-bezier(0.2, 0.9, 0.2, 1.2) 480ms both,
+    badge-float 4.5s ease-in-out 1s infinite;
+}
+
+/* Seven bars, seven periods, deliberately never a single wave — see the
+   equalizer note in the شوق call sheet's own CSS for the reasoning; this is
+   the same accent, next to the kicker line that names her as a voice. */
+@keyframes eq-bounce {
+  0%,
+  100% {
+    transform: scaleY(0.25);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.eq-bar {
+  animation: eq-bounce 1s ease-in-out infinite;
+  transform-origin: bottom;
+}
+
+/* A slow breathe on the one CTA that has no ring or pulse of its own — the
+   اكتب half's submit button. ShouqCallButton already animates its own ring
+   while a call rings, so it does not need this too; a second animation
+   layered on a button already managing its own phase transitions would be
+   the wrong place to add motion. */
+@keyframes cta-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
+}
+.animate-cta-breathe {
+  animation: cta-breathe 4.2s ease-in-out 2.4s infinite;
+}
+
 @keyframes pulse-ring {
   0% {
     transform: scale(0.92);
