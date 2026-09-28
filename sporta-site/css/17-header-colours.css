@@ -220,6 +220,13 @@
   header.app-header nav > a img {
     height: 2.75rem;
   }
+  /* MORE ROOM ABOVE AND BELOW — 2026-09-28, "make logo have more padding up
+     and down". 8px each side, on the link rather than the image, so the
+     lockup's size is unchanged and the bar grows by 16px. index.html's
+     .boot-head heights grew by the same 16px, or the hero jumps at mount. */
+  header.app-header nav > a:has(img) {
+    padding-block: 8px !important;
+  }
   @media (min-width: 768px) {
     header.app-header nav > a img {
       height: 3.25rem;
