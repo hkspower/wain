@@ -19,7 +19,7 @@ F_DISP = FONTS + "Italiana-Regular.ttf"
 F_TECH = FONTS + "Jura-Light.ttf"
 F_MED  = FONTS + "Jura-Medium.ttf"
 F_MONO = FONTS + "GeistMono-Regular.ttf"
-F_AR   = str(D / "fonts" / "tajawal-700.ttf")   # Tajawal, the site's own face
+F_AR   = str(D.parent / "almuhallab" / "fonts" / "cairo-700.woff2")   # Cairo, the site's own face
 
 INK        = (255, 255, 255)   # --bg: white surfaces, no dark theme, on the page as on the site
 INK_SOFT   = (241, 244, 248)   # --panel-2: the cool near-neutral grey for recessed surfaces
