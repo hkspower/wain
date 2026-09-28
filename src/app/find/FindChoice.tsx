@@ -1,14 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import ShouqCallButton from "@/components/ShouqCallButton";
 import { IconSearch } from "@/components/icons";
 import { WAIN_AI_COPY } from "@/lib/wain-ai";
 
 /**
- * The two ways to say what you want, drawn as one choice rather than found
- * along the way.
+ * The two ways to say what you want — one call, one box — drawn full-bleed,
+ * شوق's half over the typing half, rather than two cards in a page.
  *
  * This used to be the dial's own in-place panel: tap «إلى وين؟», get the
  * five nearest places, ranked live against a GPS fix taken in the same
@@ -18,47 +18,106 @@ import { WAIN_AI_COPY } from "@/lib/wain-ai";
  * answers the "nearest" case (شوق can ask where you are; nothing here
  * requests location any more).
  *
- * Two options, not three: شوق is one call, not two — سالم is a mid-call
- * voice swap (`WainAiCall`'s «بصوت سالم» button), not a second persona to
- * choose between up front. Naming him here would promise a different
+ * The lower half is labelled «اكتب», not «سالم» — asked and confirmed the
+ * same session this went from two plain cards to this fuller page. سالم is
+ * a mid-call voice swap (`WainAiCall`'s «بصوت سالم» button), not a second
+ * persona to put up front: naming him here would promise a different
  * assistant when it is the same one, in a different voice, one tap deeper.
+ * A visual design explored him as a second character; the product decision
+ * that ruled that out stands regardless of what a mockup drew.
  */
 export default function FindChoice() {
   const router = useRouter();
+  const [q, setQ] = useState("");
+
+  function submitSearch(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = q.trim();
+    router.push(trimmed ? `/search?q=${encodeURIComponent(trimmed)}` : "/search");
+  }
 
   return (
-    <div className="mt-8 grid gap-4 sm:grid-cols-2">
-      <Link
-        href="/search"
-        className="flex flex-col items-center gap-3 rounded-3xl border border-line bg-white p-8 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
+    <div className="relative">
+      {/* ---------- شوق: the call ---------- */}
+      <section
+        aria-label="كلّم شوق"
+        className="flex min-h-[50vh] items-center justify-center overflow-hidden bg-gradient-to-b from-sun-100 to-sand-50 px-4 pb-20 pt-10 sm:pb-24 sm:pt-14"
       >
-        <span className="grid size-20 place-items-center rounded-full bg-sea-50 text-sea-700">
-          <IconSearch className="size-9" />
-        </span>
-        <span className="font-display text-xl font-bold text-ink-900">اكتب</span>
-        <span className="text-sm text-ink-500">دوّر باسم المكان أو المنطقة</span>
-      </Link>
+        <div className="mx-auto flex max-w-sm flex-col items-center gap-4 text-center">
+          {/* A pill, not bare text — bare text at this weight read as loose
+              on the gradient, one more label floating with nothing to hold
+              it. The pill vocabulary is already the site's own (the tag
+              chips, the category rail's counts). */}
+          <span className="animate-reveal-up inline-flex items-center rounded-full bg-white/80 px-3.5 py-1.5 text-sm font-semibold text-sun-900 shadow-sm [animation-delay:80ms]">
+            {WAIN_AI_COPY.role}
+          </span>
+          <h2 className="animate-reveal-up font-display text-4xl font-bold text-ink-900 [animation-delay:180ms] sm:text-5xl">
+            كلّم {WAIN_AI_COPY.name}
+          </h2>
+          {/* text-pretty so the last line never strands one short word on its
+              own — «وأدلّك.» was doing exactly that before this. */}
+          <p className="animate-reveal-up text-pretty text-base leading-relaxed text-ink-600 [animation-delay:280ms]">
+            {WAIN_AI_COPY.greeting}
+          </p>
+          <div className="animate-reveal-up mt-1 flex flex-col items-center gap-2 [animation-delay:380ms]">
+            <ShouqCallButton size="lg" className="bg-white shadow-md" onTapped={() => router.push("/search")} />
+            {/* ink-700, matching SearchHub's identical call-hint span —
+                ink-500 was a shade lighter than the site's own convention
+                for this exact role. */}
+            <span className="text-sm font-semibold text-ink-700">{WAIN_AI_COPY.callHint}</span>
+          </div>
+        </div>
+      </section>
 
-      {/* Not a button wrapping ShouqCallButton — the two are the same
-          control, and nesting them would either bury the real one under a
-          dead click target or (nested <button>s are invalid) break it
-          outright. The real ShouqCallButton IS the tap target here; the
-          heading and hint beside it are label, not a second control — same
-          shape as `SearchHub`, which sits it next to a hint span for the
-          identical reason: a bespoke button drawn to look like this one
-          would ring silently, because the tap has to spend the user gesture
-          on haptic/primeAudio synchronously, inside the real component. */}
-      <div className="flex flex-col items-center gap-3 rounded-3xl border border-line bg-white p-8 text-center shadow-sm">
-        <ShouqCallButton
-          size="lg"
-          className="bg-coral-50"
-          onTapped={() => router.push("/search")}
-        />
-        <span className="font-display text-xl font-bold text-ink-900">
-          كلّم {WAIN_AI_COPY.name}
+      {/* ---------- seam: one question over both halves ----------
+          The page's real heading is the sr-only <h1> in page.tsx, read
+          first regardless of where this sits visually — this pill is a
+          decorative echo of it, so it carries no heading role and is
+          hidden from the accessibility tree rather than read twice. */}
+      <div aria-hidden="true" className="relative z-10 flex justify-center">
+        <span className="animate-reveal-up -mt-6 inline-flex items-center gap-2 rounded-full border-2 border-ink-900 bg-white px-5 py-2.5 font-display text-base font-bold text-ink-900 shadow-lg [animation-delay:480ms] sm:-mt-7 sm:px-6 sm:py-3 sm:text-lg">
+          كيف تبي تدوّر؟
         </span>
-        <span className="text-sm text-ink-500">{WAIN_AI_COPY.callHint}</span>
       </div>
+
+      {/* ---------- اكتب: the box ---------- */}
+      <section
+        aria-label="اكتب"
+        className="flex min-h-[50vh] items-center justify-center overflow-hidden bg-sea-950 px-4 pb-14 pt-20 text-white sm:pb-16 sm:pt-24"
+      >
+        <div className="mx-auto flex w-full max-w-sm flex-col items-center gap-4 text-center">
+          <span className="animate-reveal-up text-sm font-semibold text-sea-300 [animation-delay:580ms]">
+            بالكتابة
+          </span>
+          <h2 className="animate-reveal-up font-display text-4xl font-bold text-white [animation-delay:680ms] sm:text-5xl">
+            اكتب
+          </h2>
+          <p className="animate-reveal-up text-base leading-relaxed text-sea-100 [animation-delay:780ms]">
+            دوّر باسم المكان أو المنطقة — يطلع لك اللي تبيه على الخريطة وبالقائمة.
+          </p>
+          <form onSubmit={submitSearch} className="animate-reveal-up mt-1 flex w-full items-stretch gap-2 [animation-delay:880ms]">
+            <label htmlFor="find-q" className="sr-only">
+              دوّر باسم المكان أو المنطقة
+            </label>
+            <input
+              id="find-q"
+              name="q"
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="دوّر باسم المكان…"
+              className="h-14 min-w-0 flex-1 rounded-full bg-white px-5 text-base text-ink-900 placeholder:text-ink-400"
+            />
+            <button
+              type="submit"
+              className="inline-flex min-h-6 items-center gap-2 rounded-full bg-sea-600 px-6 font-display font-semibold text-white transition hover:bg-sea-700"
+            >
+              <IconSearch className="size-5" />
+              ابحث
+            </button>
+          </form>
+        </div>
+      </section>
     </div>
   );
 }

@@ -276,6 +276,25 @@ h1, h2, h3 {
   animation: drift 14s ease-in-out infinite alternate;
 }
 
+/* Reveal-on-mount for /find's شوق/اكتب split. `both` holds the end state, so
+   a paint that lands after the animation has finished (or under the
+   reduced-motion reset above, which zeroes the duration) still shows the
+   settled position rather than the pre-animation opacity:0. */
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-reveal-up {
+  animation: reveal-up 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
 @keyframes pulse-ring {
   0% {
     transform: scale(0.92);

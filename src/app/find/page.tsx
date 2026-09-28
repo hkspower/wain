@@ -15,11 +15,13 @@ export const metadata: Metadata = {
  */
 export default function FindPage() {
   return (
-    <div className="mx-auto max-w-3xl px-2.5 py-2 sm:px-4 sm:py-3">
-      <h1 className="text-center font-display text-3xl font-bold text-ink-900 sm:text-4xl">
-        كيف تبي تدوّر؟
-      </h1>
+    <>
+      {/* The visible «كيف تبي تدوّر؟» is a decorative pill inside
+          FindChoice now, straddling its two full-bleed halves and hidden
+          from the accessibility tree — this is the real heading, read
+          first regardless of where the pill sits on screen. */}
+      <h1 className="sr-only">كيف تبي تدوّر؟</h1>
       <FindChoice />
-    </div>
+    </>
   );
 }

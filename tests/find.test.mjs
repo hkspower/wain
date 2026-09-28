@@ -47,11 +47,13 @@ console.log('\n── the dial no longer opens its own panel ──');
 console.log('\n── /find offers exactly the two ──');
 {
   const { ctx, p, errors } = await fresh('/find/');
-  const typeLink = p.locator('main a[href="/search"], main a[href="/search/"]');
+  // A real input, not a link — the box is functional now, not a shortcut
+  // past the choice.
+  const typeInput = p.locator('#find-q');
   // The real ShouqCallButton — its accessible name names شوق, which a
   // bespoke look-alike button would have no reason to get right.
   const shouqButton = p.getByRole('button', { name: /شوق/ });
-  ok('typing is offered, as a link to /search', await typeLink.isVisible());
+  ok('typing is offered, as a real search box', await typeInput.isVisible());
   ok('كلّم شوق is offered, as the real call button', await shouqButton.isVisible());
   ok('nothing here names سالم — not a top-level choice', !(await p.locator('text=سالم').count()));
   const box = await shouqButton.boundingBox();
@@ -63,12 +65,22 @@ console.log('\n── /find offers exactly the two ──');
   await ctx.close();
 }
 
-console.log('\n── اكتب goes straight to /search ──');
+console.log('\n── اكتب is a real box: it carries what you typed ──');
 {
   const { ctx, p } = await fresh('/find/');
-  await p.locator('main a[href="/search"], main a[href="/search/"]').click();
+  await p.locator('#find-q').fill('قهوة');
+  await p.getByRole('button', { name: 'ابحث' }).click();
   await p.waitForURL('**/search/**');
-  ok('landed on /search', p.url().includes('/search'));
+  ok('landed on /search with the query', p.url().includes('q=%D9%82%D9%87%D9%88%D8%A9'));
+  await ctx.close();
+}
+
+console.log('\n── an empty box still goes to /search ──');
+{
+  const { ctx, p } = await fresh('/find/');
+  await p.getByRole('button', { name: 'ابحث' }).click();
+  await p.waitForURL('**/search/**');
+  ok('landed on /search, no dangling ?q=', !p.url().includes('q='));
   await ctx.close();
 }
 

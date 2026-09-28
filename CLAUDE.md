@@ -2333,6 +2333,67 @@ survived into the hand-adapted live copy is unread this session; say so
 rather than assuming either way, and check with `agents_get` before treating
 her live behaviour on this one question as fixed.
 
+### `/find` became the full page, not a menu to it — 28 September
+
+The two cards above were a menu: pick one, then land somewhere else. `/find`
+is now two full-bleed halves — شوق's warm half on top, a real search box in
+a dark half below — because a design canvas explored exactly that split for
+this page and the live version is worth having, minus what a canvas mockup
+can get away with that a real page cannot.
+
+**The lower half is labelled «اكتب», not «سالم», and that took asking.** The
+canvas that explored this layout drew him as a full second character — a
+typing persona beside شوق's calling one — which is precisely what «Two
+choices, not three» above rules out. Asked which should win before building
+either: keep the existing decision, or reverse it because the canvas drew it
+differently. Answer: keep it. A visual exploration is not a product decision,
+and this file's own reasoning for leaving him out doesn't change because a
+mockup drew him in.
+
+**The box is real now, not a link.** It used to be a plain `<a href="/search">`
+card; it is a `<form>` with a real `<input id="find-q">` and a submit button
+now, so a query typed on `/find` reaches `/search?q=…` already filled in
+rather than being dropped at the door. Empty submit still goes to bare
+`/search`, same as the old card did. `tests/find.test.mjs` was rewritten to
+match — it used to click a link, it fills the box and reads the URL's `q=`
+now — and a fourth assertion (empty submit, no dangling `?q=`) was added
+alongside it.
+
+**The seam pill is decorative, and the real `<h1>` is `sr-only`.** «كيف تبي
+تدوّر؟» used to be the page's one visible heading, centred above two cards.
+Splitting the page into two full-bleed sections put the two halves' own
+`<h2>`s first in reading order if the old heading stayed a real heading where
+it now sits — visually between them, DOM-order after the first section's
+content. Rather than let a screen reader meet a page with no `<h1>` at all,
+or an `<h1>` after an `<h2>`, the real heading moved to a `sr-only` line at
+the top of `page.tsx`, and the pill between the two halves is `aria-hidden` —
+seen, not announced, and not announced twice with the real one either.
+
+**A real contrast measurement caught what the design canvas's own palette
+would not have.** The submit button first shipped `bg-sea-500` with white
+text — 3.34:1, under the 4.5:1 the site's own `audit:color` requires at 16px.
+Every other white-on-sea button on the site already uses `sea-600`/hover
+`sea-700` (`Orders.tsx`, `Queue.tsx`, `PlaceMap.tsx`) — matching that
+existing pattern was both the fix and the thing that should have been reached
+for first.
+
+**Motion is one keyframe, `reveal-up`, staggered by inline `animation-delay`
+on each line.** It needs no reduced-motion rule of its own: `globals.css`
+already zeroes every animation's duration under `prefers-reduced-motion`
+site-wide, `!important`, so a new keyframe is safe by construction rather
+than by remembering to guard it again.
+
+**«improve style text inside sun» was the شوق half specifically** — its
+background is the one gradient on the page that is actually sun-toned
+(`from-sun-100 to-sand-50`; the lower half is `sea-950`, not sun anything).
+Three changes: the kicker line («دليلتك في الكويت») moved from bare text to
+a pill, matching the chip vocabulary the rest of the site already uses
+instead of floating unstyled on the gradient; the greeting paragraph got
+`text-pretty` because its last line — «— وأدلّك.» — was stranding one short
+word on its own row; and the call hint below the button moved from
+`ink-500` to `ink-700` to match `SearchHub`'s identical-purpose hint span,
+which was already the site's own convention for this exact role.
+
 ## The Arabic prose has been read, once, on purpose
 
 `npm run audit:arabic` says so itself: it checks invisible characters, wrong-
