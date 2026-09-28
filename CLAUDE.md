@@ -2696,8 +2696,8 @@ instead of leaving» failed once — the tap navigated to
 `/places/mubarakiya-tea-houses/` — and then passed six reruns in a row on the
 same build. Roughly one run in nine that day, against one in three before the
 initialiser fix, so the fix narrowed the window rather than shutting it. The
-failing run was the first suite after a fresh `next build`, which is the
-coldest the page ever is. Not investigated further; the next person who sees it
+failing run was the first full `test:hangout` after a fresh `next build`. Not
+investigated further; the next person who sees it
 should start from what else a first tap can race besides `useHoverless`.
 
 **What could NOT be verified here: a painted tile.** `tile.openstreetmap.org`,
