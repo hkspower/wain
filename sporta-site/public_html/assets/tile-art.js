@@ -55,9 +55,19 @@
      `.tile-women` — rather than by position among the four. A tile chosen by
      position is a tile chosen at random: the order is the server's, from
      ?r=slides, and it has changed before. */
-  var TILE = '.tile-women'
-  var FROM = 'art-women'
-  var TO = 'art-women-rtl'
+  /* THREE TILES SINCE 2026-09-28. The white-ground art puts the subject on
+     the far side from the copy for every category, so accessories and outlet
+     have an Arabic frame now too; the bundle still names only men. One table,
+     and the module-level TILE/FROM/TO are set per entry as apply() walks it,
+     so every function below keeps reading the same three names. */
+  var TILES = [
+    { tile: '.tile-women', from: 'art-women' },
+    { tile: '.tile-acc', from: 'art-accessories' },
+    { tile: '.tile-outlet', from: 'art-outlet' },
+  ]
+  var TILE = TILES[0].tile
+  var FROM = TILES[0].from
+  var TO = FROM + '-rtl'
 
   /** Arabic is asked of the DOCUMENT, not of localStorage: the boot script and
    *  the bundle both write `lang`/`dir`, and what is on the element is what the
@@ -72,7 +82,7 @@
    *  descriptor and any other candidate alone. Anchored on the filename so it
    *  cannot touch art-women-rtl (already done) or a path merely containing it. */
   function swap(value) {
-    return value.replace(/art-women(?=\.(webp|jpg|jpeg|png))/g, TO)
+    return value.replace(new RegExp(FROM + '(?=\\.(webp|jpg|jpeg|png))', 'g'), TO)
   }
 
   /** Every URL a node would be swapped to, or null if it cannot be swapped
@@ -176,10 +186,15 @@
   }
 
   function apply() {
-    var tiles = document.querySelectorAll(TILE)
-    for (var i = 0; i < tiles.length; i++) {
-      if (isArabic()) applyTile(tiles[i])
-      else revertTile(tiles[i])
+    for (var t = 0; t < TILES.length; t++) {
+      TILE = TILES[t].tile
+      FROM = TILES[t].from
+      TO = FROM + '-rtl'
+      var tiles = document.querySelectorAll(TILE)
+      for (var i = 0; i < tiles.length; i++) {
+        if (isArabic()) applyTile(tiles[i])
+        else revertTile(tiles[i])
+      }
     }
   }
 

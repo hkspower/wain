@@ -3774,3 +3774,22 @@ main article h3[class~="line-clamp-1"] {
 }
 /* Latin only: tracking breaks Arabic's joined letters (see 14-hero-haze-and-type.css). */
 [dir=ltr] .sporta-brand-name { letter-spacing: .04em; }
+/* ===========================================================================
+ * CATEGORY TILES ON WHITE — 2026-09-28, "make all category images white with
+ * orange frills, sporty modern style", approved from the design mockup.
+ * ===========================================================================
+ *
+ * The artwork is now a white studio ground with an orange band behind the
+ * subject (scripts/make-white-tiles.py builds all of it). The bundle draws
+ * the tile's copy in WHITE over a dark scrim, which is right for the old
+ * dark art and invisible on this — so the copy goes dark, the eyebrow takes
+ * the brand orange, and the scrim is switched off. The arrow button keeps
+ * its orange disc; the bundle's layout and type are untouched. */
+.cat-tile { color: #141413 !important; }
+.cat-tile .cat-scrim { display: none !important; }
+.cat-tile .eyebrow { color: #e0561c !important; }
+.cat-tile .cat-tile__title { color: #141413 !important; }
+.cat-tile p:not(.eyebrow) { color: #4b4f55 !important; }
+/* The tiles sit on the page's dark ground; a hairline keeps a white tile from
+ * reading as a gap between two dark blocks. */
+.cat-tile { outline: 1px solid rgba(0, 0, 0, .08); outline-offset: -1px; }

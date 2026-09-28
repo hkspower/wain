@@ -58,6 +58,10 @@ async function census(url, width) {
     if (path.startsWith('/cats/')) hits.push({ path, status: r.status() })
   })
   await page.goto(url, { waitUntil: 'networkidle' })
+  // The tiles are full-width since 2026-09-28, so on a desktop the lower ones
+  // sit below the fold and lazy-load; scroll them into view before measuring,
+  // or the rig counts an unloaded tile as a missing one.
+  await page.evaluate(async () => { for (let y = 0; y <= document.body.scrollHeight; y += 600) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 120)) } window.scrollTo(0, 0) })
   await page.waitForTimeout(3000)
   const broken = await page.evaluate(() =>
     [...document.images].filter((i) => i.complete && i.naturalWidth === 0).map((i) => i.src)

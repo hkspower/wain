@@ -53,6 +53,10 @@ async function tiles({ w, h, dpr, lang }) {
     if (/\/cats\//.test(r.url()) && r.status() !== 200) bad.push(`${r.status()} ${new URL(r.url()).pathname}`)
   })
   await page.goto(`${BASE}/?lang=${lang}`, { waitUntil: 'networkidle' })
+  // The tiles are full-width since 2026-09-28, so on a desktop the lower ones
+  // sit below the fold and lazy-load; scroll them into view before measuring,
+  // or the rig counts an unloaded tile as a missing one.
+  await page.evaluate(async () => { for (let y = 0; y <= document.body.scrollHeight; y += 600) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 120)) } window.scrollTo(0, 0) })
   await page.waitForTimeout(900)
   const art = await page.evaluate(() => {
     const out = {}
@@ -81,6 +85,10 @@ for (const v of [{ w: 1440, h: 900, dpr: 2, lang: 'ar', label: 'desktop' },
   check(Object.keys(art).length >= 2, `${v.label}: found the tiles`, Object.keys(art).join(','))
   check(art.men === 'art-men-rtl', `${v.label}: the men's tile is the Arabic frame`, art.men)
   check(art.women === 'art-women-rtl', `${v.label}: the women's tile is the Arabic frame`, art.women)
+  // Since 2026-09-28 (white-ground art, subject on the far side) these two
+  // have an Arabic frame as well, swapped by the same overlay.
+  check(art.accessories === 'art-accessories-rtl', `${v.label}: the accessories tile is the Arabic frame`, art.accessories)
+  check(art.outlet === 'art-outlet-rtl', `${v.label}: the outlet tile is the Arabic frame`, art.outlet)
   check(bad.length === 4, `${v.label}: exactly the four known plain-name 404s`, `${bad.length}: ${bad.join(' | ')}`)
 }
 
@@ -104,6 +112,10 @@ console.log('\n--- and it survives the language being switched on the page')
   // the page simply goes back to the English frame under an Arabic shopper.
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 })
   await page.goto(`${BASE}/?lang=en`, { waitUntil: 'networkidle' })
+  // The tiles are full-width since 2026-09-28, so on a desktop the lower ones
+  // sit below the fold and lazy-load; scroll them into view before measuring,
+  // or the rig counts an unloaded tile as a missing one.
+  await page.evaluate(async () => { for (let y = 0; y <= document.body.scrollHeight; y += 600) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 120)) } window.scrollTo(0, 0) })
   await page.waitForTimeout(800)
   const before = await page.evaluate(() =>
     (/art-women(-rtl)?/.exec([...document.images].map((i) => i.currentSrc).join(' ')) || [''])[0])
@@ -139,6 +151,10 @@ console.log('\n--- and if the Arabic artwork is unavailable, today\'s picture st
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 })
   await page.route('**/cats/**/art-women-rtl.*', (r) => r.abort())
   await page.goto(`${BASE}/?lang=ar`, { waitUntil: 'networkidle' })
+  // The tiles are full-width since 2026-09-28, so on a desktop the lower ones
+  // sit below the fold and lazy-load; scroll them into view before measuring,
+  // or the rig counts an unloaded tile as a missing one.
+  await page.evaluate(async () => { for (let y = 0; y <= document.body.scrollHeight; y += 600) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 120)) } window.scrollTo(0, 0) })
   await page.waitForTimeout(2500)
 
   const r = await page.evaluate(() => {
