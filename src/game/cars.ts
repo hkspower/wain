@@ -3517,9 +3517,9 @@ function plateTexture(reg: string): THREE.CanvasTexture {
   ctx.fillStyle = "#f4f6fa";
   ctx.textAlign = "center";
   ctx.font = `700 34px ${arabicUI()}`;
-  ctx.fillText("الكويت", 9 + bandW / 2, 56);
+  ctx.fillText("الليل", 9 + bandW / 2, 56);
   ctx.font = `700 20px ${latinDisplay()}`;
-  ctx.fillText("KUWAIT", 9 + bandW / 2, 88);
+  ctx.fillText("NIGHT", 9 + bandW / 2, 88);
 
   // The number. Black, heavy, and sized to the space that is left rather
   // than to a constant — a six-digit registration and a one-digit one

@@ -171,7 +171,7 @@ export const PARTS: Part[] = [
   { id: "nos", cat: "extras", name: "NOS Kit", ar: "نيترو", price: 1000, desc: "Hold N for a 3-second shove; recharges slowly" },
   { id: "spoiler", cat: "extras", name: "GT Wing", ar: "جناح", price: 300, desc: "Downforce: steadier at speed" },
   { id: "gold-rims", cat: "extras", name: "Gold Rims", ar: "رنجات ذهب", price: 600, desc: "Pure Salmiya energy" },
-  { id: "stickers", cat: "extras", name: "Rally Sticker Pack", ar: "ملصقات", price: 450, desc: "Door roundels, beltline stripes, hood decal, Kuwait flag on the fender" },
+  { id: "stickers", cat: "extras", name: "Rally Sticker Pack", ar: "ملصقات", price: 450, desc: "Door roundels, beltline stripes, hood decal, a flag on the fender" },
   { id: "sticker-full", cat: "extras", name: "Full-Length Side Graphic", ar: "ملصق جانبي كامل", price: 380, desc: "One sticker from the nose to the tail, cut to follow the body. Sits under the rally pack, so the two can be worn together" },
   // Tyre sidewall lettering. Its own slot, so it survives a change of
   // compound — and purely cosmetic, which the descriptions say out loud
@@ -202,7 +202,7 @@ export const PARTS: Part[] = [
   // on the way. None of them changes how the car drives. A fourth roll
   // was cut for looking identical to one of these — see the note in
   // src/game/tint.ts before adding one.
-  { id: "film-dyed", cat: "film", name: "Dyed Film", ar: "فيلم ملوّن", price: 180, desc: "The cheap roll. Dye in the adhesive: flat, a touch warm, and never quite neutral — this is the film that goes purple in a Kuwaiti summer. Cosmetic" },
+  { id: "film-dyed", cat: "film", name: "Dyed Film", ar: "فيلم ملوّن", price: 180, desc: "The cheap roll. Dye in the adhesive: flat, a touch warm, and never quite neutral — this is the film that goes purple in a Gulf summer. Cosmetic" },
   { id: "film-carbon", cat: "film", name: "Carbon Film", ar: "فيلم كاربون", price: 520, desc: "Carbon instead of dye. Properly dark, stays charcoal, no metal in it — the cabin disappears behind it. Cosmetic" },
   { id: "film-mirror", cat: "film", name: "Mirrored Film", ar: "فيلم عاكس", price: 950, desc: "Metallised: it throws the light back instead of soaking it up, so the glass comes out brighter than bare and all anyone sees in it is the street behind them. Cosmetic" },
 

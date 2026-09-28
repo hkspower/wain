@@ -64,14 +64,14 @@ export const NAME: Bi = {
 };
 
 export const TAGLINE: Bi = {
-  en: "Kuwait's corniche, from midnight to ten to six.",
-  ar: "كورنيش الكويت، من منتصف الليل إلى الساعة ٥:٥٠.",
+  en: "The city sleeps. The road is yours — midnight to 05:50.",
+  ar: "المدينة نايمة، والشارع لك — من منتصف الليل إلى ٥:٥٠.",
 };
 
 export const INTRO: Bi = {
   en:
     "An 8.5 km lap of Arabian Gulf Street and the Second Ring Road, driven at " +
-    "the hour Kuwait actually drives it. Flash your headlights at someone who " +
+    "the hour the city actually drives it. Flash your headlights at someone who " +
     "is worth the trouble, agree a distance and a stake, and settle it between " +
     "the roundabouts. It runs in a browser — there is nothing to install.",
   ar: "لفة طولها ٨٫٥ كيلومتر على شارع الخليج العربي والدائري الثاني، في الساعة التي تقاد فيها فعلا. غمّض أضويتك لأحدهم يستاهل، اتفقوا على المسافة والمبلغ، وخلّصوها بين الدوارات. تشتغل داخل المتصفح — ما في شي تنزّله.",
@@ -97,10 +97,10 @@ export const GALLERY: Shot[] = [
   },
   {
     src: "towers.webp",
-    alt: { en: "Kuwait Towers on the approach", ar: "أبراج الكويت على الطريق" },
+    alt: { en: "The Towers on the approach", ar: "الأبراج على الطريق" },
     caption: {
-      en: "Kuwait Towers, on the approach. The landmarks are where they are in life.",
-      ar: "أبراج الكويت على الطريق. المعالم في مواضعها الحقيقية.",
+      en: "The Towers, on the approach. The landmarks are where they are in life.",
+      ar: "الأبراج على الطريق. المعالم في مواضعها الحقيقية.",
     },
   },
   {
@@ -115,8 +115,8 @@ export const GALLERY: Shot[] = [
     src: "city.webp",
     alt: { en: "The city skyline behind the road", ar: "أفق المدينة خلف الشارع" },
     caption: {
-      en: "Kuwait City behind the barrier, lit the way it is lit at night.",
-      ar: "مدينة الكويت خلف الحاجز، بإضاءتها الليلية.",
+      en: "The city behind the barrier, lit the way it is lit at night.",
+      ar: "المدينة خلف الحاجز، بإضاءتها الليلية.",
     },
   },
   {
@@ -189,15 +189,15 @@ export const GALLERY: Shot[] = [
 export const PILLARS: Pillar[] = [
   {
     icon: "🕛",
-    title: { en: "It runs on Kuwait's clock", ar: "تمشي على توقيت الكويت" },
+    title: { en: "It runs on a real clock", ar: "تمشي على توقيت حقيقي" },
     body: {
       en:
-        "The sky is the real sky over Kuwait, to the second, and racing is open " +
+        "The sky is the real sky over the Gulf Road, to the second, and racing is open " +
         "from midnight until 05:50 — because that is when this happens. Drive the " +
         "road at any hour you like; you will not find anyone to race at four in " +
-        "the afternoon. If your afternoon is Kuwait's afternoon, the settings let " +
+        "the afternoon. If your afternoon is the road's afternoon, the settings let " +
         "you pin the hour.",
-      ar: "السماء هي سماء الكويت الحقيقية بالثانية، والسباق مفتوح من منتصف الليل إلى ٥:٥٠ — لأن هذا وقته. سق الشارع في أي ساعة تبي؛ بس ما راح تلقى أحد يسابقك الساعة أربع العصر. وإذا كان عصرك هو عصر الكويت، الإعدادات تخليك تثبّت الساعة.",
+      ar: "السماء هي سماء شارع الخليج الحقيقية بالثانية، والسباق مفتوح من منتصف الليل إلى ٥:٥٠ — لأن هذا وقته. سق الشارع في أي ساعة تبي؛ بس ما راح تلقى أحد يسابقك الساعة أربع العصر. وإذا كان عصرك هو عصر الشارع، الإعدادات تخليك تثبّت الساعة.",
     },
   },
   {
@@ -245,9 +245,9 @@ export const ROAD: { heading: Bi; body: Bi; districtsLabel: Bi; roadsLabel: Bi }
       "One lap is two roads: 3.4 km of Arabian Gulf Street with the water on " +
       "your left, then the Second Ring Road back through the city. Ten districts, " +
       "in the order you pass them. The district boundaries are the real ones and " +
-      "the landmarks are where they are in life — Kuwait Towers, Love Street, the " +
+      "the landmarks are where they are in life — the Towers, Love Street, the " +
       "Ras Al-Ard point, the forecourts in Shuwaikh.",
-    ar: "اللفة الواحدة شارعان: ٣٫٤ كيلومتر من شارع الخليج العربي والبحر على يسارك، ثم الدائري الثاني رجوعا عبر المدينة. عشر مناطق، بالترتيب اللي تمر فيه عليها. حدود المناطق هي الحدود الحقيقية، والمعالم في مواضعها — أبراج الكويت، وشارع الحب، ورأس الأرض، ومحطات الشويخ.",
+    ar: "اللفة الواحدة شارعان: ٣٫٤ كيلومتر من شارع الخليج العربي والبحر على يسارك، ثم الدائري الثاني رجوعا عبر المدينة. عشر مناطق، بالترتيب اللي تمر فيه عليها. حدود المناطق هي الحدود الحقيقية، والمعالم في مواضعها — الأبراج، وشارع الحب، ورأس الأرض، ومحطات الشويخ.",
   },
   districtsLabel: { en: "Districts, in lap order", ar: "المناطق بترتيب اللفة" },
   roadsLabel: { en: "The two roads", ar: "الشارعان" },
@@ -271,7 +271,7 @@ export const DISTRICTS: Bi[] = [
   { en: "Mansuriya", ar: "المنصورية" },
   { en: "Da'iya", ar: "الدعية" },
   { en: "Dasma", ar: "الدسمة" },
-  { en: "Kuwait City", ar: "مدينة الكويت" },
+  { en: "City Centre", ar: "وسط المدينة" },
 ];
 
 /** Also a copy, also guarded by tests/site.mjs — see DISTRICTS. */
@@ -312,9 +312,9 @@ export const RIVALS_SECTION: { heading: Bi; body: Bi; crewLabel: Bi; carLabel: B
   body: {
     en:
       "Eight names, fought in order, each with a crew, a district and a length " +
-      "they like to call you out at. They speak — in Kuwaiti Arabic, before the " +
+      "they like to call you out at. They speak — in Gulf Arabic, before the " +
       "race and after it — and they mean it either way.",
-    ar: "ثمانية أسماء، تواجههم بالترتيب، لكل واحد شلّته ومنطقته والمسافة اللي يحب يتحداك عليها. ويتكلمون — بالكويتي، قبل السباق وبعده — وكلامهم في الحالتين مقصود.",
+    ar: "ثمانية أسماء، تواجههم بالترتيب، لكل واحد شلّته ومنطقته والمسافة اللي يحب يتحداك عليها. ويتكلمون — بالخليجي، قبل السباق وبعده — وكلامهم في الحالتين مقصود.",
   },
   crewLabel: { en: "Crew", ar: "الشلّة" },
   carLabel: { en: "Drives", ar: "يسوق" },
@@ -386,8 +386,8 @@ export const FAQ: Faq[] = [
       en:
         "Yes — menus, the HUD, the road signs and the rivals' spoken lines. The " +
         "signage is set in naskh because that is what Gulf road signs are set in, " +
-        "and the rivals speak Kuwaiti rather than textbook Arabic.",
-      ar: "إيه — القوائم والشاشة واللوحات وكلام الخصوم. اللوحات بخط النسخ لأن هذا خط لوحات الطرق في الخليج، والخصوم يتكلمون كويتي مو عربي كتب.",
+        "and the rivals speak Gulf dialect rather than textbook Arabic.",
+      ar: "إيه — القوائم والشاشة واللوحات وكلام الخصوم. اللوحات بخط النسخ لأن هذا خط لوحات الطرق في الخليج، والخصوم يتكلمون خليجي مو عربي كتب.",
     },
   },
   {
@@ -395,10 +395,10 @@ export const FAQ: Faq[] = [
     a: {
       en:
         "Because nobody does. The world is open at every hour — drive it, look at " +
-        "it, fill up — but the rivals are out from midnight until 05:50 Kuwait time. " +
+        "it, fill up — but the rivals are out from midnight until 05:50 (UTC+3). " +
         "The settings will pin the sky to a fixed night if your day does not line " +
-        "up with Kuwait's.",
-      ar: "لأن ما أحد يسابق فيه. العالم مفتوح كل ساعة — سق فيه، وتفرّج، وعبّي — بس الخصوم موجودون من منتصف الليل إلى ٥:٥٠ بتوقيت الكويت. والإعدادات تثبّت السماء على ليل دائم إذا كان يومك ما يتوافق مع يوم الكويت.",
+        "up with the road's.",
+      ar: "لأن ما أحد يسابق فيه. العالم مفتوح كل ساعة — سق فيه، وتفرّج، وعبّي — بس الخصوم موجودون من منتصف الليل إلى ٥:٥٠ (UTC+3). والإعدادات تثبّت السماء على ليل دائم إذا كان يومك ما يتوافق مع يوم الشارع.",
     },
   },
   {

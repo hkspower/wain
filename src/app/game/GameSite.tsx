@@ -110,7 +110,7 @@ export default function GameSite({
                 string here is localized rather than bilingual, so the
                 fix is on the element, not a span inside it. */}
             <span className={`grn-label rounded-full border border-white/15 bg-white/5 px-3 py-1 text-2xs text-white/70 ${arc}`}>
-              🇰🇼 {t({ en: "Kuwait, after midnight", ar: "الكويت، بعد منتصف الليل" })}
+              🌙 {t({ en: "The Gulf Road, after midnight", ar: "شارع الخليج، بعد منتصف الليل" })}
             </span>
             <LangSwitch lang={lang} onChange={choose} />
           </div>

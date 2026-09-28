@@ -296,7 +296,7 @@ export const AREAS = [
   { name: "Mansuriya", arabic: "المنصورية", to: 5789 },
   { name: "Da'iya", arabic: "الدعية", to: 6580 },
   { name: "Dasma", arabic: "الدسمة", to: 7369 },
-  { name: "Kuwait City", arabic: "مدينة الكويت", to: Infinity },
+  { name: "City Centre", arabic: "وسط المدينة", to: Infinity },
 ];
 
 /**
@@ -2971,7 +2971,7 @@ function paintPriceTexture(minKd: number, maxKd: number): THREE.CanvasTexture {
     row(300, "إلى", maxKd, "#ffd27a");
     ctx.fillStyle = "rgba(238,242,251,0.8)";
     ctx.font = `600 30px ${ar}`;
-    ctx.fillText("دينار كويتي", 128, 372);
+    ctx.fillText("دينار", 128, 372);
     ctx.direction = "ltr";
     ctx.fillStyle = "rgba(238,242,251,0.55)";
     ctx.font = `600 26px ${latinDisplay()}`;
@@ -3209,7 +3209,7 @@ export const LANDMARK_S: Record<string, number> = {};
  */
 export const LANDMARKS: Array<{ id: string; name: string; arabic: string }> = [
   { id: "green-island", name: "Green Island", arabic: "الجزيرة الخضراء" },
-  { id: "kuwait-towers", name: "Kuwait Towers", arabic: "أبراج الكويت" },
+  { id: "kuwait-towers", name: "The Towers", arabic: "الأبراج" },
   { id: "salmiya-marina", name: "Salmiya Marina", arabic: "مارينا السالمية" },
   { id: "scientific-center", name: "Scientific Center", arabic: "المركز العلمي" },
   { id: "ras-al-ard-light", name: "Ras Al-Ard Light", arabic: "منارة رأس الأرض" },

@@ -161,7 +161,7 @@ export default function KuwaitClock() {
           className="grn-display text-xs tabular-nums tracking-[0.08em] text-white/85"
         />
         <span className="grn-label text-2xs tracking-[0.16em] text-white/70">
-          KWT
+          UTC+3
         </span>
       </div>
     </div>

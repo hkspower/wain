@@ -3271,7 +3271,7 @@ function raceCut(): { w: number; h: number } | null {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="grn-info-key text-2xs">
-                  Legend {dossier.order} of {dossier.total} · <Flag code={dossier.flag} /> {dossier.country}
+                  Legend {dossier.order} of {dossier.total} · <Flag code={dossier.flag} />
                 </div>
                 <div className="grn-display truncate text-3xl leading-none">{dossier.name}</div>
                 <div className="grn-ar mt-1 text-lg leading-none" lang="ar">
@@ -3479,7 +3479,7 @@ function raceCut(): { w: number; h: number } | null {
                   <div className="flex items-baseline justify-between">
                     <span className="grn-label text-2xs">Country</span>
                     <span className="font-semibold">
-                      <Flag code={d.flag} /> {d.country}
+                      <Flag code={d.flag} />
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
@@ -3912,7 +3912,7 @@ function raceCut(): { w: number; h: number } | null {
                   and has never once been cyan. The glow was the only cyan
                   on it, and the glow is what has gone. */}
               <div ref={straplineRef} className="grn-label text-xs tracking-[0.45em]">
-                Kuwait Xtreme Racer
+                The road is yours after midnight
               </div>
               <h1
                 ref={wordmarkRef}
@@ -3952,7 +3952,7 @@ function raceCut(): { w: number; h: number } | null {
                       62%, which keeps it quieter than the 85% time next
                       to it — the hierarchy was right, the bottom of it
                       was just below the legibility floor. */}
-                  <span>Kuwait</span>
+                  <span>UTC+3</span>
                   {racingOpenNow() ? (
                     <span className="text-emerald-300">racing open · until 05:50</span>
                   ) : (
@@ -4198,7 +4198,7 @@ function raceCut(): { w: number; h: number } | null {
                 متسابق الليل
               </div>
               <p className="mt-3 text-sm leading-relaxed text-white/60">
-                A midnight racer set on Kuwait&apos;s Gulf Road — the corniche from
+                A midnight racer set on the Gulf Road — the corniche from
                 Sharq to Salmiya, its sodium lamps, its water towers and the
                 traffic you have to read your way through. Every car, character
                 and building here is drawn in code: there is no art package to
@@ -4610,7 +4610,7 @@ function raceCut(): { w: number; h: number } | null {
                   ["noon", "High sun", "ظهر", "Daylight over the bay, lamps off, hard shadows"],
                   ["dusk", "Maghrib", "مغرب", "The sun going down behind the towers"],
                   ["cycle", "Full cycle", "دورة كاملة", "The clock runs — a whole day every 16 minutes"],
-                  ["kuwait", "Kuwait time", "توقيت الكويت", "The sky over Kuwait right now, to the second"],
+                  ["kuwait", "Live time", "التوقيت الحي", "The real sky over the Gulf Road right now, to the second"],
                 ] as const
               ).map(([mode, label, ar, desc]) => (
                 <button
