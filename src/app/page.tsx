@@ -30,15 +30,23 @@ export default function HomePage() {
           section instead — 672px against 507 at 1920 — and overflow-hidden
           took the top 103 units, the tips of both towers with them.
 
-          So the box now has the drawing's own ratio, `min-h-[35vw]` keeps the
-          section at least that tall, and on a phone the content stops a full
-          drawing-height above the bottom so the skyline sits under the dial
-          rather than behind it. The sky's first stop is #ffffff, which is
-          sand-50, so there is no edge where the drawing begins. */}
-      <section className="relative min-h-[35vw] overflow-hidden bg-sand-50">
+          So the box has the drawing's own ratio as a floor — `min-h-[35vw]`
+          is exactly the drawing's own rendered height at full width, so a
+          value AT that floor means section height = drawing height, nothing
+          spare. The hero is taller than that on purpose: `44vw` reserves
+          more than the drawing needs, and because the drawing is pinned to
+          the bottom (`absolute … bottom-0`), the extra sits above it as
+          plain sand-50 — which is `#ffffff`, the sky gradient's own first
+          stop, so the seam is invisible and it reads as more open sky above
+          the clouds rather than a blank band. On a phone the content's own
+          `pb-[44vw]` carries the same value for the same reason: it reserves
+          one hero-height below «دوّر باسم المكان», and only 35vw of that is
+          the drawing, so the skyline sits a little further down than the
+          text rather than flush against it. */}
+      <section className="relative min-h-[44vw] overflow-hidden bg-sand-50">
         <KuwaitSkyline className="pointer-events-none absolute inset-x-0 bottom-0 aspect-[1200/420] h-auto w-full" />
 
-        <div className="relative mx-auto max-w-6xl px-2.5 pb-[35vw] pt-2 sm:px-4 sm:pb-3 sm:pt-3">
+        <div className="relative mx-auto max-w-6xl px-2.5 pb-[44vw] pt-2 sm:px-4 sm:pb-3 sm:pt-3">
           {/* Wordmark */}
           <div className="text-center">
             <span className="relative inline-block">
@@ -104,7 +112,7 @@ export default function HomePage() {
       {/* ---------- Categories ---------- */}
       <section className="relative bg-sea-700">
         <div className="mx-auto max-w-6xl px-2.5 py-2 sm:px-4 sm:py-3">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 sm:mb-6">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-5">
             {/* The site asks this in three places and they have to agree:
                 here, on /search, and in the ⌘K palette — the last two the
                 moment the search box is focused and still empty. Reword one
@@ -184,7 +192,7 @@ export default function HomePage() {
               in the outline a screen reader navigates by. `justify-end` and
               not `justify-between` because the link is the only child left —
               `between` would push it to the start edge. */}
-          <div className="mb-4 flex flex-wrap items-end justify-end gap-3 sm:mb-7">
+          <div className="mb-3 flex flex-wrap items-end justify-end gap-3 sm:mb-5">
             <h2 className="sr-only">أماكن ما تنقال عنها لا.</h2>
             <Link
               href="/explore"
@@ -237,7 +245,7 @@ export default function HomePage() {
               times (two extra sets of padding, two borders, the gaps between)
               and a step number sitting on a line of its own. The words are all
               still here; the box around each of them is not. */}
-          <div className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-white shadow-sm sm:mt-10 sm:grid sm:grid-cols-3 sm:gap-6 sm:divide-y-0 sm:overflow-visible sm:rounded-none sm:border-0 sm:bg-transparent sm:shadow-none">
+          <div className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line bg-white shadow-sm sm:mt-7 sm:grid sm:grid-cols-3 sm:gap-5 sm:divide-y-0 sm:overflow-visible sm:rounded-none sm:border-0 sm:bg-transparent sm:shadow-none">
             {[
               {
                 n: "١",
@@ -263,7 +271,7 @@ export default function HomePage() {
             ].map((step) => (
               <div
                 key={step.n}
-                className="group relative flex items-start gap-3 p-4 transition duration-300 sm:block sm:rounded-3xl sm:border sm:border-line sm:bg-white sm:p-6 sm:shadow-sm sm:hover:-translate-y-1 sm:hover:shadow-lg"
+                className="group relative flex items-start gap-3 p-3.5 transition duration-300 sm:block sm:rounded-3xl sm:border sm:border-line sm:bg-white sm:p-5 sm:shadow-sm sm:hover:-translate-y-1 sm:hover:shadow-lg"
               >
                 <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-b from-coral-500 to-coral-700 text-white shadow-md shadow-coral-600/30 transition duration-300 sm:absolute sm:-top-5 sm:start-6 sm:group-hover:scale-105">
                   {step.icon}
@@ -289,7 +297,7 @@ export default function HomePage() {
       {/* ---------- CTA ---------- */}
       <section className="bg-sand-50">
         <div className="mx-auto max-w-6xl px-2.5 pb-2 sm:px-4 sm:pb-3">
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-sea-800 to-sea-600 px-6 py-9 text-center shadow-xl sm:py-8">
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-sea-800 to-sea-600 px-6 py-7 text-center shadow-xl sm:py-6">
             <div
               aria-hidden="true"
               className="pointer-events-none absolute -end-10 -top-10 size-48 rounded-full bg-white/10 blur-2xl"
