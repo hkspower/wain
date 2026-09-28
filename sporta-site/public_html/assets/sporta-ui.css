@@ -3664,6 +3664,23 @@ section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640p
   from { transform: scale(1); }
   to   { transform: scale(1.06); }
 }
+
+/* ------------------------------------------------- the band removed, 2026-09-28
+ * "remove the black blocker at heros layout". The owner chose to remove it
+ * entirely: no headline, no Shop button, no arrows or dots. The hero keeps
+ * its height, so the boot shell still matches, and the photo now fills all
+ * of it. The carousel still advances on its own timer. The rules above are
+ * left in place so this can be undone by deleting this block alone. */
+section[aria-roledescription="carousel"] {
+  --sp-band: 0px !important;
+}
+section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] > div,
+section[aria-roledescription="carousel"] > div[class~="absolute"][class~="bottom-2"] {
+  display: none !important;
+}
+section[aria-roledescription="carousel"] [class~="aspect-[2.52/1]"] > span[class~="bg-gradient-to-r"] {
+  background-image: none !important;
+}
 /* ===========================================================================
  * PRODUCT CARDS — 2026-09-28, "rebuild product cards"
  * ===========================================================================
