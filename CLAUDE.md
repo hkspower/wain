@@ -2691,14 +2691,39 @@ because no pin is ever server-rendered — they need a measured frame. **A race
 a few kilobytes can open is a race a slow phone opens by itself**, so it is
 fixed rather than waited out.
 
-**It is not fully closed.** 28 September: «on a phone, the first tap selects
-instead of leaving» failed once — the tap navigated to
-`/places/mubarakiya-tea-houses/` — and then passed six reruns in a row on the
-same build. Roughly one run in nine that day, against one in three before the
-initialiser fix, so the fix narrowed the window rather than shutting it. The
-failing run was the first full `test:hangout` after a fresh `next build`. Not
-investigated further; the next person who sees it
-should start from what else a first tap can race besides `useHoverless`.
+**That fix narrowed the race; the second one closed it, and it was a
+different race.** 28 September: the same assertion failed again, about one run
+in nine. Logging every event on the pin across 25 runs gave the same order
+every time — `mouseenter`, then `pointerdown`, then `click` — because
+Playwright drives a «phone» with a MOUSE, and a mouse enters before it
+presses. `onMouseEnter` selected the pin, and the test passed only when
+`pointerdown` arrived before React had committed that selection. When the
+commit won, `selectedOnPress` read true and the first tap opened the place.
+
+The proof that it was this and nothing else: **hover, wait 150ms, tap** made
+the commit certain and navigated **5 of 5**; a real `tap()` — pointerdown
+first, synthetic mouse events after, the order a finger produces — navigated
+**0 of 5** on the same build. So a finger was never affected, but a pointer
+that hovers before it presses was: a stylus over a tablet that reports
+`(hover: none)` would have opened every place on its first touch.
+
+**Fixed by the component's own premise**: on a hoverless device a hover means
+nothing, so `onMouseEnter`/`onMouseLeave` no longer select there, and only the
+tap can. `map-pin` now asserts the hover-pause-tap case and a real touch tap
+(29 assertions, from 25), and the first was confirmed red against the old
+handlers **with the build green** — 2 failed, the rest of the file still ran.
+
+**That confirmation found a crash worth keeping.** Against the old code the
+existing phone check failed first, and the `getAttribute` after it waited 30s
+for a pin on a page that had already navigated away, threw, and killed the
+process — so the new assertions never ran at all, the coverage-hole shape this
+file records for `shouq-flow` and `live-map`, now in a third suite. Reads after
+a tap that may have navigated go through a 2-second soft `attr()`/`text()` now.
+
+**The lesson is in the event log, not the fix**: a test that emulates touch
+with a mouse exercises the event ORDER of a mouse, and when that order differs
+from a finger's, a flake is the test telling you about a device you did not
+think you supported.
 
 **What could NOT be verified here: a painted tile.** `tile.openstreetmap.org`,
 `basemaps.cartocdn.com`, `tiles.openfreemap.org` and `unpkg.com` are all
