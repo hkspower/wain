@@ -14,7 +14,7 @@ import type { RoadMap } from "@/game/roadmap";
 import { RIVALS, RivalDef, rivalCar } from "@/game/rivals";
 import { HubClient, DuelInvite, loadProfile, saveProfile, formatLap, DEFAULT_HUB_URL } from "@/game/net";
 import { RACE_DISTANCES, distanceById } from "@/game/distances";
-import { kuwaitTime, racingOpenNow } from "@/game/clock";
+import { kuwaitTime, racingOpenNow, RACE_OPEN_H, RACE_CLOSE_H } from "@/game/clock";
 import { QUESTS, questDone, loadProgress as loadRunProgress } from "@/game/quests";
 import { cleanHandle, rollHandle } from "@/game/handles";
 import {
@@ -160,6 +160,112 @@ function tachArc(from: number, to: number, radius: number): string {
   const [x1, y1] = tachPoint(to, radius);
   const large = TACH_SWEEP * (to - from) > 180 ? 1 : 0;
   return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${radius} ${radius} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+}
+
+/**
+ * The GAME's clock, as a 24-hour dial: midnight at the top, noon at the
+ * bottom, one turn a day — the hour the sky is showing, not the real
+ * time in Kuwait (that is KuwaitClock, top right, and the two are kept
+ * looking different on purpose).
+ *
+ * Twenty-four hours, not twelve, because the fact this clock exists to
+ * show is WHERE IN THE DAY you are relative to the racing window, and a
+ * twelve-hour dial puts 03:00 and 15:00 on the same spot. The window,
+ * midnight to 05:50, is an arc on the rim: lit sodium while racing is
+ * open, dim while the road is only rolling. The hour hand points into it
+ * or away from it, which is readable from the corner of the eye; a
+ * minute hand turns once an hour for the finer read.
+ */
+function gameDialArc(fromH: number, toH: number, r: number): string {
+  const pt = (h: number) => {
+    const a = (h / 24) * Math.PI * 2;
+    return [Math.round(Math.sin(a) * r * 1000) / 1000, Math.round(-Math.cos(a) * r * 1000) / 1000];
+  };
+  const [x0, y0] = pt(fromH);
+  const [x1, y1] = pt(toH);
+  const large = toH - fromH > 12 ? 1 : 0;
+  return `M ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1}`;
+}
+function GameClockDial({
+  hourRef,
+  minRef,
+  windowRef,
+}: {
+  hourRef: React.RefObject<SVGGElement | null>;
+  minRef: React.RefObject<SVGGElement | null>;
+  windowRef: React.RefObject<SVGPathElement | null>;
+}) {
+  const ticks = [];
+  for (let h = 0; h < 24; h++) {
+    const a = (h / 24) * Math.PI * 2;
+    const major = h % 6 === 0;
+    const r0 = major ? 23 : 26.5;
+    ticks.push(
+      <line
+        key={h}
+        x1={Math.round(Math.sin(a) * r0 * 1000) / 1000}
+        y1={Math.round(-Math.cos(a) * r0 * 1000) / 1000}
+        x2={Math.round(Math.sin(a) * 29.5 * 1000) / 1000}
+        y2={Math.round(-Math.cos(a) * 29.5 * 1000) / 1000}
+        stroke="currentColor"
+        strokeWidth={major ? 2.2 : 1}
+        strokeLinecap="round"
+        opacity={major ? 0.9 : 0.4}
+      />
+    );
+  }
+  return (
+    <svg
+      data-testid="game-clock"
+      viewBox="-36 -36 72 72"
+      className="size-[46px] shrink-0 text-white"
+      aria-hidden="true"
+    >
+      <circle r="33" fill="rgba(6,8,11,0.6)" stroke="rgba(255,255,255,0.18)" strokeWidth="1" />
+      {/* The racing window on the rim. */}
+      <path
+        ref={windowRef}
+        d={gameDialArc(RACE_OPEN_H, RACE_CLOSE_H, 31.5)}
+        fill="none"
+        stroke="#f5a524"
+        strokeWidth="3.4"
+        strokeLinecap="butt"
+        opacity="0.35"
+      />
+      {ticks}
+      {/* The four cardinal hours, so a 24-hour dial is never misread as
+          a twelve-hour one: 0 at the top, 12 at the bottom. */}
+      {[
+        [0, "0"],
+        [6, "6"],
+        [12, "12"],
+        [18, "18"],
+      ].map(([h, label]) => {
+        const a = ((h as number) / 24) * Math.PI * 2;
+        return (
+          <text
+            key={h}
+            x={Math.round(Math.sin(a) * 15.5 * 1000) / 1000}
+            y={Math.round(-Math.cos(a) * 15.5 * 1000) / 1000 + 3}
+            textAnchor="middle"
+            fontFamily="var(--font-display)"
+            fontSize="8.5"
+            fontWeight="700"
+            fill="rgba(255,255,255,0.7)"
+          >
+            {label}
+          </text>
+        );
+      })}
+      <g ref={minRef}>
+        <line x1="0" y1="3" x2="0" y2="-25" stroke="rgba(255,255,255,0.75)" strokeWidth="1.3" strokeLinecap="round" />
+      </g>
+      <g ref={hourRef}>
+        <line x1="0" y1="4" x2="0" y2="-19" stroke="#f5a524" strokeWidth="3.4" strokeLinecap="round" />
+      </g>
+      <circle r="2.6" fill="#f5a524" />
+    </svg>
+  );
 }
 
 /** An arc outside the bezel, in degrees clockwise from the top: the side
@@ -869,6 +975,9 @@ function raceCut(): { w: number; h: number } | null {
   const raceLeftRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const clockRef = useRef<HTMLDivElement>(null);
+  const gameHourRef = useRef<SVGGElement>(null);
+  const gameMinRef = useRef<SVGGElement>(null);
+  const gameWindowRef = useRef<SVGPathElement>(null);
   const flashRef = useRef<HTMLDivElement>(null);
   /** The title block: the strapline is tracked to the wordmark's width
    *  at render time — see the effect by lockStrapline(). */
@@ -1698,6 +1807,17 @@ function raceCut(): { w: number; h: number } | null {
       if (progressRef.current)
         progressRef.current.textContent = `Rivals beaten: ${d.defeated} / ${d.total}`;
 
+      // The analogue game clock beside it. Transforms only; the dial
+      // itself never re-renders.
+      {
+        const hh = ((d.hour % 24) + 24) % 24;
+        gameHourRef.current?.setAttribute("transform", `rotate(${((hh / 24) * 360).toFixed(2)})`);
+        gameMinRef.current?.setAttribute("transform", `rotate(${(((hh % 1) * 360)).toFixed(2)})`);
+        if (gameWindowRef.current) {
+          const o = d.racingOpen ? "1" : "0.35";
+          if (gameWindowRef.current.getAttribute("opacity") !== o) gameWindowRef.current.setAttribute("opacity", o);
+        }
+      }
       if (clockRef.current) {
         const [time, state] = clockRef.current.children as unknown as HTMLElement[];
         const h = Math.floor(d.hour);
@@ -2829,9 +2949,12 @@ function raceCut(): { w: number; h: number } | null {
                 would tell you that — a player who flashes at a rival at
                 six in the morning and gets nothing deserves to have been
                 able to see why. */}
-            <div ref={clockRef} className="grn-label mt-1 flex items-center gap-1.5 text-xs">
-              <span className="tnum text-white/80" />
-              <span className="rounded-sm px-1.5 py-px text-2xs" />
+            <div className="mt-1.5 flex items-center gap-2">
+              <GameClockDial hourRef={gameHourRef} minRef={gameMinRef} windowRef={gameWindowRef} />
+              <div ref={clockRef} className="grn-label flex flex-col items-start gap-1 text-xs">
+                <span className="tnum text-sm text-white/85" />
+                <span className="rounded-sm px-1.5 py-px text-2xs" />
+              </div>
             </div>
           </div>
           {onlineCount !== null && (
