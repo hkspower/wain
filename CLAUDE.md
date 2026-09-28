@@ -2691,6 +2691,15 @@ because no pin is ever server-rendered — they need a measured frame. **A race
 a few kilobytes can open is a race a slow phone opens by itself**, so it is
 fixed rather than waited out.
 
+**It is not fully closed.** 28 September: «on a phone, the first tap selects
+instead of leaving» failed once — the tap navigated to
+`/places/mubarakiya-tea-houses/` — and then passed six reruns in a row on the
+same build. Roughly one run in nine that day, against one in three before the
+initialiser fix, so the fix narrowed the window rather than shutting it. The
+failing run was the first suite after a fresh `next build`, which is the
+coldest the page ever is. Not investigated further; the next person who sees it
+should start from what else a first tap can race besides `useHoverless`.
+
 **What could NOT be verified here: a painted tile.** `tile.openstreetmap.org`,
 `basemaps.cartocdn.com`, `tiles.openfreemap.org` and `unpkg.com` are all
 refused by the sandbox gateway — only the npm registry answers, which is why
