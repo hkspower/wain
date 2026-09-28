@@ -168,14 +168,14 @@ $WANT = [
     'assets/sporta-ui.css' => '6611162bf50860d571fc07902e4dd04b3ac55f5a30ec2075357c57913c05622e',
     'assets/theme-colors.js' => 'db9ab1f1bd0ce33a61faabed401f35e233ffcfec6eac1456d0fabf402f782bf1',
     'assets/theme.js' => 'bf8382e9aeabb368400cf93bdf09e2fbb65d20b1e77f6f185b368d2c44d86e96',
-    'assets/tile-art.js' => '67056ef6b7b138c854edf8924c30a00fe7b7c5efc7088f2e5aa12619b7d108e2',
+    'assets/tile-art.js' => '4c38bbcc29a9222f30341549f51558950afb5656a9330fdf168100862bb6c6d8',
     'assets/track-guard.js' => '49c24cfaf6bf666dbc4488fc8c194dd2b031c8c86a891fe773faefa3ba1e4897',
     'assets/trust-strip.js' => 'fa5587f5162707334bdde584b3c911075bf125adbfce4f78721f350c69ab7915',
     'assets/wallet-setup.js' => 'cdd6d3e096168100435214f1c0d6441cb5e1274beed2fbb4de170352766c6404',
     'assistant-bot.png' => 'a589c66921ceb50accebe71449e0ca595e11649ca595517f864246e339483e00',
     'assistant-bot.webp' => '74b4d1a0ffdb119ae12b735b98468ae0de461d4c6f5ac8d14f652ad89b279803',
     'card.html' => '078c10da1220676efe2e490dfc7f56ab7dca0c9951f115871086bb61f2c5045a',
-    'category.php' => '8ee16262f9f16898c36d8fa7bba93e4052a34efa4beaa03c50ef31ac268c764e',
+    'category.php' => '00cf60e6336509e970c7faa7d64bed61f75c43b9bc23587b6de7eaf2fce3442e',
     'cats/desktop/art-accessories-rtl.jpg' => '65eb8893adcab47605db684c5c6e6b3cc1a368d0a06b5093a19c33730804a361',
     'cats/desktop/art-accessories-rtl.webp' => '1b2a0ec6f7538bf118cd6eae8f09485fce8974e1e4d6f5618ce775194a346ef8',
     'cats/desktop/art-accessories.jpg' => '9cfa0ecf4a5bad453638dc2cc3eeb0a409f1e9d342f0f4478c02ad50fde95625',
@@ -274,7 +274,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => '1ba2a01e9f35e80a67b4b6047afcb5370b4005074a150ade4907a578cb0ebf4a',
-    'sw.js' => '50cb622d3ce2c74f08255dcea307813f192d6d3e298da882105d3d011907d863',
+    'sw.js' => '450d3bbe5c09fd13fe99bebb8200373e75fe0774a714dadaf452ec9ac680d5a3',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
