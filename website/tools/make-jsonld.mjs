@@ -89,19 +89,24 @@ function build(html) {
     '@id': `${site}/#service`,
     name: 'توصيل الطلبات بالسيارات في الكويت',
     serviceType: 'خدمة توصيل',
-    provider: { '@id': `${site}/#organization` },
+    /* **وسيطٌ لا مزوِّد.** `provider` تعني أنّ المنظّمة هي التي تؤدّي
+       الخدمة — ونحن نربط زبونًا بكابتن يملك سيارته، ولا نملك أسطولًا ولا
+       نوظّف سائقين (اقرأ `CLAUDE.md`). و`broker` في schema.org موضوعةٌ
+       لهذا بعينه: «كيانٌ يرتّب التبادل بين بائع ومشترٍ ولا يملك ما
+       يُتبادَل». فالوصف المنشور صار يوافق ما نحن عليه. */
+    broker: { '@id': `${site}/#organization` },
     areaServed: { '@type': 'Country', name: 'الكويت' },
     availableChannel: {
       '@type': 'ServiceChannel',
       serviceUrl: `${site}/`,
       ...(phone && { servicePhone: phone }),
     },
-    hoursAvailable: {
-      '@type': 'OpeningHoursSpecification',
-      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-      opens: '08:00',
-      closes: '00:00',
-    },
+    /* **ولا ساعات عمل.** كانت ٠٨:٠٠–٠٠:٠٠ مكتوبةً هنا بيدٍ لا مقروءةً من
+       الصفحة — والصفحة نفسها لا تقول رقمًا تجاريًّا واحدًا عن قصد: القاعدة
+       في هذا المشروع أنّ التقدير إذا نُشر صار وعدًا، والوعد يوم يُخلَف
+       خصومة. فكان النصّ يمتنع والبيانات المنظّمة تَعِد نيابةً عنه —
+       ومحرّك البحث يعرضها للناس ساعاتِ عملٍ مؤكَّدة.
+       تُعاد حين تُعرف ساعاتٌ حقيقية، من مصدرٍ في الصفحة لا من هذا السطر. */
   };
 
   const website = {

@@ -7,8 +7,8 @@
  * في اللوحة، فلا يضيع تقرير مهمّة بصمت لأن الخادم لم يكن مضبوطًا.
  *
  * الضبط:  MAWSOOL_SMTP_URL=smtp://user:pass@host:587
- *         MAWSOOL_MAIL_FROM=ops@mawsool.com.kw
- *         MAWSOOL_MAIL_TO=ops@mawsool.com.kw     (المستلم الافتراضي)
+ *         MAWSOOL_MAIL_FROM=ops@mawsoool.com
+ *         MAWSOOL_MAIL_TO=ops@mawsoool.com     (المستلم الافتراضي)
  */
 const { db, now } = require('./db');
 const ar = require('arabic-kit');
@@ -17,7 +17,10 @@ const D = require('./domain');
 /* تُقرأ الإعدادات عند الحاجة لا عند التحميل: يبقى الضبط في مكان واحد،
    ويصير مسار الإرسال قابلًا للاختبار بخادم SMTP محلي. */
 const smtpUrl = () => process.env.MAWSOOL_SMTP_URL || '';
-const mailFrom = () => process.env.MAWSOOL_MAIL_FROM || 'no-reply@mawsool.com.kw';
+/* النطاق النموذجيّ `mawsool.com.kw` **ليس مملوكًا** (قِيس: ليس في سجلّ
+   النطاقات ولا له DNS)، فرسالةٌ تخرج منه تسقط عند أوّل فحص SPF. والمملوك
+   `mawsoool.com`. وهذا احتياطٌ لا سياسة: العنوان يُضبط في `.env`. */
+const mailFrom = () => process.env.MAWSOOL_MAIL_FROM || 'no-reply@mawsoool.com';
 const mailTo = () => process.env.MAWSOOL_MAIL_TO || '';
 
 let transport = null;

@@ -174,7 +174,7 @@ function clientIp(req) {
  * الزبون هنا مباشرة. CORS يُفتح **لمسارات البوّابة وحدها** ولأصولٍ تُسمّى
  * بالاسم — لا شيء من مسارات اللوحة يُفتح لأصلٍ غريب، ولا كوكيز تعبر أصلًا:
  * البوّابة بلا جلسات أصلًا.
- *   MAWSOOL_SITE_ORIGINS=https://mawsool.com.kw,https://www.mawsool.com.kw
+ *   MAWSOOL_SITE_ORIGINS=https://mawsoool.com,https://www.mawsoool.com
  * (اتركه فارغًا إذا كان الموقع واللوحة خلف أصلٍ واحد — لا حاجة لـCORS.)
  */
 const SITE_ORIGINS = String(process.env.MAWSOOL_SITE_ORIGINS || '')
