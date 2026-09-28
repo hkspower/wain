@@ -17,7 +17,7 @@ not know about.
 
 INPUTS are the subject cut-outs in scripts/fixtures/tile-subjects/ (rembg
 BiRefNet over the 2026-09-28 studio art; outlet is a photo panel, not a
-cut-out: the shelving from the ORIGINAL 2026-08-20 art, x 810-1216, since the
+cut-out: the shelving from the ORIGINAL 2026-08-20 art, x 810-1216, full height, since the
 later repaired art had a blurred orange smear beside it). Re-cutting is not repeated here so the output is reproducible.
 """
 import os
@@ -81,20 +81,43 @@ def compose_person(name, w, h):
     return img
 
 
+# THE FLAT LAY, REPACKED — 2026-09-28, "render accessories bigger and clear".
+# The cut-out is one 942x418 row; laid out as a row it is width-bound, since
+# the copy takes the reading-start ~32% of the tile. So each item is cut out of
+# the row by its bounding box (measured with scipy.ndimage.label) and placed
+# in a tighter, overlapping cluster, drawn back to front.
+ITEMS = [  # name, crop box in the cut-out, position in the cluster
+    ('shoes',    (16, 0, 283, 305),    (0, 40)),
+    ('shirts',   (321, 0, 680, 418),   (200, 180)),
+    ('cap',      (702, 0, 896, 264),   (470, 0)),
+    ('bottles',  (704, 277, 942, 418), (520, 457)),
+    ('dumbbell', (0, 353, 277, 418),   (40, 533)),
+]
+CLUSTER = (758, 598)
+
+
 def compose_accessories(w, h):
     img = ground(w, h)
-    sub = Image.open(os.path.join(SUBJ, 'accessories.png')).convert('RGBA')
-    # The phone crop is squarer, and the copy sits over its left 76%: the
-    # flat lay is scaled to the tile's WIDTH there so it stays on the far side.
-    sh = min(int(h * 0.84), int(w * 0.52 * sub.height / sub.width))
-    sub = sub.resize((int(sub.width * sh / sub.height), sh), Image.LANCZOS)
-    x = w - sub.width - int(w * 0.03)
-    y = (h - sub.height) // 2 + int(h * 0.04)
-    img.alpha_composite(band(w, h, x + int(sub.width * 0.15), x + int(sub.width * 0.75), skew=0.35))
-    img.alpha_composite(stripes(w, h, w - int(w * 0.08), w + 40, 12, 3, skew=0.35))
+    src = Image.open(os.path.join(SUBJ, 'accessories.png')).convert('RGBA')
+    k = min(w * 0.66 / CLUSTER[0], h * 0.92 / CLUSTER[1])
+    cw, ch = int(CLUSTER[0] * k), int(CLUSTER[1] * k)
+    ox = w - cw - int(w * 0.03)
+    # Shirts, bottles and dumbbell were cut by the ORIGINAL frame's bottom edge,
+    # so their bottoms are straight lines: the cluster sits on the tile's own
+    # bottom edge, where those lines are hidden by it.
+    oy = h - ch
+    img.alpha_composite(band(w, h, ox + int(cw * 0.12), ox + int(cw * 0.72), skew=0.3))
+    img.alpha_composite(stripes(w, h, w - int(w * 0.07), w + 40, 12, 3, skew=0.3))
     img = Image.composite(Image.new('RGBA', (w, h), (20, 12, 8, 255)), img,
-                          shadow(w, h, x + sub.width // 2, y + sub.height - 4, sub.width * 0.45, 10, 80))
-    img.alpha_composite(sub, (x, y))
+                          shadow(w, h, ox + cw // 2, oy + ch - 6, cw * 0.42, 12, 70))
+    for _, box, (px, py) in ITEMS:
+        it = src.crop(box)
+        it = it.resize((max(1, int(it.width * k)), max(1, int(it.height * k))), Image.LANCZOS)
+        # "and make clear": the items are upscaled from the 1216px art, so a
+        # modest unsharp mask on the colour (not the alpha edge) restores bite.
+        rgb = it.convert('RGB').filter(ImageFilter.UnsharpMask(radius=1.6, percent=90, threshold=2))
+        rgb.putalpha(it.getchannel('A'))
+        img.alpha_composite(rgb, (ox + int(px * k), oy + int(py * k)))
     return img
 
 
@@ -106,7 +129,7 @@ def compose_outlet(w, h, rtl=False):
     # back the right way round.
     if rtl:
         photo = photo.transpose(Image.FLIP_LEFT_RIGHT)
-    ph = int(h * 0.80); pw = int(ph * 1.38)
+    ph = int(h * 0.80); pw = int(ph * photo.width / photo.height)
     photo = photo.resize((pw, ph), Image.LANCZOS)
     x = w - pw - int(w * 0.05); y = (h - ph) // 2
     # a black band behind the frame, the orange kept for the frame and the stripes
@@ -138,6 +161,7 @@ for crop, sz in SIZES.items():
     w, h = sz['tall']
     save(compose_person('men', w, h), crop, 'men')
     save(compose_person('women', w, h), crop, 'women')
-    w, h = sz['wide']
+    # All four tiles share one shape since 2026-09-28: the wide 2.9:1 strip left
+    # no room for the accessories to grow.
     save(compose_accessories(w, h), crop, 'accessories')
     save(compose_outlet(w, h), crop, 'outlet', rtl_src=compose_outlet(w, h, rtl=True))

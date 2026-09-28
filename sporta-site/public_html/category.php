@@ -175,8 +175,10 @@ $desc = $isEn
 $path = '/' . $slug;
 $canonical = SITE . $path . ($isEn ? '?lang=en' : '');
 
-$artDesktop = "/cats/desktop/art-$slug" . ($hasRtlArt && !$isEn ? '-rtl' : '') . '.webp';
-$artMobile  = "/cats/mobile/art-$slug" . ($hasRtlArt && !$isEn ? '-rtl' : '') . '.webp';
+// Since 2026-09-28 all four categories have an Arabic frame and one shape
+// (scripts/make-white-tiles.py), so $hasRtlArt no longer decides either.
+$artDesktop = "/cats/desktop/art-$slug" . (!$isEn ? '-rtl' : '') . '.webp';
+$artMobile  = "/cats/mobile/art-$slug" . (!$isEn ? '-rtl' : '') . '.webp';
 
 // THE REAL DIMENSIONS, NOT A GUESS COPIED ACROSS ALL FOUR — 2026-09-21, asked
 // for as "fix aspect ration heros images". The <img> below carried a single
@@ -192,9 +194,7 @@ $artMobile  = "/cats/mobile/art-$slug" . ($hasRtlArt && !$isEn ? '-rtl' : '') . 
 // and they were simply false metadata regardless. $hasRtlArt already tells
 // the two groups apart; it is reused here rather than adding a second flag
 // that could disagree with it.
-[$artW, $artH, $artMobileW, $artMobileH] = $hasRtlArt
-    ? [1216, 706, 900, 570]
-    : [1216, 418, 900, 454];
+[$artW, $artH, $artMobileW, $artMobileH] = [1216, 706, 900, 570];
 
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: public, max-age=0, must-revalidate');
@@ -383,11 +383,19 @@ header('Cache-Control: public, max-age=0, must-revalidate');
     position: absolute; inset-inline-start: 0; top: 0; bottom: 0;
     display: flex; flex-direction: column; justify-content: center;
     padding: 24px clamp(20px, 6vw, 56px); max-width: 60%;
+    /* A white fade behind the title, from the reading side: on a phone the
+       accessories flat lay reaches under the copy. On the white ground it is
+       invisible everywhere else. */
+    background: linear-gradient(to right, rgba(255,255,255,.94) 62%, rgba(255,255,255,0));
   }
+  [dir=rtl] .hero .copy {
+    background: linear-gradient(to left, rgba(255,255,255,.94) 62%, rgba(255,255,255,0));
+  }
+  /* Dark on the white-ground art of 2026-09-28; white type on it vanished. */
   .hero .kicker { font-size: .82rem; font-weight: 700; letter-spacing: .04em;
-                  color: rgba(255,255,255,.85); margin: 0 0 6px; }
+                  color: #c2410c; margin: 0 0 6px; }
   .hero h1 { font-size: clamp(1.5rem, 4vw, 2.4rem); font-weight: 800; margin: 0;
-             color: #fff; text-shadow: 0 2px 12px rgba(0,0,0,.5); }
+             color: #141413; }
   main { max-width: 1200px; margin: 0 auto; padding: 12px 20px; }
   .count { color: var(--sp-silver); font-size: .9rem; margin: 0 0 18px; }
   .grid {
@@ -485,11 +493,9 @@ header('Cache-Control: public, max-age=0, must-revalidate');
     </ul>
   </nav>
 </header>
-<nav class="cats">
-  <?php foreach (CATS as $s => $c): $q = $isEn ? '?lang=en' : ''; ?>
-    <a class="<?= $s === $slug ? 'on' : '' ?>" href="/<?= $s . $q ?>"><?= e($isEn ? $c[1] : $c[2]) ?></a>
-  <?php endforeach; ?>
-</nav>
+<?php /* The category chip row was removed on 2026-09-28 ("remove all product
+   filters"): it read as a filter over the grid. The footer below still links
+   the other three category pages, so no page is stranded. */ ?>
 <div class="hero">
   <picture>
     <source media="(max-width: 640px)" srcset="<?= e($artMobile) ?>">

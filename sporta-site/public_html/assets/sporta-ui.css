@@ -3793,3 +3793,13 @@ main article h3[class~="line-clamp-1"] {
 /* The tiles sit on the page's dark ground; a hairline keeps a white tile from
  * reading as a gap between two dark blocks. */
 .cat-tile { outline: 1px solid rgba(0, 0, 0, .08); outline-offset: -1px; }
+
+/* ONE SHAPE FOR ALL FOUR — 2026-09-28, "render accessories bigger and clear".
+ * Accessories and outlet were a 2.9:1 strip, so the flat lay could not grow
+ * without running under the copy. Their art is now drawn at men and women's
+ * size, and the boxes follow; 22-category-tiles.css keeps the old ratios for
+ * reference and this file, later in the cascade, wins the tie. */
+.cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 900 / 570 !important; }
+@media (min-width: 768px) {
+  .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 1216 / 706 !important; }
+}
