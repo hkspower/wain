@@ -682,4 +682,54 @@
     turn(t);
   });
   submitBtn.addEventListener('click', submitOrder);
+
+  /* ------------------------------ الثيمة ------------------------------ */
+  /*
+   * ثلاث حالات لا اثنتان: **تفضيل النظام** هو الأصل، ويقطع الزبون بالفاتح
+   * أو الداكن. ولولا الحالة الثالثة لما عاد من اختار مرّةً إلى ما يختاره
+   * جهازه بالليل والنهار.
+   *
+   * والقيم كلّها في `site.css` بـ`light-dark`، فليس على هذا السطر إلّا أن
+   * يكتب `data-theme` على الجذر — فتتبدّل `color-scheme` وتتبعها اللوحة
+   * كلّها دفعةً واحدة، وتتبعها أدوات المتصفّح: شريط التمرير والقوائم.
+   *
+   * ويُحفظ الاختيار في `localStorage` لأنّه تفضيل هذا الجهاز لا بيانَ
+   * طلب: لا يُرسل إلى الخادم ولا يُعرف عنه شيء.
+   */
+  const themeBtn = $('voTheme');
+  if (themeBtn) {
+    const KEY = 'mawsool-theme';
+    const ORDER = ['auto', 'light', 'dark'];
+    const LABEL = { auto: 'الثيمة: تتبع النظام', light: 'الثيمة: فاتحة', dark: 'الثيمة: داكنة' };
+    /* الرمز يقول الحالة القائمة لا ما ستصير إليه: شمسٌ للفاتحة، وهلالٌ
+       للداكنة، ورمزُ ما يختاره الجهاز حين تتبعه. */
+    const sysDark = window.matchMedia('(prefers-color-scheme: dark)');
+    const iconUse = themeBtn.querySelector('use');
+    /* الشعار رسمتان يختار بينهما `<picture>` على تفضيل النظام. فإن قطع
+       الزبون بخلافه حُوِّل شرطُ المصدر: `all` يُلزمه، و`not all` يُسقطه. */
+    const brandDark = $('voBrandDark');
+
+    let mode = 'auto';
+    try { if (ORDER.includes(localStorage.getItem(KEY))) mode = localStorage.getItem(KEY); } catch { /* تصفّحٌ خاصّ */ }
+
+    function applyTheme() {
+      const dark = mode === 'dark' || (mode === 'auto' && sysDark.matches);
+      if (mode === 'auto') delete document.documentElement.dataset.theme;
+      else document.documentElement.dataset.theme = mode;
+      themeBtn.setAttribute('aria-label', LABEL[mode]);
+      iconUse.setAttribute('href', dark ? '#i-moon' : '#i-sun');
+      if (brandDark) brandDark.media = mode === 'auto' ? '(prefers-color-scheme: dark)' : (dark ? 'all' : 'not all');
+    }
+
+    themeBtn.addEventListener('click', () => {
+      mode = ORDER[(ORDER.indexOf(mode) + 1) % ORDER.length];
+      try { localStorage.setItem(KEY, mode); } catch { /* لا يمنع التبديل */ }
+      applyTheme();
+    });
+
+    /* ومن ترك الأمر لجهازه يتبعه وهو على الصفحة: الجهاز يقلب لوحته عند
+       الغروب، فلا يبقى الرمز يقول شمسًا والصفحة داكنة. */
+    sysDark.addEventListener('change', () => { if (mode === 'auto') applyTheme(); });
+    applyTheme();
+  }
 })();
