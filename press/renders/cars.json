@@ -27,7 +27,8 @@
         "high": 2.4
       }
     },
-    "lengthM": 4.66
+    "lengthM": 4.66,
+    "stickerNumber": 95
   },
   {
     "id": "zeta-300-gtr",
@@ -57,7 +58,8 @@
         "high": 2.4
       }
     },
-    "lengthM": 4.53
+    "lengthM": 4.53,
+    "stickerNumber": 84
   },
   {
     "id": "efreet-rx-kai",
@@ -87,7 +89,8 @@
         "high": 1
       }
     },
-    "lengthM": 4.42
+    "lengthM": 4.42,
+    "stickerNumber": 72
   },
   {
     "id": "sahara-v12",
@@ -117,7 +120,8 @@
         "high": 1
       }
     },
-    "lengthM": 4.62
+    "lengthM": 4.62,
+    "stickerNumber": 78
   },
   {
     "id": "falcon-720",
@@ -147,7 +151,8 @@
         "high": 1
       }
     },
-    "lengthM": 4.54
+    "lengthM": 4.54,
+    "stickerNumber": 53
   },
   {
     "id": "storm-s8",
@@ -177,7 +182,8 @@
         "high": 1
       }
     },
-    "lengthM": 4.8
+    "lengthM": 4.8,
+    "stickerNumber": 75
   },
   {
     "id": "anniversary-30",
@@ -207,7 +213,8 @@
         "high": 1
       }
     },
-    "lengthM": 4.92
+    "lengthM": 4.92,
+    "stickerNumber": 20
   },
   {
     "id": "kaiju-r",
@@ -237,7 +244,8 @@
         "high": 1
       }
     },
-    "lengthM": 4.6
+    "lengthM": 4.6,
+    "stickerNumber": 79
   },
   {
     "id": "efreet-rx",
@@ -267,7 +275,8 @@
         "high": 1
       }
     },
-    "lengthM": 4.3
+    "lengthM": 4.3,
+    "stickerNumber": 80
   },
   {
     "id": "zeta-300",
@@ -297,7 +306,8 @@
         "high": 1
       }
     },
-    "lengthM": 4.31
+    "lengthM": 4.31,
+    "stickerNumber": 30
   },
   {
     "id": "gulf-coupe-rs",
@@ -327,7 +337,8 @@
         "high": 1
       }
     },
-    "lengthM": 4.28
+    "lengthM": 4.28,
+    "stickerNumber": 79
   },
   {
     "id": "salmiya-turbo",
@@ -357,7 +368,8 @@
         "high": 1
       }
     },
-    "lengthM": 4.64
+    "lengthM": 4.64,
+    "stickerNumber": 19
   },
   {
     "id": "hawally-2t",
@@ -387,7 +399,8 @@
         "high": 1
       }
     },
-    "lengthM": 4.56
+    "lengthM": 4.56,
+    "stickerNumber": 51
   },
   {
     "id": "deera-sedan",
@@ -417,7 +430,8 @@
         "high": 1
       }
     },
-    "lengthM": 4.7
+    "lengthM": 4.7,
+    "stickerNumber": 45
   },
   {
     "id": "jahra-pickup",
@@ -447,7 +461,8 @@
         "high": 1
       }
     },
-    "lengthM": 5.16
+    "lengthM": 5.16,
+    "stickerNumber": 57
   },
   {
     "id": "sharq-hatch",
@@ -477,7 +492,8 @@
         "high": 1
       }
     },
-    "lengthM": 3.95
+    "lengthM": 3.95,
+    "stickerNumber": 26
   },
   {
     "id": "wain-special",
@@ -507,6 +523,7 @@
         "high": 1
       }
     },
-    "lengthM": 4.45
+    "lengthM": 4.45,
+    "stickerNumber": 21
   }
 ]
