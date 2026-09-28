@@ -3,7 +3,7 @@ import KuwaitSkyline from "@/components/KuwaitSkyline";
 import CategoryIcon from "@/components/CategoryIcon";
 import NearbyDial from "@/components/NearbyDial";
 import PlaceCard from "@/components/PlaceCard";
-import { IconCar, IconGo, IconLocate, IconPinSolid, IconSearch, IconSparkle } from "@/components/icons";
+import { IconCar, IconCompass, IconGo, IconPinSolid, IconSearch, IconSparkle } from "@/components/icons";
 import {
   categories,
   countAr,
@@ -249,9 +249,14 @@ export default function HomePage() {
             {[
               {
                 n: "١",
-                icon: <IconLocate className="size-6" />,
-                title: "حدّد موقعك",
-                text: "اضغط على «إلى وين؟» وتطلع لك أقرب الأماكن — وإذا تبي دقّة أكثر شارك موقعك.",
+                icon: <IconCompass className="size-6" />,
+                title: "قول وين تبي",
+                // The dial used to rank the nearest five live against a GPS
+                // fix taken in the same tap; it opens /find now, which asks
+                // to type or call شوق instead of assuming "nearest" is
+                // always the question — see NearbyDial and FindChoice.
+                // "أقرب الأماكن" stopped being true when that panel left.
+                text: "اضغط على «إلى وين؟» واختر: تكتب اسم المكان أو تكلّم شوق.",
               },
               {
                 n: "٢",
