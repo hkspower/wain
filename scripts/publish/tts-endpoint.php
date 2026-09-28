@@ -122,8 +122,15 @@ const RATE_PER_MIN = 30;
  *  the tenth visitor to search «قهوة» costs nothing, because the answer is
  *  already on disk. Only a sentence never rendered before reaches ElevenLabs,
  *  and the site's sentence space is bounded by 52 places, so a day that needs
- *  more than this is a day something is generating text that is not wain's. */
-const DAILY_MISSES = 1500;
+ *  more than this is a day something is generating text that is not wain's.
+ *
+ *  It was 1500, which the 20 September security pass priced: 1500 × MAX_CHARS
+ *  is 750,000 characters, about $136 a day or $4,000 a month, on a public URL
+ *  with no authentication, and it said to lower it BEFORE a key is pasted. At
+ *  300 the ceiling is 150,000 characters, about $27 a day — and still roomy:
+ *  the entire 324-line recorded library is 13,247 characters, so 300 NEW
+ *  sentences a day at a real line's length is two libraries' worth. */
+const DAILY_MISSES = 300;
 
 /* ── shared helpers ─────────────────────────────────────────────────────── */
 
@@ -639,13 +646,19 @@ if ($lock) {
 
 /* ── the two budgets, checked only on a miss ─────────────────────────────── */
 
-/** A window counter in one file. Not a token bucket and not atomic across
- *  concurrent requests — approximate is the right amount of engineering for a
- *  guard whose failure mode is «rendered one sentence too many». */
-$count = static function (string $file, int $window) : int {
+/** A window counter in one file, holding `flock` across the whole
+ *  read-modify-write — a 60-way load test lost no increments.
+ *
+ *  Returns null when the file cannot be opened, and the two callers answer
+ *  that differently on purpose. It used to return 0, which made BOTH guards
+ *  fail open: if `storage/tts/` became unwritable, the per-visitor limit and
+ *  the daily budget stopped tripping together — and an unwritable cache
+ *  directory is also one where no render can be saved, so every request would
+ *  have been a paid miss with nothing counting them. */
+$count = static function (string $file, int $window) : ?int {
     $now = time();
     $fh  = @fopen($file, 'c+');
-    if (!$fh) return 0; // a guard that cannot open its file must not deny service
+    if (!$fh) return null;
     @flock($fh, LOCK_EX);
     $data = json_decode((string) stream_get_contents($fh), true);
     $n = (is_array($data) && ($data['start'] ?? 0) > $now - $window) ? (int) ($data['n'] ?? 0) : 0;
@@ -660,10 +673,19 @@ $count = static function (string $file, int $window) : int {
 };
 
 $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '0');
-if ($count("$cacheDir/.rate-" . hash('sha256', $ip) . '.json', 60) > RATE_PER_MIN) {
+/* The per-visitor limit still fails OPEN: it shapes traffic, and refusing
+   everyone because one file will not open is a worse outage than the one it
+   guards against — the budget below is what stops the spending. */
+$perIp = $count("$cacheDir/.rate-" . hash('sha256', $ip) . '.json', 60);
+if ($perIp !== null && $perIp > RATE_PER_MIN) {
     $fail(429, 'rate_limited');
 }
-if ($count("$cacheDir/.budget.json", 86400) > DAILY_MISSES) {
+/* The budget fails CLOSED: it is the only thing bounding the bill, so a
+   request it cannot count is a request that is not paid for. 503, which
+   voice.ts remembers for the visit and answers with the browser voice. */
+$spent = $count("$cacheDir/.budget.json", 86400);
+if ($spent === null) $fail(503, 'budget_unavailable');
+if ($spent > DAILY_MISSES) {
     // 503 rather than 429: nothing the caller did is wrong, and voice.ts turns
     // every non-2xx into the browser voice, which is the correct degradation.
     $fail(503, 'daily_budget_spent');

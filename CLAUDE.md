@@ -611,20 +611,26 @@ attacker could do».
 **Nothing critical is live. The one thing that could cost real money is inert,
 and the reason it is inert is an empty file.**
 
-### `/api/tts.php` is unauthenticated, and its ceiling is about $136 a day
+### `/api/tts.php` is unauthenticated, and its ceiling is about $27 a day
 
 It has to be — a static export has nowhere to hold a key, so a visitor's
 browser calls it directly. What bounds the spend is arithmetic, not auth:
 
 ```
-DAILY_MISSES 1500  ×  MAX_CHARS 500  =  750,000 characters/day
-750,000 × $0.000181  ≈  $136/day  ≈  $4,000/month
+DAILY_MISSES 300  ×  MAX_CHARS 500  =  150,000 characters/day
+150,000 × $0.000181  ≈  $27/day  ≈  $815/month
 ```
 
 The rate is the measured one — 13,247 characters ≈ $2.40, from the voice
 section above. **Today the exposure is exactly $0**, because
 `elevenlabs.key` is 0 bytes; the ceiling becomes real the moment somebody
-pastes a key. **Lower `DAILY_MISSES` before that happens**, not after.
+pastes a key.
+
+**It was 1500 — $136 a day, $4,000 a month — and this section said to lower it
+before a key was pasted. Lowered 28 September, in the repository.** 300 is
+still two whole recorded libraries of NEW sentences a day, because hits are
+free and uncapped. **The live copy still says 1500** until `tts.php` is
+reinstalled, which is the reason to reinstall before pasting a key, not after.
 
 Two things that do NOT bound it, and should not be mistaken for controls:
 
@@ -635,14 +641,22 @@ Two things that do NOT bound it, and should not be mistaken for controls:
 - **`RATE_PER_MIN` is per IP.** It shapes ordinary traffic and falls to
   rotating addresses.
 
-**And the guard fails OPEN.** `$count()` returns `0` when `fopen` fails —
-«a guard that cannot open its file must not deny service». So if
-`storage/tts/` ever becomes unwritable, disk-full or otherwise, the per-IP
-limit *and* the daily budget both stop tripping silently and the ceiling
-disappears. That is the one weak point in the counter: the counter itself is
-sound, holding `flock(LOCK_EX)` across the whole read-modify-write, so its own
-«not atomic across concurrent requests» comment is more modest than the code
-deserves.
+**The guard failed OPEN, and it was worse than this section said.**
+`$count()` returned `0` when `fopen` failed, so if `storage/tts/` ever became
+unwritable, disk-full or otherwise, the per-IP limit *and* the daily budget
+both stopped tripping. What this section missed is that an unwritable
+`storage/tts/` is ALSO a cache that cannot save a render — so every request
+would have been a paid miss, with no ceiling and nothing counting.
+
+**Fixed 28 September: the budget fails CLOSED.** `$count()` returns null on an
+unopenable file; the budget answers that with `503 budget_unavailable` — which
+voice.ts remembers for the visit and hands to the browser voice — and the
+per-IP limit still fails open, on its original reasoning, because the budget is
+now what stops the spending. `test:tts` proves it with a directory planted at
+the counter's path (58 assertions), and was confirmed red with the old `return
+0`. The counter itself was always sound — `flock(LOCK_EX)` across the whole
+read-modify-write, and a 60-way load test lost no increments — so its old «not
+atomic across concurrent requests» comment is gone.
 
 ### `storage/` is world-readable, and the files inside it are not
 
@@ -1550,7 +1564,7 @@ as a hit — **1 render, 19 hits** on the same test — and the waiters spend
 neither a render nor the two budgets, because the budgets are counted after the
 lock. 256 stripes by the id's first byte, so the lock files cannot accumulate,
 and `prune` only deletes 64-hex `.mp3` names. `test:tts` asserts it on a
-worker-mode PHP server with a counting stub (55 assertions, from 52),
+worker-mode PHP server with a counting stub (55 assertions then, from 52),
 confirmed red with the lock removed: 7 renders. **The live copy does not have
 it** — `tts.php` on the server is still the 11 September install, and the empty
 key means nothing is paid for either way.
@@ -2276,8 +2290,9 @@ map-pin, live-map, search-keys, shouq-search, search-plan, swipe — **eight**,
 not the ten this line used to list: `areas` and `search-button` went with the
 rollback), `test:journey`, `test:register`, `test:shouq`, `test:orders`,
 `test:net`. PHP suites, not in `scan` because it
-cannot assume php: `test:api` (40), `test:tts` (**55**: 42, then the
-cache-prune block, then the one-render-under-concurrency block) and
+cannot assume php: `test:api` (40), `test:tts` (**58**: 42, then the
+cache-prune block, the one-render-under-concurrency block and the
+fail-closed budget) and
 `test:media` (45).
 That sentence said «neither … because neither», and it was already wrong for
 three audits before `audit:logs` joined them: `audit:tts`, `audit:media` and

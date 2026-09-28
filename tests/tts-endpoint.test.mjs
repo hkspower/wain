@@ -215,6 +215,29 @@ try {
     ).n;
     ok("five cache hits cost nothing against the daily budget", spentAfter === spentBefore,
        `${spentBefore} → ${spentAfter}`);
+
+    /* A budget that cannot be counted must not be spent. The counter used to
+       read an unopenable file as zero, so a broken storage/tts/ switched the
+       ceiling off rather than the feature. A DIRECTORY at the counter's path
+       is the simplest file fopen() cannot open, on any filesystem, as any
+       user. */
+    const budgetPath = join(storage, "tts/.budget.json");
+    const saved = existsSync(budgetPath) ? readFileSync(budgetPath) : null;
+    rmSync(budgetPath, { force: true });
+    mkdirSync(budgetPath);
+    try {
+      const before = cacheFiles().length;
+      const r = await call({ persona: "shouq", text: "جملة ما تنحسب ميزانيتها" });
+      ok("an uncountable budget refuses the render", r.status === 503 && r.json?.error === "budget_unavailable",
+        `${r.status} ${JSON.stringify(r.json)}`);
+      ok("and nothing was rendered or cached", cacheFiles().length === before);
+      const hit = await call({ persona: "shouq", text: "قهوة هادية في السالمية" });
+      ok("while a sentence already on disk is still served", hit.status === 200 && hit.how === "hit",
+        `${hit.status} ${hit.how}`);
+    } finally {
+      rmSync(budgetPath, { recursive: true, force: true });
+      if (saved) writeFileSync(budgetPath, saved);
+    }
   }
 
   console.log("\n── the staging depth, which is where this kind of path goes wrong ──");
@@ -299,7 +322,11 @@ try {
       // Two of them last served 200 days ago; the third is fresh.
       const old = new Date(Date.now() - 200 * 86400_000);
       for (const c of ["a", "b"]) utimesSync(entry(c), old, old);
-      writeFileSync(budget, JSON.stringify({ start: 9_999_999_999, n: 1400 }));
+      // Below DAILY_MISSES, and it has to be: `start` is far in the future, so
+      // this count survives the rest of the file, and at or over the ceiling
+      // every later render reads «budget spent». It was 1400 against a 1500
+      // ceiling until the ceiling came down to 300.
+      writeFileSync(budget, JSON.stringify({ start: 9_999_999_999, n: 240 }));
       writeFileSync(limiter, JSON.stringify({ start: 9_999_999_999, n: 5 }));
     };
     const prune = (...args) =>
@@ -332,7 +359,7 @@ try {
 
     /* The two that matter. */
     ok("the daily budget counter is NOT deleted by --all",
-       existsSync(budget) && JSON.parse(readFileSync(budget, "utf8")).n === 1400);
+       existsSync(budget) && JSON.parse(readFileSync(budget, "utf8")).n === 240);
     ok("nor are the per-IP rate limiters", existsSync(limiter));
     ok("and prune says what it preserved", all.preserved.count >= 2, JSON.stringify(all.preserved));
 
