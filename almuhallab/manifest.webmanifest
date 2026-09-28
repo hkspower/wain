@@ -24,9 +24,21 @@
       "purpose": "any"
     },
     {
-      "src": "icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "maskable"
     }
   ],
@@ -37,9 +49,9 @@
       "url": "nizam.html",
       "icons": [
         {
-          "src": "icon.svg",
-          "sizes": "any",
-          "type": "image/svg+xml"
+          "src": "icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
         }
       ]
     },
@@ -49,9 +61,9 @@
       "url": "nizam.html#/safi",
       "icons": [
         {
-          "src": "icon.svg",
-          "sizes": "any",
-          "type": "image/svg+xml"
+          "src": "icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
         }
       ]
     },
@@ -61,9 +73,9 @@
       "url": "nizam.html#/xbrl",
       "icons": [
         {
-          "src": "icon.svg",
-          "sizes": "any",
-          "type": "image/svg+xml"
+          "src": "icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
         }
       ]
     },
@@ -73,9 +85,9 @@
       "url": "nizam.html#/delivery",
       "icons": [
         {
-          "src": "icon.svg",
-          "sizes": "any",
-          "type": "image/svg+xml"
+          "src": "icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
         }
       ]
     }
