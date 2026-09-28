@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>مهمّة توصيل — موصول</title>
+
+<link rel="icon" href="/assets/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="preload" href="/assets/fonts/alexandria-arabic.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/app.css">
+<link rel="stylesheet" href="/link.css">
+</head>
+<body class="lk-body">
+
+<header class="lk-top">
+  <img src="/assets/logo-mawsool-light.png" alt="موصول" width="132" height="41"
+       onerror="this.src='/assets/mawsool-mark-light.png';this.width=38;this.height=34">
+  <span id="lkWho" class="lk-top__who"></span>
+</header>
+
+<main class="lk-main" id="lkMain">
+  <div class="lk-loading" id="lkLoading">
+    <span class="lk-spin" aria-hidden="true"></span>
+    جارٍ فتح المهمّة…
+  </div>
+</main>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="/vendor/arabic-kit.js"></script>
+<script src="/link.js"></script>
+</body>
+</html>
