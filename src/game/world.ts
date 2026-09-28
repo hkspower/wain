@@ -4009,6 +4009,15 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         uMilky: { value: 1 },
         /** The band itself, baked — see makeMilkyTexture. */
         uMilkyMap: { value: makeMilkyTexture() },
+        // Daytime detail — see the DAY SKY note in the fragment shader.
+        uSunDir: { value: new THREE.Vector3(0, 1, 0) },
+        uSunCol: { value: new THREE.Color(1, 0.9, 0.75) },
+        /** 0 at night, 1 in full daylight: how much of the day detail shows. */
+        uDay: { value: 0 },
+        /** The golden hours' share of it: warmer halo, lit cloud edges. */
+        uGold: { value: 0 },
+        /** Drives the cloud drift; the game hour, so it moves with the clock. */
+        uCloudT: { value: 0 },
       },
       vertexShader: `
         varying vec3 vPos;
@@ -4024,6 +4033,24 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         uniform float uGlowHeight;
         uniform float uMilky;
         uniform sampler2D uMilkyMap;
+        uniform vec3 uSunDir;
+        uniform vec3 uSunCol;
+        uniform float uDay;
+        uniform float uGold;
+        uniform float uCloudT;
+
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float vnoise(vec2 p) {
+          vec2 i = floor(p), f = fract(p);
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+                     mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+        }
+        float fbm(vec2 p) {
+          float v = 0.0, a = 0.5;
+          for (int k = 0; k < 5; k++) { v += a * vnoise(p); p = p * 2.03 + vec2(17.1, 9.2); a *= 0.5; }
+          return v;
+        }
 
         void main() {
           float h = clamp(vPos.y / 600.0, 0.0, 1.0);
@@ -4040,6 +4067,57 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
           vec2 muv = vec2(atan(n.z, n.x) / 6.2831853 + 0.5, asin(clamp(n.y, -1.0, 1.0)) / 3.14159265 + 0.5);
           float milky = texture2D(uMilkyMap, muv).r * ${MILKY_MAP_RANGE.toFixed(2)} * smoothstep(0.06, 0.32, n.y);
           col += ${MILKY_COLOR} * (milky * uMilky);
+
+          // THE DAY SKY. It was a vertical gradient and nothing else, so
+          // an afternoon looked the same in every direction — the one
+          // thing a low sun never does. Three additions, all gated on
+          // uDay so the night is untouched:
+          //
+          //   the sun side  the sky brightens and warms toward the sun
+          //                 (forward scattering) with a tight aureole
+          //                 round the disc, and deepens a little opposite
+          //   cirrus        thin high streaks, stretched along one
+          //                 axis, drifting with the game clock
+          //   fair-weather  a scatter of low puffs sitting in the haze
+          //   puffs         band, the dust-softened cumulus of a Gulf
+          //                 afternoon
+          //
+          // Cloud brightness is tied to the horizon colour rather than to
+          // white, so a cloud never outshines the sky it sits in — the
+          // noon sky already clips around the sun and this must not add
+          // to it.
+          if (uDay > 0.001) {
+            float mu = max(dot(n, uSunDir), 0.0);
+            float anti = max(dot(n, -uSunDir), 0.0);
+            vec3 sunTint = mix(uSunCol, vec3(1.0, 0.72, 0.42), uGold);
+            // Narrow on purpose: measured at 17:00 a cubic lobe spread
+            // the glow across half the sky and blew it to white. The
+            // wide term is now a sixth power and half as strong, the
+            // aureole tighter, and neither is added where the horizon
+            // band is already carrying the light.
+            float lift = smoothstep(0.02, 0.25, h);
+            col += sunTint * uDay * (0.05 * pow(mu, 6.0) * lift + 0.14 * pow(mu, 96.0)) * (1.0 + 0.5 * uGold);
+            col *= 1.0 - 0.10 * uDay * anti * smoothstep(0.1, 0.6, h);
+
+            float up = n.y;
+            if (up > 0.015) {
+              vec2 sky = n.xz / (up + 0.12);
+              // Cirrus: long, thin, high.
+              vec2 cp = vec2(sky.x * 0.55 + sky.y * 0.2, sky.y * 2.4 - sky.x * 0.3) * 1.6 + vec2(uCloudT * 0.035, uCloudT * 0.01);
+              float ci = fbm(cp);
+              float cirrus = smoothstep(0.56, 0.82, ci) * smoothstep(0.03, 0.22, up) * (1.0 - 0.5 * smoothstep(0.6, 1.0, up));
+              // Puffs: rounder, low in the sky, only near the horizon.
+              vec2 pp = sky * 3.2 + vec2(uCloudT * 0.06, -uCloudT * 0.02);
+              float pu = fbm(pp) * 0.75 + fbm(pp * 2.7) * 0.25;
+              float puff = smoothstep(0.62, 0.78, pu) * smoothstep(0.015, 0.05, up) * (1.0 - smoothstep(0.08, 0.2, up));
+              vec3 cloudBase = mix(uHorizon, vec3(0.95, 0.94, 0.92), 0.35);
+              vec3 lit = cloudBase * (0.92 + 0.28 * pow(mu, 2.0)) + sunTint * uGold * 0.18 * pow(mu, 1.5);
+              // Shaded undersides on the puffs, so they have a volume.
+              vec3 puffCol = mix(lit * 0.78, lit, smoothstep(0.62, 0.9, pu));
+              col = mix(col, lit, cirrus * 0.42 * uDay);
+              col = mix(col, puffCol, puff * 0.7 * uDay);
+            }
+          }
           gl_FragColor = vec4(col, 1.0);
         }`,
     });
@@ -7533,6 +7611,15 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // one arc now, and the body is placed on it, so the light comes
       // from the thing you can see by construction rather than by
       // maintenance.
+      // The day sky's sun, from the key light's own direction — the same
+      // single arc the visible body rides — and its daylight weights.
+      if (skyMatRef) {
+        const u = skyMatRef.uniforms;
+        if (sunAlt > 0) (u.uSunDir.value as THREE.Vector3).copy(moonLight.userData.keyDir as THREE.Vector3);
+        u.uDay.value = lit;
+        u.uGold.value = lit > 0 ? gold / lit : 0;
+        u.uCloudT.value = h;
+      }
       if (bodyDisc && bodyHalo && moonDiscMat && moonHaloMat) {
         const sunUp = sunAlt > -0.05;
         const dir = moonLight.userData.keyDir as THREE.Vector3;
