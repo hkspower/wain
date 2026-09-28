@@ -167,12 +167,18 @@ export function IconGrid(props: IconProps) {
 export function IconTower(props: IconProps) {
   return (
     <svg {...base(props)}>
-      <path d="M8.5 2v2.5" />
-      <circle {...duo} cx="8.5" cy="7.3" r="2.8" />
-      <path d="M7.6 10 6.5 21M9.4 10l1.1 11" />
-      <path d="M17 6v3.2" />
-      <circle cx="17" cy="10.8" r="1.9" />
-      <path d="M16.4 12.6 15.7 21M17.6 12.6l.7 8.4" />
+      {/* Kuwait Towers as they stand: single spires, and the tall one carries
+          TWO spheres — a small one near the top over the large one. This drew
+          each tower on a pair of splayed legs with one sphere, and at 16px the
+          two legs of each merged into a solid wedge: two bowling pins, and
+          nothing about it said which towers. The spire breaks where it meets
+          a sphere rather than running through it, which at this size read as
+          «Φ». */}
+      <path d="M9 2.2v1.9M9 6.7v.6M9 13.1V21" />
+      <circle cx="9" cy="5.4" r="1.3" />
+      <circle {...duo} cx="9" cy="10.2" r="2.9" />
+      <path d="M16 7v3.1M16 14.5V21" />
+      <circle {...duo} cx="16" cy="12.3" r="2.2" />
       <path d="M4.5 21h15" />
     </svg>
   );
@@ -270,10 +276,13 @@ export function IconMasks(props: IconProps) {
           level, they sat in the top half. */}
       <path d="M3.3 3.6h8.2v7.6a4.1 4.1 0 0 1-8.2 0Z" />
       <path d={`${dot(5.6, 7)}${dot(9.2, 7)}`} />
-      <path d="M5.6 11.8q1.8-1.6 3.6 0" />
+      {/* Mouths a little wider and half again as deep as they were. At 16px
+          the old 0.8-unit curve was half a pixel of bend — both mouths read as
+          flat lines, which is the one thing that tells the masks apart. */}
+      <path d="M5.4 12.2q2-2.3 4 0" />
       <path {...duo} d="M12.5 8.4h8.2v7.6a4.1 4.1 0 0 1-8.2 0Z" />
       <path d={`${dot(14.8, 11.8)}${dot(18.4, 11.8)}`} />
-      <path d="M14.8 16.2q1.8 1.6 3.6 0" />
+      <path d="M14.6 15.6q2 2.3 4 0" />
     </svg>
   );
 }
@@ -281,10 +290,15 @@ export function IconMasks(props: IconProps) {
 export function IconFerris(props: IconProps) {
   return (
     <svg {...base(props)}>
-      <circle {...duo} cx="12" cy="10" r="6.8" />
-      <circle cx="12" cy="10" r="1.7" />
-      <path d="M12 3.2v13.6M5.2 10h13.6M7.2 5.2l9.6 9.6M16.8 5.2l-9.6 9.6" />
-      <path d="M8.8 21h6.4L12 16.8Z" />
+      {/* Six spokes, not eight, and no hub ring. Eight spokes, a hub and a
+          washed rim put four crossing strokes through a 2-unit hub, and at
+          16px the wheel filled in to a black disc on a stand. Six keep a gap
+          between every pair of spokes at that size, so it still reads as a
+          wheel. The stand is legs and a ground line rather than a filled
+          triangle, the same base the palm and the towers stand on. */}
+      <circle {...duo} cx="12" cy="9.8" r="6.3" />
+      <path d="M5.7 9.8h12.6M8.85 4.34l6.3 10.92M15.15 4.34l-6.3 10.92" />
+      <path d="M9 21 12 16.1l3 4.9M7.8 21h8.4" />
     </svg>
   );
 }
@@ -427,9 +441,14 @@ export function IconCar(props: IconProps) {
 export function IconCoins(props: IconProps) {
   return (
     <svg {...base(props)}>
-      <ellipse {...duo} cx="12" cy="6.5" rx="7" ry="3" />
-      <path d="M5 6.5v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5" />
-      <path d="M5 11.5v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5" />
+      {/* Two coins, one in front of the other. This was a stack drawn side-on
+          — an ellipse over two banded walls — which is exactly the shape every
+          other icon set uses for a DATABASE, and at 16px beside «مستوى
+          الأسعار» that is what it read as. The back coin is only the arc left showing
+          behind the front one: its ends are where the two circles meet, so no
+          stroke crosses the front coin. */}
+      <path d="M8.88 8.14A5.9 5.9 0 1 1 15.32 15.46" />
+      <circle {...duo} cx="9.6" cy="14" r="5.9" />
     </svg>
   );
 }
