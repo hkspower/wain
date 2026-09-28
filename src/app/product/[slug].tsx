@@ -126,14 +126,14 @@ export default function ProductScreen() {
 
 
 
-          <ThemedText type="label" themeColor="textSecondary" style={text}>
+          <ThemedText type="label" themeColor="textSecondary" style={[text, { textAlign: 'center' }]}>
             {product.brand}
           </ThemedText>
-          <ThemedText type="display" style={text}>
+          <ThemedText type="display" style={[text, { textAlign: 'center' }]}>
             {productName(product, lang)}
           </ThemedText>
           <Price price={product.price} was={product.was} size="large" />
-          <ThemedText themeColor="textSecondary" style={text}>
+          <ThemedText themeColor="textSecondary" style={[text, { textAlign: 'center' }]}>
             {productBlurb(product, lang)}
           </ThemedText>
 
