@@ -17,7 +17,8 @@ not know about.
 
 INPUTS are the subject cut-outs in scripts/fixtures/tile-subjects/ (rembg
 BiRefNet over the 2026-09-28 studio art; outlet is a photo panel, not a
-cut-out). Re-cutting is not repeated here so the output is reproducible.
+cut-out: the shelving from the ORIGINAL 2026-08-20 art, x 810-1216, since the
+later repaired art had a blurred orange smear beside it). Re-cutting is not repeated here so the output is reproducible.
 """
 import os
 import numpy as np
@@ -97,9 +98,14 @@ def compose_accessories(w, h):
     return img
 
 
-def compose_outlet(w, h):
+def compose_outlet(w, h, rtl=False):
     img = ground(w, h)
     photo = Image.open(os.path.join(SUBJ, 'outlet.jpg')).convert('RGBA')
+    # The shelves carry "CLEARANCE" signs, so the Arabic frame mirrors the
+    # LAYOUT but not the photo: pre-flip it here, and save()'s mirror puts it
+    # back the right way round.
+    if rtl:
+        photo = photo.transpose(Image.FLIP_LEFT_RIGHT)
     ph = int(h * 0.80); pw = int(ph * 1.38)
     photo = photo.resize((pw, ph), Image.LANCZOS)
     x = w - pw - int(w * 0.05); y = (h - ph) // 2
@@ -118,9 +124,10 @@ def compose_outlet(w, h):
     return img
 
 
-def save(img, crop, name):
+def save(img, crop, name, rtl_src=None):
     rgb = img.convert('RGB')
-    for n, im in [(name, rgb), (name + '-rtl', rgb.transpose(Image.FLIP_LEFT_RIGHT))]:
+    mirror = (rtl_src or img).convert('RGB').transpose(Image.FLIP_LEFT_RIGHT)
+    for n, im in [(name, rgb), (name + '-rtl', mirror)]:
         p = os.path.join(ROOT, crop, f'art-{n}')
         im.save(p + '.jpg', quality=86, optimize=True, progressive=True)
         im.save(p + '.webp', quality=82, method=6)
@@ -133,4 +140,4 @@ for crop, sz in SIZES.items():
     save(compose_person('women', w, h), crop, 'women')
     w, h = sz['wide']
     save(compose_accessories(w, h), crop, 'accessories')
-    save(compose_outlet(w, h), crop, 'outlet')
+    save(compose_outlet(w, h), crop, 'outlet', rtl_src=compose_outlet(w, h, rtl=True))
