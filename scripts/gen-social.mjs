@@ -186,7 +186,11 @@ const CARDS = [
     id: "dawwir",
     lead: "دوّر حواليك",
     kicker: "إلى وين؟",
-    foot: "أقرب الأماكن من موقعك",
+    // Used to say «أقرب الأماكن من موقعك» — true while the dial ranked by a
+    // live GPS fix. It opens a type-or-call choice page now, so the foot
+    // is lifted from the dial's own current tagline instead, per this
+    // file's own rule: every sentence here has to be real site copy.
+    foot: "اكتب أو كلّم شوق",
     fg: C.sand50,
     bg: `linear-gradient(165deg, ${C.ink800} 0%, ${C.ink900} 70%)`,
     art: ART.rings(C.sun400),

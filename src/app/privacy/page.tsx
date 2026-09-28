@@ -62,14 +62,22 @@ export default function PrivacyPage() {
           موقعك
         </h2>
         <div className="mt-3 space-y-3 text-sm leading-relaxed text-ink-600">
+          {/* Rewritten: this section used to describe «إلى وين؟» ranking the
+              52 places by live GPS distance. That panel is gone — the dial
+              now opens a page that asks how you want to search, and requests
+              no location at all. The only place left that asks for it is
+              registering a business, to help place its pin — a different
+              purpose, so the paragraph now describes that instead of a
+              feature that no longer exists. */}
           <p>
-            زر «إلى وين؟» يشتغل بدون ما يطلب موقعك — يعرض لك أماكن وسط الكويت
-            مباشرة. إذا ضغطت «استخدم موقعي» بنفسك، وقتها بس يطلب المتصفح إذنك.
+            وين ما يطلب موقعك إلا في مكان واحد: وأنت تسجّل مكانك، إذا ضغطت
+            «موقعي» عشان تحدّد بيت مكانك على الخريطة بسرعة. غير جذي، ما فيه
+            صفحة تطلب موقعك.
           </p>
           <p>
-            وحتى لو وافقت، إحداثياتك <strong className="text-ink-900">ما تطلع من جهازك</strong>.
-            الحساب كله يصير داخل المتصفح عشان نرتّب الأماكن حسب قربها منك، وما
-            نخزّنها ولا نرسلها لأي خادم.
+            وحتى هناك، إحداثياتك <strong className="text-ink-900">ما تطلع من جهازك</strong>{" "}
+            إلا لما ترسل نموذج التسجيل نفسه — قبل جذي تظل بس تحرّك دبّوس على
+            خريطة النموذج، وما نخزّنها ولا نرسلها لأي خادم.
           </p>
         </div>
       </section>

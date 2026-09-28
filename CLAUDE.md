@@ -2252,6 +2252,87 @@ a second way to be triggered, which would be the same offer-drawn-twice
 mistake the call button's own placement was designed to avoid. `toArabicDigits`
 numbering, matching the result count and the rest of the site.
 
+## The dial no longer shows nearby places — it asks how you want to search
+
+The home page's «إلى وين؟» dial used to tap into an in-place panel: the five
+nearest of the 52 places, ranked live against a GPS fix taken in the same
+gesture, with a fallback to Kuwait City centre when there is no fix yet. That
+panel is gone, on request, replaced with a navigation to **`/find`**, a new
+page that asks the one question the panel skipped — type, or call شوق — before
+showing anything. Picking either lands on `/search`, which is where a شوق
+call's answer appears regardless of route.
+
+**Two choices, not three.** سالم stays exactly what he already was: a
+mid-call voice swap (`WainAiCall`'s «بصوت سالم» button), reachable only once
+a شوق call is live, not a second persona offered up front. Naming him on
+`/find` would promise a different assistant when it is the same one, a
+different voice, one tap deeper — the same reasoning `WainAiCall`'s own
+comment already gives for not building him a second agent.
+
+**`FindChoice.tsx` draws the شوق option with the real `ShouqCallButton`, not
+a second implementation that looks like it** — same rule `SearchHub` already
+follows, for the same reason: the tap has to spend the user gesture on
+`haptic`/`primeAudio` synchronously, inside the real component, or the call
+rings silently. The first draft nested it inside a second, outer `<button>`
+so the whole card would be one tap target — which is invalid HTML (a button
+inside a button) and, worse, meant the OUTER button's `onClick` was the only
+one that ever fired: it navigated to `/search` and never placed a call at
+all, exactly the bug this pattern exists to prevent. Fixed by giving
+`ShouqCallButton` a `size="lg"` variant and letting it be the only control in
+the card, with the heading and hint beside it as label, not a second target
+— the same shape `SearchHub` already uses.
+
+**This cost the dial its only client-side JavaScript.** Ranking against a
+live position cannot be done at build time, so the old `NearbyDial` was
+`"use client"` and imported `@/lib/places` directly — the one narrow,
+documented exception to «the catalogue must not reach a client bundle»,
+because the ranking genuinely needed all 52 records at runtime. Nothing here
+needs a live position or the catalogue any more: `NearbyDial` is a server
+component now, a styled `Link`, and the home page ships one entire client
+component fewer. Measured: `/` was carrying its own JavaScript on top of the
+shared baseline and now sits at exactly that floor — **120.2K**, the same as
+`/about` and `/privacy`, the site's two routes with no client component of
+their own at all. `/find/` itself is 126.5K, comfortably under the 175K
+`audit:js` budget.
+
+**Three call sites for `navigator.geolocation` became two**, and that
+demoted the reason iOS asks for location at all. The remaining two —
+`CoordinatePicker` and `AddBusinessClient`, both business registration,
+both placing a pin where you are — share one purpose that has nothing to do
+with ranking places by distance, so `NSLocationWhenInUseUsageDescription` in
+`scripts/patch-ios-project.mjs` was rewritten to match. Apple rejects a
+usage string that does not describe what the app actually does with the
+permission, and «so we can sort places by distance» stopped being true the
+day the dial stopped doing that — leaving a stale description in place would
+have been the same defect `docs/hosting.md`'s privacy-page corrections keep
+naming: true once, and never re-read against what shipped since.
+
+The privacy page's «موقعك» section had the identical problem for the same
+reason — it described the panel's live ranking, in present tense, to a
+visitor reading it after the panel was gone. Rewritten to name the one thing
+that is still true: registration asks, once, and only when «موقعي» is
+pressed.
+
+**شوق's own brief had a fourth stale reference, and it was an instruction,
+not a description.** One of her «أمثلة على أسئلة متوقّعة» told her that
+«وين أقرب مكان لي الحين؟» should be answered by pointing the caller at the
+«إلى وين؟» button — correct while that button ranked by live GPS, and wrong
+now that it opens a choice page instead: following it would send a caller to
+a menu, not an answer. She has no location fix of her own either, so
+rewritten to what she already does for locality everywhere else in the
+brief: ask what area they're in. `npm run ai:brief` regenerated
+`docs/wain-ai-agent.md` from the fix (one line changed; the knowledge base
+did not, since this lives in the prompt, not the catalogue), and
+`tests/shouq-brief.test.mjs` (72 assertions) confirms the regenerated file
+still matches the live data.
+
+**This is prompt guidance, not the live prompt** — see «The live prompt is
+not generated from `docs/wain-ai-agent.md`» below for what that distinction
+means and what re-pointing either one needs. Whether this exact sentence
+survived into the hand-adapted live copy is unread this session; say so
+rather than assuming either way, and check with `agents_get` before treating
+her live behaviour on this one question as fixed.
+
 ## The Arabic prose has been read, once, on purpose
 
 `npm run audit:arabic` says so itself: it checks invisible characters, wrong-
@@ -2363,9 +2444,10 @@ are now read and correct; a seventh appearing means something new, not this.
 `npm run scan` is lint plus 31 audits — counted from `package.json` on
 21 September rather than estimated, because «~29» had been carried along
 through two additions. Browser suites: `test:hangout` (hangout, hangout-page,
-map-pin, live-map, search-keys, shouq-search, search-plan, swipe — **eight**,
-not the ten this line used to list: `areas` and `search-button` went with the
-rollback), `test:journey`, `test:register`, `test:shouq`, `test:orders`,
+map-pin, live-map, search-keys, shouq-search, search-plan, swipe, find —
+**nine**, up from the eight this line used to list: `find` joined 28
+September, replacing the `areas` and `search-button` suites the rollback
+took), `test:journey`, `test:register`, `test:shouq`, `test:orders`,
 `test:net`. PHP suites, not in `scan` because it
 cannot assume php: `test:api` (40), `test:tts` (**58**: 42, then the
 cache-prune block, the one-render-under-concurrency block and the

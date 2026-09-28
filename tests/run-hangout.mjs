@@ -28,6 +28,11 @@
  *                   jump. Tests both directions, because the tempting
  *                   over-correction is to make it comfortable by making
  *                   snapping do nothing at all.
+ *   find          — the dial, now a plain link, and the choice page it leads
+ *                   to: type, or call شوق. Asserts `wain-ai:call` actually
+ *                   fires on the tap, not just that the page moves to
+ *                   /search — a navigation alone would not have caught the
+ *                   nested-button bug the first draft shipped.
  */
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
@@ -98,6 +103,9 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
 
   console.log("\n════ السحب: how the category rail feels under a thumb ════");
   failed += (await run("node", ["tests/swipe.test.mjs"], { env })) === 0 ? 0 : 1;
+
+  console.log("\n════ إلى وين: the dial, and the choice it leads to now ════");
+  failed += (await run("node", ["tests/find.test.mjs"], { env })) === 0 ? 0 : 1;
   srv.close();
 }
 

@@ -31,8 +31,16 @@ export default function ShouqCallButton({
   className = "",
   labelledBy,
   onTapped,
+  size = "sm",
 }: {
   className?: string;
+  /**
+   * "lg" for a standalone choice (the /find page, one of two equal options).
+   * Everywhere else this sits inline beside other text at its original
+   * size-8, and that sizing stays the default so nothing already shipping
+   * has to change.
+   */
+  size?: "sm" | "lg";
   /**
    * Run synchronously right after the call is requested — for a surface that
    * has to get out of the way.
@@ -143,11 +151,16 @@ export default function ShouqCallButton({
       // 24px does not leave — at size-6 the size-5 icon would touch the
       // button's own edge. 32px keeps the icon's ~45% share of the button
       // (20/44 before, 16/32 now) and still clears the floor with margin.
-      className={`grid size-8 place-items-center rounded-full transition ${
+      // size-20 at "lg" keeps the same ~45% ratio (size-9 icon).
+      className={`grid place-items-center rounded-full transition ${
+        size === "lg" ? "size-20" : "size-8"
+      } ${
         open ? "bg-coral-600 text-white shadow-md" : "text-coral-700 hover:bg-coral-50"
       } ${className}`}
     >
-      <IconShouq className={`size-4 shouq ${talking ? "shouq--talking" : ""}`} />
+      <IconShouq
+        className={`shouq ${size === "lg" ? "size-9" : "size-4"} ${talking ? "shouq--talking" : ""}`}
+      />
       {phase === "ringing" && (
         <span
           aria-hidden="true"

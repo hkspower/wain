@@ -26,6 +26,15 @@
  * tap of its headline feature — and nothing here would have reported it: the
  * Simulator job screenshots the launch screen and passes.
  *
+ * That third place is gone now — the dial opens a choice page instead of
+ * ranking places by live GPS distance, and asks for no location at all. Two
+ * remain, both inside business registration (`CoordinatePicker`,
+ * `AddBusinessClient`), both the same purpose: place a pin where you are.
+ * `NSLocationWhenInUseUsageDescription` below was rewritten to match — Apple
+ * rejects a description that does not match what the app actually does with
+ * the permission, and "so we can sort places by distance" stopped being true
+ * the day the dial stopped doing that.
+ *
  * ── 2. THE PRIVACY MANIFEST ───────────────────────────────────────────────
  *
  * Required since 1 May 2024, and rejected at UPLOAD rather than at review — so
@@ -75,7 +84,7 @@ if (!existsSync(PLIST) || !existsSync(PBX)) {
  */
 const STRINGS = {
   NSLocationWhenInUseUsageDescription:
-    "عشان نرتب لك الأماكن من الأقرب لك. موقعك ما يطلع من جهازك.",
+    "عشان نحط موقعك على الخريطة وأنت تسجّل مكانك. موقعك ما يطلع من جهازك.",
   NSMicrophoneUsageDescription:
     "عشان تتكلم مع شوق وتسألها وين تطلع.",
   NSSpeechRecognitionUsageDescription:

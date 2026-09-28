@@ -1,104 +1,21 @@
-"use client";
-
-import { useMemo, useState } from "react";
 import Link from "next/link";
-import CategoryIcon from "@/components/CategoryIcon";
-import { IconGo, IconLocate, IconPinSolid } from "@/components/icons";
-import {
-  categoryGradient,
-  distanceKm,
-  getCategory,
-  toArabicDigits,
-  distanceAr,
-} from "@/lib/place-kit";
-// The catalogue itself, and only here: ranking places against a live GPS fix
-// cannot be done at build time, so this one client component genuinely needs
-// all 52 records. Everything above it is vocabulary and comes from place-kit.
-import { places } from "@/lib/places";
 
-/** Kuwait City (Mubarakiya). Used so results work without asking for location. */
-const KUWAIT_CENTER = { lat: 29.3759, lng: 47.9774 };
-const RADIUS_KM = 10;
-/** Beyond this the visitor clearly is not in Kuwait, so distances are useless. */
-const OUTSIDE_KUWAIT_KM = 150;
-const MAX_SHOWN = 5;
-
-type GeoError = "denied" | "unavailable" | "timeout" | "insecure" | "outside";
-
+/**
+ * The home page's dial. It used to open an in-place panel here — the five
+ * nearest places, ranked live against a GPS fix taken in the same tap — and
+ * that made it a genuinely client-only component: ranking against a live
+ * position cannot be done at build time, so it carried the whole 52-place
+ * catalogue into the home page's JavaScript.
+ *
+ * Now it is one navigation, to `/find`, which asks how you want to search
+ * before showing you anything — see `FindChoice` for why that replaced the
+ * panel. Nothing here reads a GPS fix or the catalogue any more, so this
+ * needs no "use client" and no import from `@/lib/places`: it is a link,
+ * server-rendered, and the home page's client bundle is lighter for it.
+ */
 export default function NearbyDial() {
-  const [opened, setOpened] = useState(false);
-  const [locating, setLocating] = useState(false);
-  const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null);
-  const [geoError, setGeoError] = useState<GeoError | null>(null);
-
-  const from = origin ?? KUWAIT_CENTER;
-
-  const ranked = useMemo(
-    () =>
-      places
-        .map((p) => ({ ...p, km: distanceKm(from, p) }))
-        .sort((a, b) => a.km - b.km),
-    [from]
-  );
-
-  // Count across ALL places, not just the ones we happen to display.
-  const nearby = ranked.filter((p) => p.km <= RADIUS_KM);
-  const shown = (nearby.length > 0 ? nearby : ranked).slice(0, MAX_SHOWN);
-
-  function locateMe() {
-    setGeoError(null);
-
-    // Geolocation is only available in a secure context; on plain http it
-    // silently never resolves, which looks like a hang.
-    if (typeof window !== "undefined" && !window.isSecureContext) {
-      setGeoError("insecure");
-      return;
-    }
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setGeoError("unavailable");
-      return;
-    }
-
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const me = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setLocating(false);
-        if (distanceKm(me, KUWAIT_CENTER) > OUTSIDE_KUWAIT_KM) {
-          // Keep showing Kuwait rather than "٤٣٢١ كم".
-          setGeoError("outside");
-          return;
-        }
-        setOrigin(me);
-      },
-      (err) => {
-        setLocating(false);
-        setGeoError(
-          err.code === err.PERMISSION_DENIED
-            ? "denied"
-            : err.code === err.TIMEOUT
-              ? "timeout"
-              : "unavailable"
-        );
-      },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
-    );
-  }
-
-  const errorText: Record<GeoError, string> = {
-    denied: "ما سمحت لنا بموقعك — نعرض لك أماكن وسط الكويت.",
-    unavailable: "متصفحك ما يدعم تحديد الموقع — نعرض لك أماكن وسط الكويت.",
-    timeout: "طوّلنا وما وصلنا لموقعك — جرّب مرة ثانية.",
-    insecure: "تحديد الموقع يحتاج اتصال آمن (HTTPS).",
-    outside: "يبدو إنك برا الكويت — نعرض لك أشهر الأماكن في الكويت.",
-  };
-
   return (
     <div className="flex flex-col items-center">
-      {/* The dial. Tapping it reveals places AND asks for location in the
-          same gesture — a tap is the user gesture the permission prompt
-          needs, so firing it here rather than on a second, separate button
-          means the device asks right away instead of after an extra step. */}
       <div className="relative">
         <span
           aria-hidden="true"
@@ -128,13 +45,8 @@ export default function NearbyDial() {
             })}
           </g>
         </svg>
-        <button
-          type="button"
-          onClick={() => {
-            setOpened(true);
-            locateMe();
-          }}
-          aria-expanded={opened}
+        <Link
+          href="/find"
           // The ambient glow underneath is amber, not the @theme shadow
           // scale's ink tint — an ink-tinted shadow under a sun-200→400
           // gradient button would read as dirt, not lift. Same deliberate
@@ -152,74 +64,15 @@ export default function NearbyDial() {
             <span className="mt-2 rounded-full bg-ink-900 px-5 py-2 text-sm font-semibold text-sun-100 shadow-sm">
               ابحث
             </span>
+            {/* Used to claim «أقرب الأماكن — ١٠ كم حواليك», which was true of
+                the panel this replaced — a live-ranked nearest-five list —
+                and would be false of a link that opens a choice page instead. */}
             <span className="mt-1 text-xs font-semibold text-sun-900">
-              أقرب الأماكن — {toArabicDigits(RADIUS_KM)} كم حواليك
+              اكتب أو كلّم شوق
             </span>
           </span>
-        </button>
+        </Link>
       </div>
-
-      {opened && (
-        <div className="mt-6 w-full max-w-xl rounded-3xl border border-line bg-white/95 p-4 shadow-lg backdrop-blur">
-          <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
-            {origin ? (
-              <span className="flex items-center gap-1 rounded-full bg-palm-500/10 px-2.5 py-1 text-xs font-semibold text-palm-600">
-                <IconPinSolid className="size-3.5" />
-                من موقعك
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={locateMe}
-                disabled={locating}
-                className="flex items-center gap-1.5 rounded-full bg-sea-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-sea-800 disabled:opacity-70"
-              >
-                <IconLocate className="size-3.5" />
-                {locating ? "نحدّد موقعك…" : "استخدم موقعي"}
-              </button>
-            )}
-          </div>
-
-          {geoError && (
-            <p className="mb-3 rounded-2xl bg-sand-100 px-3 py-2 text-xs font-semibold text-ink-600">
-              {errorText[geoError]}
-            </p>
-          )}
-
-          <ul className="space-y-2">
-            {shown.map((p) => (
-              <li key={p.slug}>
-                <Link
-                  href={`/places/${p.slug}`}
-                  className="flex items-center gap-3 rounded-2xl border border-transparent p-2.5 transition hover:border-line hover:bg-sand-100"
-                >
-                  <span
-                    aria-hidden="true"
-                    className={`grid size-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-white ${categoryGradient(p.category)}`}
-                  >
-                    <CategoryIcon name={getCategory(p.category)?.icon ?? "all"} className="size-6" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-semibold text-ink-900">{p.nameAr}</span>
-                    <span className="block truncate text-xs text-ink-500">{p.areaAr}</span>
-                  </span>
-                  <span className="shrink-0 rounded-full bg-sea-50 px-2.5 py-1 text-xs font-semibold text-sea-700">
-                    {distanceAr(p.km, p.coordsUnverified)}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-
-          <Link
-            href="/explore"
-            className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-ink-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-ink-800"
-          >
-            شوف كل الأماكن
-            <IconGo className="size-4" />
-          </Link>
-        </div>
-      )}
     </div>
   );
 }
