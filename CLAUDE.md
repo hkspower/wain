@@ -506,7 +506,25 @@ file's length would pass it. Content hashes would close that, and nothing on
 this connector returns one for a binary — which is why the hashed chunk
 names, content-addressed by the build, carry most of the weight.
 
-## The 24 September deploy — `eb9bad9` is live
+## The 28 September deploy — `085c849` is live
+
+`{"ok":true,"version":"1.1.0","deployed":249,"removed":7,"emptied":1}` at
+08:46:02Z, read from the job's FIRST firing this time, because it was deleted
+straight after (`ijdfD4S4m9`, confirmed gone by a listing). So `removed: 7`
+is the real prune, not the idempotent second pass the 24th had to reason
+around. What shipped since `eb9bad9`: the map-pin hover race fix, the four
+redrawn icons, the dead-code removals and the سالم override comment — seven
+files under `src/`.
+
+Proved below the root, byte-exact against the archive: `_next/static/` holds
+exactly one build-id directory, `085c8495…` (`_buildManifest.js` 1,049), with
+`eb9bad9…` gone; one site stylesheet, `css/a2da12f8a1a142ce.css` (88,377),
+beside Leaflet's unchanged 11,181; `chunks/app/search/page-376b2ab0ed06b1cc.js`
+(24,447); `explore/index.html` (18,049); `places/marina-beach/index.html`
+(58,792); and all twelve root files including `build.json` (351). Then the
+cache purge and a public read of `build.json` through the edge.
+
+## The 24 September deploy — `eb9bad9` was live
 
 **Read `build.json` before believing this file about what is live.** It said
 `5a5e28d`; the server said **`a46be45`**, a deploy on the 20th that this file
@@ -606,7 +624,7 @@ at the pinned URL.
 
 **The live build id trails HEAD on purpose, and that is not a failed deploy.**
 `build.json`, `_next/static/<sha>/` and `sw.js` all name the commit that built
-the archive — `eb9bad9` as of 24 September; read `build.json` rather than this
+the archive — `085c849` as of 28 September; read `build.json` rather than this
 line, which has been stale before (see the 24 September section). HEAD moves
 past it on commits that change the planner, this file and nothing that ships —
 starting with the very commit that publishes the archive.
