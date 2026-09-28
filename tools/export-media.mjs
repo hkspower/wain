@@ -5,9 +5,17 @@
 //
 // Writes press/export/{video,sound,images}/..., an index (MEDIA.md and
 // media.json: every file's size, duration or pixel size, and where it
-// came from) and one zip per group — night-racer-video.zip,
-// night-racer-sound.zip and three image zips (press kit, in-game,
-// measurements). press/export is ignored: every file in it is a copy.
+// came from) and zips per group — video, sound, and images three ways
+// (press kit, in-game, measurements). press/export is ignored: every
+// file in it is a copy.
+//
+// SIZED TO BE SENT. A zip is at most --max-mb (28 by default: the chat
+// upload limit is 30 MiB), so a big group becomes numbered parts, and
+// every part is a whole zip that opens on its own — not a split archive
+// that needs all its pieces and a desktop tool. A single video bigger
+// than that cannot be packed at all, so it travels as a share copy:
+// two-pass H.264 at the bitrate that fits, beside the untouched
+// original, and the index says which is which.
 //
 // WHAT COUNTS. scripts/lib/assets.mjs is the project's own declaration
 // of which folders are deliverables and which are a test's scratch, and
@@ -26,6 +34,11 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 
 const OUT = "press/export";
+const argOf = (name, fallback) => {
+  const i = process.argv.indexOf(`--${name}`);
+  return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
+};
+const MAX = Number(argOf("max-mb", 28)) * 1e6;
 const KIND = {
   video: [".mp4", ".webm", ".mov", ".mkv"],
   sound: [".mp3", ".wav", ".flac", ".ogg", ".m4a"],
@@ -149,6 +162,27 @@ for (const p of unique) {
   index.push({ file: relative(OUT, dest), kind: p.kind, group: p.group, bytes, ...info, source: p.src, ...(p.alsoAt.length ? { alsoAt: p.alsoAt } : {}) });
 }
 
+// ------------------------------------------------------- share copies
+const shares = [];
+for (const e of index) {
+  if (e.kind !== "video" || e.bytes <= MAX) continue;
+  if (!ff || !e.seconds) { console.log(`  ${e.file}: ${(e.bytes / 1e6).toFixed(1)} MB and no encoder/duration to shrink it — left out of the zips`); continue; }
+  const src = join(OUT, e.file);
+  const dest = join(OUT, "video-share", basename(e.file).replace(/\.[^.]+$/, "-share.mp4"));
+  mkdirSync(dirname(dest), { recursive: true });
+  // The bitrate that lands at 94% of the cap, less 192 kb/s of audio.
+  const vbps = Math.max(500e3, Math.floor((MAX * 0.94 * 8) / e.seconds - 192e3));
+  const log = join(OUT, ".x264pass");
+  const common = ["-y", "-hide_banner", "-loglevel", "error", "-i", src, "-c:v", "libx264", "-preset", "slow", "-b:v", String(vbps), "-pix_fmt", "yuv420p", "-passlogfile", log];
+  execFileSync(ff, [...common, "-pass", "1", "-an", "-f", "null", "/dev/null"], { stdio: "ignore" });
+  execFileSync(ff, [...common, "-pass", "2", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", dest], { stdio: "ignore" });
+  for (const f of readdirSync(OUT)) if (f.startsWith(".x264pass")) rmSync(join(OUT, f));
+  e.share = relative(OUT, dest);
+  e.shareBytes = statSync(dest).size;
+  e.shareKbps = Math.round(vbps / 1000);
+  shares.push(e);
+}
+
 // -------------------------------------------------------------- index
 const mb = (b) => (b / 1e6).toFixed(1);
 const human = (e) => e.seconds != null ? `${e.seconds.toFixed(1)} s${e.w ? `, ${e.w}×${e.h}` : ""}` : e.w ? `${e.w}×${e.h}` : "";
@@ -172,7 +206,7 @@ for (const k of Object.keys(KIND)) {
   lines.push(`## ${k[0].toUpperCase() + k.slice(1)} (${rows.length}, ${mb(rows.reduce((s, e) => s + e.bytes, 0))} MB)`, "");
   lines.push("| File | Size | Length / pixels | From |", "| --- | ---: | --- | --- |");
   for (const e of rows.sort((a, b) => a.file.localeCompare(b.file)))
-    lines.push(`| \`${e.file}\` | ${mb(e.bytes)} MB | ${human(e)} | \`${e.source}\` |`);
+    lines.push(`| \`${e.file}\` | ${mb(e.bytes)} MB${e.share ? ` (zipped as \`${e.share}\`, ${mb(e.shareBytes)} MB at ${e.shareKbps} kb/s)` : ""} | ${human(e)} | \`${e.source}\` |`);
   lines.push("");
 }
 writeFileSync(join(OUT, "MEDIA.md"), lines.join("\n"));
@@ -180,21 +214,36 @@ writeFileSync(join(OUT, "media.json"), JSON.stringify(index, null, 2) + "\n");
 
 // --------------------------------------------------------------- zips
 // Stored, not deflated: every one of these formats is compressed already,
-// and deflating an MP4 buys nothing but time.
-const zips = [
-  ["night-racer-video.zip", ["video"]],
-  ["night-racer-sound.zip", ["sound"]],
-  ["night-racer-images-press-kit.zip", ["images/press-kit"]],
-  ["night-racer-images-in-game.zip", ["images/in-game"]],
-  ["night-racer-images-measurements.zip", ["images/measurements"]],
+// and deflating an MP4 buys nothing but time. Packed first-fit by size
+// into parts under the cap, the index riding in every part.
+const groups = [
+  ["video", (e) => e.kind === "video"],
+  ["sound", (e) => e.kind === "sound"],
+  ["images-press-kit", (e) => e.kind === "images" && e.group === "press-kit"],
+  ["images-in-game", (e) => e.kind === "images" && e.group === "in-game"],
+  ["images-measurements", (e) => e.kind === "images" && e.group === "measurements"],
 ];
+const indexBytes = statSync(join(OUT, "MEDIA.md")).size;
 const made = [];
-for (const [name, dirs] of zips) {
-  const present = dirs.filter((d) => existsSync(join(OUT, d)));
-  if (!present.length) continue;
-  execFileSync("zip", ["-q", "-r", "-0", name, "MEDIA.md", ...present], { cwd: OUT });
-  made.push([name, statSync(join(OUT, name)).size]);
+const left = [];
+for (const [name, test] of groups) {
+  const items = index.filter(test).map((e) => (e.share ? { file: e.share, bytes: e.shareBytes } : { file: e.file, bytes: e.bytes }));
+  const room = MAX - indexBytes - 4096;
+  const bins = [];
+  for (const it of items.sort((x, y) => y.bytes - x.bytes)) {
+    if (it.bytes + 200 > room) { left.push(it.file); continue; }
+    const bin = bins.find((b) => b.bytes + it.bytes + 200 <= room);
+    if (bin) { bin.files.push(it.file); bin.bytes += it.bytes + 200; }
+    else bins.push({ files: [it.file], bytes: it.bytes + 200 });
+  }
+  bins.forEach((b, i) => {
+    const zip = `night-racer-${name}${bins.length > 1 ? `-${i + 1}of${bins.length}` : ""}.zip`;
+    execFileSync("zip", ["-q", "-0", zip, "MEDIA.md", ...b.files.sort()], { cwd: OUT });
+    made.push([zip, statSync(join(OUT, zip)).size, b.files.length]);
+  });
 }
 console.log(`${index.length} files exported to ${OUT}/ (${Object.keys(KIND).map((k) => `${byKind(k).length} ${k}`).join(", ")}); ` +
   `${skipped.scratch} scratch + ${skipped.split} working files skipped, ${dupes} duplicates folded`);
-for (const [name, bytes] of made) console.log(`  ${join(OUT, name)}  ${mb(bytes)} MB`);
+for (const e of shares) console.log(`  share copy  ${e.share}  ${mb(e.shareBytes)} MB (${e.shareKbps} kb/s) for ${e.file} ${mb(e.bytes)} MB`);
+for (const [name, bytes, n] of made) console.log(`  ${join(OUT, name)}  ${mb(bytes)} MB, ${n} files`);
+if (left.length) console.log(`  too big for any zip under ${mb(MAX)} MB: ${left.join(", ")}`);
