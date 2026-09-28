@@ -55,11 +55,14 @@ GROUNDS = {
 BOUM = [
     [(0.10, 0.60), (0.52, 0.04), (0.56, 0.62)],                       # main sail
     [(0.61, 0.62), (0.79, 0.26), (0.84, 0.62)],                       # mizzen sail
-    [(0.525, 0.04), (0.545, 0.04), (0.545, 0.68), (0.525, 0.68)],     # mainmast
-    [(0.785, 0.26), (0.805, 0.26), (0.805, 0.68), (0.785, 0.68)],     # mizzen mast
-    [(0.03, 0.60), (0.07, 0.68), (0.93, 0.68), (0.98, 0.58), (0.995, 0.60),
-     (0.94, 0.79), (0.72, 0.87), (0.36, 0.87), (0.14, 0.79)],         # hull
-    [(0.035, 0.605), (0.065, 0.605), (0.03, 0.44), (0.005, 0.45)],    # stem
+    [(0.525, 0.04), (0.545, 0.04), (0.545, 0.67), (0.525, 0.67)],     # mainmast
+    [(0.785, 0.26), (0.805, 0.26), (0.805, 0.67), (0.785, 0.67)],     # mizzen mast
+    # hull, stem and sternpost as ONE filled shape, as the site's mark always
+    # was: a separate stem polygon met the hull at a sliver and rasterised
+    # into a floating stub. The stem rakes forward from the forefoot to a head
+    # two cells wide; the sheer rises into both ends; no transom.
+    [(0.00, 0.43), (0.06, 0.43), (0.11, 0.66), (0.89, 0.66), (0.95, 0.55),
+     (1.00, 0.55), (0.95, 0.78), (0.74, 0.87), (0.34, 0.87), (0.13, 0.79)],
 ]
 
 

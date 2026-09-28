@@ -62,11 +62,11 @@ def boum():
         out.append({"d": d, "fill": fill,
                     "w": float(sw.group(1)) if sw else 0.0,
                     "cap": cap.group(1) if cap else "butt"})
-    # Eight: waterline · hull · sheer · two masts · the two spars in one d ·
-    # two sails. Fewer means the sprite changed shape and this animation would
-    # be flying a different ship than the site.
-    if len(out) != 8:
-        raise SystemExit(f"{len(out)} paths in #i-boum — expected 8")
+    # The pixel boum (2026-09-28) is one filled path of lit cells. An empty
+    # symbol, or one with nothing filled, means the sprite changed shape and
+    # this animation would be flying no ship at all.
+    if not any(p["fill"] == "currentColor" for p in out):
+        raise SystemExit(f"{len(out)} paths in #i-boum, none filled — expected the pixel boum")
     return view, out
 
 
@@ -81,6 +81,10 @@ TEMPLATE = """<meta charset="utf-8">
     src:url("../../almuhallab/fonts/cairo-700.woff2") format("woff2"); }}
   @font-face {{ font-family:"Cairo"; font-weight:800; font-display:block;
     src:url("../../almuhallab/fonts/cairo-800.woff2") format("woff2"); }}
+  @font-face {{ font-family:"Reem Kufi"; font-weight:700; font-display:block;
+    src:url("../../almuhallab/fonts/reemkufi-700.woff2") format("woff2"); }}
+  @font-face {{ font-family:"Share Tech Mono"; font-weight:400; font-display:block;
+    src:url("../../almuhallab/fonts/sharetechmono-400.woff2") format("woff2"); }}
   html,body {{ margin:0; background:#fff; overflow:hidden; }}
   canvas {{ display:block; }}
 </style>
@@ -447,14 +451,14 @@ function renderFrame(f) {{
     ctx.globalAlpha = wa;
     ctx.textBaseline = "top";
     ctx.fillStyle = TINT;
-    ctx.font = '800 ' + Math.round(LK.name * mh) + 'px Cairo, sans-serif';
+    ctx.font = '700 ' + Math.round(LK.name * mh) + 'px "Reem Kufi", Cairo, sans-serif';
     ctx.fillText("المهلب", W / 2, y);
     y += LK.name * mh * LK.nameLH + LK.line * mh;
     ctx.fillStyle = TINT_STRONG;
-    ctx.font = '700 ' + Math.round(LK.en * mh) + 'px Cairo, sans-serif';
-    // the masthead tracks the English line at .1em; Chromium's canvas honours
+    ctx.font = '400 ' + Math.round(LK.en * mh) + 'px "Share Tech Mono", monospace';
+    // the masthead tracks the English line at .32em; Chromium's canvas honours
     // letterSpacing, and on a browser that does not the line simply sets tight
-    if ("letterSpacing" in ctx) ctx.letterSpacing = (LK.en * mh * 0.1) + "px";
+    if ("letterSpacing" in ctx) ctx.letterSpacing = (LK.en * mh * 0.32) + "px";
     ctx.fillText("Almuhallab Code", W / 2, y);
     if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
     y += LK.en * mh * LK.enLH + LK.line * mh;
@@ -490,8 +494,15 @@ window.SHIP_META = {{ fps: FPS, total: TOTAL, frames: Math.round(TOTAL * FPS),
 // A preview when the page is opened by hand; the renderer never uses it.
 var live = 0;
 function tick() {{ renderFrame(live++ % Math.round(TOTAL * FPS)); requestAnimationFrame(tick); }}
-if (!location.search.includes("still")) document.fonts.ready.then(tick);
-else document.fonts.ready.then(function () {{ renderFrame(0); }});
+// A canvas never asks for a face, so fonts.ready resolves with none loaded and
+// the wordmark falls back to a system font. Load each one by name first.
+var FACES = Promise.all([
+  document.fonts.load('700 40px "Reem Kufi"', "المهلب"),
+  document.fonts.load('400 40px "Share Tech Mono"', "Code"),
+  document.fonts.load('500 40px Cairo', "شركة"),
+  document.fonts.load('800 40px Cairo', "ب")]);
+if (!location.search.includes("still")) FACES.then(tick);
+else FACES.then(function () {{ renderFrame(0); }});
 </script>
 """
 

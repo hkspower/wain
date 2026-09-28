@@ -119,6 +119,8 @@ def page(w, h, kicker, headline, lines, proof, vb, body, story):
   @font-face {{ font-family:"Cairo"; src:url("{fonts}/cairo-500.woff2") format("woff2"); font-weight:500; font-display:block; }}
   @font-face {{ font-family:"Cairo"; src:url("{fonts}/cairo-700.woff2") format("woff2"); font-weight:700; font-display:block; }}
   @font-face {{ font-family:"Cairo"; src:url("{fonts}/cairo-800.woff2") format("woff2"); font-weight:800; font-display:block; }}
+  @font-face {{ font-family:"Reem Kufi"; src:url("{fonts}/reemkufi-700.woff2") format("woff2"); font-weight:700; font-display:block; }}
+  @font-face {{ font-family:"Share Tech Mono"; src:url("{fonts}/sharetechmono-400.woff2") format("woff2"); font-weight:400; font-display:block; }}
   * {{ box-sizing:border-box; margin:0; padding:0; }}
   /* The decorative mark is meant to bleed off the edge, so it must be
      clipped, not merely allowed to hang. Without this it widened the document
@@ -135,8 +137,9 @@ def page(w, h, kicker, headline, lines, proof, vb, body, story):
   .top {{ height:{bar}px; background:{TINT_STRONG}; color:#fff;
           display:flex; align-items:center; gap:26px; padding:0 {pad}px; flex:none; }}
   .top svg {{ width:{mark}px; height:{mark//2}px; color:#fff; }}
-  .top .name {{ font-weight:800; font-size:{lead + 6}px; line-height:1.35; }}
-  .top .name small {{ display:block; font-weight:500; font-size:{lead - 10}px; opacity:.92; }}
+  .top .name {{ font-family:"Reem Kufi","Cairo",sans-serif; font-weight:700; font-size:{lead + 8}px; line-height:1.35; }}
+  .top .name small {{ display:block; font-family:"Share Tech Mono",monospace; font-weight:400;
+                      font-size:{lead - 12}px; letter-spacing:.24em; direction:ltr; opacity:.92; }}
 
   .body {{ flex:1; padding:{pad}px; display:flex; flex-direction:column;
            position:relative; overflow:hidden;

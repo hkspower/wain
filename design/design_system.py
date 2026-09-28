@@ -52,8 +52,11 @@ def token(name: str) -> str:
 
 def font_faces() -> str:
     faces = re.findall(r"@font-face\s*\{[^}]*\}", HOME_CSS, re.S)
-    if len(faces) != 5:
-        sys.exit(f"expected 5 @font-face rules, found {len(faces)}")
+    # five Cairo weights for the text, two wordmark faces (Reem Kufi, Share
+    # Tech Mono) for the masthead lockup — a count that moves means a face was
+    # added or lost without the bundle being told
+    if len(faces) != 7:
+        sys.exit(f"expected 7 @font-face rules, found {len(faces)}")
     # the bundle carries its own copy of the fonts, one directory up from
     # the cards, so a card opens correctly wherever the folder is put
     return "\n".join(f.replace("fonts/", "../fonts/") for f in faces)
@@ -413,7 +416,8 @@ def main() -> None:
         fonts.mkdir(parents=True, exist_ok=True)
         for f in sorted((SITE / "fonts").glob("*.woff2")):
             shutil.copy2(f, fonts / f.name)
-        shutil.copy2(SITE / "fonts" / "LICENSE-Cairo.txt", fonts / "LICENSE-Cairo.txt")
+        for lic in sorted((SITE / "fonts").glob("LICENSE-*.txt")):
+            shutil.copy2(lic, fonts / lic.name)
     elif not (fonts / "cairo-400.woff2").exists():
         stale.append("fonts/")
 
@@ -422,7 +426,7 @@ def main() -> None:
             sys.exit("design-system bundle is stale: " + ", ".join(stale))
         print("the design-system bundle is current")
     else:
-        print(f"{OUT.relative_to(ROOT)} — {len(files)} files + 5 font files")
+        print(f"{OUT.relative_to(ROOT)} — {len(files)} files + {len(list((SITE / 'fonts').glob('*.woff2')))} font files")
 
 
 if __name__ == "__main__":

@@ -543,34 +543,56 @@ def identity_checks():
     home = (ROOT / "index.html").read_text()
     logo = (ROOT / "logo.svg").read_text()
 
-    # the mark's own path signature. It lives in three files and they have to
-    # stay one drawing — a favicon that lags a redraw is a second logo
-    SQ_MAST = "M11.6 16.15 12.9 8.8"
-    SQ_HULL = "M2.4 13.4C3.9 14.6 5.3 15.3 6.9 15.6"
-    SQ_SAIL = "M4.6 3.4 17.2 11.6 6.2 13.6Z"
-    W_MAST = "M26.8 16.4 28.63 7.79"
-    W_HULL = "M4.6 12.6C6.3 13.9 8 14.8 9.8 15.15"
-    W_SAIL = "M20.5 2.2 35.6 12.6 23.6 14.4Z"
+    # The mark is the pixel boum (owner's decision 2026-09-28, replacing the
+    # stroked boum): the ship's polygons in design/matrix_logo.py, rasterised
+    # by design/pixel_boum.py into the sprite, logo.svg and favicon.svg. The
+    # generator's --check is the signature now: any hand edit to any of the
+    # four places, or any drift between them, fails it.
+    import subprocess
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT.parent / "design"))
+    import pixel_boum as pb
+    import matrix_logo as ml
+    gen = subprocess.run([_sys.executable, str(ROOT.parent / "design" / "pixel_boum.py"), "--check"],
+                         capture_output=True, text=True)
+    check(S, "the mark is generated from the ship's one drawing (pixel_boum --check)",
+          gen.returncode == 0, (gen.stdout + gen.stderr).strip())
     fav = (ROOT / "favicon.svg").read_text()
-    check(S, "the square boum serves the sprite for square holes",
-          'id="i-sail"' in home and SQ_MAST in home and SQ_HULL in home)
-    check(S, "the wide boum is the mark: logo.svg and the #i-boum symbol",
-          'id="i-boum"' in home and W_MAST in logo and W_HULL in logo
-          and W_MAST in home and W_HULL in home)
-    # The boum is the one Kuwaiti dhow that is DOUBLE-ENDED — no transom — and
-    # she is drawn under sail. Bare poles read as a laid-up hull, and a transom
-    # makes her a baghlah. Both were real defects an independent review caught.
-    check(S, "both forms carry a filled lateen sail, not bare poles",
-          W_SAIL in logo and W_SAIL in home and SQ_SAIL in home and SQ_SAIL in fav)
-    check(S, "favicon.svg is the same square drawing as #i-sail, not a second ship",
-          SQ_MAST in fav and SQ_HULL in fav)
+    wide_d, sq_d = pb.wide_d(), pb.square_d(1.5)
+    check(S, "the wide pixel boum is the mark: logo.svg and the #i-boum symbol",
+          'id="i-boum"' in home and wide_d in home and wide_d in logo)
+    check(S, "favicon.svg is the same 16×16 bitmap as #i-sail, not a second ship",
+          'id="i-sail"' in home and sq_d in home and pb.square_d(32) in fav)
+    # Four things make her a boum; each is asserted on the drawing itself.
+    tris = [p for p in ml.BOUM if len(p) == 3]
+    check(S, "she carries two filled lateen sails, not bare poles",
+          len(tris) == 2 and all(min(y for _, y in t) < 0.3 for t in tris))
+    masts = [p for p in ml.BOUM if len(p) == 4]
+    tops = sorted((min(y for _, y in m), min(x for x, _ in m)) for m in masts)
     check(S, "the tall mainmast is forward of the short mizzen, as a boum is rigged",
-          logo.index("M26.8 16.4") > 0 and "M13 16 14.1 9.23" in logo)
+          len(masts) == 2 and tops[0][1] < tops[1][1])
+    hull = max(ml.BOUM, key=len)
+    deck = sorted(y for _, y in hull)[len(hull) // 2]
+    check(S, "she is double-ended: stem and sternpost rise above the deck at both ends",
+          min(y for x, y in hull if x < 0.1) < deck and min(y for x, y in hull if x > 0.9) < deck)
+    sq_rows = pb.SQUARE
+    check(S, "the square form is a 16×16 bitmap, one cell per pixel at 16px",
+          len(sq_rows) == 16 and all(len(r) == 16 for r in sq_rows))
+    check(S, "the square form keeps a one-cell margin, so the tile's corners clip nothing",
+          sq_rows[0].strip(".") == "" and sq_rows[-1].strip(".") == ""
+          and all(r[0] == "." and r[-1] == "." for r in sq_rows))
     check(S, "the masthead flies the wide mark; the footer keeps the square",
           '<use href="#i-boum"/>' in home.split("<footer>")[0].split('class="brand"')[1]
           and '<use href="#i-sail"/>' in home.split("<footer>")[1])
     check(S, "the page carries both forms of the mark, not an emoji or a letter",
           '<use href="#i-boum"/>' in home and '<use href="#i-sail"/>' in home)
+    check(S, "the wordmark is set in Reem Kufi, Almuhallab Code in Share Tech Mono",
+          re.search(r'\.brand \.name \{[^}]*font-family: "Reem Kufi"', home) is not None
+          and re.search(r'\.brand \.en \{[^}]*font-family: "Share Tech Mono"', home) is not None)
+    for f in ("reemkufi-700.woff2", "sharetechmono-400.woff2"):
+        check(S, f"the wordmark face {f} is bundled, not fetched",
+              (ROOT / "fonts" / f).is_file() and f'fonts/{f}' in home
+              and f'"fonts/{f}"' in (ROOT / "sw.js").read_text())
     check(S, "the wordmark is المهلب", '<span class="name">المهلب</span>' in home)
     check(S, "Almuhallab Code sits on its own line beneath المهلب",
           '<span class="en">Almuhallab&nbsp;Code</span>' in home
@@ -862,7 +884,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "654", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "660", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -897,7 +919,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "654", "0", "100%"], str(finals))
+          finals == ["4", "660", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -1529,9 +1551,11 @@ def scan_checks(pg, br):
     check(S, "the company favicon is the sail, not the anchor",
           'href="favicon.svg"' in home and 'href="icon.svg"' not in home)
     fav = (ROOT / "favicon.svg").read_text()
-    check(S, "the favicon file draws the boum",
-          "M11.6 16.15 12.9 8.8" in fav
-          and "M2.4 13.4C3.9 14.6 5.3 15.3 6.9 15.6" in fav)
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT.parent / "design"))
+    import pixel_boum as pb
+    check(S, "the favicon file draws the pixel boum",
+          pb.square_d(32) in fav)
 
     # document structure: exactly one h1 per page
     for f in list(PAGES) + list(STUBS) + ["404.html"]:
@@ -2729,9 +2753,12 @@ def font_checks(pg):
     cached = pg.evaluate("""caches.keys().then(ks => ks.length
         ? caches.open(ks[0]).then(c => c.keys().then(rs => rs.map(r => new URL(r.url).pathname)))
         : [])""")
+    # every bundled face by name — Cairo's four files and the wordmark's two;
+    # a count alone would pass with the right number of the wrong files
+    bundled = sorted(f.name for f in (ROOT / "fonts").glob("*.woff2"))
+    got = sorted(p.rsplit("/", 1)[-1] for p in cached if p.endswith(".woff2"))
     check(S, "fonts are precached for offline use",
-          sum(1 for p in cached if p.endswith(".woff2")) == 4,
-          f"{sum(1 for p in cached if p.endswith('.woff2'))} cached")
+          got == bundled and len(bundled) == 6, f"{got} vs {bundled}")
 
 # ═══════════════════════════════════════════ run
 static_checks()

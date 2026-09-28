@@ -29,18 +29,28 @@ def wide_mark() -> str:
 
 
 def build() -> str:
-    font = (SITE / "fonts" / "cairo-800.woff2").resolve().as_uri()
-    font7 = (SITE / "fonts" / "cairo-700.woff2").resolve().as_uri()
+    # Fonts go in as data: URIs. The page is set_content()'d onto about:blank,
+    # which may not load file:// URLs — every face silently fell back to the
+    # system font, and the share card shipped in DejaVu for months.
+    def uri(name):
+        import base64
+        b = (SITE / "fonts" / name).read_bytes()
+        return "data:font/woff2;base64," + base64.b64encode(b).decode()
+    font, font7 = uri("cairo-800.woff2"), uri("cairo-700.woff2")
+    kufi, mono = uri("reemkufi-700.woff2"), uri("sharetechmono-400.woff2")
     return f"""<!doctype html><html dir="rtl"><head><meta charset="utf-8"><style>
       @font-face {{ font-family:"Cairo"; font-weight:800; src:url("{font}") format("woff2"); }}
       @font-face {{ font-family:"Cairo"; font-weight:700; src:url("{font7}") format("woff2"); }}
+      @font-face {{ font-family:"Reem Kufi"; font-weight:700; src:url("{kufi}") format("woff2"); }}
+      @font-face {{ font-family:"Share Tech Mono"; font-weight:400; src:url("{mono}") format("woff2"); }}
       * {{ margin:0; box-sizing:border-box; }}
       body {{ width:1200px; height:630px; background:{BROWN}; color:#fff;
              font-family:"Cairo",system-ui,sans-serif;
              display:flex; flex-direction:column; align-items:center;
              justify-content:center; gap:26px; }}
-      .name {{ font-size:86px; font-weight:800; line-height:1.25; }}
-      .en {{ font-size:34px; font-weight:700; letter-spacing:.14em;
+      .name {{ font-family:"Reem Kufi","Cairo",sans-serif; font-size:96px; font-weight:700; line-height:1.35; }}
+      .en {{ font-family:"Share Tech Mono",monospace; font-size:32px; font-weight:400;
+            letter-spacing:.32em; margin-inline-end:-.32em;
             direction:ltr; unicode-bidi:isolate; }}
       .sub {{ font-size:27px; font-weight:700; color:rgba(255,255,255,.84); }}
       .rule {{ width:132px; height:3px; background:rgba(255,255,255,.42); border-radius:2px; }}
@@ -59,7 +69,13 @@ def main() -> None:
         b = p.chromium.launch(executable_path=CHROME)
         pg = b.new_page(viewport={"width": 1200, "height": 630})
         pg.set_content(build())
-        pg.wait_for_timeout(600)
+        pg.evaluate("document.fonts.ready")
+        faces = pg.evaluate("""Promise.all([
+            document.fonts.load('700 96px "Reem Kufi"', 'المهلب'),
+            document.fonts.load('400 32px "Share Tech Mono"', 'Code'),
+            document.fonts.load('700 27px "Cairo"', 'شركة')]).then(r => r.map(x => x.length))""")
+        if 0 in faces:
+            sys.exit(f"a face failed to load {faces} — refusing to ship a system-font card")
         pg.screenshot(path=str(OUT))
         b.close()
     kb = OUT.stat().st_size / 1024

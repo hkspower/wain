@@ -10,6 +10,10 @@
       font-display:swap; src:url("../fonts/cairo-700.woff2") format("woff2"); }
 @font-face { font-family:"Cairo"; font-style:normal; font-weight:800;
       font-display:swap; src:url("../fonts/cairo-800.woff2") format("woff2"); }
+@font-face { font-family:"Reem Kufi"; font-style:normal; font-weight:700;
+      font-display:swap; src:url("../fonts/reemkufi-700.woff2") format("woff2"); }
+@font-face { font-family:"Share Tech Mono"; font-style:normal; font-weight:400;
+      font-display:swap; src:url("../fonts/sharetechmono-400.woff2") format("woff2"); }
 
 :root {
       color-scheme: light;   /* the site is white on every device, dark preference included */
