@@ -239,10 +239,6 @@
     .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
     .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px 16px; }
     .card h3 { margin: 0 0 8px; font-size: 14.5px; }
-    .kv { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0;
-      border-bottom: 1px solid var(--border); font-size: 13px; }
-    .kv:last-child { border-bottom: 0; }
-    .kv span:last-child { font-variant-numeric: tabular-nums; font-weight: 700; }
 
     .audit { max-height: 340px; overflow-y: auto; font-size: 12.5px; }
     .audit div { padding: 6px 0; border-bottom: 1px solid var(--border); display: flex; gap: 8px; }
@@ -544,8 +540,6 @@
   function rd(k, dflt) { try { var v = JSON.parse(localStorage.getItem(k)); return v === null ? dflt : v; } catch (e) { return dflt; } }
   function wr(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
 
-  /* النوخذة is free: one plan, no tiers, no revenue to project. */
-  var PLANS = [{ id: 0, name: "النوخذة — مجاني", price: 0 }];
   var STATUSES = ["جديد", "قيد التحضير", "في الطريق", "تم التسليم", "ملغي"];
 
   /* ============================ helpers ============================ */
@@ -622,8 +616,6 @@
   /* ============================ charts ============================
      Ordinal ramps and a diverging pair, per the palette block above.
      Every mark carries a data-tip; a single delegated handler shows it. */
-  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
-
   function fig(title, cap, inner, legend) {
     return '<figure class="fig"><h3>' + esc(title) + '</h3><p class="cap">' + esc(cap) + '</p>' +
            '<div class="plot">' + inner + '</div>' + (legend || "") + '</figure>';
@@ -917,7 +909,6 @@
 
   /* ---------- settings ---------- */
   function renderSettings() {
-    var u = usersArr();
     var log = rd(K.audit, []).slice().reverse();
     el("audit").innerHTML = log.length
       ? log.map(function (a) {

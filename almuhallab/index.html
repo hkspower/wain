@@ -751,7 +751,6 @@
       transition: transform .3s ease, box-shadow .3s ease; will-change: transform; }
     .product h3 { margin: 0 0 6px; font-size: 20px; display: flex; align-items: center; gap: 8px; }
     .product p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.75; }
-    .product .units { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
     .product .go { align-self: center; white-space: nowrap; }
     @media (max-width: 620px) {
       .product { grid-template-columns: 1fr; }
@@ -926,23 +925,15 @@
 
 
 
-    @keyframes gearA { to { transform: rotate(360deg); } }
-    @keyframes gearB { to { transform: rotate(-360deg); } }
     @keyframes dash  { to { stroke-dashoffset: -28; } }
     @keyframes drawIn { 0% { stroke-dashoffset: 120; } 60%, 100% { stroke-dashoffset: 0; } }
     @keyframes fillBar { 0%, 8% { transform: scaleX(.06); } 38%, 100% { transform: scaleX(1); } }
-    @keyframes blink { 0%, 45% { opacity: 1; } 55%, 100% { opacity: 0; } }
-    html.motion .scene .ga { animation: gearA 8s linear infinite;
-      transform-box: fill-box; transform-origin: center; }
-    html.motion .scene .gb { animation: gearB 6s linear infinite;
-      transform-box: fill-box; transform-origin: center; }
     html.motion .scene .wire2 { stroke-dasharray: 7 7; animation: dash 1.1s linear infinite; }
     html.motion .scene .pen { stroke-dasharray: 120; animation: drawIn 4s ease-in-out infinite; }
     html.motion .scene .bar { transform-box: fill-box; transform-origin: right center;
       animation: fillBar 3.2s ease-in-out infinite; }
     html.motion .scene .bar:nth-of-type(2) { animation-delay: .25s; }
     html.motion .scene .bar:nth-of-type(3) { animation-delay: .5s; }
-    html.motion .scene .caret { animation: blink 1s step-end infinite; }
 
     /* ═══════ each service explained by a drawing ═══════
        Six scenes, one per service card, in the same idiom as the four above:
@@ -1078,12 +1069,6 @@
     .fcontact a:hover .ic { stroke: var(--tint); color: var(--tint); }
     .fcontact .v { direction: ltr; unicode-bidi: isolate; }
 
-    .soc { display: flex; gap: 8px; margin-top: 12px; }
-    .soc a { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px;
-      border: 1px solid var(--border); background: var(--panel); padding: 0;
-      transition: transform .2s ease, border-color .2s ease, background .2s ease; }
-    .soc a:hover { transform: translateY(-3px); border-color: var(--tint); background: var(--tint); }
-    .soc a:hover .ic { stroke: #fff; color: #fff; }
 
     .base { border-top: 1px solid var(--border); padding: 16px 20px;
       display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 16px; }
