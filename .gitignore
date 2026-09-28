@@ -164,3 +164,8 @@ press/ik/4k/*.png
 
 # Per-run HUD type report from tools/shots/hudtype.mjs: viewport-dependent
 press/hud/type.json
+
+# The trailer's rendered frames and encodes: hundreds of MB, rebuilt by
+# tools/shots/trailer.mjs. The narration take beside them IS committed.
+press/trailer/frames-*/
+press/trailer/*.mp4
