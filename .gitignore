@@ -111,6 +111,10 @@ __pycache__/
 # the artefact; the picture is what they were read off.
 /press/sparks/
 
+# the frames tools/shots/smoke.mjs looked at, one drift at night and at
+# noon. As with the sparks, the numbers it prints are the artefact.
+/press/smoke/
+
 # the hub's referral ledger — live player data, written by the server
 /server/data/
 

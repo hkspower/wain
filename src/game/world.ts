@@ -3592,6 +3592,19 @@ export interface WorldHandle {
   /** Sky dome, stars and moon disc — re-centred on the camera each frame
    *  so they can sit inside a tight far plane without ever clipping. */
   skyFollowers: THREE.Object3D[];
+  /** The ambient third tier, which setTimeOfDay recolours every hour. */
+  hemiLight: THREE.HemisphereLight;
+  /**
+   * Where every lit street lantern's light comes from: the centre of each
+   * lens's underside, 12.0 m up and 5.8 m off the centre line, one per
+   * column that stands (none in the tunnel, none near a flyover).
+   *
+   * The road lighting is painted — additive pools and cones, not lights —
+   * so nothing in the scene can be lit BY a lamp. The tyre smoke needs to
+   * be, and this is how it knows where they are. Read-only: the lamps do
+   * not move.
+   */
+  streetLamps: readonly THREE.Vector3[];
 }
 
 /** The night-sky dome's radius, m. The engine's reflection probe draws
@@ -4037,6 +4050,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   const L = track.length;
   const beacons: THREE.MeshStandardMaterial[] = [];
   const skyFollowers: THREE.Object3D[] = [];
+  /** The street lanterns' lenses, filled by the street-light block. */
+  const streetLamps: THREE.Vector3[] = [];
 
   // Fog and light
   // Draw distance: at 0.0021 the world vanished by ~700 m, which hid the
@@ -5557,6 +5572,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // 11.985 m: close enough to read as the lens glowing, low enough
       // that the housing above clips the top of the glow.
       lampPositions.push(new THREE.Vector3(lx, LENS_LOW - 0.015, lz));
+      // And the lens itself, for what the lamps light that is not drawn
+      // here (the engine's tyre smoke): the underside, where the light
+      // leaves the fixture.
+      streetLamps.push(new THREE.Vector3(lx, LENS_LOW, lz));
 
       // The pool lands under the head and spills toward the road centre
       // (the head's optic faces down-and-in, not straight down): its
@@ -7626,6 +7645,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     moonLight,
     fillLight,
     skyFollowers,
+    hemiLight: hemiRef!,
+    streetLamps,
     solvePlants(dt: number, wakes: readonly Wake[]) {
       solvePlants(dt, wakes);
     },

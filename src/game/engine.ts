@@ -20,7 +20,7 @@ import { provokes, patienceAfter, pursuitSpeed, PATIENCE } from "./police";
 import { RIVALS, RivalDef, rivalCar as rivalCarOf, rivalCarName } from "./rivals";
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
-import { ParticleSystem, radialSprite } from "./vfx";
+import { ParticleSystem, radialSprite, billowAtlas, smokeLight } from "./vfx";
 import { solveTwoBone } from "./ik";
 import { solveSuspension, steerAngles } from "./suspension";
 import { lateralAccel, stepAttitude, type Attitude } from "./attitude";
@@ -111,13 +111,71 @@ const KMH = 3.6;
  * How many puffs of tyre smoke can be in the air at once.
  *
  * Was 110, and the pool saturated during exactly the moment it is there
- * for. Steady state is rate x mean life: a spin pours 120 a second and a
- * puff lives 0.95 + 0.55/2 = 1.225 s, so a spin wants 147. The ring
- * buffer has no free-list — spawn() overwrites whatever is at `head`
- * whether it is alive or not — so the excess did not queue, it deleted
- * puffs mid-life. The plume thinned out the harder you were sliding.
+ * for. Steady state is rate x mean life: a spin pours 90 a second and a
+ * puff lives 1.3 + 0.8/2 = 1.7 s, so a spin wants 153. The ring buffer
+ * has no free-list — spawn() overwrites whatever is at `head` whether it
+ * is alive or not — so the excess did not queue, it deleted puffs
+ * mid-life. The plume thinned out the harder you were sliding. 176 is
+ * that 153 and 15% over, for the frames where a drift's rate and a
+ * spin's overlap.
  */
-const SMOKE_N = 160;
+const SMOKE_N = 176;
+
+// --- How smoke is lit and how thick it is ------------------------------
+//
+// Every knob the smoke's look turns on, in one place. They are worked out
+// from the world's own light rig rather than measured, and
+// tools/shots/smoke.mjs (npm run check:smoke) is the instrument to
+// calibrate them against — tune the thickness first (SMOKE_TAU, 0.3 to
+// 0.6), not the light gains, if the plume reads too faint or too dense.
+
+/** Optical depth through the densest texel of a newborn puff: opacity
+ *  1 - e^-0.45 = 0.36 at birth, thinning as 1/g² — 0.11 at mid-life, over
+ *  four times the area, and 0.049 by the end of a life that has spread
+ *  it three times across, so the smoke keeps its mass as it spreads. The
+ *  old flat 0.13, faded by (1 - t)², was 0.10 at birth, 0.03 at mid-life
+ *  and 0.001 by nine-tenths — gone before it had spread, which is why a
+ *  drift left no cloud behind it. */
+const SMOKE_TAU = 0.45;
+/** Sand is finer and thinner: 0.22 at birth, 0.036 once spread 2.6x. */
+const DUST_TAU = 0.25;
+/**
+ * The share of the sky's light a puff sends back to the eye, per unit of
+ * the light's own intensity: Lambert's 1/π, times the half that a sphere
+ * lit from one side averages over its lit face. The same law the world's
+ * standard materials answer the same lights by, so smoke is exactly as
+ * bright as a pale surface under this sky would be. The hemisphere is
+ * already an average and strictly would not take the half — about 0.01
+ * of the 0.19 at night, inside what check:smoke calibrates.
+ *
+ * Worked from world.ts's rig: at 0:30 key 1.15, fill 0.35, hemisphere
+ * 0.55 give 0.19 in luma; at 12:30, 0.62. Today's flat colour was 0.58
+ * at every hour — noon about right, the night three times too bright.
+ */
+const SMOKE_SKY = 0.5 / Math.PI;
+/** How much of that sky is left under the underpass deck: the open ends
+ *  and the strip lights (not modelled) are what light it there. */
+const SMOKE_UNDER = 0.3;
+/**
+ * A street lantern directly over a puff at 0.8 m, before albedo — 11.2 m
+ * under the 12.0 m lens. The painted pool's centre adds about 0.6
+ * linear to the road (world.ts lightPoolTexture, 0.74 alpha of a near-
+ * white, additive), and 0.75 of 0xdfeaff is that: smoke under a column
+ * is as bright as the road under it.
+ */
+const SMOKE_LAMP = 0.75;
+/** The tail lamps at full brake, before the 1.2 m falloff: 0.5 braking,
+ *  0.16 on the idle lens (0.55 of 1.7), both at night. */
+const SMOKE_TAIL = 0.5;
+/** The dipped beams' candela, per π, times this: it follows the live
+ *  intensities, so a flash or daylight dimming reaches the smoke too. */
+const SMOKE_HEAD = 0.25;
+/** How much of the car's own speed the air it drags along gives a new
+ *  puff, along the road: the wake that stretches a plume out behind a
+ *  car instead of stopping it dead where it was born. */
+const SMOKE_WAKE = 0.4;
+/** A light breeze, m/s, that settled smoke drifts off on. */
+const SMOKE_WIND = { x: -0.7, z: 0 };
 
 /**
  * How far inside the road's edge the barrier stands, and how much of
@@ -1668,6 +1726,8 @@ export class GameEngine {
   private dustFx!: ParticleSystem;
   private dustAcc = 0;
   private flameFx!: ParticleSystem;
+  /** All four pools, for the reflection probe to hide in one loop. */
+  private fxPools: ParticleSystem[] = [];
   /** Brake-rotor temperature, 0..1, per wheel — heat in, heat out. */
   private rotorHeat = 0;
   /** Throttle as it was on the previous simulation step, for measuring
@@ -1695,6 +1755,35 @@ export class GameEngine {
    *  rather than on top of it. */
   private crackleIn = 0;
   private smokeAcc = 0;
+  /** The light the smoke and the sand are drawn in, written once a frame
+   *  by lightSmoke(). Both pools hold these uniform objects by reference. */
+  private smokeLight = smokeLight();
+  /** The GPU's largest point sprite, asked once at start. */
+  private maxPointPx = 1024;
+  /** The quality tier's say over smoke: the share of the spawn rate it
+   *  pays for, and the largest a puff may grow, as a share of the
+   *  buffer's height. See applySmokeBudget. */
+  private smokeBudget = 1;
+  private smokeCapFrac = 1;
+  /** How much open sky is over the car, eased across the underpass
+   *  mouths so the smoke does not change light in one frame. */
+  private smokeSkyVis = 1;
+  /** The car's forward axis, taken once a frame for both the spawn and
+   *  the tail lamps' back. */
+  private smokeFwd = new THREE.Vector3();
+  /** The road's direction at the car, for the wake. */
+  private smokeTan = new THREE.Vector3();
+  private smokeTmp = new THREE.Vector3();
+  private smokeTmp2 = new THREE.Vector3();
+  private smokeTmpC = new THREE.Color();
+  private smokeBuf = new THREE.Vector2();
+  /** Every wheel's hub in the world, this frame. Four, grown if a car
+   *  ever has more. */
+  private smokeHubs: THREE.Vector3[] = [0, 1, 2, 3].map(() => new THREE.Vector3());
+  /** The nearest four street lamps: their index in world.streetLamps and
+   *  their squared distance, nearest first. */
+  private smokeLampI = new Int32Array(4);
+  private smokeLampD = new Float64Array(4);
 
   // Minimap
   /** Built on first use — see getRoadMap. */
@@ -1801,6 +1890,13 @@ export class GameEngine {
         2048,
         (gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) as number) || 4096
       );
+      // The largest point sprite this GPU draws. Never asked before, and a
+      // sprite past it is silently clamped: a puff the camera is close to
+      // stops growing on screen while its fades think it is still
+      // growing. The smoke clamps to it itself (setPointLimits), exactly
+      // as the hardware did — nothing new vanishes on a small limit.
+      const ps = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE) as Float32Array | null;
+      this.maxPointPx = (ps && ps[1]) || 1024;
       this.caps = {
         maxTexture: gl.getParameter(gl.MAX_TEXTURE_SIZE) as number,
         maxCube: gl.getParameter(gl.MAX_CUBE_MAP_TEXTURE_SIZE) as number,
@@ -2010,15 +2106,30 @@ export class GameEngine {
     });
     this.scene.add(this.sparkFx.points);
 
-    // Tire smoke: each puff expands, turns and thins on its own clock.
+    // Tire smoke: each puff expands, turns and thins on its own clock,
+    // and is lit by what is around it — see vfx.ts, the smoke path.
+    //
+    // A billow, not a disc: one shared atlas for the smoke and the sand.
+    const puff = billowAtlas();
+    // The albedo ramps from near-white to a paler grey, not to the old
+    // charcoal 0x3c4148: a puff thinning out is less smoke, not darker
+    // smoke, and ramping to charcoal made every old puff read as soot.
+    // Grows to three times its birth size (the old 2.2 was a pixel
+    // figure); turns a little, now that the sprite has a shape to turn;
+    // and comes in fast, because Beer-Lambert thins it from there.
     this.smokeFx = new ParticleSystem(SMOKE_N, {
-      map: radialSprite(0.0, 1.5),
-      colorA: 0xc4c9d2,
-      colorB: 0x3c4148,
-      grow: 2.2,
-      spin: 0.3,
-      opacity: 0.13,
-      fadeIn: 0.12,
+      map: puff,
+      colorA: 0xe4e6ea,
+      colorB: 0xd2d5da,
+      grow: 3.0,
+      spin: 0.12,
+      fadeIn: 0.06,
+      // Gone within a metre of the lens, whole from 3.5 m, measured to
+      // the puff's near surface: the chase camera is about 6 m from the
+      // rear wheels (6.9 m back and 3 m up at 30 m/s), so a new puff is
+      // whole and one the car has left behind dissolves as it arrives.
+      // 0.35 m of ground fade: about half a new puff's radius.
+      smoke: { light: this.smokeLight, tau: SMOKE_TAU, nearFade: [1.0, 3.5], groundSoft: 0.35 },
     });
     this.scene.add(this.smokeFx.points);
 
@@ -2039,14 +2150,31 @@ export class GameEngine {
      * which is the whole difference between sand and smoke.
      */
     this.dustFx = new ParticleSystem(DUST_N, {
-      map: radialSprite(0.0, 1.7),
+      map: puff,
       colorA: 0xc9ad84,
-      colorB: 0x6b5b45,
+      // Paler with age, not browner: settling grit is thinner, and the
+      // old 0x6b5b45 turned the tail of every plume into mud.
+      colorB: 0xb89f7c,
       grow: 2.6,
-      opacity: 0.16,
-      fadeIn: 0.1,
+      spin: 0.08,
+      fadeIn: 0.08,
+      // Lit exactly as the smoke is — the same light bag, written once.
+      // A tighter ground fade: sand hugs the road it came off.
+      smoke: { light: this.smokeLight, tau: DUST_TAU, nearFade: [0.8, 2.5], groundSoft: 0.12 },
     });
     this.scene.add(this.dustFx.points);
+    // Drawn after every other transparency in the scene: the lamp cones
+    // (world.ts, renderOrder 2) and everything the car carries. three.js
+    // would otherwise order these pools by a bounding sphere computed
+    // once, from dead slots parked at -99999 — so where the smoke fell
+    // against the cones, the pools and the beams was arbitrary. Trailing
+    // behind the car, smoke is almost always in front of those from the
+    // game's cameras, and it is what veils them. Sparks and flame stay
+    // at 0.
+    this.smokeFx.points.renderOrder = 3;
+    this.dustFx.points.renderOrder = 3;
+    // The tier's budget, now there is a buffer to measure the cap against.
+    this.applySmokeBudget();
 
     // Exhaust: backfire on lift, and the nitrous flame while it is open.
     this.flameFx = new ParticleSystem(90, {
@@ -2059,6 +2187,7 @@ export class GameEngine {
       fadeIn: 0.05,
     });
     this.scene.add(this.flameFx.points);
+    this.fxPools = [this.sparkFx, this.smokeFx, this.dustFx, this.flameFx];
 
     // Wind streaks — motion lines that fade in past ~220 km/h
     {
@@ -2626,6 +2755,8 @@ export class GameEngine {
     this.smokeFx?.setPixelScale(bufH);
     this.dustFx?.setPixelScale(bufH);
     this.flameFx?.setPixelScale(bufH);
+    // The smoke's size cap is a share of this same height.
+    this.applySmokeBudget();
     const aspect = w / h;
     if (reason === "letterbox" && Math.abs(Math.log(aspect / this.camera.aspect)) > 1e-4) {
       // Keep the framing where it is and walk it to the new shape.
@@ -2647,6 +2778,30 @@ export class GameEngine {
     const buf = this.renderer.getDrawingBufferSize(new THREE.Vector2());
     const res = this.fxaaPass.material.uniforms["resolution"].value as THREE.Vector2;
     res.set(1 / buf.x, 1 / buf.y);
+  }
+
+  /**
+   * Hand the quality tier's smoke budget to the two pools — the one place
+   * it is applied, reached from resize() and from setEffects().
+   *
+   * Particles were the one effect no tier touched. A lower tier now pays
+   * for fewer puffs (smokeBudget scales the spawn rate) and caps how big
+   * one may grow on screen (smokeCapFrac of the buffer's height), which is
+   * where smoke's cost is: fill, a camera inside the plume.
+   *
+   * Fewer puffs are made denser to match, so the plume reads the same:
+   * a plume's opacity goes as puffs x tau, and thickening by 1/sqrt of the
+   * budget gives back half of what the budget took — 1.35x at 0.55, 1.12x
+   * at 0.8 — without making each puff a solid ball. Capped at 1.35.
+   */
+  private applySmokeBudget(): void {
+    if (!this.smokeFx || !this.dustFx) return;
+    const h = this.renderer.getDrawingBufferSize(this.smokeBuf).y;
+    const k = Math.min(1.35, 1 / Math.sqrt(this.smokeBudget));
+    this.smokeFx.material.uniforms.uTau.value = SMOKE_TAU * k;
+    this.dustFx.material.uniforms.uTau.value = DUST_TAU * k;
+    this.smokeFx.setPointLimits(this.smokeCapFrac * h, this.maxPointPx);
+    this.dustFx.setPointLimits(this.smokeCapFrac * h, this.maxPointPx);
   }
 
   /**
@@ -2694,6 +2849,19 @@ export class GameEngine {
       if (g.visible) {
         g.visible = false;
         hidden.push(g);
+      }
+    }
+    // Nor any particle. A sprite's pixel size is worked out for the MAIN
+    // buffer's height, so inside a 256-texel face a puff two metres from
+    // the probe covers the whole face: drift smoke washed the paint grey,
+    // and paid up to 65,536 fragments a puff for it. The paint no longer
+    // reflects smoke, sparks or flame, which is deliberate — that
+    // reflection was the wrong size to begin with. Put back below with
+    // the cars, and only those this hid.
+    for (const fx of this.fxPools) {
+      if (fx.points.visible) {
+        fx.points.visible = false;
+        hidden.push(fx.points);
       }
     }
     // The sky, brought inside the probe's reach.
@@ -3026,6 +3194,12 @@ export class GameEngine {
     // coming up from Battery would keep whatever was there.
     if (on) this.setProbeResolution(this.budget(256, "cube"));
     this.applyLiveReflections();
+    // Smoke too: Battery's budget in performance mode, the full one with
+    // the effects on. Applied here rather than left to resize(), because
+    // the governor's switch to performance mode never resizes.
+    this.smokeBudget = on ? 1 : 0.55;
+    this.smokeCapFrac = on ? 1 : 0.6;
+    this.applySmokeBudget();
   }
 
   /** Repaint the world for midnight or dawn (settings screen). */
@@ -3310,6 +3484,11 @@ export class GameEngine {
     const ultra = tier === "ultra";
     const high = tier === "high" || ultra;
     const balanced = tier === "balanced";
+    // Smoke's share of the tier: the spawn rate it pays for and the
+    // largest a puff may grow, as a share of the buffer's height. Applied
+    // by applyRenderScale() below, which resizes.
+    this.smokeBudget = high ? 1 : balanced ? 0.8 : 0.55;
+    this.smokeCapFrac = high ? 1 : balanced ? 0.8 : 0.6;
     this.bloomPass.enabled = high || balanced;
     this.world.moonLight.castShadow = high || balanced;
     this.headlight.castShadow = high || balanced;
@@ -7340,10 +7519,26 @@ export class GameEngine {
     // --- Sparks: they cool, fall, and skitter along the asphalt
     this.sparkFx.update(dt, { gravity: 17, drag: 0.7, bounce: 0.42, groundY: 0.03 });
 
-    // --- Tire smoke while drifting: pour from both rear arches, rise,
-    // spread downwind of the slide, die in about a second. A launch with
-    // the rears lit up smokes the same arches before the car is moving
-    // fast enough to drift.
+    // --- Tire smoke: off the tyres that are actually sliding, rising a
+    // little, thrown out of the slide, dragged along in the car's wake
+    // and left hanging behind it as a cloud. A launch smokes the driven
+    // axle before the car is moving fast enough to drift.
+    //
+    // THE CAR'S AXES, NOT THE ROAD'S — taken every frame, drifting or
+    // not, because the light the smoke is drawn in needs them too (the
+    // tail lamps light only what is behind the car).
+    //
+    // The spawn used to build the arches from track.tangentAt — the
+    // direction the ROAD runs at the car's station — 1.6 m back and
+    // 0.85 m to each side. That is only the car's own axes when the car
+    // is pointing down the road, and the entire reason this block runs is
+    // that it is not: at a 29-degree slide the "arches" were about 0.9 m
+    // from the real ones, and asymmetrically, so the plume came off one
+    // side of a sliding car and hung off the other. The exhaust below has
+    // always done this correctly — carBody.localToWorld(tip) — and the
+    // smoke is the effect where it matters more, because a slide is the
+    // one time the car and the road disagree.
+    this.carBody.getWorldDirection(this.smokeFwd);
     const burnout = this.wheelspin > 3 && this.player.speed < 22;
     // Locked wheels smoke as surely as spinning ones: same rubber, same
     // road, and the only difference is which way the mismatch runs.
@@ -7354,72 +7549,126 @@ export class GameEngine {
         locked) &&
       !this.cine;
     if (drifting) {
-      // THE CAR'S AXES, NOT THE ROAD'S.
-      //
-      // These were built from track.tangentAt — the direction the ROAD
-      // runs at the car's station — and then used to place the rear
-      // arches 1.6 m back and 0.85 m to each side. That is only the same
-      // thing as the car's own axes when the car is pointing down the
-      // road, and the entire reason this block runs is that it is not:
-      // at a 29-degree slide the "arches" it was spawning from were
-      // about 0.9 m from the real ones, and asymmetrically, so the plume
-      // came off one side of a sliding car and hung off the other.
-      //
-      // The exhaust three hundred lines below has always done this
-      // correctly — carBody.localToWorld(tip) — and the smoke is the
-      // effect where it matters more, because a slide is the one time
-      // the car and the road disagree.
-      this.carBody.getWorldDirection(this.v3);
+      const fwd = this.smokeFwd;
       const px = this.playerMesh.position.x;
       const pz = this.playerMesh.position.z;
-      // Rear axle sits behind the car centre; ± the side vector per wheel
-      const bx = px - this.v3.x * 1.6;
-      const bz = pz - this.v3.z * 1.6;
-      const sx = -this.v3.z;
-      const sz = this.v3.x;
+      const sx = -fwd.z;
+      const sz = fwd.x;
+      const speed = this.player.speed;
+      // THE HUBS, READ OFF THE CAR. A fixed 1.6 m back and 3.2 m between
+      // axles was a guess at one car; a wheelbase runs from a hatch's to a
+      // pickup's. The wheels' own world positions are the arches, and
+      // createCar's plan says which of them are the front.
+      const wheels = this.carBody.userData.wheels as THREE.Object3D[] | undefined;
+      const plan = this.carBody.userData.wheelPlan as { front: number } | undefined;
+      const wR = (this.carBody.userData.wheelR as number | undefined) ?? 0.33;
+      const hubs = this.smokeHubs;
+      let nHub = 4;
+      let nf = 2;
+      if (wheels && wheels.length >= 2) {
+        while (hubs.length < wheels.length) hubs.push(new THREE.Vector3());
+        nHub = wheels.length;
+        for (let i = 0; i < nHub; i++) wheels[i].getWorldPosition(hubs[i]);
+        // At least one hub at each end, whatever the plan says.
+        nf = Math.min(Math.max(1, plan?.front ?? 2), nHub - 1);
+      } else {
+        // No wheels to read: the old arches, 0.85 m out and 1.6 m fore
+        // and aft, in the order createCar builds them — FL, FR, RL, RR.
+        for (let i = 0; i < 4; i++) {
+          const along = i < 2 ? 1.6 : -1.6;
+          const across = i % 2 === 0 ? 0.85 : -0.85;
+          hubs[i].set(px + fwd.x * along + sx * across, wR, pz + fwd.z * along + sz * across);
+        }
+      }
       // Time-budgeted so density is refresh-rate independent. A spin is
       // four tyres sliding rather than two, so it pours accordingly —
       // this is the difference between a slide and having lost it, and
       // it should be visible from the first frame.
       const spinning = this.ds.spinT > 0;
-      // 120 rather than more: past about that the plume closes over the
+      // 90 rather than more: past about that the plume closes over the
       // car, and the one thing a player needs during a spin is to see
-      // which way they are pointing so they can catch the exit.
-      this.smokeAcc += (spinning ? 120 : Math.abs(this.driftYaw) > 0.4 ? 85 : 55) * dt;
+      // which way they are pointing so they can catch the exit. It was
+      // 120 when a puff lived 1.225 s; at 1.7 s, 90 keeps about the same
+      // number in the air (153 against 147), each of them denser. If a
+      // spin's heading stops reading, 75 is the next step down. The
+      // tier's budget scales all three rates (applySmokeBudget).
+      this.smokeAcc += (spinning ? 90 : Math.abs(this.driftYaw) > 0.4 ? 72 : 50) * this.smokeBudget * dt;
       const spawn = Math.floor(this.smokeAcc);
       this.smokeAcc -= spawn;
       const out = Math.sign(this.driftYaw) || 1;
       // A slide throws its smoke sideways because the tyre is travelling
-      // across itself. A locked wheel is travelling straight down the
-      // road, so its smoke just boils up off the patch and gets left
-      // behind — the same particles, thrown a different way.
+      // across itself. A locked or spinning wheel going straight is
+      // travelling along itself, so its smoke boils up off the patch and
+      // is thrown back off the tread — the same particles, thrown a
+      // different way.
       const sideways = Math.min(1, Math.abs(this.driftYaw) / 0.25);
-      const lockOnly = 1 - sideways;
-      // Locked fronts smoke at the front axle, not behind the rears.
-      const ax = bx + this.v3.x * 3.2 * lockOnly;
-      const az = bz + this.v3.z * 3.2 * lockOnly;
+      const straight = 1 - sideways;
+      // WHICH AXLE. A burnout smokes the DRIVEN tyres: the rears of a
+      // rear-driven car, the fronts of the five front-driven ones
+      // (mods.ts), both ends of an AWD car. This block used to put every
+      // straight-line puff on the front axle — right for the FWD cars,
+      // wrong for every RWD one, which lit up its fronts. Lock-up is at
+      // the fronts (brakes.ts) while the car runs straight and moves to
+      // the rears as it turns sideways; a slide is the rears; a spin is
+      // all four.
+      const drive = this.tune.drive;
+      const frontShare = spinning
+        ? 0.5
+        : burnout
+          ? drive === "fwd" ? 1 : drive === "awd" ? 0.5 : 0
+          : locked
+            ? straight
+            : 0;
+      // Thrown back off the tread, straight-line cases only.
+      const kick = burnout || locked ? 2.2 : 0;
+      // Slow is where a column can stand: from standstill a burnout
+      // pillars up, and by 20 m/s the air takes it flat.
+      const slow = THREE.MathUtils.clamp(1 - speed / 20, 0, 1);
+      this.track.tangentAt(this.player.s, this.smokeTan);
       for (let n = 0; n < spawn; n++) {
-        const side = (n % 2 === 0 ? 0.85 : -0.85) + (Math.random() - 0.5) * 0.5;
-        // In a spin every corner is sliding, so half of it comes off the
-        // front axle. Alternating rather than random: two arches and two
-        // arches, which is what four wheels look like.
-        const axle = spinning && n % 4 >= 2 ? 3.2 : 0;
+        // In a spin, alternate two front and two rear rather than roll
+        // for it: two arches and two arches, which is what four wheels
+        // look like.
+        const front = spinning
+          ? n % 4 >= 2
+          : frontShare >= 1 || (frontShare > 0 && Math.random() < frontShare);
+        const first = front ? 0 : nf;
+        const pair = front ? nf : nHub - nf;
+        const hub = hubs[first + (n % pair)];
+        // Which side of the car this hub is on, so the puff comes off the
+        // outside of the tyre rather than out of the middle of it.
+        const o = Math.sign((hub.x - px) * sx + (hub.z - pz) * sz);
         this.smokeFx.spawn(
-          ax + this.v3.x * axle + sx * side + (Math.random() - 0.5) * 0.55,
-          0.24 + Math.random() * 0.22,
-          az + this.v3.z * axle + sz * side + (Math.random() - 0.5) * 0.55,
-          (sx * out * (1.2 + Math.random()) + (Math.random() - 0.5)) * sideways -
-            this.v3.x * 2.2 * lockOnly,
-          1.3 + Math.random() * 1.5,
-          (sz * out * (1.2 + Math.random()) + (Math.random() - 0.5)) * sideways -
-            this.v3.z * 2.2 * lockOnly,
-          0.95 + Math.random() * 0.55,
-          1.9 + Math.random() * 0.9
+          // Just behind the contact patch (0.9 of a wheel radius back from
+          // the hub), 8 cm outboard, and a little scatter.
+          hub.x - fwd.x * 0.9 * wR + sx * o * 0.08 + (Math.random() - 0.5) * 0.24,
+          // Born at the tyre's sidewall, not at its shoulder: 0.18-0.30 m.
+          0.18 + Math.random() * 0.12,
+          hub.z - fwd.z * 0.9 * wR + sz * o * 0.08 + (Math.random() - 0.5) * 0.24,
+          (sx * out * (1.6 + Math.random() * 1.4) + (Math.random() - 0.5) * 0.8) * sideways -
+            fwd.x * kick * straight +
+            this.smokeTan.x * speed * SMOKE_WAKE,
+          // Low: at speed a puff's centre tops out about 1.1 m up, where
+          // it was 2.2 m, so the roof stays readable over the plume in a
+          // spin. A burnout from rest still raises a column (+1.1 m/s).
+          0.35 + Math.random() * 0.55 + 1.1 * slow,
+          (sz * out * (1.6 + Math.random() * 1.4) + (Math.random() - 0.5) * 0.8) * sideways -
+            fwd.z * kick * straight +
+            this.smokeTan.z * speed * SMOKE_WAKE,
+          // 1.3-2.1 s: long enough to leave a cloud where the car was.
+          1.3 + Math.random() * 0.8,
+          // Metres across at birth, bigger the faster the car: a puff is
+          // shed per 1/60 s wherever the tyre happens to be, and at speed
+          // those places are far apart — a fixed size read as a string
+          // of beads. 0.7-1.05 m standing, up to 0.5 m more by 42 m/s.
+          0.7 + Math.min(0.5, speed * 0.012) + Math.random() * 0.35
         );
       }
     }
-    // Billowing smoke sheds its outward speed as it expands
-    this.smokeFx.update(dt, { drag: 1.6, gravity: -0.35 });
+    // Billowing smoke sheds its throw as it expands and drifts off on the
+    // breeze. Rises at 0.25 m/s² where it rose at 0.35, which with the
+    // lower launch keeps the plume under the roofline.
+    this.smokeFx.update(dt, { drag: 1.6, gravity: -0.25, wind: SMOKE_WIND });
 
     // --- Sand off the shoulder.
     //
@@ -7458,15 +7707,28 @@ export class GameEngine {
             0.9 + Math.random() * 1.4,
             rz * (1.4 + Math.random() * 2.2) * wide - this.v3.z * this.player.speed * 0.16,
             0.8 + Math.random() * 0.7,
-            1.1 + Math.random() * 0.8
+            // Metres across at birth, like the smoke: 0.5-0.9 m, a shade
+            // under what the old 1.1-1.9 pixel figure came to under a 62°
+            // lens (x 0.84 / (1 / tan 31°) = 0.56-0.96 m).
+            0.5 + Math.random() * 0.4
           );
         }
       }
     }
-    // Sand settles. Smoke rises at −0.35; this falls at +1.1, which is
+    // Sand settles. Smoke rises at −0.25; this falls at +1.1, which is
     // the difference between something burnt off a tyre and something
-    // picked up off the ground.
+    // picked up off the ground. And it settles ON the road: groundY is a
+    // floor now, where it used to be ignored without a bounce and the
+    // sand sank 7 cm into the asphalt. The spawn rate is not scaled by
+    // the tier — see applySmokeBudget — because the headless tests run in
+    // performance mode and count grains.
     this.dustFx.update(dt, { drag: 1.5, gravity: 1.1, bounce: 0, groundY: 0.03 });
+
+    // Both pools are lit now that both have moved, and ordered far to
+    // near from where the camera has already gone this frame.
+    this.lightSmoke(dt);
+    this.smokeFx.sortFrom(this.camera.position);
+    this.dustFx.sortFrom(this.camera.position);
 
     // --- Exhaust. A backfire is unburnt fuel lighting in the pipe on a
     // hard lift, so it fires on the throttle's falling edge at revs; the
@@ -7724,6 +7986,116 @@ export class GameEngine {
       r.body.latAccel,
       accel
     );
+  }
+
+  /**
+   * The light the smoke and the sand are drawn in, written once a frame
+   * from the rig's own numbers into the uniform bag both pools share.
+   *
+   *   sky    the key (moon or sun) and everything else from above — the
+   *          fill and the hemisphere — each as its colour x intensity,
+   *          times SMOKE_SKY, and times 0.3 under the underpass deck
+   *          (eased over a third of a second either way, so crossing a
+   *          mouth is not a cut). 0.19 in luma at 0:30, 0.62 at 12:30.
+   *   tail   the car's own lamps, between them on its back: as bright as
+   *          the lens is lit (brake 1.0, idle 0.32 of it), and a quarter
+   *          of that by day, when a lamp is lost in the light around it.
+   *          The red behind a braking car is the tell of a real plume.
+   *   head   the dipped beams, straight from the two spot lights: their
+   *          live intensity (so flashes and the daylight dimming arrive
+   *          too), their aim and their cone. What makes a spin read.
+   *   lamps  the four nearest street lanterns to the car, from the
+   *          positions world.ts hung them at. The road lighting is
+   *          painted pools, not real lights — there is nothing for a
+   *          material to be lit BY — so the smoke is told where the
+   *          lenses are. Full at night, 0.15 of it by day. Only while
+   *          either pool is on screen: a 187-entry scan is cheap, but
+   *          free is cheaper.
+   *
+   * The rim light over the car's roof (the PointLight named "rim") is an
+   * art light for the paint, not a lamp anything real could see, so it
+   * is left out.
+   */
+  private lightSmoke(dt: number): void {
+    const L = this.smokeLight;
+    const dark = 1 - this.daylight;
+
+    // --- Sky
+    const open = this.sheltered(this.player.s) ? SMOKE_UNDER : 1;
+    this.smokeSkyVis += (open - this.smokeSkyVis) * Math.min(1, 3 * dt);
+    const sky = SMOKE_SKY * this.smokeSkyVis;
+    const moon = this.world.moonLight;
+    const fill = this.world.fillLight;
+    const hemi = this.world.hemiLight;
+    L.uKey.value.copy(moon.color).multiplyScalar(moon.intensity * sky);
+    L.uKeyDir.value.copy(this.moonDir);
+    L.uFill.value
+      .copy(hemi.color)
+      .add(this.smokeTmpC.copy(hemi.groundColor))
+      .multiplyScalar(0.5 * hemi.intensity)
+      .add(this.smokeTmpC.copy(fill.color).multiplyScalar(fill.intensity))
+      .multiplyScalar(sky);
+
+    // --- Tail lamps: 5 cm behind the lens line, at its height, on the
+    // body's own axes — the lamps pitch and roll with it.
+    const dims = this.carBody.userData.dims as { tail?: number; tailY?: number } | undefined;
+    const tail = this.carBody.localToWorld(
+      this.smokeTmp.set(0, dims?.tailY ?? 0.75, (dims?.tail ?? -2.3) - 0.05)
+    );
+    const tailMat = this.carBody.userData.tailMat as THREE.MeshStandardMaterial | undefined;
+    const lit = (tailMat?.emissiveIntensity ?? TAIL.lensIdle) / TAIL.lensBrake;
+    L.uTail.value.set(tail.x, tail.y, tail.z, SMOKE_TAIL * lit * (0.25 + 0.75 * dark));
+    L.uTailBack.value.copy(this.smokeFwd).negate();
+
+    // --- Headlights: one source between the two lamps, aimed where the
+    // main one is aimed.
+    const hl = this.headlight;
+    const hr = this.headlightR;
+    hl.getWorldPosition(this.smokeTmp);
+    hr.getWorldPosition(this.smokeTmp2);
+    L.uHead.value.addVectors(this.smokeTmp, this.smokeTmp2).multiplyScalar(0.5);
+    hl.target.getWorldPosition(this.smokeTmp2);
+    L.uHeadDir.value.subVectors(this.smokeTmp2, this.smokeTmp).normalize();
+    L.uHeadCol.value.copy(hl.color).multiplyScalar(((hl.intensity + hr.intensity) / Math.PI) * SMOKE_HEAD);
+    L.uHeadCos.value.set(Math.cos(hl.angle), Math.cos(hl.angle * (1 - hl.penumbra)));
+
+    // --- Street lanterns
+    if (!this.smokeFx.points.visible && !this.dustFx.points.visible) return;
+    const lamps = this.world.streetLamps;
+    const p = this.playerMesh.position;
+    const bi = this.smokeLampI;
+    const bd = this.smokeLampD;
+    bi.fill(-1);
+    bd.fill(Infinity);
+    // The four nearest by distance along the ground, kept sorted as the
+    // scan goes. Columns stand one every 42 m, the verges alternating, so
+    // the nearest four always include every column within 42 m either
+    // way — most of a plume, which at 32 m/s trails about 45 m (a 1.7 s
+    // life, less the 8 m the wake carries each puff forward).
+    for (let i = 0; i < lamps.length; i++) {
+      const dx = lamps[i].x - p.x;
+      const dz = lamps[i].z - p.z;
+      const d = dx * dx + dz * dz;
+      if (d >= bd[3]) continue;
+      let k = 3;
+      while (k > 0 && bd[k - 1] > d) {
+        bd[k] = bd[k - 1];
+        bi[k] = bi[k - 1];
+        k--;
+      }
+      bd[k] = d;
+      bi[k] = i;
+    }
+    const w = SMOKE_LAMP * (0.15 + 0.85 * dark);
+    for (let k = 0; k < 4; k++) {
+      const v = L.uLamp.value[k];
+      if (bi[k] >= 0) {
+        const q = lamps[bi[k]];
+        v.set(q.x, q.y, q.z, w);
+      } else {
+        v.set(0, -1000, 0, 0);
+      }
+    }
   }
 
   /**

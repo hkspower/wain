@@ -75,32 +75,118 @@ const smoke = await page.evaluate(() => {
     minX = Math.min(minX, pos.getX(i)); maxX = Math.max(maxX, pos.getX(i));
     minY = Math.min(minY, pos.getY(i)); maxY = Math.max(maxY, pos.getY(i));
   }
+  // Drawn far to near: the pool's index lists exactly the live slots, and
+  // the distance from the camera never grows along it. Squared distance,
+  // the same arithmetic the sort does, so there is no rounding to argue
+  // with.
+  let sorted = null;
+  if (g.index) {
+    const idx = g.index.array, cam = e.camera.position;
+    const n = g.drawRange.count;
+    let ok = n === e.smokeFx.alive, prev = Infinity;
+    for (let j = 0; j < n && ok; j++) {
+      const i = idx[j];
+      if (life.getX(i) <= 0) ok = false;
+      const dx = pos.getX(i) - cam.x, dy = pos.getY(i) - cam.y, dz = pos.getZ(i) - cam.z;
+      const d = dx * dx + dy * dy + dz * dz;
+      if (d > prev + 1e-9) ok = false;
+      prev = d;
+    }
+    sorted = { ok, n };
+  }
+  // The sprite has a shape to turn. Cell 0 of the billow atlas (the top-
+  // left 128 texels of the canvas, centred on 64,64): round a ring 0.45
+  // of the way out its alpha has to vary — a turned disc samples the
+  // same value — and at 0.98 of the way out it has to be nothing, or a
+  // turned sprite's corner would show the next cell.
+  let ring = null;
+  const img = e.smokeFx.material.uniforms.uMap.value?.image;
+  if (img && typeof img.getContext === "function" && img.width >= 128) {
+    const d = img.getContext("2d").getImageData(0, 0, 128, 128).data;
+    const alphaAt = (r, a) => {
+      const x = Math.min(127, Math.round(64 + Math.cos(a) * r * 64));
+      const y = Math.min(127, Math.round(64 + Math.sin(a) * r * 64));
+      return d[(y * 128 + x) * 4 + 3];
+    };
+    const mid = [];
+    for (let k = 0; k < 24; k++) mid.push(alphaAt(0.45, (k / 24) * Math.PI * 2));
+    const mean = mid.reduce((a, b) => a + b, 0) / mid.length;
+    const sd = Math.sqrt(mid.reduce((a, b) => a + (b - mean) ** 2, 0) / mid.length);
+    let rim = 0;
+    for (let k = 0; k < 8; k++) rim = Math.max(rim, alphaAt(0.98, (k / 8) * Math.PI * 2));
+    ring = { cv: mean > 0 ? +(sd / mean).toFixed(3) : 0, rim };
+  }
   return {
     alive: e.smokeFx.alive,
     distinctAges: new Set(ages).size,
     distinctSizes: new Set(sizes).size,
     spreadX: +(maxX - minX).toFixed(2),
     rise: +(maxY - minY).toFixed(2),
+    maxY: +maxY.toFixed(2),
     visible: e.smokeFx.points.visible,
     grow: e.smokeFx.material.uniforms.uGrow.value,
     spin: e.smokeFx.material.uniforms.uSpin.value,
+    sorted,
+    ring,
   };
 });
-console.log(`smoke      ${smoke.alive} puffs, ${smoke.distinctAges} distinct ages, ${smoke.distinctSizes} sizes, spread ${smoke.spreadX} m, rise ${smoke.rise} m`);
+console.log(`smoke      ${smoke.alive} puffs, ${smoke.distinctAges} distinct ages, ${smoke.distinctSizes} sizes, spread ${smoke.spreadX} m, rise ${smoke.rise} m, top ${smoke.maxY} m, uGrow ${smoke.grow}`);
 check(smoke.alive > 25, `only ${smoke.alive} smoke particles alive in a drift`);
 check(smoke.distinctAges > 15, `smoke shares ages (${smoke.distinctAges} distinct) — the old one-clock pool`);
 check(smoke.distinctSizes > 10, "every puff is the same size");
-// `spin` is NOT asserted, and that is deliberate. It used to be
-// `smoke.grow > 1 && smoke.spin > 0` with the message "smoke does not
-// expand or turn" — but the sprite radialSprite() draws is a radially
-// symmetric alpha falloff about its own centre, and the shader rotates
-// gl_PointCoord about that same centre. Turning it samples the identical
-// value. uSpin has no visual consequence on this texture at any value,
-// so the check was asserting a uniform against a behaviour the shader
-// cannot produce, and would have gone on passing if the rotation were
-// deleted outright.
 check(smoke.grow > 1, "smoke does not expand as it ages");
 check(smoke.visible, "smoke is not visible while drifting");
+// Low enough to see the car over. The old launch (0.24-0.46 m up at
+// 1.3-2.8 m/s, rising at 0.35 m/s²) put puffs 2.2 m up, over the roof of
+// every car in the game, and a spin is exactly when the driver needs to
+// see which way the car is pointing.
+check(smoke.maxY < 1.5, `smoke climbs to ${smoke.maxY} m — over the roofline`);
+// Far to near, so a lit puff blends over the one behind it and not the
+// other way round.
+console.log(`           draw order ${smoke.sorted ? `${smoke.sorted.n} listed, ${smoke.sorted.ok ? "far to near" : "NOT sorted"}` : "no index"}`);
+check(smoke.sorted?.ok === true, smoke.sorted ? "the smoke's index is not far-to-near over exactly the live puffs" : "the smoke pool has no index — it is drawn in slot order");
+// `spin` IS asserted again, and the sprite is measured to show it can be
+// seen. It used to be deliberately left out: the sprite was radialSprite(),
+// a radially symmetric falloff, and turning gl_PointCoord about the centre
+// of a symmetric sprite samples the identical value — uSpin had no visual
+// consequence at any value, and a check on it would have gone on passing
+// with the rotation deleted. The billow atlas has lobes, so a turn moves
+// them; the ring measurement is what makes the uniform mean something.
+console.log(`           sprite ring std/mean ${smoke.ring?.cv ?? "-"} at 0.45 r, rim ${smoke.ring?.rim ?? "-"} at 0.98 r, uSpin ${smoke.spin}`);
+check(smoke.spin > 0, "smoke does not turn");
+check(!!smoke.ring && smoke.ring.cv > 0.15, `the smoke sprite is round (ring std/mean ${smoke.ring?.cv}) — turning it changes nothing`);
+check(!!smoke.ring && smoke.ring.rim === 0, `the smoke sprite reaches its cell's edge (alpha ${smoke.ring?.rim}) — a turned corner shows`);
+
+// --- 1a. The paint does not reflect the particles -------------------
+//
+// A sprite's pixel size is worked out for the main buffer, so inside a
+// 256-texel probe face a puff two metres off filled the face and washed
+// the paint grey. Checked on the probe's own render call, while the
+// drift above is still in the air.
+const probe = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  const pools = [e.sparkFx, e.smokeFx, e.dustFx, e.flameFx];
+  const before = e.smokeFx.points.visible;
+  const seen = [];
+  const render = e.renderer.render;
+  e.renderer.render = function (scene, cam) {
+    seen.push(pools.map((f) => f.points.visible));
+    return render.call(this, scene, cam);
+  };
+  try {
+    e.renderProbe();
+  } finally {
+    e.renderer.render = render;
+  }
+  return { before, seen, after: e.smokeFx.points.visible };
+});
+{
+  const drawn = probe.seen.flat();
+  console.log(`probe      ${probe.seen.length} render(s); particle pools drawn into it: ${drawn.filter(Boolean).length} of ${drawn.length}; smoke ${probe.before} -> ${probe.after}`);
+  check(probe.before, "no smoke in the air to test the probe against");
+  check(probe.seen.length > 0 && drawn.every((v) => v === false), "particles are drawn into the reflection probe");
+  check(probe.after === true, "the probe left the smoke hidden");
+}
 
 // --- 1b. Sand off the shoulder -------------------------------------
 //
@@ -135,15 +221,124 @@ const dust = await page.evaluate(async () => {
   await wait(60);
   const clean = read().n;
   // Now put a wheel on the shoulder, on the right, and hold it there.
+  // And watch the lowest grain every frame: sand settles ON the road.
+  const lowest = () => {
+    const g = e.dustFx.points.geometry;
+    const pos = g.getAttribute("position"), life = g.getAttribute("aLife");
+    let m = Infinity;
+    for (let i = 0; i < life.count; i++) if (life.getX(i) > 0) m = Math.min(m, pos.getY(i));
+    return m;
+  };
   const wide = e.track.halfWidthAt(e.player.s) - 1.2;
-  for (let i = 0; i < 90; i++) { e.player.lat = wide; e.update(1 / 60); }
+  let minY = Infinity;
+  for (let i = 0; i < 90; i++) { e.player.lat = wide; e.update(1 / 60); minY = Math.min(minY, lowest()); }
   const onEdge = read();
   const carX = e.playerMesh.position.x;
-  return { clean, n: onEdge.n, meanX: onEdge.meanX, carX, lat: e.player.lat, speed: e.player.speed };
+  return { clean, n: onEdge.n, meanX: onEdge.meanX, carX, lat: e.player.lat, speed: e.player.speed, minY };
 });
-console.log(`dust       ${dust.clean} grains mid-road, ${dust.n} with a wheel on the shoulder at ${dust.speed.toFixed(0)} m/s`);
+console.log(`dust       ${dust.clean} grains mid-road, ${dust.n} with a wheel on the shoulder at ${dust.speed.toFixed(0)} m/s, lowest ${Number.isFinite(dust.minY) ? dust.minY.toFixed(3) : "-"} m`);
 check(dust.clean === 0, `${dust.clean} grains of sand came up in the middle of the road`);
 check(dust.n > 10, `only ${dust.n} grains with a wheel on the shoulder — running wide throws no sand`);
+// The floor is groundY, 0.03. Without it the sand fell straight through:
+// 0.06 m up at 0.9 m/s, drag 1.5 and gravity 1.1 is 7 cm under the road
+// by the end of a 1.5 s life.
+check(dust.minY >= 0.029, `sand sinks into the road, to ${dust.minY.toFixed(3)} m`);
+
+// --- 1c. A burnout smokes the tyres that are spinning ---------------
+//
+// The driven ones. Every straight-line puff used to go to the FRONT axle,
+// which was right for the five front-driven cars and wrong for every
+// rear-driven one — the default car lit up its fronts. Read in the car's
+// own frame (+z forward), from puffs too young to have drifted far.
+await stage();
+const burn = await page.evaluate(() => {
+  const THREE = window.__grnThree;
+  const e = window.__grnEngine;
+  e.player.speed = 3;
+  let spin = 0;
+  for (let i = 0; i < 40; i++) {
+    e.setTouchInput({ throttle: 1, steer: 0 });
+    e.update(1 / 60);
+    e.player.lat = 0;
+    spin = Math.max(spin, e.wheelspin);
+  }
+  e.setTouchInput({ throttle: 0 });
+  const g = e.smokeFx.points.geometry;
+  const pos = g.getAttribute("position"), life = g.getAttribute("aLife"), age = g.getAttribute("aAge");
+  const v = new THREE.Vector3();
+  let n = 0, sum = 0;
+  for (let i = 0; i < life.count; i++) {
+    if (life.getX(i) <= 0 || age.getX(i) >= 0.1) continue;
+    v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
+    e.carBody.worldToLocal(v);
+    sum += v.z;
+    n++;
+  }
+  return { drive: e.tune.drive, spin: +spin.toFixed(2), n, meanZ: n ? +(sum / n).toFixed(2) : null, speed: +e.player.speed.toFixed(1) };
+});
+if (burn.spin > 3 && burn.n > 0) {
+  console.log(`burnout    ${burn.drive}, wheelspin ${burn.spin}, ${burn.n} young puffs at car-local z ${burn.meanZ} m (at ${burn.speed} m/s)`);
+  if (burn.drive === "rwd") check(burn.meanZ < -0.8, `a rear-driven burnout smokes at z ${burn.meanZ} — not the rear tyres`);
+  if (burn.drive === "fwd") check(burn.meanZ > 0.5, `a front-driven burnout smokes at z ${burn.meanZ} — not the front tyres`);
+} else {
+  console.log(`burnout    skipped: wheelspin ${burn.spin}, ${burn.n} young puffs — the launch did not light the tyres`);
+}
+
+// --- 1d. Smoke is lit by the hour and by the car --------------------
+//
+// It used to be one flat colour at every hour: 0.58 in luma at midnight,
+// three times too bright for the night it hung in. What it answers to now
+// is the rig's own key, fill and sky — read here straight off the
+// uniforms both pools share — and the car's tail lamps behind it.
+await stage();
+const lit = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  const u = e.smokeFx.material.uniforms;
+  if (!u.uKey || !u.uFill || !u.uTail) return null;
+  const was = { h: e.timeHours, real: e.timeReal, cycling: e.timeCycling };
+  e.timeReal = false;
+  e.timeCycling = false;
+  const luma = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+  const park = () => {
+    const away = e.track.wrap(587 + e.track.length / 2);
+    for (const t of e.traffic) t.s = away;
+    if (e.rival) { e.rival.s = away; e.rival.speed = 0; }
+    e.player.s = 587; e.player.lat = 0; e.player.speed = 0;
+  };
+  const at = (h) => {
+    e.timeHours = h;
+    e.world.setTimeOfDay(h);
+    e.applyDaylight();
+    for (let i = 0; i < 60; i++) { park(); e.update(1 / 60); }
+    return +(luma(u.uKey.value) + luma(u.uFill.value)).toFixed(3);
+  };
+  const noon = at(12.5);
+  const night = at(0.5);
+  // The tail lamps, at night: braking, then idle. touch.drift is the
+  // handbrake and lights the lamps too — stage() cleared it.
+  const tail = (brake) => {
+    e.setTouchInput({ throttle: 0, brake });
+    for (let i = 0; i < 3; i++) { park(); e.update(1 / 60); }
+    return u.uTail.value.w;
+  };
+  const braking = tail(1);
+  const idle = tail(0);
+  e.timeHours = was.h;
+  e.timeReal = was.real;
+  e.timeCycling = was.cycling;
+  e.world.setTimeOfDay(was.h);
+  e.applyDaylight();
+  return { night, noon, braking: +braking.toFixed(3), idle: +idle.toFixed(3) };
+});
+if (!lit) {
+  console.log("lighting   the smoke has no light uniforms  FAIL");
+  fail.push("the smoke is not lit — one flat colour at every hour");
+} else {
+  console.log(`lighting   sky ${lit.night} at 0:30, ${lit.noon} at 12:30 (x${(lit.noon / lit.night).toFixed(2)}); tail ${lit.braking} braking, ${lit.idle} idle (x${(lit.braking / Math.max(1e-6, lit.idle)).toFixed(2)})  ` +
+    check(lit.night >= 0.12 && lit.night <= 0.28, `the night sky lights smoke at ${lit.night} — outside 0.12-0.28`) + " " +
+    check(lit.noon >= 0.45 && lit.noon >= 2.5 * lit.night, `noon lights smoke at ${lit.noon} — not a day's worth over ${lit.night} at night`) + " " +
+    check(lit.idle > 0 && lit.braking >= 2.5 * lit.idle, `the tail lamps light smoke at ${lit.braking} braking, ${lit.idle} idle — braking should be 2.5x`));
+}
 
 // --- 2. Sparks: side-correct, and they bounce instead of sinking ---
 await stage();

@@ -11,7 +11,7 @@ import { GradeShader } from "./grade";
 import { RIG } from "./rig";
 import { pixelRatioFor } from "./render";
 import { loadSettings } from "./settings";
-import { ParticleSystem, radialSprite } from "./vfx";
+import { ParticleSystem, billowAtlas, smokeLight } from "./vfx";
 import { makeRng } from "./rand";
 
 // The main menu's turntable.
@@ -703,16 +703,34 @@ export function buildAttract(
     // denser — the race's is tuned to be seen through from the driving
     // camera, and this one is looked at from fifteen metres back with
     // a menu beside it.
+    //
+    // Lit, like the race's, but by one fixed light: this road has no
+    // moon or sky rig to read, only its own warm lamps (0xffc078, below),
+    // and the car never leaves them. A warm fill of (0.89, 0.71, 0.52)
+    // times the smoke's near-white albedo is (0.69, 0.56, 0.43), luma
+    // 0.58 before the core's own shading — the brightness the flat
+    // 0xc4c9d2 had at birth, turned the colour of the light it stands
+    // in. Sized in metres now (0.6-0.9 m at birth): against the old pixel
+    // figure that is 1.17x on screen under the wide 36° lens and 0.9x
+    // under the tall 46° one — the same puffs, give or take.
+    const light = smokeLight();
+    light.uFill.value.setRGB(0.89, 0.71, 0.52);
     smokeFx = new ParticleSystem(120, {
-      map: radialSprite(0.0, 1.5),
-      colorA: 0xc4c9d2,
-      colorB: 0x3c4148,
+      map: billowAtlas(),
+      colorA: 0xe4e6ea,
+      colorB: 0xd2d5da,
       grow: 2.4,
-      spin: 0.3,
-      opacity: 0.24,
-      fadeIn: 0.1,
+      spin: 0.12,
+      fadeIn: 0.08,
+      // Seeded slots — each puff's turn, mirror and billow — so a menu
+      // capture is the same capture twice, as smokeRand already makes
+      // the spawn. "SMOL".
+      seeds: makeRng(0x534d4f4c),
+      smoke: { light, tau: 0.4, nearFade: [1.0, 3.5], groundSoft: 0.35 },
     });
     smokeFx.points.name = "smoke";
+    // After the road's other transparencies, as in the race.
+    smokeFx.points.renderOrder = 3;
     scene.add(smokeFx.points);
     // Lamps down both shoulders. These are what actually sell the motion:
     // the road texture alone slides, but a lamp arriving, passing over
@@ -1303,14 +1321,16 @@ export function buildAttract(
         smokeFx.spawn(
           _puff.x, _puff.y, _puff.z,
           -BEND * (1.4 + smokeRand()) + (smokeRand() - 0.5),
-          1.2 + smokeRand() * 1.4,
+          // Lower, as the race's now is: the roof stays over the plume.
+          0.6 + smokeRand() * 0.8,
           -ROLL_SPEED * 0.85 + (smokeRand() - 0.5) * 2,
           0.9 + smokeRand() * 0.5,
-          1.9 + smokeRand() * 0.9
+          // Metres across at birth, like the race's.
+          0.6 + smokeRand() * 0.3
         );
       }
     }
-    smokeFx?.update(dt, { drag: 1.6, gravity: -0.35 });
+    smokeFx?.update(dt, { drag: 1.6, gravity: -0.25 });
 
     // Chase: behind, above, on the OUTSIDE of the corner, so the hero's
     // angle reads — from the inside a drifting car is a car pointing at
@@ -1323,6 +1343,8 @@ export function buildAttract(
     camera.position.set(offsetX * 0.3 - BEND * 2.4, camY, -dist + Math.sin(TAU * phase) * 0.5);
     arcPoint(18, 0, _aim);
     camera.lookAt(_aim.x + offsetX, 1.05, _aim.z);
+    // The smoke, far to near from where the camera now is.
+    smokeFx?.sortFrom(camera.position);
   };
 
   /**

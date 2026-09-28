@@ -144,6 +144,7 @@ export const ASSETS = [
   { path: "press/exhaust", kind: "scratch", by: "—", what: "Exhaust tip frames." },
   { path: "press/hud", kind: "scratch", by: "tools/shots/hudtype.mjs", what: "The per-run HUD type report; viewport-dependent." },
   { path: "press/sparks", kind: "scratch", optional: true, by: "tools/shots/sparks.mjs", what: "One scrape, held still. The TABLE is the artefact — what the shower covers, what it casts, and how round it reads." },
+  { path: "press/smoke", kind: "scratch", optional: true, by: "tools/shots/smoke.mjs", what: "One drift, held still: what the plume covers, how bright, and what it veils." },
 
   // ---- Scratch that is not on disk in this checkout.
   //
