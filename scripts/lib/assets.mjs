@@ -84,6 +84,8 @@ export const ASSETS = [
   { path: "press/map", kind: "kept", by: "—", what: "The circuit, drawn." },
   { path: "press/flags", kind: "kept", by: "tools/shots/flags.mjs",
     what: "The flag decal, at the size it is worn." },
+  { path: "press/police", kind: "kept", by: "—",
+    what: "The patrol car against its reference: quarter, side and far side." },
 
   // ---- Measurements that were worth keeping. Each of these is a
   // before-and-after or a reference plate that a comment somewhere
@@ -122,10 +124,17 @@ export const ASSETS = [
   { path: "press/ik", kind: "split", by: "tools/shots/ik4k.mjs",
     keep: ["*.jpg", "*.json", "*.md"],
     what: "The rig at 4K. The JPEGs are the deliverable; the lossless PNGs beside them are 13 MB each." },
+  { path: "press/trailer", kind: "split", by: "tools/shots/trailer.mjs",
+    keep: ["narration-ar.mp3"],
+    what: "The trailer's Arabic narration take. The PNG frames, the lossless master and the MP4 are rebuilt by the tool and gigabytes between them." },
+  { path: "press/renders", kind: "split", by: "tools/blender/render_cars.py",
+    keep: ["*.png", "cars.json", "contact-sheet.jpg"],
+    what: "Studio renders of every catalogue car, exported from the game by tools/shots/export-cars.mjs and rendered in Cycles. The GLBs beside them are 160 MB of scratch, and renders.json is a timing log." },
 
   // ---- Scratch. A tool wrote it to answer a question, and the answer
   // was the number it printed.
   { path: "press/views", kind: "scratch", by: "tools/shots/car-views.mjs", what: "Car elevations, rendered on demand." },
+  { path: "press/export", kind: "scratch", optional: true, by: "tools/export-media.mjs", what: "Copies of every deliverable, indexed and zipped for handing over." },
   { path: "press/decals", kind: "scratch", by: "tools/shots/decals.mjs", what: "Decal artwork, dumped to look at." },
   { path: "press/levels", kind: "scratch", by: "tools/shots/levels.mjs", what: "Level histograms and the frames behind them." },
   { path: "press/shop", kind: "scratch", by: "tools/shots/shopsmoke.mjs", what: "Shop screenshots." },

@@ -21,6 +21,7 @@ whether it belongs in the history at all.
 | `stories/` | The story cards and the page that lays them out. | `scripts/story-cards.mjs` | kept |
 | `map/` | The circuit, drawn. | by hand | kept |
 | `flags/` | The flag decal, at the size it is worn. | `tools/shots/flags.mjs` | kept |
+| `police/` | The patrol car against its reference: quarter, side and far side. | by hand | kept |
 | `blur/` | Building blur, before and after. | `tools/shots/nightlook.mjs` | kept |
 | `sharp/` | Edge sharpness at each resolution step. | `tools/shots/sharpness.mjs` | kept |
 | `paint/` | Paint under the street lights, per finish. | `tools/shots/paint.mjs` | kept |
@@ -39,7 +40,10 @@ whether it belongs in the history at all.
 | `menu/` | The title block, at the two widths the strapline solves its tracking for. | by hand | kept |
 | `film/` | The pre-race film, both encodings, and its poster frames. The 336 JPEGs it was made from are not the artefact. | `tools/shots/exportfilm.mjs` | part kept |
 | `ik/` | The rig at 4K. The JPEGs are the deliverable; the lossless PNGs beside them are 13 MB each. | `tools/shots/ik4k.mjs` | part kept |
+| `trailer/` | The trailer's Arabic narration take. The PNG frames, the lossless master and the MP4 are rebuilt by the tool and gigabytes between them. | `tools/shots/trailer.mjs` | part kept |
+| `renders/` | Studio renders of every catalogue car, exported from the game by tools/shots/export-cars.mjs and rendered in Cycles. The GLBs beside them are 160 MB of scratch, and renders.json is a timing log. | `tools/blender/render_cars.py` | part kept |
 | `views/` | Car elevations, rendered on demand. | `tools/shots/car-views.mjs` | regenerated |
+| `export/` | Copies of every deliverable, indexed and zipped for handing over. | `tools/export-media.mjs` | regenerated |
 | `decals/` | Decal artwork, dumped to look at. | `tools/shots/decals.mjs` | regenerated |
 | `levels/` | Level histograms and the frames behind them. | `tools/shots/levels.mjs` | regenerated |
 | `shop/` | Shop screenshots. | `tools/shots/shopsmoke.mjs` | regenerated |
