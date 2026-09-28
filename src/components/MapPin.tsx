@@ -164,6 +164,12 @@ export default function MapPin({
    *
    * pointerdown lands before that synthetic hover, so it is the only place
    * that can still see the truth.
+   *
+   * That ordering holds for a finger and NOT for a pointer that can hover —
+   * a stylus above a tablet, or a test driving a phone with a mouse — where
+   * mouseenter comes first. Which is why, on a hoverless device, mouseenter
+   * no longer selects at all (see the handlers below) rather than relying on
+   * which event wins.
    */
   const selectedOnPress = useRef(false);
 
@@ -207,8 +213,15 @@ export default function MapPin({
            click first and open the place on the tap that was only meant to
            select it. The map-pin suite catches exactly that. */
         data-no-view-transition=""
-        onMouseEnter={() => onActive(place.slug)}
-        onMouseLeave={() => onActive(null)}
+        /* Hover selects only where hover means something. On a hoverless
+           device a mouseenter is either the browser's synthetic one for a tap
+           or a pen hovering above the glass, and letting it select raced the
+           tap it belongs to: whenever React committed the hover before the
+           pointerdown arrived, `selectedOnPress` read true and the FIRST tap
+           opened the place. That was map-pin's one-run-in-nine red, and
+           forcing a pause between hover and press reproduced it 5 of 5. */
+        onMouseEnter={() => { if (!hoverless) onActive(place.slug); }}
+        onMouseLeave={() => { if (!hoverless) onActive(null); }}
         onFocus={() => onActive(place.slug)}
         onBlur={() => onActive(null)}
         onPointerDown={() => { selectedOnPress.current = active; }}

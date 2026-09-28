@@ -17,6 +17,14 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
 let pass = 0;
 const fails = [];
 const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
+// Reads that come AFTER a tap which may have navigated. Once the page has
+// left /search the pin no longer exists, a bare getAttribute waits its full 30s
+// and throws, and the uncaught throw ends the process — so one red here used
+// to cancel every section after it, including the ones written to explain it.
+// Short and soft: a missing pin reads as null, the assertion reports it, and
+// the run goes on.
+const attr = (loc, name) => loc.getAttribute(name, { timeout: 2000 }).catch(() => null);
+const text = (loc) => loc.textContent({ timeout: 2000 }).catch(() => null);
 
 const SEARCH = '/search/?q=' + encodeURIComponent('قهوة');
 
@@ -57,15 +65,50 @@ console.log('\n── on a phone, the first tap selects instead of leaving ─�
   await pin.click();
   await p.waitForTimeout(400);
   ok('it did not navigate away', p.url().includes('/search'), p.url());
-  ok('the pin reports itself as the current one', (await pin.getAttribute('aria-current')) === 'true');
+  ok('the pin reports itself as the current one', (await attr(pin, 'aria-current')) === 'true');
   // The callout is the entire reason the first tap is spent this way.
   const callout = map.locator('a[aria-current="true"]').locator('xpath=..');
-  ok('the callout carries the name', (await callout.textContent()).trim().length > 0);
+  ok('the callout carries the name', ((await text(callout)) ?? '').trim().length > 0);
 
   console.log('\n── and the second tap opens it ──');
-  await pin.click();
-  await p.waitForURL('**' + href + '**', { timeout: 8000 });
+  // Only meaningful if the first tap stayed; if it already left, there is no
+  // pin to tap again, and that failure has been reported above.
+  if (p.url().includes('/search')) {
+    await pin.click();
+    await p.waitForURL('**' + href + '**', { timeout: 8000 }).catch(() => {});
+  }
   ok('the place page opens on the second tap', p.url().includes(href), p.url());
+  await ctx.close();
+}
+
+console.log('\n── on a phone, a pointer that hovers first still needs a second tap ──');
+{
+  // The section above passed about eight runs in nine and failed the ninth,
+  // and the reason is that it depended on a race: Playwright's click sends
+  // mouseenter BEFORE pointerdown, the pin selected itself on the enter, and
+  // whether pointerdown saw that depended on React committing in the gap.
+  // A pause makes the commit certain, so this fails every time the hover is
+  // allowed to select — which on a real device is a stylus hovering above
+  // the glass of a tablet that reports no hover.
+  const { ctx, p, map } = await open({ touch: true });
+  const pin = map.locator('a[href^="/places/"]').first();
+  await pin.hover();
+  await p.waitForTimeout(150);
+  await pin.click();
+  await p.waitForTimeout(400);
+  ok('hover, a pause, then a tap: it did not navigate away', p.url().includes('/search'), p.url());
+  ok('and the tap is what selected it', (await attr(pin, 'aria-current')) === 'true');
+  await ctx.close();
+}
+{
+  // And a real touch, which fires pointerdown before the browser's synthetic
+  // mouse events — the order a finger actually produces.
+  const { ctx, p, map } = await open({ touch: true });
+  const pin = map.locator('a[href^="/places/"]').first();
+  await pin.tap();
+  await p.waitForTimeout(400);
+  ok('a touch tap selects without navigating', p.url().includes('/search'), p.url());
+  ok('and marks the pin current', (await attr(pin, 'aria-current')) === 'true');
   await ctx.close();
 }
 
