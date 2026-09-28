@@ -6,6 +6,8 @@
 //   node tools/shots/trailer.mjs --width 3840    # 4K — on a machine with a GPU
 //   node tools/shots/trailer.mjs --jpeg          # a quick preview: JPEG frames, MP4 only
 //   node tools/shots/trailer.mjs --audio-only    # re-mix the sound onto existing frames
+//   node tools/shots/trailer.mjs --audio-only --no-master --out press/trailer/trailer-1080p-preview.mp4
+//                                                # a playback cut of whatever is rendered so far
 //
 // LOSSLESS, END TO END. Every frame is read back as PNG and the master
 // is FFV1 in Matroska — the archival lossless codec, RGB, no chroma
@@ -71,6 +73,7 @@ const HEIGHT = Math.round((WIDTH * 9) / 16);
 const OUT = arg("out", `press/trailer/trailer-${HEIGHT}p.mp4`);
 const FRAMEDIR = arg("frames", `press/trailer/frames-${HEIGHT}p`);
 const AUDIO_ONLY = process.argv.includes("--audio-only");
+const NO_MASTER = process.argv.includes("--no-master");
 const JPEG = process.argv.includes("--jpeg");
 const EXT = JPEG ? "jpg" : "png";
 const MASTER = OUT.replace(/\.mp4$/, "-master.mkv");
@@ -498,7 +501,10 @@ const common = [
   ...inputs,
   "-filter_complex", filters.join(";"),
   "-map", "0:v", "-map", "[aout]",
-  "-t", String(LEN),
+  // A partial run (a preview while the render is still going) is cut
+  // to the frames on disk, less the newest one — the renderer may be
+  // half way through writing it.
+  "-t", String(frames < Math.round(LEN * FPS) ? Math.max(1, frames - 1) / FPS : LEN),
 ];
 /** The playback copy: H.264 for every player, at a quality no eye
  *  separates from the master, plus the master's own audio at 320k. */
@@ -530,9 +536,9 @@ if (!ff) {
 if (frames < Math.round(LEN * FPS)) console.log(`WARNING      only ${frames} of ${Math.round(LEN * FPS)} frames — encoding what there is`);
 mkdirSync(OUT.replace(/\/[^/]+$/, ""), { recursive: true });
 const size = (f) => (Number(execFileSync("stat", ["-c", "%s", f], { encoding: "utf8" }).trim()) / 1e6).toFixed(1);
-if (!JPEG) {
+if (!JPEG && !NO_MASTER) {
   execFileSync(ff, masterArgs, { stdio: ["ignore", "inherit", "inherit"] });
   console.log(`master       ${MASTER} — ${size(MASTER)} MB, FFV1 RGB + FLAC, lossless from the frames`);
 }
 execFileSync(ff, copyArgs, { stdio: ["ignore", "inherit", "inherit"] });
-console.log(`encoded      ${OUT} — ${size(OUT)} MB, ${frames} frames at ${FPS} fps, H.264 playback copy${JPEG ? "" : " of the master"}`);
+console.log(`encoded      ${OUT} — ${size(OUT)} MB, ${frames} frames at ${FPS} fps, H.264 playback copy${JPEG || NO_MASTER ? "" : " of the master"}`);

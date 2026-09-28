@@ -176,3 +176,6 @@ press/trailer/*.mkv
 press/renders/glb/
 press/renders/renders.json
 press/renders/*.blend
+
+# tools/export-media.mjs: copies of every deliverable, and their zips.
+/press/export/
