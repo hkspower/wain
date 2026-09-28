@@ -506,7 +506,19 @@ file's length would pass it. Content hashes would close that, and nothing on
 this connector returns one for a binary — which is why the hashed chunk
 names, content-addressed by the build, carry most of the weight.
 
-## The 28 September deploys — `0597056` is live
+## The 28 September deploys — `6336c0e` is live
+
+The third of the day: the skyline's towers and palms rendered with light and
+shade instead of flat fills, then their green retuned from grass-green to a
+teal patina (see the comments over `Orb`, `Palm` and `wain-deck` in
+`KuwaitSkyline.tsx`). `{"ok":true,"deployed":249,"removed":2,"emptied":1}` at
+10:18:02Z, first firing, job `FTlSReXfsX` deleted and confirmed gone by a
+listing. The whole change lives inside the hero's inline SVG, so it shows up
+as `index.html` alone — 159,257 bytes, matching the archive — with neither
+stylesheet nor any chunk touched; `removed: 2` is just the previous build-id
+directory's two files.
+
+### `0597056`, earlier the same morning
 
 The second of the day, twenty minutes after the first: the home hero's
 skyline drawn whole (see the comment over the hero in `app/page.tsx`).
@@ -637,7 +649,7 @@ at the pinned URL.
 
 **The live build id trails HEAD on purpose, and that is not a failed deploy.**
 `build.json`, `_next/static/<sha>/` and `sw.js` all name the commit that built
-the archive — `0597056` as of 28 September; read `build.json` rather than this
+the archive — `6336c0e` as of 28 September; read `build.json` rather than this
 line, which has been stale before (see the 24 September section). HEAD moves
 past it on commits that change the planner, this file and nothing that ships —
 starting with the very commit that publishes the archive.
