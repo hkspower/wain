@@ -515,6 +515,18 @@ the script as its own header instructs would have deleted the tiles' layout
 from the site. The generated block is `21-brand-tokens.generated.css` now,
 a file of its own, and the tile rules are `22-category-tiles.css`.
 
+### A fix whose comment said "mobile too" reached desktop only — 2026-09-28
+
+The product photo was set to 4:5 on 2026-09-23 in `31-`, whose comment says
+"same on mobile and desktop". A three-class `!important` rule in `05-` kept it
+LANDSCAPE (1.25:1) below 1024px, so phones cropped every portrait photo to 64%
+of its height for five days. The owner then chose 4:5 on phones too; it is set
+in `05-` now, where it wins. **The more specific selector wins even when it
+comes EARLIER** — file order decides only ties. `test:product-photo-shape`
+uploads a real 4:5 photo and measures the box at five widths; restoring the old
+rule fails it on every phone and tablet width and passes desktop, exactly as
+the bug did.
+
 ## The service worker can pin a file for ever
 
 `sw.js` rule 2 cached everything under `/assets/` cache-first-and-never-re-asked,

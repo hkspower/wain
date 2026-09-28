@@ -182,7 +182,8 @@
     "test:wallet-setup": "node scripts/wallet-setup-test.mjs",
     "test:brand-image-picker": "node scripts/brand-image-picker-test.mjs",
     "test:css-build": "node scripts/build-css.mjs --check",
-    "test:rules-live": "node scripts/rules-live-test.mjs"
+    "test:rules-live": "node scripts/rules-live-test.mjs",
+    "test:product-photo-shape": "node scripts/product-photo-shape-test.mjs"
   },
   "private": true
 }

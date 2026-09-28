@@ -50,8 +50,9 @@ p.mt-6.flex.flex-wrap.items-baseline:has(> .font-display) {
    the shapes and grow them.
 
    PHONE: the picture was 358 wide inside the page's 1rem gutters. Edge to
-   edge it is 390, and at the 1.25 ratio already set above that is 312px tall
-   against 286. The corners are squared at the same time: a rounded rectangle
+   edge it is 390 (the height now follows 05-product-page.css's 4:5, since
+   2026-09-28; it was 312 at the old 1.25 ratio the paragraph below refers
+   to). The corners are squared at the same time: a rounded rectangle
    that touches both edges of the screen reads as a mistake, not a radius.
 
    This partly reverses the note at rule 2 above, which SHORTENED this box to

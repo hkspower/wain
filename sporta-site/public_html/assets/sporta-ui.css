@@ -964,15 +964,24 @@ div.flex.h-full.w-full:has(> img:not([src^='data:'])) > img[src^='data:image/svg
 }
 
 @media (max-width: 1023px) {
-  /* --- 2. a shorter photograph ------------------------------------------ */
-  /* aspect-square is 361px of the 850 available. 1.25 makes it 289 — still
-     the largest thing on the screen and still the first thing you see, but it
-     brings 72px of the buying controls up with it.
-     Not smaller than that: this is a clothes shop, and the photograph is the
-     product. The ratio is applied to the box, so the picture still fills it
-     with object-fit and nothing letterboxes. */
+  /* --- 2. the photograph's shape on a phone and tablet ------------------- */
+  /* PORTRAIT 4:5 SINCE 2026-09-28 ("fix product page images layout"), the
+     owner's choice out of three measured options. This used to be 1.25:1 —
+     LANDSCAPE — chosen on 2026-09-04 to bring 72px of buying controls up the
+     page. But product photos are 4:5 portrait, so a landscape box cropped
+     every one to ~64% of its height: heads and shoes gone, on the page a
+     shopper opens to see MORE of the garment than the grid card showed.
+
+     31-product-gallery-crop.css set 4:5 on 2026-09-23 and said "same on
+     mobile and desktop" — it was not. This selector (three classes,
+     !important) outranks that one's single `.aspect-square` below 1024px, so
+     the fix only ever reached desktop. Measured: 390x312 on a phone with that
+     rule in force. So the shape is set HERE, where it wins.
+
+     The cost the owner accepted: the photo is 487px tall on a 390 phone, and
+     Add/Buy sits 175px further down — the sticky bar keeps both on screen. */
   .group.aspect-square.cursor-zoom-in {
-    aspect-ratio: 1.25 / 1 !important;
+    aspect-ratio: 4 / 5 !important;
   }
 
   /* --- 3. thumbnails instead of dots ------------------------------------ */
@@ -1641,8 +1650,9 @@ p.mt-6.flex.flex-wrap.items-baseline:has(> .font-display) {
    the shapes and grow them.
 
    PHONE: the picture was 358 wide inside the page's 1rem gutters. Edge to
-   edge it is 390, and at the 1.25 ratio already set above that is 312px tall
-   against 286. The corners are squared at the same time: a rounded rectangle
+   edge it is 390 (the height now follows 05-product-page.css's 4:5, since
+   2026-09-28; it was 312 at the old 1.25 ratio the paragraph below refers
+   to). The corners are squared at the same time: a rounded rectangle
    that touches both edges of the screen reads as a mistake, not a radius.
 
    This partly reverses the note at rule 2 above, which SHORTENED this box to
