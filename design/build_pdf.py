@@ -21,13 +21,13 @@ F_MED  = FONTS + "Jura-Medium.ttf"
 F_MONO = FONTS + "GeistMono-Regular.ttf"
 F_AR   = str(D / "fonts" / "tajawal-700.ttf")   # Tajawal, the site's own face
 
-INK        = (11, 18, 32)
-INK_SOFT   = (17, 26, 43)
-BORDER     = (34, 48, 73)
-BONE       = (216, 205, 184)
-MUTED      = (138, 160, 189)
-TEAL       = (219, 169, 127)   # --tint in dark mode: the brand tan
-BRASS      = (227, 165, 86)
+INK        = (255, 255, 255)   # --bg: white surfaces, no dark theme, on the page as on the site
+INK_SOFT   = (241, 244, 248)   # --panel-2: the cool near-neutral grey for recessed surfaces
+BORDER     = (208, 215, 225)   # --border
+INK_TEXT   = (27, 36, 48)      # --text: primary ink for headlines
+MUTED      = (67, 77, 85)      # --muted
+TINT       = (122, 68, 24)     # --tint: the brand brown
+BRASS      = (227, 165, 86)    # --sand-vivid: the brand amber accent
 
 def font(p, s): return ImageFont.truetype(p, s)
 
@@ -75,12 +75,12 @@ for i in range(H):                                   # slow vertical lift
     dr.line([0, i, W, i], fill=c)
 anchor_mark(dr, W // 2, 700, 150, BRASS, 7)
 # The company is the cover; النوخذة is the system inside, named in the strip below.
-ls_text(dr, W // 2, 930, "ALMUHALLAB", font(F_DISP, 168), BONE, 30, "ct")
+ls_text(dr, W // 2, 930, "ALMUHALLAB", font(F_DISP, 168), INK_TEXT, 30, "ct")
 ls_text(dr, W // 2, 1130, "CODE", font(F_MED, 132), BRASS, 40, "ct")
 dr.line([W // 2 - 430, 1310, W // 2 + 430, 1310], fill=BORDER, width=3)
 ls_text(dr, W // 2, 1372, "SOFTWARE  AND  SYSTEMS  —  KUWAIT", font(F_TECH, 54), MUTED, 15, "ct")
-ls_text(dr, W // 2, 1520, "WEBSITE SAMPLE", font(F_MED, 62), TEAL, 22, "ct")
-ls_text(dr, W // 2, 1660, "www.almuhallab-code.com", font(F_MONO, 46), BONE, 4, "ct")
+ls_text(dr, W // 2, 1520, "WEBSITE SAMPLE", font(F_MED, 62), TINT, 22, "ct")
+ls_text(dr, W // 2, 1660, "www.almuhallab-code.com", font(F_MONO, 46), INK_TEXT, 4, "ct")
 ls_text(dr, W // 2, 1790, "NOKHATHA  ·  SAFI  ·  XBRL  ·  DELIVERY", font(F_TECH, 38), MUTED, 12, "ct")
 dr.line([260, 2270, W - 260, 2270], fill=BORDER, width=2)
 ls_text(dr, 260, 2320, "PROGRESSIVE WEB APP — OFFLINE CAPABLE", font(F_MONO, 32), MUTED, 2)
@@ -89,12 +89,12 @@ pages.append(im)
 
 # ------------------------------------------------------------------ CONTENTS
 im, dr = new_page()
-ls_text(dr, 260, 240, "CONTENTS", font(F_DISP, 132), BONE, 22)
+ls_text(dr, 260, 240, "CONTENTS", font(F_DISP, 132), INK_TEXT, 22)
 dr.line([260, 470, W - 260, 470], fill=BORDER, width=3)
 rows = [
     ("01", "Almuhallab Code", "المهلب كود", "The company — services, work, contact"),
     ("02", "Al-Nokhatha — Portal", "النوخذة", "The system inside: hero, units, install"),
-    ("03", "Plans", "الاشتراكات", "Three tiers — pricing deferred, all units open"),
+    ("03", "Plans", "الاشتراكات", "Free — one plan, every unit open, nothing to upgrade to"),
     ("04", "Registration", "إنشاء حساب", "PBKDF2-hashed credentials, validated"),
     ("05", "Dashboard", "لوحة التحكم", "Account, plan badge, unit access"),
     ("06", "SAFI", "صافي", "Portfolio, market value, profit and loss"),
@@ -108,10 +108,10 @@ y = 590
 fnum, fen, far, fd = font(F_MONO, 46), font(F_MED, 60), font(F_TECH, 52), font(F_TECH, 40)
 for n, en, ar, desc in rows:
     ls_text(dr, 262, y, n, fnum, BRASS, 3)
-    ls_text(dr, 420, y - 4, en, fen, BONE, 6)
-    ar_text(dr, 1560, y - 6, ar, 58, TEAL, "rt")
+    ls_text(dr, 420, y - 4, en, fen, INK_TEXT, 6)
+    ar_text(dr, 1560, y - 6, ar, 58, TINT, "rt")
     ls_text(dr, 1620, y + 8, desc, fd, MUTED, 2)
-    dr.line([260, y + 118, W - 260, y + 118], fill=(26, 38, 58), width=2)
+    dr.line([260, y + 118, W - 260, y + 118], fill=INK_SOFT, width=2)
     y += 176
 pages.append(im)
 
@@ -132,8 +132,8 @@ fnum_s, fttl, far_s, furl = font(F_MONO, 40), font(F_MED, 64), font(F_TECH, 54),
 for fn, num, title, ar, url in plates:
     im, dr = new_page()
     ls_text(dr, 250, 150, num, fnum_s, BRASS, 3)
-    ls_text(dr, 360, 138, title, fttl, BONE, 5)
-    ar_text(dr, W - 250, 138, ar, 62, TEAL, "rt")
+    ls_text(dr, 360, 138, title, fttl, INK_TEXT, 5)
+    ar_text(dr, W - 250, 138, ar, 62, TINT, "rt")
     dr.line([250, 268, W - 250, 268], fill=BORDER, width=3)
 
     shot = Image.open(SH / f"{fn}.png").convert("RGB")
@@ -153,8 +153,8 @@ for fn, num, title, ar, url in plates:
 # ------------------------------------------------------------------ MOBILE
 im, dr = new_page()
 ls_text(dr, 250, 150, "09", fnum_s, BRASS, 3)
-ls_text(dr, 360, 138, "Installed on device", fttl, BONE, 5)
-ar_text(dr, W - 250, 138, "الجوال", 62, TEAL, "rt")
+ls_text(dr, 360, 138, "Installed on device", fttl, INK_TEXT, 5)
+ar_text(dr, W - 250, 138, "الجوال", 62, TINT, "rt")
 dr.line([250, 268, W - 250, 268], fill=BORDER, width=3)
 
 mobiles = [("10-m-company", "المهلب كود"), ("11-m-safi", "صافي"), ("12-m-position", "المركز المالي")]
@@ -170,7 +170,7 @@ for i, (fn, cap) in enumerate(mobiles):
     dr.rounded_rectangle([px - 14, py - 14, px + nw + 13, py + nh + 13],
                          radius=44, outline=BORDER, width=5)
     im.paste(shot, (px, py))
-    ar_text(dr, cx, py + nh + 56, cap, 52, TEAL, "mt")
+    ar_text(dr, cx, py + nh + 56, cap, 52, TINT, "mt")
 dr.line([250, H - 168, W - 250, H - 168], fill=BORDER, width=2)
 ls_text(dr, 250, H - 132, "402 × 874 — ADD TO HOME SCREEN", furl, MUTED, 2)
 ls_text(dr, W - 250, H - 132, "NOKHATHA — ALMUHALLAB", font(F_MONO, 30), MUTED, 3, "rt")
@@ -179,8 +179,8 @@ pages.append(im)
 # ------------------------------------------------------------------ SPEC
 im, dr = new_page()
 ls_text(dr, 250, 150, "10", fnum_s, BRASS, 3)
-ls_text(dr, 360, 138, "Specification", fttl, BONE, 5)
-ar_text(dr, W - 250, 138, "المواصفات", 62, TEAL, "rt")
+ls_text(dr, 360, 138, "Specification", fttl, INK_TEXT, 5)
+ar_text(dr, W - 250, 138, "المواصفات", 62, TINT, "rt")
 dr.line([250, 268, W - 250, 268], fill=BORDER, width=3)
 
 cols = [
@@ -224,17 +224,17 @@ for i, (head, items) in enumerate(cols):
     yy = 580
     for it in items:
         if it:
-            dr.ellipse([x + 2, yy + 20, x + 12, yy + 30], fill=TEAL)
-            ls_text(dr, x + 38, yy, it, fb, BONE if i != 2 or yy < 1300 else MUTED, 1)
+            dr.ellipse([x + 2, yy + 20, x + 12, yy + 30], fill=TINT)
+            ls_text(dr, x + 38, yy, it, fb, INK_TEXT if i != 2 or yy < 1300 else MUTED, 1)
         yy += 86
 
 anchor_mark(dr, W // 2, 1900, 96, BRASS, 5)
-ar_text(dr, W // 2, 2060, "النوخذة", 64, BONE, "mt")
+ar_text(dr, W // 2, 2060, "النوخذة", 64, INK_TEXT, "mt")
 ls_text(dr, W // 2, 2170, "ONE CAPTAIN — EVERY SERVICE — ONE SYSTEM",
         font(F_TECH, 38), MUTED, 12, "ct")
 
 dr.line([250, H - 168, W - 250, H - 168], fill=BORDER, width=2)
-ls_text(dr, 250, H - 132, "www.almuhallab-code.com", furl, TEAL, 2)
+ls_text(dr, 250, H - 132, "www.almuhallab-code.com", furl, TINT, 2)
 ls_text(dr, W - 250, H - 132, "MADE IN KUWAIT", font(F_MONO, 30), MUTED, 3, "rt")
 pages.append(im)
 
