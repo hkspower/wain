@@ -2524,6 +2524,16 @@ those two fields, where the owner is standing when it matters. **A warning in
 the panel is not a fix** — the fix is a bundle that reads the rules, and there
 is no source for it here.
 
+**Fixed from outside the bundle, 2026-09-28** ("make backend full dynamic"):
+`assets/rules-live.js` rewrites the returns-window and delivery-fee copy from
+`?r=slides` (Arabic count agreement included — "٣ أيام", not "٣ يومًا") and
+hides+disables switched-off governorates in the checkout `<select>`, resetting
+an area auto-fill that lands on one through React's own change event. It is a
+no-op at the shipped defaults. `test:rules-live` covers it, mutation-tested
+three ways. **Still fixed copy:** "24 hours" delivery time (not a rule), and
+the Expo app's own strings. The bundle prints prices with a NO-BREAK space
+(U+00A0) — a rig matching a literal space fails on a correct page.
+
 ## api/deploy.php — the HMAC secret was world-readable, 2026-09-11
 
 The endpoint that can write into the live web root, audited after "fix api
