@@ -2,12 +2,15 @@
  * Illustrated Kuwait skyline used as the hero backdrop.
  * Pure inline SVG so it stays crisp at any width and ships with the
  * static export (no external image requests).
+ *
+ * `meet`, not `slice`: the caller gives it a box of its own ratio, and a
+ * fit that can crop is how the towers at either end went missing on phones.
  */
 export default function KuwaitSkyline({ className = "" }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 1200 420"
-      preserveAspectRatio="xMidYMax slice"
+      preserveAspectRatio="xMidYMax meet"
       role="presentation"
       className={className}
       aria-hidden="true"

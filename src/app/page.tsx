@@ -19,10 +19,26 @@ export default function HomePage() {
   return (
     <>
       {/* ---------- Hero ---------- */}
-      <section className="relative overflow-hidden bg-sand-50">
-        <KuwaitSkyline className="pointer-events-none absolute inset-x-0 bottom-0 h-auto min-h-[210px] w-full" />
+      {/* The skyline is drawn at its own 1200:420 and never cropped.
 
-        <div className="relative mx-auto max-w-6xl px-2.5 pb-2 pt-2 sm:px-4 sm:pb-3 sm:pt-3">
+          It used to be `h-auto min-h-[210px]` with a `slice` fit, and both
+          halves cut it. On a phone the 210px floor is taller than the
+          drawing's natural 136px at 390, so `slice` threw away the sides:
+          320px showed units 280–920 of 1200, 390px showed 210–990, and the
+          Liberation Tower (172–202) and the clock tower (1006–1092) were
+          simply not on the page. On a wide screen the drawing outgrew the
+          section instead — 672px against 507 at 1920 — and overflow-hidden
+          took the top 103 units, the tips of both towers with them.
+
+          So the box now has the drawing's own ratio, `min-h-[35vw]` keeps the
+          section at least that tall, and on a phone the content stops a full
+          drawing-height above the bottom so the skyline sits under the dial
+          rather than behind it. The sky's first stop is #ffffff, which is
+          sand-50, so there is no edge where the drawing begins. */}
+      <section className="relative min-h-[35vw] overflow-hidden bg-sand-50">
+        <KuwaitSkyline className="pointer-events-none absolute inset-x-0 bottom-0 aspect-[1200/420] h-auto w-full" />
+
+        <div className="relative mx-auto max-w-6xl px-2.5 pb-[35vw] pt-2 sm:px-4 sm:pb-3 sm:pt-3">
           {/* Wordmark */}
           <div className="text-center">
             <span className="relative inline-block">
