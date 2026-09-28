@@ -260,15 +260,26 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
 
       {/* ---- Skyline ---- */}
 
-      {/* Liberation Tower */}
+      {/* Liberation Tower. Two saucers, and only the upper one read as an
+          object — it had a lip and a highlight, the lower one was a flat
+          ellipse glued to the shaft. A dark lip drawn behind each disc, then
+          the disc, then a highlight on top is the same "standing in the sun"
+          logic the towers' Orbs use below, sized down to a flat saucer
+          rather than a sphere; the second light on the mast is because a
+          shaft this tall carries more than one aircraft warning lamp. */}
       <g>
         <path className="bldg" d="M172 372 L182 150 L192 150 L202 372 Z" fill="url(#wain-shaft)" />
         <path className="spire" d="M182 150 L187 44 L192 150 Z" fill="url(#wain-shaft)" />
+        <circle cx="187" cy="94" r="3" fill="#dc2f25" />
+        <circle cx="186.2" cy="93.2" r="1" fill="#ffffff" opacity="0.6" />
         <circle cx="187" cy="40" r="5" fill="#dc2f25" />
         <circle cx="185.4" cy="38.4" r="1.6" fill="#ffffff" opacity="0.7" />
+        <ellipse cx="187" cy="171" rx="25" ry="7" fill="#0f4c3d" opacity="0.5" />
         <ellipse cx="187" cy="168" rx="26" ry="11" fill="url(#wain-deck)" />
         <ellipse cx="181" cy="163.5" rx="11" ry="2.6" fill="#ffffff" opacity="0.28" />
+        <ellipse cx="187" cy="209" rx="19" ry="6" fill="#8a6f47" opacity="0.35" />
         <ellipse cx="187" cy="206" rx="20" ry="9" fill="url(#wain-shaft)" />
+        <ellipse cx="182" cy="202.5" rx="8" ry="2" fill="#ffffff" opacity="0.3" />
         <rect x="176" y="240" width="22" height="8" rx="4" fill="url(#wain-shaft)" />
       </g>
 
