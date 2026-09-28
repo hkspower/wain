@@ -81,7 +81,10 @@ else
 fi
 
 cd "$SRC"
-mapfile -t FILES < <(find . -type f ! -name .htaccess | sed 's|^\./||' | sort)
+# Through a temp file, not < <(…): process substitution needs /dev/fd, which
+# this host's sandboxed cron (CageFS) does not have — measured 2026-09-28.
+find . -type f ! -name .htaccess | sed 's|^\./||' | sort > "$TMP/files.txt"
+mapfile -t FILES < "$TMP/files.txt"
 echo "shipping ${#FILES[@]} files from $SHA (.htaccess excluded)"
 
 # back up whatever of those already exists on the server
