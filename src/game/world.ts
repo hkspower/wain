@@ -106,6 +106,100 @@ function palmCrownGeometry(): THREE.BufferGeometry {
   return merged;
 }
 
+/**
+ * Colour baked into a palm crown, by where each vertex is on the frond.
+ *
+ * Every frond on every palm was one flat green, which is what made the
+ * crowns read as plastic: a date palm's frond is dark and olive at the
+ * base where it is shaded by the ones above, green through the middle,
+ * and sun-dried to a straw yellow-green at the tips — the part of a
+ * palm that is actually lit in a Gulf summer. Distance from the trunk
+ * axis carries it (0 at the heart, 1 at the longest tip), with the lower
+ * ranks — the old, hanging fronds — a little yellower again. The colour
+ * multiplies the material's, so the palette stays in one place.
+ *
+ * Works on the stand-in and on the authored crown alike: it is applied
+ * again when the GLB swaps in, because the swap replaces the geometry.
+ */
+export function bakeFrondColors(geo: THREE.BufferGeometry): void {
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  let reach = 0, top = -Infinity, bottom = Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    reach = Math.max(reach, Math.hypot(pos.getX(i), pos.getZ(i)));
+    top = Math.max(top, pos.getY(i));
+    bottom = Math.min(bottom, pos.getY(i));
+  }
+  const col = new Float32Array(pos.count * 3);
+  const base = [0.56, 0.6, 0.48], mid = [1, 1, 1], tip = [1.32, 1.18, 0.74];
+  for (let i = 0; i < pos.count; i++) {
+    const r = Math.min(1, Math.hypot(pos.getX(i), pos.getZ(i)) / Math.max(1e-3, reach));
+    const hang = 1 - (pos.getY(i) - bottom) / Math.max(1e-3, top - bottom); // 1 = lowest
+    const k0 = Math.min(1, r / 0.45);
+    const k1 = Math.max(0, (r - 0.55) / 0.45) * (0.7 + 0.5 * hang);
+    for (let c = 0; c < 3; c++) {
+      col[i * 3 + c] = base[c] + (mid[c] - base[c]) * k0 + (tip[c] - mid[c]) * Math.min(1, k1);
+    }
+  }
+  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+}
+
+/**
+ * The bark of a date palm: rings, not a smooth pole.
+ *
+ * A date palm's trunk is the stubs of every frond it has ever dropped,
+ * cut off and stacked — a diamond-scaled column banded every few
+ * centimetres. Drawn once as a small tiling image (and used as its own
+ * bump map), laid on the trunk's cylinder so a 6 m trunk carries about
+ * twenty-four rings. Its mean is the old flat trunk colour, so the
+ * trees do not change tone at a distance, only close up.
+ */
+let palmBarkTex: THREE.CanvasTexture | null = null;
+function palmBark(): THREE.CanvasTexture {
+  if (palmBarkTex) return palmBarkTex;
+  const c = document.createElement("canvas");
+  c.width = 64;
+  c.height = 64;
+  const x = c.getContext("2d")!;
+  x.fillStyle = "#5a4327";
+  x.fillRect(0, 0, 64, 64);
+  // Two rings per tile, each a dark scar under a lighter lip, staggered
+  // half a scale so the diamonds interlock.
+  for (let ring = 0; ring < 2; ring++) {
+    const y0 = ring * 32;
+    for (let k = 0; k < 4; k++) {
+      const off = (ring % 2) * 8 + k * 16;
+      const g = x.createLinearGradient(0, y0, 0, y0 + 32);
+      g.addColorStop(0, "#7a5c38");
+      g.addColorStop(0.45, "#5e4629");
+      g.addColorStop(0.8, "#3b2a17");
+      g.addColorStop(1, "#2e2112");
+      x.fillStyle = g;
+      x.beginPath();
+      x.moveTo(off, y0 + 2);
+      x.lineTo(off + 8, y0 + 30);
+      x.lineTo(off + 16, y0 + 2);
+      x.closePath();
+      x.fill();
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.repeat.set(3, 12);
+  palmBarkTex = t;
+  return t;
+}
+function palmTrunkMaterial(): THREE.MeshStandardMaterial {
+  const bark = palmBark();
+  return new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    map: bark,
+    bumpMap: bark,
+    bumpScale: 1.4,
+    roughness: 0.95,
+  });
+}
+
 // Night-time Gulf Road: the corniche leg runs right along the water —
 // beach, palms, Green Island, the Salmiya marina, the Scientific Center
 // and the Ras Al-Ard light — with the city skyline and water towers on
@@ -2218,16 +2312,24 @@ function greenIsland(): THREE.Group {
   );
   lawn.position.y = 0.7;
   g.add(lawn);
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a4327, roughness: 1 });
-  const crownMat = new THREE.MeshStandardMaterial({ color: 0x2c5e2e, roughness: 1 });
+  // The island's palms were green cones — the "party hat" the corniche
+  // palms were rebuilt to get away from. The same crown and bark now.
+  const trunkMat = palmTrunkMaterial();
+  const crownMat = new THREE.MeshStandardMaterial({ color: 0x3a6b35, roughness: 0.8, vertexColors: true });
+  const islandCrown = palmCrownGeometry();
+  bakeFrondColors(islandCrown);
+  const islandTrunk = new THREE.CylinderGeometry(0.2, 0.32, 6, 10);
   for (let i = 0; i < 12; i++) {
     const a = (i / 12) * Math.PI * 2;
     const r = 25 + (i % 3) * 18;
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.32, 6, 6), trunkMat);
+    const trunk = new THREE.Mesh(islandTrunk, trunkMat);
     trunk.position.set(Math.cos(a) * r, 4.4, Math.sin(a) * r);
     g.add(trunk);
-    const crown = new THREE.Mesh(new THREE.ConeGeometry(2.2, 1.7, 7), crownMat);
-    crown.position.set(Math.cos(a) * r, 7.8, Math.sin(a) * r);
+    // The crown geometry is built on its own trunk top at 6.1 m; the
+    // island trunk stands on the lawn at 1.4 m, so its top is at 7.4.
+    const crown = new THREE.Mesh(islandCrown, crownMat);
+    crown.position.set(Math.cos(a) * r, 7.4 - 6.1, Math.sin(a) * r);
+    crown.rotation.y = a * 2.3;
     g.add(crown);
   }
   // Observation tower at the centre
@@ -4112,6 +4214,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
               float puff = smoothstep(0.62, 0.78, pu) * smoothstep(0.015, 0.05, up) * (1.0 - smoothstep(0.08, 0.2, up));
               vec3 cloudBase = mix(uHorizon, vec3(0.95, 0.94, 0.92), 0.35);
               vec3 lit = cloudBase * (0.92 + 0.28 * pow(mu, 2.0)) + sunTint * uGold * 0.18 * pow(mu, 1.5);
+              // Never more than a touch brighter than the sky behind it.
+              // The noon sky already sits at a median of 234/255 and a
+              // quarter of it clips; a cloud whiter than that is only more
+              // white. Measured uncapped: coast clip 24.6% -> 26.8%. Capped,
+              // a cloud reads by its texture and its shaded underside.
+              lit = min(lit, col * 1.05 + vec3(0.02));
               // Shaded undersides on the puffs, so they have a volume.
               vec3 puffCol = mix(lit * 0.78, lit, smoothstep(0.62, 0.9, pu));
               col = mix(col, lit, cirrus * 0.42 * uDay);
@@ -6080,18 +6188,25 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   {
     const coastLen = (COAST_U.to - COAST_U.from) * L;
     const count = Math.floor(coastLen / 26);
-    const trunkGeo = new THREE.CylinderGeometry(0.18, 0.3, 6, 6);
+    // Ten sides rather than six: at the walkway's distance a hexagonal
+    // trunk read as a pencil, and the bark wants a round column to wrap.
+    const trunkGeo = new THREE.CylinderGeometry(0.18, 0.3, 6, 10, 1);
     trunkGeo.translate(0, 3, 0);
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a4327, roughness: 1 });
+    const trunkMat = palmTrunkMaterial();
     const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, count);
     // Trunks cast too, or the frond shadows float detached from the trees
     trunks.castShadow = true;
+    trunks.receiveShadow = true;
     const crownGeo = palmCrownGeometry();
     bakeBendWeight(crownGeo, "radial");
-    const crownMat = new THREE.MeshStandardMaterial({ color: 0x2e5f30, roughness: 1 });
+    bakeFrondColors(crownGeo);
+    // Roughness 0.8, not 1: a frond is waxy, and the low sun catches it.
+    const crownMat = new THREE.MeshStandardMaterial({ color: 0x3a6b35, roughness: 0.8, vertexColors: true });
     plantBend(crownMat);
     const crowns = new THREE.InstancedMesh(crownGeo, crownMat, count);
     crowns.castShadow = true;
+    // The crown shades itself: the lower fronds sit under the upper ones.
+    crowns.receiveShadow = true;
     const bend = new THREE.InstancedBufferAttribute(new Float32Array(count * 3), 3);
     bend.setUsage(THREE.DynamicDrawUsage);
     crownGeo.setAttribute("grnBend", bend);
@@ -6102,12 +6217,20 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     void upgradePalmCrowns(crowns).then((swapped) => {
       if (!swapped) return;
       bakeBendWeight(crowns.geometry, "radial");
+      bakeFrondColors(crowns.geometry);
       crowns.geometry.setAttribute("grnBend", bend);
     });
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
     const tmp = new THREE.Vector3();
     const tall = new THREE.Vector3();
+    const lean = new THREE.Matrix4();
+    const leanAxis = new THREE.Vector3();
+    const tint = new THREE.Color();
+    // Lean and tint are drawn from their own generator. The world's
+    // shared sequence places every building and lamp after this, and a
+    // single extra draw from it would move all of them.
+    const palmRng = makeRng((WORLD_SEED ^ 0x50414c4d) >>> 0); // "PALM"
     for (let i = 0; i < count; i++) {
       const s = COAST_U.from * L + (i / count) * coastLen;
       // Sea-side walkway edge, with the occasional inland palm
@@ -6124,16 +6247,41 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // with a longer pole under it.
       const grow = 0.82 + rand() * 0.36;
       tall.set(grow, grow, grow);
-      m.makeScale(grow, grow, grow).setPosition(p.x, 0, p.z);
+      // A lean, per tree: up to about six degrees, mostly out over the
+      // water the way a shore palm grows toward the light and away from
+      // the wind. A row of plumb-straight poles is the other half of what
+      // made the avenue read as a fence. The trunk and the crown lean
+      // together about the foot, so the crown stays on its trunk.
+      const tilt = (0.25 + 0.75 * palmRng()) * 0.1;
+      const toward = (palmRng() - 0.5) * 1.6; // radians off the seaward line
+      track.sideAt(at, tmp);
+      const seaX = -tmp.x, seaZ = -tmp.z;
+      const dx = seaX * Math.cos(toward) - seaZ * Math.sin(toward);
+      const dz = seaX * Math.sin(toward) + seaZ * Math.cos(toward);
+      leanAxis.set(dz, 0, -dx).normalize();
+      lean.makeRotationAxis(leanAxis, tilt);
+      m.makeScale(grow, grow, grow).premultiply(lean).setPosition(p.x, 0, p.z);
       trunks.setMatrixAt(i, m);
       // Random spin per crown so the frond pattern doesn't repeat
       const yaw = rand() * Math.PI * 2;
-      m.makeRotationY(yaw).scale(tall).setPosition(p.x, 0, p.z);
+      m.makeRotationY(yaw).scale(tall).premultiply(lean).setPosition(p.x, 0, p.z);
       crowns.setMatrixAt(i, m);
+      // And no two crowns quite the same green: some fresher, some
+      // dustier, a few browning — within a small range, so the avenue
+      // still reads as one planting.
+      tint.setHSL(0.26 + (palmRng() - 0.5) * 0.06, 0.9, 0.5);
+      const v = 0.85 + palmRng() * 0.3;
+      tint.setRGB(
+        THREE.MathUtils.lerp(1, tint.r * 2, 0.35) * v,
+        THREE.MathUtils.lerp(1, tint.g * 2, 0.35) * v,
+        THREE.MathUtils.lerp(1, tint.b * 2, 0.35) * v
+      );
+      crowns.setColorAt(i, tint);
       palmSeeds.push({ s: track.wrap(at), x: p.x, z: p.z, yaw, phase: rand() * Math.PI * 2, kind: 1 });
     }
     trunks.instanceMatrix.needsUpdate = true;
     crowns.instanceMatrix.needsUpdate = true;
+    if (crowns.instanceColor) crowns.instanceColor.needsUpdate = true;
     scene.add(trunks, crowns);
     palmRig = { crowns, bend };
   }
@@ -6924,16 +7072,24 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     mosaic.position.y = 0.51;
     island.add(mosaic);
     // A ring of date palms around a central roundabout sign
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a4327, roughness: 1 });
-    const crownMat = new THREE.MeshStandardMaterial({ color: 0x2c5e2e, roughness: 1 });
+    // Real crowns, not cones — see the Green Island note. Scaled to the
+    // plaza's shorter 4.2 m trunks.
+    const trunkMat = palmTrunkMaterial();
+    const crownMat = new THREE.MeshStandardMaterial({ color: 0x3a6b35, roughness: 0.8, vertexColors: true });
+    const plazaCrown = palmCrownGeometry();
+    bakeFrondColors(plazaCrown);
+    const PLAZA_K = 0.7;
     for (let i = 0; i < 3; i++) {
       const a = (i / 3) * Math.PI * 2 + 0.5;
       const r = DRIFT_PLAZA.islandRadius - 1.7;
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.22, 4.2, 6), trunkMat);
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.22, 4.2, 10), trunkMat);
       trunk.position.set(Math.cos(a) * r, 2.6, Math.sin(a) * r);
       island.add(trunk);
-      const crown = new THREE.Mesh(new THREE.ConeGeometry(1.5, 1.2, 7), crownMat);
-      crown.position.set(Math.cos(a) * r, 5.0, Math.sin(a) * r);
+      // Trunk top at 2.6 + 2.1 = 4.7; the crown's own base is at 6.1.
+      const crown = new THREE.Mesh(plazaCrown, crownMat);
+      crown.scale.setScalar(PLAZA_K);
+      crown.position.set(Math.cos(a) * r, 4.7 - 6.1 * PLAZA_K, Math.sin(a) * r);
+      crown.rotation.y = i * 2.1;
       island.add(crown);
     }
     island.position.copy(islandPos);
