@@ -87,47 +87,38 @@ def compose_person(name, w, h):
 # the row by its bounding box (measured with scipy.ndimage.label) and placed
 # in a tighter, overlapping cluster, drawn back to front.
 ITEMS = [  # name, crop box in the cut-out, position in the cluster (back to front)
-    # Arranged 2026-09-28 ("arrange items, fix cap") in three columns on one
-    # floor: shoes over the dumbbell, the shirts, the bottles. Items the
-    # ORIGINAL frame cut off (shirts, bottles, dumbbell at the bottom) stand on
-    # the tile's bottom edge, so their straight cut lines are hidden by it.
-    ('shoes',    (16, 0, 283, 305),    (0, 60)),
-    ('shirts',   (321, 0, 680, 418),   (250, 42)),
-    ('bottles',  (704, 277, 942, 418), (556, 319)),
-    ('dumbbell', (0, 353, 277, 418),   (10, 395)),
+    # Option C of three drawn for the owner on 2026-09-28 ("arrange items"):
+    # two tiers. The cap upper left and the shoes upper right, the shirts
+    # between and below them, the dumbbell and bottles along the floor. It
+    # fills the most of the tile, so every item comes out largest. Items the
+    # ORIGINAL frame cut off at the bottom (shirts, bottles, dumbbell) stand
+    # on the tile's bottom edge, which hides their straight cut lines.
+    ('cap',      (702, 0, 942, 264),   (0, 0)),
+    ('shirts',   (321, 0, 680, 418),   (200, 120)),
+    ('shoes',    (16, 0, 283, 305),    (540, 40)),
+    ('bottles',  (704, 277, 942, 418), (560, 397)),
+    ('dumbbell', (0, 353, 277, 418),   (0, 473)),
 ]
-CLUSTER = (794, 460)
-# THE CAP IS PLACED ON ITS OWN. The original frame cut it at the TOP and the
-# RIGHT, which left two straight edges wherever it floated. It now sits in the
-# tile's top-right corner, where both cut lines meet the tile's own edges.
-CAP = (702, 0, 942, 264)
+CLUSTER = (807, 538)
 
 
 def compose_accessories(w, h):
     img = ground(w, h)
     src = Image.open(os.path.join(SUBJ, 'accessories.png')).convert('RGBA')
-    k = min(w * 0.68 / CLUSTER[0], h * 0.80 / CLUSTER[1])
+    k = min(w * 0.66 / CLUSTER[0], h * 0.92 / CLUSTER[1])
     cw, ch = int(CLUSTER[0] * k), int(CLUSTER[1] * k)
-    ox = w - cw - int(w * 0.02)
+    ox = w - cw - int(w * 0.03)
     oy = h - ch
-    img.alpha_composite(band(w, h, ox + int(cw * 0.18), ox + int(cw * 0.70), skew=0.3))
+    img.alpha_composite(band(w, h, ox + int(cw * 0.20), ox + int(cw * 0.72), skew=0.3))
     img.alpha_composite(stripes(w, h, ox - int(w * 0.07), ox - int(w * 0.01), 12, 3, skew=0.3))
-
-    def put(box, x, y):
+    for _, box, (px, py) in ITEMS:
         it = src.crop(box)
         it = it.resize((max(1, int(it.width * k)), max(1, int(it.height * k))), Image.LANCZOS)
         # "and make clear": the items are upscaled from the 1216px art, so a
         # modest unsharp mask on the colour (not the alpha edge) restores bite.
         rgb = it.convert('RGB').filter(ImageFilter.UnsharpMask(radius=1.6, percent=90, threshold=2))
         rgb.putalpha(it.getchannel('A'))
-        img.alpha_composite(rgb, (x, y))
-        return it.size
-
-    # the cap first, so nothing in the cluster is ever behind a corner piece
-    cap_w = int((CAP[2] - CAP[0]) * k)
-    put(CAP, w - cap_w, 0)
-    for _, box, (px, py) in ITEMS:
-        put(box, ox + int(px * k), oy + int(py * k))
+        img.alpha_composite(rgb, (ox + int(px * k), oy + int(py * k)))
     return img
 
 
