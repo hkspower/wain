@@ -130,7 +130,16 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   webfont CDN — the CSP blocks it. Any new page must declare the five
   `@font-face` rules, carry `font-src 'self'`, and be precached. Arabic set in
   Cairo needs `line-height` ≥ 1.35 on display sizes, or a damma collides with
-  the line above.
+  the line above. **The Arabic files are Arabic-only** — no digits, no Latin, not
+  even a full stop — so each weight is a pair: the Arabic face under an Arabic
+  `unicode-range`, and `cairo-latin.woff2` (Cairo's own Latin subset, one
+  variable file for every weight) under the Latin range. Without the pair every
+  figure on the site — counters, `+965`, each KWD amount — painted in the
+  device's own face, and `getComputedStyle` still said "Cairo", so nothing
+  noticed. The Arabic faces **must** carry their range: a face with none claims
+  every character, misses the glyph, and the browser skips to the next family
+  instead of the Latin file. The suite asks the engine what actually painted
+  (`CSS.getPlatformFontsForNode`). Redirect stubs load no webfont at all.
 - **There is no dark theme.** The site is white whatever the device prefers:
   no `prefers-color-scheme: dark` block anywhere and `color-scheme: light` on
   `:root`. `theme-color` is the masthead brown `#6f3f1c` on every page so the

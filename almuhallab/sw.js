@@ -1,7 +1,7 @@
 /* النوخذة service worker — precache the app shell, serve cache-first, refresh in background. */
 "use strict";
 
-var CACHE = "nokhatha-v40";
+var CACHE = "nokhatha-v41";
 var ASSETS = [
   "./",
   "index.html",
@@ -21,6 +21,7 @@ var ASSETS = [
   "fonts/cairo-500.woff2",
   "fonts/cairo-700.woff2",
   "fonts/cairo-800.woff2",
+  "fonts/cairo-latin.woff2",
   "fonts/reemkufi-700.woff2",
   "fonts/sharetechmono-400.woff2",
 ];

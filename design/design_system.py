@@ -52,11 +52,11 @@ def token(name: str) -> str:
 
 def font_faces() -> str:
     faces = re.findall(r"@font-face\s*\{[^}]*\}", HOME_CSS, re.S)
-    # five Cairo weights for the text, two wordmark faces (Reem Kufi, Share
-    # Tech Mono) for the masthead lockup — a count that moves means a face was
-    # added or lost without the bundle being told
-    if len(faces) != 7:
-        sys.exit(f"expected 7 @font-face rules, found {len(faces)}")
+    # five Cairo weights in Arabic and five in Latin for the text, two
+    # wordmark faces (Reem Kufi, Share Tech Mono) for the masthead lockup — a
+    # count that moves means a face was added or lost without the bundle knowing
+    if len(faces) != 12:
+        sys.exit(f"expected 12 @font-face rules, found {len(faces)}")
     # the bundle carries its own copy of the fonts, one directory up from
     # the cards, so a card opens correctly wherever the folder is put
     return "\n".join(f.replace("fonts/", "../fonts/") for f in faces)

@@ -10,20 +10,9 @@
   <meta name="robots" content="noindex" />
   <title>صافي — SAFI — النوخذة</title>
   <style>
-    /* Tajawal (SIL OFL) — bundled, never fetched from a CDN: the strict CSP
-       forbids external origins, and a self-hosted face renders identically on
-       every device instead of depending on what the OS happens to have.
-       Arabic subset only; Latin and digits stay on the system face. */
-    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:400;
-      font-display:swap; src:url("fonts/tajawal-400.woff2") format("woff2"); }
-    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:500;
-      font-display:swap; src:url("fonts/tajawal-500.woff2") format("woff2"); }
-    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:600;
-      font-display:swap; src:url("fonts/tajawal-500.woff2") format("woff2"); }
-    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:700;
-      font-display:swap; src:url("fonts/tajawal-700.woff2") format("woff2"); }
-    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:800;
-      font-display:swap; src:url("fonts/tajawal-800.woff2") format("woff2"); }
+    /* A redirect stub: it is on screen for an instant at most, so it loads no
+       webfont. It used to declare five Tajawal faces whose files were removed
+       with the move to Cairo — five failed requests on every visit. */
     body {
       margin: 0; min-height: 100vh; display: grid; place-items: center;
       background: #ffffff; color: #1b2430; text-align: center;
