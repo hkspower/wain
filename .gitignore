@@ -169,3 +169,4 @@ press/hud/type.json
 # tools/shots/trailer.mjs. The narration take beside them IS committed.
 press/trailer/frames-*/
 press/trailer/*.mp4
+press/trailer/*.mkv

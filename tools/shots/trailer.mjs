@@ -2,9 +2,22 @@
 // Kuwaiti Arabic, rendered frame by frame from the running game.
 //
 //   npm run dev
-//   node tools/shots/trailer.mjs                 # 1920x1080, 24 fps
+//   node tools/shots/trailer.mjs                 # 1920x1080, 24 fps, lossless
 //   node tools/shots/trailer.mjs --width 3840    # 4K — on a machine with a GPU
+//   node tools/shots/trailer.mjs --jpeg          # a quick preview: JPEG frames, MP4 only
 //   node tools/shots/trailer.mjs --audio-only    # re-mix the sound onto existing frames
+//
+// LOSSLESS, END TO END. Every frame is read back as PNG and the master
+// is FFV1 in Matroska — the archival lossless codec, RGB, no chroma
+// subsampling — with the mix as FLAC. Nothing between the renderer and
+// that file loses a bit. Beside it a playback MP4 is written for the
+// players and browsers that cannot open FFV1 (H.264 at CRF 12, 4:2:0,
+// AAC 320k): visually transparent, but it is the copy, not the master.
+// The only losses in the chain are upstream of it and cannot be
+// undone here: the narration and the score are MP3 renders.
+// PNG readback costs about twice what JPEG does on a software
+// renderer (measured in exportfilm.mjs: 26 s against 9 s a frame at
+// 1280 wide) — so --jpeg exists for a look before the long run.
 //
 // Rendered the way tools/shots/exportfilm.mjs renders the pre-race film,
 // and for the same reason: a screen recording of a software renderer
@@ -58,6 +71,9 @@ const HEIGHT = Math.round((WIDTH * 9) / 16);
 const OUT = arg("out", `press/trailer/trailer-${HEIGHT}p.mp4`);
 const FRAMEDIR = arg("frames", `press/trailer/frames-${HEIGHT}p`);
 const AUDIO_ONLY = process.argv.includes("--audio-only");
+const JPEG = process.argv.includes("--jpeg");
+const EXT = JPEG ? "jpg" : "png";
+const MASTER = OUT.replace(/\.mp4$/, "-master.mkv");
 const NARRATION = "press/trailer/narration-ar.mp3";
 const MUSIC = "public/music/battle.mp3";
 const LEN = 39;
@@ -96,14 +112,14 @@ function findFfmpeg() {
 // ------------------------------------------------------------- frames
 if (!AUDIO_ONLY) {
   mkdirSync(FRAMEDIR, { recursive: true });
-  const have = new Set(readdirSync(FRAMEDIR).filter((f) => f.endsWith(".jpg")));
+  const have = new Set(readdirSync(FRAMEDIR).filter((f) => f.endsWith(`.${EXT}`)));
   const total = Math.round(LEN * FPS);
   // --only 2,8,13 draws just the frames at those seconds: a contact
   // sheet to check the framing before committing hours to the render.
   const ONLY = arg("only", "");
   const todo = [];
   if (ONLY) for (const sec of ONLY.split(",").map(Number)) todo.push(Math.round(sec * FPS));
-  else for (let i = 0; i < total; i++) if (!have.has(`f${String(i).padStart(5, "0")}.jpg`)) todo.push(i);
+  else for (let i = 0; i < total; i++) if (!have.has(`f${String(i).padStart(5, "0")}.${EXT}`)) todo.push(i);
   console.log(`trailer      ${WIDTH}x${HEIGHT} at ${FPS} fps, ${total} frames — ${total - todo.length} on disk, ${todo.length} to draw`);
 
   if (todo.length) {
@@ -136,7 +152,7 @@ if (!AUDIO_ONLY) {
 
     // The director, installed once. Everything a frame needs is decided
     // from `t` alone.
-    await page.evaluate(({ W, H }) => {
+    await page.evaluate(({ W, H, JPEG }) => {
       const e = window.__grnEngine;
       const THREE = window.__grnThree;
       e.setPaused(true);
@@ -361,16 +377,16 @@ if (!AUDIO_ONLY) {
         ctx.fillRect(0, 0, W, bar);
         ctx.fillRect(0, H - bar, W, bar);
         for (const c of cards) card(c.lines, c.a * fade);
-        return out.toDataURL("image/jpeg", 0.93);
+        return JPEG ? out.toDataURL("image/jpeg", 0.93) : out.toDataURL("image/png");
       };
-    }, { W: WIDTH, H: HEIGHT });
+    }, { W: WIDTH, H: HEIGHT, JPEG });
 
     const t0 = Date.now();
     let done = 0;
     for (const i of todo) {
       const t = i / FPS;
-      const jpg = await page.evaluate(([t, dt]) => window.__trailerFrame(t, dt), [t, 1 / FPS]);
-      writeFileSync(`${FRAMEDIR}/f${String(i).padStart(5, "0")}.jpg`, Buffer.from(jpg.split(",")[1], "base64"));
+      const img = await page.evaluate(([t, dt]) => window.__trailerFrame(t, dt), [t, 1 / FPS]);
+      writeFileSync(`${FRAMEDIR}/f${String(i).padStart(5, "0")}.${EXT}`, Buffer.from(img.split(",")[1], "base64"));
       done++;
       if (done % 12 === 0 || done === todo.length) {
         const rate = done / ((Date.now() - t0) / 1000);
@@ -388,8 +404,8 @@ if (arg("only", "")) {
 
 // -------------------------------------------------------------- sound
 const ff = findFfmpeg();
-const frames = existsSync(FRAMEDIR) ? readdirSync(FRAMEDIR).filter((f) => f.endsWith(".jpg")).length : 0;
-const inputs = ["-framerate", String(FPS), "-i", `${FRAMEDIR}/f%05d.jpg`, "-i", MUSIC];
+const frames = existsSync(FRAMEDIR) ? readdirSync(FRAMEDIR).filter((f) => f.endsWith(`.${EXT}`)).length : 0;
+const inputs = ["-framerate", String(FPS), "-i", `${FRAMEDIR}/f%05d.${EXT}`, "-i", MUSIC];
 const filters = [];
 // The music: faded in, faded out with the picture, and ducked under the
 // narration by a sidechain compressor keyed on the voice bus.
@@ -408,23 +424,46 @@ SFX.forEach((s, i) => {
 filters.push(`[voice]asplit=2[vkey][vmix]`);
 filters.push(`[music][vkey]sidechaincompress=threshold=0.03:ratio=6:attack=20:release=350[ducked]`);
 filters.push(`[ducked][vmix]${SFX.map((_, i) => `[s${i}]`).join("")}amix=inputs=${2 + SFX.length}:normalize=0,loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000[aout]`);
-const args = [
+const common = [
   "-y", "-hide_banner", "-loglevel", "error",
   ...inputs,
   "-filter_complex", filters.join(";"),
   "-map", "0:v", "-map", "[aout]",
-  "-c:v", "libx264", "-preset", "slow", "-crf", WIDTH >= 3000 ? "16" : "18",
+  "-t", String(LEN),
+];
+/** The playback copy: H.264 for every player, at a quality no eye
+ *  separates from the master, plus the master's own audio at 320k. */
+const copyArgs = [
+  ...common,
+  "-c:v", "libx264", "-preset", "slower", "-crf", JPEG ? "18" : "12",
   "-pix_fmt", "yuv420p", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
-  "-c:a", "aac", "-b:a", "256k",
-  "-t", String(LEN), "-movflags", "+faststart",
+  "-c:a", "aac", "-b:a", "320k",
+  "-movflags", "+faststart",
   OUT,
 ];
+/** The lossless master: FFV1 (RGB, no subsampling) with the mix as FLAC. */
+const masterArgs = [
+  ...common,
+  "-c:v", "ffv1", "-level", "3", "-coder", "1", "-context", "1", "-g", "1", "-slices", "16", "-slicecrc", "1",
+  "-pix_fmt", "gbrp",
+  "-c:a", "flac", "-compression_level", "8",
+  MASTER,
+];
+const quote = (a) => (/[ ;[\]|]/.test(a) ? `'${a}'` : a);
 if (!ff) {
-  console.log(`\nframes       ${frames} in ${FRAMEDIR}; no ffmpeg found. Encode with:\n\n  ffmpeg ${args.map((a) => (/[ ;[\]|]/.test(a) ? `'${a}'` : a)).join(" ")}\n`);
+  console.log(
+    `\nframes       ${frames} in ${FRAMEDIR}; no ffmpeg found. Encode with:\n\n` +
+    (JPEG ? "" : `  ffmpeg ${masterArgs.map(quote).join(" ")}\n\n`) +
+    `  ffmpeg ${copyArgs.map(quote).join(" ")}\n`
+  );
   process.exit(0);
 }
 if (frames < Math.round(LEN * FPS)) console.log(`WARNING      only ${frames} of ${Math.round(LEN * FPS)} frames — encoding what there is`);
 mkdirSync(OUT.replace(/\/[^/]+$/, ""), { recursive: true });
-execFileSync(ff, args, { stdio: ["ignore", "inherit", "inherit"] });
-const bytes = Number(execFileSync("stat", ["-c", "%s", OUT], { encoding: "utf8" }).trim());
-console.log(`encoded      ${OUT} — ${(bytes / 1e6).toFixed(1)} MB, ${frames} frames at ${FPS} fps, narration and score mixed`);
+const size = (f) => (Number(execFileSync("stat", ["-c", "%s", f], { encoding: "utf8" }).trim()) / 1e6).toFixed(1);
+if (!JPEG) {
+  execFileSync(ff, masterArgs, { stdio: ["ignore", "inherit", "inherit"] });
+  console.log(`master       ${MASTER} — ${size(MASTER)} MB, FFV1 RGB + FLAC, lossless from the frames`);
+}
+execFileSync(ff, copyArgs, { stdio: ["ignore", "inherit", "inherit"] });
+console.log(`encoded      ${OUT} — ${size(OUT)} MB, ${frames} frames at ${FPS} fps, H.264 playback copy${JPEG ? "" : " of the master"}`);
