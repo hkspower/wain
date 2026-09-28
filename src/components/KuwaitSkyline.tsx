@@ -192,10 +192,14 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
           <stop offset="74%" stopColor="#dcc496" />
           <stop offset="100%" stopColor="#cfb484" />
         </linearGradient>
+        {/* Teal-green, not grass-green: the real Liberation Tower deck,
+            mosque cap and Seif Palace roof are a patina turquoise, and a
+            distinct hue keeps them from reading as more grass against the
+            palms and ground below. */}
         <linearGradient id="wain-deck" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#58b877" />
-          <stop offset="55%" stopColor="#2f8a4e" />
-          <stop offset="100%" stopColor="#1b5832" />
+          <stop offset="0%" stopColor="#6fdcc0" />
+          <stop offset="55%" stopColor="#1f9678" />
+          <stop offset="100%" stopColor="#0f4c3d" />
         </linearGradient>
         <linearGradient id="wain-trunk" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stopColor="#9a7438" />
@@ -290,8 +294,8 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
         <path d="M488 197 v-12" stroke="#c9a55f" strokeWidth="3" strokeLinecap="round" />
         {/* Minaret */}
         <rect className="bldg" x="586" y="176" width="18" height="196" rx="5" fill="url(#wain-shaft)" />
-        <path d="M586 176 h9 v-22 Z" fill="#2f8a4e" />
-        <path d="M595 154 v22 h9 Z" fill="#1f6f3d" />
+        <path d="M586 176 h9 v-22 Z" fill="#2a9c7c" />
+        <path d="M595 154 v22 h9 Z" fill="#146151" />
         <rect x="583" y="212" width="24" height="7" rx="3.5" fill="url(#wain-shaft)" />
         {/* Arches */}
         <g fill="#f3e7d0">
@@ -323,8 +327,8 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
       <g>
         <rect className="bldg" x="1006" y="252" width="86" height="120" rx="7" fill="url(#wain-box)" />
         <rect className="bldg" x="1028" y="180" width="42" height="76" rx="6" fill="url(#wain-box)" />
-        <path d="M1028 180 h21 v-40 Z" fill="#2f8a4e" />
-        <path d="M1049 140 v40 h21 Z" fill="#1b5832" />
+        <path d="M1028 180 h21 v-40 Z" fill="#2a9c7c" />
+        <path d="M1049 140 v40 h21 Z" fill="#146151" />
         <circle cx="1049" cy="212" r="14" fill="#faf4e6" stroke="#c9a55f" strokeWidth="3" />
         <path
           d="M1049 212 v-8 M1049 212 h6"
