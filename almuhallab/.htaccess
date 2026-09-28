@@ -1,95 +1,164 @@
-# النوخذة — Apache / LiteSpeed config (Hostinger and most shared hosts).
-# GitHub Pages ignores this file, so it is safe to ship everywhere.
+# ═══════════════════════════════════════════════════════════════
+#  ALMUHALLAB — almuhallab-code.com
+#  Server config. v3, 28 Sep 2026.
+#  v1 added the base hardening. v2 added Content-Security-Policy
+#  and HTTP Basic Auth on the internal tools (hand-maintained on the server).
+#  v3 merges the repository's rules into v2 — nothing of v2 is removed:
+#    + HTTPS first, then bare domain -> www (same-host https first, so the
+#      HSTS preload conditions stay met should the owner ever submit)
+#    + clean URLs: /nokhatha /nizam /admin /safi /xbrl /delivery
+#    + Service-Worker-Allowed on sw.js
+#    + .md / .yml never served (README, SECURITY, docs ship in the folder)
+#  THIS is the file for the server: upload it as public_html/.htaccess. It is
+#  a superset of what was live, and design/test_suite.py pins the protections
+#  (design/deploy/hostinger_deploy.sh still skips it — replacing the live
+#  file stays a deliberate, manual step).
+#  To roll back to v2: delete the three blocks marked [v3].
+# ═══════════════════════════════════════════════════════════════
 
-# ---- Correct MIME types (a wrong type silently breaks PWA install) ----
-AddType application/manifest+json .webmanifest
-AddType image/svg+xml            .svg
-AddType text/javascript          .js
-AddType font/woff2               .woff2
+Options -Indexes
+AddDefaultCharset UTF-8
+ErrorDocument 404 /404.html
 
-<IfModule mod_headers.c>
-  # ---- HTTP/3 (QUIC) ----
-  # The protocol is negotiated by the SERVER, not by these files. This header is
-  # the advertisement: it tells a browser that arrived over HTTP/1.1 or HTTP/2
-  # that the same origin is reachable over HTTP/3 on UDP/443, so the next request
-  # races a QUIC connection. LiteSpeed (Hostinger) and Cloudflare emit this
-  # themselves once QUIC is enabled; setting it here covers hosts that don't.
-  #
-  # Only keep this if the host actually serves HTTP/3 — advertising h3 on a
-  # server without it makes browsers attempt a QUIC handshake that must time out
-  # before falling back. Verify with design/check-http3.sh, and delete this block
-  # if the check reports no h3.
-  Header always set Alt-Svc "h3=\":443\"; ma=86400"
-
-  # ---- Security headers ----
-  Header always set X-Content-Type-Options "nosniff"
-  Header always set X-Frame-Options "SAMEORIGIN"
-  Header always set Referrer-Policy "no-referrer"
-  Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(), interest-cohort=()"
-  # A year, every subdomain, and eligible for the preload list.
-  #
-  # `preload` is a claim, not a switch: it only means anything once the domain
-  # is SUBMITTED at hstspreload.org, and this repository deliberately does not
-  # do that. Submission is close to irreversible — every subdomain must then be
-  # HTTPS forever, on every visitor's browser, and removal takes months to
-  # propagate through a Chrome release cycle. That is the owner's decision, and
-  # docs/HTTPS.md sets out what to check before making it.
-  #
-  # The three preload conditions are already met by the rules below: http on
-  # the bare host redirects to https on the SAME host first (not straight to
-  # www, which would disqualify it), and only then to the canonical www.
-  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" env=HTTPS
-
-  # ---- The service worker must never be cached, or updates never reach users ----
-  <FilesMatch "^sw\.js$">
-    Header set Cache-Control "no-cache, no-store, must-revalidate"
-    Header set Service-Worker-Allowed "/"
-  </FilesMatch>
-
-  # HTML is revalidated every time; the service worker handles offline speed.
-  <FilesMatch "\.html$">
-    Header set Cache-Control "no-cache"
-  </FilesMatch>
-
-  <FilesMatch "\.woff2$">
-    Header set Cache-Control "public, max-age=31536000, immutable"
-  </FilesMatch>
-
-  <FilesMatch "\.(svg|webmanifest)$">
-    Header set Cache-Control "public, max-age=86400"
-  </FilesMatch>
-</IfModule>
-
+# ─────────── [v3] HTTPS, canonical host, clean URLs ───────────
 <IfModule mod_rewrite.c>
   RewriteEngine On
 
-  # ---- Force HTTPS (service workers require it) ----
+  # Plaintext goes to https on the SAME host first — straight to www would
+  # disqualify the domain from HSTS preload. Service workers need https too.
   RewriteCond %{HTTPS} !=on
   RewriteCond %{HTTP:X-Forwarded-Proto} !https
   RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
 
-  # ---- Extensionless URLs for the products living inside the company site ----
-  # /nokhatha -> nokhatha.html, /nizam -> nizam.html, /admin -> admin.html.
-  # /nokha1 stays only so links published before the rename keep resolving.
-  # Rewritten, not redirected, so the address bar keeps the clean form.
+  # Then the bare domain to www. Only this exact host: discs.almuhallab-code.com
+  # lives under this folder and must not be caught by it.
+  RewriteCond %{HTTP_HOST} ^almuhallab-code\.com$ [NC]
+  RewriteRule ^(.*)$ https://www.almuhallab-code.com/$1 [R=301,L]
+
+  # /nokhatha -> nokhatha.html, and the other units, rewritten (not redirected)
+  # so the address bar keeps the clean form. A real file or folder of that name
+  # wins. /nokha1 stays only so links published before the rename keep resolving. The internal
+  # pages are still behind Basic Auth: <FilesMatch> below matches the file the
+  # rewrite lands on, not the URL that was asked for.
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule ^(nokhatha|nokha1|nizam|admin|safi|xbrl|delivery)/?$ $1.html [L]
-
-  # ---- Canonical host: send the bare domain to www ----
-  RewriteCond %{HTTP_HOST} ^almuhallab-code\.com$ [NC]
-  RewriteRule ^(.*)$ https://www.almuhallab-code.com/$1 [R=301,L]
 </IfModule>
 
-# ---- Friendly 404 that returns visitors to the portal ----
-ErrorDocument 404 /404.html
-
-# ---- Compression ----
-<IfModule mod_deflate.c>
-  AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript application/manifest+json image/svg+xml
+# ─────────── Correct charset for Arabic content ───────────
+<IfModule mod_mime.c>
+  AddType "text/html; charset=UTF-8"        .html .htm
+  AddType "text/css; charset=UTF-8"         .css
+  AddType "application/javascript; charset=UTF-8" .js
+  AddType "application/json; charset=UTF-8"  .json
+  AddType "image/svg+xml"                    .svg
+  AddType "application/manifest+json"        .webmanifest
+  AddType "font/woff2"                       .woff2
 </IfModule>
 
-# ---- Don't serve repo docs from the web root ----
-<FilesMatch "\.(md|yml)$">
+# ─────────── Security headers ───────────
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Cross-Origin-Opener-Policy "same-origin"
+  Header always set Permissions-Policy "accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), geolocation=(), gyroscope=(), magnetometer=(), midi=(), payment=(), usb=(), xr-spatial-tracking=()"
+  # Microphone is NOT disabled — the homepage voice widget needs it.
+  # `preload` is a claim, not a switch: it does nothing until the domain is
+  # SUBMITTED at hstspreload.org, which this repository never does — that is
+  # close to irreversible and the owner's decision (docs/HTTPS.md).
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" "expr=%{HTTPS} == 'on'"
+  Header unset X-Powered-By
+  Header always unset X-Powered-By
+</IfModule>
+
+# ═══════════ CONTENT SECURITY POLICY ═══════════
+# Origins below were derived by auditing every HTML file on the domain,
+# not guessed. Notes on the deliberate choices:
+#   'unsafe-inline' on script-src : every page carries a large inline
+#       <script>. Hashing them would break the moment a file is edited
+#       by hand in hPanel, which is how this site is maintained.
+#   fonts.cdnfonts.com appears in BOTH style-src and font-src — it
+#       serves the Somar Sans stylesheet and its font files.
+#   connect-src allows n8n only. api.anthropic.com is deliberately NOT
+#       allowed: the homepage chat widget calls it directly from the
+#       browser, which can never work safely (a key in the browser is
+#       a leaked key). That widget must be repointed at the n8n proxy.
+#   No 'unsafe-eval' — audited, nothing on the domain uses eval or
+#       new Function.
+# The company pages also carry their own stricter <meta> CSP
+# (default-src 'none'); a browser enforces both, so they get the stricter.
+<IfModule mod_headers.c>
+  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.cdnfonts.com; font-src 'self' data: https://fonts.gstatic.com https://fonts.cdnfonts.com; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' https://sportake.app.n8n.cloud; worker-src 'self'; manifest-src 'self'; frame-src 'self' blob:; upgrade-insecure-requests"
+
+  # editor.html is a live HTML editor that renders arbitrary markup into
+  # a sandboxed iframe, and mcp-admin.html is a client for MCP servers the
+  # operator types in by hand. A fixed CSP cannot describe either one.
+  # Both are exempted here and protected by Basic Auth below instead.
+  <FilesMatch "^(editor|mcp-admin)\.html$">
+    Header always unset Content-Security-Policy
+  </FilesMatch>
+</IfModule>
+
+# ═══════════ BASIC AUTH ON INTERNAL TOOLS ═══════════
+# The password file lives ABOVE the web root, so it can never be served.
+# User: almuhallab
+<FilesMatch "^(admin|mcp-admin|editor|nizam)\.html$">
+  AuthType Basic
+  AuthName "Almuhallab - Restricted"
+  AuthUserFile /home/u130124229/domains/almuhallab-code.com/.htpasswd
+  Require valid-user
+</FilesMatch>
+
+# ─────────── Keep internal tools out of Google ───────────
+<FilesMatch "^(admin|mcp-admin|editor|nizam|delivery|xbrl|salon-queue)\.html$">
+  <IfModule mod_headers.c>
+    Header always set X-Robots-Tag "noindex, nofollow, noarchive"
+  </IfModule>
+</FilesMatch>
+<FilesMatch "^default\.php$|\.zip$">
+  <IfModule mod_headers.c>
+    Header always set X-Robots-Tag "noindex, nofollow, noarchive"
+  </IfModule>
+</FilesMatch>
+
+# ─────────── Block n8n workflow blueprints ───────────
+<FilesMatch "(-proxy)\.json$">
   Require all denied
 </FilesMatch>
+
+# ─────────── Never serve dotfiles or backups ───────────
+<FilesMatch "^\.|\.(bak|old|orig|save|swp|sql|log|ini|env)$">
+  Require all denied
+</FilesMatch>
+
+# ─────────── [v3] Never serve repository docs ───────────
+<FilesMatch "\.(md|yml|yaml)$">
+  Require all denied
+</FilesMatch>
+
+# ─────────── Compression ───────────
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css text/xml
+  AddOutputFilterByType DEFLATE application/javascript application/json
+  AddOutputFilterByType DEFLATE application/xml application/manifest+json
+  AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# ─────────── Caching ───────────
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|htm)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+  <FilesMatch "\.(json|webmanifest|xml|txt)$">
+    Header set Cache-Control "public, max-age=3600"
+  </FilesMatch>
+  # [v3] the worker is allowed to control the whole site
+  <FilesMatch "^sw\.js$">
+    Header set Cache-Control "no-cache, must-revalidate"
+    Header set Service-Worker-Allowed "/"
+  </FilesMatch>
+  <FilesMatch "\.(svg|png|jpg|jpeg|webp|ico|woff2)$">
+    Header set Cache-Control "public, max-age=604800"
+  </FilesMatch>
+</IfModule>

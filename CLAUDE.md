@@ -451,7 +451,19 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - **Dates in generated filings must be computed in UTC** and anchored to the
   first of the opening month. Local-midnight parsing shifts the date east of
   Greenwich, and subtracting months from a 31st overflows into the wrong month.
-- **The site deploys to GitHub Pages** (`.github/workflows/pages.yml`), which
+- **The live site is on Hostinger, not GitHub Pages** (found 2026-09-28): `almuhallab-code.com`
+  is an addon domain on account `u130124229`, LiteSpeed, web root
+  `domains/almuhallab-code.com/public_html` — which also holds `discs/` (a live
+  subdomain), `salon-queue`, `mcp-admin`, the n8n `*-proxy.json` blueprints and
+  landing-page folders this repo does not know about. **Never deploy by
+  replacing the folder.** `.htaccess` there is v3 — the hand-maintained v2
+  (Basic Auth on admin/nizam/editor/mcp-admin, proxy block, domain CSP) merged
+  with this repo's rules; the repo copy IS v3 now and the suite pins its
+  protections. `pages.yml` has never run (it triggers on `main`, which is the
+  unrelated Wain app). This container cannot reach the host (egress policy);
+  publishing is an hPanel upload by the owner. The note below describes the
+  GitHub Pages case, should the site ever move there:
+- **GitHub Pages** (`.github/workflows/pages.yml`)
   **ignores `.htaccess`** — so every header that file sets is inert in
   production: `nosniff`, `X-Frame-Options`, `Permissions-Policy`, HSTS. Only
   `Referrer-Policy` survives, because it is also a `<meta>`. `frame-ancestors`

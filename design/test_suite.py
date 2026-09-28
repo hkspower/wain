@@ -133,6 +133,25 @@ def https_checks():
         check(S, "it covers subdomains", "includeSubDomains" in value, value)
         check(S, "and is eligible for the preload list", "preload" in value, value)
 
+    # The server's own protections, merged in from the hand-maintained live
+    # file (v3, 2026-09-28). The repository's copy used to know none of them,
+    # so shipping it would have silently lifted the password from the admin
+    # console and exposed the n8n blueprints. Pinned so that cannot come back.
+    for what, pat in (
+        ("Basic Auth guards admin, nizam, editor and mcp-admin",
+         r'<FilesMatch "\^\(admin\|mcp-admin\|editor\|nizam\)\\\.html\$">\s*AuthType Basic[^<]*Require valid-user'),
+        ("the password file sits above the web root",
+         r'AuthUserFile /home/[^/\s]+/domains/almuhallab-code\.com/\.htpasswd'),
+        ("the n8n proxy blueprints are never served",
+         r'<FilesMatch "\(-proxy\)\\\.json\$">\s*Require all denied'),
+        ("dotfiles and backups are never served",
+         r'<FilesMatch "\^\\\.\|[^"]*bak[^"]*">\s*Require all denied'),
+        ("repository docs (.md/.yml) are never served",
+         r'<FilesMatch "[^"]*md\|yml[^"]*">\s*Require all denied'),
+        ("directory listings are off", r'(?m)^Options -Indexes'),
+    ):
+        check(S, what, re.search(pat, ht, re.S) is not None)
+
     # The preload list requires http://<bare> to reach https://<bare> — the
     # SAME host — before any redirect to www. Putting the canonical-host rule
     # first would send it straight to https://www and disqualify the domain,
@@ -884,7 +903,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "663", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "669", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -919,7 +938,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "663", "0", "100%"], str(finals))
+          finals == ["4", "669", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
