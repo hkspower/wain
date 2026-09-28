@@ -176,3 +176,17 @@ The Unreal port builds its rigs from primitives (`GRNCarFactory`). These
 same GLBs import cleanly into the editor via Interchange (File → Import)
 when replacing those rigs with real meshes — the node names above are the
 rig contract there too.
+
+## Beauty renders of the catalogue
+
+The showroom pictures in `press/renders/` are Blender renders of the
+cars exactly as the game builds them — not of these shells alone, which
+carry no materials. `npm run cars:export` boots the game and exports
+every catalogue car (paint, kit, wheels, livery, lamps) as a GLB with
+three's GLTFExporter into `press/renders/glb/` (ignored, ~12 MB a car);
+`npm run cars:render` (`pip install bpy`, the same module the asset
+build uses) imports each into a studio — dark glossy floor, key, fill,
+rim, a long strip over the roof and a sodium kicker — and renders it
+with Cycles at 2560x1440. `--preview` gives a 640x360 look in under a
+minute; `--only <id,id>` picks cars. Both tools document their choices
+at the top of the file.

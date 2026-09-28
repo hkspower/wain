@@ -170,3 +170,7 @@ press/hud/type.json
 press/trailer/frames-*/
 press/trailer/*.mp4
 press/trailer/*.mkv
+
+# The catalogue cars exported for the Blender renders (100+ MB, rebuilt
+# by tools/shots/export-cars.mjs); the renders themselves are committed.
+press/renders/glb/
