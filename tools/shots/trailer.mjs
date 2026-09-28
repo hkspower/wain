@@ -1,5 +1,5 @@
 // The game's trailer: about 39 seconds of the Gulf Road, narrated in
-// Kuwaiti Arabic, rendered frame by frame from the running game.
+// Gulf Arabic, rendered frame by frame from the running game.
 //
 //   npm run dev
 //   node tools/shots/trailer.mjs                 # 1920x1080, 24 fps, lossless
@@ -31,7 +31,7 @@
 // THE SHOTS, and the narration line each one carries:
 //
 //    0-6   the corniche at golden hour, craning up into the skyline
-//          "Kuwait... when the sun goes down, the Gulf Road wakes up."
+//          "When the sun goes down... the Gulf Road wakes up."
 //    6-11  night falls over the towers; the city lights
 //          "The lights come on... and the road is calling."
 //   11-16  low tracking shot, your car on the empty Gulf Road
@@ -46,7 +46,7 @@
 //          "Night Racer."
 //
 // THE VOICE is press/trailer/narration-ar.mp3: one take generated with
-// ElevenLabs (voice "Mohamed – Warm Arabic Business Narrator", Kuwaiti
+// ElevenLabs (voice "Mohamed – Warm Arabic Business Narrator", Gulf
 // accent, eleven_multilingual_v2). LINES below are its seven lines, cut
 // at the pauses ffmpeg's silencedetect found in that take (-35 dB,
 // 0.3 s) — regenerate the take and these have to be re-measured.
@@ -81,13 +81,13 @@ const LEN = 39;
 /** The narration's seven lines: [from, to] in the take, and where each
  *  lands in the film. */
 const LINES = [
-  { src: [0.0, 3.85], at: 0.8 },
-  { src: [4.15, 6.75], at: 6.5 },
-  { src: [7.1, 9.06], at: 11.8 },
-  { src: [9.45, 12.83], at: 16.4 },
-  { src: [13.13, 15.96], at: 21.6 },
-  { src: [16.27, 19.1], at: 27.8 },
-  { src: [19.5, 20.72], at: 34.4 },
+  { src: [0.0, 3.0], at: 1.4 },
+  { src: [3.3, 6.3], at: 6.5 },
+  { src: [6.6, 8.8], at: 11.8 },
+  { src: [9.12, 12.77], at: 16.4 },
+  { src: [13.1, 16.05], at: 21.6 },
+  { src: [16.31, 19.11], at: 27.8 },
+  { src: [19.41, 20.66], at: 34.4 },
 ];
 /** Effects from the game's own sfx, on the beats that want them. */
 const SFX = [
@@ -198,19 +198,70 @@ if (!AUDIO_ONLY) {
       out.height = H;
       const ctx = out.getContext("2d");
 
-      /** Letterbox, fades and title cards, over the rendered frame. */
-      const card = (lines, alpha) => {
+      /**
+       * Title and name cards, over the rendered frame.
+       *
+       * The house style of the game's own menus, set for a film: Arabic
+       * leads in the poster or display face, Latin sits under it in the
+       * condensed italic, wide-tracked; a short sodium rule separates the
+       * two; the headline carries a warm glow and every line a soft
+       * shadow so it holds on a lit road. A card rises a little as it
+       * fades in and its rule draws out from the centre, so nothing
+       * simply appears.
+       */
+      const card = (lines, alpha, align = "center", x0 = 0.5) => {
         if (alpha <= 0) return;
+        const rise = (1 - alpha) * H * 0.018;
         ctx.save();
         ctx.globalAlpha = alpha;
-        ctx.textAlign = "center";
-        ctx.shadowColor = "rgba(0,0,0,0.85)";
-        ctx.shadowBlur = H * 0.02;
+        // A centred title sits over the lit skyline, where its small
+        // tagline was lost against the windows: a soft dark pool behind
+        // the block, wide and shallow, so it reads as depth, not a box.
+        if (align === "center") {
+          const cy = H * (lines[0].y + lines[lines.length - 1].y) / 2;
+          const g = ctx.createRadialGradient(W / 2, cy, 0, W / 2, cy, W * 0.36);
+          g.addColorStop(0, "rgba(4,6,12,0.62)");
+          g.addColorStop(0.6, "rgba(4,6,12,0.32)");
+          g.addColorStop(1, "rgba(4,6,12,0)");
+          ctx.save();
+          ctx.translate(W / 2, cy);
+          ctx.scale(1, 0.42);
+          ctx.translate(-W / 2, -cy);
+          ctx.fillStyle = g;
+          ctx.fillRect(0, cy - W * 0.4, W, W * 0.8);
+          ctx.restore();
+        }
+        ctx.textAlign = align;
         for (const l of lines) {
-          ctx.font = `${l.weight ?? 700} ${Math.round(H * l.size)}px ${l.poster ? ARABIC_POSTER : l.arabic ? ARABIC : DISPLAY}`;
+          const px = Math.round(H * l.size);
+          const face = l.poster ? ARABIC_POSTER : l.arabic ? ARABIC : DISPLAY;
+          ctx.font = `${l.italic ? "italic " : ""}${l.weight ?? 700} ${px}px ${face}`;
+          ctx.letterSpacing = l.track ? `${l.track}em` : "0px";
+          const x = W * (l.x ?? x0), y = H * l.y + rise;
+          if (l.glow) {
+            ctx.shadowColor = l.glow;
+            ctx.shadowBlur = H * 0.045;
+            ctx.fillStyle = l.color ?? "#ffffff";
+            ctx.fillText(l.text, x, y);
+          }
+          ctx.shadowColor = "rgba(0,0,0,0.9)";
+          ctx.shadowBlur = H * 0.018;
+          ctx.shadowOffsetY = H * 0.003;
           ctx.fillStyle = l.color ?? "#ffffff";
-          if (l.italic) ctx.font = `italic ${ctx.font}`;
-          ctx.fillText(l.text, W * (l.x ?? 0.5), H * l.y);
+          ctx.fillText(l.text, x, y);
+          ctx.shadowColor = "transparent";
+          ctx.shadowOffsetY = 0;
+          if (l.rule) {
+            const rw = W * l.rule * Math.min(1, alpha * 1.4);
+            const ry = y + px * 0.34;
+            const rx = align === "center" ? x - rw / 2 : align === "left" ? x : x - rw;
+            const g = ctx.createLinearGradient(rx, 0, rx + rw, 0);
+            g.addColorStop(0, "rgba(255,196,92,0)");
+            g.addColorStop(0.5, "rgba(255,196,92,0.95)");
+            g.addColorStop(1, "rgba(255,196,92,0)");
+            ctx.fillStyle = g;
+            ctx.fillRect(rx, ry, rw, Math.max(2, H * 0.0028));
+          }
         }
         ctx.restore();
       };
@@ -317,10 +368,15 @@ if (!AUDIO_ONLY) {
           };
           const def = rv.def;
           const a2 = Math.min(1, u * 4) * Math.min(1, (1 - u) * 5);
-          cards.push({ a: a2, lines: [
-            { text: def.arabicName, y: 0.72, size: 0.085, arabic: true, color: "#ffc45c" },
-            { text: def.name.toUpperCase(), y: 0.8, size: 0.04, italic: true },
-            { text: def.crew, y: 0.855, size: 0.026, weight: 500, color: "rgba(255,255,255,0.8)" },
+          // A lower-third, left-aligned, the way the game's own challenge
+          // card sits: which of the eight, the Arabic name, the Latin
+          // name, the crew.
+          const nth = [1, 5, 8][Math.min(2, Math.floor((t - 21) / 2))];
+          cards.push({ a: a2, align: "left", x: 0.07, lines: [
+            { text: `LEGEND ${String(nth).padStart(2, "0")} / 08  ·  أسطورة`, y: 0.66, size: 0.022, weight: 600, track: 0.28, color: "#ffc45c" },
+            { text: def.arabicName, y: 0.745, size: 0.088, arabic: true, color: "#ffffff", glow: "rgba(255,170,60,0.45)" },
+            { text: def.name.toUpperCase(), y: 0.805, size: 0.038, italic: true, track: 0.08, rule: 0.16 },
+            { text: def.crew.toUpperCase(), y: 0.85, size: 0.02, weight: 600, track: 0.3, color: "rgba(255,255,255,0.72)" },
           ] });
         } else if (t < 33) {
           // 6. The duel: side by side, the lens ahead and falling back.
@@ -357,9 +413,9 @@ if (!AUDIO_ONLY) {
           };
           const ta = Math.min(1, Math.max(0, (t - 34.2) / 0.8));
           cards.push({ a: ta, lines: [
-            { text: "متسابق الليل", y: 0.47, size: 0.13, arabic: true, poster: true, color: "#ffc45c" },
-            { text: "NIGHT RACER", y: 0.6, size: 0.075, italic: true },
-            { text: "KUWAIT XTREME RACER", y: 0.67, size: 0.024, weight: 600, color: "rgba(255,255,255,0.7)" },
+            { text: "متسابق الليل", y: 0.47, size: 0.13, arabic: true, poster: true, color: "#ffc45c", glow: "rgba(255,160,40,0.6)" },
+            { text: "NIGHT RACER", y: 0.595, size: 0.078, italic: true, track: 0.12, rule: 0.22 },
+            { text: "THE ROAD IS YOURS AFTER MIDNIGHT", y: 0.675, size: 0.022, weight: 600, track: 0.42, color: "rgba(255,255,255,0.75)" },
           ] });
           fade = 1 - Math.max(0, (t - 37.6) / 1.4);
         }
@@ -389,7 +445,7 @@ if (!AUDIO_ONLY) {
         ctx.fillStyle = "#000";
         ctx.fillRect(0, 0, W, bar);
         ctx.fillRect(0, H - bar, W, bar);
-        for (const c of cards) card(c.lines, c.a * fade);
+        for (const c of cards) card(c.lines, c.a * fade, c.align, c.x);
         return JPEG ? out.toDataURL("image/jpeg", 0.93) : out.toDataURL("image/png");
       };
     }, { W: WIDTH, H: HEIGHT, JPEG });
