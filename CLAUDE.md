@@ -2276,8 +2276,9 @@ map-pin, live-map, search-keys, shouq-search, search-plan, swipe — **eight**,
 not the ten this line used to list: `areas` and `search-button` went with the
 rollback), `test:journey`, `test:register`, `test:shouq`, `test:orders`,
 `test:net`. PHP suites, not in `scan` because it
-cannot assume php: `test:api` (40), `test:tts` (**52**, up from 42 with the
-cache-prune block) and `test:media` (45).
+cannot assume php: `test:api` (40), `test:tts` (**55**: 42, then the
+cache-prune block, then the one-render-under-concurrency block) and
+`test:media` (45).
 That sentence said «neither … because neither», and it was already wrong for
 three audits before `audit:logs` joined them: `audit:tts`, `audit:media` and
 `audit:logs` all shell out to php and all run in `scan`. What `scan` avoids is
