@@ -72,7 +72,14 @@ handing it over. It is not a note to append to every reply.
 ## The cron channel is the only way to write to the server
 
 Approved on 2026-09-04, and recorded in `.claude/settings.json` so the four
-Hostinger cron tools — create, delete, read output, list — no longer ask. A
+Hostinger cron tools — create, delete, read output, list — no longer ask.
+**On 2026-09-28 the connector collapsed into ONE tool, `mcp__hosa__execute`**,
+which takes the operation as a parameter, so the four names above stopped
+matching and every call asked again. The owner chose, having been told it
+pre-approves EVERY Hostinger operation (sites, DNS, databases), to allow
+`mcp__hosa__execute` outright. That makes care on this channel a matter of
+discipline rather than of prompts: cron create/delete/output/list only,
+unless the owner asks for something else. A
 single change to the live site is dozens of calls; approving each one by hand
 is not a safety check, it is a queue. Delete is in the list on purpose: these
 jobs fire every minute, and being able to create one without being able to
