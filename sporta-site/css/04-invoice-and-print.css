@@ -1,0 +1,185 @@
+/* -------------------------------------------- the invoice's ragged edge */
+/* THE CUSTOMER'S NAME DOES NOT LINE UP WITH THEIR OWN ADDRESS.
+ *
+ * Measured on /invoice/<track>, glyph boxes rather than element boxes, on a
+ * 688px page (screen and print are identical here):
+ *
+ *   فاتورة إلى                     L625  R688     flush right
+ *   Rig Tester                     L356  R439     adrift in the middle
+ *   قطعة 4، شارع 12، منزل / بناية 8  L491  R688     flush right
+ *   السالمية، حولي                  L592  R688     flush right
+ *
+ * And the same thing in the items table, one row below the Arabic name that
+ * does sit right:
+ *
+ *   سويت شيرت كالياري كالتشو — كحلي   L453  R688    flush right
+ *   Cagliari Calcio Sweatshirt      L361  R575     adrift
+ *
+ * WHY, and the cause is a good decision with one side effect. The storefront
+ * marks every Latin run `dir="ltr"` — the phone number, the order reference,
+ * the date, the customer's name, the English product name. That is CORRECT and
+ * must stay: it is what makes `+965 22091914` and `TPMTE94L9C832` shape and
+ * order properly inside an Arabic page instead of coming out reversed.
+ *
+ * But `dir` does two jobs at once. It sets the writing direction, and it
+ * redefines what `text-align: start` MEANS. In an RTL document start is the
+ * right edge; inside an element marked `dir="ltr"` it becomes the left edge.
+ *
+ * So it only bites BLOCK-level elements, which is why three of the five Latin
+ * runs are fine: `<span dir="ltr">` is inline and takes its alignment from the
+ * paragraph around it. The two that are wrong are the two that are blocks —
+ * `<p dir="ltr">Rig Tester</p>` and the product's English name, which carries
+ * Tailwind's `block`.
+ *
+ * THE FIX KEEPS THE DIRECTION AND ONLY TAKES BACK THE ALIGNMENT, so the bidi
+ * shaping this markup exists for is untouched. Written both ways round, from
+ * the document's direction rather than the element's, so the English invoice
+ * gets the mirror of it rather than the same bug pointing the other way.
+ *
+ * `text-align` does nothing to an inline box, so the spans are unaffected by
+ * this even though they match it. */
+[dir='rtl'] .invoice [dir='ltr'] {
+  text-align: right;
+}
+[dir='ltr'] .invoice [dir='rtl'] {
+  text-align: left;
+}
+
+/* ------------------------------------------------------------ printing */
+/* AN INVOICE PRINTS ON WHITE PAPER.
+ *
+ * The build's stylesheet carries `@media print { body { background: #fff } }`,
+ * which is right — but it also carries `[data-theme=dark] body { background:
+ * #202429 }` outside any media query, and that selector is more specific. So
+ * the dark ground won in print even before this project touched anything;
+ * making dark the default just meant everyone hit it. Saved PDFs and printed
+ * invoices came out as a black page: heavy on ink, muddy on most printers,
+ * and not what a document should look like.
+ *
+ * These rules exist only inside @media print. Nothing here changes the screen.
+ * The ember is deliberately left alone — it is the brand, it marks the total,
+ * and it reads correctly on white. */
+@media print {
+  /* THE ROOT, not just the body. body went white and the page still printed
+     with a black margin, because html keeps its own #2b3138 and that is what
+     paints outside the body box. */
+  /* COLOUR-SCHEME, and this is the one that survived every other fix.
+     With html white and body white the page still printed inside a black
+     frame: a 14mm band of #121212 on all four sides, measured off the PDF.
+     That band is the @page MARGIN box, which is outside the canvas — no
+     background on html or body reaches it. It is painted by the user agent
+     from `color-scheme`, and the boot script sets `color-scheme: dark` on
+     <html> so the browser's own chrome matches the site. On screen that is
+     right. On paper it is a solid black border around every invoice. */
+  [data-theme='dark'] {
+    color-scheme: light !important;
+  }
+
+  [data-theme='dark'],
+  [data-theme='dark'] body,
+  [data-theme='dark'] body[data-canvas='silver'],
+  [data-theme='dark'] .bg-sand,
+  [data-theme='dark'] .bg-sand-light,
+  [data-theme='dark'] .bg-white,
+  [data-theme='dark'] .card,
+  [data-theme='dark'] .bg-ink,
+  [data-theme='dark'] .bg-ink-silver,
+  [data-theme='dark'] .bg-ink-steel,
+  [data-theme='dark'] .bg-slate-50,
+  [data-theme='dark'] .bg-slate-100 {
+    background: #ffffff !important;
+    color: #171a1e !important;
+  }
+  [data-theme='dark'] .text-slate-900,
+  [data-theme='dark'] .text-slate-800,
+  [data-theme='dark'] .text-slate-700 {
+    color: #171a1e !important;
+  }
+  [data-theme='dark'] .text-slate-600,
+  [data-theme='dark'] .text-slate-500,
+  [data-theme='dark'] .text-slate-400 {
+    color: #45494e !important;
+  }
+  [data-theme='dark'] .border-black\/10,
+  [data-theme='dark'] .border-black\/15,
+  [data-theme='dark'] .border-white\/10,
+  [data-theme='dark'] .border-slate-100,
+  [data-theme='dark'] .border-slate-200,
+  [data-theme='dark'] .border-slate-300 {
+    border-color: #d3d7dc !important;
+  }
+
+  /* WHITE TEXT DISAPPEARS ON WHITE PAPER, and this is where it bit: the order
+     number, the date and the shop's phone number are .tabular-nums inheriting
+     white from an ancestor. On the dark card they were the most prominent
+     things on the invoice; on the fixed white card they were simply not
+     there — a printed invoice with no order number on it. */
+  [data-theme='dark'] .invoice .text-white,
+  [data-theme='dark'] .invoice .text-white * {
+    color: #171a1e !important;
+  }
+
+  /* THE SHOP'S FURNITURE IS NOT PART OF THE INVOICE.
+   *
+   * The build already hides the header, the footer, the action bar and
+   * anything marked .no-print. It does not hide the four things below, and
+   * every one of them is `position: fixed` — which in print means they are
+   * laid over the page rather than flowing off the end of it.
+   *
+   * MEASURED on /invoice/<track> at the PDF's real content box (A4 794px less
+   * the @page 14mm each side = 688px), print media emulated:
+   *
+   *   fixed  688x1000  div.fixed.inset-0.z-40.bg-ink/60   a full-page scrim
+   *   fixed  454x1000  aside.cart-drawer   L-454  R0
+   *   fixed  176x48    a.skip-link         L500   R676
+   *   fixed  0x0       button.tap-target.fixed.bottom-4   (closed here)
+   *
+   * WHAT IT COST, and it is not the cosmetic problem it sounds like. The
+   * drawer's right edge sits at exactly x=0 — the left edge of the content
+   * box — and it is a thousand pixels tall, so it printed as a rule down the
+   * full height of the page AND covered the leftmost glyphs of the left-hand
+   * column. That column is the money: the line totals, the subtotal, the
+   * delivery, and `الإجمالي ‏11.000 د.ك.` — the amount the customer is being
+   * asked to pay, with its currency clipped off. Rendered before and after on
+   * the same order: the rule disappears and every amount reads in full.
+   *
+   * THE SCRIM IS THE ONE THAT WOULD HAVE BEEN WORSE. It is 60% of the ink
+   * colour over the entire page, and it does not paint here only because the
+   * drawer is shut. Open the bag, press Ctrl+P — an ordinary thing to do — and
+   * `print-color-adjust: exact`, which the build sets on `*`, guarantees the
+   * printer is told to lay all of it down.
+   *
+   * The skip link is an affordance for keyboard users and means nothing on
+   * paper. The floating button is shut here and is hidden for the same reason
+   * as the rest: none of it is the document.
+   *
+   * Scoped to print, so the screen is untouched. */
+  .cart-drawer,
+  .skip-link,
+  .tap-target.fixed,
+  .fixed.inset-0.z-40 {
+    display: none !important;
+  }
+
+  /* ROOM ABOVE THE TITLE AND BELOW THE LAST LINE.
+   *
+   * Measured: the first glyph of `فاتورة` sat at y=0 — the very first pixel of
+   * the page's content box — because the build's print rules strip the
+   * invoice's padding (`.invoice { padding: 0 }` and `.invoice article
+   * { padding: 0 }`) and leave the whole job to `@page { margin: 14mm }`.
+   *
+   * That is not wrong, and it is why this is 8mm rather than a lot: 14mm is
+   * already a proper paper margin, and the title only needs to stop touching
+   * it. The pair matters more than either number — the bottom is invisible on
+   * a short invoice like the test one, which ends at y=575 of 1123 with half
+   * the sheet blank, and becomes the whole point on an order long enough to
+   * fill the page, where the last line would otherwise finish hard against the
+   * bottom margin exactly as the title started against the top.
+   *
+   * padding-block, so it stays correct in both directions and in both
+   * languages without being written twice. */
+  .invoice {
+    padding-block: 8mm !important;
+  }
+}
+

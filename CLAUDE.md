@@ -498,6 +498,23 @@ the repo has 125,083. Publishing a newer `admin.php` onto it would have been a
 fatal error on `/backends` if the helpers had moved — `grep -c` through cron
 against the live file is how that gets checked, and it takes two minutes.
 
+## sporta-ui.css is BUILT — edit sporta-site/css/, 2026-09-28
+
+Asked for as "make css full separate files". The 3,647-line stylesheet is now
+34 per-feature files in `sporta-site/css/` (outside the docroot), joined in
+filename order by `npm run build:css` into the same `assets/sporta-ui.css`.
+The site still loads ONE file: sixty references name it, and every extra
+`<link>` is a request on every page view. `npm test` runs `test:css-build`,
+which fails when the built file and its sources disagree. Order is cascade
+order; a rule that overrides another goes in a higher-numbered file.
+
+**The split found a live trap.** `make-brand-tokens.mjs` rewrote everything
+between its `>>>`/`<<<` markers, and 186 hand-written lines — the category
+tile rules — had been pasted inside them. `--check` was failing, and running
+the script as its own header instructs would have deleted the tiles' layout
+from the site. The generated block is `21-brand-tokens.generated.css` now,
+a file of its own, and the tile rules are `22-category-tiles.css`.
+
 ## The service worker can pin a file for ever
 
 `sw.js` rule 2 cached everything under `/assets/` cache-first-and-never-re-asked,

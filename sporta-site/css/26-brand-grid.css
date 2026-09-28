@@ -1,0 +1,44 @@
+/* ------------------------------------------------ the brand grid, 2026-09-20
+ * Rebuilt at the owner's request from a loose flex row inside one shared
+ * outer border into a real grid, each logo its own bordered tile. Every logo
+ * cell is the SAME size (`aspect-ratio: 3/2`, generous padding) regardless of
+ * the mark's own proportions, and `object-fit: contain` inside it — a square
+ * logo and a wide wordmark both sit centred rather than stretched. One brand
+ * (currently AHED, the only one with a real logo live) still reads as a
+ * clean single tile rather than an odd shape floating in a bare row. */
+[data-sporta-brand-grid] {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 14px;
+}
+[data-sporta-brand-tile] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 3 / 2;
+  padding: 18px 20px;
+  background: #fff;
+  border: 1px solid rgb(0 0 0 / 10%);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+  transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
+}
+[data-sporta-brand-tile]:hover {
+  border-color: rgb(0 0 0 / 16%);
+  box-shadow: 0 6px 16px -6px rgb(0 0 0 / 14%);
+  transform: translateY(-2px);
+}
+[data-sporta-brand-tile] img {
+  max-width: 100%;
+  max-height: 100%;
+  height: 48px;
+  width: auto;
+}
+@media (min-width: 768px) {
+  [data-sporta-brand-tile] img { height: 64px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-sporta-brand-tile] { transition: none; }
+  [data-sporta-brand-tile]:hover { transform: none; }
+}
+

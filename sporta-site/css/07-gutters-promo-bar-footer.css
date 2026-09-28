@@ -1,0 +1,194 @@
+/* ------------------------------------------- the promo bar has no side gutter */
+/* THE FIRST LINE ON EVERY PAGE RUNS INTO THE EDGE OF THE SCREEN, and the cause
+ * is a cascade rule rather than a missing class.
+ *
+ * The bar asks for the site's standard gutter — `px-4` is right there in its
+ * class list, and `.px-4` resolves to `calc(var(--spacing) * 4)` = 16px, the
+ * value every other block on the site sits at. It computes to ZERO. Two
+ * elements on the same page, both carrying px-4, measured:
+ *
+ *     <p>  the promo bar          padding-inline  0px / 0px
+ *     <div class="… px-4">        padding-inline  16px / 16px
+ *
+ * WHY. The built stylesheet carries, UNLAYERED:
+ *
+ *     .app-header > *, .app-footer > * { padding-inline: var(--sa-left) var(--sa-right) }
+ *
+ * and Tailwind v4 puts its utilities in `@layer utilities`. Unlayered author
+ * styles beat layered ones outright, whatever the specificity — so that rule
+ * does not ADD the device's safe-area inset to the gutter, it REPLACES the
+ * gutter with it. `--sa-left` and `--sa-right` are 0px on every phone in
+ * portrait and on every desktop, so the padding becomes nothing at all.
+ *
+ * WHAT IT COST, measured on the home page at four widths — the gutter is
+ * whatever the last line of centred text happens to leave over:
+ *
+ *     320px   1px      <- effectively touching both edges
+ *     360px  21px
+ *     393px   5px      <- iPhone 14/15/16, the commonest phone in the shop
+ *     430px  23px
+ *
+ * FOUR CHILDREN LOSE THEIR PADDING TO THAT RULE; ONLY THIS ONE IS HURT. The
+ * nav row, the logo row and the footer block each hold an inner `max-w-7xl
+ * px-4` container that puts the gutter back. The promo bar is a leaf — there
+ * is nothing inside it to do that — which is why `:not(:has(*))` is the guard
+ * here rather than a hand-written selector. It says exactly what makes this
+ * element different, and it cannot start matching the nav row if the markup
+ * changes shape.
+ *
+ * The safe-area inset is ADDED rather than dropped, which is what the rule
+ * above was reaching for: on a notched phone held sideways the bar still
+ * clears the cutout, and on every other device it gets the 16px it asked for. */
+.app-header > .px-4:not(:has(*)),
+.app-footer > .px-4:not(:has(*)) {
+  padding-inline: calc(1rem + var(--sa-left, 0px)) calc(1rem + var(--sa-right, 0px));
+}
+
+/* THE MAIN TOPBAR ROW HAD THE SAME DISEASE, and this rule's own comment above
+ * said it did not — "the nav row, the logo row and the footer block each
+ * hold an inner max-w-7xl px-4 container that puts the gutter back", which
+ * is true of the FOOTER and the bottom nav (they are grandchildren of
+ * .app-header/.app-footer, one level below the `.px-4:not(:has(*))` guard's
+ * reach) but not of THIS row: `header.app-header > .mx-auto.max-w-7xl` IS a
+ * direct child, carries `px-3 … sm:px-4` in its class list, and is excluded
+ * by `:not(:has(*))` because it has children — logo, icon buttons — so
+ * neither guard above ever reached it. Measured, 2026-09-20: paddingInlineStart
+ * and paddingInlineEnd both computed to 0px at every width, and the icon
+ * group sat flush against the screen edge with no gap at all.
+ *
+ * "Too cramped" was the report; the measurement found zero, not merely
+ * tight. Restored to more than the built value asked for (0.75rem/1rem)
+ * rather than merely back to it, at the owner's request for more air. */
+header.app-header > .mx-auto.max-w-7xl {
+  padding-inline: calc(1rem + var(--sa-left, 0px)) calc(1rem + var(--sa-right, 0px));
+}
+@media (min-width: 640px) {
+  header.app-header > .mx-auto.max-w-7xl {
+    padding-inline: calc(1.75rem + var(--sa-left, 0px)) calc(1.75rem + var(--sa-right, 0px));
+  }
+}
+
+/* THE FOOTER'S OWN max-w-7xl HAD THE SAME DISEASE TOO — the comment two rules
+ * up asserts "the footer block... hold[s] an inner max-w-7xl px-4 container
+ * that puts the gutter back", naming it a GRANDCHILD of .app-footer and so
+ * out of `.app-footer > *`'s reach. That is true of the bottom nav; it is not
+ * true of the footer's own wrapper. Measured, 2026-09-27:
+ *
+ *     footer.app-footer > div.mx-auto.max-w-7xl.px-6   IS a direct child
+ *
+ * — carrying `px-6`, not `px-4`, and with children (logo, nav columns), so it
+ * is excluded from the `:not(:has(*))` guard exactly as the topbar row was.
+ * `.app-footer > *` (unlayered, beats the layered Tailwind utility outright)
+ * replaced its 24px gutter with `var(--sa-left) var(--sa-right)`, both 0px on
+ * every device with no notch — measured paddingInline: 0px/0px, and the "من
+ * نحن" / "الخصوصية" column sat flush against the screen's trailing edge with
+ * no gap at all, on every page, both languages, at every width.
+ *
+ * Restored to exactly what `px-6` asked for — 1.5rem — since this one carries
+ * no separate "more air" request the way the topbar row's did. */
+footer.app-footer > .mx-auto.max-w-7xl {
+  padding-inline: calc(1.5rem + var(--sa-left, 0px)) calc(1.5rem + var(--sa-right, 0px));
+}
+
+/* A NOTE ON WHAT WAS DELIBERATELY NOT CHANGED HERE, because the obvious next
+ * move is wrong and the measurement says so.
+ *
+ * The bar is `h-7` — a fixed 28px — and `overflow-hidden`, so the reflex is to
+ * let it grow. I wrote that rule (`height: auto; min-height: 1.75rem`),
+ * measured it, and took it out again: it wins the cascade and changes nothing.
+ * The text is `leading-none`, so two lines of 13px type are 26 line-box pixels
+ * and they fit inside 28 with room to spare.
+ *
+ * The 2px that scrollHeight reports over clientHeight is Arabic descender INK
+ * overflowing a line box drawn tight to the font size — not a second line
+ * being cut off. Rendered at 320 and 393 and read back: both lines of the
+ * sentence are complete and legible.
+ *
+ * The real observation is that `leading-none` is too tight for Arabic, which
+ * carries more below the baseline than Latin does. Fixing that means giving
+ * the bar real leading, which makes it taller than 28 and moves the whole
+ * sticky header down — a design decision about the shop's chrome, not a
+ * padding repair, so it was written down here rather than made.
+ *
+ * THE OWNER HAS SINCE MADE IT: give the strip room. The rule below is that
+ * decision, and this note stays because it is the reasoning behind the shape
+ * the rule takes. */
+
+/* ----------------------------------------------- the promo bar gets its air */
+/* `h-7` is a FIXED 28px and the text inside is `leading-none`, so the line box
+ * is drawn tight to the 12px font and Arabic descender ink spills out of it —
+ * 2px of overflow, measured, against `overflow-hidden`.
+ *
+ * 1.35 leading gives the 12px type a 16.2px line box, which is room for the
+ * descenders rather than a tighter squeeze on them.
+ *
+ * WHY `height: auto` AND NOT SIMPLY A TALLER FIXED BAR. The sentence wraps to
+ * two lines on a narrow phone — that is why `overflow-hidden` was there to
+ * begin with. Two lines at 1.35 are 32.4px, so a fixed 32px bar would clip the
+ * second line and I would have made the exact problem I am fixing, one line
+ * further down. Auto height with a 32px floor means:
+ *
+ *     one line   32px   (the floor wins; 16.2 + 8 of padding is only 24.2)
+ *     two lines  ~40px  (the content wins, and nothing is cut)
+ *
+ * So the header grows by 12px only on the narrow widths where the sentence
+ * actually wraps, and is 4px taller than before everywhere else.
+ *
+ * No !important: the built stylesheet's utilities live in `@layer utilities`
+ * and unlayered author rules beat layered ones outright, whatever the
+ * specificity — the same cascade fact the gutter rule above turns on. */
+.app-header > .px-4:not(:has(*)) {
+  height: auto;
+  min-height: 2rem;
+  line-height: 1.35;
+  padding-block: 0.25rem;
+  /* THE SECOND LINE WAS AN ORPHAN, and on the commonest phone it was two words.
+   * The bar is `text-center`, so a lopsided wrap reads as a mistake rather than
+   * as a line break. Measured, every width where the sentence wraps:
+   *
+   *     320px   281 + 99   the short line is 35% of the long one
+   *     360px   318 + 62   19%
+   *     390px   318 + 62   19%   <- iPhone 14/15/16
+   *     430px+  one line, nothing to balance
+   *
+   * `balance` asks the browser to even the lines out instead of filling the
+   * first and dropping what is left. It changes NO other property — same font,
+   * same size, same two lines, same height — so it cannot move the header or
+   * push the hero down, which is what ruled out the taller-bar fixes above.
+   *
+   * It is also free where it does nothing: a browser without it ignores the
+   * declaration and keeps today's wrap, and at 430px and wider there is one
+   * line and balancing is a no-op. Browsers cap balancing at a handful of
+   * lines, which this bar can never exceed. */
+  text-wrap: balance;
+}
+
+/* -------------------------------------------------------------------------
+ * FOOTER LINKS: THE SECOND AXIS OF A TAP TARGET.
+ *
+ * These carry `inline-flex min-h-11 items-center`, and the `min-h-11` is the
+ * point: 44px is Apple's floor and the author set it deliberately, so the
+ * intent that these be proper tap targets is already written down. Only one
+ * axis got it. Height is fixed at 44; width is whatever the word happens to
+ * be, and Arabic legal labels are short:
+ *
+ *     الشروط   44 wide   (makes it by luck of the word's length)
+ *     الشحن    41 wide
+ *     الإرجاع  39 wide
+ *
+ * So two of the eight are under the floor on every page of the shop, and the
+ * failure is worst exactly where it matters — a thumb on a phone, reaching for
+ * Returns.
+ *
+ * NOT A DESIGN CHANGE, and this is why: nothing here picks a new size. It
+ * finishes the size the stylesheet already asks for on the axis it was not
+ * applied to. Six of the eight links are already wider than 44 and this rule
+ * cannot touch them — min-width only ever grows a box that is too small.
+ *
+ * NOTHING MOVES ON SCREEN. The links are stacked list items, so a wider box
+ * extends into empty space beside the text rather than pushing anything; and
+ * with the default flex-start the text itself does not shift a pixel. The hit
+ * area grows, the layout does not. Measured before and after. */
+.app-footer a.inline-flex.min-h-11,
+footer a.inline-flex.min-h-11 { min-width: 44px; }
+

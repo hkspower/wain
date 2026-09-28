@@ -46,6 +46,7 @@
     "sandbox:clean": "bash scripts/sandbox-clean.sh",
     "sandbox": "bash scripts/sandbox.sh",
     "build:web": "expo export --platform web --clear",
+    "build:css": "node scripts/build-css.mjs",
     "test:shop": "node scripts/smoke.mjs",
     "test:shop-grid": "node scripts/shop-grid-columns-test.mjs",
     "test:product-columns": "node scripts/product-column-split-test.mjs",
@@ -138,7 +139,7 @@
     "test:php-runtime": "node scripts/php-runtime-test.mjs",
     "site:manifest": "bash scripts/make-site-manifest.sh",
     "site:diff": "bash scripts/site-diff.sh",
-    "test": "npm run typecheck && npm run test:contrast && npm run test:csp && npm run test:admin-contract && npm run scan:php",
+    "test": "npm run typecheck && npm run test:contrast && npm run test:css-build && npm run test:csp && npm run test:admin-contract && npm run scan:php",
     "build:fonts": "python3 scripts/build-fonts.py",
     "build:hero": "node scripts/build-hero-art.mjs",
     "build:tabicons": "python3 scripts/make-tab-icons.py",
@@ -179,7 +180,8 @@
     "test:backup": "node scripts/backup-test.mjs",
     "test:hero-mobile": "node scripts/hero-mobile-test.mjs",
     "test:wallet-setup": "node scripts/wallet-setup-test.mjs",
-    "test:brand-image-picker": "node scripts/brand-image-picker-test.mjs"
+    "test:brand-image-picker": "node scripts/brand-image-picker-test.mjs",
+    "test:css-build": "node scripts/build-css.mjs --check"
   },
   "private": true
 }
