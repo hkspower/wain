@@ -185,7 +185,26 @@
     tile.removeAttribute('data-rtl-art')
   }
 
+  /* A VERSION ON EVERY TILE URL — 2026-09-28. /cats/ is served with
+     max-age=86400 and stale-while-revalidate=2592000, so a browser that has
+     the old art may show it for a day and then keep showing it while it
+     revalidates in the background: the owner saw the old accessories tile
+     after the server had the new one byte for byte. The bundle names these
+     files with fixed URLs, so this is the one place a query can be added;
+     a new query is a new URL, fetched fresh. Bump ART_VERSION with the art. */
+  var ART_VERSION = '20260928b'
+  function stamp() {
+    var nodes = document.querySelectorAll('.cat-tile source[srcset], .cat-tile img[src]')
+    for (var i = 0; i < nodes.length; i++) {
+      var attr = nodes[i].tagName === 'SOURCE' ? 'srcset' : 'src'
+      var v = nodes[i].getAttribute(attr) || ''
+      if (v.indexOf('/cats/') === -1 || v.indexOf('?') !== -1) continue
+      nodes[i].setAttribute(attr, v.replace(/(\.(webp|jpg|jpeg|png))(\s|$)/, '$1?v=' + ART_VERSION + '$3'))
+    }
+  }
+
   function apply() {
+    stamp()
     for (var t = 0; t < TILES.length; t++) {
       TILE = TILES[t].tile
       FROM = TILES[t].from
