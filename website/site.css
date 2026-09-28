@@ -475,6 +475,24 @@ body.vo {
   color: var(--word);
 }
 
+/* الطريق الثاني: مكالمة. سطحٌ ساكن وحدٌّ ظاهر — يُرى ولا ينازع
+   الميكروفون، فالأوّل فعلُ الصفحة والثاني مخرجٌ لمن يريده. وهدف اللمس
+   كامل: ٤٤ بكسلًا، والرقم في `href` نفسه لا في نصٍّ يُنسخ باليد. */
+.vo-hero__call {
+  margin-top: .2rem;
+  padding: .7rem 1.3rem;
+  min-height: 44px;
+  font-size: var(--fs-sm);
+  color: var(--ink-mid);
+  background: var(--surf-1);
+  border: 1px solid var(--line-ctl);
+  box-shadow: var(--shadow-sm);
+}
+
+.vo-hero__call:hover { color: var(--ink); border-color: var(--ink-soft); }
+
+.vo-hero__call .ic { width: 17px; height: 17px; stroke-width: 2.4; }
+
 /* ------------------------------- الحوار ------------------------------- */
 /* ما يُمرَّر إليه يقف فوق الملتقط لا تحته. الملتقط ملتصقٌ بأسفل الشاشة،
    فتمريرٌ «إلى أدنى ما يكفي» يوقف الهدف عند الحافّة السفلى — أي تحته.

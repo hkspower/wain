@@ -48,13 +48,31 @@ async function sample(page) {
     const cs = (el) => getComputedStyle(el);
     const q = (s) => document.querySelector(s);
     const out = [];
+
+    /* **السطح الشفّاف ليس أسود.** `backgroundColor` تعطي `rgba(0,0,0,0)`
+       لعنصرٍ بلا أرضيّة، فتُقرأ سوادًا وتُحسب نسبةٌ لا وجود لها. وقعت
+       فعلًا: الملتقط أرضيّته شفّافة ما دام الافتتاح ظاهرًا، فظهر سطر
+       التلميح ٤٫٠٣ وهو ٤٫٨٥ على أرضيّته الحقيقية. فيُصعد في الآباء حتى
+       أوّل سطحٍ غير شفّاف، وإليه يُنتهى بأرضيّة الصفحة. */
+    const bgOf = (el) => {
+      for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
+        const c = cs(n).backgroundColor;
+        const a = (c.match(/[\d.]+/g) || [])[3];
+        if (c && c !== 'transparent' && a !== '0') return c;
+      }
+      return cs(document.body).backgroundColor;
+    };
+
     const text = (name, sel, bgSel) => {
       const el = q(sel); if (!el) return;
-      out.push({ name, fg: cs(el).color, bg: cs(bgSel ? q(bgSel) : el).backgroundColor, min: 4.5 });
+      const on = bgSel ? q(bgSel) : el;
+      if (!on) return;
+      out.push({ name, fg: cs(el).color, bg: bgOf(on), min: 4.5 });
     };
     const edge = (name, sel, bgSel) => {
       const el = q(sel); if (!el) return;
-      out.push({ name, fg: cs(el).borderTopColor, bg: cs(q(bgSel)).backgroundColor, min: 3 });
+      const on = q(bgSel); if (!on) return;
+      out.push({ name, fg: cs(el).borderTopColor, bg: bgOf(on), min: 3 });
     };
     text('متن الوكيل', '.vo-msg--agent');
     text('فقاعة الزبون', '.vo-msg--user');
@@ -67,6 +85,8 @@ async function sample(page) {
     text('رمز الطلب', '.vo-done__code', '.vo-done');
     text('نصّ التأكيد', '.vo-done p', '.vo-done');
     text('سطر التلميح', '.vo-composer__hint', '.vo-composer');
+    text('زرّ المكالمة', '.vo-hero__call');
+    edge('حدّ زرّ المكالمة', '.vo-hero__call', '.vo-main');
     text('روابط الترويسة', '.vo-top__nav a', '.vo-top');
     text('زرّ الثيمة', '.vo-top__theme', '.vo-top');
     text('الميكروفون', '.vo-mic');
@@ -87,6 +107,8 @@ for (const scheme of ['light', 'dark']) {
   await page.goto(URL, { waitUntil: 'networkidle' });
 
   const rows = [];
+  /* الافتتاح يُطوى عند أوّل رسالة، فما فيه يُقاس قبلها */
+  rows.push(...await sample(page));
   /* تُلتقط الحالة بعد كلّ جملة: بعضُ الألوان لا يظهر إلّا في حالةٍ واحدة
      (النواقص تختفي حين يكتمل الطلب، والتأكيد لا يظهر قبل الإرسال). */
   for (const line of SCRIPT) {
