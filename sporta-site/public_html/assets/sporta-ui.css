@@ -2837,9 +2837,14 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
  * above (both left in place, both now overridden here — a revert is deleting
  * this block):
  *
- *   ONE TILE PER ROW, AT EVERY WIDTH, EDGE TO EDGE. The grid breaks out of
- *   the max-w-7xl section with the calc(50% - 50vw) margins; main clips the
- *   scrollbar's width so this cannot cause sideways scroll.
+ *   ONE TILE PER ROW, AT EVERY WIDTH, EDGE TO EDGE, by lifting the width cap
+ *   and side padding off the tiles' OWN section rather than breaking out with
+ *   100vw. The first version did the breakout and needed `main {overflow-x:
+ *   clip}` to hide the scrollbar's width — and that clip stopped Chrome from
+ *   preloading the hero carousel's off-screen slides (test:image-render,
+ *   bisected to that one line). Nothing here is wider than the page, so
+ *   nothing needs clipping. The heading in the same section is centred and
+ *   does not move.
  *
  *   EACH TILE AT ITS OWN ARTWORK'S RATIO, so `cover` crops nothing — "full
  *   render". The price is the one the 2026-09-22 entry names: accessories
@@ -2850,12 +2855,14 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
  *   a full-width tile on a 1440px screen stretches them. Bigger masters at the
  *   SAME names and compositions drop straight in — phones load cats/mobile/
  *   and are unaffected by their weight. */
-main { overflow-x: clip; }
+section:has(> [class~="grid"] > .cat-tile) {
+  max-width: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
 [class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
   grid-template-columns: 1fr !important;
   gap: 6px !important;
-  margin-left: calc(50% - 50vw) !important;
-  margin-right: calc(50% - 50vw) !important;
 }
 .cat-tile.tile-men, .cat-tile.tile-women,
 .cat-tile.tile-acc, .cat-tile.tile-outlet { border-radius: 0 !important; }
