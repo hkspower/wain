@@ -1168,6 +1168,9 @@ function raceCut(): { w: number; h: number } | null {
   }, [settings]);
   const [result, setResult] = useState<RaceResult | null>(null);
   const [cine, setCine] = useState<{ card: DriverCard; you?: DriverCard; stake: number } | null>(null);
+  /** The film overlay's root, so the cards can be staged per frame
+   *  from onHud by class rather than by a re-render. */
+  const cineRootRef = useRef<HTMLButtonElement>(null);
   const [pauseOpen, setPauseOpen] = useState(false);
   const driftRef = useRef<HTMLDivElement>(null);
   const driftTextRef = useRef<HTMLSpanElement>(null);
@@ -1552,6 +1555,15 @@ function raceCut(): { w: number; h: number } | null {
   const onHud = useCallback(
     (d: HudData) => {
       hudMapRef.current = d.map;
+      // The film's cards come up with their shots — see cineStage in
+      // engine.ts. Classes, touched only on a change: this runs every frame.
+      if (cineRootRef.current) {
+        const cl = cineRootRef.current.classList;
+        for (const [n, name] of [[1, "cine-show-rival"], [2, "cine-show-you"], [3, "cine-show-vs"]] as const) {
+          const on = d.cineStage >= n;
+          if (cl.contains(name) !== on) cl.toggle(name, on);
+        }
+      }
       if (speedRef.current)
         speedRef.current.textContent = String(
           Math.round(d.speedKmh * (speedUnitRef.current === "mph" ? MPH_PER_KMH : 1))
@@ -4741,6 +4753,7 @@ function raceCut(): { w: number; h: number } | null {
       {/* Pre-battle rival cinematic: letterbox + card, tap to skip */}
       {cine && (
         <button
+          ref={cineRootRef}
           onClick={() => engineRef.current?.skipCinematic()}
           className="absolute inset-0 z-[25] block w-full cursor-default text-left"
           aria-label="Skip intro"
@@ -4748,7 +4761,7 @@ function raceCut(): { w: number; h: number } | null {
           <div className="cine-bar cine-bar-t" />
           <div className="cine-bar cine-bar-b" />
           {/* Rival card rides the lower bar */}
-          <div className="cine-card absolute bottom-[calc(11vh+env(safe-area-inset-bottom))] left-[calc(env(safe-area-inset-left)+1.25rem)]">
+          <div className="cine-card cine-card-rival absolute bottom-[calc(11vh+env(safe-area-inset-bottom))] left-[calc(env(safe-area-inset-left)+1.25rem)]">
             <div className="grn-label text-2xs text-sodium-400">
               Challenger · <span className="grn-ar" lang="ar">تحدي</span>
             </div>
@@ -4793,7 +4806,7 @@ function raceCut(): { w: number; h: number } | null {
             </div>
           </div>
           {/* The VS mark, centred over the seam of the lower bar */}
-          <div className="cine-card absolute bottom-[calc(13vh+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 text-center">
+          <div className="cine-card cine-card-vs absolute bottom-[calc(13vh+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 text-center">
             <div className="grn-display text-[clamp(2rem,7vw,3.4rem)] italic leading-none text-sodium-400 [text-shadow:0_0_26px_rgba(255,170,60,0.55),0_2px_18px_rgba(0,0,0,0.9)]">
               VS
             </div>
@@ -4802,7 +4815,7 @@ function raceCut(): { w: number; h: number } | null {
 
           {/* Your side of the frame, mirrored on the right bar */}
           {cine.you && (
-            <div className="cine-card absolute bottom-[calc(11vh+env(safe-area-inset-bottom))] right-[calc(env(safe-area-inset-right)+1.25rem)] text-right">
+            <div className="cine-card cine-card-you absolute bottom-[calc(11vh+env(safe-area-inset-bottom))] right-[calc(env(safe-area-inset-right)+1.25rem)] text-right">
               <div className="grn-label text-2xs text-gulf-300">
                 You · <span className="grn-ar" lang="ar">أنت</span>
               </div>

@@ -319,6 +319,9 @@ export interface HudData {
   flashCount: number;
   /** Main beam on — the blue tell-tale on the cluster. */
   highBeam: boolean;
+  /** Which of the film's cards are up: 0 none, 1 the rival, 2 + you, 3 + VS.
+   *  Zero outside the film. See cineStage(). */
+  cineStage: number;
   speedKmh: number;
   areaName: string;
   areaArabic: string;
@@ -7061,6 +7064,22 @@ export class GameEngine {
    *   B 1.8–3.1s  low side pass of the player's own machine
    *   C 3.1–4.2s  pull back and settle into the chase camera
    */
+  /**
+   * The film's cards, staged to its shots.
+   *
+   * All three — the rival, you, VS — used to drop in together a third
+   * of a second after the bars, over the challenge shot, which is a shot
+   * of a gap between two cars with neither of them readable yet. Now
+   * each arrives with the shot that introduces its subject: the rival's
+   * card as the orbit lands on their machine, yours as the pass down
+   * your own flank begins, and VS when the two-shot puts both in frame.
+   */
+  private cineStage(): number {
+    if (!this.cine) return 0;
+    const t = (performance.now() - this.cine.start) / 1000;
+    return t >= CINE_FLANK_END ? 3 : t >= CINE_ORBIT_END ? 2 : t >= CINE_ANSWER_END ? 1 : 0;
+  }
+
   private updateCineCamera(rollT: number): void {
     const c = this.cine!;
     const t = (performance.now() - c.start) / 1000;
@@ -7212,6 +7231,21 @@ export class GameEngine {
       // already on when it takes over.
       this.cineRoll = rollT * k;
       this.camera.rotateZ(this.cineRoll);
+    }
+    // A hand on the camera. Every shot was a mathematically smooth
+    // dolly, which reads as a rig, and a rig is what a film crew uses to
+    // AVOID looking like a rig: real coverage of two cars at night is a
+    // long lens off a shoulder, and it breathes. Two and a half
+    // centimetres of drift on the lens's own axes — three slow sines
+    // that never repeat inside fourteen seconds — after the aim is set,
+    // so the framing wanders and the subject does not. It fades out
+    // across the settle, to exactly zero at the hand-off, so the chase
+    // rig inherits the film's pose bit for bit as before.
+    const hand = t < CINE_TWOSHOT_END ? 1 : 1 - ease((t - CINE_TWOSHOT_END) / (CINE_LEN - CINE_TWOSHOT_END));
+    if (hand > 0) {
+      const A = 0.025 * hand;
+      this.camera.translateX(A * (Math.sin(t * 2.31) * 0.6 + Math.sin(t * 3.83 + 1.1) * 0.4));
+      this.camera.translateY(A * (Math.sin(t * 1.73 + 0.4) * 0.5 + Math.sin(t * 4.41 + 2.0) * 0.3));
     }
     // The film's lens, as a function of FILM TIME: resting through the
     // shots, walking to the chase's own lens across the settle. It used to
@@ -8239,6 +8273,7 @@ export class GameEngine {
         : null,
       flashCount: performance.now() > this.flashWindowUntil ? 0 : this.flashCount,
       highBeam: this.highBeam,
+      cineStage: this.cineStage(),
       speedKmh: this.player.speed * KMH,
       tach: (() => {
         const eng = this.tune.engine;

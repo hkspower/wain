@@ -1387,9 +1387,21 @@ html[data-cluster-theme="neon"] .tach-cluster {
   0% { opacity: 0; transform: translateX(-36px); }
   100% { opacity: 1; transform: none; }
 }
-.cine-card {
-  animation: cine-card-in 560ms var(--ease-out) 350ms both;
+@keyframes cine-card-in-r {
+  0% { opacity: 0; transform: translateX(36px); }
+  100% { opacity: 1; transform: none; }
 }
+@keyframes cine-vs-in {
+  0% { opacity: 0; transform: translateX(-50%) scale(1.6); }
+  100% { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+/* The cards wait for their shots (cineStage, engine.ts): the rival's
+   slides in from the left as the orbit lands, yours from the right on
+   the flank pass, and VS lands on the two-shot. Hidden until then. */
+.cine-card { opacity: 0; }
+.cine-show-rival .cine-card-rival { animation: cine-card-in 560ms var(--ease-out) both; }
+.cine-show-you .cine-card-you { animation: cine-card-in-r 560ms var(--ease-out) both; }
+.cine-show-vs .cine-card-vs { animation: cine-vs-in 420ms var(--ease-out) both; }
 .cine-skip {
   animation: reveal-up 400ms var(--ease-out) 1200ms both;
 }
