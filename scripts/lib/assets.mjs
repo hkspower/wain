@@ -122,6 +122,9 @@ export const ASSETS = [
   { path: "press/ik", kind: "split", by: "tools/shots/ik4k.mjs",
     keep: ["*.jpg", "*.json", "*.md"],
     what: "The rig at 4K. The JPEGs are the deliverable; the lossless PNGs beside them are 13 MB each." },
+  { path: "press/renders", kind: "split", by: "tools/blender/render_cars.py",
+    keep: ["*.png", "cars.json", "contact-sheet.jpg"],
+    what: "Studio renders of every catalogue car, exported from the game by tools/shots/export-cars.mjs and rendered in Cycles. The GLBs beside them are 160 MB of scratch, and renders.json is a timing log." },
 
   // ---- Scratch. A tool wrote it to answer a question, and the answer
   // was the number it printed.

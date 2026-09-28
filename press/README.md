@@ -39,6 +39,7 @@ whether it belongs in the history at all.
 | `menu/` | The title block, at the two widths the strapline solves its tracking for. | by hand | kept |
 | `film/` | The pre-race film, both encodings, and its poster frames. The 336 JPEGs it was made from are not the artefact. | `tools/shots/exportfilm.mjs` | part kept |
 | `ik/` | The rig at 4K. The JPEGs are the deliverable; the lossless PNGs beside them are 13 MB each. | `tools/shots/ik4k.mjs` | part kept |
+| `renders/` | Studio renders of every catalogue car, exported from the game by tools/shots/export-cars.mjs and rendered in Cycles. The GLBs beside them are 160 MB of scratch, and renders.json is a timing log. | `tools/blender/render_cars.py` | part kept |
 | `views/` | Car elevations, rendered on demand. | `tools/shots/car-views.mjs` | regenerated |
 | `decals/` | Decal artwork, dumped to look at. | `tools/shots/decals.mjs` | regenerated |
 | `levels/` | Level histograms and the frames behind them. | `tools/shots/levels.mjs` | regenerated |

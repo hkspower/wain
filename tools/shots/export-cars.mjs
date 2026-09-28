@@ -40,7 +40,7 @@
 // rewritten on the fly to read them off window.__grnThree and injected
 // with addScriptTag — no bundler, no import map.
 import { chromium } from "playwright-core";
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, renameSync } from "node:fs";
 import { createRequire } from "node:module";
 
 const arg = (name, fallback) => {
@@ -50,6 +50,13 @@ const arg = (name, fallback) => {
 const ONLY = arg("only", "").split(",").filter(Boolean);
 const OUT = arg("out", "press/renders");
 mkdirSync(`${OUT}/glb`, { recursive: true });
+// cars.json is merged by id, never replaced: a --only run must not turn
+// the 17-record file into a 2-record one and orphan the other GLBs.
+const CARS_JSON = `${OUT}/cars.json`;
+const records = new Map(
+  (existsSync(CARS_JSON) ? JSON.parse(readFileSync(CARS_JSON, "utf8")) : []).map((r) => [r.id, r])
+);
+const saveRecords = () => writeFileSync(CARS_JSON, JSON.stringify([...records.values()], null, 2) + "\n");
 
 // three's exporter, made global.
 const require = createRequire(import.meta.url);
@@ -97,18 +104,28 @@ if (!ok) { console.error("the exporter did not load in the page"); await browser
 const ids = await page.evaluate(() => window.__grnCars.map((c) => c.id));
 const todo = ONLY.length ? ids.filter((id) => ONLY.includes(id)) : ids;
 const missing = ONLY.filter((id) => !ids.includes(id));
-if (missing.length) console.log(`not in the catalogue: ${missing.join(", ")}`);
+if (missing.length) { console.error(`not in the catalogue: ${missing.join(", ")}`); await browser.close(); process.exit(2); }
 console.log(`exporting ${todo.length} car${todo.length === 1 ? "" : "s"}`);
 
-const records = [];
+const failed = [];
 for (const id of todo) {
   const t0 = Date.now();
-  const r = await page.evaluate(async (id) => {
+  let r;
+  try {
+  r = await page.evaluate(async (id) => {
     const THREE = window.__grnThree;
     const car = window.__grnCars.find((c) => c.id === id);
     const t = window.__grnShowroom.tuneFor(id);
+    // The racing number on the door, as the engine numbers the player's
+    // car (engine.ts stickerNumber): a hash of the car id, so the Kaiju
+    // is always the same car on the door whatever the paint. Left out,
+    // createCar derives one from the paint instead — a different number
+    // from the one the player sees.
+    let h = 0;
+    for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    const stickerNumber = (h % 90) + 10;
     // The engine's own record-to-createCar mapping (engine.ts, the
-    // player car), minus the racing number: a showroom car wears none.
+    // player car).
     const colors = {
       body: t.paint, accent: t.accent ?? 0x007a3d, stripes: t.stripes, style: t.bodyStyle,
       underglow: t.glow ?? undefined, spoiler: t.spoiler, goldRims: t.goldRims, rims: t.rims,
@@ -116,7 +133,7 @@ for (const id of todo) {
       engineCover: t.engineCover ?? undefined, carbon: t.carbon, raceKit: t.raceKit, kit: t.kit,
       headlamps: t.headlamps, tint: t.tint, tintFilm: t.tintFilm, finish: t.finish,
       stickers: t.stickers, fullStripe: t.fullStripe, name: t.carName, nameAr: t.carNameAr,
-      lengthM: t.lengthM, crew: t.crew ?? undefined, exhaust: t.exhaust,
+      lengthM: t.lengthM, crew: t.crew ?? undefined, exhaust: t.exhaust, stickerNumber,
     };
     const group = window.__grnBuildCar(colors);
     // The authored parts arrive asynchronously. Wait for every shell
@@ -125,26 +142,55 @@ for (const id of todo) {
     // car this is a tick.
     const authoredWheel = new Set(["tire", "barrel", "alloy", "rotor", "lugs"]);
     const authoredDriver = new Set(["helmet", "visor", "glove", "wheel", "pedal"]);
-    const settled = () => {
+    // A steel wheel (spokes 0 — the street-kit cars' hubcaps) has no
+    // authored kit by design and stays procedural for ever; only a wheel
+    // whose spoke count ships a GLB is waited for, the same test
+    // models.ts makes.
+    const pending = () => {
       const v = group.userData.shellSwap ?? {};
-      const shells = v.all !== undefined || ["body", "canopy", "roof"].every((k) => v[k] !== undefined);
-      let wheelsPending = 0, driverPending = 0;
+      const out = [];
+      if (!(v.all !== undefined || ["body", "canopy", "roof"].every((k) => v[k] !== undefined))) out.push("shells");
       group.traverse((o) => {
         if (!o.isMesh) return;
-        if (authoredWheel.has(o.userData.wheelPart) && !o.geometry.userData.authored) wheelsPending++;
-        if (authoredDriver.has(o.userData.driverPart) && !o.geometry.userData.authored) driverPending++;
+        if (authoredWheel.has(o.userData.wheelPart) && (o.parent?.userData.spokes ?? 0) > 0 && !o.geometry.userData.authored)
+          out.push(`wheel:${o.userData.wheelPart}`);
+        if (authoredDriver.has(o.userData.driverPart) && !o.geometry.userData.authored) out.push(`driver:${o.userData.driverPart}`);
       });
-      return shells && !wheelsPending && !driverPending;
+      return out;
     };
     const t1 = performance.now();
-    while (!settled() && performance.now() - t1 < 30000) await new Promise((r) => setTimeout(r, 50));
+    while (pending().length && performance.now() - t1 < 30000) await new Promise((r) => setTimeout(r, 50));
     const waited = Math.round(performance.now() - t1);
+    const still = pending();
+    // A timeout is a failure, not a car: a 404'd wheel file or a hung
+    // driver load would otherwise export silently with procedural parts.
+    if (still.length) throw new Error(`${id}: still pending after ${waited} ms: ${[...new Set(still)].join(", ")}`);
     const verdict = { ...(group.userData.shellSwap ?? {}) };
     const lengthM = group.userData.lengthM;
     // Strip what is for the game's renderer, not a camera.
     const drop = [];
     group.traverse((o) => { if (o !== group && (o.userData.noShadow || o.isSprite)) drop.push(o); });
     for (const o of drop) o.parent?.remove(o);
+    // Unlit materials become KHR_materials_unlit, which Blender imports
+    // as camera-ray-only emission: the arch wells would then vanish from
+    // the floor's reflection and cast no shadow. They are dark matte
+    // surfaces in the game's picture, so they leave as dark matte
+    // surfaces — the same colour and map on a standard material.
+    const relit = new Map();
+    group.traverse((o) => {
+      if (!o.isMesh) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      const swapped = mats.map((m) => {
+        if (!m || !m.isMeshBasicMaterial) return m;
+        if (!relit.has(m)) {
+          const s = new THREE.MeshStandardMaterial({ name: m.name, color: m.color, map: m.map ?? null, roughness: 1, metalness: 0,
+            transparent: m.transparent, opacity: m.opacity, side: m.side });
+          relit.set(m, s);
+        }
+        return relit.get(m);
+      });
+      o.material = Array.isArray(o.material) ? swapped : swapped[0];
+    });
     // And the userData, everywhere — see the note at the top of the file.
     group.updateMatrixWorld(true);
     let meshes = 0, tris = 0;
@@ -163,22 +209,31 @@ for (const id of todo) {
     let s = "";
     for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
     return {
-      b64: btoa(s), bytes: bytes.length, meshes, tris: Math.round(tris), dropped: drop.length, waited, verdict, lengthM,
+      b64: btoa(s), bytes: bytes.length, meshes, tris: Math.round(tris), dropped: drop.length, relit: relit.size, waited, verdict, lengthM,
       record: {
         id: car.id, name: car.name, ar: car.ar ?? car.arabicName ?? "", cls: car.cls, price: car.price,
         color: `#${(t.paint >>> 0).toString(16).padStart(6, "0")}`, finish: t.finish, style: t.bodyStyle,
-        kit: t.kit, exhaust: t.exhaust ?? null, lengthM,
+        kit: t.kit, exhaust: t.exhaust ?? null, lengthM, stickerNumber,
       },
     };
   }, id);
-  writeFileSync(`${OUT}/glb/${id}.glb`, Buffer.from(r.b64, "base64"));
-  records.push(r.record);
+  } catch (e) {
+    failed.push(id);
+    console.log(`  ${id.padEnd(16)} FAILED: ${String(e.message ?? e).split("\n")[0].slice(0, 200)}`);
+    continue;
+  }
+  // Written whole, to a temp name, then renamed: a kill mid-write must
+  // not leave a short file that passes an exists() check downstream.
+  writeFileSync(`${OUT}/glb/${id}.glb.part`, Buffer.from(r.b64, "base64"));
+  renameSync(`${OUT}/glb/${id}.glb.part`, `${OUT}/glb/${id}.glb`);
+  records.set(id, r.record);
+  saveRecords();
   const shells = Object.entries(r.verdict).map(([k, v]) => `${k}:${v}`).join(" ");
   console.log(
     `  ${id.padEnd(16)} ${(r.bytes / 1e6).toFixed(1).padStart(5)} MB  ${String(r.meshes).padStart(3)} meshes  ${String(r.tris).padStart(7)} tris  ` +
-    `dropped ${r.dropped}  waited ${r.waited} ms  ${shells}  (${((Date.now() - t0) / 1000).toFixed(0)} s)`
+    `dropped ${r.dropped}  relit ${r.relit}  #${r.record.stickerNumber}  waited ${r.waited} ms  ${shells}  (${((Date.now() - t0) / 1000).toFixed(0)} s)`
   );
 }
-writeFileSync(`${OUT}/cars.json`, JSON.stringify(records, null, 2) + "\n");
 await browser.close();
-console.log(`\n${records.length} cars in ${OUT}/glb, records in ${OUT}/cars.json`);
+console.log(`\n${todo.length - failed.length} of ${todo.length} cars exported to ${OUT}/glb; ${records.size} records in ${CARS_JSON}`);
+if (failed.length) { console.error(`failed: ${failed.join(", ")}`); process.exit(1); }

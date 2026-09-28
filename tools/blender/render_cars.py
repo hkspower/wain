@@ -26,10 +26,18 @@ metalness, roughness and clearcoat, the glass's alpha and film, the
 lamps' emission, every decal and canvas texture (KHR clearcoat,
 emissive_strength and texture_transform all import). What the game
 does in its renderer that a file cannot carry — the environment probe,
-envMapIntensity — the studio lighting stands in for. The one thing put
-right here is back-face culling: the exhaust bores are inside-out
-cylinders by design and glTF is single-sided, so culling is off on
-every material, which Cycles honours.
+envMapIntensity — the studio lighting stands in for. Nothing is patched
+on the Blender side: the exhaust bores are inside-out cylinders by
+design and glTF is single-sided, but Cycles shades both faces of every
+surface regardless (Material.use_backface_culling is an EEVEE and
+viewport flag), and the unlit arch wells are re-lit as matte surfaces
+by the exporter before they get here, since Blender imports
+KHR_materials_unlit as camera-only emission that no reflection sees.
+
+The run is unattended and resumable: a car whose PNG is newer than its
+GLB is skipped (--force to redo), a car that fails to import or render
+is logged and skipped rather than ending the batch, cars.json and
+renders.json are merged by id, and the log prints an ETA.
 
 COLOUR. The game tone-maps with ACESFilmic; Blender 5.0 ships ACES 1.3
 as a view transform, so a paint here lands where the game puts it. The
@@ -56,7 +64,8 @@ ap.add_argument("--samples", type=int, default=128)
 ap.add_argument("--only", default="", help="comma-separated car ids")
 ap.add_argument("--preview", action="store_true", help="640x360 at 32 samples, for a look")
 ap.add_argument("--exposure", type=float, default=0.0, help="view exposure, in stops")
-ap.add_argument("--keep-blend", action="store_true", help="save <out>/<id>.blend beside the render")
+ap.add_argument("--keep-blend", action="store_true", help="save <glb-dir>/<id>.blend (ignored by git) for inspection")
+ap.add_argument("--force", action="store_true", help="re-render cars whose PNG is already newer than their GLB")
 args = ap.parse_args(sys.argv[1:] if "--" not in sys.argv else sys.argv[sys.argv.index("--") + 1:])
 if args.preview:
     args.width, args.height, args.samples = 640, 360, 32
@@ -117,19 +126,32 @@ def studio(mn, mx):
     b = gm.node_tree.nodes["Principled BSDF"]
     b.inputs["Base Color"].default_value = (0.010, 0.010, 0.011, 1.0)
     b.inputs["Metallic"].default_value = 0.0
-    b.inputs["Roughness"].default_value = 0.26
-    b.inputs["Specular IOR Level"].default_value = 0.6
+    # Roughness 0.3 and a lower specular level: at 0.26 / 0.6 the key's
+    # reflection pooled into a hot patch on the floor beside the car.
+    b.inputs["Roughness"].default_value = 0.30
+    b.inputs["Specular IOR Level"].default_value = 0.4
     ground.data.materials.append(gm)
 
     tgt = (c.x, c.y, c.z)
-    # Camera stands on the -Y side (the nose side), off toward -X.
-    add_area("Key", (c.x - 1.3 * L, c.y - 0.8 * L, gz + 2.4 * H + 1.0), tgt, energy=1100, size=3.6, size_y=2.4, spread_deg=110)
-    add_area("Fill", (c.x + 1.6 * L, c.y - 0.6 * L, gz + 1.0 * H + 0.6), tgt, energy=170, size=5.0, size_y=3.5, spread_deg=160, color=(0.86, 0.91, 1.0))
-    add_area("Rim", (c.x + 0.5 * L, c.y + 1.4 * L, gz + 2.2 * H + 1.0), tgt, energy=1400, size=2.2, size_y=1.2, spread_deg=80, color=(0.95, 0.97, 1.0))
-    add_area("Sodium", (c.x - 0.9 * L, c.y + 1.2 * L, gz + 0.45 * H), (c.x, c.y, gz + 0.5 * H), energy=260, size=1.6, size_y=0.6, spread_deg=70, color=SODIUM)
-    # The strip: long, thin, straight down over the roof, along the car.
-    strip = add_area("Strip", (c.x - 0.15 * L, c.y, gz + H + 1.5 * H + 0.9), tgt, energy=1500, size=0.35, size_y=3.0 * L, spread_deg=120)
+    # The camera stands on the -Y side (the nose) swung toward +X, so +X
+    # is the flank it sees. The key is on that side, high and forward;
+    # the fill answers from -X; the rim and the sodium kicker come from
+    # behind — the sodium from the far rear quarter, off the camera's
+    # axis, so it edges the far flank rather than sitting behind the
+    # glasshouse. The lights are hidden from camera rays (they still
+    # light, and still appear in the paint's reflections).
+    add_area("Key", (c.x + 1.3 * L, c.y - 0.8 * L, gz + 2.4 * H + 1.0), tgt, energy=1100, size=3.6, size_y=2.4, spread_deg=110)
+    add_area("Fill", (c.x - 1.6 * L, c.y - 0.6 * L, gz + 1.0 * H + 0.6), tgt, energy=170, size=5.0, size_y=3.5, spread_deg=160, color=(0.86, 0.91, 1.0))
+    add_area("Rim", (c.x - 0.5 * L, c.y + 1.4 * L, gz + 2.2 * H + 1.0), tgt, energy=1400, size=2.2, size_y=1.2, spread_deg=80, color=(0.95, 0.97, 1.0))
+    add_area("Sodium", (c.x - 1.3 * L, c.y + 0.6 * L, gz + 0.45 * H), (c.x, c.y, gz + 0.5 * H), energy=260, size=1.6, size_y=0.6, spread_deg=70, color=SODIUM)
+    # The strip: long, thin, straight down over the roof, along the car,
+    # a little toward the camera's side so the highlight sits on the
+    # near shoulder.
+    strip = add_area("Strip", (c.x + 0.15 * L, c.y, gz + H + 1.5 * H + 0.9), tgt, energy=1500, size=0.35, size_y=3.0 * L, spread_deg=120)
     strip.rotation_euler = (0, 0, 0)
+    for ob in bpy.data.objects:
+        if ob.type == "LIGHT":
+            try_set(ob, "visible_camera", False)
 
     if sc.world is None:
         sc.world = bpy.data.worlds.new("World")
@@ -155,7 +177,8 @@ def studio(mn, mx):
     # to the car's BOX, not its sphere: the eight corners are projected
     # through the lens and the camera walks back along its own axis until
     # all of them sit inside the frame with a 7% margin. A sphere fit
-    # (the first cut) left a 4.7 m car filling half the width.
+    # (the first cut) left a 4.7 m car filling half the width. az swings
+    # the camera from the nose toward +X.
     cam_d = bpy.data.cameras.new("Cam")
     cam_d.lens = 55.0
     cam_d.sensor_width = 36.0
@@ -186,13 +209,6 @@ def studio(mn, mx):
         dist *= worst / 0.93
     cam.rotation_euler = (aim - cam.location).to_track_quat("-Z", "Y").to_euler()
     sc.camera = cam
-
-
-def settle_materials():
-    """What the game's renderer did that the file cannot say."""
-    for m in bpy.data.materials:
-        m.use_backface_culling = False
-        try_set(m, "use_backface_culling_shadow", False)
 
 
 def configure(sc, out_png):
@@ -237,12 +253,28 @@ def configure(sc, out_png):
     r.threads_mode = "AUTO"
 
 
+def valid_glb(path):
+    """The header says the file is whole: magic, then the total length at byte 8."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(12)
+        return len(head) == 12 and head[:4] == b"glTF" and int.from_bytes(head[8:12], "little") == os.path.getsize(path)
+    except OSError:
+        return False
+
+
 def render_car(rec):
     cid = rec["id"]
     glb = os.path.join(args.glb_dir, f"{cid}.glb")
     if not os.path.exists(glb):
         log(f"{cid}: no {glb} — run tools/shots/export-cars.mjs first")
         return None
+    if not valid_glb(glb):
+        raise RuntimeError(f"{glb} is not a whole glTF binary (short write?) — re-export it")
+    out_png = os.path.abspath(os.path.join(args.out, f"{cid}.png"))
+    if not args.force and os.path.exists(out_png) and os.path.getmtime(out_png) > os.path.getmtime(glb):
+        log(f"{cid}: {os.path.relpath(out_png)} is newer than its GLB — skipped (--force to redo)")
+        return "skipped"
     t0 = time.time()
     bpy.ops.wm.read_factory_settings(use_empty=True)
     sc = bpy.context.scene
@@ -266,9 +298,7 @@ def render_car(rec):
             mx = Vector(map(max, mx, p))
     mats = len(bpy.data.materials)
     images = len(bpy.data.images)
-    settle_materials()
     studio(mn, mx)
-    out_png = os.path.abspath(os.path.join(args.out, f"{cid}.png"))
     configure(sc, out_png)
     log(f"{cid}: {len(imported)} objects, {tris} polys, {mats} materials, {images} images, "
         f"{(mx - mn).x:.2f} x {(mx - mn).y:.2f} x {(mx - mn).z:.2f} m; {args.width}x{args.height} @ {args.samples} spp, "
@@ -277,7 +307,7 @@ def render_car(rec):
     bpy.ops.render.render(write_still=True)
     took = time.time() - t1
     if args.keep_blend:
-        bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath(os.path.join(args.out, f"{cid}.blend")), compress=True)
+        bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath(os.path.join(args.glb_dir, f"{cid}.blend")), compress=True)
     log(f"{cid}: rendered in {took:.0f} s -> {out_png} ({os.path.getsize(out_png) / 1e6:.1f} MB)")
     return {"id": cid, "png": os.path.relpath(out_png), "seconds": round(took, 1), "polys": tris,
             "materials": mats, "images": images, "width": args.width, "height": args.height,
@@ -286,15 +316,47 @@ def render_car(rec):
 
 records = json.load(open(args.cars))
 only = [s for s in args.only.split(",") if s]
+unknown = [s for s in only if s not in {r["id"] for r in records}]
+if unknown:
+    log(f"not in {args.cars}: {', '.join(unknown)}")
+    sys.exit(2)
 todo = [r for r in records if not only or r["id"] in only]
 os.makedirs(args.out, exist_ok=True)
+stray = sorted(f[:-4] for f in os.listdir(args.glb_dir) if f.endswith(".glb") and f[:-4] not in {r["id"] for r in records}) if os.path.isdir(args.glb_dir) else []
+if stray:
+    log(f"GLBs with no record in {args.cars} (re-export them): {', '.join(stray)}")
 log(f"bpy {bpy.app.version_string}; {len(todo)} car(s)")
-done = []
-for rec in todo:
-    r = render_car(rec)
-    if r:
-        done.append(r)
-        with open(os.path.join(args.out, "renders.json"), "w") as f:
-            json.dump(done, f, indent=2)
-total = sum(d["seconds"] for d in done)
-log(f"{len(done)} rendered, {total / 60:.1f} min of rendering")
+# renders.json is a log of what each car took, merged by id across runs.
+renders_json = os.path.join(args.out, "renders.json")
+done = {}
+if os.path.exists(renders_json):
+    try:
+        done = {d["id"]: d for d in json.load(open(renders_json))}
+    except (ValueError, KeyError, TypeError):
+        done = {}
+failed = []
+rendered = []
+t_run = time.time()
+for i, rec in enumerate(todo):
+    try:
+        r = render_car(rec)
+    except Exception as e:  # one bad car must not end the batch
+        import traceback
+        traceback.print_exc()
+        log(f"{rec['id']}: FAILED — {e}")
+        failed.append(rec["id"])
+        done[rec["id"]] = {"id": rec["id"], "error": str(e)[:300]}
+        r = None
+    if isinstance(r, dict):
+        done[r["id"]] = r
+        rendered.append(r)
+    with open(renders_json, "w") as f:
+        json.dump(list(done.values()), f, indent=2)
+    if rendered and i + 1 < len(todo):
+        per = (time.time() - t_run) / (i + 1)
+        log(f"{i + 1}/{len(todo)} done, ~{per * (len(todo) - i - 1) / 60:.0f} min left")
+total = sum(d["seconds"] for d in rendered)
+log(f"{len(rendered)} rendered ({total / 60:.1f} min of rendering), {len(todo) - len(rendered) - len(failed)} skipped, {len(failed)} failed"
+    + (f": {', '.join(failed)}" if failed else ""))
+if failed:
+    sys.exit(1)
