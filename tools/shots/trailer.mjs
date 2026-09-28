@@ -149,6 +149,15 @@ if (!AUDIO_ONLY) {
     await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 600000 });
     await page.evaluate(() => window.__grnEngine?.skipCinematic?.());
     await page.waitForTimeout(3000);
+    // The webfonts, loaded before a card is drawn: a canvas draws with
+    // whatever face is resident, and a face nothing on the page has
+    // used yet is not.
+    await page.evaluate(async () => {
+      const v = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+      await document.fonts.ready;
+      for (const f of ["--font-display", "--font-arabic-display", "--font-arabic-poster"])
+        await document.fonts.load(`700 60px ${v(f)}`, "متسابق الليل NIGHT RACER").catch(() => {});
+    });
 
     // The director, installed once. Everything a frame needs is decided
     // from `t` alone.
@@ -172,7 +181,11 @@ if (!AUDIO_ONLY) {
       const clearTraffic = (s) => { for (const c of e.traffic) c.s = tr.wrap(s + tr.length / 2); };
       const fontOf = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "sans-serif";
       const DISPLAY = fontOf("--font-display");
-      const ARABIC = fontOf("--font-arabic") || DISPLAY;
+      // The game's own Arabic faces, as the menu wears them: the poster
+      // face (Reem Kufi) for the title, the display face (Cairo) for the
+      // rivals' names — not the body face, which is set for reading.
+      const ARABIC = fontOf("--font-arabic-display") || DISPLAY;
+      const ARABIC_POSTER = fontOf("--font-arabic-poster") || ARABIC;
       let rivalShown = -1;
       const showRival = (i) => {
         if (rivalShown === i) return;
@@ -194,7 +207,7 @@ if (!AUDIO_ONLY) {
         ctx.shadowColor = "rgba(0,0,0,0.85)";
         ctx.shadowBlur = H * 0.02;
         for (const l of lines) {
-          ctx.font = `${l.weight ?? 700} ${Math.round(H * l.size)}px ${l.arabic ? ARABIC : DISPLAY}`;
+          ctx.font = `${l.weight ?? 700} ${Math.round(H * l.size)}px ${l.poster ? ARABIC_POSTER : l.arabic ? ARABIC : DISPLAY}`;
           ctx.fillStyle = l.color ?? "#ffffff";
           if (l.italic) ctx.font = `italic ${ctx.font}`;
           ctx.fillText(l.text, W * (l.x ?? 0.5), H * l.y);
@@ -344,7 +357,7 @@ if (!AUDIO_ONLY) {
           };
           const ta = Math.min(1, Math.max(0, (t - 34.2) / 0.8));
           cards.push({ a: ta, lines: [
-            { text: "متسابق الليل", y: 0.47, size: 0.13, arabic: true, color: "#ffc45c" },
+            { text: "متسابق الليل", y: 0.47, size: 0.13, arabic: true, poster: true, color: "#ffc45c" },
             { text: "NIGHT RACER", y: 0.6, size: 0.075, italic: true },
             { text: "KUWAIT XTREME RACER", y: 0.67, size: 0.024, weight: 600, color: "rgba(255,255,255,0.7)" },
           ] });
