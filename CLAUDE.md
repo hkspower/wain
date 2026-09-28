@@ -506,6 +506,39 @@ file's length would pass it. Content hashes would close that, and nothing on
 this connector returns one for a binary — which is why the hashed chunk
 names, content-addressed by the build, carry most of the weight.
 
+## The 28 September deploys, continued — `5abbac4` is live
+
+`{"ok":true,"version":"1.1.0","deployed":252,"removed":23,"emptied":1,"at":
+"2026-09-28T15:15:02+00:00"}` through the installed caller, one cron job
+(`naAD869EQu`), deleted after its first firing and confirmed gone by a
+listing. `removed: 23` is real this time, not the idempotent-second-pass
+trap recorded above: the previous live build was `6336c0e` from earlier the
+same day, and between it and this one sat the taller hero, the full `/find`
+rebuild, the Liberation Tower shading and a dependency bump that renamed
+several content-hashed chunks — more files differ than a typical same-day
+deploy, so a bigger prune is the expected shape, not a surprise to explain
+away.
+
+**A concurrent cron job from another session turned up while checking the
+list, and it was not wain's.** `uXfy3Emw2v`, firing every minute, fetching
+and running `scripts/publish/publish-all.php` pinned to a commit not in this
+branch's history. Read before reacting, the way this file already says to:
+`get_commit` named a different session, and the file itself opens with its
+own `$ROOT` — `domains/sporta.com.kw/public_html`, not wain's. A different
+project's deploy loop on the same shared crontab, not a conflict; left alone,
+and gone from the list by the time this deploy's own job was created.
+
+**Verified below the root, byte-exact against `deploy-plan.json`'s six
+required proofs**: `_next/static/css/4e82440ab2627604.css` (90,587),
+`_next/static/5abbac42…/_buildManifest.js` (1,087) with `6336c0e8…` gone,
+`_next/static/chunks/app/search/page-a26237fae7a409d1.js` (19,947),
+`explore/index.html` (17,949), `places/abdullah-al-salem-cultural-centre/
+index.html` (61,704), and its og image (44,217) with all 52 present. The
+new `/find` route's own chunk directory, `_next/static/chunks/app/find/`, is
+on disk. Then the cache purge and a public read of `build.json` through the
+edge, which answered `5abbac42…` / `ece1487627bcc010` — the exact digest
+`npm run release` stamped locally, not merely a plausible one.
+
 ## The 28 September deploys — `6336c0e` is live
 
 The third of the day: the skyline's towers and palms rendered with light and
