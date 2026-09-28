@@ -66,10 +66,25 @@ const ALLOWED = [
     // a design decision and the owner's, not something to take in passing.
     match: /cats\/mobile\//,
     density: 'phone 3x',
-    ratio: 1.19,
-    why: 'the mobile tiles are 900px and a 3x phone stretches them to 1074px; '
-       + 'they are a different composition from the desktop art, so a sharper '
-       + 'one needs the owner to supply or re-crop it at ~1100px',
+    ratio: 1.3,
+    why: 'the mobile tiles are 900px and, full-width since 2026-09-28, a 3x '
+       + 'phone stretches them to 1170px; a sharper one needs the owner to '
+       + 'supply the mobile composition at ~1200px',
+  },
+  // The home tiles went full website width on 2026-09-28, and the owner chose
+  // to supply larger desktop masters rather than upscale. Until those land at
+  // the same names, the 1216px files are stretched on anything wider.
+  {
+    match: /cats\/desktop\/art-/,
+    density: 'desktop 1x',
+    ratio: 1.18,
+    why: 'full-width tile on a 1440px screen; needs ~1500px+ desktop art',
+  },
+  {
+    match: /cats\/desktop\/art-/,
+    density: 'desktop 2x',
+    ratio: 2.37,
+    why: 'full-width tile on a 1440px retina screen; needs ~2900px desktop art',
   },
   // cats/desktop/infobar at desktop 2x was here, removed 2026-09-28 running
   // "check the images quality and file sizes" — this rig's own self-cleaning

@@ -2831,6 +2831,45 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
   }
 }
 
+/* FULL-WIDTH TILES, WHOLE PICTURE — 2026-09-28, asked for as "make full
+ * render for all category image with full horizontal website width". This
+ * supersedes the two-per-row phone grid and the single shared 1.25x ratio
+ * above (both left in place, both now overridden here — a revert is deleting
+ * this block):
+ *
+ *   ONE TILE PER ROW, AT EVERY WIDTH, EDGE TO EDGE. The grid breaks out of
+ *   the max-w-7xl section with the calc(50% - 50vw) margins; main clips the
+ *   scrollbar's width so this cannot cause sideways scroll.
+ *
+ *   EACH TILE AT ITS OWN ARTWORK'S RATIO, so `cover` crops nothing — "full
+ *   render". The price is the one the 2026-09-22 entry names: accessories
+ *   and outlet (2.91:1) come out shallower than men and women (1.72:1). The
+ *   shared ratio existed to hide that, and it did it by cropping.
+ *
+ *   CLARITY is the artwork's, not the CSS's: the desktop files are 1216px and
+ *   a full-width tile on a 1440px screen stretches them. Bigger masters at the
+ *   SAME names and compositions drop straight in — phones load cats/mobile/
+ *   and are unaffected by their weight. */
+main { overflow-x: clip; }
+[class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
+  grid-template-columns: 1fr !important;
+  gap: 6px !important;
+  margin-left: calc(50% - 50vw) !important;
+  margin-right: calc(50% - 50vw) !important;
+}
+.cat-tile.tile-men, .cat-tile.tile-women,
+.cat-tile.tile-acc, .cat-tile.tile-outlet { border-radius: 0 !important; }
+.cat-tile.tile-men, .cat-tile.tile-women { aspect-ratio: 900 / 570 !important; }
+.cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 900 / 454 !important; }
+@media (min-width: 768px) {
+  .cat-tile.tile-men, .cat-tile.tile-women { aspect-ratio: 1216 / 706 !important; }
+  .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 1216 / 418 !important; }
+}
+@media (max-width: 767px) {
+  .cat-tile { padding: 20px !important; }
+  .cat-tile__title { font-size: 24px !important; }
+}
+
 [data-theme=dark] .save-chip {
   color:#ff7b17;
   color:var(--brand-bright);
