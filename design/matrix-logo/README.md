@@ -72,9 +72,17 @@ and all four survive the conversion to code: she is **double-ended** with a
 raked stem, she carries **filled lateen sails**, her **tall mainmast is forward**
 and her mizzen is short and aft, and her **sheer rises** into both ends. She is
 defined as polygons and rasterised onto the glyph grid (48×48 for the
-mark, 48×32 horizontal, 60×40 stacked). Lit cells draw only from dense glyphs
-(`0 8 # $ B D M W …`) so that the sails read as solid. The grid is seeded, so
+mark, 48×32 horizontal, 60×40 stacked). The grid is seeded, so
 every build lays out the same glyphs.
+
+## The code
+
+The field is **real C++**, read left to right, row by row: a short program in
+which `almuhallab::Code` builds and launches an `almuhallab::Boum` under two
+`Sail`s (`CPP` in `design/matrix_logo.py`). Spaces are dropped so every cell
+holds a character, and it contains **no numbers**: `return EXIT_SUCCESS;`, not
+`return 0;`. A cell on the ship skips past thin characters (`. , ; :` …) to the
+next solid one, so the sails stay whole while the code still runs in order.
 
 ## Using it
 

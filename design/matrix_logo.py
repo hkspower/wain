@@ -32,10 +32,47 @@ KUFI = FONTS / "ReemKufi-Bold.ttf"
 MONO = FONTS / "ShareTechMono-Regular.ttf"
 CAIRO = ROOT / "almuhallab" / "fonts" / "cairo-700.woff2"
 
-GLYPHS = "0123456789ABCDEF{}[]<>/=+*#$%;:"
-# Cells on the ship draw only from dense glyphs: a lit `;` or `-` is a hole in
-# the sail, and enough of them made the silhouette read as ragged.
-DENSE = "0689#$%&@BDEHMNQRW"
+# The field is real C++, read left to right, row by row — not random glyphs,
+# and no numbers (owner's request 2026-09-28: «codes, not numbers, C++»). The
+# program is the company describing itself; spaces are dropped so every cell
+# holds a character, and it has no digit anywhere (EXIT_SUCCESS, not 0).
+CPP = r"""
+#include <iostream>
+#include <string>
+#include <vector>
+namespace almuhallab {
+  struct Sail { std::string name; bool filled = true; };
+  struct Boum {
+    std::string home = "Kuwait";
+    std::vector<Sail> sails { {"main"}, {"mizzen"} };
+    bool doubleEnded = true;
+    bool underSail() const { return !sails.empty(); }
+  };
+  class Code {
+  public:
+    std::string company = "Almuhallab Code";
+    std::string craft = "software and systems";
+    void build(Boum& boum) { boum.sails.front().filled = true; }
+    void ship(const Boum& boum) { if (boum.underSail()) launch(); }
+  private:
+    void launch() { std::cout << company << " :: " << craft << std::endl; }
+  };
+}
+int main() {
+  almuhallab::Boum boum;
+  almuhallab::Code code;
+  code.build(boum);
+  code.ship(boum);
+  return EXIT_SUCCESS;
+}
+"""
+CODE = "".join(ch for ch in CPP if not ch.isspace())
+assert not any(ch.isdigit() for ch in CODE), "the field must carry no numbers"
+GLYPHS = "".join(sorted(set(CODE)))
+# A lit `;` or `-` is a hole in the sail, and enough of them made the
+# silhouette read as ragged — so a cell on the ship skips past thin characters
+# to the next solid one. The code still reads in order; the ship stays whole.
+THIN = set(".,;:'\"`-_|!^~")
 SEED = 1971
 
 # Every colour is a site token: --ord-1 · --sand-vivid · --tint · --tint-strong
@@ -146,22 +183,24 @@ def code_field(mono, cols, rows, cell, x0, y0, box, g, rng, prefix):
     """The mark: a cols×rows glyph grid; cells whose centre falls on the boum
     burn bright. `box` = (bx, by, bw, bh) in grid units where the 3:2 ship sits."""
     size = cell * 0.92
+    index = {ch: i for i, ch in enumerate(GLYPHS)}
     defs = "".join(f'<path id="{prefix}{i}" d="{mono.glyph_path(ch, size)}"/>'
                    for i, ch in enumerate(GLYPHS))
-    defs += "".join(f'<path id="{prefix}d{i}" d="{mono.glyph_path(ch, size)}"/>'
-                    for i, ch in enumerate(DENSE))
+    pos = rng.randrange(len(CODE))          # each layout starts somewhere else in the program
     bright, dim = [], []
     bx, by, bw, bh = box
     for r in range(rows):
         for c in range(cols):
             u, v = (c + 0.5 - bx) / bw, (r + 0.5 - by) / bh
             x, y = x0 + (c + 0.5) * cell, y0 + (r + 0.5) * cell
-            if 0 <= u <= 1 and 0 <= v <= 1 and on_boum(u, v):
-                di = rng.randrange(len(DENSE))
-                bright.append(f'<use href="#{prefix}d{di}" x="{x:.2f}" y="{y:.2f}"/>')
+            lit = 0 <= u <= 1 and 0 <= v <= 1 and on_boum(u, v)
+            ch = CODE[pos % len(CODE)]; pos += 1
+            while lit and ch in THIN:
+                ch = CODE[pos % len(CODE)]; pos += 1
+            use = f'<use href="#{prefix}{index[ch]}" x="{x:.2f}" y="{y:.2f}"'
+            if lit:
+                bright.append(use + "/>")
             else:
-                gi = rng.randrange(len(GLYPHS))
-                use = f'<use href="#{prefix}{gi}" x="{x:.2f}" y="{y:.2f}"'
                 lo, hi = g["dim"]
                 dim.append(use + f' opacity="{rng.uniform(lo, hi):.2f}"/>')
     glow = f' filter="url(#{prefix}glow)"' if g["glow"] else ""
