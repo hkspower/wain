@@ -427,6 +427,52 @@ try {
     ok("and says a rotation has happened", tail.rotated === true);
   }
 
+  console.log("\n── a sentence asked for by many at once is rendered once ──");
+  {
+    /* The cache only helps requests that arrive after a render has landed. A
+       load test sent 20 simultaneous requests for one new sentence and the
+       upstream was paid 13 times. The server above is single-threaded and
+       cannot produce that, so this block stands up its own: PHP's built-in
+       server with workers, and a stub that counts its renders and takes a
+       realistic 300ms over each so the requests genuinely overlap. */
+    const cdir = mkdtempSync(join(tmpdir(), "wain-tts-herd-"));
+    const cweb = join(cdir, "public_html");
+    const cstore = join(cdir, "storage");
+    mkdirSync(join(cweb, "api"), { recursive: true });
+    mkdirSync(cstore, { recursive: true });
+    copyFileSync(join(ROOT, "scripts/publish/tts-endpoint.php"), join(cweb, "api", "tts.php"));
+    writeFileSync(join(cstore, "elevenlabs.key"), "test-key\n");
+    const calls = join(cdir, "calls.log");
+    writeFileSync(join(cdir, "up.php"), `<?php
+$fh = fopen(${JSON.stringify(calls)}, 'a'); flock($fh, LOCK_EX); fwrite($fh, "x\\n"); flock($fh, LOCK_UN); fclose($fh);
+usleep(300000);
+header('Content-Type: audio/mpeg'); echo str_repeat('M', 4096); return true;`);
+    const workers = { ...process.env, PHP_CLI_SERVER_WORKERS: "12" };
+    const cup = spawn("php", ["-S", "127.0.0.1:4218", "-t", cdir, join(cdir, "up.php")], { stdio: "ignore", env: workers });
+    const cphp = spawn("php", ["-S", "127.0.0.1:4219", "-t", cweb], {
+      stdio: "ignore", env: { ...workers, WAIN_TTS_API_BASE: "http://127.0.0.1:4218" },
+    });
+    try {
+      await new Promise((r) => setTimeout(r, 1400));
+      const one = () => fetch("http://127.0.0.1:4219/api/tts.php", {
+        method: "POST",
+        headers: { Origin: ORIGIN, "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "جملة جديدة ينتظرها كثير في نفس اللحظة", persona: "shouq" }),
+      }).then(async (r) => { await r.arrayBuffer(); return { status: r.status, how: r.headers.get("x-wain-tts") }; });
+      const rs = await Promise.all(Array.from({ length: 12 }, one));
+      const renders = existsSync(calls) ? readFileSync(calls, "utf8").split("\n").filter(Boolean).length : 0;
+      ok("twelve simultaneous requests all get the audio", rs.every((r) => r.status === 200),
+        JSON.stringify(rs.map((r) => r.status)));
+      ok("and the upstream is paid exactly once", renders === 1, `${renders} renders`);
+      ok("everyone else is served as a hit", rs.filter((r) => r.how === "hit").length === 11,
+        JSON.stringify(rs.map((r) => r.how)));
+    } finally {
+      cphp.kill();
+      cup.kill();
+      rmSync(cdir, { recursive: true, force: true });
+    }
+  }
+
   console.log(`\n${pass} passed, ${fails.length} failed`);
   if (fails.length) process.exitCode = 1;
 } finally {

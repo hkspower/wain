@@ -615,6 +615,28 @@ $serve = static function (string $file, string $how) use ($ms, $id, $text, $pers
    reason and with the same one-line note. */
 if (is_file($cacheFile) && filesize($cacheFile) >= 512) { @touch($cacheFile); $serve($cacheFile, 'hit'); }
 
+/* One render per sentence, however many ask for it at once.
+   The cache above only helps the requests that arrive AFTER a render has
+   landed. Twenty that arrive together all miss it, and a load test measured
+   exactly that: 20 simultaneous requests for one new sentence paid for 13
+   renders, where the whole argument for this cache is that a sentence is paid
+   for once whoever hears it. So a miss takes a lock and looks again: the first
+   renders, and the rest wait for it and leave as hits, spending neither a
+   render nor the budgets below.
+
+   256 lock files striped by the id's first byte rather than one per sentence,
+   so they cannot accumulate — `prune` deletes only 64-hex `.mp3` names and
+   leaves these alone. Two different sentences that share a stripe render one
+   after the other, which at this site's traffic is a cost nobody will meet.
+   A lock that cannot be opened is skipped, the same fail-open choice `$count`
+   makes below: at worst that is the old behaviour, never a refusal. PHP
+   releases the lock when the request ends, on every exit path. */
+$lock = @fopen("$cacheDir/.lock-" . substr($id, 0, 2), 'c');
+if ($lock) {
+    @flock($lock, LOCK_EX);
+    if (is_file($cacheFile) && filesize($cacheFile) >= 512) { @touch($cacheFile); $serve($cacheFile, 'hit'); }
+}
+
 /* ── the two budgets, checked only on a miss ─────────────────────────────── */
 
 /** A window counter in one file. Not a token bucket and not atomic across
@@ -699,6 +721,9 @@ if (@file_put_contents($tmp, $audio) === strlen($audio)) {
 } else {
     @unlink($tmp);
 }
+// The bytes are in place, so the requests waiting on this sentence can be
+// served now rather than after this one has finished sending.
+if ($lock) @flock($lock, LOCK_UN);
 
 /* The one line that costs money. `ms` here is the render, so a bridge that has
    started to crawl is visible before anyone reports it, and `chars` totalled

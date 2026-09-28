@@ -1541,6 +1541,31 @@ be instant. `ignore_user_abort` is what makes that true: the four-second
 deadline gives up on the *listener*, never on the render, so the characters are
 paid for exactly once whoever hears them.
 
+**«Exactly once» was false under concurrency until 28 September, and a load
+test is what showed it.** The cache only helps requests that arrive after a
+render has landed; twenty that arrive TOGETHER all missed it, and twenty
+simultaneous requests for one new sentence paid the upstream **13 times**. A
+striped lock now makes a miss wait for the render already in flight and leave
+as a hit — **1 render, 19 hits** on the same test — and the waiters spend
+neither a render nor the two budgets, because the budgets are counted after the
+lock. 256 stripes by the id's first byte, so the lock files cannot accumulate,
+and `prune` only deletes 64-hex `.mp3` names. `test:tts` asserts it on a
+worker-mode PHP server with a counting stub (55 assertions, from 52),
+confirmed red with the lock removed: 7 renders. **The live copy does not have
+it** — `tts.php` on the server is still the 11 September install, and the empty
+key means nothing is paid for either way.
+
+The rest of that load test is worth not re-running blind. The per-visitor rate
+limit is exact under 60-way contention (17 through, 43 refused, when 13 of the
+minute's 30 were already spent) and both counters add up to the request, so
+`flock` across the read-modify-write holds. Cache hits served ~800 req/s, p95
+~30ms, on PHP's built-in server. And `media.php`'s 2GB total cap held through
+300 simultaneous uploads in 15 rounds against a lowered cap: its
+check-then-write window is real in principle but microseconds wide. One
+reading not to misread: rounds that stopped one upload short of the cap were
+the visitor's own `.rate-*.json` counting towards the total, because it lives
+in the same directory the cap measures.
+
 **The cache is the cost control, not the rate limit.** These sentences are
 assembled from a 52-place catalogue, so the space is bounded and the spend
 converges to it instead of growing with traffic — which n8n, re-rendering every
