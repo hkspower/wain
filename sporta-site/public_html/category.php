@@ -391,17 +391,23 @@ header('Cache-Control: public, max-age=0, must-revalidate');
   main { max-width: 1200px; margin: 0 auto; padding: 12px 20px; }
   .count { color: var(--sp-silver); font-size: .9rem; margin: 0 0 18px; }
   .grid {
-    display: grid; gap: 16px;
+    display: grid; column-gap: 12.6px; row-gap: 24px;
     grid-template-columns: repeat(2, 1fr);
   }
   @media (min-width: 640px)  { .grid { grid-template-columns: repeat(3, 1fr); } }
   @media (min-width: 1024px) { .grid { grid-template-columns: repeat(4, 1fr); } }
+  /* Matches the bundle's own product card (used on /shop, the home page's
+     featured row, and the product page's related-products row) rather than
+     a card style unique to this page — one product grid, everywhere it
+     appears. That card has no panel: no border, no fill behind the text,
+     just the cropped photo and a caption under it. This used to wrap both
+     in a bordered, backgrounded box, which read as a visibly different
+     component from every other product grid in the shop. */
   .card {
-    background: var(--sp-panel); border: 1px solid var(--sp-line);
-    border-radius: 12px; overflow: hidden; display: flex; flex-direction: column;
+    display: flex; flex-direction: column;
   }
   .card .frame { position: relative; aspect-ratio: 4 / 5; background: var(--sp-tile);
-                 overflow: hidden; }
+                 overflow: hidden; border-radius: 10px; }
   .card .frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
   /* A light wash, not a block-out — the same balance the app's own product
      card strikes (dim + a small corner badge). The first version of this
@@ -418,7 +424,7 @@ header('Cache-Control: public, max-age=0, must-revalidate');
     border-radius: 999px; padding: 4px 10px;
     color: #fff; font-weight: 700; font-size: .72rem;
   }
-  .card .body { padding: 12px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+  .card .body { padding: 10px 2px 0; display: flex; flex-direction: column; gap: 4px; flex: 1; }
   .card .brand { font-size: .78rem; color: var(--sp-silver); }
   .card .name { font-weight: 700; font-size: .92rem;
                 display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
