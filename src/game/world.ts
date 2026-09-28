@@ -1398,7 +1398,7 @@ function coronaPoints(positions: THREE.Vector3[], color: number, size: number): 
  * converge at the head — so the shaft fades to nothing at BOTH ends,
  * out at the head to stop a bright knot sitting on the luminaire, and
  * out at the road so the light dissolves into the pool instead of
- * ending in a rim. Cool white, because these are the LED blades the
+ * ending in a rim. Cool white, because these are the LED lanterns the
  * corniche carries, not the car's warm halogens.
  */
 function lampConeTexture(): THREE.CanvasTexture {
@@ -3274,9 +3274,16 @@ const FLYOVERS: ReadonlyArray<{
 ];
 
 /** How far either side of a flyover the street lighting stops. A lamp
- *  column is 10.5 m tall and a deck soffit is at 6.4 — a pole under a
- *  bridge goes through it. Real lighting stops short of a structure and
- *  the structure carries its own. */
+ *  column is 11.85 m tall (its lantern to 12.2 m, reaching 3.3 m toward
+ *  the road) and a deck soffit is at 6.4 — a column under a bridge goes
+ *  through it. Real lighting stops short of a structure and the
+ *  structure carries its own.
+ *
+ *  30 m still covers the arm. A deck 15 m wide at a skew of 0.36 rad —
+ *  Jahra Road, the worst of them — reaches 7.5 / cos 0.36 + y tan 0.36
+ *  along the road from its centre at y metres off the centre line: 10.2 m
+ *  under the lens at 5.8 m, 11.3 m at the column's foot at 8.6. Both a
+ *  third of this. */
 const FLYOVER_CLEAR = 30;
 
 /** True if `s` is close enough to a flyover that a street pole would
@@ -3376,7 +3383,7 @@ function flyover(
   // --- Under-deck lighting ---------------------------------------------
   //
   // FLYOVER_CLEAR stops the street columns 30 m either side of a deck,
-  // because a 10.5 m pole under a 6.4 m soffit grows through the bridge.
+  // because an 11.85 m column under a 6.4 m soffit grows through the bridge.
   // The comment there says "the structure carries its own". It did not,
   // and the result was the darkest place on the lap:
   //
@@ -5275,28 +5282,129 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     scene.add(posts, reflectors);
   }
 
-  // Streetlights: poles + sodium lamps, alternating sides
+  // Streetlights: single-arm LED road lanterns on galvanised columns,
+  // alternating sides
   {
     const spacing = 42;
     const count = Math.floor(L / spacing);
-    const poleGeo = new THREE.CylinderGeometry(0.175, 0.25, 10.5, 6);
-    const poleMat = new THREE.MeshStandardMaterial({ color: 0x3c4148, roughness: 0.7 });
-    const poles = new THREE.InstancedMesh(poleGeo, poleMat, count);
-    // A vertical post-top luminaire, not a cobra arm reaching out over
-    // the carriageway. The LED is a standing blade at the head of the
-    // pole with a dark shroud behind it, which is the shape the Gulf
-    // Road's own columns were retrofitted to.
-    const shroudGeo = new THREE.BoxGeometry(0.3, 2.15, 0.3);
-    const shrouds = new THREE.InstancedMesh(shroudGeo, poleMat, count);
-    // A flat hood, wider than the shroud, sitting on top of it. Without
-    // it the head is barely wider than the pole shaft and, per the
-    // corona-points comment below, "reads as a blob" rather than a
-    // fixture at driving distance — a real shielded LED post-top
-    // luminaire carries a lid exactly this shape, and the overhang is
-    // what breaks the silhouette against the pole.
-    const capGeo = new THREE.BoxGeometry(0.46, 0.06, 0.46);
-    const caps = new THREE.InstancedMesh(capGeo, poleMat, count);
-    const lampGeo = new THREE.BoxGeometry(0.25, 1.8, 0.25);
+    // Where each part of a column sits, in metres off the centre line and
+    // up from the road. Named because four things below — the column, the
+    // lens, the pool and the cone joining them — have to agree on them,
+    // and a number written out four times is four places to change three.
+    //
+    // The column's own station: 1.6 m behind the kerb, clear of the rail.
+    // 8.6 m, where it has always stood.
+    const POLE_LAT = ROAD_HALF_WIDTH + 1.6;
+    // The centre of the pool on the asphalt: 4.6 m, over the outer lane,
+    // 2.4 m inside the kerb. Also unchanged.
+    const POOL_LAT = ROAD_HALF_WIDTH - 2.4;
+    // How far the arm carries the lens toward the road from the column's
+    // axis. 2.8 m puts the lens at 5.8 m off centre — 1.2 m inside the
+    // kerb, over the outer lane — which is exactly where the wet-road
+    // streaks further down already lie (ROAD_HALF_WIDTH - 1.2), and where
+    // the Unreal port hangs its head (GRNWorldBuilder.cpp, the same
+    // GRNRoadHalfWidth - 1.2).
+    const LENS_OUT = 2.8;
+    // The underside of the lens: the mounting height, in a lighting
+    // engineer's terms, and the point the light comes from. 42 m spacing
+    // over 12 m is a spacing-to-height ratio of 3.5, the bottom of the
+    // 3.5-3.7 uniform-coverage band e1465eb3 raised the old heads into;
+    // the blade, centred at 11.375 m, sat at 3.69.
+    const LENS_LOW = 12.0;
+    // The shaft alone. The arm springs from 9 cm below its top (11.76 m)
+    // and rises to the lantern, so the shaft is 15 cm shorter than the
+    // mounting height it carries.
+    const SHAFT_H = 11.85;
+    // An arm reaching out over the carriageway with a flat lens facing
+    // down: the ordinary single-arm road lantern. This reverses f0e6cadc,
+    // which stood the head up as a post-top blade on the ground that the
+    // Gulf Road's own columns had been retrofitted that way — a claim
+    // nothing here could check (track.ts records that no map or web data
+    // was reachable from this environment), and one the rest of the
+    // lighting was never built for. The pool on the asphalt sits 4 m
+    // inboard of the column with nothing above it, which a blade standing
+    // on top of the column cannot explain; the wet-road streaks were laid
+    // 5.8 m out, for a head on an arm. The arm-hung lens is at 5.8 m:
+    // straight over the streaks, and 1.2 m outboard of the pool's centre,
+    // which is where an optic aimed down-and-in would land it.
+    //
+    // One merged mesh per column — shaft, base section, arm, housing and
+    // lid — in a local frame with +x toward the road and the foot at y=0.
+    // They share a material and never move apart, so merging them turns
+    // what was three opaque draws (pole, shroud, hood) into one, and the
+    // shadow pass still has exactly one caster for the whole lap.
+    const columnGeo = mergeGeometries([
+      // The shaft: an eight-sided taper, 0.34 m across at the foot and
+      // 0.18 m at the top. Octagonal because that is what a folded-steel
+      // lighting column is, and because eight facets throw a passing
+      // headlight back as a thin travelling highlight, where the old
+      // six-sided dark pole read as a painted stick.
+      new THREE.CylinderGeometry(0.09, 0.17, SHAFT_H, 8).translate(0, SHAFT_H / 2, 0),
+      // The base section: 0.8 m of wider sleeve at the foot (0.48 m
+      // across at the ground), where a real column carries its access
+      // door and cable joint. It is what makes the column stand ON the
+      // verge rather than come up out of it.
+      new THREE.CylinderGeometry(0.21, 0.24, 0.8, 8).translate(0, 0.4, 0),
+      // The arm: a round tube raked 8.3° up toward the road, 0.10 m thick
+      // at the column and 0.09 m at the lantern. rotateZ(-1.42598) lays
+      // the cylinder's +y axis over by 81.7°, to 8.3° above horizontal on
+      // the +x side, so its thin end points at the road. 2.4254 m is the
+      // length that makes the axis run from (0, 11.76) — 9 cm down inside
+      // the shaft top, so the joint shows no gap from any side — to
+      // (2.40, 12.11), inside the housing: 2.40 m across and 0.35 m up,
+      // and hypot(2.40, 0.35) = 2.4254. (1.2, 11.935) is its midpoint.
+      new THREE.CylinderGeometry(0.045, 0.05, 2.4254, 6)
+        .rotateZ(-1.42598)
+        .translate(1.2, 11.935, 0),
+      // The lantern housing: a flat box 0.92 m along the arm by 0.36 m
+      // along the road and 0.13 m deep, spanning 2.34 to 3.26 m out and
+      // 12.05 to 12.18 m up. Flat and level, because a full-cutoff
+      // lantern sends nothing above the horizontal: the optic faces the
+      // road and the housing over it is what keeps it off the sky. Its
+      // road-side end, 3.26 m out, is the column's whole reach: 5.34 m off
+      // the centre line, 1.66 m in over the outer lane and 1.84 m short of
+      // the lane line at 3.5 m.
+      new THREE.BoxGeometry(0.92, 0.13, 0.36).translate(LENS_OUT, 12.115, 0),
+      // The lid: a thinner panel stepped in on top, 12.18 to 12.215 m, so
+      // the fixture's top is 12.215 m. That step is what makes the head
+      // read as a lantern at driving distance, instead of a box on the
+      // end of a stick — the job the hood did for the old blade.
+      new THREE.BoxGeometry(0.74, 0.035, 0.28).translate(LENS_OUT, 12.1975, 0),
+    ]);
+    // mergeGeometries returns null rather than throwing when the parts do
+    // not share the same attributes. Box and cylinder are both indexed,
+    // with position, normal and uv, so it cannot today; the throw is so
+    // that if it ever does, it fails here, by name, rather than as a lap
+    // of lamps floating on nothing that somebody has to notice.
+    if (!columnGeo) throw new Error("street column merge failed");
+    // Galvanised steel, weathered: a mid grey with some metal in it, not
+    // the dark painted 0x3c4148 the post-tops wore. A hot-dip galvanised
+    // column is pale by day and picks up the lamps and headlights at
+    // night. Metalness 0.4 and no higher: a 9 cm arm and 18 cm shaft top
+    // are a pixel or two wide at 40 m, and it is specular, not
+    // geometry, that makes thin things crawl at speed — if the arm
+    // shimmers, this is the number to lower (0.25).
+    const columnMat = new THREE.MeshStandardMaterial({
+      color: 0x7d838a,
+      roughness: 0.55,
+      metalness: 0.4,
+    });
+    const columns = new THREE.InstancedMesh(columnGeo, columnMat, count);
+    // Named, because tests/bridges.mjs finds the columns by name. It used
+    // to find them by their cylinder's height, and a merged geometry has
+    // no `.parameters` — that test would have found none and passed.
+    columns.name = "street-columns";
+    // The lens: a flat panel facing straight down, 0.76 m along the arm by
+    // 0.30 m along the road, set into the underside of the housing — 1 cm
+    // up inside it and 5 cm proud below — so from the road it reads as a
+    // bright slot under a dark lid. It spans 2.42 to 3.18 m out, 8 cm in
+    // from each end of the housing and 3 cm in from its sides, and its
+    // underside is LENS_LOW.
+    // 0.06 m deep rather than thinner: worked out (not measured) at
+    // 1080p, it is about 21 x 3 px at 40 m and 8 x 1 at 100 m, where a
+    // 0.02 m lens falls under a pixel beyond about 50 m. Deeper, and it
+    // hangs off the housing as a glowing slab.
+    const lampGeo = new THREE.BoxGeometry(0.76, 0.06, 0.3).translate(LENS_OUT, LENS_LOW + 0.03, 0);
     const lampMat = new THREE.MeshStandardMaterial({
       // Cool white LED. Not paper white — a real 5000 K head still reads
       // faintly blue against a warm window, and that contrast is the
@@ -5347,7 +5455,21 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // The visible shaft of lamplight: an open cone from the head to the
     // pool, wearing the same length-wise gradient the headlight beams
     // wear so it dissolves at both ends instead of ending in a rim.
-    const coneGeo = new THREE.CylinderGeometry(0.55, 5.2, 11.375, 12, 1, true);
+    //
+    // Exactly as long as the line from the lens's underside to the pool's
+    // centre, so it starts on the one and ends on the other. The old cone
+    // was 11.375 m long, centred on a line 11.98 m long, which left 0.3 m
+    // of nothing at each end. This line runs 1.2 m in (lens at 5.8 m off
+    // centre, pool at 4.6) and 11.955 m down (12.0 to the pool's 0.045),
+    // so it is hypot(1.2, 11.955) = 12.015 m long and leans 5.73° off
+    // vertical toward the road centre.
+    const CONE_LEN = Math.hypot(POLE_LAT - LENS_OUT - POOL_LAT, LENS_LOW - 0.045);
+    // 0.25 m at the head rather than 0.55: the source is a 0.76 x 0.30 m
+    // lens now, not a 1.8 m blade standing up off the pole, and the gradient
+    // spends the top quarter of the cone (3 m) fading in from nothing, so
+    // the head end never shows as a rim. 5.2 m at the road, stretched by
+    // coneScl below to sit on the pool.
+    const coneGeo = new THREE.CylinderGeometry(0.25, 5.2, CONE_LEN, 12, 1, true);
     const coneMat = new THREE.MeshBasicMaterial({
       map: lampConeTexture(),
       transparent: true,
@@ -5366,7 +5488,15 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const coneDir = new THREE.Vector3();
     const coneQ = new THREE.Quaternion();
     const yDown = new THREE.Vector3(0, -1, 0);
-    const coneUnit = new THREE.Vector3(1, 1, 1);
+    // The cone's foot stretched to the pool's bright core rather than left
+    // a 5.2 m circle. The pool texture is at 40% alpha at 0.34 of its
+    // 17 m radius, 5.78 m, and the pool is scaled 0.85 across and 1.55
+    // along the road, so that contour is an ellipse 4.91 m across by
+    // 8.96 m along (half-axes). 0.95 and 1.75 put the cone's 5.2 m foot at
+    // 4.94 by 9.10: on it. Along the road is also along the chase
+    // camera's line of sight, so the extra length is mostly seen end-on
+    // and adds little to the lit area the exposure meters.
+    const coneScl = new THREE.Vector3(0.95, 1, 1.75);
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
     const tmp = new THREE.Vector3();
@@ -5381,56 +5511,56 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     for (let i = 0; i < count; i++) {
       const s = i * spacing;
       const u = s / L;
-      // No street poles inside the tunnel — and none under a flyover
-      // either. A column is 10.5 m tall (12.5 m to the top of the hood)
-      // and a deck soffit is at 6.4, so an unfiltered pole grows straight
-      // through the bridge; real lighting stops short of a structure and
-      // the structure carries its own, which is what flyover() puts on
-      // the parapet.
+      // No street columns inside the tunnel — and none under a flyover
+      // either. A column is 11.85 m (12.2 m to the top of the lantern,
+      // which reaches 3.3 m toward the road) and a deck soffit is at 6.4,
+      // so an unfiltered column grows straight through the bridge; real
+      // lighting stops short of a structure and the structure carries its
+      // own, which is what flyover() puts on the parapet.
       if (
         (u > TUNNEL_U.from - 0.004 && u < TUNNEL_U.to + 0.004) ||
         underFlyover(track, s)
       ) {
-        poles.setMatrixAt(i, hidden);
-        shrouds.setMatrixAt(i, hidden);
-        caps.setMatrixAt(i, hidden);
+        columns.setMatrixAt(i, hidden);
         lamps.setMatrixAt(i, hidden);
         pools.setMatrixAt(i, hidden);
         cones.setMatrixAt(i, hidden);
         continue;
       }
       const sideSign = i % 2 === 0 ? 1 : -1;
-      track.pose(s, sideSign * (ROAD_HALF_WIDTH + 1.6), p, tmp);
-      m.makeTranslation(p.x, 5.25, p.z);
-      poles.setMatrixAt(i, m);
+      track.pose(s, sideSign * POLE_LAT, p, tmp);
 
-      // The blade stands on the pole itself. Everything is square to the
-      // road so the shroud hides the emitter from behind and the light
-      // faces the carriageway.
+      // One yaw per column, and nothing else: the column, its arm and its
+      // lens are all built into their geometry in a frame whose +x points
+      // at the road, so a single rotation about the vertical turns the
+      // whole fixture to face the carriageway and keeps the lens level —
+      // the lantern and the lens share this one matrix.
       track.tangentAt(s, tanV);
       tanV.y = 0;
       tanV.normalize();
-      // Unit vector for +lat is (-Tz, 0, Tx)
+      // Unit vector for +lat is (-Tz, 0, Tx); sideV is its opposite times
+      // sideSign, i.e. from the column toward the centre line on either
+      // verge.
       sideV.set(tanV.z * sideSign, 0, -tanV.x * sideSign).normalize();
       armQ.setFromUnitVectors(xAxis, sideV);
-      track.pose(s, sideSign * (ROAD_HALF_WIDTH + 1.6), p, tmp);
-      const hx = p.x;
-      const hz = p.z;
-      armMid.set(hx, 11.4375, hz);
+      // The foot on the ground: the geometry rises from y = 0.
+      armMid.set(p.x, 0, p.z);
       m.compose(armMid, armQ, unitV);
-      shrouds.setMatrixAt(i, m);
-      // The hood, sitting flat on top of the shroud.
-      armMid.set(hx, 12.52, hz);
-      m.compose(armMid, armQ, unitV);
-      caps.setMatrixAt(i, m);
-      // The emitter sits proud of the shroud on the road side of it.
-      armMid.set(hx + sideV.x * 0.1125, 11.375, hz + sideV.z * 0.1125);
-      m.compose(armMid, armQ, unitV);
+      columns.setMatrixAt(i, m);
       lamps.setMatrixAt(i, m);
-      lampPositions.push(new THREE.Vector3(armMid.x, 11.375, armMid.z));
+      // Where the lens is in the world, taken now, before the pool's pose
+      // below overwrites p: LENS_OUT along sideV from the column's foot,
+      // 5.8 m off the centre line.
+      const lx = p.x + sideV.x * LENS_OUT;
+      const lz = p.z + sideV.z * LENS_OUT;
+      // The corona and glint sit 1.5 cm under the lens's underside, at
+      // 11.985 m: close enough to read as the lens glowing, low enough
+      // that the housing above clips the top of the glow.
+      lampPositions.push(new THREE.Vector3(lx, LENS_LOW - 0.015, lz));
 
       // The pool lands under the head and spills toward the road centre
-      // (the head's optic faces down-and-in, not straight down).
+      // (the head's optic faces down-and-in, not straight down): its
+      // centre is POOL_LAT, 1.2 m inboard of the lens above it.
       //
       // An ELLIPSE down the road, not a circle. A road lantern's optic
       // is designed to throw along the carriageway — that is the whole
@@ -5442,7 +5572,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // spill — the direction where more light just pours onto the
       // middle and turns the night milky, which is the mistake this
       // block's history warns about twice — actually shrinks.
-      track.pose(s, sideSign * (ROAD_HALF_WIDTH - 2.4), p, tmp);
+      track.pose(s, sideSign * POOL_LAT, p, tmp);
       poolQ.setFromUnitVectors(zAxis2, tanV);
       poolScl.set(0.85, 1, 1.55);
       p.y = 0.045;
@@ -5455,19 +5585,24 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // to nothing at both ends. Kept very quiet: the cone is scenery,
       // and at additive opacity this low the exposure loop does not
       // move for it.
-      coneP.set(hx + sideV.x * 0.1125, 11.375, hz + sideV.z * 0.1125);
-      coneMid.set(
-        (coneP.x + p.x) / 2,
-        5.71,
-        (coneP.z + p.z) / 2
-      );
+      //
+      // Hung from the lens's underside to the pool's centre, and centred
+      // halfway between them (6.0225 m up), so both ends land exactly.
+      coneP.set(lx, LENS_LOW, lz);
+      coneMid.addVectors(coneP, p).multiplyScalar(0.5);
       coneDir.subVectors(p, coneP).normalize();
-      coneQ.setFromUnitVectors(yDown, coneDir);
-      m.compose(coneMid, coneQ, coneUnit);
+      // The yaw first — poolQ, the same turn that lays the pool's long axis
+      // down the road — so coneScl's 1.75 stretch lies along the tangent;
+      // then the tilt that swings the cone's axis from straight down onto
+      // the lens-to-pool line. That line is in the vertical plane across
+      // the road, so the tilt is a 5.73° turn about the tangent itself and
+      // leaves the stretch where the yaw put it. (q.multiply(r) applies r
+      // first.)
+      coneQ.setFromUnitVectors(yDown, coneDir).multiply(poolQ);
+      m.compose(coneMid, coneQ, coneScl);
       cones.setMatrixAt(i, m);
     }
-    shrouds.instanceMatrix.needsUpdate = true;
-    caps.instanceMatrix.needsUpdate = true;
+    columns.instanceMatrix.needsUpdate = true;
     // Wet-look smears: each lamp drags a long reflection down the road
     // surface — the single cheapest thing that sells night asphalt.
     const streakGeo = new THREE.PlaneGeometry(1.4, 12);
@@ -5488,13 +5623,18 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     for (let i = 0; i < count; i++) {
       const s2 = i * spacing;
       const u2 = s2 / L;
-      if (u2 > TUNNEL_U.from - 0.004 && u2 < TUNNEL_U.to + 0.004) {
+      // The same stations the columns skip, flyovers included. With the
+      // tunnel alone, six smears a lap lay on the road near a flyover
+      // with no lamp standing over them to cast them — a reflection of
+      // nothing.
+      if ((u2 > TUNNEL_U.from - 0.004 && u2 < TUNNEL_U.to + 0.004) || underFlyover(track, s2)) {
         streaks.setMatrixAt(i, hidden);
         continue;
       }
       const sideSign = i % 2 === 0 ? 1 : -1;
       // Inset from the kerb so a straight smear never crosses the rail
-      // when the road bends underneath it.
+      // when the road bends underneath it. 5.8 m off centre, which is
+      // also POLE_LAT - LENS_OUT: each smear lies straight under its lens.
       track.pose(s2, sideSign * (ROAD_HALF_WIDTH - 1.2), p, tmp);
       track.tangentAt(s2, tan);
       tan.y = 0;
@@ -5508,20 +5648,28 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     }
     streaks.instanceMatrix.needsUpdate = true;
 
-    poles.instanceMatrix.needsUpdate = true;
     lamps.instanceMatrix.needsUpdate = true;
     pools.instanceMatrix.needsUpdate = true;
     cones.instanceMatrix.needsUpdate = true;
     // Sorted with the other transparencies, drawn after the road it
     // stands on; never a shadow caster — it IS light.
     cones.renderOrder = 2;
-    poles.castShadow = true;
-    scene.add(poles, shrouds, caps, lamps, pools, cones, streaks);
-    // LED coronas around every blade
-    // Tight. A 4.6 m round corona around a 0.25 m-wide blade is all you
-    // see up close; the hood above it is what carries the fixture's
-    // shape at distance, where the corona alone used to be the whole
-    // silhouette and read as a blob.
+    // The column, arm and lantern cast as one; still the lap's only
+    // street-lighting shadow caster, as the bare pole was.
+    columns.castShadow = true;
+    // In this order on purpose: the pools must stay the first additive,
+    // textured InstancedMesh in the scene, which is how tests/daynight.mjs
+    // finds the lamp pool to read its opacity.
+    scene.add(columns, lamps, pools, cones, streaks);
+    // LED coronas under every lens
+    // Tight: 2.8 m. A 4.6 m round corona was all you saw of a head up
+    // close. The points sit 1.5 cm below the lens, and a point sprite is
+    // depth-tested at its centre's depth, so the near half of the housing
+    // — up to 18 cm closer to the camera than the point, from any side —
+    // draws over the top of the glow as a dark bar: a bright underside
+    // with a hard edge above it, which is what reads as a cutoff lantern
+    // rather than a bulb. The arm and lid carry the fixture's shape at
+    // distance, where the corona alone used to be the whole silhouette.
     scene.add(coronaPoints(lampPositions, 0xdbe7ff, 2.8));
     // Star glints: the sparkle each bright source throws at the lens
     {

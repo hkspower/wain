@@ -6,7 +6,7 @@ import * as THREE from "three";
  * Car paint is only convincing when there is something for the
  * clearcoat to mirror: a gradient dome so a horizon band sweeps across
  * the bodywork as the car turns, dark ground below and dark sky above,
- * plus the sodium streetlights as discrete hot spots so the lacquer
+ * plus the LED streetlights as discrete hot spots so the lacquer
  * picks up long travelling streaks instead of one flat sheen.
  *
  * Baked once into a PMREM cubemap. Shared by the race and the main
@@ -39,8 +39,9 @@ export function nightEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
   );
   env.add(dome);
 
-  // Streetlights: a ring of warm emitters at lamp height, so the
-  // clearcoat picks up travelling highlights instead of one flat sheen.
+  // Streetlights: a ring of emitters at lamp height, so the clearcoat
+  // picks up travelling highlights instead of one flat sheen. 11 to 17 m
+  // up, which brackets the columns' 12 m lens.
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
     const lamp = new THREE.Mesh(

@@ -345,10 +345,11 @@ const result = await page.evaluate(async ([write]) => {
   at(4200, -3);
   scans.push(scan("far-side"));
 
-  // Under a flyover. Street poles are suppressed for 30 m either side of
-  // one — a column is 8.4 m tall and a deck soffit is at 6.4, so a pole
-  // there would grow through the bridge — which leaves a 60 m stretch of
-  // carriageway, five times a lap, lit by nothing at all.
+  // Under a flyover. Street columns are suppressed for 30 m either side
+  // of one — a column is 11.85 m tall, lens at 12 m, and a deck soffit is
+  // at 6.4, so a column there would grow through the bridge — which
+  // leaves a 60 m stretch of carriageway, five times a lap, lit by
+  // nothing at all.
   at(640, 0);
   scans.push(scan("under-flyover"));
 

@@ -16,10 +16,12 @@
 //               the car inside halfWidthAt() and there is no collider on
 //               scenery, so a pier the car could reach would be a pier
 //               the car drives through.
-//   lighting    no street column grows through a deck. A pole is 10.5 m
-//               and the soffit is at 6.4, so an unfiltered pole comes up
-//               through the bridge — which is exactly what happened
-//               before flyover placement started suppressing them.
+//   lighting    no street column grows through a deck. A column is
+//               11.85 m, with its lantern to 12.2 m reaching 3.3 m toward
+//               the road, and the soffit is at 6.4, so an unfiltered
+//               column comes up through the bridge — which is exactly
+//               what happened before flyover placement started
+//               suppressing them.
 
 import { chromium } from "playwright-core";
 import { existsSync } from "node:fs";
@@ -138,21 +140,39 @@ const bridges = await page.evaluate(() => {
   }
 
   // And the street lighting: any lamp column whose top would be inside a
-  // deck. The poles are instanced, so this reads the matrices.
+  // deck. The columns are instanced, so this reads the matrices.
+  //
+  // Found by NAME. This used to pick the column out by its cylinder's
+  // height — a 10-11 m band on `geometry.parameters.height` — which
+  // identified the mesh and asserted nothing, and had to be moved once
+  // already when the pole grew (8.4 m to 10.5, e1465eb3). The column is
+  // now shaft, arm and lantern merged into one BufferGeometry, and a
+  // merged geometry has no `.parameters` at all: the band would have
+  // found no columns, counted no fouling, and passed. Hence the name, and
+  // the count check below that fails if the lookup ever goes quiet again.
+  //
+  // Two tops per column, both at the geometry's highest point (12.215 m,
+  // the lantern's lid): one over the shaft (local x = 0) and one at the
+  // lantern's road-side end (local x = bounding-box max, 3.26 m toward the
+  // road). A skewed deck's edge runs diagonally across the road, so which
+  // of the two meets it first depends on which way the skew leans: the
+  // shaft on one verge, the lantern on the other. Both are checked.
   const poleTops = [];
+  let columns = 0;
   root.traverse((o) => {
-    if (!o.isInstancedMesh) return;
-    const g = o.geometry;
-    const h = (g.parameters?.height ?? 0);
-    if (h < 10 || h > 11) return; // the 10.5 m street column, and only it (the 11.375 m light cone is also instanced but sits just above this band)
+    if (!o.isInstancedMesh || o.name !== "street-columns") return;
+    o.geometry.computeBoundingBox();
+    const bb = o.geometry.boundingBox;
     const m = new THREE.Matrix4();
-    const p = new THREE.Vector3();
     for (let i = 0; i < o.count; i++) {
       o.getMatrixAt(i, m);
       // Hidden instances are scaled to zero.
       if (Math.abs(m.elements[0]) + Math.abs(m.elements[5]) < 1e-4) continue;
-      p.setFromMatrixPosition(m);
-      poleTops.push({ x: +p.x.toFixed(1), y: +(p.y + h / 2).toFixed(1), z: +p.z.toFixed(1) });
+      columns++;
+      for (const x of [0, bb.max.x]) {
+        const t = new THREE.Vector3(x, bb.max.y, 0).applyMatrix4(m);
+        poleTops.push({ x: +t.x.toFixed(1), y: +t.y.toFixed(1), z: +t.z.toFixed(1) });
+      }
     }
   });
   // Which of those sit under a deck.
@@ -165,7 +185,7 @@ const bridges = await page.evaluate(() => {
       }
     }
   }
-  return { bridges: out, poles: poleTops.length, fouling };
+  return { bridges: out, poles: columns, fouling };
 });
 
 console.log("flyover     at s   road half-width   lowest over the road   nearest pier");
@@ -197,6 +217,15 @@ console.log(
   `lighting   ${check(bridges.fouling === 0,
     `${bridges.fouling} street column(s) grow through a deck`)}  ` +
     `${bridges.poles} lit columns on the lap, none of them inside a bridge`
+);
+// The check above passes trivially on zero columns, so it only means
+// something if the scan found them. 202 stations a lap at 42 m, less 9
+// in the tunnel and 6 near flyovers, is 187; 150 leaves room for the
+// layout to change without letting a broken lookup through.
+console.log(
+  `columns    ${check(bridges.poles > 150,
+    `only ${bridges.poles} street columns found — is the InstancedMesh still named "street-columns"?`)}  ` +
+    `${bridges.poles} street columns found by name`
 );
 
 await browser.close();
