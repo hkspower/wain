@@ -653,8 +653,13 @@ function parseAddressValue(value) {
 
 /* تُطبَّع كما يُطبَّع النصّ — انظر `normSet` أعلاه: «إلى» المكتوبة باليد
    لا تساوي «الي» التي تصل من التطبيع. */
-const FROM_WORDS = normSet(['من']);
-const TO_WORDS = normSet(['إلى', 'الى', 'ل', 'لين', 'حق', 'عند']);
+/* **العنوان اتجاهٌ كما حرف الجرّ.** الزبون يقول «التسليم في الجابرية» لا
+   «إلى الجابرية»، و«الاستلام من حولي» — والكلمتان في `PLACE_BEFORE` أصلًا
+   تجعلان ما بعدهما مكانًا، وكان الاتجاه وحده لا يقرؤهما. أثرُ ذلك مقيس:
+   «التسليم في الجابرية والاستلام من حولي» تُنتج الاستلام حولي والتسليم
+   **لا شيء** — والجابرية تُقرأ ثمّ تُرمى. */
+const FROM_WORDS = normSet(['من', 'الاستلام']);
+const TO_WORDS = normSet(['إلى', 'الى', 'ل', 'لين', 'حق', 'عند', 'التسليم']);
 
 /** موضع أول كلمة اتجاه قبل موضع المنطقة — أيّهما أقرب */
 function directionBefore(normText, at) {
@@ -745,8 +750,17 @@ function parseOrder(transcript) {
     const dir = directionBefore(norm, areas[i].at);
     const block = blockNear(norm, areas[i].at, areas[i + 1]?.at);
     const entry = { area: areas[i].name, block, street: null };
-    if (dir === 'from' && !pickupSaid) { pickup = entry; pickupSaid = true; }
-    else if (dir === 'to' && !dropoffSaid) { dropoff = entry; dropoffSaid = true; }
+    /* **ما وقع في خانةٍ بالترتيب يُزاح ولا يُمحى.** التصريح يغلب الترتيب —
+       وهذا صواب — لكنّ المغلوب كان يُرمى صامتًا: «الجابرية، من حولي» تضع
+       الجابرية استلامًا بالترتيب، ثمّ يأتي «من حولي» فيمحوها ويبقى التسليم
+       خاليًا. والمنطقة قالها الزبون ورآها في فقاعته. */
+    if (dir === 'from' && !pickupSaid) {
+      if (pickup && !dropoff && !dropoffSaid) dropoff = pickup;
+      pickup = entry; pickupSaid = true;
+    } else if (dir === 'to' && !dropoffSaid) {
+      if (dropoff && !pickup && !pickupSaid) pickup = dropoff;
+      dropoff = entry; dropoffSaid = true;
+    }
     else if (!pickup) pickup = entry;
     else if (!dropoff) dropoff = entry;
   }
