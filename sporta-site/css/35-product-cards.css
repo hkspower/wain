@@ -1,0 +1,93 @@
+/* ===========================================================================
+ * PRODUCT CARDS — 2026-09-28, "rebuild product cards"
+ * ===========================================================================
+ *
+ * The owner chose three of four measured options: fix the phone problems,
+ * easier-to-read names, and more on each card (the brand; see 3). A new
+ * design was not asked for, so the card's shape, photo, badge and price are
+ * untouched. Applies wherever the bundle's card component renders — the shop,
+ * the home page's featured row and the product page's related row are the
+ * same component (see 16-product-grid.css). category.php has its own card and
+ * already shows the brand and a sold-out state.
+ *
+ * The card is matched structurally, as the rest of this stylesheet does:
+ * `main article` whose photo link carries the bundle's aspect-[4/5] class.
+ */
+
+/* --- 1. the heart and + cover less of the photo, and keep their tap area ---
+ * Both are 44x44 (`h-11 w-11`) white discs — about a quarter of a 175px phone
+ * card's width each, one at the top corner and one at the bottom. The 44px
+ * box is the right TAP size and stays; only the painted disc shrinks, to 32px,
+ * drawn by ::before inside the same button, and the button moves 6px further
+ * into its corner so the disc sits where the old edge was. The same
+ * "small target, 44px hit area" pattern the hero's arrows already use.
+ *
+ * `[data-theme]` IS LOAD-BEARING: sporta-dark.css repaints the disc with
+ * `[data-theme='dark'] .bg-white\/95 {… !important}`, which outranks this
+ * selector without it — the first build showed a white disc inside a grey
+ * 44px ring. Among !important rules specificity still decides. */
+[data-theme] main article > a[class*="aspect-"] > button {
+  background: transparent !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  isolation: isolate;
+}
+[data-theme] main article > a[class*="aspect-"] > button[class~="top-2"] { top: 2px !important; }
+[data-theme] main article > a[class*="aspect-"] > button[class~="bottom-2"] { bottom: 2px !important; }
+[data-theme] main article > a[class*="aspect-"] > button { inset-inline-end: 2px !important; }
+[data-theme] main article > a[class*="aspect-"] > button::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .92);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .18);
+  z-index: -1;
+}
+[data-theme] main article > a[class*="aspect-"] > button > svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* The badge moves in to match, so it no longer crowds the heart on a phone.
+ * PILL badges only (`rounded-lg`): the first version matched every absolute
+ * span and so also moved the bundle's own sold-out wash (`inset-0`) and its
+ * "SOLD OUT" bar (`inset-x-0 top-1/2`) — an 8px strip down the left of the
+ * photo and the bar yanked from the middle to the top. */
+main article > a[class*="aspect-"] > span[class~="absolute"][class~="rounded-lg"] {
+  top: 8px !important;
+  inset-inline-start: 8px !important;
+}
+
+/* --- 2. names: two lines, in the text face ---------------------------------
+ * `line-clamp-1` cut "Cagliari Calcio Sweatshirt – Navy" to "…Sweatshirt –…"
+ * on a phone, and the colour is what tells two similar products apart. Two
+ * lines, with the space reserved so the prices in one row stay level.
+ *
+ * The face: 25-fonts.css gives every h1-h3 the condensed display face, which
+ * is right for headings and hard to read at 14px, most of all in Arabic. The
+ * card name is a label, not a heading, so it takes the body face at 600. */
+main article h3[class~="line-clamp-1"] {
+  -webkit-line-clamp: 2 !important;
+  line-clamp: 2 !important;
+  min-height: 2.6em;
+  line-height: 1.3 !important;
+  font-family: 'IBM Plex Sans', 'IBM Plex Sans Arabic', 'Plex Arabic Fallback', system-ui, sans-serif !important;
+  font-weight: 600 !important;
+}
+
+/* --- 3. the brand name (added by assets/brand-badge.js) --------------------
+ * "Sold out" was asked for too, and the bundle ALREADY draws it — a dark
+ * "SOLD OUT" bar across the photo, from its own stock data. It had simply
+ * never been seen, because no product was out of stock. A second label was
+ * built, measured side by side with the first, and removed. */
+.sporta-brand-name {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--sp-silver, #a6acb2);
+  text-transform: uppercase;
+}
+/* Latin only: tracking breaks Arabic's joined letters (see 14-hero-haze-and-type.css). */
+[dir=ltr] .sporta-brand-name { letter-spacing: .04em; }

@@ -1,4 +1,6 @@
-/* Sporta — the brand logo on product CARDS, in the grid.
+/* Sporta — the brand (logo, or its NAME when there is no logo)
+ * on product CARDS, in the grid. See the 2026-09-28 note in
+ * the data block below; the history underneath is from when it drew logos only.
  *
  * ---------------------------------------------------------------- WHY AT ALL
  *
@@ -50,34 +52,44 @@
     .then(function (rows) {
       if (!rows || !rows.length) return
 
-      /* slug -> what is needed to draw its badge. Only products whose brand
-         actually has a logo are in here, so the lookup below doubles as the
-         "should this card get one" test. */
-      var byslug = {}, n = 0
+      /* slug -> what the card needs. Since 2026-09-28 ("rebuild product
+         cards") EVERY product with a brand is in here, not only brands with a
+         logo: the live shop has 0 of 8 logos, so a logo-only rule drew nothing
+         on any card. A brand with a logo still shows the logo; one without
+         shows its NAME. */
+      var byslug = {}
       for (var i = 0; i < rows.length; i++) {
         var p = rows[i]
-        if (!p || !p.slug || !Number(p.brand_has_logo) || !p.brand_slug) continue
+        if (!p || !p.slug) continue
         byslug[p.slug] = {
-          slug: p.brand_slug,
+          slug: p.brand_slug || '',
+          logo: !!(p.brand_slug && Number(p.brand_has_logo)),
           v: p.brand_logo_v || '',
           ar: p.brand_name_ar || '',
           en: p.brand_name_en || '',
         }
-        n++
       }
-      if (!n) return                     /* no brand has a logo: nothing to do */
 
       var apply = function () {
         var ar = (document.documentElement.lang || 'ar').slice(0, 2) === 'ar'
+
+        /* The language can change under a card the grid did not re-render,
+           so text this file wrote is re-labelled on every pass — the only
+           thing re-visited, and cheap: a handful of spans. */
+        var named = document.querySelectorAll('[data-sporta-brand-name]')
+        for (var k = 0; k < named.length; k++) {
+          var el = named[k]
+          var want = el.getAttribute(ar ? 'data-ar' : 'data-en') || ''
+          if (el.textContent !== want) el.textContent = want
+        }
+
         var links = document.querySelectorAll('a[href*="/product/"]')
         for (var i = 0; i < links.length; i++) {
           var a = links[i]
           if (a.getAttribute('data-sporta-brand')) continue
 
           /* A CARD, not any link to a product. The grid's card is an <a> that
-             wraps the photograph; a text link in prose is not one, and putting
-             an absolutely-positioned logo inside it would place it over
-             whatever happened to be nearby. */
+             wraps the photograph; a text link in prose is not one. */
           var img = a.querySelector(':scope > img')
           if (!img) continue
 
@@ -85,46 +97,50 @@
           var m = href.match(/\/product\/([^/?#]+)/)
           if (!m) continue
           var b = byslug[decodeURIComponent(m[1])]
-          /* Marked either way: a card with no logo must not be re-examined on
-             every mutation for the life of the page. */
-          a.setAttribute('data-sporta-brand', b ? b.slug : 'none')
+          /* Marked either way: a card with nothing to add must not be
+             re-examined on every mutation for the life of the page. */
+          a.setAttribute('data-sporta-brand', b && b.slug ? b.slug : 'none')
           if (!b) continue
 
-          /* WHERE IT GOES, updated 2026-09-20 at the owner's request: "brand
-             logo/name above product name". Measured before moving anything:
-             the name lives in a SIBLING of this image link, not inside it —
-             `<a class="aspect-[4/5]…">` (the photo) is followed by
+          /* The name lives in a SIBLING of this image link, not inside it —
+             `<a class="aspect-[4/5]…">` (the photo) then
              `<div class="flex flex-col gap-1 pt-3"><a><h3>name</h3></a>…`.
-             An absolutely-positioned chip over the photo can never satisfy
-             "above the name" because it is not in that flow at all — moving
-             it there means inserting a real DOM node as the first child of
-             that info div, not repositioning with CSS. This can still only
-             ADD a node; nothing already on the card is moved or removed. */
+             Everything here ADDS a node; nothing on the card is moved or
+             removed. */
           var info = a.nextElementSibling
           if (!info) continue
 
+          if (!b.slug) continue
           var span = document.createElement('span')
           span.className = 'brand-chip-inline flex items-center gap-1'
           span.setAttribute('data-sporta-brand-chip', '1')
 
-          var logo = document.createElement('img')
-          logo.className = 'h-3.5 w-auto max-w-16 object-contain'
-          logo.setAttribute('loading', 'lazy')
-          logo.setAttribute('decoding', 'async')
-          /* alt is the BRAND NAME, in the page's language. Not "brand logo":
-             a screen reader saying "brand logo" twelve times down a grid tells
-             the listener nothing about which brands are on the page. */
-          logo.setAttribute('alt', (ar ? b.ar : b.en) || b.slug)
-          logo.src = api + '/api.php?r=brand_logo&slug=' + encodeURIComponent(b.slug) +
-                     (b.v ? '&v=' + encodeURIComponent(b.v) : '')
-          /* A logo that 404s must not leave an empty box on the card. */
-          logo.onerror = function () {
-            if (this.parentNode && this.parentNode.parentNode) {
-              this.parentNode.parentNode.removeChild(this.parentNode)
+          if (b.logo) {
+            var logo = document.createElement('img')
+            logo.className = 'h-3.5 w-auto max-w-16 object-contain'
+            logo.setAttribute('loading', 'lazy')
+            logo.setAttribute('decoding', 'async')
+            /* alt is the BRAND NAME, in the page's language. */
+            logo.setAttribute('alt', (ar ? b.ar : b.en) || b.slug)
+            logo.src = api + '/api.php?r=brand_logo&slug=' + encodeURIComponent(b.slug) +
+                       (b.v ? '&v=' + encodeURIComponent(b.v) : '')
+            /* A logo that 404s must not leave an empty box on the card. */
+            logo.onerror = function () {
+              if (this.parentNode && this.parentNode.parentNode) {
+                this.parentNode.parentNode.removeChild(this.parentNode)
+              }
             }
+            span.appendChild(logo)
+          } else {
+            var name = document.createElement('span')
+            name.className = 'sporta-brand-name'
+            name.setAttribute('data-sporta-brand-name', '1')
+            name.setAttribute('data-ar', b.ar || b.en || '')
+            name.setAttribute('data-en', b.en || b.ar || '')
+            name.textContent = ar ? (b.ar || b.en) : (b.en || b.ar)
+            if (!name.textContent) continue
+            span.appendChild(name)
           }
-
-          span.appendChild(logo)
           info.insertBefore(span, info.firstChild)
         }
       }
@@ -148,7 +164,12 @@
           ours = true
           try { apply() } finally { ours = false }
         })
-      }).observe(document.body, { childList: true, subtree: true })
+      /* documentElement, and `lang` too: a language switch changes that
+         attribute and the grid's TEXT, neither of which is a childList
+         change on body, and the brand names this file wrote must follow it. */
+      }).observe(document.documentElement, {
+        childList: true, subtree: true, attributes: true, attributeFilter: ['lang'],
+      })
     })
     .catch(function () { /* the grid stays exactly as it was. */ })
 })()

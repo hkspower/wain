@@ -183,7 +183,8 @@
     "test:brand-image-picker": "node scripts/brand-image-picker-test.mjs",
     "test:css-build": "node scripts/build-css.mjs --check",
     "test:rules-live": "node scripts/rules-live-test.mjs",
-    "test:product-photo-shape": "node scripts/product-photo-shape-test.mjs"
+    "test:product-photo-shape": "node scripts/product-photo-shape-test.mjs",
+    "test:product-cards": "node scripts/product-cards-test.mjs"
   },
   "private": true
 }
