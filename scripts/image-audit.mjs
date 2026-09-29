@@ -205,7 +205,9 @@ PidFile /tmp/sporta-image-audit.pid
 // `Host` is a forbidden header name in fetch — Node drops it silently, so
 // every request arrives as 127.0.0.1 and is redirected before it reaches a
 // single rule worth testing. htaccess-test.mjs shells out for the same reason.
-const ask = (path) => {
+// `origin` lets a tile be asked of the sandbox's PHP server: the tiles rewrite
+// to api.php?r=cat_art, which this rig's PHP-less Apache cannot run.
+const ask = (path, origin = `http://127.0.0.1:${PORT}`) => {
   // curl's own exit code is not the assertion — a 404 is a result, and so is a
   // connection that dies. Both are reported as a status, not thrown, so a
   // failing check prints its line instead of taking the whole run down.
@@ -214,7 +216,7 @@ const ask = (path) => {
     '-H', 'Host: www.sporta.com.kw',
     '-H', 'X-Forwarded-Proto: https',
     '-w', '%{http_code}',
-    `http://127.0.0.1:${PORT}${path}`,
+    `${origin}${path}`,
   ], { encoding: 'utf8' })
   const head = existsSync('/tmp/sporta-image-audit.head')
     ? readFileSync('/tmp/sporta-image-audit.head', 'utf8') : ''
@@ -259,7 +261,7 @@ if (apache) {
     'cats/desktop/art-outlet.jpg',
   ]) {
     if (!existsSync(`${DOCROOT}/${is}`)) continue   // already reported as missing above
-    const r = ask('/' + is)
+    const r = ask('/' + is, API.replace(/\/api$/, ''))
     const want = statSync(`${DOCROOT}/${is}`).size
     // THE SIZE IS THE ASSERTION, not the 200. The SPA fallback answers 200 for
     // anything, so a path that stopped resolving would still look fine here and
@@ -272,7 +274,8 @@ if (apache) {
   // so `immutable` would mean a swapped hero never reaches anyone who has
   // already seen the old one. Asked of a REAL file now: the plain name is a
   // 404 page, and measuring the cache header of a 404 page measures nothing.
-  const tile = ask("/cats/desktop/art-men.jpg")
+  // A file NOT behind the cat_art route: the four tiles are no-cache + ETag by design.
+  const tile = ask("/cats/desktop/infobar.webp")
   const maxAge = Number(tile.cache.match(/max-age=(\d+)/)?.[1] ?? 0)
   check(maxAge > 0 && !/immutable/.test(tile.cache),
     `shipped artwork is cached but replaceable — "${tile.cache || '(none)'}"`)
