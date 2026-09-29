@@ -295,33 +295,62 @@ h1, h2, h3 {
   animation: reveal-up 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-/* /find's two halves are flat colour, not photography, so there is no frame
-   to pan across the way a design exploration of this page did with a Ken
-   Burns drift over a portrait. This is the same idea translated to what the
-   live page actually has: a soft glow that slowly drifts and grows, one
-   period per half (22s / 26s, never in sync) so the page keeps a small
-   amount of life without anything to read as a distraction. */
-@keyframes glow-drift-a {
+/* /find's two halves are full-bleed AI-illustrated portraits (شوق on top,
+   سالم below — see FindChoice.tsx), each with its own slow Ken Burns
+   pan/zoom on the <img> itself. One period per half (18s / 21s) and
+   opposite easing curves, so the two photos never breathe together. */
+@keyframes kb-a {
   from {
-    transform: translate(-4%, -2%) scale(1);
+    transform: scale(1) translate(0, 0);
   }
   to {
-    transform: translate(4%, 3%) scale(1.12);
+    transform: scale(1.12) translate(2%, -1.5%);
   }
 }
-@keyframes glow-drift-b {
+@keyframes kb-b {
   from {
-    transform: translate(3%, 2%) scale(1.1);
+    transform: scale(1.1) translate(-1.5%, 1%);
   }
   to {
-    transform: translate(-3%, -3%) scale(1);
+    transform: scale(1) translate(0, 0);
   }
 }
-.animate-glow-drift-a {
-  animation: glow-drift-a 22s ease-in-out infinite alternate;
+.animate-kb-a {
+  animation: kb-a 18s cubic-bezier(0.65, 0.05, 0.35, 1) infinite alternate;
 }
-.animate-glow-drift-b {
-  animation: glow-drift-b 26s ease-in-out infinite alternate;
+.animate-kb-b {
+  animation: kb-b 21s cubic-bezier(0.35, 0, 0.65, 0.95) infinite alternate;
+}
+
+/* A slow glint across the اكتب half's submit button, so it never goes
+   visually dead once its entrance animation ends. */
+@keyframes shimmer-sweep {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+.animate-shimmer {
+  animation: shimmer-sweep 3.2s linear infinite;
+}
+
+/* The warm+cool glow behind /find's seam pill — see the comment at its
+   call site for why it needs its own light source. */
+@keyframes seam-glow {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
+}
+.animate-seam-glow {
+  animation: seam-glow 4.2s ease-in-out infinite;
 }
 
 /* The seam pill between the two halves: pops in once reveal-up's stagger
