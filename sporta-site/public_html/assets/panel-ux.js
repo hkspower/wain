@@ -58,6 +58,16 @@
     + 'border:1px solid var(--sp-pc-border,#494e54);background:transparent;color:inherit;'
     + 'font:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}'
     + '.spux-jump button:hover{border-color:var(--brand,#e0561c)}'
+    // THE PHONE TAB BAR COVERED A POP-UP'S SAVE BUTTON. Both sit at z-index 40
+    // and the bar is later in the page, so on a phone the product editor's
+    // "Save product" (800-844px) was under it and a tap there hit the
+    // Catalogue tab instead — leaving the editor. While a pop-up is open the
+    // bar has nothing to offer, so it steps aside.
+    + 'body:has(.fixed.inset-0) .m-tabbar{display:none!important}'
+    + '.spux-addphotos{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;'
+    + 'min-height:48px;margin:0 0 16px;border-radius:12px;border:0;cursor:pointer;'
+    + 'background:var(--brand,#e0561c);color:#fff;font:inherit;font-size:15px;font-weight:700}'
+    + '.spux-addphotos svg{width:20px;height:20px}'
     + '@media (pointer: coarse){'
     +   '.admin-content button,.admin-content select,'
     +   '.admin-content input:not([type=checkbox]):not([type=radio]):not([type=hidden]),'
@@ -221,6 +231,53 @@
     })
   }
 
+  /* --------------------------------------------- 4. photos, on a phone */
+  //
+  // 2026-09-29, "make easy image upload mobile". Measured at 390px: the product
+  // editor's photo area sits 858px down a 1,145px form, below the Image URL and
+  // "More photos" TEXT fields, so on a phone adding a picture meant scrolling
+  // past two fields that ask for web addresses. Uploads were already fine —
+  // admin-upload.js shrinks every photo to 1400px in the browser before
+  // sending, so a 6 MB phone picture is not the problem.
+  //
+  // So on a touch screen, a pop-up that holds a photo picker gets one large
+  // "Add photos" button at its top. It clicks the editor's OWN file input —
+  // same picker, same processing, nothing duplicated — which on a phone opens
+  // the choice of camera or photo library, and then brings the photo area
+  // into view so the owner sees the pictures arrive.
+
+  var CAMERA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+    + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>'
+    + '<circle cx="12" cy="13" r="3"></circle></svg>'
+
+  function photos() {
+    if (!window.matchMedia || !window.matchMedia('(pointer: coarse)').matches) return
+    var pops = document.querySelectorAll('.fixed.inset-0')
+    for (var i = 0; i < pops.length; i++) {
+      var pop = pops[i]
+      var input = pop.querySelector('input[type=file][accept^="image"]')
+      if (!input || pop.querySelector('.spux-addphotos')) continue
+      var head = pop.querySelector('h2, h3')
+      if (!head) continue
+      var btn = el('button', 'spux-addphotos')
+      btn.type = 'button'
+      btn.setAttribute(MARK, 'photos')
+      btn.innerHTML = CAMERA + '<span>Add photos</span>'
+      btn.addEventListener('click', function (e) {
+        e.preventDefault()
+        var pop2 = e.currentTarget.closest('.fixed.inset-0')
+        var inp = pop2 && pop2.querySelector('input[type=file][accept^="image"]')
+        if (!inp) return
+        var zone = inp.closest('label, div')
+        if (zone && zone.scrollIntoView) zone.scrollIntoView({ block: 'center', behavior: 'smooth' })
+        inp.click()
+      })
+      // After the heading's own row (the heading shares a row with Close).
+      var row = head.parentElement && head.parentElement !== pop ? head.parentElement : head
+      row.parentNode.insertBefore(btn, row.nextSibling)
+    }
+  }
+
   /* ------------------------------------------------------------ apply */
 
   var applying = false
@@ -231,6 +288,7 @@
       var host = document.querySelector('.admin-content')
       if (!host) return
       style()
+      photos()
       if (isInventory(host)) inventory(host)
       jump(host)
     } finally {
