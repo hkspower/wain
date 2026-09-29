@@ -339,6 +339,46 @@ const SYNONYMS: Record<string, string[]> = {
   children: ["عيال", "عوائل"],
   seafood: ["سمك", "بحري"],
   cheap: ["رخيص"],
+
+  /* ── More words checked against the catalogue, not against a guess ───────
+   *
+   * A batch of everyday Kuwaiti and Arabizi terms was run through the built
+   * index the same way `audit:search`'s coverage check is — each of these
+   * came back empty while the underlying word was sitting in places.ts,
+   * verbatim, under something else. Two candidates from the same batch —
+   * «تخفيضات» (there is no discount data anywhere) and «فطاير» (savoury
+   * pastries; «فطور» covers breakfast generally but no place is written up
+   * for فطاير specifically) — are left out for the same reason «زعفران» is
+   * above: the obvious partner is not the same as a word actually there. */
+
+  // «فيو» is how the phrase gets typed on a phone; «إطلالة» is the tag every
+  // scenic place already carries (برج التحرير, مطلّ الخليج, …).
+  فيو: ["إطلالة"],
+
+  // «شلة» is at least as common as «ربع» for a friend group and reached
+  // nothing — «ربع» is the tag (فيلكا, دار السدو الفني, …).
+  شلة: ["ربع"],
+
+  // «أثري» is the adjective form of «آثار», which is already a synonym key
+  // above (see «اثار») — but a query normalises to «أثري», not «اثار», so
+  // the adjective needs its own entry to the same targets.
+  أثري: ["ثقافه", "تاريخ", "تراث"],
+
+  // «ونسة»/«ونيت» — hanging out, the word itself, not a description of an
+  // activity. «قعدة» is literally in the catalogue's own prose («قعدة على
+  // الماء» — مارينا كريسنت; «تقعد» — المباركية, شارع الخليج).
+  ونسة: ["قعدة"],
+  ونيت: ["قعدة"],
+
+  // «ببلاش» is the Kuwaiti word for free, and «مجاني» — MSA, already
+  // reachable — is what the catalogue writes («جولات مجانية», المسجد الكبير;
+  // «مجاناً», برج التحرير).
+  ببلاش: ["مجاني"],
+
+  // «انستقرام» alone found nothing; only paired with «تصوير» did, because
+  // «تصوير» is the tag doing the work. Instagram-worthy and photogenic are
+  // the same question here, so the bare word reaches it too now.
+  انستقرام: ["تصوير"],
 };
 
 /**
