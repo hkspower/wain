@@ -57,12 +57,30 @@ const admin = (route, body) => fetch(`${ADMIN}?r=${route}`, {
   body: body === undefined ? undefined : JSON.stringify(body),
 }).then(async (r) => ({ status: r.status, j: await r.json().catch(() => null) }))
 
+// THE PANEL RUNS UNDER THE SHIPPED CONTENT-SECURITY-POLICY. The sandbox is php -S
+// and sends no CSP at all, so a blob: image (which the live policy refuses:
+// img-src has data: and no blob:) worked here and was blocked in production. The
+// policy is read OUT of .htaccess — the /backends variant — rather than retyped,
+// minus upgrade-insecure-requests (which would turn http://127.0.0.1 into https).
+const htaccess = readFileSync(new URL('../sporta-site/public_html/.htaccess', import.meta.url).pathname, 'utf8')
+const panelLine = htaccess.split('\n').find((l) => /Header set Content-Security-Policy "/.test(l) && /env=SPORTA_PANEL\s*$/.test(l))
+const PANEL_CSP = panelLine ? panelLine.match(/Content-Security-Policy "([^"]+)"/)[1].replace(/;?\s*upgrade-insecure-requests/, '') : null
+
 const browser = await chromium.launch({ executablePath: process.env.CHROME_BIN ?? '/opt/pw-browsers/chromium' })
 const page = await browser.newPage()
+if (PANEL_CSP) {
+  await page.route('**/backends**', async (route) => {
+    if (route.request().resourceType() !== 'document') return route.continue()
+    const resp = await route.fetch()
+    await route.fulfill({ response: resp, headers: { ...resp.headers(), 'content-security-policy': PANEL_CSP } })
+  })
+}
 const errors = []
 page.on('pageerror', (e) => errors.push(String(e)))
 
 try {
+  check(!!PANEL_CSP && /img-src 'self' data:/.test(PANEL_CSP) && !/blob:/.test(PANEL_CSP), "the panel's shipped policy was found and it names data: but not blob: for images", (PANEL_CSP || 'NOT FOUND').slice(0, 60))
+
   /* ----------------------------------------------------------- the gate -- */
   for (const [route, body] of [['cat_art_list'], ['cat_art_save', {}], ['cat_art_reset', {}]]) {
     const r = await fetch(`${ADMIN}?r=${route}`, { method: body ? 'POST' : 'GET', headers: { 'X-Sporta-Admin': '1', 'Content-Type': 'application/json' }, body: body ? '{}' : undefined })

@@ -267,15 +267,25 @@
   function pick(id, file) {
     if (!file) return
     if (!/^image\//.test(file.type)) { state.notes[id] = t('notImage'); render(); return }
-    var url = URL.createObjectURL(file)
-    var img = new Image()
-    img.onload = function () {
-      state.pending[id] = { img: img, fx: 0.5, fy: 0.5, small: img.width < SIZES.desktop[0] * 0.8 }
-      state.notes[id] = ''
-      render()
+    // READ THE FILE AS A data: URL, NOT URL.createObjectURL. The site's
+    // Content-Security-Policy says `img-src 'self' data: https://static…` and
+    // names no blob:, so on the live server an <img> pointed at a blob URL never
+    // loads — every file would have been reported "not a picture". The sandbox
+    // sends no CSP header at all, so nothing local could have shown it; the rig
+    // now sends the shipped policy on the panel's page.
+    var reader = new FileReader()
+    reader.onerror = function () { state.notes[id] = t('notImage'); render() }
+    reader.onload = function () {
+      var img = new Image()
+      img.onload = function () {
+        state.pending[id] = { img: img, fx: 0.5, fy: 0.5, small: img.width < SIZES.desktop[0] * 0.8 }
+        state.notes[id] = ''
+        render()
+      }
+      img.onerror = function () { state.notes[id] = t('notImage'); render() }
+      img.src = String(reader.result)
     }
-    img.onerror = function () { URL.revokeObjectURL(url); state.notes[id] = t('notImage'); render() }
-    img.src = url
+    reader.readAsDataURL(file)
   }
 
   function doSave(id) {

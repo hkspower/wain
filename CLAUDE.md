@@ -3684,6 +3684,8 @@ in English and blue-left/red-right in Arabic, so the mirror is measured. Its
 row-serving check saves the MEN tile's bytes as WOMEN and requires those bytes at the
 women URL — "the response is 200" would have passed on the shipped file.
 
+**A fourth, found by thinking rather than by any rig, and the worst:** the first preview used `URL.createObjectURL(file)`, and the live Content-Security-Policy reads `img-src 'self' data: https://static…` with NO `blob:` — so on the real server every chosen file would have been reported "not a picture", while the sandbox (`php -S`, no CSP header at all) showed it working. It reads the file as a `data:` URL now, and the rig fulfils the panel's document with the policy **read out of `.htaccess`** (minus `upgrade-insecure-requests`, which would turn http://127.0.0.1 into https), so the blob mutation now fails it. **A sandbox that sends no security headers cannot tell you a browser feature works in production.**
+
 **Three things it caught in itself.** The card first rendered in ARABIC inside the
 English panel, because it read `document.documentElement.lang`, which is `ar` on
 every page (the storefront default). It also widened the whole screen: a canvas's
