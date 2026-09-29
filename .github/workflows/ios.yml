@@ -18,6 +18,14 @@ name: iOS app (Capacitor)
 # flags, not from a passing run, and the first real workflow_dispatch is where
 # they get proven. Treat a failure here as new information, not a regression.
 #
+# The first real dispatch (2026-09-29) never reached either job: GitHub
+# refused the whole file at parse time over build-signed's `if:` reading
+# `secrets.*` directly, which a job-level condition cannot do. Fixed by
+# check-signing, a small ubuntu job that resolves the four Apple secrets
+# through a step's `env:` into a plain output; build-signed now gates on
+# that output. The lesson generalises past this file: a job-level `if:`
+# can read `vars` but not `secrets` — route secrets through a step first.
+#
 # WHY workflow_dispatch ONLY
 #
 # deploy.yml runs on every push because ubuntu-latest minutes are cheap and
@@ -48,6 +56,29 @@ on:
         options: [development, ad-hoc, app-store]
 
 jobs:
+  # A job-level `if:` cannot read the `secrets` context directly — dispatching
+  # this workflow for the first time (2026-09-29) failed at PARSE TIME, before
+  # any job ran, with "Unrecognized named-value: 'secrets'" pointing at
+  # build-signed's own condition below. A step can read a secret through
+  # `env:`, so this job resolves presence into a plain string output and
+  # build-signed gates on that output instead of on secrets/vars directly.
+  check-signing:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          P12: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          if [ -n "${{ vars.APPLE_TEAM_ID }}" ] && [ -n "$P12" ] && [ -n "$P12_PASSWORD" ] && [ -n "$PROFILE" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build-simulator:
     runs-on: macos-latest
     steps:
@@ -151,14 +182,11 @@ jobs:
 
   build-signed:
     runs-on: macos-latest
+    needs: check-signing
     # Gate the whole job, not individual steps: a partially-run signing job
     # that gets as far as importing a certificate before failing on a missing
     # profile is a worse failure than not starting.
-    if: >-
-      vars.APPLE_TEAM_ID != '' &&
-      secrets.APPLE_CERTIFICATE_P12_BASE64 != '' &&
-      secrets.APPLE_CERTIFICATE_PASSWORD != '' &&
-      secrets.APPLE_PROVISIONING_PROFILE_BASE64 != ''
+    if: needs.check-signing.outputs.ready == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v5
