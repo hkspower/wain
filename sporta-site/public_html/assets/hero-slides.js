@@ -111,14 +111,15 @@
   // The percentage of the banner's WIDTH that survives cover-crop, at a given
   // viewport. Mirrors sporta-ui.css's --hero-h / --hero-h-md formula exactly —
   // see the file header for the derivation and the citation.
-  // UPDATED 2026-09-24: the photo now sits above a caption band inside the
-  // hero (sporta-ui.css, "the hero: photo above, band below"), so the box
-  // is the hero's height minus the band, at both widths. The notes in the
-  // header above describe the box as it was before that change.
+  // CORRECTED 2026-09-29 against the real rendered hero (the rig's browser
+  // cross-check had been failing: real 33.3 vs 46.6 on a phone, 84.7 vs 100 on
+  // a desktop): the photo box is the hero's WHOLE height. The caption band the
+  // 2026-09-24 version subtracted is not taken out of it any more. Phone is 40svh
+  // since 2026-09-29 (it was 55svh), desktop 75svh.
   function visiblePct(viewportW, viewportH) {
     var photoH = viewportW < PHONE_BREAK
-      ? viewportH * 0.55 - 132   // 55svh hero, 132px band
-      : viewportH * 0.75 - 112   // 75svh hero, 112px band
+      ? viewportH * 0.40   // 40svh hero
+      : viewportH * 0.75   // 75svh hero
     return Math.min(1, (viewportW / photoH) / ARTWORK_RATIO) * 100
   }
 

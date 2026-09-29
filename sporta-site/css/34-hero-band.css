@@ -13,7 +13,7 @@
  * never touch an athlete, and it is also the bundle's own phone layout (image
  * in an aspect box, caption below it), which sporta-ui.css had overridden.
  *
- * THE HERO KEEPS ITS HEIGHT (55svh on a phone, --hero-h-md on desktop), so
+ * THE HERO KEEPS ITS HEIGHT (40svh on a phone since 2026-09-29, 55svh before, --hero-h-md on desktop), so
  * the boot shell in index.html still matches and nothing jumps at mount. The
  * band comes out of the photo's share:
  *
@@ -23,7 +23,7 @@
  * Only the photo slides are affected. The five drawn fallback slides
  * (.hero-strength etc.) never render while an active row exists. */
 section[aria-roledescription="carousel"] {
-  --sp-hero-h: var(--hero-h, 55svh);   /* follows the Slides screen's Size, 38-hero-size.css */
+  --sp-hero-h: var(--hero-h, 40svh);   /* follows the Slides screen's Size, 38-hero-size.css */
   --sp-band: 132px;
 }
 @media (min-width: 768px) {

@@ -104,21 +104,34 @@
    * NO WHITE FILL behind the canvas. A logo is usually transparent, and
    * painting white behind it puts a white rectangle on every dark product card.
    */
-  function shrink(file) {
+  function shrink(file, opts) {
+    // PRODUCT PHOTOGRAPHS ASK FOR MORE (2026-09-29, "improve product page images
+    // ... quality"): product-photos.js passes {longest: 2000, qualities: [...]}
+    // so a garment can be pinched to zoom without going soft, while a brand logo
+    // — whose own cap on the server is 160 kB — keeps the 1400 / 0.82 it always
+    // had. Both stay under the same 1.1 MB ceiling: quality still steps down
+    // until it fits.
+    var longest = (opts && opts.longest) || LONGEST
+    var qualities = (opts && opts.qualities) || QUALITIES
     return createImageBitmap(file).then(
       function (bm) {
-        var scale = Math.min(1, LONGEST / Math.max(bm.width, bm.height))
+        var scale = Math.min(1, longest / Math.max(bm.width, bm.height))
         var w = Math.max(1, Math.round(bm.width * scale))
         var h = Math.max(1, Math.round(bm.height * scale))
         var c = document.createElement('canvas')
         c.width = w
         c.height = h
-        c.getContext('2d').drawImage(bm, 0, 0, w, h)
+        var g = c.getContext('2d')
+        // The browser's cheap default resampler is what made big photographs
+        // shrunk to 1400px look soft; 'high' is its proper filter.
+        g.imageSmoothingEnabled = true
+        g.imageSmoothingQuality = 'high'
+        g.drawImage(bm, 0, 0, w, h)
 
-        for (var i = 0; i < QUALITIES.length; i++) {
-          var uri = c.toDataURL('image/webp', QUALITIES[i])
+        for (var i = 0; i < qualities.length; i++) {
+          var uri = c.toDataURL('image/webp', qualities[i])
           if (uri.length <= MAX_BASE64) return { dataUri: uri, width: w, height: h }
-          if (i === QUALITIES.length - 1) {
+          if (i === qualities.length - 1) {
             throw new Error('still ' + Math.round(uri.length / 1024) + ' kB at the lowest quality')
           }
         }

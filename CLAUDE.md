@@ -3704,3 +3704,48 @@ red check that predates this work: `hero-slides-panel-test` — "formula matches
 rendered hero" fails at 1280 and 390 (real 84.7 vs 100, 33.3 vs 46.6): the panel's crop
 preview formula is stale against the hero-size changes. The owner's call whether the
 preview should follow.
+
+## The phone hero is 40svh, and the product photo opens on a real picture — 2026-09-29
+
+**Phone hero 55svh → 40svh** ("reduce hero slides layout size to be fitted with mobile";
+the owner chose about 40% of the screen). Short is 32svh now, Tall 40svh, Full and every
+desktop height unchanged. It is written in FIVE places that must agree — `02-hero.css`
+(the override and the two fallbacks), `34-hero-band.css`, `38-hero-size.css`, the boot
+script in `index.html` and `rules-live.js` — and the boot script is one of the five
+CSP-hashed inline scripts, so the hash in `.htaccess` (three copies) moved with it.
+**Base64 hashes end in `=`: appending another one to a value that already ends in `=`
+gave `==`, a hash that matches nothing, and `test:csp` said so.** On a 390x844 phone the
+hero plus "Shop by category" plus the first tile now fit on one screen; the crop keeps
+the head (focal_y 15) and trims the legs.
+
+**The hero-slides panel's crop preview had been wrong for five days**, and its failing rig
+was the clue: it subtracted a 132px / 112px caption band from the hero's height, but the
+photo box has been the hero's WHOLE height since the band was folded in (real 84.7% at
+1280x800 = exactly 75svh). Corrected in `hero-slides.js` and its rig — which now passes.
+A red rig you did not cause is still a claim about somebody's code.
+
+**The product photo's tap opened a grey square.** The bundle's lightbox starts its photograph
+list with its own placeholder (the first `<img>` in the slider is the 0px-wide grey
+gradient), opens at index 0, and says "Image 1 of 3" for a product with two photos.
+`assets/product-zoom.js` takes the tap first (capture phase on `document` runs before
+React's root) and opens its own viewer on the photograph that is showing: pinch, double-tap,
+drag (clamped), swipe (direction follows `dir`), wheel, arrows, Escape, focus return, scroll
+lock. **The gallery itself is `role="button"`, so a guard written as
+`target.closest('button, a, [role=button]')` matched the gallery and the viewer never
+opened** — only an interactive element INSIDE it is left alone. `test:product-zoom` drives
+it in a real browser (touch, Arabic, desktop wheel) with synthetic pointer events and reads
+the browser's own transform; mutation-tested (interception removed; RTL swipe ignored).
+One of its own checks was a tautology (`... || true`) until a second look; the pan-clamp check
+read a transform mid-animation (25 instead of 325) until it waited for the settle.
+
+**Sharper uploads.** Product photographs are shrunk to 2000px (was 1400) with 'high'
+resampling and a first quality of 0.86, under the SAME 1.1 MB ceiling; brand logos keep 1400
+and 0.82 because their server-side cap is 160 kB. `shrink(file, opts)` takes the profile,
+`product-photos.js` passes it. **Not done, and a decision:** serving phones a smaller copy.
+`?r=product_image&w=` exists, but resizing per first request on shared hosting costs CPU on
+every new visitor (the CDN is bypassed), and the alternative is a second stored copy per photo.
+Phones download the full photograph, which is now larger.
+
+**Desktop product page, found on the way:** the wishlist heart is pinned to the title row's end
+corner, so a long name ran under it at 1280px; and the Size card's reserved stock-note line read
+as 48px of missing padding. Both fixed at every width in `40-product-mobile-spacing.css`.

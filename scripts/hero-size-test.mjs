@@ -207,7 +207,7 @@ check(unloaded.length === 0, 'and its banner decoded, so its real shape is known
 // (768px and up) is untouched at 75. pct is
 // round((box height / window height) * 100); 1 point of slack for rounding.
 const TARGET_PCT = 75
-const TARGET_PCT_PHONE = 55
+const TARGET_PCT_PHONE = 40   // was 55 until 2026-09-29, "reduce hero slides layout size to be fitted with mobile"
 const short = rows.filter((r) => Math.abs(r.pct - (r.w < 768 ? TARGET_PCT_PHONE : TARGET_PCT)) > 1)
 check(short.length === 0, `the hero is ${TARGET_PCT_PHONE}% of the screen under 768px and ${TARGET_PCT}% at 768px and up`,
   short.map((r) => `${r.w}x${r.h} box ${r.hero}px vs window ${r.h}px (${r.pct}%)`).join(', '))

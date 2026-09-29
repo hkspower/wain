@@ -279,7 +279,7 @@
           var size = localStorage.getItem('sporta_hero_size')
           if (size !== 'short' && size !== 'full') size = 'tall'
           el.dataset.heroSize = size
-          el.style.setProperty('--hero-h', size === 'short' ? '40svh' : size === 'full' ? 'calc(100svh - 77px)' : '55svh')
+          el.style.setProperty('--hero-h', size === 'short' ? '32svh' : size === 'full' ? 'calc(100svh - 77px)' : '40svh')
           el.style.setProperty('--hero-h-md', size === 'short' ? '55svh' : size === 'full' ? 'calc(100svh - 98px)' : '75svh')
 
           // THE HERO BANNER, requested here rather than in the markup above.
@@ -740,6 +740,11 @@
          tile URLs are answered from the database when a picture is replaced.
          Depends on admin-upload.js above for window.sportaUpload. -->
     <script src="/assets/category-art.js" defer></script>
+
+    <!-- The product photo viewer (2026-09-29): pinch, double-tap, drag, swipe.
+         Takes the tap on the gallery before the bundle's own lightbox, which
+         opened on its grey placeholder. Product pages only; no dependencies. -->
+    <script src="/assets/product-zoom.js" defer></script>
 
     <!-- Four more email addresses, also on the Settings screen — an
          alternative, one for orders, one for B2B and one for customers.

@@ -195,7 +195,7 @@
  * [the same value] or the shell and the mounted hero disagree") — that file
  * was updated to 75svh in the same commit as this one. */
 :root {
-  --hero-h: 55svh !important;
+  --hero-h: 40svh !important;   /* was 55svh until 2026-09-29: "reduce hero slides layout size to be fitted with mobile" */
   --hero-h-md: 75svh !important;
 }
 
@@ -246,15 +246,15 @@
  * of fixing the CONTAINER, and this needs both for the same reason a box and
  * the picture inside it are two different things that can each be the wrong
  * height on their own. */
-/* 55svh is the DEFAULT now, not a constant: both read --hero-h, which the
+/* 40svh is the DEFAULT now (it was 55svh until 2026-09-29), not a constant: both read --hero-h, which the
  * Slides screen's Size sets (38-hero-size.css, 2026-09-29). As two literals
- * these were what kept a phone at 55svh whatever the owner chose. */
+ * these were what kept a phone at one height whatever the owner chose. */
 @media (max-width: 767px) {
   [class~="aspect-[2.52/1]"][class~="overflow-hidden"][class~="md:absolute"] {
-    height: var(--hero-h, 55svh) !important;
+    height: var(--hero-h, 40svh) !important;
   }
   section[aria-roledescription="carousel"] {
-    height: var(--hero-h, 55svh) !important;
+    height: var(--hero-h, 40svh) !important;
   }
 }
 

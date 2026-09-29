@@ -94,6 +94,9 @@
 (function () {
   'use strict'
 
+  // 2000px and a higher first quality than the default: see admin-upload.js shrink().
+  var PHOTO_SHRINK = { longest: 2000, qualities: [0.86, 0.8, 0.72, 0.62, 0.5, 0.4] }
+
   // The shared helpers. Absent means a half-published set: do nothing rather
   // than throw, so the panel stays usable and the card is merely missing.
   var U = window.sportaUpload
@@ -221,7 +224,7 @@
     item.guessError = null
     render()
 
-    U.shrink(item.file)
+    U.shrink(item.file, PHOTO_SHRINK)
       .then(function (small) {
         return U.call('photo_guess', 'POST', { image: small.dataUri })
       })
@@ -285,7 +288,7 @@
         item.status = 'uploading'
         item.error = null
         render()
-        return U.shrink(item.file)
+        return U.shrink(item.file, PHOTO_SHRINK)
           .then(function (small) {
             return addWithRetry(item, small, 2)
           })

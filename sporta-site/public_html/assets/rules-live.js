@@ -192,7 +192,7 @@
         var root = document.documentElement
         if (root.dataset.heroSize !== size) {
           root.dataset.heroSize = size
-          root.style.setProperty('--hero-h', size === 'short' ? '40svh' : size === 'full' ? 'calc(100svh - 77px)' : '55svh')
+          root.style.setProperty('--hero-h', size === 'short' ? '32svh' : size === 'full' ? 'calc(100svh - 77px)' : '40svh')
           root.style.setProperty('--hero-h-md', size === 'short' ? '55svh' : size === 'full' ? 'calc(100svh - 98px)' : '75svh')
         }
         try { localStorage.setItem('sporta_hero_size', size) } catch (e) {}
