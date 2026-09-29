@@ -12,7 +12,7 @@
  *     and the queue both shipped without a word of it reaching her.
  */
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -96,9 +96,20 @@ console.log("\n── the agent the site actually calls is the one documented �
   // The off switch has to be a word the code knows. The deploy workflow tells
   // whoever reads the log that «none» ships the fallback; if that word is only
   // in the workflow, a build set to "none" calls an agent by that name.
+  //
+  // The file can be disabled (renamed to deploy.yml.disabled) without its
+  // content changing — see CLAUDE.md — so this reads either name rather than
+  // assuming the live one. A crash here would silently cancel every section
+  // after it, which is a coverage hole, not a red: `readFileSync` on a path
+  // that does not exist throws before `ok()` is ever reached.
+  const deployWorkflow = ["deploy.yml", "deploy.yml.disabled"]
+    .map((n) => `.github/workflows/${n}`)
+    .find(existsSync);
   ok("«none» is the documented off switch, and the code implements it",
-    /OFF = "none"/.test(src) && readFileSync(".github/workflows/deploy.yml", "utf8").includes('= "none"'),
-    "the workflow and wain-ai.ts must agree on the sentinel");
+    /OFF = "none"/.test(src) &&
+      !!deployWorkflow &&
+      readFileSync(deployWorkflow, "utf8").includes('= "none"'),
+    deployWorkflow ? "the workflow and wain-ai.ts must agree on the sentinel" : "no deploy workflow file found under any name");
 }
 
 console.log("\n── the two indexes cannot name a place the site does not have ──");
