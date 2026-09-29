@@ -17,6 +17,15 @@ import { chromium } from 'playwright';
  * The failure this is written against is a quiet one. A panel that always sends
  * the top result no matter which chip is lit still looks completely correct —
  * the chip moves, the heading is right — and the group receives the wrong place.
+ *
+ * «the map and the list, which already point at each other» sat in this
+ * paragraph as a fact about the SOURCE for a long time before anything here
+ * proved it reaches the panel too — `activeSlug` is shared code, not a
+ * tested claim, and the two are not the same thing. Both maps (the static
+ * embed, and `LiveMap` once opened — see live-map.test.mjs) tap a pin and
+ * check the panel's own selection follows it, and the reverse: choosing a
+ * place in the panel is what the map then shows as current. «integrate
+ * hangout with the map» closed exactly that gap.
  */
 const B = process.env.WAIN_URL || 'http://127.0.0.1:4207';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
@@ -106,6 +115,93 @@ console.log('\n── picking a different place sends THAT one ──');
   ok(`the message names «${wanted}»`, data.text.includes(wanted), data.text.slice(0, 80));
   ok(`and not the one it replaced («${before}»)`, !data.text.includes(before),
     data.text.slice(0, 80));
+  await ctx.close();
+}
+
+console.log('\n── the map and the panel share one target: tapping a pin retargets it ──');
+{
+  // This is the claim the file's own header makes in passing — "with the map
+  // and the list, which already point at each other" — and until now nothing
+  // here actually tapped a pin to prove it reaches the hangout panel too. A
+  // panel whose target silently stopped following the map would still look
+  // correct: the chip row would just be stale, one tap behind what the
+  // visitor is pointing at.
+  const { ctx, p } = await fresh('قهوة');
+  await panel(p).waitFor({ timeout: 8000 });
+  const map = p.locator('section[aria-labelledby="search-map-heading"]');
+  await map.waitFor({ timeout: 8000 });
+
+  const before = (await chosenPlace(p).first().textContent()).trim();
+  // MapPin's aria-label is `${nameAr} — ${areaAr}` — see MapPin.tsx.
+  const pins = map.locator('a[href^="/places/"]');
+  const n = await pins.count();
+  let target = null;
+  for (let i = 0; i < n; i++) {
+    const label = await pins.nth(i).getAttribute('aria-label');
+    const name = (label ?? '').split(' — ')[0];
+    if (name && name !== before) { target = { loc: pins.nth(i), name }; break; }
+  }
+  ok('found a pin for a place other than the panel\'s current one', !!target, `panel on ${before}, ${n} pins`);
+  if (target) {
+    // A single tap on a touch context selects rather than navigates — see
+    // map-pin.test.mjs. That selection is `activeSlug`, the same state
+    // SearchPlan's own `target` reads.
+    await target.loc.click();
+    await p.waitForFunction(
+      (w) => [...document.querySelectorAll('button[aria-pressed="true"]')].some((b) => b.textContent.trim() === w),
+      target.name,
+      { timeout: 6000 }
+    );
+    ok(`tapping the pin moved the panel's own selection to «${target.name}»`,
+      (await chosenPlace(p).first().textContent()).trim() === target.name);
+
+    // And the reverse: choosing a place back in the panel is what the map
+    // itself should then show as current, closing the loop both ways.
+    const back = otherPlace(p).first();
+    const backName = (await back.textContent()).trim();
+    await back.click();
+    await p.waitForTimeout(300);
+    const currentPinLabel = await map.locator('a[aria-current="true"]').first().getAttribute('aria-label');
+    ok(`choosing «${backName}» in the panel makes its own pin the current one on the map`,
+      (currentPinLabel ?? '').startsWith(backName), currentPinLabel);
+  }
+  await ctx.close();
+}
+
+console.log('\n── the LIVE map, once opened, shares the same target ──');
+{
+  // Opt-in and Leaflet-backed rather than the static embed — see
+  // live-map.test.mjs. Both render pins through the same `renderPin` in
+  // SearchMap.tsx, so this is a different transport for the same claim, not
+  // a different mechanism — and it is the map a caller of شوق's who taps
+  // «حرّك الخريطة» is actually looking at.
+  const { ctx, p } = await fresh('قهوة');
+  await panel(p).waitFor({ timeout: 8000 });
+  const map = p.locator('section[aria-labelledby="search-map-heading"]');
+  await map.waitFor({ timeout: 8000 });
+  await map.getByRole('button', { name: /حرّك الخريطة/ }).click();
+  await p.locator('.leaflet-container').waitFor({ timeout: 15000 });
+
+  const before = (await chosenPlace(p).first().textContent()).trim();
+  const pins = map.locator('a[href^="/places/"]');
+  const n = await pins.count();
+  let target = null;
+  for (let i = 0; i < n; i++) {
+    const label = await pins.nth(i).getAttribute('aria-label');
+    const name = (label ?? '').split(' — ')[0];
+    if (name && name !== before) { target = { loc: pins.nth(i), name }; break; }
+  }
+  ok('a pin is reachable on the live map too', !!target, `${n} pins, panel on ${before}`);
+  if (target) {
+    await target.loc.click();
+    await p.waitForFunction(
+      (w) => [...document.querySelectorAll('button[aria-pressed="true"]')].some((b) => b.textContent.trim() === w),
+      target.name,
+      { timeout: 6000 }
+    );
+    ok(`tapping a pin on the LIVE map moved the panel's selection to «${target.name}»`,
+      (await chosenPlace(p).first().textContent()).trim() === target.name);
+  }
   await ctx.close();
 }
 

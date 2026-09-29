@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ShouqCallButton from "@/components/ShouqCallButton";
-import { SALEM_AI_COPY, WAIN_AI_COPY } from "@/lib/wain-ai";
+import { WAIN_AI_COPY } from "@/lib/wain-ai";
 
 /**
- * The two ways to say what you want — one call, one chat — drawn full-bleed,
- * شوق's half over سالم's, rather than two cards in a page.
+ * The two ways to say what you want to شوق — one call, one chat — drawn
+ * full-bleed, her half over her other half, rather than two cards in a page.
  *
  * This used to be the dial's own in-place panel: tap «إلى وين؟», get the
  * five nearest places, ranked live against a GPS fix taken in the same
@@ -17,17 +17,17 @@ import { SALEM_AI_COPY, WAIN_AI_COPY } from "@/lib/wain-ai";
  * answers the "nearest" case (شوق can ask where you are; nothing here
  * requests location any more).
  *
- * The lower half used to be a plain «اكتب» typing box, and سالم was
- * deliberately left off it — a design canvas had explored him as a second
- * character and this repository ruled that out, reasoning that a second full
- * agent was a disproportionate answer to one voice option. That decision was
- * reversed on request: this half is now سالم's own card, matching شوق's
- * structure exactly, leading to `/salem` — his own typed-chat page (see the
- * note over `SALEM_VOICE_ID` in `lib/wain-ai.ts` for what actually changed
- * under the hood, which is less than "a second agent" sounds like). The
- * plain "type a place name" box this replaced is not lost to the site — the
- * search button in the bottom rail and /search's own box are one tap away
- * from every page, including this one.
+ * The lower half used to be a plain «اكتب» typing box, then briefly became a
+ * full سالم persona card — his own name, his own photo, his own greeting,
+ * his own voice on the wire — which was wrong the same way `/salem` itself
+ * was wrong: nothing about the agent had changed to back the persona, and
+ * nothing needed to for the voice either, once asked to leave it alone. See
+ * the note over `SALEM_VOICE_ID` in `lib/wain-ai.ts` for the full account.
+ * Corrected: this half is شوق's, plainly, same as the half above it — the
+ * other way to reach her, typing instead of calling, nothing else different.
+ * The plain "type a place name" box this replaced is not lost to the site —
+ * the search button in the bottom rail and /search's own box are one tap
+ * away from every page, including this one.
  *
  * Both halves are full-bleed AI-illustrated portraits (public/find/),
  * matching the design exploration — a bottom-weighted scrim carries the
@@ -133,14 +133,17 @@ export default function FindChoice() {
         </div>
       </section>
 
-      {/* ---------- سالم: the chat ---------- */}
+      {/* ---------- شوق: the chat ---------- */}
       <section
-        aria-label="اكتب لسالم"
+        aria-label="اكتب"
         className="relative flex min-h-[50vh] items-center justify-center overflow-hidden bg-sea-950 px-4 pb-14 pt-20 text-white sm:pb-16 sm:pt-24"
       >
+        {/* Her own photo again — not his. This half used to be his: his name,
+            his photo, his greeting, over an agent whose prompt never changed
+            to match. See the header comment above for the full account. */}
         {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}
         <img
-          src="/find/salem.jpg"
+          src="/find/shouq.jpg"
           alt=""
           aria-hidden="true"
           width={1280}
@@ -154,18 +157,21 @@ export default function FindChoice() {
           className="pointer-events-none absolute inset-0 bg-gradient-to-b from-sea-950/40 via-sea-950/78 to-sea-950/92"
         />
         <div className="relative mx-auto flex max-w-sm flex-col items-center gap-4 text-center">
-          <span className="animate-reveal-up inline-flex items-center gap-2 rounded-full bg-white/90 px-3.5 py-1.5 text-sm font-semibold text-sea-900 shadow-sm [animation-delay:580ms]">
-            {SALEM_AI_COPY.role}
-          </span>
-          <h2 className="animate-reveal-up font-display text-4xl font-bold text-white [animation-delay:680ms] sm:text-5xl">
-            اكتب لـ
+          {/* No pill here, on purpose — that slot named a voice-swap badge
+              at one point and was removed along with the voice-swap itself.
+              «اكتب» alone, matching «اتصال» above it: her name and role are
+              already said by the call half; this names the other ACTION,
+              nothing more. */}
+          <h2 className="animate-reveal-up font-display text-4xl font-bold text-white [animation-delay:580ms] sm:text-5xl">
             <span className="relative isolate inline-block px-1.5 text-sea-300">
               <i aria-hidden="true" className="absolute -inset-y-2 inset-x-0 -z-10 rounded-lg bg-sea-950" />
-              {SALEM_AI_COPY.name}
+              اكتب
             </span>
           </h2>
+          {/* The same greeting as the call half, word for word — it is the
+              same character saying it, so it is the same sentence. */}
           <p className="animate-reveal-up text-pretty text-base leading-relaxed text-sand-100 [animation-delay:780ms]">
-            {SALEM_AI_COPY.greeting}
+            {WAIN_AI_COPY.greeting}
           </p>
           <Link
             href="/salem"
@@ -175,7 +181,7 @@ export default function FindChoice() {
               aria-hidden="true"
               className="animate-shimmer pointer-events-none absolute inset-0 bg-[linear-gradient(115deg,transparent_35%,rgba(255,255,255,.5)_50%,transparent_65%)] bg-[length:250%_100%]"
             />
-            <span className="relative z-10">{SALEM_AI_COPY.cta}</span>
+            <span className="relative z-10">ابدأ الكتابة</span>
           </Link>
         </div>
       </section>

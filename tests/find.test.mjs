@@ -5,19 +5,22 @@ import { chromium } from 'playwright';
  *
  * The dial used to open its own panel — the five nearest places, ranked live
  * against a GPS fix. That panel is gone; the dial is a plain link to /find
- * now, and /find is where the real choice is: call شوق, or chat with سالم.
- * The شوق half has to be proved doing a real call rather than assumed,
- * because the first draft nested the real ShouqCallButton inside a second,
- * outer <button> whose own onClick did the navigation — which silently made
- * the OUTER button the only thing that ever fired. Tapping it moved to
- * /search having placed no call at all. `wain-ai:call` firing is the proof
- * that would have caught it; a navigation to /search alone would not have,
+ * now, and /find is where the real choice is: call شوق, or type to her. The
+ * call half has to be proved doing a real call rather than assumed, because
+ * the first draft nested the real ShouqCallButton inside a second, outer
+ * <button> whose own onClick did the navigation — which silently made the
+ * OUTER button the only thing that ever fired. Tapping it moved to /search
+ * having placed no call at all. `wain-ai:call` firing is the proof that
+ * would have caught it; a navigation to /search alone would not have,
  * because the outer button produced that too.
  *
- * This used to assert the opposite of the سالم half below — «nothing here
- * names سالم, not a top-level choice» — which was the correct assertion of
- * an earlier, deliberate decision. That decision was reversed on request; see
- * the comment over `SALEM_VOICE_ID` in `lib/wain-ai.ts`.
+ * The typing half is شوق's too, plainly — it went through two wrong framings
+ * first («chat with سالم», his own name and photo; then her name kept but
+ * still «بصوت سالم» badged over the top) and this file's own earlier
+ * versions asserted each of those was correct in turn. Neither was, and the
+ * comment over `SALEM_VOICE_ID` in `lib/wain-ai.ts` has the full account of
+ * why. What is real and asserted below: two ways to reach شوق, call or type,
+ * her name and nothing else on either half.
  */
 const B = process.env.WAIN_URL || 'http://127.0.0.1:4207';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
@@ -55,9 +58,10 @@ console.log('\n── /find offers exactly the two, equally ──');
   // The real ShouqCallButton — its accessible name names شوق, which a
   // bespoke look-alike button would have no reason to get right.
   const shouqButton = p.getByRole('button', { name: /شوق/ });
-  const salemLink = p.getByRole('link', { name: /سالم/ });
+  const typeLink = p.getByRole('link', { name: /ابدأ الكتابة/ });
   ok('كلّم شوق is offered, as the real call button', await shouqButton.isVisible());
-  ok('سالم is offered too, now a top-level choice', await salemLink.isVisible());
+  ok('typing to her is offered too', await typeLink.isVisible());
+  ok('nothing on this page names سالم — no persona, no voice badge', !(await p.locator('text=سالم').count()));
   const box = await shouqButton.boundingBox();
   // size="lg" (size-20, 80px) against the sm default (size-8, 32px) — this
   // is the one thing a screenshot proves and an accessible-name check does
@@ -67,10 +71,10 @@ console.log('\n── /find offers exactly the two, equally ──');
   await ctx.close();
 }
 
-console.log('\n── سالم leads to his own chat page ──');
+console.log('\n── the typing option leads to شوق\'s chat page ──');
 {
   const { ctx, p } = await fresh('/find/');
-  await p.getByRole('link', { name: /سالم/ }).click();
+  await p.getByRole('link', { name: /ابدأ الكتابة/ }).click();
   await p.waitForURL('**/salem/**');
   ok('landed on /salem', p.url().includes('/salem'));
   await ctx.close();

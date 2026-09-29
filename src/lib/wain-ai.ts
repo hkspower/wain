@@ -68,22 +68,32 @@ export const WAIN_AI_AGENT_ID =
 export const WAIN_AI_AGENT_ENABLED = WAIN_AI_AGENT_ID.trim().length > 0;
 
 /**
- * سالم's voice.
+ * سالم's voice — for the mid-call switch below, and ONLY for that. It
+ * briefly had a second use, `/salem`'s typed chat, and the whole detour is
+ * worth recording rather than quietly undone.
  *
- * Two uses now, not one. It started as the mid-call switch documented below —
- * still the same agent, still شوق's brain and tools, only the TTS voice
- * changes. `/salem`'s own typed chat (`lib/salem-chat.ts`) is the second use,
- * and a reversal of an earlier decision recorded in CLAUDE.md: a design
- * canvas explored سالم as a full second character, and this repository
- * initially ruled that out — «Two choices, not three» — on the grounds that a
- * second full agent (its own prompt, tests, tool set) was a disproportionate
- * answer to one voice option. Asked directly whether to keep that decision or
- * reverse it; the answer was reverse it. What ships is a middle path, not a
- * full second agent: `/salem` talks to the SAME agent as شوق — same prompt,
- * same tools, same knowledge base — over a plain text session with this voice
- * id set as the override, so أي judgement a genuinely separate agent would
- * need (a new prompt, a new test suite) was never required. He is a real,
- * separately-reachable persona; he is not a different mind.
+ * `/salem` went through two framing mistakes in one session, each corrected
+ * on being asked rather than caught by any check here. First: a design
+ * canvas explored سالم as a full second CHARACTER, this repository twice
+ * ruled that out — «Two choices, not three» in CLAUDE.md — and then,
+ * reversing that, `/salem` shipped as if he WERE one: his own name, his own
+ * greeting, his own photo, his own headline on `/find`, `SALEM_VOICE_ID` set
+ * as a live `tts.voice_id` override. Nothing about the agent backing it had
+ * changed to match — still شوق's prompt, still her tools, still her
+ * first-person FEMININE grammar throughout, including a `first_message` that
+ * says «أنا شوق» — so the first real reply on his own page would have
+ * contradicted the page around it. Caught by pulling the live agent config
+ * directly and reading what she actually says, not by assuming the plumbing
+ * settled the framing question.
+ *
+ * First correction kept the voice switch and fixed only the naming: her name
+ * and photo in the header, «بصوت سالم» as a badge in the exact words
+ * `WAIN_AI_COPY.switchToSalem` already uses for the mid-call button, not a
+ * second name. Asked directly afterwards to go further — keep her voice,
+ * don't change it — and that is what shipped: `lib/salem-chat.ts` sends no
+ * `tts` override at all now, `/salem` and `/find`'s typing half read
+ * `WAIN_AI_COPY` only, and this file has no second export for `/salem` to
+ * import. `SALEM_VOICE_ID` is back to describing exactly one thing, below.
  *
  * Same id `scripts/gen-voice.mjs` and the live TTS bridge
  * (`scripts/publish/tts-endpoint.php`) already use for him — Eid, Gulf male —
@@ -240,28 +250,24 @@ export const WAIN_AI_COPY = {
 } as const;
 
 /**
- * سالم's own page, `/salem` — see the note over `SALEM_VOICE_ID` for what
- * this is and is not. Kuwaiti addressed to an unknown listener defaults to
- * the masculine imperative («قول», not «قولي») the same way شوق's own copy
- * above does, so these read the same register hers do.
+ * `/salem`'s own copy — for the typed-chat UI itself, never for a claim
+ * about who is on the other end. That claim is just `WAIN_AI_COPY.name`
+ * (شوق) — see the note over `SALEM_VOICE_ID` for why there is no badge or
+ * second name here either. No `greeting` here on purpose: the first line in
+ * the transcript is whatever she actually says, read live off the wire, not
+ * a written-in-advance line that could disagree with it.
  */
-export const SALEM_AI_COPY = {
-  name: "سالم",
-  role: "دليلك في الكويت",
-  // The CTA on /find's سالم half — a link to /salem, not the chat input
-  // itself, so it names the ACTION rather than repeating `placeholder`.
-  cta: "دردش مع سالم",
+export const WAIN_AI_CHAT_COPY = {
   placeholder: "اكتب رسالتك…",
   send: "إرسال",
-  greeting: "هلا! أنا سالم. قول لي وش تبي — قهوة، بحر، طلعة عيال — وأدلّك.",
-  connecting: "نوصّل سالم…",
-  connected: "متصل بسالم",
+  connecting: "نوصّل شوق…",
+  connected: "متصلة",
   disconnected: "انتهت المحادثة.",
   reconnect: "ابدأ من جديد",
   // The chat's own tool call is answered with an error rather than left to
-  // hang — see lib/salem-chat.ts — so this is what a visitor reads when he
+  // hang — see lib/salem-chat.ts — so this is what a visitor reads when they
   // tried to open a place or the map from here and could not.
-  toolUnavailable: "ما أقدر أفتح صفحات من هنا — جرّب كلّم شوق أو دوّر بنفسك.",
-  failed: "ما قدرنا نوصلك بسالم — جرّب مرة ثانية.",
+  toolUnavailable: "ما أقدر أفتح صفحات من هنا — دوّر بنفسك أو كلّمها بمكالمة.",
+  failed: "ما قدرنا نوصلها — جرّب مرة ثانية.",
   notConfigured: "المحادثة مو متاحة الحين.",
 } as const;

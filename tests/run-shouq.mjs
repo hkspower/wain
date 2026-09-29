@@ -141,6 +141,11 @@ failed += (await run("node", ["tests/voice-pipeline.test.mjs"])) === 0 ? 0 : 1;
 console.log("\n════ سالم: the chat client ════");
 failed += (await run("node", ["tests/salem-chat.test.mjs"])) === 0 ? 0 : 1;
 
+/* 2d — the pure half of /salem's show_places/open_place: given a query and
+   the live rows, what matched and what to tell her. No browser, no socket. */
+console.log("\n════ شوق: the maps tools (pure half) ════");
+failed += (await run("node", ["tests/salem-tools.test.mjs"])) === 0 ? 0 : 1;
+
 /* 3 — the voice module, with the browser's audio APIs instrumented. */
 console.log("\n════ شوق: the voice ════");
 {

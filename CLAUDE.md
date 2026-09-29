@@ -2601,6 +2601,92 @@ dark backdrop, both literally invisible and technically unreadable at once.
 Fixed by giving the whole page's root `text-white`, the same fix `/find`'s
 dark halves already needed and got.
 
+### /salem shipped claiming سالم, and it was wrong — corrected the same day
+
+Everything above this point in the reversal — the hand-rolled client, the
+148KB-saved argument, the tool-call handling — was right and is unchanged.
+What was wrong was the UI's claim about who is on the other end, and it took
+reading the live agent directly, not assuming the plumbing settled it, to
+find.
+
+**Pulled شوق's live `agents_get` config while doing an unrelated broad check
+("check all شوق files") and read her actual `first_message`.** It says «أنا
+شوق», not «أنا سالم» — and her whole prompt is written to her in first-person
+FEMININE grammar throughout, hundreds of lines of it, none of which the
+`voice_id` override touches. `/salem` as shipped had her own name nowhere on
+the page: a hand-written «هلا! أنا سالم…» greeting bubble, his photo in the
+header, his card on `/find` with his own role pill. The first REAL reply —
+whether the fabricated greeting was there or not — would have been «أنا شوق»,
+spoken in a voice the page had just told the visitor was a man's, on a page
+that had just introduced itself as him. Not a subtle bug: the two facts
+directly contradict each other the moment a real conversation starts, and
+nothing about how the feature was built would have surfaced it, because
+nothing in this repository's own test suites talks to the live agent — every
+suite that touches agent mode stubs the widget or asserts on the client
+code's own state, which is exactly what `/salem`'s wire client is (correctly)
+built to do too. Only reading what she actually says caught it.
+
+**Corrected to match the precedent that already existed and was ignored: the
+mid-call «🔊 بصوت سالم» button in `WainAiCall.tsx`.** That button was never
+named «كلّمي سالم» — its own comment says so, deliberately, because it is a
+voice change to the same agent, not a different one to talk to. `/salem`
+now says the same thing the same way: her name (`WAIN_AI_COPY.name`) and her
+own photo (`shouq-face.jpg`, not a second face) in the header, «🔊 بصوت سالم»
+— `WAIN_AI_COPY.switchToSalem`, the identical string — as a badge beside her
+name rather than a name of its own, and no hand-written greeting at all: the
+first line in the transcript is whatever she actually sends, read live off
+the wire, which cannot disagree with itself the way a written-in-advance
+line could. `/find`'s second half matches: her photo again (not سالم's,
+which is now unreferenced and deleted — `public/find/salem.jpg` and
+`salem-face.jpg`), the voice badge instead of a role pill naming him, and
+«اكتب» alone for the heading, mirroring «اتصال» above it, since her name and
+role are already said by the call half and do not need saying twice under a
+different name.
+
+**`SALEM_AI_COPY` is gone; `WAIN_AI_CHAT_COPY` replaces it**, and the split
+is not cosmetic — the old object mixed two different kinds of claim in one
+place: strings that describe the typed-chat UI (`placeholder`, `send`,
+`connecting`, `reconnect`, …) and strings that asserted an identity (`name`,
+`role`, `greeting`, `cta`). The UI strings survive, renamed and with «سالم»
+scrubbed from their wording (`failed` used to read «ما قدرنا نوصلك بسالم»;
+now «ما قدرنا نوصلها», which is simply true regardless of whose voice is
+playing). The identity strings are deleted outright rather than repointed,
+because there is no longer a second identity for them to describe.
+
+**Nothing about the underlying mechanism changed, and that is worth stating
+plainly rather than leaving implied.** `lib/salem-chat.ts` is untouched —
+same hand-rolled WebSocket client, same `SALEM_VOICE_ID` override, same
+148KB avoided by not carrying `@elevenlabs/client`. The connect-timeout and
+reconnect-button fixes from the same session's earlier review stand as they
+were. What moved is entirely presentational: four files
+(`wain-ai.ts`, `SalemChat.tsx`, `FindChoice.tsx`, `salem/page.tsx`) and two
+now-dead images. `tests/salem.test.mjs` and `tests/find.test.mjs` were
+rewritten to match — the former used to assert «the header names سالم» and
+now asserts the opposite on purpose, the same shape this file's own
+`test:hangout` section elsewhere warns about: an assertion of the WRONG
+shape is worse than no assertion, because it looks like coverage.
+
+**And corrected again, the same day: no voice switch either.** The fix above
+kept `SALEM_VOICE_ID` as a live `tts.voice_id` override — her name and photo
+now, but still his voice on the wire, badged «🔊 بصوت سالم». Asked directly
+to go further: keep her voice, don't change it. `lib/salem-chat.ts` sends no
+`tts` override at all now — the `conversation_config_override` on the wire
+carries only `conversation: { text_only: true }` — and every trace of the
+badge is gone from `wain-ai.ts`, `SalemChat.tsx` and `FindChoice.tsx`.
+`WAIN_AI_CHAT_COPY` (was `SALEM_AI_COPY`, renamed in the first correction)
+lost nothing further; it already carried no identity claim, only the chat
+UI's own strings, and those needed only `فشل`/`جرّب مرة ثانية` reworded away
+from naming him («ما قدرنا نوصلك بسالم» → «ما قدرنا نوصلها»).
+
+`SALEM_VOICE_ID` in `lib/wain-ai.ts` is back to describing exactly one thing
+— the mid-call switch in `WainAiCall.tsx`, which this correction does not
+touch — after two sessions of `/salem` reaching for it as well. Three
+attempts to word the same export's comment for three different sets of
+callers is itself the tell that `/salem` should never have imported it in
+the first place; the header comment records all three rather than only the
+last, because the next person reaching for `SALEM_VOICE_ID` from a THIRD
+surface should see that this has been tried and walked back twice already.
+
 ## The Arabic prose has been read, once, on purpose
 
 `npm run audit:arabic` says so itself: it checks invisible characters, wrong-
@@ -3490,6 +3576,106 @@ now; checked with ajv against that schema, which rejects a typo like
 `.claude/settings.local.json` is gitignored: the committed file is the
 project's allowlist and every session should get the same one, where a local
 override widens it for one machine and nobody else can see that it did.
+
+## /salem gets show_places/open_place, then real place cards — 29 September
+
+Asked to «integrate maps with شوق و سالم»: `/salem`'s typed chat had no way to
+put a place on screen at all — every `show_places`/`open_place` call answered
+with a generic «not available in text chat» error, because the tools only
+ever existed inside `WainAiCall.tsx`, where they `router.push()`. A push on
+`/salem` would unmount the chat and close the socket mid-conversation — this
+page IS the page — so the call's own implementation could not simply be
+reused.
+
+**Split in two, the same way `place-kit.ts` already exists to hold the
+catalogue-free half of everything else.** `src/lib/salem-tools.ts` is the
+pure half — given a query and the live rows, what matched and what to tell
+her — importing `@/lib/places`' TYPE only, unit-tested with no browser, no
+socket, no React (`tests/salem-tools.test.mjs`, 21 assertions). `SalemChat.tsx`
+owns the impure half: `usePlaces()`'s live rows, a lazily-loaded search index
+(mirroring `WainAiCall.tsx`'s own `loadIndex`), and turning a result into an
+inline transcript message instead of a navigation. `salem-chat.ts` grew a
+pluggable `clientTools` map on `startSalemChat()` for this — an unregistered
+tool still answers with an error rather than hanging, the same shape the real
+SDK uses (`tests/salem-chat.test.mjs`, 17 assertions covering dispatch,
+absence, and a throwing handler).
+
+**A hand-written count-agreement bug was caught before it ever ran.**
+`formatShowPlaces`'s first draft read
+`` `${found.length} ${countAr(found.length, PLACES_COUNT)} مطابقة` `` —
+`countAr` already returns a complete "N noun" phrase of its own
+(`countAr`'s whole reason for existing, per `place-kit.ts` — this exact class
+of bug has been written by hand three times before), so prefixing the raw
+digit doubled the count instead of agreeing with it. Fixed to mirror
+`WainAiCall.tsx`'s own tool-result phrasing exactly (its hand-rolled
+1-vs-plural, not its on-screen `setLastAction`, which does go through
+`countAr`) — matching precedent rather than inventing a third convention.
+`tests/salem-tools.test.mjs` asserts the count appears exactly once.
+
+**Both card lines carry slugs only, not a trimmed copy of a place's fields.**
+The first version invented its own pill — a name and a bare category string —
+which is a second, ad-hoc card shape next to `PlaceCard.tsx`, the one
+/explore and every "أماكن مشابهة" rail already use. Reworked so
+`salem-tools.ts` hands back slugs, and `SalemChat.tsx` (which already holds
+`places`) resolves each one and renders the real `PlaceCard` — richer (icon,
+rating, price level, category, area) and immune to drifting from the rest of
+the site's own cards. Caught along the way: the empty-state line was a `<p>`
+rendered as a direct child of the results `<ul>`, which is invalid HTML —
+fixed to return the `<p>` alone rather than nest it in a list with nothing to
+hold.
+
+`/salem` grew from ~109K to 146K gzipped, still well under the 175K
+`audit:js` budget. Verified with a fake `window.WebSocket` in
+`tests/salem.test.mjs` (`api.elevenlabs.io` is refused by this sandbox's own
+egress gateway, so nothing here has been exercised against a live agent) —
+dispatching a real `client_tool_call` message and reading the rendered
+`PlaceCard` and its `/places/<slug>/` link back off the DOM.
+
+## ShareHangout reaches /salem too — «integrate hangout»
+
+**شوق's phone call already had this, twice over, for free.** `show_places`
+navigates to `/search`, which mounts `SearchPlan`'s own `ShareHangout`
+unconditionally; `open_place` navigates to a place page, which mounts one
+directly in `PlaceView.tsx`. Neither of `/salem`'s tool results ever leaves
+the page — that is this file's whole premise — so neither destination's panel
+was ever reachable from a typed conversation. A caller who typed instead of
+called could see a place and had no way to send it to the group.
+
+`SalemPlacesResult`, a small component inside `SalemChat.tsx`, is the fix:
+the same `ShareHangout`, the same `choices`/`onChoose` shape `SearchPlan.tsx`
+already uses, with its own `activeSlug` state so one turn's selection cannot
+leak into another's. `open_place`'s single card gets a bare
+`<ShareHangout place={place} />`, matching `PlaceView.tsx`'s own usage. No new
+time rules, no new message format — the one file that already owns both
+(`lib/hangout.ts`) is still the only one that does. Verified in
+`tests/salem.test.mjs`: after each fake `client_tool_call`, the panel's own
+heading is on screen, and a second turn carries its own panel rather than
+sharing the first's.
+
+**Asked next to «integrate hangout with the map», which turned out to already
+be true and untested.** `SearchClient.tsx`'s `activeSlug` is shared between
+`SearchMap` (and, through it, `LiveMap` once opened) and `SearchPlan`'s
+`ShareHangout` — "pointing at either end highlights the other" was already
+the design. But `search-plan.test.mjs`'s own header asserted this in passing
+— "the map and the list, which already point at each other" — and nothing
+anywhere had ever tapped a pin and checked the hangout panel's own selection
+followed it. `activeSlug` being shared CODE and the claim being a TESTED fact
+are not the same thing, and the failure mode is quiet: a panel that always
+sent the top result no matter which pin was current would still look
+completely correct on screen.
+
+Two new blocks in `search-plan.test.mjs` close that gap, both directions,
+both maps: tapping a pin on the static embed moves the panel's own «أي
+مكان؟» selection to that place, and choosing a place back in the panel makes
+its pin the current one on the map; then the same round-trip again once
+`LiveMap` is opened (`تحرّك الخريطة`) — a different transport, the same
+`renderPin` in `SearchMap.tsx` under both, so proving it twice is proving two
+real paths rather than one mechanism from two angles. All five new
+assertions passed on the first real run; two unrelated suites
+(`search-keys.test.mjs`, and this same file) timed out on ordinary
+element-visibility waits in an earlier run made while `test:shouq` was also
+driving Chromium concurrently on this machine — re-run alone, clean, which is
+what settled it as resource contention rather than a regression.
 
 ## Style
 

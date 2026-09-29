@@ -1,37 +1,100 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import PlaceCard from "@/components/PlaceCard";
+import ShareHangout from "@/components/ShareHangout";
 import { IconSend } from "@/components/icons";
-import { SALEM_AI_COPY, WAIN_AI_AGENT_ID } from "@/lib/wain-ai";
+import type { Place } from "@/lib/places";
+import { WAIN_AI_CHAT_COPY, WAIN_AI_AGENT_ID, WAIN_AI_COPY } from "@/lib/wain-ai";
 import { startSalemChat, type SalemChatHandle, type SalemStatus } from "@/lib/salem-chat";
+import { usePlaces } from "@/lib/usePlaces";
+import { formatOpenPlace, formatShowPlaces } from "@/lib/salem-tools";
 
-/** A typed-chat line — شوق/سالم's own reply, the visitor's own, or a note
- * from this page itself (a tool it could not run). Kept apart from
- * `SalemMessage` (which only ever carries "user" | "agent") because a
- * system note is not something either side of the conversation said. */
-type ChatLine = { role: "user" | "agent" | "system"; text: string };
+/** A typed-chat line — شوق's own reply, the visitor's own, a note from this
+ * page itself (a tool it could not run), or one of her two tool RESULTS
+ * rendered inline: a row of place cards from `show_places`, or one fuller
+ * card from `open_place`. Kept apart from `SalemMessage` (which only ever
+ * carries "user" | "agent") because none of the other three is something
+ * either side of the conversation SAID.
+ *
+ * Both card lines carry SLUGS only — `salem-tools.ts`'s own pure half never
+ * touches the catalogue, so it cannot hand back a trimmed copy of a place's
+ * fields. This component already holds `places` (`usePlaces()`, below), so
+ * it resolves each slug against the live rows and renders the real
+ * `PlaceCard` — the same one /explore and every "أماكن مشابهة" rail use —
+ * rather than a second, ad-hoc card shape that would drift from it. */
+type ChatLine =
+  | { role: "user" | "agent" | "system"; text: string }
+  | { role: "places"; query: string; slugs: string[] }
+  | { role: "place"; slug: string };
 
 /**
- * سالم's own full page: a typed chat, not a call.
+ * شوق's typed chat — reachable on her own page, in her own voice.
  *
- * Deliberately does not import `@/lib/places` or `usePlaces()` — see the
- * "catalogue must not reach a client bundle" rule in CLAUDE.md. That means
- * `show_places`/`open_place`, the tools شوق's own call uses to put results on
- * screen (`WainAiCall.tsx`), have nothing to act on here: `lib/salem-chat.ts`
- * answers the tool call with an error instead of leaving it to hang, and
- * `onToolUnavailable` below turns that into a system line in the transcript
- * so a visitor knows why nothing appeared. He can still recommend places by
- * name in the text itself — only the map/results panel is unavailable here.
+ * NOT سالم's page, and not his voice either. It shipped as his page once
+ * this session — his name, his photo, a hand-written «أنا سالم» greeting —
+ * over an agent whose prompt never changed to match: same first-person
+ * FEMININE grammar throughout, a real `first_message` that says «أنا شوق».
+ * Corrected once to name her instead while still switching the TTS voice to
+ * his («🔊 بصوت سالم», matching the mid-call button's own wording), and
+ * corrected again on request to drop the voice switch too — her own voice,
+ * unchanged, same as before any of this shipped. `SALEM_VOICE_ID` in
+ * `lib/wain-ai.ts` still exists for the one place it always did, the
+ * mid-call switch in `WainAiCall.tsx`; this page does not read it.
+ *
+ * So: her name, her avatar, her own voice, and no written-in-advance
+ * greeting — the first line in the transcript is whatever she actually
+ * sends, read live off the wire.
+ *
+ * `show_places`/`open_place` are wired now, on request — see
+ * `lib/salem-tools.ts` for why they could not simply be `WainAiCall.tsx`'s
+ * own versions (those navigate the page; this page IS the page, and a
+ * navigation would end the conversation) and for the pure half of the
+ * logic. `usePlaces()` is the one narrow exception to "the catalogue must
+ * not reach a client bundle" this file makes, same as `WainAiCall.tsx`
+ * already does — safe because this component is its own route's chunk, not
+ * the shared bundle every page pays for.
+ *
+ * `ShareHangout` rides along with both tool results — «integrate hangout»,
+ * on request. It did not need building: a شوق CALL already reaches it twice
+ * over, for free, because `show_places` navigates to /search (which mounts
+ * `SearchPlan`'s own `ShareHangout`) and `open_place` navigates to a place
+ * page (which mounts one directly, in `PlaceView.tsx`). Neither tool result
+ * on THIS page ever leaves it — that is the whole premise of this file — so
+ * neither destination's panel was ever reachable here, and a caller who
+ * typed instead of called had a place shown with no way to send it to the
+ * group. `SalemPlacesResult`, below, is the fix: the same component, the
+ * same `choices`/`onChoose` shape `SearchPlan` already uses, so the time
+ * rules, the summer rule and the message format stay the one file that
+ * already owns them rather than a second copy drifting from it here.
  */
 export default function SalemChat() {
   const notConfigured = WAIN_AI_AGENT_ID === "";
   const [status, setStatus] = useState<SalemStatus>(notConfigured ? "error" : "connecting");
-  const [messages, setMessages] = useState<ChatLine[]>([
-    { role: "agent", text: SALEM_AI_COPY.greeting },
-  ]);
+  const [messages, setMessages] = useState<ChatLine[]>([]);
   const [draft, setDraft] = useState("");
   const handleRef = useRef<SalemChatHandle | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const { places } = usePlaces();
+
+  // Same shape as WainAiCall.tsx's own `loadIndex`, for the same reason: the
+  // search engine belongs to a conversation that may never happen, so it is
+  // a runtime import() started on approach (here: as soon as a session opens,
+  // since unlike the call there is no separate "ringing" moment to hide it
+  // behind) rather than a static one paid by every visit to this page.
+  const loadIndex = useMemo(() => {
+    let pending: Promise<{ mod: typeof import("@/lib/search"); index: import("@/lib/search").SearchIndex }> | null =
+      null;
+    return () =>
+      (pending ??= import("@/lib/search").then((mod) => ({ mod, index: mod.buildIndex(places) })));
+  }, [places]);
+
+  useEffect(() => {
+    if (notConfigured) return;
+    void loadIndex().catch(() => {
+      // The tool call retries and falls through to its generic wording.
+    });
+  }, [notConfigured, loadIndex]);
 
   /**
    * Opens a session and points `handleRef` at it. Called once on mount, and
@@ -44,7 +107,23 @@ export default function SalemChat() {
       onStatus: setStatus,
       onMessage: (m) => setMessages((prev) => [...prev, m]),
       onToolUnavailable: () =>
-        setMessages((prev) => [...prev, { role: "system", text: SALEM_AI_COPY.toolUnavailable }]),
+        setMessages((prev) => [...prev, { role: "system", text: WAIN_AI_CHAT_COPY.toolUnavailable }]),
+      clientTools: {
+        show_places: async ({ query }) => {
+          const q = String(query ?? "").trim();
+          if (!q) return "ما وصلت كلمات بحث — ما تغيّر شي عند الزائر.";
+          const { mod, index } = await loadIndex();
+          const hits = mod.search(q, index, { limit: 40 });
+          const { spoken, slugs } = formatShowPlaces(q, hits, places);
+          setMessages((prev) => [...prev, { role: "places", query: q, slugs }]);
+          return spoken;
+        },
+        open_place: async ({ slug }) => {
+          const { spoken, slug: opened } = formatOpenPlace(String(slug ?? ""), places);
+          if (opened) setMessages((prev) => [...prev, { role: "place", slug: opened }]);
+          return spoken;
+        },
+      },
     });
     handleRef.current = handle;
   }
@@ -53,7 +132,7 @@ export default function SalemChat() {
     if (notConfigured) return;
     connect();
     return () => handleRef.current?.close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect/notConfigured close over stable setters and a build-time constant; re-running this effect on every render would open a new socket each time
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect/notConfigured close over stable setters, `places`/`loadIndex` via a ref-free closure, and a build-time constant; re-running this effect on every render would open a new socket each time
   }, []);
 
   useEffect(() => {
@@ -70,14 +149,14 @@ export default function SalemChat() {
   }
 
   const statusLine = notConfigured
-    ? SALEM_AI_COPY.notConfigured
+    ? WAIN_AI_CHAT_COPY.notConfigured
     : status === "connecting"
-      ? SALEM_AI_COPY.connecting
+      ? WAIN_AI_CHAT_COPY.connecting
       : status === "connected"
-        ? SALEM_AI_COPY.connected
+        ? WAIN_AI_CHAT_COPY.connected
         : status === "disconnected"
-          ? SALEM_AI_COPY.disconnected
-          : SALEM_AI_COPY.failed;
+          ? WAIN_AI_CHAT_COPY.disconnected
+          : WAIN_AI_CHAT_COPY.failed;
 
   return (
     // text-white here: not decorative — the sr-only <label> below inherits
@@ -88,21 +167,18 @@ export default function SalemChat() {
     // exclude, sr-only included, and correctly caught a real 1.10:1 pair —
     // dark ink text nobody was ever meant to see against a dark backdrop.
     <div className="flex min-h-dvh flex-col bg-sea-950 text-white">
-      {/* A slim band, not the full-bleed 50vh hero /find's halves use — this
-          page is a working chat, so the photo introduces him once rather
-          than filling the viewport every time a message arrives. */}
       <header className="flex items-center gap-3 border-b border-white/10 bg-sea-950 px-4 py-3">
         {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}
         <img
-          src="/find/salem-face.jpg"
+          src="/find/shouq-face.jpg"
           alt=""
           aria-hidden="true"
-          width={96}
-          height={96}
+          width={320}
+          height={320}
           className="size-11 shrink-0 rounded-full object-cover"
         />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-display text-base font-bold text-white">{SALEM_AI_COPY.name}</p>
+          <p className="truncate font-display text-base font-bold text-white">{WAIN_AI_COPY.name}</p>
           <p aria-live="polite" className="truncate text-xs text-sand-200">
             {statusLine}
           </p>
@@ -110,12 +186,41 @@ export default function SalemChat() {
       </header>
 
       <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        {messages.map((m, i) =>
-          m.role === "system" ? (
-            <p key={i} role="status" className="mx-auto max-w-[85%] rounded-2xl bg-white/10 px-4 py-2 text-center text-xs text-sand-200">
-              {m.text}
-            </p>
-          ) : (
+        {messages.map((m, i) => {
+          if (m.role === "system") {
+            return (
+              <p key={i} role="status" className="mx-auto max-w-[85%] rounded-2xl bg-white/10 px-4 py-2 text-center text-xs text-sand-200">
+                {m.text}
+              </p>
+            );
+          }
+          if (m.role === "places") {
+            // Her own words already carry the count and the first names
+            // (formatShowPlaces' `spoken`, read by the agent); the rail is
+            // the thing itself, not a repeat of what she said about it. Real
+            // `PlaceCard`s, matching /explore's own rail — see this file's
+            // `ChatLine` comment for why the ad-hoc pill this used to be was
+            // replaced rather than restyled. `SalemPlacesResult` owns its own
+            // `ShareHangout`, on the same reasoning.
+            const cards = m.slugs.flatMap((slug) => {
+              const place = places.find((p) => p.slug === slug);
+              return place ? [place] : [];
+            });
+            return <SalemPlacesResult key={i} places={cards} query={m.query} />;
+          }
+          if (m.role === "place") {
+            const place = places.find((p) => p.slug === m.slug);
+            if (!place) return null;
+            return (
+              <div key={i} className="space-y-2">
+                <div className="w-48">
+                  <PlaceCard place={place} />
+                </div>
+                <ShareHangout place={place} />
+              </div>
+            );
+          }
+          return (
             <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               <p
                 className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
@@ -125,11 +230,11 @@ export default function SalemChat() {
                 {m.text}
               </p>
             </div>
-          )
-        )}
+          );
+        })}
         {status === "error" && (
           <p role="alert" className="mx-auto max-w-[85%] rounded-2xl bg-coral-50 px-4 py-2.5 text-center text-sm text-coral-700">
-            {notConfigured ? SALEM_AI_COPY.notConfigured : SALEM_AI_COPY.failed}
+            {notConfigured ? WAIN_AI_CHAT_COPY.notConfigured : WAIN_AI_CHAT_COPY.failed}
           </p>
         )}
         {/* Not for notConfigured — that comes from a build-time constant, so
@@ -140,13 +245,10 @@ export default function SalemChat() {
           <div className="text-center">
             <button
               type="button"
-              onClick={() => {
-                setMessages((prev) => [...prev, { role: "agent", text: SALEM_AI_COPY.greeting }]);
-                connect();
-              }}
+              onClick={connect}
               className="mt-1 inline-flex min-h-6 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-ink-900 transition hover:bg-sand-100"
             >
-              {SALEM_AI_COPY.reconnect}
+              {WAIN_AI_CHAT_COPY.reconnect}
             </button>
           </div>
         )}
@@ -154,13 +256,13 @@ export default function SalemChat() {
 
       <form onSubmit={send} className="flex items-stretch gap-2 border-t border-white/10 bg-sea-950 p-3">
         <label htmlFor="salem-q" className="sr-only">
-          {SALEM_AI_COPY.placeholder}
+          {WAIN_AI_CHAT_COPY.placeholder}
         </label>
         <input
           id="salem-q"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder={SALEM_AI_COPY.placeholder}
+          placeholder={WAIN_AI_CHAT_COPY.placeholder}
           disabled={status !== "connected"}
           // No `disabled:opacity-*` — the box already reads a normal white
           // field, and the header's own status line is what says "not yet".
@@ -169,12 +271,48 @@ export default function SalemChat() {
         <button
           type="submit"
           disabled={status !== "connected" || draft.trim() === ""}
-          aria-label={SALEM_AI_COPY.send}
+          aria-label={WAIN_AI_CHAT_COPY.send}
           className="grid size-11 shrink-0 place-items-center rounded-full bg-sea-600 text-white transition hover:bg-sea-700 disabled:opacity-40"
         >
           <IconSend className="size-5" />
         </button>
       </form>
+    </div>
+  );
+}
+
+/**
+ * One `show_places` turn, as its own component so its "أي مكان؟" selection —
+ * `ShareHangout`'s own chip row, only shown when there is more than one
+ * choice — is local to THIS turn rather than shared across every
+ * `show_places` call in the conversation. Without that, picking a different
+ * place in an earlier turn's row would silently retarget a later one too,
+ * because both would be reading and writing the same piece of state.
+ */
+function SalemPlacesResult({ places, query }: { places: Place[]; query: string }) {
+  const [activeSlug, setActiveSlug] = useState<string | null>(null);
+  const target = places.find((p) => p.slug === activeSlug) ?? places[0];
+
+  if (!target) {
+    return (
+      <p className="mx-auto max-w-[85%] rounded-2xl bg-white/10 px-4 py-2 text-center text-xs text-sand-200">
+        ما لقينا شي لـ «{query}»
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <ul className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1">
+        {places.map((place) => (
+          <li key={place.slug} className="w-40 shrink-0 snap-start">
+            <PlaceCard place={place} />
+          </li>
+        ))}
+      </ul>
+      {/* SearchPlan.tsx's own shape: `choices` only when there is a real
+          choice to make, `onChoose` closing over this turn's own state. */}
+      <ShareHangout place={target} choices={places.length > 1 ? places : undefined} onChoose={setActiveSlug} />
     </div>
   );
 }

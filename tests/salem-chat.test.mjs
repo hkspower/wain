@@ -107,6 +107,101 @@ console.log("\n── a connection that answers in time is not falsely timed out
   mock.timers.reset();
 }
 
+console.log("\n── client_tool_call: a registered tool runs and answers ──");
+{
+  globalThis.WebSocket = FakeSocket;
+  const calls = [];
+  startSalemChat({
+    onStatus: () => {},
+    onMessage: () => {},
+    onToolUnavailable: () => calls.push("unavailable"),
+    clientTools: {
+      show_places: async (params) => {
+        calls.push(["show_places", params]);
+        return "spoken result";
+      },
+    },
+  });
+  const sock = FakeSocket.last;
+  sock.emit("message", {
+    data: JSON.stringify({
+      type: "client_tool_call",
+      client_tool_call: { tool_call_id: "call-1", tool_name: "show_places", parameters: { query: "قهوة" } },
+    }),
+  });
+  // The handler is async and the dispatch chains two more `.then`s around
+  // it, so a microtask or two is not enough — a macrotask boundary is the
+  // reliable way to let the whole chain settle before reading `sock.sent`.
+  await new Promise((r) => setTimeout(r, 0));
+  ok("the handler ran with the agent's own parameters", calls.length === 1 && calls[0][1].query === "قهوة", JSON.stringify(calls));
+  const reply = JSON.parse(sock.sent[0] ?? "{}");
+  ok("its return value is sent back as the tool result", reply.result === "spoken result" && reply.is_error === false, JSON.stringify(reply));
+  ok("the reply names the right tool_call_id", reply.tool_call_id === "call-1");
+  ok("onToolUnavailable is not fired for a registered tool", !calls.includes("unavailable"));
+}
+
+console.log("\n── client_tool_call: an unregistered tool errors instead of hanging ──");
+{
+  globalThis.WebSocket = FakeSocket;
+  let unavailable = false;
+  startSalemChat({
+    onStatus: () => {},
+    onMessage: () => {},
+    onToolUnavailable: () => { unavailable = true; },
+    clientTools: { show_places: async () => "x" },
+  });
+  const sock = FakeSocket.last;
+  sock.emit("message", {
+    data: JSON.stringify({
+      type: "client_tool_call",
+      client_tool_call: { tool_call_id: "call-2", tool_name: "open_place", parameters: {} },
+    }),
+  });
+  const reply = JSON.parse(sock.sent[0] ?? "{}");
+  ok("an error result is sent, not silence", reply.is_error === true && reply.tool_call_id === "call-2", JSON.stringify(reply));
+  ok("onToolUnavailable fires so the page can say so", unavailable === true);
+}
+
+console.log("\n── client_tool_call: no clientTools map at all behaves the same way ──");
+{
+  globalThis.WebSocket = FakeSocket;
+  let unavailable = false;
+  startSalemChat({ onStatus: () => {}, onMessage: () => {}, onToolUnavailable: () => { unavailable = true; } });
+  const sock = FakeSocket.last;
+  sock.emit("message", {
+    data: JSON.stringify({
+      type: "client_tool_call",
+      client_tool_call: { tool_call_id: "call-3", tool_name: "show_places", parameters: {} },
+    }),
+  });
+  const reply = JSON.parse(sock.sent[0] ?? "{}");
+  ok("still an error result, not a throw", reply.is_error === true);
+  ok("still reported as unavailable", unavailable === true);
+}
+
+console.log("\n── client_tool_call: a handler that throws is answered, not left hanging ──");
+{
+  globalThis.WebSocket = FakeSocket;
+  startSalemChat({
+    onStatus: () => {},
+    onMessage: () => {},
+    onToolUnavailable: () => {},
+    clientTools: {
+      open_place: async () => { throw new Error("bad slug"); },
+    },
+  });
+  const sock = FakeSocket.last;
+  sock.emit("message", {
+    data: JSON.stringify({
+      type: "client_tool_call",
+      client_tool_call: { tool_call_id: "call-4", tool_name: "open_place", parameters: {} },
+    }),
+  });
+  await new Promise((r) => setTimeout(r, 0));
+  const reply = JSON.parse(sock.sent[0] ?? "{}");
+  ok("the thrown message is sent back as the error result", reply.is_error === true && reply.result === "bad slug", JSON.stringify(reply));
+}
+
 console.log(fails.length ? `\n${fails.length} failed` : "\nكل شي تمام");
 console.log(`${pass} passed, ${fails.length} failed`);
 process.exit(fails.length ? 1 : 0);

@@ -1,6 +1,16 @@
 /**
- * سالم's line — a minimal, hand-rolled client for ElevenLabs Conversational
- * AI's text-only WebSocket protocol.
+ * شوق's typed chat — a minimal, hand-rolled client for ElevenLabs
+ * Conversational AI's text-only WebSocket protocol.
+ *
+ * Her own voice, not سالم's. An earlier version of this page set
+ * `SALEM_VOICE_ID` as a `tts.voice_id` override here — cosmetically, since a
+ * text-only session never renders audio, but the whole page was framed
+ * around that override at the time, badge and all. Asked directly to keep
+ * her voice and not change it; removed the override outright rather than
+ * leave a dead field that would have meant something the moment this ever
+ * stopped being text-only. See `SALEM_VOICE_ID`'s own comment in
+ * `lib/wain-ai.ts` for what it is still for — the mid-call switch in
+ * `WainAiCall.tsx`, and nothing here any more.
  *
  * Not the `@elevenlabs/client` SDK. Importing just its `TextConversation`
  * still pulls in the SDK's own connection factory, which references
@@ -17,7 +27,7 @@
  * a live agent from this session. Same limitation every ElevenLabs feature in
  * this repository carries; say so rather than claim more.
  */
-import { SALEM_VOICE_ID, WAIN_AI_AGENT_ID } from "@/lib/wain-ai";
+import { WAIN_AI_AGENT_ID } from "@/lib/wain-ai";
 
 export interface SalemMessage {
   role: "user" | "agent";
@@ -31,17 +41,35 @@ export interface SalemChatHandle {
   close: () => void;
 }
 
+/**
+ * One client tool's implementation: takes the agent's own parameters,
+ * returns (or resolves to) the string that goes back to her as the tool
+ * result — exactly the contract `WainAiCall.tsx`'s `clientTools` already
+ * follow, so `show_places`/`open_place` read the same when wired here as
+ * they do on a call. Anything the handler throws is sent back as an error
+ * result rather than left unanswered.
+ */
+type SalemClientTool = (parameters: Record<string, unknown>) => Promise<string> | string;
+
 interface SalemChatCallbacks {
   onStatus: (status: SalemStatus) => void;
   onMessage: (message: SalemMessage) => void;
-  /** He tried to call a tool this page has nothing to run — see SalemChat.tsx. */
+  /**
+   * Tools this page can actually run, keyed by name — `SalemChat.tsx` passes
+   * `show_places`/`open_place` here once it carries `usePlaces()`. A tool
+   * she calls that is NOT in this map (or when this option is left out
+   * entirely) is answered with an error instead of left to hang — the same
+   * shape the real SDK sends for an unregistered tool — and `onToolUnavailable`
+   * fires so the page can say so in the transcript.
+   */
+  clientTools?: Record<string, SalemClientTool>;
   onToolUnavailable: () => void;
 }
 
 const NOOP_HANDLE: SalemChatHandle = { send: () => {}, close: () => {} };
 
 /**
- * How long "نوصّل سالم…" waits before giving up.
+ * How long "نوصّل شوق…" waits before giving up.
  *
  * The socket's own `open`/`close`/`error` events only fire for a connection
  * the network actually resolved one way or the other — a handshake accepted
@@ -63,6 +91,7 @@ const CONNECT_TIMEOUT_MS = 12000;
 export function startSalemChat({
   onStatus,
   onMessage,
+  clientTools,
   onToolUnavailable,
 }: SalemChatCallbacks): SalemChatHandle {
   if (!WAIN_AI_AGENT_ID) {
@@ -98,15 +127,13 @@ export function startSalemChat({
     // The one message the server requires before anything else: the
     // overrides this session wants, in the shape `overrides.ts` in the
     // published SDK constructs it. `text_only` is what keeps the server
-    // from ever opening a mic/audio track on its side; `voice_id` is
-    // cosmetic here (a text session renders no audio) but costs nothing to
-    // set, and keeps this session's override shape identical to the
-    // mid-call voice-swap's.
+    // from ever opening a mic/audio track on its side. No `tts` override —
+    // her own voice, unchanged; see this file's own header for why one was
+    // here before and is not now.
     socket.send(
       JSON.stringify({
         type: "conversation_initiation_client_data",
         conversation_config_override: {
-          tts: { voice_id: SALEM_VOICE_ID },
           conversation: { text_only: true },
         },
         source_info: { source: "wain-salem-chat", version: "1" },
@@ -138,21 +165,43 @@ export function startSalemChat({
         return;
       }
       case "client_tool_call": {
-        // show_places / open_place need the catalogue and the live map,
-        // which this page deliberately does not carry — see SalemChat.tsx.
-        // Answering with an error, the same shape the real SDK sends for an
-        // unregistered tool, resolves the call instead of leaving the agent
-        // waiting on a reply that never comes; she can then say so.
-        const evt = data.client_tool_call as { tool_call_id?: string } | undefined;
-        socket.send(
-          JSON.stringify({
-            type: "client_tool_result",
-            tool_call_id: evt?.tool_call_id,
-            result: "not available in text chat",
-            is_error: true,
+        const evt = data.client_tool_call as
+          | { tool_call_id?: string; tool_name?: string; parameters?: Record<string, unknown> }
+          | undefined;
+        const toolCallId = evt?.tool_call_id;
+        const handler = evt?.tool_name ? clientTools?.[evt.tool_name] : undefined;
+        if (!handler) {
+          // No handler registered for this tool name — the same error shape
+          // the real SDK sends for one, so the call resolves instead of
+          // leaving the agent waiting on a reply that never comes.
+          socket.send(
+            JSON.stringify({
+              type: "client_tool_result",
+              tool_call_id: toolCallId,
+              result: "not available in text chat",
+              is_error: true,
+            })
+          );
+          onToolUnavailable();
+          return;
+        }
+        Promise.resolve()
+          .then(() => handler(evt?.parameters ?? {}))
+          .then((result) => {
+            socket.send(
+              JSON.stringify({ type: "client_tool_result", tool_call_id: toolCallId, result, is_error: false })
+            );
           })
-        );
-        onToolUnavailable();
+          .catch((err) => {
+            socket.send(
+              JSON.stringify({
+                type: "client_tool_result",
+                tool_call_id: toolCallId,
+                result: err instanceof Error ? err.message : String(err),
+                is_error: true,
+              })
+            );
+          });
         return;
       }
       default:
