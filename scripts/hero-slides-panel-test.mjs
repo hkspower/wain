@@ -66,7 +66,7 @@ const ARTWORK_RATIO = 2.52
 function expectedVisiblePct(vw, vh) {
   // 2026-09-29: the whole hero height, no band taken out (measured against the
   // real page: 45svh from 2026-09-29, 24svh on a phone.
-  const photoH = vw < 768 ? vh * 0.24 : vh * 0.45
+  const photoH = vw < 768 ? vh * 0.10 : vh * 0.18
   return Math.min(1, (vw / photoH) / ARTWORK_RATIO) * 100
 }
 

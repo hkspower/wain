@@ -118,8 +118,8 @@
   // since 2026-09-29 (it was 40svh, 55svh before), desktop 45svh (was 75svh).
   function visiblePct(viewportW, viewportH) {
     var photoH = viewportW < PHONE_BREAK
-      ? viewportH * 0.24   // 24svh hero
-      : viewportH * 0.45   // 45svh hero
+      ? viewportH * 0.10   // 10svh hero
+      : viewportH * 0.18   // 18svh hero
     return Math.min(1, (viewportW / photoH) / ARTWORK_RATIO) * 100
   }
 
