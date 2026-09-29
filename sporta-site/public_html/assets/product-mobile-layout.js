@@ -203,7 +203,7 @@
 
     if (!isMobile()) {
       /* Desktop: undo any inline order this file set, change nothing else. */
-      ;[titleRow, desc, price, sizeFit, delivery].forEach(function (el) {
+      ;[titleRow, desc, price, sizeFit, delivery].concat(Array.prototype.filter.call(column.children, function (el) { return el.style.order !== '' })).forEach(function (el) {
         if (el) el.style.order = ''
       })
       column.style.display = ''
@@ -214,25 +214,26 @@
 
     column.style.display = 'flex'
     column.style.flexDirection = 'column'
-    titleRow.style.order = '1'   /* name (#2) */
-    price.style.order = '2'      /* price (#3) */
-    sizeFit.style.order = '3'    /* size selector (#6) */
-    if (delivery) delivery.style.order = '4'  /* delivery info (#8) */
-    if (desc) desc.style.order = '5'          /* description (#9), after delivery */
-    column.setAttribute(ORDERED_MARK, '1')
-
-    /* The in-page (non-sticky) qty/Add/Buy row and anything else in the
-     * column keeps its DOM order and floats after these five by default —
-     * flex `order` defaults to 0 for anything not set, so give the five
-     * named ones negative-free explicit slots (1-5) and leave everything
-     * else exactly where flex puts unset items: 0, i.e. FIRST. To keep the
-     * qty/CTA row where the bundle already puts it (after size/fit, before
-     * delivery) rather than jumping to the top, it gets its own order too. */
+    /* WHOLE NUMBERS ONLY, AND SPACED BY TEN. `order` takes an <integer>: the
+     * first version gave the buy row '3.5', which the browser REJECTS, so the
+     * row fell back to order 0 and painted FIRST — above the product name, with
+     * the wishlist heart wedged against it — on every phone, in both
+     * languages. Nothing reported it (an invalid inline style is dropped
+     * silently) and the section order the owner specified was wrong from the
+     * day it shipped. Steps of ten leave room for anything inserted later. */
+    titleRow.style.order = '10'   /* name (#2) */
+    price.style.order = '20'      /* price (#3) */
+    sizeFit.style.order = '30'    /* size selector (#6) */
+    /* The in-page qty/Add/Buy row keeps the DOM position the bundle gives it
+     * (after size/fit, before delivery) and now says so with a real number. */
     var ctaRow = findChild(column, function (el) {
       return el !== titleRow && el !== desc && el !== price && el !== sizeFit && el !== delivery &&
-             el.tagName === 'DIV'
+             el.tagName === 'DIV' && !el.hasAttribute(GUIDE_MARK)
     })
-    if (ctaRow) ctaRow.style.order = '3.5'
+    if (ctaRow) ctaRow.style.order = '40'
+    if (delivery) delivery.style.order = '50'  /* delivery info (#8) */
+    if (desc) desc.style.order = '60'          /* description (#9), after delivery */
+    column.setAttribute(ORDERED_MARK, '1')
   }
 
   /* ---------------------------------------------------------------- size guide */
@@ -261,7 +262,7 @@
     var section = document.createElement('div')
     section.setAttribute(GUIDE_MARK, '1')
     section.className = 'mt-8 rounded-2xl bg-white p-5'
-    section.style.order = '6' /* after description (5), before nothing else in this column */
+    section.style.order = '70' /* after description (60), before nothing else in this column */
 
     var h2 = document.createElement('h2')
     h2.className = 'mb-3 text-sm font-bold text-slate-900'

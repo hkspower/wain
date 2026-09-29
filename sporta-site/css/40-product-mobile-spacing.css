@@ -1,0 +1,51 @@
+/* =============================== the product page on a phone: spacing, 2026-09-29
+   Asked for as "fix product page mobile alignment and centering and spacing and
+   padding". Measured on the rendered page at 390px in both languages before a
+   line was written; each rule below answers one measurement, and none changes
+   what the owner chose on 2026-09-04 (name, price and buy row centred; prose
+   and lists from the start edge).
+
+   THE LARGEST FAULT IS NOT IN THIS FILE. product-mobile-layout.js gave the
+   buy row `order: 3.5`, which CSS rejects (order is an integer), so the row
+   painted FIRST — above the product name. That is fixed where it was made.
+
+   1. THE BREADCRUMB BAND was 48px of section padding above the trail and 24px
+      below it, so the photograph began 92px under the header. 20 / 16 keeps
+      it a trail rather than a banner.
+   2. THE TITLE AND THE HEART. The wishlist button is taken out of flow and
+      pinned to the end corner, so a two-line name ran straight under it.
+      Padding equal to the button (plus a gap) on BOTH sides keeps the name
+      on the true centre and clear of the heart in either direction.
+   3. THE SIZE CARD reserved 40px + 8px under the chips for the stock note,
+      so an empty note read as 48px of unexplained bottom padding. The note is
+      one line; 24px reserves that line without the gap.
+   4. THE FIT CARD kept the 12px header margin for a body that is hidden on a
+      phone (the chips are `hidden md:block`; on a phone the choice opens from
+      the header button), so its bottom padding was 39px against 25px on top.
+   5. THE DESCRIPTION sat 12px under the delivery list while every other block
+      in the column is separated by 24 to 32px. It now takes the 32px the info
+      blocks use. */
+@media (max-width: 767px) {
+  section.mx-auto.max-w-5xl:has(h1.product-title) {
+    padding-top: 1.25rem;
+  }
+  section.mx-auto.max-w-5xl:has(h1.product-title) > nav.mb-6 {
+    margin-bottom: 1rem;
+  }
+
+  .flex.items-start.justify-between.gap-4:has(> .product-title) > .product-title {
+    padding-inline: 3.25rem;
+  }
+
+  .space-y-3 .rounded-2xl > .mt-2.min-h-10 {
+    min-height: 1.5rem;
+  }
+
+  .rounded-2xl.border:has(> .hidden.md\:block) > .mb-3 {
+    margin-bottom: 0;
+  }
+
+  div:has(> div > h1.product-title) > p.mt-3.text-lg.text-slate-600 {
+    margin-top: 2rem;
+  }
+}

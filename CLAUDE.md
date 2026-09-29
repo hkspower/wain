@@ -3615,3 +3615,38 @@ before blaming the code.
 
 **`test:panel-cards` still fails** (Settings carries 2,058 words against a 600
 cap). It predates this work and trimming the cards' prose is the owner's call.
+
+## `order: 3.5` is not an order — the buy row sat above the product name, 2026-09-29
+
+Asked for as "fix product page mobile alignment, centering, spacing and padding".
+The biggest fault was not a spacing value. `product-mobile-layout.js` (2026-09-20)
+put the phone product page's blocks in the owner's specified order with flex
+`order`, and gave the qty / Add / Buy row `'3.5'`. **CSS `order` is an
+`<integer>`**; an invalid inline style is dropped silently, the row fell back to
+`0`, and it painted FIRST — above the product name, with the wishlist heart
+wedged against it — on every phone, in both languages, for nine days. Every rig
+was green because none of them asked where the row *painted*: the script's own
+comment even explains the fractional number as a feature.
+
+Steps of ten now (10 title, 20 price, 30 size, 40 buy row, 50 delivery, 60
+description, 70 size guide). `test:product-phone` measures the boxes, not the
+style that asked for them: painted order, 16–40px between blocks, name and price
+on the page centre, name padded clear of the heart, the Fit card's label
+balanced, the breadcrumb band not a banner. Mutation-tested both ways (the `3.5`
+back; the spacing sheet removed).
+
+Other measured spacing faults, all in `css/40-product-mobile-spacing.css`: 48px
+above the breadcrumb and 24px below; a two-line name running under the heart
+(padding equal to the button on BOTH sides keeps it centred); the Size card's 40px
+reserved stock-note line reading as 48px of bottom padding; the Fit card keeping
+the header's 12px margin for a body that is `hidden md:block`; the description
+12px under the list while everything else is 24–32px.
+
+**The general rule:** a value handed to CSS from a script can be rejected without
+a sound. Assert on the *computed* result (`getComputedStyle(el).order`, or better
+the painted position), never on what was written.
+
+A note on process, since it cost a minute: a screenshot script run from the repo
+root writes into the repo root. The first "after" images were the OLD ones for
+that reason, and stray `pv-*.png` files sat untracked in the checkout. Run rigs
+from the scratchpad, or give them absolute output paths.
