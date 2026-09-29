@@ -44,6 +44,23 @@ if ($html === false) {
     exit('Store shell missing.');
 }
 
+/* ------------------------------------------- the panel's scripts stay off the shop
+ *
+ * index.html loads ~50 overlay scripts, and 29 of them exist only to add cards
+ * to the /backends panel (the tag carries `data-panel`). /backends is served
+ * straight from index.html and keeps every one; the STOREFRONT comes through
+ * here, so the tags are dropped from what a shopper is sent: 29 fewer requests
+ * and about 330 kB less script on every first visit, for code that finds no
+ * screen to act on and returns.
+ *
+ * FAILS TOWARDS SENDING THEM. A regex that returns null (backtracking limit) or
+ * an empty page leaves the shell as it was: an extra script costs bytes, a
+ * missing one costs a feature. Only a tag that is a whole <script ... data-panel
+ * ... ></script> with a src is touched; inline scripts are never matched.
+ */
+$stripped = @preg_replace('#[ \t]*<script\b(?=[^>]*\sdata-panel\b)(?=[^>]*\ssrc=)[^>]*></script>[ \t]*\r?\n?#', '', $html);
+if (is_string($stripped) && strlen($stripped) > 1000 && strpos($stripped, '</html>') !== false) $html = $stripped;
+
 /* ------------------------------------------------------------- sending it out
  *
  * EVERY ROUTE ON THIS SITE COMES THROUGH HERE — `/`, /shop, /cart, /checkout,

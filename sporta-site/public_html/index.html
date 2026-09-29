@@ -352,6 +352,7 @@
          script and a module script both execute in document order after parsing
          — so window.SPORTA_CONFIG is set before anything reads it, and the CSS
          is discovered a round trip sooner. -->
+    <script src="/assets/api-dedupe.js?v=20260929" defer></script>
     <script src="/config.js" defer></script>
 
     <!-- Fonts are self-hosted; the @font-face rules live in the app stylesheet
@@ -702,10 +703,10 @@
          different program, so they are done the way everything else here
          reaches that bundle: DOM surgery, adding a card and changing nothing
          that exists. Neither does anything on any page but /backends. -->
-    <script src="/assets/admin-upload.js" defer></script>
-    <script src="/assets/brand-logos.js" defer></script>
-    <script src="/assets/brand-image-picker.js" defer></script>
-    <script src="/assets/product-photos.js" defer></script>
+    <script src="/assets/admin-upload.js" data-panel defer></script>
+    <script src="/assets/brand-logos.js" data-panel defer></script>
+    <script src="/assets/brand-image-picker.js" data-panel defer></script>
+    <script src="/assets/product-photos.js" data-panel defer></script>
 
     <!-- The Extra CSS box on the panel's Settings screen. Same shape as the two
          above and the same dependency on admin-upload.js, so it goes after it.
@@ -724,7 +725,7 @@
          written in the file — sizes and fits are pinned by CHECK constraints on
          order_items, and a picker offering a size MySQL will refuse is a
          checkout that dies on its last step. -->
-    <script src="/assets/rules.js" defer></script>
+    <script src="/assets/rules.js" data-panel defer></script>
 
     <!-- A hero-slide editor, also on the Settings screen — the first panel
          screen hero_slides has ever had; every slide before this was inserted
@@ -733,13 +734,13 @@
          box has no vertical crop slack at the current design, so this does
          not offer a height/width/aspect-ratio INPUT that would appear to
          resize the live hero and actually change nothing. -->
-    <script src="/assets/hero-slides.js" defer></script>
+    <script src="/assets/hero-slides.js" data-panel defer></script>
 
     <!-- The four home-page category tiles, editable from Settings (2026-09-29).
          A card under Hero slides: choose a picture, crop, save; the storefront's
          tile URLs are answered from the database when a picture is replaced.
          Depends on admin-upload.js above for window.sportaUpload. -->
-    <script src="/assets/category-art.js" defer></script>
+    <script src="/assets/category-art.js" data-panel defer></script>
 
     <!-- The product photo viewer (2026-09-29): pinch, double-tap, drag, swipe.
          Takes the tap on the gallery before the bundle's own lightbox, which
@@ -751,7 +752,7 @@
          Admin-only: unlike contact.js above, nothing here reaches the
          storefront or any system email the shop actually sends. Same overlay
          shape as the Shop rules card just above it. -->
-    <script src="/assets/contact-emails.js" defer></script>
+    <script src="/assets/contact-emails.js" data-panel defer></script>
 
     <!-- The colours of the buttons and the bars, also on the Settings screen.
          The theme editor has only ever existed in the APP's panel, so this
@@ -770,7 +771,7 @@
          twelve fields from the request, so a card posting only its own five
          would silently blank the fonts, the radius, the spacing base and the
          owner's custom CSS. theme.js is what applies the result. -->
-    <script src="/assets/theme-colors.js?v=20260923" defer></script>
+    <script src="/assets/theme-colors.js?v=20260923" data-panel defer></script>
 
     <!-- THE REST OF THE SITE'S WORDS. The storefront's whole vocabulary — about
          420 strings per language, every heading, button, empty state and error
@@ -788,14 +789,14 @@
          a shopper's page fetches is the overrides alone: `{}` for a shop that
          has never opened it. -->
     <script src="/assets/site-text.js" defer></script>
-    <script src="/assets/site-text-editor.js?v=20260923" defer></script>
+    <script src="/assets/site-text-editor.js?v=20260923" data-panel defer></script>
 
     <!-- Every admin write, on the Settings screen — the read side of the
          shutdown hook admin.php registers right after the admin gate.
          Covers every save route, including ones this file has never heard
          of by name, because the hook reads back what happened rather than
          being told by each route. -->
-    <script src="/assets/activity-log.js" defer></script>
+    <script src="/assets/activity-log.js" data-panel defer></script>
 
     <!-- A banner telling the owner to replace a cron-set temporary password.
          admin.php refuses every route but ?r=account and ?r=account_update
@@ -804,7 +805,7 @@
          way to say why, since the bundle has no source here to teach it
          directly. Loaded on every page and gated on /backends internally,
          the same shape every other admin-only overlay uses. -->
-    <script src="/assets/force-password-notice.js" defer></script>
+    <script src="/assets/force-password-notice.js" data-panel defer></script>
 
     <!-- A working "create the first admin account" form on the "No sign-in
          has been created yet" screen, replacing the bundle's own instructions
@@ -812,32 +813,32 @@
          this repository and does not exist on the server. Calls the same
          ?r=register the app's /backends already uses, which can only ever
          fire once. -->
-    <script src="/assets/first-admin.js" defer></script>
+    <script src="/assets/first-admin.js" data-panel defer></script>
 
     <!-- A fade at both edges of the website panel's mobile bottom tab bar
          (.m-tabbar, phones only), so a strip of 15 tabs cut off flush at 5
          visible ones looks like the scrollable thing it already is, rather
          than a complete row nobody has reason to swipe. CSS only. -->
-    <script src="/assets/panel-tabbar-fade.js" defer></script>
+    <script src="/assets/panel-tabbar-fade.js" data-panel defer></script>
 
     <!-- The same tab bar re-centres on whichever tab is active, instead of
          staying wherever a swipe last left it — the fade above fixed
          discoverability; this fixes "where am I" after tapping a tab found
          by scrolling. MutationObserver on aria-current, not CSS alone: a
          behaviour on tap, not a rule a stylesheet can express. -->
-    <script src="/assets/panel-tabbar-autocenter.js?v=20260923" defer></script>
+    <script src="/assets/panel-tabbar-autocenter.js?v=20260923" data-panel defer></script>
 
     <!-- The website panel's Settings screen: the contact-details card the
          bundle has no editor for (the app's panel has had one all along), and
          the repair of two instructions on that screen which name files this
          server deliberately does not have. Panel-only; it does nothing on any
          other screen and nothing at all on the storefront. -->
-    <script src="/assets/panel-settings.js" defer></script>
+    <script src="/assets/panel-settings.js" data-panel defer></script>
 
     <!-- The website panel's Settings screen: an editor for Privacy, Terms and
          Returns, which had none — writes the same `legal` row
          legal-pages.js reads on the storefront. Panel-only. -->
-    <script src="/assets/legal-editor.js" defer></script>
+    <script src="/assets/legal-editor.js" data-panel defer></script>
 
     <!-- The website panel's Settings screen: the KNET Tranportal ID editor and
          the CBK gateway's own readiness (pay/config.php) — the app's panel has
@@ -845,13 +846,13 @@
          had no editor for it at all. Read-only for the three CBK credentials
          (booleans only, never the values); the Tranportal ID is the one field
          this can write, same validation as the app's screen. Panel-only. -->
-    <script src="/assets/payment.js" defer></script>
+    <script src="/assets/payment.js" data-panel defer></script>
 
     <!-- Apple Wallet setup card on Settings, 2026-09-26: links the owner's
          Apple Developer account without a Mac. The server makes the key and
          the request; Apple's certificate is uploaded back here and checked.
          Panel-only; see api/wallet-setup.php. -->
-    <script src="/assets/wallet-setup.js" defer></script>
+    <script src="/assets/wallet-setup.js" data-panel defer></script>
 
     <!-- One save button for the Settings screen, which is 5,753px tall and
          carries eight of them — "Buttons and bars" has its heading and its
@@ -860,8 +861,8 @@
          save code of its own, and it saves ONLY the cards something was typed
          into: pressing all eight would rewrite every settings row and show in
          the activity log as eight deliberate edits. Panel-only. -->
-    <script src="/assets/panel-save-bar.js?v=20260923" defer></script>
-    <script src="/assets/panel-ux.js" defer></script>
+    <script src="/assets/panel-save-bar.js?v=20260923" data-panel defer></script>
+    <script src="/assets/panel-ux.js" data-panel defer></script>
 
     <!-- "Look it up": the Catalogue screen gets a card that searches the web
          for a product and PROPOSES only the fields that are empty — desc_en,
@@ -869,8 +870,8 @@
          is written until the owner presses Apply, and Apply re-reads the row
          first because product_save writes every column it is given. Inert
          until an ai_key is configured. Panel-only. -->
-    <script src="/assets/product-research.js?v=20260923" defer></script>
-    <script src="/assets/product-attrs.js?v=20260929" defer></script>
+    <script src="/assets/product-research.js?v=20260923" data-panel defer></script>
+    <script src="/assets/product-attrs.js?v=20260929" data-panel defer></script>
 
     <!-- A customer directory on the Orders screen: grouped by phone number,
          since the customers table has real signups of zero and every order
@@ -879,7 +880,7 @@
          first time — nothing anywhere used to list who was blocked or why.
          Writes nothing new; blocking still goes through the routes this shop
          has always had. Panel-only. -->
-    <script src="/assets/crm.js" defer></script>
+    <script src="/assets/crm.js" data-panel defer></script>
 
     <!-- The website panel's Settings screen: a full backup of the shop's own
          data (products, orders, customers, settings and the rest — see
@@ -887,13 +888,13 @@
          is deliberately excluded), downloadable as one file, and restorable
          only after a preview that writes nothing and a second, explicit
          confirmation. Panel-only. -->
-    <script src="/assets/backup.js" defer></script>
+    <script src="/assets/backup.js" data-panel defer></script>
 
     <!-- The website panel, on a touchscreen: every button and checkbox
          label under 44px grows to a proper tap target under
          `pointer: coarse`, and the one chart's 10px axis labels grow to
          11px unconditionally. Nothing changes for a mouse. Panel-only. -->
-    <script src="/assets/admin-mobile.js" defer></script>
+    <script src="/assets/admin-mobile.js" data-panel defer></script>
 
     <!-- /checkout, on a touchscreen: "Change", "Edit bag", the quantity
          steppers and "Remove" all grow to a proper tap target under
@@ -963,11 +964,11 @@
          script-src, frame-src and connect-src, because the button is a script
          that draws an iframe and calls home. Under the storefront policy it
          fails three times over and silently. -->
-    <script src="/assets/google-signin.js" defer></script>
+    <script src="/assets/google-signin.js" data-panel defer></script>
 
     <!-- Same reasoning, same scoping, for Apple: the CSP names
          appleid.cdn-apple.com and appleid.apple.com for /backends only. -->
-    <script src="/assets/apple-signin.js" defer></script>
+    <script src="/assets/apple-signin.js" data-panel defer></script>
 
     <!-- /track's one field carries no `required`, so pressing Track on an
          empty box did nothing at all — no message, no hint, no outline. This
@@ -1000,7 +1001,7 @@
          invoice-file.php is gated by the session cookie alone, deliberately,
          because a download is a plain navigation. Panel-only; does nothing on
          the storefront or anywhere the order-detail drawer is not open. -->
-    <script src="/assets/invoices.js" defer></script>
+    <script src="/assets/invoices.js" data-panel defer></script>
 
     <!-- The سبورتا AI launcher and its open panel: a dedicated black-robot
          icon (carrying the same orange S mark) instead of the site favicon
