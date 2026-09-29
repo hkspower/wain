@@ -13,6 +13,9 @@ for (const [w, h] of [[390, 844], [1280, 900]]) {
     a.map((i) => ({ c: getComputedStyle(i).content, w: i.getBoundingClientRect().width })).filter((x) => x.w > 100))
   check(ph.length > 0, `${w}px: the no-photo product shows placeholder pictures (${ph.length})`)
   check(ph.every((x) => x.c.includes('no-photo.svg')), `${w}px: every one is the Sporta placeholder`)
+  const dbl = await p.$$eval('a[href*="/product/"]:has(> img[src^="data:image/svg+xml"])', (a) =>
+    a.filter((x) => getComputedStyle(x, '::after').content !== 'none').length)
+  check(dbl === 0, `${w}px: no second logo is drawn over the placeholder (${dbl} cards with one)`)
   await p.goto(`${BASE}/product/vanquish-tank-navy?lang=en`, { waitUntil: 'networkidle' })
   await p.waitForTimeout(800)
   const real = await p.$$eval('img[src*="product_image"]', (a) => a.map((i) => getComputedStyle(i).content))

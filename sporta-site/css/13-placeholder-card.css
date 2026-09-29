@@ -26,13 +26,7 @@
  * logo-white.webp is the shop's own asset, already in PRECACHE, and white
  * against a dark gradient in both themes — the placeholder is dark in each.
  * ------------------------------------------------------------------------- */
-a[href*="/product/"]:has(> img[src^="data:image/svg+xml"])::after,
-.product-gallery :has(> img[src^="data:image/svg+xml"])::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: url('/logo-white.webp') center / 34% auto no-repeat;
-  opacity: 0.16;
-  pointer-events: none;
-}
-
+/* RETIRED 2026-09-29: css/41-no-photo.css swaps the bundle's gradient for a
+ * Sporta placeholder that ALREADY carries the mark (and "Photo coming soon"),
+ * so this overlay drew a SECOND, offset logo on top of it in every card. The
+ * rule that did it was deleted rather than left inert, per the note in 41. */
