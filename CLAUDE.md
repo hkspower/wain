@@ -1,5 +1,27 @@
 # Sporta — working rules
 
+## AUTO-DEPLOY MODE — the owner's standing instruction, 2026-09-29
+
+Asked for as "make auto deploy mode for any deploy option", to be kept in
+memory. **When a change is finished and its tests pass, it goes live without
+asking**: commit, push, regenerate the manifest, pin `publish-all.php` (or run
+the change's own publisher, for a database write), run it through the cron
+channel, verify on the live server, delete the job, and report what went live.
+Do not end a turn with "shall I publish?" — the answer is already yes.
+
+What it does NOT change, because each of these is a different question from
+"may I deploy":
+
+- **Decisions stay the owner's.** A design change, a choice between options,
+  anything this file says to ask about (a redesign, the Safari cookie trade,
+  restoring dormant cron jobs, removing a file from the server) is still asked
+  BEFORE the work. Auto-deploy covers shipping the answer, not giving it.
+- **Tests still gate it.** A red check is fixed first, or reported and not
+  shipped. Auto-deploy is not permission to publish a failure.
+- **Verification still happens**, by sha256 or by state read back from the
+  server, and the report says what was measured.
+- **The secrets stay out.** Nothing git-ignored is committed or published.
+
 ## Pushing is allowed now
 
 The owner lifted this on 2026-09-02, in as many words, after being asked to
