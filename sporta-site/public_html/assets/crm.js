@@ -356,7 +356,11 @@
     + '.crm-table{display:flex;flex-direction:column;gap:8px;max-height:520px;overflow:auto}'
     + '.crm-cust{display:flex;flex-direction:column;gap:4px;text-align:start;padding:10px 12px;'
     + 'border-radius:8px;border:1px solid var(--border,#2a2d31);background:transparent;color:inherit;'
-    + 'font:inherit;cursor:pointer;min-height:44px}'
+    + 'font:inherit;cursor:pointer;min-height:44px;'
+    // flex-shrink:0 — the list is a column capped at 520px, and without this
+    // the browser SHRANK every row to fit instead of scrolling: rows measured
+    // 44px tall holding ~70px of text, so each name printed over the next.
+    + 'flex-shrink:0;height:auto}'
     + '.crm-cust:hover{border-color:var(--sp-ember,#ff7b17)}'
     + '.crm-cust-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:700}'
     + '.crm-cust-sub{opacity:.7;font-size:12px}'
@@ -425,8 +429,15 @@
       style()
       card = el('div', 'crm')
       card.setAttribute(MARK, '1')
+      // BELOW THE ORDERS, since 2026-09-29 ("orders first", the owner's
+      // choice): it used to sit inside the page header, so the screen opened
+      // on a 720px customer list and the orders to act on started below it.
+      // The header's parent is the whole Orders section; the card goes last.
       var host = head.parentNode
-      if (host && host.parentNode) host.parentNode.insertBefore(card, host.nextSibling)
+      var header = host && host.parentNode
+      var section = header && header.parentNode
+      if (section) section.appendChild(card)
+      else if (header) header.insertBefore(card, host.nextSibling)
       else document.body.appendChild(card)
       render()
       load()
