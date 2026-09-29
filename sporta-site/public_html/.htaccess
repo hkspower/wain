@@ -443,9 +443,11 @@ FileETag MTime Size
   # That is the same shape as the seven fixed-name files in /assets and as
   # sw.js above: a file whose bytes change under a name that never does cannot
   # be cached by name. It belongs with sw.js and config.js, not with robots.txt.
-  <Files "site.webmanifest">
+  # admin.webmanifest (2026-09-29) is the panel's own home-screen app, and
+  # the same argument applies to it word for word.
+  <FilesMatch "^(site|admin)\.webmanifest$">
     Header set Cache-Control "no-cache, must-revalidate"
-  </Files>
+  </FilesMatch>
 
   # THE HTML SHELL, explicitly rather than by inference.
   #
@@ -616,7 +618,7 @@ FileETag MTime Size
   # of immutable caching, so an edit to them never reached a returning
   # browser. The rig derives its list from the directory; this line does not
   # and cannot, which is why the rig has to be run with Apache installed.
-  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|apple-signin|panel-settings|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme|nav-menu|brand-strip|legal-pages|legal-editor|admin-mobile|essentials|payment|assistant-icon|invoices|checkout-tap-targets|trust-strip|footer-payment-icons|force-password-notice|first-admin|panel-tabbar-fade|activity-log|backup|card-badges|category-tiles|category-topbar|contact-emails|crm|hero-slides|home-products|panel-save-bar|panel-tabbar-autocenter|product-mobile-layout|product-research|quick-add-size|site-text|site-text-editor|theme-colors|wallet-setup|brand-image-picker)\.js$">
+  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(admin-upload|brand-badge|brand-logos|contact|card|custom-css|footer|google-signin|apple-signin|panel-settings|product-photos|returns-request|returns-link|rules|tile-art|track-guard|theme|nav-menu|brand-strip|legal-pages|legal-editor|admin-mobile|essentials|payment|assistant-icon|invoices|checkout-tap-targets|trust-strip|footer-payment-icons|force-password-notice|first-admin|panel-tabbar-fade|activity-log|backup|card-badges|category-tiles|category-topbar|contact-emails|crm|hero-slides|home-products|panel-save-bar|panel-tabbar-autocenter|product-mobile-layout|product-research|quick-add-size|site-text|site-text-editor|theme-colors|wallet-setup|brand-image-picker|rules-live|panel-ux)\.js$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 

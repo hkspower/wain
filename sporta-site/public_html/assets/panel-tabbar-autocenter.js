@@ -57,7 +57,16 @@
   function centerActive(bar) {
     var active = bar.querySelector('[aria-current="true"]')
     if (!active) return
-    active.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' })
+    // THE STRIP'S OWN scrollLeft, NOT scrollIntoView — measured 2026-09-29:
+    // `block: 'nearest'` below was meant to keep this to one axis, and on a
+    // phone it did not. Switching to Settings smooth-scrolled the PAGE from 0
+    // to 6,182px, so every screen change opened part-way down. Setting the
+    // strip's scrollLeft cannot move anything but the strip.
+    var target = active.offsetLeft - (bar.clientWidth - active.offsetWidth) / 2
+    var max = bar.scrollWidth - bar.clientWidth
+    target = Math.max(0, Math.min(max, target))
+    if (bar.scrollTo) bar.scrollTo({ left: target, behavior: 'smooth' })
+    else bar.scrollLeft = target
   }
 
   var attached = new WeakSet()
