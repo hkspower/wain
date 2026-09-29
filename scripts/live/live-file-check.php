@@ -126,7 +126,7 @@ $WANT = [
     'assets/brand-strip.js' => '9e2c4ae3d55c1ee9e393eb15a3b3f0694b0f9b3929593ccca3fd4d811cce3f69',
     'assets/card-badges.js' => '2140aa40823461aa06da59a2338b91eb789ddfb380ec6a115ad771d646c31a02',
     'assets/card.js' => '6e8712fd2937fea11079b67482edd88d58a5eec8b55cc5a34a86dc432dffbe35',
-    'assets/category-art.js' => 'd6e09c32777a5023c9e93bb0ab9fb48b345caadc08d458d5dceb70a93b252670',
+    'assets/category-art.js' => '863c6651dca525c3d442e8b0f145fb63409dc6b1fa93e2dee01a2c5949c2fefe',
     'assets/category-tiles.js' => 'f5b15ec381de0aa6eff490c9846cd8330d6e6188fc7936e9519d130b4d469aee',
     'assets/category-topbar.js' => '42fe8ed1f4a2fd767610bbca757d03bdbfbe5feea9cd77ccf8f23345bd4b51bd',
     'assets/checkout-CJW4l7Oz.js' => '77a829178518d422c4c4d9252e8cdae9e97739ac92156fce6dc2370f82f8c6f7',
@@ -278,7 +278,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => '1ba2a01e9f35e80a67b4b6047afcb5370b4005074a150ade4907a578cb0ebf4a',
-    'sw.js' => '995914a7f031347ce018e81b7c86d1db5153eecf6dc7e232e4c4c23e38aff8dc',
+    'sw.js' => '1adde1db06ce1276a98f65b0bae1f54c33f65bad8cf3d565801ac7d9d8d0778d',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
