@@ -81,51 +81,58 @@ def compose_person(name, w, h):
     return img
 
 
-# THE FLAT LAY, REPACKED — 2026-09-28, "render accessories bigger and clear".
-# The cut-out is one 942x418 row; laid out as a row it is width-bound, since
-# the copy takes the reading-start ~32% of the tile. So each item is cut out of
-# the row by its bounding box (measured with scipy.ndimage.label) and placed
-# in a tighter, overlapping cluster, drawn back to front.
-ITEMS = [  # name, crop box in the cut-out, position in the cluster (back to front)
-    # Option C of three drawn for the owner on 2026-09-28 ("arrange items"):
-    # two tiers. The cap upper left and the shoes upper right, the shirts
-    # between and below them, the dumbbell and bottles along the floor. It
-    # fills the most of the tile, so every item comes out largest. Items the
-    # ORIGINAL frame cut off at the bottom (shirts, bottles, dumbbell) stand
-    # on the tile's bottom edge, which hides their straight cut lines.
-    # Tidied 2026-09-29 ("arrange the items"): three columns, no item on
-    # top of another. Left, the cap standing over the dumbbell; centre, the
-    # shirts; right, the shoes standing over the bottles. The columns touch by
-    # 10px so the group reads as one set, and everything the source frame cut
-    # off stands on the tile's bottom edge.
-    ('dumbbell', (0, 353, 277, 418),   (0, 401)),
-    ('cap',      (702, 0, 942, 264),   (18, 121)),
-    ('shirts',   (321, 0, 680, 418),   (267, 48)),
-    ('shoes',    (16, 0, 283, 305),    (616, 0)),
-    ('bottles',  (704, 277, 942, 418), (630, 325)),
+# THE FLAT LAY, ONE ROW — 2026-09-29, "make accessories image all items one
+# row and fix cap edges". The five items stand side by side on the tile's
+# bottom edge (which hides the straight cut lines the ORIGINAL frame left on
+# the shirts, bottles and dumbbell), in the order the owner chose: cap,
+# shirts, shoes, bottles, dumbbell. Each is cut out of the row by its bounding
+# box (measured with scipy.ndimage.label). GAP is negative so neighbours tuck
+# together and the row reads as one set.
+ITEMS = [  # name, crop box in the cut-out, cut_top (frame sliced its top)
+    ('cap',      (702, 0, 942, 264),   True),
+    ('shirts',   (321, 0, 680, 418),   True),
+    ('shoes',    (16, 0, 283, 305),    True),
+    ('bottles',  (704, 277, 942, 418), False),
+    ('dumbbell', (0, 353, 277, 418),   False),
 ]
-CLUSTER = (883, 466)
+GAP = -30
+ROW_W = sum(b[2] - b[0] for _, b, _ in ITEMS) + GAP * (len(ITEMS) - 1)
+ROW_H = max(b[3] - b[1] for _, b, _ in ITEMS)
+
+
+def clean_alpha(a, cut_top):
+    """The rembg matte is soft and dark-fringed: pull the edge in a pixel,
+    then make it crisp-but-smooth (blur, then a steep ramp), so the outline of
+    the cap reads as a clean line instead of a ragged halo. Where the source
+    frame sliced the item at its top, fade those rows out instead of leaving
+    a flat cut."""
+    a = a.filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(1.1))
+    arr = np.asarray(a, np.float32) / 255.0
+    arr = np.clip((arr - 0.30) / 0.40, 0, 1)
+    arr = arr * arr * (3 - 2 * arr)                      # smoothstep
+    if cut_top:
+        n = min(5, arr.shape[0])
+        arr[:n] *= np.linspace(0.0, 1.0, n)[:, None] ** 1.5
+    return Image.fromarray((arr * 255).astype(np.uint8))
 
 
 def compose_accessories(w, h):
     img = ground(w, h)
     src = Image.open(os.path.join(SUBJ, 'accessories.png')).convert('RGBA')
-    # 0.52, not 0.66, since 2026-09-29: the larger centred tile text needs the
-    # start half clear, and at 0.66 the cap sat under the title.
-    k = min(w * 0.52 / CLUSTER[0], h * 0.92 / CLUSTER[1])
-    cw, ch = int(CLUSTER[0] * k), int(CLUSTER[1] * k)
-    ox = w - cw - int(w * 0.03)
-    oy = h - ch
-    img.alpha_composite(band(w, h, ox + int(cw * 0.20), ox + int(cw * 0.72), skew=0.3))
+    # the copy takes the start half, so the row lives in the far ~56%
+    k = min(w * 0.58 / ROW_W, h * 0.58 / ROW_H)
+    rw, rh = int(ROW_W * k), int(ROW_H * k)
+    ox = w - rw - int(w * 0.03)
+    img.alpha_composite(band(w, h, ox + int(rw * 0.16), ox + int(rw * 0.80), skew=0.3))
     img.alpha_composite(stripes(w, h, ox - int(w * 0.07), ox - int(w * 0.01), 12, 3, skew=0.3))
-    for _, box, (px, py) in ITEMS:
+    x = ox
+    for _, box, cut_top in ITEMS:
         it = src.crop(box)
         it = it.resize((max(1, int(it.width * k)), max(1, int(it.height * k))), Image.LANCZOS)
-        # "and make clear": the items are upscaled from the 1216px art, so a
-        # modest unsharp mask on the colour (not the alpha edge) restores bite.
         rgb = it.convert('RGB').filter(ImageFilter.UnsharpMask(radius=1.6, percent=90, threshold=2))
-        rgb.putalpha(it.getchannel('A'))
-        img.alpha_composite(rgb, (ox + int(px * k), oy + int(py * k)))
+        rgb.putalpha(clean_alpha(it.getchannel('A'), cut_top))
+        img.alpha_composite(rgb, (x, h - rgb.height))
+        x += rgb.width + int(GAP * k)
     return img
 
 
