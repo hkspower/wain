@@ -16,7 +16,7 @@
  * $COMMIT pins the ARTWORK (full 40 characters — an abbreviated sha 404s).
  * Fetch this script from HEAD.
  */
-$COMMIT = 'COMMITSHA';
+$COMMIT = 'b4c13f332c8d849e303a890b5eda5d40e296e25b';
 $BASE = getenv('SPORTA_PHOTO_BASE') ?: 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT . '/sporta-site/assets/product-photos/';
 $ROOT = getenv('SPORTA_ROOT') ?: '/home/u130124229/domains/sporta.com.kw/public_html';
 
