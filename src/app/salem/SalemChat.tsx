@@ -33,8 +33,13 @@ export default function SalemChat() {
   const handleRef = useRef<SalemChatHandle | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (notConfigured) return;
+  /**
+   * Opens a session and points `handleRef` at it. Called once on mount, and
+   * again by the "ابدأ من جديد" button once `status` has settled to
+   * "error" or "disconnected" — before this, retrying meant a page reload,
+   * because nothing ever called `startSalemChat` a second time.
+   */
+  function connect() {
     const handle = startSalemChat({
       onStatus: setStatus,
       onMessage: (m) => setMessages((prev) => [...prev, m]),
@@ -42,8 +47,13 @@ export default function SalemChat() {
         setMessages((prev) => [...prev, { role: "system", text: SALEM_AI_COPY.toolUnavailable }]),
     });
     handleRef.current = handle;
-    return () => handle.close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- notConfigured is derived from a build-time constant, never changes after mount
+  }
+
+  useEffect(() => {
+    if (notConfigured) return;
+    connect();
+    return () => handleRef.current?.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect/notConfigured close over stable setters and a build-time constant; re-running this effect on every render would open a new socket each time
   }, []);
 
   useEffect(() => {
@@ -121,6 +131,24 @@ export default function SalemChat() {
           <p role="alert" className="mx-auto max-w-[85%] rounded-2xl bg-coral-50 px-4 py-2.5 text-center text-sm text-coral-700">
             {notConfigured ? SALEM_AI_COPY.notConfigured : SALEM_AI_COPY.failed}
           </p>
+        )}
+        {/* Not for notConfigured — that comes from a build-time constant, so
+            retrying opens the exact same session the agent id already
+            refused. "error" and "disconnected" are the two states a fresh
+            socket can actually answer differently. */}
+        {!notConfigured && (status === "error" || status === "disconnected") && (
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setMessages((prev) => [...prev, { role: "agent", text: SALEM_AI_COPY.greeting }]);
+                connect();
+              }}
+              className="mt-1 inline-flex min-h-6 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-ink-900 transition hover:bg-sand-100"
+            >
+              {SALEM_AI_COPY.reconnect}
+            </button>
+          </div>
         )}
       </div>
 

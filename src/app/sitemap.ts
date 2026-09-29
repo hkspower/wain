@@ -11,6 +11,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE}/explore/`, priority: 0.9 },
     { url: `${BASE}/search/`, priority: 0.6 },
     { url: `${BASE}/find/`, priority: 0.5 },
+    { url: `${BASE}/salem/`, priority: 0.5 },
     { url: `${BASE}/add/`, priority: 0.8 },
     { url: `${BASE}/about/`, priority: 0.5 },
     { url: `${BASE}/privacy/`, priority: 0.3 },

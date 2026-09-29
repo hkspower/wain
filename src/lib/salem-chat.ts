@@ -41,6 +41,21 @@ interface SalemChatCallbacks {
 const NOOP_HANDLE: SalemChatHandle = { send: () => {}, close: () => {} };
 
 /**
+ * How long "نوصّل سالم…" waits before giving up.
+ *
+ * The socket's own `open`/`close`/`error` events only fire for a connection
+ * the network actually resolved one way or the other — a handshake accepted
+ * and then left silent (a proxy that ate the request, a malformed init
+ * payload dropped without an error) settles NONE of them, so without a timer
+ * `status` sits at "connecting" for ever and the input stays disabled with
+ * no way out but a reload. The same failure shape already cost the call
+ * widget a 20-second dial timeout once (see CLAUDE.md, «loadWidget() … a
+ * rejection is deliberately not remembered») — this is that lesson applied
+ * to a plain WebSocket instead of a `<script>` tag.
+ */
+const CONNECT_TIMEOUT_MS = 12000;
+
+/**
  * Opens the session and returns a handle immediately — the same
  * fire-then-attach shape `requestCall` uses in `wain-ai-bus.ts`, so a caller
  * can send the socket to a ref before the connection settles.
@@ -68,7 +83,16 @@ export function startSalemChat({
   }
 
   let deliberatelyClosed = false;
+  let settled = false;
   onStatus("connecting");
+
+  const connectTimer = setTimeout(() => {
+    if (settled) return;
+    settled = true;
+    onStatus("error");
+    deliberatelyClosed = true;
+    socket.close();
+  }, CONNECT_TIMEOUT_MS);
 
   socket.addEventListener("open", () => {
     // The one message the server requires before anything else: the
@@ -99,6 +123,8 @@ export function startSalemChat({
     }
     switch (data.type) {
       case "conversation_initiation_metadata":
+        settled = true;
+        clearTimeout(connectTimer);
         onStatus("connected");
         return;
       case "agent_response": {
@@ -138,11 +164,15 @@ export function startSalemChat({
   });
 
   socket.addEventListener("close", (event) => {
+    clearTimeout(connectTimer);
     if (deliberatelyClosed) return;
+    settled = true;
     onStatus(event.code === 1000 ? "disconnected" : "error");
   });
 
   socket.addEventListener("error", () => {
+    settled = true;
+    clearTimeout(connectTimer);
     onStatus("error");
   });
 
@@ -154,6 +184,7 @@ export function startSalemChat({
     },
     close() {
       deliberatelyClosed = true;
+      clearTimeout(connectTimer);
       if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
         socket.close(1000, "user closed chat");
       }

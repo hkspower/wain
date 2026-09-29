@@ -134,6 +134,13 @@ failed += (await run("node", ["tests/shouq-brief.test.mjs"])) === 0 ? 0 : 1;
 console.log("\n════ شوق: the clip pipeline ════");
 failed += (await run("node", ["tests/voice-pipeline.test.mjs"])) === 0 ? 0 : 1;
 
+/* 2c — سالم's text-only client, against a fake socket and fake timers. No
+   browser, no build, no network: what is under test is the connect timeout
+   and the wire shapes, which is exactly what a live agent needed to be
+   reachable for before. */
+console.log("\n════ سالم: the chat client ════");
+failed += (await run("node", ["tests/salem-chat.test.mjs"])) === 0 ? 0 : 1;
+
 /* 3 — the voice module, with the browser's audio APIs instrumented. */
 console.log("\n════ شوق: the voice ════");
 {
