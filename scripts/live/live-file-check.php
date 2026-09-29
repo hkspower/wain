@@ -146,7 +146,7 @@ $WANT = [
     'assets/legal-editor.js' => 'c04da2e4c6d32b14de7a09833b936af8ac24645c8c65bcb694106f07374bc369',
     'assets/legal-pages.js' => '0137d5a0971698f000015a8077c2c20582b2a2681a95d06a110c239ff8884dcf',
     'assets/nav-menu.js' => 'fb7d1f67ba06a91e67f56ecee47714c2d85634cffa3f31fcbc3db9b7d5220ff3',
-    'assets/panel-save-bar.js' => '711c90aa8364e7f5c8ae1eaafd7ae6ddd011539804fa9d82a440d8ffb97b8ca5',
+    'assets/panel-save-bar.js' => '218d23abea78c85efc94e1bf0f3830c025a232e696b18ebe405ca053a9f02665',
     'assets/panel-settings.js' => '074c93175d78474c4330b71cbebd4c54cdf7c13ebfe26e69b1a6da4ae2305d11',
     'assets/panel-tabbar-autocenter.js' => '9820eae1f3bce01ad6e13e21d583202f47bf9b4146a140a1a874b978d24eaaf9',
     'assets/panel-tabbar-fade.js' => 'ae3f58547eec7b832159c72285eacae0c0b128adf719398b0d24dd539e535da6',
@@ -274,7 +274,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => '1ba2a01e9f35e80a67b4b6047afcb5370b4005074a150ade4907a578cb0ebf4a',
-    'sw.js' => 'd8547a2bf8ed4420e2483226722de6fdb110f9b66d2274a5bc7d44aa9751c2c2',
+    'sw.js' => 'd6719c91433217029c99f4079c94d4b89724ad027a5d9ad333c23bdbbf242acb',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
