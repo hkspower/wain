@@ -3550,3 +3550,68 @@ together because they are the same thing. A manifest that will not fetch, or
 parses to fewer than fifty entries, publishes nothing and says so — an empty
 list would otherwise publish nothing while reporting a clean run. Re-run:
 `manifest 220 files @ d70cb9f7 / wrote seo.php / wrote=1 alreadyOk=219 failed=0`.
+
+## The panel and the home page, 2026-09-28/29 — what was learned
+
+**The publish loop, as it now runs** (see AUTO-DEPLOY MODE at the top):
+commit → `npm run make:file-manifest` → pin `publish-all.php`'s `$COMMIT` to
+that commit → push → one cron job `wget … publish-all.php && php c.php` →
+read the output → delete the job. A database change (hero slides, settings) has
+its own publisher in `scripts/publish/` that reports STATE (`activeCleanSlides=4/4`),
+so the run you read one minute late still says the true thing. `publish-all`
+reports `alreadyOk=N` on that later run; that is success, not a no-op.
+
+**A cron command is capped at 255 characters by the API** (a 422, not silence).
+Two `wget … && php …` pairs in one job do not fit; run them as two jobs, one
+after the other.
+
+**`/backends` never goes through `seo.php`.** `.htaccess` rewrites it straight to
+`index.html`. Anything that must differ on the panel's page (its own
+`admin.webmanifest`, the iOS app title) is set by `assets/panel-ux.js` at load.
+A `seo.php` branch for `/backends` is dead code, which is how the first attempt
+failed.
+
+**`assets/panel-ux.js` holds the panel's usability layer** — Inventory grouped per
+product, the jump-to bar, 44px touch targets, the phone Add photos button, save
+toasts (one `fetch` wrapper over admin.php WRITES), screen transitions, and
+pull-to-refresh (the panel keeps no screen in the URL; a reload lands on
+Overview, so the pull remembers the screen in sessionStorage and reopens it).
+`panel-save-bar.js` now runs on every signed-in screen, but not inside pop-up
+editors, which keep their own Save in view.
+
+**Two phone bugs that no rig saw, both found by measuring:**
+- The phone tab bar sat on top of pop-up editors' Save buttons (same z-index,
+  later in the page): a tap on Save product opened the Catalogue tab. While a
+  pop-up is open the bar is hidden.
+- `panel-tabbar-autocenter.js` used `scrollIntoView({block:'nearest'})` and it
+  scrolled the whole PAGE on a phone (Settings opened 6,182px down). It sets the
+  strip's own `scrollLeft` now. And the panel's CSS makes scrolling smooth, so a
+  scroll-to-top must pass `behavior: 'instant'` or it is interrupted part-way.
+
+**The Slides screen's Size (Short / Tall / Full height) had been ignored since
+2026-09-18.** It drives `<html data-hero-size>` now (`css/38-hero-size.css`, the
+boot script, and `rules-live.js` from `?r=slides`). Tall is the old height, so
+nothing moved for a shop that never touches it. Editing the boot script meant a
+new CSP hash — `test:csp` caught it, as it always does.
+
+**The live hero has FIVE slides, not the sandbox's three** (`live-hero-slides-check.php`):
+CrossFit (id 8) and Features (id 9) exist only live. Ask the server before
+reasoning from the sandbox's rows. The cleaned art for ids 5, 6, 7 and 9 is in
+`sporta-site/assets/hero/*-clean*.webp`; the originals are kept for an undo.
+
+**Category tiles are generated** by `scripts/make-white-tiles.py` from the cut-outs
+in `scripts/fixtures/tile-subjects/`. `/cats/` images are cached for a day plus
+30 days stale-while-revalidate, so a changed picture needs a new URL: raise
+`ART_VERSION` in `assets/tile-art.js` and the matching `?v=` in `category.php`.
+Re-running the generator re-rolls the grain on every tile; restore the files you
+did not mean to change before committing (`git checkout --` them).
+
+**Rigs that silently stopped measuring, fixed on the way:** the tile rigs never
+scrolled, so full-width tiles below the fold were counted as missing; and the
+brand-image rig left a 1px logo on the sandbox's `ahed` brand after an aborted
+run, which made `test:brand-logo-file` fail on every case with the same 69 bytes.
+A test run that dies half-way can leave its fixture behind — check the database
+before blaming the code.
+
+**`test:panel-cards` still fails** (Settings carries 2,058 words against a 600
+cap). It predates this work and trimming the cards' prose is the owner's call.
