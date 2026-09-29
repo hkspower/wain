@@ -615,6 +615,30 @@ if ($r === 'slides') {
     }
     unset($row);
 
+    // PHONES ARE HANDED THEIR OWN PICTURE — 2026-09-29, "scan then improve the
+    // hero on mobile". The storefront bundle has no source here and never asks
+    // for &mobile=1 (hero-mobile-test says so in as many words), so every phone
+    // downloaded the 3200px desktop banner and cropped it with `cover`. The
+    // bundle does read `image`, `width` and `height`, so for a phone the answer
+    // is simply made to describe the phone picture. Only where the slide HAS
+    // one; a slide without stays exactly as it was. The UA test is the crude
+    // "Mobi" / iPhone / Android-phone one on purpose: an iPad or a desktop
+    // window asks for the wide banner, which is right for both. `Vary` keeps a
+    // shared cache from handing a phone's answer to a desktop (this route is
+    // no-cache, so it is belt and braces).
+    header('Vary: User-Agent');
+    $ua = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
+    if (preg_match('/iPhone|iPod|Android.+Mobile|Mobile.+Safari|Windows Phone/i', $ua) && !preg_match('/iPad|Tablet/i', $ua)) {
+        foreach ($rows as &$row) {
+            if (!empty($row['has_mobile_image']) && !empty($row['image_mobile'])) {
+                $row['image']  = $row['image_mobile'];
+                $row['width']  = $row['mobile_width'] ?? $row['width'];
+                $row['height'] = $row['mobile_height'] ?? $row['height'];
+            }
+        }
+        unset($row);
+    }
+
     $bar = store_setting($db, 'promo_bar');
     // The schedule is resolved here for the same reason the sale window is.
     $bar['live'] = (bool)$bar['enabled'] && store_window_open($bar['starts_at'] ?? null, $bar['ends_at'] ?? null);
