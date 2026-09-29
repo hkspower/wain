@@ -179,8 +179,8 @@ $canonical = SITE . $path . ($isEn ? '?lang=en' : '');
 // (scripts/make-white-tiles.py), so $hasRtlArt no longer decides either.
 // ?v= for the same reason as assets/tile-art.js's ART_VERSION: /cats/ may be
 // shown stale for days, so a changed picture needs a new URL. Keep them equal.
-$artDesktop = "/cats/desktop/art-$slug" . (!$isEn ? '-rtl' : '') . '.webp?v=20260929e';
-$artMobile  = "/cats/mobile/art-$slug" . (!$isEn ? '-rtl' : '') . '.webp?v=20260929e';
+$artDesktop = "/cats/desktop/art-$slug" . (!$isEn ? '-rtl' : '') . '.webp?v=20260929f';
+$artMobile  = "/cats/mobile/art-$slug" . (!$isEn ? '-rtl' : '') . '.webp?v=20260929f';
 
 // THE REAL DIMENSIONS, NOT A GUESS COPIED ACROSS ALL FOUR — 2026-09-21, asked
 // for as "fix aspect ration heros images". The <img> below carried a single

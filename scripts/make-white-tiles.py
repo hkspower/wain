@@ -81,58 +81,142 @@ def compose_person(name, w, h):
     return img
 
 
-# THE FLAT LAY, ONE ROW — 2026-09-29, "make accessories image all items one
-# row and fix cap edges". The five items stand side by side on the tile's
-# bottom edge (which hides the straight cut lines the ORIGINAL frame left on
-# the shirts, bottles and dumbbell), in the order the owner chose: cap,
-# shirts, shoes, bottles, dumbbell. Each is cut out of the row by its bounding
-# box (measured with scipy.ndimage.label). GAP is negative so neighbours tuck
-# together and the row reads as one set.
-ITEMS = [  # name, crop box in the cut-out, cut_top (frame sliced its top)
-    ('cap',      (702, 0, 942, 264),   True),
-    ('shirts',   (321, 0, 680, 418),   True),
-    ('shoes',    (16, 0, 283, 305),    True),
-    ('bottles',  (704, 277, 942, 418), False),
-    ('dumbbell', (0, 353, 277, 418),   False),
-]
-GAP = 6
-ROW_W = sum(b[2] - b[0] for _, b, _ in ITEMS) + GAP * (len(ITEMS) - 1)
-ROW_H = max(b[3] - b[1] for _, b, _ in ITEMS)
+# THE FLAT LAY, DRAWN — 2026-09-29, "make accessories images with product
+# animation style for adult": flat illustrated products, mature not childish —
+# charcoal, grey, white and the shop's orange, a heavy dark outline, no faces,
+# no gloss. One row, cap / shirts / shoes / bottles / dumbbell, standing on the
+# tile's bottom edge. Each item is drawn at 4x and reduced so outlines are
+# smooth, and nothing is cut from a photograph, so nothing has a ragged edge.
+INK = (26, 26, 26)
+CHAR = (43, 43, 47)
+MID = (139, 143, 152)
+LIGHT = (201, 203, 208)
+GAP = 18
+SS = 4
 
 
-def clean_alpha(a, cut_top):
-    """The rembg matte is soft and dark-fringed: pull the edge in a pixel,
-    then make it crisp-but-smooth (blur, then a steep ramp), so the outline of
-    the cap reads as a clean line instead of a ragged halo. Where the source
-    frame sliced the item at its top, fade those rows out instead of leaving
-    a flat cut."""
-    a = a.filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(1.1))
-    arr = np.asarray(a, np.float32) / 255.0
-    arr = np.clip((arr - 0.30) / 0.40, 0, 1)
-    arr = arr * arr * (3 - 2 * arr)                      # smoothstep
-    if cut_top:
-        n = min(5, arr.shape[0])
-        arr[:n] *= np.linspace(0.0, 1.0, n)[:, None] ** 1.5
-    return Image.fromarray((arr * 255).astype(np.uint8))
+def _canvas(w, h):
+    im = Image.new('RGBA', (w * SS, h * SS), (0, 0, 0, 0))
+    return im, ImageDraw.Draw(im)
 
 
-def compose_accessories(w, h, inset=0.03, share=0.58):
+def _fin(im, w, h):
+    return im.resize((w, h), Image.LANCZOS)
+
+
+def _u(v):
+    return int(v * SS)
+
+
+LW = 5   # outline, in drawing units
+
+
+def item_cap():
+    w, h = 190, 150
+    im, d = _canvas(w, h)
+    lw = _u(LW)
+    # brim first, so the dome sits on it and the two read as one cap
+    brim = [(_u(40), _u(84)), (_u(176), _u(94)), (_u(188), _u(120)), (_u(150), _u(136)), (_u(60), _u(112))]
+    d.polygon(brim, fill=ORANGE)
+    d.line(brim + [brim[0]], fill=INK, width=lw, joint='curve')
+    d.line([(_u(80), _u(112)), (_u(172), _u(120))], fill=(255, 255, 255), width=_u(3))
+    # dome
+    d.pieslice([_u(14), _u(6), _u(150), _u(178)], 180, 360, fill=CHAR, outline=INK, width=lw)
+    d.rectangle([_u(14), _u(92), _u(150), _u(100)], fill=CHAR)
+    d.line([(_u(14), _u(92)), (_u(150), _u(92))], fill=INK, width=lw)
+    d.arc([_u(50), _u(6), _u(114), _u(178)], 180, 360, fill=INK, width=_u(3))
+    d.line([(_u(82), _u(8)), (_u(82), _u(92))], fill=INK, width=_u(3))
+    d.ellipse([_u(76), _u(2), _u(88), _u(14)], fill=ORANGE, outline=INK, width=_u(3))
+    return _fin(im, w, h)
+
+
+def item_shirts():
+    w, h = 180, 210
+    im, d = _canvas(w, h)
+    lw = _u(LW)
+    # back tee, then front tee, folded (torso block + sleeve caps + neck)
+    for i, (col, dy, stripe) in enumerate([(MID, 0, False), (CHAR, 46, True)]):
+        y0 = dy + 8
+        d.rounded_rectangle([_u(10), _u(y0), _u(170), _u(y0 + 150)], radius=_u(14), fill=col, outline=INK, width=lw)
+        d.polygon([(_u(10), _u(y0 + 6)), (_u(-2 + 4), _u(y0 + 52)), (_u(40), _u(y0 + 58)), (_u(44), _u(y0 + 10))], fill=col, outline=INK)
+        d.polygon([(_u(170), _u(y0 + 6)), (_u(178), _u(y0 + 52)), (_u(140), _u(y0 + 58)), (_u(136), _u(y0 + 10))], fill=col, outline=INK)
+        d.pieslice([_u(64), _u(y0 - 22), _u(116), _u(y0 + 30)], 0, 180, fill=(244, 241, 236), outline=INK, width=_u(4))
+        if stripe:
+            d.rectangle([_u(14), _u(y0 + 78), _u(166), _u(y0 + 96)], fill=ORANGE)
+            d.line([(_u(14), _u(y0 + 78)), (_u(166), _u(y0 + 78))], fill=INK, width=_u(3))
+            d.line([(_u(14), _u(y0 + 96)), (_u(166), _u(y0 + 96))], fill=INK, width=_u(3))
+    return _fin(im, w, h)
+
+
+def item_shoe():
+    w, h = 230, 140
+    im, d = _canvas(w, h)
+    lw = _u(LW)
+    # sole
+    d.rounded_rectangle([_u(6), _u(104), _u(222), _u(134)], radius=_u(14), fill=(255, 255, 255), outline=INK, width=lw)
+    # upper: heel, collar, tongue, laces, toe
+    up = [(_u(14), _u(104)), (_u(10), _u(48)), (_u(22), _u(14)), (_u(60), _u(6)), (_u(84), _u(34)),
+          (_u(120), _u(48)), (_u(168), _u(66)), (_u(210), _u(84)), (_u(220), _u(104))]
+    d.polygon(up, fill=CHAR)
+    d.line(up + [up[0]], fill=INK, width=lw, joint='curve')
+    # orange toe overlay and swoosh
+    toe = [(_u(150), _u(62)), (_u(168), _u(66)), (_u(210), _u(84)), (_u(220), _u(104)), (_u(140), _u(104))]
+    d.polygon(toe, fill=ORANGE)
+    d.line(toe + [toe[0]], fill=INK, width=_u(4), joint='curve')
+    d.line([(_u(34), _u(84)), (_u(90), _u(70)), (_u(130), _u(88))], fill=(255, 255, 255), width=_u(6), joint='curve')
+    for t in range(4):
+        lx = 86 + t * 16
+        d.line([(_u(lx), _u(46 + t * 4)), (_u(lx + 10), _u(58 + t * 4))], fill=(255, 255, 255), width=_u(4))
+    return _fin(im, w, h)
+
+
+def item_bottles():
+    w, h = 130, 200
+    im, d = _canvas(w, h)
+    lw = _u(LW)
+    # tall bottle
+    d.rounded_rectangle([_u(70), _u(40), _u(122), _u(196)], radius=_u(16), fill=CHAR, outline=INK, width=lw)
+    d.rounded_rectangle([_u(84), _u(14), _u(108), _u(44)], radius=_u(6), fill=ORANGE, outline=INK, width=_u(4))
+    d.rectangle([_u(74), _u(96), _u(118), _u(126)], fill=ORANGE)
+    d.line([(_u(74), _u(96)), (_u(118), _u(96))], fill=INK, width=_u(3))
+    d.line([(_u(74), _u(126)), (_u(118), _u(126))], fill=INK, width=_u(3))
+    # shaker in front
+    d.polygon([(_u(8), _u(74)), (_u(64), _u(74)), (_u(58), _u(196)), (_u(14), _u(196))], fill=MID, outline=INK)
+    d.line([(_u(8), _u(74)), (_u(64), _u(74)), (_u(58), _u(196)), (_u(14), _u(196)), (_u(8), _u(74))], fill=INK, width=lw, joint='curve')
+    d.rounded_rectangle([_u(6), _u(50), _u(66), _u(76)], radius=_u(8), fill=CHAR, outline=INK, width=_u(4))
+    d.rectangle([_u(20), _u(120), _u(52), _u(150)], fill=(255, 255, 255), outline=INK, width=_u(3))
+    return _fin(im, w, h)
+
+
+def item_dumbbell():
+    w, h = 154, 100
+    im, d = _canvas(w, h)
+    lw = _u(LW)
+    d.rounded_rectangle([_u(52), _u(38), _u(102), _u(62)], radius=_u(8), fill=LIGHT, outline=INK, width=lw)
+    for x0, x1 in [(4, 54), (100, 150)]:
+        d.rounded_rectangle([_u(x0), _u(8), _u(x1), _u(94)], radius=_u(16), fill=CHAR, outline=INK, width=lw)
+        d.rectangle([_u(x0 + 14), _u(8 + 5), _u(x0 + 26), _u(94 - 5)], fill=ORANGE)
+    return _fin(im, w, h)
+
+
+ITEMS = [item_cap, item_shirts, item_shoe, item_bottles, item_dumbbell]
+
+
+def compose_accessories(w, h, inset=0.03, share=0.62):
     img = ground(w, h)
-    src = Image.open(os.path.join(SUBJ, 'accessories.png')).convert('RGBA')
-    # the copy takes the start half, so the row lives in the far ~56%
-    k = min(w * share / ROW_W, h * 0.58 / ROW_H)
-    rw, rh = int(ROW_W * k), int(ROW_H * k)
+    items = [f() for f in ITEMS]
+    row_w = sum(i.width for i in items) + GAP * (len(items) - 1)
+    row_h = max(i.height for i in items)
+    k = min(w * share / row_w, h * 0.58 / row_h)
+    rw = int(row_w * k)
     ox = w - rw - int(w * inset)
     img.alpha_composite(band(w, h, ox + int(rw * 0.16), ox + int(rw * 0.80), skew=0.3))
     img.alpha_composite(stripes(w, h, ox - int(w * 0.07), ox - int(w * 0.01), 12, 3, skew=0.3))
     x = ox
-    for _, box, cut_top in ITEMS:
-        it = src.crop(box)
+    for it in items:
         it = it.resize((max(1, int(it.width * k)), max(1, int(it.height * k))), Image.LANCZOS)
-        rgb = it.convert('RGB').filter(ImageFilter.UnsharpMask(radius=1.6, percent=90, threshold=2))
-        rgb.putalpha(clean_alpha(it.getchannel('A'), cut_top))
-        img.alpha_composite(rgb, (x, h - rgb.height))
-        x += rgb.width + int(GAP * k)
+        img.alpha_composite(it, (x, h - it.height - int(h * 0.03)))
+        x += it.width + int(GAP * k)
     return img
 
 
@@ -246,5 +330,5 @@ for crop, sz in SIZES.items():
     # The round go-button sits in the PHYSICAL bottom-left of every tile, so the
     # Arabic frame (a mirror, row on the left) needs its row pulled clear of it.
     save(compose_accessories(w, h), crop, 'accessories',
-         rtl_src=compose_accessories(w, h, inset=0.12, share=0.52))
+         rtl_src=compose_accessories(w, h, inset=0.12, share=0.56))
     save(compose_outlet(w, h), crop, 'outlet')
