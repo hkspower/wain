@@ -35,19 +35,21 @@ export default function HomePage() {
           value AT that floor means section height = drawing height, nothing
           spare. The hero reserves more than the drawing needs so the seam
           reads as open sky rather than a blank band — `#ffffff`, the sky
-          gradient's own first stop — but on a phone that slack is a whole
-          extra screenful with nothing in it, on top of a hero already carrying
-          the wordmark, the tagline and a 240px dial. `38vw` is the floor
-          (35vw) plus 3vw of sky rather than 9, which is the trim: the seam
-          stays invisible, the reserved band is just shorter. `sm:min-h-[44vw]`
-          keeps the wider, unhurried desktop reading — this is a mobile fit,
-          not a redesign. Content's own `pb-[38vw]`/`sm:pb-3` mirrors it, for
-          the same reason: it reserves the skyline's own height below «دوّر
-          باسم المكان» so the two never overlap. */}
-      <section className="relative min-h-[38vw] overflow-hidden bg-sand-50 sm:min-h-[44vw]">
+          gradient's own first stop. It was trimmed to `38vw` for a mobile fit
+          (see the history above this line, still true of the reasoning: a
+          38vw reserve is not cropping the drawing, it is choosing how much
+          sky sits above it), then asked back up ~40% taller — `65vw` — with
+          a bigger dial to match, on request, not because the trim was wrong.
+          `sm:min-h-[44vw]` is untouched: this is a mobile-only size, not a
+          redesign of the wide reading. Content's own `pb-[65vw]`/`sm:pb-3`
+          mirrors the section's own value, for the reason it always has: it
+          reserves the skyline's own height below «دوّر باسم المكان» so the
+          two never overlap — 65vw only has to clear the drawing's 35vw
+          floor, and it clears it with room to spare. */}
+      <section className="relative min-h-[65vw] overflow-hidden bg-sand-50 sm:min-h-[44vw]">
         <KuwaitSkyline className="pointer-events-none absolute inset-x-0 bottom-0 aspect-[1200/420] h-auto w-full" />
 
-        <div className="relative mx-auto max-w-6xl px-2.5 pb-[38vw] pt-2 sm:px-4 sm:pb-3 sm:pt-3">
+        <div className="relative mx-auto max-w-6xl px-2.5 pb-[65vw] pt-2 sm:px-4 sm:pb-3 sm:pt-3">
           {/* Wordmark */}
           <div className="text-center">
             <span className="relative inline-block">
@@ -70,7 +72,7 @@ export default function HomePage() {
           </div>
 
           {/* Search dial */}
-          <div className="mt-5 sm:mt-12">
+          <div className="mt-8 sm:mt-12">
             <NearbyDial />
           </div>
 
@@ -98,7 +100,7 @@ export default function HomePage() {
               own placement, applied to the step before it rather than to the
               page. Do not put the second half back here without moving the
               /search line out of the way first. */}
-          <div className="mt-3 text-center sm:mt-4">
+          <div className="mt-5 text-center sm:mt-4">
             <Link
               href="/search"
               className="inline-flex min-h-6 items-center gap-2 rounded-full bg-white/95 px-5 py-2.5 text-sm font-semibold text-sea-800 shadow-sm ring-1 ring-line transition hover:bg-white"
