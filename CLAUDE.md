@@ -1022,6 +1022,29 @@ override, and it loses. Not fixed here — a prompt edit is a prompt-and-test
 cycle, and with the suite moving underneath it the fix could not be cleanly
 proved in the same sitting.
 
+**A second durable defect, fixed 29 September: `ذكاء ٤` — a caller asks
+about a specific brand inside a known place.** «فيه ستاربكس بالأفنيوز؟ وكم
+سعر الكابتشينو فيه؟» — 2/2 across two separate test runs, one saying «أكيد
+فيه» outright and the other hedging «فغالباً بتلقينه»، both graded as
+invented facts. The existing **حدودك** rule already forbade inventing a
+place, address, phone number or price — and did not fire, because a brand
+possibly located inside an already-known place is not the shape that rule
+names. The knowledge base holds places, not the shops and menus inside
+them, and nothing told her that distinction mattered.
+
+Fixed by adding one bullet to **حدودك**, second after the existing
+invention rule: a question about a brand inside a place is unanswerable
+from her knowledge regardless of how well-known the place is, both the flat
+assertion and the hedged guess are named as the same violation, and one
+worked correction sentence is given. Sent through `agents_update` with
+`prompt` alone, per the rule above — `version_id` went from
+`agtvrsn_0301m3gx68vhfdxaybwczysg3m53` to
+`agtvrsn_2201m3pmgd27erktdgpkre0k2bf2`, every other field (tools, tests,
+knowledge base, evaluation criteria, voice, origin allowlist) unchanged in
+the response. Re-run against the new version, **2/2 pass**, one with
+`gemini-2.5-flash` and one — from a backup-LLM cascade — with `gpt-4o`, both
+declining both halves of the question.
+
 **Nobody has ever called her.** `agents_list_conversations` returns **zero**
 for the agent and zero for the whole workspace, with `retention_days: -1`, so
 that is «no calls», not «calls expired». Everything this section claims about
