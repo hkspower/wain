@@ -44,6 +44,18 @@ $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
 // serves, php -S never reads .htaccess, and a measurement taken with only one
 // of the two changed measures nothing at all.
 
+// THE CATEGORY TILES, mirroring .htaccess:
+//     RewriteRule ^cats/(desktop|mobile)/art-(men|women|accessories|outlet)(-rtl)?\.(webp|jpg)$
+//                 /api/api.php?r=cat_art&crop=$1&tile=$2&rtl=$3&fmt=$4 [L,QSA]
+// An owner's replacement picture is a database row served by api.php; the
+// shipped file is the fallback. Changed together with the rule above.
+if (preg_match('#^/cats/(desktop|mobile)/art-(men|women|accessories|outlet)(-rtl)?\.(webp|jpg)$#', $uri, $m)) {
+    $_GET = ['r' => 'cat_art', 'crop' => $m[1], 'tile' => $m[2], 'rtl' => $m[3] ?? '', 'fmt' => $m[4]] + $_GET;
+    $_SERVER['SCRIPT_NAME'] = '/api/api.php';
+    require __DIR__ . '/../sporta-site/public_html/api/api.php';
+    return true;
+}
+
 // THE SEO SHIM, mirroring .htaccess:
 //     RewriteRule ^$ /seo.php [L]
 //     RewriteRule ^(shop|cart|checkout|about|contact|wishlist|track|returns|terms|privacy|review)/?$ /seo.php [L]

@@ -3650,3 +3650,55 @@ A note on process, since it cost a minute: a screenshot script run from the repo
 root writes into the repo root. The first "after" images were the OLD ones for
 that reason, and stray `pv-*.png` files sat untracked in the checkout. Run rigs
 from the scratchpad, or give them absolute output paths.
+
+## The home tiles are editable from /backends — category_art, 2026-09-29
+
+Asked for as "make category images editor at backend"; the owner chose the four
+home tiles (all sizes and both languages), stored in the database, on the panel's
+own **Home slides** screen. I first offered "Settings" and "the Slides screen" as
+if they were one place: the panel HAS a Slides screen (h1 "Home slides"), and the
+older hero card mounts on Settings under a heading that reads "Settings". Look at
+the panel's actual screens before naming where a card goes.
+
+**How it works.** The tiles stay files in `/cats/` at the URLs the bundle asks
+for. `.htaccess` sends exactly `cats/(desktop|mobile)/art-(men|women|accessories|outlet)(-rtl)?.(webp|jpg)`
+to `api.php?r=cat_art`, which serves the row in `category_art` when there is one
+and the shipped file when there is not — or when the table, the row or the
+database is missing. Deleting the rows is the whole "reset". `no-cache` + ETag, so
+a replaced tile shows on the next load (the service worker's stale-while-revalidate
+makes it the next-but-one for a returning visitor) and an unchanged one is a 304.
+The rule names the four tiles and nothing else, so the stray
+`cats/desktop/outlet.jpg` and every other `/cats/` path stay plain files; the
+Apache rig asserts both halves. `scripts/dev-router.php` mirrors it.
+
+**The picture work is in the browser** (`assets/category-art.js`): cover-crop to
+1216x706 and 900x570, the Arabic frame is the English one mirrored (the art carries
+no text), each encoded as webp and jpeg, eight pictures in one request. **The server
+measures every one again** (`store_cat_art_decode`): type, magic bytes, cap, and
+EXACT dimensions — a wrongly shaped tile would be cropped by the page in a way the
+owner never saw. One transaction; a refusal changes nothing.
+
+**Tests.** `test:category-art` proves it in a real browser and reads the served
+PIXELS: a picture red on the left and blue on the right comes back red-left/blue-right
+in English and blue-left/red-right in Arabic, so the mirror is measured. Its
+row-serving check saves the MEN tile's bytes as WOMEN and requires those bytes at the
+women URL — "the response is 200" would have passed on the shipped file.
+
+**Three things it caught in itself.** The card first rendered in ARABIC inside the
+English panel, because it read `document.documentElement.lang`, which is `ar` on
+every page (the storefront default). It also widened the whole screen: a canvas's
+intrinsic size (1216px) is its flex item's max-content, so `width: min(100%, …)` on
+it resolved as `auto` for wrapping — fixed pixel widths and `max-width: 100%`. And
+the rig's "removes itself on another screen" failed until it waited for the Orders
+heading: clicking straight through a screen that has not mounted yet proves nothing.
+
+**Live**: run `scripts/publish/migrate-category-art.php` after publishing (order is not
+critical: without the table the tiles are the shipped files and the card says so).
+
+**The backend scan that came with it** (2026-09-29): 35 backend suites green locally;
+live `live-scan` "no problems", `live-admin-gate` 95 guarded routes / 0 answering 200,
+`live-deploy-check` secret 0600 and no new attempts, `live-login-check` normal. One
+red check that predates this work: `hero-slides-panel-test` — "formula matches the REAL
+rendered hero" fails at 1280 and 390 (real 84.7 vs 100, 33.3 vs 46.6): the panel's crop
+preview formula is stale against the hero-size changes. The owner's call whether the
+preview should follow.

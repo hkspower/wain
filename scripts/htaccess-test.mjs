@@ -333,6 +333,21 @@ try {
   check(get('/sitemap-products.xml').status === 200,
     'sitemap-products.xml is answered (by api/sitemap-products.php on a real host)')
 
+  // ------------------------------------- the category tiles go through api.php
+  // The four home tiles are answered by api.php?r=cat_art so an owner's
+  // replacement (a database row) can be served at the same URL. This rig has no
+  // PHP, so a rewrite that fires comes back as api.php's SOURCE — its own first
+  // line — and one that does not comes back as the JPEG/WebP/404 the file or its
+  // absence gives. Both halves are asserted: the tile names ARE rewritten, and
+  // nothing else under /cats/ is.
+  console.log('\n--- the category tiles are answered by api.php')
+  for (const p of ['/cats/desktop/art-men.webp', '/cats/mobile/art-accessories-rtl.jpg', '/cats/desktop/art-outlet.webp?v=20260929']) {
+    check(bodyOf(p).includes('Sporta native store API'), `${p} is rewritten to api.php`)
+  }
+  for (const p of ['/cats/desktop/outlet.jpg', '/cats/desktop/art-men.png', '/cats/tablet/art-men.webp', '/cats/desktop/art-kids.webp']) {
+    check(!bodyOf(p).includes('Sporta native store API'), `${p} is NOT rewritten`)
+  }
+
   // ---------------------------------------------------- caching, by category
   //
   // EVERY FILE MUST MATCH A RULE. The caching block keys on filename patterns —

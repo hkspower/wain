@@ -1011,6 +1011,84 @@ function store_data_image(?string $raw, int $max = STORE_LOGO_MAX): ?string {
     return 'data:image/' . $m[1] . ';base64,' . preg_replace('/\s+/', '', $m[2]);
 }
 
+// ------------------------------------------------ the home page's category tiles
+//
+// The four tiles ship as files in /cats/<crop>/art-<tile>[-rtl].<webp|jpg> and
+// the storefront asks for exactly those URLs. An owner's replacement is a set of
+// ROWS in category_art (categoryart.mysql.sql says why not files), and
+// `.htaccess` sends the tile URLs here. ANY failure — no table, no row, a
+// database that is down — falls back to the shipped file, because the worst
+// this feature may do is show the picture the shop already had.
+const STORE_CAT_TILES    = ['men', 'women', 'accessories', 'outlet'];
+const STORE_CAT_VARIANTS = ['desktop' => [1216, 706], 'mobile' => [900, 570]];   // + '-rtl' for Arabic
+const STORE_CAT_MAX_BYTES = 450000;      // per picture, decoded
+
+// Answer one tile picture and stop. Never returns.
+function store_cat_art_serve(): void {
+    $tile = (string)($_GET['tile'] ?? '');
+    $crop = (string)($_GET['crop'] ?? '');
+    $rtl  = ((string)($_GET['rtl'] ?? '')) === '-rtl' ? '-rtl' : '';
+    $fmt  = (string)($_GET['fmt'] ?? '');
+    if (!in_array($tile, STORE_CAT_TILES, true) || !isset(STORE_CAT_VARIANTS[$crop]) || !in_array($fmt, ['webp', 'jpg'], true)) {
+        http_response_code(404);
+        exit;
+    }
+    $bytes = null;
+    $etag = null;
+    try {
+        $c = store_config();
+        $pdo = new PDO("mysql:host={$c['db_host']};dbname={$c['db_name']};charset=utf8mb4", $c['db_user'], $c['db_pass'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_TIMEOUT => 5]);
+        $q = $pdo->prepare('select bytes, etag from category_art where tile = ? and variant = ? and fmt = ?');
+        $q->execute([$tile, $crop . $rtl, $fmt]);
+        $row = $q->fetch();
+        if ($row) { $bytes = (string)$row['bytes']; $etag = (string)$row['etag']; }
+    } catch (Throwable $e) {
+        // fall through to the shipped file
+    }
+    if ($bytes === null) {
+        $path = dirname(__DIR__) . "/cats/$crop/art-$tile$rtl.$fmt";
+        $bytes = is_file($path) ? file_get_contents($path) : false;
+        if ($bytes === false) { http_response_code(404); exit; }
+        $etag = md5($bytes);
+    }
+    // no-cache, not no-store: the browser keeps the picture and asks whether it
+    // changed (a 304 with no body), so an owner's new tile shows on the next
+    // load rather than after a day, and an unchanged one costs no bytes.
+    header('Content-Type: ' . ($fmt === 'webp' ? 'image/webp' : 'image/jpeg'));
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: no-cache, must-revalidate');
+    header('ETag: "' . $etag . '"');
+    // A CDN weakens a strong tag to W/"…", and a request may carry several.
+    $inm = (string)($_SERVER['HTTP_IF_NONE_MATCH'] ?? '');
+    foreach (explode(',', $inm) as $t) {
+        $t = trim($t);
+        if (str_starts_with($t, 'W/')) $t = substr($t, 2);
+        if ($t === '"' . $etag . '"') { http_response_code(304); exit; }
+    }
+    header('Content-Length: ' . strlen($bytes));
+    echo $bytes;
+    exit;
+}
+
+// Decode one uploaded tile picture for storage: a data: URI of the right type,
+// really that type, no bigger than the cap, and EXACTLY the size the tile is
+// drawn at — a wrongly shaped picture would be cropped by the page in a way the
+// owner never saw in the panel.
+function store_cat_art_decode(?string $raw, string $fmt, int $w, int $h): string {
+    $v = trim((string)$raw);
+    $want = $fmt === 'webp' ? 'webp' : 'jpeg';
+    if (!preg_match('#^data:image/' . $want . ';base64,([A-Za-z0-9+/=\s]+)$#', $v, $m)) store_fail('cat_art_bad_format');
+    $bytes = base64_decode(preg_replace('/\s+/', '', $m[1]), true);
+    if ($bytes === false || strlen($bytes) < 64) store_fail('cat_art_bad_format');
+    if (strlen($bytes) > STORE_CAT_MAX_BYTES) store_fail('cat_art_too_large');
+    $magic = $fmt === 'webp' ? 'RIFF' : "\xff\xd8\xff";
+    if (!str_starts_with($bytes, $magic) || ($fmt === 'webp' && substr($bytes, 8, 4) !== 'WEBP')) store_fail('cat_art_not_an_image');
+    $info = @getimagesizefromstring($bytes);
+    if (!$info || (int)$info[0] !== $w || (int)$info[1] !== $h) store_fail('cat_art_wrong_size');
+    return $bytes;
+}
+
 // ------------------------------------------------------- a brand's logo FILE
 //
 // public_html/images/<brand-slug>/logo.{png,webp,jpg} — the folder the owner

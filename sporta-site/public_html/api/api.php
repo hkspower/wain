@@ -99,6 +99,13 @@ if ($cors_origin !== '') {
 require __DIR__ . '/store.php';
 
 $r = $_GET['r'] ?? '';
+
+// The home page's category tiles. Answered BEFORE the database is opened for
+// the request: the route opens its own short connection and, on any failure,
+// serves the shipped file — a tile must never be the thing that breaks because
+// a table is missing. See store_cat_art_serve(). Never returns.
+if ($r === 'cat_art') store_cat_art_serve();
+
 $db = store_db();
 
 // ------------------------------------------------------------- rate limits
@@ -230,6 +237,10 @@ $STORE_LIMITS = [
     // mistypes, reloads and resubmits never meets it.
     'review_invite' => [90, 600],
     'review'        => [30, 600],
+    'cat_art'     => null,        // answered above, before this table is read: the
+                                  // four home tiles, revalidated by ETag, and asked
+                                  // for by EVERY page view — a ceiling would break
+                                  // the home page for a whole carrier's NAT.
     'slide_image' => null,        // hashed URL, one-year immutable cache: the
                                   // browser asks once, but a page legitimately
                                   // asks for five slides at once and a cold

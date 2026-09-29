@@ -181,6 +181,7 @@
     "test:hero-mobile": "node scripts/hero-mobile-test.mjs",
     "test:hero-phone": "node scripts/hero-phone-picture-test.mjs",
     "test:product-phone": "node scripts/product-phone-layout-test.mjs",
+    "test:category-art": "node scripts/category-art-test.mjs",
     "test:wallet-setup": "node scripts/wallet-setup-test.mjs",
     "test:brand-image-picker": "node scripts/brand-image-picker-test.mjs",
     "test:css-build": "node scripts/build-css.mjs --check",

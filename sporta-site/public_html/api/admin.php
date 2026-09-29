@@ -932,6 +932,85 @@ if ($r === 'product_active' && $method === 'POST') {
 // ------------------------------------------------------------------ brands
 // The admin sees EVERY brand, disabled ones included — a switch you cannot
 // see is a switch you cannot turn back on.
+// ---------------------------------------------- the home page's category tiles
+//
+// "make category images editor at backend". The four tiles (men, women,
+// accessories, outlet) are files in /cats/; an owner's replacement is a set of
+// rows in category_art, served in their place by api.php?r=cat_art, and deleting
+// the rows puts the shipped art back. See categoryart.mysql.sql for why rows.
+//
+// The panel does the picture work in the browser (cover-crop to the two tile
+// shapes, mirror for Arabic, encode webp + jpeg), so this server needs no image
+// library. What it does NOT do is trust that: every picture is decoded and
+// measured here, and a wrong size, a wrong type or a non-image is refused by
+// name, so a tile can never be cropped by the page in a way nobody saw.
+if ($r === 'cat_art_list') {
+    $by = [];
+    $ready = true;
+    try {
+        foreach ($db->query('select tile, count(*) n, max(updated_at) updated from category_art group by tile')->fetchAll() as $x) {
+            $by[$x['tile']] = $x;
+        }
+    } catch (Throwable $e) {
+        // Table not created yet on this shop: say so, do not 500 the screen.
+        $ready = false;
+    }
+    $tiles = [];
+    foreach (STORE_CAT_TILES as $t) {
+        $x = $by[$t] ?? null;
+        $tiles[] = ['tile' => $t, 'replaced' => $x !== null && (int)$x['n'] >= 8, 'updated_at' => $x['updated'] ?? null];
+    }
+    store_out(['ready' => $ready, 'tiles' => $tiles, 'sizes' => STORE_CAT_VARIANTS]);
+}
+
+if ($r === 'cat_art_save' && $method === 'POST') {
+    $b = store_body();
+    $tile = (string)($b['tile'] ?? '');
+    if (!in_array($tile, STORE_CAT_TILES, true)) store_fail('invalid_tile');
+    $imgs = is_array($b['images'] ?? null) ? $b['images'] : [];
+    $rows = [];
+    foreach (STORE_CAT_VARIANTS as $crop => [$w, $h]) {
+        foreach (['', '-rtl'] as $rtl) {
+            foreach (['webp', 'jpg'] as $fmt) {
+                $key = $crop . $rtl;
+                $bytes = store_cat_art_decode(is_array($imgs[$key] ?? null) ? ($imgs[$key][$fmt] ?? null) : null, $fmt, $w, $h);
+                $rows[] = [$key, $fmt, $bytes];
+            }
+        }
+    }
+    try {
+        $db->beginTransaction();
+        $db->prepare('delete from category_art where tile = ?')->execute([$tile]);
+        $ins = $db->prepare('insert into category_art (tile, variant, fmt, bytes, etag) values (?, ?, ?, ?, ?)');
+        foreach ($rows as [$key, $fmt, $bytes]) {
+            $ins->bindValue(1, $tile);
+            $ins->bindValue(2, $key);
+            $ins->bindValue(3, $fmt);
+            $ins->bindValue(4, $bytes, PDO::PARAM_LOB);
+            $ins->bindValue(5, md5($bytes));
+            $ins->execute();
+        }
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        error_log('cat_art_save: ' . $e->getMessage());
+        store_fail('cat_art_not_ready', 503);
+    }
+    store_out(['ok' => true, 'tile' => $tile, 'replaced' => true]);
+}
+
+if ($r === 'cat_art_reset' && $method === 'POST') {
+    $b = store_body();
+    $tile = (string)($b['tile'] ?? '');
+    if (!in_array($tile, STORE_CAT_TILES, true)) store_fail('invalid_tile');
+    try {
+        $db->prepare('delete from category_art where tile = ?')->execute([$tile]);
+    } catch (Throwable $e) {
+        store_fail('cat_art_not_ready', 503);
+    }
+    store_out(['ok' => true, 'tile' => $tile, 'replaced' => false]);
+}
+
 if ($r === 'brands') {
     store_out($db->query(
         'select id, slug, name_en, name_ar, logo, active, sort from brands order by sort, name_en'

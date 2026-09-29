@@ -111,6 +111,7 @@ const PARTS = [
   // by name in api/.htaccess. Moving it here would break that arrangement.
   ['assistantqa.mysql.sql', 'سبورتا AI — the answers the shop writes itself', API],
   ['customernotes.mysql.sql', 'CRM — private notes and tags per customer', API],
+  ['categoryart.mysql.sql', 'category art — the home tile pictures, when the owner replaces them', API],
 ]
 
 // Repairs, named so that "why is 6 missing" has an answer in the file itself
