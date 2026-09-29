@@ -93,13 +93,18 @@ ITEMS = [  # name, crop box in the cut-out, position in the cluster (back to fro
     # fills the most of the tile, so every item comes out largest. Items the
     # ORIGINAL frame cut off at the bottom (shirts, bottles, dumbbell) stand
     # on the tile's bottom edge, which hides their straight cut lines.
-    ('cap',      (702, 0, 942, 264),   (0, 0)),
-    ('shirts',   (321, 0, 680, 418),   (200, 120)),
-    ('shoes',    (16, 0, 283, 305),    (540, 40)),
-    ('bottles',  (704, 277, 942, 418), (560, 397)),
-    ('dumbbell', (0, 353, 277, 418),   (0, 473)),
+    # Tidied 2026-09-29 ("arrange the items"): three columns, no item on
+    # top of another. Left, the cap standing over the dumbbell; centre, the
+    # shirts; right, the shoes standing over the bottles. The columns touch by
+    # 10px so the group reads as one set, and everything the source frame cut
+    # off stands on the tile's bottom edge.
+    ('dumbbell', (0, 353, 277, 418),   (0, 401)),
+    ('cap',      (702, 0, 942, 264),   (18, 121)),
+    ('shirts',   (321, 0, 680, 418),   (267, 48)),
+    ('shoes',    (16, 0, 283, 305),    (616, 0)),
+    ('bottles',  (704, 277, 942, 418), (630, 325)),
 ]
-CLUSTER = (807, 538)
+CLUSTER = (883, 466)
 
 
 def compose_accessories(w, h):
