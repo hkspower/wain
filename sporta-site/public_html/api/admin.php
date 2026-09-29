@@ -1302,6 +1302,104 @@ if ($r === 'variant_save' && $method === 'POST') {
     store_out($q2->fetch());
 }
 
+// ------------------------------------------------ colour, fits and sizes, picked
+//
+// "Make selectable and static size and shape and colour at backend" — the owner,
+// 2026-09-29. Three pick-lists per product, every one built from a list the
+// SERVER owns, so nothing here is typed and nothing typed here can reach the
+// shop:
+//   colour  a key of STORE_COLOURS, kept in product_attrs (one row per product);
+//   fits    a subset of the shop's fits (the `rules` row), NULL = all of them;
+//   sizes   the product's rows in product_variants, drawn from the shop's sizes.
+//
+// ONE WRITE ROUTE, and it touches nothing but those: not the product row (a
+// full upsert three panels share), not a price, a photo or a stock count. A
+// size already in stock is kept as it is; a size removed must be at stock 0 or
+// the save is refused BY NAME before anything is written, because deleting a
+// row with 12 in stock is deleting 12 garments from the count.
+if ($r === 'product_attrs') {
+    $ready = true;
+    $rows = [];
+    try {
+        foreach ($db->query('select slug, colour, fits from product_attrs')->fetchAll() as $x) {
+            $rows[$x['slug']] = ['colour' => $x['colour'], 'fits' => $x['fits'] === null || $x['fits'] === '' ? null : explode(',', $x['fits'])];
+        }
+    } catch (Throwable $e) {
+        $ready = false;   // table not created on this shop yet: say so, do not 500 the screen
+    }
+    $sizes = [];
+    foreach ($db->query('select slug, size, stock from product_variants order by slug, sku')->fetchAll() as $v) {
+        $sizes[$v['slug']][] = ['size' => $v['size'], 'stock' => (int)$v['stock']];
+    }
+    $cols = [];
+    foreach (STORE_COLOURS as $k => [$en, $ar, $hex]) $cols[] = ['key' => $k, 'en' => $en, 'ar' => $ar, 'hex' => $hex];
+    store_out(['ready' => $ready, 'colours' => $cols, 'sizes' => store_rule($db, 'sizes'),
+               'fits' => store_rule($db, 'fits'), 'rows' => (object)$rows, 'variants' => (object)$sizes]);
+}
+
+if ($r === 'product_attrs_save' && $method === 'POST') {
+    $b = store_body();
+    $slug = store_slug((string)($b['slug'] ?? ''));
+    if ($slug === '') store_fail('invalid_slug');
+    $chk = $db->prepare('select 1 from products where slug = ?');
+    $chk->execute([$slug]);
+    if (!$chk->fetch()) store_fail('product_not_found');
+
+    $colour = trim((string)($b['colour'] ?? ''));
+    if ($colour !== '' && !isset(STORE_COLOURS[$colour])) store_fail('invalid_colour');
+
+    $allowedFits = store_rule($db, 'fits');
+    $fits = [];
+    foreach ((array)($b['fits'] ?? []) as $f) {
+        $f = (string)$f;
+        if (!in_array($f, $allowedFits, true)) store_fail('invalid_fit');
+        $fits[$f] = true;
+    }
+    $fits = array_keys($fits);
+
+    $allowedSizes = store_rule($db, 'sizes');
+    $want = [];
+    foreach ((array)($b['sizes'] ?? []) as $sz) {
+        $sz = strtoupper(trim((string)$sz));
+        if (!in_array($sz, $allowedSizes, true)) store_fail('invalid_size');
+        $want[$sz] = true;
+    }
+    if (!$want) store_fail('at_least_one_size');
+
+    $have = $db->prepare('select size, stock from product_variants where slug = ?');
+    $have->execute([$slug]);
+    $haveMap = [];
+    foreach ($have->fetchAll() as $v) $haveMap[$v['size']] = (int)$v['stock'];
+    foreach ($haveMap as $sz => $stock) {
+        if (!isset($want[$sz]) && $stock > 0) store_fail('size_has_stock:' . $sz . ':' . $stock);
+    }
+
+    try {
+        $db->beginTransaction();
+        $db->prepare('insert into product_attrs (slug, colour, fits) values (?, ?, ?)
+                      on duplicate key update colour = values(colour), fits = values(fits)')
+           ->execute([$slug, $colour === '' ? null : $colour, $fits ? implode(',', $fits) : null]);
+        // Same SKU formula as variant_save, or the panel later writes a SECOND row
+        // for the same garment and size.
+        $add = $db->prepare('insert into product_variants (sku, slug, size, stock, cost_aed) values (?, ?, ?, 0, null)
+                             on duplicate key update sku = sku');
+        foreach (array_keys($want) as $sz) {
+            if (!isset($haveMap[$sz])) $add->execute([strtoupper(substr($slug, 0, 26) . '-' . $sz), $slug, $sz]);
+        }
+        $drop = $db->prepare('delete from product_variants where slug = ? and size = ? and stock = 0');
+        foreach (array_keys($haveMap) as $sz) {
+            if (!isset($want[$sz])) $drop->execute([$slug, $sz]);
+        }
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        error_log('product_attrs_save: ' . $e->getMessage());
+        store_fail('product_attrs_not_ready', 503);
+    }
+    store_out(['ok' => true, 'slug' => $slug, 'colour' => $colour === '' ? null : $colour, 'fits' => $fits ?: null,
+               'sizes' => array_keys($want)]);
+}
+
 // Remove a size from the ladder.
 //
 // REFUSED WHILE STOCK IS ON IT, unless the caller says so explicitly. Deleting

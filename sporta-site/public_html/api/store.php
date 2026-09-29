@@ -209,6 +209,33 @@ function store_body(): array {
 const STORE_GOVERNORATES = ['capital', 'hawalli', 'farwaniya', 'mubarak-al-kabeer', 'ahmadi', 'jahra'];
 const STORE_SIZES        = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', 'ONE'];
 const STORE_FITS         = ['normal', 'slim', 'loose', 'oversize', 'boxy', 'tank'];
+
+// THE FIXED COLOUR LIST the product editor picks from — key => [English, Arabic, hex].
+// A colour is chosen, never typed: a typed "navy" and "Navy Blue" are two colours
+// to anything that groups by it. The names are the ones the catalogue already
+// uses in its product names. Adding one is an edit here, and product_attrs
+// keeps only the KEY, so renaming a colour renames it everywhere.
+const STORE_COLOURS = [
+    'black'        => ['Black',        'أسود',          '#111111'],
+    'onyx-black'   => ['Onyx Black',   'أسود عقيقي',    '#1b1d20'],
+    'white'        => ['White',        'أبيض',          '#f4f4f2'],
+    'grey'         => ['Grey',         'رمادي',         '#7a7d81'],
+    'steel-grey'   => ['Steel Grey',   'رمادي فولاذي',  '#9fb0c3'],
+    'navy'         => ['Navy',         'كحلي',          '#1d2f55'],
+    'royal'        => ['Royal Blue',   'أزرق ملكي',     '#2350b8'],
+    'red'          => ['Red',          'أحمر',          '#c0262d'],
+    'cherry-red'   => ['Cherry Red',   'أحمر كرزي',     '#8f1d2c'],
+    'pink'         => ['Pink',         'وردي',          '#d97a97'],
+    'iris-purple'  => ['Iris Purple',  'بنفسجي',        '#6b5f9e'],
+    'army-green'   => ['Army Green',   'أخضر زيتي',     '#5f6b47'],
+    'green'        => ['Green',        'أخضر',          '#2f8f4e'],
+    'coffee-brown' => ['Coffee Brown', 'بني قهوة',      '#5a3520'],
+    'taupe-brown'  => ['Taupe Brown',  'بني رمادي',     '#8b7d6b'],
+    'beige'        => ['Beige',        'بيج',           '#d9c9a8'],
+    'yellow'       => ['Yellow',       'أصفر',          '#e8c11b'],
+    'orange'       => ['Orange',       'برتقالي',       '#e0561c'],
+    'red-white'    => ['Red / White',  'أحمر / أبيض',   '#c0262d'],
+];
 const STORE_PAY_METHODS  = ['knet', 'tpay', 'cod'];
 
 // Where a shopper is sent to pay, per method.
