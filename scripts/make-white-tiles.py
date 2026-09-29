@@ -137,28 +137,42 @@ def compose_accessories(w, h):
 
 
 def compose_outlet(w, h, rtl=False):
+    """The shelves photo fills the whole far side, edge to edge and top to
+    bottom, cut on the tile's own slant, with an orange edge line and an orange
+    border round the whole tile; the start side stays white for the copy.
+    (2026-09-29, "make the outlet photo full size with orange borders and a
+    white body" — chosen over an illustrated shopfront.)"""
     img = ground(w, h)
-    photo = Image.open(os.path.join(SUBJ, 'outlet.jpg')).convert('RGBA')
+    photo = Image.open(os.path.join(SUBJ, 'outlet.jpg')).convert('RGB')
     # The shelves carry "CLEARANCE" signs, so the Arabic frame mirrors the
     # LAYOUT but not the photo: pre-flip it here, and save()'s mirror puts it
     # back the right way round.
     if rtl:
         photo = photo.transpose(Image.FLIP_LEFT_RIGHT)
-    ph = int(h * 0.80); pw = int(ph * photo.width / photo.height)
-    photo = photo.resize((pw, ph), Image.LANCZOS)
-    x = w - pw - int(w * 0.05); y = (h - ph) // 2
-    # a black band behind the frame, the orange kept for the frame and the stripes
-    dark = band(w, h, x + int(pw * 0.25), w + 80)
-    dark_px = np.array(dark); dark_px[..., :3] = (20, 20, 19); img.alpha_composite(Image.fromarray(dark_px))
-    img.alpha_composite(stripes(w, h, x - int(w * 0.09), x - int(w * 0.02), 12, 3))
-    r = int(h * 0.05); b = max(4, int(h * 0.012))
-    mask = Image.new('L', (pw, ph), 0)
-    ImageDraw.Draw(mask).rounded_rectangle([0, 0, pw - 1, ph - 1], radius=r, fill=255)
-    frame = Image.new('RGBA', (pw + 2 * b, ph + 2 * b), (0, 0, 0, 0))
-    ImageDraw.Draw(frame).rounded_rectangle([0, 0, pw + 2 * b - 1, ph + 2 * b - 1], radius=r + b, fill=ORANGE + (255,))
-    img.alpha_composite(frame, (x - b, y - b))
-    photo.putalpha(mask)
-    img.alpha_composite(photo, (x, y))
+    s = int(h * 0.17)                                   # the tile's slant
+    x0 = int(w * 0.40)                                  # photo's top-left corner
+    pw = w - x0 + s
+    scale = max(pw / photo.width, h / photo.height)
+    ph_ = photo.resize((int(photo.width * scale) + 1, int(photo.height * scale) + 1), Image.LANCZOS)
+    ph_ = ph_.filter(ImageFilter.UnsharpMask(radius=1.4, percent=80, threshold=2))
+    left = (ph_.width - pw) // 2
+    crop = ph_.crop((left, 0, left + pw, h)).convert('RGBA')
+    mask = Image.new('L', (w, h), 0)
+    poly = [(x0, 0), (w, 0), (w, h), (x0 - s, h)]
+    ImageDraw.Draw(mask).polygon(poly, fill=255)
+    layer = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    layer.paste(crop, (x0 - s, 0))
+    layer.putalpha(mask)
+    # orange edge line on the slant, then the tile's orange border on top
+    edge = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(edge).line([(x0, 0), (x0 - s, h)], fill=ORANGE + (255,), width=max(8, int(h * 0.02)))
+    img.alpha_composite(stripes(w, h, x0 - int(w * 0.10), x0 - int(w * 0.03), 12, 3))
+    img.alpha_composite(layer)
+    img.alpha_composite(edge)
+    bw = max(8, int(h * 0.02))
+    d = ImageDraw.Draw(img)
+    for i in range(bw):
+        d.rectangle([i, i, w - 1 - i, h - 1 - i], outline=ORANGE + (255,))
     return img
 
 
