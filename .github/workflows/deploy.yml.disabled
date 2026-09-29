@@ -1,5 +1,16 @@
 name: Deploy Wain to Hostinger
 
+# DISABLED — renamed from deploy.yml to deploy.yml.disabled on request, so
+# GitHub Actions no longer recognises it as a workflow at all. `git push`
+# still works normally; nothing runs on it any more. To re-enable, rename
+# this file back to deploy.yml (git mv keeps the history either way).
+#
+# This never was the live deploy path — DEPLOY_SECRET has never been set, so
+# every run of this failed in ~10s at "check the deploy secret is
+# configured", 328 runs running. The real deploy path is the cron job that
+# calls the installed d.php caller directly (see docs/hosting.md and
+# CLAUDE.md's deploy section) and is unaffected by this file being disabled.
+#
 # Deploys through the site's own signed endpoint, not FTP.
 #
 # WHY THIS CHANGED
