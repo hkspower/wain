@@ -184,6 +184,19 @@
   fetch(api + '/api.php?r=slides', { headers: { Accept: 'application/json' } })
     .then(function (r) { return r.ok ? r.json() : null })
     .then(function (data) {
+      // THE SLIDES SCREEN'S SIZE (2026-09-29, css/38-hero-size.css): the boot
+      // script used the cached value; correct it here on a first visit or a
+      // size just changed in /backends, and cache it for the next paint.
+      var size = data && data.hero && data.hero.size
+      if (size === 'short' || size === 'tall' || size === 'full') {
+        var root = document.documentElement
+        if (root.dataset.heroSize !== size) {
+          root.dataset.heroSize = size
+          root.style.setProperty('--hero-h', size === 'short' ? '40svh' : size === 'full' ? 'calc(100svh - 77px)' : '55svh')
+          root.style.setProperty('--hero-h-md', size === 'short' ? '55svh' : size === 'full' ? 'calc(100svh - 98px)' : '75svh')
+        }
+        try { localStorage.setItem('sporta_hero_size', size) } catch (e) {}
+      }
       if (!data || !data.rules) return
       rules = data.rules
       subs = textRules()

@@ -274,8 +274,13 @@
           // asking for the phone number on purpose, which is a different
           // thing. --hero-h-md (desktop) is untouched at 75svh.
           var kind = localStorage.getItem('sporta_hero_kind') || 'banner'
-          el.style.setProperty('--hero-h', '55svh')
-          el.style.setProperty('--hero-h-md', '75svh')
+          // THE SLIDES SCREEN'S SIZE, 2026-09-29 — see css/38-hero-size.css.
+          // The bundle caches the owner's choice here; tall is the default.
+          var size = localStorage.getItem('sporta_hero_size')
+          if (size !== 'short' && size !== 'full') size = 'tall'
+          el.dataset.heroSize = size
+          el.style.setProperty('--hero-h', size === 'short' ? '40svh' : size === 'full' ? 'calc(100svh - 77px)' : '55svh')
+          el.style.setProperty('--hero-h-md', size === 'short' ? '55svh' : size === 'full' ? 'calc(100svh - 98px)' : '75svh')
 
           // THE HERO BANNER, requested here rather than in the markup above.
           //

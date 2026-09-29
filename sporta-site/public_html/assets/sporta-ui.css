@@ -431,12 +431,15 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
  * of fixing the CONTAINER, and this needs both for the same reason a box and
  * the picture inside it are two different things that can each be the wrong
  * height on their own. */
+/* 55svh is the DEFAULT now, not a constant: both read --hero-h, which the
+ * Slides screen's Size sets (38-hero-size.css, 2026-09-29). As two literals
+ * these were what kept a phone at 55svh whatever the owner chose. */
 @media (max-width: 767px) {
   [class~="aspect-[2.52/1]"][class~="overflow-hidden"][class~="md:absolute"] {
-    height: 55svh !important;
+    height: var(--hero-h, 55svh) !important;
   }
   section[aria-roledescription="carousel"] {
-    height: 55svh !important;
+    height: var(--hero-h, 55svh) !important;
   }
 }
 
@@ -3546,7 +3549,7 @@ html[lang="ar"] .invoice tbody td > span[class~="block"][class~="text-xs"][class
  * Only the photo slides are affected. The five drawn fallback slides
  * (.hero-strength etc.) never render while an active row exists. */
 section[aria-roledescription="carousel"] {
-  --sp-hero-h: 55svh;
+  --sp-hero-h: var(--hero-h, 55svh);   /* follows the Slides screen's Size, 38-hero-size.css */
   --sp-band: 132px;
 }
 @media (min-width: 768px) {
@@ -3841,4 +3844,31 @@ section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][clas
   [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"]::after {
     bottom: 22px;
   }
+}
+/* THE SLIDES SCREEN'S "SIZE" WORKS AGAIN — 2026-09-29, "fix the slider editor
+ * backend, the sizes". /backends -> Slides offers Short / Tall / Full height
+ * and saves it (settings row `hero`, `size`), and since 2026-09-18 nothing had
+ * read it: the hero was one fixed height, so the control changed nothing.
+ *
+ * index.html's boot script puts the saved size on <html data-hero-size> before
+ * the first paint, and assets/rules-live.js corrects it from ?r=slides once
+ * the page loads (a first visit, or a size just changed). TALL IS THE HEIGHT
+ * THE SHOP ALREADY HAD, so a shop that never opens the control is unchanged —
+ * 02-hero.css's 55svh / 75svh stays the default.
+ *
+ *   short   phone 40svh                  desktop 55svh
+ *   tall    phone 55svh                  desktop 75svh   (as before)
+ *   full    the screen below the header  (77px phone, 98px desktop)
+ *
+ * Both the pre-paint shell (--hero-h / --hero-h-md) and the mounted hero
+ * (34-hero-band.css reads them through --sp-hero-h) follow the same variable,
+ * so the two cannot disagree and the page does not jump at mount.
+ * :root[data-hero-size] outranks 02-hero.css's plain :root among !important. */
+:root[data-hero-size="short"] {
+  --hero-h: 40svh !important;
+  --hero-h-md: 55svh !important;
+}
+:root[data-hero-size="full"] {
+  --hero-h: calc(100svh - 77px) !important;
+  --hero-h-md: calc(100svh - 98px) !important;
 }

@@ -246,12 +246,15 @@
  * of fixing the CONTAINER, and this needs both for the same reason a box and
  * the picture inside it are two different things that can each be the wrong
  * height on their own. */
+/* 55svh is the DEFAULT now, not a constant: both read --hero-h, which the
+ * Slides screen's Size sets (38-hero-size.css, 2026-09-29). As two literals
+ * these were what kept a phone at 55svh whatever the owner chose. */
 @media (max-width: 767px) {
   [class~="aspect-[2.52/1]"][class~="overflow-hidden"][class~="md:absolute"] {
-    height: 55svh !important;
+    height: var(--hero-h, 55svh) !important;
   }
   section[aria-roledescription="carousel"] {
-    height: 55svh !important;
+    height: var(--hero-h, 55svh) !important;
   }
 }
 
