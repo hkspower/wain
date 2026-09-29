@@ -1,5 +1,15 @@
 /**
- * One save button for the Settings screen, always within reach.
+ * One save button for every /backends screen, always within reach.
+ *
+ * EVERY SCREEN SINCE 2026-09-29 ("add save button at backend", the owner chose
+ * every screen). It began on Settings only, below, and nothing in how it works
+ * was specific to Settings: it finds cards by their own save buttons, which
+ * the product, slide, brand and order screens all have ("Save product",
+ * "Save slide", "Save brand", "Save details"...), plus the new-product form's
+ * "Create with N photo(s)". The rules below hold unchanged on every screen:
+ * it appears only after an edit, and presses only the edited card's button.
+ *
+ * The original, Settings-only reasoning follows.
  *
  * WHAT IS WRONG WITHOUT IT, measured in a browser at 1280x900 rather than
  * argued: the Settings screen is 5,753px tall — six and a half screenfuls —
@@ -64,15 +74,11 @@
     return n
   }
 
-  /** The Settings screen, and only it. The panel swaps its content in place,
-   *  so this has to be answered again after every render — hence the observer.
-   *  Same shape as contact-emails.js, deliberately: one way to ask. */
-  function settingsHeading() {
-    var hs = document.querySelectorAll('.admin-content h1, .admin-content h2')
-    for (var i = 0; i < hs.length; i++) {
-      if (hs[i].textContent.trim() === 'Settings') return hs[i]
-    }
-    return null
+  /** Any signed-in panel screen: .admin-content exists only once somebody is
+   *  signed in, so the sign-in screen never gets a bar. The panel swaps its
+   *  content in place, so this is asked again after every render. */
+  function panelHost() {
+    return document.querySelector('.admin-content')
   }
 
   /** A save button is one whose label STARTS with "save" — "Saved." is a note
@@ -80,10 +86,25 @@
    *  that as a control would leave the bar pressing a button that has already
    *  done its work. Our own is excluded by its attribute rather than by its
    *  label, so renaming it cannot make the bar find itself. */
+  /** Inside a pop-up editor (a position:fixed overlay, e.g. the product
+   *  editor)? Those keep their own save button in view already, and a bar
+   *  fixed to the bottom of the window sat ON it — measured, the editor's
+   *  "Save product" at 802-840px under a bar starting at 824. A bar that hides
+   *  the button it stands in for is worse than none, so pop-ups are left alone. */
+  function inOverlay(n) {
+    for (var x = n; x && x !== document.body; x = x.parentElement) {
+      if (getComputedStyle(x).position === 'fixed') return true
+    }
+    return false
+  }
+
   function isSaveButton(b) {
     if (b.hasAttribute(MARK)) return false
     if (b.offsetParent === null) return false        // hidden cards do not count
+    if (inOverlay(b)) return false
     var t = b.textContent.trim().toLowerCase()
+    // "Create with 2 photo(s)" is the new-product form's commit button.
+    if (t.indexOf('create with') === 0) return true
     return t.indexOf('save') === 0 && t.indexOf('saved') !== 0
   }
 
@@ -110,7 +131,14 @@
   function titleOf(root, btn) {
     var h = root.querySelector('h2, h3')
     if (h && h.textContent.trim()) return h.textContent.trim()
-    return btn.textContent.trim()
+    // A bare "Save" names nothing ("Unsaved changes in Save."), so a card with
+    // no heading of its own is called by the SCREEN's title instead.
+    var label = btn.textContent.trim()
+    if (/^save$/i.test(label)) {
+      var top = document.querySelector('.admin-content h1') || document.querySelector('.admin-content h2')
+      if (top && top.textContent.trim()) return top.textContent.trim()
+    }
+    return label
   }
 
   function discover() {
@@ -265,7 +293,7 @@
     if (placing) return
     placing = true
     try {
-      var head = settingsHeading()
+      var head = panelHost()
       if (!head) {
         if (bar && bar.parentNode) bar.parentNode.removeChild(bar)
         bar = null

@@ -156,13 +156,51 @@ try {
   check(!(await barShown()), 'pressing a card\'s OWN save clears the bar too',
     'otherwise it goes on offering to save something already saved')
 
-  /* --------------------------------------- 7. it belongs to Settings alone */
+  /* ---------------- 7. an edit left behind on another screen does not follow */
   await phone.fill(`+965 2209 ${stamp}`)
   await p.waitForTimeout(400)
   await openTab('Orders')
   await p.waitForTimeout(1200)
-  check(!(await barShown()), 'it is gone on another screen',
-    'a fixed bar that outlives its screen is a redesign of a screen nobody asked about')
+  check(!(await barShown()), 'an unsaved edit on Settings does not follow you to another screen',
+    'a bar naming a card that is no longer on screen would press a button that is not there')
+
+  /* ------------------------ 7b. every screen since 2026-09-29 */
+  // A second FULL-PAGE form: Size charts. Edited, the bar must come up.
+  await openTab('Size charts')
+  await p.waitForTimeout(1500)
+  const sc = p.locator('.admin-content input:not([type=hidden]):not([type=checkbox]), .admin-content textarea').first()
+  if (await sc.count()) {
+    const was = await sc.inputValue()
+    await sc.fill(was + '1')
+    await p.waitForTimeout(400)
+    check(await barShown(), 'editing the Size charts screen brings the bar up too', await barText())
+    await sc.fill(was)
+    await p.waitForTimeout(300)
+  } else {
+    check(false, 'found a field on the Size charts screen', 'no input')
+  }
+
+  // A POP-UP editor keeps its own Save in view, and a bar fixed to the bottom
+  // of the window sat ON it (measured: "Save product" 802-840px, bar from 824).
+  // So inside a pop-up the bar must stay away.
+  await openTab('Catalogue')
+  await p.waitForTimeout(1500)
+  const edit = p.getByRole('button', { name: 'Edit', exact: true }).first()
+  if (await edit.count()) {
+    await edit.click()
+    await p.waitForTimeout(1500)
+    const inp = p.locator('.fixed input[type="text"], .fixed textarea').first()
+    const was = await inp.inputValue()
+    await inp.fill(was + ' ')
+    await p.waitForTimeout(400)
+    check(!(await barShown()), "inside the product editor pop-up the bar stays away from its own Save product",
+      await barText())
+    await inp.fill(was)
+    await p.locator('.fixed button').filter({ hasText: /^Cancel$/ }).first().click()
+    await p.waitForTimeout(800)
+  } else {
+    check(false, 'found a product to edit on the Catalogue screen', 'no Edit button')
+  }
 
   /* ---------------------------------------------- 8. nothing threw */
   check(errors.length === 0, 'no page errors', errors.join(' | '))
