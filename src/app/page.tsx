@@ -1,17 +1,9 @@
 import Link from "next/link";
 import KuwaitSkyline from "@/components/KuwaitSkyline";
-import CategoryIcon from "@/components/CategoryIcon";
 import NearbyDial from "@/components/NearbyDial";
 import PlaceCard from "@/components/PlaceCard";
 import { IconCar, IconCompass, IconGo, IconPinSolid, IconSearch, IconSparkle } from "@/components/icons";
-import {
-  categories,
-  countAr,
-  countByCategory,
-  getFeaturedPlaces,
-  places,
-  PLACES_COUNT,
-} from "@/lib/places";
+import { getFeaturedPlaces } from "@/lib/places";
 
 export default function HomePage() {
   const featured = getFeaturedPlaces();
@@ -109,79 +101,6 @@ export default function HomePage() {
               دوّر باسم المكان
             </Link>
           </div>
-        </div>
-      </section>
-
-      {/* ---------- Categories ---------- */}
-      <section className="relative bg-sea-700">
-        <div className="mx-auto max-w-6xl px-2.5 py-2 sm:px-4 sm:py-3">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 sm:mb-5">
-            {/* The site asks this in three places and they have to agree:
-                here, on /search, and in the ⌘K palette — the last two the
-                moment the search box is focused and still empty. Reword one
-                and the site is asking two questions for the same thing. */}
-            <h2 className="flex items-center gap-2 font-display text-2xl font-bold text-white sm:text-3xl">
-              <IconPinSolid className="size-6 text-sun-300" />
-              شنو تدوّر؟
-            </h2>
-            <Link
-              href="/explore"
-              className="flex min-h-6 items-center gap-1.5 rounded-full bg-white/95 px-4 py-2 text-sm font-semibold text-sea-800 shadow-sm transition hover:bg-white"
-            >
-              شوف الكل
-              <IconGo className="size-4" />
-            </Link>
-          </div>
-
-          {/* Scroll rail on small screens, even grid from lg up.
-
-              Three things here are about how the swipe FEELS, and all three
-              were measured on a 390px phone rather than guessed:
-
-              snap-proximity, not snap-mandatory. Mandatory cannot let the rail
-              rest between items, so it corrected a 4px nudge into a 120px jump
-              — a whole card — and every small movement fought back. Nine cards
-              at 112px sit 3.15 to a screen, so this is a browse rail, not a
-              pager; proximity assists a flick that is already near an edge and
-              otherwise leaves the finger alone.
-
-              overscroll-x-contain. Without it a swipe past the last card
-              chains to the page, and on iOS and Android that gesture is
-              back-navigation. Flicking to the end of the rail could leave the
-              site.
-
-              scroll-px-2.5 to match px-2.5. Snapping aligns to the scrollport, which
-              ignores padding unless scroll-padding says otherwise, so the rail
-              settled 16px away from its own start on load — measurably, before
-              any touch. The two now agree, and it rests where it belongs. */}
-          <ul className="-mx-2.5 flex snap-x snap-proximity gap-3 overflow-x-auto overscroll-x-contain scroll-px-2.5 px-2.5 pb-2 [mask-image:linear-gradient(to_left,transparent,#000_1.25rem,#000_calc(100%-1.25rem),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:scroll-px-0 sm:px-0 lg:grid lg:grid-cols-9 lg:overflow-visible lg:pb-0 lg:[mask-image:none]">
-            <li className="w-28 shrink-0 snap-start sm:w-32 lg:w-auto">
-              <Link
-                href="/explore"
-                className="flex h-full flex-col items-center justify-center gap-2 rounded-2xl bg-sun-300 p-4 text-center text-ink-900 shadow-sm transition hover:-translate-y-0.5 hover:bg-sun-200"
-              >
-                <CategoryIcon name="all" />
-                <span className="text-sm font-semibold">الكل</span>
-                <span className="text-2xs font-semibold text-sun-900">
-                  {countAr(places.length, PLACES_COUNT)}
-                </span>
-              </Link>
-            </li>
-            {categories.map((cat) => (
-              <li key={cat.id} className="w-28 shrink-0 snap-start sm:w-32 lg:w-auto">
-                <Link
-                  href={`/explore/?category=${cat.id}`}
-                  className="flex h-full flex-col items-center justify-center gap-2 rounded-2xl bg-white/12 p-4 text-center text-white ring-1 ring-white/20 backdrop-blur-sm transition hover:-translate-y-0.5 hover:bg-white/20"
-                >
-                  <CategoryIcon name={cat.icon} />
-                  <span className="text-sm font-semibold leading-tight">{cat.ar}</span>
-                  <span className="text-2xs font-semibold text-white">
-                    {countAr(countByCategory(cat.id), PLACES_COUNT)}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
         </div>
       </section>
 

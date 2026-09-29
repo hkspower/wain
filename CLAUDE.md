@@ -2821,11 +2821,14 @@ are now read and correct; a seventh appearing means something new, not this.
 `npm run scan` is lint plus 31 audits — counted from `package.json` on
 21 September rather than estimated, because «~29» had been carried along
 through two additions. Browser suites: `test:hangout` (hangout, hangout-page,
-map-pin, live-map, search-keys, shouq-search, search-plan, swipe, find —
-**nine**, up from the eight this line used to list: `find` joined 28
-September, replacing the `areas` and `search-button` suites the rollback
-took), `test:journey`, `test:register`, `test:shouq`, `test:orders`,
-`test:net`. PHP suites, not in `scan` because it
+map-pin, live-map, search-keys, shouq-search, search-plan, find, salem —
+**nine**, having gained `salem` and lost `swipe` since the line above this
+one was current: the home page's «شنو تدوّر؟» category rail — the one thing
+`swipe` existed to test — was removed on request 29 September, so the suite
+went with it rather than being left green over a feature no longer on the
+page. `find` joined 28 September, replacing the `areas` and `search-button`
+suites the rollback took), `test:journey`, `test:register`, `test:shouq`,
+`test:orders`, `test:net`. PHP suites, not in `scan` because it
 cannot assume php: `test:api` (40), `test:tts` (**58**: 42, then the
 cache-prune block, the one-render-under-concurrency block and the
 fail-closed budget) and

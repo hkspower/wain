@@ -23,11 +23,6 @@
  *                   she builds for every query, which used to be spoken and
  *                   never written, and the microphone that used to exist only
  *                   inside her call.
- *   swipe         — the category rail, the site's one swiped surface. It was
- *                   snap-mandatory, which turned a 4px nudge into a 120px
- *                   jump. Tests both directions, because the tempting
- *                   over-correction is to make it comfortable by making
- *                   snapping do nothing at all.
  *   find          — the dial, now a plain link, and the choice page it leads
  *                   to: call شوق, or chat with سالم. Asserts `wain-ai:call`
  *                   actually fires on the شوق tap, not just that the page
@@ -103,9 +98,6 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
 
   console.log("\n════ الطلعة من البحث: acting on a result without leaving it ════");
   failed += (await run("node", ["tests/search-plan.test.mjs"], { env })) === 0 ? 0 : 1;
-
-  console.log("\n════ السحب: how the category rail feels under a thumb ════");
-  failed += (await run("node", ["tests/swipe.test.mjs"], { env })) === 0 ? 0 : 1;
 
   console.log("\n════ إلى وين: the dial, and the choice it leads to now ════");
   failed += (await run("node", ["tests/find.test.mjs"], { env })) === 0 ? 0 : 1;
