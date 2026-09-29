@@ -97,7 +97,35 @@ export default function FindChoice() {
             {WAIN_AI_COPY.greeting}
           </p>
           <div className="animate-reveal-up mt-1 flex flex-col items-center gap-2 [animation-delay:380ms]">
-            <ShouqCallButton size="lg" className="bg-white shadow-md" onTapped={() => router.push("/search")} />
+            {/* isolate: an ambient ring around the button and a shimmer
+                across its face, both added here rather than inside
+                ShouqCallButton itself — that component is shared across the
+                whole site (search box, ⌘K palette, …) and its own ringing
+                state already owns `absolute inset-0`; a second, unrelated
+                animation belongs on this one standalone use, not baked into
+                every size-8 instance elsewhere. `-z-10` on the glow and
+                z-index:auto on the shimmer both paint correctly around the
+                button without touching its own className logic — see the
+                stacking-order note the seam badge's glow needed above for
+                why plain sibling order does not decide this on its own. */}
+            <div className="relative isolate inline-flex">
+              {/* The glow ring extends past the button's own edge, so it
+                  needs an UNCLIPPED wrapper of its own — the shimmer below
+                  is the opposite, it must not spill past the circle, so
+                  it gets a second, inner, clipped one. Same div for both
+                  would force one of the two to look wrong. */}
+              <span
+                aria-hidden="true"
+                className="animate-seam-glow pointer-events-none absolute -inset-3 -z-10 rounded-full bg-[radial-gradient(closest-side,rgba(220,47,37,.5),transparent_75%)] blur-lg"
+              />
+              <div className="relative isolate inline-flex overflow-hidden rounded-full">
+                <ShouqCallButton size="lg" className="bg-white shadow-md" onTapped={() => router.push("/search")} />
+                <span
+                  aria-hidden="true"
+                  className="animate-shimmer pointer-events-none absolute inset-0 rounded-full bg-[linear-gradient(115deg,transparent_35%,rgba(220,47,37,.22)_50%,transparent_65%)] bg-[length:250%_100%]"
+                />
+              </div>
+            </div>
             {/* sand-200 over the photo — ink-700 (the flat-background value)
                 was unreadable against the scrim. */}
             <span className="text-sm font-semibold text-sand-200">{WAIN_AI_COPY.callHint}</span>
