@@ -25,7 +25,7 @@
  * $COMMIT pins the ARTWORK. Fetch this script from HEAD.
  */
 
-$COMMIT = 'REPLACE_WITH_ART_COMMIT';
+$COMMIT = 'b45b009efce2885f19d6c69f564f431764cabe7f';
 $BASE   = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT . '/sporta-site/assets/hero/';
 
 // [old desktop hash, new file, new sha, w, h, mobile file|null, mobile sha|null, mw, mh]
