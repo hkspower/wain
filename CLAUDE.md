@@ -1132,6 +1132,90 @@ first, so a bare pin puts two redirects in front of 451KB at the moment of a
 tap. **A test that asserts a property this loosely is worse than no test**, and
 that is the part worth carrying forward.
 
+**`worker-src` was the fourth CSP directive to be missing a host, and it broke
+the call outright.** «Failed to load the rawAudioProcessor worklet module» on
+`wainkw.com` itself — reported from a real phone, not caught by any audit —
+because `script-src` trusted `unpkg.com` for the widget's main bundle while
+`worker-src` still read `'self' blob:` alone. `AudioWorklet.addModule()` is
+checked against `worker-src`, a separate directive from the one that let the
+`<script>` tag load in the first place, so the widget's own JavaScript ran
+fine and then failed the moment it tried to stand up its audio pipeline —
+agent mode looked reachable and was not. Fixed the same way the tile host and
+the ElevenLabs origin were: name it. `worker-src 'self' blob: https://unpkg.com`
+now, commit `8912c4ce`, live the same day.
+
+Nothing in `npm run scan` asserted on `worker-src` before this — `audit:htaccess`
+checks that every DENY rule misses the export and that the CSP names every
+bundled origin the directives it actually reaches need, and `worker-src` had
+never been on that list because nothing in this repository loads an
+AudioWorklet directly; the widget does, from inside its own 451KB, where no
+build step here can see it. The general lesson `docs/hosting.md`'s own CSP
+comment already states — «if شوق or the voice stop working after a change
+here, the browser console names the directive» — is what actually found this
+one: a live screenshot of the failed call, not a scan.
+
+**And the SDK offers a way around needing `blob:`/a third-party `worker-src`
+entry at all, not taken here.** `@elevenlabs/client`'s `AudioWorkletConfig`
+(`workletPaths.rawAudioProcessor`/`audioConcatProcessor`) exists precisely
+«to avoid whitelisting blob: and data: in the CSP script-src» — self-host the
+worklet `.js` files under `public/` and point the SDK at them instead of
+letting it mint a `blob:` URL. Read out of the published source while
+building `lib/salem-chat.ts` (see the شوق↔سالم reversal section below), and
+deliberately not adopted here: it is a `<elevenlabs-convai>` WIDGET attribute
+question, not a `lib/salem-chat.ts` one — `salem-chat.ts` is a hand-rolled
+WebSocket client with no audio pipeline of its own, so it has no worklet to
+self-host. Whether the *widget* bundle exposes an equivalent attribute was
+not checked; naming this so the next person does not have to rediscover the
+option from scratch, and does not read the current `worker-src` allowance as
+the only way to have fixed it.
+
+**The call sheet is full screen now, on request — a phone's own call screen,
+not a floating card.** It was `fixed start-5 z-50 w-[min(22rem,calc(100vw-
+2.5rem))] rounded-3xl ... shadow-2xl` — a card anchored near the bottom-start
+corner, capped at 22rem even on a wide phone. `WainAiCall.tsx`'s container is
+`fixed inset-0` now: no width cap, no rounded corners (nothing left beside it
+to round against), no border or shadow (nothing behind it to separate from).
+
+**Its safe-area insets moved from a position to a padding, and that is not
+cosmetic — it is what made the standalone-mode override disappear.** The old
+`.wain-ai-panel { bottom: calc(6rem + env(safe-area-inset-bottom)) }` in
+`globals.css` existed to clear شوق's launcher, and then — inside `@media
+(display-mode: standalone)` and its `html[data-standalone="true"]` twin — to
+clear the installed app's tab bar too, at `10.25rem` instead of `6rem`. A
+full-screen sheet has no bottom edge left to clear anything FROM, including
+the tab bar — which is correct: a call covering the tab bar is what a real
+phone's call screen does. Both standalone overrides are deleted, not
+updated, and `.wain-ai-panel` carries no CSS rule at all any more; the header
+gets `pt-[calc(1rem+env(safe-area-inset-top))]` and the body gets a matching
+`pb-`, in the component itself, the same place `.app-chrome` already carries
+its own insets as padding rather than a position.
+
+**`tests/shouq-flow.test.mjs` had an assertion that named the old shape
+directly and had to be rewritten, not just re-passed.** «the sheet … clears
+the tab bar» compared `panel.bottom <= tabTop`; on the new layout that
+inequality is false by design (the panel's bottom now equals the viewport's,
+past the tab bar entirely), so the fix is not loosening the check, it is
+replacing it with what actually matters now: the sheet's four edges sit
+exactly on the viewport's four edges, in both browser and installed modes.
+`tests/shouq-agent.test.mjs`'s own comment — «the sheet is 22rem over a
+24.4rem viewport, so the page she is driving is mostly BEHIND it» — was
+narrative rather than an assertion, and is corrected too: entirely behind it
+now, which if anything strengthens the argument that comment was making for
+why `show_places`/`open_place` need to announce what they did out loud.
+
+**Caught by actually running `test:shouq`, not by trusting a background
+task's own exit code.** The wrapper command was `npm run scan > log 2>&1;
+echo "EXIT:$?" >> log` — correct — but an EARLIER attempt at the same pattern
+left off the `>>` on the echo, so the exit code printed to the wrapper's own
+stdout instead of landing in the log a Monitor was watching. The monitor
+timed out with "no events" and the background-task notification read
+"completed (exit code 0)" — true of the wrapper shell, meaningless about
+`npm run scan`, which had actually failed on a stale `docs/content.md` both
+times. Two lessons, not one: `docs/content.md` genuinely drifts when a route
+is added (`/salem` here) and `content:check` is what catches it, and a
+background task's own exit code is never a substitute for reading what the
+command itself reported.
+
 **And the built-in default that keeps her on was unreachable from CI.**
 `WAIN_AI_AGENT_ID` came from `process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID ??
 DEFAULT_AGENT_ID`, and `??` falls back only on null/undefined. GitHub expands
@@ -2426,6 +2510,96 @@ instead of floating unstyled on the gradient; the greeting paragraph got
 word on its own row; and the call hint below the button moved from
 `ink-500` to `ink-700` to match `SearchHub`'s identical-purpose hint span,
 which was already the site's own convention for this exact role.
+
+### «Two choices, not three» is reversed — سالم gets his own page — 29 September
+
+Asked directly, again, the same question «Two choices, not three» above and
+28 September's section record answering twice already: keep سالم as a
+mid-call voice swap only, or build him a real second presence. Both times the
+answer was keep the decision. This time the answer was reverse it — سالم now
+has his own page, `/salem`, and `/find`'s lower half is his card, not a plain
+«اكتب» typing box. The two earlier sections are left as they stand rather
+than rewritten: they were correct records of the decision at the time, and a
+reversal is a new fact, not evidence the old entries were wrong.
+
+**What actually ships is narrower than "a second agent," on purpose.** The
+disproportionate-cost argument in both earlier sections was about building
+سالم his own prompt, tests, tool set and knowledge base — a real second mind.
+`/salem` does not do that: it opens a text-only Conversational AI session
+against the SAME agent شوق already uses — same prompt, same tools, same
+knowledge base, same `WAIN_AI_AGENT_ID` — with `SALEM_VOICE_ID` set as an
+override and no audio ever negotiated. He is a real, independently-reachable
+persona now; he is still not a different mind. See the comment over
+`SALEM_VOICE_ID` in `lib/wain-ai.ts` for the full reasoning, kept there
+because that is the line the decision actually depends on.
+
+**Not the `@elevenlabs/client` SDK.** Its `TextConversation` looked like the
+obvious way to open a text session, and importing only that one class still
+pulls in the SDK's connection factory, which references `WebRTCConnection`
+unconditionally — a `switch` branch, not a dynamic import — and therefore
+`livekit-client`, a WebRTC/media library with nothing to do with a typed
+chat. Measured before deciding: 148KB gzipped for a bundle that, in text-only
+mode, never opens anything but a plain WebSocket. `/search`'s entire route,
+by comparison, is 160K against the site's own 175K budget — spending 148K on
+one dependency for one new page was never going to fit it.
+
+`lib/salem-chat.ts` is the answer instead: the wire protocol — the
+`conversation_initiation_client_data` handshake, `user_message`/
+`agent_response`, the `ping`/`pong` keepalive, answering an unhandled
+`client_tool_call` with an error rather than leaving it to hang — read
+directly out of the published SDK's source (`npm pack`'d; the registry is
+reachable from here, `api.elevenlabs.io` itself is not) and hand-written as
+plain WebSocket calls. The same call the MCP server already made for the
+same reason — see «wain speaks MCP» below: an SDK carries the parts every
+caller needs, not the parts this one caller needs, and a static export with
+no server is exactly the project where that difference is a whole feature's
+worth of bytes. `/salem/` ships at 124.4K, under every other route but the
+three with no client component at all.
+
+**`show_places`/`open_place` have nothing to act on from this page, and that
+is a real, named limitation, not an oversight.** Both tools need the
+catalogue and the live map — `WainAiCall.tsx`'s own territory — and
+`/salem/SalemChat.tsx` deliberately does not import `@/lib/places` or
+`usePlaces()`, the same rule `place-kit.ts` exists to hold everywhere else.
+An unregistered client tool call is answered with `is_error: true` rather
+than left to hang — the same shape the real SDK sends for a tool nobody
+registered — and `SalemChat.tsx` turns that into a system line in the
+transcript (`SALEM_AI_COPY.toolUnavailable`) so a visitor reading it knows
+why nothing appeared, rather than being left to guess. He can still name
+places in his own words; only the results panel is unavailable here.
+
+**Nothing here has been exercised against a live agent.** Same limitation
+every ElevenLabs feature in this repository carries — `wss://api.
+elevenlabs.io` is refused by this sandbox's own egress gateway. What was
+verified: the build is clean, `/salem/` and `/find/`'s new card render
+correctly in a real browser with no console errors, the socket attempt fails
+the way any refused connection does (the page shows its own failure copy
+rather than hanging), and `tests/salem.test.mjs` asserts only what the
+client code controls regardless of network — the greeting renders before any
+connection settles, and the input starts disabled because `status` begins at
+`"connecting"`, never `"connected"`, before any network event can have
+arrived. A CI runner reaching the real internet would see different network
+behaviour than this sandbox does, which is exactly why the test does not
+depend on which one happens.
+
+**`/find`'s own test flipped its central claim.** `tests/find.test.mjs` used
+to assert «nothing here names سالم — not a top-level choice»; it now asserts
+the card is visible and leads to `/salem`, and `tests/salem.test.mjs` covers
+the new page on its own. `test:hangout` grows to ten suites for it.
+
+**`audit:color` caught a real 1.10:1 pair, and it was invisible for the same
+reason it was measurable.** The chat input's `<label htmlFor="salem-q"
+className="sr-only">` inherited the page's default text colour rather than an
+explicit one, because nothing on the page set one — every OTHER piece of text
+here sets its own colour class, so this was the one node relying on
+inheritance. `audit:color`'s DOM walker does not exclude `sr-only` text (its
+`display`/`visibility`/`offsetParent` checks all still see it, correctly: a
+screen reader reads it, so a colour a sighted visitor never sees is still
+real work for the audit to check), and it landed on the dark default over the
+section's own `bg-sea-950` — dark text nobody was ever meant to see against a
+dark backdrop, both literally invisible and technically unreadable at once.
+Fixed by giving the whole page's root `text-white`, the same fix `/find`'s
+dark halves already needed and got.
 
 ## The Arabic prose has been read, once, on purpose
 

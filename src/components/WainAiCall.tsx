@@ -737,11 +737,22 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           id="wain-ai-panel"
           role="dialog"
           aria-label={`${WAIN_AI_COPY.centre} — ${WAIN_AI_COPY.name}`}
-          className="wain-ai-panel fixed start-5 z-50 w-[min(22rem,calc(100vw-2.5rem))] overflow-hidden rounded-3xl border border-line bg-white shadow-2xl"
+          // Full screen on a tap, not a floating card any more — a call
+          // takes over the whole screen the way a phone's own call screen
+          // does. `inset-0` replaces the old `start-5` + capped width +
+          // rounded corners: there is nothing beside it left to round
+          // against. `overflow-y-auto` is the safety net for a short
+          // viewport with the agent-mode conversation slot expanded; the
+          // page underneath is fully covered either way, which is what
+          // `tests/shouq-agent.test.mjs`'s "mostly behind it" note above
+          // this component now reads as "entirely behind it".
+          className="wain-ai-panel fixed inset-0 z-50 flex flex-col overflow-y-auto bg-white"
         >
           {/* Same reason as the launcher: the coral-500 end of this gradient
-              cannot carry white body text at AA. */}
-          <header className="flex items-center gap-3 bg-gradient-to-l from-coral-800 to-coral-600 p-4 text-white">
+              cannot carry white body text at AA. pt- carries the safe-area
+              inset itself now — full screen means this header IS the top
+              edge, where the floating card used to sit clear of it. */}
+          <header className="flex shrink-0 items-center gap-3 bg-gradient-to-l from-coral-800 to-coral-600 p-4 pt-[calc(1rem+env(safe-area-inset-top))] text-white">
             <span className="relative grid size-11 shrink-0 place-items-center rounded-2xl bg-white/20">
               <IconShouq className={`size-6 shouq ${talking ? "shouq--talking" : ""}`} />
             </span>
@@ -779,7 +790,15 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
             </button>
           </header>
 
-          <div className="p-4">
+          {/* flex-1 + justify-center: the body fills whatever height the
+              header didn't take, and centres its content in it rather than
+              pinning it to the top of an otherwise-empty screen — the one
+              layout change full-screen actually asked for beyond the
+              container itself. pb- carries the bottom safe-area inset,
+              since the hang-up button is now the last thing near the
+              home-indicator strip rather than sitting inside a card with
+              margin below it. */}
+          <div className="flex flex-1 flex-col justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
             {(phase === "ringing" || phase === "live" || phase === "answering") && (
               <div className="text-center">
                 <span className="relative mx-auto grid size-16 place-items-center">

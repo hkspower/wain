@@ -196,14 +196,16 @@ console.log('\n── the sheet sits where it can be read and dismissed ──')
    * 52 of the button's 60 pixels went under the sheet, and with them the ring
    * pulse that existed precisely to show a live call from behind it.
    *
-   * There is no floating launcher any more. شوق is a button inside the query
-   * box, in normal flow near the top of the page, and the sheet is a fixed
-   * panel over it — covering it is correct now, not a bug. What is still
-   * worth measuring is the sheet itself: fully on screen, and clear of the
-   * tab bar that appears when the site is installed. Both modes, because the
-   * two layouts are written twice in globals.css — once as a media query,
-   * once as an attribute for iOS — and the comment there says the two lists
-   * must stay identical.
+   * Both the floating launcher AND the small floating card it anchored above
+   * are gone now. A call takes over the whole screen — `fixed inset-0` in
+   * `WainAiCall.tsx` — the way a phone's own call screen does, which means
+   * it now DELIBERATELY covers the installed app's tab bar rather than
+   * clearing it; the old assertion here (`panel.bottom <= tabTop`) asserted
+   * the opposite of what shipped on purpose and had to be rewritten, not
+   * just re-passed. What is worth measuring instead: the sheet fills the
+   * viewport exactly, in both modes, because the two layouts still differ
+   * elsewhere in globals.css (body padding, overscroll) even though the
+   * sheet itself no longer does.
    */
   const { ctx, p } = await fresh({ stayOpen: true });
   await p.goto(B + '/search/', { waitUntil: 'networkidle' });
@@ -216,20 +218,14 @@ console.log('\n── the sheet sits where it can be read and dismissed ──')
     const box = await p.evaluate(() => {
       const e = document.querySelector('#wain-ai-panel');
       const b = e.getBoundingClientRect();
-      // In a browser the tab bar is display:none, and a hidden element still
-      // has a rect — an all-zero one. Reading .top off it says the tab bar is
-      // at the top of the screen, which failed this check against a layout
-      // that was correct. Absent means zero-sized, not missing from the DOM.
-      const tab = document.querySelector('.app-chrome.fixed.bottom-0');
-      const tb = tab?.getBoundingClientRect();
-      return { panel: { top: b.top, bottom: b.bottom },
-               tabTop: tb && tb.height > 0 ? tb.top : Infinity, vh: innerHeight };
+      return { top: b.top, left: b.left, bottom: b.bottom, right: b.right, vw: innerWidth, vh: innerHeight };
     });
     const where = installed ? 'installed' : 'in a browser';
-    ok(`${where}: the sheet is fully on screen`, box.panel.top >= 0,
-      `panel top ${Math.round(box.panel.top)}`);
-    ok(`${where}: and clears the tab bar`, box.panel.bottom <= box.tabTop,
-      `panel bottom ${Math.round(box.panel.bottom)} vs tab bar top ${Math.round(box.tabTop)}`);
+    ok(`${where}: the sheet covers the top edge`, box.top === 0, `top ${box.top}`);
+    ok(`${where}: the full width`, box.left === 0 && box.right === box.vw,
+      `left ${box.left} right ${box.right} vs vw ${box.vw}`);
+    ok(`${where}: and the bottom edge, tab bar included`, box.bottom === box.vh,
+      `bottom ${box.bottom} vs vh ${box.vh}`);
   }
   await ctx.close();
 }

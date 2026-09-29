@@ -91,13 +91,28 @@ for (const vp of VIEWPORTS) {
     const page = await ctx.newPage();
     const found = [];
     page.on("pageerror", (e) => found.push(`uncaught: ${e.message}`));
-    page.on("console", (m) => {
-      if (m.type() === "error") found.push(`console.error: ${m.text().slice(0, 160)}`);
-    });
     // Whether a third party is reachable is not a fact about this codebase,
     // and a sandbox with no route to openstreetmap.org would otherwise report
     // two failures on every run until people stopped reading the output.
     const ours = (u) => u.startsWith(`http://localhost:${PORT}`) || u.startsWith("data:") || u.startsWith("blob:");
+    // /salem opens a WebSocket to api.elevenlabs.io on mount, and a refused
+    // connection surfaces as the browser's OWN console.error — not through
+    // `requestfailed`, which is where every other third-party carve-out below
+    // lives, because Chromium logs a failed WS handshake to the console
+    // directly rather than emitting a network event Playwright exposes the
+    // same way. Same third-party-reachability argument as the rest of this
+    // file; recorded in `external` instead of silently dropped, so it still
+    // shows up in the summary below.
+    page.on("console", (m) => {
+      if (m.type() !== "error") return;
+      const text = m.text();
+      const wsHost = text.match(/^WebSocket connection to '[^']*:\/\/([^/']+)/)?.[1];
+      if (wsHost && !ours(`http://${wsHost}`)) {
+        external.add(wsHost);
+        return;
+      }
+      found.push(`console.error: ${text.slice(0, 160)}`);
+    });
     page.on("requestfailed", (r) => {
       const f = r.failure()?.errorText ?? "";
       // Aborts are the app cancelling its own work, which is correct.

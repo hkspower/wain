@@ -68,8 +68,22 @@ export const WAIN_AI_AGENT_ID =
 export const WAIN_AI_AGENT_ENABLED = WAIN_AI_AGENT_ID.trim().length > 0;
 
 /**
- * سالم's voice, for the one moment a caller can hear him instead of شوق on a
- * call — a mid-call switch, not a second agent.
+ * سالم's voice.
+ *
+ * Two uses now, not one. It started as the mid-call switch documented below —
+ * still the same agent, still شوق's brain and tools, only the TTS voice
+ * changes. `/salem`'s own typed chat (`lib/salem-chat.ts`) is the second use,
+ * and a reversal of an earlier decision recorded in CLAUDE.md: a design
+ * canvas explored سالم as a full second character, and this repository
+ * initially ruled that out — «Two choices, not three» — on the grounds that a
+ * second full agent (its own prompt, tests, tool set) was a disproportionate
+ * answer to one voice option. Asked directly whether to keep that decision or
+ * reverse it; the answer was reverse it. What ships is a middle path, not a
+ * full second agent: `/salem` talks to the SAME agent as شوق — same prompt,
+ * same tools, same knowledge base — over a plain text session with this voice
+ * id set as the override, so أي judgement a genuinely separate agent would
+ * need (a new prompt, a new test suite) was never required. He is a real,
+ * separately-reachable persona; he is not a different mind.
  *
  * Same id `scripts/gen-voice.mjs` and the live TTS bridge
  * (`scripts/publish/tts-endpoint.php`) already use for him — Eid, Gulf male —
@@ -223,4 +237,31 @@ export const WAIN_AI_COPY = {
   noSpeech: "ما سمعناك — جرّب مرة ثانية وتكلم بعد الإشارة.",
   unsupported: "متصفحك ما يدعم الإدخال الصوتي — اكتب اللي تبيه.",
   failed: "ما قدرنا نشغّل شوق الحين — جرّب مرة ثانية بعدين.",
+} as const;
+
+/**
+ * سالم's own page, `/salem` — see the note over `SALEM_VOICE_ID` for what
+ * this is and is not. Kuwaiti addressed to an unknown listener defaults to
+ * the masculine imperative («قول», not «قولي») the same way شوق's own copy
+ * above does, so these read the same register hers do.
+ */
+export const SALEM_AI_COPY = {
+  name: "سالم",
+  role: "دليلك في الكويت",
+  // The CTA on /find's سالم half — a link to /salem, not the chat input
+  // itself, so it names the ACTION rather than repeating `placeholder`.
+  cta: "دردش مع سالم",
+  placeholder: "اكتب رسالتك…",
+  send: "إرسال",
+  greeting: "هلا! أنا سالم. قول لي وش تبي — قهوة، بحر، طلعة عيال — وأدلّك.",
+  connecting: "نوصّل سالم…",
+  connected: "متصل بسالم",
+  disconnected: "انتهت المحادثة.",
+  reconnect: "ابدأ من جديد",
+  // The chat's own tool call is answered with an error rather than left to
+  // hang — see lib/salem-chat.ts — so this is what a visitor reads when he
+  // tried to open a place or the map from here and could not.
+  toolUnavailable: "ما أقدر أفتح صفحات من هنا — جرّب كلّم شوق أو دوّر بنفسك.",
+  failed: "ما قدرنا نوصلك بسالم — جرّب مرة ثانية.",
+  notConfigured: "المحادثة مو متاحة الحين.",
 } as const;

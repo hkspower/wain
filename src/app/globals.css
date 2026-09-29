@@ -90,22 +90,20 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* The call sheet. `bottom` for it lives HERE and nowhere else, so the value is
-   in one place rather than split between a utility and a rule.
+/* The call sheet used to be a floating card and `bottom` for it lived HERE —
+   a `.wain-ai-panel { bottom: calc(6rem + env(safe-area-inset-bottom)) }`
+   rule, clearing شوق's launcher and then, in standalone mode, the tab bar
+   underneath it. Gone now that the sheet is `fixed inset-0` (see
+   `WainAiCall.tsx`): a call covering the WHOLE screen has no bottom edge
+   left to clear anything from — including the tab bar, which a real phone's
+   own call screen covers too. Its safe-area insets are carried as padding
+   on the header and the body now, not as a position, the same move made
+   once already when `.wain-ai-fab`'s equivalent rule went dead here and sat
+   unnoticed until `audit:css` found a selector nothing used.
 
-   There used to be a `.wain-ai-fab` beside this, positioning شوق's floating
-   launcher, and the comment here explained at length why its `bottom` had to
-   carry the safe-area inset. Both went when the launcher moved into the
-   /search query box. The rules did not: they sat here styling a class that no
-   element carried, which is the exact failure the old comment warned about —
-   a dead rule that looks authoritative is the next person's wrong answer. It
-   took `audit:css` reporting a selector nothing uses to find them.
-
-   The sheet keeps its own inset. It no longer has a launcher underneath to
-   carry one for it. */
-.wain-ai-panel {
-  bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
-}
+   The standalone-mode override that used to sit here — `10.25rem` instead
+   of `6rem`, so the sheet cleared the tab bar specifically — is gone for
+   the same reason: `inset-0` already covers the tab bar, in every mode. */
 
 /* App version (installed to the home screen). The bottom tab bar becomes the
    primary navigation, so content clears it, the call sheet moves up out of the tab bar's way, and the page stops
@@ -124,13 +122,6 @@ body {
     padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
     overscroll-behavior-y: none;
   }
-  /* The sheet clears the tab bar. Both numbers say the same thing — the sheet
-     sits 6rem above whatever occupies the bottom of the screen — which is why
-     they differ by exactly the 4.25rem the tab bar takes. Change one without
-     the other and the sheet lands on the tabs. */
-  .wain-ai-panel {
-    bottom: calc(10.25rem + env(safe-area-inset-bottom, 0px));
-  }
 }
 html[data-standalone="true"] {
   overscroll-behavior-y: none;
@@ -138,9 +129,6 @@ html[data-standalone="true"] {
 html[data-standalone="true"] body {
   padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
   overscroll-behavior-y: none;
-}
-html[data-standalone="true"] .wain-ai-panel {
-  bottom: calc(10.25rem + env(safe-area-inset-bottom, 0px));
 }
 
 /* --- App physics -------------------------------------------------------

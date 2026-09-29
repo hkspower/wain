@@ -146,9 +146,10 @@ console.log('\n── what the call TELLS you, and what it must not claim ──
 console.log('\n── she changes the screen, and now says so ──');
 {
   /**
-   * The sheet is 22rem over a 24.4rem viewport, so the page she is driving is
-   * mostly BEHIND it. `show_places` navigated and `open_place` opened a
-   * profile, and the only account of either was شوق saying so out loud —
+   * The call is full screen now — `fixed inset-0` — so the page she is
+   * driving is ENTIRELY behind it, more so than when this was a 22rem card
+   * over a 24.4rem viewport. `show_places` navigated and `open_place` opened
+   * a profile, and the only account of either was شوق saying so out loud —
    * which a caller with the volume down, or who cannot hear her, never got.
    *
    * This is the one thing the call can report honestly, because it is our own

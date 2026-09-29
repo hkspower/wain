@@ -3,7 +3,7 @@ import FindChoice from "@/app/find/FindChoice";
 
 export const metadata: Metadata = {
   title: "دوّر",
-  description: "اكتب اسم المكان، أو كلّم شوق وقول لها شنو تبي.",
+  description: "كلّم شوق وقول لها شنو تبي، أو اكتب لسالم.",
   alternates: { canonical: "/find" },
 };
 
@@ -16,10 +16,11 @@ export const metadata: Metadata = {
 export default function FindPage() {
   return (
     <>
-      {/* The visible «كيف تبي تدوّر؟» is a decorative pill inside
-          FindChoice now, straddling its two full-bleed halves and hidden
-          from the accessibility tree — this is the real heading, read
-          first regardless of where the pill sits on screen. */}
+      {/* Used to have a visible echo of this: a decorative pill straddling
+          FindChoice's two halves, aria-hidden so it was never what a screen
+          reader announced. Removed on request — the two halves already say
+          what they are — but the page still needs a real <h1>, so this one
+          stays, sr-only, exactly as it always was for a screen reader. */}
       <h1 className="sr-only">كيف تبي تدوّر؟</h1>
       <FindChoice />
     </>

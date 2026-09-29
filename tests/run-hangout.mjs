@@ -29,10 +29,13 @@
  *                   over-correction is to make it comfortable by making
  *                   snapping do nothing at all.
  *   find          — the dial, now a plain link, and the choice page it leads
- *                   to: type, or call شوق. Asserts `wain-ai:call` actually
- *                   fires on the tap, not just that the page moves to
- *                   /search — a navigation alone would not have caught the
- *                   nested-button bug the first draft shipped.
+ *                   to: call شوق, or chat with سالم. Asserts `wain-ai:call`
+ *                   actually fires on the شوق tap, not just that the page
+ *                   moves to /search — a navigation alone would not have
+ *                   caught the nested-button bug the first draft shipped.
+ *   salem         — his own page, structure and client-side state only; see
+ *                   the file's own header for why a live ElevenLabs
+ *                   connection is deliberately not part of what is asserted.
  */
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
@@ -106,6 +109,9 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
 
   console.log("\n════ إلى وين: the dial, and the choice it leads to now ════");
   failed += (await run("node", ["tests/find.test.mjs"], { env })) === 0 ? 0 : 1;
+
+  console.log("\n════ سالم: his own page ════");
+  failed += (await run("node", ["tests/salem.test.mjs"], { env })) === 0 ? 0 : 1;
   srv.close();
 }
 
