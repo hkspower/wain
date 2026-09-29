@@ -1,0 +1,59 @@
+/* CATEGORY TILE TEXT: BIGGER, MODERN, CENTRED — 2026-09-29, "improve text style
+ * at category images, bigger font and better modern font, more centred".
+ *
+ * Measured before: title in Anton at 46.7px (24px on a phone), a 13.8px
+ * heading and a 14.9px line of copy, all pushed against the tile's outer edge
+ * (x=610..1406 of 1440, Arabic) while the white half of the art sat empty.
+ *
+ * Now: Alexandria — the shop's own modern geometric face, Arabic and Latin,
+ * already loaded and already used for the "Shop by category" bar — larger at
+ * every step, and the whole block centred in the free half of the tile, the
+ * half opposite the athlete (the art puts the subject on the far side from the
+ * reading start, in both languages, so "the start half" is always the empty
+ * one). The bundle's markup is untouched; the arrow button stays in its corner. */
+.cat-tile > div.relative {
+  width: 46% !important;
+  max-width: none !important;
+  margin-inline-start: 2% !important;
+  text-align: center !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+}
+.cat-tile .eyebrow {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-size: clamp(12px, 1.1vw, 18px) !important;
+  font-weight: 700 !important;
+  letter-spacing: .04em !important;
+  margin: 0 !important;
+}
+.cat-tile .cat-tile__title {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-size: clamp(30px, 5.2vw, 76px) !important;
+  font-weight: 800 !important;
+  line-height: 1.1 !important;
+  letter-spacing: -.01em !important;
+  margin: .25em 0 .3em !important;
+  text-shadow: none !important;
+}
+.cat-tile .cat-tile__title,
+.cat-tile p:not(.eyebrow) { text-wrap: balance; }
+.cat-tile p:not(.eyebrow) {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-size: clamp(14px, 1.25vw, 19px) !important;
+  line-height: 1.6 !important;
+  max-width: 30em !important;
+  margin: 0 !important;
+}
+/* Arabic letters join; tracking would break them. */
+[dir=rtl] .cat-tile .eyebrow,
+[dir=rtl] .cat-tile .cat-tile__title { letter-spacing: 0 !important; }
+@media (max-width: 767px) {
+  .cat-tile > div.relative {
+    width: 46% !important;
+    margin-inline-start: 0 !important;
+  }
+  .cat-tile .cat-tile__title { font-size: 28px !important; }
+  /* "Accessories" is one long word and cannot wrap; at 28px it reached the cap. */
+  .cat-tile.tile-acc .cat-tile__title { font-size: 23px !important; }
+}

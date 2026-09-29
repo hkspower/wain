@@ -105,7 +105,9 @@ CLUSTER = (807, 538)
 def compose_accessories(w, h):
     img = ground(w, h)
     src = Image.open(os.path.join(SUBJ, 'accessories.png')).convert('RGBA')
-    k = min(w * 0.66 / CLUSTER[0], h * 0.92 / CLUSTER[1])
+    # 0.52, not 0.66, since 2026-09-29: the larger centred tile text needs the
+    # start half clear, and at 0.66 the cap sat under the title.
+    k = min(w * 0.52 / CLUSTER[0], h * 0.92 / CLUSTER[1])
     cw, ch = int(CLUSTER[0] * k), int(CLUSTER[1] * k)
     ox = w - cw - int(w * 0.03)
     oy = h - ch
