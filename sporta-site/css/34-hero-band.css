@@ -23,12 +23,12 @@
  * Only the photo slides are affected. The five drawn fallback slides
  * (.hero-strength etc.) never render while an active row exists. */
 section[aria-roledescription="carousel"] {
-  --sp-hero-h: var(--hero-h, 40svh);   /* follows the Slides screen's Size, 38-hero-size.css */
+  --sp-hero-h: var(--hero-h, 24svh);   /* follows the Slides screen's Size, 38-hero-size.css */
   --sp-band: 132px;
 }
 @media (min-width: 768px) {
   section[aria-roledescription="carousel"] {
-    --sp-hero-h: var(--hero-h-md, 75svh);
+    --sp-hero-h: var(--hero-h-md, 45svh);
     --sp-band: 112px;
   }
 }

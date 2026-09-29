@@ -380,8 +380,8 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
  * [the same value] or the shell and the mounted hero disagree") — that file
  * was updated to 75svh in the same commit as this one. */
 :root {
-  --hero-h: 40svh !important;   /* was 55svh until 2026-09-29: "reduce hero slides layout size to be fitted with mobile" */
-  --hero-h-md: 75svh !important;
+  --hero-h: 24svh !important;   /* was 55svh until 2026-09-29: "reduce hero slides layout size to be fitted with mobile" */
+  --hero-h-md: 45svh !important;
 }
 
 /* MOBILE SHORTENED AGAIN, ON ITS OWN — 2026-09-22, "make hero layout better
@@ -436,10 +436,10 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
  * these were what kept a phone at one height whatever the owner chose. */
 @media (max-width: 767px) {
   [class~="aspect-[2.52/1]"][class~="overflow-hidden"][class~="md:absolute"] {
-    height: var(--hero-h, 40svh) !important;
+    height: var(--hero-h, 24svh) !important;
   }
   section[aria-roledescription="carousel"] {
-    height: var(--hero-h, 40svh) !important;
+    height: var(--hero-h, 24svh) !important;
   }
 }
 
@@ -460,7 +460,7 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
     aspect-ratio: auto !important;
   }
   [class~="md:min-h-[var(--hero-h-md,640px)]"] {
-    min-height: var(--hero-h-md, 75svh) !important;
+    min-height: var(--hero-h-md, 45svh) !important;
   }
 }
 
@@ -3549,12 +3549,12 @@ html[lang="ar"] .invoice tbody td > span[class~="block"][class~="text-xs"][class
  * Only the photo slides are affected. The five drawn fallback slides
  * (.hero-strength etc.) never render while an active row exists. */
 section[aria-roledescription="carousel"] {
-  --sp-hero-h: var(--hero-h, 40svh);   /* follows the Slides screen's Size, 38-hero-size.css */
+  --sp-hero-h: var(--hero-h, 24svh);   /* follows the Slides screen's Size, 38-hero-size.css */
   --sp-band: 132px;
 }
 @media (min-width: 768px) {
   section[aria-roledescription="carousel"] {
-    --sp-hero-h: var(--hero-h-md, 75svh);
+    --sp-hero-h: var(--hero-h-md, 45svh);
     --sp-band: 112px;
   }
 }
@@ -3868,8 +3868,8 @@ section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][clas
  * so the two cannot disagree and the page does not jump at mount.
  * :root[data-hero-size] outranks 02-hero.css's plain :root among !important. */
 :root[data-hero-size="short"] {
-  --hero-h: 32svh !important;
-  --hero-h-md: 55svh !important;
+  --hero-h: 19svh !important;
+  --hero-h-md: 33svh !important;
 }
 :root[data-hero-size="full"] {
   --hero-h: calc(100svh - 77px) !important;

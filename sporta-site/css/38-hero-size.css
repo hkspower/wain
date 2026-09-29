@@ -21,8 +21,8 @@
  * so the two cannot disagree and the page does not jump at mount.
  * :root[data-hero-size] outranks 02-hero.css's plain :root among !important. */
 :root[data-hero-size="short"] {
-  --hero-h: 32svh !important;
-  --hero-h-md: 55svh !important;
+  --hero-h: 19svh !important;
+  --hero-h-md: 33svh !important;
 }
 :root[data-hero-size="full"] {
   --hero-h: calc(100svh - 77px) !important;

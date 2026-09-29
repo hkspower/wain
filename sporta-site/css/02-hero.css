@@ -195,8 +195,8 @@
  * [the same value] or the shell and the mounted hero disagree") — that file
  * was updated to 75svh in the same commit as this one. */
 :root {
-  --hero-h: 40svh !important;   /* was 55svh until 2026-09-29: "reduce hero slides layout size to be fitted with mobile" */
-  --hero-h-md: 75svh !important;
+  --hero-h: 24svh !important;   /* was 55svh until 2026-09-29: "reduce hero slides layout size to be fitted with mobile" */
+  --hero-h-md: 45svh !important;
 }
 
 /* MOBILE SHORTENED AGAIN, ON ITS OWN — 2026-09-22, "make hero layout better
@@ -251,10 +251,10 @@
  * these were what kept a phone at one height whatever the owner chose. */
 @media (max-width: 767px) {
   [class~="aspect-[2.52/1]"][class~="overflow-hidden"][class~="md:absolute"] {
-    height: var(--hero-h, 40svh) !important;
+    height: var(--hero-h, 24svh) !important;
   }
   section[aria-roledescription="carousel"] {
-    height: var(--hero-h, 40svh) !important;
+    height: var(--hero-h, 24svh) !important;
   }
 }
 
@@ -275,7 +275,7 @@
     aspect-ratio: auto !important;
   }
   [class~="md:min-h-[var(--hero-h-md,640px)]"] {
-    min-height: var(--hero-h-md, 75svh) !important;
+    min-height: var(--hero-h-md, 45svh) !important;
   }
 }
 

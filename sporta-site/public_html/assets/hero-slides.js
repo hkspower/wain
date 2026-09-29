@@ -114,12 +114,12 @@
   // CORRECTED 2026-09-29 against the real rendered hero (the rig's browser
   // cross-check had been failing: real 33.3 vs 46.6 on a phone, 84.7 vs 100 on
   // a desktop): the photo box is the hero's WHOLE height. The caption band the
-  // 2026-09-24 version subtracted is not taken out of it any more. Phone is 40svh
-  // since 2026-09-29 (it was 55svh), desktop 75svh.
+  // 2026-09-24 version subtracted is not taken out of it any more. Phone is 24svh
+  // since 2026-09-29 (it was 40svh, 55svh before), desktop 45svh (was 75svh).
   function visiblePct(viewportW, viewportH) {
     var photoH = viewportW < PHONE_BREAK
-      ? viewportH * 0.40   // 40svh hero
-      : viewportH * 0.75   // 75svh hero
+      ? viewportH * 0.24   // 24svh hero
+      : viewportH * 0.45   // 45svh hero
     return Math.min(1, (viewportW / photoH) / ARTWORK_RATIO) * 100
   }
 

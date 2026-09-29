@@ -65,8 +65,8 @@ const ARTWORK_RATIO = 2.52
 // browser cross-check below is still what proves this.
 function expectedVisiblePct(vw, vh) {
   // 2026-09-29: the whole hero height, no band taken out (measured against the
-  // real page: 84.7% at 1280x800 = 75svh exactly), and 40svh on a phone.
-  const photoH = vw < 768 ? vh * 0.40 : vh * 0.75
+  // real page: 45svh from 2026-09-29, 24svh on a phone.
+  const photoH = vw < 768 ? vh * 0.24 : vh * 0.45
   return Math.min(1, (vw / photoH) / ARTWORK_RATIO) * 100
 }
 
