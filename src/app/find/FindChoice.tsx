@@ -119,7 +119,7 @@ export default function FindChoice() {
                 className="animate-seam-glow pointer-events-none absolute -inset-3 -z-10 rounded-full bg-[radial-gradient(closest-side,rgba(220,47,37,.5),transparent_75%)] blur-lg"
               />
               <div className="relative isolate inline-flex overflow-hidden rounded-full">
-                <ShouqCallButton size="lg" className="bg-white shadow-md" onTapped={() => router.push("/search")} />
+                <ShouqCallButton size="lg" onTapped={() => router.push("/search")} />
                 <span
                   aria-hidden="true"
                   className="animate-shimmer pointer-events-none absolute inset-0 rounded-full bg-[linear-gradient(115deg,transparent_35%,rgba(220,47,37,.22)_50%,transparent_65%)] bg-[length:250%_100%]"

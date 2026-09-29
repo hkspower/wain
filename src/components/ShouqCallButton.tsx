@@ -151,16 +151,44 @@ export default function ShouqCallButton({
       // 24px does not leave — at size-6 the size-5 icon would touch the
       // button's own edge. 32px keeps the icon's ~45% share of the button
       // (20/44 before, 16/32 now) and still clears the floor with margin.
-      // size-20 at "lg" keeps the same ~45% ratio (size-9 icon).
-      className={`grid place-items-center rounded-full transition ${
+      // size-20 at "lg" is a photo filling the whole circle, not an icon
+      // inset within it — see the size==="lg" branch below.
+      className={`relative grid place-items-center overflow-hidden rounded-full transition ${
         size === "lg" ? "size-20" : "size-8"
       } ${
-        open ? "bg-coral-600 text-white shadow-md" : "text-coral-700 hover:bg-coral-50"
+        size === "lg"
+          ? open
+            ? "shadow-md ring-4 ring-coral-500"
+            : "shadow-md"
+          : open
+            ? "bg-coral-600 text-white shadow-md"
+            : "text-coral-700 hover:bg-coral-50"
       } ${className}`}
     >
-      <IconShouq
-        className={`shouq ${size === "lg" ? "size-9" : "size-4"} ${talking ? "shouq--talking" : ""}`}
-      />
+      {size === "lg" ? (
+        /**
+         * A photo, not IconShouq, at this one size — IconShouq's own
+         * comment documents why: a headphone shape drawn into that glyph
+         * survived at 20–24px only as mush, so it was left out of the icon
+         * itself. It was never a bad fit for a larger use, only for the
+         * small ones IconShouq actually has to serve everywhere else it is
+         * used (WainAiCall, ShouqAnswer, the inline size-8 launcher) — at
+         * size-20 there is finally room for it, as a real photo instead of
+         * a redrawn glyph.
+         */
+        // eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser
+        <img
+          src="/find/shouq-face.jpg"
+          alt=""
+          width={320}
+          height={320}
+          loading="eager"
+          decoding="async"
+          className="size-full object-cover"
+        />
+      ) : (
+        <IconShouq className={`shouq size-4 ${talking ? "shouq--talking" : ""}`} />
+      )}
       {phase === "ringing" && (
         <span
           aria-hidden="true"
