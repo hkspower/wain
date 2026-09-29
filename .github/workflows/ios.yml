@@ -1,12 +1,9 @@
 name: iOS app (Capacitor)
 
-# DISABLED — renamed from ios.yml to ios.yml.disabled on request, so GitHub
-# Actions no longer recognises it as a workflow and workflow_dispatch can no
-# longer target it. `git push` still works normally. To re-enable, rename
-# this file back to ios.yml (git mv keeps the history either way). Everything
-# below is unchanged from the run that proved it works end to end on
-# 2026-09-29 — see run 36619193847 — so nothing here needs re-verifying, only
-# re-enabling.
+# Re-enabled 2026-09-29 to build with a real Apple Developer account —
+# briefly disabled and restored the same day; the disable never spanned a
+# push, so run history is continuous. The proven Simulator run stands
+# (36619193847) and nothing below needed re-verifying.
 #
 # Wraps the static export as a native iOS shell — the same `out/` the web
 # deploy ships, inside a WKWebView, via capacitor.config.ts. See that file for
