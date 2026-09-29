@@ -130,7 +130,7 @@ $WANT = [
     'assets/checkout-tap-targets.js' => 'f84c5b331be1dd1226d906dcc8823d590e97558ac47b4b55c0fe414a65c907b2',
     'assets/contact-emails.js' => '81710eac8d9aa48684e0d7445ec19104c05d719842c8144743905d6ac0dc8415',
     'assets/contact.js' => '3a8fd66908f61d4e68fcac5241a8a2dd659b7069a19237177132577871a575ef',
-    'assets/crm.js' => '2373e32fbab66d5831401ffbc8d861cc6275aa1d95cdcb404a9ce60ea73449de',
+    'assets/crm.js' => '1a7cb682e214d5fdd07b364cc15f66cf6b115cfe824a7623f287def587fc8fd0',
     'assets/custom-css.js' => '092fcbf6caf633611467a691aae25c3363842425a5f8254430ba0f9335ac53a4',
     'assets/essentials.js' => '50c0cefbeef79643137826e44561a839bf49d25b7e1a33b6750b2eed97ed4dee',
     'assets/first-admin.js' => '6a32ca37d71936f7783d9d4f436c385a69df36c78618ad30d1e70e78c81ef65f',
@@ -150,6 +150,7 @@ $WANT = [
     'assets/panel-settings.js' => '074c93175d78474c4330b71cbebd4c54cdf7c13ebfe26e69b1a6da4ae2305d11',
     'assets/panel-tabbar-autocenter.js' => '9820eae1f3bce01ad6e13e21d583202f47bf9b4146a140a1a874b978d24eaaf9',
     'assets/panel-tabbar-fade.js' => 'ae3f58547eec7b832159c72285eacae0c0b128adf719398b0d24dd539e535da6',
+    'assets/panel-ux.js' => '27bf3ed55020ad21e481ca5ae2ecb93a5e9761fe5dcdef114e1ea5ff3c0af1ad',
     'assets/payment.js' => '9320d6c9d1c67657320f854ce5937b8f2218cc208f533add456cdd49bb609270',
     'assets/product-mobile-layout.js' => '8bb72de9fbb3e3cd0a8b7bf8c1eee09767447a158ff56dff74702d1f8ffdbe48',
     'assets/product-photos.js' => 'f5f1b2b6ce4df0319cefc0d4ca9521317c8883a4890294b09d2df9b7f2289872',
@@ -250,7 +251,7 @@ $WANT = [
     'images/rheo/PUT-LOGO-HERE.txt' => 'a4b7c2a548abf314ae74fb2f658db993f589697428ce841feb93dee4bf2b16f1',
     'images/sporta/PUT-LOGO-HERE.txt' => '1a3a4e03d799fea20641304473e95ded5b25321badebbffc6d3988985b797300',
     'images/vanquish/PUT-LOGO-HERE.txt' => '7b634c7c39ee98859bfca99b0bcc1b41e536a1e1b74f42780435a244f39d36d1',
-    'index.html' => '1032ccc2d13694701a205bcf11fc6b64af7cd4d286b049871e908e331d85ca1f',
+    'index.html' => '770c9a537ae02c99b606cb0c89eee4b64159fe29b0a7661ba30c3e9474a6b364',
     'knet/.htaccess' => '75d8e990375bfd2c0e1f6304886d120aeb3676720d58ea2f40faabe224a6ba03',
     'knet/callback.php' => '4e217d7d4c8f59e6cce67b71ad9726297dcc83eb2c8dc2a08a56f95cc826d519',
     'knet/config.example.php' => '8b12abd7be354864ca71d69408462744c39a500a648110557aeddf13a30bad4c',
@@ -274,7 +275,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => '1ba2a01e9f35e80a67b4b6047afcb5370b4005074a150ade4907a578cb0ebf4a',
-    'sw.js' => 'd6719c91433217029c99f4079c94d4b89724ad027a5d9ad333c23bdbbf242acb',
+    'sw.js' => 'd4f4a3ea58a0adf741fe6350596b5ee32a18cabbbdeb258c43bfecac62633f68',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
