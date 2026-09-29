@@ -192,7 +192,7 @@
      after the server had the new one byte for byte. The bundle names these
      files with fixed URLs, so this is the one place a query can be added;
      a new query is a new URL, fetched fresh. Bump ART_VERSION with the art. */
-  var ART_VERSION = '20260929d'
+  var ART_VERSION = '20260929e'
   function stamp() {
     var nodes = document.querySelectorAll('.cat-tile source[srcset], .cat-tile img[src]')
     for (var i = 0; i < nodes.length; i++) {

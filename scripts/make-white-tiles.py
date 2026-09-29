@@ -95,7 +95,7 @@ ITEMS = [  # name, crop box in the cut-out, cut_top (frame sliced its top)
     ('bottles',  (704, 277, 942, 418), False),
     ('dumbbell', (0, 353, 277, 418),   False),
 ]
-GAP = -30
+GAP = 6
 ROW_W = sum(b[2] - b[0] for _, b, _ in ITEMS) + GAP * (len(ITEMS) - 1)
 ROW_H = max(b[3] - b[1] for _, b, _ in ITEMS)
 
@@ -116,13 +116,13 @@ def clean_alpha(a, cut_top):
     return Image.fromarray((arr * 255).astype(np.uint8))
 
 
-def compose_accessories(w, h):
+def compose_accessories(w, h, inset=0.03, share=0.58):
     img = ground(w, h)
     src = Image.open(os.path.join(SUBJ, 'accessories.png')).convert('RGBA')
     # the copy takes the start half, so the row lives in the far ~56%
-    k = min(w * 0.58 / ROW_W, h * 0.58 / ROW_H)
+    k = min(w * share / ROW_W, h * 0.58 / ROW_H)
     rw, rh = int(ROW_W * k), int(ROW_H * k)
-    ox = w - rw - int(w * 0.03)
+    ox = w - rw - int(w * inset)
     img.alpha_composite(band(w, h, ox + int(rw * 0.16), ox + int(rw * 0.80), skew=0.3))
     img.alpha_composite(stripes(w, h, ox - int(w * 0.07), ox - int(w * 0.01), 12, 3, skew=0.3))
     x = ox
@@ -136,43 +136,94 @@ def compose_accessories(w, h):
     return img
 
 
+def draw_shelves(pw, h, inset=0):
+    """Flat, plain, cartoon shelves in the shop's own colours: an orange-edged
+    unit, three planks, folded stacks and trainers with a heavy dark outline.
+    Drawn at 2x and reduced, so the outlines are smooth. No text, so the
+    Arabic frame is a plain mirror."""
+    S = 2
+    W, H = pw * S, h * S
+    im = Image.new('RGB', (W, H), (244, 241, 236))
+    d = ImageDraw.Draw(im)
+    ink = (26, 26, 26)
+    lw = max(3, int(H * 0.006))
+    # a soft floor band
+    d.rectangle([0, int(H * 0.93), W, H], fill=(232, 226, 218))
+    fx0, fx1 = int(inset * S + W * 0.04), int(W * 0.96)
+    fy0, fy1 = int(H * 0.05), int(H * 0.95)
+    # the unit: orange frame, white back
+    d.rounded_rectangle([fx0, fy0, fx1, fy1], radius=int(H * 0.03), fill=(255, 255, 255), outline=ORANGE, width=int(H * 0.028))
+    pal = [(43, 43, 47), (139, 143, 152), (255, 255, 255), ORANGE, (201, 203, 208), (70, 72, 80)]
+    inner0, inner1 = fx0 + int(W * 0.035), fx1 - int(W * 0.035)
+    span = inner1 - inner0
+    base = [0.315, 0.62, 0.925]
+    pl = int(H * 0.028)
+    for r, yb in enumerate(base):
+        y = int(H * yb)
+        # plank
+        d.rounded_rectangle([inner0 - int(W * 0.01), y, inner1 + int(W * 0.01), y + pl], radius=pl // 3,
+                            fill=ORANGE, outline=ink, width=lw)
+        if r == 1:
+            # trainers row
+            n = 2
+            cw = span / n
+            for i in range(n):
+                cx = inner0 + cw * (i + 0.5)
+                sw = cw * 0.96
+                sh = sw * 0.56
+                sole = [cx - sw / 2, y - sh * 0.30, cx + sw / 2, y]
+                d.rounded_rectangle(sole, radius=sh * 0.14, fill=(255, 255, 255), outline=ink, width=lw)
+                x0_, top = cx - sw / 2, y - sh * 0.30
+                pts = [(0.04, 0), (0.02, -0.55), (0.06, -0.92), (0.22, -1.0), (0.34, -0.86), (0.40, -0.62),
+                       (0.58, -0.55), (0.74, -0.42), (0.90, -0.30), (0.98, -0.12), (0.97, 0)]
+                up = [(x0_ + sw * px, top + sh * 0.72 * py) for px, py in pts]
+                col = pal[0] if i % 2 == 0 else pal[3]
+                d.polygon(up, fill=col)
+                d.line(up + [up[0]], fill=ink, width=lw, joint='curve')
+                # one white swoosh
+                d.line([(x0_ + sw * 0.46, top - sh * 0.50), (x0_ + sw * 0.70, top - sh * 0.36)], fill=(255, 255, 255), width=lw)
+            continue
+        n = 5
+        cw = span / n
+        for i in range(n):
+            cx0 = inner0 + cw * i + cw * 0.10
+            cw2 = cw * 0.80
+            layers = 3 + ((i + r) % 3)
+            lh = H * 0.052
+            for k in range(layers):
+                col = pal[(i * 2 + k + r) % len(pal)]
+                y1 = y - lh * k
+                d.rounded_rectangle([cx0, y1 - lh, cx0 + cw2, y1], radius=lh * 0.28, fill=col, outline=ink, width=lw)
+                d.line([(cx0 + cw2 * 0.12, y1 - lh * 0.72), (cx0 + cw2 * 0.42, y1 - lh * 0.72)],
+                       fill=(255, 255, 255) if col != (255, 255, 255) else (201, 203, 208), width=lw)
+    return im.resize((pw, h), Image.LANCZOS)
+
+
 def compose_outlet(w, h, rtl=False):
-    """The shelves photo fills the whole far side, edge to edge and top to
-    bottom, cut on the tile's own slant, with an orange edge line and an orange
-    border round the whole tile; the start side stays white for the copy.
-    (2026-09-29, "make the outlet photo full size with orange borders and a
-    white body" — chosen over an illustrated shopfront.)"""
+    """Drawn shelves on the far side, cut on the tile's slant, with an orange
+    edge line and an orange border round the whole tile; the start side stays
+    white and WIDE ENOUGH FOR THE COPY (the title ran under the photo on a
+    phone in the first full-bleed version). 2026-09-29: plain flat shelves with
+    orange borders, in a cartoon style, at the owner's request."""
     img = ground(w, h)
-    photo = Image.open(os.path.join(SUBJ, 'outlet.jpg')).convert('RGB')
-    # The shelves carry "CLEARANCE" signs, so the Arabic frame mirrors the
-    # LAYOUT but not the photo: pre-flip it here, and save()'s mirror puts it
-    # back the right way round.
-    if rtl:
-        photo = photo.transpose(Image.FLIP_LEFT_RIGHT)
     s = int(h * 0.17)                                   # the tile's slant
-    x0 = int(w * 0.40)                                  # photo's top-left corner
+    x0 = int(w * 0.53)                                  # picture's top-left corner
     pw = w - x0 + s
-    scale = max(pw / photo.width, h / photo.height)
-    ph_ = photo.resize((int(photo.width * scale) + 1, int(photo.height * scale) + 1), Image.LANCZOS)
-    ph_ = ph_.filter(ImageFilter.UnsharpMask(radius=1.4, percent=80, threshold=2))
-    left = (ph_.width - pw) // 2
-    crop = ph_.crop((left, 0, left + pw, h)).convert('RGBA')
+    crop = draw_shelves(pw, h, inset=s).convert('RGBA')
     mask = Image.new('L', (w, h), 0)
-    poly = [(x0, 0), (w, 0), (w, h), (x0 - s, h)]
-    ImageDraw.Draw(mask).polygon(poly, fill=255)
+    ImageDraw.Draw(mask).polygon([(x0, 0), (w, 0), (w, h), (x0 - s, h)], fill=255)
     layer = Image.new('RGBA', (w, h), (0, 0, 0, 0))
     layer.paste(crop, (x0 - s, 0))
     layer.putalpha(mask)
-    # orange edge line on the slant, then the tile's orange border on top
     edge = Image.new('RGBA', (w, h), (0, 0, 0, 0))
     ImageDraw.Draw(edge).line([(x0, 0), (x0 - s, h)], fill=ORANGE + (255,), width=max(8, int(h * 0.02)))
-    img.alpha_composite(stripes(w, h, x0 - int(w * 0.10), x0 - int(w * 0.03), 12, 3))
+    img.alpha_composite(stripes(w, h, x0 - int(w * 0.13), x0 - int(w * 0.06), 12, 3))
     img.alpha_composite(layer)
     img.alpha_composite(edge)
     bw = max(8, int(h * 0.02))
-    d = ImageDraw.Draw(img)
+    dr = ImageDraw.Draw(img)
     for i in range(bw):
-        d.rectangle([i, i, w - 1 - i, h - 1 - i], outline=ORANGE + (255,))
+        dr.rectangle([i, i, w - 1 - i, h - 1 - i], outline=ORANGE + (255,))
     return img
 
 
@@ -192,5 +243,8 @@ for crop, sz in SIZES.items():
     save(compose_person('women', w, h), crop, 'women')
     # All four tiles share one shape since 2026-09-28: the wide 2.9:1 strip left
     # no room for the accessories to grow.
-    save(compose_accessories(w, h), crop, 'accessories')
-    save(compose_outlet(w, h), crop, 'outlet', rtl_src=compose_outlet(w, h, rtl=True))
+    # The round go-button sits in the PHYSICAL bottom-left of every tile, so the
+    # Arabic frame (a mirror, row on the left) needs its row pulled clear of it.
+    save(compose_accessories(w, h), crop, 'accessories',
+         rtl_src=compose_accessories(w, h, inset=0.12, share=0.52))
+    save(compose_outlet(w, h), crop, 'outlet')
