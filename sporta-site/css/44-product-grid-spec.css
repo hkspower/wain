@@ -136,7 +136,7 @@ main article h3[class~="line-clamp-1"] {
   font-weight: 600 !important;
   line-height: 1.25 !important;
   min-height: 0;
-  color: var(--sp-text, #e6e9ed) !important;   /* light silver; pure white on this card is 18.9:1, past the glare cap */
+  color: var(--sp-text, #dbdfe4) !important;   /* light silver; pure white on this card is 18.9:1, past the glare cap */
   text-align: left;
   unicode-bidi: plaintext;
   -webkit-line-clamp: 1 !important;
@@ -180,7 +180,7 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
   font-size: 16px;
   font-weight: 700;
   line-height: 1.15;
-  color: var(--sp-text, #e6e9ed) !important;
+  color: var(--sp-text, #dbdfe4) !important;
   unicode-bidi: plaintext;
 }
 main article .price-card :is(s, del, [class*="line-through"]) {
