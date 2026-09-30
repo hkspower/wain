@@ -195,6 +195,10 @@ export const WAIN_AI_COPY = {
    * taught it, and nothing is seized before they can stop it.
    */
   callHint: "اضغط عشان تكلّم شوق",
+  // The written half's own hint, same register as callHint above — /find's
+  // اكتب half had no line under its button while اتصال's always did, which
+  // read as the two halves carrying different amounts of care.
+  typeHint: "اكتب عشان تدردش وياها",
   // «قول» not «قل»: the imperative of قال is قول in Kuwaiti and قل in MSA, and
   // شوق is «صوت كويتي شبابي». The two spellings were mixed — «قول وش تبي» two
   // lines down against «قل لي» here — which is the kind of slip that is

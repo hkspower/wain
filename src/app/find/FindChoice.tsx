@@ -35,6 +35,16 @@ import { WAIN_AI_COPY } from "@/lib/wain-ai";
  * tuned per breakpoint because the mobile crop (tall, narrow) and the
  * desktop crop (short, wide) need different framing of the same photo to
  * keep the subject in frame — see the object-[…] classes below.
+ *
+ * The boundary between them is a diagonal cut, not a flat line — a
+ * `clip-path` on each section's own bottom/top edge, the bottom half pulled
+ * up under the top half's cut by the same distance the cut is deep, so the
+ * two edges interlock rather than leaving a gap. A pixel value rather than a
+ * percentage: a percentage cut gets shallower or steeper as `min-h-[50vh]`
+ * changes with the viewport, and a fixed depth reads the same everywhere.
+ * The «أو» badge floats on that seam — see its own comment below for why it
+ * is positioned by the wrapper's own half rather than by the cut's exact
+ * pixel offset.
  */
 export default function FindChoice() {
   const router = useRouter();
@@ -44,7 +54,7 @@ export default function FindChoice() {
       {/* ---------- شوق: the call ---------- */}
       <section
         aria-label="اتصال"
-        className="relative flex min-h-[50vh] items-center justify-center overflow-hidden bg-ink-900 px-4 pb-20 pt-10 sm:pb-24 sm:pt-14"
+        className="relative flex min-h-[50vh] items-center justify-center overflow-hidden bg-ink-900 px-4 pb-20 pt-10 [clip-path:polygon(0_0,100%_0,100%_calc(100%_-_40px),0_100%)] sm:pb-24 sm:pt-14"
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}
         <img
@@ -133,10 +143,34 @@ export default function FindChoice() {
         </div>
       </section>
 
+      {/* The seam badge. Positioned at the WRAPPER's own vertical centre
+          rather than at the cut's exact pixel offset above — both halves
+          are the same `min-h-[50vh]`, so the two are the same value to a
+          few pixels, and centring on the wrapper means this never has to
+          be re-tuned if the cut's own depth changes. `animate-badge-pop`
+          and the glow beneath it are not new: they are what /find's old
+          seam pill used before it was removed (see page.tsx's comment) —
+          dead CSS with exactly the right shape for a second decorative
+          element on this same seam, not reinvented here. aria-hidden for
+          the same reason the pill was: the two halves already say what
+          they are, this only echoes the seam between them. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 justify-center"
+      >
+        <span className="animate-badge-pop relative isolate grid size-11 place-items-center rounded-full bg-white text-sm font-bold text-ink-900 shadow-lg">
+          <span
+            aria-hidden="true"
+            className="animate-seam-glow pointer-events-none absolute -inset-3 -z-10 rounded-full bg-[radial-gradient(closest-side,rgba(251,183,36,.5),transparent_75%)] blur-lg"
+          />
+          أو
+        </span>
+      </div>
+
       {/* ---------- شوق: the chat ---------- */}
       <section
         aria-label="اكتب"
-        className="relative flex min-h-[50vh] items-center justify-center overflow-hidden bg-sea-950 px-4 pb-14 pt-20 text-white sm:pb-16 sm:pt-24"
+        className="relative -mt-10 flex min-h-[50vh] items-center justify-center overflow-hidden bg-sea-950 px-4 pb-14 pt-20 text-white [clip-path:polygon(0_40px,100%_0,100%_100%,0_100%)] sm:pb-16 sm:pt-24"
       >
         {/* Her own photo again — not his. This half used to be his: his name,
             his photo, his greeting, over an agent whose prompt never changed
@@ -157,6 +191,19 @@ export default function FindChoice() {
           className="pointer-events-none absolute inset-0 bg-gradient-to-b from-sea-950/40 via-sea-950/78 to-sea-950/92"
         />
         <div className="relative mx-auto flex max-w-sm flex-col items-center gap-4 text-center">
+          {/* Her own face, small — this half's crop (object-[70%_18%] above)
+              is pushed toward the skyline, away from her face, so unlike the
+              call half above it (whose crop already puts her face front and
+              centre) this one has nothing of her in frame until this. The
+              call half gets no matching avatar: adding one there would be a
+              second copy of a face already the whole point of that crop. */}
+          <span className="animate-reveal-up relative grid size-14 place-items-center [animation-delay:480ms]">
+            <span aria-hidden="true" className="animate-pulse-ring absolute inset-0 rounded-full bg-sea-300/50" />
+            <span className="relative size-14 overflow-hidden rounded-full border-2 border-white/80 shadow-md">
+              {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}
+              <img src="/find/shouq-face.jpg" alt="" className="size-full object-cover" />
+            </span>
+          </span>
           {/* No pill here, on purpose — that slot named a voice-swap badge
               at one point and was removed along with the voice-swap itself.
               «اكتب» alone, matching «اتصال» above it: her name and role are
@@ -183,6 +230,12 @@ export default function FindChoice() {
             />
             <span className="relative z-10">ابدأ الكتابة</span>
           </Link>
+          {/* Matching the call half's own hint under its button — that one
+              always had a line here and this one never did, which read as
+              the two halves getting a different amount of care. */}
+          <span className="animate-reveal-up text-sm font-semibold text-sand-200 [animation-delay:960ms]">
+            {WAIN_AI_COPY.typeHint}
+          </span>
         </div>
       </section>
     </div>
