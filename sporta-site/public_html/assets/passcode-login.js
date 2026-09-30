@@ -140,11 +140,14 @@
     var card = document.createElement('section')
     card.setAttribute(MARK + '-card', '1')
     card.style.cssText = 'margin:24px auto;max-width:640px;padding:18px 20px;border:1px solid rgba(255,255,255,.14);border-radius:14px;font-family:inherit'
-    card.innerHTML =
-      '<h2 style="margin:0 0 6px;font-size:16px">Passcode unlock</h2>'
-      + '<p style="margin:0 0 14px;font-size:13px;opacity:.75;line-height:1.5">'
-      + 'Trust this browser and unlock the panel with a 6-digit passcode when your session times out. '
-      + 'Other browsers still need your password. Five wrong tries lock the passcode; changing your password removes every trusted device.</p>'
+    var h = document.createElement('h2')
+    h.style.cssText = 'margin:0 0 6px;font-size:16px'
+    h.textContent = 'Passcode unlock'
+    var p = document.createElement('p')
+    p.style.cssText = 'margin:0 0 14px;font-size:13px;opacity:.75;line-height:1.5'
+    p.textContent = 'Trust this browser and unlock the panel with a 6-digit passcode when your session times out. '
+      + 'Other browsers still need your password. Five wrong tries lock the passcode; changing your password removes every trusted device.'
+    card.appendChild(h); card.appendChild(p)
     var list = document.createElement('div')
     list.style.cssText = 'margin-bottom:14px;font-size:13px'
     var row = document.createElement('div')
