@@ -1,0 +1,51 @@
+# public_html/api/ — the native backend.
+#
+# <FilesMatch> because it is inherited into subdirectories and RewriteRule is
+# not — the measured lesson in SERVER-LAYOUT.md. Deny by NAME.
+
+# The credentials. config.php holds the MySQL password; store.php and the .sql
+# files are includes and import fixtures, not endpoints — nothing loses by
+# denying them, and seed.mysql.sql names every product and cost price.
+# site-manifest.txt is a complete map of the server — every file, with its
+# sha256 — written for api/file-audit.php to read from disk. Nothing should
+# fetch it over HTTP, and nothing needs to: the audit page reads it as a
+# file. Measured before this was added: it answered 200. Neither the root
+# .htaccess (whose extension list has no .txt) nor the line below covered it.
+<FilesMatch "^(config\.php|config\.example\.php|store\.php|site-manifest\.txt|.*\.sql)$">
+  Require all denied
+</FilesMatch>
+
+# JSON answers are per-request state. Never cache an order status.
+#
+# EXCEPT api.php, WHICH NOW SAYS IT ITSELF — and the exclusion is the whole
+# point of the FilesMatch rather than a bare Header line.
+#
+# Apache's `Header set` runs on the way out and REPLACES whatever PHP put
+# there, so while this matched api.php no route could choose anything else:
+# ?r=products is 21,773 bytes and was answered `no-store`, re-downloaded in
+# full on every navigation with the query run again each time. The four
+# catalogue routes now answer `no-cache, must-revalidate` with an ETag, so an
+# unchanged catalogue costs a 304 and no body, and a price edited in /backends
+# is still visible on the very next request — no-cache revalidates, it does not
+# go stale.
+#
+# `Header unset` inside a <Files "api.php"> block would NOT do this: the outer
+# set has already replaced PHP's header by then, so unset leaves the response
+# with no Cache-Control at all, which is heuristic caching — the worst of the
+# three outcomes. The rule has to not match in the first place.
+#
+# Nothing is weakened by the exclusion, because store_out() — the one function
+# every JSON response goes through — sets `no-store` itself on the default
+# path. A route has to call store_out_cacheable() on purpose to be cacheable,
+# so anything added later is private until somebody decides otherwise.
+#
+# Every other .php here (file-audit, cron-*, invoice-*, orders-print, webpush)
+# keeps the blanket, which is why this stays a deny-by-default rule with one
+# named hole rather than a list of the files it should cover.
+<IfModule mod_headers.c>
+  <FilesMatch "^(?!api\.php$).*$">
+    Header set Cache-Control "no-store"
+  </FilesMatch>
+</IfModule>
+
+Options -Indexes

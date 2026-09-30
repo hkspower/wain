@@ -1,0 +1,38 @@
+/* PRODUCT CARD PICTURES — frame, spacing, crop, second photograph. 2026-09-30,
+ * "improve images layout / improve product grids layout price and name".
+ *
+ * Chosen by the owner from a list: FRAME AND SPACING, FILL THE FRAME EVENLY,
+ * SECOND PHOTO ON HOVER (already in the bundle — nothing to add),
+ * SHARPER THUMBNAILS (assets/product-cards.js plus the resize cache in api/, not CSS). NAME AND PRICE were offered as "tidy
+ * and aligned" and are ALREADY that — 35-product-cards.css reserves two lines
+ * for the name and 16-product-grid.css sets the price at 16px/700, measured level
+ * across a row — so nothing was added there. The one thing not done is a smaller
+ * "KWD": the price is one text node React rewrites on a language change, and
+ * splitting it would leave the old currency behind after the toggle.
+ *
+ * SELECTORS ARE STRUCTURAL (a grid of <article>s holding an aspect-ratio link) and
+ * none has a universal subject — test:has-cost guards that. */
+
+/* 1. Equal gutters, and a hairline so a white-background supplier photograph does
+ *    not float on the dark page with no edge. `outline` with a negative offset
+ *    takes no layout space and follows the corner radius. */
+main div.grid:has(> article > a[class*="aspect-"]) {
+  column-gap: 1rem;
+  row-gap: 1.5rem;
+}
+main article > a[class*="aspect-"] {
+  outline: 1px solid rgba(128, 128, 128, 0.28);
+  outline-offset: -1px;
+}
+
+/* 2. Fill the frame evenly. Photographs arrive 2:3, 4:5, 1:1 and every crop in
+ *    between; `object-fit: cover` centres them, which cuts off heads on tall ones.
+ *    Weighting the crop towards the top keeps the face and the garment's neckline
+ *    in every card. Placeholders (data:) are left alone. */
+main article > a[class*="aspect-"] > img:not([src^="data:"]) {
+  object-position: 50% 22%;
+}
+
+/* The second photograph on hover is the bundle's own (an opacity-0 <img> under the
+ * main one), and it takes the same crop from rule 2 above: `object-position` is set
+ * on every non-placeholder card picture, so the two line up while they fade. */

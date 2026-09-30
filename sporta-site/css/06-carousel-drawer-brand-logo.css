@@ -1,0 +1,129 @@
+/* ---------------------------------------------------------- carousel targets
+ *
+ * The hero's arrows render at 32x32, and its dots at 24x24. The site already
+ * has a helper for this — `.tap { min-width: 44px }` — and it is inside
+ * @media (pointer: coarse), which is right: it applies on the phones that
+ * need it. These controls simply do not carry the class.
+ *
+ * THE PAUSE/RESUME BUTTON USED TO BE IN THIS BLOCK TOO — it is now hidden
+ * outright, further down this file, so it needs no hit-area fix.
+ *
+ * WHAT IS AND IS NOT FIXED HERE, because the two are different:
+ *
+ *   The arrows are ISOLATED, so their hit area is grown to 44x44 with a
+ *   transparent overlay. Nothing moves — the overlay is absolutely
+ *   positioned and centred, so the button looks exactly as the owner drew it
+ *   and is simply easier to hit.
+ *
+ *   The DOTS are left at 24 wide. They sit about 28px apart, so a 44-wide hit
+ *   area would overlap its neighbours and a tap near the edge would select the
+ *   wrong slide — worse than a small target, because it does the wrong thing
+ *   rather than nothing. They are grown vertically only, where there is
+ *   nothing to collide with. At 24x24 they already meet WCAG 2.5.8 (AA); it is
+ *   the 44 of Apple's guidance and WCAG 2.5.5 (AAA) they miss, and closing
+ *   that gap properly means spacing the dots further apart, which is a change
+ *   to the hero's design and the owner's to make.
+ */
+@media (pointer: coarse) {
+  [aria-label='الشريحة السابقة'],
+  [aria-label='الشريحة التالية'],
+  [aria-label='Previous slide'],
+  [aria-label='Next slide'] {
+    position: relative;
+  }
+  [aria-label='الشريحة السابقة']::after,
+  [aria-label='الشريحة التالية']::after,
+  [aria-label='Previous slide']::after,
+  [aria-label='Next slide']::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+  /* Vertical only — see the note above on why the dots keep their width. */
+  .group\/dot {
+    min-height: 44px;
+  }
+}
+
+/* THE PAUSE/RESUME BUTTON, REMOVED — asked for as "remove start and stop
+   button" on the hero slider, 2026-09-20. It has no source here, so it is
+   hidden rather than deleted, same technique as the light/dark toggle in
+   sporta-dark.css: matched by all four aria-label spellings (it shows the
+   state it would switch TO, so "pause" and "resume" both appear depending on
+   whether the slideshow is currently running), display:none rather than
+   visibility:hidden so it also leaves the tab order.
+
+   THE ARROWS AND DOTS ARE UNTOUCHED. Only the auto-rotate toggle was asked
+   for; removing navigation controls too would be a bigger change than the
+   one requested. The slideshow still auto-rotates — hiding the button removes
+   the CONTROL, not the behaviour it controlled, and stopping the rotation
+   itself is a different, unasked-for change. */
+[aria-label='إيقاف العرض مؤقتًا'],
+[aria-label='استئناف العرض'],
+[aria-label='Pause slideshow'],
+[aria-label='Resume slideshow'] {
+  display: none !important;
+}
+
+/* ---------------------------------------------------------------------------
+ * THE CART DRAWER'S CLOSE BUTTON, IN THE LIGHT THEME
+ *
+ * It is an icon and nothing else — no border, no fill, no label — painted
+ * text-slate-400, which is rgb(148,163,184). On the drawer's white header that
+ * measures 2.63:1, and WCAG 1.4.11 asks for 3:1 on the visual information
+ * required to identify a control. When the icon IS the control, the icon is
+ * that information.
+ *
+ * Found by scripts/dark-audit.mjs, which was written looking for the opposite
+ * problem on the dark theme and found this on the light one instead. It is the
+ * only control on the whole shop that fails the test, and it is the one that
+ * closes the bag: a shopper who cannot see it cannot get back to the shop.
+ *
+ * slate-500, rgb(100,116,139), is 4.76:1 on white. It is the next step on the
+ * same ramp the design already uses — not a new colour — and the hover state
+ * (slate-700) is untouched, so the button still darkens under the cursor
+ * exactly as it did. Nothing moves; one icon gets darker.
+ *
+ * Scoped to the drawer so it cannot reach a slate-400 that is doing a
+ * different job somewhere else, and to the light theme because on dark the
+ * same class is already well clear of the floor.
+ * ------------------------------------------------------------------------- */
+html:not([data-theme='dark']) .cart-drawer > header button.tap.text-slate-400 {
+  color: rgb(100 116 139);
+}
+
+/* ---------------------------------------------------------------------------
+ * THE BRAND LOGO SITS ON THE CARD, NOT IN A WHITE BOX
+ *
+ * `.brand-chip` is the span the logo is drawn inside, and the built stylesheet
+ * gives it `background:#fff`. So a logo with a perfectly transparent
+ * background — which the whole upload path is careful to preserve, and which
+ * scripts/image-audit.mjs now refuses to accept without — was being painted on
+ * a white plate anyway. On the dark theme that is a white rounded rectangle on
+ * every product page, and the transparency bought nothing.
+ *
+ * Measured before changing it: a cut-out PNG served with all four corners at
+ * alpha 0, rendered inside rgb(255,255,255) with a 10px radius.
+ *
+ * WHAT THE PLATE WAS FOR, because it was not an accident. A brand mark is
+ * often black, and a white ground guarantees it is visible whatever is behind
+ * it. Removing it means the logo has to carry its own contrast.
+ *
+ * THAT IS THE TRADE, AND IT IS THE ONE THAT WAS ASKED FOR: supply each logo in
+ * a form that reads on a dark page — a white or full-colour version, the way
+ * this shop already keeps logo-white.webp beside logo.webp for its own mark. A
+ * black-on-transparent logo will now disappear on the dark theme.
+ *
+ * The padding is left exactly as it was. Removing the plate is a colour
+ * change; removing the padding would move the logo and resize the row it sits
+ * in, and nothing asked for that.
+ * ------------------------------------------------------------------------- */
+.brand-chip {
+  background: transparent;
+  border-color: transparent;
+}
+

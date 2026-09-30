@@ -1,0 +1,129 @@
+/* ================================================== the hero, on phones only */
+/* THE EMPTY BAND UNDER THE BANNER, at the owner's request (2026-09-05).
+ *
+ * Measured at 390x844: the slide is 314px tall, of which the artwork occupied
+ * 186 and the remaining 128 was a bare gradient strip holding the تسوّق الآن
+ * button. A quarter of the hero showed nothing. Desktop never had this — the
+ * bundle ships md:absolute on both boxes, so from 768px up the button has
+ * always floated over the picture. The phone was the odd one out.
+ *
+ * So this gives the phone the arrangement desktop already had: the button
+ * moves on top of the picture and the 128px comes OFF the slide.
+ *
+ * WHAT WAS ASKED FOR WAS A FULL OVERLAY, AND IT CANNOT BE DONE ON THESE
+ * BANNERS. Two attempts, both rendered and looked at rather than reasoned
+ * about:
+ *
+ *   1. Keep the 314px and let the artwork grow into it. Worse than the strip
+ *      it replaced — the box went 2.10:1 to 1.24:1 at the same width,
+ *      object-fit: cover zoomed to match, and "MEN'S TRAINING" came out
+ *      "EN'S TRAINING" with the orange headline losing its last letter.
+ *   2. Shrink the hero to the artwork and float the button on top. The
+ *      artwork survived, and the button landed squarely across the headline —
+ *      it covered "…INING" and the middle of "BODY BUILDING", and the
+ *      carousel controls sat on the strapline.
+ *
+ * The reason is in the section above this one, which spends thirty lines on
+ * where the crop falls: these five banners ARE their typography, set across
+ * the left two-thirds, with the model in the remaining third. There is no
+ * clear ground big enough for a 300px button. An overlay always covers
+ * something.
+ *
+ * AND THE BAND IS NOT EMPTY, which is the correction that matters. Reading the
+ * screenshot I called it "a bare gradient strip" and that was wrong: 128px
+ * holds the button (48px, on a 32px pb-8) and the carousel controls (32px, on
+ * bottom-2). It LOOKS empty because it is flat colour with generous spacing
+ * around two small things, not because anything is missing. There is no
+ * quarter of the hero to reclaim.
+ *
+ * So this tightens rather than removes: 128px becomes 104px, which is what the
+ * button and the controls actually need with 10px between them, measured from
+ * their rendered boxes. The hero comes down 24px, the artwork is untouched at
+ * the 2.10:1 the owner chose this morning, and nothing overlaps anything.
+ *
+ * The carousel controls needed nothing: they are `absolute bottom-2` on the
+ * section and were already floating. They only LOOKED stacked because the
+ * band beneath the art pushed the section's bottom edge down past the picture.
+ * Measuring that is what stopped this from becoming two fixes instead of one. */
+/* The pre-paint shell reads --hero-h and the mounted component reads its own
+ * height. The file says further up, at length, that moving one without the
+ * other makes the page jump at mount — the single failure the boot script
+ * exists to prevent. So both, together, to the same number.
+ *
+ * THE :root BLOCK THAT USED TO SIT HERE IS GONE — 2026-09-17, and it is worth
+ * saying why rather than just deleting it. It re-declared --hero-h 1200 lines
+ * after the block at the top of this file already had, so the top one was DEAD
+ * and had been for as long as both existed: same selector, same specificity,
+ * later wins. That is how it came to hold 2.10 and +128px while the live copy
+ * here held 2.10 and +104px, and how I read the dead one first and reported a
+ * 24px shell-versus-mount gap that was not happening. Two homes for one number
+ * do not merely risk drift — they had already drifted, silently, and the file
+ * that documents this exact failure was the one committing it.
+ *
+ * --hero-h now has ONE home, at the top with --hero-h-md beside it. What stays
+ * here is the phone height of the COMPONENT, which is a different property on a
+ * different element and must equal the variable; test:hero-size measures that
+ * they do, rather than either file being believed. */
+
+@media (max-width: 767px) {
+  .hero-strength {
+    /* 75svh, 2026-09-21 (was 100svh, 2026-09-18) — same formula as --hero-h
+     * at the top of this file, and the one home for the phone height after
+     * the duplicate above this block was removed. */
+    height: 75svh !important;
+  }
+  .hero-strength > .aspect-\[2\.52\/1\] {
+    /* The image's own box no longer takes the ratio either — it is the outer
+     * height MINUS the 104px band below, so the two sum to the outer instead
+     * of the image alone claiming it and pushing the band off-screen.
+     * aspect-ratio is dropped rather than left beside a height, which would
+     * leave two properties disagreeing about the same box. */
+    height: calc(75svh - 104px) !important;
+    aspect-ratio: auto !important;
+  }
+
+  /* The band: 104px instead of 128, and the button pulled up into the top of
+   * it so the controls have the bottom. Both were always inside these 128px;
+   * the space between them was the waste. */
+  .hero-strength > div:nth-child(2) {
+    height: 104px !important;
+    align-items: flex-start !important;
+    padding-top: 0 !important;
+  }
+  /* The button's own wrapper. pb-8 is what held it clear of the controls when
+   * the band was 128; at 104 the controls are pinned closer and that padding
+   * is what made them collide — measured, a 14px overlap. Note the band's
+   * FIRST child is an sr-only <h1>, so this targets the div specifically:
+   * a `> *` rule here would put padding on the heading too. */
+  .hero-strength > div:nth-child(2) > div {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  /* THE SEAM BELOW THE ART, softened rather than removed — asked for as "hero
+   * slider layout without under edge bar". The band above this comment IS the
+   * fix for that request, tried twice already (see its own long comment): a
+   * full overlay covers the banners' own baked-in headline and strapline text,
+   * measured both times rather than assumed, so the band stays. What was
+   * still fair to fix is the HARD EDGE where the opaque photograph ends and
+   * the band's own gradient background begins — a straight horizontal line is
+   * what reads as "a bar was stuck on", independent of the band's height.
+   *
+   * A thin fade painted on the ART's own box, not the band: the two are
+   * siblings with a shared border, and a fade belongs to whichever side is
+   * moving away from full opacity. `rgba(20, 22, 26, .55)` is `.hero-strength`'s
+   * own darkest gradient stop (`#14161a`) at just over half strength — enough
+   * to blur the line, not enough to dim "STRENGTH · MUSCLE · POWER", which
+   * sits inside this same 28px band on every one of the five banners.
+   * `pointer-events: none` so it cannot shadow a tap meant for the slide. */
+  .hero-strength > .aspect-\[2\.52\/1\]::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 28px;
+    background: linear-gradient(to bottom, transparent, rgba(20, 22, 26, 0.55));
+    pointer-events: none;
+  }
+}
+

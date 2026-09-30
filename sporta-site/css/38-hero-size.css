@@ -1,0 +1,30 @@
+/* THE SLIDES SCREEN'S "SIZE" WORKS AGAIN — 2026-09-29, "fix the slider editor
+ * backend, the sizes". /backends -> Slides offers Short / Tall / Full height
+ * and saves it (settings row `hero`, `size`), and since 2026-09-18 nothing had
+ * read it: the hero was one fixed height, so the control changed nothing.
+ *
+ * index.html's boot script puts the saved size on <html data-hero-size> before
+ * the first paint, and assets/rules-live.js corrects it from ?r=slides once
+ * the page loads (a first visit, or a size just changed). TALL IS THE DEFAULT,
+ * so a shop that never opens the control follows 02-hero.css's 40svh / 75svh.
+ *
+ *   short   phone 32svh                  desktop 55svh
+ *   tall    phone 40svh                  desktop 75svh
+ *
+ * PHONE HEIGHTS LOWERED 2026-09-29 ("reduce hero slides layout size to be fitted
+ * with mobile", the owner chose about 40% of the screen): tall was 55svh and
+ * short 40svh, so both come down and keep their order. Desktop is unchanged.
+ *   full    the screen below the header  (77px phone, 98px desktop)
+ *
+ * Both the pre-paint shell (--hero-h / --hero-h-md) and the mounted hero
+ * (34-hero-band.css reads them through --sp-hero-h) follow the same variable,
+ * so the two cannot disagree and the page does not jump at mount.
+ * :root[data-hero-size] outranks 02-hero.css's plain :root among !important. */
+:root[data-hero-size="short"] {
+  --hero-h: 8svh !important;
+  --hero-h-md: 13svh !important;
+}
+:root[data-hero-size="full"] {
+  --hero-h: calc(100svh - 77px) !important;
+  --hero-h-md: calc(100svh - 98px) !important;
+}

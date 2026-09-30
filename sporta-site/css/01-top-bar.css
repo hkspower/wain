@@ -1,0 +1,183 @@
+/* Sporta — top bar and hero adjustments.
+ *
+ * Separate from sporta-dark.css on purpose. That file is the PALETTE and
+ * everything in it is scoped to [data-theme=dark]; none of this is about
+ * colour temperature. A bigger clock is a bigger clock in both themes, and
+ * mixing the two would mean the light theme quietly kept the old sizes.
+ *
+ * Loaded after the build's stylesheet, so it wins by cascade on equal
+ * specificity. The !important flags are only where a Tailwind utility of the
+ * same specificity would otherwise win by source order, or — for the hero —
+ * where the value is an inline style set by the boot script in index.html.
+ */
+
+/* ------------------------------------------------------------------ clock */
+/* Scoped to .app-header, NOT to `header`. That distinction cost an invoice.
+   These rules were written as `header ...` and the invoice page has THREE
+   header elements — the site bar, the invoice card's own header, and one
+   more. `header .tabular-nums` matched four elements there and painted the
+   order number and the date white; on the dark screen that looked
+   deliberate, and on white paper the printed invoice simply had no order
+   number on it. .app-header matches one element on every page. */
+.app-header svg[viewBox='0 0 48 48'] {
+  width: 44px !important;
+  height: 44px !important;
+}
+@media (min-width: 640px) {
+  .app-header svg[viewBox='0 0 48 48'] {
+    width: 52px !important;
+    height: 52px !important;
+  }
+}
+
+/* WHITE HANDS, NOT ORANGE. The ember stays everywhere it means something
+   (price, active nav, the sale badge); on a clock face it was decoration
+   competing with them.
+
+   THIS RULE USED TO NAME ONLY .stroke-brand, AND THAT IS NOT THE HANDS. It is
+   the four quarter-hour TICK MARKS. The hands and the centre cap are
+   .stroke-brand-bright and .fill-brand-bright — a different token — so the
+   change whitened the dial's markings, left the hands ember, and the comment
+   above it described an outcome that had not happened. Read back off the
+   rendered page rather than from the stylesheet, which is the only way this
+   kind of near-miss shows up.
+
+   It matters most on a phone. There the clock sits about ten pixels from the
+   SPORTA wordmark, which is the same orange, so the two competed at exactly
+   the size where the header has least room to spare. */
+.app-header svg[viewBox='0 0 48 48'] .stroke-brand,
+.app-header svg[viewBox='0 0 48 48'] .stroke-brand-bright {
+  stroke: #ffffff !important;
+}
+.app-header svg[viewBox='0 0 48 48'] .fill-brand-bright {
+  fill: #ffffff !important;
+}
+
+/* THE DIAL HAD NO EDGE TO IT. Its fill is #20252C on a header of #23262A —
+   1.01:1, which is not a subtle separation but no separation at all. The
+   whole disc was carried by one hairline ring at 20% white, so the clock read
+   as a smudge with hands on it rather than as a face.
+
+   Raised until the disc is its own object. Still dark, still recessed — this
+   is a clock in a chrome bar, not a feature — but now visibly a circle. The
+   ring goes up with it so the edge stays the crispest part, which is what
+   tells the eye where the face ends.
+
+   #343b43 is 1.34:1 against the bar, and the number was measured rather than
+   picked. The first attempt at this was #2b3138, which looked fine by eye and
+   came back at 1.16:1 — under the floor the rig in color-test.mjs asks for,
+   and the honest fix was to lift the dial rather than lower the threshold to
+   meet it.
+
+   LIFTED AGAIN TO #3e454d, 2026-09-24. The header itself went from #23262A to
+   #2d3034 on 2026-09-22 (the owner's "match the footer"), which brought the
+   old dial down to 1.17:1 against it — the same no-edge fault, caused by the
+   bar moving rather than the dial. #3e454d restores 1.37:1, the separation
+   this was tuned to, with the white hands still at 9.7:1 on it. */
+.app-header svg[viewBox='0 0 48 48'] .fill-ink-soft {
+  fill: #3e454d !important;
+}
+.app-header svg[viewBox='0 0 48 48'] .stroke-white\/20 {
+  stroke: rgba(255, 255, 255, 0.38) !important;
+}
+
+/* The hour ticks were carrying the same weight as the hands once both went
+   white, so the face turned into a ring of similar-length white marks with no
+   hierarchy. Ticks are reference, hands are the reading: the markings drop
+   back and the hands keep the full white above. */
+.app-header svg[viewBox='0 0 48 48'] .stroke-brand {
+  stroke: rgba(255, 255, 255, 0.55) !important;
+}
+.app-header svg[viewBox='0 0 48 48'] .stroke-white\/30 {
+  stroke: rgba(255, 255, 255, 0.28) !important;
+}
+
+/* The outline drawn behind each hand is the dial's old fill, so it stopped
+   matching the moment the dial was lifted — leaving a dark halo around every
+   hand against a lighter face. It exists to keep a hand legible where it
+   crosses a tick, so it has to be the colour of what is actually behind it. */
+.app-header svg[viewBox='0 0 48 48'] .stroke-ink-soft {
+  stroke: #3e454d !important;
+}
+
+/* The digits beside it. They were 13.7px at 85% white — the smallest text in
+   the bar and the one most often read at arm's length. */
+.app-header .tabular-nums {
+  font-size: 15px !important;
+  color: #ffffff !important;
+  letter-spacing: 0.02em;
+}
+
+/* --------------------------------------------------------------- top bar */
+/* THE BAR IS SET IN A TEXT FACE, NOT THE DISPLAY ONE.
+ *
+ * Everything in the header inherited Alexandria from the body — the geometric
+ * face that carries the headings and the brand voice. It is right at 30 and 40
+ * pixels and it is the wrong tool at 13 to 16: its Arabic is drawn on
+ * geometric skeletons that lose their joins at small sizes, and its Latin has
+ * even, wide strokes that go soft rather than sharp.
+ *
+ * IBM Plex Sans Arabic is a TEXT face, drawn for interfaces at exactly these
+ * sizes, and the site ALREADY DOWNLOADS IT — it sits in the body's own font
+ * stack as the fallback, and its 400/600/700 files are in /fonts. So this
+ * costs no new request and no new file; it uses what is already there.
+ *
+ * The split it creates is the ordinary one: display face for the things that
+ * speak, text face for the chrome that gets read. The logo is an image and is
+ * untouched, so the brand mark itself does not move.
+ *
+ * The `unicode-range` on those @font-face rules is what makes one declaration
+ * enough for both languages: the Arabic and Latin files are separate, and the
+ * browser picks per character. Nothing here needs to know which language the
+ * link is in. */
+.app-header,
+.app-header nav a,
+.app-header button,
+.app-header a {
+  font-family: 'IBM Plex Sans Arabic', 'Plex Arabic Fallback', system-ui, sans-serif !important;
+}
+
+/* Nav links were 15.5px at weight 400 — measured, not assumed, and 400 is body
+   text. Navigation is a set of targets, not prose; 600 is what makes a row of
+   links read as a row of links. */
+.app-header nav a,
+.app-header a.flex.min-h-11 {
+  font-size: 15.5px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.01em;
+}
+
+/* AND NOT ONE HUNDREDTH OF AN EM OF IT IN ARABIC.
+ *
+ * The tracking above was added for the Latin half of the row and applied to
+ * the whole of it. That is fine in Latin, where letters are discrete shapes
+ * with space between them by design, and it is wrong in Arabic, which is a
+ * CURSIVE script: the letters of a word are joined, and letter-spacing does
+ * not loosen a word, it pulls the joins apart. الرئيسية is one connected
+ * stroke from ا to ة, and tracking puts a gap inside it.
+ *
+ * Measured across seven pages: 28 Arabic runs carrying 0.155px of tracking,
+ * and they were the only tracked Arabic on the site — the eyebrows, the
+ * headings and the body all sit at 0, so this rule was the whole of the
+ * problem.
+ *
+ * Scoped by the DOCUMENT's language rather than by testing the text, because
+ * the same markup carries both: <html lang> is `ar` by default and becomes
+ * `en` when the shopper switches. So English keeps the tracking it was written
+ * for and Arabic gets none, which is what the note above was actually
+ * reaching for. */
+html[lang='ar'] .app-header nav a,
+html[lang='ar'] .app-header a.flex.min-h-11 {
+  letter-spacing: normal;
+}
+
+/* The language chip: 12px at 90% white inside a 20%-white ring. Full white on
+   a firmer ring — it is a control, and its edge was 1.2:1 against the bar. */
+.app-header button[aria-label] {
+  font-size: 13.5px !important;
+}
+.app-header button[aria-label].border-white\/20 {
+  border-color: #ffffff59 !important;
+  color: #ffffff !important;
+}
+

@@ -1,0 +1,153 @@
+GOING LIVE — IN TWO STAGES, EACH ONE CHECKABLE
+==============================================
+
+I cannot upload from here. Hostinger's file host (srv2231-files.hstgr.io) and
+www.sporta.com.kw are both refused at this environment's network policy —
+403 on the CONNECT, checked again today — and the only write endpoint in the
+Hostinger API points at that same blocked host. The one other write call,
+"deploy static site archive", overwrites the entire site irreversibly and is
+documented as static-only: it would erase api/, knet/, pay/ and the config.php
+files holding your KNET credentials. It was not used and should not be.
+
+So this is for hPanel -> Files -> File Manager. Two uploads instead of one, so
+that if something looks wrong you know which half did it.
+
+Everything below has been checked against your live server file by file. No
+file in either zip is older than the copy already on it.
+
+
+-------------------------------------------------------------------------
+STAGE 1 — SPORTA-1-LOOK.zip     9 files, 61 KB
+-------------------------------------------------------------------------
+Upload to public_html and Extract, overwriting.
+
+This is the one that shows. assets/sporta-ui.css has NEVER been on the server
+and the live index.html has no link to it, which is why none of the styling
+work is visible today: the clock, the silver theme, the header typeface, the
+side padding, the footer tap targets. This stage puts the file there and the
+link in.
+
+It cannot half-work. index.html references eight files in assets/: four are
+already on your server and byte-for-byte identical, and the other four are in
+this zip. Checked, not assumed.
+
+CHECK AFTERWARDS
+  Load the site. The clock in the top bar should have WHITE hands on a dial
+  you can actually see as a circle. If the hands are still orange, the CSS did
+  not land — nothing else is affected, and re-extracting is safe.
+
+
+-------------------------------------------------------------------------
+STAGE 2 — SPORTA-2-BACKEND.zip     57 files, 452 KB
+-------------------------------------------------------------------------
+
+  ┌───────────────────────────────────────────────────────────────────────┐
+  │ DO THIS ONE THING FIRST: open the live knet/config.php and add        │
+  │                                                                       │
+  │     'mode' => 'legacy',                                               │
+  │                                                                       │
+  │ It takes ten seconds and it removes the only way this stage can cost  │
+  │ you money.                                                            │
+  └───────────────────────────────────────────────────────────────────────┘
+
+  WHY. Stage 2 replaces the KNET and T-Pay code — seven of the eight files in
+  knet/ and pay/ differ from what you are running, and knet/knet.php nearly
+  doubles in size. That is the work that taught the shop to tell a legacy
+  Tranportal account from CBK's official hosted page, and it is the highest
+  risk thing in either zip.
+
+  The new code decides which of the two you are on. With 'mode' set, it
+  believes you and there is nothing to go wrong. WITHOUT it, it works the
+  answer out from your credentials, and it answers "legacy" only if
+  tranportal_id, tranportal_password and resource_key are all present, none is
+  a placeholder, AND resource_key is EXACTLY 16 characters. If any of that is
+  not true it concludes "official" and starts sending customers to the CBK
+  hosted page instead of your Tranportal account.
+
+  I cannot check that for you. The Hostinger API refuses to hand over files it
+  identifies as holding credentials — which is correct of it — so I have never
+  seen your live knet/config.php and cannot tell you how long that key is.
+
+  Setting 'mode' => 'legacy' makes the question moot. The autodetect is a
+  safety net for a config nobody has touched; it is not the thing to lean on
+  when a wrong answer means card payments going somewhere else.
+
+  AFTER EXTRACTING, PUT ONE REAL ORDER THROUGH KNET. Not the self-test — a
+  real card. It is the only check that proves the money still lands where it
+  should, and it is worth the 1 KWD.
+Upload to public_html and Extract, overwriting.
+
+The server side: 10 PHP files that differ from yours, 7 that are missing
+entirely (the invoice-PDF set, orders-print.php, file-audit.php), and
+fonts/Alexandria-400.ttf, which the invoice writer embeds so Arabic renders.
+
+NO config.php AND NO wallet-certs IN EITHER ZIP. Verified — 0 of each. Your
+KNET, database and Wallet credentials cannot be touched by extracting these.
+
+CHECK AFTERWARDS
+  The shop still loads, and you can still sign in at /backends. Those two
+  cover it: everything else in this stage is either new or a straight
+  improvement to a file that already worked.
+
+
+-------------------------------------------------------------------------
+THEN THREE SMALL THINGS
+-------------------------------------------------------------------------
+
+1. The two rewrite rules in PASTE-BY-HAND-DO-NOT-UPLOAD.txt.
+
+   READ THE FILENAME. That note is the ONLY thing in any handover that must be
+   opened and read rather than uploaded, and on 2026-09-02 an earlier version
+   of it — then called ADD-TO-LIVE-HTACCESS.txt — was uploaded as .htaccess.
+   Apache read the English as configuration and every page on the site
+   answered 500 until it was renamed. The zips are for uploading; anything
+   ending .txt in a handover is for reading.
+
+   The rules make /card and /returns/request work — both pages ship in stage
+   1, and without them those addresses answer 404.
+
+   NOTE: .htaccess is deliberately in NEITHER zip. Your live one routes every
+   page through seo.php, which injects the per-route title and canonical; the
+   copy in this repo did not know seo.php existed and would have switched it
+   off silently. Yours is correct. Leave it, and paste the two rules in.
+
+2. The invoice cron — hPanel -> Advanced -> Cron Jobs, every 15 minutes:
+
+     php /home/u130124229/domains/sporta.com.kw/public_html/api/cron-invoice.php
+
+   NO KEY, AND THAT IS DELIBERATE. The obvious line is a wget with
+   ?key=<cron_key> on it, and it would work — but it puts the cron key into a
+   string hPanel prints on screen, that lands in shell history, and that any
+   process listing shows while it runs. That key also gates file-audit.php and
+   every other cron here, so it is not a small thing to leave lying about. A
+   job on the same machine as the file has no business going out to the
+   internet and back to reach it, or carrying a credential to do so.
+
+   Running it as PHP skips all of that. The script checks php_sapi_name(): from
+   the command line it needs no key, because a process already running as your
+   site's user can read config.php and the key inside it anyway — demanding a
+   secret from something that already holds the secret protects nothing. Over
+   HTTP the key is still required exactly as before, and that is asserted in
+   the tests in both directions.
+
+   It is also QUIET. It prints nothing when there is nothing to do, so it will
+   not email you ninety-six times a day; the day it does speak is the day to
+   read it. On its first run it writes a PDF for every past order; after that
+   only for new ones. They land in
+   /home/u130124229/domains/sporta.com.kw/invoices — one level ABOVE
+   public_html, so no URL reaches them. Read one while signed in at
+   /api/invoice-file.php?id=SP..., or omit the id to list the archive.
+
+3. KNET — AND READ THE BOX ABOVE STAGE 2 FIRST. Set 'mode' => 'legacy' in the
+   live knet/config.php, run the self-test and one real transaction, then set
+   'env' => 'production' and delete knet/selftest.php.
+
+
+-------------------------------------------------------------------------
+IF SOMETHING LOOKS WRONG
+-------------------------------------------------------------------------
+Nothing here deletes anything. Extracting replaces files and adds new ones, so
+the failure mode is a file being newer than you wanted, not missing. hPanel
+keeps backups; and the single check that matters most is viewing source on
+/shop — if <link rel="canonical"> says /shop rather than just /, seo.php is
+still in the path and your SEO is intact.

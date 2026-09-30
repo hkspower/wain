@@ -1,0 +1,56 @@
+-- ===========================================================================
+-- Sporta — a unique reference per PAYMENT ATTEMPT.
+--
+-- Additive, and byte-for-byte the same statement as the one in
+-- schema.mysql.sql. `if not exists`, so importing it twice changes nothing.
+--
+-- ---------------------------------------------------------------------------
+-- THE BUG THIS FIXES: A DECLINED CARD COULD NOT BE RETRIED
+--
+-- Both banks require the merchant's track id to be unique per ATTEMPT — CBK's
+-- manual says so on p.10 and its own sample calls uniqid() for every request;
+-- KNET's Tranportal is the same. The shop sent orders.track_id, which is unique
+-- per ORDER.
+--
+-- That is fine until a card is declined. The shopper taps "try again", the
+-- checkout deliberately reuses the same track id (it is the idempotency key
+-- that stops a double tap buying twice), and the gateway now sees an id it has
+-- already processed. It is entitled to refuse it — CBK with TIJ0004 — so the
+-- second attempt fails for a reason that has nothing to do with the card.
+--
+-- A declined card is not a rare event: a daily limit, an expired card, a bank's
+-- own fraud check. Every one of those was an unrecoverable checkout, and the
+-- shopper's only route back was to change their basket enough to mint a new
+-- track id, which nobody would think to do.
+--
+-- HOW THE COUNTER IS USED, and why the first attempt is left alone:
+--
+--   attempt 1  ->  the track id itself, unchanged
+--   attempt 2  ->  track id + "A2"
+--
+-- The overwhelmingly common case therefore sends exactly what it always sent,
+-- so a bank statement still carries the order number and reconciliation does
+-- not change. Only a retry — which previously could not work at all — carries
+-- a suffix, and the callback resolves it back by trying an exact match FIRST
+-- and only then stripping the suffix. That ordering is what makes this safe to
+-- deploy while payments are in flight: an old-style callback for an order
+-- placed a minute before the upgrade still matches exactly, as it always did.
+-- ===========================================================================
+
+-- ROW FORMAT FIRST. `orders` is by far the widest table in this schema — 40
+-- columns and about 6.9 kB of declared width, against InnoDB's 8126-byte
+-- ceiling — and every additive migration here makes it wider. A table created
+-- without an explicit ROW_FORMAT is rebuilt by ALTER using the server's
+-- default, and on a server whose default is not DYNAMIC that rebuild fails
+-- with "Row size too large ... maximum row size ... is 8126" — refusing a
+-- migration that only ADDS a nullable column, or even one that DROPS one.
+-- Measured on MariaDB 10.11: `alter table orders drop column utm_source`
+-- failed, and the same statement with `row_format=DYNAMIC` in front of it
+-- succeeded on the identical table.
+--
+-- Stating it here is idempotent (it is already DYNAMIC on a healthy install,
+-- and the ALTER is then a no-op rebuild of a small table) and it is what lets
+-- this file run on a shop that was set up before it existed.
+alter table orders row_format=DYNAMIC;
+alter table orders add column if not exists pay_attempt int unsigned not null default 0
+  after cbk_status;

@@ -1,0 +1,226 @@
+/* ------------------------------------------- the product page's photo gallery */
+/* A GARMENT'S PHOTOGRAPH WAS INVISIBLE ON ITS OWN PAGE.
+ *
+ * The gallery is a carousel: one flex track, one slide per picture, the track
+ * moved by transform and the box clipping the rest. The storefront always puts
+ * a generated placeholder — a grey SVG gradient — in front of the list, so a
+ * product that has been photographed gets TWO slides: the placeholder at index
+ * 0, and the real photograph at index 1, translated out of the visible box.
+ *
+ * The result was a product page showing an empty grey square while the shop
+ * grid, which renders a plain <img> and no carousel, showed the photograph
+ * correctly. Measured rather than guessed: the <img> reported complete, 1200 x
+ * 1200 natural, opacity 1, visible — and a bounding box 467px outside its own
+ * container. It was painting; it was painting off-screen.
+ *
+ * This hides the placeholder slide, and ONLY when a real photograph is there
+ * to take its place — `:has(> img:not([src^="data:"]))`. A product with no
+ * photographs still gets its gradient, which is the whole reason the
+ * placeholder exists. Without that guard this would replace a designed empty
+ * state with a blank hole on all 45 garments that have no pictures yet.
+ *
+ * Scoped to the track by its own class list rather than to `img` generally, so
+ * nothing else that legitimately renders an inline SVG is touched.
+ *
+ * A CSS rule because the storefront is built output whose source is not in
+ * this repository. Deleting these three lines restores the old behaviour. */
+div.flex.h-full.w-full:has(> img:not([src^='data:'])) > img[src^='data:image/svg'] {
+  display: none;
+}
+
+/* ================================================== the product page, on a phone
+ *
+ * Measured on a 393 x 850 phone before any of this, because "it feels long" is
+ * not something you can act on:
+ *
+ *     134  sticky header (promo bar 28 + logo row 60 + nav row 45)
+ *     226  the photograph starts
+ *     361  …and is a full square
+ *     591  a 44px row holding three dots
+ *     643  the brand strip
+ *     729  the title
+ *     881  the price          <- already past the 850 fold
+ *     959  the size picker    <- 109px below it, and the fixed bottom bar
+ *                                takes another 73, so really 180px below
+ *
+ * So a shopper choosing a size cannot see the garment they are choosing it
+ * for. Desktop does not have this problem — it is two columns and the gallery
+ * is `md:sticky`.
+ *
+ * Four changes, all phone-only. Desktop is genuinely good and is not touched.
+ */
+
+/* --- 1. the dead placeholder thumbnail ---------------------------------- */
+/* A LOOSE END FROM THE CAROUSEL FIX ABOVE, and it was mine.
+ *
+ * That rule hides the generated placeholder slide from the main track when a
+ * real photograph exists. The THUMBNAIL STRIP kept its own copy — a grey
+ * square that looks like a fourth angle and, when tapped, moves the carousel
+ * to a slide that is now hidden. A control that does nothing is worse than no
+ * control.
+ *
+ * Same guard as the track rule: only when a real photograph is there to take
+ * its place, so a garment with no pictures keeps its placeholder everywhere. */
+/* THE SECOND SELECTOR WAS `… > *:has(> img[src^='data:image/svg'])`, AND THAT
+ * `*` COST THE WHOLE SHOP ITS SCROLL SMOOTHNESS (measured 2026-09-30, iPhone 14
+ * emulation at 4x CPU): a selector is matched from its RIGHT end, so a universal
+ * subject with :has() asked EVERY element on EVERY page — the shop grid is full
+ * of placeholder SVGs — whether it had anything to do with this strip or not.
+ * Removing that one rule took /shop from 24% of frames over 33 ms to 3%. The
+ * subject is `button` now, which is what the thumbnail strip is made of, so
+ * the engine only looks at buttons. */
+.lg\:flex:has(> img:not([src^='data:'])) > img[src^='data:image/svg'],
+.lg\:flex:has(> button > img:not([src^='data:'])) > button:has(> img[src^='data:image/svg']) {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  /* --- 2. the photograph's shape on a phone and tablet ------------------- */
+  /* PORTRAIT 4:5 SINCE 2026-09-28 ("fix product page images layout"), the
+     owner's choice out of three measured options. This used to be 1.25:1 —
+     LANDSCAPE — chosen on 2026-09-04 to bring 72px of buying controls up the
+     page. But product photos are 4:5 portrait, so a landscape box cropped
+     every one to ~64% of its height: heads and shoes gone, on the page a
+     shopper opens to see MORE of the garment than the grid card showed.
+
+     31-product-gallery-crop.css set 4:5 on 2026-09-23 and said "same on
+     mobile and desktop" — it was not. This selector (three classes,
+     !important) outranks that one's single `.aspect-square` below 1024px, so
+     the fix only ever reached desktop. Measured: 390x312 on a phone with that
+     rule in force. So the shape is set HERE, where it wins.
+
+     The cost the owner accepted: the photo is 487px tall on a 390 phone, and
+     Add/Buy sits 175px further down — the sticky bar keeps both on screen. */
+  .group.aspect-square.cursor-zoom-in {
+    aspect-ratio: 4 / 5 !important;
+  }
+
+  /* --- 3. thumbnails instead of dots ------------------------------------ */
+  /* The strip already exists and is already built — it is what desktop shows,
+     hidden below lg. Three dots tell a shopper there is more; three
+     thumbnails tell them WHAT there is, and let them go straight to the one
+     they want instead of swiping past two.
+     The dots row it replaces was 44px for three 6px dots. */
+  .-mb-2.mt-1.flex.justify-center.lg\:hidden {
+    display: none !important;
+  }
+  .mt-3.hidden.gap-2.overflow-x-auto.lg\:flex {
+    display: flex !important;
+    justify-content: center;
+    /* Scrollable rather than wrapped: a garment may carry up to 24
+       photographs, and a wrapping grid of those would push the price off the
+       screen again — which is the thing this whole block is undoing. */
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .mt-3.hidden.gap-2.overflow-x-auto.lg\:flex::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* --- 5. the buy bar covers the end of the page ------------------------ */
+  /* THE PINNED ADD-TO-CART BAR IS 73px OF THE SCREEN AND THE PAGE DOES NOT
+   * KNOW IT IS THERE.
+   *
+   * `.action-bar` is `position: fixed` on a phone — correctly, it is what puts
+   * أضف and اشترِ الآن in reach without scrolling, and it is height 0 on
+   * desktop so none of this applies there. But a fixed element is out of flow,
+   * so nothing below it reserves any room, and `.app-footer` computes
+   * `padding-bottom: 0`.
+   *
+   * MEASURED at the very bottom of the product page, 393x850, scrolled as far
+   * as it goes — the bar occupies y777-850 and underneath it sits:
+   *
+   *     y795-812  © 2026 Sporta — جميع الحقوق محفوظة
+   *     y816-851  متجر سبورتا تحت إدارة شركة المهلب …
+   *
+   * The copyright and the trading name are not decoration; they are the lines
+   * that say who the shop legally is. On a phone they could not be read at
+   * all, on any page carrying the bar, at any scroll position — there is no
+   * further down to go.
+   *
+   * Padding the FOOTER rather than the body, so the clearance sits at the end
+   * of the document where the bar is, and `:has(.action-bar)` so a page
+   * without the bar does not grow 5rem of empty space it has no use for.
+   * env() on top for the home-indicator strip, matching the bar's own
+   * `safe-bottom`. */
+  body:has(.action-bar) .app-footer {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* --- 6. the assistant bubble sits ON the Buy now button ---------------- */
+  /* THE سبورتا AI BUBBLE AND THE BUY BAR BOTH PIN THEMSELVES TO THE BOTTOM
+   * OF THE SCREEN, AND THE BUBBLE IS ON TOP.
+   *
+   * Measured at 393x850 on the product page, nothing scrolled:
+   *
+   *     .action-bar          fixed  z-30   y777-850
+   *     "اشترِ الآن" label          text   L49-R114  y804-823
+   *     .tap-target bubble   fixed  z-50   L16-R68   y790-834
+   *
+   * The bubble covers the left end of the Buy now label — the screenshot
+   * reads "اشترِ الـ" with the orange S badge where the rest of the word is —
+   * and document.elementFromPoint at the label's left edge returns the
+   * ASSISTANT, not the button. So a shopper who taps the start of Buy now
+   * opens a chat window instead of buying, on every phone product page.
+   *
+   * The bubble's own `bottom-4` is right everywhere the buy bar is not; it is
+   * only wrong on the pages that carry the bar. Lift it clear of the bar there
+   * and nowhere else — the same `body:has(.action-bar)` guard as the footer
+   * above, inside the same phone-only block, because on desktop the bar is
+   * height 0 and the bubble already sits where it should.
+   *
+   * 5.5rem clears the 73px bar by 15px: enough that the two visibly stop
+   * touching, not so much that the bubble climbs into the price. env() on top
+   * for the home indicator, as the bar itself does with `safe-bottom`. */
+  body:has(.action-bar) .tap-target.fixed {
+    bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* --- 4. the header gives 45px back once you start reading ------------- */
+  /* The nav row — الرئيسية / المتجر / من نحن / اتصل بنا — is 45px of a 134px
+     header that never leaves the screen. It is what you need when you ARRIVE
+     and not while you are reading one garment; the logo, search, wishlist,
+     cart and language all stay.
+     A SCROLL-DRIVEN ANIMATION, not JavaScript. It is tied to scroll POSITION
+     rather than direction, so scrolling back to the top brings the row back
+     by itself with no state to get stuck. The @supports guard is the whole
+     safety of it: a browser without scroll-driven animations — anything older
+     than iOS 26 — runs none of this and keeps today's header exactly. */
+  @supports (animation-timeline: scroll()) {
+    @keyframes sp-nav-collapse {
+      to { height: 0; opacity: 0; border-top-width: 0; }
+    }
+    .app-header > .border-t.border-white\/5 {
+      overflow: hidden;
+      animation: sp-nav-collapse linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 140px;
+    }
+  }
+}
+
+/* ------------------------------------------ the product name, and its leading */
+/* THE BUILT STYLESHEET DECLARES .product-title TWICE, and the second undoes
+ * the first:
+ *
+ *     .product-title { font-size: clamp(1.875rem, 3.2vw, 2.5rem); line-height: 1.15 }
+ *     .product-title { line-height: 1.45 }
+ *
+ * 1.15 is what a display title wants and is plainly what was intended; 1.45 is
+ * body-text leading, and on an extrabold 30px heading it opens the two lines of
+ * a garment's name to 87px of stacked shouting. Restoring 1.15 takes the phone
+ * title from 87px to 69px and the desktop one from 119px to 94px, with nothing
+ * moved but the space between the lines.
+ *
+ * AND THE FLOOR OF THE CLAMP. 3.2vw only reaches 1.875rem at about 940px wide,
+ * so every phone gets the minimum — 30px at weight 800 across a 361px column,
+ * which is why it wraps to two lines on almost every garment in the catalogue.
+ * 1.5rem is 24px, still the largest text on the screen and still first. The
+ * CEILING is untouched: on a desktop the name is 40px exactly as before, which
+ * is where a 3.2vw title was designed to land.
+ */
+.product-title {
+  font-size: clamp(1.5rem, 3.2vw, 2.5rem) !important;
+  line-height: 1.15 !important;
+}
+

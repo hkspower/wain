@@ -1,0 +1,8 @@
+/* A product with no photograph is drawn by the bundle as a bare dark gradient
+   (600x600 SVG, a data: URI) or, in the bag, a beige square: an empty box.
+   Swap any SVG data: image for the Sporta placeholder. Real photographs are
+   jpeg/webp (product_image routes or data:image/jpeg|webp), never SVG. */
+img[src^="data:image/svg+xml"] {
+  content: url("/assets/no-photo.svg");
+  object-fit: cover;
+}

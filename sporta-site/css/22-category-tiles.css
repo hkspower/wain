@@ -1,0 +1,186 @@
+/* ===========================================================================
+ * CATEGORY TILES SHOW THE FULL IMAGE NOW — 2026-09-19
+ * ===========================================================================
+ *
+ * Asked for as "make category image full render", the same request shape as
+ * the hero fix above and given the same answer: the box was a FIXED HEIGHT
+ * per breakpoint (Tailwind's h-60/md:h-72/lg:h-80 on men/women, h-44/md:h-48/
+ * lg:h-56 on accessories/outlet), unrelated to the artwork's own ratio, and
+ * object-fit: cover cropped whatever the mismatch came out to.
+ *
+ * MEASURED IN A BROWSER BEFORE EDITING, at 390px and 1280px, both languages —
+ * nothing here was assumed from an old reading:
+ *
+ *   men/women    box 1.492  art(mobile) 1.579   -> 5.5% off the sides  (390)
+ *                box 1.795  art(desktop) 1.722   -> 4.1% off the top/bottom (1280)
+ *   accessories/
+ *   outlet       box 2.034  art(mobile) 1.982   -> 2.6% off the top/bottom (390)
+ *                box 2.564  art(desktop) 2.909   -> 11.8% off the sides (1280)
+ *
+ * Real, but nowhere near the hero's 75-94%-visible crop — worth stating so the
+ * before/after does not read as more dramatic than it was.
+ *
+ * THE FIX IS `aspect-ratio`, NOT A HEIGHT FORMULA, and that is the difference
+ * from the hero. The hero's box is `100vw`-wide, so its height had to be
+ * derived with a vw calculation and then capped. A category tile's width is
+ * whatever the grid column gives it (2 columns under 768px, 4 at and above,
+ * inside a max-w-7xl container) — bounded either way — so `height: auto` plus
+ * `aspect-ratio: <artwork W> / <artwork H>` lets the box height follow
+ * whatever width the grid actually produces, at every size in between, with
+ * nothing to invert. THE HERO'S CAP-VS-FLOOR TRAP DOES NOT APPLY HERE: that
+ * trap was a fixed cap fighting a ratio on an unbounded (100vw) box; a tile's
+ * width is already bounded by the grid and the container, so there is no
+ * runaway width for a cap to have to catch.
+ *
+ * ONE RATIO FOR ALL FOUR — 2026-09-22, asked for as "make تسوق حسب الفئة all
+ * same size and shape". Until this, the two ratios below matched each pair's
+ * OWN artwork exactly (900x570 / 1216x706 for men and women, 900x454 /
+ * 1216x418 for accessories and outlet) so `cover` never cropped either —
+ * which is exactly what made the grid uneven: at the same column width,
+ * accessories and outlet rendered barely more than half the height of men
+ * and women (measured live, 1280px wide: 208px against 351px), because a
+ * 2.91:1 image is shallower than a 1.72:1 one at the same width. Four tiles
+ * in a "shop by category" grid reading as two different SIZES rather than
+ * four options is the fault the owner named.
+ *
+ * MEN AND WOMEN'S RATIO WAS KEPT AS THE TARGET, not a number in between,
+ * because it is the one both pairs can reach with a crop rather than a
+ * stretch: accessories and outlet are the WIDER pair (2.91/1.98 against
+ * 1.72/1.58), so fitting them to the narrower target crops their SIDES
+ * under `cover` — the ordinary, symmetric crop a flat-lay product shot
+ * survives easily — rather than needing to invent picture that was never
+ * photographed, which is what going the other way would have asked of
+ * men and women's portrait compositions.
+ *
+ * object-position stays the bundle's own default (50% center) on
+ * accessories and outlet — checked visually rather than assumed, since a
+ * flat lay has no single subject a crop could cut through unevenly the way
+ * a person's head or feet could.
+ *
+ * The Tailwind height utilities are unlayered `!important` overrides here for
+ * the same reason the header rule above needed a named layer to win: these
+ * ARE the bundle's own unscoped class names (`.tile-men` etc.), not Tailwind
+ * utilities, so they sit outside @layer entirely and an unlayered !important
+ * beats them without needing one.
+ *
+ * RTL WAS CHECKED AND IS NOT TOUCHED. Men and women swap to the -rtl
+ * composition in Arabic (the bundle's own `rtlArt` flag plus tile-art.js's
+ * overlay for women); accessories and outlet have no -rtl file and request
+ * none, in either language — correct, since neither composition puts text
+ * against a reading side. Nothing here changes that; it only changes how much
+ * of whichever file was already chosen gets shown.
+ *
+ * TILES 20% BIGGER — 2026-09-22, asked for as "increase category images
+ * size 20%". Each tile's image fills its box exactly (`absolute inset-0
+ * h-full w-full object-cover`, checked live) so the box IS the image size;
+ * there is no independent img dimension to change. Width stays whatever the
+ * 2-/4-column grid gives it — widening the box would mean fewer columns or a
+ * wider container, a layout change nobody asked for — so the 20% goes into
+ * HEIGHT, by scaling the ratio's own denominator: 570→684 and 706→847, both
+ * exactly ×1.2. The crop gets 20% taller at the same width, which is what
+ * "bigger" means for a box whose width is already spoken for.
+ *
+ * AND 25% MORE — 2026-09-25, "increase تسوق حسب الفئه images 25%". Same
+ * method, same reason: 684→855 and 847→1059, both ×1.25. Measured: phone
+ * 172x131 → 172x163, desktop 601x418 → 601x523. Taller at the same width
+ * means `cover` shows a little less of each artwork's sides. */
+.cat-tile.tile-men,
+.cat-tile.tile-women,
+.cat-tile.tile-acc,
+.cat-tile.tile-outlet {
+  height: auto !important;
+  aspect-ratio: 900 / 855 !important;   /* 684 x 1.25, 2026-09-25 */
+}
+@media (min-width: 768px) {
+  .cat-tile.tile-men,
+  .cat-tile.tile-women,
+  .cat-tile.tile-acc,
+  .cat-tile.tile-outlet {
+    aspect-ratio: 1216 / 1059 !important;   /* 847 x 1.25, 2026-09-25 */
+  }
+}
+
+/* TWO TILES PER ROW ON A PHONE, NOT ONE — 2026-09-22, asked for by a
+ * screenshot and four complaints: too tall, too much empty space, the text
+ * far from the content, each card eating too much of the screen. All four
+ * are one cause: the grid above is unscoped Tailwind (`grid gap-4
+ * md:grid-cols-2 md:gap-5`, checked unique in the built bundle) with no
+ * column count below 768px, so it falls back to a single column and each
+ * tile runs the full 358px content width.
+ *
+ * THE HEIGHT FIXES ITSELF. The `.cat-tile.tile-*` rules above already size
+ * every tile from `aspect-ratio`, not a fixed height, so halving the width
+ * on its own halves the height in the same proportion — a 358px-wide men's
+ * tile at 1.58:1 is 227px tall; at ~173px wide (two columns, one gap) it
+ * becomes ~109px, without touching those rules at all.
+ *
+ * WHAT DOES NOT FIX ITSELF is everything sized for the wider box: p-6 is
+ * 24px of padding on a tile now ~109-136px tall, and the title was rendering
+ * at 29px — both scaled for a card three times this width. Both are cut down
+ * here, mobile only; `md:p-8` and the desktop title size are untouched since
+ * two-per-row is a phone-width answer to a phone-width complaint. */
+@media (max-width: 767px) {
+  [class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .cat-tile {
+    padding: 14px !important;
+  }
+  .cat-tile .eyebrow {
+    /* 12px, not 11: the mobile scan of 2026-09-23 flagged 11px as the one run
+       of text on the site under the 12px floor every other rig holds to. */
+    font-size: 12px !important;
+  }
+  .cat-tile__title {
+    font-size: 18px !important;
+    margin-top: 4px !important;
+  }
+}
+
+/* FULL-WIDTH TILES, WHOLE PICTURE — 2026-09-28, asked for as "make full
+ * render for all category image with full horizontal website width". This
+ * supersedes the two-per-row phone grid and the single shared 1.25x ratio
+ * above (both left in place, both now overridden here — a revert is deleting
+ * this block):
+ *
+ *   ONE TILE PER ROW, AT EVERY WIDTH, EDGE TO EDGE, by lifting the width cap
+ *   and side padding off the tiles' OWN section rather than breaking out with
+ *   100vw. The first version did the breakout and needed `main {overflow-x:
+ *   clip}` to hide the scrollbar's width — and that clip stopped Chrome from
+ *   preloading the hero carousel's off-screen slides (test:image-render,
+ *   bisected to that one line). Nothing here is wider than the page, so
+ *   nothing needs clipping. The heading in the same section is centred and
+ *   does not move.
+ *
+ *   EACH TILE AT ITS OWN ARTWORK'S RATIO, so `cover` crops nothing — "full
+ *   render". The price is the one the 2026-09-22 entry names: accessories
+ *   and outlet (2.91:1) come out shallower than men and women (1.72:1). The
+ *   shared ratio existed to hide that, and it did it by cropping.
+ *
+ *   CLARITY is the artwork's, not the CSS's: the desktop files are 1216px and
+ *   a full-width tile on a 1440px screen stretches them. Bigger masters at the
+ *   SAME names and compositions drop straight in — phones load cats/mobile/
+ *   and are unaffected by their weight. */
+section:has(> [class~="grid"] > .cat-tile) {
+  max-width: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+[class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
+  grid-template-columns: 1fr !important;
+  gap: 6px !important;
+}
+.cat-tile.tile-men, .cat-tile.tile-women,
+.cat-tile.tile-acc, .cat-tile.tile-outlet { border-radius: 0 !important; }
+.cat-tile.tile-men, .cat-tile.tile-women { aspect-ratio: 900 / 570 !important; }
+.cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 900 / 454 !important; }
+@media (min-width: 768px) {
+  .cat-tile.tile-men, .cat-tile.tile-women { aspect-ratio: 1216 / 706 !important; }
+  .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 1216 / 418 !important; }
+}
+@media (max-width: 767px) {
+  .cat-tile { padding: 20px !important; }
+  .cat-tile__title { font-size: 24px !important; }
+}
+

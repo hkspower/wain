@@ -1,0 +1,459 @@
+/* ------------------------------------------------------------------ hero */
+/* TALLER, by changing the ratio the box is cut to — not by adding a fixed
+   height. The banner is object-fit: cover, so a taller box crops the sides
+   rather than letterboxing; a fixed height would have to guess the viewport
+   and would leave bars at the edges of the range, which is the exact bug the
+   boot script's comments describe fixing once already.
+
+   2.52 is the shipped artwork's own ratio. On a 393px phone that is 156px of
+   picture, which reads as a band rather than a hero.
+
+     phone    100vw / 1.65  ->  238px at 393   (was 212, and 156 before that)
+     desktop  100vw / 1.90  ->  674px at 1280  (was 595, and 508 before that)
+
+   TALLER AGAIN, at the owner's request, and the ceiling on it is the artwork
+   rather than taste. The box is object-fit: cover over a 2.52:1 image, so
+   every step deeper crops more width — at 1.90 the frame keeps 75% of the
+   1600px art, at 1.65 it keeps 65%. What saves it is that the crop is pinned
+   at 15% rather than centred: the window runs 3.7%..79.1% on desktop and
+   5.2%..70.7% on the phone, so it eats the PHOTOGRAPH on the right and leaves
+   the SPORTA mark, the headline bar and the Arabic — all set in the left half
+   of every one of the five banners — untouched. Centred, the same depth would
+   have cut both edges and taken the mark with it.
+
+   AND THEN CAPPED, because the depth went somewhere it should not have. The
+   ratio is a shape; svh is a share of the window, and only the second one
+   knows how much of the shop the banner is hiding. Measured after the ratio
+   change: 674px on a 1280x900 laptop is 75% of the first screen, and on a
+   1440x700 or a 1920x1080 the old 80svh clamp bound at exactly 80% — a hero
+   with nothing under it, on the page whose job is to show what is for sale.
+
+   70svh first, and then 60svh, because 70 was still too tall — the owner said
+   so looking at it, which is the only measurement that decides this. The cap
+   is what moved, not the 1.90 ratio: the ratio is the banner's shape and there
+   was never anything wrong with it; the cap is how much of the first screen
+   the banner is allowed to take, and that is the thing that was wrong.
+
+     1280x900   674 -> 630 -> 540   75% -> 70% -> 60%
+     1440x700   560 -> 490 -> 420   80% -> 70% -> 60%
+     1920x1080  864 -> 756 -> 648   80% -> 70% -> 60%
+
+   At 60svh the cap binds on every ordinary desktop window, so the hero is
+   effectively 60% of the first screen and the ratio only paints on a window
+   taller than 1.90 times its width — a portrait monitor, in practice. That is
+   the intended reading: the shop, not the banner, gets the fold.
+
+   The phone is untouched at 43% — the cap is on --hero-h-md and the phone
+   reads --hero-h.
+
+   AND THEN THE PHONE, which is where this was actually being read.
+   ----------------------------------------------------------------
+   Every step above moved the DESKTOP cap. The phone ratio had sat at 1.65
+   since the "taller again" change and nobody had objected — because nobody
+   had seen it: sporta-ui.css was ABSENT from the server until 2026-09-04, so
+   the live phone hero was still the bundle's own 2.52. Publishing this file
+   did not just apply the desktop cap, it made the phone 52% TALLER in the
+   same breath, and that is what "too tall" was about.
+
+     393px phone   100vw / 1.65 -> 238px art     (what publishing introduced)
+                   100vw / 2.10 -> 187px art     (here — 51px shorter)
+                   100vw / 2.52 -> 156px art     (the artwork's own ratio)
+
+   2.10 rather than straight back to 2.52: at 2.52 the box is the shipped
+   art's own shape, which is where this started and which the note at the top
+   of this block calls "a band rather than a hero". 2.10 keeps it a hero and
+   gives back most of the height. It also crops LESS — a shallower box over a
+   2.52:1 image keeps about 83% of the width against 65% at 1.65 — so the
+   SPORTA mark, the headline bar and the Arabic in the left half are further
+   from the edge than they were, not closer.
+
+   If it is still too tall, 2.52 is the next stop and costs nothing but the
+   band-versus-hero judgement, which is the owner's.
+
+   The +128px on the phone value is the button strip below the art and is
+   carried through unchanged — it is measured, not a guess: py-6 top and
+   bottom (48) + a 48px button + pb-8 (32).
+
+   !important because the boot script sets these as inline styles on <html>,
+   and it has to keep doing so: it is what stops the hero resizing under
+   whoever is reading it. Overriding the variable rather than the height means
+   the pre-paint shell and the mounted component still read the same number. */
+/* AND THEN THE CAP CROPPED THE BANNER THE OTHER WAY, which nothing above
+   anticipated. Every line of the reasoning up to here is about a box TALLER
+   than the artwork's 2.52:1 — it crops the sides, the crop is pinned at 15%,
+   and the typography in the left half survives. The svh cap quietly inverts
+   that. `min(100vw/1.90, 60svh)` stops being a ratio the moment the cap binds,
+   and on a wide window the box comes out WIDER than 2.52 — so `cover` crops
+   the HEIGHT instead, and object-position is `15% center`, so it takes equal
+   bites out of the top and the bottom. Measured 2026-09-10:
+
+     1280x900    box 2.37:1   100% of the banner's height        (cap not binding)
+     1920x1080   box 2.96:1    85%   — 7.5% off the top and the bottom
+     1600x900    box 2.96:1    85%   — every 16:9 screen, which is most of them
+     1440x700    box 3.43:1    74%   — the strapline clipped at the bottom edge
+
+   16:9 is the commonest desktop shape there is, so this was the normal case,
+   not an edge one. Rendered and looked at rather than reasoned about: at
+   1440x700 "STRENGTH · MUSCLE · POWER" runs off the bottom of the frame.
+
+   THE FLOOR, chosen by the owner on 2026-09-10 out of three measured options
+   (bars at the sides, a taller hero, or leaving the crop): the banner is never
+   cropped vertically and stays edge to edge, and the hero is allowed past the
+   cap to pay for it.
+
+     height = max(100vw / 2.52, min(100vw / 1.90, 60svh))
+
+   The cap SURVIVES EVERYWHERE IT IS NOT THE CAUSE. It only loses on a window
+   wide enough that honouring it would cut the artwork:
+
+     1280x900    540 -> 540   60% -> 60%   unchanged, cap still binding
+     1920x1080   648 -> 762   60% -> 71%
+     1440x700    420 -> 571   60% -> 82%
+
+   That is taller than the 70svh the owner rejected in the round above, and it
+   is the trade they picked with those numbers in front of them. The 1.90 ratio
+   and the 60svh cap are both untouched; this only adds a floor under them.
+
+   2.52 is the artwork's own ratio, so the floor is the shape of the picture
+   rather than a number to taste. If a wider banner is ever supplied, this
+   floor is the line to move, and nothing else here. */
+/* --- AND THEN THE FLOOR BECAME THE WHOLE FORMULA — 2026-09-17 ------------
+   Asked for in as many words: the hero images full size. The owner chose
+   "the whole banner everywhere" out of three measured options, knowing the
+   phone cost, so there is no cap and no ratio of our own left — the box IS
+   the picture's shape at every width, and `cover` has nothing to crop.
+
+   What every reading above was trading away, measured the day it was
+   changed. `visible` is the share of the banner's WIDTH on screen:
+
+     390    box 2.10:1   83%      ->  2.52:1   100%
+     768    box 1.90:1   75%      ->  2.52:1   100%
+     1280   box 2.37:1   94%      ->  2.52:1   100%
+     1920   box 2.52:1  100%      ->  2.52:1   100%   (already there)
+
+   IT ALSO MADE THE PICTURE SHARPER, which was not the reason for it and is
+   worth writing down because it is counter-intuitive. `cover` on a box
+   TALLER than the artwork has to magnify the image to cover the height, and
+   that magnification is thrown away off the sides. A box at the artwork's
+   own ratio scales it once, to fit. Source pixels per CSS pixel, same run:
+
+     768    1.43 -> 1.89      1280   1.07 -> 1.14      390   2.33 -> 2.80
+
+   1920 is unchanged at 0.76 and that is the honest limit: the five frames
+   exist only at 1600px wide, the box there is 2112 CSS px, so the artwork is
+   upscaled before a retina screen doubles anything. No CSS fixes that — it
+   needs a 3200px master, which the owner is supplying.
+
+   AND THIS BLOCK WAS DEAD, which I did not know when I first edited it. A
+   SECOND `:root` re-declared --hero-h 1200 lines below — same selector, same
+   specificity, later wins — so this copy decided nothing and had been wrong
+   for as long as both existed: 2.10 and +128px here against the live 2.10 and
+   +104px there. I read this one, measured the phone, and reported a 24px
+   shell-versus-mount gap that was not happening.
+
+   The duplicate is gone and this is now the one home for both variables. The
+   lesson is the file's own, turned on itself: a number with two homes has not
+   merely drifted in theory. Before believing a declaration, ask whether
+   anything later overrides it — `grep -n` for the property answers it, and
+   getComputedStyle answers it better. */
+/* --- AND THEN THE WHOLE SCREEN — 2026-09-18 --- REVISED 2026-09-19 --------
+   Desktop: fill the whole screen height (100svh). Every window's shape differs
+   from the artwork's own 2.52:1, so `cover` crops the SIDES on every ordinary
+   screen rather than showing the whole banner.
+
+   PHONE: optimize for mobile viewport using aspect ratio. A full 100svh on
+   mobile (390x844 phone) creates a 390x740 box that shows only 20.9% of the
+   banner's width. Instead, use 2.10:1 ratio which shows 83% of the width while
+   keeping a reasonable height (186px at 390px, plus 128px button = 314px total,
+   ~37% of phone height). This preserves the left-side typography (SPORTA mark,
+   headline, Arabic strapline) while showing the image meaningfully.
+
+   100svh vs 100vh: svh tracks the SMALLEST viewport the browser allows (ignoring
+   address bar), so the hero never claims more than what is really visible.
+
+   THE PHONE BUTTON STRIP IS BELOW THE ART, NOT OVER IT, so the ratio is split:
+   the image carries the 2.10:1 aspect, and the 128px button strip sits below.
+   Desktop needs no such split: at 768px and up the art goes `md:absolute
+   md:inset-0`, laid UNDER the button rather than beside it. */
+/* FULL HEIGHT ON EVERY DEVICE, ANY CROP — 2026-09-21, on the owner's explicit
+ * instruction after being shown exactly what it costs. This reverses BOTH the
+ * phone ratio (2026-09-18/19) and the portrait-tablet exception (2026-09-20)
+ * below in one step: --hero-h and --hero-h-md carry the same formula again,
+ * with no carve-out. A phone or a portrait tablet crops the SIDES the same
+ * way an ordinary desktop window already did — previously measured at
+ * showing as little as 21-30% of the banner's width, cutting the left-side
+ * headline — and that trade was accepted in as many words rather than
+ * assumed.
+ *
+ * 75svh, NOT 100 — 2026-09-21, same day, asked for as "reduce hero slide
+ * layout height 25%". A quarter off the full screen, applied to the ONE
+ * formula both variables already share rather than to each independently,
+ * which is what keeps them from drifting into two numbers again.
+ *
+ * --hero-h MUST MATCH index.html's OWN BOOT SCRIPT, which sets both
+ * variables inline and says so in its own comment ("Both files have to say
+ * [the same value] or the shell and the mounted hero disagree") — that file
+ * was updated to 75svh in the same commit as this one. */
+:root {
+  --hero-h: 10svh !important;   /* was 55svh until 2026-09-29: "reduce hero slides layout size to be fitted with mobile" */
+  --hero-h-md: 18svh !important;
+}
+
+/* MOBILE SHORTENED AGAIN, ON ITS OWN — 2026-09-22, "make hero layout better
+ * for mobile", confirmed with the owner to mean "too tall". This UNDOES the
+ * "one formula, not a phone/desktop split" decision two paragraphs up, on
+ * purpose: that decision was right for the problem it solved (two numbers
+ * drifting apart by accident) and wrong for this one, where the owner is
+ * asking for the phone number specifically. --hero-h-md (desktop) is
+ * untouched at 75svh.
+ *
+ * AND --hero-h DOES NOT REACH THE REAL MOBILE HERO AT ALL, which every
+ * comment in this file about "one variable, two homes" assumed it did.
+ * Measured directly: overriding --hero-h on :root left the mounted hero at
+ * 633px (still 75svh of an 844px viewport) — unchanged. The only element
+ * that reads --hero-h is the pre-paint shell (index.html's .boot-hero); the
+ * real component's height is a Tailwind utility compiled into the bundle,
+ * which this project has no source for. `.hero-strength`'s own height
+ * rules, elsewhere in this file, are the SAME dead fallback theme recorded
+ * above ("this shop shows if hero_slides ever has zero active rows") —
+ * checked again here: the real carousel's outer section is
+ * `group relative isolate overflow-hidden bg-ink text-white`, never
+ * `hero-strength`, so none of those rules were ever reaching it either.
+ *
+ * THE OUTER SECTION ALONE IS THE WRONG ELEMENT TO SIZE, and the first
+ * version of this override did exactly that: shrinking `section[aria-
+ * roledescription="carousel"]` alone changed nothing about the CROP, because
+ * the box the photograph's own object-fit: cover measures itself against is
+ * one level in — `aspect-[2.52/1] overflow-hidden md:absolute md:inset-0
+ * md:aspect-auto`. Sizing only the outer section left that inner box at its
+ * old 633px and let the section's own `overflow: hidden` CLIP it to the new
+ * height — which looked right in a screenshot but was wrong underneath: the
+ * image was still being cropped as if the box were 633px tall and the extra
+ * was sliced off afterwards, rather than cover recalculating for the box the
+ * visitor actually sees. test:hero-size caught it — it measures this inner
+ * box specifically, by finding the ACTIVE slide's own photograph rather than
+ * trusting a class name, and reported shell 464px against this box still at
+ * 633. Fixed by sizing the inner box instead, so cover redoes its own math.
+ *
+ * BUT THE OUTER SECTION STILL NEEDS ITS OWN RULE TOO — found 2026-09-22 from
+ * a screenshot with a solid black band circled between the hero and "تسوّق
+ * حسب الفئة": once the inner box was absolutely positioned at 55svh, it no
+ * longer stretches the outer section through normal flow (position:absolute
+ * takes an element out of flow entirely), so the section kept its OWN
+ * separate 633px — a bundle height unrelated to the inner box's — and the
+ * 169px gap between them rendered as dead black space. "The outer section is
+ * the wrong element to size" was true of fixing the CROP; it was never true
+ * of fixing the CONTAINER, and this needs both for the same reason a box and
+ * the picture inside it are two different things that can each be the wrong
+ * height on their own. */
+/* 40svh is the DEFAULT now (it was 55svh until 2026-09-29), not a constant: both read --hero-h, which the
+ * Slides screen's Size sets (38-hero-size.css, 2026-09-29). As two literals
+ * these were what kept a phone at one height whatever the owner chose. */
+@media (max-width: 767px) {
+  [class~="aspect-[2.52/1]"][class~="overflow-hidden"][class~="md:absolute"] {
+    height: var(--hero-h, 10svh) !important;
+  }
+  section[aria-roledescription="carousel"] {
+    height: var(--hero-h, 10svh) !important;
+  }
+}
+
+/* A PHOTO SLIDE'S CAPTION BOX reads --hero-h-md through
+ * `md:min-h-[var(--hero-h-md,…)]`, but that Tailwind class is scoped to
+ * `min-width: 768px` in the compiled bundle and produces nothing below
+ * it — a phone was never going to read this variable no matter its value,
+ * because the image box beside it carries a hardcoded `aspect-[2.52/1]`
+ * with no `md:` prefix to lift on a narrow screen. Full height on phone
+ * needs the SAME split desktop already has (the image absolutely filling
+ * whatever height the caption's min-height establishes), just applied
+ * below 768px too — attribute selectors matching the compiled classes
+ * verbatim, since there is no source here to add a new one to. */
+@media (max-width: 767px) {
+  [class~="aspect-[2.52/1]"] {
+    position: absolute !important;
+    inset: 0 !important;
+    aspect-ratio: auto !important;
+  }
+  [class~="md:min-h-[var(--hero-h-md,640px)]"] {
+    min-height: var(--hero-h-md, 18svh) !important;
+  }
+}
+
+/* THE HERO'S DARK WASH, LIGHTENED — 2026-09-21, "too much shadow and tint on
+ * hero images". A real photo slide carries its own overlay for caption
+ * legibility: a <span> with `bg-gradient-to-r from-ink/85 via-ink/40
+ * to-transparent` sitting on top of the photograph, compiled by Tailwind to
+ * two custom properties on the element itself (`--tw-gradient-from` /
+ * `--tw-gradient-via`, both a near-black "ink" colour at 85%/40% alpha).
+ * Every caption live today is empty (no slide has a title set), so the wash
+ * was darkening the artwork for legibility a visitor never needed — roughly
+ * halved rather than removed, since a future slide WITH a title still needs
+ * enough contrast to read against a busy photograph.
+ *
+ * ATTRIBUTE SELECTOR ON BOTH CLASSES TOGETHER, not a bare `.from-ink\/85` —
+ * Tailwind's escaped class name matches wherever that utility is used
+ * elsewhere on the page too; requiring `via-ink/40` alongside it scopes this
+ * to the one gradient the hero actually builds from both.
+ *
+ * LIGHTENED AGAIN — 2026-09-21, same day, "make less tint" on the two real
+ * photo slides this session just published (both DO carry real captions
+ * now, unlike when the first cut was made). Checked before cutting further:
+ * both slides' headlines are set in `.hero h1`, white and bold with its own
+ * text-shadow, which is what actually carries legibility over a photograph
+ * — the wash under it is a secondary aid, not the only thing standing
+ * between the text and the image, so it had room to come down again. */
+[class~="from-ink/85"][class~="via-ink/40"] {
+  --tw-gradient-from: #171a1e4d !important;  /* 85% -> 30% alpha */
+  --tw-gradient-via: #171a1e1f !important;   /* 40% -> 12% alpha */
+}
+
+/* THE HERO'S OWN BACKGROUND, DARKENED TO MATCH THE TOPBAR — 2026-09-21, same
+ * day, asked for as "use dark background for hero slider to fit the topbar
+ * style and sporta style". Measured in a browser rather than read out of the
+ * bundle's class names, which is what `.hero-strength`/`.hero-cardio`/
+ * `.hero-arena` further down this file turned out to be — those are a
+ * ZERO-ACTIVE-ROW fallback theme, and this shop has had active rows the
+ * whole time this session has touched it, so editing them changes nothing a
+ * visitor sees. The colour actually painted behind every real slide is
+ * `bg-ink`, resolving to `rgb(36, 39, 42)` (#24272a): the bundle's general
+ * dark-grey utility, on both the outer hero `<section>` and each slide's own
+ * wrapper. It shows at the top/bottom letterbox edge and behind a slide
+ * while it is off-frame or its photo has not yet painted. With the topbar
+ * now solid `#000` (above), that grey read as a visibly lighter band
+ * directly under a black bar.
+ *
+ * SCOPED TO TWO SPECIFIC UTILITY COMBINATIONS rather than to `bg-ink` at
+ * large — that class is used elsewhere in the bundle for unrelated dark
+ * surfaces (a modal backdrop, an info card) this request never named, and a
+ * bare `.bg-ink` override would have darkened all of them. Checked against
+ * the built bundle: `isolate overflow-hidden bg-ink` is the hero section
+ * alone, and `shrink-0 bg-ink` is the per-slide wrapper alone. */
+[class~="isolate"][class~="overflow-hidden"][class~="bg-ink"],
+[class~="shrink-0"][class~="bg-ink"] {
+  background-color: #000 !important;
+}
+
+/* AND THE COMPONENT ITSELF, which is what actually sizes the mounted hero.
+   The variables above only paint the pre-mount shell — setting them alone
+   changed nothing on screen, which is how I found this out. Both have to move
+   together or the shell and the hero disagree and the page jumps at mount,
+   the one failure the boot script exists to prevent.
+
+   Phone: the art sits in an inner box carrying aspect-[2.52/1]; the outer is
+   auto and comes to art + the 128px button strip.
+   Desktop (md, 768px up): the inner goes aspect-auto and the OUTER carries
+   the ratio, clamped at 60svh. */
+/* SCOPED TO PHONES, which it was not. This rule had no media query, so it
+   applied at every width and the desktop rule below it never took effect — the
+   comment above claimed desktop was cut to 2.15 and it was measurably 1.85,
+   1408 x 761 on a 1280 screen. Found by measuring the rendered box rather than
+   reading the file. */
+/* THE PHONE HEIGHT'S ONE HOME IS FURTHER DOWN THIS FILE, not here — a second
+ * `@media (max-width: 767px) { .hero-strength { height: ... } }` used to sit
+ * at this spot too, same selector, same specificity, and being LATER in the
+ * file the one further down always won. That is the exact failure this file
+ * spent a whole comment block on for --hero-h: two homes for one number had
+ * already drifted, silently, the first time this rule was written here — this
+ * copy said 100svh while the surviving one still said the old ratio formula,
+ * and only the second was ever reaching a phone. Removed rather than
+ * corrected in place, so there is one home again. See "THE PHONE HEIGHT WAS
+ * STALE" further down for the current formula and the button-strip split. */
+@media (min-width: 768px) {
+  .hero-strength {
+    /* 2026-09-18: was aspect-ratio 2.52/1 with the ratio-and-cap history two
+     * blocks up. The art goes md:absolute md:inset-0 at this width — under
+     * the button, not beside it — so the outer's own height is already the
+     * image's height and nothing needs splitting the way the phone does.
+     * 75svh, not 100, since 2026-09-21 — same -25% as --hero-h above. */
+    height: 75svh !important;
+    aspect-ratio: auto !important;
+    max-height: none !important;
+  }
+}
+
+/* THE PORTRAIT-TABLET EXCEPTION FOR THE DRAWN-SLIDE THEMES IS GONE — 2026-09-21,
+ * the same reversal as the real photo slide's above, for the fallback theme
+ * this shop shows if hero_slides ever has zero active rows. No active row has
+ * existed in a while, so this path is untested by the change; kept as one
+ * paragraph rather than deleted, on the same reasoning this file already
+ * gives elsewhere for keeping a rule a revert might need. */
+
+/* --- WHERE THE CROP FALLS, which is the whole of "fitted" ---------------- */
+/* THE ARTWORK IS 2.52:1 AND CARRIES ITS OWN TYPOGRAPHY. Every one of the five
+ * banners is a template: the SPORTA mark, "MEN'S / WOMEN'S TRAINING", an
+ * orange headline bar, the Arabic, and a strapline — all set in the LEFT half,
+ * with the photograph on the right.
+ *
+ * Cutting a 2.52 picture to a 1.85 box discards 27% of its width, and
+ * object-position defaults to centre, so it took 13.5% off EACH edge. That
+ * beheaded every line of type in the banner:
+ *
+ *     SPORTA          ->  RTA
+ *     MEN'S TRAINING  ->  N'S TRAINING
+ *     BODY BUILDING   ->  ODY BUILDING
+ *     كمال الأجسام     ->  cut mid-word
+ *
+ * Moving the window to the left keeps all of it. 15% rather than 0%: the
+ * typography starts 6.1% into the artwork in all five files — they share a
+ * template, so the margin is the same every time — and 15% of the overflow
+ * puts the window's edge at 4.0%, which clears the type by two points and buys
+ * back four points of picture on the right. At 0% the cardio-women banner lost
+ * its subject off the right edge; at 15% she is in frame and every line of
+ * type is still whole. Checked on all five, at both sizes.
+ *
+ * A PERCENTAGE, NOT A KEYWORD. `left` would be right too, but the logical
+ * `start` would flip to the right edge in Arabic and cut off exactly the text
+ * this rule exists to protect. The artwork's type is on the physical left in
+ * both languages — the files are not mirrored — so the value must be physical.
+ *
+ * If the hero should be taller than this without losing anything, the artwork
+ * has to be taller: these are 1000x396 and 1600x635. No CSS can add picture
+ * that was never photographed. */
+/* AND object-fit: COVER, which is the half that was missing.
+ *
+ * The rule above was written for a crop that was not happening. The visible
+ * banner is object-fit: CONTAIN — only the blurred backdrop behind it is
+ * cover — so the artwork was being letterboxed inside the taller box, not
+ * cropped, and object-position had nothing to position. Measured on a 390px
+ * phone: 390x154 of picture floating in a 339px section, with the rest of the
+ * height a blurred smear of itself. The banner's own type is set for a 1000px
+ * frame, so at that size "STRENGTH · MUSCLE · POWER" renders about five pixels
+ * tall and the Arabic line is not readable at all.
+ *
+ * With cover the artwork fills the box and everything in it grows by a third.
+ * What that costs is the right-hand 22.6% of the frame, which is the far edge
+ * of the photograph — the athlete stays in shot, and every line of type is
+ * inside the window by the arithmetic below.
+ *
+ *   a 1.85 box shows 1.85/2.52 = 73.4% of the width
+ *   at object-position 15% that window runs 3.99% .. 77.40%
+ *   the template's type starts at 6.0% (the Arabic) and 6.2% (the mark)
+ *
+ * So the type clears the left edge by two points in every one of the five
+ * banners — they share a template, so the margin is identical — and nothing on
+ * the type side is lost. Verified by rendering and measuring the pixels, not
+ * by reading this sum. */
+.hero-strength img,
+.hero-strength picture img {
+  object-fit: cover !important;
+  object-position: 15% center !important;
+}
+/* 2026-09-18: 15% WAS TUNED FOR A MILD CROP AND THE PHONE CROP IS NO LONGER
+ * MILD. Full-height made the phone's image box `calc(100svh - 104px)` tall
+ * against the same 390px width — on an 844px phone that is a 390x740 box,
+ * ratio 0.53:1, showing only 390/(740*2.52) = 20.9% of the banner's width.
+ * At 15% that window would run 12.3%..33.2% — the SPORTA mark at 6.2% and the
+ * headline's own start at 6.0% both fall OUTSIDE it, cut off entirely rather
+ * than merely close to the edge. 0% moves the window to 0%..20.9%, which is
+ * as much of the type as this crop can show at all; anything past it is
+ * simply outside the visible 20.9% at any position, cover cannot recover it,
+ * and only a taller phone composition of its own — a design decision, not a
+ * number to tune — would show more. Desktop is untouched: its crop stays in
+ * the 60-70% range the 15% figure above was measured against. */
+@media (max-width: 767px) {
+  .hero-strength img,
+  .hero-strength picture img {
+    object-position: 0% center !important;
+  }
+}
+
