@@ -614,9 +614,57 @@ out this time**, so the «cannot be finished from an MCP session» paragraph in 
 «أنت بالسيارة» present. Attached through `agents_update` with
 `conversation_config.agent.prompt.knowledge_base` alone — version
 `agtvrsn_7101m3t5ner4fjesjk88xgha6cdy`; the reply still held the prompt, three
-tools, the 25 tests and the auth/override settings. The 25 tests were NOT re-run
-(nothing in her prompt changed, only two hamzas in the data). The old v4 document
+tools, the 25 tests and the auth/override settings. The old v4 document
 has no dependent agent now and was left in the workspace, not deleted.
+
+**The 25 tests were re-run on 1 October, and "nothing in her prompt changed" did not
+mean "nothing to check": 45/50 on `…7101…`, down from 46 and 45 on `…0301…`.** The
+two suites before it had failed a different five each time; this one failed
+`ذكاء ٦` 2/2 and `منطق ٦` 2/2, both of which had passed in both earlier suites.
+The only differences between the two live configs are the brand bullet in «حدودك»
+(29 September) and the v4 → v5 document, so the cause was not established — and
+`ذكاء ٦` turned out not to need one: re-run ×3 on the same version it passed 3/3
+(she still says «خمس دنانير» back to the caller, and the judge passes it about as
+often as it fails it). **A 2/2 is not proof, either** — that is the second time
+this file has had to say it, so read a re-run before editing a prompt.
+
+**`منطق ٦` is real, and it is the model, not the wording.** Gemini-flash, the
+primary, answers «أبي أتمشى على البحر» with «أحلى وقت له العصر المتأخر» — the
+knowledge base's line, verbatim — **every time**: 0 of 11 across five suites and
+three versions, while all 6 of the `gpt-4o` runs passed. `gpt-4o` is the backup the
+agent falls back to when the primary is slow: `charging.llm_usage` in the test
+run names the model that answered, which is the thing to read before believing a
+2/5. So a 40% pass rate here is a coin toss over *which model replied*, and in
+production the primary answers first.
+
+Two prompt placements were tried and neither moved it (`agtvrsn_3901…`, then
+`agtvrsn_3801…`): the «no time given → it is now, and now is summer» case written
+into step ٣ beside the rule it belongs to, with the mechanical check «is there
+عصر / صبح / ظهر in your sentence?»; and then the same check as a last block at the
+very end of the prompt, naming the exact phrase she kept producing («العصر لين
+الغروب», a new variant each time the old one was banned). Kept, because they are
+consistent with the rules around them and the full suite did not regress — but they
+are **not the fix**. **Stop adding words to the prompt for this one.** What would
+work is upstream of it: the line she copies lives in `places.ts`'s best-time field
+for the beaches, so either that field stops being a year-round statement the prompt
+has to undo (a KB change, which means a new pinned commit and a new document), or
+the primary model is changed. Neither was done.
+
+**One real defect in the prompt was found on the way, and fixed: the «مثال على رد
+ممتاز» said «أحلى وقت لها العصر وبعد المغرب»** — the worked example of a good
+answer taught the banned wording, three sections above the rule banning it. It
+says «عقب المغرب» now, in the live prompt and in `scripts/wain-ai-brief.mjs`.
+**An example outranks the rule beside it**, so read the examples after writing a
+rule.
+
+**Final state: `agtvrsn_3801m3tb1k8pfawaj7n75kkz785q`, 47/50**, and of the three
+failures one is `منطق ٦` and two are the harness — `فجوة` «Evaluation failed» and
+`مو فجوة` «Simulation timed out», neither with a reply to judge. `ذكاء ٦` 2/2,
+`ذكاء ٤` 2/2, every `شكل` test passed. The prompt changes are: the no-time-given
+bullet in step ٣, the example, and the closing block. The brief gained the first
+two; the KB file is byte-identical, so the pinned document is not behind. A test
+run whose result is «Evaluation failed» or «Simulation timed out» says nothing about
+her — re-run it before counting it.
 
 **What nothing here can prove.** No Xcode, so no iOS binary was built:
 the iOS job is unexecuted, and the Android APK has never been installed on a phone. `api.elevenlabs.io` and `tile.openstreetmap.org` are
