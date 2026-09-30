@@ -376,5 +376,18 @@ Options -Indexes
   # the separate directive an AudioWorklet's addModule() is checked
   # against, and nothing here had told it the widget's worklet lives at the
   # same host.
-  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob: https://*.supabase.co https://tile.openstreetmap.org; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://unpkg.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://unpkg.com https://api.elevenlabs.io https://api.us.elevenlabs.io wss://api.elevenlabs.io wss://api.us.elevenlabs.io https://sportake.app.n8n.cloud; frame-src https://www.openstreetmap.org; media-src 'self' blob: https://api.elevenlabs.io; worker-src 'self' blob: https://unpkg.com; manifest-src 'self'"
+  #
+  # That comment named the wrong directive as the whole story, and the mic
+  # stayed dead for callers who had granted it: the widget builds its audio
+  # processor as a blob: URL and loads it with addModule(), and Chromium checks
+  # THAT against script-src — worker-src is for Worker and SharedWorker, not
+  # worklets — so with 'self' 'unsafe-inline' and unpkg.com but no blob:, the
+  # microphone was allowed, the socket opened, the header read «متصل», and not
+  # one audio chunk was ever sent. Measured against the real 0.18.1 bundle under
+  # this exact policy with a fake microphone and a mock socket: 0 chunks sent,
+  # 201 with blob: added to script-src, 197 with no policy at all. Nothing is
+  # logged where the page can see it (no securitypolicyviolation, no error), so
+  # the console was clean while she heard nothing. worker-src keeps its blob:
+  # and unpkg.com; taking them out was not tested and is not the point.
+  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob: https://*.supabase.co https://tile.openstreetmap.org; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' blob: https://unpkg.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://unpkg.com https://api.elevenlabs.io https://api.us.elevenlabs.io wss://api.elevenlabs.io wss://api.us.elevenlabs.io https://sportake.app.n8n.cloud; frame-src https://www.openstreetmap.org; media-src 'self' blob: https://api.elevenlabs.io; worker-src 'self' blob: https://unpkg.com; manifest-src 'self'"
 </IfModule>

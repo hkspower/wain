@@ -19,6 +19,7 @@
     "audit:figma": "node scripts/audit-figma.mjs",
     "ai:brief": "node scripts/wain-ai-brief.mjs",
     "test:shouq": "node tests/run-shouq.mjs",
+    "test:widget-csp": "node tests/shouq-widget-csp.test.mjs",
     "voice:sample": "node scripts/gen-voice.mjs --sample",
     "voice:levels": "node scripts/gen-voice-levels.mjs",
     "voice:fixture": "node scripts/gen-voice-fixture.mjs",

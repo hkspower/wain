@@ -1213,6 +1213,40 @@ comment already states — «if شوق or the voice stop working after a change
 here, the browser console names the directive» — is what actually found this
 one: a live screenshot of the failed call, not a scan.
 
+**And that fix was the wrong directive, and the microphone stayed dead for
+callers who had granted it — 30 September.** «She didn't hear my voice», again,
+with the mic allowed and the header reading «متصل». The widget builds its audio
+processor as a `blob:` URL and loads it with `addModule()`; Chromium checks that
+against **`script-src`**, not `worker-src` (which is for `Worker`/`SharedWorker`).
+`script-src` was `'self' 'unsafe-inline' https://unpkg.com` — no `blob:` — so
+the worklet never loaded, nothing was captured, and **not one audio chunk left
+the page**. It is silent by construction: no `securitypolicyviolation` event
+reached the document, no error was logged, no promise the page can see
+rejected. The header, the timer and the socket all looked healthy.
+
+Found by measuring rather than reading: the REAL 0.18.1 bundle (`npm pack`),
+the CSP and Permissions-Policy read from `public/.htaccess`, Chromium's fake
+microphone, and a mock ElevenLabs socket routed with `routeWebSocket`, counting
+`{"user_audio_chunk": …}` messages. **Production policy: 0. With `blob:` added
+to `script-src`: 201. No policy at all: 197.** Bisected the same way —
+`worker-src+data:` and `media-src+data:` changed nothing, `connect-src+blob:`
+was not needed. `script-src` gains `blob:`, which costs little beside the
+`'unsafe-inline'` it already carries.
+
+`npm run test:widget-csp` is that measurement, kept: it needs the registry and a
+fresh `out/`, so it is not in `scan`. It has its own control (no policy → chunks
+flow) so a mock that stopped answering cannot pass or fail it alone, and it was
+confirmed red by taking `blob:` back out — the audio assertion failed and only
+it. `audit:htaccess` also asserts `blob:` is in `script-src`, the cheap half.
+**Its first version counted `type === "user_audio_chunk"` and read 0 in the
+control too:** audio messages have no `type` field, the key IS the name.
+
+**Also seen, not fixed:** the widget's orb wants
+`https://storage.googleapis.com/eleven-public-cdn/images/perlin-noise.png` and
+`img-src` refuses it. Cosmetic (a texture), and allowing it hands a visitor's
+address to Google's storage host during a call — a decision, not a cleanup.
+Not live until a deploy.
+
 **And the SDK offers a way around needing `blob:`/a third-party `worker-src`
 entry at all, not taken here.** `@elevenlabs/client`'s `AudioWorkletConfig`
 (`workletPaths.rawAudioProcessor`/`audioConcatProcessor`) exists precisely

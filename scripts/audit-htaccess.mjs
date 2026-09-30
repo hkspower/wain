@@ -197,6 +197,18 @@ if (!csp) {
   // covered origins while quietly covering unpkg.
   const governed = origins.filter((o) => !excused.has(o));
   const parsed = parseCsp(csp);
+  // Not an origin, so nothing above can see it: شوق's widget loads its audio
+  // processor as a blob: script, which Chromium checks against script-src.
+  // Without it the microphone is granted, the socket opens and NO audio is
+  // ever sent — and nothing is reported to the page. Measured, not assumed:
+  // tests/shouq-widget-csp.test.mjs drives the real widget under this policy.
+  if (!parsed["script-src"]?.has("blob:"))
+    errors.push(
+      "script-src has no blob: in public/.htaccess. شوق's widget loads its AudioWorklet from a " +
+        "blob: URL and Chromium checks that against script-src, not worker-src — without it a " +
+        "granted microphone streams nothing and the page is told nothing."
+    );
+  else notes.push("allowed: script-src carries blob: — the widget's AudioWorklet loads from a blob: URL");
   /** Is `origin` named in every directive it needs? Returns the missing ones. */
   const missing = (origin) =>
     (DIRECTIVE[origin] ?? DEFAULT_DIRECTIVE).filter((d) => !parsed[d]?.has(origin));
