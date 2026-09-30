@@ -1228,8 +1228,13 @@ if ($r === 'set_stock' && $method === 'POST') {
     if ($stock < 0) store_fail('stock_cannot_be_negative');
     // The RPC discipline kept: only the count moves. Not the SKU, not the
     // slug, not the cost.
+    $was = $db->prepare('select slug, size, stock from product_variants where sku = ?');
+    $was->execute([(string)($b['sku'] ?? '')]);
+    $wasRow = $was->fetch();
     $q = $db->prepare('update product_variants set stock = ? where sku = ?');
     $q->execute([$stock, (string)($b['sku'] ?? '')]);
+    if ($wasRow) store_stock_log($db, (string)$b['sku'], $wasRow['slug'], $wasRow['size'],
+                                 $stock - (int)$wasRow['stock'], $stock, 'set', $admin['email'] ?? null);
     if ($q->rowCount() === 0) {
         $chk = $db->prepare('select 1 from product_variants where sku = ?');
         $chk->execute([(string)($b['sku'] ?? '')]);
@@ -1290,12 +1295,16 @@ if ($r === 'variant_save' && $method === 'POST') {
     // than erroring — the admin screen re-saves a row the operator is editing,
     // and a second click must not be a failure. The stock is set, not added:
     // this screen shows a number and writes back the number shown.
+    $prev = $db->prepare('select stock from product_variants where sku = ?');
+    $prev->execute([$sku]);
+    $prevStock = $prev->fetchColumn();
     $q = $db->prepare(
         'insert into product_variants (sku, slug, size, stock, cost_aed)
               values (?, ?, ?, ?, ?)
          on duplicate key update stock = values(stock), cost_aed = values(cost_aed)'
     );
     $q->execute([$sku, $slug, $size, $stock, $cost]);
+    store_stock_log($db, $sku, $slug, $size, $stock - ($prevStock === false ? 0 : (int)$prevStock), $stock, 'variant', $admin['email'] ?? null);
 
     $q2 = $db->prepare('select sku, slug, size, stock, cost_aed from product_variants where sku = ?');
     $q2->execute([$sku]);
@@ -1414,13 +1423,112 @@ if ($r === 'product_attrs_save' && $method === 'POST') {
 if ($r === 'variant_delete' && $method === 'POST') {
     $b = store_body();
     $sku = (string)($b['sku'] ?? '');
-    $q = $db->prepare('select stock from product_variants where sku = ?');
+    $q = $db->prepare('select slug, size, stock from product_variants where sku = ?');
     $q->execute([$sku]);
     $row = $q->fetch();
     if (!$row) store_fail('sku_not_found');
     if ((int)$row['stock'] > 0 && empty($b['force'])) store_fail('variant_has_stock');
     $db->prepare('delete from product_variants where sku = ?')->execute([$sku]);
+    store_stock_log($db, $sku, $row['slug'], $row['size'], -(int)$row['stock'], 0, 'delete', $admin['email'] ?? null);
     store_out(['deleted' => $sku]);
+}
+
+// ---------------------------------------------------- inventory: tools and history
+//
+// "improve inventory" — the owner, 2026-09-30: find and edit faster, low-stock
+// warnings, a history of changes, and spreadsheet import/export. The screen
+// itself is the bundle's (a table of every size, an input per stock count); these
+// routes are what the overlay (assets/inventory-tools.js) reads and writes.
+//
+// THE LOW-STOCK LINE is one number in the `inventory` settings row, default 5.
+// It only COLOURS things and counts them: nothing hides a product or refuses an
+// order because of it (that is `stock = 0`, and the shop already does that).
+if ($r === 'inventory_meta') {
+    $set = store_setting($db, 'inventory');
+    $low = isset($set['low']) ? max(0, min(999, (int)$set['low'])) : 5;
+    $hidden = $db->query('select slug from products where active = 0')->fetchAll(PDO::FETCH_COLUMN);
+    $logReady = true;
+    try { $db->query('select 1 from stock_log limit 1'); } catch (Throwable $e) { $logReady = false; }
+    store_out(['low' => $low, 'hidden' => array_values($hidden), 'log_ready' => $logReady]);
+}
+
+if ($r === 'inventory_low_save' && $method === 'POST') {
+    $rawLow = store_body()['low'] ?? null;
+    if (!is_int($rawLow) && !(is_string($rawLow) && preg_match('/^\d{1,3}$/', trim($rawLow)))) store_fail('invalid_low');
+    $low = (int)$rawLow;
+    if ($low < 0 || $low > 999) store_fail('invalid_low');
+    $set = store_setting($db, 'inventory');
+    $set['low'] = $low;
+    store_setting_save($db, 'inventory', $set);
+    store_out(['ok' => true, 'low' => $low]);
+}
+
+if ($r === 'inventory_log') {
+    $slug = trim((string)($_GET['slug'] ?? ''));
+    $limit = max(1, min(200, (int)($_GET['limit'] ?? 60)));
+    try {
+        $sql = 'select l.id, l.at, l.sku, l.slug, p.name_en, l.size, l.delta, l.stock_after, l.reason, l.actor, l.ref
+                  from stock_log l left join products p on p.slug = l.slug'
+             . ($slug !== '' ? ' where l.slug = ?' : '') . ' order by l.id desc limit ' . $limit;
+        $q = $db->prepare($sql);
+        $q->execute($slug !== '' ? [$slug] : []);
+        $rows = $q->fetchAll();
+    } catch (Throwable $e) {
+        store_out(['ready' => false, 'rows' => []]);
+    }
+    foreach ($rows as &$row) { $row['delta'] = (int)$row['delta']; $row['stock_after'] = $row['stock_after'] === null ? null : (int)$row['stock_after']; }
+    store_out(['ready' => true, 'rows' => $rows]);
+}
+
+// ONE ROUTE FOR "SAVE ALL SIZES OF A PRODUCT" AND "APPLY A SPREADSHEET". A list of
+// {sku, stock}; `dry` answers what WOULD change and writes nothing (the import's
+// preview). An apply is ALL OR NOTHING: one unknown SKU, one negative or
+// non-numeric count refuses the whole batch with every problem named, because a
+// spreadsheet half-applied is a stock room nobody can reconcile. Only the COUNT
+// moves — never the SKU, the slug, the cost or the sizes offered.
+if ($r === 'inventory_apply' && $method === 'POST') {
+    $b = store_body();
+    $changes = is_array($b['changes'] ?? null) ? $b['changes'] : [];
+    if (!$changes) store_fail('nothing_to_apply');
+    if (count($changes) > 600) store_fail('too_many_rows');
+    $reason = in_array($b['reason'] ?? '', ['bulk', 'import'], true) ? $b['reason'] : 'bulk';
+    $dry = !empty($b['dry']);
+    $get = $db->prepare('select slug, size, stock from product_variants where sku = ?');
+    $out = []; $bad = 0; $seen = [];
+    foreach ($changes as $c) {
+        $sku = trim((string)($c['sku'] ?? ''));
+        $raw = $c['stock'] ?? null;
+        $row = ['sku' => $sku, 'status' => 'ok'];
+        if ($sku === '' || isset($seen[$sku])) { $row['status'] = $sku === '' ? 'no_sku' : 'duplicate_sku'; $bad++; $out[] = $row; continue; }
+        $seen[$sku] = true;
+        if (!is_int($raw) && !(is_string($raw) && preg_match('/^\d{1,7}$/', trim($raw)))) { $row['status'] = 'invalid_stock'; $bad++; $out[] = $row; continue; }
+        $new = (int)$raw;
+        if ($new < 0 || $new > 1000000) { $row['status'] = 'invalid_stock'; $bad++; $out[] = $row; continue; }
+        $get->execute([$sku]);
+        $cur = $get->fetch();
+        if (!$cur) { $row['status'] = 'unknown_sku'; $bad++; $out[] = $row; continue; }
+        $row += ['slug' => $cur['slug'], 'size' => $cur['size'], 'before' => (int)$cur['stock'], 'after' => $new];
+        if ($row['before'] === $new) $row['status'] = 'same';
+        $out[] = $row;
+    }
+    $changed = count(array_filter($out, fn($r0) => $r0['status'] === 'ok'));
+    if ($dry) store_out(['dry' => true, 'rows' => $out, 'errors' => $bad, 'changed' => $changed]);
+    if ($bad > 0) store_out(['error' => 'batch_refused', 'rows' => $out, 'errors' => $bad, 'changed' => 0], 400);
+    try {
+        $db->beginTransaction();
+        $upd = $db->prepare('update product_variants set stock = ? where sku = ?');
+        foreach ($out as $row) {
+            if ($row['status'] !== 'ok') continue;
+            $upd->execute([$row['after'], $row['sku']]);
+            store_stock_log($db, $row['sku'], $row['slug'], $row['size'], $row['after'] - $row['before'], $row['after'], $reason, $admin['email'] ?? null);
+        }
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        error_log('inventory_apply: ' . $e->getMessage());
+        store_fail('failed', 500);
+    }
+    store_out(['ok' => true, 'rows' => $out, 'errors' => 0, 'changed' => $changed]);
 }
 
 // ------------------------------------------------------------------- slides

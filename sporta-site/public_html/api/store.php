@@ -2970,6 +2970,23 @@ function store_discounts_claim(PDO $db, array $applied): bool {
     return true;
 }
 
+// A LINE IN THE STOCK HISTORY (stock_log). BEST-EFFORT BY DESIGN: this runs inside
+// the paths that take a customer's stock and put it back, so a missing table, a
+// full disk or any other failure is swallowed — a history that could refuse an
+// order would be worse than none. A change of zero is not a change and is not
+// written. `after` may be null when it was not read back.
+function store_stock_log(PDO $db, string $sku, string $slug, string $size, int $delta, ?int $after,
+                         string $reason, ?string $actor = null, ?string $ref = null): void {
+    if ($delta === 0) return;
+    try {
+        $db->prepare('insert into stock_log (sku, slug, size, delta, stock_after, reason, actor, ref)
+                      values (?, ?, ?, ?, ?, ?, ?, ?)')
+           ->execute([$sku, $slug, $size, $delta, $after, $reason,
+                      $actor !== null ? mb_substr($actor, 0, 80) : null, $ref]);
+    } catch (Throwable $e) { /* history is optional */ }
+}
+
+
 // ------------------------------------------------------- claiming the garment
 //
 // THE SHOP COULD SELL WHAT IT DID NOT HAVE, and it was not close. Measured: a
@@ -3005,6 +3022,7 @@ function store_stock_claim(PDO $db, array $lines): array {
           where slug = ? and size = ? and stock >= ?'
     );
     $left = $db->prepare('select stock from product_variants where slug = ? and size = ?');
+    $skuQ = $db->prepare('select sku, stock from product_variants where slug = ? and size = ?');
     // IS THIS PRODUCT STOCK-TRACKED AT ALL — which is not the same question as
     // "did the order name a size", and reading it as such broke a working
     // checkout. A cart may carry a size for a product that has NO variant rows
@@ -3023,7 +3041,15 @@ function store_stock_claim(PDO $db, array $lines): array {
         }
         if (!$known[$l['slug']]) continue;
         $take->execute([$l['qty'], $l['slug'], $l['size'], $l['qty']]);
-        if ($take->rowCount() === 1) { $claimed++; continue; }
+        if ($take->rowCount() === 1) {
+            $claimed++;
+            // The ACTUAL sku, read back: shops import supplier codes (A-CST-NA-L) that
+            // are not the slug-derived ones variant_save generates.
+            $skuRow = $skuQ->execute([$l['slug'], $l['size']]) ? $skuQ->fetch() : false;
+            if ($skuRow) store_stock_log($db, (string)$skuRow['sku'], $l['slug'], $l['size'],
+                                         -(int)$l['qty'], (int)$skuRow['stock'], 'order');
+            continue;
+        }
         // Either the shelf is short or there is no such variant at all. Both
         // are "you cannot have this", and both are reported with the number
         // the shopper needs — zero in the second case.
@@ -3066,6 +3092,14 @@ function store_stock_release(PDO $db, int $orderId): bool {
     // order was decremented twice and credited back once: the difference
     // vanished off the shelf permanently, with no error anywhere to find it
     // by. Aggregating first makes the release the exact mirror of the claim.
+    $back = $db->prepare(
+        'select p.slug as slug, i.size as size, sum(i.qty) as qty
+           from order_items i join products p on p.id = i.product_id
+          where i.order_id = ? and i.size is not null
+          group by p.slug, i.size'
+    );
+    $back->execute([$orderId]);
+    $backRows = $back->fetchAll();
     $put = $db->prepare(
         'update product_variants v
            join (select p.slug as slug, i.size as size, sum(i.qty) as qty
@@ -3077,6 +3111,13 @@ function store_stock_release(PDO $db, int $orderId): bool {
             set v.stock = v.stock + s.qty'
     );
     $put->execute([$orderId]);
+    $now = $db->prepare('select sku, stock from product_variants where slug = ? and size = ?');
+    foreach ($backRows as $br) {
+        $now->execute([$br['slug'], $br['size']]);
+        $nr = $now->fetch();
+        if ($nr) store_stock_log($db, (string)$nr['sku'], $br['slug'], $br['size'], (int)$br['qty'], (int)$nr['stock'],
+                                 'release', null, 'order:' . $orderId);
+    }
     return true;
 }
 
