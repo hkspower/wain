@@ -86,6 +86,8 @@ export const ASSETS = [
     what: "The flag decal, at the size it is worn." },
   { path: "press/police", kind: "kept", by: "—",
     what: "The patrol car against its reference: quarter, side and far side." },
+  { path: "press/data", kind: "kept", by: "tools/game-data.mjs",
+    what: "The game's numbers in one JSON: cars, rivals and engines, for charts." },
 
   // ---- Measurements that were worth keeping. Each of these is a
   // before-and-after or a reference plate that a comment somewhere

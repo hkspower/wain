@@ -22,6 +22,7 @@ whether it belongs in the history at all.
 | `map/` | The circuit, drawn. | by hand | kept |
 | `flags/` | The flag decal, at the size it is worn. | `tools/shots/flags.mjs` | kept |
 | `police/` | The patrol car against its reference: quarter, side and far side. | by hand | kept |
+| `data/` | The game's numbers in one JSON: cars, rivals and engines, for charts. | `tools/game-data.mjs` | kept |
 | `blur/` | Building blur, before and after. | `tools/shots/nightlook.mjs` | kept |
 | `sharp/` | Edge sharpness at each resolution step. | `tools/shots/sharpness.mjs` | kept |
 | `paint/` | Paint under the street lights, per finish. | `tools/shots/paint.mjs` | kept |
