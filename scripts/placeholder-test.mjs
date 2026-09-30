@@ -42,8 +42,13 @@ const count = (page) => page.evaluate(() => {
   for (const a of cards) {
     const img = a.querySelector(':scope > img')
     const isPlaceholder = (img.getAttribute('src') || '').startsWith('data:image/svg+xml')
+    // 2026-09-30: the mark is now the swapped-in picture itself (css/41-no-photo.css
+    // gives the bundle's gradient the Sporta placeholder), and the old ::after overlay
+    // is retired because it drew a SECOND logo over it — so "carries the mark" means
+    // the img shows no-photo.svg AND nothing is painted over it.
     const after = getComputedStyle(a, '::after')
-    const painted = after.content === '""' && after.backgroundImage.includes('logo-white')
+    const overlaid = after.content === '""' && after.backgroundImage.includes('logo-white')
+    const painted = getComputedStyle(img).content.includes('no-photo.svg') && !overlaid
     if (isPlaceholder) { phTotal++; if (painted) phMarked++ }
     else { photoTotal++; if (painted) photoMarked++ }
   }

@@ -266,7 +266,13 @@ if (!placeholderMark || placeholderMark.count === 0) {
 } else {
   const { count, cardW, markPct, natural } = placeholderMark
   console.log(`     ${count} photo-less card(s) on /shop; widest is ${Math.round(cardW)}px, mark at ${markPct}%`)
-  check(!!natural, `the mark's own image loaded and reported its size${natural ? '' : ' — background-image url() resolved to nothing the browser could decode'}`)
+  // 2026-09-30: the ::after logo overlay (css/13-placeholder-card.css) was RETIRED —
+  // css/41-no-photo.css swaps the bundle's gradient for a placeholder that carries
+  // the mark itself, and the overlay drew a second, offset logo on top of it.
+  // No overlay means nothing to measure here; test:placeholder now asserts that
+  // every photo-less card shows the swapped picture with nothing painted over it.
+  if (!natural && markPct === 100) console.log('ok   the ::after overlay is retired — the placeholder picture carries the mark (see test:placeholder)')
+  else check(!!natural, `the mark's own image loaded and reported its size${natural ? '' : ' — background-image url() resolved to nothing the browser could decode'}`)
   if (natural) {
     const renderedW = cardW * (markPct / 100)
     check(natural.w >= renderedW,

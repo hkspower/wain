@@ -961,8 +961,16 @@ div.flex.h-full.w-full:has(> img:not([src^='data:'])) > img[src^='data:image/svg
  *
  * Same guard as the track rule: only when a real photograph is there to take
  * its place, so a garment with no pictures keeps its placeholder everywhere. */
+/* THE SECOND SELECTOR WAS `… > *:has(> img[src^='data:image/svg'])`, AND THAT
+ * `*` COST THE WHOLE SHOP ITS SCROLL SMOOTHNESS (measured 2026-09-30, iPhone 14
+ * emulation at 4x CPU): a selector is matched from its RIGHT end, so a universal
+ * subject with :has() asked EVERY element on EVERY page — the shop grid is full
+ * of placeholder SVGs — whether it had anything to do with this strip or not.
+ * Removing that one rule took /shop from 24% of frames over 33 ms to 3%. The
+ * subject is `button` now, which is what the thumbnail strip is made of, so
+ * the engine only looks at buttons. */
 .lg\:flex:has(> img:not([src^='data:'])) > img[src^='data:image/svg'],
-.lg\:flex:has(img:not([src^='data:'])) > *:has(> img[src^='data:image/svg']) {
+.lg\:flex:has(> button > img:not([src^='data:'])) > button:has(> img[src^='data:image/svg']) {
   display: none;
 }
 
@@ -3991,4 +3999,35 @@ section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][clas
 img[src^="data:image/svg+xml"] {
   content: url("/assets/no-photo.svg");
   object-fit: cover;
+}
+/* SCROLLING — 2026-09-30, "better scrolling".
+ *
+ * What was measured first (iPhone 14 emulation, 4x CPU, a scripted scroll of
+ * each page): /shop had 24% of frames over 33 ms, the product page 10%, the home
+ * page 4%. One selector caused nearly all of it — see the note in
+ * 05-product-page.css and test:has-cost. That is the change that matters; the
+ * rules below are the two small ones that belong beside it.
+ *
+ * 1. THE STOREFRONT'S SMOOTH SCROLL IGNORED "REDUCE MOTION". The bundle sets
+ *    `html{scroll-behavior:smooth}` unconditionally, so a person who has asked
+ *    their phone for less movement still got every in-page jump animated.
+ *    Nothing is taken away for anyone else.
+ */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 2. THE PRODUCT THUMBNAIL STRIP is the shop's only sideways scroller, and it
+ *    stopped wherever the finger did — half a picture cut at the edge — and
+ *    handed the rest of the swipe to the page behind it. `proximity` (not
+ *    `mandatory`) snaps to a picture when a swipe ends near one and never fights
+ *    a slow drag; `contain` keeps the swipe inside the strip. */
+.lg\:flex.overflow-x-auto {
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+}
+.lg\:flex.overflow-x-auto > * {
+  scroll-snap-align: start;
 }

@@ -61,8 +61,16 @@ div.flex.h-full.w-full:has(> img:not([src^='data:'])) > img[src^='data:image/svg
  *
  * Same guard as the track rule: only when a real photograph is there to take
  * its place, so a garment with no pictures keeps its placeholder everywhere. */
+/* THE SECOND SELECTOR WAS `… > *:has(> img[src^='data:image/svg'])`, AND THAT
+ * `*` COST THE WHOLE SHOP ITS SCROLL SMOOTHNESS (measured 2026-09-30, iPhone 14
+ * emulation at 4x CPU): a selector is matched from its RIGHT end, so a universal
+ * subject with :has() asked EVERY element on EVERY page — the shop grid is full
+ * of placeholder SVGs — whether it had anything to do with this strip or not.
+ * Removing that one rule took /shop from 24% of frames over 33 ms to 3%. The
+ * subject is `button` now, which is what the thumbnail strip is made of, so
+ * the engine only looks at buttons. */
 .lg\:flex:has(> img:not([src^='data:'])) > img[src^='data:image/svg'],
-.lg\:flex:has(img:not([src^='data:'])) > *:has(> img[src^='data:image/svg']) {
+.lg\:flex:has(> button > img:not([src^='data:'])) > button:has(> img[src^='data:image/svg']) {
   display: none;
 }
 
