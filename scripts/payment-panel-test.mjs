@@ -168,6 +168,20 @@ try {
     'clearing the box hands control back to the file',
     await p.locator('.spk-src').first().innerText())
 
+  /* ------------------- 6. mode, environment, language and CBK credentials */
+  check(await card().locator('select.spk-input').count() === 3, 'the card offers mode, environment and English-code choices')
+  const cbkBox = card().locator('input[type=password]')
+  check(await cbkBox.count() === 5, 'and five write-only secret boxes (password, key, three CBK credentials)', `got ${await cbkBox.count()}`)
+  await card().locator('select.spk-input').nth(1).selectOption('test')
+  await cbkBox.nth(2).fill('PANEL-CBK-ID')
+  const sent2 = p.waitForRequest((r) => r.url().includes('settings_save'))
+  await card().getByRole('button').filter({ hasText: /^Save$/ }).click()
+  const body2 = (await sent2).postDataJSON()
+  check(body2.value.env === 'test' && body2.value.cbk_client_id === 'PANEL-CBK-ID' && !('cbk_client_secret' in body2.value),
+    'Save sends the chosen environment and only the CBK box that was typed into')
+  await p.waitForTimeout(1500)
+  check(JSON.parse(sql("select value from settings where name='knet'") || '{}').cbk_client_id === 'PANEL-CBK-ID', 'and it is stored')
+
   console.log('')
   console.log(fails ? `${fails} check(s) failed` : 'all ok')
 } finally {
