@@ -319,7 +319,20 @@ if ($r === 'products') {
         if ($path !== null) $logoFile[(string)$bs] = store_brand_logo_version($path);
     }
 
+    // THE COLOUR, for the card's "● Cherry Red" line. Read from product_attrs,
+    // which is optional: a shop not yet migrated, or a product with no row,
+    // simply has no colour and the card shows no line. Only the fixed-list
+    // fields go out (key, both names, the swatch), never free text.
+    $colourOf = [];
+    try {
+        foreach ($db->query("select slug, colour from product_attrs where colour is not null and colour <> ''")->fetchAll() as $x) {
+            $c = STORE_COLOURS[$x['colour']] ?? null;
+            if ($c) $colourOf[$x['slug']] = ['key' => $x['colour'], 'en' => $c[0], 'ar' => $c[1], 'hex' => $c[2]];
+        }
+    } catch (Throwable $e) { /* no table yet: no colours */ }
+
     foreach ($rows as &$row) {
+        $row['colour'] = $colourOf[$row['slug']] ?? null;
         // The database wins where both exist — see ?r=brand_logo, which
         // resolves them in the same order. Only a brand with NO stored logo
         // falls through to its folder.

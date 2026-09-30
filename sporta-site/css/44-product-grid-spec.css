@@ -1,86 +1,185 @@
-/* PRODUCT GRID — THE OWNER'S CARD SPEC, 2026-09-30.
- * "use this as product grid style", with a table: 2 columns, 4:5 image on a
- * light background, card #151619, border removed, 14-16px corners, name 14-15px
- * medium/bold, small uppercase brand, price 15-17px bold, old price small and
- * crossed out, product info 70-85px at most, 8-10px spacing, a small round +,
- * a heart top-right, a small orange sale badge.
- *
- * A table from the owner is the approval, so this matches it, and where the
- * bundle already did a row that row is left alone (4:5 photo, the round + and
- * heart, the orange badge). What moved: the card itself (a filled, rounded
- * #151619 surface), the photo's background (white), the gap (10px), the border
- * (gone), and the caption's colours, which are set here rather than inherited
- * because the card is dark in BOTH themes and the bundle's name colour is
- * dark slate on the light one.
- *
- * COLUMNS: 2 is the phone. The bundle steps to 3 from 768px and 4 from 1024px
- * and that is kept, since a table for a phone is not a reason to run two very
- * wide columns on a desktop. HEART: it stays on the END corner, which is the
- * right in English and the left in Arabic, matching the badge on the start
- * side; a fixed right corner would put it on top of the badge in Arabic.
- * NAME AND PRICE stay centred, the owner's choice earlier today (43-).
- * Every subject below is a named element, none universal (test:has-cost). */
+/* PRODUCT GRID — THE OWNER'S CARD PICTURE, 2026-09-30.
+ * First a table ("use this as product grid style": 2 columns, 4:5 image, card
+ * #151619, 14-16px corners ...), then a SCREENSHOT with "use this style". A
+ * screenshot from the owner is the approval and it wins where the two differ, so
+ * this is the screenshot, with the table's numbers kept wherever the picture is
+ * silent. Read off the picture (pixels sampled, not judged by eye):
+ *   - the card is a rounded dark panel, #0e1116, with a faint 1px edge (~#2b2e33)
+ *   - the photograph is NOT 4:5: it is 453 wide by 416 tall, 1.09:1, a landscape-ish
+ *     crop of the model, top edge to the card's own rounded corners
+ *   - an ORANGE PILL at the photo's top-LEFT, an outline heart at its top-RIGHT
+ *     (no disc behind it), in both languages — physical corners, not start/end
+ *   - the caption reads brand (small caps), name, colour ("● Cherry Red"), then
+ *     the price with the struck-through old price beside it, and the orange round
+ *     + at the caption's bottom-RIGHT, not on the photograph
+ *   - all of it LEFT-aligned, in Arabic too. (This replaces the centred name and
+ *     price chosen earlier today, which the picture does not have.)
+ * SIZES: the picture is a 1024px screenshot of an unknown zoom, so its
+ * proportions are followed and its absolute type sizes are not; the table's
+ * 14-15px name and 15-17px price, and the 70-85px caption, are kept.
+ * NOT TAKEN from the picture: the filter pills above the grid (removed on the
+ * owner's own instruction, see 15-no-filters.css) and its header, which is not the
+ * grid. Every subject below is a named element, none universal (test:has-cost). */
 
 main div.grid:has(> article > a[class*="aspect-"]) {
   column-gap: 10px;
   row-gap: 10px;
 }
 
+/* --- the card ------------------------------------------------------------ */
 main div.grid:has(> article > a[class*="aspect-"]) > article {
-  background: #151619;
+  position: relative;            /* the heart, badge and + are placed against the card */
+  background: #0e1116;
+  border: 1px solid rgba(255, 255, 255, .11);
   border-radius: 16px;
   overflow: hidden;
-  border: 0;
 }
 
-/* The photograph sits on white — a supplier shot on a white studio background
- * then has no edge to float, so the hairline outline from 43- goes too. A card
- * with NO photo keeps the placeholder's own dark ground (41-no-photo.css). */
-main article > a[class*="aspect-"] {
+/* --- the photograph: 1.09:1, on white, no outline ------------------------- */
+main div.grid > article > a[class*="aspect-"] {
+  position: static !important;   /* so its absolute children resolve against the card */
+  aspect-ratio: 1.09 / 1 !important;
   outline: 0;
+  border-radius: 0;
 }
-main article > a[class*="aspect-"]:has(> img:not([src^="data:"])) {
+main div.grid > article > a[class*="aspect-"]:has(> img:not([src^="data:"])) {
   background: #fff !important;
 }
+main div.grid > article > a[class*="aspect-"] > img:not([src^="data:"]) {
+  object-position: 50% 40%;
+}
 
-/* Caption: 10px in, at most 85px tall (name two lines + brand + price). */
+/* --- badge: orange pill, top-left ----------------------------------------- */
+main div.grid > article > a[class*="aspect-"] > span[class~="absolute"][class~="rounded-lg"] {
+  bottom: auto !important;   /* the sale chip is bottom-anchored in the bundle */
+  top: 10px !important;
+  left: 10px !important;
+  right: auto !important;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 6px 10px;
+  border-radius: 999px;
+  letter-spacing: 0;
+  text-transform: none;
+  /* The picture's orange is #f56315, which is 3.1:1 under white text — under AA at 12px.
+     One notch darker gives 4.5:1 and reads as the same orange. */
+  background: #cf4a0b !important;
+  color: #fff !important;
+}
+
+/* A card that is on sale AND a bestseller carries both: the sale pill keeps the
+ * corner and the bestseller pill drops beneath it. */
+main div.grid > article > a[class*="aspect-"]:has(> .sale-chip) > span[class~="bg-brand"] {
+  top: 38px !important;
+}
+
+/* --- heart: outline only, top-right; + : orange disc, bottom-right ---------
+ * Both buttons keep their 44px tap area and paint a smaller thing inside it
+ * (35-product-cards.css). They are shown on a desktop too — the bundle fades
+ * them in on hover — because the picture has them always. */
+[data-theme] main div.grid > article > a[class*="aspect-"] > button {
+  right: 4px !important;
+  left: auto !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+[data-theme] main div.grid > article > a[class*="aspect-"] > button[aria-pressed] {
+  top: 6px !important;
+  bottom: auto !important;
+}
+[data-theme] main div.grid > article > a[class*="aspect-"] > button[aria-pressed]::before {
+  background: transparent;
+  box-shadow: none;
+}
+[data-theme] main div.grid > article > a[class*="aspect-"] > button[aria-pressed] > svg {
+  width: 21px;
+  height: 21px;
+  color: #101216;
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, .9));
+}
+[data-theme] main div.grid > article > a[class*="aspect-"] > button:not([aria-pressed]) {
+  bottom: 4px !important;
+  top: auto !important;
+}
+[data-theme] main div.grid > article > a[class*="aspect-"] > button:not([aria-pressed])::before {
+  background: #f56315;
+  box-shadow: none;
+}
+[data-theme] main div.grid > article > a[class*="aspect-"] > button:not([aria-pressed]) > svg {
+  color: #fff;
+  stroke-width: 2.6;
+}
+
+/* --- the caption: left-aligned, 85px or less --------------------------------
+ * `direction: ltr` fixes the LAYOUT (text at the left, the price row running
+ * left to right) in Arabic as well; each piece of text keeps its own reading
+ * direction with `unicode-bidi: plaintext`, so an Arabic name still reads
+ * right-to-left and "د.ك 8.000" still puts the currency first. */
 main div.grid:has(> article > a[class*="aspect-"]) > article > a[class*="aspect-"] + div {
-  padding: 10px 10px 12px;
-  gap: 3px;
-  max-height: 85px;
-  overflow: hidden;
+  direction: ltr;
+  text-align: left;
+  align-items: stretch;
+  flex: 1;
+  gap: 2px;
+  padding: 8px 10px 9px;
 }
 main article h3[class~="line-clamp-2"],
 main article h3[class~="line-clamp-1"] {
   font-size: 14px !important;
   font-weight: 600 !important;
-  color: #f2f3f4 !important;
+  line-height: 1.25 !important;
+  min-height: 0;
+  color: #f4f5f6 !important;
+  text-align: left;
+  unicode-bidi: plaintext;
+  -webkit-line-clamp: 1 !important;
+  line-clamp: 1 !important;
+}
+main article .brand-chip-inline {
+  justify-content: flex-start;
 }
 main article .sporta-brand-name {
   font-size: 11px;
-  color: #9ba1a8;
+  line-height: 1;
+  color: #a3a9b1;
+  unicode-bidi: plaintext;
+}
+main article .sporta-card-colour {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.2;
+  color: #b9bfc6;
+  text-align: left;
+  unicode-bidi: plaintext;
+}
+main article .sporta-card-colour__dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .28);
 }
 main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
+  margin-top: auto;               /* prices sit on one line across a row */
+  justify-content: flex-start;
+  /* Keep clear of the + at the bottom-right: an old price that would run under it
+     wraps onto a second line instead. The caption is 85px or less without a sale
+     and about 100px with a wrapped old price, and a row's cards stay level. */
+  flex-wrap: wrap;
+  column-gap: 8px;
+  padding-right: 42px;
   font-size: 16px;
   font-weight: 700;
-  color: #fff;
+  line-height: 1.15;
+  color: #fff !important;
+  unicode-bidi: plaintext;
 }
-/* The old price: small, dim, struck through, beside the new one. */
 main article .price-card :is(s, del, [class*="line-through"]) {
   font-size: 12px;
   font-weight: 500;
   color: #8a9097;
   text-decoration: line-through;
-}
-
-/* The sale / bestseller badge: small and orange. */
-main article > a[class*="aspect-"] > span[class~="absolute"][class~="rounded-lg"] {
-  font-size: 10px;
-  line-height: 1;
-  padding: 4px 7px;
-  border-radius: 6px;
-  /* orange, as asked: the dark theme repaints the bundle's badge silver, and
-     that rule is !important, so this is too. */
-  background: var(--brand, #e0561c) !important;
-  color: #151619 !important;   /* white on this orange is 3.6:1, under AA at 10px */
 }

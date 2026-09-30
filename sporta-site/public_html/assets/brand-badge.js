@@ -67,6 +67,7 @@
           v: p.brand_logo_v || '',
           ar: p.brand_name_ar || '',
           en: p.brand_name_en || '',
+          colour: p.colour || null,
         }
       }
 
@@ -81,6 +82,15 @@
           var el = named[k]
           var want = el.getAttribute(ar ? 'data-ar' : 'data-en') || ''
           if (el.textContent !== want) el.textContent = want
+        }
+
+        /* The colour line (2026-09-30, the owner's card picture: a dot and the
+           colour's name under the product name) is re-labelled the same way. */
+        var cols = document.querySelectorAll('[data-sporta-colour]')
+        for (var q = 0; q < cols.length; q++) {
+          var cw = cols[q].getAttribute(ar ? 'data-ar' : 'data-en') || ''
+          var ct = cols[q].lastChild
+          if (ct && ct.textContent !== cw) ct.textContent = cw
         }
 
         var links = document.querySelectorAll('a[href*="/product/"]')
@@ -109,6 +119,25 @@
              removed. */
           var info = a.nextElementSibling
           if (!info) continue
+
+          /* THE COLOUR LINE, for any product that has one — brand or no brand.
+             It goes after the name link and before the price, and is a plain
+             added node like everything else here. */
+          if (b.colour && !info.querySelector('[data-sporta-colour]')) {
+            var cl = document.createElement('span')
+            cl.className = 'sporta-card-colour'
+            cl.setAttribute('data-sporta-colour', b.colour.key)
+            cl.setAttribute('data-ar', b.colour.ar)
+            cl.setAttribute('data-en', b.colour.en)
+            var dot = document.createElement('i')
+            dot.className = 'sporta-card-colour__dot'
+            dot.style.background = /^#[0-9a-fA-F]{6}$/.test(b.colour.hex) ? b.colour.hex : '#888'
+            cl.appendChild(dot)
+            cl.appendChild(document.createTextNode(ar ? b.colour.ar : b.colour.en))
+            var nameLink = info.querySelector(':scope > a')
+            if (nameLink && nameLink.nextSibling) info.insertBefore(cl, nameLink.nextSibling)
+            else info.appendChild(cl)
+          }
 
           if (!b.slug) continue
           var span = document.createElement('span')

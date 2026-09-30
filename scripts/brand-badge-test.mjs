@@ -44,6 +44,7 @@ const grid = async (page) => {
       cards: document.querySelectorAll('a[href*="/product/"] > img').length,
       marked: document.querySelectorAll('[data-sporta-brand]').length,
       chips: chips.length,
+      logoChips: chips.filter((c) => c.querySelector('img')).length,
       hrefs: chips.map((c) => (c.closest('a') ?? c.closest('.group')?.querySelector('a[href*="/product/"]'))?.getAttribute('href') ?? ''),
       alt: chips[0]?.querySelector('img')?.getAttribute('alt') ?? '',
       src: chips[0]?.querySelector('img')?.getAttribute('src') ?? '',
@@ -87,7 +88,9 @@ try {
   sql(`update brands set logo = null where slug = '${BRAND}'`)
   const off = await grid(page)
   check(off.cards > 0, `the grid still renders (${off.cards} cards)`)
-  check(off.chips === 0, `and no badge is drawn (${off.chips})`)
+  // Since 2026-09-28 a brand with no logo shows its NAME (a chip with no <img>), so "no badge"
+  // now means no LOGO is drawn.
+  check(off.logoChips === 0, `and no logo is drawn (${off.logoChips}; the brand's name shows instead)`)
 } finally {
   /* Put the row back exactly as it was, whatever happened above. */
   if (before) sql(`update brands set logo = '${before.replace(/'/g, "''")}' where slug = '${BRAND}'`)

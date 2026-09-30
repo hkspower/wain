@@ -89,18 +89,17 @@ process.on('exit', () => { try { sql("delete from product_images where image_has
       gaps: getComputedStyle(document.querySelector('main div.grid:has(> article)')).columnGap + '/' + getComputedStyle(document.querySelector('main div.grid:has(> article)')).rowGap }
   })
   check(/^none|0px$/.test(st.outline), 'the photo frame has no border or outline (the owner\'s card spec removes it)', st.outline)
-  check(st.pos === '50% 22%', 'photographs are cropped towards the top (faces stay in frame)', st.pos)
+  check(st.pos === '50% 40%', 'photographs are cropped a little above centre (the owner\'s card picture is a 1.09:1 crop)', st.pos)
   const cap = await page.evaluate(() => {
     const art = [...document.querySelectorAll('main div.grid > article')].find((x) => x.querySelector('.price-card'))
-    const card = art.getBoundingClientRect(), h3 = art.querySelector('h3').getBoundingClientRect(), pr = art.querySelector('.price-card')
+    const card = art.getBoundingClientRect(), pr = art.querySelector('.price-card')
     const range = document.createRange(); range.selectNodeContents(pr); const pt = range.getBoundingClientRect()
     const nameText = document.createRange(); nameText.selectNodeContents(art.querySelector('h3')); const nt = nameText.getBoundingClientRect()
-    const mid = card.left + card.width / 2
     return { align: getComputedStyle(art.querySelector('h3')).textAlign, jc: getComputedStyle(pr).justifyContent,
-             nameOff: Math.abs((nt.left + nt.width / 2) - mid), priceOff: Math.abs((pt.left + pt.width / 2) - mid) }
+             nameLeft: nt.left - card.left, priceLeft: pt.left - card.left }
   })
-  check(cap.align === 'center' && cap.jc === 'center', 'the name and the price are centre-aligned', `${cap.align}/${cap.jc}`)
-  check(cap.nameOff <= 3 && cap.priceOff <= 3, 'and they really sit on the card\'s centre line', `name ${cap.nameOff.toFixed(1)}px, price ${cap.priceOff.toFixed(1)}px off`)
+  check(cap.align === 'left' && /start/.test(cap.jc), 'the name and the price are left-aligned (the owner\'s card picture)', `${cap.align}/${cap.jc}`)
+  check(Math.abs(cap.nameLeft - cap.priceLeft) <= 2 && cap.nameLeft <= 14, 'and start on the same left edge, inside the card padding', `name ${cap.nameLeft.toFixed(1)}px, price ${cap.priceLeft.toFixed(1)}px from the left`)
   check(errs.length === 0, 'no script errors', errs.join(' | ').slice(0, 100))
   await ctx.close()
 }

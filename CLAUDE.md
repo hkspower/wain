@@ -3773,3 +3773,32 @@ and reaches the KNET host, never charges, never returns a credential).
   found "the login form" by any `input[type=password]`, and the credentials card has
   five. The rig that caught it counted password boxes in the card (7, expected 5).
   Both login overlays now draw only when there is no `.admin-content`.
+
+## The product card is the owner's screenshot, 2026-09-30
+
+A table first ("use this as product grid style"), then a **screenshot** ("use this
+style"). The screenshot wins where they differ, and it was SAMPLED, not eyeballed
+(`PIL` on the pixels): card `#0e1116` with a faint 1px edge, a **1.09:1** photo (not
+4:5 — 453x416 in the picture), an orange pill top-LEFT and an outline heart top-RIGHT
+in BOTH languages (physical corners), the orange + at the caption's bottom-right
+(off the photo), caption brand / name / "● colour" / price + struck old price, all
+**left-aligned, Arabic included**. That retired the centred name and price chosen
+hours earlier (43-). Kept from the table: type sizes (14px name, 16px bold price) and
+the caption ≤ 85px — the screenshot is of unknown zoom, so its proportions are
+followed and its absolute sizes are not.
+
+- `direction: ltr` on the caption fixes the layout; `unicode-bidi: plaintext` on each
+  text keeps Arabic reading right-to-left and "د.ك 8.000" currency-first.
+- **The photo link is `position: static`** so the heart, badge and + resolve against the
+  card. Writing `inset-inline-end:auto` AND `right:4px` together in LTR cancelled the
+  right (logical and physical are the same property): don't declare both.
+- The sale chip is bottom-anchored in the bundle; setting only `top` stretched it into
+  a full-height orange bar. A sale + bestseller card stacks the two pills.
+- The colour line needs `colour` on `?r=products` (new, from `product_attrs`, key +
+  names + swatch only, absent when the table or row is). `brand-badge.js` draws it.
+- White text on the picture's orange (#f56315) is 3.1:1; the badge uses #cf4a0b (4.5:1).
+- Names are one line with an ellipsis, as in the picture; the colour line now says what
+  the cut-off "— Navy" used to. Not taken: the picture's filter pills (removed on the
+  owner's instruction) and its header.
+- `test:brand-badge` had a stale assertion (a brand with no logo now shows its NAME); it
+  counts logos now.
