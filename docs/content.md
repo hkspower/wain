@@ -36,7 +36,7 @@ Ordering is live on **0 of 52** places and the queue on **0** — both need two 
 | `/places/<slug>/` | — | generateMetadata, 52 pages |
 | `/privacy/` | الخصوصية والكوكيز |  |
 | `/queue/` | دوري | noindex |
-| `/salem/` | شوق |  |
+| `/salem/` | سالم |  |
 | `/search/` | بحث |  |
 
 ## Categories

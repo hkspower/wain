@@ -121,8 +121,46 @@ export const WAIN_AI_AGENT_ENABLED = WAIN_AI_AGENT_ID.trim().length > 0;
  * agent — so it is written here, beside the one line that depends on it.
  * Enabled 27 September. Only `voice_id` is open; model, stability and speed
  * stay locked to the agent's own values.
+ *
+ * Third pass, on request 30 September: his identity is back — his name, his
+ * own portrait (`public/find/salem.jpg`/`salem-face.jpg`, regenerated; the
+ * originals were deleted along with the second correction), and this file's
+ * `tts.voice_id` override reinstated in `lib/salem-chat.ts`. Asked directly,
+ * with the first two corrections' reasoning read back in full first — the
+ * agent behind `/salem` is still شوق's, unchanged, first-person feminine
+ * grammar throughout, `first_message` still «أنا شوق» — and asked to proceed
+ * anyway. That fact does not change here: what shipped is his name and his
+ * voice over what she says, not a rewritten prompt. The one thing no session
+ * can fix without touching the live agent itself is the transcript's own
+ * first line, which still reads «أنا شوق» regardless of the header above it.
+ * Recorded so the next person does not read this as the tension having been
+ * resolved — it has been accepted, on request, not solved.
  */
 export const SALEM_VOICE_ID = "Ywuz3KyW2N5pqKNpwcCL"; // Eid — Gulf male, warm and clear
+
+/**
+ * سالم's own display identity — his name and role line, matching the shape
+ * `WAIN_AI_COPY.name`/`.role` already hold for شوق. Kept separate rather than
+ * folded into `WAIN_AI_COPY` because `WAIN_AI_COPY` is still hers — the phone
+ * call in `WainAiCall.tsx` never changes identity, only its voice — and a
+ * shared object would make it too easy for a future edit to retarget her own
+ * surfaces at his name by mistake. `role` is the masculine form of hers
+ * («دليلتك» → «دليلك»): the ة in «دليلة» marks the GUIDE's own gender, not
+ * the visitor's — شوق is «دليلتك», a female guide, and سالم is «دليلك», a
+ * male one, both still addressing the same «you» either way.
+ */
+export const SALEM_NAME = "سالم";
+export const SALEM_ROLE = "دليلك في الكويت";
+/**
+ * /find's invitation line for his half — not a transcript claim, so it does
+ * not carry the same risk `SalemChat.tsx`'s own greeting choice does. /find
+ * is the choice screen; nobody reading this card is mid-conversation with
+ * the agent yet, so a self-introduction here is marketing copy about what
+ * the tap leads to, the same way the call half's `WAIN_AI_COPY.greeting`
+ * already is. Same sentence as hers, one word changed — same character,
+ * same offer, only the name at the front.
+ */
+export const SALEM_GREETING = "هلا! أنا سالم. قول لي وش تبي — قهوة، بحر، طلعة عيال — وأدلّك.";
 
 /**
  * CDN bundle that defines the <elevenlabs-convai> custom element.
@@ -197,8 +235,9 @@ export const WAIN_AI_COPY = {
   callHint: "اضغط عشان تكلّم شوق",
   // The written half's own hint, same register as callHint above — /find's
   // اكتب half had no line under its button while اتصال's always did, which
-  // read as the two halves carrying different amounts of care.
-  typeHint: "اكتب عشان تدردش وياها",
+  // read as the two halves carrying different amounts of care. «وياه» not
+  // «وياها»: the half names سالم now, not شوق — see SALEM_NAME above.
+  typeHint: "اكتب عشان تدردش وياه",
   // «قول» not «قل»: the imperative of قال is قول in Kuwaiti and قل in MSA, and
   // شوق is «صوت كويتي شبابي». The two spellings were mixed — «قول وش تبي» two
   // lines down against «قل لي» here — which is the kind of slip that is
@@ -254,24 +293,24 @@ export const WAIN_AI_COPY = {
 } as const;
 
 /**
- * `/salem`'s own copy — for the typed-chat UI itself, never for a claim
- * about who is on the other end. That claim is just `WAIN_AI_COPY.name`
- * (شوق) — see the note over `SALEM_VOICE_ID` for why there is no badge or
- * second name here either. No `greeting` here on purpose: the first line in
- * the transcript is whatever she actually says, read live off the wire, not
- * a written-in-advance line that could disagree with it.
+ * `/salem`'s own copy — for the typed-chat UI itself. Named for and gendered
+ * toward سالم now (`connecting`/`connected`/`failed` — see `SALEM_NAME`'s own
+ * comment for the identity claim this makes, and its honest limit: the
+ * agent's own first line still says «أنا شوق», which this copy cannot
+ * change). No `greeting` here still: the first line in the transcript is
+ * whatever the wire actually sends, not a written-in-advance line.
  */
 export const WAIN_AI_CHAT_COPY = {
   placeholder: "اكتب رسالتك…",
   send: "إرسال",
-  connecting: "نوصّل شوق…",
-  connected: "متصلة",
+  connecting: "نوصّل سالم…",
+  connected: "متصل",
   disconnected: "انتهت المحادثة.",
   reconnect: "ابدأ من جديد",
   // The chat's own tool call is answered with an error rather than left to
   // hang — see lib/salem-chat.ts — so this is what a visitor reads when they
   // tried to open a place or the map from here and could not.
-  toolUnavailable: "ما أقدر أفتح صفحات من هنا — دوّر بنفسك أو كلّمها بمكالمة.",
-  failed: "ما قدرنا نوصلها — جرّب مرة ثانية.",
+  toolUnavailable: "ما أقدر أفتح صفحات من هنا — دوّر بنفسك أو كلّمه بمكالمة.",
+  failed: "ما قدرنا نوصله — جرّب مرة ثانية.",
   notConfigured: "المحادثة مو متاحة الحين.",
 } as const;

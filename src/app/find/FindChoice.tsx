@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ShouqCallButton from "@/components/ShouqCallButton";
-import { WAIN_AI_COPY } from "@/lib/wain-ai";
+import { WAIN_AI_COPY, SALEM_ROLE, SALEM_GREETING } from "@/lib/wain-ai";
 
 /**
- * The two ways to say what you want to شوق — one call, one chat — drawn
- * full-bleed, her half over her other half, rather than two cards in a page.
+ * The two ways to reach the two of them — a call to شوق, a chat with سالم —
+ * drawn full-bleed, one half over the other, rather than two cards in a page.
  *
  * This used to be the dial's own in-place panel: tap «إلى وين؟», get the
  * five nearest places, ranked live against a GPS fix taken in the same
@@ -17,21 +17,28 @@ import { WAIN_AI_COPY } from "@/lib/wain-ai";
  * answers the "nearest" case (شوق can ask where you are; nothing here
  * requests location any more).
  *
- * The lower half used to be a plain «اكتب» typing box, then briefly became a
- * full سالم persona card — his own name, his own photo, his own greeting,
- * his own voice on the wire — which was wrong the same way `/salem` itself
- * was wrong: nothing about the agent had changed to back the persona, and
- * nothing needed to for the voice either, once asked to leave it alone. See
- * the note over `SALEM_VOICE_ID` in `lib/wain-ai.ts` for the full account.
- * Corrected: this half is شوق's, plainly, same as the half above it — the
- * other way to reach her, typing instead of calling, nothing else different.
- * The plain "type a place name" box this replaced is not lost to the site —
- * the search button in the bottom rail and /search's own box are one tap
- * away from every page, including this one.
+ * The lower half's identity has moved three times, and it is worth reading
+ * all three before touching it a fourth. It shipped as a full سالم persona —
+ * his name, his photo, his greeting, his voice — over an agent whose prompt
+ * never changed to back it, which `SALEM_VOICE_ID`'s own comment in
+ * `lib/wain-ai.ts` calls out as the actual defect. Corrected to name شوق
+ * instead, plainly, same character as the call half above it. Reversed again
+ * on request, 30 September, that history read first: this half is his once
+ * more — `SALEM_NAME`, his own regenerated portrait (the originals were
+ * deleted along with the second correction), his own voice reinstated in
+ * `lib/salem-chat.ts`. What is different this time is that it is not the
+ * SAME mistake repeated — the agent behind `/salem` is still شوق's, and
+ * nothing here claims otherwise; it is a deliberate choice to show his
+ * identity on the INVITATION while the live conversation behind it still
+ * answers as her, first message included. See `SALEM_VOICE_ID`'s comment for
+ * the full account of that tension and why it was accepted rather than
+ * solved. The plain "type a place name" box either version replaced is not
+ * lost to the site — the search button in the bottom rail and /search's own
+ * box are one tap away from every page, including this one.
  *
- * Both halves are full-bleed AI-illustrated portraits (public/find/),
- * matching the design exploration — a bottom-weighted scrim carries the
- * text instead of the flat colour this used to be. `object-position` is
+ * Both halves are full-bleed AI-illustrated portraits (public/find/) of the
+ * character each half actually leads to — a bottom-weighted scrim carries
+ * the text instead of the flat colour this used to be. `object-position` is
  * tuned per breakpoint because the mobile crop (tall, narrow) and the
  * desktop crop (short, wide) need different framing of the same photo to
  * keep the subject in frame — see the object-[…] classes below.
@@ -172,53 +179,54 @@ export default function FindChoice() {
         aria-label="اكتب"
         className="relative -mt-10 flex min-h-[50vh] items-center justify-center overflow-hidden bg-sea-950 px-4 pb-14 pt-20 text-white [clip-path:polygon(0_40px,100%_0,100%_100%,0_100%)] sm:pb-16 sm:pt-24"
       >
-        {/* Her own photo again — not his. This half used to be his: his name,
-            his photo, his greeting, over an agent whose prompt never changed
-            to match. See the header comment above for the full account. */}
+        {/* His own photo, his own generation — not a reused crop of hers.
+            See the header comment above for why this half is his again. */}
         {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}
         <img
-          src="/find/shouq.jpg"
+          src="/find/salem.jpg"
           alt=""
           aria-hidden="true"
           width={1280}
           height={720}
           loading="lazy"
           decoding="async"
-          className="animate-kb-b absolute inset-0 size-full object-cover object-[70%_18%] sm:object-[82%_45%]"
+          className="animate-kb-b absolute inset-0 size-full object-cover object-[28%_22%] sm:object-[18%_38%]"
         />
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 bg-gradient-to-b from-sea-950/40 via-sea-950/78 to-sea-950/92"
         />
         <div className="relative mx-auto flex max-w-sm flex-col items-center gap-4 text-center">
-          {/* Her own face, small — this half's crop (object-[70%_18%] above)
-              is pushed toward the skyline, away from her face, so unlike the
-              call half above it (whose crop already puts her face front and
-              centre) this one has nothing of her in frame until this. The
-              call half gets no matching avatar: adding one there would be a
-              second copy of a face already the whole point of that crop. */}
-          <span className="animate-reveal-up relative grid size-14 place-items-center [animation-delay:480ms]">
-            <span aria-hidden="true" className="animate-pulse-ring absolute inset-0 rounded-full bg-sea-300/50" />
-            <span className="relative size-14 overflow-hidden rounded-full border-2 border-white/80 shadow-xs">
-              {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}
-              <img src="/find/shouq-face.jpg" alt="" className="size-full object-cover" />
+          {/* A pill again, matching the call half's exactly — kicker text,
+              equalizer, same markup, only `SALEM_ROLE` in place of
+              `WAIN_AI_COPY.role`. It went missing when this half stopped
+              being a distinct character (a pill naming a voice-swap badge
+              with nothing else to say), but now that the two halves lead to
+              two different names, this is what actually establishes his —
+              the heading below never states a name, on either half; it
+              always relied on the pill and the greeting to do that. Without
+              this, «اكتب» + a photo said nothing a reader could call سالم. */}
+          <span className="animate-reveal-up inline-flex items-center gap-2 rounded-full bg-white/90 px-3.5 py-1.5 text-sm font-semibold text-sea-900 [animation-delay:480ms]">
+            {SALEM_ROLE}
+            <span aria-hidden="true" className="inline-flex h-3.5 items-end gap-[3px] text-sea-600">
+              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "0.9s" }} />
+              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "1.25s", animationDelay: "-0.4s" }} />
+              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "0.7s", animationDelay: "-0.1s" }} />
+              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "1.1s", animationDelay: "-0.7s" }} />
+              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "0.8s", animationDelay: "-0.3s" }} />
             </span>
           </span>
-          {/* No pill here, on purpose — that slot named a voice-swap badge
-              at one point and was removed along with the voice-swap itself.
-              «اكتب» alone, matching «اتصال» above it: her name and role are
-              already said by the call half; this names the other ACTION,
-              nothing more. */}
           <h2 className="animate-reveal-up font-display text-4xl font-bold text-white [animation-delay:580ms] sm:text-5xl">
             <span className="relative isolate inline-block px-1.5 text-sea-300">
               <i aria-hidden="true" className="absolute -inset-y-2 inset-x-0 -z-10 rounded-lg bg-sea-950" />
               اكتب
             </span>
           </h2>
-          {/* The same greeting as the call half, word for word — it is the
-              same character saying it, so it is the same sentence. */}
+          {/* SALEM_GREETING — the call half's own sentence with only his
+              name at the front changed; see its comment in wain-ai.ts for
+              why that word is the only one that needed to move. */}
           <p className="animate-reveal-up text-pretty text-base leading-relaxed text-sand-100 [animation-delay:780ms]">
-            {WAIN_AI_COPY.greeting}
+            {SALEM_GREETING}
           </p>
           <Link
             href="/salem"

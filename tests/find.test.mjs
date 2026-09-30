@@ -14,13 +14,14 @@ import { chromium } from 'playwright';
  * would have caught it; a navigation to /search alone would not have,
  * because the outer button produced that too.
  *
- * The typing half is شوق's too, plainly — it went through two wrong framings
- * first («chat with سالم», his own name and photo; then her name kept but
- * still «بصوت سالم» badged over the top) and this file's own earlier
- * versions asserted each of those was correct in turn. Neither was, and the
- * comment over `SALEM_VOICE_ID` in `lib/wain-ai.ts` has the full account of
- * why. What is real and asserted below: two ways to reach شوق, call or type,
- * her name and nothing else on either half.
+ * The typing half's identity has moved three times, and this file has
+ * asserted a different one of them each time — read `SALEM_VOICE_ID`'s own
+ * comment in `lib/wain-ai.ts` for the full account before changing this
+ * again. It shipped as سالم's, was corrected to شوق's, and was reversed
+ * again on request, 30 September, back to his — his own regenerated photo,
+ * his own pill and greeting, his own voice on the wire. What is real and
+ * asserted below: the call half is شوق's, the typing half is سالم's, and the
+ * real ShouqCallButton actually places a call rather than only navigating.
  */
 const B = process.env.WAIN_URL || 'http://127.0.0.1:4207';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
@@ -60,8 +61,9 @@ console.log('\n── /find offers exactly the two, equally ──');
   const shouqButton = p.getByRole('button', { name: /شوق/ });
   const typeLink = p.getByRole('link', { name: /ابدأ الكتابة/ });
   ok('كلّم شوق is offered, as the real call button', await shouqButton.isVisible());
-  ok('typing to her is offered too', await typeLink.isVisible());
-  ok('nothing on this page names سالم — no persona, no voice badge', !(await p.locator('text=سالم').count()));
+  ok('typing to him is offered too', await typeLink.isVisible());
+  ok('the call half is شوق\'s — the typing half\'s سالم text sits below it', await p.locator('section[aria-label="اتصال"]', { hasText: 'سالم' }).count() === 0);
+  ok('and the typing half names سالم', await p.locator('section[aria-label="اكتب"]', { hasText: 'سالم' }).isVisible());
   const box = await shouqButton.boundingBox();
   // size="lg" (size-20, 80px) against the sm default (size-8, 32px) — this
   // is the one thing a screenshot proves and an accessible-name check does
@@ -71,7 +73,7 @@ console.log('\n── /find offers exactly the two, equally ──');
   await ctx.close();
 }
 
-console.log('\n── the typing option leads to شوق\'s chat page ──');
+console.log('\n── the typing option leads to سالم\'s chat page ──');
 {
   const { ctx, p } = await fresh('/find/');
   await p.getByRole('link', { name: /ابدأ الكتابة/ }).click();

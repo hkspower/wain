@@ -1,22 +1,25 @@
 import { chromium } from 'playwright';
 
 /**
- * شوق's typed chat at /salem: structure and client-side behaviour only.
+ * سالم's typed chat at /salem: structure and client-side behaviour only.
  *
- * This suite went through two wrong versions before this one. First it
- * asserted the header named سالم and opened on a hand-written «أنا سالم»
- * greeting — the mistake `/salem` shipped with, caught by pulling the live
- * agent's real `first_message` («أنا شوق», feminine grammar throughout,
- * because the agent never changed). Corrected to assert her name plus a
- * «🔊 بصوت سالم» voice badge — still wrong, because the fix that actually
- * landed went further, asked directly to keep her voice unchanged: no
- * badge, no override, just her. Third version, asserting that. What IS
- * asserted regardless of network: her name renders immediately, there is no
- * hand-written greeting (the first line in the transcript is whatever she
- * actually sends, which this sandbox cannot see — api.elevenlabs.io is
- * refused by its own egress gateway), the input starts disabled (status
- * begins at "connecting", never "connected", before any network event
- * fires), and the page never throws.
+ * This suite has now asserted three different versions of what this page
+ * claims, and all three were real states this page was actually in — read
+ * before changing this a fourth time. First it asserted the header named
+ * سالم and opened on a hand-written «أنا سالم» greeting — the mistake
+ * `/salem` shipped with, caught by pulling the live agent's real
+ * `first_message` («أنا شوق», feminine grammar throughout, because the
+ * agent never changed). Corrected to assert her name with no voice badge
+ * at all, her own voice unchanged. Reversed again on request, 30 September,
+ * back to his name and his voice — `SALEM_VOICE_ID`'s own comment in
+ * `lib/wain-ai.ts` has the full account of why, including the one thing
+ * that is still true regardless of this reversal: the agent's own
+ * `first_message` still says «أنا شوق», so what is asserted below is
+ * exactly what changed (the header, the identity) and exactly what did NOT
+ * (still no hand-written greeting standing in for what the wire actually
+ * sends — that would repeat the very first mistake, not fix anything). The
+ * input starts disabled (status begins at "connecting", never "connected",
+ * before any network event fires), and the page never throws.
  *
  * `show_places`/`open_place` are covered too, by stubbing `window.WebSocket`
  * itself rather than waiting for a real agent — see that section's own
@@ -41,12 +44,11 @@ async function fresh(path) {
   return { ctx, p, errors };
 }
 
-console.log('\n── /salem names شوق, not سالم ──');
+console.log('\n── /salem names سالم again ──');
 {
   const { ctx, p, errors } = await fresh('/salem/');
-  ok('the header names شوق', await p.locator('header', { hasText: 'شوق' }).isVisible());
-  ok('no voice badge — her own voice is not called out as different', !(await p.locator('header', { hasText: 'سالم' }).count()));
-  ok('no hand-written greeting claims to be him', !(await p.locator('text=أنا سالم').count()));
+  ok('the header names سالم', await p.locator('header', { hasText: 'سالم' }).isVisible());
+  ok('still no hand-written greeting — the wire\'s own first line is what shows, not a scripted one', !(await p.locator('text=أنا سالم').count()));
   ok('no page errors', errors.length === 0);
   await ctx.close();
 }
@@ -62,12 +64,16 @@ console.log('\n── the input starts disabled, since status never begins "conn
   await ctx.close();
 }
 
-console.log('\n── /find\'s typing half names شوق too ──');
+console.log('\n── /find\'s typing half is سالم\'s again ──');
 {
   const { ctx, p } = await fresh('/find/');
   const link = p.getByRole('link', { name: /ابدأ الكتابة/ });
   ok('the CTA leads to /salem', await link.isVisible());
-  ok('the section is not attributed to سالم by name', !(await p.locator('text=اكتب لسالم').count()));
+  // The pill states his ROLE (SALEM_ROLE has no literal "سالم" in it, same
+  // as the call half's pill never spells out "شوق" either); his NAME comes
+  // from the greeting sentence beneath it — checking the section as a whole
+  // is what actually proves a reader can call this half his.
+  ok('the section names سالم — the greeting under the pill', await p.locator('section[aria-label="اكتب"]', { hasText: 'سالم' }).isVisible());
   await ctx.close();
 }
 

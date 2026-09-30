@@ -5,7 +5,7 @@ import PlaceCard from "@/components/PlaceCard";
 import ShareHangout from "@/components/ShareHangout";
 import { IconSend } from "@/components/icons";
 import type { Place } from "@/lib/places";
-import { WAIN_AI_CHAT_COPY, WAIN_AI_AGENT_ID, WAIN_AI_COPY } from "@/lib/wain-ai";
+import { WAIN_AI_CHAT_COPY, WAIN_AI_AGENT_ID, SALEM_NAME } from "@/lib/wain-ai";
 import { startSalemChat, type SalemChatHandle, type SalemStatus } from "@/lib/salem-chat";
 import { usePlaces } from "@/lib/usePlaces";
 import { formatOpenPlace, formatShowPlaces } from "@/lib/salem-tools";
@@ -29,22 +29,27 @@ type ChatLine =
   | { role: "place"; slug: string };
 
 /**
- * شوق's typed chat — reachable on her own page, in her own voice.
+ * سالم's typed chat — his name, his portrait, his voice on the wire.
  *
- * NOT سالم's page, and not his voice either. It shipped as his page once
- * this session — his name, his photo, a hand-written «أنا سالم» greeting —
- * over an agent whose prompt never changed to match: same first-person
- * FEMININE grammar throughout, a real `first_message` that says «أنا شوق».
- * Corrected once to name her instead while still switching the TTS voice to
- * his («🔊 بصوت سالم», matching the mid-call button's own wording), and
- * corrected again on request to drop the voice switch too — her own voice,
- * unchanged, same as before any of this shipped. `SALEM_VOICE_ID` in
- * `lib/wain-ai.ts` still exists for the one place it always did, the
- * mid-call switch in `WainAiCall.tsx`; this page does not read it.
+ * Third pass on the identity question, and worth reading the first two
+ * before touching this again. It shipped as his page once — his name, his
+ * photo, a hand-written «أنا سالم» greeting — over an agent whose prompt
+ * never changed to match: same first-person FEMININE grammar throughout, a
+ * real `first_message` that says «أنا شوق». Corrected to name her instead
+ * while still switching the TTS voice to his, then corrected again to drop
+ * the voice switch too. Both were the right call for what they were fixing.
  *
- * So: her name, her avatar, her own voice, and no written-in-advance
- * greeting — the first line in the transcript is whatever she actually
- * sends, read live off the wire.
+ * Reversed again on request, 30 September, that history read back first: his
+ * name and photo are back (`SALEM_NAME`, `public/find/salem-face.jpg` —
+ * regenerated, the originals having been deleted with the second
+ * correction), and `lib/salem-chat.ts` sends his `tts.voice_id` override
+ * once more. What did NOT come back is the hand-written greeting — the first
+ * line in the transcript is still whatever the wire actually sends, never a
+ * scripted one that could disagree with it — because the agent's own prompt
+ * is unchanged and its `first_message` still says «أنا شوق». That line will
+ * still appear, under his name and his photo, the first time anyone actually
+ * talks to him. See `SALEM_VOICE_ID`'s own comment in `lib/wain-ai.ts` for
+ * the full account of why that was accepted rather than solved.
  *
  * `show_places`/`open_place` are wired now, on request — see
  * `lib/salem-tools.ts` for why they could not simply be `WainAiCall.tsx`'s
@@ -170,7 +175,7 @@ export default function SalemChat() {
       <header className="flex items-center gap-3 border-b border-white/10 bg-sea-950 px-4 py-3">
         {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}
         <img
-          src="/find/shouq-face.jpg"
+          src="/find/salem-face.jpg"
           alt=""
           aria-hidden="true"
           width={320}
@@ -178,7 +183,7 @@ export default function SalemChat() {
           className="size-11 shrink-0 rounded-full object-cover"
         />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-display text-base font-bold text-white">{WAIN_AI_COPY.name}</p>
+          <p className="truncate font-display text-base font-bold text-white">{SALEM_NAME}</p>
           <p aria-live="polite" className="truncate text-xs text-sand-200">
             {statusLine}
           </p>
