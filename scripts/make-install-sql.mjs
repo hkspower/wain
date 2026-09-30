@@ -113,6 +113,7 @@ const PARTS = [
   ['customernotes.mysql.sql', 'CRM — private notes and tags per customer', API],
   ['categoryart.mysql.sql', 'category art — the home tile pictures, when the owner replaces them', API],
   ['productattrs.mysql.sql', 'product attributes — colour and fits picked in /backends', API],
+  ['productthumbs.mysql.sql', 'product photo thumbnails — resized once, read back', API],
 ]
 
 // Repairs, named so that "why is 6 missing" has an answer in the file itself

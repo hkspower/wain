@@ -1156,7 +1156,7 @@ function store_cat_art_decode(?string $raw, string $fmt, int $w, int $h): string
  *   200  the app's gallery tile and the queued-upload strip
  *   400  a phone's full-width tile at 2x, and the largest anything asks for
  */
-const STORE_IMAGE_WIDTHS = [96, 200, 400];
+const STORE_IMAGE_WIDTHS = [96, 200, 400, 600];
 
 /**
  * A smaller copy of an image, as [bytes, subtype], or null.

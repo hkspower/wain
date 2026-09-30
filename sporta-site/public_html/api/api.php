@@ -902,7 +902,33 @@ if ($r === 'product_image') {
     // for a size this server has never heard of gets a picture rather than a
     // broken tile. store_image_thumb() explains every way it declines; all of
     // them end here, sending exactly what was sent before it existed.
-    $small = store_image_thumb($bytes, (int) ($_GET['w'] ?? 0));
+    // THE RESIZE IS DONE ONCE PER PHOTOGRAPH AND WIDTH, then read back. A shop grid
+    // asks for thirty of these on a shopper's first visit and the CDN does not sit
+    // in front of /api, so resizing each from a 2000px original on every cold
+    // request would spend the shared host's CPU on work whose answer never changes
+    // (the URL carries the content hash). product_image_thumbs holds the answer;
+    // no table, or any failure reading or writing it, falls back to resizing as
+    // before — the cache may only ever make this faster, never wrong.
+    $wReq = (int) ($_GET['w'] ?? 0);
+    $imgId = (int) ($_GET['id'] ?? 0);
+    $small = null;
+    if (in_array($wReq, STORE_IMAGE_WIDTHS, true)) {
+        try {
+            $c = $db->prepare('select type, bytes from product_image_thumbs where image_id = ? and w = ?');
+            $c->execute([$imgId, $wReq]);
+            $hit = $c->fetch();
+            if ($hit && (string) $hit['bytes'] !== '') $small = [(string) $hit['bytes'], (string) $hit['type']];
+        } catch (Throwable $e) { /* no table yet: resize below */ }
+        if ($small === null) {
+            $small = store_image_thumb($bytes, $wReq);
+            if ($small !== null) {
+                try {
+                    $db->prepare('insert ignore into product_image_thumbs (image_id, w, type, bytes) values (?, ?, ?, ?)')
+                       ->execute([$imgId, $wReq, $small[1], $small[0]]);
+                } catch (Throwable $e) { /* cache is optional */ }
+            }
+        }
+    }
     if ($small !== null) { [$bytes, $type] = $small; }
 
     header('Content-Type: image/' . $type);

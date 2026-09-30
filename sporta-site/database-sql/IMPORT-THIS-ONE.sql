@@ -34,6 +34,7 @@
 --   15. customernotes.mysql.sql private notes and tags per customer
 --   16. categoryart.mysql.sql  the home tile pictures, when the owner replaces them
 --   17. productattrs.mysql.sql colour and fits picked in /backends
+--   18. productthumbs.mysql.sql resized once, read back
 --
 -- Deliberately NOT included — these are repairs, not install steps, and each
 -- is run by hand when its own report says it is needed:
@@ -2362,5 +2363,29 @@ create table if not exists product_attrs (
   fits        varchar(120) null,
   updated_at  timestamp    not null default current_timestamp on update current_timestamp,
   primary key (slug)
+) engine = InnoDB default charset = utf8mb4 collate = utf8mb4_unicode_ci;
+
+-- ========================================================================
+-- product photo thumbnails — resized once, read back
+-- (productthumbs.mysql.sql)
+-- ========================================================================
+
+-- Sporta — resized copies of product photographs, made once and read back.
+--
+-- Safe to re-run: `create table if not exists` and nothing else.
+--
+-- ?r=product_image&w=400|600 (and 96|200) serves a WebP at that width. Making it
+-- means decoding the stored original and resizing it, and the shop grid asks for
+-- thirty on a first visit while the CDN does not sit in front of /api — so the
+-- result is kept here, keyed by the photograph's row id (a photograph is never
+-- edited in place: replacing one is a new row) and the width. Deleting a
+-- photograph deletes its copies. The route works without this table: it just
+-- resizes on every cold request, as it did before.
+create table if not exists product_image_thumbs (
+  image_id  int unsigned not null,
+  w         smallint     not null,
+  type      varchar(8)   not null,
+  bytes     mediumblob   not null,
+  primary key (image_id, w)
 ) engine = InnoDB default charset = utf8mb4 collate = utf8mb4_unicode_ci;
 

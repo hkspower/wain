@@ -1651,6 +1651,7 @@ if ($r === 'product_image_delete' && $method === 'POST') {
     $id = (int)(store_body()['id'] ?? 0);
     $del = $db->prepare('delete from product_images where id = ?');
     $del->execute([$id]);
+    try { $db->prepare('delete from product_image_thumbs where image_id = ?')->execute([$id]); } catch (Throwable $e) { /* table optional */ }
     // Not an error when it is already gone: the admin may have deleted it in
     // another tab, and "it is not there" is the outcome that was asked for.
     store_out(['ok' => true, 'deleted' => $del->rowCount()]);
