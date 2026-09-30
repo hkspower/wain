@@ -197,6 +197,15 @@ function knet_apply_saved_credentials(array $cfg): array
         if ($key !== '' && strlen($key) === 16 && !in_array($key, KNET_PLACEHOLDERS, true)) {
             $cfg['resource_key'] = $key;
         }
+
+        // Mode, environment and English code — enums, re-checked here for the
+        // same reason as the ID: this is the last point before a bank.
+        $mode = strtolower(trim((string) ($val['mode'] ?? '')));
+        if ($mode === 'legacy' || $mode === 'official') $cfg['mode'] = $mode;
+        $env = strtolower(trim((string) ($val['env'] ?? '')));
+        if ($env === 'test' || $env === 'production') $cfg['env'] = $env;
+        $lang = trim((string) ($val['lang_en'] ?? ''));
+        if (in_array($lang, ['EN', 'USA', 'ENG'], true)) $cfg['lang_en'] = $lang;
     } catch (Throwable $e) {
         // Logged, never surfaced. The shopper is mid-checkout.
         error_log('knet: saved credentials unreadable, using config.php (' . $e->getMessage() . ')');

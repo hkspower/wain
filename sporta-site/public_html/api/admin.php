@@ -2188,6 +2188,45 @@ if ($r === 'settings_save' && $method === 'POST') {
             $next['resource_key'] = $key;
         }
 
+        // ---- 2026-09-30: mode, environment, language, and the CBK credentials.
+        // Same contract as the three above: a key that is absent is left
+        // alone, a key present and empty clears that one field back to the
+        // config file.
+        //
+        // ENVIRONMENT AND MODE ARE ENUMS, NEVER FREE TEXT. knet_gateway_url()
+        // treats anything but the exact string 'test' as LIVE, so a typo
+        // saved here would silently send shoppers to the real bank; only the
+        // two real words are accepted.
+        if (array_key_exists('mode', $v)) {
+            $m = strtolower(trim((string) $v['mode']));
+            if (!in_array($m, ['', 'legacy', 'official'], true)) store_fail('invalid_mode');
+            $next['mode'] = $m;
+        }
+        if (array_key_exists('env', $v)) {
+            $e = strtolower(trim((string) $v['env']));
+            if (!in_array($e, ['', 'test', 'production'], true)) store_fail('invalid_env');
+            $next['env'] = $e;
+        }
+        if (array_key_exists('lang_en', $v)) {
+            $l = trim((string) $v['lang_en']);
+            if (!in_array($l, ['', 'EN', 'USA', 'ENG'], true)) store_fail('invalid_lang_en');
+            $next['lang_en'] = $l;
+        }
+        // The CBK credentials: printable characters only, no spaces, capped.
+        // A pasted newline or a trailing space is the commonest way to a
+        // credential the bank refuses, and refusing it HERE names the fault.
+        foreach (['cbk_client_id', 'cbk_client_secret', 'cbk_encrp_key'] as $f) {
+            if (!array_key_exists($f, $v)) continue;
+            $x = (string) $v[$f];
+            if ($x !== trim($x) || ($x !== '' && !preg_match('/^[\x21-\x7E]{1,200}$/', $x))) {
+                store_fail('invalid_' . $f);
+            }
+            if ($x !== '' && (str_starts_with(strtoupper($x), 'YOUR_') || str_starts_with(strtoupper($x), 'SANDBOX_NOT_A_REAL'))) {
+                store_fail('placeholder_' . $f);
+            }
+            $next[$f] = $x;
+        }
+
         store_setting_save($db, 'knet', $next);
     } elseif ($name === 'hero') {
         store_setting_save($db, 'hero', [
@@ -2713,6 +2752,14 @@ if ($r === 'knet' && $method === 'GET') {
                 $v = strtoupper(trim((string) $v));
                 return $v === '' || str_starts_with($v, 'YOUR_') || str_starts_with($v, 'SANDBOX_NOT_A_REAL');
             };
+            // What the gateway will actually USE: the values saved in the
+            // panel win over pay/config.php, exactly as cbk_apply_saved()
+            // applies them, so this readiness cannot say "placeholder" about
+            // a credential the shop is in fact sending.
+            foreach (['cbk_client_id' => 'client_id', 'cbk_client_secret' => 'client_secret', 'cbk_encrp_key' => 'encrp_key'] as $from => $to) {
+                if ((string) ($set[$from] ?? '') !== '') $cfg[$to] = $set[$from];
+            }
+            if (in_array($set['env'] ?? '', ['test', 'production'], true)) $cfg['env'] = $set['env'];
             $clientIdSet     = !$isPlaceholder($cfg['client_id'] ?? '');
             $clientSecretSet = !$isPlaceholder($cfg['client_secret'] ?? '');
             $encrpKeySet     = !$isPlaceholder($cfg['encrp_key'] ?? '');
@@ -2733,6 +2780,14 @@ if ($r === 'knet' && $method === 'GET') {
         'tranportal_password_source' => $passwordSet ? 'database' : 'file',
         'resource_key_set'         => $keySet,
         'resource_key_source'      => $keySet ? 'database' : 'file',
+        // 2026-09-30. Mode / env / language come back as the SAVED value
+        // ('' = the file decides); the CBK credentials as booleans only.
+        'mode'    => (string) ($set['mode'] ?? ''),
+        'env'     => (string) ($set['env'] ?? ''),
+        'lang_en' => (string) ($set['lang_en'] ?? ''),
+        'cbk_client_id_set'     => (string) ($set['cbk_client_id'] ?? '') !== '',
+        'cbk_client_secret_set' => (string) ($set['cbk_client_secret'] ?? '') !== '',
+        'cbk_encrp_key_set'     => (string) ($set['cbk_encrp_key'] ?? '') !== '',
         // null, not a fourth false — a MISSING or unreadable config.php is a
         // different fault from one that is readable and holds placeholders,
         // and the panel should be able to tell "not configured" from

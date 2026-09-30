@@ -44,6 +44,40 @@ function cbk_db_configured(array $cfg): bool
     return ($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '';
 }
 
+// The credentials and environment saved in /backends (the `knet` settings row),
+// laid over pay/config.php. Silent on ANY failure — no database, no table, bad
+// JSON — because none of those may turn a working file into a shop that cannot
+// take money; the file's own values simply stand. Enums and shape are checked
+// again here, since this is the last point before a bank.
+function cbk_apply_saved(array $cfg): array
+{
+    if (!cbk_db_configured($cfg)) return $cfg;
+    try {
+        $pdo = new PDO(
+            "mysql:host={$cfg['mysql_host']};dbname={$cfg['mysql_name']};charset=utf8mb4",
+            $cfg['mysql_user'], $cfg['mysql_pass'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_TIMEOUT => 5]
+        );
+        $q = $pdo->prepare('select value from settings where name = ?');
+        $q->execute(['knet']);
+        $row = $q->fetchColumn();
+        $val = is_string($row) && $row !== '' ? json_decode($row, true) : null;
+        if (!is_array($val)) return $cfg;
+        foreach (['cbk_client_id' => 'client_id', 'cbk_client_secret' => 'client_secret', 'cbk_encrp_key' => 'encrp_key'] as $from => $to) {
+            $x = (string) ($val[$from] ?? '');
+            if ($x !== '' && preg_match('/^[\x21-\x7E]{1,200}$/', $x)
+                && stripos($x, 'YOUR_') !== 0 && stripos($x, 'SANDBOX_NOT_A_REAL') !== 0) {
+                $cfg[$to] = $x;
+            }
+        }
+        $env = strtolower(trim((string) ($val['env'] ?? '')));
+        if ($env === 'test' || $env === 'production') $cfg['env'] = $env;
+    } catch (Throwable $e) {
+        error_log('cbk: saved settings unreadable, using config.php (' . $e->getMessage() . ')');
+    }
+    return $cfg;
+}
+
 // Load pay/config.php, INHERITING the orders database from api/config.php when
 // this file does not name one of its own.
 //
@@ -58,6 +92,11 @@ function cbk_db_configured(array $cfg): bool
 // cbk_db_configured() is false exactly as before. See knet_config() for the
 // full reasoning; it is not repeated here so the two cannot drift.
 function cbk_config(): array
+{
+    return cbk_apply_saved(cbk_config_file());
+}
+
+function cbk_config_file(): array
 {
     // A MISSING config.php IS A CONFIGURATION FAULT, NOT A CRASH.
     //
@@ -334,10 +373,15 @@ function cbk_http(string $method, string $url, array $cfg, ?array $json = null, 
 function cbk_get_access_token(array $cfg): string
 {
     $file = $cfg['token_cache_file'];
+    // A TOKEN BELONGS TO ONE GATEWAY AND ONE SET OF CREDENTIALS. Credentials
+    // and the environment can now change from /backends, and a cache that
+    // ignored that would keep handing a test-gateway (or old-credential)
+    // token to the live one for up to 100 minutes after the switch.
+    $fp = hash('sha256', cbk_base($cfg) . "\0" . $cfg['client_id'] . "\0" . $cfg['client_secret'] . "\0" . $cfg['encrp_key']);
     if (is_readable($file)) {
         $cached = json_decode((string) file_get_contents($file), true);
         // Refresh a little early (100 min) to stay well within the 2h window.
-        if (isset($cached['token'], $cached['ts']) && (time() - $cached['ts']) < 100 * 60) {
+        if (isset($cached['token'], $cached['ts']) && ($cached['fp'] ?? '') === $fp && (time() - $cached['ts']) < 100 * 60) {
             return (string) $cached['token'];
         }
     }
@@ -355,7 +399,7 @@ function cbk_get_access_token(array $cfg): string
     }
 
     $token = (string) $res['AccessToken'];
-    @file_put_contents($file, json_encode(['token' => $token, 'ts' => time()]));
+    @file_put_contents($file, json_encode(['token' => $token, 'ts' => time(), 'fp' => $fp]));
     @chmod($file, 0600);
     return $token;
 }

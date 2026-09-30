@@ -2487,7 +2487,14 @@ const STORE_SETTING_DEFAULTS = [
     //
     // Empty means "use whatever knet/config.php says", which is what every
     // shop has today and what happens if this row is never written.
-    'knet'      => ['tranportal_id' => '', 'tranportal_password' => '', 'resource_key' => ''],
+    // 2026-09-30, on the owner's request: the rest of what a payment needs —
+    // which integration (mode), test or live (env), the English language code,
+    // and the three CBK gateway credentials that pay/config.php holds (they
+    // serve card, T-Pay and KNET-official). The same rules as the three above:
+    // never read back to the client, empty means "use the file".
+    'knet'      => ['tranportal_id' => '', 'tranportal_password' => '', 'resource_key' => '',
+                    'mode' => '', 'env' => '', 'lang_en' => '',
+                    'cbk_client_id' => '', 'cbk_client_secret' => '', 'cbk_encrp_key' => ''],
     // GOOGLE SIGN-IN for /backends. The client id is NOT a secret — it is
     // compiled into the page for the browser — which is why it can live here
     // rather than in a git-ignored file. `enabled` is separate so the owner can

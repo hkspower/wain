@@ -109,21 +109,27 @@ failed"*. A trailing space or newline from a copy/paste is the usual cause;
 
 ## Where each setting lives, and which one wins
 
-Read this before editing anything. **One of these six has two homes**, and the
+Read this before editing anything. **Every one of these has two homes**, and the
 one you would not guess wins.
 
 | Setting | Lives in | Changed how | If both are set |
 |---|---|---|---|
-| `tranportal_id` | `knet/config.php` **and** the `knet` row of the `settings` table | file: File Manager · database: **/backends** | **the database wins**, silently |
-| `tranportal_password` | `knet/config.php` | File Manager | — |
-| `resource_key` | `knet/config.php` | File Manager | — |
-| `mode` | `knet/config.php` | File Manager | — |
+| `tranportal_id`, `tranportal_password`, `resource_key` | `knet/config.php` **and** the `knet` row of `settings` | file: File Manager · database: **/backends → Settings → Payment setup** | **the database wins**, per field |
+| `mode` (legacy / official) | both | same | the database wins |
+| `env` (test / production) | both — and it applies to **KNET and the CBK gateway together** | same | the database wins |
+| `lang_en` (EN / USA / ENG) | both | same | the database wins |
+| CBK `client_id`, `client_secret`, `encrp_key` | `pay/config.php` **and** the `knet` row (`cbk_*`) | same | the database wins, per field |
 | `mysql_*` | `knet/config.php`, else inherited from `api/config.php` | File Manager | the file's own value, when it has one |
-| CBK credentials (fallback route) | `pay/config.php` | File Manager | — |
 
-**Only the ID has a second home.** The password and the resource key are never
-read from the database — see the note beside `STORE_SETTING_DEFAULTS` in
-`api/store.php` for why those two stay in the file.
+Since 2026-09-30 every required KNET and CBK value can be set from the panel.
+An empty box on save means "no change"; each secret has its own **Clear**,
+which hands just that field back to the file. Secrets are never sent back to
+the browser — only whether one is saved. The CBK token cache is keyed to the
+credentials and environment, so changing either takes effect on the next payment.
+
+**Every value above has a second home**, by the owner's choice — see the note beside
+`STORE_SETTING_DEFAULTS` in `api/store.php` for the cost (an SQL injection anywhere
+would expose a working gateway credential).
 
 **Why the database wins, and why that is right.** `knet_apply_saved_id()` reads
 the saved ID on every payment and falls back to the file on ANY failure — no

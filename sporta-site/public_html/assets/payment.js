@@ -77,6 +77,15 @@
   var pwLine = null
   var keyLine = null
   var payBox = null
+  var modeSel = null
+  var envSel = null
+  var langSel = null
+  var cbk = {}
+  var CBK_FIELDS = [
+    ['cbk_client_id', 'CBK Client ID', 'Merchant API ID'],
+    ['cbk_client_secret', 'CBK Client Secret', 'Merchant API Password'],
+    ['cbk_encrp_key', 'CBK Encrypted account key', 'Merchant Encrypted account key'],
+  ]
 
   function el(tag, cls, text) {
     var n = document.createElement(tag)
@@ -130,6 +139,11 @@
     if (s === 'placeholder_resource_key') {
       return 'That is the placeholder the file ships with, not a real key.'
     }
+    if (s === 'invalid_mode') return 'Mode must be "legacy" (Tranportal) or "official" (CBK hosted page).'
+    if (s === 'invalid_env') return 'Environment must be "test" or "production".'
+    if (s === 'invalid_lang_en') return 'English code must be EN, USA or ENG.'
+    if (/^invalid_cbk_/.test(s)) return 'That CBK value has a space, a newline or a character it cannot have. Paste it again exactly as the bank sent it.'
+    if (/^placeholder_cbk_/.test(s)) return 'That is the placeholder from the example file, not a real CBK credential.'
     if (s === 'not_signed_in') return 'Your session has ended. Sign in again.'
     if (s === 'bad_request') return 'The panel sent something the shop did not understand.'
     if (s === 'bad_response') return 'The shop answered with something that was not an answer.'
@@ -161,6 +175,16 @@
     keyLine.textContent = k.resource_key_set
       ? 'A resource key is saved here. Leave blank to keep it.'
       : 'Using the resource key in knet/config.php on the server.'
+    modeSel.value = k.mode || ''
+    envSel.value = k.env || ''
+    langSel.value = k.lang_en || ''
+    CBK_FIELDS.forEach(function (f) {
+      var c = cbk[f[0]]
+      c.input.value = ''
+      c.line.textContent = k[f[0] + '_set']
+        ? 'A value is saved here. Leave blank to keep it.'
+        : 'Using pay/config.php on the server.'
+    })
     renderPay(k.pay)
   }
 
@@ -187,7 +211,7 @@
     }
     payBox.appendChild(list)
     payBox.appendChild(el('p', 'spk-hint',
-      'Set on the server, in pay/config.php — not here.'))
+      'Values saved above win; otherwise pay/config.php on the server is used.'))
     var envLine = el('p', pay.ready ? 'spk-status spk-status-ok' : 'spk-status spk-status-bad',
       (pay.ready ? 'Ready to take payments' : 'NOT ready — cards will fail')
       + ' · environment: ' + pay.env)
@@ -212,6 +236,13 @@
     var value = { tranportal_id: idInput.value.trim() }
     if (pwInput.value !== '') value.tranportal_password = pwInput.value
     if (keyInput.value !== '') value.resource_key = keyInput.value
+    // Enums are plain selects, always shown filled in: sent every time.
+    value.mode = modeSel.value
+    value.env = envSel.value
+    value.lang_en = langSel.value
+    CBK_FIELDS.forEach(function (f) {
+      if (cbk[f[0]].input.value !== '') value[f[0]] = cbk[f[0]].input.value
+    })
     post('settings_save', { name: 'knet', value: value })
       .then(function (res) {
         btn.disabled = false
@@ -333,6 +364,32 @@
     keyLine = key.line
     key.clear.addEventListener('click', function () { clearField('resource_key', 'Terminal Resource Key', key.clear) })
 
+    function selectField(labelText, options, hint) {
+      var wrap = el('div', 'spk-field spk-field-secret')
+      wrap.appendChild(el('label', 'spk-label', labelText))
+      var sel = el('select', 'spk-input')
+      options.forEach(function (o) {
+        var op = el('option', null, o[1]); op.value = o[0]; sel.appendChild(op)
+      })
+      wrap.appendChild(sel)
+      wrap.appendChild(el('p', 'spk-src', hint))
+      c.appendChild(wrap)
+      return sel
+    }
+    modeSel = selectField('Integration', [['', 'Use the file (knet/config.php)'], ['legacy', 'Legacy Tranportal'], ['official', 'Official CBK hosted page']],
+      'Which way KNET is taken. Leave on the file unless the bank tells you otherwise.')
+    envSel = selectField('Environment', [['', 'Use the file'], ['test', 'Test — no real money'], ['production', 'Production — LIVE']],
+      'Applies to KNET and the CBK gateway together. Production takes real cards.')
+    langSel = selectField('English language code (Tranportal)', [['', 'Use the file'], ['EN', 'EN'], ['USA', 'USA'], ['ENG', 'ENG']],
+      'Only if KNET says its English code is USA or ENG.')
+
+    c.appendChild(el('h3', 'spk-sub2', 'CBK gateway credentials (card, T-Pay, KNET-official)'))
+    CBK_FIELDS.forEach(function (f) {
+      var w = secretField(f[1], 'Leave blank to keep the current one — ' + f[2])
+      cbk[f[0]] = w
+      w.clear.addEventListener('click', function () { clearField(f[0], f[1], w.clear) })
+    })
+
     var foot = el('div', 'spk-foot')
     var saveBtn = el('button', 'spk-save', 'Save')
     saveBtn.type = 'button'
@@ -342,7 +399,7 @@
     foot.appendChild(note)
     c.appendChild(foot)
 
-    c.appendChild(el('h3', 'spk-sub2', 'CBK gateway (pay/config.php)'))
+    c.appendChild(el('h3', 'spk-sub2', 'CBK gateway readiness'))
     payBox = el('div')
     c.appendChild(payBox)
 
