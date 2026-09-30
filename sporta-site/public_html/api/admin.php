@@ -1290,6 +1290,16 @@ if ($r === 'variant_save' && $method === 'POST') {
     // Capped at 30 so the key always fits varchar(30). Sizes are at most 3
     // characters plus the dash, so the slug gets 26.
     $sku = strtoupper(substr($slug, 0, 26) . '-' . $size);
+    // A SIZE THAT ALREADY HAS A ROW IS EDITED, UNDER THE SKU IT ALREADY HAS. A shop
+    // whose stock was imported from a supplier carries codes like A-TEK-BL-M, not
+    // the slug-derived TEKNO-SHORTS-BLACK-M; deriving the key here made a SECOND
+    // row for the same garment and size (two "M" lines, the old one still at its
+    // old count, and stock_claim decrementing both). Found while testing the
+    // inventory tools against exactly such a product.
+    $existingSku = $db->prepare('select sku from product_variants where slug = ? and size = ? order by sku limit 1');
+    $existingSku->execute([$slug, $size]);
+    $found = $existingSku->fetchColumn();
+    if ($found !== false) $sku = (string)$found;
 
     // ON DUPLICATE KEY on the SKU, so saving the same size twice EDITS rather
     // than erroring — the admin screen re-saves a row the operator is editing,

@@ -40,12 +40,16 @@ const attrsNow = () => sql(`select colour,coalesce(fits,'-') from product_attrs 
 
 const startVariants = sizesNow()
 const startRow = productRow()
+// EXACT rows, sku and cost included. The first version re-inserted a slug-derived SKU
+// for every size, which REPLACED the imported supplier codes (A-TEK-BL-M …) with
+// derived ones — and the sandbox's next import then added the supplier rows back,
+// leaving the fixture with two ladders and this rig failing on its own leftovers.
+const startFull = sql(`select sku, size, stock, coalesce(cost_aed,'NULL') from product_variants where slug='${SLUG}'`).split('\n').map((l) => l.split('\t'))
 const restore = () => {
   sql(`delete from product_attrs where slug='${SLUG}'`)
   sql(`delete from product_variants where slug='${SLUG}'`)
-  for (const l of startVariants.split('\n')) {
-    const [size, stock] = l.split('\t')
-    sql(`insert into product_variants (sku,slug,size,stock,cost_aed) values ('${(SLUG.slice(0, 26) + '-' + size).toUpperCase()}','${SLUG}','${size}',${stock},null)`)
+  for (const [sku, size, stock, cost] of startFull) {
+    sql(`insert into product_variants (sku,slug,size,stock,cost_aed) values ('${sku}','${SLUG}','${size}',${stock},${cost === 'NULL' ? 'null' : cost})`)
   }
 }
 
@@ -111,7 +115,7 @@ try {
   check(sizesNow().split('\n').filter((l) => l.split('\t')[1] === '20').length === 7, 'the seven others kept their stock of 20')
   const add = await admin('product_attrs_save', { slug: SLUG, colour: 'black', fits: [], sizes: all })
   check(add.status === 200 && /5XL\t0/.test(sizesNow()), 'adding it back creates a stock-0 row', sizesNow().split('\n').pop())
-  check(sql(`select sku from product_variants where slug='${SLUG}' and size='5XL'`) === 'TEKNO-SHORTS-BLACK-5XL', 'with the SKU variant_save would have written (no second row later)')
+  check(sql(`select count(*) from product_variants where slug='${SLUG}' and size='5XL'`) === '1', 'as ONE row (no second row for the size)')
   check(attrsNow() === 'black\t-', 'no fits chosen is stored as "every fit" (NULL), the shipped behaviour', attrsNow())
 
   /* ------------------------------------------------------- the card ------- */

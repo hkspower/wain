@@ -87,6 +87,11 @@ try {
   const lr = await admin('inventory_log&slug=' + SLUG)
   check(lr.status === 200 && lr.j.ready && lr.j.rows.length === 2 && lr.j.rows[0].id > lr.j.rows[1].id && !!lr.j.rows[0].name_en, 'the history route lists them newest first, with the product name', JSON.stringify(lr.j).slice(0, 200))
 
+  // A size that already has a row (under an IMPORTED supplier sku) is edited, not doubled.
+  const vs = await admin('variant_save', { slug: SLUG, size: S1.split('-').pop(), stock: 8 })
+  check(vs.status === 200 && vs.j.sku === S1 && Object.keys(stockOf()).length === 8 && stockOf()[S1] === 8, 'variant_save on an existing size edits the row it has (same sku, still eight rows), not a second one', `${vs.j?.sku}`)
+  await admin('inventory_apply', { changes: [{ sku: S1, stock: 7 }] })
+
   /* -------------------------------- refusals are all-or-nothing ------------ */
   const snap = () => JSON.stringify(stockOf()) + sql(`select count(*) from stock_log where id > ${logStart}`)
   const refuse = async (what, changes, token) => {
