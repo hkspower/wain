@@ -1,0 +1,27 @@
+name: wain
+description: >
+  وين — a native Flutter rewrite of the place-discovery site, starting with
+  browsing: home, category/area browse, search, and a place detail page.
+  Shares no code with the Next.js site; the catalogue is generated from it
+  (see ../scripts/gen-flutter-catalogue.mjs) so the two can never silently
+  disagree about the data, even though the UI is independently written.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

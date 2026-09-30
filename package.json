@@ -74,7 +74,8 @@
     "audit:ios": "node scripts/audit-ios.mjs",
     "pdf:search": "node scripts/gen-search-pdf.mjs",
     "content": "node scripts/gen-content.mjs",
-    "content:check": "node scripts/gen-content.mjs --check"
+    "content:check": "node scripts/gen-content.mjs --check",
+    "flutter:catalogue": "node scripts/gen-flutter-catalogue.mjs"
   },
   "dependencies": {
     "@capacitor/core": "8.5.2",

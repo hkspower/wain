@@ -27,7 +27,23 @@ export default tseslint.config(
     // is the thing standing between this repository and the live site — went
     // red on thousands of lint errors inside Next's own compiled chunks. It is
     // gitignored for the same reason `public/voice/` is.
-    ignores: ["out/**", ".next/**", "ios/**", "node_modules/**", "next-env.d.ts", "public/**"],
+    //
+    // `flutter_app/**` is a second, independent codebase (Dart, not
+    // TypeScript) with the identical failure shape: `flutter build web` was
+    // run once to prove the app compiles, and its ~92,000-line dart2js
+    // output (`flutter_app/build/web/main.dart.js`) is picked up by ESLint's
+    // default globbing the same way the iOS bundles were — 19,774 errors from
+    // one compiled JS blob nobody wrote by hand. Excluded whole, the same as
+    // `ios/**`, rather than teaching ESLint to parse Dart-compiled output.
+    ignores: [
+      "out/**",
+      ".next/**",
+      "ios/**",
+      "flutter_app/**",
+      "node_modules/**",
+      "next-env.d.ts",
+      "public/**",
+    ],
   },
 
   js.configs.recommended,
