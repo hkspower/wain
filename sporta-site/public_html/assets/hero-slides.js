@@ -123,6 +123,37 @@
     return Math.min(1, (viewportW / photoH) / ARTWORK_RATIO) * 100
   }
 
+  /* ------------------------------------------------------------- size guide -- */
+  // The numbers the guide prints and judge() measures against. The stored copy
+  // of a desktop image is capped at BEST_W wide (downscale(file, 1600) below) and a
+  // phone image at BEST_MW (1200), so those are the useful upper limits.
+  var BEST_W = 1600
+  var BEST_H = Math.round(BEST_W / ARTWORK_RATIO)   // 635
+  var MIN_W = 1200
+  var BEST_MW = 1200
+  var MIN_MW = 800
+
+  function judge(w, h, kind) {
+    var ratio = w / h
+    var lines = []
+    var ok = true
+    if (kind === 'desktop') {
+      if (Math.abs(ratio - ARTWORK_RATIO) >= 0.15) {
+        ok = false
+        lines.push('Shape ' + ratio.toFixed(2) + ':1 — the banner is ' + ARTWORK_RATIO + ':1. ' +
+          (ratio < ARTWORK_RATIO ? 'This is taller, so the top and bottom will be cut off. Crop it to ' + BEST_W + '×' + BEST_H + ' first.'
+                                 : 'This is wider, so the sides will be cut off. Crop it to ' + BEST_W + '×' + BEST_H + ' first.'))
+      }
+      if (w < MIN_W) { ok = false; lines.push('Only ' + w + ' px wide — it will look soft on a large screen. Use at least ' + MIN_W + ', best ' + BEST_W + '.') }
+      else if (w > BEST_W) lines.push('Wider than ' + BEST_W + ' px, so it will be shrunk to ' + BEST_W + ' wide when saved. That is fine.')
+      return { ok: ok, headline: w + '×' + h + ' px · ' + ratio.toFixed(2) + ':1 — ' + (ok ? 'fits the banner' : 'needs attention'), lines: lines }
+    }
+    if (w < MIN_MW) { ok = false; lines.push('Only ' + w + ' px wide — it will look soft on a phone. Use at least ' + MIN_MW + ', best ' + BEST_MW + '.') }
+    else if (w > BEST_MW) lines.push('Wider than ' + BEST_MW + ' px, so it will be shrunk to ' + BEST_MW + ' wide when saved. That is fine.')
+    lines.push('Shape ' + ratio.toFixed(2) + ':1 — it is cropped to the phone banner, so the middle is what shows.')
+    return { ok: ok, headline: w + '×' + h + ' px — ' + (ok ? 'good for phones' : 'needs attention'), lines: lines }
+  }
+
   /* --------------------------------------------------------------- upload -- */
 
   // Downscale to at most `maxW` wide and re-encode as WebP q0.85 — a courtesy
@@ -244,6 +275,7 @@
 
     // Live, calibrated crop preview — desktop and phone side by side.
     var previewWrap = el('div', 'hsl-preview-wrap')
+    var arts = {}   // 'desktop' | 'phone' -> the preview's art node, so a picked file can show before it is saved
     ;[{ w: 1280, h: 800, label: 'Desktop (1280×800)' }, { w: 390, h: 844, label: 'Phone (390×844)' }].forEach(function (vp) {
       var pct = visiblePct(vp.w, vp.h)
       var col = el('div', 'hsl-preview-col')
@@ -251,6 +283,7 @@
       var frame = el('div', 'hsl-preview-frame')
       var art = el('div', 'hsl-preview-art')
       if (s.image) art.style.backgroundImage = 'url(/api/' + s.image + ')'
+      arts[vp.w > 800 ? 'desktop' : 'phone'] = art
       frame.appendChild(art)
       var win = el('div', 'hsl-preview-window')
       win.style.width = pct.toFixed(2) + '%'
@@ -274,11 +307,21 @@
 
     // Upload / replace.
     var uploadWrap = el('div', 'hsl-upload')
+    var guide = el('div', 'hsl-guide')
+    guide.appendChild(el('strong', null, 'Size guide — check before you upload'))
+    ;[
+      'Desktop image: ' + BEST_W + '×' + BEST_H + ' px (' + ARTWORK_RATIO + ':1, the wide banner). Anything from ' + MIN_W + ' px wide up works; wider than ' + BEST_W + ' px is shrunk to ' + BEST_W + '.',
+      'Phone image (optional): ' + BEST_MW + ' px wide, tall or square is fine — it is cropped to the phone banner, so keep the subject in the middle.',
+      'Any JPG, PNG or WebP. File size does not matter; the shop shrinks it. Text burnt into the picture should stay inside the middle 60%.',
+    ].forEach(function (t) { guide.appendChild(el('div', null, '• ' + t)) })
+    uploadWrap.appendChild(guide)
     uploadWrap.appendChild(el('label', 'hsl-label', 'Replace desktop image'))
     var fileIn = document.createElement('input')
     fileIn.type = 'file'
     fileIn.accept = 'image/*'
     uploadWrap.appendChild(fileIn)
+    var deskVerdict = el('div', 'hsl-verdict')
+    uploadWrap.appendChild(deskVerdict)
     var mobileLabel = el('label', 'hsl-label', 'Replace mobile image (optional)')
     mobileLabel.style.marginTop = '10px'
     uploadWrap.appendChild(mobileLabel)
@@ -286,7 +329,38 @@
     mobileIn.type = 'file'
     mobileIn.accept = 'image/*'
     uploadWrap.appendChild(mobileIn)
+    var mobVerdict = el('div', 'hsl-verdict')
+    uploadWrap.appendChild(mobVerdict)
     box.appendChild(uploadWrap)
+
+    // What a picked file will be, BEFORE anything is uploaded: its real size,
+    // whether it fits the banner, and the preview above redrawn with it.
+    function inspect(file, kind, verdictBox) {
+      verdictBox.textContent = ''
+      if (!file) return
+      // A data: URL, not a blob: object URL: the live Content-Security-Policy
+      // allows img-src data: but NOT blob:, so an object URL would look fine on
+      // the sandbox (no policy) and be refused on the real shop.
+      var reader = new FileReader()
+      var bad = function () { verdictBox.appendChild(el('span', 'hsl-badge hsl-badge-warn', 'This file cannot be read as a picture.')) }
+      reader.onerror = bad
+      reader.onload = function () {
+        var url = reader.result
+        var im = new Image()
+        im.onerror = bad
+        im.onload = function () {
+          var v = judge(im.naturalWidth, im.naturalHeight, kind)
+          verdictBox.appendChild(el('span', 'hsl-badge ' + (v.ok ? 'hsl-badge-ok' : 'hsl-badge-warn'), v.headline))
+          v.lines.forEach(function (l) { verdictBox.appendChild(el('div', 'hsl-hint', l)) })
+          var showIn = kind === 'phone' ? ['phone'] : (mobileIn.files[0] ? ['desktop'] : ['desktop', 'phone'])
+          showIn.forEach(function (k) { if (arts[k]) arts[k].style.backgroundImage = 'url("' + url + '")' })
+        }
+        im.src = url
+      }
+      reader.readAsDataURL(file)
+    }
+    fileIn.addEventListener('change', function () { inspect(fileIn.files[0], 'desktop', deskVerdict) })
+    mobileIn.addEventListener('change', function () { inspect(mobileIn.files[0], 'phone', mobVerdict) })
 
     var sortWrap = el('label', 'hsl-field')
     sortWrap.appendChild(el('span', 'hsl-label', 'Sort order'))
@@ -461,6 +535,9 @@
     + '.hsl-preview-art{position:absolute;inset:0;background-size:cover;background-position:center}'
     + '.hsl-preview-window{position:absolute;top:0;bottom:0;border:2px solid var(--brand,#e0561c);box-sizing:border-box;pointer-events:none}'
     + '.hsl-upload{margin:12px 0}'
+    + '.hsl-guide{border:1px dashed var(--border,#2a2d31);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;line-height:1.55;max-width:640px}'
+    + '.hsl-guide strong{display:block;font-size:13px;margin-bottom:4px}'
+    + '.hsl-verdict{margin:6px 0 0}'
     + '.hsl-field{display:flex;flex-direction:column;gap:4px;max-width:160px;margin-bottom:12px}'
     + '.hsl-input{padding:8px 10px;border-radius:8px;border:1px solid var(--border,#2a2d31);background:transparent;color:inherit;font:inherit}'
     + '.hsl-save{padding:9px 16px;border-radius:8px;border:0;cursor:pointer;background:var(--brand,#e0561c);color:#fff;font:inherit;font-weight:600}'

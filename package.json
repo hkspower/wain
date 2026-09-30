@@ -196,6 +196,7 @@
     "test:password-reset": "node scripts/password-reset-test.mjs",
     "test:login-log": "node scripts/login-log-test.mjs",
     "test:payments-screen": "node scripts/payments-screen-test.mjs",
+    "test:hero-size-guide": "node scripts/hero-size-guide-test.mjs",
     "test:product-zoom": "node scripts/product-zoom-test.mjs",
     "test:wallet-setup": "node scripts/wallet-setup-test.mjs",
     "test:brand-image-picker": "node scripts/brand-image-picker-test.mjs",
