@@ -104,6 +104,11 @@ async function run({ withPolicy }) {
         ws.send(JSON.stringify({ type: "conversation_initiation_metadata", conversation_initiation_metadata_event: { conversation_id: "c_test", agent_output_audio_format: "pcm_16000", user_input_audio_format: "pcm_16000" } }));
     });
   });
+  await ctx.addInitScript(() => {
+    window.__violations = [];
+    document.addEventListener("securitypolicyviolation", (e) =>
+      window.__violations.push(`${e.violatedDirective} ${e.blockedURI.slice(0, 100)}`));
+  });
   const page = await ctx.newPage();
   await page.goto(`http://127.0.0.1:${port}/search/`, { waitUntil: "networkidle" });
   await page.locator('button[aria-controls="wain-ai-panel"]').first().click();
@@ -116,9 +121,10 @@ async function run({ withPolicy }) {
   if (await accept.count()) await accept.click({ timeout: 5000 });
   await page.waitForTimeout(5000);
   const header = await page.locator("#wain-ai-panel header").textContent();
+  const violations = await page.evaluate(() => window.__violations);
   await browser.close();
   server.close();
-  return { header, chunks: sent.filter((t) => t === "user_audio_chunk").length, sent };
+  return { header, chunks: sent.filter((t) => t === "user_audio_chunk").length, sent, violations };
 }
 
 console.log(`\n── the real widget ${version}, a fake microphone, a mock socket ──`);
@@ -130,6 +136,7 @@ console.log("\n── the same, under the Content-Security-Policy that ships ─
 const shipped = await run({ withPolicy: true });
 ok("the header says connected (it said so throughout the bug)", /متصل/.test(shipped.header), shipped.header);
 ok("the socket opened and sent its initiation", shipped.sent.includes("conversation_initiation_client_data"));
+ok("the widget triggers no Content-Security-Policy violation at all", shipped.violations.length === 0, shipped.violations.join("; "));
 ok("audio leaves the page — a granted microphone is HEARD", shipped.chunks > 20, `${shipped.chunks} chunks; script-src needs blob: for the widget's AudioWorklet`);
 
 console.log(`\n${passed} passed, ${failed} failed`);

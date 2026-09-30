@@ -1269,11 +1269,19 @@ it. `audit:htaccess` also asserts `blob:` is in `script-src`, the cheap half.
 **Its first version counted `type === "user_audio_chunk"` and read 0 in the
 control too:** audio messages have no `type` field, the key IS the name.
 
-**Also seen, not fixed:** the widget's orb wants
-`https://storage.googleapis.com/eleven-public-cdn/images/perlin-noise.png` and
-`img-src` refuses it. Cosmetic (a texture), and allowing it hands a visitor's
-address to Google's storage host during a call — a decision, not a cleanup.
-Not live until a deploy.
+**The one violation left was the orb's texture, and it is fixed, narrowly.**
+Listing every `securitypolicyviolation` the real widget raises under the
+shipped policy (not just the ones that stop audio) gave exactly one:
+`img-src` refusing `storage.googleapis.com/eleven-public-cdn/images/…`, the
+noise texture under the orb (the language flags live under the same prefix).
+`img-src` now names that **path**, trailing slash included, which CSP matches by
+prefix — not the host, which would allow anybody's bucket. The cost is real and
+is disclosed on `/privacy`: while a call is open the visitor's address reaches
+Google's storage host. `test:widget-csp` asserts zero violations and was
+confirmed red by taking the source back out — the violation assertion failed,
+and only it. **A comment in `.htaccess` cannot contain that image's filename**:
+`audit:assets` scans the shipped text and read the full URL as a rooted path to
+a file that does not exist.
 
 **And the SDK offers a way around needing `blob:`/a third-party `worker-src`
 entry at all, not taken here.** `@elevenlabs/client`'s `AudioWorkletConfig`
