@@ -149,7 +149,7 @@ $WANT = [
     'assets/footer.js' => 'ccae6f59425660d18636fd07983a082c436bcb62d6df1b4d4cb829905bf9c9f4',
     'assets/force-password-notice.js' => '79f095525ce54694729e775e0c84c18f4be6991c402a04483bb55a1718d54c83',
     'assets/google-signin.js' => 'e66ab29ec70a794ffee0945c0fa69d50c30334ad90f56a56aa49ba12da58bd97',
-    'assets/hero-slides.js' => '5577e5bc2f88f062f3b95db5ac65e5269be8ee43ccdeda96224265b53b0af28b',
+    'assets/hero-slides.js' => '242885c15a5e3e00d5689a499af265b2f6e9761c828c9e80e279d5d543241e59',
     'assets/home-products.js' => '3ba34d73b31a2ad3db4f3d7a80c6007b665f6146fcd670155f65a2e8d2007659',
     'assets/index-5HbquisI.js' => '881eece4525a72074c514b348be352f5056e3f9030ed9900dc5cc02a2368306c',
     'assets/index-TIUCmnwm.css' => '4c85029a7c26cdf79a3ca7520c0bfebe286a95f9bbcc33ad8a4908d81a145ad7',
@@ -295,7 +295,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => '1ba2a01e9f35e80a67b4b6047afcb5370b4005074a150ade4907a578cb0ebf4a',
-    'sw.js' => '41dc300a29d7b6f9b67065c34a6f31aba0b0f435c8d1270ecedfbecb55979495',
+    'sw.js' => '307aed462c153980ac2469e3dff7ab87580b09eaa7d49fccac88863e76a7b5be',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
