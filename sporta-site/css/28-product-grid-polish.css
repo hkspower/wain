@@ -9,8 +9,12 @@
  * (no source for this bundle here); scoped to the shop grid's own class
  * combination so this cannot catch an unrelated grid elsewhere on the site.
  */
-[class~="grid-cols-2"][class~="sm:gap-x-3"][class~="lg:grid-cols-4"] {
-  row-gap: 20px;
+/* PHONE: 10px each way, the owner's card spec of 2026-09-30 ("card spacing
+ * 8-10px", see 44-product-grid-spec.css). The 20-24px below is the desktop's. */
+@media (max-width: 767px) {
+  [class~="grid-cols-2"][class~="sm:gap-x-3"][class~="lg:grid-cols-4"] {
+    row-gap: 10px;
+  }
 }
 @media (min-width: 768px) {
   [class~="grid-cols-2"][class~="sm:gap-x-3"][class~="lg:grid-cols-4"] {
@@ -18,8 +22,11 @@
     row-gap: 22px;
   }
 }
+/* The card itself is rounded and clips its photo (44-product-grid-spec.css), so the
+ * photo link carries no radius of its own: a 10px one inside a 16px clip would
+ * show a dark wedge at each top corner. */
 a[class~="aspect-[4/5]"][class~="overflow-hidden"][class~="bg-slate-100"] {
-  border-radius: 10px;
+  border-radius: 0;
 }
 
 /* Image hover transitions — asked for "premium and subtle... 150-250ms",

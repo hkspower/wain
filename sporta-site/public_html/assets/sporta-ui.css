@@ -3230,8 +3230,12 @@ h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate
  * (no source for this bundle here); scoped to the shop grid's own class
  * combination so this cannot catch an unrelated grid elsewhere on the site.
  */
-[class~="grid-cols-2"][class~="sm:gap-x-3"][class~="lg:grid-cols-4"] {
-  row-gap: 20px;
+/* PHONE: 10px each way, the owner's card spec of 2026-09-30 ("card spacing
+ * 8-10px", see 44-product-grid-spec.css). The 20-24px below is the desktop's. */
+@media (max-width: 767px) {
+  [class~="grid-cols-2"][class~="sm:gap-x-3"][class~="lg:grid-cols-4"] {
+    row-gap: 10px;
+  }
 }
 @media (min-width: 768px) {
   [class~="grid-cols-2"][class~="sm:gap-x-3"][class~="lg:grid-cols-4"] {
@@ -3239,8 +3243,11 @@ h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate
     row-gap: 22px;
   }
 }
+/* The card itself is rounded and clips its photo (44-product-grid-spec.css), so the
+ * photo link carries no radius of its own: a 10px one inside a 16px clip would
+ * show a dark wedge at each top corner. */
 a[class~="aspect-[4/5]"][class~="overflow-hidden"][class~="bg-slate-100"] {
-  border-radius: 10px;
+  border-radius: 0;
 }
 
 /* Image hover transitions — asked for "premium and subtle... 150-250ms",
@@ -4088,4 +4095,90 @@ main div.grid:has(> article > a[class*="aspect-"]) > article > a[class*="aspect-
 }
 main div.grid:has(> article > a[class*="aspect-"]) > article > a[class*="aspect-"] + div .price-card {
   justify-content: center;
+}
+/* PRODUCT GRID — THE OWNER'S CARD SPEC, 2026-09-30.
+ * "use this as product grid style", with a table: 2 columns, 4:5 image on a
+ * light background, card #151619, border removed, 14-16px corners, name 14-15px
+ * medium/bold, small uppercase brand, price 15-17px bold, old price small and
+ * crossed out, product info 70-85px at most, 8-10px spacing, a small round +,
+ * a heart top-right, a small orange sale badge.
+ *
+ * A table from the owner is the approval, so this matches it, and where the
+ * bundle already did a row that row is left alone (4:5 photo, the round + and
+ * heart, the orange badge). What moved: the card itself (a filled, rounded
+ * #151619 surface), the photo's background (white), the gap (10px), the border
+ * (gone), and the caption's colours, which are set here rather than inherited
+ * because the card is dark in BOTH themes and the bundle's name colour is
+ * dark slate on the light one.
+ *
+ * COLUMNS: 2 is the phone. The bundle steps to 3 from 768px and 4 from 1024px
+ * and that is kept, since a table for a phone is not a reason to run two very
+ * wide columns on a desktop. HEART: it stays on the END corner, which is the
+ * right in English and the left in Arabic, matching the badge on the start
+ * side; a fixed right corner would put it on top of the badge in Arabic.
+ * NAME AND PRICE stay centred, the owner's choice earlier today (43-).
+ * Every subject below is a named element, none universal (test:has-cost). */
+
+main div.grid:has(> article > a[class*="aspect-"]) {
+  column-gap: 10px;
+  row-gap: 10px;
+}
+
+main div.grid:has(> article > a[class*="aspect-"]) > article {
+  background: #151619;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 0;
+}
+
+/* The photograph sits on white — a supplier shot on a white studio background
+ * then has no edge to float, so the hairline outline from 43- goes too. A card
+ * with NO photo keeps the placeholder's own dark ground (41-no-photo.css). */
+main article > a[class*="aspect-"] {
+  outline: 0;
+}
+main article > a[class*="aspect-"]:has(> img:not([src^="data:"])) {
+  background: #fff !important;
+}
+
+/* Caption: 10px in, at most 85px tall (name two lines + brand + price). */
+main div.grid:has(> article > a[class*="aspect-"]) > article > a[class*="aspect-"] + div {
+  padding: 10px 10px 12px;
+  gap: 3px;
+  max-height: 85px;
+  overflow: hidden;
+}
+main article h3[class~="line-clamp-2"],
+main article h3[class~="line-clamp-1"] {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: #f2f3f4 !important;
+}
+main article .sporta-brand-name {
+  font-size: 11px;
+  color: #9ba1a8;
+}
+main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+}
+/* The old price: small, dim, struck through, beside the new one. */
+main article .price-card :is(s, del, [class*="line-through"]) {
+  font-size: 12px;
+  font-weight: 500;
+  color: #8a9097;
+  text-decoration: line-through;
+}
+
+/* The sale / bestseller badge: small and orange. */
+main article > a[class*="aspect-"] > span[class~="absolute"][class~="rounded-lg"] {
+  font-size: 10px;
+  line-height: 1;
+  padding: 4px 7px;
+  border-radius: 6px;
+  /* orange, as asked: the dark theme repaints the bundle's badge silver, and
+     that rule is !important, so this is too. */
+  background: var(--brand, #e0561c) !important;
+  color: #151619 !important;   /* white on this orange is 3.6:1, under AA at 10px */
 }

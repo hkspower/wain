@@ -88,7 +88,7 @@ process.on('exit', () => { try { sql("delete from product_images where image_has
     return { outline: getComputedStyle(a).outlineStyle + ' ' + getComputedStyle(a).outlineWidth, pos: img && getComputedStyle(img).objectPosition,
       gaps: getComputedStyle(document.querySelector('main div.grid:has(> article)')).columnGap + '/' + getComputedStyle(document.querySelector('main div.grid:has(> article)')).rowGap }
   })
-  check(/solid 1px/.test(st.outline), 'each photo frame has its hairline edge', st.outline)
+  check(/^none|0px$/.test(st.outline), 'the photo frame has no border or outline (the owner\'s card spec removes it)', st.outline)
   check(st.pos === '50% 22%', 'photographs are cropped towards the top (faces stay in frame)', st.pos)
   const cap = await page.evaluate(() => {
     const art = [...document.querySelectorAll('main div.grid > article')].find((x) => x.querySelector('.price-card'))
