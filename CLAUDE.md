@@ -581,6 +581,24 @@ release), kept 14 days. The first dispatch failed in `checkDebugAarMetadata`:
 36, so `permission_handler` is pinned `^12.0.1` — do not bump it until AGP moves.
 No tool here can fetch an artifact, and a committed APK would be a permanent blob.
 
+**The agent stopped requiring an Origin header on 1 October, for the native app.**
+`elevenlabs_agents` 0.6.1 fetches its token with a bare `http.get` to
+`/v1/convai/conversation/token` (read in `token_service.dart`), so an Android or
+iOS call carries no `Origin`, and `require_origin_header` would have refused it
+at connect. Set to `false` through `agents_update` (`platform_settings.auth`
+alone; the reply still held the prompt, the three tools, the 25 tests, the
+hostname allowlist and the `voice_id`/`text_only` overrides) — version
+`agtvrsn_9401m3t4meqffghrsc83e7bb8hsz`, from `agtvrsn_2201m3pmgd27erktdgpkre0k2bf2`.
+`enable_auth` stays off and the allowlist stays, so browsers are still checked;
+what it buys nobody who is trying was already nothing (Origin can be forged), and
+`daily_limit` is 5000. The locked-down alternative is a signed token minted by
+`wainkw.com`, which needs a key in `storage/elevenlabs.key` (empty today).
+Revert by setting it back to `true` — the website is unaffected either way.
+`agents_list_conversations` also shows five-plus `widget` conversations of 0–1s
+and no messages since 29 September, so «nobody has ever called her» above is out
+of date: people have tried, and none got a word through. No `flutter_sdk` or
+`android_sdk` conversation exists yet.
+
 **What nothing here can prove.** No Xcode, so no iOS binary was built:
 the iOS job is unexecuted, and the Android APK has never been installed on a phone. `api.elevenlabs.io` and `tile.openstreetmap.org` are
 refused, so a real call and real tiles were never seen — the call controller is
