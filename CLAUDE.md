@@ -506,6 +506,34 @@ file's length would pass it. Content hashes would close that, and nothing on
 this connector returns one for a binary — which is why the hashed chunk
 names, content-addressed by the build, carry most of the weight.
 
+## The 30 September deploy, second — `58f2bc6` is live: the mic fix
+
+Only one file changed under `public/`: `.htaccess`, `script-src` gains `blob:`
+(see the paragraph beginning «And that fix was the wrong directive» in the شوق
+section). `git diff --name-only 831c418a..HEAD -- src public` was that file alone.
+
+`{"ok":true,"version":"1.1.0","deployed":260,"removed":2,"emptied":1,"at":
+"2026-09-30T15:54:02+00:00"}` through the installed caller, one cron job
+(`lk6FOcYmVR`), read from its first firing and deleted straight after. The
+archive is `5066790/wain-1.1.0.zip` (sha256 `e77b7ed5…`) — one more permanent
+~3.8MB blob. `removed: 2` is the previous build-id directory's two files, which
+is the whole difference between two builds that differ by a header.
+
+**Verified below the root, and then the thing that mattered**: the six proofs
+byte-exact (`deploy:verify`: «58f2bc62 is live — verified at the root and 6
+levels below it»), `build.json` `58f2bc62…` / `8637e4cac7c14e32`, and the live
+`.htaccess` read back off the disk carrying `blob:`. **A header on disk is not
+a header served**, so after the cache purge a cron `wget -S --spider` of
+`https://www.wainkw.com/search/` — from the server out through the edge
+(`Server: hcdn`, `x-hcdn-cache-status: DYNAMIC`) — returned
+`Content-Security-Policy: … script-src 'self' 'unsafe-inline' blob:
+https://unpkg.com; …`. That probe is the one worth repeating after any change
+to a header: `wget -S` without `-q` (with `-q` there is no header output).
+
+**Still not measured**: a real call on a phone. The 0 → 201 chunk result is
+Chromium with a fake microphone and a mock socket; iOS Safari and the real
+ElevenLabs socket are untested. One call on a real phone closes it.
+
 ## The 30 September deploy — `831c418` is live
 
 **The «live» line above was stale again, and `build.json` said so.** This file
