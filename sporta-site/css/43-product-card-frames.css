@@ -36,3 +36,19 @@ main article > a[class*="aspect-"] > img:not([src^="data:"]) {
 /* The second photograph on hover is the bundle's own (an opacity-0 <img> under the
  * main one), and it takes the same crop from rule 2 above: `object-position` is set
  * on every non-placeholder card picture, so the two line up while they fade. */
+
+/* NAME AND PRICE CENTRED UNDER THE PHOTO — 2026-09-30, "make alignment for name and
+ * price at product grids layout", the owner's choice out of four measured options.
+ * (Vertically they were already level across every row, in both languages, phone
+ * and desktop; what was asked for is the horizontal alignment.) The caption is
+ * the <div> after the photo link; the price is a flex row (a sale shows the old
+ * price beside the new), so it is centred with justify-content, the name and the
+ * brand line with text-align. Symmetric, so it needs no RTL twin. The subject of
+ * every selector is a named element — test:has-cost. */
+main div.grid:has(> article > a[class*="aspect-"]) > article > a[class*="aspect-"] + div {
+  align-items: center;
+  text-align: center;
+}
+main div.grid:has(> article > a[class*="aspect-"]) > article > a[class*="aspect-"] + div .price-card {
+  justify-content: center;
+}
