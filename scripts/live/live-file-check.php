@@ -161,7 +161,7 @@ $WANT = [
     'assets/panel-tabbar-autocenter.js' => '5b313f6f88512e0ba33e7170d7e9f4e5f530a1b874944f96062ae573743d9d91',
     'assets/panel-tabbar-fade.js' => 'ae3f58547eec7b832159c72285eacae0c0b128adf719398b0d24dd539e535da6',
     'assets/panel-ux.js' => 'a2f956ae91db6f476028a13dc993b4f36fde65ae86f645d8109e9085061db550',
-    'assets/passcode-login.js' => '3c03ea2ec152a56b082ceb0f1249a3086c261f1db55b6ae0e4a70c1e3c52999a',
+    'assets/passcode-login.js' => '6ea9e69ae56825139fa34ee599dd96f540d13832b0a6d9f8394c849a7cfeda53',
     'assets/payment.js' => '9320d6c9d1c67657320f854ce5937b8f2218cc208f533add456cdd49bb609270',
     'assets/product-attrs.js' => 'a737d3dfe647e114380de1c271b31768c28696599a9d880e780656880e9c2075',
     'assets/product-cards.js' => 'd9a709eb68c4d87444b11073dce4af0d51bd20dbc90f03a97fe87c1d3cc18d3d',
@@ -289,7 +289,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => '1ba2a01e9f35e80a67b4b6047afcb5370b4005074a150ade4907a578cb0ebf4a',
-    'sw.js' => '128b295dad7dd62a7518f17a72dd8d869e7218b353e98915656add569958c890',
+    'sw.js' => '1e8aa6f8c4b68e1a6ecc2b93f6465ca942dbd39ba77b8ea7968bd8c006df830a',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
