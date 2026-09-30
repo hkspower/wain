@@ -139,10 +139,10 @@
    * 12.4:1) and secondary #a6acb2 -> #b7bdc4 (from 7.9:1 to 9.4:1 — brighter, so
    * small grey text is easier to read, not softer). Less glare from the big white
    * headings and prices, more legibility from the small grey. */
-  --sp-silver: #a9b0b8;
-  --sp-text: #cfd4da;
-  /* The owner chose the SOFTER silver (option C) on 2026-09-30 out of four shown: primary
-   * #cfd4da, secondary #a9b0b8. The figures quoted above are for the first pass. */
+  --sp-silver: #c4c9d0;
+  --sp-text: #e6e9ed;
+  /* The owner then chose the LIGHTER silver (option B) the same day, replacing the softer C: primary
+   * #e6e9ed, secondary #c4c9d0. The figures quoted above are for the first pass. */
   /* THE THIRD HOME OF THE BRAND COLOUR, and the one that beats the other two.
      `[data-theme=dark] .btn-primary` below sets background-color from
      --sp-ember-fill with !important, so the shop's main call to action took its
