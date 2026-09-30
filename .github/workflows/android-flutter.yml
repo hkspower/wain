@@ -107,11 +107,34 @@ jobs:
         working-directory: flutter_app
         run: flutter build apk --debug
 
+      # Without android/key.properties, build.gradle.kts signs the release
+      # variant with the debug keys. That is installable by sideloading — it is
+      # NOT a Play Store build, which is what build-release below is for.
+      - name: Build a sideloadable APK (release, debug-signed)
+        working-directory: flutter_app
+        run: flutter build apk --release
+
+      # The log itself says what was built, so a green run is not taken on trust.
+      - name: Show what the APK declares
+        working-directory: flutter_app
+        run: |
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          ls -l build/app/outputs/flutter-apk/*.apk
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/aapt" dump badging "$APK" | grep -E "^package:|^sdkVersion|^targetSdkVersion|^uses-permission|^application-label:"
+
       - name: Upload the debug APK
         uses: actions/upload-artifact@v4
         with:
           name: wain-android-debug
           path: flutter_app/build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 14
+
+      - name: Upload the sideloadable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: wain-android-sideload
+          path: flutter_app/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 14
 
   build-release:
