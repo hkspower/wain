@@ -191,7 +191,7 @@ export const SALEM_GREETING = "هلا! أنا سالم. قول لي وش تبي 
  * version and for the entry path when it can reach it.
  */
 export const WAIN_AI_WIDGET_SRC =
-  "https://unpkg.com/@elevenlabs/convai-widget-embed@0.18.1/dist/index.js";
+  "https://unpkg.com/@elevenlabs/convai-widget-embed@0.18.3/dist/index.js";
 
 /**
  * Origin of the above, warmed before a tap.

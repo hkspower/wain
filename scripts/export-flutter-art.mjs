@@ -22,7 +22,7 @@
  * widget around it via SvgTheme(currentColor: …).
  */
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, existsSync, rmSync, writeFileSync, readdirSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";

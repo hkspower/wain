@@ -70,7 +70,7 @@ F.acceptsOrders = ps.map((p) => [K.acceptsOrders(p), K.takesQueue(p)]).filter((x
 // speech preparation
 const lines = { shouq: K.buildClipLines("shouq", ps), salem: K.buildClipLines("salem", ps) };
 F.clipLines = lines;
-F.forSpeech = [...Object.values(lines.shouq), "٣٦٠ درجة", "٤٫٨ نجمة", "چاي — مچبوس", "  سمچ   وپيتزا ڤيلا  ", "ک ی گ", ""].map((t) => ({ t, out: K.forSpeech(t) }));
+F.forSpeech = [...Object.values(lines.shouq), "٣٦٠ درجة", "٤٫٨ نجمة", "چاي — مچبوس", "  سمچ   و\u067eيتزا \u06a4يلا  ", "\u06a9 \u06cc \u06af", ""].map((t) => ({ t, out: K.forSpeech(t) }));
 
 // the hangout planner, across hours and seasons
 const setting = (s) => ps.filter((p) => p.setting === s);
