@@ -1,0 +1,190 @@
+name: Android app (Flutter)
+
+# Companion to ios.yml, for flutter_app/ — the real, independent Flutter
+# rewrite (not a Capacitor wrapper; see flutter_app/README.md for why it
+# exists alongside the Capacitor iOS app rather than instead of it).
+#
+# UNVERIFIED BY EXECUTION, THE SAME WAY ios.yml IS
+#
+# The Android SDK is fetched from dl.google.com, and that host is refused at
+# CONNECT by this sandbox's own egress gateway — confirmed with the proxy's
+# own diagnostic (`connect_rejected`, policy denial), the same class of block
+# already documented elsewhere in the main CLAUDE.md for api.elevenlabs.io
+# and unpkg.com. So nothing below has run end to end from here, the same
+# honest limitation ios.yml already states for Xcode. What HAS run, in this
+# sandbox: `flutter analyze`, `flutter test` and `flutter build web
+# --release` (flutter_app/README.md) — none of which touch the Android
+# toolchain this workflow depends on.
+#
+# ubuntu-latest ships the Android SDK preinstalled (platform-tools,
+# build-tools, a recent platform, cmdline-tools) — the same reason
+# macos-latest needs no separate Xcode install in ios.yml. So unlike the iOS
+# workflow there is no SDK-install step here; only Flutter itself, via
+# subosito/flutter-action, which downloads from storage.googleapis.com — the
+# one Google host this sandbox could already reach, which is how the Flutter
+# SDK got installed here in the first place.
+#
+# TWO JOBS, mirroring ios.yml's build-simulator/build-signed split
+#
+#   build-debug — always runs. `flutter build apk --debug` needs no signing
+#     secrets: Gradle auto-generates a debug keystore, so this proves the
+#     whole toolchain (Dart, the generated catalogue, Gradle, the Android
+#     SDK) actually produces an installable APK.
+#
+#   build-release — only runs once all Android signing secrets below are
+#     present. Writes android/key.properties from them; the matching
+#     conditional signingConfig lives in
+#     flutter_app/android/app/build.gradle.kts, which falls back to the
+#     debug keys when key.properties is absent — so build-debug is
+#     unaffected by this job existing at all.
+on:
+  workflow_dispatch:
+
+jobs:
+  # Same lesson ios.yml's own check-signing carries: a job-level `if:` cannot
+  # read the `secrets` context directly. Resolved through a step's `env:`
+  # into a plain output instead, the same shape.
+  check-signing:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "${{ vars.ANDROID_KEY_ALIAS }}" ] && [ -n "$KEY_PASSWORD" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Regenerates the catalogue from places.ts and fails the build if it
+      # differs from what's committed — the same drift check content:check
+      # already does for docs/content.md. A place added to the site with no
+      # matching regeneration here would otherwise ship a Flutter app one
+      # place short of it, silently.
+      - name: Verify the generated catalogue is current
+        run: |
+          npm run flutter:catalogue
+          git diff --exit-code -- flutter_app/lib/data/places.g.dart flutter_app/lib/data/categories.g.dart
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+
+      - name: flutter pub get
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: flutter analyze
+        working-directory: flutter_app
+        run: flutter analyze
+
+      - name: flutter test
+        working-directory: flutter_app
+        run: flutter test
+
+      - name: Build a debug APK
+        working-directory: flutter_app
+        run: flutter build apk --debug
+
+      - name: Upload the debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: wain-android-debug
+          path: flutter_app/build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 14
+
+  build-release:
+    runs-on: ubuntu-latest
+    needs: check-signing
+    if: needs.check-signing.outputs.ready == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Regenerate the catalogue
+        run: npm run flutter:catalogue
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+
+      - name: flutter pub get
+        working-directory: flutter_app
+        run: flutter pub get
+
+      # Written into the workspace rather than $HOME, so both are gone the
+      # moment the job's workspace is torn down; the "Remove the keystore"
+      # step below deletes them explicitly anyway, the same belt-and-braces
+      # ios.yml's temporary keychain gets.
+      - name: Write the keystore and key.properties
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ vars.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          echo "$KEYSTORE_BASE64" | base64 --decode > flutter_app/android/app/release.keystore
+          # storeFile is resolved by Gradle's file() relative to the app
+          # module's own directory (android/app/), not the android/ root —
+          # a bare filename here, not app/release.keystore.
+          cat > flutter_app/android/key.properties <<PROPS
+          storeFile=release.keystore
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          PROPS
+
+      - name: Build a signed release APK and App Bundle
+        working-directory: flutter_app
+        run: |
+          flutter build apk --release
+          flutter build appbundle --release
+
+      - name: Upload the signed release build
+        uses: actions/upload-artifact@v4
+        with:
+          name: wain-android-release
+          path: |
+            flutter_app/build/app/outputs/flutter-apk/app-release.apk
+            flutter_app/build/app/outputs/bundle/release/app-release.aab
+          retention-days: 14
+
+      - name: Remove the keystore
+        if: always()
+        run: rm -f flutter_app/android/app/release.keystore flutter_app/android/key.properties
