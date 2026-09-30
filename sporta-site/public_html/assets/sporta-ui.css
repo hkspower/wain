@@ -1689,11 +1689,15 @@ p.mt-6.flex.flex-wrap.items-baseline:has(> .font-display) {
    sits on, not which one is larger — the image column measured 60% of the
    grid's width either way). 55/45 = 11/9, so `11fr 9fr` replaces `1.5fr 1fr`
    here; nothing else in this rule changes. */
+/* 2026-09-30, "put space at left and right sides at product main image": the
+   phone photograph no longer bleeds to both screen edges. It sits inside the
+   page's own 16px gutter, level with the title, price and cards under it, and
+   keeps the bundle's rounded corners (they were only removed for the bleed).
+   The height follows: the 4:5 ratio is set in 05-product-page.css. */
 @media (max-width: 767px) {
   .group.aspect-square.cursor-zoom-in {
-    margin-inline: -1rem;
-    width: calc(100% + 2rem);
-    border-radius: 0;
+    margin-inline: 0;
+    width: auto;
   }
 }
 @media (min-width: 768px) {

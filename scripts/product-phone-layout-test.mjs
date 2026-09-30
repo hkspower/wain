@@ -60,9 +60,10 @@ for (const lang of ['en', 'ar']) {
     const hdr = document.querySelector('header').getBoundingClientRect().bottom
     return { boxes, titleCentre: (tr.left + tr.right) / 2, priceCentre: (pr.left + pr.right) / 2, W: innerWidth,
       scrollW: document.documentElement.scrollWidth, titlePad: [parseFloat(getComputedStyle(h1).paddingLeft), parseFloat(getComputedStyle(h1).paddingRight)],
-      fit, bcAbove: nav.getBoundingClientRect().top - hdr, bcBelow: g.getBoundingClientRect().top - nav.getBoundingClientRect().bottom }
+      fit, photoL: g.getBoundingClientRect().left, photoR: innerWidth - g.getBoundingClientRect().right, bcAbove: nav.getBoundingClientRect().top - hdr, bcBelow: g.getBoundingClientRect().top - nav.getBoundingClientRect().bottom }
   })
   const order = ['title', 'price', 'size', 'buy', 'list', 'desc', 'guide'].filter(k => m.boxes[k])
+  check(m.photoL >= 16 && m.photoR >= 16 && Math.abs(m.photoL - m.photoR) <= 1, `${lang}: the main photograph has space at both sides, at least the 16px page gutter and equal`, `${Math.round(m.photoL)} / ${Math.round(m.photoR)}`)
   check(order.length >= 6, `${lang}: the page has the blocks under test`, order.join(' '))
   const tops = order.map(k => m.boxes[k].top)
   check(tops.every((t, i) => i === 0 || t >= tops[i - 1]), `${lang}: painted top to bottom as title, price, size, buy row, delivery, description, guide`,
