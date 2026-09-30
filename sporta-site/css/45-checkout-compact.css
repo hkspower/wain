@@ -1,0 +1,21 @@
+/* CHECKOUT, FASTER TO FILL — 2026-09-30, "make checkout page more easy and faster to
+ * fill up". Measured first: the phone form was 3,291px tall, nine fields of which
+ * six sat one per row. The fields themselves were already right (autocomplete,
+ * tel/email/numeric keyboards, 16px text so iOS does not zoom) and are untouched.
+ * What changes is the LAYOUT of the short ones: block | street on one row, floor |
+ * flat on one row, the building on its own. From 640px the bundle's own three-up
+ * grid is left alone. The subjects are the bundle's grids identified by the field
+ * they hold — a named element with a :has() on a single id, nothing universal. */
+@media (max-width: 639.98px) {
+  div.grid:has(> div > #f-block) {
+    grid-template-columns: 1fr 1fr;
+    column-gap: 10px;
+    row-gap: 12px;
+  }
+  div.grid:has(> div > #f-block) > div:has(> #f-building) { grid-column: 1 / -1; }
+  div.grid:has(> div > #f-floor),
+  div.grid:has(> div > #f-flat) {
+    grid-template-columns: 1fr 1fr;
+    column-gap: 10px;
+  }
+}

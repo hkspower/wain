@@ -133,8 +133,14 @@
    * — which is the condition the original comment named as the reason to
    * split, not a drift away from it. */
   --sp-silver-mid: #878e95;
-  --sp-silver: #a6acb2;
-  --sp-text: #eaecee;
+  /* LIGHT SILVER, 2026-09-30, "add light silver to the main theme to give more comfort
+   * to view". The two text tones move one step towards silver: primary text
+   * #eaecee -> #dde1e5 (still 11:1 on the #1e2023 page, where the old value was
+   * 12.4:1) and secondary #a6acb2 -> #b7bdc4 (from 7.9:1 to 9.4:1 — brighter, so
+   * small grey text is easier to read, not softer). Less glare from the big white
+   * headings and prices, more legibility from the small grey. */
+  --sp-silver: #b7bdc4;
+  --sp-text: #dde1e5;
   /* THE THIRD HOME OF THE BRAND COLOUR, and the one that beats the other two.
      `[data-theme=dark] .btn-primary` below sets background-color from
      --sp-ember-fill with !important, so the shop's main call to action took its
