@@ -506,6 +506,34 @@ file's length would pass it. Content hashes would close that, and nothing on
 this connector returns one for a binary — which is why the hashed chunk
 names, content-addressed by the build, carry most of the weight.
 
+## The 30 September deploy, third — `c9f1e28` is live: the orb texture and its disclosure
+
+Two files under `src/` and `public/` changed since `58f2bc6`:
+`public/.htaccess` (`img-src` names the ElevenLabs public-bucket **path**) and
+`src/app/privacy/page.tsx` (the paragraph telling a visitor that, during a call,
+their address reaches Google's storage host).
+
+`{"ok":true,"version":"1.1.0","deployed":260,"removed":0,"emptied":0,"at":
+"2026-09-30T17:37:02+00:00"}` through the installed caller, one cron job
+(`4tsaMum92L`), deleted and confirmed gone by a listing. **`removed: 0` was the
+second, idempotent firing** — the trap recorded above, met again: the disk
+settled it, with `58f2bc6…` gone and `c9f1e280…` the only build-id directory.
+The archive is `d20d0bf/wain-1.1.0.zip` (sha256 `16208589…`) — one more
+permanent ~3.8MB blob.
+
+**Verified below the root**: `deploy:verify` said «c9f1e280 is live — verified at
+the root and 6 levels below it» (`build.json` `c9f1e280…` / `0223dd5f87770c53`;
+the stylesheet and `/search` chunk unchanged in name, since neither moved).
+After the cache purge, a cron `wget -S --spider` of `/search/` from the server
+out through the edge returned a CSP carrying `script-src … blob: https://unpkg.com`
+and `img-src … https://storage.googleapis.com/eleven-public-cdn/images/` — the
+two directives this pair of fixes exists for, read off the wire and not off the
+disk.
+
+**Still not measured**: a real call on a phone, iOS Safari, or the real ElevenLabs
+socket. `npm run test:widget-csp` covers Chromium with a fake microphone and a
+mock socket, and is the only evidence there is.
+
 ## The 30 September deploy, second — `58f2bc6` is live: the mic fix
 
 Only one file changed under `public/`: `.htaccess`, `script-src` gains `blob:`
