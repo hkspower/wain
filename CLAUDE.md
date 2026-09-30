@@ -2751,6 +2751,35 @@ the first place; the header comment records all three rather than only the
 last, because the next person reaching for `SALEM_VOICE_ID` from a THIRD
 surface should see that this has been tried and walked back twice already.
 
+## The home hero's towers are 1.3× taller, and the canvas grew to hold them — 30 September
+
+Asked for higher, better-looking towers. Kuwait Towers and the Liberation
+Tower were drawn to within 34 units of the old 1200×420 top edge, so taller
+meant more sky above them, not a tighter crop: `KuwaitSkyline`'s viewBox is
+`0 -110 1200 530` now. The origin moved instead of every coordinate, so the
+ground is still y 372 and no building's numbers changed. Each landmark group is
+scaled uniformly about its own base (1.32 and 1.33) — a non-uniform stretch
+would have turned the spheres into ovals — and everything inside the groups is
+still in the old coordinates.
+
+**The page's numbers are tied to that ratio.** `page.tsx` has
+`aspect-[1200/530]`, and the drawing is 44.2vw tall now, not 35vw. The sky
+reserve moved by the same 9vw so the wordmark and dial keep the sky they had:
+`65vw`→`74vw` on a phone (`min-h` and `pb`), `sm:min-h-[44vw]`→`53vw`. Change
+one side and not the other and either the tips are clipped by `overflow-hidden`
+or the dial sits on the towers.
+
+Detail added: a lit edge and a shaded face on each shaft, a mosaic band and a
+bounced-light arc on every sphere (the band follows the same `TILT` arc as the
+rows of discs), collars, plinths, gold finials with a glow, and a two-faced
+Liberation shaft with a window band on its saucer. Home JS is unchanged at
+120.8K — it is SVG in the HTML, not script.
+
+**What it does not fix:** on a wide screen the sun dial still sits over the main
+tower's two spheres, as it did before; only the second tower's sphere shows
+beside it. Moving the group right runs it into the right-hand block, so that is
+a composition decision, not a bug found here. Not live until a deploy.
+
 ## The Arabic prose has been read, once, on purpose
 
 `npm run audit:arabic` says so itself: it checks invisible characters, wrong-

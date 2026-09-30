@@ -11,7 +11,15 @@ export default function HomePage() {
   return (
     <>
       {/* ---------- Hero ---------- */}
-      {/* The skyline is drawn at its own 1200:420 and never cropped.
+      {/* The skyline is drawn at its own 1200:530 and never cropped.
+
+          It was 1200:420 until the two tall landmarks were made ~32% taller:
+          the drawing is 44.2vw tall now instead of 35vw, and every vw figure
+          below that used to clear the old height moved up by the same 9vw —
+          `65vw`→`74vw` on a phone, `44vw`→`53vw` from `sm` up — so the sky
+          above the drawing is the same amount of sky as before. The numbers
+          quoted in the paragraphs below are the OLD ones, kept because the
+          reasoning is unchanged.
 
           It used to be `h-auto min-h-[210px]` with a `slice` fit, and both
           halves cut it. On a phone the 210px floor is taller than the
@@ -38,10 +46,10 @@ export default function HomePage() {
           reserves the skyline's own height below «دوّر باسم المكان» so the
           two never overlap — 65vw only has to clear the drawing's 35vw
           floor, and it clears it with room to spare. */}
-      <section className="relative min-h-[65vw] overflow-hidden bg-sand-50 sm:min-h-[44vw]">
-        <KuwaitSkyline className="pointer-events-none absolute inset-x-0 bottom-0 aspect-[1200/420] h-auto w-full" />
+      <section className="relative min-h-[74vw] overflow-hidden bg-sand-50 sm:min-h-[53vw]">
+        <KuwaitSkyline className="pointer-events-none absolute inset-x-0 bottom-0 aspect-[1200/530] h-auto w-full" />
 
-        <div className="relative mx-auto max-w-6xl px-2.5 pb-[65vw] pt-2 sm:px-4 sm:pb-3 sm:pt-3">
+        <div className="relative mx-auto max-w-6xl px-2.5 pb-[74vw] pt-2 sm:px-4 sm:pb-3 sm:pt-3">
           {/* Wordmark */}
           <div className="text-center">
             <span className="relative inline-block">

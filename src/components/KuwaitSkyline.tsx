@@ -12,6 +12,13 @@
  * what makes them curve and fade into the shadow side; scattered by hand
  * they sat on the circle like stickers. Everything is computed at build
  * time — this is a server component, so the page ships plain SVG.
+ *
+ * The canvas is 1200×530 with its origin at y −110, not 1200×420: the two
+ * tall landmarks were drawn to within 34 units of the old top edge, so making
+ * them taller meant more sky above them, not a tighter crop. Moving the
+ * origin rather than every coordinate leaves the ground at y 372 and every
+ * building's numbers as they were. The page's `aspect-[1200/530]` and its sky
+ * reserve are tied to that ratio — change one, change the other.
  */
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -56,16 +63,53 @@ function sequins(cx: number, cy: number, r: number, lats: number[], perRow: numb
   });
 }
 
+/** A point on a circle, `deg` clockwise from three o'clock (screen y is down). */
+const onCircle = (cx: number, cy: number, r: number, deg: number) => {
+  const a = (deg * Math.PI) / 180;
+  return `${r1(cx + r * Math.cos(a))} ${r1(cy + r * Math.sin(a))}`;
+};
+
 function Orb(p: { cx: number; cy: number; r: number; lats: number[]; perRow: number; span: number; d: number }) {
   const { cx, cy, r } = p;
   const hx = r1(cx - 0.36 * r);
   const hy = r1(cy - 0.42 * r);
+  const clip = `wain-orb-clip-${cx}-${cy}`;
   return (
     <g>
+      <clipPath id={clip}>
+        <circle cx={cx} cy={cy} r={r} />
+      </clipPath>
       <circle className="orb" cx={cx} cy={cy} r={r} fill="url(#wain-orb)" />
+      {/* The mosaic band the real spheres carry round their middle: the same
+          arc the rows of discs follow (TILT bends the equator up over the
+          front), a dark ribbon with a pale line on it, clipped to the disc so
+          the stroke's width cannot spill past the rim. */}
+      <g clipPath={`url(#${clip})`} fill="none">
+        <path
+          d={`M${r1(cx - r)} ${cy} A${r} ${r1(r * Math.sin(TILT))} 0 0 1 ${r1(cx + r)} ${cy}`}
+          stroke="#0f3f6b"
+          strokeOpacity="0.38"
+          strokeWidth={r1(0.17 * r)}
+        />
+        <path
+          d={`M${r1(cx - r)} ${cy} A${r} ${r1(r * Math.sin(TILT))} 0 0 1 ${r1(cx + r)} ${cy}`}
+          stroke="#e8f6fd"
+          strokeOpacity="0.55"
+          strokeWidth={r1(0.035 * r)}
+        />
+      </g>
       {sequins(cx, cy, r, p.lats, p.perRow, p.span, p.d).map((s) => (
         <ellipse key={`${s.x},${s.y}`} cx={s.x} cy={s.y} rx={s.rx} ry={s.ry} fill="#ffffff" fillOpacity={s.o} />
       ))}
+      {/* Warm light bounced up off the ground onto the shadow side */}
+      <path
+        d={`M${onCircle(cx, cy, r * 0.92, 5)} A${r1(r * 0.92)} ${r1(r * 0.92)} 0 0 1 ${onCircle(cx, cy, r * 0.92, 95)}`}
+        stroke="#ffd9a0"
+        strokeOpacity="0.28"
+        strokeWidth={r1(0.07 * r)}
+        strokeLinecap="round"
+        fill="none"
+      />
       <ellipse
         cx={hx}
         cy={hy}
@@ -154,7 +198,7 @@ const PALMS = [
 export default function KuwaitSkyline({ className = "" }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 1200 420"
+      viewBox="0 -110 1200 530"
       preserveAspectRatio="xMidYMax meet"
       role="presentation"
       className={className}
@@ -225,10 +269,12 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
       `}</style>
 
       {/* Sky */}
-      <rect width="1200" height="420" fill="url(#wain-sky)" />
-      <circle cx="600" cy="250" r="300" fill="url(#wain-glow)" />
+      <rect y="-110" width="1200" height="530" fill="url(#wain-sky)" />
+      <circle cx="640" cy="190" r="330" fill="url(#wain-glow)" />
 
-      {/* Clouds */}
+      {/* Clouds and birds sit in the sky that was added above the old top edge,
+          so the taller towers do not stand in front of them */}
+      <g transform="translate(0 -70)">
       <g className="animate-drift" fill="#ffffff" opacity="0.9">
         <g>
           <ellipse cx="150" cy="70" rx="52" ry="24" />
@@ -257,6 +303,7 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
         <path d="M904 82 q8 -7 16 0" />
         <path d="M926 100 q7 -6 14 0" />
       </g>
+      </g>
 
       {/* ---- Skyline ---- */}
 
@@ -266,16 +313,31 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
           the disc, then a highlight on top is the same "standing in the sun"
           logic the towers' Orbs use below, sized down to a flat saucer
           rather than a sphere; the second light on the mast is because a
-          shaft this tall carries more than one aircraft warning lamp. */}
-      <g>
+          shaft this tall carries more than one aircraft warning lamp.
+
+          Scaled 1.32× about the middle of its base, not stretched: a taller
+          tower with the same width reads as a needle, and uniform scale keeps
+          the saucers round. The shaft is lit on its left half and shaded on
+          its right, the way the clock tower's `wain-box` is, so it has two
+          faces rather than being one flat wedge. */}
+      <g transform="translate(187 372) scale(1.32) translate(-187 -372)">
+        <rect x="163" y="360" width="48" height="12" rx="3" fill="url(#wain-stone)" stroke="#c9ab72" strokeWidth="1.4" />
+        <rect x="171" y="351" width="32" height="11" rx="3" fill="url(#wain-stone)" stroke="#c9ab72" strokeWidth="1.4" />
         <path className="bldg" d="M172 372 L182 150 L192 150 L202 372 Z" fill="url(#wain-shaft)" />
+        <path d="M187 150 L192 150 L202 372 L187 372 Z" fill="#8a6f47" opacity="0.2" />
+        <path d="M183.5 158 L175 366" stroke="#ffffff" strokeWidth="1.4" strokeLinecap="round" opacity="0.65" />
+        <rect x="179.5" y="147" width="15" height="6" rx="3" fill="url(#wain-shaft)" stroke="#c9ab72" strokeWidth="1.2" />
         <path className="spire" d="M182 150 L187 44 L192 150 Z" fill="url(#wain-shaft)" />
+        <circle cx="187" cy="94" r="8" fill="#dc2f25" opacity="0.15" />
         <circle cx="187" cy="94" r="3" fill="#dc2f25" />
         <circle cx="186.2" cy="93.2" r="1" fill="#ffffff" opacity="0.6" />
+        <circle cx="187" cy="40" r="12" fill="#dc2f25" opacity="0.15" />
         <circle cx="187" cy="40" r="5" fill="#dc2f25" />
         <circle cx="185.4" cy="38.4" r="1.6" fill="#ffffff" opacity="0.7" />
         <ellipse cx="187" cy="171" rx="25" ry="7" fill="#0f4c3d" opacity="0.5" />
         <ellipse cx="187" cy="168" rx="26" ry="11" fill="url(#wain-deck)" />
+        {/* Window band round the upper saucer's rim */}
+        <path d="M163 170 Q187 182 211 170" stroke="#d4f7ec" strokeWidth="1.6" strokeDasharray="1.8 2.6" strokeLinecap="round" fill="none" opacity="0.6" />
         <ellipse cx="181" cy="163.5" rx="11" ry="2.6" fill="#ffffff" opacity="0.28" />
         <ellipse cx="187" cy="209" rx="19" ry="6" fill="#8a6f47" opacity="0.35" />
         <ellipse cx="187" cy="206" rx="20" ry="9" fill="url(#wain-shaft)" />
@@ -316,21 +378,49 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
         </g>
       </g>
 
-      {/* Kuwait Towers */}
-      <g>
+      {/* Kuwait Towers. Scaled 1.33× about the group's own middle, so the
+          three keep their spacing and the spheres stay round; the drawing's
+          canvas grew upward by 110 units for exactly this — the main tip
+          would be at y −77 in it. Everything below is in the old, unscaled
+          coordinates. Each shaft has a lit edge and a shaded one, a collar
+          where it meets a sphere, a plinth to stand on, and a small gold
+          finial with a glow, which is what the real spires carry. */}
+      <g transform="translate(746 372) scale(1.33) translate(-746 -372)">
+        {/* Plinths, behind the shafts */}
+        <g fill="url(#wain-stone)" stroke="#c9ab72" strokeWidth="1.4">
+          <rect x="662" y="361" width="44" height="11" rx="3" />
+          <rect x="740" y="363" width="34" height="9" rx="3" />
+          <rect x="800" y="364" width="30" height="8" rx="3" />
+        </g>
+
         {/* Third, bare spire */}
         <path className="bldg" d="M804 372 L812 150 L818 150 L826 372 Z" fill="url(#wain-shaft)" />
+        <path d="M815 150 L818 150 L826 372 L815 372 Z" fill="#8a6f47" opacity="0.18" />
         <path className="spire" d="M812 150 L815 96 L818 150 Z" fill="url(#wain-shaft)" />
+        <circle cx="815" cy="96" r="6" fill="#fccb4d" opacity="0.4" />
+        <circle cx="815" cy="96" r="2.2" fill="#e8b23a" />
 
         {/* Second tower, one sphere */}
         <path className="bldg" d="M744 372 L753 172 L761 172 L770 372 Z" fill="url(#wain-shaft)" />
+        <path d="M757 172 L761 172 L770 372 L757 372 Z" fill="#8a6f47" opacity="0.2" />
+        <path d="M754.5 226 L746.5 366" stroke="#ffffff" strokeWidth="1.1" strokeLinecap="round" opacity="0.6" />
         <path className="spire" d="M753 172 L757 104 L761 172 Z" fill="url(#wain-shaft)" />
+        <circle cx="757" cy="104" r="7" fill="#fccb4d" opacity="0.4" />
+        <circle cx="757" cy="104" r="2.4" fill="#e8b23a" />
+        <ellipse cx="757" cy="224" rx="9" ry="3" fill="#8a6f47" opacity="0.5" />
         <Orb cx={757} cy={196} r={30} lats={[-52, -24, 4, 32]} perRow={6} span={66} d={2.9} />
 
         {/* Main tower, two spheres */}
         <path className="bldg" d="M666 372 L678 130 L690 130 L702 372 Z" fill="url(#wain-shaft)" />
+        <path d="M684 130 L690 130 L702 372 L684 372 Z" fill="#8a6f47" opacity="0.2" />
+        <path d="M680.5 226 L668.5 366" stroke="#ffffff" strokeWidth="1.3" strokeLinecap="round" opacity="0.65" />
         <path className="spire" d="M678 130 L684 34 L690 130 Z" fill="url(#wain-shaft)" />
+        <circle cx="684" cy="34" r="8" fill="#fccb4d" opacity="0.4" />
+        <circle cx="684" cy="34" r="2.8" fill="#e8b23a" />
+        {/* The restaurant sphere hangs on a short neck, with a collar */}
+        <ellipse cx="684" cy="118" rx="9" ry="3" fill="#8a6f47" opacity="0.5" />
         <Orb cx={684} cy={96} r={22} lats={[-42, -8, 26]} perRow={5} span={62} d={2.5} />
+        <ellipse cx="684" cy="221" rx="13" ry="4" fill="#8a6f47" opacity="0.5" />
         <Orb cx={684} cy={176} r={46} lats={[-58, -34, -10, 14, 38]} perRow={8} span={70} d={3.6} />
       </g>
 
@@ -375,11 +465,11 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
       {/* Contact shadows, thrown to the right by the upper-left light, so
           nothing stands on the grass without touching it. */}
       <g fill="#1b5832" opacity="0.32">
-        <ellipse cx="200" cy="371" rx="30" ry="3.5" />
+        <ellipse cx="205" cy="371" rx="40" ry="4" />
         <ellipse cx="312" cy="371" rx="70" ry="3.5" />
         <ellipse cx="500" cy="371" rx="92" ry="3.5" />
         <ellipse cx="600" cy="371" rx="14" ry="3" />
-        <ellipse cx="764" cy="371" rx="88" ry="4" />
+        <ellipse cx="770" cy="371" rx="118" ry="4.5" />
         <ellipse cx="946" cy="371" rx="42" ry="3.5" />
         <ellipse cx="1062" cy="371" rx="54" ry="4" />
         {PALMS.map((p) => (
