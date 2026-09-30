@@ -3749,3 +3749,27 @@ Phones download the full photograph, which is now larger.
 **Desktop product page, found on the way:** the wishlist heart is pinned to the title row's end
 corner, so a long name ran under it at 1280px; and the Size card's reserved stock-note line read
 as 48px of missing padding. Both fixed at every width in `40-product-mobile-spacing.css`.
+
+## The Payments screen, and an overlay that found the wrong form — 2026-09-30
+
+Asked for as "make payment setup at backend"; the owner chose methods on/off, a
+connection test, its own screen and COD limits. **`payments-screen.js` adds a
+Payments button to the sidebar and phone tab bar and draws its own screen inside
+`.admin-content`**, hiding the bundle's children while open (CSS class on the host)
+and giving the screen back on any other nav click. The credentials card
+(`payment.js`) now mounts under the Payments heading, not Settings. The switches are
+the existing `payment_methods` rule; `cod_max_fils` (0 = none) is new, enforced in
+`?r=order` and refused as `cod_over_limit`; `payment_check` (`&live=1` logs in to CBK
+and reaches the KNET host, never charges, never returns a credential).
+
+- **Switching a method off only worked on the server** — the bundle's checkout kept
+  offering it and refused at the last step. `rules-live.js` hides the label and picks
+  the first available radio through its own click. T-Pay is never turned ON there:
+  the bundle shows it only when `config.js` says `tpayEnabled`.
+- **A COD fee was asked for and NOT built.** `?r=discount` quotes without a payment
+  method, so the bundle would show a total lower than the one charged — the drift
+  api.php already warns about. It needs the checkout to send the method.
+- **The forgot-password form appeared inside the payment card**: `password-reset.js`
+  found "the login form" by any `input[type=password]`, and the credentials card has
+  five. The rig that caught it counted password boxes in the card (7, expected 5).
+  Both login overlays now draw only when there is no `.admin-content`.
