@@ -165,7 +165,9 @@
       s.appendChild(el('span', null, 'Sources: '))
       out.sources.forEach(function (src, i) {
         var a = el('a', null, src.title || src.url)
-        a.href = src.url
+        // Only plain web addresses become links: a javascript: or data: URL
+        // from a search result would run in the panel's origin on click.
+        if (/^https?:\/\//i.test(String(src.url))) a.href = src.url
         a.target = '_blank'
         a.rel = 'noopener noreferrer'
         s.appendChild(a)

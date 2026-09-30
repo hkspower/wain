@@ -155,7 +155,7 @@ try {
         slug: SLUG,
         missing: ['desc_ar', 'category'],
         fields: { desc_ar: 'وصف عربي من الاختبار.' },
-        sources: [{ url: 'https://example.com/x', title: 'Example' }],
+        sources: [{ url: 'https://example.com/x', title: 'Example' }, { url: 'javascript:alert(1)', title: 'Evil' }],
         searched: true,
         notes: '',
         policy_warning: null,
@@ -166,6 +166,14 @@ try {
   await p.waitForTimeout(300)
   await card().getByRole('button', { name: /Look it up/ }).click()
   await p.waitForTimeout(1200)
+
+  // A citation comes from the open web and becomes a link: only http(s) may be one.
+  const hrefs = await card().locator('.spr-src a').evaluateAll((as) => as.map((a) => a.getAttribute('href')))
+  check(hrefs.includes('https://example.com/x') && !hrefs.some((h) => /^(javascript|data):/i.test(h || '')),
+    'a source link is http(s) only — a javascript: citation gets no href', JSON.stringify(hrefs))
+  const phpSrc = `require "sporta-site/public_html/api/research.php"; echo json_encode(array_map("research_safe_url", ["javascript:alert(1)", "data:text/html,x", "HTTPS://a.example/p?q=1", 'https://a.example/"onmouseover=1']), JSON_UNESCAPED_SLASHES);`
+  const safe = execFileSync('php', ['-r', phpSrc], { encoding: 'utf8' })
+  check(safe === '["","","HTTPS://a.example/p?q=1",""]', 'research_safe_url keeps plain web addresses and drops the rest', safe)
 
   // THE VALUE, NOT THE TEXT. innerText does not return a <textarea>'s value,
   // so the first version of this check read an empty string off a card that

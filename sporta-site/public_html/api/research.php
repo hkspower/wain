@@ -60,6 +60,18 @@
 
 /** The three fields this may ever propose, and nothing else may be added
  *  without reading the paragraphs above about why the others are absent. */
+/**
+ * A citation URL becomes a clickable link in the panel, and it comes from the
+ * open web. Only plain http(s) survives: a `javascript:` or `data:` address
+ * would run in the panel's own origin on click. Anything else is dropped.
+ */
+function research_safe_url(string $u): string
+{
+    $u = trim($u);
+    if (strlen($u) > 2000 || !preg_match('#^https?://[^\s<>"\']+$#i', $u)) return '';
+    return $u;
+}
+
 const RESEARCH_FIELDS = ['desc_en', 'desc_ar', 'category'];
 
 /** How long a proposed description may be. The column is TEXT, so this is not
@@ -257,13 +269,13 @@ function research_run(array $cfg, PDO $db, array $product, array $missing): arra
         if (($blk['type'] ?? '') === 'text') {
             $text .= (string) ($blk['text'] ?? '');
             foreach (($blk['citations'] ?? []) as $c) {
-                $u = (string) ($c['url'] ?? '');
+                $u = research_safe_url((string) ($c['url'] ?? ''));
                 if ($u !== '') $sources[$u] = (string) ($c['title'] ?? $u);
             }
         }
         if (($blk['type'] ?? '') === 'web_search_tool_result') {
             foreach (($blk['content'] ?? []) as $c) {
-                $u = (string) ($c['url'] ?? '');
+                $u = research_safe_url((string) ($c['url'] ?? ''));
                 if ($u !== '') $sources[$u] = (string) ($c['title'] ?? $u);
             }
         }
