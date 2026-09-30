@@ -452,7 +452,7 @@
       min-width: 0; }
     .fnode .ic { width: 18px; height: 18px; }
     .fnode b { font-size: 13px; display: block; line-height: 1.4; }
-    .fnode span { font-size: 11px; color: var(--muted); display: block; line-height: 1.4; }
+    .fnode span { font-size: 12px; color: var(--muted); display: block; line-height: 1.4; }
     .fnode.hub { border-color: var(--tint); box-shadow: 0 0 0 1px var(--tint); }
     /* the wire: dashes that travel from the sources toward the filing */
     .wire { flex: 1; min-width: 24px; height: 2px; border-radius: 2px;
@@ -723,7 +723,7 @@
     .card .tile .ic { width: 21px; height: 21px; }
     .card .chip { margin-top: auto; }
     .chip {
-      font-size: 11px; font-weight: 700; border-radius: 999px; padding: 4px 8px;
+      font-size: 12px; font-weight: 700; border-radius: 999px; padding: 4px 8px;
       display: inline-flex; align-items: center; gap: 4px;
       background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
       align-self: flex-start;
@@ -731,7 +731,7 @@
     .chip.on { color: var(--tint); border-color: var(--tint); }
     /* the five things each service actually covers, as quiet mini-chips */
     ul.feats { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
-    ul.feats li { font-size: 11px; font-weight: 600; color: var(--muted); background: var(--panel-2);
+    ul.feats li { font-size: 12px; font-weight: 600; color: var(--muted); background: var(--panel-2);
       border: 1px solid var(--border); border-radius: 999px; padding: 4px 8px; }
     .card:hover ul.feats li { border-color: var(--sand-vivid); }
 
@@ -752,6 +752,10 @@
     .product h3 { margin: 0 0 6px; font-size: 20px; display: flex; align-items: center; gap: 8px; }
     .product p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.75; }
     .product .go { align-self: center; white-space: nowrap; }
+    /* the arrow is the drawn chevron, not a typed ← that each device set in its own
+       font; it takes the button's ink, so it stays white on the brown fill */
+    .btn.go { display: inline-flex; align-items: center; gap: 8px; }
+    .btn.go .ic { width: 18px; height: 18px; stroke: currentColor; color: currentColor; }
     @media (max-width: 620px) {
       .product { grid-template-columns: 1fr; }
       .product .go { justify-self: stretch; text-align: center; }
@@ -879,7 +883,7 @@
       font-size: 14px; pointer-events: none; transition: top .18s ease, font-size .18s ease; }
     .qform input:focus + label, .qform input:not(:placeholder-shown) + label,
     .qform textarea:focus + label, .qform textarea:not(:placeholder-shown) + label,
-    .qform select + label { top: 4px; font-size: 11px; color: var(--tint); }
+    .qform select + label { top: 4px; font-size: 12px; color: var(--tint); }
     .qform [aria-invalid="true"] { border-color: var(--danger); }
     .qform .hint { display: none; color: var(--danger); font-size: 12px; margin-top: 4px; }
     .qform [aria-invalid="true"] ~ .hint { display: block; }
@@ -986,7 +990,7 @@
        actually visible on. Smaller pill, more of it seen. */
     .callfab .ic { stroke: #fff; color: #fff; width: 22px; height: 22px; }
     .callfab b { font-size: 14px; font-weight: 800; line-height: 1.25; display: block; }
-    .callfab span { font-size: 11px; color: var(--on-bar); display: block; }
+    .callfab span { font-size: 12px; color: var(--on-bar); display: block; }
     /* a live ring: the assistant is answering now, not a form that waits */
     .callfab .halo { position: absolute; inset: 0; border-radius: 999px;
       border: 2px solid var(--sand-vivid); opacity: 0; pointer-events: none; }
@@ -1292,7 +1296,7 @@
       <!-- real, verifiable numbers — no invented clients or years -->
       <div class="stats">
         <div class="stat"><b class="num" data-count="4">4</b><span>وحدات في نظام النوخذة</span></div>
-        <div class="stat"><b class="num" data-count="680">680</b><span>فحصاً آلياً قبل كل إصدار</span></div>
+        <div class="stat"><b class="num" data-count="683">683</b><span>فحصاً آلياً قبل كل إصدار</span></div>
         <div class="stat"><b class="num" data-count="0">0</b><span>اعتماديات خارجية</span></div>
         <div class="stat"><b class="num" data-count="100" data-suffix="%">100%</b><span>يعمل دون إنترنت</span></div>
       </div>
@@ -1575,7 +1579,7 @@
           <path class="bar" d="M272 46h26M272 58h18M272 70h22"/>
         </svg>
       </div>
-      <a class="btn primary go" href="nokhatha.html">ادخل النظام ←</a>
+      <a class="btn primary go" href="nokhatha.html">ادخل النظام <svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></a>
     </div>
 
     <h2 class="section">لماذا المهلب كود</h2>
@@ -1818,16 +1822,23 @@
          its own result — hide, no longer overlapping, show, overlap again.
          It is fixed, so one measurement per layout is enough. */
       var rest = null;
+      /* offset* is layout position, blind to transforms — so neither `.away`'s
+         16px slide nor the hover lift, nor a transition caught halfway (removing
+         the class and reading at once returned a rect still in flight), can
+         move the rest it reports. For a fixed element it is viewport-relative. */
       function measure() {
-        var away = fab.classList.contains("away");
-        if (away) fab.classList.remove("away");
-        rest = fab.getBoundingClientRect();
-        if (away) fab.classList.add("away");
+        rest = { left: fab.offsetLeft, top: fab.offsetTop,
+                 right: fab.offsetLeft + fab.offsetWidth, bottom: fab.offsetTop + fab.offsetHeight };
       }
       function hits() {
         if (!titles.length) return false;
         if (!rest) measure();
-        var f = rest;
+        /* Its whole footprint, not just where it stops: `.away` slides it 16px
+           down, so coming back it sweeps that band for ~0.2s. A heading 4px
+           below the rest edge was clear at rest and crossed on every return
+           (2026-09-30), so the band counts as covered. Keep in step with the
+           translateY in .callfab.away. */
+        var f = { left: rest.left, top: rest.top, right: rest.right, bottom: rest.bottom + 16 };
         for (var i = 0; i < titles.length; i++) {
           var t = titles[i], r = t.getBoundingClientRect();
           if (!r.width || !r.height) continue;
@@ -1837,8 +1848,12 @@
              was fixed — before that, any threshold at all hid the pill on
              every pixel of the page. Measured after: it is still on screen
              across 43% of a phone page and 48% of a desktop one. */
-          if (Math.min(f.right, r.right) - Math.max(f.left, r.left) > 2 &&
-              Math.min(f.bottom, r.bottom) - Math.max(f.top, r.top) > 2) return true;
+          /* Any overlap at all, matching the suite's sweep. A 2px allowance
+             once let a heading sit clipped by exactly that much after the
+             page above it grew by 12px (2026-09-30) — the two definitions of
+             "covering" disagreed, and only the stricter one is the truth. */
+          if (Math.min(f.right, r.right) - Math.max(f.left, r.left) > 0 &&
+              Math.min(f.bottom, r.bottom) - Math.max(f.top, r.top) > 0) return true;
         }
         return false;
       }
@@ -1852,6 +1867,12 @@
       addEventListener("scroll", onScroll, { passive: true });
       addEventListener("resize", function () { measure(); onScroll(); });
       measure(); place();
+      /* The first measure runs before the web fonts arrive, and the pill's own
+         text reflows when Cairo lands — its rest moved 815→822 and the cached
+         rect missed a heading by the difference (2026-09-30). Measure again
+         once the faces are in, and after load. */
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { measure(); place(); });
+      addEventListener("load", function () { measure(); place(); });
     })();
 
     /* The sliders. The rail is native overflow scroll and stays fully usable

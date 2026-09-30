@@ -903,7 +903,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "680", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "683", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -938,7 +938,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "680", "0", "100%"], str(finals))
+          finals == ["4", "683", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -1261,6 +1261,13 @@ def home_checks(pg):
       window.scrollTo({top: 0, behavior: 'instant'});
       return [...new Set(bad)];
     })()""")
+    # the dodge keeps clear of the pill's whole travel, rest + the .away slide;
+    # the two numbers live in CSS and JS and must stay the same number
+    slide_css = re.search(r"\.callfab\.away\s*\{[^}]*translateY\((\d+)px\)", home_src)
+    slide_js = re.search(r"bottom: rest\.bottom \+ (\d+)", home_src)
+    check(S, "the dodge clears the pill's full slide, as far as .away moves it",
+          bool(slide_css and slide_js) and slide_css.group(1) == slide_js.group(1),
+          f"css {slide_css and slide_css.group(1)} / js {slide_js and slide_js.group(1)}")
     check(S, "البحار covers no control and no heading at any scroll position",
           not covered, str(covered))
 
@@ -2811,6 +2818,27 @@ def font_checks(pg):
         check(S, f"{what} paint in Cairo, not a fallback",
               bool(fams) and all(f.startswith("Cairo") for f in fams), str(fams))
     cdp.detach()
+    # Arabic reading text never drops below 12px (171 lines sat at 11px until
+    # 2026-09-30). The exceptions are named, not a threshold: SVG <text> inside
+    # the drawings, whose size is in drawing units, and the Latin mono line of
+    # the wordmark lockup, which is part of the locked identity.
+    allowed_small = {"html.scrolled .brand .en", ".scene .tab", ".scene text", ".fbrand .name .en"}
+    small = []
+    for f in ("index.html", "nizam.html", "nokhatha.html", "admin.html"):
+        src = (ROOT / f).read_text()
+        for m in re.finditer(r"font-size:\s*(\d+(?:\.\d+)?)px", src):
+            if float(m.group(1)) >= 12:
+                continue
+            start = src.rfind("{", 0, m.start())
+            sel = " ".join(src[max(src.rfind("}", 0, start), src.rfind("*/", 0, start)) + 1:start].split())
+            if sel.split(",")[-1].strip() not in allowed_small:
+                small.append(f"{f}: {sel[-40:]} {m.group(1)}px")
+    check(S, "no reading text is set below 12px", not small, "; ".join(small[:5]))
+    # a typed arrow is set in whatever face the device has; the site draws its own
+    home_src = (ROOT / "index.html").read_text()
+    typed = re.findall(r'<a class="btn[^"]*"[^>]*>[^<]*[←→]', home_src)
+    check(S, "the company page's buttons draw their arrows, never type them", not typed, str(typed[:2]))
+
     # the CSP must permit the font, or it silently never paints
     csp = pg.evaluate("document.querySelector('meta[http-equiv=\"Content-Security-Policy\"]').content")
     check(S, "CSP allows self-hosted fonts", "font-src 'self'" in csp)

@@ -23,6 +23,10 @@ a:focus-visible, .btn:focus-visible { outline: 2px solid var(--tint); outline-of
     .btn.primary { position: relative; overflow: hidden; }
 .hero .actions .btn { will-change: transform; }
 .btn.primary .ic { stroke: #fff; color: #fff; }
+/* the arrow is the drawn chevron, not a typed ← that each device set in its own
+       font; it takes the button's ink, so it stays white on the brown fill */
+    .btn.go { display: inline-flex; align-items: center; gap: 8px; }
+.btn.go .ic { width: 18px; height: 18px; stroke: currentColor; color: currentColor; }
 nav.site a, .btn { padding: 12px 16px; min-height: 44px; display: inline-flex; align-items: center; }
 .hero .actions .btn { flex: 1 1 100%; justify-content: center; }
 .btn.danger { color: var(--danger); }
