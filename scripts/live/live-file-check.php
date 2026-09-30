@@ -36,7 +36,7 @@ $WANT = [
     'api/adminloginlog.mysql.sql' => '15356b6c13cbc00e8e20cd60fd56415ec56ff877cd93242bd48ccdc75e2fbc2c',
     'api/adminreset.mysql.sql' => '006bf9cf2ccfb14a225761d3d81d083a7ad6ecec977f1c1b6b7ad8e4c64fcb14',
     'api/antifraud.mysql.sql' => '861285918d5a45a38913a2cd3300b49d825e3a6691ea81411f31b6840808275e',
-    'api/api.php' => 'c5a4cfa9355abf842732f072ccddd222aa54ea01a930b68933f587dd13de40be',
+    'api/api.php' => 'ec106542b8caf7160c4a704d6a67342dd86cc43ceb0c63618a54bb571dbc8fb6',
     'api/arabic.php' => 'ee95e3677275fe690cde28c627d98d32d903118ae9c4f418e0fb1dca65c72cd9',
     'api/assistant.mysql.sql' => 'c7d041e64a9576eeba376d9d1430f8b5f7f428547d175d73d65d0e62e6b6eeb9',
     'api/assistant.php' => 'f76fbd923ca4ac6935109d6cb0e1490f1aa96c882b4fdd3a19b056bd0a707acc',
@@ -128,7 +128,7 @@ $WANT = [
     'assets/assistant-icon.js' => '449958d4c49615a71e3e4ed3464bd42163ff0c37de01caea5f2824f559ca4f41',
     'assets/backup.js' => '0de15af4d3f7b52c0cde65026c91e7d09e467be993f92d603b9bc2fe8857b422',
     'assets/bidi-aEAFfM9w.js' => '2d2f9386b7166e9eb7fc75bc3aa85cbcb3f21037f75ae92894bb2570c4436424',
-    'assets/brand-badge.js' => 'dff912dd46f909c60174e7249971359938fdd7293833b574352f95e3f8efe8fc',
+    'assets/brand-badge.js' => '4467361bede7296f76ed12f1de1b358b83fd59e29b54121ef6d18c1379a9aa9f',
     'assets/brand-image-picker.js' => '12f369b7bcc96e31c2e2ccf446e7ad6bdbb40a28e7cd662bbb633eb6f9c6a667',
     'assets/brand-logos.js' => 'e0195c7480011ab284a70a738dcdb5d817a53872d97ba606e176081e10905a69',
     'assets/brand-strip.js' => '9e2c4ae3d55c1ee9e393eb15a3b3f0694b0f9b3929593ccca3fd4d811cce3f69',
@@ -186,7 +186,7 @@ $WANT = [
     'assets/site-text-editor.js' => '4d11bfc33be2169079ab12eb7a499aa66b19dba6c94caa90da592c76a86f7207',
     'assets/site-text.js' => '1f14de76655611e43bd56e6f92f8eb16b9b420f872f18bed927b966aeba559b6',
     'assets/sporta-dark.css' => '6cb6561f1016f71b295b3355c0d606cbacffc31b45c9fa6a3e9396bc3b7e2204',
-    'assets/sporta-ui.css' => '30a5b1ece9cd25a58ef1f7015fc4ad8f991aac5f92f1db7be6e004e10229c8e9',
+    'assets/sporta-ui.css' => '47c62b7fcee9043ad5638c4e7e998e795b10b86cdfbd2421de592c342ad1ffe4',
     'assets/theme-colors.js' => 'db9ab1f1bd0ce33a61faabed401f35e233ffcfec6eac1456d0fabf402f782bf1',
     'assets/theme.js' => 'bf8382e9aeabb368400cf93bdf09e2fbb65d20b1e77f6f185b368d2c44d86e96',
     'assets/tile-art.js' => 'b6d3a6521a6e722ebd16242a25c1d4abcb32731852f5847d45828062219d97dc',
@@ -295,7 +295,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => '1ba2a01e9f35e80a67b4b6047afcb5370b4005074a150ade4907a578cb0ebf4a',
-    'sw.js' => 'add6719d5de59a29396dab74cfe3d707f3b8a4b526a54927293bf05cb78bfc4e',
+    'sw.js' => '8519743efd8e0142d4c4b6de757c2ea6f7b4633fb1b3ce1003667247a8459d7d',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
