@@ -151,8 +151,13 @@ console.log(`--- ${routes.length} routes in admin.php: ${publicOnes.length} befo
 // every refusal is the same 401. A trusted device is where the second factor
 // was already proved at enrolment; that is the one deliberate difference from
 // the password path. passcode_enroll/_devices/_remove are behind the gate.
+// password_reset_request and password_reset_confirm: a reset exists for the
+// person who cannot sign in. Neither reveals whether an address has an account
+// (identical answer), the code is hashed, expires and burns after five tries,
+// and a reset never signs anybody in.
 const MAY_BE_PUBLIC = ['login', 'login_code', 'login_code_resend', 'logout', 'me', 'register',
-                       'google_config', 'google_login', 'apple_config', 'apple_login', 'passcode_status', 'passcode_unlock']
+                       'google_config', 'google_login', 'apple_config', 'apple_login', 'passcode_status', 'passcode_unlock',
+                       'password_reset_request', 'password_reset_confirm']
 const unexpected = publicOnes.filter((r) => !MAY_BE_PUBLIC.includes(r))
 check(unexpected.length === 0,
   unexpected.length

@@ -116,6 +116,7 @@ const PARTS = [
   ['productthumbs.mysql.sql', 'product photo thumbnails — resized once, read back', API],
   ['stocklog.mysql.sql', 'stock history — every change to a stock count', API],
   ['admindevices.mysql.sql', 'trusted devices — the /backends passcode unlock', API],
+  ['adminreset.mysql.sql', 'password reset codes — forgot-password by email at /backends', API],
 ]
 
 // Repairs, named so that "why is 6 missing" has an answer in the file itself

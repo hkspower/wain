@@ -314,6 +314,99 @@ if ($r === 'apple_save' && $method === 'POST') {
     store_out(['client_id' => $cfg['client_id'], 'enabled' => !empty($cfg['enabled'])]);
 }
 
+// ========================================================= reset by email
+//
+// A FORGOTTEN PASSWORD, ANSWERED BY THE MAILBOX. Asks for an address, emails an
+// 8-digit code (no link: a sign-in mail that carries a link is a phishing
+// lesson, and this shop's other mails say so), and the code plus a new password
+// set it. What holds it:
+//   - the answer to the request is IDENTICAL whether or not the address has an
+//     admin account, so the route cannot be used to list who runs the shop;
+//   - the code is random, stored only as a hash, expires in 15 minutes, and is
+//     burned by five wrong tries; one live code per account, re-requests are
+//     spaced a minute apart;
+//   - it proves the MAILBOX and nothing more: an account with a second factor
+//     still has to pass it at sign-in, so a reset never signs anybody in;
+//   - the new password meets the same rules as every other door (12+ characters,
+//     not a common one), every trusted passcode device is removed, and the
+//     owner is told by email that it happened.
+const RESET_MINUTES = 15;
+const RESET_MAX_TRIES = 5;
+
+if ($r === 'password_reset_request' && $method === 'POST') {
+    store_require_admin_header();
+    store_throttle($db, 'admin_pw_reset', 6, 900);
+    $b = store_body();
+    $email = strtolower(trim((string) ($b['email'] ?? '')));
+    if ($email !== '' && strlen($email) <= 190) {
+        try {
+            $q = $db->prepare('select id, email from admin_users where email = ?');
+            $q->execute([$email]);
+            $u = $q->fetch();
+            if ($u) {
+                $last = $db->prepare('select created_at from admin_password_resets where admin_id = ? and created_at > now() - interval 60 second');
+                $last->execute([$u['id']]);
+                if (!$last->fetchColumn()) {
+                    $code = str_pad((string) random_int(0, 99999999), 8, '0', STR_PAD_LEFT);
+                    $db->prepare('replace into admin_password_resets (admin_id, code_hash, attempts, expires_at) values (?,?,0,?)')
+                       ->execute([$u['id'], password_hash($code, PASSWORD_DEFAULT), date('Y-m-d H:i:s', time() + RESET_MINUTES * 60)]);
+                    $text = "Your Sporta panel password reset code is {$code}.\n\n"
+                          . "It works once and expires in " . RESET_MINUTES . " minutes.\n"
+                          . "If you did not ask for it, ignore this email — your password has not changed.\n\n"
+                          . "رمز إعادة تعيين كلمة مرور لوحة سبورتا: {$code}\n"
+                          . "صالح لمرة واحدة ولمدة " . RESET_MINUTES . " دقيقة. إن لم تطلبه فتجاهل الرسالة.";
+                    $html = str_replace("\n", '<br>', '<p style="font:16px system-ui">' . htmlspecialchars($text, ENT_QUOTES, 'UTF-8') . '</p>');
+                    store_send_mail(store_config(), (string) $u['email'], 'Sporta — password reset code / رمز إعادة التعيين', $text, $html);
+                }
+            }
+        } catch (Throwable $e) { error_log('admin reset request: ' . $e->getMessage()); }
+    }
+    store_out(['ok' => true]);
+}
+
+if ($r === 'password_reset_confirm' && $method === 'POST') {
+    store_require_admin_header();
+    store_throttle($db, 'admin_pw_reset_confirm', 20, 900);
+    $b = store_body();
+    $email = strtolower(trim((string) ($b['email'] ?? '')));
+    $code = preg_replace('/\D/', '', (string) ($b['code'] ?? ''));
+    $new = (string) ($b['password'] ?? '');
+    $refuse = static fn () => store_fail('reset_refused', 401);
+
+    try {
+        $q = $db->prepare('select u.id, u.email, r.code_hash, r.attempts, r.expires_at
+                             from admin_users u join admin_password_resets r on r.admin_id = u.id where u.email = ?');
+        $q->execute([$email]);
+        $row = $q->fetch();
+    } catch (Throwable $e) { $row = false; }
+    if (!$row || strlen($code) !== 8 || strtotime((string) $row['expires_at']) < time() || (int) $row['attempts'] >= RESET_MAX_TRIES) {
+        if ($row && (strtotime((string) $row['expires_at']) < time() || (int) $row['attempts'] >= RESET_MAX_TRIES)) {
+            $db->prepare('delete from admin_password_resets where admin_id = ?')->execute([$row['id']]);
+        }
+        $refuse();
+    }
+    if (!password_verify($code, (string) $row['code_hash'])) {
+        $db->prepare('update admin_password_resets set attempts = attempts + 1 where admin_id = ?')->execute([$row['id']]);
+        $refuse();
+    }
+    // The code is right; now the password. A refusal here does NOT burn the code,
+    // so a too-short first try does not cost the owner their reset.
+    if (strlen($new) < 12) store_fail('password_too_short');
+    if (!hash_equals($new, (string) ($b['password2'] ?? ''))) store_fail('password_mismatch');
+    if (($weak = store_password_is_weak($new, (string) $row['email'])) !== null) store_fail($weak);
+
+    $db->prepare('update admin_users set password_hash = ?, must_change_password = 0, failed_attempts = 0, locked_until = null where id = ?')
+       ->execute([password_hash($new, PASSWORD_DEFAULT), $row['id']]);
+    $db->prepare('delete from admin_password_resets where admin_id = ?')->execute([$row['id']]);
+    try { $db->prepare('delete from admin_devices where admin_id = ?')->execute([$row['id']]); } catch (Throwable $e) {}
+    $note = "The password for your Sporta panel account was just changed using an email reset code.\n"
+          . "If this was not you, reset it again now and check who has access to your mailbox.\n\n"
+          . "تم تغيير كلمة مرور حسابك في لوحة سبورتا للتو برمز إعادة التعيين. إن لم تكن أنت، أعد التعيين فورًا.";
+    store_send_mail(store_config(), (string) $row['email'], 'Sporta — your password was changed / تم تغيير كلمة المرور', $note,
+        str_replace("\n", '<br>', '<p style="font:16px system-ui">' . htmlspecialchars($note, ENT_QUOTES, 'UTF-8') . '</p>'));
+    store_out(['ok' => true]);
+}
+
 // ============================================================ passcode unlock
 //
 // A QUICK DOOR FOR A BROWSER THE OWNER ALREADY TRUSTED, NOT A SECOND PASSWORD.
