@@ -59,6 +59,14 @@
   var open = false
 
   function mount() {
+    // SIGNED-OUT SCREEN ONLY. A signed-in panel screen can hold password
+    // fields of its own (the payment credentials, the account form), and
+    // finding one of those is not finding the login form.
+    if (document.querySelector('.admin-content')) {
+      var stale = document.querySelector('[' + MARK + ']')
+      if (stale && stale.parentNode) stale.parentNode.removeChild(stale)
+      return
+    }
     var form = findForm()
     if (!form) return
     var existing = document.querySelector('[' + MARK + ']')

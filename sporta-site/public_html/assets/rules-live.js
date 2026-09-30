@@ -133,7 +133,32 @@
     note.textContent = text
   }
 
+  /* PAYMENT METHODS the owner has switched off in /backends disappear from the
+     checkout, and if the one the bundle preselected is among them the first
+     available one is chosen through its own click, so React's state follows.
+     The server refuses a switched-off method anyway (payment_method_disabled);
+     this only stops the shopper being offered it. T-Pay is not turned ON here:
+     the bundle shows it only when config.js says tpayEnabled, and this never
+     overrides that. */
+  function checkoutPay() {
+    var m = rules.payment_methods
+    if (!Array.isArray(m) || !m.length) return
+    var radios = document.querySelectorAll('input[name="paymethod"]')
+    if (!radios.length) return
+    var chosenOff = false, firstOn = null
+    for (var i = 0; i < radios.length; i++) {
+      var r = radios[i]
+      var off = m.indexOf(r.value) === -1
+      var label = r.closest('label')
+      if (label && (label.style.display === 'none') !== off) label.style.display = off ? 'none' : ''
+      if (!off && !firstOn) firstOn = r
+      if (off && r.checked) chosenOff = true
+    }
+    if (chosenOff && firstOn) firstOn.click()
+  }
+
   function checkout() {
+    checkoutPay()
     var govs = rules.governorates
     if (!Array.isArray(govs) || !govs.length || govs.length >= ALL_GOVS) return
     var select = document.getElementById('f-governorate')
@@ -203,7 +228,9 @@
       var govs = rules.governorates
       var govsLimited = Array.isArray(govs) && govs.length > 0 && govs.length < ALL_GOVS
       // At the shipped defaults there is nothing to do, and nothing is watched.
-      if (!subs.length && !govsLimited) return
+      var pm = rules.payment_methods
+      var payLimited = Array.isArray(pm) && pm.length > 0 && pm.length < 3
+      if (!subs.length && !govsLimited && !payLimited) return
       new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true, characterData: true })
       document.addEventListener('change', schedule, true)
       schedule()

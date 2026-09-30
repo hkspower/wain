@@ -86,6 +86,15 @@ try {
   await pg.waitForTimeout(1500)
   check(/Password changed|تم تغيير كلمة المرور/.test(await pg.locator('[data-sporta-reset]').innerText()), 'the panel walks the owner through it and says so')
   check((await call('login', { email: EMAIL, password: 'another long passphrase 42' })).status === 200, 'and the password from the browser form works')
+  // signed in, on a screen with password fields of its own: the reset UI must not appear
+  const p2 = await (await br.newContext({ viewport: { width: 1280, height: 900 } })).newPage()
+  await p2.goto(`${BASE}/backends`); await p2.waitForSelector('input[type=password]')
+  await p2.locator('input[type=email], input[type=text]').first().fill(EMAIL)
+  await p2.locator('input[type=password]').first().fill('another long passphrase 42'); await p2.keyboard.press('Enter')
+  await p2.waitForSelector('.admin-content'); await p2.waitForTimeout(1500)
+  await p2.locator('.admin-sidebar button', { hasText: /^\s*Security\s*$/ }).first().click(); await p2.waitForTimeout(2000)
+  check(await p2.locator('input[type=password]').count() > 0 && await p2.locator('[data-sporta-reset]').count() === 0,
+    'signed in, the forgot-password form is not drawn on screens that have password fields of their own')
   await br.close()
 } finally {
   clean(); sql(`delete from admin_users where email='${EMAIL}'`)

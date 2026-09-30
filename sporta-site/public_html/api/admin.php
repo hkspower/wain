@@ -585,6 +585,15 @@ if ($r === 'me') {
 // lock the owner out of their own recovery.
 $admin = store_require_admin(in_array($r, ['account', 'account_update'], true));
 
+// ---- payment status + connection test (signed in)
+if ($r === 'payment_check') {
+    // Cheap without `live=1`; the live test reaches out to the banks, so it is rationed.
+    $live = ($_GET['live'] ?? '') === '1';
+    if ($live) store_throttle($db, 'payment_check', 12, 300);
+    require_once __DIR__ . '/payment-check.php';
+    store_out(payment_check($db, $live));
+}
+
 // ---- sign-in history (signed in)
 if ($r === 'login_log') {
     try {
@@ -2691,6 +2700,7 @@ if ($r === 'settings_save' && $method === 'POST') {
             'free_delivery_fils' => $int('free_delivery_fils', 0, 1000000),
             'return_days'        => $int('return_days', 1, 365),
             'cod_open_max'       => $int('cod_open_max', 1, 50),
+            'cod_max_fils'       => $int('cod_max_fils', 0, 10000000),
             'review_reward_pct'  => $reward,
             'discount_max_pct'   => $discountMax,
             'governorates'       => $govs,

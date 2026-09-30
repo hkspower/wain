@@ -1472,6 +1472,12 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // the checkout with the same call.
     $deliveryFils = store_delivery_fils($db, $goodsFils);
     $amountFils   = $goodsFils + $deliveryFils;
+    // A CEILING ON CASH ORDERS, the owner's (0 = none). Refused by name, after the
+    // total is known and before anything is written, so it cannot leave a half order.
+    if ($method === 'cod') {
+        $codMax = (int) store_rule($db, 'cod_max_fils');
+        if ($codMax > 0 && $amountFils > $codMax) store_fail('cod_over_limit');
+    }
 
     $db->beginTransaction();
     try {

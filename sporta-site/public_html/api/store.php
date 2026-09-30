@@ -2821,6 +2821,9 @@ function store_rule_defaults(): array {
         'free_delivery_fils' => 0,
         'return_days'        => STORE_RETURN_DAYS,
         'cod_open_max'       => STORE_COD_OPEN_MAX,
+        // The largest order, in fils, that may be paid in cash on delivery.
+        // 0 means no ceiling — the shop's behaviour today.
+        'cod_max_fils'       => 0,
         'review_reward_pct'  => STORE_REVIEW_REWARD_PCT,
         'discount_max_pct'   => STORE_DISCOUNT_MAX_PCT,
         'governorates'       => STORE_GOVERNORATES,

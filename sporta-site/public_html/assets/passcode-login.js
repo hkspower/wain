@@ -41,6 +41,7 @@
   var usePassword = false    // the owner chose the password form
 
   function mountKeypad() {
+    if (document.querySelector('.admin-content')) return   // signed in: no keypad
     var form = findForm()
     if (!form || !status || !status.trusted) return
     var existing = document.querySelector('[' + MARK + '-pad]')

@@ -413,7 +413,7 @@
   function settingsHeading() {
     var hs = document.querySelectorAll('h1, h2')
     for (var i = 0; i < hs.length; i++) {
-      if (hs[i].textContent.trim() === 'Settings') return hs[i]
+      if (hs[i].textContent.trim() === 'Payments') return hs[i]
     }
     return null
   }

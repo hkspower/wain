@@ -88,17 +88,17 @@ try {
   await p.getByRole('button').filter({ hasText: /^Sign in$/ }).last().click()
   await p.waitForTimeout(3500)
 
-  await openTab('Settings')
+  await openTab('Payments')
   await p.waitForTimeout(1500)
-  check(await card().count() === 1, 'the payment card is on the Settings screen')
+  check(await card().count() === 1, 'the payment card is on the Payments screen')
 
   await openTab('Orders')
   check(await card().count() === 0, 'and it is gone on another screen',
     'an overlay that leaks onto Orders is a redesign of a screen nobody asked about')
 
-  await openTab('Settings')
+  await openTab('Payments')
   await p.waitForTimeout(1500)
-  check(await card().count() === 1, 'and it comes back when Settings is reopened',
+  check(await card().count() === 1, 'and it comes back when Payments is reopened',
     'the panel swaps its content in place, so a one-shot mount would be undone by any navigation')
 
   /* --------------------------------------------- 2. never a credential value */
