@@ -128,6 +128,33 @@
         g.imageSmoothingQuality = 'high'
         g.drawImage(bm, 0, 0, w, h)
 
+        // SAFARI (every iPhone and iPad browser is WebKit) CANNOT ENCODE WEBP from a
+        // canvas: toDataURL('image/webp') quietly returns a PNG instead. A PNG of a
+        // photograph is several times the cap, so the ladder below would end in
+        // "still N kB at the lowest quality" for every picture taken on a phone.
+        // Ask what came back, and when it is not WebP use the formats Safari CAN
+        // write and the server accepts: PNG if it fits (a logo's transparency
+        // survives), else JPEG on white (a photograph has no transparency to lose).
+        var probe = c.toDataURL('image/webp', qualities[0])
+        if (probe.indexOf('data:image/webp') !== 0) {
+          if (probe.length <= MAX_BASE64) return { dataUri: probe, width: w, height: h }
+          var flat = document.createElement('canvas')
+          flat.width = w
+          flat.height = h
+          var fg = flat.getContext('2d')
+          fg.fillStyle = '#ffffff'
+          fg.fillRect(0, 0, w, h)
+          fg.imageSmoothingEnabled = true
+          fg.imageSmoothingQuality = 'high'
+          fg.drawImage(bm, 0, 0, w, h)
+          for (var j = 0; j < qualities.length; j++) {
+            var ju = flat.toDataURL('image/jpeg', qualities[j])
+            if (ju.length <= MAX_BASE64) return { dataUri: ju, width: w, height: h }
+            if (j === qualities.length - 1) {
+              throw new Error('still ' + Math.round(ju.length / 1024) + ' kB at the lowest quality')
+            }
+          }
+        }
         for (var i = 0; i < qualities.length; i++) {
           var uri = c.toDataURL('image/webp', qualities[i])
           if (uri.length <= MAX_BASE64) return { dataUri: uri, width: w, height: h }

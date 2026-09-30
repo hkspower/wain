@@ -144,7 +144,12 @@
           c.height = h
           c.getContext('2d').drawImage(img, 0, 0, w, h)
           resolve({
-            dataUrl: c.toDataURL('image/webp', 0.85),
+            // Safari cannot encode WebP from a canvas and returns a PNG (several
+            // times the slide cap); ask what came back and use JPEG in that case.
+            dataUrl: (function () {
+              var u = c.toDataURL('image/webp', 0.85)
+              return u.indexOf('data:image/webp') === 0 ? u : c.toDataURL('image/jpeg', 0.85)
+            })(),
             width: img.naturalWidth,
             height: img.naturalHeight,
           })

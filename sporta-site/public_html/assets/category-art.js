@@ -63,7 +63,7 @@
     saved: { en: 'Saved — the shop shows it on the next load.' },
     restored: { en: 'Original restored.' },
     notReady: { en: 'This shop has not been set up for replacing pictures yet (the table is missing).' },
-    noWebp: { en: 'This browser cannot make the picture format the shop needs. Use Chrome, Edge or a current Safari.' },
+    noWebp: { en: 'This browser cannot make the picture format the shop needs. Safari on iPhone and iPad cannot make WebP pictures — use Chrome or Edge on a computer or an Android phone (Chrome on an iPhone is Safari underneath).' },
     notImage: { en: 'That file is not a picture.' },
     small: { en: 'That picture is small; it may look soft on large screens.' },
     failed: { en: 'Could not save: ' },
