@@ -314,6 +314,91 @@ if ($r === 'apple_save' && $method === 'POST') {
     store_out(['client_id' => $cfg['client_id'], 'enabled' => !empty($cfg['enabled'])]);
 }
 
+// ============================================================ passcode unlock
+//
+// A QUICK DOOR FOR A BROWSER THE OWNER ALREADY TRUSTED, NOT A SECOND PASSWORD.
+// Sign in normally once — password and any second factor — and choose to trust
+// this device; afterwards, when the session has timed out, a 6-digit passcode
+// is enough on THAT browser. Every other browser still needs the password.
+//
+// What holds it: a random token in an HttpOnly, Secure, SameSite=Strict cookie
+// (only ever set at enrolment, so shoppers never get one), stored here only as
+// a SHA-256; the passcode itself as password_hash(); five wrong tries lock
+// that device; the device expires (30 days rolling, 90 absolute); and a
+// changed password deletes every device. Unlocking goes through
+// store_admin_grant(), the same single place every sign-in ends in.
+const PASSCODE_MAX_FAILS = 5;
+const PASSCODE_ROLL_DAYS = 30;
+const PASSCODE_ABS_DAYS  = 90;
+
+function passcode_cookie_name(): string {
+    return store_is_https() ? '__Host-sporta_dev' : 'sporta_dev';
+}
+function passcode_cookie_token(): string {
+    $t = (string) ($_COOKIE[passcode_cookie_name()] ?? '');
+    return preg_match('/^[a-f0-9]{64}$/', $t) ? $t : '';
+}
+function passcode_set_cookie(string $token, int $expires): void {
+    setcookie(passcode_cookie_name(), $token, [
+        'expires' => $expires, 'path' => '/', 'secure' => store_is_https(),
+        'httponly' => true, 'samesite' => 'Strict',
+    ]);
+}
+function passcode_device(PDO $db, string $token): ?array {
+    if ($token === '') return null;
+    try {
+        $q = $db->prepare('select * from admin_devices where token_hash = ? and expires_at > now()');
+        $q->execute([hash('sha256', $token)]);
+        $row = $q->fetch();
+        return $row ?: null;
+    } catch (Throwable $e) { return null; }   // table not migrated: no device
+}
+// Digits only, exactly six, and not one of the guesses everybody tries first.
+function passcode_valid(string $p): bool {
+    if (!preg_match('/^[0-9]{6}$/', $p)) return false;
+    if (preg_match('/^(\d)\1{5}$/', $p)) return false;
+    return !in_array($p, ['123456', '654321', '012345', '123123', '121212', '112233', '123321'], true);
+}
+
+if ($r === 'passcode_status') {
+    store_require_admin_header();
+    $dev = passcode_device($db, passcode_cookie_token());
+    store_out([
+        'trusted' => $dev !== null,
+        'locked'  => $dev !== null && (int)$dev['failed'] >= PASSCODE_MAX_FAILS,
+    ]);
+}
+
+if ($r === 'passcode_unlock' && $method === 'POST') {
+    store_require_admin_header();
+    store_throttle($db, 'admin_passcode', 30, 900);
+    $b = store_body();
+    $pass = (string) ($b['passcode'] ?? '');
+    $dev = passcode_device($db, passcode_cookie_token());
+    // One answer for no cookie, expired, unknown and wrong: the route must not
+    // say which browsers are trusted.
+    if ($dev === null || !preg_match('/^[0-9]{6}$/', $pass)) store_fail('passcode_refused', 401);
+    if ((int)$dev['failed'] >= PASSCODE_MAX_FAILS) store_fail('passcode_locked', 423);
+    if (!password_verify($pass, (string)$dev['pass_hash'])) {
+        $db->prepare('update admin_devices set failed = failed + 1 where id = ?')->execute([$dev['id']]);
+        if ((int)$dev['failed'] + 1 >= PASSCODE_MAX_FAILS) store_fail('passcode_locked', 423);
+        store_fail('passcode_refused', 401);
+    }
+    $uq = $db->prepare('select id, email, locked_until from admin_users where id = ?');
+    $uq->execute([$dev['admin_id']]);
+    $u = $uq->fetch();
+    if (!$u || ($u['locked_until'] !== null && strtotime($u['locked_until']) > time())) {
+        store_fail('passcode_refused', 401);
+    }
+    $abs = strtotime((string)$dev['created_at']) + PASSCODE_ABS_DAYS * 86400;
+    $exp = min($abs, time() + PASSCODE_ROLL_DAYS * 86400);
+    $db->prepare('update admin_devices set failed = 0, last_used_at = now(), expires_at = ? where id = ?')
+       ->execute([date('Y-m-d H:i:s', $exp), $dev['id']]);
+    passcode_set_cookie(passcode_cookie_token(), $exp);
+    store_admin_grant($db, ['id' => (int)$u['id'], 'email' => $u['email']]);
+    store_out(['email' => $u['email']]);
+}
+
 if ($r === 'logout' && $method === 'POST') {
     store_session_start();
     // Clears the cookie as well as the server-side session. Emptying $_SESSION
@@ -366,6 +451,48 @@ if ($r === 'me') {
 // forces a password change but blocks the only route that changes one would
 // lock the owner out of their own recovery.
 $admin = store_require_admin(in_array($r, ['account', 'account_update'], true));
+
+// ---- passcode management (signed in)
+if ($r === 'passcode_enroll' && $method === 'POST') {
+    $b = store_body();
+    $pass = (string) ($b['passcode'] ?? '');
+    if (!passcode_valid($pass)) store_fail('bad_passcode');
+    $label = mb_substr(trim(strip_tags((string) ($b['label'] ?? ''))), 0, 80);
+    $token = passcode_cookie_token();
+    // Re-enrolling the same browser replaces its row rather than stacking one.
+    if ($token !== '') $db->prepare('delete from admin_devices where token_hash = ?')->execute([hash('sha256', $token)]);
+    $token = bin2hex(random_bytes(32));
+    $exp = time() + PASSCODE_ROLL_DAYS * 86400;
+    $db->prepare('insert into admin_devices (admin_id, token_hash, pass_hash, label, expires_at) values (?,?,?,?,?)')
+       ->execute([$admin['id'], hash('sha256', $token), password_hash($pass, PASSWORD_DEFAULT), $label,
+                  date('Y-m-d H:i:s', $exp)]);
+    // A tidy-up: this admin's expired rows.
+    $db->prepare('delete from admin_devices where admin_id = ? and expires_at <= now()')->execute([$admin['id']]);
+    passcode_set_cookie($token, $exp);
+    store_out(['ok' => true]);
+}
+if ($r === 'passcode_devices') {
+    $cur = passcode_cookie_token();
+    $curHash = $cur === '' ? '' : hash('sha256', $cur);
+    try {
+        $q = $db->prepare('select id, label, failed, created_at, last_used_at, expires_at, token_hash
+                             from admin_devices where admin_id = ? and expires_at > now() order by id desc');
+        $q->execute([$admin['id']]);
+        $rows = $q->fetchAll();
+    } catch (Throwable $e) { store_out(['devices' => [], 'ready' => false]); }
+    $out = [];
+    foreach ($rows as $d) {
+        $out[] = ['id' => (int)$d['id'], 'label' => $d['label'], 'locked' => (int)$d['failed'] >= PASSCODE_MAX_FAILS,
+                  'created_at' => $d['created_at'], 'last_used_at' => $d['last_used_at'],
+                  'expires_at' => $d['expires_at'], 'current' => $curHash !== '' && hash_equals($d['token_hash'], $curHash)];
+    }
+    store_out(['devices' => $out, 'ready' => true]);
+}
+if ($r === 'passcode_remove' && $method === 'POST') {
+    $b = store_body();
+    $db->prepare('delete from admin_devices where id = ? and admin_id = ?')->execute([(int)($b['id'] ?? 0), $admin['id']]);
+    store_out(['ok' => true]);
+}
 
 // RELEASE THE SESSION LOCK for every route but one. PHP's default file-based
 // session handler holds an EXCLUSIVE lock on the session for as long as the
@@ -3597,6 +3724,7 @@ if ($r === 'account_update' && $method === 'POST') {
     // trying to stop. The email is refreshed in the session instead, so a
     // rename does not sign the owner out of their own screen.
     if (in_array('password_hash = ?', $sets, true)) {
+        try { $db->prepare('delete from admin_devices where admin_id = ?')->execute([$admin['id']]); } catch (Throwable $e) {}
         store_session_end();
         store_out(['ok' => true, 'signed_out' => true]);
     }
