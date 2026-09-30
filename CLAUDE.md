@@ -506,6 +506,42 @@ file's length would pass it. Content hashes would close that, and nothing on
 this connector returns one for a binary — which is why the hashed chunk
 names, content-addressed by the build, carry most of the weight.
 
+## The 30 September deploy — `831c418` is live
+
+**The «live» line above was stale again, and `build.json` said so.** This file
+named `5abbac4`; the server said **`66745893`**, a deploy from 29 September
+17:02 that nothing here recorded. The pre-deploy diff was taken against the
+server's commit, not this file's: `git diff --name-only 66745893..HEAD -- src
+public` was **ten files**, not the twenty-two the older commit would have
+suggested — the شوق call-feedback fix, the taller hero towers, and the `/find`
+and `/salem` changes made since (سالم's identity returning on `/find`, his
+regenerated photos). No `.htaccess` change.
+
+`{"ok":true,"version":"1.1.0","deployed":260,"removed":8,"emptied":1,"at":
+"2026-09-30T14:59:01+00:00"}` through the installed caller, one cron job
+(`iTiiFVEvxq`, production, no stage argument), read from its FIRST firing and
+deleted straight after; the listing that followed held sporta's eight and
+nothing else. The archive rode a commit-pinned raw URL
+(`ef97dcd/wain-1.1.0.zip`, 3.78MB, sha256 `f2d2201c…`) — one more permanent
+blob, chosen knowingly because `DEPLOY_SECRET` is still unset. The command
+measured 195 characters against the 210 floor of the cap.
+
+**Verified below the root, byte-exact against `deploy-plan.json`'s six
+proofs**: `css/c788886b489e828e.css` (95,955), `831c418a…/_buildManifest.js`
+(1,125) as the only build-id directory, `chunks/app/search/page-bc9f4747c8ac7320.js`
+(21,510), `explore/index.html` (18,327), a place page (62,258) and its og image
+(44,217), with all 52 og images present. Also on disk: `chunks/app/find/` and
+`chunks/app/salem/`. `deploy:verify` said «831c418a is live — verified at the
+root and 6 levels below it»; it read 6 of 260 files, so the other 254 are
+covered by the deploy's own sha256 check, not by this reading. Then the cache
+purge, and a cron `wget` of `https://www.wainkw.com/build.json` — from the
+server out through the edge — returned `831c418a…` / `b0d3a1b256b979fe`.
+
+**What this does not prove**: a real شوق call (the widget and ElevenLabs are
+unreachable from here — «جاهزة → بدء مكالمة → متصل» was proved against the
+packed widget bundle, not on the live site), or how the taller hero looks on a
+phone. Both want one look from a real device.
+
 ## The 28 September deploys, continued — `5abbac4` is live
 
 `{"ok":true,"version":"1.1.0","deployed":252,"removed":23,"emptied":1,"at":
