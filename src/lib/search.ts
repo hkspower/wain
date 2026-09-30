@@ -83,7 +83,7 @@ export function normalise(value: string): string {
 }
 
 /** Leading particles carry no meaning for retrieval. */
-const STOP = new Set(["ال", "في", "من", "على", "الى", "عن", "مع", "او", "و", "the", "a", "of", "in"]);
+export const STOP = new Set(["ال", "في", "من", "على", "الى", "عن", "مع", "او", "و", "the", "a", "of", "in"]);
 
 export function tokenize(value: string): string[] {
   return normalise(value)
@@ -93,7 +93,7 @@ export function tokenize(value: string): string[] {
 }
 
 /** How people actually phrase things → the vocabulary the data uses. */
-const SYNONYMS: Record<string, string[]> = {
+export const SYNONYMS: Record<string, string[]> = {
   مقهى: ["قهوه", "كافيه"],
   كوفي: ["قهوه", "كافيه"],
   كافي: ["قهوه", "كافيه"],
@@ -734,7 +734,7 @@ const B = 0.75;
  * audit checks that none of these is also a real area, so a stale entry
  * cannot silently hide new content.
  */
-const ELSEWHERE_IN_KUWAIT = new Set(
+export const ELSEWHERE_IN_KUWAIT = new Set(
   [
     // governorates
     "الجهراء", "الفروانية", "الأحمدي", "العاصمة",

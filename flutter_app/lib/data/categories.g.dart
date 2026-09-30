@@ -62,5 +62,5 @@ final List<Category> kCategories = [
     en: 'Family',
     icon: 'ferris',
     blurbAr: 'طلعة العيال',
-  )
+  ),
 ];

@@ -1,0 +1,58 @@
+/// The call launcher — one control, used everywhere a call can start (the
+/// /search box, /find's call half). It does the gesture work inside the tap:
+/// haptic now, and the microphone prompt is the controller's first step, so the
+/// system sees a user gesture rather than a timer.
+library;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+
+import '../theme/colors.dart';
+import '../widgets/svg.dart';
+import 'call_controller.dart';
+import 'config.dart';
+
+class ShouqCallButton extends StatelessWidget {
+  final double size;
+
+  /// Runs after the call has been placed (e.g. /find moves on to /search,
+  /// where every call's answer appears).
+  final VoidCallback? onTapped;
+  const ShouqCallButton({super.key, this.size = 32, this.onTapped});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!kAgentEnabled) return const SizedBox.shrink();
+    final call = context.watch<CallController>();
+    final ringing = call.active;
+    return Semantics(
+      button: true,
+      expanded: call.sheetOpen,
+      label: 'كلّم شوق',
+      child: Material(
+        color: ringing ? WainColors.coral600 : WainColors.sea600,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            call.start();
+            onTapped?.call();
+          },
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: Center(
+              child: WainSvg.icon(
+                'shouq',
+                size: size * 0.5,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

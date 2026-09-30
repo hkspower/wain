@@ -1,10 +1,10 @@
 name: wain
 description: >
-  وين — a native Flutter rewrite of the place-discovery site, starting with
-  browsing: home, category/area browse, search, and a place detail page.
-  Shares no code with the Next.js site; the catalogue is generated from it
-  (see ../scripts/gen-flutter-catalogue.mjs) so the two can never silently
-  disagree about the data, even though the UI is independently written.
+  وين — the native Flutter app for the Kuwaiti place-discovery site.
+  Shares no code with the Next.js site; the catalogue and design tokens are
+  generated from it (see ../scripts/gen-flutter-*.mjs) so the two can never
+  silently disagree about data or brand, even though the UI is written
+  independently.
 publish_to: 'none'
 version: 0.1.0+1
 
@@ -17,11 +17,46 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   cupertino_icons: ^1.0.8
+  go_router: ^18.0.2
+  provider: ^6.1.5+1
+  shared_preferences: ^2.5.5
+  flutter_svg: ^2.3.0
+  flutter_map: ^8.3.2
+  latlong2: ^0.10.1
+  url_launcher: ^6.3.2
+  share_plus: ^13.3.0
+  web_socket_channel: ^3.0.3
+  permission_handler: ^13.0.2
+  flutter_tts: ^4.2.5
+  app_links: ^7.2.1
+  elevenlabs_agents: ^0.6.1
+  http: ^1.6.0
+  audioplayers: ^6.8.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  vector_graphics: ^1.2.3
 
 flutter:
   uses-material-design: true
+  fonts:
+    # One family, weight carries the hierarchy — exactly as on the site
+    # (theme.css: «font-display … now selects weight, not a different
+    # typeface»). Weight 400 is the Regular file; there is no Medium.
+    - family: IBMPlexSansArabic
+      fonts:
+        - asset: assets/fonts/IBMPlexSansArabic-Regular.ttf
+        - asset: assets/fonts/IBMPlexSansArabic-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/IBMPlexSansArabic-Bold.ttf
+          weight: 700
+  assets:
+    - assets/art/
+    - assets/art/category/
+    - assets/art/place/
+    - assets/art/mark/
+    - assets/art/cat-icon/
+    - assets/art/icon/
+    - assets/img/

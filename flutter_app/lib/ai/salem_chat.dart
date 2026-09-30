@@ -1,0 +1,210 @@
+/// The typed conversation with شوق — a plain WebSocket, not the SDK.
+///
+/// The wire protocol is read out of ElevenLabs' published client and written
+/// as plain socket calls, for the same reason the web does: a text chat needs
+/// the handshake, `user_message`/`agent_response`, the ping keepalive and an
+/// answer to every tool call — and nothing of the audio stack the SDK drags in.
+///
+/// The override carries only `conversation.text_only`. No `tts` block: she
+/// speaks, if at all, in her own voice — this is her, typed.
+library;
+
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:web_socket_channel/web_socket_channel.dart';
+
+import 'config.dart';
+
+class ChatMessage {
+  /// "user" | "agent"
+  final String role;
+  final String text;
+  const ChatMessage(this.role, this.text);
+}
+
+enum ChatStatus { connecting, connected, disconnected, error }
+
+typedef ChatTool = FutureOr<String> Function(Map<String, dynamic> parameters);
+typedef ChannelFactory = WebSocketChannel Function(
+  Uri uri,
+  Iterable<String> protocols,
+);
+
+WebSocketChannel defaultChannel(Uri uri, Iterable<String> protocols) =>
+    WebSocketChannel.connect(uri, protocols: protocols);
+
+const Duration kConnectTimeout = Duration(seconds: 12);
+
+class ChatHandle {
+  final void Function(String text) send;
+  final void Function() close;
+  const ChatHandle({required this.send, required this.close});
+}
+
+const ChatHandle _noop = ChatHandle(send: _ignore, close: _ignore0);
+void _ignore(String _) {}
+void _ignore0() {}
+
+ChatHandle startSalemChat({
+  required void Function(ChatStatus) onStatus,
+  required void Function(ChatMessage) onMessage,
+  required void Function() onToolUnavailable,
+  Map<String, ChatTool>? clientTools,
+  String? agentId,
+  ChannelFactory connect = defaultChannel,
+  Duration connectTimeout = kConnectTimeout,
+}) {
+  final id = agentId ?? kAgentId;
+  if (id.isEmpty) {
+    onStatus(ChatStatus.error);
+    return _noop;
+  }
+
+  final uri = Uri.parse(
+    'wss://api.elevenlabs.io/v1/convai/conversation'
+    '?agent_id=${Uri.encodeQueryComponent(id)}&source=wain-salem-chat&version=1',
+  );
+  final WebSocketChannel channel;
+  try {
+    channel = connect(uri, const ['convai']);
+  } catch (_) {
+    onStatus(ChatStatus.error);
+    return _noop;
+  }
+
+  var deliberatelyClosed = false;
+  var settled = false;
+  onStatus(ChatStatus.connecting);
+
+  Timer? timer;
+  timer = Timer(connectTimeout, () {
+    if (settled) return;
+    settled = true;
+    deliberatelyClosed = true;
+    onStatus(ChatStatus.error);
+    channel.sink.close();
+  });
+
+  void sendJson(Map<String, dynamic> m) {
+    try {
+      channel.sink.add(jsonEncode(m));
+    } catch (_) {
+      /* a closed socket: nothing to tell */
+    }
+  }
+
+  // The handshake goes out as soon as the socket is ready.
+  channel.ready
+      .then((_) {
+        sendJson({
+          'type': 'conversation_initiation_client_data',
+          'conversation_config_override': {
+            'conversation': {'text_only': true},
+          },
+          'source_info': {'source': 'wain-salem-chat', 'version': '1'},
+        });
+      })
+      .catchError((_) {
+        if (settled || deliberatelyClosed) return;
+        settled = true;
+        timer?.cancel();
+        onStatus(ChatStatus.error);
+      });
+
+  channel.stream.listen(
+    (event) {
+      Map<String, dynamic> data;
+      try {
+        final decoded = jsonDecode(event as String);
+        if (decoded is! Map<String, dynamic>) return;
+        data = decoded;
+      } catch (_) {
+        return;
+      }
+      switch (data['type']) {
+        case 'conversation_initiation_metadata':
+          settled = true;
+          timer?.cancel();
+          onStatus(ChatStatus.connected);
+        case 'agent_response':
+          final evt = data['agent_response_event'];
+          final text = evt is Map ? evt['agent_response'] : null;
+          if (text is String && text.isNotEmpty)
+            onMessage(ChatMessage('agent', text));
+        case 'ping':
+          final evt = data['ping_event'];
+          sendJson({
+            'type': 'pong',
+            'event_id': evt is Map ? evt['event_id'] : null,
+          });
+        case 'client_tool_call':
+          final evt = data['client_tool_call'];
+          if (evt is! Map) return;
+          final callId = evt['tool_call_id'];
+          final name = evt['tool_name'];
+          ChatTool? handler;
+          if (name is String) handler = clientTools?[name];
+          final run = handler;
+          if (run == null) {
+            // Answered with an error rather than left to hang, as the real
+            // client does for a tool nobody registered.
+            sendJson({
+              'type': 'client_tool_result',
+              'tool_call_id': callId,
+              'result': 'not available in text chat',
+              'is_error': true,
+            });
+            onToolUnavailable();
+            return;
+          }
+          final params = evt['parameters'];
+          Future<String>.sync(
+                () => run(
+                  params is Map
+                      ? params.cast<String, dynamic>()
+                      : <String, dynamic>{},
+                ),
+              )
+              .then(
+                (result) => sendJson({
+                  'type': 'client_tool_result',
+                  'tool_call_id': callId,
+                  'result': result,
+                  'is_error': false,
+                }),
+              )
+              .catchError(
+                (Object err) => sendJson({
+                  'type': 'client_tool_result',
+                  'tool_call_id': callId,
+                  'result': err.toString(),
+                  'is_error': true,
+                }),
+              );
+      }
+    },
+    onError: (_) {
+      settled = true;
+      timer?.cancel();
+      if (!deliberatelyClosed) onStatus(ChatStatus.error);
+    },
+    onDone: () {
+      timer?.cancel();
+      if (deliberatelyClosed) return;
+      settled = true;
+      onStatus(
+        channel.closeCode == 1000 ? ChatStatus.disconnected : ChatStatus.error,
+      );
+    },
+  );
+
+  return ChatHandle(
+    send: (text) => sendJson({'type': 'user_message', 'text': text}),
+    close: () {
+      deliberatelyClosed = true;
+      timer?.cancel();
+      channel.sink.close(1000, 'user closed chat');
+    },
+  );
+}

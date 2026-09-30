@@ -45,6 +45,39 @@ function dbool(b) {
   return b ? "true" : "false";
 }
 
+/** A TypeScript value as a Dart literal, for the optional business fields. */
+function opt(name, v, kind) {
+  if (v === undefined || v === null) return "";
+  switch (kind) {
+    case "str": return `\n    ${name}: ${dq(v)},`;
+    case "num": return `\n    ${name}: ${dnum(v)},`;
+    case "bool": return `\n    ${name}: ${dbool(v)},`;
+    case "list": return v.length ? `\n    ${name}: ${dlist(v)},` : "";
+    default: throw new Error(`opt: unknown kind ${kind}`);
+  }
+}
+function menu(items) {
+  if (!items || !items.length) return "";
+  const rows = items.map(
+    (m) => `MenuItem(id: ${dq(m.id)}, nameAr: ${dq(m.nameAr)}, priceFils: ${m.priceFils}` +
+      `${m.noteAr ? `, noteAr: ${dq(m.noteAr)}` : ""}${m.soldOut ? ", soldOut: true" : ""})`
+  );
+  return `\n    menuAr: const [${rows.join(", ")}],`;
+}
+
+// Every field of the TypeScript `Place` is named here. If places.ts grows one
+// that this list does not know, the run stops instead of quietly shipping a
+// native app that cannot see it.
+const KNOWN = new Set([
+  "slug","name","nameAr","category","area","areaAr","lat","lng","coordsUnverified","rating","priceLevel",
+  "emoji","taglineAr","descriptionAr","highlightsAr","bestTimeAr","setting","seasonAr","summerOk","shisha",
+  "tagsAr","featured","logoUrl","bioAr","imageUrls","phone","instagram","website","productsAr","menuAr",
+  "acceptsOrders","orderNoteAr","orderPrepMinutes","salonKind","takesQueue","queueServiceMinutes",
+]);
+for (const p of places)
+  for (const k of Object.keys(p))
+    if (!KNOWN.has(k)) throw new Error(`places.ts: ${p.slug} has field «${k}» that gen-flutter-catalogue.mjs does not know — add it to models.dart and here`);
+
 const placeEntries = places
   .map((p) => {
     return `  Place(
@@ -68,7 +101,9 @@ const placeEntries = places
     tagsAr: ${dlist(p.tagsAr)},
     featured: ${dbool(!!p.featured)},
     shisha: ${p.shisha === undefined ? "null" : dbool(p.shisha)},
-    summerOk: ${p.summerOk === undefined ? "null" : dbool(p.summerOk)},
+    summerOk: ${p.summerOk === undefined ? "null" : dbool(p.summerOk)},${
+      p.coordsUnverified ? "\n    coordsUnverified: true," : ""
+    }${opt("logoUrl", p.logoUrl, "str")}${opt("bioAr", p.bioAr, "str")}${opt("imageUrls", p.imageUrls, "list")}${opt("phone", p.phone, "str")}${opt("instagram", p.instagram, "str")}${opt("website", p.website, "str")}${opt("productsAr", p.productsAr, "list")}${menu(p.menuAr)}${opt("acceptsOrdersFlag", p.acceptsOrders, "bool")}${opt("orderNoteAr", p.orderNoteAr, "str")}${opt("orderPrepMinutes", p.orderPrepMinutes, "num")}${opt("salonKind", p.salonKind, "str")}${opt("takesQueueFlag", p.takesQueue, "bool")}${opt("queueServiceMinutes", p.queueServiceMinutes, "num")}
   )`;
   })
   .join(",\n");

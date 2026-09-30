@@ -1,58 +1,91 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:provider/provider.dart';
 
-import 'screens/home_screen.dart';
-import 'theme/colors.dart';
+import 'app/app_state.dart';
+import 'ai/call_controller.dart';
+import 'ai/call_overlay.dart';
+import 'ai/elevenlabs_session.dart';
+import 'app/router.dart';
+import 'voice/platform_voice.dart';
+import 'voice/voice_service.dart';
+import 'data/catalogue.dart';
+import 'data/places.g.dart';
+import 'theme/app_theme.dart';
 
-void main() {
-  runApp(const WainApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final state = await AppState.load();
+  runApp(WainApp(state: state));
 }
 
-class WainApp extends StatelessWidget {
-  const WainApp({super.key});
+class WainApp extends StatefulWidget {
+  final AppState state;
+
+  /// Where to start; tests use it to land on a route directly.
+  final String initialLocation;
+  const WainApp({super.key, required this.state, this.initialLocation = '/'});
+
+  @override
+  State<WainApp> createState() => _WainAppState();
+}
+
+class _WainAppState extends State<WainApp> {
+  late final _router = buildRouter(initialLocation: widget.initialLocation);
+
+  /// The call lives here, above the router, so a page change she causes
+  /// (`open_place`) cannot hang up her own call.
+  late final CallController _call = CallController(
+    sessionFactory: ElevenLabsSession.new,
+    places: kPlaces,
+    indexOf: () => searchIndex,
+    navigate: (location) => _router.go(location),
+    checkMic: checkMicrophone,
+  );
+
+  late final VoiceService _voice = VoiceService(
+    player: AudioClipPlayer(),
+    tts: PlatformTts(),
+    persona: () => widget.state.persona,
+  );
+
+  @override
+  void dispose() {
+    _voice.dispose();
+    _call.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'وين',
-      debugShowCheckedModeBanner: false,
-      // Arabic throughout, right-to-left, the same as the web site — there is
-      // no English UI here to fall back to.
-      locale: const Locale('ar'),
-      supportedLocales: const [Locale('ar')],
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AppState>.value(value: widget.state),
+        ChangeNotifierProvider<CallController>.value(value: _call),
+        ChangeNotifierProvider<VoiceService>.value(value: _voice),
       ],
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: WainColors.sea500,
-          primary: WainColors.sea600,
-          secondary: WainColors.sun500,
-          surface: Colors.white,
-        ),
-        scaffoldBackgroundColor: Colors.white,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: WainColors.ink900,
-          elevation: 0,
-        ),
-        cardTheme: CardThemeData(
-          elevation: 0,
-          color: WainColors.sand100,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: WainColors.sand200),
-          ),
+      child: MaterialApp.router(
+        title: 'وين',
+        debugShowCheckedModeBanner: false,
+        // Arabic throughout, right-to-left, the same as the web site — there
+        // is no English UI here to fall back to.
+        locale: const Locale('ar'),
+        supportedLocales: const [Locale('ar')],
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        theme: buildWainTheme(),
+        routerConfig: _router,
+        builder: (context, child) => Stack(
+          textDirection: TextDirection.rtl,
+          children: [
+            Positioned.fill(child: child ?? const SizedBox.shrink()),
+            const CallOverlay(),
+          ],
         ),
       ),
-      builder: (context, child) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: child!,
-      ),
-      home: const HomeScreen(),
     );
   }
 }

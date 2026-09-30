@@ -1,66 +1,84 @@
-/// Colour ramps copied from `src/app/theme.css`'s `@theme` block — the same
-/// hex values the web site's Tailwind tokens resolve to, so the native app
-/// reads as the same brand rather than a re-guess of it. Kept by hand: it is
-/// eight small ramps that change on purpose, rarely, and a codegen step for
-/// a palette this size would be more ceremony than the drift risk is worth.
+/// Brand colours live in `tokens.g.dart`, generated from
+/// `src/app/theme.css` (`npm run flutter:tokens`). This file only holds what
+/// the stylesheet does not express as a token: which ramp stops paint each
+/// category's gradient, matching `categoryGradient()` in `place-kit.ts`
+/// (the first and last stop of each Tailwind gradient).
 library;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/painting.dart';
 
-class WainColors {
-  WainColors._();
+import 'tokens.g.dart';
 
-  static const sea50 = Color(0xFFEFF8FD);
-  static const sea100 = Color(0xFFDAEEFA);
-  static const sea200 = Color(0xFFBCE0F5);
-  static const sea300 = Color(0xFF8DCCEE);
-  static const sea400 = Color(0xFF57B0E3);
-  static const sea500 = Color(0xFF3194D1);
-  static const sea600 = Color(0xFF2277B4);
-  static const sea700 = Color(0xFF1E6092);
-  static const sea800 = Color(0xFF1D5179);
-  static const sea900 = Color(0xFF1C4565);
-  static const sea950 = Color(0xFF132C42);
+export 'tokens.g.dart';
 
-  static const sun50 = Color(0xFFFFFAEB);
-  static const sun100 = Color(0xFFFEF0C7);
-  static const sun400 = Color(0xFFFBB724);
-  static const sun500 = Color(0xFFF5960B);
-  static const sun600 = Color(0xFFD97006);
-  static const sun700 = Color(0xFFB44E09);
+const Map<String, List<Color>> categoryGradients = {
+  'landmarks': [WainColors.sea500, WainColors.sea800],
+  'restaurants': [WainColors.coral500, WainColors.coral700],
+  'fastfood': [WainColors.sun600, WainColors.sun700],
+  'coffee': [WainColors.sand600, WainColors.sand700],
+  'outdoors': [WainColors.palm500, WainColors.sea700],
+  'shopping': [WainColors.sun600, WainColors.coral700],
+  'culture': [WainColors.sea600, WainColors.ink800],
+  'family': [WainColors.palm500, WainColors.palm600],
+};
 
-  static const coral400 = Color(0xFFF97970);
-  static const coral500 = Color(0xFFEF4D43);
-  static const coral600 = Color(0xFFDC2F25);
-  static const coral700 = Color(0xFFB9241B);
+/// The tile/ink pair for a category (`--color-cat-<id>-tint/-ink`), and its
+/// three-stop hero ground (`--color-hero-<id>-1/2/3`). Looked up by id so a
+/// new category fails loudly in the test rather than painting grey.
+Color catTint(String id) => _cat[id]!.$1;
+Color catInk(String id) => _cat[id]!.$2;
+List<Color> heroGround(String id) => _hero[id]!;
 
-  static const palm400 = Color(0xFF4BA368);
-  static const palm500 = Color(0xFF2F8A4E);
-  static const palm600 = Color(0xFF1F6F3D);
+const Map<String, (Color, Color)> _cat = {
+  'landmarks': (WainColors.catLandmarksTint, WainColors.catLandmarksInk),
+  'restaurants': (WainColors.catRestaurantsTint, WainColors.catRestaurantsInk),
+  'fastfood': (WainColors.catFastfoodTint, WainColors.catFastfoodInk),
+  'coffee': (WainColors.catCoffeeTint, WainColors.catCoffeeInk),
+  'outdoors': (WainColors.catOutdoorsTint, WainColors.catOutdoorsInk),
+  'shopping': (WainColors.catShoppingTint, WainColors.catShoppingInk),
+  'culture': (WainColors.catCultureTint, WainColors.catCultureInk),
+  'family': (WainColors.catFamilyTint, WainColors.catFamilyInk),
+};
 
-  static const sand50 = Color(0xFFFFFFFF);
-  static const sand100 = Color(0xFFF6F5F3);
-  static const sand200 = Color(0xFFE6E4E0);
-  static const sand600 = Color(0xFFAD8544);
-  static const sand700 = Color(0xFF8B6836);
-
-  static const ink400 = Color(0xFF6B6357);
-  static const ink500 = Color(0xFF585044);
-  static const ink600 = Color(0xFF4E483F);
-  static const ink700 = Color(0xFF35302A);
-  static const ink800 = Color(0xFF221F1B);
-  static const ink900 = Color(0xFF14120F);
-
-  /// One gradient-pair per category, matching `categoryGradient()` in
-  /// `place-kit.ts` (the first and last stop of each Tailwind gradient).
-  static const Map<String, List<Color>> categoryGradients = {
-    'landmarks': [sea500, sea800],
-    'restaurants': [coral500, coral700],
-    'fastfood': [sun600, sun700],
-    'coffee': [sand600, sand700],
-    'outdoors': [palm500, sea700],
-    'shopping': [sun600, coral700],
-    'culture': [sea600, ink800],
-    'family': [palm500, palm600],
-  };
-}
+const Map<String, List<Color>> _hero = {
+  'landmarks': [
+    WainColors.heroLandmarks1,
+    WainColors.heroLandmarks2,
+    WainColors.heroLandmarks3,
+  ],
+  'restaurants': [
+    WainColors.heroRestaurants1,
+    WainColors.heroRestaurants2,
+    WainColors.heroRestaurants3,
+  ],
+  'fastfood': [
+    WainColors.heroFastfood1,
+    WainColors.heroFastfood2,
+    WainColors.heroFastfood3,
+  ],
+  'coffee': [
+    WainColors.heroCoffee1,
+    WainColors.heroCoffee2,
+    WainColors.heroCoffee3,
+  ],
+  'outdoors': [
+    WainColors.heroOutdoors1,
+    WainColors.heroOutdoors2,
+    WainColors.heroOutdoors3,
+  ],
+  'shopping': [
+    WainColors.heroShopping1,
+    WainColors.heroShopping2,
+    WainColors.heroShopping3,
+  ],
+  'culture': [
+    WainColors.heroCulture1,
+    WainColors.heroCulture2,
+    WainColors.heroCulture3,
+  ],
+  'family': [
+    WainColors.heroFamily1,
+    WainColors.heroFamily2,
+    WainColors.heroFamily3,
+  ],
+};

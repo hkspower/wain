@@ -76,7 +76,11 @@
     "pdf:search": "node scripts/gen-search-pdf.mjs",
     "content": "node scripts/gen-content.mjs",
     "content:check": "node scripts/gen-content.mjs --check",
-    "flutter:catalogue": "node scripts/gen-flutter-catalogue.mjs"
+    "flutter:catalogue": "node scripts/gen-flutter-catalogue.mjs",
+    "flutter:tokens": "node scripts/gen-flutter-tokens.mjs",
+    "flutter:search": "node scripts/gen-flutter-search.mjs",
+    "flutter:fixtures": "node scripts/gen-flutter-fixtures.mjs",
+    "flutter:art": "node scripts/export-flutter-art.mjs"
   },
   "dependencies": {
     "@capacitor/core": "8.5.2",
