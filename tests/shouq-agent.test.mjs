@@ -10,6 +10,17 @@ import { chromium } from 'playwright';
  * switch, the pinned URL, the element and its agent-id, and the two client
  * tools the agent drives the interface with — without pretending the third
  * party ran.
+ *
+ * THE STUB MUST BEHAVE LIKE THE WIDGET, NOT LIKE A CONVENIENCE. It used to
+ * fire `elevenlabs-convai:call` from connectedCallback — at MOUNT — because
+ * that was the quickest way to hand the page a config object. The real widget
+ * (read out of the published 0.18.1 bundle) dispatches it from `startSession`,
+ * after the visitor has pressed its own «بدء مكالمة» and cleared its terms
+ * gate. So the stub made «mounted» and «call started» the same instant, the
+ * page treated them as the same instant, and a caller who obeyed «متصل» spoke
+ * to a widget that was not listening and got no word back. The suite pinned
+ * that bug in place. The stub now renders an open-shadow Start button and
+ * stays silent until it is clicked.
  */
 const B = process.env.WAIN_URL || 'http://localhost:4190';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
@@ -17,33 +28,60 @@ let pass = 0;
 const fails = [];
 const ok = (n, c, d = '') => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? '\n      ' + d : ''}`); } };
 
-const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
-const requested = [];
-await ctx.route('**/unpkg.com/**', async (route) => {
-  requested.push(route.request().url());
-  await route.fulfill({
-    status: 200,
-    contentType: 'application/javascript',
-    body: `
-      class ConvaiStub extends HTMLElement {
-        connectedCallback() {
-          window.__convaiAgentId = this.getAttribute('agent-id');
-          // The real widget dispatches this so the host can inject client tools.
-          const ev = new CustomEvent('elevenlabs-convai:call', { detail: { config: {} } });
-          window.dispatchEvent(ev);
-          window.__convaiConfig = ev.detail.config;
+/** One browser context wired the way a phone with the widget would be.
+ *  `micError` is the DOMException name getUserMedia should reject with, or
+ *  null for a working microphone. */
+async function makeCtx(micError, seen) {
+  const c = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+  await c.route('**/unpkg.com/**', async (route) => {
+    seen.push(route.request().url());
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: `
+        class ConvaiStub extends HTMLElement {
+          connectedCallback() {
+            window.__convaiAgentId = this.getAttribute('agent-id');
+            window.__convaiDefaultExpanded = this.getAttribute('default-expanded');
+            if (this.shadowRoot) return;
+            // Open shadow root and a Start button, like the real widget.
+            // NOTHING is dispatched until it is pressed.
+            const root = this.attachShadow({ mode: 'open' });
+            root.innerHTML = '<button id="stub-start" type="button">بدء مكالمة</button>';
+            root.getElementById('stub-start').addEventListener('click', () => {
+              // Dispatched on the element and composed, as the real one does.
+              const ev = new CustomEvent('elevenlabs-convai:call', { bubbles: true, composed: true, detail: { config: {} } });
+              this.dispatchEvent(ev);
+              window.__convaiConfig = ev.detail.config;
+            });
+          }
         }
-      }
-      customElements.define('elevenlabs-convai', ConvaiStub);
-      window.__convaiLoaded = true;
-    `,
+        customElements.define('elevenlabs-convai', ConvaiStub);
+        window.__convaiLoaded = true;
+      `,
+    });
   });
-});
-await ctx.addInitScript(() => {
-  window.__vibrations = [];
-  navigator.vibrate = () => true;
-  Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { speak() {}, cancel() {}, getVoices: () => [] } });
-});
+  await c.addInitScript((err) => {
+    window.__vibrations = [];
+    navigator.vibrate = () => true;
+    Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { speak() {}, cancel() {}, getVoices: () => [] } });
+    window.__micRequests = 0;
+    window.__micStopped = 0;
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: async () => {
+          window.__micRequests++;
+          if (err) throw Object.assign(new Error(err), { name: err });
+          return { getTracks: () => [{ stop() { window.__micStopped++; } }] };
+        },
+      },
+    });
+  }, micError);
+  return c;
+}
+const requested = [];
+const ctx = await makeCtx(null, requested);
 const p = await ctx.newPage();
 const errors = [];
 p.on('pageerror', (e) => errors.push(e.message));
@@ -65,8 +103,8 @@ ok('she introduces herself as شوق', panel.includes('شوق'));
 // loading yet — the greeting carries the ringing seconds, the examples take
 // over once she is on the line. Either is her telling you what to say; which
 // one is a race this assertion has no business caring about.
-ok('she tells the visitor what to say',
-  panel.includes('قول لي وش تبي') || panel.includes('قهوة هادية'), panel.slice(0, 120));
+ok('she tells the visitor what to say — or what to press',
+  panel.includes('قول لي وش تبي') || panel.includes('قهوة هادية') || panel.includes('بدء مكالمة'), panel.slice(0, 120));
 ok('the microphone note is shown', panel.includes('المايك'));
 ok('and the call can be hung up', panel.includes('إنهاء المكالمة'));
 // next.config sets trailingSlash, so the rendered href is "/privacy/".
@@ -88,15 +126,52 @@ ok('and the entry file, so nothing redirects on the way to it',
 await p.waitForFunction(() => !!window.__convaiAgentId, null, { timeout: 8000 });
 ok('the element is created with the configured agent', (await p.evaluate(() => window.__convaiAgentId)) === 'agent_test_0123456789');
 
-// The widget owning the microphone IS the call connecting — until then the
-// sheet must still be ringing, or the timer would start before she can hear
-// anything.
+console.log('\n── mounting the widget is NOT the call connecting ──');
+// Wait for the sheet to leave «يرن…»: the ring-back stops once the widget is
+// mounted, and what replaces it must not be «متصل».
+// A throw here would take the process down and cancel every section after it,
+// so a sheet that never reaches «جاهزة» is a red assertion, not a crash.
+const reachedReady = await p.waitForFunction(
+  () => document.querySelector('#wain-ai-panel header')?.textContent.includes('جاهزة'),
+  null, { timeout: 8000 }
+).then(() => true, () => false);
+ok('once the widget is mounted the sheet says READY, not connected', reachedReady);
+const readyHeader = await p.locator('#wain-ai-panel header').textContent();
+const readyPanel = await p.locator('#wain-ai-panel').textContent();
+ok('with the widget mounted and nobody having pressed Start, the status says she is READY',
+  readyHeader.includes('جاهزة'), readyHeader);
+ok('and does not claim the call is connected', !readyHeader.includes('متصل'), readyHeader);
+ok('no clock is running over a call that has not started', !/[٠-٩]{2}:[٠-٩]{2}/.test(readyHeader), readyHeader);
+ok('the sheet tells the caller to press Start, in the widget\'s own words',
+  readyPanel.includes('اضغط «بدء مكالمة»'), readyPanel.slice(0, 200));
+ok('it does not invite her to speak yet', !readyPanel.includes('قهوة هادية'), readyPanel.slice(0, 200));
+ok('and offers no voice switch on a call that has not begun', !readyPanel.includes('بصوت سالم'));
+// Measured against the REAL widget (0.18.1, the agent's own config): expanded
+// it covers the sheet and shrinks the call control to an unlabelled icon;
+// collapsed it is a labelled «بدء مكالمة» card under the sheet's own text.
+ok('the widget is left at its own collapsed default, not force-expanded over the sheet',
+  (await p.evaluate(() => window.__convaiDefaultExpanded)) === null);
+ok('the microphone was asked for INSIDE the tap, once',
+  (await p.evaluate(() => window.__micRequests)) === 1);
+ok('and released at once — it was a permission probe, not a capture',
+  (await p.evaluate(() => window.__micStopped)) === 1);
+const startBtn = p.locator('#wain-ai-panel elevenlabs-convai >> #stub-start');
+ok('the widget\'s Start button is visible inside the sheet', await startBtn.isVisible());
+
+await startBtn.click();
 await p.waitForFunction(
   () => document.querySelector('#wain-ai-panel')?.textContent.includes('متصل'),
   null, { timeout: 8000 }
 );
-ok('the call reports itself connected once the widget is up', true);
-ok('and the timer is running', /[٠-٩]{2}:[٠-٩]{2}/.test(await p.locator('#wain-ai-panel').textContent()));
+ok('once the widget STARTS the call, the sheet reports it connected', true);
+ok('and the ready wording is gone', !(await p.locator('#wain-ai-panel header').textContent()).includes('جاهزة'));
+await p.waitForFunction(
+  () => /[٠-٩]{2}:[٠-٩]{2}/.test(document.querySelector('#wain-ai-panel header')?.textContent ?? ''),
+  null, { timeout: 4000 }
+);
+ok('and the timer is running', true);
+ok('and she now invites the caller to speak',
+  (await p.locator('#wain-ai-panel').textContent()).includes('قهوة هادية'));
 
 console.log('\n── what the call TELLS you, and what it must not claim ──');
 {
@@ -305,7 +380,9 @@ console.log('\n── the call is warmed before it is placed ──');
 
 console.log('\n── a bundle that never arrives fails the call, quickly ──');
 {
-  const deadCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+  // A working microphone, so the failure under test is the bundle's and not
+  // the preflight's; the later-registered route wins over makeCtx's stub.
+  const deadCtx = await makeCtx(null, []);
   await deadCtx.route('**/unpkg.com/**', (route) => route.abort('failed'));
   const d = await deadCtx.newPage();
   await d.goto(B + '/search/', { waitUntil: 'networkidle' });
@@ -325,6 +402,34 @@ console.log('\n── a bundle that never arrives fails the call, quickly ──
   const after = await d.locator('#wain-ai-panel').textContent();
   ok('and offers the call again', after.includes('اتصل مرة ثانية'), after.slice(0, 120));
   await deadCtx.close();
+}
+
+console.log('\n── a microphone that cannot be had is SAID, not swallowed ──');
+/* «She didn't hear my voice and nothing told me.» With the mic refused, absent
+   or held by another app, the widget reports it (if at all) inside its own
+   small UI — and the sheet, meanwhile, would sit there looking connected. The
+   preflight turns each into the sentence the local path already uses. */
+for (const [name, want, label] of [
+  ['NotAllowedError', 'ما وصلنا صوتك', 'refused'],
+  ['NotFoundError', 'ما لقينا مايك', 'absent'],
+  ['NotReadableError', 'المايك مشغول', 'held by another app'],
+]) {
+  const mctx = await makeCtx(name, []);
+  const m = await mctx.newPage();
+  await m.goto(B + '/search/', { waitUntil: 'networkidle' });
+  await m.locator('button[aria-controls="wain-ai-panel"]').first().click();
+  let text = '';
+  try {
+    await m.waitForFunction(
+      (w) => document.querySelector('#wain-ai-panel [role="alert"]')?.textContent.includes(w),
+      want, { timeout: 8000 }
+    );
+    text = await m.locator('#wain-ai-panel [role="alert"]').textContent();
+  } catch { text = (await m.locator('#wain-ai-panel').textContent()).slice(0, 140); }
+  ok(`a microphone ${label} says so (${name})`, text.includes(want), text);
+  ok(`and does not offer to talk to a widget that cannot hear (${name})`,
+    !(await m.locator('#wain-ai-panel').textContent()).includes('اضغط «بدء مكالمة»'));
+  await mctx.close();
 }
 
 ok('no page errors anywhere in agent mode', errors.length === 0, errors.join(' | '));

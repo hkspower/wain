@@ -134,6 +134,27 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   const [agentReady, setAgentReady] = useState(false);
   const [agentFailed, setAgentFailed] = useState(false);
   /**
+   * Agent mode only: has the widget actually STARTED a call, as opposed to
+   * merely being on the page?
+   *
+   * This is the defect behind «she didn't hear my voice, and nothing told me».
+   * The sheet used to declare «متصل — قول وش تبي» the instant the
+   * `<elevenlabs-convai>` element mounted. But mounting it connects nothing:
+   * the agent's widget config is `variant: full`, `default_expanded: false`,
+   * carries a terms notice, and waits for the visitor to press its own
+   * «بدء مكالمة» — and only THEN asks for the microphone and opens a session.
+   * So a caller obeyed the sheet, spoke to a widget that was not listening,
+   * and got silence from an interface that had just said she was on the line.
+   *
+   * The widget's `startSession` awaits its terms gate and then dispatches
+   * `elevenlabs-convai:call` (read out of the published 0.18.1 bundle), so
+   * that event — and only that event — is «the call is starting». The test
+   * stub used to fire it from `connectedCallback`, at mount, which is exactly
+   * why no test ever saw the gap: it made «mounted» and «started» the same
+   * moment, so the suite pinned the bug in place.
+   */
+  const [started, setStarted] = useState(false);
+  /**
    * What شوق just did to the screen, in the caller's own words.
    *
    * She drives the interface — `show_places` navigates, `open_place` opens a
@@ -200,6 +221,8 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   const stopRing = useRef<(() => void) | null>(null);
   // Gives up on a call that never connects — see DIAL_TIMEOUT_MS.
   const dialTimer = useRef<number | null>(null);
+  // Which microphone probe is the current call's — see checkMic().
+  const micProbe = useRef(0);
   // The transcript as of the last result event, so onend can act on what was
   // actually heard even when the final-result event never fires.
   const heardRef = useRef("");
@@ -229,6 +252,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   /* ---- the call is over -------------------------------------------------- */
   /** Tear down whatever the call was using. Safe to call twice. */
   const teardown = useCallback(() => {
+    micProbe.current++;
     silenceRing();
     recRef.current?.abort();
     recRef.current = null;
@@ -308,15 +332,21 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   // timestamp rather than counted up, so a tab that was backgrounded — where
   // timers are throttled to once a minute — comes back showing the real
   // duration instead of however many ticks it was allowed to run.
+  //
+  // In agent mode «connected» means the widget started a call, not that it
+  // mounted — see `started` — so the clock waits for that too. A clock running
+  // over a widget nobody has pressed Start on is the same lie as the word
+  // «متصل» beside it.
+  const clockRunning = phase === "live" && (!WAIN_AI_AGENT_ENABLED || started);
   useEffect(() => {
-    if (phase !== "live") return;
+    if (!clockRunning) return;
     const startedAt = Date.now();
     setSeconds(0);
     const id = window.setInterval(() => {
       setSeconds(Math.floor((Date.now() - startedAt) / 1000));
     }, 1000);
     return () => window.clearInterval(id);
-  }, [phase]);
+  }, [clockRunning]);
 
   /* ---- local mode: listen, then answer ------------------------------------ */
   const finishWith = useCallback(
@@ -486,6 +516,12 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   useEffect(() => {
     if (!WAIN_AI_AGENT_ENABLED) return;
     const register = (event: Event) => {
+      // The widget only dispatches this once the visitor has pressed its Start
+      // button and cleared its terms gate — it is the one honest «the call is
+      // starting» signal there is. It comes again after a voice switch, when
+      // the widget is mounted fresh and has to be started again.
+      setStarted(true);
+      connected();
       const detail = (event as CustomEvent<{ config?: Record<string, unknown> }>).detail;
       if (!detail?.config) return;
       (detail.config as { clientTools?: Record<string, unknown> }).clientTools = {
@@ -590,20 +626,31 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     if (slot.childElementCount === 0) {
       const el = document.createElement("elevenlabs-convai");
       el.setAttribute("agent-id", WAIN_AI_AGENT_ID);
+      // Deliberately NOT `default-expanded`. Rendered for real (the published
+      // 0.18.1 bundle, this agent's own widget config, 390px): collapsed, it
+      // is a compact card at the bottom with a big labelled «بدء مكالمة»
+      // button, leaving this sheet's heading, hang-up button and privacy note
+      // visible above it — which is exactly what the heading below points at
+      // («تحت»). Expanded, it becomes a full chat panel that covers the middle
+      // of the sheet, and the call control shrinks to an unlabelled phone
+      // icon beside a text box. The first version of this fix set it, on the
+      // theory that the button was hidden behind a launcher; it never was.
       // See SALEM_VOICE_ID: set only at mount, because that is the one moment
       // the widget reads it. شوق's own agent voice needs no override at all.
       if (persona === "salem") el.setAttribute("override-voice-id", SALEM_VOICE_ID);
       slot.appendChild(el);
-      // switchPersona() below clears the slot to force this branch mid-call —
-      // the same "line just connected" tone the first connect uses below, so
-      // a voice switch is heard as well as seen.
-      if (phaseRef.current === "live") connected();
+      // switchPersona() clears the slot to force this branch mid-call: the
+      // widget is fresh again and has to be started again, so the sheet goes
+      // back to asking for that until the widget's own call event says it has.
+      if (phaseRef.current === "live") setStarted(false);
     }
-    // The widget is mounted and owns the microphone from here: that is the
-    // call connecting, so stop ringing and start the clock.
+    // The widget is mounted — but mounting is NOT the call connecting. It
+    // still has to be started (and asks for the microphone then), so all this
+    // does is stop the ring-back, which has nothing left to dial, and swap it
+    // for the instruction to press Start. The «متصل» tone, the clock and the
+    // word itself wait for `started`.
     if (phaseRef.current !== "ringing") return;
     silenceRing();
-    connected();
     setPhase("live");
   }, [dialling, agentReady, silenceRing, persona]);
 
@@ -615,6 +662,58 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     setErrorText(WAIN_AI_COPY.callFailed);
     setPhase("error");
   }, [agentFailed, phase, silenceRing]);
+
+  /**
+   * Agent mode: ask for the microphone HERE, inside the tap, and say so when
+   * it cannot be had.
+   *
+   * The widget owns the microphone and asks for it itself — but only once the
+   * visitor has found its Start button, and a refusal, a missing device or a
+   * mic held by another app is reported (if at all) inside the widget's own
+   * small UI, or not at all. Nothing on this sheet could tell «she never
+   * heard me» from «she is thinking». Asking first turns each of those into
+   * the same sentence the local path already uses, before the visitor has
+   * spoken to anything.
+   *
+   * The stream is released at once: this is a permission probe, not a
+   * capture. Browsers remember the grant for the origin, so the widget's own
+   * request afterwards does not prompt a second time. Anything that is not a
+   * definite «no mic» (an API that is simply absent, an exotic error) is left
+   * for the widget to deal with — this only speaks when it KNOWS.
+   */
+  const checkMic = useCallback((probe: number) => {
+    const md = typeof navigator !== "undefined" ? navigator.mediaDevices : undefined;
+    if (!md?.getUserMedia) return;
+    md.getUserMedia({ audio: true }).then(
+      (stream) => stream.getTracks().forEach((t) => t.stop()),
+      (err: unknown) => {
+        // A token, not `phaseRef`. The ref is only updated in an effect AFTER
+        // React commits, and a microphone the visitor blocked earlier rejects
+        // within milliseconds — before that effect has run, so the ref still
+        // said «idle» and this returned without a word. That is the single
+        // most common real case, and the first version of this handler
+        // failed it silently (found by the mic-refused assertions in
+        // shouq-agent). The token says exactly what is needed: is this still
+        // the call that asked? Hanging up, the dial timeout and any other
+        // teardown bump it, so a late rejection cannot resurrect a call the
+        // visitor already ended.
+        if (probe !== micProbe.current) return;
+        const name = (err as { name?: string } | null)?.name;
+        const text =
+          name === "NotAllowedError" || name === "SecurityError"
+            ? WAIN_AI_COPY.micDenied
+            : name === "NotFoundError" || name === "OverconstrainedError"
+              ? WAIN_AI_COPY.noMic
+              : name === "NotReadableError" || name === "AbortError"
+                ? WAIN_AI_COPY.micBusy
+                : null;
+        if (!text) return;
+        teardown();
+        setErrorText(text);
+        setPhase("error");
+      }
+    );
+  }, [teardown]);
 
   /* ---- placing the call --------------------------------------------------- */
   const startCall = useCallback(() => {
@@ -628,6 +727,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     setTranscript("");
     setSeconds(0);
     setAgentFailed(false);
+    setStarted(false);
     // Or a fresh call opens announcing what the previous one did.
     setLastAction("");
     // A previous call may have switched to سالم's voice and left the widget
@@ -647,7 +747,8 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     }, DIAL_TIMEOUT_MS);
     setPhase("ringing");
     if (!WAIN_AI_AGENT_ENABLED) startListening();
-  }, [phase, startListening, silenceRing, teardown]);
+    else checkMic(++micProbe.current);
+  }, [phase, startListening, checkMic, silenceRing, teardown]);
 
   useEffect(() => () => teardown(), [teardown]);
 
@@ -722,7 +823,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
     phase === "ringing"
       ? WAIN_AI_COPY.ringing
       : phase === "live"
-        ? WAIN_AI_COPY.onCall
+        ? WAIN_AI_AGENT_ENABLED && !started
+          ? WAIN_AI_COPY.readyToStart
+          : WAIN_AI_COPY.onCall
         : phase === "answering"
           ? WAIN_AI_COPY.answering
           : phase === "ended"
@@ -773,7 +876,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                 {/* Outside the live region on purpose — see `status`. Visible,
                     readable by navigating to it, never announced. `ended`
                     prints its own duration inside the announcement instead. */}
-                {phase === "live" && (
+                {clockRunning && (
                   <span dir="ltr" className="tabular-nums">
                     · {callDuration(seconds)}
                   </span>
@@ -816,7 +919,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                     ? WAIN_AI_COPY.ringing
                     : phase === "answering"
                       ? WAIN_AI_COPY.answering
-                      : transcript || WAIN_AI_COPY.listening}
+                      : WAIN_AI_AGENT_ENABLED && !started
+                        ? WAIN_AI_COPY.pressStart
+                        : transcript || WAIN_AI_COPY.listening}
                 </p>
                 {/* Ringing is the one moment with nothing to hear and nothing
                     to do, so it carries what she is for; once she is on the
@@ -826,7 +931,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                     {WAIN_AI_COPY.greeting}
                   </p>
                 )}
-                {phase === "live" && !transcript && (
+                {phase === "live" && !transcript && (!WAIN_AI_AGENT_ENABLED || started) && (
                   <p className="mt-1 text-xs text-ink-500">{WAIN_AI_COPY.listeningExamples}</p>
                 )}
 
@@ -862,7 +967,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                     redial (see startCall), so a caller never has to remember
                     to switch back. Secondary styling on purpose: hanging up is
                     still the one button every path ends at. */}
-                {WAIN_AI_AGENT_ENABLED && phase === "live" && (
+                {WAIN_AI_AGENT_ENABLED && phase === "live" && started && (
                   <button
                     type="button"
                     onClick={switchPersona}

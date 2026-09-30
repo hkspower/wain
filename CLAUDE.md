@@ -1264,6 +1264,47 @@ the published bundle, not guessed). `armCall()` on pointerdown fetches the
 bundle, 100–300ms before the click. Not on hover: 451KB is not something to
 spend on a pointer passing by.
 
+**«Mounted» is not «started», and the sheet said «متصل» over a widget that was
+not listening — 30 September.** A caller reported she «didn't hear my voice»
+and gave no feedback. `WainAiCall` declared «متصل — قول وش تبي» the moment the
+`<elevenlabs-convai>` element mounted, but mounting connects nothing: her widget
+config is `variant: full`, `default_expanded: false`, with a terms notice, and
+waits for the visitor to press its own «بدء مكالمة» — only then terms, the mic
+prompt and the session. The caller obeyed the sheet, spoke to nobody, and got
+silence from an interface that had just said she was on the line.
+
+`started` is set by the widget's own `elevenlabs-convai:call` event, which
+`startSession` dispatches after the terms gate — the only honest «the call is
+starting» signal the 0.18.1 bundle emits (read out of the packed bundle; there
+is no finer one). Until it fires the sheet says «جاهزة — اضغط «بدء مكالمة»»,
+and the clock, the «متصل» tone, the examples and the voice switch all wait.
+Even after it, «متصل» means «Start was pressed», not «the socket opened».
+
+**The test stub had hidden it for as long as it existed**: it dispatched the
+call event from `connectedCallback`, i.e. at mount, which made «mounted» and
+«started» the same instant — a stub that pins the bug in place. It now renders
+an open-shadow Start button and stays silent until clicked. Confirmed red by
+putting the dispatch back at mount: 7 assertions fail.
+
+**Do not set `default-expanded` on the element.** Tried, then checked against
+the real bundle with the agent's real widget config: it opens the widget as an
+icon-only call button over the sheet instead of the labelled Start button. The
+collapsed default, with Start visible at the sheet's foot, is what works.
+
+**`checkMic()` probes `getUserMedia` inside the tap** so a blocked, missing or
+busy microphone becomes a sentence (`micDenied` / `noMic` / `micBusy`) instead
+of silence. Its rejection handler is guarded by a token (`micProbe`), NOT by
+`phaseRef`: that ref is refreshed in an effect after React commits, and an
+already-blocked mic rejects within milliseconds — before it — so the ref still
+read `idle` and the error was dropped. «Mic blocked earlier» is the commonest
+real case; six assertions failed on it. `teardown()` bumps the token so a late
+rejection cannot resurrect a call that was hung up.
+
+No input-level meter, on purpose: a second capture can mute the widget's own
+stream on some iOS versions, so that needs a device. Not verified anywhere
+here: a real ElevenLabs session (the socket is refused by the sandbox) and iOS
+Safari's mic behaviour. The fix reaches visitors only after a deploy.
+
 **`loadWidget()` in `wain-ai-bus.ts` owns that script, and returns a promise.**
 It has to — the call used to inject the tag itself and treat «a tag with this
 src exists» as «loaded», which became a lie the moment the button started the

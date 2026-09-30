@@ -287,6 +287,16 @@ export const WAIN_AI_COPY = {
   // unambiguous on both.
   micNote: "يحتاج إذن المايك عشان تكلّمها.",
   micDenied: "ما وصلنا صوتك — تأكد إن المايك مسموح للموقع.",
+  // Agent mode: the widget is on the sheet but has not started a call yet, so
+  // the sheet must not say «متصل». «بدء مكالمة» is quoted exactly as it reads
+  // on the widget's own button (the agent's start_call text) — a caller
+  // matches the words on the screen, not a paraphrase of them.
+  readyToStart: "جاهزة — اضغط «بدء مكالمة»",
+  pressStart: "اضغط «بدء مكالمة» تحت، وسمّح للمايك، وبعدها قول وش تبي",
+  // The two microphone failures the browser names precisely. Same job as
+  // micDenied above: turn a silent «she never heard me» into a sentence.
+  noMic: "ما لقينا مايك في جهازك — وصّل مايك وجرّب مرة ثانية.",
+  micBusy: "المايك مشغول في تطبيق ثاني — سكّره وجرّب مرة ثانية.",
   noSpeech: "ما سمعناك — جرّب مرة ثانية وتكلم بعد الإشارة.",
   unsupported: "متصفحك ما يدعم الإدخال الصوتي — اكتب اللي تبيه.",
   failed: "ما قدرنا نشغّل شوق الحين — جرّب مرة ثانية بعدين.",
