@@ -569,9 +569,20 @@ second half of `/find` uses `salem.jpg` and his role line. The tension the
 older sections named is **accepted, not fixed**: the agent behind the typed chat
 is still شوق's, so her first real reply can say «أنا شوق» in his voice.
 
-**What nothing here can prove.** No Android SDK (`dl.google.com` is refused) and
-no Xcode, so no binary was built: `flutter-ci.yml`, `android-flutter.yml` and the
-iOS job are unexecuted. `api.elevenlabs.io` and `tile.openstreetmap.org` are
+**The Android APK is built by CI, and that was run on 30 September.** The sandbox
+cannot build one: AGP and the SDK come from Google Maven, which redirects to
+`dl.google.com` (refused at CONNECT), so the only route is `android-flutter.yml`
+dispatched through the GitHub MCP tools. Run 36780062877 at `81b52a80`: analyze,
+341 tests, `flutter build apk --debug` and `--release` all green; `aapt` badging
+read `com.wainkw.app`, minSdk 24, targetSdk 36, RECORD_AUDIO + INTERNET. Artifacts
+`wain-android-debug` (213MB) and `wain-android-sideload` (97MB, debug-signed
+release), kept 14 days. The first dispatch failed in `checkDebugAarMetadata`:
+`permission_handler_android` 14 compiles against SDK 37 and AGP 9.1 tops out at
+36, so `permission_handler` is pinned `^12.0.1` — do not bump it until AGP moves.
+No tool here can fetch an artifact, and a committed APK would be a permanent blob.
+
+**What nothing here can prove.** No Xcode, so no iOS binary was built:
+the iOS job is unexecuted, and the Android APK has never been installed on a phone. `api.elevenlabs.io` and `tile.openstreetmap.org` are
 refused, so a real call and real tiles were never seen — the call controller is
 tested against a fake session and the chat against a real local WebSocket server.
 `PrivacyInfo.xcprivacy` was added to the Xcode target by anchored inserts into

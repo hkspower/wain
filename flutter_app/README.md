@@ -129,3 +129,11 @@ id, so a store listing is one app whichever build produced it. As the root
 `CLAUDE.md` says of that id: App Store Connect fixes it at the first upload.
 The Kotlin namespace stays `com.wainkw.wain` (it names a source directory, not
 an identity).
+
+## Getting the Android APK
+
+Dispatch `.github/workflows/android-flutter.yml` on the branch and download
+`wain-android-sideload` (a debug-signed release build, installable by sideloading)
+or `wain-android-debug` from the run's Artifacts. It cannot be built in the
+Claude sandbox: the Android SDK host is refused there. A Play Store build needs
+the four `ANDROID_*` signing secrets that `build-release` checks for.
