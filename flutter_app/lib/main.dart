@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +10,7 @@ import 'app/app_state.dart';
 import 'ai/call_controller.dart';
 import 'ai/call_overlay.dart';
 import 'ai/elevenlabs_session.dart';
+import 'app/deep_link.dart';
 import 'app/router.dart';
 import 'voice/platform_voice.dart';
 import 'voice/voice_service.dart';
@@ -43,6 +48,33 @@ class _WainAppState extends State<WainApp> {
     checkMic: checkMicrophone,
   );
 
+  StreamSubscription<Uri>? _links;
+
+  @override
+  void initState() {
+    super.initState();
+    _listenForLinks();
+  }
+
+  /// A forwarded invitation opens the place in the app. The browser build IS
+  /// the page, so it has no links to catch.
+  Future<void> _listenForLinks() async {
+    if (kIsWeb) return;
+    try {
+      final links = AppLinks();
+      final first = await links.getInitialLink();
+      if (first != null) _open(first);
+      _links = links.uriLinkStream.listen(_open, onError: (_) {});
+    } catch (_) {
+      /* a platform without link support: nothing to catch */
+    }
+  }
+
+  void _open(Uri link) {
+    final where = locationFromLink(link);
+    if (where != null) _router.go(where);
+  }
+
   late final VoiceService _voice = VoiceService(
     player: AudioClipPlayer(),
     tts: PlatformTts(),
@@ -51,6 +83,7 @@ class _WainAppState extends State<WainApp> {
 
   @override
   void dispose() {
+    _links?.cancel();
     _voice.dispose();
     _call.dispose();
     super.dispose();

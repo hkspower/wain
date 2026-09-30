@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wain/ai/config.dart';
 import 'package:wain/ai/salem_chat.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -59,7 +60,7 @@ void main() {
   tearDown(() => agent.stop());
 
   test(
-    'handshake: convai subprotocol, text_only, and NO voice override',
+    'handshake: convai subprotocol, text_only, and the voice override for سالم',
     () async {
       final statuses = <ChatStatus>[];
       final h = startSalemChat(
@@ -78,7 +79,8 @@ void main() {
       expect(init['type'], 'conversation_initiation_client_data');
       expect(init['conversation_config_override'], {
         'conversation': {'text_only': true},
-      }, reason: 'her voice, as configured — typed chat sends no tts block');
+        'tts': {'voice_id': kSalemVoiceId},
+      }, reason: 'the latest decision: the typed chat carries سالم voice');
       expect(statuses, [
         ChatStatus.connecting,
       ], reason: 'not "connected" until the agent says so');

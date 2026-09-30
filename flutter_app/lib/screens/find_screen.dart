@@ -23,6 +23,8 @@ class FindScreen extends StatelessWidget {
               child: _Half(
                 key: const ValueKey('find-call'),
                 label: 'اتصال',
+                image: 'assets/img/shouq.jpg',
+                pill: CallCopy.role,
                 background: WainColors.ink900,
                 tint: WainColors.ink900,
                 accent: WainColors.sun300,
@@ -39,11 +41,13 @@ class FindScreen extends StatelessWidget {
               child: _Half(
                 key: const ValueKey('find-type'),
                 label: 'اكتب',
+                image: 'assets/img/salem.jpg',
+                pill: kSalemRole,
                 background: WainColors.sea950,
                 tint: WainColors.sea950,
                 accent: WainColors.sea300,
                 pillFg: WainColors.sea900,
-                body: CallCopy.greeting,
+                body: kSalemGreeting,
                 hint: CallCopy.typeHint,
                 action: FilledButton(
                   onPressed: () => context.push('/salem'),
@@ -104,6 +108,8 @@ class FindScreen extends StatelessWidget {
 
 class _Half extends StatelessWidget {
   final String label;
+  final String image;
+  final String pill;
   final Color background;
   final Color tint;
   final Color accent;
@@ -114,6 +120,8 @@ class _Half extends StatelessWidget {
   const _Half({
     super.key,
     required this.label,
+    required this.image,
+    required this.pill,
     required this.background,
     required this.tint,
     required this.accent,
@@ -135,7 +143,7 @@ class _Half extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             Image.asset(
-              'assets/img/shouq.jpg',
+              image,
               fit: BoxFit.cover,
               alignment: const Alignment(-0.3, -0.6),
             ),
@@ -177,7 +185,7 @@ class _Half extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(99),
                               ),
                               child: Text(
-                                CallCopy.role,
+                                pill,
                                 style: wainText(
                                   WainText.sm,
                                   weight: FontWeight.w600,

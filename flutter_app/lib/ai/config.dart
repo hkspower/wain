@@ -19,16 +19,25 @@ String resolveAgentId([String configured = _configured]) {
 final String kAgentId = resolveAgentId();
 bool get kAgentEnabled => kAgentId.isNotEmpty;
 
-/// Eid — Gulf male, warm and clear. Used for exactly one thing: the mid-call
-/// «🔊 بصوت سالم» swap, the same brain with a different speaker. The typed
-/// chat sends NO voice override — her voice, as the agent is configured.
+/// Eid — Gulf male, warm and clear. The voice of سالم: the mid-call
+/// «🔊 بصوت سالم» swap, and the override the typed chat sends.
+///
+/// An accepted tension, not a solved one, as on the web: it is the same agent —
+/// same prompt, tools and knowledge — with a different speaker. Her prompt is
+/// first-person feminine and her first message «أنا شوق», so he can still call
+/// himself her name on the wire. Fixing that means editing the live agent.
 const String kSalemVoiceId = 'Ywuz3KyW2N5pqKNpwcCL';
+
+const String kSalemName = 'سالم';
+const String kSalemRole = 'دليلك في الكويت';
+const String kSalemGreeting =
+    'هلا! أنا سالم. قول لي وش تبي — قهوة، بحر، طلعة عيال — وأدلّك.';
 
 abstract final class CallCopy {
   static const name = 'شوق';
   static const role = 'دليلتك في الكويت';
   static const callHint = 'اضغط عشان تكلّم شوق';
-  static const typeHint = 'اكتب عشان تدردش معها';
+  static const typeHint = 'اكتب عشان تدردش وياه';
   static const greeting =
       'هلا! أنا شوق. قول لي وش تبي — قهوة، بحر، طلعة عيال — وأدلّك.';
   static const listening = 'قول وش تبي…';
@@ -59,12 +68,12 @@ abstract final class CallCopy {
 abstract final class ChatCopy {
   static const placeholder = 'اكتب رسالتك…';
   static const send = 'إرسال';
-  static const connecting = 'نوصّل شوق…';
+  static const connecting = 'نوصّل سالم…';
   static const connected = 'متصل';
   static const disconnected = 'انتهت المحادثة.';
   static const reconnect = 'ابدأ من جديد';
   static const toolUnavailable =
-      'ما أقدر أفتح صفحات من هنا — دوّر بنفسك أو كلّمها بمكالمة.';
-  static const failed = 'ما قدرنا نوصلها — جرّب مرة ثانية.';
+      'ما أقدر أفتح صفحات من هنا — دوّر بنفسك أو كلّمه بمكالمة.';
+  static const failed = 'ما قدرنا نوصله — جرّب مرة ثانية.';
   static const notConfigured = 'المحادثة مو متاحة الحين.';
 }

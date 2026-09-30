@@ -76,15 +76,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Regenerates the catalogue from places.ts and fails the build if it
-      # differs from what's committed — the same drift check content:check
-      # already does for docs/content.md. A place added to the site with no
-      # matching regeneration here would otherwise ship a Flutter app one
-      # place short of it, silently.
-      - name: Verify the generated catalogue is current
-        run: |
-          npm run flutter:catalogue
-          git diff --exit-code -- flutter_app/lib/data/places.g.dart flutter_app/lib/data/categories.g.dart
+      # Everything in flutter_app/ that is data is generated from the site —
+      # catalogue, design tokens, search documents, parity fixtures, drawings.
+      # This re-renders each and fails if it differs from what's committed, so a
+      # place added on the web with no regeneration cannot ship a native app one
+      # place short, silently.
+      - name: Verify the generated half is current
+        run: SKIP_ART=1 npm run audit:flutter
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -133,8 +131,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Regenerate the catalogue
-        run: npm run flutter:catalogue
+      - name: Regenerate the generated half
+        run: npm run flutter:catalogue && npm run flutter:tokens && npm run flutter:search
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2

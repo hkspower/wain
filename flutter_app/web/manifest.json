@@ -1,12 +1,14 @@
 {
-    "name": "wain",
-    "short_name": "wain",
+    "name": "وين",
+    "short_name": "وين",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#fdfaf3",
+    "theme_color": "#2277b4",
+    "description": "وين الطلعة اليوم؟ دليل أحلى الأماكن في الكويت.",
     "orientation": "portrait-primary",
+    "lang": "ar",
+    "dir": "rtl",
     "prefer_related_applications": false,
     "icons": [
         {

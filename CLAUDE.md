@@ -506,6 +506,82 @@ file's length would pass it. Content hashes would close that, and nothing on
 this connector returns one for a binary — which is why the hashed chunk
 names, content-addressed by the build, carry most of the weight.
 
+## The Flutter app is the whole app now — 1 October
+
+`flutter_app/`, on request («make full flutter native»): Android, iOS and web,
+a separate Dart codebase from this Next.js export, not a wrapper around it.
+`flutter_app/README.md` has the map; this records what went wrong or is easy to
+get wrong, and what no session here can prove.
+
+**The shape is «generated data, ported logic, replayed».** Dart cannot import
+TypeScript, so nothing is shared — and every place the two could silently
+disagree is closed by construction. The catalogue (every `Place` field, and the
+generator stops if `places.ts` grows one it does not know), the design tokens
+(`theme.css`), the search documents and synonym table (read out of `search.ts`,
+which gained three `export`s and nothing else), and the drawings (rendered from
+the React components in Chromium, the `export-figma-icons.mjs` technique) are all
+generated. The logic — the BM25 engine, the hangout planner, count agreement,
+distances, speech preparation — was ported by hand and is then **replayed against
+the web's own answers**: 197 search queries (same documents, same order, same
+scores), 28 instants × 7 places × 8 times of hangout messages. `npm run
+audit:flutter` (in `scan`) re-renders every generator with `--check`; it was
+confirmed red by changing one hex in `theme.css`.
+
+**Things that bit, worth not re-learning:**
+
+- **A `BoxShadow` on a transparent box shows THROUGH the box.** Every place card
+  rendered grey on the first build: the `Ink` decoration had a shadow and no
+  fill. Give the decoration a colour.
+- **`dart format` rewrites `*.g.dart`** and the audit then reads that as
+  staleness. Format everything except generated files (README has the one-liner).
+- **A `Wrap` does not constrain its children's width.** A long season line in a
+  `Wrap` overflowed 35px at 320; a `Column` (or `Flexible`) is the fix. Every
+  route is laid out at 390 and 320 in the widget suite because an overflow IS an
+  exception in tests — that is what found four of these.
+- **A fixed card height is a lie once the user scales text.** `placeCardExtent`
+  derives it from the text scale; 158 overflowed by 15.
+- **`??` versus an empty `--dart-define`.** An unset define arrives as `""`, the
+  same trap the web's CI hit (`resolveAgentId` uses an emptiness check, and a test
+  pins it). Voice is **off** until switched on, as on the web — the first port
+  defaulted it on.
+- **`Array#sort` is stable, `List#sort` is not**, and JS sums floats in Map
+  insertion order; the parity suite only went green once both were reproduced.
+- **`URLSearchParams#get` returns the FIRST value, `Uri.splitQueryString` the
+  last** — `?when=tonight-8&when=now` read differently until `readInvite` was
+  written by hand. The fixtures include exactly that link.
+- **`InviteBanner` was first written from memory and its copy was invented.** The
+  real component said something else. It is ported from the source now. Read the
+  component before writing the one that mirrors it.
+
+**Where the app deliberately differs from the site** (README has the list): the
+About card that claimed «قريب منك» is replaced because this app never reads your
+position; Privacy is written for the app, not copied; `/add` says the back end is
+not connected; there is no location permission in either manifest.
+
+**The سالم question has a latest answer, and the Flutter app follows it.** The
+sections above («/salem shipped claiming سالم, and it was wrong» and «no voice
+switch either») record two same-day corrections to `/salem`. They are
+superseded: commit `ba0ae8ce` («Bring سالم's identity back, on request…»,
+30 September) put his name, photo and `tts.voice_id` override back on `/find`'s
+typed half and on `/salem`, and that is what the source does. The Flutter app
+matches the source: `salem-chat` sends `tts: { voice_id: kSalemVoiceId }`, the
+second half of `/find` uses `salem.jpg` and his role line. The tension the
+older sections named is **accepted, not fixed**: the agent behind the typed chat
+is still شوق's, so her first real reply can say «أنا شوق» in his voice.
+
+**What nothing here can prove.** No Android SDK (`dl.google.com` is refused) and
+no Xcode, so no binary was built: `flutter-ci.yml`, `android-flutter.yml` and the
+iOS job are unexecuted. `api.elevenlabs.io` and `tile.openstreetmap.org` are
+refused, so a real call and real tiles were never seen — the call controller is
+tested against a fake session and the chat against a real local WebSocket server.
+`PrivacyInfo.xcprivacy` was added to the Xcode target by anchored inserts into
+`project.pbxproj`; Xcode has not opened it. One call on a real phone, one build
+on a Mac, and one look at the map with tiles would close all of it.
+
+**The bundle id is `com.wainkw.app`**, the Capacitor wrapper's, so the two are
+one store listing. The same warning as there applies: it is fixed at the first
+upload.
+
 ## The 30 September deploy, third — `c9f1e28` is live: the orb texture and its disclosure
 
 Two files under `src/` and `public/` changed since `58f2bc6`:

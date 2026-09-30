@@ -146,7 +146,7 @@ class _SalemScreenState extends State<SalemScreen> {
                   ),
                   const CircleAvatar(
                     radius: 20,
-                    backgroundImage: AssetImage('assets/img/shouq-face.jpg'),
+                    backgroundImage: AssetImage('assets/img/salem-face.jpg'),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -154,7 +154,7 @@ class _SalemScreenState extends State<SalemScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          CallCopy.name,
+                          kSalemName,
                           style: wainText(
                             WainText.lg,
                             weight: FontWeight.w700,

@@ -9,9 +9,11 @@
  * `audit-places.mjs` and the MCP server use, so a generated file can never
  * disagree with what the web site ships. Re-run after any catalogue edit;
  * nothing here should ever be hand-edited afterward.
+ *
+ * `--check` renders and diffs without writing (run by audit:flutter).
  */
 import { execSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -129,24 +131,31 @@ const header = `// GENERATED — do not edit by hand.
 import 'models.dart';
 `;
 
-mkdirSync(OUT_DIR, { recursive: true });
-
-writeFileSync(
-  join(OUT_DIR, "places.g.dart"),
-  `${header}
+const outputs = [
+  ["places.g.dart", `${header}
 final List<Place> kPlaces = [
 ${placeEntries}
 ];
-`
-);
-
-writeFileSync(
-  join(OUT_DIR, "categories.g.dart"),
-  `${header}
+`],
+  ["categories.g.dart", `${header}
 final List<Category> kCategories = [
 ${categoryEntries}
 ];
-`
-);
+`],
+];
 
-console.log(`wrote ${places.length} places, ${categories.length} categories → flutter_app/lib/data/`);
+if (process.argv.includes("--check")) {
+  const stale = outputs.filter(([name, text]) => {
+    const p = join(OUT_DIR, name);
+    return !existsSync(p) || readFileSync(p, "utf8") !== text;
+  });
+  if (stale.length) {
+    console.error(`flutter catalogue is stale (${stale.map(([n]) => n).join(", ")}) — run \`npm run flutter:catalogue\``);
+    process.exit(1);
+  }
+  console.log(`flutter catalogue current (${places.length} places, ${categories.length} categories)`);
+} else {
+  mkdirSync(OUT_DIR, { recursive: true });
+  for (const [name, text] of outputs) writeFileSync(join(OUT_DIR, name), text);
+  console.log(`wrote ${places.length} places, ${categories.length} categories → flutter_app/lib/data/`);
+}

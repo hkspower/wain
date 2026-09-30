@@ -35,7 +35,7 @@ void main() {
     '/privacy': 'ما نتتبّعك — أبداً',
     '/add': 'سجّل مكانك في وين',
     '/places/kuwait-towers': 'أبراج الكويت',
-    '/places/kuwait-towers?when=tonight-8': 'دعوة: الليلة الساعة ٨',
+    '/places/kuwait-towers?when=tonight-8': 'الليلة الساعة ٨',
     '/places/nope': 'وين رايح؟',
     '/nowhere': 'وين رايح؟',
   };
@@ -54,7 +54,7 @@ void main() {
     '/salem builds and shows it is connecting (no network in tests)',
     (t) async {
       await pumpAt(t, '/salem');
-      expect(find.text('شوق'), findsWidgets);
+      expect(find.text('سالم'), findsWidgets);
       expect(t.takeException(), isNull);
       await t.pumpWidget(const SizedBox());
     },

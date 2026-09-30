@@ -8,6 +8,7 @@ import '../data/text_kit.dart';
 import '../map/wain_map.dart';
 import '../share/hangout.dart';
 import '../share/hangout_panel.dart';
+import '../share/invite_banner.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../widgets/art.dart';
@@ -153,7 +154,7 @@ class PlaceDetailScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              if (invite != null) _InviteBanner(place: place, when: invite!),
+              if (invite != null) InviteBanner(place: place, when: invite!),
               const SizedBox(height: 12),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 520),
@@ -305,62 +306,6 @@ class _Pill extends StatelessWidget {
       style: wainText(WainText.sm, weight: FontWeight.w600, color: fg),
     ),
   );
-}
-
-/// «تمام، أنا معكم» — the invitee's half of the plan: the time the link
-/// carried, whether it has already gone, and the reply as one tap.
-class _InviteBanner extends StatelessWidget {
-  final Place place;
-  final WhenId when;
-  const _InviteBanner({required this.place, required this.when});
-
-  @override
-  Widget build(BuildContext context) {
-    final passed = invitePassed(when);
-    return Container(
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: WainColors.sun50,
-        borderRadius: BorderRadius.circular(WainRadius.s2xl),
-        border: Border.all(color: WainColors.sun200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'دعوة: ${phraseFor(when)}',
-            style: wainText(
-              WainText.base,
-              weight: FontWeight.w600,
-              color: WainColors.ink900,
-            ),
-          ),
-          if (passed)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'فات هالوقت — اتفقوا على وقت ثاني.',
-                style: wainText(WainText.sm, color: WainColors.ink600),
-              ),
-            ),
-          const SizedBox(height: 8),
-          FilledButton(
-            onPressed: passed
-                ? null
-                : () {
-                    final uri = Uri.parse(
-                      'https://wa.me/?text=${Uri.encodeComponent(inviteAcceptMessage(place, when))}',
-                    );
-                    launchUrl(uri, mode: LaunchMode.externalApplication);
-                  },
-            style: FilledButton.styleFrom(backgroundColor: WainColors.palm600),
-            child: const Text('تمام، أنا معكم 👍'),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 /// Business contact channels — absent on every shipped place today, rendered

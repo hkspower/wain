@@ -111,7 +111,9 @@ class WainMap extends StatelessWidget {
                           point: LatLng(p.lat, p.lng),
                           width: 160,
                           height: 96,
-                          alignment: Alignment.topCenter,
+                          // The dot sits at the bottom of this box; put the
+                          // coordinate under the dot's centre, not the box's top.
+                          alignment: const Alignment(0, 0.75),
                           child: MapPin(
                             place: p,
                             selected: p.slug == activeSlug,
@@ -176,7 +178,7 @@ class MapPin extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.end,
           children: [
             if (selected)
               Container(

@@ -5,8 +5,10 @@
 /// the handshake, `user_message`/`agent_response`, the ping keepalive and an
 /// answer to every tool call — and nothing of the audio stack the SDK drags in.
 ///
-/// The override carries only `conversation.text_only`. No `tts` block: she
-/// speaks, if at all, in her own voice — this is her, typed.
+/// The override carries `conversation.text_only` and the `tts.voice_id` of
+/// سالم — the latest decision (his identity is back on /find and /salem). The
+/// agent behind it is still شوق's, prompt and all; that tension is accepted
+/// and recorded in CLAUDE.md, not hidden here.
 library;
 
 import 'dart:async';
@@ -101,6 +103,7 @@ ChatHandle startSalemChat({
           'type': 'conversation_initiation_client_data',
           'conversation_config_override': {
             'conversation': {'text_only': true},
+            'tts': {'voice_id': kSalemVoiceId},
           },
           'source_info': {'source': 'wain-salem-chat', 'version': '1'},
         });

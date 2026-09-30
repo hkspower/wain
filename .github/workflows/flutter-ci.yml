@@ -1,0 +1,100 @@
+name: Flutter app (analyze, test, web build)
+
+# Runs on every change to the app or to anything it is generated from. This is
+# the cheap, always-on half: the same analyze + test + web build that were run
+# by hand in the sandbox that wrote the app. The signed and device builds are
+# android-flutter.yml and the iOS job below, both dispatch-only.
+#
+# WHAT IS AND IS NOT PROVEN, honestly
+#   proven here (and in the authoring sandbox): analyze, the unit + widget +
+#     protocol suites, and `flutter build web` — 340+ tests, including the
+#     search/hangout/helper parity suites that replay the web's own answers.
+#   NOT proven by anything in this repository: an Android or iOS binary, a real
+#     شوق call (microphone + the ElevenLabs session), real map tiles, a device.
+#     The authoring sandbox refuses dl.google.com, api.elevenlabs.io and
+#     tile.openstreetmap.org, so those were exercised only against local fakes.
+on:
+  push:
+    branches: [claude/wainkw-design-issues-2bggdi]
+    paths:
+      - "flutter_app/**"
+      - "scripts/*flutter*.mjs"
+      - "src/lib/**"
+      - "src/app/theme.css"
+      - "src/components/**"
+      - ".github/workflows/flutter-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # The drawings are rendered in a real browser.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: The generated half is current
+        run: CHROMIUM_PATH="$(node -e "console.log(require('playwright').chromium.executablePath())")" npm run audit:flutter
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+
+      - name: flutter pub get
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: flutter analyze
+        working-directory: flutter_app
+        run: flutter analyze
+
+      - name: flutter test
+        working-directory: flutter_app
+        run: flutter test
+
+      - name: flutter build web
+        working-directory: flutter_app
+        run: flutter build web --release --no-wasm-dry-run
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wain-flutter-web
+          path: flutter_app/build/web
+          retention-days: 7
+
+  # iOS needs a Mac. Dispatch-only and UNVERIFIED BY EXECUTION, the same honest
+  # limitation ios.yml states for the Capacitor app: nothing reachable from the
+  # session that wrote this can run Xcode. `--no-codesign` proves the project
+  # compiles and links; signing is a separate decision (see ios.yml's secrets).
+  build-ios:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.5"
+          channel: stable
+          cache: true
+      - name: flutter pub get
+        working-directory: flutter_app
+        run: flutter pub get
+      - name: Build (no codesign)
+        working-directory: flutter_app
+        run: flutter build ios --release --no-codesign
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wain-flutter-ios-unsigned
+          path: flutter_app/build/ios/iphoneos/Runner.app
+          retention-days: 7
