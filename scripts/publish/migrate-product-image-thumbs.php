@@ -39,4 +39,4 @@ $has = 'no'; $rows = '?';
 try { $has = $db->query("show tables like 'product_image_thumbs'")->fetchColumn() !== false ? 'yes' : 'no'; } catch (Throwable $e) {}
 try { $rows = (string) $db->query('select count(*) from product_image_thumbs')->fetchColumn(); } catch (Throwable $e) {}
 line("STATE product_image_thumbs=$has rows=$rows");
-line($has === 'yes' ? 'READY — the shop grid's resized pictures are stored after the first request.' : 'NOT READY — the panel card will say so.');
+line($has === 'yes' ? 'READY — the shop grid resized pictures are stored after the first request.' : 'NOT READY — the panel card will say so.');
