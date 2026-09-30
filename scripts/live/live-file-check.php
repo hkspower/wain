@@ -116,7 +116,7 @@ $WANT = [
     'assets/Wishlist-L8me8CrG.js' => 'aaa43222b82a3b6e1ac9f44240a325d513130b86f6dd6606b1cc9f9bad1928ac',
     'assets/activity-log.js' => '6d2da4cb7f196510f548aa82b715e838adfa4a5a30bde3f834b67b80fbc9d91a',
     'assets/admin-mobile.js' => '3fb1c97f6221b8b375c7b77a20808d7cee0461b29786fbc13389776b2c158be0',
-    'assets/admin-upload.js' => '7fdfad580d41ea27bbf86499cc48527bce665bb5a5a27283a2ac053ab9f11b9f',
+    'assets/admin-upload.js' => 'b401829cda15417eb7f8ef8502c1f058eba8a05f4a1f3c6a6074a3fdf2a30b38',
     'assets/api-dedupe.js' => '1ea54fc042bb53a9ad1af782065e757b5136f6691d741ac8cdeb2802c292a7a8',
     'assets/apple-signin.js' => '5c7e39052ad9feb363e0147792fc69caff1de35c611710bc42f0ea487552c50b',
     'assets/assistant-icon.js' => '449958d4c49615a71e3e4ed3464bd42163ff0c37de01caea5f2824f559ca4f41',
@@ -128,7 +128,7 @@ $WANT = [
     'assets/brand-strip.js' => '9e2c4ae3d55c1ee9e393eb15a3b3f0694b0f9b3929593ccca3fd4d811cce3f69',
     'assets/card-badges.js' => '2140aa40823461aa06da59a2338b91eb789ddfb380ec6a115ad771d646c31a02',
     'assets/card.js' => '6e8712fd2937fea11079b67482edd88d58a5eec8b55cc5a34a86dc432dffbe35',
-    'assets/category-art.js' => '863c6651dca525c3d442e8b0f145fb63409dc6b1fa93e2dee01a2c5949c2fefe',
+    'assets/category-art.js' => 'd764d7b5cd30260ca64183169cfae9a59e194cf595cdc895e80ea9bdeebf521e',
     'assets/category-tiles.js' => 'f5b15ec381de0aa6eff490c9846cd8330d6e6188fc7936e9519d130b4d469aee',
     'assets/category-topbar.js' => '42fe8ed1f4a2fd767610bbca757d03bdbfbe5feea9cd77ccf8f23345bd4b51bd',
     'assets/checkout-CJW4l7Oz.js' => '77a829178518d422c4c4d9252e8cdae9e97739ac92156fce6dc2370f82f8c6f7',
@@ -143,7 +143,7 @@ $WANT = [
     'assets/footer.js' => 'ccae6f59425660d18636fd07983a082c436bcb62d6df1b4d4cb829905bf9c9f4',
     'assets/force-password-notice.js' => '79f095525ce54694729e775e0c84c18f4be6991c402a04483bb55a1718d54c83',
     'assets/google-signin.js' => 'e66ab29ec70a794ffee0945c0fa69d50c30334ad90f56a56aa49ba12da58bd97',
-    'assets/hero-slides.js' => '07d264c8e956347b5729539b28d6d4c2ed7c2803cf4314fda821fbc362b246d6',
+    'assets/hero-slides.js' => '5577e5bc2f88f062f3b95db5ac65e5269be8ee43ccdeda96224265b53b0af28b',
     'assets/home-products.js' => '3ba34d73b31a2ad3db4f3d7a80c6007b665f6146fcd670155f65a2e8d2007659',
     'assets/index-5HbquisI.js' => '881eece4525a72074c514b348be352f5056e3f9030ed9900dc5cc02a2368306c',
     'assets/index-TIUCmnwm.css' => '4c85029a7c26cdf79a3ca7520c0bfebe286a95f9bbcc33ad8a4908d81a145ad7',
@@ -283,7 +283,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => '1ba2a01e9f35e80a67b4b6047afcb5370b4005074a150ade4907a578cb0ebf4a',
-    'sw.js' => 'ca74ae80be60a39a35b4edaec619e0eb21dde250cc42720c58ec9f5be7a8dd37',
+    'sw.js' => '16e5d71d58465281141e3c074532fe81552d37670e895c5ea775a91e306aafc2',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
