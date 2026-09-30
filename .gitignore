@@ -181,5 +181,9 @@ press/renders/glb/
 press/renders/renders.json
 press/renders/*.blend
 
+# tools/unity/render-cars.sh: the Unity renders are committed; its log
+# is not. The Unity project keeps its own .gitignore for Library/ etc.
+press/unity/unity.log
+
 # tools/export-media.mjs: copies of every deliverable, and their zips.
 /press/export/

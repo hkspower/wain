@@ -132,6 +132,9 @@ export const ASSETS = [
   { path: "press/renders", kind: "split", by: "tools/blender/render_cars.py",
     keep: ["*.png", "cars.json", "contact-sheet.jpg"],
     what: "Studio renders of every catalogue car, exported from the game by tools/shots/export-cars.mjs and rendered in Cycles. The GLBs beside them are 160 MB of scratch, and renders.json is a timing log." },
+  { path: "press/unity", kind: "split", optional: true, by: "tools/unity/render-cars.sh",
+    keep: ["*.png", "contact-sheet.jpg", "unity.json"],
+    what: "The same cars in a Unity (URP) studio, run on a machine with Unity 6; unity.log beside them is scratch." },
 
   // ---- Scratch. A tool wrote it to answer a question, and the answer
   // was the number it printed.
