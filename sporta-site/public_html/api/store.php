@@ -2227,10 +2227,14 @@ function store_admin_alert_new_ip(PDO $db, int $adminId, string $email): void {
 
         $cfg = store_config();
         $when = date('Y-m-d H:i');
+        // The country only if it is already remembered — this runs on the
+        // sign-in itself, so it never waits on a lookup.
+        $geo = store_geo_public_ip($ip) ? store_geo_cached($db, $ip) : null;
+        $ipLine = $ip . ($geo && $geo[0] !== null ? ' — ' . ($geo[1] ?: $geo[0]) : '');
         $subject = 'Sporta — new sign-in to your account';
         $text = "A sign-in to the Sporta panel just happened from an address that has never "
               . "signed this account in before:\n\n"
-              . "  Address: {$ip}\n"
+              . "  Address: {$ipLine}\n"
               . "  Time: {$when} (server time)\n\n"
               . "If this was you, there is nothing to do — this address is now recognised. "
               . "If it was not you, change your password immediately and review Security in "
@@ -2249,6 +2253,115 @@ function store_admin_alert_new_ip(PDO $db, int $adminId, string $email): void {
         // same as must_change_password and email OTP before it. A sign-in
         // succeeding is what matters; this is a record of it, never a
         // precondition. Never surfaced to the admin who just signed in.
+    }
+}
+
+// ====================================================== admin sign-in log
+//
+// EVERY ATTEMPT AT THE ADMIN DOOR, WITH WHERE IT CAME FROM. Written by one
+// shutdown hook admin.php registers for the sign-in routes (same idea as the
+// audit log below: read back what actually happened, rather than asking each
+// door to report), so a door added tomorrow is logged if it is on the list and
+// the list is one line.
+//
+// COUNTRY comes from a lookup of the address made by THIS SERVER — never from a
+// request header, which any client can set to say it is in Kuwait. It is
+// remembered per address in admin_ip_geo, is looked up only for addresses that
+// tried the admin login (a handful, never shoppers), is asked AFTER the
+// response has gone to the browser, and is budgeted so an attack from many
+// addresses cannot turn into many outbound requests. If the lookup fails the
+// country stays blank; nothing waits on it and nothing fails because of it.
+const STORE_GEO_URL = 'https://ipwho.is/{ip}?fields=success,country_code,country';
+
+function store_geo_public_ip(string $ip): bool {
+    return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false;
+}
+
+// ['CC', 'Name'] from the cache, or null when this address was never looked up.
+function store_geo_cached(PDO $db, string $ip): ?array {
+    $q = $db->prepare('select country, country_name, looked_up_at from admin_ip_geo where ip = ?');
+    $q->execute([$ip]);
+    $r = $q->fetch();
+    if (!$r) return null;
+    // A FAILED lookup is remembered for an hour, a good one for a month.
+    $age = time() - strtotime((string) $r['looked_up_at']);
+    if ($r['country'] === null ? $age > 3600 : $age > 30 * 86400) return null;
+    return [$r['country'], $r['country_name']];
+}
+
+function store_geo_lookup(PDO $db, string $ip, ?string $urlTemplate = null): array {
+    if (!store_geo_public_ip($ip)) return ['--', 'Private network'];
+    $hit = store_geo_cached($db, $ip);
+    if ($hit !== null) return $hit;
+    // Budget: at most 20 fresh lookups a minute across the whole shop.
+    $bucket = substr(hash('sha256', 'geo|' . intdiv(time(), 60)), 0, 32);
+    $db->prepare('insert into rate_limit (bucket_key, window_start, hits) values (?, ?, 1) on duplicate key update hits = hits + 1')
+       ->execute([$bucket, intdiv(time(), 60) * 60]);
+    $n = $db->prepare('select hits from rate_limit where bucket_key = ?');
+    $n->execute([$bucket]);
+    if ((int) $n->fetchColumn() > 20) return [null, null];
+
+    $cc = null; $name = null;
+    $ctx = stream_context_create(['http' => ['timeout' => 2, 'ignore_errors' => true, 'header' => "Accept: application/json\r\n"]]);
+    $raw = @file_get_contents(str_replace('{ip}', rawurlencode($ip), $urlTemplate ?? STORE_GEO_URL), false, $ctx);
+    $j = is_string($raw) ? json_decode($raw, true) : null;
+    if (is_array($j) && !empty($j['success']) && preg_match('/^[A-Za-z]{2}$/', (string) ($j['country_code'] ?? ''))) {
+        $cc = strtoupper((string) $j['country_code']);
+        $name = mb_substr(strip_tags((string) ($j['country'] ?? '')), 0, 80);
+    }
+    $db->prepare('replace into admin_ip_geo (ip, country, country_name) values (?, ?, ?)')->execute([$ip, $cc, $name]);
+    return [$cc, $name];
+}
+
+/**
+ * One row for one attempt. Best-effort and silent: an unmigrated shop or a full
+ * disk must never turn a sign-in into an error.
+ */
+function store_admin_login_log(PDO $db, string $method, string $result, ?int $adminId, ?string $email, ?string $urlTemplate = null): void {
+    try {
+        $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+        if ($ip === '') return;
+        $new = 0;
+        if ($adminId) {
+            // A success has just put the address into admin_known_ips itself, so
+            // "new" for a success means no earlier successful row in THIS log.
+            $k = $result === 'ok'
+                ? $db->prepare("select 1 from admin_login_log where admin_id = ? and ip = ? and result = 'ok' limit 1")
+                : $db->prepare('select 1 from admin_known_ips where admin_id = ? and ip = ?');
+            $k->execute([$adminId, $ip]);
+            $new = $k->fetchColumn() ? 0 : 1;
+        }
+        $agent = mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 160);
+        $db->prepare('insert into admin_login_log (admin_id, email, method, result, ip, new_ip, agent) values (?,?,?,?,?,?,?)')
+           ->execute([$adminId, $email !== null ? mb_substr($email, 0, 190) : null, $method, mb_substr($result, 0, 40), $ip, $new, $agent]);
+        $rowId = (int) $db->lastInsertId();
+        if (random_int(1, 50) === 1) $db->exec('delete from admin_login_log where at < now() - interval 180 day');
+
+        // The response is already with the browser (the caller flushes first).
+        [$cc, $name] = store_geo_lookup($db, $ip, $urlTemplate);
+        if ($cc !== null) {
+            $db->prepare('update admin_login_log set country = ?, country_name = ? where id = ?')->execute([$cc, $name, $rowId]);
+        }
+
+        // AN UNKNOWN ADDRESS THAT KEEPS FAILING gets the owner one email: the
+        // third failure from an address this account has never signed in from,
+        // inside a quarter of an hour. Exactly the third, so it is once, and
+        // three is more than a typo and fewer than a script needs.
+        if ($adminId && $result !== 'ok' && $result !== 'code_needed' && $new) {
+            $c = $db->prepare("select count(*) from admin_login_log where admin_id = ? and ip = ? and result not in ('ok','code_needed') and at > now() - interval 15 minute");
+            $c->execute([$adminId, $ip]);
+            if ((int) $c->fetchColumn() === 3) {
+                $where = $cc !== null ? ($name ?: $cc) . " ({$cc})" : 'country unknown';
+                $text = "Someone is failing to sign in to your Sporta panel account from an address it has never used.\n\n"
+                      . "  Address: {$ip}\n  Country: {$where}\n  Attempts: 3 in the last 15 minutes\n  Time: " . date('Y-m-d H:i') . " (server time)\n\n"
+                      . "The account locks itself after five wrong tries. If this is not you, nothing needs doing right now, "
+                      . "but consider a longer password and turning on two-step sign-in in the panel.";
+                store_send_mail(store_config(), (string) $email, 'Sporta — unknown address failing to sign in', $text,
+                    '<p style="font:16px system-ui">' . nl2br(htmlspecialchars($text, ENT_QUOTES, 'UTF-8')) . '</p>');
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('admin_login_log: ' . $e->getMessage());
     }
 }
 

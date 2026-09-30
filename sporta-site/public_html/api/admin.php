@@ -53,6 +53,46 @@ $db = store_db();
 // and the same distinction the discount route makes applies here.
 store_throttle($db, 'admin', 1200, 60);
 
+// ------------------------------------------------------------- sign-in log
+// Every attempt at the admin door, with address and country — see
+// store_admin_login_log(). One hook for all the doors: it reads back what was
+// answered, so the doors themselves are untouched.
+const ADMIN_LOGIN_ROUTES = [
+    'login' => 'password', 'login_code' => 'code', 'google_login' => 'google', 'apple_login' => 'apple',
+    'passcode_unlock' => 'passcode', 'password_reset_confirm' => 'reset',
+];
+if ($method === 'POST' && isset(ADMIN_LOGIN_ROUTES[$r])) {
+    ob_start();
+    register_shutdown_function(function () use ($db, $r) {
+        $body = (string) ob_get_clean();
+        echo $body;
+        // The browser gets its answer first; the lookup below can take a moment.
+        if (function_exists('fastcgi_finish_request')) { @fastcgi_finish_request(); } else { @flush(); }
+        $code = http_response_code();
+        $j = json_decode($body, true);
+        if (!is_array($j)) return;
+        $result = $code >= 200 && $code < 300 ? (!empty($j['need_code']) ? 'code_needed' : 'ok') : (string) ($j['error'] ?? ('http_' . $code));
+        $in = store_body();
+        $email = isset($in['email']) ? strtolower(trim((string) $in['email'])) : null;
+        $adminId = null;
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $adminId = (int) ($_SESSION['admin_id'] ?? $_SESSION['pending_admin_id'] ?? 0) ?: null;
+            if ($email === null && !empty($_SESSION['admin_email'])) $email = (string) $_SESSION['admin_email'];
+        }
+        if ($adminId === null && $email) {
+            $q = $db->prepare('select id from admin_users where email = ?');
+            $q->execute([$email]);
+            $adminId = (int) $q->fetchColumn() ?: null;
+        }
+        if ($adminId !== null && $email === null) {
+            $q = $db->prepare('select email from admin_users where id = ?');
+            $q->execute([$adminId]);
+            $email = (string) $q->fetchColumn() ?: null;
+        }
+        store_admin_login_log($db, ADMIN_LOGIN_ROUTES[$r], $result, $adminId, $email);
+    });
+}
+
 // ------------------------------------------------------------------- session
 if ($r === 'login' && $method === 'POST') {
     store_require_admin_header();
@@ -544,6 +584,16 @@ if ($r === 'me') {
 // forces a password change but blocks the only route that changes one would
 // lock the owner out of their own recovery.
 $admin = store_require_admin(in_array($r, ['account', 'account_update'], true));
+
+// ---- sign-in history (signed in)
+if ($r === 'login_log') {
+    try {
+        $rows = $db->query('select id, at, email, method, result, ip, country, country_name, new_ip, agent
+                              from admin_login_log order by id desc limit 100')->fetchAll();
+        $fails = (int) $db->query("select count(*) from admin_login_log where result not in ('ok','code_needed') and at > now() - interval 24 hour")->fetchColumn();
+        store_out(['rows' => $rows, 'failures_24h' => $fails, 'ready' => true]);
+    } catch (Throwable $e) { store_out(['rows' => [], 'failures_24h' => 0, 'ready' => false]); }
+}
 
 // ---- passcode management (signed in)
 if ($r === 'passcode_enroll' && $method === 'POST') {
