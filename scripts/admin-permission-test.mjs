@@ -144,8 +144,15 @@ console.log(`--- ${routes.length} routes in admin.php: ${publicOnes.length} befo
 // `apple_login` accepts an ID token and answers the same ?r=login shape,
 // second factor and all. `apple_save` is NOT here for the same reason
 // `google_save` is not: it gates itself and is checked as guarded.
+// passcode_status and passcode_unlock are the eleventh and twelfth, on the same
+// argument: the unlock exists to create the session. They are NOT open: the
+// device cookie (HttpOnly, set only at enrolment by a signed-in admin) AND the
+// 6-digit passcode are both required, five wrong tries lock the device, and
+// every refusal is the same 401. A trusted device is where the second factor
+// was already proved at enrolment; that is the one deliberate difference from
+// the password path. passcode_enroll/_devices/_remove are behind the gate.
 const MAY_BE_PUBLIC = ['login', 'login_code', 'login_code_resend', 'logout', 'me', 'register',
-                       'google_config', 'google_login', 'apple_config', 'apple_login']
+                       'google_config', 'google_login', 'apple_config', 'apple_login', 'passcode_status', 'passcode_unlock']
 const unexpected = publicOnes.filter((r) => !MAY_BE_PUBLIC.includes(r))
 check(unexpected.length === 0,
   unexpected.length
