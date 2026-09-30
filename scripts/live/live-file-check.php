@@ -72,7 +72,7 @@ $WANT = [
     'api/productthumbs.mysql.sql' => '0751f5d5065b7f46740becd3105155faa01c3aae04108e831b6a588647352531',
     'api/promo.mysql.sql' => '7f64bb42ff96d0a3cf410031b48bcac6ae0e109f089cde59cbe2d1d22fd4177b',
     'api/push.mysql.sql' => '70c562de94012285f7af9a654376412bdd26c150d563d2cc3237cd6355c13e8f',
-    'api/research.php' => '24d7aaf42ea77a143fb4af5ac0973af8332cb790ef3411e31bcf6f5fa6f4dc5a',
+    'api/research.php' => 'f97e362c27a523035a86170d60bcd400b2793e3bff4344a3dc252330ad48dd11',
     'api/reviews.mysql.sql' => 'e0288b6470d6e974e9e8811de761b07268f09fe2dbab5bab392428c0c2d65c5a',
     'api/schema.mysql.sql' => '7095a95406bae97034bc67328bf7bae2e6736fddacd5ba8a62fe0d83cd8fb246',
     'api/seed.mysql.sql' => 'bd51a938063ff63d7fb381290c42196ffde93d9d5b065f5da6bac3d10b7f0d88',
@@ -167,7 +167,7 @@ $WANT = [
     'assets/product-cards.js' => 'd9a709eb68c4d87444b11073dce4af0d51bd20dbc90f03a97fe87c1d3cc18d3d',
     'assets/product-mobile-layout.js' => '482120d0035374350500e1daeaf29862806264f11e43cb26bed2f6df51f154af',
     'assets/product-photos.js' => 'a21739795ae5267bbf0dde2956f0190e8e128405fd7e27ad4611517a8892f4f6',
-    'assets/product-research.js' => '16cb3a1518f4235dde521b3b9830bed6aeffefecfce003e9cdfd92b599b5e408',
+    'assets/product-research.js' => '75c670733fbcbe5d0d2e6a5e121c5b3fd4f08c206d61d89b58e775c2200b6465',
     'assets/product-zoom.js' => '881bd8f6dd12c79a54b365ca6927326973f7c4fab2893b1c3cb112e815d23a5f',
     'assets/quick-add-size.js' => '2e1f13b9a109c79411d57eed73054ac07ca00ffc56a8aa140195936a0e439b7a',
     'assets/react-vendor-CMgvnOJB.js' => '3f36bbb7b4c6de3289643869a25c08e7ec7055ebaeef06d597b0fa301525d579',
@@ -289,7 +289,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => '1ba2a01e9f35e80a67b4b6047afcb5370b4005074a150ade4907a578cb0ebf4a',
-    'sw.js' => '0f30fb47315cb5b7299e22378391395f9397031377d10dd91b1ee588325b8fde',
+    'sw.js' => '9152433647d7d4ce00644624ef14a8482868d9a4061f45d899c85c44c3622860',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
