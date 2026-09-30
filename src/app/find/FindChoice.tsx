@@ -80,7 +80,7 @@ export default function FindChoice() {
               it. The pill vocabulary is already the site's own (the tag
               chips, the category rail's counts). The equalizer beside it
               names her as a VOICE the same way the kicker's words do. */}
-          <span className="animate-reveal-up inline-flex items-center gap-2 rounded-full bg-white/90 px-3.5 py-1.5 text-sm font-semibold text-sun-900 shadow-sm [animation-delay:80ms]">
+          <span className="animate-reveal-up inline-flex items-center gap-2 rounded-full bg-white/90 px-3.5 py-1.5 text-sm font-semibold text-sun-900 [animation-delay:80ms]">
             {WAIN_AI_COPY.role}
             <span aria-hidden="true" className="inline-flex h-3.5 items-end gap-[3px] text-sun-600">
               <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "0.9s" }} />
@@ -158,7 +158,7 @@ export default function FindChoice() {
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 justify-center"
       >
-        <span className="animate-badge-pop relative isolate grid size-11 place-items-center rounded-full bg-white text-sm font-bold text-ink-900 shadow-lg">
+        <span className="animate-badge-pop relative isolate grid size-11 place-items-center rounded-full bg-white text-sm font-bold text-ink-900 shadow-xs">
           <span
             aria-hidden="true"
             className="animate-seam-glow pointer-events-none absolute -inset-3 -z-10 rounded-full bg-[radial-gradient(closest-side,rgba(251,183,36,.5),transparent_75%)] blur-lg"
@@ -199,7 +199,7 @@ export default function FindChoice() {
               second copy of a face already the whole point of that crop. */}
           <span className="animate-reveal-up relative grid size-14 place-items-center [animation-delay:480ms]">
             <span aria-hidden="true" className="animate-pulse-ring absolute inset-0 rounded-full bg-sea-300/50" />
-            <span className="relative size-14 overflow-hidden rounded-full border-2 border-white/80 shadow-md">
+            <span className="relative size-14 overflow-hidden rounded-full border-2 border-white/80 shadow-xs">
               {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}
               <img src="/find/shouq-face.jpg" alt="" className="size-full object-cover" />
             </span>
