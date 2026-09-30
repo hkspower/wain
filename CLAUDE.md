@@ -599,6 +599,25 @@ and no messages since 29 September, so «nobody has ever called her» above is o
 of date: people have tried, and none got a word through. No `flutter_sdk` or
 `android_sdk` conversation exists yet.
 
+**ElevenLabs was brought up to date on 1 October: the widget pin, and her knowledge base.**
+The call widget is `@0.18.3` (npm's latest; was 0.18.1). `test:widget-csp` packs the
+pinned version, so it measured the real 0.18.3 bundle: 6 of 6, zero CSP violations,
+audio leaves the page. It needs `CHROMIUM_PATH=/opt/pw-browsers/chromium` here.
+**It is in the repository, not on the site until somebody deploys.** `elevenlabs_agents`
+0.6.1 in the Flutter app is already pub.dev's latest.
+
+The knowledge base is no longer `ab034b0`: document `ynRNIOiliu2vKBN4d9H6` («v5»)
+is pinned to `e4af2de0…`, created by `agents_create_kb_url` — **which did not time
+out this time**, so the «cannot be finished from an MCP session» paragraph in the
+شوق section is out of date. Verified before attaching: extracted size 72,317
+(equal to v4's, which is the expected equality), and «أنت بوسط المدينة» /
+«أنت بالسيارة» present. Attached through `agents_update` with
+`conversation_config.agent.prompt.knowledge_base` alone — version
+`agtvrsn_7101m3t5ner4fjesjk88xgha6cdy`; the reply still held the prompt, three
+tools, the 25 tests and the auth/override settings. The 25 tests were NOT re-run
+(nothing in her prompt changed, only two hamzas in the data). The old v4 document
+has no dependent agent now and was left in the workspace, not deleted.
+
 **What nothing here can prove.** No Xcode, so no iOS binary was built:
 the iOS job is unexecuted, and the Android APK has never been installed on a phone. `api.elevenlabs.io` and `tile.openstreetmap.org` are
 refused, so a real call and real tiles were never seen — the call controller is
