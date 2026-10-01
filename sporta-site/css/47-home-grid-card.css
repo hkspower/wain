@@ -12,7 +12,7 @@
   border-radius: 16px;
 }
 .sporta-home-products__frame {
-  aspect-ratio: 1.09 / 1;
+  aspect-ratio: 4 / 5;   /* one photo shape everywhere, 2026-10-01 */
   background: #1a1d20;   /* a garment with no photo yet keeps the dark tile, as on /shop */
 }
 .sporta-home-products__frame img { object-position: 50% 40%; background: #fff; }

@@ -63,7 +63,7 @@ try {
     }, SLUG)
     const L = `${lang}:`
     check(m.cols === 2, `${L} two columns on a phone`, String(m.cols))
-    check(Math.abs(m.ratio - 1.09) < 0.01, `${L} the photo is the picture's 1.09:1`, m.ratio.toFixed(3))
+    check(Math.abs(m.ratio - 0.8) < 0.01, `${L} the photo is 4:5 (one shape everywhere since 2026-10-01)`, m.ratio.toFixed(3))
     check(rgb(m.bg) === '14,17,22', `${L} card background is the picture's #0e1116`, m.bg)
     check(m.radius >= 14 && m.radius <= 16, `${L} corner radius 14-16px`, String(m.radius))
     check(m.border === '1px' && m.outline === 'none', `${L} a faint 1px card edge, and no outline on the photo`, `${m.border} ${m.outline}`)

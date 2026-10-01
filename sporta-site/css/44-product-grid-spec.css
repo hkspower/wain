@@ -43,10 +43,10 @@ main div.grid[class~="grid"][class~="grid-cols-2"] > article {
   overflow: hidden;
 }
 
-/* --- the photograph: 1.09:1, on white, no outline ------------------------- */
+/* --- the photograph: 4:5 (was 1.09:1 until 2026-10-01), on white, no outline ------------------------- */
 main div.grid > article > a[class*="aspect-"] {
   position: static !important;   /* so its absolute children resolve against the card */
-  aspect-ratio: 1.09 / 1 !important;
+  aspect-ratio: 4 / 5 !important;     /* ONE PHOTO SHAPE, 2026-10-01: 4:5 everywhere (was 1.09:1) */
   outline: 0;                    /* no resting outline: 43- would draw a faint one */
   border-radius: 0;
 }

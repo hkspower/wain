@@ -4131,10 +4131,10 @@ main div.grid[class~="grid"][class~="grid-cols-2"] > article {
   overflow: hidden;
 }
 
-/* --- the photograph: 1.09:1, on white, no outline ------------------------- */
+/* --- the photograph: 4:5 (was 1.09:1 until 2026-10-01), on white, no outline ------------------------- */
 main div.grid > article > a[class*="aspect-"] {
   position: static !important;   /* so its absolute children resolve against the card */
-  aspect-ratio: 1.09 / 1 !important;
+  aspect-ratio: 4 / 5 !important;     /* ONE PHOTO SHAPE, 2026-10-01: 4:5 everywhere (was 1.09:1) */
   outline: 0;                    /* no resting outline: 43- would draw a faint one */
   border-radius: 0;
 }
@@ -4383,7 +4383,7 @@ main article .price-card :is(s, del, [class*="line-through"]) {
   border-radius: 16px;
 }
 .sporta-home-products__frame {
-  aspect-ratio: 1.09 / 1;
+  aspect-ratio: 4 / 5;   /* one photo shape everywhere, 2026-10-01 */
   background: #1a1d20;   /* a garment with no photo yet keeps the dark tile, as on /shop */
 }
 .sporta-home-products__frame img { object-position: 50% 40%; background: #fff; }
@@ -4692,3 +4692,13 @@ p.font-display[class~="text-7xl"] { font-size: 56px !important; }
 h1, h2, h3 { text-wrap: balance; }
 main p, main li { text-wrap: pretty; }
 .price-card, .price-card *, article b, [class*="tabular"] { font-variant-numeric: tabular-nums; }
+/* ONE PHOTO SHAPE FOR EVERY PRODUCT IMAGE — 2026-10-01, "make all product images all same size for all
+ * website"; the owner chose 4:5 (tall) everywhere. Cards (shop, home Best sellers, category pages, related
+ * items, wishlist) and the product page gallery and its thumbnails were already, or are now, 4:5 — see
+ * 44-product-grid-spec.css, 47-home-grid-card.css and category.php. What was left over is the bag drawer's
+ * thumbnail: 4:5 on a phone but a square on desktop. It is 64x80 (4:5) at every width. */
+li > img[class~="h-18"][class~="w-18"][class~="object-cover"] {
+  width: 64px !important;
+  height: 80px !important;
+  flex: none;
+}

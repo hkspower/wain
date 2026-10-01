@@ -425,7 +425,7 @@ header('Cache-Control: public, max-age=0, must-revalidate');
     background: #0e1116; border: 1px solid rgba(255,255,255,.11); border-radius: 16px;
     overflow: hidden; text-decoration: none; color: inherit;
   }
-  .card .frame { position: relative; aspect-ratio: 1.09 / 1; background: var(--sp-tile); overflow: hidden; }
+  .card .frame { position: relative; aspect-ratio: 4 / 5; background: var(--sp-tile); overflow: hidden; }
   /* the white ground sits on the photograph; a card with no photo keeps the dark tile */
   .card .frame img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 40%; display: block; background: #fff; }
   /* A light wash, not a block-out: the shopper still sees the garment. */

@@ -1,0 +1,10 @@
+/* ONE PHOTO SHAPE FOR EVERY PRODUCT IMAGE — 2026-10-01, "make all product images all same size for all
+ * website"; the owner chose 4:5 (tall) everywhere. Cards (shop, home Best sellers, category pages, related
+ * items, wishlist) and the product page gallery and its thumbnails were already, or are now, 4:5 — see
+ * 44-product-grid-spec.css, 47-home-grid-card.css and category.php. What was left over is the bag drawer's
+ * thumbnail: 4:5 on a phone but a square on desktop. It is 64x80 (4:5) at every width. */
+li > img[class~="h-18"][class~="w-18"][class~="object-cover"] {
+  width: 64px !important;
+  height: 80px !important;
+  flex: none;
+}

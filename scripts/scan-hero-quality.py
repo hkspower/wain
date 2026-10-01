@@ -67,9 +67,12 @@ def scan(path, heat_dir):
     # blockiness at the file's NATIVE resolution: that is where its codec grid lives
     blk = blockiness(lum(im.convert('RGB')))
     verdict = []
-    if med < 60: verdict.append('BLURRY')
+    # CALIBRATED against looking at the pixels (2026-10-01): smooth studio art with soft light scores low on
+    # sharpness without being blurred, and WebP's own 16px grid reads as ~1.1-1.3 on a clean file, so the
+    # automatic verdict is a SHORTLIST to look at, not a diagnosis. Heavy banding shows as block > 1.5.
+    if med < 30: verdict.append('SOFT?')
     if hf50 < 0.004: verdict.append('UPSCALED-LOOK')
-    if blk > 1.12: verdict.append('BLOCKY')
+    if blk > 1.5: verdict.append('BLOCKY/BANDED?')
     worst = sorted(tiles)[:3]
     print(f"{os.path.relpath(path, ROOT):52s} {nat[0]}x{nat[1]:<5} sharp med={med:7.1f} p10={p10:6.1f} hf>.5={hf50*100:5.2f}% block={blk:4.2f}  {' '.join(verdict) or 'ok'}")
     if heat_dir:
