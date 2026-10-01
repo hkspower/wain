@@ -86,6 +86,27 @@ class _SearchScreenState extends State<SearchScreen> {
     kinds: (kind == null || kind == 'all') ? null : [kind],
   );
 
+  /// The last answer, by query and kind. `build()` runs on every highlight of
+  /// a pin or a row, not only on a new query, and each run searched the whole
+  /// index twice (the list and the per-kind counts). Same question, same
+  /// answer: it is asked once now.
+  (String, String)? _memoKey;
+  List<SearchHit> _memoHits = const [];
+  List<SearchHit> _memoAll = const [];
+  @visibleForTesting
+  int searchRuns = 0;
+
+  (List<SearchHit>, List<SearchHit>) _results(String q) {
+    final key = (q, _kind);
+    if (key != _memoKey) {
+      searchRuns++;
+      _memoKey = key;
+      _memoHits = q.isEmpty ? const [] : _hits(q, kind: _kind);
+      _memoAll = q.isEmpty ? const [] : _hits(q, limit: 200);
+    }
+    return (_memoHits, _memoAll);
+  }
+
   List<Place> _placesOf(List<SearchHit> hits) {
     final bySlug = {for (final p in kPlaces) p.slug: p};
     final out = <Place>[];
@@ -131,8 +152,7 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final q = _q.trim();
-    final hits = q.isEmpty ? <SearchHit>[] : _hits(q, kind: _kind);
-    final all = q.isEmpty ? <SearchHit>[] : _hits(q, limit: 200);
+    final (hits, all) = _results(q);
     final counts = {
       'all': all.length,
       for (final k in ['place', 'category', 'area', 'page'])
