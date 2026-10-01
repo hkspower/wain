@@ -63,6 +63,38 @@ const price = blocks.map((b) => numField(b, "priceLevel"));
 const setting = blocks.map((b) => field(b, "setting"));
 const season = blocks.map((b) => field(b, "seasonAr"));
 /**
+ * Whether the outing survives a Kuwaiti summer — the catalogue's own escape
+ * hatch (`summerOk`), read the same way `bakesInTheSun()` in hangout.ts reads it.
+ */
+const summerOk = blocks.map((b) => /^ {4}summerOk: true,$/m.test(b));
+/**
+ * The best-time line as شوق should say it TODAY.
+ *
+ * `bestTimeAr` is a year-round statement, and she kept reading it aloud: the
+ * beaches say «العصر المتأخر», and from June to September that is 40°C. The
+ * prompt forbids it four different ways and the primary model still copied the
+ * line verbatim in 11 of 11 runs, while the backup model obeyed in 6 of 6 — so
+ * the defect was never the wording of the rule, it was a KB line that says the
+ * opposite of it. Fixed at the source instead: for anything the summer sun
+ * ruins (not indoor, not `summerOk`) the line leads with the summer answer and
+ * demotes the year-round one, so the first thing she reads is the thing to say.
+ * No per-place fact is invented; it is the site's own rule, stated once, the
+ * same two sentences voice-lines.ts already speaks.
+ */
+/**
+ * A best time that is tied to something only available at a set time — the
+ * morning catch, the date harvest, a workshop schedule. «عقب المغرب بس» would
+ * be an invented opening hour for these, and the catalogue has none, so the
+ * line is left exactly as written and the prompt's general rule stays in charge.
+ */
+const TIED_TO_A_SCHEDULE = /صيد|الرطب|الورش/;
+const bestToday = (i) => {
+  if (summerOk[i] || setting[i] === "indoor" || TIED_TO_A_SCHEDULE.test(best[i])) return best[i];
+  return setting[i] === "mixed"
+    ? `بالصيف (يونيو–سبتمبر): بالنهار الجزء المكيّف، والمكشوف عقب المغرب بس؛ وباقي السنة: ${best[i]}`
+    : `بالصيف (يونيو–سبتمبر): عقب المغرب بس، بالنهار الحر ما يسمح؛ وباقي السنة: ${best[i]}`;
+};
+/**
  * The description and the highlights, which شوق used to be denied.
  *
  * She was briefed with `taglineAr` and nothing else — one line per place, the
@@ -448,7 +480,7 @@ const rows = slugs
   ${tag[i]}
   ${desc[i]}
   فيه: ${highlightList[i].join(" · ")}
-  أحسن وقت: ${best[i]} · ${settingAr[setting[i]]} · ${season[i]}${shisha[i] ? "\n  فيه شيشة." : ""}
+  أحسن وقت: ${bestToday(i)} · ${settingAr[setting[i]]} · ${season[i]}${shisha[i] ? "\n  فيه شيشة." : ""}
   قريب منه: ${neighbours[i].map((j) => `${nameAr[j]} (${distanceAr(i, j)})`).join(" · ")}
   يناسب: ${tags[i]}
   slug: \`${s}\` · الرابط: https://www.wainkw.com/places/${s}/`
