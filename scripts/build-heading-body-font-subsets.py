@@ -88,7 +88,14 @@ def build_static(src: Path, out: Path, unicodes: list[int]) -> None:
     subsetter = subset.Subsetter(options=opts)
     subsetter.populate(unicodes=unicodes)
     subsetter.subset(font)
+    # opts.flavor only reaches pyftsubset's own save helper, NOT font.save(). Without the
+    # line below these files were written as UNCOMPRESSED TrueType under a .woff2 name —
+    # 57-59 KB each where the same tables compress to 22-24 KB. Browsers sniff the bytes
+    # and render them anyway, so nothing ever looked wrong (found 2026-10-01).
+    font.flavor = 'woff2'
     font.save(str(out))
+    if out.read_bytes()[:4] != b'wOF2':
+        sys.exit(f'{out} is not WOFF2 after saving')
     print(f'wrote {out} ({out.stat().st_size} bytes)')
 
 

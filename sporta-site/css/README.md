@@ -1,6 +1,8 @@
-# The storefront stylesheet, one file per feature
+# The storefront stylesheets, one file per feature
 
-These files ARE `public_html/assets/sporta-ui.css`. Edit them here, then:
+The numbered files ARE `public_html/assets/sporta-ui.css`, and `sporta-dark.css`
+here IS `public_html/assets/sporta-dark.css` (the palette; it moved out of the
+docroot on 2026-10-01). Edit them here, then:
 
 ```
 npm run build:css
@@ -22,3 +24,8 @@ these sources, and the next build overwrites the edit.
   published; the built `assets/sporta-ui.css` is.
 - **`sporta-ui.css` is a fixed-name asset**, so any change here needs a
   `VERSION` bump in `sw.js` (`npm run test:sw-version` says when).
+- **Comments are NOT shipped** (since 2026-10-01). The build removes them, so
+  write as much explanation here as a rule needs: it costs a visitor nothing.
+  Before this, 74% of `sporta-ui.css` was comment — 83 KB gzipped on the live
+  server for about 11 KB of rules, on a file that blocks the first paint.
+  Read a rule's reasoning HERE, not in the built file.

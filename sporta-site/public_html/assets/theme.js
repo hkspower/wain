@@ -257,6 +257,18 @@
          kept its own face. test:theme caught it ("body uses the owner's
          face"). This element is appended after the stylesheet link, so at
          equal specificity and equal importance it now wins. */
+      /* THE ADOBE FONTS KIT, ONLY WHEN ITS FACE IS CHOSEN (2026-10-01). index.html
+         used to link it on every page, render-blocking, for a face the saved
+         theme never named. Inserted BEFORE this file's <style> so that element
+         stays last in the document, which is what lets these rules win. */
+      var KITS = { 'neue-frutiger-world': 'https://use.typekit.net/zht6lkq.css' }
+      var kit = KITS[t.font_head] || KITS[t.font_body]
+      if (kit && !document.querySelector('link[href="' + kit + '"]')) {
+        var link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = kit
+        document.head.insertBefore(link, el)
+      }
       if (t.font_body) {
         css += 'html, body, .eyebrow { font-family: "' + t.font_body + '", ' +
                STACK_BODY + ' !important; }\n'

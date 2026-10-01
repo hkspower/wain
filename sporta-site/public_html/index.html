@@ -384,8 +384,14 @@
          this stores the exact CSS family name Adobe generated,
          "neue-frutiger-world" (lower-case, hyphenated) — that literal string,
          not the display name, is what has to reach font-family or the
-         built-in fallback silently wins instead. -->
-    <link rel="stylesheet" href="https://use.typekit.net/zht6lkq.css" />
+         built-in fallback silently wins instead.
+
+         LOADED ONLY WHEN CHOSEN, since 2026-10-01. The <link> that sat here was
+         a render-blocking request to a third party on every page view of a shop
+         whose saved theme names no font at all (measured on the live server:
+         fieldsSet=0/12), so every visitor waited on Adobe's CDN for a face
+         nothing used. theme.js now adds this kit's stylesheet itself, and only
+         when the saved heading or body font is "neue-frutiger-world". -->
     <!-- The hero banner is preloaded by the boot script below, NOT here, and
          the 29 kB /favicon.png preload that used to sit on this line is gone.
          Both for the same reason: the home page's largest element changed.
