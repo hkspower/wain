@@ -23,10 +23,8 @@ import {
 // of place-kit.ts. The Place TYPE is erased at compile time, so it is free.
 import { getCategory, toArabicDigits, toArabicNumber } from "@/lib/place-kit";
 import type { Place } from "@/lib/places";
+import { PRICE_LABEL, SETTING_LABEL } from "@/lib/place-words";
 
-const priceLabel = ["", "اقتصادي", "متوسط", "راقي"];
-
-const SETTING_LABEL = { indoor: "مكيّف", outdoor: "برا", mixed: "داخلي وبرا" } as const;
 const SETTING_TONE = {
   indoor: "bg-sea-50 text-sea-700",
   outdoor: "bg-palm-500/12 text-palm-700",
@@ -243,7 +241,7 @@ export default function PlaceView({
             <IconCoins className="size-5 text-sand-600" />
             مستوى الأسعار
           </h2>
-          <p className="mt-1.5 text-sm text-ink-600">{priceLabel[place.priceLevel]}</p>
+          <p className="mt-1.5 text-sm text-ink-600">{PRICE_LABEL[place.priceLevel]}</p>
 
           {/* Kuwait's weather decides most outings for a third of the year, so
               it belongs on the page and not only in the search index. */}

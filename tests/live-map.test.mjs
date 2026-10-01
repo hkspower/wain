@@ -289,7 +289,12 @@ console.log('\n── a new answer is drawn where it is, with the map already op
 
   const box = p.getByRole('combobox', { name: 'ابحث في كل محتوى وين' });
   const PINS = `${MAP} a[href^="/places/"]`;
-  const count = () => p.locator(PINS).count();
+  // Places DRAWN, not pins: with more results some are grouped into a
+  // bubble, which carries how many it holds.
+  const count = async () =>
+    (await p.locator(PINS).count()) +
+    (await p.locator(`${MAP} button[data-count]`).evaluateAll((bs) =>
+      bs.reduce((n, b) => n + Number(b.getAttribute('data-count')), 0)));
   const where = () =>
     p.locator(PINS).evaluateAll((els) =>
       els.map((a) => {

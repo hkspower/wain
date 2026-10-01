@@ -415,3 +415,116 @@ export function embedUrl(f: MapFrame, marker?: LatLng): string {
 export function osmLink(p: LatLng, zoom = 15): string {
   return `https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lng}#map=${zoom}/${p.lat}/${p.lng}`;
 }
+
+/* ------------------------------------------------------------------ */
+/* Many pins                                                           */
+/* ------------------------------------------------------------------ */
+
+/** Grid cell, in container pixels: a little over a pin. */
+export const CLUSTER_CELL = 40;
+/** Two groups whose centres are closer than this are one: one pin apart. */
+export const CLUSTER_MERGE = 32;
+
+export interface Clustered<T> {
+  /** Container pixels — the members' centroid. */
+  x: number;
+  y: number;
+  members: T[];
+}
+
+/**
+ * Points closer than a pin, drawn as one bubble that says how many.
+ *
+ * `spreadPins` cannot do this, and on the frames where it matters it does
+ * nothing at all: its shift is capped at 60m on the ground, which is 0.2–0.5px
+ * on a frame showing the whole country. Measured on /search at 390px: «مكيف»
+ * put 34 pins in a 370×308 frame, 27 had their centre covered by another, and
+ * 17–19 could not be tapped at all; the 52-place map would be 42 of 52. So
+ * points are grouped instead — a grid of `CLUSTER_CELL`, then any two groups
+ * nearer than `CLUSTER_MERGE` merged, until none are. In container PIXELS,
+ * because what overlaps is a drawing, not the ground: the same two places are
+ * one bubble on the country and two pins on the street.
+ *
+ * `apart` keeps a point out of every group — the pin a visitor is pointing at,
+ * the result the search ranked first — so the thing being looked at is never
+ * swallowed by a number. Deterministic: same points in, same groups out.
+ */
+export function clusterPoints<T>(
+  points: { x: number; y: number; item: T }[],
+  apart: (item: T) => boolean = () => false
+): Clustered<T>[] {
+  // Every group carries the input position of its first member, and the
+  // answer comes back in that order. It used to be «groups, then the ones kept
+  // apart», so hovering a pin — which keeps it apart — moved it to the end of
+  // the overlay, React moved its node, and a pin that moves under the pointer
+  // between mousedown and mouseup never receives the click: on a desktop the
+  // first click on a pin stopped opening its place.
+  type Acc = { sx: number; sy: number; first: number; members: T[] };
+  const alone: (Clustered<T> & { first: number })[] = [];
+  const cells = new Map<string, Acc>();
+  points.forEach((p, i) => {
+    if (apart(p.item)) {
+      alone.push({ x: p.x, y: p.y, first: i, members: [p.item] });
+      return;
+    }
+    const key = `${Math.floor(p.x / CLUSTER_CELL)},${Math.floor(p.y / CLUSTER_CELL)}`;
+    let cell = cells.get(key);
+    if (!cell) cells.set(key, (cell = { sx: 0, sy: 0, first: i, members: [] }));
+    cell.sx += p.x;
+    cell.sy += p.y;
+    cell.members.push(p.item);
+  });
+  const groups = [...cells.values()].map((c) => ({
+    x: c.sx / c.members.length,
+    y: c.sy / c.members.length,
+    first: c.first,
+    members: c.members,
+  }));
+  for (let merged = true; merged; ) {
+    merged = false;
+    for (let i = 0; i < groups.length && !merged; i++) {
+      for (let j = i + 1; j < groups.length; j++) {
+        const a = groups[i];
+        const b = groups[j];
+        if (Math.hypot(a.x - b.x, a.y - b.y) >= CLUSTER_MERGE) continue;
+        const n = a.members.length + b.members.length;
+        groups[i] = {
+          x: (a.x * a.members.length + b.x * b.members.length) / n,
+          y: (a.y * a.members.length + b.y * b.members.length) / n,
+          first: Math.min(a.first, b.first),
+          members: [...a.members, ...b.members],
+        };
+        groups.splice(j, 1);
+        merged = true;
+        break;
+      }
+    }
+  }
+  return [...groups, ...alone]
+    .sort((a, b) => a.first - b.first)
+    .map(({ x, y, members }) => ({ x, y, members }));
+}
+
+/** How far a callout reaches from its pin: about half its widest. */
+const CALLOUT_HALF_W = 120;
+/** Head, nose and a three-line callout, stacked above the coordinate. */
+const CALLOUT_ABOVE = 124;
+
+/**
+ * Which way a pin's callout opens, from where the pin stands in PIXELS.
+ *
+ * It was decided as a fraction of the frame — open downwards in the top 28% —
+ * while the callout is a fixed size in pixels, so the rule was right for one
+ * frame height and wrong for the rest: 5 of 40 callouts were cut off at 390px
+ * and 12 of 40 at 320, the worst showing half its name.
+ */
+export function calloutSide(
+  x: number,
+  y: number,
+  frameW: number
+): { align: "start" | "center" | "end"; below: boolean } {
+  return {
+    align: x < CALLOUT_HALF_W ? "start" : frameW - x < CALLOUT_HALF_W ? "end" : "center",
+    below: y < CALLOUT_ABOVE,
+  };
+}

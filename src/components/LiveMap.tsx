@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import L, { type Map as LeafletMap } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { MapFrame } from "@/lib/map-frame";
@@ -52,6 +52,13 @@ import { ATTRIBUTION_AR, MAX_ZOOM, MIN_ZOOM, TILE_URL } from "@/lib/map-tiles";
  * its own width before it knows its bbox (see useFrameWidth), so the exported
  * HTML holds no map at all, on /search or on a place page.
  */
+/** What a caller can do with the view, and where it stands. */
+export interface LiveView {
+  /** Bring these places into view — what a bubble of several does when pressed. */
+  fitTo: (points: { lat: number; lng: number }[]) => void;
+  zoom: number | null;
+}
+
 /** Positions depend on the coordinates and nothing else, so they are the key. */
 const pointsKey = (points: { lat: number; lng: number }[]) =>
   points.map((p) => `${p.lat},${p.lng}`).join(";");
@@ -72,7 +79,11 @@ export default function LiveMap({
    * measured itself — drawing at 0,0 for one frame stacks every pin in the
    * corner and then scatters them, which reads as a glitch rather than a load.
    */
-  children: (pos: { x: number; y: number }[] | null, size: { w: number; h: number }) => React.ReactNode;
+  children: (
+    pos: { x: number; y: number }[] | null,
+    size: { w: number; h: number },
+    view: LiveView
+  ) => React.ReactNode;
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const pinsRef = useRef<HTMLDivElement | null>(null);
@@ -113,6 +124,9 @@ export default function LiveMap({
   const paintRef = useRef<() => void>(() => {});
   /** Fit a new set's frame and project it. Owned by the effect below too. */
   const refitRef = useRef<() => void>(() => {});
+  const fitToRef = useRef<LiveView["fitTo"]>(() => {});
+  // Stable, so a caller can hand it to every bubble without re-rendering them.
+  const fitTo = useCallback<LiveView["fitTo"]>((pts) => fitToRef.current(pts), []);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -258,6 +272,17 @@ export default function LiveMap({
       project();
     };
 
+    fitToRef.current = (pts) => {
+      if (!pts.length) return;
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      map.fitBounds(
+        L.latLngBounds(pts.map((p) => [p.lat, p.lng] as [number, number])),
+        // Not all the way down: a bubble of two places at one address would
+        // otherwise zoom to the tiles' limit and still be two pins on a dot.
+        { padding: [48, 48], maxZoom: 17, animate: !reduced }
+      );
+    };
+
     mapRef.current = map;
     project();
 
@@ -266,6 +291,7 @@ export default function LiveMap({
       mapRef.current = null;
       paintRef.current = () => {};
       refitRef.current = () => {};
+      fitToRef.current = () => {};
     };
     // The frame is the starting view only; see `refitRef` for a new set.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -302,7 +328,7 @@ export default function LiveMap({
           render. `will-change` so the browser keeps it on its own layer for
           the length of the drag rather than promoting it afresh each time. */}
       <div ref={pinsRef} style={{ willChange: "transform" }} className="pointer-events-none absolute inset-0 z-20">
-        {children(pos, size)}
+        {children(pos, size, { fitTo, zoom })}
       </div>
 
       {/* Zoom, in the site's own shapes rather than Leaflet's. Physical

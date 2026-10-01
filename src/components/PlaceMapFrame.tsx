@@ -5,7 +5,7 @@ import MapPin, { pinHeadroom } from "@/components/MapPin";
 import PlaceIcon from "@/components/PlaceIcon";
 import { IconPinSolid } from "@/components/icons";
 import type { Place } from "@/lib/places";
-import { embedUrl, fitFrameAround, pinShiftCap, project, spreadPins } from "@/lib/map-frame";
+import { calloutSide, embedUrl, fitFrameAround, pinShiftCap, project, spreadPins } from "@/lib/map-frame";
 import { useFrameWidth } from "@/lib/useFrameWidth";
 import { useLiveMap } from "@/lib/useLiveMap";
 import { IconMap } from "@/components/icons";
@@ -112,8 +112,9 @@ export default function PlaceMapFrame({
     p: (typeof all)[number],
     i: number,
     style: React.CSSProperties,
-    fx: number,
-    fy: number
+    x: number,
+    y: number,
+    w: number
   ) => {
     // The place the page is about. Not a link — you are already on it —
     // and not a plain dot either: it is the answer to the question the
@@ -138,6 +139,7 @@ export default function PlaceMapFrame({
       );
     }
 
+    const side = calloutSide(x, y, w);
     return (
       <MapPin
         key={p.slug}
@@ -146,8 +148,9 @@ export default function PlaceMapFrame({
         onActive={setActive}
         size={NEAR_PIN_PX}
         dim
-        align={fx < 0.28 ? "start" : fx > 0.72 ? "end" : "center"}
-        below={fy < 0.28}
+        align={side.align}
+        below={side.below}
+        stack={all.length - i}
         style={style}
       />
     );
@@ -188,8 +191,9 @@ export default function PlaceMapFrame({
                     p,
                     i,
                     { left: at[i].x, top: at[i].y, pointerEvents: "auto" },
-                    box.w ? at[i].x / box.w : 0.5,
-                    box.h ? at[i].y / box.h : 0.5
+                    at[i].x,
+                    at[i].y,
+                    box.w
                   )
                 )
               : null
@@ -218,8 +222,9 @@ export default function PlaceMapFrame({
                 i,
                 // Physical left/top on purpose: the page is RTL, geography is not.
                 { left: `${pins[i].x * 100}%`, top: `${pins[i].y * 100}%` },
-                pins[i].x,
-                pins[i].y
+                pins[i].x * frameW,
+                (pins[i].y * frameW) / (f?.aspect ?? 1),
+                frameW
               )
             )}
 

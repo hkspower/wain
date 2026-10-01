@@ -168,8 +168,10 @@ console.log('\n── the pin points at its own coordinate ──');
   const geom = await map.evaluate((section) => {
     const box = section.querySelector('[data-map-frame]');
     const br = box.getBoundingClientRect();
+    // An approximate pin has no tip — it is a round head CENTRED on the
+    // area, and is measured on its own below.
     return [...box.children]
-      .filter((c) => c.style.left && c.style.top)
+      .filter((c) => c.style.left && c.style.top && c.querySelector('a') && !c.hasAttribute('data-approx'))
       .slice(0, 6)
       .map((pin) => {
         const wantedY = br.top + (parseFloat(pin.style.top) / 100) * br.height;
@@ -195,6 +197,25 @@ console.log('\n── the pin points at its own coordinate ──');
   // which means the -translate-y-full was lost and every pin is half a pin low.
   ok('the head stands above the point, not on top of it',
     geom.every((g) => g.headAbove > 20), geom.map((g) => g.headAbove).join(', '));
+
+  // An approximate coordinate is «the right area, not the right building»: no
+  // tip to claim a door, and the round head sits ON the area instead of
+  // standing above it. «قهوة» returns one (المباركية's tea houses).
+  const approx = await map.evaluate((section) => {
+    const box = section.querySelector('[data-map-frame]');
+    const br = box.getBoundingClientRect();
+    return [...box.querySelectorAll(':scope > [data-approx]')].map((pin) => {
+      const a = pin.querySelector('a');
+      const ar = a.getBoundingClientRect();
+      return {
+        tip: !!a.querySelector(':scope > span[aria-hidden]:not([class*="ping"])'),
+        dy: +((ar.top + ar.bottom) / 2 - (br.top + (parseFloat(pin.style.top) / 100) * br.height)).toFixed(2),
+      };
+    });
+  });
+  ok('an approximate pin is drawn on the page', approx.length > 0, `${approx.length}`);
+  ok('it has no tip, and its head is centred on the area',
+    approx.length > 0 && approx.every((g) => !g.tip && Math.abs(g.dy) <= 1.5), JSON.stringify(approx));
   await ctx.close();
 }
 

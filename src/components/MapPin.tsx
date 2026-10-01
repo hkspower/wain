@@ -6,6 +6,7 @@ import PlaceIcon from "@/components/PlaceIcon";
 import { IconGo, IconStar } from "@/components/icons";
 import { toArabicNumber, type CategoryId } from "@/lib/place-kit";
 import type { Place } from "@/lib/places";
+import { APPROX_PIN, PRICE_LABEL, SETTING_LABEL, pinLabel } from "@/lib/place-words";
 
 /**
  * One place on a map, on both maps.
@@ -131,6 +132,7 @@ export default function MapPin({
   dim = false,
   align = "center",
   below = false,
+  stack = 0,
   style,
 }: {
   place: Place;
@@ -149,6 +151,13 @@ export default function MapPin({
   align?: "start" | "center" | "end";
   /** Open downwards, for a pin close enough to the top to be clipped upwards. */
   below?: boolean;
+  /**
+   * Higher paints on top. Pins used to share one z-index and paint in result
+   * order, so the FIRST result was drawn first and buried under the rest — on
+   * /search at 390px the top pick was the covered one in three queries of
+   * four. The caller passes `total - rank`.
+   */
+  stack?: number;
   style?: React.CSSProperties;
 }) {
   const hoverless = useHoverless();
@@ -187,11 +196,21 @@ export default function MapPin({
    * head is still what must not overlap its neighbours.
    */
   const nose = Math.round(size * 0.34);
+  /**
+   * An approximate coordinate is drawn as what it is: a round head over the
+   * area, dashed, with no tip. A pointed pin claims a door, and sixteen of
+   * the catalogue's coordinates are only «the right area, not the right
+   * building» in its own words — they were drawn exactly like the surveyed
+   * ones, with only the place page itself saying otherwise. Shape and not a
+   * ring around it: a ring would need a radius, and no place has one.
+   */
+  const approx = !!place.coordsUnverified;
 
   return (
     <span
-      style={style}
-      className={`absolute -translate-x-1/2 -translate-y-full ${active ? "z-30" : dim ? "z-10" : "z-20"}`}
+      style={{ ...style, zIndex: active ? 1000 : (dim ? 100 : 200) + stack }}
+      data-approx={approx ? "" : undefined}
+      className={`absolute -translate-x-1/2 ${approx ? "-translate-y-1/2" : "-translate-y-full"}`}
     >
       {/* The halo sits behind and is the thing that makes the active pin
           findable at a glance on a busy frame. It never intercepts a tap.
@@ -201,7 +220,9 @@ export default function MapPin({
         <span
           aria-hidden="true"
           style={{ width: size * 2, height: size * 2 }}
-          className={`pointer-events-none absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 animate-ping rounded-full motion-reduce:animate-none ${RING[place.category]}`}
+          className={`pointer-events-none absolute left-1/2 -translate-x-1/2 animate-ping rounded-full motion-reduce:animate-none ${
+            approx ? "top-1/2 -translate-y-1/2" : "bottom-0 translate-y-1/2"
+          } ${RING[place.category]}`}
         />
       )}
 
@@ -235,7 +256,7 @@ export default function MapPin({
             onActive(place.slug);
           }
         }}
-        aria-label={`${place.nameAr} — ${place.areaAr}`}
+        aria-label={pinLabel(place)}
         aria-current={active ? "true" : undefined}
         style={{
           width: size,
@@ -244,23 +265,24 @@ export default function MapPin({
           // the point it is naming. Scaling about the head's centre moves the
           // tip by a couple of pixels on every hover, which on a map reads as
           // the place itself twitching.
-          transformOrigin: `50% ${size + nose / 2}px`,
+          transformOrigin: approx ? "50% 50%" : `50% ${size + nose / 2}px`,
           // Half the nose's DIAGONAL, not its side. The square is centred on
           // the head's bottom edge and turned 45°, so the corner that forms
           // the tip reaches nose·√2/2 below that edge — reserving `nose` here
           // instead left the tip 4.6px short of the coordinate it names, which
           // is most of a city block at the zoom a place page opens at.
-          marginBottom: nose * Math.SQRT1_2,
+          marginBottom: approx ? 0 : nose * Math.SQRT1_2,
         }}
         className={`relative grid place-items-center rounded-full border-2 border-white text-white shadow-md ring-1 ring-ink-900/10 transition duration-200 hover:scale-110 focus-visible:scale-110 ${
-          TONE[place.category]
-        } ${active ? "scale-110 shadow-xl" : dim ? "opacity-80" : ""}`}
+          approx ? "border-dashed" : ""
+        } ${TONE[place.category]} ${active ? "scale-110 shadow-xl" : dim ? "opacity-80" : ""}`}
       >
         <PlaceIcon slug={place.slug} className={size >= 32 ? "size-5" : "size-4"} />
         {/* The nose. A square on its corner, tucked under the head so the two
             read as one shape — and a child of the link, so it scales with the
             head instead of staying behind while the head grows. The white on
             its two outer edges continues the head's border down to the tip. */}
+        {!approx && (
         <span
           aria-hidden="true"
           /**
@@ -276,22 +298,33 @@ export default function MapPin({
             TONE[place.category]
           }`}
         />
+        )}
       </Link>
 
       {/* The callout. On a phone this is the whole reason the first tap does
-          not navigate: it carries the name, the area and the rating, and it is
-          itself the way in — so the second tap has somewhere obvious to land. */}
+          not navigate: it carries the name, the area and the rating, and the
+          second tap on the pin opens the place.
+
+          Only the active pin has one. Every pin used to carry its own at
+          opacity 0, with a backdrop blur and a large shadow — about half its
+          DOM nodes, painted on every frame of every drag, and read aloud by a
+          screen reader as a second copy of the pin's name. The blur was over
+          a background already 95% opaque. aria-hidden: the link's own name
+          (`pinLabel`) says all of this once. */}
+      {active && (
       <span
-        className={`pointer-events-none absolute transition duration-200 ${
-          below ? "top-full mt-2" : "bottom-full mb-2"
-        } ${
+        aria-hidden="true"
+        className={`pointer-events-none absolute ${below ? "top-full mt-2" : "bottom-full mb-2"} ${
           align === "start" ? "left-0" : align === "end" ? "right-0" : "left-1/2 -translate-x-1/2"
-        } ${active ? "opacity-100" : "translate-y-1 opacity-0"}`}
+        }`}
       >
-        <span className="flex items-center gap-2 whitespace-nowrap rounded-xl bg-ink-900/95 px-2.5 py-1.5 text-white shadow-xl backdrop-blur-sm">
+        <span className="flex items-center gap-2 whitespace-nowrap rounded-xl bg-ink-900/95 px-2.5 py-1.5 text-white shadow-lg">
           <span className="flex flex-col items-start leading-tight">
             <span className="text-2xs font-semibold">{place.nameAr}</span>
-            <span className="text-2xs text-sand-300">{place.areaAr}</span>
+            <span className="text-2xs text-sand-300">
+              {place.areaAr} · {SETTING_LABEL[place.setting]} · {PRICE_LABEL[place.priceLevel]}
+            </span>
+            {approx && <span className="text-2xs text-sun-300">{APPROX_PIN}</span>}
           </span>
           {place.rating !== undefined && (
             // text-2xs, matching the tooltip's own name/area lines above and
@@ -314,6 +347,7 @@ export default function MapPin({
           }`}
         />
       </span>
+      )}
     </span>
   );
 }

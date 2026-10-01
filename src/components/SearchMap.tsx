@@ -1,11 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import ClusterPin from "@/components/ClusterPin";
 import MapPin, { pinHeadroom } from "@/components/MapPin";
 import { IconMap, IconPinSolid } from "@/components/icons";
 import { RESULTS_COUNT, countAr, toArabicDigits } from "@/lib/place-kit";
 import type { Place } from "@/lib/places";
-import { embedUrl, fitFrame, osmLink, pinShiftCap, project, spreadPins } from "@/lib/map-frame";
+import {
+  calloutSide,
+  clusterPoints,
+  embedUrl,
+  fitFrame,
+  osmLink,
+  pinShiftCap,
+  project,
+  spreadPins,
+} from "@/lib/map-frame";
 import { useFrameWidth } from "@/lib/useFrameWidth";
 import { useLiveMap } from "@/lib/useLiveMap";
 
@@ -74,31 +84,44 @@ export default function SearchMap({
   const [frameRef, frameW] = useFrameWidth<HTMLDivElement>();
   const live = useLiveMap();
 
+  /**
+   * The places of a bubble the visitor pressed: the static frame refits to
+   * just them, which is the static map's way of zooming — a new view from
+   * the same embed, no 42K of Leaflet. Cleared when the results change.
+   */
+  const [focus, setFocus] = useState<string[] | null>(null);
+  const resultsKey = places.map((p) => p.slug).join(",");
+  useEffect(() => setFocus(null), [resultsKey]);
+  const framed = useMemo(
+    () => (focus ? places.filter((p) => focus.includes(p.slug)) : places),
+    [places, focus]
+  );
+
   const maxAspect = frameW < PHONE_FRAME_PX ? 1.7 : 2.4;
   const f = useMemo(
     () =>
-      places.length && frameW > 0
+      framed.length && frameW > 0
         ? // The pins stand above their coordinates, so the frame has to leave
           // them somewhere to stand — otherwise the northernmost result, which
           // the search just decided was worth showing, is drawn with its head
           // cut off by the frame's own border.
-          fitFrame(places, { maxAspect, headroom: pinHeadroom(PIN_PX), frameW })
+          fitFrame(framed, { maxAspect, headroom: pinHeadroom(PIN_PX), frameW })
         : null,
-    [places, maxAspect, frameW]
+    [framed, maxAspect, frameW]
   );
   const pins = useMemo(() => {
     if (!f) return [];
+    const at = places.map((p) => project(f, p));
+    // Only once zoomed into a bubble: on the wide view, places closer than a
+    // pin are grouped instead, and the nudge — capped at 60m on the ground —
+    // moved them half a pixel on a country-wide frame while costing O(n²).
+    if (!focus) return at;
     const size = PIN_PX / frameW;
     // Bound the anti-overlap nudge on the ground too. A result set spanning
     // the whole country makes one pin width worth kilometres, and a pin that
     // far from its place is worse than one that overlaps its neighbour.
-    return spreadPins(
-      places.map((p) => project(f, p)),
-      size,
-      f.aspect,
-      pinShiftCap(f, size)
-    );
-  }, [places, f, frameW]);
+    return spreadPins(at, size, f.aspect, pinShiftCap(f, size));
+  }, [places, f, frameW, focus]);
 
   if (places.length === 0) return null;
 
@@ -110,25 +133,28 @@ export default function SearchMap({
    * logic — which edge to hang off, whether to drop below — is written once
    * and cannot come to differ between the two maps.
    */
-  const renderPin = (
-    p: Place,
-    style: React.CSSProperties,
-    fx: number,
-    fy: number
-  ) => (
-    <MapPin
-      key={p.slug}
-      place={p}
-      active={active === p.slug}
-      onActive={(slug) => onActive?.(slug)}
-      size={PIN_PX}
-      // The frame clips its overflow, so a callout centred on a pin near
-      // an edge would lose the half with the name on it.
-      align={fx < 0.28 ? "start" : fx > 0.72 ? "end" : "center"}
-      below={fy < 0.28}
-      style={style}
-    />
-  );
+  const rank = new Map(places.map((p, i) => [p.slug, i]));
+  const renderPin = (p: Place, style: React.CSSProperties, x: number, y: number, w: number) => {
+    // The frame clips its overflow, so a callout centred on a pin near an
+    // edge would lose the half with the name on it.
+    const side = calloutSide(x, y, w);
+    return (
+      <MapPin
+        key={p.slug}
+        place={p}
+        active={active === p.slug}
+        onActive={(slug) => onActive?.(slug)}
+        size={PIN_PX}
+        align={side.align}
+        below={side.below}
+        stack={places.length - (rank.get(p.slug) ?? places.length)}
+        style={style}
+      />
+    );
+  };
+  // Never inside a bubble: the place being pointed at, and the one the search
+  // ranked first — the answer is not a number on a disc.
+  const apart = (p: Place) => p.slug === active || p.slug === places[0]?.slug;
 
   return (
     <section className="mb-4" aria-labelledby="search-map-heading">
@@ -145,6 +171,15 @@ export default function SearchMap({
               fetch tiles on, and tiles configured at all. Not offered once
               the live map is up: it would be a button that does nothing, and
               the map itself is then the evidence that it worked. */}
+          {focus && (
+            <button
+              type="button"
+              onClick={() => setFocus(null)}
+              className="flex min-h-6 items-center rounded-full border border-line-control bg-white px-3 py-1 text-xs font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
+            >
+              كل النتائج
+            </button>
+          )}
           {f && online && live.available && !live.live && (
             <button
               type="button"
@@ -214,21 +249,41 @@ export default function SearchMap({
             // is the one visitor who hears the whole phrase.
             ariaLabel={`خريطة ${countAr(places.length, RESULTS_COUNT)}، تقدر تحركها`}
           >
-            {(at, box) =>
-              at
-                ? places.map((p, i) =>
-                    renderPin(
-                      p,
-                      // `pointerEvents` because the overlay layer is
-                      // `pointer-events-none` — it must not swallow the drag
-                      // that pans the map, and a pin must still be tappable.
-                      { left: at[i].x, top: at[i].y, pointerEvents: "auto" },
-                      box.w ? at[i].x / box.w : 0.5,
-                      box.h ? at[i].y / box.h : 0.5
-                    )
+            {(at, box, view) => {
+              if (!at) return null;
+              // Every place, including the ones panned out of view: a pan moves
+              // the overlay by a transform and only re-projects when it ends,
+              // so a pin dropped for being off-screen would stay missing while
+              // the visitor drags it back in. The frame's overflow clips them.
+              const shown = places.map((p, i) => ({ x: at[i].x, y: at[i].y, item: p }));
+              // At street level every place is drawn as itself — a bubble
+              // that a press cannot split would be a trap.
+              const groups =
+                (view.zoom ?? 0) >= 16
+                  ? shown.map((q) => ({ x: q.x, y: q.y, members: [q.item] }))
+                  : clusterPoints(shown, apart);
+              return groups.map((g) =>
+                g.members.length === 1 ? (
+                  renderPin(
+                    g.members[0],
+                    // `pointerEvents` because the overlay layer is
+                    // `pointer-events-none` — it must not swallow the drag
+                    // that pans the map, and a pin must still be tappable.
+                    { left: g.x, top: g.y, pointerEvents: "auto" },
+                    g.x,
+                    g.y,
+                    box.w
                   )
-                : null
-            }
+                ) : (
+                  <ClusterPin
+                    key={`group:${g.members[0].slug}:${g.members.length}`}
+                    count={g.members.length}
+                    onZoom={() => view.fitTo(g.members)}
+                    style={{ left: g.x, top: g.y, pointerEvents: "auto" }}
+                  />
+                )
+              );
+            }}
           </live.LiveMap>
         ) : (
           <>
@@ -250,16 +305,33 @@ export default function SearchMap({
             )}
 
             {f &&
-              places.map((p, i) =>
-                renderPin(
-                  p,
-                  // Physical left/top on purpose. The page is RTL, but geography
-                  // is not — a logical inset would mirror the map east-to-west.
-                  { left: `${pins[i].x * 100}%`, top: `${pins[i].y * 100}%` },
-                  pins[i].x,
-                  pins[i].y
-                )
-              )}
+              (() => {
+                const W = frameW;
+                const H = frameW / f.aspect;
+                const shown = places
+                  .map((p, i) => ({ x: pins[i].x * W, y: pins[i].y * H, item: p }))
+                  .filter((q) => q.x > -PIN_PX && q.x < W + PIN_PX && q.y > -PIN_PX && q.y < H + PIN_PX * 2);
+                // Zoomed into a bubble, every place is drawn as itself (and
+                // nudged apart, above); on the wide view, grouped.
+                const groups = focus
+                  ? shown.map((q) => ({ x: q.x, y: q.y, members: [q.item] }))
+                  : clusterPoints(shown, apart);
+                return groups.map((g) => {
+                  // Physical left/top on purpose. The page is RTL, but
+                  // geography is not — a logical inset would mirror the map.
+                  const style = { left: `${(g.x / W) * 100}%`, top: `${(g.y / H) * 100}%` };
+                  return g.members.length === 1 ? (
+                    renderPin(g.members[0], style, g.x, g.y, W)
+                  ) : (
+                    <ClusterPin
+                      key={`group:${g.members[0].slug}:${g.members.length}`}
+                      count={g.members.length}
+                      onZoom={() => setFocus(g.members.map((m) => m.slug))}
+                      style={style}
+                    />
+                  );
+                });
+              })()}
           </>
         )}
       </div>

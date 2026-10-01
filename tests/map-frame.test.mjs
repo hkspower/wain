@@ -282,7 +282,7 @@ console.log("\n── no points is a mistake, and it says so ──");
   ];
   const src = (p) => readFileSync(join(ROOT, p), "utf8");
   ok("SearchMap still guards the empty case it can actually hit",
-    /places\.length && frameW > 0/.test(src(live[0][1])) && /places\.length === 0\) return null/.test(src(live[0][1])));
+    /(?:places|framed)\.length && frameW > 0/.test(src(live[0][1])) && /places\.length === 0\) return null/.test(src(live[0][1])));
   ok("and no caller was left throwing at a visitor",
     !/fitFrame\(\s*\[\s*\]/.test(live.map(([, p]) => src(p)).join("\n")));
 }
@@ -410,6 +410,56 @@ console.log("\n── clicking the picker means what it says ──");
       }
   ok("click → coordinate → pin round-trips through zoom and re-centre",
     worst < 1e-9, `worst ${worst.toExponential(2)} of the frame`);
+}
+
+console.log("\n── many pins: grouped where they would cover each other ──");
+{
+  const { clusterPoints, calloutSide, CLUSTER_MERGE } = M;
+  const two = clusterPoints([{ x: 100, y: 100, item: "a" }, { x: 110, y: 104, item: "b" }]);
+  ok("two pins ten pixels apart are one bubble of two", two.length === 1 && two[0].members.length === 2, JSON.stringify(two));
+  const far = clusterPoints([{ x: 100, y: 100, item: "a" }, { x: 220, y: 100, item: "b" }]);
+  ok("two a hundred pixels apart stay two pins", far.length === 2, JSON.stringify(far));
+  // A grid alone splits a pair that straddles a cell edge; the merge pass is
+  // what makes «closer than a pin» hold wherever the edge falls.
+  const edge = clusterPoints([{ x: 39, y: 10, item: "a" }, { x: 41, y: 10, item: "b" }]);
+  ok("two pins either side of a grid line still merge", edge.length === 1, JSON.stringify(edge));
+  const kept = clusterPoints([{ x: 100, y: 100, item: "a" }, { x: 104, y: 100, item: "b" }], (i) => i === "a");
+  ok("the pin being pointed at is never swallowed by a bubble",
+    kept.length === 2 && kept.some((g) => g.members.length === 1 && g.members[0] === "a"), JSON.stringify(kept));
+  // Keeping a pin apart must not move it in the answer: the order IS the DOM
+  // order, and a node React moves between mousedown and mouseup loses the
+  // click. Three spread-out pins, the middle one pointed at.
+  const row = [{ x: 0, y: 0, item: "a" }, { x: 200, y: 0, item: "b" }, { x: 400, y: 0, item: "c" }];
+  const order = (gs) => gs.map((g) => g.members[0]).join("");
+  ok("pointing at a pin does not move it in the drawing order",
+    order(clusterPoints(row)) === "abc" && order(clusterPoints(row, (i) => i === "b")) === "abc",
+    `${order(clusterPoints(row))} / ${order(clusterPoints(row, (i) => i === "b"))}`);
+
+  // Every place in the catalogue, on a phone-width frame of the whole country
+  // — the all-places map. Measured unclustered: 42 of 52 centres covered.
+  const W = 370;
+  const f = fitFrame(places, { maxAspect: 1.7, headroom: pinHeadroom(SEARCH_PIN_PX), frameW: W });
+  const H = W / f.aspect;
+  const pts = places.map((pl) => {
+    const q = project(f, pl);
+    return { x: q.x * W, y: q.y * H, item: pl.slug };
+  });
+  const groups = clusterPoints(pts);
+  const drawn = groups.flatMap((g) => g.members);
+  ok("every place is drawn exactly once, alone or in a bubble",
+    drawn.length === places.length && new Set(drawn).size === places.length, `${drawn.length} drawn of ${places.length}`);
+  let closest = Infinity;
+  for (let i = 0; i < groups.length; i++)
+    for (let j = i + 1; j < groups.length; j++)
+      closest = Math.min(closest, Math.hypot(groups[i].x - groups[j].x, groups[i].y - groups[j].y));
+  ok(`and no two markers stand closer than a pin (${CLUSTER_MERGE}px)`, closest >= CLUSTER_MERGE,
+    `closest pair ${closest.toFixed(1)}px, ${groups.length} markers`);
+
+  ok("a callout near the left edge opens rightwards", calloutSide(30, 300, W).align === "start");
+  ok("near the right edge, leftwards", calloutSide(W - 30, 300, W).align === "end");
+  ok("in the middle, centred", calloutSide(W / 2, 300, W).align === "center");
+  ok("near the top it opens below the pin, whatever the frame's height", calloutSide(W / 2, 90, W).below &&
+    !calloutSide(W / 2, 200, W).below);
 }
 
 console.log(
