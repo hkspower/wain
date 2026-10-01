@@ -1,7 +1,7 @@
-/// The frame around every screen: a bottom bar with the site's three tabs
-/// (الرئيسية، استكشف، بحث), and the same safe-area handling on every route.
-/// The site only shows this bar to the installed app; a native app is always
-/// the installed app.
+/// The frame around the three tabs: a bottom bar with the site's three tabs
+/// (الرئيسية، استكشف، بحث). The site only shows this bar to the installed app;
+/// a native app is always the installed app. Pushed screens (a place, /find,
+/// سالم, the static pages) open over it, on the root navigator.
 library;
 
 import 'package:flutter/material.dart';
@@ -13,60 +13,131 @@ import '../theme/colors.dart';
 import '../widgets/svg.dart';
 
 class _Tab {
-  final String path;
   final String label;
   final String icon;
-  final bool exact;
-  const _Tab(this.path, this.label, this.icon, {this.exact = false});
+  const _Tab(this.label, this.icon);
 }
 
+/// In branch order: router.dart's three StatefulShellBranches.
 const _tabs = [
-  _Tab('/', 'الرئيسية', 'home', exact: true),
-  _Tab('/explore', 'استكشف', 'compass'),
-  _Tab('/search', 'بحث', 'search'),
+  _Tab('الرئيسية', 'home'),
+  _Tab('استكشف', 'compass'),
+  _Tab('بحث', 'search'),
 ];
 
-class AppShell extends StatelessWidget {
-  final String location;
-  final Widget child;
-  const AppShell({super.key, required this.location, required this.child});
+/// Re-tapping the tab you are already on: back to the top, the way every
+/// native tab bar answers it. The tab's page listens; the bar only announces.
+class _Reselect extends ChangeNotifier {
+  int index = -1;
+  void announce(int i) {
+    index = i;
+    notifyListeners();
+  }
+}
 
-  bool _active(_Tab t) =>
-      t.exact ? location == t.path : location.startsWith(t.path);
+final _reselect = _Reselect();
+
+/// Wraps a tab root: when its tab is tapped again, its primary scroll view
+/// (every tab root is one — no screen gives its list its own controller)
+/// returns to the top.
+class ReselectScrollsToTop extends StatefulWidget {
+  final int index;
+  final Widget child;
+  const ReselectScrollsToTop({
+    super.key,
+    required this.index,
+    required this.child,
+  });
+
+  @override
+  State<ReselectScrollsToTop> createState() => _ReselectScrollsToTopState();
+}
+
+class _ReselectScrollsToTopState extends State<ReselectScrollsToTop> {
+  @override
+  void initState() {
+    super.initState();
+    _reselect.addListener(_onReselect);
+  }
+
+  @override
+  void dispose() {
+    _reselect.removeListener(_onReselect);
+    super.dispose();
+  }
+
+  void _onReselect() {
+    if (_reselect.index != widget.index) return;
+    final c = PrimaryScrollController.maybeOf(context);
+    if (c == null || !c.hasClients) return;
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    if (reduce) {
+      c.jumpTo(0);
+    } else {
+      c.animateTo(
+        0,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+class AppShell extends StatelessWidget {
+  final StatefulNavigationShell shell;
+  const AppShell({super.key, required this.shell});
+
+  void _tap(int i) {
+    HapticFeedback.selectionClick();
+    if (i == shell.currentIndex) {
+      // Only the scroll moves. Going to the branch's initial location would
+      // also drop `?q=`, and SearchScreen reads a changed query as a new
+      // search — re-tapping «بحث» would wipe what was typed.
+      _reselect.announce(i);
+    } else {
+      shell.goBranch(i);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // /find and /salem are full-bleed and carry their own way back.
-    final showBar =
-        !location.startsWith('/find') && !location.startsWith('/salem');
-    return Scaffold(
-      body: SafeArea(bottom: !showBar, child: child),
-      bottomNavigationBar: showBar
-          ? DecoratedBox(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(top: BorderSide(color: WainColors.line)),
-              ),
-              child: SafeArea(
-                top: false,
-                child: Row(
-                  children: [
-                    for (final t in _tabs)
-                      Expanded(
-                        child: _TabButton(
-                          tab: t,
-                          active: _active(t),
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            context.go(t.path);
-                          },
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            )
-          : null,
+    final index = shell.currentIndex;
+    // Android's back button on Explore or Search goes Home, the way a tabbed
+    // app answers it; on Home it leaves the app as usual. Before this the
+    // tabs were switched with `go`, which left nothing behind them, so back
+    // on Explore closed the app.
+    return PopScope(
+      canPop: index == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && index != 0) shell.goBranch(0);
+      },
+      child: Scaffold(
+        body: SafeArea(bottom: false, child: shell),
+        bottomNavigationBar: DecoratedBox(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(top: BorderSide(color: WainColors.line)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Row(
+              children: [
+                for (var i = 0; i < _tabs.length; i++)
+                  Expanded(
+                    child: _TabButton(
+                      tab: _tabs[i],
+                      active: i == index,
+                      onTap: () => _tap(i),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

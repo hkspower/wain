@@ -462,7 +462,10 @@ class _ResultRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(WainRadius.s2xl),
         child: InkWell(
           borderRadius: BorderRadius.circular(WainRadius.s2xl),
-          onTap: () => context.push(_route),
+          onTap: () => _route.startsWith('/places/')
+              ? context.push(_route)
+              // A category row is the Explore TAB, switched to, not pushed.
+              : context.go(_route),
           child: Ink(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(WainRadius.s2xl),
@@ -577,7 +580,7 @@ class _DeadEnd extends StatelessWidget {
             child: const Text('تصفّح كل الأماكن'),
           ),
           TextButton(
-            onPressed: () => context.go('/add'),
+            onPressed: () => context.push('/add'),
             child: const Text('سجّل مكانك مجاناً'),
           ),
         ],

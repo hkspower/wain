@@ -2,10 +2,13 @@
 // without an exception (a RenderFlex overflow IS an exception in tests).
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:wain/app/deep_link.dart';
 import 'package:wain/app/app_state.dart';
 import 'package:wain/data/places.g.dart';
 import 'package:wain/main.dart';
 import 'package:wain/map/wain_map.dart';
+import 'package:wain/screens/home_screen.dart';
 
 Future<void> pumpAt(
   WidgetTester t,
@@ -23,6 +26,7 @@ Future<void> pumpAt(
 
 void main() {
   _backSwipeTests();
+  _nativeNavigationTests();
   setUp(() => debugTileUrl = '');
   tearDown(() => debugTileUrl = null);
 
@@ -197,4 +201,87 @@ void _backSwipeTests() {
     await swipeBack(t);
     expect(find.text('إلى وين؟'), findsOneWidget);
   }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+}
+
+/// The tab bar's own button — the page can carry the same word (Explore's
+/// heading starts with «استكشف»).
+Finder tab(String label) => find.descendant(
+  of: find.byWidgetPredicate(
+    (w) =>
+        w is Semantics &&
+        w.properties.label == label &&
+        w.properties.selected != null,
+  ),
+  matching: find.text(label),
+);
+
+Future<void> settleSteps(WidgetTester t) async {
+  // Fixed steps, not pumpAndSettle: the home's sky never stops moving.
+  for (var i = 0; i < 8; i++) {
+    await t.pump(const Duration(milliseconds: 80));
+  }
+}
+
+void _nativeNavigationTests() {
+  testWidgets('a tab keeps its state: the search survives a trip to Explore', (
+    t,
+  ) async {
+    debugTileUrl = '';
+    addTearDown(() => debugTileUrl = null);
+    await pumpAt(t, '/search');
+    await t.enterText(find.byKey(const ValueKey('search-input')), 'قهوة');
+    await settleSteps(t);
+    await t.tap(tab('استكشف'));
+    await settleSteps(t);
+    expect(find.textContaining('استكشف الكويت'), findsWidgets);
+    await t.tap(tab('بحث'));
+    await settleSteps(t);
+    final field = t.widget<TextField>(
+      find.byKey(const ValueKey('search-input')),
+    );
+    expect(field.controller?.text, 'قهوة');
+  });
+
+  testWidgets('Android back on Explore goes Home instead of closing the app', (
+    t,
+  ) async {
+    await pumpAt(t, '/');
+    await t.tap(tab('استكشف'));
+    await settleSteps(t);
+    expect(find.text('إلى وين؟'), findsNothing);
+    await t.binding.handlePopRoute();
+    await settleSteps(t);
+    expect(find.text('إلى وين؟'), findsOneWidget);
+  });
+
+  testWidgets('a place opened from a link has Home behind it', (t) async {
+    await pumpAt(t, '/');
+    final router = GoRouter.of(t.element(find.byType(HomeScreen)));
+    openLink(router, Uri.parse('https://www.wainkw.com/places/kuwait-towers/'));
+    await settleSteps(t);
+    expect(find.text('أبراج الكويت'), findsWidgets);
+    await t.binding.handlePopRoute();
+    await settleSteps(t);
+    expect(find.text('إلى وين؟'), findsOneWidget);
+  });
+
+  testWidgets('tapping the tab you are on scrolls it back to the top', (
+    t,
+  ) async {
+    await pumpAt(t, '/explore');
+    await t.drag(find.byType(CustomScrollView), const Offset(0, -1500));
+    await settleSteps(t);
+    final scroll = t.state<ScrollableState>(
+      find
+          .descendant(
+            of: find.byType(CustomScrollView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    expect(scroll.position.pixels, greaterThan(500));
+    await t.tap(tab('استكشف'));
+    await settleSteps(t);
+    expect(scroll.position.pixels, 0);
+  });
 }

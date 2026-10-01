@@ -44,7 +44,11 @@ class _WainAppState extends State<WainApp> {
     sessionFactory: ElevenLabsSession.new,
     places: kPlaces,
     indexOf: () => searchIndex,
-    navigate: (location) => _router.go(location),
+    // A place opens ON TOP of whatever she was showing, so back returns
+    // there; a search is the Search tab, switched to with its query.
+    navigate: (location) => location.startsWith('/places/')
+        ? _router.push(location)
+        : _router.go(location),
     checkMic: checkMicrophone,
   );
 
@@ -63,6 +67,8 @@ class _WainAppState extends State<WainApp> {
     try {
       final links = AppLinks();
       final first = await links.getInitialLink();
+      // Cold start from a link: the place opens over Home, so back (or the
+      // iOS swipe) lands somewhere instead of closing the app.
       if (first != null) _open(first);
       _links = links.uriLinkStream.listen(_open, onError: (_) {});
     } catch (_) {
@@ -70,10 +76,7 @@ class _WainAppState extends State<WainApp> {
     }
   }
 
-  void _open(Uri link) {
-    final where = locationFromLink(link);
-    if (where != null) _router.go(where);
-  }
+  void _open(Uri link) => openLink(_router, link);
 
   late final VoiceService _voice = VoiceService(
     player: AudioClipPlayer(),

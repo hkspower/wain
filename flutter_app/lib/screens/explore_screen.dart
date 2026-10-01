@@ -32,6 +32,22 @@ class _ExploreScreenState extends State<ExploreScreen> {
       ? widget.initialCategory
       : null;
 
+  /// The tab keeps its state now, so a new `?category=` (a category row on
+  /// /search, a breadcrumb) arrives as new widget props on the SAME state —
+  /// read it, or the link lands on whatever filter was there before.
+  @override
+  void didUpdateWidget(ExploreScreen old) {
+    super.didUpdateWidget(old);
+    if (widget.initialCategory != old.initialCategory) {
+      _category = kCategories.any((c) => c.id == widget.initialCategory)
+          ? widget.initialCategory
+          : null;
+    }
+    if (widget.initialQuery != old.initialQuery) {
+      _controller.text = widget.initialQuery;
+    }
+  }
+
   @override
   void dispose() {
     _controller.dispose();

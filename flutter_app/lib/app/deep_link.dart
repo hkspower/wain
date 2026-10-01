@@ -4,6 +4,8 @@
 /// navigated to, because a link is input from whoever sent it.
 library;
 
+import 'package:go_router/go_router.dart';
+
 const Set<String> kOwnHosts = {'www.wainkw.com', 'wainkw.com'};
 
 /// `https://www.wainkw.com/places/kuwait-towers/?when=tonight-8` →
@@ -26,4 +28,23 @@ String? locationFromLink(Uri link) {
       }.contains(path);
   if (!ok) return null;
   return link.hasQuery ? '$path?${link.query}' : path;
+}
+
+/// The three tab roots; everything else a link can name opens over them.
+const Set<String> _tabRoots = {'/', '/explore', '/search'};
+
+/// Opens a link inside the app. A tab is switched to; anything else (a place,
+/// /find, the static pages) is PUSHED over the tab that is showing, so back —
+/// Android's button or the iOS edge swipe — lands in the app. It used to be
+/// `go`, which replaced the whole stack: a place opened from WhatsApp had
+/// nothing behind it, and back closed the app.
+void openLink(GoRouter router, Uri link) {
+  final where = locationFromLink(link);
+  if (where == null) return;
+  final path = Uri.parse(where).path;
+  if (_tabRoots.contains(path)) {
+    router.go(where);
+  } else {
+    router.push(where);
+  }
 }
