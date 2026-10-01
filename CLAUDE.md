@@ -537,6 +537,12 @@ The site still loads ONE file: sixty references name it, and every extra
 which fails when the built file and its sources disagree. Order is cascade
 order; a rule that overrides another goes in a higher-numbered file.
 
+**Since 2026-10-01 the build strips comments, and `sporta-dark.css` is built
+too**, from `sporta-site/css/sporta-dark.css`. Edit the SOURCE: the file in
+`assets/` is output, and an edit there is overwritten by the next build and
+fails `test:css-build` until then. The comments stay in the sources, which is
+where they are read.
+
 **The split found a live trap.** `make-brand-tokens.mjs` rewrote everything
 between its `>>>`/`<<<` markers, and 186 hand-written lines — the category
 tile rules — had been pasted inside them. `--check` was failing, and running
@@ -3802,3 +3808,69 @@ followed and its absolute sizes are not.
   owner's instruction) and its header.
 - `test:brand-badge` had a stale assertion (a brand with no logo now shows its NAME); it
   counts logos now.
+
+## One shop, one look — the theme scan and the owner's choices, 2026-10-01
+
+Asked for as "make full scan for all theme then give full suggest to improve
+it". The scan covered 17 pages, phone and desktop, in both languages. The owner
+took all four groups it proposed, and chose each design question from options
+rendered side by side.
+
+**Bugs** (`8faa614`, live): the + covered the start of every Arabic card name;
+the home tiles had no focus ring; three standalone pages had stale copies of
+the colour ramp and light scrollbars; the /backends brand colour missed 13
+things; the side-page headings were painted over the theme. **Speed**
+(`a341c3f`, live): CSS without comments (`sporta-ui.css` went from 83 KB to
+12 KB gzipped). Four "woff2" fonts that were really TrueType are now real
+WOFF2 (`test:font-format`). The Adobe kit loads only when its font is chosen.
+**Retracted:** a "14px inputs zoom on iOS" finding. The bundle forces 16px
+under `pointer: coarse`, and the reading came from a browser without touch
+emulation.
+
+**The design choices, and where each one lives:**
+
+- **ONE CARD — the /shop card on every grid.** `home-products.js` and
+  `category.php` draw the bundle's own /shop markup, so `44-product-grid-spec.css`
+  styles all of them. Prices go through `Intl` `en-KW`/`ar-KW`, which gives
+  exactly the bundle's two strings. **`card-heart.js` makes their heart real**:
+  it writes `localStorage.sporta_wishlist` and dispatches the `StorageEvent`
+  the bundle's WishlistProvider listens for, so there is one wishlist, not two.
+- **CATEGORY PAGES — the shop's header and footer, banner 45svh.** `category.php`
+  now LINKS the bundle CSS, `sporta-dark.css` and `sporta-ui.css` instead of
+  carrying a palette copy. `test:palette-copies` checks the link is there and
+  that no copy remains. The header's empty hairline `<div>` is load-bearing:
+  without it the bar was 1px shorter than the shop's.
+- **TITLES — one style.** `58-page-titles.css`: Alexandria 700, 26px on phones
+  and 30px from 768px, white, with a 56x4 `--brand` bar (centred on the product
+  page and on centred pages). The category title is dark on its white banner.
+- **CLEAN-UPS.** One outline button (`59-outline-buttons.css`). Fewer greys:
+  the accent is `--sp-text`, the secondary greys are `--sp-silver`, and the
+  dark inks are one `#171a1e`. The browser bar (`theme-color`) is `#2d3034`,
+  the header's colour, on `index.html`, `category.php` and the manifest.
+- **NOT chosen: bigger tile labels.** Leave them.
+
+`npm run test:theme-unity` holds all four. It measures each grid against
+**/shop's own card**, not against numbers typed into the rig, so a later change
+to the /shop card is followed rather than fought. Mutation-tested five ways.
+
+**What the work found in itself:**
+
+- **The + beside the price sat over the size chooser in Arabic.** The chooser
+  opens over the card, its first size lands under the + (z-index 21), and the
+  tap went to the +. While the chooser is open the + steps aside
+  (`visibility: hidden`); the chooser has its own close button.
+  `quick-add-grids` caught it, in Arabic only.
+- **`quick-add-size.js` counted the heart as an add button** in Arabic, because
+  the heart's label also begins "أضف". It ignores `[aria-pressed]` now.
+- **`tile-art.js` versioned the four placeholder names that are MEANT to 404.**
+  When the browser had already asked for one, it asked again, which gave 8 404s
+  a load instead of 4. How often that happened depended on script order, and
+  adding `card-heart.js` before it made it likelier. Only `art-` files get the
+  `?v=` now. **A flaky count is a race until shown otherwise.**
+- **Six rigs encoded the old design and were updated, not deleted.**
+  `side-pages` (25px → 26/30, and the /shop and product titles now DO wear the
+  bar — that check is inverted), `photo-shape` (the category card's selector),
+  `css-audit` (`main h1` is a recorded owner override), `category-pages`,
+  `quick-add-grids` and `palette-copies`. **`photo-shape` printed the kinds it
+  FOUND under "every kind was found"**, so the one missing kind was hidden in
+  a list of six that were there. It names what is missing now.
