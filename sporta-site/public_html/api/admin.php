@@ -1430,6 +1430,95 @@ if ($r === 'cat_art_reset' && $method === 'POST') {
     store_out(['ok' => true, 'tile' => $tile, 'replaced' => false]);
 }
 
+// ---------------------------------------------- the home page's product banner
+//
+// Above "Shop by category" (2026-10-01, the owner's "one product banner"; the
+// story is in store.php). ONE ROW, READ WHOLE AND WRITTEN WHOLE: the card sends
+// every field on every save, so a save can never blank a field it did not
+// mention — the trap brand_save fell into. The product picker reads the public
+// ?r=products, which lists exactly the products the banner may show.
+if ($r === 'home_banner_get') {
+    $ready = true;
+    $row = null;
+    try {
+        $q = $db->query('select enabled, product, kicker_en, kicker_ar, title_en, title_ar, button_en, button_ar,
+                                href, image_w, image_h, etag, updated_at from home_banner where id = 1');
+        $row = $q->fetch() ?: null;
+    } catch (Throwable $e) {
+        $ready = false;   // the table is not on this shop yet: the card says so
+    }
+    store_out([
+        'ready'  => $ready,
+        'max'    => STORE_BANNER_TEXT_MAX,
+        'banner' => $row ? [
+            'enabled'    => (bool)(int)$row['enabled'],
+            'product'    => (string)($row['product'] ?? ''),
+            'kicker'     => ['en' => (string)$row['kicker_en'], 'ar' => (string)$row['kicker_ar']],
+            'title'      => ['en' => (string)$row['title_en'], 'ar' => (string)$row['title_ar']],
+            'button'     => ['en' => (string)$row['button_en'], 'ar' => (string)$row['button_ar']],
+            'href'       => (string)$row['href'],
+            'image'      => $row['etag'] ? 'api.php?r=home_banner_image&v=' . substr((string)$row['etag'], 0, 12) : null,
+            'image_size' => $row['etag'] ? [(int)$row['image_w'], (int)$row['image_h']] : null,
+            'updated_at' => $row['updated_at'],
+        ] : null,
+    ]);
+}
+
+if ($r === 'home_banner_save' && $method === 'POST') {
+    $b = store_body();
+    $enabled = !empty($b['enabled']) ? 1 : 0;
+    $product = trim((string)($b['product'] ?? ''));
+    if ($product !== '') {
+        $q = $db->prepare('select 1 from products where slug = ? and active = 1');
+        $q->execute([$product]);
+        if (!$q->fetchColumn()) store_fail('banner_unknown_product');
+    }
+    $text = [];
+    foreach (['kicker', 'title', 'button'] as $k) {
+        $v = is_array($b[$k] ?? null) ? $b[$k] : [];
+        $text[$k . '_en'] = store_banner_text($v['en'] ?? '', $k);
+        $text[$k . '_ar'] = store_banner_text($v['ar'] ?? '', $k);
+    }
+    $href = store_banner_href((string)($b['href'] ?? ''));
+    $img = null;
+    if (is_string($b['image'] ?? null) && $b['image'] !== '') $img = store_banner_image_decode($b['image']);
+    $removeImage = !empty($b['remove_image']);
+
+    try {
+        $had = $db->query('select etag from home_banner where id = 1')->fetchColumn();
+    } catch (Throwable $e) {
+        store_fail('home_banner_not_ready', 503);
+    }
+    // Switched ON with nothing to show would draw nothing and look broken: say so instead.
+    // (Outside the try below on purpose, so a refusal can never be relabelled "not ready".)
+    if ($enabled && $product === '' && $text['title_en'] === '' && $text['title_ar'] === ''
+        && $img === null && (!$had || $removeImage)) {
+        store_fail('banner_needs_content');
+    }
+    try {
+        $cols = ['enabled' => $enabled, 'product' => $product !== '' ? $product : null, 'href' => $href] + $text;
+        $sql = 'insert into home_banner (id, ' . implode(', ', array_keys($cols)) . ') values (1, '
+             . implode(', ', array_fill(0, count($cols), '?')) . ') on duplicate key update '
+             . implode(', ', array_map(fn ($c) => "$c = values($c)", array_keys($cols)));
+        $db->prepare($sql)->execute(array_values($cols));
+        if ($img !== null) {
+            $u = $db->prepare('update home_banner set image = ?, image_type = ?, image_w = ?, image_h = ?, etag = ? where id = 1');
+            $u->bindValue(1, $img['bytes'], PDO::PARAM_LOB);
+            $u->bindValue(2, $img['type']);
+            $u->bindValue(3, $img['w'], PDO::PARAM_INT);
+            $u->bindValue(4, $img['h'], PDO::PARAM_INT);
+            $u->bindValue(5, md5($img['bytes']));
+            $u->execute();
+        } elseif ($removeImage) {
+            $db->exec('update home_banner set image = null, image_type = null, image_w = null, image_h = null, etag = null where id = 1');
+        }
+    } catch (Throwable $e) {
+        error_log('home_banner_save: ' . $e->getMessage());
+        store_fail('home_banner_not_ready', 503);
+    }
+    store_out(['ok' => true, 'banner' => store_home_banner_public($db)]);
+}
+
 if ($r === 'brands') {
     store_out($db->query(
         'select id, slug, name_en, name_ar, logo, active, sort from brands order by sort, name_en'

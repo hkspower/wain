@@ -3945,3 +3945,76 @@ same colour. **When a background changes, read back every colour on it.**
 below "Sale" was (0,3,5) against the pill rule's (0,4,5), both `!important`,
 so the two pills sat on top of each other. No bestseller had ever been on
 sale, so nobody saw it. It names the pill as fully as the rule it moves now.
+
+## The home page's middle, 2026-10-01 — headings, square phone tiles, a product banner
+
+Asked for in one message: "less upper and under space" on the two home
+headings, every category picture "single full row, square shape … bigger for
+mobile", and a bar editor at /backends "upper the categories, product image
+design" — for which the owner chose ONE PRODUCT BANNER out of three rendered
+options.
+
+**Headings.** "Shop by category" and "Best sellers" are 14/18px inside the white
+bar on a phone (20/24px from 768px) with the orange rule 6/8px from the bottom,
+and the category section ends 20px (32px) below its last tile.
+
+**Phone tiles are square and one per row** (`36-category-white.css`, below 768px
+only; a computer keeps 2×2). The art is re-composed for the square by
+`make-white-tiles.py` (`compose_accessories_square`, a sharper person cut-out),
+`STORE_CAT_VARIANTS` and `category-art.js` agree on 1080×1080, and `ART_VERSION`
+moved with it (`tile-art.js` and `category.php` together, as always). **The
+models are as big as the cut-outs allow**: the subjects in
+`scripts/fixtures/tile-subjects/` are ~650px tall, so a bigger figure on a
+1080px tile is an upscale. Sharper still needs larger source photographs.
+
+### The product banner — assets/home-banner.js, home-banner-editor.js
+
+Above "Shop by category": a product's photograph on one side, a headline, the
+price and a button on the other, white card, mirrored in Arabic. **One row in its
+own table** (`api/homebanner.mysql.sql`), not a `settings` row, because
+`store_settings()` reads every settings row on every request and an uploaded
+picture is up to 900 kB.
+
+- **It fails closed, everywhere.** No table, no row, switched off, or a product
+  no longer on sale with no headline: `?r=home_banner` answers
+  `{"banner": null}` and nothing is drawn. **It ships OFF** — the migration
+  creates the table and writes no row; the owner switches it on in the panel.
+- **The product decides the price.** The banner carries no price of its own; a
+  sale put on the product shows (old price struck) with nothing re-saved.
+- **An empty headline is the product's name**, one empty language borrows the
+  other, an empty button is "Shop now" / "تسوّق الآن", an empty link is the
+  product's page, and an uploaded picture wins over the product's photograph.
+- **The link may only stay in the shop**: one leading slash, no `//host`, no
+  scheme, no backslash, no space (`store_banner_href`).
+- **The uploaded picture** is served like `?r=slide_image`: hashed URL, a year
+  immutable while the banner is ON. While it is off only a signed-in admin gets
+  it, `private, no-store` — and a browser with no admin cookie is answered 404
+  WITHOUT starting a session, or asking for the picture would mint a cookie on a
+  storefront that sets none (`customer_id()`'s rule, applied a second time).
+
+**The editor** is a card on the panel's Home slides screen, directly above
+Category pictures (the home page's own order). It sends EVERY field on every
+save — `home_banner_save` writes the whole row, so leaving one out blanks it,
+the `brand_save` trap. Its preview is **the storefront's own drawing**
+(`window.sportaHomeBanner.preview`), in both languages, from a `data:` picture
+(the CSP has no `blob:`). That export returns the section UNMARKED: the
+storefront script removes anything carrying its mark off the home page, and the
+panel is off the home page — a preview built with the mark would be deleted the
+moment it appeared.
+
+**The migration reads the published `api/homebanner.mysql.sql`** rather than
+carrying a second copy of the statement, so run it AFTER `publish-all.php`. It
+refuses a file that is not the expected `create table if not exists`.
+
+`npm run test:home-banner` (82 checks) covers the gate, every refusal, the
+fail-closed paths (the table is moved aside to prove "no table"), the sale, the
+picture's caching and cookie, the storefront in both languages with contrast and
+a 44px button, and the panel under the shipped CSP. Mutation-tested eight ways, each caught by
+name: a link to `//host` let through, a switched-off banner still drawn, a
+stranger minting a session on the off-picture path, the admin's private view
+cached publicly, the headline set as markup, the banner drawn BELOW the
+categories, the preview keeping the mark (the storefront script deleted it), and
+the editor dropping an untouched field from its save.
+
+**Not done, and worth knowing:** the Expo app has no banner and no editor; this
+is the website only.

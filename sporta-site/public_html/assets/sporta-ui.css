@@ -1894,3 +1894,136 @@ main [class~="items-center"][class~="flex-col"] > h1[class~="text-2xl"]::after {
   color: var(--sp-silver, #b7bdc4) !important;
   border-color: var(--sp-silver, #b7bdc4) !important;
 }
+.sporta-home-banner {
+  padding: 12px 16px 6px;
+}
+@media (min-width: 768px) {
+  .sporta-home-banner {
+    max-width: 80rem;
+    margin: 0 auto;
+    padding: 20px 24px 8px;
+  }
+}
+.sporta-home-banner__link {
+  display: grid;
+  grid-template-columns: 42% minmax(0, 1fr);
+  align-items: stretch;
+  min-height: 190px;
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+  color: #171a1e;
+  text-decoration: none;
+}
+@media (min-width: 768px) {
+  .sporta-home-banner__link {
+    grid-template-columns: 36% minmax(0, 1fr);
+    min-height: 320px;
+  }
+}
+.sporta-home-banner__link:focus-visible {
+  outline: 3px solid var(--sp-cta, #f56315);
+  outline-offset: 3px;
+}
+.sporta-home-banner__media {
+  position: relative;
+  background: #f2f3f5;
+}
+.sporta-home-banner__media img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 15%;
+}
+.sporta-home-banner__media--none {
+  background: #171a1e;
+}
+.sporta-home-banner__media--none img {
+  object-fit: contain;
+  padding: 14%;
+  box-sizing: border-box;
+}
+.sporta-home-banner__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  padding-block: 18px;
+  padding-inline: 18px 16px;
+}
+@media (min-width: 768px) {
+  .sporta-home-banner__body {
+    gap: 10px;
+    padding-block: 32px;
+    padding-inline: 40px 32px;
+  }
+}
+.sporta-home-banner__kicker {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--sp-ink-on-light, #c2410c);
+}
+[dir=rtl] .sporta-home-banner__kicker { letter-spacing: 0; }
+.sporta-home-banner__title {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.25;
+  color: #171a1e;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+@media (min-width: 768px) {
+  .sporta-home-banner__title { font-size: 30px; }
+}
+.sporta-home-banner__price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.sporta-home-banner__price b {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--sp-ink-on-light, #c2410c);
+  unicode-bidi: plaintext;
+}
+.sporta-home-banner__price s {
+  font-size: 13px;
+  color: #9a3412;
+  unicode-bidi: plaintext;
+}
+@media (min-width: 768px) {
+  .sporta-home-banner__price b { font-size: 22px; }
+}
+.sporta-home-banner__cta {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 22px;
+  border-radius: 9999px;
+  background: var(--sp-ember-fill, var(--brand, #e0561c));
+  color: var(--sp-on-ember, #171a1e);
+  font-size: 15px;
+  font-weight: 700;
+  transition: background-color .15s ease;
+}
+.sporta-home-banner__link:hover .sporta-home-banner__cta {
+  background: var(--brand-bright, #ff7b17);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sporta-home-banner__cta { transition: none; }
+}

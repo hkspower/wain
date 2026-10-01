@@ -1156,6 +1156,161 @@ function store_cat_art_decode(?string $raw, string $fmt, int $w, int $h): string
     return $bytes;
 }
 
+// ------------------------------------------- the home page's product banner
+//
+// Asked for on 2026-10-01 as a bar editor "upper the categories, product image
+// design"; out of three rendered options the owner chose ONE PRODUCT BANNER: a
+// product's photograph on one side, a headline and a Shop button on the other,
+// above "Shop by category". One row in home_banner (homebanner.mysql.sql says
+// why a table). EVERYTHING HERE FAILS CLOSED — no table, no row, switched off, a
+// product taken off sale — and the banner is simply not drawn. Nothing about it
+// can break the home page it sits on.
+const STORE_BANNER_TEXT_MAX  = ['kicker' => 60, 'title' => 90, 'button' => 30];
+const STORE_BANNER_MAX_BYTES = 900000;   // decoded; the panel sends a ~1200px picture
+
+function store_home_banner_row(PDO $db): ?array {
+    try {
+        $q = $db->query('select enabled, product, kicker_en, kicker_ar, title_en, title_ar, button_en, button_ar,
+                                href, image_type, image_w, image_h, etag, updated_at
+                           from home_banner where id = 1');
+        $row = $q ? $q->fetch() : false;
+        return $row ?: null;
+    } catch (Throwable $e) {
+        return null;   // no table on this shop yet
+    }
+}
+
+// The product the banner is about: priced exactly as every card prices it (a
+// sale in force IS the price), with the photograph the cards show — the owner's
+// own file when one is set, else the first uploaded photograph.
+function store_home_banner_product(PDO $db, string $slug): ?array {
+    if ($slug === '') return null;
+    $q = $db->prepare('select slug, name_en, name_ar, price, sale_price, sale_starts_at, sale_ends_at, image
+                         from products where slug = ? and active = 1');
+    $q->execute([$slug]);
+    $p = $q->fetch();
+    if (!$p) return null;
+    $eff = store_effective_price($p);
+    $img = trim((string)($p['image'] ?? ''));
+    if ($img === '') {
+        $s = $db->prepare('select id, image_hash from product_images where slug = ? order by sort, id limit 1');
+        $s->execute([$slug]);
+        $shot = $s->fetch();
+        if ($shot) $img = 'api.php?r=product_image&id=' . (int)$shot['id'] . '&v=' . substr((string)$shot['image_hash'], 0, 12);
+    }
+    return [
+        'slug'       => (string)$p['slug'],
+        'name'       => ['en' => (string)$p['name_en'], 'ar' => (string)$p['name_ar']],
+        'price'      => $eff['fils'] / 1000,
+        'list_price' => $eff['on_sale'] ? $eff['list_fils'] / 1000 : null,
+        'on_sale'    => (bool)$eff['on_sale'],
+        'image'      => $img !== '' ? $img : null,
+    ];
+}
+
+// What the storefront draws, or null when there is nothing to draw.
+function store_home_banner_public(PDO $db): ?array {
+    $row = store_home_banner_row($db);
+    if (!$row || !(int)$row['enabled']) return null;
+    $product = store_home_banner_product($db, (string)($row['product'] ?? ''));
+    $title = ['en' => trim((string)$row['title_en']), 'ar' => trim((string)$row['title_ar'])];
+    if ($product) {
+        if ($title['en'] === '') $title['en'] = $product['name']['en'];
+        if ($title['ar'] === '') $title['ar'] = $product['name']['ar'];
+    }
+    // One language left empty borrows the other, rather than drawing a banner with no words.
+    if ($title['en'] === '') $title['en'] = $title['ar'];
+    if ($title['ar'] === '') $title['ar'] = $title['en'];
+    if ($title['en'] === '') return null;   // nothing to say: no product, no headline
+    $href = trim((string)$row['href']);
+    if ($href === '') $href = $product ? '/product/' . rawurlencode($product['slug']) : '/shop';
+    return [
+        'kicker'     => ['en' => trim((string)$row['kicker_en']), 'ar' => trim((string)$row['kicker_ar'])],
+        'title'      => $title,
+        'button'     => ['en' => trim((string)$row['button_en']) ?: 'Shop now', 'ar' => trim((string)$row['button_ar']) ?: 'تسوّق الآن'],
+        'href'       => $href,
+        // the owner's uploaded picture wins over the product's photograph
+        'image'      => $row['etag'] ? 'api.php?r=home_banner_image&v=' . substr((string)$row['etag'], 0, 12) : ($product['image'] ?? null),
+        'price'      => $product['price'] ?? null,
+        'list_price' => $product['list_price'] ?? null,
+        'on_sale'    => $product['on_sale'] ?? false,
+    ];
+}
+
+// The uploaded picture. Like ?r=slide_image: the URL carries the content hash, so
+// it is cached for a year; while the banner is switched OFF only a signed-in admin
+// is served it (the panel previews it), and the public path starts no session —
+// the session is consulted only when the banner is off.
+function store_home_banner_image_serve(PDO $db): void {
+    $row = null;
+    try {
+        $q = $db->query('select enabled, image, image_type, etag from home_banner where id = 1');
+        $row = $q ? $q->fetch() : null;
+    } catch (Throwable $e) {
+        $row = null;
+    }
+    if (!$row || $row['image'] === null || !$row['etag']) { http_response_code(404); exit; }
+    $live = (bool)(int)$row['enabled'];
+    // Off: only a signed-in admin. A browser holding no admin cookie is answered
+    // WITHOUT starting a session — starting one to say "no" would mint a cookie
+    // for anybody who asked, and the storefront sets none (customer_id()'s rule).
+    $adminCookie = store_is_https() ? '__Host-sporta_admin' : 'sporta_admin';
+    if (!$live && (empty($_COOKIE[$adminCookie]) || store_session_admin() === null)) { http_response_code(404); exit; }
+    $types = ['webp' => 'image/webp', 'jpeg' => 'image/jpeg', 'png' => 'image/png'];
+    $type = $types[(string)$row['image_type']] ?? null;
+    if ($type === null) { http_response_code(404); exit; }
+    $etag = (string)$row['etag'];
+    header('Content-Type: ' . $type);
+    header('X-Content-Type-Options: nosniff');
+    // NOT public for the admin's view of a banner that is switched off: that
+    // answer exists because of who asked, and a shared cache keeping it would
+    // hand an unannounced banner to the next person (slide_image's rule).
+    header($live ? 'Cache-Control: public, max-age=31536000, immutable' : 'Cache-Control: private, no-store');
+    header_remove('Pragma');
+    header('ETag: "' . $etag . '"');
+    foreach (explode(',', (string)($_SERVER['HTTP_IF_NONE_MATCH'] ?? '')) as $t) {
+        $t = trim($t);
+        if (str_starts_with($t, 'W/')) $t = substr($t, 2);
+        if ($t === '"' . $etag . '"') { http_response_code(304); exit; }
+    }
+    $bytes = (string)$row['image'];
+    header('Content-Length: ' . strlen($bytes));
+    echo $bytes;
+    exit;
+}
+
+// A banner link may only go somewhere IN this shop: a path beginning with ONE
+// slash. Not `//host` (another site), not `javascript:` (code), not a full URL,
+// and no backslash (some browsers read `/\host` as `//host`). Empty means "the
+// product's own page".
+function store_banner_href(string $raw): string {
+    $v = trim($raw);
+    if ($v === '') return '';
+    if (strlen($v) > 200 || !preg_match('@^/(?!/)[A-Za-z0-9\-._~/?=&%#]*$@', $v)) store_fail('banner_bad_link');
+    return $v;
+}
+
+function store_banner_text($v, string $kind): string {
+    $s = trim((string)(preg_replace('/[\x00-\x1F\x7F]/u', '', (string)$v) ?? ''));
+    if (mb_strlen($s) > STORE_BANNER_TEXT_MAX[$kind]) store_fail('banner_text_too_long');
+    return $s;
+}
+
+// An uploaded picture: a data: URI of a picture type, really that type, under the
+// cap, and a sensible size. Its exact shape is free: the banner draws it with
+// `cover` in a box that suits a portrait, square or landscape photograph alike.
+function store_banner_image_decode(string $raw): array {
+    if (!preg_match('#^data:image/(webp|jpeg|png);base64,([A-Za-z0-9+/=\s]+)$#', trim($raw), $m)) store_fail('banner_bad_format');
+    $bytes = base64_decode(preg_replace('/\s+/', '', $m[2]), true);
+    if ($bytes === false || strlen($bytes) < 64) store_fail('banner_bad_format');
+    if (strlen($bytes) > STORE_BANNER_MAX_BYTES) store_fail('banner_too_large');
+    $magic = ['png' => "\x89PNG\r\n\x1a\n", 'jpeg' => "\xff\xd8\xff", 'webp' => 'RIFF'][$m[1]];
+    if (!str_starts_with($bytes, $magic) || ($m[1] === 'webp' && substr($bytes, 8, 4) !== 'WEBP')) store_fail('banner_not_an_image');
+    $info = @getimagesizefromstring($bytes);
+    if (!$info || $info[0] < 200 || $info[1] < 200 || $info[0] > 3000 || $info[1] > 3000) store_fail('banner_wrong_size');
+    return ['bytes' => $bytes, 'type' => $m[1], 'w' => (int)$info[0], 'h' => (int)$info[1]];
+}
+
 // ------------------------------------------------------- a brand's logo FILE
 //
 // public_html/images/<brand-slug>/logo.{png,webp,jpg} — the folder the owner

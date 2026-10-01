@@ -240,6 +240,10 @@ $STORE_LIMITS = [
     // mistypes, reloads and resubmits never meets it.
     'review_invite' => [90, 600],
     'review'        => [30, 600],
+    // The home page's product banner (2026-10-01): owner text and one product,
+    // asked for once per home-page view. Same bucket as site_text.
+    'home_banner' => [600, 60],
+    'home_banner_image' => null,  // hashed URL, one-year immutable cache, like slide_image
     'cat_art'     => null,        // answered above, before this table is read: the
                                   // four home tiles, revalidated by ETag, and asked
                                   // for by EVERY page view — a ceiling would break
@@ -616,6 +620,14 @@ if ($r === 'legal') {
 if ($r === 'site_text') {
     store_out_cacheable(store_setting($db, 'site_text'));
 }
+
+// The home page's product banner, above "Shop by category" (2026-10-01): what
+// assets/home-banner.js draws, or {"banner": null} when there is nothing to
+// draw — switched off, no table yet, or nothing to say. See store.php.
+if ($r === 'home_banner') {
+    store_out_cacheable(['banner' => store_home_banner_public($db)]);
+}
+if ($r === 'home_banner_image') store_home_banner_image_serve($db);
 
 if ($r === 'slides') {
     $rows = $db->query(
