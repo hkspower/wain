@@ -124,7 +124,7 @@ const shipped = [
 const REWRITTEN = /^cats\/(mobile|desktop)\/art-(men|women|accessories|outlet)(-rtl)?\.(jpe?g|webp)$/
 // api/wallet-assets are read by PHP and stitched into a .pkpass, never by a
 // browser. They are named in make-wallet-pass.mjs, not in the bundle.
-const SERVER_SIDE = /^api\/wallet-assets\//
+const SERVER_SIDE = /^api\/(wallet-assets\/|invoice-logo\.png$)/   // read by PHP (Wallet passes, the invoice PDF), not by a page
 // MATCHING ON THE STEM, not the path or even the filename.
 //
 // The first version of this check matched whole paths and reported all eight

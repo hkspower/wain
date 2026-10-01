@@ -66,6 +66,7 @@
     "test:keyboard-hints": "node scripts/keyboard-hints-test.mjs",
     "test:notification-center": "node scripts/notification-center-test.mjs",
     "test:best-sellers-bar": "node scripts/best-sellers-bar-test.mjs",
+    "test:tile-size": "node scripts/tile-size-test.mjs",
     "test:home-grid-images": "node scripts/home-grid-images-test.mjs",
     "test:invoice": "node scripts/invoice-test.mjs",
     "test:invoice-pdf": "node scripts/invoice-pdf-test.mjs",

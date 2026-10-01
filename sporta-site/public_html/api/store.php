@@ -1087,7 +1087,7 @@ function store_data_image(?string $raw, int $max = STORE_LOGO_MAX): ?string {
 // database that is down — falls back to the shipped file, because the worst
 // this feature may do is show the picture the shop already had.
 const STORE_CAT_TILES    = ['men', 'women', 'accessories', 'outlet'];
-const STORE_CAT_VARIANTS = ['desktop' => [1216, 706], 'mobile' => [900, 570]];   // + '-rtl' for Arabic
+const STORE_CAT_VARIANTS = ['desktop' => [1216, 988], 'mobile' => [900, 798]];   // + '-rtl' for Arabic
 const STORE_CAT_MAX_BYTES = 450000;      // per picture, decoded
 
 // Answer one tile picture and stop. Never returns.

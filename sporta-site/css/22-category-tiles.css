@@ -175,10 +175,10 @@ section:has(> [class~="grid"] > .cat-tile) {
 }
 .cat-tile.tile-men, .cat-tile.tile-women,
 .cat-tile.tile-acc, .cat-tile.tile-outlet { border-radius: 0 !important; }
-.cat-tile.tile-men, .cat-tile.tile-women { aspect-ratio: 900 / 570 !important; }
+.cat-tile.tile-men, .cat-tile.tile-women { aspect-ratio: 900 / 798 !important; }
 .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 900 / 454 !important; }
 @media (min-width: 768px) {
-  .cat-tile.tile-men, .cat-tile.tile-women { aspect-ratio: 1216 / 706 !important; }
+  .cat-tile.tile-men, .cat-tile.tile-women { aspect-ratio: 1216 / 988 !important; }
   .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 1216 / 418 !important; }
 }
 @media (max-width: 767px) {

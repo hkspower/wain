@@ -74,12 +74,8 @@ const ALLOWED = [
   // The home tiles went full website width on 2026-09-28, and the owner chose
   // to supply larger desktop masters rather than upscale. Until those land at
   // the same names, the 1216px files are stretched on anything wider.
-  {
-    match: /cats\/desktop\/art-/,
-    density: 'desktop 1x',
-    ratio: 1.18,
-    why: 'full-width tile on a 1440px screen; needs ~1500px+ desktop art',
-  },
+  // desktop 1x allowance removed 2026-10-01: the tiles are 40% taller and the art was redrawn
+  // at 1216x988, so the 1x case is no longer upscaled (this rig's own self-cleaning check said so).
   {
     match: /cats\/desktop\/art-/,
     density: 'desktop 2x',

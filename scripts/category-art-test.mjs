@@ -173,7 +173,7 @@ try {
   await page.waitForSelector('.cta-previews canvas', { timeout: 8000 })
   check((await page.locator('.cta-previews canvas').count()) === 2, 'choosing a picture shows the computer crop and the phone crop')
   const sizes = await page.locator('.cta-previews canvas').evaluateAll((cs) => cs.map((c) => `${c.width}x${c.height}`))
-  check(sizes.join() === '1216x706,900x570', 'at the two real tile sizes', sizes.join())
+  check(sizes.join() === '1216x988,900x798', 'at the two real tile sizes', sizes.join())
   const saveReq = page.waitForResponse((r) => r.url().includes('r=cat_art_save'), { timeout: 30000 })
   await tile.getByRole('button', { name: 'Save picture' }).click()
   const resp = await saveReq
@@ -193,7 +193,7 @@ try {
   const en = await px('desktop', '')
   const rtl = await px('desktop', '-rtl')
   const ph = await px('mobile', '')
-  check(en.w === 1216 && en.h === 706 && ph.w === 900 && ph.h === 570, 'the served pictures are the two tile sizes', `${en.w}x${en.h} ${ph.w}x${ph.h}`)
+  check(en.w === 1216 && en.h === 988 && ph.w === 900 && ph.h === 798, 'the served pictures are the two tile sizes', `${en.w}x${en.h} ${ph.w}x${ph.h}`)
   check(en.left[0] > 200 && en.left[2] < 60 && en.right[2] > 200 && en.right[0] < 60, 'English: red on the left, blue on the right', JSON.stringify([en.left, en.right]))
   check(rtl.left[2] > 200 && rtl.left[0] < 60 && rtl.right[0] > 200 && rtl.right[2] < 60, 'ARABIC is the mirror: blue on the left, red on the right', JSON.stringify([rtl.left, rtl.right]))
 

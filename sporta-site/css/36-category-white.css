@@ -23,7 +23,7 @@
  * without running under the copy. Their art is now drawn at men and women's
  * size, and the boxes follow; 22-category-tiles.css keeps the old ratios for
  * reference and this file, later in the cascade, wins the tie. */
-.cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 900 / 570 !important; }
+.cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 900 / 798 !important; }
 @media (min-width: 768px) {
-  .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 1216 / 706 !important; }
+  .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 1216 / 988 !important; }
 }

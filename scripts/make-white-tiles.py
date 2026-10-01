@@ -28,8 +28,8 @@ ROOT = os.path.join(os.path.dirname(__file__), '..', 'sporta-site', 'public_html
 SUBJ = os.path.join(os.path.dirname(__file__), 'fixtures', 'tile-subjects')
 ORANGE = (224, 86, 28)      # --brand
 WHITE = (255, 255, 255)
-SIZES = {'desktop': {'tall': (1216, 706), 'wide': (1216, 418)},
-         'mobile':  {'tall': (900, 570),  'wide': (900, 454)}}
+SIZES = {'desktop': {'tall': (1216, 988), 'wide': (1216, 418)},
+         'mobile':  {'tall': (900, 798),  'wide': (900, 454)}}
 rng = np.random.default_rng(3)
 
 
@@ -202,21 +202,32 @@ def item_dumbbell():
 ITEMS = [item_cap, item_shirts, item_shoe, item_bottles, item_dumbbell]
 
 
-def compose_accessories(w, h, inset=0.03, share=0.62):
+def compose_accessories(w, h, inset=0.03, share=0.50):
+    """TWO ROWS since the tiles became 40% taller (2026-10-01): one long row of five
+    stays width-limited, so the same row in a taller box only floated at the bottom
+    with empty orange above it. Shirts, bottle and cap on top; trainers and the
+    dumbbell below. `share` is the width the widest row may take: kept under half so the rows start clear of
+    the tile's copy, which sits in the start half (an earlier .62 ran into the title)."""
     img = ground(w, h)
-    items = [f() for f in ITEMS]
-    row_w = sum(i.width for i in items) + GAP * (len(items) - 1)
-    row_h = max(i.height for i in items)
-    k = min(w * share / row_w, h * 0.58 / row_h)
-    rw = int(row_w * k)
+    cap, shirts, shoe, bottles, dumbbell = [f() for f in ITEMS]
+    rows = [[shirts, bottles, cap], [shoe, dumbbell]]
+    row_w = [sum(i.width for i in r) + GAP * (len(r) - 1) for r in rows]
+    row_h = [max(i.height for i in r) for r in rows]
+    vgap = 26
+    k = min(w * share / max(row_w), h * 0.80 / (sum(row_h) + vgap))
+    rw = int(max(row_w) * k)
     ox = w - rw - int(w * inset)
-    img.alpha_composite(band(w, h, ox + int(rw * 0.16), ox + int(rw * 0.80), skew=0.3))
+    img.alpha_composite(band(w, h, ox + int(rw * 0.12), ox + int(rw * 0.88), skew=0.3))
     img.alpha_composite(stripes(w, h, ox - int(w * 0.07), ox - int(w * 0.01), 12, 3, skew=0.3))
-    x = ox
-    for it in items:
-        it = it.resize((max(1, int(it.width * k)), max(1, int(it.height * k))), Image.LANCZOS)
-        img.alpha_composite(it, (x, h - it.height - int(h * 0.03)))
-        x += it.width + int(GAP * k)
+    total_h = int((sum(row_h) + vgap) * k)
+    y = h - total_h - int(h * 0.06)
+    for r, rwid, rh in zip(rows, row_w, row_h):
+        x = ox + (rw - int(rwid * k)) // 2
+        for it in r:
+            it = it.resize((max(1, int(it.width * k)), max(1, int(it.height * k))), Image.LANCZOS)
+            img.alpha_composite(it, (x, y + int(rh * k) - it.height))   # stand on the row's baseline
+            x += it.width + int(GAP * k)
+        y += int((rh + vgap) * k)
     return img
 
 
@@ -330,5 +341,5 @@ for crop, sz in SIZES.items():
     # The round go-button sits in the PHYSICAL bottom-left of every tile, so the
     # Arabic frame (a mirror, row on the left) needs its row pulled clear of it.
     save(compose_accessories(w, h), crop, 'accessories',
-         rtl_src=compose_accessories(w, h, inset=0.12, share=0.56))
+         rtl_src=compose_accessories(w, h, inset=0.12, share=0.38))
     save(compose_outlet(w, h), crop, 'outlet')

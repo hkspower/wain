@@ -41,7 +41,7 @@
     { id: 'accessories', en: 'Accessories' },
     { id: 'outlet', en: 'Outlet' },
   ]
-  var SIZES = { desktop: [1216, 706], mobile: [900, 570] }
+  var SIZES = { desktop: [1216, 988], mobile: [900, 798] }
   var MAX_BYTES = 400000
 
   var TXT = {
@@ -91,7 +91,7 @@
     + '.cta-tile{min-width:0;display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:10px;border:1px solid var(--border,#2a2d31)}'
     + '.cta-tile.editing{grid-column:1/-1}.cta-name{font-weight:700}'
     + '.cta-status{font-size:12px;opacity:.75}'
-    + '.cta-thumb{width:100%;aspect-ratio:1216/706;object-fit:cover;border-radius:8px;background:#fff;display:block}'
+    + '.cta-thumb{width:100%;aspect-ratio:1216/988;object-fit:cover;border-radius:8px;background:#fff;display:block}'
     + '.cta-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}'
     + '.cta-btn{min-height:44px;padding:9px 14px;border-radius:8px;border:1px solid var(--border,#2a2d31);background:transparent;color:inherit;font:inherit;cursor:pointer}'
     + '.cta-btn.primary{background:var(--brand,#e0561c);border-color:transparent;color:#fff;font-weight:600}'
