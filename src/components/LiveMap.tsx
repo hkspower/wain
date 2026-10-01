@@ -45,9 +45,12 @@ import { ATTRIBUTION_AR, MAX_ZOOM, MIN_ZOOM, TILE_URL } from "@/lib/map-tiles";
  * thing the visitor tapped for. One static import puts both in one chunk.
  *
  * The static frame is therefore not a fallback that is on its way out. It is
- * what a visitor gets for free, it is what works with no network and with no
- * JavaScript, and it is what keeps tile requests to a fraction of page views —
+ * what a visitor gets for free, it is what still draws its pins with no
+ * network, and it is what keeps tile requests to a fraction of page views —
  * see `map-tiles.ts` for why that last one is an obligation and not a saving.
+ * It is NOT a map without JavaScript, though this said so: the frame measures
+ * its own width before it knows its bbox (see useFrameWidth), so the exported
+ * HTML holds no map at all, on /search or on a place page.
  */
 /** Positions depend on the coordinates and nothing else, so they are the key. */
 const pointsKey = (points: { lat: number; lng: number }[]) =>

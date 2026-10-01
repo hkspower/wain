@@ -103,21 +103,41 @@ export default function PrivacyPage() {
           when a place page had already sent an IP to openstreetmap.org. */}
       <section className="mt-6 rounded-3xl border border-line bg-white p-6 shadow-sm">
         <h2 className="font-display text-xl font-semibold text-ink-900">الخريطة</h2>
+        {/* Rewritten 1 October to what ships. It described one map — the
+            sandboxed embed on place pages, receiving «بس إحداثيات المكان» —
+            when /search had drawn the same embed for the whole result set
+            since August, and «حرّك الخريطة» had fetched tile images straight
+            from tile.openstreetmap.org, outside any sandbox, since
+            20 September. Checked before writing: both iframes carry
+            sandbox="allow-scripts" and referrerPolicy="no-referrer"; Leaflet
+            1.9.4 sets no referrer policy on its tiles, so the site's own
+            strict-origin-when-cross-origin applies and they see the origin
+            only. Whatever changes when a map loads changes this text in the
+            same commit. */}
         <div className="mt-3 space-y-3 text-sm leading-relaxed text-ink-600">
           <p>
-            خرائط صفحات الأماكن من{" "}
+            الخرائط في وين من{" "}
             <strong className="text-ink-900">OpenStreetMap</strong> — مشروع خرائط
-            مفتوح، مو شركة إعلانات. يعني أول ما تفتح صفحة مكان، متصفحك يطلب
-            الخريطة من خوادمهم، ويشوفون عنوان الـ IP حقك مثل أي طلب على
-            الإنترنت، وتنطبق سياسة الخصوصية الخاصة فيهم.
+            مفتوح، مو شركة إعلانات — وتوصلك بطريقتين، وبالحالتين متصفحك يطلبها
+            من خوادمهم، ويشوفون عنوان الـ IP حقك مثل أي طلب على الإنترنت، وتنطبق
+            سياسة الخصوصية الخاصة فيهم.
           </p>
           <p>
-            واللي نضمنه لك: الخريطة داخل إطار معزول (sandbox) بدون صلاحية
+            <strong className="text-ink-900">الخريطة الثابتة</strong> — اللي تطلع
+            بصفحة المكان وفوق نتايج البحث: داخل إطار معزول (sandbox) بدون صلاحية
             same-origin، يعني{" "}
             <strong className="text-ink-900">المتصفح نفسه يمنعها</strong> إنها
             تحط كوكيز أو تقرا أي شي من الموقع — مو وعد منهم، قاعدة يفرضها
-            متصفحك عليهم. وما نرسل لهم عنوان الصفحة اللي أنت فيها ولا اسمك ولا
-            بحثك ولا موقعك: بس إحداثيات المكان اللي فاتحه، وهي معلومة عامة أصلاً.
+            متصفحك عليهم. وما يوصلهم عنوان الصفحة ولا كلمات بحثك ولا موقعك: بس
+            حدود المنطقة اللي تبين — حول المكان اللي فاتحه، أو المنطقة اللي فيها
+            نتايج بحثك.
+          </p>
+          <p>
+            <strong className="text-ink-900">الخريطة اللي تتحرك</strong> — بس إذا
+            ضغطت «حرّك الخريطة»: متصفحك يطلب صور الخريطة منهم مباشرة، بدون
+            الإطار المعزول. فيشوفون أي جزء من الخريطة قاعد تشوف وأنت تحرّكها
+            وتقرّبها، وإن الطلب جاي من wainkw.com — اسم الموقع بس، مو الصفحة.
+            ولا شي من هذا يوصلنا إحنا.
           </p>
         </div>
       </section>

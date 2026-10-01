@@ -323,15 +323,16 @@ console.log('\n── no pin is cut off by the top of its own frame ──');
 console.log('\n── an approximate pin does not send anyone to an exact wrong door ──');
 {
   /**
-   * Eight of the forty-four coordinates are flagged `coordsUnverified` in the
-   * catalogue — «the right area, not the right building», in its own words —
+   * Some coordinates are flagged `coordsUnverified` in the catalogue — «the
+   * right area, not the right building», in its own words; sixteen of 52 on
+   * 1 October, and this said «eight of forty-four» long after it stopped being —
    * and the flag was read by nothing in the app. Their pin was drawn with the
    * confidence of a surveyed one and «الاتجاهات» handed a driver the raw pair,
    * which is the one place the difference costs somebody a wrong turn.
    *
-   * So for those eight the destination is the name and the area, which Google
-   * resolves against its own listing. For the other thirty-six the coordinate
-   * stays: it is better than a name lookup every time it is true.
+   * So for those the destination is the name and the area, which Google
+   * resolves against its own listing. For the rest the coordinate stays: it is
+   * better than a name lookup every time it is true.
    */
   const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 }, locale: 'ar-KW' });
   const p = await ctx.newPage();

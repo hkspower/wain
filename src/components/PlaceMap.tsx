@@ -33,13 +33,15 @@ export default function PlaceMap({
    * Directions go to the COORDINATE — except where the catalogue says the
    * coordinate is only the right area.
    *
-   * Eight places are flagged `coordsUnverified`, and the flag was doing nothing
-   * anywhere in the app: their pin was drawn with the same confidence as the
-   * thirty-six checked ones and this link routed a driver to a point that is,
-   * by our own admission, not the building. Google resolves a name-and-area
-   * destination against its own listing, which for exactly these eight is
-   * better information than ours. Where the pair is verified it stays the
-   * destination — a coordinate beats a name lookup every time it is true.
+   * Places flagged `coordsUnverified` — `npm run audit:places` lists them; the
+   * count is not written here because it went from eight to sixteen with this
+   * sentence still saying eight — and the flag was doing nothing anywhere in
+   * the app: their pin was drawn with the same confidence as the checked ones
+   * and this link routed a driver to a point that is, by our own admission,
+   * not the building. Google resolves a name-and-area destination against its
+   * own listing, which for exactly these places is better information than
+   * ours. Where the pair is verified it stays the destination — a coordinate
+   * beats a name lookup every time it is true.
    */
   const gmapsDirections = `https://www.google.com/maps/dir/?api=1&destination=${
     place.coordsUnverified ? encodeURIComponent(where) : `${lat},${lng}`

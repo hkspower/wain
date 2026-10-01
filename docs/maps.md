@@ -154,18 +154,19 @@ one per place page. Both are asserted in `tests/map-pin.test.mjs`.
 The map's own arithmetic was never the cost. `fitFrame + project + spreadPins`
 over all 44 places is **0.38 ms**, and 0.11 ms for a typical 24-result set.
 
-## The eight approximate coordinates said nothing about themselves
+## The approximate coordinates said nothing about themselves
 
-Eight of the 44 places carry `coordsUnverified` — «the right area, not the right
-building», in the catalogue's own words — and nothing in the app read the flag.
-Their pin was drawn with the confidence of a surveyed one, and the «الاتجاهات»
-button handed a driver the raw pair, which is the one place the difference costs
-somebody a wrong turn.
+The places that carry `coordsUnverified` — «the right area, not the right
+building», in the catalogue's own words; eight of 44 when this was written,
+sixteen of 52 on 1 October, and `npm run audit:places` lists today's — were
+read by nothing in the app. Their pin was drawn with the confidence of a
+surveyed one, and the «الاتجاهات» button handed a driver the raw pair, which is
+the one place the difference costs somebody a wrong turn.
 
-Now, for those eight only, directions resolve against Google's own listing by
-name and area, and the page says the pin is approximate. The other 36 still
-route to their coordinate — a coordinate beats a name lookup every time it is
-true.
+Now, for the flagged places only, directions resolve against Google's own
+listing by name and area, and the page says the pin is approximate. The rest
+still route to their coordinate — a coordinate beats a name lookup every time it
+is true.
 
 ## The audit was under-reporting coordinate precision
 
