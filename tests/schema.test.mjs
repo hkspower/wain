@@ -112,6 +112,10 @@ alter table storage.objects enable row level security;
 create or replace function auth.uid() returns uuid language sql stable as $fn$ select nullif(current_setting('request.jwt.claim.sub', true),'')::uuid $fn$;
 create or replace function auth.role() returns text language sql stable as $fn$ select coalesce(nullif(current_setting('request.jwt.claim.role', true),''),'anon') $fn$;
 grant usage on schema public to anon, authenticated;
+-- What a Supabase project does by default: ALL on every new table in public,
+-- for both API roles. Without it this suite tested a database friendlier than
+-- the real one, and the schema's revokes had nothing to take away.
+alter default privileges in schema public grant all on tables to anon, authenticated;
 `;
 psql(scaffold);
 
@@ -182,6 +186,11 @@ console.log("\n── an anonymous visitor: everything they must not do ──")
   denied("cannot read the admin list", "select * from public.admins;");
   denied("cannot make themselves an admin",
     "insert into public.admins(user_id,email) values (gen_random_uuid(),'x@x');");
+  // TRUNCATE is not governed by RLS at all — only the grant stops it, and the
+  // default privileges above grant it. schema.sql revokes before it grants.
+  denied("cannot truncate the places", "truncate public.places cascade;");
+  denied("cannot truncate the orders", "truncate public.orders;");
+  denied("cannot truncate the queue", "truncate public.queue_tickets;");
   ok("and is_admin() says no", psql("select public.is_admin();", { role: "anon" }).out === "f");
 }
 

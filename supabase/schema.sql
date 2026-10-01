@@ -149,8 +149,13 @@ create index if not exists places_category_idx on public.places (category);
 create index if not exists places_sort_idx     on public.places (sort_order, created_at);
 
 -- Keep updated_at honest.
+-- search_path pinned like every other function here: a trigger runs as
+-- whoever caused it, and an unpinned one resolves names through their
+-- search_path (Supabase's linter: function_search_path_mutable).
 create or replace function public.touch_updated_at() returns trigger
-language plpgsql as $$
+language plpgsql
+set search_path = public, pg_temp
+as $$
 begin new.updated_at = now(); return new; end $$;
 
 drop trigger if exists places_touch on public.places;
@@ -403,6 +408,15 @@ alter table public.orders enable row level security;
 -- Saying it here as well costs nothing and makes this file work on a project
 -- where those defaults were tightened. A grant only opens the door; the
 -- policies above are still the whole of the authorization.
+--
+-- And revoked first, so the grants below are the whole list rather than an
+-- addition to it. Those defaults are ALL — TRUNCATE included, which RLS does
+-- not govern. The API never exposed it, but «exactly these grants» was not
+-- true until this (1 October; scripts/audit-rls.mjs holds it).
+revoke all on public.places      from anon, authenticated;
+revoke all on public.admins      from anon, authenticated;
+revoke all on public.submissions from anon, authenticated;
+revoke all on public.orders      from anon, authenticated;
 grant select                         on public.places      to anon, authenticated;
 grant select, insert, update, delete on public.places      to authenticated;
 grant select                         on public.admins      to authenticated;
@@ -459,7 +473,9 @@ create trigger orders_touch before update on public.orders
 -- The moment a status changes is recorded here rather than trusted from
 -- whoever sent the update.
 create or replace function public.stamp_order_status() returns trigger
-  language plpgsql as $$
+  language plpgsql
+  set search_path = public, pg_temp
+as $$
 begin
   if new.status is distinct from old.status then
     if new.status = 'ready'     then new.ready_at     := now(); end if;
@@ -638,6 +654,7 @@ alter table public.queue_tickets
   add column if not exists source text not null default 'online',
   add column if not exists ended_at timestamptz;
 
+revoke all on public.queue_tickets from anon, authenticated;
 grant insert on public.queue_tickets to anon, authenticated;
 grant select, update on public.queue_tickets to authenticated;
 
