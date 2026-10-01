@@ -53,10 +53,52 @@ export default function HomePage() {
           phone (about 115px at 390). 58vw still clears the tallest tip. And
           the content's `pt-6`/`sm:pt-8` is for the wordmark's pin, which hangs
           12–16px above the heading and was being cut by `overflow-hidden`. */}
-      <section className="relative min-h-[58vw] overflow-hidden bg-sand-50 sm:min-h-[53vw]">
+      {/* **The dial and the drawing are laid out two ways, and which one depends
+          on the width — this was found by measuring, not by looking.**
+
+          Below 1024px the two are STACKED: the dial and the pill, then the
+          skyline underneath, so nothing can cover anything. Above it the dial
+          floats over the sky in the drawing (the dial is the sun), and that
+          only works if it clears the artwork — the dome, the flag, the Kuwait
+          Towers' spheres. It used to be one layout from 640px up, with a
+          fixed 288px dial over a drawing that scales with the viewport, and
+          scripts/audit-home-hero.mjs, run against that layout, failed at 9 of
+          its 14 widths, 640 to 1440px: at 768px the dial lay over the dome,
+          its crescent, the minaret's cap, the big sphere and the flag; at
+          1024px over the dome, the sphere and the flag; at 1280px it still
+          touched the dome and the sphere, and the pill was against the
+          dome's box (that is a bounding box, so the contact is the corner of
+          a round shape) up to 1440px. It first cleared at 1536px.
+
+          Three things make the overlay hold:
+            - the dial grows with the screen — 14rem at 1024px to 20rem at
+              1920px, a straight line between them (`clamp`) — through `--dial`,
+              which `NearbyDial` reads. The named `lg` breakpoint, not
+              `min-[1024px]`: Tailwind sorts arbitrary min-width variants
+              BEFORE `sm`, so `sm:pb-[52vw]` outranked the overlay's `pb-3` and
+              the hero came out 300px too tall — found by the same measurement;
+            - the section's own height is derived from it:
+              `--dial + 15.03rem + 20.17vw`, where 20.17vw is how far the dome's
+              crescent stands above the section's foot (the drawing is
+              bottom-anchored and scales with the width) and the rest is the
+              wordmark, the gaps, the dial and the pill. The constant was fitted
+              against the audit, which reads 23px of air between the pill and
+              the crescent at 1024px, the tightest width, and 42px at 1280px —
+              about 15px of slack before its 8px floor. `max()` with 53vw keeps
+              the old height where that is already taller;
+            - the Kuwait Towers sit 20 units further right in the drawing
+              (KuwaitSkyline.tsx), so the dial's edge clears the big sphere.
+
+          Phones are unchanged. From `sm` up the stacked reserve is 52vw rather
+          than the phone's 58vw: the drawing is 44.2vw and its own empty sky is
+          most of the rest, and the larger value left over a hundred pixels of
+          nothing under the pill at tablet width. (The `sm:pb-3` and
+          `sm:min-h-[53vw]` in the paragraphs above describe the layout this
+          replaces.) */}
+      <section className="relative min-h-[58vw] overflow-hidden bg-sand-50 [--dial:18rem] sm:min-h-[52vw] lg:min-h-[max(53vw,calc(var(--dial)+15.03rem+20.17vw))] lg:[--dial:clamp(14rem,calc(10.7vw+114.4px),20rem)]">
         <KuwaitSkyline className="pointer-events-none absolute inset-x-0 bottom-0 aspect-[1200/530] h-auto w-full" />
 
-        <div className="relative mx-auto max-w-6xl px-2.5 pb-[58vw] pt-6 sm:px-4 sm:pb-3 sm:pt-8">
+        <div className="relative mx-auto max-w-6xl px-2.5 pb-[58vw] pt-6 sm:px-4 sm:pb-[52vw] sm:pt-8 lg:pb-3">
           {/* Wordmark */}
           <div className="text-center">
             <span className="relative inline-block">

@@ -3125,6 +3125,9 @@ the pill went `74vw` → `58vw` (a ~115px band of empty sky at 390), and the gra
 is a gradient (`wain-grass`) instead of one flat slab. **`flutter_app/assets/art/
 skyline.svg` is generated from this component** — `npm run flutter:art` after
 any change to it, or `audit:flutter` goes red. Not live until a deploy.
+**That fix was measured at one width, 1440, and it was not the whole answer** —
+see «The home hero's dial and pill lay over the drawing at 9 of 14 widths»
+below.
 
 **A whole-scene style pass followed the sea (1 October).** What changed, and why each
 piece was weak: the sky gradient warms towards the horizon with a dawn glow and
@@ -3210,6 +3213,75 @@ at CONNECT with a 403 by the sandbox's egress gateway — the same class of bloc
 as Hostinger and ElevenLabs. Not routed around. And it would not have fixed
 these: they were layout and drawing problems, and the connector adjusts tone,
 colour and sharpness on a raster.
+
+## The home hero's dial and pill lay over the drawing at 9 of 14 widths — 1 October
+
+Asked to «improve main hero details — scan, then improve». The scan that
+mattered was not of the drawing but of the two layers on top of it, and nobody
+had ever done it: **the sun dial and the search pill are laid out in CSS pixels
+over a drawing that scales with the viewport**, so where one lies on the other
+is a function of the width, and every other audit in `scan` asks about a single
+element. `npm run audit:home-hero` (new, in `scan`) puts a real browser on
+`out/` at 14 widths from 320 to 1920 and measures the dial's tick ring and the
+pill against every part of the drawing marked `data-clear`.
+
+**Run against the old layout it failed at 9 of 14 widths, 640 to 1440px, and
+first cleared at 1536.** The old layout is reproduced by putting its three
+values back from the page — `min-h-[58vw] sm:min-h-[53vw]`, `pb-[58vw]
+sm:pb-3`, the dial at 18rem — and its hero heights match the old build's own
+screenshots to within a pixel (527 / 543 / 678 / 763 at 768 / 1024 / 1280 /
+1440). At 768px the dial lay over the dome, its crescent, the minaret's cap, the
+big sphere and the flag; at 1024px over the dome, the sphere and the flag; at
+1280px it still touched the dome and the sphere, and the pill was against the
+dome's box up to 1440px. The 1 October fix above — towers moved, not the dial —
+was measured at 1440 only, which is why it looked finished.
+
+**What it is now.**
+
+- Under 1024px the dial and the pill are STACKED above the skyline, so nothing
+  can cover anything. Heights 848 / 915 / 1047 at 640 / 768 / 1023, against 527 /
+  527 / 542 before. That is the price: a tablet's hero is much taller, the
+  skyline sits below the dial instead of behind it, and the page steps from 1047
+  at 1023px to 671 at 1024px. Phones are unchanged (670 at 320, 710 at 390).
+- From 1024px (`lg`) the dial floats over the sky and grows with the screen:
+  `--dial: clamp(14rem, 10.7vw + 114.4px, 20rem)`, set on the hero section and
+  read by `NearbyDial` (`size-[var(--dial,18rem)]`). The section's height is
+  derived from it, `max(53vw, --dial + 15.03rem + 20.17vw)`, where 20.17vw is how
+  far the dome's crescent stands above the section's foot. Heights 671 / 750 /
+  799 / 1018 at 1024 / 1280 / 1440 / 1920 (543 / 678 / 763 / 1018 before). The
+  air at the tightest width, 1024px, is dial→sphere 14px and pill→crescent 23px,
+  so the pill has about 15px of slack before the audit's 8px floor.
+- The Kuwait Towers group moved a further 20 units (`translate(886 372)`), and
+  the far shore has stepped crowns and domes instead of plain blocks.
+
+**What the audit is, and what it cannot claim.** It finds the parts by
+`data-clear` — the spheres, the dome and its crescent, the minaret's cap, the
+flag, the Liberation Tower's pod, the clock tower — not by coordinates, so a
+moved landmark stays protected and a new one is protected by marking it. **It
+fails if it finds none**, so a selector that drifts cannot pass vacuously. It
+measures BOUNDING BOXES, so «clear» is a real clear and «touching» can be the
+empty corner of a dome's box. `scripts/export-flutter-art.mjs` strips the
+attribute for the app; the app's own hero is a stacked layout and never had the
+problem (`audit:flutter` current, 132 svgs). Proved both ways: red on the old
+layout, green on this one, and a control run of the same script with nothing
+overridden reproduces the new numbers exactly.
+
+**Two traps, both met on the way.**
+
+- **Tailwind v4 sorts arbitrary `min-[1024px]:` variants BEFORE `sm:`** in the
+  generated CSS, so `sm:pb-[52vw]` outranked `min-[1024px]:pb-3` and the hero
+  came out 984px at 1024 instead of 671. Use the named breakpoint, `lg`. It was
+  found only because the audit prints the hero's height: the first run reported
+  everything clear on a hero 300px too tall, and **«clear» on a layout that is
+  not the layout you meant is not a pass.**
+- **The percentages first written into the comments** («covered 98% of the
+  dome…») came from an exploratory script, not from the audit, and could not be
+  reproduced. They were re-measured and replaced before commit, and the claim
+  «the pill clears the crescent by 14px» was really 23. A number in a comment has
+  to be one that a check in the repository prints.
+
+**Not verified:** a real phone or tablet, the Flutter widget itself (no SDK
+here), and anything on the live site — nothing here is deployed.
 
 ## The Arabic prose has been read, once, on purpose
 
@@ -3319,8 +3391,9 @@ are now read and correct; a seventh appearing means something new, not this.
 
 ## Checks
 
-`npm run scan` is lint plus 31 audits — counted from `package.json` on
-21 September rather than estimated, because «~29» had been carried along
+`npm run scan` is lint plus 33 audits — counted from `package.json` on
+1 October rather than estimated (31 on 21 September; `audit:flutter` and
+`audit:home-hero` joined since), because «~29» had been carried along
 through two additions. Browser suites: `test:hangout` (hangout, hangout-page,
 map-pin, live-map, search-keys, shouq-search, search-plan, find, salem —
 **nine**, having gained `salem` and lost `swipe` since the line above this

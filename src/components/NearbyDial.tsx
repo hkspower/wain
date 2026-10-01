@@ -12,6 +12,15 @@ import Link from "next/link";
  * panel. Nothing here reads a GPS fix or the catalogue any more, so this
  * needs no "use client" and no import from `@/lib/places`: it is a link,
  * server-rendered, and the home page's client bundle is lighter for it.
+ *
+ * Its size is `--dial`, set by the hero section (18rem when nothing sets it).
+ * It used to be a fixed `size-72` at every width, which is the root of the
+ * hero's worst defect: the drawing behind it scales with the viewport and the
+ * dial does not, so from 640 to 1280px it lay over the mosque dome and the
+ * Kuwait Towers' spheres (and the flag up to 1100px). The section now grows
+ * the dial with the screen and derives its own height from it — see the
+ * comment over the hero in `app/page.tsx` and `scripts/audit-home-hero.mjs`,
+ * which measures it.
  */
 export default function NearbyDial() {
   return (
@@ -52,7 +61,7 @@ export default function NearbyDial() {
           // gradient button would read as dirt, not lift. Same deliberate
           // exception as Navbar's inset highlight: audit:css flags both as
           // raw colour, neither is an oversight.
-          className="relative grid size-72 place-items-center rounded-full border-[6px] border-white bg-gradient-to-b from-sun-200 to-sun-400 px-6 text-center shadow-[0_18px_40px_-12px_rgba(180,120,10,0.55)] transition hover:from-sun-100 hover:to-sun-300 focus-visible:ring-offset-4"
+          className="relative grid size-[var(--dial,18rem)] place-items-center rounded-full border-[6px] border-white bg-gradient-to-b from-sun-200 to-sun-400 px-6 text-center shadow-[0_18px_40px_-12px_rgba(180,120,10,0.55)] transition hover:from-sun-100 hover:to-sun-300 focus-visible:ring-offset-4"
         >
           <span className="flex flex-col items-center gap-1">
             <span className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">

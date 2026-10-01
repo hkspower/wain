@@ -26,6 +26,13 @@
  * origin rather than every coordinate leaves the ground at y 372 and every
  * building's numbers as they were. The page's `aspect-[1200/530]` and its sky
  * reserve are tied to that ratio — change one, change the other.
+ *
+ * `data-clear="…"` marks the parts of the drawing the sun dial and the search
+ * pill must never cover — the spheres, the dome and its crescent, the flag,
+ * the minaret's cap, the Liberation Tower's pod and the clock tower.
+ * `scripts/audit-home-hero.mjs` finds them by that attribute and measures the
+ * gap at every width, so a new or moved landmark is protected by marking it,
+ * not by editing the audit's coordinates. The Flutter export strips it.
  */
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -86,7 +93,7 @@ function Orb(p: { cx: number; cy: number; r: number; lats: number[]; perRow: num
       <clipPath id={clip}>
         <circle cx={cx} cy={cy} r={r} />
       </clipPath>
-      <circle className="orb" cx={cx} cy={cy} r={r} fill="url(#wain-orb)" />
+      <circle className="orb" data-clear="sphere" cx={cx} cy={cy} r={r} fill="url(#wain-orb)" />
       {/* The mosaic band the real spheres carry round their middle: the same
           arc the rows of discs follow (TILT bends the equator up over the
           front), a dark ribbon with a pale line on it, clipped to the disc so
@@ -198,7 +205,7 @@ const PALMS = [
   { x: 92, s: 1 },
   { x: 356, s: 0.82 },
   { x: 650, s: 0.7 },
-  { x: 985, s: 0.9 },
+  { x: 992, s: 0.9 },
   { x: 1156, s: 1.02 },
 ];
 
@@ -378,7 +385,7 @@ function LiberationTower() {
       <circle cx={cx - 0.7} cy="42.2" r="0.7" fill="#ffffff" opacity="0.75" />
 
       {/* ---- The pod: a glass drum, teal on its lit side, deep green below. */}
-      <path d={pod.wall} fill="url(#wain-glass)" />
+      <path data-clear="pod" d={pod.wall} fill="url(#wain-glass)" />
       <g fill="url(#wain-pod-under)">{under(pod)}</g>
       <g stroke="#e6fff7" strokeWidth="0.9" strokeOpacity="0.5" strokeLinecap="round">
         {pod.mullions(13).map((m) => (
@@ -478,8 +485,16 @@ function farShore() {
     let d = "";
     for (let x = x0; x < x1; ) {
       const w = 4 + rand() * 8;
-      const h = rand() < 0.14 ? 15 + rand() * 9 : 3 + rand() * 9;
+      const roll = rand();
+      const h = roll < 0.14 ? 15 + rand() * 9 : 3 + rand() * 9;
       d += `M${r1(x)} ${HORIZON} V${r1(HORIZON - h)} h${r1(w)} V${HORIZON} Z`;
+      // not every roof is flat: a stepped crown on a few, a dome on a few more,
+      // so the far shore is a city and not a bar chart
+      if (roll > 0.55 && roll < 0.8) {
+        d += `M${r1(x + w * 0.25)} ${r1(HORIZON - h)} V${r1(HORIZON - h - 2.4)} h${r1(w * 0.5)} V${r1(HORIZON - h)} Z`;
+      } else if (roll >= 0.8 && w > 6) {
+        d += `M${r1(x + 0.5)} ${r1(HORIZON - h)} a${r1(w / 2 - 0.5)} ${r1(w / 2 - 0.5)} 0 0 1 ${r1(w - 1)} 0 Z`;
+      }
       x += w + rand() * 3;
     }
     return d;
@@ -502,7 +517,7 @@ function Flag() {
     });
   const band = (ya: number, yb: number) => `M${edge(ya).join(" L")} L${edge(yb).reverse().join(" L")} Z`;
   return (
-    <g transform="translate(548 300)">
+    <g data-clear="flag" transform="translate(548 300)">
       <rect x="-2" y="0" width="4" height="72" rx="2" fill="#8b6836" />
       <circle cx="0" cy="-1" r="2.6" fill="#e8b23a" />
       <path d={band(2, 12)} fill="#2f8a4e" />
@@ -838,7 +853,7 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
         <rect x="404" y="292" width="168" height="80" rx="8" fill="url(#wain-shaft-shade)" />
         <rect x="406" y="292" width="164" height="7" rx="3" fill="#e6d3a6" opacity="0.75" />
         {/* the main dome */}
-        <path className="bldg" d="M488 208 q52 26 52 84 h-104 q0 -58 52 -84 Z" fill="url(#wain-dome)" />
+        <path className="bldg" data-clear="dome" d="M488 208 q52 26 52 84 h-104 q0 -58 52 -84 Z" fill="url(#wain-dome)" />
         <g fill="none" stroke="#b99a63" strokeWidth="0.9" strokeOpacity="0.32" strokeLinecap="round">
           {[-34, -17, 17, 34].map((dx) => (
             <path key={dx} d={`M${488 + dx} 292 Q${r1(488 + dx * 1.18)} 240 488 211`} />
@@ -847,7 +862,7 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
         <ellipse cx="468" cy="246" rx="11" ry="22" transform="rotate(-18 468 246)" fill="#ffffff" opacity="0.32" />
         <rect x="485" y="196" width="6" height="12" rx="2" fill="url(#wain-shaft)" stroke="#c9a55f" strokeWidth="0.8" />
         <path d="M488 196 v-9" stroke="#c9a55f" strokeWidth="1.6" strokeLinecap="round" />
-        <path d={crescent(488, 184, 6)} fill="#e8b23a" stroke="#b8862a" strokeWidth="0.5" strokeLinejoin="round" />
+        <path data-clear="crescent" d={crescent(488, 184, 6)} fill="#e8b23a" stroke="#b8862a" strokeWidth="0.5" strokeLinejoin="round" />
         {/* windows over the arches, then the arches with their recesses */}
         <g fill="url(#wain-window)" stroke="#d9c192" strokeWidth="0.7">
           {[422, 449, 476, 503, 530].map((x) => (
@@ -869,13 +884,13 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
           <rect x="389.5" y="276" width="3" height="14" rx="1.5" />
           <rect x="389.5" y="214" width="3" height="16" rx="1.5" />
         </g>
-        <path d="M382 176 h9 v-22 Z" fill="#2a9c7c" />
-        <path d="M391 154 v22 h9 Z" fill="#146151" />
+        <path data-clear="minaret" d="M382 176 h9 v-22 Z" fill="#2a9c7c" />
+        <path data-clear="minaret" d="M391 154 v22 h9 Z" fill="#146151" />
         <path d="M391 154 v-7" stroke="#c9a55f" strokeWidth="1.5" strokeLinecap="round" />
         <path d={crescent(391, 143, 5.2)} fill="#e8b23a" stroke="#b8862a" strokeWidth="0.5" strokeLinejoin="round" />
       </g>
 
-      {/* Low block, right. Drawn BEFORE the towers: the towers sit 120 units
+      {/* Low block, right. Drawn BEFORE the towers: the towers sit 140 units
           further right than they used to (see below) and the third spire now
           stands in front of this block instead of beside it. */}
       <g>
@@ -886,7 +901,7 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
         </g>
       </g>
 
-      {/* Kuwait Towers. Moved 120 units right (the first `translate`) so the
+      {/* Kuwait Towers. Moved 140 units right (the first `translate`: 886 − 746) so the
           big sphere is no longer behind the sun dial on a wide screen: the
           dial is centred, and at the old position it covered the main
           tower's two spheres and the search pill sat on its shaft. Everything
@@ -899,7 +914,7 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
           coordinates. Each shaft has a lit edge and a shaded one, a collar
           where it meets a sphere, a plinth to stand on, and a small gold
           finial with a glow, which is what the real spires carry. */}
-      <g transform="translate(866 372) scale(1.33) translate(-746 -372)">
+      <g transform="translate(886 372) scale(1.33) translate(-746 -372)">
         {/* Plinths, behind the shafts */}
         <g fill="url(#wain-stone)" stroke="#c9ab72" strokeWidth="1.4">
           <rect x="662" y="361" width="44" height="11" rx="3" />
@@ -941,7 +956,7 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
       {/* Seif Palace clock tower */}
       <g>
         <rect className="bldg" x="1006" y="252" width="86" height="120" rx="7" fill="url(#wain-box)" />
-        <rect className="bldg" x="1028" y="180" width="42" height="76" rx="6" fill="url(#wain-box)" />
+        <rect className="bldg" data-clear="clock" x="1028" y="180" width="42" height="76" rx="6" fill="url(#wain-box)" />
         <rect x="1003" y="249" width="92" height="6" rx="2.4" fill="#ecdcb4" stroke="#c9ab72" strokeWidth="1" />
         <rect x="1025" y="177" width="48" height="5" rx="2" fill="#ecdcb4" stroke="#c9ab72" strokeWidth="1" />
         <path d="M1028 180 h21 v-40 Z" fill="#2a9c7c" />
@@ -999,7 +1014,7 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
         <ellipse cx="312" cy="371" rx="70" ry="3.5" />
         <ellipse cx="500" cy="371" rx="92" ry="3.5" />
         <ellipse cx="600" cy="371" rx="14" ry="3" />
-        <ellipse cx="890" cy="371" rx="118" ry="4.5" />
+        <ellipse cx="910" cy="371" rx="118" ry="4.5" />
         <ellipse cx="946" cy="371" rx="42" ry="3.5" />
         <ellipse cx="1062" cy="371" rx="54" ry="4" />
         {PALMS.map((p) => (

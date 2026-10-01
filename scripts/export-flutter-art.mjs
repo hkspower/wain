@@ -103,6 +103,8 @@ const grabbed = await page.evaluate(() => {
     el.setAttribute("xmlns", "http://www.w3.org/2000/svg");
     for (const a of ["class", "aria-hidden", "focusable", "role", "width", "height"]) el.removeAttribute(a);
     el.querySelectorAll("*").forEach((n) => { n.removeAttribute("class"); });
+    // audit hooks (KuwaitSkyline's data-clear) mean nothing to flutter_svg
+    el.querySelectorAll("[data-clear]").forEach((n) => n.removeAttribute("data-clear"));
     // Resolve the custom property the marks use for their detail stroke.
     const walk = (n) => {
       for (const a of [...n.attributes]) {
