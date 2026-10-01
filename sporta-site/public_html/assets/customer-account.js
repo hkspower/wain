@@ -63,17 +63,21 @@
   }
 
   function mountButton() {
-    var bag = document.querySelector('header.app-header nav button[aria-label]')
-    var cluster = null
+    var bag = null, cluster = null, cls = ''
     var all = document.querySelectorAll('header.app-header nav button')
     for (var i = 0; i < all.length; i++) { if (/^(Bag|الحقيبة)/.test(all[i].getAttribute('aria-label') || '')) { bag = all[i]; break } }
-    if (!bag) return
-    cluster = bag.parentElement
+    if (bag) { cluster = bag.parentElement; cls = bag.className }
+    else {
+      /* the server-drawn category pages (category.php) have their own header: a plain link to /cart */
+      bag = document.querySelector('header.top .icons a[href="/cart"]')
+      if (bag) cluster = bag.parentElement
+    }
+    if (!bag || !cluster) return
     var existing = document.querySelector('[data-cua-btn]')
     if (existing && existing.parentElement === cluster) { refreshButton(); return }
     if (existing) existing.remove()
     btn = document.createElement('button')
-    btn.type = 'button'; btn.className = bag.className; btn.setAttribute('data-cua-btn', '')
+    btn.type = 'button'; btn.className = cls; btn.setAttribute('data-cua-btn', '')
     btn.setAttribute('aria-haspopup', 'dialog')
     btn.appendChild(personSvg())
     btn.addEventListener('click', openSheet)
@@ -247,7 +251,9 @@
   }
 
   /* ---- styling ---- */
-  var CSS = '[data-cua-btn][data-signed="1"]{position:relative}'
+  var CSS = 'header.top .icons [data-cua-btn]{display:flex;position:relative;background:none;border:0;padding:0;color:#fff;cursor:pointer;min-width:22px;min-height:22px}'
+    + '@media (pointer:coarse){header.top .icons [data-cua-btn]{min-width:44px;min-height:44px;align-items:center;justify-content:center;margin:-11px}}'
+    + '[data-cua-btn][data-signed="1"]{position:relative}'
     + '[data-cua-btn][data-signed="1"]::after{content:"";position:absolute;top:8px;inset-inline-end:8px;width:8px;height:8px;border-radius:50%;background:#6fd08c;box-shadow:0 0 0 2px #2b3138}'
     + '.cua-overlay{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.62);display:flex;align-items:flex-end;justify-content:center;font:15px/1.5 inherit}'
     + '@media (min-width:640px){.cua-overlay{align-items:center}}'

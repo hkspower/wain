@@ -6,7 +6,7 @@ const check = (ok, w, d = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' 
 const b = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
 let seen = 0
 for (const [vp, touch] of [[{ width: 390, height: 844 }, true], [{ width: 1280, height: 800 }, false]]) {
-  for (const lang of ['en', 'ar']) for (const path of ['/', '/shop', '/product/vanquish-tank-navy', '/about', '/contact', '/track']) {
+  for (const lang of ['en', 'ar']) for (const path of ['/', '/shop', '/product/vanquish-tank-navy', '/about', '/contact', '/track', '/men']) {
     const p = await (await b.newContext({ viewport: vp, hasTouch: touch, isMobile: touch })).newPage()
     await p.goto(`${BASE}${path}?lang=${lang}`, { waitUntil: 'networkidle' }); await p.waitForTimeout(1500)
     const bad = await p.evaluate(() => {

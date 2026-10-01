@@ -31,6 +31,19 @@ try {
     }
   }
 
+  // the server-drawn category pages carry the same icon, and it works
+  for (const lang of ['en', 'ar']) {
+    const c2 = await b.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+    const q = await c2.newPage()
+    await q.goto(`${BASE}/men?lang=${lang}`, { waitUntil: 'networkidle' }); await q.waitForTimeout(1500)
+    check(await q.locator('[data-cua-btn]').count() === 1, `category page ${lang}: the account icon is in its header too`)
+    const tb = await q.evaluate(() => Math.round(document.querySelector('header.top').getBoundingClientRect().height))
+    check(tb <= 140, `category page ${lang}: header is slimmer (was ~210px with the promo strip)`, tb + 'px')
+    await q.locator('[data-cua-btn]').click(); await q.waitForTimeout(500)
+    check(await q.locator('.cua-sheet').isVisible(), `category page ${lang}: and it opens the sheet`)
+    await c2.close()
+  }
+
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
   const p = await ctx.newPage()
   await p.goto(`${BASE}/?lang=en`, { waitUntil: 'networkidle' }); await p.waitForTimeout(1800)

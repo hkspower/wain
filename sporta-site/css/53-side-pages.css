@@ -1,0 +1,91 @@
+/* THE SIDE PAGES, ONE FAMILY — 2026-10-01, "make full improve for sides pages layout" (About / Why Sporta,
+ * Contact, Returns, Track order, Terms, Privacy). They share a shape — `main > section` with a
+ * `text-3xl font-extrabold` title — and had drifted: titles 25px on some and 30px on others, in the
+ * condensed display face and orange; body copy 14.75px; FAQ rows with nothing to say they open; anchors
+ * (#why, #delivery) left 160px of empty space above the heading they jump to.
+ *
+ * Now: ONE title (the face of the "Shop by category" bar, Alexandria, white, a short orange bar beneath,
+ * 25px — 26px in Arabic — at weight 700); section headings in the same face with an orange start edge;
+ * body copy held to a readable line length; FAQ rows 52px tall with a chevron; anchors land 88px down.
+ * Logical properties throughout, so Arabic mirrors itself.
+ *
+ * SIZES AND WEIGHTS ARE 08-document-pages.css's, ON PURPOSE. The owner asked for Privacy, Terms, Returns
+ * and About to be smaller and quieter (800 is a shouting weight; a legal page that shouts reads as
+ * marketing). A first draft of this file enlarged them to 30/38px and 16px body and so undid that
+ * request; it now changes the FACE and COLOUR, the bar, the measure and the affordances, and leaves
+ * the sizes and the 700 weight where the owner put them. Contact and Track, which that file does not
+ * reach, are brought down to the same title size so the six agree.
+ *
+ * SCOPED to the narrow-column sections these pages use (max-w-xl / 3xl / 4xl) — the shop, product and
+ * checkout pages use wider ones and also carry a text-3xl title, so the title alone is not a safe key.
+ * test:side-pages checks that they are untouched. */
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) { padding-top: 40px; }
+@media (min-width: 768px) {
+  main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) { padding-top: 64px; }
+}
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h1[class~="text-3xl"][class~="font-extrabold"] {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 25px !important;
+  line-height: 1.3 !important;
+  letter-spacing: 0 !important;
+  color: #ffffff !important;
+  text-align: start;
+  margin-bottom: 14px !important;
+  padding-bottom: 16px;
+  position: relative;
+}
+html[lang="ar"] main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h1[class~="text-3xl"][class~="font-extrabold"] { font-size: 26px !important; }
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h1[class~="text-3xl"][class~="font-extrabold"]::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  inset-inline-start: 0;
+  width: 56px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--brand, #e0561c);
+}
+/* the returns page puts an icon beside its title; keep the bar under the words only */
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) > div:has(> h1[class~="text-3xl"]) { align-items: center; }
+/* section headings */
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h2[class~="font-extrabold"] {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  color: #ffffff !important;
+  padding-inline-start: 12px;
+  border-inline-start: 4px solid var(--brand, #e0561c);
+}
+/* body copy */
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) :is(p, li) {
+  max-width: 68ch;
+}
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) :is(p, li)[class*="text-slate-600"] { color: #c9ced4; }
+/* FAQ rows: a real target, and a cue that they open */
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) details > summary {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  cursor: pointer;
+  list-style: none;
+}
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) details > summary::-webkit-details-marker { display: none; }
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) details > summary::after {
+  content: "";
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-inline-end: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform .2s ease;
+  opacity: .7;
+}
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) details[open] > summary::after { transform: rotate(-135deg); }
+/* anchors (#why, #delivery, #returns) land just under the header, not 160px below it */
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) .anchor-target { scroll-margin-top: 88px !important; }
+/* the small card titles on About ("Delivery within 24 hours", ...) were set in the condensed display face */
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h3[class~="font-bold"] {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+}

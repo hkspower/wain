@@ -310,8 +310,13 @@ header('Cache-Control: public, max-age=0, must-revalidate');
   }
   .topnav {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 14px 20px;
+    padding: 6px 20px;
   }
+  /* SLIMMER, WITH THE APP'S — 2026-10-01, "reduce logo size at topbar and reduce topbar height". The
+     app's bar is 34px logo / 40px from 768px with 4px round the link and 6px round the row; this
+     header follows it (it exists to stay in step), and the promo strip the app hides is hidden here. */
+  .promo { display: none; }
+  .topnav .brand-logo { padding-block: 4px; }
   /* BIGGER THAN THE OTHER HEADER ELEMENTS — 2026-09-22, "اجعل الشعار أكبر
      قليلًا مقارنة بعناصر الهيد" (make the logo a bit bigger than the header
      elements). Measured against the app's own header first, since that one
@@ -326,7 +331,8 @@ header('Cache-Control: public, max-age=0, must-revalidate');
      rather than left at 36px, for the same reason this header keeps
      following the app's at every other size decision. Still comfortably
      under the topnav's own padding, checked. */
-  .topnav .brand-logo img { height: 44px; width: auto; display: block; }
+  .topnav .brand-logo img { height: 34px; width: auto; display: block; }
+  @media (min-width: 768px) { .topnav .brand-logo img { height: 40px; } }
   .lang-pill {
     display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 700;
     color: rgba(255,255,255,.9); border: 1px solid rgba(255,255,255,.2); border-radius: 999px;
@@ -345,6 +351,9 @@ header('Cache-Control: public, max-age=0, must-revalidate');
   .icons { display: flex; align-items: center; gap: 16px; }
   .icons a { position: relative; display: flex; color: #fff; }
   .icons svg { width: 22px; height: 22px; flex: none; }
+  /* ONE ICON WEIGHT (css/52-icons.css, which this page does not load): 1.5px on screen at every size */
+  svg[fill="none"][stroke="currentColor"] { stroke-width: 1.5px; stroke-linecap: round; stroke-linejoin: round; }
+  svg[fill="none"][stroke="currentColor"] :is(path, circle, line, polyline, polygon, rect, ellipse) { vector-effect: non-scaling-stroke; }
   .cart-badge {
     position: absolute; top: -6px; inset-inline-end: -8px; background: var(--sp-fill);
     color: #fff; font-size: .65rem; font-weight: 800; line-height: 1;
@@ -566,5 +575,6 @@ header('Cache-Control: public, max-age=0, must-revalidate');
 </footer>
 <script src="/assets/category-topbar.js" defer></script>
 <script src="/assets/quick-add-size.js?v=20261001" defer></script>
+<script src="/assets/customer-account.js" defer></script>
 </body>
 </html>
