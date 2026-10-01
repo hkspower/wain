@@ -1,6 +1,5 @@
 import type { CSSProperties, SVGProps } from "react";
 import CategoryIcon from "@/components/CategoryIcon";
-import { getCategory, places } from "@/lib/places";
 
 /**
  * One bespoke line icon per place.
@@ -312,18 +311,21 @@ function Art({ slug }: { slug: string }) {
         </>
       );
 
-    /* متحف طارق رجب — vitrine holding an Islamic-art vessel */
+    /* متحف طارق رجب — the calligrapher's reed pen in its inkwell */
     case "tareq-rajab-museum":
       return (
         <>
-          <path {...F} d="M9 40V14h30v26Z" />
-          <path d="M9 40V14h30v26" />
-          <path d="M7 14h34M7 40h34" />
-          <path d="M24 14V9" />
-          <path {...F} d="M19 32c0-4-2-5-2-8a7 7 0 0 1 14 0c0 3-2 4-2 8Z" />
-          <path d="M19 32c0-4-2-5-2-8a7 7 0 0 1 14 0c0 3-2 4-2 8" />
-          <path d="M18 32h12" style={DETAIL} />
-          <path d="M24 20v5M21.5 22.5h5" opacity={0.55} style={DETAIL} />
+          {/* The qalam in its inkwell. Calligraphy is the first thing the catalogue
+              lists here, and the museum keeps a second building for it. The vessel
+              in a vitrine this replaces fared badly in a blind recognition test, and
+              a bare jug sits too close to the tea houses' dallah and to the
+              coppersmiths of Souq Al-Safafeer. */}
+          <path {...F} d="M10.5 40c-2 0-3.2-1.6-2.9-3.5l.9-4.8c.5-2.7 2.8-4.7 5.6-4.7h14.8c2.8 0 5.1 2 5.6 4.7l.9 4.8c.3 1.9-.9 3.5-2.9 3.5Z" />
+          <path d="M10.5 40c-2 0-3.2-1.6-2.9-3.5l.9-4.8c.5-2.7 2.8-4.7 5.6-4.7h14.8c2.8 0 5.1 2 5.6 4.7l.9 4.8c.3 1.9-.9 3.5-2.9 3.5ZM14.5 27v-3.8h13V27" />
+          <path {...F} d="M17.6 25.6 30.72 9.09l4 3.1L21.6 28.7Z" />
+          <path d="M17.6 25.6 30.72 9.09l4 3.1L21.6 28.7M30.72 9.09l5.6-2.9-1.6 6" />
+          <path d="M25.8 15.4l4 3.1" style={DETAIL} opacity={0.55} />
+          {GROUND}
         </>
       );
 
@@ -380,33 +382,42 @@ function Art({ slug }: { slug: string }) {
         </>
       );
 
+    /* قصر السيف — the clock tower, its dial and its dome */
     case "seif-palace":
       return (
         <>
-          {/* The clock tower, tiled blue and gold, over the palace wall. */}
-          <path {...F} d="M18 40V16h12v24Z" />
-          <path d="M18 40V16h12v24" />
-          <path d="M24 16V9" />
-          <circle {...F} cx="24" cy="24" r="4" />
-          <circle cx="24" cy="24" r="4" style={DETAIL} />
-          <path d="M24 22v2l1.5 1" style={DETAIL} />
-          <path {...F} d="M6 40V28h12v12ZM30 40V28h12v12Z" />
-          <path d="M6 40V28h12M30 28h12v12" />
+          {/* The clock tower alone, because the dial and the gold-plated dome are
+              the whole of what people know it by. The gate in its foot and the
+              ground line keep it a building: a tall case with a dial near the top
+              is otherwise a grandfather clock. */}
+          <path {...F} d="M15.5 40V15h17v25Z" />
+          <path d="M15.5 40V15h17v25M14 15h20" />
+          <path {...F} d="M18 15a6 6.5 0 0 1 12 0Z" />
+          <path d="M18 15a6 6.5 0 0 1 12 0ZM24 8.5V6.5" />
+          <circle cx="24" cy="24" r="6" />
+          <path d="M24 24v-3.5M24 24h3.5" style={DETAIL} />
+          <path d="M21 40v-2.5a3 3 0 0 1 6 0V40" style={DETAIL} />
           {GROUND}
         </>
       );
 
+    /* حديقة حيوان الكويت — a giraffe, standing */
     case "kuwait-zoo":
       return (
         <>
-          {/* A giraffe: the one animal whose outline survives 16px. */}
-          <path {...F} d="M26 40V22c0-3-3-5-7-5s-7 2-7 5v18Z" />
-          <path d="M26 40V22c0-3-3-5-7-5s-7 2-7 5v18" />
-          <path d="M26 26c0-8 3-12 8-14" />
-          <path {...F} d="M34 12a3 3 0 0 1 6 0c0 2-2 3-4 3l-3 1Z" />
-          <path d="M34 12a3 3 0 0 1 6 0c0 2-2 3-4 3l-3 1" />
-          <path d="M35 9V6M39 9V6" style={DETAIL} />
-          <path d="M16 24h.01M22 27h.01M18 31h.01" style={DETAIL} opacity={0.6} />
+          {/* A giraffe, standing: the animal the previous mark meant, drawn as the
+              silhouette that survives 16px, the long neck, the horns and four legs.
+              The old one was a tinted arch with a hooked line, and read as neither
+              a giraffe nor anything else. */}
+          <path {...F} d="M20 22.5h14.5c2.5 0 4 1.5 4 4v1c0 1.6-1.4 3-3 3H20c-1.7 0-3-1.3-3-3v-2c0-1.7 1.3-3 3-3Z" />
+          <path d="M20 22.5h14.5c2.5 0 4 1.5 4 4v1c0 1.6-1.4 3-3 3H20c-1.7 0-3-1.3-3-3v-2c0-1.7 1.3-3 3-3Z" />
+          <path {...F} d="M18.5 23.5 12.5 10.5l4-2 7 14Z" />
+          <path d="M18.5 23.5 12.5 10.5M16.5 8.5l7 14" />
+          <path {...F} d="M16.5 8.5 12.5 6.4 7.2 9.4c-.8.5-.6 1.8.4 2l4.9-.9Z" />
+          <path d="M16.5 8.5 12.5 6.4 7.2 9.4c-.8.5-.6 1.8.4 2l4.9-.9Z" />
+          <path d="M13.3 6.8 12.8 4M15.6 7.7l.9-2.7" style={DETAIL} />
+          <path d="M20 30.5V40M23.5 30.5V40M32.5 30.5V40M36 30.5V40M38.5 24.5l2.5 5.5" />
+          <path d="M23.5 25.5h.01M28.5 25.2h.01M33 27.2h.01M16.3 15.5h.01" style={DETAIL} opacity={0.7} />
           {GROUND}
         </>
       );
@@ -496,17 +507,22 @@ function Art({ slug }: { slug: string }) {
         </>
       );
 
+    /* مركز الشيخ عبدالله السالم الثقافي — a rocket, for the space museum */
     case "abdullah-al-salem-cultural-centre":
       return (
         <>
-          {/* The lattice screen. The building is a long low box behind a
-              geometric facade, and the facade is the only part anybody
-              pictures. */}
-          <path {...F} d="M8 13h32v27H8Z" />
-          <path d="M8 13h32v27H8Z" />
-          <path d="M6 13h36" />
-          <path d="M8 27 22 13M8 40 35 13M22 40 40 22M35 40 40 35" style={DETAIL} opacity={0.55} />
-          <path d="M40 27 26 13M40 40 13 13M26 40 8 22M13 40 8 35" style={DETAIL} opacity={0.55} />
+          {/* The space museum, drawn as its rocket. The lattice box this replaced
+              read as a hatched square in a search row, and the obvious fix is a
+              trap: the National Museum has a planetarium too, so a dome or a
+              telescope points at both. «فضاء» is in this place's catalogue entry
+              and no other. The fins are what keep it from reading as the
+              Liberation Tower's needle at 16px. */}
+          <path {...F} d="M24 5C27.5 7.6 30.5 13 30.5 20v13h-13V20c0-7 3-12.4 6.5-15Z" />
+          <path d="M24 5C27.5 7.6 30.5 13 30.5 20v13h-13V20c0-7 3-12.4 6.5-15Z" />
+          <circle cx="24" cy="19" r="3.2" style={DETAIL} />
+          <path {...F} d="M17.5 24 11.5 31v9l6-7ZM30.5 24l6 7v9l-6-7Z" />
+          <path d="M17.5 24 11.5 31v9l6-7ZM30.5 24l6 7v9l-6-7Z" />
+          <path d="M20.5 33h7l1 3.5h-9Z" />
           {GROUND}
         </>
       );
@@ -606,19 +622,24 @@ function Art({ slug }: { slug: string }) {
         </>
       );
 
+    /* مارينا مول — the glass footbridge from the mall across the road */
     case "marina-mall":
       return (
         <>
-          {/* The footbridge over the Gulf Road. Marina Beach owns the parasol
-              and Souq Sharq owns the sail, so the mall is the crossing. */}
-          <path {...F} d="M26 32V15h16v17Z" />
-          <path d="M26 32V15h16v17" />
-          <path d="M24.5 15h19" />
-          <path d="M31 32v-7h6v7" style={DETAIL} />
-          <path d="M4 28h22M4 28v4M11 28v4M18 28v4M26 28v4" style={DETAIL} />
-          <path d="M4 32h22" />
-          <path d="M4 37c4 0 4 2.5 8 2.5s4-2.5 8-2.5 4 2.5 8 2.5 4-2.5 8-2.5 4 2.5 8 2.5" opacity={0.5} />
-          <path d="M4 42c4 0 4 2.5 8 2.5s4-2.5 8-2.5 4 2.5 8 2.5 4-2.5 8-2.5 4 2.5 8 2.5" opacity={0.32} />
+          {/* The glass footbridge the catalogue names, from the mall's upper floor
+              across the Gulf Road to the seafront side. It slopes on purpose: drawn
+              level between two blocks it read as a gate, and level over water on
+              piers it reads as the Sheikh Jaber Causeway. */}
+          <path {...F} d="M4.5 40V14h12.5v26Z" />
+          <path d="M4.5 40V14h12.5v26" />
+          <path d="M3.5 14 7 9.5h8l3.5 4.5Z" />
+          <path {...F} d="M17 17.5 34 23v6l-17-5.5Z" />
+          <path d="M17 17.5 34 23v6l-17-5.5" />
+          <path d="M22.5 19.3v6M28 21.1v6" style={DETAIL} opacity={0.5} />
+          <path {...F} d="M34 40V23h9v17Z" />
+          <path d="M34 40V23h9v17M33.5 23l2.5-3.5h5l2.5 3.5Z" />
+          <path d="M8.5 40v-4a2.25 2.25 0 0 1 4.5 0v4" style={DETAIL} opacity={0.6} />
+          {GROUND}
         </>
       );
 
@@ -652,19 +673,17 @@ function Art({ slug }: { slug: string }) {
         </>
       );
 
+    /* سوق الوطية — a dishdasha */
     case "souq-al-watiya":
       return (
         <>
-          {/* Cloth on the rail. Mubarakiya is its arches, Sharq its sail, the
-              Friday Market its awning — Watiya is what hangs in it. */}
-          <path d="M6 13h36" />
-          <path {...F} d="M10 13h7l-1 19a2.5 2.5 0 0 1-5 0Z" />
-          <path d="M10 13h7l-1 19a2.5 2.5 0 0 1-5 0Z" />
-          <path {...F} d="M20.5 13h7l-1 24a2.5 2.5 0 0 1-5 0Z" />
-          <path d="M20.5 13h7l-1 24a2.5 2.5 0 0 1-5 0Z" />
-          <path {...F} d="M31 13h7l-1 17a2.5 2.5 0 0 1-5 0Z" />
-          <path d="M31 13h7l-1 17a2.5 2.5 0 0 1-5 0Z" />
-          {GROUND}
+          {/* A dishdasha. «ملابس» is in this souq's catalogue entry and no other
+              place's, and garments are what the souq sells. Cloth on a rail, the
+              mark this replaced, read as icicles at 24px. No hanger: a hook over
+              the collar was tried and became a head, and the robe a man. */}
+          <path {...F} d="M21 6.5 14.5 9.2 11 28.5l4.5.7.5-11.7V40h16V17.5l.5 11.7 4.5-.7-3.5-19.3-6.5-2.7c-.9 1.6-1.9 2.5-3 2.5s-2.1-.9-3-2.5Z" />
+          <path d="M21 6.5 14.5 9.2 11 28.5l4.5.7.5-11.7V40h16V17.5l.5 11.7 4.5-.7-3.5-19.3-6.5-2.7c-.9 1.6-1.9 2.5-3 2.5s-2.1-.9-3-2.5Z" />
+          <path d="M24 9v11" style={DETAIL} opacity={0.6} />
         </>
       );
 
@@ -769,19 +788,22 @@ function Art({ slug }: { slug: string }) {
         </>
       );
 
+    /* شارع تونس — a shawarma spit and its carving knife */
     case "tunis-street":
       return (
         <>
-          {/* The vertical spit. Mais Al-Ghanim owns the horizontal skewers
-              over a grill, and the two do not read alike at 16px. */}
-          <path d="M24 14V8" />
-          <path {...F} d="M17 14h14l-2.4 18a4.6 4.6 0 0 1-9.2 0Z" />
-          <path d="M17 14h14l-2.4 18a4.6 4.6 0 0 1-9.2 0Z" />
-          <path d="M24 36.5V40" />
-          <path d="M18.4 21h11.2M19.2 27h9.6" style={DETAIL} opacity={0.55} />
-          <path {...F} d="M35 17h3.5v12H35Z" />
-          <path d="M35 17h3.5v12H35Z" style={DETAIL} />
-          <path d="M36.75 29v6" style={DETAIL} />
+          {/* The shawarma spit, being carved: شاورما is the first of this
+              street's tags. The spit this replaced was a smooth cone narrowing to
+              a point, and at 24px it read as a cup on a stick. The stacked slices
+              are what make it meat, and the blade at its side is what makes it a
+              spit rather than a goblet. Mais Al-Ghanim owns the skewers. */}
+          <path d="M20 4.5V10M11.5 10h17" />
+          <path {...F} d="M12 10H28A3.6 3.6 0 0 1 26.75 15.75A3.6 3.6 0 0 1 25.5 21.5A3.6 3.6 0 0 1 24.25 27.25A3.6 3.6 0 0 1 23 33H17A3.6 3.6 0 0 1 15.75 27.25A3.6 3.6 0 0 1 14.5 21.5A3.6 3.6 0 0 1 13.25 15.75A3.6 3.6 0 0 1 12 10Z" />
+          <path d="M12 10H28A3.6 3.6 0 0 1 26.75 15.75A3.6 3.6 0 0 1 25.5 21.5A3.6 3.6 0 0 1 24.25 27.25A3.6 3.6 0 0 1 23 33H17A3.6 3.6 0 0 1 15.75 27.25A3.6 3.6 0 0 1 14.5 21.5A3.6 3.6 0 0 1 13.25 15.75A3.6 3.6 0 0 1 12 10Z" />
+          <path d="M14.25 15.75H25.75M15.5 21.5H24.5M16.75 27.25H23.25" style={DETAIL} opacity={0.5} />
+          <path d="M20 33v7M14 35.5h12" />
+          <path {...F} d="M29 32.5 32.5 14.3l4 1.4Z" />
+          <path d="M29 32.5 32.5 14.3l4 1.4ZM34.5 15 37 8" />
           {GROUND}
         </>
       );
@@ -803,6 +825,164 @@ function Art({ slug }: { slug: string }) {
         </>
       );
 
+    /* الصالحية — a cut gem */
+    case "salhia-complex":
+      return (
+        <>
+          {/* The gem. Salhia is the luxury complex — the catalogue's own emoji for
+              it is a gem — and it was one of three places drawing the same
+              shopping bag. No other place in the set is a jewel. */}
+          <path {...F} d="M15 10h18l9 10-18 20L6 20Z" />
+          <path d="M15 10h18l9 10-18 20L6 20Z" />
+          <path d="M6 20h36" />
+          <path d="M21 10 16.5 20 24 40l7.5-20L27 10" style={DETAIL} opacity={0.55} />
+        </>
+      );
+
+    /* بيت ديكسون — the house with its upstairs veranda */
+    case "dickson-house":
+      return (
+        <>
+          {/* The upstairs veranda — posts, a rail and the shade behind them — that
+              made the Political Agency a «colonial veranda house». Amricani is
+              arches on both floors; this is open above and shut below. The tint
+              is laid twice on purpose: the veranda is in shade, and that darker
+              band is what keeps it from reading as a row of windows at 16px. */}
+          <path {...F} d="M8 40V25h32v15Z" />
+          <path {...F} d="M8 25V13h32v12Z" />
+          <path {...F} d="M8 25V13h32v12Z" />
+          <path d="M8 40V13M40 13v27" />
+          <path d="M5.5 13h37" />
+          <path d="M6.5 25h35" />
+          <path d="M24 13v12" />
+          <path d="M8 19.5h32" style={DETAIL} />
+          <path d="M12 19.5V25M16 19.5V25M20 19.5V25M28 19.5V25M32 19.5V25M36 19.5V25" style={DETAIL} opacity={0.3} />
+          <path d="M21 40v-8h6v8" />
+          {GROUND}
+        </>
+      );
+
+    /* شاطئ الشعب — a bench on the waterfront, the sea behind it */
+    case "al-shaab-beach":
+      return (
+        <>
+          {/* A bench on the waterfront with the sea behind it — the «جلسات على
+              الواجهة» the catalogue names. The armrests are what keep a bench seen
+              from the front from reading as a table. Marina and Messilah own the
+              parasol. */}
+          <path d="M4 13c4 0 4 2.5 8 2.5s4-2.5 8-2.5 4 2.5 8 2.5 4-2.5 8-2.5 4 2.5 8 2.5" opacity={0.75} />
+          <path d="M4 19.5c4 0 4 2.5 8 2.5s4-2.5 8-2.5 4 2.5 8 2.5 4-2.5 8-2.5 4 2.5 8 2.5" opacity={0.4} />
+          <path {...F} d="M10 26h28v3.5H10Z" />
+          <path d="M10 26h28v3.5H10Z" />
+          <path {...F} d="M8 33h32v2.5H8Z" />
+          <path d="M8 33h32" />
+          <path d="M12 29.5V40M36 29.5V40" />
+          <path d="M8 33c0-2.5 1.5-4 4-4M40 33c0-2.5-1.5-4-4-4" style={DETAIL} />
+          {GROUND}
+        </>
+      );
+
+    /* معرض الكويت الدولي — an open book, for the book fair */
+    case "kuwait-fairground":
+      return (
+        <>
+          {/* An open book: the book fair is the exhibition the halls are known
+              for, and the catalogue names it. No other place is drawn as one, and
+              the ferris wheel it used to fall back to is Entertainment City's. */}
+          <path {...F} d="M24 14c-4.8-3.4-11.5-4.2-18-2.8v23.3c6.5-1.4 13.2-.6 18 2.8 4.8-3.4 11.5-4.2 18-2.8V11.2c-6.5-1.4-13.2-.6-18 2.8Z" />
+          <path d="M24 14c-4.8-3.4-11.5-4.2-18-2.8v23.3c6.5-1.4 13.2-.6 18 2.8 4.8-3.4 11.5-4.2 18-2.8V11.2c-6.5-1.4-13.2-.6-18 2.8Z" />
+          <path d="M24 14v23.3" />
+          <path d="M10.5 18c3.4-.5 6.8-.2 10 1M10.5 23.5c3.4-.5 6.8-.2 10 1M37.5 18c-3.4-.5-6.8-.2-10 1M37.5 23.5c-3.4-.5-6.8-.2-10 1" style={DETAIL} opacity={0.55} />
+          {GROUND}
+        </>
+      );
+
+    /* سوق الصفافير — a hammer raised over a copper pot */
+    case "souq-al-safafeer":
+      return (
+        <>
+          {/* The coppersmiths' souq: a hammer raised over a copper pot,
+              the moment before the blow, for the hand-hammering the souq is
+              known by. The Mubarakiya tea houses own the dallah, so the pot
+              is the copperware. The hammer hangs above the pot instead of
+              striking it from the side, because a diagonal over a squat
+              vessel is Tareq Rajab's pen in its inkwell at 16px. Dimples on
+              the pot made it a face at 24px; the neck under the lip makes it
+              a pot, not a bun. */}
+          <path {...F} d="M15.5 23.5V25c0 1.5-5.5 2.5-5.5 7.5 0 4.5 3 7.5 7 7.5h14c4 0 7-3 7-7.5 0-5-5.5-6-5.5-7.5v-1.5Z" />
+          <path d="M15.5 23.5V25c0 1.5-5.5 2.5-5.5 7.5 0 4.5 3 7.5 7 7.5h14c4 0 7-3 7-7.5 0-5-5.5-6-5.5-7.5v-1.5" />
+          <path d="M12.5 23.5h23" />
+          <path {...F} d="M26.6 14.8 20.9 16.9 17.1 6.6 22.8 4.5Z" />
+          <path d="M26.6 14.8 20.9 16.9 17.1 6.6 22.8 4.5Z" />
+          <path d="M24.7 9.7 38.5 4.7" />
+          <path d="M18 21 16.5 18.5M30 21l1.5-2.5" style={DETAIL} opacity={0.6} />
+          {GROUND}
+        </>
+      );
+
+    /* جسر الشيخ جابر — the cable-stayed span and its sail pylon */
+    case "sheikh-jaber-causeway":
+      return (
+        <>
+          {/* The cable-stayed span. Its pylon was designed as a dhow's sail,
+              and the stays fan to one side only, over the main span. The piers
+              are what make it a bridge: drawn without them, sail and fan over
+              water read as a boat, which is Souq Sharq's mark. */}
+          <path {...F} d="M4 28h40v3H4Z" />
+          <path d="M4 28h40" />
+          <path d="M4 31h40" style={DETAIL} opacity={0.55} />
+          <path {...F} d="M29 28Q26.5 14 32 4l4 24Z" />
+          <path d="M29 28Q26.5 14 32 4l4 24" />
+          <path d="M29.8 9.3 5 28M28.7 13.8 12 28M28.2 20 19 28" style={DETAIL} opacity={0.6} />
+          <path d="M8 31v8M20 31v8M32.5 31v8" style={DETAIL} opacity={0.6} />
+          <path d="M4 40c4 0 4 2.5 8 2.5s4-2.5 8-2.5 4 2.5 8 2.5 4-2.5 8-2.5 4 2.5 8 2.5" opacity={0.45} />
+        </>
+      );
+
+    /* مجمع الفنار — the lighthouse it is named for, on its podium */
+    case "al-fanar-mall":
+      return (
+        <>
+          {/* الفنار is the lighthouse: the mall takes its name from the light
+              tower at its entrance, so the name is drawn, as Mall 360's ring
+              is. The beams keep it from reading as the Liberation Tower at
+              16px. */}
+          <path {...F} d="M18.5 34l2.5-20h6l2.5 20Z" />
+          <path d="M18.5 34l2.5-20h6l2.5 20" />
+          <path {...F} d="M21 14V9h6v5Z" />
+          <path d="M18 14h12M21 14V9h6v5M20 9a4 3.5 0 0 1 8 0Z" />
+          <path d="M24 5.5V4" style={DETAIL} />
+          <path d="M17.5 10.5 9 7M17.5 12.5 9 16M30.5 10.5 39 7M30.5 12.5 39 16" style={DETAIL} opacity={0.6} />
+          <path d="M22 34v-4a2 2 0 0 1 4 0v4" style={DETAIL} />
+          <path {...F} d="M7 40v-6h34v6Z" />
+          <path d="M7 40v-6h34v6" />
+          {GROUND}
+        </>
+      );
+
+    /* متحف الفن الحديث — a framed abstract and a bust on a plinth */
+    case "modern-art-museum":
+      return (
+        <>
+          {/* A painting and a sculpture, because the collection is both. Not a
+              palette or an easel: those are Bait Lothan's, whose catalogue mark
+              is the palette. The abstract is a circle and a square, because a
+              circle with a line through it read as a magnifying glass. */}
+          <path {...F} d="M5 10h22v19H5Z" />
+          <path d="M5 10h22v19H5Z" />
+          <path d="M8.5 13.5h15v12h-15Z" style={DETAIL} opacity={0.4} />
+          <circle {...F} cx="13" cy="18" r="2.6" />
+          <circle cx="13" cy="18" r="2.6" style={DETAIL} />
+          <path d="M14.5 21h5v3.5h-5Z" style={DETAIL} />
+          <path {...F} d="M32.5 40V27h9v13Z" />
+          <path d="M32.5 40V27h9v13M31 27h12" />
+          <path {...F} d="M33 27c0-3 1.6-4.5 4-4.5s4 1.5 4 4.5Z" />
+          <path d="M33 27c0-3 1.6-4.5 4-4.5s4 1.5 4 4.5" />
+          <circle cx="37" cy="19" r="2.8" />
+          {GROUND}
+        </>
+      );
+
     /* Fallback: a pin, so a newly added place still gets a mark. */
     default:
       return null;
@@ -815,10 +995,15 @@ export default function PlaceIcon({ slug, className = "size-10", style, ...rest 
   // bespoke art — but the moment the catalogue grew past the drawn set, a
   // results list turned into a column of identical pins that told the reader
   // nothing. The category mark at least separates a mosque from a beach.
+  //
+  // Every one of the 52 has its own drawing now, so this is reached only by a
+  // slug the catalogue did not have at build time — a place added later. It
+  // used to look the place up to draw its category, and that one lookup is
+  // what imported all 52 records into every page with a pin or a card on it.
+  // The general mark is the price of not shipping the catalogue for a case
+  // the build cannot know about.
   if (Art({ slug }) === null) {
-    const category = places.find((p) => p.slug === slug)?.category;
-    const icon = category ? (getCategory(category)?.icon ?? "all") : "all";
-    return <CategoryIcon name={icon} className={className} />;
+    return <CategoryIcon name="all" className={className} />;
   }
 
   const w = strokeFor(renderedPx(className));
