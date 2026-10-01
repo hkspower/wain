@@ -673,6 +673,77 @@ if ($r === 'login_log') {
     } catch (Throwable $e) { store_out(['rows' => [], 'failures_24h' => 0, 'ready' => false]); }
 }
 
+// ---- notification centre (signed in) — the bell in the panel's top bar.
+// Nothing here is stored as a notification: the list is READ from the tables the
+// shop already keeps (orders, return_requests, admin_login_log, product_variants),
+// newest first, last seven days, so it cannot drift from the screens it points at.
+// The only state is when each admin last opened the bell, in the `notif_seen`
+// settings row keyed by admin id — "unread" is "newer than that".
+// Stock is a CONDITION, not an event (no timestamp), so it is one standing line
+// that never counts as unread. Contact-form messages are not stored by this shop
+// (the form opens the customer's own app), so there is nothing to list for them.
+if ($r === 'notifications' && $method === 'GET') {
+    $seen = store_setting($db, 'notif_seen');
+    // 'a'.id, not the bare id: store_setting() runs array_merge, which renumbers
+    // integer-like keys, so a key of "1" comes back as 0 and nothing is ever read.
+    $since = (string) ($seen['a' . $admin['id']] ?? '');
+    $items = [];
+    $add = function (string $kind, string $at, string $title, string $detail, string $screen) use (&$items) {
+        $items[] = ['kind' => $kind, 'at' => $at, 'title' => $title, 'detail' => $detail, 'screen' => $screen];
+    };
+    try {
+        $q = $db->query("select track_id, customer_name, amount, payment_method, payment_status, created_at, paid_at
+                           from orders where created_at > now() - interval 7 day order by id desc limit 40");
+        foreach ($q->fetchAll() as $o) {
+            $who = trim((string) $o['customer_name']);
+            $amt = number_format((float) $o['amount'], 3) . ' KWD';
+            $add('order', (string) $o['created_at'], 'New order ' . $o['track_id'], trim($who . ' · ' . $amt . ' · ' . $o['payment_method']), 'Orders');
+            if ($o['payment_status'] === 'paid' && $o['paid_at'] && $o['payment_method'] !== 'cod')
+                $add('payment', (string) $o['paid_at'], 'Payment received ' . $o['track_id'], $amt, 'Orders');
+            if ($o['payment_status'] === 'failed') $add('payment', (string) $o['created_at'], 'Payment failed ' . $o['track_id'], $amt, 'Orders');
+            if ($o['payment_status'] === 'review') $add('payment', (string) $o['created_at'], 'Payment needs review ' . $o['track_id'], $amt, 'Orders');
+        }
+    } catch (Throwable $e) { /* a missing table is an empty section, not a broken bell */ }
+    try {
+        $q = $db->query("select rr.ref, rr.kind, rr.created_at, o.track_id from return_requests rr
+                           join orders o on o.id = rr.order_id
+                          where rr.status = 'new' and rr.created_at > now() - interval 7 day order by rr.id desc limit 20");
+        foreach ($q->fetchAll() as $x)
+            $add('return', (string) $x['created_at'], ($x['kind'] === 'return' ? 'Return' : 'Exchange') . ' request ' . $x['ref'], 'Order ' . $x['track_id'], 'Returns');
+    } catch (Throwable $e) {}
+    try {
+        $q = $db->query("select at, email, result, country_name, new_ip from admin_login_log
+                          where at > now() - interval 7 day
+                            and (result not in ('ok','code_needed') or new_ip = 1) order by id desc limit 20");
+        foreach ($q->fetchAll() as $x) {
+            $bad = !in_array($x['result'], ['ok', 'code_needed'], true);
+            $add('security', (string) $x['at'], $bad ? 'Failed sign-in attempt' : 'Sign-in from a new address',
+                 trim(($x['email'] ?: 'unknown') . ($x['country_name'] ? ' · ' . $x['country_name'] : '')), 'Security');
+        }
+    } catch (Throwable $e) {}
+    usort($items, fn($a, $b) => strcmp($b['at'], $a['at']));
+    $items = array_slice($items, 0, 60);
+    $unread = 0;
+    foreach ($items as &$it) { $it['unread'] = $since === '' || $it['at'] > $since; if ($it['unread']) $unread++; }
+    unset($it);
+    $stock = ['low' => 0, 'out' => 0];
+    try {
+        $low = (int) (store_setting($db, 'inventory')['low'] ?? 5);
+        $row = $db->query("select count(case when stock = 0 then 1 end) as o, count(case when stock > 0 and stock <= " . max(0, min(999, $low)) . " then 1 end) as l
+                             from product_variants v join products p on p.slug = v.slug where p.active = 1")->fetch();
+        $stock = ['low' => (int) $row['l'], 'out' => (int) $row['o']];
+    } catch (Throwable $e) {}
+    store_out(['items' => $items, 'unread' => $unread, 'stock' => $stock, 'now' => (string) $db->query('select now()')->fetchColumn()]);
+}
+if ($r === 'notifications_read' && $method === 'POST') {
+    $seen = store_setting($db, 'notif_seen');
+    // The DATABASE's clock, not PHP's: order times come from now() in MySQL, and the
+    // two can sit in different timezones — comparing across them leaves rows unread for ever.
+    $seen['a' . $admin['id']] = (string) $db->query('select now()')->fetchColumn();
+    store_setting_save($db, 'notif_seen', $seen);
+    store_out(['ok' => true]);
+}
+
 // ---- passcode management (signed in)
 if ($r === 'passcode_enroll' && $method === 'POST') {
     $b = store_body();
