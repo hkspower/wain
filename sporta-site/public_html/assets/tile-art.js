@@ -199,7 +199,7 @@
      it versioned nothing (there is no file to version) and, whenever the
      browser had already asked, made it ask again: eight 404s a load instead
      of four, depending on which script ran first. */
-  var ART_VERSION = '20261001b'
+  var ART_VERSION = '20261001c'
   function stamp() {
     var nodes = document.querySelectorAll('.cat-tile source[srcset], .cat-tile img[src]')
     for (var i = 0; i < nodes.length; i++) {
@@ -210,8 +210,35 @@
     }
   }
 
+  /* THE TILE MOTION — 2026-10-01, "make sporta outlet and accessories category images with
+     animation". css/64-category-motion.css does the moving; this only says WHEN: the first
+     time a tile is at least 45% on screen it gets `tile-in`, once, and the animation plays
+     once (the Accessories float is two slow cycles, the Outlet shelves get one light sweep).
+     No IntersectionObserver, no motion: the class is never added. */
+  var seen = typeof WeakSet === 'function' ? new WeakSet() : null
+  var io = null
+  function watchMotion() {
+    if (!seen || typeof IntersectionObserver !== 'function') return
+    if (!io) {
+      io = new IntersectionObserver(function (entries) {
+        for (var i = 0; i < entries.length; i++) {
+          if (!entries[i].isIntersecting) continue
+          entries[i].target.classList.add('tile-in')
+          io.unobserve(entries[i].target)
+        }
+      }, { threshold: 0.45 })
+    }
+    var tiles = document.querySelectorAll('.cat-tile.tile-acc, .cat-tile.tile-outlet')
+    for (var i = 0; i < tiles.length; i++) {
+      if (seen.has(tiles[i])) continue
+      seen.add(tiles[i])
+      io.observe(tiles[i])
+    }
+  }
+
   function apply() {
     stamp()
+    watchMotion()
     for (var t = 0; t < TILES.length; t++) {
       TILE = TILES[t].tile
       FROM = TILES[t].from

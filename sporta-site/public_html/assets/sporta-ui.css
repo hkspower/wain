@@ -2062,3 +2062,30 @@ h2[class~="font-extrabold"] { font-weight: 700 !important; }
     margin-bottom: 6px !important;
   }
 }
+[dir=rtl] .cat-tile { --tile-dir: -1; }
+@media (prefers-reduced-motion: no-preference) {
+  .cat-tile.tile-acc picture img { transform: scale(1.02); }
+  .cat-tile.tile-acc.tile-in picture img {
+    animation: tile-float 4.5s ease-in-out 2;
+    will-change: transform;
+  }
+  .cat-tile.tile-outlet::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    background: linear-gradient(100deg, transparent 36%, rgba(255, 255, 255, .5) 50%, transparent 64%);
+  }
+  .cat-tile.tile-outlet.tile-in::before {
+    animation: tile-sweep 1.9s ease-in-out .2s 1 both;
+  }
+}
+@keyframes tile-float {
+  0%, 100% { transform: scale(1.02) translateY(0); }
+  50%      { transform: scale(1.02) translateY(-6px); }
+}
+@keyframes tile-sweep {
+  0%   { opacity: 1; transform: translateX(calc(-100% * var(--tile-dir, 1))); }
+  100% { opacity: 1; transform: translateX(calc(100% * var(--tile-dir, 1))); }
+}

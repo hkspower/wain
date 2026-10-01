@@ -101,7 +101,7 @@ INK = (26, 26, 26)
 CHAR = (43, 43, 47)
 MID = (139, 143, 152)
 LIGHT = (201, 203, 208)
-GAP = 18
+GAP = 12
 SS = 4
 
 
@@ -212,6 +212,31 @@ def item_dumbbell():
 ITEMS = [item_cap, item_shirts, item_shoe, item_bottles, item_dumbbell]
 
 
+# PHOTO-STYLE ITEMS — 2026-10-01, "make Sporta Outlet and accessories category images with
+# animation, realistic items product, and shelves for Sporta Outlet". The drawn flat items
+# above are no longer composed (kept for a revert); the tile uses cut-outs of generated studio
+# photographs (scripts/cut-photo-subjects.py), each given a soft contact shadow so it sits on
+# the orange band instead of floating on it.
+def photo_item(name):
+    im = Image.open(os.path.join(SUBJ, f'photo-{name}.png')).convert('RGBA')
+    m = int(im.width * 0.06)                     # a little room for the shadow's blur
+    pad = 28
+    W, H = im.width + 2 * m, im.height + pad + m // 2
+    cast = Image.new('L', (W, H), 0)
+    cy = im.height + pad // 3
+    ImageDraw.Draw(cast).ellipse([W // 2 - int(im.width * 0.46), cy - 7, W // 2 + int(im.width * 0.46), cy + 7], fill=120)
+    cast = cast.filter(ImageFilter.GaussianBlur(7))
+    out = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    out.paste((0, 0, 0, 255), (0, 0), cast)
+    out.alpha_composite(im, (m, 0))
+    return out
+
+
+def photo_items():
+    # cap, pack, shoes, bottle, dumbbell
+    return [photo_item(n) for n in ('cap', 'pack', 'shoes', 'bottle', 'dumbbell')]
+
+
 def compose_accessories(w, h, inset=0.03, share=0.50):
     """TWO ROWS since the tiles became 40% taller (2026-10-01): one long row of five
     stays width-limited, so the same row in a taller box only floated at the bottom
@@ -219,11 +244,11 @@ def compose_accessories(w, h, inset=0.03, share=0.50):
     dumbbell below. `share` is the width the widest row may take: kept under half so the rows start clear of
     the tile's copy, which sits in the start half (an earlier .62 ran into the title)."""
     img = ground(w, h)
-    cap, shirts, shoe, bottles, dumbbell = [f() for f in ITEMS]
-    rows = [[shirts, bottles, cap], [shoe, dumbbell]]
+    cap, pack, shoe, bottle, dumbbell = photo_items()
+    rows = [[pack, bottle, cap], [shoe, dumbbell]]
     row_w = [sum(i.width for i in r) + GAP * (len(r) - 1) for r in rows]
     row_h = [max(i.height for i in r) for r in rows]
-    vgap = 26
+    vgap = 20
     k = min(w * share / max(row_w), h * 0.80 / (sum(row_h) + vgap))
     rw = int(max(row_w) * k)
     ox = w - rw - int(w * inset)
@@ -247,18 +272,18 @@ def compose_accessories_square(w, h, far=0.05, bottom=0.08):
     The copy sits in the start half at mid-height and the round go-button in the far bottom
     corner, so the rows keep `far` off the far edge and `bottom` off the foot."""
     img = ground(w, h)
-    cap, shirts, shoe, bottles, dumbbell = [f() for f in ITEMS]
-    rows = [[shirts, bottles], [cap, dumbbell], [shoe]]
+    cap, pack, shoe, bottle, dumbbell = photo_items()
+    rows = [[pack, bottle], [cap, dumbbell], [shoe]]
     row_w = [sum(i.width for i in r) + GAP * (len(r) - 1) for r in rows]
     row_h = [max(i.height for i in r) for r in rows]
-    vgap = 30
-    area_x0, area_x1 = int(w * 0.50), int(w * (1 - far))   # the copy ends about 46% across
+    vgap = 14
+    area_x0, area_x1 = int(w * 0.45), int(w * (1 - far))   # the copy ends about 46% across
     k = min((area_x1 - area_x0) / max(row_w), h * (0.92 - bottom) / (sum(row_h) + vgap * (len(rows) - 1)))
     total_h = int((sum(row_h) + vgap * (len(rows) - 1)) * k)
     cx = (area_x0 + area_x1) // 2
     rw = int(max(row_w) * k)
-    img.alpha_composite(band(w, h, cx - int(rw * 0.42), cx + int(rw * 0.42), skew=0.3))
-    img.alpha_composite(stripes(w, h, cx - int(rw * 0.62), cx - int(rw * 0.50), 12, 3, skew=0.3))
+    img.alpha_composite(band(w, h, cx - int(rw * 0.56), cx + int(rw * 0.60), skew=0.3))
+    img.alpha_composite(stripes(w, h, cx - int(rw * 0.84), cx - int(rw * 0.72), 12, 3, skew=0.3))
     y = h - int(h * bottom) - total_h
     for r, rwid, rh in zip(rows, row_w, row_h):
         x = cx - int(rwid * k) // 2
@@ -333,6 +358,17 @@ def draw_shelves(pw, h, inset=0):
     return im.resize((pw, h), Image.LANCZOS)
 
 
+def photo_shelves(pw, h):
+    """The generated shelving photograph, cover-cropped to the panel (full height, a slice of
+    the unit's width starting at its left post, so the orange-capped frame is the first thing
+    the slanted edge shows)."""
+    im = Image.open(os.path.join(SUBJ, 'photo-shelves.jpg')).convert('RGB')
+    k = h / im.height
+    im = im.resize((int(im.width * k), h), Image.LANCZOS)
+    x0 = int(im.width * 0.04)
+    return im.crop((x0, 0, x0 + pw, h)) if im.width - x0 >= pw else im.resize((pw, h), Image.LANCZOS)
+
+
 def compose_outlet(w, h, rtl=False):
     """Drawn shelves on the far side, cut on the tile's slant, with an orange
     edge line and an orange border round the whole tile; the start side stays
@@ -343,7 +379,7 @@ def compose_outlet(w, h, rtl=False):
     s = int(h * 0.17)                                   # the tile's slant
     x0 = int(w * 0.53)                                  # picture's top-left corner
     pw = w - x0 + s
-    crop = draw_shelves(pw, h, inset=s).convert('RGBA')
+    crop = photo_shelves(pw, h).convert('RGBA')
     mask = Image.new('L', (w, h), 0)
     ImageDraw.Draw(mask).polygon([(x0, 0), (w, 0), (w, h), (x0 - s, h)], fill=255)
     layer = Image.new('RGBA', (w, h), (0, 0, 0, 0))
@@ -386,6 +422,7 @@ for crop, sz in SIZES.items():
     # no room for the accessories to grow.
     # The round go-button sits in the PHYSICAL bottom-left of every tile, so the
     # Arabic frame (a mirror, row on the left) needs its row pulled clear of it.
-    save(compose_accessories(w, h), crop, 'accessories',
-         rtl_src=compose_accessories(w, h, inset=0.12, share=0.38))
+    # desktop uses the three-row composition too (2026-10-01): the tile is nearly square, and the
+    # photo items are too wide for the two-row layout to draw them at a decent size
+    save(compose_accessories_square(w, h, far=0.06, bottom=0.10), crop, 'accessories')
     save(compose_outlet(w, h), crop, 'outlet')

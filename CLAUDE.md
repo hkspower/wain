@@ -4018,3 +4018,30 @@ the editor dropping an untouched field from its save.
 
 **Not done, and worth knowing:** the Expo app has no banner and no editor; this
 is the website only.
+
+## Photo-style Accessories and Outlet tiles, and their motion — 2026-10-01
+
+Asked for as "make Sporta Outlet and accessories category images with animation, realistic
+items product, and shelves for Sporta Outlet". The owner chose generated photo-style images
+and subtle motion.
+
+- **The pictures** are cut-outs of two studio photographs generated with ByteDance Seedream 5
+  Pro (≈$0.15 each, 2048x1152). **The generations are not in the repository**, only their
+  cut-outs: `scripts/fixtures/tile-subjects/photo-*.png|jpg`, made by
+  `scripts/cut-photo-subjects.py` (alpha from colour distance to the white ground, largest
+  connected piece only, neutral-grey pixels dropped from the black items so the generator's
+  floor shadow does not show). `make-white-tiles.py` composes them: `photo_items()` onto the
+  orange band with a drawn contact shadow, `photo_shelves()` as the Outlet's slanted panel.
+  The drawn flat items and `draw_shelves()` are left in the file for a revert.
+- **Desktop Accessories now uses the three-row square layout** too: the photo items are too
+  wide for the old two-row one. The generator **re-rolls the grain of Men and Women** when
+  its random stream shifts (here, because the two-row call went away): restore them with
+  `git checkout -- cats/*/art-men* cats/*/art-women*` before committing.
+- **Motion** (`css/64-category-motion.css`, trigger in `tile-art.js`): when a tile is first
+  45% on screen it gets `tile-in`; Accessories floats 6px, two slow cycles; the Outlet gets
+  one light sweep (the tile's `::before`, below the copy, mirrored in Arabic). Nothing runs
+  under `prefers-reduced-motion`, or before the tile is seen. The Accessories art is one
+  picture, so the whole composition floats, not each item. Per-item motion needs layered art,
+  and the tiles are owner-replaceable from /backends (`category_art`), so a layer set would
+  disagree with a replaced picture.
+- `ART_VERSION` is `20261001c` in `tile-art.js` and `category.php`.
