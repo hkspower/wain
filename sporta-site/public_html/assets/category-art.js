@@ -14,7 +14,8 @@
  * crop, press Save. "Restore original" puts the shipped art back.
  *
  * WHAT THIS FILE DOES, AND WHY IN THE BROWSER. The tile is drawn at two shapes
- * (1216x706 on a computer, 900x570 on a phone) and has an Arabic composition
+ * (1216x988 on a computer; 1080x1080 on a phone, square since 2026-10-01, one tile
+ * per row) and has an Arabic composition
  * that is the English one mirrored. The picture work happens here, on a canvas,
  * so the server needs no image library: the four sizes and the mirror are made,
  * each encoded twice (webp for browsers, jpeg for the <picture> fallback), and
@@ -41,7 +42,7 @@
     { id: 'accessories', en: 'Accessories' },
     { id: 'outlet', en: 'Outlet' },
   ]
-  var SIZES = { desktop: [1216, 988], mobile: [900, 798] }
+  var SIZES = { desktop: [1216, 988], mobile: [1080, 1080] }   // the phone tile is square since 2026-10-01 (one per row)
   var MAX_BYTES = 400000
 
   var TXT = {

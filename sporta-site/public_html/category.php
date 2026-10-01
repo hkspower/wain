@@ -175,8 +175,8 @@ $canonical = SITE . $path . ($isEn ? '?lang=en' : '');
 // (scripts/make-white-tiles.py), so $hasRtlArt no longer decides either.
 // ?v= for the same reason as assets/tile-art.js's ART_VERSION: /cats/ may be
 // shown stale for days, so a changed picture needs a new URL. Keep them equal.
-$artDesktop = "/cats/desktop/art-$slug" . (!$isEn ? '-rtl' : '') . '.webp?v=20261001a';
-$artMobile  = "/cats/mobile/art-$slug" . (!$isEn ? '-rtl' : '') . '.webp?v=20261001a';
+$artDesktop = "/cats/desktop/art-$slug" . (!$isEn ? '-rtl' : '') . '.webp?v=20261001b';
+$artMobile  = "/cats/mobile/art-$slug" . (!$isEn ? '-rtl' : '') . '.webp?v=20261001b';
 
 // THE REAL DIMENSIONS, NOT A GUESS COPIED ACROSS ALL FOUR — 2026-09-21, asked
 // for as "fix aspect ration heros images". The <img> below carried a single
@@ -192,7 +192,7 @@ $artMobile  = "/cats/mobile/art-$slug" . (!$isEn ? '-rtl' : '') . '.webp?v=20261
 // and they were simply false metadata regardless. $hasRtlArt already tells
 // the two groups apart; it is reused here rather than adding a second flag
 // that could disagree with it.
-[$artW, $artH, $artMobileW, $artMobileH] = [1216, 988, 900, 798];   // 40% taller since 2026-10-01 (scripts/make-white-tiles.py)
+[$artW, $artH, $artMobileW, $artMobileH] = [1216, 988, 1080, 1080];   // desktop 40% taller, phone SQUARE since 2026-10-01 (scripts/make-white-tiles.py)
 
 /* ------------------------------------------------------------------------------------
  * THE SHOP'S OWN HEADER, CARD AND FOOTER — 2026-10-01, the owner's choice ("shop header +

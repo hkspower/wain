@@ -1220,6 +1220,13 @@ main article h3[class~="line-clamp-1"] {
 @media (min-width: 768px) {
   .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 1216 / 988 !important; }
 }
+@media (max-width: 767px) {
+  [class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .cat-tile.tile-men, .cat-tile.tile-women,
+  .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 1 / 1 !important; }
+}
 .cat-tile:focus-visible {
   outline: 3px solid #171a1e;
   outline-offset: -3px;

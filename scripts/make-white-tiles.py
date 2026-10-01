@@ -6,8 +6,8 @@
 Asked for on 2026-09-28 as "make all category images white with orange
 frills, sporty modern style", approved from the design mockup. Writes all
 of cats/{desktop,mobile}/art-{men,women,accessories,outlet}[-rtl].{jpg,webp}
-at the sizes the tiles already use (1216x706 / 1216x418 desktop, 900x570 /
-900x454 mobile), so nothing is cropped by `cover`.
+at the sizes the tiles already use (1216x988 desktop; 1080x1080 on a phone since
+2026-10-01, one square tile per row), so nothing is cropped by `cover`.
 
 THE COPY IS DRAWN BY THE BUNDLE, on the reading-start side, so the subject
 goes on the FAR side: right for the English frame, left for the Arabic one.
@@ -28,8 +28,11 @@ ROOT = os.path.join(os.path.dirname(__file__), '..', 'sporta-site', 'public_html
 SUBJ = os.path.join(os.path.dirname(__file__), 'fixtures', 'tile-subjects')
 ORANGE = (224, 86, 28)      # --brand
 WHITE = (255, 255, 255)
+# THE PHONE ART IS SQUARE since 2026-10-01 ("single full row, square shape, full render, the model
+# and all products bigger for the mobile version"): one tile per row on a phone, drawn at 1080x1080 so
+# `cover` crops nothing. Desktop is unchanged.
 SIZES = {'desktop': {'tall': (1216, 988), 'wide': (1216, 418)},
-         'mobile':  {'tall': (900, 798),  'wide': (900, 454)}}
+         'mobile':  {'tall': (1080, 1080), 'wide': (1080, 545)}}
 rng = np.random.default_rng(3)
 
 
@@ -66,11 +69,18 @@ def shadow(w, h, cx, cy, rx, ry, alpha=110):
     return layer.filter(ImageFilter.GaussianBlur(rx * 0.18))
 
 
-def compose_person(name, w, h):
+def compose_person(name, w, h, sharpen=False):
     img = ground(w, h)
     sub = Image.open(os.path.join(SUBJ, f'{name}.png')).convert('RGBA')
     sh = int(h * 0.96)
     sub = sub.resize((int(sub.width * sh / sub.height), sh), Image.LANCZOS)
+    if sharpen:
+        # The cut-outs are about 650px tall, so the square phone tile ENLARGES them ~1.6x. A light
+        # unsharp mask on the colour only (never the alpha, which would ring the edge) keeps the
+        # enlargement from reading as soft. It cannot add detail the photograph does not have.
+        r, g, b_, a_ = sub.split()
+        rgb = Image.merge('RGB', (r, g, b_)).filter(ImageFilter.UnsharpMask(radius=1.6, percent=60, threshold=2))
+        sub = Image.merge('RGBA', (*rgb.split(), a_))
     x = w - sub.width - int(w * 0.14)
     y = h - sub.height
     img.alpha_composite(band(w, h, x - int(w * 0.06), x + sub.width + int(w * 0.10)))
@@ -231,6 +241,35 @@ def compose_accessories(w, h, inset=0.03, share=0.50):
     return img
 
 
+def compose_accessories_square(w, h, far=0.05, bottom=0.08):
+    """THE SQUARE PHONE TILE, 2026-10-01: three rows in the FAR half, using the square's height
+    instead of two rows squeezed under the copy, so every item is drawn bigger (k 1.13 -> ~1.3).
+    The copy sits in the start half at mid-height and the round go-button in the far bottom
+    corner, so the rows keep `far` off the far edge and `bottom` off the foot."""
+    img = ground(w, h)
+    cap, shirts, shoe, bottles, dumbbell = [f() for f in ITEMS]
+    rows = [[shirts, bottles], [cap, dumbbell], [shoe]]
+    row_w = [sum(i.width for i in r) + GAP * (len(r) - 1) for r in rows]
+    row_h = [max(i.height for i in r) for r in rows]
+    vgap = 30
+    area_x0, area_x1 = int(w * 0.50), int(w * (1 - far))   # the copy ends about 46% across
+    k = min((area_x1 - area_x0) / max(row_w), h * (0.92 - bottom) / (sum(row_h) + vgap * (len(rows) - 1)))
+    total_h = int((sum(row_h) + vgap * (len(rows) - 1)) * k)
+    cx = (area_x0 + area_x1) // 2
+    rw = int(max(row_w) * k)
+    img.alpha_composite(band(w, h, cx - int(rw * 0.42), cx + int(rw * 0.42), skew=0.3))
+    img.alpha_composite(stripes(w, h, cx - int(rw * 0.62), cx - int(rw * 0.50), 12, 3, skew=0.3))
+    y = h - int(h * bottom) - total_h
+    for r, rwid, rh in zip(rows, row_w, row_h):
+        x = cx - int(rwid * k) // 2
+        for it in r:
+            it = it.resize((max(1, int(it.width * k)), max(1, int(it.height * k))), Image.LANCZOS)
+            img.alpha_composite(it, (x, y + int(rh * k) - it.height))   # stand on the row's baseline
+            x += it.width + int(GAP * k)
+        y += int((rh + vgap) * k)
+    return img
+
+
 def draw_shelves(pw, h, inset=0):
     """Flat, plain, cartoon shelves in the shop's own colours: an orange-edged
     unit, three planks, folded stacks and trainers with a heavy dark outline.
@@ -334,8 +373,15 @@ def save(img, crop, name, rtl_src=None):
 
 for crop, sz in SIZES.items():
     w, h = sz['tall']
-    save(compose_person('men', w, h), crop, 'men')
-    save(compose_person('women', w, h), crop, 'women')
+    square = crop == 'mobile'
+    save(compose_person('men', w, h, sharpen=square), crop, 'men')
+    save(compose_person('women', w, h, sharpen=square), crop, 'women')
+    if square:
+        # the go-button is in the FAR bottom corner in both languages, and the Arabic frame is a
+        # mirror, so one composition serves both
+        save(compose_accessories_square(w, h), crop, 'accessories')
+        save(compose_outlet(w, h), crop, 'outlet')
+        continue
     # All four tiles share one shape since 2026-09-28: the wide 2.9:1 strip left
     # no room for the accessories to grow.
     # The round go-button sits in the PHYSICAL bottom-left of every tile, so the

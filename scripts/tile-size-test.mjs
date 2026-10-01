@@ -1,4 +1,6 @@
-/** Category tiles are 40% taller than before and show their art whole. node scripts/tile-size-test.mjs (sandbox on :4300) */
+/** Category tiles show their art whole: 40% taller than before from 768px, and on a PHONE one square tile per
+ *  row since 2026-10-01 ("single full row, square shape, full render", the owner's request of that day, which
+ *  replaced the phone half of the 40% one). node scripts/tile-size-test.mjs (sandbox on :4300) */
 import { chromium } from 'playwright'
 const BASE = process.env.BASE ?? 'http://127.0.0.1:4300'
 let fails = 0
@@ -16,7 +18,7 @@ for (const [name, vp, touch] of [['phone', { width: 390, height: 844 }, true], [
       for (const t of document.querySelectorAll('.cat-tile')) {
         t.scrollIntoView(); await new Promise((r) => setTimeout(r, 250))
         const r = t.getBoundingClientRect(); const i = t.querySelector('img')
-        out.push({ k: t.className.match(/tile-\w+/)[0], w: r.width, h: r.height, nw: i && i.naturalWidth, nh: i && i.naturalHeight })
+        out.push({ k: t.className.match(/tile-\w+/)[0], w: r.width, h: r.height, top: r.top + scrollY, page: document.documentElement.clientWidth, nw: i && i.naturalWidth, nh: i && i.naturalHeight })
       }
       return out
     })
@@ -24,8 +26,17 @@ for (const [name, vp, touch] of [['phone', { width: 390, height: 844 }, true], [
     for (const t of tiles) {
       const box = t.w / t.h, art = t.nw / t.nh
       check(Math.abs(box - art) / art < 0.01, `${name} ${lang} ${t.k}: the whole picture shows, nothing cropped`, `box ${box.toFixed(3)} art ${art.toFixed(3)} (${t.nw}x${t.nh})`)
-      const grew = WAS[name] / box
-      check(grew > 1.38 && grew < 1.42, `${name} ${lang} ${t.k}: 40% taller than the old box`, `x${grew.toFixed(3)}`)
+      if (name === 'phone') {
+        check(Math.abs(box - 1) < 0.01, `${name} ${lang} ${t.k}: square`, `box ${box.toFixed(3)}`)
+        check(t.w >= t.page - 1, `${name} ${lang} ${t.k}: the full row, edge to edge`, `${Math.round(t.w)} of ${t.page}px`)
+      } else {
+        const grew = WAS[name] / box
+        check(grew > 1.38 && grew < 1.42, `${name} ${lang} ${t.k}: 40% taller than the old box`, `x${grew.toFixed(3)}`)
+      }
+    }
+    if (name === 'phone') {
+      const rows = new Set(tiles.map((t) => Math.round(t.top)))
+      check(rows.size === 4, `${name} ${lang}: one tile per row (four rows)`, `${rows.size} rows`)
     }
     await p.context().close()
   }
