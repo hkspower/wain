@@ -35,7 +35,7 @@
 @font-face { font-family:"Share Tech Mono"; font-style:normal; font-weight:400;
       font-display:swap; src:url("../fonts/sharetechmono-400.woff2") format("woff2"); }
 
-:root {
+:root { --lh-ui: 1.35; --lh-head: 1.4; --lh-text: 1.5; --lh-read: 1.6;
       color-scheme: light;   /* the site is white on every device, dark preference included */
       --bg: #ffffff;
       --panel: #ffffff;

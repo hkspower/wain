@@ -61,7 +61,7 @@
 }
   </script>
   <title>النوخذة | نظام موحد من المهلب كود</title>
-  <meta name="description" content="النوخذة — نظام موحد يجمع صافي (SAFI) وتقارير XBRL ونظام التوصيل في مكان واحد، مجاناً بالكامل لعملاء المهلب." />
+  <meta name="description" content="النوخذة — نظام موحد يجمع صافي (SAFI) وتقارير XBRL ونظام التوصيل في مكان واحد، مجاناً بالكامل لكل حساب." />
   <style>
     /* Cairo (SIL OFL) — bundled, never fetched from a CDN: the strict CSP
        forbids external origins, and a self-hosted face renders identically on
@@ -101,7 +101,7 @@
     @font-face { font-family:"Cairo"; font-style:normal; font-weight:800;
       font-display:swap; src:url("fonts/cairo-latin.woff2") format("woff2");
       unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-    :root {
+    :root { --lh-ui: 1.35; --lh-head: 1.4; --lh-text: 1.5; --lh-read: 1.6;
       color-scheme: light;   /* the site is white on every device, dark preference included */
       --bg: #ffffff;
       --panel: #ffffff;
@@ -158,10 +158,17 @@
     .brand small { display: block; font-weight: 500; color: var(--on-bar); font-size: 12px; }
     nav { display: flex; gap: 4px; margin-inline-start: auto; flex-wrap: wrap; }
     nav a, .btn {
-      font-size: 13.5px; font-weight: 600; color: var(--text);
+      font-size: 14px; line-height: var(--lh-ui); font-weight: 600; color: var(--text);
       padding: 12px 16px; border-radius: 9px; border: 1px solid transparent;
       cursor: pointer; background: transparent; font-family: var(--sans);
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
     }
+    /* the drawn icon set, written in by design/app_sprite.py: the ink follows
+       the text it sits beside, so one icon serves the white bar and a card */
+    .ic { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor;
+      stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vertical-align: -.22em; }
+    .ic.sm { width: 16px; height: 16px; stroke-width: 2; }
+    .ic.back { transform: scaleX(-1); }   /* RTL: back points to the right */
     /* on the brown bar the nav inverts: white links, a white pill for the one
        call to action, and an outlined logout — the brand red measures 1.6:1
        against this brown and is unreadable, so it stays for in-page use only */
@@ -173,23 +180,30 @@
     nav .btn.danger { background: transparent; color: var(--on-bar); border-color: var(--on-bar-bd); }
     nav .btn.outline:hover, nav .btn.danger:hover { background: var(--on-bar-fill); }
     header a:focus-visible, header button:focus-visible { outline: 2px solid var(--on-bar); outline-offset: 2px; }
+    /* a focused field showed only a 1px border shifting between two greys
+       (2.1:1) — the other three pages draw a 2px brand ring. Scoped to main and
+       the footer: unscoped, .btn:focus-visible would outrank the bar's white
+       ring and paint brown on brown */
+    main .btn:focus-visible, main a:focus-visible, main input:focus-visible,
+    main select:focus-visible, footer a:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+    .btn { font-weight: 700; }                  /* nav links stay 600, as on the system page */
     .btn.primary { background: var(--tint-strong); color: #fff; }
     .btn.outline { border-color: var(--border); background: var(--panel-2); }
     .btn.danger { color: var(--danger); }
     .btn:hover { opacity: .88; }
     .btn:disabled { opacity: .45; cursor: not-allowed; }
 
-    main { max-width: 1060px; margin: 0 auto; padding: 32px 20px 56px; }
+    main { max-width: 1060px; margin: 0 auto; padding: 32px 20px 56px;  line-height: var(--lh-text); }
     .page { display: none; }
     .page.visible { display: block; }
 
     /* Hero */
-    .hero { text-align: center; padding: 40px 0 8px; }
+    .hero { text-align: center; padding: 40px 0 40px; }
     .hero .kicker {
       display: inline-block; background: var(--panel-2); border: 1px solid var(--border);
       color: var(--sand); border-radius: 999px; padding: 6px 16px; font-size: 13px; font-weight: 700;
     }
-    .hero h1 { font-size: clamp(30px, 6vw, 52px); margin: 16px 0 8px; line-height: 1.4; text-wrap: balance; }
+    .hero h1 { font-size: clamp(28px, 5vw, 40px); margin: 16px 0 8px; line-height: 1.4; text-wrap: balance; }
     .hero h1 .en { color: var(--tint); direction: ltr; display: block; unicode-bidi: isolate;
       /* the English reads longer than the Arabic at the same size, so it wrapped
          to two lines and outweighed the line it translates */
@@ -202,7 +216,13 @@
       background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px;
       display: flex; flex-direction: column; gap: 8px;
     }
-    .card h3 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+    .card h3 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 12px; }
+    /* each unit is headed by its icon in a tile, as the company page's cards are */
+    .tile { width: 38px; height: 38px; border-radius: 12px; background: var(--panel-2);
+      display: grid; place-items: center; flex: none; color: var(--tint); }
+    .tile .ic { width: 21px; height: 21px; }
+    .chip { display: inline-flex; align-items: center; gap: 4px; }
+    .chip .ic { width: 14px; height: 14px; stroke-width: 2.2; }
     .card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.7; }
     .chip {
       font-size: 12px; font-weight: 700; border-radius: 999px; padding: 4px 8px;
@@ -224,7 +244,7 @@
     h1, h2, h3, .num, h2.section, .product h3, .card h3, .band .fact h3 {
       line-height: 1.4;
     }
-    h2.section { font-size: 24px; margin: 8px 0 4px; }
+    h2.section { font-size: 20px; margin: 8px 0 4px; }
     .sub { color: var(--muted); margin: 0 0 16px; line-height: 1.8; }
 
     /* Pricing */
@@ -241,9 +261,9 @@
 
     /* Forms */
     form.auth { max-width: 420px; margin: 24px auto 0; background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
-    label { font-size: 13px; font-weight: 700; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+    label { font-size: 12px; font-weight: 700; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
     input, select {
-      background: var(--panel-2); border: 1px solid var(--border-input); border-radius: 9px;
+      background: var(--panel-2); border: 1px solid var(--border-input); border-radius: 8px;
       color: var(--text); padding: 8px 12px; font-size: 14px; font-family: var(--sans); outline: none;
     }
     input:focus, select:focus { border-color: var(--tint); }
@@ -256,8 +276,10 @@
     .plan-badge { background: var(--panel-2); border: 1px solid var(--tint-strong); color: var(--tint); border-radius: 999px; padding: 4px 12px; font-size: 12.5px; font-weight: 700; }
     .plan-badge.free { border-color: var(--border); color: var(--muted); }
     .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 16px 0; }
-    .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; }
-    .stat .n { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    /* drawn as the system page draws its figures, so the portal and the
+       system it opens read as one product */
+    .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 12px 16px; }
+    .stat .n { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.3; }
     .stat .l { font-size: 12px; color: var(--muted); font-weight: 600; }
     .demo-banner {
       background: var(--warn-bg); border: 1px solid var(--sand); color: var(--sand);
@@ -269,29 +291,47 @@
       font-size: 13.5px; font-weight: 700; opacity: 0; pointer-events: none; transition: .2s; z-index: 99;
     }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast .ic, .offline-banner .ic, .demo-banner .ic { margin-inline-end: 6px; }
     .offline-banner {
       background: var(--warn-bg); border-bottom: 1px solid var(--sand); color: var(--sand);
       padding: 8px 20px; font-size: 13px; font-weight: 600; text-align: center; line-height: 1.7;
     }
     /* ═══════ mobile ═══════ */
     @media (max-width: 640px) {
+      /* the nav wrapped to two rows here and the pinned bar held 171px of every
+         screen. It stays sticky — the owner's bar on all four pages, and the
+         portal has no bottom bar to keep its links in reach — but the links run
+         in one row that swipes, ordered by what the app needs most — the call to
+         action, then the dashboard or login — so it is never those off screen */
       header { padding: 8px 12px; }
+      nav { flex-wrap: nowrap; overflow-x: auto; width: 100%; margin-inline-start: 0;
+        scrollbar-width: none; overscroll-behavior-x: contain; }
+      nav::-webkit-scrollbar { display: none; }
+      nav a, nav .btn { flex: none; }
+      nav .btn.primary, #nav-logout { order: -2; }
+      #nav-dash, #nav-login { order: -1; }
+      nav a[href="index.html"] { order: 1; }     /* the company is also in the footer */
       .brand small { display: none; }            /* the wordmark carries the header */
       nav { gap: 4px; }
-      nav a, .btn { padding: 12px 16px; min-height: 44px; display: inline-flex; align-items: center; }
+      nav a, .btn { padding: 12px 16px; min-height: 44px; }
+      nav a, nav .btn { padding: 12px; }
       main { padding: 20px 12px 56px; }
-      .hero { padding: 24px 0 6px; }
+      .hero { padding: 24px 0 32px; }
       .hero p { font-size: 15px; }
       form.auth { padding: 20px 16px; }
       input, select { font-size: 16px; }         /* < 16px makes iOS zoom on focus */
       .plans { grid-template-columns: 1fr; }
       .stat-row { grid-template-columns: repeat(3, 1fr); }
-      .stat .n { font-size: 20px; }
+      .stat .n { font-size: 21px; }
     }
+    /* iOS zooms on focus into any field under 16px — on a landscape phone and
+       a tablet too, which the max-width rule above never reached */
+    @media (pointer: coarse) { input, select, textarea { font-size: 16px; } }
 
-    footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 24px; border-top: 1px solid var(--border); line-height: 1.9; }
+    footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 16px 24px; border-top: 1px solid var(--border); line-height: 1.9; }
     /* WCAG 2.2 target size: a 12px-tall link is below the 24px floor */
     footer a { display: inline-block; padding: 6px 4px; }
+      @media (min-width: 641px) { header { padding-block: 8px; } }
   </style>
 <script>
   /* Clickjacking. `frame-ancestors` is ignored in a <meta> CSP and
@@ -324,36 +364,49 @@
 </script>
 </head>
 <body>
+  <!-- icons: generated by design/app_sprite.py from index.html's sprite — do not edit by hand -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <symbol id="i-anchor" viewBox="0 0 24 24"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 10.7h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke-width=".8" d="M5.5 12.3 4.3 15.4l2.8-.5z"/><path fill="currentColor" stroke-width=".8" d="M18.5 12.3l1.2 3.1-2.8-.5z"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 4v16h16"/><path d="M7.5 15.5 11 11l3 2.6 4.2-6"/><circle cx="7.5" cy="15.5" r="1.1"/><circle cx="14" cy="13.6" r="1.1"/><circle cx="18.2" cy="7.6" r="1.1"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m4.8 12.6 4.6 4.6 9.8-10.2"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="M14.5 6 9 12l5.5 6"/></symbol>
+    <symbol id="i-delivery" viewBox="0 0 24 24"><circle cx="5.8" cy="16.8" r="3.4"/><circle cx="18.2" cy="16.8" r="3.4"/><path d="M9.2 16.8h5.6l2-8h-2.4"/><path d="M14.8 8.8 5.8 16.8"/><path d="M4 8.8h4.2"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3.6v10.8"/><path d="m7.8 10.2 4.2 4.2 4.2-4.2"/><path d="M4.4 15.4v2.8a2.2 2.2 0 0 0 2.2 2.2h10.8a2.2 2.2 0 0 0 2.2-2.2v-2.8"/></symbol>
+    <symbol id="i-report" viewBox="0 0 24 24"><path d="M6 3.6h9l4 4v13H6z"/><path d="M15 3.6v4h4"/><path d="M9.2 17v-3.4M12 17v-5.6M14.8 17v-2.2"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><path d="M10.3 4.6 3 17.4a2 2 0 0 0 1.7 3h14.6a2 2 0 0 0 1.7-3L13.7 4.6a2 2 0 0 0-3.4 0Z"/><path d="M12 9.4v4.4"/><circle cx="12" cy="16.9" r="1" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-wifi-off" viewBox="0 0 24 24"><path d="M3.4 3.4l17.2 17.2"/><path d="M8.6 15.6a4.8 4.8 0 0 1 6-.4"/><path d="M5.2 12.2a9.4 9.4 0 0 1 4-2.3M14.4 9.9a9.4 9.4 0 0 1 4.4 2.3"/><path d="M2.4 8.8a14 14 0 0 1 3.8-2.4M10 5.2a14 14 0 0 1 11.6 3.6"/><circle cx="12" cy="19" r="1" fill="currentColor" stroke="none"/></symbol>
+  </svg>
+  <!-- /icons -->
   <header>
     <div class="brand">
       <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:20px;height:20px"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 10.7h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke-width=".8" d="M5.5 12.3 4.3 15.4l2.8-.5z"/><path fill="currentColor" stroke-width=".8" d="M18.5 12.3l1.2 3.1-2.8-.5z"/></svg></span>
       <div>النوخذة <small>نظام موحد من المهلب كود — Almuhallab Code</small></div>
     </div>
     <nav id="nav">
-      <a href="index.html">← المهلب كود</a>
+      <a href="index.html"><svg class="ic back" aria-hidden="true"><use href="#i-chev"/></svg> المهلب كود</a>
       <a href="#/" data-route="/">الرئيسية</a>
-      <a href="#/pricing" data-route="/pricing">الاشتراك</a>
+      <a href="#/pricing" data-route="/pricing">المزايا</a>
       <a href="#/dashboard" data-route="/dashboard" id="nav-dash" hidden>لوحة التحكم</a>
       <a href="#/login" data-route="/login" id="nav-login">تسجيل الدخول</a>
       <a href="#/register" data-route="/register" id="nav-register" class="btn primary">سجّل الآن</a>
-      <button class="btn outline" id="install" hidden>⬇ تثبيت التطبيق</button>
+      <button class="btn outline" id="install" hidden><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg> تثبيت التطبيق</button>
       <button class="btn danger" id="nav-logout" hidden>خروج</button>
     </nav>
   </header>
 
   <div class="offline-banner" id="offline" hidden>
-    ⚠️ أنت غير متصل بالإنترنت — النوخذة يعمل بالكامل بدون اتصال، وبياناتك محفوظة على جهازك.
+    <svg class="ic sm" aria-hidden="true"><use href="#i-wifi-off"/></svg>أنت غير متصل بالإنترنت — النوخذة يعمل بالكامل بدون اتصال، وبياناتك محفوظة على جهازك.
   </div>
 
   <main>
     <!-- Home -->
     <section class="page" id="page-home">
       <div class="hero">
-        <span class="kicker">⚓ نظام واحد… كل الأدوات</span>
+        <span class="kicker"><svg class="ic sm" aria-hidden="true"><use href="#i-anchor"/></svg> نظام واحد… كل الأدوات</span>
         <h1>النوخذة يقود كل خدماتك<br /><span class="en">One captain. Every service. One system.</span></h1>
         <p>
-          نظام النوخذة من المهلب يجمع خدماتك في وحدة واحدة — صافي (SAFI) لمتابعة المحافظ،
-          تقارير XBRL المالية، ونظام التوصيل — بنظام واحد ومجاناً بالكامل.
+          نظام النوخذة من المهلب يجمع خدماتك في مكان واحد — المركز المالي، صافي (SAFI)
+          لمتابعة المحافظ، تقارير XBRL المالية، ونظام التوصيل — مجاناً بالكامل.
           سجّل حسابك وابدأ.
         </p>
         <div class="actions">
@@ -369,10 +422,10 @@
 
     <!-- Pricing -->
     <section class="page" id="page-pricing">
-      <h2 class="section">الاشتراك مجاني</h2>
+      <h2 class="section">مجاني بالكامل</h2>
       <p class="sub">النوخذة مجاني بالكامل — كل الوحدات مفتوحة لكل حساب، بلا رسوم ولا حدود ولا باقات.</p>
       <div class="plans" id="plans"></div>
-      <p class="form-note" style="margin-top:18px">
+      <p class="form-note" style="margin-top:16px">
         لا تحتاج بطاقة ولا اشتراك: سجّل حسابك وابدأ فوراً.
       </p>
     </section>
@@ -381,10 +434,10 @@
     <section class="page" id="page-register">
       <h2 class="section" style="text-align:center">إنشاء حساب جديد</h2>
       <form class="auth" id="form-register">
-        <label>الاسم الكامل <input name="name" required maxlength="80" autocomplete="name" placeholder="مثال: محمد العلي" /></label>
-        <label>البريد الإلكتروني <input name="email" type="email" required maxlength="254" autocomplete="email" placeholder="you@example.com" /></label>
-        <label>كلمة المرور <input name="password" type="password" required minlength="8" maxlength="128" autocomplete="new-password" placeholder="8 أحرف على الأقل" /></label>
-        <p class="error" id="register-error"></p>
+        <label>الاسم الكامل <input name="name" required maxlength="80" autocomplete="name" aria-describedby="register-error" placeholder="مثال: محمد العلي" /></label>
+        <label>البريد الإلكتروني <input name="email" type="email" required maxlength="254" autocomplete="email" placeholder="you@example.com" aria-describedby="register-error" /></label>
+        <label>كلمة المرور <input name="password" type="password" required minlength="8" maxlength="128" autocomplete="new-password" aria-describedby="register-error" placeholder="8 أحرف على الأقل" /></label>
+        <p class="error" id="register-error" role="alert"></p>
         <button class="btn primary" type="submit">إنشاء الحساب</button>
         <p class="form-note">لديك حساب؟ <a href="#/login">سجّل الدخول</a> — تُحفظ الحسابات في متصفحك فقط (نسخة تجريبية).</p>
       </form>
@@ -394,9 +447,9 @@
     <section class="page" id="page-login">
       <h2 class="section" style="text-align:center">تسجيل الدخول</h2>
       <form class="auth" id="form-login">
-        <label>البريد الإلكتروني <input name="email" type="email" required maxlength="254" autocomplete="email" /></label>
-        <label>كلمة المرور <input name="password" type="password" required maxlength="128" autocomplete="current-password" /></label>
-        <p class="error" id="login-error"></p>
+        <label>البريد الإلكتروني <input name="email" type="email" required maxlength="254" autocomplete="email" aria-describedby="login-error" /></label>
+        <label>كلمة المرور <input name="password" type="password" required maxlength="128" autocomplete="current-password" aria-describedby="login-error" /></label>
+        <p class="error" id="login-error" role="alert"></p>
         <button class="btn primary" type="submit">دخول</button>
         <p class="form-note">ليس لديك حساب؟ <a href="#/register">سجّل الآن</a></p>
       </form>
@@ -405,8 +458,8 @@
     <!-- Dashboard -->
     <section class="page" id="page-dashboard">
       <div class="demo-banner">
-        ⚠️ <b>نسخة تجريبية:</b> الحسابات والبيانات محفوظة في متصفحك فقط. للتشغيل الفعلي
-        (حسابات مشتركة بين الأجهزة وربط الخدمات) يلزم خادم خلفي — التفاصيل في README.
+        <svg class="ic sm" aria-hidden="true"><use href="#i-warn"/></svg><b>نسخة تجريبية:</b> حسابك وبياناتك محفوظة في هذا المتصفح فقط، ولا تنتقل
+        إلى أجهزتك الأخرى.
       </div>
       <div class="dash-head">
         <div class="avatar" id="dash-avatar">؟</div>
@@ -415,7 +468,7 @@
           <div style="font-size:12.5px;color:var(--muted)" id="dash-email">—</div>
         </div>
         <span class="plan-badge" id="dash-plan">—</span>
-        <a class="btn outline" href="#/pricing" style="margin-inline-start:auto">ماذا تشمل الخطة المجانية</a>
+        <a class="btn outline" href="#/pricing" style="margin-inline-start:auto">ما يشمله النظام</a>
       </div>
       <div class="stat-row">
         <div class="stat"><div class="n" id="stat-total">0</div><div class="l">وحدات النظام</div></div>
@@ -428,7 +481,7 @@
     </section>
   </main>
 
-  <div class="toast" id="toast"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <footer>
     النوخذة — النظام الموحد · أحد أنظمة <a href="index.html">المهلب كود — Almuhallab Code</a><br />
@@ -445,10 +498,10 @@
       // The service fleet — one unified system. minPlan gates access per subscription tier.
       // All units unlocked while the system is being built — pricing gates come later.
       var UNITS = [
-        { id: "position", icon: "⚓", name: "المركز المالي",           desc: "الصورة الموحدة: قيمة المحفظة وربحها، إيراد التوصيل والطلبات الجارية، وإجمالي الموارد.", minPlan: 0, url: "nizam.html#/position" },
-        { id: "safi",     icon: "📊", name: "صافي — SAFI",          desc: "متابعة المحافظ والأرصدة وكشوفات المساهمين — ربح/خسارة وتصدير الكشوفات.", minPlan: 0, url: "nizam.html#/safi" },
-        { id: "delivery", icon: "🛵", name: "التوصيل — Delivery",    desc: "نظام توصيل متكامل: إنشاء الطلبات، تتبّع الحالة، وإدارة المناديب.", minPlan: 0, url: "nizam.html#/delivery" },
-        { id: "xbrl",     icon: "🧾", name: "XBRL — الميزانية السنوية", desc: "إعداد الميزانية السنوية لشركات الكويت وفق إطار وزارة التجارة (IFRS): حساب تلقائي، كشف أخطاء باقتراحات، وملف XBRL جاهز.", minPlan: 0, url: "nizam.html#/xbrl" }
+        { id: "position", icon: "i-anchor", name: "المركز المالي",           desc: "الصورة الموحدة: قيمة المحفظة وربحها، إيراد التوصيل والطلبات الجارية، وإجمالي الموارد.", minPlan: 0, url: "nizam.html#/position" },
+        { id: "safi",     icon: "i-chart", name: "صافي — SAFI",          desc: "متابعة المحافظ والأرصدة وكشوفات المساهمين — ربح/خسارة وتصدير الكشوفات.", minPlan: 0, url: "nizam.html#/safi" },
+        { id: "delivery", icon: "i-delivery", name: "التوصيل — Delivery",    desc: "نظام توصيل متكامل: إنشاء الطلبات، تتبّع الحالة، وإدارة المناديب.", minPlan: 0, url: "nizam.html#/delivery" },
+        { id: "xbrl",     icon: "i-report", name: "XBRL — الميزانية السنوية", desc: "إعداد الميزانية السنوية لشركات الكويت وفق إطار وزارة التجارة (IFRS): حساب تلقائي، كشف أخطاء باقتراحات، وملف XBRL جاهز.", minPlan: 0, url: "nizam.html#/xbrl" }
       ];
 
       /* النوخذة is free. One plan, everything open — no tiers, no payment,
@@ -587,21 +640,34 @@
 
       /* ---------- ui helpers ---------- */
       var toastEl = document.getElementById("toast"), toastTimer;
-      function toast(msg) {
-        toastEl.textContent = msg; toastEl.classList.add("show");
+      /* ICON names a sprite symbol; built from fixed ids only, never from data */
+      function icon(id, cls) { return '<svg class="' + (cls || "ic") + '" aria-hidden="true"><use href="#' + id + '"/></svg>'; }
+      function toast(msg, ic) {
+        toastEl.textContent = msg;
+        if (ic) toastEl.insertAdjacentHTML("afterbegin", icon(ic));
+        toastEl.classList.add("show");
         clearTimeout(toastTimer);
         toastTimer = setTimeout(function () { toastEl.classList.remove("show"); }, 1800);
+      }
+
+      /* a refused field is marked, announced (the error is role=alert and each
+         field points at it) and focused, so nobody is left on the button */
+      function invalid(field, err, msg) {
+        err.textContent = msg; field.setAttribute("aria-invalid", "true"); field.focus();
+      }
+      function clearInvalid(form) {
+        var a = form.querySelectorAll("[aria-invalid]");
+        for (var i = 0; i < a.length; i++) a[i].removeAttribute("aria-invalid");
       }
 
       function unitCard(mcp, userPlan, showLock) {
         var open = userPlan >= mcp.minPlan;
         var chip = showLock
-          ? (open ? '<span class="chip on">✔ مفعّلة</span>'
-                  : '<span class="chip on">✔ مفعّلة</span>')
-          : '<span class="chip on">✔ متاحة</span>';
+          ? '<span class="chip on">' + icon("i-check") + 'مفعّلة</span>'
+          : '<span class="chip on">' + icon("i-check") + 'متاحة</span>';
         var openBtn = (showLock && open && mcp.url)
-          ? '<a class="btn primary" style="text-align:center;margin-top:4px" href="' + mcp.url + '">فتح الخدمة ↗</a>' : '';
-        return '<div class="card"><h3>' + mcp.icon + ' ' + mcp.name + '</h3><p>' + mcp.desc + '</p>' + chip + openBtn + '</div>';
+          ? '<a class="btn primary" style="margin-top:4px" href="' + mcp.url + '">فتح الخدمة' + icon("i-chev") + '</a>' : '';
+        return '<div class="card"><h3><span class="tile">' + icon(mcp.icon) + '</span>' + mcp.name + '</h3><p>' + mcp.desc + '</p>' + chip + openBtn + '</div>';
       }
 
       function renderGrids() {
@@ -619,10 +685,11 @@
           var isCurrent = user && user.plan === p.id;
           var btn = isCurrent
             ? '<button class="btn outline" disabled>مفعّل لحسابك</button>'
-            : '<button class="btn primary" data-plan="' + p.id + '">ابدأ مجاناً</button>';
+            : user ? '<button class="btn primary" data-plan="' + p.id + '">ابدأ مجاناً</button>'
+                   : '<a class="btn primary" href="#/register">ابدأ مجاناً</a>';
           return '<div class="plan' + (p.featured ? " featured" : "") + '">' +
             '<div class="name">' + p.name + '</div>' +
-            '<div class="price">مجاناً <small>بلا رسوم شهرية</small></div>' +
+            '<div class="price">مجاناً <small>بلا أي رسوم</small></div>' +
             '<ul>' + p.features.map(function (f) { return "<li>" + f + "</li>"; }).join("") + '</ul>' +
             btn + '</div>';
         }).join("");
@@ -660,6 +727,7 @@
 
       /* ---------- router ---------- */
       var pages = { "/": "page-home", "/pricing": "page-pricing", "/register": "page-register", "/login": "page-login", "/dashboard": "page-dashboard" };
+      var HOME_TITLE = document.title;           /* the indexed title, untouched */
       function route() {
         var path = (location.hash || "#/").slice(1);
         if (!pages[path]) path = "/";
@@ -673,6 +741,11 @@
         }
         renderNav(); renderGrids(); renderPlans();
         if (path === "/dashboard") renderDashboard();
+        /* five screens shared one title, so history and a screen reader could
+           not tell them apart */
+        var screen = { "/pricing": "ما يشمله النظام", "/register": "إنشاء حساب",
+                       "/login": "تسجيل الدخول", "/dashboard": "لوحة التحكم" }[path];
+        document.title = screen ? screen + " | النوخذة" : HOME_TITLE;
         window.scrollTo(0, 0);
       }
       window.addEventListener("hashchange", route);
@@ -683,12 +756,15 @@
         var f = e.target, err = document.getElementById("register-error");
         var email = f.email.value.trim().toLowerCase();
         var password = f.password.value;
-        if (!EMAIL_RE.test(email)) { err.textContent = "صيغة البريد الإلكتروني غير صحيحة."; return; }
-        if (password.length < 8) { err.textContent = "كلمة المرور يجب أن تكون 8 أحرف على الأقل."; return; }
-        var users = readUsers();
-        if (users[email]) { err.textContent = "هذا البريد مسجّل من قبل — سجّل الدخول."; return; }
-        var salt = newSalt();
         var name = f.name.value.trim().slice(0, 80);
+        clearInvalid(f);
+        /* three spaces passed `required` and made an account with no name */
+        if (!name) return invalid(f.name, err, "اكتب اسمك.");
+        if (!EMAIL_RE.test(email)) return invalid(f.email, err, "صيغة البريد الإلكتروني غير صحيحة.");
+        if (password.length < 8) return invalid(f.password, err, "كلمة المرور يجب أن تكون 8 أحرف على الأقل.");
+        var users = readUsers();
+        if (users[email]) return invalid(f.email, err, "هذا البريد مسجّل من قبل — سجّل الدخول.");
+        var salt = newSalt();
         var btn = f.querySelector("button[type=submit]");
         btn.disabled = true;
         hashPassword(password, salt).then(function (hash) {
@@ -700,7 +776,7 @@
           writeUsers(users);
           if (!setSession(email)) { err.textContent = STORAGE_FULL; return; }
           f.reset(); err.textContent = "";
-          toast("أهلاً بك في النوخذة ⚓");
+          toast("أهلاً بك في النوخذة", "i-anchor");
           location.hash = "#/dashboard";
         }).catch(function () {
           err.textContent = "تعذّر إنشاء الحساب — المتصفح لا يدعم التشفير المطلوب.";
@@ -712,13 +788,18 @@
         var f = e.target, err = document.getElementById("login-error");
         var email = f.email.value.trim().toLowerCase();
         var password = f.password.value;
+        clearInvalid(f);
         var lockedFor = lockCheck(email);
         if (lockedFor) { err.textContent = "تم إيقاف المحاولات مؤقتاً — حاول بعد " + ar(lockedFor, "دقيقة", "دقيقتين", "دقائق", "دقيقة واحدة") + "."; return; }
         var users = readUsers();
         var user = users[email];
         function fail() {
           lockFail(email);
-          err.textContent = "البريد أو كلمة المرور غير صحيحة.";
+          /* the attempt that arms the lock says so — not the next one */
+          var m = lockCheck(email);
+          err.textContent = m ? "تم إيقاف المحاولات مؤقتاً — حاول بعد " + ar(m, "دقيقة", "دقيقتين", "دقائق", "دقيقة واحدة") + "."
+                              : "البريد أو كلمة المرور غير صحيحة.";
+          f.password.setAttribute("aria-invalid", "true"); f.password.focus();
         }
         function succeed() {
           if (user.status === "suspended") {
@@ -769,7 +850,7 @@
         var users = readUsers();
         users[user.email].plan = planId;
         writeUsers(users);
-        toast("حسابك مفعّل — كل الوحدات مفتوحة ✔");
+        toast("حسابك مفعّل — كل الوحدات مفتوحة", "i-check");
         location.hash = "#/dashboard"; route();
       });
 

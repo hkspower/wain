@@ -273,7 +273,7 @@
       font-display:swap; src:url("fonts/sharetechmono-400.woff2") format("woff2"); }
     /* The token set is identical on every page of this site — divergence
        between pages has been a real bug before, and the test suite fails on it. */
-    :root {
+    :root { --lh-ui: 1.35; --lh-head: 1.4; --lh-text: 1.5; --lh-read: 1.6;
       color-scheme: light;   /* the site is white on every device, dark preference included */
       --bg: #ffffff;
       --panel: #ffffff;
@@ -340,17 +340,50 @@
        for square holes like the tab icon), المهلب under her, then the English
        name, then what the company is. The two names are one block — the
        English line sits tight under the Arabic and is set LTR in its own bidi
-       isolate so the RTL page cannot reorder it. Spacing runs on the 4/8
-       rhythm: 8 under the mark, 4 between the lines. */
-    .brand { gap: 8px; }
-    .brand .logo { width: 148px; height: 74px; display: block; color: var(--on-bar);
+       isolate so the RTL page cannot reorder it. Spacing is set ink to ink:
+       16 from her keel to المهلب (a 6px gap — her box is her cells now, and
+       the name's line box brings the rest), 8 from المهلب to the Latin line
+       (one block, so no margin of its own), 13 to the descriptor. It was
+       24 / 12 / 13, the first nine of the 24 being empty rows of her box. */
+    .brand { gap: 6px; }
+    /* The boum is sized in whole cells, never in free pixels: --cell is the
+       CSS size of one of her 36×20 cells, and the hint below (written by
+       design/pixel_boum.py) turns it into whole device pixels per cell with a
+       whole-pixel seam between them. 148×74 put 3.08px in a cell and the
+       seams fell between pixels — a grey, uneven ship. Her box is cropped to
+       her cells, so the gap under her is the gap you see. */
+    .brand .logo { --cell: 3; display: block; flex: none; color: var(--on-bar);
+      overflow: visible;   /* a box the browser rounds to whole CSS px must not clip her keel */
       transition: width .22s ease, height .22s ease; }
-    .brand .name { font-family: "Reem Kufi", "Cairo", sans-serif; font-size: 34px; font-weight: 700;
+    /* pixel-boum:hint */
+    /* Written by design/pixel_boum.py, which explains it — edit it there.
+       --cell is the CSS size of one cell; the bar sets it per state. --qmin
+       is the fewest device pixels a cell may take: 2 draws 1 lit + 1 seam, a
+       tan mesh rather than a white ship, so the compact states ask for 3. */
+    .brand .logo { width: calc(var(--cell) * 36px); height: calc(var(--cell) * 20px); }
+    @supports (width: calc(round(nearest, 1.5px, 1px))) {
+      .brand .logo {
+        --q: max(var(--qmin, 2), round(nearest, calc(var(--cell) * var(--dpr, 1)), 1));
+        --g: max(1, round(nearest, calc(var(--q) * 0.18), 1));
+        width: calc(var(--q) / var(--dpr, 1) * 36px); height: calc(var(--q) / var(--dpr, 1) * 20px); }
+      @supports (d: path("M0 0")) {
+        #i-boum path { d: path("M24 1.5h2M23 2.5h3M22 3.5h4M20 4.5h6M19 5.5h7M18 6.5h8M34 6.5h1M17 7.5h9M33 7.5h2M16 8.5h10M33 8.5h2M15 9.5h11M32 9.5h3M6 10.5h2M14 10.5h12M31 10.5h5M6 11.5h3M13 11.5h13M30 11.5h6M7 12.5h2M11 12.5h15M30 12.5h6M8 13.5h1M10 13.5h16M29 13.5h7M40 13.5h2M8 14.5h18M28 14.5h8M39 14.5h3M9 15.5h1M25 15.5h1M34 15.5h1M38 15.5h3M9 16.5h32M10 17.5h31M10 18.5h30M12 19.5h26M16 20.5h19");
+          fill: none; stroke: currentColor; shape-rendering: crispEdges;
+          stroke-width: calc(1 - var(--g) / var(--q)); stroke-dasharray: calc(1 - var(--g) / var(--q)) calc(var(--g) / var(--q));
+          transform: translate(calc(0.0625px / var(--q)), calc((0.0625 - var(--g) / 2) * 1px / var(--q))); }
+      }
+    }
+    /* /pixel-boum:hint */
+    .brand .name { display: block; font-family: "Reem Kufi", "Cairo", sans-serif; font-size: 32px; font-weight: 700;
       color: var(--on-bar); line-height: 1.35;
       transition: font-size .22s ease; }
+    /* the Latin line is tracked to the ship's own width (at the top of a
+       desktop the ship is 107px and the line 113): the pixel ship and the monospaced name are the
+       code layer of the lockup, and at .32em it ran 175px under a 112px ship
+       — the widest thing in the bar */
     .brand .en { display: block; color: var(--on-bar); font-family: "Share Tech Mono", ui-monospace, monospace;
-      font-weight: 400; font-size: 14px;
-      letter-spacing: .32em; margin-inline-end: -.32em; line-height: 1.3; margin-top: 4px;
+      font-weight: 400; font-size: 12px;
+      letter-spacing: .1em; margin-inline-end: -.1em; line-height: 1.3;
       direction: ltr; unicode-bidi: isolate;
       transition: font-size .22s ease; }
     .brand small { display: block; font-weight: 500; color: var(--on-bar);
@@ -361,15 +394,15 @@
        company's name is not a masthead. */
     html.scrolled header { padding-top: 8px; }
     html.scrolled .brand { gap: 4px; }
-    html.scrolled .brand .logo { width: 84px; height: 42px; }
+    html.scrolled .brand .logo { --cell: 2; --qmin: 3; }   /* never the 1+1 mesh at 1× */
     html.scrolled .brand .name { font-size: 20px; }
-    html.scrolled .brand .en { font-size: 11px; }
+    html.scrolled .brand .en { font-size: 11px; }   /* ~104px under a 72–108px ship */
     html.scrolled .brand small { max-height: 0; opacity: 0; margin-top: 0; }
 
     nav.site { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; justify-content: center;
-      padding: 4px 0 8px; }
+      padding: 0 0 4px; }
     nav.site a, .btn {
-      font-size: 14px; font-weight: 600; color: var(--text);
+      font-size: 14px; line-height: var(--lh-ui); font-weight: 600; color: var(--text);
       padding: 12px 16px; border-radius: 8px; border: 1px solid transparent;
       cursor: pointer; background: transparent; font-family: var(--sans);
     }
@@ -386,7 +419,7 @@
     .btn:hover { opacity: .88; }
     a:focus-visible, .btn:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
 
-    main { max-width: 1060px; margin: 0 auto; padding: 16px 20px 40px; }
+    main { max-width: 1060px; margin: 0 auto; padding: 16px 20px 40px;  line-height: var(--lh-text); }
 
     /* ═══════ rails: the sliders that replaced the card grids ═══════
        (owner's request, 2026-07-30: "less grids, slide"). One horizontal
@@ -453,7 +486,7 @@
     .fnode .ic { width: 18px; height: 18px; }
     .fnode b { font-size: 13px; display: block; line-height: 1.4; }
     .fnode span { font-size: 12px; color: var(--muted); display: block; line-height: 1.4; }
-    .fnode.hub { border-color: var(--tint); box-shadow: 0 0 0 1px var(--tint); }
+    .fnode.hub { border-color: var(--tint);  }
     /* the wire: dashes that travel from the sources toward the filing */
     .wire { flex: 1; min-width: 24px; height: 2px; border-radius: 2px;
       background-image: linear-gradient(90deg, var(--tint) 0 45%, transparent 45% 100%);
@@ -476,6 +509,9 @@
        becomes a vertical pipeline rather than a squeezed one */
     @media (max-width: 900px) {
       .flowmap { flex-direction: column; align-items: stretch; }
+      /* a node as wide as the rail held its label at one edge while the wire
+         ran down the centre, so the two never met */
+      .flowmap .fnode { width: min(100%, 320px); align-self: center; }
       .frow { flex-direction: column; align-items: stretch; }
       .fcol.sources { display: flex; flex-direction: column; }
       .fnode b, .fnode span { white-space: normal; }
@@ -540,7 +576,11 @@
     html.motion .offscreen,
     html.motion .offscreen * { animation-play-state: paused !important; }
 
-    .brand .logo { animation: draw .7s cubic-bezier(.2,.7,.3,1) both; }
+    /* backwards, not both: a fill that outlives the entrance keeps the mark
+       on its own compositor layer, and on a 2.625× phone that layer is
+       resampled at a fractional offset — every seam of the hinted ship went
+       soft (8,606 part-lit pixels at 412px; none once the entrance lets go) */
+    .brand .logo { animation: draw .7s cubic-bezier(.2,.7,.3,1) backwards; }
     .hero .kicker { animation: rise .5s ease both .05s; }
     .hero h1      { animation: rise .5s ease both .14s; }
     .hero .lead   { animation: rise .5s ease both .22s; }
@@ -599,7 +639,7 @@
        behind the type, and the geometry is the brand's own shapes (the sail
        triangle, rings, a square) drawn at low opacity. Ink, never paper. */
     .hero { position: relative; text-align: center; overflow: hidden;
-      padding: 40px 0 24px; min-height: clamp(420px, calc(100vh - 320px), 680px);
+      padding: 32px 0 24px; min-height: clamp(420px, calc(100vh - 320px), 680px);
       display: flex; flex-direction: column; justify-content: center; }
     /* The wash is two faint radial hints painted directly on the art layer —
        they fade to nothing well before any edge, so there is no clipped blur
@@ -626,12 +666,16 @@
     .shape.dot { width: 10px; height: 10px; border-radius: 999px; background: rgba(122,68,24,.25);
       top: 42%; inset-inline-start: 22%; animation: bob 9s ease-in-out infinite alternate; }
     .hero > * { position: relative; }
+    /* .hero > * matched the art layer too and, coming later at the same
+       specificity, made it a 0px-tall relative box: all five shapes stacked on
+       one line at the top. The wash stays off — it painted a sand tint. */
+    .hero > .heroart { position: absolute; background: none; }
     .hero .kicker {
       display: inline-block; background: var(--panel-2); border: 1px solid var(--border);
       color: var(--sand); border-radius: 999px; padding: 6px 16px; font-size: 13px; font-weight: 700;
       align-self: center;
     }
-    .hero h1 { font-size: clamp(30px, 5.6vw, 52px); margin: 12px 0 6px; line-height: 1.4; text-wrap: balance; }
+    .hero h1 { font-size: clamp(28px, 4.4vw, 44px); margin: 8px 0 4px; line-height: 1.4; text-wrap: balance; }
     .hero h1 .en { color: var(--tint); direction: ltr; display: inline-block; unicode-bidi: isolate;
       letter-spacing: -.5px; font-size: .62em; }
     .hero .lead { color: var(--muted); max-width: 620px; margin: 0 auto 16px; font-size: 16px; line-height: 1.8; }
@@ -676,7 +720,7 @@
     /* real numbers only: units, checks, dependencies, offline — all verifiable */
     .stats { display: flex; justify-content: center; gap: 32px; flex-wrap: wrap; margin-top: 24px; }
     .stat { display: flex; flex-direction: column; gap: 4px; min-width: 96px; }
-    .stat b.num { font-size: 27px; font-weight: 800; color: var(--tint); direction: ltr; unicode-bidi: isolate; }
+    .stat b.num { font-size: 24px; font-weight: 800; color: var(--tint); direction: ltr; unicode-bidi: isolate; }
     .stat span { color: var(--muted); font-size: 13px; }
     .scrollcue { position: absolute; bottom: 8px; inset-inline-start: 50%; transform: translateX(50%);
       color: var(--muted); display: none; }
@@ -695,9 +739,9 @@
     h1, h2, h3, .num, h2.section, .product h3, .card h3, .band .fact h3 {
       line-height: 1.4;
     }
-    h2.section { font-size: 22px; margin: 32px 0 4px; }
+    h2.section { font-size: 20px; margin: 32px 0 4px; }
     h2.section::after {
-      content: ""; display: block; width: 46px; height: 3px; border-radius: 2px;
+      content: ""; display: block; width: 46px; height: 2px; border-radius: 2px;
       margin-top: 6px; background: linear-gradient(270deg, var(--tint), var(--sand-vivid));
     }
     .sub { color: var(--muted); margin: 0 0 12px; line-height: 1.75; }
@@ -721,7 +765,7 @@
     .tile { width: 38px; height: 38px; border-radius: 12px; background: var(--panel-2);
       display: grid; place-items: center; flex: none; }
     .card .tile .ic { width: 21px; height: 21px; }
-    .card .chip { margin-top: auto; }
+    .card .chip { margin-top: auto;  line-height: var(--lh-ui); }
     .chip {
       font-size: 12px; font-weight: 700; border-radius: 999px; padding: 4px 8px;
       display: inline-flex; align-items: center; gap: 4px;
@@ -732,7 +776,7 @@
     /* the five things each service actually covers, as quiet mini-chips */
     ul.feats { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
     ul.feats li { font-size: 12px; font-weight: 600; color: var(--muted); background: var(--panel-2);
-      border: 1px solid var(--border); border-radius: 999px; padding: 4px 8px; }
+      border: 1px solid var(--border); border-radius: 999px; padding: 4px 8px;  line-height: var(--lh-ui); }
     .card:hover ul.feats li { border-color: var(--sand-vivid); }
 
     /* mini feature cards on the edge rail: icon + claim, nothing else */
@@ -747,7 +791,7 @@
       padding: 16px; display: grid; grid-template-columns: 1fr auto; gap: 16px;
       align-items: center; margin-top: 12px; position: relative; overflow: hidden;
     }
-    .product.lead { border-color: var(--tint); box-shadow: 0 0 0 1px var(--tint);
+    .product.lead { border-color: var(--tint); 
       transition: transform .3s ease, box-shadow .3s ease; will-change: transform; }
     .product h3 { margin: 0 0 6px; font-size: 20px; display: flex; align-items: center; gap: 8px; }
     .product p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.75; }
@@ -758,7 +802,7 @@
     .btn.go .ic { width: 18px; height: 18px; stroke: currentColor; color: currentColor; }
     @media (max-width: 620px) {
       .product { grid-template-columns: 1fr; }
-      .product .go { justify-self: stretch; text-align: center; }
+      .product .go { justify-self: stretch; justify-content: center; }   /* inline-flex: text-align centres nothing */
     }
 
     /* ═══════ the automation flow: request to running system, one line ═══════
@@ -970,9 +1014,9 @@
       /* inline-start (the right, in RTL): the rails put their arrows at the
          inline-end, and a fixed pill there would sit on top of a real control */
       position: fixed; inset-block-end: 20px; inset-inline-start: 20px; z-index: 60;
-      display: inline-flex; align-items: center; gap: 12px;
+      display: inline-flex; align-items: center; gap: 8px;
       background: var(--tint-strong); color: #fff; border-radius: 999px;
-      padding: 12px 20px 12px 16px; min-height: 56px;
+      padding: 8px 16px 8px 12px; min-height: 48px;
       box-shadow: 0 8px 24px rgba(27, 36, 48, .22);
       transition: transform .22s cubic-bezier(.2,.7,.3,1), box-shadow .22s ease;
     }
@@ -1018,7 +1062,7 @@
          it starts: measured, at inline-start it was covering the first
          characters of every heading it passed. */
       .callfab { inset-block-end: 14px; inset-inline-start: auto; inset-inline-end: 14px;
-        padding: 0; width: 56px; height: 56px; min-height: 56px;
+        padding: 0; width: 48px; height: 48px; min-height: 48px;
         justify-content: center; gap: 0; }
       .callfab .fabtext { display: none; }
       .callfab .ic { width: 24px; height: 24px; }
@@ -1029,9 +1073,9 @@
        opened by the brand hairline so it reads as the foot of the masthead's
        column. Four columns — who we are, the company, what we do, the system —
        with the real channels written out, not only as icon buttons. */
-    footer { background: var(--panel-2); border-top: 1px solid var(--border); margin-top: 56px;
+    footer { background: var(--panel-2); border-top: 1px solid var(--border); margin-top: 32px;
       color: var(--muted); font-size: 13px; line-height: 1.9; }
-    footer::before { content: ""; display: block; height: 3px;
+    footer::before { content: ""; display: block; height: 2px;
       background: linear-gradient(270deg, var(--tint), var(--sand-vivid)); }
     .fcols { max-width: 1060px; margin: 0 auto; padding: 32px 20px 24px;
       display: flex; flex-wrap: wrap; gap: 32px 24px; }
@@ -1068,7 +1112,7 @@
     .fcontact a { display: inline-flex; align-items: center; gap: 8px; color: var(--muted);
       padding: 6px 0; min-height: 32px; transition: color .18s ease; }
     .fcontact a:hover { color: var(--tint); }
-    .fcontact .ic { width: 16px; height: 16px; stroke: var(--muted); color: var(--muted);
+    .fcontact .ic { width: 16px; height: 16px; stroke: var(--muted); color: var(--muted); stroke-width: 2;
       transition: stroke .18s ease, color .18s ease; }
     .fcontact a:hover .ic { stroke: var(--tint); color: var(--tint); }
     .fcontact .v { direction: ltr; unicode-bidi: isolate; }
@@ -1081,32 +1125,38 @@
       font-weight: 700; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border);
       background: var(--panel); transition: border-color .18s ease, transform .18s ease; }
     .base .top:hover { border-color: var(--tint); transform: translateY(-2px); }
-    .base .top .ic { width: 14px; height: 14px; transform: rotate(90deg); }
+    .base .top .ic { width: 14px; height: 14px; transform: rotate(90deg); stroke-width: 2.3; }
 
     /* The sticky bar covers whatever an in-page link jumps to, so every anchor
        target keeps its own headroom. Without this, "خدماتنا" landed the heading
        underneath the masthead. */
-    :target, section[id], h2.section[id] { scroll-margin-top: 178px; }
+    :target, section[id], h2.section[id] { scroll-margin-top: 192px; }   /* clears the 1× compact bar (184) */
     html { scroll-behavior: smooth; }
+
+    /* a phone on its side is short, not narrow: at 844×390 the desktop lockup
+       stood 261px (67% of the screen) and 173px scrolled. It takes the phone's
+       own sizes and folds to a row once scrolled, as it does at 640px */
+    @media (max-height: 500px) {
+      header { padding: 8px 20px 0; }
+      .brand .logo { --cell: 3; }
+      .brand .name { font-size: 28px; }
+      .brand .en { font-size: 12px; }
+      nav.site { padding-bottom: 4px; }
+    }
+    /* below 360px the four links measured 324px in 296: النوخذة wrapped to a
+       second row and the bar took 45% of the screen. 12px sides keep one row */
+    @media (max-width: 359px) { header nav.site a { padding: 12px 12px; } }   /* outranks the 640px block below */
 
     /* ═══════ mobile ═══════ */
     @media (max-width: 640px) {
       header { padding: 12px 12px 0; }
-      .brand .logo { width: 116px; height: 58px; }
+      .brand .logo { --cell: 3; }
       .brand .name { font-size: 28px; }
-      .brand .en { font-size: 12px; letter-spacing: .24em; margin-inline-end: -.24em; }
-      /* scrolled, the lockup folds to a row — mark beside المهلب — and the
-         Latin line steps aside: measured at 320px, the stacked compact bar
-         still stood 220px tall (a third of an SE's screen) because the nav
-         wraps to two rows there. The Arabic name never leaves the bar. */
-      html.scrolled .brand { flex-direction: row; gap: 8px; }
-      html.scrolled .brand .logo { width: 64px; height: 32px; }
-      html.scrolled .brand .name { font-size: 18px; }
-      html.scrolled .brand .en { display: none; }
-      nav.site { padding-bottom: 8px; }
+      .brand .en { font-size: 12px; }
+      nav.site { padding-bottom: 4px; }
       nav.site a, .btn { padding: 12px 16px; min-height: 44px; display: inline-flex; align-items: center; }
       main { padding: 16px 12px 40px; }
-      .hero { padding: 24px 0 32px; min-height: 0; }
+      .hero { padding: 16px 0 24px; min-height: 0; }
       h2.section { margin-top: 24px; }
       .hero .lead { font-size: 16px; }
       /* The hero has no min-height on a phone, so everything in it pushes the
@@ -1129,14 +1179,37 @@
 
 
       .channels { flex-direction: column; }
+      /* in a column the 240px flex-basis meant as a width becomes each pill's
+         height: three 240px pills holding 58px of content each */
+      .channel { flex: none; }
       .fcols { gap: 24px 20px; padding: 24px 12px 20px; }
-      .fcols > div, .fcols .fbrand { flex: 1 1 100%; }
+      /* the company keeps a full row; الشركة and الخدمات share one — their
+         longest label is 125px, and a full row each left them 17% filled */
+      .fcols .fbrand { flex: 1 1 100%; }
+      .fcols > div:not(.fbrand) { flex: 1 1 40%; }
       .fcontact a { min-height: 44px; }
       .base { flex-direction: column; gap: 12px; text-align: center; }
       :target, section[id], h2.section[id] { scroll-margin-top: 176px; }
       .qform { grid-template-columns: 1fr; padding: 16px; }
       .shape { display: none; }
       .heroart { background: none; }
+    }
+    /* one fold for every short or narrow bar — a phone, or a phone on its
+       side — so the two can never drift apart */
+    @media (max-width: 640px), (max-height: 500px) {
+      /* scrolled, the lockup folds to a row — mark beside المهلب — and the
+         Latin line steps aside: measured at 320px, the stacked compact bar
+         still stood 220px tall (a third of an SE's screen) because the nav
+         wraps to two rows there. The Arabic name never leaves the bar. */
+      html.scrolled .brand { flex-direction: row; gap: 8px; }
+      /* 1.34 is 4 device px a cell on a 3× phone, 3 on a 2× one: 48–54px of
+         ship beside an 18px name, as before, without the blur */
+      html.scrolled .brand .logo { --cell: 1.34; }
+      html.scrolled .brand .name { font-size: 18px; }
+      /* the collapsed tagline still had its width: the name sat centred in a
+         99px box and stood 34px off the bow — mark and name read as two
+         things. Out of the row, the gap is the 8px the row asks for. */
+      html.scrolled .brand .en, html.scrolled .brand small { display: none; }
     }
 
     /* A visitor who asks the OS for less motion gets none of it: no entrance,
@@ -1167,6 +1240,22 @@
     if (h === "localhost" || h === "127.0.0.1" || h === "[::1]") return;
     location.replace("https:" + location.href.slice(location.protocol.length));
   })();
+  /* The masthead draws the boum on whole device pixels (design/pixel_boum.py
+     writes how), and CSS cannot read the pixel ratio — so it is handed over
+     here, before the bar paints, and again whenever it changes: a zoom, or a
+     window dragged to another screen. Without it the bar assumes 1, which is
+     exact at 1×, 2× and 3× anyway; this is what makes 1.25×, 1.5× and a
+     2.625× phone exact too. */
+  (function () {
+    var root = document.documentElement;
+    function track() {
+      var r = window.devicePixelRatio || 1;
+      root.style.setProperty("--dpr", r);
+      var mq = window.matchMedia && matchMedia("(resolution: " + r + "dppx)");
+      if (mq && mq.addEventListener) mq.addEventListener("change", track, { once: true });
+    }
+    track();
+  })();
 </script>
 </head>
 <body id="top">
@@ -1178,7 +1267,7 @@
        the ship, at the owner's direction. -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
     <symbol id="i-boum" viewBox="0 0 48 24"><path fill="currentColor" stroke="none" d="M24.09 1.09h0.82v0.82h-0.82zM25.09 1.09h0.82v0.82h-0.82zM23.09 2.09h0.82v0.82h-0.82zM24.09 2.09h0.82v0.82h-0.82zM25.09 2.09h0.82v0.82h-0.82zM22.09 3.09h0.82v0.82h-0.82zM23.09 3.09h0.82v0.82h-0.82zM24.09 3.09h0.82v0.82h-0.82zM25.09 3.09h0.82v0.82h-0.82zM20.09 4.09h0.82v0.82h-0.82zM21.09 4.09h0.82v0.82h-0.82zM22.09 4.09h0.82v0.82h-0.82zM23.09 4.09h0.82v0.82h-0.82zM24.09 4.09h0.82v0.82h-0.82zM25.09 4.09h0.82v0.82h-0.82zM19.09 5.09h0.82v0.82h-0.82zM20.09 5.09h0.82v0.82h-0.82zM21.09 5.09h0.82v0.82h-0.82zM22.09 5.09h0.82v0.82h-0.82zM23.09 5.09h0.82v0.82h-0.82zM24.09 5.09h0.82v0.82h-0.82zM25.09 5.09h0.82v0.82h-0.82zM18.09 6.09h0.82v0.82h-0.82zM19.09 6.09h0.82v0.82h-0.82zM20.09 6.09h0.82v0.82h-0.82zM21.09 6.09h0.82v0.82h-0.82zM22.09 6.09h0.82v0.82h-0.82zM23.09 6.09h0.82v0.82h-0.82zM24.09 6.09h0.82v0.82h-0.82zM25.09 6.09h0.82v0.82h-0.82zM34.09 6.09h0.82v0.82h-0.82zM17.09 7.09h0.82v0.82h-0.82zM18.09 7.09h0.82v0.82h-0.82zM19.09 7.09h0.82v0.82h-0.82zM20.09 7.09h0.82v0.82h-0.82zM21.09 7.09h0.82v0.82h-0.82zM22.09 7.09h0.82v0.82h-0.82zM23.09 7.09h0.82v0.82h-0.82zM24.09 7.09h0.82v0.82h-0.82zM25.09 7.09h0.82v0.82h-0.82zM33.09 7.09h0.82v0.82h-0.82zM34.09 7.09h0.82v0.82h-0.82zM16.09 8.09h0.82v0.82h-0.82zM17.09 8.09h0.82v0.82h-0.82zM18.09 8.09h0.82v0.82h-0.82zM19.09 8.09h0.82v0.82h-0.82zM20.09 8.09h0.82v0.82h-0.82zM21.09 8.09h0.82v0.82h-0.82zM22.09 8.09h0.82v0.82h-0.82zM23.09 8.09h0.82v0.82h-0.82zM24.09 8.09h0.82v0.82h-0.82zM25.09 8.09h0.82v0.82h-0.82zM33.09 8.09h0.82v0.82h-0.82zM34.09 8.09h0.82v0.82h-0.82zM15.09 9.09h0.82v0.82h-0.82zM16.09 9.09h0.82v0.82h-0.82zM17.09 9.09h0.82v0.82h-0.82zM18.09 9.09h0.82v0.82h-0.82zM19.09 9.09h0.82v0.82h-0.82zM20.09 9.09h0.82v0.82h-0.82zM21.09 9.09h0.82v0.82h-0.82zM22.09 9.09h0.82v0.82h-0.82zM23.09 9.09h0.82v0.82h-0.82zM24.09 9.09h0.82v0.82h-0.82zM25.09 9.09h0.82v0.82h-0.82zM32.09 9.09h0.82v0.82h-0.82zM33.09 9.09h0.82v0.82h-0.82zM34.09 9.09h0.82v0.82h-0.82zM6.09 10.09h0.82v0.82h-0.82zM7.09 10.09h0.82v0.82h-0.82zM14.09 10.09h0.82v0.82h-0.82zM15.09 10.09h0.82v0.82h-0.82zM16.09 10.09h0.82v0.82h-0.82zM17.09 10.09h0.82v0.82h-0.82zM18.09 10.09h0.82v0.82h-0.82zM19.09 10.09h0.82v0.82h-0.82zM20.09 10.09h0.82v0.82h-0.82zM21.09 10.09h0.82v0.82h-0.82zM22.09 10.09h0.82v0.82h-0.82zM23.09 10.09h0.82v0.82h-0.82zM24.09 10.09h0.82v0.82h-0.82zM25.09 10.09h0.82v0.82h-0.82zM31.09 10.09h0.82v0.82h-0.82zM32.09 10.09h0.82v0.82h-0.82zM33.09 10.09h0.82v0.82h-0.82zM34.09 10.09h0.82v0.82h-0.82zM35.09 10.09h0.82v0.82h-0.82zM6.09 11.09h0.82v0.82h-0.82zM7.09 11.09h0.82v0.82h-0.82zM8.09 11.09h0.82v0.82h-0.82zM13.09 11.09h0.82v0.82h-0.82zM14.09 11.09h0.82v0.82h-0.82zM15.09 11.09h0.82v0.82h-0.82zM16.09 11.09h0.82v0.82h-0.82zM17.09 11.09h0.82v0.82h-0.82zM18.09 11.09h0.82v0.82h-0.82zM19.09 11.09h0.82v0.82h-0.82zM20.09 11.09h0.82v0.82h-0.82zM21.09 11.09h0.82v0.82h-0.82zM22.09 11.09h0.82v0.82h-0.82zM23.09 11.09h0.82v0.82h-0.82zM24.09 11.09h0.82v0.82h-0.82zM25.09 11.09h0.82v0.82h-0.82zM30.09 11.09h0.82v0.82h-0.82zM31.09 11.09h0.82v0.82h-0.82zM32.09 11.09h0.82v0.82h-0.82zM33.09 11.09h0.82v0.82h-0.82zM34.09 11.09h0.82v0.82h-0.82zM35.09 11.09h0.82v0.82h-0.82zM7.09 12.09h0.82v0.82h-0.82zM8.09 12.09h0.82v0.82h-0.82zM11.09 12.09h0.82v0.82h-0.82zM12.09 12.09h0.82v0.82h-0.82zM13.09 12.09h0.82v0.82h-0.82zM14.09 12.09h0.82v0.82h-0.82zM15.09 12.09h0.82v0.82h-0.82zM16.09 12.09h0.82v0.82h-0.82zM17.09 12.09h0.82v0.82h-0.82zM18.09 12.09h0.82v0.82h-0.82zM19.09 12.09h0.82v0.82h-0.82zM20.09 12.09h0.82v0.82h-0.82zM21.09 12.09h0.82v0.82h-0.82zM22.09 12.09h0.82v0.82h-0.82zM23.09 12.09h0.82v0.82h-0.82zM24.09 12.09h0.82v0.82h-0.82zM25.09 12.09h0.82v0.82h-0.82zM30.09 12.09h0.82v0.82h-0.82zM31.09 12.09h0.82v0.82h-0.82zM32.09 12.09h0.82v0.82h-0.82zM33.09 12.09h0.82v0.82h-0.82zM34.09 12.09h0.82v0.82h-0.82zM35.09 12.09h0.82v0.82h-0.82zM8.09 13.09h0.82v0.82h-0.82zM10.09 13.09h0.82v0.82h-0.82zM11.09 13.09h0.82v0.82h-0.82zM12.09 13.09h0.82v0.82h-0.82zM13.09 13.09h0.82v0.82h-0.82zM14.09 13.09h0.82v0.82h-0.82zM15.09 13.09h0.82v0.82h-0.82zM16.09 13.09h0.82v0.82h-0.82zM17.09 13.09h0.82v0.82h-0.82zM18.09 13.09h0.82v0.82h-0.82zM19.09 13.09h0.82v0.82h-0.82zM20.09 13.09h0.82v0.82h-0.82zM21.09 13.09h0.82v0.82h-0.82zM22.09 13.09h0.82v0.82h-0.82zM23.09 13.09h0.82v0.82h-0.82zM24.09 13.09h0.82v0.82h-0.82zM25.09 13.09h0.82v0.82h-0.82zM29.09 13.09h0.82v0.82h-0.82zM30.09 13.09h0.82v0.82h-0.82zM31.09 13.09h0.82v0.82h-0.82zM32.09 13.09h0.82v0.82h-0.82zM33.09 13.09h0.82v0.82h-0.82zM34.09 13.09h0.82v0.82h-0.82zM35.09 13.09h0.82v0.82h-0.82zM40.09 13.09h0.82v0.82h-0.82zM41.09 13.09h0.82v0.82h-0.82zM8.09 14.09h0.82v0.82h-0.82zM9.09 14.09h0.82v0.82h-0.82zM10.09 14.09h0.82v0.82h-0.82zM11.09 14.09h0.82v0.82h-0.82zM12.09 14.09h0.82v0.82h-0.82zM13.09 14.09h0.82v0.82h-0.82zM14.09 14.09h0.82v0.82h-0.82zM15.09 14.09h0.82v0.82h-0.82zM16.09 14.09h0.82v0.82h-0.82zM17.09 14.09h0.82v0.82h-0.82zM18.09 14.09h0.82v0.82h-0.82zM19.09 14.09h0.82v0.82h-0.82zM20.09 14.09h0.82v0.82h-0.82zM21.09 14.09h0.82v0.82h-0.82zM22.09 14.09h0.82v0.82h-0.82zM23.09 14.09h0.82v0.82h-0.82zM24.09 14.09h0.82v0.82h-0.82zM25.09 14.09h0.82v0.82h-0.82zM28.09 14.09h0.82v0.82h-0.82zM29.09 14.09h0.82v0.82h-0.82zM30.09 14.09h0.82v0.82h-0.82zM31.09 14.09h0.82v0.82h-0.82zM32.09 14.09h0.82v0.82h-0.82zM33.09 14.09h0.82v0.82h-0.82zM34.09 14.09h0.82v0.82h-0.82zM35.09 14.09h0.82v0.82h-0.82zM39.09 14.09h0.82v0.82h-0.82zM40.09 14.09h0.82v0.82h-0.82zM41.09 14.09h0.82v0.82h-0.82zM9.09 15.09h0.82v0.82h-0.82zM25.09 15.09h0.82v0.82h-0.82zM34.09 15.09h0.82v0.82h-0.82zM38.09 15.09h0.82v0.82h-0.82zM39.09 15.09h0.82v0.82h-0.82zM40.09 15.09h0.82v0.82h-0.82zM9.09 16.09h0.82v0.82h-0.82zM10.09 16.09h0.82v0.82h-0.82zM11.09 16.09h0.82v0.82h-0.82zM12.09 16.09h0.82v0.82h-0.82zM13.09 16.09h0.82v0.82h-0.82zM14.09 16.09h0.82v0.82h-0.82zM15.09 16.09h0.82v0.82h-0.82zM16.09 16.09h0.82v0.82h-0.82zM17.09 16.09h0.82v0.82h-0.82zM18.09 16.09h0.82v0.82h-0.82zM19.09 16.09h0.82v0.82h-0.82zM20.09 16.09h0.82v0.82h-0.82zM21.09 16.09h0.82v0.82h-0.82zM22.09 16.09h0.82v0.82h-0.82zM23.09 16.09h0.82v0.82h-0.82zM24.09 16.09h0.82v0.82h-0.82zM25.09 16.09h0.82v0.82h-0.82zM26.09 16.09h0.82v0.82h-0.82zM27.09 16.09h0.82v0.82h-0.82zM28.09 16.09h0.82v0.82h-0.82zM29.09 16.09h0.82v0.82h-0.82zM30.09 16.09h0.82v0.82h-0.82zM31.09 16.09h0.82v0.82h-0.82zM32.09 16.09h0.82v0.82h-0.82zM33.09 16.09h0.82v0.82h-0.82zM34.09 16.09h0.82v0.82h-0.82zM35.09 16.09h0.82v0.82h-0.82zM36.09 16.09h0.82v0.82h-0.82zM37.09 16.09h0.82v0.82h-0.82zM38.09 16.09h0.82v0.82h-0.82zM39.09 16.09h0.82v0.82h-0.82zM40.09 16.09h0.82v0.82h-0.82zM10.09 17.09h0.82v0.82h-0.82zM11.09 17.09h0.82v0.82h-0.82zM12.09 17.09h0.82v0.82h-0.82zM13.09 17.09h0.82v0.82h-0.82zM14.09 17.09h0.82v0.82h-0.82zM15.09 17.09h0.82v0.82h-0.82zM16.09 17.09h0.82v0.82h-0.82zM17.09 17.09h0.82v0.82h-0.82zM18.09 17.09h0.82v0.82h-0.82zM19.09 17.09h0.82v0.82h-0.82zM20.09 17.09h0.82v0.82h-0.82zM21.09 17.09h0.82v0.82h-0.82zM22.09 17.09h0.82v0.82h-0.82zM23.09 17.09h0.82v0.82h-0.82zM24.09 17.09h0.82v0.82h-0.82zM25.09 17.09h0.82v0.82h-0.82zM26.09 17.09h0.82v0.82h-0.82zM27.09 17.09h0.82v0.82h-0.82zM28.09 17.09h0.82v0.82h-0.82zM29.09 17.09h0.82v0.82h-0.82zM30.09 17.09h0.82v0.82h-0.82zM31.09 17.09h0.82v0.82h-0.82zM32.09 17.09h0.82v0.82h-0.82zM33.09 17.09h0.82v0.82h-0.82zM34.09 17.09h0.82v0.82h-0.82zM35.09 17.09h0.82v0.82h-0.82zM36.09 17.09h0.82v0.82h-0.82zM37.09 17.09h0.82v0.82h-0.82zM38.09 17.09h0.82v0.82h-0.82zM39.09 17.09h0.82v0.82h-0.82zM40.09 17.09h0.82v0.82h-0.82zM10.09 18.09h0.82v0.82h-0.82zM11.09 18.09h0.82v0.82h-0.82zM12.09 18.09h0.82v0.82h-0.82zM13.09 18.09h0.82v0.82h-0.82zM14.09 18.09h0.82v0.82h-0.82zM15.09 18.09h0.82v0.82h-0.82zM16.09 18.09h0.82v0.82h-0.82zM17.09 18.09h0.82v0.82h-0.82zM18.09 18.09h0.82v0.82h-0.82zM19.09 18.09h0.82v0.82h-0.82zM20.09 18.09h0.82v0.82h-0.82zM21.09 18.09h0.82v0.82h-0.82zM22.09 18.09h0.82v0.82h-0.82zM23.09 18.09h0.82v0.82h-0.82zM24.09 18.09h0.82v0.82h-0.82zM25.09 18.09h0.82v0.82h-0.82zM26.09 18.09h0.82v0.82h-0.82zM27.09 18.09h0.82v0.82h-0.82zM28.09 18.09h0.82v0.82h-0.82zM29.09 18.09h0.82v0.82h-0.82zM30.09 18.09h0.82v0.82h-0.82zM31.09 18.09h0.82v0.82h-0.82zM32.09 18.09h0.82v0.82h-0.82zM33.09 18.09h0.82v0.82h-0.82zM34.09 18.09h0.82v0.82h-0.82zM35.09 18.09h0.82v0.82h-0.82zM36.09 18.09h0.82v0.82h-0.82zM37.09 18.09h0.82v0.82h-0.82zM38.09 18.09h0.82v0.82h-0.82zM39.09 18.09h0.82v0.82h-0.82zM12.09 19.09h0.82v0.82h-0.82zM13.09 19.09h0.82v0.82h-0.82zM14.09 19.09h0.82v0.82h-0.82zM15.09 19.09h0.82v0.82h-0.82zM16.09 19.09h0.82v0.82h-0.82zM17.09 19.09h0.82v0.82h-0.82zM18.09 19.09h0.82v0.82h-0.82zM19.09 19.09h0.82v0.82h-0.82zM20.09 19.09h0.82v0.82h-0.82zM21.09 19.09h0.82v0.82h-0.82zM22.09 19.09h0.82v0.82h-0.82zM23.09 19.09h0.82v0.82h-0.82zM24.09 19.09h0.82v0.82h-0.82zM25.09 19.09h0.82v0.82h-0.82zM26.09 19.09h0.82v0.82h-0.82zM27.09 19.09h0.82v0.82h-0.82zM28.09 19.09h0.82v0.82h-0.82zM29.09 19.09h0.82v0.82h-0.82zM30.09 19.09h0.82v0.82h-0.82zM31.09 19.09h0.82v0.82h-0.82zM32.09 19.09h0.82v0.82h-0.82zM33.09 19.09h0.82v0.82h-0.82zM34.09 19.09h0.82v0.82h-0.82zM35.09 19.09h0.82v0.82h-0.82zM36.09 19.09h0.82v0.82h-0.82zM37.09 19.09h0.82v0.82h-0.82zM16.09 20.09h0.82v0.82h-0.82zM17.09 20.09h0.82v0.82h-0.82zM18.09 20.09h0.82v0.82h-0.82zM19.09 20.09h0.82v0.82h-0.82zM20.09 20.09h0.82v0.82h-0.82zM21.09 20.09h0.82v0.82h-0.82zM22.09 20.09h0.82v0.82h-0.82zM23.09 20.09h0.82v0.82h-0.82zM24.09 20.09h0.82v0.82h-0.82zM25.09 20.09h0.82v0.82h-0.82zM26.09 20.09h0.82v0.82h-0.82zM27.09 20.09h0.82v0.82h-0.82zM28.09 20.09h0.82v0.82h-0.82zM29.09 20.09h0.82v0.82h-0.82zM30.09 20.09h0.82v0.82h-0.82zM31.09 20.09h0.82v0.82h-0.82zM32.09 20.09h0.82v0.82h-0.82zM33.09 20.09h0.82v0.82h-0.82zM34.09 20.09h0.82v0.82h-0.82z"/></symbol><symbol id="i-sail" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M15.045 1.545h1.41v1.41h-1.41zM13.545 3.045h1.41v1.41h-1.41zM15.045 3.045h1.41v1.41h-1.41zM12.045 4.545h1.41v1.41h-1.41zM13.545 4.545h1.41v1.41h-1.41zM15.045 4.545h1.41v1.41h-1.41zM10.545 6.045h1.41v1.41h-1.41zM12.045 6.045h1.41v1.41h-1.41zM13.545 6.045h1.41v1.41h-1.41zM15.045 6.045h1.41v1.41h-1.41zM9.045 7.545h1.41v1.41h-1.41zM10.545 7.545h1.41v1.41h-1.41zM12.045 7.545h1.41v1.41h-1.41zM13.545 7.545h1.41v1.41h-1.41zM15.045 7.545h1.41v1.41h-1.41zM7.545 9.045h1.41v1.41h-1.41zM9.045 9.045h1.41v1.41h-1.41zM10.545 9.045h1.41v1.41h-1.41zM12.045 9.045h1.41v1.41h-1.41zM13.545 9.045h1.41v1.41h-1.41zM15.045 9.045h1.41v1.41h-1.41zM6.045 10.545h1.41v1.41h-1.41zM7.545 10.545h1.41v1.41h-1.41zM9.045 10.545h1.41v1.41h-1.41zM10.545 10.545h1.41v1.41h-1.41zM12.045 10.545h1.41v1.41h-1.41zM13.545 10.545h1.41v1.41h-1.41zM15.045 10.545h1.41v1.41h-1.41zM4.545 12.045h1.41v1.41h-1.41zM6.045 12.045h1.41v1.41h-1.41zM7.545 12.045h1.41v1.41h-1.41zM9.045 12.045h1.41v1.41h-1.41zM10.545 12.045h1.41v1.41h-1.41zM12.045 12.045h1.41v1.41h-1.41zM13.545 12.045h1.41v1.41h-1.41zM15.045 12.045h1.41v1.41h-1.41zM3.045 13.545h1.41v1.41h-1.41zM4.545 13.545h1.41v1.41h-1.41zM6.045 13.545h1.41v1.41h-1.41zM7.545 13.545h1.41v1.41h-1.41zM9.045 13.545h1.41v1.41h-1.41zM10.545 13.545h1.41v1.41h-1.41zM12.045 13.545h1.41v1.41h-1.41zM13.545 13.545h1.41v1.41h-1.41zM15.045 13.545h1.41v1.41h-1.41zM1.545 15.045h1.41v1.41h-1.41zM15.045 15.045h1.41v1.41h-1.41zM21.045 15.045h1.41v1.41h-1.41zM1.545 16.545h1.41v1.41h-1.41zM3.045 16.545h1.41v1.41h-1.41zM15.045 16.545h1.41v1.41h-1.41zM19.545 16.545h1.41v1.41h-1.41zM21.045 16.545h1.41v1.41h-1.41zM3.045 18.045h1.41v1.41h-1.41zM4.545 18.045h1.41v1.41h-1.41zM6.045 18.045h1.41v1.41h-1.41zM7.545 18.045h1.41v1.41h-1.41zM9.045 18.045h1.41v1.41h-1.41zM10.545 18.045h1.41v1.41h-1.41zM12.045 18.045h1.41v1.41h-1.41zM13.545 18.045h1.41v1.41h-1.41zM15.045 18.045h1.41v1.41h-1.41zM16.545 18.045h1.41v1.41h-1.41zM18.045 18.045h1.41v1.41h-1.41zM19.545 18.045h1.41v1.41h-1.41zM4.545 19.545h1.41v1.41h-1.41zM6.045 19.545h1.41v1.41h-1.41zM7.545 19.545h1.41v1.41h-1.41zM9.045 19.545h1.41v1.41h-1.41zM10.545 19.545h1.41v1.41h-1.41zM12.045 19.545h1.41v1.41h-1.41zM13.545 19.545h1.41v1.41h-1.41zM15.045 19.545h1.41v1.41h-1.41zM16.545 19.545h1.41v1.41h-1.41zM18.045 19.545h1.41v1.41h-1.41zM6.045 21.045h1.41v1.41h-1.41zM7.545 21.045h1.41v1.41h-1.41zM9.045 21.045h1.41v1.41h-1.41zM10.545 21.045h1.41v1.41h-1.41zM12.045 21.045h1.41v1.41h-1.41zM13.545 21.045h1.41v1.41h-1.41zM15.045 21.045h1.41v1.41h-1.41zM16.545 21.045h1.41v1.41h-1.41z"/></symbol>
-    <symbol id="i-whatsapp" viewBox="0 0 24 24"><path d="M8.2 4.5h2.1l1.3 3.2-1.6 1.2a10 10 0 0 0 5.1 5.1l1.2-1.6 3.2 1.3v2.1c0 1.1-.9 2-2 2A14.6 14.6 0 0 1 6.2 6.5c0-1.1.9-2 2-2Z"/></symbol>
+    <symbol id="i-whatsapp" viewBox="0 0 24 24"><path d="M6.19 3.69h2.62l1.62 4-2 1.5a12.5 12.5 0 0 0 6.38 6.38l1.5-2 4 1.62v2.62c0 1.38-1.12 2.5-2.5 2.5A18.25 18.25 0 0 1 3.69 6.19c0-1.38 1.12-2.5 2.5-2.5Z"/></symbol>
     <symbol id="i-instagram" viewBox="0 0 24 24"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="5"/><circle cx="12" cy="12" r="4.1"/><circle cx="17.1" cy="6.9" r="1.15" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-code" viewBox="0 0 24 24"><path d="M9 7 4.5 12 9 17M15 7l4.5 5L15 17"/></symbol>
     <symbol id="i-blocks" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.8"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1.8"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="1.8"/><rect x="13" y="13" width="7.5" height="7.5" rx="1.8"/></symbol>
@@ -1187,7 +1276,7 @@
     <symbol id="i-delivery" viewBox="0 0 24 24"><circle cx="5.8" cy="16.8" r="3.4"/><circle cx="18.2" cy="16.8" r="3.4"/><path d="M9.2 16.8h5.6l2-8h-2.4"/><path d="M14.8 8.8 5.8 16.8"/><path d="M4 8.8h4.2"/></symbol>
     <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10" rx="2.4"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/><path d="M12 14.4v2.6"/></symbol>
     <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 4v16h16"/><path d="M7.5 15.5 11 11l3 2.6 4.2-6"/><circle cx="7.5" cy="15.5" r="1.1"/><circle cx="14" cy="13.6" r="1.1"/><circle cx="18.2" cy="7.6" r="1.1"/></symbol>
-    <symbol id="i-anchor" viewBox="0 0 24 24"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 10.7h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke="none" d="M5 11.9 3.6 15.8l3.5-.6z"/><path fill="currentColor" stroke="none" d="M19 11.9l1.4 3.9-3.5-.6z"/></symbol>
+    <symbol id="i-anchor" viewBox="0 0 24 24"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 10.7h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke-width=".8" d="M5.5 12.3 4.3 15.4l2.8-.5z"/><path fill="currentColor" stroke-width=".8" d="M18.5 12.3l1.2 3.1-2.8-.5z"/></symbol>
     <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5.4" width="18" height="13.2" rx="2.2"/><path d="m3.8 7 8.2 6 8.2-6"/></symbol>
     <symbol id="i-automation" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.1"/><path d="M12 2.6v3M12 18.4v3M21.4 12h-3M5.6 12h-3M18.6 5.4l-2.1 2.1M7.5 16.5l-2.1 2.1M18.6 18.6l-2.1-2.1M7.5 7.5 5.4 5.4"/></symbol>
     <symbol id="i-tailor" viewBox="0 0 24 24"><path d="M3.4 8.6 12 3.6l8.6 5v6.8L12 20.4l-8.6-5z"/><path d="M12 11.6v8.8M3.6 8.7 12 13.5l8.4-4.8"/></symbol>
@@ -1221,7 +1310,7 @@
 
   <header>
     <div class="brand">
-      <svg class="logo" viewBox="0 0 48 24" aria-hidden="true"><use href="#i-boum"/></svg>
+      <svg class="logo" viewBox="6 1 36 20" aria-hidden="true"><svg width="48" height="24"><use href="#i-boum"/></svg></svg>
       <div><span class="name">المهلب</span>
         <span class="en">Almuhallab&nbsp;Code</span>
         <small>شركة برمجة وأنظمة</small></div>
@@ -1296,7 +1385,7 @@
       <!-- real, verifiable numbers — no invented clients or years -->
       <div class="stats">
         <div class="stat"><b class="num" data-count="4">4</b><span>وحدات في نظام النوخذة</span></div>
-        <div class="stat"><b class="num" data-count="686">686</b><span>فحصاً آلياً قبل كل إصدار</span></div>
+        <div class="stat"><b class="num" data-count="730">730</b><span>فحصاً آلياً قبل كل إصدار</span></div>
         <div class="stat"><b class="num" data-count="0">0</b><span>اعتماديات خارجية</span></div>
         <div class="stat"><b class="num" data-count="100" data-suffix="%">100%</b><span>يعمل دون إنترنت</span></div>
       </div>

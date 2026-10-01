@@ -59,7 +59,7 @@
     @font-face { font-family:"Cairo"; font-style:normal; font-weight:800;
       font-display:swap; src:url("fonts/cairo-latin.woff2") format("woff2");
       unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-    :root {
+    :root { --lh-ui: 1.35; --lh-head: 1.4; --lh-text: 1.5; --lh-read: 1.6;
       color-scheme: light;   /* the site is white on every device, dark preference included */
       --bg: #ffffff; --panel: #ffffff; --panel-2: #f1f4f8; --panel-3: #e6ebf1;
       --border: #d0d7e1; --dot-js: #836407; --code-dim: #5e6979; --border-input: #7c858c;
@@ -94,7 +94,7 @@
     button { font-family: var(--sans); cursor: pointer; }
 
     /* ---------- gate ---------- */
-    .gate { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+    .gate { line-height: var(--lh-text); min-height: 100vh; display: grid; place-items: center; padding: 24px; }
     .gate form {
       width: 100%; max-width: 420px; background: var(--panel); border: 1px solid var(--border);
       border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 12px;
@@ -112,7 +112,7 @@
     .note { font-size: 12.5px; color: var(--muted); line-height: 1.75; margin: 0; }
 
     .btn {
-      font-size: 13.5px; font-weight: 700; border-radius: 9px; padding: 12px 16px;
+      font-size: 14px; line-height: var(--lh-ui); font-weight: 700; border-radius: 9px; padding: 12px 16px;
       border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
     }
     .btn.primary { background: var(--tint-strong); border-color: transparent; color: #fff; }
@@ -121,6 +121,18 @@
     .btn:hover { opacity: .88; }
     .btn:disabled { opacity: .45; cursor: not-allowed; }
     .btn:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+    /* the drawn icon set, written in by design/app_sprite.py: the ink follows
+       the text it sits beside */
+    .ic { width:18px; height:18px; flex:none; fill:none; stroke:currentColor;
+      stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; vertical-align:-.22em; }
+    .ic.sm { width:16px; height:16px; stroke-width:2; }
+    .ic.back { transform: scaleX(-1); }   /* RTL: back points to the right */
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap: 8px; }
+    /* a display rule on label or .btn must never resurrect a [hidden] one:
+       label is display:flex here, so #lbl-confirm showed outside setup */
+    [hidden] { display: none !important; }
+    /* a checkbox feeds the bulk delete — 24px, the floor for any control */
+    input.tick { width: 24px; height: 24px; padding: 0; margin: 0; accent-color: var(--tint-strong); }
 
     /* ---------- shell ---------- */
     .shell { display: none; }
@@ -141,8 +153,9 @@
     .brand h1 { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.35; color: var(--on-bar); }
     .brand small { display: block; font-weight: 500; font-size: 12px; color: var(--on-bar); }
     nav.site { display: flex; gap: 4px; margin-inline-start: auto; flex-wrap: wrap; align-items: center; }
-    nav.site a { font-size: 13.5px; font-weight: 600; padding: 12px 16px;
-      border-radius: 9px; border: 1px solid transparent; }
+    nav.site a { font-size: 14px; line-height: var(--lh-ui); font-weight: 600; padding: 12px 16px;
+      border-radius: 9px; border: 1px solid transparent;
+      display: inline-flex; align-items: center; gap: 6px; }
     nav.site a { color: var(--on-bar); }
     nav.site a:hover { background: var(--on-bar-fill); }
     nav.site .btn { color: var(--on-bar); border-color: var(--on-bar-bd); background: transparent; }
@@ -162,7 +175,7 @@
     .topbar { position: sticky; top: 0; z-index: 20; }
     /* WCAG 2.2 target size: a 12px-tall link is below the 24px floor */
     footer.site a { display: inline-block; padding: 6px 4px; }
-    footer.site { text-align: center; color: var(--muted); font-size: 12.5px; padding: 24px;
+    footer.site { text-align: center; color: var(--muted); font-size: 12.5px; padding: 16px 24px;
       border-top: 1px solid var(--border); line-height: 1.9; }
 
     nav.tabs { display: flex; gap: 4px; padding: 0 20px; background: var(--panel);
@@ -173,7 +186,7 @@
     }
     nav.tabs button.on { color: var(--tint); border-bottom-color: var(--tint); }
 
-    main { max-width: 1240px; margin: 0 auto; padding: 20px 20px 56px; }
+    main { max-width: 1240px; margin: 0 auto; padding: 20px 20px 56px;  line-height: var(--lh-text); }
     .tab { display: none; } .tab.on { display: block; }
     h2 { font-size: 18px; margin: 24px 0 12px; }
     h2:first-child { margin-top: 4px; }
@@ -199,14 +212,20 @@
     .tile .sub { font-size: 12px; color: var(--muted); margin-top: 6px; }
 
     /* ---------- charts ---------- */
-    .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(430px, 1fr)); gap: 12px; }
-    .fig { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px 16px 12px; }
+    /* min(…, 100%): a 430px track in a 366px phone column pushed the page
+       sideways; and a <figure> keeps the browser's 16px 40px margin unless
+       told otherwise, which inset the charts 40px from the tiles above */
+    .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(430px, 100%), 1fr)); gap: 12px; }
+    .fig { margin: 0; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px 16px 12px; }
     .fig h3 { margin: 0; font-size: 14.5px; font-weight: 700; }
     .fig .cap { margin: 4px 0 12px; font-size: 12px; color: var(--muted); }
     .fig .plot { direction: ltr; }
     .fig svg { width: 100%; height: auto; display: block; overflow: visible; }
     .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; color: var(--muted); }
     .legend i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; margin-inline-end: 6px; vertical-align: -1px; }
+    /* inline, or `.fig svg { display:block }` — the chart rule — stacks it */
+    .legend .ban { display: inline-block; width: 12px; height: 12px; color: var(--viz-neg); stroke-width: 2.4;
+      margin-inline-end: 4px; vertical-align: -2px; }
     .empty-fig { padding: 24px 0; text-align: center; color: var(--muted); font-size: 13px; }
 
     #tip {
@@ -236,7 +255,8 @@
     .empty { padding: 24px; text-align: center; color: var(--muted); font-size: 13.5px; }
     .rowacts { display: flex; gap: 6px; flex-wrap: wrap; }
 
-    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 12px;
+      align-items: start; }     /* a short card no longer stretches to its tall neighbour */
     .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px 16px; }
     .card h3 { margin: 0 0 8px; font-size: 14.5px; }
 
@@ -251,16 +271,41 @@
 
     /* ═══════ mobile ═══════ */
     @media (max-width: 640px) {
+      /* the header wraps to three rows on a phone: pinned with the tabs, it
+         held a third of a 320×640 screen. It scrolls away and the tabs move to
+         a bar at the bottom, in thumb reach — the system page's own pattern
+         ("only the bottom bar is fixed"), so a section is never a scroll away */
+      .topbar { position: static; }
       header { padding: 8px 12px; }
       .brand small { display: none; }
       nav.site a { min-height: 44px; display: inline-flex; align-items: center; }
-      nav.tabs { padding: 0 8px; }
-      nav.tabs button { padding: 12px 8px; }
-      main { padding: 12px 12px 56px; }
+      nav.tabs { position: fixed; bottom: 0; inset-inline: 0; z-index: 30; gap: 0;
+        border-bottom: 0; border-top: 1px solid var(--border); padding: 0;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        box-shadow: 0 -1px 8px rgba(11, 18, 32, .06); overflow: visible; }
+      nav.tabs button { flex: 1 1 auto; min-width: 0; border-bottom: 0; border-top: 2px solid transparent;
+        font-size: 12px; padding: 6px 4px; min-height: 52px; line-height: 1.75; }
+      nav.tabs button.on { border-top-color: var(--tint); }
+      main { padding: 12px 12px calc(56px + env(safe-area-inset-bottom, 0px)); }
+      footer.site { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+      #toast { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
       input, select { font-size: 16px; }
       .btn { min-height: 44px; }
       .btn.sm { min-height: 34px; }
+      /* two figures a row where they fit, as on the system page */
+      .tiles { grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); }
+      /* a signed 7-digit figure («+1,234,567.890», 144px at 21px) overran a
+         half-width tile by 9px: 12px sides and a 20px figure hold it with room */
+      .tile { padding: 12px; }
+      .tile .n { font-size: 20px; }
+      .tiles > .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }   /* no orphan half tile */
     }
+    /* iOS zooms on focus into any field under 16px — on a landscape phone and
+       a tablet too, which the max-width rule above never reached */
+    @media (pointer: coarse) { input, select, textarea { font-size: 16px; } }
+      @media (min-width: 641px) { header { padding-block: 8px; } }
+      .fig .plot { max-width: 640px; margin-inline: auto; }
+    @media (max-width: 640px) { th, td { padding: 12px; } }
   </style>
 <script>
   /* Clickjacking. `frame-ancestors` is ignored in a <meta> CSP and
@@ -293,6 +338,16 @@
 </script>
 </head>
 <body>
+  <!-- icons: generated by design/app_sprite.py from index.html's sprite — do not edit by hand -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M6.1 17.9 17.9 6.1"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="M14.5 6 9 12l5.5 6"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3.6v10.8"/><path d="m7.8 10.2 4.2 4.2 4.2-4.2"/><path d="M4.4 15.4v2.8a2.2 2.2 0 0 0 2.2 2.2h10.8a2.2 2.2 0 0 0 2.2-2.2v-2.8"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.8 3.4V7h-3.6"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 14.4V3.6"/><path d="M7.8 7.8 12 3.6l4.2 4.2"/><path d="M4.4 15.4v2.8a2.2 2.2 0 0 0 2.2 2.2h10.8a2.2 2.2 0 0 0 2.2-2.2v-2.8"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><path d="M10.3 4.6 3 17.4a2 2 0 0 0 1.7 3h14.6a2 2 0 0 0 1.7-3L13.7 4.6a2 2 0 0 0-3.4 0Z"/><path d="M12 9.4v4.4"/><circle cx="12" cy="16.9" r="1" fill="currentColor" stroke="none"/></symbol>
+  </svg>
+  <!-- /icons -->
 
 <!-- ============================ GATE ============================ -->
 <section class="gate" id="gate">
@@ -314,10 +369,10 @@
     <p class="err" id="gate-err"></p>
     <button class="btn primary" type="submit" id="gate-btn">دخول</button>
     <p class="note">
-      ⚠️ هذه اللوحة تدير البيانات المحفوظة على <b>هذا الجهاز</b> فقط. الحماية هنا
+      <svg class="ic sm" aria-hidden="true"><use href="#i-warn"/></svg> هذه اللوحة تدير البيانات المحفوظة على <b>هذا الجهاز</b> فقط. الحماية هنا
       محلية وليست تحققاً من خادم — راجع SECURITY.md.
     </p>
-    <p class="note"><a href="nokhatha.html" style="display:inline-block;padding:6px 4px">← العودة إلى النوخذة</a></p>
+    <p class="note"><a href="nokhatha.html" style="display:inline-flex;align-items:center;gap:6px;padding:6px 4px"><svg class="ic sm back" aria-hidden="true"><use href="#i-chev"/></svg> العودة إلى النوخذة</a></p>
   </form>
 </section>
 
@@ -330,10 +385,10 @@
         <div><h1>لوحة الإدارة</h1><small>إدارة النوخذة — المهلب كود</small></div>
       </div>
       <nav class="site">
-        <a href="index.html">← المهلب كود</a>
+        <a href="index.html"><svg class="ic back" aria-hidden="true"><use href="#i-chev"/></svg> المهلب كود</a>
         <a href="nokhatha.html" style="display:inline-flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:15px;height:15px"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 10.7h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke-width=".8" d="M5.5 12.3 4.3 15.4l2.8-.5z"/><path fill="currentColor" stroke-width=".8" d="M18.5 12.3l1.2 3.1-2.8-.5z"/></svg> النوخذة</a>
       </nav>
-      <button class="btn" id="btn-refresh">↻ تحديث</button>
+      <button class="btn" id="btn-refresh"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg> تحديث</button>
       <button class="btn danger" id="btn-logout">خروج</button>
     </header>
 
@@ -377,7 +432,7 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th style="width:34px"><input type="checkbox" id="cust-all" style="width:auto" / aria-label="تحديد كل العملاء"></th>
+            <th style="width:34px"><input type="checkbox" id="cust-all" class="tick" aria-label="تحديد كل العملاء" /></th>
             <th class="sortable" data-sort="name">الاسم</th>
             <th class="sortable" data-sort="email">البريد</th>
             <th class="sortable" data-sort="status">الحالة</th>
@@ -448,18 +503,18 @@
           <h3>البيانات</h3>
           <p class="note" style="margin-bottom:12px">نسخة احتياطية كاملة لكل بيانات النوخذة على هذا الجهاز.</p>
           <div class="rowacts">
-            <button class="btn" id="btn-export">⬇ تصدير نسخة احتياطية</button>
-            <button class="btn" id="btn-import">⬆ استيراد</button>
+            <button class="btn" id="btn-export"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg> تصدير نسخة احتياطية</button>
+            <button class="btn" id="btn-import"><svg class="ic" aria-hidden="true"><use href="#i-upload"/></svg> استيراد</button>
             <button class="btn danger" id="btn-wipe">مسح كل البيانات</button>
           </div>
         </div>
         <div class="card">
           <h3>كلمة مرور المشرف</h3>
-          <form id="pw-form" autocomplete="off" style="display:flex;flex-direction:column;gap:10px">
+          <form id="pw-form" autocomplete="off" style="display:flex;flex-direction:column;gap:12px">
             <label>الحالية <input name="cur" type="password" required maxlength="128" /></label>
             <label>الجديدة (10 أحرف على الأقل) <input name="nw" type="password" required minlength="10" maxlength="128" /></label>
             <p class="err" id="pw-err"></p>
-            <button class="btn primary" type="submit">تغيير</button>
+            <button class="btn primary" type="submit" style="align-self:flex-start">تغيير</button>
           </form>
         </div>
       </div>
@@ -666,7 +721,12 @@
       var y = P.t + i * rowH + 8, h = 18;
       var w = Math.max(r.v > 0 ? 3 : 0, (r.v / max) * (bw - 62));
       var col = r.color || ("var(--ord-" + Math.min(5, i + 1) + ")");
-      return '<text x="' + (P.l - 10) + '" y="' + (y + 13) + '" text-anchor="end" font-size="12" fill="var(--text)">' + esc(r.k) + '</text>' +
+      /* «ملغي» carries a drawn ⊘ beside it — a typed U+20E0 is a combining
+         mark with no base, so it had no width and painted over the word */
+      var lx = P.l - 10 - (r.ban ? 18 : 0), cy = y + 9;
+      var ban = r.ban ? '<circle cx="' + (P.l - 17) + '" cy="' + cy + '" r="5.5" fill="none" stroke="' + col + '" stroke-width="1.8"/>' +
+        '<path d="M' + (P.l - 20.9) + ' ' + (cy + 3.9) + 'L' + (P.l - 13.1) + ' ' + (cy - 3.9) + '" stroke="' + col + '" stroke-width="1.8" stroke-linecap="round"/>' : "";
+      return ban + '<text x="' + lx + '" y="' + (y + 13) + '" text-anchor="end" font-size="12" fill="var(--text)">' + esc(r.k) + '</text>' +
              '<rect x="' + P.l + '" y="' + y + '" width="' + w.toFixed(1) + '" height="' + h + '" rx="4" fill="' + col + '" ' +
              'data-tip="' + esc(r.k + " — " + fmt(r.v)) + '"/>' +
              '<text x="' + (P.l + w + 8).toFixed(1) + '" y="' + (y + 13) + '" font-size="11.5" fill="var(--muted)" font-weight="700">' + esc(fmt(r.v)) + '</text>';
@@ -776,7 +836,7 @@
 
     var pipe = [0, 1, 2, 3].map(function (s) { return { k: STATUSES[s], v: o.filter(function (a) { return a.status === s; }).length }; });
     var cancelled = o.filter(function (a) { return a.status === 4; }).length;
-    if (cancelled) pipe.push({ k: "⃠ " + STATUSES[4], v: cancelled, color: "var(--viz-neg)" });
+    if (cancelled) pipe.push({ k: STATUSES[4], v: cancelled, color: "var(--viz-neg)", ban: true });
 
     el("charts").innerHTML =
       fig("تسجيل العملاء", "عدد الحسابات الجديدة في كل أسبوع، آخر 8 أسابيع.",
@@ -784,7 +844,7 @@
       fig("مسار الطلبات", "المراحل بالترتيب؛ الملغاة معلّمة برمز ولون منفصل.",
           ordinalBars(pipe, function (v) { return ar(v, "طلب", "طلبان", "طلبات"); }),
           cancelled ? '<div class="legend"><span><i style="background:var(--ord-3)"></i>مراحل التنفيذ</span>' +
-                      '<span><i style="background:var(--viz-neg)"></i>⃠ ملغي</span></div>' : "") +
+                      '<span><i style="background:var(--viz-neg)"></i><svg class="ic ban" aria-hidden="true"><use href="#i-ban"/></svg>ملغي</span></div>' : "") +
       fig("ربح/خسارة المحفظة", "لكل سهم، بالدينار — الاتجاه والإشارة يوضحان النوع دون الاعتماد على اللون.",
           divergingBars(h.slice(0, 8).map(function (a) { return { k: a.ticker, v: a.value - a.cost }; }), kwd),
           '<div class="legend"><span><i style="background:var(--viz-pos)"></i>+ ربح</span>' +
@@ -814,7 +874,7 @@
       var badge = u.status === "active"
         ? '<span class="pill pos">نشط</span>' : '<span class="pill neg">موقوف</span>';
       return '<tr>' +
-        '<td><input type="checkbox" class="sel" data-email="' + esc(u.email) + '" style="width:auto"' + (selected[u.email] ? " checked" : "") + '/></td>' +
+        '<td><input type="checkbox" class="sel tick" data-email="' + esc(u.email) + '" aria-label="تحديد ' + esc(u.email) + '"' + (selected[u.email] ? " checked" : "") + '/></td>' +
         '<td>' + esc(u.name) + '</td><td>' + esc(u.email) + '</td>' +
         '<td>' + badge + '</td>' +
         '<td class="num">' + esc(d2(u.createdAt)) + '</td>' +

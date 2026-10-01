@@ -100,7 +100,7 @@
     @font-face { font-family:"Cairo"; font-style:normal; font-weight:800;
       font-display:swap; src:url("fonts/cairo-latin.woff2") format("woff2");
       unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
-    :root {
+    :root { --lh-ui: 1.35; --lh-head: 1.4; --lh-text: 1.5; --lh-read: 1.6;
       color-scheme: light;   /* the site is white on every device, dark preference included */
       --bg: #ffffff; --panel: #ffffff; --panel-2: #f1f4f8; --panel-3: #e6ebf1;
       --border: #d0d7e1; --border-input: #7c858c;
@@ -148,8 +148,9 @@
     .brand h1 { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.35; color: var(--on-bar); }
     .brand small { display: block; font-weight: 500; font-size: 12px; color: var(--on-bar); }
     nav.site { display: flex; gap: 4px; margin-inline-start: auto; flex-wrap: wrap; align-items: center; }
-    nav.site a { font-size: 13.5px; font-weight: 600; padding: 12px 16px;
-      border-radius: 9px; border: 1px solid transparent; }
+    nav.site a { font-size: 14px; line-height: var(--lh-ui); font-weight: 600; padding: 12px 16px;
+      border-radius: 9px; border: 1px solid transparent;
+      display: inline-flex; align-items: center; gap: 6px; }
     nav.site a { color: var(--on-bar); }
     nav.site a:hover { background: var(--on-bar-fill); }
     nav.site .btn { color: var(--on-bar); border-color: var(--on-bar-bd); background: transparent; }
@@ -159,16 +160,17 @@
     .topbar { position: sticky; top: 0; z-index: 20; }
     /* WCAG 2.2 target size: a 12px-tall link is below the 24px floor */
     footer.site a { display: inline-block; padding: 6px 4px; }
-    footer.site { text-align: center; color: var(--muted); font-size: 12.5px; padding: 24px;
+    footer.site { text-align: center; color: var(--muted); font-size: 12.5px; padding: 16px 24px;
       border-top: 1px solid var(--border); line-height: 1.9; }
 
     nav.tabs { display:flex; gap: 4px; padding: 0 20px; background:var(--panel);
       border-bottom:1px solid var(--border); overflow-x:auto; }
     nav.tabs button { background:transparent; border:0; border-bottom:2px solid transparent;
-      color:var(--muted); font-size:14px; font-weight:700; padding: 12px 12px; white-space:nowrap; }
+      color:var(--muted); font-size:14px; font-weight:700; padding: 12px 12px; white-space:nowrap;
+      display:inline-flex; align-items:center; gap: 8px; }
     nav.tabs button.on { color:var(--tint); border-bottom-color:var(--tint); }
 
-    main { max-width:1060px; width:100%; margin: 0 auto; padding: 20px 20px 56px; flex:1; }
+    main { max-width:1060px; width:100%; margin: 0 auto; padding: 20px 20px 56px; flex:1;  line-height: var(--lh-text); }
     .tab { display: none; } .tab.on { display: block; }
     h2 { font-size:18px; margin: 24px 0 12px; } h2:first-child { margin-top: 4px; }
 
@@ -192,19 +194,32 @@
       display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap: 12px; align-items:end; }
     label { font-size:12px; font-weight:700; color:var(--muted); display:flex; flex-direction:column; gap: 4px; }
     input, select { background:var(--panel-2); border:1px solid var(--border-input); border-radius:8px;
-      color:var(--text); padding: 8px 12px; font-size:14px; font-family:var(--sans); outline:none; width:100%; }
+      color:var(--text); padding: 8px 12px; font-size:14px; font-family:var(--sans); outline:none; width:100%;
+      line-height: 1.85; }   /* fixed, so a field set in the mono face is as tall as its neighbours */
     input:focus, select:focus { border-color: var(--tint); }
     input[readonly] { opacity: .75; }
     input.derived { border-color: var(--tint); background: var(--panel-3); }
 
-    .btn { font-size:13.5px; font-weight:700; border-radius:9px; padding: 12px 16px;
+    .btn { font-size:14px; line-height: var(--lh-ui); font-weight:700; border-radius:9px; padding: 12px 16px;
       border:1px solid var(--border); background:var(--panel-2); color:var(--text); }
     .btn.primary { background:var(--tint-strong); border-color:transparent; color:#fff; }
     .btn.sm { padding: 6px 12px; font-size:12px; }
+    /* the drawn icon set, written in by design/app_sprite.py: the ink follows
+       the text it sits beside, so one icon serves a white button, a brown tab
+       and a red status alike */
+    .ic { width:18px; height:18px; flex:none; fill:none; stroke:currentColor;
+      stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; vertical-align:-.22em; }
+    .ic.sm { width:16px; height:16px; stroke-width:2; }
+    .ic.back { transform: scaleX(-1); }   /* RTL: back points to the right */
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap: 8px; }
+    [hidden] { display: none !important; }   /* a display rule never resurrects [hidden] */
+    .check .ic { margin-inline-end: 8px; }
+    #toast .ic { margin-inline-end: 8px; }
     .btn.danger { color: var(--danger); }
     .btn:hover { opacity: .88; }
     .btn:focus-visible, a:focus-visible, input:focus-visible { outline:2px solid var(--tint); outline-offset:2px; }
     .row { display:flex; gap: 8px; flex-wrap:wrap; margin: 12px 0; }
+    #del-courier-form { grid-template-columns: 2fr 1fr auto; }
 
     .fig { margin: 0 0 20px; padding: 16px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; }
     .fig h3 { margin: 0; font-size: 14.5px; font-weight: 700; }
@@ -264,6 +279,8 @@
     .order .who { flex:1; min-width:180px; }
     .order .who b { display:block; font-size:15px; }
     .order .who span { font-size:12.5px; color:var(--muted); display:block; }
+    .order .who .meta { display:flex; flex-wrap:wrap; gap: 4px 16px; margin-top: 4px; }
+    .order .who .mi { display:inline-flex; align-items:center; gap: 6px; min-width:0; }
     .order .amount { font-weight:800; font-variant-numeric:tabular-nums; }
     .orders { display:flex; flex-direction:column; gap: 12px; }
 
@@ -325,24 +342,41 @@
          Columns size to their label first (flex-basis auto), then share what
          is left — equal columns clipped «المركز المالي» to «المركز…». */
       nav.tabs button { flex: 1 1 auto; min-width: 0; border-bottom: 0; border-top: 2px solid transparent;
-        font-size: 12px; padding: 8px 4px 8px; min-height: 56px;
+        font-size: 12px; padding: 6px 4px; min-height: 52px;
         display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
         line-height: 1.35; }
-      nav.tabs .ti { font-size: 18px; line-height: 1; }
-      nav.tabs .tl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+      nav.tabs .ti { width: 20px; height: 20px; }
+      /* overflow:hidden for the ellipsis also cuts below the line box, and at
+         1.35 that took the two dots under the final ي: «المالي» read «المالى» */
+      nav.tabs .tl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+        line-height: 1.75; }
       nav.tabs button.on { border-top-color: var(--tint); }
-      main { padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+      main { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
+      /* the toast sat on the bar and hid the tabs exactly when the next tap is due */
+      #toast { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
       footer.site { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
       input, select { font-size: 16px; }         /* < 16px makes iOS zoom on focus */
       .btn { min-height: 44px; }
       .btn.sm { min-height: 36px; }              /* inline row actions stay compact */
-      .tile .n { font-size: 21px; }
+      /* two figures a row where they fit (≥ 342px): one 350px tile per figure
+         was 70% empty, and the first screen held nothing but numbers */
+      .tiles { grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); }
+      /* a signed 7-digit figure («+1,234,567.890», 144px at 21px) overran a
+         half-width tile by 9px: 12px sides and a 20px figure hold it with room */
+      .tile { padding: 12px; }
+      .tile .n { font-size: 20px; }
+      .tiles > .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }   /* no orphan half tile */
+      #del-courier-form { grid-template-columns: 1fr 1fr; }
+      #del-courier-form .btn { grid-column: 1 / -1; }
       main { padding-top: 12px; }
       h2 { margin-top: 20px; }
       /* when the flow line wraps, the amount takes its own full row at the
          reading start instead of hanging at the line-box's far edge */
       .flow .val { margin-inline-start: 0; flex-basis: 100%; }
     }
+    /* iOS zooms on focus into any field under 16px — on a landscape phone and
+       a tablet too, which the max-width rule above never reached */
+    @media (pointer: coarse) { input, select, textarea { font-size: 16px; } }
 
     /* Printing a portfolio statement or a filing should yield the document, not
        the application: chrome, forms, filters and row actions come off the page,
@@ -361,6 +395,9 @@
       h2 { margin: 8px 0 6px; }
       body { background: #fff; }
     }
+      @media (min-width: 641px) { header { padding-block: 8px; } }
+      .fig .plot { max-width: 640px; margin-inline: auto; }
+    @media (max-width: 640px) { th, td { padding: 12px; } }
   </style>
 <script>
   /* Clickjacking. `frame-ancestors` is ignored in a <meta> CSP and
@@ -393,6 +430,26 @@
 </script>
 </head>
 <body>
+  <!-- icons: generated by design/app_sprite.py from index.html's sprite — do not edit by hand -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <symbol id="i-anchor" viewBox="0 0 24 24"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 10.7h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke-width=".8" d="M5.5 12.3 4.3 15.4l2.8-.5z"/><path fill="currentColor" stroke-width=".8" d="M18.5 12.3l1.2 3.1-2.8-.5z"/></symbol>
+    <symbol id="i-bag" viewBox="0 0 24 24"><path d="M5.4 8.2h13.2l-1 12.2H6.4z"/><path d="M9 8.2V6.8a3 3 0 0 1 6 0v1.4"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 4v16h16"/><path d="M7.5 15.5 11 11l3 2.6 4.2-6"/><circle cx="7.5" cy="15.5" r="1.1"/><circle cx="14" cy="13.6" r="1.1"/><circle cx="18.2" cy="7.6" r="1.1"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m4.8 12.6 4.6 4.6 9.8-10.2"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="M14.5 6 9 12l5.5 6"/></symbol>
+    <symbol id="i-delivery" viewBox="0 0 24 24"><circle cx="5.8" cy="16.8" r="3.4"/><circle cx="18.2" cy="16.8" r="3.4"/><path d="M9.2 16.8h5.6l2-8h-2.4"/><path d="M14.8 8.8 5.8 16.8"/><path d="M4 8.8h4.2"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3.6v10.8"/><path d="m7.8 10.2 4.2 4.2 4.2-4.2"/><path d="M4.4 15.4v2.8a2.2 2.2 0 0 0 2.2 2.2h10.8a2.2 2.2 0 0 0 2.2-2.2v-2.8"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.8 12S6.2 5.8 12 5.8 21.2 12 21.2 12 17.8 18.2 12 18.2 2.8 12 2.8 12Z"/><circle cx="12" cy="12" r="2.9"/></symbol>
+    <symbol id="i-megaphone" viewBox="0 0 24 24"><path d="M3.6 10.2v3.6a1.4 1.4 0 0 0 1.4 1.4h2.4l8.8 4.6V4.2L7.4 8.8H5a1.4 1.4 0 0 0-1.4 1.4Z"/><path d="m7.4 15.2 1.4 5.2"/><path d="M19.2 9.4a3.6 3.6 0 0 1 0 5.2"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><rect x="7" y="2.8" width="10" height="18.4" rx="2.6"/><path d="M10.4 18.4h3.2"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 20.8s-6.4-5.4-6.4-10.8a6.4 6.4 0 0 1 12.8 0c0 5.4-6.4 10.8-6.4 10.8Z"/><circle cx="12" cy="10" r="2.4"/></symbol>
+    <symbol id="i-print" viewBox="0 0 24 24"><path d="M7.2 8.6v-5h9.6v5"/><path d="M7.2 17H5.4a2 2 0 0 1-2-2v-4.4a2 2 0 0 1 2-2h13.2a2 2 0 0 1 2 2V15a2 2 0 0 1-2 2h-1.8"/><path d="M7.2 13.4h9.6v7H7.2z"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.8 3.4V7h-3.6"/></symbol>
+    <symbol id="i-report" viewBox="0 0 24 24"><path d="M6 3.6h9l4 4v13H6z"/><path d="M15 3.6v4h4"/><path d="M9.2 17v-3.4M12 17v-5.6M14.8 17v-2.2"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.6"/><path d="m15 15 5 5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="m6.6 6.6 10.8 10.8M17.4 6.6 6.6 17.4"/></symbol>
+  </svg>
+  <!-- /icons -->
   <div class="topbar">
     <header>
       <div class="brand">
@@ -400,17 +457,17 @@
         <div><h1>النظام الموحد</h1><small>النوخذة — صافي · XBRL · التوصيل</small></div>
       </div>
       <nav class="site">
-        <a href="index.html">← المهلب كود</a>
+        <a href="index.html"><svg class="ic back" aria-hidden="true"><use href="#i-chev"/></svg> المهلب كود</a>
         <a href="nokhatha.html" style="display:inline-flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:15px;height:15px"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 10.7h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke-width=".8" d="M5.5 12.3 4.3 15.4l2.8-.5z"/><path fill="currentColor" stroke-width=".8" d="M18.5 12.3l1.2 3.1-2.8-.5z"/></svg> النوخذة</a>
       </nav>
     </header>
 
     <nav class="tabs" id="tabs">
-    <button data-tab="position" class="on"><span class="ti" aria-hidden="true">⚓</span> <span class="tl">المركز المالي</span></button>
-    <button data-tab="safi"><span class="ti" aria-hidden="true">📊</span> <span class="tl">صافي</span></button>
-    <button data-tab="xbrl"><span class="ti" aria-hidden="true">🧾</span> <span class="tl">XBRL</span></button>
-    <button data-tab="delivery"><span class="ti" aria-hidden="true">🛵</span> <span class="tl">التوصيل</span></button>
-    <button data-tab="social"><span class="ti" aria-hidden="true">📣</span> <span class="tl">التواصل</span></button>
+    <button data-tab="position" class="on"><svg class="ti ic" aria-hidden="true"><use href="#i-anchor"/></svg> <span class="tl">المركز المالي</span></button>
+    <button data-tab="safi"><svg class="ti ic" aria-hidden="true"><use href="#i-chart"/></svg> <span class="tl">صافي</span></button>
+    <button data-tab="xbrl"><svg class="ti ic" aria-hidden="true"><use href="#i-report"/></svg> <span class="tl">XBRL</span></button>
+    <button data-tab="delivery"><svg class="ti ic" aria-hidden="true"><use href="#i-delivery"/></svg> <span class="tl">التوصيل</span></button>
+    <button data-tab="social"><svg class="ti ic" aria-hidden="true"><use href="#i-megaphone"/></svg> <span class="tl">التواصل</span></button>
     </nav>
   </div>
 
@@ -448,8 +505,8 @@
       </form>
 
       <div class="row">
-        <button class="btn" id="safi-export">⬇ تصدير كشف CSV</button>
-        <button class="btn" id="safi-print">🖨 طباعة</button>
+        <button class="btn" id="safi-export"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg> تصدير كشف CSV</button>
+        <button class="btn" id="safi-print"><svg class="ic" aria-hidden="true"><use href="#i-print"/></svg> طباعة</button>
       </div>
       <div class="table-wrap">
         <table>
@@ -473,7 +530,7 @@
         XBRL. الاعتماد النهائي يتم عبر بوابة الوزارة.
       </p>
       <div class="row">
-        <button class="btn primary" id="xbrl-derive">⟳ احسب من النظام</button>
+        <button class="btn primary" id="xbrl-derive"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg> احسب من النظام</button>
         <span class="note" style="align-self:center">
           يملأ الاستثمارات المالية من صافي، والإيرادات من الطلبات المسلّمة.
         </span>
@@ -557,9 +614,9 @@
         <div class="check" id="xbrl-check">أدخل البنود ثم اضغط «افحص الميزانية».</div>
         <div id="xbrl-audit"></div>
         <div class="row">
-          <button class="btn" type="button" id="xbrl-validate">🔎 افحص الميزانية</button>
-          <button class="btn primary" type="submit">⬇ توليد وتنزيل XBRL</button>
-          <button class="btn" type="button" id="xbrl-preview">👁 معاينة</button>
+          <button class="btn" type="button" id="xbrl-validate"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg> افحص الميزانية</button>
+          <button class="btn primary" type="submit"><svg class="ic" aria-hidden="true"><use href="#i-download"/></svg> توليد وتنزيل XBRL</button>
+          <button class="btn" type="button" id="xbrl-preview"><svg class="ic" aria-hidden="true"><use href="#i-eye"/></svg> معاينة</button>
         </div>
       </form>
       <pre id="xbrl-out" hidden></pre>
@@ -591,7 +648,7 @@
       </form>
 
       <h2>المناديب</h2>
-      <form id="del-courier-form" style="grid-template-columns:2fr 1fr auto">
+      <form id="del-courier-form">
         <label>الاسم <input name="cname" required maxlength="80" placeholder="سالم" /></label>
         <label>الهاتف <input name="cphone" required maxlength="15" pattern="[0-9+ ]{7,15}" inputmode="tel" placeholder="9XXXXXXX" /></label>
         <button class="btn" type="submit">إضافة</button>
@@ -724,7 +781,12 @@
   function cleanTicker(s) { return String(s).toUpperCase().replace(/[^A-Z0-9.]/g, "").slice(0, 12); }
   function kwd(n) { return Number(n).toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }); }
   function el(id) { return document.getElementById(id); }
-  var tT; function toast(m) { var t = el("toast"); t.textContent = m; t.classList.add("on");
+  /* ICON names a sprite symbol; built from fixed ids only, never from data */
+  function icon(id, cls) { return '<svg class="' + (cls || "ic") + '" aria-hidden="true"><use href="#' + id + '"/></svg>'; }
+  /* one fact on an order row: its icon, then its (already escaped) value */
+  function mi(id, html) { return '<span class="mi">' + icon(id, "ic sm") + html + "</span>"; }
+  var tT; function toast(m, ic) { var t = el("toast"); t.textContent = m;
+    if (ic) t.insertAdjacentHTML("afterbegin", icon(ic)); t.classList.add("on");
     clearTimeout(tT); tT = setTimeout(function () { t.classList.remove("on"); }, 1800); }
 
   /* localStorage is user-writable, so everything is re-coerced on read */
@@ -852,7 +914,7 @@
       ["التوصيل — الطلبات المسلّمة", "الإيرادات", kwd(p.revenue)]
     ].map(function (r) {
       return '<div class="line"><span class="src">' + esc(r[0]) + '</span>' +
-        '<span class="arrow">←</span><span class="dst">' + esc(r[1]) + ' في XBRL</span>' +
+        '<span class="arrow">' + icon("i-chev", "ic sm") + '</span><span class="dst">' + esc(r[1]) + ' في XBRL</span>' +
         '<span class="val">' + esc(r[2]) + ' د.ك</span></div>';
     }).join("");
   }
@@ -1027,9 +1089,10 @@
     var c = el("xbrl-check");
     c.className = "check " + (ok ? "ok" : "bad");
     c.textContent = ok
-      ? "✔ القائمة متوازنة: الأصول (" + kwd(t.assets) + " د.ك) = الالتزامات + حقوق الملكية (" + kwd(t.liab + t.eq) + " د.ك)"
-      : "✘ غير متوازنة: الأصول " + kwd(t.assets) + " د.ك مقابل " + kwd(t.liab + t.eq) +
+      ? "القائمة متوازنة: الأصول (" + kwd(t.assets) + " د.ك) = الالتزامات + حقوق الملكية (" + kwd(t.liab + t.eq) + " د.ك)"
+      : "غير متوازنة: الأصول " + kwd(t.assets) + " د.ك مقابل " + kwd(t.liab + t.eq) +
         " د.ك — الفرق " + kwd(diff) + " د.ك";
+    c.insertAdjacentHTML("afterbegin", icon(ok ? "i-check" : "i-x"));
 
     var TITLES = { err: "خطأ", warn: "تنبيه", sug: "اقتراح" };
     var COLORS = { err: "var(--danger)", warn: "var(--sand)", sug: "var(--tint)" };
@@ -1037,10 +1100,10 @@
       ? r.findings.map(function (f) {
           return '<div class="check" style="border-color:' + COLORS[f.lvl] + ';margin:8px 0">' +
             '<b style="color:' + COLORS[f.lvl] + '">' + TITLES[f.lvl] + ":</b> " + esc(f.msg) +
-            '<br /><span class="note">↳ ' + esc(f.fix) + "</span></div>";
+            '<br /><span class="note">' + icon("i-chev", "ic sm") + " " + esc(f.fix) + "</span></div>";
         }).join("")
       : (announce ? '<div class="check ok" style="margin:8px 0">لا ملاحظات — الميزانية جاهزة للتوليد والإيداع.</div>' : "");
-    if (ok && announce && !r.findings.length) toast("الميزانية سليمة ✔");
+    if (ok && announce && !r.findings.length) toast("الميزانية سليمة", "i-check");
     return { ok: ok, errs: r.findings.filter(function (f) { return f.lvl === "err"; }).length };
   }
   el("xbrl-validate").addEventListener("click", function () { xvalidate(true); });
@@ -1140,7 +1203,7 @@
                  "-" + xf.period.value + "-" + xf.periodEnd.value + ".xml";
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(a.href);
-    renderXbrlHistory(); toast("تم توليد الملف وحفظ التقرير ✔");
+    renderXbrlHistory(); toast("تم توليد الملف وحفظ التقرير", "i-check");
   });
   function renderXbrlHistory() {
     var reps = rd(K.reports, []); if (!Array.isArray(reps)) reps = [];
@@ -1177,8 +1240,9 @@
     sel.value = keep;
     el("del-couriers").innerHTML = cs.length
       ? cs.map(function (c, i) {
-          return '<span class="status st-2">🛵 ' + esc(c.name) + " · " + esc(c.phone) +
-                 ' <button class="btn sm danger" data-del-courier="' + i + '">×</button></span>';
+          return '<span class="status st-2">' + icon("i-delivery", "ic sm") + " " + esc(c.name) + ' · <bdi dir="ltr">' + esc(c.phone) + "</bdi>" +
+                 ' <button class="btn sm danger" data-del-courier="' + i + '" aria-label="حذف المندوب ' + esc(c.name) + '">' +
+                 icon("i-x", "ic sm") + "</button></span>";
         }).join("")
       : '<span class="note">لا توجد مناديب.</span>';
 
@@ -1193,13 +1257,13 @@
     el("del-orders").innerHTML = list.slice().reverse().map(function (o) {
       var idx = orders().findIndex(function (x) { return x.id === o.id; });
       var adv = o.status < DELIVERED
-        ? '<button class="btn sm primary" data-next="' + idx + '">← ' + STATUSES[o.status + 1] + "</button>" : "";
+        ? '<button class="btn sm primary" data-next="' + idx + '">' + STATUSES[o.status + 1] + icon("i-chev", "ic sm") + "</button>" : "";
       var can = o.status < DELIVERED
         ? '<button class="btn sm danger" data-cancel="' + idx + '">إلغاء</button>' : "";
       return '<div class="order"><div class="who"><b>' + esc(o.customer) +
         ' <span style="font-family:var(--mono);font-size:12px;color:var(--muted)">' + esc(o.id) + "</span></b>" +
-        "<span>📞 " + esc(o.phone) + " · 📍 " + esc(o.address) + "</span>" +
-        "<span>🍽 " + esc(o.items) + (o.courier ? " · 🛵 " + esc(o.courier) : "") + "</span></div>" +
+        '<span class="meta">' + mi("i-phone", '<bdi dir="ltr">' + esc(o.phone) + "</bdi>") + mi("i-pin", esc(o.address)) + "</span>" +
+        '<span class="meta">' + mi("i-bag", esc(o.items)) + (o.courier ? mi("i-delivery", esc(o.courier)) : "") + "</span></div>" +
         '<div class="amount">' + kwd(o.amount) + ' د.ك</div><span class="status st-' + o.status + '">' +
         STATUSES[o.status] + "</span>" + adv + can + "</div>";
     }).join("");
@@ -1214,7 +1278,7 @@
                 amount: clamp(f.amount.value, 1e6), courier: f.courier.value, status: 0,
                 createdAt: new Date().toISOString() });
     if (!wr(K.orders, list)) { toast(STORAGE_FULL); return; }
-    f.reset(); renderAll(); toast("تمت إضافة الطلب ✔");
+    f.reset(); renderAll(); toast("تمت إضافة الطلب", "i-check");
   });
   el("del-courier-form").addEventListener("submit", function (e) {
     e.preventDefault();
@@ -1238,7 +1302,7 @@
     if (!n && !c) return;
     var list = orders();
     if (n) { var o = list[Number(n.getAttribute("data-next"))];
-             if (o.status < DELIVERED) { o.status += 1; toast(o.id + " → " + STATUSES[o.status]); } }
+             if (o.status < DELIVERED) { o.status += 1; toast("الطلب " + o.id + ": " + STATUSES[o.status]); } }
     else { list[Number(c.getAttribute("data-cancel"))].status = CANCELLED; toast("تم إلغاء الطلب"); }
     if (!wr(K.orders, list)) { toast(STORAGE_FULL); return; }
     renderAll();
@@ -1352,7 +1416,7 @@
      claims success when the copy actually happened. */
   function copyText(s) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(s).then(function () { toast("تم النسخ ✔"); },
+      navigator.clipboard.writeText(s).then(function () { toast("تم النسخ", "i-check"); },
         function () { legacyCopy(s); });
       return;
     }
@@ -1366,7 +1430,7 @@
     var ok = false;
     try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
     document.body.removeChild(t);
-    toast(ok ? "تم النسخ ✔" : "تعذّر النسخ — حدّد النص وانسخه يدوياً");
+    toast(ok ? "تم النسخ" : "تعذّر النسخ — حدّد النص وانسخه يدوياً", ok ? "i-check" : "");
   }
   el("tab-social").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-clip]"); if (!b) return;

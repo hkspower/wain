@@ -47,8 +47,8 @@ Locked, exactly as they are:
 
 | | Locked value |
 |---|---|
-| Mark | a **Kuwaiti boum under sail drawn as a pixel grid** — the matrix-code identity the owner adopted 2026-09-28, replacing the stroked boum. One drawing: the ship's polygons in `design/matrix_logo.py` (`BOUM`), and nothing else draws her. `design/pixel_boum.py` rasterises them into the **wide form** (`#i-boum`, `logo.svg`: 36×24 lit cells centred in the 48×24 box, coverage-sampled so the thin stem joins the hull) and holds the **square form** (`#i-sail`, `favicon.svg`) as a hand-set **16×16 bitmap** with a one-cell margin, so at 16px every cell is exactly one screen pixel — that is the small-size fix, and why it is set by hand. Four things make her a boum and the suite asserts each on the polygons: **double-ended** with a raked stem and sternpost rising from one hull shape (never a transom), **two filled lateen sails**, the **tall mainmast forward** of the short mizzen, the sheer rising into both ends. The gaps between cells are the code texture — never fill them. **Colour: white ship on brand brown** (owner's request 2026-09-28) — `logo.svg` and `favicon.svg` carry their own `#6f3f1c` ground (the favicon's amber gradient is gone), and the footer sets the square mark white on a brown tile; the masthead was already white on the brown bar. `pixel_boum.py --check` is the mark's signature in the suite; a hand edit to any of its four outputs fails it. At display sizes the glyph-field version (`design/matrix-logo/`) is the same ship in code characters |
-| Wordmark | **المهلب** in **Reem Kufi** 700, then `Almuhallab Code` in **Share Tech Mono**, tracked, on its own line beneath (LTR in its own bidi isolate), then «شركة برمجة وأنظمة» in Cairo. Both faces SIL OFL, subset and self-hosted in `almuhallab/fonts/` (the CSP forbids a CDN), precached by `sw.js`, and used by the lockup only — body text stays Cairo. On the brown bar all three are white. Enlarging the lockup covers more of the page, so `scroll-margin-top` moved with it — 178px desktop, 152px phone |
+| Mark | a **Kuwaiti boum under sail drawn as a pixel grid** — the matrix-code identity the owner adopted 2026-09-28, replacing the stroked boum. One drawing: the ship's polygons in `design/matrix_logo.py` (`BOUM`), and nothing else draws her. `design/pixel_boum.py` rasterises them into the **wide form** (`#i-boum`, `logo.svg`: 36×24 lit cells centred in the 48×24 box, coverage-sampled so the thin stem joins the hull) and holds the **square form** (`#i-sail`, `favicon.svg`) as a hand-set **16×16 bitmap** with a one-cell margin, so at 16px every cell is exactly one screen pixel — that is the small-size fix, and why it is set by hand. Four things make her a boum and the suite asserts each on the polygons: **double-ended** with a raked stem and sternpost rising from one hull shape (never a transom), **two filled lateen sails**, the **tall mainmast forward** of the short mizzen, the sheer rising into both ends. The gaps between cells are the code texture — never fill them. **Colour: white ship on brand brown** (owner's request 2026-09-28) — `logo.svg` and `favicon.svg` carry their own `#6f3f1c` ground (the favicon's amber gradient is gone), and the footer sets the square mark white on a brown tile; the masthead was already white on the brown bar. `pixel_boum.py --check` is the mark's signature in the suite; a hand edit to any of its outputs fails it. **In the masthead she is hinted like a font** (owner's request «improve logo style at top bar», 2026-10-01): the same 331 lit cells, but each cell a whole number of device pixels (`q = max(--qmin, round(--cell × --dpr))`) with a whole-pixel seam (`g = max(1, round(0.18q))`), so the seams are visible on every screen instead of falling between pixels — 148×74 had put 3.08px in a cell and the white ship read grey, 1.75px once scrolled. pixel_boum.py writes three more pieces into index.html and `--check` covers them: the masthead window (`viewBox="6 1 36 20"`, cropped to her cells, around an inner 48×24 svg so the symbol is not shrunk), the `/* pixel-boum:hint */` block (CSS `d` swaps the path for 38 row runs dashed into cells, crispEdges, a 1/16-px nudge), and it refuses to write if `#i-boum` is used anywhere but the masthead, because the hint styles the symbol itself. A head script hands CSS the pixel ratio (`--dpr`); without it the bar is still exact at 1×/2×/3×. Each bar state sets `--cell` (top 3, compact 2, folded row 1.34); compact states set `--qmin: 3`, because 2 device px is 1 lit + 1 seam — a tan mesh, not a white ship. The entrance animation fills `backwards`, not `both`: a fill that outlives it keeps the mark on its own layer, resampled at a fractional offset on a 2.625× phone. The suite renders the ship at 1×–3× and fails on a single blended pixel At display sizes the glyph-field version (`design/matrix-logo/`) is the same ship in code characters |
+| Wordmark | **المهلب** in **Reem Kufi** 700, then `Almuhallab Code` in **Share Tech Mono**, tracked, on its own line beneath (LTR in its own bidi isolate), then «شركة برمجة وأنظمة» in Cairo. Both faces SIL OFL, subset and self-hosted in `almuhallab/fonts/` (the CSP forbids a CDN), precached by `sw.js`, and used by the lockup only — body text stays Cairo. On the brown bar all three are white. The lockup is balanced on the ship's ink: the Latin line is tracked (.1em, 12px) to her width (~110px), «المهلب» 32px desktop / 28px phone, ink gaps 13 / 7 / 13. `scroll-margin-top` must clear the compact bar in every state — 192px desktop (the 1× compact bar is 184px, its ship held at 3 device px a cell), 176px phone |
 | Brand ink | `--tint` `#7a4418` · `--tint-strong` `#6f3f1c` |
 | Surfaces | **white on every device** — no dark theme; white page, white cards, cool near-neutral greys. Brown is ink, never paper — with one exception the owner asked for (2026-07-31): the **masthead bar is brown** (`--tint-strong`) with white ink on every page, and `theme-color` matches it. Everything below the bar stays white |
 | Icons | the drawn `<symbol>` sprite — no emoji anywhere on the public page |
@@ -156,14 +156,37 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   on its children: two pages shipped a dark wordmark because their markup was
   a `<div>`/`<span>` the colour rule never named. The suite measures every
   masthead label on every page.
+  **On a phone, "in reach" decides the pattern** (2026-10-01): the system
+  page and the console let their wrapped header scroll away *only because*
+  their tabs move to a fixed bottom bar — a static header with nothing below
+  is not that pattern (a skeptic caught exactly that). The portal has no
+  bottom bar, so its bar stays sticky and its links run in one swipeable row,
+  ordered by what the app needs (call to action, then dashboard or login; the
+  company link, also in the footer, last) — 171px became 115px. The company
+  bar takes the phone's lockup sizes when the screen is short
+  (`max-height: 500px`): a landscape phone gave it 67% of the screen.
+- **Boxes fit what they hold, measured from 320 to 1440, portrait and on its
+  side** (audit of 2026-10-01; every trap below shipped and none was visible
+  in the source). A `flex-basis` meant as a width becomes a *height* when the
+  row turns into a column (three 240px contact pills holding 58px each). A
+  `<figure>` keeps the browser's `16px 40px` margin until told otherwise. A
+  grid track `minmax(430px,1fr)` overflows a phone — write
+  `minmax(min(430px,100%),1fr)`. `text-align` centres nothing in an
+  inline-flex button — `justify-content` does. `.hero > *` outranked the
+  hero's own art layer at equal specificity and stacked its geometry on one
+  line. `overflow:hidden` for an ellipsis also cuts below the line box: at
+  1.35 it took the dots off the final ي («المالي» read «المالى»); the
+  suite compares the tab's pixels clipped and unclipped. Fields are 16px on
+  any `pointer: coarse` screen, not just under 640px. A half-width tile must
+  hold a *signed* seven-digit figure, the widest value it can show.
 - The **footer is the site's map**, not a copyright line: four columns (the
   company and its channels written out in full · الشركة · الخدمات · النوخذة's
   units), on the one recessed grey surface, opened by the brand hairline. Do
   not put an icon-only channel row beside the written one — it repeats the
   same three links while hiding the values.
 - **A sticky bar hides whatever an in-page link jumps to.** Every anchor
-  target carries `scroll-margin-top` (178px desktop, 152px phone, clearing the
-  compact bar's 130px) and `html` uses `scroll-behavior: smooth`, off under
+  target carries `scroll-margin-top` (192px desktop, 176px phone, clearing the
+  compact bar — 184px on a 1× desktop, ~106px on a phone) and `html` uses `scroll-behavior: smooth`, off under
   reduced motion. Tests that measure scroll positions must pass
   `behavior:'instant'` or they race the animation and read mid-flight values.
 - **المهلب is the company; النوخذة is النظام الموحد it built and runs.** The
@@ -261,7 +284,22 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   Three service icons (automation gear, AI-agent spark, design pen) are inlined
   rather than `<use>`-referenced so their parts can animate — spin, pulse and
   stroke-draw, all stopped by `prefers-reduced-motion`.
-  النوخذة's own screens still use emoji in tab labels.
+  **النوخذة's screens draw from the same set** (owner's request «improve all
+  icons», 2026-10-01): tabs, buttons, chips, toasts, the balance verdict and
+  the order rows. `design/app_sprite.py` writes each app page a sprite of only
+  the icons it uses, **copied byte for byte from index.html's** — the eleven the
+  company page never needs (download, print, check …) are drawn in that script
+  on the same 24 grid and 1.8 pen — and `--check` in the suite fails on any
+  hand edit. App icons take `stroke: currentColor`, so one drawing serves a
+  white bar, a brown tab and a red status. In RTL "back" points right: back
+  links flip the chevron (`.ic.back`), forward actions use it as drawn. A toast
+  takes its icon as an argument (`toast(msg, "i-check")`) and keeps its text as
+  `textContent` — the icon is built from fixed ids, never from data.
+- **A `display` rule beats the `[hidden]` attribute.** Every page carries
+  `[hidden] { display: none !important; }`: the console's `label` is
+  `display:flex`, so the login gate showed a second password box after the
+  first logout, and making `.btn` inline-flex for its icons would have done the
+  same to every hidden button. Pinned by the suite.
 - Charts are hand-built inline SVG — the strict CSP forbids any chart library.
   Colour follows the encoding job: ordinal one-hue ramps where order carries
   meaning, a diverging pair for profit/loss where the sign is *also* shown by

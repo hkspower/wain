@@ -703,7 +703,11 @@ def browser_checks():
         layout_checks(br)
         totals_alignment_checks(br)
         mobile_checks(br)
+        fit_checks(br)
+        crisp_mark_checks(br)
+        portal_checks(pg)
         font_checks(pg)
+        app_icon_checks(pg)
 
         check("runtime", "no uncaught JavaScript errors anywhere", not errs, " | ".join(errs[:3]))
         br.close()
@@ -903,7 +907,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "686", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "730", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -938,7 +942,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "686", "0", "100%"], str(finals))
+          finals == ["4", "730", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -1696,7 +1700,11 @@ def pricing_checks(pg):
     pg.goto(f"{BASE}/nokhatha.html#/pricing", wait_until="networkidle")
     pg.wait_for_timeout(300)
     txt = pg.inner_text("#page-pricing")
-    check(S, "the subscription is stated as free", "مجاناً" in txt and "الاشتراك مجاني" in txt)
+    check(S, "the system is stated as free", "مجاناً" in txt and "مجاني بالكامل" in txt)
+    # a free system has no subscription and no "free plan" beside a paid one
+    body = pg.inner_text("body")
+    check(S, "nothing names a subscription or a free tier",
+          not any(w in body for w in ("الاشتراك مجاني", "الخطة المجانية", "رسوم شهرية")))
     check(S, "exactly one plan is offered",
           pg.eval_on_selector_all("#plans .plan", "n=>n.length") == 1)
     check(S, "no monthly price is shown", "د.ك / شهرياً" not in txt)
@@ -1824,7 +1832,10 @@ def xbrl_checks(pg):
         check(S, f"computed {name} matches the hand total", got == want, f"{got} vs {want}")
 
     pg.click("#xbrl-validate"); pg.wait_for_timeout(250)
-    check(S, "the hand-balanced sheet passes", "✔" in pg.inner_text("#xbrl-check"))
+    check(S, "the hand-balanced sheet passes",
+          pg.eval_on_selector("#xbrl-check", "e => e.classList.contains('ok') && "
+                              "!!e.querySelector('use[href=\"#i-check\"]')")
+          and "القائمة متوازنة" in pg.inner_text("#xbrl-check"))
     check(S, "a balanced WLL below the reserve cap gets the 10% suggestion",
           "الاحتياطي القانوني" in pg.inner_text("#xbrl-audit")
           and "313.500" in pg.inner_text("#xbrl-audit"))     # 10% of 3135.000
@@ -2547,11 +2558,9 @@ def auth_checks(pg, ctx):
     # five failures must lock the account
     for _ in range(4):
         pg.click('#form-login button[type="submit"]'); pg.wait_for_timeout(2400)
+    # the attempt that arms the lock must say so — it used to take a sixth
     locked = "حاول بعد" in pg.inner_text("#login-error")
-    if not locked:                      # the lock arms on the next attempt
-        pg.click('#form-login button[type="submit"]'); pg.wait_for_timeout(2400)
-        locked = "حاول بعد" in pg.inner_text("#login-error")
-    check(S, "repeated failures lock the account", locked, pg.inner_text("#login-error"))
+    check(S, "the fifth failure locks the account and says so", locked, pg.inner_text("#login-error"))
 
     # a suspended account cannot log in, even with the right password
     pg.evaluate("localStorage.removeItem('nokhatha-lock-v1');"
@@ -2799,6 +2808,363 @@ def mobile_checks(br):
     check(S, "hero actions meet the touch target", h >= 44, f"{h}px")
 
     c.close()
+
+def mark_pixels(br, base, w, h, dpr, mob, scroll):
+    """The masthead ship as rendered: (q, g, lit-run widths, part-lit pixels).
+    q is the cell in device px, g the seam. A pixel-true ship has no pixel that
+    is neither the brown bar nor white, and every lit run is exactly q − g."""
+    import io, re as _re
+    from PIL import Image as _Img
+    c = br.new_context(viewport={"width": w, "height": h}, device_scale_factor=dpr, is_mobile=mob, has_touch=mob)
+    pg = c.new_page(); pg.goto(f"{base}/index.html", wait_until="networkidle"); pg.wait_for_timeout(900)
+    if scroll:
+        pg.evaluate(f"window.scrollTo({{top:{scroll},behavior:'instant'}})"); pg.wait_for_timeout(800)
+    r = pg.evaluate("()=>{const b=document.querySelector('header .logo').getBoundingClientRect();return [b.left,b.top,b.right,b.bottom]}")
+    vbw = pg.evaluate("document.querySelector('header .logo').viewBox.baseVal.width") or 48
+    im = _Img.open(io.BytesIO(pg.screenshot())).convert("L"); c.close()
+    q = round((r[2] - r[0]) / vbw * dpr); g = max(1, round(q * .18))
+    x0, y0, x1, y1 = [int(round(v * dpr)) for v in r]
+    runs, part = set(), 0
+    for y in range(y0 - 1, y1 + 1):
+        row = "".join("L" if im.getpixel((x, y)) > 235 else ("G" if im.getpixel((x, y)) < 125 else "P")
+                      for x in range(x0 - 1, x1 + 1))
+        part += row.count("P"); runs |= {len(m) for m in _re.findall(r"L+", row)}
+    return q, g, sorted(runs), part
+
+
+def crisp_mark_checks(br):
+    """The ship's cells sit on whole device pixels with a whole-pixel seam.
+
+    148×74 put 3.08px in a cell: the 0.18 seams fell between pixels and the
+    white ship read grey and uneven, worst once scrolled (1.75px a cell). The
+    hint pixel_boum.py writes fixes it per screen; this asks the browser."""
+    S = "identity"
+    states = [(1440, 900, 1, False, 0), (1440, 900, 1, False, 1200), (1440, 900, 1.25, False, 0),
+              (1440, 900, 2, False, 1200), (412, 915, 2.625, True, 1200), (412, 915, 2.625, True, 1201),
+              (390, 844, 3, True, 0)]
+    bad = []
+    for w, h, dpr, mob, scroll in states:
+        q, g, runs, part = mark_pixels(br, BASE, w, h, dpr, mob, scroll)
+        if part or runs != [q - g] or g < 1:
+            bad.append(f"{w}@{dpr}x{' scrolled ' + str(scroll) if scroll else ''}: {part} part-lit, runs {runs}, want {q - g}")
+    check(S, "the masthead ship is pixel-true: whole cells, a whole-pixel seam, nothing blended",
+          not bad, "; ".join(bad[:3]))
+
+
+def fit_checks(br):
+    """Boxes sized to what they hold, on every width a phone can be.
+
+    The 2026-10-01 audit measured each page from 320 to 1440, portrait and on
+    its side; every defect here was found that way and is pinned the same way,
+    by measuring — none of them could be seen in the source."""
+    S = "fit"
+    import io
+    from PIL import Image as _Img, ImageChops as _Chops
+
+    def ctx(w, h, mob=True):
+        return br.new_context(viewport={"width": w, "height": h}, is_mobile=mob, has_touch=mob,
+                              device_scale_factor=2 if mob else 1)
+
+    def label_gaps(pg, sel):
+        return pg.evaluate("""(sel) => { const b = document.querySelector(sel);
+          const r = b.getBoundingClientRect(), g = document.createRange(); g.selectNodeContents(b);
+          const t = g.getBoundingClientRect(); return [t.left - r.left, r.right - t.right]; }""", sel)
+
+    def admin_in(pg):
+        pg.goto(f"{BASE}/admin.html", wait_until="networkidle")
+        pg.evaluate("localStorage.clear()"); pg.reload(wait_until="networkidle")
+        pg.fill('input[name="pass"]', "fit-check-pass-1"); pg.fill('input[name="confirm"]', "fit-check-pass-1")
+        pg.click("#gate-btn"); pg.wait_for_timeout(400)
+
+    # ── the company page on a phone
+    c = ctx(390, 844); pg = c.new_page()
+    pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(1500)
+    pg.evaluate("document.documentElement.classList.remove('motion');"
+                "document.querySelectorAll('[data-reveal]').forEach(e=>e.classList.add('in'))")
+    hs = pg.eval_on_selector_all(".channels > a.channel", "n=>n.map(e=>e.getBoundingClientRect().height)")
+    # in a column the 240px flex-basis became each pill's height
+    check(S, "a phone's channel pills hug their content, not a 240px basis",
+          len(hs) == 3 and all(h <= 120 for h in hs), str([round(h) for h in hs]))
+    a, z = label_gaps(pg, ".product.lead .btn.go")
+    check(S, "a stretched call to action centres its label", abs(a - z) <= 4, f"{a:.0f} / {z:.0f}")
+    fh = pg.eval_on_selector("footer", "e=>e.getBoundingClientRect().height")
+    check(S, "الشركة and الخدمات share a row in a phone's footer", fh < 1300, f"{fh:.0f}px")
+    c.close()
+
+    c = ctx(320, 640); pg = c.new_page()
+    pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(1200)
+    rows = pg.eval_on_selector_all("header nav.site a", "n=>new Set(n.map(e=>Math.round(e.getBoundingClientRect().top))).size")
+    tall = pg.eval_on_selector_all("header nav.site a", "n=>n.every(e=>e.getBoundingClientRect().height >= 44)")
+    check(S, "at 320px the masthead's four links keep one row, each still 44px", rows == 1 and tall, f"{rows} rows")
+    c.close()
+
+    # a phone on its side is short, not narrow
+    c = ctx(844, 390); pg = c.new_page()
+    pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(1200)
+    pg.evaluate("window.scrollTo({top: 900, behavior: 'instant'})"); pg.wait_for_timeout(700)
+    hh = pg.eval_on_selector("header", "e=>e.getBoundingClientRect().height")
+    check(S, "on a landscape phone the scrolled masthead leaves two thirds of the screen",
+          hh <= 390 * 0.35, f"{hh:.0f}px of 390")
+    c.close()
+
+    c = ctx(768, 1024, mob=False); pg = c.new_page()
+    pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(1200)
+    fm = pg.evaluate("""() => { const c = e => { const r = e.getBoundingClientRect(); return [r.width, (r.left + r.right) / 2]; };
+      return { nodes: [...document.querySelectorAll('.flowmap .fnode')].map(c),
+               wires: [...document.querySelectorAll('.flowmap .wire')].map(c) }; }""")
+    axis = {round(x) for _, x in fm["nodes"] + fm["wires"]}
+    check(S, "the vertical flow map's nodes fit their label and sit on the wire",
+          fm["nodes"] and all(w <= 320 for w, _ in fm["nodes"]) and max(axis) - min(axis) <= 2,
+          f"widths {[round(w) for w, _ in fm['nodes']]}, centres {sorted(axis)}")
+    c.close()
+
+    c = ctx(1440, 900, mob=False); pg = c.new_page()
+    pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(1200)
+    art = pg.eval_on_selector(".heroart", "e=>[getComputedStyle(e).position, e.getBoundingClientRect().height, getComputedStyle(e).backgroundImage]")
+    tops = pg.eval_on_selector_all(".heroart .shape", "n=>n.map(e=>Math.round(e.getBoundingClientRect().top))")
+    # `.hero > *` outranked the layer and stacked every shape on one line
+    check(S, "the hero's geometry is spread over the hero, not stacked on one line",
+          art[0] == "absolute" and art[1] > 300 and len(set(tops)) == len(tops) == 5, f"{art[:2]}, tops {tops}")
+    check(S, "the hero's art layer paints no wash — the page stays white", art[2] == "none", art[2][:40])
+    c.close()
+
+    # ── النوخذة's screens on a phone
+    c = ctx(390, 844); pg = c.new_page()
+    pg.goto(f"{BASE}/nokhatha.html#/register", wait_until="networkidle"); pg.wait_for_timeout(500)
+    a, z = label_gaps(pg, "form.auth .btn.primary")
+    check(S, "the portal's full-width buttons centre their label on a phone", abs(a - z) <= 4, f"{a:.0f} / {z:.0f}")
+    pg.goto(f"{BASE}/nizam.html#/position", wait_until="networkidle"); pg.wait_for_timeout(500)
+    cols = pg.evaluate("getComputedStyle(document.querySelector('#tab-position .tiles')).gridTemplateColumns.split(' ').length")
+    check(S, "the system's figures sit two to a row on a 390px phone", cols == 2, f"{cols} columns")
+    # a signed 7-digit figure overran a half-width tile by 9px at 21px
+    fits = pg.evaluate("""[...document.querySelectorAll('#tab-position .tile .n')].map(n => {
+        const was = n.textContent; n.textContent = '+1,234,567.890';
+        const ok = n.scrollWidth <= n.clientWidth; n.textContent = was; return ok; })""")
+    check(S, "a signed seven-digit figure fits its half-width tile", fits and all(fits), str(fits))
+    # overflow:hidden for the ellipsis cut the dots off the final ي: «المالي» read «المالى»
+    cut = []
+    for i in range(5):
+        tab = pg.locator("nav.tabs button").nth(i)
+        a_ = _Img.open(io.BytesIO(tab.screenshot())).convert("L")
+        pg.evaluate(f"document.querySelectorAll('nav.tabs .tl')[{i}].style.overflow='visible'")
+        z_ = _Img.open(io.BytesIO(tab.screenshot())).convert("L")
+        pg.evaluate(f"document.querySelectorAll('nav.tabs .tl')[{i}].style.overflow=''")
+        n = sum(1 for v in _Chops.difference(a_, z_).tobytes() if v > 40)
+        if n:
+            cut.append(f"tab {i}: {n}px")
+    check(S, "no tab label loses ink to its own ellipsis box (the dots of ي)", not cut, ", ".join(cut))
+    pg.evaluate("(()=>{const t=document.getElementById('toast');t.textContent='x';t.classList.add('on')})()")
+    pg.wait_for_timeout(350)
+    tb, bt = pg.evaluate("[document.getElementById('toast').getBoundingClientRect().bottom,"
+                         " document.querySelector('nav.tabs').getBoundingClientRect().top]")
+    check(S, "a toast clears the bottom tab bar", tb <= bt, f"toast ends {tb:.0f}, bar starts {bt:.0f}")
+    pg.goto(f"{BASE}/nizam.html#/safi", wait_until="networkidle"); pg.wait_for_timeout(300)
+    hs = pg.eval_on_selector_all("#safi-form input", "n=>n.map(e=>Math.round(e.getBoundingClientRect().height))")
+    check(S, "a field set in the mono face is as tall as its neighbours", len(set(hs)) == 1 and hs[0] >= 44, str(hs))
+    pg.goto(f"{BASE}/nizam.html#/delivery", wait_until="networkidle"); pg.wait_for_timeout(300)
+    ws = pg.eval_on_selector_all("#del-courier-form input", "n=>n.map(e=>e.getBoundingClientRect().width)")
+    check(S, "the courier's phone field can show an 8-digit number", min(ws) >= 98, str([round(w) for w in ws]))
+    c.close()
+
+    # the portal's bar stays sticky (the owner's bar on all four pages, and no
+    # bottom bar to fall back on) but runs its links in one row, the ones the
+    # app needs first, instead of wrapping to 171px
+    for w in (320, 390):
+        c = ctx(w, 640); pg = c.new_page()
+        pg.goto(f"{BASE}/nokhatha.html#/", wait_until="networkidle"); pg.wait_for_timeout(300)
+        pg.evaluate("window.scrollTo({top: 500, behavior: 'instant'})"); pg.wait_for_timeout(150)
+        bar = pg.eval_on_selector("header", "e=>[e.getBoundingClientRect().top, e.getBoundingClientRect().height]")
+        seen = pg.evaluate("""['nav-register', 'nav-login'].every(id => { const r = document.getElementById(id).getBoundingClientRect();
+                              return r.left >= -1 && r.right <= innerWidth + 1 && r.height >= 44; })""")
+        check(S, f"at {w}px the portal's bar stays put, one row high, its call to action on screen",
+              bar[0] == 0 and bar[1] <= 120 and seen, f"top {bar[0]:.0f}, {bar[1]:.0f}px, cta seen {seen}")
+        c.close()
+
+    # the console's bar wraps to three rows on a phone: it scrolls away
+    for page, sel in (("admin.html", ".topbar"),):
+        c = ctx(320, 640); pg = c.new_page()
+        if page == "admin.html":
+            admin_in(pg)
+        else:
+            pg.goto(f"{BASE}/{page}", wait_until="networkidle"); pg.wait_for_timeout(300)
+        pg.evaluate("window.scrollTo({top: 500, behavior: 'instant'})"); pg.wait_for_timeout(150)
+        bottom = pg.eval_on_selector(sel, "e=>e.getBoundingClientRect().bottom")
+        check(S, f"{page.split('#')[0]}: the wrapped phone bar scrolls away", bottom <= 0, f"bottom {bottom:.0f}")
+        if page == "admin.html":
+            # …but never the sections: the tabs move to a bottom bar, as on the system page
+            reach = pg.evaluate("(()=>{const r=document.querySelector('nav.tabs').getBoundingClientRect();"
+                                "return r.top < innerHeight && Math.round(r.bottom) === innerHeight})()")
+            check(S, "admin.html: the console's tabs stay in thumb reach once the bar has gone", reach)
+        c.close()
+
+    # iOS zooms into any field under 16px — on its side too
+    c = ctx(844, 390); pg = c.new_page()
+    small = []
+    for page in ("nokhatha.html#/register", "nizam.html#/xbrl", "admin.html"):
+        pg.goto(f"{BASE}/{page}", wait_until="networkidle"); pg.wait_for_timeout(300)
+        px = pg.eval_on_selector_all("input:not([type=checkbox]), select", "n=>n.filter(e=>e.offsetParent).map(e=>parseFloat(getComputedStyle(e).fontSize))")
+        if not px or min(px) < 16:
+            small.append(f"{page}: {min(px) if px else 'none'}")
+    check(S, "a touch screen of any width gets 16px fields", not small, ", ".join(small))
+    c.close()
+
+    # ── the console, logged in, where the suite had never looked
+    for w in (390, 360, 320):
+        c = ctx(w, 760); pg = c.new_page(); admin_in(pg)
+        over = []
+        for tab in ("overview", "finance", "settings"):
+            pg.click(f'nav.tabs button[data-tab="{tab}"]'); pg.wait_for_timeout(150)
+            sw = pg.evaluate("document.documentElement.scrollWidth")
+            if sw > w:
+                over.append(f"{tab} {sw}")
+        check(S, f"the logged-in console never scrolls sideways at {w}px", not over, ", ".join(over))
+        c.close()
+    c = ctx(390, 844); pg = c.new_page(); admin_in(pg)
+    pg.click('nav.tabs button[data-tab="customers"]'); pg.wait_for_timeout(150)
+    box = pg.eval_on_selector("#cust-all", "e=>[e.getBoundingClientRect().width, e.getBoundingClientRect().height]")
+    check(S, "the console's checkboxes clear the 24px floor", min(box) >= 24, str(box))
+    c.close()
+    c = ctx(1440, 900, mob=False); pg = c.new_page(); admin_in(pg)
+    figs = pg.eval_on_selector_all("#charts .fig", "n=>n.map(e=>[e.getBoundingClientRect().left, e.getBoundingClientRect().right])")
+    tiles = pg.evaluate("(()=>{const t=[...document.querySelectorAll('#tab-overview .tile')].map(e=>e.getBoundingClientRect());"
+                        "return [Math.min(...t.map(r=>r.left)), Math.max(...t.map(r=>r.right))]})()")
+    edge = [min(l for l, _ in figs), max(r for _, r in figs)] if figs else [0, 0]
+    # a <figure> keeps the browser's 16px 40px margin unless told otherwise
+    check(S, "the console's charts line up with the tiles above them",
+          abs(edge[0] - tiles[0]) <= 1 and abs(edge[1] - tiles[1]) <= 1, f"charts {edge} tiles {tiles}")
+    pg.click('nav.tabs button[data-tab="settings"]'); pg.wait_for_timeout(150)
+    bw = pg.eval_on_selector("#pw-form button", "e=>e.getBoundingClientRect().width")
+    check(S, "the password button hugs its label", bw < 200, f"{bw:.0f}px")
+    pg.evaluate("localStorage.clear()")
+    c.close()
+
+
+def portal_checks(pg):
+    """النوخذة's front door, as a first-time visitor and a keyboard meet it."""
+    S = "portal"
+    pg.goto(f"{BASE}/nokhatha.html#/register", wait_until="networkidle")
+    pg.evaluate("localStorage.clear()"); pg.reload(wait_until="networkidle"); pg.wait_for_timeout(200)
+    check(S, "each screen names itself in the tab", pg.title().startswith("إنشاء حساب"), pg.title())
+    f = "#form-register "
+    pg.fill(f + 'input[name="name"]', "   "); pg.fill(f + 'input[name="email"]', "p@example.com")
+    pg.fill(f + 'input[name="password"]', "portal-pass-1")
+    pg.click(f + 'button[type=submit]'); pg.wait_for_timeout(300)
+    # three spaces passed `required` and made an account with no name
+    check(S, "a blank name is refused, marked and focused",
+          "/dashboard" not in pg.url and pg.get_attribute(f + 'input[name="name"]', "aria-invalid") == "true"
+          and pg.evaluate("document.activeElement.name") == "name", pg.inner_text("#register-error"))
+    check(S, "a refused form is announced", pg.get_attribute("#register-error", "role") == "alert"
+          and pg.get_attribute("#login-error", "role") == "alert" and pg.get_attribute("#toast", "role") == "status")
+    pg.keyboard.press("Shift+Tab"); pg.keyboard.press("Tab")
+    ring = pg.evaluate("(()=>{const s=getComputedStyle(document.activeElement); return [s.outlineStyle, parseFloat(s.outlineWidth)]})()")
+    check(S, "a focused field shows a 2px ring, not a 1px hue shift", ring[0] == "solid" and ring[1] >= 2, str(ring))
+    pg.fill(f + 'input[name="name"]', "زائر"); pg.click(f + 'button[type=submit]'); pg.wait_for_timeout(2500)
+    banner = pg.inner_text(".demo-banner")
+    check(S, "the caveat speaks to the visitor, not to a developer",
+          "/dashboard" in pg.url and "README" not in banner and "هذا المتصفح" in banner, banner.strip())
+    pg.click("#nav-logout"); pg.wait_for_timeout(400)
+    pg.goto(f"{BASE}/nokhatha.html#/pricing", wait_until="networkidle"); pg.wait_for_timeout(200)
+    cta = pg.eval_on_selector("#plans .btn.primary", "e=>[e.tagName, e.getAttribute('href')]")
+    # it answered a logged-out click with an error toast, then redirected
+    check(S, "the logged-out call to action is a link to registration", cta == ["A", "#/register"], str(cta))
+    pg.goto(f"{BASE}/nokhatha.html#/", wait_until="networkidle"); pg.wait_for_timeout(200)
+    hero = pg.inner_text("#page-home .hero p")
+    check(S, "the hero names all four units", all(u in hero for u in ("المركز المالي", "صافي", "XBRL", "التوصيل")))
+    gap = pg.evaluate("document.querySelector('#page-home h2.section').getBoundingClientRect().top -"
+                      " document.querySelector('#page-home .hero .actions').getBoundingClientRect().bottom")
+    check(S, "the next section does not crowd the hero's buttons", gap >= 32, f"{gap:.0f}px")
+    meta = (ROOT / "nokhatha.html").read_text()
+    check(S, "the description does not limit a free system to existing clients", "لعملاء المهلب" not in meta)
+    pg.evaluate("localStorage.clear()")
+
+
+def app_icon_checks(pg):
+    """النوخذة's screens draw their icons from the company's sprite, not emoji.
+
+    Emoji are a different typeface, weight and colour on every platform, and an
+    empty box on a phone with no colour-emoji font. design/app_sprite.py writes
+    each app page a sprite of the icons it uses, copied byte for byte from
+    index.html's; these checks keep that copy honest and the emoji gone."""
+    S = "icons"
+    import importlib.util
+    gen = subprocess.run([sys.executable, str(ROOT.parent / "design" / "app_sprite.py"), "--check"],
+                         capture_output=True, text=True)
+    check(S, "each app page's sprite is the company's own drawing (app_sprite --check)",
+          gen.returncode == 0, (gen.stdout + gen.stderr).strip()[-200:])
+    # the drift check must be able to fail: a redrawn symbol and an unknown id
+    spec = importlib.util.spec_from_file_location("app_sprite", ROOT.parent / "design" / "app_sprite.py")
+    sp = importlib.util.module_from_spec(spec); spec.loader.exec_module(sp)
+    lib = sp.catalogue()
+    src = (ROOT / "nizam.html").read_text()
+    tampered = src.replace('<symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 4v16h16"/>',
+                           '<symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 4v15h16"/>', 1)
+    try:
+        sp.build(src.replace('href="#i-chart"', 'href="#i-nowhere"', 1), lib)
+        unknown = False
+    except SystemExit:
+        unknown = True
+    check(S, "the sprite check catches a redrawn symbol and an icon no sprite draws",
+          tampered != src and sp.build(tampered, lib)[0] != tampered and unknown)
+
+    # emoji, dingbats, arrows (⟳ U+27F3 sat outside the first scan's range and
+    # survived it) and combining marks such as U+20E0, which has no width at all
+    EMOJI = re.compile(r"[\U0001F000-\U0001FAFF\u2190-\u21FF\u2300-\u23FF\u25A0-\u27BF"
+                       r"\u27F0-\u27FF\u2900-\u297F\u2B00-\u2BFF\u20D0-\u20FF]")
+    sees = all(EMOJI.search(t) for t in ("⚓", "📊", "🛵", "⚠️", "✔", "⬇", "⟳", "↳", "\u20e0", "←"))
+
+    def uncommented(src):
+        src = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
+        src = re.sub(r"<!--.*?-->", "", src, flags=re.S)
+        return re.sub(r"(?m)^\s*//.*$", "", src)
+    left = [f"{f}: U+{ord(m.group()):04X}" for f in ("nokhatha.html", "nizam.html", "admin.html")
+            for m in EMOJI.finditer(uncommented((ROOT / f).read_text()))]
+    check(S, "no emoji or typed icon glyph on النوخذة's screens, markup or script",
+          sees and not left, ", ".join(left[:6]) or ("" if sees else "the scan cannot see an emoji"))
+
+    # rendered: every <use> resolves and paints, on every screen that builds rows
+    pg.goto(f"{BASE}/nizam.html#/delivery", wait_until="networkidle"); pg.wait_for_timeout(300)
+    f = pg.locator("#del-form")
+    for k, v in (("customer", "اختبار"), ("phone", "+965 5000 0000"), ("address", "حولي"),
+                 ("items", "طلب"), ("amount", "1.000")):
+        f.locator(f'input[name="{k}"]').fill(v)
+    f.locator('button[type="submit"]').click(); pg.wait_for_timeout(200)
+    cf = pg.locator("#del-courier-form")
+    cf.locator('input[name="cname"]').fill("مندوب"); cf.locator('input[name="cphone"]').fill("+965 5000 0001")
+    cf.locator('button[type="submit"]').click(); pg.wait_for_timeout(200)
+    bad = []
+    for page in ("nizam.html#/position", "nizam.html#/delivery", "nizam.html#/xbrl",
+                 "nokhatha.html#/", "admin.html"):
+        pg.goto(f"{BASE}/{page}", wait_until="networkidle"); pg.wait_for_timeout(250)
+        r = pg.evaluate(r"""() => {
+          const out = { n: 0, unresolved: [], blank: 0, emoji: false };
+          for (const u of document.querySelectorAll('use')) {
+            const id = u.getAttribute('href'); out.n++;
+            if (!document.querySelector(id)) out.unresolved.push(id);
+            const svg = u.closest('svg'), s = svg.getBoundingClientRect();
+            if (svg.checkVisibility() && (s.width < 8 || s.height < 8)) out.blank++;
+          }
+          out.emoji = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(document.body.innerText);
+          return out; }""")
+        if r["unresolved"] or r["blank"] or r["emoji"] or not r["n"]:
+            bad.append(f"{page}: {r}")
+    check(S, "every icon on the app screens resolves to a symbol and paints", not bad, "; ".join(bad))
+    pg.goto(f"{BASE}/nizam.html#/delivery", wait_until="networkidle"); pg.wait_for_timeout(250)
+    tabs = pg.eval_on_selector_all("nav.tabs button", "n => n.map(b => !!b.querySelector('svg.ti use'))")
+    check(S, "each system tab is headed by a drawn icon", len(tabs) == 5 and all(tabs), str(tabs))
+    named = pg.eval_on_selector_all("[data-del-courier]", "n => n.length > 0 && n.every(b => b.getAttribute('aria-label'))")
+    check(S, "the icon-only delete button says what it deletes", named)
+
+    # label is display:flex in the console, which beat the [hidden] attribute:
+    # the login gate showed a second password box after the first logout
+    pg.goto(f"{BASE}/admin.html", wait_until="networkidle"); pg.wait_for_timeout(200)
+    pg.evaluate("localStorage.clear()"); pg.reload(wait_until="networkidle"); pg.wait_for_timeout(200)
+    pg.fill('input[name="pass"]', "icon-check-pass-1"); pg.fill('input[name="confirm"]', "icon-check-pass-1")
+    pg.click("#gate-btn"); pg.wait_for_timeout(400)
+    pg.click("#btn-logout"); pg.wait_for_timeout(300)
+    check(S, "the console's login gate asks for one password, not two",
+          pg.evaluate("document.getElementById('lbl-confirm').hidden") and not pg.is_visible("#lbl-confirm"))
+    pg.evaluate("localStorage.clear()")
+
 
 def font_checks(pg):
     """The Arabic face must be bundled and actually used, not merely listed."""
