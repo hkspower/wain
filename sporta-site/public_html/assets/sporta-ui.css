@@ -4361,3 +4361,44 @@ main article .price-card :is(s, del, [class*="line-through"]) {
   }
   .cat-tile > span[class~="absolute"][class~="rounded-full"] svg { width: 12px; height: 12px; }
 }
+/* THE HOME PAGE'S "BEST SELLERS" CARD = THE SHOP'S CARD — asked for 2026-10-01 as "make all
+ * product grid for all website pages all same style". home-products.js draws its own plain
+ * links, so the card the owner specified for /shop (44-product-grid-spec.css) is restated
+ * here for them: #0e1116, faint 1px edge, 16px corners, a 1.09:1 photograph on white, a
+ * left-aligned caption with a 14px name and a 16px bold price. No heart or add button:
+ * those are the bundle's own stateful controls (see the header of home-products.js). */
+.sporta-home-products__grid { gap: 10px; }
+@media (min-width: 1024px) { .sporta-home-products__grid { gap: 10px; } }
+.sporta-home-products__card {
+  background: #0e1116;
+  border: 1px solid rgba(255, 255, 255, .11);
+  border-radius: 16px;
+}
+.sporta-home-products__frame {
+  aspect-ratio: 1.09 / 1;
+  background: #fff;
+}
+.sporta-home-products__frame img { object-position: 50% 40%; }
+.sporta-home-products__body {
+  direction: ltr;
+  text-align: left;
+  padding: 8px 10px 9px;
+  gap: 2px;
+}
+.sporta-home-products__name {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  min-height: 0;
+  color: var(--sp-text, #dbdfe4);
+  unicode-bidi: plaintext;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+}
+.sporta-home-products__price {
+  flex-wrap: wrap;
+  column-gap: 8px;
+  unicode-bidi: plaintext;
+}
+.sporta-home-products__price b { font-size: 16px; font-weight: 700; line-height: 1.15; color: var(--sp-text, #dbdfe4); }
+.sporta-home-products__price s { font-size: 12px; font-weight: 500; color: #8a9097; }

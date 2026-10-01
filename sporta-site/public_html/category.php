@@ -406,42 +406,39 @@ header('Cache-Control: public, max-age=0, must-revalidate');
   }
   @media (min-width: 640px)  { .grid { grid-template-columns: repeat(3, 1fr); } }
   @media (min-width: 1024px) { .grid { grid-template-columns: repeat(4, 1fr); } }
-  /* Matches the bundle's own product card (used on /shop, the home page's
-     featured row, and the product page's related-products row) rather than
-     a card style unique to this page — one product grid, everywhere it
-     appears. That card has no panel: no border, no fill behind the text,
-     just the cropped photo and a caption under it. This used to wrap both
-     in a bordered, backgrounded box, which read as a visibly different
-     component from every other product grid in the shop. */
+  /* THE SAME CARD AS /shop — asked for 2026-10-01 as "make all product grid for all website
+     pages all same style". The owner's spec (css/44-product-grid-spec.css): a #0e1116 card
+     with a faint 1px edge and 16px corners, a 1.09:1 photograph on white, and a left-aligned
+     caption — brand, name 14px, price 16px bold with the old price struck through. */
+  .grid { column-gap: 10px; row-gap: 10px; }
   .card {
-    display: flex; flex-direction: column;
+    display: flex; flex-direction: column; position: relative;
+    background: #0e1116; border: 1px solid rgba(255,255,255,.11); border-radius: 16px;
+    overflow: hidden; text-decoration: none; color: inherit;
   }
-  .card .frame { position: relative; aspect-ratio: 4 / 5; background: var(--sp-tile);
-                 overflow: hidden; border-radius: 10px; }
-  .card .frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  /* A light wash, not a block-out — the same balance the app's own product
-     card strikes (dim + a small corner badge). The first version of this
-     page covered the WHOLE photo with a 55%-opaque layer and a large
-     centred label, which on a genuinely sold-out item with a real uploaded
-     photo (checked live: /women's "AHED") reads as a broken image with a
-     dark tint over it rather than as a sold-out notice — the shopper cannot
-     see the garment at all. This still says "sold out" clearly; it no
-     longer hides the photo to do it. */
+  .card .frame { position: relative; aspect-ratio: 1.09 / 1; background: var(--sp-tile); overflow: hidden; }
+  /* the white ground sits on the photograph; a card with no photo keeps the dark tile */
+  .card .frame img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 40%; display: block; background: #fff; }
+  /* A light wash, not a block-out: the shopper still sees the garment. */
   .card .frame.is-out img { opacity: .55; }
   .card .frame .out {
-    position: absolute; top: 8px; inset-inline-start: 8px;
+    position: absolute; top: 10px; left: 10px;
     background: rgba(20,22,26,.85); border: 1px solid rgba(255,255,255,.2);
-    border-radius: 999px; padding: 4px 10px;
-    color: #fff; font-weight: 700; font-size: .72rem;
+    border-radius: 999px; padding: 6px 10px; line-height: 1;
+    color: #fff; font-weight: 700; font-size: 12px;
   }
-  .card .body { padding: 10px 2px 0; display: flex; flex-direction: column; gap: 4px; flex: 1; }
-  .card .brand { font-size: .78rem; color: var(--sp-silver); }
-  .card .name { font-weight: 700; font-size: .92rem;
-                display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-                overflow: hidden; min-height: 2.4em; }
-  .card .price { margin-top: auto; display: flex; align-items: baseline; gap: 8px; }
-  .card .price b { font-size: 1rem; }
-  .card .price s { color: var(--sp-silver); font-size: .82rem; }
+  .card .body {
+    direction: ltr; text-align: left; flex: 1;
+    padding: 8px 10px 9px; display: flex; flex-direction: column; gap: 2px;
+  }
+  .card .brand { font-size: 11px; line-height: 1; color: #a3a9b1; unicode-bidi: plaintext; }
+  .card .name { font-weight: 600; font-size: 14px; line-height: 1.25; color: var(--sp-text, #dbdfe4);
+                unicode-bidi: plaintext; display: -webkit-box; -webkit-line-clamp: 1;
+                -webkit-box-orient: vertical; overflow: hidden; }
+  .card .price { margin-top: auto; display: flex; flex-wrap: wrap; align-items: baseline;
+                 column-gap: 8px; unicode-bidi: plaintext; }
+  .card .price b { font-size: 16px; font-weight: 700; line-height: 1.15; color: var(--sp-text, #dbdfe4); }
+  .card .price s { color: #8a9097; font-size: 12px; font-weight: 500; }
   .empty {
     background: var(--sp-panel); border: 1px solid var(--sp-line); border-radius: 14px;
     padding: 32px 20px; text-align: center; color: var(--sp-silver);
