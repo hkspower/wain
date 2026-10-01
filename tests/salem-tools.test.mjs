@@ -49,11 +49,11 @@ console.log("\n── formatShowPlaces: one match ──");
 {
   const r = formatShowPlaces("أبراج", [hit("kuwait-towers", "أبراج الكويت")], places);
   ok("one slug, matching the place", r.slugs.length === 1 && r.slugs[0] === "kuwait-towers");
-  // The bug this test exists to pin: the count must appear exactly once,
-  // agreeing with the noun — not a raw digit doubled in front of a second,
-  // already-complete count phrase (the mistake caught before this ever ran).
-  ok("the count appears exactly once", (r.spoken.match(/1/g) ?? []).length === 1, r.spoken);
-  ok("singular noun form for one match", r.spoken.includes("مكان مطابق") && !r.spoken.includes("أماكن مطابقة"), r.spoken);
+  // The count agrees with its noun, the way the call says it (countAr with
+  // MATCHING_PLACES) — and is never a raw digit in front of a phrase that
+  // already carries one, which doubled it once.
+  ok("one match reads «مكان واحد مطابق»", r.spoken.includes("مكان واحد مطابق") && !r.spoken.includes("أماكن مطابقة"), r.spoken);
+  ok("with no Latin digit anywhere", !/[0-9]/.test(r.spoken), r.spoken);
 }
 
 console.log("\n── formatShowPlaces: two matches ──");
@@ -61,8 +61,10 @@ console.log("\n── formatShowPlaces: two matches ──");
   const hits = [hit("kuwait-towers", "أبراج الكويت"), hit("souq-al-mubarakiya", "سوق المباركية")];
   const r = formatShowPlaces("الكويت", hits, places);
   ok("both slugs present, in match order", r.slugs.length === 2 && r.slugs[0] === "kuwait-towers" && r.slugs[1] === "souq-al-mubarakiya");
-  ok("plural noun form for more than one", r.spoken.includes("أماكن مطابقة"), r.spoken);
-  ok("count appears exactly once", (r.spoken.match(/2/g) ?? []).length === 1, r.spoken);
+  // This pinned «أماكن مطابقة» for two, which is the wrong form: Arabic has
+  // a dual, and the call already said «مكانين».
+  ok("two matches take the dual, «مكانين مطابقين»", r.spoken.includes("مكانين مطابقين") && !r.spoken.includes("أماكن"), r.spoken);
+  ok("and say both are on screen", r.spoken.includes("الحين قدام الزائر") && !r.spoken.includes(" منها"), r.spoken);
 }
 
 console.log("\n── formatShowPlaces: non-place hits do not become slugs ──");
@@ -93,6 +95,9 @@ console.log("\n── formatShowPlaces: caps at 8 slugs ──");
   const hits = many.map((p) => hit(p.slug, p.nameAr));
   const r = formatShowPlaces("q", hits, many);
   ok("at most 8 slugs", r.slugs.length === 8, String(r.slugs.length));
+  // She was told «12 أماكن مطابقة … الحين قدام الزائر» over eight cards.
+  ok("twelve found reads «١٢ مكان مطابق», agreeing", r.spoken.includes("١٢ مكان مطابق"), r.spoken);
+  ok("and says only the first eight are on screen", r.spoken.includes("أول ٨ أماكن منها"), r.spoken);
 }
 
 console.log("\n── formatShowPlaces: among equal matches, the better reviewed is named first ──");

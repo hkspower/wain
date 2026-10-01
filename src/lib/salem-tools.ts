@@ -31,7 +31,9 @@
  * site's, and drifting from it the moment `PlaceCard` changed.
  */
 import type { Place } from "@/lib/places";
+import { PLACES_COUNT, countAr } from "@/lib/place-kit";
 import { reorderByReviews } from "@/lib/place-reviews";
+import { MATCHING_PLACES } from "@/lib/wain-ai";
 
 export interface SalemShowPlacesResult {
   /** What goes back to her as the tool result — the same phrasing pattern
@@ -78,18 +80,22 @@ export function formatShowPlaces(query: string, hits: SalemSearchHit[], places: 
     };
   }
   const names = found.slice(0, 3).map((h) => h.doc.title);
-  // The same hand-rolled 1-vs-plural shape WainAiCall.tsx's own tool result
-  // uses (its `summary`, not its on-screen `setLastAction` — that one goes
-  // through `countAr`; this one goes back to her as the TOOL RESULT, and
-  // matching it is the whole point of this file's split). Not `countAr`
-  // here: it already returns a complete "N noun" phrase of its own, and
-  // prefixing `found.length` in front of it doubled the count instead of
-  // agreeing with it — caught before this ever ran, not after.
+  // `countAr` with the call's own nouns (MATCHING_PLACES), so the two say the
+  // same sentence. This used to be a hand-rolled «أماكن مطابقة» for every
+  // count above one, in Latin digits, from a comment that claimed parity with
+  // the call after the call had moved to countAr. And it reported everything
+  // the search found as «قدام الزائر» when only the first eight are drawn:
+  // «٢٢» said, eight cards on screen. countAr returns a whole «N noun»
+  // phrase, so nothing goes in front of it — that doubled the count once.
+  const onScreen =
+    slugs.length < found.length
+      ? `، وقدام الزائر الحين أول ${countAr(slugs.length, PLACES_COUNT)} منها`
+      : " الحين قدام الزائر";
   return {
     query,
     slugs,
     spoken:
-      `${found.length} ${found.length === 1 ? "مكان مطابق" : "أماكن مطابقة"} لـ «${query}» الحين قدام الزائر، أولها: ` +
+      `${countAr(found.length, MATCHING_PLACES)} لـ «${query}»${onScreen}، أولها: ` +
       `${names.join("، ")}. قولي له بجملة وحدة إنها قدامه — وسمّي الأول لو ما ذكرتيه — ` +
       "واسأليه سؤال قصير يرجّع له الدور. لا تسكتين.",
   };

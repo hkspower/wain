@@ -11,6 +11,7 @@ import { usePlaces } from "@/lib/usePlaces";
 import { PLACES_COUNT, countAr } from "@/lib/place-kit";
 import { callDuration, connected, hangup, ringback } from "@/lib/call-tones";
 import {
+  MATCHING_PLACES,
   WAIN_AI_AGENT_ENABLED,
   WAIN_AI_AGENT_ID,
   WAIN_AI_COPY,
@@ -76,19 +77,6 @@ const DIAL_TIMEOUT_MS = 20_000;
 
 /** How long the ready screen waits for Start before pointing at it again. */
 const START_NUDGE_MS = 15_000;
-
-/**
- * «N places matched», agreeing, for the sentence she is handed after a search.
- * It was `${total} أماكن مطابقة` for every total above one — «40 أماكن», with
- * Latin digits — which is the hand-written plural place-kit's `countAr` exists
- * to stop. The adjective agrees too: «مكان مطابق», not «مكان مطابقة».
- */
-const MATCHING_PLACES = {
-  one: "مكان واحد مطابق",
-  two: "مكانين مطابقين",
-  few: "أماكن مطابقة",
-  many: "مكان مطابق",
-} as const;
 
 /**
  * What the caller is told about an engine error.

@@ -385,3 +385,20 @@ export const WAIN_AI_RECORDING = {
   chatNotice: "المحادثة تنحفظ عند ElevenLabs وما تنمسح تلقائياً.",
   chatNoticeLink: "التفاصيل",
 } as const;
+
+/**
+ * «N places matched», agreeing, for the sentence she is handed after a search
+ * — by the call and by the typed chat alike, so the two cannot drift.
+ *
+ * It was `${total} أماكن مطابقة` for every total above one — «40 أماكن», with
+ * Latin digits — which is the hand-written plural place-kit's `countAr` exists
+ * to stop. The adjective agrees too: «مكان مطابق», not «مكان مطابقة». The call
+ * was fixed first and the chat kept the old line, with a test pinning
+ * «أماكن مطابقة» for two; both read this now.
+ */
+export const MATCHING_PLACES = {
+  one: "مكان واحد مطابق",
+  two: "مكانين مطابقين",
+  few: "أماكن مطابقة",
+  many: "مكان مطابق",
+} as const;
