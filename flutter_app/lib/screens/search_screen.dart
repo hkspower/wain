@@ -453,6 +453,9 @@ class _ResultRow extends StatelessWidget {
     final doc = hit.doc;
     final place = doc.kind == 'place' ? getPlace(doc.id.substring(6)) : null;
     return Padding(
+      // The result, not the same name in the hangout panel below it — the
+      // simulator suite taps this one (integration_test/app_test.dart).
+      key: ValueKey('result-${doc.id}'),
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
         color: active ? WainColors.sea50 : Colors.white,

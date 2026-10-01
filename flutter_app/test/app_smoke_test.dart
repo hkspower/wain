@@ -22,6 +22,7 @@ Future<void> pumpAt(
 }
 
 void main() {
+  _backSwipeTests();
   setUp(() => debugTileUrl = '');
   tearDown(() => debugTileUrl = null);
 
@@ -142,4 +143,58 @@ void main() {
     expect(find.text('دوّر باسم المكان'), findsNothing);
     expect(find.text('بحث'), findsWidgets);
   });
+}
+
+// An iPhone has no back button: a pushed screen must answer the edge swipe.
+// Every route used to be go_router's NoTransitionPage, which has no gesture,
+// so a place opened from search could be left only by its breadcrumb — found
+// on the simulator suite (integration_test/app_test.dart). Right-to-left app,
+// so the swipe starts at the RIGHT edge.
+Future<void> swipeBack(WidgetTester t) async {
+  final w = t.view.physicalSize.width / t.view.devicePixelRatio;
+  final g = await t.startGesture(Offset(w - 4, 400));
+  for (var i = 1; i <= 10; i++) {
+    await g.moveTo(Offset(w - 4 - i * w * 0.07, 400));
+    await t.pump(const Duration(milliseconds: 16));
+  }
+  await g.up();
+  // Fixed steps, not pumpAndSettle: the home's sky never stops moving.
+  for (var i = 0; i < 10; i++) {
+    await t.pump(const Duration(milliseconds: 80));
+  }
+}
+
+void _backSwipeTests() {
+  testWidgets('iOS: the edge swipe goes back from a place to search', (
+    t,
+  ) async {
+    debugTileUrl = '';
+    addTearDown(() => debugTileUrl = null);
+    await pumpAt(t, '/search');
+    await t.enterText(find.byKey(const ValueKey('search-input')), 'قهوة');
+    await t.pump(const Duration(milliseconds: 400));
+    final row = find.byWidgetPredicate(
+      (w) =>
+          w.key is ValueKey<String> &&
+          (w.key! as ValueKey<String>).value.startsWith('result-place:'),
+    );
+    expect(row, findsWidgets);
+    await t.ensureVisible(row.first);
+    await t.tap(row.first);
+    await t.pumpAndSettle(const Duration(milliseconds: 100));
+    expect(find.byKey(const ValueKey('search-input')), findsNothing);
+    await swipeBack(t);
+    expect(find.byKey(const ValueKey('search-input')), findsOneWidget);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+  testWidgets('iOS: and from /find to home', (t) async {
+    debugTileUrl = '';
+    addTearDown(() => debugTileUrl = null);
+    await pumpAt(t, '/');
+    await t.tap(find.text('ابدأ'));
+    await t.pumpAndSettle(const Duration(milliseconds: 100));
+    expect(find.text('إلى وين؟'), findsNothing);
+    await swipeBack(t);
+    expect(find.text('إلى وين؟'), findsOneWidget);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 }

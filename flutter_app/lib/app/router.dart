@@ -2,6 +2,7 @@
 /// opens the same thing in the other.
 library;
 
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../data/catalogue.dart';
@@ -18,6 +19,22 @@ import '../screens/search_screen.dart';
 import '../share/hangout.dart';
 import 'shell.dart';
 
+/// A screen opened ON TOP of another: a place, /find, سالم, the static pages.
+///
+/// go_router's fallback page here was `NoTransitionPage`, which carries no
+/// back gesture — and an iPhone has no back button, so a place opened from
+/// search could be left only by its breadcrumb. Found by the simulator suite
+/// (integration_test/app_test.dart). A `MaterialPage` is a Cupertino slide on
+/// iOS, with the edge swipe (from the right, the app being right-to-left),
+/// and Android's own transition and back button elsewhere.
+Page<void> _pushed(GoRouterState s, Widget child) =>
+    MaterialPage<void>(key: s.pageKey, child: child);
+
+/// The three tab roots switch in place, the way a tab bar does: no slide, and
+/// nothing behind them to swipe back to.
+Page<void> _tab(GoRouterState s, Widget child) =>
+    NoTransitionPage<void>(key: s.pageKey, child: child);
+
 GoRouter buildRouter({String initialLocation = '/'}) {
   return GoRouter(
     initialLocation: initialLocation,
@@ -27,33 +44,59 @@ GoRouter buildRouter({String initialLocation = '/'}) {
         builder: (context, state, child) =>
             AppShell(location: state.uri.path, child: child),
         routes: [
-          GoRoute(path: '/', builder: (_, _) => const HomeScreen()),
+          GoRoute(
+            path: '/',
+            pageBuilder: (_, s) => _tab(s, const HomeScreen()),
+          ),
           GoRoute(
             path: '/explore',
-            builder: (_, s) => ExploreScreen(
-              initialCategory: s.uri.queryParameters['category'],
-              initialQuery: s.uri.queryParameters['q'] ?? '',
+            pageBuilder: (_, s) => _tab(
+              s,
+              ExploreScreen(
+                initialCategory: s.uri.queryParameters['category'],
+                initialQuery: s.uri.queryParameters['q'] ?? '',
+              ),
             ),
           ),
           GoRoute(
             path: '/search',
-            builder: (_, s) =>
-                SearchScreen(initialQuery: s.uri.queryParameters['q'] ?? ''),
+            pageBuilder: (_, s) => _tab(
+              s,
+              SearchScreen(initialQuery: s.uri.queryParameters['q'] ?? ''),
+            ),
           ),
-          GoRoute(path: '/find', builder: (_, _) => const FindScreen()),
-          GoRoute(path: '/salem', builder: (_, _) => const SalemScreen()),
-          GoRoute(path: '/about', builder: (_, _) => const AboutScreen()),
-          GoRoute(path: '/privacy', builder: (_, _) => const PrivacyScreen()),
-          GoRoute(path: '/add', builder: (_, _) => const AddScreen()),
+          GoRoute(
+            path: '/find',
+            pageBuilder: (_, s) => _pushed(s, const FindScreen()),
+          ),
+          GoRoute(
+            path: '/salem',
+            pageBuilder: (_, s) => _pushed(s, const SalemScreen()),
+          ),
+          GoRoute(
+            path: '/about',
+            pageBuilder: (_, s) => _pushed(s, const AboutScreen()),
+          ),
+          GoRoute(
+            path: '/privacy',
+            pageBuilder: (_, s) => _pushed(s, const PrivacyScreen()),
+          ),
+          GoRoute(
+            path: '/add',
+            pageBuilder: (_, s) => _pushed(s, const AddScreen()),
+          ),
           GoRoute(
             path: '/places/:slug',
             // An unknown slug is the site's 404, not a blank screen.
             redirect: (_, s) => getPlace(s.pathParameters['slug'] ?? '') == null
                 ? '/404'
                 : null,
-            builder: (_, s) => PlaceDetailScreen(
-              place: getPlace(s.pathParameters['slug']!)!,
-              invite: readInvite(s.uri.query),
+            pageBuilder: (_, s) => _pushed(
+              s,
+              PlaceDetailScreen(
+                place: getPlace(s.pathParameters['slug']!)!,
+                invite: readInvite(s.uri.query),
+              ),
             ),
           ),
           GoRoute(path: '/404', builder: (_, _) => const NotFoundScreen()),

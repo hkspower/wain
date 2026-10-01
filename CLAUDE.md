@@ -4507,6 +4507,54 @@ Capacitor SPM platforms line (`patch-ios-project.mjs`, raise-only, read back;
 the template ships 15 in four places), the Flutter Runner and
 `MinimumOSVersion`. «Latest» is CI's `macos-latest` SDK. No Xcode here.
 
+## Real iOS tests for the Flutter app — 1 October
+
+Asked for «real test for app ios», both kinds: the Simulator, and TestFlight on
+the owner's own iPhone. `.github/workflows/ios-flutter.yml`, dispatch-only;
+owner setup and the on-phone checklist in `flutter_app/docs/ios-testflight.md`.
+
+- **Simulator job** (×2: the newest «iPhone N Pro» and the smallest iPhone on the
+  runner, picked by `scripts/pick-ios-simulator.mjs` because device names move
+  with every runner image; `npm run test:ios-sim`). `flutter drive` of
+  `flutter_app/integration_test/app_test.dart`: real engine, real plugins, real
+  tiles, screenshots uploaded. **It never agrees to the AI consent and never
+  places a call** — either opens a recorded, paid ElevenLabs conversation from a
+  runner with nobody on the line.
+- **TestFlight job**: needs `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8_BASE64`
+  and the `APPLE_TEAM_ID` variable; archives with automatic cloud-managed
+  signing through the API key (role Admin) and exports with `destination:
+  upload`. Build number = run number. Internal-testing-only builds.
+
+**The first thing it found was real, and it was on every iPhone: there was no
+way back from a pushed screen.** go_router fell back to `NoTransitionPage` for
+every route (its WidgetsApp branch), which carries no back gesture, and an
+iPhone has no back button — a place opened from search could be left only by
+its breadcrumb. Pushed routes are `MaterialPage` now (Cupertino slide and the
+edge swipe on iOS — from the RIGHT edge, the app being RTL), tab roots stay
+`NoTransitionPage` explicitly. Two widget tests in `app_smoke_test.dart` hold
+it, red against the old router (2 failed) and green with the fix. Found by
+running the integration flows under the test host with the iOS platform
+override, which is the most of this suite that can run without a Mac (6/6).
+
+**`permission_handler_apple` compiles each permission in only when it is switched
+on at build time**, and compiled out it answers «denied» forever — so a build
+that missed it would tell every caller their microphone is blocked. Under
+SwiftPM (Flutter 3.47's default) its manifest enables what the app's
+Info.plist declares; under CocoaPods nothing does unless the Podfile sets
+`PERMISSION_MICROPHONE=1`. Both CI jobs check the built app for the
+`AudioVideoPermissionStrategy` class, and the simulator reads back a
+`simctl privacy` grant. Not run yet when written.
+
+**`NSCameraUsageDescription` was added, and it says the app never opens the
+camera.** flutter_webrtc (under livekit, under `elevenlabs_agents`) calls
+`AVCaptureDevice` in its own sources, and a binary that references the camera
+without the key is turned «Invalid» after upload (ITMS-90683).
+`ios_target_test.dart` now holds that, the microphone string, export
+compliance, an alpha-free store icon and the one bundle id.
+
+**Not verified by anything here**: the workflow itself (no Mac), cloud signing
+with an API key, the upload, and every on-phone check in the doc.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*

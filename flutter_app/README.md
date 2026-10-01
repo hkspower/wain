@@ -122,6 +122,11 @@ test suite, and `flutter build web` — served and driven with Chromium at 390px
 * `ios/Runner/PrivacyInfo.xcprivacy` was added to the Xcode target by editing
   `project.pbxproj` with anchored inserts; Xcode has not opened it.
 
+**Testing on iOS for real** — the Simulator suite (`integration_test/`) and
+TestFlight to your own iPhone — is `.github/workflows/ios-flutter.yml`; the
+Apple-side setup and what to check on the phone are in
+[`docs/ios-testflight.md`](docs/ios-testflight.md).
+
 ## Identity
 
 `applicationId` / bundle id is **`com.wainkw.app`** — the Capacitor wrapper's

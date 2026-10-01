@@ -75,6 +75,7 @@
     "icon:app": "node scripts/gen-app-icon.mjs",
     "ios:patch": "node scripts/patch-ios-project.mjs",
     "test:ios": "node tests/ios-project.test.mjs",
+    "test:ios-sim": "node tests/pick-ios-simulator.test.mjs",
     "audit:ios": "node scripts/audit-ios.mjs",
     "pdf:search": "node scripts/gen-search-pdf.mjs",
     "content": "node scripts/gen-content.mjs",

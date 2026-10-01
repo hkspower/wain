@@ -66,6 +66,8 @@
 	</array>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>عشان تتكلم مع شوق وتسألها وين تطلع.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>وين ما يفتح الكاميرا أبداً. مكتبة الاتصال اللي تشغّل مكالمة شوق تدعم الفيديو، وأبل تطلب هالسطر عشانها.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>CFBundleLocalizations</key>
