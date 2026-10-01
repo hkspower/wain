@@ -77,6 +77,11 @@
 	<string>وين ما يفتح الكاميرا أبداً. مكتبة الاتصال اللي تشغّل مكالمة شوق تدعم الفيديو، وأبل تطلب هالسطر عشانها.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<!-- Links are app_links' to route (app/deep_link.dart), not Flutter's
+	     own deep linking too: with both on, one link reached the router twice,
+	     the second time un-normalised. -->
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
 	<key>CFBundleLocalizations</key>
 	<array>
 		<string>ar</string>

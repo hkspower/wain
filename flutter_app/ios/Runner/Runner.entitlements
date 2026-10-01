@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- A forwarded wainkw.com/places/… link opens the app (universal links).
+	     iOS confirms each domain against /.well-known/apple-app-site-association,
+	     written by scripts/gen-app-links.mjs from the Team ID; until that file
+	     is published, the link opens Safari exactly as before. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:www.wainkw.com</string>
+		<string>applinks:wainkw.com</string>
+	</array>
+</dict>
+</plist>

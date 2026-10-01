@@ -17,6 +17,33 @@ void main() {
     expect(targets.toSet(), {'16.0'}, reason: '$targets');
   });
 
+  test(
+    'universal links: both hosts, wired into every Runner configuration',
+    () {
+      final ent = File('ios/Runner/Runner.entitlements').readAsStringSync();
+      expect(
+        ent,
+        contains('<key>com.apple.developer.associated-domains</key>'),
+      );
+      expect(ent, contains('<string>applinks:www.wainkw.com</string>'));
+      expect(ent, contains('<string>applinks:wainkw.com</string>'));
+      final pbx = File('ios/Runner.xcodeproj/project.pbxproj')
+          .readAsStringSync();
+      expect(
+        'CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;'
+            .allMatches(pbx)
+            .length,
+        'INFOPLIST_FILE = Runner/Info.plist;'.allMatches(pbx).length,
+      );
+      final plist = File('ios/Runner/Info.plist').readAsStringSync();
+      expect(
+        RegExp(r'<key>FlutterDeepLinkingEnabled</key>\s*<false/>')
+            .hasMatch(plist),
+        isTrue,
+      );
+    },
+  );
+
   test('and the framework plist agrees', () {
     final plist = File('ios/Flutter/AppFrameworkInfo.plist').readAsStringSync();
     expect(

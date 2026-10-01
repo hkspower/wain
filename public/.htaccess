@@ -279,6 +279,15 @@ Options -Indexes
   AddType image/svg+xml .svg
 </IfModule>
 
+# iOS fetches /.well-known/apple-app-site-association to decide whether a
+# wainkw.com link opens the app, and refuses it unless it comes back as JSON.
+# It has no extension, so nothing above can type it. Written by
+# scripts/gen-app-links.mjs only once the owner's Team ID is set; until then
+# the file does not exist and this block matches nothing.
+<Files "apple-app-site-association">
+  ForceType application/json
+</Files>
+
 # ---------------------------------------------------------------------------
 # Baseline security headers
 # ---------------------------------------------------------------------------

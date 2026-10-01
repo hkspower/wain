@@ -113,3 +113,9 @@ wainkw-search.pdf
 # local file would silently widen it for one machine, which is the opposite of
 # what a checked-in allowlist is for.
 /.claude/settings.local.json
+
+# Shared-link files, written by scripts/gen-app-links.mjs from the owner's
+# Team ID and signing fingerprint (output, and a build step that writes into
+# public/ must not dirty the tree the deploy asserts is clean).
+public/.well-known/apple-app-site-association
+public/.well-known/assetlinks.json

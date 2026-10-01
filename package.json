@@ -73,6 +73,8 @@
     "design:boards": "node scripts/gen-theme-boards.mjs",
     "design:boards:check": "node scripts/gen-theme-boards.mjs --check",
     "icon:app": "node scripts/gen-app-icon.mjs",
+    "app:links": "node scripts/gen-app-links.mjs",
+    "test:app-links": "node tests/app-links.test.mjs",
     "ios:patch": "node scripts/patch-ios-project.mjs",
     "test:ios": "node tests/ios-project.test.mjs",
     "test:ios-sim": "node tests/pick-ios-simulator.test.mjs",

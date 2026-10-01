@@ -47,15 +47,22 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- A «رسّلها للربع» link opens the place in the app. NOT autoVerify:
-                 verification needs /.well-known/assetlinks.json on the site, which
-                 is not published, so Android offers "open with" instead. -->
-            <intent-filter>
+            <!-- A «رسّلها للربع» link opens the place in the app. autoVerify:
+                 Android checks /.well-known/assetlinks.json (written by
+                 scripts/gen-app-links.mjs from the signing fingerprint); until
+                 the site serves it, Android 12+ opens the browser, which is
+                 what an unverified link already did. Both hosts, because a
+                 link shared without the www is just as likely. -->
+            <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="https" android:host="www.wainkw.com" android:pathPrefix="/places/"/>
+                <data android:scheme="https" android:host="wainkw.com" android:pathPrefix="/places/"/>
             </intent-filter>
+            <!-- app_links routes links (app/deep_link.dart); Flutter's own deep
+                 linking would hand the same link to the router a second time. -->
+            <meta-data android:name="flutter_deeplinking_enabled" android:value="false" />
         </activity>
         <service
             android:name=".CallService"
