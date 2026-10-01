@@ -1,0 +1,10 @@
+/* ONE OUTLINE BUTTON — 2026-10-01, the owner's choice ("one outline button style"). The
+ * bundle draws its secondary buttons as `.btn.btn-ghost` and colours them by a text
+ * utility: `text-accent` (Buy now, Show 12 more) came out silver, `text-brand-dark` (the
+ * 404's "Back to shop") came out orange — two looks for one kind of button. Silver is the
+ * one most of them already had, so the orange outline takes it: the text and the border
+ * (which the bundle draws in currentColor) both. */
+[data-theme] .btn.btn-ghost[class~="text-brand-dark"] {
+  color: var(--sp-silver, #b7bdc4) !important;
+  border-color: var(--sp-silver, #b7bdc4) !important;
+}

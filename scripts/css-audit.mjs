@@ -243,7 +243,10 @@ for (const path of PAGES) {
         + 'h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:text-3xl"], '
         // The write fields (48-soft-silver-fields.css) are soft silver with dark ink on purpose,
         // so the dark sheet's claims about .bg-white / .border-* are sampled on a non-field.
-        + 'input, textarea, select'
+        + 'input, textarea, select, '
+        // Every page title is white with the orange bar since 2026-10-01, the owner's "one
+        // style" (58-page-titles.css), so /shop's .text-slate-900 h1 is sampled elsewhere.
+        + 'main h1'
       let el
       try { el = [...document.querySelectorAll(sel)].find((e) => !e.matches(OVERRIDDEN)) } catch { continue }
       if (!el) continue

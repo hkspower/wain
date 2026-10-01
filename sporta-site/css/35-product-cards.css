@@ -86,7 +86,7 @@ main article h3[class~="line-clamp-1"] {
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
-  color: var(--sp-silver, #a6acb2);
+  color: var(--sp-silver, #b7bdc4);
   text-transform: uppercase;
 }
 /* Latin only: tracking breaks Arabic's joined letters (see 14-hero-haze-and-type.css). */

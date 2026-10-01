@@ -25,8 +25,9 @@
  * button on a grey page is a button a shopper has to look for, and it is
  * still the owner's colour to choose. */
 :root[data-theme='dark'] {
-  --sp-accent: #d4d7db;
-  --sp-accent-dim: #9aa0a7;
+  /* FEWER GREYS (2026-10-01): the accent is the text colour itself, not a fifth
+     light grey 3% away from it (#d4d7db beside #dbdfe4). The unused -dim shade is gone. */
+  --sp-accent: var(--sp-text, #dbdfe4);
   /* Headings' underline bars, focus rings and every other decorative use of
      the bright brand read this; the button fill reads --sp-ember-fill. */
   --sp-ember: var(--sp-accent);

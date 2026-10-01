@@ -118,7 +118,7 @@ main div.grid > article > a[data-sporta-sale] > span[class~="bg-brand"] {
   filter: drop-shadow(0 0 2px rgba(0, 0, 0, .9));
 }
 [data-theme] main div.grid > article > a[class*="aspect-"] > img:not([src^="data:"]) ~ button[aria-pressed] > svg {
-  color: #101216;
+  color: #171a1e;   /* the one dark ink */
   filter: drop-shadow(0 0 2px rgba(255, 255, 255, .9));
 }
 [data-theme] main div.grid > article > a[class*="aspect-"] > button:not([aria-pressed]) {
@@ -175,7 +175,7 @@ main article .brand-chip-inline {
 main article .sporta-brand-name {
   font-size: 11px;
   line-height: 1;
-  color: #a3a9b1;
+  color: var(--sp-silver, #b7bdc4);   /* the secondary grey (fewer greys, 2026-10-01) */
   unicode-bidi: plaintext;
 }
 main article .sporta-card-colour {
@@ -184,7 +184,7 @@ main article .sporta-card-colour {
   gap: 6px;
   font-size: 12px;
   line-height: 1.2;
-  color: #b9bfc6;
+  color: var(--sp-silver, #b7bdc4);   /* the secondary grey, not a sixth one (fewer greys, 2026-10-01) */
   text-align: left;
   unicode-bidi: plaintext;
 }

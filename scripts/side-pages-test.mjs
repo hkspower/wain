@@ -7,7 +7,9 @@ const b = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/o
 const SIDE = ['/about', '/contact', '/returns', '/track', '/terms', '/privacy']
 for (const [name, vp, touch] of [['phone', { width: 390, height: 844 }, true], ['desktop', { width: 1280, height: 800 }, false]]) {
   for (const lang of ['en', 'ar']) {
-    const h1px = lang === 'ar' ? '26px' : '25px'
+    // one title style everywhere since 2026-10-01, the owner's choice (58-page-titles.css):
+    // 26px on a phone and 30px from 768px, the same in both languages
+    const h1px = name === 'phone' ? '26px' : '30px'
     const sizes = new Set()
     for (const path of SIDE) {
       const p = await (await b.newContext({ viewport: vp, hasTouch: touch, isMobile: touch })).newPage()
@@ -44,14 +46,16 @@ for (const [name, vp, touch] of [['phone', { width: 390, height: 844 }, true], [
     check(top >= 56 && top <= 110, `${u}: the heading lands just under the header`, `${top}px`)
   }
 }
-// not a side page: nothing changed there
+// Not side pages, and the SAME title since 2026-10-01. This used to assert the opposite: the
+// side-page bar stayed on the side pages. The owner then chose one title style for the whole shop
+// ("One style, orange bar"), so the shop and the product page now wear it too, and
+// theme-unity-test.mjs checks all nine titles together.
 {
   const p = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage()
-  // /cart and an empty /checkout share the title since 2026-10-01 (57-utility-pages.css)
   for (const u of ['/shop', '/product/vanquish-tank-navy']) {
     await p.goto(`${BASE}${u}`, { waitUntil: 'networkidle' }); await p.waitForTimeout(1200)
-    const r = await p.evaluate(() => { const h = document.querySelector('main h1'); return h ? getComputedStyle(h, '::after').width : 'no-h1' })
-    check(r !== '56px', `${u}: its title does not get the side-page bar`, r)
+    const r = await p.evaluate(() => { const h = document.querySelector('main h1'); if (!h) return 'no-h1'; const a = getComputedStyle(h, '::after'); return a.width + 'x' + a.height + ' ' + getComputedStyle(h).fontSize })
+    check(r === '56pxx4px 26px', `${u}: its title wears the same bar and size as the side pages`, r)
   }
 }
 await b.close()

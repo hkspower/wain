@@ -26,7 +26,7 @@ main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"
 main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h1[class~="text-3xl"][class~="font-extrabold"] {
   font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
   font-weight: 700 !important;
-  font-size: 25px !important;
+  font-size: 26px !important;   /* one page-title style (58-page-titles.css): 26px, 30px from 768px */
   line-height: 1.3 !important;
   letter-spacing: 0 !important;
   color: #ffffff !important;
@@ -35,7 +35,9 @@ main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"
   padding-bottom: 16px;
   position: relative;
 }
-html[lang="ar"] main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h1[class~="text-3xl"][class~="font-extrabold"] { font-size: 26px !important; }
+@media (min-width: 768px) {
+  main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h1[class~="text-3xl"][class~="font-extrabold"] { font-size: 30px !important; }
+}
 main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h1[class~="text-3xl"][class~="font-extrabold"]::after {
   content: "";
   position: absolute;
@@ -61,7 +63,7 @@ main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"
 main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) :is(p, li) {
   max-width: 68ch;
 }
-main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) :is(p, li)[class*="text-slate-600"] { color: #c9ced4; }
+main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) :is(p, li)[class*="text-slate-600"] { color: var(--sp-text, #dbdfe4); }
 /* FAQ rows: a real target, and a cue that they open */
 main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) details > summary {
   display: flex !important;

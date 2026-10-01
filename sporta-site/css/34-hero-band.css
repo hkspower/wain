@@ -76,7 +76,7 @@ section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640p
   overflow: hidden;
   text-overflow: ellipsis;
   filter: none !important;          /* drop-shadow was for text on a photo */
-  color: var(--sp-text, #eaecee) !important;  /* pure white on the band's #000 is 21:1; test:glare caps dark pages at 18 */
+  color: var(--sp-text, #dbdfe4) !important;  /* pure white on the band's #000 is 21:1; test:glare caps dark pages at 18 */
 }
 section[aria-roledescription="carousel"] [class~="md:min-h-[var(--hero-h-md,640px)]"] p:not(.display-title) {
   grid-column: 1;

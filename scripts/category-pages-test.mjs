@@ -37,7 +37,12 @@ for (const slug of SLUGS) {
   // /shop specifically, and this rig makes sure nothing here grew a control
   // that narrows the OTHER pages by accident (aria-pressed is the marker
   // used for exactly this elsewhere in the project).
-  check(!body.includes('aria-pressed'), `/${slug} has no filter control of its own`)
+  // Since 2026-10-01 the cards are the /shop card, and its wishlist heart is a toggle
+  // (aria-pressed) — that is not a filter, so a pressed-state control is allowed only when
+  // it IS the heart (data-sporta-heart). Anything else toggleable fails as before.
+  const toggles = body.match(/<button[^>]*aria-pressed[^>]*>/g) || []
+  const notHearts = toggles.filter((t) => !t.includes('data-sporta-heart'))
+  check(notHearts.length === 0, `/${slug} has no filter control of its own`, notHearts.slice(0, 2).join(' '))
 }
 
 // A category page's own nav must offer the OTHER three — otherwise a shopper
@@ -72,7 +77,7 @@ for (const slug of SLUGS) {
 {
   const { status, body } = await get('/outlet')
   check(status === 200, '/outlet (currently empty) still answers 200')
-  check(body.includes('class="empty"') || /\d+ (product|منتج)/.test(body),
+  check(body.includes('class="cp-empty"') || /\d+ (product|منتج)/.test(body),
     '/outlet shows either an empty-state message or a real count, never neither')
   check(!body.includes('href="/shop'), '/outlet\'s empty state does not fall back to /shop either')
   check(body.includes('href="/men') && body.includes('href="/women') && body.includes('href="/accessories'),

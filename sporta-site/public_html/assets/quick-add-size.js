@@ -347,7 +347,10 @@
           own = true
         }
         if (!host) continue                                     /* a text link, not a card */
-        if (a.querySelector('button[aria-label^="Add"], button[aria-label^="أضف"]')) continue /* a button is already there */
+        /* A button is already there — but never count the wishlist heart: in Arabic its label is
+           "أضف إلى المفضلة", which starts with the same word as "أضف — <name>", and on the cards
+           this script draws for (home, category pages) that made every Arabic card look done. */
+        if (a.querySelector('button:not([aria-pressed])[aria-label^="Add"], button:not([aria-pressed])[aria-label^="أضف"]')) continue
 
         var m = /\/product\/([^/?#]+)/.exec(a.getAttribute('href') || '')
         var slug = m ? decodeURIComponent(m[1]) : null
@@ -410,7 +413,11 @@
     + 'background:var(--sp-cta,#f56315);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}'
     + '.qas-btn--own:hover{background:var(--brand-bright,#ff7b17)}'
     /* the size chooser covers the bottom of the photo; the + would sit on top of its pills */
-    + '[data-qas-open]>.qas-btn--own{visibility:hidden}'
+    /* WHILE THE CHOOSER IS OPEN THE + STEPS ASIDE, on every card (2026-10-01). Since the + sits
+       beside the price (the /shop card everywhere) the chooser opens over it, and in Arabic the
+       first size lands exactly under it: the + (z-index 21) took the tap and that size could not
+       be chosen. The chooser has its own close button, so nothing is lost. */
+    + '[data-qas-open]>.qas-btn{visibility:hidden}'
     + '.qas-btn--own:focus-visible{outline:2px solid #fff;outline-offset:2px}'
     /* THE BUNDLE NOW DRAWS ITS OWN "Choose size" BUTTON on these cards, in the
        same bottom-end corner. The header above predates it. The button above

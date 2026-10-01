@@ -20,8 +20,9 @@ const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH 
 
 const grids = [
   ['home Best sellers', '/', '.sporta-home-products__card', '.sporta-home-products__frame'],
-  ['category /men', '/men', 'a.card', '.frame'],
-  ['category /women', '/women', 'a.card', '.frame'],
+  // the category pages draw the /shop card since 2026-10-01: the photo link is the host
+  ['category /men', '/men', 'main div.grid > article', 'main div.grid > article > a[class*="aspect-"]'],
+  ['category /women', '/women', 'main div.grid > article', 'main div.grid > article > a[class*="aspect-"]'],
 ]
 for (const lang of ['en', 'ar']) for (const [name, path, cardSel, frameSel] of grids) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
@@ -114,7 +115,7 @@ for (const lang of ['en', 'ar']) for (const [name, path, cardSel, frameSel] of g
   await p.goto(`${BASE}/men?lang=en`); await p.waitForTimeout(3500)
   const stock = await (await fetch(`${BASE}/api/api.php?r=stock`)).json()
   const inStock = new Set(stock.filter((r) => r.in_stock).map((r) => r.slug))
-  const withBtn = await p.evaluate(() => [...document.querySelectorAll('a.card')].map((a) => [a.getAttribute('href').match(/\/product\/([^/?#]+)/)[1], !!a.querySelector('button.qas-btn')]))
+  const withBtn = await p.evaluate(() => [...document.querySelectorAll('main div.grid > article > a[class*="aspect-"]')].map((a) => [a.getAttribute('href').match(/\/product\/([^/?#]+)/)[1], !!a.querySelector('button.qas-btn')]))
   const wrong = withBtn.filter(([slug, has]) => has !== inStock.has(decodeURIComponent(slug)))
   check(withBtn.length > 0 && wrong.length === 0, 'a button exactly where something is in stock — none on a sold-out garment', JSON.stringify(wrong.slice(0, 3)))
   await ctx.close()

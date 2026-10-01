@@ -17,7 +17,9 @@ for (const [name, vp, touch] of [['phone', { width: 390, height: 844 }, true], [
     for (const [label, path, sel] of [
       ['shop card', '/shop', 'article > a[class*="aspect-"]'],
       ['home best seller', '/', '.sporta-home-products__frame'],
-      ['category card', '/men', 'a.card .frame'],
+      // the category pages draw the /shop card since 2026-10-01 ("one card everywhere"), so
+      // their photo box is the shop's: the card's photo link
+      ['category card', '/men', 'main div.grid > article > a[class*="aspect-"]'],
     ]) { await p.goto(`${BASE}${path}?lang=${lang}`, { waitUntil: 'networkidle' }); await p.waitForTimeout(1800); await grab(label, sel) }
     await p.goto(`${BASE}/product/cheetahs-rugby-t-shirt?lang=${lang}`, { waitUntil: 'networkidle' }); await p.waitForTimeout(2000)
     await grab('product gallery', 'main [class*="aspect-[4/5]"], main .gallery, main img[class*="object-cover"]:not([class*="h-16"])')
@@ -33,7 +35,10 @@ for (const [name, vp, touch] of [['phone', { width: 390, height: 844 }, true], [
       const bad = rs.filter((r) => Math.abs(ratio(r) - 0.8) > 0.02)
       check(bad.length === 0, `${name} ${lang} ${label}: ${rs.length} photo box(es) all 4:5`, bad.slice(0, 2).map((r) => `${Math.round(r.w)}x${Math.round(r.h)}=${ratio(r).toFixed(2)}`).join(' '))
     }
-    check(['shop card', 'home best seller', 'category card', 'bag drawer thumbnail'].every((k) => found[k]), `${name} ${lang}: every kind of photo box was found (a missing one is not a pass)`, Object.keys(found).join(', '))
+    // name what is MISSING: this used to print what was found, and a list of six kinds that
+    // were there hid the one that was not
+    const missing = ['shop card', 'home best seller', 'category card', 'bag drawer thumbnail'].filter((k) => !found[k])
+    check(missing.length === 0, `${name} ${lang}: every kind of photo box was found (a missing one is not a pass)`, missing.length ? 'missing: ' + missing.join(', ') : '')
     await ctx.close()
   }
 }

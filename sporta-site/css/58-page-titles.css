@@ -1,0 +1,49 @@
+/* ONE PAGE-TITLE STYLE — 2026-10-01, the owner's choice ("one style, orange bar") out of
+ * four rendered options. The scan that prompted it measured six title sizes on desktop
+ * (24, 25, 25.2, 28, 29.4, 30px) in two faces: Anton on the product name, the checkout and
+ * the 404, Alexandria with an orange bar on the side pages, the bag and the wishlist.
+ *
+ * Now every page title is the side pages' style: Alexandria 700, 26px on a phone and 30px
+ * from 768px, white, with the 56x4 orange bar under it — centred under a centred title
+ * (the product name, the 404). The side pages (53-), the empty bag and wishlist (57-) and
+ * the category pages (category.php) already state it in their own files; this states it
+ * for the three that had their own:
+ *   the product name   h1.product-title
+ *   the checkout       h1.text-3xl.font-extrabold   (and Shop's, when a search titles it)
+ *   the 404            h1.text-2xl.font-extrabold
+ *
+ * NOT the invoice. Its title is `font-display text-2xl font-extrabold`, and the invoice is
+ * printed: white ink on its white page would print nothing. :not(.font-display) keeps it
+ * out, and the panel's titles are text-2xl font-BOLD, which this does not name. */
+main h1:is(.product-title, [class~="text-3xl"][class~="font-extrabold"], [class~="text-2xl"][class~="font-extrabold"]):not(.font-display) {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 26px !important;
+  line-height: 1.3 !important;
+  letter-spacing: 0 !important;
+  color: #ffffff !important;
+  position: relative;
+  padding-bottom: 16px !important;
+}
+@media (min-width: 768px) {
+  main h1:is(.product-title, [class~="text-3xl"][class~="font-extrabold"], [class~="text-2xl"][class~="font-extrabold"]):not(.font-display) {
+    font-size: 30px !important;
+  }
+}
+main h1:is(.product-title, [class~="text-3xl"][class~="font-extrabold"], [class~="text-2xl"][class~="font-extrabold"]):not(.font-display)::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  inset-inline-start: 0;
+  width: 56px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--brand, #e0561c);
+}
+/* Centred titles get a centred bar. The product name's selector repeats the rule above
+   plus its own class, because a plain `h1.product-title::after` is LESS specific than that
+   rule and lost to it (measured: the bar sat at the start under a centred name). */
+main h1:is(.product-title, [class~="text-3xl"][class~="font-extrabold"], [class~="text-2xl"][class~="font-extrabold"]):not(.font-display).product-title::after,
+main [class~="items-center"][class~="flex-col"] > h1[class~="text-2xl"]::after {
+  inset-inline-start: calc(50% - 28px);
+}

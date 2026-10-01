@@ -47,71 +47,9 @@
   background: #ff7b17;
   background: var(--sp-ember, var(--brand-bright, #ff7b17));
 }
-.sporta-home-products__grid {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(2, 1fr);
-}
-@media (min-width: 640px) {
-  .sporta-home-products__grid { grid-template-columns: repeat(3, 1fr); }
-}
-@media (min-width: 1024px) {
-  .sporta-home-products__grid { grid-template-columns: repeat(4, 1fr); gap: 22px; }
-}
-.sporta-home-products__card {
-  display: flex;
-  flex-direction: column;
-  background: #1e2124;
-  border: 1px solid #3a3e43;
-  border-radius: 12px;
-  overflow: hidden;
-  text-decoration: none;
-  transition: transform 200ms ease-out;
-}
-.sporta-home-products__card:hover {
-  transform: translateY(-2px);
-}
-.sporta-home-products__frame {
-  position: relative;
-  aspect-ratio: 4 / 5;
-  background: #1a1d20;
-  overflow: hidden;
-}
-.sporta-home-products__frame img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.sporta-home-products__body {
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-}
-.sporta-home-products__name {
-  font-weight: 700;
-  font-size: 0.92rem;
-  color: #fff;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  min-height: 2.4em;
-}
-.sporta-home-products__price {
-  margin-top: auto;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.sporta-home-products__price b {
-  font-size: 1rem;
-  color: #fff;
-}
-.sporta-home-products__price s {
-  color: #a6acb2;
-  font-size: 0.82rem;
-}
 
+/* THE CARDS ARE THE /shop CARD since 2026-10-01 (home-products.js builds the bundle's
+ * own markup), so 44-product-grid-spec.css and its neighbours draw them. The grid,
+ * card, frame, body, name and price rules that lived here drew a third design and
+ * would now fight that one (an unlayered .sporta-home-products__grid beats Tailwind's
+ * layered grid-cols-*), so they are gone. */

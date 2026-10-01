@@ -66,12 +66,12 @@
     var bag = null, cluster = null, cls = ''
     var all = document.querySelectorAll('header.app-header nav button')
     for (var i = 0; i < all.length; i++) { if (/^(Bag|الحقيبة)/.test(all[i].getAttribute('aria-label') || '')) { bag = all[i]; break } }
-    if (bag) { cluster = bag.parentElement; cls = bag.className }
-    else {
-      /* the server-drawn category pages (category.php) have their own header: a plain link to /cart */
-      bag = document.querySelector('header.top .icons a[href="/cart"]')
-      if (bag) cluster = bag.parentElement
+    if (!bag) {
+      /* The server-drawn category pages (category.php) wear the shop's header since 2026-10-01,
+         with the bag as a LINK to /cart rather than the bundle's button: same classes, same place. */
+      bag = document.querySelector('header.app-header nav a[href^="/cart"]')
     }
+    if (bag) { cluster = bag.parentElement; cls = bag.className }
     if (!bag || !cluster) return
     var existing = document.querySelector('[data-cua-btn]')
     if (existing && existing.parentElement === cluster) { refreshButton(); return }
