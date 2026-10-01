@@ -23,6 +23,10 @@
   the number is worth, and the sitemap it points at already stamps itself
   correctly.
 
+  sitemap-categories.xml (2026-10-01) lists the four category pages — /men, /women, /accessories,
+  /outlet — which no sitemap listed before. Like the products one it is generated from MySQL and
+  carries no lastmod here for the same reason.
+
   The pages entry keeps its lastmod because that one IS a static file, built at
   the same time as this, so the date is true for as long as both are.
 -->
@@ -30,6 +34,9 @@
   <sitemap>
     <loc>https://www.sporta.com.kw/sitemap-pages.xml</loc>
     <lastmod>2026-08-20T11:00:52.012Z</lastmod>
+  </sitemap>
+  <sitemap>
+    <loc>https://www.sporta.com.kw/sitemap-categories.xml</loc>
   </sitemap>
   <sitemap>
     <loc>https://www.sporta.com.kw/sitemap-products.xml</loc>

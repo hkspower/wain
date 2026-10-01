@@ -226,6 +226,11 @@ Options -Indexes
   RewriteCond %{DOCUMENT_ROOT}/api/sitemap-products.php -f
   RewriteRule ^sitemap-products\.xml$ /api/sitemap-products.php [L]
 
+  # The category pages' sitemap (2026-10-01) has NO static fallback — there is no file of that
+  # name — so the rewrite is all there is; without the PHP the URL simply falls through.
+  RewriteCond %{DOCUMENT_ROOT}/api/sitemap-categories.php -f
+  RewriteRule ^sitemap-categories\.xml$ /api/sitemap-categories.php [L]
+
   # LLMS.TXT IS GENERATED TOO, for the same reason and in the same place: the
   # static copy was hand-written and had drifted into promising same-day
   # delivery, no cash on delivery and an unlimited free return. api/llms.php

@@ -194,6 +194,8 @@ const viaPhp = (path) => {
   const r = spawnSync('curl', ['-s', '-m', '10', `${PHP}${path}`], { encoding: 'utf8' })
   return r.stdout ?? ''
 }
+// sitemap-<name>.xml is rewritten to api/sitemap-<name>.php; derive the PHP path from the child's own name
+const phpFor = (child) => `/api/${new URL(child).pathname.replace(/^\//, '').replace(/\.xml$/, '.php')}`
 
 const allUrls = []
 for (const child of children) {
@@ -204,7 +206,7 @@ for (const child of children) {
     // Confirm the rewrite fired — the source we got back must be the file the
     // rewrite names, not some other php. Then get the real answer.
     check(body.includes('sitemap'), `${child.replace(SITE, '')} is rewritten to PHP by .htaccess`)
-    body = viaPhp('/api/sitemap-products.php')
+    body = viaPhp(phpFor(child))
     how = ' (generated, fetched from the PHP sandbox)'
   }
   const urls = locs(body)
@@ -229,7 +231,7 @@ for (const child of children) {
   const claimed = stamp(index.body, child)
   if (!claimed) { note(`${child.replace(SITE, '')} carries no lastmod in the index — the crawler decides for itself`); continue }
   const r = get(child)
-  const body = r.body.trimStart().startsWith('<?php') ? viaPhp('/api/sitemap-products.php') : r.body
+  const body = r.body.trimStart().startsWith('<?php') ? viaPhp(phpFor(child)) : r.body
   const newest = [...body.matchAll(/<lastmod>\s*([^<\s]+)/g)].map((m) => Date.parse(m[1]))
     .filter(Number.isFinite).sort((a, b) => b - a)[0]
   if (newest === undefined) continue
@@ -253,6 +255,64 @@ check(blocked.length === 0,
     ? `${blocked.length} URL(s) are in a sitemap AND disallowed in robots.txt:\n       ` +
       blocked.slice(0, 5).map((x) => x.u).join('\n       ')
     : 'nothing is both submitted and blocked')
+
+// ------------------------------------------- 3b. pictures and category pages (2026-10-01)
+// GOOGLE'S RULE, as a crawler applies it: of the Allow and Disallow lines in the crawler's group
+// that match a path, the LONGEST wins, and an Allow beats a Disallow of equal length. Written out
+// here rather than reused from robots.txt so the file is judged by the rule, not by itself.
+const crawlable = (path, group) => {
+  let best = { len: -1, allow: true }
+  for (const r of group.rules) {
+    if (!r.val || !path.startsWith(r.val)) continue
+    const allow = r.key === 'allow'
+    if (r.val.length > best.len || (r.val.length === best.len && allow)) best = { len: r.val.length, allow }
+  }
+  return best.allow
+}
+const googlebot = groups.find((g) => g.agents.includes('Googlebot')) ?? wildcard
+const ptag = (child, tag) => [...(child.match(new RegExp(`<${tag}>\\s*([^<]+?)\\s*</${tag}>`, 'g')) ?? [])]
+const productsChild = children.find((c) => /sitemap-products/.test(c))
+const productsXml = productsChild ? (() => { const r = get(productsChild); return r.body.trimStart().startsWith('<?php') ? viaPhp(phpFor(productsChild)) : r.body })() : ''
+const imageLocs = [...productsXml.matchAll(/<image:loc>\s*([^<\s]+)\s*<\/image:loc>/g)].map((m) => m[1].replace(/&amp;/g, '&'))
+const photographed = Number(execFileSync('mariadb', ['-uroot', 'sporta', '-N', '-B', '-e',
+  'select count(distinct pi.slug) from product_images pi join products p on p.slug = pi.slug where p.active = 1'], { encoding: 'utf8' }).trim())
+if (photographed > 0) {
+  check(imageLocs.length >= photographed, `the product sitemap lists the photographs (${imageLocs.length} for ${photographed} photographed products)`)
+  const blockedPics = imageLocs.filter((u) => !crawlable(new URL(u).pathname + new URL(u).search, googlebot))
+  check(blockedPics.length === 0,
+    blockedPics.length ? `${blockedPics.length} listed photograph(s) are blocked for Googlebot by robots.txt: ${blockedPics[0]}`
+                       : 'every listed photograph is crawlable by Googlebot — the /api/ block has an exception for the image route')
+  const sample = imageLocs[0] ? viaPhp(new URL(imageLocs[0]).pathname + new URL(imageLocs[0]).search) : ''
+  check(sample.length > 100, 'and a listed photograph actually returns bytes', `${sample.length} bytes`)
+} else {
+  note('no product has a photograph in this database — the image-sitemap checks are skipped, not passed')
+}
+// every OTHER /api/ route must still be blocked: the exception is for pictures only
+for (const route of ['/api/api.php?r=products', '/api/api.php?r=stock', '/api/admin.php?r=me', '/api/api.php?r=order']) {
+  check(!crawlable(route, googlebot), `${route} is still blocked for Googlebot`)
+}
+for (const g of groups) {
+  const bad = ['/api/api.php?r=product_image&id=1', '/api/api.php?r=brand_logo&slug=x'].filter((u) => !crawlable(u, g))
+  if (bad.length) check(false, `group ${g.agents.join(',')} blocks the picture routes: ${bad.join(', ')}`)
+}
+check(groups.every((g) => crawlable('/api/api.php?r=product_image&id=1', g)), 'every group can fetch a product picture')
+
+// the category pages are listed, and only with something in them
+const catChild = children.find((c) => /sitemap-categories/.test(c))
+check(!!catChild, 'the index lists a category sitemap')
+if (catChild) {
+  const r = get(catChild)
+  const catXml = r.body.trimStart().startsWith('<?php') ? viaPhp(phpFor(catChild)) : r.body
+  const listedCats = new Set(locs(catXml).map((u) => new URL(u).pathname.replace(/^\//, '')).filter(Boolean))
+  const withProducts = execFileSync('mariadb', ['-uroot', 'sporta', '-N', '-B', '-e',
+    "select distinct category from products where active = 1 and category in ('men','women','accessories','outlet')"], { encoding: 'utf8' }).trim().split('\n').filter(Boolean)
+  const missingCats = withProducts.filter((c) => !listedCats.has(c))
+  check(missingCats.length === 0 && withProducts.length > 0, `every category that has a product is in the sitemap (${[...listedCats].join(', ')})`, missingCats.join(','))
+  const emptyListed = [...listedCats].filter((c) => !withProducts.includes(c))
+  check(emptyListed.length === 0, 'and a category with nothing in it is not submitted', emptyListed.join(','))
+  check(/hreflang="x-default"/.test(catXml) && /\?lang=en/.test(catXml), 'each category carries both language versions and x-default')
+  check(!/<lastmod>[^<]*(1970|0000)/.test(catXml), 'and no invented lastmod')
+}
 
 // ------------------------------------------------ 4. do the URLs answer 200
 console.log('\n--- what those URLs answer')

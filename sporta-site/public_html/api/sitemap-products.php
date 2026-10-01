@@ -44,6 +44,27 @@ $rows = $db->query(
     'select slug, created_at from products where active = 1 order by slug'
 )->fetchAll();
 
+// THE PHOTOGRAPHS, so Google Images and the shopping surfaces can find them. A product's pictures
+// are rows in product_images, served from api.php?r=product_image at a URL carrying the content
+// hash — the same URL the page's og:image and its JSON-LD already name (seo.php), so the sitemap
+// and the page cannot disagree about which picture is which. At most five per product (the
+// protocol allows 1,000; five is more than a card ever shows). robots.txt allows exactly that one
+// route under /api/ — without it the picture would be listed here and disallowed there, which
+// Search Console reports as "blocked by robots.txt".
+$pictures = [];
+try {
+    foreach ($db->query('select slug, id, image_hash from product_images order by slug, sort, id')->fetchAll() as $p) {
+        $slugP = (string) $p['slug'];
+        if (count($pictures[$slugP] ?? []) >= 5) continue;
+        $pictures[$slugP][] = SITEMAP_SITE . '/api/api.php?r=product_image&id=' . (int) $p['id']
+            . '&v=' . substr((string) $p['image_hash'], 0, 12);
+    }
+} catch (Throwable $e) { /* no table yet: a sitemap without pictures is still a sitemap */ }
+$names = [];
+foreach ($db->query('select slug, name_en, name_ar from products where active = 1')->fetchAll() as $n) {
+    $names[(string) $n['slug']] = [(string) $n['name_en'], (string) $n['name_ar']];
+}
+
 header('Content-Type: application/xml; charset=utf-8');
 // Half an hour. Long enough that a crawl does not hit the database repeatedly,
 // short enough that a product added in the admin is visible the same morning.
@@ -53,7 +74,8 @@ $esc = fn (string $s) => htmlspecialchars($s, ENT_XML1 | ENT_QUOTES, 'UTF-8');
 
 echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
 echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"' .
-     ' xmlns:xhtml="http://www.w3.org/1999/xhtml">' . "\n";
+     ' xmlns:xhtml="http://www.w3.org/1999/xhtml"' .
+     ' xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">' . "\n";
 
 foreach ($rows as $r) {
     $url = SITEMAP_SITE . '/product/' . rawurlencode((string) $r['slug']);
@@ -79,6 +101,12 @@ foreach ($rows as $r) {
         echo '    <xhtml:link rel="alternate" hreflang="ar" href="' . $esc($url) . "\"/>\n";
         echo '    <xhtml:link rel="alternate" hreflang="en" href="' . $esc($url . '?lang=en') . "\"/>\n";
         echo '    <xhtml:link rel="alternate" hreflang="x-default" href="' . $esc($url) . "\"/>\n";
+        foreach ($pictures[(string) $r['slug']] ?? [] as $pic) {
+            $title = $names[(string) $r['slug']][$loc === $url ? 1 : 0] ?? '';   // the page's own language
+            echo '    <image:image><image:loc>' . $esc($pic) . '</image:loc>'
+               . ($title !== '' ? '<image:title>' . $esc($title) . '</image:title>' : '')
+               . "</image:image>\n";
+        }
         echo "  </url>\n";
     }
 }
