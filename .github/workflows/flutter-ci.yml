@@ -182,8 +182,19 @@ jobs:
       - name: Grant the microphone to com.wainkw.app
         run: xcrun simctl privacy "${{ steps.sim.outputs.udid }}" grant microphone com.wainkw.app
 
+      # Built on its own, with its own clock, so a slow or stuck Xcode build
+      # is told apart from a stuck test: the first dispatch (run 36901958536)
+      # sat in one combined «flutter drive» step for over half an hour with no
+      # log to read until the job's own timeout ended it. The drive below
+      # reuses this build's cache.
+      - name: Build for the simulator (debug)
+        working-directory: flutter_app
+        timeout-minutes: 25
+        run: flutter build ios --simulator --debug --target=integration_test/app_test.dart
+
       - name: flutter drive (integration_test/app_test.dart)
         working-directory: flutter_app
+        timeout-minutes: 20
         env:
           SHOTS_DIR: build/shots/${{ matrix.kind }}
         run: |
