@@ -31,6 +31,7 @@
  * site's, and drifting from it the moment `PlaceCard` changed.
  */
 import type { Place } from "@/lib/places";
+import { reorderByReviews } from "@/lib/place-reviews";
 
 export interface SalemShowPlacesResult {
   /** What goes back to her as the tool result — the same phrasing pattern
@@ -48,10 +49,19 @@ export interface SalemShowPlacesResult {
  * gives: the engine belongs to a conversation that may never happen. */
 export interface SalemSearchHit {
   doc: { kind: string; id: string; title: string };
+  /** How well it matched — what `reorderByReviews` cuts its bands by. */
+  score: number;
 }
 
 export function formatShowPlaces(query: string, hits: SalemSearchHit[], places: Place[]): SalemShowPlacesResult {
-  const found = hits.filter((h) => h.doc.kind === "place");
+  // Among places the search found equally good, the one people rate clearly
+  // higher on Google is named first — see place-reviews.ts for what that
+  // rests on, and why it is ordered by and never quoted.
+  const found = reorderByReviews(
+    hits.filter((h) => h.doc.kind === "place"),
+    (h) => h.score,
+    (h) => h.doc.id.replace(/^place:/, "")
+  );
   const bySlug = new Set(places.map((p) => p.slug));
   const slugs = found
     .slice(0, 8)

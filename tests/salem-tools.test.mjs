@@ -35,7 +35,7 @@ const places = [
   { slug: "kuwait-towers", nameAr: "أبراج الكويت", category: "landmarks", areaAr: "الخليج العربي", taglineAr: "رمز الكويت الشهير" },
   { slug: "souq-al-mubarakiya", nameAr: "سوق المباركية", category: "shopping", areaAr: "مدينة الكويت", taglineAr: "سوق تراثي بقلب العاصمة" },
 ];
-const hit = (slug, title) => ({ doc: { kind: "place", id: `place:${slug}`, title } });
+const hit = (slug, title, score = 1) => ({ doc: { kind: "place", id: `place:${slug}`, title }, score });
 
 console.log("\n── formatShowPlaces: no matches ──");
 {
@@ -71,7 +71,7 @@ console.log("\n── formatShowPlaces: non-place hits do not become slugs ─�
   // formatShowPlaces filters to `kind === "place"` first, so a result made
   // only of non-place hits reads exactly like no match at all, correctly:
   // there is nothing here for a card to link to.
-  const r = formatShowPlaces("q", [{ doc: { kind: "action", id: "action:call", title: "كلّم شوق" } }], places);
+  const r = formatShowPlaces("q", [{ doc: { kind: "action", id: "action:call", title: "كلّم شوق" }, score: 1 }], places);
   ok("an action hit does not become a slug", r.slugs.length === 0);
   ok("reads as no match, since nothing place-shaped was found", r.spoken.includes("ما لقيت ولا مكان"), r.spoken);
 }
@@ -93,6 +93,43 @@ console.log("\n── formatShowPlaces: caps at 8 slugs ──");
   const hits = many.map((p) => hit(p.slug, p.nameAr));
   const r = formatShowPlaces("q", hits, many);
   ok("at most 8 slugs", r.slugs.length === 8, String(r.slugs.length));
+}
+
+console.log("\n── formatShowPlaces: among equal matches, the better reviewed is named first ──");
+{
+  /* The figures are secondhand Google ratings (lib/place-reviews.ts): the zoo
+     3.9 from 5,876 reviews, the science centre 4.4 from 5,186. They may decide
+     between matches the search found equally good, and nothing else — so each
+     case below is one of the things they must NOT do, beside the one they do. */
+  const fam = [
+    { slug: "kuwait-zoo", nameAr: "حديقة حيوان الكويت", category: "family", areaAr: "العمرية", taglineAr: "" },
+    { slug: "kuwait-science-centre", nameAr: "المركز العلمي", category: "family", areaAr: "السالمية", taglineAr: "" },
+    { slug: "the-avenues", nameAr: "الأفنيوز", category: "shopping", areaAr: "الري", taglineAr: "" },
+  ];
+  const near = formatShowPlaces("عيال", [hit("kuwait-zoo", "حديقة حيوان الكويت", 1), hit("kuwait-science-centre", "المركز العلمي", 0.95)], fam);
+  ok("between two near-equal matches, the clearly better reviewed comes first",
+    near.slugs[0] === "kuwait-science-centre", JSON.stringify(near.slugs));
+  ok("and it is the first she is told to name",
+    near.spoken.indexOf("المركز العلمي") > -1 && near.spoken.indexOf("المركز العلمي") < near.spoken.indexOf("حديقة حيوان الكويت"), near.spoken);
+  ok("no rating, no count and no «Google» in what she is told",
+    !/[0-9٠-٩][.٫][0-9٠-٩]|قوقل|جوجل|google|تقييم|مراجع/i.test(near.spoken), near.spoken);
+
+  const far = formatShowPlaces("عيال", [hit("kuwait-zoo", "حديقة حيوان الكويت", 1), hit("kuwait-science-centre", "المركز العلمي", 0.6)], fam);
+  ok("a clearly stronger match is never passed, however it is reviewed", far.slugs[0] === "kuwait-zoo", JSON.stringify(far.slugs));
+
+  // The Avenues has no figure: it was not found, which says nothing about it.
+  // The JACC is 4.7 from 4,550 — far enough above average that, were «no
+  // figure» scored as average, it would pass; so this case can tell the two
+  // rules apart, where the science centre (4.4, exactly average) could not.
+  const unknown = formatShowPlaces("مكيف", [hit("the-avenues", "الأفنيوز", 1), hit("jacc", "مركز جابر الأحمد الثقافي", 0.99)], [
+    ...fam,
+    { slug: "jacc", nameAr: "مركز جابر الأحمد الثقافي", category: "culture", areaAr: "", taglineAr: "" },
+  ]);
+  ok("a place with no figure is not passed on a guess", unknown.slugs[0] === "the-avenues", JSON.stringify(unknown.slugs));
+
+  // 4.5 from 18,656 against 4.4 from 26,500: under a tenth of a star apart.
+  const noise = formatShowPlaces("الكويت", [hit("souq-al-mubarakiya", "سوق المباركية", 1), hit("kuwait-towers", "أبراج الكويت", 0.99)], places);
+  ok("a difference under a tenth of a star changes nothing", noise.slugs[0] === "souq-al-mubarakiya", JSON.stringify(noise.slugs));
 }
 
 console.log("\n── formatOpenPlace: bad slug shape ──");
