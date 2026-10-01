@@ -156,6 +156,18 @@ console.log('\n── show_places/open_place render inline, without a live agent
   // that had not loaded. The dots say she is on her way.
   ok('before her greeting, the typing dots show — the chat is not just blank',
     await sp.locator('[role="log"] .sr-only', { hasText: 'يكتب' }).count() === 1);
+  // How they move, not only that they are there. They were Tailwind's stock
+  // pulse — one fade on one period — and read as three dots dimming together.
+  const dots = await sp.locator('[data-typing] [aria-hidden] > span').evaluateAll((els) =>
+    els.map((e) => ({ name: getComputedStyle(e).animationName, delay: getComputedStyle(e).animationDelay })));
+  ok('the dots rise in a wave: three, one keyframe, three different starts',
+    dots.length === 3 && dots.every((d) => d.name === 'typing-dot') && new Set(dots.map((d) => d.delay)).size === 3,
+    JSON.stringify(dots));
+  await sp.emulateMedia({ reducedMotion: 'reduce' });
+  ok('and keep still for a visitor who asked for less motion',
+    await sp.locator('[data-typing] [aria-hidden] > span').first().evaluate((e) =>
+      parseFloat(getComputedStyle(e).animationDuration) < 0.001));
+  await sp.emulateMedia({ reducedMotion: 'no-preference' });
   ok('and no starters yet — nothing has been said to answer',
     await sp.getByRole('button', { name: 'قهوة هادية' }).count() === 0);
   await sp.evaluate(() => window.__salemSocket.emit('message', {
@@ -167,6 +179,11 @@ console.log('\n── show_places/open_place render inline, without a live agent
   ok('once she has greeted, the starters appear', starters);
   if (!starters) await sp.evaluate(() => { window.__salemStartersMissing = true; });
   ok('and the dots are gone', await sp.locator('[role="log"] .sr-only', { hasText: 'يكتب' }).count() === 0);
+  ok('her reply slides in where they were, in her bubble with its tail',
+    await sp.locator('[role="log"] p', { hasText: 'هلا والله' }).evaluate((e) => {
+      const c = getComputedStyle(e);
+      return c.animationName === 'bubble-in' && c.backgroundColor === 'rgb(255, 255, 255)';
+    }).catch(() => false));
   if (starters) await sp.getByRole('button', { name: 'قهوة هادية' }).click();
   else await sp.locator('#salem-q').fill('قهوة هادية').then(() => sp.getByRole('button', { name: 'إرسال' }).click());
   ok('a starter sends its words as the visitor\'s own message', await sp.evaluate(() => {
@@ -235,7 +252,13 @@ console.log('\n── show_places/open_place render inline, without a live agent
   ok('open_place renders the fuller card with the place\'s own name', true);
   // Two turns, two panels — each show_places/open_place result carries its
   // own, not one shared across the whole transcript.
-  ok('open_place result carries its own panel too', (await sp.locator('h2:has-text("رسّلها للربع")').count()) === 2);
+  // Waited for, not read: the card can paint a render before its panel, and
+  // reading the count at that instant failed one run in four.
+  const panels = await sp.waitForFunction(
+    () => [...document.querySelectorAll('h2')].filter((h) => h.textContent.includes('رسّلها للربع')).length === 2,
+    null, { timeout: 4000 }
+  ).then(() => 2, async () => sp.locator('h2:has-text("رسّلها للربع")').count());
+  ok('open_place result carries its own panel too', panels === 2, `${panels} panels`);
   await sayAfterTool('فتحت لك بطاقتها.');
   await sp.waitForSelector('p:has-text("فتحت لك بطاقتها")', { timeout: 4000 });
 

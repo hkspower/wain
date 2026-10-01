@@ -283,6 +283,48 @@ h1, h2, h3 {
   animation: reveal-up 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
+/* /salem's «يكتب…» dots: a wave that rises through the three, the way a
+   phone's chat says someone is typing. It used to be Tailwind's stock
+   `animate-pulse` — one 2s fade at half opacity with a 150ms stagger, which
+   read as three dots dimming together, not as a reply on its way. No fill
+   mode on purpose: under the reduced-motion reset the animation ends at once
+   and the dots fall back to their own style — three still, solid dots. */
+@keyframes typing-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.4;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+.typing-dot {
+  animation: typing-dot 1.2s ease-in-out infinite;
+}
+
+/* A chat line arriving — her reply where the dots were, or the visitor's own.
+   Short, so a quick exchange never queues behind its own animation; `both`
+   for the reason reveal-up gives. Keys are positions in the transcript, so
+   only a line that is new mounts and plays it. */
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-bubble-in {
+  animation: bubble-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
 /* /find's two halves are full-bleed AI-illustrated portraits (شوق on top,
    سالم below — see FindChoice.tsx), each with its own slow Ken Burns
    pan/zoom on the <img> itself. One period per half (18s / 21s) and

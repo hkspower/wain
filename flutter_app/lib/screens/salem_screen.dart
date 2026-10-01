@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -14,6 +16,7 @@ import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../widgets/place_card.dart';
 import '../widgets/svg.dart';
+import '../widgets/typing_dots.dart';
 
 /// The typed conversation with شوق. Same agent, same prompt, same tools; text
 /// only. `show_places` / `open_place` put REAL place cards in the transcript
@@ -34,6 +37,10 @@ class _Text extends _Entry {
   final String role; // user | agent | system
   final String text;
   _Text(this.role, this.text);
+
+  /// Played its arrival once; a ListView rebuilds rows as they scroll back
+  /// into view, and a line must not slide in a second time.
+  bool seen = false;
 }
 
 class _Places extends _Entry {
@@ -47,6 +54,26 @@ class _SalemScreenState extends State<SalemScreen> {
   final _scroll = ScrollController();
   ChatStatus _status = ChatStatus.connecting;
   ChatHandle? _handle;
+
+  /// A reply is on its way: from the moment the line opens until her
+  /// greeting, and from every message until her answer. A tool call does not
+  /// end it — she answers after the tool. Bounded like the web's, so a reply
+  /// that never comes says so instead of leaving the dots up for ever.
+  bool _waiting = false;
+  Timer? _waitTimer;
+  static const _waitLimit = Duration(seconds: 45);
+
+  void _wait(bool on) {
+    _waitTimer?.cancel();
+    _waitTimer = on
+        ? Timer(_waitLimit, () {
+            if (!mounted || !_waiting) return;
+            setState(() => _waiting = false);
+            _add(_Text('system', ChatCopy.noReply));
+          })
+        : null;
+    if (mounted && _waiting != on) setState(() => _waiting = on);
+  }
 
   /// No session opens until the visitor has agreed to what happens to the
   /// conversation (ai/consent.dart): opening the socket already starts a
@@ -79,9 +106,15 @@ class _SalemScreenState extends State<SalemScreen> {
       connect:
           widget.connect ?? (uri, protocols) => defaultChannel(uri, protocols),
       onStatus: (s) {
-        if (mounted) setState(() => _status = s);
+        if (!mounted) return;
+        setState(() => _status = s);
+        // She speaks first: connected means her greeting is on its way.
+        _wait(s == ChatStatus.connected);
       },
-      onMessage: (m) => _add(_Text(m.role, m.text)),
+      onMessage: (m) {
+        if (m.role == 'agent') _wait(false);
+        _add(_Text(m.role, m.text));
+      },
       onToolUnavailable: () => _add(_Text('system', ChatCopy.toolUnavailable)),
       clientTools: {
         'show_places': (p) {
@@ -123,10 +156,12 @@ class _SalemScreenState extends State<SalemScreen> {
     _input.clear();
     _handle?.send(text);
     _add(_Text('user', text));
+    _wait(true);
   }
 
   @override
   void dispose() {
+    _waitTimer?.cancel();
     _handle?.close();
     _input.dispose();
     _scroll.dispose();
@@ -203,11 +238,13 @@ class _SalemScreenState extends State<SalemScreen> {
               child: ListView.builder(
                 controller: _scroll,
                 padding: const EdgeInsets.all(12),
-                itemCount: _entries.length,
-                itemBuilder: (_, i) => switch (_entries[i]) {
-                  _Text t => _Bubble(t),
-                  _Places p => _PlacesBlock(places: p.places),
-                },
+                itemCount: _entries.length + (_waiting ? 1 : 0),
+                itemBuilder: (_, i) => i == _entries.length
+                    ? const _TypingBubble()
+                    : switch (_entries[i]) {
+                        _Text t => _Bubble(t),
+                        _Places p => _PlacesBlock(places: p.places),
+                      },
               ),
             ),
             if (_awaitingConsent)
@@ -362,27 +399,73 @@ class _Bubble extends StatelessWidget {
       );
     }
     final mine = entry.role == 'user';
-    return Align(
-      alignment: mine
-          ? AlignmentDirectional.centerStart
-          : AlignmentDirectional.centerEnd,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * 0.8,
-        ),
-        decoration: BoxDecoration(
-          color: mine ? WainColors.sea600 : Colors.white,
-          borderRadius: BorderRadius.circular(WainRadius.s2xl),
-        ),
-        child: Text(
-          entry.text,
-          style: wainText(
-            WainText.base,
-            color: mine ? Colors.white : WainColors.ink800,
-            height: 1.6,
+    final play = !entry.seen;
+    entry.seen = true;
+    return BubbleIn(
+      play: play,
+      child: Align(
+        alignment: mine
+            ? AlignmentDirectional.centerStart
+            : AlignmentDirectional.centerEnd,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.sizeOf(context).width * 0.8,
           ),
+          decoration: BoxDecoration(
+            color: mine ? WainColors.sea600 : Colors.white,
+            borderRadius: _bubbleRadius(mine: mine),
+          ),
+          child: Text(
+            entry.text,
+            style: wainText(
+              WainText.base,
+              color: mine ? Colors.white : WainColors.ink800,
+              height: 1.6,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The corner nearest the speaker is the tail, so the dots and the reply
+/// that replaces them read as the same bubble.
+BorderRadiusDirectional _bubbleRadius({required bool mine}) {
+  const r = Radius.circular(WainRadius.s2xl);
+  const tail = Radius.circular(6);
+  return BorderRadiusDirectional.only(
+    topStart: r,
+    topEnd: r,
+    bottomStart: mine ? tail : r,
+    bottomEnd: mine ? r : tail,
+  );
+}
+
+/// Her bubble while she is writing — the height of one line of her reply,
+/// on her side, so the reply lands where the dots were.
+class _TypingBubble extends StatelessWidget {
+  const _TypingBubble();
+
+  @override
+  Widget build(BuildContext context) {
+    return BubbleIn(
+      play: true,
+      child: Align(
+        alignment: AlignmentDirectional.centerEnd,
+        child: Container(
+          key: const ValueKey('chat-typing'),
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: _bubbleRadius(mine: false),
+          ),
+          child: const TypingDots(label: ChatCopy.typing),
         ),
       ),
     );

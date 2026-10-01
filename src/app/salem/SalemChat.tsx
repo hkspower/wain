@@ -328,11 +328,14 @@ export default function SalemChat() {
               </div>
             );
           }
+          // The corner nearest the speaker is the tail — hers on the start
+          // side, the visitor's on the end — so the dots below and the reply
+          // that replaces them are visibly the same bubble.
           return (
             <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               <p
-                className={`max-w-[80%] whitespace-pre-line rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-                  m.role === "user" ? "bg-sea-600 text-white" : "bg-white text-ink-900"
+                className={`animate-bubble-in max-w-[80%] whitespace-pre-line rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                  m.role === "user" ? "rounded-ee-md bg-sea-600 text-white" : "rounded-es-md bg-white text-ink-900"
                 }`}
               >
                 {m.text}
@@ -342,19 +345,21 @@ export default function SalemChat() {
         })}
         {typing && (
           <div className="flex flex-col items-start gap-1">
-            <p className="rounded-2xl bg-white px-4 py-3 text-ink-900">
+            {/* Her bubble, at the height of one line of her reply, so the
+                reply lands where the dots were instead of below a shorter box. */}
+            <p data-typing="" className="animate-bubble-in flex h-10 items-center rounded-2xl rounded-es-md bg-white px-4 text-ink-900">
               <span className="sr-only">{WAIN_AI_CHAT_COPY.typing}</span>
-              <span aria-hidden="true" className="flex gap-1">
-                {[0, 150, 300].map((delay) => (
+              <span aria-hidden="true" className="flex items-center gap-1.5">
+                {[0, 160, 320].map((delay) => (
                   <span
                     key={delay}
-                    className="size-1.5 animate-pulse rounded-full bg-ink-400"
+                    className="typing-dot size-2 rounded-full bg-ink-500"
                     style={{ animationDelay: `${delay}ms` }}
                   />
                 ))}
               </span>
             </p>
-            {slow && <p className="px-1 text-xs text-sand-200">{WAIN_AI_CHAT_COPY.slow}</p>}
+            {slow && <p className="animate-bubble-in px-1 text-xs text-sand-200">{WAIN_AI_CHAT_COPY.slow}</p>}
           </div>
         )}
         {showStarters && (

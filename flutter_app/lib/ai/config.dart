@@ -96,4 +96,10 @@ abstract final class ChatCopy {
       'ما أقدر أفتح صفحات من هنا — دوّر بنفسك أو كلّمه بمكالمة.';
   static const failed = 'ما قدرنا نوصله — جرّب مرة ثانية.';
   static const notConfigured = 'المحادثة مو متاحة الحين.';
+
+  /// Read out while a reply is on its way; the dots carry it on screen.
+  static const typing = 'يكتب…';
+
+  /// When a reply never comes (the web's 45s bound): said, not just dropped.
+  static const noReply = 'ما وصلنا رد — جرّب مرة ثانية.';
 }
