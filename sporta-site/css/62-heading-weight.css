@@ -1,0 +1,4 @@
+/* "Complete the look", the footer's "Join the Sporta club" and the bag drawer's
+ * "Your bag" were the only headings at 800; every other title is 700 (the one
+ * title style, 58-page-titles.css). Owner approved matching them, 2026-10-01. */
+h2[class~="font-extrabold"] { font-weight: 700 !important; }

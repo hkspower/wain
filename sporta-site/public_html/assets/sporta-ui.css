@@ -2041,3 +2041,4 @@ main [class~="items-center"][class~="flex-col"] > h1[class~="text-2xl"]::after {
   -webkit-line-clamp: 2;
   line-clamp: 2;
 }
+h2[class~="font-extrabold"] { font-weight: 700 !important; }
