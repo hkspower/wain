@@ -4107,15 +4107,23 @@ main article > a[class*="aspect-"] > img:not([src^="data:"]) {
  * 14-15px name and 15-17px price, and the 70-85px caption, are kept.
  * NOT TAKEN from the picture: the filter pills above the grid (removed on the
  * owner's own instruction, see 15-no-filters.css) and its header, which is not the
- * grid. Every subject below is a named element, none universal (test:has-cost). */
+ * grid. Every subject below is a named element, none universal (test:has-cost).
+ *
+ * NO :has() ON THE GRID — 2026-10-01, "improve scrolling". These rules used to find a product grid
+ * with `div.grid:has(> article > a[class*="aspect-"])`. A :has() subject is re-checked whenever anything
+ * inside it changes, and a scrolling grid is exactly that (lazy images arriving, the overlay scripts
+ * touching cards): measured with the CPU slowed 4x, taking this file out cut frames over 33ms from
+ * about 18% to 10% on /shop. A product grid is now named by its own `grid-cols-2` class token (the
+ * shop's and the product page's "related" grids carry it; no other grid with cards does). Same
+ * elements, no :has(). */
 
-main div.grid:has(> article > a[class*="aspect-"]) {
+main div.grid[class~="grid"][class~="grid-cols-2"] {
   column-gap: 10px;
   row-gap: 10px;
 }
 
 /* --- the card ------------------------------------------------------------ */
-main div.grid:has(> article > a[class*="aspect-"]) > article {
+main div.grid[class~="grid"][class~="grid-cols-2"] > article {
   position: relative;            /* the heart, badge and + are placed against the card */
   background: #0e1116;
   border: 1px solid rgba(255, 255, 255, .11);
@@ -4219,7 +4227,7 @@ main div.grid > article > a[data-sporta-sale] > span[class~="bg-brand"] {
  * left to right) in Arabic as well; each piece of text keeps its own reading
  * direction with `unicode-bidi: plaintext`, so an Arabic name still reads
  * right-to-left and "د.ك 8.000" still puts the currency first. */
-main div.grid:has(> article > a[class*="aspect-"]) > article > a[class*="aspect-"] + div {
+main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div {
   direction: ltr;
   text-align: left;
   align-items: stretch;
@@ -4265,7 +4273,7 @@ main article .sporta-card-colour__dot {
   border-radius: 50%;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, .28);
 }
-main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
+main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card {
   margin-top: auto;               /* prices sit on one line across a row */
   justify-content: flex-start;
   /* Keep clear of the + at the bottom-right: an old price that would run under it
