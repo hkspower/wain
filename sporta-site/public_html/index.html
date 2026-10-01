@@ -279,8 +279,8 @@
           var size = localStorage.getItem('sporta_hero_size')
           if (size !== 'short' && size !== 'full') size = 'tall'
           el.dataset.heroSize = size
-          el.style.setProperty('--hero-h', size === 'short' ? '8svh' : size === 'full' ? 'calc(100svh - 77px)' : '10svh')
-          el.style.setProperty('--hero-h-md', size === 'short' ? '13svh' : size === 'full' ? 'calc(100svh - 98px)' : '18svh')
+          el.style.setProperty('--hero-h', size === 'short' ? '8svh' : size === 'full' ? 'calc((100svh - 77px) * 0.6)' : '10svh')
+          el.style.setProperty('--hero-h-md', size === 'short' ? '13svh' : size === 'full' ? 'calc((100svh - 98px) * 0.6)' : '18svh')
 
           // THE HERO BANNER, requested here rather than in the markup above.
           //

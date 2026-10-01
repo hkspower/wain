@@ -3887,8 +3887,8 @@ section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][clas
   --hero-h-md: 13svh !important;
 }
 :root[data-hero-size="full"] {
-  --hero-h: calc(100svh - 77px) !important;
-  --hero-h-md: calc(100svh - 98px) !important;
+  --hero-h: calc((100svh - 77px) * 0.6) !important;
+  --hero-h-md: calc((100svh - 98px) * 0.6) !important;
 }
 /* CATEGORY TILE TEXT: BIGGER, MODERN, CENTRED — 2026-09-29, "improve text style
  * at category images, bigger font and better modern font, more centred".
