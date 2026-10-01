@@ -240,7 +240,10 @@ for (const path of PAGES) {
       // The same goes for the "Shop by category" heading: 37-category-heading-bar.css
       // makes it a white bar with black text, also at the owner's request.
       const OVERRIDDEN = '[class~="isolate"][class~="overflow-hidden"][class~="bg-ink"], [class~="shrink-0"][class~="bg-ink"], '
-        + 'h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:text-3xl"]'
+        + 'h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:text-3xl"], '
+        // The write fields (48-soft-silver-fields.css) are soft silver with dark ink on purpose,
+        // so the dark sheet's claims about .bg-white / .border-* are sampled on a non-field.
+        + 'input, textarea, select'
       let el
       try { el = [...document.querySelectorAll(sel)].find((e) => !e.matches(OVERRIDDEN)) } catch { continue }
       if (!el) continue

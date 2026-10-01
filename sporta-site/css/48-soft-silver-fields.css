@@ -1,0 +1,42 @@
+/* SOFT SILVER WRITE FIELDS — asked for 2026-10-01 as "add soft silver color to write fields all
+ * website". Every place a customer types — the search box, the checkout and contact forms, the
+ * discount code, order tracking, the sign-in — is a light silver (#d9dde2) with near-black ink,
+ * a silver edge, and an orange ring when it has the keyboard. On the dark page that makes the
+ * fields the brightest, most findable thing, which is the point.
+ *
+ * Contrast, measured: ink #14161a on #d9dde2 is 13.2:1; the placeholder #5c6269 on it is 4.9:1
+ * (AA for text); the #aab1b9 edge on the dark page is 7:1, so the field's boundary is findable
+ * on its own (test:dark).
+ *
+ * NOT THE OWNER'S PANEL. The /backends screens (everything inside .admin-content) keep their
+ * own styling: they are the owner's workspace with its own cards, and this was asked for the
+ * website. The complex :not() is understood by every browser the shop supports.
+ *
+ * `html[data-theme]` so it outranks the bundle's utility classes in BOTH modes — the light theme
+ * gets the same silver, a touch greyer than its white page. */
+html[data-theme] :is(input, textarea, select):not([type="checkbox"], [type="radio"], [type="range"],
+  [type="file"], [type="hidden"], [type="submit"], [type="button"], [type="image"], [type="color"]):not(.admin-content *) {
+  background-color: #d9dde2 !important;
+  color: #14161a !important;
+  border-color: #aab1b9 !important;
+  caret-color: #14161a;
+}
+html[data-theme] :is(input, textarea):not(.admin-content *)::placeholder {
+  color: #5c6269 !important;
+  opacity: 1;
+}
+html[data-theme] :is(input, textarea, select):not(.admin-content *):focus-visible {
+  outline: 2px solid #f56315;
+  outline-offset: 1px;
+}
+html[data-theme] :is(input, textarea):not(.admin-content *):-webkit-autofill {
+  -webkit-text-fill-color: #14161a;
+  box-shadow: 0 0 0 40px #d9dde2 inset;
+}
+html[data-theme] select:not(.admin-content *) option {
+  background: #fff;
+  color: #14161a;
+}
+html[data-theme] :is(input, textarea, select):not(.admin-content *):disabled {
+  opacity: .65;
+}

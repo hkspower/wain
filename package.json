@@ -109,6 +109,7 @@
     "test:db": "php scripts/db-audit.php",
     "test:install": "node scripts/install-sql-test.mjs",
     "test:db-retry": "node scripts/db-retry-test.mjs",
+    "test:silver-fields": "node scripts/soft-silver-fields-test.mjs",
     "test:sql-safety": "node scripts/sql-safety-test.mjs",
     "scan:mass-assignment": "node scripts/mass-assignment-scan.mjs",
     "make:file-manifest": "node scripts/make-file-manifest.mjs",

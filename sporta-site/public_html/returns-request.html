@@ -100,10 +100,15 @@
   label { display: block; font-size: .9rem; color: var(--sp-silver); margin: 0 0 6px; }
   input[type=tel], input[type=text], textarea, select {
     width: 100%; padding: 13px 14px; margin-bottom: 16px;
-    background: var(--sp-raise); color: var(--sp-text);
-    border: 1px solid var(--sp-line); border-radius: 10px;
+    /* SOFT SILVER, 2026-10-01 ("add soft silver color to write fields, all website"): the fields
+       are the one place a customer writes, so they are a light silver with dark ink, which also
+       makes them the brightest, most findable thing on the dark page. */
+    background: #d9dde2; color: #14161a;
+    border: 1px solid #aab1b9; border-radius: 10px;
     font: inherit; font-size: 16px;   /* 16px or iOS zooms the page on focus */
   }
+  input::placeholder, textarea::placeholder { color: #5c6269; opacity: 1; }
+  select option { background: #fff; color: #14161a; }
   textarea { min-height: 92px; resize: vertical; }
   :focus-visible { outline: 2px solid var(--sp-ember); outline-offset: 1px; }
   .hint { font-size: .82rem; color: var(--sp-silver); margin: -10px 0 16px; }
