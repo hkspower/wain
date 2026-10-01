@@ -5,10 +5,10 @@
  *   php /home/<user>/live-load-test.php
  *
  * It sends ordinary GET requests — the pages and the product list a shopper loads — in four
- * stages of rising concurrency (1, 5, 10, 15 at once) and prints, per stage and per page, how
+ * stages of rising concurrency (1, 5, 10, 15 at once, fewer requests at the start) and prints, per stage and per page, how
  * many answered, how many errored or were refused by the shop's own rate limiter (429/503), and
  * the median, 95th-percentile and slowest time in milliseconds. It signs in to nothing, places
- * no order and writes nothing; about 240 requests in all, over roughly half a minute — the
+ * no order and writes nothing; about 180 requests in all, inside a 35-second budget — the
  * traffic of a busy minute, not an attack.
  *
  * It goes to https://127.0.0.1 with a Host header (see CLAUDE.md: the server cannot always
@@ -40,7 +40,7 @@ function run_stage(array $urls, int $conc, string $host): array
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true, CURLOPT_SSL_VERIFYPEER => false, CURLOPT_SSL_VERIFYHOST => 0,
             CURLOPT_HTTPHEADER => ['Host: ' . $host, 'Accept-Encoding: gzip', 'User-Agent: sporta-load-test'],
-            CURLOPT_TIMEOUT => 25, CURLOPT_ENCODING => '',
+            CURLOPT_TIMEOUT => 12, CURLOPT_ENCODING => '',
         ]);
         curl_multi_add_handle($mh, $ch);
         $active[(int) $ch] = [$ch, $job[0]];
@@ -68,7 +68,12 @@ function pct(array $v, float $p): int
     return (int) round($v[min(count($v) - 1, (int) floor($p * count($v)))]);
 }
 
-foreach ([1 => 10, 5 => 15, 10 => 20, 15 => 30] as $conc => $each) {
+// A HARD TIME BUDGET. This runs from a per-minute cron job whose output is captured only when
+// the process EXITS, so a run that overruns a minute reports nothing and overlaps the next one.
+// No new stage starts after 35 seconds, and a stage ends when its requests are done.
+$began = microtime(true);
+foreach ([1 => 6, 5 => 8, 10 => 10, 15 => 12] as $conc => $each) {
+    if (microtime(true) - $began > 35) { echo "STOPPED budget\n"; break; }
     $urls = [];
     for ($i = 0; $i < $each; $i++) foreach ($PAGES as $name => $path) $urls[] = [$name, $path];
     shuffle($urls);
