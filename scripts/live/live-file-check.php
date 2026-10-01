@@ -26,7 +26,7 @@ $ROOT = '/home/u130124229/domains/sporta.com.kw/public_html';
 
 // path => sha256 in the repository.
 $WANT = [
-    '.htaccess' => '4f52ca1f72f17d5a6972d5bfea0d326ddd2b4a84ea113727e6459371b4ef914f',
+    '.htaccess' => 'bd3cac3b471c21e6e8dc5eeece5c23c4a02539b64c6a5248698d5b539e07456d',
     'admin.webmanifest' => '2a36ff5a76af4f6e43877dad32f0a1ea3edc3b7afb8d3a5c06ef0897a979ca94',
     'api/.htaccess' => '574ff6d3712c69ad6a119652dd976afbad0e065cec35c198ceed85bfc72c3be2',
     'api/accounting.mysql.sql' => '865458325a463d3127bbb45cb1a3d5c0c9a603c7656cdde85c280ffb7f8ed716',
@@ -81,7 +81,8 @@ $WANT = [
     'api/schema.mysql.sql' => '7095a95406bae97034bc67328bf7bae2e6736fddacd5ba8a62fe0d83cd8fb246',
     'api/seed.mysql.sql' => 'bd51a938063ff63d7fb381290c42196ffde93d9d5b065f5da6bac3d10b7f0d88',
     'api/site-manifest.txt' => '7bad0eb79062c86fcd33afdc034090bd07ef0d8c9a8c3564da116dd7a230942b',
-    'api/sitemap-products.php' => 'b1217037868d973c566132ae778c3bacd4c5f89b9bd48035c6bc58942e0f360b',
+    'api/sitemap-categories.php' => '60e9d9ad33532527687a2720323e99b3e0ef867ecbe6c13b40cc88de02092be6',
+    'api/sitemap-products.php' => '3717da4de7b734411d72a2b5bd4d962e39e68334bfc9b0dc9a1bda37ce491bf9',
     'api/sizeadvice.mysql.sql' => 'd4aa5746daa9d721839661586dfafd416fdbc9607c8fd33d83a1181531d070ac',
     'api/stock.mysql.sql' => '2568407818e9cd7d9f3eac06b8513ea20998b74e686e335ca8e84e82eba0bf34',
     'api/stocklog.mysql.sql' => '3fba690958ceb6959f24fdd34a455e9fc34d6e8f8308a9dd53136eb76c900680',
@@ -294,12 +295,12 @@ $WANT = [
     'pay/config.example.php' => 'a1b8bbaf41ad52daa0f00cd0138660b16b490e00458a46f1a7e98330e63c242b',
     'pay/pay.php' => '172d1d33bed9170b5bee311b375d899d4d22cbb262da92f1893bd99bad9b11a5',
     'returns-request.html' => '7a9a208577c4436c456528f31dea0cb056bb0ba33c75ffe898beff003f950e12',
-    'robots.txt' => '6baf32979c4813f61a35491da2b18c012e638321d4f0a4be5cf1ec795b03d257',
+    'robots.txt' => 'ed67a89d55b4f88cec66dea500b3aa76c4d3838388ae93cdf6b015f11048d3e9',
     'seo.php' => 'bb3af7623859798849a72371d1cc31d931332100fb5e494d59ee9faffc2ee647',
     'site.webmanifest' => '2b7b841790a8f02340b140a51acebd5ea3a51001f0567214703e0a5f74589f08',
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
-    'sitemap.xml' => '1ba2a01e9f35e80a67b4b6047afcb5370b4005074a150ade4907a578cb0ebf4a',
+    'sitemap.xml' => 'e697770591a925cbb9d3f8aaa3e190dfe3c59ef8c2ac7efbda92d35ff7a0d5aa',
     'sw.js' => '1800a5dca3c84b4435a1250675455dad0b35c9bc63475d362f29571671bce983',
 ];
 
