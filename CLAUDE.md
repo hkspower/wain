@@ -3874,3 +3874,74 @@ to the /shop card is followed rather than fought. Mutation-tested five ways.
   `quick-add-grids` and `palette-copies`. **`photo-shape` printed the kinds it
   FOUND under "every kind was found"**, so the one missing kind was hidden in
   a list of six that were there. It names what is missing now.
+
+## The hero's "half view" was its first frame — 2026-10-01
+
+Asked for as "fix main hero slide layout, sometimes half view". The live shop
+(`scripts/live/live-hero-state.php`) is Size **Full**, autoplay off, 7 slides,
+two of them (ids 2 and 3) with no phone picture. Three faults, each measured:
+
+- **A first visit painted the wrong Size.** The boot script read the Size an
+  EARLIER visit had cached and fell back to Tall: an 84px strip on a phone,
+  144px on a desktop, growing to 469px / 442px only when `?r=slides`
+  answered. On a slow connection the strip was the hero for as long as the
+  request took, which is "sometimes". `seo.php` now writes the shop's Size onto
+  the home page's `<html data-hero-size>` (one settings read, on `/` only,
+  whitelisted, any failure leaves the page as it was) and the boot script reads
+  it first. **Its CSP hash moved with it, all three copies.**
+- **The drawn slides are not dead CSS.** The bundle draws its built-in slides
+  (`.hero-strength`) on EVERY visit while `?r=slides` is in flight, then swaps
+  in the photos. Their desktop height was a fixed 75svh, so every desktop visit
+  went 442 → 600 → 442. They follow `--hero-h-md` now. Three comments in
+  `02-hero.css` and `34-hero-band.css` called these rules a fallback that never
+  renders while a photo row exists; that was true of the settled page only.
+- **The phone picture was handed over whatever the Size.** Tall and Short are
+  66-84px strips on a phone, where a 4:5 picture shows about a sixth of itself
+  and the banner about half. `api.php` gives a phone the phone picture in Full
+  only now, where it shows 75-100% of itself.
+
+`npm run test:hero-first-frame` holds it: every Size, a phone (a REAL phone
+User-Agent) and a desktop, first and return visit, one height from the first
+frame to three seconds in. Mutation-tested both ways, and each mutation
+reproduced the original numbers exactly.
+
+**The measuring trap, and it cost a wrong first diagnosis.** A mobile-SIZED
+Playwright context keeps the DESKTOP User-Agent, and the server picks the phone
+picture by User-Agent, so every "phone" measurement got the wide banner and
+showed a third of it. `hero-preload.js` said in a comment that the carousel
+never uses the phone picture, which had been stale since 2026-09-29 and is
+corrected. Use a device descriptor (`devices['Pixel 7']`) for anything the
+server decides per device.
+
+**Not fixable in code:** slides 2 and 3 have no phone picture, so on a phone
+in Full they show the middle third of the banner at the owner's focal point.
+A phone picture uploaded in /backends → Slides is the fix.
+
+## The product card's caption is white with orange text — 2026-10-01
+
+Asked for as "use white background with orange font, make more spacing". The
+caption under the photograph is a white panel; everything else from the
+2026-09-30 picture stands. Every grid shares it (one card).
+
+- **The orange is the one that reads on white.** The brand's `#e0561c` is
+  3.7:1 on white and the button orange 3.1:1, both under AA for 11-16px text.
+  The name and price wear `--sp-ink-on-light` (`#c2410c`, 5.2:1, derived from
+  the owner's brand colour by `theme.js`); brand, colour and the struck old
+  price a deeper mix of it (7.4:1).
+- **More room:** 12px inside the caption on a phone and 14-16px from 768px (it
+  was 8-10px), 5-6px between lines, and 12/16px between cards on a phone,
+  16/22px from 768px (it was 10px).
+- A brand LOGO keeps a small dark plate, because logos are supplied to read on
+  the dark theme and a white one would vanish on a white caption.
+
+**Changing the background made two old rules lose, and only a colour read
+showed it.** The name's rule (0,1,3) lost to `sporta-dark.css`'s
+`[data-theme='dark'] .text-slate-900` (0,2,0), and the old price lost to
+`.text-slate-400 … !important`, which left it silver on white at 1.9:1. Both
+had been losing all along; they went unseen because the winner asked for the
+same colour. **When a background changes, read back every colour on it.**
+
+**And it surfaced a bug from 2026-09-30:** the rule that drops "Bestseller"
+below "Sale" was (0,3,5) against the pill rule's (0,4,5), both `!important`,
+so the two pills sat on top of each other. No bestseller had ever been on
+sale, so nobody saw it. It names the pill as fully as the rule it moves now.
