@@ -11,10 +11,13 @@
  */
 $HOST = 'www.sporta.com.kw';
 $ROOT = '/home/u130124229/domains/sporta.com.kw/public_html';
-$N = 12;
+// THE MIX THAT FAILED: the product list AND the category page together, in rounds, because a
+// plain burst at one URL answered 200 twelve times out of twelve.
+$N = 36;
+$paths = ['/api/api.php?r=products', '/men', '/women', '/shop?lang=en', '/?lang=en', '/api/api.php?r=products&x=1'];
 $mh = curl_multi_init(); $hs = [];
 for ($i = 0; $i < $N; $i++) {
-    $ch = curl_init('https://127.0.0.1/api/api.php?r=products&_b=' . $i);
+    $ch = curl_init('https://127.0.0.1' . $paths[$i % count($paths)] . (strpos($paths[$i % count($paths)], '?') === false ? '?' : '&') . '_b=' . $i);
     curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_SSL_VERIFYPEER => false, CURLOPT_SSL_VERIFYHOST => 0,
         CURLOPT_HTTPHEADER => ['Host: ' . $HOST, 'User-Agent: sporta-burst'], CURLOPT_TIMEOUT => 15]);
     curl_multi_add_handle($mh, $ch); $hs[] = $ch;
@@ -25,7 +28,7 @@ foreach ($hs as $ch) {
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $body = (string) curl_multi_getcontent($ch);
     $codes[$code] = ($codes[$code] ?? 0) + 1;
-    if ($code >= 500 && $firstBad === null) $firstBad = substr(preg_replace('/\s+/', ' ', $body), 0, 220);
+    if ($code >= 500 && $firstBad === null) $firstBad = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL) . ' => ' . substr(preg_replace('/\s+/', ' ', $body), 0, 220);
 }
 ksort($codes);
 echo 'BURST n=' . $N . ' codes=' . http_build_query($codes, '', ',') . "\n";
