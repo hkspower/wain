@@ -63,6 +63,7 @@
     "test:payments": "node scripts/payments-test.mjs",
     "test:cart": "node scripts/cart-test.mjs",
     "test:checkout": "node scripts/checkout-test.mjs",
+    "test:keyboard-hints": "node scripts/keyboard-hints-test.mjs",
     "test:invoice": "node scripts/invoice-test.mjs",
     "test:invoice-pdf": "node scripts/invoice-pdf-test.mjs",
     "test:tpay": "node scripts/tpay-test.mjs",
