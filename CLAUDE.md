@@ -4606,6 +4606,65 @@ for a real phone, and the one to fix if it does not.
 **Not verified by anything here**: cloud signing with an API key, the upload,
 and every on-phone check in the doc.
 
+## The Flutter app as a phone app — 1 October
+
+Asked to make it «fully fit» as a mobile app, and scoped by the owner to four
+things: feels native, shared links open the app, works offline, store-ready.
+Their calls: a call keeps talking when the phone locks; iPhone-only; the app
+stays light (no dark theme — the status bar is fixed instead); app links built
+now, live once they supply two values. Nine commits, `29847a6b` to `0ab16a67`,
+each with its tests proved red against the code they guard. Suite 531.
+
+**What changed, in one line each.** Tabs keep their state (`StatefulShellRoute`;
+pushed screens on the root navigator; Android back on Explore/Search goes Home;
+a link or `open_place` pushes instead of replacing the stack). The call sheet
+puts itself away to a bar, and back acts on the sheet. A call survives the lock
+screen (`UIBackgroundModes audio`; `CallService.kt`, a foreground service of
+type microphone; wakelock). The status bar reads on every screen and the
+launch screen is the mark on sand. Every control is a 48dp target; the keyboard
+goes away; a map in a page is still until «حرّك الخريطة». No network is said at
+once. Shared-link files and entitlements are ready. iPhone-only, a versionCode
+that moves, R8 rules, a fuller icon. A search is asked once per query.
+
+**Traps, all met on the way:**
+
+- **`flutter_native_splash` rewrites the Android manifest and Info.plist** — it
+  reflowed both and DROPPED `screenOrientation="portrait"`. Both were restored;
+  `launch_screen_test` now holds the lock. After re-running the generator,
+  restore those two files and keep only its resource files.
+- **The obvious Android foreground-service plugin is an iOS liability.**
+  `flutter_foreground_task` registers a `BGTaskScheduler` identifier at every
+  launch (a crash unless declared) and schedules background fetches. The
+  service is twenty lines of Kotlin instead (`CallService.kt`, channel
+  `wain/call_keepalive`); iOS needs only the plist key.
+- **Back while the call sheet is up.** The sheet is above the router, so
+  back reached the page under it. A `ChildBackButtonDispatcher` takes priority
+  — after the first frame, because `takePriority` asserts the router already
+  registered. And on Android 16 back reaches the app only while the framework
+  claims it, which the navigator alone does not on Home; `onNavigationNotification`
+  ORs in `sheetOpen`.
+- **A tooltip above the navigator throws** («No Overlay widget found»), and the
+  overflow it causes reads like a layout bug. The sheet's buttons use a
+  semantics label.
+- **Re-tapping a tab must not go to its initial location**: that drops `?q=`,
+  which SearchScreen reads as a new search. Re-tap only scrolls to the top.
+- **The tap-target guideline cannot test a map's pins**: a pin near the map's
+  edge is clipped and reads as a short target. Pins are tested by size (48×48)
+  and the guideline runs on the dead-end search instead.
+- **A tablet found a real overflow**: from 640 wide the card shows a category
+  chip taller than its row, and every card on Explore overflowed by 2.4px.
+  `placeCardExtent` counts it. Android 16 ignores the portrait lock on large
+  screens, so 800×1280 and 1280×800 are in the smoke test.
+- **The iPhone 17e hangs after its build** — twice in three runs, no test
+  output for 20 minutes, an orphaned `simctl` at cleanup. The install is its own
+  bounded step with a reboot between attempts, and the drive reuses that binary.
+
+**Waits for the owner.** The Team ID and the Android signing SHA-256 (then `npm
+run app:links`, a build and a deploy — `flutter_app/docs/app-links.md`). The
+TestFlight setup (`docs/ios-testflight.md`). And a real phone: a call through a
+locked screen, a Bluetooth headset, a WhatsApp link opening the app, an R8
+release placing a call. None of those can be measured from here.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*

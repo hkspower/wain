@@ -87,6 +87,15 @@ The things no simulator and no session here can prove:
   WhatsApp on the phone.
 - **Text size**: Settings → Display → Text Size at its largest; cards should
   grow, not cut off.
+- **A call through the lock screen**: start a call with شوق, lock the phone,
+  keep talking; unlock — the call is still on, with the green bar if the sheet
+  was put away.
+- **Put the call away**: the arrow at the top of the call sheet; the green bar
+  brings it back. Switch apps mid-call and come back.
+- **A Bluetooth headset** (or AirPods) during a call.
+- **Airplane mode**: the strip «ما فيه إنترنت» appears; places and search still
+  work; a call says at once that it needs the internet.
+- **«الطريق»** on a place opens Apple Maps with directions.
 
 ## When it fails
 

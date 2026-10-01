@@ -98,7 +98,21 @@ Each suite was confirmed able to go red by breaking the code it guards.
   tension is accepted. His voice id is also used by the mid-call
   «🔊 بصوت سالم» swap.
 * **Voice is off until switched on**, as on the web.
+* **Always light.** The app follows the site's sand, not the phone's dark mode;
+  the status bar is set per screen instead (`kChromeOnLight`/`kChromeOnDark`).
+* **iPhone only** on iOS. Android tablets are told portrait.
 * **Location is never requested.** No permission in either manifest.
+
+## Behaving like a phone app
+
+Tabs keep their state; pushed screens slide over them and swipe back (iOS) or
+take the back button (Android). A call can be put away to a bar and goes on
+when the phone locks (`ai/keep_alive.dart`, `CallService.kt`). Every control is
+at least 48dp (`HitArea`), the keyboard goes away on a tap outside, a map in a
+page is still until «حرّك الخريطة», no network is said at once (`app/online.dart`),
+«الطريق» hands a place to the phone's maps app, and a long press on a card
+shares it. Shared links are ready to open the app once the owner's two values
+are published: [`docs/app-links.md`](docs/app-links.md).
 
 ## What was verified here, and what was not
 
