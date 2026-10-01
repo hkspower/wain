@@ -13,12 +13,14 @@ library;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../data/models.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
+import '../widgets/layout.dart';
 
 const String _configured = String.fromEnvironment('WAIN_TILES');
 const String kDefaultTiles = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -81,6 +83,7 @@ CameraFit? _fitFor(List<LatLng> points) => points.length > 1
 
 class _WainMapState extends State<WainMap> {
   late final MapController _ctl = widget.controller ?? MapController();
+  bool _engaged = false;
 
   /// A different SET of places is a new answer and gets a new frame. The
   /// search screen keeps one map under a constant key, and `initialCameraFit`
@@ -113,7 +116,12 @@ class _WainMapState extends State<WainMap> {
     final onActive = widget.onActive;
     final onOpen = widget.onOpen;
     final height = widget.height;
-    final interactive = widget.interactive;
+    // Inside a scrolling page a live map takes every vertical drag that starts
+    // on it, so the page stops scrolling under the visitor's thumb. Like the
+    // web's static frame, it is still until asked: «حرّك الخريطة» turns
+    // panning and zooming on, «ثبّت الخريطة» turns them off again. Pins answer
+    // taps either way.
+    final interactive = widget.interactive && _engaged;
     final points = [for (final p in places) LatLng(p.lat, p.lng)];
     final url = tileUrl;
     return ClipRRect(
@@ -123,60 +131,76 @@ class _WainMapState extends State<WainMap> {
         child: Stack(
           children: [
             Positioned.fill(
-              child: FlutterMap(
-                mapController: _ctl,
-                options: MapOptions(
-                  initialCenter: points.length == 1
-                      ? points.first
-                      : kKuwaitCity,
-                  initialZoom: 11,
-                  minZoom: kMinZoom,
-                  maxZoom: kMaxZoom,
-                  backgroundColor: WainColors.sea50,
-                  initialCameraFit: _fitFor(points),
-                  interactionOptions: InteractionOptions(
-                    flags: interactive
-                        ? InteractiveFlag.all & ~InteractiveFlag.rotate
-                        : InteractiveFlag.none,
-                  ),
-                  onTap: (_, _) => onActive?.call(null),
-                ),
-                children: [
-                  if (url.isNotEmpty)
-                    TileLayer(
-                      urlTemplate: url,
-                      userAgentPackageName: 'com.wainkw.app',
-                      minZoom: kMinZoom,
-                      maxZoom: kMaxZoom,
+              child: Semantics(
+                label:
+                    'خريطة ${places.length == 1 ? places.first.nameAr : 'النتائج'}',
+                child: FlutterMap(
+                  mapController: _ctl,
+                  options: MapOptions(
+                    initialCenter: points.length == 1
+                        ? points.first
+                        : kKuwaitCity,
+                    initialZoom: 11,
+                    minZoom: kMinZoom,
+                    maxZoom: kMaxZoom,
+                    backgroundColor: WainColors.sea50,
+                    initialCameraFit: _fitFor(points),
+                    interactionOptions: InteractionOptions(
+                      flags: interactive
+                          ? InteractiveFlag.all & ~InteractiveFlag.rotate
+                          : InteractiveFlag.none,
                     ),
-                  MarkerLayer(
-                    markers: [
-                      for (final p in places)
-                        Marker(
-                          point: LatLng(p.lat, p.lng),
-                          width: 160,
-                          height: 96,
-                          // The dot's 40px target sits at the bottom of this
-                          // box, so its centre is 20px up: (96−20)/96 of the
-                          // way down, which is 0.583 in Alignment's −1…1.
-                          alignment: const Alignment(0, 0.583),
-                          child: MapPin(
-                            place: p,
-                            selected: p.slug == activeSlug,
-                            onTap: () {
-                              if (p.slug == activeSlug) {
-                                onOpen?.call(p);
-                              } else {
-                                onActive?.call(p.slug);
-                              }
-                            },
-                          ),
-                        ),
-                    ],
+                    onTap: (_, _) => onActive?.call(null),
                   ),
-                ],
+                  children: [
+                    if (url.isNotEmpty)
+                      TileLayer(
+                        urlTemplate: url,
+                        userAgentPackageName: 'com.wainkw.app',
+                        minZoom: kMinZoom,
+                        maxZoom: kMaxZoom,
+                      ),
+                    MarkerLayer(
+                      markers: [
+                        for (final p in places)
+                          Marker(
+                            point: LatLng(p.lat, p.lng),
+                            width: 160,
+                            height: 104,
+                            // The dot's 48px target sits at the bottom of this
+                            // box, so its centre is 24px up: (104−24)/104 of the
+                            // way down, which is 0.538 in Alignment's −1…1.
+                            alignment: const Alignment(0, 0.538),
+                            child: MapPin(
+                              place: p,
+                              selected: p.slug == activeSlug,
+                              onTap: () {
+                                if (p.slug == activeSlug) {
+                                  onOpen?.call(p);
+                                } else {
+                                  onActive?.call(p.slug);
+                                }
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
+            if (widget.interactive)
+              PositionedDirectional(
+                top: 8,
+                start: 8,
+                child: _MoveToggle(
+                  engaged: _engaged,
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() => _engaged = !_engaged);
+                  },
+                ),
+              ),
             PositionedDirectional(
               end: 0,
               bottom: 0,
@@ -190,6 +214,46 @@ class _WainMapState extends State<WainMap> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MoveToggle extends StatelessWidget {
+  final bool engaged;
+  final VoidCallback onTap;
+  const _MoveToggle({required this.engaged, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      toggled: engaged,
+      label: engaged ? 'ثبّت الخريطة' : 'حرّك الخريطة',
+      excludeSemantics: true,
+      child: HitArea(
+        onTap: onTap,
+        child: Material(
+          key: const ValueKey('map-move'),
+          color: engaged ? WainColors.ink900 : Colors.white,
+          elevation: 2,
+          shape: const StadiumBorder(),
+          child: InkWell(
+            customBorder: const StadiumBorder(),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              child: Text(
+                engaged ? 'ثبّت الخريطة' : 'حرّك الخريطة',
+                style: wainText(
+                  WainText.xs,
+                  weight: FontWeight.w600,
+                  color: engaged ? Colors.white : WainColors.ink700,
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -233,7 +297,7 @@ class MapPin extends StatelessWidget {
               behavior: HitTestBehavior.opaque,
               onTap: onTap,
               child: Container(
-                constraints: const BoxConstraints(maxWidth: 160),
+                constraints: const BoxConstraints(maxWidth: 160, minHeight: 48),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 6,
@@ -268,25 +332,31 @@ class MapPin extends StatelessWidget {
               ),
             ),
           if (selected) const SizedBox(height: 4),
-          // 40px around a 24px dot: a finger-sized target, and no bigger.
-          GestureDetector(
-            key: ValueKey('map-pin-${place.slug}'),
-            behavior: HitTestBehavior.opaque,
-            onTap: onTap,
-            child: SizedBox.square(
-              dimension: 40,
-              child: Center(
-                child: AnimatedScale(
-                  scale: selected ? 1.25 : 1,
-                  duration: const Duration(milliseconds: 150),
-                  child: Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: ink,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 3),
-                      boxShadow: WainShadows.md,
+          // 48px around a 24px dot: Android's finger-sized target, and no
+          // bigger (it was 40, under the guideline).
+          Semantics(
+            button: true,
+            selected: selected,
+            label: place.nameAr,
+            child: GestureDetector(
+              key: ValueKey('map-pin-${place.slug}'),
+              behavior: HitTestBehavior.opaque,
+              onTap: onTap,
+              child: SizedBox.square(
+                dimension: 48,
+                child: Center(
+                  child: AnimatedScale(
+                    scale: selected ? 1.25 : 1,
+                    duration: const Duration(milliseconds: 150),
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: ink,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 3),
+                        boxShadow: WainShadows.md,
+                      ),
                     ),
                   ),
                 ),

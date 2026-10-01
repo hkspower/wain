@@ -97,7 +97,11 @@ class _FindScreenState extends State<FindScreen> {
                     onPressed: () => context.push('/salem'),
                     style: FilledButton.styleFrom(
                       backgroundColor: WainColors.sea600,
-                      minimumSize: const Size(0, 48),
+                      // 56, not 48: on a short screen this block is scaled
+                      // down to fit half a phone (the FittedBox below), and
+                      // 48 came out 41.8 tall at 320 — under Android's
+                      // finger-size guideline.
+                      minimumSize: const Size(0, 56),
                       padding: const EdgeInsets.symmetric(horizontal: 28),
                     ),
                     child: Text(

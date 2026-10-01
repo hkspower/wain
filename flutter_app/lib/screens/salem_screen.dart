@@ -140,6 +140,10 @@ class _SalemScreenState extends State<SalemScreen> {
   void _add(_Entry e) {
     if (!mounted) return;
     setState(() => _entries.add(e));
+    _toNewest();
+  }
+
+  void _toNewest() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) {
         _scroll.animateTo(
@@ -151,9 +155,15 @@ class _SalemScreenState extends State<SalemScreen> {
     });
   }
 
+  /// The keyboard opening shrinks the transcript from below, so the newest
+  /// message — the one being answered — slid under the input. It follows the
+  /// keyboard up now, the way a messaging app does.
+  double _lastInset = 0;
+
   void _send() {
     final text = _input.text.trim();
     if (text.isEmpty || _status != ChatStatus.connected) return;
+    HapticFeedback.lightImpact();
     _input.clear();
     _handle?.send(text);
     _add(_Text('user', text));
@@ -184,6 +194,9 @@ class _SalemScreenState extends State<SalemScreen> {
     final connected = _status == ChatStatus.connected;
     final over =
         _status == ChatStatus.disconnected || _status == ChatStatus.error;
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    if (inset > _lastInset) _toNewest();
+    _lastInset = inset;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: kChromeOnDark,
       child: Scaffold(
@@ -290,6 +303,7 @@ class _SalemScreenState extends State<SalemScreen> {
                     children: [
                       Expanded(
                         child: TextField(
+                          onTapOutside: _dismissKeyboard,
                           key: const ValueKey('chat-input'),
                           controller: _input,
                           enabled: connected,
@@ -524,3 +538,8 @@ class _PlacesBlockState extends State<_PlacesBlock> {
     );
   }
 }
+
+/// A tap anywhere outside a text field puts the keyboard away, as on every
+/// native app; Flutter's default on a phone is to leave it up.
+void _dismissKeyboard(PointerDownEvent _) =>
+    FocusManager.instance.primaryFocus?.unfocus();

@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import '../data/models.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
+import '../widgets/layout.dart';
 import '../widgets/svg.dart';
 import 'hangout.dart';
 import 'share_service.dart';
@@ -277,30 +278,33 @@ class _Chip extends StatelessWidget {
     return Semantics(
       button: true,
       selected: active,
-      child: Material(
-        color: active ? activeColor : WainColors.sand100,
-        shape: StadiumBorder(
-          side: active
-              ? BorderSide.none
-              : const BorderSide(color: WainColors.line),
-        ),
-        child: InkWell(
-          customBorder: const StadiumBorder(),
-          onTap: onTap,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 36, maxWidth: 260),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Center(
-                widthFactor: 1,
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: wainText(
-                    WainText.sm,
-                    weight: FontWeight.w600,
-                    color: active ? Colors.white : WainColors.ink700,
+      child: HitArea(
+        onTap: onTap,
+        child: Material(
+          color: active ? activeColor : WainColors.sand100,
+          shape: StadiumBorder(
+            side: active
+                ? BorderSide.none
+                : const BorderSide(color: WainColors.line),
+          ),
+          child: InkWell(
+            customBorder: const StadiumBorder(),
+            onTap: onTap,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 36, maxWidth: 260),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Center(
+                  widthFactor: 1,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: wainText(
+                      WainText.sm,
+                      weight: FontWeight.w600,
+                      color: active ? Colors.white : WainColors.ink700,
+                    ),
                   ),
                 ),
               ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
@@ -65,6 +66,32 @@ class Panel extends StatelessWidget {
   }
 }
 
+/// A tap target of at least 48×48 around a smaller drawing: Android's
+/// accessibility guideline, which `meetsGuideline(androidTapTargetGuideline)`
+/// measured this app failing on every chip, the hangout times, the call
+/// button, the breadcrumb and the map pins. The drawing keeps its size; only
+/// the area that answers a finger grows. A tap on the drawing itself is still
+/// the inner control's (its ripple), because the innermost recognizer wins
+/// the arena; this one only catches the margin.
+class HitArea extends StatelessWidget {
+  final VoidCallback? onTap;
+  final Widget child;
+  const HitArea({super.key, required this.onTap, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      excludeFromSemantics: true,
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+        child: Center(widthFactor: 1, heightFactor: 1, child: child),
+      ),
+    );
+  }
+}
+
 /// A filter chip in the site's two states: ink-filled when on, bordered when off.
 class WainChip extends StatelessWidget {
   final String label;
@@ -85,38 +112,51 @@ class WainChip extends StatelessWidget {
       button: true,
       selected: active,
       enabled: onTap != null,
-      child: Opacity(
-        opacity: onTap == null ? 0.4 : 1,
-        child: Material(
-          color: active ? WainColors.ink900 : Colors.white,
-          shape: StadiumBorder(
-            side: active
-                ? BorderSide.none
-                : const BorderSide(color: WainColors.lineControl),
-          ),
-          child: InkWell(
-            customBorder: const StadiumBorder(),
-            onTap: onTap,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 32),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (leading != null) ...[
-                      leading!,
-                      const SizedBox(width: 6),
-                    ],
-                    Text(
-                      label,
-                      style: wainText(
-                        WainText.xs,
-                        weight: FontWeight.w600,
-                        color: active ? Colors.white : WainColors.ink600,
+      child: HitArea(
+        onTap: onTap == null
+            ? null
+            : () {
+                HapticFeedback.selectionClick();
+                onTap!();
+              },
+        child: Opacity(
+          opacity: onTap == null ? 0.4 : 1,
+          child: Material(
+            color: active ? WainColors.ink900 : Colors.white,
+            shape: StadiumBorder(
+              side: active
+                  ? BorderSide.none
+                  : const BorderSide(color: WainColors.lineControl),
+            ),
+            child: InkWell(
+              customBorder: const StadiumBorder(),
+              onTap: onTap == null
+                  ? null
+                  : () {
+                      HapticFeedback.selectionClick();
+                      onTap!();
+                    },
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 32),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (leading != null) ...[
+                        leading!,
+                        const SizedBox(width: 6),
+                      ],
+                      Text(
+                        label,
+                        style: wainText(
+                          WainText.xs,
+                          weight: FontWeight.w600,
+                          color: active ? Colors.white : WainColors.ink600,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

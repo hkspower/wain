@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -6,6 +7,7 @@ import '../data/catalogue.dart';
 import '../data/models.dart';
 import '../data/text_kit.dart';
 import '../map/wain_map.dart';
+import '../share/directions.dart';
 import '../share/hangout.dart';
 import '../share/hangout_panel.dart';
 import '../share/invite_banner.dart';
@@ -183,6 +185,23 @@ class PlaceDetailScreen extends StatelessWidget {
               const SizedBox(height: 12),
               _InfoGrid(place: place),
               const SizedBox(height: 12),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: OutlinedButton.icon(
+                  key: const ValueKey('directions'),
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    openDirections(place);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 48),
+                    foregroundColor: WainColors.sea700,
+                  ),
+                  icon: const Icon(Icons.directions, size: 20),
+                  label: const Text('الطريق'),
+                ),
+              ),
+              const SizedBox(height: 8),
               WainMap(
                 places: [place, ...related],
                 activeSlug: place.slug,
@@ -266,8 +285,12 @@ class _Breadcrumb extends StatelessWidget {
       children: [
         InkWell(
           onTap: () => context.go('/explore'),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          // 48 tall: the word is short, so the finger target is the box, not
+          // the text (Android's guideline; it measured 33 before).
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 48, minWidth: 48),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
               'استكشف',
               style: wainText(WainText.sm, color: WainColors.ink500),

@@ -267,6 +267,7 @@ class _QueryBox extends StatelessWidget {
       alignment: AlignmentDirectional.centerEnd,
       children: [
         TextField(
+          onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
           key: const ValueKey('search-input'),
           controller: controller,
           onChanged: (_) => onChanged(),
@@ -329,10 +330,14 @@ class _VoiceControls extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // The IconButton draws its own unnamed semantics node, which the
+        // label here did not reach (labeledTapTargetGuideline found it), so
+        // this node stands for it.
         Semantics(
           button: true,
           toggled: on,
           label: on ? 'إيقاف الصوت' : 'تشغيل الصوت',
+          excludeSemantics: true,
           child: IconButton(
             key: const ValueKey('voice-toggle'),
             onPressed: () {
@@ -564,12 +569,16 @@ class _DeadEnd extends StatelessWidget {
             children: [
               const ShouqCallButton(size: 40),
               const SizedBox(width: 10),
-              Text(
-                'اضغط عشان تكلّم شوق',
-                style: wainText(
-                  WainText.sm,
-                  weight: FontWeight.w600,
-                  color: WainColors.ink700,
+              // Flexible: at 320 the line ran 44px past the edge (found by
+              // tap_targets_test, the first suite to lay this out that narrow).
+              Flexible(
+                child: Text(
+                  'اضغط عشان تكلّم شوق',
+                  style: wainText(
+                    WainText.sm,
+                    weight: FontWeight.w600,
+                    color: WainColors.ink700,
+                  ),
                 ),
               ),
             ],

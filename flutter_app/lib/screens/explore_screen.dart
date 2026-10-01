@@ -65,6 +65,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final columns = width >= 1000 ? 4 : (width >= 640 ? 3 : 2);
 
     return CustomScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       slivers: [
         SliverToBoxAdapter(
           child: PageColumn(
@@ -87,6 +88,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ),
                 const SizedBox(height: 12),
                 TextField(
+                  onTapOutside: (_) =>
+                      FocusManager.instance.primaryFocus?.unfocus(),
                   controller: _controller,
                   onChanged: (_) => setState(() {}),
                   textInputAction: TextInputAction.search,

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../data/categories.g.dart';
 import '../data/models.dart';
 import '../data/text_kit.dart';
+import '../share/share_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import 'art.dart';
@@ -34,12 +36,23 @@ class PlaceCard extends StatelessWidget {
     return Semantics(
       button: true,
       label: place.nameAr,
+      onLongPressHint: 'شارك المكان',
       child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(WainRadius.s2xl),
         child: InkWell(
           borderRadius: BorderRadius.circular(WainRadius.s2xl),
-          onTap: () => context.push('/places/${place.slug}'),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            context.push('/places/${place.slug}');
+          },
+          // A long press shares the place's link, as a long press on a
+          // card does in most phone apps. The link opens the place in the app
+          // for anyone who has it, and on the site for anyone who does not.
+          onLongPress: () {
+            HapticFeedback.mediumImpact();
+            shareHangout(text: placeShareText(place), title: place.nameAr);
+          },
           child: Ink(
             decoration: BoxDecoration(
               // A fill is required: a BoxShadow on a transparent box shows
@@ -274,3 +287,7 @@ class PriceDots extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _PriceDots(level: level);
 }
+
+/// What a long press on a card sends: the name, its line, and its link.
+String placeShareText(Place p) =>
+    '${p.nameAr} — ${p.taglineAr}\nhttps://www.wainkw.com/places/${p.slug}/';
