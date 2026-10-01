@@ -27,7 +27,7 @@ form :is(#f-name, #f-email, #f-governorate, #f-area, #f-block, #f-street, #f-bui
 .cf-collapsed { display: none !important; }
 .cf-more {
   grid-column: 1 / -1; justify-self: start; min-height: 44px; padding: 8px 4px;
-  background: none; border: 0; color: var(--brand, #e0561c); font-weight: 700; font-size: 14px; cursor: pointer;
+  background: none; border: 0; color: #ff8a3d; font-weight: 700;   /* the brand orange is 3.5:1 on this panel; this lighter step is 5:1+ */ font-size: 14px; cursor: pointer;
 }
 .cf-more[hidden] { display: none; }
 /* The bundle's own hint line (#h-phone, #h-email) says the same thing as our message; show one. */
