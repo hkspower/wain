@@ -901,20 +901,34 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
               since the hang-up button is now the last thing near the
               home-indicator strip rather than sitting inside a card with
               margin below it. */}
-          <div className="flex flex-1 flex-col justify-center p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          {/* Three zones, top to bottom: who she is, the conversation (and the
+              widget's own «بدء مكالمة», which lives in it), and the buttons.
+              The body used to be one small centred cluster — a 56px face, the
+              slot and the hang-up button stacked in the middle of a full
+              white screen — so the Start button had nothing around it to
+              say it was the thing to press, and the red hang-up sat right
+              under it at the same size. The middle zone takes the spare
+              height now and the buttons are pinned to the foot, where a
+              thumb already is; `max-w-md` stops all of it stretching across
+              a desktop window. */}
+          <div className="flex flex-1 flex-col p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+           <div className="mx-auto flex w-full max-w-md flex-1 flex-col">
             {(phase === "ringing" || phase === "live" || phase === "answering") && (
-              <div className="text-center">
-                <span className="relative mx-auto grid size-16 place-items-center">
+              <div className="flex flex-1 flex-col text-center">
+                {/* `mt-8` is not decoration: `animate-ping` scales the halo to 2×, so it
+                    reaches half the face's own width past each edge, and with the
+                    body's p-4 above this it needs 48px to stay out of the header. */}
+                <span className="relative mx-auto mt-8 grid size-20 shrink-0 place-items-center sm:size-24">
                   {phase !== "answering" && (
                     <span className="absolute inset-0 animate-ping rounded-full bg-coral-200 motion-reduce:animate-none" />
                   )}
-                  <span className="relative grid size-14 place-items-center rounded-full bg-coral-600 text-white">
-                    <IconShouq className={`size-7 shouq ${talking ? "shouq--talking" : ""}`} />
+                  <span className="relative grid size-16 place-items-center rounded-full bg-coral-600 text-white shadow-md sm:size-20">
+                    <IconShouq className={`size-8 shouq sm:size-10 ${talking ? "shouq--talking" : ""}`} />
                   </span>
                 </span>
 
                 {/* No `aria-live` — the header owns the announcement. */}
-                <p className="mt-3 font-display text-lg font-semibold text-ink-900">
+                <p className="mt-4 text-balance font-display text-xl font-semibold leading-snug text-ink-900">
                   {phase === "ringing"
                     ? WAIN_AI_COPY.ringing
                     : phase === "answering"
@@ -936,8 +950,20 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                 )}
 
                 {/* Agent mode puts the conversation itself here. */}
+                {/* Once she is on the line the slot takes the spare height
+                    (`flex-1`) for the conversation. Before that it holds one
+                    button, so it is centred in the free space (`my-auto`) and
+                    carries a coral ring: «بدء مكالمة» is inside it and is the
+                    one thing to press, so the box is what gets pointed at
+                    rather than the page around it. */}
                 {WAIN_AI_AGENT_ENABLED && (
-                  <div className="mt-4 min-h-24 rounded-2xl bg-sand-100 p-3">
+                  <div
+                    className={`flex min-h-32 flex-col justify-center rounded-3xl bg-sand-100 p-3 ${
+                      phase === "live" && !started
+                        ? "my-auto ring-2 ring-coral-400"
+                        : "mt-5 flex-1"
+                    }`}
+                  >
                     {agentReady ? (
                       <div ref={slotRef} />
                     ) : (
@@ -967,31 +993,36 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                     redial (see startCall), so a caller never has to remember
                     to switch back. Secondary styling on purpose: hanging up is
                     still the one button every path ends at. */}
-                {WAIN_AI_AGENT_ENABLED && phase === "live" && started && (
+                {/* The buttons, pinned to the foot (`mt-auto`) and full width,
+                    one column: two 44px targets with a gap between them, not
+                    two small pills side by side that can touch at 320px. */}
+                <div className="mt-auto flex flex-col gap-2 pt-4">
+                  {WAIN_AI_AGENT_ENABLED && phase === "live" && started && (
+                    <button
+                      type="button"
+                      onClick={switchPersona}
+                      className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-2xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
+                    >
+                      {persona === "shouq" ? WAIN_AI_COPY.switchToSalem : WAIN_AI_COPY.switchToShouq}
+                    </button>
+                  )}
+
+                  {/* One red button that hangs up, on every path, meaning
+                      exactly one thing. */}
                   <button
                     type="button"
-                    onClick={switchPersona}
-                    className="mt-3 inline-flex min-h-6 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3.5 text-xs font-semibold text-ink-700 transition hover:border-sea-300"
+                    onClick={endCall}
+                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-coral-700 px-5 text-sm font-semibold text-white transition hover:bg-coral-800"
                   >
-                    {persona === "shouq" ? WAIN_AI_COPY.switchToSalem : WAIN_AI_COPY.switchToShouq}
+                    <IconPhone className="size-4 rotate-[135deg]" />
+                    {WAIN_AI_COPY.hangUp}
                   </button>
-                )}
-
-                {/* One red button that hangs up, on every path, meaning
-                    exactly one thing. */}
-                <button
-                  type="button"
-                  onClick={endCall}
-                  className="mt-4 inline-flex min-h-6 items-center gap-2 rounded-xl bg-coral-700 px-5 text-sm font-semibold text-white transition hover:bg-coral-800"
-                >
-                  <IconPhone className="size-4 rotate-[135deg]" />
-                  {WAIN_AI_COPY.hangUp}
-                </button>
+                </div>
               </div>
             )}
 
             {phase === "ended" && (
-              <div className="text-center">
+              <div className="my-auto text-center">
                 <p className="py-2 font-display text-lg font-semibold text-ink-900">
                   {WAIN_AI_COPY.ended}
                 </p>
@@ -1010,7 +1041,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
             )}
 
             {phase === "error" && (
-              <div className="text-center">
+              <div className="my-auto text-center">
                 <p className="py-2 text-sm font-semibold text-ink-600" role="alert">
                   {errorText}
                 </p>
@@ -1031,6 +1062,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                 الخصوصية
               </Link>
             </p>
+           </div>
           </div>
         </div>
   );
