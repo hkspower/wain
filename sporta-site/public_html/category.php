@@ -565,5 +565,6 @@ header('Cache-Control: public, max-age=0, must-revalidate');
   <?= $otherLinks ?>
 </footer>
 <script src="/assets/category-topbar.js" defer></script>
+<script src="/assets/quick-add-size.js?v=20261001" defer></script>
 </body>
 </html>

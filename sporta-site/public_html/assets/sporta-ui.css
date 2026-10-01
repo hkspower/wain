@@ -4376,9 +4376,9 @@ main article .price-card :is(s, del, [class*="line-through"]) {
 }
 .sporta-home-products__frame {
   aspect-ratio: 1.09 / 1;
-  background: #fff;
+  background: #1a1d20;   /* a garment with no photo yet keeps the dark tile, as on /shop */
 }
-.sporta-home-products__frame img { object-position: 50% 40%; }
+.sporta-home-products__frame img { object-position: 50% 40%; background: #fff; }
 .sporta-home-products__body {
   direction: ltr;
   text-align: left;

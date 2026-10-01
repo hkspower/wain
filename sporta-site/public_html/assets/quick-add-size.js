@@ -73,7 +73,7 @@
   var api = ((window.SPORTA_CONFIG && window.SPORTA_CONFIG.phpApiUrl) || '/api').replace(/\/$/, '')
 
   var LABEL = {
-    add: { en: 'Add', ar: 'أضف' },
+    add: { en: 'Add to cart', ar: 'أضف إلى السلة' },
     choose: { en: 'Choose a size', ar: 'اختر مقاسًا' },
     added: { en: 'Added ✓', ar: 'أُضيف ✓' },
     close: { en: 'Close', ar: 'إغلاق' },
@@ -196,6 +196,7 @@
   function closePanel(anchor) {
     var panel = anchor.querySelector('.qas-panel')
     if (panel && panel.parentNode) panel.parentNode.removeChild(panel)
+    anchor.removeAttribute('data-qas-open')
   }
 
   function openPanel(anchor, slug) {
@@ -259,6 +260,7 @@
     panel.appendChild(row)
 
     panel.onclick = function (e) { e.stopPropagation() }
+    anchor.setAttribute('data-qas-open', '1')
     anchor.appendChild(panel)
   }
 
@@ -268,8 +270,21 @@
       for (var i = 0; i < links.length; i++) {
         var a = links[i]
         if (a.getAttribute(MARK)) continue
-        if (!a.querySelector(':scope > img')) continue          /* a card, not a text link */
-        if (a.querySelector('button[aria-label^="Add"], button[aria-label^="أضف"]')) continue /* bundle's own button already there */
+        /* WHERE THE BUTTON GOES. On the bundle's own cards the photo is a direct child of the link
+           and the button goes on the link. The shop's other two grids — the home page's Best
+           sellers (home-products.js) and the category pages (category.php) — draw their photo
+           inside a frame and had NO add button at all ("add add to cart button", 2026-10-01), so
+           the button goes on that frame, which is positioned, and the size panel opens over it. */
+        var host = null
+        var own = false
+        if (a.querySelector(':scope > img')) host = a
+        /* no photo needed: a garment still waiting for its picture can be bought all the same */
+        else if (a.matches('.sporta-home-products__card, a.card')) {
+          host = a.querySelector('[class*="frame"]') || a
+          own = true
+        }
+        if (!host) continue                                     /* a text link, not a card */
+        if (a.querySelector('button[aria-label^="Add"], button[aria-label^="أضف"]')) continue /* a button is already there */
 
         var m = /\/product\/([^/?#]+)/.exec(a.getAttribute('href') || '')
         var slug = m ? decodeURIComponent(m[1]) : null
@@ -282,7 +297,9 @@
         var btn = document.createElement('button')
         btn.type = 'button'
         btn.setAttribute('aria-label', t('add') + ' — ' + infoBySlug[slug].name[ar() ? 'ar' : 'en'])
-        btn.className = 'absolute bottom-2 end-2 flex h-11 w-11 items-center justify-center '
+        btn.className = own
+          ? 'qas-btn qas-btn--own'     /* no Tailwind on these grids: styled below, always visible */
+          : 'absolute bottom-2 end-2 flex h-11 w-11 items-center justify-center '
           + 'rounded-full shadow-md transition focus-visible:opacity-100 bg-white/95 text-ink '
           + 'backdrop-blur hover:bg-brand hover:text-ink lg:translate-y-1 lg:opacity-0 '
           + 'lg:group-hover:translate-y-0 lg:group-hover:opacity-100 qas-btn'
@@ -290,17 +307,16 @@
           + 'fill="none" stroke="currentColor" stroke-width="2.33" stroke-linecap="round" '
           + 'stroke-linejoin="round" aria-hidden="true" focusable="false">'
           + '<path d="M12 5v14M5 12h14"></path></svg>'
-        btn.onclick = function (slugForClick) {
+        btn.onclick = function (slugForClick, hostEl) {
           return function (e) {
             e.preventDefault()
             e.stopPropagation()
-            var thisAnchor = e.currentTarget.closest('a')
-            var open = thisAnchor.querySelector('.qas-panel')
-            if (open) { closePanel(thisAnchor); return }
-            openPanel(thisAnchor, slugForClick)
+            var open = hostEl.querySelector('.qas-panel')
+            if (open) { closePanel(hostEl); return }
+            openPanel(hostEl, slugForClick)
           }
-        }(slug)
-        a.appendChild(btn)
+        }(slug, host)
+        host.appendChild(btn)
       }
     })
   }
@@ -324,6 +340,14 @@
     + 'background:#fff;color:#171a1e;font-size:11px;font-weight:700;cursor:pointer}'
     + '.qas-pill:hover{background:var(--brand,#e0561c);color:#171a1e}'
     + '.qas-btn{z-index:21}'
+    /* the button on the home and category grids: the shop's orange disc with a white plus, 44px */
+    + '.qas-btn--own{position:absolute;bottom:8px;inset-inline-end:8px;display:flex;align-items:center;'
+    + 'justify-content:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;cursor:pointer;'
+    + 'background:#f56315;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}'
+    + '.qas-btn--own:hover{background:#ff7b17}'
+    /* the size chooser covers the bottom of the photo; the + would sit on top of its pills */
+    + '[data-qas-open]>.qas-btn--own{visibility:hidden}'
+    + '.qas-btn--own:focus-visible{outline:2px solid #fff;outline-offset:2px}'
     /* THE BUNDLE NOW DRAWS ITS OWN "Choose size" BUTTON on these cards, in the
        same bottom-end corner. The header above predates it. The button above
        covers it completely, so a pointer could never reach it, while a
