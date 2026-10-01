@@ -67,6 +67,7 @@
     "test:checkout-fields": "node scripts/checkout-fields-test.mjs",
     "test:hero-preload": "node scripts/hero-preload-test.mjs",
     "test:customer-ui": "node scripts/customer-account-ui-test.mjs",
+    "test:icon-weight": "node scripts/icon-weight-test.mjs",
     "test:notification-center": "node scripts/notification-center-test.mjs",
     "test:best-sellers-bar": "node scripts/best-sellers-bar-test.mjs",
     "test:tile-size": "node scripts/tile-size-test.mjs",

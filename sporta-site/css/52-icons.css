@@ -1,0 +1,18 @@
+/* ONE ICON WEIGHT — 2026-10-01, "improve icons design", the owner chose one consistent, thinner,
+ * cleaner set. The icons are stroked line SVGs drawn at 14, 16, 17, 18, 21 and 22px, each with a
+ * stroke-width tuned in the viewBox's 24-unit space, so the weight a shopper SEES came out anywhere
+ * from about 1.2px (footer) to 2.2px (21px icons). `vector-effect: non-scaling-stroke` takes the
+ * viewBox out of it: the stroke is measured in screen pixels, so every icon is 1.5px at every size,
+ * on every screen density, with round caps and joins.
+ *
+ * Left alone on purpose: the 56px empty-bag illustration (a drawing, not a control), and the bold white
+ * "+" on the product cards' orange disc, which 44-product-grid-spec.css sets heavier (2.6) to match the
+ * owner's screenshot — a more specific rule that wins, and is meant to. */
+svg[fill="none"][stroke="currentColor"]:not([width="56"]) {
+  stroke-width: 1.5px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+svg[fill="none"][stroke="currentColor"]:not([width="56"]) :is(path, circle, line, polyline, polygon, rect, ellipse) {
+  vector-effect: non-scaling-stroke;
+}
