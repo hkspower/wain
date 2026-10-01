@@ -81,6 +81,8 @@ interface SalemChatCallbacks {
    * agent's `client_events` list includes the event, so it does arrive.
    */
   onCorrection?: (correction: { original: string; corrected: string }) => void;
+  /** The reply never came and the typing state ended by timeout. */
+  onNoReply?: () => void;
   /**
    * Tools this page can actually run, keyed by name — `SalemChat.tsx` passes
    * `show_places`/`open_place` here once it carries `usePlaces()`. A tool
@@ -91,6 +93,20 @@ interface SalemChatCallbacks {
    */
   clientTools?: Record<string, SalemClientTool>;
   onToolUnavailable: () => void;
+}
+
+/**
+ * The agent's soft-timeout filler («ثانية وحدة…», `soft_timeout_config.message`,
+ * 3s) exists to fill silence on a PHONE. Typed, it would sit in a bubble at the
+ * head of every slow answer, or as a bubble of its own, as if she had finished.
+ * A test run of her showed it captured at the front of a reply ahead of the
+ * real text. Whether the text channel sends it separately is not something
+ * this session could see (the socket is refused here), so both shapes are
+ * handled: a reply that is only the filler is ignored — she is still working —
+ * and one that opens with it loses it.
+ */
+export function stripFiller(text: string): string {
+  return text.replace(/^\s*ثانية\s+وحدة\s*[….،.]*\s*/u, "").trim();
 }
 
 const NOOP_HANDLE: SalemChatHandle = { send: () => false, close: () => {} };
@@ -126,6 +142,7 @@ export function startSalemChat({
   onMessage,
   onPending,
   onCorrection,
+  onNoReply,
   clientTools,
   onToolUnavailable,
 }: SalemChatCallbacks): SalemChatHandle {
@@ -155,7 +172,11 @@ export function startSalemChat({
   let pendingTimer: ReturnType<typeof setTimeout> | undefined;
   const setPending = (next: boolean) => {
     clearTimeout(pendingTimer);
-    if (next) pendingTimer = setTimeout(() => setPending(false), PENDING_TIMEOUT_MS);
+    if (next)
+      pendingTimer = setTimeout(() => {
+        if (pending) onNoReply?.();
+        setPending(false);
+      }, PENDING_TIMEOUT_MS);
     if (pending === next) return;
     pending = next;
     onPending?.(next);
@@ -206,8 +227,11 @@ export function startSalemChat({
         return;
       case "agent_response": {
         const evt = data.agent_response_event as { agent_response?: string } | undefined;
+        const text = stripFiller(evt?.agent_response ?? "");
+        // Only the filler: she is still working, so the typing state stays.
+        if (!text && evt?.agent_response) return;
         setPending(false);
-        if (evt?.agent_response) onMessage({ role: "agent", text: evt.agent_response });
+        if (text) onMessage({ role: "agent", text });
         return;
       }
       case "agent_response_correction": {

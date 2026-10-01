@@ -37,7 +37,7 @@ execSync(
     `--alias:@=${JSON.stringify(join(ROOT, "src"))} --outfile=${JSON.stringify(bundle)} --log-level=error`,
   { cwd: ROOT, stdio: "pipe" }
 );
-const { startSalemChat } = await import(pathToFileURL(bundle).href);
+const { startSalemChat, stripFiller } = await import(pathToFileURL(bundle).href);
 rmSync(tmp, { recursive: true, force: true });
 
 /** A WebSocket standing in for the network — no connection, ever attempted. */
@@ -304,6 +304,43 @@ console.log("\n── a failure says WHICH kind ──");
   startSalemChat({ onStatus: (s, f) => seen.push([s, f]), onMessage: () => {}, onToolUnavailable: () => {} });
   FakeSocket.last.emit("close", { code: 1000 });
   ok("a normal close is «disconnected», with no failure attached", seen.some(([s, f]) => s === "disconnected" && f === undefined), JSON.stringify(seen));
+  mock.timers.reset();
+}
+
+console.log("\n── the phone-call filler is not a typed answer ──");
+{
+  ok("a leading filler is dropped from a real reply", stripFiller("ثانية وحدة….  أوكي، قهوة هادية…") === "أوكي، قهوة هادية…", stripFiller("ثانية وحدة….  أوكي، قهوة هادية…"));
+  ok("a reply that is only the filler becomes empty", stripFiller("ثانية وحدة…") === "");
+  ok("an ordinary reply is untouched", stripFiller("حياك الله") === "حياك الله");
+  ok("«ثانية» inside a sentence is not stripped", stripFiller("استنى ثانية وحدة بس") === "استنى ثانية وحدة بس");
+
+  globalThis.WebSocket = FakeSocket;
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const pend = [];
+  const msgs = [];
+  let noReply = 0;
+  const handle = startSalemChat({
+    onStatus: () => {},
+    onMessage: (m) => msgs.push(m),
+    onPending: (v) => pend.push(v),
+    onNoReply: () => noReply++,
+    onToolUnavailable: () => {},
+  });
+  const sock = FakeSocket.last;
+  sock.readyState = FakeSocket.OPEN;
+  sock.emit("open", {});
+  sock.emit("message", { data: JSON.stringify({ type: "conversation_initiation_metadata" }) });
+  handle.send("قهوة");
+  sock.emit("message", { data: JSON.stringify({ type: "agent_response", agent_response_event: { agent_response: "ثانية وحدة…" } }) });
+  ok("a filler on its own draws no bubble", msgs.length === 0, JSON.stringify(msgs));
+  ok("and does not end the typing state — she is still working", pend.join(",") === "true", pend.join(","));
+  sock.emit("message", { data: JSON.stringify({ type: "agent_response", agent_response_event: { agent_response: "أبشر، كافيهات شارع الخليج." } }) });
+  ok("the real answer does, and ends it", msgs.length === 1 && pend.join(",") === "true,false", pend.join(","));
+  ok("an answer never reports «no reply»", noReply === 0);
+
+  handle.send("وين؟");
+  mock.timers.tick(45000);
+  ok("a reply that never comes reports it once, as well as clearing the dots", noReply === 1 && pend[pend.length - 1] === false, `${noReply} ${pend.join(",")}`);
   mock.timers.reset();
 }
 

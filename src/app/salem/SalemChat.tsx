@@ -83,6 +83,11 @@ export default function SalemChat() {
   // A message is out and her reply has not come: the typing bubble, and the
   // send button held back so a second question does not cross the first.
   const [pending, setPending] = useState(false);
+  // True from a session opening until her first line lands: she speaks first,
+  // and until then the transcript is empty.
+  const [awaitingGreeting, setAwaitingGreeting] = useState(false);
+  // A reply is taking long (see WAIN_AI_CHAT_COPY.slow).
+  const [slow, setSlow] = useState(false);
   const handleRef = useRef<SalemChatHandle | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   // Whether the visitor is reading the bottom of the transcript. Forcing the
@@ -120,6 +125,7 @@ export default function SalemChat() {
     handleRef.current?.close();
     setFailure(null);
     setPending(false);
+    setAwaitingGreeting(true);
     // A second session's greeting would otherwise land directly under the
     // first one's last line, as if it were the next thing said.
     setMessages((prev) =>
@@ -128,10 +134,15 @@ export default function SalemChat() {
     const handle = startSalemChat({
       onStatus: (s, f) => {
         setStatus(s);
+        if (s === "error" || s === "disconnected") setAwaitingGreeting(false);
         setFailure(s === "error" ? (f ?? "refused") : null);
       },
       onPending: setPending,
-      onMessage: (m) => setMessages((prev) => [...prev, m]),
+      onMessage: (m) => {
+        if (m.role === "agent") setAwaitingGreeting(false);
+        setMessages((prev) => [...prev, m]);
+      },
+      onNoReply: () => setMessages((prev) => [...prev, { role: "system", text: WAIN_AI_CHAT_COPY.noReply }]),
       // She corrected what she had just said: replace that bubble rather than
       // leave both on screen.
       onCorrection: ({ original, corrected }) =>
@@ -185,20 +196,39 @@ export default function SalemChat() {
     el.scrollTo({ top: el.scrollHeight, behavior: reduced ? "auto" : "smooth" });
   }, [messages, pending]);
 
-  function send(e: React.FormEvent) {
-    e.preventDefault();
-    const text = draft.trim();
-    if (!text || status !== "connected" || pending) return;
+  const typing = status === "connected" && (pending || awaitingGreeting);
+  useEffect(() => {
+    if (!typing) {
+      setSlow(false);
+      return;
+    }
+    const t = setTimeout(() => setSlow(true), 10_000);
+    return () => clearTimeout(t);
+  }, [typing]);
+
+  function submit(raw: string): boolean {
+    const text = raw.trim();
+    if (!text || status !== "connected" || pending) return false;
     // Send first, draw the bubble only if the message left: it used to be the
     // other way round, so a closed socket showed a message that was never sent.
     if (!handleRef.current?.send(text)) {
       setMessages((prev) => [...prev, { role: "system", text: WAIN_AI_CHAT_COPY.sendFailed }]);
-      return;
+      return false;
     }
     stickRef.current = true;
     setMessages((prev) => [...prev, { role: "user", text }]);
-    setDraft("");
+    return true;
   }
+
+  function send(e: React.FormEvent) {
+    e.preventDefault();
+    if (submit(draft)) setDraft("");
+  }
+
+  // Starters are for a conversation that has not begun: gone once anyone has
+  // typed, and gone while a reply is on its way.
+  const showStarters =
+    status === "connected" && !pending && !awaitingGreeting && !messages.some((m) => m.role === "user");
 
   const failureText =
     failure === "timeout"
@@ -295,7 +325,7 @@ export default function SalemChat() {
           return (
             <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               <p
-                className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                className={`max-w-[80%] whitespace-pre-line rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                   m.role === "user" ? "bg-sea-600 text-white" : "bg-white text-ink-900"
                 }`}
               >
@@ -304,8 +334,8 @@ export default function SalemChat() {
             </div>
           );
         })}
-        {pending && status === "connected" && (
-          <div className="flex justify-start">
+        {typing && (
+          <div className="flex flex-col items-start gap-1">
             <p className="rounded-2xl bg-white px-4 py-3 text-ink-900">
               <span className="sr-only">{WAIN_AI_CHAT_COPY.typing}</span>
               <span aria-hidden="true" className="flex gap-1">
@@ -318,6 +348,22 @@ export default function SalemChat() {
                 ))}
               </span>
             </p>
+            {slow && <p className="px-1 text-xs text-sand-200">{WAIN_AI_CHAT_COPY.slow}</p>}
+          </div>
+        )}
+        {showStarters && (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="text-xs text-sand-200">{WAIN_AI_CHAT_COPY.starterLabel}</span>
+            {WAIN_AI_CHAT_COPY.starters.map((q) => (
+              <button
+                key={q}
+                type="button"
+                onClick={() => submit(q)}
+                className="inline-flex min-h-6 items-center rounded-full bg-white/10 px-3 text-sm text-white transition hover:bg-white/20"
+              >
+                {q}
+              </button>
+            ))}
           </div>
         )}
         {status === "error" && (
@@ -350,7 +396,7 @@ export default function SalemChat() {
           id="salem-q"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder={WAIN_AI_CHAT_COPY.placeholder}
+          placeholder={status === "connected" ? WAIN_AI_CHAT_COPY.placeholder : statusLine}
           disabled={status !== "connected"}
           // No `disabled:opacity-*` — the box already reads a normal white
           // field, and the header's own status line is what says "not yet".

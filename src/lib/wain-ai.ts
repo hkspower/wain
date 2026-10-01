@@ -349,6 +349,15 @@ export const WAIN_AI_CHAT_COPY = {
   // fresh greeting does not land as if it were the next line of the old chat.
   newConversation: "— محادثة جديدة —",
   noResults: "ما لقينا شي لـ",
+  // Until the first line of a conversation arrives she has said nothing, and a
+  // bare input box under an empty transcript reads as a page that did not load.
+  starterLabel: "جرّب تسأل:",
+  starters: ["قهوة هادية", "طلعة مع العيال", "عشا على البحر", "شي رخيص"],
+  // The typing dots vanished after 45s with no word; this is the word.
+  noReply: "ما وصلني رد منها — جرّب ثاني.",
+  // Said under the dots when a reply is taking long, so a slow answer is not
+  // indistinguishable from a dead one.
+  slow: "ثواني وترد عليك…",
   reconnect: "ابدأ من جديد",
   // The chat's own tool call is answered with an error rather than left to
   // hang — see lib/salem-chat.ts — so this is what a visitor reads when they

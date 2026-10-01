@@ -128,6 +128,43 @@ console.log('\n── show_places/open_place render inline, without a live agent
   await sp.waitForFunction(() => !document.getElementById('salem-q')?.disabled, null, { timeout: 6000 });
   ok('the box enables once the fake handshake settles', await input.isEnabled());
 
+  console.log('\n── she speaks first: waiting, starters, and the phone-call filler ──');
+  // Until her first line lands the transcript is empty, which read as a page
+  // that had not loaded. The dots say she is on her way.
+  ok('before her greeting, the typing dots show — the chat is not just blank',
+    await sp.locator('[role="log"] .sr-only', { hasText: 'يكتب' }).count() === 1);
+  ok('and no starters yet — nothing has been said to answer',
+    await sp.getByRole('button', { name: 'قهوة هادية' }).count() === 0);
+  await sp.evaluate(() => window.__salemSocket.emit('message', {
+    data: JSON.stringify({ type: 'agent_response', agent_response_event: { agent_response: 'هلا والله!' } }),
+  }));
+  // Soft: a throw here would cancel every section after it, the coverage-hole
+  // shape this repo has met three times already.
+  const starters = await sp.getByRole('button', { name: 'قهوة هادية' }).waitFor({ timeout: 4000 }).then(() => true, () => false);
+  ok('once she has greeted, the starters appear', starters);
+  if (!starters) await sp.evaluate(() => { window.__salemStartersMissing = true; });
+  ok('and the dots are gone', await sp.locator('[role="log"] .sr-only', { hasText: 'يكتب' }).count() === 0);
+  if (starters) await sp.getByRole('button', { name: 'قهوة هادية' }).click();
+  else await sp.locator('#salem-q').fill('قهوة هادية').then(() => sp.getByRole('button', { name: 'إرسال' }).click());
+  ok('a starter sends its words as the visitor\'s own message', await sp.evaluate(() => {
+    const m = JSON.parse(window.__salemSocket.sent.at(-1));
+    return m.type === 'user_message' && m.text === 'قهوة هادية';
+  }));
+  ok('and is drawn as their bubble', await sp.locator('p', { hasText: 'قهوة هادية' }).count() === 1);
+  ok('the starters leave once the conversation has begun', await sp.getByRole('button', { name: 'طلعة مع العيال' }).count() === 0);
+  await sp.evaluate(() => window.__salemSocket.emit('message', {
+    data: JSON.stringify({ type: 'agent_response', agent_response_event: { agent_response: 'ثانية وحدة…' } }),
+  }));
+  ok('a filler meant for a phone line draws no bubble',
+    await sp.locator('p', { hasText: 'ثانية وحدة' }).count() === 0);
+  ok('and the dots stay — she is still working',
+    await sp.locator('[role="log"] .sr-only', { hasText: 'يكتب' }).count() === 1);
+  await sp.evaluate(() => window.__salemSocket.emit('message', {
+    data: JSON.stringify({ type: 'agent_response', agent_response_event: { agent_response: 'أبشر، مقاهي المباركية.' } }),
+  }));
+  await sp.waitForSelector('p:has-text("مقاهي المباركية")', { timeout: 4000 });
+  ok('then the real answer replaces them', await sp.locator('[role="log"] .sr-only', { hasText: 'يكتب' }).count() === 0);
+
   await sp.evaluate(() => {
     window.__salemSocket.emit('message', {
       data: JSON.stringify({
@@ -174,6 +211,9 @@ console.log('\n── show_places/open_place render inline, without a live agent
   await sp.getByRole('button', { name: 'إرسال' }).click();
   ok('the visitor\'s own bubble is drawn once the message left', await sp.locator('p', { hasText: 'وين أروح؟' }).count() === 1);
   ok('and a typing indicator shows while she answers', await sp.locator('[role="log"] .sr-only', { hasText: 'يكتب' }).count() === 1);
+  // A slow answer must not look like a dead one: after 10s the dots say so.
+  await sp.waitForSelector('text=ثواني وترد عليك', { timeout: 14000 });
+  ok('a reply taking long says so under the dots', true);
   await input.fill('ثاني');
   ok('the send button is held back until her reply, so two questions do not cross',
     await sp.getByRole('button', { name: 'إرسال' }).isDisabled());

@@ -1822,6 +1822,29 @@ the agent's `client_events`, so streaming was **not** built. Pending is bounded
 `tests/salem-chat.test.mjs` is 36 assertions, `tests/salem.test.mjs` grew five.
 **`[role="alert"]` also matches Next's route announcer** — select `p[role="alert"]`.
 
+**/salem feedback, second pass (1 October, on request).** The first pass fixed what
+the chat did when something went wrong; this one is what it says while nothing
+has happened yet. She speaks first, so for the seconds before her greeting the
+transcript was empty under a live input box, which reads as a page that did not
+load — the typing dots show from the moment a session opens (`awaitingGreeting`).
+Four starters («قهوة هادية», «طلعة مع العيال», «عشا على البحر», «شي رخيص») appear
+once she has greeted and leave the moment anyone has typed; they send as the
+visitor's own message through the same `submit()`. A reply slower than 10s says so
+under the dots (`slow`), and a reply that never comes says so when the 45s timer
+clears them (`onNoReply`) — the dots used to vanish with no word. The input's
+placeholder carries the status while it is disabled.
+
+**The phone-call filler would have appeared as her answer.** Her soft timeout
+(`timeout_seconds: 3`, «ثانية وحدة…») is for silence on a phone line. In a test
+run it came back glued to the front of a real reply. `stripFiller` in
+`salem-chat.ts` drops it from the front of a reply and ignores a reply that is
+only the filler, leaving the dots up — both shapes, because **whether the text
+channel sends it separately could not be seen: the socket is refused here.** Not
+verified against a live agent. Proving the starters assertion could fail found
+the usual trap twice: the first sabotage (`&& false`) stopped `next build` on lint,
+and the first red threw an uncaught `waitFor` and cancelled the rest of the file —
+so that wait is soft now.
+
 **The knowledge base: tried, measured, rolled back.** `منطق ٦` is still the one
 real defect: gemini-2.5-flash copies the year-round «أحسن وقت» in summer. KB v7
 (`HVj2QHQpi6vhaxukWMOe`, commit `8215f7d6`) replaced that line outright for the 16
