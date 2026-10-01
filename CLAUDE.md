@@ -4583,7 +4583,17 @@ the first time anything here has drawn one), 7 screenshots in the
 landing on /search, the microphone check passing both ways. The 17e built and
 then printed **no test output at all** for 17 minutes after «Xcode build done»
 — stuck installing or attaching to the app, before any flow ran — until the
-drive step's 20-minute cap ended it; re-run to see whether it repeats. The
+drive step's 20-minute cap ended it. **Re-run unchanged, it passed 7 of 7**
+(attempt 2, same commit): build 7m12s, tests in 38 s, the back swipe starting
+over the place page's scroll view, the layout check at 1170×2532 @3x with a
+141px top inset, microphone `granted`, `AudioVideoPermissionStrategy: present`,
+artifact `ios-sim-small` (13.8 MB). So the first attempt was a flake of the
+runner's simulator, not of the app — and the boot log says why it is plausible:
+a fresh 17e spends ~70 s «Waiting on Data Migration» before it is usable, which
+`simctl bootstatus -b` waits out but which is the slowest-starting device on the
+image. **Both devices green at `ba382bd3`, iOS 26.5.** If the hang returns,
+install with `simctl install` as its own timed step and drive with
+`--use-application-binary --verbose`, so the log says which half stalled. The
 build and the drive are separate steps with their own limits precisely so a
 hang like that is told apart from a failing flow.
 
