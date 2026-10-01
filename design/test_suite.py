@@ -903,7 +903,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "683", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "686", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -938,7 +938,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "683", "0", "100%"], str(finals))
+          finals == ["4", "686", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -2760,6 +2760,18 @@ def mobile_checks(br):
       return parseFloat(getComputedStyle(main).paddingBottom) >= (844 - bar.top) - 10;
     })()""")
     check(S, "content padding clears the bottom bar", clear)
+    # Each tab its own column, icon over label, no label clipped — and not just
+    # at 390: five labels 4px apart ran together into one line at 360, and
+    # equal columns then cut «المركز المالي» to an ellipsis (2026-10-01).
+    for w in (390, 360, 320):
+        p.set_viewport_size({"width": w, "height": 844}); p.wait_for_timeout(150)
+        tabs = p.evaluate("""[...document.querySelectorAll('nav.tabs button')].map(b => {
+          const l = b.querySelector('.tl'), i = b.querySelector('.ti');
+          return { clipped: !l || l.scrollWidth > l.clientWidth + 1,
+                   stacked: !!(l && i) && i.getBoundingClientRect().bottom <= l.getBoundingClientRect().top + 1 }; })""")
+        check(S, f"at {w}px every tab label is whole, under its icon",
+              tabs and all(not t["clipped"] and t["stacked"] for t in tabs), str(tabs))
+    p.set_viewport_size({"width": 390, "height": 844}); p.wait_for_timeout(150)
     # tabs still switch by touch
     p.tap('nav.tabs button[data-tab="delivery"]'); p.wait_for_timeout(250)
     check(S, "tapping the bar switches tabs", "#/delivery" in p.url)

@@ -320,10 +320,18 @@
         background: var(--panel);
         padding-bottom: env(safe-area-inset-bottom, 0px);
         box-shadow: 0 -1px 8px rgba(11, 18, 32, .06); }
-      nav.tabs button { flex: 1; border-bottom: 0; border-top: 2px solid transparent;
-        font-size: 12px; padding: 8px 4px 12px; min-height: 52px; }
+      /* icon over label, each tab its own column: five labels side by side at
+         4px apart read as one run-on line on a 360px phone (2026-10-01).
+         Columns size to their label first (flex-basis auto), then share what
+         is left — equal columns clipped «المركز المالي» to «المركز…». */
+      nav.tabs button { flex: 1 1 auto; min-width: 0; border-bottom: 0; border-top: 2px solid transparent;
+        font-size: 12px; padding: 8px 4px 8px; min-height: 56px;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+        line-height: 1.35; }
+      nav.tabs .ti { font-size: 18px; line-height: 1; }
+      nav.tabs .tl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
       nav.tabs button.on { border-top-color: var(--tint); }
-      main { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+      main { padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
       footer.site { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
       input, select { font-size: 16px; }         /* < 16px makes iOS zoom on focus */
       .btn { min-height: 44px; }
@@ -398,11 +406,11 @@
     </header>
 
     <nav class="tabs" id="tabs">
-    <button data-tab="position" class="on">⚓ المركز المالي</button>
-    <button data-tab="safi">📊 صافي</button>
-    <button data-tab="xbrl">🧾 XBRL</button>
-    <button data-tab="delivery">🛵 التوصيل</button>
-    <button data-tab="social">📣 التواصل</button>
+    <button data-tab="position" class="on"><span class="ti" aria-hidden="true">⚓</span> <span class="tl">المركز المالي</span></button>
+    <button data-tab="safi"><span class="ti" aria-hidden="true">📊</span> <span class="tl">صافي</span></button>
+    <button data-tab="xbrl"><span class="ti" aria-hidden="true">🧾</span> <span class="tl">XBRL</span></button>
+    <button data-tab="delivery"><span class="ti" aria-hidden="true">🛵</span> <span class="tl">التوصيل</span></button>
+    <button data-tab="social"><span class="ti" aria-hidden="true">📣</span> <span class="tl">التواصل</span></button>
     </nav>
   </div>
 
