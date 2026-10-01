@@ -1791,6 +1791,76 @@ secret would have to live either in the agent config (readable) or in an n8n
 variable — which is the `REPLACE_PHONE_NUMBER_ID` failure mode: unset, silent,
 and discovered months later.
 
+## «Improve her response» — 1 October: the screen and the typed chat shipped, the knowledge base did not
+
+Asked for all four of answer quality, speed, the call sheet and `/salem`. Two of
+the four are code and are in the repository; the other two turned out to be
+mostly **not measurable from here**, and the one live change made to the agent
+was tried and rolled back. Nothing is deployed.
+
+**The call sheet (`WainAiCall.tsx`, commit `5a6b3490`).** In agent mode it said
+«قول وش تبي…» for the whole call, over her greeting; now «نوصّل شوق…» while it
+rings, «على الخط — كلّمها عادي» after Start, and after 15s of `live && !started`
+a hint to press «بدء مكالمة» (`START_NUDGE_MS`). Never auto-click Start: it is the
+widget's consent gate. `show_places` set its line only after an await and
+hand-wrote the count; it now sets «أدوّر لك على «…»…» first, names the first two
+places, and counts through `countAr` with its own agreement table
+(`MATCHING_PLACES`). `open_place` says «ما لقيت هالمكان» on a bad slug instead of
+leaving the sheet saying nothing. The ended screen recaps the last action. The
+stale «22rem» comment is fixed. Confirmed red by taking each line out with the
+build green first (5 assertions failed, file restored and rebuilt).
+
+**The typed chat (`salem-chat.ts`, `SalemChat.tsx`).** Typing indicator while
+she answers, send disabled meanwhile, `send()` returns whether the message left
+(it used to draw the bubble and drop the text on a closed socket — now rolled
+back with a line), `role="log"` transcript, a divider on reconnect, three failure
+messages (timeout / refused / dropped) instead of one, and
+`agent_response_correction` replaces the bubble. The correction's wire shape was
+read out of the packed SDK types; `agent_chat_response_part` exists but is not in
+the agent's `client_events`, so streaming was **not** built. Pending is bounded
+(45s) so a reply that never comes cannot disable the box for ever.
+`tests/salem-chat.test.mjs` is 36 assertions, `tests/salem.test.mjs` grew five.
+**`[role="alert"]` also matches Next's route announcer** — select `p[role="alert"]`.
+
+**The knowledge base: tried, measured, rolled back.** `منطق ٦` is still the one
+real defect: gemini-2.5-flash copies the year-round «أحسن وقت» in summer. KB v7
+(`HVj2QHQpi6vhaxukWMOe`, commit `8215f7d6`) replaced that line outright for the 16
+places whose line names a daytime hour — no «العصر/الصبح/الظهر» left to copy.
+Suite on it: **49 of 50 against 47 of 50 on v5**, which is inside the ±3 this
+file has already said the suite moves. What decided it was `charging.llm_usage`:
+of six re-runs of `منطق ٦`, **five were answered by gpt-4o and passed; the one
+gemini run failed** — «وأحلى وقت له النهار», a daytime time with the banned word
+simply swapped for another. So the model reads a line with no hour in it and
+invents one. Added to the tally this file already keeps: **0 of 12 on the primary
+model across six versions.** It cost something real (winter hours for those 16
+places), so the agent went back to v5 (`ynRNIOiliu2vKBN4d9H6`, version
+`agtvrsn_5901m3v7d17kfm89xgecmy8d6a6q`, config read back intact) and `8215f7d6`
+was reverted here so the repository is not ahead of the live document again.
+**Do not retry a KB-wording fix for this.** What is left is the model: Gemini
+cannot be made to hold «summer → after sunset» by anything in the document or the
+prompt, and gpt-4o holds it every time.
+
+**The suite mostly measures the backup model.** In the baseline, 28 of 47 runs
+were answered by gpt-4o alone and 5 more by gemini→gpt-4o; v7's was 27 and 5. The
+cascade is 4s, and a 26K-token prompt plus knowledge base (rag is off, so all of
+it rides in every turn) is slow to first token. That is the likeliest reason, and
+it is **inference**: no call has ever been placed on a real phone, so real
+latency has never been measured. Shrinking the context is the lever (RAG,
+a trimmed KB), and neither was done — RAG could drop places from an answer, with
+no way to see that here.
+
+**The prompt was not edited, on purpose.** The duplications are real (the
+read-back rule is written twice and says so; the closing question three times) but
+merging them saves roughly 1K characters of 26K tokens and cannot be shown to
+help, against a suite that moves ±3 between identical runs. «Subtract, don't add»
+is the rule; this was not worth a regression it could not see.
+
+**One suite reading that is not a failure:** `منطق ٢` once came back «ثانية وحدة…»
+with a judge saying the agent had not replied — the soft-timeout filler
+(`timeout_seconds: 3`) captured as the whole reply. Re-run, it passed 2/2.
+
+**Not verified: a real call, real latency, a phone, the live site, iOS.**
+
 ## What the call TELLS the caller — three defects, 23 September
 
 Measured on a built agent-mode export at 390px, not read off the source.
