@@ -45,16 +45,23 @@
      COPIED MEANS IT CAN DRIFT, and it did: these sat at the pre-lift ramp
      (--sp-black #0d0e10) for as long as the shop's black level has been
      #141619, so /card was a shade darker than every page around it. If the
-     ramp in sporta-dark.css moves again, move these with it. */
+     ramp in sporta-dark.css moves again, move these with it.
+
+     AND IT DRIFTED AGAIN, past that very sentence: the shop moved to #1e2023
+     and this stayed at #141619. A rule that lives only in a comment gets read
+     as history, so since 2026-10-01 test:palette-copies compares these with
+     sporta-dark.css's :root[data-theme='dark'] and fails when they disagree.
+     The brand pair and --sp-page-bg come from theme.js, which this page loads. */
   :root {
-    --sp-black:  #141619;
-    --sp-panel:  #23262a;
-    --sp-raise:  #2e3237;
-    --sp-line:   #3f444a;
-    --sp-silver: #a6acb2;
-    --sp-text:   #eaecee;
-    --sp-ember:  #ff7b17;
-    --sp-fill:   #e0561c;
+    color-scheme: dark;   /* scrollbars and form controls drawn dark, like the shop's */
+    --sp-black:  var(--sp-page-bg, #1e2023);
+    --sp-panel:  #2d3034;
+    --sp-raise:  #383c41;
+    --sp-line:   #494e54;
+    --sp-silver: #b7bdc4;
+    --sp-text:   #dbdfe4;
+    --sp-ember:  var(--brand-bright, #ff7b17);
+    --sp-fill:   var(--brand, #e0561c);
     --sp-on-fill:#171a1e;
   }
   @font-face {
@@ -186,6 +193,7 @@
     <a href="/">العودة إلى المتجر</a>
   </footer>
 </main>
+<script src="/assets/theme.js" defer></script>
 <script src="/assets/card.js" defer></script>
 </body>
 </html>

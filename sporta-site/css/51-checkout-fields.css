@@ -27,8 +27,17 @@ form :is(#f-name, #f-email, #f-governorate, #f-area, #f-block, #f-street, #f-bui
 .cf-collapsed { display: none !important; }
 .cf-more {
   grid-column: 1 / -1; justify-self: start; min-height: 44px; padding: 8px 4px;
-  background: none; border: 0; color: #ff8a3d; font-weight: 700;   /* the brand orange is 3.5:1 on this panel; this lighter step is 5:1+ */ font-size: 14px; cursor: pointer;
+  background: none; border: 0; color: var(--sp-link, #ff8a3d); font-weight: 700;   /* the brand orange is 3.5:1 on this panel; this lighter step is 5:1+ */ font-size: 14px; cursor: pointer;
 }
 .cf-more[hidden] { display: none; }
 /* The bundle's own hint line (#h-phone, #h-email) says the same thing as our message; show one. */
 [data-cf="bad"] [id^="h-"] { display: none; }
+
+/* THE DISCOUNT BOX'S PLACEHOLDER IN THE SHOP'S OWN FACE, 2026-10-01. The box is
+ * `font-mono` so a typed code keeps O apart from 0 — kept. But the monospace stack has
+ * no Arabic, so "كود الخصم" fell to a system face, spaced and unlike every other field.
+ * The words are words, so only the placeholder changes; the code itself stays monospace. */
+main input[class~="font-mono"][class~="uppercase"]::placeholder {
+  font-family: "IBM Plex Sans", "IBM Plex Sans Arabic", "Plex Arabic Fallback", system-ui, sans-serif;
+  text-transform: none;
+}

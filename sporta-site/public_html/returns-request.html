@@ -52,19 +52,22 @@
 <style>
   /* The palette is assets/sporta-dark.css's, copied rather than imported so
      this page renders correctly on its own without pulling a 91 KB build
-     stylesheet in for nine colours. These are the CURRENT ramp — the one the
-     black level was lifted to. card.html still carries the ramp from before
-     that change and is a shade darker than the rest of the shop. */
+     stylesheet in for nine colours. A copy drifts: this one said "the CURRENT
+     ramp" while the shop had moved on (#141619 page against the shop's
+     #1e2023). Re-synced 2026-10-01, and test:palette-copies now fails when a
+     copy and sporta-dark.css's :root[data-theme='dark'] disagree. The brand
+     pair and --sp-page-bg come from theme.js, which this page loads. */
   :root {
-    --sp-black:  #141619;
-    --sp-tile:   #1a1d20;
-    --sp-panel:  #23262a;
-    --sp-raise:  #2e3237;
-    --sp-line:   #3f444a;
-    --sp-silver: #a6acb2;
-    --sp-text:   #eaecee;
-    --sp-ember:  #ff7b17;
-    --sp-fill:   #e0561c;
+    color-scheme: dark;   /* scrollbars and form controls drawn dark, like the shop's */
+    --sp-black:  var(--sp-page-bg, #1e2023);
+    --sp-tile:   #24272a;
+    --sp-panel:  #2d3034;
+    --sp-raise:  #383c41;
+    --sp-line:   #494e54;
+    --sp-silver: #b7bdc4;
+    --sp-text:   #dbdfe4;
+    --sp-ember:  var(--brand-bright, #ff7b17);
+    --sp-fill:   var(--brand, #e0561c);
     --sp-on-fill:#171a1e;
   }
   @font-face {
@@ -130,7 +133,7 @@
     background: transparent; color: var(--sp-text); border: 1px solid var(--sp-line);
     font: inherit; font-weight: 600; font-size: 14px;
   }
-  button.chip[aria-pressed="true"] { border-color: var(--sp-fill); background: rgba(224, 86, 28, .16); }
+  button.chip[aria-pressed="true"] { border-color: var(--sp-fill); background: color-mix(in srgb, var(--sp-fill) 16%, transparent); }
 
   /* Return or exchange. Two big targets rather than a <select>, because it is
      the one choice on the page that changes what everything below it means. */
@@ -269,6 +272,7 @@
     <a href="/returns" data-i18n="policy">سياسة الإرجاع والاستبدال</a> · <a href="/" data-i18n="backToShop">العودة إلى المتجر</a>
   </footer>
 </main>
+<script src="/assets/theme.js" defer></script>
 <script src="/assets/returns-request.js" defer></script>
 </body>
 </html>

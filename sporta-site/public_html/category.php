@@ -232,14 +232,22 @@ header('Cache-Control: public, max-age=0, must-revalidate');
      own copy of assets/sporta-dark.css's ramp, for the same reason it gives:
      this page renders correctly on its own without pulling in a 91 KB build
      stylesheet for nine colours. */
+  /* THE CURRENT RAMP, 2026-10-01 — this copy had drifted to the one from before
+     the black level was lifted (#0d0e10 page against the shop's #1e2023), so a
+     category page was visibly darker than the shop around it, and it had no
+     color-scheme, so scrollbars and form controls were drawn LIGHT on a dark
+     page. The values are sporta-dark.css's :root[data-theme='dark'] block;
+     test:palette-copies fails when the two disagree. --sp-page-bg is the
+     owner's page colour from theme.js, which this page now loads too. */
   :root {
-    --sp-black:  #0d0e10;
-    --sp-tile:   #1a1d20;
-    --sp-panel:  #1e2124;
-    --sp-raise:  #2a2d31;
-    --sp-line:   #3a3e43;
-    --sp-silver: #a6acb2;
-    --sp-text:   #eaecee;
+    color-scheme: dark;
+    --sp-black:  var(--sp-page-bg, #1e2023);
+    --sp-tile:   #24272a;
+    --sp-panel:  #2d3034;
+    --sp-raise:  #383c41;
+    --sp-line:   #494e54;
+    --sp-silver: #b7bdc4;
+    --sp-text:   #dbdfe4;
     /* DARK WHITE, 2026-09-23 — the site's theme since that day, and this page
        does not load sporta-ui.css where the storefront's version of it lives,
        so it has to say it here too or it stays the one orange page. These two
@@ -340,15 +348,10 @@ header('Cache-Control: public, max-age=0, must-revalidate');
     padding: 6px 12px;
   }
   .lang-pill svg { width: 14px; height: 14px; flex: none; }
-  /* THE CLOCK IS DECORATIVE AND HIDDEN BELOW 640px, same breakpoint the
-     app's own header uses for its digital readout — a ticking clock is the
-     least useful thing on a phone-width category page and the first thing
-     worth dropping. */
-  .clock { display: none; align-items: center; gap: 8px; }
-  @media (min-width: 640px) { .clock { display: flex; } }
-  .clock svg { width: 30px; height: 30px; flex: none; }
-  .clock .digital { font-size: .78rem; font-weight: 600; color: rgba(255,255,255,.85);
-                     font-variant-numeric: tabular-nums; }
+  /* NO CLOCK, 2026-10-01. The shop's header lost its clock at the owner's
+     request on 2026-09-05 (css/11-header-layout.css), and this header exists
+     to stay in step with that one, so the clock that was copied in here on
+     2026-09-21 is gone too. category-topbar.js ticks only if it finds one. */
   .icons { display: flex; align-items: center; gap: 16px; }
   .icons a { position: relative; display: flex; color: #fff; }
   .icons svg { width: 22px; height: 22px; flex: none; }
@@ -405,7 +408,7 @@ header('Cache-Control: public, max-age=0, must-revalidate');
   }
   /* Dark on the white-ground art of 2026-09-28; white type on it vanished. */
   .hero .kicker { font-size: .82rem; font-weight: 700; letter-spacing: .04em;
-                  color: #c2410c; margin: 0 0 6px; }
+                  color: var(--sp-ink-on-light, #c2410c); margin: 0 0 6px; }   /* theme.js moves it with the brand */
   .hero h1 { font-size: clamp(22px, 2.3vw, 30px); font-weight: 700; /* was up to 38px at 800: no text over 30px, no over-bold, 2026-10-01 */ margin: 0;
              color: #141413; }
   main { max-width: 1200px; margin: 0 auto; padding: 12px 20px; }
@@ -468,10 +471,6 @@ header('Cache-Control: public, max-age=0, must-revalidate');
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M2 12h20"></path><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"></path></svg>
       <?= $isEn ? 'العربية' : 'English' ?>
     </a>
-    <span class="clock" aria-hidden="true">
-      <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="rgba(255,255,255,.06)"></circle><circle cx="24" cy="24" r="22" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="1.6"></circle><g data-hand="hour" transform="rotate(0 24 24)"><line x1="24" y1="26.5" x2="24" y2="12" stroke="#fff" stroke-width="3" stroke-linecap="round"></line></g><g data-hand="minute" transform="rotate(0 24 24)"><line x1="24" y1="26.5" x2="24" y2="7" stroke="var(--sp-ember)" stroke-width="2.4" stroke-linecap="round"></line></g><g data-hand="second" transform="rotate(0 24 24)"><line x1="24" y1="30" x2="24" y2="8" stroke="rgba(255,255,255,.5)" stroke-width="1.1" stroke-linecap="round"></line></g><circle cx="24" cy="24" r="2.4" fill="var(--sp-ember)"></circle></svg>
-      <span class="digital" data-clock-digital>&nbsp;</span>
-    </span>
     <a class="brand-logo" href="/<?= $isEn ? '?lang=en' : '' ?>"><img src="/logo-white.webp" alt="<?= $isEn ? 'Sporta' : 'سبورتا' ?>" width="120" height="28"></a>
     <div class="icons">
       <a href="/cart" aria-label="<?= $isEn ? 'Bag' : 'الحقيبة' ?>">
@@ -574,8 +573,11 @@ header('Cache-Control: public, max-age=0, must-revalidate');
 <footer class="bottom">
   <?= $otherLinks ?>
 </footer>
+<!-- The owner's theme (brand colour, page colour, fonts) reaches this page too, 2026-10-01:
+     with the brand set to blue in /backends, 13 of 13 orange things here stayed orange. -->
+<script src="/assets/theme.js" defer></script>
 <script src="/assets/category-topbar.js" defer></script>
-<script src="/assets/quick-add-size.js?v=20261001" defer></script>
+<script src="/assets/quick-add-size.js?v=20261001b" defer></script>
 <script src="/assets/customer-account.js" defer></script>
 </body>
 </html>

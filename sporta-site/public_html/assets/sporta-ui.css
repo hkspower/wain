@@ -1974,12 +1974,12 @@ p.mt-6.flex.flex-wrap.items-baseline:has(> .font-display) {
       no per-layer opacity in CSS. Both directions, because the bundle mirrors
       the radial for RTL and dropping that would move the glow across the page
       on the Arabic site. */
-.hero-strength { background: radial-gradient(60% 110% at 78% 100%, #ff7b1729 0%, #0000 60%), linear-gradient(112deg, #14161a 0%, #1b2026 48%, #35200e 100%); }
-.hero-cardio   { background: radial-gradient(70% 100% at 72% 100%, #ff7b1721 0%, #0000 64%), linear-gradient(112deg, #12151a 0%, #1a2028 50%, #2f1d10 100%); }
-.hero-arena    { background: radial-gradient(55% 110% at 80% 100%, #ff7b1724 0%, #0000 60%), linear-gradient(112deg, #131519 0%, #171d26 46%, #2c1c10 100%); }
-[dir=rtl] .hero-strength { background: radial-gradient(60% 110% at 22% 100%, #ff7b1729 0%, #0000 60%), linear-gradient(-112deg, #14161a 0%, #1b2026 48%, #35200e 100%); }
-[dir=rtl] .hero-cardio   { background: radial-gradient(70% 100% at 28% 100%, #ff7b1721 0%, #0000 64%), linear-gradient(-112deg, #12151a 0%, #1a2028 50%, #2f1d10 100%); }
-[dir=rtl] .hero-arena    { background: radial-gradient(55% 110% at 20% 100%, #ff7b1724 0%, #0000 60%), linear-gradient(-112deg, #131519 0%, #171d26 46%, #2c1c10 100%); }
+.hero-strength { background: radial-gradient(60% 110% at 78% 100%, color-mix(in srgb, var(--brand-bright, #ff7b17) 16%, transparent) 0%, #0000 60%), linear-gradient(112deg, #14161a 0%, #1b2026 48%, #35200e 100%); }
+.hero-cardio   { background: radial-gradient(70% 100% at 72% 100%, color-mix(in srgb, var(--brand-bright, #ff7b17) 13%, transparent) 0%, #0000 64%), linear-gradient(112deg, #12151a 0%, #1a2028 50%, #2f1d10 100%); }
+.hero-arena    { background: radial-gradient(55% 110% at 80% 100%, color-mix(in srgb, var(--brand-bright, #ff7b17) 14%, transparent) 0%, #0000 60%), linear-gradient(112deg, #131519 0%, #171d26 46%, #2c1c10 100%); }
+[dir=rtl] .hero-strength { background: radial-gradient(60% 110% at 22% 100%, color-mix(in srgb, var(--brand-bright, #ff7b17) 16%, transparent) 0%, #0000 60%), linear-gradient(-112deg, #14161a 0%, #1b2026 48%, #35200e 100%); }
+[dir=rtl] .hero-cardio   { background: radial-gradient(70% 100% at 28% 100%, color-mix(in srgb, var(--brand-bright, #ff7b17) 13%, transparent) 0%, #0000 64%), linear-gradient(-112deg, #12151a 0%, #1a2028 50%, #2f1d10 100%); }
+[dir=rtl] .hero-arena    { background: radial-gradient(55% 110% at 20% 100%, color-mix(in srgb, var(--brand-bright, #ff7b17) 14%, transparent) 0%, #0000 60%), linear-gradient(-112deg, #131519 0%, #171d26 46%, #2c1c10 100%); }
 
 /* 3. The button's glow, SCOPED TO THE HERO and not to .btn-primary at large.
       That class is on the add-to-bag button, the cart, the checkout and the
@@ -3821,6 +3821,16 @@ main article h3[class~="line-clamp-1"] {
 @media (min-width: 768px) {
   .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 1216 / 988 !important; }
 }
+
+/* A FOCUS RING YOU CAN SEE, 2026-10-01. The faint resting edge above is an `outline`,
+ * and at equal specificity it replaced the site's focus outline: a tile reached by Tab
+ * showed a 1px line at 8% black — nothing, measured in a screenshot. The ring is the
+ * tile title's own ink, inside the edge so the dark gap between tiles cannot swallow
+ * it: 17:1 against the white half of the art and 5:1 against the orange half. */
+.cat-tile:focus-visible {
+  outline: 3px solid #141413;
+  outline-offset: -3px;
+}
 /* "SHOP BY CATEGORY" AS A WHITE BAR — 2026-09-28, asked for as "make تسوق
  * حسب الفئه use better font, make it full white bar background with black
  * text". The heading becomes a full-width white band that runs straight into
@@ -4141,7 +4151,7 @@ main div.grid > article > a[class*="aspect-"] {
 /* The photo link is the card's keyboard stop, so it shows where focus is. (The rule above
    has `outline: 0` at rest; this one is more specific, so the ring returns on focus only.) */
 main div.grid > article > a[class*="aspect-"]:focus-visible {
-  outline: 3px solid #f56315;
+  outline: 3px solid var(--sp-cta, #f56315);   /* follows the owner's brand colour (theme.js) */
   outline-offset: -3px;
 }
 /* The white ground sits on the photograph itself, which fills the link. It was
@@ -4167,7 +4177,7 @@ main div.grid > article > a[class*="aspect-"] > span[class~="absolute"][class~="
   text-transform: none;
   /* The picture's orange is #f56315, which is 3.1:1 under white text — under AA at 12px.
      One notch darker gives 4.5:1 and reads as the same orange. */
-  background: #cf4a0b !important;
+  background: var(--sp-badge, #cf4a0b) !important;   /* follows the owner's brand colour (theme.js) */
   color: #fff !important;
 }
 
@@ -4214,7 +4224,7 @@ main div.grid > article > a[data-sporta-sale] > span[class~="bg-brand"] {
   top: auto !important;
 }
 [data-theme] main div.grid > article > a[class*="aspect-"] > button:not([aria-pressed])::before {
-  background: #f56315;
+  background: var(--sp-cta, #f56315);   /* follows the owner's brand colour (theme.js) */
   box-shadow: none;
 }
 [data-theme] main div.grid > article > a[class*="aspect-"] > button:not([aria-pressed]) > svg {
@@ -4246,6 +4256,16 @@ main article h3[class~="line-clamp-1"] {
   unicode-bidi: plaintext;
   -webkit-line-clamp: 1 !important;
   line-clamp: 1 !important;
+}
+/* THE NAME AND THE COLOUR LINE KEEP CLEAR OF THE + TOO, 2026-10-01. Only the price row
+ * did (padding-right: 42px, below), so on a phone the orange disc sat on the product name:
+ * measured on /shop at 390px, it covered the first letters of all 12 Arabic names (an Arabic
+ * line that overflows starts at the RIGHT edge, under the +) and the last letters of 10 of
+ * 12 English ones; the product page's "Complete the look" row did the same at every width.
+ * Same 42px as the price, physical right in both languages because the + is. */
+main div.grid[class~="grid"][class~="grid-cols-2"] > article h3,
+main div.grid[class~="grid"][class~="grid-cols-2"] > article .sporta-card-colour {
+  padding-right: 42px;
 }
 main article .brand-chip-inline {
   justify-content: flex-start;
@@ -4438,7 +4458,7 @@ html[data-theme] :is(input, textarea):not(.admin-content *)::placeholder {
   opacity: 1;
 }
 html[data-theme] :is(input, textarea, select):not(.admin-content *):focus-visible {
-  outline: 2px solid #f56315;
+  outline: 2px solid var(--sp-cta, #f56315);   /* follows the owner's brand colour (theme.js) */
   outline-offset: 1px;
 }
 html[data-theme] :is(input, textarea):not(.admin-content *):-webkit-autofill {
@@ -4547,11 +4567,20 @@ form :is(#f-name, #f-email, #f-governorate, #f-area, #f-block, #f-street, #f-bui
 .cf-collapsed { display: none !important; }
 .cf-more {
   grid-column: 1 / -1; justify-self: start; min-height: 44px; padding: 8px 4px;
-  background: none; border: 0; color: #ff8a3d; font-weight: 700;   /* the brand orange is 3.5:1 on this panel; this lighter step is 5:1+ */ font-size: 14px; cursor: pointer;
+  background: none; border: 0; color: var(--sp-link, #ff8a3d); font-weight: 700;   /* the brand orange is 3.5:1 on this panel; this lighter step is 5:1+ */ font-size: 14px; cursor: pointer;
 }
 .cf-more[hidden] { display: none; }
 /* The bundle's own hint line (#h-phone, #h-email) says the same thing as our message; show one. */
 [data-cf="bad"] [id^="h-"] { display: none; }
+
+/* THE DISCOUNT BOX'S PLACEHOLDER IN THE SHOP'S OWN FACE, 2026-10-01. The box is
+ * `font-mono` so a typed code keeps O apart from 0 — kept. But the monospace stack has
+ * no Arabic, so "كود الخصم" fell to a system face, spaced and unlike every other field.
+ * The words are words, so only the placeholder changes; the code itself stays monospace. */
+main input[class~="font-mono"][class~="uppercase"]::placeholder {
+  font-family: "IBM Plex Sans", "IBM Plex Sans Arabic", "Plex Arabic Fallback", system-ui, sans-serif;
+  text-transform: none;
+}
 /* ONE ICON WEIGHT — 2026-10-01, "improve icons design", the owner chose one consistent, thinner,
  * cleaner set. The icons are stroked line SVGs drawn at 14, 16, 17, 18, 21 and 22px, each with a
  * stroke-width tuned in the viewBox's 24-unit space, so the weight a shopper SEES came out anywhere
@@ -4623,7 +4652,9 @@ main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"
 /* section headings */
 main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h2[class~="font-extrabold"] {
   font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
-  color: #ffffff !important;
+  /* The theme's text colour, not pure white (2026-10-01): white here outranked
+     sporta-dark.css's own heading colour, and test:css reported it. */
+  color: var(--sp-text, #dbdfe4) !important;
   padding-inline-start: 12px;
   border-inline-start: 4px solid var(--brand, #e0561c);
 }
@@ -4797,7 +4828,7 @@ main :is(section, div)[class~="text-center"][class~="py-20"] > h1[class~="text-3
 /* the empty bag's "Back to shop": exactly the shop's .btn-primary, as on the empty wishlist (measured:
    #e0561c with #171a1e text — 4.7:1 — 48px tall, 24px sides, 700, a soft orange shadow) */
 main :is(section, div)[class~="text-center"][class~="py-20"] > a[class~="bg-brand"][class~="rounded-full"] {
-  background: #e0561c !important;
+  background: var(--sp-ember-fill, var(--brand, #e0561c)) !important;   /* the .btn-primary fill, so it follows the owner's brand colour */
   color: #171a1e !important;
   border-radius: 9999px !important;
   height: 48px;
@@ -4806,5 +4837,5 @@ main :is(section, div)[class~="text-center"][class~="py-20"] > a[class~="bg-bran
   padding: 0 24px !important;
   font-weight: 700 !important;
   font-size: 15.2px !important;
-  box-shadow: 0 8px 20px -8px rgba(222, 86, 27, .6);
+  box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--brand, #e0561c) 60%, transparent);
 }

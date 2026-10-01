@@ -51,7 +51,9 @@ main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"
 /* section headings */
 main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h2[class~="font-extrabold"] {
   font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
-  color: #ffffff !important;
+  /* The theme's text colour, not pure white (2026-10-01): white here outranked
+     sporta-dark.css's own heading colour, and test:css reported it. */
+  color: var(--sp-text, #dbdfe4) !important;
   padding-inline-start: 12px;
   border-inline-start: 4px solid var(--brand, #e0561c);
 }

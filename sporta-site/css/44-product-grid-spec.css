@@ -53,7 +53,7 @@ main div.grid > article > a[class*="aspect-"] {
 /* The photo link is the card's keyboard stop, so it shows where focus is. (The rule above
    has `outline: 0` at rest; this one is more specific, so the ring returns on focus only.) */
 main div.grid > article > a[class*="aspect-"]:focus-visible {
-  outline: 3px solid #f56315;
+  outline: 3px solid var(--sp-cta, #f56315);   /* follows the owner's brand colour (theme.js) */
   outline-offset: -3px;
 }
 /* The white ground sits on the photograph itself, which fills the link. It was
@@ -79,7 +79,7 @@ main div.grid > article > a[class*="aspect-"] > span[class~="absolute"][class~="
   text-transform: none;
   /* The picture's orange is #f56315, which is 3.1:1 under white text — under AA at 12px.
      One notch darker gives 4.5:1 and reads as the same orange. */
-  background: #cf4a0b !important;
+  background: var(--sp-badge, #cf4a0b) !important;   /* follows the owner's brand colour (theme.js) */
   color: #fff !important;
 }
 
@@ -126,7 +126,7 @@ main div.grid > article > a[data-sporta-sale] > span[class~="bg-brand"] {
   top: auto !important;
 }
 [data-theme] main div.grid > article > a[class*="aspect-"] > button:not([aria-pressed])::before {
-  background: #f56315;
+  background: var(--sp-cta, #f56315);   /* follows the owner's brand colour (theme.js) */
   box-shadow: none;
 }
 [data-theme] main div.grid > article > a[class*="aspect-"] > button:not([aria-pressed]) > svg {
@@ -158,6 +158,16 @@ main article h3[class~="line-clamp-1"] {
   unicode-bidi: plaintext;
   -webkit-line-clamp: 1 !important;
   line-clamp: 1 !important;
+}
+/* THE NAME AND THE COLOUR LINE KEEP CLEAR OF THE + TOO, 2026-10-01. Only the price row
+ * did (padding-right: 42px, below), so on a phone the orange disc sat on the product name:
+ * measured on /shop at 390px, it covered the first letters of all 12 Arabic names (an Arabic
+ * line that overflows starts at the RIGHT edge, under the +) and the last letters of 10 of
+ * 12 English ones; the product page's "Complete the look" row did the same at every width.
+ * Same 42px as the price, physical right in both languages because the + is. */
+main div.grid[class~="grid"][class~="grid-cols-2"] > article h3,
+main div.grid[class~="grid"][class~="grid-cols-2"] > article .sporta-card-colour {
+  padding-right: 42px;
 }
 main article .brand-chip-inline {
   justify-content: flex-start;

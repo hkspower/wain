@@ -42,7 +42,7 @@ main :is(section, div)[class~="text-center"][class~="py-20"] > h1[class~="text-3
 /* the empty bag's "Back to shop": exactly the shop's .btn-primary, as on the empty wishlist (measured:
    #e0561c with #171a1e text — 4.7:1 — 48px tall, 24px sides, 700, a soft orange shadow) */
 main :is(section, div)[class~="text-center"][class~="py-20"] > a[class~="bg-brand"][class~="rounded-full"] {
-  background: #e0561c !important;
+  background: var(--sp-ember-fill, var(--brand, #e0561c)) !important;   /* the .btn-primary fill, so it follows the owner's brand colour */
   color: #171a1e !important;
   border-radius: 9999px !important;
   height: 48px;
@@ -51,5 +51,5 @@ main :is(section, div)[class~="text-center"][class~="py-20"] > a[class~="bg-bran
   padding: 0 24px !important;
   font-weight: 700 !important;
   font-size: 15.2px !important;
-  box-shadow: 0 8px 20px -8px rgba(222, 86, 27, .6);
+  box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--brand, #e0561c) 60%, transparent);
 }

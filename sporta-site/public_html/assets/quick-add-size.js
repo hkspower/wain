@@ -406,8 +406,9 @@
     /* the button on the home and category grids: the shop's orange disc with a white plus, 44px */
     + '.qas-btn--own{position:absolute;bottom:8px;inset-inline-end:8px;display:flex;align-items:center;'
     + 'justify-content:center;width:44px;height:44px;padding:0;border:0;border-radius:50%;cursor:pointer;'
-    + 'background:#f56315;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}'
-    + '.qas-btn--own:hover{background:#ff7b17}'
+    /* the fill follows the owner's brand colour (theme.js sets --sp-cta); the literal is the shipped orange */
+    + 'background:var(--sp-cta,#f56315);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}'
+    + '.qas-btn--own:hover{background:var(--brand-bright,#ff7b17)}'
     /* the size chooser covers the bottom of the photo; the + would sit on top of its pills */
     + '[data-qas-open]>.qas-btn--own{visibility:hidden}'
     + '.qas-btn--own:focus-visible{outline:2px solid #fff;outline-offset:2px}'

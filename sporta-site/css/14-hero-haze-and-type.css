@@ -31,12 +31,12 @@
       no per-layer opacity in CSS. Both directions, because the bundle mirrors
       the radial for RTL and dropping that would move the glow across the page
       on the Arabic site. */
-.hero-strength { background: radial-gradient(60% 110% at 78% 100%, #ff7b1729 0%, #0000 60%), linear-gradient(112deg, #14161a 0%, #1b2026 48%, #35200e 100%); }
-.hero-cardio   { background: radial-gradient(70% 100% at 72% 100%, #ff7b1721 0%, #0000 64%), linear-gradient(112deg, #12151a 0%, #1a2028 50%, #2f1d10 100%); }
-.hero-arena    { background: radial-gradient(55% 110% at 80% 100%, #ff7b1724 0%, #0000 60%), linear-gradient(112deg, #131519 0%, #171d26 46%, #2c1c10 100%); }
-[dir=rtl] .hero-strength { background: radial-gradient(60% 110% at 22% 100%, #ff7b1729 0%, #0000 60%), linear-gradient(-112deg, #14161a 0%, #1b2026 48%, #35200e 100%); }
-[dir=rtl] .hero-cardio   { background: radial-gradient(70% 100% at 28% 100%, #ff7b1721 0%, #0000 64%), linear-gradient(-112deg, #12151a 0%, #1a2028 50%, #2f1d10 100%); }
-[dir=rtl] .hero-arena    { background: radial-gradient(55% 110% at 20% 100%, #ff7b1724 0%, #0000 60%), linear-gradient(-112deg, #131519 0%, #171d26 46%, #2c1c10 100%); }
+.hero-strength { background: radial-gradient(60% 110% at 78% 100%, color-mix(in srgb, var(--brand-bright, #ff7b17) 16%, transparent) 0%, #0000 60%), linear-gradient(112deg, #14161a 0%, #1b2026 48%, #35200e 100%); }
+.hero-cardio   { background: radial-gradient(70% 100% at 72% 100%, color-mix(in srgb, var(--brand-bright, #ff7b17) 13%, transparent) 0%, #0000 64%), linear-gradient(112deg, #12151a 0%, #1a2028 50%, #2f1d10 100%); }
+.hero-arena    { background: radial-gradient(55% 110% at 80% 100%, color-mix(in srgb, var(--brand-bright, #ff7b17) 14%, transparent) 0%, #0000 60%), linear-gradient(112deg, #131519 0%, #171d26 46%, #2c1c10 100%); }
+[dir=rtl] .hero-strength { background: radial-gradient(60% 110% at 22% 100%, color-mix(in srgb, var(--brand-bright, #ff7b17) 16%, transparent) 0%, #0000 60%), linear-gradient(-112deg, #14161a 0%, #1b2026 48%, #35200e 100%); }
+[dir=rtl] .hero-cardio   { background: radial-gradient(70% 100% at 28% 100%, color-mix(in srgb, var(--brand-bright, #ff7b17) 13%, transparent) 0%, #0000 64%), linear-gradient(-112deg, #12151a 0%, #1a2028 50%, #2f1d10 100%); }
+[dir=rtl] .hero-arena    { background: radial-gradient(55% 110% at 20% 100%, color-mix(in srgb, var(--brand-bright, #ff7b17) 14%, transparent) 0%, #0000 60%), linear-gradient(-112deg, #131519 0%, #171d26 46%, #2c1c10 100%); }
 
 /* 3. The button's glow, SCOPED TO THE HERO and not to .btn-primary at large.
       That class is on the add-to-bag button, the cart, the checkout and the

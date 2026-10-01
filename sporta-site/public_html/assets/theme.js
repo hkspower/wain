@@ -117,7 +117,24 @@
            /* Channels, not a colour: the bundle writes hsl(var(--primary)) and
               hsl(var(--primary) / .6), so a hex here would break both. */
            '  --primary: ' + (Math.round(h * 10) / 10) + ' ' +
-           (Math.round(s * 10) / 10) + '% ' + (Math.round(l * 10) / 10) + '%;\n'
+           (Math.round(s * 10) / 10) + '% ' + (Math.round(l * 10) / 10) + '%;\n' +
+           /* THE ORANGES ADDED AFTER THE TOKEN BLOCK, 2026-10-01. Measured with the
+              brand set to blue: on /shop 14 of 16 orange things stayed orange (the
+              card's + disc, its sale pill, focus rings), and on the category pages
+              13 of 13. Each now reads var(--sp-x, <the shipped literal>), so with no
+              brand saved nothing changes, and with one saved these follow it.
+              DERIVED BY MEASURED DELTAS, like the pair above, and not borrowed from
+              that pair: borrowing moved the + from #F56315 to #FF7B17 the moment
+              the owner saved the shop's OWN orange, which test:brand-token caught
+              ("setting the shop's own colour changes nothing on screen").
+                --sp-cta           + discs, card focus rings   #F56315  H +3.1  S +14.0 L +2.7
+                --sp-badge         pill under white text       #CF4A0B  H +1.5  S +12.1 L -6.7
+                --sp-ink-on-light  orange words on white       #C2410C  H -0.3  S +10.6 L -9.0
+                --sp-link          orange words on the dark    #FF8A3D  H +6.1  S +22.2 L +12.5 */
+           '  --sp-cta: ' + toHex(h + 3.1, s + 14.0, l + 2.7) + ';\n' +
+           '  --sp-badge: ' + toHex(h + 1.5, s + 12.1, l - 6.7) + ';\n' +
+           '  --sp-ink-on-light: ' + toHex(h - 0.3, s + 10.6, l - 9.0) + ';\n' +
+           '  --sp-link: ' + toHex(h + 6.1, s + 22.2, l + 12.5) + ';\n'
   }
 
   /* A declaration, or nothing at all when the field is empty. */

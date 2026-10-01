@@ -27,3 +27,13 @@
 @media (min-width: 768px) {
   .cat-tile.tile-acc, .cat-tile.tile-outlet { aspect-ratio: 1216 / 988 !important; }
 }
+
+/* A FOCUS RING YOU CAN SEE, 2026-10-01. The faint resting edge above is an `outline`,
+ * and at equal specificity it replaced the site's focus outline: a tile reached by Tab
+ * showed a 1px line at 8% black — nothing, measured in a screenshot. The ring is the
+ * tile title's own ink, inside the edge so the dark gap between tiles cannot swallow
+ * it: 17:1 against the white half of the art and 5:1 against the orange half. */
+.cat-tile:focus-visible {
+  outline: 3px solid #141413;
+  outline-offset: -3px;
+}
