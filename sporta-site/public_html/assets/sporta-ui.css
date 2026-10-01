@@ -4444,3 +4444,48 @@ html[data-theme] select:not(.admin-content *) option {
 html[data-theme] :is(input, textarea, select):not(.admin-content *):disabled {
   opacity: .65;
 }
+/* "BEST SELLERS" IN THE SAME BAR AS "SHOP BY CATEGORY" — 2026-10-01, asked for
+ * as "make الأكثر مبيعا same style of تسوق حسب الفئة".
+ *
+ * The category heading is a full-width WHITE band in Alexandria 800, dark text,
+ * with the orange bar under it (27-, 37-category-heading*.css). The best-sellers
+ * heading was a plain white-on-dark title in the display face. It takes the same
+ * band, the same face and weight, the same sizes (1.95rem / 2.375rem from 768px),
+ * the same paddings and the same underline position, so the two read as one
+ * family. The product cards below are unchanged.
+ *
+ * The section's own side padding moves onto the grid, because the band must run
+ * edge to edge of the section (as the category one does) while the cards keep
+ * their gutter. Colour of the bar is --brand, which the dark theme greys on
+ * --sp-ember, as 37- explains. */
+.sporta-home-products { padding-inline: 0; }
+.sporta-home-products__grid { padding-inline: 1rem; }
+@media (min-width: 768px) {
+  .sporta-home-products__grid { padding-inline: 1.5rem; }
+}
+[data-theme] .sporta-home-products__heading {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 1.25rem !important;
+  padding: 28px 16px 30px !important;
+  background: #ffffff !important;
+  color: #141413 !important;
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-weight: 800 !important;
+  font-size: 1.95rem !important;
+  letter-spacing: 0 !important;
+  line-height: 1.25 !important;
+}
+[data-theme] .sporta-home-products__heading::after {
+  bottom: 16px;
+  background: var(--brand, #e0561c) !important;
+}
+@media (min-width: 768px) {
+  [data-theme] .sporta-home-products__heading {
+    padding: 40px 24px 44px !important;
+    font-size: 2.375rem !important;
+    margin-bottom: 1.75rem !important;
+  }
+  [data-theme] .sporta-home-products__heading::after { bottom: 22px; }
+}
