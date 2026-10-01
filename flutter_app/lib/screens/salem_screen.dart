@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../ai/config.dart';
+import '../app/app_state.dart';
 import '../ai/salem_chat.dart';
 import '../ai/tools.dart';
 import '../data/catalogue.dart';
@@ -46,9 +48,24 @@ class _SalemScreenState extends State<SalemScreen> {
   ChatStatus _status = ChatStatus.connecting;
   ChatHandle? _handle;
 
+  /// No session opens until the visitor has agreed to what happens to the
+  /// conversation (ai/consent.dart): opening the socket already starts a
+  /// recorded conversation, before a word is typed.
+  bool _awaitingConsent = false;
+
   @override
   void initState() {
     super.initState();
+    if (context.read<AppState>().aiConsent) {
+      _connect();
+    } else {
+      _awaitingConsent = true;
+    }
+  }
+
+  void _agree() {
+    context.read<AppState>().setAiConsent(true);
+    setState(() => _awaitingConsent = false);
     _connect();
   }
 
@@ -116,13 +133,15 @@ class _SalemScreenState extends State<SalemScreen> {
     super.dispose();
   }
 
-  String get _statusText => switch (_status) {
-    ChatStatus.connecting => ChatCopy.connecting,
-    ChatStatus.connected => ChatCopy.connected,
-    ChatStatus.disconnected => ChatCopy.disconnected,
-    ChatStatus.error =>
-      kAgentEnabled ? ChatCopy.failed : ChatCopy.notConfigured,
-  };
+  String get _statusText => _awaitingConsent
+      ? AiPrivacyCopy.waiting
+      : switch (_status) {
+          ChatStatus.connecting => ChatCopy.connecting,
+          ChatStatus.connected => ChatCopy.connected,
+          ChatStatus.disconnected => ChatCopy.disconnected,
+          ChatStatus.error =>
+            kAgentEnabled ? ChatCopy.failed : ChatCopy.notConfigured,
+        };
 
   @override
   Widget build(BuildContext context) {
@@ -191,7 +210,9 @@ class _SalemScreenState extends State<SalemScreen> {
                 },
               ),
             ),
-            if (over)
+            if (_awaitingConsent)
+              _ConsentPanel(onAgree: _agree)
+            else if (over)
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: FilledButton(
@@ -211,7 +232,17 @@ class _SalemScreenState extends State<SalemScreen> {
                   ),
                 ),
               )
-            else
+            else ...[
+              // The web says this over its box too (WAIN_AI_RECORDING): the
+              // agreement was given once, the reminder is read every time.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                child: Text(
+                  AiPrivacyCopy.chatNotice,
+                  key: const ValueKey('chat-recording-notice'),
+                  style: wainText(WainText.xs, color: WainColors.sand200),
+                ),
+              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
                 child: Row(
@@ -245,8 +276,68 @@ class _SalemScreenState extends State<SalemScreen> {
                   ],
                 ),
               ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The consent question, drawn where the input box will be: the same words
+/// as the sheet before a call (`AiPrivacyCopy`), agreed to once for both.
+class _ConsentPanel extends StatelessWidget {
+  final VoidCallback onAgree;
+  const _ConsentPanel({required this.onAgree});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            AiPrivacyCopy.consentBody,
+            key: const ValueKey('chat-consent-body'),
+            style: wainText(
+              WainText.sm,
+              color: WainColors.sand200,
+              height: 1.7,
+            ),
+          ),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton(
+              onPressed: () => context.push('/privacy'),
+              child: Text(
+                AiPrivacyCopy.details,
+                style: wainText(
+                  WainText.sm,
+                  weight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+          FilledButton(
+            key: const ValueKey('chat-consent-agree'),
+            onPressed: onAgree,
+            style: FilledButton.styleFrom(
+              backgroundColor: WainColors.sea600,
+              minimumSize: const Size.fromHeight(48),
+            ),
+            child: Text(
+              AiPrivacyCopy.agree,
+              style: wainText(
+                WainText.base,
+                weight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

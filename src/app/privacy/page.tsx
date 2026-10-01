@@ -31,9 +31,18 @@ export default function PrivacyPage() {
             below. Nobody would call that profiling, and that is not the point:
             a privacy page that overstates is the same defect as one that
             denies the database, which this file already had to fix once. */}
+        {/* «الشي الوحيد اللي نسجّله» ended this line, meaning the endpoints'
+            technical log. It stopped being the only thing on 1 October, when
+            the agent's own settings were read: شوق's calls and سالم's typed
+            chats are recorded and kept by ElevenLabs on our account, with no
+            expiry. Two things are kept, so the summary names two. */}
         باختصار: <strong className="text-ink-900">وين ما يستخدم كوكيز</strong>، وما
         يتتبّعك، وما عنده حساب لك. الصفحة هذي تشرح الوضع بالتفصيل — بما فيه
-        الشي الوحيد اللي نسجّله.
+        اللي ينحفظ: سطر تقني بسيط عندنا، و
+        <a href="#wain-ai" className="font-semibold text-ink-900 underline underline-offset-2">
+          مكالمات شوق ومحادثات سالم
+        </a>{" "}
+        عند ElevenLabs.
       </p>
 
       {/* No cookies */}
@@ -114,15 +123,39 @@ export default function PrivacyPage() {
       </section>
 
       {/* وين AI */}
-      <section className="mt-6 rounded-3xl border border-line bg-white p-6 shadow-sm">
+      <section id="wain-ai" className="mt-6 scroll-mt-4 rounded-3xl border border-line bg-white p-6 shadow-sm">
         <h2 className="font-display text-xl font-semibold text-ink-900">
-          وين AI — المساعدة الصوتية
+          وين AI — مكالمة شوق ومحادثة سالم
         </h2>
         <div className="mt-3 space-y-3 text-sm leading-relaxed text-ink-600">
           <p>
             {WAIN_AI_COPY.name} ما تشتغل إلا إذا اتصلت فيها أنت — بالضغط على زر
             «وين AI»، وتقدر تنهي المكالمة في أي وقت. قبل جذي ما يتحمّل شي منها
             ولا يصير أي اتصال خارجي، والمايك ما يشتغل إلا بعد ما تعطي الإذن.
+          </p>
+          {/* Read off the agent's settings, not assumed: record_voice on,
+              retention_days -1, audio and transcripts not deleted, topic and
+              sentiment analysis on (WAIN_AI_RECORDING in lib/wain-ai.ts says
+              when this must be re-read). The owner chose to keep them and
+              disclose them — so this paragraph says exactly that, including
+              the part a reader would least expect: there is no expiry. */}
+          <p>
+            <strong className="text-ink-900">
+              المكالمة والمحادثة المكتوبة تنحفظ.
+            </strong>{" "}
+            لمّا تكلّم شوق أو تكتب لسالم، خدمة{" "}
+            <strong className="text-ink-900">ElevenLabs</strong> اللي يشتغلون
+            عليها تسجّل صوت المكالمة وتحفظ نصها، وتحفظ الرسائل المكتوبة بعد،
+            تحت حسابنا عندهم.{" "}
+            <strong className="text-ink-900">وما لها مدة تنمسح بعدها تلقائياً</strong>{" "}
+            — تبقى لين تنحذف. الخدمة تحللها تلقائياً (شنو المواضيع وشلون كان
+            الانطباع)، وإحنا نقدر نقراها من حسابنا، ونستخدمها عشان نعرف وين تغلط
+            شوق ونصلّحها — مو لإعلانات، وما نبيعها لأحد.
+          </p>
+          <p>
+            فلا تقول بالمكالمة ولا تكتب شي ما تبيه ينحفظ — رقمك، عنوان بيتك، أو
+            أي معلومة خاصة. وقبل ما تبدأ المكالمة تطلع لك شروط ElevenLabs
+            توافق عليها بنفسك، وفوق خانة الكتابة عند سالم سطر يقول نفس الشي.
           </p>
           <p>
             إذا ما كانت خدمة المحادثة مفعّلة، الزر يستخدم{" "}

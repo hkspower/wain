@@ -12,6 +12,7 @@ import '../theme/colors.dart';
 import '../widgets/svg.dart';
 import 'call_controller.dart';
 import 'config.dart';
+import 'consent.dart';
 
 class ShouqCallButton extends StatelessWidget {
   final double size;
@@ -35,8 +36,11 @@ class ShouqCallButton extends StatelessWidget {
         shape: const CircleBorder(),
         child: InkWell(
           customBorder: const CircleBorder(),
-          onTap: () {
+          onTap: () async {
             HapticFeedback.mediumImpact();
+            // Asked once, before the microphone prompt — see ai/consent.dart.
+            // A «مو الحين» leaves the call unplaced and the page where it was.
+            if (!await ensureAiConsent(context)) return;
             call.start();
             onTapped?.call();
           },

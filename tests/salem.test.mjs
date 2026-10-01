@@ -64,6 +64,29 @@ console.log('\n── the input starts disabled, since status never begins "conn
   await ctx.close();
 }
 
+console.log('\n── the box says the conversation is kept, before anything is typed ──');
+{
+  // The agent records and keeps conversations with no expiry (read off its
+  // settings on 1 October; WAIN_AI_RECORDING). A visitor has to be able to
+  // read that BEFORE the first message, since the first message is kept too.
+  const { ctx, p } = await fresh('/salem/');
+  const notice = p.locator('p', { hasText: 'تنحفظ عند ElevenLabs' });
+  ok('the notice is on screen with the box', await notice.isVisible());
+  const box = await p.locator('#salem-q').boundingBox();
+  const line = await notice.boundingBox();
+  ok('it sits above the box, where it is read before typing', !!(box && line && line.y + line.height <= box.y + 1));
+  const href = await notice.locator('a').getAttribute('href');
+  ok('its link goes to the privacy section that says the rest', href === '/privacy/#wain-ai', `href=${href}`);
+  await ctx.close();
+
+  const priv = await fresh('/privacy/');
+  const section = priv.p.locator('section#wain-ai');
+  ok('/privacy has the section the link points at', await section.isVisible());
+  ok('and it says there is no expiry, in so many words', await section.locator('text=ما لها مدة تنمسح بعدها').isVisible());
+  ok('and it no longer says the only thing kept is our own log', !(await priv.p.locator('text=الشي الوحيد اللي نسجّله').count()));
+  await priv.ctx.close();
+}
+
 console.log('\n── /find\'s typing half is سالم\'s again ──');
 {
   const { ctx, p } = await fresh('/find/');

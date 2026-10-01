@@ -366,3 +366,22 @@ export const WAIN_AI_CHAT_COPY = {
   failed: "ما قدرنا نوصله — جرّب مرة ثانية.",
   notConfigured: "المحادثة مو متاحة الحين.",
 } as const;
+
+/**
+ * What happens to a conversation once it has happened, said once because it
+ * is said in three places: the line over the typed chat's box, the privacy
+ * page, and — in the same words — the Flutter app.
+ *
+ * Read off the live agent's `platform_settings.privacy` with `agents_get` on
+ * 1 October: `record_voice: true`, `retention_days: -1`, `delete_audio` and
+ * `delete_transcript_and_pii` both false, topic discovery and sentiment
+ * analysis on. So calls are recorded and calls and typed chats are kept with
+ * no expiry — and the app's privacy screen said «ما نسجّل المكالمة». The
+ * owner chose to keep the settings and say so. **If any of those settings
+ * changes, this wording changes in the same sitting**: re-read the agent
+ * first, never this comment.
+ */
+export const WAIN_AI_RECORDING = {
+  chatNotice: "المحادثة تنحفظ عند ElevenLabs وما تنمسح تلقائياً.",
+  chatNoticeLink: "التفاصيل",
+} as const;

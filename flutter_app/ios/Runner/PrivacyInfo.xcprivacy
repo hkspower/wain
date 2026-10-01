@@ -4,16 +4,22 @@
   Apple's privacy manifest for the Flutter app. "Collect" means transmit off the
   device, which is narrower than it sounds and is why the list is short:
 
-  · Audio — a شوق call streams the microphone to ElevenLabs to be transcribed.
-    Not linked to an identity (there are no accounts), not used for tracking.
-  · Other user content — what you TYPE to شوق in the chat goes to the same
-    service to be answered. Same terms.
+  · Audio — a شوق call streams the microphone to ElevenLabs to be transcribed,
+    and the agent RECORDS it: record_voice on, retention_days -1 (no expiry),
+    read off its settings on 1 October and disclosed in the app's privacy
+    screen. Not linked to an identity (there are no accounts), not used for
+    tracking. Purposes: app functionality, and analytics — the service runs
+    topic and sentiment analysis on conversations and we read them to find
+    where شوق goes wrong.
+  · Other user content — what you TYPE to سالم goes to the same service to be
+    answered, and is kept the same way. Same terms.
   · Location is neither read nor collected: this app has no location permission
     at all (unlike the Capacitor wrapper, whose registration form used it).
   · No tracking and no tracking domains: no analytics SDK, no advertising
     identifier, no third-party measurement anywhere in the bundle.
-  · UserDefaults is shared_preferences: two preferences (voice on/off, which
-    voice), read and written only by the app itself — reason CA92.1.
+  · UserDefaults is shared_preferences: three preferences (voice on/off, which
+    voice, whether you agreed to the conversation notice), read and written
+    only by the app itself — reason CA92.1.
 -->
 <plist version="1.0">
 <dict>
@@ -33,6 +39,7 @@
 			<key>NSPrivacyCollectedDataTypePurposes</key>
 			<array>
 				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
 			</array>
 		</dict>
 		<dict>
@@ -45,6 +52,7 @@
 			<key>NSPrivacyCollectedDataTypePurposes</key>
 			<array>
 				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
 			</array>
 		</dict>
 	</array>

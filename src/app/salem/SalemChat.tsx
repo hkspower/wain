@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import PlaceCard from "@/components/PlaceCard";
 import ShareHangout from "@/components/ShareHangout";
 import { IconSend } from "@/components/icons";
 import type { Place } from "@/lib/places";
-import { WAIN_AI_CHAT_COPY, WAIN_AI_AGENT_ID, SALEM_NAME } from "@/lib/wain-ai";
+import { WAIN_AI_CHAT_COPY, WAIN_AI_AGENT_ID, WAIN_AI_RECORDING, SALEM_NAME } from "@/lib/wain-ai";
 import { startSalemChat, type SalemChatHandle, type SalemFailure, type SalemStatus } from "@/lib/salem-chat";
 import { usePlaces } from "@/lib/usePlaces";
 import { formatOpenPlace, formatShowPlaces } from "@/lib/salem-tools";
@@ -388,7 +389,17 @@ export default function SalemChat() {
         )}
       </div>
 
-      <form onSubmit={send} className="flex items-stretch gap-2 border-t border-white/10 bg-sea-950 p-3">
+      {/* Said before the first message, every visit, because the first
+          message is already kept: the agent records and keeps conversations
+          with no expiry (WAIN_AI_RECORDING). A line the visitor can read
+          before typing is the consent; one buried in /privacy is not. */}
+      <p className="border-t border-white/10 bg-sea-950 px-4 pt-2 text-xs text-sand-200">
+        {WAIN_AI_RECORDING.chatNotice}{" "}
+        <Link href="/privacy/#wain-ai" className="inline-flex min-h-6 items-center font-semibold text-white underline underline-offset-2">
+          {WAIN_AI_RECORDING.chatNoticeLink}
+        </Link>
+      </p>
+      <form onSubmit={send} className="flex items-stretch gap-2 bg-sea-950 p-3">
         <label htmlFor="salem-q" className="sr-only">
           {WAIN_AI_CHAT_COPY.placeholder}
         </label>

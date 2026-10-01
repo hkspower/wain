@@ -1,8 +1,9 @@
 /// The little the app remembers between launches, and nothing else: whether
 /// the voice is on (OFF until someone turns it on — a site that starts talking
-/// on arrival is a site people close) and which persona speaks. Same keys as the web
-/// (`wain-voice-enabled`, `wain-voice-persona`) so the two describe one
-/// preference, not two.
+/// on arrival is a site people close), which persona speaks, and whether the
+/// visitor agreed to what happens to a conversation with شوق. Same keys as the
+/// web for the two voice preferences (`wain-voice-enabled`,
+/// `wain-voice-persona`) so the two describe one preference, not two.
 library;
 
 import 'package:flutter/foundation.dart';
@@ -16,14 +17,30 @@ class AppState extends ChangeNotifier {
       _persona = PersonaId.values.firstWhere(
         (p) => p.name == _prefs?.getString(_kPersona),
         orElse: () => PersonaId.shouq,
-      );
+      ),
+      _aiConsent = _prefs?.getBool(_kAiConsent) ?? false;
 
   static const _kVoice = 'wain-voice-enabled';
   static const _kPersona = 'wain-voice-persona';
 
+  /// Whether the visitor agreed to what happens to a conversation with شوق or
+  /// سالم (`AiPrivacyCopy`). Versioned in the key on purpose: when what is
+  /// kept changes, bump it and everybody is asked again — an answer given to
+  /// different words is not an answer to these.
+  static const _kAiConsent = 'wain-ai-consent-v1';
+
   final SharedPreferences? _prefs;
   bool _voiceEnabled;
   PersonaId _persona;
+  bool _aiConsent;
+
+  bool get aiConsent => _aiConsent;
+
+  void setAiConsent(bool v) {
+    _aiConsent = v;
+    _prefs?.setBool(_kAiConsent, v);
+    notifyListeners();
+  }
 
   /// A missing or unreadable store is not an error: defaults apply, nothing
   /// persists. (Private windows and blocked storage do the same on the web.)

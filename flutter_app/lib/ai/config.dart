@@ -33,6 +33,26 @@ const String kSalemRole = 'دليلك في الكويت';
 const String kSalemGreeting =
     'هلا! أنا سالم. قول لي وش تبي — قهوة، بحر، طلعة عيال — وأدلّك.';
 
+/// What happens to a conversation once it has happened — the app's half of
+/// `WAIN_AI_RECORDING` in `src/lib/wain-ai.ts`, in the same words.
+///
+/// Read off the live agent's `platform_settings.privacy` on 1 October: calls
+/// recorded, calls and typed chats kept with no expiry, topic and sentiment
+/// analysis on. The privacy screen used to say «ما نسجّل المكالمة عندنا، ولا
+/// نخزّن صوتك», which the agent's own settings contradicted. If those settings
+/// change, this and the web's copy change together — re-read the agent first.
+abstract final class AiPrivacyCopy {
+  static const chatNotice = 'المحادثة تنحفظ عند ElevenLabs وما تنمسح تلقائياً.';
+  static const details = 'التفاصيل';
+  static const consentTitle = 'قبل ما تكلّم شوق أو تكتب لسالم';
+  static const consentBody =
+      'صوتك، وأي شي تكتبه، يروح لخدمة ElevenLabs عشان شوق تسمعك وترد عليك — '
+      'وينحفظ عندهم تحت حسابنا وما ينمسح تلقائياً. فلا تقول ولا تكتب شي ما تبيه ينحفظ.';
+  static const agree = 'أوافق وأكمّل';
+  static const notNow = 'مو الحين';
+  static const waiting = 'بانتظار موافقتك';
+}
+
 abstract final class CallCopy {
   static const name = 'شوق';
   static const role = 'دليلتك في الكويت';
