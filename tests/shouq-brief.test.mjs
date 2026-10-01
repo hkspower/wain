@@ -463,6 +463,32 @@ console.log("\n── a place with nothing to say about it stops the build ─�
   ok("and so is a missing description", threw2);
 }
 
+console.log("\n── a best time she can read aloud in summer ──");
+{
+  // The primary model recited the knowledge base's year-round «أحسن وقت» line
+  // («العصر المتأخر») in summer in 11 of 11 runs, and a summer-first PREFIX in
+  // front of that line (v6) did not stop it: it read the prefix and still copied
+  // the tail. So for a place the summer sun ruins, a line that names a daytime
+  // hour is replaced, not prefixed — there is nothing left to copy.
+  const kb = readFileSync("docs/wain-ai-kb.md", "utf8");
+  const entries = kb.split(/\n(?=- \*\*)/).slice(1);
+  const bestOf = (e) => (e.match(/أحسن وقت: ([^\n]*)/) || [])[1] ?? "";
+  const hour = /(?<![\u0600-\u06FF])(العصر|الصبح|الظهر)(?![\u0600-\u06FF])/;
+  const rewritten = entries.filter((e) => /أحسن وقت: الصيف \(يونيو–سبتمبر\)/.test(e));
+  ok("the places the sun ruins carry a season line", rewritten.length >= 10, `${rewritten.length}`);
+  ok("and none of those lines names a daytime hour to copy",
+    rewritten.every((e) => !hour.test(bestOf(e).split(" · ")[0])),
+    rewritten.filter((e) => hour.test(bestOf(e).split(" · ")[0])).map((e) => e.slice(0, 40)).join(" | "));
+  ok("the summer answer in them is «عقب المغرب»", rewritten.every((e) => /عقب المغرب/.test(bestOf(e))));
+  const marina = entries.find((e) => e.includes("slug: `marina-beach`"));
+  ok("شاطئ المارينا, whose line was «العصر المتأخر», no longer says it", !!marina && !/العصر المتأخر/.test(marina.split("\n").filter((l) => /أحسن وقت/.test(l)).join()));
+  const fish = entries.find((e) => e.includes("slug: `fish-market`")) ?? "";
+  ok("a place tied to a schedule keeps the line the catalogue has (no invented hour)",
+    fish === "" || !/أحسن وقت: الصيف \(يونيو–سبتمبر\)/.test(fish), fish.slice(0, 60));
+  const towers = entries.find((e) => e.includes("slug: `kuwait-towers`")) ?? "";
+  ok("a line that names no daytime hour is left as written (the towers: sunset)", /وقت الغروب/.test(bestOf(towers)) && !/الصيف \(يونيو/.test(bestOf(towers)), bestOf(towers));
+}
+
 rmSync(tmp, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fails.length} failed`);
 if (fails.length) { console.log("FAILED: " + fails.join(" | ")); process.exit(1); }

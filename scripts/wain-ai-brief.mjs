@@ -73,13 +73,20 @@ const summerOk = blocks.map((b) => /^ {4}summerOk: true,$/m.test(b));
  * `bestTimeAr` is a year-round statement, and she kept reading it aloud: the
  * beaches say «العصر المتأخر», and from June to September that is 40°C. The
  * prompt forbids it four different ways and the primary model still copied the
- * line verbatim in 11 of 11 runs, while the backup model obeyed in 6 of 6 — so
- * the defect was never the wording of the rule, it was a KB line that says the
- * opposite of it. Fixed at the source instead: for anything the summer sun
- * ruins (not indoor, not `summerOk`) the line leads with the summer answer and
- * demotes the year-round one, so the first thing she reads is the thing to say.
- * No per-place fact is invented; it is the site's own rule, stated once, the
- * same two sentences voice-lines.ts already speaks.
+ * line verbatim in 11 of 11 runs, while the backup model obeyed in 6 of 6.
+ *
+ * Prefixing the summer answer and keeping the old line behind it (v6, «…؛ وباقي
+ * السنة: <the old line>») did NOT work: the model read the prefix and still
+ * recited the tail, on `gemini-2.5-flash`, with the prefix in the document it
+ * was reading. So the old line is not kept. For a place the summer sun ruins
+ * (not indoor, not `summerOk`) whose line names a daytime hour in words —
+ * «العصر», «الصبح», «الظهر» — the line is REPLACED by the season's answer, and
+ * there is no hour left in it to copy. A line that names no such hour («بالليل»,
+ * «وقت الغروب», «بعد المغرب») is already safe in summer and is left exactly as
+ * the catalogue has it. «النهار مناسب» for the rest of the year is the prompt's
+ * own rule («الشتاء هو الموسم»), not a per-place fact; what is lost is each
+ * place's specific winter hour, which is the price of this and is named in
+ * CLAUDE.md.
  */
 /**
  * A best time that is tied to something only available at a set time — the
@@ -88,11 +95,14 @@ const summerOk = blocks.map((b) => /^ {4}summerOk: true,$/m.test(b));
  * line is left exactly as written and the prompt's general rule stays in charge.
  */
 const TIED_TO_A_SCHEDULE = /صيد|الرطب|الورش/;
+/** The words she copies into a summer answer. */
+const DAYTIME_HOUR = /العصر|الصبح|الظهر/;
 const bestToday = (i) => {
   if (summerOk[i] || setting[i] === "indoor" || TIED_TO_A_SCHEDULE.test(best[i])) return best[i];
+  if (!DAYTIME_HOUR.test(best[i])) return best[i];
   return setting[i] === "mixed"
-    ? `بالصيف (يونيو–سبتمبر): بالنهار الجزء المكيّف، والمكشوف عقب المغرب بس؛ وباقي السنة: ${best[i]}`
-    : `بالصيف (يونيو–سبتمبر): عقب المغرب بس، بالنهار الحر ما يسمح؛ وباقي السنة: ${best[i]}`;
+    ? "الصيف (يونيو–سبتمبر): بالنهار الجزء المكيّف، والمكشوف عقب المغرب بس؛ باقي السنة: النهار مناسب"
+    : "الصيف (يونيو–سبتمبر): عقب المغرب بس، بالنهار الحر ما يسمح؛ باقي السنة: النهار مناسب";
 };
 /**
  * The description and the highlights, which شوق used to be denied.
