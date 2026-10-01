@@ -49,6 +49,10 @@ import { ATTRIBUTION_AR, MAX_ZOOM, MIN_ZOOM, TILE_URL } from "@/lib/map-tiles";
  * JavaScript, and it is what keeps tile requests to a fraction of page views —
  * see `map-tiles.ts` for why that last one is an obligation and not a saving.
  */
+/** Positions depend on the coordinates and nothing else, so they are the key. */
+const pointsKey = (points: { lat: number; lng: number }[]) =>
+  points.map((p) => `${p.lat},${p.lng}`).join(";");
+
 export default function LiveMap({
   /** The view the static frame was showing, so the switch does not jump. */
   frame,
@@ -70,7 +74,20 @@ export default function LiveMap({
   const hostRef = useRef<HTMLDivElement | null>(null);
   const pinsRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
-  const [pos, setPos] = useState<{ x: number; y: number }[] | null>(null);
+  /**
+   * Positions, and the set of points they were computed FOR.
+   *
+   * They used to be a bare array, recomputed only when the map moved, while
+   * the points came fresh from the parent on every render. So a new search
+   * with the live map open handed the pins an array for the OLD results:
+   * growing from four coffee places to twelve in Salmiya read `pos[4].x` off
+   * the end and the whole page became «Application error»; shrinking drew
+   * every pin where a different place had been, until a drag re-projected
+   * them. The key is the coordinates themselves, because positions depend on
+   * nothing else — and a projection whose key is not the current one is
+   * handed out as `null`, which every caller already treats as «not yet».
+   */
+  const [projected, setProjected] = useState<{ key: string; pos: { x: number; y: number }[] } | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [zoom, setZoom] = useState<number | null>(null);
 
@@ -79,6 +96,10 @@ export default function LiveMap({
   // The ref is read inside the handler, which always wants the current one.
   const pointsRef = useRef(points);
   pointsRef.current = points;
+  const frameRef = useRef(frame);
+  frameRef.current = frame;
+  const key = pointsKey(points);
+  const pos = projected?.key === key ? projected.pos : null;
 
   /**
    * Re-apply the pan offset after React has committed new pin positions.
@@ -87,6 +108,8 @@ export default function LiveMap({
    * called from the layout effect at the bottom. See `paint`.
    */
   const paintRef = useRef<() => void>(() => {});
+  /** Fit a new set's frame and project it. Owned by the effect below too. */
+  const refitRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     const host = hostRef.current;
@@ -160,12 +183,14 @@ export default function LiveMap({
       // numbers have not changed, and during a drag they never do.
       setSize((s) => (s.w === box.x && s.h === box.y ? s : { w: box.x, h: box.y }));
       setZoom(map.getZoom());
-      setPos(
-        pointsRef.current.map((p) => {
+      const points = pointsRef.current;
+      setProjected({
+        key: pointsKey(points),
+        pos: points.map((p) => {
           const pt = map.latLngToContainerPoint([p.lat, p.lng]);
           return { x: pt.x, y: pt.y };
-        })
-      );
+        }),
+      });
       base = L.DomUtil.getPosition(pane);
       baseZoom = map.getZoom();
     };
@@ -208,6 +233,28 @@ export default function LiveMap({
     map.on("move", () => (map.getZoom() === baseZoom ? paint() : project()));
     map.on("moveend zoomend viewreset resize", project);
 
+    /**
+     * A different set of results: show where THEY are.
+     *
+     * The static frame is refitted to every new set, and the live map has to
+     * do the same or a new answer can land entirely off-screen — «قهوة» is
+     * the old town, «الخيران» is ninety kilometres south. Only on a new SET:
+     * re-fitting on every parent render would yank the map back the moment
+     * the visitor dragged it, which is why the frame is otherwise the
+     * starting view only.
+     */
+    refitRef.current = () => {
+      const [w, s, e, n] = frameRef.current.bbox.split(",").map(Number);
+      map.fitBounds(
+        [
+          [s, w],
+          [n, e],
+        ],
+        { animate: false }
+      );
+      project();
+    };
+
     mapRef.current = map;
     project();
 
@@ -215,11 +262,18 @@ export default function LiveMap({
       map.remove();
       mapRef.current = null;
       paintRef.current = () => {};
+      refitRef.current = () => {};
     };
-    // The frame is the starting view only. Re-fitting on every parent render
-    // would yank the map back the moment the visitor dragged it.
+    // The frame is the starting view only; see `refitRef` for a new set.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // A layout effect, so the new set's positions are committed in the same
+  // frame as the set itself: the render in between hands the pins `null`,
+  // and nothing is painted from it.
+  useLayoutEffect(() => {
+    if (mapRef.current && projected && projected.key !== key) refitRef.current();
+  }, [key, projected]);
 
   // Before the paint that shows the new positions, never after. See `paint`.
   useLayoutEffect(() => {

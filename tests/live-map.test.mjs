@@ -263,6 +263,86 @@ console.log('\n── and it follows on the compositor, not through React ──
   await ctx.close();
 }
 
+/**
+ * A new answer, with the live map already open.
+ *
+ * /search keeps the map mounted while the query changes, and the pins'
+ * positions used to be recomputed only when the map MOVED. So growing the
+ * answer read past the end of the old positions and the page became
+ * «Application error» — the search box with it; shrinking drew every pin
+ * where a different place had been. Measured on the shipped build, both.
+ *
+ * «Drawn where it belongs» is asked without reaching into Leaflet: zoom in
+ * and back out, which re-projects every pin at the same view, and a pin that
+ * was right does not move. A stale one jumps to where it should have been.
+ *
+ * Every wait here is soft. After the crash this guards against there is no
+ * box to type in, and an uncaught timeout would cancel every section after
+ * this one — the coverage hole this file already records once.
+ */
+console.log('\n── a new answer is drawn where it is, with the map already open ──');
+{
+  const { ctx, p, map, errors } = await open();
+  await map.getByRole('button', { name: /حرّك الخريطة/ }).click();
+  await p.locator('.leaflet-container').waitFor({ timeout: 15000 });
+  await p.waitForTimeout(400);
+
+  const box = p.getByRole('combobox', { name: 'ابحث في كل محتوى وين' });
+  const PINS = `${MAP} a[href^="/places/"]`;
+  const count = () => p.locator(PINS).count();
+  const where = () =>
+    p.locator(PINS).evaluateAll((els) =>
+      els.map((a) => {
+        const s = a.parentElement.style;
+        return `${a.getAttribute('href')}@${Math.round(parseFloat(s.left))},${Math.round(parseFloat(s.top))}`;
+      })
+    );
+  const ask = async (q) => {
+    await box.fill(q, { timeout: 3000 }).catch(() => {});
+    await p.waitForTimeout(900);
+  };
+  const reprojected = async () => {
+    const zoomIn = map.getByRole('button', { name: 'تكبير الخريطة' });
+    const zoomOut = map.getByRole('button', { name: 'تصغير الخريطة' });
+    await zoomIn.click({ timeout: 3000 }).catch(() => {});
+    await p.waitForTimeout(500);
+    await zoomOut.click({ timeout: 3000 }).catch(() => {});
+    await p.waitForTimeout(500);
+    return where();
+  };
+  const inside = () =>
+    p.locator(PINS).evaluateAll((els) => {
+      const frame = document.querySelector('.leaflet-container')?.getBoundingClientRect();
+      return !!frame && els.length > 0 && els.every((a) => {
+        const r = a.parentElement.getBoundingClientRect();
+        const x = r.left + r.width / 2;
+        return x >= frame.left && x <= frame.right && r.top >= frame.top - r.height && r.top <= frame.bottom;
+      });
+    });
+
+  const before = await count();
+  await ask('السالمية');
+  const grown = await count();
+  ok('growing the answer keeps the page alive', errors.length === 0 && (await box.count()) === 1, errors.join(' | '));
+  ok('and draws a pin for every new result', grown > before, `${before} → ${grown}`);
+  const grownAt = await where();
+  ok('each where a fresh projection puts it', grownAt.length > 0 && JSON.stringify(grownAt) === JSON.stringify(await reprojected()),
+    grownAt.slice(0, 2).join(' '));
+
+  await ask('قهوة');
+  ok('shrinking it too', (await count()) === before, `${await count()} pins for ${before} results`);
+  const shrunkAt = await where();
+  ok('and no pin is left standing where another place was',
+    shrunkAt.length > 0 && JSON.stringify(shrunkAt) === JSON.stringify(await reprojected()), shrunkAt.slice(0, 2).join(' '));
+
+  // Ninety kilometres south: the view has to follow the answer, or every pin
+  // of it is drawn off the edge of a map still looking at the old town.
+  await ask('الخيران');
+  ok('a new answer elsewhere moves the view to it', await inside(), (await where()).slice(0, 3).join(' '));
+  ok('no page errors through all of it', errors.length === 0, errors.join(' | '));
+  await ctx.close();
+}
+
 console.log('\n── a place page gets the same upgrade ──');
 {
   const { ctx, p, map: frame, errors } = await open('/places/kuwait-towers/', '[data-map-frame]');
