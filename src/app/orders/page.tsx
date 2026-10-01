@@ -7,6 +7,9 @@ export const metadata: Metadata = {
   // Nothing here is content: the page is empty until a device that has placed
   // an order opens it. Keeping it out of search also keeps it out of previews.
   robots: { index: false, follow: false, nocache: true },
+  // No canonical: the layout's «/» beside «noindex» said «do not index me,
+  // I am the home page».
+  alternates: { canonical: null },
 };
 
 export default function OrdersPage() {

@@ -6,6 +6,8 @@ import { countAr, places, PLACES_COUNT } from "@/lib/places";
 export const metadata: Metadata = {
   title: "عن وين",
   description: "ليش صار فيه وين، وكيف يجاوب على سؤال الطلعة اليومي في الكويت.",
+  // Its own, or it inherits the layout's «/» — see /explore.
+  alternates: { canonical: "/about/" },
 };
 
 export default function AboutPage() {

@@ -190,6 +190,46 @@ if (brokenCards.length) {
   console.log("  Every one exists — a shared link shows a picture.");
 }
 
+/**
+ * Every page names itself, and every page a search engine may show has a card.
+ *
+ * Both were wrong for months, and for the same reason: a page that sets one
+ * metadata key replaces the layout's whole value for it, and a page that sets
+ * none inherits it. /explore and /about inherited the layout's canonical «/»,
+ * telling a crawler they were the home page; /admin, /orders, /queue and the
+ * 404 did too, beside their own «noindex». /add set its own `openGraph` and so
+ * lost the picture, and a shared «سجّل مكانك» link previewed with none.
+ */
+const misnamed = [];
+const uncarded = [];
+function namesAndCards(dir = OUT) {
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) namesAndCards(full);
+    else if (name.endsWith(".html")) {
+      const html = readFileSync(full, "utf8");
+      const rel = relative(OUT, full).replace(/\\/g, "/");
+      const route = rel === "index.html" ? "/" : "/" + rel.replace(/index\.html$/, "").replace(/\.html$/, "/");
+      const noindex = /<meta name="robots" content="[^"]*noindex/.test(html);
+      const canon = html.match(/<link rel="canonical" href="([^"]+)"/)?.[1]?.replace(/^https?:\/\/[^/]+/, "");
+      if (noindex) {
+        if (canon) misnamed.push(`${route} is noindex and still names ${canon} as itself`);
+      } else {
+        if (canon !== route) misnamed.push(`${route} names ${canon ?? "nothing"} as itself`);
+        if (!/property="og:image"/.test(html)) uncarded.push(route);
+      }
+    }
+  }
+}
+namesAndCards();
+if (misnamed.length || uncarded.length) {
+  for (const m of misnamed) console.log(`  ✗ ${m}`);
+  for (const u of uncarded) console.log(`  ✗ ${u} has no share image`);
+  problems += misnamed.length + uncarded.length;
+} else {
+  console.log("  Every page names itself as canonical, and every indexable page has a share image.");
+}
+
 if (missed.size) {
   console.log(`\n${missed.size} request(s) for files the build did not produce:`);
   [...missed].slice(0, 20).forEach((m) => console.log("    " + m));

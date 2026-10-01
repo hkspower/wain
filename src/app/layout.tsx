@@ -6,6 +6,7 @@ import { LiveTray } from "@/components/OrdersLink";
 import RouteTransitions from "@/components/RouteTransitions";
 import ScrollMemory from "@/components/ScrollMemory";
 import WainAi from "@/components/WainAi";
+import { OG_BASE, OG_DEFAULT_IMAGE } from "@/lib/site-meta";
 import "./globals.css";
 
 /**
@@ -42,20 +43,12 @@ export const metadata: Metadata = {
   keywords: ["الكويت", "وين", "طلعة", "مطاعم الكويت", "أماكن", "معالم الكويت", "Kuwait"],
   alternates: { canonical: "/" },
   openGraph: {
+    ...OG_BASE,
     title: "وين؟ — وين الطلعة اليوم؟",
     description: "أقرب الأماكن حواليك في الكويت — معالم، مطاعم، قهوة، شواطئ وأسواق.",
     url: "/",
-    siteName: "وين؟",
-    locale: "ar_KW",
     type: "website",
-    images: [
-      {
-        url: "/og.jpg",
-        width: 1200,
-        height: 630,
-        alt: "وين؟ — وين الطلعة اليوم؟",
-      },
-    ],
+    images: [OG_DEFAULT_IMAGE],
   },
   twitter: {
     card: "summary_large_image",

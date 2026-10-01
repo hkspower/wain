@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import AddBusinessClient from "@/app/add/AddBusinessClient";
+import { OG_BASE, OG_DEFAULT_IMAGE } from "@/lib/site-meta";
 import { IconCheck } from "@/components/icons";
 
 export const metadata: Metadata = {
@@ -7,10 +8,14 @@ export const metadata: Metadata = {
   description:
     "عندك محل أو مطعم أو كافيه في الكويت؟ سجّله في وين مجاناً وخلّه يوصل للناس اللي تدوّر عليه.",
   alternates: { canonical: "/add" },
+  // Restated whole: a page's openGraph replaces the layout's (see site-meta).
   openGraph: {
+    ...OG_BASE,
     title: "سجّل مكانك في وين — مجاناً",
     description: "أي محل في الكويت يقدر يسجّل مكانه على خريطة وين، بدون رسوم.",
     url: "/add",
+    type: "website",
+    images: [OG_DEFAULT_IMAGE],
   },
 };
 

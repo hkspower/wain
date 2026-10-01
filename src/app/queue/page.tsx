@@ -6,6 +6,9 @@ export const metadata: Metadata = {
   description: "تابع دورك في الصالون — كم واحد قدامك، وكم باقي تقريباً.",
   // Empty until a device has taken a number, so there is nothing to index.
   robots: { index: false, follow: false, nocache: true },
+  // No canonical: the layout's «/» beside «noindex» said «do not index me,
+  // I am the home page».
+  alternates: { canonical: null },
 };
 
 export default function QueuePage() {

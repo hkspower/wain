@@ -13,6 +13,7 @@ import {
   places,
 } from "@/lib/places";
 import { photoOf } from "@/lib/photos";
+import { OG_BASE } from "@/lib/site-meta";
 
 export function generateStaticParams() {
   return places.map((place) => ({ slug: place.slug }));
@@ -31,6 +32,7 @@ export async function generateMetadata({
     description: place.taglineAr,
     alternates: { canonical: `/places/${place.slug}/` },
     openGraph: {
+      ...OG_BASE,
       title: `${place.nameAr} | وين؟`,
       description: place.taglineAr,
       url: `/places/${place.slug}/`,

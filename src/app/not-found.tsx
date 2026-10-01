@@ -1,5 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { IconCompass, IconGo } from "@/components/icons";
+
+// A missing page has no address of its own to name, and the layout's «/»
+// beside «noindex» told a crawler the home page was this one.
+export const metadata: Metadata = { alternates: { canonical: null } };
 
 export default function NotFound() {
   return (
