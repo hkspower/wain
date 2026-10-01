@@ -17,7 +17,7 @@
  *
  * $COMMIT pins the ARTWORK. Fetch this script from HEAD.
  */
-$COMMIT = '__COMMIT__';
+$COMMIT = 'cc8fafc15eac52eb42834d0936cad0f9daa93a3a';
 $BASE = 'https://raw.githubusercontent.com/hkspower/wain/' . $COMMIT . '/sporta-site/assets/hero/';
 
 // name, current (centred) desktop hash, new desktop sha, new mobile sha, focal_x
