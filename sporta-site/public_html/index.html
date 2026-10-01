@@ -279,8 +279,8 @@
           var size = localStorage.getItem('sporta_hero_size')
           if (size !== 'short' && size !== 'full') size = 'tall'
           el.dataset.heroSize = size
-          el.style.setProperty('--hero-h', size === 'short' ? '8svh' : size === 'full' ? 'calc((100svh - 77px) * 0.6)' : '10svh')
-          el.style.setProperty('--hero-h-md', size === 'short' ? '13svh' : size === 'full' ? 'calc((100svh - 98px) * 0.6)' : '18svh')
+          el.style.setProperty('--hero-h', size === 'short' ? '8svh' : size === 'full' ? 'calc((100svh - 58px) * 0.6)' : '10svh')
+          el.style.setProperty('--hero-h-md', size === 'short' ? '13svh' : size === 'full' ? 'calc((100svh - 64px) * 0.6)' : '18svh')
 
           // THE HERO BANNER, requested here rather than in the markup above.
           //
@@ -423,17 +423,17 @@
          (sporta-ui.css hides header.app-header > p), so a separate 28px box
          above this one would now just be dead space the real header never
          draws. Measured with the strip gone, phone through 1440px:
-         77 / 85.7 / 94.4 / 95.7 / 97.7 after the logo padding of 2026-09-28 — rounded up rather than down, since a
+         57 / 58 / 62 / 62.4 / 63.5 after the slimmer bar of 2026-10-01 (it was 77 / 85.7 / 94.4 / 95.7 / 97.7) — rounded up rather than down, since a
          shell a shade taller than reality costs nothing and a shell shorter
          than reality is the hero jumping. */
-      .boot-head { height: 77px; background: #2b3138;
+      .boot-head { height: 58px; background: #2b3138;
                    display: flex; align-items: flex-start; justify-content: center }
-      @media (min-width: 640px)  { .boot-head { height: 86px } }
-      @media (min-width: 768px)  { .boot-head { height: 95px } }
-      @media (min-width: 1024px) { .boot-head { height: 96px } }
-      @media (min-width: 1440px) { .boot-head { height: 98px } }
+      @media (min-width: 768px)  { .boot-head { height: 62px } }
+      @media (min-width: 1024px) { .boot-head { height: 63px } }
+      @media (min-width: 1440px) { .boot-head { height: 64px } }
       /* 8px top = the real logo bar's padding, +8px logo padding (2026-09-28), so the mark does not move. */
-      .boot-head img { height: 32px; width: auto; margin-top: 20px }
+      .boot-head img { height: 34px; width: auto; margin-top: 10px }
+      @media (min-width: 768px)  { .boot-head img { height: 41px; margin-top: 10px } }
       /* --hero-h is set by the script below, from the size the owner chose,
          BEFORE anything paints. The skeleton and the real hero read the same
          variable, so the real one drops into exactly this box. */

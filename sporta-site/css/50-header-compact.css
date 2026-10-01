@@ -1,0 +1,21 @@
+/* A SLIMMER TOP BAR — 2026-10-01, "reduce logo size at topbar and reduce topbar
+ * height to be more fitable with website". The logo had been sized up twice
+ * (32/36 -> 40/48 -> 44/52px, 2026-09-22) and given 8px above and below
+ * (2026-09-28), which made a 77px phone bar and a 94-98px desktop one. Now
+ * 34px (phone) / 40px (768px up) logo, 4px of padding on the link and 6px on the
+ * row: the bar is 55px on a phone and 61px on desktop. The lockup is one image, so
+ * its size is all that can move; its proportions are unchanged.
+ *
+ * index.html's .boot-head heights, the hero's `100svh - <header>` formulas
+ * (38-hero-size.css, the boot script, rules-live.js) all quote these numbers and
+ * moved with them, or the hero jumps at mount. */
+header.app-header nav { padding-block: 6px !important; }
+header.app-header nav > a img { height: 2.125rem !important; }
+/* In the SAME layer as 17-header-colours.css's `padding-block: 8px !important`: !important
+ * declarations in a layer beat unlayered !important ones, so an unlayered rule here loses. */
+@layer utilities {
+  header.app-header nav > a:has(img) { padding-block: 4px !important; }
+}
+@media (min-width: 768px) {
+  header.app-header nav > a img { height: 2.5rem !important; }
+}

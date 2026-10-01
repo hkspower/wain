@@ -115,11 +115,14 @@ for (const lang of ['en', 'ar']) {
     const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize)
     return { h: img ? img.getBoundingClientRect().height : null, rootPx }
   })
-  // 3.25rem at this 1280px width since 2026-09-22, when the owner asked for
-  // the logo bigger again ("increase logo size"); 2.75rem below 768px.
-  const want = 3.25 * rootPx
+  // 2.5rem at this 1280px width since 2026-10-01 ("reduce logo size at topbar",
+  // slimmer bar — css/50-header-compact.css); 2.125rem below 768px. It was 3.25rem
+  // after the 2026-09-22 "increase logo size".
+  const want = 2.5 * rootPx
   check(h !== null && Math.abs(h - want) < 1,
-    `${lang}: the logo renders at 3.25rem on desktop`, `got=${h}px want=${want.toFixed(1)}px`)
+    `${lang}: the logo renders at 2.5rem on desktop`, `got=${h}px want=${want.toFixed(1)}px`)
+  const bar = await page.evaluate(() => document.querySelector('header.app-header').getBoundingClientRect().height)
+  check(bar <= 66, `${lang}: the desktop top bar is slim (was 97px)`, `${bar.toFixed(1)}px`)
   await page.close()
 }
 

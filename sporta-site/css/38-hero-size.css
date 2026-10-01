@@ -14,7 +14,7 @@
  * PHONE HEIGHTS LOWERED 2026-09-29 ("reduce hero slides layout size to be fitted
  * with mobile", the owner chose about 40% of the screen): tall was 55svh and
  * short 40svh, so both come down and keep their order. Desktop is unchanged.
- *   full    the screen below the header  (77px phone, 98px desktop)
+ *   full    the screen below the header  (58px phone, 64px desktop)
  *
  * Both the pre-paint shell (--hero-h / --hero-h-md) and the mounted hero
  * (34-hero-band.css reads them through --sp-hero-h) follow the same variable,
@@ -25,6 +25,6 @@
   --hero-h-md: 13svh !important;
 }
 :root[data-hero-size="full"] {
-  --hero-h: calc((100svh - 77px) * 0.6) !important;
-  --hero-h-md: calc((100svh - 98px) * 0.6) !important;
+  --hero-h: calc((100svh - 58px) * 0.6) !important;
+  --hero-h-md: calc((100svh - 64px) * 0.6) !important;
 }
