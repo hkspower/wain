@@ -326,5 +326,44 @@ console.log("\n── the same Kuwaiti word, however it is spelled ──");
   }
 }
 
+console.log("\n── the words a 225-question battery found missing ──");
+/**
+ * Questions written the way people type to سالم — slang, who they are going
+ * with, what time, English — passed 134 of 225, and the largest single cause
+ * was a word with no entry at all while its tag sat in the catalogue under
+ * another word. Each case pins one entry of the 1 October block in SYNONYMS,
+ * on what the entry is FOR, so it cannot go quietly and cannot be replaced by
+ * one that answers with the wrong kind of place.
+ */
+{
+  const top = (q) => ask(q).hitPlaces[0];
+  const show = (q) => ask(q).hitPlaces.slice(0, 3).map((p) => p.nameAr).join("، ") || "لا شي";
+  const kids = ["family", "culture", "outdoors"];
+  for (const q of ["مع اليهال", "مع اهلي"]) {
+    ok(`«${q}» finds somewhere for a family`, kids.includes(top(q)?.category), show(q));
+  }
+  // «صغار» already reached an arts house by prefix; what the entry adds is a
+  // place actually tagged for children among the first three.
+  ok("«مع الصغار» puts somewhere for children in its first three",
+    ask("مع الصغار").hitPlaces.slice(0, 3).some((p) => p.tagsAr.includes("عيال")), show("مع الصغار"));
+  ok("«عشا على البحر» is dinner, not the beach",
+    top("عشا على البحر")?.category === "restaurants", show("عشا على البحر"));
+  ok("«عشا» on its own still offers a choice", ask("عشا").hitPlaces.length >= 2, show("عشا"));
+  ok("«بيتش» is a beach, not a house called بيت",
+    top("بيتش")?.nameAr.startsWith("شاطئ"), show("بيتش"));
+  ok("and «بيت» is still a house", top("بيت")?.nameAr.startsWith("بيت"), show("بيت"));
+  ok("«ثري سكستي» is مجمع ٣٦٠", top("ثري سكستي")?.slug === "mall-360", show("ثري سكستي"));
+  ok("«ذا افنيوز» is the Avenues, and «ذا» reaches nothing on its own",
+    top("ذا افنيوز")?.slug === "the-avenues" &&
+      !ask("ذا افنيوز").hitPlaces.some((p) => p.slug === "al-shaheed-park"),
+    show("ذا افنيوز"));
+  ok("«على قد الحال» is cheap all the way down its first three",
+    ask("على قد الحال").hitPlaces.slice(0, 3).every((p) => p.priceLevel === 1), show("على قد الحال"));
+  ok("«breakfast» finds breakfast",
+    ["restaurants", "fastfood", "shopping"].includes(top("breakfast")?.category), show("breakfast"));
+  ok("«sunset» finds a sunset", top("sunset")?.tagsAr.includes("غروب"), show("sunset"));
+  ok("«tonight» finds somewhere for the evening", top("tonight")?.tagsAr.includes("سهرة"), show("tonight"));
+}
+
 console.log(`\n${pass} passed, ${fails.length} failed`);
 if (fails.length) { console.log("FAILED: " + fails.join(" | ")); process.exit(1); }

@@ -7689,9 +7689,82 @@
    "hits": [
     {
      "id": "place:gulf-road-cafes",
-     "score": 5.339408269091074,
+     "score": 16.260208961445322,
      "matched": [
-      "cafes"
+      "cafes",
+      "قهوه",
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:hamad-al-mubarak-street",
+     "score": 8.925105600636531,
+     "matched": [
+      "قهوه",
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:mubarakiya-tea-houses",
+     "score": 5.021055552454089,
+     "matched": [
+      "قهوه"
+     ]
+    },
+    {
+     "id": "category:coffee",
+     "score": 4.686378959990871,
+     "matched": [
+      "قهوه"
+     ]
+    },
+    {
+     "id": "place:souq-al-safafeer",
+     "score": 2.7544534595644303,
+     "matched": [
+      "قهوه"
+     ]
+    },
+    {
+     "id": "place:souq-sharq",
+     "score": 2.5852075443156144,
+     "matched": [
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:al-fanar-mall",
+     "score": 2.1761676077990395,
+     "matched": [
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:marina-mall",
+     "score": 2.1527024748043644,
+     "matched": [
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:al-kout-mall",
+     "score": 2.143457503926603,
+     "matched": [
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:marina-crescent",
+     "score": 2.1206887907156178,
+     "matched": [
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:marina-beach",
+     "score": 2.093996805836346,
+     "matched": [
+      "كافيهات"
      ]
     }
    ]
@@ -12786,9 +12859,82 @@
    "hits": [
     {
      "id": "place:gulf-road-cafes",
-     "score": 5.339408269091074,
+     "score": 16.260208961445322,
      "matched": [
-      "cafes"
+      "cafes",
+      "قهوه",
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:hamad-al-mubarak-street",
+     "score": 8.925105600636531,
+     "matched": [
+      "قهوه",
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:mubarakiya-tea-houses",
+     "score": 5.021055552454089,
+     "matched": [
+      "قهوه"
+     ]
+    },
+    {
+     "id": "category:coffee",
+     "score": 4.686378959990871,
+     "matched": [
+      "قهوه"
+     ]
+    },
+    {
+     "id": "place:souq-al-safafeer",
+     "score": 2.7544534595644303,
+     "matched": [
+      "قهوه"
+     ]
+    },
+    {
+     "id": "place:souq-sharq",
+     "score": 2.5852075443156144,
+     "matched": [
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:al-fanar-mall",
+     "score": 2.1761676077990395,
+     "matched": [
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:marina-mall",
+     "score": 2.1527024748043644,
+     "matched": [
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:al-kout-mall",
+     "score": 2.143457503926603,
+     "matched": [
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:marina-crescent",
+     "score": 2.1206887907156178,
+     "matched": [
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:marina-beach",
+     "score": 2.093996805836346,
+     "matched": [
+      "كافيهات"
      ]
     }
    ]
@@ -12798,9 +12944,82 @@
    "hits": [
     {
      "id": "place:gulf-road-cafes",
-     "score": 5.339408269091074,
+     "score": 16.260208961445322,
      "matched": [
-      "cafes"
+      "cafes",
+      "قهوه",
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:hamad-al-mubarak-street",
+     "score": 8.925105600636531,
+     "matched": [
+      "قهوه",
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:mubarakiya-tea-houses",
+     "score": 5.021055552454089,
+     "matched": [
+      "قهوه"
+     ]
+    },
+    {
+     "id": "category:coffee",
+     "score": 4.686378959990871,
+     "matched": [
+      "قهوه"
+     ]
+    },
+    {
+     "id": "place:souq-al-safafeer",
+     "score": 2.7544534595644303,
+     "matched": [
+      "قهوه"
+     ]
+    },
+    {
+     "id": "place:souq-sharq",
+     "score": 2.5852075443156144,
+     "matched": [
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:al-fanar-mall",
+     "score": 2.1761676077990395,
+     "matched": [
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:marina-mall",
+     "score": 2.1527024748043644,
+     "matched": [
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:al-kout-mall",
+     "score": 2.143457503926603,
+     "matched": [
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:marina-crescent",
+     "score": 2.1206887907156178,
+     "matched": [
+      "كافيهات"
+     ]
+    },
+    {
+     "id": "place:marina-beach",
+     "score": 2.093996805836346,
+     "matched": [
+      "كافيهات"
      ]
     }
    ]
@@ -13387,6 +13606,3759 @@
      "score": 6.264952484947133,
      "matched": [
       "فيلكا"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "مكان يونس",
+   "hits": [
+    {
+     "id": "place:tunis-street",
+     "score": 5.694522648522555,
+     "matched": [
+      "مكان",
+      "تونس"
+     ]
+    },
+    {
+     "id": "place:entertainment-city",
+     "score": 3.392139970245623,
+     "matched": [
+      "ترفيهيه"
+     ]
+    },
+    {
+     "id": "category:shopping",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "category:culture",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:القادسية",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:الجابرية",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:الشويخ",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:الزهراء",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:الدوحة",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:العمرية",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:المسيلة",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:الفحيحيل",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:الوفرة",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:مشرف",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:الصبية",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:الشعب",
+     "score": 1.5612310253824109,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "category:fastfood",
+     "score": 1.5436794520008608,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:مدينة الكويت",
+     "score": 1.5321960134714157,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:الخليج العربي",
+     "score": 1.5321960134714157,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:بنيد القار",
+     "score": 1.5097341745619028,
+     "matched": [
+      "مكان"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "وين اسهر الليلة",
+   "hits": [
+    {
+     "id": "place:tunis-street",
+     "score": 6.830835292071293,
+     "matched": [
+      "اشهر",
+      "سهره",
+      "بالليل"
+     ]
+    },
+    {
+     "id": "place:liberation-tower",
+     "score": 5.997163929427356,
+     "matched": [
+      "سهره",
+      "بالليل"
+     ]
+    },
+    {
+     "id": "place:salem-al-mubarak-street",
+     "score": 5.9086467153635365,
+     "matched": [
+      "اشهر",
+      "سهره",
+      "بالليل"
+     ]
+    },
+    {
+     "id": "place:souq-al-mubarakiya",
+     "score": 5.281647895725194,
+     "matched": [
+      "سهره",
+      "بالليل"
+     ]
+    },
+    {
+     "id": "place:al-kout-mall",
+     "score": 5.058699059057089,
+     "matched": [
+      "سهره",
+      "بالليل"
+     ]
+    },
+    {
+     "id": "place:hamad-al-mubarak-street",
+     "score": 3.7545266312622436,
+     "matched": [
+      "سهره"
+     ]
+    },
+    {
+     "id": "place:mubarakiya-tea-houses",
+     "score": 3.6458577991300185,
+     "matched": [
+      "سهره"
+     ]
+    },
+    {
+     "id": "place:gulf-road-cafes",
+     "score": 3.6085563868468933,
+     "matched": [
+      "سهره"
+     ]
+    },
+    {
+     "id": "place:kuwait-zoo",
+     "score": 3.522460377710231,
+     "matched": [
+      "ظليله"
+     ]
+    },
+    {
+     "id": "page:about",
+     "score": 3.1527988253210664,
+     "matched": [
+      "وين"
+     ]
+    },
+    {
+     "id": "place:al-hamra-tower",
+     "score": 2.2978344791233125,
+     "matched": [
+      "اشهر",
+      "بالليل"
+     ]
+    },
+    {
+     "id": "page:privacy",
+     "score": 2.196912392046536,
+     "matched": [
+      "وين"
+     ]
+    },
+    {
+     "id": "place:kuwait-national-museum",
+     "score": 2.113988931330439,
+     "matched": [
+      "وين"
+     ]
+    },
+    {
+     "id": "place:kuwait-fairground",
+     "score": 2.084214855364852,
+     "matched": [
+      "وين"
+     ]
+    },
+    {
+     "id": "place:salhia-complex",
+     "score": 1.8954513100904231,
+     "matched": [
+      "اسهل"
+     ]
+    },
+    {
+     "id": "place:entertainment-city",
+     "score": 1.5982411925264188,
+     "matched": [
+      "اشهر"
+     ]
+    },
+    {
+     "id": "place:green-island",
+     "score": 1.5894075478069596,
+     "matched": [
+      "اشهر"
+     ]
+    },
+    {
+     "id": "place:marina-crescent",
+     "score": 1.0933906638945132,
+     "matched": [
+      "اشهر"
+     ]
+    },
+    {
+     "id": "place:kuwait-towers",
+     "score": 1.0533403059862585,
+     "matched": [
+      "اشهر"
+     ]
+    },
+    {
+     "id": "place:seif-palace",
+     "score": 1.0306881484722674,
+     "matched": [
+      "اشهر"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "وين اودي اهلي",
+   "hits": [
+    {
+     "id": "place:kuwait-fairground",
+     "score": 8.160384166855565,
+     "matched": [
+      "وين",
+      "عوايل",
+      "عايله"
+     ]
+    },
+    {
+     "id": "place:al-fanar-mall",
+     "score": 7.102846436393961,
+     "matched": [
+      "اهدي",
+      "احلي"
+     ]
+    },
+    {
+     "id": "place:salhia-complex",
+     "score": 6.357914612694051,
+     "matched": [
+      "اهدي"
+     ]
+    },
+    {
+     "id": "place:kuwait-science-centre",
+     "score": 6.088118216842098,
+     "matched": [
+      "اصلي",
+      "عوايل",
+      "عايله"
+     ]
+    },
+    {
+     "id": "place:hamad-al-mubarak-street",
+     "score": 5.863325094888672,
+     "matched": [
+      "اهدي"
+     ]
+    },
+    {
+     "id": "place:aqua-park",
+     "score": 5.343293728165674,
+     "matched": [
+      "احلي",
+      "عوايل",
+      "عايله"
+     ]
+    },
+    {
+     "id": "place:entertainment-city",
+     "score": 4.144070108758259,
+     "matched": [
+      "عوايل",
+      "عايله"
+     ]
+    },
+    {
+     "id": "place:green-island",
+     "score": 4.13004761834922,
+     "matched": [
+      "عوايل",
+      "عايله"
+     ]
+    },
+    {
+     "id": "place:kuwait-zoo",
+     "score": 4.109196680289085,
+     "matched": [
+      "عوايل",
+      "عايله"
+     ]
+    },
+    {
+     "id": "place:the-avenues",
+     "score": 3.421251303975766,
+     "matched": [
+      "اعلي",
+      "الي",
+      "عوايل"
+     ]
+    },
+    {
+     "id": "place:kuwait-national-museum",
+     "score": 3.3810360318846433,
+     "matched": [
+      "وين",
+      "عوايل"
+     ]
+    },
+    {
+     "id": "page:about",
+     "score": 3.1527988253210664,
+     "matched": [
+      "وين"
+     ]
+    },
+    {
+     "id": "category:family",
+     "score": 2.8588690355732598,
+     "matched": [
+      "عايله"
+     ]
+    },
+    {
+     "id": "place:abdullah-al-salem-cultural-centre",
+     "score": 2.8281111506007615,
+     "matched": [
+      "تودي",
+      "عوايل"
+     ]
+    },
+    {
+     "id": "place:mais-alghanim",
+     "score": 2.696401554266564,
+     "matched": [
+      "اهل",
+      "عوايل"
+     ]
+    },
+    {
+     "id": "place:sadu-house",
+     "score": 2.445537055026881,
+     "matched": [
+      "اصلي"
+     ]
+    },
+    {
+     "id": "place:fish-market",
+     "score": 2.2987892933152594,
+     "matched": [
+      "اصلي",
+      "عوايل"
+     ]
+    },
+    {
+     "id": "page:privacy",
+     "score": 2.196912392046536,
+     "matched": [
+      "وين"
+     ]
+    },
+    {
+     "id": "place:kuwait-towers",
+     "score": 1.943040665517014,
+     "matched": [
+      "اعلي",
+      "عوايل"
+     ]
+    },
+    {
+     "id": "place:souq-sharq",
+     "score": 1.8148167123640149,
+     "matched": [
+      "احلي",
+      "عوايل"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "ابي شي ونيس",
+   "hits": [
+    {
+     "id": "place:salem-al-mubarak-street",
+     "score": 5.528294766171415,
+     "matched": [
+      "شي",
+      "وايس"
+     ]
+    },
+    {
+     "id": "place:entertainment-city",
+     "score": 3.1522916895211854,
+     "matched": [
+      "ترفيهيه"
+     ]
+    },
+    {
+     "id": "place:bait-lothan",
+     "score": 1.9102369186415733,
+     "matched": [
+      "شي"
+     ]
+    },
+    {
+     "id": "place:friday-market",
+     "score": 1.845361919293269,
+     "matched": [
+      "شي"
+     ]
+    },
+    {
+     "id": "place:fish-market",
+     "score": 1.7978716803898727,
+     "matched": [
+      "شي"
+     ]
+    },
+    {
+     "id": "place:wafra-farms",
+     "score": 1.7978716803898727,
+     "matched": [
+      "شي"
+     ]
+    },
+    {
+     "id": "place:kuwait-towers",
+     "score": 1.7912861655642516,
+     "matched": [
+      "شي"
+     ]
+    },
+    {
+     "id": "place:kuwait-fairground",
+     "score": 1.7219063328022444,
+     "matched": [
+      "شي"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "ارخص مكان",
+   "hits": [
+    {
+     "id": "place:mubarakiya-tea-houses",
+     "score": 5.472129964832289,
+     "matched": [
+      "ارخص",
+      "رخيص",
+      "مكان"
+     ]
+    },
+    {
+     "id": "place:souq-al-watiya",
+     "score": 4.041769993285448,
+     "matched": [
+      "ارخص",
+      "رخيص"
+     ]
+    },
+    {
+     "id": "place:tunis-street",
+     "score": 2.20320199419213,
+     "matched": [
+      "رخيص",
+      "مكان"
+     ]
+    },
+    {
+     "id": "place:salem-al-mubarak-street",
+     "score": 2.07151305956729,
+     "matched": [
+      "رخيص",
+      "مكان"
+     ]
+    },
+    {
+     "id": "place:bait-lothan",
+     "score": 1.7383146651087105,
+     "matched": [
+      "رخيص",
+      "مكان"
+     ]
+    },
+    {
+     "id": "place:al-shaheed-park",
+     "score": 1.612351645366242,
+     "matched": [
+      "رخيص",
+      "مكان"
+     ]
+    },
+    {
+     "id": "category:shopping",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "category:culture",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:القادسية",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:الجابرية",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:الشويخ",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:الزهراء",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:الدوحة",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:العمرية",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:المسيلة",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:الفحيحيل",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:الوفرة",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:مشرف",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:الصبية",
+     "score": 1.5852635357070062,
+     "matched": [
+      "مكان"
+     ]
+    },
+    {
+     "id": "area:الشعب",
+     "score": 1.5612310253824109,
+     "matched": [
+      "مكان"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "على البلاش",
+   "hits": [
+    {
+     "id": "place:grand-mosque",
+     "score": 7.727658283253534,
+     "matched": [
+      "علي",
+      "مجانا",
+      "مجانيه"
+     ]
+    },
+    {
+     "id": "place:liberation-tower",
+     "score": 4.7278319858007904,
+     "matched": [
+      "علي",
+      "مجانا"
+     ]
+    },
+    {
+     "id": "place:seif-palace",
+     "score": 4.607875140547037,
+     "matched": [
+      "علي",
+      "مجانا"
+     ]
+    },
+    {
+     "id": "place:souq-sharq",
+     "score": 1.8117258660748896,
+     "matched": [
+      "علي"
+     ]
+    },
+    {
+     "id": "place:marina-mall",
+     "score": 1.713325777631183,
+     "matched": [
+      "علي"
+     ]
+    },
+    {
+     "id": "place:marina-crescent",
+     "score": 1.6997908592411404,
+     "matched": [
+      "علي"
+     ]
+    },
+    {
+     "id": "place:al-fanar-mall",
+     "score": 1.6760977396947667,
+     "matched": [
+      "علي"
+     ]
+    },
+    {
+     "id": "place:al-kout-mall",
+     "score": 1.6610026169184868,
+     "matched": [
+      "علي"
+     ]
+    },
+    {
+     "id": "place:marina-beach",
+     "score": 1.6378233859814706,
+     "matched": [
+      "علي"
+     ]
+    },
+    {
+     "id": "place:al-shaab-beach",
+     "score": 1.627499885281934,
+     "matched": [
+      "علي"
+     ]
+    },
+    {
+     "id": "place:gulf-road-cafes",
+     "score": 1.6132637100904645,
+     "matched": [
+      "علي"
+     ]
+    },
+    {
+     "id": "category:fastfood",
+     "score": 1.5770974067050494,
+     "matched": [
+      "علي"
+     ]
+    },
+    {
+     "id": "place:kuwait-towers",
+     "score": 1.5628181236704448,
+     "matched": [
+      "علي"
+     ]
+    },
+    {
+     "id": "place:dickson-house",
+     "score": 1.533852322959032,
+     "matched": [
+      "علي"
+     ]
+    },
+    {
+     "id": "place:messilah-beach",
+     "score": 1.4850726116385973,
+     "matched": [
+      "علي"
+     ]
+    },
+    {
+     "id": "place:mais-alghanim",
+     "score": 1.4774248463041095,
+     "matched": [
+      "علي"
+     ]
+    },
+    {
+     "id": "place:aqua-park",
+     "score": 1.4723699465197322,
+     "matched": [
+      "علي"
+     ]
+    },
+    {
+     "id": "place:failaka-island",
+     "score": 1.3456408965875557,
+     "matched": [
+      "علي"
+     ]
+    },
+    {
+     "id": "place:fish-market",
+     "score": 1.144963309465144,
+     "matched": [
+      "علي"
+     ]
+    },
+    {
+     "id": "place:sabah-al-ahmad-sea-city",
+     "score": 1.1038465830236366,
+     "matched": [
+      "علي"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "شي على قد الحال",
+   "hits": [
+    {
+     "id": "place:dickson-house",
+     "score": 9.471523740410365,
+     "matched": [
+      "علي",
+      "قديم",
+      "قديمه",
+      "رخيص",
+      "اقتصادي"
+     ]
+    },
+    {
+     "id": "place:bait-lothan",
+     "score": 6.787156048555514,
+     "matched": [
+      "شي",
+      "علي",
+      "قديم",
+      "رخيص",
+      "اقتصادي"
+     ]
+    },
+    {
+     "id": "place:bait-al-othman",
+     "score": 5.789439191706101,
+     "matched": [
+      "قديم",
+      "قديمه",
+      "رخيص",
+      "اقتصادي"
+     ]
+    },
+    {
+     "id": "place:seif-palace",
+     "score": 5.129658466671456,
+     "matched": [
+      "علي",
+      "قدامه",
+      "رخيص",
+      "اقتصادي"
+     ]
+    },
+    {
+     "id": "place:salem-al-mubarak-street",
+     "score": 4.362568679350488,
+     "matched": [
+      "شي",
+      "علي",
+      "رخيص",
+      "اقتصادي"
+     ]
+    },
+    {
+     "id": "place:al-kout-mall",
+     "score": 4.090362354061173,
+     "matched": [
+      "علي",
+      "قدامه"
+     ]
+    },
+    {
+     "id": "place:kuwait-towers",
+     "score": 3.490397801831976,
+     "matched": [
+      "شي",
+      "علي"
+     ]
+    },
+    {
+     "id": "place:friday-market",
+     "score": 3.381184912615419,
+     "matched": [
+      "شي",
+      "رخيص",
+      "اقتصادي"
+     ]
+    },
+    {
+     "id": "place:wafra-farms",
+     "score": 3.306588341760494,
+     "matched": [
+      "شي",
+      "رخيص",
+      "اقتصادي"
+     ]
+    },
+    {
+     "id": "place:failaka-island",
+     "score": 3.2658692363975224,
+     "matched": [
+      "علي",
+      "قديمه"
+     ]
+    },
+    {
+     "id": "place:souq-al-watiya",
+     "score": 3.218277831356628,
+     "matched": [
+      "قديم",
+      "رخيص",
+      "اقتصادي"
+     ]
+    },
+    {
+     "id": "place:fish-market",
+     "score": 3.0796295742325066,
+     "matched": [
+      "شي",
+      "علي"
+     ]
+    },
+    {
+     "id": "place:souq-al-mubarakiya",
+     "score": 2.9953376155358287,
+     "matched": [
+      "قديم",
+      "رخيص",
+      "اقتصادي"
+     ]
+    },
+    {
+     "id": "place:modern-art-museum",
+     "score": 2.8159997246674573,
+     "matched": [
+      "قديمه",
+      "رخيص",
+      "اقتصادي"
+     ]
+    },
+    {
+     "id": "place:kuwait-fairground",
+     "score": 2.6105478495783707,
+     "matched": [
+      "شي",
+      "علي"
+     ]
+    },
+    {
+     "id": "place:marina-beach",
+     "score": 2.6063941151374386,
+     "matched": [
+      "علي",
+      "رخيص",
+      "اقتصادي"
+     ]
+    },
+    {
+     "id": "place:al-shaab-beach",
+     "score": 2.578396222068186,
+     "matched": [
+      "علي",
+      "رخيص",
+      "اقتصادي"
+     ]
+    },
+    {
+     "id": "place:liberation-tower",
+     "score": 2.488763467545877,
+     "matched": [
+      "علي",
+      "رخيص",
+      "اقتصادي"
+     ]
+    },
+    {
+     "id": "place:kuwait-national-museum",
+     "score": 2.4716207881961227,
+     "matched": [
+      "قديم",
+      "رخيص",
+      "اقتصادي"
+     ]
+    },
+    {
+     "id": "place:messilah-beach",
+     "score": 2.4572573571670326,
+     "matched": [
+      "علي",
+      "رخيص",
+      "اقتصادي"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "بروحي",
+   "hits": [
+    {
+     "id": "place:al-fanar-mall",
+     "score": 1.2991295521598856,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:souq-sharq",
+     "score": 1.2934897742647757,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:bait-lothan",
+     "score": 1.2851213261346963,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:green-island",
+     "score": 1.279602259113795,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:hamad-al-mubarak-street",
+     "score": 1.2687051267082134,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:salhia-complex",
+     "score": 1.2579920277015544,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:mall-360",
+     "score": 1.2527030399727863,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:messilah-beach",
+     "score": 1.2527030399727863,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:wafra-farms",
+     "score": 1.2422573712438902,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:mirror-house",
+     "score": 1.2370995915842267,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:al-salam-palace",
+     "score": 1.2370995915842267,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:al-shaheed-park",
+     "score": 1.231984464430424,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:mubarakiya-tea-houses",
+     "score": 1.231984464430424,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:amricani-cultural-centre",
+     "score": 1.2269114628856725,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:modern-art-museum",
+     "score": 1.2269114628856725,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:grand-mosque",
+     "score": 1.2243905969295934,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:sadu-house",
+     "score": 1.2193798147249169,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:gulf-road-cafes",
+     "score": 1.2193798147249169,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:tareq-rajab-museum",
+     "score": 1.2168897720742085,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:sabah-al-ahmad-sea-city",
+     "score": 1.2070304736869755,
+     "matched": [
+      "هدوء"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "مع خطيبتي",
+   "hits": [
+    {
+     "id": "place:hamad-al-mubarak-street",
+     "score": 3.980903783658638,
+     "matched": [
+      "موعد",
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:amricani-cultural-centre",
+     "score": 3.8497649154207596,
+     "matched": [
+      "موعد",
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:marina-crescent",
+     "score": 2.706436632438327,
+     "matched": [
+      "موعد"
+     ]
+    },
+    {
+     "id": "place:jacc",
+     "score": 2.5961279509444437,
+     "matched": [
+      "موعد"
+     ]
+    },
+    {
+     "id": "place:al-fanar-mall",
+     "score": 1.2991295521598856,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:souq-sharq",
+     "score": 1.2934897742647757,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:bait-lothan",
+     "score": 1.2851213261346963,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:green-island",
+     "score": 1.279602259113795,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:salhia-complex",
+     "score": 1.2579920277015544,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:mall-360",
+     "score": 1.2527030399727863,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:messilah-beach",
+     "score": 1.2527030399727863,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:wafra-farms",
+     "score": 1.2422573712438902,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:mirror-house",
+     "score": 1.2370995915842267,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:al-salam-palace",
+     "score": 1.2370995915842267,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:al-shaheed-park",
+     "score": 1.231984464430424,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:mubarakiya-tea-houses",
+     "score": 1.231984464430424,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:modern-art-museum",
+     "score": 1.2269114628856725,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:grand-mosque",
+     "score": 1.2243905969295934,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:sadu-house",
+     "score": 1.2193798147249169,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:gulf-road-cafes",
+     "score": 1.2193798147249169,
+     "matched": [
+      "هدوء"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "مع البنات",
+   "hits": [
+    {
+     "id": "place:hamad-al-mubarak-street",
+     "score": 2.125203753544666,
+     "matched": [
+      "ربع"
+     ]
+    },
+    {
+     "id": "place:marina-crescent",
+     "score": 2.1206887907156178,
+     "matched": [
+      "ربع"
+     ]
+    },
+    {
+     "id": "place:khiran",
+     "score": 2.093996805836346,
+     "matched": [
+      "ربع"
+     ]
+    },
+    {
+     "id": "place:failaka-island",
+     "score": 2.080901206008309,
+     "matched": [
+      "ربع"
+     ]
+    },
+    {
+     "id": "place:kuwait-towers",
+     "score": 2.076572329579851,
+     "matched": [
+      "ربع"
+     ]
+    },
+    {
+     "id": "place:mubarakiya-tea-houses",
+     "score": 2.0636930938471805,
+     "matched": [
+      "ربع"
+     ]
+    },
+    {
+     "id": "place:gulf-road-cafes",
+     "score": 2.042579086894468,
+     "matched": [
+      "ربع"
+     ]
+    },
+    {
+     "id": "place:salem-al-mubarak-street",
+     "score": 2.0301167977169894,
+     "matched": [
+      "ربع"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "مع اليهال",
+   "hits": [
+    {
+     "id": "place:abdullah-al-salem-cultural-centre",
+     "score": 2.2866909735792613,
+     "matched": [
+      "عيال"
+     ]
+    },
+    {
+     "id": "category:family",
+     "score": 2.257834397220702,
+     "matched": [
+      "عيال"
+     ]
+    },
+    {
+     "id": "place:kuwait-zoo",
+     "score": 2.233899555116849,
+     "matched": [
+      "عيال"
+     ]
+    },
+    {
+     "id": "place:entertainment-city",
+     "score": 1.9551481649679456,
+     "matched": [
+      "عيال"
+     ]
+    },
+    {
+     "id": "place:aqua-park",
+     "score": 1.8860045115943056,
+     "matched": [
+      "عيال"
+     ]
+    },
+    {
+     "id": "place:bait-al-othman",
+     "score": 1.8781901539859045,
+     "matched": [
+      "عيال"
+     ]
+    },
+    {
+     "id": "place:kuwait-national-museum",
+     "score": 1.8589346589612725,
+     "matched": [
+      "عيال"
+     ]
+    },
+    {
+     "id": "place:kuwait-science-centre",
+     "score": 1.8513425592236894,
+     "matched": [
+      "عيال"
+     ]
+    },
+    {
+     "id": "place:kuwait-fairground",
+     "score": 1.8438122212349335,
+     "matched": [
+      "عيال"
+     ]
+    },
+    {
+     "id": "place:green-island",
+     "score": 1.1713086757873545,
+     "matched": [
+      "عيال"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "مع الصغار",
+   "hits": [
+    {
+     "id": "place:bait-lothan",
+     "score": 3.77191251679651,
+     "matched": [
+      "صار",
+      "صغير"
+     ]
+    },
+    {
+     "id": "place:abdullah-al-salem-cultural-centre",
+     "score": 2.2866909735792613,
+     "matched": [
+      "عيال"
+     ]
+    },
+    {
+     "id": "category:family",
+     "score": 2.257834397220702,
+     "matched": [
+      "عيال"
+     ]
+    },
+    {
+     "id": "place:kuwait-zoo",
+     "score": 2.233899555116849,
+     "matched": [
+      "عيال"
+     ]
+    },
+    {
+     "id": "place:souq-al-safafeer",
+     "score": 1.9757344172627627,
+     "matched": [
+      "صغير"
+     ]
+    },
+    {
+     "id": "place:entertainment-city",
+     "score": 1.9551481649679456,
+     "matched": [
+      "عيال"
+     ]
+    },
+    {
+     "id": "place:aqua-park",
+     "score": 1.8860045115943056,
+     "matched": [
+      "عيال"
+     ]
+    },
+    {
+     "id": "place:bait-al-othman",
+     "score": 1.8781901539859045,
+     "matched": [
+      "عيال"
+     ]
+    },
+    {
+     "id": "place:modern-art-museum",
+     "score": 1.8691315639111592,
+     "matched": [
+      "صغير"
+     ]
+    },
+    {
+     "id": "place:kuwait-national-museum",
+     "score": 1.8589346589612725,
+     "matched": [
+      "عيال"
+     ]
+    },
+    {
+     "id": "place:kuwait-science-centre",
+     "score": 1.8513425592236894,
+     "matched": [
+      "عيال"
+     ]
+    },
+    {
+     "id": "place:kuwait-fairground",
+     "score": 1.8438122212349335,
+     "matched": [
+      "عيال"
+     ]
+    },
+    {
+     "id": "page:about",
+     "score": 1.7401954560051145,
+     "matched": [
+      "صار"
+     ]
+    },
+    {
+     "id": "place:al-salam-palace",
+     "score": 1.627708471131648,
+     "matched": [
+      "صار"
+     ]
+    },
+    {
+     "id": "place:sadu-house",
+     "score": 1.5871611458795585,
+     "matched": [
+      "صار"
+     ]
+    },
+    {
+     "id": "place:al-hamra-tower",
+     "score": 1.5539805354050356,
+     "matched": [
+      "صار"
+     ]
+    },
+    {
+     "id": "place:green-island",
+     "score": 1.1713086757873545,
+     "matched": [
+      "عيال"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "مع زوجتي",
+   "hits": []
+  },
+  {
+   "q": "الفجر",
+   "hits": [
+    {
+     "id": "place:kuwait-zoo",
+     "score": 1.6357472239763977,
+     "matched": [
+      "صبح"
+     ]
+    },
+    {
+     "id": "place:friday-market",
+     "score": 1.3856979259002002,
+     "matched": [
+      "صبح"
+     ]
+    },
+    {
+     "id": "place:seif-palace",
+     "score": 1.3350263571383363,
+     "matched": [
+      "صبح"
+     ]
+    },
+    {
+     "id": "place:souq-al-watiya",
+     "score": 1.0388431589885105,
+     "matched": [
+      "صبح"
+     ]
+    },
+    {
+     "id": "place:souq-al-safafeer",
+     "score": 0.9716946143484884,
+     "matched": [
+      "صبح"
+     ]
+    },
+    {
+     "id": "place:fish-market",
+     "score": 0.9395434233740572,
+     "matched": [
+      "صبح"
+     ]
+    },
+    {
+     "id": "place:wafra-farms",
+     "score": 0.9395434233740572,
+     "matched": [
+      "صبح"
+     ]
+    },
+    {
+     "id": "place:aqua-park",
+     "score": 0.936101922397412,
+     "matched": [
+      "صبح"
+     ]
+    },
+    {
+     "id": "place:al-salam-palace",
+     "score": 0.9326855415020457,
+     "matched": [
+      "صبح"
+     ]
+    },
+    {
+     "id": "place:al-shaheed-park",
+     "score": 0.9259270477934058,
+     "matched": [
+      "صبح"
+     ]
+    },
+    {
+     "id": "place:kuwait-national-museum",
+     "score": 0.9126997060015414,
+     "matched": [
+      "صبح"
+     ]
+    },
+    {
+     "id": "place:kuwait-science-centre",
+     "score": 0.9062267495275419,
+     "matched": [
+      "صبح"
+     ]
+    },
+    {
+     "id": "place:the-avenues",
+     "score": 0.8966876534046416,
+     "matched": [
+      "صبح"
+     ]
+    },
+    {
+     "id": "place:abdullah-al-salem-cultural-centre",
+     "score": 0.846212521584321,
+     "matched": [
+      "صبح"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "الويكند",
+   "hits": [
+    {
+     "id": "place:friday-market",
+     "score": 4.206972307093873,
+     "matched": [
+      "نهايه",
+      "اسبوع"
+     ]
+    },
+    {
+     "id": "place:khiran",
+     "score": 4.074852868393185,
+     "matched": [
+      "نهايه",
+      "اسبوع"
+     ]
+    },
+    {
+     "id": "place:sabah-al-ahmad-sea-city",
+     "score": 4.059124957465159,
+     "matched": [
+      "نهايه",
+      "اسبوع"
+     ]
+    },
+    {
+     "id": "place:freej-swaileh",
+     "score": 2.341215636328027,
+     "matched": [
+      "نهايه",
+      "اسبوع"
+     ]
+    },
+    {
+     "id": "place:tunis-street",
+     "score": 2.323275559385979,
+     "matched": [
+      "نهايه",
+      "اسبوع"
+     ]
+    },
+    {
+     "id": "place:marina-crescent",
+     "score": 2.305608331208323,
+     "matched": [
+      "نهايه",
+      "اسبوع"
+     ]
+    },
+    {
+     "id": "place:failaka-island",
+     "score": 2.229320933218966,
+     "matched": [
+      "نهايه",
+      "اسبوع"
+     ]
+    },
+    {
+     "id": "place:souq-al-safafeer",
+     "score": 0.9716946143484884,
+     "matched": [
+      "اسبوع"
+     ]
+    },
+    {
+     "id": "place:salhia-complex",
+     "score": 0.9607358160185993,
+     "matched": [
+      "اسبوع"
+     ]
+    },
+    {
+     "id": "place:mall-360",
+     "score": 0.95356625190895,
+     "matched": [
+      "اسبوع"
+     ]
+    },
+    {
+     "id": "place:modern-art-museum",
+     "score": 0.9192657972104823,
+     "matched": [
+      "اسبوع"
+     ]
+    },
+    {
+     "id": "place:kuwait-national-museum",
+     "score": 0.9126997060015414,
+     "matched": [
+      "اسبوع"
+     ]
+    },
+    {
+     "id": "place:sadu-house",
+     "score": 0.9094517102110453,
+     "matched": [
+      "اسبوع"
+     ]
+    },
+    {
+     "id": "place:dickson-house",
+     "score": 0.8935524253905728,
+     "matched": [
+      "اسبوع"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "عصرية",
+   "hits": [
+    {
+     "id": "place:al-shaheed-park",
+     "score": 3.8431483703506264,
+     "matched": [
+      "عصريه"
+     ]
+    },
+    {
+     "id": "place:al-fanar-mall",
+     "score": 0.8778930739243498,
+     "matched": [
+      "عصر"
+     ]
+    },
+    {
+     "id": "place:souq-sharq",
+     "score": 0.8709533165760135,
+     "matched": [
+      "عصر"
+     ]
+    },
+    {
+     "id": "place:marina-mall",
+     "score": 0.8607469906055664,
+     "matched": [
+      "عصر"
+     ]
+    },
+    {
+     "id": "place:green-island",
+     "score": 0.8540746359403985,
+     "matched": [
+      "عصر"
+     ]
+    },
+    {
+     "id": "place:hamad-al-mubarak-street",
+     "score": 0.841035526011918,
+     "matched": [
+      "عصر"
+     ]
+    },
+    {
+     "id": "place:salhia-complex",
+     "score": 0.8283885639153387,
+     "matched": [
+      "عصر"
+     ]
+    },
+    {
+     "id": "place:mall-360",
+     "score": 0.822206651242088,
+     "matched": [
+      "عصر"
+     ]
+    },
+    {
+     "id": "place:messilah-beach",
+     "score": 0.822206651242088,
+     "matched": [
+      "عصر"
+     ]
+    },
+    {
+     "id": "place:marina-beach",
+     "score": 0.8191501660289559,
+     "matched": [
+      "عصر"
+     ]
+    },
+    {
+     "id": "place:failaka-island",
+     "score": 0.8101155533581865,
+     "matched": [
+      "عصر"
+     ]
+    },
+    {
+     "id": "place:al-shaab-beach",
+     "score": 0.8042023867823849,
+     "matched": [
+      "عصر"
+     ]
+    },
+    {
+     "id": "place:bait-al-othman",
+     "score": 0.8012780566649385,
+     "matched": [
+      "عصر"
+     ]
+    },
+    {
+     "id": "place:mubarakiya-tea-houses",
+     "score": 0.7983749170407732,
+     "matched": [
+      "عصر"
+     ]
+    },
+    {
+     "id": "place:modern-art-museum",
+     "score": 0.7926312945877914,
+     "matched": [
+      "عصر"
+     ]
+    },
+    {
+     "id": "place:sadu-house",
+     "score": 0.7841691582751317,
+     "matched": [
+      "عصر"
+     ]
+    },
+    {
+     "id": "place:gulf-road-cafes",
+     "score": 0.7841691582751317,
+     "matched": [
+      "عصر"
+     ]
+    },
+    {
+     "id": "place:tareq-rajab-museum",
+     "score": 0.7813884557086738,
+     "matched": [
+      "عصر"
+     ]
+    },
+    {
+     "id": "place:dickson-house",
+     "score": 0.7704600974697445,
+     "matched": [
+      "عصر"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "اخر الليل",
+   "hits": [
+    {
+     "id": "place:liberation-tower",
+     "score": 3.9055886582517982,
+     "matched": [
+      "سهره",
+      "بالليل"
+     ]
+    },
+    {
+     "id": "place:tunis-street",
+     "score": 3.437109300415775,
+     "matched": [
+      "سهره",
+      "بالليل"
+     ]
+    },
+    {
+     "id": "place:souq-al-mubarakiya",
+     "score": 3.0382319572268286,
+     "matched": [
+      "سهره",
+      "بالليل"
+     ]
+    },
+    {
+     "id": "place:al-kout-mall",
+     "score": 2.9562815861157583,
+     "matched": [
+      "سهره",
+      "بالليل"
+     ]
+    },
+    {
+     "id": "place:souq-al-safafeer",
+     "score": 2.906310838616459,
+     "matched": [
+      "اخر"
+     ]
+    },
+    {
+     "id": "place:salem-al-mubarak-street",
+     "score": 2.754022946373047,
+     "matched": [
+      "سهره",
+      "بالليل"
+     ]
+    },
+    {
+     "id": "place:kuwait-science-centre",
+     "score": 2.710498324786928,
+     "matched": [
+      "اخر"
+     ]
+    },
+    {
+     "id": "place:hamad-al-mubarak-street",
+     "score": 1.7532930966743494,
+     "matched": [
+      "سهره"
+     ]
+    },
+    {
+     "id": "place:mubarakiya-tea-houses",
+     "score": 1.7025468024239239,
+     "matched": [
+      "سهره"
+     ]
+    },
+    {
+     "id": "place:gulf-road-cafes",
+     "score": 1.6851277466879362,
+     "matched": [
+      "سهره"
+     ]
+    },
+    {
+     "id": "place:al-hamra-tower",
+     "score": 1.067896152712501,
+     "matched": [
+      "بالليل"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "ايسكريم",
+   "hits": [
+    {
+     "id": "place:salem-al-mubarak-street",
+     "score": 7.917243779492952,
+     "matched": [
+      "ايس",
+      "كريم"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "كباب",
+   "hits": [
+    {
+     "id": "place:bait-lothan",
+     "score": 4.634990152181348,
+     "matched": [
+      "شباب"
+     ]
+    },
+    {
+     "id": "place:mais-alghanim",
+     "score": 4.429471512380001,
+     "matched": [
+      "مشاوي"
+     ]
+    },
+    {
+     "id": "place:kuwait-fairground",
+     "score": 4.417074984077938,
+     "matched": [
+      "كتاب"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "هامور مشوي",
+   "hits": [
+    {
+     "id": "place:mais-alghanim",
+     "score": 7.7737225042269005,
+     "matched": [
+      "مشاوي"
+     ]
+    },
+    {
+     "id": "place:fish-market",
+     "score": 7.247588713584105,
+     "matched": [
+      "وهامور",
+      "سمك"
+     ]
+    },
+    {
+     "id": "place:al-shaheed-park",
+     "score": 2.6899013267889442,
+     "matched": [
+      "مشي"
+     ]
+    },
+    {
+     "id": "place:green-island",
+     "score": 2.2256594833878727,
+     "matched": [
+      "مشي"
+     ]
+    },
+    {
+     "id": "place:kuwait-zoo",
+     "score": 2.211413815515232,
+     "matched": [
+      "مشي"
+     ]
+    },
+    {
+     "id": "place:messilah-beach",
+     "score": 2.1788726777609604,
+     "matched": [
+      "مشي"
+     ]
+    },
+    {
+     "id": "place:al-shaab-beach",
+     "score": 2.151733023519022,
+     "matched": [
+      "مشي"
+     ]
+    },
+    {
+     "id": "place:the-avenues",
+     "score": 2.103693752401725,
+     "matched": [
+      "مشي"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "ودي اطلع البر",
+   "hits": [
+    {
+     "id": "place:the-avenues",
+     "score": 7.316698297665549,
+     "matched": [
+      "برد",
+      "برجر",
+      "برستيج"
+     ]
+    },
+    {
+     "id": "place:liberation-tower",
+     "score": 5.9331762479172765,
+     "matched": [
+      "برا",
+      "برج",
+      "طبيعه"
+     ]
+    },
+    {
+     "id": "place:salem-al-mubarak-street",
+     "score": 5.289166567152899,
+     "matched": [
+      "برا",
+      "برجر"
+     ]
+    },
+    {
+     "id": "place:green-island",
+     "score": 5.2057666357071675,
+     "matched": [
+      "برا",
+      "برج",
+      "طبيعه"
+     ]
+    },
+    {
+     "id": "place:seif-palace",
+     "score": 5.0748732123673586,
+     "matched": [
+      "برا",
+      "برج",
+      "طبيعه"
+     ]
+    },
+    {
+     "id": "place:al-hamra-tower",
+     "score": 4.879731609648155,
+     "matched": [
+      "برد",
+      "برج"
+     ]
+    },
+    {
+     "id": "place:wafra-farms",
+     "score": 4.813431954185381,
+     "matched": [
+      "برا",
+      "صحراء",
+      "طبيعه"
+     ]
+    },
+    {
+     "id": "place:kuwait-towers",
+     "score": 4.53796120191514,
+     "matched": [
+      "اطلع",
+      "برا"
+     ]
+    },
+    {
+     "id": "place:failaka-island",
+     "score": 4.469927374784372,
+     "matched": [
+      "برا",
+      "برونزي",
+      "طبيعه"
+     ]
+    },
+    {
+     "id": "place:dickson-house",
+     "score": 3.7590591181793576,
+     "matched": [
+      "برد",
+      "بريطاني"
+     ]
+    },
+    {
+     "id": "place:kuwait-science-centre",
+     "score": 3.2376814346980556,
+     "matched": [
+      "برا",
+      "برد",
+      "صحراء"
+     ]
+    },
+    {
+     "id": "place:sabah-al-ahmad-sea-city",
+     "score": 3.196756585086672,
+     "matched": [
+      "برا",
+      "صحراء",
+      "طبيعه"
+     ]
+    },
+    {
+     "id": "place:al-shaheed-park",
+     "score": 2.2284706373467973,
+     "matched": [
+      "برا",
+      "طبيعه"
+     ]
+    },
+    {
+     "id": "place:al-shaab-beach",
+     "score": 2.1027359536199373,
+     "matched": [
+      "برا",
+      "طبيعه"
+     ]
+    },
+    {
+     "id": "place:entertainment-city",
+     "score": 2.0879808779150957,
+     "matched": [
+      "برا",
+      "طبيعه"
+     ]
+    },
+    {
+     "id": "place:kuwait-zoo",
+     "score": 2.0657068191224734,
+     "matched": [
+      "برا",
+      "طبيعه"
+     ]
+    },
+    {
+     "id": "place:friday-market",
+     "score": 2.0482268410021134,
+     "matched": [
+      "برا",
+      "طبيعه"
+     ]
+    },
+    {
+     "id": "place:messilah-beach",
+     "score": 2.0353097719079787,
+     "matched": [
+      "برا",
+      "طبيعه"
+     ]
+    },
+    {
+     "id": "place:marina-beach",
+     "score": 2.0310402111647705,
+     "matched": [
+      "برا",
+      "طبيعه"
+     ]
+    },
+    {
+     "id": "place:khiran",
+     "score": 2.0310402111647705,
+     "matched": [
+      "برا",
+      "طبيعه"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "عشا على البحر",
+   "hits": [
+    {
+     "id": "place:marina-crescent",
+     "score": 20.25358186497174,
+     "matched": [
+      "عشا",
+      "مطاعم",
+      "علي",
+      "بحر"
+     ]
+    },
+    {
+     "id": "place:messilah-beach",
+     "score": 16.09250879569166,
+     "matched": [
+      "علي",
+      "بحر",
+      "شواطي",
+      "شاطي",
+      "ساحل"
+     ]
+    },
+    {
+     "id": "place:mais-alghanim",
+     "score": 15.626828821245446,
+     "matched": [
+      "عشا",
+      "مطاعم",
+      "مطعم",
+      "علي"
+     ]
+    },
+    {
+     "id": "place:al-shaab-beach",
+     "score": 13.43584507304107,
+     "matched": [
+      "علي",
+      "بحر",
+      "شواطي",
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:marina-beach",
+     "score": 13.186698962452937,
+     "matched": [
+      "علي",
+      "بحر",
+      "شواطي",
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:kuwait-towers",
+     "score": 8.817081444712414,
+     "matched": [
+      "مطعم",
+      "علي",
+      "بحر",
+      "ساحل"
+     ]
+    },
+    {
+     "id": "place:failaka-island",
+     "score": 8.693045590558809,
+     "matched": [
+      "علي",
+      "بحر",
+      "شواطي"
+     ]
+    },
+    {
+     "id": "place:fish-market",
+     "score": 8.264513299605714,
+     "matched": [
+      "مطاعم",
+      "علي",
+      "بحر"
+     ]
+    },
+    {
+     "id": "place:sabah-al-ahmad-sea-city",
+     "score": 7.861240224905671,
+     "matched": [
+      "علي",
+      "بحر",
+      "شواطي"
+     ]
+    },
+    {
+     "id": "place:souq-sharq",
+     "score": 7.813868109816923,
+     "matched": [
+      "علي",
+      "بحر",
+      "بحري"
+     ]
+    },
+    {
+     "id": "place:al-kout-mall",
+     "score": 6.822548422604409,
+     "matched": [
+      "مطاعم",
+      "علي",
+      "بحر"
+     ]
+    },
+    {
+     "id": "place:marina-mall",
+     "score": 6.655292082786954,
+     "matched": [
+      "مطاعم",
+      "علي",
+      "بحر"
+     ]
+    },
+    {
+     "id": "place:al-fanar-mall",
+     "score": 6.3231999179708245,
+     "matched": [
+      "مطاعم",
+      "علي",
+      "بحر"
+     ]
+    },
+    {
+     "id": "category:outdoors",
+     "score": 5.672476944276054,
+     "matched": [
+      "بحر",
+      "شواطي"
+     ]
+    },
+    {
+     "id": "place:khiran",
+     "score": 5.187810849222778,
+     "matched": [
+      "بحر",
+      "شواطي"
+     ]
+    },
+    {
+     "id": "place:freej-swaileh",
+     "score": 4.2256186836335585,
+     "matched": [
+      "مطاعم",
+      "مطعم"
+     ]
+    },
+    {
+     "id": "place:gulf-road-cafes",
+     "score": 4.175659781909124,
+     "matched": [
+      "علي",
+      "بحر"
+     ]
+    },
+    {
+     "id": "place:wafra-farms",
+     "score": 4.125292511540323,
+     "matched": [
+      "بحر",
+      "شواطي"
+     ]
+    },
+    {
+     "id": "place:kuwait-science-centre",
+     "score": 4.036834898998702,
+     "matched": [
+      "علي",
+      "بحر",
+      "شاطي"
+     ]
+    },
+    {
+     "id": "place:aqua-park",
+     "score": 3.501618640849784,
+     "matched": [
+      "علي",
+      "بحر"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "بيتش",
+   "hits": [
+    {
+     "id": "place:messilah-beach",
+     "score": 10.814020559804193,
+     "matched": [
+      "شاطي",
+      "شواطي",
+      "بحر"
+     ]
+    },
+    {
+     "id": "place:al-shaab-beach",
+     "score": 10.36732479168223,
+     "matched": [
+      "شاطي",
+      "شواطي",
+      "بحر"
+     ]
+    },
+    {
+     "id": "place:marina-beach",
+     "score": 10.228385625705226,
+     "matched": [
+      "شاطي",
+      "شواطي",
+      "بحر"
+     ]
+    },
+    {
+     "id": "place:failaka-island",
+     "score": 5.778801033285922,
+     "matched": [
+      "شواطي",
+      "بحر"
+     ]
+    },
+    {
+     "id": "category:outdoors",
+     "score": 5.652756413225766,
+     "matched": [
+      "شواطي",
+      "بحر"
+     ]
+    },
+    {
+     "id": "place:sabah-al-ahmad-sea-city",
+     "score": 5.3146162161752555,
+     "matched": [
+      "شواطي",
+      "بحر"
+     ]
+    },
+    {
+     "id": "place:khiran",
+     "score": 5.28326697466176,
+     "matched": [
+      "شواطي",
+      "بحر"
+     ]
+    },
+    {
+     "id": "place:bait-lothan",
+     "score": 4.821716286889874,
+     "matched": [
+      "بيت",
+      "بحر"
+     ]
+    },
+    {
+     "id": "place:wafra-farms",
+     "score": 4.514210422711752,
+     "matched": [
+      "شواطي",
+      "بحر"
+     ]
+    },
+    {
+     "id": "place:dickson-house",
+     "score": 3.518358016005068,
+     "matched": [
+      "بيت"
+     ]
+    },
+    {
+     "id": "place:al-shaheed-park",
+     "score": 3.4350368843734462,
+     "matched": [
+      "شواطي"
+     ]
+    },
+    {
+     "id": "place:sadu-house",
+     "score": 3.3900706153561697,
+     "matched": [
+      "بيت"
+     ]
+    },
+    {
+     "id": "place:mirror-house",
+     "score": 3.167620496738133,
+     "matched": [
+      "بيت"
+     ]
+    },
+    {
+     "id": "place:bait-al-othman",
+     "score": 3.032918200251062,
+     "matched": [
+      "بيت"
+     ]
+    },
+    {
+     "id": "place:souq-al-watiya",
+     "score": 3.004463343261738,
+     "matched": [
+      "بيت"
+     ]
+    },
+    {
+     "id": "place:kuwait-science-centre",
+     "score": 2.6824450282147936,
+     "matched": [
+      "شاطي",
+      "بحر"
+     ]
+    },
+    {
+     "id": "place:souq-sharq",
+     "score": 1.567987404281885,
+     "matched": [
+      "بحر"
+     ]
+    },
+    {
+     "id": "place:al-kout-mall",
+     "score": 1.56002766048177,
+     "matched": [
+      "بحر"
+     ]
+    },
+    {
+     "id": "place:gulf-road-cafes",
+     "score": 1.5244299694302772,
+     "matched": [
+      "بحر"
+     ]
+    },
+    {
+     "id": "place:sheikh-jaber-causeway",
+     "score": 1.5169052527205222,
+     "matched": [
+      "بحر"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "بيت",
+   "hits": [
+    {
+     "id": "place:dickson-house",
+     "score": 5.674770993556561,
+     "matched": [
+      "بيت"
+     ]
+    },
+    {
+     "id": "place:bait-lothan",
+     "score": 5.593634903040083,
+     "matched": [
+      "بيت"
+     ]
+    },
+    {
+     "id": "place:sadu-house",
+     "score": 5.467855831219628,
+     "matched": [
+      "بيت"
+     ]
+    },
+    {
+     "id": "place:mirror-house",
+     "score": 5.109065317319569,
+     "matched": [
+      "بيت"
+     ]
+    },
+    {
+     "id": "place:bait-al-othman",
+     "score": 4.891803548792035,
+     "matched": [
+      "بيت"
+     ]
+    },
+    {
+     "id": "place:souq-al-watiya",
+     "score": 4.845908618164093,
+     "matched": [
+      "بيت"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "ثري سكستي",
+   "hits": [
+    {
+     "id": "place:mall-360",
+     "score": 3.302471173404903,
+     "matched": [
+      "360"
+     ]
+    },
+    {
+     "id": "place:kuwait-towers",
+     "score": 2.8767637627007723,
+     "matched": [
+      "360"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "سكستي",
+   "hits": [
+    {
+     "id": "place:mall-360",
+     "score": 4.002995361702912,
+     "matched": [
+      "360"
+     ]
+    },
+    {
+     "id": "place:kuwait-towers",
+     "score": 3.4869863790312396,
+     "matched": [
+      "360"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "ذا افنيوز",
+   "hits": [
+    {
+     "id": "place:the-avenues",
+     "score": 6.212442755543129,
+     "matched": [
+      "افنيوز"
+     ]
+    },
+    {
+     "id": "place:mall-360",
+     "score": 3.4570780900971108,
+     "matched": [
+      "افنيوز"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "family restaurant",
+   "hits": [
+    {
+     "id": "place:freej-swaileh",
+     "score": 12.5297848933421,
+     "matched": [
+      "عوايل",
+      "restaurants",
+      "مطاعم",
+      "مطعم"
+     ]
+    },
+    {
+     "id": "place:mais-alghanim",
+     "score": 12.304090463186341,
+     "matched": [
+      "عوايل",
+      "restaurants",
+      "مطاعم",
+      "مطعم"
+     ]
+    },
+    {
+     "id": "place:marina-crescent",
+     "score": 10.2317369759336,
+     "matched": [
+      "عوايل",
+      "restaurants",
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:fish-market",
+     "score": 9.73475501931041,
+     "matched": [
+      "عوايل",
+      "restaurants",
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:entertainment-city",
+     "score": 9.566246076220663,
+     "matched": [
+      "family",
+      "عوايل",
+      "عايله"
+     ]
+    },
+    {
+     "id": "place:green-island",
+     "score": 9.529224768956983,
+     "matched": [
+      "family",
+      "عوايل",
+      "عايله"
+     ]
+    },
+    {
+     "id": "place:kuwait-zoo",
+     "score": 9.474240459987815,
+     "matched": [
+      "family",
+      "عوايل",
+      "عايله"
+     ]
+    },
+    {
+     "id": "place:aqua-park",
+     "score": 9.260655565131144,
+     "matched": [
+      "family",
+      "عوايل",
+      "عايله"
+     ]
+    },
+    {
+     "id": "place:kuwait-science-centre",
+     "score": 9.106828074661406,
+     "matched": [
+      "family",
+      "عوايل",
+      "عايله"
+     ]
+    },
+    {
+     "id": "place:kuwait-fairground",
+     "score": 9.073351944583592,
+     "matched": [
+      "family",
+      "عوايل",
+      "عايله"
+     ]
+    },
+    {
+     "id": "category:family",
+     "score": 8.769436522387334,
+     "matched": [
+      "family",
+      "عايله"
+     ]
+    },
+    {
+     "id": "category:restaurants",
+     "score": 7.306289656567771,
+     "matched": [
+      "restaurants",
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:tunis-street",
+     "score": 6.81911042668974,
+     "matched": [
+      "restaurants",
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:kuwait-towers",
+     "score": 3.962576841174157,
+     "matched": [
+      "عوايل",
+      "مطعم"
+     ]
+    },
+    {
+     "id": "place:marina-mall",
+     "score": 3.1034898079143427,
+     "matched": [
+      "عوايل",
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:al-kout-mall",
+     "score": 3.09356635931486,
+     "matched": [
+      "عوايل",
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:the-avenues",
+     "score": 2.9659183736300405,
+     "matched": [
+      "عوايل",
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:mirror-house",
+     "score": 1.709615676773508,
+     "matched": [
+      "عايله"
+     ]
+    },
+    {
+     "id": "place:al-fanar-mall",
+     "score": 1.3789112211730596,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:salhia-complex",
+     "score": 1.3352473741051787,
+     "matched": [
+      "مطاعم"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "breakfast",
+   "hits": [
+    {
+     "id": "place:tunis-street",
+     "score": 3.2616488185209596,
+     "matched": [
+      "فطور"
+     ]
+    },
+    {
+     "id": "place:the-avenues",
+     "score": 3.1027708129119937,
+     "matched": [
+      "فطور"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "dinner",
+   "hits": [
+    {
+     "id": "place:marina-crescent",
+     "score": 8.906894181765768,
+     "matched": [
+      "عشا",
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:mais-alghanim",
+     "score": 8.158953448584416,
+     "matched": [
+      "عشا",
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:tunis-street",
+     "score": 2.947819103546242,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:fish-market",
+     "score": 2.9068383640340674,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "category:restaurants",
+     "score": 2.8640308733197415,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:freej-swaileh",
+     "score": 2.842073384743721,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:marina-mall",
+     "score": 1.9778874389267593,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:al-kout-mall",
+     "score": 1.9727979890999938,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:the-avenues",
+     "score": 1.9065679042934045,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:al-fanar-mall",
+     "score": 1.67140754081583,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:salhia-complex",
+     "score": 1.6184816655820349,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:mall-360",
+     "score": 1.6116770678739398,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:al-hamra-tower",
+     "score": 1.5497774986204969,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:salem-al-mubarak-street",
+     "score": 0.8998449601807313,
+     "matched": [
+      "مطاعم"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "desert",
+   "hits": [
+    {
+     "id": "place:wafra-farms",
+     "score": 3.3529095798913526,
+     "matched": [
+      "صحراء"
+     ]
+    },
+    {
+     "id": "place:kuwait-science-centre",
+     "score": 1.6345817546659527,
+     "matched": [
+      "صحراء"
+     ]
+    },
+    {
+     "id": "place:sabah-al-ahmad-sea-city",
+     "score": 1.6117207885801328,
+     "matched": [
+      "صحراء"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "cinema",
+   "hits": [
+    {
+     "id": "place:mall-360",
+     "score": 2.907018503849844,
+     "matched": [
+      "سينما"
+     ]
+    },
+    {
+     "id": "place:the-avenues",
+     "score": 2.8067159348427255,
+     "matched": [
+      "سينما"
+     ]
+    },
+    {
+     "id": "place:al-hamra-tower",
+     "score": 2.7953688459953288,
+     "matched": [
+      "سينما"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "sunset",
+   "hits": [
+    {
+     "id": "place:sheikh-jaber-causeway",
+     "score": 2.7707203758419907,
+     "matched": [
+      "غروب"
+     ]
+    },
+    {
+     "id": "place:messilah-beach",
+     "score": 2.7558909136042735,
+     "matched": [
+      "غروب"
+     ]
+    },
+    {
+     "id": "place:marina-beach",
+     "score": 2.4171812360253795,
+     "matched": [
+      "غروب"
+     ]
+    },
+    {
+     "id": "place:al-shaab-beach",
+     "score": 2.3965410286683766,
+     "matched": [
+      "غروب"
+     ]
+    },
+    {
+     "id": "place:kuwait-towers",
+     "score": 1.861863582345852,
+     "matched": [
+      "غروب"
+     ]
+    },
+    {
+     "id": "place:souq-sharq",
+     "score": 1.3866367522361347,
+     "matched": [
+      "غروب"
+     ]
+    },
+    {
+     "id": "place:gulf-road-cafes",
+     "score": 1.2484684932472747,
+     "matched": [
+      "غروب"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "romantic dinner",
+   "hits": [
+    {
+     "id": "place:marina-crescent",
+     "score": 12.966549130423259,
+     "matched": [
+      "موعد",
+      "عشا",
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:mais-alghanim",
+     "score": 6.731136595082142,
+     "matched": [
+      "عشا",
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:hamad-al-mubarak-street",
+     "score": 3.284245621518376,
+     "matched": [
+      "موعد",
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:amricani-cultural-centre",
+     "score": 3.1760560552221264,
+     "matched": [
+      "موعد",
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:al-fanar-mall",
+     "score": 2.9705370929757153,
+     "matched": [
+      "هدوء",
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:salhia-complex",
+     "score": 2.876473693283589,
+     "matched": [
+      "هدوء",
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:mall-360",
+     "score": 2.864380107846726,
+     "matched": [
+      "هدوء",
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:tunis-street",
+     "score": 2.43195076042565,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:fish-market",
+     "score": 2.3981416503281054,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "category:restaurants",
+     "score": 2.3628254704887866,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:freej-swaileh",
+     "score": 2.3447105424135697,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:jacc",
+     "score": 2.141805559529166,
+     "matched": [
+      "موعد"
+     ]
+    },
+    {
+     "id": "place:marina-mall",
+     "score": 1.6317571371145763,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:al-kout-mall",
+     "score": 1.627558341007495,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:the-avenues",
+     "score": 1.5729185210420586,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:al-hamra-tower",
+     "score": 1.2785664363619098,
+     "matched": [
+      "مطاعم"
+     ]
+    },
+    {
+     "id": "place:souq-sharq",
+     "score": 1.0671290637684399,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:bait-lothan",
+     "score": 1.0602250940611244,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:green-island",
+     "score": 1.055671863768881,
+     "matched": [
+      "هدوء"
+     ]
+    },
+    {
+     "id": "place:messilah-beach",
+     "score": 1.0334800079775486,
+     "matched": [
+      "هدوء"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "ice cream",
+   "hits": [
+    {
+     "id": "place:salem-al-mubarak-street",
+     "score": 7.917243779492952,
+     "matched": [
+      "ايس",
+      "كريم"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "summer",
+   "hits": [
+    {
+     "id": "place:salhia-complex",
+     "score": 2.301634961023815,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:mall-360",
+     "score": 2.294716129892207,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:the-avenues",
+     "score": 2.27573985320315,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:al-salam-palace",
+     "score": 2.2576465096238456,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:bait-al-othman",
+     "score": 2.254208503684588,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:kuwait-science-centre",
+     "score": 2.2476200914769984,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:amricani-cultural-centre",
+     "score": 2.2439660996283854,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:modern-art-museum",
+     "score": 2.2439660996283854,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:kuwait-fairground",
+     "score": 2.2410764442679625,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:freej-swaileh",
+     "score": 2.2391924825787104,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:kuwait-national-museum",
+     "score": 2.237196833940624,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:sadu-house",
+     "score": 2.2338297026517417,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:al-hamra-tower",
+     "score": 2.2313443228570335,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:tareq-rajab-museum",
+     "score": 2.2304741515955055,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:jacc",
+     "score": 2.2271301158110384,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:mais-alghanim",
+     "score": 2.1929887092591143,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:abdullah-al-salem-cultural-centre",
+     "score": 2.184129615937956,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:mirror-house",
+     "score": 2.1817508170318773,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:grand-mosque",
+     "score": 2.1632888575321574,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:dickson-house",
+     "score": 2.13798907428375,
+     "matched": [
+      "صيف",
+      "مكيف"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "air conditioned",
+   "hits": [
+    {
+     "id": "place:the-avenues",
+     "score": 0.9126652872627123,
+     "matched": [
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:salhia-complex",
+     "score": 0.8953302297842545,
+     "matched": [
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:mall-360",
+     "score": 0.893841296855855,
+     "matched": [
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:kuwait-science-centre",
+     "score": 0.8835558320070888,
+     "matched": [
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:kuwait-fairground",
+     "score": 0.8821057714750404,
+     "matched": [
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:al-hamra-tower",
+     "score": 0.8799395829666999,
+     "matched": [
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:al-salam-palace",
+     "score": 0.8757059587972804,
+     "matched": [
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:bait-al-othman",
+     "score": 0.874914036348079,
+     "matched": [
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:amricani-cultural-centre",
+     "score": 0.8725468396081559,
+     "matched": [
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:modern-art-museum",
+     "score": 0.8725468396081559,
+     "matched": [
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:kuwait-national-museum",
+     "score": 0.8709758120426552,
+     "matched": [
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:sadu-house",
+     "score": 0.8701924178375221,
+     "matched": [
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:tareq-rajab-museum",
+     "score": 0.8694104316048572,
+     "matched": [
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:abdullah-al-salem-cultural-centre",
+     "score": 0.8692662900964699,
+     "matched": [
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:jacc",
+     "score": 0.8686298495523043,
+     "matched": [
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:souq-sharq",
+     "score": 0.8352026401338496,
+     "matched": [
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:marina-mall",
+     "score": 0.8319706402365241,
+     "matched": [
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:al-kout-mall",
+     "score": 0.8298298344720042,
+     "matched": [
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:freej-swaileh",
+     "score": 0.8287635577813882,
+     "matched": [
+      "مكيف"
+     ]
+    },
+    {
+     "id": "place:mais-alghanim",
+     "score": 0.8161787267869223,
+     "matched": [
+      "مكيف"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "tonight",
+   "hits": [
+    {
+     "id": "place:liberation-tower",
+     "score": 4.734046858487028,
+     "matched": [
+      "سهره",
+      "بالليل"
+     ]
+    },
+    {
+     "id": "place:tunis-street",
+     "score": 4.166193091413061,
+     "matched": [
+      "سهره",
+      "بالليل"
+     ]
+    },
+    {
+     "id": "place:souq-al-mubarakiya",
+     "score": 3.6827054026991863,
+     "matched": [
+      "سهره",
+      "بالليل"
+     ]
+    },
+    {
+     "id": "place:al-kout-mall",
+     "score": 3.583371619534253,
+     "matched": [
+      "سهره",
+      "بالليل"
+     ]
+    },
+    {
+     "id": "place:salem-al-mubarak-street",
+     "score": 3.33820963196733,
+     "matched": [
+      "سهره",
+      "بالليل"
+     ]
+    },
+    {
+     "id": "place:hamad-al-mubarak-street",
+     "score": 2.125203753544666,
+     "matched": [
+      "سهره"
+     ]
+    },
+    {
+     "id": "place:mubarakiya-tea-houses",
+     "score": 2.0636930938471805,
+     "matched": [
+      "سهره"
+     ]
+    },
+    {
+     "id": "place:gulf-road-cafes",
+     "score": 2.042579086894468,
+     "matched": [
+      "سهره"
+     ]
+    },
+    {
+     "id": "place:al-hamra-tower",
+     "score": 1.294419579045456,
+     "matched": [
+      "بالليل"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "pizza",
+   "hits": [
+    {
+     "id": "place:salem-al-mubarak-street",
+     "score": 3.1090810748369053,
+     "matched": [
+      "بيتزا"
+     ]
+    },
+    {
+     "id": "place:the-avenues",
+     "score": 3.1027708129119937,
+     "matched": [
+      "بيتزا"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "burger",
+   "hits": [
+    {
+     "id": "place:salem-al-mubarak-street",
+     "score": 3.8063929463337542,
+     "matched": [
+      "برجر"
+     ]
+    },
+    {
+     "id": "place:the-avenues",
+     "score": 3.1027708129119937,
+     "matched": [
+      "برجر"
+     ]
+    }
+   ]
+  },
+  {
+   "q": "for a date",
+   "hits": [
+    {
+     "id": "place:hamad-al-mubarak-street",
+     "score": 2.2375638919841,
+     "matched": [
+      "موعد"
+     ]
+    },
+    {
+     "id": "place:marina-crescent",
+     "score": 2.23281022176162,
+     "matched": [
+      "موعد"
+     ]
+    },
+    {
+     "id": "place:amricani-cultural-centre",
+     "score": 2.1638540983414467,
+     "matched": [
+      "موعد"
+     ]
+    },
+    {
+     "id": "place:jacc",
+     "score": 2.141805559529166,
+     "matched": [
+      "موعد"
      ]
     }
    ]

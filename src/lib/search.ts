@@ -82,8 +82,20 @@ export function normalise(value: string): string {
     .trim();
 }
 
-/** Leading particles carry no meaning for retrieval. */
-export const STOP = new Set(["ال", "في", "من", "على", "الى", "عن", "مع", "او", "و", "the", "a", "of", "in"]);
+/**
+ * Leading particles carry no meaning for retrieval.
+ *
+ * Compared AFTER normalise(), so an entry only works if it is written in its
+ * folded form — and two of these are not. «على» folds to «علي» and «الى» to
+ * «الي», so neither has ever been dropped. Not corrected here, deliberately:
+ * this set also tokenises the index, so editing it re-scores every document.
+ * The query-side filler list in search() drops the folded forms instead.
+ *
+ * «ذا» is «The» as Arabic spells a brand — «ذا أفنيوز» — and appears in no
+ * document, so it costs the index nothing; left in, it prefix-matched
+ * «ذاكرة» and put the martyrs' park beside the Avenues.
+ */
+export const STOP = new Set(["ال", "في", "من", "على", "الى", "عن", "مع", "او", "و", "the", "a", "of", "in", "ذا"]);
 
 export function tokenize(value: string): string[] {
   return normalise(value)
@@ -379,6 +391,114 @@ export const SYNONYMS: Record<string, string[]> = {
   // «تصوير» is the tag doing the work. Instagram-worthy and photogenic are
   // the same question here, so the bare word reaches it too now.
   انستقرام: ["تصوير"],
+
+  /* ── What 225 typed questions found missing — 1 October ──────────────────
+   *
+   * A battery of questions written the way people actually type to سالم —
+   * slang, chat spelling, English, who they are going with, what time — was
+   * run through this engine and 134 of 225 passed. The largest single cause
+   * was no entry at all: a word with an obvious meaning whose tag is in the
+   * catalogue under another word. Every value below was checked against the
+   * built index's postings before it was written, the rule of the blocks
+   * above.
+   *
+   * Three candidates were measured and left out, which is the useful part:
+   *  - «زوجتي/زوجي/مرتي» → «موعد، هدوء». «مع زوجتي والعيال» is the common
+   *    sentence, and the spouse word diluted its kids half: the zoo and the
+   *    cultural centre gave way to a street. «خطيبتي/خطيبي» stay — an engaged
+   *    couple's outing is the date the tag describes.
+   *  - «اطلع» → «مكان، طلعه». «مكان» is in nearly every description, so the
+   *    entry reordered «وين أطلع» around a fairground and fixed nothing.
+   *  - «حار». Its one posting is مدينة صباح الأحمد البحرية's own WARNING,
+   *    «الصيف حار جداً», so the typed word pulls up the one outdoor place
+   *    that says not to come in summer. A synonym cannot fix that: the typed
+   *    word is still searched beside it.
+   *
+   * Read twice: «date» is also the fruit (so «dates» is left unmapped),
+   * «يونس» is also a man's name, and «حال» means cheap only in «على قد
+   * الحال» — which is how it is nearly always said. */
+
+  // The evening, by the words for it. «سهرة» is the catalogue's tag.
+  اسهر: ["سهرة"],
+  نسهر: ["سهرة"],
+  سهر: ["سهرة"],
+  ليله: ["سهرة", "بالليل"],
+  ليل: ["سهرة", "بالليل"],
+  عصريه: ["عصر"],
+  فجر: ["صبح"],
+  ويكند: ["نهايه", "اسبوع"],
+
+  // Price, the way it is said rather than written.
+  ارخص: ["رخيص"],
+  حال: ["رخيص", "اقتصادي"],
+  // «ببلاش» above points at «مجاني», which reaches «مجانية» by prefix and
+  // never «مجاناً» — the word three places use. These name both.
+  بلاش: ["مجاناً", "مجانية"],
+
+  // Who is coming. Kuwaiti has five words for the children and the
+  // catalogue has one tag, «عيال»; «يهال» is «جهال» as it is said here.
+  اهل: ["عوائل", "عائله"],
+  اهلي: ["عوائل", "عائله"],
+  يهال: ["عيال"],
+  ياهل: ["عيال"],
+  جهال: ["عيال"],
+  بزارين: ["عيال"],
+  صغار: ["عيال"],
+  خطيبتي: ["موعد", "هدوء"],
+  خطيبي: ["موعد", "هدوء"],
+  بنات: ["ربع"],
+  بروحي: ["هدوء"],
+  لحالي: ["هدوء"],
+  // «يونّس» — it's fun.
+  يونس: ["ألعاب", "ترفيهية"],
+  ونيس: ["ألعاب", "ترفيهية"],
+  وناسه: ["ألعاب", "ترفيهية"],
+
+  // Food by the dish. «عشا»/«غدا» are the Kuwaiti spellings of the meals
+  // the hamza forms above already reach — «عشاء» keeps its ء through
+  // normalise(), so the two never met.
+  عشا: ["مطاعم", "مطعم"],
+  غدا: ["مطاعم", "مطعم"],
+  ايسكريم: ["ايس", "كريم"],
+  كباب: ["مشاوي"],
+  مشوي: ["مشاوي"],
+  مشويات: ["مشاوي"],
+  هامور: ["سمك"],
+  روبيان: ["سمك"],
+
+  // «البر» is the desert, to a Kuwaiti; «صحراء» is the catalogue's word.
+  بر: ["صحراء", "طبيعه"],
+
+  // What speech-to-text writes for two English words in a Kuwaiti sentence:
+  // «بيتش» found three houses called بيت, and «ثري سكستي» found nothing.
+  بيتش: ["شاطئ", "شواطئ", "بحر"],
+  سكستي: ["٣٦٠"],
+
+  // English, beyond the block above. «café» folds to «cafe» in normalise().
+  cafe: ["قهوه", "كافيهات"],
+  restaurant: ["مطاعم", "مطعم"],
+  family: ["عوائل", "عائله"],
+  breakfast: ["فطور"],
+  dinner: ["عشا", "مطاعم"],
+  lunch: ["غدا", "مطاعم"],
+  desert: ["صحراء"],
+  cinema: ["سينما"],
+  movies: ["سينما"],
+  sunset: ["غروب"],
+  romantic: ["موعد", "هدوء"],
+  date: ["موعد"],
+  ice: ["ايس"],
+  cream: ["كريم"],
+  icecream: ["ايس", "كريم"],
+  summer: ["صيف", "مكيّف"],
+  conditioned: ["مكيّف"],
+  tonight: ["سهرة", "بالليل"],
+  night: ["سهرة", "بالليل"],
+  pizza: ["بيتزا"],
+  burger: ["برجر"],
+  shawarma: ["شاورما"],
+  quiet: ["هدوء"],
+  free: ["مجاناً", "مجانية"],
 };
 
 /**

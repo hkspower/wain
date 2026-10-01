@@ -104,6 +104,13 @@ const phrases = [
   "قق","ق","","   ","the","في","أبراج الكويت","kuwait towers","Gulf Road Cafés","gulf road cafes","café",
   "Café","١٢٣","فندق","صيدلية بالسالمية","سوق شرق","شرق","مسجد","المسجد الكبير","شارع سالم المبارك",
   "الروضة","بيان","خيطان","سلوى","مشي داخلي","ممشى","تمشية","ألعاب","نلعب","الجزيرة الخضراء","فيلكا",
+  // The 1 October synonym batch: one of each kind it added, so the Dart port
+  // replays the new table rather than only the old one.
+  "مكان يونس","وين اسهر الليلة","وين اودي اهلي","ابي شي ونيس","ارخص مكان","على البلاش","شي على قد الحال",
+  "بروحي","مع خطيبتي","مع البنات","مع اليهال","مع الصغار","مع زوجتي","الفجر","الويكند","عصرية","اخر الليل",
+  "ايسكريم","كباب","هامور مشوي","ودي اطلع البر","عشا على البحر","بيتش","بيت","ثري سكستي","سكستي","ذا افنيوز",
+  "family restaurant","breakfast","dinner","desert","cinema","sunset","romantic dinner","ice cream","summer",
+  "air conditioned","tonight","pizza","burger","for a date",
 ];
 const queries = [...new Set([...names, ...plausible, ...shisha, ...phrases])];
 const index = S.buildIndex(S.places);
