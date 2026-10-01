@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -183,138 +184,146 @@ class _SalemScreenState extends State<SalemScreen> {
     final connected = _status == ChatStatus.connected;
     final over =
         _status == ChatStatus.disconnected || _status == ChatStatus.error;
-    return Scaffold(
-      backgroundColor: WainColors.sea950,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
-              child: Row(
-                children: [
-                  IconButton(
-                    tooltip: 'رجوع',
-                    onPressed: () =>
-                        context.canPop() ? context.pop() : context.go('/find'),
-                    icon: WainSvg.icon('back', size: 24, color: Colors.white),
-                  ),
-                  const CircleAvatar(
-                    radius: 20,
-                    backgroundImage: AssetImage('assets/img/salem-face.jpg'),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          kSalemName,
-                          style: wainText(
-                            WainText.lg,
-                            weight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                        Semantics(
-                          liveRegion: true,
-                          child: Text(
-                            _statusText,
-                            key: const ValueKey('chat-status'),
-                            style: wainText(
-                              WainText.xs,
-                              color: connected
-                                  ? WainColors.palm400
-                                  : WainColors.sand300,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView.builder(
-                controller: _scroll,
-                padding: const EdgeInsets.all(12),
-                itemCount: _entries.length + (_waiting ? 1 : 0),
-                itemBuilder: (_, i) => i == _entries.length
-                    ? const _TypingBubble()
-                    : switch (_entries[i]) {
-                        _Text t => _Bubble(t),
-                        _Places p => _PlacesBlock(places: p.places),
-                      },
-              ),
-            ),
-            if (_awaitingConsent)
-              _ConsentPanel(onAgree: _agree)
-            else if (over)
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: kChromeOnDark,
+      child: Scaffold(
+        backgroundColor: WainColors.sea950,
+        body: SafeArea(
+          child: Column(
+            children: [
               Padding(
-                padding: const EdgeInsets.all(12),
-                child: FilledButton(
-                  key: const ValueKey('chat-reconnect'),
-                  onPressed: _connect,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: WainColors.sea600,
-                    minimumSize: const Size(220, 48),
-                  ),
-                  child: Text(
-                    ChatCopy.reconnect,
-                    style: wainText(
-                      WainText.base,
-                      weight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              )
-            else ...[
-              // The web says this over its box too (WAIN_AI_RECORDING): the
-              // agreement was given once, the reminder is read every time.
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-                child: Text(
-                  AiPrivacyCopy.chatNotice,
-                  key: const ValueKey('chat-recording-notice'),
-                  style: wainText(WainText.xs, color: WainColors.sand200),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
                 child: Row(
                   children: [
-                    Expanded(
-                      child: TextField(
-                        key: const ValueKey('chat-input'),
-                        controller: _input,
-                        enabled: connected,
-                        onSubmitted: (_) => _send(),
-                        style: wainText(
-                          WainText.base,
-                          color: WainColors.ink800,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: ChatCopy.placeholder,
-                        ),
-                      ),
+                    IconButton(
+                      tooltip: 'رجوع',
+                      onPressed: () => context.canPop()
+                          ? context.pop()
+                          : context.go('/find'),
+                      icon: WainSvg.icon('back', size: 24, color: Colors.white),
                     ),
-                    const SizedBox(width: 8),
-                    IconButton.filled(
-                      key: const ValueKey('chat-send'),
-                      tooltip: ChatCopy.send,
-                      onPressed: connected ? _send : null,
-                      style: IconButton.styleFrom(
-                        backgroundColor: WainColors.sea600,
-                        minimumSize: const Size(48, 48),
+                    const CircleAvatar(
+                      radius: 20,
+                      backgroundImage: AssetImage('assets/img/salem-face.jpg'),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            kSalemName,
+                            style: wainText(
+                              WainText.lg,
+                              weight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                          Semantics(
+                            liveRegion: true,
+                            child: Text(
+                              _statusText,
+                              key: const ValueKey('chat-status'),
+                              style: wainText(
+                                WainText.xs,
+                                color: connected
+                                    ? WainColors.palm400
+                                    : WainColors.sand300,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      icon: WainSvg.icon('send', size: 20, color: Colors.white),
                     ),
                   ],
                 ),
               ),
+              Expanded(
+                child: ListView.builder(
+                  controller: _scroll,
+                  padding: const EdgeInsets.all(12),
+                  itemCount: _entries.length + (_waiting ? 1 : 0),
+                  itemBuilder: (_, i) => i == _entries.length
+                      ? const _TypingBubble()
+                      : switch (_entries[i]) {
+                          _Text t => _Bubble(t),
+                          _Places p => _PlacesBlock(places: p.places),
+                        },
+                ),
+              ),
+              if (_awaitingConsent)
+                _ConsentPanel(onAgree: _agree)
+              else if (over)
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: FilledButton(
+                    key: const ValueKey('chat-reconnect'),
+                    onPressed: _connect,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: WainColors.sea600,
+                      minimumSize: const Size(220, 48),
+                    ),
+                    child: Text(
+                      ChatCopy.reconnect,
+                      style: wainText(
+                        WainText.base,
+                        weight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                )
+              else ...[
+                // The web says this over its box too (WAIN_AI_RECORDING): the
+                // agreement was given once, the reminder is read every time.
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                  child: Text(
+                    AiPrivacyCopy.chatNotice,
+                    key: const ValueKey('chat-recording-notice'),
+                    style: wainText(WainText.xs, color: WainColors.sand200),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          key: const ValueKey('chat-input'),
+                          controller: _input,
+                          enabled: connected,
+                          onSubmitted: (_) => _send(),
+                          style: wainText(
+                            WainText.base,
+                            color: WainColors.ink800,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: ChatCopy.placeholder,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filled(
+                        key: const ValueKey('chat-send'),
+                        tooltip: ChatCopy.send,
+                        onPressed: connected ? _send : null,
+                        style: IconButton.styleFrom(
+                          backgroundColor: WainColors.sea600,
+                          minimumSize: const Size(48, 48),
+                        ),
+                        icon: WainSvg.icon(
+                          'send',
+                          size: 20,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

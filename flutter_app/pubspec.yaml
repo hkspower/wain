@@ -43,6 +43,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   vector_graphics: ^1.2.3
   flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.8
 
 flutter:
   uses-material-design: true
@@ -82,3 +83,20 @@ flutter_launcher_icons:
     image_path: "assets/img/app-icon-1024.png"
     background_color: "#fdfaf3"
     theme_color: "#2277b4"
+
+# The launch screen: the mark on the app's own sand, light AND dark, so there
+# is no flash of white (iOS template) or black (Android's night theme) before
+# the first frame. The image is rendered from the logo by
+# `npm run icon:app` (scripts/gen-app-icon.mjs). Regenerate the native files
+# with `dart run flutter_native_splash:create` after changing either.
+flutter_native_splash:
+  color: "#fdfaf3"
+  image: assets/img/splash-mark.png
+  color_dark: "#fdfaf3"
+  image_dark: assets/img/splash-mark.png
+  android_12:
+    color: "#fdfaf3"
+    image: assets/img/splash-mark.png
+    color_dark: "#fdfaf3"
+    image_dark: assets/img/splash-mark.png
+  web: false

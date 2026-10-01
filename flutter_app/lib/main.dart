@@ -179,12 +179,17 @@ class _WainAppState extends State<WainApp> {
         theme: buildWainTheme(),
         routerConfig: _router,
         onNavigationNotification: _onNavigation,
-        builder: (context, child) => Stack(
-          textDirection: TextDirection.rtl,
-          children: [
-            Positioned.fill(child: child ?? const SizedBox.shrink()),
-            const CallOverlay(),
-          ],
+        // The default chrome for every screen; the dark ones override it
+        // with their own region, which wins because it is painted later.
+        builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+          value: kChromeOnLight,
+          child: Stack(
+            textDirection: TextDirection.rtl,
+            children: [
+              Positioned.fill(child: child ?? const SizedBox.shrink()),
+              const CallOverlay(),
+            ],
+          ),
         ),
       ),
     );

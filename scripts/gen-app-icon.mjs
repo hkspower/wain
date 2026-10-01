@@ -80,14 +80,16 @@ const COVERAGE = 0.4;
 const CENTRE = { x: 0.504, y: 0.456 };
 
 const [vx, vy, vw, vh] = VIEWBOX;
-const markW = SIZE * COVERAGE;
-const scale = markW / vw;
-const markH = vh * scale;
-const left = SIZE * CENTRE.x - markW / 2;
-const top = SIZE * CENTRE.y - markH / 2;
 
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">
-  <rect width="${SIZE}" height="${SIZE}" fill="${GROUND}"/>
+/** The mark on a square canvas; `ground` null leaves it transparent. */
+function markSvg(size, coverage, centre, ground) {
+  const markW = size * coverage;
+  const scale = markW / vw;
+  const markH = vh * scale;
+  const left = size * centre.x - markW / 2;
+  const top = size * centre.y - markH / 2;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+  ${ground ? `<rect width="${size}" height="${size}" fill="${ground}"/>` : ""}
   <defs>
     <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#57b0e3"/><stop offset="1" stop-color="#2277b4"/>
@@ -105,6 +107,9 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${S
     <circle cx="58" cy="36.8" r="2" fill="#ffffff"/>
   </g>
 </svg>`;
+}
+
+const svg = markSvg(SIZE, COVERAGE, CENTRE, GROUND);
 
 const png = await sharp(Buffer.from(svg))
   .flatten({ background: GROUND }) // rule 1: no alpha reaches the file
@@ -112,6 +117,25 @@ const png = await sharp(Buffer.from(svg))
   .toBuffer();
 
 writeFileSync(OUT, png);
+
+/* ── the Flutter app's launch screen ─────────────────────────────────────── */
+
+// The mark alone, transparent, for flutter_native_splash (config in
+// flutter_app/pubspec.yaml) over the same cream ground. 1152 square because
+// Android 12+ draws the splash icon in a 288dp circle from a 4× image, and
+// only its middle two thirds are promised to show — so the mark spans 55%,
+// inside that circle with margin, and the same file serves iOS and older
+// Android, centred. The launch screens were Flutter's template before: a
+// 1×1 transparent image on white (iOS) and on black in dark mode (Android),
+// a flash of the wrong colour before the sand app appeared.
+const SPLASH = join(ROOT, "flutter_app/assets/img/splash-mark.png");
+writeFileSync(
+  SPLASH,
+  await sharp(Buffer.from(markSvg(1152, 0.55, { x: 0.5, y: 0.5 }, null)))
+    .png({ compressionLevel: 9 })
+    .toBuffer(),
+);
+console.log("gen-app-icon: flutter_app/assets/img/splash-mark.png — 1152×1152, transparent");
 
 /* ── prove it, rather than assume it ─────────────────────────────────────── */
 

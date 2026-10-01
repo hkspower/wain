@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../ai/call_button.dart';
@@ -56,93 +57,97 @@ class _FindScreenState extends State<FindScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Column(
-          children: [
-            Expanded(
-              child: _Half(
-                key: const ValueKey('find-call'),
-                label: 'اتصال',
-                image: 'assets/img/shouq.jpg',
-                pill: CallCopy.role,
-                background: WainColors.ink900,
-                tint: WainColors.ink900,
-                accent: WainColors.sun300,
-                pillFg: WainColors.sun900,
-                body: findGreeting(CallCopy.name, _moment),
-                hint: CallCopy.callHint,
-                action: ShouqCallButton(
-                  size: 64,
-                  onTapped: () => context.go('/search'),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: kChromeOnDark,
+      child: Stack(
+        children: [
+          Column(
+            children: [
+              Expanded(
+                child: _Half(
+                  key: const ValueKey('find-call'),
+                  label: 'اتصال',
+                  image: 'assets/img/shouq.jpg',
+                  pill: CallCopy.role,
+                  background: WainColors.ink900,
+                  tint: WainColors.ink900,
+                  accent: WainColors.sun300,
+                  pillFg: WainColors.sun900,
+                  body: findGreeting(CallCopy.name, _moment),
+                  hint: CallCopy.callHint,
+                  action: ShouqCallButton(
+                    size: 64,
+                    onTapped: () => context.go('/search'),
+                  ),
                 ),
               ),
-            ),
-            Expanded(
-              child: _Half(
-                key: const ValueKey('find-type'),
-                label: 'اكتب',
-                image: 'assets/img/salem.jpg',
-                pill: kSalemRole,
-                background: WainColors.sea950,
-                tint: WainColors.sea950,
-                accent: WainColors.sea300,
-                pillFg: WainColors.sea900,
-                body: findGreeting(kSalemName, _moment),
-                hint: CallCopy.typeHint,
-                action: FilledButton(
-                  onPressed: () => context.push('/salem'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: WainColors.sea600,
-                    minimumSize: const Size(0, 48),
-                    padding: const EdgeInsets.symmetric(horizontal: 28),
-                  ),
-                  child: Text(
-                    'ابدأ الكتابة',
-                    style: wainText(
-                      WainText.base,
-                      weight: FontWeight.w600,
-                      color: Colors.white,
+              Expanded(
+                child: _Half(
+                  key: const ValueKey('find-type'),
+                  label: 'اكتب',
+                  image: 'assets/img/salem.jpg',
+                  pill: kSalemRole,
+                  background: WainColors.sea950,
+                  tint: WainColors.sea950,
+                  accent: WainColors.sea300,
+                  pillFg: WainColors.sea900,
+                  body: findGreeting(kSalemName, _moment),
+                  hint: CallCopy.typeHint,
+                  action: FilledButton(
+                    onPressed: () => context.push('/salem'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: WainColors.sea600,
+                      minimumSize: const Size(0, 48),
+                      padding: const EdgeInsets.symmetric(horizontal: 28),
+                    ),
+                    child: Text(
+                      'ابدأ الكتابة',
+                      style: wainText(
+                        WainText.base,
+                        weight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
-        ),
-        PositionedDirectional(
-          top: MediaQuery.paddingOf(context).top + 8,
-          start: 8,
-          child: IconButton(
-            tooltip: 'رجوع',
-            onPressed: () => context.canPop() ? context.pop() : context.go('/'),
-            icon: WainSvg.icon('back', size: 24, color: Colors.white),
-            style: IconButton.styleFrom(backgroundColor: Colors.black38),
+            ],
           ),
-        ),
-        // The seam: «أو», decorative.
-        Center(
-          child: ExcludeSemantics(
-            child: Container(
-              width: 44,
-              height: 44,
-              alignment: Alignment.center,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-              child: Text(
-                'أو',
-                style: wainText(
-                  WainText.sm,
-                  weight: FontWeight.w700,
-                  color: WainColors.ink900,
+          PositionedDirectional(
+            top: MediaQuery.paddingOf(context).top + 8,
+            start: 8,
+            child: IconButton(
+              tooltip: 'رجوع',
+              onPressed: () =>
+                  context.canPop() ? context.pop() : context.go('/'),
+              icon: WainSvg.icon('back', size: 24, color: Colors.white),
+              style: IconButton.styleFrom(backgroundColor: Colors.black38),
+            ),
+          ),
+          // The seam: «أو», decorative.
+          Center(
+            child: ExcludeSemantics(
+              child: Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  'أو',
+                  style: wainText(
+                    WainText.sm,
+                    weight: FontWeight.w700,
+                    color: WainColors.ink900,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

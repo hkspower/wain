@@ -4,10 +4,37 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'colors.dart';
 
 const String kFontFamily = 'IBMPlexSansArabic';
+
+/// The status and navigation bars, per screen. The app is light by decision
+/// (it follows the site's sand, not the phone's dark mode), so these are the
+/// only two looks there are. Nothing set them before: with no AppBar anywhere
+/// to set them implicitly, an iPhone in dark mode drew white status text on
+/// the sand, and /find, /salem and the call sheet — the three dark screens —
+/// got whatever the previous screen left.
+///
+/// iOS reads `statusBarBrightness` (the BACKGROUND's brightness); Android reads
+/// `statusBarIconBrightness` (the ICONS'). They are opposite words for the same
+/// thing, so both are set every time.
+const SystemUiOverlayStyle kChromeOnLight = SystemUiOverlayStyle(
+  statusBarColor: Colors.transparent,
+  statusBarBrightness: Brightness.light,
+  statusBarIconBrightness: Brightness.dark,
+  systemNavigationBarColor: Colors.white,
+  systemNavigationBarIconBrightness: Brightness.dark,
+);
+
+const SystemUiOverlayStyle kChromeOnDark = SystemUiOverlayStyle(
+  statusBarColor: Colors.transparent,
+  statusBarBrightness: Brightness.dark,
+  statusBarIconBrightness: Brightness.light,
+  systemNavigationBarColor: WainColors.ink900,
+  systemNavigationBarIconBrightness: Brightness.light,
+);
 
 /// Line height per Tailwind step, from `--text-*--line-height` in theme.css:
 /// looser as the type gets smaller, because that is where Arabic's dots and

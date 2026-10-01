@@ -10,6 +10,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
@@ -36,7 +37,12 @@ class CallOverlay extends StatelessWidget {
     final call = context.watch<CallController>();
     if (call.minimised) return _OnCallBar(call: call);
     if (!call.sheetOpen) return const SizedBox.shrink();
-    return Positioned.fill(child: _Sheet(call: call));
+    return Positioned.fill(
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: kChromeOnDark,
+        child: _Sheet(call: call),
+      ),
+    );
   }
 }
 
