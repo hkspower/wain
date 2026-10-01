@@ -275,12 +275,12 @@ if (!pdftotext) {
     $db = store_db(); $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
     $cfg = ${fontCfg};
     $b = invoice_pdf_build($db, $cfg, ${JSON.stringify(track)});
-    echo $b === null ? "NULL" : (substr($b, 0, 5) . "|" . (strpos($b, "SportaEmbeddedBold") !== false ? "bold" : "plain") . "|" . strlen($b));`)
+    echo $b === null ? "NULL" : (substr($b, 0, 5) . "|" . (strpos($b, "SportaEmbeddedBold") !== false ? "bold" : "plain") . (strpos($b, "/Subtype /Image") !== false ? "+logo" : "") . "|" . strlen($b));`)
   const withBold = build('store_config()')
-  check(withBold.startsWith('%PDF-|bold|'), 'the invoice embeds the bold face when the font file is there', withBold)
+  check(withBold.startsWith('%PDF-|bold+logo|'), 'the invoice embeds the bold face and the Sporta logo when their files are there', withBold)
   execFileSync('bash', ['-c', `rm -rf /tmp/inv-nobold && mkdir -p /tmp/inv-nobold && cp ${ROOT}/sporta-site/public_html/fonts/Alexandria-400.ttf /tmp/inv-nobold/`])
   const noBold = build('["invoice_font" => "/tmp/inv-nobold/Alexandria-400.ttf"] + (array) store_config()')
-  check(noBold.startsWith('%PDF-|plain|'), 'and without it the invoice is still built, in the regular face', noBold)
+  check(noBold.startsWith('%PDF-|plain+logo|'), 'and without it the invoice is still built, in the regular face', noBold)
 }
 
 console.log(fails ? `\n${fails} failed` : '\nall ok — every order has an invoice, and it says the truth')

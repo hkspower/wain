@@ -282,7 +282,7 @@ function pdf_new(array $font, float $w = 595.28, float $h = 841.89, ?array $bold
     // $bold is a second face (Alexandria 700). Without one, bold text is drawn in the regular
     // face, so a host that has only the regular file still produces a correct invoice.
     return ['font' => $font, 'bold' => $bold, 'w' => $w, 'h' => $h, 'pages' => [], 'cur' => '',
-            'used' => [], 'usedB' => []];
+            'used' => [], 'usedB' => [], 'images' => []];
 }
 
 function pdf_page_break(array &$doc): void
@@ -330,6 +330,44 @@ function pdf_rect(array &$doc, float $x, float $y, float $w, float $h, array $rg
 {
     $doc['cur'] .= sprintf("%.3f %.3f %.3f rg %.2f %.2f %.2f %.2f re f\n",
         $rgb[0], $rgb[1], $rgb[2], $x, $y, $w, $h);
+}
+
+/**
+ * An 8-bit RGB, non-interlaced PNG, read just far enough to embed it: the IDAT chunks are
+ * already deflate data with PNG row filters, which a PDF accepts as-is (FlateDecode with
+ * Predictor 15), so nothing is decoded. Anything else — alpha, palette, 16-bit, interlaced —
+ * returns null and the caller draws without the picture. The invoice logo is flattened onto
+ * the masthead colour for exactly this reason.
+ */
+function pdf_png_load(string $path): ?array
+{
+    $b = @file_get_contents($path);
+    if ($b === false || substr($b, 0, 8) !== "\x89PNG\r\n\x1a\n") return null;
+    $pos = 8; $idat = ''; $w = $h = 0; $ok = false;
+    while ($pos + 8 <= strlen($b)) {
+        $len = unpack('N', substr($b, $pos, 4))[1];
+        $type = substr($b, $pos + 4, 4);
+        $data = substr($b, $pos + 8, $len);
+        if ($type === 'IHDR') {
+            [$w, $h] = array_values(unpack('N2', substr($data, 0, 8)));
+            $depth = ord($data[8]); $color = ord($data[9]); $inter = ord($data[12]);
+            $ok = $depth === 8 && $color === 2 && $inter === 0;
+        } elseif ($type === 'IDAT') {
+            $idat .= $data;
+        } elseif ($type === 'IEND') {
+            break;
+        }
+        $pos += 12 + $len;
+    }
+    return ($ok && $w > 0 && $h > 0 && $idat !== '') ? ['w' => $w, 'h' => $h, 'data' => $idat] : null;
+}
+
+/** Draw a loaded image with its lower-left corner at (x, y), scaled to $w x $h points. */
+function pdf_image(array &$doc, array $img, float $x, float $y, float $w, float $h): void
+{
+    $doc['images'][] = $img;
+    $n = count($doc['images']);
+    $doc['cur'] .= sprintf("q %.2f 0 0 %.2f %.2f %.2f cm /Im%d Do Q\n", $w, $h, $x, $y, $n);
 }
 
 /** A filled rectangle with rounded corners (radius $r, clamped to half the short side). */
@@ -468,11 +506,19 @@ function pdf_render(array $doc): string
     $fontId = $emitFont($font, $doc['used'], 'SportaEmbedded');
     $boldId = $doc['bold'] !== null ? $emitFont($doc['bold'], $doc['usedB'], 'SportaEmbeddedBold') : null;
     $fonts = '/F1 ' . $fontId . ' 0 R' . ($boldId !== null ? ' /F2 ' . $boldId . ' 0 R' : '');
+    $xobj = '';
+    foreach ($doc['images'] as $i => $img) {
+        $id = $add("<< /Type /XObject /Subtype /Image /Width {$img['w']} /Height {$img['h']} "
+            . "/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode "
+            . "/DecodeParms << /Predictor 15 /Colors 3 /BitsPerComponent 8 /Columns {$img['w']} >> "
+            . "/Length " . strlen($img['data']) . " >>\nstream\n" . $img['data'] . "\nendstream");
+        $xobj .= '/Im' . ($i + 1) . ' ' . $id . ' 0 R ';
+    }
 
     foreach ($contentIds as $cid) {
         $pageIds[] = $add("<< /Type /Page /Parent {$pagesId} 0 R "
             . sprintf("/MediaBox [0 0 %.2f %.2f] ", $doc['w'], $doc['h'])
-            . "/Resources << /Font << {$fonts} >> >> "
+            . "/Resources << /Font << {$fonts} >> /XObject << {$xobj}>> >> "
             . "/Contents {$cid} 0 R >>");
     }
 

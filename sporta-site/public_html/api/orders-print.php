@@ -174,17 +174,17 @@ $addr = static function (array $o) use ($h): string {
   .order { break-after: page; page-break-after: always; }
   .order:last-child { break-after: auto; page-break-after: auto; }
   /* the masthead: near-black with the orange rule under it, as on the PDF invoice */
-  h1 { font-size: 22px; font-weight: 800; letter-spacing: .28em; margin: 0 0 16px;
-       padding: 22px 20px 20px; background: #14161a; color: #fff;
-       border-bottom: 4px solid #f56315; border-radius: 6px 6px 0 0; }
-  h2 { font-size: 20px; font-weight: 800; margin: 0 0 12px; display: flex; align-items: center; gap: 12px; }
+  h1 { margin: 0 0 22px; padding: 28px 30px 26px; background: #14161a; line-height: 0;
+       border-bottom: 4px solid #f56315; border-radius: 8px 8px 0 0; }
+  h1 img { display: block; height: 49px; width: auto; }
+  h2 { font-size: 20px; font-weight: 800; margin: 0 0 16px; padding: 0 6px; display: flex; align-items: center; gap: 12px; }
   .muted { color: #5b6068; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin: 10px 0 16px;
-          padding: 14px 16px; background: #f4f5f7; border-radius: 10px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 28px; margin: 12px 0 22px;
+          padding: 20px 24px; background: #f4f5f7; border-radius: 10px; }
   .grid strong { display: block; font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
                  color: #5b6068; font-weight: 700; }
   table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 8px; }
-  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e3e5e9; }
+  th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid #e3e5e9; }
   th { background: #14161a; border-bottom-color: #14161a; color: #fff; font-weight: 700; font-size: 9px;
        letter-spacing: .12em; text-transform: uppercase; }
   tbody tr:nth-child(even) td { background: #f9fafb; }
@@ -224,7 +224,7 @@ $addr = static function (array $o) use ($h): string {
 
 <?php foreach ($orders as $o): $oid = (int) $o['id']; ?>
   <section class="order">
-    <h1>Sporta · سبورتا</h1>
+    <h1><img src="/logo-white.png" alt="Sporta · سبورتا" width="158" height="49"></h1>
     <h2><?= $h($o['track_id']) ?>
       <span class="tag <?= $h($o['payment_status']) ?>"><?= $h($o['payment_status']) ?></span>
     </h2>
