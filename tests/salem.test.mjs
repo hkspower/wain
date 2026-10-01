@@ -208,6 +208,17 @@ console.log('\n── show_places/open_place render inline, without a live agent
   // until it was wired in here directly. See SalemChat.tsx's own comment.
   await sp.waitForSelector('h2:has-text("رسّلها للربع")', { timeout: 6000 });
   ok('show_places result carries a send-to-the-group panel', true);
+  // The tool and her answer after it are still her turn: the dots stay and
+  // the box waits, until the answer arrives. They used to end with the
+  // sentence she said before the tool, and a second question typed there
+  // crossed the first answer.
+  ok('the dots stay through the tool turn', await sp.locator('[role="log"] .sr-only', { hasText: 'يكتب' }).count() === 1);
+  const sayAfterTool = (text) => sp.evaluate((t) => window.__salemSocket.emit('message', {
+    data: JSON.stringify({ type: 'agent_response', agent_response_event: { agent_response: t } }),
+  }), text);
+  await sayAfterTool('هذي أبراج الكويت قدامك.');
+  await sp.waitForSelector('p:has-text("هذي أبراج الكويت قدامك")', { timeout: 4000 });
+  ok('and go when her answer after it arrives', await sp.locator('[role="log"] .sr-only', { hasText: 'يكتب' }).count() === 0);
 
   await sp.evaluate(() => {
     window.__salemSocket.emit('message', {
@@ -225,6 +236,8 @@ console.log('\n── show_places/open_place render inline, without a live agent
   // Two turns, two panels — each show_places/open_place result carries its
   // own, not one shared across the whole transcript.
   ok('open_place result carries its own panel too', (await sp.locator('h2:has-text("رسّلها للربع")').count()) === 2);
+  await sayAfterTool('فتحت لك بطاقتها.');
+  await sp.waitForSelector('p:has-text("فتحت لك بطاقتها")', { timeout: 4000 });
 
   console.log('\n── typing, replies, corrections and a dropped line ──');
   ok('the transcript is a live log, so a screen reader hears her replies',

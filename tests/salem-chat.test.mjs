@@ -344,6 +344,48 @@ console.log("\n── the phone-call filler is not a typed answer ──");
   mock.timers.reset();
 }
 
+console.log("\n── a tool turn is still her turn ──");
+{
+  /* What the one real conversation's transcript shows: her sentence before a
+     tool arrives as an agent_response of its own, then the client_tool_call,
+     then — after the tool and a second generation — the answer. The first
+     reply ended «typing» and the box opened in the middle of all that. */
+  globalThis.WebSocket = FakeSocket;
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const pend = [];
+  let slow = 0;
+  const handle = startSalemChat({
+    onStatus: () => {},
+    onMessage: () => {},
+    onPending: (v) => pend.push(v),
+    onSlow: () => slow++,
+    onToolUnavailable: () => {},
+    clientTools: { show_places: async () => "ok" },
+  });
+  const sock = FakeSocket.last;
+  sock.readyState = FakeSocket.OPEN;
+  sock.emit("open", {});
+  sock.emit("message", { data: JSON.stringify({ type: "conversation_initiation_metadata" }) });
+  handle.send("قهوة هادية");
+  sock.emit("message", { data: JSON.stringify({ type: "agent_response", agent_response_event: { agent_response: "أبشر، أدوّر لك." } }) });
+  ok("her sentence before the tool ends the typing state for a moment", pend.join(",") === "true,false", pend.join(","));
+  sock.emit("message", {
+    data: JSON.stringify({ type: "client_tool_call", client_tool_call: { tool_call_id: "t1", tool_name: "show_places", parameters: { query: "قهوة" } } }),
+  });
+  ok("the tool call puts it back: her answer is still coming", pend.join(",") === "true,false,true", pend.join(","));
+  sock.emit("message", { data: JSON.stringify({ type: "agent_response", agent_response_event: { agent_response: "هذي ثلاث قدامك." } }) });
+  ok("and the answer after the tool ends it", pend.join(",") === "true,false,true,false", pend.join(","));
+
+  /* The soft-timeout filler is the server saying «slow», three seconds in. */
+  handle.send("وين؟");
+  sock.emit("message", { data: JSON.stringify({ type: "agent_response", agent_response_event: { agent_response: "ثانية وحدة…" } }) });
+  ok("a filler on its own while she is working says she is slow", slow === 1, String(slow));
+  sock.emit("message", { data: JSON.stringify({ type: "agent_response", agent_response_event: { agent_response: "حياك." } }) });
+  sock.emit("message", { data: JSON.stringify({ type: "agent_response", agent_response_event: { agent_response: "ثانية وحدة…" } }) });
+  ok("one with nothing asked of her says nothing", slow === 1, String(slow));
+  mock.timers.reset();
+}
+
 console.log(fails.length ? `\n${fails.length} failed` : "\nكل شي تمام");
 console.log(`${pass} passed, ${fails.length} failed`);
 process.exit(fails.length ? 1 : 0);

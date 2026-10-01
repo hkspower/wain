@@ -84,6 +84,12 @@ interface SalemChatCallbacks {
   /** The reply never came and the typing state ended by timeout. */
   onNoReply?: () => void;
   /**
+   * The server says she is slow: her soft-timeout filler arrived on its own,
+   * which it sends after 3s of silence. The page's own 10s timer is the
+   * backstop for a channel that never sends it.
+   */
+  onSlow?: () => void;
+  /**
    * Tools this page can actually run, keyed by name — `SalemChat.tsx` passes
    * `show_places`/`open_place` here once it carries `usePlaces()`. A tool
    * she calls that is NOT in this map (or when this option is left out
@@ -143,6 +149,7 @@ export function startSalemChat({
   onPending,
   onCorrection,
   onNoReply,
+  onSlow,
   clientTools,
   onToolUnavailable,
 }: SalemChatCallbacks): SalemChatHandle {
@@ -228,8 +235,13 @@ export function startSalemChat({
       case "agent_response": {
         const evt = data.agent_response_event as { agent_response?: string } | undefined;
         const text = stripFiller(evt?.agent_response ?? "");
-        // Only the filler: she is still working, so the typing state stays.
-        if (!text && evt?.agent_response) return;
+        // Only the filler: she is still working, so the typing state stays —
+        // and it is the server telling us she is slow, three seconds in,
+        // where the page's own hint used to wait ten.
+        if (!text && evt?.agent_response) {
+          if (pending) onSlow?.();
+          return;
+        }
         setPending(false);
         if (text) onMessage({ role: "agent", text });
         return;
@@ -257,6 +269,12 @@ export function startSalemChat({
           | undefined;
         const toolCallId = evt?.tool_call_id;
         const handler = evt?.tool_name ? clientTools?.[evt.tool_name] : undefined;
+        // Her sentence before a tool arrives as a reply of its own and ends
+        // the typing state, while the tool and her answer after it — two to
+        // four seconds on the one real call — are still to come. The dots
+        // went away and the box opened in the middle of her turn; a second
+        // question typed there crossed the first answer.
+        setPending(true);
         if (!handler) {
           // No handler registered for this tool name — the same error shape
           // the real SDK sends for one, so the call resolves instead of
