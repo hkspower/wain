@@ -9,7 +9,23 @@
       "mcp__hosa__hosting_getCronJobOutputV1",
       "mcp__hosa__hosting_listAccountCronJobsV1",
       "mcp__hosa__hosting_clearWebsiteCacheV1",
-      "mcp__hosa__execute"
+      "mcp__hosa__execute",
+      "mcp__hosa__multi-execute",
+      "mcp__hosa__search",
+      "Bash(git status:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git stash:*)",
+      "Bash(npm run:*)",
+      "Bash(node scripts/*)",
+      "Bash(php -l:*)",
+      "Bash(bash scripts/sandbox.sh:*)",
+      "Bash(sleep:*)",
+      "Bash(python3:*)"
     ]
   }
 }
