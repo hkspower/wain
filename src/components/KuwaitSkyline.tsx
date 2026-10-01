@@ -470,6 +470,63 @@ function Dhow({ x, y, s }: { x: number; y: number; s: number }) {
   );
 }
 
+/** The far shore: a low, hazy city across the water, standing on the horizon so
+ *  the Gulf has another side. Mostly low blocks, with the odd slim tower. */
+function farShore() {
+  const rand = rng(5);
+  const run = (x0: number, x1: number) => {
+    let d = "";
+    for (let x = x0; x < x1; ) {
+      const w = 4 + rand() * 8;
+      const h = rand() < 0.14 ? 15 + rand() * 9 : 3 + rand() * 9;
+      d += `M${r1(x)} ${HORIZON} V${r1(HORIZON - h)} h${r1(w)} V${HORIZON} Z`;
+      x += w + rand() * 3;
+    }
+    return d;
+  };
+  return run(-4, 190) + run(1000, 1204);
+}
+
+/** A crescent with its horns up, `r` across, centred on (cx, cy). */
+const crescent = (cx: number, cy: number, r: number) =>
+  `M${r1(cx - r)} ${cy} A${r} ${r} 0 0 0 ${r1(cx + r)} ${cy} A${r1(r * 1.35)} ${r1(r * 1.35)} 0 0 1 ${r1(cx - r)} ${cy} Z`;
+
+/** The flag, with the ripple a cloth has: every edge shares one wave, so the bands
+ *  stay parallel instead of sliding apart. */
+function Flag() {
+  const wave = (x: number) => 2.4 * Math.sin(((x - 2) / 54) * Math.PI * 2.1);
+  const edge = (y: number, x0 = 2, x1 = 56, n = 10) =>
+    Array.from({ length: n + 1 }, (_, i) => {
+      const x = x0 + ((x1 - x0) * i) / n;
+      return `${r1(x)} ${r1(y + wave(x))}`;
+    });
+  const band = (ya: number, yb: number) => `M${edge(ya).join(" L")} L${edge(yb).reverse().join(" L")} Z`;
+  return (
+    <g transform="translate(548 300)">
+      <rect x="-2" y="0" width="4" height="72" rx="2" fill="#8b6836" />
+      <circle cx="0" cy="-1" r="2.6" fill="#e8b23a" />
+      <path d={band(2, 12)} fill="#2f8a4e" />
+      <path d={band(12, 22)} fill="#ffffff" />
+      <path d={band(22, 32)} fill="#dc2f25" />
+      <path d={`M2 ${r1(2 + wave(2))} L22 ${r1(12 + wave(22))} L22 ${r1(22 + wave(22))} L2 ${r1(32 + wave(2))} Z`} fill="#14120f" />
+      {/* the light and shade a ripple throws across it */}
+      <path d={band(2, 32)} fill="url(#wain-flag-shade)" />
+    </g>
+  );
+}
+
+/** A promenade lamp: a curved arm, a lantern and the glow round it. */
+function Lamp({ x }: { x: number }) {
+  return (
+    <g>
+      <circle cx={x + 7} cy="372" r="9" fill="url(#wain-lamp)" />
+      <path d={`M${x} 396 V376 q0 -6 7 -6`} fill="none" stroke="#4e473d" strokeWidth="1.5" strokeLinecap="round" />
+      <rect x={x - 3} y="394" width="6" height="3" rx="1" fill="#4e473d" />
+      <ellipse cx={x + 7} cy="371" rx="2.6" ry="3.2" fill="#fff3c2" stroke="#4e473d" strokeWidth="0.8" />
+    </g>
+  );
+}
+
 function Sea() {
   return (
     <g>
@@ -517,10 +574,23 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
           <stop offset="35%" stopColor="#267943" />
           <stop offset="100%" stopColor="#1d6538" />
         </linearGradient>
+        {/* The sky warms towards the horizon (y 250 is 68% of the way down this
+            rect) instead of sitting at one cream all the way, so the sea has
+            something to meet. */}
         <linearGradient id="wain-sky" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="45%" stopColor="#fbeed6" />
+          <stop offset="36%" stopColor="#fff7e8" />
+          <stop offset="62%" stopColor="#fde6c0" />
+          <stop offset="68%" stopColor="#f9d9a6" />
           <stop offset="100%" stopColor="#f6dfb4" />
+        </linearGradient>
+        <radialGradient id="wain-dawn" cx="50%" cy="50%" r="50%">
+          <stop offset="0" stopColor="#ffd48a" stopOpacity="0.7" />
+          <stop offset="1" stopColor="#ffd48a" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="wain-cloud" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffffff" />
+          <stop offset="1" stopColor="#fff0da" />
         </linearGradient>
         {/* A sphere lit from the upper left: highlight, body, and a
             terminator that turns the lower right towards the sea's own
@@ -627,6 +697,35 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
           <stop offset="0" stopColor="#fffaf0" />
           <stop offset="1" stopColor="#e6d1a4" />
         </linearGradient>
+        {/* Dome: a sphere lit from the upper left, in the warm stone of everything
+            else rather than the towers' blue. */}
+        <radialGradient id="wain-dome" cx="50%" cy="50%" r="50%" fx="34%" fy="30%">
+          <stop offset="0" stopColor="#fffdf6" />
+          <stop offset="0.35" stopColor="#f3e3bd" />
+          <stop offset="0.75" stopColor="#dcc287" />
+          <stop offset="1" stopColor="#bb9a55" />
+        </radialGradient>
+        {/* Glass: a cool pane in warm stone, which the sea behind picks up. */}
+        <linearGradient id="wain-window" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#d6edf0" />
+          <stop offset="1" stopColor="#8fc4d2" />
+        </linearGradient>
+        <linearGradient id="wain-paving" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#f7ebcb" />
+          <stop offset="1" stopColor="#dcc690" />
+        </linearGradient>
+        <radialGradient id="wain-lamp" cx="50%" cy="50%" r="50%">
+          <stop offset="0" stopColor="#fff0b5" stopOpacity="0.85" />
+          <stop offset="1" stopColor="#fff0b5" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="wain-flag-shade" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#000000" stopOpacity="0" />
+          <stop offset="0.18" stopColor="#ffffff" stopOpacity="0.22" />
+          <stop offset="0.38" stopColor="#000000" stopOpacity="0" />
+          <stop offset="0.58" stopColor="#000000" stopOpacity="0.16" />
+          <stop offset="0.78" stopColor="#ffffff" stopOpacity="0.12" />
+          <stop offset="1" stopColor="#000000" stopOpacity="0.08" />
+        </linearGradient>
         <Palm />
       </defs>
 
@@ -640,21 +739,35 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
       {/* Sky */}
       <rect y="-110" width="1200" height="530" fill="url(#wain-sky)" />
       <circle cx="640" cy="190" r="330" fill="url(#wain-glow)" />
+      {/* The warm band the sun leaves along the horizon, and thin streaks of
+          high cloud lying in it. */}
+      <ellipse cx="640" cy="246" rx="540" ry="56" fill="url(#wain-dawn)" />
+      <g fill="#ffffff">
+        <ellipse cx="240" cy="226" rx="120" ry="2.6" opacity="0.5" />
+        <ellipse cx="985" cy="220" rx="150" ry="3" opacity="0.45" />
+        <ellipse cx="660" cy="236" rx="90" ry="2" opacity="0.4" />
+      </g>
 
       {/* Clouds and birds sit in the sky that was added above the old top edge,
           so the taller towers do not stand in front of them */}
       <g transform="translate(0 -70)">
-      <g className="animate-drift" fill="#ffffff" opacity="0.9">
+      {/* Each puff is lit from above and goes to cream underneath, and the cloud
+          has a faint warm shadow under it, so they read as volumes and not as
+          white ovals. */}
+      <g className="animate-drift" fill="url(#wain-cloud)" opacity="0.95">
         <g>
+          <ellipse cx="150" cy="88" rx="66" ry="6" fill="#f0c58a" opacity="0.16" />
           <ellipse cx="150" cy="70" rx="52" ry="24" />
           <ellipse cx="196" cy="74" rx="34" ry="18" />
           <ellipse cx="110" cy="78" rx="30" ry="16" />
         </g>
-        <g opacity="0.75">
+        <g opacity="0.8">
+          <ellipse cx="1031" cy="74" rx="52" ry="5" fill="#f0c58a" opacity="0.16" />
           <ellipse cx="1010" cy="58" rx="46" ry="21" />
           <ellipse cx="1052" cy="63" rx="30" ry="15" />
         </g>
-        <g opacity="0.6">
+        <g opacity="0.65">
+          <ellipse cx="716" cy="55" rx="42" ry="4.5" fill="#f0c58a" opacity="0.16" />
           <ellipse cx="700" cy="42" rx="38" ry="17" />
           <ellipse cx="732" cy="46" rx="24" ry="12" />
         </g>
@@ -680,6 +793,7 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
           real Kuwait Towers are seen. Inside the drawing's own 1200×530 — the
           home page and the Flutter hero both hard-code that ratio. */}
       <Sea />
+      <path d={farShore()} fill="#9cc3d3" opacity="0.5" />
 
       {/* ---- Skyline ---- */}
 
@@ -692,49 +806,84 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
           round. */}
       <LiberationTower />
 
-      {/* Low city block, left */}
-      <g fill="url(#wain-stone)">
-        <rect className="bldg" x="238" y="286" width="70" height="86" rx="6" />
-        <rect className="bldg" x="316" y="312" width="52" height="60" rx="6" />
-      </g>
-      <g fill="#dcc287" opacity="0.5">
-        <rect x="250" y="300" width="10" height="12" rx="2" />
-        <rect x="268" y="300" width="10" height="12" rx="2" />
-        <rect x="286" y="300" width="10" height="12" rx="2" />
-        <rect x="250" y="326" width="10" height="12" rx="2" />
-        <rect x="268" y="326" width="10" height="12" rx="2" />
-        <rect x="286" y="326" width="10" height="12" rx="2" />
+      {/* Low city blocks, left: a lit front and a shaded side (`wain-box`), a
+          cornice, glass in the windows, and a water tank on the roof. */}
+      <g>
+        <rect className="bldg" x="238" y="286" width="70" height="86" rx="6" fill="url(#wain-box)" />
+        <rect x="235" y="283" width="76" height="6" rx="2.4" fill="#ecdcb4" stroke="#c9ab72" strokeWidth="1" />
+        <rect x="289" y="276" width="11" height="8" rx="1.6" fill="#d9c192" stroke="#c9ab72" strokeWidth="0.8" />
+        <rect className="bldg" x="316" y="312" width="52" height="60" rx="6" fill="url(#wain-box)" />
+        <rect x="313" y="309" width="58" height="5" rx="2" fill="#ecdcb4" stroke="#c9ab72" strokeWidth="1" />
+        <g fill="url(#wain-window)" stroke="#fff6df" strokeWidth="0.8">
+          {[250, 268, 286].flatMap((x) => [300, 326].map((y) => <rect key={`${x},${y}`} x={x} y={y} width="10" height="12" rx="2" />))}
+          {[326, 346].flatMap((x) => [326, 346].map((y) => <rect key={`${x},${y}`} x={x} y={y} width="9" height="11" rx="2" />))}
+        </g>
       </g>
 
-      {/* Grand Mosque */}
+      {/* Grand Mosque. A main dome with ribs, a lantern and a crescent, a small
+          dome at each end, five arches with a recess behind each, and the
+          minaret at the LEFT end. It stood at the right, directly behind the
+          sun dial and the search pill at laptop widths, so its teal cap
+          poked out from under them. */}
       <g>
+        {/* the end domes, behind the big one */}
+        {[421, 555].map((x) => (
+          <g key={x}>
+            <path d={`M${x - 14} 292 a14 14 0 0 1 28 0 Z`} fill="url(#wain-dome)" stroke="#c9ab72" strokeWidth="1.6" strokeLinejoin="round" />
+            <path d={`M${x} 278 v-5`} stroke="#c9a55f" strokeWidth="1.4" strokeLinecap="round" />
+            <circle cx={x} cy="272" r="1.7" fill="#e8b23a" />
+          </g>
+        ))}
         <rect className="bldg" x="404" y="292" width="168" height="80" rx="8" fill="url(#wain-stone)" />
-        <path className="bldg" d="M488 208 q52 26 52 84 h-104 q0 -58 52 -84 Z" fill="#ecd9b0" />
-        <circle cx="488" cy="204" r="7" fill="#c9a55f" />
-        <path d="M488 197 v-12" stroke="#c9a55f" strokeWidth="3" strokeLinecap="round" />
-        {/* Minaret */}
-        <rect className="bldg" x="586" y="176" width="18" height="196" rx="5" fill="url(#wain-shaft)" />
-        <path d="M586 176 h9 v-22 Z" fill="#2a9c7c" />
-        <path d="M595 154 v22 h9 Z" fill="#146151" />
-        <rect x="583" y="212" width="24" height="7" rx="3.5" fill="url(#wain-shaft)" />
-        {/* Arches */}
-        <g fill="#f3e7d0">
-          <path d="M424 372 v-38 a12 12 0 0 1 24 0 v38 Z" />
-          <path d="M466 372 v-38 a12 12 0 0 1 24 0 v38 Z" />
-          <path d="M508 372 v-38 a12 12 0 0 1 24 0 v38 Z" />
+        <rect x="404" y="292" width="168" height="80" rx="8" fill="url(#wain-shaft-shade)" />
+        <rect x="406" y="292" width="164" height="7" rx="3" fill="#e6d3a6" opacity="0.75" />
+        {/* the main dome */}
+        <path className="bldg" d="M488 208 q52 26 52 84 h-104 q0 -58 52 -84 Z" fill="url(#wain-dome)" />
+        <g fill="none" stroke="#b99a63" strokeWidth="0.9" strokeOpacity="0.32" strokeLinecap="round">
+          {[-34, -17, 17, 34].map((dx) => (
+            <path key={dx} d={`M${488 + dx} 292 Q${r1(488 + dx * 1.18)} 240 488 211`} />
+          ))}
         </g>
+        <ellipse cx="468" cy="246" rx="11" ry="22" transform="rotate(-18 468 246)" fill="#ffffff" opacity="0.32" />
+        <rect x="485" y="196" width="6" height="12" rx="2" fill="url(#wain-shaft)" stroke="#c9a55f" strokeWidth="0.8" />
+        <path d="M488 196 v-9" stroke="#c9a55f" strokeWidth="1.6" strokeLinecap="round" />
+        <path d={crescent(488, 184, 6)} fill="#e8b23a" stroke="#b8862a" strokeWidth="0.5" strokeLinejoin="round" />
+        {/* windows over the arches, then the arches with their recesses */}
+        <g fill="url(#wain-window)" stroke="#d9c192" strokeWidth="0.7">
+          {[422, 449, 476, 503, 530].map((x) => (
+            <path key={x} d={`M${x - 3} 320 v-9 a3 3 0 0 1 6 0 v9 Z`} />
+          ))}
+        </g>
+        {[422, 449, 476, 503, 530].map((x) => (
+          <g key={x}>
+            <path d={`M${x - 9} 372 v-34 a9 9 0 0 1 18 0 v34 Z`} fill="#f6ecd4" stroke="#d3b97f" strokeWidth="1" />
+            <path d={`M${x - 6} 372 v-31 a6 6 0 0 1 12 0 v31 Z`} fill="#d9c192" opacity="0.55" />
+          </g>
+        ))}
+        {/* the minaret: a shaft, two balconies, slits, a teal roof and a crescent */}
+        <rect className="bldg" x="382" y="176" width="18" height="196" rx="5" fill="url(#wain-shaft)" />
+        <rect x="379" y="204" width="24" height="7" rx="3.5" fill="url(#wain-shaft)" stroke="#c9ab72" strokeWidth="1" />
+        <rect x="380" y="238" width="22" height="5" rx="2.5" fill="url(#wain-shaft)" stroke="#c9ab72" strokeWidth="1" />
+        <g fill="#b99a63" opacity="0.5">
+          <rect x="389.5" y="250" width="3" height="14" rx="1.5" />
+          <rect x="389.5" y="276" width="3" height="14" rx="1.5" />
+          <rect x="389.5" y="214" width="3" height="16" rx="1.5" />
+        </g>
+        <path d="M382 176 h9 v-22 Z" fill="#2a9c7c" />
+        <path d="M391 154 v22 h9 Z" fill="#146151" />
+        <path d="M391 154 v-7" stroke="#c9a55f" strokeWidth="1.5" strokeLinecap="round" />
+        <path d={crescent(391, 143, 5.2)} fill="#e8b23a" stroke="#b8862a" strokeWidth="0.5" strokeLinejoin="round" />
       </g>
 
       {/* Low block, right. Drawn BEFORE the towers: the towers sit 120 units
           further right than they used to (see below) and the third spire now
           stands in front of this block instead of beside it. */}
-      <g fill="url(#wain-stone)">
-        <rect className="bldg" x="900" y="300" width="76" height="72" rx="6" />
-      </g>
-      <g fill="#dcc287" opacity="0.45">
-        <rect x="914" y="314" width="10" height="12" rx="2" />
-        <rect x="932" y="314" width="10" height="12" rx="2" />
-        <rect x="950" y="314" width="10" height="12" rx="2" />
+      <g>
+        <rect className="bldg" x="900" y="300" width="76" height="72" rx="6" fill="url(#wain-box)" />
+        <rect x="897" y="297" width="82" height="6" rx="2.4" fill="#ecdcb4" stroke="#c9ab72" strokeWidth="1" />
+        <g fill="url(#wain-window)" stroke="#fff6df" strokeWidth="0.8">
+          {[914, 932, 950].flatMap((x) => [314, 338].map((y) => <rect key={`${x},${y}`} x={x} y={y} width="10" height="12" rx="2" />))}
+        </g>
       </g>
 
       {/* Kuwait Towers. Moved 120 units right (the first `translate`) so the
@@ -793,15 +942,25 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
       <g>
         <rect className="bldg" x="1006" y="252" width="86" height="120" rx="7" fill="url(#wain-box)" />
         <rect className="bldg" x="1028" y="180" width="42" height="76" rx="6" fill="url(#wain-box)" />
+        <rect x="1003" y="249" width="92" height="6" rx="2.4" fill="#ecdcb4" stroke="#c9ab72" strokeWidth="1" />
+        <rect x="1025" y="177" width="48" height="5" rx="2" fill="#ecdcb4" stroke="#c9ab72" strokeWidth="1" />
         <path d="M1028 180 h21 v-40 Z" fill="#2a9c7c" />
         <path d="M1049 140 v40 h21 Z" fill="#146151" />
+        <path d="M1049 140 v-8" stroke="#c9a55f" strokeWidth="1.5" strokeLinecap="round" />
+        <circle cx="1049" cy="130" r="2.4" fill="#e8b23a" />
         <circle cx="1049" cy="212" r="14" fill="#faf4e6" stroke="#c9a55f" strokeWidth="3" />
+        <path d="M1049 200.5 v3 M1049 220.5 v3 M1037.5 212 h3 M1057.5 212 h3" stroke="#35302a" strokeWidth="1.2" strokeLinecap="round" opacity="0.7" />
         <path
           d="M1049 212 v-8 M1049 212 h6"
           stroke="#35302a"
           strokeWidth="2.5"
           strokeLinecap="round"
         />
+        <g fill="url(#wain-window)" stroke="#fff6df" strokeWidth="0.8">
+          {[1018, 1044, 1070].map((x) => (
+            <rect key={x} x={x} y="266" width="9" height="16" rx="2.4" />
+          ))}
+        </g>
         <g fill="#f3e7d0">
           <path d="M1020 372 v-42 a11 11 0 0 1 22 0 v42 Z" />
           <path d="M1056 372 v-42 a11 11 0 0 1 22 0 v42 Z" />
@@ -813,9 +972,25 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
         <use key={x} href="#wain-palm" transform={`translate(${x} 372) scale(${s})`} />
       ))}
 
-      {/* Ground */}
+      {/* Ground. It was one flat green slab across the whole foot of the
+          drawing. Now a lawn where the buildings and palms stand, a pale
+          promenade with a lamp every so often, and a darker lawn in front —
+          the same 52 units, but with something to look at in them. */}
       <rect y="368" width="1200" height="52" fill="url(#wain-grass)" />
       <rect y="368" width="1200" height="9" fill="#4ba368" />
+      <rect y="390" width="1200" height="12" fill="url(#wain-paving)" />
+      <path d="M0 390.6 H1200" stroke="#fff8e6" strokeWidth="1.2" strokeOpacity="0.9" />
+      <path d="M0 402 H1200" stroke="#a88a50" strokeWidth="1" strokeOpacity="0.5" />
+      <path
+        d={Array.from({ length: 32 }, (_, i) => {
+          const x = 14 + i * 38;
+          return `M${x} 390 l${r1((x - 600) * 0.004)} 12`;
+        }).join("")}
+        stroke="#b99a63"
+        strokeWidth="0.6"
+        strokeOpacity="0.4"
+        fill="none"
+      />
 
       {/* Contact shadows, thrown to the right by the upper-left light, so
           nothing stands on the grass without touching it. */}
@@ -832,16 +1007,11 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
         ))}
       </g>
 
-      {/* Kuwait flag */}
-      <g transform="translate(548 300)">
-        <rect x="-2" y="0" width="4" height="72" rx="2" fill="#8b6836" />
-        <g>
-          <rect x="2" y="2" width="54" height="10" fill="#2f8a4e" />
-          <rect x="2" y="12" width="54" height="10" fill="#ffffff" />
-          <rect x="2" y="22" width="54" height="10" fill="#dc2f25" />
-          <path d="M2 2 L22 12 L22 22 L2 32 Z" fill="#14120f" />
-        </g>
-      </g>
+      {[28, 196, 380, 596, 792, 1002, 1168].map((x) => (
+        <Lamp key={x} x={x} />
+      ))}
+
+      <Flag />
     </svg>
   );
 }

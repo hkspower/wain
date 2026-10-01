@@ -3126,6 +3126,28 @@ is a gradient (`wain-grass`) instead of one flat slab. **`flutter_app/assets/art
 skyline.svg` is generated from this component** — `npm run flutter:art` after
 any change to it, or `audit:flutter` goes red. Not live until a deploy.
 
+**A whole-scene style pass followed the sea (1 October).** What changed, and why each
+piece was weak: the sky gradient warms towards the horizon with a dawn glow and
+thin streaks of high cloud, and the clouds are lit and cast a faint shadow (they
+were white ovals); a hazy far shore stands on the horizon so the Gulf has another
+side; the Grand Mosque has a ribbed, lit dome with a lantern and crescent, an end
+dome each side, five arches with recesses, and a minaret with balconies; the
+blocks and the clock tower have a lit front and a shaded side (`wain-box`), a
+cornice and glass windows; the flag ripples; and the foreground is a lawn, a pale
+promenade with lamps, and a darker lawn in front instead of one flat green slab.
+
+- **The minaret moved to the mosque's LEFT end (x 382–400).** At the right it was
+  directly behind the sun dial and the search pill, so its teal cap poked out
+  from under them at every desktop width. Anything tall placed between x 480 and
+  720 will do the same; the dial is centred and the drawing is bottom-anchored.
+- **The far shore and the waves share `rng()`**, each with its own seed, for the
+  determinism reason above.
+- **A 5× full-page screenshot can show a tile seam as a pale rectangle** with a
+  hard edge in the dial's glow. It looked like an artwork bug and was not in the
+  1× render — check a suspected artefact at the real scale before hunting it.
+- **No new classes in the `<style>` block.** Everything added uses presentation
+  attributes, because the Flutter exporter only bakes `.bldg`/`.spire`/`.orb`.
+
 **The home hero has a sea now (1 October, `Sea` in `KuwaitSkyline.tsx`).** A
 horizon at y 250 behind everything on the shore, so the Gulf shows above the low
 buildings and between the towers — pale turquoise at the horizon, deeper towards
