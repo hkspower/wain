@@ -48,8 +48,10 @@ class ShouqCallButton extends StatelessWidget {
             width: size,
             height: size,
             child: Center(
+              // A call, not her face: the web's IconCall (handset + voice
+              // arcs), so the button says that a tap places one.
               child: WainSvg.icon(
-                'shouq',
+                'call',
                 size: size * 0.5,
                 color: Colors.white,
               ),

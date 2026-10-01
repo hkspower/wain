@@ -561,6 +561,22 @@ h1, h2, h3 {
   animation: shouq-blink 5.4s ease-in-out infinite;
 }
 
+/* IconCall's voice arcs: still at rest, sounding while the call rings or she
+   is speaking — the same «nothing moves unless something is happening» rule as
+   the mouth below. Opacity only, so the handset never twitches. */
+@keyframes call-waves {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.call--live [data-part="waves"] {
+  animation: call-waves 1.1s ease-in-out infinite;
+}
+
 /* Only while she is actually saying something. A mouth that moves on an idle
    button is a face talking to nobody. */
 .shouq--talking [data-part="mouth"] {

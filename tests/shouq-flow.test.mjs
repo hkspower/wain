@@ -424,11 +424,28 @@ console.log('\n── شوق has a face, and it is alive ──');
   const { ctx, p } = await fresh({ stayOpen: true });
   await p.goto(B + '/search/', { waitUntil: 'networkidle' });
 
-  const faces = () => p.locator('.shouq');
-  ok('the launcher shows her face, not a handset', (await faces().count()) === 1);
-  ok('and the face is built from the icon set, not drawn in place',
-    (await p.locator('.shouq [data-part="eyes"]').count()) === 1 &&
-    (await p.locator('.shouq [data-part="mouth"]').count()) === 1);
+  // The LAUNCHER is a call now, not her face — reversed on 1 October («improve
+  // call icon»). As a face inside the query box it read as an avatar beside
+  // the text, not as a button with a consequence; the handset with voice arcs
+  // says «a tap places a call». Her face stays where she is already on the
+  // line: the call sheet, which is what the rest of this section reads.
+  const launcher = fab(p);
+  ok('the launcher draws a call: a handset with voice arcs, no face',
+    (await launcher.locator('[data-part="waves"]').count()) === 1 &&
+    (await launcher.locator('.shouq').count()) === 0);
+  // evaluateAll, not evaluate: with no arcs a bare evaluate waits 30s and
+  // throws, and the throw would cancel every section after this one.
+  const waveAnim = (loc) => loc.locator('[data-part="waves"]').evaluateAll((es) => es.map((e) => getComputedStyle(e).animationName)[0] ?? null);
+  ok('and the arcs are still while nothing is happening', (await waveAnim(launcher)) === 'none');
+
+  await call(p);
+  await p.waitForFunction(
+    () => document.querySelector('#wain-ai-panel')?.textContent.includes('متصل'),
+    null, { timeout: 6000 }
+  );
+  ok('the call sheet shows her face, built from the icon set',
+    (await p.locator('.shouq [data-part="eyes"]').count()) >= 1 &&
+    (await p.locator('.shouq [data-part="mouth"]').count()) >= 1);
 
   const eyeAnim = await p.evaluate(() => {
     const e = document.querySelector('.shouq [data-part="eyes"]');
@@ -442,15 +459,6 @@ console.log('\n── شوق has a face, and it is alive ──');
   // the animation NAME would ever catch.
   ok('and the blink is anchored to the eyes, not the viewBox', eyeAnim.box === 'fill-box', eyeAnim.box);
 
-  const mouthIdle = await p.evaluate(() =>
-    getComputedStyle(document.querySelector('.shouq [data-part="mouth"]')).animationName);
-  ok('her mouth is still while nobody is on the line', mouthIdle === 'none', mouthIdle);
-
-  await call(p);
-  await p.waitForFunction(
-    () => document.querySelector('#wain-ai-panel')?.textContent.includes('متصل'),
-    null, { timeout: 6000 }
-  );
   /**
    * This section used to assert «once she is connected, EVERY face starts
    * speaking», and that assertion was encoding the bug.
@@ -477,7 +485,7 @@ console.log('\n── شوق has a face, and it is alive ──');
       mouth: getComputedStyle(all[0].querySelector('[data-part="mouth"]')).animationName,
     };
   });
-  ok('connected is her LISTENING, so her mouth is still', live.n > 1 && live.talking === 0,
+  ok('connected is her LISTENING, so her mouth is still', live.n >= 1 && live.talking === 0,
     `${live.talking}/${live.n} talking`);
   ok('and no mouth animation is running yet', live.mouth === 'none', live.mouth);
 
@@ -503,12 +511,13 @@ console.log('\n── شوق has a face, and it is alive ──');
     () => {
       const all = [...document.querySelectorAll('.shouq')];
       const talking = all.filter((f) => f.classList.contains('shouq--talking')).length;
-      return talking === all.length && all.length > 1 ? { n: all.length, talking } : null;
+      return talking === all.length && all.length >= 1 ? { n: all.length, talking } : null;
     },
     null, { timeout: 4000 }
   ).then((h) => h.jsonValue()).catch(() => null);
   ok('but when she answers, every face speaks', spoke !== null,
     'no face started talking on «شوق ترد…»');
+  ok('and the launcher\'s arcs sound with her', (await waveAnim(fab(p))) === 'call-waves');
   await ctx.close();
 }
 

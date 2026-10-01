@@ -10,4 +10,4 @@ const Set<String> kPlaceMarkSlugs = {'abdullah-al-salem-cultural-centre', 'al-fa
 
 const Set<String> kCategoryIconKeys = {'all', 'bag', 'burger', 'coffee', 'cutlery', 'ferris', 'masks', 'palm', 'tower'};
 
-const Set<String> kUiIconNames = {'back', 'bag', 'burger', 'car', 'check', 'clock', 'close', 'coins', 'compass', 'cutlery', 'dallah', 'ferris', 'globe', 'go', 'grid', 'home', 'instagram', 'locate', 'map', 'masks', 'palm', 'phone', 'pinsolid', 'search', 'send', 'shouq', 'sparkle', 'speaker', 'speakeroff', 'star', 'sun', 'tower'};
+const Set<String> kUiIconNames = {'back', 'bag', 'burger', 'call', 'car', 'check', 'clock', 'close', 'coins', 'compass', 'cutlery', 'dallah', 'ferris', 'globe', 'go', 'grid', 'home', 'instagram', 'locate', 'map', 'masks', 'palm', 'phone', 'pinsolid', 'search', 'send', 'shouq', 'sparkle', 'speaker', 'speakeroff', 'star', 'sun', 'tower'};

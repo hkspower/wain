@@ -82,6 +82,27 @@ export function IconPhone(props: IconProps) {
 }
 
 /**
+ * A call — the handset of IconPhone with two voice arcs where its open corner
+ * is. This is what the small call button draws now. It drew شوق's face, which
+ * says who you will talk to but not that a tap PLACES A CALL: on /search it
+ * sat inside the query box beside the text and read as an avatar, not a
+ * button with a consequence. The face stays where it is the right picture —
+ * the call sheet, where she is already on the line.
+ *
+ * The arcs are `data-part="waves"`, the same way IconShouq exposes its eyes
+ * and mouth, so globals.css can sound them while a call rings or she speaks
+ * and the icon itself stays stateless.
+ */
+export function IconCall(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path {...duo} d="M5 4h4l1.8 4.2-2.2 1.9a12.5 12.5 0 0 0 5.3 5.3l1.9-2.2L20 15v4a1.5 1.5 0 0 1-1.6 1.5C10.4 20 4 13.6 3.5 5.6A1.5 1.5 0 0 1 5 4Z" />
+      <path data-part="waves" d="M13.5 7a3.5 3.5 0 0 1 3.5 3.5M13.5 3.5a7 7 0 0 1 7 7" />
+    </svg>
+  );
+}
+
+/**
  * شوق — the guide behind the call button, as a face.
  *
  * She was five vertical bars: a voice-wave mark, drawn ad-hoc inside

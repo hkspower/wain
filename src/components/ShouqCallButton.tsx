@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { IconShouq } from "@/components/icons";
+import { IconCall } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
 import { primeAudio } from "@/lib/voice";
 import { WAIN_AI_COPY } from "@/lib/wain-ai";
@@ -187,7 +187,7 @@ export default function ShouqCallButton({
           className="size-full object-cover"
         />
       ) : (
-        <IconShouq className={`shouq size-4 ${talking ? "shouq--talking" : ""}`} />
+        <IconCall className={`size-4 ${phase === "ringing" || talking ? "call--live" : ""}`} />
       )}
       {phase === "ringing" && (
         <span

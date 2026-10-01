@@ -4425,6 +4425,88 @@ element-visibility waits in an earlier run made while `test:shouq` was also
 driving Chromium concurrently on this machine — re-run alone, clean, which is
 what settled it as resource contention rather than a regression.
 
+## The second batch of 1 October — what shipped, and the traps in it
+
+Asked for in one message: better icons, a calmer and dynamic /find (both
+halves), a better call icon, a sun dial with less text, شوق and her voice
+improved through ElevenLabs, the ElevenLabs version updated, the home page
+behaving like an app, iOS 16 → latest, a better typing animation for سالم,
+and the apps built. One commit each; every new assertion was proved able to
+go red with the build green first. Nothing is deployed.
+
+**The map package that was open first had two real bugs the browser suites
+found, both fixed rather than loosened.** Hovering a pin keeps it apart from
+the bubbles, and `clusterPoints` used to answer «groups, then the ones kept
+apart» — so hovering moved the pin to the end of the overlay, React moved its
+node, and **a node that moves between mousedown and mouseup never receives the
+click**: on a desktop the first click on a pin stopped opening its place. The
+answer is in input order now. And the live map dropped pins outside the view,
+but a pan only re-projects when it ends, so a dropped pin stayed missing while
+it was dragged back in; the frame's overflow clips them instead. The +2.3K
+seen in `app/layout` was a re-split (the queue module moved chunks); the real
+growth on /about was 883 B for `error.tsx` and ~830 B besides.
+
+**/find is lighter and knows the time.** Scrims 40→75→90% became 10→40→65%;
+the heading patches, the red glow and shimmer round the call button and the
+amber glow under «أو» are gone. Text carries itself with `text-on-photo` (a
+shadow on the letters) and an ellipse of shade under the words only — **and
+that shade was measured, not judged**: each line's contrast against the
+brightest tenth of the photo behind it, letters hidden, text shadow not
+counted. Without the ellipse the headline was 1.4:1. `lib/find-moment.ts`
+picks the opener by Kuwait's hour and the three examples by part of day and
+season — no sea and no walk by day in summer, «بحر عقب المغرب» on a summer
+evening — and the static HTML keeps today's line word for word, which the
+unit test holds to `WAIN_AI_COPY.greeting`. The Flutter port replays all 288
+moments from the web.
+
+**`kuwaitHour` and friends live in `lib/kuwait-time.ts` now** (re-exported by
+hangout.ts and voice-lines.ts, so no caller changed): importing three lines
+of arithmetic from hangout.ts carried the planner into /find, +1.7K gzipped
+for nothing. The general form of `place-kit`'s lesson: **a small helper in a
+big module is a big import.**
+
+**سالم types like someone typing**, on the site and — for the first time — in
+the app, which had no indicator at all. The app's chat test needed an
+in-memory socket: real socket IO does not run inside a widget test's fake
+clock, and the 45s bound has to be driven by it.
+
+**The sun dial says two things**: «إلى وين؟» and «ابدأ». «اضغط ودوّر حواليك» had
+been untrue since the dial stopped ranking places around you. Where the tap
+leads is in the link's name. **Installed, the home page offers search once** —
+the pill under the dial is `standalone:hidden` because the tab bar has a
+search tab; the Flutter home drops it outright. Manifest and Android are
+portrait. Most of the app physics (no tap highlight, a felt press, no
+selectable chrome) was already there.
+
+**The call icon is a call**: `IconCall`, the handset with two voice arcs that
+sound while a call rings or she speaks. Her face (IconShouq) stays in the
+call sheet. This REVERSES a recorded decision — shouq-flow asserted «the
+launcher shows her face, not a handset» — on request; the reason it lost is
+that inside the query box the face read as an avatar beside the text, not as
+a button with a consequence.
+
+**All 52 places have their own icon.** The eight that drew their category's
+glyph got drawings (the blind-recognition candidates). PlaceIcon's fallback no
+longer reads the catalogue — it saved nothing measurable today, because those
+pages carry the catalogue by other roads, but it was the one lookup that put
+all 52 records behind every pin.
+
+**ElevenLabs: there was no newer version.** The widget's 0.18.3 and the
+Flutter SDK's 0.6.1 are each registry's latest, checked on the day. Voice:
+`tts.speed` 1.12 → 1.06, closing the one-number drift from the clip table that
+the شوق section records, and «قل لي» → «قول لي» in her first message. Version
+`agtvrsn_5501m3w14aamee9thg6g2jakdmak`; suite 45/50 before, 49/50 after, no new
+2/2 failure — and a speed cannot move a text-judged suite, so the 4 is the
+suite's own movement, not a gain. **The TTS model was NOT switched**: the
+owner has `docs/voice-sample/shouq-talya-{flash25,v4}-compare.mp3`, the same
+sentences on the live model and on eleven_v4, because nothing published says
+how v4 does Arabic and latency is not in a file.
+
+**iOS 16 is the floor** in both apps: every Xcode configuration and the
+Capacitor SPM platforms line (`patch-ios-project.mjs`, raise-only, read back;
+the template ships 15 in four places), the Flutter Runner and
+`MinimumOSVersion`. «Latest» is CI's `macos-latest` SDK. No Xcode here.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
