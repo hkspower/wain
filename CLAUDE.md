@@ -4044,7 +4044,8 @@ and subtle motion.
   picture, so the whole composition floats, not each item. Per-item motion needs layered art,
   and the tiles are owner-replaceable from /backends (`category_art`), so a layer set would
   disagree with a replaced picture.
-- `ART_VERSION` is `20261001c` in `tile-art.js` and `category.php`.
+- `ART_VERSION` is `20261001d` in `tile-art.js` and `category.php`.
+- **Men and Women models replaced 2026-10-01** with sharp generated studio photos (~1070px tall cut-outs, was ~650 and muddy), cut by `scripts/cut-model-subjects.py` (small holes only filled, edge un-matted from white). The owner approved them.
 
 ## The page body is white, header and footer stay dark — 2026-10-01
 
