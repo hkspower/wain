@@ -14,6 +14,7 @@
 // consent sheet IS exercised, up to «مو الحين».
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -24,7 +25,14 @@ import 'package:wain/app/app_state.dart';
 import 'package:wain/data/places.g.dart';
 import 'package:wain/main.dart';
 
-final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+// Assigned as main()'s FIRST statement, not as a top-level initialiser: Dart
+// initialises top-level finals lazily, on first use, and the first use was
+// inside shot() — after testWidgets had already installed flutter_test's own
+// LiveTestWidgetsFlutterBinding. On the first simulator run (run 36901958536)
+// that cost every screenshot («Binding is already initialized»), real network
+// (the test binding answers every HTTP request with 400, so no tile loaded),
+// and the driver's result, so `flutter drive` never exited.
+late final IntegrationTestWidgetsFlutterBinding binding;
 
 /// Live binding: `pump(d)` waits `d` of real time, so this is a real wait.
 Future<void> settle(WidgetTester t, [int ms = 600]) async {
@@ -64,6 +72,8 @@ Future<void> launch(WidgetTester t) async {
 }
 
 void main() {
+  binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
   testWidgets('home: the dial, and the tab bar to the three main screens', (
     t,
   ) async {
@@ -153,13 +163,23 @@ void main() {
     await shot('06-place-${first.slug}');
 
     // An iPhone has no back button: the edge swipe is the way back. The
-    // app is right-to-left, so the gesture starts at the RIGHT edge.
+    // app is right-to-left, so the gesture starts at the RIGHT edge — and in
+    // the upper part of the page, over the hero and the text: on the first
+    // simulator run a swipe at mid-height failed on both devices, where with
+    // real fonts the place's map can sit under the finger. What is under the
+    // start point is logged, so a red here says which.
     final size = t.view.physicalSize / t.view.devicePixelRatio;
-    final g = await t.startGesture(Offset(size.width - 4, size.height / 2));
+    final pad = t.view.padding.top / t.view.devicePixelRatio;
+    final start = Offset(size.width - 4, pad + size.height * 0.2);
+    final hit = HitTestResult();
+    t.binding.hitTestInView(hit, start, t.view.viewId);
+    debugPrint(
+      'swipe starts at $start over: '
+      '${hit.path.map((e) => e.target.runtimeType).take(14).join(' < ')}',
+    );
+    final g = await t.startGesture(start);
     for (var i = 1; i <= 10; i++) {
-      await g.moveTo(
-        Offset(size.width - 4 - i * size.width * 0.07, size.height / 2),
-      );
+      await g.moveTo(start - Offset(i * size.width * 0.07, 0));
       await t.pump(const Duration(milliseconds: 16));
     }
     await g.up();
