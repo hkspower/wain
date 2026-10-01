@@ -2042,3 +2042,23 @@ main [class~="items-center"][class~="flex-col"] > h1[class~="text-2xl"]::after {
   line-clamp: 2;
 }
 h2[class~="font-extrabold"] { font-weight: 700 !important; }
+@media (max-width: 767px) {
+  .cat-tile .eyebrow {
+    font-size: max(12px, min(13px, 3.2vw)) !important;
+    line-height: 1.25 !important;
+    letter-spacing: .03em !important;
+  }
+  [dir=rtl] .cat-tile .eyebrow { letter-spacing: 0 !important; }
+  .cat-tile .cat-tile__title {
+    font-size: min(25px, 6.1vw) !important;
+    line-height: 1.12 !important;
+    margin: 6px 0 0 !important;
+  }
+  .cat-tile.tile-acc .cat-tile__title { font-size: min(22px, 5.4vw) !important; }
+  .cat-tile > div.relative { width: 34% !important; }
+  .cat-tile span[class~="rounded-full"][class~="bg-brand"][class~="inline-block"] {
+    font-size: 12px !important;
+    padding: 3px 10px !important;
+    margin-bottom: 6px !important;
+  }
+}

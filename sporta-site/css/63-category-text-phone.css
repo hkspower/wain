@@ -1,0 +1,38 @@
+/* THE CATEGORY TILE TEXT, SIZED FOR A PHONE TILE THAT IS NOW FULL WIDTH — 2026-10-01,
+ * asked for as "make category text better alignment and increase font size to be fit
+ * for mobile version".
+ *
+ * 46-category-two-up.css sized the labels (9px kicker, 16px title, 12.5px for
+ * Accessories, a 9px offer chip) for tiles HALF this width; since 2026-10-01 each phone
+ * tile is a full-width square (36-), so the text sat tiny in a 412px box. Phones only —
+ * from 768px the tiles keep their own sizes.
+ *
+ * Sizes follow the width (vw) with a cap, so a 360px phone gets a smaller version of
+ * the same layout instead of a clipped one; the kicker and chip never go under the 12px
+ * floor every rig holds the site to. The block stays CENTRED in its 46% column — every
+ * tile's text already centred on the same line (measured: x=100 on all four) — so the
+ * change is size and the gap between the lines, not a new alignment. "Accessories" is
+ * one unbreakable word, so it takes the smaller of the two title sizes. */
+@media (max-width: 767px) {
+  .cat-tile .eyebrow {
+    font-size: max(12px, min(13px, 3.2vw)) !important;
+    line-height: 1.25 !important;
+    letter-spacing: .03em !important;
+  }
+  [dir=rtl] .cat-tile .eyebrow { letter-spacing: 0 !important; }
+  .cat-tile .cat-tile__title {
+    font-size: min(25px, 6.1vw) !important;
+    line-height: 1.12 !important;
+    margin: 6px 0 0 !important;
+  }
+  .cat-tile.tile-acc .cat-tile__title { font-size: min(22px, 5.4vw) !important; }
+  /* The white panel ends at a diagonal that comes closest to the text on Men and Women
+     (about 36% of the tile at the title's height), so the column is 34% wide: the
+     widest title then ends clear of the orange. */
+  .cat-tile > div.relative { width: 34% !important; }
+  .cat-tile span[class~="rounded-full"][class~="bg-brand"][class~="inline-block"] {
+    font-size: 12px !important;
+    padding: 3px 10px !important;
+    margin-bottom: 6px !important;
+  }
+}
