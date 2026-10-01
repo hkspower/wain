@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../ai/config.dart';
 import '../app/app_state.dart';
+import '../app/online.dart';
 import '../ai/salem_chat.dart';
 import '../ai/tools.dart';
 import '../data/catalogue.dart';
@@ -97,9 +98,21 @@ class _SalemScreenState extends State<SalemScreen> {
     _connect();
   }
 
+  /// No network when the chat tried to open: said at once, not after the
+  /// twelve-second connect timeout. «ابدأ من جديد» tries again.
+  bool _offline = false;
+
   void _connect() {
     _handle?.close();
+    if (Provider.of<Online?>(context, listen: false)?.offline ?? false) {
+      setState(() {
+        _offline = true;
+        _status = ChatStatus.error;
+      });
+      return;
+    }
     setState(() {
+      _offline = false;
       _status = ChatStatus.connecting;
       if (_entries.isNotEmpty) _entries.clear();
     });
@@ -186,7 +199,11 @@ class _SalemScreenState extends State<SalemScreen> {
           ChatStatus.connected => ChatCopy.connected,
           ChatStatus.disconnected => ChatCopy.disconnected,
           ChatStatus.error =>
-            kAgentEnabled ? ChatCopy.failed : ChatCopy.notConfigured,
+            _offline
+                ? ChatCopy.offline
+                : kAgentEnabled
+                ? ChatCopy.failed
+                : ChatCopy.notConfigured,
         };
 
   @override

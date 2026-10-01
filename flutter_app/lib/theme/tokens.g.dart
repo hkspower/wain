@@ -142,34 +142,119 @@ abstract final class WainText {
 
 abstract final class WainShadows {
   static const s2xs = <BoxShadow>[
-    BoxShadow(offset: Offset(0.0, 1.0), blurRadius: 0.0, spreadRadius: 0.0, color: Color.fromRGBO(20, 18, 15, 0.05)),
+    BoxShadow(
+      offset: Offset(0.0, 1.0),
+      blurRadius: 0.0,
+      spreadRadius: 0.0,
+      color: Color.fromRGBO(20, 18, 15, 0.05),
+    ),
   ];
   static const xs = <BoxShadow>[
-    BoxShadow(offset: Offset(0.0, 1.0), blurRadius: 1.0, spreadRadius: 0.0, color: Color.fromRGBO(20, 18, 15, 0.04)),
-    BoxShadow(offset: Offset(0.0, 1.0), blurRadius: 2.0, spreadRadius: 0.0, color: Color.fromRGBO(20, 18, 15, 0.05)),
+    BoxShadow(
+      offset: Offset(0.0, 1.0),
+      blurRadius: 1.0,
+      spreadRadius: 0.0,
+      color: Color.fromRGBO(20, 18, 15, 0.04),
+    ),
+    BoxShadow(
+      offset: Offset(0.0, 1.0),
+      blurRadius: 2.0,
+      spreadRadius: 0.0,
+      color: Color.fromRGBO(20, 18, 15, 0.05),
+    ),
   ];
   static const sm = <BoxShadow>[
-    BoxShadow(offset: Offset(0.0, 1.0), blurRadius: 1.0, spreadRadius: 0.0, color: Color.fromRGBO(20, 18, 15, 0.05)),
-    BoxShadow(offset: Offset(0.0, 2.0), blurRadius: 4.0, spreadRadius: -1.0, color: Color.fromRGBO(20, 18, 15, 0.07)),
+    BoxShadow(
+      offset: Offset(0.0, 1.0),
+      blurRadius: 1.0,
+      spreadRadius: 0.0,
+      color: Color.fromRGBO(20, 18, 15, 0.05),
+    ),
+    BoxShadow(
+      offset: Offset(0.0, 2.0),
+      blurRadius: 4.0,
+      spreadRadius: -1.0,
+      color: Color.fromRGBO(20, 18, 15, 0.07),
+    ),
   ];
   static const md = <BoxShadow>[
-    BoxShadow(offset: Offset(0.0, 1.0), blurRadius: 2.0, spreadRadius: 0.0, color: Color.fromRGBO(20, 18, 15, 0.05)),
-    BoxShadow(offset: Offset(0.0, 4.0), blurRadius: 8.0, spreadRadius: -2.0, color: Color.fromRGBO(20, 18, 15, 0.07)),
-    BoxShadow(offset: Offset(0.0, 8.0), blurRadius: 16.0, spreadRadius: -4.0, color: Color.fromRGBO(20, 18, 15, 0.05)),
+    BoxShadow(
+      offset: Offset(0.0, 1.0),
+      blurRadius: 2.0,
+      spreadRadius: 0.0,
+      color: Color.fromRGBO(20, 18, 15, 0.05),
+    ),
+    BoxShadow(
+      offset: Offset(0.0, 4.0),
+      blurRadius: 8.0,
+      spreadRadius: -2.0,
+      color: Color.fromRGBO(20, 18, 15, 0.07),
+    ),
+    BoxShadow(
+      offset: Offset(0.0, 8.0),
+      blurRadius: 16.0,
+      spreadRadius: -4.0,
+      color: Color.fromRGBO(20, 18, 15, 0.05),
+    ),
   ];
   static const lg = <BoxShadow>[
-    BoxShadow(offset: Offset(0.0, 1.0), blurRadius: 2.0, spreadRadius: 0.0, color: Color.fromRGBO(20, 18, 15, 0.05)),
-    BoxShadow(offset: Offset(0.0, 6.0), blurRadius: 12.0, spreadRadius: -3.0, color: Color.fromRGBO(20, 18, 15, 0.08)),
-    BoxShadow(offset: Offset(0.0, 16.0), blurRadius: 28.0, spreadRadius: -8.0, color: Color.fromRGBO(20, 18, 15, 0.07)),
+    BoxShadow(
+      offset: Offset(0.0, 1.0),
+      blurRadius: 2.0,
+      spreadRadius: 0.0,
+      color: Color.fromRGBO(20, 18, 15, 0.05),
+    ),
+    BoxShadow(
+      offset: Offset(0.0, 6.0),
+      blurRadius: 12.0,
+      spreadRadius: -3.0,
+      color: Color.fromRGBO(20, 18, 15, 0.08),
+    ),
+    BoxShadow(
+      offset: Offset(0.0, 16.0),
+      blurRadius: 28.0,
+      spreadRadius: -8.0,
+      color: Color.fromRGBO(20, 18, 15, 0.07),
+    ),
   ];
   static const xl = <BoxShadow>[
-    BoxShadow(offset: Offset(0.0, 1.0), blurRadius: 3.0, spreadRadius: 0.0, color: Color.fromRGBO(20, 18, 15, 0.05)),
-    BoxShadow(offset: Offset(0.0, 10.0), blurRadius: 20.0, spreadRadius: -5.0, color: Color.fromRGBO(20, 18, 15, 0.09)),
-    BoxShadow(offset: Offset(0.0, 28.0), blurRadius: 48.0, spreadRadius: -12.0, color: Color.fromRGBO(20, 18, 15, 0.09)),
+    BoxShadow(
+      offset: Offset(0.0, 1.0),
+      blurRadius: 3.0,
+      spreadRadius: 0.0,
+      color: Color.fromRGBO(20, 18, 15, 0.05),
+    ),
+    BoxShadow(
+      offset: Offset(0.0, 10.0),
+      blurRadius: 20.0,
+      spreadRadius: -5.0,
+      color: Color.fromRGBO(20, 18, 15, 0.09),
+    ),
+    BoxShadow(
+      offset: Offset(0.0, 28.0),
+      blurRadius: 48.0,
+      spreadRadius: -12.0,
+      color: Color.fromRGBO(20, 18, 15, 0.09),
+    ),
   ];
   static const s2xl = <BoxShadow>[
-    BoxShadow(offset: Offset(0.0, 2.0), blurRadius: 4.0, spreadRadius: 0.0, color: Color.fromRGBO(20, 18, 15, 0.06)),
-    BoxShadow(offset: Offset(0.0, 16.0), blurRadius: 32.0, spreadRadius: -8.0, color: Color.fromRGBO(20, 18, 15, 0.1)),
-    BoxShadow(offset: Offset(0.0, 40.0), blurRadius: 72.0, spreadRadius: -16.0, color: Color.fromRGBO(20, 18, 15, 0.15)),
+    BoxShadow(
+      offset: Offset(0.0, 2.0),
+      blurRadius: 4.0,
+      spreadRadius: 0.0,
+      color: Color.fromRGBO(20, 18, 15, 0.06),
+    ),
+    BoxShadow(
+      offset: Offset(0.0, 16.0),
+      blurRadius: 32.0,
+      spreadRadius: -8.0,
+      color: Color.fromRGBO(20, 18, 15, 0.1),
+    ),
+    BoxShadow(
+      offset: Offset(0.0, 40.0),
+      blurRadius: 72.0,
+      spreadRadius: -16.0,
+      color: Color.fromRGBO(20, 18, 15, 0.15),
+    ),
   ];
 }

@@ -33,6 +33,7 @@ dependencies:
   http: ^1.6.0
   audioplayers: ^6.8.1
   wakelock_plus: ^1.8.1
+  connectivity_plus: ^7.3.2
 
 dev_dependencies:
   flutter_test:

@@ -13,6 +13,8 @@ import 'ai/call_overlay.dart';
 import 'ai/elevenlabs_session.dart';
 import 'ai/keep_alive.dart';
 import 'app/deep_link.dart';
+import 'app/offline_banner.dart';
+import 'app/online.dart';
 import 'app/router.dart';
 import 'voice/platform_voice.dart';
 import 'voice/voice_service.dart';
@@ -38,6 +40,7 @@ class WainApp extends StatefulWidget {
   final MicCheck? checkMic;
   final CallKeepAlive? keepAlive;
   final String? agentId;
+  final Online? online;
   const WainApp({
     super.key,
     required this.state,
@@ -46,6 +49,7 @@ class WainApp extends StatefulWidget {
     this.checkMic,
     this.keepAlive,
     this.agentId,
+    this.online,
   });
 
   @override
@@ -59,7 +63,10 @@ class _WainAppState extends State<WainApp> {
   /// (`open_place`) cannot hang up her own call.
   late final CallKeepAlive _keepAlive = widget.keepAlive ?? PlatformKeepAlive();
 
+  late final Online _online = widget.online ?? Online.platform();
+
   late final CallController _call = CallController(
+    isOffline: () => _online.offline,
     sessionFactory: widget.sessionFactory ?? ElevenLabsSession.new,
     keepAlive: _keepAlive,
     agentId: widget.agentId,
@@ -152,6 +159,7 @@ class _WainAppState extends State<WainApp> {
     _call.removeListener(_syncSystemBack);
     _back.removeCallback(_onBack);
     _voice.dispose();
+    if (widget.online == null) _online.dispose();
     _call.dispose();
     super.dispose();
   }
@@ -163,6 +171,7 @@ class _WainAppState extends State<WainApp> {
         ChangeNotifierProvider<AppState>.value(value: widget.state),
         ChangeNotifierProvider<CallController>.value(value: _call),
         ChangeNotifierProvider<VoiceService>.value(value: _voice),
+        ChangeNotifierProvider<Online>.value(value: _online),
       ],
       child: MaterialApp.router(
         title: 'وين',
@@ -186,7 +195,9 @@ class _WainAppState extends State<WainApp> {
           child: Stack(
             textDirection: TextDirection.rtl,
             children: [
-              Positioned.fill(child: child ?? const SizedBox.shrink()),
+              Positioned.fill(
+                child: OfflineFrame(child: child ?? const SizedBox.shrink()),
+              ),
               const CallOverlay(),
             ],
           ),

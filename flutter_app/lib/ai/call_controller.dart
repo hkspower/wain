@@ -62,6 +62,7 @@ class CallController extends ChangeNotifier {
     this.dialTimeout = const Duration(seconds: 20),
     this.agentId,
     this.keepAlive,
+    this.isOffline,
   });
 
   final SessionFactory sessionFactory;
@@ -82,6 +83,10 @@ class CallController extends ChangeNotifier {
   /// microphone is granted, stopped on every way a call can end.
   final CallKeepAlive? keepAlive;
   bool _kept = false;
+
+  /// No network at all: the call fails at once with a sentence saying so,
+  /// instead of ringing for [dialTimeout] first.
+  final bool Function()? isOffline;
 
   CallPhase _phase = CallPhase.idle;
   String? _error;
@@ -140,6 +145,12 @@ class CallController extends ChangeNotifier {
     final id = agentId ?? kAgentId;
     if (id.isEmpty) {
       _error = CallCopy.failed;
+      _sheetOpen = true;
+      _set(CallPhase.failed);
+      return;
+    }
+    if (isOffline?.call() ?? false) {
+      _error = CallCopy.offline;
       _sheetOpen = true;
       _set(CallPhase.failed);
       return;

@@ -80,6 +80,7 @@ abstract final class CallCopy {
       'طوّلنا نرن وما وصلنا — تأكد إنك سمحت بالمايك وجرّب مرة ثانية.';
   static const micNote = 'يحتاج إذن المايك عشان تكلّمها.';
   static const micDenied = 'ما وصلنا صوتك — تأكد إن المايك مسموح للتطبيق.';
+  static const offline = 'ما فيه إنترنت — شوق تحتاج اتصال عشان ترد.';
   static const micBlocked =
       'المايك مقفول لوين — افتح الإعدادات وسمح له، وارجع اتصل.';
   static const openSettings = 'افتح الإعدادات';
@@ -101,6 +102,7 @@ abstract final class ChatCopy {
       'ما أقدر أفتح صفحات من هنا — دوّر بنفسك أو كلّمه بمكالمة.';
   static const failed = 'ما قدرنا نوصله — جرّب مرة ثانية.';
   static const notConfigured = 'المحادثة مو متاحة الحين.';
+  static const offline = 'ما فيه إنترنت — المحادثة تحتاج اتصال.';
 
   /// Read out while a reply is on its way; the dots carry it on screen.
   static const typing = 'يكتب…';

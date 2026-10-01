@@ -16,7 +16,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
 
+import '../app/online.dart';
 import '../data/models.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
@@ -85,6 +87,11 @@ class _WainMapState extends State<WainMap> {
   late final MapController _ctl = widget.controller ?? MapController();
   bool _engaged = false;
 
+  /// A tile failed to load: the map has no network behind it. Said in words
+  /// over the background, which was otherwise a blank sea with pins on it.
+  bool _tilesFailed = false;
+  bool _lastOffline = false;
+
   /// A different SET of places is a new answer and gets a new frame. The
   /// search screen keeps one map under a constant key, and `initialCameraFit`
   /// is read once — so a new search drew its pins wherever the last search
@@ -122,6 +129,10 @@ class _WainMapState extends State<WainMap> {
     // panning and zooming on, «ثبّت الخريطة» turns them off again. Pins answer
     // taps either way.
     final interactive = widget.interactive && _engaged;
+    final offline = Provider.of<Online?>(context)?.offline ?? false;
+    // Back online: the next tiles get a fresh chance to say otherwise.
+    if (!offline && _lastOffline) _tilesFailed = false;
+    _lastOffline = offline;
     final points = [for (final p in places) LatLng(p.lat, p.lng)];
     final url = tileUrl;
     return ClipRRect(
@@ -159,6 +170,15 @@ class _WainMapState extends State<WainMap> {
                         userAgentPackageName: 'com.wainkw.app',
                         minZoom: kMinZoom,
                         maxZoom: kMaxZoom,
+                        errorTileCallback: (_, _, _) {
+                          if (!_tilesFailed && mounted) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) {
+                                setState(() => _tilesFailed = true);
+                              }
+                            });
+                          }
+                        },
                       ),
                     MarkerLayer(
                       markers: [
@@ -189,6 +209,28 @@ class _WainMapState extends State<WainMap> {
                 ),
               ),
             ),
+            if (offline || _tilesFailed)
+              PositionedDirectional(
+                bottom: 24,
+                start: 8,
+                child: IgnorePointer(
+                  child: Container(
+                    key: const ValueKey('map-offline'),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.92),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(
+                      'الخريطة تحتاج إنترنت',
+                      style: wainText(WainText.xs, color: WainColors.ink700),
+                    ),
+                  ),
+                ),
+              ),
             if (widget.interactive)
               PositionedDirectional(
                 top: 8,
