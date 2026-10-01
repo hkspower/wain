@@ -4661,3 +4661,34 @@ main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"
 main > section:is([class~="max-w-3xl"], [class~="max-w-4xl"], [class~="max-w-xl"]) h3[class~="font-bold"] {
   font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
 }
+/* NO OVER-LARGE TEXT, AND A STEADIER TEXT STYLE — 2026-10-01, "improve all text style, dont use over
+ * large text". Measured across eleven pages at 390 / 768 / 1280 / 1600, both languages, the largest
+ * text on the shop was: the category tile titles 44px, the product name 41px, the "Shop by category"
+ * and "Best sellers" bars 40px (39 at 768, 31 on a phone), the 404 numeral 76px.
+ *
+ * THE CEILING: headings and titles stop at 32px from 768px up and 28px below it; the 404 numeral is
+ * 56px (a decoration, not a heading). Everything that was already at or under the ceiling is left
+ * exactly as it was — this only lowers the five that were over it, so nothing the owner tuned smaller
+ * (document pages, card captions, the checkout) is touched. test:text-cap measures the whole set.
+ *
+ * AND THREE QUIET STYLE RULES: headings balance their lines (no one-word second line), paragraphs
+ * avoid a single orphaned last word, and prices use tabular figures so a column of them lines up. */
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading {
+  font-size: 28px !important;
+}
+@media (max-width: 767.98px) {
+  main h1[class~="text-3xl"], main h1[class~="mb-8"] { font-size: 28px !important; }
+}
+@media (min-width: 768px) {
+  [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+  [data-theme] .sporta-home-products__heading {
+    font-size: 32px !important;
+  }
+  .cat-tile .cat-tile__title { font-size: clamp(22px, 2.6vw, 32px) !important; }
+}
+.product-title { font-size: clamp(22px, 2.3vw, 30px) !important; }
+p.font-display[class~="text-7xl"] { font-size: 56px !important; }
+h1, h2, h3 { text-wrap: balance; }
+main p, main li { text-wrap: pretty; }
+.price-card, .price-card *, article b, [class*="tabular"] { font-variant-numeric: tabular-nums; }
