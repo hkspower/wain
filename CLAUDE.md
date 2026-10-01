@@ -3114,10 +3114,24 @@ rows of discs), collars, plinths, gold finials with a glow, and a two-faced
 Liberation shaft with a window band on its saucer. Home JS is unchanged at
 120.8K — it is SVG in the HTML, not script.
 
-**What it does not fix:** on a wide screen the sun dial still sits over the main
-tower's two spheres, as it did before; only the second tower's sphere shows
-beside it. Moving the group right runs it into the right-hand block, so that is
-a composition decision, not a bug found here. Not live until a deploy.
+**The dial-over-spheres problem was fixed on 1 October, by moving the towers, not
+the dial.** The Kuwait Towers group is 120 units further right
+(`translate(866 372)`), the low block is drawn before it so the third spire
+stands in front, two palms and the birds were moved off the spires, and the
+tower shadow follows. Measured on a render at 1440: the big sphere clears the
+dial's edge with the pill on open sky. Alongside it: the wordmark's pin was
+being cut by `overflow-hidden` (`pt-6 sm:pt-8` now), the phone's reserve under
+the pill went `74vw` → `58vw` (a ~115px band of empty sky at 390), and the grass
+is a gradient (`wain-grass`) instead of one flat slab. **`flutter_app/assets/art/
+skyline.svg` is generated from this component** — `npm run flutter:art` after
+any change to it, or `audit:flutter` goes red. Not live until a deploy.
+
+**Adobe Photoshop was tried for this and could not be used from here.**
+`asset_initialize_file_upload` worked, but the PUT to `at.adobe.com` is refused
+at CONNECT with a 403 by the sandbox's egress gateway — the same class of block
+as Hostinger and ElevenLabs. Not routed around. And it would not have fixed
+these: they were layout and drawing problems, and the connector adjusts tone,
+colour and sharpness on a raster.
 
 ## The Arabic prose has been read, once, on purpose
 

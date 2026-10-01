@@ -190,8 +190,8 @@ function Palm() {
 const PALMS = [
   { x: 92, s: 1 },
   { x: 356, s: 0.82 },
-  { x: 620, s: 0.7 },
-  { x: 862, s: 0.9 },
+  { x: 650, s: 0.7 },
+  { x: 985, s: 0.9 },
   { x: 1156, s: 1.02 },
 ];
 
@@ -206,6 +206,14 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
       focusable="false"
     >
       <defs>
+        {/* The grass was one flat #267943 slab, the heaviest thing in the
+            drawing and it carried no light at all. Lit at the top where the
+            sun reaches it, settling to the old green and then a shade deeper. */}
+        <linearGradient id="wain-grass" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#3c9560" />
+          <stop offset="35%" stopColor="#267943" />
+          <stop offset="100%" stopColor="#1d6538" />
+        </linearGradient>
         <linearGradient id="wain-sky" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#ffffff" />
           <stop offset="45%" stopColor="#fbeed6" />
@@ -291,7 +299,8 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
         </g>
       </g>
 
-      {/* Birds */}
+      {/* Birds. At x 880–940 they flew through the second tower's tip once
+          the towers moved right; this is the open sky beside the clock tower. */}
       <g
         stroke="#4e483f"
         strokeWidth="2.5"
@@ -299,9 +308,9 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
         fill="none"
         opacity="0.55"
       >
-        <path d="M880 96 q9 -8 18 0" />
-        <path d="M904 82 q8 -7 16 0" />
-        <path d="M926 100 q7 -6 14 0" />
+        <path d="M1010 96 q9 -8 18 0" />
+        <path d="M1034 82 q8 -7 16 0" />
+        <path d="M1056 100 q7 -6 14 0" />
       </g>
       </g>
 
@@ -378,14 +387,32 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
         </g>
       </g>
 
-      {/* Kuwait Towers. Scaled 1.33× about the group's own middle, so the
+      {/* Low block, right. Drawn BEFORE the towers: the towers sit 120 units
+          further right than they used to (see below) and the third spire now
+          stands in front of this block instead of beside it. */}
+      <g fill="url(#wain-stone)">
+        <rect className="bldg" x="900" y="300" width="76" height="72" rx="6" />
+      </g>
+      <g fill="#dcc287" opacity="0.45">
+        <rect x="914" y="314" width="10" height="12" rx="2" />
+        <rect x="932" y="314" width="10" height="12" rx="2" />
+        <rect x="950" y="314" width="10" height="12" rx="2" />
+      </g>
+
+      {/* Kuwait Towers. Moved 120 units right (the first `translate`) so the
+          big sphere is no longer behind the sun dial on a wide screen: the
+          dial is centred, and at the old position it covered the main
+          tower's two spheres and the search pill sat on its shaft. Everything
+          to their right was kept clear of the move — the block above is
+          drawn first, and two palms below were nudged off the spires.
+          Scaled 1.33× about the group's own middle, so the
           three keep their spacing and the spheres stay round; the drawing's
           canvas grew upward by 110 units for exactly this — the main tip
           would be at y −77 in it. Everything below is in the old, unscaled
           coordinates. Each shaft has a lit edge and a shaded one, a collar
           where it meets a sphere, a plinth to stand on, and a small gold
           finial with a glow, which is what the real spires carry. */}
-      <g transform="translate(746 372) scale(1.33) translate(-746 -372)">
+      <g transform="translate(866 372) scale(1.33) translate(-746 -372)">
         {/* Plinths, behind the shafts */}
         <g fill="url(#wain-stone)" stroke="#c9ab72" strokeWidth="1.4">
           <rect x="662" y="361" width="44" height="11" rx="3" />
@@ -443,23 +470,13 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
         </g>
       </g>
 
-      {/* Low block, right */}
-      <g fill="url(#wain-stone)">
-        <rect className="bldg" x="900" y="300" width="76" height="72" rx="6" />
-      </g>
-      <g fill="#dcc287" opacity="0.45">
-        <rect x="914" y="314" width="10" height="12" rx="2" />
-        <rect x="932" y="314" width="10" height="12" rx="2" />
-        <rect x="950" y="314" width="10" height="12" rx="2" />
-      </g>
-
       {/* Palms */}
       {PALMS.map(({ x, s }) => (
         <use key={x} href="#wain-palm" transform={`translate(${x} 372) scale(${s})`} />
       ))}
 
       {/* Ground */}
-      <rect y="368" width="1200" height="52" fill="#267943" />
+      <rect y="368" width="1200" height="52" fill="url(#wain-grass)" />
       <rect y="368" width="1200" height="9" fill="#4ba368" />
 
       {/* Contact shadows, thrown to the right by the upper-left light, so
@@ -469,7 +486,7 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
         <ellipse cx="312" cy="371" rx="70" ry="3.5" />
         <ellipse cx="500" cy="371" rx="92" ry="3.5" />
         <ellipse cx="600" cy="371" rx="14" ry="3" />
-        <ellipse cx="770" cy="371" rx="118" ry="4.5" />
+        <ellipse cx="890" cy="371" rx="118" ry="4.5" />
         <ellipse cx="946" cy="371" rx="42" ry="3.5" />
         <ellipse cx="1062" cy="371" rx="54" ry="4" />
         {PALMS.map((p) => (

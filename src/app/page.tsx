@@ -45,11 +45,18 @@ export default function HomePage() {
           mirrors the section's own value, for the reason it always has: it
           reserves the skyline's own height below «دوّر باسم المكان» so the
           two never overlap — 65vw only has to clear the drawing's 35vw
-          floor, and it clears it with room to spare. */}
-      <section className="relative min-h-[74vw] overflow-hidden bg-sand-50 sm:min-h-[53vw]">
+          floor, and it clears it with room to spare.
+
+          **The phone reserve is `58vw` now, not `74vw`.** The drawing is 44vw
+          tall and its own top 110 units are empty sky, so 74vw left a visible
+          band of nothing between the search pill and the first tower on a
+          phone (about 115px at 390). 58vw still clears the tallest tip. And
+          the content's `pt-6`/`sm:pt-8` is for the wordmark's pin, which hangs
+          12–16px above the heading and was being cut by `overflow-hidden`. */}
+      <section className="relative min-h-[58vw] overflow-hidden bg-sand-50 sm:min-h-[53vw]">
         <KuwaitSkyline className="pointer-events-none absolute inset-x-0 bottom-0 aspect-[1200/530] h-auto w-full" />
 
-        <div className="relative mx-auto max-w-6xl px-2.5 pb-[74vw] pt-2 sm:px-4 sm:pb-3 sm:pt-3">
+        <div className="relative mx-auto max-w-6xl px-2.5 pb-[58vw] pt-6 sm:px-4 sm:pb-3 sm:pt-8">
           {/* Wordmark */}
           <div className="text-center">
             <span className="relative inline-block">
