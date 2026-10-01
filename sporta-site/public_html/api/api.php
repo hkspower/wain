@@ -1043,7 +1043,13 @@ if ($r === 'stock') {
 
 // ------------------------------------------------------------------- status
 if ($r === 'status') {
-    $q = $db->prepare('select payment_status, payment_method, amount from orders where track_id = ?');
+    // fulfilment_status and the three timestamps since 2026-10-01 ("improve order progress"): the track
+    // page showed "Paid" and an amount and nothing else, so a shipped order looked exactly like one
+    // nobody had touched. Still NO personal data here — no name, phone or address — because track_id is
+    // chosen by the client and is not a secret (see return_items above); what an order number alone may
+    // reveal is where the parcel is, not whose it is.
+    $q = $db->prepare('select payment_status, payment_method, amount, fulfilment_status, created_at, paid_at, fulfilled_at
+                         from orders where track_id = ?');
     $q->execute([trim((string)($_GET['id'] ?? ''))]);
     $row = $q->fetch();
     if (!$row) store_out(null);

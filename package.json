@@ -72,6 +72,7 @@
     "test:text-cap": "node scripts/text-cap-test.mjs",
     "test:photo-shape": "node scripts/photo-shape-test.mjs",
     "test:product-page-polish": "node scripts/product-page-polish-test.mjs",
+    "test:order-progress": "node scripts/order-progress-test.mjs",
     "scan:hero-quality": "python3 scripts/scan-hero-quality.py",
     "test:notification-center": "node scripts/notification-center-test.mjs",
     "test:best-sellers-bar": "node scripts/best-sellers-bar-test.mjs",

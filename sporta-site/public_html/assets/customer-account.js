@@ -238,7 +238,9 @@
       sub.appendChild(el('span', 'cua-pill', t(o.payment_status) + ' · ' + t(o.fulfilment_status)))
       var tr = el('a', 'cua-track', t('track')); tr.href = '/track'
       tr.addEventListener('click', function () { try { navigator.clipboard.writeText(o.track_id) } catch (e) {} ; tr.title = t('copied') })
-      row.appendChild(top); row.appendChild(sub); row.appendChild(tr)
+      row.appendChild(top); row.appendChild(sub)
+      if (window.SportaOrderProgress) row.appendChild(window.SportaOrderProgress.render(o, true))   // the five-step bar (order-progress.js)
+      row.appendChild(tr)
       box.appendChild(row)
     })
     sheet.appendChild(box)
