@@ -4125,18 +4125,20 @@ main div.grid:has(> article > a[class*="aspect-"]) > article {
 main div.grid > article > a[class*="aspect-"] {
   position: static !important;   /* so its absolute children resolve against the card */
   aspect-ratio: 1.09 / 1 !important;
+  outline: 0;                    /* no resting outline: 43- would draw a faint one */
   border-radius: 0;
 }
-/* The photo link is the card's keyboard stop, so it shows where focus is. (`outline: 0`
-   here had removed it: test:focus found four cards with no ring.) */
+/* The photo link is the card's keyboard stop, so it shows where focus is. (The rule above
+   has `outline: 0` at rest; this one is more specific, so the ring returns on focus only.) */
 main div.grid > article > a[class*="aspect-"]:focus-visible {
   outline: 3px solid #f56315;
   outline-offset: -3px;
 }
-main div.grid > article > a[class*="aspect-"]:has(> img:not([src^="data:"])) {
-  background: #fff !important;
-}
+/* The white ground sits on the photograph itself, which fills the link. It was
+   `a:has(> img…)`, and every card's subtree changing made the engine re-test that on
+   46 cards — scrolling /shop went from 34% to 48% slow frames (test:scroll). */
 main div.grid > article > a[class*="aspect-"] > img:not([src^="data:"]) {
+  background: #fff;
   object-position: 50% 40%;
 }
 
@@ -4160,8 +4162,10 @@ main div.grid > article > a[class*="aspect-"] > span[class~="absolute"][class~="
 }
 
 /* A card that is on sale AND a bestseller carries both: the sale pill keeps the
- * corner and the bestseller pill drops beneath it. */
-main div.grid > article > a[class*="aspect-"]:has(> .sale-chip) > span[class~="bg-brand"] {
+ * corner and the bestseller pill drops beneath it. (card-badges.js flags the link with
+ * data-sporta-sale, so this is an attribute test rather than a :has() that every card's
+ * subtree changes would have to re-evaluate.) */
+main div.grid > article > a[data-sporta-sale] > span[class~="bg-brand"] {
   top: 38px !important;
 }
 
@@ -4191,7 +4195,7 @@ main div.grid > article > a[class*="aspect-"]:has(> .sale-chip) > span[class~="b
   color: #fff;
   filter: drop-shadow(0 0 2px rgba(0, 0, 0, .9));
 }
-[data-theme] main div.grid > article > a[class*="aspect-"]:has(> img:not([src^="data:"])) > button[aria-pressed] > svg {
+[data-theme] main div.grid > article > a[class*="aspect-"] > img:not([src^="data:"]) ~ button[aria-pressed] > svg {
   color: #101216;
   filter: drop-shadow(0 0 2px rgba(255, 255, 255, .9));
 }

@@ -45,7 +45,7 @@ try {
       return {
         cols: gs.gridTemplateColumns.split(' ').length, ratio: photo.width / photo.height, bg: cs.backgroundColor, radius: parseFloat(cs.borderTopLeftRadius),
         border: cs.borderTopWidth, outline: getComputedStyle(photoLink).outlineStyle,
-        photoBg: getComputedStyle(mine.children[0]).backgroundColor,
+        photoBg: getComputedStyle(mine.children[0].querySelector('img') || mine.children[0]).backgroundColor,
         colGap: Math.min(Math.abs(r1.left - r0.right), Math.abs(r0.left - r1.right)), rowGap: below ? box(below).top - r0.bottom : null,
         heartRight: ch.right - hb.right, heartTop: hb.top - ch.top, heartDisc: getComputedStyle(heart, '::before').backgroundColor,
         plusRight: ch.right - pb.right, plusBottom: ch.bottom - pb.bottom, plusDisc: getComputedStyle(plus, '::before').backgroundColor, plusInPhoto: pb.top < box(mine.children[0]).bottom,

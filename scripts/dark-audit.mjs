@@ -110,6 +110,10 @@ const measure = async (path) => {
     })
     const bgOf = (el) => {
       for (let a = el; a; a = a.parentElement) {
+        // A control laid over a photograph sits on the PHOTOGRAPH's ground (the product
+        // card paints its white on the <img>, not on the link around it).
+        const ph = a.querySelector(':scope > img')
+        if (ph) { const pv = rgba(getComputedStyle(ph).backgroundColor); if (pv && pv.a > 0.95) return pv }
         const v = rgba(getComputedStyle(a).backgroundColor)
         if (v && v.a > 0.95) return v
       }
