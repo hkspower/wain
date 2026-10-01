@@ -11,7 +11,9 @@
  */
 (function () {
   'use strict'
-  if (!/^\/checkout(\/|$)/.test(location.pathname)) return
+  // Checked on every use, not once at load: reaching /checkout from the bag or "Buy now" is a
+  // client-side navigation, so a test made only when this file first ran never saw it.
+  function onCheckout() { return /^\/checkout(\/|$)/.test(location.pathname) }
 
   function fields(form) {
     return [].filter.call(form.querySelectorAll('input, select'), function (e) {
@@ -30,6 +32,7 @@
   }
 
   document.addEventListener('keydown', function (ev) {
+    if (!onCheckout()) return
     if (ev.key !== 'Enter' || ev.isComposing || ev.shiftKey || ev.ctrlKey || ev.metaKey) return
     var t = ev.target
     if (!t || t.tagName !== 'INPUT' || t.type === 'submit' || t.type === 'button') return
@@ -49,6 +52,6 @@
   var t = null
   new MutationObserver(function () {
     clearTimeout(t)
-    t = setTimeout(function () { document.querySelectorAll('form').forEach(label) }, 150)
+    t = setTimeout(function () { if (onCheckout()) document.querySelectorAll('form').forEach(label) }, 150)
   }).observe(document.body, { childList: true, subtree: true })
 })()

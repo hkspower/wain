@@ -64,6 +64,7 @@
     "test:cart": "node scripts/cart-test.mjs",
     "test:checkout": "node scripts/checkout-test.mjs",
     "test:keyboard-hints": "node scripts/keyboard-hints-test.mjs",
+    "test:checkout-fields": "node scripts/checkout-fields-test.mjs",
     "test:notification-center": "node scripts/notification-center-test.mjs",
     "test:best-sellers-bar": "node scripts/best-sellers-bar-test.mjs",
     "test:tile-size": "node scripts/tile-size-test.mjs",

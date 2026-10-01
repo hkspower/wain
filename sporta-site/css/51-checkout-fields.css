@@ -1,0 +1,34 @@
+/* CHECKOUT FIELDS — 2026-10-01, "improve checkout fields": bigger, clearer inputs, and the
+ * look of assets/checkout-fields.js (live hints, optional fields tucked away).
+ * Targets the form by the bundle's own stable ids (#f-name ...), not utility classes. */
+#f-name, #f-email, #f-governorate, #f-area, #f-block, #f-street, #f-building, #f-floor, #f-flat {
+  min-height: 52px;
+  font-size: 16px !important;
+  padding-block: 12px !important;
+}
+#f-phone { min-height: 50px; font-size: 16px !important; }
+#f-note { font-size: 16px !important; min-height: 76px; }
+label[for^="f-"] { font-size: 13.5px !important; font-weight: 700; margin-bottom: 8px !important; }
+form :is(#f-name, #f-email, #f-governorate, #f-area, #f-block, #f-street, #f-building, #f-floor, #f-flat, #f-note):focus {
+  border-color: var(--brand, #e0561c) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #e0561c) 28%, transparent) !important;
+}
+.mt-3.grid:has(#f-name) { row-gap: 18px; }
+/* hints */
+.cf-msg { margin: 6px 2px 0; font-size: 13px; line-height: 1.4; }
+.cf-msg[hidden] { display: none; }
+.cf-bad { color: #ff8a80; }
+.cf-ok { color: #6fd08c; font-weight: 700; text-align: end; margin-top: 4px; }
+[data-cf="bad"] :is(#f-name, #f-email, #f-governorate, #f-area, #f-block, #f-street, #f-building) { border-color: #ff6b5e !important; }
+[data-cf="bad"] #f-phone { outline: none; }
+[data-cf="bad"] div:has(> #f-phone) { border-color: #ff6b5e !important; }
+[data-cf="ok"] :is(#f-name, #f-email, #f-area, #f-block, #f-street, #f-building) { border-color: rgba(111, 208, 140, .7) !important; }
+/* optional fields tucked behind one button */
+.cf-collapsed { display: none !important; }
+.cf-more {
+  grid-column: 1 / -1; justify-self: start; min-height: 44px; padding: 8px 4px;
+  background: none; border: 0; color: var(--brand, #e0561c); font-weight: 700; font-size: 14px; cursor: pointer;
+}
+.cf-more[hidden] { display: none; }
+/* The bundle's own hint line (#h-phone, #h-email) says the same thing as our message; show one. */
+[data-cf="bad"] [id^="h-"] { display: none; }

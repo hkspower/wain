@@ -29,6 +29,7 @@
     if (ac === 'one-time-code') { put(e, 'inputmode', 'numeric'); plain(e); return }
     if (e.type === 'search' || e.getAttribute('role') === 'searchbox' || e.closest('[role=search]')) { put(e, 'enterkeyhint', 'search'); put(e, 'autocapitalize', 'none'); return }
     if (e.type !== 'text' && e.type !== '') return
+    if (e.getAttribute('inputmode') === 'numeric' || e.getAttribute('inputmode') === 'decimal') return   // block, floor, flat: digits, no capitals to manage
     if (ac === 'name' || /^(given|family|additional)-name$/.test(ac) || /address|street|city|area|block|name$/.test(ac)) { put(e, 'autocapitalize', 'words'); return }
     if (/(^|[^a-z])(code|otp|pin)([^a-z]|$)/.test(id)) plain(e)
   }
