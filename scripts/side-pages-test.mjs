@@ -26,7 +26,7 @@ for (const [name, vp, touch] of [['phone', { width: 390, height: 844 }, true], [
           faq: sum ? { h: Math.round(sum.getBoundingClientRect().height), chev: sc.content } : null }
       })
       const L = `${name} ${lang} ${path}:`
-      check(/Alexandria/.test(m.font) && m.weight === '700' && m.color === 'rgb(255, 255, 255)', `${L} title in Alexandria 700 (the quiet weight), white`, `${m.font} ${m.weight} ${m.color}`)
+      check(/Alexandria/.test(m.font) && m.weight === '700' && m.color === 'rgb(23, 26, 30)', `${L} title in Alexandria 700 (the quiet weight), dark ink on the white body (65-white-body.css)`, `${m.font} ${m.weight} ${m.color}`)
       check(m.size === h1px && m.bar === '56px x 4px'.replace(' x ', 'x'), `${L} ${h1px} with the 56x4 orange bar`, `${m.size} ${m.bar}`)
       check(m.scrollX <= 0, `${L} no sideways scroll`)
       check(m.badParas === 0, `${L} body copy is held to a readable line (68ch) (${m.paras} paragraphs)`)

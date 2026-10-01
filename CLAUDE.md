@@ -4055,3 +4055,9 @@ Asked for as "make main website body background is white color"; the owner chose
 - **New tokens** so a flipped `main` still reads: `--sp-chip` (chip fill), `--sp-card-edge` (card border), `--sp-field-edge` (input edge, 3:1 on white).
 - Titles needed extra `:not()`s to beat `58-page-titles.css` (0,3,2 `!important`).
 - `css-audit` skips elements inside `main` unless in an island; `test:white-body` asserts the body's own values. There is no light mode (one mode, dark), so nothing tests one.
+
+## Side-aligned section headings with "View all" — 2026-10-01
+
+"Shop by category" and "Best sellers" on the home page sit at the start side with a short orange accent before them; a "View all / عرض الكل" link to /shop sits on the end side (owner's choice of four). `css/66-section-heads.css` + `assets/section-heads.js`. The link is appended to the SECTION, not the `<h2>`, so the heading's accessible name stays the heading; it is placed absolutely over a row whose height is fixed by `--sh-row` (padding + line-height). The bar under the titles is hidden there.
+
+**Also new today:** the five hero photo slides carry neutral art (`assets/hero/*-neutral-*.webp`, `scripts/publish/publish-hero-neutral.php`): bright, no vignette, no tint, generated at 3840x1524. The old dark grade was IN the pixels; nothing in CSS paints over the photo. The centred art is still in the repository to undo. Slides 2 and 3 (`kind=drawn`, no phone picture) were not touched. And `test:side-pages` now expects DARK titles; it had been missed when the body went white.
