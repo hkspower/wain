@@ -57,6 +57,17 @@
  * behind a manual questionnaire, which is how a one-command release stops
  * being one. CFBundleDevelopmentRegion comes out of the template as `en` on an
  * app that is entirely Arabic and `dir="rtl"`.
+ *
+ * ── 5. THE OLDEST iOS IT RUNS ON: 16 ──────────────────────────────────────
+ *
+ * Asked for on 1 October: «iOS 16 → latest». The floor is
+ * IPHONEOS_DEPLOYMENT_TARGET in every build configuration of the project, and
+ * the Swift package's `platforms` when it declares one — the two disagreeing
+ * is a build that links against a newer floor than the app claims. «Latest»
+ * is the SDK, not a setting: CI builds on `macos-latest`, whose Xcode carries
+ * the newest iOS SDK. Raised, never lowered: a template that already asks
+ * for more than 16 is left alone, because lowering it would claim support for
+ * systems the plugins were never built for.
  */
 import { readFileSync, writeFileSync, existsSync, copyFileSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -68,6 +79,8 @@ const PLIST = join(APP, "App/Info.plist");
 const PBX = join(APP, "App.xcodeproj/project.pbxproj");
 const MANIFEST_SRC = join(ROOT, "ios-config/PrivacyInfo.xcprivacy");
 const MANIFEST_DST = join(APP, "App/PrivacyInfo.xcprivacy");
+const PACKAGE_SWIFT = join(APP, "CapApp-SPM/Package.swift");
+const MIN_IOS = 16;
 
 if (!existsSync(PLIST) || !existsSync(PBX)) {
   console.error(
@@ -187,6 +200,30 @@ if (pbx.includes("PrivacyInfo.xcprivacy")) {
   changes.push("PrivacyInfo.xcprivacy (added to the App target)");
 }
 
+/* ── the oldest iOS it runs on ───────────────────────────────────────────── */
+
+{
+  let p = readFileSync(PBX, "utf8");
+  let raised = 0;
+  p = p.replace(/IPHONEOS_DEPLOYMENT_TARGET = ([0-9.]+);/g, (whole, v) => {
+    if (parseFloat(v) >= MIN_IOS) return whole;
+    raised++;
+    return `IPHONEOS_DEPLOYMENT_TARGET = ${MIN_IOS}.0;`;
+  });
+  if (raised) {
+    writeFileSync(PBX, p);
+    changes.push(`IPHONEOS_DEPLOYMENT_TARGET → ${MIN_IOS}.0 (${raised} configuration(s))`);
+  }
+  if (existsSync(PACKAGE_SWIFT)) {
+    const swift = readFileSync(PACKAGE_SWIFT, "utf8");
+    const m = swift.match(/\.iOS\(\.v(\d+)\)/);
+    if (m && Number(m[1]) < MIN_IOS) {
+      writeFileSync(PACKAGE_SWIFT, swift.replace(m[0], `.iOS(.v${MIN_IOS})`));
+      changes.push(`Package.swift platforms .iOS(.v${m[1]}) → .iOS(.v${MIN_IOS})`);
+    }
+  }
+}
+
 /* ── read it back, rather than trust the writes ──────────────────────────── */
 
 const after = readFileSync(PLIST, "utf8");
@@ -196,6 +233,9 @@ const missing = [
   "CFBundleLocalizations",
 ].filter((k) => !after.includes(`<key>${k}</key>`));
 if (after.includes("<string>armv7</string>")) missing.push("armv7 is still declared");
+const targets = [...readFileSync(PBX, "utf8").matchAll(/IPHONEOS_DEPLOYMENT_TARGET = ([0-9.]+);/g)].map((m) => parseFloat(m[1]));
+if (!targets.length) missing.push("no IPHONEOS_DEPLOYMENT_TARGET in project.pbxproj");
+if (targets.some((t) => t < MIN_IOS)) missing.push(`a deployment target is below ${MIN_IOS}: ${targets.join(", ")}`);
 if (!readFileSync(PBX, "utf8").includes("PrivacyInfo.xcprivacy in Resources")) {
   missing.push("PrivacyInfo.xcprivacy is not in Copy Bundle Resources");
 }

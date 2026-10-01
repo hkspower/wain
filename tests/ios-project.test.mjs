@@ -57,6 +57,9 @@ ok("it ships NO location usage string (this is the crash)", before.NSLocationWhe
 ok("it ships NO microphone usage string", before.NSMicrophoneUsageDescription === undefined);
 ok("it declares armv7, a 32-bit capability", JSON.stringify(before.UIRequiredDeviceCapabilities) === '["armv7"]');
 ok("its development region is en, on an Arabic app", before.CFBundleDevelopmentRegion === "en");
+const targetsIn = (text) => [...text.matchAll(/IPHONEOS_DEPLOYMENT_TARGET = ([0-9.]+);/g)].map((m) => parseFloat(m[1]));
+const beforeTargets = targetsIn(readFileSync(PBX, "utf8"));
+ok(`its deployment target is below 16 (${beforeTargets.join(", ")})`, beforeTargets.length > 0 && beforeTargets.some((t) => t < 16));
 
 console.log("\n── after the patch ──");
 execFileSync("node", ["scripts/patch-ios-project.mjs"], { cwd: ROOT, stdio: "pipe" });
@@ -80,6 +83,14 @@ ok("CFBundleDevelopmentRegion is ar", after.CFBundleDevelopmentRegion === "ar");
 ok("CFBundleLocalizations lists ar first", JSON.stringify(after.CFBundleLocalizations) === '["ar","en"]');
 ok("armv7 is gone, arm64 declared", JSON.stringify(after.UIRequiredDeviceCapabilities) === '["arm64"]');
 ok("CFBundleDisplayName is still وين", after.CFBundleDisplayName === "وين");
+
+console.log("\n── iOS 16 and up, asked for on 1 October ──");
+const afterTargets = targetsIn(readFileSync(PBX, "utf8"));
+ok(`every build configuration targets iOS 16 (${afterTargets.join(", ")})`,
+  afterTargets.length === beforeTargets.length && afterTargets.every((t) => t === 16));
+const spm = join(IOS, "App/CapApp-SPM/Package.swift");
+const platform = existsSync(spm) ? readFileSync(spm, "utf8").match(/\.iOS\(\.v(\d+)\)/) : null;
+ok(`and the Swift package agrees (${platform ? platform[0] : "no platforms line"})`, !platform || Number(platform[1]) === 16);
 
 console.log("\n── the privacy manifest ships INSIDE the bundle ──");
 const manifest = join(IOS, "App/App/PrivacyInfo.xcprivacy");

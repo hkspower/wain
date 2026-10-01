@@ -170,8 +170,9 @@ export const SALEM_GREETING = "هلا! أنا سالم. قول لي وش تبي 
  * This said `@1` for months, described as «pinned to a major version so a
  * supply-chain change upstream cannot silently become part of this page». Both
  * halves were wrong. `@1` is a semver RANGE, so any 1.x would have been taken
- * silently — and there has never been a 1.x. The registry publishes 79
- * versions of this package, 0.1.0 through 0.18.1, and `latest` is 0.18.1. A
+ * silently — and there has never been a 1.x. The registry published 79
+ * versions of this package then, 0.1.0 through 0.18.1, and still no 1.x on
+ * 1 October, when `latest` was the 0.18.3 pinned below. A
  * range that matches nothing cannot resolve, so the <script> failed on every
  * call: `onerror` → `agentFailed` → «ما قدرنا نوصلك بشوق». Agent mode was
  * unreachable, every time, and the fallback text blamed the connection.

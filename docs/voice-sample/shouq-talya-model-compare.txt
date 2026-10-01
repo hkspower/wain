@@ -1,0 +1,30 @@
+شوق on the call's model against the newest one — the same sentences, the same
+voice, two renders, for choosing by ear. Nothing is switched by this file.
+
+    هلا والله! أنا شوق من «وين». قول لي شنو جوّك اليوم — بحر، قهوة، ولا طلعة
+    مع العيال؟ أوكي، قهوة هادية… مقاهي المباركية، چاي وقهوة عربية في حوش
+    السوق، وأحلى وقت لها عقب المغرب. أحطها لك على الخريطة؟
+
+Her first message (with «قول» where the live agent said «قل») and then the
+prompt's own worked example of a good answer — what a caller actually hears.
+
+    shouq-talya-flash25-compare.mp3   eleven_flash_v2_5   17.74s   301,928 bytes
+    shouq-talya-v4-compare.mp3        eleven_v4           17.52s   298,166 bytes
+
+    voice   Talya  rh16DBXwtscjdPFeMBYf  — both
+    format  128 kbps · 44.1 kHz mono — both
+    cost    flash 195.98 credits (≈ $0.036); v4 reported 0
+
+Generated 1 October through the ElevenLabs connector (flow
+SFC1tK579D45jq7cJ4yg). eleven_flash_v2_5 is what the live agent speaks with
+today; eleven_v4 is the newest model the agent's TTS setting accepts.
+
+What this cannot tell you, stated rather than implied:
+- The connector has no stability/similarity/speed parameters, so both used
+  the defaults, not the agent's 0.35/0.8 and its speed. The comparison is
+  model against model, not «the call now» against «the call after».
+- A call streams pcm_48000 to the browser; these are 128 kbps mp3s.
+- Nothing published says whether eleven_v4 is as good in Arabic as in
+  English. That is the question this pair exists to answer, by ear.
+- Latency is not in a file. flash is the low-latency model; whether v4 keeps
+  a phone call feeling like a phone call has to be heard on a real call.
