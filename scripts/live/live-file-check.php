@@ -26,7 +26,7 @@ $ROOT = '/home/u130124229/domains/sporta.com.kw/public_html';
 
 // path => sha256 in the repository.
 $WANT = [
-    '.htaccess' => 'bd3cac3b471c21e6e8dc5eeece5c23c4a02539b64c6a5248698d5b539e07456d',
+    '.htaccess' => '1092a1d47845dfb9e5e522f1a69c8bcb83619db923ba40cd9a83b7c7684afcaa',
     'admin.webmanifest' => '2a36ff5a76af4f6e43877dad32f0a1ea3edc3b7afb8d3a5c06ef0897a979ca94',
     'api/.htaccess' => '574ff6d3712c69ad6a119652dd976afbad0e065cec35c198ceed85bfc72c3be2',
     'api/accounting.mysql.sql' => '865458325a463d3127bbb45cb1a3d5c0c9a603c7656cdde85c280ffb7f8ed716',
@@ -158,6 +158,7 @@ $WANT = [
     'assets/index-TIUCmnwm.css' => '4c85029a7c26cdf79a3ca7520c0bfebe286a95f9bbcc33ad8a4908d81a145ad7',
     'assets/inventory-tools.js' => '75e09341fd3375e7a28a633ae42d91cd937ada9bc7386c507df9d4c283d3ce4b',
     'assets/invoices.js' => '4014c84e42538aae132ec42e63d05fb63c5147c6bdeef0ea0aa11670de845c2f',
+    'assets/keyboard-hints.js' => '490cd43112dcfb896d555f4f500f9ffb5feddbdd87b17c8d52cb8970279a50eb',
     'assets/legal-editor.js' => 'c04da2e4c6d32b14de7a09833b936af8ac24645c8c65bcb694106f07374bc369',
     'assets/legal-pages.js' => '0137d5a0971698f000015a8077c2c20582b2a2681a95d06a110c239ff8884dcf',
     'assets/login-log.js' => 'ec36b04dbb83525d48eab951785f74cf9b1063665862e0c1279655107934dfcc',
@@ -277,7 +278,7 @@ $WANT = [
     'images/rheo/PUT-LOGO-HERE.txt' => 'a4b7c2a548abf314ae74fb2f658db993f589697428ce841feb93dee4bf2b16f1',
     'images/sporta/PUT-LOGO-HERE.txt' => '1a3a4e03d799fea20641304473e95ded5b25321badebbffc6d3988985b797300',
     'images/vanquish/PUT-LOGO-HERE.txt' => '7b634c7c39ee98859bfca99b0bcc1b41e536a1e1b74f42780435a244f39d36d1',
-    'index.html' => 'ab984f0a00b4debdc2e8119c88fa59909229023c6bcf8d7677c33d03be42b3bc',
+    'index.html' => 'd488e8a87ea7b41c9468b760ce29b95d11c3e0bb40ebd943bdb3ebfdd446091a',
     'knet/.htaccess' => '75d8e990375bfd2c0e1f6304886d120aeb3676720d58ea2f40faabe224a6ba03',
     'knet/callback.php' => '4e217d7d4c8f59e6cce67b71ad9726297dcc83eb2c8dc2a08a56f95cc826d519',
     'knet/config.example.php' => '8b12abd7be354864ca71d69408462744c39a500a648110557aeddf13a30bad4c',
@@ -301,7 +302,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => 'e697770591a925cbb9d3f8aaa3e190dfe3c59ef8c2ac7efbda92d35ff7a0d5aa',
-    'sw.js' => '1800a5dca3c84b4435a1250675455dad0b35c9bc63475d362f29571671bce983',
+    'sw.js' => 'f1fb567e8717d3767a007e75d307e87bf5ee294797e6c4fbacfea2ee5896fdaf',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
