@@ -1,0 +1,20 @@
+/* PRODUCT PAGE POLISH — 2026-10-01, "scan product page then enhance page". Measured on desktop: the
+ * quantity -/+ buttons were 50x16px (a 16px-tall target); the footer's two link columns were pinned to
+ * the page's left edge and its middle while the logo, tagline and badges above them are centred; and a
+ * product with no description repeated its own name as the description (assets/product-polish.js tags
+ * that line, hidden here).
+ *
+ * LEFT ALONE ON PURPOSE: the title, price and buy row are CENTRED and the prose is start-aligned — the
+ * owner's choice of 2026-09-04 (see 10-product-buying-block.css), however it looks beside the panels. */
+[data-pp-echo] { display: none !important; }
+button[aria-label*="quantity"], button[aria-label*="الكمية"] {
+  min-width: 36px;
+  min-height: 36px;
+}
+@media (min-width: 640px) {
+  footer.app-footer div.grid[class~="grid-cols-2"][class~="text-center"] {
+    max-width: 640px;
+    margin-inline: auto;
+    text-align: center;
+  }
+}

@@ -180,6 +180,7 @@ $desc    = $isEn
     : 'وجهتك في الكويت للملابس والأدوات الرياضية. تسوّق أونلاين مع الدفع بكي نت وتوصيل سريع داخل الكويت.';
 $image   = OG_IMAGE;
 $ogType  = 'website';
+$productLd = null;   // server-drawn Product JSON-LD, product pages only (see below)
 $noindex = false;
 
 /* Static routes. Each entry: [ar title, en title, ar desc, en desc]. */
@@ -278,6 +279,71 @@ try {
                 $image = SITE . '/api/api.php?r=product_image&id=' . (int) $s['id']
                        . '&v=' . substr((string) $s['image_hash'], 0, 12);
             }
+
+            /* WHAT GOOGLE READS BEFORE ANY SCRIPT RUNS — 2026-10-01, "scan product page then enhance
+               page". The raw HTML carried a meta description that was just the product's name (every
+               product whose description is empty or is the name again) and NO Product data: the
+               price, availability and brand only appeared once the app had mounted and written them.
+               Both are drawn here from the same rows the page itself uses. FAIL-SAFE like the rest of
+               this file: any error below is caught by the outer try and the page is served with what it
+               had. */
+            $effective = $db->prepare('select coalesce(sum(stock), -1) as n, group_concat(case when stock > 0 then size end) as sizes from product_variants where slug = ?');
+            $effective->execute([$slug]);
+            $stockRow = $effective->fetch() ?: ['n' => -1, 'sizes' => null];
+            $tracked  = (int) $stockRow['n'] >= 0;                      // no variant rows = untracked, which sells
+            $inStock  = !$tracked || (int) $stockRow['n'] > 0;
+            $order    = defined('STORE_SIZES') ? STORE_SIZES : [];
+            $have     = array_values(array_filter(array_map('trim', explode(',', (string) $stockRow['sizes']))));
+            usort($have, static fn($a, $b) => (array_search($a, $order, true) <=> array_search($b, $order, true)));
+            $brandName = '';
+            if (!empty($p['brand_slug'])) {
+                $bq = $db->prepare('select name_en, name_ar from brands where slug = ? limit 1');
+                $bq->execute([$p['brand_slug']]);
+                if ($bRow = $bq->fetch()) $brandName = $isEn ? ($bRow['name_en'] ?: $bRow['name_ar']) : ($bRow['name_ar'] ?: $bRow['name_en']);
+            }
+            $days = (int) store_rule($db, 'return_days');
+
+            /* A DESCRIPTION THAT SAYS SOMETHING. Used only when the owner's own text is missing, shorter
+               than a sentence, or just the name again — an owner-written description always wins. */
+            $plain = static fn(string $t): string => mb_strtolower(preg_replace('/[\s\p{P}]+/u', ' ', trim($t)) ?? '');
+            $own   = summarise($body);
+            if ($own === '' || mb_strlen($own) < 40 || $plain($own) === $plain($name)) {
+                $sizeText = count($have) > 1 ? ($have[0] . '–' . $have[count($have) - 1]) : ($have[0] ?? '');
+                if ($isEn) {
+                    $desc = $name . ($brandName !== '' ? " by $brandName" : '') . " — KD $price"
+                          . ($sizeText !== '' ? ". Sizes $sizeText" : '')
+                          . ($days > 0 ? ". Free exchange within $days days" : '')
+                          . '. Delivery across Kuwait, pay by KNET or cash on delivery.';
+                } else {
+                    $desc = $name . ($brandName !== '' ? " من $brandName" : '') . " — $price د.ك"
+                          . ($sizeText !== '' ? ". المقاسات $sizeText" : '')
+                          . ($days > 0 ? ". استبدال مجاني خلال $days يومًا" : '')
+                          . '. توصيل داخل الكويت والدفع بكي نت أو نقدًا عند الاستلام.';
+                }
+                $desc = mb_strlen($desc) > 300 ? mb_substr($desc, 0, 297) . '…' : $desc;
+            }
+
+            $other = $isEn ? ($p['name_ar'] ?: '') : ($p['name_en'] ?: '');
+            $productLd = [
+                '@context' => 'https://schema.org',
+                '@type'    => 'Product',
+                'name'     => $name,
+                'sku'      => $slug,
+                'url'      => $canonical,
+                'image'    => $image,
+                'description' => $desc,
+                'offers'   => [
+                    '@type'         => 'Offer',
+                    'price'         => $price,
+                    'priceCurrency' => 'KWD',
+                    'availability'  => $inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+                    'itemCondition' => 'https://schema.org/NewCondition',
+                    'url'           => $canonical,
+                ],
+            ];
+            if ($other !== '' && $other !== $name) $productLd['alternateName'] = $other;
+            if ($brandName !== '')                  $productLd['brand'] = ['@type' => 'Brand', 'name' => $brandName];
+            if (!empty($p['category']))             $productLd['category'] = (string) $p['category'];
         } else {
             /* Unknown or deactivated slug: the SPA renders its not-found view,
                so make sure we do not invite Google to index it. */
@@ -352,6 +418,14 @@ $head .= '  <meta name="twitter:card" content="summary_large_image" />' . "\n";
 $head .= '  <meta name="twitter:title" content="' . e($title) . "\" />\n";
 $head .= '  <meta name="twitter:description" content="' . e($desc) . "\" />\n";
 $head .= '  <meta name="twitter:image" content="' . e($image) . "\" />\n";
+/* The server-drawn Product data. JSON_HEX_* so a product name containing </script> or an ampersand can
+   never close the tag or break the page; data-seo-ssr lets assets/seo-dedupe.js drop this copy once the
+   app has written its own, so a rendered page holds ONE Product, not two. */
+if ($productLd !== null) {
+    $head .= '  <script type="application/ld+json" data-seo-ssr="product">'
+          . json_encode($productLd, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)
+          . "</script>\n";
+}
 
 /* Remove the hardcoded originals so we do not emit each tag twice. The
    keywords tag is dropped entirely — no search engine has used it in over a

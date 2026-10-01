@@ -44,7 +44,7 @@ for (const lang of ['en', 'ar']) {
     const size = by(e => /space-y-3/.test(e.className))
     const buy = by(e => e.tagName === 'DIV' && /flex-wrap/.test(e.className) && e.querySelector('.btn-primary'))
     const list = by(e => e.tagName === 'UL')
-    const desc = by(e => e.tagName === 'P' && !/items-baseline/.test(e.className))
+    const desc = by(e => e.tagName === 'P' && !/items-baseline/.test(e.className) && !e.hasAttribute('data-pp-echo'))   // a description that only repeats the name is hidden (product-polish.js) and is not a block to measure
     const guide = by(e => e.hasAttribute('data-sporta-size-guide'))
     const blocks = { title: titleRow, price, size, buy, list, desc, guide }
     const boxes = {}
