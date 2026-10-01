@@ -464,6 +464,75 @@ const PASSCODE_MAX_FAILS = 5;
 const PASSCODE_ROLL_DAYS = 30;
 const PASSCODE_ABS_DAYS  = 90;
 
+/**
+ * One social link, as the single https URL it will be stored as — or null if it is not a link
+ * to that network. See the `social` branch of settings_save for why anything else is refused.
+ *
+ *   instagram   instagram.com/<name>      or a handle  (@sporta.kw, sporta.kw)
+ *   snapchat    snapchat.com/add/<name>   or a username
+ *   youtube     youtube.com/..., youtu.be/..., or an @handle
+ *   tiktok      tiktok.com/@<name>        or a handle
+ *   whatsapp    wa.me/<digits>, api.whatsapp.com/send?phone=<digits>, wa.link/<code>,
+ *               or a bare number (an eight-digit Kuwaiti one gains 965)
+ */
+function admin_social_url(string $kind, string $raw): ?string
+{
+    $raw = trim($raw);
+    if (mb_strlen($raw) > 200 || preg_match('/[\s<>"\'\\]/u', $raw)) return null;
+
+    $hosts = [
+        'instagram' => ['instagram.com', 'www.instagram.com'],
+        'snapchat'  => ['snapchat.com', 'www.snapchat.com'],
+        'youtube'   => ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'],
+        'tiktok'    => ['tiktok.com', 'www.tiktok.com', 'vm.tiktok.com'],
+        'whatsapp'  => ['wa.me', 'api.whatsapp.com', 'wa.link', 'whatsapp.com', 'www.whatsapp.com', 'chat.whatsapp.com'],
+    ];
+
+    // A full link: https only, no credentials in it, and the host must be the network's.
+    // WHAT COUNTS AS "A LINK" AND NOT "A HANDLE". A handle may itself contain a dot — sporta.kw is
+    // the shop's own — so "looks like a domain" cannot be the test: sporta.kw would be read as a
+    // site in Kuwait's domain and refused. It is a link only if it has a scheme, starts with //,
+    // or starts with one of the networks' own hosts; everything else is a handle, which must be
+    // plain characters and so can never smuggle in a path or another host.
+    $known = '(?:www\.|m\.)?(?:instagram|snapchat|youtube|tiktok)\.com|youtu\.be|vm\.tiktok\.com|wa\.me|wa\.link|api\.whatsapp\.com|(?:www\.|chat\.)?whatsapp\.com';
+    if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $raw) || str_starts_with($raw, '//') || preg_match('#^(?:' . $known . ')(?:/|$)#i', $raw)) {
+        $u = str_contains($raw, '://') || str_starts_with($raw, '//') ? $raw : 'https://' . $raw;
+        $p = parse_url($u);
+        if (!$p || strtolower((string)($p['scheme'] ?? 'https')) !== 'https' || isset($p['user']) || isset($p['pass']) || isset($p['port'])) return null;
+        $host = strtolower((string)($p['host'] ?? ''));
+        if (!in_array($host, $hosts[$kind], true)) return null;
+        $path = (string)($p['path'] ?? '');
+        $q = isset($p['query']) && $p['query'] !== '' ? '?' . $p['query'] : '';
+        if ($kind === 'whatsapp' && $host === 'wa.me') {
+            $d = preg_replace('/\D/', '', $path);
+            if (!preg_match('/^[1-9]\d{7,14}$/', $d)) return null;
+            return 'https://wa.me/' . $d;
+        }
+        if ($path === '' || $path === '/') return null;       // the network's front page is not a profile
+        // one spelling per network: instagram.com and www.instagram.com are the same page
+        $canon = ['instagram.com' => 'www.instagram.com', 'snapchat.com' => 'www.snapchat.com',
+                  'youtube.com' => 'www.youtube.com', 'tiktok.com' => 'www.tiktok.com'];
+        return 'https://' . ($canon[$host] ?? $host) . $path . $q;
+    }
+
+    // A handle or a number.
+    $h = ltrim($raw, '@');
+    if ($kind === 'whatsapp') {
+        $d = preg_replace('/\D/', '', store_ascii_digits($raw));
+        if (str_starts_with($d, '00')) $d = substr($d, 2);
+        if (strlen($d) === 8) $d = '965' . $d;
+        return preg_match('/^[1-9]\d{7,14}$/', $d) ? 'https://wa.me/' . $d : null;
+    }
+    if (!preg_match('/^[A-Za-z0-9._-]{1,60}$/', $h)) return null;
+    return match ($kind) {
+        'instagram' => 'https://www.instagram.com/' . $h,
+        'snapchat'  => 'https://www.snapchat.com/add/' . $h,
+        'youtube'   => 'https://www.youtube.com/@' . $h,
+        'tiktok'    => 'https://www.tiktok.com/@' . $h,
+        default     => null,
+    };
+}
+
 function passcode_cookie_name(): string {
     return store_is_https() ? '__Host-sporta_dev' : 'sporta_dev';
 }
@@ -2399,6 +2468,23 @@ if ($r === 'settings_save' && $method === 'POST') {
             'starts_at' => store_datetime($v['starts_at'] ?? null),
             'ends_at'   => store_datetime($v['ends_at'] ?? null),
         ]);
+    } elseif ($name === 'social') {
+        // THE SHOP'S SOCIAL LINKS. Each is a profile URL on that network's own domain, or just
+        // the handle (which is what an owner types), and either is stored as one https URL.
+        //
+        // A LINK TO ANYWHERE ELSE IS REFUSED, BY NAME. These URLs are printed in the footer of
+        // every page as an icon people trust, and an owner's typo or a pasted tracking redirect
+        // must not turn a Snapchat icon into a link to a stranger's site. Empty is fine and
+        // means "not shown" (for WhatsApp: "use the contact number").
+        $out = [];
+        foreach (['instagram', 'snapchat', 'youtube', 'tiktok', 'whatsapp'] as $kind) {
+            $raw = trim((string)($v[$kind] ?? ''));
+            if ($raw === '') { $out[$kind] = ''; continue; }
+            $url = admin_social_url($kind, $raw);
+            if ($url === null) store_fail('invalid_' . $kind);
+            $out[$kind] = $url;
+        }
+        store_setting_save($db, 'social', $out);
     } elseif ($name === 'contact') {
         // HOW TO REACH THE SHOP.
         //

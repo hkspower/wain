@@ -2761,6 +2761,18 @@ const STORE_SETTING_DEFAULTS = [
         'tiktok'    => '',
         'snapchat'  => '',
     ],
+    // THE SHOP'S SOCIAL LINKS (2026-10-01, "add social media setup at backends ... icons at
+    // footer with links for snapchat and instagram and youtube and tiktok and whatsapp
+    // business"). Full https URLs, normalised by admin.php on save. EMPTY MEANS "NOT SHOWN" for
+    // the four profiles, and for WhatsApp it means "use the contact number's wa.me link", which
+    // is what the footer already shows — so a shop that has never opened this card is unchanged.
+    'social'    => [
+        'instagram' => '',
+        'snapchat'  => '',
+        'youtube'   => '',
+        'tiktok'    => '',
+        'whatsapp'  => '',
+    ],
     // THE POLICY PAGES' PROSE. Privacy and Terms are each a single body of
     // text below their "Last updated" line; Returns is the one descriptive
     // paragraph above its order-lookup card and size/fit picker, which stay

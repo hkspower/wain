@@ -221,6 +221,9 @@ $STORE_LIMITS = [
     // — so it is bounded like the other reads rather than left off the table,
     // where the fail-closed default below would throttle it at half the rate.
     'contact'     => [600, 60],
+    // The shop's social profile links, read by assets/social-links.js for the footer icons on
+    // every page. Same bucket as contact: owner-entered public URLs, nothing about a customer.
+    'social'      => [600, 60],
     // The policy pages' prose, read by assets/legal-pages.js on Privacy,
     // Terms and Returns. Same bucket as footer/theme/contact: owner text, no
     // customer in it, fetched on every visit to one of three pages.
@@ -547,6 +550,12 @@ if ($r === 'contact') {
     // for it to be done differently.
     $c['phone_e164'] = preg_replace('/[^0-9+]/', '', (string)$c['phone']);
     store_out($c);
+}
+
+// The social profile links, for the footer icons (assets/social-links.js) and for the panel's
+// own Social media card, which reads them back from here for the reason the contact card does.
+if ($r === 'social') {
+    store_out(store_setting($db, 'social'));
 }
 
 // The footer's prose, for assets/footer.js — and for the panel, which reads it
