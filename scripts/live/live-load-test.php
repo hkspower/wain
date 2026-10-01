@@ -84,16 +84,18 @@ foreach ([1 => 6, 5 => 8, 10 => 10, 15 => 12] as $conc => $each) {
     $all = 0; $bad = 0;
     foreach ($PAGES as $name => $_) {
         $rows = $r[$name] ?? [];
-        $ok = 0; $lim = 0; $err = 0; $ms = [];
+        $ok = 0; $lim = 0; $err = 0; $ms = []; $codes = [];
         foreach ($rows as [$code, $t, $curl]) {
             $ms[] = $t; $all++;
+            if (!($curl === 0 && $code >= 200 && $code < 400)) { $k = 'h' . $code . ($curl !== 0 ? '/c' . $curl : ''); $codes[$k] = ($codes[$k] ?? 0) + 1; }
             if ($curl !== 0 || $code >= 500 && $code !== 503 || $code === 0) { $err++; $bad++; }
             elseif ($code === 429 || $code === 503) { $lim++; $bad++; }
             elseif ($code >= 200 && $code < 400) $ok++;
             else { $err++; $bad++; }
         }
-        $line[] = sprintf('%s ok=%d/%d lim=%d err=%d p50=%d p95=%d max=%d', $name, $ok, count($rows), $lim, $err,
-            pct($ms, 0.5), pct($ms, 0.95), $ms ? (int) round(max($ms)) : 0);
+        $line[] = sprintf('%s ok=%d/%d lim=%d err=%d p50=%d p95=%d max=%d%s', $name, $ok, count($rows), $lim, $err,
+            pct($ms, 0.5), pct($ms, 0.95), $ms ? (int) round(max($ms)) : 0,
+            $codes ? ' [' . http_build_query($codes, '', ',') . ']' : '');
     }
     echo sprintf("C%d reqs=%d bad=%d wall=%.1fs rps=%.1f | %s\n", $conc, $all, $bad, $wall, $all / max($wall, 0.001), implode(' | ', $line));
     flush();
