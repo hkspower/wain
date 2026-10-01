@@ -648,7 +648,40 @@ are **not the fix**. **Stop adding words to the prompt for this one.** What woul
 work is upstream of it: the line she copies lives in `places.ts`'s best-time field
 for the beaches, so either that field stops being a year-round statement the prompt
 has to undo (a KB change, which means a new pinned commit and a new document), or
-the primary model is changed. Neither was done.
+the primary model is changed. The first was tried, and it did not work (next
+paragraph); the second was not.
+
+**The KB change was tried on 1 October — v6 — and rolled back, because it did not
+move the primary model.** `scripts/wain-ai-brief.mjs` now writes, for the 27
+places the summer sun ruins (not `indoor`, not `summerOk`), «أحسن وقت: بالصيف
+(يونيو–سبتمبر): عقب المغرب بس، بالنهار الحر ما يسمح؛ وباقي السنة: <old line>»,
+mirroring `bakesInTheSun()` in `hangout.ts`; three schedule-bound places (سوق
+السمك, مزارع الوفرة, بيت لوذان) are exempt because inventing an hour for them
+would be inventing a fact. Commit `24b18c04`, document `QuTdGKOBOWd3gPSCW80m`
+(76,121 bytes), agent version `agtvrsn_6301…`.
+
+Measured on it: `منطق ٦` ×5 passed 5/5 — **and all five were answered by
+`gpt-4o`**, which already passed it before, so that reading proves nothing about
+the primary. The full suite then scored **44/50 against 47/50**, and the failures
+that came from `gemini-2.5-flash` included the same two defects the change was
+for: `منطق ٦` said «العصر المتأخر» and the Gulf Road cafés test said «من العصر» —
+**with the summer-first line sitting in the document it reads.** So the model
+reads the line and still reproduces the year-round tail after «وباقي السنة»; a
+prefix is not an override for it. The other four failures (`ذكاء ٣`, `report_gap`
+«said it recorded it and called nothing», `ذكاء ٥` ×2 on `gpt-4o`, the Avenues
+on a Friday morning) are not in the best-time lines and are the usual
+movement under this suite — but with no gain on the target and a lower score, the
+agent was put **back on v5** (`ynRNIOiliu2vKBN4d9H6`, version
+`agtvrsn_3801m3tw9ty8ezs9wv8yh8k9mkx0`, config checked intact from the reply).
+
+**The repository is therefore AHEAD of the live document**, again: the committed
+`docs/wain-ai-kb.md` is the v6 text and nothing reads it. Do not re-attach v6
+hoping it helps; what is left untried is a KB that **drops the year-round tail
+altogether** for those 27 places (the line then says only «عقب المغرب» in summer
+and the winter time lives somewhere the model does not copy from), or changing
+the primary model. Either is a deliberate decision, not a cleanup. And when
+reading a pass, read `charging.llm_usage` first: **a pass by the backup model is
+not a pass by the model callers get.**
 
 **One real defect in the prompt was found on the way, and fixed: the «مثال على رد
 ممتاز» said «أحلى وقت لها العصر وبعد المغرب»** — the worked example of a good
