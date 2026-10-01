@@ -520,10 +520,10 @@ function Flag() {
     <g data-clear="flag" transform="translate(548 300)">
       <rect x="-2" y="0" width="4" height="72" rx="2" fill="#8b6836" />
       <circle cx="0" cy="-1" r="2.6" fill="#e8b23a" />
-      <path d={band(2, 12)} fill="#2f8a4e" />
+      <path d={band(2, 12)} fill="#007a3d" />
       <path d={band(12, 22)} fill="#ffffff" />
-      <path d={band(22, 32)} fill="#dc2f25" />
-      <path d={`M2 ${r1(2 + wave(2))} L22 ${r1(12 + wave(22))} L22 ${r1(22 + wave(22))} L2 ${r1(32 + wave(2))} Z`} fill="#14120f" />
+      <path d={band(22, 32)} fill="#ce1126" />
+      <path d={`M2 ${r1(2 + wave(2))} L22 ${r1(12 + wave(22))} L22 ${r1(22 + wave(22))} L2 ${r1(32 + wave(2))} Z`} fill="#000000" />
       {/* the light and shade a ripple throws across it */}
       <path d={band(2, 32)} fill="url(#wain-flag-shade)" />
     </g>
@@ -623,6 +623,16 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
           <stop offset="30%" stopColor="#fffdf8" />
           <stop offset="75%" stopColor="#e2cc9e" />
           <stop offset="100%" stopColor="#c9ab72" />
+        </linearGradient>
+        {/* Kuwait Towers' shafts are steel, not sand: a cool pale grey-white lit
+            a third of the way in, falling to a blue-grey shadow side. They shared
+            the warm stone gradient with the mosque and the blocks, which is why
+            the landmark read as cream. */}
+        <linearGradient id="wain-steel" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#e3eaee" />
+          <stop offset="30%" stopColor="#fafcfd" />
+          <stop offset="75%" stopColor="#c3cfd6" />
+          <stop offset="100%" stopColor="#93a4af" />
         </linearGradient>
         {/* A square tower: the lit front face, then a hard edge into the
             side face. */}
@@ -748,6 +758,7 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
       <style>{`
         .bldg { stroke: #c9ab72; stroke-width: 2.5; stroke-linejoin: round; }
         .spire { stroke: #c9ab72; stroke-width: 2; stroke-linejoin: round; }
+        .steel { stroke: #9fb0ba; }
         .orb { stroke: #1f7fb8; stroke-width: 2.5; }
       `}</style>
 
@@ -923,33 +934,33 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
         </g>
 
         {/* Third, bare spire */}
-        <path className="bldg" d="M804 372 L812 150 L818 150 L826 372 Z" fill="url(#wain-shaft)" />
-        <path d="M815 150 L818 150 L826 372 L815 372 Z" fill="#8a6f47" opacity="0.18" />
-        <path className="spire" d="M812 150 L815 96 L818 150 Z" fill="url(#wain-shaft)" />
+        <path className="bldg steel" d="M804 372 L812 150 L818 150 L826 372 Z" fill="url(#wain-steel)" />
+        <path d="M815 150 L818 150 L826 372 L815 372 Z" fill="#3f4f5a" opacity="0.18" />
+        <path className="spire steel" d="M812 150 L815 96 L818 150 Z" fill="url(#wain-steel)" />
         <circle cx="815" cy="96" r="6" fill="#fccb4d" opacity="0.4" />
         <circle cx="815" cy="96" r="2.2" fill="#e8b23a" />
 
         {/* Second tower, one sphere */}
-        <path className="bldg" d="M744 372 L753 172 L761 172 L770 372 Z" fill="url(#wain-shaft)" />
-        <path d="M757 172 L761 172 L770 372 L757 372 Z" fill="#8a6f47" opacity="0.2" />
+        <path className="bldg steel" d="M744 372 L753 172 L761 172 L770 372 Z" fill="url(#wain-steel)" />
+        <path d="M757 172 L761 172 L770 372 L757 372 Z" fill="#3f4f5a" opacity="0.2" />
         <path d="M754.5 226 L746.5 366" stroke="#ffffff" strokeWidth="1.1" strokeLinecap="round" opacity="0.6" />
-        <path className="spire" d="M753 172 L757 104 L761 172 Z" fill="url(#wain-shaft)" />
+        <path className="spire steel" d="M753 172 L757 104 L761 172 Z" fill="url(#wain-steel)" />
         <circle cx="757" cy="104" r="7" fill="#fccb4d" opacity="0.4" />
         <circle cx="757" cy="104" r="2.4" fill="#e8b23a" />
-        <ellipse cx="757" cy="224" rx="9" ry="3" fill="#8a6f47" opacity="0.5" />
+        <ellipse cx="757" cy="224" rx="9" ry="3" fill="#3f4f5a" opacity="0.5" />
         <Orb cx={757} cy={196} r={30} lats={[-52, -24, 4, 32]} perRow={6} span={66} d={2.9} />
 
         {/* Main tower, two spheres */}
-        <path className="bldg" d="M666 372 L678 130 L690 130 L702 372 Z" fill="url(#wain-shaft)" />
-        <path d="M684 130 L690 130 L702 372 L684 372 Z" fill="#8a6f47" opacity="0.2" />
+        <path className="bldg steel" d="M666 372 L678 130 L690 130 L702 372 Z" fill="url(#wain-steel)" />
+        <path d="M684 130 L690 130 L702 372 L684 372 Z" fill="#3f4f5a" opacity="0.2" />
         <path d="M680.5 226 L668.5 366" stroke="#ffffff" strokeWidth="1.3" strokeLinecap="round" opacity="0.65" />
-        <path className="spire" d="M678 130 L684 34 L690 130 Z" fill="url(#wain-shaft)" />
+        <path className="spire steel" d="M678 130 L684 34 L690 130 Z" fill="url(#wain-steel)" />
         <circle cx="684" cy="34" r="8" fill="#fccb4d" opacity="0.4" />
         <circle cx="684" cy="34" r="2.8" fill="#e8b23a" />
         {/* The restaurant sphere hangs on a short neck, with a collar */}
-        <ellipse cx="684" cy="118" rx="9" ry="3" fill="#8a6f47" opacity="0.5" />
+        <ellipse cx="684" cy="118" rx="9" ry="3" fill="#3f4f5a" opacity="0.5" />
         <Orb cx={684} cy={96} r={22} lats={[-42, -8, 26]} perRow={5} span={62} d={2.5} />
-        <ellipse cx="684" cy="221" rx="13" ry="4" fill="#8a6f47" opacity="0.5" />
+        <ellipse cx="684" cy="221" rx="13" ry="4" fill="#3f4f5a" opacity="0.5" />
         <Orb cx={684} cy={176} r={46} lats={[-58, -34, -10, 14, 38]} perRow={8} span={70} d={3.6} />
       </g>
 
@@ -959,8 +970,8 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
         <rect className="bldg" data-clear="clock" x="1028" y="180" width="42" height="76" rx="6" fill="url(#wain-box)" />
         <rect x="1003" y="249" width="92" height="6" rx="2.4" fill="#ecdcb4" stroke="#c9ab72" strokeWidth="1" />
         <rect x="1025" y="177" width="48" height="5" rx="2" fill="#ecdcb4" stroke="#c9ab72" strokeWidth="1" />
-        <path d="M1028 180 h21 v-40 Z" fill="#2a9c7c" />
-        <path d="M1049 140 v40 h21 Z" fill="#146151" />
+        <path d="M1028 180 h21 v-40 Z" fill="#3f7fc8" />
+        <path d="M1049 140 v40 h21 Z" fill="#1e4f93" />
         <path d="M1049 140 v-8" stroke="#c9a55f" strokeWidth="1.5" strokeLinecap="round" />
         <circle cx="1049" cy="130" r="2.4" fill="#e8b23a" />
         <circle cx="1049" cy="212" r="14" fill="#faf4e6" stroke="#c9a55f" strokeWidth="3" />

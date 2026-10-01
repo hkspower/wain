@@ -3284,6 +3284,35 @@ as Hostinger and ElevenLabs. Not routed around. And it would not have fixed
 these: they were layout and drawing problems, and the connector adjusts tone,
 colour and sharpness on a raster.
 
+## The hero's colours, checked against what they depict — 1 October
+
+Asked to «improve colors accuracy», and «accurate against what» had to be asked:
+the answer was the home hero. **There is no photograph to measure against** (Stock
+licensing is refused and its Kuwait results are mostly not Kuwait, see the
+real-images note), so «accurate» here means three things that CAN be checked:
+a published colour, this repository's own knowledge base, and the material.
+
+- **The flag now carries the official colours**, `#007a3d` / `#ffffff` / `#ce1126`
+  / `#000000`. It was `#2f8a4e` and `#dc2f25`, the palm's green and the brand red —
+  a flag is the one drawing where a near colour is simply wrong.
+- **Seif Palace's clock tower roof is blue** (`#3f7fc8` lit, `#1e4f93` shaded). It
+  was teal, and the knowledge base says «بلاط أزرق وذهبي» in so many words.
+- **Kuwait Towers' shafts and spires are steel** (`wain-steel`: cool white to a
+  blue-grey shadow, outline `.steel`, shade `#3f4f5a`). They shared `wain-shaft`,
+  the warm stone gradient of the mosque and the blocks, which made the one
+  landmark every visitor knows read as cream. **A shared gradient is how a drawing
+  ends up one colour:** the fix is a gradient per material, not a nudge to the
+  shared one.
+- **A class outranks an attribute, again** — `.bldg { stroke: #c9ab72 }` would have
+  outlined cool steel in sand, so the shafts take `className="bldg steel"` and a
+  later `.steel` rule. The Flutter exporter bakes any element whose class contains
+  `bldg|spire|orb`, so `steel` rides along; `npm run flutter:art` was re-run.
+
+**Not changed, and why.** The sea stays the turquoise-leaning blue the sea section
+records; the Liberation Tower's concrete and glass, and the Grand Mosque's stone,
+are plausible but **unverified** — no reference here says otherwise, and changing
+them on memory would be inventing accuracy.
+
 ## The home hero's dial and pill lay over the drawing at 9 of 14 widths — 1 October
 
 Asked to «improve main hero details — scan, then improve». The scan that
