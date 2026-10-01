@@ -86,7 +86,7 @@ $WANT = [
     'api/sizeadvice.mysql.sql' => 'd4aa5746daa9d721839661586dfafd416fdbc9607c8fd33d83a1181531d070ac',
     'api/stock.mysql.sql' => '2568407818e9cd7d9f3eac06b8513ea20998b74e686e335ca8e84e82eba0bf34',
     'api/stocklog.mysql.sql' => '3fba690958ceb6959f24fdd34a455e9fc34d6e8f8308a9dd53136eb76c900680',
-    'api/store.php' => '0dcf40986bd19c1dfeae21d9fccaad9e453d1bce235ffa9d592fbaac6f7ceac6',
+    'api/store.php' => 'ffa7e2bfcc8e99d4f3bb51142f518380de5a6e276f16c2743d7e37227c61691f',
     'api/totp.mysql.sql' => 'a6e7383ae32985a2dac5c75ead5533360bae4f8f78fa56217e6b9e37868c5e40',
     'api/wallet-assets/icon.png' => '917dcf6dfdd56040ed8348a95013cfb440172ed7fbc46bf7c52f06283ec2e899',
     'api/wallet-assets/icon@2x.png' => '50551289fcaba883c8631682afa507bea7404365f569ea96cb3ea63c0566b167',
@@ -153,7 +153,7 @@ $WANT = [
     'assets/force-password-notice.js' => '79f095525ce54694729e775e0c84c18f4be6991c402a04483bb55a1718d54c83',
     'assets/google-signin.js' => 'e66ab29ec70a794ffee0945c0fa69d50c30334ad90f56a56aa49ba12da58bd97',
     'assets/hero-slides.js' => '242885c15a5e3e00d5689a499af265b2f6e9761c828c9e80e279d5d543241e59',
-    'assets/home-products.js' => '3ba34d73b31a2ad3db4f3d7a80c6007b665f6146fcd670155f65a2e8d2007659',
+    'assets/home-products.js' => '33bd637de993cbbfd0f8384794c43caada037664824642e29e4e613ccee1e56b',
     'assets/index-5HbquisI.js' => '881eece4525a72074c514b348be352f5056e3f9030ed9900dc5cc02a2368306c',
     'assets/index-TIUCmnwm.css' => '4c85029a7c26cdf79a3ca7520c0bfebe286a95f9bbcc33ad8a4908d81a145ad7',
     'assets/inventory-tools.js' => '75e09341fd3375e7a28a633ae42d91cd937ada9bc7386c507df9d4c283d3ce4b',
@@ -175,7 +175,7 @@ $WANT = [
     'assets/payment.js' => '040e11fb1ad20bb5287e6df1da9f2181d8f3b70788c97005607382cb0ad59e5a',
     'assets/payments-screen.js' => '7fde733b287874c925ab91b3d5525b0e9f0b10bef90fe25fc17b9861379af5e5',
     'assets/product-attrs.js' => 'a737d3dfe647e114380de1c271b31768c28696599a9d880e780656880e9c2075',
-    'assets/product-cards.js' => 'd9a709eb68c4d87444b11073dce4af0d51bd20dbc90f03a97fe87c1d3cc18d3d',
+    'assets/product-cards.js' => '63c037fecc9332bca5d39229824f959ec830a4488efa96981bfdb61bd40cdf81',
     'assets/product-mobile-layout.js' => '482120d0035374350500e1daeaf29862806264f11e43cb26bed2f6df51f154af',
     'assets/product-photos.js' => 'a21739795ae5267bbf0dde2956f0190e8e128405fd7e27ad4611517a8892f4f6',
     'assets/product-research.js' => '75c670733fbcbe5d0d2e6a5e121c5b3fd4f08c206d61d89b58e775c2200b6465',
@@ -303,7 +303,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => 'e697770591a925cbb9d3f8aaa3e190dfe3c59ef8c2ac7efbda92d35ff7a0d5aa',
-    'sw.js' => '507647e45d65bc24744dfc0b6ee5f8ec42f103e93949ed1c59db198450b18cd7',
+    'sw.js' => 'c123228d8d62004aa2b05e7aa26483601fe6c1e2ac8ea1b1a4b3695a4eaadae1',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
