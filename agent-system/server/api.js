@@ -627,7 +627,13 @@ on('POST', '/api/public/order/parse', async (ctx) => {
   const usedAreas = [parsed.fields.pickup_area, parsed.fields.dropoff_area].filter(Boolean);
   const firstAreaGap = parsed.missing.find((m) => m.field.endsWith('_area') && !m.hint);
   if (firstAreaGap) {
-    const near = SIM.closestInText(text, AREA.ALL_AREAS, { skip: V.isFiller });
+    /* ولا يُسأل إلّا عمّا قيل مكانًا: «ابغى **الغي** الطلب» تبعد عن «الري»
+       حرفًا واحدًا، فكان الوكيل يعرض «هل تقصد الري؟» على من يطلب إلغاء
+       طلبه — ولو ضغط «نعم» لصار الريُّ عنوانَ استلامه. فالمسافة وحدها لا
+       تكفي: تسبقها إشارةُ مكان أو لا سؤال. */
+    const near = SIM.closestInText(text, AREA.ALL_AREAS, {
+      skip: (w) => V.isFiller(w) || !V.placeSignaled(text, w),
+    });
     if (near && !usedAreas.includes(near.name)) {
       firstAreaGap.hint = near.name;
       firstAreaGap.hintFrom = near.word;

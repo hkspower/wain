@@ -493,6 +493,33 @@ function isFiller(text) {
   return w.every((x) => FILLER.has(x));
 }
 
+/**
+ * **أقِيلت هذه الكلمة مكانًا؟** — شرطُ «هل تقصد…؟» قبل أن يُسأل.
+ *
+ * الاقتراح يقيس المسافة بين كلمةٍ واسمِ منطقة، والمسافة لا تخطئ: «الغي»
+ * و«الري» حرفٌ واحد. لكنّ الزبون الذي كتب «ابغى **الغي** الطلب» لم يقصد
+ * مكانًا، فيُسأل: «"الغي" ليست من مناطق الكويت — هل تقصد "الري"؟» —
+ * ولو ضغط «نعم» لصار الريُّ عنوانَ استلامه. قِيس ذلك في حوارٍ كامل بعد
+ * إضافة معرفة «إلغاء الطلب»، فتكرّر السؤالُ بعد كلّ رسالة.
+ *
+ * وحشوُ الكلام وحده (`isFiller`) لا يكفي مُميِّزًا: «الغي» ليست حشوًا.
+ * والمُميِّز الصحيح هو ما يميّز به المستخرِجُ الأسماءَ الملتبسة أصلًا —
+ * **إشارة المكان قبلها**: «من» و«إلى» و«في» و«منطقة» و«الاستلام»…
+ * فما سبقته إشارةٌ يُسأل عنه، وما جاء في وسط كلامٍ آخر يُترك.
+ */
+function placeSignaled(text, phrase) {
+  const toks = words(ar.normalize(String(text || '')).toLowerCase());
+  const want = words(ar.normalize(String(phrase || '')).toLowerCase()).map((t) => t.w);
+  if (!want.length) return false;
+  for (let i = 0; i < toks.length; i++) {
+    if (want.some((w, k) => toks[i + k]?.w !== w)) continue;
+    for (let k = 1; k <= 2 && i - k >= 0; k++) {
+      if (PLACE_BEFORE.has(toks[i - k].w)) return true;
+    }
+  }
+  return false;
+}
+
 /* فاصلٌ يقف عنده الاسم. كان يُمحى محوًا، فيمتدّ الاسم عبر الجملة التالية
    ما لم تبدأ بكلمةٍ وظيفية: «اسمي نورة، الاستلام من السالمية» أعطت الاسم
    «نورة الاستلام» — والكابتن ينادي به على الباب. والاسم لا يعبر فاصلة. */
@@ -901,6 +928,6 @@ function parseOrder(transcript) {
 }
 
 module.exports = {
-  parseOrder, readNumber, readMoney, findPhone, findName, findAreas, isFiller,
+  parseOrder, readNumber, readMoney, findPhone, findName, findAreas, isFiller, placeSignaled,
   splitLabelled, parseAddressValue, LABELS, AREA_INDEX: INDEX,
 };
