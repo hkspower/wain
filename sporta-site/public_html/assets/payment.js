@@ -77,6 +77,7 @@
   var pwLine = null
   var keyLine = null
   var payBox = null
+  var envBadge = null, envSwitch = null, envNote = null
   var modeSel = null
   var envSel = null
   var langSel = null
@@ -186,6 +187,39 @@
         : 'Using pay/config.php on the server.'
     })
     renderPay(k.pay)
+    renderEnvBar(k)
+  }
+
+  /** The TEST <-> PRODUCTION switch. The environment select further down is the same
+   *  field; this puts it where the owner looks first, says which one is in force, and
+   *  asks before the one change that takes real cards. */
+  function effectiveEnv(k) {
+    return k.env || (k.pay && k.pay.env) || ''
+  }
+
+  function renderEnvBar(k) {
+    if (!envBadge) return
+    var live = effectiveEnv(k) === 'production'
+    envBadge.textContent = live ? 'PRODUCTION — LIVE' : 'TEST — no real money'
+    envBadge.className = 'spk-envbadge ' + (live ? 'spk-envbadge-prod' : 'spk-envbadge-test')
+    envSwitch.textContent = live ? 'Switch back to Test' : 'Switch to Production'
+    envSwitch.setAttribute('data-target', live ? 'test' : 'production')
+    var pay = k.pay
+    envNote.textContent = live
+      ? 'Real cards and real KNET payments are being taken.'
+      : (pay && pay.ready === false
+        ? 'Card credentials are still placeholders — fill them in below before going live.'
+        : 'Switching to Production takes real cards. Check the details below first.')
+  }
+
+  function switchEnv() {
+    var target = envSwitch.getAttribute('data-target')
+    var msg = target === 'production'
+      ? 'Switch KNET and card payments to PRODUCTION?\n\nReal customers will be charged real money. Do this only when the bank has confirmed your live credentials.'
+      : 'Switch KNET and card payments back to TEST?\n\nNo real money will move, and customers will not be able to pay for real.'
+    if (!window.confirm(msg)) return
+    envSel.value = target
+    save(envSwitch)
   }
 
   function renderPay(pay) {
@@ -307,6 +341,13 @@
     + '.spk-status{margin:0;font-size:13px;font-weight:600}'
     + '.spk-status-ok{color:#15803d}'
     + '.spk-status-bad{color:#b91c1c}'
+    + '.spk-envbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 16px;padding:12px 14px;border-radius:12px;border:1px solid rgba(128,128,128,.35)}'
+    + '.spk-envbadge{font-size:13px;font-weight:800;letter-spacing:.04em;padding:4px 12px;border-radius:999px}'
+    + '.spk-envbadge-test{background:#fde68a;color:#78350f}'
+    + '.spk-envbadge-prod{background:#16a34a;color:#fff}'
+    + '.spk-envswitch{min-height:44px;padding:0 18px;border-radius:999px;border:1px solid currentColor;background:transparent;color:inherit;font-weight:700;cursor:pointer}'
+    + '.spk-envswitch:disabled{opacity:.6;cursor:default}'
+    + '.spk-envnote{flex-basis:100%;margin:0;font-size:12px;color:var(--sp-pc-muted,#a6adb5);line-height:1.4}'
 
   function style() {
     if (document.getElementById('spk-css')) return
@@ -323,6 +364,17 @@
     c.appendChild(el('p', 'spk-sub',
       'KNET and T-Pay share one CBK gateway. Cards fail until every line '
       + 'below is set.'))
+
+    var envBar = el('div', 'spk-envbar')
+    envBadge = el('span', 'spk-envbadge spk-envbadge-test', '…')
+    envSwitch = el('button', 'spk-envswitch', 'Switch to Production')
+    envSwitch.type = 'button'
+    envSwitch.addEventListener('click', switchEnv)
+    envNote = el('p', 'spk-envnote', '')
+    envBar.appendChild(envBadge)
+    envBar.appendChild(envSwitch)
+    envBar.appendChild(envNote)
+    c.appendChild(envBar)
 
     var field = el('div', 'spk-field')
     field.appendChild(el('label', 'spk-label', 'KNET Tranportal ID'))

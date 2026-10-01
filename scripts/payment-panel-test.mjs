@@ -182,6 +182,40 @@ try {
   await p.waitForTimeout(1500)
   check(JSON.parse(sql("select value from settings where name='knet'") || '{}').cbk_client_id === 'PANEL-CBK-ID', 'and it is stored')
 
+  /* ------------------------ 7. the TEST <-> PRODUCTION switch (2026-10-01) */
+  const sw = card().locator('.spk-envswitch')
+  const badge = card().locator('.spk-envbadge')
+  check(await sw.count() === 1 && await badge.count() === 1, 'the card has a Test / Production switch and a badge saying which one is in force')
+  check(/TEST/.test(await badge.innerText()) && /Production/.test(await sw.innerText()),
+    'saved on test, the badge says TEST and the button offers Production', `${await badge.innerText()} / ${await sw.innerText()}`)
+
+  // Declining the confirmation must change nothing: no request, row still on test.
+  const before = posts.length
+  p.once('dialog', (d) => { check(/PRODUCTION/.test(d.message()) && /real money/i.test(d.message()), 'going live asks first, and says real money moves'); d.dismiss() })
+  await sw.click()
+  await p.waitForTimeout(800)
+  check(posts.length === before && JSON.parse(sql("select value from settings where name='knet'") || '{}').env === 'test',
+    'declining leaves the environment on test and sends nothing')
+
+  // Accepting saves production straight away, without touching the other fields.
+  const sentLive = p.waitForRequest((r) => r.url().includes('settings_save'))
+  p.once('dialog', (d) => d.accept())
+  await sw.click()
+  const bodyLive = (await sentLive).postDataJSON()
+  check(bodyLive.name === 'knet' && bodyLive.value.env === 'production', 'accepting saves env=production')
+  await p.waitForTimeout(1500)
+  check(JSON.parse(sql("select value from settings where name='knet'") || '{}').env === 'production', 'and it is stored')
+  check(/PRODUCTION/.test(await badge.innerText()) && /Test/.test(await sw.innerText()),
+    'the badge turns to PRODUCTION and the button offers the way back', `${await badge.innerText()} / ${await sw.innerText()}`)
+
+  // And back to test — also confirmed, also saved.
+  const sentTest = p.waitForRequest((r) => r.url().includes('settings_save'))
+  p.once('dialog', (d) => d.accept())
+  await sw.click()
+  check((await sentTest).postDataJSON().value.env === 'test', 'switching back saves env=test')
+  await p.waitForTimeout(1500)
+  check(/TEST/.test(await badge.innerText()), 'and the badge is back on TEST')
+
   console.log('')
   console.log(fails ? `${fails} check(s) failed` : 'all ok')
 } finally {
