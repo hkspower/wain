@@ -192,6 +192,34 @@ jobs:
         timeout-minutes: 25
         run: flutter build ios --simulator --debug --target=integration_test/app_test.dart
 
+      # The iPhone 17e hung twice in three runs right AFTER the build, with no
+      # test output for 20 minutes and an orphaned `simctl` killed at cleanup
+      # (runs 36910871005 attempt 1 and 36928411775): the install or the
+      # launch, not a test. The install is its own step now, bounded, and a
+      # stuck one reboots the simulator and tries again; the drive then reuses
+      # this exact binary instead of rebuilding and reinstalling it.
+      - name: Install on the simulator
+        working-directory: flutter_app
+        timeout-minutes: 12
+        run: |
+          app=build/ios/iphonesimulator/Runner.app
+          udid="${{ steps.sim.outputs.udid }}"
+          for attempt in 1 2 3; do
+            if perl -e 'alarm shift; exec @ARGV' 150 xcrun simctl install "$udid" "$app"; then
+              echo "installed on attempt $attempt"
+              exit 0
+            fi
+            echo "::warning::simctl install did not finish in 150 s (attempt $attempt); rebooting the simulator"
+            xcrun simctl shutdown "$udid" || true
+            xcrun simctl boot "$udid"
+            xcrun simctl bootstatus "$udid" -b
+            xcrun simctl privacy "$udid" grant microphone com.wainkw.app || true
+          done
+          exit 1
+
+      # --verbose goes to the artifact in full; the job log keeps the lines
+      # that say where a run is (install, launch, the VM service, each test),
+      # so a hang names its own step.
       - name: flutter drive (integration_test/app_test.dart)
         working-directory: flutter_app
         timeout-minutes: 20
@@ -199,10 +227,14 @@ jobs:
           SHOTS_DIR: build/shots/${{ matrix.kind }}
         run: |
           set -o pipefail
-          flutter drive \
+          flutter drive --verbose \
             --driver=test_driver/integration_test.dart \
             --target=integration_test/app_test.dart \
-            -d "${{ steps.sim.outputs.udid }}" 2>&1 | tee build/drive-${{ matrix.kind }}.log
+            --use-application-binary=build/ios/iphonesimulator/Runner.app \
+            -d "${{ steps.sim.outputs.udid }}" 2>&1 \
+            | tee build/drive-verbose-${{ matrix.kind }}.log \
+            | grep --line-buffered -E "^flutter: |All tests|Some tests|\[E\]|VMServiceFlutterDriver|[Ii]nstall|[Ll]aunch|Observatory|Dart VM [Ss]ervice|[Ee]rror" \
+            | tee build/drive-${{ matrix.kind }}.log
 
       # permission_handler compiles the microphone in only when its build
       # finds NSMicrophoneUsageDescription (or PERMISSION_MICROPHONE=1);
@@ -240,6 +272,7 @@ jobs:
           path: |
             flutter_app/build/shots/${{ matrix.kind }}
             flutter_app/build/drive-${{ matrix.kind }}.log
+            flutter_app/build/drive-verbose-${{ matrix.kind }}.log
           retention-days: 14
 
   check-testflight:

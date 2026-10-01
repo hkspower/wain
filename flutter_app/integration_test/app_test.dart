@@ -12,6 +12,7 @@
 // Either would open a recorded ElevenLabs conversation from a CI runner — a
 // real conversation in her history, paid for, with nobody on the line. The
 // consent sheet IS exercised, up to «مو الحين».
+import 'dart:io' show Platform;
 import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
@@ -21,6 +22,7 @@ import 'package:integration_test/integration_test.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wain/ai/call_button.dart';
+import 'package:wain/ai/keep_alive.dart';
 import 'package:wain/app/app_state.dart';
 import 'package:wain/data/places.g.dart';
 import 'package:wain/main.dart';
@@ -52,8 +54,15 @@ Future<void> waitFor(WidgetTester t, Finder f, {int seconds = 15}) async {
 }
 
 /// A PNG the driver saves under the job's screenshots directory.
+bool _surfaceReady = false;
 Future<void> shot(String name) async {
   try {
+    // Android draws Flutter into a surface the screenshot cannot read until
+    // it is converted, once, to an image-backed one.
+    if (Platform.isAndroid && !_surfaceReady) {
+      await binding.convertFlutterSurfaceToImage();
+      _surfaceReady = true;
+    }
     await binding.takeScreenshot(name);
   } catch (e) {
     // A screenshot is evidence for a person, never the assertion itself.
@@ -162,27 +171,33 @@ void main() {
     await settle(t, 1500);
     await shot('06-place-${first.slug}');
 
-    // An iPhone has no back button: the edge swipe is the way back. The
-    // app is right-to-left, so the gesture starts at the RIGHT edge — and in
-    // the upper part of the page, over the hero and the text: on the first
-    // simulator run a swipe at mid-height failed on both devices, where with
-    // real fonts the place's map can sit under the finger. What is under the
-    // start point is logged, so a red here says which.
-    final size = t.view.physicalSize / t.view.devicePixelRatio;
-    final pad = t.view.padding.top / t.view.devicePixelRatio;
-    final start = Offset(size.width - 4, pad + size.height * 0.2);
-    final hit = HitTestResult();
-    t.binding.hitTestInView(hit, start, t.view.viewId);
-    debugPrint(
-      'swipe starts at $start over: '
-      '${hit.path.map((e) => e.target.runtimeType).take(14).join(' < ')}',
-    );
-    final g = await t.startGesture(start);
-    for (var i = 1; i <= 10; i++) {
-      await g.moveTo(start - Offset(i * size.width * 0.07, 0));
-      await t.pump(const Duration(milliseconds: 16));
+    if (Platform.isAndroid) {
+      // Android's own back: the system button or gesture, delivered to the
+      // app as a pop.
+      await t.binding.handlePopRoute();
+    } else {
+      // An iPhone has no back button: the edge swipe is the way back. The
+      // app is right-to-left, so the gesture starts at the RIGHT edge — and in
+      // the upper part of the page, over the hero and the text: on the first
+      // simulator run a swipe at mid-height failed on both devices, where with
+      // real fonts the place's map can sit under the finger. What is under the
+      // start point is logged, so a red here says which.
+      final size = t.view.physicalSize / t.view.devicePixelRatio;
+      final pad = t.view.padding.top / t.view.devicePixelRatio;
+      final start = Offset(size.width - 4, pad + size.height * 0.2);
+      final hit = HitTestResult();
+      t.binding.hitTestInView(hit, start, t.view.viewId);
+      debugPrint(
+        'swipe starts at $start over: '
+        '${hit.path.map((e) => e.target.runtimeType).take(14).join(' < ')}',
+      );
+      final g = await t.startGesture(start);
+      for (var i = 1; i <= 10; i++) {
+        await g.moveTo(start - Offset(i * size.width * 0.07, 0));
+        await t.pump(const Duration(milliseconds: 16));
+      }
+      await g.up();
     }
-    await g.up();
     await settle(t, 900);
     expect(
       find.byKey(const ValueKey('search-input')),
@@ -190,6 +205,25 @@ void main() {
       reason: 'the back swipe should land on /search again',
     );
     expect(find.text(first.descriptionAr), findsNothing);
+  });
+
+  testWidgets('a tab keeps its state: a search survives a trip to Explore', (
+    t,
+  ) async {
+    await launch(t);
+    await t.tap(find.text('بحث').last);
+    await waitFor(t, find.byKey(const ValueKey('search-input')));
+    await t.enterText(find.byKey(const ValueKey('search-input')), 'قهوة');
+    await settle(t, 600);
+    await t.tap(find.text('استكشف').last);
+    await waitFor(t, find.textContaining('٥٢ نتيجة'));
+    await t.tap(find.text('بحث').last);
+    await settle(t, 600);
+    final field = t.widget<TextField>(
+      find.byKey(const ValueKey('search-input')),
+    );
+    expect(field.controller?.text, 'قهوة');
+    await shot('08-tab-kept');
   });
 
   testWidgets('explore: all 52, a category filters, clearing restores', (
@@ -235,4 +269,20 @@ void main() {
     debugPrint('microphone: $status');
     expect(status, PermissionStatus.granted);
   });
+
+  // The foreground service that keeps a call's microphone open behind other
+  // apps (CallService.kt): started and stopped for real, on Android only. The
+  // job grants RECORD_AUDIO, POST_NOTIFICATIONS and BLUETOOTH_CONNECT first,
+  // so no system dialog waits for a tap that never comes.
+  testWidgets('Android: the call\'s foreground service starts and stops', (
+    t,
+  ) async {
+    final keep = PlatformKeepAlive();
+    await keep.start();
+    await settle(t, 1500);
+    expect(await PlatformKeepAlive.isRunning(), isTrue);
+    await keep.stop();
+    await settle(t, 1500);
+    expect(await PlatformKeepAlive.isRunning(), isFalse);
+  }, skip: !Platform.isAndroid);
 }

@@ -140,6 +140,78 @@ jobs:
           path: flutter_app/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 14
 
+  # The device suite (flutter_app/integration_test/app_test.dart) on a real
+  # Android emulator: the same flows the iOS simulator runs, plus Android's own
+  # back and the call's foreground service started for real. It never agrees
+  # to the AI consent and never places a call. The app is installed with
+  # `flutter install` first so the grants below survive: `flutter drive`
+  # reinstalls anything it did not install itself, which would drop them.
+  android-emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+
+      - name: flutter pub get
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Build the test app
+        working-directory: flutter_app
+        run: flutter build apk --debug --target=integration_test/app_test.dart
+
+      - name: Run the device suite on an API 35 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7
+          disable-animations: true
+          working-directory: flutter_app
+          script: |
+            flutter install -d emulator-5554 --use-application-binary=build/app/outputs/flutter-apk/app-debug.apk
+            adb shell pm grant com.wainkw.app android.permission.RECORD_AUDIO
+            adb shell pm grant com.wainkw.app android.permission.POST_NOTIFICATIONS
+            adb shell pm grant com.wainkw.app android.permission.BLUETOOTH_CONNECT
+            mkdir -p build/shots/android
+            bash -c 'set -o pipefail; SHOTS_DIR=build/shots/android flutter drive --driver=test_driver/integration_test.dart --target=integration_test/app_test.dart --use-application-binary=build/app/outputs/flutter-apk/app-debug.apk -d emulator-5554 2>&1 | tee build/drive-android.log'
+
+      - name: Summary
+        if: always()
+        working-directory: flutter_app
+        run: |
+          {
+            echo "### Android emulator — API 35"
+            echo
+            grep -E "All tests passed|Some tests failed|\[E\]|microphone:|device:" build/drive-android.log | sed 's/^/    /' || true
+            echo
+            echo "Screenshots: $(ls build/shots/android 2>/dev/null | wc -l | tr -d ' ') — artifact \`android-emulator\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-emulator
+          path: |
+            flutter_app/build/shots/android
+            flutter_app/build/drive-android.log
+          retention-days: 14
+
   build-release:
     runs-on: ubuntu-latest
     needs: check-signing
