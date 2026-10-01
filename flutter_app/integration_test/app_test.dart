@@ -2,7 +2,7 @@
 // (shared_preferences, permission_handler, url_launcher), real network for
 // the map tiles, real touch gestures — the things the widget suite fakes.
 //
-// Run by `.github/workflows/ios-flutter.yml` through
+// Run by the `ios-simulator` job of `.github/workflows/flutter-ci.yml` through
 // `flutter drive --driver=test_driver/integration_test.dart
 // --target=integration_test/app_test.dart -d <simulator>`, which also saves
 // every `shot()` as a PNG. Nothing here can run in the sandbox that wrote it

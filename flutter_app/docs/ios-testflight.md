@@ -1,8 +1,9 @@
 # Testing the iOS app for real
 
-Two kinds, both run by `.github/workflows/ios-flutter.yml` (Actions → «iOS app
-(Flutter) — simulator tests and TestFlight» → Run workflow, on
-`claude/wainkw-design-issues-2bggdi`):
+Two kinds, both run by the dispatch-only jobs of
+`.github/workflows/flutter-ci.yml` (Actions → «Flutter app (analyze, test, web
+build)» → Run workflow, on `claude/wainkw-design-issues-2bggdi`; tick
+**testflight** for the second):
 
 | | needs | what it proves |
 |---|---|---|

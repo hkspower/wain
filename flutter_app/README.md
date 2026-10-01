@@ -123,7 +123,8 @@ test suite, and `flutter build web` — served and driven with Chromium at 390px
   `project.pbxproj` with anchored inserts; Xcode has not opened it.
 
 **Testing on iOS for real** — the Simulator suite (`integration_test/`) and
-TestFlight to your own iPhone — is `.github/workflows/ios-flutter.yml`; the
+TestFlight to your own iPhone — is the dispatch-only half of
+`.github/workflows/flutter-ci.yml`; the
 Apple-side setup and what to check on the phone are in
 [`docs/ios-testflight.md`](docs/ios-testflight.md).
 

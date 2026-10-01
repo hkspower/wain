@@ -4510,7 +4510,8 @@ the template ships 15 in four places), the Flutter Runner and
 ## Real iOS tests for the Flutter app — 1 October
 
 Asked for «real test for app ios», both kinds: the Simulator, and TestFlight on
-the owner's own iPhone. `.github/workflows/ios-flutter.yml`, dispatch-only;
+the owner's own iPhone. The dispatch-only jobs `ios-simulator`, `check-testflight`
+and `testflight` in `.github/workflows/flutter-ci.yml`;
 owner setup and the on-phone checklist in `flutter_app/docs/ios-testflight.md`.
 
 - **Simulator job** (×2: the newest «iPhone N Pro» and the smallest iPhone on the
@@ -4551,6 +4552,15 @@ camera.** flutter_webrtc (under livekit, under `elevenlabs_agents`) calls
 without the key is turned «Invalid» after upload (ITMS-90683).
 `ios_target_test.dart` now holds that, the microphone string, export
 compliance, an alpha-free store icon and the one bundle id.
+
+**They were written as their own workflow, `ios-flutter.yml`, and it could not be
+started: dispatching it answered 404.** GitHub dispatches only workflows on the
+repository's default branch (`claude/wain-app-template-kxc9of`, which this
+branch is not), and `list_workflows` showed five, none of them new. A dispatch
+of a registered workflow at this branch's ref runs this branch's copy of the
+file, so the jobs moved into `flutter-ci.yml`. **A new dispatch-only workflow on
+a working branch is a 404 until the default branch has it** — put dispatch jobs
+in a workflow that is already registered.
 
 **Not verified by anything here**: the workflow itself (no Mac), cloud signing
 with an API key, the upload, and every on-phone check in the doc.
