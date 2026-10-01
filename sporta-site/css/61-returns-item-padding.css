@@ -1,0 +1,9 @@
+/* "Improve padding all", 2026-10-01. Measured across 11 pages, phone and
+ * desktop, both languages: every card and box keeps its text 12px or more from
+ * its edge except one — the product rows on the returns form (/returns), which
+ * are the bundle's `p-2` (8px), so the thumbnail and "+ Add" sat 8-9px from the
+ * row's edge. 12px matches the product cards. Scoped by the list's own shape (a
+ * capped, scrolling grid of bordered rows); nothing else on the site matches. */
+[class~="max-h-80"][class~="overflow-y-auto"] > button[class~="rounded-xl"][class~="border"][class~="p-2"] {
+  padding: 10px 12px !important;
+}
