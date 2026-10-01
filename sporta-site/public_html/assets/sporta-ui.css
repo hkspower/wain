@@ -2402,7 +2402,7 @@ main div.grid:has(> article > a[class*="aspect-"]) article .price-card {
  * to, so the phone must not be touched. */
 @media (min-width: 768px) {
   main .max-w-7xl {
-    padding-inline: 1.5rem;
+    padding-inline: 24px;   /* px, not rem: the root here is 16.84px, so 1.5rem drew 25.2px against the bundle's 24 */
   }
 }
 
@@ -3803,7 +3803,7 @@ main article h3[class~="line-clamp-1"] {
  * its orange disc; the bundle's layout and type are untouched. */
 .cat-tile { color: #141413 !important; }
 .cat-tile .cat-scrim { display: none !important; }
-.cat-tile .eyebrow { color: #e0561c !important; }
+.cat-tile .eyebrow { color: var(--brand, #e0561c) !important; }
 .cat-tile .cat-tile__title { color: #141413 !important; }
 .cat-tile p:not(.eyebrow) { color: #4b4f55 !important; }
 /* The tiles sit on the page's dark ground; a hairline keeps a white tile from
@@ -3848,7 +3848,7 @@ section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][clas
 }
 [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"]::after {
   bottom: 16px;
-  background: #e0561c !important;   /* the dark theme greys --sp-ember here */
+  background: var(--brand, #e0561c) !important;   /* the dark theme greys --sp-ember here */
 }
 @media (min-width: 768px) {
   [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"] {
@@ -4125,8 +4125,13 @@ main div.grid:has(> article > a[class*="aspect-"]) > article {
 main div.grid > article > a[class*="aspect-"] {
   position: static !important;   /* so its absolute children resolve against the card */
   aspect-ratio: 1.09 / 1 !important;
-  outline: 0;
   border-radius: 0;
+}
+/* The photo link is the card's keyboard stop, so it shows where focus is. (`outline: 0`
+   here had removed it: test:focus found four cards with no ring.) */
+main div.grid > article > a[class*="aspect-"]:focus-visible {
+  outline: 3px solid #f56315;
+  outline-offset: -3px;
 }
 main div.grid > article > a[class*="aspect-"]:has(> img:not([src^="data:"])) {
   background: #fff !important;

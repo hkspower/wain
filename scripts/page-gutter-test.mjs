@@ -66,6 +66,10 @@ try {
           const de = document.documentElement
           const wide = [...document.querySelectorAll('main .max-w-7xl')]
             .filter((el) => el.getBoundingClientRect().width > 0)
+            // The "Shop by category" container carries the full-width white heading bar
+            // (37-category-heading-bar.css, the owner's design), so its side padding is
+            // deliberately 0 and its content is inset by the tiles inside it.
+            .filter((el) => !el.querySelector(':scope > h2[class~="text-slate-900"][class~="md:text-3xl"]'))
             .map((el) => Math.round(parseFloat(getComputedStyle(el).paddingInlineStart)))
           return { wide: [...new Set(wide)], over: Math.max(0, de.scrollWidth - de.clientWidth) }
         })

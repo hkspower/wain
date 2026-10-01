@@ -193,7 +193,10 @@ function wallet_install_cert(array $cfg, string $cerBytes, ?array $wwdrCandidate
         $candidates = [];
         foreach (WALLET_WWDR_URLS as $url) {
             $ch = curl_init($url);
-            curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => 15]);
+            // Verification is spelled out rather than left to curl's default: a default is
+            // invisible, and "make it match the vendor sample" is how it gets turned off.
+            curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => 15,
+                CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2]);
             $body = curl_exec($ch);
             $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);

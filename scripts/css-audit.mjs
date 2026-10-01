@@ -237,7 +237,10 @@ for (const path of PAGES) {
       // Deliberate later overrides in sporta-ui.css, by element: the hero's
       // `bg-ink` is painted #000 at the owner's request ("remove black",
       // under the black top bar). Sample another element for that selector.
-      const OVERRIDDEN = '[class~="isolate"][class~="overflow-hidden"][class~="bg-ink"], [class~="shrink-0"][class~="bg-ink"]'
+      // The same goes for the "Shop by category" heading: 37-category-heading-bar.css
+      // makes it a white bar with black text, also at the owner's request.
+      const OVERRIDDEN = '[class~="isolate"][class~="overflow-hidden"][class~="bg-ink"], [class~="shrink-0"][class~="bg-ink"], '
+        + 'h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:text-3xl"]'
       let el
       try { el = [...document.querySelectorAll(sel)].find((e) => !e.matches(OVERRIDDEN)) } catch { continue }
       if (!el) continue

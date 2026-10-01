@@ -27,7 +27,7 @@ section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][clas
 }
 [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"]::after {
   bottom: 16px;
-  background: #e0561c !important;   /* the dark theme greys --sp-ember here */
+  background: var(--brand, #e0561c) !important;   /* the dark theme greys --sp-ember here */
 }
 @media (min-width: 768px) {
   [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"] {

@@ -32,7 +32,7 @@
  * to, so the phone must not be touched. */
 @media (min-width: 768px) {
   main .max-w-7xl {
-    padding-inline: 1.5rem;
+    padding-inline: 24px;   /* px, not rem: the root here is 16.84px, so 1.5rem drew 25.2px against the bundle's 24 */
   }
 }
 

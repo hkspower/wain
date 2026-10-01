@@ -39,8 +39,13 @@ main div.grid:has(> article > a[class*="aspect-"]) > article {
 main div.grid > article > a[class*="aspect-"] {
   position: static !important;   /* so its absolute children resolve against the card */
   aspect-ratio: 1.09 / 1 !important;
-  outline: 0;
   border-radius: 0;
+}
+/* The photo link is the card's keyboard stop, so it shows where focus is. (`outline: 0`
+   here had removed it: test:focus found four cards with no ring.) */
+main div.grid > article > a[class*="aspect-"]:focus-visible {
+  outline: 3px solid #f56315;
+  outline-offset: -3px;
 }
 main div.grid > article > a[class*="aspect-"]:has(> img:not([src^="data:"])) {
   background: #fff !important;

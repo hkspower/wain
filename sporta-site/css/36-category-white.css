@@ -11,7 +11,7 @@
  * its orange disc; the bundle's layout and type are untouched. */
 .cat-tile { color: #141413 !important; }
 .cat-tile .cat-scrim { display: none !important; }
-.cat-tile .eyebrow { color: #e0561c !important; }
+.cat-tile .eyebrow { color: var(--brand, #e0561c) !important; }
 .cat-tile .cat-tile__title { color: #141413 !important; }
 .cat-tile p:not(.eyebrow) { color: #4b4f55 !important; }
 /* The tiles sit on the page's dark ground; a hairline keeps a white tile from

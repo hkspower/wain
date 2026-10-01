@@ -143,7 +143,15 @@ const measure = async (path) => {
           const v = ratio(e, bg); marks.push(['border', v, say(e)]); best = Math.max(best, v)
         }
       }
-      const own = rgba(s.backgroundColor)
+      // A disc drawn by ::before is this control's fill too (the card's add and
+      // choose-size buttons are painted that way), so an empty own background
+      // is not the same as "drawn on the page itself".
+      let own = rgba(s.backgroundColor)
+      if (!(own && own.a > 0.02)) {
+        const pb = getComputedStyle(el, '::before')
+        const pc = pb.content !== 'none' && pb.content !== 'normal' ? rgba(pb.backgroundColor) : null
+        if (pc && pc.a > 0.95) own = pc
+      }
       if (own && own.a > 0.02) {
         const e = own.a < 1 ? over(own, bg) : own
         if (e.r !== bg.r || e.g !== bg.g || e.b !== bg.b) {
