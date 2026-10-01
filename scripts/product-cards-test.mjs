@@ -56,13 +56,33 @@ process.on('exit', () => { try { sql("delete from product_images where image_has
   await reveal(page)
   const cards = await page.evaluate(() => [...document.querySelectorAll('article > a[class*="aspect-"] > img')].filter((i) => !i.src.startsWith('data:')).length)
   check(cards >= 1, 'the search shows photographed cards to look at', String(cards))
-  check(reqs.length > 0 && reqs.every((r) => /[?&]w=(400|600)\b/.test(r.url)), 'every card picture is a resized copy (w=400 or 600), never the original', `${reqs.length} requests`)
+  check(reqs.length > 0 && reqs.every((r) => /[?&]w=(400|600|800)\b/.test(r.url)), 'every card picture is a resized copy (w=400, 600 or 800), never the original', `${reqs.length} requests`)
   check(reqs.every((r) => r.status === 200 && /image\/(webp|jpeg|png)/.test(r.type || '')), 'and every one arrives as a picture')
+  check(reqs.every((r) => /[?&]q=2\b/.test(r.url)), 'every request names the current resize recipe (&q=2), so a browser holding an older soft copy asks again')
+  const set = await page.evaluate(() => [...document.querySelectorAll('article > a[class*="aspect-"] > img')].map((i) => i.getAttribute('srcset') || '').find((x) => x))
+  check(/ 400w,.* 600w,.* 800w/.test(set || ''), 'the srcset offers 400, 600 and 800 so a wide or 3x screen gets enough pixels', String(set).slice(0, 60))
+  const w8 = await fetch(`${BASE}/api/api.php?r=product_image&id=${bigId}&w=800`)
+  check(w8.status === 200 && w8.headers.get('content-type') === 'image/webp', 'an 800px copy is made')
   const orig = await fetch(`${BASE}/api/api.php?r=product_image&id=${bigId}`)
   const origLen = (await orig.arrayBuffer()).byteLength
   const t1 = await fetch(`${BASE}/api/api.php?r=product_image&id=${bigId}&w=400`)
   const b1 = Buffer.from(await t1.arrayBuffer())
   check(t1.status === 200 && t1.headers.get('content-type') === 'image/webp' && b1.length < origLen / 3, 'a large photograph comes back as a WebP a fraction of its size', `${origLen} -> ${b1.length} bytes`)
+  {
+    const { writeFileSync } = await import('node:fs')
+    const tmp = '/tmp/pc-thumb-400.webp'
+    writeFileSync(tmp, b1)
+    const mse = Number(execFileSync('python3', ['-c', `
+import sys,io,base64
+from PIL import Image, ImageChops
+src=sys.stdin.read().split(',',1)[1]
+ref=Image.open(io.BytesIO(base64.b64decode(src))).convert('L')
+ref=ref.resize((400,round(ref.height*400/ref.width)),Image.LANCZOS)
+got=Image.open('${tmp}').convert('L')
+d=ImageChops.difference(ref,got)
+print(sum(v*v*c for v,c in enumerate(d.histogram()))/(ref.width*ref.height))`], { input: FIX, encoding: 'utf8' }).trim())
+    check(mse < 35, 'the resized copy is close to a Lanczos reference (sharp, not smeared or aliased)', `mse=${mse.toFixed(2)}`)
+  }
   check(Number(sql(`select count(*) from product_image_thumbs where image_id=${bigId} and w=400`)) === 1, 'the resized copy was stored (product_image_thumbs), so the next visitor costs no resize')
   const t2 = await fetch(`${BASE}/api/api.php?r=product_image&id=${bigId}&w=400`)
   check(Buffer.from(await t2.arrayBuffer()).equals(b1), 'and a repeat request returns exactly those bytes')

@@ -35,7 +35,10 @@
   }
 
   function withWidth(src, w) {
-    return src.replace(/([?&])w=\d+/, '$1w=' + w) + (/[?&]w=\d+/.test(src) ? '' : '&w=' + w)
+    // &q=2 names the resize recipe (Mitchell, quality 88). The URL's v= is the PHOTO's
+    // hash, so without a tag of its own a browser holding last year's soft 400px copy
+    // would never ask for the sharper one: the response is cached immutable for a year.
+    return src.replace(/([?&])w=\d+/, '$1w=' + w) + (/[?&]w=\d+/.test(src) ? '' : '&w=' + w) + '&q=2'
   }
 
   function thumb(img) {
@@ -43,7 +46,7 @@
     var src = img.getAttribute('src')
     if (/[?&]w=\d+/.test(src)) { img.__sportaThumb = 1; return }
     img.__sportaThumb = 1
-    img.setAttribute('srcset', withWidth(src, 400) + ' 400w, ' + withWidth(src, 600) + ' 600w')
+    img.setAttribute('srcset', withWidth(src, 400) + ' 400w, ' + withWidth(src, 600) + ' 600w, ' + withWidth(src, 800) + ' 800w')
     img.setAttribute('sizes', '(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw')
     img.setAttribute('src', withWidth(src, 400))
   }

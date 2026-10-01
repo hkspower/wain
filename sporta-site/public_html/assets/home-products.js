@@ -144,6 +144,16 @@
         img.src = /^https?:\/\//i.test(p.image)
           ? p.image
           : api + '/' + String(p.image).replace(/^\.?\//, '')
+        /* A product photograph is a 2000px original: ask for the sized copies the shop
+           already makes (product-cards.js does the same for /shop), so a phone takes
+           400-600px and a wide screen 800 rather than the whole file. &q=2 names the
+           current resize recipe so a browser holding an older copy asks again. */
+        if (img.src.indexOf('product_image') !== -1 && !/[?&]w=\d+/.test(img.src)) {
+          var base = img.src
+          img.srcset = base + '&w=400&q=2 400w, ' + base + '&w=600&q=2 600w, ' + base + '&w=800&q=2 800w'
+          img.sizes = '(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw'
+          img.src = base + '&w=400&q=2'
+        }
         frame.appendChild(img)
       }
       a.appendChild(frame)
