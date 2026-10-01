@@ -21,8 +21,9 @@
   display: block;
   width: 100%;
   box-sizing: border-box;
-  margin: 0 0 1.25rem !important;
-  padding: 28px 16px 30px !important;
+  /* less space above and below, 2026-10-01 — the same halving as the category bar (37-) */
+  margin: 0 0 12px !important;
+  padding: 14px 16px 18px !important;
   background: #ffffff !important;
   color: #171a1e !important;
   font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
@@ -32,14 +33,14 @@
   line-height: 1.25 !important;
 }
 [data-theme] .sporta-home-products__heading::after {
-  bottom: 16px;
+  bottom: 6px;
   background: var(--brand, #e0561c) !important;
 }
 @media (min-width: 768px) {
   [data-theme] .sporta-home-products__heading {
-    padding: 40px 24px 44px !important;
+    padding: 20px 24px 24px !important;
     font-size: 2.375rem !important;
-    margin-bottom: 1.75rem !important;
+    margin-bottom: 16px !important;
   }
-  [data-theme] .sporta-home-products__heading::after { bottom: 22px; }
+  [data-theme] .sporta-home-products__heading::after { bottom: 8px; }
 }

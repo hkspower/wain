@@ -1226,13 +1226,19 @@ main article h3[class~="line-clamp-1"] {
 }
 section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"]) {
   padding-top: 0 !important;
+  padding-bottom: 20px !important;
+}
+@media (min-width: 768px) {
+  section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"]) {
+    padding-bottom: 32px !important;
+  }
 }
 [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"] {
   display: block;
   width: 100%;
   box-sizing: border-box;
   margin: 0 0 6px !important;
-  padding: 28px 16px 30px !important;
+  padding: 14px 16px 18px !important;
   background: #ffffff !important;
   color: #171a1e !important;
   font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
@@ -1243,15 +1249,15 @@ section:has(> h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][clas
   line-height: 1.25 !important;
 }
 [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"]::after {
-  bottom: 16px;
+  bottom: 6px;
   background: var(--brand, #e0561c) !important;
 }
 @media (min-width: 768px) {
   [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"] {
-    padding: 40px 24px 44px !important;
+    padding: 20px 24px 24px !important;
   }
   [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"]::after {
-    bottom: 22px;
+    bottom: 8px;
   }
 }
 :root[data-hero-size="short"] {
@@ -1617,8 +1623,8 @@ html[data-theme] :is(input, textarea, select):not(.admin-content *):disabled {
   display: block;
   width: 100%;
   box-sizing: border-box;
-  margin: 0 0 1.25rem !important;
-  padding: 28px 16px 30px !important;
+  margin: 0 0 12px !important;
+  padding: 14px 16px 18px !important;
   background: #ffffff !important;
   color: #171a1e !important;
   font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
@@ -1628,16 +1634,16 @@ html[data-theme] :is(input, textarea, select):not(.admin-content *):disabled {
   line-height: 1.25 !important;
 }
 [data-theme] .sporta-home-products__heading::after {
-  bottom: 16px;
+  bottom: 6px;
   background: var(--brand, #e0561c) !important;
 }
 @media (min-width: 768px) {
   [data-theme] .sporta-home-products__heading {
-    padding: 40px 24px 44px !important;
+    padding: 20px 24px 24px !important;
     font-size: 2.375rem !important;
-    margin-bottom: 1.75rem !important;
+    margin-bottom: 16px !important;
   }
-  [data-theme] .sporta-home-products__heading::after { bottom: 22px; }
+  [data-theme] .sporta-home-products__heading::after { bottom: 8px; }
 }
 header.app-header nav { padding-block: 6px !important; }
 header.app-header nav > a img { height: 2.125rem !important; }
