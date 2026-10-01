@@ -30,29 +30,33 @@ export default function NearbyDial() {
           aria-hidden="true"
           className="absolute inset-0 rounded-full bg-sun-300/60 animate-pulse-ring"
         />
+        <span aria-hidden="true" className="absolute -inset-px rounded-full ring-1 ring-sun-400/70" />
         {/* compass tick ring */}
         <svg
           aria-hidden="true"
           viewBox="0 0 100 100"
-          className="pointer-events-none absolute -inset-4 size-[calc(100%+2rem)] text-sun-600/50"
+          className="pointer-events-none absolute -inset-4 size-[calc(100%+2rem)]"
         >
-          <g stroke="currentColor" strokeLinecap="round">
-            {Array.from({ length: 36 }).map((_, i) => {
-              const a = (i * 10 * Math.PI) / 180;
-              const major = i % 9 === 0;
-              const r1 = major ? 44.5 : 46.5;
-              return (
-                <line
-                  key={i}
-                  x1={50 + r1 * Math.cos(a)}
-                  y1={50 + r1 * Math.sin(a)}
-                  x2={50 + 48 * Math.cos(a)}
-                  y2={50 + 48 * Math.sin(a)}
-                  strokeWidth={major ? 1.6 : 0.9}
-                />
-              );
-            })}
-          </g>
+          {/* Two tones: the four compass points are the sun's strongest rays, the
+              rest are half as loud. One colour at one opacity made all 36 the
+              same weight, so the ring read as a dashed border, not a sun. */}
+          {Array.from({ length: 36 }).map((_, i) => {
+            const a = (i * 10 * Math.PI) / 180;
+            const major = i % 9 === 0;
+            const r1 = major ? 44.5 : 46.5;
+            return (
+              <line
+                key={i}
+                x1={50 + r1 * Math.cos(a)}
+                y1={50 + r1 * Math.sin(a)}
+                x2={50 + 48 * Math.cos(a)}
+                y2={50 + 48 * Math.sin(a)}
+                strokeWidth={major ? 1.6 : 0.9}
+                strokeLinecap="round"
+                className={major ? "stroke-sun-700/70" : "stroke-sun-500/55"}
+              />
+            );
+          })}
         </svg>
         <Link
           href="/find"
@@ -61,9 +65,20 @@ export default function NearbyDial() {
           // gradient button would read as dirt, not lift. Same deliberate
           // exception as Navbar's inset highlight: audit:css flags both as
           // raw colour, neither is an oversight.
-          className="relative grid size-[var(--dial,18rem)] place-items-center rounded-full border-[6px] border-white bg-gradient-to-b from-sun-200 to-sun-400 px-6 text-center shadow-[0_18px_40px_-12px_rgba(180,120,10,0.55)] transition hover:from-sun-100 hover:to-sun-300 focus-visible:ring-offset-4"
+          className="relative grid size-[var(--dial,18rem)] place-items-center overflow-hidden rounded-full border-[6px] border-white bg-gradient-to-b from-sun-200 to-sun-400 px-6 text-center shadow-[0_18px_40px_-12px_rgba(180,120,10,0.55)] transition hover:from-sun-100 hover:to-sun-300 focus-visible:ring-offset-4"
         >
-          <span className="flex flex-col items-center gap-1">
+          {/* The light: a diagonal sheen from the upper left, so the disc has a
+              lit side and a shaded one instead of one vertical ramp. Tokens only,
+              and it fades out well before the text. */}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-br from-white/45 via-white/0 to-transparent"
+          />
+          {/* The border is three lines, not one: a hairline of sun outside the
+              white ring and a hairline of deeper sun inside it, so the white
+              reads as a rim with thickness rather than a flat stroke. */}
+          <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-inset ring-sun-500/35" />
+          <span className="relative flex flex-col items-center gap-1">
             <span className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
               إلى وين؟
             </span>

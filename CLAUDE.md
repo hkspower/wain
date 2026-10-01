@@ -3313,6 +3313,32 @@ records; the Liberation Tower's concrete and glass, and the Grand Mosque's stone
 are plausible but **unverified** — no reference here says otherwise, and changing
 them on memory would be inventing accuracy.
 
+**Edges and borders on the towers and the sun (same day, on request).**
+Looked at at 3× before touching anything, the defects were specific:
+
+- The spheres' outline was one flat 2.5-unit blue all the way round, the same
+  weight on the lit side as the shaded one. It is now 1.6 and deeper, with a
+  lit rim on the sun's side and a darker one opposite (`wain-orb-rim`, a stroke
+  gradient inside the clip), so the border follows the form.
+- **The grey crescent on each sphere's lower right was a colour mistake, not a
+  shading one**: warm ground-bounce (`#ffd9a0` at 28%) over blue is grey. It is
+  the Gulf's colour now (`#8fe3ec`), which is also what is below them.
+- The shafts' sand-coloured outline had been swapped for steel but kept the 2.5
+  width, heavy on a spire 6 units wide; `.steel` is 1.4. The tile discs vary
+  (every third is pale teal) and the sphere ramp has a wider range of tone.
+- **The dial's border was one 6px white stroke.** It is now a white rim with a
+  sun hairline outside it and a deeper one inside it, the tick ring has two
+  weights of colour (the four compass points `sun-700/70`, the rest `sun-500/55`
+  instead of one `sun-600/50`), and a diagonal sheen gives the disc a lit side.
+  Tokens only — no raw colour added to `NearbyDial`. The sheen and rings sit
+  under the text (`relative` on the label span: a positioned sibling paints over
+  an unpositioned one).
+
+`audit:home-hero` and `audit:color` are green. **Not verified: the stroke
+gradient in `flutter_svg`.** `skyline.svg` carries `wain-orb-rim` on a stroke;
+gradient strokes are supported there as far as the package says, but no Flutter
+SDK exists here to render it, so CI's widget suite is the check.
+
 ## The home hero's dial and pill lay over the drawing at 9 of 14 widths — 1 October
 
 Asked to «improve main hero details — scan, then improve». The scan that

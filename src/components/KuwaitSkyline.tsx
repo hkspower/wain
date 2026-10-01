@@ -112,18 +112,25 @@ function Orb(p: { cx: number; cy: number; r: number; lats: number[]; perRow: num
           strokeWidth={r1(0.035 * r)}
         />
       </g>
-      {sequins(cx, cy, r, p.lats, p.perRow, p.span, p.d).map((s) => (
-        <ellipse key={`${s.x},${s.y}`} cx={s.x} cy={s.y} rx={s.rx} ry={s.ry} fill="#ffffff" fillOpacity={s.o} />
+      {sequins(cx, cy, r, p.lats, p.perRow, p.span, p.d).map((s, i) => (
+        <ellipse key={`${s.x},${s.y}`} cx={s.x} cy={s.y} rx={s.rx} ry={s.ry} fill={i % 3 === 0 ? "#c4eef2" : "#ffffff"} fillOpacity={s.o} />
       ))}
-      {/* Warm light bounced up off the ground onto the shadow side */}
+      {/* Light off the Gulf onto the shadow side. It was warm ground-bounce
+          (#ffd9a0), which on a blue sphere is grey: the dull crescent along the
+          lower right. The sea is the thing below the spheres, so it is the
+          sea's colour. */}
       <path
         d={`M${onCircle(cx, cy, r * 0.92, 5)} A${r1(r * 0.92)} ${r1(r * 0.92)} 0 0 1 ${onCircle(cx, cy, r * 0.92, 95)}`}
-        stroke="#ffd9a0"
-        strokeOpacity="0.28"
+        stroke="#8fe3ec"
+        strokeOpacity="0.34"
         strokeWidth={r1(0.07 * r)}
         strokeLinecap="round"
         fill="none"
       />
+      {/* The edge itself: a thin lit rim on the sun's side and a deeper one on
+          the other, drawn inside the clip so the sphere has a form-following
+          border instead of one flat outline all the way round. */}
+      <circle cx={cx} cy={cy} r={r1(r - 0.9)} fill="none" stroke="url(#wain-orb-rim)" strokeWidth="1.8" clipPath={`url(#${clip})`} />
       <ellipse
         cx={hx}
         cy={hy}
@@ -611,11 +618,18 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
             terminator that turns the lower right towards the sea's own
             deep blue. */}
         <radialGradient id="wain-orb" cx="50%" cy="50%" r="50%" fx="32%" fy="28%">
-          <stop offset="0%" stopColor="#d6f0fb" />
-          <stop offset="28%" stopColor="#7cc6ec" />
-          <stop offset="65%" stopColor="#2f96d6" />
-          <stop offset="100%" stopColor="#16548a" />
+          <stop offset="0%" stopColor="#e4f6fd" />
+          <stop offset="24%" stopColor="#86cdef" />
+          <stop offset="58%" stopColor="#3499d8" />
+          <stop offset="84%" stopColor="#1b6aa6" />
+          <stop offset="100%" stopColor="#0f4a7d" />
         </radialGradient>
+        <linearGradient id="wain-orb-rim" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#f2fbff" stopOpacity="0.95" />
+          <stop offset="0.4" stopColor="#f2fbff" stopOpacity="0" />
+          <stop offset="0.62" stopColor="#0b2f55" stopOpacity="0" />
+          <stop offset="1" stopColor="#0b2f55" stopOpacity="0.8" />
+        </linearGradient>
         {/* A cone or cylinder across its width: lit a third of the way in,
             falling off to the shadow side. */}
         <linearGradient id="wain-shaft" x1="0" y1="0" x2="1" y2="0">
@@ -758,8 +772,8 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
       <style>{`
         .bldg { stroke: #c9ab72; stroke-width: 2.5; stroke-linejoin: round; }
         .spire { stroke: #c9ab72; stroke-width: 2; stroke-linejoin: round; }
-        .steel { stroke: #9fb0ba; }
-        .orb { stroke: #1f7fb8; stroke-width: 2.5; }
+        .steel { stroke: #8fa1ad; stroke-width: 1.4; }
+        .orb { stroke: #145f95; stroke-width: 1.6; }
       `}</style>
 
       {/* Sky */}
@@ -936,6 +950,7 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
         {/* Third, bare spire */}
         <path className="bldg steel" d="M804 372 L812 150 L818 150 L826 372 Z" fill="url(#wain-steel)" />
         <path d="M815 150 L818 150 L826 372 L815 372 Z" fill="#3f4f5a" opacity="0.18" />
+        <path d="M813.4 156 L808.4 366" stroke="#ffffff" strokeWidth="0.9" strokeLinecap="round" opacity="0.55" />
         <path className="spire steel" d="M812 150 L815 96 L818 150 Z" fill="url(#wain-steel)" />
         <circle cx="815" cy="96" r="6" fill="#fccb4d" opacity="0.4" />
         <circle cx="815" cy="96" r="2.2" fill="#e8b23a" />
