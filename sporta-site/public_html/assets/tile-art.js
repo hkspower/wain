@@ -191,14 +191,21 @@
      revalidates in the background: the owner saw the old accessories tile
      after the server had the new one byte for byte. The bundle names these
      files with fixed URLs, so this is the one place a query can be added;
-     a new query is a new URL, fetched fresh. Bump ART_VERSION with the art. */
+     a new query is a new URL, fetched fresh. Bump ART_VERSION with the art.
+
+     ONLY THE ART- FILES (2026-10-01). The bundle's first <picture> asks for a
+     plain name (/cats/desktop/men.jpg) that is MEANT to 404 — that error is
+     what drops it to the second <picture>, the webp and Arabic one. Stamping
+     it versioned nothing (there is no file to version) and, whenever the
+     browser had already asked, made it ask again: eight 404s a load instead
+     of four, depending on which script ran first. */
   var ART_VERSION = '20261001a'
   function stamp() {
     var nodes = document.querySelectorAll('.cat-tile source[srcset], .cat-tile img[src]')
     for (var i = 0; i < nodes.length; i++) {
       var attr = nodes[i].tagName === 'SOURCE' ? 'srcset' : 'src'
       var v = nodes[i].getAttribute(attr) || ''
-      if (v.indexOf('/cats/') === -1 || v.indexOf('?') !== -1) continue
+      if (!/\/cats\/[^\s?]*\/art-/.test(v) || v.indexOf('?') !== -1) continue
       nodes[i].setAttribute(attr, v.replace(/(\.(webp|jpg|jpeg|png))(\s|$)/, '$1?v=' + ART_VERSION + '$3'))
     }
   }
