@@ -47,7 +47,8 @@ for (const [name, vp, touch] of [['phone', { width: 390, height: 844 }, true], [
 // not a side page: nothing changed there
 {
   const p = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage()
-  for (const u of ['/shop', '/checkout', '/product/vanquish-tank-navy', '/cart']) {
+  // /cart and an empty /checkout share the title since 2026-10-01 (57-utility-pages.css)
+  for (const u of ['/shop', '/product/vanquish-tank-navy']) {
     await p.goto(`${BASE}${u}`, { waitUntil: 'networkidle' }); await p.waitForTimeout(1200)
     const r = await p.evaluate(() => { const h = document.querySelector('main h1'); return h ? getComputedStyle(h, '::after').width : 'no-h1' })
     check(r !== '56px', `${u}: its title does not get the side-page bar`, r)

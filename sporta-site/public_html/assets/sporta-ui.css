@@ -4722,3 +4722,89 @@ button[aria-label*="quantity"], button[aria-label*="الكمية"] {
     text-align: center;
   }
 }
+/* NO OVER-BOLD, ONE STEP SMALLER — 2026-10-01, "fix all over bold and all over size text".
+ *
+ * THE OVER-BOLD WAS FAKE. Anton (the condensed display face on "Shop sportswear", "Your bag", "Wishlist",
+ * the product name, "Complete the look", the price and the footer headings) exists in ONE weight, 400.
+ * Those headings ask for 800, so the browser SYNTHESISED the extra weight by thickening every stroke —
+ * the smeared, blotted look. `font-synthesis: none` stops that: Anton draws at its real weight (already a
+ * heavy display face), and a family that does have a 700 (Alexandria, IBM Plex Sans Arabic) uses it.
+ * The Alexandria headings that asked for 800 come down to 700 as well.
+ *
+ * AND ONE STEP SMALLER: headings and display prices stop at 26px on a phone and 30px from 768px
+ * (54-text-scale.css had 28/32). test:text-cap holds the new ceiling. */
+html { font-synthesis: none; }
+
+/* Alexandria at 800 -> 700: the two home bars, the category page titles, the tile titles */
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading,
+.cat-tile .cat-tile__title { font-weight: 700 !important; }
+
+/* the ceiling */
+[data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+[data-theme] .sporta-home-products__heading { font-size: 26px !important; }
+main h1[class~="text-3xl"], main h1[class~="mb-8"], main h1[class~="mb-3"] { font-size: 26px !important; }
+main span.font-display[class~="text-accent"] { font-size: 24px !important; }
+@media (min-width: 768px) {
+  [data-theme] h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+  [data-theme] .sporta-home-products__heading { font-size: 30px !important; }
+  main h1[class~="text-3xl"]:not(:is(section[class~="max-w-3xl"], section[class~="max-w-4xl"], section[class~="max-w-xl"]) h1), main h1[class~="mb-8"], main h1[class~="mb-3"] { font-size: 30px !important; }
+  .cat-tile .cat-tile__title { font-size: clamp(22px, 2.3vw, 28px) !important; }
+  main span.font-display[class~="text-accent"] { font-size: 26px !important; }
+}
+.product-title { font-size: clamp(22px, 2.2vw, 28px) !important; }
+/* ONE LOOK FOR THE UTILITY PAGES — 2026-10-01, "improve centered and alignment and padding and spacing".
+ * Measured on a phone, the bag, wishlist and checkout-empty pages each did their own thing: "Your bag"
+ * orange display type, centred, 80px down; "Wishlist" white display type at the start, 48px down; Track,
+ * About and the legal pages the side-page title (Alexandria, white, orange bar). The empty bag's "Back to
+ * shop" was a grey pill and the empty wishlist's an orange button — the same action, two looks.
+ *
+ * Now every one of those titles is the side-page title (53-side-pages.css): Alexandria 700, white, the
+ * orange bar beneath — CENTRED when its page is a centred empty state, at the start otherwise. They start
+ * at the same height as the side pages (40px on a phone, 64px from 768px). The empty bag's button is the
+ * shop's primary button. Sizes stay under the 26/30px ceiling (56-type-weight.css). */
+main :is(section, div)[class~="text-center"][class~="py-20"],
+main section[class~="py-12"]:has(> h1[class~="mb-8"]) { padding-top: 40px !important; }
+@media (min-width: 768px) {
+  main :is(section, div)[class~="text-center"][class~="py-20"],
+  main section[class~="py-12"]:has(> h1[class~="mb-8"]) { padding-top: 64px !important; }
+}
+main :is(section, div)[class~="text-center"][class~="py-20"] > h1[class~="text-3xl"],
+main section[class~="py-12"] > h1[class~="mb-8"][class~="text-3xl"] {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  color: #ffffff !important;
+  line-height: 1.3 !important;
+  position: relative;
+  padding-bottom: 16px;
+  margin-bottom: 18px !important;
+}
+main :is(section, div)[class~="text-center"][class~="py-20"] > h1[class~="text-3xl"]::after,
+main section[class~="py-12"] > h1[class~="mb-8"][class~="text-3xl"]::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  inset-inline-start: 0;
+  width: 56px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--brand, #e0561c);
+}
+main :is(section, div)[class~="text-center"][class~="py-20"] > h1[class~="text-3xl"]::after {
+  inset-inline-start: calc(50% - 28px);       /* a centred page gets a centred bar */
+}
+/* the empty bag's "Back to shop": exactly the shop's .btn-primary, as on the empty wishlist (measured:
+   #e0561c with #171a1e text — 4.7:1 — 48px tall, 24px sides, 700, a soft orange shadow) */
+main :is(section, div)[class~="text-center"][class~="py-20"] > a[class~="bg-brand"][class~="rounded-full"] {
+  background: #e0561c !important;
+  color: #171a1e !important;
+  border-radius: 9999px !important;
+  height: 48px;
+  display: inline-flex !important;
+  align-items: center;
+  padding: 0 24px !important;
+  font-weight: 700 !important;
+  font-size: 15.2px !important;
+  box-shadow: 0 8px 20px -8px rgba(222, 86, 27, .6);
+}

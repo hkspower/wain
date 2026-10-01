@@ -1,4 +1,4 @@
-/** No text above the ceiling anywhere: 28px on a phone, 32px from 768px (the 404 numeral 56px). node scripts/text-cap-test.mjs (sandbox on :4300) */
+/** No text above the ceiling anywhere: 26px on a phone, 30px from 768px (the 404 numeral 56px). node scripts/text-cap-test.mjs (sandbox on :4300) */
 import { chromium } from 'playwright'
 const BASE = process.env.BASE ?? 'http://127.0.0.1:4300'
 let fails = 0, measured = 0
@@ -6,7 +6,7 @@ const check = (ok, w, d = '') => { if (!ok) fails++; console.log(`${ok ? 'ok  ' 
 const b = await chromium.launch({ executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
 const PAGES = ['/', '/shop', '/men', '/women', '/product/vanquish-tank-navy', '/about', '/contact', '/returns', '/terms', '/privacy', '/track', '/checkout', '/wishlist', '/nope']
 for (const [w, touch] of [[390, true], [768, false], [1280, false], [1600, false]]) {
-  const cap = w < 768 ? 28 : 32
+  const cap = w < 768 ? 26 : 30
   const ctx = await b.newContext({ viewport: { width: w, height: 900 }, hasTouch: touch, isMobile: touch }); const p = await ctx.newPage()
   const over = []
   for (const lang of ['en', 'ar']) for (const u of PAGES) {

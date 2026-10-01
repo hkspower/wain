@@ -227,6 +227,7 @@ header('Cache-Control: public, max-age=0, must-revalidate');
 <link rel="icon" href="/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <style>
+  html { font-synthesis: none; }   /* no faked bold weights, as css/56-type-weight.css */
   /* The palette and font-face block are copied from returns-request.html's
      own copy of assets/sporta-dark.css's ramp, for the same reason it gives:
      this page renders correctly on its own without pulling in a 91 KB build
@@ -405,7 +406,7 @@ header('Cache-Control: public, max-age=0, must-revalidate');
   /* Dark on the white-ground art of 2026-09-28; white type on it vanished. */
   .hero .kicker { font-size: .82rem; font-weight: 700; letter-spacing: .04em;
                   color: #c2410c; margin: 0 0 6px; }
-  .hero h1 { font-size: clamp(24px, 2.5vw, 32px); /* was up to 38px: no text over 32px, 2026-10-01 */ font-weight: 800; margin: 0;
+  .hero h1 { font-size: clamp(22px, 2.3vw, 30px); font-weight: 700; /* was up to 38px at 800: no text over 30px, no over-bold, 2026-10-01 */ margin: 0;
              color: #141413; }
   main { max-width: 1200px; margin: 0 auto; padding: 12px 20px; }
   .count { color: var(--sp-silver); font-size: .9rem; margin: 0 0 18px; }

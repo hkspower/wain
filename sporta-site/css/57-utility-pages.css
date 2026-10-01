@@ -1,0 +1,55 @@
+/* ONE LOOK FOR THE UTILITY PAGES — 2026-10-01, "improve centered and alignment and padding and spacing".
+ * Measured on a phone, the bag, wishlist and checkout-empty pages each did their own thing: "Your bag"
+ * orange display type, centred, 80px down; "Wishlist" white display type at the start, 48px down; Track,
+ * About and the legal pages the side-page title (Alexandria, white, orange bar). The empty bag's "Back to
+ * shop" was a grey pill and the empty wishlist's an orange button — the same action, two looks.
+ *
+ * Now every one of those titles is the side-page title (53-side-pages.css): Alexandria 700, white, the
+ * orange bar beneath — CENTRED when its page is a centred empty state, at the start otherwise. They start
+ * at the same height as the side pages (40px on a phone, 64px from 768px). The empty bag's button is the
+ * shop's primary button. Sizes stay under the 26/30px ceiling (56-type-weight.css). */
+main :is(section, div)[class~="text-center"][class~="py-20"],
+main section[class~="py-12"]:has(> h1[class~="mb-8"]) { padding-top: 40px !important; }
+@media (min-width: 768px) {
+  main :is(section, div)[class~="text-center"][class~="py-20"],
+  main section[class~="py-12"]:has(> h1[class~="mb-8"]) { padding-top: 64px !important; }
+}
+main :is(section, div)[class~="text-center"][class~="py-20"] > h1[class~="text-3xl"],
+main section[class~="py-12"] > h1[class~="mb-8"][class~="text-3xl"] {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  color: #ffffff !important;
+  line-height: 1.3 !important;
+  position: relative;
+  padding-bottom: 16px;
+  margin-bottom: 18px !important;
+}
+main :is(section, div)[class~="text-center"][class~="py-20"] > h1[class~="text-3xl"]::after,
+main section[class~="py-12"] > h1[class~="mb-8"][class~="text-3xl"]::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  inset-inline-start: 0;
+  width: 56px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--brand, #e0561c);
+}
+main :is(section, div)[class~="text-center"][class~="py-20"] > h1[class~="text-3xl"]::after {
+  inset-inline-start: calc(50% - 28px);       /* a centred page gets a centred bar */
+}
+/* the empty bag's "Back to shop": exactly the shop's .btn-primary, as on the empty wishlist (measured:
+   #e0561c with #171a1e text — 4.7:1 — 48px tall, 24px sides, 700, a soft orange shadow) */
+main :is(section, div)[class~="text-center"][class~="py-20"] > a[class~="bg-brand"][class~="rounded-full"] {
+  background: #e0561c !important;
+  color: #171a1e !important;
+  border-radius: 9999px !important;
+  height: 48px;
+  display: inline-flex !important;
+  align-items: center;
+  padding: 0 24px !important;
+  font-weight: 700 !important;
+  font-size: 15.2px !important;
+  box-shadow: 0 8px 20px -8px rgba(222, 86, 27, .6);
+}

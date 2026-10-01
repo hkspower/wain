@@ -74,6 +74,7 @@
     "test:product-page-polish": "node scripts/product-page-polish-test.mjs",
     "test:order-progress": "node scripts/order-progress-test.mjs",
     "test:text-colour": "node scripts/text-colour-scan.mjs",
+    "test:utility-pages": "node scripts/utility-pages-test.mjs",
     "scan:hero-quality": "python3 scripts/scan-hero-quality.py",
     "test:notification-center": "node scripts/notification-center-test.mjs",
     "test:best-sellers-bar": "node scripts/best-sellers-bar-test.mjs",
