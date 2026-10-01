@@ -64,6 +64,13 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- A call with شوق goes on when the phone locks or another app comes
+	     forward: LiveKit's own requirement for a voice call in the background.
+	     Audio only; nothing here fetches or runs in the background otherwise. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>عشان تتكلم مع شوق وتسألها وين تطلع.</string>
 	<key>NSCameraUsageDescription</key>

@@ -36,6 +36,18 @@ void _uploadReadiness() {
           .firstMatch(plist)
           ?.group(1);
 
+  test('a call keeps its audio when the phone locks (UIBackgroundModes)', () {
+    final modes = RegExp(
+      r'<key>UIBackgroundModes</key>\s*<array>(.*?)</array>',
+      dotAll: true,
+    ).firstMatch(plist)?.group(1);
+    expect(modes, isNotNull);
+    expect(modes, contains('<string>audio</string>'));
+    // Only audio: a fetch or processing mode is something the app would have
+    // to justify to review, and nothing here uses one.
+    expect(RegExp('<string>').allMatches(modes!).length, 1);
+  });
+
   test('the microphone has a purpose string (شوق\'s call)', () {
     expect(value('NSMicrophoneUsageDescription'), isNotEmpty);
   });

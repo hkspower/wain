@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
@@ -10,6 +11,7 @@ import 'app/app_state.dart';
 import 'ai/call_controller.dart';
 import 'ai/call_overlay.dart';
 import 'ai/elevenlabs_session.dart';
+import 'ai/keep_alive.dart';
 import 'app/deep_link.dart';
 import 'app/router.dart';
 import 'voice/platform_voice.dart';
@@ -29,7 +31,22 @@ class WainApp extends StatefulWidget {
 
   /// Where to start; tests use it to land on a route directly.
   final String initialLocation;
-  const WainApp({super.key, required this.state, this.initialLocation = '/'});
+
+  /// Tests replace the real session (LiveKit, a microphone, a network) and
+  /// the keep-alive (wakelock, the Android service) with fakes.
+  final SessionFactory? sessionFactory;
+  final MicCheck? checkMic;
+  final CallKeepAlive? keepAlive;
+  final String? agentId;
+  const WainApp({
+    super.key,
+    required this.state,
+    this.initialLocation = '/',
+    this.sessionFactory,
+    this.checkMic,
+    this.keepAlive,
+    this.agentId,
+  });
 
   @override
   State<WainApp> createState() => _WainAppState();
@@ -40,8 +57,12 @@ class _WainAppState extends State<WainApp> {
 
   /// The call lives here, above the router, so a page change she causes
   /// (`open_place`) cannot hang up her own call.
+  late final CallKeepAlive _keepAlive = widget.keepAlive ?? PlatformKeepAlive();
+
   late final CallController _call = CallController(
-    sessionFactory: ElevenLabsSession.new,
+    sessionFactory: widget.sessionFactory ?? ElevenLabsSession.new,
+    keepAlive: _keepAlive,
+    agentId: widget.agentId,
     places: kPlaces,
     indexOf: () => searchIndex,
     // A place opens ON TOP of whatever she was showing, so back returns
@@ -49,8 +70,11 @@ class _WainAppState extends State<WainApp> {
     navigate: (location) => location.startsWith('/places/')
         ? _router.push(location)
         : _router.go(location),
-    checkMic: checkMicrophone,
+    checkMic: widget.checkMic ?? checkMicrophone,
   );
+
+  late final ChildBackButtonDispatcher _back = _router.backButtonDispatcher
+      .createChildBackButtonDispatcher();
 
   StreamSubscription<Uri>? _links;
 
@@ -58,6 +82,44 @@ class _WainAppState extends State<WainApp> {
   void initState() {
     super.initState();
     _listenForLinks();
+    final k = _keepAlive;
+    if (k is PlatformKeepAlive) k.onHangUp = () => _call.hangUp();
+    // Back while the call sheet is up acts on the SHEET: a live call shrinks
+    // to its bar, a finished one closes. The sheet sits above the router, so
+    // without this, back reached the page hidden under it — or closed the app.
+    // After the first frame: taking priority asserts that the root dispatcher
+    // already has the router's own callback, which it gets when the Router
+    // first builds.
+    _back.addCallback(_onBack);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _back.takePriority();
+    });
+    _call.addListener(_syncSystemBack);
+  }
+
+  Future<bool> _onBack() async {
+    if (!_call.sheetOpen) return false;
+    if (_call.active) {
+      _call.minimise();
+    } else {
+      _call.closeSheet();
+    }
+    return true;
+  }
+
+  /// Android 16 delivers back to the app only while the framework says it
+  /// will handle it, and the navigator alone says no on Home — so with the
+  /// sheet open on Home, back would have left the app.
+  bool _sheetWasOpen = false;
+  void _syncSystemBack() {
+    if (_call.sheetOpen == _sheetWasOpen) return;
+    _sheetWasOpen = _call.sheetOpen;
+    if (_sheetWasOpen) SystemNavigator.setFrameworkHandlesBack(true);
+  }
+
+  bool _onNavigation(NavigationNotification n) {
+    SystemNavigator.setFrameworkHandlesBack(n.canHandlePop || _call.sheetOpen);
+    return true;
   }
 
   /// A forwarded invitation opens the place in the app. The browser build IS
@@ -87,6 +149,8 @@ class _WainAppState extends State<WainApp> {
   @override
   void dispose() {
     _links?.cancel();
+    _call.removeListener(_syncSystemBack);
+    _back.removeCallback(_onBack);
     _voice.dispose();
     _call.dispose();
     super.dispose();
@@ -114,6 +178,7 @@ class _WainAppState extends State<WainApp> {
         ],
         theme: buildWainTheme(),
         routerConfig: _router,
+        onNavigationNotification: _onNavigation,
         builder: (context, child) => Stack(
           textDirection: TextDirection.rtl,
           children: [

@@ -83,6 +83,9 @@ Future<MicResult> checkMicrophone() async {
   try {
     final status = await Permission.microphone.request();
     if (status.isGranted || status.isLimited) return MicResult.ok;
+    if (status.isPermanentlyDenied || status.isRestricted) {
+      return MicResult.blocked;
+    }
     return MicResult.denied;
   } catch (_) {
     return MicResult.ok;

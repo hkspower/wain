@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:wain/ai/call_controller.dart';
+import 'package:wain/ai/keep_alive.dart';
 import 'package:wain/app/app_state.dart';
 import 'package:wain/data/catalogue.dart';
 import 'package:wain/data/places.g.dart';
@@ -62,8 +63,10 @@ CallController testController({
   MicCheck? mic,
   Duration dial = const Duration(seconds: 20),
   void Function(FakeSession)? configure,
+  CallKeepAlive? keepAlive,
 }) {
   return CallController(
+    keepAlive: keepAlive,
     sessionFactory: () {
       final s = FakeSession();
       configure?.call(s);
@@ -92,3 +95,15 @@ Future<void> pumpApp(WidgetTester tester, String location) async {
 
 T read<T>(WidgetTester tester, Finder f) =>
     Provider.of<T>(tester.element(f.first), listen: false);
+
+/// Records when the call asked to be kept alive, and when it let go.
+class FakeKeepAlive implements CallKeepAlive {
+  final List<String> log = [];
+  bool get running => log.isNotEmpty && log.last == 'start';
+
+  @override
+  Future<void> start() async => log.add('start');
+
+  @override
+  Future<void> stop() async => log.add('stop');
+}

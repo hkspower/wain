@@ -18,6 +18,7 @@ import 'package:flutter/foundation.dart';
 import '../data/models.dart';
 import '../data/search.dart';
 import 'config.dart';
+import 'keep_alive.dart';
 import 'tools.dart';
 
 enum CallPhase { idle, ringing, live, answering, ended, failed }
@@ -46,7 +47,10 @@ abstract class AgentSession {
 typedef SessionFactory = AgentSession Function();
 typedef MicCheck = Future<MicResult> Function();
 
-enum MicResult { ok, denied, missing, busy }
+/// `blocked` is a refusal the app can no longer ask about (iOS after the first
+/// «لا», Android after «لا تسأل مرة ثانية»): only Settings can undo it, so the
+/// sheet offers a way there instead of a sentence alone.
+enum MicResult { ok, denied, blocked, missing, busy }
 
 class CallController extends ChangeNotifier {
   CallController({
@@ -57,6 +61,7 @@ class CallController extends ChangeNotifier {
     this.checkMic,
     this.dialTimeout = const Duration(seconds: 20),
     this.agentId,
+    this.keepAlive,
   });
 
   final SessionFactory sessionFactory;
@@ -71,6 +76,12 @@ class CallController extends ChangeNotifier {
   final MicCheck? checkMic;
   final Duration dialTimeout;
   final String? agentId;
+
+  /// Screen awake, and on Android the foreground service that keeps the
+  /// microphone open while the app is behind another one. Started once the
+  /// microphone is granted, stopped on every way a call can end.
+  final CallKeepAlive? keepAlive;
+  bool _kept = false;
 
   CallPhase _phase = CallPhase.idle;
   String? _error;
@@ -98,6 +109,24 @@ class CallController extends ChangeNotifier {
       _phase == CallPhase.ringing ||
       _phase == CallPhase.live ||
       _phase == CallPhase.answering;
+
+  /// The call is going on with its sheet put away, the way a phone's own call
+  /// shrinks to a bar when you go and look at something else.
+  bool get minimised => active && !_sheetOpen;
+
+  /// Puts the sheet away without ending the call — to see the page she just
+  /// opened, which the full-screen sheet otherwise covers.
+  void minimise() {
+    if (!active || !_sheetOpen) return;
+    _sheetOpen = false;
+    notifyListeners();
+  }
+
+  void restore() {
+    if (!active || _sheetOpen) return;
+    _sheetOpen = true;
+    notifyListeners();
+  }
 
   void _set(CallPhase p) {
     _phase = p;
@@ -131,11 +160,15 @@ class CallController extends ChangeNotifier {
     if (mic != MicResult.ok) {
       _fail(switch (mic) {
         MicResult.denied => CallCopy.micDenied,
+        MicResult.blocked => CallCopy.micBlocked,
         MicResult.missing => CallCopy.noMic,
         _ => CallCopy.micBusy,
       });
       return;
     }
+
+    _kept = true;
+    keepAlive?.start();
 
     _dial = Timer(dialTimeout, () {
       if (token != _token || _phase != CallPhase.ringing) return;
@@ -241,6 +274,8 @@ class CallController extends ChangeNotifier {
     _teardown();
     _session = null;
     _error = message;
+    // A call that fails while its sheet is put away must still be seen to.
+    _sheetOpen = true;
     _set(CallPhase.failed);
     s?.end();
     s?.dispose();
@@ -250,12 +285,18 @@ class CallController extends ChangeNotifier {
     final s = _session;
     _teardown();
     _session = null;
+    // She hung up, or the line dropped, while the sheet was put away: say so.
+    _sheetOpen = true;
     _set(p);
     s?.dispose();
   }
 
   void _teardown() {
     _token++;
+    if (_kept) {
+      _kept = false;
+      keepAlive?.stop();
+    }
     _dial?.cancel();
     _clock?.cancel();
     _dial = null;

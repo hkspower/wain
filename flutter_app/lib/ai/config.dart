@@ -80,6 +80,11 @@ abstract final class CallCopy {
       'طوّلنا نرن وما وصلنا — تأكد إنك سمحت بالمايك وجرّب مرة ثانية.';
   static const micNote = 'يحتاج إذن المايك عشان تكلّمها.';
   static const micDenied = 'ما وصلنا صوتك — تأكد إن المايك مسموح للتطبيق.';
+  static const micBlocked =
+      'المايك مقفول لوين — افتح الإعدادات وسمح له، وارجع اتصل.';
+  static const openSettings = 'افتح الإعدادات';
+  static const minimise = 'صغّر المكالمة';
+  static const backToCall = 'ارجع للمكالمة';
   static const noMic = 'ما لقينا مايك في جهازك — وصّل مايك وجرّب مرة ثانية.';
   static const micBusy = 'المايك مشغول في تطبيق ثاني — سكّره وجرّب مرة ثانية.';
   static const failed = 'ما قدرنا نشغّل شوق الحين — جرّب مرة ثانية بعدين.';

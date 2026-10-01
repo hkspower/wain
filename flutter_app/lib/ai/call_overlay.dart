@@ -10,6 +10,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import '../theme/app_theme.dart';
@@ -33,6 +34,7 @@ class CallOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final call = context.watch<CallController>();
+    if (call.minimised) return _OnCallBar(call: call);
     if (!call.sheetOpen) return const SizedBox.shrink();
     return Positioned.fill(child: _Sheet(call: call));
   }
@@ -73,6 +75,28 @@ class _Sheet extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(20, top + 16, 20, bottom + 16),
         child: Column(
           children: [
+            // Put the sheet away without hanging up — the page she opened is
+            // under it, and a phone's own call screen shrinks the same way.
+            if (call.active)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                // No tooltip: the sheet sits above the navigator, so there
+                // is no Overlay for one to float in. The label is the name.
+                child: Semantics(
+                  button: true,
+                  label: CallCopy.minimise,
+                  excludeSemantics: true,
+                  child: IconButton(
+                    key: const ValueKey('call-minimise'),
+                    onPressed: call.minimise,
+                    icon: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                  ),
+                ),
+              ),
             Text(
               CallCopy.centre,
               style: wainText(WainText.sm, color: WainColors.sand300),
@@ -191,6 +215,25 @@ class _Sheet extends StatelessWidget {
                 onTap: call.hangUp,
               ),
             ],
+            // A refusal the app can no longer ask about: only Settings undoes
+            // it, so the way there is a button, not just a sentence.
+            if (call.phase == CallPhase.failed &&
+                call.error == CallCopy.micBlocked) ...[
+              FilledButton(
+                key: const ValueKey('call-open-settings'),
+                onPressed: openAppSettings,
+                style: FilledButton.styleFrom(
+                  backgroundColor: WainColors.sun300,
+                  foregroundColor: WainColors.ink900,
+                  minimumSize: const Size(220, 48),
+                ),
+                child: Text(
+                  CallCopy.openSettings,
+                  style: wainText(WainText.base, weight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
             if (over) ...[
               FilledButton(
                 key: const ValueKey('call-again'),
@@ -227,6 +270,73 @@ class _Sheet extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The call, shrunk: a bar under the status bar for as long as it goes on
+/// with its sheet put away. Under the status bar rather than at the foot,
+/// because the foot is the tab bar on a tab and the message box on /salem.
+class _OnCallBar extends StatelessWidget {
+  final CallController call;
+  const _OnCallBar({required this.call});
+
+  @override
+  Widget build(BuildContext context) {
+    final top = MediaQuery.paddingOf(context).top;
+    final label = call.phase == CallPhase.ringing
+        ? CallCopy.ringing
+        : '${CallCopy.name} · ${_clock(call.elapsed)}';
+    return Positioned(
+      top: top + 6,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: Semantics(
+          button: true,
+          label: '${CallCopy.backToCall} — $label',
+          excludeSemantics: true,
+          child: Material(
+            key: const ValueKey('call-bar'),
+            color: WainColors.palm600,
+            elevation: 3,
+            shape: const StadiumBorder(),
+            child: InkWell(
+              customBorder: const StadiumBorder(),
+              onTap: call.restore,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.call, color: Colors.white, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        label,
+                        style: wainText(
+                          WainText.sm,
+                          weight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        CallCopy.backToCall,
+                        style: wainText(
+                          WainText.xs,
+                          color: Colors.white.withValues(alpha: 0.85),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
