@@ -3126,6 +3126,37 @@ is a gradient (`wain-grass`) instead of one flat slab. **`flutter_app/assets/art
 skyline.svg` is generated from this component** — `npm run flutter:art` after
 any change to it, or `audit:flutter` goes red. Not live until a deploy.
 
+**The Liberation Tower was redrawn on 1 October (`LiberationTower` in
+`KuwaitSkyline.tsx`), and what it taught is worth keeping.** It had been one flat
+wedge with a hard stripe for shading, a flat ellipse glued on as a second disc, a
+bracket-shaped collar, a podium that showed only as two stubs, and two big red
+balls on the mast that read as map pins. It is now a podium in front of a round,
+smoothly shaded shaft with pour joints, a concrete deck, a teal glass pod with
+panes, a cream tier and teal cap, and a slim red-and-white banded mast with two
+small lamps. Everything is built from one helper, `drum()`: **every ring on the
+tower is looked UP at**, so its near edge bows up over the front (the bend `TILT`
+gives the Kuwait Towers' disc rows) and its underside shows as a shallow bowl —
+the same rule as the spheres, so the two landmarks agree.
+
+Three traps, all met on the way:
+
+- **A CSS class outranks a presentation attribute.** The mast outline carried
+  `className="spire"` (`stroke-width: 2` in the `<style>` block) *and*
+  `strokeWidth="1"`; the class won, the outline covered most of a mast only 2–7
+  units wide, and the bands barely showed. The tower's own details use plain
+  attributes, no class.
+- **The Flutter exporter bakes only `.bldg`/`.spire`/`.orb`** onto elements and
+  deletes the `<style>` block, so any other class or CSS rule in this component
+  would silently not reach the app. It also strips `filter`, and flutter_svg does
+  not do `mask` or CSS animation — paths, ellipses, lines, gradients and
+  clip-paths only. `npm run flutter:art` after any change here.
+- **The shaft's foot outlined past the podium.** Carried to y 372 under a
+  podium that ends at 372, its 2.5-unit outline showed as a bump below it. It
+  stops at 366, behind the podium.
+
+Not measured: the redrawn SVG in `flutter_svg` itself — there is no Flutter SDK
+here, so the Flutter widget suite did not run on it; CI is the check.
+
 **Adobe Photoshop was tried for this and could not be used from here.**
 `asset_initialize_file_upload` worked, but the PUT to `at.adobe.com` is refused
 at CONNECT with a 403 by the sandbox's egress gateway — the same class of block

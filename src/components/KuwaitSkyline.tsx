@@ -195,6 +195,198 @@ const PALMS = [
   { x: 1156, s: 1.02 },
 ];
 
+/* ---- Liberation Tower ---- */
+
+/** Half-width of the Liberation Tower's shaft at height y, in the tower's own
+ *  (pre-scale) units: 15 at the foot, 5 where it vanishes into the pods. */
+const shaftHalf = (y: number) => 5 + (10 * (y - 150)) / 222;
+
+/**
+ * A drum — a pod, a deck, a collar — seen from the street, which is to say
+ * LOOKED UP AT. From below, the near side of every horizontal ring is higher
+ * on screen than its two ends, so the top edge bows UP over the front (the
+ * same bend `TILT` gives the Kuwait Towers' rows of discs), and the underside,
+ * which the eye can see because it is above it, closes the shape as a shallow
+ * bowl. The pod, the concrete deck, the tier under the mast and the collar on
+ * the shaft are this one shape with different numbers.
+ *
+ * `yTop` is where the near top edge's ellipse is centred, `h` the wall's
+ * height, `rx`/`ry` the ring's half-width and its foreshortened depth.
+ */
+function drum(cx: number, yTop: number, h: number, rx: number, ry: number) {
+  const l = r1(cx - rx);
+  const r = r1(cx + rx);
+  const yb = r1(yTop + h);
+  /** A point on the near top edge, `deg` round from the left rim (−90) to the right (90). */
+  const edge = (deg: number) => {
+    const t = (deg * Math.PI) / 180;
+    return `${r1(cx + rx * Math.sin(t))} ${r1(yTop - ry * Math.cos(t))}`;
+  };
+  return {
+    cx, yb, rx, ry,
+    /** The whole outline: bows up on top, and the underside bows down at the foot. */
+    silhouette: `M${l} ${yTop} A${rx} ${ry} 0 0 1 ${r} ${yTop} L${r} ${yb} A${rx} ${ry} 0 0 1 ${l} ${yb} Z`,
+    /** The wall alone, between the near top edge and the near bottom edge. */
+    wall: `M${l} ${yTop} A${rx} ${ry} 0 0 1 ${r} ${yTop} L${r} ${yb} A${rx} ${ry} 0 0 0 ${l} ${yb} Z`,
+    /** A line across the wall's middle, bowed the same way. */
+    belt: (t: number) => {
+      const y = r1(yTop + h * t);
+      return `M${l} ${y} A${rx} ${ry} 0 0 1 ${r} ${y}`;
+    },
+    /** The lit part of the top edge: from the left rim to `deg`. */
+    rim: (deg: number) => `M${l} ${yTop} A${rx} ${ry} 0 0 1 ${edge(deg)}`,
+    /** Warm light thrown up off the ground onto the underside's shadow side. */
+    bounce: `M${cx} ${r1(yb + ry)} A${rx} ${ry} 0 0 0 ${r} ${yb}`,
+    /** Vertical joints between panes, closing up towards the rim as they turn away. */
+    mullions: (n: number, span = 74) =>
+      Array.from({ length: n }, (_, i) => {
+        const t = (((-span + (2 * span * i) / (n - 1)) * Math.PI) / 180);
+        const dy = ry * Math.cos(t);
+        return { x: r1(cx + rx * Math.sin(t)), y1: r1(yTop - dy), y2: r1(yb - dy) };
+      }),
+  };
+}
+
+function LiberationTower() {
+  const cx = 187;
+  const pod = drum(cx, 159, 11, 26, 4.8);
+  const tier = drum(cx, 148, 12, 13, 2.3);
+  const deck = drum(cx, 200, 8, 20, 3.6);
+  const collar = drum(cx, 238, 6.5, r1(shaftHalf(241) + 1.9), 1.7);
+
+  // The mast: a needle from the cap down to the tip, banded red and white the
+  // way an aircraft-warning mast is. It was a fat outlined wedge with a
+  // bracket-shaped collar, carrying two large red balls that read as map pins.
+  const TIP = 44;
+  const BASE = 139.5;
+  const mastHalf = (y: number) => 0.9 + (2.7 * (y - TIP)) / (BASE - TIP);
+  const BANDS = 7;
+  const bandY = Array.from({ length: BANDS + 1 }, (_, i) => r1(TIP + ((BASE - TIP) * i) / BANDS));
+  /** A slice of the mast between two heights. `left` is where its left edge
+   *  sits as a share of the half-width from the centre: −1 is the true edge,
+   *  0.3 leaves only the shadow side. */
+  const slice = (y0: number, y1: number, left = -1) =>
+    `M${r1(cx + left * mastHalf(y0))} ${y0} L${r1(cx + mastHalf(y0))} ${y0} L${r1(cx + mastHalf(y1))} ${y1} L${r1(cx + left * mastHalf(y1))} ${y1} Z`;
+
+  // Ends at 366, behind the podium: carried down to 372 its outline showed
+  // as a bump under the podium's lower step.
+  const shaft = "M172.3 366 L182 150 L192 150 L201.7 366 Z";
+  const under = (d: ReturnType<typeof drum>) => (
+    <ellipse cx={d.cx} cy={d.yb} rx={d.rx} ry={d.ry} />
+  );
+  // A band of shadow thrown down the shaft by whatever sits above it.
+  const shade = (y0: number, y1: number) => (
+    <path
+      d={`M${r1(cx - shaftHalf(y0))} ${y0} L${r1(cx + shaftHalf(y0))} ${y0} L${r1(cx + shaftHalf(y1))} ${y1} L${r1(cx - shaftHalf(y1))} ${y1} Z`}
+      fill="url(#wain-fade)"
+    />
+  );
+
+  return (
+    <g transform="translate(187 372) scale(1.32) translate(-187 -372)">
+      {/* ---- Shaft: a round column, not a flat wedge. The old shading was a
+          hard vertical stripe down the middle; this falls off smoothly to the
+          shadow side, and the pour joints bow up over the front like every
+          other ring on the tower. */}
+      <path className="bldg" d={shaft} fill="url(#wain-shaft)" />
+      <path d={shaft} fill="url(#wain-shaft-shade)" />
+      {[188, 262, 287, 312, 337].map((y) => {
+        const x1 = r1(cx - shaftHalf(y) + 0.9);
+        const x2 = r1(cx + shaftHalf(y) - 0.9);
+        return (
+          <g key={y} fill="none" strokeLinecap="round">
+            <path d={`M${x1} ${y} Q${cx} ${y - 2} ${x2} ${y}`} stroke="#8a6f47" strokeWidth="0.7" strokeOpacity="0.3" />
+            <path d={`M${x1} ${y + 1.1} Q${cx} ${y - 0.9} ${x2} ${y + 1.1}`} stroke="#ffffff" strokeWidth="0.6" strokeOpacity="0.45" />
+          </g>
+        );
+      })}
+      <path d="M183.5 158 L175 362" stroke="#ffffff" strokeWidth="1.4" strokeLinecap="round" opacity="0.6" />
+
+      {/* A collar part-way up: a ring that stands proud of the shaft. */}
+      <path d={collar.wall} fill="url(#wain-shaft)" stroke="#c9ab72" strokeWidth="1.2" strokeLinejoin="round" />
+      <g fill="url(#wain-under)" stroke="#c9ab72" strokeWidth="1" strokeOpacity="0.8">
+        {under(collar)}
+      </g>
+
+      {/* What each deck throws on the shaft beneath it (light is upper left). */}
+      {shade(172, 199)}
+      {shade(209, 233)}
+
+      {/* ---- Podium, in FRONT of the shaft so the tower grows out of it. It
+          used to sit behind, which left two stubs poking out either side. */}
+      <rect x="152" y="361" width="70" height="11" rx="3" fill="url(#wain-stone)" stroke="#c9ab72" strokeWidth="1.4" />
+      <rect x="163" y="349" width="48" height="14" rx="3" fill="url(#wain-stone)" stroke="#c9ab72" strokeWidth="1.4" />
+      <g fill="#dcc287" opacity="0.55">
+        <rect x="171" y="353" width="5" height="6" rx="1.2" />
+        <rect x="184.5" y="353" width="5" height="6" rx="1.2" />
+        <rect x="198" y="353" width="5" height="6" rx="1.2" />
+      </g>
+      <g fill="#c9a55f" opacity="0.55">
+        {[166, 187, 208].map((x) => (
+          <path key={x} d={`M${x - 4} 372 v-5 a4 4 0 0 1 8 0 v5 Z`} />
+        ))}
+      </g>
+
+      {/* ---- Concrete deck: the lower, smaller disc. */}
+      <path d={deck.wall} fill="url(#wain-shaft)" />
+      <g fill="url(#wain-under)">{under(deck)}</g>
+      <g stroke="#8a6f47" strokeWidth="0.7" strokeOpacity="0.28" strokeLinecap="round">
+        {deck.mullions(9).map((m) => (
+          <line key={m.x} x1={m.x} y1={m.y1} x2={m.x} y2={m.y2} />
+        ))}
+      </g>
+      <path d={deck.silhouette} fill="none" stroke="#c9ab72" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d={deck.rim(-12)} fill="none" stroke="#ffffff" strokeWidth="1" strokeOpacity="0.75" strokeLinecap="round" />
+      <path d={deck.bounce} fill="none" stroke="#ffd9a0" strokeWidth="0.9" strokeOpacity="0.32" strokeLinecap="round" />
+
+      {/* ---- The top: a tier, a teal cap and the mast. */}
+      <path d={tier.wall} fill="url(#wain-shaft)" />
+      <path d={tier.silhouette} fill="none" stroke="#c9ab72" strokeWidth="1.3" strokeLinejoin="round" />
+      <path
+        d={`M${cx - 13} 148 A13 2.3 0 0 1 ${cx + 13} 148 Q${cx + 8} 145.5 ${cx + 3.6} ${BASE} L${cx - 3.6} ${BASE} Q${cx - 8} 145.5 ${cx - 13} 148 Z`}
+        fill="url(#wain-deck)"
+        stroke="#0f4c3d"
+        strokeWidth="0.8"
+        strokeOpacity="0.55"
+        strokeLinejoin="round"
+      />
+      <path d={`M${cx - 10} 147.2 Q${cx - 6} 145.2 ${cx - 2.6} ${BASE + 2.5}`} fill="none" stroke="#d8fff3" strokeWidth="0.9" strokeOpacity="0.6" strokeLinecap="round" />
+
+      {bandY.slice(0, -1).map((y0, i) => (
+        <path key={y0} d={slice(y0, bandY[i + 1])} fill={i % 2 === 0 ? "#dc2f25" : "#fffaf0"} />
+      ))}
+      {/* the shadow side of the round mast */}
+      {/* No \`spire\` class here: its rule sets stroke-width 2 and CSS outranks a
+          presentation attribute, which is how the outline came to cover most of
+          a mast only 2–7 units wide and hide the bands. */}
+      <path d={slice(TIP, BASE)} fill="none" stroke="#b89a5e" strokeWidth="0.55" strokeLinejoin="round" />
+      <path d={slice(TIP, BASE, 0.3)} fill="#5a3a12" opacity="0.2" />
+      {/* a service platform with its lamp, two-thirds of the way up */}
+      <ellipse cx={cx} cy="96" rx="4.4" ry="1.15" fill="#fffaf0" stroke="#c9ab72" strokeWidth="0.9" />
+      <circle cx={cx} cy="94" r="5.5" fill="url(#wain-beacon)" />
+      <circle cx={cx} cy="94.2" r="1.4" fill="#dc2f25" />
+      {/* the beacon on the tip */}
+      <circle cx={cx} cy="43" r="9" fill="url(#wain-beacon)" />
+      <circle cx={cx} cy="43" r="2.1" fill="#dc2f25" />
+      <circle cx={cx - 0.7} cy="42.2" r="0.7" fill="#ffffff" opacity="0.75" />
+
+      {/* ---- The pod: a glass drum, teal on its lit side, deep green below. */}
+      <path d={pod.wall} fill="url(#wain-glass)" />
+      <g fill="url(#wain-pod-under)">{under(pod)}</g>
+      <g stroke="#e6fff7" strokeWidth="0.9" strokeOpacity="0.5" strokeLinecap="round">
+        {pod.mullions(13).map((m) => (
+          <line key={m.x} x1={m.x} y1={m.y1} x2={m.x} y2={m.y2} />
+        ))}
+      </g>
+      <path d={pod.belt(0.42)} fill="none" stroke="#eafff9" strokeWidth="0.8" strokeOpacity="0.38" />
+      <path d={pod.silhouette} fill="none" stroke="#0f4c3d" strokeWidth="0.9" strokeOpacity="0.6" strokeLinejoin="round" />
+      <path d={pod.rim(-8)} fill="none" stroke="#d8fff3" strokeWidth="1.2" strokeOpacity="0.85" strokeLinecap="round" />
+      <ellipse cx={cx - 10} cy="157.6" rx="8" ry="1.5" fill="#ffffff" opacity="0.3" />
+      <path d={pod.bounce} fill="none" stroke="#ffd9a0" strokeWidth="1" strokeOpacity="0.3" strokeLinecap="round" />
+    </g>
+  );
+}
+
 export default function KuwaitSkyline({ className = "" }: { className?: string }) {
   return (
     <svg
@@ -266,6 +458,33 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
           <stop offset="0%" stopColor="#fffefb" />
           <stop offset="100%" stopColor="#e4d0a6" />
         </linearGradient>
+        {/* The Liberation Tower's own gradients. */}
+        <linearGradient id="wain-shaft-shade" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#6b4c22" stopOpacity="0" />
+          <stop offset="0.5" stopColor="#6b4c22" stopOpacity="0" />
+          <stop offset="1" stopColor="#6b4c22" stopOpacity="0.34" />
+        </linearGradient>
+        <linearGradient id="wain-fade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#5a3a12" stopOpacity="0.42" />
+          <stop offset="1" stopColor="#5a3a12" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="wain-glass" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#8fe9d2" />
+          <stop offset="0.38" stopColor="#3dba9b" />
+          <stop offset="1" stopColor="#0f6f5a" />
+        </linearGradient>
+        <linearGradient id="wain-pod-under" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#1f8a73" />
+          <stop offset="1" stopColor="#0a3a2e" />
+        </linearGradient>
+        <linearGradient id="wain-under" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#d9c291" />
+          <stop offset="1" stopColor="#a08457" />
+        </linearGradient>
+        <radialGradient id="wain-beacon" cx="50%" cy="50%" r="50%">
+          <stop offset="0" stopColor="#ff5a46" stopOpacity="0.6" />
+          <stop offset="1" stopColor="#ff5a46" stopOpacity="0" />
+        </radialGradient>
         <Palm />
       </defs>
 
@@ -316,43 +535,14 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
 
       {/* ---- Skyline ---- */}
 
-      {/* Liberation Tower. Two saucers, and only the upper one read as an
-          object — it had a lip and a highlight, the lower one was a flat
-          ellipse glued to the shaft. A dark lip drawn behind each disc, then
-          the disc, then a highlight on top is the same "standing in the sun"
-          logic the towers' Orbs use below, sized down to a flat saucer
-          rather than a sphere; the second light on the mast is because a
-          shaft this tall carries more than one aircraft warning lamp.
-
-          Scaled 1.32× about the middle of its base, not stretched: a taller
-          tower with the same width reads as a needle, and uniform scale keeps
-          the saucers round. The shaft is lit on its left half and shaded on
-          its right, the way the clock tower's `wain-box` is, so it has two
-          faces rather than being one flat wedge. */}
-      <g transform="translate(187 372) scale(1.32) translate(-187 -372)">
-        <rect x="163" y="360" width="48" height="12" rx="3" fill="url(#wain-stone)" stroke="#c9ab72" strokeWidth="1.4" />
-        <rect x="171" y="351" width="32" height="11" rx="3" fill="url(#wain-stone)" stroke="#c9ab72" strokeWidth="1.4" />
-        <path className="bldg" d="M172 372 L182 150 L192 150 L202 372 Z" fill="url(#wain-shaft)" />
-        <path d="M187 150 L192 150 L202 372 L187 372 Z" fill="#8a6f47" opacity="0.2" />
-        <path d="M183.5 158 L175 366" stroke="#ffffff" strokeWidth="1.4" strokeLinecap="round" opacity="0.65" />
-        <rect x="179.5" y="147" width="15" height="6" rx="3" fill="url(#wain-shaft)" stroke="#c9ab72" strokeWidth="1.2" />
-        <path className="spire" d="M182 150 L187 44 L192 150 Z" fill="url(#wain-shaft)" />
-        <circle cx="187" cy="94" r="8" fill="#dc2f25" opacity="0.15" />
-        <circle cx="187" cy="94" r="3" fill="#dc2f25" />
-        <circle cx="186.2" cy="93.2" r="1" fill="#ffffff" opacity="0.6" />
-        <circle cx="187" cy="40" r="12" fill="#dc2f25" opacity="0.15" />
-        <circle cx="187" cy="40" r="5" fill="#dc2f25" />
-        <circle cx="185.4" cy="38.4" r="1.6" fill="#ffffff" opacity="0.7" />
-        <ellipse cx="187" cy="171" rx="25" ry="7" fill="#0f4c3d" opacity="0.5" />
-        <ellipse cx="187" cy="168" rx="26" ry="11" fill="url(#wain-deck)" />
-        {/* Window band round the upper saucer's rim */}
-        <path d="M163 170 Q187 182 211 170" stroke="#d4f7ec" strokeWidth="1.6" strokeDasharray="1.8 2.6" strokeLinecap="round" fill="none" opacity="0.6" />
-        <ellipse cx="181" cy="163.5" rx="11" ry="2.6" fill="#ffffff" opacity="0.28" />
-        <ellipse cx="187" cy="209" rx="19" ry="6" fill="#8a6f47" opacity="0.35" />
-        <ellipse cx="187" cy="206" rx="20" ry="9" fill="url(#wain-shaft)" />
-        <ellipse cx="182" cy="202.5" rx="8" ry="2" fill="#ffffff" opacity="0.3" />
-        <rect x="176" y="240" width="22" height="8" rx="4" fill="url(#wain-shaft)" />
-      </g>
+      {/* Liberation Tower. Drawn by `LiberationTower` above: a podium, a shaded
+          round shaft, a concrete deck, the teal glass pod and a banded mast —
+          every ring seen from street level, so each one bows up over the front
+          like the Kuwait Towers' rows of discs. Scaled 1.32× about the middle
+          of its base inside the component, not stretched: a taller tower with
+          the same width reads as a needle, and a uniform scale keeps the pods
+          round. */}
+      <LiberationTower />
 
       {/* Low city block, left */}
       <g fill="url(#wain-stone)">
