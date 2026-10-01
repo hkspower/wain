@@ -13,6 +13,13 @@
  * they sat on the circle like stickers. Everything is computed at build
  * time — this is a server component, so the page ships plain SVG.
  *
+ * The Gulf is behind the skyline (`Sea`): a horizon at y 250 that shows above
+ * the low buildings and in every gap between the towers, with a seawall at the
+ * foot. It lives inside the same 1200×530 on purpose — the home page and the
+ * Flutter hero (`home_screen.dart`, `w * 530 / 1200`) both hard-code that ratio,
+ * so a sea BELOW the grass would have meant changing both. The waves come from
+ * a seeded generator: the same commit must render the same HTML.
+ *
  * The canvas is 1200×530 with its origin at y −110, not 1200×420: the two
  * tall landmarks were drawn to within 34 units of the old top edge, so making
  * them taller meant more sky above them, not a tighter crop. Moving the
@@ -387,6 +394,110 @@ function LiberationTower() {
   );
 }
 
+/* ---- The Gulf ---- */
+
+/** Where sea meets sky, and where the seawall starts. The ground is at 368. */
+const HORIZON = 250;
+const SHORE = 361;
+
+/** A small seeded generator: the waves must be the same on every build and
+ *  every export, or the home page's HTML would differ between two builds of one
+ *  commit and `generateBuildId`'s «same commit, same digest» would stop holding. */
+function rng(seed: number) {
+  let a = seed;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Rows of ripples, one path per row. Near the horizon a row is a thin line of
+ *  short, shallow dashes; towards the viewer the dashes grow longer, deeper and
+ *  brighter, and the rows spread apart — the whole of the perspective the sea
+ *  has. */
+const WAVE_Y = [256, 263, 271, 280, 290, 301, 313, 326, 340, 353];
+function waveRows() {
+  const rand = rng(11);
+  return WAVE_Y.map((y, i) => {
+    const len = 9 + i * 2.1;
+    const amp = r1(0.6 + i * 0.2);
+    const gap = 40 + i * 8;
+    let d = "";
+    for (let x = rand() * gap - 20; x < 1200; x += len + gap * (0.55 + 0.9 * rand())) {
+      d += `M${r1(x)} ${y} q${r1(len / 4)} ${-amp} ${r1(len / 2)} 0 q${r1(len / 4)} ${amp} ${r1(len / 2)} 0`;
+    }
+    return { y, d, w: r1(0.6 + i * 0.11), o: Math.min(0.6, r1(0.26 + i * 0.045)) };
+  });
+}
+
+/** Bright glints, thickest where the sun's light would land (the sun dial sits
+ *  over the middle of the sky). */
+function glints() {
+  const rand = rng(29);
+  return Array.from({ length: 22 }, () => {
+    const near = rand() < 0.6;
+    const x = near ? 470 + rand() * 330 : rand() * 1200;
+    const y = HORIZON + 6 + Math.pow(rand(), 1.4) * 100;
+    const k = (y - HORIZON) / 110;
+    return { x: r1(x), y: r1(y), rx: r1(2 + k * 4 + rand() * 1.5), ry: r1(0.45 + k * 0.5) };
+  });
+}
+
+/**
+ * A dhow under a lateen sail, bow to the right: raked stem, raised stern with a
+ * small cabin, one slanted mast. Drawn at the waterline's centre, about 70 units
+ * long at scale 1.
+ */
+function Dhow({ x, y, s }: { x: number; y: number; s: number }) {
+  return (
+    <g transform={`translate(${x} ${y}) scale(${s})`}>
+      {/* its shadow on the water, and two ripples broken by the hull */}
+      <ellipse cx="2" cy="7" rx="34" ry="2.4" fill="#1c6c9c" opacity="0.28" />
+      <path d="M-22 10 q5 -1.6 10 0 M8 11 q6 -1.6 12 0" fill="none" stroke="#ffffff" strokeWidth="1" strokeOpacity="0.55" strokeLinecap="round" />
+      {/* sail, then the mast in front of it */}
+      <path d="M6 -40 L38 -14 L-22 -9 Z" fill="url(#wain-sail)" stroke="#c9ab72" strokeWidth="0.9" strokeLinejoin="round" />
+      <path d="M6 -40 L-22 -9 M6 -40 L8 -12" fill="none" stroke="#8a6f47" strokeWidth="0.7" strokeOpacity="0.32" strokeLinecap="round" />
+      <path d="M-3 -4 L6 -40" stroke="#4f3015" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M6 -40 l-1 -6 l8 2.4 Z" fill="#dc2f25" />
+      {/* hull: a crescent with a high stern and a raked bow */}
+      <path d="M-30 -8 Q4 -3 40 -16 L33 2 Q0 9 -27 3 Z" fill="url(#wain-hull)" stroke="#3b2410" strokeWidth="0.7" strokeLinejoin="round" />
+      <path d="M-29 -6.6 Q4 -1.6 38 -14.4" fill="none" stroke="#e1c27e" strokeWidth="1.1" strokeLinecap="round" />
+      <rect x="-30" y="-14.5" width="11" height="7" rx="1.2" fill="#6b4423" stroke="#3b2410" strokeWidth="0.6" />
+      <rect x="-28.4" y="-12.6" width="3" height="3" rx="0.6" fill="#f3e2b4" opacity="0.8" />
+    </g>
+  );
+}
+
+function Sea() {
+  return (
+    <g>
+      <rect y={HORIZON} width="1200" height={368 - HORIZON} fill="url(#wain-sea)" />
+      {/* haze: the sea and the sky melt into each other at the horizon */}
+      <rect y={HORIZON - 14} width="1200" height="30" fill="url(#wain-haze)" />
+      <path d={`M0 ${HORIZON} H1200`} stroke="#f2fbfd" strokeWidth="1" strokeOpacity="0.9" />
+      <ellipse cx="640" cy={HORIZON + 16} rx="230" ry="22" fill="url(#wain-sheen)" />
+      {waveRows().map((r) => (
+        <path key={r.y} d={r.d} fill="none" stroke="#ffffff" strokeWidth={r.w} strokeOpacity={r.o} strokeLinecap="round" />
+      ))}
+      {glints().map((g) => (
+        <ellipse key={`${g.x},${g.y}`} cx={g.x} cy={g.y} rx={g.rx} ry={g.ry} fill="#ffffff" opacity="0.8" />
+      ))}
+      {/* One dhow close in, one far out on the horizon. The near one sits in the
+          open water on the left, over the lower block: the search pill floats
+          over the middle of the scene at laptop widths (the drawing is
+          bottom-anchored, the pill is not), and a dhow under it loses half its
+          sail. The far one is above the palm at the right edge, clear of the clock tower. */}
+      <Dhow x={345} y={281} s={0.62} />
+      <Dhow x={1148} y={258} s={0.28} />
+      {/* the seawall: pale stone, foam where the water meets it */}
+      <rect y={SHORE} width="1200" height={368 - SHORE} fill="url(#wain-wall)" />
+      <path d={`M0 ${SHORE - 0.6} H1200`} stroke="#ffffff" strokeWidth="1.5" strokeOpacity="0.7" strokeDasharray="12 5 4 5" />
+    </g>
+  );
+}
+
 export default function KuwaitSkyline({ className = "" }: { className?: string }) {
   return (
     <svg
@@ -485,6 +596,37 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
           <stop offset="0" stopColor="#ff5a46" stopOpacity="0.6" />
           <stop offset="1" stopColor="#ff5a46" stopOpacity="0" />
         </radialGradient>
+        {/* The Gulf: turquoise rather than the brand's pure sea blue, so it does
+            not melt into the towers' spheres; pale at the horizon, deeper
+            towards the shore. */}
+        <linearGradient id="wain-sea" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#cfeaf0" />
+          <stop offset="0.12" stopColor="#a6dcea" />
+          <stop offset="0.45" stopColor="#62bdda" />
+          <stop offset="1" stopColor="#2f8fbf" />
+        </linearGradient>
+        <linearGradient id="wain-haze" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffffff" stopOpacity="0" />
+          <stop offset="0.5" stopColor="#ffffff" stopOpacity="0.5" />
+          <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+        </linearGradient>
+        <radialGradient id="wain-sheen" cx="50%" cy="50%" r="50%">
+          <stop offset="0" stopColor="#fff4cf" stopOpacity="0.8" />
+          <stop offset="1" stopColor="#fff4cf" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="wain-wall" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fff4d8" />
+          <stop offset="0.3" stopColor="#ead9ae" />
+          <stop offset="1" stopColor="#c9ab72" />
+        </linearGradient>
+        <linearGradient id="wain-hull" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#8a5a2b" />
+          <stop offset="1" stopColor="#4f3015" />
+        </linearGradient>
+        <linearGradient id="wain-sail" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#fffaf0" />
+          <stop offset="1" stopColor="#e6d1a4" />
+        </linearGradient>
         <Palm />
       </defs>
 
@@ -532,6 +674,12 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
         <path d="M1056 100 q7 -6 14 0" />
       </g>
       </g>
+
+      {/* The Gulf, behind everything that stands on the shore: it shows above the
+          low buildings and in every gap between the towers, which is how the
+          real Kuwait Towers are seen. Inside the drawing's own 1200×530 — the
+          home page and the Flutter hero both hard-code that ratio. */}
+      <Sea />
 
       {/* ---- Skyline ---- */}
 

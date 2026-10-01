@@ -3126,6 +3126,31 @@ is a gradient (`wain-grass`) instead of one flat slab. **`flutter_app/assets/art
 skyline.svg` is generated from this component** — `npm run flutter:art` after
 any change to it, or `audit:flutter` goes red. Not live until a deploy.
 
+**The home hero has a sea now (1 October, `Sea` in `KuwaitSkyline.tsx`).** A
+horizon at y 250 behind everything on the shore, so the Gulf shows above the low
+buildings and between the towers — pale turquoise at the horizon, deeper towards
+a seawall at the foot — with rows of ripples that lengthen and brighten towards
+the viewer, a few glints, a soft sun sheen, and two dhows (a near one in the open
+water on the left, a far one by the clock tower). Four things to know:
+
+- **It is BEHIND the skyline and inside the same 1200×530, on purpose.** A sea
+  below the grass was the obvious design and would have changed the drawing's
+  ratio — and the home page (`aspect-[1200/530]`, the `58vw` reserve) and the
+  Flutter hero (`home_screen.dart`: `skyline = w * 530 / 1200`, padding
+  `skyline * 0.92`) both hard-code it. That is a three-place change, one of them
+  in Dart that no session here can run.
+- **The waves are seeded (`rng`).** The home page's HTML is part of the build
+  digest, and `generateBuildId`'s «same commit, same digest» only holds if the
+  same commit renders the same markup. `Math.random()` here would break it
+  silently.
+- **The near dhow is NOT in the middle.** It was, and the search pill — which
+  floats over the centre of the scene at laptop widths, because the drawing is
+  bottom-anchored and the pill is not — hid half its sail at 1200px. Anything
+  placed between x 480 and 720 can sit under the pill or the dial.
+- **Turquoise, not `sea-*`.** The brand's sea ramp is a pure blue, the same family
+  as the towers' spheres; the Gulf is a shade greener so the spheres do not melt
+  into it.
+
 **The Liberation Tower was redrawn on 1 October (`LiberationTower` in
 `KuwaitSkyline.tsx`), and what it taught is worth keeping.** It had been one flat
 wedge with a hard stripe for shading, a flat ellipse glued on as a second disc, a
