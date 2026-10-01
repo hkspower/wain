@@ -4544,7 +4544,8 @@ SwiftPM (Flutter 3.47's default) its manifest enables what the app's
 Info.plist declares; under CocoaPods nothing does unless the Podfile sets
 `PERMISSION_MICROPHONE=1`. Both CI jobs check the built app for the
 `AudioVideoPermissionStrategy` class, and the simulator reads back a
-`simctl privacy` grant. Not run yet when written.
+`simctl privacy` grant. **Both passed on the first real run**: the class is in the
+built app and the grant reads `PermissionStatus.granted`, on both devices.
 
 **`NSCameraUsageDescription` was added, and it says the app never opens the
 camera.** flutter_webrtc (under livekit, under `elevenlabs_agents`) calls
@@ -4562,8 +4563,38 @@ file, so the jobs moved into `flutter-ci.yml`. **A new dispatch-only workflow on
 a working branch is a 404 until the default branch has it** — put dispatch jobs
 in a workflow that is already registered.
 
-**Not verified by anything here**: the workflow itself (no Mac), cloud signing
-with an API key, the upload, and every on-phone check in the doc.
+**It has run, and the first two runs taught more than the suite did.**
+Run 36901958536 (iPhone 17 Pro and iPhone 17e, **iOS 26.5**, Xcode 26 on
+`macos-26-arm64`): six of seven flows passed on both, then `flutter drive` never
+exited and the job's own 60-minute limit killed it. The cause was one line:
+**`final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized()` at
+top level is lazy** — Dart initialises top-level finals on first use, which was
+inside `shot()`, after `testWidgets` had already installed flutter_test's
+`LiveTestWidgetsFlutterBinding`. So every screenshot threw «Binding is already
+initialized», the driver never received a result (the hang), and — the part
+that would have gone unnoticed — **the test binding's fake HttpClient answered
+every map tile with 400**, so «real tiles» were not real either. It is assigned
+as `main()`'s first statement now.
+
+Run 36910871005, after that fix: **iPhone 17 Pro, 7 of 7**, in 45 s of tests
+after a 278 s simulator build; real OpenStreetMap tiles (0 failed requests —
+the first time anything here has drawn one), 7 screenshots in the
+`ios-sim-large` artifact (14.5 MB, 14 days), the back swipe from a place
+landing on /search, the microphone check passing both ways. The 17e built and
+then printed **no test output at all** for 17 minutes after «Xcode build done»
+— stuck installing or attaching to the app, before any flow ran — until the
+drive step's 20-minute cap ended it; re-run to see whether it repeats. The
+build and the drive are separate steps with their own limits precisely so a
+hang like that is told apart from a failing flow.
+
+**The back swipe passed once it started over the hero, not mid-page.** The
+first run's mid-height swipe failed on both devices, but that run had the wrong
+binding, so it proves nothing about the map either way. **Whether an edge swipe
+that begins over the place page's map still goes back is untested** — a check
+for a real phone, and the one to fix if it does not.
+
+**Not verified by anything here**: cloud signing with an API key, the upload,
+and every on-phone check in the doc.
 
 ## Style
 
