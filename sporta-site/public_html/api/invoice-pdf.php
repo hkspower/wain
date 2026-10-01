@@ -128,56 +128,86 @@ function invoice_pdf_build(PDO $db, array $cfg, string $track): ?string
     $font = pdf_font_load($fontPath);
     if (!$font) return null;
 
-    $doc = pdf_new($font);
-    $W = 595.28;
-    $L = 56.0;                 // left margin
-    $R = $W - 56.0;            // right margin
-    $y = 786.0;
+    // THE BOLD FACE IS OPTIONAL. Alexandria 700 sits beside the regular file; a host that has
+    // only the regular one still gets a correct invoice, with the headings in regular weight.
+    $bold = null;
+    foreach ([(string) ($cfg['invoice_font_bold'] ?? ''), dirname($fontPath) . '/Alexandria-700.ttf'] as $cand) {
+        if ($cand !== '' && is_readable($cand)) { $bold = pdf_font_load($cand); if ($bold) break; }
+    }
 
-    $ink  = [0.08, 0.09, 0.10];
-    $soft = [0.42, 0.45, 0.48];
-    $rule = [0.85, 0.86, 0.88];
+    $doc = pdf_new($font, 595.28, 841.89, $bold);
+    $W = 595.28;
+    $H = 841.89;
+    $L = 48.0;                 // left margin
+    $R = $W - 48.0;            // right margin
+
+    // THE PALETTE IS THE SHOP'S: near-black ink, the orange of the buttons (the darker #cf4a0b,
+    // because white on the brighter #f56315 is 3.1:1 — under AA at invoice sizes), and greys.
+    $ink    = [0.078, 0.086, 0.102];
+    $soft   = [0.40, 0.43, 0.47];
+    $rule   = [0.89, 0.90, 0.92];
+    $band   = [0.075, 0.082, 0.094];
+    $orange = [0.812, 0.290, 0.043];
+    $hot    = [0.961, 0.388, 0.082];
+    $card   = [0.957, 0.961, 0.969];
+    $zebra  = [0.975, 0.977, 0.982];
+    $white  = [1, 1, 1];
+    $green  = [0.086, 0.545, 0.286];
+    $amber  = [0.980, 0.749, 0.141];
 
     $ar = fn (string $s) => ar_visual($s, true);
+    $T  = function (string $t, float $x, float $y, float $sz, string $al = 'left', ?array $c = null,
+                    bool $b = false, float $tr = 0.0) use (&$doc, $ink) {
+        pdf_text($doc, $t, $x, $y, $sz, $al, $c ?? $ink, $b, $tr);
+    };
 
-    // --- head ---------------------------------------------------------------
-    pdf_text($doc, 'SPORTA', $L, $y, 20, 'left', $ink);
-    pdf_text($doc, $ar('سبورتا'), $R, $y, 20, 'right', $ink);
-    $y -= 16;
-    pdf_text($doc, 'sporta.com.kw', $L, $y, 9, 'left', $soft);
-    pdf_text($doc, $ar('فاتورة'), $R, $y, 11, 'right', $soft);
-    $y -= 14;
-    pdf_line($doc, $L, $y, $R, $y, 1, $rule);
-    $y -= 24;
+    // --- masthead -----------------------------------------------------------
+    $drawHead = function () use (&$doc, $W, $H, $L, $R, $band, $hot, $white, $T, $ar) {
+        pdf_rect($doc, 0, $H - 96, $W, 96, $band);
+        pdf_rect($doc, 0, $H - 100, $W, 4, $hot);
+        $T('SPORTA', $L, $H - 52, 26, 'left', $white, true, 5.0);
+        $T('sporta.com.kw', $L, $H - 70, 9, 'left', [0.72, 0.75, 0.79]);
+        $T($ar('سبورتا'), $R, $H - 52, 26, 'right', $white, true);
+        $T('SPORTS WEAR', $R, $H - 70, 9, 'right', [0.72, 0.75, 0.79], false, 3.0);
+    };
+    $drawHead();
+    $y = $H - 142;
 
-    // --- the order ----------------------------------------------------------
+    // --- title and status ---------------------------------------------------
     $placed = substr((string) $o['created_at'], 0, 16);
     $paid = ((string) $o['payment_status'] === 'paid');
     $method = strtoupper((string) $o['payment_method']);
 
-    pdf_text($doc, 'Order', $L, $y, 9, 'left', $soft);
-    pdf_text($doc, (string) $o['track_id'], $L + 54, $y, 11, 'left', $ink);
-    pdf_text($doc, $ar('رقم الطلب'), $R, $y, 9, 'right', $soft);
-    $y -= 16;
-    pdf_text($doc, 'Date', $L, $y, 9, 'left', $soft);
-    pdf_text($doc, $placed, $L + 54, $y, 10, 'left', $ink);
-    pdf_text($doc, $ar('التاريخ'), $R, $y, 9, 'right', $soft);
-    $y -= 16;
-    pdf_text($doc, 'Payment', $L, $y, 9, 'left', $soft);
-    pdf_text($doc, $method . ($paid ? ' — paid' : ' — unpaid'), $L + 54, $y, 10, 'left', $ink);
-    pdf_text($doc, $ar($paid ? 'مدفوع' : 'غير مدفوع'), $R, $y, 9, 'right', $soft);
-    $y -= 26;
+    $T('INVOICE', $L, $y, 30, 'left', $ink, true, 1.0);
+    $T($ar('فاتورة'), $R, $y, 30, 'right', $ink, true);
+    $y -= 22;
+    $pill = $paid ? 'PAID' : 'UNPAID';
+    $pw = pdf_text_width($font, $pill, 9) + 24;
+    pdf_rrect($doc, $L, $y - 5, $pw, 18, 9, $paid ? $green : $amber);
+    $T($pill, $L + $pw / 2, $y, 9, 'center', $paid ? $white : $ink, true, 1.0);
+    $T($ar($paid ? 'مدفوع' : 'غير مدفوع'), $R, $y, 11, 'right', $soft);
+    $y -= 56;
+
+    // --- the order, in a card -----------------------------------------------
+    $cw = ($R - $L) / 3;
+    pdf_rrect($doc, $L, $y - 22, $R - $L, 50, 10, $card);
+    $cells = [
+        ['ORDER', 'رقم الطلب', (string) $o['track_id']],
+        ['DATE', 'التاريخ', $placed],
+        ['PAYMENT', 'الدفع', $method],
+    ];
+    foreach ($cells as $i => [$en, $arLab, $val]) {
+        $x = $L + 16 + $i * $cw;
+        $T($en, $x, $y + 14, 8, 'left', $soft, true, 1.2);
+        $T($ar($arLab), $x + $cw - 32, $y + 14, 8, 'right', $soft);
+        $T($val, $x, $y - 6, 12, 'left', $ink, true);
+    }
+    $y -= 58;
 
     // --- who it is for ------------------------------------------------------
-    // The customer's own name and address are drawn right-aligned when they
-    // are Arabic and left-aligned when they are not, decided per string rather
-    // than per document: a Kuwaiti address routinely mixes both.
+    // Drawn right-aligned when Arabic and left-aligned when not, decided per string rather than
+    // per document: a Kuwaiti address routinely mixes both.
     $name = (string) $o['customer_name'];
-    pdf_text($doc, 'Deliver to', $L, $y, 9, 'left', $soft);
-    if (ar_has_arabic($name)) pdf_text($doc, $ar($name), $R, $y, 11, 'right', $ink);
-    else                      pdf_text($doc, $name, $L + 54, $y, 11, 'left', $ink);
-    $y -= 15;
-
     $addr = array_values(array_filter([
         (string) $o['customer_area'],
         $o['customer_block'] ? 'Block ' . $o['customer_block'] : '',
@@ -188,73 +218,89 @@ function invoice_pdf_build(PDO $db, array $cfg, string $track): ?string
         ucfirst((string) $o['customer_governorate']),
     ], fn ($p) => trim((string) $p) !== ''));
     $line = implode(', ', $addr);
-    if (ar_has_arabic($line)) pdf_text($doc, $ar($line), $R, $y, 9, 'right', $soft);
-    else                      pdf_text($doc, $line, $L + 54, $y, 9, 'left', $soft);
-    $y -= 26;
+
+    $T('DELIVER TO', $L, $y, 8, 'left', $soft, true, 1.2);
+    $T($ar('التوصيل إلى'), $R, $y, 8, 'right', $soft);
+    $y -= 18;
+    if (ar_has_arabic($name)) $T($ar($name), $R, $y, 13, 'right', $ink, true);
+    else                      $T($name, $L, $y, 13, 'left', $ink, true);
+    $y -= 15;
+    if (ar_has_arabic($line)) $T($ar($line), $R, $y, 9.5, 'right', $soft);
+    else                      $T($line, $L, $y, 9.5, 'left', $soft);
+    $y -= 30;
 
     // --- the goods ----------------------------------------------------------
-    pdf_rect($doc, $L, $y - 6, $R - $L, 20, [0.96, 0.96, 0.97]);
-    pdf_text($doc, 'Item', $L + 8, $y, 9, 'left', $soft);
-    pdf_text($doc, 'Qty', $R - 168, $y, 9, 'left', $soft);
-    pdf_text($doc, 'Price', $R - 92, $y, 9, 'right', $soft);
-    pdf_text($doc, 'Total', $R - 8, $y, 9, 'right', $soft);
-    $y -= 24;
+    $cQty = $R - 180; $cPrice = $R - 96; $cTotal = $R - 12;
+    $tableHead = function () use (&$doc, &$y, $L, $R, $band, $white, $T, $ar, $cQty, $cPrice, $cTotal) {
+        pdf_rrect($doc, $L, $y - 8, $R - $L, 26, 6, $band);
+        $T('ITEM', $L + 12, $y, 8, 'left', $white, true, 1.2);
+        $T($ar('الصنف'), $L + 96, $y, 8, 'left', [0.72, 0.75, 0.79]);
+        $T('QTY', $cQty, $y, 8, 'center', $white, true, 1.2);
+        $T('PRICE', $cPrice, $y, 8, 'right', $white, true, 1.2);
+        $T('TOTAL', $cTotal, $y, 8, 'right', $white, true, 1.2);
+        $y -= 30;
+    };
+    $tableHead();
 
+    $n = 0;
     foreach ($items as $row) {
-        // A NEW PAGE RATHER THAN TEXT OFF THE BOTTOM. An order of forty lines
-        // is rare and is exactly the order somebody eventually queries.
-        if ($y < 140) {
+        // A NEW PAGE RATHER THAN TEXT OFF THE BOTTOM, with the masthead and the column headings
+        // drawn again. An order of forty lines is rare and is exactly the order somebody queries.
+        if ($y < 150) {
             pdf_page_break($doc);
-            $y = 786.0;
+            $drawHead();
+            $y = $H - 140;
+            $tableHead();
         }
         $en = trim((string) $row['name_en']);
         $arName = trim((string) $row['name_ar']);
         $size = trim((string) $row['size']);
+        $h = 38.0;
+        if ($n % 2 === 0) pdf_rect($doc, $L, $y - 16, $R - $L, $h, $zebra);
 
-        pdf_text($doc, $en . ($size !== '' ? "  ($size)" : ''), $L + 8, $y, 10, 'left', $ink);
-        pdf_text($doc, (string) (int) $row['qty'], $R - 168, $y, 10, 'left', $ink);
-        pdf_text($doc, invoice_kwd((float) $row['unit_price']), $R - 92, $y, 10, 'right', $ink);
-        pdf_text($doc, invoice_kwd((float) $row['line_total']), $R - 8, $y, 10, 'right', $ink);
-        if ($arName !== '') {
-            $y -= 12;
-            pdf_text($doc, $ar($arName), $L + 8 + 150, $y, 8.5, 'right', $soft);
-        }
-        $y -= 18;
-        pdf_line($doc, $L, $y + 6, $R, $y + 6, 0.4, $rule);
+        $T($en, $L + 12, $y, 10.5, 'left', $ink, true);
+        $T((string) (int) $row['qty'], $cQty, $y, 10.5, 'center', $ink, true);
+        $T(invoice_kwd((float) $row['unit_price']), $cPrice, $y, 10.5, 'right', $ink);
+        $T(invoice_kwd((float) $row['line_total']), $cTotal, $y, 10.5, 'right', $ink, true);
+        $sub = $size !== '' ? 'Size ' . $size : '';
+        if ($sub !== '') $T($sub, $L + 12, $y - 14, 8.5, 'left', $soft);
+        if ($arName !== '') $T($ar($arName), $cQty - 34, $y - 14, 8.5, 'right', $soft);
+        $y -= $h;
+        $n++;
     }
+    pdf_line($doc, $L, $y + 18, $R, $y + 18, 0.6, $rule);
 
     // --- the arithmetic, in full -------------------------------------------
-    $y -= 12;
-    $rows = [
-        ['Subtotal', 'المجموع الفرعي', (float) $o['subtotal'], false],
-    ];
+    // Subtotal, discount, delivery and total, exactly as ?r=invoice does: an order given 3.000
+    // off, showing lines totalling 23.000 against a total of 20.000, reads as a shop that
+    // cannot count.
+    $y -= 8;
+    $bx = $R - 250;
+    $rows = [['Subtotal', 'المجموع الفرعي', (float) $o['subtotal']]];
     if ((float) $o['discount_amount'] > 0) {
         $label = trim((string) ($o['discount_label'] ?? '')) ?: 'Discount';
-        $rows[] = [$label, 'الخصم', -(float) $o['discount_amount'], false];
+        $rows[] = [$label, 'الخصم', -(float) $o['discount_amount']];
     }
-    $rows[] = ['Delivery', 'التوصيل', (float) $o['delivery_fee'], false];
-    $rows[] = ['Total', 'الإجمالي', (float) $o['amount'], true];
-
-    foreach ($rows as [$en, $arLab, $val, $bold]) {
-        if ($bold) {
-            $y -= 4;
-            pdf_line($doc, $R - 240, $y + 14, $R, $y + 14, 0.8, $rule);
-            $y -= 6;
-        }
-        $size = $bold ? 12.0 : 10.0;
-        pdf_text($doc, $en, $R - 240, $y, $size, 'left', $bold ? $ink : $soft);
-        pdf_text($doc, $ar($arLab), $R - 118, $y, $size - 1, 'right', $soft);
-        pdf_text($doc, ($val < 0 ? '-' : '') . invoice_kwd(abs($val)) . ' KWD',
-            $R - 8, $y, $size, 'right', $ink);
-        $y -= 18;
+    $rows[] = ['Delivery', 'التوصيل', (float) $o['delivery_fee']];
+    foreach ($rows as [$en, $arLab, $val]) {
+        $T($en, $bx, $y, 10, 'left', $soft);
+        $T($ar($arLab), $bx + 136, $y, 9, 'right', $soft);
+        $T(($val < 0 ? '-' : '') . invoice_kwd(abs($val)) . ' KWD', $R - 4, $y, 10, 'right', $ink);
+        $y -= 20;
     }
+    $y -= 6;
+    pdf_rrect($doc, $bx - 12, $y - 12, 262, 34, 8, $orange);
+    $T('TOTAL', $bx, $y, 11, 'left', $white, true, 1.5);
+    $T($ar('الإجمالي'), $bx + 136, $y, 10, 'right', $white);
+    $T(invoice_kwd((float) $o['amount']) . ' KWD', $R - 4, $y, 14, 'right', $white, true);
 
     // --- foot ---------------------------------------------------------------
-    pdf_line($doc, $L, 96, $R, 96, 0.5, $rule);
-    pdf_text($doc, 'Thank you for shopping with Sporta.', $L, 80, 9, 'left', $soft);
-    pdf_text($doc, $ar('شكرًا لتسوقك من سبورتا'), $R, 80, 9, 'right', $soft);
-    pdf_text($doc, 'Delivery across Kuwait within 24 hours.', $L, 68, 8, 'left', $soft);
-    pdf_text($doc, $ar('التوصيل داخل الكويت خلال ٢٤ ساعة'), $R, 68, 8, 'right', $soft);
+    pdf_rect($doc, $L, 100, $R - $L, 1.2, $hot);
+    $T('Thank you for shopping with Sporta.', $L, 80, 10, 'left', $ink, true);
+    $T($ar('شكرًا لتسوقك من سبورتا'), $R, 80, 10, 'right', $ink, true);
+    $T('Delivery across Kuwait within 24 hours.', $L, 64, 8.5, 'left', $soft);
+    $T($ar('التوصيل داخل الكويت خلال ٢٤ ساعة'), $R, 64, 8.5, 'right', $soft);
+    $T('sporta.com.kw', $L, 46, 8.5, 'left', $soft);
 
     return pdf_render($doc);
 }

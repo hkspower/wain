@@ -147,38 +147,58 @@ $addr = static function (array $o) use ($h): string {
      own name and address are printed exactly as they typed them, in whichever
      language that was, and the browser shapes the Arabic correctly because it
      is a browser. */
-  @page { size: A4; margin: 14mm; }
-  * { box-sizing: border-box; }
-  body { font: 12px/1.5 system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
-         color: #111; margin: 0; }
-  .bar { position: sticky; top: 0; background: #1f2937; color: #fff;
-         padding: 10px 14px; display: flex; gap: 14px; align-items: center; }
+  @page { size: A4; margin: 12mm; }
+  /* THE SHOP'S OWN FACE, like the PDF invoice: Alexandria, Latin and Arabic. Declared here
+     rather than relying on the browser's system font so a printed sheet and the archived PDF
+     read as the same document. */
+  @font-face { font-family: Alexandria; font-weight: 100 900; font-display: swap;
+    src: url(/fonts/alexandria-var-latin.woff2) format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212, U+2215; }
+  @font-face { font-family: Alexandria; font-weight: 100 900; font-display: swap;
+    src: url(/fonts/alexandria-var-arabic.woff2) format('woff2');
+    unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font: 12px/1.5 Alexandria, system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+         color: #14161a; margin: 0; }
+  .bar { position: sticky; top: 0; background: #14161a; color: #fff;
+         padding: 10px 14px; display: flex; gap: 14px; align-items: center; z-index: 5; }
   .bar a, .bar button { color: #ff7b17; background: none; border: 0; font: inherit;
                         cursor: pointer; text-decoration: none; }
   /* The controls are for the screen. A printed sheet with a Print button on it
      is a sheet somebody has to explain. */
   @media print { .bar, .note { display: none } }
   .note { padding: 10px 14px; background: #fff7ed; border-bottom: 1px solid #fed7aa; }
-  .order { padding: 16px 0 24px; border-top: 2px solid #111; }
+  .order { padding: 0 0 24px; }
   /* EACH ORDER STARTS A NEW SHEET. Without this the PDF is a scroll of
      invoices cut across page boundaries, which cannot be handed to anyone. */
   .order { break-after: page; page-break-after: always; }
   .order:last-child { break-after: auto; page-break-after: auto; }
-  h1 { font-size: 18px; margin: 0 0 2px; }
-  h2 { font-size: 15px; margin: 0 0 10px; }
-  .muted { color: #555; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; margin: 10px 0 14px; }
-  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid #ddd; }
-  th { background: #f3f4f6; font-weight: 700; }
+  /* the masthead: near-black with the orange rule under it, as on the PDF invoice */
+  h1 { font-size: 22px; font-weight: 800; letter-spacing: .28em; margin: 0 0 16px;
+       padding: 22px 20px 20px; background: #14161a; color: #fff;
+       border-bottom: 4px solid #f56315; border-radius: 6px 6px 0 0; }
+  h2 { font-size: 20px; font-weight: 800; margin: 0 0 12px; display: flex; align-items: center; gap: 12px; }
+  .muted { color: #5b6068; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin: 10px 0 16px;
+          padding: 14px 16px; background: #f4f5f7; border-radius: 10px; }
+  .grid strong { display: block; font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+                 color: #5b6068; font-weight: 700; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 8px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e3e5e9; }
+  th { background: #14161a; border-bottom-color: #14161a; color: #fff; font-weight: 700; font-size: 9px;
+       letter-spacing: .12em; text-transform: uppercase; }
+  tbody tr:nth-child(even) td { background: #f9fafb; }
   td.n, th.n { text-align: right; white-space: nowrap; }
-  tfoot td { border: 0; padding-top: 6px; }
-  tfoot tr:last-child td { font-weight: 700; border-top: 2px solid #111; }
-  .tag { display: inline-block; padding: 1px 7px; border-radius: 999px;
-         font-size: 11px; font-weight: 700; }
-  .paid { background: #dcfce7; color: #14532d; }
-  .pending { background: #fef9c3; color: #713f12; }
-  .failed, .review { background: #fee2e2; color: #7f1d1d; }
+  tfoot td { border: 0 !important; padding-top: 6px; background: none !important; }
+  tfoot tr:last-child td { font-weight: 800; font-size: 14px; background: #cf4a0b !important; color: #fff;
+                           padding-top: 10px; padding-bottom: 10px; }
+  tfoot tr:last-child td:first-child { border-radius: 8px 0 0 8px; }
+  tfoot tr:last-child td:last-child { border-radius: 0 8px 8px 0; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 999px;
+         font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+  .paid { background: #16a34a; color: #fff; }
+  .pending { background: #fabf24; color: #14161a; }
+  .failed, .review { background: #b91c1c; color: #fff; }
   .empty { padding: 3rem 1rem; text-align: center; }
 </style>
 </head>

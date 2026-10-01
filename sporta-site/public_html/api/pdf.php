@@ -277,9 +277,12 @@ function pdf_text_width(array $font, string $text, float $size): float
 }
 
 /** A new document. Points, with the origin bottom-left, as PDF has it. */
-function pdf_new(array $font, float $w = 595.28, float $h = 841.89): array
+function pdf_new(array $font, float $w = 595.28, float $h = 841.89, ?array $bold = null): array
 {
-    return ['font' => $font, 'w' => $w, 'h' => $h, 'pages' => [], 'cur' => '', 'used' => []];
+    // $bold is a second face (Alexandria 700). Without one, bold text is drawn in the regular
+    // face, so a host that has only the regular file still produces a correct invoice.
+    return ['font' => $font, 'bold' => $bold, 'w' => $w, 'h' => $h, 'pages' => [], 'cur' => '',
+            'used' => [], 'usedB' => []];
 }
 
 function pdf_page_break(array &$doc): void
@@ -293,20 +296,27 @@ function pdf_page_break(array &$doc): void
  * measured here rather than guessed by the caller.
  */
 function pdf_text(array &$doc, string $text, float $x, float $y, float $size,
-                  string $align = 'left', array $rgb = [0, 0, 0]): void
+                  string $align = 'left', array $rgb = [0, 0, 0],
+                  bool $bold = false, float $track = 0.0): void
 {
-    $glyphs = pdf_glyphs($doc['font'], $text);
+    $useBold = $bold && $doc['bold'] !== null;
+    $font = $useBold ? $doc['bold'] : $doc['font'];
+    $glyphs = pdf_glyphs($font, $text);
     if (!$glyphs) return;
-    foreach ($glyphs as $g) $doc['used'][$g] = true;
+    $usedKey = $useBold ? 'usedB' : 'used';
+    foreach ($glyphs as $g) $doc[$usedKey][$g] = true;
 
-    if ($align === 'right')      $x -= pdf_text_width($doc['font'], $text, $size);
-    elseif ($align === 'center') $x -= pdf_text_width($doc['font'], $text, $size) / 2;
+    // Letter-spacing (the wordmark) widens the line by one gap per glyph, so alignment has
+    // to count it or a right-aligned wordmark would hang past the margin.
+    $width = pdf_text_width($font, $text, $size) + $track * count($glyphs);
+    if ($align === 'right')      $x -= $width;
+    elseif ($align === 'center') $x -= $width / 2;
 
     $hex = '';
     foreach ($glyphs as $g) $hex .= sprintf('%04X', $g);
 
-    $doc['cur'] .= sprintf("BT %.3f %.3f %.3f rg /F1 %.2f Tf %.2f %.2f Td <%s> Tj ET\n",
-        $rgb[0], $rgb[1], $rgb[2], $size, $x, $y, $hex);
+    $doc['cur'] .= sprintf("BT %.3f %.3f %.3f rg /%s %.2f Tf %.2f Tc %.2f %.2f Td <%s> Tj ET\n",
+        $rgb[0], $rgb[1], $rgb[2], $useBold ? 'F2' : 'F1', $size, $track, $x, $y, $hex);
 }
 
 function pdf_line(array &$doc, float $x1, float $y1, float $x2, float $y2,
@@ -320,6 +330,22 @@ function pdf_rect(array &$doc, float $x, float $y, float $w, float $h, array $rg
 {
     $doc['cur'] .= sprintf("%.3f %.3f %.3f rg %.2f %.2f %.2f %.2f re f\n",
         $rgb[0], $rgb[1], $rgb[2], $x, $y, $w, $h);
+}
+
+/** A filled rectangle with rounded corners (radius $r, clamped to half the short side). */
+function pdf_rrect(array &$doc, float $x, float $y, float $w, float $h, float $r, array $rgb): void
+{
+    $r = max(0.0, min($r, $w / 2, $h / 2));
+    $k = 0.5523 * $r;
+    $doc['cur'] .= sprintf("%.3f %.3f %.3f rg %.2f %.2f m ", $rgb[0], $rgb[1], $rgb[2], $x + $r, $y);
+    $doc['cur'] .= sprintf("%.2f %.2f l ", $x + $w - $r, $y);
+    $doc['cur'] .= sprintf("%.2f %.2f %.2f %.2f %.2f %.2f c ", $x + $w - $r + $k, $y, $x + $w, $y + $r - $k, $x + $w, $y + $r);
+    $doc['cur'] .= sprintf("%.2f %.2f l ", $x + $w, $y + $h - $r);
+    $doc['cur'] .= sprintf("%.2f %.2f %.2f %.2f %.2f %.2f c ", $x + $w, $y + $h - $r + $k, $x + $w - $r + $k, $y + $h, $x + $w - $r, $y + $h);
+    $doc['cur'] .= sprintf("%.2f %.2f l ", $x + $r, $y + $h);
+    $doc['cur'] .= sprintf("%.2f %.2f %.2f %.2f %.2f %.2f c ", $x + $r - $k, $y + $h, $x, $y + $h - $r + $k, $x, $y + $h - $r);
+    $doc['cur'] .= sprintf("%.2f %.2f l ", $x, $y + $r);
+    $doc['cur'] .= sprintf("%.2f %.2f %.2f %.2f %.2f %.2f c f\n", $x, $y + $r - $k, $x + $r - $k, $y, $x + $r, $y);
 }
 
 /**
@@ -355,89 +381,98 @@ function pdf_render(array $doc): string
     }
     if (!$contentIds) $contentIds[] = $add("<< /Length 0 >>\nstream\n\nendstream");
 
-    // The font, embedded whole and flate-compressed.
-    $raw = $font['data'];
-    $comp = gzcompress($raw, 9);
-    $fileId = $add("<< /Length " . strlen($comp) . " /Filter /FlateDecode /Length1 "
-        . strlen($raw) . " >>\nstream\n" . $comp . "\nendstream");
+    // ONE EMBEDDED FACE: the font file, its widths for the glyphs used, its ToUnicode map and the
+    // Type0 wrapper. Called once per face — regular always, bold when the document has one.
+    $emitFont = function (array $font, array $usedMap, string $psName) use (&$add): int {
+        // The font, embedded whole and flate-compressed.
+        $raw = $font['data'];
+        $comp = gzcompress($raw, 9);
+        $fileId = $add("<< /Length " . strlen($comp) . " /Filter /FlateDecode /Length1 "
+            . strlen($raw) . " >>\nstream\n" . $comp . "\nendstream");
 
-    $descId = $add("<< /Type /FontDescriptor /FontName /SportaEmbedded "
-        . "/Flags 4 /FontBBox [-1000 -400 2000 1100] /ItalicAngle 0 /Ascent 900 "
-        . "/Descent -300 /CapHeight 700 /StemV 80 /FontFile2 {$fileId} 0 R >>");
+        $descId = $add("<< /Type /FontDescriptor /FontName /{$psName} "
+            . "/Flags 4 /FontBBox [-1000 -400 2000 1100] /ItalicAngle 0 /Ascent 900 "
+            . "/Descent -300 /CapHeight 700 /StemV 80 /FontFile2 {$fileId} 0 R >>");
 
-    // WIDTHS FOR THE GLYPHS ACTUALLY USED. The /W array is what a reader
-    // measures text with; a glyph missing from it silently falls back to
-    // /DW, so a name would render with the right letters at the wrong
-    // spacing. Only used glyphs are listed because the array is otherwise
-    // thousands of entries of which a handful matter.
-    $used = array_keys($doc['used']);
-    sort($used);
-    $w = '';
-    foreach ($used as $g) {
-        $adv = (int) round(($font['width'][$g] ?? 0) * 1000 / $font['upem']);
-        $w .= $g . ' [' . $adv . '] ';
-    }
-
-    $cidId = $add("<< /Type /Font /Subtype /CIDFontType2 /BaseFont /SportaEmbedded "
-        . "/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> "
-        . "/FontDescriptor {$descId} 0 R /DW 1000 /W [ {$w}] /CIDToGIDMap /Identity >>");
-
-    // --- ToUnicode: what the glyphs MEAN, as opposed to how they look -------
-    //
-    // WITHOUT THIS THE DOCUMENT IS A PICTURE. Identity-H says "the code is the
-    // glyph id", which is what makes any script drawable — and it also means
-    // nothing in the file records that glyph 412 is the letter meem. The
-    // invoice renders perfectly and then extracts as "ŀŚŹǢőƄ": not searchable,
-    // not copyable, not indexable. On an archive of hundreds of files that is
-    // most of the value gone, and the failure is invisible until somebody
-    // searches a folder for an order number and is told it is not there.
-    //
-    // MAPPED BACK TO THE BASE LETTER, NOT THE PRESENTATION FORM. A medial meem
-    // is U+FEE4 as a shape and U+0645 as a letter; writing the shape would
-    // make the text extract as a string no one can search for, because nobody
-    // types presentation forms. So the reverse map prefers the plain letter,
-    // and copied Arabic comes out as ordinary Arabic.
-    $rev = [];
-    foreach ($font['cmap'] as $cp => $gid) {
-        $isForm = $cp >= 0xFE70 && $cp <= 0xFEFF;
-        // First writer wins unless it was a presentation form and this is not.
-        if (!isset($rev[$gid]) || ($rev[$gid]['form'] && !$isForm)) {
-            $rev[$gid] = ['cp' => $cp, 'form' => $isForm];
+        // WIDTHS FOR THE GLYPHS ACTUALLY USED. The /W array is what a reader
+        // measures text with; a glyph missing from it silently falls back to
+        // /DW, so a name would render with the right letters at the wrong
+        // spacing. Only used glyphs are listed because the array is otherwise
+        // thousands of entries of which a handful matter.
+        $used = array_keys($usedMap);
+        sort($used);
+        $w = '';
+        foreach ($used as $g) {
+            $adv = (int) round(($font['width'][$g] ?? 0) * 1000 / $font['upem']);
+            $w .= $g . ' [' . $adv . '] ';
         }
-    }
-    $pairs = [];
-    foreach ($used as $g) {
-        $cp = $rev[$g]['cp'] ?? null;
-        if ($cp === null) continue;
-        // One glyph can mean more than one letter — the lam-alef ligatures do.
-        $cps = $rev[$g]['form'] ? (pdf_form_to_unicode($cp) ?? [$cp]) : [$cp];
-        // UTF-16BE, which is what a bfchar value is. Everything this shop
-        // writes is inside the BMP, so one code unit each is always enough.
-        $hex = '';
-        foreach ($cps as $c) $hex .= sprintf('%04X', $c);
-        $pairs[] = sprintf('<%04X> <%s>', $g, $hex);
-    }
 
-    $cmapBody = "/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n"
-        . "/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n"
-        . "/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n"
-        . "1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n";
-    // A bfchar block takes at most 100 entries — a hard limit in the spec, not
-    // a style choice, and exceeding it makes readers drop the whole CMap.
-    foreach (array_chunk($pairs, 100) as $chunk) {
-        $cmapBody .= count($chunk) . " beginbfchar\n" . implode("\n", $chunk) . "\nendbfchar\n";
-    }
-    $cmapBody .= "endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend\n";
-    $toUniId = $add("<< /Length " . strlen($cmapBody) . " >>\nstream\n" . $cmapBody . "\nendstream");
+        $cidId = $add("<< /Type /Font /Subtype /CIDFontType2 /BaseFont /{$psName} "
+            . "/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> "
+            . "/FontDescriptor {$descId} 0 R /DW 1000 /W [ {$w}] /CIDToGIDMap /Identity >>");
 
-    $fontId = $add("<< /Type /Font /Subtype /Type0 /BaseFont /SportaEmbedded "
-        . "/Encoding /Identity-H /DescendantFonts [{$cidId} 0 R] "
-        . "/ToUnicode {$toUniId} 0 R >>");
+        // --- ToUnicode: what the glyphs MEAN, as opposed to how they look -------
+        //
+        // WITHOUT THIS THE DOCUMENT IS A PICTURE. Identity-H says "the code is the
+        // glyph id", which is what makes any script drawable — and it also means
+        // nothing in the file records that glyph 412 is the letter meem. The
+        // invoice renders perfectly and then extracts as "ŀŚŹǢőƄ": not searchable,
+        // not copyable, not indexable. On an archive of hundreds of files that is
+        // most of the value gone, and the failure is invisible until somebody
+        // searches a folder for an order number and is told it is not there.
+        //
+        // MAPPED BACK TO THE BASE LETTER, NOT THE PRESENTATION FORM. A medial meem
+        // is U+FEE4 as a shape and U+0645 as a letter; writing the shape would
+        // make the text extract as a string no one can search for, because nobody
+        // types presentation forms. So the reverse map prefers the plain letter,
+        // and copied Arabic comes out as ordinary Arabic.
+        $rev = [];
+        foreach ($font['cmap'] as $cp => $gid) {
+            $isForm = $cp >= 0xFE70 && $cp <= 0xFEFF;
+            // First writer wins unless it was a presentation form and this is not.
+            if (!isset($rev[$gid]) || ($rev[$gid]['form'] && !$isForm)) {
+                $rev[$gid] = ['cp' => $cp, 'form' => $isForm];
+            }
+        }
+        $pairs = [];
+        foreach ($used as $g) {
+            $cp = $rev[$g]['cp'] ?? null;
+            if ($cp === null) continue;
+            // One glyph can mean more than one letter — the lam-alef ligatures do.
+            $cps = $rev[$g]['form'] ? (pdf_form_to_unicode($cp) ?? [$cp]) : [$cp];
+            // UTF-16BE, which is what a bfchar value is. Everything this shop
+            // writes is inside the BMP, so one code unit each is always enough.
+            $hex = '';
+            foreach ($cps as $c) $hex .= sprintf('%04X', $c);
+            $pairs[] = sprintf('<%04X> <%s>', $g, $hex);
+        }
+
+        $cmapBody = "/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n"
+            . "/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n"
+            . "/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n"
+            . "1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n";
+        // A bfchar block takes at most 100 entries — a hard limit in the spec, not
+        // a style choice, and exceeding it makes readers drop the whole CMap.
+        foreach (array_chunk($pairs, 100) as $chunk) {
+            $cmapBody .= count($chunk) . " beginbfchar\n" . implode("\n", $chunk) . "\nendbfchar\n";
+        }
+        $cmapBody .= "endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend\n";
+        $toUniId = $add("<< /Length " . strlen($cmapBody) . " >>\nstream\n" . $cmapBody . "\nendstream");
+
+        $fontId = $add("<< /Type /Font /Subtype /Type0 /BaseFont /{$psName} "
+            . "/Encoding /Identity-H /DescendantFonts [{$cidId} 0 R] "
+            . "/ToUnicode {$toUniId} 0 R >>");
+        return $fontId;
+    };
+
+    $fontId = $emitFont($font, $doc['used'], 'SportaEmbedded');
+    $boldId = $doc['bold'] !== null ? $emitFont($doc['bold'], $doc['usedB'], 'SportaEmbeddedBold') : null;
+    $fonts = '/F1 ' . $fontId . ' 0 R' . ($boldId !== null ? ' /F2 ' . $boldId . ' 0 R' : '');
 
     foreach ($contentIds as $cid) {
         $pageIds[] = $add("<< /Type /Page /Parent {$pagesId} 0 R "
             . sprintf("/MediaBox [0 0 %.2f %.2f] ", $doc['w'], $doc['h'])
-            . "/Resources << /Font << /F1 {$fontId} 0 R >> >> "
+            . "/Resources << /Font << {$fonts} >> >> "
             . "/Contents {$cid} 0 R >>");
     }
 

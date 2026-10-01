@@ -264,5 +264,24 @@ if (!pdftotext) {
     `not found: ${gone.join(', ')}`)
 }
 
+// THE BOLD FACE (2026-10-01, "improve ... invoices layout style and font"). The redesigned
+// invoice draws its headings in Alexandria 700, embedded as a second face. It is optional: a
+// host that has only the regular file must still get a correct invoice — headings in regular
+// weight, nothing missing — so both are built here and the fallback is checked on a copy of the
+// font directory that has no bold file in it.
+{
+  const track = sql("select o.track_id from orders o join order_items i on i.order_id = o.id group by o.id limit 1")
+  const build = (fontCfg) => php(`require "${ROOT}/sporta-site/public_html/api/invoice-pdf.php";
+    $db = store_db(); $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    $cfg = ${fontCfg};
+    $b = invoice_pdf_build($db, $cfg, ${JSON.stringify(track)});
+    echo $b === null ? "NULL" : (substr($b, 0, 5) . "|" . (strpos($b, "SportaEmbeddedBold") !== false ? "bold" : "plain") . "|" . strlen($b));`)
+  const withBold = build('store_config()')
+  check(withBold.startsWith('%PDF-|bold|'), 'the invoice embeds the bold face when the font file is there', withBold)
+  execFileSync('bash', ['-c', `rm -rf /tmp/inv-nobold && mkdir -p /tmp/inv-nobold && cp ${ROOT}/sporta-site/public_html/fonts/Alexandria-400.ttf /tmp/inv-nobold/`])
+  const noBold = build('["invoice_font" => "/tmp/inv-nobold/Alexandria-400.ttf"] + (array) store_config()')
+  check(noBold.startsWith('%PDF-|plain|'), 'and without it the invoice is still built, in the regular face', noBold)
+}
+
 console.log(fails ? `\n${fails} failed` : '\nall ok — every order has an invoice, and it says the truth')
 process.exit(fails ? 1 : 0)
