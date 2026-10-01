@@ -388,8 +388,10 @@
   }
 
   var CSS =
+    /* OPAQUE since 2026-10-01: the card's caption is white now, and at .92 the panel
+       turned grey over it with the name and price showing through as ghost text. */
     '.qas-panel{position:absolute;inset-inline:0;bottom:0;z-index:20;padding:10px;'
-    + 'background:rgba(23,26,30,.92);backdrop-filter:blur(2px);border-radius:0 0 10px 10px}'
+    + 'background:#171a1e;border-radius:0 0 10px 10px}'
     + '.qas-head{font-size:11px;font-weight:700;color:#fff;margin-bottom:10px;padding-inline-end:30px}'
     /* 32x32, not the usual 44 — measured against this panel's own height:
      * a 44px-tall close button anchored to the top corner would reach down

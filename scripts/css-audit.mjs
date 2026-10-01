@@ -246,7 +246,12 @@ for (const path of PAGES) {
         + 'input, textarea, select, '
         // Every page title is white with the orange bar since 2026-10-01, the owner's "one
         // style" (58-page-titles.css), so /shop's .text-slate-900 h1 is sampled elsewhere.
-        + 'main h1'
+        + 'main h1, '
+        // The product card's caption is WHITE with orange text since 2026-10-01, at the
+        // owner's request (44-product-grid-spec.css): its name (.text-slate-900) and struck
+        // old price (.text-slate-400) are orange on purpose, so those claims are sampled
+        // on something that is not a card caption.
+        + 'main div.grid[class~="grid-cols-2"] > article :is(h3, s, del)'
       let el
       try { el = [...document.querySelectorAll(sel)].find((e) => !e.matches(OVERRIDDEN)) } catch { continue }
       if (!el) continue

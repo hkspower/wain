@@ -1355,10 +1355,15 @@ main article > a[class*="aspect-"] {
 main article > a[class*="aspect-"] > img:not([src^="data:"]) {
   object-position: 50% 22%;
 }
-
 main div.grid[class~="grid"][class~="grid-cols-2"] {
-  column-gap: 10px;
-  row-gap: 10px;
+  column-gap: 12px;
+  row-gap: 16px;
+}
+@media (min-width: 768px) {
+  main div.grid[class~="grid"][class~="grid-cols-2"] {
+    column-gap: 16px;
+    row-gap: 22px;
+  }
 }
 main div.grid[class~="grid"][class~="grid-cols-2"] > article {
   position: relative;
@@ -1396,7 +1401,7 @@ main div.grid > article > a[class*="aspect-"] > span[class~="absolute"][class~="
   background: var(--sp-badge, #cf4a0b) !important;
   color: #fff !important;
 }
-main div.grid > article > a[data-sporta-sale] > span[class~="bg-brand"] {
+main div.grid > article > a[class*="aspect-"][data-sporta-sale] > span[class~="absolute"][class~="rounded-lg"][class~="bg-brand"] {
   top: 38px !important;
 }
 [data-theme] main div.grid > article > a[class*="aspect-"] > button {
@@ -1436,12 +1441,22 @@ main div.grid > article > a[data-sporta-sale] > span[class~="bg-brand"] {
   stroke-width: 2.6;
 }
 main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div {
+  --sp-card-ink: var(--sp-ink-on-light, #c2410c);
+  --sp-card-ink-deep: #9a3412;
+  --sp-card-ink-deep: color-mix(in srgb, var(--sp-ink-on-light, #c2410c) 78%, #000);
   direction: ltr;
   text-align: left;
   align-items: stretch;
   flex: 1;
-  gap: 2px;
-  padding: 8px 10px 9px;
+  gap: 5px;
+  padding: 12px 12px 14px;
+  background: #fff;
+}
+@media (min-width: 768px) {
+  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div {
+    gap: 6px;
+    padding: 14px 16px 16px;
+  }
 }
 main article h3[class~="line-clamp-2"],
 main article h3[class~="line-clamp-1"] {
@@ -1455,6 +1470,9 @@ main article h3[class~="line-clamp-1"] {
   -webkit-line-clamp: 1 !important;
   line-clamp: 1 !important;
 }
+main div.grid[class~="grid"][class~="grid-cols-2"] > article h3 {
+  color: var(--sp-card-ink, #c2410c) !important;
+}
 main div.grid[class~="grid"][class~="grid-cols-2"] > article h3,
 main div.grid[class~="grid"][class~="grid-cols-2"] > article .sporta-card-colour {
   padding-right: 42px;
@@ -1462,10 +1480,16 @@ main div.grid[class~="grid"][class~="grid-cols-2"] > article .sporta-card-colour
 main article .brand-chip-inline {
   justify-content: flex-start;
 }
+main div.grid[class~="grid"][class~="grid-cols-2"] > article .brand-chip-inline > img {
+  background: #171a1e;
+  border-radius: 4px;
+  padding: 2px 5px;
+  box-sizing: content-box;
+}
 main article .sporta-brand-name {
   font-size: 11px;
   line-height: 1;
-  color: var(--sp-silver, #b7bdc4);
+  color: var(--sp-card-ink-deep, #9a3412);
   unicode-bidi: plaintext;
 }
 main article .sporta-card-colour {
@@ -1474,7 +1498,7 @@ main article .sporta-card-colour {
   gap: 6px;
   font-size: 12px;
   line-height: 1.2;
-  color: var(--sp-silver, #b7bdc4);
+  color: var(--sp-card-ink-deep, #9a3412);
   text-align: left;
   unicode-bidi: plaintext;
 }
@@ -1483,7 +1507,7 @@ main article .sporta-card-colour__dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, .28);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .22);
 }
 main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card {
   margin-top: auto;
@@ -1494,7 +1518,7 @@ main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card {
   font-size: 16px;
   font-weight: 700;
   line-height: 1.15;
-  color: var(--sp-text, #dbdfe4) !important;
+  color: var(--sp-card-ink, #c2410c) !important;
   unicode-bidi: plaintext;
 }
 main article .price-card :is(s, del, [class*="line-through"]) {
@@ -1502,6 +1526,9 @@ main article .price-card :is(s, del, [class*="line-through"]) {
   font-weight: 500;
   color: #8a9097;
   text-decoration: line-through;
+}
+main div.grid[class~="grid"][class~="grid-cols-2"] > article .price-card :is(s, del, [class*="line-through"]) {
+  color: var(--sp-card-ink-deep, #9a3412) !important;
 }
 @media (max-width: 639.98px) {
   div.grid:has(> div > #f-block) {

@@ -21,6 +21,12 @@
  * owner's own instruction, see 15-no-filters.css) and its header, which is not the
  * grid. Every subject below is a named element, none universal (test:has-cost).
  *
+ * THE CAPTION IS WHITE WITH ORANGE TEXT SINCE 2026-10-01, asked for as "improve product grid
+ * describe layout with better style, use white background with orange font, make more spacing".
+ * That replaces the picture's dark caption and silver text; the rest of the picture stands (the
+ * photo, the pill, the heart, the + at the caption's bottom-right, left-aligned text). See
+ * "the caption" below for the orange that can actually be read on white.
+ *
  * NO :has() ON THE GRID — 2026-10-01, "improve scrolling". These rules used to find a product grid
  * with `div.grid:has(> article > a[class*="aspect-"])`. A :has() subject is re-checked whenever anything
  * inside it changes, and a scrolling grid is exactly that (lazy images arriving, the overlay scripts
@@ -29,9 +35,17 @@
  * shop's and the product page's "related" grids carry it; no other grid with cards does). Same
  * elements, no :has(). */
 
+/* More room between the cards too (2026-10-01, "make more spacing"): 10px became 12/16 on a
+   phone and 16/22 from 768px. */
 main div.grid[class~="grid"][class~="grid-cols-2"] {
-  column-gap: 10px;
-  row-gap: 10px;
+  column-gap: 12px;
+  row-gap: 16px;
+}
+@media (min-width: 768px) {
+  main div.grid[class~="grid"][class~="grid-cols-2"] {
+    column-gap: 16px;
+    row-gap: 22px;
+  }
 }
 
 /* --- the card ------------------------------------------------------------ */
@@ -87,7 +101,11 @@ main div.grid > article > a[class*="aspect-"] > span[class~="absolute"][class~="
  * corner and the bestseller pill drops beneath it. (card-badges.js flags the link with
  * data-sporta-sale, so this is an attribute test rather than a :has() that every card's
  * subtree changes would have to re-evaluate.) */
-main div.grid > article > a[data-sporta-sale] > span[class~="bg-brand"] {
+/* NAMED AS FULLY AS THE RULE IT MOVES, 2026-10-01. It was `a[data-sporta-sale] > span[class~="bg-brand"]`,
+   (0,3,5), against the pill rule above at (0,4,5), both !important — so it never applied: the two
+   pills sat on top of each other ("Sale" over "Bestseller"), measured both at 11,11. Unseen until
+   then because no bestseller had been on sale. */
+main div.grid > article > a[class*="aspect-"][data-sporta-sale] > span[class~="absolute"][class~="rounded-lg"][class~="bg-brand"] {
   top: 38px !important;
 }
 
@@ -134,18 +152,42 @@ main div.grid > article > a[data-sporta-sale] > span[class~="bg-brand"] {
   stroke-width: 2.6;
 }
 
-/* --- the caption: left-aligned, 85px or less --------------------------------
+/* --- the caption: WHITE, ORANGE TEXT, MORE ROOM — 2026-10-01 -----------------
+ * The owner's words: "white background with orange font, make more spacing".
+ *
+ * THE ORANGE IS THE ONE THAT CAN BE READ ON WHITE. The brand's own #e0561c is 3.7:1 on
+ * white and the button orange #f56315 is 3.1:1 — under the 4.5:1 that 11-16px text needs,
+ * so either would be orange words that half the shoppers squint at. --sp-ink-on-light is
+ * the shop's orange FOR TEXT ON LIGHT (#c2410c, 5.2:1), and theme.js derives it from the
+ * owner's brand colour, so a new brand colour moves it too. The name and the price wear it;
+ * the small lines (brand, colour, the struck old price) take a deeper shade of the same
+ * orange, 7.4:1, so the order of importance is carried by size and weight and every line
+ * passes AA.
+ *
+ * MORE ROOM: 12px inside the caption on a phone and 14-16px from 768px (it was 8-10px), and
+ * 5-6px between the lines (it was 2px). The caption grows from 55px to about 80px.
+ *
  * `direction: ltr` fixes the LAYOUT (text at the left, the price row running
  * left to right) in Arabic as well; each piece of text keeps its own reading
  * direction with `unicode-bidi: plaintext`, so an Arabic name still reads
  * right-to-left and "د.ك 8.000" still puts the currency first. */
 main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div {
+  --sp-card-ink: var(--sp-ink-on-light, #c2410c);
+  --sp-card-ink-deep: #9a3412;
+  --sp-card-ink-deep: color-mix(in srgb, var(--sp-ink-on-light, #c2410c) 78%, #000);
   direction: ltr;
   text-align: left;
   align-items: stretch;
   flex: 1;
-  gap: 2px;
-  padding: 8px 10px 9px;
+  gap: 5px;
+  padding: 12px 12px 14px;
+  background: #fff;
+}
+@media (min-width: 768px) {
+  main div.grid[class~="grid"][class~="grid-cols-2"] > article > a[class*="aspect-"] + div {
+    gap: 6px;
+    padding: 14px 16px 16px;
+  }
 }
 main article h3[class~="line-clamp-2"],
 main article h3[class~="line-clamp-1"] {
@@ -153,11 +195,18 @@ main article h3[class~="line-clamp-1"] {
   font-weight: 600 !important;
   line-height: 1.25 !important;
   min-height: 0;
-  color: var(--sp-text, #dbdfe4) !important;   /* light silver; pure white on this card is 18.9:1, past the glare cap */
+  color: var(--sp-text, #dbdfe4) !important;   /* light silver; pure white on a dark card is 18.9:1, past the glare cap */
   text-align: left;
   unicode-bidi: plaintext;
   -webkit-line-clamp: 1 !important;
   line-clamp: 1 !important;
+}
+/* Orange on the white caption, in the product grids — where the caption is white. NAMED BY THE
+   GRID, not `main article h3`: that selector (0,1,3) LOSES to sporta-dark.css's
+   `[data-theme='dark'] .text-slate-900` (0,2,0), both !important — measured, the name stayed
+   silver on white. It never showed while both rules asked for the same silver. */
+main div.grid[class~="grid"][class~="grid-cols-2"] > article h3 {
+  color: var(--sp-card-ink, #c2410c) !important;
 }
 /* THE NAME AND THE COLOUR LINE KEEP CLEAR OF THE + TOO, 2026-10-01. Only the price row
  * did (padding-right: 42px, below), so on a phone the orange disc sat on the product name:
@@ -172,10 +221,19 @@ main div.grid[class~="grid"][class~="grid-cols-2"] > article .sporta-card-colour
 main article .brand-chip-inline {
   justify-content: flex-start;
 }
+/* A brand LOGO keeps a small dark plate on the white caption: logos are supplied to read on
+   the dark theme (white or full-colour versions, 06-carousel-drawer-brand-logo.css), and a
+   white logo on a white caption would simply vanish. */
+main div.grid[class~="grid"][class~="grid-cols-2"] > article .brand-chip-inline > img {
+  background: #171a1e;
+  border-radius: 4px;
+  padding: 2px 5px;
+  box-sizing: content-box;
+}
 main article .sporta-brand-name {
   font-size: 11px;
   line-height: 1;
-  color: var(--sp-silver, #b7bdc4);   /* the secondary grey (fewer greys, 2026-10-01) */
+  color: var(--sp-card-ink-deep, #9a3412);   /* the deeper orange, 7.4:1 on the white caption */
   unicode-bidi: plaintext;
 }
 main article .sporta-card-colour {
@@ -184,7 +242,7 @@ main article .sporta-card-colour {
   gap: 6px;
   font-size: 12px;
   line-height: 1.2;
-  color: var(--sp-silver, #b7bdc4);   /* the secondary grey, not a sixth one (fewer greys, 2026-10-01) */
+  color: var(--sp-card-ink-deep, #9a3412);   /* the deeper orange, 7.4:1 on the white caption */
   text-align: left;
   unicode-bidi: plaintext;
 }
@@ -193,7 +251,7 @@ main article .sporta-card-colour__dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, .28);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .22);   /* a dark ring now: a white swatch on the white caption needs an edge */
 }
 main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card {
   margin-top: auto;               /* prices sit on one line across a row */
@@ -207,7 +265,7 @@ main div.grid[class~="grid"][class~="grid-cols-2"] article .price-card {
   font-size: 16px;
   font-weight: 700;
   line-height: 1.15;
-  color: var(--sp-text, #dbdfe4) !important;
+  color: var(--sp-card-ink, #c2410c) !important;   /* orange on the white caption (2026-10-01) */
   unicode-bidi: plaintext;
 }
 main article .price-card :is(s, del, [class*="line-through"]) {
@@ -215,4 +273,10 @@ main article .price-card :is(s, del, [class*="line-through"]) {
   font-weight: 500;
   color: #8a9097;
   text-decoration: line-through;
+}
+/* The struck old price on the white caption. !important because the bundle draws it as
+   `<s class="text-slate-400">` and sporta-dark.css forces .text-slate-400 to silver with
+   !important — measured: #b7bdc4 on white, 1.9:1, a price nobody could read. */
+main div.grid[class~="grid"][class~="grid-cols-2"] > article .price-card :is(s, del, [class*="line-through"]) {
+  color: var(--sp-card-ink-deep, #9a3412) !important;
 }

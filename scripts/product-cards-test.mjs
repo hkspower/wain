@@ -115,11 +115,15 @@ print(sum(v*v*c for v,c in enumerate(d.histogram()))/(ref.width*ref.height))`], 
     const card = art.getBoundingClientRect(), pr = art.querySelector('.price-card')
     const range = document.createRange(); range.selectNodeContents(pr); const pt = range.getBoundingClientRect()
     const nameText = document.createRange(); nameText.selectNodeContents(art.querySelector('h3')); const nt = nameText.getBoundingClientRect()
+    // where "inside the card padding" is: the card's edge plus the caption's own padding,
+    // read from the page rather than typed here (it grew on 2026-10-01, "make more spacing")
+    const cap = art.querySelector(':scope > a + div')
     return { align: getComputedStyle(art.querySelector('h3')).textAlign, jc: getComputedStyle(pr).justifyContent,
-             nameLeft: nt.left - card.left, priceLeft: pt.left - card.left }
+             nameLeft: nt.left - card.left, priceLeft: pt.left - card.left,
+             padLeft: parseFloat(getComputedStyle(art).borderLeftWidth) + parseFloat(getComputedStyle(cap).paddingLeft) }
   })
   check(cap.align === 'left' && /start/.test(cap.jc), 'the name and the price are left-aligned (the owner\'s card picture)', `${cap.align}/${cap.jc}`)
-  check(Math.abs(cap.nameLeft - cap.priceLeft) <= 2 && cap.nameLeft <= 14, 'and start on the same left edge, inside the card padding', `name ${cap.nameLeft.toFixed(1)}px, price ${cap.priceLeft.toFixed(1)}px from the left`)
+  check(Math.abs(cap.nameLeft - cap.priceLeft) <= 2 && Math.abs(cap.nameLeft - cap.padLeft) <= 2, 'and start on the same left edge, at the caption\'s own padding', `name ${cap.nameLeft.toFixed(1)}px, price ${cap.priceLeft.toFixed(1)}px, padding edge ${cap.padLeft}px from the left`)
   check(errs.length === 0, 'no script errors', errs.join(' | ').slice(0, 100))
   await ctx.close()
 }

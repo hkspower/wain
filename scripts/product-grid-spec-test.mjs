@@ -9,6 +9,13 @@
  * right, everything else left-aligned); the table the owner sent first supplies
  * the type sizes and the caption height. Needs a photographed product and a
  * coloured one to look at; the rig sets a colour in the sandbox and puts it back.
+ *
+ * THE CAPTION SINCE 2026-10-01 ("white background with orange font, make more
+ * spacing"): white, with the name and price in the shop's orange for text on white,
+ * every line of it readable there (4.5:1, computed from the rendered colours, so a
+ * rule that loses to the dark theme's silver is caught), more padding, and more room
+ * between the cards. And a card that is both on sale and a bestseller keeps its two
+ * pills apart — the rule meant to do that had never applied.
  */
 import { chromium } from 'playwright'
 import { execFileSync } from 'node:child_process'
@@ -22,6 +29,13 @@ const hadAttr = sql(`select colour from product_attrs where slug='${SLUG}'`)
 const hadSale = sql(`select coalesce(sale_price,'NULL') from products where slug='${SLUG}'`)
 sql(`replace into product_attrs (slug, colour) values ('${SLUG}', 'cherry-red')`)
 sql(`update products set sale_price = 6.5 where slug='${SLUG}'`)
+// and a BESTSELLER on sale, so a card carries both pills: without one, "the two pills stay apart"
+// compares nothing and passes on any CSS at all. The bundle's "Bestseller" pill is NOT the API's
+// `featured` — it is baked into the bundle's own product list by slug (measured: featured = 1 drew
+// no pill) — so the sale goes on a product the bundle already calls a bestseller.
+const BEST = 'cagliari-calcio-backpack'
+const hadBestSale = sql(`select coalesce(sale_price,'NULL') from products where slug='${BEST}'`)
+sql(`update products set sale_price = price - 1 where slug='${BEST}'`)
 const br = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox'] })
 try {
   for (const lang of ['en', 'ar']) {
@@ -30,7 +44,12 @@ try {
     const m = await p.evaluate((slug) => {
       const cards = [...document.querySelectorAll('main div.grid > article')]
       const mine = cards.find((a) => a.querySelector(`a[href="/product/${slug}"]`))
-      const plain = cards.find((a) => !a.querySelector('.sporta-card-colour') && !a.querySelector('s'))
+      // PLAIN = name and price only: no colour line, no struck price, and no brand line either (a
+      // brand adds a line). And in a row of plain cards: a row's captions are kept level on
+      // purpose, so a plain card beside a sale card is stretched to the sale card's height.
+      const isPlain = (a) => !a.querySelector('.sporta-card-colour') && !a.querySelector('s') && !a.querySelector('[data-sporta-brand-chip]')
+      const rowOf = (a) => cards.filter((x) => Math.abs(x.getBoundingClientRect().top - a.getBoundingClientRect().top) < 2)
+      const plain = cards.find((a) => isPlain(a) && rowOf(a).every(isPlain))
       const c = cards[0], gs = getComputedStyle(c.parentElement), cs = getComputedStyle(c)
       const box = (e) => e.getBoundingClientRect()
       const r0 = box(cards[0]), r1 = box(cards[1])
@@ -57,6 +76,16 @@ try {
         colourText: colour && colour.textContent.trim(), dot: colour && getComputedStyle(colour.querySelector('i')).backgroundColor,
         order: [...cap.children].map((e) => e.className.split(' ')[0] || e.tagName),
         capPlainH: capP ? box(capP).height : null,
+        capBg: getComputedStyle(cap).backgroundColor, capPad: [parseFloat(getComputedStyle(cap).paddingTop), parseFloat(getComputedStyle(cap).paddingLeft)],
+        nameColour: getComputedStyle(h3).color, priceColour: getComputedStyle(price).color,
+        // every line of the caption against its white: rgb() and color(srgb …) both parsed, so a
+        // colour-mix() result is read as what it is rather than skipped
+        lines: [...cap.querySelectorAll('.sporta-brand-name, h3, .sporta-card-colour, .price-card, .price-card s, .price-card del')]
+          .filter((e) => e.getBoundingClientRect().width > 0 && e.textContent.trim())
+          .map((e) => ({ what: e.tagName === 'H3' ? 'name' : e.tagName === 'S' || e.tagName === 'DEL' ? 'old price' : e.className.split(' ')[0], colour: getComputedStyle(e).color })),
+        // any card carrying BOTH a sale chip and a bestseller pill: their boxes must not meet
+        pillClash: cards.map((a) => [a.querySelector(':scope > a > .sale-chip'), a.querySelector(':scope > a > span[class~="bg-brand"][class~="rounded-lg"]')])
+          .filter(([x, y]) => x && y).map(([x, y]) => { const p = box(x), q = box(y); return p.bottom > q.top && q.bottom > p.top && p.right > q.left && q.right > p.left }),
         nameLeft: (() => { const r = document.createRange(); r.selectNodeContents(h3); return r.getBoundingClientRect().left - ch.left })(),
         priceLeft: (() => { const r = document.createRange(); r.selectNodeContents(price); return r.getBoundingClientRect().left - ch.left })(),
       }
@@ -68,7 +97,14 @@ try {
     check(m.radius >= 14 && m.radius <= 16, `${L} corner radius 14-16px`, String(m.radius))
     check(m.border === '1px' && m.outline === 'none', `${L} a faint 1px card edge, and no outline on the photo`, `${m.border} ${m.outline}`)
     check(rgb(m.photoBg) === '255,255,255', `${L} a photographed card has a white image background`, m.photoBg)
-    check(m.colGap >= 8 && m.colGap <= 10 && m.rowGap >= 8 && m.rowGap <= 10, `${L} card spacing 8-10px each way`, `${m.colGap}/${m.rowGap}`)
+    // more room since 2026-10-01 (the owner's "make more spacing"; it was 8-10px each way)
+    check(Math.round(m.colGap) === 12 && Math.round(m.rowGap) === 16, `${L} card spacing 12px across and 16px down on a phone`, `${m.colGap}/${m.rowGap}`)
+    check(rgb(m.capBg) === '255,255,255' && m.capPad[0] >= 12 && m.capPad[1] >= 12, `${L} the caption is white, with at least 12px inside it`, `${m.capBg} ${m.capPad}`)
+    check(rgb(m.nameColour) === '194,65,12' && rgb(m.priceColour) === '194,65,12', `${L} the name and the price are the orange that reads on white (#c2410c)`, `${m.nameColour} / ${m.priceColour}`)
+    const lum = (c) => { const v = (c.match(/[\d.]+/g) || []).slice(0, 3).map(Number); const f = /^color\(/.test(c) ? v : v.map((x) => x / 255); return f.map((x) => x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4).reduce((a, x, i) => a + x * [0.2126, 0.7152, 0.0722][i], 0) }
+    const ratios = m.lines.map((l) => ({ what: l.what, r: +((1.05) / (lum(l.colour) + 0.05)).toFixed(2) }))
+    check(ratios.length >= 3 && ratios.every((x) => x.r >= 4.5), `${L} every line of the caption reads on its white (AA, ${ratios.length} lines measured)`, ratios.map((x) => `${x.what} ${x.r}`).join(', '))
+    check(m.pillClash.length >= 1 && m.pillClash.every((x) => !x), `${L} a card both on sale and a bestseller keeps its two pills apart (${m.pillClash.length} such card(s))`, JSON.stringify(m.pillClash))
     check(m.heartRight <= 8 && m.heartTop <= 10 && /0, 0, 0, 0|transparent/.test(m.heartDisc), `${L} an outline heart at the top-RIGHT in both languages, no disc`, `${m.heartRight}/${m.heartTop} ${m.heartDisc}`)
     check(m.plusRight <= 8 && m.plusBottom <= 8 && !m.plusInPhoto && rgb(m.plusDisc) === '245,99,21', `${L} the orange + sits at the caption's bottom-right, off the photograph`, `${m.plusRight}/${m.plusBottom} inPhoto=${m.plusInPhoto} ${m.plusDisc}`)
     check(m.badgeLeft !== null && m.badgeLeft <= 14 && m.badgeTop <= 14 && m.badgeRadius >= 10 && rgb(m.badgeBg) === '207,74,11', `${L} the sale badge is an orange pill at the top-LEFT`, `${m.badgeLeft}/${m.badgeTop} r${m.badgeRadius} ${m.badgeBg}`)
@@ -84,5 +120,6 @@ try {
   await br.close()
   sql(hadAttr ? `update product_attrs set colour='${hadAttr}' where slug='${SLUG}'` : `delete from product_attrs where slug='${SLUG}'`)
   sql(hadSale === 'NULL' ? `update products set sale_price = NULL where slug='${SLUG}'` : `update products set sale_price = ${hadSale} where slug='${SLUG}'`)
+  sql(hadBestSale === 'NULL' ? `update products set sale_price = NULL where slug='${BEST}'` : `update products set sale_price = ${hadBestSale} where slug='${BEST}'`)
 }
 console.log(fails ? `\n${fails} FAILED` : '\nall ok'); process.exit(fails ? 1 : 0)
