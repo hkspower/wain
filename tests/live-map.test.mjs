@@ -364,6 +364,70 @@ console.log('\n── a place page gets the same upgrade ──');
   await ctx.close();
 }
 
+console.log('\n── on a phone, one finger still scrolls the page ──');
+{
+  // Leaflet's dragging sets touch-action:none over the whole map, so opening
+  // it used to trap a thumb: a swipe that landed on the map panned it, and the
+  // results under it could not be reached. Read the computed touch-action —
+  // it is what the browser decides a swipe by.
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+  const p = await ctx.newPage();
+  await p.goto(B + SEARCH, { waitUntil: 'networkidle' });
+  const map = p.locator(MAP);
+  await map.getByRole('button', { name: /حرّك الخريطة/ }).tap();
+  await p.locator('.leaflet-container').waitFor({ timeout: 15000 });
+  const touchAction = () => p.locator('.leaflet-container').evaluate((e) => getComputedStyle(e).touchAction);
+  ok('the open map lets a swipe scroll the page', (await touchAction()) === 'pan-x pan-y', await touchAction());
+  const toggle = map.getByRole('button', { name: 'حرّكها بإصبعك' });
+  const offered = (await toggle.count()) === 1;
+  ok('and offers to move the map by finger instead', offered);
+  // Taps only on what is there: a tap on a missing button waits 30s and
+  // throws, and the throw would cancel every section after this one.
+  if (offered) {
+    await toggle.tap();
+    ok('asked, one finger moves the map', (await touchAction()) === 'none', await touchAction());
+    const back = map.getByRole('button', { name: 'رجّع التمرير للصفحة' });
+    ok('and says how to give the page back', (await back.getAttribute('aria-pressed', { timeout: 2000 }).catch(() => null)) === 'true');
+    if ((await back.count()) === 1) await back.tap();
+    ok('which it does', (await touchAction()) === 'pan-x pan-y', await touchAction());
+  }
+  await ctx.close();
+
+  // A mouse is not trapped by a drag — it has a wheel — so it drags as before
+  // and is offered nothing.
+  const { ctx: c2, p: d, map: m2 } = await open();
+  await m2.getByRole('button', { name: /حرّك الخريطة/ }).click();
+  await d.locator('.leaflet-container').waitFor({ timeout: 15000 });
+  ok('with a mouse the map drags as it did, and no toggle is drawn',
+    (await d.locator('.leaflet-container.leaflet-touch-drag, .leaflet-container.leaflet-grab').count()) === 1 &&
+      (await m2.getByRole('button', { name: 'حرّكها بإصبعك' }).count()) === 0);
+  await c2.close();
+}
+
+console.log('\n── asked for less motion, the map does not animate ──');
+{
+  // The site's reduced-motion reset reaches CSS animations; Leaflet moves its
+  // panes from script, so it has to be told. Its own markers of an animated
+  // map: `leaflet-fade-anim` on the container and a zoom proxy element.
+  const animated = async (reducedMotion) => {
+    const ctx = await browser.newContext({ viewport: { width: 1200, height: 900 }, locale: 'ar-KW', reducedMotion });
+    const p = await ctx.newPage();
+    await p.goto(B + SEARCH, { waitUntil: 'networkidle' });
+    await p.locator(MAP).getByRole('button', { name: /حرّك الخريطة/ }).click();
+    await p.locator('.leaflet-container').waitFor({ timeout: 15000 });
+    const r = await p.evaluate(() => ({
+      fade: document.querySelector('.leaflet-container').classList.contains('leaflet-fade-anim'),
+      zoom: document.querySelectorAll('.leaflet-proxy').length > 0,
+    }));
+    await ctx.close();
+    return r;
+  };
+  const normal = await animated('no-preference');
+  const calm = await animated('reduce');
+  ok('it animates for a visitor who did not ask otherwise', normal.fade && normal.zoom, JSON.stringify(normal));
+  ok('and not at all for one who did', !calm.fade && !calm.zoom, JSON.stringify(calm));
+}
+
 await browser.close();
 console.log(`\n${pass} passed, ${fails.length} failed`);
 if (fails.length) process.exit(1);

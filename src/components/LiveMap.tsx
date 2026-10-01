@@ -104,6 +104,19 @@ export default function LiveMap({
   const [projected, setProjected] = useState<{ key: string; pos: { x: number; y: number }[] } | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [zoom, setZoom] = useState<number | null>(null);
+  /**
+   * On a touch screen, one finger scrolls the PAGE until the visitor asks for
+   * it to move the map. `null` where there is no touch screen and so nothing
+   * to ask.
+   *
+   * Leaflet's dragging sets `touch-action: none` on the whole map, so the
+   * moment «حرّك الخريطة» swapped the frame for this, a swipe that landed on
+   * the map — most of the width of a phone — panned it instead of scrolling,
+   * and the results below it could not be reached by the thumb that had just
+   * opened it. With dragging off Leaflet leaves `pan-x pan-y`: the page
+   * scrolls, a pinch still zooms the map, and the buttons still move it.
+   */
+  const [touchLocked, setTouchLocked] = useState<boolean | null>(null);
 
   // `points` is rebuilt by the parent on every render, so it cannot be a
   // dependency without tearing the map down and back up on each drag frame.
@@ -133,6 +146,11 @@ export default function LiveMap({
     if (!host || !TILE_URL) return;
 
     const [west, south, east, north] = frame.bbox.split(",").map(Number);
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
+    // Leaflet's zoom and fade animations and its fling inertia are all motion
+    // the visitor asked not to have; the site's own reset reaches CSS
+    // animations, not a library that moves its panes from script.
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const map = L.map(host, {
       // Ours are drawn in the site's own type and colours, below. Leaflet's
@@ -143,6 +161,11 @@ export default function LiveMap({
       // the map instead of scrolling the page is the single most complained
       // about behaviour an embedded map has. Pinch and the buttons zoom.
       scrollWheelZoom: false,
+      dragging: !coarse,
+      inertia: !reduced,
+      zoomAnimation: !reduced,
+      fadeAnimation: !reduced,
+      markerZoomAnimation: !reduced,
       minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
     });
@@ -274,7 +297,6 @@ export default function LiveMap({
 
     fitToRef.current = (pts) => {
       if (!pts.length) return;
-      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       map.fitBounds(
         L.latLngBounds(pts.map((p) => [p.lat, p.lng] as [number, number])),
         // Not all the way down: a bubble of two places at one address would
@@ -284,6 +306,7 @@ export default function LiveMap({
     };
 
     mapRef.current = map;
+    if (coarse) setTouchLocked(true);
     project();
 
     return () => {
@@ -308,6 +331,14 @@ export default function LiveMap({
   useLayoutEffect(() => {
     paintRef.current();
   }, [pos]);
+
+  const toggleTouch = () => {
+    const m = mapRef.current;
+    if (!m || touchLocked === null) return;
+    if (touchLocked) m.dragging.enable();
+    else m.dragging.disable();
+    setTouchLocked(!touchLocked);
+  };
 
   const nudge = (by: number) => {
     const m = mapRef.current;
@@ -356,6 +387,19 @@ export default function LiveMap({
           −
         </button>
       </div>
+
+      {/* Only on a touch screen. Off, one finger scrolls the page past the map;
+          on, it moves the map — and says how to give the page back. */}
+      {touchLocked !== null && (
+        <button
+          type="button"
+          onClick={toggleTouch}
+          aria-pressed={!touchLocked}
+          className="absolute right-3 top-3 z-30 rounded-full border border-line bg-white/95 px-3 py-1.5 text-xs font-semibold text-ink-700 shadow-sm"
+        >
+          {touchLocked ? "حرّكها بإصبعك" : "رجّع التمرير للصفحة"}
+        </button>
+      )}
 
       {/* Required, and so rendered by the map rather than by whoever remembers
           to. See map-tiles.ts: using the tiles directly is what makes this an

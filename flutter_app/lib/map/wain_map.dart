@@ -42,7 +42,7 @@ const double kMaxZoom = 19;
 /// Kuwait City, for an empty frame.
 const LatLng kKuwaitCity = LatLng(29.3759, 47.9774);
 
-class WainMap extends StatelessWidget {
+class WainMap extends StatefulWidget {
   final List<Place> places;
   final String? activeSlug;
   final ValueChanged<String?>? onActive;
@@ -52,6 +52,9 @@ class WainMap extends StatelessWidget {
   final double height;
   final bool interactive;
 
+  /// Tests pass one to read the camera; the app lets the map own its own.
+  final MapController? controller;
+
   const WainMap({
     super.key,
     required this.places,
@@ -60,10 +63,57 @@ class WainMap extends StatelessWidget {
     this.onOpen,
     this.height = 260,
     this.interactive = true,
+    this.controller,
   });
 
   @override
+  State<WainMap> createState() => _WainMapState();
+}
+
+/// Where a set of places should be framed: the one place, or all of them.
+CameraFit? _fitFor(List<LatLng> points) => points.length > 1
+    ? CameraFit.coordinates(
+        coordinates: points,
+        padding: const EdgeInsets.fromLTRB(40, 56, 40, 40),
+        maxZoom: 15,
+      )
+    : null;
+
+class _WainMapState extends State<WainMap> {
+  late final MapController _ctl = widget.controller ?? MapController();
+
+  /// A different SET of places is a new answer and gets a new frame. The
+  /// search screen keeps one map under a constant key, and `initialCameraFit`
+  /// is read once — so a new search drew its pins wherever the last search
+  /// had left the camera, often entirely off-screen («قهوة» is the old town,
+  /// «الخيران» ninety kilometres south). Only on a new set: refitting on every
+  /// rebuild would yank the map back the moment the visitor dragged it.
+  @override
+  void didUpdateWidget(WainMap old) {
+    super.didUpdateWidget(old);
+    final was = [for (final p in old.places) p.slug].join(',');
+    final now = [for (final p in widget.places) p.slug].join(',');
+    if (was == now || widget.places.isEmpty) return;
+    final points = [for (final p in widget.places) LatLng(p.lat, p.lng)];
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final fit = _fitFor(points);
+      if (fit != null) {
+        _ctl.fitCamera(fit);
+      } else {
+        _ctl.move(points.first, 14);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final places = widget.places;
+    final activeSlug = widget.activeSlug;
+    final onActive = widget.onActive;
+    final onOpen = widget.onOpen;
+    final height = widget.height;
+    final interactive = widget.interactive;
     final points = [for (final p in places) LatLng(p.lat, p.lng)];
     final url = tileUrl;
     return ClipRRect(
@@ -74,6 +124,7 @@ class WainMap extends StatelessWidget {
           children: [
             Positioned.fill(
               child: FlutterMap(
+                mapController: _ctl,
                 options: MapOptions(
                   initialCenter: points.length == 1
                       ? points.first
@@ -82,13 +133,7 @@ class WainMap extends StatelessWidget {
                   minZoom: kMinZoom,
                   maxZoom: kMaxZoom,
                   backgroundColor: WainColors.sea50,
-                  initialCameraFit: points.length > 1
-                      ? CameraFit.coordinates(
-                          coordinates: points,
-                          padding: const EdgeInsets.fromLTRB(40, 56, 40, 40),
-                          maxZoom: 15,
-                        )
-                      : null,
+                  initialCameraFit: _fitFor(points),
                   interactionOptions: InteractionOptions(
                     flags: interactive
                         ? InteractiveFlag.all & ~InteractiveFlag.rotate
@@ -111,9 +156,10 @@ class WainMap extends StatelessWidget {
                           point: LatLng(p.lat, p.lng),
                           width: 160,
                           height: 96,
-                          // The dot sits at the bottom of this box; put the
-                          // coordinate under the dot's centre, not the box's top.
-                          alignment: const Alignment(0, 0.75),
+                          // The dot's 40px target sits at the bottom of this
+                          // box, so its centre is 20px up: (96−20)/96 of the
+                          // way down, which is 0.583 in Alignment's −1…1.
+                          alignment: const Alignment(0, 0.583),
                           child: MapPin(
                             place: p,
                             selected: p.slug == activeSlug,
@@ -174,14 +220,19 @@ class MapPin extends StatelessWidget {
       button: true,
       selected: selected,
       label: place.nameAr,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            if (selected)
-              Container(
+      // No detector around the whole box. It is 160×96 so the callout has
+      // room, and it was opaque: a tap anywhere in it — most of it empty, up
+      // to 70px above the dot — selected this pin, and a drag that started
+      // there never reached the map. Only the dot and the callout answer now;
+      // the empty part of the box is not hit-tested at all.
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          if (selected)
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onTap,
+              child: Container(
                 constraints: const BoxConstraints(maxWidth: 160),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -215,23 +266,34 @@ class MapPin extends StatelessWidget {
                   ],
                 ),
               ),
-            if (selected) const SizedBox(height: 4),
-            AnimatedScale(
-              scale: selected ? 1.25 : 1,
-              duration: const Duration(milliseconds: 150),
-              child: Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: ink,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 3),
-                  boxShadow: WainShadows.md,
+            ),
+          if (selected) const SizedBox(height: 4),
+          // 40px around a 24px dot: a finger-sized target, and no bigger.
+          GestureDetector(
+            key: ValueKey('map-pin-${place.slug}'),
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: SizedBox.square(
+              dimension: 40,
+              child: Center(
+                child: AnimatedScale(
+                  scale: selected ? 1.25 : 1,
+                  duration: const Duration(milliseconds: 150),
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: ink,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3),
+                      boxShadow: WainShadows.md,
+                    ),
+                  ),
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
