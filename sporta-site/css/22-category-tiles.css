@@ -167,8 +167,10 @@ section:has(> [class~="grid"] > .cat-tile) {
   padding-left: 0 !important;
   padding-right: 0 !important;
 }
+/* TWO ROWS OF TWO, 50% / 50% — asked for 2026-10-01: Men | Women on the first row,
+ * Accessories | Outlet on the second, at every width. It was one tile per row. */
 [class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
-  grid-template-columns: 1fr !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 6px !important;
 }
 .cat-tile.tile-men, .cat-tile.tile-women,

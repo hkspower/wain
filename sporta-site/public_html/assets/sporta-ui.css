@@ -2907,8 +2907,10 @@ section:has(> [class~="grid"] > .cat-tile) {
   padding-left: 0 !important;
   padding-right: 0 !important;
 }
+/* TWO ROWS OF TWO, 50% / 50% — asked for 2026-10-01: Men | Women on the first row,
+ * Accessories | Outlet on the second, at every width. It was one tile per row. */
 [class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
-  grid-template-columns: 1fr !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 6px !important;
 }
 .cat-tile.tile-men, .cat-tile.tile-women,
@@ -4304,4 +4306,58 @@ main article .price-card :is(s, del, [class*="line-through"]) {
     grid-template-columns: 1fr 1fr;
     column-gap: 10px;
   }
+}
+/* THE CATEGORY TILES, TWO ROWS OF TWO — asked for 2026-10-01 as "make category 2 row
+ * men woman 50% 50% / 2 row acces sporta outlet with 50% = 50%".
+ *
+ * Row one is Men | Women, row two is Accessories | Outlet, each tile exactly half the
+ * width, at every screen size. The grid itself is set in 22-category-tiles.css; this file
+ * is what the tiles' TEXT needs once each is half as wide, because the copy was sized for
+ * a full-width tile and ran out of the frame (a clipped "Accessories", a "Up to 60% off"
+ * chip cut in half, the arrow button laid over the title).
+ *
+ * It is a later file than 27-category-heading.css on purpose: that one sets the gap
+ * (14px phone, 28px desktop) for one tile per row, and a 28px channel between two tiles
+ * would stop them reading as a pair. */
+[class~="grid"][class~="gap-4"][class~="md:grid-cols-2"][class~="md:gap-5"] {
+  gap: 8px !important;
+}
+.cat-tile .cat-tile__title {
+  font-size: clamp(20px, 3.4vw, 54px) !important;
+  margin: .15em 0 .25em !important;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.cat-tile p:not(.eyebrow) {
+  font-size: clamp(11px, 1.05vw, 16px) !important;
+  line-height: 1.35 !important;
+}
+.cat-tile .eyebrow {
+  font-size: clamp(10px, .9vw, 14px) !important;
+}
+.cat-tile > div[class~="relative"] {
+  max-width: 82% !important;
+}
+@media (max-width: 767px) {
+  .cat-tile { padding: 10px !important; }
+  .cat-tile p:not(.eyebrow) { display: none !important; }
+  .cat-tile > div[class~="relative"] { max-width: none !important; }
+  .cat-tile .cat-tile__title { font-size: min(16px, 4vw) !important; line-height: 1.05 !important; }
+  /* the longest word, 'Accessories' / إكسسوارات, is wider than the text column at the others' size */
+  .cat-tile.tile-acc .cat-tile__title { font-size: min(12.5px, 3.2vw) !important; }
+  .cat-tile .eyebrow { font-size: 9px !important; letter-spacing: .02em !important; }
+  /* the offer chip: small enough to sit above the title inside a 188px tile */
+  .cat-tile span[class~="rounded-full"][class~="bg-brand"][class~="inline-block"] {
+    font-size: 9px !important;
+    padding: 2px 8px !important;
+    margin-bottom: 2px !important;
+  }
+  /* the arrow keeps a 44px TAP area but paints a smaller disc, in the corner */
+  .cat-tile > span[class~="absolute"][class~="rounded-full"] {
+    width: 28px !important;
+    height: 28px !important;
+    bottom: 6px !important;
+    inset-inline-end: 6px !important;
+  }
+  .cat-tile > span[class~="absolute"][class~="rounded-full"] svg { width: 12px; height: 12px; }
 }
