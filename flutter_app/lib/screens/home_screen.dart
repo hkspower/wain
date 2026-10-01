@@ -59,9 +59,11 @@ class _Hero extends StatelessWidget {
               children: [
                 const _Wordmark(),
                 const SizedBox(height: 28),
+                // No «دوّر باسم المكان» under the dial here: the app's tab
+                // bar has a search tab, so it was the same offer twice. The
+                // website keeps it — in a browser it is the page's one way
+                // to /search — and hides it in its installed mode too.
                 _Dial(size: dial),
-                const SizedBox(height: 20),
-                _SearchLink(),
               ],
             ),
           ),
@@ -162,7 +164,7 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
           CustomPaint(size: Size(s + 32, s + 32), painter: _TickRing()),
           Semantics(
             button: true,
-            label: 'إلى وين؟ اضغط ودوّر حواليك',
+            label: 'إلى وين؟ — اكتب أو كلّم شوق',
             child: GestureDetector(
               onTap: () => context.push('/find'),
               child: Container(
@@ -199,18 +201,14 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
                           color: WainColors.ink900,
                         ),
                       ),
-                      Text(
-                        'اضغط ودوّر حواليك',
-                        style: wainText(
-                          WainText.sm,
-                          weight: FontWeight.w600,
-                          color: WainColors.sun900,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
+                      // The question and one thing to do, as on the web
+                      // (NearbyDial): «اضغط ودوّر حواليك» stopped being true
+                      // when the dial stopped ranking places around you, and
+                      // what the tap leads to is in the label above.
+                      const SizedBox(height: 12),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
+                          horizontal: 24,
                           vertical: 8,
                         ),
                         decoration: BoxDecoration(
@@ -218,21 +216,12 @@ class _DialState extends State<_Dial> with SingleTickerProviderStateMixin {
                           borderRadius: BorderRadius.circular(99),
                         ),
                         child: Text(
-                          'ابحث',
+                          'ابدأ',
                           style: wainText(
                             WainText.sm,
                             weight: FontWeight.w600,
                             color: WainColors.sun100,
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'اكتب أو كلّم شوق',
-                        style: wainText(
-                          WainText.xs,
-                          weight: FontWeight.w600,
-                          color: WainColors.sun900,
                         ),
                       ),
                     ],
@@ -271,39 +260,6 @@ class _TickRing extends CustomPainter {
 
   @override
   bool shouldRepaint(_TickRing old) => false;
-}
-
-class _SearchLink extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white.withValues(alpha: 0.95),
-      shape: const StadiumBorder(side: BorderSide(color: WainColors.line)),
-      elevation: 0,
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: () => context.go('/search'),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              WainSvg.icon('search', size: 16, color: WainColors.sea800),
-              const SizedBox(width: 8),
-              Text(
-                'دوّر باسم المكان',
-                style: wainText(
-                  WainText.sm,
-                  weight: FontWeight.w600,
-                  color: WainColors.sea800,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _Featured extends StatelessWidget {

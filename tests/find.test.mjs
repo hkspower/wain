@@ -46,6 +46,12 @@ console.log('\n── the dial no longer opens its own panel ──');
   const dial = p.locator('a[href="/find/"]');
   ok('the dial is a link to /find', await dial.isVisible());
   ok('it no longer promises a distance figure', !(await p.locator('text=كم حواليك').count()));
+  // Less text, on request: the question and one thing to do. It carried four
+  // lines, one of them («اضغط ودوّر حواليك») untrue since the dial stopped
+  // ranking places around you.
+  const said = (await dial.innerText()).split('\n').map((t) => t.trim()).filter(Boolean);
+  ok('the dial says two things: the question and «ابدأ»', JSON.stringify(said) === JSON.stringify(['إلى وين؟', 'ابدأ']), JSON.stringify(said));
+  ok('and its name still says where it leads', (await dial.getAttribute('aria-label'))?.includes('كلّم شوق'));
   await dial.click();
   await p.waitForURL('**/find/**');
   ok('tapping it lands on /find', p.url().includes('/find'));

@@ -60,6 +60,7 @@ export default function NearbyDial() {
         </svg>
         <Link
           href="/find"
+          aria-label="إلى وين؟ — اكتب أو كلّم شوق"
           // The ambient glow underneath is amber, not the @theme shadow
           // scale's ink tint — an ink-tinted shadow under a sun-200→400
           // gradient button would read as dirt, not lift. Same deliberate
@@ -78,21 +79,19 @@ export default function NearbyDial() {
               white ring and a hairline of deeper sun inside it, so the white
               reads as a rim with thickness rather than a flat stroke. */}
           <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-inset ring-sun-500/35" />
-          <span className="relative flex flex-col items-center gap-1">
+          {/* Two things, on request («make sun main hero with less text»):
+              the question and the one thing to do. It carried four — the
+              question, «اضغط ودوّر حواليك», a «ابحث» pill and «اكتب أو كلّم
+              شوق» — and the second had been untrue since the dial stopped
+              ranking places around you (see the comment on /find). What the
+              tap leads to is said once, in the link's name, for the visitor
+              who hears it rather than sees the page that follows. */}
+          <span className="relative flex flex-col items-center gap-3">
             <span className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
               إلى وين؟
             </span>
-            <span className="text-sm font-semibold text-sun-900">
-              اضغط ودوّر حواليك
-            </span>
-            <span className="mt-2 rounded-full bg-ink-900 px-5 py-2 text-sm font-semibold text-sun-100 shadow-sm">
-              ابحث
-            </span>
-            {/* Used to claim «أقرب الأماكن — ١٠ كم حواليك», which was true of
-                the panel this replaced — a live-ranked nearest-five list —
-                and would be false of a link that opens a choice page instead. */}
-            <span className="mt-1 text-xs font-semibold text-sun-900">
-              اكتب أو كلّم شوق
+            <span className="rounded-full bg-ink-900 px-6 py-2 text-sm font-semibold text-sun-100 shadow-sm">
+              ابدأ
             </span>
           </span>
         </Link>

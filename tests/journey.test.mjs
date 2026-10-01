@@ -102,6 +102,14 @@ ok('the home page loads', (await p.textContent('body')).includes('وين'));
 // the navbar went was AppTabBar's tab, which is `standalone:block` and so is
 // in the DOM and painted by nothing outside the installed app.
 ok('and offers a way to search', (await p.locator('a[href="/search/"]:visible').count()) > 0);
+// As the installed app — the attribute AppShell sets for a home-screen launch
+// or the Capacitor shell. The tab bar appears, and the pill under the dial
+// stands down so search is offered once, not twice. Put back afterwards: the
+// journey below is a browser's.
+await p.evaluate(() => { document.documentElement.dataset.standalone = 'true'; });
+const appLinks = await p.locator('a[href="/search/"]:visible').evaluateAll((as) => as.map((a) => !!a.closest('nav')));
+ok('installed, search is offered exactly once — by the tab bar', appLinks.length === 1 && appLinks[0] === true, JSON.stringify(appLinks));
+await p.evaluate(() => { delete document.documentElement.dataset.standalone; });
 
 console.log('\n── 2. she follows the search link and asks for tea ──');
 // The link on the home page, followed rather than typed. This step used to

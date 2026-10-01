@@ -149,7 +149,11 @@ export default function HomePage() {
               own placement, applied to the step before it rather than to the
               page. Do not put the second half back here without moving the
               /search line out of the way first. */}
-          <div className="mt-5 text-center sm:mt-4">
+          {/* standalone:hidden — the installed app's tab bar has a search
+              tab, so in the app this is the same offer drawn twice; the
+              rule LiveTray already follows. In a browser it is the page's
+              one visible way to /search and stays exactly as it was. */}
+          <div className="mt-5 text-center standalone:hidden sm:mt-4">
             <Link
               href="/search"
               className="inline-flex min-h-6 items-center gap-2 rounded-full bg-white/95 px-5 py-2.5 text-sm font-semibold text-sea-800 shadow-sm ring-1 ring-line transition hover:bg-white"

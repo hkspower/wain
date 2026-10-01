@@ -11,6 +11,9 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/",
     scope: "/",
     display: "standalone",
+    // Every screen is laid out for a phone held upright — the hero's sky
+    // reserve, the call sheet, /find's two halves — and none for landscape.
+    orientation: "portrait",
     shortcuts: [
       {
         name: "استكشف الأماكن",

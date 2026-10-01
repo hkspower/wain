@@ -127,4 +127,19 @@ void main() {
     await t.pumpAndSettle(const Duration(milliseconds: 100));
     expect(find.text('دوّر في وين'), findsOneWidget);
   });
+
+  testWidgets('home: the dial says two things, and search is offered once', (
+    t,
+  ) async {
+    await pumpAt(t, '/');
+    // «make sun main hero with less text»: the question and one action.
+    expect(find.text('إلى وين؟'), findsOneWidget);
+    expect(find.text('ابدأ'), findsOneWidget);
+    expect(find.text('اضغط ودوّر حواليك'), findsNothing);
+    expect(find.text('اكتب أو كلّم شوق'), findsNothing);
+    // The tab bar's «بحث» is the way to search; the home no longer draws a
+    // second one under the dial.
+    expect(find.text('دوّر باسم المكان'), findsNothing);
+    expect(find.text('بحث'), findsWidgets);
+  });
 }
