@@ -363,6 +363,51 @@ console.log("\n── the words a 225-question battery found missing ──");
     ["restaurants", "fastfood", "shopping"].includes(top("breakfast")?.category), show("breakfast"));
   ok("«sunset» finds a sunset", top("sunset")?.tagsAr.includes("غروب"), show("sunset"));
   ok("«tonight» finds somewhere for the evening", top("tonight")?.tagsAr.includes("سهرة"), show("tonight"));
+  // A value that pointed at «ألعاب» kept its «ال» and was dead; through
+  // tokenize() it reaches the rides.
+  ok("«ابي شي ونيس» puts the rides first", top("ابي شي ونيس")?.category === "family", show("ابي شي ونيس"));
+}
+
+console.log("\n── how a question is read before it is searched ──");
+/**
+ * readQuery() in search.ts. Each case is a shape of question the engine used
+ * to read word by word: a negation searched for the very word it ruled out,
+ * filler matching everywhere, «حار» finding the one place that warns about
+ * the heat, a town with no coverage answered by the town next door.
+ */
+{
+  const top = (q) => ask(q).hitPlaces[0];
+  const first3 = (q) => ask(q).hitPlaces.slice(0, 3);
+  const show = (q) => first3(q).map((p) => p.nameAr).join("، ") || "لا شي";
+  const free = (p) => JSON.stringify(p).includes("مجان");
+  const crowded = (p) => JSON.stringify(p).includes("زحم");
+
+  ok("«مو غالي» has nothing dear in its first three", first3("مو غالي").every((p) => p.priceLevel !== 3), show("مو غالي"));
+  ok("«ما عندي فلوس» is the free places", first3("ما عندي فلوس").length > 0 && first3("ما عندي فلوس").every(free),
+    show("ما عندي فلوس"));
+  ok("«مو داخلي» is not an indoor place", top("مو داخلي")?.setting !== "indoor", show("مو داخلي"));
+  ok("«مو برا» is indoors all the way down its first three",
+    first3("مو برا").every((p) => p.setting === "indoor"), show("مو برا"));
+  ok("«مكان مو زحمة» does not offer a place its own text calls crowded",
+    !first3("مكان مو زحمة").some(crowded), show("مكان مو زحمة"));
+
+  const outdoorInHeat = (p) => p.setting === "outdoor" && !p.summerOk;
+  ok("«الجو حار» offers nowhere outdoors", !first3("الجو حار").some(outdoorInHeat), show("الجو حار"));
+  ok("«حر وايد» offers nowhere outdoors or half outdoors",
+    first3("حر وايد").every((p) => p.setting === "indoor"), show("حر وايد"));
+  // Dropping «وين» exposed «اودي», which fuzzed onto «أهدى» and found malls.
+  ok("«وين اودي اهلي» is somewhere for a family", top("وين اودي اهلي")?.category === "family", show("وين اودي اهلي"));
+
+  for (const q of ["مطعم بالجهراء", "مطعم بالجهرا", "كافيه بسلوى", "صباح السالم"]) {
+    ok(`«${q}» finds nothing rather than somewhere else`, ask(q).hitPlaces.length === 0, show(q));
+  }
+  ok("but «مدينة صباح الأحمد البحرية» is still the sea city",
+    top("مدينة صباح الأحمد البحرية")?.slug === "sabah-al-ahmad-sea-city", show("مدينة صباح الأحمد البحرية"));
+
+  ok("a held letter is one letter: «ابيييي بحرررر» is the sea",
+    top("ابيييي بحرررر")?.nameAr.startsWith("شاطئ"), show("ابيييي بحرررر"));
+  ok("two words with the space lost: «مطعمسمك»", top("مطعمسمك")?.slug === "fish-market", show("مطعمسمك"));
+  ok("and «سوقالمباركية»", top("سوقالمباركية")?.slug === "souq-al-mubarakiya", show("سوقالمباركية"));
 }
 
 console.log(`\n${pass} passed, ${fails.length} failed`);

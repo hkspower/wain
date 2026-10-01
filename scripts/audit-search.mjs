@@ -38,7 +38,10 @@ execSync(
     `--alias:@=${JSON.stringify(join(ROOT, "src"))} --outfile=${JSON.stringify(bundle)} --log-level=error`,
   { cwd: ROOT, stdio: "pipe" }
 );
-const { buildIndex, search, places } = await import(pathToFileURL(bundle).href);
+const {
+  buildIndex, search, places, tokenize, normalise,
+  SYNONYMS, STOP, FILLER, NEGATORS, WANT_WORDS, ANTONYMS, REWRITE, ELSEWHERE_PHRASES,
+} = await import(pathToFileURL(bundle).href);
 rmSync(tmp, { recursive: true, force: true });
 
 const errors = [];
@@ -53,8 +56,10 @@ const pc = (n, d) => (d === 0 ? 100 : (n / d) * 100);
 const line = (label, n, d, floor) => {
   const p = pc(n, d);
   const bad = p < floor;
-  if (bad) errors.push(`${label}: ${p.toFixed(0)}% (${n}/${d}), below the ${floor}% floor`);
-  console.log(`  ${bad ? "✗" : "✓"} ${label.padEnd(46)} ${n}/${d}  ${p.toFixed(0)}%`);
+  // 404 of 406 rounds to «100%», which read as a pass printed beside a ✗.
+  const shown = bad && Math.round(p) >= floor ? p.toFixed(1) : p.toFixed(0);
+  if (bad) errors.push(`${label}: ${shown}% (${n}/${d}), below the ${floor}% floor`);
+  console.log(`  ${bad ? "✗" : "✓"} ${label.padEnd(46)} ${n}/${d}  ${shown}%`);
   return p;
 };
 
@@ -156,6 +161,65 @@ console.log("\n── shisha, under every word it is asked for ──");
     }
     if (worst) errors.push(worst);
   }
+}
+
+console.log("\n── every word in the tables can match something ──");
+{
+  /**
+   * A table entry that can never match looks exactly like one that works:
+   * nothing fails, the search is just quietly worse. Two shapes of it have
+   * shipped. STOP is compared after normalise(), so «على» and «الى» —
+   * written unfolded — have never been dropped. And synonym values were only
+   * normalised, which kept a leading «ال»: «ألعاب» became «العاب», a term no
+   * document holds, so every entry pointing at the games was dead.
+   *
+   * So: a list a query is compared against must hold words that survive
+   * tokenize() as themselves, and a value must reach a real term in the
+   * index — exactly or as a prefix. The fuzzy pass does not count: it is how
+   * «فطار» reached «فنار», a mall, for every breakfast search.
+   */
+  const dead = [];
+  let checked = 0;
+  const check = (alive, why) => {
+    checked++;
+    if (!alive) dead.push(why);
+  };
+  const asItself = (w) => {
+    const t = tokenize(w);
+    return t.length === 1 && t[0] === normalise(w);
+  };
+  for (const [name, words] of [
+    ["FILLER", FILLER], ["NEGATORS", NEGATORS], ["WANT_WORDS", WANT_WORDS],
+    ["ANTONYMS", Object.keys(ANTONYMS)], ["REWRITE", Object.keys(REWRITE)],
+  ]) {
+    for (const w of words) check(asItself(w), `${name} «${w}» reads as ${JSON.stringify(tokenize(w))}`);
+  }
+  // STOP is the one list whose words tokenize() REMOVES, so the test is that
+  // each is already in the folded form a token arrives in. The two named here
+  // are known and deliberately left (see STOP's comment); a third is a bug.
+  const STOP_KNOWN_DEAD = ["على", "الى"];
+  for (const w of STOP) {
+    check(normalise(w) === w || STOP_KNOWN_DEAD.includes(w), `STOP «${w}» never matches; it folds to «${normalise(w)}»`);
+  }
+  for (const pair of ELSEWHERE_PHRASES) {
+    for (const w of pair) check(tokenize(w).length === 1, `ELSEWHERE_PHRASES «${w}» is not one token`);
+  }
+  const reaches = (t) => index.postings.has(t) || index.terms.some((x) => x.startsWith(t));
+  // «قعدة» is in the catalogue only glued — «وقعدة»، «والقعدة» — and the
+  // engine strips clitics from the query, never from the index, so these two
+  // reach their target one edit away. Named rather than hidden.
+  const GLUED_ONLY = ["ونسة", "ونيت"];
+  for (const [name, table] of [["SYNONYMS", SYNONYMS], ["ANTONYMS", ANTONYMS], ["REWRITE", REWRITE]]) {
+    for (const [k, vs] of Object.entries(table)) {
+      if (GLUED_ONLY.includes(k)) continue;
+      for (const v of vs) {
+        const t = tokenize(v);
+        check(t.length > 0 && t.every(reaches), `${name} ${k} → «${v}» reaches no term (${JSON.stringify(t)})`);
+      }
+    }
+  }
+  line("table entries that can match", checked - dead.length, checked, 100);
+  for (const d of dead) errors.push(d);
 }
 
 console.log("\n── speed ──");

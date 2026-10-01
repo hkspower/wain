@@ -4,9 +4,10 @@
 /// engine's own answers for ~200 queries, so «faithful» is measured.
 ///
 /// Same pieces, same order, same constants:
-///   normalise → tokenise → (exact | declitic | prefix | fuzzy) candidates →
-///   BM25 over weighted fields → coverage, kind, area-only and category
-///   multipliers.
+///   normalise → tokenise → read the query (filler, rewrite, negation, glued
+///   words, places we have nothing in) → (exact | declitic | prefix | fuzzy)
+///   candidates → BM25 over weighted fields → coverage, kind, area-only,
+///   category and pushed-down multipliers.
 ///
 /// Two JavaScript behaviours the port has to reproduce by hand:
 ///  * `Array.prototype.sort` is STABLE; Dart's `List.sort` is not. Every sort
@@ -32,6 +33,7 @@ final RegExp _harakat = RegExp('[ً-ٰٞ]');
 final RegExp _combining = RegExp(r'\p{M}', unicode: true);
 final RegExp _nonWord = RegExp(r'[^\p{L}\p{N}]+', unicode: true);
 final RegExp _arabicDigit = RegExp('[٠-٩]');
+final RegExp _elongated = RegExp(r'(\p{L})\1{2,}', unicode: true);
 
 /// What NFD + «strip combining marks» does to the precomposed Latin letters a
 /// catalogue can contain («Cafés»). Dart's core library has no normaliser, and
@@ -100,7 +102,12 @@ String normalise(String value) {
     final ch = String.fromCharCode(r);
     buf.write(_latinFold[ch] ?? ch);
   }
-  s = buf.toString().replaceAll(_combining, '');
+  s = buf
+      .toString()
+      .replaceAll(_combining, '')
+      // A letter held for emphasis («بحرررر») is one letter — see normalise()
+      // on the web for why three and not two.
+      .replaceAllMapped(_elongated, (m) => m[1]!);
   return _jsTrim(s);
 }
 
@@ -144,18 +151,35 @@ List<String> tokenize(String value) {
 
 /// The synonym table keyed the way lookups arrive (normalised), colliding
 /// entries merged — built once at load, like `SYNONYM_LOOKUP` on the web.
+/// Values go through [tokenize], as a typed word does: normalised alone,
+/// «ألعاب» kept its «ال» and pointed at a term the index does not hold.
 final Map<String, List<String>> _synonymLookup = () {
   final m = <String, List<String>>{};
   kSynonyms.forEach((key, values) {
     final k = normalise(key);
     final merged = <String>[...(m[k] ?? const <String>[])];
-    for (final v in values.map(normalise)) {
+    for (final v in values.expand(tokenize)) {
       if (!merged.contains(v)) merged.add(v);
     }
     m[k] = merged;
   });
   return m;
 }();
+
+// How a query is read before it is scored — `readQuery` on the web, whose
+// comments carry the reasons. Tables are generated as written and folded here.
+final Set<String> _filler = {for (final w in kFiller) normalise(w)};
+final Set<String> _negators = {for (final w in kNegators) normalise(w)};
+final Set<String> _want = {for (final w in kWantWords) normalise(w)};
+Map<String, List<String>> _foldTable(Map<String, List<String>> table) => {
+  for (final e in table.entries)
+    normalise(e.key): [for (final v in e.value) ...tokenize(v)],
+};
+final Map<String, List<String>> _antonyms = _foldTable(kAntonyms);
+final Map<String, List<String>> _rewrite = _foldTable(kRewrite);
+final List<List<String>> _phrasePairs = [
+  for (final pair in kElsewherePhrases) [for (final w in pair) tokenize(w)[0]],
+];
 
 List<String> _variantsOf(String token) {
   final out = <String>[token];
@@ -334,14 +358,86 @@ void _stableSort<T>(List<T> list, int Function(T, T) cmp) {
   }
 }
 
+/// «مطعمسمك» → «مطعم» + «سمك»: only for a token the index cannot place at
+/// all, and only into two known words of three letters or more.
+List<String> _splitGlued(String token, SearchIndex index) {
+  bool known(String t) =>
+      t.length > 1 &&
+      (index._postings.containsKey(t) || _synonymLookup.containsKey(t));
+  if (token.length < 5 || known(token) || _declitic(token).any(known)) {
+    return [token];
+  }
+  if (index._terms.any((t) => t.startsWith(token))) return [token];
+  for (var i = token.length - 3; i >= 3; i--) {
+    final left = token.substring(0, i);
+    var right = token.substring(i);
+    if (right.length > 3 && right.startsWith('ال')) right = right.substring(2);
+    if (right.length >= 3 && known(left) && known(right)) return [left, right];
+  }
+  return [token];
+}
+
+/// Filler out, «حار» rewritten, negations turned into an opposite and a set
+/// of documents to push down, glued words split. Null when the question names
+/// a place the catalogue has nothing in.
+({List<String> raw, Set<int> pushedDown})? _readQuery(
+  String query,
+  SearchIndex index,
+) {
+  var raw = tokenize(query);
+  final meaningful = raw.where((t) => !_filler.contains(t)).toList();
+  if (meaningful.isNotEmpty) raw = meaningful;
+  raw = [
+    for (final t in raw) ...(_rewrite[t] ?? [t]),
+  ];
+
+  final pushedDown = <int>{};
+  final kept = <String>[];
+  for (var i = 0; i < raw.length; i++) {
+    if (!_negators.contains(raw[i])) {
+      kept.add(raw[i]);
+      continue;
+    }
+    var j = i + 1;
+    while (j < raw.length && _want.contains(raw[j])) {
+      j++;
+    }
+    if (j >= raw.length) break;
+    final unwanted = raw[j];
+    for (final v in _variantsOf(unwanted)) {
+      for (final c in _candidates(v, index)) {
+        if (c.boost < 0.95) continue;
+        for (final p in index._postings[c.term] ?? const <_Posting>[]) {
+          pushedDown.add(p.docIndex);
+        }
+      }
+    }
+    kept.addAll(_antonyms[unwanted] ?? const <String>[]);
+    i = j;
+  }
+  raw = [for (final t in kept) ..._splitGlued(t, index)];
+
+  bool elsewhere(String t) =>
+      kElsewhereInKuwait.contains(t) && !index._postings.containsKey(t);
+  if (raw.any((t) => [t, ..._declitic(t)].any(elsewhere))) return null;
+  for (final pair in _phrasePairs) {
+    for (var i = 0; i + 1 < raw.length; i++) {
+      if (raw[i] == pair[0] && raw[i + 1] == pair[1]) return null;
+    }
+  }
+  return (raw: raw, pushedDown: pushedDown);
+}
+
 List<SearchHit> search(
   String query,
   SearchIndex index, {
   int limit = 20,
   List<String>? kinds,
 }) {
-  final raw = tokenize(query);
-  if (raw.isEmpty) return const [];
+  final read = _readQuery(query, index);
+  if (read == null || read.raw.isEmpty) return const [];
+  final raw = read.raw;
+  final pushedDown = read.pushedDown;
   final n = index.docs.length;
   final scores = <int, double>{};
   final hitTerms = <int, Set<String>>{};
@@ -400,7 +496,8 @@ List<SearchHit> search(
             (onlyArea ? 0.2 : 1.0) *
             (doc.category != null && wantedCategories.contains(doc.category)
                 ? 1.5
-                : 1.0),
+                : 1.0) *
+            (pushedDown.contains(docIndex) ? 0.1 : 1.0),
         (hitTerms[docIndex] ?? const <String>{}).toList(),
       ),
     );

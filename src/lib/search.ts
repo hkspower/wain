@@ -79,6 +79,11 @@ export function normalise(value: string): string {
      * harakat range misses, which is a gain rather than a risk. */
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
+    /* A letter held for emphasis — «ابيييي بحرررر», «مطاعممم» — is one
+     * letter. Three or more, because no Arabic word and no index term
+     * carries a letter three times running, so nothing real is folded;
+     * two is a real word as often as not («الله»). */
+    .replace(/(\p{L})\1{2,}/gu, "$1")
     .trim();
 }
 
@@ -115,7 +120,9 @@ export const SYNONYMS: Record<string, string[]> = {
   اكل: ["مطاعم", "مطعم"],
   عشاء: ["مطاعم", "عشا"],
   غداء: ["مطاعم", "غدا"],
-  فطور: ["مطاعم", "فطار"],
+  // «فطار» was a value here. No place says it, so the fuzzy pass took it one
+  // letter to «فنار» and every breakfast search lifted الفنار مول.
+  فطور: ["مطاعم"],
   برجر: ["وجبات", "سريعه"],
   بحر: ["شواطئ", "شاطئ", "ساحل", "بحري"],
   سباحه: ["شواطئ", "شاطئ"],
@@ -126,7 +133,7 @@ export const SYNONYMS: Record<string, string[]> = {
   تسوق: ["مول", "سوق", "اسواق"],
   مول: ["تسوق", "اسواق"],
   سوق: ["تسوق", "اسواق"],
-  عيال: ["عائله", "اطفال", "عوائل"],
+  عيال: ["عائله", "عوائل"],
   اطفال: ["عائله", "عيال"],
   معلم: ["معالم", "برج", "ابراج"],
   برج: ["معالم", "ابراج"],
@@ -286,7 +293,7 @@ export const SYNONYMS: Record<string, string[]> = {
   // «وين أطلع رومانسي» — the tag for this is «موعد», which two places carry.
   رومانسي: ["موعد", "هدوء"],
   رومنسي: ["موعد", "هدوء"],
-  موعد: ["رومانسي", "هدوء"],
+  موعد: ["هدوء"],
   // «ربع» is what a Kuwaiti calls the friend group; «شباب» is how the same
   // outing gets described to anyone else.
   شباب: ["ربع", "سهرة"],
@@ -306,9 +313,12 @@ export const SYNONYMS: Record<string, string[]> = {
   مكيف: ["مكيّف", "داخلي"],
   حر: ["مكيّف", "داخلي"],
   بارد: ["مكيّف", "داخلي"],
-  // Walking, which the catalogue tags as «ممشى» and «مشي داخلي».
-  مشي: ["ممشى", "مشي داخلي", "حدائق"],
-  رياضه: ["ممشى", "مشي داخلي"],
+  // Walking, which the catalogue tags as «ممشى» and «مشي داخلي». The second
+  // tag is not a value here: values go through tokenize() now, which would
+  // make it «مشي» + «داخلي» and tilt every walk indoors — measured, the
+  // Avenues came second for «مشي». «مشي» reaches the tag by itself anyway.
+  مشي: ["ممشى", "حدائق"],
+  رياضه: ["ممشى"],
   /**
    * Shisha, under every name it is asked for.
    *
@@ -411,8 +421,8 @@ export const SYNONYMS: Record<string, string[]> = {
    *    entry reordered «وين أطلع» around a fairground and fixed nothing.
    *  - «حار». Its one posting is مدينة صباح الأحمد البحرية's own WARNING,
    *    «الصيف حار جداً», so the typed word pulls up the one outdoor place
-   *    that says not to come in summer. A synonym cannot fix that: the typed
-   *    word is still searched beside it.
+   *    that says not to come in summer. A synonym cannot fix that, because
+   *    the typed word is still searched beside it; REWRITE below replaces it.
    *
    * Read twice: «date» is also the fruit (so «dates» is left unmapped),
    * «يونس» is also a man's name, and «حال» means cheap only in «على قد
@@ -508,12 +518,18 @@ export const SYNONYMS: Record<string, string[]> = {
  * so a key written «مقهى» could never be found, and that entry sat dead in the
  * table. Normalising the keys once at load closes the whole class rather than
  * the one instance, and merges any entries that collide once folded.
+ *
+ * The VALUES go through tokenize(), the same path a typed word takes, and
+ * for the same reason one level down. A value was only normalised, which
+ * kept its «ال»: «ألعاب» became «العاب», a term with no postings, while the
+ * index holds «عاب» — so every entry pointing at the games was dead, and
+ * looked handled. A two-word value could never equal one token either.
  */
 const SYNONYM_LOOKUP: Map<string, string[]> = (() => {
   const m = new Map<string, string[]>();
   for (const [key, values] of Object.entries(SYNONYMS)) {
     const k = normalise(key);
-    m.set(k, [...new Set([...(m.get(k) ?? []), ...values.map(normalise)])]);
+    m.set(k, [...new Set([...(m.get(k) ?? []), ...values.flatMap((v) => tokenize(v))])]);
   }
   return m;
 })();
@@ -856,8 +872,10 @@ const B = 0.75;
  */
 export const ELSEWHERE_IN_KUWAIT = new Set(
   [
-    // governorates
-    "الجهراء", "الفروانية", "الأحمدي", "العاصمة",
+    // governorates. «الجهرا» too: the final hamza is usually left off when
+    // typed, and without it «مطعم بالجهرا» answered with restaurants in other
+    // towns and nothing to say they were somewhere else.
+    "الجهراء", "الجهرا", "الفروانية", "الأحمدي", "العاصمة",
     // large residential areas people would reasonably name
     "خيطان", "سلوى", "بيان", "الرقة", "المنقف", "الفنطاس", "الفنيطيس",
     "الأندلس", "العارضية", "الرابية", "كيفان", "الشامية", "الروضة", "السرة",
@@ -916,13 +934,189 @@ function candidates(term: string, index: SearchIndex): { term: string; boost: nu
   return fuzzy.sort((a, b) => b.boost - a.boost).slice(0, 8);
 }
 
+/* ------------------------------------------------------------------ */
+/* Reading a query                                                     */
+/* ------------------------------------------------------------------ */
+
+/* Every table here is written the way people type it and folded at load,
+ * and `audit:search` checks each entry survives tokenize() as itself — STOP
+ * above is what a list written in the wrong form looks like: two of its
+ * entries have never matched anything. All of them are generated into the
+ * app's search, so the two engines read a question the same way. */
+
+/**
+ * Words that say nothing about WHERE, dropped from the query alone.
+ *
+ * «وين», «ابي», «شي», «فيه»… are in nearly every question and in a good
+ * share of the descriptions, so they matched everywhere: «جو» prefix-matched
+ * «جولة» and brought the mosque and the mirror house into «الجو حار». Not
+ * STOP, which also tokenises the index and would re-score every document.
+ * When the filler is ALL there is — «وين؟» — it is kept, so a question made
+ * of nothing else still answers as it did.
+ *
+ * «أودي/نودي» (take someone) and «أطلع/نطلع» (go out) were not on the first
+ * list, and dropping «وين» is what exposed them. «وين اودي اهلي» lost the
+ * word that had carried it by luck, and «اودي» fuzzed onto «أهدى» and
+ * answered with two malls; «وين أطلع» shrank to the one place whose prose
+ * says «اطلع». As filler, a question made only of them reads as it always
+ * did, and a question with a real word in it is about that word.
+ */
+export const FILLER = [
+  "على", "إلى", "أبي", "أبغي", "أبا", "نبي", "ودي", "أودي", "نودي", "أطلع", "نطلع", "وين", "شي", "أكو", "ماكو", "حق",
+  "فيه", "وايد", "جو", "ممكن", "عطني", "دلني", "شنو",
+  "to", "do", "for", "and", "with", "at", "on", "is", "some", "where", "want",
+  "things", "near", "me",
+];
+
+/**
+ * «مو غالي» is read as «غالي» without these — the one word the visitor said
+ * they did not want, searched for — and two of the catalogue's dearest malls
+ * were in its first four. So the word after a negator is taken out of the
+ * query; the places that carry it (or a synonym of it, exactly) are pushed to
+ * the bottom rather than removed, in case they are all there is; and when the
+ * word has a known opposite, the opposite is searched as if typed.
+ *
+ * «ما عندي فلوس» is the example from her own prompt, and it answered with a
+ * beach first because «فلوس» fuzzed onto «جلوس». Now it answers with the
+ * three places that are free. A question that is ONLY a negation — «بدون
+ * شيشة» — finds nothing, which is honest: there is no word left to search,
+ * and the empty-result line asks for one.
+ *
+ * Not idiom-proof: «مو طبيعي» is praise in Kuwaiti and now reads as «not
+ * nature». Measured as noise either way.
+ */
+export const NEGATORS = ["مو", "ما", "مب", "مش", "بدون", "بلا", "غير", "no", "not", "without"];
+/** Skipped between a negator and the word it negates: «ما ابي مول». */
+export const WANT_WORDS = [
+  "أبي", "أبغي", "أبا", "نبي", "ودي", "أحب", "فيه", "يبي", "أريد", "عندي", "عندنا", "want", "need",
+];
+export const ANTONYMS: Record<string, string[]> = {
+  غالي: ["رخيص"],
+  مكلف: ["رخيص"],
+  فخم: ["رخيص"],
+  راقي: ["رخيص"],
+  فلوس: ["مجاناً", "مجانية"],
+  برا: ["داخلي", "مكيف"],
+  خارجي: ["داخلي", "مكيف"],
+  داخلي: ["برا"],
+  مكيف: ["برا"],
+  زحمة: ["هدوء"],
+  زحام: ["هدوء"],
+  expensive: ["رخيص"],
+  crowded: ["هدوء"],
+};
+
+/**
+ * A typed word replaced by what it means, rather than searched as itself.
+ *
+ * «حار» has exactly one posting: مدينة صباح الأحمد البحرية's own WARNING,
+ * «الصيف حار جداً». Searched literally, «الجو حار» answered with the one
+ * outdoor place that tells you not to come in summer. What the visitor wants
+ * is out of the heat, and that is what the replacement searches, at the weight
+ * of a typed word. «حارة» (an alley) folds differently and is not touched.
+ */
+export const REWRITE: Record<string, string[]> = {
+  حار: ["مكيف", "داخلي"],
+};
+
+/**
+ * Areas of two words, which ELSEWHERE_IN_KUWAIT cannot hold — its own comment
+ * records the first draft that tried, and lost «المسجد الكبير». As an adjacent
+ * PAIR they are safe: «صباح السالم» is a town and «صباح» alone, or «صباح
+ * الأحمد», is not touched. Deliberately not «صباح الأحمد» or «جابر الأحمد»,
+ * which are names in the catalogue.
+ */
+export const ELSEWHERE_PHRASES = [
+  ["صباح", "السالم"],
+  ["مبارك", "الكبير"],
+  ["سعد", "العبدالله"],
+  ["صباح", "الناصر"],
+  ["عبدالله", "المبارك"],
+];
+
+const FILLER_SET = new Set(FILLER.map(normalise));
+const NEGATOR_SET = new Set(NEGATORS.map(normalise));
+const WANT_SET = new Set(WANT_WORDS.map(normalise));
+const foldTable = (t: Record<string, string[]>) =>
+  new Map(Object.entries(t).map(([k, v]) => [normalise(k), v.flatMap((x) => tokenize(x))]));
+const ANTONYM_LOOKUP = foldTable(ANTONYMS);
+const REWRITE_LOOKUP = foldTable(REWRITE);
+const PHRASE_PAIRS = ELSEWHERE_PHRASES.map((pair) => pair.map((w) => tokenize(w)[0]));
+
+/**
+ * «مطعمسمك», «سوقالمباركية» — two words with the space lost, which a phone
+ * keyboard does often. Only for a token the index cannot place at all (no
+ * exact, glued, synonym or prefix reading), and only into two words it does
+ * know, at least three letters each: two-letter halves split ordinary typos
+ * instead — «سالمهي» became «سالم» + «هي» and found a street for a Salmiya
+ * typo.
+ */
+function splitGlued(token: string, index: SearchIndex): string[] {
+  const known = (t: string) => t.length > 1 && (index.postings.has(t) || SYNONYM_LOOKUP.has(t));
+  if (token.length < 5 || known(token) || declitic(token).some(known)) return [token];
+  if (index.terms.some((t) => t.startsWith(token))) return [token];
+  for (let i = token.length - 3; i >= 3; i--) {
+    const left = token.slice(0, i);
+    let right = token.slice(i);
+    if (right.length > 3 && right.startsWith("ال")) right = right.slice(2);
+    if (right.length >= 3 && known(left) && known(right)) return [left, right];
+  }
+  return [token];
+}
+
+/**
+ * The query as the engine should read it: filler out, «حار» rewritten,
+ * negations turned into an opposite and a list of places to push down, glued
+ * words split. Null when the question names a place this catalogue has
+ * nothing in — glued («بالجهراء») or two words («صباح السالم») — because the
+ * honest answer is none: «كافيه بسلوى» used to answer with coffee in other
+ * areas and say nothing about it. One case costs something: «مول بالأحمدي»
+ * finds nothing although الكوت مول is in Fahaheel, which is in Ahmadi
+ * governorate. People mean the town, and there is no governorate data to do
+ * better with.
+ */
+function readQuery(query: string, index: SearchIndex): { raw: string[]; pushedDown: Set<number> } | null {
+  let raw = tokenize(query);
+  const meaningful = raw.filter((t) => !FILLER_SET.has(t));
+  if (meaningful.length) raw = meaningful;
+  raw = raw.flatMap((t) => REWRITE_LOOKUP.get(t) ?? [t]);
+
+  const pushedDown = new Set<number>();
+  const kept: string[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    if (!NEGATOR_SET.has(raw[i])) {
+      kept.push(raw[i]);
+      continue;
+    }
+    let j = i + 1;
+    while (j < raw.length && WANT_SET.has(raw[j])) j++;
+    if (j >= raw.length) break;
+    const unwanted = raw[j];
+    for (const v of variantsOf(unwanted)) {
+      for (const { term, boost } of candidates(v, index)) {
+        if (boost < 0.95) continue; // exact or glued; a guess must not exclude anything
+        for (const { docIndex } of index.postings.get(term) ?? []) pushedDown.add(docIndex);
+      }
+    }
+    kept.push(...(ANTONYM_LOOKUP.get(unwanted) ?? []));
+    i = j;
+  }
+  raw = kept.flatMap((t) => splitGlued(t, index));
+
+  const elsewhere = (t: string) => ELSEWHERE_IN_KUWAIT.has(t) && !index.postings.has(t);
+  if (raw.some((t) => [t, ...declitic(t)].some(elsewhere))) return null;
+  if (PHRASE_PAIRS.some(([a, b]) => raw.some((t, i) => t === a && raw[i + 1] === b))) return null;
+  return { raw, pushedDown };
+}
+
 export function search(
   query: string,
   index: SearchIndex,
   { limit = 20, kinds }: { limit?: number; kinds?: DocKind[] } = {}
 ): SearchHit[] {
-  const raw = tokenize(query);
-  if (raw.length === 0) return [];
+  const read = readQuery(query, index);
+  if (!read || read.raw.length === 0) return [];
+  const { raw, pushedDown } = read;
   const N = index.docs.length;
   const scores = new Map<number, number>();
   /** Index terms that matched — drives highlighting. */
@@ -1013,7 +1207,8 @@ export function search(
         (0.65 + 0.35 * Math.min(1, coverage)) *
         kindBoost *
         (onlyArea ? 0.2 : 1) *
-        (doc.category && wantedCategories.has(doc.category) ? 1.5 : 1),
+        (doc.category && wantedCategories.has(doc.category) ? 1.5 : 1) *
+        (pushedDown.has(docIndex) ? 0.1 : 1),
       matched: [...(hitTerms.get(docIndex) ?? [])],
     });
   }
