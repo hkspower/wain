@@ -182,6 +182,15 @@ jobs:
           arch: x86_64
           profile: pixel_7
           disable-animations: true
+          # The first run (36933669250) lost the emulator itself a few seconds
+          # into the first flow: an ANR stack dump, «Service has disappeared»,
+          # then «device offline». It ran on the image's defaults. Memory,
+          # disk, a software GPU and no host audio are the usual settings for
+          # a runner; whether they were the cause is for the next run to say.
+          ram-size: 4096M
+          heap-size: 1024M
+          disk-size: 6000M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
           working-directory: flutter_app
           script: |
             flutter install -d emulator-5554 --use-application-binary=build/app/outputs/flutter-apk/app-debug.apk
