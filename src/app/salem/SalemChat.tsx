@@ -6,7 +6,7 @@ import ShareHangout from "@/components/ShareHangout";
 import { IconSend } from "@/components/icons";
 import type { Place } from "@/lib/places";
 import { WAIN_AI_CHAT_COPY, WAIN_AI_AGENT_ID, SALEM_NAME } from "@/lib/wain-ai";
-import { startSalemChat, type SalemChatHandle, type SalemStatus } from "@/lib/salem-chat";
+import { startSalemChat, type SalemChatHandle, type SalemFailure, type SalemStatus } from "@/lib/salem-chat";
 import { usePlaces } from "@/lib/usePlaces";
 import { formatOpenPlace, formatShowPlaces } from "@/lib/salem-tools";
 
@@ -78,8 +78,17 @@ export default function SalemChat() {
   const [status, setStatus] = useState<SalemStatus>(notConfigured ? "error" : "connecting");
   const [messages, setMessages] = useState<ChatLine[]>([]);
   const [draft, setDraft] = useState("");
+  // Why the session failed, for the banner — see SalemFailure.
+  const [failure, setFailure] = useState<SalemFailure | null>(null);
+  // A message is out and her reply has not come: the typing bubble, and the
+  // send button held back so a second question does not cross the first.
+  const [pending, setPending] = useState(false);
   const handleRef = useRef<SalemChatHandle | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  // Whether the visitor is reading the bottom of the transcript. Forcing the
+  // list down on every new line took the place away from anyone scrolled up to
+  // re-read an earlier answer.
+  const stickRef = useRef(true);
   const { places } = usePlaces();
 
   // Same shape as WainAiCall.tsx's own `loadIndex`, for the same reason: the
@@ -108,9 +117,38 @@ export default function SalemChat() {
    * because nothing ever called `startSalemChat` a second time.
    */
   function connect() {
+    handleRef.current?.close();
+    setFailure(null);
+    setPending(false);
+    // A second session's greeting would otherwise land directly under the
+    // first one's last line, as if it were the next thing said.
+    setMessages((prev) =>
+      prev.length > 0 ? [...prev, { role: "system", text: WAIN_AI_CHAT_COPY.newConversation }] : prev
+    );
     const handle = startSalemChat({
-      onStatus: setStatus,
+      onStatus: (s, f) => {
+        setStatus(s);
+        setFailure(s === "error" ? (f ?? "refused") : null);
+      },
+      onPending: setPending,
       onMessage: (m) => setMessages((prev) => [...prev, m]),
+      // She corrected what she had just said: replace that bubble rather than
+      // leave both on screen.
+      onCorrection: ({ original, corrected }) =>
+        setMessages((prev) => {
+          let at = -1;
+          for (let i = prev.length - 1; i >= 0; i--) {
+            const line = prev[i];
+            if (line.role === "agent" && (original === "" || line.text === original)) {
+              at = i;
+              break;
+            }
+          }
+          if (at < 0) return prev;
+          const next = prev.slice();
+          next[at] = { role: "agent", text: corrected };
+          return next;
+        }),
       onToolUnavailable: () =>
         setMessages((prev) => [...prev, { role: "system", text: WAIN_AI_CHAT_COPY.toolUnavailable }]),
       clientTools: {
@@ -141,17 +179,33 @@ export default function SalemChat() {
   }, []);
 
   useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+    const el = listRef.current;
+    if (!el || !stickRef.current) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollTo({ top: el.scrollHeight, behavior: reduced ? "auto" : "smooth" });
+  }, [messages, pending]);
 
   function send(e: React.FormEvent) {
     e.preventDefault();
     const text = draft.trim();
-    if (!text || status !== "connected") return;
+    if (!text || status !== "connected" || pending) return;
+    // Send first, draw the bubble only if the message left: it used to be the
+    // other way round, so a closed socket showed a message that was never sent.
+    if (!handleRef.current?.send(text)) {
+      setMessages((prev) => [...prev, { role: "system", text: WAIN_AI_CHAT_COPY.sendFailed }]);
+      return;
+    }
+    stickRef.current = true;
     setMessages((prev) => [...prev, { role: "user", text }]);
-    handleRef.current?.send(text);
     setDraft("");
   }
+
+  const failureText =
+    failure === "timeout"
+      ? WAIN_AI_CHAT_COPY.failedTimeout
+      : failure === "dropped"
+        ? WAIN_AI_CHAT_COPY.failedDropped
+        : WAIN_AI_CHAT_COPY.failed;
 
   const statusLine = notConfigured
     ? WAIN_AI_CHAT_COPY.notConfigured
@@ -161,7 +215,7 @@ export default function SalemChat() {
         ? WAIN_AI_CHAT_COPY.connected
         : status === "disconnected"
           ? WAIN_AI_CHAT_COPY.disconnected
-          : WAIN_AI_CHAT_COPY.failed;
+          : WAIN_AI_CHAT_COPY.offline;
 
   return (
     // text-white here: not decorative — the sr-only <label> below inherits
@@ -190,7 +244,20 @@ export default function SalemChat() {
         </div>
       </header>
 
-      <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+      {/* role="log": the transcript is the one thing on this page that changes
+          without the visitor touching it, and a screen reader heard none of
+          her replies — only the header's status line was a live region. */}
+      <div
+        ref={listRef}
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions"
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+        }}
+        className="flex-1 space-y-3 overflow-y-auto px-4 py-4"
+      >
         {messages.map((m, i) => {
           if (m.role === "system") {
             return (
@@ -237,9 +304,25 @@ export default function SalemChat() {
             </div>
           );
         })}
+        {pending && status === "connected" && (
+          <div className="flex justify-start">
+            <p className="rounded-2xl bg-white px-4 py-3 text-ink-900">
+              <span className="sr-only">{WAIN_AI_CHAT_COPY.typing}</span>
+              <span aria-hidden="true" className="flex gap-1">
+                {[0, 150, 300].map((delay) => (
+                  <span
+                    key={delay}
+                    className="size-1.5 animate-pulse rounded-full bg-ink-400"
+                    style={{ animationDelay: `${delay}ms` }}
+                  />
+                ))}
+              </span>
+            </p>
+          </div>
+        )}
         {status === "error" && (
           <p role="alert" className="mx-auto max-w-[85%] rounded-2xl bg-coral-50 px-4 py-2.5 text-center text-sm text-coral-700">
-            {notConfigured ? WAIN_AI_CHAT_COPY.notConfigured : WAIN_AI_CHAT_COPY.failed}
+            {notConfigured ? WAIN_AI_CHAT_COPY.notConfigured : failureText}
           </p>
         )}
         {/* Not for notConfigured — that comes from a build-time constant, so
@@ -275,7 +358,7 @@ export default function SalemChat() {
         />
         <button
           type="submit"
-          disabled={status !== "connected" || draft.trim() === ""}
+          disabled={status !== "connected" || pending || draft.trim() === ""}
           aria-label={WAIN_AI_CHAT_COPY.send}
           className="grid size-11 shrink-0 place-items-center rounded-full bg-sea-600 text-white transition hover:bg-sea-700 disabled:opacity-40"
         >
@@ -301,7 +384,7 @@ function SalemPlacesResult({ places, query }: { places: Place[]; query: string }
   if (!target) {
     return (
       <p className="mx-auto max-w-[85%] rounded-2xl bg-white/10 px-4 py-2 text-center text-xs text-sand-200">
-        ما لقينا شي لـ «{query}»
+        {WAIN_AI_CHAT_COPY.noResults} «{query}»
       </p>
     );
   }

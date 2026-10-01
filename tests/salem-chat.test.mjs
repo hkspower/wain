@@ -202,6 +202,111 @@ console.log("\n── client_tool_call: a handler that throws is answered, not l
   ok("the thrown message is sent back as the error result", reply.is_error === true && reply.result === "bad slug", JSON.stringify(reply));
 }
 
+console.log("\n── send() says whether the message left, and typing follows it ──");
+{
+  globalThis.WebSocket = FakeSocket;
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const pend = [];
+  const msgs = [];
+  const handle = startSalemChat({
+    onStatus: () => {},
+    onMessage: (m) => msgs.push(m),
+    onPending: (v) => pend.push(v),
+    onToolUnavailable: () => {},
+  });
+  const sock = FakeSocket.last;
+  ok("a socket that is not open refuses the message", handle.send("هلا") === false);
+  ok("and sends nothing", sock.sent.length === 0, JSON.stringify(sock.sent));
+  ok("and does not start «typing» for a reply that cannot come", pend.length === 0, pend.join(","));
+
+  sock.readyState = FakeSocket.OPEN;
+  sock.emit("open", {});
+  // Without the handshake reply the 12s connect timer would close this socket
+  // under the safety-timeout assertion below.
+  sock.emit("message", { data: JSON.stringify({ type: "conversation_initiation_metadata" }) });
+  sock.sent.length = 0;
+  ok("an open socket takes it", handle.send("هلا") === true);
+  const out = JSON.parse(sock.sent[0] ?? "{}");
+  ok("as a user_message with the text", out.type === "user_message" && out.text === "هلا", JSON.stringify(out));
+  ok("typing starts when the message leaves", pend.join(",") === "true", pend.join(","));
+
+  sock.emit("message", { data: JSON.stringify({ type: "agent_response", agent_response_event: { agent_response: "حياك" } }) });
+  ok("and stops when her reply arrives", pend.join(",") === "true,false", pend.join(","));
+  ok("the reply is delivered", msgs.length === 1 && msgs[0].text === "حياك");
+
+  // A reply that never comes must not leave the indicator up for ever.
+  handle.send("وين؟");
+  ok("a second message starts it again", pend.join(",") === "true,false,true", pend.join(","));
+  mock.timers.tick(44999);
+  ok("still typing one tick before the safety timeout", pend.join(",") === "true,false,true", pend.join(","));
+  mock.timers.tick(1);
+  ok("cleared by the safety timeout when no reply ever comes", pend.join(",") === "true,false,true,false", pend.join(","));
+
+  handle.send("ثالث");
+  sock.close(1006);
+  ok("and cleared when the session ends", pend[pend.length - 1] === false, pend.join(","));
+  mock.timers.reset();
+}
+
+console.log("\n── a correction replaces what she said ──");
+{
+  globalThis.WebSocket = FakeSocket;
+  const fixes = [];
+  startSalemChat({
+    onStatus: () => {},
+    onMessage: () => {},
+    onCorrection: (c) => fixes.push(c),
+    onToolUnavailable: () => {},
+  });
+  const sock = FakeSocket.last;
+  sock.emit("message", {
+    data: JSON.stringify({
+      type: "agent_response_correction",
+      agent_response_correction_event: { original_agent_response: "أحلى وقت العصر", corrected_agent_response: "أحلى وقت عقب المغرب", event_id: 3 },
+    }),
+  });
+  ok("the correction reaches the page, with both texts",
+    fixes.length === 1 && fixes[0].original === "أحلى وقت العصر" && fixes[0].corrected === "أحلى وقت عقب المغرب", JSON.stringify(fixes));
+  sock.emit("message", { data: JSON.stringify({ type: "agent_response_correction", agent_response_correction_event: { corrected_agent_response: "" } }) });
+  ok("an empty correction is ignored, not drawn as a blank bubble", fixes.length === 1, JSON.stringify(fixes));
+  // A client that does not pass the callback must not throw on one.
+  startSalemChat({ onStatus: () => {}, onMessage: () => {}, onToolUnavailable: () => {} });
+  let threw = false;
+  try {
+    FakeSocket.last.emit("message", { data: JSON.stringify({ type: "agent_response_correction", agent_response_correction_event: { corrected_agent_response: "x" } }) });
+  } catch { threw = true; }
+  ok("and a page that does not listen for corrections is unaffected", !threw);
+}
+
+console.log("\n── a failure says WHICH kind ──");
+{
+  globalThis.WebSocket = FakeSocket;
+  mock.timers.enable({ apis: ["setTimeout"] });
+  let seen = [];
+  startSalemChat({ onStatus: (s, f) => seen.push([s, f]), onMessage: () => {}, onToolUnavailable: () => {} });
+  mock.timers.tick(12000);
+  ok("a handshake that never answers is a timeout", seen.some(([s, f]) => s === "error" && f === "timeout"), JSON.stringify(seen));
+
+  seen = [];
+  startSalemChat({ onStatus: (s, f) => seen.push([s, f]), onMessage: () => {}, onToolUnavailable: () => {} });
+  FakeSocket.last.emit("error", {});
+  ok("an error before the handshake completed is a refusal", seen.some(([s, f]) => s === "error" && f === "refused"), JSON.stringify(seen));
+
+  seen = [];
+  startSalemChat({ onStatus: (s, f) => seen.push([s, f]), onMessage: () => {}, onToolUnavailable: () => {} });
+  const live = FakeSocket.last;
+  live.readyState = FakeSocket.OPEN;
+  live.emit("message", { data: JSON.stringify({ type: "conversation_initiation_metadata" }) });
+  live.emit("close", { code: 1006 });
+  ok("a socket that dies after connecting is a dropped line", seen.some(([s, f]) => s === "error" && f === "dropped"), JSON.stringify(seen));
+
+  seen = [];
+  startSalemChat({ onStatus: (s, f) => seen.push([s, f]), onMessage: () => {}, onToolUnavailable: () => {} });
+  FakeSocket.last.emit("close", { code: 1000 });
+  ok("a normal close is «disconnected», with no failure attached", seen.some(([s, f]) => s === "disconnected" && f === undefined), JSON.stringify(seen));
+  mock.timers.reset();
+}
+
 console.log(fails.length ? `\n${fails.length} failed` : "\nكل شي تمام");
 console.log(`${pass} passed, ${fails.length} failed`);
 process.exit(fails.length ? 1 : 0);

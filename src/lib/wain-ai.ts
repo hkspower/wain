@@ -274,6 +274,25 @@ export const WAIN_AI_COPY = {
    */
   didSearch: "دوّرت لك",
   didOpen: "فتحت لك صفحة",
+  // The search BEFORE it lands (opening a place has nothing to await). The sheet used to say nothing until
+  // the search index had loaded and the route had changed, so a caller heard
+  // her say «حطيتهم على الخريطة» over a sheet that still showed nothing.
+  // Present tense and honest: it is our own handler running, not a guess at
+  // what she is doing.
+  searching: "أدوّر لك على",
+  // A tool call that changed nothing on the screen — said so the sheet never
+  // contradicts what she tells the caller.
+  noPlace: "ما لقيت هالمكان",
+  // Agent mode, after Start: she is the one who speaks first (her greeting), so
+  // «قول وش تبي…» told the caller to talk over her. This says the line is open
+  // without asking for anything.
+  onTheLine: "على الخط — كلّمها عادي",
+  // The ringing headline said «يرن…» in the same breath as the header. The
+  // header owns that word; this says what the seconds are being spent on.
+  connectingLine: "نوصّلك بشوق…",
+  // 15 seconds on the ready screen with Start unpressed: the widget's own
+  // button is the only way forward and nothing else on the sheet can press it.
+  startNudge: "للحين ما بدأت المكالمة — اضغط «بدء مكالمة» تحت.",
   switchToSalem: "🔊 بصوت سالم",
   switchToShouq: "🔊 بصوت شوق",
   ended: "انتهت المكالمة",
@@ -315,7 +334,21 @@ export const WAIN_AI_CHAT_COPY = {
   send: "إرسال",
   connecting: "نوصّل سالم…",
   connected: "متصل",
-  disconnected: "انتهت المحادثة.",
+  disconnected: "خلصت المحادثة — تبي نبدأ من جديد؟",
+  // The three ways a session fails, said apart — one «جرّب مرة ثانية» for all
+  // of them was wrong for each. The header says only that the line is down;
+  // the banner under the transcript says which kind of down.
+  offline: "مو متصل",
+  failedTimeout: "طوّلنا نوصله — تأكد من النت وجرّب مرة ثانية.",
+  failedDropped: "انقطع الاتصال في نص المحادثة — ابدأ من جديد.",
+  // Said when a message could not be sent. The bubble is NOT drawn for it.
+  sendFailed: "ما انرسلت رسالتك — الاتصال مو مفتوح.",
+  // A reply is on its way (read by a screen reader as it appears).
+  typing: "يكتب…",
+  // Between the old conversation and the new one after «ابدأ من جديد», so a
+  // fresh greeting does not land as if it were the next line of the old chat.
+  newConversation: "— محادثة جديدة —",
+  noResults: "ما لقينا شي لـ",
   reconnect: "ابدأ من جديد",
   // The chat's own tool call is answered with an error rather than left to
   // hang — see lib/salem-chat.ts — so this is what a visitor reads when they

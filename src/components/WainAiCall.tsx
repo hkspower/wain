@@ -74,6 +74,22 @@ const ANSWER_MS = 700;
  */
 const DIAL_TIMEOUT_MS = 20_000;
 
+/** How long the ready screen waits for Start before pointing at it again. */
+const START_NUDGE_MS = 15_000;
+
+/**
+ * «N places matched», agreeing, for the sentence she is handed after a search.
+ * It was `${total} أماكن مطابقة` for every total above one — «40 أماكن», with
+ * Latin digits — which is the hand-written plural place-kit's `countAr` exists
+ * to stop. The adjective agrees too: «مكان مطابق», not «مكان مطابقة».
+ */
+const MATCHING_PLACES = {
+  one: "مكان واحد مطابق",
+  two: "مكانين مطابقين",
+  few: "أماكن مطابقة",
+  many: "مكان مطابق",
+} as const;
+
 /**
  * What the caller is told about an engine error.
  *
@@ -154,15 +170,18 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
    * moment, so the suite pinned the bug in place.
    */
   const [started, setStarted] = useState(false);
+  // The widget's Start is the only way forward and nothing on the sheet can press
+  // it (it sits behind the widget's own consent gate). A caller who never sees it
+  // used to wait on «اضغط بدء مكالمة» for ever — nothing times out after `live`.
+  const [startHint, setStartHint] = useState(false);
   /**
    * What شوق just did to the screen, in the caller's own words.
    *
    * She drives the interface — `show_places` navigates, `open_place` opens a
-   * profile — and the caller was told none of it. On a 390px phone this sheet
-   * is 22rem wide over a 24.4rem viewport, so the page she is changing is
-   * mostly BEHIND it: the results swapped, the route changed, and the only
-   * account of it was شوق saying so out loud, which a caller who has the
-   * volume down or is deaf to her never gets.
+   * profile — and the caller was told none of it. The sheet is full screen, so
+   * the page she is changing is entirely BEHIND it: the results swapped, the
+   * route changed, and the only account of it was شوق saying so out loud,
+   * which a caller who has the volume down or is deaf to her never gets.
    *
    * This is the one kind of feedback the component can give honestly, because
    * unlike «is she speaking» it is OUR code doing the thing — the tool handler
@@ -514,6 +533,15 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
   }, [dialling, loadIndex]);
 
   useEffect(() => {
+    if (!WAIN_AI_AGENT_ENABLED || phase !== "live" || started) {
+      setStartHint(false);
+      return;
+    }
+    const t = window.setTimeout(() => setStartHint(true), START_NUDGE_MS);
+    return () => window.clearTimeout(t);
+  }, [phase, started]);
+
+  useEffect(() => {
     if (!WAIN_AI_AGENT_ENABLED) return;
     const register = (event: Event) => {
       // The widget only dispatches this once the visitor has pressed its Start
@@ -528,6 +556,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
         show_places: async ({ query }: { query?: string }) => {
           const q = (query ?? "").trim();
           if (!q) return "ما وصلت كلمات بحث — ما تغيّر شي على الشاشة.";
+          // Before the await, not after: loading the index is the slow part,
+          // and the sheet used to say nothing until it was over.
+          setLastAction(`${WAIN_AI_COPY.searching} «${q}»…`);
           router.push(`/search?q=${encodeURIComponent(q)}`);
           let names: string[] = [];
           let total = -1;
@@ -544,9 +575,12 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           // is covering the page it happened on. `countAr` and not a
           // hand-written «٧ مكان» — see place-kit, where this exact agreement
           // rule has now been got wrong by hand three separate times.
+          // The names are the two she is about to read out, so the sheet and
+          // her voice say the same thing.
           setLastAction(
             total >= 0
-              ? `${WAIN_AI_COPY.didSearch} «${q}» — ${countAr(total, PLACES_COUNT)}`
+              ? `${WAIN_AI_COPY.didSearch} «${q}» — ${countAr(total, PLACES_COUNT)}` +
+                  (names.length > 0 ? `: ${names.slice(0, 2).join("، ")}` : "")
               : `${WAIN_AI_COPY.didSearch} «${q}»`
           );
           if (total === 0) {
@@ -558,7 +592,7 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           }
           const summary =
             total > 0
-              ? `${total} ${total === 1 ? "مكان مطابق" : "أماكن مطابقة"} لـ «${q}» الحين على الخريطة قدام الزائر، أولها: ${names.join("، ")}. `
+              ? `${countAr(total, MATCHING_PLACES)} لـ «${q}» الحين على الخريطة قدام الزائر، أولها: ${names.join("، ")}. `
               : `الأماكن المطابقة لـ «${q}» الحين على الخريطة قدام الزائر. `;
           return (
             summary +
@@ -567,13 +601,17 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
         },
         open_place: async ({ slug }: { slug?: string }) => {
           const s = (slug ?? "").trim();
-          if (!/^[a-z0-9-]+$/.test(s)) return "ما لقيت مكان بهذا المعرّف — ما تغيّر شي على الشاشة.";
+          if (!/^[a-z0-9-]+$/.test(s)) {
+            setLastAction(WAIN_AI_COPY.noPlace);
+            return "ما لقيت مكان بهذا المعرّف — ما تغيّر شي على الشاشة.";
+          }
           // The live rows, not `getPlace()` from the snapshot: a place
           // approved since the last deploy used to make her answer «ما فيه
           // مكان بالمعرّف» and refuse to navigate — to a page the visitor
           // could already see in the results behind her.
           const place = places.find((pl) => pl.slug === s);
           if (!place) {
+            setLastAction(WAIN_AI_COPY.noPlace);
             return (
               `ما فيه مكان بالمعرّف (${s}) في قائمتك — ما تغيّر شي على الشاشة. ` +
               "تأكدي من الـ slug اللي في قاعدة المعرفة، أو حطي الأماكن على الخريطة بـ show_places بداله."
@@ -930,13 +968,17 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                 {/* No `aria-live` — the header owns the announcement. */}
                 <p className="mt-4 text-balance font-display text-xl font-semibold leading-snug text-ink-900">
                   {phase === "ringing"
-                    ? WAIN_AI_COPY.ringing
+                    ? WAIN_AI_COPY.connectingLine
                     : phase === "answering"
                       ? WAIN_AI_COPY.answering
                       : WAIN_AI_AGENT_ENABLED && !started
                         ? WAIN_AI_COPY.pressStart
-                        : transcript || WAIN_AI_COPY.listening}
+                        : transcript ||
+                          (WAIN_AI_AGENT_ENABLED ? WAIN_AI_COPY.onTheLine : WAIN_AI_COPY.listening)}
                 </p>
+                {startHint && (
+                  <p className="mt-2 text-sm font-semibold text-coral-800">{WAIN_AI_COPY.startNudge}</p>
+                )}
                 {/* Ringing is the one moment with nothing to hear and nothing
                     to do, so it carries what she is for; once she is on the
                     line, the short examples are enough. */}
@@ -1029,6 +1071,13 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                 <p className="text-sm text-ink-500" dir="ltr">
                   {callDuration(seconds)}
                 </p>
+                {/* What she last did to the page behind this sheet — the one
+                    thing a caller who hangs up wants to find again. */}
+                {lastAction && (
+                  <p className="mx-auto mt-3 max-w-xs rounded-xl bg-sea-50 px-3 py-2 text-xs font-semibold leading-relaxed text-sea-800">
+                    {lastAction}
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={startCall}

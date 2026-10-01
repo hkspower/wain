@@ -158,6 +158,16 @@ ok('and released at once — it was a permission probe, not a capture',
 const startBtn = p.locator('#wain-ai-panel elevenlabs-convai >> #stub-start');
 ok('the widget\'s Start button is visible inside the sheet', await startBtn.isVisible());
 
+// Nothing on the sheet can press the widget's Start (it sits behind its own
+// consent gate), so a caller who never sees it used to wait on «اضغط بدء
+// مكالمة» for ever. After 15 seconds the sheet points at it again.
+ok('the Start nudge is not shown straight away', !readyPanel.includes('للحين ما بدأت المكالمة'));
+const nudged = await p
+  .waitForFunction(() => document.querySelector('#wain-ai-panel')?.textContent.includes('للحين ما بدأت المكالمة'),
+    null, { timeout: 20000 })
+  .then(() => true, () => false);
+ok('after 15 seconds on the ready screen it points at Start again', nudged);
+
 await startBtn.click();
 await p.waitForFunction(
   () => document.querySelector('#wain-ai-panel')?.textContent.includes('متصل'),
@@ -172,6 +182,14 @@ await p.waitForFunction(
 ok('and the timer is running', true);
 ok('and she now invites the caller to speak',
   (await p.locator('#wain-ai-panel').textContent()).includes('قهوة هادية'));
+// She speaks first — her greeting — so «قول وش تبي…» told the caller to talk
+// over her. The line says it is open, and asks for nothing.
+{
+  const live = await p.locator('#wain-ai-panel').textContent();
+  ok('without telling the caller to talk over her greeting', !live.includes('قول وش تبي'), live.slice(0, 160));
+  ok('the line says it is open instead', live.includes('كلّمها عادي'), live.slice(0, 160));
+  ok('and the Start nudge is gone once the call has started', !live.includes('للحين ما بدأت المكالمة'));
+}
 
 console.log('\n── what the call TELLS you, and what it must not claim ──');
 {
@@ -249,6 +267,8 @@ console.log('\n── she changes the screen, and now says so ──');
   // agreement rule being got wrong by hand three separate times, the last of
   // them on /search's own result count.
   ok('with the count in agreeing Arabic', /[٠-٩]+ أماكن|مكان واحد|مكانين|[٠-٩]+ مكان|ما فيه أماكن/.test(note), note);
+// The two names she is about to read out, so the sheet and her voice agree.
+ok('and the names she reads out', /: \S+/.test(note), note);
   // `note` was read out of an [aria-live] element above, so «is it announced»
   // is already carried. An `ok(…, true)` beside it was written here first and
   // deleted: it passed under a build with the whole feature removed, which is
@@ -278,7 +298,9 @@ ok('and tells her to hand the turn back', /يرجّع له الدور/.test(Stri
 // show and the first names — rather than «the matching places» whatever the
 // query. She used to confirm places on the map while the page said «ما لقينا
 // شي».
-ok('and tells her how many places matched', /\d+ (مكان مطابق|أماكن مطابقة)/.test(String(shown)), String(shown));
+ok('and tells her how many places matched, agreeing and in Arabic digits',
+  /(مكان واحد مطابق|مكانين مطابقين|[٠-٩]+ أماكن مطابقة|[٠-٩]+ مكان مطابق)/.test(String(shown)), String(shown));
+ok('and never the hand-written plural («40 أماكن»)', !/\d+ (مكان|أماكن)/.test(String(shown)), String(shown));
 ok('and names the first of them', /أولها: \S+/.test(String(shown)), String(shown));
 // Results are client-rendered, so wait for them rather than checking the
 // instant the URL changes.
@@ -310,6 +332,16 @@ await p.waitForTimeout(600);
 ok('a slug that is not a place is refused, not opened',
   /ما تغيّر شي على الشاشة/.test(String(ghost)) && !/مفتوحة قدام/.test(String(ghost)), String(ghost));
 ok('and did not navigate', p.url() === ghostBefore, p.url());
+// The sheet must not contradict her «ما لقيت» with an old «فتحت لك صفحة …».
+const refusedNote = await p
+  .waitForFunction(
+    () => [...document.querySelectorAll('#wain-ai-panel [aria-live]')]
+      .map((e) => e.textContent.trim()).find((t) => t.includes('ما لقيت هالمكان')) ?? null,
+    null, { timeout: 4000 }
+  )
+  .then((h) => h.jsonValue())
+  .catch(() => '');
+ok('the sheet says the place was not found, instead of keeping the last page it opened', !!refusedNote, refusedNote);
 
 console.log('\n── the tools refuse nonsense rather than acting on it ──');
 const before = p.url();

@@ -166,6 +166,55 @@ console.log('\n── show_places/open_place render inline, without a live agent
   // own, not one shared across the whole transcript.
   ok('open_place result carries its own panel too', (await sp.locator('h2:has-text("رسّلها للربع")').count()) === 2);
 
+  console.log('\n── typing, replies, corrections and a dropped line ──');
+  ok('the transcript is a live log, so a screen reader hears her replies',
+    await sp.locator('[role="log"][aria-live="polite"]').count() === 1);
+
+  await input.fill('وين أروح؟');
+  await sp.getByRole('button', { name: 'إرسال' }).click();
+  ok('the visitor\'s own bubble is drawn once the message left', await sp.locator('p', { hasText: 'وين أروح؟' }).count() === 1);
+  ok('and a typing indicator shows while she answers', await sp.locator('[role="log"] .sr-only', { hasText: 'يكتب' }).count() === 1);
+  await input.fill('ثاني');
+  ok('the send button is held back until her reply, so two questions do not cross',
+    await sp.getByRole('button', { name: 'إرسال' }).isDisabled());
+
+  await sp.evaluate(() => window.__salemSocket.emit('message', {
+    data: JSON.stringify({ type: 'agent_response', agent_response_event: { agent_response: 'أحلى وقت العصر' } }),
+  }));
+  await sp.waitForSelector('p:has-text("أحلى وقت العصر")', { timeout: 4000 });
+  ok('her reply replaces the indicator', await sp.locator('[role="log"] .sr-only', { hasText: 'يكتب' }).count() === 0);
+  ok('and frees the button', await sp.getByRole('button', { name: 'إرسال' }).isEnabled());
+
+  await sp.evaluate(() => window.__salemSocket.emit('message', {
+    data: JSON.stringify({ type: 'agent_response_correction', agent_response_correction_event: {
+      original_agent_response: 'أحلى وقت العصر', corrected_agent_response: 'أحلى وقت عقب المغرب', event_id: 2 } }),
+  }));
+  await sp.waitForSelector('p:has-text("عقب المغرب")', { timeout: 4000 });
+  ok('a correction replaces her bubble instead of adding a second', await sp.locator('p:has-text("أحلى وقت")').count() === 1);
+  ok('and the old wording is gone', await sp.locator('p:has-text("أحلى وقت العصر")').count() === 0);
+
+  // A socket that is no longer open must not produce a message that never left.
+  await sp.evaluate(() => { window.__salemSocket.readyState = 3; });
+  await input.fill('ما راح توصل');
+  await sp.getByRole('button', { name: 'إرسال' }).click();
+  ok('a message that could not be sent says so', await sp.locator('text=ما انرسلت رسالتك').count() === 1);
+  ok('and no bubble is drawn for it', await sp.locator('p', { hasText: 'ما راح توصل' }).count() === 0);
+
+  await sp.evaluate(() => { window.__salemSocket.readyState = 1; });
+  await sp.evaluate(() => { window.__firstSocket = window.__salemSocket; });
+  await sp.evaluate(() => { window.__salemSocket.readyState = 3; window.__salemSocket.emit('close', { code: 1006 }); });
+  // `p[role="alert"]`: Next's own route announcer is a role="alert" too.
+  await sp.waitForSelector('p[role="alert"]', { timeout: 4000 });
+  const alertText = await sp.locator('p[role="alert"]').textContent();
+  ok('a line that dies mid-chat says it dropped, not that it never connected', alertText.includes('انقطع الاتصال'), alertText);
+  ok('and the header just says it is offline, not the same sentence twice',
+    (await sp.locator('header').textContent()).includes('مو متصل') && !(await sp.locator('header').textContent()).includes('انقطع'));
+  await sp.getByRole('button', { name: 'ابدأ من جديد' }).click();
+  await sp.waitForFunction(() => window.__salemSocket !== window.__firstSocket, null, { timeout: 4000 });
+  ok('starting again opens a new socket', true);
+  ok('and marks the break, so a fresh greeting is not the old chat\'s next line',
+    await sp.locator('[role="log"] >> text=محادثة جديدة').count() === 1);
+
   ok('no page errors from any of it', sErrors.length === 0, sErrors.join('; '));
   await sctx.close();
 }
