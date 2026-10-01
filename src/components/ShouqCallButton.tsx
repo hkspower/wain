@@ -158,8 +158,8 @@ export default function ShouqCallButton({
       } ${
         size === "lg"
           ? open
-            ? "shadow-md ring-4 ring-coral-500"
-            : "shadow-md"
+            ? "shadow-sm ring-4 ring-coral-500"
+            : "shadow-sm"
           : open
             ? "bg-coral-600 text-white shadow-md"
             : "text-coral-700 hover:bg-coral-50"

@@ -2,6 +2,7 @@
 
 import type { Place } from "@/lib/places";
 import { GENERIC_LINES, isSummerMonth } from "@/lib/voice-lines";
+import { kuwaitHour, kuwaitMonth } from "@/lib/kuwait-time";
 
 /**
  * «رسّلها للربع» — turning a place into a plan the group can act on.
@@ -57,31 +58,10 @@ const ALL: (WhenOption & { afterHour?: number })[] = [
   { id: "weekend", labelAr: "الويكند", phraseAr: "الويكند" },
 ];
 
-/** Kuwait's wall-clock hour. UTC+3 all year — no daylight saving to drift on. */
-export function kuwaitHour(now: Date = new Date()): number {
-  return new Date(now.getTime() + 3 * 3600_000).getUTCHours();
-}
-
-/**
- * How long until this list changes.
- *
- * Every expiry above is on the hour, so nothing about the offer changes in
- * between and there is nothing for a ticking interval to see. The panel uses
- * this to wake up once, at the moment the offer actually moves.
- *
- * Computed in Kuwait's own hour rather than the device's: an hour boundary
- * here is not an hour boundary in Tehran or Delhi, and half-hour zones are
- * exactly where a «round it to the next local hour» shortcut goes wrong.
- */
-export function msToNextKuwaitHour(now: Date = new Date()): number {
-  const kuwait = now.getTime() + 3 * 3600_000;
-  return 3600_000 - (((kuwait % 3600_000) + 3600_000) % 3600_000);
-}
-
-/** Kuwait's calendar month, 0-based, on the same UTC+3 clock as the hour. */
-export function kuwaitMonth(now: Date = new Date()): number {
-  return new Date(now.getTime() + 3 * 3600_000).getUTCMonth();
-}
+// The clock lives in kuwait-time.ts so that a page needing only the hour
+// does not carry the hangout planner with it; re-exported, so every caller
+// of these names is unchanged.
+export { kuwaitHour, kuwaitMonth, msToNextKuwaitHour } from "@/lib/kuwait-time";
 
 /**
  * Daylight, for the purpose of "would this plan cook them".

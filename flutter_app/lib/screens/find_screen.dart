@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../ai/call_button.dart';
 import '../ai/config.dart';
+import '../data/find_moment.dart';
+import '../share/hangout.dart' show msToNextKuwaitHour;
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../widgets/svg.dart';
@@ -10,8 +14,45 @@ import '../widgets/svg.dart';
 /// /find — two full-bleed halves: شوق's call on top, a typed conversation with
 /// her below. Both lead to the same place (/search is where a call's answer
 /// appears), and the page says so once, in its own words.
-class FindScreen extends StatelessWidget {
-  const FindScreen({super.key});
+///
+/// What both halves say follows the moment (data/find_moment.dart), and is
+/// redrawn on each Kuwait hour so a screen left open does not go stale.
+class FindScreen extends StatefulWidget {
+  /// Tests fix the clock; the app reads it.
+  final DateTime Function() now;
+  const FindScreen({super.key, this.now = DateTime.now});
+
+  @override
+  State<FindScreen> createState() => _FindScreenState();
+}
+
+class _FindScreenState extends State<FindScreen> {
+  late FindMoment _moment = findMomentNow(widget.now());
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _arm();
+  }
+
+  void _arm() {
+    _timer?.cancel();
+    _timer = Timer(
+      Duration(milliseconds: msToNextKuwaitHour(widget.now()) + 1000),
+      () {
+        if (!mounted) return;
+        setState(() => _moment = findMomentNow(widget.now()));
+        _arm();
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +70,7 @@ class FindScreen extends StatelessWidget {
                 tint: WainColors.ink900,
                 accent: WainColors.sun300,
                 pillFg: WainColors.sun900,
-                body: CallCopy.greeting,
+                body: findGreeting(CallCopy.name, _moment),
                 hint: CallCopy.callHint,
                 action: ShouqCallButton(
                   size: 64,
@@ -47,7 +88,7 @@ class FindScreen extends StatelessWidget {
                 tint: WainColors.sea950,
                 accent: WainColors.sea300,
                 pillFg: WainColors.sea900,
-                body: kSalemGreeting,
+                body: findGreeting(kSalemName, _moment),
                 hint: CallCopy.typeHint,
                 action: FilledButton(
                   onPressed: () => context.push('/salem'),
@@ -152,11 +193,35 @@ class _Half extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
+                  // Lighter on request, as on the web: 10→40→65% (was
+                  // 40→78→92), so the faces read as photographs. The text
+                  // has its own shade below and a shadow on its letters.
                   colors: [
-                    tint.withValues(alpha: 0.4),
-                    tint.withValues(alpha: 0.78),
-                    tint.withValues(alpha: 0.92),
+                    tint.withValues(alpha: 0.10),
+                    tint.withValues(alpha: 0.40),
+                    tint.withValues(alpha: 0.65),
                   ],
+                ),
+              ),
+            ),
+            // Under the words only: an ellipse that fades out well inside
+            // the photo. The web measured 1.4:1 for the headline without it.
+            Center(
+              child: FractionallySizedBox(
+                widthFactor: 1,
+                heightFactor: 0.9,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      radius: 0.75,
+                      colors: [
+                        tint.withValues(alpha: 0.62),
+                        tint.withValues(alpha: 0.35),
+                        tint.withValues(alpha: 0),
+                      ],
+                      stops: const [0, 0.6, 1],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -200,17 +265,18 @@ class _Half extends StatelessWidget {
                                 WainText.s4xl,
                                 weight: FontWeight.w700,
                                 color: accent,
-                              ),
+                              ).copyWith(shadows: _onPhoto),
                             ),
                             const SizedBox(height: 10),
                             Text(
                               body,
                               textAlign: TextAlign.center,
+                              key: const ValueKey('find-greeting'),
                               style: wainText(
                                 WainText.base,
-                                color: WainColors.sand100,
+                                color: Colors.white,
                                 height: 1.7,
-                              ),
+                              ).copyWith(shadows: _onPhoto),
                             ),
                             const SizedBox(height: 14),
                             action,
@@ -220,8 +286,8 @@ class _Half extends StatelessWidget {
                               style: wainText(
                                 WainText.sm,
                                 weight: FontWeight.w600,
-                                color: WainColors.sand200,
-                              ),
+                                color: Colors.white,
+                              ).copyWith(shadows: _onPhoto),
                             ),
                           ],
                         ),
@@ -237,3 +303,10 @@ class _Half extends StatelessWidget {
     );
   }
 }
+
+/// The web's `text-on-photo`: a tight dark edge and a wide soft one, on the
+/// letters rather than as a layer over the picture.
+const _onPhoto = [
+  Shadow(color: Color(0x8C0D121C), offset: Offset(0, 1), blurRadius: 2),
+  Shadow(color: Color(0x590D121C), blurRadius: 14),
+];

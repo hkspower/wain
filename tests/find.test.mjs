@@ -99,6 +99,42 @@ console.log('\n── كلّم شوق places a call, not just a navigation ─�
   await ctx.close();
 }
 
+console.log('\n── what it says depends on when it is read ──');
+{
+  // A frozen clock, so the hour is chosen rather than whatever the machine
+  // says. 09:00 UTC on 15 July is noon in Kuwait — summer, and the heat of the
+  // day, when the old page offered the beach.
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'ar-KW' });
+  const p = await ctx.newPage();
+  await p.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+  await p.goto(`${B}/find/`, { waitUntil: 'networkidle' });
+  const call = () => p.locator('section[aria-label="اتصال"] p').first().textContent();
+  const typed = () => p.locator('section[aria-label="اكتب"] p').first().textContent();
+  ok('a July noon offers somewhere cool, and no sea', /مول مكيّف/.test(await call()) && !/بحر/.test(await call()), await call());
+  ok('and both halves say the same moment', (await typed()).includes('مول مكيّف'), await typed());
+  await ctx.close();
+
+  // A January morning, the tab left open across noon: the line changes on
+  // the hour without a reload.
+  const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'ar-KW' });
+  const q = await ctx2.newPage();
+  await q.clock.install({ time: new Date('2026-01-10T08:59:00Z') });
+  await q.goto(`${B}/find/`, { waitUntil: 'networkidle' });
+  const greet = () => q.locator('section[aria-label="اتصال"] p').first().textContent();
+  const morning = await greet();
+  ok('11:59 in Kuwait in January: good morning, and the walk by the sea',
+    morning.startsWith('صباح الخير!') && morning.includes('مشي على البحر'), morning);
+  await q.clock.runFor(2 * 60_000);
+  const noon = await greet();
+  ok('two minutes later, past noon, without a reload', noon.startsWith('هلا!') && noon.includes('غدا'), noon);
+  await ctx2.close();
+
+  // And the HTML, before any script: the line the call sheet already uses.
+  const html = await (await fetch(`${B}/find/`)).text();
+  ok('the static page carries today\'s greeting until it knows the hour',
+    html.includes('هلا! أنا شوق. قول لي وش تبي — قهوة، بحر، طلعة عيال — وأدلّك.'));
+}
+
 await browser.close();
 console.log(fails.length ? `\n${fails.length} failed` : '\nكل شي تمام');
 console.log(`${pass} passed, ${fails.length} failed`);

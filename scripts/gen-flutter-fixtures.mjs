@@ -28,6 +28,7 @@ writeFileSync(
     `export * from ${JSON.stringify(join(ROOT, "src/lib/place-kit.ts"))};`,
     `export * from ${JSON.stringify(join(ROOT, "src/lib/voice-lines.ts"))};`,
     `export * from ${JSON.stringify(join(ROOT, "src/lib/hangout.ts"))};`,
+    `export * from ${JSON.stringify(join(ROOT, "src/lib/find-moment.ts"))};`,
     `export { places } from ${JSON.stringify(join(ROOT, "src/lib/places.ts"))};`,
   ].join("\n")
 );
@@ -105,6 +106,14 @@ F.hangout = {
   title: sample.slice(0, 2).map((p) => K.hangoutTitle(p)),
   readInvite: ["?when=tonight-8", "when=now", "?when=bogus", "", "?x=1&when=weekend", "?when=", "?when=tonight-8&when=now"].map((s) => ({ s, out: K.readInvite(s) })),
 };
+
+// /find's greeting at every hour of every month, for both names.
+F.findMoment = [];
+for (let month = 0; month < 12; month++)
+  for (let hour = 0; hour < 24; hour++) {
+    const m = K.findMoment(hour, month);
+    F.findMoment.push({ hour, month, part: m.part, shouq: K.findGreeting("شوق", m), salem: K.findGreeting("سالم", m) });
+  }
 
 const text = JSON.stringify(F, null, 1) + "\n";
 if (CHECK) {

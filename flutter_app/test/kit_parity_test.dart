@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wain/data/find_moment.dart';
 import 'package:wain/data/places.g.dart';
 import 'package:wain/data/text_kit.dart';
 import 'package:wain/data/voice_lines.dart';
@@ -165,5 +166,17 @@ void main() {
         expect(hangoutTitle(p), (h['title'] as List)[i]);
       }
     });
+  });
+
+  test('/find says what the web says, at all 288 moments', () {
+    final cases = f['findMoment'] as List;
+    expect(cases, hasLength(288));
+    for (final c in cases) {
+      final m = findMoment(c['hour'] as int, c['month'] as int);
+      final at = '${c['month']}/${c['hour']}';
+      expect(m.part.name, c['part'], reason: at);
+      expect(findGreeting('شوق', m), c['shouq'], reason: at);
+      expect(findGreeting('سالم', m), c['salem'], reason: at);
+    }
   });
 }

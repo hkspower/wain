@@ -13,6 +13,7 @@
  * path and spoken only by the fallback.
  */
 import { toStandardArabic } from "@/lib/arabic";
+import { isSummerMonth } from "@/lib/kuwait-time";
 
 export type SpeechPart = { key?: string; text: string; optional?: boolean };
 
@@ -119,14 +120,9 @@ type PlaceLite = {
   summerOk?: boolean;
 };
 
-/**
- * June to September in Kuwait — daytime highs around 45–50°C, when an open-air
- * recommendation stops being a recommendation. Months are 0-based, as from
- * Date#getMonth.
- */
-export function isSummerMonth(month: number): boolean {
-  return month >= 5 && month <= 8;
-}
+// In kuwait-time.ts with the rest of the clock; re-exported so callers keep
+// importing it from here.
+export { isSummerMonth };
 
 export function placeSuggestLine(p: PlaceLite): string {
   return `${p.nameAr}، في ${p.areaAr}. ${p.taglineAr}`;

@@ -1,9 +1,31 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ShouqCallButton from "@/components/ShouqCallButton";
-import { WAIN_AI_COPY, SALEM_ROLE, SALEM_GREETING } from "@/lib/wain-ai";
+import { FIND_DEFAULT, findGreeting, findMomentNow, type FindMoment } from "@/lib/find-moment";
+import { msToNextKuwaitHour } from "@/lib/kuwait-time";
+import { WAIN_AI_COPY, SALEM_NAME, SALEM_ROLE } from "@/lib/wain-ai";
+
+/**
+ * The moment the page is read in, kept current: set after mount (the HTML is
+ * built at no hour — see find-moment.ts) and again at each Kuwait hour, so a
+ * tab left open across six o'clock stops offering breakfast.
+ */
+function useFindMoment(): FindMoment {
+  const [m, setM] = useState<FindMoment>(FIND_DEFAULT);
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      setM(findMomentNow());
+      t = setTimeout(tick, msToNextKuwaitHour() + 1000);
+    };
+    tick();
+    return () => clearTimeout(t);
+  }, []);
+  return m;
+}
 
 /**
  * The two ways to reach the two of them — a call to شوق, a chat with سالم —
@@ -38,7 +60,15 @@ import { WAIN_AI_COPY, SALEM_ROLE, SALEM_GREETING } from "@/lib/wain-ai";
  *
  * Both halves are full-bleed AI-illustrated portraits (public/find/) of the
  * character each half actually leads to — a bottom-weighted scrim carries
- * the text instead of the flat colour this used to be. `object-position` is
+ * the text instead of the flat colour this used to be.
+ *
+ * Lighter since 1 October, on request («reduce tint and overlay and
+ * shadow»): the scrims went from 40→75→90% to 10→40→65%, so the two faces
+ * read as photographs rather than as shapes under a dark glass; the solid
+ * patches behind «اتصال» and «اكتب», the red glow and red shimmer round the
+ * call button and the amber glow under «أو» are gone. What carries the text
+ * now is `text-on-photo` — a shadow on the letters, not a layer over the
+ * picture — and the contrast was measured over the photo itself, not assumed. `object-position` is
  * tuned per breakpoint because the mobile crop (tall, narrow) and the
  * desktop crop (short, wide) need different framing of the same photo to
  * keep the subject in frame — see the object-[…] classes below.
@@ -55,9 +85,10 @@ import { WAIN_AI_COPY, SALEM_ROLE, SALEM_GREETING } from "@/lib/wain-ai";
  */
 export default function FindChoice() {
   const router = useRouter();
+  const moment = useFindMoment();
 
   return (
-    <div className="relative">
+    <div className="relative" data-moment={moment.part}>
       {/* ---------- شوق: the call ---------- */}
       <section
         aria-label="اتصال"
@@ -79,9 +110,14 @@ export default function FindChoice() {
             strong part of this gradient. */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-gradient-to-b from-ink-900/40 via-ink-900/75 to-ink-900/90"
+          className="pointer-events-none absolute inset-0 bg-gradient-to-b from-ink-900/10 via-ink-900/40 to-ink-900/65"
         />
-        <div className="relative mx-auto flex max-w-sm flex-col items-center gap-4 text-center">
+        <div className="relative isolate mx-auto flex max-w-sm flex-col items-center gap-4 text-center">
+          {/* The shade is under the words only — an ellipse that fades to
+              nothing well inside the photo — so the face and the sky keep
+              their light. Measured: without it the headline sat at 1.4:1
+              over the bright part of the picture. */}
+          <span aria-hidden="true" className="pointer-events-none absolute -inset-x-12 -inset-y-10 -z-10 bg-[radial-gradient(closest-side,rgb(20_18_15/0.62),rgb(20_18_15/0.35)_60%,transparent)]" />
           {/* A pill, not bare text — bare text at this weight read as loose
               on the gradient, one more label floating with nothing to hold
               it. The pill vocabulary is already the site's own (the tag
@@ -102,50 +138,19 @@ export default function FindChoice() {
               short label naming what the button DOES (place a call), the
               same register a phone app's own call screen uses, not a second
               sentence repeating what the section is already labelled. */}
-          <h2 className="animate-reveal-up font-display text-4xl font-bold text-white [animation-delay:180ms] sm:text-5xl">
-            <span className="relative isolate inline-block px-1.5 text-sun-300">
-              <i aria-hidden="true" className="absolute -inset-y-2 inset-x-0 -z-10 rounded-lg bg-ink-900" />
-              اتصال
-            </span>
+          <h2 className="text-on-photo animate-reveal-up font-display text-4xl font-bold text-sun-300 [animation-delay:180ms] sm:text-5xl">
+            اتصال
           </h2>
           {/* text-pretty so the last line never strands one short word on its
               own — «وأدلّك.» was doing exactly that before this. */}
-          <p className="animate-reveal-up text-pretty text-base leading-relaxed text-sand-100 [animation-delay:280ms]">
-            {WAIN_AI_COPY.greeting}
+          <p className="text-on-photo animate-reveal-up text-pretty text-base leading-relaxed text-white [animation-delay:280ms]">
+            {findGreeting(WAIN_AI_COPY.name, moment)}
           </p>
           <div className="animate-reveal-up mt-1 flex flex-col items-center gap-2 [animation-delay:380ms]">
-            {/* isolate: an ambient ring around the button and a shimmer
-                across its face, both added here rather than inside
-                ShouqCallButton itself — that component is shared across the
-                whole site (search box, ⌘K palette, …) and its own ringing
-                state already owns `absolute inset-0`; a second, unrelated
-                animation belongs on this one standalone use, not baked into
-                every size-8 instance elsewhere. `-z-10` on the glow and
-                z-index:auto on the shimmer both paint correctly around the
-                button without touching its own className logic — see the
-                stacking-order note the seam badge's glow needed above for
-                why plain sibling order does not decide this on its own. */}
-            <div className="relative isolate inline-flex">
-              {/* The glow ring extends past the button's own edge, so it
-                  needs an UNCLIPPED wrapper of its own — the shimmer below
-                  is the opposite, it must not spill past the circle, so
-                  it gets a second, inner, clipped one. Same div for both
-                  would force one of the two to look wrong. */}
-              <span
-                aria-hidden="true"
-                className="animate-seam-glow pointer-events-none absolute -inset-3 -z-10 rounded-full bg-[radial-gradient(closest-side,rgba(220,47,37,.5),transparent_75%)] blur-lg"
-              />
-              <div className="relative isolate inline-flex overflow-hidden rounded-full">
-                <ShouqCallButton size="lg" onTapped={() => router.push("/search")} />
-                <span
-                  aria-hidden="true"
-                  className="animate-shimmer pointer-events-none absolute inset-0 rounded-full bg-[linear-gradient(115deg,transparent_35%,rgba(220,47,37,.22)_50%,transparent_65%)] bg-[length:250%_100%]"
-                />
-              </div>
-            </div>
-            {/* sand-200 over the photo — ink-700 (the flat-background value)
-                was unreadable against the scrim. */}
-            <span className="text-sm font-semibold text-sand-200">{WAIN_AI_COPY.callHint}</span>
+            <ShouqCallButton size="lg" onTapped={() => router.push("/search")} />
+            {/* White with text-on-photo: sand-200 was chosen against the old
+                dark scrim and the lighter one leaves it too little contrast. */}
+            <span className="text-on-photo text-sm font-semibold text-white">{WAIN_AI_COPY.callHint}</span>
           </div>
         </div>
       </section>
@@ -154,27 +159,21 @@ export default function FindChoice() {
           rather than at the cut's exact pixel offset above — both halves
           are the same `min-h-[50vh]`, so the two are the same value to a
           few pixels, and centring on the wrapper means this never has to
-          be re-tuned if the cut's own depth changes. `animate-badge-pop`
-          and the glow beneath it are not new: they are what /find's old
-          seam pill used before it was removed (see page.tsx's comment) —
-          dead CSS with exactly the right shape for a second decorative
-          element on this same seam, not reinvented here. aria-hidden for
+          be re-tuned if the cut's own depth changes. `animate-badge-pop` is
+          what /find's old seam pill used before it was removed (see
+          page.tsx's comment). aria-hidden for
           the same reason the pill was: the two halves already say what
           they are, this only echoes the seam between them. */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 justify-center"
       >
-        <span className="animate-badge-pop relative isolate grid size-11 place-items-center rounded-full bg-white text-sm font-bold text-ink-900 shadow-xs">
-          <span
-            aria-hidden="true"
-            className="animate-seam-glow pointer-events-none absolute -inset-3 -z-10 rounded-full bg-[radial-gradient(closest-side,rgba(251,183,36,.5),transparent_75%)] blur-lg"
-          />
+        <span className="animate-badge-pop grid size-11 place-items-center rounded-full bg-white text-sm font-bold text-ink-900 ring-1 ring-ink-900/10">
           أو
         </span>
       </div>
 
-      {/* ---------- شوق: the chat ---------- */}
+      {/* ---------- سالم: the chat ---------- */}
       <section
         aria-label="اكتب"
         className="relative -mt-10 flex min-h-[50vh] items-center justify-center overflow-hidden bg-sea-950 px-4 pb-14 pt-20 text-white [clip-path:polygon(0_40px,100%_0,100%_100%,0_100%)] sm:pb-16 sm:pt-24"
@@ -194,9 +193,10 @@ export default function FindChoice() {
         />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-gradient-to-b from-sea-950/40 via-sea-950/78 to-sea-950/92"
+          className="pointer-events-none absolute inset-0 bg-gradient-to-b from-sea-950/10 via-sea-950/40 to-sea-950/65"
         />
-        <div className="relative mx-auto flex max-w-sm flex-col items-center gap-4 text-center">
+        <div className="relative isolate mx-auto flex max-w-sm flex-col items-center gap-4 text-center">
+          <span aria-hidden="true" className="pointer-events-none absolute -inset-x-12 -inset-y-10 -z-10 bg-[radial-gradient(closest-side,rgb(19_44_66/0.62),rgb(19_44_66/0.35)_60%,transparent)]" />
           {/* A pill again, matching the call half's exactly — kicker text,
               equalizer, same markup, only `SALEM_ROLE` in place of
               `WAIN_AI_COPY.role`. It went missing when this half stopped
@@ -216,32 +216,25 @@ export default function FindChoice() {
               <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "0.8s", animationDelay: "-0.3s" }} />
             </span>
           </span>
-          <h2 className="animate-reveal-up font-display text-4xl font-bold text-white [animation-delay:580ms] sm:text-5xl">
-            <span className="relative isolate inline-block px-1.5 text-sea-300">
-              <i aria-hidden="true" className="absolute -inset-y-2 inset-x-0 -z-10 rounded-lg bg-sea-950" />
-              اكتب
-            </span>
+          <h2 className="text-on-photo animate-reveal-up font-display text-4xl font-bold text-sea-300 [animation-delay:580ms] sm:text-5xl">
+            اكتب
           </h2>
-          {/* SALEM_GREETING — the call half's own sentence with only his
-              name at the front changed; see its comment in wain-ai.ts for
-              why that word is the only one that needed to move. */}
-          <p className="animate-reveal-up text-pretty text-base leading-relaxed text-sand-100 [animation-delay:780ms]">
-            {SALEM_GREETING}
+          {/* The call half's own sentence with only his name changed — see
+              SALEM_GREETING's comment in wain-ai.ts for why that is the only
+              word that moves — and the same moment as hers above. */}
+          <p className="text-on-photo animate-reveal-up text-pretty text-base leading-relaxed text-white [animation-delay:780ms]">
+            {findGreeting(SALEM_NAME, moment)}
           </p>
           <Link
             href="/salem"
-            className="animate-cta-breathe animate-reveal-up relative isolate mt-1 inline-flex min-h-6 items-center gap-2 overflow-hidden rounded-full bg-sea-600 px-6 font-display font-semibold text-white transition hover:bg-sea-700 [animation-delay:880ms]"
+            className="animate-reveal-up mt-1 inline-flex min-h-6 items-center gap-2 rounded-full bg-sea-600 px-6 font-display font-semibold text-white transition hover:bg-sea-700 [animation-delay:880ms]"
           >
-            <span
-              aria-hidden="true"
-              className="animate-shimmer pointer-events-none absolute inset-0 bg-[linear-gradient(115deg,transparent_35%,rgba(255,255,255,.5)_50%,transparent_65%)] bg-[length:250%_100%]"
-            />
-            <span className="relative z-10">ابدأ الكتابة</span>
+            ابدأ الكتابة
           </Link>
           {/* Matching the call half's own hint under its button — that one
               always had a line here and this one never did, which read as
               the two halves getting a different amount of care. */}
-          <span className="animate-reveal-up text-sm font-semibold text-sand-200 [animation-delay:960ms]">
+          <span className="text-on-photo animate-reveal-up text-sm font-semibold text-white [animation-delay:960ms]">
             {WAIN_AI_COPY.typeHint}
           </span>
         </div>

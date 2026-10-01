@@ -1,0 +1,44 @@
+/**
+ * Kuwait's clock: UTC+3 all year, no daylight saving to drift on.
+ *
+ * Its own module because two kinds of page need it. The hangout planner does,
+ * and so does /find, which needs only the hour and the month — and importing
+ * them from hangout.ts carried the planner and its voice lines into /find's
+ * chunk, 1.7K gzipped for three lines of arithmetic. Nothing here may import
+ * anything.
+ */
+
+/** Kuwait's wall-clock hour. UTC+3 all year — no daylight saving to drift on. */
+export function kuwaitHour(now: Date = new Date()): number {
+  return new Date(now.getTime() + 3 * 3600_000).getUTCHours();
+}
+
+/**
+ * How long until this list changes.
+ *
+ * Every expiry above is on the hour, so nothing about the offer changes in
+ * between and there is nothing for a ticking interval to see. The panel uses
+ * this to wake up once, at the moment the offer actually moves.
+ *
+ * Computed in Kuwait's own hour rather than the device's: an hour boundary
+ * here is not an hour boundary in Tehran or Delhi, and half-hour zones are
+ * exactly where a «round it to the next local hour» shortcut goes wrong.
+ */
+export function msToNextKuwaitHour(now: Date = new Date()): number {
+  const kuwait = now.getTime() + 3 * 3600_000;
+  return 3600_000 - (((kuwait % 3600_000) + 3600_000) % 3600_000);
+}
+
+/** Kuwait's calendar month, 0-based, on the same UTC+3 clock as the hour. */
+export function kuwaitMonth(now: Date = new Date()): number {
+  return new Date(now.getTime() + 3 * 3600_000).getUTCMonth();
+}
+
+/**
+ * June to September in Kuwait — daytime highs around 45–50°C, when an open-air
+ * recommendation stops being a recommendation. Months are 0-based, as from
+ * Date#getMonth.
+ */
+export function isSummerMonth(month: number): boolean {
+  return month >= 5 && month <= 8;
+}

@@ -352,35 +352,14 @@ h1, h2, h3 {
   animation: kb-b 21s cubic-bezier(0.35, 0, 0.65, 0.95) infinite alternate;
 }
 
-/* A slow glint across the اكتب half's submit button, so it never goes
-   visually dead once its entrance animation ends. */
-@keyframes shimmer-sweep {
-  from {
-    background-position: 200% 0;
-  }
-  to {
-    background-position: -100% 0;
-  }
-}
-.animate-shimmer {
-  animation: shimmer-sweep 3.2s linear infinite;
-}
-
-/* The warm+cool glow behind /find's seam pill — see the comment at its
-   call site for why it needs its own light source. */
-@keyframes seam-glow {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.45;
-  }
-  50% {
-    transform: scale(1.2);
-    opacity: 0.8;
-  }
-}
-.animate-seam-glow {
-  animation: seam-glow 4.2s ease-in-out infinite;
+/* Text laid straight on /find's photographs. The scrims under it were
+   lightened on request, so the letters carry their own separation: a tight
+   dark edge for the outline and a wide soft one for the busy parts of the
+   picture. A shadow on the glyphs, not a layer over the photo. */
+.text-on-photo {
+  text-shadow:
+    0 1px 2px rgb(13 18 28 / 0.55),
+    0 0 14px rgb(13 18 28 / 0.35);
 }
 
 /* The seam pill between the two halves: pops in once reveal-up's stagger
@@ -431,24 +410,6 @@ h1, h2, h3 {
 .eq-bar {
   animation: eq-bounce 1s ease-in-out infinite;
   transform-origin: bottom;
-}
-
-/* A slow breathe on the one CTA that has no ring or pulse of its own — the
-   اكتب half's submit button. ShouqCallButton already animates its own ring
-   while a call rings, so it does not need this too; a second animation
-   layered on a button already managing its own phase transitions would be
-   the wrong place to add motion. */
-@keyframes cta-breathe {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.035);
-  }
-}
-.animate-cta-breathe {
-  animation: cta-breathe 4.2s ease-in-out 2.4s infinite;
 }
 
 @keyframes pulse-ring {
