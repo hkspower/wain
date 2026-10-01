@@ -451,7 +451,7 @@
   [data-theme='dark'] .bg-brand:not(.btn-primary),
   [data-theme='dark'] .skip-link {
     color: var(--sp-on-ember) !important;
-    background-color: var(--sp-secondary-bg, var(--sp-silver)) !important;
+    background-color: var(--sp-secondary-bg, var(--sp-chip, var(--sp-silver))) !important;
   }
 
   /* --- the outlined button, and anything else ringed in orange ----------- */

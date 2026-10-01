@@ -1381,7 +1381,7 @@ main div.grid[class~="grid"][class~="grid-cols-2"] {
 main div.grid[class~="grid"][class~="grid-cols-2"] > article {
   position: relative;
   background: #0e1116;
-  border: 1px solid rgba(255, 255, 255, .11);
+  border: 1px solid var(--sp-card-edge, rgba(255, 255, 255, .11));
   border-radius: 16px;
   overflow: hidden;
 }
@@ -1599,7 +1599,7 @@ html[data-theme] :is(input, textarea, select):not([type="checkbox"], [type="radi
   [type="file"], [type="hidden"], [type="submit"], [type="button"], [type="image"], [type="color"]):not(.admin-content *) {
   background-color: #d9dde2 !important;
   color: #171a1e !important;
-  border-color: #aab1b9 !important;
+  border-color: var(--sp-field-edge, #aab1b9) !important;
   caret-color: #171a1e;
 }
 html[data-theme] :is(input, textarea):not(.admin-content *)::placeholder {
@@ -2088,4 +2088,45 @@ h2[class~="font-extrabold"] { font-weight: 700 !important; }
 @keyframes tile-sweep {
   0%   { opacity: 1; transform: translateX(calc(-100% * var(--tile-dir, 1))); }
   100% { opacity: 1; transform: translateX(calc(100% * var(--tile-dir, 1))); }
+}
+@media screen {
+  [data-theme='dark'] body,
+  [data-theme='dark'] body[data-canvas='silver'] {
+    background-color: var(--sp-body-bg, #fff) !important;
+  }
+  [data-theme='dark'] main {
+    --sp-black: #fff;
+    --sp-tile: #f2f3f5;
+    --sp-panel: #fff;
+    --sp-raise: #eceef1;
+    --sp-line: #d5d9de;
+    --sp-silver-mid: #6b7279;
+    --sp-silver: #4b4f55;
+    --sp-text: #171a1e;
+    --sp-accent: #171a1e;
+    --sp-ember: var(--sp-ink-on-light, #c2410c);
+    --sp-chip: #d5d9de;
+    --sp-field-edge: #7a8188;
+    --sp-card-edge: rgba(23, 26, 30, .16);
+    color: #171a1e;
+  }
+  [data-theme='dark'] main h1:not(.display-title):not(.font-display):not(.sr-only):not([hidden]) {
+    color: var(--sp-text) !important;
+  }
+  [data-theme='dark'] main :is(.action-bar, .bg-ink-silver, div.grid > article > a[class*="aspect-"], div:has(> picture > img[src*='logo-white'])) {
+    --sp-black: #1e2023;
+    --sp-tile: #24272a;
+    --sp-panel: #2d3034;
+    --sp-raise: #383c41;
+    --sp-line: #494e54;
+    --sp-silver-mid: #878e95;
+    --sp-silver: #b7bdc4;
+    --sp-text: #dbdfe4;
+    --sp-accent: #dbdfe4;
+    --sp-ember: var(--sp-accent);
+    --sp-chip: var(--sp-silver);
+    --sp-field-edge: #aab1b9;
+    --sp-card-edge: rgba(255, 255, 255, .11);
+    color: #dbdfe4;
+  }
 }

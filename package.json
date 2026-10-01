@@ -209,6 +209,7 @@
     "test:product-phone": "node scripts/product-phone-layout-test.mjs",
     "test:category-art": "node scripts/category-art-test.mjs",
     "test:home-banner": "node scripts/home-banner-test.mjs",
+    "test:white-body": "node scripts/white-body-test.mjs",
     "test:no-photo": "node scripts/no-photo-test.mjs",
     "test:product-attrs": "node scripts/product-attrs-test.mjs",
     "test:panel-scripts": "node scripts/panel-scripts-test.mjs",

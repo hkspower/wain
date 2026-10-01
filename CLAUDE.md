@@ -4045,3 +4045,12 @@ and subtle motion.
   and the tiles are owner-replaceable from /backends (`category_art`), so a layer set would
   disagree with a replaced picture.
 - `ART_VERSION` is `20261001c` in `tile-art.js` and `category.php`.
+
+## The page body is white, header and footer stay dark — 2026-10-01
+
+Asked for as "make main website body background is white color"; the owner chose the page body only. `css/65-white-body.css` sets the body white and **redefines the dark theme's variables on `main`** (`--sp-black/tile/panel/raise/line/silver*/text/accent/ember`), so everything between header and footer flips with no per-element rules. Header, footer and hero keep the dark values.
+
+- **Dark islands** restore the dark ramp inside `main`: `.action-bar`, `.bg-ink-silver` (the promo panel), the logo strip and the card photo box (a white heart on a light tile measured 1.11:1).
+- **New tokens** so a flipped `main` still reads: `--sp-chip` (chip fill), `--sp-card-edge` (card border), `--sp-field-edge` (input edge, 3:1 on white).
+- Titles needed extra `:not()`s to beat `58-page-titles.css` (0,3,2 `!important`).
+- `css-audit` skips elements inside `main` unless in an island; `test:white-body` asserts the body's own values. There is no light mode (one mode, dark), so nothing tests one.

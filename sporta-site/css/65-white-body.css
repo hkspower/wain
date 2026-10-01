@@ -1,0 +1,69 @@
+/* THE PAGE BODY IS WHITE — 2026-10-01, "make main website body background is white color".
+ * The owner chose "page body only, header and footer stay dark" (not the whole shop light, not
+ * the home page alone).
+ *
+ * sporta-dark.css is written entirely in terms of --sp-black / --sp-tile / --sp-panel /
+ * --sp-raise / --sp-line / --sp-text / --sp-silver, and every dark rule reads them off the
+ * element it styles. So the body is made white by REDEFINING THOSE VARIABLES INSIDE `main`:
+ * every card, chip, input, border and text colour in the body then resolves to its light value
+ * with no rule rewritten, while the header and footer — which sit outside `main` — keep the dark
+ * ones. The page's own background (the <body>) is set white for the strip around and below
+ * `main`. The light values are the same ramp the old light theme used, and the brand orange
+ * text on white is the darker --sp-ink-on-light (5.2:1), never the bright brand (3.1:1).
+ *
+ * Screen only, like the file it overrides: print is the built stylesheet's, which is white. */
+@media screen {
+  [data-theme='dark'] body,
+  [data-theme='dark'] body[data-canvas='silver'] {
+    background-color: var(--sp-body-bg, #fff) !important;
+  }
+  [data-theme='dark'] main {
+    --sp-black: #fff;
+    --sp-tile: #f2f3f5;
+    --sp-panel: #fff;
+    --sp-raise: #eceef1;
+    --sp-line: #d5d9de;
+    --sp-silver-mid: #6b7279;
+    --sp-silver: #4b4f55;
+    --sp-text: #171a1e;
+    --sp-accent: #171a1e;
+    --sp-ember: var(--sp-ink-on-light, #c2410c);
+    /* a chip's fill (the Outlet offer, the fit chip): light grey with ink on it, as on the dark
+       page it was silver with ink — sporta-dark.css reads --sp-chip before --sp-silver */
+    --sp-chip: #d5d9de;
+    /* a text field's edge: the dark page's #aab1b9 is 7:1 there and 2.2:1 on white (48-) */
+    --sp-field-edge: #7a8188;
+    /* the product card's edge: the dark page's white hairline vanishes on white */
+    --sp-card-edge: rgba(23, 26, 30, .16);
+    color: #171a1e;
+  }
+
+  /* PAGE TITLES. 58-page-titles.css and the side-page / utility-page files set them white for the
+     dark page. The hero's display titles are white over photographs and stay so. */
+  /* The :not()s are specificity, not intent: 58-page-titles.css names its h1s through
+     :is(...):not(.font-display) at (0,3,2), and both sides are !important. */
+  [data-theme='dark'] main h1:not(.display-title):not(.font-display):not(.sr-only):not([hidden]) {
+    color: var(--sp-text) !important;
+  }
+
+  /* DARK ISLANDS. Three things in the body were built to be dark and carry white text or a white
+     logo: the product page's sticky buy bar, the promo panels (free returns, 24-hour delivery)
+     and the logo strip under the product. They keep the dark page's variables, so everything
+     inside them resolves as it did. */
+  [data-theme='dark'] main :is(.action-bar, .bg-ink-silver, div.grid > article > a[class*="aspect-"], div:has(> picture > img[src*='logo-white'])) {
+    --sp-black: #1e2023;
+    --sp-tile: #24272a;
+    --sp-panel: #2d3034;
+    --sp-raise: #383c41;
+    --sp-line: #494e54;
+    --sp-silver-mid: #878e95;
+    --sp-silver: #b7bdc4;
+    --sp-text: #dbdfe4;
+    --sp-accent: #dbdfe4;
+    --sp-ember: var(--sp-accent);
+    --sp-chip: var(--sp-silver);
+    --sp-field-edge: #aab1b9;
+    --sp-card-edge: rgba(255, 255, 255, .11);
+    color: #dbdfe4;
+  }
+}

@@ -52,7 +52,7 @@ main div.grid[class~="grid"][class~="grid-cols-2"] {
 main div.grid[class~="grid"][class~="grid-cols-2"] > article {
   position: relative;            /* the heart, badge and + are placed against the card */
   background: #0e1116;
-  border: 1px solid rgba(255, 255, 255, .11);
+  border: 1px solid var(--sp-card-edge, rgba(255, 255, 255, .11));
   border-radius: 16px;
   overflow: hidden;
 }

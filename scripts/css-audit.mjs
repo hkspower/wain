@@ -253,7 +253,12 @@ for (const path of PAGES) {
         // on something that is not a card caption.
         + 'main div.grid[class~="grid-cols-2"] > article :is(h3, s, del)'
       let el
-      try { el = [...document.querySelectorAll(sel)].find((e) => !e.matches(OVERRIDDEN)) } catch { continue }
+      try { el = [...document.querySelectorAll(sel)].find((e) => !e.matches(OVERRIDDEN)
+        // THE BODY IS WHITE since 2026-10-01 (65-white-body.css redefines the --sp variables inside
+        // `main`), so this sheet's dark values are sampled on the header, the footer and the dark
+        // islands (the buy bar, the promo panels), not on the body. The body's own values are
+        // asserted by test:white-body.
+        && !(e.closest('main') && !e.closest('.action-bar, .bg-ink-silver'))) } catch { continue }
       if (!el) continue
       let expected = want
       for (let j = i + 1; j < cl.length; j++) {

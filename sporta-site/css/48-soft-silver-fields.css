@@ -18,7 +18,7 @@ html[data-theme] :is(input, textarea, select):not([type="checkbox"], [type="radi
   [type="file"], [type="hidden"], [type="submit"], [type="button"], [type="image"], [type="color"]):not(.admin-content *) {
   background-color: #d9dde2 !important;
   color: #171a1e !important;
-  border-color: #aab1b9 !important;
+  border-color: var(--sp-field-edge, #aab1b9) !important;
   caret-color: #171a1e;
 }
 html[data-theme] :is(input, textarea):not(.admin-content *)::placeholder {

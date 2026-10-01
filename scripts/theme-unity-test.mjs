@@ -14,7 +14,7 @@
  *                 no taller than about 45% of the screen (it was 1,040px at 1280x900,
  *                 so the first screen showed no products).
  *   TITLES        one page-title style: Alexandria 700, 26px phone / 30px desktop,
- *                 white, an orange bar under it. There were six desktop sizes in two
+ *                 dark ink on the white body, an orange bar under it. There were six desktop sizes in two
  *                 faces.
  *   CLEAN-UPS     one outline button (the 404's was orange, the rest silver), and the
  *                 browser's own bar the colour of the header (it was near-black).
@@ -177,7 +177,7 @@ for (const [vw, size] of [[390, '26px'], [1280, '30px']]) {
     check(t, `${vw} ${path}: has a page title`)
     if (!t) continue
     seen.push(path)
-    const ink = path === '/men' ? 'rgb(23, 26, 30)' : 'rgb(255, 255, 255)'   // the category title sits on its white banner
+    const ink = 'rgb(23, 26, 30)'   // dark ink: the body is white since 2026-10-01 (65-white-body.css), as the category banner always was
     check(t.face === 'Alexandria' && t.weight === '700' && t.size === size && t.color === ink && t.bar === '56x4 rgb(224, 86, 28)',
       `${vw} ${path}: Alexandria 700 ${size}, the orange bar`, JSON.stringify(t))
   }
