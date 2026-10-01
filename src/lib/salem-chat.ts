@@ -115,6 +115,15 @@ export function stripFiller(text: string): string {
   return text.replace(/^\s*ثانية\s+وحدة\s*[….،.]*\s*/u, "").trim();
 }
 
+/**
+ * Who is calling, from the server's own list (`conversation_initiation_source`).
+ * This said «wain-salem-chat» until 1 October — a name nobody had told the
+ * server — and in all that time not one typed conversation was recorded for
+ * the agent, while every widget call was, down to the 0-second ones. «js_sdk»
+ * is what the SDK this client was read out of sends.
+ */
+const SOURCE = "js_sdk";
+
 const NOOP_HANDLE: SalemChatHandle = { send: () => false, close: () => {} };
 
 /**
@@ -160,7 +169,7 @@ export function startSalemChat({
 
   const url =
     `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${encodeURIComponent(WAIN_AI_AGENT_ID)}` +
-    `&source=wain-salem-chat&version=1`;
+    `&source=${SOURCE}&version=1`;
 
   let socket: WebSocket;
   try {
@@ -213,7 +222,7 @@ export function startSalemChat({
           conversation: { text_only: true },
           tts: { voice_id: SALEM_VOICE_ID },
         },
-        source_info: { source: "wain-salem-chat", version: "1" },
+        source_info: { source: SOURCE, version: "1" },
       })
     );
   });

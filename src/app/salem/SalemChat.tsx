@@ -257,8 +257,15 @@ export default function SalemChat() {
     // measures every text node this DOM walker's visibility check does not
     // exclude, sr-only included, and correctly caught a real 1.10:1 pair —
     // dark ink text nobody was ever meant to see against a dark backdrop.
-    <div className="flex min-h-dvh flex-col bg-sea-950 text-white">
-      <header className="flex items-center gap-3 border-b border-white/10 bg-sea-950 px-4 py-3">
+    //
+    // The height is EXACT, not a minimum. It was `min-h-dvh`, and a minimum
+    // gives the transcript's `overflow-y-auto` nothing to overflow: the page
+    // grew instead, the box and her newest reply slid below the fold, and the
+    // scroll-to-newest effect scrolled a list that could not scroll. Reported
+    // as «she did not answer», 1 October. Installed, the body already pads
+    // for the tab bar, so the frame is that much shorter.
+    <div className="flex h-dvh flex-col overflow-hidden bg-sea-950 text-white standalone:h-[calc(100dvh-4.25rem-env(safe-area-inset-bottom))]">
+      <header className="flex shrink-0 items-center gap-3 border-b border-white/10 bg-sea-950 px-4 py-3">
         {/* 144px for a 44px circle: three device pixels to the CSS pixel and a
             little over. It was the 320px portrait, 24KB, competing with the
             page's scripts for the link before the socket opens — leaving it
@@ -292,7 +299,7 @@ export default function SalemChat() {
           const el = e.currentTarget;
           stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
         }}
-        className="flex-1 space-y-3 overflow-y-auto px-4 py-4"
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4"
       >
         {messages.map((m, i) => {
           if (m.role === "system") {
@@ -403,13 +410,16 @@ export default function SalemChat() {
           message is already kept: the agent records and keeps conversations
           with no expiry (WAIN_AI_RECORDING). A line the visitor can read
           before typing is the consent; one buried in /privacy is not. */}
-      <p className="border-t border-white/10 bg-sea-950 px-4 pt-2 text-xs text-sand-200">
+      <p className="shrink-0 border-t border-white/10 bg-sea-950 px-4 pt-2 text-xs text-sand-200">
         {WAIN_AI_RECORDING.chatNotice}{" "}
         <Link href="/privacy/#wain-ai" className="inline-flex min-h-6 items-center font-semibold text-white underline underline-offset-2">
           {WAIN_AI_RECORDING.chatNoticeLink}
         </Link>
       </p>
-      <form onSubmit={send} className="flex items-stretch gap-2 bg-sea-950 p-3">
+      <form
+        onSubmit={send}
+        className="flex shrink-0 items-stretch gap-2 bg-sea-950 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] standalone:pb-3"
+      >
         <label htmlFor="salem-q" className="sr-only">
           {WAIN_AI_CHAT_COPY.placeholder}
         </label>

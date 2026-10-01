@@ -75,7 +75,11 @@ void main() {
       final init = agent.received.first;
       expect(agent.protocol, 'convai');
       expect(agent.path, contains('agent_id=agent_x'));
-      expect(agent.path, contains('source=wain-salem-chat'));
+      // A source outside the server's enum (`conversation_initiation_source`)
+      // — «wain-salem-chat» until 1 October — and no typed conversation was
+      // ever recorded. The Flutter SDK sends «flutter_sdk».
+      expect(agent.path, contains('source=flutter_sdk'));
+      expect(init['source_info'], {'source': 'flutter_sdk', 'version': '1'});
       expect(init['type'], 'conversation_initiation_client_data');
       expect(init['conversation_config_override'], {
         'conversation': {'text_only': true},

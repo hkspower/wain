@@ -28,6 +28,12 @@ class ChatMessage {
 enum ChatStatus { connecting, connected, disconnected, error }
 
 typedef ChatTool = FutureOr<String> Function(Map<String, dynamic> parameters);
+
+/// Who is calling, from the server's own list (`conversation_initiation_source`).
+/// «wain-salem-chat» until 1 October, a name the server does not know — and no
+/// typed conversation was ever recorded. The Flutter SDK sends «flutter_sdk».
+const _source = 'flutter_sdk';
+
 typedef ChannelFactory = WebSocketChannel Function(
   Uri uri,
   Iterable<String> protocols,
@@ -65,7 +71,7 @@ ChatHandle startSalemChat({
 
   final uri = Uri.parse(
     'wss://api.elevenlabs.io/v1/convai/conversation'
-    '?agent_id=${Uri.encodeQueryComponent(id)}&source=wain-salem-chat&version=1',
+    '?agent_id=${Uri.encodeQueryComponent(id)}&source=$_source&version=1',
   );
   final WebSocketChannel channel;
   try {
@@ -105,7 +111,7 @@ ChatHandle startSalemChat({
             'conversation': {'text_only': true},
             'tts': {'voice_id': kSalemVoiceId},
           },
-          'source_info': {'source': 'wain-salem-chat', 'version': '1'},
+          'source_info': {'source': _source, 'version': '1'},
         });
       })
       .catchError((_) {

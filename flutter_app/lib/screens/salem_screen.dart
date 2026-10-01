@@ -156,15 +156,22 @@ class _SalemScreenState extends State<SalemScreen> {
     _toNewest();
   }
 
+  /// The transcript is a REVERSED list — offset 0 is the newest end — so a
+  /// reply that arrives is already in view, at the bottom, the way a
+  /// messaging app holds its thread. It was a forward list scrolled to
+  /// `maxScrollExtent` after every reply, and that number is an estimate in a
+  /// lazy list, cancelled by the next reply, and taken before a new row has
+  /// grown in: fourteen replies in, the screen showed the third to the sixth
+  /// and her newest answer was off screen — the app's half of «she did not
+  /// answer», 1 October. Coming back down is now one exact number.
   void _toNewest() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) {
-        _scroll.animateTo(
-          _scroll.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
-      }
+      if (!mounted || !_scroll.hasClients || _scroll.offset <= 0) return;
+      _scroll.animateTo(
+        0,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
     });
   }
 
@@ -271,14 +278,20 @@ class _SalemScreenState extends State<SalemScreen> {
               Expanded(
                 child: ListView.builder(
                   controller: _scroll,
+                  reverse: true,
                   padding: const EdgeInsets.all(12),
                   itemCount: _entries.length + (_waiting ? 1 : 0),
-                  itemBuilder: (_, i) => i == _entries.length
-                      ? const _TypingBubble()
-                      : switch (_entries[i]) {
-                          _Text t => _Bubble(t),
-                          _Places p => _PlacesBlock(places: p.places),
-                        },
+                  // Reversed: row 0 is the newest — the typing bubble while
+                  // she writes, otherwise her latest line.
+                  itemBuilder: (_, row) {
+                    final i = _entries.length + (_waiting ? 1 : 0) - 1 - row;
+                    return i == _entries.length
+                        ? const _TypingBubble()
+                        : switch (_entries[i]) {
+                            _Text t => _Bubble(t),
+                            _Places p => _PlacesBlock(places: p.places),
+                          };
+                  },
                 ),
               ),
               if (_awaitingConsent)

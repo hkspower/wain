@@ -318,6 +318,66 @@ console.log('\n── show_places/open_place render inline, without a live agent
   await sctx.close();
 }
 
+console.log('\n── a long chat scrolls inside itself; the box and her newest reply stay on screen ──');
+// «didn't respond», reported 1 October. The page was `min-h-dvh`, so the
+// transcript's `flex-1 overflow-y-auto` had no height to overflow: the page
+// grew instead, the input and her newest reply slid below the fold, and the
+// scroll-to-newest code scrolled a box that could not scroll. A reply that
+// arrives where nobody is looking is a reply that did not come.
+for (const [width, height, standalone] of [[390, 844, false], [320, 568, false], [390, 844, true]]) {
+  const lctx = await browser.newContext({ viewport: { width, height }, isMobile: true, hasTouch: true, locale: 'ar-KW' });
+  await lctx.addInitScript(() => {
+    class FakeSocket {
+      constructor() { this.readyState = 0; this.sent = []; this.listeners = {}; window.__salemSocket = this; }
+      addEventListener(type, fn) { (this.listeners[type] ??= []).push(fn); }
+      send(data) { this.sent.push(data); }
+      close() { this.readyState = 3; }
+      emit(type, evt) { for (const fn of this.listeners[type] ?? []) fn(evt); }
+    }
+    FakeSocket.CONNECTING = 0; FakeSocket.OPEN = 1; FakeSocket.CLOSING = 2; FakeSocket.CLOSED = 3;
+    window.WebSocket = FakeSocket;
+  });
+  const lp = await lctx.newPage();
+  await lp.goto(`${B}/salem/`, { waitUntil: 'networkidle' });
+  if (standalone) await lp.evaluate(() => { document.documentElement.dataset.standalone = 'true'; });
+  // Soft: a throw here would cancel the sizes after it.
+  if (!(await lp.waitForFunction(() => !!window.__salemSocket, null, { timeout: 6000 }).then(() => true, () => false))) {
+    ok(`${width}×${height}: the chat opened a socket`, false);
+    await lctx.close();
+    continue;
+  }
+  await lp.evaluate(() => {
+    const s = window.__salemSocket;
+    s.readyState = 1; s.emit('open', {});
+    s.emit('message', { data: JSON.stringify({ type: 'conversation_initiation_metadata' }) });
+    for (let i = 1; i <= 14; i++) {
+      s.emit('message', { data: JSON.stringify({ type: 'agent_response', agent_response_event: {
+        agent_response: `رد رقم ${i}: مقاهي المباركية في مدينة الكويت، چاي وقهوة عربية في حوش السوق، وأحلى وقت لها عقب المغرب. تبي شي ثاني؟` } }) });
+    }
+  });
+  await lp.locator('[role="log"] >> text=رد رقم 14').waitFor({ timeout: 4000 }).catch(() => {});
+  await lp.waitForTimeout(900);
+  const m = await lp.evaluate(() => {
+    const log = document.querySelector('[role="log"]');
+    const input = document.getElementById('salem-q').getBoundingClientRect();
+    const last = [...log.querySelectorAll('p')].filter((e) => e.textContent.includes('رد رقم 14')).pop()?.getBoundingClientRect();
+    const bar = document.querySelector('nav.app-chrome');
+    const floor = bar && getComputedStyle(bar).display !== 'none' ? bar.getBoundingClientRect().top : innerHeight;
+    return {
+      floor: Math.round(floor), inputBottom: Math.round(input.bottom),
+      lastTop: last ? Math.round(last.top) : null, lastBottom: last ? Math.round(last.bottom) : null,
+      logScrolls: log.scrollHeight > log.clientHeight + 1,
+      pageScroll: document.scrollingElement.scrollHeight - innerHeight,
+    };
+  });
+  const tag = `${width}×${height}${standalone ? ', installed' : ''}`;
+  ok(`${tag}: the transcript scrolls inside itself`, m.logScrolls, JSON.stringify(m));
+  ok(`${tag}: the page itself does not grow past the screen`, m.pageScroll <= 1, JSON.stringify(m));
+  ok(`${tag}: the box is on screen, above the tab bar when there is one`, m.inputBottom <= m.floor, JSON.stringify(m));
+  ok(`${tag}: her newest reply is in view`, m.lastBottom !== null && m.lastBottom <= m.floor && m.lastTop >= 0, JSON.stringify(m));
+  await lctx.close();
+}
+
 await browser.close();
 console.log(fails.length ? `\n${fails.length} failed` : '\nكل شي تمام');
 console.log(`${pass} passed, ${fails.length} failed`);

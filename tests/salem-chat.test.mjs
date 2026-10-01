@@ -95,6 +95,16 @@ console.log("\n── a connection that answers in time is not falsely timed out
   const sent = JSON.parse(sock.sent[0] ?? "{}");
   ok("the init message is sent on open", sock.sent.length === 1, JSON.stringify(sock.sent));
   ok("and asks for a text-only session", sent.conversation_config_override?.conversation?.text_only === true, JSON.stringify(sent));
+  // The server stores the source as an enum (`conversation_initiation_source`
+  // in the conversations API). This client sent «wain-salem-chat» from the
+  // day it was written, and not one typed conversation was ever recorded for
+  // the agent while widget calls — even 0-second ones — all were. The SDK
+  // this client was read out of sends «js_sdk»; the list is the API's own.
+  const SOURCES = ["unknown", "android_sdk", "node_js_sdk", "react_native_sdk", "react_sdk", "js_sdk",
+    "python_sdk", "widget", "swift_sdk", "flutter_sdk", "template_preview"];
+  const urlSource = new URL(sock.url).searchParams.get("source");
+  ok("the URL names a source the server knows", SOURCES.includes(urlSource), urlSource);
+  ok("so does the init message", SOURCES.includes(sent.source_info?.source), JSON.stringify(sent.source_info));
 
   sock.emit("message", { data: JSON.stringify({ type: "conversation_initiation_metadata" }) });
   ok("status reaches connected", statuses.join(",") === "connecting,connected", statuses.join(","));
