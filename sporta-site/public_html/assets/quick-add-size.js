@@ -157,6 +157,55 @@
   }
 
   /* Merge one size into the bundle's own cart shape and tell it to re-sync. */
+  /* THE CATEGORY PAGES ARE NOT THE APP. category.php is server-drawn and loads no bundle, so there is
+     no cart state to sync and no reason to reload: the cart lives in localStorage and the next page
+     that IS the app reads it fresh. Its bag badge is refreshed after an add (below). */
+  function isStaticPage() { return !document.querySelector('script[src*="/assets/index-"]') }
+
+  function savedCount() {
+    try {
+      var c = JSON.parse(localStorage.getItem('sporta_cart') || '[]'), n = 0
+      for (var i = 0; i < c.length; i++) n += Number(c[i] && c[i].qty) || 0
+      return n
+    } catch (e) { return 0 }
+  }
+
+  /* The page already draws a count ([data-cart-badge], filled by category-topbar.js) but only ONCE,
+     when it loads — so after an add it would go on showing the old number. Refreshed here. */
+  function paintStaticBag() {
+    if (!isStaticPage()) return
+    var badge = document.querySelector('[data-cart-badge]')
+    if (!badge) return
+    var n = savedCount()
+    badge.textContent = n > 99 ? '99+' : n ? String(n) : ''
+    badge.style.display = n ? 'flex' : 'none'
+  }
+
+  /* THE BUNDLE'S OWN ADD, WHEN IT CAN BE REACHED. The cart is React state in a provider whose
+     value is { items, add, setQty, remove, clear, count, total } (read out of the bundle). Calling
+     its `add` is exactly what the bundle's own "+" does: the bag count, the drawer and the saved
+     cart all update at once, with no reload and nothing written behind its back. It is found by
+     walking up from a React-drawn element to the provider; if that walk finds nothing (a different
+     bundle build, a React that stores its tree differently) this returns null and the caller falls
+     back to the reload path below, which is slower and always right. */
+  function bundleCart() {
+    try {
+      var picks = [document.querySelector('header'), document.querySelector('main'), document.getElementById('root'), document.body.firstElementChild]
+      for (var i = 0; i < picks.length; i++) {
+        var el = picks[i]
+        if (!el) continue
+        var key = null
+        for (var k in el) { if (k.indexOf('__reactFiber$') === 0) { key = k; break } }
+        if (!key) continue
+        for (var f = el[key], n = 0; f && n < 200; f = f.return, n++) {
+          var v = f.memoizedProps && f.memoizedProps.value
+          if (v && typeof v.add === 'function' && typeof v.setQty === 'function' && Array.isArray(v.items)) return v
+        }
+      }
+    } catch (e) {}
+    return null
+  }
+
   function addToCart(slug, size, img) {
     var info = infoBySlug[slug]
     if (!info) return false
@@ -234,9 +283,23 @@
       pill.onclick = function (e) {
         e.preventDefault()
         e.stopPropagation()
+        var info = infoBySlug[slug]
+        var cart = bundleCart()
+        if (cart && info) {
+          cart.add({ slug: slug, name: info.name, price: info.price, image: imgSrc }, 1, size, 'normal')
+          row.style.display = 'none'
+          head.textContent = t('added')
+          setTimeout(function () { closePanel(anchor) }, 1100)
+          return
+        }
         var ok = addToCart(slug, size, imgSrc)
         row.style.display = 'none'
         head.textContent = ok ? t('added') : ''
+        if (ok && isStaticPage()) {
+          paintStaticBag()
+          setTimeout(function () { closePanel(anchor) }, 1100)
+          return
+        }
         if (ok) {
           // A REAL RELOAD, not a hope. The cart provider reads
           // `localStorage.sporta_cart` exactly once, in its own useState

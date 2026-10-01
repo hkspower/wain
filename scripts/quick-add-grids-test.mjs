@@ -49,8 +49,10 @@ for (const lang of ['en', 'ar']) for (const [name, path, cardSel, frameSel] of g
   check(await pills.count() > 0, `${L} it opens a size chooser`, `${await pills.count()} sizes`)
   const slug = decodeURIComponent((await first.evaluate((b) => b.closest('a').getAttribute('href'))).match(/\/product\/([^/?#]+)/)[1])
   const size = (await pills.first().textContent()).trim()
-  await Promise.all([p.waitForNavigation({ timeout: 8000 }).catch(() => {}), pills.first().click()])
-  await p.waitForTimeout(3000)
+  await p.evaluate(() => { window.__qasNoReload = 1 })
+  await Promise.all([p.waitForNavigation({ timeout: 2500 }).catch(() => {}), pills.first().click()])
+  await p.waitForTimeout(800)
+  check(await p.evaluate(() => window.__qasNoReload === 1), `${L} adding does NOT reload the page (the bundle's own add is used)`)
   const cart = await p.evaluate(() => JSON.parse(localStorage.getItem('sporta_cart') || '[]'))
   const row = cart.find((r) => r.slug === slug && r.size === size)
   check(cart.length === 1 && row?.qty === 1 && row?.key === `${slug}__${size}__normal`, `${L} the cart holds that size once`, JSON.stringify(cart.map((r) => [r.key, r.qty])))
@@ -65,14 +67,43 @@ for (const lang of ['en', 'ar']) for (const [name, path, cardSel, frameSel] of g
   })
   check(/1/.test(bag) || /1\s*(item|منتج)/i.test(bag), `${L} the visible bag shows 1`, bag)
 
+  if (path !== '/') {
+    const shown = await p.evaluate(() => { const b = document.querySelector('[data-cart-badge]'); return b ? b.textContent.trim() : '' })
+    check(shown === '1', `${L} the category page's bag badge shows the count straight away (it was filled only at load)`, shown)
+  }
+
   // again, same size: 2, not a second row
   const again = p.locator(`${frameSel} > button.qas-btn`).first()
   await again.scrollIntoViewIfNeeded(); await again.click(); await p.waitForTimeout(400)
   const pill2 = p.locator('.qas-panel .qas-pill', { hasText: new RegExp(`^${size}$`) }).first()
-  await Promise.all([p.waitForNavigation({ timeout: 8000 }).catch(() => {}), pill2.click()])
-  await p.waitForTimeout(2500)
+  await Promise.all([p.waitForNavigation({ timeout: 2500 }).catch(() => {}), pill2.click()])
+  await p.waitForTimeout(800)
   const cart2 = await p.evaluate(() => JSON.parse(localStorage.getItem('sporta_cart') || '[]'))
+  if (path !== '/') check(await p.evaluate(() => (document.querySelector('[data-cart-badge]') || {}).textContent) === '2', `${L} and 2 after the second add`)
   check(cart2.length === 1 && cart2[0].qty === 2, `${L} the same size again makes it 2, not a second row`, JSON.stringify(cart2.map((r) => [r.key, r.qty])))
+  await ctx.close()
+}
+
+
+// THE FALLBACK. If the bundle's cart cannot be reached (a different build, a React that keeps its
+// tree elsewhere) the old reload path must still add the item truthfully. Simulated by stripping
+// React's fiber keys from the elements the lookup starts from.
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+  const p = await ctx.newPage()
+  await p.goto(`${BASE}/?lang=en`); await p.waitForTimeout(3500)
+  await p.evaluate(() => {
+    window.__qasNoReload = 1
+    for (const el of [document.querySelector('header'), document.querySelector('main'), document.getElementById('root'), document.body.firstElementChild])
+      if (el) for (const k of Object.keys(el)) if (k.indexOf('__reactFiber$') === 0) delete el[k]
+  })
+  const b = p.locator('.sporta-home-products__frame > button.qas-btn').first()
+  await b.scrollIntoViewIfNeeded(); await b.click(); await p.waitForTimeout(400)
+  await Promise.all([p.waitForNavigation({ timeout: 6000 }).catch(() => {}), p.locator('.qas-panel .qas-pill').first().click()])
+  await p.waitForTimeout(2500)
+  check(await p.evaluate(() => window.__qasNoReload !== 1), 'fallback: with the bundle unreachable the page reloads, as before')
+  const c = await p.evaluate(() => JSON.parse(localStorage.getItem('sporta_cart') || '[]'))
+  check(c.length === 1 && c[0].qty === 1, 'fallback: and the item is in the bag', JSON.stringify(c.map((r) => [r.key, r.qty])))
   await ctx.close()
 }
 
