@@ -659,9 +659,20 @@ if ($r === 'slides') {
     // window asks for the wide banner, which is right for both. `Vary` keeps a
     // shared cache from handing a phone's answer to a desktop (this route is
     // no-cache, so it is belt and braces).
+    //
+    // ONLY WHEN THE PHONE'S HERO IS TALL ENOUGH TO HOLD IT — 2026-10-01. The
+    // box is the Slides screen's Size, and the two pictures suit different
+    // boxes. Full is about 390x470 on a phone (360-470px tall): the phone
+    // picture shows 75-100% of itself there, the banner a third of its width.
+    // Tall (10svh) and Short (8svh) are 66-84px STRIPS: the banner shows about
+    // half of itself, and a 4:5 phone picture about a SIXTH. Handing it over
+    // whatever the size made the phone picture the worse choice in two of the
+    // three settings — a "half view" waiting for the day the size changes.
     header('Vary: User-Agent');
+    $hero = store_setting($db, 'hero');
     $ua = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
-    if (preg_match('/iPhone|iPod|Android.+Mobile|Mobile.+Safari|Windows Phone/i', $ua) && !preg_match('/iPad|Tablet/i', $ua)) {
+    if (($hero['size'] ?? '') === 'full'
+        && preg_match('/iPhone|iPod|Android.+Mobile|Mobile.+Safari|Windows Phone/i', $ua) && !preg_match('/iPad|Tablet/i', $ua)) {
         foreach ($rows as &$row) {
             if (!empty($row['has_mobile_image']) && !empty($row['image_mobile'])) {
                 $row['image']  = $row['image_mobile'];
@@ -686,7 +697,7 @@ if ($r === 'slides') {
     // three it withholds and why.
     store_out_cacheable([
         'slides'    => $rows,
-        'hero'      => store_setting($db, 'hero'),
+        'hero'      => $hero,
         'promo_bar' => $bar,
         'rules'     => store_rules_public($db),
     ]);

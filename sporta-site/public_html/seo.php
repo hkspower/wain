@@ -470,11 +470,37 @@ if ($pos !== false) {
  * The whole opening tag is rebuilt rather than patched twice, so the two
  * attributes cannot disagree and anything else on the tag survives. */
 $dir = $isEn ? 'ltr' : 'rtl';
+
+/* THE HERO'S SIZE, ON THE HOME PAGE ONLY — 2026-10-01, "fix main hero slide
+ * layout, sometimes half view". The Slides screen's Size (short / tall / full)
+ * lives in the `hero` settings row, and until now the first frame could not
+ * know it: index.html's boot script read a copy cached by an EARLIER visit and
+ * fell back to Tall. Measured with the live shop's Full: a first visit painted
+ * an 84px strip on a phone (144px on a desktop) and grew to 469px / 442px only
+ * when ?r=slides answered — on a slow connection, for as long as that took.
+ * Written here, the boot script reads it before the first paint.
+ *
+ * Only `/` carries the hero, so only `/` pays for the read. Any failure — no
+ * database, no row, a value that is not one of the three — writes nothing, and
+ * the page behaves exactly as before. The value is WHITELISTED, never echoed. */
+$heroSize = '';
+if ($path === '/') {
+    try {
+        require_once __DIR__ . '/api/store.php';
+        $s = (string) (store_setting(store_db(), 'hero')['size'] ?? '');
+        if (in_array($s, ['short', 'tall', 'full'], true)) $heroSize = $s;
+    } catch (Throwable $e) {
+        $heroSize = '';
+    }
+}
+
 $html = preg_replace_callback(
     '#<html\b([^>]*)>#i',
-    static function (array $m) use ($lang, $dir): string {
-        $rest = preg_replace('#\s(?:lang|dir)=["\'][^"\']*["\']#i', '', $m[1]) ?? '';
-        return '<html lang="' . $lang . '" dir="' . $dir . '"' . $rest . '>';
+    static function (array $m) use ($lang, $dir, $heroSize): string {
+        $rest = preg_replace('#\s(?:lang|dir|data-hero-size)=["\'][^"\']*["\']#i', '', $m[1]) ?? '';
+        return '<html lang="' . $lang . '" dir="' . $dir . '"'
+            . ($heroSize !== '' ? ' data-hero-size="' . $heroSize . '"' : '')
+            . $rest . '>';
     },
     $html,
     1

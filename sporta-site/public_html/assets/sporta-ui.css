@@ -93,7 +93,7 @@ html[lang='ar'] .app-header a.flex.min-h-11 {
 }
 @media (min-width: 768px) {
   .hero-strength {
-    height: 75svh !important;
+    height: var(--hero-h-md, 75svh) !important;
     aspect-ratio: auto !important;
     max-height: none !important;
   }

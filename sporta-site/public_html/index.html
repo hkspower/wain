@@ -275,8 +275,12 @@
           // thing. --hero-h-md (desktop) is untouched at 75svh.
           var kind = localStorage.getItem('sporta_hero_kind') || 'banner'
           // THE SLIDES SCREEN'S SIZE, 2026-09-29 — see css/38-hero-size.css.
-          // The bundle caches the owner's choice here; tall is the default.
-          var size = localStorage.getItem('sporta_hero_size')
+          // The server writes the shop's setting onto <html data-hero-size> on
+          // the home page (seo.php, 2026-10-01), so a FIRST visit paints the
+          // right height too; it used to paint Tall and jump when ?r=slides
+          // answered. The copy cached by an earlier visit is the fallback for
+          // a page served without it; tall is the default.
+          var size = el.getAttribute('data-hero-size') || localStorage.getItem('sporta_hero_size')
           if (size !== 'short' && size !== 'full') size = 'tall'
           el.dataset.heroSize = size
           el.style.setProperty('--hero-h', size === 'short' ? '8svh' : size === 'full' ? 'calc((100svh - 58px) * 0.6)' : '10svh')

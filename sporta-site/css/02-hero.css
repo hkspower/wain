@@ -364,8 +364,16 @@
      * blocks up. The art goes md:absolute md:inset-0 at this width — under
      * the button, not beside it — so the outer's own height is already the
      * image's height and nothing needs splitting the way the phone does.
-     * 75svh, not 100, since 2026-09-21 — same -25% as --hero-h above. */
-    height: 75svh !important;
+     * 75svh, not 100, since 2026-09-21 — same -25% as --hero-h above.
+     *
+     * THE SLIDES SCREEN'S SIZE SINCE 2026-10-01, NOT 75svh. These drawn slides
+     * are NOT only a fallback for a shop with no photo rows: the bundle draws
+     * them on EVERY visit while ?r=slides is in flight, and then swaps in the
+     * photos. Measured with the live shop's Full at 1280x800: 442px, then
+     * 600px for ~100ms, then 442px again, on every desktop visit. Same
+     * variable as the photo hero (34-hero-band.css), so the swap is a change
+     * of picture and not of height. */
+    height: var(--hero-h-md, 75svh) !important;
     aspect-ratio: auto !important;
     max-height: none !important;
   }

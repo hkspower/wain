@@ -10,6 +10,12 @@
  * and a slide with no phone picture is never changed. It also requires that
  * the answer carries Vary: User-Agent, and that there IS a slide with a phone
  * picture to test against — an empty comparison passes everything.
+ *
+ * ONLY IN FULL, SINCE 2026-10-01. Tall and Short make the phone hero a 66-84px
+ * strip, where a 4:5 phone picture shows about a sixth of itself and the
+ * banner about half, so a phone gets the banner there. The rig sets the Size
+ * itself, Full for the phone checks and Tall for that one, and puts back the
+ * sandbox's own setting afterwards.
  * SANDBOX ONLY: it adds and removes one slide row of its own.
  */
 import { execFileSync } from 'node:child_process'
@@ -29,7 +35,11 @@ const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJA
 sql(`insert into hero_slides (sort, active, title_en, image, image_hash, image_w, image_h, image_mobile, image_mobile_hash, image_mobile_w, image_mobile_h)
      values (9101, 1, 'phone-rig-both', '${PNG}', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 3200, 1270, '${PNG}', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 1080, 1350),
             (9102, 1, 'phone-rig-desktop-only', '${PNG}', 'cccccccccccccccccccccccccccccccc', 3200, 1270, null, null, null, null)`)
+const savedHero = sql(`select value from settings where name = 'hero'`).split('\n')[1] ?? null
+const setSize = (size) => sql(`insert into settings (name, value) values ('hero', '${JSON.stringify({ speed_ms: 6500, shuffle: false, autoplay: true, ...(savedHero ? JSON.parse(savedHero) : {}), size })}')
+  on duplicate key update value = values(value)`)
 try {
+  setSize('full')
   const find = (j, t) => j.slides.find(s => s.title_en === t)
   const d = await get(UA.desktop)
   const both = find(d.j, 'phone-rig-both'), only = find(d.j, 'phone-rig-desktop-only')
@@ -43,8 +53,15 @@ try {
   }
   const t = await get(UA.ipad); const tb = find(t.j, 'phone-rig-both')
   check(!/mobile=1/.test(tb.image) && tb.width === 3200, 'an iPad gets the wide banner')
+  // a strip: the banner shows about half of itself there, the phone picture about a sixth
+  setSize('tall')
+  const st = await get(UA.phone); const sb = find(st.j, 'phone-rig-both')
+  check(st.j.hero?.size === 'tall', 'the rig really switched the Size to Tall', String(st.j.hero?.size))
+  check(!/mobile=1/.test(sb.image) && sb.width === 3200, 'in Tall a phone gets the wide banner (its strip suits the banner)', `${sb.image.slice(-32)} ${sb.width}x${sb.height}`)
 } finally {
   sql(`delete from hero_slides where title_en in ('phone-rig-both','phone-rig-desktop-only')`)
+  if (savedHero) sql(`update settings set value = '${savedHero.replace(/'/g, "''")}' where name = 'hero'`)
+  else sql(`delete from settings where name = 'hero'`)
 }
-console.log(fails ? `\n${fails} FAILED` : '\nall ok — a phone gets its own picture, nothing else changes')
+console.log(fails ? `\n${fails} FAILED` : '\nall ok — a phone gets its own picture in Full, the banner in a strip, nothing else changes')
 process.exit(fails ? 1 : 0)

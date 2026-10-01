@@ -59,6 +59,7 @@
     "test:apple-auth": "node scripts/apple-auth-test.mjs",
     "test:password-strength": "node scripts/password-strength-test.mjs",
     "test:hero-size": "node scripts/hero-size-test.mjs",
+    "test:hero-first-frame": "node scripts/hero-first-frame-test.mjs",
     "test:live": "node scripts/live-api-test.mjs",
     "test:payments": "node scripts/payments-test.mjs",
     "test:cart": "node scripts/cart-test.mjs",

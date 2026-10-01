@@ -31,9 +31,11 @@
     .then(function (j) {
       var s = j && j.slides && j.slides[0]
       if (!s) return
-      /* s.image on EVERY screen: measured, the app draws the same picture on a phone as on a desktop
-         (a phone just crops it); image_mobile is not used by the web carousel. Preloading it would
-         be a wasted download on exactly the connections that can least afford one. */
+      /* s.image, which is ALREADY the right picture for this screen: since 2026-09-29 ?r=slides
+         hands a phone the phone picture in `image` (only in the Full size since 2026-10-01, where
+         the phone's hero is tall enough to hold it), and the carousel draws exactly what `image`
+         names. image_mobile is never asked for separately; preloading it as well would be a
+         wasted download on exactly the connections that can least afford one. */
       preload(hrefOf(s.image))
     })
     .catch(function () {})
