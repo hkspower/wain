@@ -21,10 +21,19 @@
 
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
+    <!-- supportsRtl: the app is Arabic, right to left; without it the system's
+         own pieces (the notification's actions, dialogs) lay out left to
+         right. allowBackup off: the app stores only a consent answer and the
+         voice switch, and a consent restored onto another phone from a
+         backup is not a consent given on that phone. Predictive back: the
+         app's back handling is the framework's (shell.dart, main.dart). -->
     <application
         android:label="وين"
         android:name="${applicationName}"
-        android:icon="@mipmap/launcher_icon">
+        android:icon="@mipmap/launcher_icon"
+        android:supportsRtl="true"
+        android:allowBackup="false"
+        android:enableOnBackInvokedCallback="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

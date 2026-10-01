@@ -44,6 +44,19 @@ void main() {
     },
   );
 
+  test('iPhone only: no iPad target, no iPad orientations', () {
+    final pbx = File('ios/Runner.xcodeproj/project.pbxproj').readAsStringSync();
+    final families = RegExp(r'TARGETED_DEVICE_FAMILY = ([^;]+);')
+        .allMatches(pbx)
+        .map((m) => m.group(1))
+        .toSet();
+    expect(families, {'1'});
+    expect(
+      File('ios/Runner/Info.plist').readAsStringSync(),
+      isNot(contains('UISupportedInterfaceOrientations~ipad')),
+    );
+  });
+
   test('and the framework plist agrees', () {
     final plist = File('ios/Flutter/AppFrameworkInfo.plist').readAsStringSync();
     expect(

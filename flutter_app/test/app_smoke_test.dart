@@ -55,6 +55,26 @@ void main() {
     }
   }
 
+  // iPhone-only, and Android tablets are told «portrait» — but Android 16
+  // ignores that on large screens, so a tablet may lay these out anyway.
+  for (final size in const [Size(800, 1280), Size(1280, 800)]) {
+    for (final r in [
+      '/',
+      '/explore',
+      '/search?q=قهوة',
+      '/places/kuwait-towers',
+      '/find',
+    ]) {
+      testWidgets(
+        '$r on a tablet ${size.width.toInt()}×${size.height.toInt()}',
+        (t) async {
+          await pumpAt(t, r, size: size);
+          expect(t.takeException(), isNull);
+        },
+      );
+    }
+  }
+
   testWidgets(
     '/salem builds and shows it is connecting (no network in tests)',
     (t) async {

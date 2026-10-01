@@ -66,6 +66,39 @@ void main() {
     );
   });
 
+  test('store-ready application flags', () {
+    final app = RegExp(
+      r'<application(.*?)>',
+      dotAll: true,
+    ).firstMatch(manifest)!.group(1)!;
+    expect(app, contains('android:supportsRtl="true"'));
+    expect(app, contains('android:allowBackup="false"'));
+    expect(app, contains('android:enableOnBackInvokedCallback="true"'));
+  });
+
+  test('release builds keep WebRTC and LiveKit from R8', () {
+    final gradle = File('android/app/build.gradle.kts').readAsStringSync();
+    expect(gradle, contains('"proguard-rules.pro"'));
+    final rules = File('android/app/proguard-rules.pro').readAsStringSync();
+    expect(rules, contains('-keep class org.webrtc.** { *; }'));
+    expect(rules, contains('-keep class io.livekit.** { *; }'));
+  });
+
+  test('every release build carries the run number as its versionCode', () {
+    final wf = File('../.github/workflows/android-flutter.yml')
+        .readAsStringSync();
+    final releases = RegExp(r'flutter build (apk|appbundle) --release[^\n]*')
+        .allMatches(wf)
+        .length;
+    expect(releases, greaterThanOrEqualTo(3));
+    expect(
+      RegExp(r'--build-number=\$\{\{ github\.run_number \}\}')
+          .allMatches(wf)
+          .length,
+      releases,
+    );
+  });
+
   test('still no location and no camera', () {
     expect(permits('ACCESS_FINE_LOCATION'), isFalse);
     expect(permits('ACCESS_COARSE_LOCATION'), isFalse);

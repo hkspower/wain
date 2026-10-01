@@ -30,7 +30,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        // Fixed at the first store upload; the same id as the Capacitor
+        // wrapper's, so the two are one listing (CLAUDE.md).
         applicationId = "com.wainkw.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
@@ -67,6 +68,14 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            // Flutter shrinks release builds with R8. A call is LiveKit over
+            // WebRTC, reached from Dart through JNI and reflection, which R8
+            // cannot see; proguard-rules.pro keeps those classes. No release
+            // build has placed a real call yet — a phone is the check.
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }

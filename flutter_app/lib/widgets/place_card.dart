@@ -17,10 +17,18 @@ import 'svg.dart';
 /// The height a card needs: the 56px band and border, plus the text block
 /// (name and tagline up to two lines each, the area row, padding) which grows
 /// with the user's text size. A fixed extent overflowed by 15px at 320px.
+///
+/// From 640 wide the area row also carries the category chip, which stands
+/// taller than the row's own line, and every card on a tablet overflowed by
+/// 2.4px until the extent counted it (found by the 800×1280 layout test).
 double placeCardExtent(BuildContext context) {
   final scale = MediaQuery.textScalerOf(context).scale(1.0);
-  return 57 + 8 + 8 + (36.4 + 2 + 37.2 + 6 + 16) * scale + 4;
+  final chip = MediaQuery.sizeOf(context).width >= kCategoryChipWidth ? 6 : 0;
+  return 57 + 8 + 8 + (36.4 + 2 + 37.2 + 6 + 16 + chip) * scale + 4;
 }
+
+/// The width from which a card names its category in a chip.
+const double kCategoryChipWidth = 640;
 
 class PlaceCard extends StatelessWidget {
   final Place place;
@@ -168,7 +176,7 @@ class PlaceCard extends StatelessWidget {
                             const Spacer(),
                             // Category name only where the row has the width —
                             // the tint band and the mark ARE the category.
-                            if (MediaQuery.sizeOf(context).width >= 640)
+                            if (MediaQuery.sizeOf(context).width >= kCategoryChipWidth)
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,

@@ -112,7 +112,10 @@ jobs:
       # NOT a Play Store build, which is what build-release below is for.
       - name: Build a sideloadable APK (release, debug-signed)
         working-directory: flutter_app
-        run: flutter build apk --release
+        run: >-
+          flutter build apk --release
+          --build-number=${{ github.run_number }}
+          --obfuscate --split-debug-info=build/symbols
 
       # The log itself says what was built, so a green run is not taken on trust.
       - name: Show what the APK declares
@@ -194,8 +197,14 @@ jobs:
       - name: Build a signed release APK and App Bundle
         working-directory: flutter_app
         run: |
-          flutter build apk --release
-          flutter build appbundle --release
+          # The build number is the run number: Play refuses an upload whose
+          # versionCode is not higher than the last one, and pubspec's +1 never
+          # moved. Obfuscated, with the symbols kept beside the build so a
+          # crash report can still be read.
+          flutter build apk --release --build-number=${{ github.run_number }} \
+            --obfuscate --split-debug-info=build/symbols
+          flutter build appbundle --release --build-number=${{ github.run_number }} \
+            --obfuscate --split-debug-info=build/symbols
 
       - name: Upload the signed release build
         uses: actions/upload-artifact@v4
@@ -204,6 +213,7 @@ jobs:
           path: |
             flutter_app/build/app/outputs/flutter-apk/app-release.apk
             flutter_app/build/app/outputs/bundle/release/app-release.aab
+            flutter_app/build/symbols
           retention-days: 14
 
       - name: Remove the keystore

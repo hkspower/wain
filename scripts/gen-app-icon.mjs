@@ -118,6 +118,26 @@ const png = await sharp(Buffer.from(svg))
 
 writeFileSync(OUT, png);
 
+/* ── the Flutter app's store icon ───────────────────────────────────────── */
+
+// The native app's icon, for flutter_launcher_icons (flutter_app/pubspec.yaml).
+// Same mark, same ground, same no-alpha rule — and 60% coverage, not 40%:
+// 40 is the PWA's, kept above so the installed web app does not change, but on
+// a home screen beside other apps it read as a small mark in a lot of cream.
+// Store icons conventionally fill about two thirds of the square.
+const FLUTTER_ICON = join(ROOT, "flutter_app/assets/img/app-icon-1024.png");
+const flutterIcon = await sharp(Buffer.from(markSvg(SIZE, 0.6, { x: 0.504, y: 0.47 }, GROUND)))
+  .flatten({ background: GROUND })
+  .png({ compressionLevel: 9 })
+  .toBuffer();
+writeFileSync(FLUTTER_ICON, flutterIcon);
+const fm = await sharp(FLUTTER_ICON).metadata();
+if (fm.hasAlpha || fm.channels !== 3) {
+  console.error("gen-app-icon: flutter_app/assets/img/app-icon-1024.png has alpha");
+  process.exit(1);
+}
+console.log("gen-app-icon: flutter_app/assets/img/app-icon-1024.png — 1024×1024, 60% mark, no alpha");
+
 /* ── the Flutter app's launch screen ─────────────────────────────────────── */
 
 // The mark alone, transparent, for flutter_native_splash (config in

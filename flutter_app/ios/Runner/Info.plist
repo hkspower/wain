@@ -57,13 +57,6 @@
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
 	<!-- A call with شوق goes on when the phone locks or another app comes
 	     forward: LiveKit's own requirement for a voice call in the background.
 	     Audio only; nothing here fetches or runs in the background otherwise. -->
