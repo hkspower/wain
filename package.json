@@ -76,6 +76,7 @@
     "test:text-colour": "node scripts/text-colour-scan.mjs",
     "test:font-format": "node scripts/font-format-test.mjs",
     "test:palette-copies": "node scripts/palette-copies-test.mjs",
+    "test:theme-unity": "node scripts/theme-unity-test.mjs",
     "test:utility-pages": "node scripts/utility-pages-test.mjs",
     "scan:hero-quality": "python3 scripts/scan-hero-quality.py",
     "test:notification-center": "node scripts/notification-center-test.mjs",
