@@ -117,6 +117,16 @@
   button[disabled] { opacity: .55; cursor: default; }
   button.ghost { background: transparent; color: var(--sp-text); border: 1px solid var(--sp-line); }
 
+  /* Quick reasons: tap one to fill the box. 44px tall so a thumb lands on it. */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 10px; }
+  .chips[hidden] { display: none; }
+  button.chip {
+    width: auto; min-height: 44px; padding: 8px 16px; border-radius: 999px;
+    background: transparent; color: var(--sp-text); border: 1px solid var(--sp-line);
+    font: inherit; font-weight: 600; font-size: 14px;
+  }
+  button.chip[aria-pressed="true"] { border-color: var(--sp-fill); background: rgba(224, 86, 28, .16); }
+
   /* Return or exchange. Two big targets rather than a <select>, because it is
      the one choice on the page that changes what everything below it means. */
   .kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
@@ -225,11 +235,12 @@
         <div id="lines"></div>
 
         <label for="reason" style="margin-top:18px" data-i18n="reason">السبب</label>
+        <div class="chips" id="chips" role="group" data-i18n-aria="reasonQuick" aria-label="أسباب شائعة" hidden></div>
         <textarea id="reason" name="reason" maxlength="280"
                   data-i18n-ph="reasonPh" placeholder="المقاس غير مناسب / القطعة تالفة / الجودة غير متوقعة"></textarea>
 
         <button id="send" type="submit" data-i18n="send">إرسال الطلب</button>
-        <button class="ghost" id="back" type="button" style="margin-top:12px" data-i18n="another">طلب آخر</button>
+        <button class="ghost" id="back" type="button" style="margin-top:12px" data-i18n="startOver">البدء من جديد</button>
       </form>
     </div>
   </section>

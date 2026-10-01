@@ -40,15 +40,37 @@ function store_config(): array {
     return $cfg;
 }
 
-function store_db(): PDO {
-    static $pdo = null;
-    if ($pdo === null) {
-        $c = store_config();
+/**
+ * One connection attempt, retried when — and only when — the failure is the server being BUSY.
+ *
+ * WHY. Found 2026-10-01 by a load test on the live shop: with about ten requests in flight,
+ * some of the PHP endpoints answered {"error":"db_unreachable","cause":"db_host"} while the
+ * static pages were fine. Shared hosting caps how many MySQL connections one account may hold
+ * at once, and an over-the-limit connect is refused rather than queued — so a burst that is
+ * well inside what the web server can handle lost a fifth of its product-list requests, and
+ * every one of those is a shopper looking at an error where a page should be.
+ *
+ * Refusals like that clear in tens of milliseconds as the other requests finish, so waiting a
+ * moment and asking again turns most of them into a slow answer instead of a failed one.
+ *
+ * ONLY THE TRANSIENT CODES ARE RETRIED: 2002 and 2005 (cannot reach the server / unknown host
+ * under load), 2006 (gone away), 1040 (too many connections) and 1203 (too many for this user).
+ * A wrong password, wrong user or wrong database name (1045, 1044, 1049) is a fault in
+ * config.php, will never improve, and must report at once — retrying it would only make the
+ * owner wait to be told what they need to know.
+ *
+ * The waits are short and jittered (about 0.05s, 0.15s, 0.35s, 0.7s) so a burst does not retry
+ * in step and collide again, and the whole thing costs a request at most about a second, only
+ * when the server is already refusing.
+ *
+ * @param int[] $waitsMs the pauses between attempts; one more attempt than there are pauses
+ */
+function store_db_connect(array $c, array $waitsMs = [50, 150, 350, 700]): PDO {
+    $transient = [2002, 2005, 2006, 1040, 1203];
+    $attempt = 0;
+    while (true) {
         try {
-            // ERRMODE_EXCEPTION everywhere: a silent false from PDO is how a
-            // half-written order happens. utf8mb4 because the catalogue is
-            // Arabic.
-            $pdo = new PDO(
+            return new PDO(
                 "mysql:host={$c['db_host']};dbname={$c['db_name']};charset=utf8mb4",
                 $c['db_user'],
                 $c['db_pass'],
@@ -60,6 +82,24 @@ function store_db(): PDO {
                     PDO::ATTR_EMULATE_PREPARES   => false,
                 ]
             );
+        } catch (PDOException $e) {
+            $code = (int) ($e->errorInfo[1] ?? 0);
+            if (!in_array($code, $transient, true) || $attempt >= count($waitsMs)) throw $e;
+            usleep((int) ($waitsMs[$attempt] * 1000 * (0.75 + mt_rand(0, 50) / 100)));
+            $attempt++;
+        }
+    }
+}
+
+function store_db(): PDO {
+    static $pdo = null;
+    if ($pdo === null) {
+        $c = store_config();
+        try {
+            // ERRMODE_EXCEPTION everywhere: a silent false from PDO is how a
+            // half-written order happens. utf8mb4 because the catalogue is
+            // Arabic.
+            $pdo = store_db_connect($c);
         } catch (PDOException $e) {
             // FAILING TO CONNECT IS NOT THE SAME AS A QUERY FAILING, and the
             // difference is the whole point of this branch.

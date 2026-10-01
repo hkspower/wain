@@ -358,7 +358,20 @@ let madeRef = null
   await p.waitForTimeout(150)
   await p.check(`#line-${mensLine}`)
   await p.selectOption(`[data-size="${mensLine}"]`, 'XL')
+  // QUICK REASONS (2026-10-01): four buttons put their words in the reason box, and tapping
+  // the same one again takes them out. The box stays free text, so what is sent is unchanged.
+  const chip = p.locator('#chips .chip').first()
+  check(await p.locator('#chips .chip').count() === 4 && !(await p.locator('#chips').isHidden()),
+    'the form offers four quick reasons')
+  const chipText = (await chip.textContent())?.trim() ?? ''
+  await chip.click()
+  check((await p.inputValue('#reason')) === chipText && (await chip.getAttribute('aria-pressed')) === 'true',
+    'tapping a quick reason fills the box and marks it', chipText)
+  await chip.click()
+  check((await p.inputValue('#reason')) === '' && (await chip.getAttribute('aria-pressed')) === 'false',
+    'tapping it again clears it')
   await p.fill('#reason', 'المقاس صغير')
+  check((await chip.getAttribute('aria-pressed')) === 'false', 'typing something else un-marks it')
   await p.click('#send')
   await p.waitForSelector('#done:not([hidden])', { timeout: 8000 })
   const shown = (await p.locator('#ref').textContent())?.trim() ?? ''

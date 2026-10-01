@@ -130,7 +130,9 @@
       'return': 'إرجاع', returnSub: 'استرجاع المبلغ',
       items: 'القطع', reason: 'السبب',
       reasonPh: 'المقاس غير مناسب / القطعة تالفة / الجودة غير متوقعة',
-      send: 'إرسال الطلب', sending: 'جارٍ الإرسال…', another: 'طلب آخر',
+      send: 'إرسال الطلب', sending: 'جارٍ الإرسال…', another: 'طلب آخر', startOver: 'البدء من جديد',
+      reasonQuick: 'أسباب شائعة',
+      chips: ['المقاس غير مناسب', 'وصلت القطعة تالفة', 'ليست كما توقعت', 'غيّرت رأيي'],
       h1done: 'وصلنا طلبك',
       keepRef: 'رقم الطلب — احتفظ به، وسيسألك عنه المندوب.',
       condition: 'القطع يجب أن تكون غير ملبوسة وغير مغسولة مع البطاقات الأصلية.',
@@ -167,7 +169,9 @@
       'return': 'Return', returnSub: 'money back',
       items: 'Items', reason: 'Reason',
       reasonPh: 'Wrong size / arrived damaged / not what I expected',
-      send: 'Send the request', sending: 'Sending…', another: 'Another request',
+      send: 'Send the request', sending: 'Sending…', another: 'Another request', startOver: 'Start over',
+      reasonQuick: 'Common reasons',
+      chips: ['Wrong size', 'Arrived damaged', 'Not what I expected', 'Changed my mind'],
       h1done: 'We have your request',
       keepRef: 'Your reference — keep it, the driver will ask for it.',
       condition: 'Items must be unworn, unwashed and still have their original tags.',
@@ -220,6 +224,40 @@
     if (img) img.alt = AR ? 'سبورتا' : 'Sporta'
   }
   translate()
+
+  /* QUICK REASONS. Typing a sentence on a phone keyboard is the part of this form people give up
+     on, and the four things customers actually say fit on buttons. Each one only puts its words
+     in the same reason box (which the customer can still edit), so nothing about what is stored
+     or sent changes: the server sees the same free text it always did. */
+  ;(function () {
+    var box = document.getElementById('chips')
+    var ta = document.getElementById('reason')
+    if (!box || !ta || !t.chips) return
+    var btns = []
+    function mark() {
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].setAttribute('aria-pressed', ta.value.trim() === t.chips[i] ? 'true' : 'false')
+      }
+    }
+    for (var i = 0; i < t.chips.length; i++) {
+      var b = document.createElement('button')
+      b.type = 'button'
+      b.className = 'chip'
+      b.textContent = t.chips[i]
+      b.setAttribute('aria-pressed', 'false')
+      b.addEventListener('click', (function (text) {
+        return function () {
+          ta.value = ta.value.trim() === text ? '' : text
+          mark()
+          ta.focus()
+        }
+      })(t.chips[i]))
+      box.appendChild(b)
+      btns.push(b)
+    }
+    ta.addEventListener('input', mark)
+    box.hidden = false
+  })()
 
   var fail = function (box, code) {
     box.textContent = MESSAGES[LANG][code] || MESSAGES[LANG]._default
@@ -539,6 +577,8 @@
     $('error').hidden = true
     $('error2').hidden = true
     $('reason').value = ''
+    var pressed = document.querySelectorAll('#chips .chip')
+    for (var c = 0; c < pressed.length; c++) pressed[c].setAttribute('aria-pressed', 'false')
     $('ask').scrollIntoView({ block: 'start' })
   }
   $('back').addEventListener('click', restart)
