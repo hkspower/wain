@@ -5040,3 +5040,9 @@ run tests.
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
 and record the bug that made the rule necessary — match that, and do not add
 decorative commentary.
+
+**Ask before any design change.** 2 October: two hero changes went in that
+nobody had asked for in that form (a full-height phone hero, then a white
+Marhey label with «ابحث»), and the owner had both reverted (`b0ca02e9`,
+`7b1351ac`), so the hero is again exactly the live `273439f4`. From then on,
+show or describe the change and get a yes first.
