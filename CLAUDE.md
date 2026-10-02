@@ -5112,6 +5112,79 @@ emulator up. Not re-dispatched; the next step is `flutter drive --verbose` and
 an `adb logcat` dump as their own bounded steps, so the log says whether the
 app started, the binding installed and the first flow ran.
 
+## «معالم الكويت» under the hero — 2 October, night (built, NOT live)
+
+Asked: «make realistic animation for famous kuwait places under main hero».
+The owner chose AI-generated realistic pictures, six landmarks, each one
+tappable, on the site and in the app. From the design canvas
+(https://claude.ai/artifact/KvRt7SbWGiBcKTQE5BYMqr) they picked **B: one
+landmark at a time**, a crossfading slideshow.
+
+**The pictures do not exist yet, and that is the one blocker.** The image
+account has 0 credits: every `creative_run_flow_nodes` answered
+`quota_exceeded`, with 409 needed per 1536×1024 picture. Nothing was charged.
+The six prompts are ready in flow `oN50F7f8UTyt8QLANgF9`:
+
+| landmark | node |
+|---|---|
+| kuwait-towers | `xxJ2WI1wHzXeI6XmNfOE` |
+| liberation-tower | `DiMqPcUGIiPPJSvtPnVN` |
+| grand-mosque | `Fus2VrgXmGqTqGW6jzDN` |
+| seif-palace | `rXDASWeylG6Q1MTNnU6c` |
+| souq-al-mubarakiya | `wUT9bWEKyzmEWN7fjvnY` |
+| marina-beach | `JqQZonfBUQCSuQeVgytM` |
+
+So it was built and tested on **drawn stand-ins**: the canvas's six SVG
+scenes, kept as `brand-source/landmarks/<slug>.svg`.
+
+**The swap, once there are credits:**
+1. Run each node once (`generations_count: 1`).
+2. The owner approves each picture by eye.
+3. Save each as `brand-source/landmarks/<slug>.jpg`.
+4. Run `npm run landmarks`, then the gates.
+5. Get the owner's yes, then deploy.
+
+`gen-landmarks.mjs` takes the `.jpg` over the `.svg` and records `source: "ai" |
+"stand-in"` per entry.
+
+**A stand-in cannot reach the live site by accident.** `deploy:plan` reads
+`landmarks.g.ts` *at the archive's commit* and refuses the deploy if any entry
+is a stand-in. `audit:home-hero` warns while one is left. The first version of
+that check matched across entries, so a lazy regex named the wrong slug; it now
+reads one `{…}` at a time.
+
+**`photos.ts`'s rule still holds** (no generated picture stands in for a
+photograph on a place page). The slideshow is a picture *of* each place on the
+home page and never goes there. `photos.ts` now says so in one sentence.
+
+**Web** (`0dea6f5c`):
+- `LandmarksShow.tsx` is a client component **for its pause button only**. It
+  gets six plain rows from `page.tsx`, never the catalogue: `/` is 123.3K
+  against `/about`'s 122.1K.
+- The cycle is CSS (`landmark-fade` 36s, each slide offset by 6s; 9s
+  `landmark-kb-a/b`). `visibility` is keyframed with the opacity, so only the
+  slide on screen takes a tap or a Tab.
+- **The global reduced-motion rule alone would have left an empty box**: it
+  zeroes the durations but keeps the delays, so every slide ends on its last,
+  hidden frame. `.landmark-show` keeps the first slide up instead.
+- `tests/landmarks.test.mjs` (31, in `test:hangout`) moves the loop with
+  `getAnimations().currentTime` instead of waiting 36s. It was proved red with
+  the build green: four sabotages gave 7 failures.
+- **The red run found two test faults first**: a tap that threw and ended the
+  run with no count, and a caption-background check that walked up to the
+  section's own sand. Both are fixed.
+- `audit:padding` caught a 16px caption gutter on a phone; it is now the site's
+  10px.
+
+**App** (`31a96724`):
+- `widgets/landmarks_show.dart`: `AnimatedSwitcher` every 6s, `_KenBurns`, a
+  48dp stop button, no timer at all under reduced motion, and a tap that
+  pushes `/places/<slug>`.
+- 8 tests, proved red (6 failures). Suite 565.
+
+**Not measured:** the real pictures (they do not exist), the slideshow on a
+real phone, and the app's slideshow on screen (widget tests only).
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
