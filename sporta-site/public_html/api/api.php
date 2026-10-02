@@ -177,6 +177,7 @@ $STORE_LIMITS = [
     // because somebody else on the same address was being probed.
     // (footer was already in this position before theme joined it.)
     'footer'      => [600, 60],
+    'footer_links' => [600, 60],
     'theme'       => [600, 60],
     'fonts'       => [600, 60],
     'status'      => [300, 60],
@@ -573,6 +574,12 @@ if ($r === 'social') {
 // than this JSON again.
 if ($r === 'footer') {
     store_out_cacheable(store_setting($db, 'footer'));
+}
+
+// The footer's link columns, for assets/footer-links.js and the panel's Footer card. Empty
+// `columns` means the built-in footer is left alone.
+if ($r === 'footer_links') {
+    store_out_cacheable(store_setting($db, 'footer_links'));
 }
 
 // THE THEME, read by assets/theme.js on every page. Cacheable for the same

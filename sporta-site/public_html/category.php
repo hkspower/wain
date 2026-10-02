@@ -518,6 +518,7 @@ header('Cache-Control: public, max-age=0, must-revalidate');
 <script src="/assets/card-badges.js" defer></script>
 <script src="/assets/product-cards.js?v=20260930" defer></script>
 <script src="/assets/footer.js" defer></script>
+<script src="/assets/footer-links.js" defer></script>
 <script src="/assets/social-links.js" defer></script>
 <script src="/assets/footer-payment-icons.js" defer></script>
 <script src="/assets/site-text.js" defer></script>

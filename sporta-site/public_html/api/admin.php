@@ -2651,6 +2651,35 @@ if ($r === 'settings_save' && $method === 'POST') {
             'starts_at' => store_datetime($v['starts_at'] ?? null),
             'ends_at'   => store_datetime($v['ends_at'] ?? null),
         ]);
+    } elseif ($name === 'footer_links') {
+        // THE FOOTER'S LINK COLUMNS. At most 4 columns of 8 links. A column needs a title in at
+        // least one language and a link needs a label in at least one and a target; a blank
+        // column or link is DROPPED rather than refused, so clearing the last row empties the
+        // list ("use the built-in footer"). A target that is not a path on this shop or an
+        // https address is refused by name (store_footer_href), with the column and link number.
+        $cols = is_array($v['columns'] ?? null) ? array_slice($v['columns'], 0, 4) : [];
+        $out = [];
+        foreach ($cols as $ci => $c) {
+            if (!is_array($c)) continue;
+            $te = mb_substr(trim((string)($c['title_en'] ?? '')), 0, 40);
+            $ta = mb_substr(trim((string)($c['title_ar'] ?? '')), 0, 40);
+            $links = [];
+            foreach (array_slice(is_array($c['links'] ?? null) ? $c['links'] : [], 0, 8) as $li => $l) {
+                if (!is_array($l)) continue;
+                $le = mb_substr(trim((string)($l['label_en'] ?? '')), 0, 40);
+                $la = mb_substr(trim((string)($l['label_ar'] ?? '')), 0, 40);
+                $href = trim((string)($l['href'] ?? ''));
+                if ($le === '' && $la === '' && $href === '') continue;
+                if ($le === '' && $la === '') store_fail('footer_link_label_' . ($ci + 1) . '_' . ($li + 1));
+                if ($href === '') store_fail('footer_link_target_' . ($ci + 1) . '_' . ($li + 1));
+                $links[] = ['label_en' => $le, 'label_ar' => $la, 'href' => store_footer_href($href)];
+            }
+            if ($te === '' && $ta === '' && !$links) continue;
+            if ($te === '' && $ta === '') store_fail('footer_column_title_' . ($ci + 1));
+            if (!$links) store_fail('footer_column_empty_' . ($ci + 1));
+            $out[] = ['title_en' => $te, 'title_ar' => $ta, 'links' => $links];
+        }
+        store_setting_save($db, 'footer_links', ['columns' => $out]);
     } elseif ($name === 'social') {
         // THE SHOP'S SOCIAL LINKS. Each is a profile URL on that network's own domain, or just
         // the handle (which is what an owner types), and either is stored as one https URL.

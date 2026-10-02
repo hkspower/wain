@@ -128,6 +128,7 @@
     "test:silver-fields": "node scripts/soft-silver-fields-test.mjs",
     "scan:oversize": "node scripts/oversize-scan.mjs",
     "test:social-links": "node scripts/social-links-test.mjs",
+    "test:footer-editor": "node scripts/footer-editor-test.mjs",
     "test:quick-add-grids": "node scripts/quick-add-grids-test.mjs",
     "test:sql-safety": "node scripts/sql-safety-test.mjs",
     "scan:mass-assignment": "node scripts/mass-assignment-scan.mjs",

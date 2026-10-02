@@ -2897,6 +2897,11 @@ const STORE_SETTING_DEFAULTS = [
                     'club_text_ar' => '', 'club_text_en' => '',
                     'rights_ar' => '', 'rights_en' => '',
                     'managed_ar' => '', 'managed_en' => ''],
+    // THE FOOTER'S LINK COLUMNS (2026-10-02, "make at backend footer editor"). Kept in a row of
+    // their own, NOT inside 'footer': the prose save writes exactly its ten keys, so an older
+    // panel saving the prose would drop the columns if they lived there. EMPTY `columns` means
+    // "keep the footer's built-in columns", the same rule every other footer field follows.
+    'footer_links' => ['columns' => []],
     'hero'      => ['speed_ms' => 6500, 'shuffle' => false, 'size' => 'tall', 'autoplay' => true],
     'promo_bar' => ['enabled' => false, 'text_en' => '', 'text_ar' => '', 'href' => '',
                     'starts_at' => null, 'ends_at' => null],
@@ -3563,6 +3568,18 @@ function store_datetime(?string $raw): ?string {
 // inside the shop's own design, so an off-site URL here would be the brand
 // lending its credibility to somewhere else — and a "javascript:" or "data:"
 // one would be script execution from a form field. A path, or nothing.
+// A FOOTER LINK'S TARGET: a path on this shop (a #section is allowed, which store_internal_href
+// does not) or an https address. Anything else is refused: no javascript:, data:, http:,
+// protocol-relative //host, backslash, credentials or whitespace, because this is printed in
+// the footer of every page. Returns null for an empty value.
+function store_footer_href(?string $raw): ?string {
+    $v = trim((string)$raw);
+    if ($v === '') return null;
+    if (preg_match('#^/(?![/\\\\])[A-Za-z0-9/_\-\?=&%\.\#]{0,180}$#', $v)) return $v;
+    if (preg_match('#^https://[A-Za-z0-9.-]+\.[A-Za-z]{2,}(:\d+)?(/[A-Za-z0-9/_\-\?=&%\.\#~+,;:@!*()]{0,180})?$#', $v)) return $v;
+    store_fail('invalid_footer_link');
+}
+
 function store_internal_href(?string $raw): ?string {
     $v = trim((string)$raw);
     if ($v === '') return null;
