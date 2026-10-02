@@ -655,7 +655,6 @@ alter table public.queue_tickets
   add column if not exists ended_at timestamptz;
 
 revoke all on public.queue_tickets from anon, authenticated;
-grant insert on public.queue_tickets to anon, authenticated;
 grant select, update on public.queue_tickets to authenticated;
 
 drop trigger if exists queue_tickets_touch on public.queue_tickets;
@@ -663,10 +662,10 @@ create trigger queue_tickets_touch before update on public.queue_tickets
   for each row execute function public.touch_updated_at();
 
 -- Anon inserts nothing directly: join_queue() is the only way in, because the
--- number has to be assigned by the database. There is deliberately no INSERT
--- policy for anon here even though the grant exists — the security definer
--- function bypasses RLS, and a caller reaching the table directly gets
--- nothing.
+-- number has to be assigned by the database. There is no INSERT grant and no
+-- INSERT policy — the security definer function runs as the owner and needs
+-- neither. The grant used to be here with no policy behind it, a door nothing
+-- walked through until somebody added a policy (2 October).
 drop policy if exists "admins read the queue" on public.queue_tickets;
 create policy "admins read the queue"
   on public.queue_tickets for select
@@ -918,11 +917,12 @@ on conflict (id) do update
       file_size_limit = excluded.file_size_limit,
       allowed_mime_types = excluded.allowed_mime_types;
 
+-- Nobody uploads here through the API any more. Business photos go to wain's
+-- own /api/media.php (scripts/publish/media-endpoint.php) since September, so
+-- this anonymous INSERT had no caller — only a public key, 12MB a file and no
+-- limit on how many. The drop stays so a database that ran the older file
+-- loses it too (2 October; audit:rls and test:db hold it).
 drop policy if exists "anyone may upload media for review" on storage.objects;
-create policy "anyone may upload media for review"
-  on storage.objects for insert
-  to anon, authenticated
-  with check (bucket_id = 'business-pending');
 
 drop policy if exists "admins read pending media" on storage.objects;
 create policy "admins read pending media"

@@ -116,6 +116,12 @@ grant usage on schema public to anon, authenticated;
 -- for both API roles. Without it this suite tested a database friendlier than
 -- the real one, and the schema's revokes had nothing to take away.
 alter default privileges in schema public grant all on tables to anon, authenticated;
+-- And storage the way Supabase ships it: the API roles may use the schema and
+-- hold ALL on storage.objects, so RLS is the only thing deciding who uploads.
+-- Without these grants every storage assertion below would pass on a
+-- «permission denied for schema» whatever the policies said.
+grant usage on schema storage to anon, authenticated;
+grant all on storage.objects to anon, authenticated;
 `;
 psql(scaffold);
 
@@ -191,6 +197,16 @@ console.log("\n── an anonymous visitor: everything they must not do ──")
   denied("cannot truncate the places", "truncate public.places cascade;");
   denied("cannot truncate the orders", "truncate public.orders;");
   denied("cannot truncate the queue", "truncate public.queue_tickets;");
+  // 2 October: uploads go to /api/media.php, so nothing anonymous writes to
+  // storage. This one was ALLOWED before the policy came out.
+  denied("cannot upload into the pending bucket",
+    "insert into storage.objects(bucket_id, name) values ('business-pending', 'x/logo-0.png');");
+  denied("cannot upload into the public bucket",
+    "insert into storage.objects(bucket_id, name) values ('business-media', 'x/logo-0.png');");
+  // join_queue() is the only way into the line; the number is the database's.
+  denied("cannot insert a queue ticket directly",
+    `insert into public.queue_tickets(id, track_token, place_slug, place_name_ar, number, customer_name)
+     values (gen_random_uuid(), '${"q".repeat(24)}', 'x', 'مكان', 1, 'زائر');`);
   ok("and is_admin() says no", psql("select public.is_admin();", { role: "anon" }).out === "f");
 }
 

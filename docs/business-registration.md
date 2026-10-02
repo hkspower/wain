@@ -67,7 +67,7 @@ not a flag someone remembers to check:**
 
 | bucket | who writes | who reads |
 |---|---|---|
-| `business-pending` | anyone | admins only (short-lived signed URLs) |
+| `business-pending` | nobody through the API — uploads go to `/api/media.php` since September, and the anonymous insert policy was removed on 2 October | admins only (short-lived signed URLs) |
 | `business-media` | admins only | everyone |
 
 An unreviewed photo of someone's shop is not public just because its URL is

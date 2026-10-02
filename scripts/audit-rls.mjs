@@ -60,6 +60,23 @@ for (const m of sql.matchAll(/create policy "([^"]+)"\s+on ([\w.]+)\s+for (\w+)(
     fail(`policy «${name}» on ${on}: ${cmd} with (true)`);
   if (on === "storage.objects" && !/bucket_id\s*=/.test(body))
     fail(`policy «${name}» on storage.objects is not scoped to a bucket`);
+  // 2 October: photo uploads go to /api/media.php, so the anonymous upload
+  // policy on business-pending was a write nobody called — 12MB a file and no
+  // limit on how many, through a public key. Nothing anonymous writes to
+  // storage now; one that comes back must be a decision, not a leftover.
+  if (on === "storage.objects" && cmd === "insert" && /\bto\b[^()]*\banon\b/.test(body))
+    fail(`policy «${name}»: anonymous upload into storage`);
+}
+
+// A grant only opens a door the policies then govern, and an INSERT grant to
+// anon with no insert policy for anon is a door nothing walks through — until
+// somebody adds a policy and finds the grant already there. queue_tickets
+// carried one for weeks; join_queue() is security definer and never needed it.
+for (const t of tables) {
+  if (!new RegExp(`grant [^;]*\\binsert\\b[^;]*\\bon public\\.${t}\\s+to [^;]*\\banon\\b`).test(sql)) continue;
+  const policies = [...sql.matchAll(new RegExp(`create policy "[^"]+"\\s+on public\\.${t}\\s+for insert([^;]*);`, "g"))];
+  if (!policies.some((p) => /\bto\b[^()]*\banon\b/.test(p[1])))
+    fail(`${t}: INSERT granted to anon, but no insert policy lets anon in — a dead grant`);
 }
 
 // Functions: a pinned search_path on all of them, and no PUBLIC execute on a

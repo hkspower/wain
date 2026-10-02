@@ -5037,6 +5037,19 @@ against the old schema `anon` truncated the places and 15 of 30 failed, against
 this one 30 of 30 pass. Not reachable through PostgREST, and the back end is
 unconfigured, so this reaches a database only when `schema.sql` is run on one.
 
+**Checked again 2 October («check rls»), and one door was still open.** The
+anonymous INSERT policy on the private `business-pending` bucket had no caller
+— uploads moved to `/api/media.php` in September — so it was a write through a
+public key that nothing used. Removed (its `drop policy` stays, so an older
+database loses it too), and with it `queue_tickets`' INSERT grant to anon, which
+had no policy behind it (`join_queue()` is security definer and never needed
+it). `audit:rls` now fails on any anonymous storage upload and on an INSERT
+grant with no insert policy for anon — red on the old schema, 2 problems.
+`test:db` grants storage the way Supabase does (without that, every storage
+assertion passed on «permission denied for schema») and asserts anon cannot
+upload to either bucket or insert a ticket directly: the pending upload was
+ALLOWED before, 33 of 33 now, `join_queue()` as anon still working.
+
 **The dashboard refused to save the agent, 2 October**: «Hostname must consist
 of a domain and an optional port» on allowlist entries 3 and 4 — `localhost`
 and `127.0.0.1`, added for local testing in September and accepted then; the
