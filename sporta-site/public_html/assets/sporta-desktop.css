@@ -536,34 +536,13 @@ html[data-theme] main section.sporta-home-products > h2.sporta-home-products__he
   font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
   font-size: 21px !important;
   font-weight: 700 !important;
-  margin-bottom: 4px !important;
+  margin-bottom: 0 !important;
 }
 }
 @media (min-width: 768px) {
 html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
 html[data-theme] main section.sporta-home-products > h2.sporta-home-products__heading {
-  padding: 16px 16px 14px !important;
-}
-}
-@media (min-width: 768px) {
-html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
-html[data-theme] main section.sporta-home-products > h2.sporta-home-products__heading {
-  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
-  font-size: 21px !important;
-  font-weight: 700 !important;
-  margin-bottom: 4px !important;
-}
-}
-@media (min-width: 768px) {
-html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
-html[data-theme] main section.sporta-home-products > h2.sporta-home-products__heading {
-  padding: 16px 16px 14px !important;
-}
-}
-@media (min-width: 768px) {
-html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
-html[data-theme] main section.sporta-home-products > h2.sporta-home-products__heading {
-  padding: 16px 16px 14px !important;
+  padding: 8px 16px 6px !important;
 }
 }
 @media (min-width: 768px) {
@@ -572,8 +551,29 @@ html[data-theme] main section.sporta-home-products > h2.sporta-home-products__he
   font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
   font-size: 21px !important;
   font-weight: 700 !important;
-  padding: 16px 16px 14px !important;
-  margin-bottom: 4px !important;
+  margin-bottom: 0 !important;
+}
+}
+@media (min-width: 768px) {
+html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main section.sporta-home-products > h2.sporta-home-products__heading {
+  padding: 8px 16px 6px !important;
+}
+}
+@media (min-width: 768px) {
+html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main section.sporta-home-products > h2.sporta-home-products__heading {
+  padding: 8px 16px 6px !important;
+}
+}
+@media (min-width: 768px) {
+html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
+html[data-theme] main section.sporta-home-products > h2.sporta-home-products__heading {
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
+  font-size: 21px !important;
+  font-weight: 700 !important;
+  padding: 8px 16px 6px !important;
+  margin-bottom: 0 !important;
 }
 }
 @media (min-width: 768px) {
@@ -612,14 +612,8 @@ html[data-theme] main section.sporta-home-products > h2.sporta-home-products__he
   html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"],
   html[data-theme] main section.sporta-home-products > h2.sporta-home-products__heading {
     font-size: 26px !important;
-    padding: 22px 24px 18px !important;
+    padding: 12px 24px 8px !important;
   }
-}
-@media (min-width: 768px) {
-html[data-theme] main section > h2[class~="mb-5"][class~="text-2xl"][class~="font-extrabold"][class~="text-slate-900"][class~="md:mb-7"][class~="md:text-3xl"]::after,
-html[data-theme] main section.sporta-home-products > h2.sporta-home-products__heading::after {
-  margin: 10px auto 0 !important;
-}
 }
 @media (min-width: 768px) {
   .app-header .sp-menubar__link { min-height: 46px; padding: 0 20px; font-size: 15px; }

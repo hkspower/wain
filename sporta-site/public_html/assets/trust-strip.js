@@ -240,12 +240,11 @@
   }
 
   var CSS =
-    '.sts-wrap{margin:0 auto;max-width:1280px;padding:28px 16px 28px;}' +
+    '.sts-wrap{margin:0 auto;max-width:1280px;padding:16px 16px 8px;}' +
     // Colours are the page's TOKENS, not literals: this section sits in <main>, whose white body
     // redefines them (65-white-body.css); a literal #fff title was white on white.
-    '.sts-title{position:relative;margin:0 0 22px;padding-bottom:14px;text-align:center;font-family:Alexandria,\'IBM Plex Sans Arabic\',system-ui,sans-serif;' +
+    '.sts-title{position:relative;margin:0 0 14px;padding:0;text-align:center;font-family:Alexandria,\'IBM Plex Sans Arabic\',system-ui,sans-serif;' +
     'font-size:21px;font-weight:700;line-height:1.3;color:var(--sp-text,#171a1e);}' +
-    '.sts-title::after{content:"";position:absolute;bottom:0;left:50%;width:48px;height:4px;margin-left:-24px;border-radius:2px;background:var(--brand,#e0561c);}' +
     '.sts-body{display:grid;grid-template-columns:1fr;gap:20px;align-items:center;}' +
     '.sts-pic{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;border-radius:16px;}' +
     '.sts{display:flex;flex-direction:column;gap:12px;margin:0;padding:0;}' +
@@ -254,7 +253,7 @@
     '.sts-icon{flex:none;width:30px;height:30px;color:var(--brand,#e0561c);}' +
     '.sts-icon svg{width:100%;height:100%;}' +
     '.sts-text{margin:0;font-size:15px;font-weight:600;color:inherit;}' +
-    '@media(min-width:768px){.sts-wrap{padding:36px 24px 36px;}.sts-title{font-size:26px;}' +
+    '@media(min-width:768px){.sts-wrap{padding:24px 24px 12px;}.sts-title{font-size:26px;}' +
     '.sts-body{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px;}' +
     '.sts-item{padding:18px 20px;}.sts-text{font-size:16px;}}'
 
