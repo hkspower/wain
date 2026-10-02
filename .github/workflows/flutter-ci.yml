@@ -52,7 +52,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.47.5"
+          flutter-version: "3.47.6"
           channel: stable
           cache: true
 
@@ -89,7 +89,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.47.5"
+          flutter-version: "3.47.6"
           channel: stable
           cache: true
       - name: flutter pub get
@@ -156,7 +156,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.47.5"
+          flutter-version: "3.47.6"
           channel: stable
           cache: true
 
@@ -319,7 +319,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.47.5"
+          flutter-version: "3.47.6"
           channel: stable
           cache: true
 

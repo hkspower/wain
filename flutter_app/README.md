@@ -14,7 +14,7 @@ flutter run -d chrome   # fastest loop; no Android SDK or Xcode needed
 flutter build web --release --no-web-resources-cdn   # no gstatic fetch
 ```
 
-Needs the Flutter SDK (built and tested against stable 3.47.5). Nothing is
+Needs the Flutter SDK (built and tested against stable 3.47.6). Nothing is
 pre-installed on `PATH` in the cloud sandbox: `/opt/flutter/bin/flutter`.
 
 ## What is in it
