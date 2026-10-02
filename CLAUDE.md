@@ -52,7 +52,7 @@ Locked, exactly as they are:
 | Brand ink | `--tint` `#7a4418` · `--tint-strong` `#6f3f1c` |
 | Surfaces | **white on every device** — no dark theme; white page, white cards, cool near-neutral greys. Brown is ink, never paper — with one exception the owner asked for (2026-07-31): the **masthead bar is brown** (`--tint-strong`) with white ink on every page, and `theme-color` matches it. Everything below the bar stays white |
 | Icons | the drawn `<symbol>` sprite — no emoji anywhere on the public page |
-| Layout | full-height hero with real counters · **slide rails** (scroll-snap sliders with arrows + dots — the card grids became sliders at the owner's request, 2026-07-30) · the automation `ol.flow` · wide `.product` rows · commitments `.band` · `ol.steps` as a slider timeline · the technology cloud · the WhatsApp project form · contact channels as a bar (the «ما نبنيه لعملك» offers rail and «مزايا تحصل عليها» were **removed at the owner's word, 2026-08-20** — eleven sections were too many — do not restore them) · the four-column footer on a recessed grey base |
+| Layout | full-height hero with real counters · **slide rails** (scroll-snap sliders with arrows + dots — the card grids became sliders at the owner's request, 2026-07-30) · the automation `ol.flow` · wide `.product` rows · `ol.steps` as a slider timeline · the WhatsApp project form · contact channels as a bar (the «ما نبنيه لعملك» offers rail and «مزايا تحصل عليها» were **removed at the owner's word, 2026-08-20** — eleven sections were too many — do not restore them; «لماذا المهلب كود» (the commitments `.band`) and «التقنيات» (the technology cloud) went the same way at the owner's word, 2026-10-02 — «too much crowd contents»: the band repeated the hero's counters, the cloud listed tools rather than work) · the four-column footer on a recessed grey base |
 | Products | **النوخذة only.** The in-browser code editor was retired at the owner's request — do not reintroduce it |
 | Contact | واتساب `+965 6589 4110` · انستغرام `@almuhallab.code` · `hello@almuhallab-code.com` |
 
@@ -277,8 +277,8 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   RTL Chromium reports `scrollLeft` 0→negative so positions compare by
   absolute value and "next" scrolls by a negative delta; the rail's 4px inline
   padding means "at rest" ≈ 4px, so thresholds are 8px, never 0; on phones the
-  arrows hide and the thumb does the work. "لماذا" is a `.band` of three
-  `.fact`s, "كيف نعمل" a numbered timeline, the channels one bar of pills.
+  arrows hide and the thumb does the work. "كيف نعمل" is a numbered
+  timeline, the channels one bar of pills.
 - Icons on the public site are a **drawn inline-SVG set** (`<symbol>` + `<use>`),
   not emoji: emoji are a different typeface, weight and colour on every platform.
   Three service icons (automation gear, AI-agent spark, design pen) are inlined

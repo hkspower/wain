@@ -805,8 +805,7 @@ def home_checks(pg):
     # a card class that collided with it once stacked a whole rail in one cell
     check(S, "the drawing is in the flow, not absolutely positioned",
           art and not art["absolute"] and not art["overflows"], str(art))
-    for heading in ("النوخذة — النظام الموحد", "خدماتنا", "من أعمالنا", "كيف نعمل",
-                    "لماذا المهلب كود", "تواصل معنا", "التقنيات"):
+    for heading in ("النوخذة — النظام الموحد", "خدماتنا", "من أعمالنا", "كيف نعمل", "تواصل معنا"):
         check(S, f"the page still carries: {heading}", heading in pg.inner_text("main"))
     # المهلب is the company; النوخذة is the unified system it built and runs
     check(S, "the masthead names the company, not the product",
@@ -817,8 +816,12 @@ def home_checks(pg):
     # four النوخذة units and seven services: «ما نبنيه لعملك» (5) and «مزايا
     # تحصل عليها» (10) were removed at the owner's word, 2026-08-20
     check(S, "the card sections are all present", cards == 11, f"{cards} cards")
-    check(S, "the three commitments sit in the band, not a grid",
-          pg.eval_on_selector_all(".band .fact", "n=>n.length") == 3)
+    # «لماذا المهلب كود» and «التقنيات» were removed at the owner's word
+    # (2026-10-02, «too much crowd contents»): the band repeated the hero's
+    # counters, and the cloud listed tools rather than anything delivered
+    check(S, "the crowded sections stay removed: no commitments band, no technology cloud",
+          pg.eval_on_selector_all(".band, .cloud, #tech", "n=>n.length") == 0
+          and "لماذا المهلب كود" not in pg.inner_text("main"))
     check(S, "the retired code editor is gone from the page",
           "editor.html" not in (ROOT / "index.html").read_text())
     # the services the company leads with
@@ -907,7 +910,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "730", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "726", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -935,14 +938,12 @@ def home_checks(pg):
                                       "n=>n.map(e=>e.textContent.trim())")))
     check(S, "the flow runs its seven stations",
           pg.eval_on_selector_all("ol.flow li", "n=>n.length") == 7)
-    check(S, "the technology cloud floats all fifteen",
-          pg.eval_on_selector_all(".cloud .tech", "n=>n.length") == 15)
     # the hero counters carry only real, verifiable numbers — and they must
     # settle on those numbers once the count-up finishes
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "730", "0", "100%"], str(finals))
+          finals == ["4", "726", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -1114,7 +1115,7 @@ def home_checks(pg):
 
     # a sticky bar covers whatever an anchor jumps to unless every target keeps
     # headroom: before scroll-margin-top, "خدماتنا" landed under the masthead
-    for sel in ("#services", "#contact", "#process", "#tech"):
+    for sel in ("#services", "#contact", "#process"):
         # scrollIntoView honours scroll-margin-top and lands deterministically,
         # where a hash navigation races the page's smooth-scroll animation
         pg.evaluate("(s) => document.querySelector(s).scrollIntoView({behavior:'instant'})", sel)
