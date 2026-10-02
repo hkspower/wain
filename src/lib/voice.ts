@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { deadlineFetch } from "@/lib/net";
+import { WAIN_AI_AGENT_ENABLED } from "@/lib/wain-ai";
 import {
   PERSONAS,
   forSpeech,
@@ -53,7 +54,11 @@ export { PERSONAS, type PersonaId };
  * page, because `bridgeOff` below stops it asking again. This is an upgrade to
  * a path that already worked, never a dependency.
  */
-const TTS_CONFIGURED = process.env.NEXT_PUBLIC_WAIN_TTS_URL || "/api/tts.php";
+// The bridge renders with ElevenLabs on our server, so it follows شوق's
+// switch (wain-ai.ts): a free build — the live site since 2 October — never
+// asks it for anything, and only a sandbox build with the agent defaults to it.
+const TTS_CONFIGURED =
+  process.env.NEXT_PUBLIC_WAIN_TTS_URL || (WAIN_AI_AGENT_ENABLED ? "/api/tts.php" : "none");
 const TTS_URL = TTS_CONFIGURED.trim().toLowerCase() === "none" ? "" : TTS_CONFIGURED;
 
 /**

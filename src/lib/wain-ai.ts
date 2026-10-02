@@ -23,51 +23,37 @@ import { WAIN_AI_WIDGET_PATH } from "@/lib/widget-src.g";
  * unconfigured build ships with the lesser assistant, not a broken button.
  */
 /**
- * شوق's agent, built and configured — see docs/wain-ai-agent.md.
+ * شوق's ElevenLabs agent is OFF unless a build asks for it — the live site
+ * runs the free call (local mode above), and only staging.wainkw.com builds
+ * with the agent. The owner's decision, 2 October, after the account ran out
+ * of credits and a phone showed what that does to a live call: the widget
+ * mounted inside our sheet, printed «You've run out of credits
+ * [quota_exceeded]» in English over our hang-up button, added its
+ * «Powered by» line, while our own header said «متصل». A paid service that
+ * can run dry is not something to put in front of every visitor by default.
  *
- * A default rather than a variable somebody has to remember, because this was
- * the whole reason the call was not a call: the agent existed, the brief was
- * written, the client tools were registered, and every visitor still got the
- * browser's one-question speech recognition because a build-time variable was
- * never set. A feature that ships switched off by default ships switched off.
+ * This reverses a default that was ON for a reason worth keeping in mind:
+ * «a feature that ships switched off by default ships switched off» — the
+ * agent existed for weeks while every visitor got the free call because a
+ * variable was never set. That is now the intent rather than the accident.
  *
- * Safe to hard-code, and not a decision taken lightly. An agent id is public
- * by construction: this is a static export, so whatever the widget needs to
- * open a session reaches the browser and can be read off the page. What stops
- * a copied id being used elsewhere is not secrecy — it is that the agent is
- * origin-locked to wainkw.com (require_origin_header plus an allowlist), which
- * is a control that keeps working after the id is public.
+ * To build with her (staging, or a sandbox on a laptop):
  *
- * NEXT_PUBLIC_ELEVENLABS_AGENT_ID still overrides — point a build at a staging
- * agent, or write «none» to ship the browser-speech fallback instead.
+ *   NEXT_PUBLIC_ELEVENLABS_AGENT_ID=agent_1701m1gcrccrethae9y3nyv1e116 npm run build
  *
- * «none» rather than an empty string, because an empty repository variable and
- * an unset one are the same thing to GitHub Actions: both arrive as "". With
- * only the empty check there was no way to turn شوق off from CI at all, and
- * the off switch matters most on the day she says something wrong on the live
- * site and the owner needs it without waiting for a commit.
- *
- * `||` and not `??`, and the difference is the whole point of the paragraph
- * above. `??` falls back only on null/undefined, so an empty string — which is
- * exactly what `${{ vars.ELEVENLABS_AGENT_ID }}` expands to when the variable
- * has never been set — came through as the id itself and switched شوق OFF. The
- * default beside it was written to stop precisely that, and could not: it was
- * unreachable from CI, which is the only place that sets this at all.
- *
- * Worse, it was unreachable *silently*. deploy.yml prints «شوق: agent mode
- * (built-in default)» for an empty AGENT, so the run log said she was on while
- * the bundle it had just built had her off. Nothing else looks. `||` makes the
- * comment above true: unset or empty → the default, «none» → off.
+ * Unset, empty or «none» all mean off — `||` against "" so an unset GitHub
+ * variable (which arrives as "") cannot switch anything on or off by
+ * accident. An agent id is public by construction (a static export hands the
+ * widget everything it needs), and the agent is origin-locked to the three
+ * wainkw.com hosts, so writing it here costs nothing.
  */
-const DEFAULT_AGENT_ID = "agent_1701m1gcrccrethae9y3nyv1e116";
 const OFF = "none";
 
-const configured = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID || DEFAULT_AGENT_ID;
+const configured = (process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID || OFF).trim();
 
-export const WAIN_AI_AGENT_ID =
-  configured.trim().toLowerCase() === OFF ? "" : configured;
+export const WAIN_AI_AGENT_ID = configured.toLowerCase() === OFF ? "" : configured;
 
-export const WAIN_AI_AGENT_ENABLED = WAIN_AI_AGENT_ID.trim().length > 0;
+export const WAIN_AI_AGENT_ENABLED = WAIN_AI_AGENT_ID.length > 0;
 
 /**
  * سالم's voice — for the mid-call switch below, and ONLY for that. It
@@ -355,6 +341,14 @@ export const WAIN_AI_CHAT_COPY = {
   // button waits (UNAVAILABLE_RETRY_MS in SalemChat.tsx) instead of offering
   // the same refusal on the spot. «سالم» and not «شوق»: this page is his.
   unavailable: "سالم مو متاح الحين — جرّب بعد شوي.",
+  // The free build (the live site since 2 October): no agent behind the box,
+  // so سالم answers from وين's own search inside the page. Every line here is
+  // something this page does itself, so a greeting written in advance is
+  // honest — unlike the agent's, where only the wire may speak first.
+  freeGreeting: "هلا! أنا سالم. اكتب وش تبي — قهوة، بحر، طلعة عيال، منطقة — وأدوّر لك بين أماكن وين.",
+  freeStatus: "جاهز",
+  freeNotice: "اللي تكتبه يبقى بجهازك — البحث يصير داخل الصفحة وما ينرسل لأحد.",
+  freeEmpty: "ما لقيت شي يطابق هذا — جرّب كلمة ثانية، مثل «قهوة» أو «بحر» أو اسم منطقة.",
   unavailableStatus: "مو متاح الحين",
   retryLater: "جرّب مرة ثانية",
   notConfigured: "المحادثة مو متاحة الحين.",

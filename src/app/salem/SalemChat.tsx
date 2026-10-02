@@ -6,7 +6,9 @@ import PlaceCard from "@/components/PlaceCard";
 import ShareHangout from "@/components/ShareHangout";
 import { IconSend } from "@/components/icons";
 import type { Place } from "@/lib/places";
-import { WAIN_AI_CHAT_COPY, WAIN_AI_AGENT_ID, WAIN_AI_RECORDING, SALEM_NAME } from "@/lib/wain-ai";
+import { WAIN_AI_CHAT_COPY, WAIN_AI_AGENT_ENABLED, WAIN_AI_RECORDING, SALEM_NAME } from "@/lib/wain-ai";
+import { answerParts } from "@/lib/voice-lines";
+import { kuwaitMonth } from "@/lib/kuwait-time";
 import { startSalemChat, type SalemChatHandle, type SalemFailure, type SalemStatus } from "@/lib/salem-chat";
 import { usePlaces } from "@/lib/usePlaces";
 import { formatOpenPlace, formatShowPlaces } from "@/lib/salem-tools";
@@ -77,10 +79,23 @@ type ChatLine =
 /** How long the retry waits after the server said she is unavailable. */
 const UNAVAILABLE_RETRY_MS = 30000;
 
+/**
+ * The free build — the live site since 2 October (see wain-ai.ts): no agent,
+ * no socket, nothing sent anywhere. Each message is answered from وين's own
+ * search inside the page, with the same cards and hangout panel `show_places`
+ * draws for the agent, and a sentence from `answerParts` — the words the
+ * free CALL already speaks on /search, so the two free paths say the same
+ * thing about the same place. It used to be «المحادثة مو متاحة الحين» under
+ * a notice that the chat was being saved: a dead end that also claimed
+ * something untrue.
+ */
+const FREE = !WAIN_AI_AGENT_ENABLED;
+
 export default function SalemChat() {
-  const notConfigured = WAIN_AI_AGENT_ID === "";
-  const [status, setStatus] = useState<SalemStatus>(notConfigured ? "error" : "connecting");
-  const [messages, setMessages] = useState<ChatLine[]>([]);
+  const [status, setStatus] = useState<SalemStatus>(FREE ? "connected" : "connecting");
+  const [messages, setMessages] = useState<ChatLine[]>(() =>
+    FREE ? [{ role: "agent", text: WAIN_AI_CHAT_COPY.freeGreeting }] : []
+  );
   const [draft, setDraft] = useState("");
   // Why the session failed, for the banner — see SalemFailure.
   const [failure, setFailure] = useState<SalemFailure | null>(null);
@@ -115,11 +130,33 @@ export default function SalemChat() {
   }, [places]);
 
   useEffect(() => {
-    if (notConfigured) return;
     void loadIndex().catch(() => {
-      // The tool call retries and falls through to its generic wording.
+      // The tool call (or the free answer) retries on its own.
     });
-  }, [notConfigured, loadIndex]);
+  }, [loadIndex]);
+
+  /** The free build's reply: our own search, our own words, no wire. */
+  async function answerLocally(q: string) {
+    setPending(true);
+    try {
+      const { mod, index } = await loadIndex();
+      const hits = mod.search(q, index, { limit: 40 });
+      const { slugs } = formatShowPlaces(q, hits, places);
+      const found = slugs.flatMap((slug) => places.filter((p) => p.slug === slug));
+      const text = found.length
+        ? answerParts(hits, found, { month: kuwaitMonth() }).map((p) => p.text).join(" ")
+        : WAIN_AI_CHAT_COPY.freeEmpty;
+      setMessages((prev) => [
+        ...prev,
+        { role: "agent", text },
+        ...(found.length ? [{ role: "places" as const, query: q, slugs }] : []),
+      ]);
+    } catch {
+      setMessages((prev) => [...prev, { role: "system", text: WAIN_AI_CHAT_COPY.noReply }]);
+    } finally {
+      setPending(false);
+    }
+  }
 
   /**
    * Opens a session and points `handleRef` at it. Called once on mount, and
@@ -190,10 +227,10 @@ export default function SalemChat() {
   }
 
   useEffect(() => {
-    if (notConfigured) return;
+    if (FREE) return;
     connect();
     return () => handleRef.current?.close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect/notConfigured close over stable setters, `places`/`loadIndex` via a ref-free closure, and a build-time constant; re-running this effect on every render would open a new socket each time
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect closes over stable setters, `places`/`loadIndex` via a ref-free closure, and a build-time constant; re-running this effect on every render would open a new socket each time
   }, []);
 
   useEffect(() => {
@@ -216,6 +253,12 @@ export default function SalemChat() {
   function submit(raw: string): boolean {
     const text = raw.trim();
     if (!text || status !== "connected" || pending) return false;
+    if (FREE) {
+      stickRef.current = true;
+      setMessages((prev) => [...prev, { role: "user", text }]);
+      void answerLocally(text);
+      return true;
+    }
     // Send first, draw the bubble only if the message left: it used to be the
     // other way round, so a closed socket showed a message that was never sent.
     if (!handleRef.current?.send(text)) {
@@ -259,8 +302,8 @@ export default function SalemChat() {
         ? WAIN_AI_CHAT_COPY.failedDropped
         : WAIN_AI_CHAT_COPY.failed;
 
-  const statusLine = notConfigured
-    ? WAIN_AI_CHAT_COPY.notConfigured
+  const statusLine = FREE
+    ? WAIN_AI_CHAT_COPY.freeStatus
     : status === "connecting"
       ? WAIN_AI_CHAT_COPY.connecting
       : status === "connected"
@@ -408,14 +451,12 @@ export default function SalemChat() {
         )}
         {status === "error" && (
           <p role="alert" className="mx-auto max-w-[85%] rounded-2xl bg-coral-50 px-4 py-2.5 text-center text-sm text-coral-700">
-            {notConfigured ? WAIN_AI_CHAT_COPY.notConfigured : failureText}
+            {failureText}
           </p>
         )}
-        {/* Not for notConfigured — that comes from a build-time constant, so
-            retrying opens the exact same session the agent id already
-            refused. "error" and "disconnected" are the two states a fresh
-            socket can actually answer differently. */}
-        {!notConfigured && (status === "error" || status === "disconnected") && retryReady && (
+        {/* "error" and "disconnected" are the two states a fresh socket can
+            actually answer differently. The free build never reaches either. */}
+        {!FREE && (status === "error" || status === "disconnected") && retryReady && (
           <div className="text-center">
             <button
               type="button"
@@ -432,8 +473,11 @@ export default function SalemChat() {
           message is already kept: the agent records and keeps conversations
           with no expiry (WAIN_AI_RECORDING). A line the visitor can read
           before typing is the consent; one buried in /privacy is not. */}
+      {/* The free build sends nothing anywhere, so it says that instead —
+          a recording notice over a chat that records nothing would be the
+          same overstatement in the other direction. */}
       <p className="shrink-0 border-t border-white/10 bg-sea-950 px-4 pt-2 text-xs text-sand-200">
-        {WAIN_AI_RECORDING.chatNotice}{" "}
+        {FREE ? WAIN_AI_CHAT_COPY.freeNotice : WAIN_AI_RECORDING.chatNotice}{" "}
         <Link href="/privacy/#wain-ai" className="inline-flex min-h-6 items-center font-semibold text-white underline underline-offset-2">
           {WAIN_AI_RECORDING.chatNoticeLink}
         </Link>

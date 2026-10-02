@@ -236,13 +236,9 @@ console.log("\n════ شوق: the live bridge ════");
   rmSync(btmp, { recursive: true, force: true });
 }
 
-/* 4 — the button and the LOCAL voice path.
-   This needs its own build now. The shipping default is agent mode — شوق's
-   agent id is compiled into wain-ai.ts rather than waiting on a variable
-   nobody set — so the shipping bundle no longer runs the branch this suite is
-   about. That branch has not gone anywhere: it is what every visitor gets when
-   the widget cannot load, and «none» is exactly how the component asks for it.
-   Testing it means asking for it.
+/* 4 — the button and the LOCAL voice path: the free call, which is what the
+   live site ships since 2 October (wain-ai.ts). «none» asks for it
+   explicitly, so this pass means the same thing whatever the default is.
 
    This said «an empty id» and passed "", which stopped meaning that the day
    wain-ai.ts moved from `??` to `||` — see the note on build() above. */
@@ -264,6 +260,8 @@ if (!SKIP_AGENT) {
   console.log("\n════ شوق: agent mode ════");
   const stop = await serve(PORT_AGENT);
   failed += (await run("node", ["tests/shouq-agent.test.mjs"], { env: { ...process.env, WAIN_URL: `http://localhost:${PORT_AGENT}` } })) === 0 ? 0 : 1;
+  console.log("\n════ سالم: the typed chat over the socket (sandbox build) ════");
+  failed += (await run("node", ["tests/salem-agent.test.mjs"], { env: { ...process.env, WAIN_URL: `http://localhost:${PORT_AGENT}` } })) === 0 ? 0 : 1;
   stop();
   // Leave the shipping build behind, never the one with a fake agent in it.
   build({});

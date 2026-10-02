@@ -26,7 +26,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -123,8 +123,16 @@ try {
 }
 
 const shipped = SRC ? join(ROOT, "out", SRC) : null;
-if (!shipped || !existsSync(join(ROOT, "out"))) {
+// Which build out/ is: the one this environment builds (the same switch the
+// build read). Reading it off the chunks does not work — the agent branch is
+// still in a free build's code, unreachable, behind a constant.
+const outIsAgent = existsSync(join(ROOT, "out")) ? AGENT_ENABLED : null;
+if (!shipped || outIsAgent === null) {
   note("no out/ — whether the build carries the file was NOT checked here");
+} else if (!outIsAgent) {
+  const stray = readdirSync(join(ROOT, "out/_next/static/media")).filter((f) => f.startsWith("convai-"));
+  if (stray.length) fail("a free build ships the ElevenLabs widget anyway — the live site must not carry it", stray.join(", "));
+  else ok("out/ is a free build, and the widget is not shipped with it");
 } else if (!existsSync(shipped)) {
   fail("out/ does not carry the file the page will ask for", SRC);
 } else {
@@ -166,26 +174,26 @@ if (pinned && EXACT.test(pinned)) {
 console.log("\n── does a build carry شوق ──");
 {
   const cases = [
-    [undefined, "on", "unset — a build from a laptop or a sandbox"],
-    ["", "on", "empty — an unset GitHub variable reaches the build as \"\""],
-    ["none", "off", "«none» — the deliberate off switch"],
+    [undefined, "off", "unset — a build from a laptop, a sandbox, or CI as it ships"],
+    ["", "off", "empty — an unset GitHub variable reaches the build as \"\""],
+    ["none", "off", "«none» — the explicit off switch"],
+    ["agent_1701m1gcrccrethae9y3nyv1e116", "on", "an agent id — the staging (sandbox) build"],
   ];
   for (const [value, want, why] of cases) {
     const got = enabledWhen(value);
     if (got !== want) {
       fail(`${why}: expected ${want}, got ${got}`,
            want === "on"
-             ? "This is the bug that shipped: the built-in default is unreachable,\n" +
-               "      so CI builds شوق out while the run log says she is in."
-             : "The off switch has stopped working — there is now no way to take\n" +
-               "      her off the live site without a commit.");
+             ? "Staging can no longer build with her — the sandbox has lost its agent."
+             : "A build that did not ask for ElevenLabs gets it — the live site would\n" +
+               "      spend credits and show the widget again (2 October's screenshot).");
     } else ok(`${why} → ${got}`);
   }
 }
 rmSync(tmp, { recursive: true, force: true });
 
 // A URL nobody fetches is not a bug, so say which case this is.
-if (!AGENT_ENABLED) note("agent mode is switched off in this build — the URL is unused until it is on");
+if (!AGENT_ENABLED) note("this environment builds free (the live default) — the widget path is used only by a sandbox build");
 
 console.log(`\n${errors} errors, ${notes} notes`);
 process.exit(errors ? 1 : 0);

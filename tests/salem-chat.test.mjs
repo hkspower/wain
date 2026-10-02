@@ -37,6 +37,10 @@ execSync(
     `--alias:@=${JSON.stringify(join(ROOT, "src"))} --outfile=${JSON.stringify(bundle)} --log-level=error`,
   { cwd: ROOT, stdio: "pipe" }
 );
+// The socket client is the sandbox build's (staging, since 2 October the
+// live default is free — see wain-ai.ts); give the module an agent id to talk
+// as, or every session below is the free build's no-op handle.
+process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID = "agent_test_0123456789";
 const { startSalemChat, stripFiller, cleanReply } = await import(pathToFileURL(bundle).href);
 rmSync(tmp, { recursive: true, force: true });
 

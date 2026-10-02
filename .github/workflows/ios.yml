@@ -99,18 +99,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Same build wain deploys, with one override: voice.ts's TTS_URL
-      # defaults to the relative /api/tts.php, correct on the web because the
-      # page and the bridge share an origin. A bundled app has none, so this
-      # points it at the absolute one instead — see capacitor.config.ts.
-      # Voice clips are not pre-rendered here (no ELEVENLABS_API_KEY wired
-      # into this workflow): sentences render live through the bridge on
-      # first play instead of coming from a local cache, same as any visitor
-      # before their clip is cached.
+      # Same build wain deploys: the free build since 2 October (wain-ai.ts) —
+      # no ElevenLabs agent and no voice bridge, so the app speaks with the
+      # phone's own voice and spends no credits. It used to point
+      # NEXT_PUBLIC_WAIN_TTS_URL at the live bridge (a bundle has no origin
+      # for the relative default); a free build does not ask the bridge at
+      # all, so the override went. Setting the ELEVENLABS_AGENT_ID variable
+      # would make this a sandbox build, which the live app must not be.
       - name: Build static export (produces out/)
         env:
           NEXT_PUBLIC_ELEVENLABS_AGENT_ID: ${{ vars.ELEVENLABS_AGENT_ID }}
-          NEXT_PUBLIC_WAIN_TTS_URL: https://www.wainkw.com/api/tts.php
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: npm run build
@@ -208,7 +206,6 @@ jobs:
       - name: Build static export (produces out/)
         env:
           NEXT_PUBLIC_ELEVENLABS_AGENT_ID: ${{ vars.ELEVENLABS_AGENT_ID }}
-          NEXT_PUBLIC_WAIN_TTS_URL: https://www.wainkw.com/api/tts.php
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: npm run build

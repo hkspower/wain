@@ -84,7 +84,15 @@ if (process.argv.includes("--check")) {
 
 if (!existsSync(OUT_TS) || readFileSync(OUT_TS, "utf8") !== ts) writeFileSync(OUT_TS, ts);
 
-if (process.argv.includes("--copy")) {
+/* The same switch as src/lib/wain-ai.ts: unset, empty or «none» is the free
+   build (the live site since 2 October), which never loads the widget — so it
+   does not ship it either. Only a sandbox build with an agent id carries it. */
+const agent = (process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID || "none").trim();
+const AGENT_BUILD = agent.toLowerCase() !== "none";
+
+if (process.argv.includes("--copy") && !AGENT_BUILD) {
+  console.log("vendor-widget: free build — the call widget is not shipped");
+} else if (process.argv.includes("--copy")) {
   const target = join(ROOT, "out", path);
   if (!existsSync(join(ROOT, "out"))) {
     console.error("vendor-widget: no out/ — run next build first.");
