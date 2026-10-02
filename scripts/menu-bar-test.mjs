@@ -78,7 +78,7 @@ for (const lang of ['en', 'ar']) {
   })
   check(!!s, `${lang}: the features section is on the home page`)
   if (!s) { await p.close(); continue }
-  check(s.rows === 3, `${lang}: three rows`, String(s.rows))
+  check(s.rows === 2, `${lang}: two rows (exchange, delivery)`, String(s.rows))
   check(s.img, `${lang}: the picture loaded`)
   check(s.texts[1] === (lang === 'en' ? 'Delivery 1 KWD to all Kuwait' : 'التوصيل ١ د.ك لجميع مناطق الكويت'), `${lang}: the delivery line`, s.texts[1])
   check(s.swaps === 0, `${lang}: the section is not re-created on every tick`, `${s.swaps} rebuilds in 2.5s`)

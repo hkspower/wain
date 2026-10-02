@@ -60,7 +60,6 @@ try {
   await p.locator('#cua-email').fill(EMAIL); await p.locator('#cua-pw').fill('short')
   // THE SIGN-UP FORM, improved 2026-10-02: a live length meter, a consent line, and every
   // mistake shown beside its own box (and the box focused) before anything is sent.
-  check(await p.locator('.cua-perk').isVisible(), 'the sign-up view says what an account is for')
   check((await p.locator('.cua-meter small').innerText()).startsWith('5 / 12'), 'the meter counts as you type', await p.locator('.cua-meter small').innerText())
   const hrefs = await p.locator('.cua-consent a').evaluateAll((as) => as.map((a) => new URL(a.href).pathname + new URL(a.href).search))
   check(hrefs.join() === '/terms?lang=en,/privacy?lang=en', 'the consent line links the Terms and the Privacy Policy', hrefs.join())
@@ -81,7 +80,7 @@ try {
   check(await p.locator('#cua-phone-err').isVisible() && reqs === 0, 'a wrong phone is caught beside the phone box')
   await p.locator('#cua-phone').fill('55512345')
   await p.locator('.cua-go').click(); await p.waitForTimeout(1200)
-  check((await p.locator('.cua-welcome').innerText()).includes('ready'), 'a new account is welcomed')
+
   check((await p.locator('.cua-h').innerText()).startsWith('Hello'), 'registering lands on the account view', await p.locator('.cua-h').innerText())
   check(await p.evaluate(() => !window.__x && !document.querySelector('.cua-sheet img')), 'a name with markup is shown as text, never run')
   const ck = (await ctx.cookies()).find((c) => c.name === 'sporta_shopper')

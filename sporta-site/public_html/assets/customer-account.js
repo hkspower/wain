@@ -28,8 +28,6 @@
     pwHint: ['At least 12 characters', '١٢ حرفًا على الأقل'], show: ['Show', 'إظهار'], hide: ['Hide', 'إخفاء'],
     close: ['Close', 'إغلاق'], signout: ['Sign out', 'تسجيل الخروج'],
     hello: ['Hello', 'أهلاً'], orders: ['Your orders', 'طلباتك'], loading: ['Loading…', 'جارٍ التحميل…'],
-    perk: ['Keep your orders in one place and track them any time.', 'اجمع طلباتك في مكان واحد وتتبّعها في أي وقت.'],
-    welcome: ['Your account is ready.', 'تم إنشاء حسابك.'],
     lenOf: ['characters', 'حرفًا'], pwOk: ['Long enough', 'طويلة بما يكفي'],
     consent1: ['By creating an account you accept the ', 'بإنشاء الحساب فإنك توافق على '],
     terms: ['Terms', 'الشروط والأحكام'], and: [' and the ', ' و'], privacy: ['Privacy Policy', 'سياسة الخصوصية'],
@@ -220,7 +218,6 @@
     })
     sheet.appendChild(tabs)
     var up = state.view === 'up'
-    if (up) sheet.appendChild(el('p', 'cua-perk', t('perk')))
     var form = el('form', 'cua-form'); form.noValidate = true
     var em = field('cua-email', t('email'), 'email', 'email', { inputmode: 'email', autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false', required: 'required', dir: 'ltr' })
     var pw = field('cua-pw', t('password'), 'password', up ? 'new-password' : 'current-password', { required: 'required', dir: 'ltr', minlength: up ? '12' : '1' })
@@ -296,7 +293,7 @@
       state.busy = true; go.disabled = true; msg.hidden = true
       call(up ? 'customer_register' : 'customer_login', body).then(function (r) {
         state.busy = false
-        if (r.ok && r.j.customer) { state.me = r.j.customer; state.fresh = up; refreshButton(); loadOrders(); render() }
+        if (r.ok && r.j.customer) { state.me = r.j.customer; refreshButton(); loadOrders(); render() }
         else {
           go.disabled = false
           var k = r.j && r.j.error
@@ -317,7 +314,6 @@
   function accountView(sheet) {
     var me = state.me
     sheet.appendChild(el('h2', 'cua-h', t('hello') + (me.name ? ', ' + me.name : '')))
-    if (state.fresh) sheet.appendChild(el('p', 'cua-welcome', '✓ ' + t('welcome')))
     var d = el('div', 'cua-details')
     d.appendChild(el('span', '', me.email))
     if (me.phone) d.appendChild(el('span', '', '+' + me.phone))
@@ -370,7 +366,6 @@
     + '.cua-f input:focus{outline:none;border-color:var(--brand,#e0561c);box-shadow:0 0 0 3px rgba(224,86,28,.3)}'
     + '.cua-eye{position:absolute;top:34px;right:6px;min-height:44px;padding:0 10px;border:0;border-radius:10px;background:#dbdfe4;color:#3a3e44;font-weight:700;cursor:pointer}'
     + '.cua-muted{color:#9aa1a9;font-size:13px;margin:0}'
-    + '.cua-perk{margin:0 0 14px;color:#b7bdc4;font-size:14px}'
     + '.cua-fe{color:#ff8a80;font-size:13px}'
     + '.cua-f input[aria-invalid=true]{border-color:#ff8a80;box-shadow:0 0 0 3px rgba(255,138,128,.25)}'
     + '.cua-meter{display:flex;align-items:center;gap:10px}'
@@ -378,7 +373,6 @@
     + '.cua-bar i{display:block;height:100%;width:0;border-radius:3px;background:#cf4a0b;transition:width .15s}'
     + '.cua-meter.ok .cua-bar i{background:#6fd08c}.cua-meter.ok small{color:#6fd08c}'
     + '.cua-consent a{color:#dbdfe4;text-decoration:underline;text-underline-offset:2px}'
-    + '.cua-welcome{margin:2px 0 10px;color:#6fd08c;font-weight:700;font-size:14px}'
     + '.cua-err{margin:0;color:#ff8a80;font-size:14px}.cua-err[hidden]{display:none}'
     + '.cua-go,.cua-out{min-height:52px;border:0;border-radius:12px;font-weight:800;font-size:16px;cursor:pointer}'
     + '.cua-go{background:#cf4a0b;color:#fff}.cua-go:disabled{opacity:.6}'

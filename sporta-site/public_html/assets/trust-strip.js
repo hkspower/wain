@@ -25,7 +25,7 @@
  * products" is a marketing claim with no rules field behind it — carried over
  * from the reference theme's own copy, not verified against anything this
  * script can read, and worth the owner confirming it is one they want to make
- * before treating it as settled.
+ * before treating it as settled. REMOVED 2026-10-02 ("remove any value you put randomly").
  *
  * ------------------------------------------------------------ WHERE IT GOES
  *
@@ -70,13 +70,11 @@
       // /backends. The space before د.ك is U+00A0 on purpose: rules-live.js rewrites the
       // ordinary-space form to the fee rule, and this line must not follow it.
       delivery: 'التوصيل ١\u00a0د.ك لجميع مناطق الكويت',
-      authentic: 'منتجات أصلية 100%',
     },
     en: {
       title: 'Sporta features',
       returns: function (n) { return 'Free exchange within ' + (n || '—') + ' days' },
       delivery: 'Delivery 1\u00a0KWD to all Kuwait',
-      authentic: '100% authentic products',
     },
   }
 
@@ -137,13 +135,6 @@
           '<circle cx="7" cy="19" r="1.7" /><circle cx="18" cy="19" r="1.7" />' +
           '</svg>'
         break
-      case 'authentic':
-        span.innerHTML =
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
-          'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
-          '<path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6z" /><path d="M9 12l2 2 4-4" />' +
-          '</svg>'
-        break
     }
     return span
   }
@@ -179,7 +170,6 @@
     var items = [
       ['returns', c.returns(days)],
       ['delivery', c.delivery],
-      ['authentic', c.authentic],
     ]
 
     for (var i = 0; i < items.length; i++) {
