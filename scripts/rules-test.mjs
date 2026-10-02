@@ -127,7 +127,7 @@ let phoneN = 0
 const freshPhone = () => '5' + String(Date.now()).slice(-4) + String(1000 + (phoneN++)).slice(-3)
 
 const DEFAULTS = {
-  delivery_fee_fils: 1000, free_delivery_fils: 0, return_days: 14,
+  delivery_fee_fils: 1000, free_delivery_fils: 0, return_days: 14, outlet_discount_pct: 60,
   cod_open_max: 3, review_reward_pct: 20, discount_max_pct: 60,
   governorates: ['capital', 'hawalli', 'farwaniya', 'mubarak-al-kabeer', 'ahmadi', 'jahra'],
   sizes: constSizes, fits: constFits,

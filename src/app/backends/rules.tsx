@@ -63,6 +63,7 @@ const FIELD_NAMES: Record<string, string> = {
   delivery_fee_fils: 'the delivery fee',
   free_delivery_fils: 'the free-delivery threshold',
   return_days: 'the returns window',
+  outlet_discount_pct: 'the Outlet discount',
   cod_open_max: 'the cash-on-delivery limit',
   review_reward_pct: 'the review reward',
   discount_max_pct: 'the discount cap',
@@ -136,6 +137,7 @@ export default function RulesScreen() {
       delivery_fee_fils: filsToInput(r.delivery_fee_fils),
       free_delivery_fils: filsToInput(r.free_delivery_fils),
       return_days: String(r.return_days),
+      outlet_discount_pct: String(r.outlet_discount_pct),
       cod_open_max: String(r.cod_open_max),
       review_reward_pct: String(r.review_reward_pct),
       discount_max_pct: String(r.discount_max_pct),
@@ -190,7 +192,7 @@ export default function RulesScreen() {
       value[key] = fils;
     }
     for (const key of
-      ['return_days', 'cod_open_max', 'review_reward_pct', 'discount_max_pct'] as const) {
+      ['return_days', 'outlet_discount_pct', 'cod_open_max', 'review_reward_pct', 'discount_max_pct'] as const) {
       const n = parseCount(text[key] ?? '');
       if (n === null) {
         setNote(`Check ${FIELD_NAMES[key]} — it has to be a whole number.`);
@@ -282,6 +284,14 @@ export default function RulesScreen() {
             “14 days” in fixed text, so changing this changes what is enforced but not
             what customers are told.
           </ThemedText>
+
+          <Field
+            label="Outlet “up to” discount (%)"
+            value={text.outlet_discount_pct ?? ''}
+            onChangeText={(t) => setText({ ...text, outlet_discount_pct: t })}
+            keyboardType="number-pad"
+            selectTextOnFocus
+          />
 
           <Field
             label="Unpaid cash orders per customer"

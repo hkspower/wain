@@ -12,6 +12,9 @@
  *                   returns, terms and about pages — follow rules.return_days.
  *   DELIVERY FEE    "1 KWD" / "١ د.ك" follows rules.delivery_fee_fils, and says
  *                   "free" when the fee is zero rather than "0 KWD".
+
+ *   OUTLET DISCOUNT "Up to 60% off" / "خصومات تصل إلى ٦٠٪" follows
+ *                   rules.outlet_discount_pct (2026-10-02).
  *   GOVERNORATES    the checkout's governorate list offers only the ones the
  *                   shop delivers to. Before this, dropping one in /backends
  *                   left it on the list, and the customer filled in the whole
@@ -45,6 +48,7 @@
 
   var DEFAULT_DAYS = 14
   var DEFAULT_FEE = 1000
+  var DEFAULT_OUTLET = 60
   var ALL_GOVS = 6
 
   var api = ((window.SPORTA_CONFIG && window.SPORTA_CONFIG.phpApiUrl) || '/api').replace(/\/$/, '')
@@ -92,6 +96,14 @@
         out.push([/١ د\.ك/g, arDigits(kwd(f)) + ' د.ك'])
       }
     }
+    // THE OUTLET'S "UP TO 60% OFF" (tile and discount copy) follows
+    // rules.outlet_discount_pct. Only the phrase is matched, so a 60% that means
+    // something else is left alone.
+    var d = rules.outlet_discount_pct
+    if (typeof d === 'number' && d >= 1 && d <= 90 && d !== DEFAULT_OUTLET) {
+      out.push([/\b([Uu]p to )60%/g, '$1' + d + '%'])
+      out.push([/((?:حتى|تصل إلى) )٦٠٪/g, '$1' + arDigits(d) + '٪'])
+    }
     return out
   }
 
@@ -102,7 +114,7 @@
       acceptNode: function (t) {
         var p = t.parentNode
         if (!p || SKIP[p.nodeName] || p.isContentEditable) return NodeFilter.FILTER_REJECT
-        return /14|١٤|1 KWD|١ د/.test(t.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP
+        return /14|١٤|1 KWD|١ د|60%|٦٠/.test(t.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP
       },
     })
     var t

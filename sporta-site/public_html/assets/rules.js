@@ -70,6 +70,7 @@
     delivery_fee_fils: 'the delivery fee',
     free_delivery_fils: 'the free-delivery threshold',
     return_days: 'the returns window',
+    outlet_discount_pct: 'the Outlet discount',
     cod_open_max: 'the cash-on-delivery limit',
     review_reward_pct: 'the review reward',
     discount_max_pct: 'the discount cap',
@@ -117,6 +118,7 @@
   ]
   var COUNTS = [
     ['return_days', 'Returns window', 'days', 'From delivery.'],
+    ['outlet_discount_pct', 'Outlet "up to" discount', '%', 'Shown on the Outlet tile.'],
     ['cod_open_max', 'Unpaid cash orders', 'per customer', 'Per phone.'],
     ['review_reward_pct', 'Review reward', '%', 'Per review.'],
     ['discount_max_pct', 'Discount cap', '%', 'Per order.'],

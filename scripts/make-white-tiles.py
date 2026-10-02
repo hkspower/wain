@@ -375,10 +375,17 @@ def photo_shelves(pw, h):
     the unit's width starting at its left post, so the orange-capped frame is the first thing
     the slanted edge shows)."""
     im = Image.open(os.path.join(SUBJ, 'photo-shelves.jpg')).convert('RGB')
-    k = h / im.height
-    im = im.resize((int(im.width * k), h), Image.LANCZOS)
+    # 2026-10-02: the products read small, so the photo is 1.25x larger than the panel's height
+    # and cropped from the BOTTOM-LEFT of its top corner, which also pushes the shelves toward
+    # the right (the far edge) instead of leaving the empty frame there.
+    ZOOM = 1.25
+    k = h * ZOOM / im.height
+    im = im.resize((int(im.width * k), int(h * ZOOM)), Image.LANCZOS)
     x0 = int(im.width * 0.04)
-    return im.crop((x0, 0, x0 + pw, h)) if im.width - x0 >= pw else im.resize((pw, h), Image.LANCZOS)
+    y0 = int(h * (ZOOM - 1) * 0.5)
+    if im.width - x0 < pw:
+        return im.resize((pw, h), Image.LANCZOS)
+    return im.crop((x0, y0, x0 + pw, y0 + h))
 
 
 def compose_outlet(w, h, rtl=False):
@@ -398,11 +405,11 @@ def compose_outlet(w, h, rtl=False):
     layer.paste(crop, (x0 - s, 0))
     layer.putalpha(mask)
     edge = Image.new('RGBA', (w, h), (0, 0, 0, 0))
-    ImageDraw.Draw(edge).line([(x0, 0), (x0 - s, h)], fill=ORANGE + (255,), width=max(8, int(h * 0.02)))
+    ImageDraw.Draw(edge).line([(x0, 0), (x0 - s, h)], fill=ORANGE + (255,), width=max(3, int(h * 0.007)))
     img.alpha_composite(stripes(w, h, x0 - int(w * 0.13), x0 - int(w * 0.06), 12, 3))
     img.alpha_composite(layer)
     img.alpha_composite(edge)
-    bw = max(8, int(h * 0.02))
+    bw = max(3, int(h * 0.007))                          # thin border (was 2% of the height)
     dr = ImageDraw.Draw(img)
     for i in range(bw):
         dr.rectangle([i, i, w - 1 - i, h - 1 - i], outline=ORANGE + (255,))

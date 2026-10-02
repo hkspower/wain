@@ -84,7 +84,7 @@ const waitForScrollSettle = async (page, { timeout = 3000, quietMs = 150 } = {})
 }
 
 const DEFAULTS = {
-  delivery_fee_fils: 1000, free_delivery_fils: 0, return_days: 14,
+  delivery_fee_fils: 1000, free_delivery_fils: 0, return_days: 14, outlet_discount_pct: 60,
   cod_open_max: 3, review_reward_pct: 20, discount_max_pct: 60,
   governorates: ['capital', 'hawalli', 'farwaniya', 'mubarak-al-kabeer', 'ahmadi', 'jahra'],
   sizes: ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', 'ONE'],
@@ -129,7 +129,7 @@ try {
 
   const inputs = await page.locator('.srl input[data-rule]').count()
   const chips = await page.locator('.srl input[data-list]').count()
-  check(inputs === 6, 'six numbers are editable', `found ${inputs}`)
+  check(inputs === 7, 'seven numbers are editable', `found ${inputs}`)
 
   // From the server, not from a list in the JavaScript.
   const allowed = await (await fetch(`${ADMIN}?r=rules`, {

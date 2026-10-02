@@ -2968,6 +2968,7 @@ if ($r === 'settings_save' && $method === 'POST') {
             'delivery_fee_fils'  => $int('delivery_fee_fils', 0, 50000),
             'free_delivery_fils' => $int('free_delivery_fils', 0, 1000000),
             'return_days'        => $int('return_days', 1, 365),
+            'outlet_discount_pct' => $int('outlet_discount_pct', 1, 90),
             'cod_open_max'       => $int('cod_open_max', 1, 50),
             'cod_max_fils'       => $int('cod_max_fils', 0, 10000000),
             'review_reward_pct'  => $reward,

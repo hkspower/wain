@@ -649,6 +649,7 @@ export type ShopRules = {
   /** 0 means no threshold — orders at or above this pay no delivery. */
   free_delivery_fils: number;
   return_days: number;
+  outlet_discount_pct: number;
   cod_open_max: number;
   review_reward_pct: number;
   discount_max_pct: number;

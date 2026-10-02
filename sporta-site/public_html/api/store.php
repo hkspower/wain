@@ -3034,6 +3034,10 @@ function store_rule_defaults(): array {
         // fils at or above which delivery costs nothing.
         'free_delivery_fils' => 0,
         'return_days'        => STORE_RETURN_DAYS,
+        // The "up to N% off" the Sporta Outlet tile and the shop's discount copy
+        // advertise. Copy only: what a customer is actually charged is decided by
+        // the discounts themselves, capped by discount_max_pct.
+        'outlet_discount_pct' => 60,
         'cod_open_max'       => STORE_COD_OPEN_MAX,
         // The largest order, in fils, that may be paid in cash on delivery.
         // 0 means no ceiling — the shop's behaviour today.
@@ -3096,6 +3100,7 @@ function store_rules_public(PDO $db): array {
         'delivery_fee_fils'  => (int) $r['delivery_fee_fils'],
         'free_delivery_fils' => (int) $r['free_delivery_fils'],
         'return_days'        => (int) $r['return_days'],
+        'outlet_discount_pct' => (int) $r['outlet_discount_pct'],
         'governorates'       => $r['governorates'],
         'sizes'              => $r['sizes'],
         'fits'               => $r['fits'],
