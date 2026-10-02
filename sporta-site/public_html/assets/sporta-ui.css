@@ -1817,3 +1817,24 @@ html[data-theme='dark'] .admin-shell .sbl-logo-none { font-size: 12px !important
     min-height: 44px !important;
   }
 }
+.app-header .sp-menubar {
+  display: flex; align-items: stretch; gap: 4px;
+  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
+  border-top: 1px solid rgba(255, 255, 255, .08);
+  padding: 0 8px !important;
+  justify-content: safe center;
+}
+.app-header .sp-menubar::-webkit-scrollbar { display: none; }
+.app-header .sp-menubar__link {
+  flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px;
+  font-size: 14px; font-weight: 700; white-space: nowrap; text-decoration: none;
+  color: rgba(255, 255, 255, .88);
+  border-bottom: 3px solid transparent;
+}
+.app-header .sp-menubar__link:hover { color: var(--brand-bright, #ff7b17); }
+.app-header .sp-menubar__link[aria-current='page'] {
+  color: #fff; border-bottom-color: var(--brand, #e0561c);
+}
+.app-header .sp-menubar__link:focus-visible { outline: 2px solid var(--brand-bright, #ff7b17); outline-offset: -2px; border-radius: 6px; }
+.app-header > div.border-t + .sp-menubar { border-top: 0; }
+.app-header.is-hidden { transform: none !important; }

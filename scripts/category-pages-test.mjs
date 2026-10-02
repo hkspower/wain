@@ -57,7 +57,13 @@ for (const slug of SLUGS) {
   // footer and empty-state fallbacks all cross-link the other three category
   // pages instead. A mutation restoring a /shop link would only be caught by
   // asserting its ABSENCE, not by checking for something else's presence.
-  check(!body.includes('href="/shop'), '/men does not link to /shop')
+  // THE ONE EXCEPTION, 2026-10-02: the menu bar under the top bar has an "All products" link
+  // (the owner chose it). Its markup is cut out first, so a /shop link ANYWHERE ELSE is still
+  // caught, and the bar's own link is asserted to be there.
+  const noMenu = body.replace(/<nav class="sp-menubar"[\s\S]*?<\/nav>/, '')
+  check(noMenu.length < body.length && body.includes('<nav class="sp-menubar"'), '/men has the menu bar')
+  check(/class="sp-menubar"[\s\S]*?href="\/shop"/.test(body), 'the menu bar links to /shop (All products)')
+  check(!noMenu.includes('href="/shop'), '/men does not link to /shop outside the menu bar')
 }
 
 // THE WHITELIST HOLDS. category.php reads $_GET['slug'] straight from the
@@ -79,7 +85,8 @@ for (const slug of SLUGS) {
   check(status === 200, '/outlet (currently empty) still answers 200')
   check(body.includes('class="cp-empty"') || /\d+ (product|منتج)/.test(body),
     '/outlet shows either an empty-state message or a real count, never neither')
-  check(!body.includes('href="/shop'), '/outlet\'s empty state does not fall back to /shop either')
+  check(!body.replace(/<nav class="sp-menubar"[\s\S]*?<\/nav>/, '').includes('href="/shop'),
+    '/outlet\'s empty state does not fall back to /shop either (the menu bar aside)')
   check(body.includes('href="/men') && body.includes('href="/women') && body.includes('href="/accessories'),
     "/outlet's empty state cross-links the other three categories instead")
 }

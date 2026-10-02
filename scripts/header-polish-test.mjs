@@ -121,7 +121,9 @@ for (const lang of ['en', 'ar']) {
   const want = 2.5 * rootPx
   check(h !== null && Math.abs(h - want) < 1,
     `${lang}: the logo renders at 2.5rem on desktop`, `got=${h}px want=${want.toFixed(1)}px`)
-  const bar = await page.evaluate(() => document.querySelector('header.app-header').getBoundingClientRect().height)
+  // The TOP BAR is the logo row. The header also holds the menu bar since 2026-10-02 (its own
+  // 46px row), so measuring the whole header would blame the top bar for the menu's height.
+  const bar = await page.evaluate(() => document.querySelector('header.app-header > nav:not(.sp-menubar)').getBoundingClientRect().height)
   check(bar <= 66, `${lang}: the desktop top bar is slim (was 97px)`, `${bar.toFixed(1)}px`)
   await page.close()
 }

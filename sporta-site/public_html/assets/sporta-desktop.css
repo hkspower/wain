@@ -621,3 +621,6 @@ html[data-theme] main section.sporta-home-products > h2.sporta-home-products__he
   margin: 10px auto 0 !important;
 }
 }
+@media (min-width: 768px) {
+  .app-header .sp-menubar__link { min-height: 46px; padding: 0 20px; font-size: 15px; }
+}

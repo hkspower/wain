@@ -1,0 +1,32 @@
+/* THE MENU BAR UNDER THE TOP BAR, 2026-10-02 (assets/menu-bar.js on the SPA pages, category.php on
+   the four category pages). It lives INSIDE the sticky .app-header, so the top bar and the menu
+   stay on screen together. On a phone the five links scroll sideways inside the bar (never the
+   page), 44px tall; from 768px they are centred. The current page is marked by a brand underline. */
+.app-header .sp-menubar {
+  display: flex; align-items: stretch; gap: 4px;
+  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
+  border-top: 1px solid rgba(255, 255, 255, .08);
+  padding: 0 8px !important;
+  justify-content: safe center;
+}
+.app-header .sp-menubar::-webkit-scrollbar { display: none; }
+.app-header .sp-menubar__link {
+  flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px;
+  font-size: 14px; font-weight: 700; white-space: nowrap; text-decoration: none;
+  color: rgba(255, 255, 255, .88);
+  border-bottom: 3px solid transparent;
+}
+.app-header .sp-menubar__link:hover { color: var(--brand-bright, #ff7b17); }
+.app-header .sp-menubar__link[aria-current='page'] {
+  color: #fff; border-bottom-color: var(--brand, #e0561c);
+}
+.app-header .sp-menubar__link:focus-visible { outline: 2px solid var(--brand-bright, #ff7b17); outline-offset: -2px; border-radius: 6px; }
+@media (min-width: 768px) {
+  .app-header .sp-menubar__link { min-height: 46px; padding: 0 20px; font-size: 15px; }
+}
+/* On the SPA pages the shop's own (hidden) menu row already draws the hairline above this bar. */
+.app-header > div.border-t + .sp-menubar { border-top: 0; }
+/* STICKY, ALWAYS. The bundle hides the header on scroll-down (`.is-hidden` slides it up by its own
+   height); the owner asked for the top bar and the menu to stay on screen together, so the slide
+   is cancelled and the class is left alone. */
+.app-header.is-hidden { transform: none !important; }

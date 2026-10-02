@@ -232,6 +232,23 @@ const SHOP_NO_PHOTO = 'data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2F
 
 /* Takes the SLUG, not a path: the slug is checked against CATS before anything is printed, so
    only a fixed value reaches this markup (test:xss-guard reads the echo that calls it). */
+/** The menu bar under the top bar (2026-10-02): the same five links as assets/menu-bar.js, drawn
+ *  here because these pages never run the SPA's overlays. It sits INSIDE the sticky header. */
+function shop_menubar(bool $isEn, string $slug): string {
+    $q = $isEn ? '?lang=en' : '';
+    $items = [
+        'men' => ['Men', 'رجالي'], 'women' => ['Women', 'نسائي'],
+        'accessories' => ['Accessories', 'إكسسوارات'], 'outlet' => ['Outlet', 'سبورتا أوتلت'],
+        'shop' => ['All products', 'كل المنتجات'],
+    ];
+    $out = '<nav class="sp-menubar" aria-label="' . ($isEn ? 'Shop menu' : 'قائمة المتجر') . '">';
+    foreach ($items as $s => $t) {
+        $out .= '<a class="sp-menubar__link" href="/' . $s . $q . '"' . ($s === $slug ? ' aria-current="page"' : '') . '>'
+              . e($isEn ? $t[0] : $t[1]) . '</a>';
+    }
+    return $out . '</nav>';
+}
+
 function shop_header(bool $isEn, string $slug): string {
     $switch = '/' . $slug . ($isEn ? '' : '?lang=en');
     $q = $isEn ? '?lang=en' : '';
@@ -253,7 +270,8 @@ function shop_header(bool $isEn, string $slug): string {
         . '</a></div></nav>'
         /* the shop's menu row is hidden by its CSS, but its 1px top border stays as the
            header's bottom hairline, so the row is kept empty here for the same line */
-        . '<div class="border-t border-white/5"></div></header>';
+        . shop_menubar($isEn, $slug)
+        . '</header>';
 }
 
 function shop_footer(bool $isEn): string {
@@ -432,8 +450,9 @@ header('Cache-Control: public, max-age=0, must-revalidate');
   <section class="cp-wrap mx-auto max-w-7xl px-4 py-12" style="padding-top:20px">
   <?php
   // Cross-link to the OTHER THREE category pages rather than to /shop —
-  // /shop is not linked anywhere on these four pages, per the owner's own
-  // instruction, so a fallback needs a real destination among the pages
+  // /shop is not linked from the page BODY on these four pages, per the owner's own
+  // instruction (the menu bar's "All products" link, added 2026-10-02 at the owner's
+  // request, is the one exception), so a fallback needs a real destination among the pages
   // that remain rather than a dead-end sentence.
   $otherLinks = '';
   foreach (CATS as $s => $c) {

@@ -65,14 +65,17 @@
   var COPY = {
     ar: {
       title: 'مميزات سبورتا',
-      returns: function (n) { return 'استبدال مجاني خلال ' + (n || '—') + ' يومًا' },
-      delivery: 'توصيل إلى جميع محافظات الكويت',
+      returns: function (n) { return 'استبدال مجاني خلال ' + (n ? String(n).replace(/[0-9]/g, function (d) { return '٠١٢٣٤٥٦٧٨٩'[+d] }) : '—') + ' يومًا' },
+      // FIXED "1 KWD", chosen by the owner 2026-10-02 over following the delivery fee in
+      // /backends. The space before د.ك is U+00A0 on purpose: rules-live.js rewrites the
+      // ordinary-space form to the fee rule, and this line must not follow it.
+      delivery: 'التوصيل ١\u00a0د.ك لجميع مناطق الكويت',
       authentic: 'منتجات أصلية 100%',
     },
     en: {
       title: 'Sporta features',
       returns: function (n) { return 'Free exchange within ' + (n || '—') + ' days' },
-      delivery: 'Delivery across every governorate of Kuwait',
+      delivery: 'Delivery 1\u00a0KWD to all Kuwait',
       authentic: '100% authentic products',
     },
   }
@@ -156,9 +159,22 @@
     title.textContent = c.title
     section.appendChild(title)
 
+    // THE PICTURE BESIDE THE THREE ROWS (owner, 2026-10-02). Decorative: the rows say it all.
+    var body = document.createElement('div')
+    body.className = 'sts-body'
+    var pic = document.createElement('img')
+    pic.className = 'sts-pic'
+    pic.src = '/assets/features.webp'
+    pic.alt = ''
+    pic.width = 1200
+    pic.height = 900
+    pic.loading = 'lazy'
+    pic.decoding = 'async'
+    body.appendChild(pic)
     var row = document.createElement('div')
     row.className = 'sts'
-    section.appendChild(row)
+    body.appendChild(row)
+    section.appendChild(body)
 
     var items = [
       ['returns', c.returns(days)],
@@ -199,7 +215,13 @@
       if (current) {
         /* Already placed for this render — only the language or the fetched
          * day count can go stale between renders. */
+        // Rebuilt ONLY when one of those two changed. It used to replace itself on every
+        // observer tick, which is itself a DOM change — so it re-triggered the observer for ever
+        // and re-created the picture each time.
+        var key = lang() + '|' + days
+        if (current.getAttribute('data-key') === key) return
         var fresh = build(days)
+        fresh.setAttribute('data-key', key)
         current.replaceWith(fresh)
         return
       }
@@ -212,19 +234,29 @@
       var brandStrip = document.querySelector('[data-sporta-brand-strip]')
       var anchor = brandStrip && brandStrip.parentNode ? brandStrip : hero2
       var section = build(days)
+      section.setAttribute('data-key', lang() + '|' + days)
       anchor.parentNode.insertBefore(section, anchor.nextSibling)
     })
   }
 
   var CSS =
-    '.sts-wrap{margin:0 auto;max-width:1280px;padding:28px 16px 0;}' +
-    '.sts-title{margin:0 0 16px;text-align:center;font-size:20px;font-weight:800;color:#fff;}' +
-    '.sts{display:flex;flex-wrap:wrap;justify-content:center;gap:32px;' +
-    'margin:0 auto;max-width:1280px;padding:0 0 28px;}' +
-    '.sts-item{display:flex;align-items:center;gap:10px;max-width:280px;}' +
-    '.sts-icon{flex:none;width:28px;height:28px;color:var(--brand,#e0561c);}' +
+    '.sts-wrap{margin:0 auto;max-width:1280px;padding:28px 16px 28px;}' +
+    // Colours are the page's TOKENS, not literals: this section sits in <main>, whose white body
+    // redefines them (65-white-body.css); a literal #fff title was white on white.
+    '.sts-title{position:relative;margin:0 0 22px;padding-bottom:14px;text-align:center;font-family:Alexandria,\'IBM Plex Sans Arabic\',system-ui,sans-serif;' +
+    'font-size:21px;font-weight:700;line-height:1.3;color:var(--sp-text,#171a1e);}' +
+    '.sts-title::after{content:"";position:absolute;bottom:0;left:50%;width:48px;height:4px;margin-left:-24px;border-radius:2px;background:var(--brand,#e0561c);}' +
+    '.sts-body{display:grid;grid-template-columns:1fr;gap:20px;align-items:center;}' +
+    '.sts-pic{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;border-radius:16px;}' +
+    '.sts{display:flex;flex-direction:column;gap:12px;margin:0;padding:0;}' +
+    '.sts-item{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:14px;' +
+    'border:1px solid var(--sp-line,#d9dde2);background:var(--sp-panel,#f4f5f6);color:var(--sp-text,#171a1e);}' +
+    '.sts-icon{flex:none;width:30px;height:30px;color:var(--brand,#e0561c);}' +
     '.sts-icon svg{width:100%;height:100%;}' +
-    '.sts-text{margin:0;font-size:14px;font-weight:600;color:inherit;}'
+    '.sts-text{margin:0;font-size:15px;font-weight:600;color:inherit;}' +
+    '@media(min-width:768px){.sts-wrap{padding:36px 24px 36px;}.sts-title{font-size:26px;}' +
+    '.sts-body{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px;}' +
+    '.sts-item{padding:18px 20px;}.sts-text{font-size:16px;}}'
 
   function style() {
     if (document.getElementById('sts-css')) return
