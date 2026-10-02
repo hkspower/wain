@@ -50,7 +50,7 @@ window.measurePlaces = () =>
       x: +b.x.toFixed(2), y: +b.y.toFixed(2),
       w: +b.width.toFixed(2), h: +b.height.toFixed(2),
       nodes: svg.querySelectorAll("*").length,
-      tinted: svg.querySelectorAll('[fill-opacity="0.14"]').length,
+      tinted: svg.querySelectorAll("[fill-opacity]").length,
     };
   });
 

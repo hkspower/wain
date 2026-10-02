@@ -1,7 +1,10 @@
 # The icon set
 
-30 icons in `src/components/icons.tsx`, all on a 24-unit grid with 1.8px
-rounded strokes and an optional duotone wash at 15%.
+33 icons in `src/components/icons.tsx`, all on a 24-unit grid with 1.5px
+rounded strokes and no fill — a clean outline since 2 October. IconStar and
+IconPinSolid stay solid: a rating and a selected pin are read by their fill.
+The 52 place marks in `PlaceIcon.tsx` went outline-only the same day, and
+`audit:place-icons` now flags a tint instead of asking for one.
 
 ```
 npm run audit:icons
@@ -10,7 +13,7 @@ npm run audit:icons
 Renders every icon in a browser, measures where each one actually sits on the
 grid, and writes a contact sheet to `docs/icons.png`.
 
-## One path, not two
+## One path, not two (history — the wash is gone)
 
 The wash used to be a second copy of the same path stacked underneath the
 outline — the same `d` string written out twice, once filled and once stroked.
@@ -24,9 +27,11 @@ carry a 15% fill *and* a full-strength stroke. Same picture, and:
 That second point was not hypothetical. IconPalm's wash had ended up 0.6 units
 off its own outline and the icon rendered as a smear.
 
-`wash` remains for the genuine cases where the filled shape is not the stroked
-one: a knife blade whose handle continues past it, a car roof that must not be
-stroked along the line where it meets the body.
+When the wash went, two shapes turned out to have been closed by their fill
+alone: the knife's blade (its straight edge was never stroked) and the
+dishdasha place mark (one outline and a placket). The blade is a closed path
+now and the robe has cuffs. Any fill that comes back should be checked the
+same way — take it off and look at what is left.
 
 ## What the audit measures, and why
 

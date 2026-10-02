@@ -97,8 +97,9 @@ for (const r of bespoke) {
   // Past about nine elements a 48-grid mark stops resolving at 16px.
   if (r.nodes > 14) flags.push(`${r.nodes} nodes — likely a blob at 16px`);
   if (r.nodes < 3) flags.push(`only ${r.nodes} nodes — thinner than the family`);
-  // A mark with no tint reads as a wireframe beside its neighbours.
-  if (r.tinted === 0) flags.push("no volume tint");
+  // The family is outline-only since 2 October (the UI set lost its wash the
+  // same day). A tint left on one mark makes it the odd one out on a card row.
+  if (r.tinted > 0) flags.push(`${r.tinted} tinted node(s) — the set is outline-only`);
   if (flags.length) problems.push(`${r.slug}: ${flags.join("; ")}`);
   console.log(
     `${r.slug.padEnd(34)} ${String(r.nodes).padStart(4)}  ${String(r.tinted).padStart(4)}   ` +
@@ -111,7 +112,7 @@ for (const p of problems) console.log(`  ⚠ ${p}`);
 console.log(
   problems.length
     ? `\n${problems.length} thing(s) to look at. Contact sheet: docs/place-icons.png`
-    : "\nEvery drawn mark sits in the frame and carries a tint. Contact sheet: docs/place-icons.png"
+    : "\nEvery drawn mark sits in the frame and is a clean outline. Contact sheet: docs/place-icons.png"
 );
 // Falling back is a coverage gap, not a defect — it is reported, never fatal.
 process.exit(0);
