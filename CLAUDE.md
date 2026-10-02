@@ -711,6 +711,50 @@ on a Mac, and one look at the map with tiles would close all of it.
 one store listing. The same warning as there applies: it is fixed at the first
 upload.
 
+## The 2 October deploys, second and third — `4b96415c` is live: the picture hero
+
+What shipped since `898657bc`: the home hero as the owner's picture (see «The
+home hero is the owner's picture now» below) and the typed chat's voice-tag
+strip. Two deploys, because reading the first through the edge found a fault
+no check here could have seen.
+
+**`b6ca80ee`**, job `0CLkl1bS9P`: `{"ok":true,"deployed":267,"removed":0,
+"emptied":0}` at 09:04:01 — **the second firing again**; the disk had only
+`b6ca80ee…/` under `_next/static/`, so the first had pruned. `deploy:verify`:
+«b6ca80ee is live — verified at the root and 6 levels below it».
+
+**Then the edge said the AVIF was text.** A cron `wget -S --spider` of
+`/home/hero-…-1080.avif` after the purge: `200`, **`Content-Type: text/plain`**,
+an ETag ending `;gz` (compressed as text) and an `Expires` of one hour — the
+host's default for a type it does not know. The `.webp` beside it was
+`image/webp`, 67,628 bytes, a week. Browsers sniff images and most would have
+drawn it anyway, but under `nosniff` that is not something to rest the first
+thing on the home page on. `public/.htaccess` types `.avif` and `.webp` itself
+now (plus `ExpiresByType`), and **`audit:htaccess` fails when the export ships
+an extension that is neither one Apache has always typed nor `AddType`d** —
+proved red by deleting the avif line. **A file on disk is not a file served
+correctly: read the headers through the edge for any new kind of file.**
+
+**`4b96415c`**, job `joQwhaUhXt`, read at its FIRST firing:
+`{"ok":true,"deployed":267,"removed":2,"emptied":1,"at":"2026-10-02T09:40:02"}`
+— the previous build-id directory's two files. `deploy:verify`: «4b96415c is
+live — verified at the root and 6 levels below it» (`build.json` `4b96415c…` /
+`ad524a91c13a676b`, the stylesheet `2c73318076ed7aa0.css` 95,899, the /search
+chunk 25,684, `explore/` 18,699, a place page 62,918, `.htaccess` 21,720 with the
+AddType lines read back, the hero AVIF 31,144 and WebP 67,628). After the purge,
+through the edge: **`Content-Type: image/avif`, `Content-Length: 31144`**, a
+week's cache. Both archives are permanent blobs (`5e8f8c3`, `28d1053`), with
+`DEPLOY_SECRET` still unset.
+
+**Two other sessions' jobs passed through the crontab** — `HLWjyuUZD9`
+(`publish-all.php`, sporta's) and `1S4Olfa0cU` (`htaccess_install.sh` from
+`origin/almuhallab-code`, which writes only under `domains/almuhallab-code.com`,
+read before reacting). Both left alone; both gone by the end, which held
+sporta's eight and nothing else.
+
+**Not measured**: the hero on a real phone, and Safari's choice between the AVIF
+and the WebP.
+
 ## The 2 October deploy — `898657bc` is live
 
 What shipped since `c9f1e28`: سالم's chat (a source name the server knows,
@@ -3334,8 +3378,8 @@ picture, so the page's `<h1>` and line are `sr-only`.
   taps the sun; proved red by moving the sun 10px and, separately, the label.
 
 **Not verified**: a real phone (the label's size, the pulse ring over the
-towers), the AVIF on an older iPhone (WebP is the fallback, `<img>` is WebP),
-and the live site until the deploy below.
+towers), and the AVIF on an older iPhone (WebP is the fallback, `<img>` is
+WebP). It is live — see «The 2 October deploys, second and third» above.
 
 ## The home hero's towers are 1.3× taller, and the canvas grew to hold them — 30 September
 
