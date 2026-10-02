@@ -5085,7 +5085,18 @@ record_use, meta, petitparser, vector_math underneath. **Held, on purpose**:
 `cupertino_icons` 1.x. Everything else `pub outdated` lists is pinned by the
 SDK itself (material_color_utilities, test_api, xml, cross_file, cli_util),
 so it moves only with a newer Flutter. Here: analyze clean, 557 tests,
-`audit:flutter` current, `scan` exit 0. CI at `2f66e234`: see below.
+`audit:flutter` current, `scan` exit 0.
+
+**CI at `2f66e234`, both dispatched 19:19 UTC.** `flutter-ci` run 37053337609
+green end to end on 3.47.6: `verify` (analyze, tests, web build), `build-ios`
+(no-codesign, 2m35s) and BOTH simulators — iPhone 17 Pro and 17e, 7 of 7
+flows each, the 17e on its first attempt; TestFlight skipped (no Apple
+secrets). `android-flutter` run 37053332885: `build-debug` green — debug and
+sideload APKs uploaded — `build-release` skipped (no keystore), and the
+`android-emulator` job still inside «Run the device suite» 45 minutes after it
+started, the same hang as every run since `6c70c9d6`. **The emulator hang is
+not this upgrade's**: it predates it and the APK and iOS builds are the
+upgrade's result. Not investigated here; it is its own task.
 
 ## Style
 
