@@ -5098,6 +5098,20 @@ started, the same hang as every run since `6c70c9d6`. **The emulator hang is
 not this upgrade's**: it predates it and the APK and iOS builds are the
 upgrade's result. Not investigated here; it is its own task.
 
+**How it ended, read at 20:55**: cancelled at 20:19:23, the device-suite step
+at its cap. The last test line is `VMServiceFlutterDriver: request_data message
+is taking a long time to complete...` at 19:27:11, two minutes in, then nothing
+for 52 minutes; the `android-emulator` artifact is 2,022 bytes — the drive log
+and no screenshots, so not one flow reported. Cleanup killed
+`qemu-system-x86_64-headless`, `adb` and `dart:integratio`: the emulator and
+the test app were alive and the driver never got a result. That is the iOS
+hang's **symptom** of 1 October, not proof of its cause (the binding is already
+initialised first in `main()`), and a different shape from run 36933669250's
+crash (ANR, «device offline») — so the `6c70c9d6` settings did keep the
+emulator up. Not re-dispatched; the next step is `flutter drive --verbose` and
+an `adb logcat` dump as their own bounded steps, so the log says whether the
+app started, the binding installed and the first flow ran.
+
 ## Style
 
 No redesigns beyond what is asked for. Fix the current theme. Comments in this codebase explain *why*
