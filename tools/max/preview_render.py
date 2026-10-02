@@ -146,8 +146,11 @@ def preview(pack):
         n = args.frames or tt["frames"]
         t0 = time.time()
         for i in range(n):
+            frame = os.path.abspath(os.path.join(out, "turntable", "%04d.exr" % (i + 1)))
+            if args.skip_existing and os.path.exists(frame):
+                continue  # resume an interrupted turntable
             pivot.rotation_euler = (0, 0, 2 * math.pi * i / tt["frames"])
-            render(sc, os.path.abspath(os.path.join(out, "turntable", "%04d.exr" % (i + 1))), w, h, args.tt_samples)
+            render(sc, frame, w, h, args.tt_samples)
             if i % 10 == 0:
                 el = time.time() - t0
                 print(f"[preview] turntable {i + 1}/{n}, ~{el / (i + 1) * (n - i - 1) / 60:.0f} min left", flush=True)
