@@ -4,7 +4,7 @@
  *
  * The hero is one picture (brand-source/home-hero.png, shipped by
  * gen-home-hero.mjs) with two controls placed on it in its own coordinates:
- * the sun is the link to /find and carries «إلى وين؟ / ابحث». Nothing else
+ * the sun is the link to /find and carries «إلى وين؟ / ابدأ». Nothing else
  * goes on it: «دوّر باسم المكان» sat on the sea for a day and was moved to a
  * row under the picture on request. Placing things on a picture is a promise about
  * pixels the layout code never sees — that the label is on the yellow of the
@@ -26,10 +26,10 @@
  *      section and the screen, and actually loaded.
  *   4. The sun link is a circle on the picture's sun: centre and diameter
  *      within SUN_TOL_PX of the disc's, measured in the master.
- *   5. The label («إلى وين؟» and «ابحث») lies on the disc: at least
+ *   5. The label («إلى وين؟» and «ابدأ») lies on the disc: at least
  *      ON_SUN_MIN of the master's pixels under each box are the disc's yellow.
  *   6. The way to /search is under the picture, not on it, and on screen.
- *   7. Nothing is too small to read or tap: «ابحث» at the 11px floor, the sun
+ *   7. Nothing is too small to read or tap: «ابدأ» at the 11px floor, the sun
  *      no smaller than SUN_MIN_PX.
  *   8. Text drawn straight on the picture reads against the pixels under it
  *      (WCAG AA). audit:color cannot do this one: it reads backgrounds from
@@ -155,9 +155,7 @@ for (const [width, height] of VIEWPORTS) {
       labels: spans.map((s) => {
         const cs = getComputedStyle(s);
         return { text: s.textContent.trim(), box: box(s), font: parseFloat(cs.fontSize), weight: parseInt(cs.fontWeight, 10),
-          color: cs.color, ownBg: cs.backgroundColor !== "rgba(0, 0, 0, 0)",
-          stroke: parseFloat(cs.webkitTextStrokeWidth) || 0, strokeColor: cs.webkitTextStrokeColor,
-          strokeUnder: (cs.paintOrder || "").startsWith("stroke") };
+          color: cs.color, ownBg: cs.backgroundColor !== "rgba(0, 0, 0, 0)" };
       }),
       pill: pill && box(pill),
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -196,24 +194,14 @@ for (const [width, height] of VIEWPORTS) {
       say(`${where}: the sun link is not on the sun — centre (${cx.toFixed(0)}, ${cy.toFixed(0)}) ⌀${d.toFixed(0)} in the master, the disc is (${G.sun.cx}, ${G.sun.cy}) ⌀${2 * G.sun.r}`);
     if (m.sun.w < SUN_MIN_PX) say(`${where}: the sun is ${Math.round(m.sun.w)}px — under ${SUN_MIN_PX}px it stops being the page's main control`);
   }
-  if (m.labels.length < 2) say(`${where}: the sun carries ${m.labels.length} label(s), expected «إلى وين؟» and «ابحث»`);
+  if (m.labels.length < 2) say(`${where}: the sun carries ${m.labels.length} label(s), expected «إلى وين؟» and «ابدأ»`);
   for (const l of m.labels) {
     const on = share(toMaster(l.box), isSun);
     if (on < ON_SUN_MIN) say(`${where}: «${l.text}» is ${(on * 100).toFixed(0)}% on the sun's yellow — it reaches past the disc or over a tower`);
     if (l.font < FLOOR_PX - 0.05) say(`${where}: «${l.text}» is ${l.font.toFixed(1)}px — under the ${FLOOR_PX}px floor`);
-    const fg = l.color.match(/\d+/g).slice(0, 3).map(Number);
-    // Outlined text (the title since 2 October: white with an ink outline
-    // painted under the fill) is read against its outline, which is what
-    // touches every letter's edge — but only a real outline counts, at least
-    // a tenth of the size and under the fill. Without it this falls through
-    // to the picture, where white on the sun's yellow is 1.4:1.
-    const outlined = l.stroke >= Math.max(1.5, l.font * 0.1) && l.strokeUnder;
-    if (outlined) {
-      const need = l.font >= 24 || (l.font >= 18.66 && l.weight >= 700) ? 3 : 4.5;
-      const c = contrast(fg, l.strokeColor.match(/\d+/g).slice(0, 3).map(Number));
-      if (c < need) say(`${where}: «${l.text}» is ${c.toFixed(2)}:1 against its own outline — needs ${need}`);
-    } else if (!l.ownBg) {
+    if (!l.ownBg) {
       // Against the darkest and the lightest pixel under it: the worst case.
+      const fg = l.color.match(/\d+/g).slice(0, 3).map(Number);
       const b = toMaster(l.box);
       let worst = Infinity;
       for (let y = Math.round(b.y0); y < b.y1; y += 2)

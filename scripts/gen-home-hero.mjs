@@ -44,7 +44,7 @@ const DART_OUT = join(ROOT, "flutter_app/lib/data/home_hero.g.dart");
  *
  * LABEL: the part of the disc nothing stands in front of — right of the
  * Liberation Tower's pod (it ends at x 270), left of the big sphere (x 662) and
- * the lower one (x 695), above the city (y 1150). «إلى وين؟» and «ابحث» go
+ * the lower one (x 695), above the city (y 1150). «إلى وين؟» and «ابدأ» go
  * here and nowhere else; audit:home-hero samples the master under them and
  * requires the disc's own yellow.
  *

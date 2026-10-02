@@ -160,7 +160,7 @@ void main() {
     await pumpAt(t, '/');
     // «make sun main hero with less text»: the question and one action.
     expect(find.text('إلى وين؟'), findsOneWidget);
-    expect(find.text('ابحث'), findsOneWidget);
+    expect(find.text('ابدأ'), findsOneWidget);
     expect(find.text('اضغط ودوّر حواليك'), findsNothing);
     expect(find.text('اكتب أو كلّم شوق'), findsNothing);
     // The tab bar's «بحث» is the way to search; the home no longer draws a
@@ -207,7 +207,7 @@ void main() {
           img.left + kHomeHeroLabel.right * img.width,
           img.top + kHomeHeroLabel.bottom * img.height,
         ).inflate(0.5);
-        for (final text in ['إلى وين؟', 'ابحث']) {
+        for (final text in ['إلى وين؟', 'ابدأ']) {
           final r = t.getRect(find.text(text));
           expect(
             zone.contains(r.topLeft) && zone.contains(r.bottomRight),
@@ -309,7 +309,7 @@ void _backSwipeTests() {
     debugTileUrl = '';
     addTearDown(() => debugTileUrl = null);
     await pumpAt(t, '/');
-    await t.tap(find.text('ابحث'));
+    await t.tap(find.text('ابدأ'));
     await t.pumpAndSettle(const Duration(milliseconds: 100));
     expect(find.text('إلى وين؟'), findsNothing);
     await swipeBack(t);

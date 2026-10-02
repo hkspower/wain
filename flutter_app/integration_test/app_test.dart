@@ -90,7 +90,7 @@ void main() {
   ) async {
     await launch(t);
     expect(find.text('إلى وين؟'), findsOneWidget);
-    expect(find.text('ابحث'), findsOneWidget);
+    expect(find.text('ابدأ'), findsOneWidget);
     expect(find.text('استكشف'), findsWidgets);
     expect(find.text('بحث'), findsWidgets);
     await shot('01-home');
@@ -98,7 +98,7 @@ void main() {
 
   testWidgets('the dial opens /find: شوق on a phone, one big call', (t) async {
     await launch(t);
-    await t.tap(find.text('ابحث'));
+    await t.tap(find.text('ابدأ'));
     await waitFor(t, find.byKey(const ValueKey('find-call')));
     expect(find.byKey(const ValueKey('find-phone')), findsOneWidget);
     // The one call, on the phone — found, never tapped (see the header).
@@ -125,7 +125,7 @@ void main() {
     t,
   ) async {
     await launch(t);
-    await t.tap(find.text('ابحث'));
+    await t.tap(find.text('ابدأ'));
     await waitFor(t, find.byKey(const ValueKey('find-type')));
     final start = find.descendant(
       of: find.byKey(const ValueKey('find-type')),

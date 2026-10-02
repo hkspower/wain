@@ -222,34 +222,19 @@ html[data-standalone="true"] body {
    which is the whole screen's width on a phone and about half a laptop
    screen's height on a desktop. A type-scale step would put the label on the
    disc at one size and the disc at another; these grow with the drawing they
-   are written on, and stop at the scale's floor (11px for «ابحث») rather
+   are written on, and stop at the scale's floor (11px for «ابدأ») rather
    than going under it on a short landscape screen.
    --------------------------------------------------------------------------- */
 .home-hero {
   container-type: inline-size;
 }
-/* White on the sun, on request (2 October). White on that yellow is 1.4:1,
-   so the letters carry an ink outline — painted under the fill
-   (paint-order), so the visible edge is 0.08em of ink around a full-weight
-   white letter — and an ink offset beneath them like the picture's own drawn
-   shadows. audit:home-hero measures such text against its outline, and fails
-   it if the outline goes. */
 .home-hero-title {
   font-size: max(1.25rem, 6.2cqw);
   line-height: 1.3;
-  color: #fff;
-  -webkit-text-stroke: 0.16em var(--color-ink-900);
-  paint-order: stroke fill;
-  text-shadow:
-    0 0.1em 0 var(--color-ink-900),
-    0 0.2em 0.5em rgb(20 18 15 / 0.3);
 }
 .home-hero-go {
   font-size: max(0.6875rem, 3.4cqw);
   padding: 1.2cqw 4.8cqw;
-  box-shadow:
-    0 0 0 0.12em var(--color-ink-900),
-    0 0.22em 0 var(--color-ink-900);
 }
 /* From `sm` the picture is narrower than the screen and the section's bands
    carry its edges out to the sides; the sides are faded into them so that a
