@@ -247,6 +247,20 @@ console.log('\n── the sheet sits where it can be read and dismissed ──')
       `left ${box.left} right ${box.right} vs vw ${box.vw}`);
     ok(`${where}: and the bottom edge, tab bar included`, box.bottom === box.vh,
       `bottom ${box.bottom} vs vh ${box.vh}`);
+    // Covering the tab bar's area is not the same as being OVER it: the
+    // sheet and the bar were both z-50 and the bar is mounted after the
+    // sheet, so in the installed app the bar painted over the foot of the
+    // call. Measured where the bar is: what a finger finds there must be
+    // the sheet. (A first version tested the hang-up's own centre, which sat
+    // just above the bar, and passed against the bug — so it tests the bar.)
+    const hit = await p.evaluate(() => {
+      const bar = document.querySelector('nav.app-chrome');
+      if (!bar || getComputedStyle(bar).display === 'none') return 'no bar shown';
+      const r = bar.getBoundingClientRect();
+      const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return document.querySelector('#wain-ai-panel')?.contains(at) ? 'sheet' : (at?.closest('nav') ? 'tab bar' : at?.tagName ?? 'nothing');
+    });
+    if (installed) ok(`${where}: where the tab bar is, a finger finds the call, not the bar`, hit === 'sheet', hit);
   }
   await ctx.close();
 }
@@ -446,15 +460,17 @@ console.log('\n── شوق has a face, and it is alive ──');
   const { ctx, p } = await fresh({ stayOpen: true });
   await p.goto(B + '/find/', { waitUntil: 'networkidle' });
 
-  // This read the small launcher in the /search box: a handset with voice
-  // arcs, still at rest and sounding while she spoke. That button is gone
-  // (1 October, one way to call her), and the one left is /find's large one,
-  // which is her photo filling the circle — see ShouqCallButton's lg branch.
-  // So: it is her photo, it is not the old handset, and at rest it is still.
+  // This read the small launcher in the /search box (a handset with voice
+  // arcs), then — from 1 October — /find's portrait button, her photo filling
+  // the circle. Since 2 October (on request: one big call button on a drawn
+  // phone) her photo is on the PHONE'S SCREEN and the button is a phone's
+  // call button: a handset, no photo, no arcs. At rest it is still.
   const launcher = fab(p);
-  ok('the one launcher is her photo, not the old handset',
-    (await launcher.locator('img[src*="shouq-face"]').count()) === 1 &&
-    (await launcher.locator('[data-part="waves"]').count()) === 0);
+  ok('the one launcher is a call button on the phone, her photo on the screen above it',
+    (await launcher.locator('img').count()) === 0 &&
+    (await launcher.locator('svg').count()) === 1 &&
+    (await launcher.locator('[data-part="waves"]').count()) === 0 &&
+    (await p.locator('[data-phone] img[src*="shouq-face"]').count()) === 1);
   ok('and it is still while nothing is happening: no ring pulse',
     (await launcher.locator('.animate-ping').count()) === 0);
 

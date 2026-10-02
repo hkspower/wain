@@ -90,85 +90,72 @@ export default function FindChoice() {
   return (
     <div className="relative" data-moment={moment.part}>
       {/* ---------- شوق: the call ---------- */}
+      {/* A phone, and one button on it — on request, 2 October («one call
+          icon, big, at the centre, a big mobile with "call"»; the design is
+          the canvas «وين — مكالمة شوق الكبيرة»). It replaced her full-bleed
+          photo with a scrim and a small round portrait button: a page whose
+          one job is to place a call should look like the screen you place a
+          call from. Her photo moved onto the phone's screen, so the button
+          can be what every phone's call button is — green, round, a handset
+          — and «اتصال» sits under it as the label it is.
+
+          The phone is markup, not a picture: no new asset to ship or cache,
+          and the button inside it is the real ShouqCallButton (the gesture
+          has to reach primeAudio — see that component). Light ground, so the
+          seam into سالم's dark half below is the one strong edge. */}
       <section
         aria-label="اتصال"
-        className="relative flex min-h-[50vh] items-center justify-center overflow-hidden bg-ink-900 px-4 pb-20 pt-10 [clip-path:polygon(0_0,100%_0,100%_calc(100%_-_40px),0_100%)] sm:pb-24 sm:pt-14"
+        className="relative flex flex-col items-center gap-4 overflow-hidden bg-sun-50 px-4 pb-24 pt-8 text-center [clip-path:polygon(0_0,100%_0,100%_calc(100%_-_40px),0_100%)] sm:gap-5 sm:pb-28 sm:pt-12"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}
-        <img
-          src="/find/shouq.jpg"
-          alt=""
-          aria-hidden="true"
-          width={1280}
-          height={720}
-          loading="eager"
-          decoding="async"
-          className="animate-kb-a absolute inset-0 size-full object-cover object-[34%_20%] sm:object-[12%_40%]"
-        />
-        {/* Bottom-weighted so the photo still reads at the top; the content
-            stack sits vertically centered, which is already inside the
-            strong part of this gradient. */}
+        <span className="animate-reveal-up inline-flex items-center gap-2 rounded-full bg-sun-100 px-3.5 py-1.5 text-sm font-semibold text-sun-900 [animation-delay:80ms]">
+          {WAIN_AI_COPY.role}
+        </span>
+        <h2 className="animate-reveal-up font-display text-3xl font-bold text-ink-900 [animation-delay:160ms] sm:text-4xl">
+          كلّم {WAIN_AI_COPY.name}
+        </h2>
+
+        {/* The handset. Fixed proportions (a phone is ~1:2) and a size that
+            leaves the greeting and the seam on a 568px screen. */}
         <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-gradient-to-b from-ink-900/10 via-ink-900/40 to-ink-900/65"
-        />
-        <div className="relative isolate mx-auto flex max-w-sm flex-col items-center gap-4 text-center">
-          {/* The shade is under the words only — an ellipse that fades to
-              nothing well inside the photo — so the face and the sky keep
-              their light. Measured: without it the headline sat at 1.4:1
-              over the bright part of the picture. */}
-          <span aria-hidden="true" className="pointer-events-none absolute -inset-x-12 -inset-y-10 -z-10 bg-[radial-gradient(closest-side,rgb(20_18_15/0.62),rgb(20_18_15/0.35)_60%,transparent)]" />
-          {/* A pill, not bare text — bare text at this weight read as loose
-              on the gradient, one more label floating with nothing to hold
-              it. The pill vocabulary is already the site's own (the tag
-              chips, the category rail's counts). The equalizer beside it
-              names her as a VOICE the same way the kicker's words do. */}
-          <span className="animate-reveal-up inline-flex items-center gap-2 rounded-full bg-white/90 px-3.5 py-1.5 text-sm font-semibold text-sun-900 [animation-delay:80ms]">
-            {WAIN_AI_COPY.role}
-            <span aria-hidden="true" className="inline-flex h-3.5 items-end gap-[3px] text-sun-600">
-              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "0.9s" }} />
-              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "1.25s", animationDelay: "-0.4s" }} />
-              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "0.7s", animationDelay: "-0.1s" }} />
-              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "1.1s", animationDelay: "-0.7s" }} />
-              <i className="eq-bar w-[3px] rounded-full bg-current" style={{ height: "100%", animationDuration: "0.8s", animationDelay: "-0.3s" }} />
+          data-phone=""
+          className="animate-reveal-up w-56 rounded-[2.75rem] bg-ink-900 p-3 shadow-xl shadow-ink-900/25 [animation-delay:240ms] sm:w-64"
+        >
+          <div className="flex aspect-[9/17] flex-col items-center gap-2 rounded-[2.1rem] bg-white px-4 pb-6 pt-3.5">
+            <span aria-hidden="true" className="h-5 w-[4.5rem] rounded-full bg-ink-900" />
+            {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimiser */}
+            <img
+              src="/find/shouq-face.jpg"
+              alt=""
+              aria-hidden="true"
+              width={320}
+              height={320}
+              loading="eager"
+              decoding="async"
+              className="mt-4 size-24 rounded-full object-cover sm:size-28"
+            />
+            <span className="font-display text-2xl font-bold text-ink-900">{WAIN_AI_COPY.name}</span>
+            <span className="text-sm text-ink-600">{WAIN_AI_COPY.phoneLine}</span>
+            <span className="flex-1" />
+            <ShouqCallButton size="call" onTapped={() => router.push("/search")} />
+            <span aria-hidden="true" className="font-display text-xl font-bold text-palm-700">
+              اتصال
             </span>
-          </span>
-          {/* «اتصال» rather than «كلّم شوق» — her name and role are already
-              said, by the pill above and the greeting below; this is now a
-              short label naming what the button DOES (place a call), the
-              same register a phone app's own call screen uses, not a second
-              sentence repeating what the section is already labelled. */}
-          <h2 className="text-on-photo animate-reveal-up font-display text-4xl font-bold text-sun-300 [animation-delay:180ms] sm:text-5xl">
-            اتصال
-          </h2>
-          {/* text-pretty so the last line never strands one short word on its
-              own — «وأدلّك.» was doing exactly that before this. */}
-          <p className="text-on-photo animate-reveal-up text-pretty text-base leading-relaxed text-white [animation-delay:280ms]">
-            {findGreeting(WAIN_AI_COPY.name, moment)}
-          </p>
-          <div className="animate-reveal-up mt-1 flex flex-col items-center gap-2 [animation-delay:380ms]">
-            <ShouqCallButton size="lg" onTapped={() => router.push("/search")} />
-            {/* White with text-on-photo: sand-200 was chosen against the old
-                dark scrim and the lighter one leaves it too little contrast. */}
-            <span className="text-on-photo text-sm font-semibold text-white">{WAIN_AI_COPY.callHint}</span>
           </div>
         </div>
+
+        {/* The first paragraph of this half is the greeting — find.test reads
+            it as such — and it says what the call is for, at this hour. */}
+        <p className="animate-reveal-up max-w-xs text-pretty text-base leading-relaxed text-ink-700 [animation-delay:320ms]">
+          {findGreeting(WAIN_AI_COPY.name, moment)}
+        </p>
       </section>
 
-      {/* The seam badge. Positioned at the WRAPPER's own vertical centre
-          rather than at the cut's exact pixel offset above — both halves
-          are the same `min-h-[50vh]`, so the two are the same value to a
-          few pixels, and centring on the wrapper means this never has to
-          be re-tuned if the cut's own depth changes. `animate-badge-pop` is
-          what /find's old seam pill used before it was removed (see
-          page.tsx's comment). aria-hidden for
-          the same reason the pill was: the two halves already say what
-          they are, this only echoes the seam between them. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 justify-center"
-      >
-        <span className="animate-badge-pop grid size-11 place-items-center rounded-full bg-white text-sm font-bold text-ink-900 ring-1 ring-ink-900/10">
+      {/* The seam badge, on the seam itself: the call half is no longer a
+          fixed 50vh, so «the wrapper's middle» stopped being the seam. It
+          sits where سالم's half starts, pulled up by half its own height
+          plus the 20px midpoint of the diagonal overlap. */}
+      <div aria-hidden="true" className="pointer-events-none relative z-20 flex h-0 justify-center">
+        <span className="animate-badge-pop grid size-11 shrink-0 -translate-y-[calc(50%+20px)] place-items-center rounded-full bg-white text-sm font-bold text-ink-900 ring-1 ring-ink-900/10">
           أو
         </span>
       </div>

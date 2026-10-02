@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { IconCall } from "@/components/icons";
+import { IconCall, IconPhone } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
 import { primeAudio } from "@/lib/voice";
 import { WAIN_AI_COPY } from "@/lib/wain-ai";
@@ -38,9 +38,12 @@ export default function ShouqCallButton({
    * "lg" for a standalone choice (the /find page, one of two equal options).
    * Everywhere else this sits inline beside other text at its original
    * size-8, and that sizing stays the default so nothing already shipping
-   * has to change.
+   * has to change. "call" is /find's since 2 October: a big green round
+   * button with a handset, the one thing to press on the phone drawn around
+   * it (FindChoice) — her photo is on that phone's screen, so the button can
+   * be what every phone's call button is.
    */
-  size?: "sm" | "lg";
+  size?: "sm" | "lg" | "call";
   /**
    * Run synchronously right after the call is requested — for a surface that
    * has to get out of the way.
@@ -142,7 +145,14 @@ export default function ShouqCallButton({
       onFocus={preload}
       onPointerDown={arm}
       onTouchStart={arm}
-      aria-label={labelledBy ? undefined : `${WAIN_AI_COPY.launcher} — ${WAIN_AI_COPY.callHint}`}
+      // The "call" button has «اتصال» printed under it, so its name starts with
+      // that word: a name that leaves out the visible label is the one a
+      // voice-control user cannot say («اضغط اتصال» has to find it).
+      aria-label={
+        labelledBy
+          ? undefined
+          : `${size === "call" ? "اتصال — " : ""}${WAIN_AI_COPY.launcher} — ${WAIN_AI_COPY.callHint}`
+      }
       aria-labelledby={labelledBy}
       aria-expanded={open}
       aria-controls="wain-ai-panel"
@@ -154,9 +164,11 @@ export default function ShouqCallButton({
       // size-20 at "lg" is a photo filling the whole circle, not an icon
       // inset within it — see the size==="lg" branch below.
       className={`relative grid place-items-center overflow-hidden rounded-full transition ${
-        size === "lg" ? "size-20" : "size-8"
+        size === "call" ? "size-24" : size === "lg" ? "size-20" : "size-8"
       } ${
-        size === "lg"
+        size === "call"
+          ? `bg-palm-600 text-white shadow-lg shadow-palm-700/30 hover:bg-palm-700 active:scale-95 ${open ? "ring-4 ring-palm-500" : ""}`
+          : size === "lg"
           ? open
             ? "shadow-sm ring-4 ring-coral-500"
             : "shadow-sm"
@@ -165,7 +177,9 @@ export default function ShouqCallButton({
             : "text-coral-700 hover:bg-coral-50"
       } ${className}`}
     >
-      {size === "lg" ? (
+      {size === "call" ? (
+        <IconPhone className="size-11" />
+      ) : size === "lg" ? (
         /**
          * A photo, not IconShouq, at this one size — IconShouq's own
          * comment documents why: a headphone shape drawn into that glyph
@@ -192,7 +206,9 @@ export default function ShouqCallButton({
       {phase === "ringing" && (
         <span
           aria-hidden="true"
-          className="absolute inset-0 animate-ping rounded-full bg-coral-500/40 motion-reduce:animate-none"
+          className={`absolute inset-0 animate-ping rounded-full motion-reduce:animate-none ${
+            size === "call" ? "bg-palm-500/40" : "bg-coral-500/40"
+          }`}
         />
       )}
     </button>

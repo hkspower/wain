@@ -204,6 +204,9 @@ export const WAIN_AI_COPY = {
    * taught it, and nothing is seized before they can stop it.
    */
   callHint: "اضغط عشان تكلّم شوق",
+  // Under her name on /find's phone (2 October): what she is for, in the
+  // place a phone shows who you are calling.
+  phoneLine: "تدوّر لك وين تطلع",
   // The written half's own hint, same register as callHint above — /find's
   // اكتب half had no line under its button while اتصال's always did, which
   // read as the two halves carrying different amounts of care. «وياه» not
@@ -223,6 +226,7 @@ export const WAIN_AI_COPY = {
   listeningExamples: "«قهوة هادية» · «مطعم للعائلة» · «بحر»",
   loading: "نجهّز شوق…",
   close: "إغلاق",
+  back: "رجوع",
 
   // ---- the call ----------------------------------------------------------
   centre: "مركز اتصال وين",

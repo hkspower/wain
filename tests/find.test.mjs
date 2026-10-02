@@ -71,10 +71,10 @@ console.log('\n── /find offers exactly the two, equally ──');
   ok('the call half is شوق\'s — the typing half\'s سالم text sits below it', await p.locator('section[aria-label="اتصال"]', { hasText: 'سالم' }).count() === 0);
   ok('and the typing half names سالم', await p.locator('section[aria-label="اكتب"]', { hasText: 'سالم' }).isVisible());
   const box = await shouqButton.boundingBox();
-  // size="lg" (size-20, 80px) against the sm default (size-8, 32px) — this
-  // is the one thing a screenshot proves and an accessible-name check does
-  // not: that the prop actually reached the rendered button.
-  ok('the button is the "lg" size, not the inline default', box.width >= 70);
+  // The big call variant (size-24, 96px) against the sm default (size-8,
+  // 32px) — the one thing a screenshot proves and an accessible-name check
+  // does not: that the prop actually reached the rendered button.
+  ok('the button is the big call size, not the inline default', box.width >= 88);
   ok('no page errors', errors.length === 0);
   await ctx.close();
 }
@@ -85,6 +85,50 @@ console.log('\n── the typing option leads to سالم\'s chat page ──');
   await p.getByRole('link', { name: /ابدأ الكتابة/ }).click();
   await p.waitForURL('**/salem/**');
   ok('landed on /salem', p.url().includes('/salem'));
+  await ctx.close();
+}
+
+console.log('\n── the call half is a phone, with one big call button at its centre ──');
+// On request, 2 October («one call icon, big, at the centre, a big mobile with
+// "call"»). It was her photo full-bleed under a scrim, with an 80px portrait
+// for a button. Each width a phone, a small phone and a desktop.
+for (const [width, height] of [[390, 844], [320, 568], [1280, 800]]) {
+  const ctx = await browser.newContext({ viewport: { width, height }, locale: 'ar-KW' });
+  const p = await ctx.newPage();
+  await p.goto(`${B}/find/`, { waitUntil: 'networkidle' });
+  await p.waitForTimeout(700); // the reveal animations settle
+  const m = await p.evaluate(() => {
+    const sec = document.querySelector('section[aria-label="اتصال"]');
+    const phone = sec?.querySelector('[data-phone]');
+    const buttons = [...document.querySelectorAll('button[aria-controls="wain-ai-panel"]')];
+    const btn = buttons[0];
+    const r = (e) => e?.getBoundingClientRect();
+    const label = [...(phone?.querySelectorAll('span') ?? [])].find((e) => e.textContent.trim() === 'اتصال');
+    return {
+      buttons: buttons.length,
+      phone: phone ? { l: r(phone).left, rt: r(phone).right, w: r(phone).width } : null,
+      sec: sec ? { l: r(sec).left, w: r(sec).width } : null,
+      btn: btn ? { l: r(btn).left, w: r(btn).width, h: r(btn).height, top: r(btn).top } : null,
+      inPhone: !!(phone && btn && phone.contains(btn)),
+      photoOnScreen: !!phone?.querySelector('img[src*="shouq-face"]'),
+      bg: btn ? getComputedStyle(btn).backgroundColor : null,
+      btnImg: !!btn?.querySelector('img'),
+      btnSvg: !!btn?.querySelector('svg'),
+      labelBelow: !!(label && btn && r(label).top >= r(btn).bottom - 1),
+      name: btn?.getAttribute('aria-label') ?? '',
+    };
+  });
+  const tag = `${width}×${height}`;
+  ok(`${tag}: one call button, and it is on the phone`, m.buttons === 1 && m.inPhone, JSON.stringify(m));
+  ok(`${tag}: the phone sits centred in the half, inside the screen`,
+    !!m.phone && !!m.sec && Math.abs((m.phone.l + m.phone.w / 2) - (m.sec.l + m.sec.w / 2)) <= 8 && m.phone.l >= 0 && m.phone.rt <= width,
+    JSON.stringify(m.phone));
+  ok(`${tag}: the button is centred on it and big (≥ 88px)`,
+    !!m.btn && !!m.phone && Math.abs((m.btn.l + m.btn.w / 2) - (m.phone.l + m.phone.w / 2)) <= 8 && m.btn.w >= 88 && m.btn.h >= 88,
+    JSON.stringify(m.btn));
+  ok(`${tag}: it is a call button — green with a handset, not her portrait`, m.bg === 'rgb(31, 111, 61)' && m.btnSvg && !m.btnImg, `${m.bg} svg=${m.btnSvg} img=${m.btnImg}`);
+  ok(`${tag}: her photo is on the phone's screen`, m.photoOnScreen);
+  ok(`${tag}: «اتصال» is printed under it, and its name starts with that word`, m.labelBelow && m.name.startsWith('اتصال'), m.name);
   await ctx.close();
 }
 

@@ -875,16 +875,13 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
           // page underneath is fully covered either way, which is what
           // `tests/shouq-agent.test.mjs`'s "mostly behind it" note above
           // this component now reads as "entirely behind it".
-          className="wain-ai-panel fixed inset-0 z-50 flex flex-col overflow-y-auto bg-white"
+          className="wain-ai-panel fixed inset-0 z-[60] flex flex-col overflow-y-auto bg-white"
         >
           {/* Same reason as the launcher: the coral-500 end of this gradient
               cannot carry white body text at AA. pt- carries the safe-area
               inset itself now — full screen means this header IS the top
               edge, where the floating card used to sit clear of it. */}
           <header className="flex shrink-0 items-center gap-3 bg-gradient-to-l from-coral-800 to-coral-600 p-4 pt-[calc(1rem+env(safe-area-inset-top))] text-white">
-            <span className="relative grid size-11 shrink-0 place-items-center rounded-2xl bg-white/20">
-              <IconShouq className={`size-6 shouq ${talking ? "shouq--talking" : ""}`} />
-            </span>
             <span className="min-w-0 flex-1">
               <span className="block font-display text-lg font-semibold leading-tight">
                 {WAIN_AI_COPY.name}
@@ -913,9 +910,9 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
               type="button"
               onClick={closeSheet}
               aria-label={WAIN_AI_COPY.close}
-              className="grid size-8 shrink-0 place-items-center rounded-full bg-white/15 transition hover:bg-white/25"
+              className="grid size-10 shrink-0 place-items-center rounded-full bg-white/15 transition hover:bg-white/25"
             >
-              <IconClose className="size-4" />
+              <IconClose className="size-5" />
             </button>
           </header>
 
@@ -1038,13 +1035,19 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                   )}
 
                   {/* One red button that hangs up, on every path, meaning
-                      exactly one thing. */}
+                      exactly one thing — round and labelled under, the way a
+                      phone's own call screen draws it (2 October). It was a
+                      full-width bar, and on a live call the ElevenLabs panel
+                      sat over it; the label stays inside the button so the
+                      whole thing is one target with one name. */}
                   <button
                     type="button"
                     onClick={endCall}
-                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-coral-700 px-5 text-sm font-semibold text-white transition hover:bg-coral-800"
+                    className="group mx-auto inline-flex flex-col items-center gap-1.5 rounded-2xl px-3 py-1 text-sm font-semibold text-coral-800"
                   >
-                    <IconPhone className="size-4 rotate-[135deg]" />
+                    <span className="grid size-16 place-items-center rounded-full bg-coral-700 text-white shadow-md transition group-hover:bg-coral-800 group-active:scale-95">
+                      <IconPhone className="size-7 rotate-[135deg]" />
+                    </span>
                     {WAIN_AI_COPY.hangUp}
                   </button>
                 </div>
@@ -1066,14 +1069,23 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                     {lastAction}
                   </p>
                 )}
-                <button
-                  type="button"
-                  onClick={startCall}
-                  className="mt-4 inline-flex min-h-6 items-center gap-2 rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"
-                >
-                  <IconPhone className="size-4" />
-                  {WAIN_AI_COPY.callAgain}
-                </button>
+                <div className="mt-4 flex justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={startCall}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"
+                  >
+                    <IconPhone className="size-4" />
+                    {WAIN_AI_COPY.callAgain}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeSheet}
+                    className="inline-flex min-h-11 items-center rounded-xl border border-line-control bg-white px-5 text-sm font-semibold text-ink-700 transition hover:border-ink-400"
+                  >
+                    {WAIN_AI_COPY.back}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -1082,14 +1094,23 @@ export default function WainAiCall({ startSignal, onPhase }: Props) {
                 <p className="py-2 text-sm font-semibold text-ink-600" role="alert">
                   {errorText}
                 </p>
-                <button
-                  type="button"
-                  onClick={startCall}
-                  className="mt-2 inline-flex min-h-6 items-center gap-2 rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"
-                >
-                  <IconPhone className="size-4" />
-                  {WAIN_AI_COPY.callAgain}
-                </button>
+                <div className="mt-2 flex justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={startCall}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"
+                  >
+                    <IconPhone className="size-4" />
+                    {WAIN_AI_COPY.callAgain}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeSheet}
+                    className="inline-flex min-h-11 items-center rounded-xl border border-line-control bg-white px-5 text-sm font-semibold text-ink-700 transition hover:border-ink-400"
+                  >
+                    {WAIN_AI_COPY.back}
+                  </button>
+                </div>
               </div>
             )}
 
