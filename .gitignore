@@ -185,5 +185,8 @@ press/renders/*.blend
 # is not. The Unity project keeps its own .gitignore for Library/ etc.
 press/unity/unity.log
 
+# npm run max:export: the car shells as FBX for 3ds Max, rebuilt on demand.
+/press/max/
+
 # tools/export-media.mjs: copies of every deliverable, and their zips.
 /press/export/

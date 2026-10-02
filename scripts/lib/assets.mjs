@@ -138,6 +138,7 @@ export const ASSETS = [
 
   // ---- Scratch. A tool wrote it to answer a question, and the answer
   // was the number it printed.
+  { path: "press/max", kind: "scratch", optional: true, by: "tools/max/export_for_max.py", what: "The car shells as FBX for 3ds Max, with the envelope and a whole car for reference." },
   { path: "press/views", kind: "scratch", by: "tools/shots/car-views.mjs", what: "Car elevations, rendered on demand." },
   { path: "press/export", kind: "scratch", optional: true, by: "tools/export-media.mjs", what: "Copies of every deliverable, indexed and zipped for handing over." },
   { path: "press/decals", kind: "scratch", by: "tools/shots/decals.mjs", what: "Decal artwork, dumped to look at." },

@@ -330,7 +330,7 @@ const crowned = new WeakSet<THREE.BufferGeometry>();
  * tolerance anyway. It is cheap, and it is the only thing standing
  * between a stale GLB and a car that quietly stops being itself.
  */
-const SHELL_FIT_TOL = 0.01;
+export const SHELL_FIT_TOL = 0.01;
 
 function boxDrift(a: THREE.BufferGeometry, b: THREE.BufferGeometry): number {
   if (!a.boundingBox) a.computeBoundingBox();
@@ -422,6 +422,31 @@ export function surfaceDrift(a: THREE.BufferGeometry, b: THREE.BufferGeometry): 
   return worst;
 }
 
+/**
+ * The whole accept/reject test for one authored shell against the shell
+ * the game built itself, both already crowned: the box first, then the
+ * skin, each held to SHELL_FIT_TOL. Exported so the offline checker
+ * (scripts/check-shell-fit.mjs, run by the 3ds Max import) asks exactly
+ * the question the game asks.
+ */
+export function shellFit(
+  authored: THREE.BufferGeometry,
+  procedural: THREE.BufferGeometry
+): { box: number; skin: number; ok: boolean; reason: string } {
+  const box = boxDrift(authored, procedural);
+  if (box > SHELL_FIT_TOL) {
+    return { box, skin: NaN, ok: false, reason: `stale: ${(box * 1000).toFixed(0)} mm off the profile` };
+  }
+  // Same tolerance, asked of the skin rather than the box — see
+  // surfaceDrift for the 48 mm correction that moved the bounding
+  // box by nothing at all.
+  const skin = surfaceDrift(authored, procedural);
+  if (skin > SHELL_FIT_TOL) {
+    return { box, skin, ok: false, reason: `stale: skin ${(skin * 1000).toFixed(0)} mm off the profile` };
+  }
+  return { box, skin, ok: true, reason: "authored" };
+}
+
 export function upgradeCarShells(group: THREE.Group, style: BodyStyle): void {
   const verdict: Record<string, string> = (group.userData.shellSwap ??= {});
   if (!AUTHORED_SHELLS.has(style)) {
@@ -477,17 +502,9 @@ export function upgradeCarShells(group: THREE.Group, style: BodyStyle): void {
         crowned.add(geo);
         crownShell(geo, crownFor(style, slot));
       }
-      const off = boxDrift(geo, mesh.geometry);
-      if (off > SHELL_FIT_TOL) {
-        verdict[slot] = `stale: ${(off * 1000).toFixed(0)} mm off the profile`;
-        return;
-      }
-      // Same tolerance, asked of the skin rather than the box — see
-      // surfaceDrift for the 48 mm correction that moved the bounding
-      // box by nothing at all.
-      const skew = surfaceDrift(geo, mesh.geometry);
-      if (skew > SHELL_FIT_TOL) {
-        verdict[slot] = `stale: skin ${(skew * 1000).toFixed(0)} mm off the profile`;
+      const fit = shellFit(geo, mesh.geometry);
+      if (!fit.ok) {
+        verdict[slot] = fit.reason;
         return;
       }
       verdict[slot] = "authored";

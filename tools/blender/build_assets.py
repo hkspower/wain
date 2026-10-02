@@ -863,6 +863,8 @@ def main():
     ap.add_argument("--quality", default="max", choices=sorted(QUALITY))
     ap.add_argument("--only", default="cars,wheels,palm,police,driver",
                     help="comma-separated subset of cars,wheels,palm,police,driver")
+    ap.add_argument("--overwrite-max", action="store_true",
+                    help="rebuild car shells that were modelled in 3ds Max (tools/max) too")
     args = ap.parse_args(sys.argv[1:])
 
     Q = QUALITY[args.quality]
@@ -877,8 +879,20 @@ def main():
     report = {}
     print(f"quality: {args.quality}  {Q}")
 
+    # A shell that came back from 3ds Max (tools/max/import.mjs) is
+    # hand-modelled, and a re-loft from profiles.json would quietly throw
+    # that work away. build.json marks them; leave them alone unless told.
+    manifest_path = os.path.join(args.out, "build.json")
+    kept_max = {}
+    if os.path.exists(manifest_path) and not args.overwrite_max:
+        with open(manifest_path) as f:
+            kept_max = {k: v for k, v in json.load(f).get("assets", {}).items()
+                        if v.get("source") == "3ds Max"}
     if "cars" in only:
         for style in args.styles.split(","):
+            if f"car-{style}" in kept_max:
+                print(f"car-{style}.glb  skipped: modelled in 3ds Max (--overwrite-max to re-loft it)")
+                continue
             bpy.ops.wm.read_factory_settings(use_empty=True)
             emit(args.out, f"car-{style}", build_style(style, profiles[style]), report)
 
@@ -908,8 +922,7 @@ def main():
     # asset says the other six are procedural. Merge into the existing
     # manifest when the quality matches; refuse when it does not, since
     # a manifest mixing two qualities would describe no build at all.
-    manifest_path = os.path.join(args.out, "build.json")
-    manifest = {"quality": args.quality, "settings": Q, "assets": {}}
+    manifest = {"quality": args.quality, "settings": Q, "assets": dict(kept_max)}
     # ALL of them, from one place. This set was written out by hand and
     # went stale the moment "police" was added: a --only police build was
     # no longer a strict subset, so the merge was skipped and the whole

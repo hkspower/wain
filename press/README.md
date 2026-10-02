@@ -44,6 +44,7 @@ whether it belongs in the history at all.
 | `trailer/` | The trailer's Arabic narration take. The PNG frames, the lossless master and the MP4 are rebuilt by the tool and gigabytes between them. | `tools/shots/trailer.mjs` | part kept |
 | `renders/` | Studio renders of every catalogue car, exported from the game by tools/shots/export-cars.mjs and rendered in Cycles. The GLBs beside them are 160 MB of scratch, and renders.json is a timing log. | `tools/blender/render_cars.py` | part kept |
 | `unity/` | The same cars in a Unity (URP) studio, run on a machine with Unity 6; unity.log beside them is scratch. | `tools/unity/render-cars.sh` | part kept |
+| `max/` | The car shells as FBX for 3ds Max, with the envelope and a whole car for reference. | `tools/max/export_for_max.py` | regenerated |
 | `views/` | Car elevations, rendered on demand. | `tools/shots/car-views.mjs` | regenerated |
 | `export/` | Copies of every deliverable, indexed and zipped for handing over. | `tools/export-media.mjs` | regenerated |
 | `decals/` | Decal artwork, dumped to look at. | `tools/shots/decals.mjs` | regenerated |
