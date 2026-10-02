@@ -175,8 +175,8 @@ $canonical = SITE . $path . ($isEn ? '?lang=en' : '');
 // (scripts/make-white-tiles.py), so $hasRtlArt no longer decides either.
 // ?v= for the same reason as assets/tile-art.js's ART_VERSION: /cats/ may be
 // shown stale for days, so a changed picture needs a new URL. Keep them equal.
-$artDesktop = "/cats/desktop/art-$slug" . (!$isEn ? '-rtl' : '') . '.webp?v=20261002b';
-$artMobile  = "/cats/mobile/art-$slug" . (!$isEn ? '-rtl' : '') . '.webp?v=20261002b';
+$artDesktop = "/cats/desktop/art-$slug" . (!$isEn ? '-rtl' : '') . '.webp?v=20261002c';
+$artMobile  = "/cats/mobile/art-$slug" . (!$isEn ? '-rtl' : '') . '.webp?v=20261002c';
 
 // THE REAL DIMENSIONS, NOT A GUESS COPIED ACROSS ALL FOUR — 2026-09-21, asked
 // for as "fix aspect ration heros images". The <img> below carried a single
@@ -377,6 +377,14 @@ header('Cache-Control: public, max-age=0, must-revalidate');
   [dir=ltr] .cp-kicker { letter-spacing: .04em; }
   /* ONE PAGE-TITLE STYLE (2026-10-01): Alexandria 700, 26px phone / 30px from 768px, the
      orange bar under it — dark ink here because the banner behind it is white. */
+  /* Title only, no picture: the kicker and title sit at the top of the page, in the grid's
+     own column and gutter, so they line up with the product count under them. */
+  .cp-hero--text { background: transparent; }
+  .cp-hero--text .cp-copy {
+    position: static; max-width: 80rem; margin: 0 auto; background: none;
+    padding: 28px 16px 0;
+  }
+  @media (min-width: 768px) { .cp-hero--text .cp-copy { padding: 40px 16px 0; } }
   .cp-title {
     position: relative; margin: 0; padding-bottom: 16px;
     font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif !important;
@@ -405,17 +413,15 @@ header('Cache-Control: public, max-age=0, must-revalidate');
 <div id="root"><div class="flex min-h-screen flex-col">
 <?= shop_header($isEn, $slug) ?>
 <main id="main" tabindex="-1" class="flex-1">
-  <div class="cp-hero">
-    <picture>
-      <source media="(max-width: 640px)" srcset="<?= e($artMobile) ?>" width="<?= (int) $artMobileW ?>" height="<?= (int) $artMobileH ?>">
-      <img src="<?= e($artDesktop) ?>" alt="" width="<?= $artW ?>" height="<?= $artH ?>" loading="eager" fetchpriority="high">
-    </picture>
+  <?php /* NO CATEGORY PICTURE, 2026-10-02 (owner's choice: "title only"). The art still
+           exists for the home tiles and stays the page's og:image for link previews. */ ?>
+  <div class="cp-hero cp-hero--text">
     <div class="cp-copy">
       <p class="cp-kicker"><?= e($kicker) ?></p>
       <h1 class="cp-title"><?= e($name) ?></h1>
     </div>
   </div>
-  <section class="mx-auto max-w-7xl px-4 py-12">
+  <section class="mx-auto max-w-7xl px-4 py-12" style="padding-top:20px">
   <?php
   // Cross-link to the OTHER THREE category pages rather than to /shop —
   // /shop is not linked anywhere on these four pages, per the owner's own
