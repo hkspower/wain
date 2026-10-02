@@ -199,7 +199,7 @@ $WANT = [
     'assets/returns-request.js' => '13524131d58160089cf85e60781eeeb6ee188185e460af65a2d140e19d6af7a2',
     'assets/rolldown-runtime-QTnfLwEv.js' => '5db5ba82eef00d1dee7e86e663098c9427d01183a88d357437daff295aec3e75',
     'assets/rules-live.js' => 'f390963369dc57bee77ee1f98b0241bfa55da8f751fd3ea0fdaa036f2c5d6766',
-    'assets/rules.js' => 'fb6fab24df6bdb06787f1664a0e09a9b5114cbfc5c06c1ec5efeda05a59767d0',
+    'assets/rules.js' => '633b813774e04bf1570c7cebfb942f72093455c5994ad74f081bd64c6d5929f2',
     'assets/site-strings.json' => 'a319870c331a4baf8ce21850fbf2d39755a75c9bf9e51d701272ab9d8f09a21c',
     'assets/site-text-editor.js' => 'cfdb78241d97b500dad6ebcc31754e39548b02d5bb39eaf62a65f7759855de85',
     'assets/site-text.js' => '1f14de76655611e43bd56e6f92f8eb16b9b420f872f18bed927b966aeba559b6',
@@ -286,6 +286,7 @@ $WANT = [
     'hero/mobile/cardio-women.webp' => '5fa7332f877afee30941838cc3a3e446784c7cb3582705b3909ea847085fdde5',
     'hero/mobile/crossfit-men.webp' => '6efccef97d571ae3a22c504628d432aaa20605f72577fffb190744828c1be332',
     'images/README.txt' => 'dd1502a88b86ca0bc898489536e19f6cb36977eaab72624f96b2103af57e3ad7',
+    'images/_uploads/_assigned/sporta-rig-red-2.png' => '090d84b7058f390b56fd7efc6a879a6c3048402d5021de09a442cf99e58d1540',
     'images/ahed/PUT-LOGO-HERE.txt' => '17016da765f747fb1cb1839dadc9bb98d308104def94d6808f05f2c27e42de04',
     'images/ate/PUT-LOGO-HERE.txt' => 'd6b813220734f1af3c0f1dbcee1c099e10dfd007c53113a0ded12a9c6813effc',
     'images/eyesportwear/PUT-LOGO-HERE.txt' => 'f193ad1a6900793415dfa76098a5d134a7d3df21af834d075470273e24912168',
@@ -318,7 +319,7 @@ $WANT = [
     'sitemap-pages.xml' => 'bce21049f7497a847368e836dfad55e1304d94a2b4dfda57fab3caf602a5c340',
     'sitemap-products.xml' => '9e135e56f4e79bd68c65ee0c764f3e979715c3ac463f39f79a1b625fa6cfb383',
     'sitemap.xml' => 'e697770591a925cbb9d3f8aaa3e190dfe3c59ef8c2ac7efbda92d35ff7a0d5aa',
-    'sw.js' => 'c68096238833dfbe485c130c9a70e765cf75874636e00eb2aa52866bfa16bcbf',
+    'sw.js' => '100539b1cc8068e9ed5c7b7d6d8ffdda84891a0d1df3d6a71cb8c68a79c1dcf4',
 ];
 
 // FILES THAT MUST NOT BE ON A LIVE SERVER.
