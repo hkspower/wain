@@ -39,11 +39,17 @@ $ctx = stream_context_create([
 ]);
 $by = [];
 foreach ($files as $rel) {
-    $h = @file_get_contents('https://127.0.0.1' . str_replace('%2F', '/', rawurlencode($rel)) , false, $ctx, 0, 64);
-    $code = 0;
-    foreach (($http_response_header ?? []) as $line) if (preg_match('#^HTTP/\S+ (\d{3})#', $line, $m)) $code = (int) $m[1];
+    // 429 is the shop's own rate limiter answering, not an answer about the file: wait and ask again
+    // (a throttled probe reads exactly like a protected file, which is the failure this guards).
+    for ($try = 0; $try < 4; $try++) {
+        $h = @file_get_contents('https://127.0.0.1' . str_replace('%2F', '/', rawurlencode($rel)), false, $ctx, 0, 64);
+        $code = 0;
+        foreach (($http_response_header ?? []) as $line) if (preg_match('#^HTTP/\S+ (\d{3})#', $line, $m)) $code = (int) $m[1];
+        if ($code !== 429 && $code !== 503) break;
+        sleep(8);
+    }
     $by[$code][] = $rel;
-    usleep(60000);
+    usleep(700000);
 }
 ksort($by);
 foreach ($by as $code => $list) {
