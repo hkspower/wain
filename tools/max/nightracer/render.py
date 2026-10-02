@@ -139,21 +139,34 @@ def bitmap(pack, rel, mapping=None, alpha=False, clamp=False, raw=False):
         set_prop(b.coords, "V_Tile", False)
     if mapping:
         # Blender's Mapping node (Point): t = R(rot) S uv + L, about UV (0, 0).
-        # Max's StandardUVGen: t = R(w) S (uv - 0.5 - off) + 0.5, about the
-        # map centre, with the offset a displacement of the map; W turns the
-        # same way as Blender's Z. So off = S^-1 R(-rot) (0.5 - L) - 0.5.
+        # Max's StandardUVGen rotates FIRST and tiles second, about the map
+        # centre: t = S' R(w) (uv - 0.5 - off) + 0.5 (NVIDIA's 3ds Max Bitmap
+        # emulation, ad_3dsmax_maps.mdl). S' R(w) equals R(rot) S only when
+        # |sx| == |sy| (w = rot, or -rot when mirrored) or rot is a multiple
+        # of 90 degrees (at 90/270 the tiling swaps axes); anything else would
+        # need a skew StandardUVGen cannot express, and is logged.
+        # With M = R(rot) S matched, off = M^-1 (0.5 - L) - 0.5.
         # (No pack has a transform today; this is for the first that does.)
         c = b.coords
         (lx, ly), (sx, sy), rot = mapping["offset"], mapping["scale"], mapping["rotation"]
         sx = sx if abs(sx) > 1e-9 else 1e-9
         sy = sy if abs(sy) > 1e-9 else 1e-9
-        a, d = 0.5 - lx, 0.5 - ly
         cr, sr = math.cos(rot), math.sin(rot)
-        set_prop(c, "U_Tiling", sx)
-        set_prop(c, "V_Tiling", sy)
+        tu, tv, w = sx, sy, rot
+        if abs(cr) <= 1e-6:                      # 90 / 270 degrees: tiling swaps axes
+            tu, tv = sy, sx
+        elif abs(sr) > 1e-6:                     # any other non-trivial angle
+            tol = 1e-6 * max(1.0, abs(sx), abs(sy))
+            if abs(sx + sy) <= tol and abs(sx - sy) > tol:   # mirrored uniform scale
+                w = -rot
+            elif abs(sx - sy) > tol:
+                log("texture %s: rotation with non-uniform scale cannot be matched by StandardUVGen (it will skew)" % path)
+        a, d = 0.5 - lx, 0.5 - ly
+        set_prop(c, "U_Tiling", tu)
+        set_prop(c, "V_Tiling", tv)
         set_prop(c, "U_Offset", (a * cr + d * sr) / sx - 0.5)
         set_prop(c, "V_Offset", (-a * sr + d * cr) / sy - 0.5)
-        set_prop(c, "W_Angle", math.degrees(rot))
+        set_prop(c, "W_Angle", math.degrees(w))
     return b
 
 
