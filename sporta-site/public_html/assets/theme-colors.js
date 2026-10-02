@@ -257,6 +257,10 @@
        change. */
     var value = {}
     Object.keys(loaded).forEach(function (k) { value[k] = loaded[k] })
+    /* Not the device overrides: an absent key keeps the stored one, and
+       resending what was read at load would undo a device-card save since. */
+    delete value.phone
+    delete value.desktop
     var bad = null
     FIELDS.forEach(function (f) {
       var raw = String(card.querySelector('[data-hex="' + f.key + '"]').value || '').trim()

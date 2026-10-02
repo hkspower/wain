@@ -206,7 +206,42 @@
     .then(function (r) { return r.ok ? r.json() : null })
     .then(function (t) {
       if (!t || typeof t !== 'object') return
+      var css = vars(t)
+      var onPanel = /^\/backends(\/|$)/.test(location.pathname)
+      var kit = kitFor(t) || kitFor(t.phone) || kitFor(t.desktop)
+      if (kit && !document.querySelector('link[href="' + kit + '"]')) {
+        var link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = kit
+        document.head.insertBefore(link, el)
+      }
+      css += panel(t)
+      if (t.css && !onPanel) css += '\n/* custom */\n' + t.css + '\n'
+      /* PER-DEVICE OVERRIDES, 2026-10-02. `phone` and `desktop` carry only the
+         fields the owner set apart from all devices, in the same shape, and are
+         wrapped in the same breakpoints as sporta-mobile.css and
+         sporta-desktop.css. They come AFTER the all-devices rules, so a value
+         set for one device wins there and nowhere else. */
+      var DEV = { phone: '(max-width: 767.98px)', desktop: '(min-width: 768px)' }
+      for (var d in DEV) {
+        var o = t[d]
+        if (!o || typeof o !== 'object' || Array.isArray(o)) continue
+        var inner = vars(o)
+        if (o.css && !onPanel) inner += '\n/* custom ' + d + ' */\n' + o.css + '\n'
+        if (inner) css += '@media ' + DEV[d] + ' {\n' + inner + '}\n'
+      }
+      el.textContent = css
+    })
+    .catch(function () { /* No theme is the built theme. Never a broken page. */ })
 
+  var KITS = { 'neue-frutiger-world': 'https://use.typekit.net/zht6lkq.css' }
+  function kitFor(t) {
+    return t && typeof t === 'object' ? (KITS[t.font_head] || KITS[t.font_body]) : ''
+  }
+
+  /* Variables and font rules for one theme object — the all-devices row, or
+     one device's override. */
+  function vars(t) {
       var root =
         family(t.brand) +
         line('--accent-text', t.accent_text_light) +
@@ -261,14 +296,6 @@
          used to link it on every page, render-blocking, for a face the saved
          theme never named. Inserted BEFORE this file's <style> so that element
          stays last in the document, which is what lets these rules win. */
-      var KITS = { 'neue-frutiger-world': 'https://use.typekit.net/zht6lkq.css' }
-      var kit = KITS[t.font_head] || KITS[t.font_body]
-      if (kit && !document.querySelector('link[href="' + kit + '"]')) {
-        var link = document.createElement('link')
-        link.rel = 'stylesheet'
-        link.href = kit
-        document.head.insertBefore(link, el)
-      }
       if (t.font_body) {
         css += 'html, body, .eyebrow { font-family: "' + t.font_body + '", ' +
                STACK_BODY + ' !important; }\n'
@@ -277,6 +304,11 @@
         css += 'h1, h2, h3, .font-display { font-family: "' + t.font_head + '", ' +
                STACK_HEAD + ' !important; }\n'
       }
+      return css
+  }
+
+  function panel(t) {
+      var css = ''
 
       /* THE ADMIN PANEL'S OWN CHROME. Measured in AdminApp-*.js: it is built
          entirely from hardcoded Tailwind indigo classes — bg-indigo-600,
@@ -321,28 +353,8 @@
           '[class~="bg-indigo-50"],[class~="bg-indigo-100"]' +
           '{ background-color: color-mix(in srgb, var(--brand) 12%, white); }\n'
       }
-
-      /* THE OWNER'S OWN CSS, LAST, so it wins over everything above without
-         needing !important — and appended to the same <style>, so there is one
-         override element on the page rather than two racing each other.
-
-         NOT ON /backends. This is arbitrary CSS and it can hide anything,
-         including the box it was typed into. Skipping it on the panel means
-         the way back is always reachable: whatever it does to the shop, the
-         field that clears it still works. A theme editor that can lock you out
-         of the theme editor is not a feature.
-
-         textContent, never innerHTML: assigning to a <style> element's
-         textContent sets the stylesheet and parses no markup at all, so
-         `</style>` in the value cannot end the element. admin.php refuses `</`
-         as well — two guards for one hole, because this is the one field with
-         no shape to check. */
-      var onPanel = /^\/backends(\/|$)/.test(location.pathname)
-      if (t.css && !onPanel) css += '\n/* custom */\n' + t.css + '\n'
-
-      el.textContent = css
-    })
-    .catch(function () { /* No theme is the built theme. Never a broken page. */ })
+      return css
+  }
 
   /* UPLOADED FONTS, in a SEPARATE <style> and a separate fetch. This is not
      coupled to the theme request above: a shop that has never uploaded a

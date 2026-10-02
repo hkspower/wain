@@ -2878,7 +2878,8 @@ const STORE_SETTING_DEFAULTS = [
                     'font_head' => '', 'font_body' => '',
                     'radius' => '', 'space' => '', 'css' => '',
                     'header_bg' => '', 'tabbar_bg' => '',
-                    'tabbar_active' => '', 'secondary_bg' => ''],
+                    'tabbar_active' => '', 'secondary_bg' => '',
+                    'phone' => [], 'desktop' => []],
     // THE FOOTER'S PROSE, in both languages.
     //
     // Every value is '' by default and empty means "leave the built-in text

@@ -2335,6 +2335,11 @@ if ($r === 'settings_save' && $method === 'POST') {
         // project. It was a field in the editor that changed the shop in no way
         // at all. Any value a shop already saved simply stops being written
         // back; it was inert the whole time.
+        // ONE VALIDATOR FOR THREE THEMES, 2026-10-02. The row carries the
+        // all-devices theme at the top and two optional overrides, `phone`
+        // (below 768px) and `desktop` (768px and up), each held to exactly
+        // the same rules — a device override is not a looser channel.
+        $theme = static function (array $v): array {
         $err = null;
         $one = static function (string $k, string $re) use ($v, &$err): string {
             $raw = trim((string) ($v[$k] ?? ''));
@@ -2456,7 +2461,25 @@ if ($r === 'settings_save' && $method === 'POST') {
             'page_bg'           => $one('page_bg', $HEX),
             'css'               => $err === null ? trim($css) : '',
         ];
+        return [$out, $err];
+        };
+
+        [$out, $err] = $theme($v);
         if ($err !== null) store_fail('invalid_theme_' . $err);
+        // A save that does not MENTION a device keeps what is stored, so the
+        // older whole-row editors (theme-colors.js, custom-css.js) cannot wipe
+        // an override they know nothing about. Sending one replaces it whole;
+        // empty fields are dropped, and empty means "same as all devices".
+        $cur = store_setting($db, 'theme');
+        foreach (['phone', 'desktop'] as $dev) {
+            if (array_key_exists($dev, $v)) {
+                [$o, $e] = $theme(is_array($v[$dev]) ? $v[$dev] : []);
+                if ($e !== null) store_fail('invalid_theme_' . $dev . '_' . $e);
+                $out[$dev] = array_filter($o, static fn($x) => $x !== '');
+            } else {
+                $out[$dev] = is_array($cur[$dev] ?? null) ? $cur[$dev] : [];
+            }
+        }
         store_setting_save($db, 'theme', $out);
         store_out(store_setting($db, 'theme'));
     }
