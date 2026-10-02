@@ -711,6 +711,41 @@ on a Mac, and one look at the map with tiles would close all of it.
 one store listing. The same warning as there applies: it is fixed at the first
 upload.
 
+## The 2 October deploy — `898657bc` is live
+
+What shipped since `c9f1e28`: سالم's chat (a source name the server knows,
+and a transcript that scrolls), one call button (/find's), the hub's call as a
+link, and everything since the 30th that touched `src/` or `public/`.
+
+`{"ok":true,"version":"1.1.0","deployed":263,"removed":26,"emptied":1,"at":
+"2026-10-02T07:37:02+00:00"}` through the installed caller, one cron job
+(`Leos82YwlS`), read from its FIRST firing and deleted straight after; the
+listing then held sporta's eight and nothing else. The archive rode a
+commit-pinned raw URL (`67aed7d/wain-1.1.0.zip`, 4.0MB, sha256 `6708973d…`) —
+one more permanent blob, `DEPLOY_SECRET` still being unset.
+
+**Verified below the root**: `deploy:verify` said «898657bc is live — verified
+at the root and 6 levels below it», all six byte-exact (`css/438ae9afcb1fd30e.css`
+98,806; the build-id directory, the only one; the /search chunk 25,684;
+`explore/index.html` 18,699; a place page 62,918; its og image 44,217, with
+all 52 present). Then the cache purge, and a cron `wget` of
+`https://www.wainkw.com/build.json` through the edge returned `898657bc…` /
+`59dd56789fba8d83` — the digest `npm run release` stamped.
+
+**Gate before it**: `scan` (34 audits) green after regenerating
+`docs/design-system.html`, which documents the hub and had gone stale with it;
+`test:shouq` all suites, `test:hangout`, `test:journey` green.
+
+**Apps the same morning**: `flutter-ci` run 36978198954 green — analyze,
+tests, the iOS build and BOTH simulators (17 Pro and 17e). **TestFlight was
+skipped, not failed**: `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID` and
+`ASC_KEY_P8_BASE64` are all unset (`flutter_app/docs/ios-testflight.md`).
+
+**Not measured**: a real typed chat with سالم or a real call on a phone after
+this deploy. The source-name fix is the strongest explanation for the silence,
+and the first conversation that appears in `agents_list_conversations` with
+`text_only` is the proof.
+
 ## The 30 September deploy, third — `c9f1e28` is live: the orb texture and its disclosure
 
 Two files under `src/` and `public/` changed since `58f2bc6`:
